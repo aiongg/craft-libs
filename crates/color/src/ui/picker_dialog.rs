@@ -9,6 +9,7 @@
 //! }
 //! ```
 
+use craft_behavior::Mixed;
 use craft_cms::convert::CmykConverter;
 use craft_host::Host;
 use craft_host::target::Caps;
@@ -104,8 +105,10 @@ pub struct ColorPickerDialog {
     key: String,
     title: Title,
     title_args: Vec<(String, String)>,
-    opening: PickedColor,
-    current: PickedColor,
+    /// The colour the dialog opened with; `None` for a request whose items have different colours.
+    opening: Option<PickedColor>,
+    /// The colour as it stands; `None` until the first pick when the dialog opened without one.
+    current: Option<PickedColor>,
     compare: bool,
     remember: bool,
     add_to_swatches: bool,
@@ -137,21 +140,21 @@ impl ColorPickerDialog {
 
     /// A picker for the colour `key` names, titled `title`, opening on `color`.
     pub fn new(key: impl Into<String>, title: impl Into<Label>, color: Srgba) -> ColorPickerDialog {
-        ColorPickerDialog::with_title(key.into(), Title::Given(title.into()), color)
+        ColorPickerDialog::with_title(key.into(), Title::Given(title.into()), Some(color))
     }
 
     /// The foreground colour's picker: key `"foreground"`, "Color Picker (Foreground Color)".
     pub fn foreground(color: Srgba) -> ColorPickerDialog {
-        ColorPickerDialog::with_title("foreground".into(), Title::Foreground, color)
+        ColorPickerDialog::with_title("foreground".into(), Title::Foreground, Some(color))
     }
 
     /// The background colour's picker: key `"background"`, "Color Picker (Background Color)".
     pub fn background(color: Srgba) -> ColorPickerDialog {
-        ColorPickerDialog::with_title("background".into(), Title::Background, color)
+        ColorPickerDialog::with_title("background".into(), Title::Background, Some(color))
     }
 
-    fn with_title(key: String, title: Title, color: Srgba) -> ColorPickerDialog {
-        let opening = PickedColor { color, model: None };
+    fn with_title(key: String, title: Title, color: Option<Srgba>) -> ColorPickerDialog {
+        let opening = color.map(PickedColor::rgb);
         ColorPickerDialog {
             id: dialog_id(("color-picker", key.as_str())),
             key,
@@ -191,8 +194,9 @@ impl ColorPickerDialog {
     /// what the sRGB colour converts to (storytold/photocraft#4196).
     #[must_use]
     pub fn kept(mut self, values: craft_theme::ModelValues) -> ColorPickerDialog {
-        self.opening.model = Some(values);
-        self.current.model = Some(values);
+        for held in [&mut self.opening, &mut self.current].into_iter().flatten() {
+            held.model = Some(values);
+        }
         self
     }
 
@@ -261,20 +265,20 @@ impl ColorPickerDialog {
     }
 
     /// The colour as it stands this pass.
-    pub fn current(&self) -> PickedColor {
+    pub fn current(&self) -> Option<PickedColor> {
         self.current
     }
 
     /// The colour the dialog opened with: as given, until the first pass; then, with Only Web Colors on, snapped to the
     /// nearest web colour, which is what the compare swatch's "current" half shows and what Reset returns to.
-    pub fn opening(&self) -> PickedColor {
+    pub fn opening(&self) -> Option<PickedColor> {
         self.opening
     }
 
     /// Sets the colour as an edit would, for automation, scripts and the host's screen pick: the fields show `picked`'s
     /// model values when it has them, and the colour is what OK answers. The compare swatch keeps the opening colour.
     pub fn set_color(&mut self, picked: PickedColor) {
-        self.current = picked;
+        self.current = Some(picked);
     }
 
     /// The colour Add to Swatches was pressed for, once; `None` otherwise.
@@ -293,14 +297,15 @@ impl ColorPickerDialog {
     }
 
     /// What OK does: stores the remembered field component and Only Web Colors, and answers with the colour.
-    fn accept(&mut self, ctx: &Context) -> ColorPickerResult {
+    fn accept(&mut self, ctx: &Context) -> Option<ColorPickerResult> {
+        let picked = self.current?;
         self.requests.cancel();
         if self.remember
             && let Some(host) = self.host.clone().or_else(|| Host::try_of_ctx(ctx))
         {
             Remembered::<ColorPickerMemory>::new(MEMORY_SCOPE).store(&host, &self.memory);
         }
-        ColorPickerResult { key: self.key.clone(), picked: self.current }
+        Some(ColorPickerResult { key: self.key.clone(), picked })
     }
 
     /// The first pass: recalls the remembered field component and Only Web Colors, and with Only Web Colors on snaps
@@ -314,9 +319,11 @@ impl ColorPickerDialog {
         {
             self.memory = memory;
         }
-        if self.memory.web_colors {
-            let [r, g, b] = web_safe([self.opening.color.r, self.opening.color.g, self.opening.color.b]);
-            self.opening = PickedColor { color: Srgba { r, g, b, a: self.opening.color.a }, model: None };
+        if self.memory.web_colors
+            && let Some(opening) = self.opening
+        {
+            let [r, g, b] = web_safe([opening.color.r, opening.color.g, opening.color.b]);
+            self.opening = Some(PickedColor { color: Srgba { r, g, b, a: opening.color.a }, model: None });
             self.current = self.opening;
         }
     }
@@ -351,7 +358,7 @@ impl StackDialog for ColorPickerDialog {
             let host = Host::try_of_ctx(ctx);
             self.start(host.as_ref());
         }
-        Some(self.accept(ctx))
+        self.accept(ctx)
     }
 
     /// The host closed the dialog from outside: its dropper ends with it.
@@ -390,7 +397,7 @@ impl StackDialog for ColorPickerDialog {
         let cmyk = CmykModel::new(self.cmyk.clone().unwrap_or_else(|| CmykConverter::coated().clone()));
         let footer = ResetFooter::new(ui, None, true);
         let changed = self.current != self.opening;
-        let mut buttons = footer.buttons(FooterButton::new(common.ok.clone(), DialogRole::Accept), changed).to_vec();
+        let mut buttons = footer.buttons(FooterButton::new(common.ok.clone(), DialogRole::Accept).enabled(self.current.is_some()), changed).to_vec();
         if self.add_to_swatches {
             buttons.push(FooterButton::new(words.add_to_swatches.clone(), DialogRole::Other).stays_open(true));
         }
@@ -399,22 +406,28 @@ impl StackDialog for ColorPickerDialog {
         let keep_open = self.canvas;
         let screen = self.eyedropper && env.view().shell().caps.contains(Caps::SCREEN_CAPTURE);
         let Self { current, opening, compare, memory, screen_busy, sample, pending_screen, open, .. } = self;
-        let (sampled, busy, compare_with) = (sample.take(), *screen_busy, compare.then_some(opening.color));
-        let color = current.color;
+        let mut held: Mixed<PickedColor> = current.map_or(Mixed::Mixed, Mixed::Same);
+        let (sampled, busy, compare_with) =
+            (sample.take(), *screen_busy, compare.then(|| opening.map_or(Mixed::Mixed, |opening| Mixed::Same(opening.color))));
+        let color = current.map(|current| current.color);
         let web_only = memory.web_colors;
-        let shown =
-            Dialog::new(title.clone()).opened(Bind::bound(open)).buttons(buttons).close_on_enter(true).initial_focus(Initial::Keep).roomy(true).show(
-                ui,
-                |ui, cx| {
-                    if let Some(canvas) = keep_open {
-                        cx.keep_view_open(canvas);
-                    }
-                    if let Some(canvas) = arm {
-                        cx.arm_sampler(canvas);
-                    }
-                    let mut models: Vec<&dyn ColorModel> = builtin_models().into_iter().filter(|model| model.default_on().full).collect();
-                    models.push(&cmyk);
-                    let mut warnings = Vec::new();
+        let shown = Dialog::new(title.clone())
+            .opened(Bind::bound(open))
+            .buttons(buttons)
+            .close_on_enter(true)
+            .initial_focus(Initial::Keep)
+            .roomy(true)
+            .show(ui, |ui, cx| {
+                if let Some(canvas) = keep_open {
+                    cx.keep_view_open(canvas);
+                }
+                if let Some(canvas) = arm {
+                    cx.arm_sampler(canvas);
+                }
+                let mut models: Vec<&dyn ColorModel> = builtin_models().into_iter().filter(|model| model.default_on().full).collect();
+                models.push(&cmyk);
+                let mut warnings = Vec::new();
+                if let Some(color) = color {
                     let rgb = [color.r, color.g, color.b];
                     if let Some(nearest) = cmyk.converter().nearest_in_gamut(rgb, CmykConverter::PICKER_GAMUT_DE) {
                         warnings
@@ -426,39 +439,40 @@ impl StackDialog for ColorPickerDialog {
                             Srgba { r: nearest[0], g: nearest[1], b: nearest[2], a: color.a },
                         ));
                     }
-                    let mut picker = ColorPicker::new(title.clone(), Bind::bound(current))
-                        .layout(ColorPickerLayout::Full)
-                        .models(models)
-                        .mode(Bind::bound(&mut memory.mode))
-                        .web_colors(Bind::bound(&mut memory.web_colors))
-                        .warnings(warnings)
-                        .eyedropper(screen)
-                        .eyedropper_busy(busy)
-                        .focus_on_open(true);
-                    if let Some(sampled) = sampled {
-                        picker = picker.sampled(sampled);
-                    }
-                    if let Some(compare) = compare_with {
-                        picker = picker.compare(compare);
-                    }
-                    if let Some(gesture) = picker.show(ui).screen_pick {
-                        *pending_screen = Some(gesture);
-                    }
-                },
-            );
+                }
+                let mut picker = ColorPicker::new(title.clone(), Bind::bound_mixed(&mut held))
+                    .layout(ColorPickerLayout::Full)
+                    .models(models)
+                    .mode(Bind::bound(&mut memory.mode))
+                    .web_colors(Bind::bound(&mut memory.web_colors))
+                    .warnings(warnings)
+                    .eyedropper(screen)
+                    .eyedropper_busy(busy)
+                    .focus_on_open(true);
+                if let Some(sampled) = sampled {
+                    picker = picker.sampled(sampled);
+                }
+                if let Some(compare) = compare_with {
+                    picker = picker.compare(compare);
+                }
+                if let Some(gesture) = picker.show(ui).screen_pick {
+                    *pending_screen = Some(gesture);
+                }
+            });
+        self.current = held.same().copied();
 
         let (picked, closed) = (shown.output.picked, shown.output.closed);
-        let ok = picked == Some(0) || closed == Some(CloseReason::Enter);
+        let ok = (picked == Some(0) || closed == Some(CloseReason::Enter)) && self.current.is_some();
         if !ok && picked == Some(1) && footer.resetting() {
             self.current = self.opening;
             return None;
         }
         if picked == Some(2) {
-            self.pending_swatch = Some(self.current);
+            self.pending_swatch = self.current;
             return None;
         }
         match (ok, closed) {
-            (true, _) => Some(DialogResult::Ok(self.accept(ui.ctx()))),
+            (true, _) => self.accept(ui.ctx()).map(DialogResult::Ok),
             (false, Some(_)) => {
                 self.requests.cancel();
                 Some(DialogResult::Cancel)

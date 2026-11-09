@@ -1,15 +1,19 @@
 //! Content painters and document text.
 
-use super::draw::StrokeWidth;
+use super::draw::{Draw, DrawEnv, StrokeWidth};
+use super::record::PaintRecord;
 use super::text::{HAlign, TextLayout, aligned_rows};
 use crate::fonts::{FontRef, SEMIBOLD, stack_facts};
 use crate::runtime::egui::text_layout;
-use crate::style::{DataColor, Ink, UiTokens, ink_color};
+use crate::runtime::env::Env;
+use crate::style::{DataColor, Ink, StyleCx, UiTokens, ink_color};
 use craft_i18n::Direction;
+use craft_theme::Variant;
 use egui::epaint::text::{FontId, TextDirection};
 use egui::text::{LayoutJob, TextFormat};
 use egui::{Color32, Context, FontFamily, Painter, Stroke};
 use std::borrow::Cow;
+use std::cell::RefCell;
 
 /// The weight of a regular run.
 const REGULAR: u16 = 400;
@@ -25,13 +29,40 @@ pub struct ContentPainterCx<'a> {
     pub painter: Painter,
     pub(super) tokens: &'a UiTokens,
     pub(super) direction: Direction,
+    env: &'a Env,
     ink: Ink,
 }
 
 impl<'a> ContentPainterCx<'a> {
-    /// A raw painter for a content painter, with the tokens, direction and surface ink the content-paint kit reads.
-    pub(crate) fn new(painter: Painter, tokens: &'a UiTokens, direction: Direction, ink: Ink) -> Self {
-        ContentPainterCx { painter, tokens, direction, ink }
+    /// A raw painter for a content painter, with the env of the scope it paints for and the surface ink the
+    /// content-paint kit reads.
+    pub(crate) fn new(painter: Painter, env: &'a Env, ink: Ink) -> Self {
+        ContentPainterCx { painter, tokens: &env.tokens, direction: env.direction, env, ink }
+    }
+
+    /// The style context of the scope being painted, for a content painter that resolves the style of a component
+    /// it draws the face of.
+    pub(crate) fn style_cx(&self) -> StyleCx<'_> {
+        let env = self.env;
+        StyleCx::new(
+            self.painter.ctx(),
+            &env.tokens,
+            &env.values,
+            env.size,
+            Variant::SECONDARY,
+            env.direction,
+            env.scale,
+            env.os,
+            env.active,
+            env.key,
+            env.line_ratio,
+        )
+    }
+
+    /// Runs `paint` with a `Draw` over this painter, in the scope's tokens and direction.
+    pub(crate) fn with_draw<R>(&self, paint: impl FnOnce(&Draw<'_>) -> R) -> R {
+        let record = RefCell::new(PaintRecord::default());
+        paint(&Draw::new(&self.painter, &record, DrawEnv { tokens: self.tokens, direction: self.direction, ink: self.ink }))
     }
 
     /// The colour of text and glyphs on the surface being painted: the resolved content-text colour `Draw` paints
@@ -54,6 +85,7 @@ impl<'a> ContentPainterCx<'a> {
             painter: super::draw::faded_painter(&self.painter, share),
             tokens: self.tokens,
             direction: self.direction,
+            env: self.env,
             ink: self.ink,
         };
         paint(&faded);

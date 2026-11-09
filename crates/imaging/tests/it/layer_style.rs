@@ -305,7 +305,7 @@ fn color_field_reports_a_colour_request_with_the_effect_and_key() {
     fixture.idle(2);
     let host = host.borrow();
     let [request] = host.colors.as_slice() else { panic!("one request: {}", host.colors.len()) };
-    assert_eq!((request.key.as_str(), request.color), ("fx1/color", Srgba::BLACK));
+    assert_eq!((request.key.as_str(), request.color), ("fx1/color", Some(Srgba::BLACK)));
     assert_eq!(request.title.as_ref().map(|title| title.as_str()), Some("Color Picker (Layer Style Color)"));
 }
 

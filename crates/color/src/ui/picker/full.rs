@@ -1,6 +1,6 @@
 //! The Full layout of `ColorPicker` (the Color Picker dialog), and the warnings beside its compare swatch.
 
-use craft_behavior::{ColumnWidth, IconId, Metrics, NavShape, Sense};
+use craft_behavior::{ColumnWidth, IconId, Metrics, Mixed, NavShape, Sense};
 use craft_theme::{ColorModel, HsbModel, OklchModel, RgbModel, Srgba};
 use craft_ui::choice::{Checkbox, Radio, RadioGroup, Swatch};
 use craft_ui::contract::{
@@ -192,13 +192,15 @@ impl<'a> Body<'a> {
 
     /// The compare swatch: the colour being edited over the current one, with their captions; a click on the current
     /// half sets it.
-    fn compare_swatch(&self, ui: &mut Ui, pass: &Pass<'a>, current: Srgba, words: &ColorPickerWords, got: &mut Collected) {
+    fn compare_swatch(&self, ui: &mut Ui, pass: &Pass<'a>, current: Mixed<Srgba>, words: &ColorPickerWords, got: &mut Collected) {
         let caption = |text: &str| Text::new(text.to_owned()).role(TypeRole::Caption).shade(Shade::Muted);
         Stack::new().show(ui, |ui, _| {
             caption(words.new_caption.as_str()).show(ui);
-            Swatch::new(words.new_color.as_str().to_owned(), pass.shown.color).fill().show(ui);
+            Swatch::new(words.new_color.as_str().to_owned(), pass.shows(pass.shown.color)).fill().show(ui);
             let restore = words.restore.as_str().to_owned();
-            if Swatch::new(restore.clone(), current).tooltip(restore).fill().show(ui).clicked {
+            if Swatch::new(restore.clone(), current).tooltip(restore).fill().show(ui).clicked
+                && let Mixed::Same(current) = current
+            {
                 got.clicks.push(current);
             }
             caption(words.current_caption.as_str()).show(ui);
@@ -272,7 +274,7 @@ impl<'a> Body<'a> {
                             if let Some(mode) = mode {
                                 Radio::new(mode).label(name.clone()).show(ui);
                             }
-                            let field = NumberField::new(name.clone(), Bind::given(Some(value)))
+                            let field = NumberField::new(name.clone(), Bind::given(pass.shows(Some(value))))
                                 .range(rule.range.clone())
                                 .step(rule.step)
                                 .snap_typed(true)

@@ -1,6 +1,7 @@
 //! The picker's body: the Compact layout, and the parts both layouts show (the area and strip, the hex field and the
 //! screen-pick button). The Full layout is in `full.rs`.
 
+use craft_behavior::Mixed;
 use craft_theme::{ColorModel, Srgba};
 use craft_ui::contract::{Bind, Entry, Props as _, Show as _, ShowContainer as _};
 use craft_ui::form::FieldGroup;
@@ -22,7 +23,7 @@ pub(super) struct Body<'a> {
     pub layout: ColorPickerLayout,
     pub models: Vec<&'a dyn ColorModel>,
     pub warnings: Vec<ColorWarning>,
-    pub compare: Option<Srgba>,
+    pub compare: Option<Mixed<Srgba>>,
     pub alpha: bool,
     pub dynamic_tracks: bool,
     pub eyedropper: bool,
@@ -50,9 +51,12 @@ impl<'a> Body<'a> {
             FieldGroup::new(words.channels.as_str().to_owned()).show(ui, |ui, _| {
                 let values = pass.shown.values_in(model);
                 for (i, channel) in model.channels().iter().enumerate() {
-                    let mut row =
-                        ChannelRow::new(channel_name(model, i, &visible), Bind::given(f64::from(values.values[i])), ChannelRule::of(channel))
-                            .unit(ChannelUnit::of(channel.unit));
+                    let mut row = ChannelRow::new(
+                        channel_name(model, i, &visible),
+                        Bind::given(pass.shows(f64::from(values.values[i]))),
+                        ChannelRule::of(channel),
+                    )
+                    .unit(ChannelUnit::of(channel.unit));
                     if self.dynamic_tracks {
                         row = row.track(model.track(i, &values));
                     }
@@ -105,7 +109,7 @@ impl<'a> Body<'a> {
             return;
         }
         let opaque = pass.shown.color.with_alpha(1.0);
-        let row = ChannelRow::new(words.opacity.as_str().to_owned(), Bind::given(pass.shown.alpha_percent()), ChannelRule::ALPHA)
+        let row = ChannelRow::new(words.opacity.as_str().to_owned(), Bind::given(pass.shows(pass.shown.alpha_percent())), ChannelRule::ALPHA)
             .unit(ChannelUnit::Percent)
             .track(vec![opaque.with_alpha(0.0), opaque])
             .checker(true);
@@ -116,7 +120,9 @@ impl<'a> Body<'a> {
 
     /// The hex field. The Full layout's first show focuses it.
     pub(super) fn hex_field(&self, ui: &mut Ui, pass: &Pass<'a>, words: &ColorPickerWords, got: &mut Collected) {
-        let edit = TextField::hex(words.hex.as_str().to_owned(), Bind::given(pass.shown.color.to_rgba())).show(ui);
+        let edit = TextField::hex(words.hex.as_str().to_owned(), Bind::given(pass.shows(pass.shown.color.to_rgba())))
+            .empty(pass.shown.color.to_rgba())
+            .show(ui);
         if pass.focus_hex {
             focus::request(ui.ctx(), FocusTarget::Id(edit.response.id));
         }

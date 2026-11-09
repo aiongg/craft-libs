@@ -11,3 +11,6 @@ mod picker;
 
 // The browser's action rows.
 mod actions;
+
+// The swatch face in a thumbnail.
+mod swatch_thumb;

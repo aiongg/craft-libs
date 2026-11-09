@@ -4,11 +4,12 @@
 use super::radio::RadioKind;
 use super::words::ChoiceWords;
 use crate::contract::{
-    Access, Activation, Common, Component, Cx, GroupHandle, MeasureCx, Outcome, PaintUi, Pointer as _, Props as _, Role, Styled as _, WordSetCx as _,
+    Access, Activation, Common, Component, Cx, GroupHandle, MeasureCx, Meta as _, Outcome, PaintUi, Pointer as _, Props as _, Role, Styled as _,
+    WordSetCx as _,
 };
-use crate::primitives::{Checker, PaintShape, StrokeWidth};
+use crate::primitives::{Checker, ContentPainterCx, Draw, PaintShape, StrokeWidth};
 use crate::runtime::requests::ColorRequest;
-use crate::style::{ComponentStyle, DataColor, Flags, FocusLook, StyleColor, StyleCx, UiTokens};
+use crate::style::{ComponentStyle, DataColor, Flags, FocusLook, State, StateMix, StateSet, StyleColor, StyleCx, UiTokens, resolve_style};
 use craft_behavior::{CursorIcon, CursorPriority, Metrics, Mixed, Sense, Value};
 use craft_theme::{Rgba, Srgba, Stateful, States, over};
 use egui::{Color32, CornerRadius, Rect, Response, Shape, Vec2, pos2};
@@ -93,7 +94,7 @@ pub struct SwatchOutput {
     /// How the enabled swatch was activated: by key or click, with the modifiers held (Cmd or Ctrl-click and
     /// Alt-click reach the palette that owns the swatch).
     pub activation: Option<Activation>,
-    /// The request for the host's colour picker, set on a click of a `picker` swatch that shows a colour.
+    /// The request for the host's colour picker, set on a click of a `picker` swatch; it has no colour while the swatch is `Mixed`.
     pub pick_color: Option<ColorRequest>,
 }
 
@@ -111,8 +112,8 @@ impl Outcome for SwatchOutput {
 /// panel. A `Mixed` colour shows a neutral well with a dash and has no colour value. A click reports `clicked` and the
 /// `activation`. A swatch with a `picker` key also files a `ColorRequest` for that key, opened at the swatch's colour
 /// and titled with its label, as `pick_color`; the host opens its colour picker and answers with the picked colour. A
-/// `Mixed` swatch opens at `mixed_start`, the first value of the mixed set, and files no request without one
-/// (`ColorRequest` has no empty colour). The host writes the pick to every target.
+/// `Mixed` swatch files a request with no colour: the host's picker opens empty and the first pick sets the colour.
+/// The host writes the pick to every target.
 ///
 /// AccessKit reports a colour well named by the label, whose value is the colour as `#rrggbb` (`#rrggbbaa` when
 /// translucent) and whose colour value is the colour; a mixed well has the value "Mixed" and no colour value.
@@ -137,10 +138,6 @@ pub struct Swatch<T: Value + 'static = ()> {
     /// The key of the `ColorRequest` a click files.
     #[prop(into)]
     picker: Option<String>,
-    /// The colour a `picker` swatch's request opens at while the swatch is `Mixed`: the first value of the mixed
-    /// set, when the host has one.
-    #[prop(into)]
-    mixed_start: Option<Srgba>,
     checked: bool,
     activation: Option<Activation>,
 }
@@ -148,18 +145,8 @@ pub struct Swatch<T: Value + 'static = ()> {
 impl Swatch<()> {
     /// A swatch of `color` named `label`.
     pub fn new(label: impl Into<crate::runtime::env::Label>, color: impl Into<Mixed<Srgba>>) -> Self {
-        Swatch {
-            common: Common::new(),
-            color: color.into(),
-            member: None,
-            cell: false,
-            fill: false,
-            picker: None,
-            mixed_start: None,
-            checked: false,
-            activation: None,
-        }
-        .label(label)
+        Swatch { common: Common::new(), color: color.into(), member: None, cell: false, fill: false, picker: None, checked: false, activation: None }
+            .label(label)
     }
 }
 
@@ -173,7 +160,6 @@ impl<T: Value + 'static> Swatch<T> {
             cell: self.cell,
             fill: self.fill,
             picker: self.picker,
-            mixed_start: self.mixed_start,
             checked: false,
             activation: None,
         }
@@ -261,40 +247,75 @@ impl<T: Value + 'static> Component for Swatch<T> {
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
-        let style = cx.style;
-        let well = cx.rect;
-        let shape = PaintShape::Rect(well, style.radius);
-        match self.color.same() {
-            None => {
-                let draw = ui.draw();
-                draw.fill(&shape, style.mixed_fill);
-                let (center, half) = (well.center(), well.width() * MIXED_DASH_SHARE / 2.0);
-                draw.stroke(
-                    &PaintShape::Path(vec![pos2(center.x - half, center.y), pos2(center.x + half, center.y)]),
-                    StrokeWidth::Medium,
-                    style.mixed_mark,
-                );
-            }
-            Some(color) => {
-                if color.a < 1.0 {
-                    let shapes = ui.with_style(cx.resolved.variant, |style| Checker::new().shapes(style.tokens, well, well));
-                    ui.content_painter(cx).painter.extend(rounded(shapes, well, style.radius));
-                }
-                ui.draw().data_fill(&shape, DataColor::new(Color32::from(*color)));
-            }
-        }
-        let draw = ui.draw();
-        draw.stroke(&shape, StrokeWidth::Thin, cx.resolve(&style.edge));
-        draw.stroke(&shape, StrokeWidth::Thick, cx.resolve(&style.ring));
+        paint_face(&ui.draw(), &ui.env.tokens, cx.rect, cx.style, cx.state(), self.color);
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> SwatchOutput {
-        let pick_color = self
-            .picker
-            .zip(self.color.same().copied().or(self.mixed_start))
-            .filter(|_| self.activation.is_some())
-            .map(|(key, color)| ColorRequest::new(key, color).title(cx.label()));
+        let pick_color =
+            self.picker.filter(|_| self.activation.is_some()).map(|key| ColorRequest::new(key, self.color.same().copied()).title(cx.label()));
         SwatchOutput { response: cx.response.clone(), clicked: self.activation.is_some(), activation: self.activation, pick_color }
+    }
+}
+
+/// The one swatch face painter: the well of `color` in `well` (a checkerboard behind a translucent colour, the dash
+/// of a mixed one), then the outline ring and the selection ring, in `state`.
+fn paint_face(draw: &Draw<'_>, tokens: &UiTokens, well: Rect, style: &SwatchStyle, state: &StateSet, color: Mixed<Srgba>) {
+    let shape = PaintShape::Rect(well, style.radius);
+    match color.same() {
+        None => {
+            draw.fill(&shape, style.mixed_fill);
+            let (center, half) = (well.center(), well.width() * MIXED_DASH_SHARE / 2.0);
+            draw.stroke(
+                &PaintShape::Path(vec![pos2(center.x - half, center.y), pos2(center.x + half, center.y)]),
+                StrokeWidth::Medium,
+                style.mixed_mark,
+            );
+        }
+        Some(color) => {
+            if color.a < 1.0 {
+                for cell in rounded(Checker::new().shapes(tokens, well, well), well, style.radius) {
+                    if let Shape::Rect(cell) = cell {
+                        draw.data_fill(&PaintShape::Rect(cell.rect, cell.corner_radius), DataColor::new(cell.fill));
+                    }
+                }
+            }
+            draw.data_fill(&shape, DataColor::new(Color32::from(*color)));
+        }
+    }
+    draw.stroke(&shape, StrokeWidth::Thin, state.resolve(&style.edge));
+    draw.stroke(&shape, StrokeWidth::Thick, state.resolve(&style.ring));
+}
+
+/// The face of a swatch outside a `Swatch`: a preset thumbnail of a colour (`PresetBrowser::thumb`). It paints
+/// what a non-cell `Swatch` of the same colour paints, from the style that `Swatch` resolves, with the selected
+/// ring when `selected`.
+#[derive(Clone, Copy, Debug)]
+pub struct SwatchFace {
+    color: Mixed<Srgba>,
+    selected: bool,
+}
+
+impl SwatchFace {
+    /// The face of `color`, not selected.
+    pub fn new(color: impl Into<Mixed<Srgba>>) -> Self {
+        SwatchFace { color: color.into(), selected: false }
+    }
+
+    /// Whether the selected ring shows.
+    #[must_use]
+    pub const fn selected(mut self, selected: bool) -> Self {
+        self.selected = selected;
+        self
+    }
+
+    /// Paints the face filling `rect`.
+    pub fn paint(&self, cx: &ContentPainterCx<'_>, rect: Rect) {
+        let key = Swatch::new("", self.color).style_key();
+        let scope = cx.style_cx();
+        let style = resolve_style(&scope, key, cx.painter.ctx(), Swatch::<()>::style);
+        let (flags, on) = if self.selected { (Flags::SELECTED, 1.0) } else { (Flags::empty(), 0.0) };
+        let state = StateSet::new(State::Rest, flags, StateMix::new(0.0, 0.0, on));
+        cx.with_draw(|draw| paint_face(draw, scope.tokens, rect, &style, &state, self.color));
     }
 }
 

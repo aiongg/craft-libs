@@ -179,7 +179,7 @@ fn a_photo_filter_preset_sets_its_colour_and_the_well_asks_for_one() {
     rig.fixture.idle(2);
     let filed = requests.borrow();
     let [request] = filed.as_slice() else { panic!("one request: {filed:?}") };
-    assert_eq!((request.key.as_str(), request.color), ("photoFilter.color", cooling));
+    assert_eq!((request.key.as_str(), request.color), ("photoFilter.color", Some(cooling)));
     assert_eq!(request.title.as_ref().map(|title| title.as_str()), Some("Filter Color"));
 }
 
@@ -293,7 +293,7 @@ fn the_tint_well_asks_for_a_colour_only_while_tint_is_on() {
     };
     let (disabled, filed) = requested(true);
     assert!(!disabled);
-    assert_eq!(filed.iter().map(|request| (request.key.as_str(), request.color)).collect::<Vec<_>>(), [("blackWhite.tint", tint_color)]);
+    assert_eq!(filed.iter().map(|request| (request.key.as_str(), request.color)).collect::<Vec<_>>(), [("blackWhite.tint", Some(tint_color))]);
     let (disabled, filed) = requested(false);
     assert!(disabled);
     assert!(filed.is_empty());
