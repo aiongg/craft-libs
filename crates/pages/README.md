@@ -18,6 +18,5 @@ The widgets read the document through small traits (`PageSource`, `PageTextSourc
 
 Page numbers use `craft-text`'s list number styles. The spreadsheet grid is `craft-table`'s.
 
-`craft_pages::ui::WORDS` lists the widgets' labels tables (keys `pageThumbnails.*`, `margins.*`, `headerFooter.*`, `tableProperties.*` and one namespace per other table) and `ui::COUNTS` the count words, for the `craft` facade's catalog extraction.
 
-Stories (in `craft::story::all()` with the `pages` and `ui` features): `patterns/page-view/{continuous,spreads}`, `patterns/page-thumbnails/strip`, `patterns/page-list/artboards`, `patterns/page-setup-dialog/dialog`, `patterns/page-range-field/field`, `patterns/page-preview/overlay`, `patterns/table-properties/panel`, `composites/column-bar/bar`, `composites/edge-picker/cell` and `composites/table-size-picker/grid`.
+Stories are `#[story]` functions in `src/ui/*/stories.rs`; they register in `craft_ui::testing::STORIES` and the `craft-ui-gallery` viewer lists them by the type they show.
