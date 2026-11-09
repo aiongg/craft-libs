@@ -261,7 +261,32 @@ impl Rig {
     }
 
     fn pick(&mut self, label: &str) {
+        self.open_list_wheeled(5.0);
+        self.click(label);
+    }
+
+    /// Opens the preset list and wheels it by `pages` (negative: toward the end). The list is capped to a share of the
+    /// window and scrolls; the entries after Front Image are disabled when there is nothing to save or delete, so no
+    /// key reaches them.
+    fn open_list_wheeled(&mut self, pages: f32) {
         self.click("Crop ratio");
+        self.fixture.frame(vec![egui::Event::PointerMoved(egui::pos2(100.0, 150.0))]);
+        self.fixture.frame(vec![egui::Event::MouseWheel {
+            unit: egui::MouseWheelUnit::Page,
+            delta: Vec2::new(0.0, pages),
+            modifiers: Modifiers::NONE,
+            phase: egui::TouchPhase::Move,
+            source: egui::MouseWheelSource::Wheel,
+        }]);
+        self.fixture.settle();
+    }
+
+    fn open_list_at_end(&mut self) {
+        self.open_list_wheeled(-5.0);
+    }
+
+    fn pick_at_end(&mut self, label: &str) {
+        self.open_list_at_end();
         self.click(label);
     }
 
@@ -280,8 +305,8 @@ impl Rig {
 fn the_bar_reports_new_and_delete_and_edits_options() {
     let user = CropUserPreset::new("Poster", CropRatio::sides(3.0, 7.0), CropSizeFields::default());
     let mut rig = bar(sides(2.0, 3.0), vec![user]);
-    rig.pick("New Crop Preset…");
-    rig.pick("Delete Crop Preset…");
+    rig.pick_at_end("New Crop Preset…");
+    rig.pick_at_end("Delete Crop Preset…");
     let flags: Vec<_> = rig.seen.borrow().iter().map(|s| (s.new_preset, s.delete_preset)).collect();
     assert_eq!(flags, vec![(true, false), (false, true)]);
 
@@ -364,16 +389,16 @@ fn new_and_delete_are_disabled_with_nothing_to_save_or_delete() {
     let mut original = CropSettings::default();
     original.ratio = CropRatio::Original;
     let mut rig = bar(original, Vec::new());
-    rig.click("Crop ratio");
+    rig.open_list_at_end();
     assert!(rig.disabled("New Crop Preset…") && rig.disabled("Delete Crop Preset…"));
 
     let user = CropUserPreset::new("Poster", CropRatio::sides(3.0, 7.0), CropSizeFields::default());
     let mut rig = bar(CropSettings::default(), vec![user]);
-    rig.click("Crop ratio");
+    rig.open_list_at_end();
     assert!(rig.disabled("New Crop Preset…") && !rig.disabled("Delete Crop Preset…"));
 
     let mut rig = bar(sides(2.0, 3.0), Vec::new());
-    rig.click("Crop ratio");
+    rig.open_list_at_end();
     assert!(!rig.disabled("New Crop Preset…") && rig.disabled("Delete Crop Preset…"));
 }
 
