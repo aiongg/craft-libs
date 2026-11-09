@@ -56,3 +56,64 @@ fn a_selection_over_wrapped_rows_is_one_band_per_row() {
     tops.dedup();
     assert!(tops.len() >= 3, "a band per wrapped row: {tops:?}");
 }
+
+/// A text that wraps over several rows of a narrow editor.
+fn long_text() -> String {
+    "Speaker notes that wrap across the pane. ".repeat(4)
+}
+
+/// The bands a selection paints: rects inside the editor, one per wrapped row, top to bottom.
+fn bands(fixture: &Fixture) -> Vec<egui::Rect> {
+    let area = fixture.shown();
+    let mut rects: Vec<egui::Rect> = fixture.shape_bounds().iter().filter(|r| r.width() > 1.0 && area.contains_rect(**r)).copied().collect();
+    rects.sort_by(|a, b| a.top().total_cmp(&b.top()));
+    rects.dedup_by(|a, b| (a.top() - b.top()).abs() < 1.0);
+    rects
+}
+
+/// A click places the caret at the character under it; a drag from the first row into the second selects the text
+/// between, one band per row it touches.
+#[trial]
+fn a_click_places_the_caret_and_a_drag_selects() {
+    let notes = Rc::new(RefCell::new(NotesText::new(vec![paragraph(vec![run("one two", false)])])));
+    let shown = Rc::clone(&notes);
+    let mut fixture = Fixture::new(move |ui| {
+        let _ = NotesEditor::new("Notes", &mut shown.borrow_mut()).show(ui);
+    });
+    fixture.room(vec2(300.0, 300.0));
+    fixture.settle();
+    let editor = fixture.by_label("Notes").expect("the editor is shown");
+    fixture.click(&editor);
+    fixture.key(Key::A, Modifiers::COMMAND);
+    fixture.settle();
+    let text = *bands(&fixture).first().expect("the selected text is banded");
+    let in_second_word = egui::pos2(text.left() + text.width() * 0.8, text.center().y);
+    fixture.click_at(in_second_word);
+    fixture.type_text("X");
+    let plain = notes.borrow().plain();
+    let at = plain.find('X').expect("the typed character landed");
+    assert!((5..=7).contains(&at), "the caret was placed in the second word: {plain:?}");
+
+    let long = Rc::new(RefCell::new(NotesText::new(vec![paragraph(vec![run(&long_text(), false)])])));
+    let shown = Rc::clone(&long);
+    let mut fixture = Fixture::new(move |ui| {
+        let _ = NotesEditor::new("Notes", &mut shown.borrow_mut()).show(ui);
+    });
+    fixture.room(vec2(160.0, 300.0));
+    fixture.settle();
+    let editor = fixture.by_label("Notes").expect("the editor is shown");
+    fixture.click(&editor);
+    fixture.key(Key::A, Modifiers::COMMAND);
+    fixture.settle();
+    let rows = bands(&fixture);
+    assert!(rows.len() >= 3, "the text wraps: {rows:?}");
+    let (first, second) = (rows[0], rows[1]);
+    let start = egui::pos2(first.left() + 1.0, first.center().y);
+    fixture.drag_at(start, vec2(second.width() * 0.5, second.center().y - first.center().y));
+    fixture.type_text("X");
+    let original = long_text();
+    let plain = long.borrow().plain();
+    assert!(plain.starts_with('X'), "the drag began at the first row's start: {plain:?}");
+    let removed = original.chars().count() + 1 - plain.chars().count();
+    assert!(removed > original.chars().count() / rows.len() + 1, "the drag took more than the first row: {removed} chars");
+}

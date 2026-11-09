@@ -10,10 +10,10 @@ mod stories;
 
 use std::ops::Range;
 
-use craft_behavior::{EditCommand, EditorInput, Granularity, Metrics, NavMove, Sense, TextPos};
+use craft_behavior::{EditCommand, EditorInput, Granularity, Metrics, NavMove, PointerButton, PressPhase, Sense, TextPos};
 use craft_ui::contract::{
-    Animate as _, Commands as _, Common, Component, Cx, Focus as _, MeasureCx, NoValue, Outcome, PaintUi, PartsCx, Props as _, Remember as _, Role,
-    WordSetCx as _,
+    Animate as _, Commands as _, Common, Component, Cx, Focus as _, MeasureCx, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props as _,
+    Remember as _, Role, WordSetCx as _,
 };
 use craft_ui::fonts::FontRef;
 use craft_ui::primitives::{DocRun, DocText, EditorLine, EditorPurpose, EditorRun, EditorState, PaintShape, StrokeWidth, TextRun};
@@ -327,6 +327,35 @@ struct Cursor {
     blink_start: f64,
 }
 
+impl Cursor {
+    /// The caret and anchor after the pointer reached char `at`: a press (`Some((clicks, shift))`) places the caret,
+    /// Shift extends from the anchor, a double press selects the word and a triple press the paragraph; a drag
+    /// (`None`) moves the caret from the anchor.
+    fn point(&mut self, plain: &str, at: usize, press: Option<(u32, bool)>) {
+        let Some((clicks, shift)) = press else {
+            self.caret = at;
+            return;
+        };
+        match clicks {
+            0 | 1 => {
+                self.caret = at;
+                if !shift {
+                    self.anchor = at;
+                }
+            }
+            2 => {
+                self.caret = word_boundary(plain, at, true);
+                self.anchor = word_boundary(plain, self.caret, false);
+            }
+            _ => {
+                let range = paragraph_range(plain, locate(plain, at).0);
+                self.anchor = range.start;
+                self.caret = range.end;
+            }
+        }
+    }
+}
+
 /// The editor, built per pass over the app's notes.
 ///
 /// - Text at the body type role × [`zoom`](NotesEditor::zoom), wrapped to the width; each paragraph laid out at its
@@ -397,6 +426,35 @@ fn splice(plain: &mut String, range: Range<usize>, with: &str) {
 }
 
 impl NotesEditor<'_> {
+    /// The char of the notes under `pos`: the paragraph whose rows hold the point (the last one below them all), then
+    /// the galley's character at the point, laid out as `paint` lays it out.
+    fn char_at(&self, cx: &Cx<'_, Self>, pos: Pos2) -> usize {
+        let style = &cx.style;
+        let area = cx.content_rect;
+        let size = style.body_size * self.zoom;
+        let scale = size / DOCUMENT_SIZE;
+        let ink = DataColor::new(style.ink.egui());
+        let font = FontRef::proportional();
+        let mut y = area.top();
+        let mut at = 0usize;
+        let mut hit = 0usize;
+        for (index, paragraph) in self.notes.paragraphs.iter().enumerate() {
+            let (_, margin) = line_starts(paragraph.level, paragraph.margin, paragraph.indent);
+            let origin = area.left() + indent(style, margin, scale);
+            let runs = paragraph_runs(paragraph, &font, size, ink);
+            let mut text = DocText::new(&runs);
+            text.wrap = Some((area.width() - (origin - area.left())).max(0.0));
+            let layout = cx.layout_doc(&text);
+            let length: usize = paragraph.runs.iter().map(|run| run.text.chars().count()).sum();
+            if index == 0 || pos.y >= y {
+                hit = at + layout.galley.cursor_from_pos(pos - Pos2::new(origin, y)).index.0.min(length);
+            }
+            y += layout.size().y.max(size);
+            at += length + 1;
+        }
+        hit
+    }
+
     /// Applies one input to the notes' plain text and the cursor; returns whether the text changed.
     fn apply(&self, plain: &mut String, cursor: &mut Cursor, input: EditorInput, clip: Option<&str>) -> bool {
         let chars = plain.chars().count();
@@ -537,7 +595,7 @@ impl Component for NotesEditor<'_> {
     }
 
     fn sense(&self) -> Sense {
-        Sense::CLICK | Sense::FOCUS | Sense::TAKE_FOCUS
+        Sense::CLICK | Sense::DRAG | Sense::FOCUS | Sense::TAKE_FOCUS
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
@@ -568,7 +626,15 @@ impl Component for NotesEditor<'_> {
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         let inputs: Vec<EditorInput> = cx.editor_input().collect();
-        if inputs.is_empty() {
+        let press = *cx.press();
+        let pointed = match press.phase {
+            PressPhase::Down { start, .. } if press.went_down && start.button == PointerButton::Primary => {
+                Some((self.char_at(cx, start.origin), Some((start.clicks, press.mods.shift))))
+            }
+            PressPhase::DragStart { pos, .. } | PressPhase::Drag { pos, .. } => Some((self.char_at(cx, pos), None)),
+            _ => None,
+        };
+        if inputs.is_empty() && pointed.is_none() {
             return;
         }
         let clip = if inputs.iter().any(|input| matches!(input, EditorInput::Edit(EditCommand::Paste))) {
@@ -582,6 +648,9 @@ impl Component for NotesEditor<'_> {
         let now = cx.now();
         let mut cursor = *cx.memory::<Cursor>();
         let mut plain = self.notes.plain();
+        if let Some((at, press)) = pointed {
+            cursor.point(&plain, at, press);
+        }
         let mut copied = None;
         let mut text_changed = false;
         for input in inputs {

@@ -2,7 +2,7 @@
 //! One, Two, Three, Left, Right; number; width and spacing per column; Equal column width; Line between) as one
 //! [`TextColumnsDialog`], and Word's Layout > Columns menu ([`columns_menu`]).
 
-use super::length::{DocUnit, length_edit, length_field};
+use super::length::{DocUnit, length_field, shown};
 use craft_behavior::{EditEvent, Metrics, Mixed, NumberCodec};
 use craft_theme::variant::Tone;
 use craft_ui::buttons::Button;
@@ -402,7 +402,7 @@ impl TextColumnsDialog {
     }
 
     fn spacing_message(&self, words: &TextColumnsWords, units: &Units) -> String {
-        let show = |points: f32| units.show(self.unit.kind, self.unit.shown(f64::from(points), units.points_per_inch()));
+        let show = |points: f32| units.show(self.unit.kind, shown(units, self.unit, f64::from(points)));
         words.spacing_range.fill(&[("min", &show(0.0)), ("max", &show(MAX_SPACING))])
     }
 
@@ -410,16 +410,15 @@ impl TextColumnsDialog {
     fn length_row(
         &self,
         ui: &mut Ui,
-        units: &Units,
         caption: &str,
         points: Option<f32>,
         enabled: bool,
         range: std::ops::RangeInclusive<f32>,
     ) -> Option<EditEvent<Option<f32>>> {
-        let shown = points.map_or(Mixed::Mixed, |p| Mixed::Same(Some(f64::from(p))));
-        let field = length_field(units, caption.to_owned(), self.unit, shown, f64::from(*range.start())..=f64::from(*range.end())).enabled(enabled);
+        let points = points.map_or(Mixed::Mixed, |p| Mixed::Same(Some(f64::from(p))));
+        let field = length_field(self.unit, caption.to_owned(), points, f64::from(*range.start())..=f64::from(*range.end())).enabled(enabled);
         let event = field.show(ui).edit.event?;
-        Some(length_edit(units, self.unit, event).map(|v| v.map(|p| p as f32)))
+        Some(event.map(|v| v.map(|p| p as f32)))
     }
 
     fn body(&mut self, ui: &mut Ui, words: &TextColumnsWords, units: &Units, valid: &Cell<bool>) {
@@ -439,7 +438,7 @@ impl TextColumnsDialog {
             }
             if self.word.is_none() {
                 let edit = Field::new(words.spacing.clone())
-                    .show(ui, |ui, _| self.length_row(ui, units, words.spacing.as_str(), self.edited.spacing, true, 0.0..=MAX_SPACING))
+                    .show(ui, |ui, _| self.length_row(ui, words.spacing.as_str(), self.edited.spacing, true, 0.0..=MAX_SPACING))
                     .inner
                     .flatten();
                 self.edit(edit, |me, v: Option<f32>| {
@@ -538,8 +537,8 @@ impl TextColumnsDialog {
             let label = words.column.fill(&[("n", &number)]);
             let last = i + 1 == rows.len();
             Field::new(label).show(ui, |ui, _| {
-                let w = self.length_row(ui, units, width_name, Some(*width), !equal || i == 0, 0.0..=MAX_SPACING);
-                let s = self.length_row(ui, units, spacing_name, (!last).then_some(*spacing), !last, 0.0..=MAX_SPACING);
+                let w = self.length_row(ui, width_name, Some(*width), !equal || i == 0, 0.0..=MAX_SPACING);
+                let s = self.length_row(ui, spacing_name, (!last).then_some(*spacing), !last, 0.0..=MAX_SPACING);
                 // A row without an event leaves an earlier row's event alone.
                 width_edit = w.map(|e| (i, e)).or(width_edit.take());
                 spacing_edit = s.map(|e| (i, e)).or(spacing_edit.take());

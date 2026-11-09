@@ -109,3 +109,14 @@ fn the_top_of_the_document_is_its_own_target() {
     let mut rig = Rig::new(HyperlinkDialog::new(current, None).places(places));
     assert_eq!(rig.ok(), Some(set(LinkTarget::Top)));
 }
+
+/// Editing an e-mail link opens on its address (Word's Insert Hyperlink, E-mail Address): typing replaces it with no
+/// click first.
+#[trial]
+fn an_email_link_opens_on_its_address() {
+    let current = CurrentLink::One(Hyperlink::new(LinkTarget::email("a@b.example", None)));
+    let mut rig = Rig::new(HyperlinkDialog::new(current, None));
+    rig.fixture.key(Key::A, Modifiers::COMMAND);
+    rig.fixture.type_text("c@d.example");
+    assert_eq!(rig.ok(), Some(set(LinkTarget::email("c@d.example", None))));
+}
