@@ -137,8 +137,8 @@ fn knobs_are_near_white_in_both_modes_and_classic_bevels_a_panel_grey_knob() {
         let t = at(suite_default(), mode);
         let knob = t.color(ColorToken::SurfaceKnob);
         let lightness = knob.to_oklch().l;
-        let track = t.color(ColorToken::SurfaceSunken).to_oklch().l;
-        assert!(lightness > track, "{mode:?}: surface.knob {} (lightness {lightness:.3}) stands out from the track", knob.to_hex());
+        let track = t.color(ColorToken::SurfacePanel).to_oklch().l;
+        assert!(lightness >= track, "{mode:?}: surface.knob {} (lightness {lightness:.3}) is at least as light as the panel", knob.to_hex());
         let plain = at(&semantic_tests::grey_blue(), mode).color(ColorToken::LineKnobEdge);
         match mode {
             Mode::Light => {

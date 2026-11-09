@@ -105,7 +105,7 @@ fn unchanged_files_are_parsed_once_and_never_republished() {
     assert_eq!((first.generation, first.index.len()), (1, N));
     assert_eq!(ids(&first.active), ["t00042"]);
     assert!(first.problems.is_empty());
-    let loaded = ParseCounts { selection: 1, themes: N, other_schema: 0 };
+    let loaded = ParseCounts { selection: 1, themes: N as u64, other_schema: 0 };
     assert_eq!(watch.parse_counts(), loaded);
     // A picker's preview cards come from the index, with no further reads.
     let preview = first.preview(&id("t00007")).unwrap();
@@ -125,7 +125,7 @@ fn unchanged_files_are_parsed_once_and_never_republished() {
     // A picker opens after a file was added by hand: only the new file is read.
     fs::write(library.join(format!("t{N:05}.json")), theme_json(&format!("t{N:05}"))).unwrap();
     watch.request(Op::Rescan);
-    assert_eq!(watch.parse_counts(), ParseCounts { selection: 1, themes: N + 1, other_schema: 0 });
+    assert_eq!(watch.parse_counts(), ParseCounts { selection: 1, themes: N as u64 + 1, other_schema: 0 });
     assert_eq!(watch.snapshot().index.len(), N + 1);
 }
 
