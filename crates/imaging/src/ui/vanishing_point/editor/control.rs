@@ -10,6 +10,7 @@ use craft_ui::contract::{
     Access, Common, Component, Cx, Focus as _, MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props as _, Role, Styled as _,
     WordSetCx as _,
 };
+use craft_ui::runtime::edit::next_gesture_id;
 use craft_ui::runtime::env::Label;
 use craft_ui::runtime::focus::KeyUse;
 use craft_ui::style::StyleCx;
@@ -175,10 +176,13 @@ impl Component for VanishingPlanes<'_> {
                 match press.phase {
                     PressPhase::Down { start, .. } if start.button == PointerButton::Primary => {
                         let p = doc(start.origin);
+                        // The control is no tool: the host reports no gesture for its presses.
+                        work.gesture = Some(next_gesture_id(work.ctx));
                         match *node {
                             Node::Corner(plane, corner) => work.corner_down(plane, corner, p, &words),
                             Node::Edge(plane, edge) => work.edge_down(plane, edge, p, press.mods, &words),
                         }
+                        work.gesture = None;
                     }
                     PressPhase::DragStart { start, pos, .. } | PressPhase::Drag { start, pos, .. } if start.button == PointerButton::Primary => {
                         work.drag_to(doc(pos), dead);
@@ -197,7 +201,9 @@ impl Component for VanishingPlanes<'_> {
                 if let Some((direction, mods)) = nudge {
                     let step = if mods.shift { NUDGE_FAR } else { NUDGE };
                     let by = space.view.unmap_vec(direction) * step;
+                    work.gesture = Some(next_gesture_id(work.ctx));
                     work.nudge_corner(plane, corner, [by.x, by.y], &words);
+                    work.gesture = None;
                 }
             }
         });

@@ -201,11 +201,17 @@ pub(crate) fn flow_room(ui: &Ui) -> Vec2 {
     cell.unwrap_or_else(|| open_room(ui))
 }
 
-/// The rest of `ui`'s layout; unbounded along the axes of the scrolling body that encloses it, whose region is only
+/// The rest of `ui`'s layout (the room offered to the container, less the earlier siblings and gaps); unbounded along the axes of the scrolling body that encloses it, whose region is only
 /// as large as egui can make it.
 fn open_room(ui: &Ui) -> Vec2 {
     let (x, y) = Env::of(ui).unbounded;
-    let room = ui.available_size_before_wrap();
+    let mut room = ui.available_size_before_wrap();
+    // A body sized from its content offers its children the width it was offered, and a row body that placed its
+    // block behind a lead the width of its band; either less what they took.
+    let env = Env::of(ui);
+    if let Some(offered) = env.offered.or(env.row_room) {
+        room.x += offered - ui.max_rect().width();
+    }
     Vec2::new(if x { f32::INFINITY } else { room.x }, if y { f32::INFINITY } else { room.y })
 }
 
@@ -293,14 +299,20 @@ pub(crate) fn run_body_measured<R>(ui: &mut Ui, id: Id, layout: &BodyLayout, gap
                 RowAlign::Start | RowAlign::SpaceBetween => None,
                 RowAlign::Center | RowAlign::End => {
                     let last = layout_memory::read(&ctx, id);
-                    last.filter(|last| last.x < room.width()).map(|last| {
+                    // Without a measured width from last pass the block is placed as `Start`.
+                    last.filter(|last| last.x > 0.0 && last.x < room.width()).map(|last| {
                         let spare = room.width() - last.x;
                         let lead = if *align == RowAlign::Center { spare / 2.0 } else { spare };
                         Flow::new(room, rtl).take_start(lead).1.rect()
                     })
                 }
             };
-            let (inner, took) = child::block(ui, rect, child::row_layout(rtl, *wrap), |ui| body(ui));
+            let (inner, took) = child::block(ui, rect, child::row_layout(rtl, *wrap), |ui| {
+                let installed = Env::install_for(ui, Env::of(ui).derive_local(|scoped| scoped.row_room = Some(room.width())));
+                let inner = body(ui);
+                Env::restore(&ctx, installed);
+                inner
+            });
             if *align != RowAlign::Start {
                 layout_memory::record(&ctx, id, took.size());
             }

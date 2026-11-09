@@ -442,6 +442,9 @@ pub(crate) struct LabelIn<'a> {
     /// The width the mount offers the row. A content-sized row is as wide as its content took, so the choice between
     /// beside and above reads the room, not the row.
     pub room: f32,
+    /// The row sits in a column that takes its width from its content: a beside label never stacks for want of room,
+    /// since the column is as wide as the label, the gap and the control need.
+    pub content_row: bool,
     pub text: &'a Label,
     pub side: &'a SideLabel,
     /// The help line the container's footer shows; it joins the control's description with the label's detail.
@@ -504,6 +507,7 @@ pub(crate) fn leaf<C: Show>(ui: &mut Ui, env: &Env, at: &LeafLabel<'_>, child: &
         parent: at.parent,
         row: at.row,
         room: at.row.width(),
+        content_row: env.content.0,
         text: at.text,
         side: at.side,
         help: None,
@@ -619,7 +623,7 @@ pub(crate) fn run(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Placed {
         }
     };
     // The room decides; a beside label gets the width it needs even where last frame's content was narrower.
-    let stacks = input.room < stack_below;
+    let stacks = input.room < stack_below && !(input.content_row && input.side.layout == FieldLayout::Beside);
     // A stacked label has the row's width at most; its name elides there.
     let column = if stacks { column.min(input.row.width()) } else { column };
     let flow = if stacks || input.row.width() >= stack_below {
