@@ -192,7 +192,6 @@ fn every_line_evens_the_rag() {
         assert!(kp_n <= gr_n + 1, "{width}: {kp_n} lines vs {gr_n}");
     }
 }
-}
 
 /// Greedy: each line takes as many words as fit.
 #[test]

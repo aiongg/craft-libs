@@ -52,7 +52,6 @@ fn the_offer_is_made_once_and_only_for_a_set_that_changes_something() {
         .expect("an offer");
     assert_eq!(unnamed.set_name, "My Keys.psp", "without a name in the file the offer names the file");
 }
-}
 
 /// Import on the shown prompt answers `Import`, and applying the plan changes the counted shortcuts.
 #[trial]
