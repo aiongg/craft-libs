@@ -472,7 +472,7 @@ impl Pass<'_> {
         let Some(histogram) = histogram else { return };
         let rect = histogram.response.rect;
         self.report.hovered_level = histogram.hovered_level;
-        self.report.refresh |= histogram.refresh;
+        self.report.refresh |= histogram.refresh || (!zoned && histogram.double_click);
         let mut openers = vec![histogram.response.clone()];
         if zoned {
             let edit = ToneZones::new(words.tone_zones.clone(), self.panel.zones, self.panel.zone_values).show_at(ui, rect);
@@ -543,10 +543,13 @@ impl Pass<'_> {
         let mut picked = None;
         let mut refresh = false;
         Row::new().show(ui, |ui, _| {
-            let field = Field::new(words.channel.clone())
-                .side(SideLabel::new().role(FieldLabelRole::Describes))
-                .show(ui, |ui, _| Select::new(words.channel_name.clone(), Bind::given(shown_key.to_owned()), &entries).show(ui));
-            picked = field.inner.and_then(|select| select.value().cloned());
+            // A field fills the row's width; in a content-sized stack it keeps its ideal width and leaves room for the button.
+            let field = Stack::new().show(ui, |ui, _| {
+                Field::new(words.channel.clone())
+                    .side(SideLabel::new().role(FieldLabelRole::Describes))
+                    .show(ui, |ui, _| Select::new(words.channel_name.clone(), Bind::given(shown_key.to_owned()), &entries).show(ui))
+            });
+            picked = field.inner.and_then(|field| field.inner).and_then(|select| select.value().cloned());
             let button = IconButton::new(IconId::new("rotate-cw")).label(words.uncached_refresh.clone()).size(ControlSize::Sm).show(ui);
             refresh = clicked(&button);
         });

@@ -128,7 +128,9 @@ pub struct HistogramOutput {
     pub hovered_level: Option<f32>,
     /// The stale button was pressed; only with [`StaleMark::Button`].
     pub refresh: bool,
-    /// The plot's response; a double click on it is the host's.
+    /// The plot was double-clicked; what it means (the scope panel recounts) is the host's.
+    pub double_click: bool,
+    /// The plot's response.
     pub response: Response,
 }
 
@@ -209,6 +211,7 @@ pub struct Histogram<'a> {
     stale_text: Option<Label>,
     hovered: Option<f32>,
     refresh: bool,
+    double_click: bool,
 }
 
 impl<'a> Histogram<'a> {
@@ -230,6 +233,7 @@ impl<'a> Histogram<'a> {
             stale_text: None,
             hovered: None,
             refresh: false,
+            double_click: false,
         }
         .label(label)
         .ltr_axis()
@@ -384,6 +388,7 @@ impl Component for Histogram<'_> {
             _ => cx.hover_pos(PLOT),
         };
         self.hovered = pointer.filter(|_| bins > 0).map(|at| level_at(rect, bins, at.x));
+        self.double_click = press.double_pressed();
         self.refresh = self.stale.as_ref().is_some_and(|mark| mark.is_button() && cx.part_activated(STALE).is_some());
         if !self.selectable() {
             return;
@@ -516,7 +521,13 @@ impl Component for Histogram<'_> {
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> HistogramOutput {
-        HistogramOutput { selection: cx.edit_response(), hovered_level: self.hovered, refresh: self.refresh, response: cx.response.clone() }
+        HistogramOutput {
+            selection: cx.edit_response(),
+            hovered_level: self.hovered,
+            refresh: self.refresh,
+            double_click: self.double_click,
+            response: cx.response.clone(),
+        }
     }
 }
 
