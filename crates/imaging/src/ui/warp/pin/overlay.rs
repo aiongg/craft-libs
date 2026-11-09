@@ -369,11 +369,9 @@ impl PinWarp<'_> {
         }
         // Focus arriving on a pin by a key or a request selects it. A press selects by its own rule (a Shift-click
         // grows the selection and focuses the pin it adds), so an arrival with the pin pressed selects nothing more.
-        let arrived = cx.focus_arrived().filter(|part| part.key == PIN).and_then(|part| part.index).map(|index| index as usize);
+        let arrived = cx.focus_arrived_by_key().filter(|part| part.key == PIN).and_then(|part| part.index).map(|index| index as usize);
         if let Some(arrived) = arrived.filter(|&i| i < pins.len()) {
-            let pressed =
-                cx.part_if_declared(PIN.at(arrived as u64)).is_some_and(|result| !matches!(result.press.phase, PressPhase::Idle | PressPhase::Hover));
-            if !pressed && self.report.select.is_none() {
+            if self.report.select.is_none() {
                 self.report.select = Some(vec![arrived]);
             }
         }

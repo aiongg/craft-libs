@@ -280,11 +280,7 @@ impl<'a> SliceOverlay<'a> {
         let words = cx.words::<SliceToolWords>();
         let focused = cx.active_part().filter(|part| part.key == SLICE).and_then(|part| part.index);
         // Focus arriving on a slice by a key or a request selects it; a press selects by its own rule.
-        let arrived = cx.focus_arrived().is_some_and(|part| {
-            part.key == SLICE
-                && part.index.is_some()
-                && cx.part_if_declared(part).is_none_or(|result| matches!(result.press.phase, PressPhase::Idle | PressPhase::Hover))
-        });
+        let arrived = cx.focus_arrived_by_key().is_some_and(|part| part.key == SLICE && part.index.is_some());
         let Some(item) = focused.and_then(|number| self.item(number as usize)).cloned() else { return };
         if arrived && self.events.is_empty() {
             self.events.push(SliceEvent::Select { number: Some(item.number), add: false, mods: Mods::NONE });

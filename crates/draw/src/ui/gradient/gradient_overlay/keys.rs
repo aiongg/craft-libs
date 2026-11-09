@@ -1,7 +1,7 @@
 //! The overlay's keys while its group has focus: the picked part moved, removed, added after or asked for its colour.
 
 use craft_behavior::kurbo::Vec2;
-use craft_behavior::{Granularity, Intent, PressPhase};
+use craft_behavior::{Granularity, Intent};
 use craft_ui::canvas::{NUDGE, NUDGE_FAR};
 use craft_ui::contract::{Cx, Edit as _, Focus as _, Pointer as _};
 
@@ -17,9 +17,8 @@ impl GradientOverlay<'_> {
         let active = cx.active_part();
         let picked = active.and_then(line_part);
         // Focus arriving at a part selects it, unless a press holds the part (the press selects by its own rule).
-        if let Some(part) = cx.focus_arrived()
+        if let Some(part) = cx.focus_arrived_by_key()
             && let Some(selected) = line_part(part).and_then(selection_of)
-            && cx.part_if_declared(part).is_some_and(|result| matches!(result.press.phase, PressPhase::Idle | PressPhase::Hover))
         {
             self.select(cx, Some(selected));
         }

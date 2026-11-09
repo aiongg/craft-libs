@@ -275,9 +275,7 @@ impl<'a> ArtboardOverlay<'a> {
         let words = cx.words::<ArtboardToolWords>();
         let focused = cx.active_part().filter(|part| part.key == BOARD || part.key == HANDLE);
         // Focus arriving on a board by a key or a request selects it; a press selects by its own rule.
-        let arrived = cx.focus_arrived().is_some_and(|part| {
-            part.key == BOARD && cx.part_if_declared(part).is_none_or(|result| matches!(result.press.phase, PressPhase::Idle | PressPhase::Hover))
-        });
+        let arrived = cx.focus_arrived_by_key().is_some_and(|part| part.key == BOARD);
         let Some(part) = focused else { return };
         if arrived
             && part.key == BOARD

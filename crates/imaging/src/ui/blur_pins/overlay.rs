@@ -290,9 +290,7 @@ impl<'a> BlurPinsOverlay<'a> {
     fn run_keys(&mut self, cx: &mut Cx<'_, Self>, view: &CanvasView, pins: &BlurPins) {
         let focused = cx.active_part().filter(|part| part.key == PIN).and_then(|part| part.index);
         // Focus arriving on a pin by a key or a request selects it; a press selects by its own rule.
-        let arrived = cx.focus_arrived().filter(|part| part.key == PIN).and_then(|part| part.index).is_some_and(|index| {
-            cx.part_if_declared(PIN.at(index)).is_some_and(|result| matches!(result.press.phase, PressPhase::Idle | PressPhase::Hover))
-        });
+        let arrived = cx.focus_arrived_by_key().is_some_and(|part| part.key == PIN && part.index.is_some());
         let Some(index) = focused.and_then(|index| usize::try_from(index).ok()).filter(|index| *index < pins.pins.len()) else { return };
         let mut next = pins.clone();
         if arrived {

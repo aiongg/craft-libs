@@ -752,9 +752,8 @@ impl<P: Clone + Send + Sync + 'static> Component for GradientBar<'_, P> {
         if enabled {
             let focused = cx.active_part().and_then(marker_of).filter(|m| geo.valid(&stops, *m));
             // Focus arriving at a marker selects it, unless a press holds it (the press selects by its own rule).
-            if let Some(part) = cx.focus_arrived()
+            if let Some(part) = cx.focus_arrived_by_key()
                 && let Some(m) = marker_of(part).filter(|m| geo.valid(&stops, *m))
-                && cx.part_if_declared(part).is_some_and(|result| matches!(result.press.phase, PressPhase::Idle | PressPhase::Hover))
             {
                 self.choose(Some(m));
             }

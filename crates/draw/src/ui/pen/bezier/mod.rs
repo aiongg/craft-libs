@@ -769,11 +769,10 @@ impl<'a> BezierOverlay<'a> {
         // so an arrival with the anchor pressed selects nothing.
         if keyed
             && self.report.select.is_none()
-            && let Some(arrived) = cx.focus_arrived()
+            && let Some(arrived) = cx.focus_arrived_by_key()
             && let Some(item) = keyboard.iter().copied().find(|item| item.part() == arrived)
             && item.kind == Kind::Anchor
             && !self.selection.has_anchor(item.key, item.knot)
-            && cx.part_if_declared(arrived).is_some_and(|result| matches!(result.press.phase, PressPhase::Idle | PressPhase::Hover))
         {
             self.report.select = Some(PathSelection { path: Some(item.key), anchors: vec![item.knot], segment: None });
         }
