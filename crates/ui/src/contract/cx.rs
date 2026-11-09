@@ -391,8 +391,9 @@ impl Pointer for CxCore<'_> {
         match self.results.get(&(part.key, part.index)) {
             Some(result) => result,
             None => {
+                // A measuring run has no parts: its core is blank, so every part reads idle.
                 debug_assert!(
-                    self.face_mode || self.results.is_empty() && (self.stated || crate::runtime::measure::active(&self.ctx)),
+                    self.face_mode || crate::runtime::measure::active(&self.ctx) || self.results.is_empty() && self.stated,
                     "`parts` did not declare the part {part:?}"
                 );
                 &PartResult::IDLE

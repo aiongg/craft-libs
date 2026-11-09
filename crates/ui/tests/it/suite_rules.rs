@@ -4,7 +4,7 @@ use craft_behavior::Mixed;
 use craft_ui::canvas_controls::Guides;
 use craft_ui::contract::{Bind, Props as _, Show as _};
 use craft_ui::testing::story::{Story, StoryData, StoryOutput};
-use craft_ui::testing::suite::{required_states, values_case};
+use craft_ui::testing::suite::{measure_pure_case, required_states, values_case};
 use craft_ui::testing::{Drive, Grip, Probe, Registration, Required, registered, trial};
 use craft_ui::text::TextField;
 use craft_ui::value_drag::{Thumb, ThumbRow};
@@ -39,4 +39,31 @@ fn a_drag_of_one_repeated_part_in_two_axes_also_runs_cancelled_by_escape() {
     let story = Story::new("third-thumb", four_thumbs).drive(Drive::Drag(grip));
     let runs = values_case(probe_of::<ThumbRow<'static, 4>>(), &story);
     assert_eq!(runs, Ok(vec!["drag", "drag with Escape"]));
+}
+
+fn counting_draws(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    *data.value("draws", 0u32) += 1;
+    craft_ui::buttons::Button::new("Count").show(ui).into()
+}
+
+fn counting_clicks(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let out = craft_ui::buttons::Button::new("Count").show(ui);
+    let clicks = data.value("clicks", 0u32);
+    if out.clicked() {
+        *clicks += 1;
+    }
+    out.into()
+}
+
+#[trial]
+fn measure_pure_fails_a_story_that_counts_its_draws() {
+    let probe = probe_of::<craft_ui::buttons::Button<'static>>();
+    let failure = measure_pure_case(probe, &Story::new("draw-counter", counting_draws)).expect_err("counting draws is impure");
+    assert!(failure.contains("draw-counter") && failure.contains("draws"), "{failure}");
+}
+
+#[trial]
+fn measure_pure_passes_a_story_that_changes_state_on_click() {
+    let probe = probe_of::<craft_ui::buttons::Button<'static>>();
+    assert_eq!(measure_pure_case(probe, &Story::new("click-counter", counting_clicks)), Ok(()));
 }

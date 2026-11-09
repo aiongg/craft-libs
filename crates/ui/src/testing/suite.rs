@@ -14,6 +14,7 @@ mod drive;
 mod nodes;
 mod pattern;
 mod pointer;
+mod purity;
 mod row_click;
 mod shape;
 mod size;
@@ -24,6 +25,7 @@ mod variants;
 
 pub use body::title_case;
 pub use drive::values_case;
+pub use purity::measure_pure_case;
 pub use size::text_size_case;
 pub use states::required_states;
 pub use variants::rtl_case;
@@ -75,8 +77,19 @@ const SHAPES: &[Case] = &[
 ];
 
 /// The case modules, in the order their cases run.
-const GROUPS: &[&[Case]] =
-    &[states::CASES, size::CASES, drive::CASES, activation::CASES, variants::CASES, text::CASES, pointer::CASES, SHAPES, shape::CASES, style::CASES];
+const GROUPS: &[&[Case]] = &[
+    states::CASES,
+    size::CASES,
+    drive::CASES,
+    activation::CASES,
+    variants::CASES,
+    text::CASES,
+    pointer::CASES,
+    purity::CASES,
+    SHAPES,
+    shape::CASES,
+    style::CASES,
+];
 
 fn cases() -> impl Iterator<Item = &'static Case> {
     GROUPS.iter().flat_map(|group| group.iter())
