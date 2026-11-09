@@ -75,9 +75,10 @@ pub(crate) fn surface_style(tokens: &UiTokens, kind: SurfaceKind) -> SurfaceStyl
         K::Frame => Rgba::TRANSPARENT,
     };
     let radius = match kind {
-        K::Background | K::Canvas | K::Chrome | K::Scrim => 0.0,
+        // Panels tile the window and meet their neighbours edge to edge, so they stay square.
+        K::Background | K::Canvas | K::Chrome | K::Scrim | K::Panel => 0.0,
         K::Raised | K::Pressed | K::Sunken | K::Well | K::Knob | K::Frame => r.control,
-        K::Panel | K::Popup | K::Dialog => r.surface,
+        K::Popup | K::Dialog => r.surface,
         K::Floating => r.window,
     };
     let shadow = match kind {

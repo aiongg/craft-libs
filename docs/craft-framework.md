@@ -833,7 +833,7 @@ Ten themes, 17 mode variants. The suite default is ArtCraft.
 | Role | Components |
 | --- | --- |
 | `radius.control` | Fields, small controls, buttons that are not pills |
-| `radius.surface` | Popups, menus, docked panels |
+| `radius.surface` | Popups, menus, dialogs |
 | `radius.window` | Windows, dialogs |
 | `radius.button` | Push buttons. `full` in the built-in size sets; Classic sets it to 0 |
 | `radius.pill` | Switch and slider tracks and knobs, progress bars, badges. Clamps to half the part's height; Classic sets it to 0 |
