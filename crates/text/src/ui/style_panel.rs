@@ -163,10 +163,6 @@ impl Outcome for TextStylesPanelOutput {
     }
 }
 
-/// The click count of the latest primary press.
-#[derive(Clone, Debug, Default)]
-struct PressCount(u32);
-
 /// What the panel knows of the last pass: the rules the footer, the panel menu and the keys share.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Facts {
@@ -377,7 +373,7 @@ impl<'a> TextStylesPanel<'a> {
 
                 let source = keyed(rows, |row: &TextStyleRow| row.id);
                 let mode = if highlighting { SelectMode::Multi } else { SelectMode::Single };
-                let events = List::new(label.clone())
+                let shown_rows = List::new(label.clone())
                     .id(list_id)
                     .select(mode)
                     .activate(ActivateOn::Click)
@@ -396,17 +392,11 @@ impl<'a> TextStylesPanel<'a> {
                         let description = if none { words.no_character_style.as_str().to_owned() } else { tip.clone() };
                         let styled = ListRow::new(name).accessible_name(spoken).description(description).highlight(is_current);
                         if none { styled.ink(RowInk::Dimmed) } else { styled }
-                    })
-                    .events;
+                    });
+                let (events, second) = (shown_rows.events, shown_rows.activation_clicks >= 2);
 
                 let pointer = craft_ui::runtime::pointer::frame(ui.ctx());
                 let alt = pointer.mods.alt;
-                // A click activates, so the count of the latest press tells a second click of a double click.
-                let clicks = cx.memory::<PressCount>();
-                if let Some(press) = pointer.press {
-                    clicks.0 = press.clicks;
-                }
-                let second = clicks.0 >= 2;
                 // A press reports the selection it makes, then the lead it moved.
                 let by_pointer =
                     events.iter().any(|event| matches!(event, CollectionEvent::LeadMoved { by: craft_ui::contract::LeadSource::Pointer, .. }));

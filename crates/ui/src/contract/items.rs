@@ -144,6 +144,8 @@ pub(super) struct ItemsHooks<'s, 'r, C: Collection> {
     selection: C::Selection,
     selection_at_read: C::Selection,
     events: Vec<CollectionEvent<C::Key, C::ItemEvent>>,
+    /// The click count of the press behind this pass's pointer activation, 0 when no pointer activated.
+    activation_clicks: u8,
     visible: Range<usize>,
     /// The rows built this pass with their rects, for `collection_response`.
     shown: Vec<ShownRow<C::Key>>,
@@ -188,6 +190,7 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
             selection: C::Selection::default(),
             selection_at_read: C::Selection::default(),
             events: Vec::new(),
+            activation_clicks: 0,
             visible: 0..0,
             shown: Vec::new(),
             offset: 0.0,
@@ -962,7 +965,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         self.header.report(&cx.core.ctx, id, cx);
         *cx.core.memory.session::<Renaming<C::Key>>(sub(id, "rename")) = self.renaming.clone();
         cx.core.collection_selection = Some(Box::new(self.selection.clone()));
-        cx.core.collection_events = Some(Box::new((std::mem::take(&mut self.events), std::mem::take(&mut self.shown))));
+        cx.core.collection_events = Some(Box::new((std::mem::take(&mut self.events), std::mem::take(&mut self.shown), self.activation_clicks)));
         cx.core.visible_rows = self.visible.clone();
         cx.core.gestures = Gestures::of(comp.items());
     }
@@ -1123,6 +1126,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                     if names && !self.source.section_stop(at) {
                         self.drags.rename = Some(key);
                     } else if activates {
+                        self.activation_clicks = start.clicks.min(u8::MAX as u32) as u8;
                         self.events.push(CollectionEvent::Activate(key));
                     } else if on_release {
                         self.drags.activate = Some(key);
@@ -1176,6 +1180,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                     && click
                     && self.index_of(&key).is_some()
                 {
+                    self.activation_clicks = start.clicks.min(u8::MAX as u32) as u8;
                     self.events.push(CollectionEvent::Activate(key));
                 }
                 if let Some(key) = self.drags.collapse.take()
@@ -1722,7 +1727,7 @@ impl<C: Collection> Cx<'_, C> {
             .core
             .collection_events
             .take()
-            .and_then(|held| held.downcast::<(Vec<CollectionEvent<C::Key, C::ItemEvent>>, Vec<ShownRow<C::Key>>)>().ok())
+            .and_then(|held| held.downcast::<(Vec<CollectionEvent<C::Key, C::ItemEvent>>, Vec<ShownRow<C::Key>>, u8)>().ok())
             .map(|held| *held)
             .unwrap_or_default();
         CollectionResponse::new(self.core.response.clone(), events, self.core.visible_rows.clone(), self.core.gestures)

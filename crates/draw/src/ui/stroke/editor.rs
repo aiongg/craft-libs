@@ -8,8 +8,8 @@ use craft_theme::variant::Tone;
 use craft_ui::buttons::Button;
 use craft_ui::choice::{Checkbox, Segmented};
 use craft_ui::contract::{
-    ActivateOn, Bind, CollectionEvent, Common, Component, Cx, Entry, MeasureCx, NoValue, Outcome, PaintUi, Props as _, Remember as _, Role,
-    SelectMode, Show as _, ShowCollection as _, ShowContainer as _, clicked,
+    Bind, Common, Component, Cx, Entry, MeasureCx, NoValue, Outcome, PaintUi, Props as _, Remember as _, Role, SelectMode, Show as _,
+    ShowCollection as _, ShowContainer as _, clicked,
 };
 use craft_ui::display::{Divider, Shade, Text};
 use craft_ui::form::{Field, FieldGroup};
@@ -298,10 +298,9 @@ impl Body<'_> {
             })
             .collect();
         let mut selection = current.map_or_else(Selection::default, Selection::single);
-        let events = List::new(self.words.title.clone())
+        List::new(self.words.title.clone())
             .id_salt("presets")
             .select(SelectMode::Single)
-            .activate(ActivateOn::Click)
             .natural_height(true)
             .selection(Bind::bound(&mut selection))
             .show_items(ui, &PresetRows, &mut |at, _| {
@@ -311,16 +310,8 @@ impl Body<'_> {
                     ThumbAspect::new(PRESET_ASPECT.0, PRESET_ASPECT.1),
                     move |cx, rect| StrokePreview::sized(sample, rect).paint(cx, rect),
                 )
-            })
-            .events;
-        let mut picked = selection.items.first().copied().filter(|at| Some(*at) != current);
-        for event in events {
-            if let CollectionEvent::Activate(at) = event
-                && Some(at) != current
-            {
-                picked = Some(at);
-            }
-        }
+            });
+        let picked = selection.items.first().copied().filter(|at| Some(*at) != current);
         if let Some(at) = picked {
             self.set(found, StrokeField::Preset, self.style.with_line_style(PRESETS[at]));
         }
