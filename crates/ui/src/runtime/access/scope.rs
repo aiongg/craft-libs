@@ -416,7 +416,10 @@ pub(crate) fn finish(ctx: &Context, container: Id, merged: Option<Merged>) {
             if let Some(baseline) = scope.baseline {
                 layout_memory::record(ctx, sub(scope.container, "baseline"), Vec2::new(0.0, baseline));
             }
-            layout_memory::record(ctx, sub(scope.container, "control_min"), Vec2::new(scope.control_min.unwrap_or(0.0), 0.0));
+            // Only a real run reports a control's width; a measuring run's scope has none and must not record zero.
+            if let Some(width) = scope.control_min {
+                layout_memory::record(ctx, sub(scope.container, "control_min"), Vec2::new(width, 0.0));
+            }
             let slot = reset_slot(scope.container);
             match scope.reset {
                 Some(fact) => {

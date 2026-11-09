@@ -118,13 +118,6 @@ impl Cursor {
     fn in_content_column(&self) -> bool {
         matches!(self, Cursor::Grid(grid) if grid.in_content_column())
     }
-
-    fn widen(&mut self, size: Vec2) {
-        match self {
-            Cursor::Grid(grid) => grid.widen(size),
-            Cursor::Spread(row) => row.widen(size),
-        }
-    }
 }
 
 /// The cursor of a `SpaceBetween` row: each child in flow takes the next place along the row, and the room the
@@ -167,11 +160,6 @@ impl Spread {
     fn room(&self) -> Vec2 {
         let rect = self.flow.rect();
         Vec2::new((rect.width() - self.start()).max(0.0), rect.height())
-    }
-
-    fn widen(&mut self, size: Vec2) {
-        let grow = (size.x - self.last).max(0.0);
-        (self.at, self.natural, self.last) = (self.at + grow, self.natural + grow, self.last + grow);
     }
 
     /// What `new` spreads by next pass.
@@ -226,18 +214,6 @@ pub(crate) fn flow_fill_room(ui: &Ui) -> Vec2 {
 /// directly: like a content-sized column, a child that fills its width is placed at its measured width there.
 pub(crate) fn in_grid_content_column(ui: &Ui) -> bool {
     Env::of(ui).grid.is_some_and(|body| Service::<Cursors>::of(ui.ctx()).with(|cursors| cursors.0.get(&body).is_some_and(Cursor::in_content_column)))
-}
-
-/// The cell `place_in_flow` placed last in the `Grid` or spread `Row` body that encloses `ui` directly measured `size`
-/// after all: a block placed without a size entry learns its real size once its regions have run.
-pub(crate) fn widen_cell(ui: &Ui, size: Vec2) {
-    if let Some(body) = Env::of(ui).grid {
-        Service::<Cursors>::of(ui.ctx()).with(|cursors| {
-            if let Some(cursor) = cursors.0.get_mut(&body) {
-                cursor.widen(size);
-            }
-        });
-    }
 }
 
 fn column_id(grid: Id, index: usize) -> Id {

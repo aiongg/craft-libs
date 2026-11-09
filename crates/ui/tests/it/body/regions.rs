@@ -239,3 +239,55 @@ fn tab_walks_a_filling_stack_through_header_body_and_footer() {
     let expected = ["Head", "Body", "Foot"].map(|name| Some(name.to_owned()));
     assert_eq!(walked, expected, "Tab follows the visual order");
 }
+
+#[trial]
+fn a_footer_sits_under_a_body_that_grew_this_pass() {
+    let took = RefCell::new(Took::default());
+    let mut frames = Frames::new();
+    let mut run = |height: f32| {
+        frames.frame(Vec::new(), |ui| {
+            let shown = Regioned {
+                common: Common::new(),
+                props: ContainerProps::new().sizing(Sizing::Content).footer(FooterRegion::new()),
+                header: None,
+                end: Vec2::ZERO,
+                footer: Vec2::new(70.0, 16.0),
+                took: &took,
+            }
+            .show(ui, |ui, _| allocate(ui, Vec2::new(100.0, height)));
+            took.borrow_mut().body = shown.inner;
+        })
+    };
+    run(20.0);
+    run(20.0);
+    let passes = run(50.0);
+    let (body, footer) = (took.borrow().body.unwrap(), took.borrow().footer.unwrap());
+    assert_eq!(passes, 1, "the frame took one pass");
+    assert!((footer.min.y - body.max.y).abs() < 1.0, "the footer starts where the grown body ends: {body:?} {footer:?}");
+}
+
+#[trial]
+fn an_inline_header_line_is_as_high_as_its_tallest_part() {
+    let took = RefCell::new(Took::default());
+    let mut frames = Frames::new();
+    frames.screen(Vec2::new(400.0, 300.0));
+    let mut outer = Rect::NOTHING;
+    for _ in 0..4 {
+        frames.frame(Vec::new(), |ui| {
+            let shown = Regioned {
+                common: Common::new(),
+                props: ContainerProps::new().sizing(Sizing::FillWidth).header(HeaderRegion::new().inline(true)),
+                header: Some(Vec2::new(60.0, 20.0)),
+                end: Vec2::ZERO,
+                footer: Vec2::ZERO,
+                took: &took,
+            }
+            .show(ui, |ui, _| allocate(ui, Vec2::new(100.0, 40.0)));
+            outer = shown.output.rect;
+            took.borrow_mut().body = shown.inner;
+        });
+    }
+    let body = took.borrow().body.unwrap();
+    eprintln!("outer {outer:?} body {body:?}");
+    assert!(outer.height() < 100.0, "the container is as high as its body, not the room: {outer:?}");
+}
