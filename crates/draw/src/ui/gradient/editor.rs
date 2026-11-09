@@ -191,7 +191,7 @@ impl<'a, P: Clone + Send + Sync + 'static> GradientEditor<'a, P> {
     /// Sets up the colour popover's picker (texts, constraint, models, eyedropper): `setup` gets the Compact picker, with
     /// alpha under `Combined`.
     #[must_use]
-    pub fn picker(mut self, setup: impl for<'b> FnOnce(ColorPicker<'b>) -> ColorPicker<'b> + 'a) -> Self {
+    pub fn picker(mut self, setup: impl for<'b> Fn(ColorPicker<'b>) -> ColorPicker<'b> + 'a) -> Self {
         self.picker = Some(Box::new(setup));
         self
     }
@@ -268,7 +268,7 @@ impl<'a, P: Clone + Send + Sync + 'static> GradientEditor<'a, P> {
             location_decimals,
             fields,
             color_popover,
-            mut picker,
+            picker,
             shared_selection: mut selected,
             sampled,
             drop_target,
@@ -310,7 +310,7 @@ impl<'a, P: Clone + Send + Sync + 'static> GradientEditor<'a, P> {
                     enabled,
                     fields,
                     color_popover,
-                    picker: &mut picker,
+                    picker: &picker,
                     sampled,
                     requested: color_requested,
                 };

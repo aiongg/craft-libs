@@ -30,25 +30,23 @@ fn targets() -> Vec<CornerTarget> {
     vec![rect, hexagon]
 }
 
-/// Shows `control` as the only canvas control of a canvas whose view has the document origin at its centre.
-fn on_canvas(ui: &mut Ui, control: CornerWidgets<'_>) -> StoryOutput {
+/// Shows the control `control` builds and shows as the only canvas control of a canvas whose view has the document
+/// origin at its centre. The canvas body runs more than once per pass, so `control` builds it on every run.
+fn on_canvas(ui: &mut Ui, mut control: impl FnMut(&mut Ui, egui::Rect) -> CornerWidgetsOutput) -> StoryOutput {
     let room = ui.available_rect_before_wrap();
     let view = CanvasView::new(room, Point::new(f64::from(room.width()) / 2.0, f64::from(room.height()) / 2.0), 1.0);
-    let mut control = Some(control);
-    let shown = Canvas::new("Document")
-        .view(view)
-        .show(ui, |ui, body| -> Option<CornerWidgetsOutput> { control.take().map(|control| control.show_at(ui, body.rect)) });
-    shown.inner.flatten().map(|out| StoryOutput::from(out.edit)).unwrap_or_default()
+    let shown = Canvas::new("Document").view(view).show(ui, |ui, body| control(ui, body.rect));
+    shown.inner.map(|out| StoryOutput::from(out.edit)).unwrap_or_default()
 }
 
 #[story(CornerWidgets<'static>, covers = [Default], drive = Drive::Drag(Grip::part(WIDGET.at(0)).toward(vec2(1.0, 1.0))))]
 fn rectangle_and_hexagon(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let targets = data.value("targets", targets());
-    on_canvas(ui, CornerWidgets::new("Corner radius", Bind::bound(&mut *targets)))
+    on_canvas(ui, |ui, at| CornerWidgets::new("Corner radius", Bind::bound(&mut *targets)).show_at(ui, at))
 }
 
 #[story(CornerWidgets<'static>, covers = [], drive = Drive::Never)]
 fn cycling_kinds_and_a_wide_angle_limit(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let targets = data.value("kinds", targets());
-    on_canvas(ui, CornerWidgets::new("Corner radius", Bind::bound(&mut *targets)).kinds(true).hide_above(120.0))
+    on_canvas(ui, |ui, at| CornerWidgets::new("Corner radius", Bind::bound(&mut *targets)).kinds(true).hide_above(120.0).show_at(ui, at))
 }
