@@ -60,7 +60,7 @@ use crate::runtime::edit::next_gesture_id;
 use crate::runtime::env::{Env, Label};
 use crate::runtime::memory::{global, with_session};
 use crate::runtime::pointer::{self, PointerFrame};
-use crate::runtime::{cursor, focus, frame, keys, lock_keys};
+use crate::runtime::{cursor, focus, frame, keys, lock_keys, measure};
 use crate::style::StyleCx;
 use craft_behavior::kurbo;
 use craft_behavior::{
@@ -252,20 +252,30 @@ impl<'m> ToolHost<'m> {
         let ctx = ui.ctx().clone();
         let env = Env::of(ui);
         let key = state_id(canvas.response.id);
+        // A measuring run delivers no input: the tool is drawn and sized from the state the last real run left, and
+        // the queued events, momentary commands and cancelled view wait for the real run.
+        let measuring = measure::active(&ctx);
         let mut state = with_session(&ctx, key, |slot: &mut HostState| {
             let seen = slot.clone();
-            slot.queued.clear();
+            if !measuring {
+                slot.queued.clear();
+            }
             seen
         });
         let queued = std::mem::take(&mut state.queued);
-        let cancelled_view = state.cancelled_view.take();
+        let cancelled_view = if measuring { None } else { state.cancelled_view.take() };
         let space = canvas.space;
         let down = keys::down(&ctx);
         let caps = lock_keys::caps_lock(&ctx);
         let rect = canvas.response.rect;
         let input = pointer::frame(&ctx);
         let mut glide = None;
-        let fired = std::iter::from_fn(|| commands::take_around::<MomentaryCommands>(&ctx, canvas.response.id, env.view().command_chain()));
+        let fired = std::iter::from_fn(|| {
+            if measuring {
+                return None;
+            }
+            commands::take_around::<MomentaryCommands>(&ctx, canvas.response.id, env.view().command_chain())
+        });
         let tool: &mut dyn CanvasTool = match momentary {
             Some(momentary) => {
                 for (command, event) in fired {
@@ -298,19 +308,21 @@ impl<'m> ToolHost<'m> {
             cancelled: false,
             ending: None,
         };
-        run.call(None, |tool, cx| tool.each_pass(cx));
-        if let Some(hand) = glide {
-            run.glide(hand);
-        }
-        if disabled {
-            run.cancel(CancelReason::Dismissed);
-            run.state.spent |= canvas.press.phase.is_press();
-        } else {
-            run.phase(&canvas.press, &input);
-            for event in queued {
-                run.injected(event);
+        if !measuring {
+            run.call(None, |tool, cx| tool.each_pass(cx));
+            if let Some(hand) = glide {
+                run.glide(hand);
             }
-            run.keys(&ctx, canvas.response.id, env.direction.is_rtl());
+            if disabled {
+                run.cancel(CancelReason::Dismissed);
+                run.state.spent |= canvas.press.phase.is_press();
+            } else {
+                run.phase(&canvas.press, &input);
+                for event in queued {
+                    run.injected(event);
+                }
+                run.keys(&ctx, canvas.response.id, env.direction.is_rtl());
+            }
         }
         let Run { mut response, requests, .. } = run;
         if response.view.is_none() {

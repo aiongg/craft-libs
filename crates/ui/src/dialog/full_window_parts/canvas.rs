@@ -247,25 +247,18 @@ impl<'a> FullWindowCanvas<'a> {
             );
             let output = canvas.output;
             // The body runs for the measuring pass and again for the real one. The tool and the momentary set are
-            // reborrowed on each run, and the host, which takes the pass's gestures and reports, runs only in the real
-            // one.
-            let hosted = if measure::active(&ui.ctx().clone()) {
-                ToolHostResponse::default()
-            } else {
-                let mut host = ToolHost::new();
-                if let Some(momentary) = momentary.as_deref_mut() {
-                    host = host.momentary(momentary);
-                }
-                match tool.as_deref_mut() {
-                    Some(tool) => host.run(ui, &output, tool),
-                    None => {
-                        with_session(&ui.ctx().clone(), global("craft-ui full-window canvas hand", output.response.id), |slot: &mut FallbackHand| {
-                            let hand = slot.0.get_or_insert_with(|| HandTool::new(navigation));
-                            hand.options = navigation;
-                            host.run(ui, &output, hand)
-                        })
-                    }
-                }
+            // reborrowed on each run; the host delivers no input in the measuring run.
+            let mut host = ToolHost::new();
+            if let Some(momentary) = momentary.as_deref_mut() {
+                host = host.momentary(momentary);
+            }
+            let hosted = match tool.as_deref_mut() {
+                Some(tool) => host.run(ui, &output, tool),
+                None => with_session(&ui.ctx().clone(), global("craft-ui full-window canvas hand", output.response.id), |slot: &mut FallbackHand| {
+                    let hand = slot.0.get_or_insert_with(|| HandTool::new(navigation));
+                    hand.options = navigation;
+                    host.run(ui, &output, hand)
+                }),
             };
             // The host's view is the tool's, else the canvas's own (the wheel, a middle-button pan, the clamp).
             let next = shown.took(hosted.view.unwrap_or_else(|| shown.view()));
