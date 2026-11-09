@@ -5,6 +5,7 @@ use std::sync::Arc;
 use craft_host::target::Os;
 use craft_i18n::Folder;
 use craft_i18n::matcher::Matcher;
+use craft_theme::Rgba;
 use craft_ui::patterns::preferences::{
     GroupSpec, PageInfo, PageSpec, PrefValue, PreferencesModel, RowKind, RowSpec, SettingRule, SettingsDocument, StandardPage, list_pages, matches,
     row_shown, shown_position,
