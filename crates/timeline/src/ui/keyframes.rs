@@ -361,7 +361,9 @@ impl Component for KeyframeLane<'_> {
                 PressPhase::Drag { pos, .. } => {
                     if let Some(drag) = cx.press_slot::<Drag>().clone() {
                         let now = self.delta_at(&drag, pos.x, press.mods.shift, &axis, reach);
-                        cx.press_slot::<Drag>().as_mut().map(|held| held.now = now);
+                        if let Some(held) = cx.press_slot::<Drag>().as_mut() {
+                            held.now = now;
+                        }
                         out.delta = Some(EditEvent::update(drag.id, now));
                     }
                 }
@@ -405,10 +407,10 @@ impl Component for KeyframeLane<'_> {
                     out.select = restore(marquee.cancel(), selection);
                 }
             }
-            PressPhase::Release { click: true, start, .. } if start.button == PointerButton::Primary && out.select.is_none() => {
-                if !(mods.shift || mods.cmd) && !selection.items.is_empty() {
-                    out.select = Some(SelectionChange::Clear);
-                }
+            PressPhase::Release { click: true, start, .. }
+                if start.button == PointerButton::Primary && out.select.is_none() && !(mods.shift || mods.cmd) && !selection.items.is_empty() =>
+            {
+                out.select = Some(SelectionChange::Clear);
             }
             _ => {}
         }
@@ -645,7 +647,7 @@ impl<'a> AnimationToggle<'a> {
     // effectcraft: crates/ui-egui/src/panels/timeline.rs:3922 `prop_stopwatch`.
     pub fn show(self, ui: &mut egui::Ui) -> EditResponse<bool> {
         let AnimationToggle { label, on } = self;
-        let label = label.unwrap_or_else(|| Label::from(craft_ui::runtime::env::Env::of(ui).words::<KeyframeWords>().toggle_animation.clone()));
+        let label = label.unwrap_or_else(|| craft_ui::runtime::env::Env::of(ui).words::<KeyframeWords>().toggle_animation.clone());
         ToggleButton::new(label, on).icon(IconSpec::svg(IconId::new("clock"))).icon_only().show(ui)
     }
 }

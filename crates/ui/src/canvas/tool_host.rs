@@ -60,7 +60,7 @@ use crate::runtime::edit::next_gesture_id;
 use crate::runtime::env::{Env, Label};
 use crate::runtime::memory::{global, with_session};
 use crate::runtime::pointer::{self, PointerFrame};
-use crate::runtime::{cursor, focus, frame, keys, lock_keys, measure};
+use crate::runtime::{cursor, frame, keys, lock_keys, measure};
 use crate::style::StyleCx;
 use craft_behavior::kurbo;
 use craft_behavior::{

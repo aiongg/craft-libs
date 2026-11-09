@@ -26,7 +26,7 @@ use std::ops::Deref;
 use super::DragEvent;
 use super::keyframes::{KeyframeId, KeyframeInterpolation};
 use super::ruler::{ruler_ladder, ruler_ticks};
-use super::view::time_axis;
+use super::view::{TimeAxis, time_axis};
 use crate::time::Tick;
 use crate::timecode::format_time;
 
@@ -535,6 +535,82 @@ impl<'a> GraphEditor<'a> {
         cells
     }
 
+    /// The keys: a click picks, a drag moves the selected keys.
+    fn press_keys(&mut self, cx: &mut Cx<'_, Self>, axis: &TimeAxis, frame: &Frame, left: f32, shown_range: (f64, f64)) {
+        let keys: Vec<(usize, KeyframeId)> = self.keys_in_order().map(|(n, key)| (n, key.id)).collect();
+        for (n, id) in keys {
+            let Some(result) = cx.part_if_declared(KEY.at(n as u64)) else { continue };
+            let press = result.press;
+            if !primary(&press) {
+                continue;
+            }
+            let additive = press.mods.shift || press.mods.cmd;
+            match press.phase {
+                PressPhase::DragStart { .. } => {
+                    if !self.selection.contains(&id) {
+                        self.picked = Some(if additive { SelectionChange::Toggle(id) } else { SelectionChange::Set(vec![id]) });
+                    }
+                    *cx.press_slot::<Hold>() = Some(Hold::Keys { range: shown_range });
+                    self.keys = Some(DragEvent::Begin(GraphKeyMove::default()));
+                }
+                PressPhase::Drag { start, pos, .. } | PressPhase::Release { start, pos, click: false, .. } => {
+                    let (time_ok, value_ok) = axes(press.mods.shift, pos.x - start.origin.x, pos.y - start.origin.y);
+                    let delta_time = if time_ok { axis.tick_at(pos.x, left) - axis.tick_at(start.origin.x, left) } else { Tick::ZERO };
+                    let delta_value = if value_ok { frame.value_at(pos.y) - frame.value_at(start.origin.y) } else { 0.0 };
+                    let moved = GraphKeyMove { delta_time, delta_value };
+                    self.keys =
+                        Some(if matches!(press.phase, PressPhase::Release { .. }) { DragEvent::Commit(moved) } else { DragEvent::Update(moved) });
+                }
+                // Shift toggles a key as Cmd/Ctrl does (After Effects').
+                PressPhase::Release { click: true, .. } => {
+                    self.picked = Some(if additive { SelectionChange::Toggle(id) } else { SelectionChange::Set(vec![id]) });
+                }
+                PressPhase::Cancel { .. } => self.keys = Some(DragEvent::Cancel),
+                _ => {}
+            }
+        }
+    }
+
+    /// The handles: a drag moves one, or with Alt breaks the pair.
+    fn press_handles(&mut self, cx: &mut Cx<'_, Self>, hold: &Hold, axis: &TimeAxis, frame: &Frame, left: f32, shown_range: (f64, f64)) {
+        let handles: Vec<(usize, u64, KeyframeId, (Tick, f64))> = self
+            .keys_in_order()
+            .flat_map(|(n, key)| {
+                [(0, key.in_handle), (1, key.out_handle)].into_iter().filter_map(move |(side, handle)| handle.map(|handle| (n, side, key.id, handle)))
+            })
+            .collect();
+        for (n, side, id, (time, value)) in handles {
+            let Some(result) = cx.part_if_declared(HANDLE.at(handle_index(n, side))) else { continue };
+            let press = result.press;
+            if !primary(&press) {
+                continue;
+            }
+            let (grab_time, grab_value, broken) = match hold {
+                Hold::Handle { time, value, broken, .. } => (*time, *value, *broken),
+                _ => (time, value, press.mods.alt),
+            };
+            let at = |dt: Tick, dv: f64| HandleMove { key: id, side: side_of(side), time: grab_time + dt, value: grab_value + dv, broken };
+            match press.phase {
+                PressPhase::DragStart { .. } => {
+                    *cx.press_slot::<Hold>() = Some(Hold::Handle { time, value, broken: press.mods.alt, range: shown_range });
+                    self.handle = Some(DragEvent::Begin(HandleMove { key: id, side: side_of(side), time, value, broken: press.mods.alt }));
+                }
+                PressPhase::Drag { start, pos, .. } | PressPhase::Release { start, pos, click: false, .. } => {
+                    let (time_ok, value_ok) = axes(press.mods.shift, pos.x - start.origin.x, pos.y - start.origin.y);
+                    let dt = if time_ok { axis.tick_at(pos.x, left) - axis.tick_at(start.origin.x, left) } else { Tick::ZERO };
+                    let dv = if value_ok { frame.value_at(pos.y) - frame.value_at(start.origin.y) } else { 0.0 };
+                    self.handle = Some(if matches!(press.phase, PressPhase::Release { .. }) {
+                        DragEvent::Commit(at(dt, dv))
+                    } else {
+                        DragEvent::Update(at(dt, dv))
+                    });
+                }
+                PressPhase::Cancel { .. } => self.handle = Some(DragEvent::Cancel),
+                _ => {}
+            }
+        }
+    }
+
     /// The value range the plot shows: the frozen one while a drag runs, else the fitted one with auto-zoom, else the
     /// range's own.
     fn shown_range(&self, range: Option<&GraphRange>) -> (f64, f64) {
@@ -724,77 +800,9 @@ impl Component for GraphEditor<'_> {
         let step = nice_step((shown_range.1 - shown_range.0) / GRID_LINES);
         self.shown = self.selection.clone();
 
-        // The keys: a click picks, a drag moves the selected keys.
-        let keys: Vec<(usize, KeyframeId)> = self.keys_in_order().map(|(n, key)| (n, key.id)).collect();
-        for (n, id) in keys {
-            let Some(result) = cx.part_if_declared(KEY.at(n as u64)) else { continue };
-            let press = result.press;
-            if !primary(&press) {
-                continue;
-            }
-            let additive = press.mods.shift || press.mods.cmd;
-            match press.phase {
-                PressPhase::DragStart { .. } => {
-                    if !self.selection.contains(&id) {
-                        self.picked = Some(if additive { SelectionChange::Toggle(id) } else { SelectionChange::Set(vec![id]) });
-                    }
-                    *cx.press_slot::<Hold>() = Some(Hold::Keys { range: shown_range });
-                    self.keys = Some(DragEvent::Begin(GraphKeyMove::default()));
-                }
-                PressPhase::Drag { start, pos, .. } | PressPhase::Release { start, pos, click: false, .. } => {
-                    let (time_ok, value_ok) = axes(press.mods.shift, pos.x - start.origin.x, pos.y - start.origin.y);
-                    let delta_time = if time_ok { axis.tick_at(pos.x, left) - axis.tick_at(start.origin.x, left) } else { Tick::ZERO };
-                    let delta_value = if value_ok { frame.value_at(pos.y) - frame.value_at(start.origin.y) } else { 0.0 };
-                    let moved = GraphKeyMove { delta_time, delta_value };
-                    self.keys =
-                        Some(if matches!(press.phase, PressPhase::Release { .. }) { DragEvent::Commit(moved) } else { DragEvent::Update(moved) });
-                }
-                // Shift toggles a key as Cmd/Ctrl does (After Effects').
-                PressPhase::Release { click: true, .. } => {
-                    self.picked = Some(if additive { SelectionChange::Toggle(id) } else { SelectionChange::Set(vec![id]) });
-                }
-                PressPhase::Cancel { .. } => self.keys = Some(DragEvent::Cancel),
-                _ => {}
-            }
-        }
+        self.press_keys(cx, &axis, &frame, left, shown_range);
 
-        // The handles: a drag moves one, or with Alt breaks the pair.
-        let handles: Vec<(usize, u64, KeyframeId, (Tick, f64))> = self
-            .keys_in_order()
-            .flat_map(|(n, key)| {
-                [(0, key.in_handle), (1, key.out_handle)].into_iter().filter_map(move |(side, handle)| handle.map(|handle| (n, side, key.id, handle)))
-            })
-            .collect();
-        for (n, side, id, (time, value)) in handles {
-            let Some(result) = cx.part_if_declared(HANDLE.at(handle_index(n, side))) else { continue };
-            let press = result.press;
-            if !primary(&press) {
-                continue;
-            }
-            let (grab_time, grab_value, broken) = match &hold {
-                Hold::Handle { time, value, broken, .. } => (*time, *value, *broken),
-                _ => (time, value, press.mods.alt),
-            };
-            let at = |dt: Tick, dv: f64| HandleMove { key: id, side: side_of(side), time: grab_time + dt, value: grab_value + dv, broken };
-            match press.phase {
-                PressPhase::DragStart { .. } => {
-                    *cx.press_slot::<Hold>() = Some(Hold::Handle { time, value, broken: press.mods.alt, range: shown_range });
-                    self.handle = Some(DragEvent::Begin(HandleMove { key: id, side: side_of(side), time, value, broken: press.mods.alt }));
-                }
-                PressPhase::Drag { start, pos, .. } | PressPhase::Release { start, pos, click: false, .. } => {
-                    let (time_ok, value_ok) = axes(press.mods.shift, pos.x - start.origin.x, pos.y - start.origin.y);
-                    let dt = if time_ok { axis.tick_at(pos.x, left) - axis.tick_at(start.origin.x, left) } else { Tick::ZERO };
-                    let dv = if value_ok { frame.value_at(pos.y) - frame.value_at(start.origin.y) } else { 0.0 };
-                    self.handle = Some(if matches!(press.phase, PressPhase::Release { .. }) {
-                        DragEvent::Commit(at(dt, dv))
-                    } else {
-                        DragEvent::Update(at(dt, dv))
-                    });
-                }
-                PressPhase::Cancel { .. } => self.handle = Some(DragEvent::Cancel),
-                _ => {}
-            }
-        }
+        self.press_handles(cx, &hold, &axis, &frame, left, shown_range);
 
         // The plot itself: a click on empty graph clears, a drag sweeps a box.
         let press = cx.part(PLOT).press;
@@ -826,10 +834,8 @@ impl Component for GraphEditor<'_> {
                         }
                     }
                 }
-                PressPhase::Release { click: true, .. } => {
-                    if !(press.mods.shift || press.mods.cmd) && !self.selection.items.is_empty() {
-                        self.picked = Some(SelectionChange::Clear);
-                    }
+                PressPhase::Release { click: true, .. } if !(press.mods.shift || press.mods.cmd) && !self.selection.items.is_empty() => {
+                    self.picked = Some(SelectionChange::Clear);
                 }
                 _ => {}
             }

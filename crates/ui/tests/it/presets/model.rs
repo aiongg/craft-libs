@@ -62,14 +62,14 @@ fn reordering_presets_moves_them_before_the_target_row() {
     let keys = [PresetKey::Item(green)];
     let to = before(&lib, &keys, &PresetKey::Item(red));
     let changes = lib.reorder(&keys, to).unwrap();
-    assert_eq!(reordered(&changes), [a.clone()]);
+    assert_eq!(reordered(&changes), std::slice::from_ref(&a));
     assert_eq!(names(&lib, &a), ["Green", "Red"]);
 
     let keys = [PresetKey::Item(green), PresetKey::Item(red)];
     let to = before(&lib, &keys, &PresetKey::Item(cyan));
     let changes = lib.reorder(&keys, to).unwrap();
     assert_eq!(moved_ids(&changes), [green, red]);
-    assert_eq!(reordered(&changes), [b.clone()]);
+    assert_eq!(reordered(&changes), std::slice::from_ref(&b));
     assert_eq!(names(&lib, &b), ["Green", "Red", "Cyan"]);
 }
 

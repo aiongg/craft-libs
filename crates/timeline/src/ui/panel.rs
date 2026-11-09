@@ -459,7 +459,7 @@ fn label_menu(
         if MenuItem::new(words.no_label.clone()).check(current.is_none()).show(ui).ran {
             chosen = Some(None);
         }
-        for n in 0..=u8::MAX.min(15) {
+        for n in 0..=15 {
             let label = MarkerColor(n);
             let swatch = IconSpec::swatch(craft_theme::Srgba::from(palette.0[usize::from(n) % palette.0.len()]));
             if MenuItem::new(words.label_name(label).to_owned()).icon(swatch).check(current == Some(label)).show(ui).ran {

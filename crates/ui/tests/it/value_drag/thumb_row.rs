@@ -229,7 +229,6 @@ fn an_alt_drag_on_an_alt_reporting_thumb_moves_at_full_rate_and_reports_alt() {
     }
     frames.frame(vec![release(from + Vec2::new(BY, 0.0))], &mut show);
     frames.idle(2, &mut show);
-    drop(show);
     assert_eq!(value.into_inner(), free, "Alt is not the fine scale on this thumb");
     assert_eq!(seen.get(), Some((0, true)), "the drag of the first thumb reports Alt");
 }

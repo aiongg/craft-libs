@@ -16,8 +16,10 @@ use craft_ui::style::TypeRole;
 use craft_ui::text::NumberField;
 use egui::Ui;
 
+type CurveRowsFn<'a> = Box<dyn FnMut(&mut Ui, &mut BodyCx<'_>) + 'a>;
+
 /// The host's rows between the graph and the Input and Output fields (the Contour Editor's Name row).
-pub struct CurveRows<'a>(Box<dyn FnMut(&mut Ui, &mut BodyCx<'_>) + 'a>);
+pub struct CurveRows<'a>(CurveRowsFn<'a>);
 
 impl<'a> CurveRows<'a> {
     /// The rows `rows` shows in the editor's column.

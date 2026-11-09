@@ -25,6 +25,12 @@ pub struct FullWindowDialogStyle {
     metrics: Metrics,
 }
 
+type GuardFn<'a> = Box<dyn FnMut(&FooterButton, &mut BodyCx<'_>) -> bool + 'a>;
+
+type OnPickFn<'a> = Box<dyn FnMut(&FooterButton, &mut BodyCx<'_>) + 'a>;
+
+type SettleFn<'a> = Box<dyn FnMut(&mut BodyCx<'_>, &mut [FooterButton]) + 'a>;
+
 /// A dialog that fills the window: a title row, a body that takes the room between the header and the footer, and an
 /// optional footer. The areas the body shows inside it are panels at rects.
 ///
@@ -54,15 +60,15 @@ pub struct FullWindowDialog<'a> {
     /// and the dialog's body context, so a host reads and writes its kept state, and returns whether a button that
     /// closes the dialog may. On `false` the dialog stays open, with `DialogOutput::picked` still
     /// reporting the pick; the host shows why. A button marked `stays_open` never closes, whatever it returns.
-    #[prop(boxed, name = "close_guard")]
-    guard: Option<Box<dyn FnMut(&FooterButton, &mut BodyCx<'_>) -> bool + 'a>>,
+    #[prop(boxed = "FnMut(&FooterButton, &mut BodyCx<'_>) -> bool + 'a", name = "close_guard")]
+    guard: Option<GuardFn<'a>>,
     /// Sets the buttons' state each pass; see `Dialog::settle_buttons`.
-    #[prop(boxed, name = "settle_buttons")]
-    settle: Option<Box<dyn FnMut(&mut BodyCx<'_>, &mut [FooterButton]) + 'a>>,
+    #[prop(boxed = "FnMut(&mut BodyCx<'_>, &mut [FooterButton]) + 'a", name = "settle_buttons")]
+    settle: Option<SettleFn<'a>>,
     /// Acts on a picked footer button in the footer step, before the close is decided: `act` gets the button and the
     /// dialog's body context. `ResetFooter::install` sets it.
-    #[prop(boxed, name = "on_pick")]
-    on_pick: Option<Box<dyn FnMut(&FooterButton, &mut BodyCx<'_>) + 'a>>,
+    #[prop(boxed = "FnMut(&FooterButton, &mut BodyCx<'_>) + 'a", name = "on_pick")]
+    on_pick: Option<OnPickFn<'a>>,
     buttons: Vec<FooterButton>,
     sides: Option<SidesFn<'a>>,
     side_footer: SideFooter<'a>,

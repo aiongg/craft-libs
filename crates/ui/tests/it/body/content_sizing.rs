@@ -12,9 +12,11 @@ use craft_ui::testing::{Fixture, trial};
 use std::cell::Cell;
 use std::rc::Rc;
 
+type Rig = (Fixture, Rc<Cell<bool>>, Rc<Cell<Option<CloseReason>>>);
+
 /// A dialog titled `T` with `groups` field groups of three fields, each holding a button wider than the title and
 /// the footer. Returns the fixture, whether the dialog is open and how it closed.
-fn rig(groups: usize) -> (Fixture, Rc<Cell<bool>>, Rc<Cell<Option<CloseReason>>>) {
+fn rig(groups: usize) -> Rig {
     let open = Rc::new(Cell::new(true));
     let closed = Rc::new(Cell::new(None));
     let (state, seen) = (Rc::clone(&open), Rc::clone(&closed));

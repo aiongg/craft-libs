@@ -81,10 +81,7 @@ fn ruler<'a>(playhead: Bind<'a, Tick>, demo_work: TimeRange, render: &'a [Render
 }
 
 fn split_marks() -> SplitMarks {
-    let mut marks = SplitMarks::default();
-    marks.video_in = Some(secs(12.0));
-    marks.audio_out = Some(secs(26.0));
-    marks
+    SplitMarks { video_in: Some(secs(12.0)), audio_out: Some(secs(26.0)), ..SplitMarks::default() }
 }
 
 #[story(TimelineRuler<'static>, covers = [Default])]

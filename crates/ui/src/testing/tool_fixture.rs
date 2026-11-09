@@ -97,7 +97,9 @@ impl<T: CanvasTool + 'static> ToolFixture<T> {
 
     /// The canvas's node.
     pub fn canvas(&self) -> Target {
-        self.fixture.by_role(Role::CANVAS).into_iter().next().expect("the fixture shows a canvas")
+        let canvases = self.fixture.by_role(Role::CANVAS);
+        assert!(!canvases.is_empty(), "the fixture shows a canvas");
+        canvases[0]
     }
 
     /// The canvas's id, which keys the host's state: what [`ToolHost::inject`], [`ToolHost::cancel`] and

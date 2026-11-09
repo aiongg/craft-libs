@@ -138,14 +138,12 @@ impl<'a> GradientEditor<'a> {
 impl<'a, P: Clone + Send + Sync + 'static> GradientEditor<'a, P> {
     /// The row layout, the fewest and most stops a row keeps and the range of a midpoint (PhotoCraft: two rows, 2 and
     /// 1024 stops, 5 % to 95 %).
-    #[must_use]
     pub fn rules(mut self, rules: StopRules) -> Self {
         self.rules = rules;
         self
     }
 
     /// Whether the midpoint diamonds show and edit, on both rows; on by default. Off hides the opacity row's too.
-    #[must_use]
     pub fn midpoints(mut self, midpoints: bool) -> Self {
         self.midpoints = midpoints;
         self
@@ -153,28 +151,24 @@ impl<'a, P: Clone + Send + Sync + 'static> GradientEditor<'a, P> {
 
     /// Whether the opacity row of a split bar has midpoint diamonds, for a host whose opacity stops carry none; on by
     /// default.
-    #[must_use]
     pub fn opacity_midpoints(mut self, opacity_midpoints: bool) -> Self {
         self.opacity_midpoints = opacity_midpoints;
         self
     }
 
     /// Samples the gradient for the ramp and new stops instead of the default sampler.
-    #[must_use]
     pub fn sampler(mut self, sampler: &'a Sampler) -> Self {
         self.sampler = Some(sampler);
         self
     }
 
     /// Decimals of a location in percent; 0 by default.
-    #[must_use]
     pub fn location_decimals(mut self, decimals: usize) -> Self {
         self.location_decimals = decimals;
         self
     }
 
     /// Whether the selected marker's fields show under the bar; on by default.
-    #[must_use]
     pub fn fields(mut self, fields: bool) -> Self {
         self.fields = fields;
         self
@@ -182,7 +176,6 @@ impl<'a, P: Clone + Send + Sync + 'static> GradientEditor<'a, P> {
 
     /// Whether the editor edits a colour stop's colour in a colour popover itself, anchored on the Color well (on the bar
     /// without the fields); off by default, when the request goes to the host in `color_requested`.
-    #[must_use]
     pub fn color_popover(mut self, popover: bool) -> Self {
         self.color_popover = popover;
         self
@@ -190,28 +183,24 @@ impl<'a, P: Clone + Send + Sync + 'static> GradientEditor<'a, P> {
 
     /// Sets up the colour popover's picker (texts, constraint, models, eyedropper): `setup` gets the Compact picker, with
     /// alpha under `Combined`.
-    #[must_use]
     pub fn picker(mut self, setup: impl for<'b> Fn(ColorPicker<'b>) -> ColorPicker<'b> + 'a) -> Self {
         self.picker = Some(Box::new(setup));
         self
     }
 
     /// The host's selection, shared with the canvas gradient line.
-    #[must_use]
     pub fn shared_selection(mut self, selection: Bind<'a, Option<StopRef>>) -> Self {
         self.shared_selection = Some(selection);
         self
     }
 
     /// The colour the host's screen pick answered with, for the popover's picker.
-    #[must_use]
     pub fn sampled(mut self, color: Srgba) -> Self {
         self.sampled = Some(color);
         self
     }
 
     /// Whether the editor takes input.
-    #[must_use]
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
@@ -219,7 +208,6 @@ impl<'a, P: Clone + Send + Sync + 'static> GradientEditor<'a, P> {
 
     /// Takes drops of `Q` payloads: while one hovers, a line marks the place; the release is reported in
     /// `dropped` and the host applies it.
-    #[must_use]
     pub fn drop_target<Q: Clone + Send + Sync + 'static>(self) -> GradientEditor<'a, Q> {
         let GradientEditor {
             label,

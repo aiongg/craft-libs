@@ -118,7 +118,6 @@ impl<'a> BlackWhiteEditor<'a> {
     }
 
     /// Dialog or Properties panel; a dialog by default.
-    #[must_use]
     pub fn context(mut self, context: AdjustContext) -> Self {
         self.context = context;
         self
@@ -303,7 +302,6 @@ impl<'a> ChannelMixerEditor<'a> {
     }
 
     /// Dialog or Properties panel; a dialog by default.
-    #[must_use]
     pub fn context(mut self, context: AdjustContext) -> Self {
         self.context = context;
         self
@@ -330,7 +328,7 @@ impl<'a> ChannelMixerEditor<'a> {
                 .iter()
                 .enumerate()
                 .map(|(i, (key, name))| {
-                    AdjustField::new(*key, (*name).clone(), -200.0..=200.0, identity[i])
+                    AdjustField::new(key, (*name).clone(), -200.0..=200.0, identity[i])
                         .unit_kind(UnitKind::Percent)
                         .track(AdjustTrack::Colors(vec![tones::BLACK, mix::SOURCES[i]]))
                 })
@@ -467,7 +465,6 @@ impl<'a> SelectiveColorEditor<'a> {
     }
 
     /// Dialog or Properties panel; a dialog by default.
-    #[must_use]
     pub fn context(mut self, context: AdjustContext) -> Self {
         self.context = context;
         self

@@ -90,9 +90,11 @@ fn undo_found_through_the_help_search_undoes_in_the_field_that_held_focus() {
     rig.assert_undone_in_the_field("Help search › Undo");
 }
 
+type BarRig = (Fixture, Rc<Cell<Option<Id>>>, Rc<Cell<Option<Id>>>);
+
 /// A button holding focus, then a menu bar whose View menu holds a button and a row; the ids of the button outside
 /// the bar and of the bar are recorded.
-fn bar_rig() -> (Fixture, Rc<Cell<Option<Id>>>, Rc<Cell<Option<Id>>>) {
+fn bar_rig() -> BarRig {
     let (apply, bar) = (Rc::new(Cell::new(None)), Rc::new(Cell::new(None)));
     let shown = (apply.clone(), bar.clone());
     let mut fixture = Fixture::new(move |ui| {

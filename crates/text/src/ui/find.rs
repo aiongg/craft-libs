@@ -228,10 +228,10 @@ impl<'a> FindBar<'a> {
             if opened {
                 focus::request(ui.ctx(), FocusTarget::Id(edit.response.id));
                 // Asking again each run until the field holds focus keeps the request across the measuring run.
-                if edit.response.has_focus() {
-                    if let Some(state) = state.as_deref_mut() {
-                        state.opened = false;
-                    }
+                if edit.response.has_focus()
+                    && let Some(state) = state.as_deref_mut()
+                {
+                    state.opened = false;
                 }
             }
             if let Some(value) = edit.event.as_ref().and_then(|event| event.value()) {
@@ -558,11 +558,11 @@ impl StackDialog for FindReplaceDialog {
 
         let accept_label = if tab == FindTab::GoTo { words.go_to.clone() } else { words.find_next.clone() };
         let extras: Vec<(Label, Press)> = match (tab, word) {
-            (FindTab::Replace, _) => vec![(words.replace.clone().into(), Press::Replace), (words.replace_all.clone().into(), Press::ReplaceAll)],
+            (FindTab::Replace, _) => vec![(words.replace.clone(), Press::Replace), (words.replace_all.clone(), Press::ReplaceAll)],
             (FindTab::Find, true) => {
-                vec![(words.highlight_all.clone().into(), Press::Highlight(true)), (words.clear_highlight.clone().into(), Press::Highlight(false))]
+                vec![(words.highlight_all.clone(), Press::Highlight(true)), (words.clear_highlight.clone(), Press::Highlight(false))]
             }
-            (FindTab::Find, false) => vec![(words.replace_more.clone().into(), Press::ShowReplace)],
+            (FindTab::Find, false) => vec![(words.replace_more.clone(), Press::ShowReplace)],
             (FindTab::GoTo, _) => Vec::new(),
         };
         let accept_enabled = if tab == FindTab::GoTo { !kinds.is_empty() } else { !query.is_empty() };
@@ -641,8 +641,8 @@ impl StackDialog for FindReplaceDialog {
                     Checkbox::new(Bind::bound(value)).label(label.clone()).enabled(enabled).show(ui);
                 };
                 if !word {
-                    check(ui, &words.match_case.clone().into(), &mut options.match_case, true);
-                    check(ui, &words.whole_words.clone().into(), &mut options.whole_word, true);
+                    check(ui, &words.match_case.clone(), &mut options.match_case, true);
+                    check(ui, &words.whole_words.clone(), &mut options.whole_word, true);
                     return;
                 }
                 if clicked(&Button::new(words.search_options.clone()).show(ui)) {
@@ -654,14 +654,14 @@ impl StackDialog for FindReplaceDialog {
                 // Word greys the case, word and ignore options out while wildcards are on.
                 let free = !options.wildcards || options.regex;
                 let no_regex = !options.regex;
-                check(ui, &words.match_case.clone().into(), &mut options.match_case, free);
-                check(ui, &words.whole_words.clone().into(), &mut options.whole_word, free);
-                check(ui, &words.use_wildcards.clone().into(), &mut options.wildcards, no_regex);
-                check(ui, &words.match_prefix.clone().into(), &mut options.prefix, free);
-                check(ui, &words.match_suffix.clone().into(), &mut options.suffix, free);
-                check(ui, &words.ignore_punctuation.clone().into(), &mut options.ignore_punctuation, free);
-                check(ui, &words.ignore_space.clone().into(), &mut options.ignore_space, free);
-                check(ui, &words.regular_expressions.clone().into(), &mut options.regex, true);
+                check(ui, &words.match_case.clone(), &mut options.match_case, free);
+                check(ui, &words.whole_words.clone(), &mut options.whole_word, free);
+                check(ui, &words.use_wildcards.clone(), &mut options.wildcards, no_regex);
+                check(ui, &words.match_prefix.clone(), &mut options.prefix, free);
+                check(ui, &words.match_suffix.clone(), &mut options.suffix, free);
+                check(ui, &words.ignore_punctuation.clone(), &mut options.ignore_punctuation, free);
+                check(ui, &words.ignore_space.clone(), &mut options.ignore_space, free);
+                check(ui, &words.regular_expressions.clone(), &mut options.regex, true);
                 let entries = special_entries(&words, tab == FindTab::Replace);
                 let button = Button::new(words.special.clone()).show(ui);
                 if let Some(code) = Menu::new(words.special.clone()).opened_by(&button, Trigger::Press).pick(ui, &entries).picked {

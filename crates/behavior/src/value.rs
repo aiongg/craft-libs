@@ -261,6 +261,23 @@ impl<T> EditEvent<T> {
         }
     }
 
+    /// Maps the carried values and keeps the gesture; `None` when `f` has no value for one of them.
+    pub fn filter_map<U>(self, f: impl Fn(T) -> Option<U>) -> Option<EditEvent<U>> {
+        let mixed = |m: Mixed<T>| match m {
+            Mixed::Same(value) => f(value).map(Mixed::Same),
+            Mixed::Mixed => Some(Mixed::Mixed),
+        };
+        Some(match self {
+            EditEvent::Begin { id, before, label, doc_key } => EditEvent::Begin { id, before: mixed(before)?, label, doc_key },
+            EditEvent::Update { id, value } => EditEvent::Update { id, value: f(value)? },
+            EditEvent::Commit { id, before, after } => EditEvent::Commit { id, before: mixed(before)?, after: f(after)? },
+            EditEvent::Cancel { id, reason, before } => {
+                EditEvent::Cancel { id, reason, before: before.map(mixed).map_or(Some(None), |b| b.map(Some))? }
+            }
+            EditEvent::Set { before, after, label, doc_key } => EditEvent::Set { before: mixed(before)?, after: f(after)?, label, doc_key },
+        })
+    }
+
     /// The value the event carries: a proposal, a commit or a set.
     pub fn value(&self) -> Option<&T> {
         match self {

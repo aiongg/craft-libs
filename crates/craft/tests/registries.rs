@@ -1,5 +1,5 @@
-#![cfg(feature = "ui")]
 //! The crates register their UI contract entries with craft-ui's registry.
+#![cfg(feature = "ui")]
 
 /// The Keyboard Shortcuts dialog lives in craft-menu and registers with the UI contract's registry; the check fails
 /// when the dialog's registration is gone.

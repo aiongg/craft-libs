@@ -624,7 +624,8 @@ impl Component for TextEditor<'_> {
         let caret_rect = caret_rect.unwrap_or(Rect::from_min_size(cx.rect.min, Vec2::ZERO));
         let host_lines = lines_of(&mut *self.host, space.doc_rect(cx.rect));
         let zoom = space.zoom();
-        let runs: Vec<Vec<(std::ops::Range<usize>, bool, Vec<f32>, Vec<f32>)>> = host_lines
+        type Run = (std::ops::Range<usize>, bool, Vec<f32>, Vec<f32>);
+        let runs: Vec<Vec<Run>> = host_lines
             .iter()
             .map(|line| {
                 if line.runs.is_empty() {

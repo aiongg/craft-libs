@@ -109,8 +109,10 @@ fn placed_groups(layout: &Layout<String>, origin: Pos2) -> Vec<(String, Vec<Stri
         .collect()
 }
 
+type Bed = (Fixture, Rc<RefCell<Layout<String>>>, Rc<RefCell<Vec<DockDropped<String>>>>);
+
 /// A dock of the layout with a host that applies the drops it takes.
-fn bed(layout: Layout<String>) -> (Fixture, Rc<RefCell<Layout<String>>>, Rc<RefCell<Vec<DockDropped<String>>>>) {
+fn bed(layout: Layout<String>) -> Bed {
     let layout = Rc::new(RefCell::new(layout));
     let taken = Rc::new(RefCell::new(Vec::new()));
     let (shared_layout, shared_taken) = (Rc::clone(&layout), Rc::clone(&taken));

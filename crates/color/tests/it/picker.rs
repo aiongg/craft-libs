@@ -191,11 +191,11 @@ fn mixed_readout(items: Rc<RefCell<[Rgba; 2]>>) -> Fixture {
     let mut fixture = Fixture::new(move |ui| {
         let mut items = items.borrow_mut();
         let out = ColorReadout::new("Color", Bind::given(Mixed::<Rgba>::Mixed)).show(ui);
-        if let Some(edit) = out.channel {
-            if let Some(Some(byte)) = edit.event.value() {
-                for item in items.iter_mut() {
-                    item.0[edit.channel.index()] = *byte;
-                }
+        if let Some(edit) = out.channel
+            && let Some(Some(byte)) = edit.event.value()
+        {
+            for item in items.iter_mut() {
+                item.0[edit.channel.index()] = *byte;
             }
         }
         if let Some(color) = out.event.as_ref().and_then(|event| event.value()) {

@@ -77,7 +77,7 @@ fn drag(tool: &mut ConnectorTool, a: (f32, f32), b: (f32, f32)) -> Vec<Connector
 
 fn commit(events: &[ConnectorEvent]) -> Option<&ConnectorDraft> {
     events.iter().find_map(|e| match e {
-        ConnectorEvent::Draw(EditEvent::Commit { after, .. }) => Some(after),
+        ConnectorEvent::Draw(EditEvent::Commit { after, .. }) => Some(&**after),
         _ => None,
     })
 }
@@ -228,7 +228,8 @@ fn glued_to(end: &ConnectorEnd) -> Option<u64> {
 #[trial]
 fn the_bar_reports_routing_caps_and_line_style() {
     let choices = vec![StrokeChoice::new("none", "None"), StrokeChoice::new("arrow", "Arrow"), StrokeChoice::new("dot", "Dot")];
-    let seen: Rc<RefCell<Vec<(Option<Routing>, Option<String>, Option<ConnectorLine>)>>> = Rc::default();
+    type Seen = Vec<(Option<Routing>, Option<String>, Option<ConnectorLine>)>;
+    let seen: Rc<RefCell<Seen>> = Rc::default();
     let log = Rc::clone(&seen);
     let state = Rc::new(RefCell::new((Routing::Straight, ConnectorLine::default())));
     let held = Rc::clone(&state);

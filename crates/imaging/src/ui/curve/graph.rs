@@ -53,10 +53,12 @@ impl CurveChannel {
     }
 }
 
+type CurveSamplerFn<'a> = Rc<dyn Fn(&[[f32; 2]]) -> Vec<f32> + 'a>;
+
 /// A host's interpolation: the output level of every input level `0..=levels` through the points. The default is a
 /// monotone cubic ([`Curve::monotone`]).
 #[derive(Clone)]
-pub struct CurveSampler<'a>(Rc<dyn Fn(&[[f32; 2]]) -> Vec<f32> + 'a>);
+pub struct CurveSampler<'a>(CurveSamplerFn<'a>);
 
 impl<'a> CurveSampler<'a> {
     /// The interpolation `sample`.

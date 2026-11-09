@@ -4,7 +4,7 @@ use crate::buttons::IconButton;
 use crate::canvas::{CanvasWords, ViewCommands};
 use crate::contract::{Bind, NoValue, Outcome, Props as _, Show as _, ShowContainer as _};
 use crate::layout_components::Row;
-use crate::runtime::env::{Env, Label};
+use crate::runtime::env::Env;
 use crate::text::NumberField;
 use crate::value_drag::{Slider, SliderScale};
 use craft_behavior::canvas::zoom;
@@ -66,7 +66,7 @@ impl<'a> NavigatorZoomRow<'a> {
         let words = env.words::<CanvasWords>();
         let units = env.units();
         let pixels_per_point = env.scale.0;
-        let zoom_label = Label::from(words.navigator_zoom.clone());
+        let zoom_label = words.navigator_zoom.clone();
 
         let mut event: Option<EditEvent<CanvasView>> = None;
         let shown = Row::new().show(ui, |ui, cx| {

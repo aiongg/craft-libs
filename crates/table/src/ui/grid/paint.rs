@@ -317,7 +317,7 @@ impl CellGrid<'_> {
                 }
             }
         }
-        self.place_chrome(ui, &frame, style, cx.env.words::<CellGridWords>().outline.clone().into());
+        self.place_chrome(ui, &frame, style, cx.env.words::<CellGridWords>().outline.clone());
     }
 
     fn paint_headers(&self, draw: &Draw<'_>, frame: &Frame, selection: &CellSelection<u32>, cx: &Cx<'_, Self>) {

@@ -80,7 +80,7 @@ fn harness(mode: SliceMode, setup: impl FnOnce(&mut App)) -> Harness {
             }
             overlay.show_at(ui, body.rect)
         });
-        ToolHost::new().run(ui, &shown.output, &mut *tool);
+        let _ = ToolHost::new().run(ui, &shown.output, &mut *tool);
         let mut events = tool.take_events();
         if let Some(output) = shown.inner {
             app.id = output.response.id;

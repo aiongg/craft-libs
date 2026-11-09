@@ -432,10 +432,12 @@ impl SamplerOptions {
     }
 }
 
+type Cached = (u64, u64, usize, Vec<[f64; 2]>, Arc<Vec<SamplerReadout>>);
+
 /// The readouts a host cached: keyed by the revision, the points and the CMYK profile.
 #[derive(Clone, Default)]
 pub struct SamplerCache {
-    cached: Option<(u64, u64, usize, Vec<[f64; 2]>, Arc<Vec<SamplerReadout>>)>,
+    cached: Option<Cached>,
 }
 
 /// The readouts of every point, cached by the host between passes.

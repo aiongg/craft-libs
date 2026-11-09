@@ -128,6 +128,8 @@ struct Shown {
     selected: Option<usize>,
 }
 
+type SamplerFn<'a> = Box<dyn Fn(&[[f32; 2]]) -> Vec<f32> + 'a>;
+
 /// The Curves adjustment: Image › Adjustments › Curves and a Curves layer's Properties panel.
 ///
 /// Top to bottom:
@@ -157,8 +159,8 @@ pub struct CurvesPanel<'a> {
     #[prop]
     histograms: &'a [[u32; 256]],
     /// The host's interpolation of point curves ([`CurveEditor::sampler`]).
-    #[prop(boxed)]
-    sampler: Option<Box<dyn Fn(&[[f32; 2]]) -> Vec<f32> + 'a>>,
+    #[prop(boxed = "Fn(&[[f32; 2]]) -> Vec<f32> + 'a")]
+    sampler: Option<SamplerFn<'a>>,
     /// The armed point picker; the picker row shows when it is given.
     #[prop]
     pickers: Option<Bind<'a, Option<TonePicker>>>,
@@ -368,7 +370,7 @@ impl<'a> CurvesPanel<'a> {
                 }
                 next
             };
-            let mut event = shown.edit.event.clone().map(|event| event.map(&mapped));
+            let mut event = shown.edit.event.clone().map(|event| event.map(mapped));
             if let (true, Curve::Map(map)) = (smooth, curve) {
                 event = Some(EditEvent::set(Mixed::Same(value.clone()), mapped(Curve::Map(smoothed(map))), Arc::from("Smooth"), None));
             }

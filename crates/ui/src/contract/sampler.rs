@@ -6,7 +6,7 @@ use crate::runtime::sampler::{self, Reach};
 use egui::{Context, Id};
 
 mod sealed {
-    use super::*;
+    use super::{BodyCx, Component, Context, Cx};
 
     /// What the chapter needs of a context: the egui context the registration is made in.
     pub trait Host {

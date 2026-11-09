@@ -61,8 +61,10 @@ pub struct TitleOutput {
     pub menu_rect: Option<Rect>,
 }
 
+type MenuRowsFn<'a> = Box<dyn FnMut(&mut Ui, &mut BodyCx<'_>) + 'a>;
+
 /// The rows of the menu a container hangs from its header row.
-pub(crate) struct MenuRows<'a>(Box<dyn FnMut(&mut Ui, &mut BodyCx<'_>) + 'a>);
+pub(crate) struct MenuRows<'a>(MenuRowsFn<'a>);
 
 impl<'a> MenuRows<'a> {
     pub(crate) fn new(rows: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'a) -> Self {

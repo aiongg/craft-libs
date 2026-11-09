@@ -56,7 +56,7 @@ pub struct PdfExportResult {
 #[non_exhaustive]
 pub enum PdfPresetEvent {
     /// The current settings were saved under a new name; the passwords are cleared.
-    Saved(PdfPreset),
+    Saved(Box<PdfPreset>),
     /// A saved preset was renamed.
     #[non_exhaustive]
     Renamed {
@@ -363,7 +363,7 @@ impl<'a> PdfExportDialog<'a> {
                     NamedPresetEvent::Create { name: created, .. } => {
                         let mut settings = work.clone();
                         settings.clear_passwords();
-                        events.push(PdfPresetEvent::Saved(PdfPreset { name: created.clone(), description: String::new(), settings }));
+                        events.push(PdfPresetEvent::Saved(Box::new(PdfPreset { name: created.clone(), description: String::new(), settings })));
                         live.preset = Some(created);
                     }
                     NamedPresetEvent::Rename { key, text, .. } => {
@@ -427,7 +427,7 @@ impl<'a> PdfExportDialog<'a> {
             let settings_error =
                 |settings: &PdfSettings| settings.check(catalog).and_then(|()| settings.check_destination(catalog, color_mode)).err();
             let warnings: Vec<String> = work.warnings(catalog).iter().map(|warning| words.warning_text(warning)).collect();
-            let changed = differences(&words, &work, &base);
+            let changed = differences(&words, work, &base);
             let range_text = range_error(&live.artboards);
 
             // The section list and the shown section.

@@ -302,7 +302,7 @@ impl Rig {
             let view = CanvasView::new(room, Point::new(200.0, 150.0), 1.0);
             let mut pass = host.tool.pass(CropInput::new(&host.ctx, &host.settings, &host.document));
             let canvas = Canvas::new("Document").document(SIZE).view(view).show(ui, |ui, body| pass.show_frame(ui, body.rect));
-            ToolHost::new().run(ui, &canvas.output, &mut pass);
+            let _ = ToolHost::new().run(ui, &canvas.output, &mut pass);
             let events = pass.finish().events;
             for event in &events {
                 if let CropEvent::Settings(next) = event {

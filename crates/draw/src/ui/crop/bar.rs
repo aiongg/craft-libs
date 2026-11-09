@@ -9,9 +9,7 @@ use super::options::{
 use super::session::CropDocument;
 use craft_behavior::{EditEvent, IconId, NumberCodec};
 use craft_ui::buttons::{Button, IconButton, ToggleButton};
-use craft_ui::contract::{
-    Bind, BodyCx, Entry, FieldLayout, NoValue, Outcome, Props as _, Remember as _, Show as _, ShowContainer as _, Sizing, clicked,
-};
+use craft_ui::contract::{Bind, BodyCx, Entry, NoValue, Outcome, Props as _, Remember as _, Show as _, ShowContainer as _, Sizing, clicked};
 use craft_ui::display::Divider;
 use craft_ui::form::Field;
 use craft_ui::layout_components::Row;
@@ -168,13 +166,13 @@ struct RatioStart(Option<(CropRatio, [f64; 2])>);
 /// The name of size preset `index` of [`CROP_SIZES`]: its values as New Crop Preset… would name them.
 fn size_name(words: &CropBarWords, index: usize, units: &Units) -> String {
     let Some(preset) = CROP_SIZES.get(index) else { return String::new() };
-    let mut size = CropSizeFields::default();
-    size.width = Some(preset.width);
-    size.height = Some(preset.height);
-    size.resolution = preset.resolution.to_owned();
-    let mut settings = CropSettings::default();
-    settings.ratio = CropRatio::Size;
-    settings.size = size;
+    let size = CropSizeFields {
+        width: Some(preset.width),
+        height: Some(preset.height),
+        resolution: preset.resolution.to_owned(),
+        ..CropSizeFields::default()
+    };
+    let settings = CropSettings { ratio: CropRatio::Size, size, ..CropSettings::default() };
     settings.preset_name(words, units).unwrap_or_default()
 }
 

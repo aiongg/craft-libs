@@ -429,7 +429,7 @@ fn own_sense<C: Component>(hooks: &dyn ShapeHooks<C>, comp: &C, resolved: &Resol
 }
 
 /// The widget that holds the component's text or editor and the keys it keeps, when it has either.
-fn text_holder<C: Component>(id: Id, parts: &PartsStep, base: focus::KeyUse) -> (Option<Id>, Option<focus::KeyUse>) {
+fn text_holder(id: Id, parts: &PartsStep, base: focus::KeyUse) -> (Option<Id>, Option<focus::KeyUse>) {
     let text = parts
         .text
         .decl
@@ -521,16 +521,28 @@ fn activation_of(ctx: &Context, ui: &Ui, rect: Rect, resolved: &Resolved<'_>, ke
     })
 }
 
-/// Steps 6 to 16 of the pass, run in the `Ui` the host gives.
-fn run_in_host<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Option<ShowAt>, host_env: Option<&Env>) {
-    let ctx = p.cx.core.ctx.clone();
-    let (id, rtl) = (p.resolved.id, p.env.direction.is_rtl());
-    let (env, resolved, inert) = (host_env.unwrap_or(p.env), p.resolved, p.inert);
-    let metrics = p.style.metrics();
-    // 6 place
-    let at = host_at.unwrap_or(p.at);
-    // A root that fills takes the room of the `Ui` its host runs it in: a pane's or a layer's own, not its parent's.
-    let size = if ui.scope_id() == p.parent { p.size } else { p.hooks.sized(&*p.comp, ui, p.measured) };
+/// Step 8: the sense of a root, a member of an arena, or a component with nothing to sense.
+fn sense_root(ui: &Ui, member: Option<crate::runtime::env::ArenaId>, spec: RootSpec<'_>, owns_arena: bool) -> sensing::RootResult {
+    match member {
+        Some(arena) => {
+            let RootSpec { id, rect, own_sense, own, enabled } = spec;
+            let sensed = sensing::sense_member(ui, arena, MemberSpec { id, rect, sense: own_sense, parts: own, enabled });
+            sensing::RootResult {
+                response: sensed.response,
+                parts: sensed.parts,
+                press: sensed.press,
+                activation: sensed.activated,
+                activated_member: None,
+                sense: Sense::empty(),
+            }
+        }
+        None if spec.own_sense.is_empty() && spec.own.is_empty() && !owns_arena => sensing::sense_none(ui, spec.id, spec.rect),
+        None => sensing::sense_root(ui, spec),
+    }
+}
+
+/// Step 6: the rect the root takes in `ui`, and whether it is a fill-width root held at its measured width.
+fn place_root<C: Component>(p: &Pass<'_, '_, C>, ui: &mut Ui, at: ShowAt, env: &Env, size: Vec2, inert: bool, rtl: bool) -> (Rect, bool) {
     // In a content-sized column a fill-width child takes its measured width in the flow and shows across the width
     // the column settles on, so it never sets that width.
     let held = !inert
@@ -544,6 +556,34 @@ fn run_in_host<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Opti
     } else {
         steps::place(ui, at, if inert { Vec2::ZERO } else { size })
     };
+    (rect, held)
+}
+
+/// Creates the component's accessibility node, and its label scope, before any child `Ui` runs.
+fn create_node<C: Component>(ctx: &Context, ui: &Ui, id: Id, member: bool) -> bool {
+    matches!(C::ROLE, Role::Node(_)) && {
+        if member {
+            access::register_parent(ctx, id, ui.unique_id());
+        }
+        let created = access::create_node(ctx, id);
+        if created {
+            scope::enter(ctx, id);
+        }
+        created
+    }
+}
+
+/// Steps 6 to 16 of the pass, run in the `Ui` the host gives.
+fn run_in_host<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Option<ShowAt>, host_env: Option<&Env>) {
+    let ctx = p.cx.core.ctx.clone();
+    let (id, rtl) = (p.resolved.id, p.env.direction.is_rtl());
+    let (env, resolved, inert) = (host_env.unwrap_or(p.env), p.resolved, p.inert);
+    let metrics = p.style.metrics();
+    // 6 place
+    let at = host_at.unwrap_or(p.at);
+    // A root that fills takes the room of the `Ui` its host runs it in: a pane's or a layer's own, not its parent's.
+    let size = if ui.scope_id() == p.parent { p.size } else { p.hooks.sized(&*p.comp, ui, p.measured) };
+    let (rect, held) = place_root(p, ui, at, env, size, inert, rtl);
     p.trace.mark(Step::Place);
     // What the content wants past the room counts where the root's width comes from its content: a content-sized
     // root, or a fill-width one held at its measured width. A root that fills the flow keeps to the room it fills.
@@ -590,7 +630,7 @@ fn run_in_host<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Opti
     }
     debug_assert!(declares_parts || steps::declares_none(&parts), "`{}` sets `PARTS = false` and declares a part", std::any::type_name::<C>());
     steps::check_parts(&ctx, std::any::type_name::<C>(), &parts);
-    let (holder_widget, text_keys) = text_holder::<C>(id, &parts, comp.keys());
+    let (holder_widget, text_keys) = text_holder(id, &parts, comp.keys());
     let own = own_sense(&*p.hooks, comp, resolved, inert);
     // An item never senses the whole row for a press: the collection's root takes the click and the focus (17.2). It
     // does sense the pointer over it, so `PartsCx::hovered` and the state step read the row's hover from the same
@@ -608,32 +648,11 @@ fn run_in_host<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Opti
     p.trace.mark(Step::Sense);
     let decls: Vec<PartDecl> = parts.decls.iter().map(|(decl, _)| decl.clone()).collect();
     let enabled = resolved.enabled && !inert;
-    let (mut response, results, press, activation, activated_member, root_sense) = match member {
-        Some(arena) => {
-            let sensed = sensing::sense_member(ui, arena, MemberSpec { id, rect, sense: own, parts: &decls, enabled });
-            (sensed.response, sensed.parts, sensed.press, sensed.activated, None, Sense::empty())
-        }
-        None if own.is_empty() && decls.is_empty() && !arena => {
-            let sensed = sensing::sense_none(ui, id, rect);
-            (sensed.response, sensed.parts, sensed.press, sensed.activation, sensed.activated_member, sensed.sense)
-        }
-        None => {
-            let sensed = sensing::sense_root(ui, RootSpec { id, rect, own_sense: own, own: &decls, enabled });
-            (sensed.response, sensed.parts, sensed.press, sensed.activation, sensed.activated_member, sensed.sense)
-        }
-    };
+    let sensing::RootResult { mut response, parts: results, press, activation, activated_member, sense: root_sense } =
+        sense_root(ui, member, RootSpec { id, rect, own_sense: own, own: &decls, enabled }, arena);
     // The node exists before any child `Ui` runs, so the children find their parent (12.2). A member has no egui
     // widget, so it first registers the `Ui` it sits in as its parent.
-    let node = matches!(C::ROLE, Role::Node(_)) && {
-        if member.is_some() {
-            access::register_parent(&ctx, id, ui.unique_id());
-        }
-        let created = access::create_node(&ctx, id);
-        if created {
-            scope::enter(&ctx, id);
-        }
-        created
-    };
+    let node = create_node::<C>(&ctx, ui, id, member.is_some());
     // A root with no node whose egui widget senses still gets a node from egui, with actions nobody writes.
     if C::ROLE == Role::None && !root_sense.is_empty() {
         access::hide(&ctx, id);

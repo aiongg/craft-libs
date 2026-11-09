@@ -127,8 +127,10 @@ fn month_starting_in_fourth_column() -> (u8, CalendarView, DateFormat) {
     (month, view, dates)
 }
 
+type CalendarRig = (Fixture, Rc<Cell<CalendarView>>, Rc<Cell<Option<PickedDate>>>);
+
 /// A calendar over `view` that records its page and the day picked.
-fn calendar(view: CalendarView) -> (Fixture, Rc<Cell<CalendarView>>, Rc<Cell<Option<PickedDate>>>) {
+fn calendar(view: CalendarView) -> CalendarRig {
     let page = Rc::new(Cell::new(view));
     let picked = Rc::new(Cell::new(None));
     let (shown, chose) = (page.clone(), picked.clone());

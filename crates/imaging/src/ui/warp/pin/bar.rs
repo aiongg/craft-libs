@@ -5,7 +5,7 @@ use craft_theme::variant::Tone;
 use craft_ui::bars::{Bar, BarKind};
 use craft_ui::buttons::{Button, IconButton};
 use craft_ui::choice::Checkbox;
-use craft_ui::contract::{Bind, Entry, FieldLayout, Props as _, Show as _, ShowContainer as _, clicked};
+use craft_ui::contract::{Bind, Entry, Props as _, Show as _, ShowContainer as _, clicked};
 use craft_ui::display::{Divider, Text};
 use craft_ui::form::Field;
 use craft_ui::pickers::Select;

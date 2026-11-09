@@ -35,8 +35,10 @@ const FACE: PartKey = PartKey::new("face");
 /// The thumbnail of the face, when it asks for an editor instead of opening the list.
 const THUMB: PartKey = PartKey::new("thumb");
 
+type PickerHeadFn<'a> = Box<dyn FnMut(&mut Ui, &mut BodyCx<'_>) + 'a>;
+
 /// The content a host puts above the browser in the popover.
-pub struct PickerHead<'a>(Box<dyn FnMut(&mut Ui, &mut BodyCx<'_>) + 'a>);
+pub struct PickerHead<'a>(PickerHeadFn<'a>);
 
 impl<'a> PickerHead<'a> {
     /// The head that runs `content`.

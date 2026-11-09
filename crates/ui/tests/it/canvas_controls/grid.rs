@@ -106,9 +106,13 @@ fn edges(segments: &[GridSegment]) -> BTreeMap<(bool, i32, i32), Color32> {
     let mut edges = BTreeMap::new();
     for segment in segments {
         if segment.from[0] == segment.to[0] {
-            (segment.from[1]..segment.to[1]).for_each(|y| drop(edges.insert((true, segment.from[0], y), segment.color)));
+            (segment.from[1]..segment.to[1]).for_each(|y| {
+                edges.insert((true, segment.from[0], y), segment.color);
+            });
         } else {
-            (segment.from[0]..segment.to[0]).for_each(|x| drop(edges.insert((false, x, segment.from[1]), segment.color)));
+            (segment.from[0]..segment.to[0]).for_each(|x| {
+                edges.insert((false, x, segment.from[1]), segment.color);
+            });
         }
     }
     edges

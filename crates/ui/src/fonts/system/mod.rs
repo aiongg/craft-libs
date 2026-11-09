@@ -31,15 +31,18 @@ pub fn system_font_provider(_locale: &str) -> Option<Arc<dyn FontProvider>> {
     None
 }
 
+/// A font provider and the function that starts its index for a context.
+type InstalledProvider = (Arc<dyn FontProvider>, fn(&Context));
+
 /// The system font provider an install gives a context when the app sets none, and the function that starts the
 /// index for that context. A lookup before the index is built finds nothing, so the UI thread doesn't wait; the
 /// context reloads its fonts and repaints once it is.
 #[cfg(feature = "system_fonts")]
-pub(crate) fn installed_system_font_provider(locale: &str) -> Option<(Arc<dyn FontProvider>, fn(&Context))> {
+pub(crate) fn installed_system_font_provider(locale: &str) -> Option<InstalledProvider> {
     Some((fontique::provider(locale, false), fontique::start))
 }
 
 #[cfg(not(feature = "system_fonts"))]
-pub(crate) fn installed_system_font_provider(_locale: &str) -> Option<(Arc<dyn FontProvider>, fn(&Context))> {
+pub(crate) fn installed_system_font_provider(_locale: &str) -> Option<InstalledProvider> {
     None
 }

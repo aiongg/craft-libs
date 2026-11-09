@@ -176,7 +176,7 @@ where
         .rows_stamp(stamp_of(state.shown.as_ref(), &state.search, state.settings.icon_sort.as_ref()))
         .empty(empty)
         .reorder(ReorderRule::new())
-        .accepts(&accepts);
+        .accepts(accepts);
     let out = grid.show_items(ui, &cards, &mut |key, _| tile_of(&facts, key));
 
     let mut events: Vec<BinEvent<K>> = Vec::new();

@@ -434,7 +434,7 @@ impl Component for SliceOverlay<'_> {
                 if !self.numbers {
                     continue;
                 }
-                let text = number_text(&format, item.number);
+                let text = number_text(format, item.number);
                 let run = TextRun::new(text).role(TypeRole::Caption).color(style.text);
                 let layout = draw.layout(&run, f32::INFINITY);
                 let layer = item.origin == SliceOrigin::Layer;

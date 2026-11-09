@@ -134,8 +134,7 @@ fn position_curves(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 #[story(GraphEditor<'static>, covers = [])]
 fn speed_graph(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let mut demo = data.value("demo", Demo::new()).clone();
-    let mut start = GraphRange::default();
-    start.mode = GraphMode::Speed;
+    let start = GraphRange { mode: GraphMode::Speed, ..GraphRange::default() };
     let range = data.value("range", start);
     let out = shown(ui, &mut demo, Bind::bound(range));
     *data.value("demo", Demo::new()) = demo;
@@ -154,8 +153,7 @@ fn ranges_that_differ(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 #[story(GraphEditor<'static>, covers = [Invalid])]
 fn range_wider_than_the_limit(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let mut demo = data.value("demo", Demo::new()).clone();
-    let mut wide = GraphRange::default();
-    wide.high = WIDEST + 1.0;
+    let wide = GraphRange { high: WIDEST + 1.0, ..GraphRange::default() };
     let range = data.value("range", wide);
     let narrow = |range: &GraphRange| {
         if range.high - range.low > WIDEST { Validity::Refuse(Message::new("The range is wider than the graph shows")) } else { Validity::Ok }

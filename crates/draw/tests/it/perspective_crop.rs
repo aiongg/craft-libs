@@ -90,7 +90,7 @@ impl Rig {
                 host.edits.extend(out.edit.event);
             });
             let mut host = shown.borrow_mut();
-            ToolHost::new().run(ui, &canvas.output, &mut host.tool);
+            let _ = ToolHost::new().run(ui, &canvas.output, &mut host.tool);
         });
         fixture.settle();
         Rig { fixture, host }

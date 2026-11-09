@@ -103,7 +103,6 @@ impl<'a> ParamRows<'a> {
     }
 
     /// The state of the Random button's sequence: each press reads it and writes the next.
-    #[must_use]
     pub fn seed(mut self, seed: Bind<'a, u64>) -> Self {
         self.seed = Some(seed);
         self
@@ -112,14 +111,12 @@ impl<'a> ParamRows<'a> {
     /// The canvas (the canvas component's id) the eyedropper rows sample while the rows are inside a modal dialog: an
     /// armed eyedropper registers it with `Sampler::arm_sampler`, so primary presses on it pass through the dialog's
     /// modal layer. The dialog body keeps the view usable itself with `Sampler::keep_view_open`.
-    #[must_use]
     pub fn canvas(mut self, canvas: Id) -> Self {
         self.canvas = Some(canvas);
         self
     }
 
     /// Whether the rows only show their values.
-    #[must_use]
     pub fn read_only(mut self, on: bool) -> Self {
         self.read_only = on;
         self

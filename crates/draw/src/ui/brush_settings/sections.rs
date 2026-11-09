@@ -240,6 +240,8 @@ pub struct BrushSectionList<'a, K: Value + Eq + Hash> {
     link_row: bool,
 }
 
+type ListEvents<K> = Vec<(CollectionEvent<Slot<K>, craft_ui::list::RowEvent>, Option<ToggleEdit<Slot<K>>>)>;
+
 impl<'a, K: Value + Eq + Hash> BrushSectionList<'a, K> {
     /// The list named `label` of `sections`, in order (pane rows first, then switch rows), with the pane in `shown`
     /// selected.
@@ -334,11 +336,7 @@ impl<'a, K: Value + Eq + Hash> BrushSectionList<'a, K> {
     }
 
     /// The section events of the collection's events, in order.
-    fn events(
-        rows: &Rows<'_, K>,
-        list_events: Vec<(CollectionEvent<Slot<K>, craft_ui::list::RowEvent>, Option<ToggleEdit<Slot<K>>>)>,
-        pane: Option<&K>,
-    ) -> Vec<BrushSectionEvent<K>> {
+    fn events(rows: &Rows<'_, K>, list_events: ListEvents<K>, pane: Option<&K>) -> Vec<BrushSectionEvent<K>> {
         let mut events = Vec::new();
         // A press on a box or lock flips only that cell, whatever else the press reported for the row.
         let toggled: Vec<Slot<K>> = list_events

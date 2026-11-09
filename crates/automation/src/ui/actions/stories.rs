@@ -25,8 +25,7 @@ fn actions_panel_tree(ui: &mut Ui, _data: &mut StoryData) -> StoryOutput {
 #[story(ActionsPanel<'static>, covers = [], drive = Drive::Never)]
 fn actions_panel_recording(ui: &mut Ui, _data: &mut StoryData) -> StoryOutput {
     let list = sample_list();
-    let mut state = ActionsPanelState::default();
-    state.selected = Some(ActionSelection::Action(0));
+    let mut state = ActionsPanelState { selected: Some(ActionSelection::Action(0)), ..ActionsPanelState::default() };
     let host = FakeActionsHost { recording: Some(0), pending: vec![step("unsharp"), step("hue")], ..FakeActionsHost::default() };
     ActionsPanel::new(&mut state, &list).host(&host).show(ui).into()
 }

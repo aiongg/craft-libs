@@ -103,7 +103,7 @@ fn session(text: &str, quotes: Option<QuoteStyle>) -> Session {
 
 impl Session {
     fn focus(&mut self) {
-        let at = self.fixture.root_id().and_then(|_| None::<egui::Pos2>).unwrap_or(pos2(20.0, 10.0));
+        let at = self.fixture.root_id().and(None::<egui::Pos2>).unwrap_or(pos2(20.0, 10.0));
         self.fixture.click_at(at);
         self.fixture.settle();
     }

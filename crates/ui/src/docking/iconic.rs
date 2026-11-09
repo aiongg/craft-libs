@@ -340,7 +340,7 @@ impl<P: Value + Hash + 'static> Component for IconicColumn<'_, P> {
         let handles: Vec<_> = (0..flat.len()).map(|at| popup.at(at)).collect();
         // A toggle of an icon (click, Enter, Alt+Down) changed a popup this pass: the user chose. Otherwise the
         // bound value is the truth and the popups follow it.
-        let toggled = handles.iter().fold(false, |any, handle| handle.changed(cx) || any);
+        let toggled = handles.iter().filter(|handle| handle.changed(cx)).count() > 0;
         let open_at =
             |panel: &Option<P>| panel.as_ref().and_then(|open| flat.iter().position(|(group, panel)| self.panel(*group, *panel) == Some(open)));
         let mut opens: Vec<bool> = handles.iter().map(|handle| handle.is_open(cx)).collect();
@@ -351,10 +351,10 @@ impl<P: Value + Hash + 'static> Component for IconicColumn<'_, P> {
         } else {
             None
         };
-        if let Some(chosen) = chosen {
-            if cx.value() != Some(&chosen) {
-                cx.set(chosen);
-            }
+        if let Some(chosen) = chosen
+            && cx.value() != Some(&chosen)
+        {
+            cx.set(chosen);
         }
         let at = open_at(&cx.value().cloned().flatten());
         for (index, handle) in handles.iter().enumerate() {

@@ -135,7 +135,6 @@ impl<'a> HarmonyWheel<'a> {
     }
 
     /// Marks the colour at this index as selected; none by default.
-    #[must_use]
     pub fn selected_marker(mut self, selected: Option<usize>) -> Self {
         self.selected = selected;
         self
@@ -295,7 +294,6 @@ impl<'a> HarmonyPanel<'a> {
     }
 
     /// Limit to Library: every colour snaps to the nearest of `palette`.
-    #[must_use]
     pub fn limit(mut self, palette: &'a [Srgba]) -> Self {
         self.limit = Some(palette);
         self

@@ -393,7 +393,6 @@ impl<'a> CommentPins<'a> {
     }
 
     /// The thread whose popover is open (its pin is drawn raised).
-    #[must_use]
     pub fn open(mut self, thread: Option<ThreadId>) -> Self {
         self.open = thread;
         self
@@ -550,14 +549,12 @@ impl<'a> ThreadPopover<'a> {
 
     /// Hangs the popover from `rect` (in the opener's layer space) instead of from the opener's rect: for a
     /// popover opened from the Comments panel.
-    #[must_use]
     pub fn anchor(mut self, rect: Rect) -> Self {
         self.anchor = Some(rect);
         self
     }
 
     /// The current time in Unix seconds, which the ages count from.
-    #[must_use]
     pub fn now(mut self, unix_seconds: i64) -> Self {
         self.now = unix_seconds;
         self

@@ -117,7 +117,7 @@ pub(super) fn blending_page(ui: &mut Ui, input: &BlendingInput<'_>) -> BlendingO
     };
 
     Stack::new().show(ui, |ui, _| {
-        Section::fixed(Label::from(words.general_blending.clone())).strength(HeaderStrength::Caption).show(ui, |ui, _| {
+        Section::fixed(words.general_blending.clone()).strength(HeaderStrength::Caption).show(ui, |ui, _| {
             FieldGroup::new(words.general_blending.clone()).show(ui, |ui, _| {
                 Field::new(words.blend_mode.clone()).show(ui, |ui, _| {
                     let shown = with_current(input.blend_modes, &b.blend);
@@ -131,7 +131,7 @@ pub(super) fn blending_page(ui: &mut Ui, input: &BlendingInput<'_>) -> BlendingO
             });
         });
 
-        Section::fixed(Label::from(words.advanced_blending.clone())).strength(HeaderStrength::Caption).show(ui, |ui, _| {
+        Section::fixed(words.advanced_blending.clone()).strength(HeaderStrength::Caption).show(ui, |ui, _| {
             FieldGroup::new(words.advanced_blending.clone()).show(ui, |ui, _| {
                 Field::new(words.fill_opacity.clone()).show(ui, |ui, _| {
                     let edit = percent(ui, &words.fill_opacity, b.fill_opacity);
@@ -167,7 +167,7 @@ pub(super) fn blending_page(ui: &mut Ui, input: &BlendingInput<'_>) -> BlendingO
             return;
         }
         let shown = input.blend_if_channel.min(entries - 1);
-        Section::fixed(Label::from(words.blend_if.clone())).strength(HeaderStrength::Caption).show(ui, |ui, _| {
+        Section::fixed(words.blend_if.clone()).strength(HeaderStrength::Caption).show(ui, |ui, _| {
             FieldGroup::new(words.blend_if.clone()).show(ui, |ui, _| {
                 let names: Vec<Entry<usize>> =
                     (0..entries).map(|i| Entry::new(i, blend_if_entry_label(i, entries, input.channel_names, &words))).collect();
@@ -231,11 +231,11 @@ fn advanced_set(index: usize) -> fn(&mut Blending, bool) {
 /// The Advanced Blending checks' labels, in Photoshop's order.
 fn advanced_labels(words: &LayerStyleWords) -> [Label; 5] {
     [
-        words.blend_interior_effects.clone().into(),
-        words.blend_clipped_layers.clone().into(),
-        words.transparency_shapes_layer.clone().into(),
-        words.layer_mask_hides_effects.clone().into(),
-        words.vector_mask_hides_effects.clone().into(),
+        words.blend_interior_effects.clone(),
+        words.blend_clipped_layers.clone(),
+        words.transparency_shapes_layer.clone(),
+        words.layer_mask_hides_effects.clone(),
+        words.vector_mask_hides_effects.clone(),
     ]
 }
 
@@ -247,7 +247,7 @@ pub(super) fn blend_if_entry_label(index: usize, entries: usize, channel_names: 
     if entries == channel_names.len() {
         name(index)
     } else if index == 0 {
-        words.gray.clone().into()
+        words.gray.clone()
     } else {
         name(index - 1)
     }

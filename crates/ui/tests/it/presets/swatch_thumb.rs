@@ -20,7 +20,7 @@ fn face_of(color: Srgba) -> (Rect, Vec<Color32>) {
     let mut shapes = Vec::new();
     for _ in 0..2 {
         shapes = frames.frame_shapes(|ui| {
-            PresetBrowser::new("Swatches", Bind::bound(&mut state), &rows)
+            let _ = PresetBrowser::new("Swatches", Bind::bound(&mut state), &rows)
                 .thumb(|cx, rect, _| {
                     given.set(rect);
                     SwatchFace::new(color).paint(cx, rect);

@@ -107,7 +107,7 @@ fn a_click_on_the_mesh_places_a_pin_at_the_rest_position_under_it() {
 #[trial]
 fn placing_a_pin_and_dragging_it_on_is_one_step() {
     let (mut s, mut f) = (session(), Fake::default());
-    let placed = vec![pin(5.0, 5.0)];
+    let placed = [pin(5.0, 5.0)];
     drag(&mut s, &mut f, vec![moved(placed[0], 20.0)], 1);
     assert!(matches!(f.calls[0], Call::Rebind(_)));
     assert!(f.calls[1..].iter().all(|c| matches!(c, Call::Solve(_))));

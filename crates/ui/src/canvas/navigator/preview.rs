@@ -47,8 +47,10 @@ const SHIFT_STEP: f32 = 0.5;
 const ZOOM_KEYS: [(Chord, i32); 4] =
     [(Chord::plain(Key::Plus), 1), (Chord::plain(Key::Equals), 1), (Chord::new(Mods::SHIFT, Key::Equals), 1), (Chord::plain(Key::Minus), -1)];
 
+type NavigatorPaintFn<'a> = Box<dyn FnMut(&ContentPainterCx<'_>, Rect) + 'a>;
+
 /// A closure that paints the document's picture into the fitted rect.
-pub struct NavigatorPaint<'a>(Box<dyn FnMut(&ContentPainterCx<'_>, Rect) + 'a>);
+pub struct NavigatorPaint<'a>(NavigatorPaintFn<'a>);
 
 impl<'a> NavigatorPaint<'a> {
     /// A painter that draws the picture with `paint`, given the content painter and the rect the picture fills.
@@ -72,7 +74,7 @@ impl NavigatorPreview<'_> {
     /// The same picture lent for one run of a body that may run more than once per pass.
     pub fn reborrowed(&mut self) -> NavigatorPreview<'_> {
         match self {
-            NavigatorPreview::Texture(texture) => NavigatorPreview::Texture(texture.clone()),
+            NavigatorPreview::Texture(texture) => NavigatorPreview::Texture(*texture),
             NavigatorPreview::Paint(NavigatorPaint(paint)) => NavigatorPreview::Paint(NavigatorPaint::new(move |painter, rect| paint(painter, rect))),
             NavigatorPreview::None => NavigatorPreview::None,
         }
@@ -210,6 +212,74 @@ fn centred(view: &CanvasView, center: Point, document: Size) -> CanvasView {
     let mut next = *view;
     next.center = Point::new(center.x.clamp(0.0, document.width), center.y.clamp(0.0, document.height));
     next
+}
+
+/// Applies the arrow, page, scroll-request and set-value intents of a pass to `next`, unless a press is `running`.
+fn take_navigation(cx: &mut Cx<'_, Navigator<'_>>, next: &mut CanvasView, running: bool, document: Size) {
+    let span = next.rect.size();
+    let side = if cx.flow.is_rtl() { -1.0 } else { 1.0 };
+    let mut delta = Vec2::ZERO;
+    while let Some((mv, mods)) = cx.intents().take_move() {
+        if running {
+            continue;
+        }
+        let share = if mods.extend { SHIFT_STEP } else { ARROW_STEP };
+        match mv {
+            NavMove::Back => delta.x -= side * span.x * share,
+            NavMove::Forward => delta.x += side * span.x * share,
+            NavMove::Up => delta.y -= span.y * share,
+            NavMove::Down => delta.y += span.y * share,
+            _ => {
+                if let Some(key) = PageKey::of(mv, mods, span) {
+                    key.apply(next, document);
+                }
+            }
+        }
+    }
+    // AccessKit's scroll actions are the arrows for assistive technology.
+    while let Some(request) = cx.intents().take_scroll_access(false) {
+        if running {
+            continue;
+        }
+        match (request.action, request.data) {
+            (AccessAction::ScrollRight, _) => delta.x += span.x * ARROW_STEP,
+            (AccessAction::ScrollLeft, _) => delta.x -= span.x * ARROW_STEP,
+            (AccessAction::ScrollDown, _) => delta.y += span.y * ARROW_STEP,
+            (AccessAction::ScrollUp, _) => delta.y -= span.y * ARROW_STEP,
+            // The offset is the document point at the visible area's top-left corner.
+            (AccessAction::SetScrollOffset, Some(AccessData::SetScrollOffset(offset))) => {
+                let visible = next.visible();
+                next.center = Point::new(offset.x + visible.width() / 2.0, offset.y + visible.height() / 2.0);
+            }
+            _ => {}
+        }
+    }
+    if delta != Vec2::ZERO {
+        let by = next.unmap_vec(delta);
+        next.center = Point::new(next.center.x + by.x, next.center.y + by.y);
+    }
+    let visible = next.visible();
+    let bars = |request: &craft_behavior::AccessRequest| {
+        matches!(request.action, AccessAction::Increment | AccessAction::Decrement)
+            && [HORIZONTAL, VERTICAL].into_iter().any(|key| request.target == Some(key.into()))
+    };
+    while let Some(request) = cx.intents().take_access_where(bars) {
+        if running {
+            continue;
+        }
+        let by = if request.action == AccessAction::Increment { f64::from(ARROW_STEP) } else { -f64::from(ARROW_STEP) };
+        if request.target == Some(HORIZONTAL.into()) {
+            next.center.x += by * visible.width();
+        } else {
+            next.center.y += by * visible.height();
+        }
+    }
+    if let Some(percent) = cx.intents().take_set_value_at(HORIZONTAL).filter(|percent| percent.is_finite() && !running) {
+        next.center.x = (percent / 100.0).clamp(0.0, 1.0) * document.width;
+    }
+    if let Some(percent) = cx.intents().take_set_value_at(VERTICAL).filter(|percent| percent.is_finite() && !running) {
+        next.center.y = (percent / 100.0).clamp(0.0, 1.0) * document.height;
+    }
 }
 
 impl Component for Navigator<'_> {
@@ -359,70 +429,7 @@ impl Component for Navigator<'_> {
             cx.claim(chord);
         }
 
-        let span = next.rect.size();
-        let side = if cx.flow.is_rtl() { -1.0 } else { 1.0 };
-        let mut delta = Vec2::ZERO;
-        while let Some((mv, mods)) = cx.intents().take_move() {
-            if running {
-                continue;
-            }
-            let share = if mods.extend { SHIFT_STEP } else { ARROW_STEP };
-            match mv {
-                NavMove::Back => delta.x -= side * span.x * share,
-                NavMove::Forward => delta.x += side * span.x * share,
-                NavMove::Up => delta.y -= span.y * share,
-                NavMove::Down => delta.y += span.y * share,
-                _ => {
-                    if let Some(key) = PageKey::of(mv, mods, span) {
-                        key.apply(&mut next, document);
-                    }
-                }
-            }
-        }
-        // AccessKit's scroll actions are the arrows for assistive technology.
-        while let Some(request) = cx.intents().take_scroll_access(false) {
-            if running {
-                continue;
-            }
-            match (request.action, request.data) {
-                (AccessAction::ScrollRight, _) => delta.x += span.x * ARROW_STEP,
-                (AccessAction::ScrollLeft, _) => delta.x -= span.x * ARROW_STEP,
-                (AccessAction::ScrollDown, _) => delta.y += span.y * ARROW_STEP,
-                (AccessAction::ScrollUp, _) => delta.y -= span.y * ARROW_STEP,
-                // The offset is the document point at the visible area's top-left corner.
-                (AccessAction::SetScrollOffset, Some(AccessData::SetScrollOffset(offset))) => {
-                    let visible = next.visible();
-                    next.center = Point::new(offset.x + visible.width() / 2.0, offset.y + visible.height() / 2.0);
-                }
-                _ => {}
-            }
-        }
-        if delta != Vec2::ZERO {
-            let by = next.unmap_vec(delta);
-            next.center = Point::new(next.center.x + by.x, next.center.y + by.y);
-        }
-        let visible = next.visible();
-        let bars = |request: &craft_behavior::AccessRequest| {
-            matches!(request.action, AccessAction::Increment | AccessAction::Decrement)
-                && [HORIZONTAL, VERTICAL].into_iter().any(|key| request.target == Some(key.into()))
-        };
-        while let Some(request) = cx.intents().take_access_where(bars) {
-            if running {
-                continue;
-            }
-            let by = if request.action == AccessAction::Increment { f64::from(ARROW_STEP) } else { -f64::from(ARROW_STEP) };
-            if request.target == Some(HORIZONTAL.into()) {
-                next.center.x += by * visible.width();
-            } else {
-                next.center.y += by * visible.height();
-            }
-        }
-        if let Some(percent) = cx.intents().take_set_value_at(HORIZONTAL).filter(|percent| percent.is_finite() && !running) {
-            next.center.x = (percent / 100.0).clamp(0.0, 1.0) * document.width;
-        }
-        if let Some(percent) = cx.intents().take_set_value_at(VERTICAL).filter(|percent| percent.is_finite() && !running) {
-            next.center.y = (percent / 100.0).clamp(0.0, 1.0) * document.height;
-        }
+        take_navigation(cx, &mut next, running, document);
 
         let next = centred(&next, next.center, document);
         if next == view {

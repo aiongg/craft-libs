@@ -13,8 +13,10 @@ use egui::{Key, Modifiers};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
+type FocusedField = (Fixture, Rc<RefCell<String>>, Rc<Cell<Option<Mods>>>);
+
 /// A field with `build`'s options, focused, holding "hi": the text it shows and the modifiers of the last submit.
-fn focused_field(os: Os, build: impl for<'a> Fn(TextField<'a>) -> TextField<'a> + 'static) -> (Fixture, Rc<RefCell<String>>, Rc<Cell<Option<Mods>>>) {
+fn focused_field(os: Os, build: impl for<'a> Fn(TextField<'a>) -> TextField<'a> + 'static) -> FocusedField {
     let text = Rc::new(RefCell::new("hi".to_owned()));
     let submitted = Rc::new(Cell::new(None));
     let (shown, seen) = (text.clone(), submitted.clone());

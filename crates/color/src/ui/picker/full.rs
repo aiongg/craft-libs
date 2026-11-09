@@ -30,6 +30,13 @@ pub struct ColorWarning {
     icon: IconId,
 }
 
+/// The models the picker shows and the area modes it offers.
+#[derive(Clone, Copy)]
+struct ModelChoice<'m> {
+    visible: &'m [&'m dyn ColorModel],
+    offered: &'m [AreaMode],
+}
+
 impl ColorWarning {
     /// A warning that says `tip` ("Out of gamut for printing") and offers `nearest`.
     pub fn new(tip: impl Into<Label>, nearest: Srgba) -> Self {
@@ -229,7 +236,7 @@ impl<'a> Body<'a> {
                     for (column, models) in columns.iter().enumerate() {
                         FieldGroup::new(words.channels.as_str().to_owned()).show(ui, |ui, _| {
                             for model in models {
-                                self.model_fields(ui, pass, *model, visible, &offered, words, got);
+                                self.model_fields(ui, pass, *model, ModelChoice { visible, offered: &offered }, words, got);
                             }
                             if column == 0 {
                                 let label = SideLabel::new().kind(LabelKind::Glyph(GlyphLabel::text("#")));
@@ -251,11 +258,11 @@ impl<'a> Body<'a> {
         ui: &mut Ui,
         pass: &Pass<'a>,
         model: &'a dyn ColorModel,
-        visible: &[&dyn ColorModel],
-        offered: &[AreaMode],
+        choice: ModelChoice<'_>,
         words: &ColorPickerWords,
         got: &mut Collected,
     ) {
+        let ModelChoice { visible, offered } = choice;
         let values = pass.shown.values_in(model);
         for (i, channel) in model.channels().iter().enumerate() {
             let name = channel_name(model, i, visible);

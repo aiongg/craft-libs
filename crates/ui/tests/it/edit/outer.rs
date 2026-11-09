@@ -152,11 +152,13 @@ fn two_field_edits_and_ok_leave_one_undo_step_for_the_dialog() {
     assert_eq!(app.doc.values, Values { snap: true, grid: true }, "OK keeps both edits");
 }
 
+type Close<'a> = (&'a str, fn(&mut Fixture));
+
 /// The same edits closed by Cancel or by Escape: the outer gesture is cancelled, the document is as before, and the
 /// reopened dialog's fields show the values from before under a new outer gesture.
 #[trial]
 fn cancel_or_escape_takes_the_dialogs_field_edits_back() {
-    let closes: [(&str, fn(&mut Fixture)); 2] = [
+    let closes: [Close<'_>; 2] = [
         ("Cancel", |fixture| {
             let cancel = fixture.by_label("Cancel").expect("the Cancel button is shown");
             fixture.click(&cancel);

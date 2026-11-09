@@ -290,13 +290,13 @@ impl<'a> PageView<'a> {
     /// Shows the view in the room left in `ui`, and runs `body` for the app's canvas controls (margins, zones,
     /// marks, grids), which it shows with `show_at(ui, body.rect)`. `body` runs on every run of the canvas body (the measuring run and
     /// the real one), so it builds what it shows each time and consumes nothing.
-    pub fn show(self, ui: &mut Ui, mut body: impl FnMut(&mut Ui, &PageBody<'_>)) -> PageViewOutput {
+    pub fn show(self, ui: &mut Ui, body: impl FnMut(&mut Ui, &PageBody<'_>)) -> PageViewOutput {
         let rect = ui.available_rect_before_wrap();
         self.run(ui, rect, true, body)
     }
 
     /// Shows the view at `rect` without allocating (a pane of split views).
-    pub fn show_at(self, ui: &mut Ui, rect: Rect, mut body: impl FnMut(&mut Ui, &PageBody<'_>)) -> PageViewOutput {
+    pub fn show_at(self, ui: &mut Ui, rect: Rect, body: impl FnMut(&mut Ui, &PageBody<'_>)) -> PageViewOutput {
         self.run(ui, rect, false, body)
     }
 
@@ -320,7 +320,7 @@ impl<'a> PageView<'a> {
         let mut held = Held::new(Bind::bound(state));
         let mut seen: Option<Seen> = None;
         let mut canvas_body = |ui: &mut Ui, cx: &mut BodyCx<'_>| {
-            let Some(next) = run_pass(ui, cx, &mut held, &Inputs { source, describer, build: &build, rect, given, paper }) else { return None };
+            let next = run_pass(ui, cx, &mut held, &Inputs { source, describer, build: &build, rect, given, paper })?;
             body(ui, &PageBody { rect: cx.rect, pages: &next.pages, view: next.view });
             let decided = next.next.clone();
             seen = Some(next);
@@ -519,22 +519,23 @@ fn run_pass(ui: &mut Ui, cx: &mut BodyCx<'_>, held: &mut Held<'_, PageViewState>
     }
 
     // A page that fits turns with the wheel; one panned to its edge turns with the wheel past it.
-    if !state.continuous && wheel_left != 0.0 {
-        if let Some(forward) = mem.turn(&geo, want.1, vh, notch()) {
-            let next = if forward {
-                (geo.row.end < count).then_some(geo.row.end)
-            } else {
-                geo.row.start.checked_sub(1).map(|before| shown_row(count, before, &build.layout_options(&state)).start)
-            };
-            if let Some(next) = next {
-                state.current = next;
-                geo = build.of(&state);
-                state.zoom = geo.scale / SCREEN_POINTS_PER_POINT;
-                let (lo, hi) = offset_range(geo.doc.y0, geo.doc.y1, vh);
-                want.1 = if forward { lo } else { hi };
-            } else {
-                want.1 = state.offset.1;
-            }
+    if !state.continuous
+        && wheel_left != 0.0
+        && let Some(forward) = mem.turn(&geo, want.1, vh, notch())
+    {
+        let next = if forward {
+            (geo.row.end < count).then_some(geo.row.end)
+        } else {
+            geo.row.start.checked_sub(1).map(|before| shown_row(count, before, &build.layout_options(&state)).start)
+        };
+        if let Some(next) = next {
+            state.current = next;
+            geo = build.of(&state);
+            state.zoom = geo.scale / SCREEN_POINTS_PER_POINT;
+            let (lo, hi) = offset_range(geo.doc.y0, geo.doc.y1, vh);
+            want.1 = if forward { lo } else { hi };
+        } else {
+            want.1 = state.offset.1;
         }
     }
     let went = state.go_to.is_some();

@@ -161,10 +161,10 @@ impl Component for VanishingPlanes<'_> {
         for i in 0..snap.planes.len() {
             for index in 0..4 {
                 for (node, key) in [(Node::Corner(i, index), CORNER), (Node::Edge(i, index), EDGE)] {
-                    if let Some(result) = cx.part_if_declared(key.at(key_of(i, index))) {
-                        if result.press.phase.is_press() {
-                            presses.push((node, result.press));
-                        }
+                    if let Some(result) = cx.part_if_declared(key.at(key_of(i, index)))
+                        && result.press.phase.is_press()
+                    {
+                        presses.push((node, result.press));
                     }
                 }
             }
@@ -219,7 +219,7 @@ impl Component for VanishingPlanes<'_> {
             // A node with no part (a torn plane's corner, any edge node under the Stamp) takes the control's own state.
             if cx.part_if_declared(part).is_some() { cx.resolve_part(part, fill) } else { cx.resolve(fill) }
         };
-        draw::paint(&draw, &space.view, &snap, &cx.style, &node);
+        draw::paint(&draw, &space.view, &snap, cx.style, &node);
     }
 
     /// A group named by the words, and one node per corner named by its plane and place, valued by its position.

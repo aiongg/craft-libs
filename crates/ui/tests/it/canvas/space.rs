@@ -25,7 +25,7 @@ fn a_member_in_a_canvas_body_reads_the_view_and_one_outside_reads_none() {
     });
     fixture.settle();
 
-    let (outside, inside) = seen.borrow().clone();
+    let (outside, inside) = *seen.borrow();
     assert_eq!(outside, None, "a member outside every canvas reads no view");
     let space = inside.expect("a member in the canvas body reads the view");
     let shown = space.view;

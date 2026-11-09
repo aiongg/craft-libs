@@ -271,7 +271,6 @@ impl<'a> HueSaturationEditor<'a> {
 
     /// What a fully saturated, full-brightness hue (degrees 0..=360) becomes under the shown value: the host runs its
     /// engine. Called 37 times a pass.
-    #[must_use]
     pub fn adjusted_spectrum(mut self, adjusted: &'a dyn Fn(f64) -> Srgba) -> Self {
         self.adjusted = Some(adjusted);
         self
@@ -279,14 +278,12 @@ impl<'a> HueSaturationEditor<'a> {
 
     /// The range shown, kept by the host: `None` for Master, else 0 Reds … 5 Magentas. The editor reports the user's
     /// choice in [`HueSaturationOutput::shown_range`].
-    #[must_use]
     pub fn range(mut self, range: Option<usize>) -> Self {
         self.range = Some(range);
         self
     }
 
     /// Dialog or Properties panel; a dialog by default.
-    #[must_use]
     pub fn context(mut self, context: AdjustContext) -> Self {
         self.context = context;
         self

@@ -385,10 +385,10 @@ pub(crate) fn run<C: Component>(
             (None, Caret::All) => adapter::select(&ctx, widget, 0, len),
             (None, _) => adapter::select(&ctx, widget, len, len),
         }
-    } else if out.focused {
-        if let Some(at) = state.click_caret.take() {
-            adapter::select(&ctx, widget, at, at);
-        }
+    } else if out.focused
+        && let Some(at) = state.click_caret.take()
+    {
+        adapter::select(&ctx, widget, at, at);
     }
     if decl.options.complete.is_some() {
         drive_completions(cx, &mut state);

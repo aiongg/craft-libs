@@ -220,7 +220,7 @@ impl Component for AddBesideHandles<'_> {
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
         let Some(space) = canvas_space(&cx.env) else { return };
         let (view, radius) = (space.view, cx.style.radius);
-        let buttons = self.visible(&view, &cx.style, rect);
+        let buttons = self.visible(&view, cx.style, rect);
         for &(side, at) in &buttons {
             cx.part(BUTTON.at(side.index()), HitShape::circle(at, radius))
                 .sense(Sense::CLICK | Sense::TAKE_FOCUS)
@@ -259,7 +259,7 @@ impl Component for AddBesideHandles<'_> {
             && let Some(space) = canvas_space(&cx.env)
             && let Some((direction, _)) = cx.intents().take_nudge()
         {
-            let places = self.visible(&space.view, &cx.style, cx.rect);
+            let places = self.visible(&space.view, cx.style, cx.rect);
             let ahead = direction.normalized();
             let from = places.iter().find(|(side, _)| *side == current).map(|&(_, at)| at);
             let next = from.and_then(|from| {
@@ -305,7 +305,7 @@ impl Component for AddBesideHandles<'_> {
         if self.connecting {
             access.name(Name::Text(words.add_connected.as_str().to_owned()));
         }
-        for (side, _) in self.visible(&space.view, &cx.style, cx.rect) {
+        for (side, _) in self.visible(&space.view, cx.style, cx.rect) {
             let name = match side {
                 AddSide::Top => &words.above,
                 AddSide::Right => &words.right,

@@ -63,7 +63,6 @@ impl<'a> SliceBar<'a> {
 
     /// Shows Fixed Size in `unit`, with `units` in the units menu (the app's ruler units), converting through the
     /// document's resolution `pixels_per_inch` and its size `document`. Without it Fixed Size is in pixels with no menu.
-    #[must_use]
     pub fn size_units(mut self, unit: UnitKind, units: &'a [Entry<UnitKind>], pixels_per_inch: f64, document: PixelSize) -> Self {
         self.size_units = Some(SizeUnits { unit, units, pixels_per_inch, document });
         self

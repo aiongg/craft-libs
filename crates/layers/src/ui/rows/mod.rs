@@ -133,14 +133,14 @@ impl<'a> BlendRows<'a> {
         let live = properties.is_some();
         let props = properties.unwrap_or(&fallback);
         let editable = live && props.editable;
-        let no_layer = Label::from(words.no_layer.clone());
-        let unavailable = if live { Label::from(words.background.clone()) } else { no_layer.clone() };
+        let no_layer = words.no_layer.clone();
+        let unavailable = if live { words.background.clone() } else { no_layer.clone() };
 
         let mut events = Vec::new();
         let block = Stack::new().fill_width().show(ui, |ui, _| {
             // Opacity ends the blend row and Fill ends the lock row, as in Photoshop.
             Row::new().fill_width().align(RowAlign::SpaceBetween).show(ui, |ui, _| {
-                let blend_name = Label::from(words.blend_mode.clone());
+                let blend_name = words.blend_mode.clone();
                 let picked = Select::new(blend_name.clone(), Bind::given(props.blend_key.clone()), blend_modes)
                     .preview()
                     .size(SIZE)
@@ -148,7 +148,7 @@ impl<'a> BlendRows<'a> {
                     .tooltip(TooltipSpec::new(blend_name).disabled_text(unavailable.clone()))
                     .show(ui);
                 events.extend(picked.event.map(LayerPropertyEdit::Blend));
-                let caption = Label::from(words.opacity.clone());
+                let caption = words.opacity.clone();
                 events.extend(percent_field(ui, &caption, props.opacity, editable, &unavailable).map(LayerPropertyEdit::Opacity));
             });
             if !locks {
@@ -156,7 +156,7 @@ impl<'a> BlendRows<'a> {
             }
             Row::new().fill_width().align(RowAlign::SpaceBetween).show(ui, |ui, _| {
                 Row::new().show(ui, |ui, _| {
-                    Text::new(Label::from(words.lock.clone())).shade(Shade::Muted).show(ui);
+                    Text::new(words.lock.clone()).shade(Shade::Muted).show(ui);
                     let names = [&words.lock_transparency, &words.lock_pixels, &words.lock_position, &words.lock_artboard, &words.lock_all];
                     let icons = ["grid", "brush", "move", "scan", "lock"];
                     for ((kind, name), icon) in LockKind::ALL.into_iter().zip(names).zip(icons) {
@@ -169,22 +169,20 @@ impl<'a> BlendRows<'a> {
                         } else {
                             None
                         };
-                        let name = Label::from(name.clone());
+                        let name = name.clone();
                         let button = ToggleButton::new(name.clone(), Bind::given(held.get(kind) || included))
                             .icon(IconId::new(icon))
                             .icon_only()
                             .size(SIZE)
                             .enabled(live && reason.is_none())
-                            .tooltip(
-                                TooltipSpec::new(name).disabled_text(reason.map_or_else(|| no_layer.clone(), |reason| Label::from(reason.clone()))),
-                            )
+                            .tooltip(TooltipSpec::new(name).disabled_text(reason.map_or_else(|| no_layer.clone(), |reason| reason.clone())))
                             .show(ui);
                         if let Some(on) = button.value() {
                             events.push(LayerPropertyEdit::Lock { kind, on: *on });
                         }
                     }
                 });
-                let caption = Label::from(words.fill.clone());
+                let caption = words.fill.clone();
                 events.extend(percent_field(ui, &caption, props.fill, editable, &unavailable).map(LayerPropertyEdit::Fill));
             });
         });

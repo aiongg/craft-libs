@@ -155,10 +155,12 @@ impl Default for PreviewView {
     }
 }
 
+type PaneOverlayFn<'a> = Box<dyn FnOnce(&ContentPainterCx, CanvasTransform, Rect) + 'a>;
+
 /// The host's drawing over a pane's picture: it gets the content painter, the transform the pane drew the picture with
 /// (the picture's centre is the canvas origin) and the picture's rect in the painter's coordinates. It runs after the
 /// picture and before the pending line or the failed message.
-pub struct PaneOverlay<'a>(Box<dyn FnOnce(&ContentPainterCx, CanvasTransform, Rect) + 'a>);
+pub struct PaneOverlay<'a>(PaneOverlayFn<'a>);
 
 impl<'a> PaneOverlay<'a> {
     /// The overlay that runs `paint`.
@@ -167,7 +169,7 @@ impl<'a> PaneOverlay<'a> {
     }
 
     /// The drawing to run, for a caller that passes the overlay on.
-    pub fn into_paint(self) -> Box<dyn FnOnce(&ContentPainterCx, CanvasTransform, Rect) + 'a> {
+    pub fn into_paint(self) -> PaneOverlayFn<'a> {
         self.0
     }
 }

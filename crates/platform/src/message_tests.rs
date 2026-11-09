@@ -4,14 +4,14 @@ use crate::texts;
 // Every `PlatformText` constant of a module is in its `TEXTS` table (counted in the module's source), ids are `module.camelCase` and one id has one text.
 #[test]
 fn every_message_is_in_the_registry_once() {
-    let mut sources: Vec<(&str, &str, usize)> = vec![
+    let sources: Vec<(&str, &str, usize)> = vec![
         ("open", include_str!("open.rs"), crate::open::TEXTS.len()),
         ("watch", include_str!("watch.rs"), crate::watch::TEXTS.len()),
         ("temp", include_str!("temp.rs"), crate::temp::TEXTS.len()),
         ("default_app", include_str!("default_app.rs"), crate::default_app::TEXTS.len()),
+        #[cfg(feature = "clipboard")]
+        ("clipboard", include_str!("clipboard.rs"), crate::clipboard::TEXTS.len()),
     ];
-    #[cfg(feature = "clipboard")]
-    sources.push(("clipboard", include_str!("clipboard.rs"), crate::clipboard::TEXTS.len()));
     for (module, source, listed) in sources {
         let declared = source.lines().filter(|l| l.starts_with("pub const ") && l.contains(": PlatformText") && !l.contains("TEXTS")).count();
         assert_eq!(declared, listed, "{module}: constants and TEXTS differ");

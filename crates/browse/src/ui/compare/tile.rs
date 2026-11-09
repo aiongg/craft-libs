@@ -162,9 +162,9 @@ impl<'a> CompareTile<'a> {
     pub fn place(mut self, ui: &mut Ui, rect: Rect) -> CompareOutput {
         let env = Env::of(ui);
         let words = env.words::<CompareWords>();
-        let format = env.view().format().clone();
+        let format = env.view().format();
         let name = match &self.caption {
-            Some(caption) => caption.accessible_name(&words, &format),
+            Some(caption) => caption.accessible_name(&words, format),
             None => self.label.as_str().to_owned(),
         };
         self.description = match &self.state {

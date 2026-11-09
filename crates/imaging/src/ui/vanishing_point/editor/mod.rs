@@ -436,8 +436,8 @@ impl Shared for VanishingPointPass<'_> {
         let mut work = Work {
             ctx: self.ctx,
             gesture: None,
-            editor: &mut **editor,
-            session: &mut **session,
+            editor: &mut editor,
+            session: &mut session,
             scene: self.scene,
             settings: self.settings,
             source: self.source,

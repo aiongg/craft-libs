@@ -151,9 +151,11 @@ impl FillKind {
     }
 }
 
+type PaintEditorFn<'a, T> = Box<dyn FnMut(&mut Ui) -> Option<T> + 'a>;
+
 /// The host's editor body for one fill kind, drawn in the popover: it edits the host's fill and returns the new
 /// preview when it changed.
-pub struct PaintEditor<'a, T>(Box<dyn FnMut(&mut Ui) -> Option<T> + 'a>);
+pub struct PaintEditor<'a, T>(PaintEditorFn<'a, T>);
 
 impl<'a, T, F: FnMut(&mut Ui) -> Option<T> + 'a> From<F> for PaintEditor<'a, T> {
     fn from(editor: F) -> Self {

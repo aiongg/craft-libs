@@ -1,9 +1,9 @@
 //! [`StrokeButton`]: the field that shows the stroke's style and opens the editor in a popover.
 
-use craft_behavior::{EditEvent, HitLevel, HitPriority, Mixed, PartKey, Sense};
+use craft_behavior::{EditEvent, HitLevel, HitPriority, PartKey, Sense};
 use craft_ui::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, Overlay, OverlayUi, Overlays as _, PaintUi, PartsCx,
-    Pointer as _, Props as _, Role, Show as _, WordSetCx as _,
+    Props as _, Role, Show as _, WordSetCx as _,
 };
 use craft_ui::display::Text;
 use craft_ui::list::ThumbAspect;
@@ -12,7 +12,6 @@ use craft_ui::runtime::env::Label;
 use craft_ui::runtime::memory::Remember as _;
 use craft_ui::style::{ComponentStyle, FocusLook, StyleCx, SurfaceLook, TypeRole};
 use egui::Vec2;
-use std::sync::Arc;
 
 use super::{LineStyle, StrokeEditor, StrokePreview, StrokeSections, StrokeStyle, StrokeWords};
 

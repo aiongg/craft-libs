@@ -3,7 +3,7 @@
 use craft_behavior::kurbo::Vec2;
 use craft_behavior::{Granularity, Intent};
 use craft_ui::canvas::{NUDGE, NUDGE_FAR};
-use craft_ui::contract::{Cx, Edit as _, Focus as _, Pointer as _};
+use craft_ui::contract::{Cx, Edit as _, Focus as _};
 
 use super::parts::line_part;
 use super::parts::{part_ref, selection_of};

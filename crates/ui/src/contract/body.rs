@@ -16,7 +16,7 @@ use crate::runtime::access::{self, Politeness, Role};
 use crate::runtime::commands::{self, CommandSet as _, WindowCommand};
 use crate::runtime::egui::pass;
 use crate::runtime::egui::{alloc, areas, child, input, response, style, viewports};
-use crate::runtime::env::{AppValues, ArenaId, Env};
+use crate::runtime::env::{AppValues, ArenaId, Env, Scoped};
 use crate::runtime::focus::FocusPolicy;
 use crate::runtime::memory::{MemoryStage, SaveKey, sub};
 use crate::runtime::motion::{Driver, Presence, spec};
@@ -264,6 +264,15 @@ fn window_min(props: &ContainerProps, style_min: Vec2) -> Vec2 {
 fn window_instance(props: &ContainerProps, id: Id) -> Option<Id> {
     let overlay = overlay_of(props)?;
     (overlay.movable || overlay.resize.grips).then(|| if props.command_scope == Some(WindowCommand::SCOPE) { id } else { sub(id, "window") })
+}
+
+/// What a container's body env needs from the pass that built it.
+struct BodyScope {
+    room: Vec2,
+    real: bool,
+    sizing: Sizing,
+    content_column: bool,
+    scroll: Option<Scroll>,
 }
 
 /// The scroll region of a container: its own, or for a layer the vertical one that takes the overflow of any fit
@@ -575,7 +584,77 @@ pub(super) struct BodyHooks<'b> {
     follows_end: bool,
 }
 
+/// The divider rules under the header and above the footer.
+fn paint_rules(ui: &mut Ui, props: &ContainerProps, env: &Env, inner: Rect, regions: &Regions) {
+    let rule = rule_look(&env.tokens, RuleKind::Divider);
+    let ppp = ui.ctx().pixels_per_point();
+    let draw_rule = |from: f32, to: f32, y: f32| ui.painter().extend(Rule::shapes(&rule, Pos2::new(from, y), Pos2::new(to, y), ppp));
+    if props.header.is_some_and(|header| header.rule && !header.inline) {
+        draw_rule(inner.min.x, inner.max.x, regions.header.max.y);
+    }
+    // A footer across the container rules the whole width; one beside or in the end region rules its own.
+    match props.footer.filter(|footer| footer.rule) {
+        Some(footer) if footer.place == FooterPlace::EndTop && footer_in_end(props) => {
+            draw_rule(regions.footer.min.x, regions.footer.max.x, regions.footer.max.y);
+        }
+        Some(_) if end_full_height(props) => draw_rule(regions.footer.min.x, regions.footer.max.x, regions.footer.min.y),
+        Some(_) => draw_rule(inner.min.x, inner.max.x, regions.footer.min.y),
+        None => {}
+    }
+}
+
 impl BodyHooks<'_> {
+    /// The footer's rect and how far its left edge lies past the container's, under the control column of a
+    /// label-scoped container; along an axis the room leaves unbounded, the footer follows the body and the end region.
+    fn place_footer(&self, props: &ContainerProps, regions: &mut Regions, inner: Rect, body_rect: Rect, rtl: bool) -> (Rect, f32) {
+        // Along an axis the room leaves unbounded (a measuring run) the footer follows the body and the end region
+        // it ran after; along a bounded axis it sits at the far edge.
+        if !inner.max.y.is_finite() && !footer_in_end(props) {
+            let mut bottom = regions.body.min.y + self.body_size.map_or(0.0, |size| size.y);
+            if props.end.is_some() && !end_full_height(props) {
+                bottom = bottom.max(regions.end.min.y + self.end_size.map_or(0.0, |size| size.y));
+            }
+            regions.footer.min.y = bottom;
+            regions.footer.max.y = bottom + self.measured_footer.y;
+        }
+        let mut footer_rect = regions.footer;
+        if props.label.is_some() {
+            if rtl {
+                footer_rect.max.x = body_rect.max.x.clamp(footer_rect.min.x, footer_rect.max.x);
+            } else {
+                footer_rect.min.x = body_rect.min.x.clamp(footer_rect.min.x, footer_rect.max.x);
+            }
+        }
+        let offset = if rtl { regions.footer.max.x - footer_rect.max.x } else { footer_rect.min.x - regions.footer.min.x };
+        (footer_rect, offset)
+    }
+
+    /// The scroll bars over the body.
+    fn paint_scroll_bars<C: Container>(&self, ui: &mut Ui, cx: &Cx<'_, C>, props: &ContainerProps, rtl: bool, tokens: &UiTokens) {
+        let look = scroll_bar_look(tokens);
+        if let Some(view) = self.view {
+            for (bar, span) in self.scroll_geometry(props, view, rtl, tokens) {
+                let overflow = span.content.end - span.content.start > span.visible.end - span.visible.start;
+                if !overflow {
+                    continue;
+                }
+                let length = match bar.axis {
+                    Axis::X => bar.track.width(),
+                    _ => bar.track.height(),
+                };
+                let (at, len) = craft_behavior::scroll::thumb(&span, length, look.min_thumb);
+                let thumb = super::cx::thumb_rect(bar.track, bar.axis, rtl, at, len);
+                let enabled = cx.core.resolved.enabled;
+                let state = super::steps::part_state(
+                    cx.core.results.get(&(bar.key, Some(super::cx::THUMB))).unwrap_or(&crate::primitives::PartResult::IDLE),
+                    enabled,
+                    None,
+                );
+                ui.painter().extend(ScrollBar::shapes(&look, bar.track, thumb, &state));
+            }
+        }
+    }
+
     /// AccessKit scroll actions aimed at the container's node: a page along an axis, or an offset.
     fn access_scroll<C: Container>(&mut self, props: &ContainerProps, cx: &mut Cx<'_, C>) {
         use craft_behavior::{AccessAction as Action, AccessData as ActionData};
@@ -1431,6 +1510,76 @@ fn label_extra_of(body: Rect, control: Rect) -> Vec2 {
     ))
 }
 
+impl BodyHooks<'_> {
+    /// What the container's regions inherit from the env: its enabled state, window and reorder commands, values, axis,
+    /// ink and theme.
+    fn scope_regions<C: Container>(
+        &self,
+        scoped: &mut Scoped,
+        props: &ContainerProps,
+        cx: &Cx<'_, C>,
+        window: Option<Id>,
+        values: &AppValues,
+        real: bool,
+    ) {
+        let (id, ctx) = (cx.core.id, &cx.core.ctx);
+        // The container's own `enabled(false)` greys everything inside it, as a scope would.
+        scoped.enabled &= cx.core.resolved.enabled;
+        if let Some(window) = window {
+            scoped.commands = scoped.commands.pushed(WindowCommand::SCOPE, window);
+        }
+        scoped.values.extend(values);
+        if cx.core.resolved.ltr_axis {
+            scoped.direction = Direction::Ltr;
+        }
+        scoped.ink = cx.core.ink;
+        scoped.start_room();
+        // Along a width the container takes from its content, its regions measure at their content widths: a child
+        // that fills takes what it needs, not the whole room.
+        if !real && !self.given.0 {
+            scoped.content_column = true;
+        }
+        if props.header.is_some_and(|header| header.band == DragBand::Reorder) {
+            scoped.commands = scoped.commands.pushed(REORDER_SCOPE, id);
+        }
+        // A host env (a layer's) does not carry the push the container's own context made.
+        if let Some(scope) = props.command_scope
+            && scoped.commands.innermost(scope.name()) != Some(id)
+        {
+            scoped.commands = scoped.commands.pushed(scope, id);
+        }
+        if let Some(theme) = &props.theme {
+            theme.apply(ctx, scoped);
+        }
+    }
+
+    /// What the body inherits on top of the line's env: arena, transform, the room it is offered and its scroll axes.
+    fn scope_body(&self, scoped: &mut Scoped, props: &ContainerProps, id: Id, body: BodyScope) {
+        let BodyScope { room, real, sizing, content_column, scroll } = body;
+        if props.arena {
+            scoped.arena = Some(ArenaId::new(id));
+        }
+        scoped.transform = props.transform;
+        scoped.content_column = content_column;
+        scoped.row_room = None;
+        scoped.content = (!self.given.0, !self.given.1);
+        // A content-sized container offers its children, in the real run, the width this pass measured it at: a
+        // child that fits itself into its room (a bar moving items into "More") fits the width the container
+        // takes, not the room it could have taken. A fill container that is not given the width still takes at
+        // least the room (`regions`), so it offers the room.
+        scoped.offered = (!self.given.0 && room.x.is_finite())
+            .then(|| if real && sizing == Sizing::Content { self.wanted_width(props).map_or(room.x, |wanted| wanted.min(room.x)) } else { room.x });
+        match scroll {
+            Some(scroll) => {
+                scoped.scroll_owner = Some(id);
+                scoped.unbounded = (scroll.horizontal_on(), scroll.vertical_on());
+            }
+            // A container that sized an axis itself (a rect it was shown at, a fixed layer) bounds the room along it.
+            None => scoped.unbounded = (scoped.unbounded.0 && !self.room.x.is_finite(), scoped.unbounded.1 && !self.room.y.is_finite()),
+        }
+    }
+}
+
 impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
     fn shape(&self) -> super::steps::ShapeKind {
         super::steps::ShapeKind::Body
@@ -1922,36 +2071,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         if real {
             register_instances(&ctx, &props, id, window);
         }
-        let region_env = env.derive(|scoped| {
-            // The container's own `enabled(false)` greys everything inside it, as a scope would.
-            scoped.enabled &= cx.core.resolved.enabled;
-            if let Some(window) = window {
-                scoped.commands = scoped.commands.pushed(WindowCommand::SCOPE, window);
-            }
-            scoped.values.extend(values);
-            if cx.core.resolved.ltr_axis {
-                scoped.direction = Direction::Ltr;
-            }
-            scoped.ink = cx.core.ink;
-            scoped.start_room();
-            // Along a width the container takes from its content, its regions measure at their content widths: a child
-            // that fills takes what it needs, not the whole room.
-            if !real && !self.given.0 {
-                scoped.content_column = true;
-            }
-            if props.header.is_some_and(|header| header.band == DragBand::Reorder) {
-                scoped.commands = scoped.commands.pushed(REORDER_SCOPE, id);
-            }
-            // A host env (a layer's) does not carry the push the container's own context made.
-            if let Some(scope) = props.command_scope
-                && scoped.commands.innermost(scope.name()) != Some(id)
-            {
-                scoped.commands = scoped.commands.pushed(scope, id);
-            }
-            if let Some(theme) = &props.theme {
-                theme.apply(&ctx, scoped);
-            }
-        });
+        let region_env = env.derive(|scoped| self.scope_regions(scoped, &props, cx, window, values, real));
         let body_id = sub(id, "body");
         let owner = BodyOwner::new(cx.style, gap_of(&env.tokens, props.body_gap));
         let frame = RegionFrame { id, rtl, node, env: &region_env };
@@ -2000,30 +2120,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         // A held fill-width container is part of the content column it sits in: its own stack is one too.
         let (sizing, held) = (self.sizing(&props), self.held(&props, env));
         let content_column = (sizing == Sizing::Content || held || !self.given.0) && matches!(props.layout, layout::BodyLayout::Stack);
-        let body_env = line_env.derive_local(|scoped| {
-            if props.arena {
-                scoped.arena = Some(ArenaId::new(id));
-            }
-            scoped.transform = props.transform;
-            scoped.content_column = content_column;
-            scoped.row_room = None;
-            scoped.content = (!self.given.0, !self.given.1);
-            // A content-sized container offers its children, in the real run, the width this pass measured it at: a
-            // child that fits itself into its room (a bar moving items into "More") fits the width the container
-            // takes, not the room it could have taken. A fill container that is not given the width still takes at
-            // least the room (`regions`), so it offers the room.
-            scoped.offered = (!self.given.0 && room.x.is_finite()).then(|| {
-                if real && sizing == Sizing::Content { self.wanted_width(&props).map_or(room.x, |wanted| wanted.min(room.x)) } else { room.x }
-            });
-            match scroll {
-                Some(scroll) => {
-                    scoped.scroll_owner = Some(id);
-                    scoped.unbounded = (scroll.horizontal_on(), scroll.vertical_on());
-                }
-                // A container that sized an axis itself (a rect it was shown at, a fixed layer) bounds the room along it.
-                None => scoped.unbounded = (scoped.unbounded.0 && !self.room.x.is_finite(), scoped.unbounded.1 && !self.room.y.is_finite()),
-            }
-        });
+        let body_env = line_env.derive_local(|scoped| self.scope_body(scoped, &props, id, BodyScope { room, real, sizing, content_column, scroll }));
         let gap = Vec2::splat(gap_of(&env.tokens, props.body_gap));
         let layout_id = sub(id, "layout");
         // B2 label: the control gets the rect the label leaves; the label column adds to the container's extent.
@@ -2215,25 +2312,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         // B4 footer: under the control column of a label-scoped container, which starts where the label step put
         // the control.
         if props.footer.is_some() {
-            // Along an axis the room leaves unbounded (a measuring run) the footer follows the body and the end region
-            // it ran after; along a bounded axis it sits at the far edge.
-            if !inner.max.y.is_finite() && !footer_in_end(&props) {
-                let mut bottom = regions.body.min.y + self.body_size.map_or(0.0, |size| size.y);
-                if props.end.is_some() && !end_full_height(&props) {
-                    bottom = bottom.max(regions.end.min.y + self.end_size.map_or(0.0, |size| size.y));
-                }
-                regions.footer.min.y = bottom;
-                regions.footer.max.y = bottom + self.measured_footer.y;
-            }
-            let mut footer_rect = regions.footer;
-            if props.label.is_some() {
-                if rtl {
-                    footer_rect.max.x = body_rect.max.x.clamp(footer_rect.min.x, footer_rect.max.x);
-                } else {
-                    footer_rect.min.x = body_rect.min.x.clamp(footer_rect.min.x, footer_rect.max.x);
-                }
-            }
-            let offset = if rtl { regions.footer.max.x - footer_rect.max.x } else { footer_rect.min.x - regions.footer.min.x };
+            let (footer_rect, offset) = self.place_footer(&props, &mut regions, inner, body_rect, rtl);
             let mut bcx = BodyCx::new(body_id, env_view, resolved, footer_rect, &mut *cx.core.memory, &mut open, gate.as_mut())
                 .with_field_message(field_message)
                 .with_owner(owner);
@@ -2255,51 +2334,15 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             self.close = true;
             self.reason = self.reason.or(close);
         }
-        // The scroll bars, over the body.
         if is_open && scroll.is_some() {
-            let look = scroll_bar_look(&env.tokens);
-            if let Some(view) = self.view {
-                for (bar, span) in self.scroll_geometry(&props, view, rtl, &env.tokens) {
-                    let overflow = span.content.end - span.content.start > span.visible.end - span.visible.start;
-                    if !overflow {
-                        continue;
-                    }
-                    let length = match bar.axis {
-                        Axis::X => bar.track.width(),
-                        _ => bar.track.height(),
-                    };
-                    let (at, len) = craft_behavior::scroll::thumb(&span, length, look.min_thumb);
-                    let thumb = super::cx::thumb_rect(bar.track, bar.axis, rtl, at, len);
-                    let enabled = cx.core.resolved.enabled;
-                    let state = super::steps::part_state(
-                        cx.core.results.get(&(bar.key, Some(super::cx::THUMB))).unwrap_or(&crate::primitives::PartResult::IDLE),
-                        enabled,
-                        None,
-                    );
-                    ui.painter().extend(ScrollBar::shapes(&look, bar.track, thumb, &state));
-                }
-            }
+            self.paint_scroll_bars(ui, cx, &props, rtl, &env.tokens);
         }
         // The surface at the final rect, then the rules.
         if let Some(kind) = props.surface {
             let shapes = Surface::shapes(&surface_style(&env.tokens, kind), None, rect, Corners::All, env.direction, ctx.pixels_per_point());
             ui.painter().set(surface_slot, Shape::Vec(shapes));
         }
-        let rule = rule_look(&env.tokens, RuleKind::Divider);
-        let ppp = ctx.pixels_per_point();
-        let draw_rule = |from: f32, to: f32, y: f32| ui.painter().extend(Rule::shapes(&rule, Pos2::new(from, y), Pos2::new(to, y), ppp));
-        if props.header.is_some_and(|header| header.rule && !header.inline) {
-            draw_rule(inner.min.x, inner.max.x, regions.header.max.y);
-        }
-        // A footer across the container rules the whole width; one beside or in the end region rules its own.
-        match props.footer.filter(|footer| footer.rule) {
-            Some(footer) if footer.place == FooterPlace::EndTop && footer_in_end(&props) => {
-                draw_rule(regions.footer.min.x, regions.footer.max.x, regions.footer.max.y);
-            }
-            Some(_) if end_full_height(&props) => draw_rule(regions.footer.min.x, regions.footer.max.x, regions.footer.min.y),
-            Some(_) => draw_rule(inner.min.x, inner.max.x, regions.footer.min.y),
-            None => {}
-        }
+        paint_rules(ui, &props, env, inner, &regions);
     }
 
     fn settle(&mut self, comp: &mut C, cx: &mut Cx<'_, C>) {

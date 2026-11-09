@@ -94,7 +94,8 @@ impl<'a> VanishingPointBar<'a> {
                 }
             };
             if tool == VanishingTool::Stamp {
-                let cells: [(&'static str, &Label, f64, RangeInclusive<f64>, UnitKind, fn(&mut VanishingPointSettings, f64)); 3] = [
+                type StampCell<'a> = (&'static str, &'a Label, f64, RangeInclusive<f64>, UnitKind, fn(&mut VanishingPointSettings, f64));
+                let cells: [StampCell<'_>; 3] = [
                     ("diameter", &words.diameter, settings.stamp.diameter, DIAMETER, UnitKind::Pixels, |s, v| s.stamp.diameter = v),
                     ("hardness", &words.hardness, settings.stamp.hardness, PERCENT, UnitKind::Percent, |s, v| s.stamp.hardness = v),
                     ("opacity", &words.opacity, settings.stamp.opacity, PERCENT, UnitKind::Percent, |s, v| s.stamp.opacity = v),

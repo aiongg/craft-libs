@@ -469,7 +469,7 @@ impl<'a> BezierOverlay<'a> {
         self.tool.takes(&item.proxy(), item.interior)
     }
 
-    fn path<'p>(paths: &'p [EditPath], key: u64) -> Option<&'p EditPath> {
+    fn path(paths: &[EditPath], key: u64) -> Option<&EditPath> {
         paths.iter().find(|p| p.key == key)
     }
 

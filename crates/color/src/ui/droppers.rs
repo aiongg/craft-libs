@@ -104,14 +104,12 @@ impl<'a> DropperButton<'a> {
     }
 
     /// What the dropper samples into; the kind is the request's key unless [`key`](Self::key) says otherwise.
-    #[must_use]
     pub fn kind(mut self, kind: DropperKind) -> Self {
         self.kind = kind;
         self
     }
 
     /// The key of the request the button files.
-    #[must_use]
     pub fn key(mut self, key: impl Into<String>) -> Self {
         self.key = Some(key.into());
         self

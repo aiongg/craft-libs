@@ -130,7 +130,7 @@ fn body(ui: &mut Ui, cx: &mut BodyCx<'_>, state: &mut MockState) {
                     }
                     AppCommand::ImageSize => {
                         let values = ImageSizeValues::new(state.document.pixel_size());
-                        host.open(HostedImageSize::new(values, |values| ImageSize::new(values)));
+                        host.open(HostedImageSize::new(values, |values: Bind<'_, ImageSizeValues>| ImageSize::new(values)));
                     }
                     _ => {}
                 }

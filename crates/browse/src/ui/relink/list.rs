@@ -173,6 +173,8 @@ craft_ui::words! {
 /// The thumbnails a list draws with: the cache and the app's source, keyed by the link key.
 type ThumbPair<'a, K> = (&'a Thumbnails<K>, &'a dyn ThumbSource<K>);
 
+type InfoFn<'a> = Box<dyn FnMut(&mut Ui) + 'a>;
+
 /// The Links panel: rows of the document's links with thumbnail, name, page and status.
 ///
 /// - **Rows.** `ListRow`s, striped: a thumbnail by `LinkListSettings::thumbnails`, the name, the
@@ -205,8 +207,8 @@ pub struct LinkList<'a, K: TextureKey + std::fmt::Debug> {
     #[prop]
     actions: bool,
     /// The Link Info section's body for the lead link.
-    #[prop(boxed)]
-    info: Option<Box<dyn FnMut(&mut Ui) + 'a>>,
+    #[prop(boxed = "FnMut(&mut Ui) + 'a")]
+    info: Option<InfoFn<'a>>,
 }
 
 impl<'a, K: TextureKey + std::fmt::Debug> LinkList<'a, K> {
@@ -217,7 +219,6 @@ impl<'a, K: TextureKey + std::fmt::Debug> LinkList<'a, K> {
     }
 
     /// Row thumbnails keyed by the link key.
-    #[must_use]
     pub fn thumbnails(mut self, thumbnails: &'a Thumbnails<K>, source: &'a dyn ThumbSource<K>) -> Self {
         self.thumbnails = Some((thumbnails, source));
         self

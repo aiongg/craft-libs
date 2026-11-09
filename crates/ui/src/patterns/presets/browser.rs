@@ -91,22 +91,24 @@ fn app_drag<K: Clone>(drag: &ListDrag<BrowserKey<K>>) -> Option<ListDrag<K>> {
 
 /// The app's move of a move the browser's collection reports. Only presets and groups drag, and only they take a drop
 /// (`can_drag`, `accepts`), so every key of a move is one of the app's.
-fn app_move<K>(mv: ReorderMove<BrowserKey<K>>) -> ReorderMove<K> {
+fn app_move<K>(mv: ReorderMove<BrowserKey<K>>) -> Option<ReorderMove<K>> {
     let app = |key: BrowserKey<K>| match key {
         BrowserKey::Preset(key) => Some(key),
         BrowserKey::Action(_) => None,
     };
-    ReorderMove {
-        key: app(mv.key).expect("only presets and groups drag"),
+    Some(ReorderMove {
+        key: app(mv.key)?,
         keys: mv.keys.into_iter().filter_map(app).collect(),
         to: mv.to,
         copy: mv.copy,
         parent: mv.parent.and_then(app),
-    }
+    })
 }
 
+type ThumbPainterFn<'a, K> = Box<dyn Fn(&ContentPainterCx, Rect, ThumbInfo<'_, K>) + 'a>;
+
 /// Paints a preset's thumbnail: the content painter, the rect and what the browser knows of the preset.
-pub struct ThumbPainter<'a, K>(Box<dyn Fn(&ContentPainterCx, Rect, ThumbInfo<'_, K>) + 'a>);
+pub struct ThumbPainter<'a, K>(ThumbPainterFn<'a, K>);
 
 impl<'a, K> ThumbPainter<'a, K> {
     /// Runs the painter: how a picker hands its own to the browser it opens.
@@ -225,7 +227,6 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'a, K> {
     /// Rows after the presets, below a divider, as a preset menu lists its commands ("Create preset", "Detach"). They
     /// are rows of the browser's collection in both views: the lead reaches them with Down from the last preset, and a
     /// click or Enter on one reports `PresetEvent::Action` with its index in `labels`.
-    #[must_use]
     pub fn actions(mut self, labels: impl IntoIterator<Item = Label>) -> Self {
         self.actions = labels.into_iter().collect();
         self
@@ -233,7 +234,6 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'a, K> {
 
     /// Rows added to the context menu after the standard ones; running one reports `PresetEvent::Menu` with the
     /// entry's value.
-    #[must_use]
     pub fn extra_items(mut self, items: impl IntoIterator<Item = Entry<String>>) -> Self {
         self.extra_items = items.into_iter().collect();
         self
@@ -557,7 +557,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'_, K> {
             let list_accepts =
                 |drag: &ListDrag<BrowserKey<K>>, over: Option<&BrowserKey<K>>, insert: usize| insert <= shown.len() && accepts(drag, over, insert);
             let rename_ok = |key: &K| can_rename.as_ref().is_none_or(|test| test.passes(key));
-            let rename_row = |key: &BrowserKey<K>| key.preset().is_some_and(|key| rename_ok(key));
+            let rename_row = |key: &BrowserKey<K>| key.preset().is_some_and(rename_ok);
             let painter = thumb.as_ref();
             let paint = |row: &PresetRow<K>, selected: bool| {
                 let key = row.key.clone();
@@ -592,15 +592,15 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'_, K> {
                     .collapsible()
                     .rename(true)
                     .rows_stamp(stamp)
-                    .can_rename(&rename_row)
-                    .can_drag(&can_drag)
-                    .accepts(&accepts);
+                    .can_rename(rename_row)
+                    .can_drag(can_drag)
+                    .accepts(accepts);
                 if reorder.is_some() {
                     grid = grid.reorder(ReorderRule::new()).drag_payload(app_drag::<K>);
                 }
                 let aspect = cell_shape.aspect();
                 let out = grid.show_items(ui, &tiles, &mut |key, icx| {
-                    let row = tiles.index_of(key).and_then(|at| tiles.row(at)).expect("a tile that is built is a preset of the source");
+                    let Some(row) = tiles.index_of(key).and_then(|at| tiles.row(at)) else { return Tile::new(Label::default()) };
                     let mut tile = Tile::new(row.label.clone());
                     if let Some(detail) = &row.caption {
                         tile = tile.detail(detail.clone());
@@ -630,9 +630,9 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'_, K> {
                     .selection(Bind::given(selection))
                     .rename(true)
                     .rows_stamp(stamp)
-                    .can_rename(&rename_row)
-                    .can_drag(&can_drag)
-                    .accepts(&list_accepts);
+                    .can_rename(rename_row)
+                    .can_drag(can_drag)
+                    .accepts(list_accepts);
                 if reorder.is_some() {
                     list = list.reorder(ReorderRule::new().into_groups()).drag_payload(app_drag::<K>);
                 }
@@ -753,11 +753,11 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'_, K> {
                     Seen::Pointer(key) => hovered = key.preset().filter(|key| row_of(key).is_some_and(|at| !rows[at].is_group())).cloned(),
                     Seen::Reorder(edit) => {
                         let moved = |mv: ReorderMove<BrowserKey<K>>| {
-                            let mv = app_move(mv);
+                            let mv = app_move(mv)?;
                             let to = full_position(rows, &displayed, &mv);
-                            ReorderMove { to, ..mv }
+                            Some(ReorderMove { to, ..mv })
                         };
-                        events.push(PresetEvent::Reorder(edit.map(moved)));
+                        events.extend(edit.filter_map(moved).map(PresetEvent::Reorder));
                     }
                     Seen::Rename(edit) => {
                         let ended = matches!(edit.phase(), Some(GesturePhase::Commit) | None);

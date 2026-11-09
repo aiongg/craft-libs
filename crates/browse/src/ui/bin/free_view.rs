@@ -46,7 +46,7 @@ where
         .zoom(state.settings.zoom as f32)
         .aspect(ASPECT)
         .flow_all(searching)
-        .drop_into(&drop_into)
+        .drop_into(drop_into)
         .rename(true)
         .deletable(true)
         .rows_stamp(stamp_of(state.shown.as_ref(), &state.search, state.settings.icon_sort.as_ref()))

@@ -290,7 +290,7 @@ impl Component for OutlineBand<'_> {
 
     /// The level buttons, then the group buttons, in one roving group.
     fn parts(&mut self, _: Rect, cx: &mut PartsCx<'_, Self>) {
-        let frame = Frame::new(self.geometry, self.rows, self.columns, &cx.style);
+        let frame = Frame::new(self.geometry, self.rows, self.columns, cx.style);
         self.laid = frame.layout();
         let mut buttons: Vec<&Button> = self.laid.buttons.iter().collect();
         buttons.sort_by_key(|button| matches!(button.action, OutlineAction::Toggle { .. }));

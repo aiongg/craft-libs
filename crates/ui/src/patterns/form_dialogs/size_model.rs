@@ -353,11 +353,11 @@ impl LinkedSize {
 
     fn range(&self, side: Side) -> RangeInclusive<f64> {
         let original = pixels_along(self.original, side);
-        let limit = self.from_pixels(MAX_DOCUMENT_SIDE, original);
-        if self.relative { -limit..=limit } else { self.from_pixels(1.0, original).min(self.shown(side))..=limit }
+        let limit = self.unit_value(MAX_DOCUMENT_SIDE, original);
+        if self.relative { -limit..=limit } else { self.unit_value(1.0, original).min(self.shown(side))..=limit }
     }
 
-    fn from_pixels(&self, pixels: f64, original: f64) -> f64 {
+    fn unit_value(&self, pixels: f64, original: f64) -> f64 {
         self.unit.from_pixels(pixels, original, self.ppi, self.points_per_inch).unwrap_or(pixels)
     }
 
@@ -374,7 +374,7 @@ impl LinkedSize {
             return typed.value;
         }
         let (current, original) = (pixels_along(self.current, side), pixels_along(self.original, side));
-        self.from_pixels(if self.relative { current - original } else { current }, original)
+        self.unit_value(if self.relative { current - original } else { current }, original)
     }
 
     fn edit(&mut self, side: Side, value: f64) {

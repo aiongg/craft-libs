@@ -11,6 +11,8 @@ struct Prop {
     into: bool,
     flag: bool,
     boxed: bool,
+    /// The trait-object bounds of a `boxed = ".."` option, for a field whose type is an alias of the box.
+    boxed_bounds: Option<syn::punctuated::Punctuated<TypeParamBound, syn::Token![+]>>,
     name: Option<Ident>,
     func: Option<TypeParamBound>,
 }
@@ -37,6 +39,14 @@ fn parse_prop(attr: &Attribute) -> syn::Result<Prop> {
             prop.flag = true;
         } else if meta.path.is_ident("boxed") {
             prop.boxed = true;
+            if meta.input.peek(syn::Token![=]) {
+                let bounds: LitStr = meta.value()?.parse()?;
+                prop.boxed_bounds = Some(
+                    bounds
+                        .parse_with(syn::punctuated::Punctuated::parse_separated_nonempty)
+                        .map_err(|_| syn::Error::new(bounds.span(), "`boxed` names the trait bounds, such as \"Fn(&K) -> bool + 'a\""))?,
+                );
+            }
         } else if meta.path.is_ident("name") {
             let name: LitStr = meta.value()?.parse()?;
             prop.name = Some(name.parse().map_err(|_| syn::Error::new(name.span(), "`name` is the setter's identifier"))?);
@@ -46,9 +56,9 @@ fn parse_prop(attr: &Attribute) -> syn::Result<Prop> {
         } else if meta.path.is_ident("quantity") {
             read_quantity(&meta)?;
         } else {
-            return Err(
-                meta.error("unknown `prop` option; expected `into`, `flag`, `boxed`, `name = \"..\"`, `func = \"..\"` or `quantity = \"..\"`")
-            );
+            return Err(meta.error(
+                "unknown `prop` option; expected `into`, `flag`, `boxed`, `boxed = \"..\"`, `name = \"..\"`, `func = \"..\"` or `quantity = \"..\"`",
+            ));
         }
         Ok(())
     })?;
@@ -90,13 +100,15 @@ fn setter(field: &Field, attr: &Attribute) -> syn::Result<TokenStream> {
         });
     } else if prop.boxed {
         let object = wrapped(ty, "Option").and_then(|inner| wrapped(inner, "Box")).and_then(|boxed| match boxed {
-            Type::TraitObject(object) => Some(object),
+            Type::TraitObject(object) => Some(object.bounds.clone()),
             _ => None,
         });
-        let Some(object) = object else {
-            return Err(syn::Error::new_spanned(ty, "`boxed` is for an `Option<Box<dyn Trait>>` field: the setter takes any `T: Trait`"));
+        let Some(bounds) = prop.boxed_bounds.clone().or(object) else {
+            return Err(syn::Error::new_spanned(
+                ty,
+                "`boxed` is for an `Option<Box<dyn Trait>>` field, or an alias of the box with `boxed = \"Trait\"`: the setter takes any `T: Trait`",
+            ));
         };
-        let bounds = &object.bounds;
         return Ok(quote! {
             #(#docs)*
             pub fn #name<T: #bounds>(mut self, value: T) -> Self {
@@ -215,10 +227,10 @@ fn forwarders(field: &Field, attr: &Attribute, owner: &str, list: &[Forwarded]) 
             format!("`#[{}]` is for a field of type `{owner}`", attr.path().get_ident().map_or_else(String::new, ToString::to_string)),
         ));
     }
-    if let Some(only) = &only {
-        if let Some(unknown) = only.iter().find(|name| !list.iter().any(|(listed, ..)| name.is_ident(listed))) {
-            return Err(syn::Error::new_spanned(unknown, format!("`{owner}` forwards no builder of this name")));
-        }
+    if let Some(only) = &only
+        && let Some(unknown) = only.iter().find(|name| !list.iter().any(|(listed, ..)| name.is_ident(listed)))
+    {
+        return Err(syn::Error::new_spanned(unknown, format!("`{owner}` forwards no builder of this name")));
     }
     list.iter()
         .filter(|(name, ..)| only.as_ref().is_none_or(|only| only.iter().any(|picked| picked.is_ident(name))))

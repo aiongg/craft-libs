@@ -13,7 +13,7 @@ use craft_ui::display::{Picture, PictureSize};
 use craft_ui::layout_components::{Row, Stack};
 use craft_ui::list::{ListWords, ThumbSize};
 use craft_ui::patterns::form_dialogs::FormDialog;
-use craft_ui::runtime::env::{Env, Label};
+use craft_ui::runtime::env::Env;
 use craft_ui::sections::GroupBox;
 use egui::{Color32, ColorImage, Context, Ui};
 
@@ -193,29 +193,27 @@ impl StackDialog for LayersOptionsDialog {
         let env = Env::of(ui);
         let words = env.words::<LayersOptionsWords>();
         let list = env.words::<ListWords>();
-        let shown = FormDialog::new(Label::from(words.title.clone()), Bind::bound(&mut self.options)).show(ui, |ui, _, options| {
+        let shown = FormDialog::new(words.title.clone(), Bind::bound(&mut self.options)).show(ui, |ui, _, options| {
             Stack::new().show(ui, |ui, _| {
-                GroupBox::new(Label::from(words.thumbnail_size.clone()), None).show(ui, |ui, _| {
-                    RadioGroup::new(Label::from(words.thumbnail_size.clone()), Bind::bound(&mut options.thumbnail_size)).show(ui, |ui, _| {
+                GroupBox::new(words.thumbnail_size.clone(), None).show(ui, |ui, _| {
+                    RadioGroup::new(words.thumbnail_size.clone(), Bind::bound(&mut options.thumbnail_size)).show(ui, |ui, _| {
                         Stack::new().show(ui, |ui, _| {
                             for size in ThumbSize::ALL {
                                 Row::new().show(ui, |ui, _| {
                                     Radio::new(size).label(size.label(&list)).show(ui);
                                     if size != ThumbSize::None {
-                                        Picture::new(Label::from(words.sample.clone()), SAMPLE_KEY, &sample_image)
-                                            .extent(PictureSize::Thumb(size))
-                                            .show(ui);
+                                        Picture::new(words.sample.clone(), SAMPLE_KEY, &sample_image).extent(PictureSize::Thumb(size)).show(ui);
                                     }
                                 });
                             }
                         });
                     });
                 });
-                GroupBox::new(Label::from(words.thumbnail_contents.clone()), None).show(ui, |ui, _| {
-                    RadioGroup::new(Label::from(words.thumbnail_contents.clone()), Bind::bound(&mut options.thumbnail_contents)).show(ui, |ui, _| {
+                GroupBox::new(words.thumbnail_contents.clone(), None).show(ui, |ui, _| {
+                    RadioGroup::new(words.thumbnail_contents.clone(), Bind::bound(&mut options.thumbnail_contents)).show(ui, |ui, _| {
                         Stack::new().show(ui, |ui, _| {
-                            Radio::new(ThumbContents::LayerBounds).label(Label::from(words.layer_bounds.clone())).show(ui);
-                            Radio::new(ThumbContents::EntireDocument).label(Label::from(words.entire_document.clone())).show(ui);
+                            Radio::new(ThumbContents::LayerBounds).label(words.layer_bounds.clone()).show(ui);
+                            Radio::new(ThumbContents::EntireDocument).label(words.entire_document.clone()).show(ui);
                         });
                     });
                 });
@@ -227,7 +225,7 @@ impl StackDialog for LayersOptionsDialog {
                     (&words.mask_badges, &mut options.show_layer_mask_badges),
                 ];
                 for (label, value) in switches {
-                    Checkbox::new(Bind::bound(value)).label(Label::from(label.clone())).show(ui);
+                    Checkbox::new(Bind::bound(value)).label(label.clone()).show(ui);
                 }
             });
             true

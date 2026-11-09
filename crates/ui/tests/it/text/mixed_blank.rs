@@ -10,7 +10,9 @@ use egui::{Key, Modifiers};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-fn rig() -> (Fixture, Rc<RefCell<Mixed<Rgba>>>, Rc<Cell<usize>>) {
+type Rig = (Fixture, Rc<RefCell<Mixed<Rgba>>>, Rc<Cell<usize>>);
+
+fn rig() -> Rig {
     let value = Rc::new(RefCell::new(Mixed::<Rgba>::Mixed));
     let events = Rc::new(Cell::new(0));
     let (shown, seen) = (value.clone(), events.clone());

@@ -125,6 +125,13 @@ pub struct CommentsPanelState {
     pub new_comment: String,
 }
 
+/// Where a message's text starts and how wide a line of it may be.
+#[derive(Clone, Copy)]
+struct Line {
+    at: Pos2,
+    room: f32,
+}
+
 impl CommentsPanelState {
     /// Selects `thread` as a click on its card does, and unfolds its page group: for a comment
     /// the app selected elsewhere (on the page, or just added), whose card must be drawn.
@@ -278,14 +285,12 @@ impl<'a> CommentsPanel<'a> {
     }
 
     /// No posting or editing (a document that forbids comments).
-    #[must_use]
     pub fn read_only(mut self, on: bool) -> Self {
         self.read_only = on;
         self
     }
 
     /// The current time in Unix seconds, which the ages count from.
-    #[must_use]
     pub fn now(mut self, unix_seconds: i64) -> Self {
         self.now = unix_seconds;
         self
@@ -293,7 +298,6 @@ impl<'a> CommentsPanel<'a> {
 
     /// The text of a page heading's `{label}`, from the page stored in the anchor (page labels
     /// such as "iv" or "A-3"); that page itself by default.
-    #[must_use]
     pub fn page_label(mut self, label: impl Fn(usize) -> String + 'a) -> Self {
         self.page_label = Some(Box::new(label));
         self
@@ -798,7 +802,7 @@ impl CommentRow<'_> {
             head = head.max(author_size.y + size.y);
         }
         let mut y = y + head + gap;
-        y = self.message(0, thread, st, Pos2::new(pad, y), room, &words, sink) + gap;
+        y = self.message(0, thread, st, Line { at: Pos2::new(pad, y), room }, &words, sink) + gap;
         for index in 1..thread.messages.len() {
             let Some(message) = thread.messages.get(index) else { break };
             sink.avatar(square(Pos2::new(pad, y), h), &message.author);
@@ -810,7 +814,7 @@ impl CommentRow<'_> {
             let size = sink.text(strip(Pos2::new(x, y + author_size.y), name_room), caption, &when);
             sink.button(Slot::More(index), square(Pos2::new(width - pad - h, y), h), "more", &words.more, false);
             y += h.max(author_size.y + size.y) + gap;
-            y = self.message(index, thread, st, Pos2::new(x, y), width - pad - x, &words, sink) + gap;
+            y = self.message(index, thread, st, Line { at: Pos2::new(x, y), room: width - pad - x }, &words, sink) + gap;
         }
         if self.selected && self.editable {
             let field = sink.field(Slot::ReplyField, strip(Pos2::new(pad, y), room), &words.reply, self.reply, REPLY_LINES);
@@ -824,16 +828,8 @@ impl CommentRow<'_> {
     }
 
     /// Message `index`'s text, or its inline editor; returns the bottom.
-    fn message(
-        &self,
-        index: usize,
-        thread: &CommentThread,
-        st: &CommentRowStyle,
-        at: Pos2,
-        room: f32,
-        words: &CommentsWords,
-        sink: &mut dyn Sink,
-    ) -> f32 {
+    fn message(&self, index: usize, thread: &CommentThread, st: &CommentRowStyle, line: Line, words: &CommentsWords, sink: &mut dyn Sink) -> f32 {
+        let Line { at, room } = line;
         let Some(message) = thread.messages.get(index) else { return at.y };
         match self.editing {
             Some((editing, draft)) if editing == index => {
@@ -983,9 +979,8 @@ impl Sink for Paint<'_, '_> {
         }
         let response = self.ui.child(slot, self.place(rect), button);
         let (Some(thread), true) = (self.thread, clicked(&response)) else { return };
-        match slot {
-            Slot::Mark => self.events.push(CardEvent::Mark { thread, marked: !on }),
-            _ => {}
+        if slot == Slot::Mark {
+            self.events.push(CardEvent::Mark { thread, marked: !on })
         }
     }
 
@@ -1075,7 +1070,7 @@ impl Component for CommentRow<'_> {
         self.words = Some(cx.words::<CommentsWords>());
         let (now, rtl) = (self.now, cx.flow.is_rtl());
         let age = |then: i64| age_text(&cx.env, then, now);
-        let mut sink = Measure { cx: &**cx, fields: self.heights, buttons: self.buttons, more: Vec::new() };
+        let mut sink = Measure { cx, fields: self.heights, buttons: self.buttons, more: Vec::new() };
         self.lay(cx.style, rect.width(), &age, &mut sink);
         self.mores = sink.more.iter().map(|(index, _)| *index).collect();
         for (index, local) in sink.more {
@@ -1373,18 +1368,18 @@ impl CommentsPanel<'_> {
                 if heading.is_none() {
                     folded = false;
                 }
-                if let Some((title, page)) = heading {
-                    if last.as_deref() != Some(title.as_str()) {
-                        let count = match page {
-                            Some(number) if by_page => page_counts.get(&number).copied().unwrap_or_default(),
-                            _ => shown_counts.get(&title).copied().unwrap_or_default(),
-                        };
-                        let open = !page.is_some_and(|number| state.collapsed_pages.contains(&number));
-                        folded = !open;
-                        entries.push((CardKey::Group(groups), RowEntry::Group { title: title.clone(), count: digits(count), page, open }));
-                        groups += 1;
-                        last = Some(title);
-                    }
+                if let Some((title, page)) = heading
+                    && last.as_deref() != Some(title.as_str())
+                {
+                    let count = match page {
+                        Some(number) if by_page => page_counts.get(&number).copied().unwrap_or_default(),
+                        _ => shown_counts.get(&title).copied().unwrap_or_default(),
+                    };
+                    let open = !page.is_some_and(|number| state.collapsed_pages.contains(&number));
+                    folded = !open;
+                    entries.push((CardKey::Group(groups), RowEntry::Group { title: title.clone(), count: digits(count), page, open }));
+                    groups += 1;
+                    last = Some(title);
                 }
                 if !folded {
                     entries.push((CardKey::Thread(thread.id), RowEntry::Card { thread, depth }));

@@ -200,8 +200,10 @@ impl<'a> FooterExtra<'a> {
     }
 }
 
+type BelowRowsFn<'a> = Box<dyn Fn(&mut Ui, &DialogFields) + 'a>;
+
 /// What `ParamDialog::below` draws under the rows.
-pub struct BelowRows<'a>(Box<dyn Fn(&mut Ui, &DialogFields) + 'a>);
+pub struct BelowRows<'a>(BelowRowsFn<'a>);
 
 impl<'a> BelowRows<'a> {
     /// The section that runs `draw`.
@@ -240,7 +242,6 @@ impl<'a> ParamDialog<'a> {
 
     /// Changes the built [`Dialog`] before it shows, for the `Dialog` settings a form track needs and `ParamDialog`
     /// has no setter for (`Dialog::overlay`, say). It runs after the settings `ParamDialog` makes itself.
-    #[must_use]
     pub fn shaped(mut self, shape: impl FnOnce(Dialog<'a>) -> Dialog<'a> + 'a) -> Self {
         self.shaped = Some(Shaped(Box::new(shape)));
         self

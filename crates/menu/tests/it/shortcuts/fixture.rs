@@ -154,8 +154,7 @@ impl Rig {
         let button = [Role::BUTTON, Role::LINK]
             .into_iter()
             .flat_map(|role| self.fixture.by_role(role))
-            .filter(|node| tree.name_of(node.node) == Some(label) && !tree.is_disabled_key(node.node))
-            .last()
+            .rfind(|node| tree.name_of(node.node) == Some(label) && !tree.is_disabled_key(node.node))
             .unwrap_or_else(|| panic!("no enabled answer named {label:?}"));
         self.fixture.click(&button);
         self.fixture.idle(3);
