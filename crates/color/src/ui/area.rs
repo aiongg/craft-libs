@@ -135,7 +135,7 @@ impl Component for ColorArea<'_> {
         let model = self.mode.model();
         let [across, down] = self.channels();
         let picker = self.picker(cx.value(), true).label(cx.label());
-        let edit = ui.child("picker", cx.rect, picker);
+        let edit = ui.inner("picker", cx.rect, picker);
         let levels = self.levels();
         let start = ModelValues::new(model.id(), &[]);
         cx.adopt(&edit, &start, |point, mine| {
