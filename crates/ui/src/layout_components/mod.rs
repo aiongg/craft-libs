@@ -83,7 +83,9 @@ macro_rules! layout_component {
                 self
             }
 
-            /// Takes the available rect instead of the size of the children.
+            /// Takes the available rect instead of the size of the children. Along the main axis of a `Stack` (y) or a
+            /// `Row` (x) that is given the axis, each child that fills takes an equal share of the room less the
+            /// extents of the children that do not fill and the gaps, whether they come before or after it.
             pub fn fill(mut self) -> Self {
                 self.props = self.props.sizing(Sizing::Fill);
                 self

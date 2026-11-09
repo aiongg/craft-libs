@@ -377,6 +377,13 @@ pub struct Scoped {
     /// The width a `Row` body was offered this pass, before its `End` or `Center` lead narrowed the block: the room
     /// its direct children share. Only the row's own children read it.
     pub(crate) row_room: Option<f32>,
+    /// The `Stack` or `Row` body that encloses the scope and the axis it runs along, when a child that fills that
+    /// axis shares the room its siblings leave (set only where the body is given the axis).
+    pub(crate) fill_body: Option<(Id, craft_behavior::Axis)>,
+    /// What each child of `fill_body` that fills its main axis takes along it this pass: the room less the measured
+    /// extents of the other children and the gaps, over the number of children that fill. `None` while the body is
+    /// measured, and without a measuring run of this pass.
+    pub(crate) fill_share: Option<f32>,
     /// The width a body that sizes its width from its content was offered this pass, less its padding: the room its
     /// direct children share across a column or along a row, wider than the body's own band before it measured them.
     pub(crate) offered: Option<f32>,
@@ -424,6 +431,8 @@ impl Scoped {
         self.content_column = false;
         self.content = (false, false);
         self.row_room = None;
+        self.fill_body = None;
+        self.fill_share = None;
         self.offered = None;
     }
 
@@ -540,6 +549,8 @@ impl Env {
                 content_column: false,
                 content: (false, false),
                 row_room: None,
+                fill_body: None,
+                fill_share: None,
                 offered: None,
                 scroll_owner: None,
                 unbounded: (false, false),

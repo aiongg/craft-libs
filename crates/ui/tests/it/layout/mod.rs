@@ -5,6 +5,7 @@ mod end_region;
 mod first_pass;
 mod fonts;
 mod footer_room;
+mod fill_share;
 mod grid_fill_column;
 mod label;
 mod memory;

@@ -6,7 +6,7 @@ use crate::runtime::egui::{alloc, child};
 use crate::runtime::env::Env;
 use crate::runtime::layout_memory;
 use crate::runtime::memory::sub;
-use craft_behavior::{ColumnWidth, Flow, GridCursor, GridMeasure};
+use craft_behavior::{Axis, ColumnWidth, Flow, GridCursor, GridMeasure};
 use egui::{Id, Rect, Ui, Vec2};
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -86,6 +86,73 @@ impl BodyLayout {
 /// The cursors of the `Grid` and spread `Row` bodies running this pass, by body id.
 #[derive(Default)]
 struct Cursors(HashMap<Id, Cursor>);
+
+/// The number of children that fill the main axis of each `Stack` or `Row` body measured this pass, by body id.
+#[derive(Default)]
+struct FillCounts(HashMap<Id, u32>);
+
+/// How a child that fills the main axis of the body it sits in sizes along it.
+pub(crate) enum MainFill {
+    /// The body is being measured: the child takes no room along the axis and is counted.
+    Measuring,
+    /// The room it takes along the axis.
+    Share(f32),
+    /// Not a child that shares: it takes the room as before.
+    Room,
+}
+
+/// What a child of `ui`'s body that fills along `axis` takes there. Called once per such child and pass.
+pub(crate) fn main_fill(ui: &Ui, axis: Axis) -> MainFill {
+    let env = Env::of(ui);
+    let Some((body, _)) = env.fill_body.filter(|(_, along)| *along == axis) else { return MainFill::Room };
+    if ui.is_sizing_pass() {
+        Service::<FillCounts>::of(ui.ctx()).with(|counts| *counts.0.entry(body).or_insert(0) += 1);
+        return MainFill::Measuring;
+    }
+    env.fill_share.map_or(MainFill::Room, MainFill::Share)
+}
+
+/// Runs `body` as the content of the `Stack` (along y) or unwrapped `Row` (along x) body `id` in `ui`, the block
+/// it is placed in. A measuring run places the children that fill the main axis at no extent and records what the
+/// others and the gaps took, with the number that fill; the real run gives each of them an equal share of the rest.
+fn run_sharing<R>(ui: &mut Ui, id: Id, axis: Axis, layout: egui::Layout, body: impl FnOnce(&mut Ui) -> R) -> R {
+    let ctx = ui.ctx().clone();
+    let env = Env::of(ui);
+    let given = if axis == Axis::Y { !env.content.1 } else { !env.content.0 };
+    if !given {
+        return child::block(ui, None, layout, body).0;
+    }
+    let key = sub(id, "share");
+    let measuring = ui.is_sizing_pass();
+    let (result, used) = child::block(ui, None, layout, |ui| {
+        let room = ui.available_rect_before_wrap();
+        let room = if axis == Axis::Y { room.height() } else { room.width() };
+        let share = if measuring {
+            Service::<FillCounts>::run(&ctx, |counts| counts.0.insert(id, 0));
+            None
+        } else {
+            layout_memory::measured(&ctx, key)
+                .filter(|found| found.took.y >= 1.0 && room.is_finite())
+                .map(|found| ((room - found.took.x) / found.took.y).max(0.0))
+        };
+        let installed = Env::install_for(
+            ui,
+            Env::of(ui).derive_local(|scoped| {
+                scoped.fill_body = Some((id, axis));
+                scoped.fill_share = share;
+            }),
+        );
+        let inner = body(ui);
+        Env::restore(&ctx, installed);
+        inner
+    });
+    if measuring {
+        let fills = Service::<FillCounts>::run(&ctx, |counts| counts.0.remove(&id)).unwrap_or(0);
+        let fixed = if axis == Axis::Y { used.height() } else { used.width() };
+        layout_memory::record_measured(&ctx, key, layout_memory::Measured { room: Vec2::ZERO, took: Vec2::new(fixed, fills as f32) });
+    }
+    result
+}
 
 /// What places the children in flow of a body that places them itself.
 enum Cursor {
@@ -263,7 +330,7 @@ pub(crate) fn run_body_measured<R>(ui: &mut Ui, id: Id, layout: &BodyLayout, gap
     let ctx = ui.ctx().clone();
     let sizing = ui.is_sizing_pass();
     match layout {
-        BodyLayout::Stack => (child::block(ui, None, child::column_layout(rtl), |ui| body(ui)).0, None),
+        BodyLayout::Stack => (run_sharing(ui, id, Axis::Y, child::column_layout(rtl), body), None),
         BodyLayout::Row { wrap: false, align: RowAlign::SpaceBetween } => {
             let (inner, _) = child::block(ui, None, child::row_layout(rtl, false), |ui| {
                 let flow = Flow::new(ui.available_rect_before_wrap(), rtl);
@@ -282,6 +349,16 @@ pub(crate) fn run_body_measured<R>(ui: &mut Ui, id: Id, layout: &BodyLayout, gap
                 found(&ctx, sizing, id, ui.available_rect_before_wrap().size(), measured);
             }
             (inner, measured.map(|measured| measured.x))
+        }
+        BodyLayout::Row { wrap: false, align: RowAlign::Start } => {
+            let room = ui.available_rect_before_wrap();
+            let inner = run_sharing(ui, id, Axis::X, child::row_layout(rtl, false), |ui| {
+                let installed = Env::install_for(ui, Env::of(ui).derive_local(|scoped| scoped.row_room = Some(room.width())));
+                let inner = body(ui);
+                Env::restore(&ctx, installed);
+                inner
+            });
+            (inner, None)
         }
         BodyLayout::Row { wrap, align } => {
             let room = ui.available_rect_before_wrap();

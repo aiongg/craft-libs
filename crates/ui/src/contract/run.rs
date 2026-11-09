@@ -256,10 +256,19 @@ impl<C: Component> ShapeHooks<C> for LeafHooks {
         // The line height of a content-height row is not known inside `sized` (the other children have not run), so a
         // child that fills across it keeps its measured size there.
         let content = Env::of(ui).content;
-        let fill = |measured: f32, offered: f32, content: bool| if offered.is_finite() && !content { measured.max(offered) } else { measured };
+        let fill = |measured: f32, offered: f32, content: bool, along: craft_behavior::Axis| {
+            if !offered.is_finite() || content {
+                return measured;
+            }
+            match crate::layout::main_fill(ui, along) {
+                crate::layout::MainFill::Measuring => 0.0,
+                crate::layout::MainFill::Share(share) => share,
+                crate::layout::MainFill::Room => measured.max(offered),
+            }
+        };
         match comp.fills() {
-            Some(craft_behavior::Axis::X) => Vec2::new(fill(size.x, room.x, content.0), size.y),
-            Some(craft_behavior::Axis::Y) => Vec2::new(size.x, fill(size.y, room.y, content.1)),
+            Some(craft_behavior::Axis::X) => Vec2::new(fill(size.x, room.x, content.0, craft_behavior::Axis::X), size.y),
+            Some(craft_behavior::Axis::Y) => Vec2::new(size.x, fill(size.y, room.y, content.1, craft_behavior::Axis::Y)),
             _ => size,
         }
     }
