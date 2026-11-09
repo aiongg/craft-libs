@@ -36,6 +36,8 @@ pub(crate) struct FrameResult {
 pub struct PaintedText {
     /// Where the run lies, in points.
     pub rect: Rect,
+    /// The clip rect the run was painted under: what shows of it is the part inside this rect.
+    pub clip: Rect,
     /// The layout cut text.
     pub elided: bool,
     /// The run's full text.
@@ -115,13 +117,14 @@ pub(crate) fn run_frame(ctx: &Context, time: f64, screen: Vec2, events: Vec<Even
     let mut painted_before: std::collections::HashMap<usize, usize> = std::collections::HashMap::new();
     let texts = flat
         .iter()
-        .filter_map(|(shape, _)| match shape {
+        .filter_map(|(shape, clip)| match shape {
             Shape::Text(text) => {
                 let nth = painted_before.entry(Arc::as_ptr(&text.galley) as usize).or_insert(0);
                 let full = super::painted::full_text_of_painted(ctx, &text.galley, *nth);
                 *nth += 1;
                 Some(PaintedText {
                     rect: text.galley.rect.translate(text.pos.to_vec2()),
+                    clip: *clip,
                     elided: full.is_some(),
                     text: full.unwrap_or_else(|| text.galley.job.text.clone()),
                 })

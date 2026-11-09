@@ -35,8 +35,12 @@ impl Shot {
     /// The text run at `run` stays in its part: it lies in the shown rect, or a scroll region's view cuts it. A run
     /// in a scroll region's content shows through the region's view, so it stays in its part when the whole run lies
     /// in the content, which scrolls, and what the view shows of it in the shown rect.
-    fn keeps(&self, run: Rect) -> bool {
+    fn keeps(&self, painted: &crate::runtime::egui::fixture::PaintedText) -> bool {
+        let run = painted.rect;
+        // A run cut by a part's paint clip (a clip inside the shown rect) shows only what lies in the clip.
+        let cut = inside(painted.clip, self.shown) && !inside(run, painted.clip);
         inside(run, self.shown)
+            || cut && inside(run.intersect(painted.clip), self.shown)
             || self
                 .scrolls
                 .iter()
@@ -97,7 +101,7 @@ pub fn text_size_case(story: &Story) -> Result<(), String> {
             for same in grown.runs.iter().filter(|other| other.text == run.text) {
                 // A run the component painted elided is shortened by design and keeps its full text in the access name
                 // (the elision rule checks that), so it is not cut; it must still stay inside its part.
-                if !grown.keeps(same.rect) {
+                if !grown.keeps(same) {
                     return Err(format!("{}: under {name} the text `{}` leaves its part", story.name, run.text));
                 }
             }
