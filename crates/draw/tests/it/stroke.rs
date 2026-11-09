@@ -191,6 +191,28 @@ fn stroke_button_closes_on_target_change() {
     assert!(!open.get(), "another target closes it");
 }
 
+/// A change of the bound `open` value opens and closes the popover.
+#[trial]
+fn stroke_button_open_binding_drives_the_popover() {
+    let open = Rc::new(Cell::new(false));
+    let shared = Rc::clone(&open);
+    let mut fixture = Fixture::new(move |ui| {
+        let mut style = StrokeStyle::default();
+        let mut now = shared.get();
+        StrokeButton::new("Stroke Options", Bind::bound(&mut style), Bind::bound(&mut now)).show(ui);
+        shared.set(now);
+    });
+    fixture.settle();
+    assert!(fixture.by_label("Dashed").is_none(), "closed at first");
+    open.set(true);
+    fixture.idle(4);
+    assert!(fixture.by_label("Dashed").is_some(), "the bound value opens the popover");
+    assert!(open.get(), "and stays open");
+    open.set(false);
+    fixture.idle(4);
+    assert!(fixture.by_label("Dashed").is_none(), "the bound value closes it");
+}
+
 /// The fields that differ across the styles are marked.
 #[trial]
 fn stroke_mixed_of_marks_the_fields_that_differ() {
