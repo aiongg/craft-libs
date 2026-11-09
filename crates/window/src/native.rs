@@ -73,6 +73,25 @@ pub trait Hits: Send + Sync {
     fn caption(&self, event: CaptionEvent);
 }
 
+/// The `WM_NCHITTEST` result for `zone`, or `None` for the default hit test. Only the maximize button is the
+/// operating system's (snap layouts show over it); the other buttons are answered in the client area.
+#[cfg(windows)]
+pub(crate) fn hit_code(zone: Option<Zone>) -> Option<u16> {
+    Some(match zone? {
+        Zone::Move => 2,
+        Zone::Edge(Edge::Left) => 10,
+        Zone::Edge(Edge::Right) => 11,
+        Zone::Edge(Edge::Top) => 12,
+        Zone::Edge(Edge::TopLeft) => 13,
+        Zone::Edge(Edge::TopRight) => 14,
+        Zone::Edge(Edge::Bottom) => 15,
+        Zone::Edge(Edge::BottomLeft) => 16,
+        Zone::Edge(Edge::BottomRight) => 17,
+        Zone::Button(crate::Button::Maximize) => 9,
+        Zone::Button(_) => return None,
+    })
+}
+
 /// The operating system window of an app window.
 #[derive(Clone, Debug)]
 pub struct NativeWindow {
