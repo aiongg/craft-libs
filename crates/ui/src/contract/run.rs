@@ -494,8 +494,12 @@ fn activation_of(ctx: &Context, ui: &Ui, rect: Rect, resolved: &Resolved<'_>, ke
     if keyed {
         return Some(steps::key_activation(ctx));
     }
+    // A release over the part clipped out of a scroll view is on whatever lies there, not on the part.
     let released = root_sense.contains(Sense::CLICK)
-        && crate::runtime::overlay::released_inside(ctx, crate::runtime::egui::areas::layer_to_screen(ctx, ui.layer_id()) * rect);
+        && crate::runtime::overlay::released_inside(
+            ctx,
+            crate::runtime::egui::areas::layer_to_screen(ctx, ui.layer_id()) * rect.intersect(ui.clip_rect()),
+        );
     (clicked || released).then(|| Activation {
         by_key: false,
         mods: crate::runtime::pointer::with_frame(ctx, |frame, _| frame.map_or(craft_keymap::Mods::NONE, |frame| frame.mods)),

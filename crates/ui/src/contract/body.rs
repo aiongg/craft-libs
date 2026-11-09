@@ -1313,9 +1313,28 @@ impl<'b> BodyHooks<'b> {
 
     /// The room the mount offers: a layer's room, unless the host gives it a rect of its own size, else the rect the
     /// container is shown at, else the room of the flow.
-    fn mount_room(&self, props: &ContainerProps, ui: &Ui, at: ShowAt) -> Vec2 {
+    fn mount_room(&self, props: &ContainerProps, ui: &Ui, id: Id, at: ShowAt) -> Vec2 {
         match (overlay_of(props), self.fixed) {
-            (Some(overlay), false) => Self::layer_room(ui.ctx(), overlay).size(),
+            (Some(overlay), false) => {
+                let room = Self::layer_room(ui.ctx(), overlay).size();
+                // An anchored layer's body runs in the room the anchor leaves on the side it takes, as the host
+                // offers it: a body taller than that scrolls instead of covering the anchor.
+                let ctx = ui.ctx();
+                let own = Rect::from_min_max(ui.cursor().min, ui.cursor().min);
+                let rtl = Env::of(ui).direction.is_rtl();
+                match super::overlay::measuring_room(
+                    ctx,
+                    id,
+                    overlay,
+                    own,
+                    areas::layer_to_screen(ctx, ui.layer_id()),
+                    Env::of(ui).tokens.space.pad.panel,
+                    rtl,
+                ) {
+                    Some(side) => side.min(room),
+                    None => room,
+                }
+            }
             _ => match at {
                 ShowAt::Rect(rect) => rect.size(),
                 ShowAt::Flow => {
@@ -1581,9 +1600,9 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         self.overflow
     }
 
-    fn extent(&mut self, comp: &C, ui: &Ui, at: ShowAt, _id: Id, scx: &StyleCx<'_>) -> Vec2 {
+    fn extent(&mut self, comp: &C, ui: &Ui, at: ShowAt, id: Id, scx: &StyleCx<'_>) -> Vec2 {
         let props = comp.props(Internal::new());
-        self.room = self.mount_room(props, ui, at);
+        self.room = self.mount_room(props, ui, id, at);
         self.given = self.given_axes(props, &Env::of(ui), at);
         let remembered = self.remembered.unwrap_or(Vec2::ZERO);
         let body = if self.presence.visible { Vec2::new(remembered.x, remembered.y * self.presence.t) } else { Vec2::ZERO };
@@ -1618,7 +1637,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         self.region_gap = gap_of(&at.env.tokens, Gap::Tight);
         self.room = match at.width {
             Some(width) => Vec2::new(width, f32::INFINITY),
-            None => self.mount_room(&props, at.ui, at.at),
+            None => self.mount_room(&props, at.ui, id, at.at),
         };
         self.given = self.given_axes(&props, at.env, at.at);
         let origin = match at.at {

@@ -444,6 +444,12 @@ pub(crate) fn record(ctx: &Context, viewport: ViewportId) -> FocusedRecord {
     with_viewport(ctx, viewport, |state| state.record.clone())
 }
 
+/// Whether the last `request` or move of focus landed on component `id`, once: the component then asks the enclosing
+/// scroll owner to reveal it.
+pub(crate) fn take_reveal_of(ctx: &Context, id: Id) -> bool {
+    with(ctx, |state| state.revealed.is_some_and(|key| key.0 == id).then(|| state.revealed.take()).is_some())
+}
+
 /// The component the last `request` or Tab move asked the enclosing scroll owner to reveal.
 #[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
 pub(crate) fn take_reveal(ctx: &Context) -> Option<StopKey> {
