@@ -515,6 +515,9 @@ pub(super) struct BodyHooks<'b> {
     /// A record of this pass may serve instead of a measuring run: in a real pass's step 5 and in a sizing pass, not
     /// in `measure_in`, which measures the content it is given.
     reuse: bool,
+    /// `open` was read by the real pass's stage and stands for the measuring run: the run's own peek stage cannot
+    /// see a slot the real stage holds.
+    open_given: bool,
     /// The gap between an inline header and the body, and between a header and its trailing region.
     region_gap: f32,
     /// How far the widest region wants to exceed the width the room allows, from this pass's measure.
@@ -1017,6 +1020,7 @@ impl<'b> BodyHooks<'b> {
             measured_end: None,
             shown_closed: false,
             reuse: false,
+            open_given: false,
             region_gap: 0.0,
             overflow: 0.0,
             room: Vec2::ZERO,
@@ -1616,7 +1620,8 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             return self.extent(comp, at.ui, at.at, cx.core.id, at.scx);
         }
         let (id, ctx) = (cx.core.id, at.ui.ctx().clone());
-        self.open = open_now(comp, &mut *cx.core.memory, id, &props) || self.shown_closed;
+        let open = if self.open_given { self.open } else { open_now(comp, &mut *cx.core.memory, id, &props) };
+        self.open = open || self.shown_closed;
         self.open_at_read = self.open;
         // An animated collapse shows a share of the full body height, so the body is measured while any of it shows.
         let shows = self.open || (props.collapse.is_some_and(|collapse| collapse.animated) && self.presence.visible);
@@ -1708,6 +1713,9 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             let mut stage = MemoryStage::open_peek(&ctx, id);
             let mut fresh = BodyHooks::new(&mut *self.body);
             fresh.read(comp, &mut stage, id, at.env);
+            fresh.open = self.open;
+            fresh.open_at_read = self.open;
+            fresh.open_given = true;
             fresh.shown_closed = fading;
             fresh.reuse = true;
             super::run::measured_extent(comp, &mut fresh, at, &mut stage, style, shown);
