@@ -273,7 +273,7 @@ impl Component for RemoteCursors<'_> {
         for person in self.transport.participants().iter().filter(|person| person.id != me) {
             for [min, max] in person.selection.iter().take(MAX_OUTLINES) {
                 let outline = Rect::from_two_pos(screen(*min), screen(*max));
-                draw.data_stroke(&PaintShape::Rect(outline, CornerRadius::ZERO), StrokeWidth::Thin, data(person.color));
+                draw.stroke(&PaintShape::Rect(outline, CornerRadius::ZERO), StrokeWidth::Thin, data(person.color));
             }
             let Some(cursor) = person.cursor else { continue };
             let tip = screen(cursor);
@@ -375,7 +375,7 @@ impl Component for FollowFrame {
         let Some(space) = canvas_space(&cx.env) else { return };
         let (area, look) = (space.view.rect, &cx.style.bubble);
         let draw = ui.draw();
-        draw.data_stroke(&PaintShape::Rect(area, CornerRadius::ZERO), StrokeWidth::Thick, data(self.color));
+        draw.stroke(&PaintShape::Rect(area, CornerRadius::ZERO), StrokeWidth::Thick, data(self.color));
         let run =
             craft_ui::primitives::TextRun::new(self.text.as_str()).role(craft_ui::style::TypeRole::Caption).color(ink_on_person(ui, self.color));
         let width = draw.layout(&run, look.width * 2.0).size().x;

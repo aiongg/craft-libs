@@ -1035,9 +1035,9 @@ impl Component for BezierOverlay<'_> {
                 (color, Some(thickness)) => {
                     let width = if segment { thickness + (style.segment_width - style.line_width) } else { thickness };
                     let ink = color.map_or(DataColor::new(style.line.egui()), |color| DataColor::new(color.into()));
-                    draw.data_stroke(&shape, DataWidth::points(width), ink);
+                    draw.stroke(&shape, DataWidth::points(width), ink);
                 }
-                (Some(color), None) => draw.data_stroke(&shape, named, DataColor::new(color.into())),
+                (Some(color), None) => draw.stroke(&shape, named, DataColor::new(color.into())),
                 (None, None) => draw.stroke(&shape, named, style.line),
             }
         };

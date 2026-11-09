@@ -220,13 +220,13 @@ impl Component for TextFrameMarks<'_> {
         }
         for frame in self.frames {
             let corners = self.view.quad(frame.bounds);
-            draw.data_stroke(&PaintShape::Polygon(corners.to_vec()), StrokeWidth::Hairline, self.color);
+            draw.stroke(&PaintShape::Polygon(corners.to_vec()), StrokeWidth::Hairline, self.color);
             let in_port = port_centre(corners[0], corners[1], style.port_inset);
             let out_port = port_centre(corners[2], corners[3], style.port_inset);
             for (centre, threaded, is_out) in [(in_port, frame.threaded_in, false), (out_port, frame.threaded_out, true)] {
                 let square = PaintShape::Rect(egui::Rect::from_center_size(centre, Vec2::splat(style.port)), CornerRadius::ZERO);
                 draw.data_fill(&square, self.paper);
-                draw.data_stroke(&square, StrokeWidth::Hairline, self.color);
+                draw.stroke(&square, StrokeWidth::Hairline, self.color);
                 if is_out && frame.overset {
                     let arm = style.port / 2.0;
                     for along in [Vec2::new(arm, 0.0), Vec2::new(0.0, arm)] {

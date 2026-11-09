@@ -950,7 +950,7 @@ impl CanvasTool for AnnotateTool {
             if closed && let Some(&first) = path.first() {
                 path.push(first);
             }
-            draw.data_stroke(&PaintShape::Path(path), StrokeWidth::Medium, DataColor::new(color));
+            draw.stroke(&PaintShape::Path(path), StrokeWidth::Medium, DataColor::new(color));
         };
         let drawn = |kind: AnnotationKind| color32(&self.fresh(kind, Rect::ZERO));
         let shift = cx.mods.shift;

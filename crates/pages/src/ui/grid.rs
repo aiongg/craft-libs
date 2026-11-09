@@ -129,7 +129,7 @@ impl Component for PageGrids<'_> {
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, _: &Cx<'_, Self>) {
         let draw = ui.draw();
-        let line = |a: Pos2, b: Pos2, color: DataColor| draw.data_stroke(&PaintShape::Path(vec![a, b]), StrokeWidth::Hairline, color);
+        let line = |a: Pos2, b: Pos2, color: DataColor| draw.stroke(&PaintShape::Path(vec![a, b]), StrokeWidth::Hairline, color);
         for grid in self.grids {
             let Some(placed) = self.placed.iter().find(|placed| placed.page == grid.index) else { continue };
             let at = |x: f64, y: f64| placed.to_screen(Point::new(x, y));
@@ -143,7 +143,7 @@ impl Component for PageGrids<'_> {
             }
             let margins = grid.margins;
             let corners = vec![at(margins.x0, margins.y0), at(margins.x1, margins.y0), at(margins.x1, margins.y1), at(margins.x0, margins.y1)];
-            draw.data_stroke(&PaintShape::Polygon(corners), StrokeWidth::Hairline, self.colors.margins);
+            draw.stroke(&PaintShape::Polygon(corners), StrokeWidth::Hairline, self.colors.margins);
             if grid.columns.len() > 1 {
                 let last = grid.columns.len() - 1;
                 for (i, column) in grid.columns.iter().enumerate() {

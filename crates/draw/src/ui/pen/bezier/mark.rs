@@ -59,7 +59,7 @@ impl<'a> HitMark<'a> {
 /// Strokes `shape` in the path's colour, else `fallback`.
 pub(super) fn stroke(draw: &Draw<'_>, shape: &PaintShape, width: StrokeWidth, color: Option<Srgba>, fallback: StyleColor) {
     match color {
-        Some(color) => draw.data_stroke(shape, width, DataColor::new(color.into())),
+        Some(color) => draw.stroke(shape, width, DataColor::new(color.into())),
         None => draw.stroke(shape, width, fallback),
     }
 }
@@ -81,7 +81,7 @@ pub(super) fn paint_handle(draw: &Draw<'_>, look: &HandleLook, circle: bool, at:
         },
     }
     match color {
-        Some(color) => draw.data_stroke(&shape, StrokeWidth::Thin, DataColor::new(color.into())),
+        Some(color) => draw.stroke(&shape, StrokeWidth::Thin, DataColor::new(color.into())),
         None => draw.stroke(&shape, StrokeWidth::Thin, look.stroke),
     }
 }

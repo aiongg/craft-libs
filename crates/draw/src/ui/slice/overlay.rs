@@ -423,16 +423,14 @@ impl Component for SliceOverlay<'_> {
                     draw.faded(Opacity::DERIVED, |faded| {
                         for dash in dashes {
                             match dash {
-                                egui::Shape::LineSegment { points, .. } => {
-                                    faded.data_stroke(&PaintShape::Path(points.to_vec()), StrokeWidth::Thin, line)
-                                }
-                                egui::Shape::Path(path) => faded.data_stroke(&PaintShape::Path(path.points), StrokeWidth::Thin, line),
+                                egui::Shape::LineSegment { points, .. } => faded.stroke(&PaintShape::Path(points.to_vec()), StrokeWidth::Thin, line),
+                                egui::Shape::Path(path) => faded.stroke(&PaintShape::Path(path.points), StrokeWidth::Thin, line),
                                 _ => {}
                             }
                         }
                     });
                 } else {
-                    draw.data_stroke(&PaintShape::Polygon(quad.clone()), StrokeWidth::Thin, line);
+                    draw.stroke(&PaintShape::Polygon(quad.clone()), StrokeWidth::Thin, line);
                 }
                 if selected {
                     draw.stroke(&PaintShape::Polygon(quad.clone()), StrokeWidth::Medium, style.selected);

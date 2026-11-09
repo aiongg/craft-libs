@@ -93,7 +93,7 @@ pub fn paint_signature(draw: &Draw<'_>, rect: Rect, signature: &SavedSignature, 
             strokes,
             true,
             |dot| draw.data_fill(&PaintShape::Circle(dot, 1.0), color),
-            |line| draw.data_stroke(&PaintShape::Path(line), StrokeWidth::Medium, color),
+            |line| draw.stroke(&PaintShape::Path(line), StrokeWidth::Medium, color),
         ),
         SavedSignature::Typed(label) => paint_typed(draw, rect, label, color),
         SavedSignature::Image(_) => {}
