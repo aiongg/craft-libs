@@ -228,7 +228,13 @@ impl<'a> EyedropperBar<'a> {
         let ring = Checkbox::new(Bind::bound(&mut options.show_ring)).label(words.show_ring.clone()).show(ui);
         let key = if env.view().shell().os == Os::Mac { "Option" } else { "Alt" };
         Text::new(Label::from(words.hint.fill(&[("key", key)]))).show(ui);
-        EyedropperBarOutput { size: size.inner.expect("the field runs its body"), source: source.inner.expect("the field runs its body"), ring }
+        // A parent's sizing pass places a field without running its body: that run reports no edit.
+        let (size_response, source_response) = (size.response().clone(), source.response().clone());
+        EyedropperBarOutput {
+            size: size.inner.unwrap_or_else(|| EditResponse::lifted(size_response, None, None)),
+            source: source.inner.unwrap_or_else(|| EditResponse::lifted(source_response, None, None)),
+            ring,
+        }
     }
 }
 
