@@ -57,15 +57,3 @@ pub fn linked_counts() -> (Vec<(&'static str, usize)>, usize) {
 pub mod testing {
     craft_ui::testing_registered!();
 }
-
-#[cfg(test)]
-mod tests {
-    /// A crate with no registrations here was linked out, which in a release web build loses its stories.
-    #[test]
-    fn every_linked_crate_registers() {
-        let (counts, stories) = super::linked_counts();
-        assert!(stories > 0);
-        let empty: Vec<_> = counts.iter().filter(|(_, count)| *count == 0).collect();
-        assert!(empty.is_empty(), "no registrations from {empty:?}");
-    }
-}

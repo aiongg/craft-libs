@@ -97,3 +97,12 @@ fn the_filter_shows_the_groups_that_hold_a_match_open() {
     let none = rows(&components(), "no such component", &closed);
     assert!(none.is_empty());
 }
+
+/// A crate with no registrations here was linked out, which in a release web build loses its stories.
+#[trial]
+fn every_linked_crate_registers() {
+    let (counts, stories) = craft_ui_gallery::linked_counts();
+    assert!(stories > 0);
+    let empty: Vec<_> = counts.iter().filter(|(_, count)| *count == 0).collect();
+    assert!(empty.is_empty(), "no registrations from {empty:?}");
+}
