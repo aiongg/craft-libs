@@ -1992,6 +1992,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         let layout_id = sub(id, "layout");
         // B2 label: the control gets the rect the label leaves; the label column adds to the container's extent.
         let mut body_rect = regions.body;
+        let mut label_input = None;
         if let Some(side) = props.label.as_ref() {
             let resolved = cx.core.resolved;
             let input = LabelIn {
@@ -2013,6 +2014,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 control_min: scope::measured_control_min(&ctx, id),
             };
             body_rect = label::run(ui, env, &input).control;
+            label_input = Some(input);
         }
         // The label takes its column either by narrowing the control's rect or by shifting it along the row, which a
         // content-sized row (unbounded to the end) does; the extent grows by whichever of the two is finite.
@@ -2126,6 +2128,13 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 None => run(ui, body_rect, &mut bcx),
             };
             close = close.or(bcx.close_requested());
+            // A measuring run decided the label before the control reported its minimum width: it decides again
+            // from the minimum this run recorded, so the extent it measures is the one the real run lays out.
+            let mut label_extra = label_extra;
+            if let (false, Some(input)) = (real, label_input.as_mut()) {
+                input.control_min = scope::open_control_min(&ctx, id);
+                label_extra = (regions.body.size() - label::control_after(ui, env, input).size()).max(Vec2::ZERO);
+            }
             if let Some(size) = &mut self.body_size {
                 *size += label_extra;
             }

@@ -561,55 +561,24 @@ fn hidden_control(ctx: &egui::Context, input: &LabelIn<'_>, flow: Flow, gap: f32
     }
 }
 
-/// Runs the label step in `ui`: shows the label, opens the label scope and returns where the label and the control
-/// sit. The caller closes the scope with `scope::finish` after the control ran.
-pub(crate) fn run(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Placed {
-    let ctx = ui.ctx().clone();
+/// Decides where the label and the control of `input` sit, from `input.control_min`, `input.room` and the group's
+/// label column. Shows and records nothing.
+fn decide(ctx: &egui::Context, env: &Env, input: &LabelIn<'_>, kids: &Ui, leaf: &mut LabelLeaf, glyph: bool, flow: Flow) -> Placed {
     let rtl = env.direction.is_rtl();
-    let tokens = &env.tokens;
-    let (gap, slot_side) = (tokens.space.gap.inline, tokens.size.handle.sm);
-    let reset = scope::last_reset(&ctx, input.scope);
-    let flow = Flow::new(input.row, rtl);
-    let label_id = sub(input.scope, "label");
-    if input.side.kind == LabelKind::Hidden {
-        scope::begin(&ctx, input.scope, input.owner, scope::Kind::Label(field_label(env, input, label_id, Rect::NOTHING)));
-        return Placed { label: Rect::NOTHING, control: hidden_control(&ctx, input, flow, gap) };
-    }
-    let slot = if reset.is_some() { slot_side } else { 0.0 };
-    let mut leaf = LabelLeaf::new(input.text.clone(), slot);
-    leaf.scrub = input.enabled && (input.side.scrub || scope::last_scrub(&ctx, input.scope));
-    leaf.resettable = reset.is_some();
-    leaf.differs = reset.is_some_and(|fact| fact.differs);
-    match &input.side.kind {
-        LabelKind::Glyph(glyph) => leaf.glyph = Some(glyph.resolved(env)),
-        _ => {
-            leaf.icon = input.side.icon.clone();
-            leaf.detail = input.side.detail.as_ref().map(|detail| env.view().resolve(detail));
-        }
-    }
-    let glyph = leaf.glyph.is_some();
-    let kids_scope = sub(input.scope, "label_ui");
-    let builder = UiBuilder::new().max_rect(input.row).layout(child::pinned_layout()).scope_id(kids_scope);
-    let builder = match input.parent {
-        Some(parent) => access::with_parent(builder, parent),
-        None => builder,
-    };
-    let mut kids = alloc::child(ui, builder);
-    let kid_env = super::cx::child_env(env, input.enabled, input.size);
-    let installed = Env::install_for(&kids, kid_env);
-    let mut natural = leaf.measure_in(&kids, craft_behavior::Proposal::Ideal);
+    let gap = env.tokens.space.gap.inline;
+    let mut natural = leaf.measure_in(kids, craft_behavior::Proposal::Ideal);
     if input.side.layout == FieldLayout::After {
         // The label takes the room the control and the gap leave, and its detail wraps there.
         let room = (input.row.width() - input.control_min - gap).max(0.0);
         if natural.x > room {
-            natural = leaf.measure_in(&kids, craft_behavior::Proposal::Width(room));
+            natural = leaf.measure_in(kids, craft_behavior::Proposal::Width(room));
         }
     }
     let baseline = leaf.baseline.get();
     let (column, stack_below) = match input.side.layout {
         FieldLayout::Beside => {
             let own = natural.x;
-            let width = crate::layout::ambient_width(&ctx, &if glyph { crate::layout::GLYPHS } else { crate::layout::LABELS }, own)
+            let width = crate::layout::ambient_width(ctx, &if glyph { crate::layout::GLYPHS } else { crate::layout::LABELS }, own)
                 .filter(|width| *width > 0.0)
                 .unwrap_or(own);
             (width, width + gap + input.control_min)
@@ -641,10 +610,10 @@ pub(crate) fn run(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Placed {
         Flow::new(wide, rtl)
     };
     let placed = if input.side.layout == FieldLayout::After {
-        place_after(&ctx, input.scope, flow, input.control_min, gap, natural, baseline)
+        place_after(ctx, input.scope, flow, input.control_min, gap, natural, baseline)
     } else {
         let placed = crate::layout::place_label(
-            &kids,
+            kids,
             input.scope,
             &LabelColumn::new(column, if stacks { f32::INFINITY } else { 0.0 }, gap),
             flow,
@@ -658,6 +627,74 @@ pub(crate) fn run(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Placed {
         }
         Placed { label, control: placed.control }
     };
+    placed
+}
+
+/// Where the control sits once `input.control_min` is known: the decision `run` takes, without showing the label. A
+/// measuring run calls it after the body ran, with the control minimum that run recorded.
+pub(crate) fn control_after(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Rect {
+    let ctx = ui.ctx().clone();
+    let flow = Flow::new(input.row, env.direction.is_rtl());
+    if input.side.kind == LabelKind::Hidden {
+        return hidden_control(&ctx, input, flow, env.tokens.space.gap.inline);
+    }
+    let reset = scope::last_reset(&ctx, input.scope);
+    let slot = if reset.is_some() { env.tokens.size.handle.sm } else { 0.0 };
+    let mut leaf = LabelLeaf::new(input.text.clone(), slot);
+    leaf.resettable = reset.is_some();
+    match &input.side.kind {
+        LabelKind::Glyph(glyph) => leaf.glyph = Some(glyph.resolved(env)),
+        _ => {
+            leaf.icon = input.side.icon.clone();
+            leaf.detail = input.side.detail.as_ref().map(|detail| env.view().resolve(detail));
+        }
+    }
+    let glyph = leaf.glyph.is_some();
+    let builder = UiBuilder::new().max_rect(input.row).layout(child::pinned_layout()).scope_id(sub(input.scope, "label_ui"));
+    let kids = alloc::child(ui, builder);
+    let installed = Env::install_for(&kids, super::cx::child_env(env, input.enabled, input.size));
+    let placed = decide(&ctx, env, input, &kids, &mut leaf, glyph, flow);
+    Env::restore(&ctx, installed);
+    placed.control
+}
+
+/// Runs the label step in `ui`: shows the label, opens the label scope and returns where the label and the control
+/// sit. The caller closes the scope with `scope::finish` after the control ran.
+pub(crate) fn run(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Placed {
+    let ctx = ui.ctx().clone();
+    let rtl = env.direction.is_rtl();
+    let tokens = &env.tokens;
+    let (gap, slot_side) = (tokens.space.gap.inline, tokens.size.handle.sm);
+    let reset = scope::last_reset(&ctx, input.scope);
+    let flow = Flow::new(input.row, rtl);
+    let label_id = sub(input.scope, "label");
+    if input.side.kind == LabelKind::Hidden {
+        scope::begin(&ctx, input.scope, input.owner, scope::Kind::Label(field_label(env, input, label_id, Rect::NOTHING)));
+        return Placed { label: Rect::NOTHING, control: hidden_control(&ctx, input, flow, gap) };
+    }
+    let slot = if reset.is_some() { slot_side } else { 0.0 };
+    let mut leaf = LabelLeaf::new(input.text.clone(), slot);
+    leaf.scrub = input.enabled && (input.side.scrub || scope::last_scrub(&ctx, input.scope));
+    leaf.resettable = reset.is_some();
+    leaf.differs = reset.is_some_and(|fact| fact.differs);
+    match &input.side.kind {
+        LabelKind::Glyph(glyph) => leaf.glyph = Some(glyph.resolved(env)),
+        _ => {
+            leaf.icon = input.side.icon.clone();
+            leaf.detail = input.side.detail.as_ref().map(|detail| env.view().resolve(detail));
+        }
+    }
+    let kids_scope = sub(input.scope, "label_ui");
+    let builder = UiBuilder::new().max_rect(input.row).layout(child::pinned_layout()).scope_id(kids_scope);
+    let builder = match input.parent {
+        Some(parent) => access::with_parent(builder, parent),
+        None => builder,
+    };
+    let mut kids = alloc::child(ui, builder);
+    let kid_env = super::cx::child_env(env, input.enabled, input.size);
+    let installed = Env::install_for(&kids, kid_env);
+    let glyph = leaf.glyph.is_some();
+    let placed = decide(&ctx, env, input, &kids, &mut leaf, glyph, flow);
     let label_id_for_scope = sub(input.scope, "label");
     let shown = Props::id(leaf, label_id_for_scope).show_at(&mut kids, placed.label);
     Env::restore(&ctx, installed);
