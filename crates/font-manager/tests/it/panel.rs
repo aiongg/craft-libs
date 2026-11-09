@@ -475,3 +475,14 @@ fn samples_follow_the_language_filter_then_the_script() {
     assert_eq!(rig.results(), ["Noto Sans JP"]);
     assert!(rig.present("いろはにほへと ちりぬるを 色は匂へど 散りぬるを"));
 }
+
+#[trial]
+fn the_filters_column_takes_its_content_and_the_cards_fill_the_rest() {
+    let rig = setup("columns");
+    let filters = rig.named(Role::GROUP, "Filters").rect;
+    let cards = rig.named(Role::LIST, "Families").rect;
+    let window = rig.named(Role::GROUP, "Fonts").rect;
+    assert!(filters.right() <= cards.left(), "the filters sit beside the cards: {filters:?} {cards:?}");
+    assert!(filters.width() < cards.width(), "the filters column is the narrow one: {filters:?} {cards:?}");
+    assert!(window.contains_rect(cards), "the cards are in view: {window:?} {cards:?}");
+}

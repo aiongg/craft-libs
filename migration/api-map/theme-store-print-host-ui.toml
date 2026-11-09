@@ -175,9 +175,9 @@ note = "The draft is a bind; the page writes the picks into it."
 
 [[setter]]
 type = "AppearancePage"
-old = ""
+old = "show(..) read ui.ctx().system_theme()"
 new = "system_dark(bool)"
-note = "The row marked Active when the mode follows the system: the page cannot read the system's mode itself."
+note = "The row marked Active when the mode follows the system: the page cannot read the system's mode itself, so the caller passes it."
 
 [[setter]]
 type = "ThemeChip"

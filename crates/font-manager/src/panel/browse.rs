@@ -13,9 +13,9 @@ use craft_theme::variant::{Emphasis, Tone};
 use craft_ui::buttons::{Button, Link};
 use craft_ui::choice::{Checkbox, Radio, RadioGroup};
 use craft_ui::contract::{
-    Access, ActivateOn, Bind, BodyCx, Collection, CollectionEvent, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, Entry,
-    FieldLayout, ItemOutput, MeasureCx, Name, NoValue, Outcome, PartsCx, Props as _, Role, Scroll, SelectMode, Show as _, ShowCollection as _,
-    ShowContainer as _, SideLabel, Sizing, Styled as _, clicked,
+    Access, ActivateOn, Bind, Collection, CollectionEvent, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, Entry,
+    ItemOutput, MeasureCx, Name, NoValue, Outcome, PartsCx, Props as _, Role, Scroll, SelectMode, Show as _, ShowCollection as _, ShowContainer as _,
+    Sizing, Styled as _, clicked,
 };
 use craft_ui::display::{Badge, Progress, Shade, Spinner, Text};
 use craft_ui::form::SliderField;
@@ -1051,10 +1051,15 @@ fn radio_column<T: Clone + PartialEq + Send + Sync + 'static>(
     current: &mut T,
     rows: &[(T, Label, usize)],
 ) {
-    RadioGroup::new(label, Bind::bound(current)).show(ui, |ui: &mut Ui, cx: &mut BodyCx<'_>| {
-        for (at, (value, name, count)) in rows.iter().enumerate() {
-            let side = SideLabel::new().layout(FieldLayout::After).detail(Label::from(format.integer(*count as u64)));
-            cx.labelled(ui, at, name.clone(), side, Radio::new(value.clone()));
-        }
+    RadioGroup::new(label, Bind::bound(current)).show(ui, |ui, _| {
+        Stack::new().show(ui, |ui, _| {
+            for (value, name, count) in rows {
+                let count = format.integer(*count as u64);
+                Row::new().show(ui, |ui, _| {
+                    Radio::new(value.clone()).label(name.clone()).description(count.clone()).show(ui);
+                    Text::new(count.clone()).role(TypeRole::Caption).shade(Shade::Muted).show(ui);
+                });
+            }
+        });
     });
 }

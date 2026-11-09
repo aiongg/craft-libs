@@ -79,9 +79,16 @@ note = "The theme gives the looks: the keyboard pane's key colours are the accen
 [[type]]
 name = "text"
 old = "craft_keymap::import::kys::KysError::text"
-new = "craft_menu::shortcuts::kys_error_text"
+new = ""
 status = "removed"
 note = "`craft_menu::shortcuts::kys_error_text(&KysError, &ShortcutWords)` writes the sentence."
+
+[[type]]
+name = "kys_error_text"
+old = ""
+new = "craft_menu::shortcuts::kys_error_text"
+status = "replaced"
+note = "Writes the sentence `KysError::text` wrote, in the shortcut words: `kys_error_text(&KysError, &ShortcutWords)`."
 
 [[setter]]
 type = "trigger_text"
