@@ -5,6 +5,7 @@ use crate::runtime::egui::memory::Service;
 use crate::runtime::egui::{alloc, child};
 use crate::runtime::env::Env;
 use crate::runtime::layout_memory;
+use crate::runtime::measure;
 use crate::runtime::memory::sub;
 use craft_behavior::{Axis, ColumnWidth, Flow, GridCursor, GridMeasure};
 use egui::{Id, Rect, Ui, Vec2};
@@ -398,7 +399,17 @@ pub(crate) fn run_body_measured<R>(ui: &mut Ui, id: Id, layout: &BodyLayout, gap
         BodyLayout::Grid { columns } => {
             let inner = child::block(ui, None, child::column_layout(rtl), |ui| {
                 let last = last_measure(&ctx, id, columns.len());
-                let cursor = GridCursor::new(Flow::new(ui.available_rect_before_wrap(), rtl), columns, gap, &last);
+                let sizing = measure::active(&ctx) && Env::of(ui).content.0;
+                // A measuring run under a body sized from its content gives each fill column the width its cells
+                // take, as a content column: the room it would share is not the body's to claim.
+                let cursor = if sizing {
+                    let kinds: Vec<ColumnWidth> =
+                        columns.iter().map(|kind| if matches!(kind, ColumnWidth::Fill { .. }) { ColumnWidth::Content } else { *kind }).collect();
+                    let unknown = GridMeasure::new(Vec::new(), last.rows.clone());
+                    GridCursor::new(Flow::new(ui.available_rect_before_wrap(), rtl), &kinds, gap, &unknown)
+                } else {
+                    GridCursor::new(Flow::new(ui.available_rect_before_wrap(), rtl), columns, gap, &last)
+                };
                 Service::<Cursors>::run(&ctx, |cursors| cursors.0.insert(id, Cursor::Grid(cursor)));
                 let installed = Env::install_for(ui, Env::of(ui).derive_local(|scoped| scoped.grid = Some(id)));
                 let inner = body(ui);

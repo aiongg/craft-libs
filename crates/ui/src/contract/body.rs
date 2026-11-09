@@ -2026,7 +2026,10 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 scoped.content_column = content_column;
                 scoped.row_room = None;
                 scoped.content = (!self.given.0, !self.given.1);
-                scoped.offered = (!self.given.0 && room.x.is_finite()).then_some(room.x);
+                // The real run offers the width the sizing pass settled on: a child that fits itself into its room (a bar
+                // moving items into "More") fits the width the container takes, not the room it could have taken.
+                scoped.offered = (!self.given.0 && room.x.is_finite())
+                    .then(|| if real { self.wanted_width(&props).map_or(room.x, |wanted| wanted.min(room.x)) } else { room.x });
                 match scroll {
                     Some(scroll) => {
                         scoped.scroll_owner = Some(id);
