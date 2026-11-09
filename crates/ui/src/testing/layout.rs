@@ -14,7 +14,10 @@ use egui::{Id, Rect, Response, Ui, Vec2};
 /// does. Returns each child's rect.
 pub fn body(ui: &mut Ui, key: &'static str, layout: &BodyLayout, sizes: &[Vec2]) -> Vec<Rect> {
     let id = sub(ui.scope_id(), key);
-    run_body(ui, id, layout, Vec2::ZERO, |ui| sizes.iter().map(|size| place_in_flow(ui, *size)).collect())
+    let place = |ui: &mut Ui| sizes.iter().map(|size| place_in_flow(ui, *size)).collect::<Vec<_>>();
+    let builder = egui::UiBuilder::new().max_rect(ui.available_rect_before_wrap()).sizing_pass().invisible();
+    ui.scope_builder(builder, |ui| run_body(ui, id, layout, Vec2::ZERO, place));
+    run_body(ui, id, layout, Vec2::ZERO, place)
 }
 
 /// A block that placed itself from `key`'s entry of last pass and measured `real` this pass. Returns the size

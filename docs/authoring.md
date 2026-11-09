@@ -136,6 +136,10 @@ A story shows one registered type in one state. `#[story(Type, covers = [..])]` 
 
 A value a story edits comes from `StoryData::value(name, init)`. The suite fails when a required state has no story. `Drive::Auto` picks how the suite changes the value; a story names another drive (`Drive::Drag(Grip::part(HANDLE.at(i)).toward(vec2(1.0, 1.0)))`, `Drive::Pick { row }`, `Drive::Custom(f)`) only when the default does not fit; a drag of a part of the subject is a `Drive::Drag`, which also gets the run cancelled by Escape, never a `Drive::Custom`. The runner makes the disabled, read-only, right-to-left and narrow-room variants of each story itself, so a story shows only the type in its state. The cases the runner runs are the `Case::new` entries in `crates/ui/src/testing/suite.rs` and its `suite/` modules: required states, shows, access, tab, values, mixed, activation, text size, themes, motion, language, text input, and the container and collection cases for the shapes that have them.
 
+Suite rules:
+
+- Drawing code changes no state and sends no request. The suite runs each story's `show` twice per pass (a measuring run first, then the real one) and again on rerun passes, which an edit's no-input rerun adds. It fails `measure-pure` when either changes story values or sends a command, announcement, toast or request. State changes belong in event branches (`if out.clicked()`, `for edit in out.edits`) or before the container.
+
 A type that cannot meet a shared case lists it, with a reason:
 
 ```rust

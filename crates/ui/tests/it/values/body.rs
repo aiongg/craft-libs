@@ -60,11 +60,12 @@ fn frames_of(count: usize, mut body: impl FnMut(&mut craft_ui::contract::BodyCx<
 /// A kept binding written through the body context reads back the written value in the next frames.
 #[trial]
 fn a_kept_binding_written_in_a_body_reads_back_next_frame() {
-    let seen = RefCell::new(Vec::new());
+    let seen = RefCell::new(vec![None; 4]);
     frames_of(4, |cx, frame| {
         let mut bind = Bind::<f32>::kept();
         let mut bind = bind.reborrow();
-        seen.borrow_mut().push(bind.read(cx));
+        // The body runs in a measuring run and then the real run; the last read of a frame is the real run's.
+        seen.borrow_mut()[frame] = bind.read(cx);
         if frame == 1 {
             assert!(bind.write(cx, &set(5.0)), "a new value is a change");
             assert!(!bind.write(cx, &set(5.0)), "the same value is not");

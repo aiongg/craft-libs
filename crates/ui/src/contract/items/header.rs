@@ -152,22 +152,39 @@ impl Header {
 
     /// The width of each column, in display order, in a row `room` wide.
     fn widths(&self, room: f32) -> Vec<f32> {
-        self.widths_for(room, false)
-    }
-
-    /// `widths`, where `shared` makes a `Content` column share the room beside the fixed ones with the `Fill` columns:
-    /// a collection sized from its widest row has no other measure of a column's content than that row.
-    fn widths_for(&self, room: f32, shared: bool) -> Vec<f32> {
-        let kinds: Vec<ColumnWidth> = self
-            .specs
-            .iter()
-            .map(|spec| match self.width_of(spec) {
-                ColumnWidth::Content if shared => ColumnWidth::fill(1.0),
-                width => width,
-            })
-            .collect();
+        let kinds: Vec<ColumnWidth> = self.specs.iter().map(|spec| self.width_of(spec)).collect();
         let content = vec![self.min; kinds.len()];
         resolve_columns(&kinds, &content, room, 0.0)
+    }
+
+    /// The widths for a collection `width` wide whose widest row measured `widest` this pass: the `Content` columns take
+    /// what that row leaves beside the fixed and control columns (at most what `width` leaves), split evenly, and share
+    /// no room with the `Fill` columns.
+    fn widths_measured(&self, width: f32, widest: f32) -> Vec<f32> {
+        let kinds: Vec<ColumnWidth> = self.specs.iter().map(|spec| self.width_of(spec)).collect();
+        let is_content = |kind: &ColumnWidth| matches!(kind, ColumnWidth::Content);
+        let count = kinds.iter().filter(|kind| is_content(kind)).count();
+        let content = vec![self.min; kinds.len()];
+        if count == 0 {
+            return resolve_columns(&kinds, &content, width, 0.0);
+        }
+        let apart: Vec<ColumnWidth> = kinds.iter().map(|kind| if is_content(kind) { ColumnWidth::Fixed(0.0) } else { *kind }).collect();
+        let others: f32 =
+            resolve_columns(&apart, &content, width, 0.0).iter().zip(&kinds).filter(|(_, kind)| !is_content(kind)).map(|(wide, _)| *wide).sum();
+        let each = (widest - others).min(width - others).max(self.min) / count as f32;
+        let sized: Vec<ColumnWidth> = kinds.iter().map(|kind| if is_content(kind) { ColumnWidth::Fixed(each) } else { *kind }).collect();
+        resolve_columns(&sized, &content, width, 0.0)
+    }
+
+    /// The least width the columns take together: a fixed column its width, every other column its least width.
+    pub(super) fn least_width(&self) -> f32 {
+        self.specs
+            .iter()
+            .map(|spec| match self.width_of(spec) {
+                ColumnWidth::Fixed(width) => width,
+                _ => self.min,
+            })
+            .sum()
     }
 
     /// Whether the collection declares columns.
@@ -216,9 +233,9 @@ impl Header {
         self.specs.iter().map(|spec| spec.key.clone()).zip(self.widths(room)).collect()
     }
 
-    /// The columns for a collection sized from its widest row, `width` wide (see `widths_for`).
-    pub(super) fn columns_shared(&self, width: f32) -> Vec<(ColumnKey, f32)> {
-        self.specs.iter().map(|spec| spec.key.clone()).zip(self.widths_for(width, true)).collect()
+    /// The columns for a collection sized from its widest row, `width` wide (see `widths_measured`).
+    pub(super) fn columns_measured(&self, width: f32, widest: f32) -> Vec<(ColumnKey, f32)> {
+        self.specs.iter().map(|spec| spec.key.clone()).zip(self.widths_measured(width, widest)).collect()
     }
 
     /// Step 7: one focusable part per column, a resize grip at the end edge of each resizable one, and the group.

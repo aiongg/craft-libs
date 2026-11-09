@@ -90,6 +90,11 @@ fn egui_color(c: Rgba) -> Color32 {
 }
 
 impl<'a> StyleCx<'a> {
+    /// The frame's context, for the gate on effects in a measuring run.
+    pub(crate) fn frame_ctx(&self) -> &Context {
+        self.ctx
+    }
+
     /// The contrast setting of the scope, for a style that adds a cue at high contrast.
     pub fn contrast(&self) -> Contrast {
         self.tokens.contrast()

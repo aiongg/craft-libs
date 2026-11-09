@@ -27,6 +27,9 @@ const REPEAT_MARK: char = '\u{200b}';
 /// Announces `text`; for code without a context. Components call `cx.announce`. The same announcement made again
 /// in the frame (the code ran in a discarded pass too) is kept once.
 pub fn announce(ctx: &Context, text: impl Into<String>, politeness: Politeness) {
+    if !crate::runtime::measure::effect(ctx, "announce") {
+        return;
+    }
     let text = text.into();
     let viewport = pass::current_viewport(ctx);
     let new = PerViewport::<Announced>::with(ctx, viewport, |announced| {

@@ -26,10 +26,11 @@ struct Shown {
 }
 
 fn frame(ui: &mut Ui, value: &mut u8, shown: &mut Shown) {
-    shown.radios.clear();
     let seen = RefCell::new(Seen::default());
     shown.before = Some(Probe::new(&seen).label("Before").id_salt("before").show(ui).id);
     let out = RadioGroup::new("Size", Bind::bound(value)).id_salt("group").show(ui, |ui, _| {
+        // The body runs in a measuring run and then the real run; the last run's radios are the shown ones.
+        shown.radios.clear();
         ui.horizontal(|ui| {
             for v in 1..=3u8 {
                 let response = Radio::new(v).label(format!("Option {v}")).id_salt(("radio", v)).show(ui);
@@ -103,8 +104,9 @@ fn members_of_a_group_form_in_a_nested_layout_join_its_arena() {
     let rects = RefCell::new(Vec::<(Rect, Id)>::new());
     let mut group = None;
     let mut show = |ui: &mut Ui, value: &mut u8| {
-        rects.borrow_mut().clear();
         let out = RadioGroup::new("Pages", Bind::bound(value)).id_salt("group").show(ui, |ui, _| {
+            // The body runs in a measuring run and then the real run; the last run's members are the shown ones.
+            rects.borrow_mut().clear();
             Panel::new().id_salt("outer").show(ui, |ui, _| {
                 ui.horizontal(|ui| {
                     let first = Radio::new(1u8).label("All").id_salt("all").show(ui);
@@ -221,8 +223,9 @@ fn radio_rows_labelled_through_the_body_select_on_click() {
     let mut value = 1u8;
     let radios = RefCell::new(Vec::<(Rect, Id)>::new());
     let show = |ui: &mut Ui, value: &mut u8| {
-        radios.borrow_mut().clear();
         RadioGroup::new("Show", Bind::bound(value)).id_salt("group").show(ui, |ui, cx| {
+            // The body runs in a measuring run and then the real run; the last run's radios are the shown ones.
+            radios.borrow_mut().clear();
             for (v, text, count) in [(1u8, "Layers", "12"), (2, "Pages", "4")] {
                 let side = SideLabel::new().icon(IconId::new("list")).detail(count);
                 let response = cx.labelled(ui, v, text.into(), side, Radio::new(v));

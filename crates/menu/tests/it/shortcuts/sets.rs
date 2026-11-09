@@ -224,13 +224,20 @@ fn set_export_import_round_trip() {
     assert!(plain.shared.borrow().km.overrides().is_empty());
 }
 
-/// When the set row has more actions than fit (a modified set adds its label and enables Save and Revert Set), the
-/// last ones move into the overflow menu, and a pick there runs the action.
+/// A dialog sized from its content shows the whole set row. When the user makes it narrower than the row (a modified
+/// set adds its label and enables Save and Revert Set), the last actions move into the overflow menu, and a pick there
+/// runs the action.
 #[trial]
 fn full_set_row_moves_actions_into_more() {
     let mut rig = Rig::mac_with_sets(Profiles::default());
     rig.click("Save: ⌘S");
     rig.press(Modifiers::NONE, Key::F2);
+    assert!(rig.has("Summarize…") && !rig.has("More"), "the dialog sized from its content shows the whole set row");
+    let dialog = rig.fixture.by_role(Role::DIALOG).first().expect("the dialog is shown").rect;
+    rig.fixture.drag_at(egui::pos2(dialog.max.x, dialog.center().y), egui::vec2(-dialog.width() / 3.0, 0.0));
+    rig.pass();
+    let narrowed = rig.fixture.by_role(Role::DIALOG).first().expect("the dialog is shown").rect;
+    assert!(narrowed.width() < dialog.width(), "the end grip narrows the dialog: {dialog:?} -> {narrowed:?}");
     assert!(!rig.has("Summarize…"), "Summarize… is in More: {:?}", rig.names_with(Role::BUTTON, "…"));
     rig.click("More");
     rig.click("Summarize…");

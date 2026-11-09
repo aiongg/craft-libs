@@ -325,6 +325,9 @@ pub(crate) fn register_doc(ctx: &Context, key: DocKey, id: Id) {
 /// while a pass runs, it moves focus in that pass, so the rest of the pass reads the new focus; called between
 /// passes, it moves focus at the next pass's begin hook. The one public path to programmatic focus.
 pub fn request(ctx: &Context, target: FocusTarget) {
+    if !crate::runtime::measure::effect(ctx, "focus::request") {
+        return;
+    }
     if crate::runtime::frame::in_pass(ctx) {
         request_now(ctx, target);
         return;

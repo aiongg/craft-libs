@@ -1,4 +1,5 @@
-//! Layout memory: sizes one pass measures and the next pass places by, and the one discard pass a change asks for.
+//! Layout memory: sizes one pass measures and the next pass places by, the one discard pass a change asks for, and
+//! what this pass's measuring runs found.
 
 use crate::runtime::egui::{pass, sizing};
 use crate::runtime::frame::{self, PerViewport};
@@ -34,9 +35,29 @@ struct Entry {
     touched: u64,
 }
 
+/// What a measuring run found for a container (under its id) or one of its regions (under `sub(id, "header")`,
+/// `"footer"` and `"end"`): the room the container was offered and what the region took. Valid only in the egui pass
+/// that recorded it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct Measured {
+    pub room: Vec2,
+    pub took: Vec2,
+}
+
+impl Measured {
+    /// Whether this record serves a run offered `now` along one axis, where it was offered `was` and what it measures
+    /// took `took`: the rooms are equal (within `tolerance`), or the axis is not `given`, the old room did not bound
+    /// what it took and it fits the room now. The one reuse rule for every record of this pass.
+    pub(crate) fn serves(now: f32, was: f32, given: bool, took: f32, tolerance: f32) -> bool {
+        now == was || (now - was).abs() <= tolerance || (!given && took < was - tolerance && took <= now + tolerance)
+    }
+}
+
 #[derive(Default)]
 struct Entries {
     entries: HashMap<Id, Entry>,
+    /// This pass's measures, stamped with the cumulative pass number that recorded them.
+    measured: HashMap<Id, (u64, Measured)>,
     ask: bool,
     asked: Option<u64>,
 }
@@ -63,6 +84,9 @@ fn with<R>(ctx: &Context, moment: &Moment, f: impl FnOnce(&mut Entries) -> R) ->
 /// The size entry under `id` as this pass places by it. A placement that read the entry (`None` on a block's
 /// first appearance) compares it with the real size at `record`.
 pub(crate) fn read(ctx: &Context, id: Id) -> Option<Vec2> {
+    if crate::runtime::measure::active(ctx) {
+        return peeking(ctx, |read| read(id));
+    }
     let moment = Moment::of(ctx);
     with(ctx, &moment, |memory| {
         let entry = memory.entries.entry(id).or_default();
@@ -113,6 +137,20 @@ pub(crate) fn record(ctx: &Context, id: Id, real: Vec2) {
     });
 }
 
+/// Records what a measuring run found under `id`, for the rest of this pass.
+pub(crate) fn record_measured(ctx: &Context, id: Id, measured: Measured) {
+    let moment = Moment::of(ctx);
+    let pass = ctx.cumulative_pass_nr();
+    with(ctx, &moment, |memory| memory.measured.insert(id, (pass, measured)));
+}
+
+/// What a measuring run of this pass found under `id`; `None` when none ran in this pass.
+pub(crate) fn measured(ctx: &Context, id: Id) -> Option<Measured> {
+    let moment = Moment::of(ctx);
+    let pass = ctx.cumulative_pass_nr();
+    with(ctx, &moment, |memory| memory.measured.get(&id).filter(|(at, _)| *at == pass).map(|(_, measured)| *measured))
+}
+
 /// Starts a size tween under `id` that readers evaluate at their clock. It asks for no discard pass: the
 /// size changes by design while it runs.
 #[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "size tweens are used by the body step"))]
@@ -150,6 +188,7 @@ pub(crate) fn end_hook(ctx: &Context) {
             memory.asked = Some(moment.frame);
         }
         memory.entries.retain(|_, entry| entry.touched + 1 >= moment.frame);
+        memory.measured.clear();
         ask
     });
     if ask {

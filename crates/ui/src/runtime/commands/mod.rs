@@ -333,6 +333,9 @@ pub trait Commands: CommandAccess {
 /// the first live one. Returns whether the command was queued: a disabled command, or a scoped command with no
 /// live instance, is not.
 pub fn fire(ctx: &Context, command: impl Into<CommandRef>, source: FireSource) -> bool {
+    if !crate::runtime::measure::effect(ctx, "commands::fire") {
+        return false;
+    }
     board::fire_from(ctx, &command.into(), source)
 }
 

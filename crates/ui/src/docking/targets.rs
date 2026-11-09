@@ -342,6 +342,9 @@ impl<P: Clone + Send + 'static> DockTargets<P> {
     /// Registers `spot` taking drops over `hit`, with its mark drawn against `applies`: the group's rect for a side
     /// zone of a group, the boundary between two tabs for a tab insertion.
     pub fn register_in(ctx: &Context, dock: Id, spot: DockSpot<P>, hit: Rect, applies: Rect) {
+        if !crate::runtime::measure::effect(ctx, "dock::register_target") {
+            return;
+        }
         Self::with_pass(ctx, |pass| {
             let at = match pass.now.iter().position(|(id, _)| *id == dock) {
                 Some(at) => at,

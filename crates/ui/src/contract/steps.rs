@@ -230,6 +230,40 @@ struct IdPass {
     seen: HashSet<Id>,
 }
 
+/// Runs `f` as a measuring run that leaves the `Auto` ordinals as it found them, so the run that follows in the same
+/// pass gives every component the id the measuring run gave it.
+pub(super) fn measuring<R>(ctx: &Context, f: impl FnOnce() -> R) -> R {
+    keeping_ids(ctx, || (crate::runtime::measure::run(ctx, f), true))
+}
+
+/// Runs `f` and, when it returns `true` beside its result, leaves the `Auto` ordinals as it found them, so what runs
+/// next in the same pass gives every component the id `f`'s run gave it.
+pub(crate) fn keeping_ids<R>(ctx: &Context, f: impl FnOnce() -> (R, bool)) -> R {
+    let viewport = pass::current_viewport(ctx);
+    let pass_nr = pass::pass_nr(ctx, viewport);
+    let ordinals = |take: Option<HashMap<(Id, TypeId), u32>>| {
+        PerViewport::<Stamped<IdPass>>::with_pass(
+            ctx,
+            viewport,
+            pass_nr,
+            |pass, _| *pass = IdPass::default(),
+            |pass| match take {
+                Some(next) => {
+                    pass.next = next;
+                    None
+                }
+                None => Some(pass.next.clone()),
+            },
+        )
+    };
+    let kept = ordinals(None);
+    let (out, restore) = f();
+    if restore {
+        ordinals(kept);
+    }
+    out
+}
+
 /// Step 3, id.
 ///
 /// `register` is false for `measure_in`, which peeks, and in a sizing pass. `advance` is false only for
@@ -1140,6 +1174,17 @@ pub(crate) fn take_reveal(ctx: &Context, owner: Id) -> Option<Rect> {
     })
 }
 
+/// Queues a reveal request for `owner`.
+#[cfg(feature = "testing")]
+pub(crate) fn queue_reveal(ctx: &Context, owner: Id, rect: Rect) {
+    store::Service::<Reveals>::run(ctx, |reveals| reveals.0.push(Reveal { owner, rect }));
+}
+
+/// The reveal request addressed to `owner`, left queued.
+pub(crate) fn peek_reveal(ctx: &Context, owner: Id) -> Option<Rect> {
+    store::Service::<Reveals>::run(ctx, |reveals| reveals.0.iter().find(|reveal| reveal.owner == owner).map(|reveal| reveal.rect))
+}
+
 /// A page or end move a focused component left untaken, addressed to the scroll owner around it (9.2 rule 5).
 #[derive(Default)]
 struct ScrollMoves(Vec<(Id, NavMove)>);
@@ -1151,6 +1196,11 @@ pub(crate) fn take_scroll_moves(ctx: &Context, owner: Id) -> Vec<NavMove> {
         moves.0 = rest;
         mine.into_iter().map(|(_, mv)| mv).collect()
     })
+}
+
+/// The scroll moves addressed to `owner`, left queued.
+pub(crate) fn peek_scroll_moves(ctx: &Context, owner: Id) -> Vec<NavMove> {
+    store::Service::<ScrollMoves>::run(ctx, |moves| moves.0.iter().filter(|(id, _)| *id == owner).map(|(_, mv)| *mv).collect())
 }
 
 /// Step 15, settle: child edits adopted with `cx.adopt` join the pass's events and are applied, and the open state of the

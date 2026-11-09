@@ -407,16 +407,18 @@ fn the_slots_and_the_body_edit_one_state_in_turn() {
     let seen = RefCell::new(Vec::new());
     let mut frames = Frames::new();
     let mut show = |ui: &mut Ui| {
-        let mut order: Vec<&'static str> = Vec::new();
+        let mut order: Vec<(bool, &'static str)> = Vec::new();
+        let measuring = |ui: &Ui| craft_ui::testing::is_measuring(ui.ctx());
         AppShell::new(WindowKey::main())
-            .title_bar(|_, _, order: &mut Vec<&'static str>| order.push("title"))
-            .bottom(Slot::new("status"), |_, _, order| order.push("status"))
-            .body(|_, _, order| order.push("body"))
+            .title_bar(move |ui, _, order: &mut Vec<(bool, &'static str)>| order.push((measuring(ui), "title")))
+            .bottom(Slot::new("status"), move |ui, _, order| order.push((measuring(ui), "status")))
+            .body(move |ui, _, order| order.push((measuring(ui), "body")))
             .show(ui, &mut order);
         *seen.borrow_mut() = order;
     };
     frames.frame(Vec::new(), &mut show);
-    assert_eq!(*seen.borrow(), ["title", "status", "body"], "one state, handed to each region in the order they run");
+    let real: Vec<&str> = seen.borrow().iter().filter(|(measuring, _)| !measuring).map(|(_, region)| *region).collect();
+    assert_eq!(real, ["title", "status", "body"], "one state, handed to each region in the order they run in the real run");
 }
 
 const OPEN_FRAMES: usize = 30;
@@ -501,6 +503,8 @@ fn two_windows_keep_separate_dialog_hosts() {
                             if key == "first" && !host.is_open::<StandardPrompt>() {
                                 host.open(StandardPrompt::confirm_delete(["Layer"], 1));
                             }
+                            // The body runs in a measuring run and then the real run; the last run's answer stands.
+                            open.borrow_mut().retain(|(shown, _)| *shown != key);
                             open.borrow_mut().push((key, host.is_open::<StandardPrompt>()));
                         });
                     })

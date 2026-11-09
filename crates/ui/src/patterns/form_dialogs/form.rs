@@ -323,7 +323,9 @@ impl<'a, V: Value + Default> FormDialog<'a, V> {
         let requests = RefCell::new(HostRequests::new());
         let accepts = Cell::new(ok_enabled);
         let shown = dialog.show(ui, |ui, cx| {
-            let first = cx.appeared();
+            // A measuring run sees no answers and no opening pass: the real run that follows still has both.
+            let measuring = crate::runtime::measure::active(ui.ctx());
+            let first = cx.appeared() && !measuring;
             let mut held = bind.borrow_mut();
             let before = match held.reborrow().read(cx) {
                 Some(Mixed::Same(value)) if !(fresh && first) => value,
@@ -332,7 +334,12 @@ impl<'a, V: Value + Default> FormDialog<'a, V> {
             let mut values = before.clone();
             let ok = {
                 let mut requests = requests.borrow_mut();
-                let mut form = FormCx { cx: &mut *cx, first, answers: std::mem::take(&mut answers), requests: &mut *requests };
+                let mut form = FormCx {
+                    cx: &mut *cx,
+                    first,
+                    answers: if measuring { Vec::new() } else { std::mem::take(&mut answers) },
+                    requests: &mut *requests,
+                };
                 body(ui, &mut form, &mut values)
             };
             if first {

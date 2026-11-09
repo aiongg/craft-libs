@@ -43,6 +43,9 @@ fn scene_closed(closed: Option<u8>) -> (Fixture, Rc<RefCell<Seen>>) {
         let rows = stack.rows();
         let shown = stack
             .show(ui, |ui, _| {
+                // The body runs in a measuring run and then the real run; the last run's rows are the shown ones.
+                ids.clear();
+                bodies.clear();
                 rows.each(ui, |ui, key, slot| {
                     let out = Section::new(TITLES[usize::from(*key)])
                         .initially_open(closed != Some(*key))

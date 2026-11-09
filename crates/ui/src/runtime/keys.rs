@@ -1290,6 +1290,9 @@ pub(crate) fn take_window_cancel(ctx: &Context) -> bool {
 
 /// Writes back what a component left untaken, so a scope's `Submit` and `Cancel` rules see it.
 pub(crate) fn settle(ctx: &Context, id: Option<Id>, intents: &Intents) {
+    if crate::runtime::measure::active(ctx) {
+        return;
+    }
     current(ctx, |stage| {
         let Some(routed) = stage.routed.get_mut(&id) else { return };
         let mut taken = intents.items.iter().map(|(_, taken)| *taken);
@@ -1327,6 +1330,10 @@ pub(crate) fn take_cancel(ctx: &Context) -> bool {
 
 fn take_untaken(ctx: &Context, intent: &Intent) -> bool {
     let focused = focus::focused_rec(ctx).map(|rec| rec.stop.id);
+    // One-shot takes deliver in the real run only (runtime/measure.rs `take_queued`).
+    if crate::runtime::measure::active(ctx) {
+        return false;
+    }
     current(ctx, |stage| {
         let Some(routed) = stage.routed.get_mut(&focused) else { return false };
         match routed.items.iter().position(|item| item.intent.same_kind(intent)) {
@@ -1352,6 +1359,9 @@ pub(crate) fn scope_escape(ctx: &Context, rule: CancelRule, press_captured: bool
 /// Reads the claimed chord: whether it arrived this pass for `id`, consuming it. Also true for a chord
 /// withheld from the component's text or editor part.
 pub(crate) fn take_claimed(ctx: &Context, id: Id, chord: Chord) -> bool {
+    if crate::runtime::measure::active(ctx) {
+        return false;
+    }
     current(ctx, |stage| match stage.claimed.iter().position(|(owner, claimed)| *owner == id && *claimed == chord) {
         Some(at) => {
             stage.claimed.remove(at);

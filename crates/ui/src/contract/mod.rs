@@ -88,7 +88,10 @@ pub(crate) use body::MOVE_BAND;
 pub use craft_behavior::ColumnKey;
 pub use craft_behavior::DropOperation;
 pub(crate) use run::measure_under;
-pub(crate) use steps::take_reveal;
+#[cfg(feature = "testing")]
+pub(crate) use steps::keeping_ids;
+pub(crate) use steps::queue_reveal;
+pub(crate) use steps::{peek_reveal, take_reveal};
 
 /// Where an element's id comes from.
 #[derive(Clone, Copy, Debug, Default)]

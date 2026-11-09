@@ -174,6 +174,12 @@ pub(crate) trait ShapeHooks<C: Component> {
         self.extent(comp, at.ui, at.at, cx.core.id, at.scx)
     }
 
+    /// A real pass's step 5 for a body or an item shape: what the shape adds to the content size, from a measuring run
+    /// of its contents in this pass (or the record one left in this pass). The default is `extent`.
+    fn pass_extent(&mut self, comp: &mut C, at: &Measuring<'_, '_>, _style: &C::Style, _shown: Option<Arc<ValueOf<C>>>) -> Vec2 {
+        self.extent(comp, at.ui, at.at, at.resolved.id, at.scx)
+    }
+
     /// The width by which the shape's content wants to be wider than the size it measured to, because the room cut
     /// it: the parent `Ui` counts it in the size it took, so a parent that sizes from its content widens.
     fn overflow(&self) -> f32 {
@@ -236,7 +242,7 @@ impl<C: Component> ShapeHooks<C> for LeafHooks {
     fn content(&mut self, _: &mut C, _: &mut Ui, _: &Env, _: &mut Cx<'_, C>, _: &AppValues) {}
 
     fn read(&mut self, _: &mut C, stage: &mut MemoryStage, id: Id, _: &Env) {
-        if let Some(scope) = self.scope {
+        if let Some(scope) = self.scope.filter(|_| !stage.is_peek()) {
             commands::register_instance(stage.ctx(), scope, id);
         }
     }
@@ -250,10 +256,19 @@ impl<C: Component> ShapeHooks<C> for LeafHooks {
         // The line height of a content-height row is not known inside `sized` (the other children have not run), so a
         // child that fills across it keeps its measured size there.
         let content = Env::of(ui).content;
-        let fill = |measured: f32, offered: f32, content: bool| if offered.is_finite() && !content { measured.max(offered) } else { measured };
+        let fill = |measured: f32, offered: f32, content: bool, along: craft_behavior::Axis| {
+            if !offered.is_finite() || content {
+                return measured;
+            }
+            match crate::layout::main_fill(ui, along) {
+                crate::layout::MainFill::Measuring => 0.0,
+                crate::layout::MainFill::Share(share) => share,
+                crate::layout::MainFill::Room => measured.max(offered),
+            }
+        };
         match comp.fills() {
-            Some(craft_behavior::Axis::X) => Vec2::new(fill(size.x, room.x, content.0), size.y),
-            Some(craft_behavior::Axis::Y) => Vec2::new(size.x, fill(size.y, room.y, content.1)),
+            Some(craft_behavior::Axis::X) => Vec2::new(fill(size.x, room.x, content.0, craft_behavior::Axis::X), size.y),
+            Some(craft_behavior::Axis::Y) => Vec2::new(size.x, fill(size.y, room.y, content.1, craft_behavior::Axis::Y)),
             _ => size,
         }
     }
@@ -815,7 +830,8 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
     // 4 value
     let value = steps::value(&mut comp, &mut stage, id, step1.command.as_deref());
     let (shown, mixed) = (value.value, value.mixed);
-    let cancelled: Vec<_> = value.cancelled.into_iter().collect();
+    // A sizing pass reads the cancel and ends nothing: its stage is a copy, and the real run reads the cancel again.
+    let cancelled: Vec<_> = value.cancelled.into_iter().filter(|_| !sizing).collect();
     hooks.read(&mut comp, &mut stage, id, &env);
     let own_env = hooks.instance_scope(&comp).map(|scope| env.derive_local(|scoped| scoped.commands = scoped.commands.pushed(scope, id)));
     let env = own_env.as_ref().unwrap_or(&env);
@@ -823,12 +839,17 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
     // 5 measure
     let room = match at {
         ShowAt::Rect(rect) => Some(rect.width()),
-        ShowAt::Flow => Some(crate::layout::flow_room(ui).x).filter(|width| width.is_finite()),
+        // A measuring run in a content column asks for what the content needs: nothing there fills the room.
+        ShowAt::Flow => Some(crate::layout::flow_room(ui).x).filter(|width| width.is_finite() && !(env.content_column && ui.is_sizing_pass())),
     };
-    // A sizing pass measures the shape from this pass's content; a real pass places by what layout memory holds.
+    // Sizes come from this pass: a sizing pass measures the shape from its content; in a real pass a body or item
+    // shape takes what its measuring run found.
     let (extent, shown) = if sizing {
         let measuring = Measuring { ui: &*ui, at, width: None, env, scx: &scx, resolved: &resolved, command: step1.command.clone() };
         measured_extent(&mut comp, &mut *hooks, &measuring, &mut stage, &style, shown)
+    } else if matches!(shape, ShapeKind::Body | ShapeKind::Item) {
+        let measuring = Measuring { ui: &*ui, at, width: None, env, scx: &scx, resolved: &resolved, command: step1.command.clone() };
+        (hooks.pass_extent(&mut comp, &measuring, &style, shown.clone()), shown)
     } else {
         (hooks.extent(&comp, ui, at, id, &scx), shown)
     };
@@ -837,9 +858,9 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
         steps::measure(&mut comp, &input, &style, &resolved, shown.as_deref(), extent)
     };
     trace.mark(Step::Measure);
-    // A control in a label scope reports its narrowest width: the label step decides next frame whether the row fits
-    // the label beside it.
-    if shape == ShapeKind::Leaf && !sizing && scope::in_label(&ctx) {
+    // A control in a label scope reports its narrowest width, in a measuring run too: the real run's label step reads
+    // it to decide whether the row fits the label beside it.
+    if shape == ShapeKind::Leaf && scope::in_label(&ctx) {
         let input = MeasureIn { ui: &*ui, env, proposal: Proposal::Min, room: None };
         let min = steps::measure(&mut comp, &input, &style, &resolved, shown.as_deref(), Vec2::ZERO);
         scope::record_control_min(&ctx, min.x);
@@ -987,7 +1008,7 @@ pub(crate) fn measure_container<C: Container, R>(
 
 /// A measuring run's extent: the shape's `measured_extent` under a `Cx` that senses nothing and writes only to the
 /// peek `stage`. Returns the shown value back with it.
-fn measured_extent<C: Component>(
+pub(super) fn measured_extent<C: Component>(
     comp: &mut C,
     hooks: &mut dyn ShapeHooks<C>,
     at: &Measuring<'_, '_>,
@@ -998,7 +1019,7 @@ fn measured_extent<C: Component>(
     let response = steps::inert_response(at.ui, at.resolved.id);
     let core = blank_core(at.env.view(), at.resolved, stage, at.ui.ctx().clone(), at.env.ink, response, at.command.clone());
     let mut cx = Cx::<C> { core, style, shown, mixed: false, events: Vec::new(), applied: 0, validity: Validity::Ok };
-    let extent = hooks.measured_extent(comp, at, &mut cx);
+    let extent = steps::measuring(at.ui.ctx(), || hooks.measured_extent(comp, at, &mut cx));
     (extent, cx.shown.take())
 }
 

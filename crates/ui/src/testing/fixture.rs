@@ -11,7 +11,7 @@ use crate::runtime::env::{Direction, Overrides, RootEnv, Scale, with_env};
 use craft_behavior::{MotionMode, PartRef};
 use craft_host::target::Os;
 use craft_theme::{Contrast, Mode, Size, TextSize};
-use egui::{Event, Id, Key, Modifiers, Pos2, Rect, Ui, Vec2};
+use egui::{Event, Id, Key, Modifiers, Pos2, Rect, Ui, UiBuilder, Vec2};
 use std::cell::{Cell, RefCell};
 use std::collections::HashSet;
 use std::rc::Rc;
@@ -57,6 +57,14 @@ impl Room {
     }
 }
 
+/// One `show` of a story, inside the env scope when there is one.
+fn shown(ui: &mut Ui, scope: Option<fn(&mut Overrides)>, show: fn(&mut Ui, &mut StoryData) -> StoryOutput, data: &RefCell<StoryData>) -> StoryOutput {
+    match scope {
+        Some(scope) => with_env(ui, scope, |ui| show(ui, &mut data.borrow_mut())),
+        None => show(ui, &mut data.borrow_mut()),
+    }
+}
+
 /// A closure or story shown frame by frame.
 #[non_exhaustive]
 pub struct Fixture {
@@ -72,6 +80,24 @@ pub struct Fixture {
     /// The id of the latest output, which stays when the outputs are taken.
     root_id: Rc<Cell<Option<Id>>>,
     passes: usize,
+    /// The passes of the current frame a story's closure has run.
+    pass: Rc<Cell<usize>>,
+    impure: Rc<RefCell<Vec<Impure>>>,
+}
+
+/// A pass in which a story's drawing code changed state it must leave alone: in the measuring run the suite runs
+/// before each real pass, or in a rerun pass (the second and later pass of a frame), where nothing may change.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Impure {
+    /// The pass of its frame, from 1.
+    pub pass: usize,
+    /// Whether it happened in the measuring run (`true`) or in the real run of a rerun pass (`false`).
+    pub measuring: bool,
+    /// The story values that changed.
+    pub changed: Vec<&'static str>,
+    /// The effects (commands, announcements, toasts, requests) the measuring run skipped. Empty for a rerun pass.
+    pub effects: Vec<&'static str>,
 }
 
 impl Fixture {
@@ -89,6 +115,8 @@ impl Fixture {
             outputs: Rc::default(),
             root_id: Rc::default(),
             passes: 0,
+            pass: Rc::default(),
+            impure: Rc::default(),
         }
     }
 
@@ -107,18 +135,48 @@ impl Fixture {
         let outputs = Rc::new(RefCell::new(Vec::new()));
         let root_id = Rc::new(Cell::new(None));
         let (shared_data, shared_outputs, shared_root, show) = (data.clone(), outputs.clone(), root_id.clone(), story.show);
+        let pass = Rc::new(Cell::new(0));
+        let impure = Rc::new(RefCell::new(Vec::new()));
+        let (shared_pass, shared_impure) = (pass.clone(), impure.clone());
         let mut fixture = Fixture::new(move |ui| {
-            let output = match scope {
-                Some(scope) => with_env(ui, scope, |ui| show(ui, &mut shared_data.borrow_mut())),
-                None => show(ui, &mut shared_data.borrow_mut()),
-            };
+            let number = shared_pass.get() + 1;
+            shared_pass.set(number);
+            let ctx = ui.ctx().clone();
+            // The measuring run comes first, as the framework's own sizing passes do: it must change nothing and
+            // send nothing, so the real run sees the same state with or without it. Its ids differ from the real
+            // run's, which draws in `ui` itself.
+            let before = shared_data.borrow().snapshot();
+            crate::testing::take_effects(&ctx);
+            crate::testing::measuring_run(&ctx, || {
+                let mut child = ui.new_child(UiBuilder::new().id_salt("measuring run").sizing_pass().invisible());
+                shown(&mut child, scope, show, &shared_data);
+            });
+            let (changed, effects) = (shared_data.borrow().changed_values_since(&before), crate::testing::take_effects(&ctx));
+            if !changed.is_empty() || !effects.is_empty() {
+                shared_impure.borrow_mut().push(Impure { pass: number, measuring: true, changed, effects });
+            }
+            let before = shared_data.borrow().snapshot();
+            let output = shown(ui, scope, show, &shared_data);
+            if number >= 2 {
+                let changed = shared_data.borrow().changed_values_since(&before);
+                if !changed.is_empty() {
+                    shared_impure.borrow_mut().push(Impure { pass: number, measuring: false, changed, effects: Vec::new() });
+                }
+            }
             shared_root.set(output.id);
             shared_outputs.borrow_mut().push(output);
         });
+        fixture.pass = pass;
+        fixture.impure = impure;
         fixture.data = data;
         fixture.outputs = outputs;
         fixture.root_id = root_id;
         fixture
+    }
+
+    /// The impure passes the fixture has seen so far; see [`Impure`].
+    pub fn impure(&self) -> Vec<Impure> {
+        self.impure.borrow().clone()
     }
 
     fn set_root(&mut self, change: impl FnOnce(&mut RootEnv)) -> &mut Self {
@@ -288,6 +346,7 @@ impl Fixture {
     /// One frame with `events`.
     pub fn frame(&mut self, events: Vec<Event>) -> &mut Self {
         let room = Rect::from_min_size(Pos2::ZERO, self.room);
+        self.pass.set(0);
         let (show, shown) = (&mut self.show, &mut self.shown);
         self.passes = self.frames.frame(events, |ui| {
             let used = super::layout::in_region(ui, room, |ui| {

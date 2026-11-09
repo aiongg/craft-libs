@@ -57,6 +57,9 @@ impl ClipboardHandle {
 
     /// Writes every flavour of `items` that the clipboard carries.
     pub fn put(&self, items: &[ClipItem]) {
+        if !crate::runtime::measure::effect(&self.ctx, "clipboard::put") {
+            return;
+        }
         for item in items {
             match item {
                 ClipItem::Text(text) => clipboard::copy_text(&self.ctx, text.to_string()),

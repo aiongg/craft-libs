@@ -271,6 +271,9 @@ pub fn is_open(ctx: &Context, id: Id) -> bool {
 /// Queues a close of the layer `id` (a popup or a container). The owner's step 9 or `OverlayUi::show` collects it and
 /// step 15 writes it.
 pub fn request_close(ctx: &Context, id: Id, why: CloseReason) {
+    if !crate::runtime::measure::effect(ctx, "overlay::request_close") {
+        return;
+    }
     push_close(ctx, id, why, false);
 }
 
@@ -293,6 +296,11 @@ pub(crate) fn take_close(ctx: &Context, id: Id) -> Option<CloseReason> {
         closes.0.retain(|(closed, ..)| *closed != id);
         Some(reason)
     })
+}
+
+/// The queued close of `id`, left queued.
+pub(crate) fn peek_close(ctx: &Context, id: Id) -> Option<CloseReason> {
+    Service::<Closes>::run(ctx, |closes| closes.0.iter().find(|(closed, ..)| *closed == id).map(|entry| entry.1))
 }
 
 /// Whether any layer of the running viewport that `filter` counts was shown last frame.

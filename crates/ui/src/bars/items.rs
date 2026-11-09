@@ -13,7 +13,7 @@ use crate::runtime::commands::{CommandRef, ResolvedCommand};
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::fit::{FitItem, FitKeep, fit_items, run_extent};
-use craft_behavior::{Axis, IconId, Metrics, NavShape, PartKey, PartRef, Roving, Sense};
+use craft_behavior::{Axis, IconId, Metrics, NavShape, PartKey, PartRef, Proposal, Roving, Sense};
 use craft_theme::Variant;
 use egui::{Rect, Response, Vec2, pos2};
 
@@ -240,7 +240,10 @@ impl Component for BarItems {
         BarItemsStyle { metrics: Metrics::new().gap(gap), joint: gap, section_gap: gap * 2.0 }
     }
 
-    /// The whole strip, or the room along the strip when that is shorter.
+    /// The whole strip, or the room along the strip when that is shorter. Asked for the narrowest it takes (a
+    /// `Proposal::Min`), it gives the least that shows an item: the first item and the "More" part. The real run fits
+    /// the items into the width it is given, so the strip moves items into "More" only when that is narrower than
+    /// the whole strip. The strip with no item to move into "More" is as long as its items.
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
         let present = self.present(cx);
         if present.is_empty() {
@@ -251,6 +254,13 @@ impl Component for BarItems {
         let section_gap = cx.style.section_gap + sizes.rule;
         let natural = run_extent(&self.fit_items_of(&sizes, &present), &all, f64::from(cx.gap()), f64::from(section_gap)) as f32;
         let cross = sizes.items.iter().map(|size| across(self.axis, *size)).fold(across(self.axis, sizes.more), f32::max);
+        let least = if cx.proposal == Proposal::Min {
+            let first = sizes.items.first().map_or(0.0, |size| along(self.axis, *size));
+            (present.len() > 1).then(|| (first + cx.gap() + along(self.axis, sizes.more)).min(natural as f32))
+        } else {
+            None
+        };
+        let natural = least.unwrap_or(natural as f32);
         match self.axis {
             Axis::Y => Vec2::new(cross, natural),
             _ => Vec2::new(cx.room.map_or(natural, |room| natural.min(room)), cross),
