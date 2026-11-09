@@ -55,7 +55,7 @@
 //! # Window restore
 //!
 //! [`restore`] (no egui) decides where a window opens, from the last session's geometry and the
-//! connected monitors, and keeps the `window.json` store beside `config.toml`.
+//! connected monitors, and keeps the `window.json` store beside `config.toml` on desktop (memory on the web).
 
 pub mod desktop;
 mod layout;
@@ -66,12 +66,10 @@ mod menu;
 pub mod native;
 pub mod native_menu;
 pub mod policy;
-#[cfg(not(target_arch = "wasm32"))]
 pub mod system;
 #[cfg(windows)]
 mod win32;
 
-#[cfg(not(target_arch = "wasm32"))]
 pub mod restore;
 
 pub use list::{Closed, WindowId, WindowList};

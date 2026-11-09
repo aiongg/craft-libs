@@ -2,10 +2,11 @@
 //!
 //! - [`place`]: saved [`Placement`] + connected [`Monitor`]s + app [`Defaults`] → the geometry to
 //!   open with. Pure; the rules are on its documentation.
-//! - [`Store`]: `window.json` beside the app's `config.toml`, one [`Placement`] per window key
+//! - [`Store`]: `window.json` beside the app's `config.toml` on desktop, memory on the web (the
+//!   browser owns the tab's size, so nothing is written), one [`Placement`] per window key
 //!   (`"main"` for the first window).
-//! - [`legacy`]: readers for what apps stored before, such as eframe's `"window"` entry in
-//!   `app.ron`.
+//! - `legacy` (desktop only): readers for what apps stored before, such as eframe's `"window"`
+//!   entry in `app.ron`.
 //!
 //! Keep one [`Store`] per app, shared by every window (for example behind an `Arc<Mutex<_>>`):
 //! each write rewrites the whole file from that store's copy, so two stores in one process
@@ -22,9 +23,12 @@
 //! assert_eq!(store.get("main"), Some(opened));
 //! ```
 
+#[cfg(not(target_arch = "wasm32"))]
 pub mod legacy;
 mod place;
 mod store;
 
 pub use place::{Defaults, Monitor, MonitorKey, NormalRect, Placement, place};
-pub use store::{FILE_NAME, MAIN, Pending, ReadOnly, SCHEMA_VERSION, Store, write_pending};
+#[cfg(not(target_arch = "wasm32"))]
+pub use store::write_pending;
+pub use store::{FILE_NAME, MAIN, Pending, ReadOnly, SCHEMA_VERSION, Store};

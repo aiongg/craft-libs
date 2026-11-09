@@ -15,8 +15,11 @@ use std::collections::BTreeMap;
 use std::io;
 use std::path::{Path, PathBuf};
 
+#[cfg(not(target_arch = "wasm32"))]
 use craft_atomic::{NewFilePermissions, WriteOptions};
+#[cfg(not(target_arch = "wasm32"))]
 use craft_settings::paths::{self, Location, Portable, Probe};
+#[cfg(not(target_arch = "wasm32"))]
 use craft_settings::recovery;
 use serde_json::{Map, Value, json};
 
@@ -49,6 +52,7 @@ pub struct Pending {
     pub generation: u64,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 /// Writes `pending` atomically and privately, creating the folder. Needs no access to the store.
 pub fn write_pending(pending: &Pending) -> io::Result<()> {
     if let Some(dir) = pending.path.parent() {
@@ -73,6 +77,7 @@ pub struct Store {
 }
 
 impl Store {
+    #[cfg(not(target_arch = "wasm32"))]
     /// The store for `app_id` in the folder `craft_settings` picks for its `config.toml`, with
     /// the suite's default portable marker. In an isolated or in-memory configuration
     /// (`<APP>_CONFIG_DIR` empty) nothing is read or written.
@@ -80,6 +85,7 @@ impl Store {
         Self::open_with(app_id, &Portable::DEFAULT, &Location::Auto, &Probe::default())
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     /// [`open`](Self::open) with the app's own portable names, location override and probe: the
     /// same arguments its `craft_settings` options use.
     pub fn open_with(app_id: &str, portable: &Portable, location: &Location, probe: &Probe) -> Self {
@@ -89,6 +95,7 @@ impl Store {
         }
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     /// A store backed by the file at `path`. A missing file is an empty store.
     pub fn at(path: &Path) -> Self {
         let mut store = Self { path: Some(path.to_path_buf()), ..Self::in_memory() };
@@ -181,6 +188,7 @@ impl Store {
 
     /// [`take_pending`](Self::take_pending), [`write_pending`] and [`mark_saved`](Self::mark_saved)
     /// in one call. `Ok(true)` when written; `Ok(false)` when there was nothing to write.
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn save(&mut self) -> io::Result<bool> {
         let Some(pending) = self.take_pending() else { return Ok(false) };
         write_pending(&pending)?;
@@ -188,6 +196,13 @@ impl Store {
         Ok(true)
     }
 
+    /// On the web there is no file: nothing is written.
+    #[cfg(target_arch = "wasm32")]
+    pub fn save(&mut self) -> io::Result<bool> {
+        Ok(false)
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
     fn load(&mut self) {
         let Some(path) = self.path.clone() else { return };
         let text = match std::fs::read_to_string(&path) {
@@ -225,6 +240,7 @@ impl Store {
         self.extra = doc;
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     fn start_over(&mut self, path: &Path) {
         match recovery::move_aside(path) {
             Ok(to) => self.moved_aside = Some(to),
