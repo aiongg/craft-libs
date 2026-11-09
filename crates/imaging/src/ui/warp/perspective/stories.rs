@@ -20,26 +20,25 @@ fn two_linked_planes() -> Vec<Plane> {
 }
 
 /// Shows `planes` on a canvas whose view has the document origin at its top left.
-fn on_canvas(ui: &mut Ui, bind: Bind<'_, Vec<Plane>>, mode: PlaneMode) -> StoryOutput {
+fn on_canvas(ui: &mut Ui, planes: &mut Vec<Plane>, mode: PlaneMode) -> StoryOutput {
     let room = ui.available_rect_before_wrap();
     let view = CanvasView::new(room, Point::new(f64::from(room.width()) / 2.0, f64::from(room.height()) / 2.0), 1.0);
-    let mut control = Some(PerspectiveWarp::new("Planes", bind, mode, 0));
     let shown = Canvas::new("Document")
         .view(view)
-        .show(ui, |ui, body| -> Option<PerspectiveWarpOutput> { control.take().map(|control| control.show_at(ui, body.rect)) });
-    shown.inner.flatten().map(StoryOutput::from).unwrap_or_default()
+        .show(ui, |ui, body| -> PerspectiveWarpOutput { PerspectiveWarp::new("Planes", Bind::bound(&mut *planes), mode, 0).show_at(ui, body.rect) });
+    shown.inner.map(StoryOutput::from).unwrap_or_default()
 }
 
 #[story(PerspectiveWarp<'static>, covers = [Default], drive = Drive::Drag(Grip::part(CORNER.at(1)).toward(vec2(1.0, -1.0))))]
 fn two_linked_planes_in_layout(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let planes = data.value("planes", two_linked_planes());
-    on_canvas(ui, Bind::bound(&mut *planes), PlaneMode::Layout)
+    on_canvas(ui, planes, PlaneMode::Layout)
 }
 
 #[story(PerspectiveWarp<'static>, covers = [Default], drive = Drive::Drag(Grip::part(CORNER.at(1)).toward(vec2(1.0, -1.0))))]
 fn two_linked_planes_in_warp(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let planes = data.value("warped", two_linked_planes());
-    on_canvas(ui, Bind::bound(&mut *planes), PlaneMode::Warp)
+    on_canvas(ui, planes, PlaneMode::Warp)
 }
 
 /// A session over two linked planes, in `mode`.

@@ -95,10 +95,9 @@ impl<'a> PinWarpBar<'a> {
     }
 }
 
-/// A control with its caption beside it.
-fn captioned<R>(ui: &mut Ui, caption: &craft_ui::runtime::env::Label, add: impl FnOnce(&mut Ui) -> R) -> Option<R> {
-    let mut add = Some(add);
-    Field::new(caption.clone()).show(ui, |ui, _| add.take().map(|add| add(ui))).inner.flatten()
+/// A control with its caption beside it. `add` may run twice (the measuring run, then the real one).
+fn captioned<R>(ui: &mut Ui, caption: &craft_ui::runtime::env::Label, mut add: impl FnMut(&mut Ui) -> R) -> Option<R> {
+    Field::new(caption.clone()).show(ui, |ui, _| add(ui)).inner
 }
 
 /// The options: Mode, Density, Expansion, Show Mesh, the notice and the selected pin's controls, then Remove All

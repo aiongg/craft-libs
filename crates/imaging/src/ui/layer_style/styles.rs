@@ -39,7 +39,7 @@ pub(super) struct StylesOutput {
 
 /// Draws the page: the title with the "New Style…" button at its end, then the browser. Without presets the page
 /// shows only the button.
-pub(super) fn styles_page(ui: &mut Ui, presets: Option<StylePresets<'_>>, words: &LayerStyleWords) -> StylesOutput {
+pub(super) fn styles_page(ui: &mut Ui, presets: Option<&StylePresets<'_>>, words: &LayerStyleWords) -> StylesOutput {
     let mut new_style = false;
     title_row(ui, words.styles.clone(), |ui| {
         new_style = clicked(&Button::new(words.new_style.clone()).id_salt("new-style").show(ui));

@@ -12,12 +12,11 @@ use super::{MeshLines, POINT, WarpFieldValues, WarpFields, WarpGrid, WarpGridCho
 /// The picture the mesh starts over, in document units.
 const PICTURE: DocRect = DocRect::new(40.0, 30.0, 360.0, 270.0);
 
-/// Shows `control` as the only canvas control of a canvas whose view has the document origin at its top left.
-fn on_canvas<O>(ui: &mut Ui, control: impl FnOnce(&mut Ui, egui::Rect) -> O) -> Option<O> {
+/// Shows `control` (built per run: the body may run twice) as the only canvas control of a canvas whose view has the document origin at its top left.
+fn on_canvas<O>(ui: &mut Ui, mut control: impl FnMut(&mut Ui, egui::Rect) -> O) -> Option<O> {
     let room = ui.available_rect_before_wrap();
     let view = CanvasView::new(room, Point::new(f64::from(room.width()) / 2.0, f64::from(room.height()) / 2.0), 1.0);
-    let mut control = Some(control);
-    Canvas::new("Document").view(view).show(ui, |ui, body| control.take().map(|control| control(ui, body.rect))).inner.flatten()
+    Canvas::new("Document").view(view).show(ui, |ui, body| control(ui, body.rect)).inner
 }
 
 fn hover_middle(fixture: &mut Fixture) {
