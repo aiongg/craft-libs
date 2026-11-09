@@ -161,6 +161,10 @@ where
         SelectToolPass::new(&mut *self.tool.borrow_mut(), &self.probe).takes(button, mods)
     }
 
+    fn claims(&self) -> craft_ui::canvas::ToolClaims {
+        SelectToolPass::new(&mut *self.tool.borrow_mut(), &self.probe).claims()
+    }
+
     fn access(&self, cx: &ToolContext<'_>) -> Option<ToolAccess> {
         SelectToolPass::new(&mut *self.tool.borrow_mut(), &self.probe).access(cx)
     }
@@ -879,7 +883,8 @@ fn magnetic_removes_the_last_point_and_cancels() {
     let last_start = || log.froms.borrow().last().copied();
     // Each Backspace traces from the fastening point before: the pointer stays where it was.
     press_key(&mut rig, Key::Backspace, Modifiers::NONE);
-    assert!(last_start().is_some_and(|p| p.distance(on(1.0)) < 1e-6));
+    // The press went through an f32 screen position: 1e-6 is below its rounding at this size.
+    assert!(last_start().is_some_and(|p| p.distance(on(1.0)) < 1e-4));
     assert!(matches!(rig.tool().phase(), SelectPhase::Outline { .. }));
     press_key(&mut rig, Key::Backspace, Modifiers::NONE);
     assert!(last_start().is_some_and(|p| p.distance(start) < 1e-6), "back to the first point");

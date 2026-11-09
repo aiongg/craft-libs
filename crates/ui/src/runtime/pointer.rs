@@ -74,6 +74,8 @@ pub(crate) struct PassPointer {
     pub primary_down: bool,
     pub press_targets: PressTargets,
     pub focus_lost: bool,
+    /// Whether the real pointer moved or entered, or its modifiers changed, in the pass.
+    pub stirred: bool,
 }
 
 #[derive(Default)]
@@ -158,6 +160,7 @@ pub(crate) fn begin(ctx: &Context, hit: HitSizes) {
         primary_down: read.primary_down,
         press_targets: targets,
         focus_lost: read.focus_lost,
+        stirred: read.stirred,
     };
     PerViewport::<Stamped<Arc<PassPointer>>>::with_pass(ctx, viewport, pass_nr, |_, _| {}, |record| *record = Arc::new(pass_pointer));
     PerViewport::<Shapes>::with(ctx, viewport, |shapes| shapes.last = std::mem::take(&mut shapes.this));
