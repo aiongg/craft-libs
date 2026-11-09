@@ -40,6 +40,16 @@ fn kinsoku_keeps_closing_marks_off_line_starts_and_opening_ones_off_line_ends() 
     // No East Asian character on either side: Latin rules apply.
     assert!(kinsoku_allows(' ', Some('–'), Kinsoku::Hard));
     assert!(!kinsoku_allows('字', Some(')'), Kinsoku::Hard));
+    {
+        let text = "あいうえお。かきくけ「こさしすせそ」";
+        let breaks = offsets(text, &Options::default());
+        assert!(breaks.len() > 10, "{breaks:?}");
+        for o in breaks {
+            let (head, tail) = text.split_at(o);
+            let (Some(last), Some(first)) = (head.chars().next_back(), tail.chars().next()) else { continue };
+            assert!(!no_line_start(first) && !no_line_end(last), "break at {o}: {last}|{first}");
+        }
+    }
 }
 
 /// Soft kinsoku lets 々, ー and small kana (JLREQ cl-09's 々, cl-10, cl-11) start a line and keeps
@@ -54,29 +64,13 @@ fn soft_kinsoku_lets_small_kana_and_the_prolonged_sound_mark_start_a_line() {
         assert!(!kinsoku_allows(a, Some(b), Kinsoku::Soft), "{a}{b}");
         assert!(kinsoku_allows(a, Some(b), Kinsoku::None), "{a}{b}");
     }
-}
-
-#[test]
-fn no_break_puts_a_closing_mark_at_a_line_start_or_an_opening_one_at_a_line_end() {
-    let text = "あいうえお。かきくけ「こさしすせそ」";
-    let breaks = offsets(text, &Options::default());
-    assert!(breaks.len() > 10, "{breaks:?}");
-    for o in breaks {
-        let (head, tail) = text.split_at(o);
-        let (Some(last), Some(first)) = (head.chars().next_back(), tail.chars().next()) else { continue };
-        assert!(!no_line_start(first) && !no_line_end(last), "break at {o}: {last}|{first}");
+    {
+        assert_eq!(starts("あカッ", &opts(Kinsoku::Hard)), ['カ']);
+        assert_eq!(starts("あカッ", &opts(Kinsoku::Soft)), ['カ', 'ッ']);
+        assert_eq!(starts("あカッ", &opts(Kinsoku::None)), ['カ', 'ッ']);
+        assert_eq!(starts("あカ。", &opts(Kinsoku::Soft)), ['カ']);
+        assert_eq!(starts("あカ。", &opts(Kinsoku::None)), ['カ', '。']);
     }
-}
-
-/// あカッ breaks before ッ with Soft and None (a small kana may start a line) and not with Hard; a
-/// full stop never starts a line, Soft or not.
-#[test]
-fn kinsoku_mode_decides_whether_a_small_kana_may_start_a_line() {
-    assert_eq!(starts("あカッ", &opts(Kinsoku::Hard)), ['カ']);
-    assert_eq!(starts("あカッ", &opts(Kinsoku::Soft)), ['カ', 'ッ']);
-    assert_eq!(starts("あカッ", &opts(Kinsoku::None)), ['カ', 'ッ']);
-    assert_eq!(starts("あカ。", &opts(Kinsoku::Soft)), ['カ']);
-    assert_eq!(starts("あカ。", &opts(Kinsoku::None)), ['カ', '。']);
 }
 
 #[test]

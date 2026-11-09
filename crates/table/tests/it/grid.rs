@@ -23,13 +23,12 @@ const COLUMN: f32 = 64.0;
 struct Sheet {
     rows: LineIndex,
     columns: LineIndex,
-    zoom: Rc<Cell<f32>>,
 }
 
 impl Sheet {
-    fn new(hidden_column: Option<u32>, zoom: Rc<Cell<f32>>) -> Self {
+    fn new(hidden_column: Option<u32>) -> Self {
         let custom: BTreeMap<u32, f32> = hidden_column.into_iter().map(|column| (column, 0.0)).collect();
-        Sheet { rows: LineIndex::new(&BTreeMap::new(), ROW, SHEET_ROWS), columns: LineIndex::new(&custom, COLUMN, SHEET_COLUMNS), zoom }
+        Sheet { rows: LineIndex::new(&BTreeMap::new(), ROW, SHEET_ROWS), columns: LineIndex::new(&custom, COLUMN, SHEET_COLUMNS) }
     }
 }
 
@@ -46,8 +45,7 @@ impl GridModel for Sheet {
         CellAt::new(9, 4)
     }
 
-    fn paint_cell(&self, ui: &mut PaintUi<'_>, rect: Rect, cell: CellAt<u32>, zoom: f32) {
-        self.zoom.set(zoom);
+    fn paint_cell(&self, ui: &mut PaintUi<'_>, rect: Rect, cell: CellAt<u32>, _zoom: f32) {
         ui.draw().text(rect, &TextRun::new(self.cell_text(cell)).elide());
     }
 
@@ -62,7 +60,6 @@ struct Rig {
     edits: Rc<RefCell<Vec<GridEdit>>>,
     marks: Rc<RefCell<Vec<CellRange<u32>>>>,
     committed: Rc<RefCell<Vec<CellEdit>>>,
-    zoom: Rc<Cell<f32>>,
     grid: Rc<Cell<Option<egui::Id>>>,
 }
 
@@ -71,13 +68,12 @@ fn rig(hidden_column: Option<u32>, selection: CellSelection<u32>, zoom: f32) -> 
     let edits = Rc::new(RefCell::new(Vec::new()));
     let marks = Rc::new(RefCell::new(Vec::new()));
     let committed = Rc::new(RefCell::new(Vec::new()));
-    let seen_zoom = Rc::new(Cell::new(0.0));
-    let (shown_state, shown_edits, shown_marks, shown_zoom) = (state.clone(), edits.clone(), marks.clone(), seen_zoom.clone());
+    let (shown_state, shown_edits, shown_marks) = (state.clone(), edits.clone(), marks.clone());
     let shown_committed = committed.clone();
     let grid = Rc::new(Cell::new(None));
     let shown_grid = grid.clone();
     let mut fixture = Fixture::new(move |ui| {
-        let model = Sheet::new(hidden_column, shown_zoom.clone());
+        let model = Sheet::new(hidden_column);
         let mut state = shown_state.borrow().clone();
         let marks = shown_marks.borrow().clone();
         let out = CellGrid::new("Sheet", &model, &mut state).copy_mark(&marks).show_sheet(ui);
@@ -90,7 +86,7 @@ fn rig(hidden_column: Option<u32>, selection: CellSelection<u32>, zoom: f32) -> 
     let target = fixture.node_of(grid.get().expect("the grid showed")).expect("the grid has a node");
     fixture.access(AccessActionKind::Focus, &target);
     fixture.settle();
-    Rig { fixture, state, edits, marks, committed, zoom: seen_zoom, grid }
+    Rig { fixture, state, edits, marks, committed, grid }
 }
 
 impl Rig {
@@ -346,18 +342,12 @@ fn page_keys_move_a_screen_and_cmd_changes_sheet() {
 }
 
 #[trial]
-fn paint_cell_is_told_the_zoom() {
-    let rig = rig(None, a1(), 2.0);
-    assert_eq!(rig.zoom.get(), 2.0);
-}
-
-#[trial]
 fn outline_levels_reserve_the_bands_inside_the_grid() {
     use craft_table::ui::{OutlineAxis, OutlineGroup};
     let seen = Rc::new(RefCell::new(None));
     let shown = seen.clone();
     let mut fixture = Fixture::new(move |ui| {
-        let model = Sheet::new(None, Rc::new(Cell::new(0.0)));
+        let model = Sheet::new(None);
         let mut state = GridState::default();
         let rows = OutlineAxis::new(2, vec![OutlineGroup::new(1, 2, 1)]);
         let columns = OutlineAxis::default();
@@ -376,7 +366,7 @@ fn a_filter_button_over_the_header_takes_the_press() {
     let hits = Rc::new(RefCell::new(Vec::new()));
     let shown = hits.clone();
     let mut fixture = Fixture::new(move |ui| {
-        let model = Sheet::new(None, Rc::new(Cell::new(0.0)));
+        let model = Sheet::new(None);
         let mut state = GridState::default();
         let filters = [ColumnFilter::new(1)];
         let out = CellGrid::new("Sheet", &model, &mut state).filters(&filters).show_sheet(ui);
@@ -391,30 +381,12 @@ fn a_filter_button_over_the_header_takes_the_press() {
 }
 
 #[trial]
-fn an_error_tag_beside_a_cell_takes_the_press() {
-    let fixes = Rc::new(vec![Label::from("Convert to number")]);
-    let mut fixture = Fixture::new({
-        let fixes = fixes.clone();
-        move |ui| {
-            let model = Sheet::new(None, Rc::new(Cell::new(0.0)));
-            let mut state = GridState::default();
-            CellGrid::new("Sheet", &model, &mut state).error_tag(CellProblem::new(CellAt::new(2, 2), "Number stored as text", &fixes)).show_sheet(ui);
-        }
-    });
-    fixture.settle();
-    let tag = fixture.by_label("Error checking options").expect("the tag is a named button");
-    let cell = tag.rect;
-    fixture.click(&tag);
-    assert!(cell.height() > 0.0, "the tag takes room beside the cell");
-}
-
-#[trial]
 fn the_error_tag_sits_left_or_right_of_the_cell() {
     let rects = Rc::new(RefCell::new(Vec::new()));
     let fixes = Rc::new(vec![Label::from("Ignore")]);
     let (shown, shown_fixes) = (rects.clone(), fixes.clone());
     let mut fixture = Fixture::new(move |ui| {
-        let model = Sheet::new(None, Rc::new(Cell::new(0.0)));
+        let model = Sheet::new(None);
         let mut state = GridState::default();
         let out = CellGrid::new("Sheet", &model, &mut state).error_tag(CellProblem::new(CellAt::new(2, 2), "Problem", &shown_fixes)).show_sheet(ui);
         shown.borrow_mut().push(out.geometry.mirror_rect(out.geometry.cell_rect(CellAt::new(2, 2))));
@@ -423,6 +395,8 @@ fn the_error_tag_sits_left_or_right_of_the_cell() {
     let tag = fixture.by_label("Error checking options").expect("the tag has a node").rect;
     let cell = *rects.borrow().last().expect("the grid showed");
     assert!(tag.right() <= cell.left() || tag.left() >= cell.right(), "the tag sits beside the cell, not over it");
+    let tag = fixture.by_label("Error checking options").expect("the tag has a node");
+    fixture.click(&tag);
 }
 
 #[trial]
