@@ -1247,6 +1247,8 @@ struct LayerMemory {
     focus_inside: bool,
     /// The layers opened from inside this one have been asked to close.
     family_closed: bool,
+    /// The layer's focus scope has run in a pass that showed it: the scope takes its initial focus once per appearance.
+    scope_entered: bool,
     /// The least width the layer's body took in the last pass: a content-sized collection in the layer is at least
     /// this wide, so its rows fill the layer.
     min_width: f32,
@@ -1441,7 +1443,8 @@ pub(crate) fn host(ctx: &Context, layer: &Layer<'_>, body: &mut dyn FnMut(&mut U
             access::report_layer(ctx, layer.id, ui.unique_id(), ui.max_rect(), overlay.rank.is_modal(), layer.exiting);
         }
         if let (Some(policy), true) = (scope, real) {
-            focus::push_scope_from(ctx, layer.id, policy, None, opener, layer.exiting);
+            let entering = !std::mem::replace(&mut memory.scope_entered, true);
+            focus::push_scope_from(ctx, layer.id, policy, None, opener, layer.exiting, Some(entering));
         }
         areas::bound(ui, placed.room, min_width.min(placed.room.x));
         if overlay.fit == OverlayFit::Resizable {

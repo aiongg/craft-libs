@@ -369,12 +369,18 @@ pub(super) fn order_regions(state: &mut State) {
 /// Closes the innermost open scope; a scope shown for the first time moves focus to its initial stop.
 pub(super) fn initial_focus(state: &mut State, frame: u64) -> Vec<Act> {
     let Some((scope, first)) = state.open.pop() else { return Vec::new() };
-    state.seen.retain(|_, last| *last + 1 >= frame);
-    let previous = state.seen.insert(scope, frame);
-    if previous.is_some_and(|last| last + 1 >= frame) {
+    let Some((policy, entering)) = state.scopes.get(&scope).map(|rec| (rec.policy, rec.entering)) else { return Vec::new() };
+    let new = match entering {
+        Some(appears) => appears,
+        None => {
+            state.seen.retain(|_, last| *last + 1 >= frame);
+            let previous = state.seen.insert(scope, frame);
+            !previous.is_some_and(|last| last + 1 >= frame)
+        }
+    };
+    if !new {
         return Vec::new();
     }
-    let Some(policy) = state.scopes.get(&scope).map(|rec| rec.policy) else { return Vec::new() };
     let stops = &state.stops[first.min(state.stops.len())..];
     let pick = match policy.initial {
         Initial::First => stops.first(),
