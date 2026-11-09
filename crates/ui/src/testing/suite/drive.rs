@@ -237,7 +237,9 @@ pub(super) fn run(fixture: &mut Fixture, plan: Plan, variant: usize) {
                 panic!("{story}: Tab never moved focus into the component, so the typed text has nowhere to go");
             }
             fixture.type_text(text);
-            fixture.key(Key::Enter, Modifiers::NONE);
+            // Enter inserts a line in multi-line text, which Cmd/Ctrl+Enter commits; the node declares which it is.
+            let multiline = fixture.tree().role_of(fixture.tree().focused_key()) == Some(Role::MULTILINE_TEXT_INPUT);
+            fixture.key(Key::Enter, if multiline { Modifiers::COMMAND } else { Modifiers::NONE });
             fixture.idle(2);
         }
         Plan::Pick(row) => pick(fixture, row, variant == 1),
