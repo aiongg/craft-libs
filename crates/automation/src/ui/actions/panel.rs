@@ -389,7 +389,11 @@ impl<'a> ActionsPanel<'a> {
                 let mut events = events.borrow_mut();
                 events.extend(out.events);
                 events.extend(menu);
+                out.selected
             });
+        if let Some(selected) = shown.inner.flatten() {
+            state.borrow_mut().selected = selected;
+        }
         let settings_changed = state.borrow().settings != settings_before;
         ActionsPanelOutput { response: shown.output, events: events.into_inner(), settings_changed }
     }

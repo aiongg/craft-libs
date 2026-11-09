@@ -82,6 +82,8 @@ pub struct ActionMove {
 pub(super) struct BodyOutput {
     pub(super) events: Vec<ActionsEvent>,
     pub(super) response: Response,
+    /// The selection the list ended on, for the caller to store after the container; `None` when the body did not show the tree.
+    pub(super) selected: Option<Option<ActionSelection>>,
 }
 
 /// The part of the panel above the footer: the empty notice, Button Mode's buttons or the tree.
@@ -90,7 +92,7 @@ pub(super) fn show_body(ui: &mut Ui, body: &Body<'_>, state: &mut ActionsPanelSt
     if list.actions().is_empty() && list.sets().is_empty() {
         let icon = NoticeIcon::Custom(IconSpec::svg(craft_behavior::IconId::new("circle")));
         let out = Notice::new(Tone::Neutral, words.empty.clone()).layout(NoticeLayout::Centred).icon(icon).show(ui);
-        return BodyOutput { events: Vec::new(), response: out.response().clone() };
+        return BodyOutput { events: Vec::new(), response: out.response().clone(), selected: None };
     }
     if state.settings.button_mode && host.and_then(|host| host.recording()).is_none() {
         return show_buttons(ui, body);
@@ -128,7 +130,7 @@ fn show_buttons(ui: &mut Ui, body: &Body<'_>) -> BodyOutput {
             });
         }
     });
-    BodyOutput { events, response: shown_buttons.output }
+    BodyOutput { events, response: shown_buttons.output, selected: None }
 }
 
 /// The column of a toggle edit, when it names one.
@@ -229,11 +231,11 @@ fn show_tree(ui: &mut Ui, body: &Body<'_>, state: &mut ActionsPanelState, sessio
             _ => {}
         }
     }
-    state.selected = selection.items.first().cloned();
+    let mut selected = selection.items.first().cloned();
     for (source, to) in &moves {
-        state.selected = state.selected.take().map(|selected| remapped(selected, source, to));
+        selected = selected.map(|selected| remapped(selected, source, to));
     }
-    BodyOutput { events, response: out.response }
+    BodyOutput { events, response: out.response, selected: Some(selected) }
 }
 
 /// The `Delete` event for `selected`: a step always; a set or an action not while recording.
