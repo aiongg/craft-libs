@@ -341,7 +341,7 @@ fn the_bar_reports_new_and_delete_and_edits_options() {
     assert!(rig.seen.borrow().iter().any(|s| s.ratio.is_some()));
 
     rig.click("Swaps height and width");
-    let CropRatio::Sides { width, height, .. } = stepped else { panic!("a stepped ratio has sides") };
+    let CropRatio::Sides { width, height, .. } = twice else { panic!("a stepped ratio has sides") };
     assert_eq!(rig.settings.borrow().ratio, CropRatio::sides(height, width));
 }
 
