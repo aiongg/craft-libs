@@ -1486,6 +1486,7 @@ The value core of chapter 10: the bound every value type meets, `Mixed`, edit ev
   - `pub fn set(before: Mixed<T>, after: T, label: Arc<str>, doc_key: Option<DocKey>) -> Self`. A one-step change, named the way a `Begin` names its gesture.
   - `pub fn id(&self) -> Option<GestureId>`. The gesture the event belongs to; a `Set` belongs to none.
   - `pub fn map<U>(self, f: impl Fn(T) -> U) -> EditEvent<U>`. Maps the carried values and keeps the gesture.
+  - `pub fn filter_map<U>(self, f: impl Fn(T) -> Option<U>) -> Option<EditEvent<U>>`. Maps the carried values and keeps the gesture; `None` when `f` has no value for one of them.
   - `pub fn value(&self) -> Option<&T>`. The value the event carries: a proposal, a commit or a set.
   - `pub fn phase(&self) -> Option<GesturePhase>`. Where the gesture stands after this event; a `Set` is not a gesture.
   - `pub fn apply(&self, v: &mut T) -> Applied`. Applies the event to `v`: a proposal, commit or set writes its value, a cancel restores the value from before
@@ -3221,7 +3222,7 @@ The motion service (13): tweens over one clock, the motion table, and one repain
   - `pub fn target(&self) -> T`. The value it runs toward.
   - `pub fn is_settled(&self) -> bool`. True once the shown value is the target.
   - `pub fn retarget(&mut self, to: T, now: f64)`. Runs toward `to` from the value shown now.
-- `craft_ui::runtime::motion::now`: `pub fn now() -> std::time::Instant`. The wall clock's reading, for a host that drives a store on real time (`ShellApp::tick`). It is the one place
+- `craft_ui::runtime::motion::now`: `pub fn now() -> web_time::Instant`. The wall clock's reading, for a host that drives a store on real time (`ShellApp::tick`). It is the one place
 
 ## `craft_ui::runtime::motion::spec`
 
@@ -3492,6 +3493,7 @@ The fixture, the suite runner and the story helpers.
   - `pub const fn new(module: &'static str, name: &'static str, run: fn()) -> Trial`. A registration, as `#[trial]` writes it.
   - `pub fn full_name(&self) -> String`. The name filters match: the module path below the crate, then the function.
 - `craft_ui::testing::registered_in`: `pub fn registered_in(crate_name: &str) -> Vec<&'static Registration>`. Every registration declared in the library crate of the package `crate_name` and linked into the running
+- `craft_ui::testing::trials`: `pub fn trials() -> Vec<&'static Trial>`. Every `#[trial]` linked into the running binary, by full name.
 - `craft_ui::testing::Fixture`: re-export of `craft_ui::testing::fixture::Fixture`.
 - `craft_ui::testing::Frames`: re-export of `craft_ui::testing::frames::Frames`.
 - `craft_ui::testing::Impure`: re-export of `craft_ui::testing::fixture::Impure`.
