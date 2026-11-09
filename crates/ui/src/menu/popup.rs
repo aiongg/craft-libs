@@ -220,7 +220,11 @@ impl<'a> Menu<'a> {
         let mut open = head.submenu_open;
         let mut body = body;
         let shown = Menu::submenu(label, &head.response).open(Bind::bound(&mut open)).show(ui, |ui, cx| body(ui, cx));
-        head.note_submenu(open && shown.output.closed.is_none(), shown.output.response.rect);
+        // `MenuItem::update` does not run in a measuring run, so `open` is false there and would clear the level's
+        // open submenu the real run set.
+        if crate::runtime::measure::effect(ui.ctx(), "menu::note_submenu") {
+            head.note_submenu(open && shown.output.closed.is_none(), shown.output.response.rect);
+        }
         head
     }
 
