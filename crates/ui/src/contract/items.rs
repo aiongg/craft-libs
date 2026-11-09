@@ -134,6 +134,8 @@ pub(super) struct ItemsHooks<'s, 'r, C: Collection> {
     previous: Option<Arc<C::ItemLayout>>,
     content: Vec2,
     room: Vec2,
+    /// A measuring run under a body sized from its content: the axes (x, y) the collection takes from its content.
+    from_content: (bool, bool),
     scrolls: bool,
     /// The axis the rows overflow along.
     overflow: Axis,
@@ -179,6 +181,7 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
             previous: None,
             content: Vec2::ZERO,
             room: Vec2::ZERO,
+            from_content: (false, false),
             scrolls: true,
             overflow: Axis::Y,
             selection: C::Selection::default(),
@@ -505,6 +508,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             ShowAt::Flow => crate::layout::flow_room(ui),
         };
         self.room = room;
+        self.from_content = if crate::runtime::measure::active(ui.ctx()) { Env::of(ui).content } else { (false, false) };
         self.header.measure(scx);
         let bounded = room.x.is_finite();
         let mut widest = 0.0;
@@ -551,15 +555,32 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         }
         // A scrolling collection in a bounded room: `Content` takes its rows up to the room, `Fill` the room.
         match comp.props(Internal::new()).sizing {
-            Sizing::Fill => Vec2::ZERO,
+            // Under a body sized from its content, a measuring run takes the columns' least width and the rows up to
+            // the room, as a content-sized collection does: the body has no room of its own to hand it.
+            Sizing::Fill => {
+                let (x, y) = self.from_content;
+                let wide = if !x {
+                    0.0
+                } else if self.header.has_columns() {
+                    self.header.least_width()
+                } else {
+                    self.widest_row(comp, ui, id).min(room.x)
+                };
+                Vec2::new(wide, if y { height.min(room.y) } else { 0.0 })
+            }
             Sizing::Content | Sizing::FillWidth => Vec2::new(if self.content_sized(comp) { self.content.x } else { 0.0 }, height.min(room.y)),
         }
     }
 
     fn sized(&self, comp: &C, _: &Ui, size: Vec2) -> Vec2 {
-        let width = if self.room.x.is_finite() && !self.content_sized(comp) { self.room.x.max(size.x) } else { size.x };
-        let height = match (self.scrolls && self.room.y.is_finite(), comp.props(Internal::new()).sizing) {
-            (true, Sizing::Fill) => self.room.y,
+        let sizing = comp.props(Internal::new()).sizing;
+        // Only a `Fill` collection measures its width from its content under a content-sized body; `FillWidth` takes
+        // the room it is given on every run.
+        let width_from_content = self.from_content.0 && sizing == Sizing::Fill;
+        let width = if self.room.x.is_finite() && !self.content_sized(comp) && !width_from_content { self.room.x.max(size.x) } else { size.x };
+        let height = match (self.scrolls && self.room.y.is_finite(), sizing) {
+            (true, Sizing::Fill) if !self.from_content.1 => self.room.y,
+            (true, Sizing::Fill) => size.y.min(self.room.y),
             (true, Sizing::Content | Sizing::FillWidth) => size.y.min(self.room.y),
             (false, _) => size.y,
         };

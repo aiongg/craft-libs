@@ -162,6 +162,17 @@ impl Header {
         resolve_columns(&sized, &content, width, 0.0)
     }
 
+    /// The least width the columns take together: a fixed column its width, every other column its least width.
+    pub(super) fn least_width(&self) -> f32 {
+        self.specs
+            .iter()
+            .map(|spec| match self.width_of(spec) {
+                ColumnWidth::Fixed(width) => width,
+                _ => self.min,
+            })
+            .sum()
+    }
+
     /// Whether the collection declares columns.
     pub(super) fn has_columns(&self) -> bool {
         !self.specs.is_empty()
