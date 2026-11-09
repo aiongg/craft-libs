@@ -3,10 +3,12 @@
 
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::sync::Arc;
 use std::time::Duration;
 
 use craft_behavior::edit_history::Step;
 use craft_behavior::{EditEvent, EditHistory, GestureId, Mixed, PixelSize};
+use craft_host::{AppInfo, Host};
 use craft_imaging::ui::filter_gallery::{
     EffectChange, EffectLayer, FilterCatalog, FilterCategory, FilterGalleryEvent, FilterGalleryOpen, FilterGalleryOutput, FilterGallerySession,
     FilterGallerySource, FilterGalleryWorkspace, GalleryFilter, GalleryThumb,
@@ -212,6 +214,7 @@ fn rig(session: FilterGallerySession, done: bool) -> Rig {
         let out = shown.borrow_mut().show(ui, &Catalog, &thumbs, &FakeThumbSource::<GalleryThumb>::new(), &source);
         sink.borrow_mut().push(out);
     });
+    fixture.host(Arc::new(Host::builder(AppInfo { id: "trial", name: "Trial", version: "0" }).build()));
     fixture.room(WINDOW).settle();
     Rig { fixture, workspace, outputs, renders }
 }
