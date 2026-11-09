@@ -538,8 +538,12 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
     }
 
     fn sized(&self, comp: &C, _: &Ui, size: Vec2) -> Vec2 {
-        let width = if self.room.x.is_finite() && !self.content_sized(comp) && !self.from_content.0 { self.room.x.max(size.x) } else { size.x };
-        let height = match (self.scrolls && self.room.y.is_finite(), comp.props(Internal::new()).sizing) {
+        let sizing = comp.props(Internal::new()).sizing;
+        // Only a `Fill` collection measures its width from its content under a content-sized body; `FillWidth` takes
+        // the room it is given on every run.
+        let width_from_content = self.from_content.0 && sizing == Sizing::Fill;
+        let width = if self.room.x.is_finite() && !self.content_sized(comp) && !width_from_content { self.room.x.max(size.x) } else { size.x };
+        let height = match (self.scrolls && self.room.y.is_finite(), sizing) {
             (true, Sizing::Fill) if !self.from_content.1 => self.room.y,
             (true, Sizing::Fill) => size.y.min(self.room.y),
             (true, Sizing::Content | Sizing::FillWidth) => size.y.min(self.room.y),
