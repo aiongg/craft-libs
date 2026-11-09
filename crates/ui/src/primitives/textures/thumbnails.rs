@@ -349,7 +349,8 @@ impl<K: TextureKey> Thumbnails<K> {
     /// Paints `state` into `rect` and returns whether it drew anything:
     /// - `Ready`, or `Loading` with a stand-in: the picture fitted by `paint.fit`, over the transparency grid when
     ///   `paint.checker` (or over `paint.paper`, which replaces the grid), tinted by `paint.tint`.
-    /// - `Missing`, or `Loading` without a stand-in: the placeholder, a sunken surface over `rect`.
+    /// - `Missing`, or `Loading` without a stand-in: the placeholder, a sunken surface over `rect` (filled with
+    ///   `paint.paper` when set).
     /// - `Failed`: the placeholder with the warning icon centred. The message is the host's tooltip
     ///   (`ListRow::tooltip`).
     /// - `Empty`: nothing; returns false, and the row paints its own tile.
@@ -364,11 +365,11 @@ impl<K: TextureKey> Thumbnails<K> {
                 true
             }
             TextureState::Missing | TextureState::Loading { stand_in: None } => {
-                paint_placeholder(cx, rect);
+                paint_placeholder(cx, rect, paint.paper);
                 true
             }
             TextureState::Failed { .. } => {
-                paint_placeholder(cx, rect);
+                paint_placeholder(cx, rect, paint.paper);
                 paint_failure(cx, rect);
                 true
             }
@@ -463,9 +464,13 @@ fn cover_uv(cell: Rect, picture: Vec2) -> Rect {
     Rect::from_center_size(pos2(0.5, 0.5), shown)
 }
 
-/// The cell while no picture has arrived, and behind the failure icon: a sunken surface.
-fn paint_placeholder(cx: &ContentPainterCx<'_>, rect: Rect) {
-    let style = surface_style(cx.tokens, SurfaceKind::Sunken);
+/// The cell while no picture has arrived, and behind the failure icon: a sunken surface, in the caller's `paper`
+/// when it gives one.
+fn paint_placeholder(cx: &ContentPainterCx<'_>, rect: Rect, paper: Option<DataColor>) {
+    let mut style = surface_style(cx.tokens, SurfaceKind::Sunken);
+    if let Some(paper) = paper {
+        style.fill = paper.0;
+    }
     cx.painter.extend(Surface::shapes(&style, None, rect, Corners::None, cx.direction, cx.pixels_per_point()));
 }
 
