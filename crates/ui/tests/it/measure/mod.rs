@@ -1,5 +1,7 @@
 //! A measuring run delivers nothing and consumes nothing: what the real run after it needs is still there.
 
+mod record;
+
 use crate::body::kit::Slab;
 use craft_theme::Srgba;
 use craft_ui::contract::{Bind, ContainerProps, Politeness, Props as _, Scroll, Show as _, ShowContainer as _};
@@ -87,9 +89,10 @@ fn form_answers_reach_the_real_run() {
         let ctx = ui.ctx().clone();
         for measuring in [true, false] {
             let mut show = |ui: &mut Ui| {
-                FormDialog::new("Form", Bind::bound(&mut held)).answers(answers.clone()).show(ui, |_, form, _| {
+                // The dialog's real show measures its body first, in a sizing pass of its own.
+                FormDialog::new("Form", Bind::bound(&mut held)).answers(answers.clone()).show(ui, |ui, form, _| {
                     let first = form.first();
-                    seen.borrow_mut().push((measuring, form.take_answers().len(), first));
+                    seen.borrow_mut().push((measuring || ui.is_sizing_pass(), form.take_answers().len(), first));
                     true
                 });
             };

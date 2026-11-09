@@ -174,6 +174,12 @@ pub(crate) trait ShapeHooks<C: Component> {
         self.extent(comp, at.ui, at.at, cx.core.id, at.scx)
     }
 
+    /// A real pass's step 5 for a body or an item shape: what the shape adds to the content size, from a measuring run
+    /// of its contents in this pass (or the record one left in this pass). The default is `extent`.
+    fn pass_extent(&mut self, comp: &mut C, at: &Measuring<'_, '_>, _style: &C::Style, _shown: Option<Arc<ValueOf<C>>>) -> Vec2 {
+        self.extent(comp, at.ui, at.at, at.resolved.id, at.scx)
+    }
+
     /// The width by which the shape's content wants to be wider than the size it measured to, because the room cut
     /// it: the parent `Ui` counts it in the size it took, so a parent that sizes from its content widens.
     fn overflow(&self) -> f32 {
@@ -823,10 +829,14 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
         ShowAt::Rect(rect) => Some(rect.width()),
         ShowAt::Flow => Some(crate::layout::flow_room(ui).x).filter(|width| width.is_finite()),
     };
-    // A sizing pass measures the shape from this pass's content; a real pass places by what layout memory holds.
+    // Sizes come from this pass: a sizing pass measures the shape from its content; in a real pass a body or item
+    // shape takes what its measuring run found.
     let (extent, shown) = if sizing {
         let measuring = Measuring { ui: &*ui, at, width: None, env, scx: &scx, resolved: &resolved, command: step1.command.clone() };
         measured_extent(&mut comp, &mut *hooks, &measuring, &mut stage, &style, shown)
+    } else if matches!(shape, ShapeKind::Body | ShapeKind::Item) {
+        let measuring = Measuring { ui: &*ui, at, width: None, env, scx: &scx, resolved: &resolved, command: step1.command.clone() };
+        (hooks.pass_extent(&mut comp, &measuring, &style, shown.clone()), shown)
     } else {
         (hooks.extent(&comp, ui, at, id, &scx), shown)
     };
@@ -985,7 +995,7 @@ pub(crate) fn measure_container<C: Container, R>(
 
 /// A measuring run's extent: the shape's `measured_extent` under a `Cx` that senses nothing and writes only to the
 /// peek `stage`. Returns the shown value back with it.
-fn measured_extent<C: Component>(
+pub(super) fn measured_extent<C: Component>(
     comp: &mut C,
     hooks: &mut dyn ShapeHooks<C>,
     at: &Measuring<'_, '_>,
@@ -996,7 +1006,7 @@ fn measured_extent<C: Component>(
     let response = steps::inert_response(at.ui, at.resolved.id);
     let core = blank_core(at.env.view(), at.resolved, stage, at.ui.ctx().clone(), at.env.ink, response, at.command.clone());
     let mut cx = Cx::<C> { core, style, shown, mixed: false, events: Vec::new(), applied: 0, validity: Validity::Ok };
-    let extent = crate::runtime::measure::run(at.ui.ctx(), || hooks.measured_extent(comp, at, &mut cx));
+    let extent = steps::measuring(at.ui.ctx(), || hooks.measured_extent(comp, at, &mut cx));
     (extent, cx.shown.take())
 }
 

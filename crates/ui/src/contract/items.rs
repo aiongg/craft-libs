@@ -217,7 +217,7 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
     /// and measured without allocating.
     fn widest_row(&mut self, comp: &C, ui: &Ui, id: Id) -> f32 {
         let ctx = ui.ctx().clone();
-        crate::runtime::measure::run(&ctx, || self.widest_row_in(comp, ui, id))
+        super::steps::measuring(&ctx, || self.widest_row_in(comp, ui, id))
     }
 
     fn widest_row_in(&mut self, comp: &C, ui: &Ui, id: Id) -> f32 {

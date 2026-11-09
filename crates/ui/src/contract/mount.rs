@@ -230,7 +230,7 @@ impl Host for LayerHost {
 /// The overlay of a full-window mount: a modal rank with no backdrop (the dialog covers the window) and the
 /// container's focus policy as its scope, so the layer stack gives it the key class, blocking and dismissal rules
 /// of a modal.
-fn full_window_overlay(focus: FocusPolicy) -> Overlay {
+pub(super) fn full_window_overlay(focus: FocusPolicy) -> Overlay {
     let mut overlay = Overlay::modal().fit(overlay::OverlayFit::Content).focus(focus);
     overlay.rank = Rank::modal(Backdrop::None);
     overlay

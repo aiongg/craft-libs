@@ -230,6 +230,32 @@ struct IdPass {
     seen: HashSet<Id>,
 }
 
+/// Runs `f` as a measuring run that leaves the `Auto` ordinals as it found them, so the run that follows in the same
+/// pass gives every component the id the measuring run gave it.
+pub(super) fn measuring<R>(ctx: &Context, f: impl FnOnce() -> R) -> R {
+    let viewport = pass::current_viewport(ctx);
+    let pass_nr = pass::pass_nr(ctx, viewport);
+    let ordinals = |take: Option<HashMap<(Id, TypeId), u32>>| {
+        PerViewport::<Stamped<IdPass>>::with_pass(
+            ctx,
+            viewport,
+            pass_nr,
+            |pass, _| *pass = IdPass::default(),
+            |pass| match take {
+                Some(next) => {
+                    pass.next = next;
+                    None
+                }
+                None => Some(pass.next.clone()),
+            },
+        )
+    };
+    let kept = ordinals(None);
+    let out = crate::runtime::measure::run(ctx, f);
+    ordinals(kept);
+    out
+}
+
 /// Step 3, id.
 ///
 /// `register` is false for `measure_in`, which peeks, and in a sizing pass. `advance` is false only for

@@ -57,3 +57,30 @@ pub fn take_effects(ctx: &Context) -> Vec<&'static str> {
         if log.0 == frame { std::mem::take(&mut log.1) } else { Vec::new() }
     })
 }
+
+#[cfg(feature = "testing")]
+fn runs_id() -> Id {
+    Id::unique("craft-ui measuring runs per body")
+}
+
+/// Counts a measuring run of the contents of the body `id` in this pass.
+#[cfg(feature = "testing")]
+pub(crate) fn count_body(ctx: &Context, id: Id) {
+    let pass = ctx.cumulative_pass_nr();
+    ctx.data_mut(|data| {
+        let log = data.get_temp_mut_or_default::<(u64, Vec<(Id, u32)>)>(runs_id());
+        if log.0 != pass {
+            *log = (pass, Vec::new());
+        }
+        match log.1.iter_mut().find(|(body, _)| *body == id) {
+            Some((_, count)) => *count += 1,
+            None => log.1.push((id, 1)),
+        }
+    });
+}
+
+/// The bodies whose contents ran in a measuring run in the last pass that ran one, and how many runs each.
+#[cfg(feature = "testing")]
+pub fn body_runs(ctx: &Context) -> Vec<(Id, u32)> {
+    ctx.data(|data| data.get_temp::<(u64, Vec<(Id, u32)>)>(runs_id())).map(|(_, runs)| runs).unwrap_or_default()
+}
