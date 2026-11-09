@@ -845,9 +845,9 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
         steps::measure(&mut comp, &input, &style, &resolved, shown.as_deref(), extent)
     };
     trace.mark(Step::Measure);
-    // A control in a body that the label step probes reports its narrowest width: the label step decides this pass
-    // whether the row fits the label beside it.
-    if shape == ShapeKind::Leaf && scope::wants_control_min(&ctx) {
+    // A control in a label scope reports its narrowest width, in a measuring run too: the real run's label step reads
+    // it to decide whether the row fits the label beside it.
+    if shape == ShapeKind::Leaf && scope::in_label(&ctx) {
         let input = MeasureIn { ui: &*ui, env, proposal: Proposal::Min, room: None };
         let min = steps::measure(&mut comp, &input, &style, &resolved, shown.as_deref(), Vec2::ZERO);
         scope::record_control_min(&ctx, min.x);

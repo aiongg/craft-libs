@@ -111,6 +111,8 @@ struct Scope {
     message: Option<(Message, Tone, String)>,
     /// A control inside scrubs by the label.
     scrub: bool,
+    /// The narrowest width of the first control.
+    control_min: Option<f32>,
 }
 
 /// A control that reported its node in a scope: the name and description its node got at its own report.
@@ -142,7 +144,18 @@ struct Stack(Vec<Scope>);
 /// Opens the scope of `container`; its body shows inside it.
 pub(crate) fn begin(ctx: &Context, container: Id, owner: Id, kind: Kind) {
     Service::<Stack>::run(ctx, |stack| {
-        stack.0.push(Scope { container, owner, kind, nodes: Vec::new(), open: Vec::new(), baseline: None, reset: None, message: None, scrub: false })
+        stack.0.push(Scope {
+            container,
+            owner,
+            kind,
+            nodes: Vec::new(),
+            open: Vec::new(),
+            baseline: None,
+            reset: None,
+            message: None,
+            control_min: None,
+            scrub: false,
+        })
     });
 }
 
@@ -205,34 +218,24 @@ pub(crate) fn record_baseline(ctx: &Context, baseline: f32) {
     });
 }
 
-/// Probe state: while `probe_control_min` runs a body, its first control reports here.
-#[derive(Default)]
-struct Probe {
-    active: bool,
-    min: Option<f32>,
+/// Whether a label scope is open: a control then reports its minimum width.
+pub(crate) fn in_label(ctx: &Context) -> bool {
+    Service::<Stack>::run(ctx, |stack| stack.0.iter().any(|scope| matches!(scope.kind, Kind::Label(_))))
 }
 
-/// Whether a control reports its narrowest width: while a body is probed, in a sizing pass too.
-pub(crate) fn wants_control_min(ctx: &Context) -> bool {
-    Service::<Probe>::run(ctx, |probe| probe.active)
-}
-
-/// Records the narrowest width of a control inside the probed body. The first control to report wins.
+/// Records the narrowest width of a control inside the innermost label scope. The first control to report wins.
 pub(crate) fn record_control_min(ctx: &Context, width: f32) {
-    Service::<Probe>::run(ctx, |probe| {
-        if probe.active {
-            probe.min.get_or_insert(width);
+    Service::<Stack>::run(ctx, |stack| {
+        if let Some(scope) = stack.0.iter_mut().rev().find(|scope| matches!(scope.kind, Kind::Label(_))) {
+            scope.control_min.get_or_insert(width);
         }
     });
 }
 
-/// Runs `body` (a body in an invisible sizing pass) and returns the narrowest width its first control reported, 0 when
-/// none did. Probes do not nest: an inner probe's controls report to the inner one.
-pub(crate) fn probe_control_min(ctx: &Context, body: impl FnOnce()) -> f32 {
-    let outer = Service::<Probe>::run(ctx, |probe| std::mem::replace(probe, Probe { active: true, min: None }));
-    body();
-    let inner = Service::<Probe>::run(ctx, |probe| std::mem::replace(probe, outer));
-    inner.min.unwrap_or(0.0)
+/// The narrowest width the first control of `container`'s label scope reported in this pass's measuring run; 0 when
+/// no measuring run ran.
+pub(crate) fn measured_control_min(ctx: &Context, container: Id) -> f32 {
+    layout_memory::measured(ctx, sub(container, "control_min")).map_or(0.0, |measured| measured.took.x)
 }
 
 /// Registers the reset of the control `control` with the innermost label scope.
@@ -384,13 +387,14 @@ pub(crate) fn merge_patch(child: &ScopeNode, merged: &Merged) -> MergePatch {
     }
 }
 
-/// Closes the scope of `container` without recording anything, for a measuring run.
+/// Closes the scope of `container` for a measuring run: it records only the control's narrowest width, as this pass's
+/// measure for the real run's label step.
 pub(crate) fn discard(ctx: &Context, container: Id) {
-    Service::<Stack>::run(ctx, |stack| {
-        if stack.0.last().is_some_and(|scope| scope.container == container) {
-            stack.0.pop();
-        }
-    });
+    let scope = Service::<Stack>::run(ctx, |stack| stack.0.last().is_some_and(|scope| scope.container == container).then(|| stack.0.pop()).flatten());
+    if let Some(scope) = scope {
+        let took = Vec2::new(scope.control_min.unwrap_or(0.0), 0.0);
+        layout_memory::record_measured(ctx, sub(container, "control_min"), layout_memory::Measured { room: Vec2::ZERO, took });
+    }
 }
 
 /// Closes the scope of `container`, if it opened one, and patches the nodes registered in it. `merged` is the

@@ -1994,29 +1994,6 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         });
         let gap = Vec2::splat(gap_of(&env.tokens, props.body_gap));
         let layout_id = sub(id, "layout");
-        // The control's narrowest width comes from this pass: the body runs once in an invisible sizing pass and
-        // its first control reports.
-        let control_min = if is_open && props.label.is_some() {
-            // The probe writes to a peek stage: the real run still has the body's state as it was.
-            let mut probe_stage = MemoryStage::open_peek(&ctx, id);
-            let mut probe_cx = BodyCx::new(body_id, body_env.view(), cx.core.resolved, regions.body, &mut probe_stage, &mut open, gate.as_mut())
-                .with_field_message(field_message.clone())
-                .with_owner(owner);
-            let mut probe_ui = alloc::child(
-                ui,
-                UiBuilder::new().max_rect(regions.body).layout(child::column_layout(rtl)).scope_id(sub(id, "label_probe")).sizing_pass().invisible(),
-            );
-            style::set_item_spacing(&mut probe_ui, gap);
-            let installed = Env::install_for(&probe_ui, body_env.clone());
-            let (layout, body) = (&props.layout, &mut *self.body);
-            let min = scope::probe_control_min(&ctx, || {
-                super::steps::measuring(&ctx, || layout::run_body(&mut probe_ui, layout_id, layout, gap, |ui| body(ui, &mut probe_cx)));
-            });
-            Env::restore(&ctx, installed);
-            min
-        } else {
-            0.0
-        };
         // B2 label: the control gets the rect the label leaves; the label column adds to the container's extent.
         let mut body_rect = regions.body;
         if let Some(side) = props.label.as_ref() {
@@ -2037,7 +2014,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 help: props.help.as_ref(),
                 enabled: resolved.enabled,
                 size: resolved.size,
-                control_min,
+                control_min: scope::measured_control_min(&ctx, id),
             };
             body_rect = label::run(ui, env, &input).control;
         }
