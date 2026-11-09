@@ -99,6 +99,9 @@ impl<'a> CropOverlayMenu<'a> {
                 *open = true;
             }
             let opener = IconButton::new(IconId::new("grid")).label(words.overlay.clone()).popup(PopupKind::Menu).show(ui);
+            if clicked(&opener) {
+                *open = !*open;
+            }
             Menu::new(words.overlay.clone()).open(Bind::bound(open)).opened_by(&opener, Trigger::Click).show(ui, |ui, _| {
                 for guide in CropGuide::ALL {
                     let row = MenuItem::new(guide_name(&words, guide).to_owned()).radio_mark(settings.guide == guide).show(ui);
