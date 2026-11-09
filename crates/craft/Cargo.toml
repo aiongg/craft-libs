@@ -124,7 +124,7 @@ browse = ["dep:craft-browse"]
 
 cms = ["dep:craft-cms"]
 
-color = ["dep:craft-color", "keymap", "settings", "platform"]
+color = ["dep:craft-color", "keymap", "settings", "window", "platform"]
 
 crw = ["dep:craft-crw"]
 
