@@ -1173,7 +1173,8 @@ impl<'b> BodyHooks<'b> {
     fn wanted_width(&self, props: &ContainerProps) -> Option<f32> {
         self.measured_body.map(|body| {
             let (header, end) = (self.measured_header.unwrap_or(Vec2::ZERO), self.measured_end.unwrap_or(Vec2::ZERO));
-            self.regions_size(props, body, header, self.measured_footer, end).x
+            let wanted = self.regions_size(props, body, header, self.measured_footer, end).x;
+            overlay_of(props).map_or(wanted, |overlay| wanted.max(super::overlay::opener_floor(overlay)))
         })
     }
 
@@ -1663,6 +1664,9 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 self.regions_size(&props, body, header, footer, end) + pad
             }
         };
+        // A layer hung from an opener is at least as wide as the opener its overlay asks for, in the measuring run too,
+        // so the rows of a content-sized list inside it are placed at that width.
+        let took = Vec2::new(overlay_of(&props).map_or(took.x, |overlay| took.x.max(super::overlay::opener_floor(overlay))), took.y);
         self.overflow = (took.x - self.room.x).max(0.0);
         // A body wider than the room overflows it, or scrolls along it; either way the container keeps to the room.
         Vec2::new(took.x.min(self.room.x), if vertical { took.y.min(self.room.y) } else { took.y })
