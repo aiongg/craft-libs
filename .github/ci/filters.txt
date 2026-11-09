@@ -1,0 +1,7 @@
+craft-automation it
+craft-browse it
+craft-color it
+craft-dialogs it
+craft-font-manager it
+craft-layers it
+craft-pages it
