@@ -338,6 +338,7 @@ pub(crate) fn report_sub(ctx: &Context, decl: &SubDecl<'_>) {
     write_position(&mut spec, node.position, node.level);
     spec.grid = node.grid;
     spec.sort = node.sort;
+    spec.sortable = node.sortable;
     write_states(&mut spec, flags, decl.enabled, false);
     declare_actions(&mut spec, decl.focusable, decl.clickable, numeric);
     custom_actions(&mut spec, &node.custom_actions);

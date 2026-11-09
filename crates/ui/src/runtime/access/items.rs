@@ -26,6 +26,7 @@ pub(crate) fn report_header(ctx: &Context, owner: Id, enabled: bool, cells: &[He
         let mut node = SubNode::new(cell.part, Role::COLUMN_HEADER);
         node.name = Name::Text(cell.name.to_owned());
         node.sort = cell.sort;
+        node.sortable = cell.clickable;
         report_sub(
             ctx,
             &SubDecl {

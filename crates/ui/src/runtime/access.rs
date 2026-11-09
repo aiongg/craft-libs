@@ -474,6 +474,8 @@ pub struct SubNode {
     /// The heading level or tree depth.
     pub level: Option<usize>,
     pub(crate) sort: Option<bool>,
+    /// The column header sorts when activated: the node declares a sort direction even while the column is unsorted.
+    pub(crate) sortable: bool,
     /// The column of a cell, which the item step turns into the cell's column index.
     pub(crate) column: Option<craft_behavior::ColumnKey>,
     pub(crate) access_key: Option<char>,
@@ -502,6 +504,7 @@ impl SubNode {
             grid: GridPlace::default(),
             level: None,
             sort: None,
+            sortable: false,
             column: None,
             access_key: None,
             shortcut: None,
