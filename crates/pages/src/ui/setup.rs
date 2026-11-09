@@ -11,12 +11,13 @@
 #[cfg(feature = "screen-testing")]
 mod stories;
 
+use std::cell::RefCell;
 use std::ops::RangeInclusive;
 
-use craft_behavior::{EditEvent, NumberCodec};
+use craft_behavior::{EditEvent, Mixed, NumberCodec};
 use craft_theme::variant::Tone;
 use craft_ui::choice::{Checkbox, Radio, RadioGroup};
-use craft_ui::contract::{Bind, Entry, FieldLayout, Pattern, Props, Remember as _, Show as _, ShowContainer as _, SideLabel, Trigger};
+use craft_ui::contract::{Bind, EditResponse, Entry, FieldLayout, Pattern, Props, Remember as _, Show as _, ShowContainer as _, SideLabel, Trigger};
 use craft_ui::display::Divider;
 use craft_ui::form::{Field, FieldGroup};
 use craft_ui::menu::{Menu, MenuItem};
@@ -193,6 +194,8 @@ struct Rows<'a> {
     words: &'a PageSetupDialogWords,
     units: Units,
     unit: UnitKind,
+    /// The setup as the text typed into a length field in this pass makes it, before the field's binding takes it.
+    preview: RefCell<Option<PageSetup>>,
 }
 
 /// One length of the setup: where it is and which values it takes (points).
@@ -206,11 +209,28 @@ struct Length {
 }
 
 /// Runs one event of a number field of the dialog: `write` puts its value into the setup. A `Begin` keeps the setup as
-/// it was and a `Cancel` puts that back.
-fn apply(form: &mut FormCx<'_, '_>, setup: &mut PageSetup, event: Option<&EditEvent<Option<f64>>>, write: impl Fn(&mut PageSetup, f64)) {
-    let Some(event) = event else { return };
+/// it was and a `Cancel` puts that back. A binding that is given to a field sees the pass that begins an edit as a
+/// bare `Begin`: the typed value reaches the setup in the next pass. `preview` takes the setup as that typed value
+/// makes it, so what the dialog shows follows the text in the pass it is typed.
+fn apply(
+    form: &mut FormCx<'_, '_>,
+    setup: &mut PageSetup,
+    preview: &mut Option<PageSetup>,
+    edit: &EditResponse<Option<f64>>,
+    write: impl Fn(&mut PageSetup, f64),
+) {
+    let Some(event) = edit.event.as_ref() else { return };
     match event {
-        EditEvent::Begin { .. } => form.memory::<Before>().0 = Some(setup.clone()),
+        EditEvent::Begin { .. } => {
+            form.memory::<Before>().0 = Some(setup.clone());
+            if let Some(Mixed::Same(shown)) = &edit.shown
+                && let Some(value) = **shown
+            {
+                let mut typed = preview.take().unwrap_or_else(|| setup.clone());
+                write(&mut typed, value);
+                *preview = Some(typed);
+            }
+        }
         EditEvent::Cancel { .. } => {
             if let Some(before) = form.memory::<Before>().0.take() {
                 *setup = before;
@@ -253,7 +273,7 @@ impl Rows<'_> {
         if first && form.first() {
             focus::request(ui.ctx(), FocusTarget::Id(field.response.id));
         }
-        apply(form, setup, field.edit.event.as_ref(), |next, value| {
+        apply(form, setup, &mut self.preview.borrow_mut(), &field.edit, |next, value| {
             let points = if rounded(value, places) == shown { exact } else { to_points(unit, value).clamp(*range.start(), *range.end()) };
             set(next, points);
         });
@@ -302,12 +322,21 @@ impl Rows<'_> {
         fits
     }
 
+    /// The room the Orientation group takes at the cursor, measured in an invisible sizing pass; the cursor moves past it.
+    fn reserve_orientation(&self, ui: &mut Ui, setup: &PageSetup) -> egui::Rect {
+        let room = egui::Rect::from_min_size(ui.cursor().min, egui::vec2(ui.available_width(), f32::INFINITY));
+        let mut sizing = ui.new_child(egui::UiBuilder::new().max_rect(room).layout(*ui.layout()).sizing_pass().invisible());
+        self.orientation(&mut sizing, &mut setup.clone());
+        ui.allocate_space(sizing.min_rect().size()).1
+    }
+
     /// The Orientation group.
     fn orientation(&self, ui: &mut Ui, setup: &mut PageSetup) {
         let words = self.words;
+        let shown = self.preview.borrow_mut().take().map_or(setup.orientation, |typed| typed.orientation);
         FieldGroup::new(words.orientation.clone()).show(ui, |ui, _| {
             let after = SideLabel::new().layout(FieldLayout::After);
-            let group = RadioGroup::new(words.orientation.clone(), Bind::given(setup.orientation)).show(ui, |ui, cx| {
+            let group = RadioGroup::new(words.orientation.clone(), Bind::given(shown)).show(ui, |ui, cx| {
                 cx.labelled(ui, "portrait", words.portrait.clone(), after.clone(), Radio::new(Orientation::Portrait));
                 cx.labelled(ui, "landscape", words.landscape.clone(), after.clone(), Radio::new(Orientation::Landscape));
             });
@@ -342,7 +371,7 @@ impl Rows<'_> {
                     })
                     .inner;
                 let Some(field) = field else { return true };
-                apply(form, setup, field.edit.event.as_ref(), |next, value| {
+                apply(form, setup, &mut self.preview.borrow_mut(), &field.edit, |next, value| {
                     if value != shown {
                         next.pages = Some(value.round() as u32);
                     }
@@ -504,7 +533,7 @@ impl<'a> PageSetupDialog<'a> {
         let PageSetupDialog { setup, papers, unit, document_setup, layout, direction, open } = self;
         let env = Env::of(ui);
         let words = env.words::<PageSetupDialogWords>();
-        let rows = Rows { words: &words, units: env.units(), unit };
+        let rows = Rows { words: &words, units: env.units(), unit, preview: RefCell::new(None) };
         let title = if document_setup { words.document_setup.clone() } else { words.title.clone() };
         let mut dialog = FormDialog::new(title, setup).outer_gesture(true);
         if let Some(open) = open {
@@ -512,9 +541,12 @@ impl<'a> PageSetupDialog<'a> {
         }
         dialog.show(ui, |ui, form, setup| {
             let margins = rows.margins(ui, form, setup, document_setup);
-            rows.orientation(ui, setup);
+            // The Orientation group sits above Pages and Paper but follows the width typed in Paper in the same pass, so
+            // its room is taken here and the group is drawn once Paper has edited the setup.
+            let orientation = rows.reserve_orientation(ui, setup);
             let pages = rows.pages(ui, form, setup, document_setup);
             let paper = rows.paper(ui, form, setup, papers);
+            ui.scope_builder(egui::UiBuilder::new().max_rect(orientation).id_salt("orientation"), |ui| rows.orientation(ui, setup));
             if layout {
                 rows.layout(ui, setup);
             }
