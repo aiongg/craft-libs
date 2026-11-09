@@ -1,5 +1,6 @@
 //! A measuring run delivers nothing and consumes nothing: what the real run after it needs is still there.
 
+mod app_window;
 mod record;
 
 use crate::body::kit::Slab;
