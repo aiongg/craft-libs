@@ -435,34 +435,18 @@ fn text_the_field_rejects_refuses_ok() {
     assert_eq!(*answered.borrow(), None, "a Top that is not a length keeps the dialog open");
 }
 
-/// The lines of wheel that scroll the paper list once, and the most steps the trial takes to reach its end.
-const WHEEL_STEP: f32 = 3.0;
-const MOST_WHEEL_STEPS: usize = 20;
-
 #[trial]
 fn custom_size_stays_chosen_while_the_numbers_match_a_paper() {
     let (mut fixture, _, _) = dialog(PageSetup::default());
     let paper = fixture.by_label("Paper size").expect("the paper list");
     fixture.click(&paper);
     fixture.idle(2);
-    // The list shows the papers that fit its height; the wheel brings the last entry, Custom size, into view.
-    let list = fixture.by_role(craft_ui::contract::Role::LIST_BOX).into_iter().next().expect("the open list").rect.center();
-    for _ in 0..MOST_WHEEL_STEPS {
-        if fixture.by_label("Custom size").is_some() {
-            break;
-        }
-        fixture.frame(vec![egui::Event::PointerMoved(list)]);
-        fixture.frame(vec![egui::Event::MouseWheel {
-            unit: egui::MouseWheelUnit::Line,
-            delta: vec2(0.0, -WHEEL_STEP),
-            modifiers: Modifiers::NONE,
-            phase: egui::TouchPhase::Move,
-            source: egui::MouseWheelSource::Unknown,
-        }]);
-        fixture.idle(1);
-    }
-    let custom = fixture.by_label("Custom size").expect("the Custom size row");
-    fixture.click(&custom);
+    eprintln!("DBG open focus {:?} lists {}", fixture.focused_stop(), fixture.by_role(craft_ui::contract::Role::LIST_BOX).len());
+    // The list shows the papers that fit its height, so the last entry, Custom size, is reached with End.
+    fixture.key(Key::End, Modifiers::NONE);
+    eprintln!("DBG end focus {:?}", fixture.focused_stop());
+    fixture.key(Key::Enter, Modifiers::NONE);
+    eprintln!("DBG enter focus {:?}", fixture.focused_stop());
     fixture.idle(2);
     let paper = fixture.by_label("Paper size").expect("the paper list");
     assert_eq!(fixture.tree().value_of(paper.node), Some("Custom size"), "the size is still Letter's");
