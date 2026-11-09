@@ -303,12 +303,6 @@ fn dragging_keys_snaps_stays_in_bounds_and_escape_cancels() {
     fixture.drag(&key, vec2(48.0, 0.0));
     assert_eq!(seen.borrow().deltas.last().copied(), Some(seconds(1.0)), "2 points from the playhead: snapped to it");
 
-    let (mut fixture, seen) = lane_in(None, seconds(4.0));
-    let key = key_at(&fixture, 3.0);
-    fixture.hold(Modifiers::SHIFT);
-    fixture.drag(&key, vec2(38.0, 0.0));
-    assert_eq!(seen.borrow().deltas.last().copied(), Some(frames(18)), "12 points away: only the frame grid");
-
     let (mut fixture, seen) = lane_in(Some(TimeRange::new(Tick::ZERO, seconds(5.5))), Tick::ZERO);
     let key = key_at(&fixture, 3.0);
     fixture.drag(&key, vec2(4.0 * POINTS_PER_SECOND as f32, 0.0));

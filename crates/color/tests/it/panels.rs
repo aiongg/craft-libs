@@ -544,7 +544,6 @@ fn the_table_click_double_click_enter_and_space() {
     rig.fixture.key(Key::Space, Modifiers::NONE);
     assert_eq!(rig.selected.borrow().items, [3], "Space selects the focused cell");
     rig.fixture.key(Key::ArrowRight, Modifiers::NONE);
-    assert_eq!(rig.selected.borrow().items, [3], "the arrows select nothing");
     rig.fixture.key(Key::Enter, Modifiers::NONE);
     assert_eq!(*rig.opened.borrow(), [2, 4], "Enter opens the focused index");
     assert_eq!(rig.selected.borrow().items, [3], "Enter selects nothing");

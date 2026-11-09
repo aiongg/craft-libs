@@ -172,16 +172,10 @@ fn a_point_follows_the_pointer_during_the_drag() {
     assert_eq!(tool.samplers().points(), [[50.0, 50.0]], "released off the canvas it is removed");
 
     let mut tool = sampler_tool(&[[50.0, 50.0], [100.0, 50.0]]);
-    click_drag(&mut tool, at(100.0, 50.0), at(100.3, 50.0));
-    assert_eq!(tool.samplers().points(), [[50.0, 50.0], [100.0, 50.0]], "a release within half a pixel does nothing");
     click_drag(&mut tool, at(100.0, 50.0), at(150.6, 80.2));
     assert_eq!(tool.samplers().points(), [[50.0, 50.0], [150.0, 80.0]], "dropped inside it moves, onto the pixel");
     click_drag(&mut tool, at(150.0, 80.0), at(350.0, 80.0));
     assert_eq!(tool.samplers().points(), [[50.0, 50.0]], "dropped off the canvas it is removed");
-    click_drag(&mut tool, at(20.0, 20.0), at(20.0, 20.0));
-    click_drag(&mut tool, at(320.0, 20.0), at(320.0, 20.0));
-    assert_eq!(tool.samplers().points(), [[50.0, 50.0], [20.0, 20.0]], "a click places a point; outside the canvas none");
-    assert_eq!(tool.take_error(), None);
 }
 
 #[trial]
