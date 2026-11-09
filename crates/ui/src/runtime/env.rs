@@ -371,6 +371,12 @@ pub struct Scoped {
     /// The body that encloses the scope is a content-sized column: it takes its width from its widest child that is
     /// not fill-width, so a fill-width child takes the width the others settle on and never sets it.
     pub(crate) content_column: bool,
+    /// The axes (horizontal, vertical) the enclosing body sizes from its content: a child that fills there takes its
+    /// measured size, not the room.
+    pub(crate) content: (bool, bool),
+    /// The width a `Row` body was offered this pass, before its `End` or `Center` lead narrowed the block: the room
+    /// its direct children share. Only the row's own children read it.
+    pub(crate) row_room: Option<f32>,
     /// The innermost scrolling body that encloses the scope: a collection under it owns no scroll of its own, and
     /// page and end moves a component leaves untaken go to it.
     pub(crate) scroll_owner: Option<Id>,
@@ -413,6 +419,8 @@ impl Scoped {
     pub(crate) fn start_room(&mut self) {
         self.grid = None;
         self.content_column = false;
+        self.content = (false, false);
+        self.row_room = None;
     }
 
     /// The facts the collection recorded for the item `id`.
@@ -526,6 +534,8 @@ impl Env {
                 transform: None,
                 grid: None,
                 content_column: false,
+                content: (false, false),
+                row_room: None,
                 scroll_owner: None,
                 unbounded: (false, false),
                 item: None,

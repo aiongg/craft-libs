@@ -384,7 +384,9 @@ fn stamp_alt_click_sets_the_source_and_strokes_report_events() {
     draw_plane(&mut fixture);
     app.borrow_mut().workspace.tool(VanishingTool::Stamp);
     fixture.settle();
-    let off = at(&fixture, HALF * 1.5);
+    // The canvas's far corner is off every plane, whatever the room.
+    let canvas = fixture.by_role(Role::CANVAS).into_iter().next().expect("the workspace shows a canvas");
+    let off = canvas.rect.right_bottom() - Vec2::splat(10.0);
     fixture.hold(Modifiers::ALT);
     click(&mut fixture, off);
     fixture.hold(Modifiers::NONE);

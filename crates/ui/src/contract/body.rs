@@ -537,6 +537,8 @@ pub(super) struct BodyHooks<'b> {
     reports: Vec<PlacementChange>,
     /// The host gives the container a rect of its own size: a full window, an OS viewport or a layer the user sized.
     fixed: bool,
+    /// The container is shown at a rect of the caller's: that rect is the size it was given on both axes.
+    at_rect: bool,
     /// A bottom-anchored region is following the end of its content.
     follows_end: bool,
 }
@@ -1022,6 +1024,7 @@ impl<'b> BodyHooks<'b> {
             pane_grip: None,
             reports: Vec::new(),
             fixed: false,
+            at_rect: false,
             follows_end: false,
         }
     }
@@ -1553,6 +1556,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
     fn extent(&mut self, comp: &C, ui: &Ui, at: ShowAt, _id: Id, scx: &StyleCx<'_>) -> Vec2 {
         let props = comp.props(Internal::new());
         self.room = self.mount_room(props, ui, at);
+        self.at_rect = matches!(at, ShowAt::Rect(_));
         let remembered = self.remembered.unwrap_or(Vec2::ZERO);
         let body = if self.presence.visible { Vec2::new(remembered.x, remembered.y * self.presence.t) } else { Vec2::ZERO };
         let room = self.room.x - 2.0 * pad_of(scx.tokens, props.pad);
@@ -1855,6 +1859,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 } else {
                     regions.body.width()
                 },
+                content_row: false,
                 text: resolved.label_value,
                 side,
                 help: props.help.as_ref(),
@@ -1868,22 +1873,20 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         // B3 body, if open, under the body env; the gate is read after the header changed it.
         if is_open {
             // A held fill-width container is part of the content column it sits in: its own stack is one too.
-            let content_column =
-                (self.sizing(&props) == Sizing::Content || self.held(&props, env)) && matches!(props.layout, layout::BodyLayout::Stack);
+            let (sizing, held) = (self.sizing(&props), self.held(&props, env));
+            let content_column = (sizing == Sizing::Content || held) && matches!(props.layout, layout::BodyLayout::Stack);
             let body_env = line_env.derive_local(|scoped| {
                 if props.arena {
                     scoped.arena = Some(ArenaId::new(id));
                 }
                 scoped.transform = props.transform;
                 scoped.content_column = content_column;
+                scoped.row_room = None;
+                scoped.content = (!self.at_rect && (sizing == Sizing::Content || held), !self.at_rect && sizing != Sizing::Fill);
                 match scroll {
                     Some(scroll) => {
                         scoped.scroll_owner = Some(id);
                         scoped.unbounded = (scroll.horizontal_on(), scroll.vertical_on());
-                        // A single-line row sizes to its content: a child that fills its height fills the row, not the room around it.
-                        if matches!(props.layout, layout::BodyLayout::Row { wrap: false, .. }) {
-                            scoped.unbounded.1 = true;
-                        }
                     }
                     // A container that sized an axis itself (a rect it was shown at, a fixed layer) bounds the room along it.
                     None => scoped.unbounded = (scoped.unbounded.0 && !self.room.x.is_finite(), scoped.unbounded.1 && !self.room.y.is_finite()),
