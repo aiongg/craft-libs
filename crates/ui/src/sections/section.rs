@@ -50,7 +50,7 @@ impl Outcome for SectionOutput {
 }
 
 /// The closure that fills a section's trailing header region.
-type Controls<'a> = Box<dyn FnOnce(&mut Ui, &mut BodyCx<'_>) + 'a>;
+type Controls<'a> = Box<dyn FnMut(&mut Ui, &mut BodyCx<'_>) + 'a>;
 
 /// An inline section of a panel that fills the width offered: a section-strength title row over a body, separated by
 /// a rule. The open state is the container's own (it starts open), the caller's binding, or remembered across runs
@@ -143,7 +143,7 @@ impl<'a> Section<'a> {
     /// Fills the trailing region of the header with the app's controls (a Segmented, a Select, an icon button, count
     /// text). They sit at the end edge, after the title row and its fixed actions, and take their own clicks.
     #[must_use]
-    pub fn controls(mut self, controls: impl FnOnce(&mut Ui, &mut BodyCx<'_>) + 'a) -> Self {
+    pub fn controls(mut self, controls: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'a) -> Self {
         self.update_header(|header| header.trailing(true));
         self.controls = Some(Box::new(controls));
         self
@@ -201,7 +201,7 @@ impl Container for Section<'_> {
     }
 
     fn controls(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
-        if let Some(controls) = self.controls.take() {
+        if let Some(controls) = self.controls.as_mut() {
             controls(ui, cx);
         }
     }
