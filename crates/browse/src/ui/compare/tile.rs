@@ -203,7 +203,7 @@ impl<'a> CompareTile<'a> {
                 }
                 CompareImage::None => None,
             };
-            let held = if survey { PreviewView::fitting().zoom_range(1.0..=1.0) } else { view.read(cx).unwrap_or_else(PreviewView::fitting) };
+            let held = if survey { PreviewView::fixed() } else { view.read(cx).unwrap_or_else(PreviewView::fitting) };
             let preview = match (&state, picture) {
                 (RenderState::Failed(message), _) => PreviewState::Failed(Label::from(message.clone())),
                 (RenderState::Pending(true), _) | (_, None) => PreviewState::Pending(None),

@@ -90,20 +90,27 @@ pub struct PreviewView {
     /// Whether the view follows the well: the zoom is the one that shows the whole picture in it, recomputed when the
     /// well changes. A pan or zoom leaves fit and a double click on the pane returns to it.
     pub fit: bool,
-    /// The zoom the wheel, the zoom buttons and fit stay inside. A fitted view with a one-value range is fixed: the pane
-    /// shows the whole picture at the fit zoom in whatever room it is given (no minimum size) and takes no wheel zoom.
+    /// The zoom the wheel, the zoom buttons and fit stay inside.
     pub range: RangeInclusive<f32>,
+    /// A fitted view the user cannot change (a survey tile): the pane sizes from the room it is given with no minimum,
+    /// takes no wheel zoom and ignores a double click, and the zoom steps leave the view as it is.
+    pub fixed: bool,
 }
 
 impl PreviewView {
     /// A view at `transform`, not following the well, with the default zoom range (0.125 to 8).
     pub fn new(transform: CanvasTransform) -> Self {
-        PreviewView { transform, fit: false, range: ZOOM_RANGE }
+        PreviewView { transform, fit: false, range: ZOOM_RANGE, fixed: false }
     }
 
     /// A view that follows the well.
     pub fn fitting() -> Self {
         PreviewView { fit: true, ..PreviewView::new(CanvasTransform::new(1.0, Vec2::ZERO)) }
+    }
+
+    /// A view that follows the well and cannot be changed: the whole picture in the room given, no zoom, no pan.
+    pub fn fixed() -> Self {
+        PreviewView { fixed: true, ..PreviewView::fitting() }
     }
 
     /// The same view with the zoom kept inside `range`.
@@ -115,24 +122,30 @@ impl PreviewView {
 
     /// Whether the zoom can go further in.
     pub fn can_zoom_in(&self) -> bool {
-        PreviewPane::can_zoom_in_within(self.transform, &self.range)
+        !self.fixed && PreviewPane::can_zoom_in_within(self.transform, &self.range)
     }
 
     /// Whether the zoom can go further out.
     pub fn can_zoom_out(&self) -> bool {
-        PreviewPane::can_zoom_out_within(self.transform, &self.range)
+        !self.fixed && PreviewPane::can_zoom_out_within(self.transform, &self.range)
     }
 
     /// The view one zoom level in, with the picture's centre kept in place; it no longer follows the well.
     #[must_use]
     pub fn zoomed_in(&self) -> Self {
-        PreviewView { transform: PreviewPane::zoom_in_within(self.transform, &self.range), fit: false, range: self.range.clone() }
+        if self.fixed {
+            return self.clone();
+        }
+        PreviewView { transform: PreviewPane::zoom_in_within(self.transform, &self.range), fit: false, ..self.clone() }
     }
 
     /// The view one zoom level out, with the picture's centre kept in place; it no longer follows the well.
     #[must_use]
     pub fn zoomed_out(&self) -> Self {
-        PreviewView { transform: PreviewPane::zoom_out_within(self.transform, &self.range), fit: false, range: self.range.clone() }
+        if self.fixed {
+            return self.clone();
+        }
+        PreviewView { transform: PreviewPane::zoom_out_within(self.transform, &self.range), fit: false, ..self.clone() }
     }
 }
 
@@ -241,7 +254,7 @@ impl PreviewPane<'_> {
             double_clicked: false,
             overlay: None,
             overflow: (false, false),
-            fixed: view.fit && view.range.start() >= view.range.end(),
+            fixed: view.fixed,
         }
         .label(label)
     }
@@ -292,8 +305,7 @@ impl PreviewPane<'_> {
     /// inside `range`.
     pub fn fit_view(picture: Vec2, well: Vec2, range: &RangeInclusive<f32>) -> CanvasTransform {
         let scale = if picture.x > 0.0 && picture.y > 0.0 { (well.x / picture.x).min(well.y / picture.y) } else { 1.0 };
-        let fixed = range.start() >= range.end();
-        CanvasTransform::new(if fixed { scale } else { scale.clamp(*range.start(), *range.end()) }, Vec2::ZERO)
+        CanvasTransform::new(scale.clamp(*range.start(), *range.end()), Vec2::ZERO)
     }
 
     /// The zoom levels inside `range`, ascending: its ends and the base levels between them.
@@ -410,7 +422,7 @@ impl Component for PreviewPane<'_> {
                 next.offset += delta;
                 cx.cursor(CursorIcon::Grabbing, CursorPriority::Drag);
             }
-            PressPhase::Down { start, .. } if start.clicks >= 2 => {
+            PressPhase::Down { start, .. } if start.clicks >= 2 && !self.fixed => {
                 refit = true;
                 self.double_clicked = true;
             }
