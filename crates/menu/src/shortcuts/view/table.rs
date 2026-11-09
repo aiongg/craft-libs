@@ -4,7 +4,6 @@
 use std::borrow::Cow;
 
 use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, Flow, Insets, ItemSource, Metrics, Proposal, Selection, SelectionChange, SpanLayout};
-use craft_keymap::Key;
 use craft_keymap::chord::Chord;
 use craft_keymap::keymap::{Binding, MAX_BINDINGS};
 use craft_ui::buttons::{Button, IconButton};
@@ -14,7 +13,6 @@ use craft_ui::contract::{
 };
 use craft_ui::display::{Elide, Icon, Shade, Text};
 use craft_ui::primitives::{IconSpec, Span, TextRun};
-use craft_ui::runtime::focus::{self, FocusTarget};
 use craft_ui::style::{ComponentStyle, Ink, Stateful, StyleCx, TextLook, TypeRole};
 use egui::{Pos2, Rect, Response, Ui, Vec2};
 
@@ -514,19 +512,11 @@ pub(super) fn show(ui: &mut Ui, now: f64, env: &mut Env<'_>, state: &mut DialogS
     }
     let out = table.show_items(ui, &source, &mut |key, icx| CommandRow::new(&built.lines[*key], &row_env, icx.cells()));
     drop(source);
-    let table = (out.response.ctx.clone(), out.response.id);
-    apply(env, state, now, &built.lines, out, table);
+    apply(env, state, now, &built.lines, out);
 }
 
 /// Applies what the table reported, in the order it happened.
-fn apply(
-    env: &mut Env<'_>,
-    state: &mut DialogState,
-    now: f64,
-    lines: &[Line],
-    out: CollectionResponse<usize, RowAct>,
-    table: (egui::Context, egui::Id),
-) {
+fn apply(env: &mut Env<'_>, state: &mut DialogState, now: f64, lines: &[Line], out: CollectionResponse<usize, RowAct>) {
     for event in out.events {
         match event {
             CollectionEvent::Selection(SelectionChange::Set(keys)) => {
@@ -577,12 +567,6 @@ fn apply(
                     }
                     RowAct::Chords(chords) => {
                         state.feed(env, &chords, now);
-                        // The recording cell leaves the tree, and the runtime moves focus from a removed stop to its
-                        // neighbour, a chip of the row; a chip is a row child, so the next Escape would only return
-                        // focus to the row. Focus goes to the table, where Escape reaches the dialog.
-                        if chords.contains(&Chord::plain(Key::Escape)) && !state.is_recording() {
-                            focus::request(&table.0, FocusTarget::Id(table.1));
-                        }
                     }
                     RowAct::Stopped => state.stop_recording(),
                     RowAct::Started => {
