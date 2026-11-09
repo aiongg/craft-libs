@@ -89,8 +89,8 @@ impl<'a> PrintPanel<'a> {
         ];
         let mut held = Held::new(settings);
         let mut refresh = false;
-        let shown = FieldGroup::new(words.title.clone()).enabled(!busy).show(ui, |ui, cx| {
-            let Some(before) = held.read(cx) else { return };
+        let mut shown = FieldGroup::new(words.title.clone()).enabled(!busy).show(ui, |ui, cx| {
+            let before = held.read(cx)?;
             let mut now = before.clone();
             Field::new(words.printer.clone()).id_salt("printer").show(ui, |ui, _| {
                 Row::new().show(ui, |ui, _| {
@@ -124,7 +124,11 @@ impl<'a> PrintPanel<'a> {
                     now.grayscale = on;
                 }
             });
-            if now != before {
+            (now != before).then_some((before, now))
+        });
+        // Once per pass, after the real run: the edit the body decided is written.
+        shown.settle(|cx, edit| {
+            if let Some((before, now)) = edit.take() {
                 held.write(cx, &before, now, words.title.as_str());
             }
         });
