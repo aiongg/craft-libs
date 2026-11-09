@@ -7,6 +7,7 @@ use crate::contract::{Bind, NoValue, Outcome, Props as _, Show as _, ShowContain
 use crate::layout_components::Stack;
 use crate::primitives::{Checker, Revision};
 use crate::runtime::env::{Env, Label};
+use crate::runtime::measure;
 use crate::runtime::memory::{global, with_session};
 use craft_behavior::geometry::quad::Homography;
 use craft_behavior::kurbo::{Point, Rect as Rect64};
@@ -245,21 +246,30 @@ impl<'a> FullWindowCanvas<'a> {
                 },
             );
             let output = canvas.output;
-            let mut host = ToolHost::new();
-            if let Some(momentary) = momentary.take() {
-                host = host.momentary(momentary);
-            }
-            let hosted = match tool.take() {
-                Some(tool) => host.run(ui, &output, tool),
-                None => with_session(&ui.ctx().clone(), global("craft-ui full-window canvas hand", output.response.id), |slot: &mut FallbackHand| {
-                    let hand = slot.0.get_or_insert_with(|| HandTool::new(navigation));
-                    hand.options = navigation;
-                    host.run(ui, &output, hand)
-                }),
+            // The body runs for the measuring pass and again for the real one. The tool and the momentary set are
+            // reborrowed on each run, and the host, which takes the pass's gestures and reports, runs only in the real
+            // one.
+            let hosted = if measure::active(&ui.ctx().clone()) {
+                ToolHostResponse::default()
+            } else {
+                let mut host = ToolHost::new();
+                if let Some(momentary) = momentary.as_deref_mut() {
+                    host = host.momentary(momentary);
+                }
+                match tool.as_deref_mut() {
+                    Some(tool) => host.run(ui, &output, tool),
+                    None => {
+                        with_session(&ui.ctx().clone(), global("craft-ui full-window canvas hand", output.response.id), |slot: &mut FallbackHand| {
+                            let hand = slot.0.get_or_insert_with(|| HandTool::new(navigation));
+                            hand.options = navigation;
+                            host.run(ui, &output, hand)
+                        })
+                    }
+                }
             };
             // The host's view is the tool's, else the canvas's own (the wheel, a middle-button pan, the clamp).
             let next = shown.took(hosted.view.unwrap_or_else(|| shown.view()));
-            if next != given {
+            if next != given && measure::effect(&ui.ctx().clone(), "full-window canvas view write") {
                 let event = EditEvent::set(Mixed::Same(given), next, name.clone(), None);
                 let _ = bind.write(cx, &event);
             }

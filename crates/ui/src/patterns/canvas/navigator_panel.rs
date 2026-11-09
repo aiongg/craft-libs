@@ -72,13 +72,12 @@ impl<'a> NavigatorPanel<'a> {
 
     /// Shows the panel.
     pub fn show(self, ui: &mut Ui) -> NavigatorPanelOutput {
-        let NavigatorPanel { label, mut view, document, preview, navigation, proxy, enabled } = self;
-        // The body runs once per show; the picture's painter is taken there.
-        let mut preview = Some(preview);
+        let NavigatorPanel { label, mut view, document, mut preview, navigation, proxy, enabled } = self;
         let mut change: Option<EditEvent<CanvasView>> = None;
         let shown = Stack::new().enabled(enabled).show(ui, |ui, _| {
-            let picture = preview.take().unwrap_or(NavigatorPreview::None);
-            let preview = Navigator::new(label.clone(), view.reborrowed(), document).preview(picture).navigation(navigation).proxy(proxy).show(ui);
+            // The body runs for the measuring pass and again for the real one, so each run lends the picture.
+            let preview =
+                Navigator::new(label.clone(), view.reborrowed(), document).preview(preview.reborrowed()).navigation(navigation).proxy(proxy).show(ui);
             let row = NavigatorZoomRow::new(view.reborrowed(), document).show(ui);
             for event in [preview.view.event.clone(), row.view].into_iter().flatten() {
                 change = EditEvent::fold(change.take(), event);

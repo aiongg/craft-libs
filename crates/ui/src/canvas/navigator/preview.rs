@@ -48,11 +48,11 @@ const ZOOM_KEYS: [(Chord, i32); 4] =
     [(Chord::plain(Key::Plus), 1), (Chord::plain(Key::Equals), 1), (Chord::new(Mods::SHIFT, Key::Equals), 1), (Chord::plain(Key::Minus), -1)];
 
 /// A closure that paints the document's picture into the fitted rect.
-pub struct NavigatorPaint<'a>(Box<dyn FnOnce(&ContentPainterCx<'_>, Rect) + 'a>);
+pub struct NavigatorPaint<'a>(Box<dyn FnMut(&ContentPainterCx<'_>, Rect) + 'a>);
 
 impl<'a> NavigatorPaint<'a> {
     /// A painter that draws the picture with `paint`, given the content painter and the rect the picture fills.
-    pub fn new(paint: impl FnOnce(&ContentPainterCx<'_>, Rect) + 'a) -> Self {
+    pub fn new(paint: impl FnMut(&ContentPainterCx<'_>, Rect) + 'a) -> Self {
         NavigatorPaint(Box::new(paint))
     }
 }
@@ -66,6 +66,17 @@ pub enum NavigatorPreview<'a> {
     Paint(NavigatorPaint<'a>),
     /// No picture yet: the checkerboard alone, with the proxy over it.
     None,
+}
+
+impl NavigatorPreview<'_> {
+    /// The same picture lent for one run of a body that may run more than once per pass.
+    pub fn reborrowed(&mut self) -> NavigatorPreview<'_> {
+        match self {
+            NavigatorPreview::Texture(texture) => NavigatorPreview::Texture(texture.clone()),
+            NavigatorPreview::Paint(NavigatorPaint(paint)) => NavigatorPreview::Paint(NavigatorPaint::new(move |painter, rect| paint(painter, rect))),
+            NavigatorPreview::None => NavigatorPreview::None,
+        }
+    }
 }
 
 /// The press in progress, kept between passes.
@@ -440,7 +451,7 @@ impl Component for Navigator<'_> {
                 painter.checker(fitted);
                 painter.picture(texture.id, fitted, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)));
             }
-            NavigatorPreview::Paint(NavigatorPaint(paint)) => paint(&painter, fitted),
+            NavigatorPreview::Paint(NavigatorPaint(mut paint)) => paint(&painter, fitted),
             NavigatorPreview::None => painter.checker(fitted),
         }
         let Some(view) = cx.value().copied() else { return };
