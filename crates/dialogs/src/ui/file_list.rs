@@ -285,17 +285,18 @@ struct Pass<'h> {
 
 impl Pass<'_> {
     /// The working copy, read and given the pick answer on the region that runs first.
+    /// Every load asks for the answer: a measuring run gets none, so the run that receives it puts it in the copy.
     fn load(&mut self, cx: &mut BodyCx<'_>) -> &mut FileList {
         let held = &mut self.held;
         let (_, now) = self.seen.get_or_insert_with(|| {
             let before = held.read(cx).unwrap_or_default();
             let mut now = before.clone();
-            take_answer(cx, &mut now);
             if now.selected.as_ref().is_some_and(|path| !now.files.contains(path)) {
                 now.selected = None;
             }
             (before, now)
         });
+        take_answer(cx, now);
         now
     }
 
@@ -320,9 +321,8 @@ impl Pass<'_> {
 
 /// Puts the answer of the ticket this picker kept into `now`.
 fn take_answer(cx: &mut BodyCx<'_>, now: &mut FileList) {
-    let Some(host) = cx.env.host().cloned() else { return };
     let Some((ticket, kind)) = cx.memory::<Ticket>().0 else { return };
-    let Some(picked) = host.files().take_answer(ticket) else { return };
+    let Some(picked) = cx.take_pick_answer(ticket) else { return };
     cx.memory::<Ticket>().0 = None;
     if kind == PickKind::Folder {
         if let Some(folder) = picked.paths().into_iter().next() {

@@ -83,9 +83,8 @@ impl<'a> PathField<'a> {
                 if looks && path_is_missing(path) { Validity::Warn(Message::new(not_found.clone())) } else { Validity::Ok }
             };
             let mut answered = None;
-            if let Some(host) = &host
-                && let Some(ticket) = cx.memory::<Ticket>().0
-                && let Some(picked) = host.files().take_answer(ticket)
+            if let Some(ticket) = cx.memory::<Ticket>().0
+                && let Some(picked) = cx.take_pick_answer(ticket)
             {
                 cx.memory::<Ticket>().0 = None;
                 answered = picked.first_path().map(|path| path.to_string_lossy().into_owned());
