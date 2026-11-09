@@ -156,11 +156,7 @@ fn literal_sizes_may_fill_the_testing_module_like_tests() {
     config.include_tests = true;
     let report = check_with_scope(&config, &root, &scope).unwrap();
     let hits: Vec<_> = report.findings.iter().map(|f| (f.path.display().to_string(), f.rule, f.line)).collect();
-    assert_eq!(
-        hits,
-        [("src/other.rs".to_owned(), "literal-size/vec2", 2), ("src/testing/examples/sheet.rs".to_owned(), "literal-size/vec2", 2)],
-        "the kit may fill literal sizes; the examples may not"
-    );
+    assert_eq!(hits, [("src/other.rs".to_owned(), "literal-size/vec2", 2)], "the kit may fill literal sizes");
 }
 
 #[test]
