@@ -2,6 +2,7 @@
 
 mod inert_slider;
 mod inner_picker;
+mod modal_inert;
 mod nodes;
 mod run_links;
 mod scope;

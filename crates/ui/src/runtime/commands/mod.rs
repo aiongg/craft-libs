@@ -345,6 +345,10 @@ pub fn resolve(ctx: &Context, command: impl Into<CommandRef>) -> ResolvedCommand
 
 /// Declares that a modal layer is open in some viewport, so `ModalRule::Blocked` commands do not fire outside it;
 /// `root` is the top modal layer of `viewport`, if it has one.
+pub(crate) fn modal_root(ctx: &Context, viewport: ViewportId) -> Option<Id> {
+    board::modal_root(ctx, viewport)
+}
+
 pub(crate) fn set_modal_open(ctx: &Context, open: bool, viewport: ViewportId, root: Option<Id>) {
     board::set_modal_open(ctx, open, viewport, root);
 }
