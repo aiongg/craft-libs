@@ -107,8 +107,13 @@ pub fn declare<C: Component>(cx: &mut PartsCx<'_, C>, rect: Rect, key: PartKey, 
 
 /// What the pointer did to the divider `key.at(index)` this pass.
 pub fn pointer<C: Component>(cx: &Cx<'_, C>, key: PartKey, index: u64, divider: &Divider) -> Option<Drag> {
-    let (rect, rtl) = (cx.rect, cx.flow.is_rtl());
-    match cx.part(key.at(index)).press.phase {
+    drag(cx.part(key.at(index)).press.phase, cx.rect, cx.flow.is_rtl(), divider)
+}
+
+/// What the press phase of a divider's part says the pointer did to `divider`, for a container `rect` that is
+/// mirrored for right-to-left. A body reads the phase from `BodyCx::part_press`.
+pub fn drag(phase: PressPhase, rect: Rect, rtl: bool, divider: &Divider) -> Option<Drag> {
+    match phase {
         PressPhase::DragStart { .. } => Some(Drag::Start),
         PressPhase::Drag { pos, .. } => Some(Drag::To(if divider.axis == Axis::X { logical_x(rect, rtl, pos.x) } else { pos.y })),
         PressPhase::Release { .. } => Some(Drag::Release),

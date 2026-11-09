@@ -845,6 +845,15 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
             Some(crate::layout::flow_room(ui).x).filter(|width| width.is_finite() && !(env.content_column && crate::runtime::measure::active(&ctx)))
         }
     };
+    // A body root with parts steps its press machine before its measuring run, so the body reads this pass's part
+    // presses in both runs (`BodyCx::part_press`). Step 8 finds the outcome. A member of another arena senses at step 8.
+    if !sizing
+        && shape == ShapeKind::Body
+        && (C::PARTS || hooks.declares_parts())
+        && (hooks.arena(&comp) || matches!(C::INPUT, Input::Text | Input::Editor) || env.arena.is_none())
+    {
+        sensing::sense_early(&ctx, id, resolved.enabled);
+    }
     // Sizes come from this pass: a sizing pass measures the shape from its content; in a real pass a body or item
     // shape takes what its measuring run found.
     let (extent, shown) = if sizing {
