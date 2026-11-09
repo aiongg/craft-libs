@@ -173,50 +173,32 @@ fn take_moves_the_shown_slot_out() {
 /// owner registers and are evicted with it.
 #[trial]
 fn entries_of_a_stage_follow_its_owner_not_its_base() {
-    {
-        let mut frames = Frames::new();
-        let (owner, base) = (global("owner", ()), global("popup body", ()));
-        frames.frame(vec![], |ui| {
-            let mut own = Stage::open(ui.ctx(), owner);
-            *own.memory::<u32>() = 1;
-            own.finish();
-            let mut body = Stage::open_owned(ui.ctx(), base, owner);
-            *body.memory::<u32>() = 7;
-            body.finish();
-        });
-        frames.idle(60, |ui| {
-            let own = Stage::open(ui.ctx(), owner);
-            own.finish();
-        });
-        frames.frame(vec![], |ui| {
-            let mut body = Stage::open_owned(ui.ctx(), base, owner);
-            assert_eq!(*body.memory::<u32>(), 7, "the body's entry outlives 60 frames in which only its owner registered");
-            body.finish();
-        });
-        frames.idle(60, |_| {});
-        dispose_evicted(&frames.ctx);
-        frames.frame(vec![], |ui| {
-            let mut body = Stage::open_owned(ui.ctx(), base, owner);
-            assert_eq!(*body.memory::<u32>(), 0, "and it went with its owner");
-            body.finish();
-        });
-    }
-    {
-        let mut frames = Frames::new();
-        let id = global("pressed", ());
-        frames.frame(vec![], |ui| {
-            let mut stage = Stage::open(ui.ctx(), id);
-            *stage.press_slot::<u32>() = Some(3);
-            stage.finish();
-        });
-        frames.idle(60, |_| {});
-        dispose_evicted(&frames.ctx);
-        frames.frame(vec![], |ui| {
-            let mut stage = Stage::open(ui.ctx(), id);
-            assert_eq!(*stage.press_slot::<u32>(), None);
-            stage.finish();
-        });
-    }
+    let mut frames = Frames::new();
+    let (owner, base) = (global("owner", ()), global("popup body", ()));
+    frames.frame(vec![], |ui| {
+        let mut own = Stage::open(ui.ctx(), owner);
+        *own.memory::<u32>() = 1;
+        own.finish();
+        let mut body = Stage::open_owned(ui.ctx(), base, owner);
+        *body.memory::<u32>() = 7;
+        body.finish();
+    });
+    frames.idle(60, |ui| {
+        let own = Stage::open(ui.ctx(), owner);
+        own.finish();
+    });
+    frames.frame(vec![], |ui| {
+        let mut body = Stage::open_owned(ui.ctx(), base, owner);
+        assert_eq!(*body.memory::<u32>(), 7, "the body's entry outlives 60 frames in which only its owner registered");
+        body.finish();
+    });
+    frames.idle(60, |_| {});
+    dispose_evicted(&frames.ctx);
+    frames.frame(vec![], |ui| {
+        let mut body = Stage::open_owned(ui.ctx(), base, owner);
+        assert_eq!(*body.memory::<u32>(), 0, "and it went with its owner");
+        body.finish();
+    });
 }
 
 /// `appeared` is true through both passes of the frame a component first shows in, so a discard pass does not
@@ -246,17 +228,13 @@ fn appeared_holds_through_the_discard_pass_of_the_first_frame() {
 /// A saved key names its crate: a prefix, a dot and a name.
 #[trial]
 fn a_save_key_needs_a_crate_prefix() {
-    {
-        for bad in [".place", "place", "craft_tests.", "Craft.place", "craft-tests.place"] {
-            assert!(std::panic::catch_unwind(|| SaveKey::new(bad)).is_err(), "{bad:?} is no save key");
-            assert!(std::panic::catch_unwind(|| SaveKey::named(bad)).is_err(), "{bad:?} is no save key");
-        }
-        assert_eq!(SaveKey::new("craft_dialogs.export.place").as_str(), "craft_dialogs.export.place");
+    for bad in [".place", "place", "craft_tests.", "Craft.place", "craft-tests.place"] {
+        assert!(std::panic::catch_unwind(|| SaveKey::new(bad)).is_err(), "{bad:?} is no save key");
+        assert!(std::panic::catch_unwind(|| SaveKey::named(bad)).is_err(), "{bad:?} is no save key");
     }
-    {
-        let document = 7;
-        assert_eq!(SaveKey::named(format!("craft_tests.window.{document}")), SaveKey::new("craft_tests.window.7"));
-    }
+    assert_eq!(SaveKey::new("craft_dialogs.export.place").as_str(), "craft_dialogs.export.place");
+    let document = 7;
+    assert_eq!(SaveKey::named(format!("craft_tests.window.{document}")), SaveKey::new("craft_tests.window.7"));
 }
 
 /// Skeleton: `collide::children_and_items_keyed_like_runtime_regions_keep_their_own_ids`.

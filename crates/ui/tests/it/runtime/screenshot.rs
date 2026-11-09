@@ -21,107 +21,77 @@ fn observe_repaints(ctx: &Context) -> Arc<Mutex<Vec<ViewportId>>> {
 
 #[trial]
 fn callback_clones_share_one_completion_and_take_is_single_use() {
-    {
-        let ctx = Context::default();
-        let (slot, callback) = ScreenshotSlot::detached(&ctx, ViewportId::ROOT, 1024);
-        let duplicate = callback.clone();
-        let first_image = image([1, 1]);
-        let second_image = image([1, 1]);
-        let weak_loser = Arc::downgrade(&second_image);
+    let ctx = Context::default();
+    let (slot, callback) = ScreenshotSlot::detached(&ctx, ViewportId::ROOT, 1024);
+    assert!(slot.take().is_none(), "nothing to take before a completion");
+    let duplicate = callback.clone();
+    let first_image = image([1, 1]);
+    let second_image = image([1, 1]);
+    let weak_loser = Arc::downgrade(&second_image);
 
-        callback.complete(first_image.clone());
-        duplicate.complete(second_image);
-        assert!(weak_loser.upgrade().is_none(), "the losing completion releases its image");
+    callback.complete(first_image.clone());
+    duplicate.complete(second_image);
+    assert!(weak_loser.upgrade().is_none(), "the losing completion releases its image");
 
-        let taken = slot.take().unwrap().unwrap();
-        assert!(Arc::ptr_eq(&taken, &first_image), "the first completion wins");
-        assert!(slot.take().is_none(), "the result is taken once");
-    }
-    {
-        let ctx = Context::default();
-        let (slot, callback) = ScreenshotSlot::detached(&ctx, ViewportId::ROOT, 1024);
-        assert!(slot.take().is_none());
-        let expected = image([1, 1]);
-        callback.complete(expected.clone());
-        assert!(Arc::ptr_eq(&slot.take().unwrap().unwrap(), &expected));
-    }
+    let taken = slot.take().unwrap().unwrap();
+    assert!(Arc::ptr_eq(&taken, &first_image), "the first completion wins");
+    assert!(slot.take().is_none(), "the result is taken once");
 }
 
 #[trial]
 fn cancel_releases_late_images_without_waking() {
-    {
+    for cancel in [true, false] {
         let ctx = Context::default();
         let requests = observe_repaints(&ctx);
-        let (slot, callback) = ScreenshotSlot::detached(&ctx, ViewportId::from_hash_of("cancelled-window"), 1024);
-        slot.cancel();
-
+        let (slot, callback) = ScreenshotSlot::detached(&ctx, ViewportId::from_hash_of("window"), 1024);
+        if cancel {
+            slot.cancel();
+        } else {
+            drop(slot);
+        }
         let late_image = image([2, 2]);
         let weak_image = Arc::downgrade(&late_image);
         callback.complete(late_image.clone());
         drop(late_image);
-
-        assert!(weak_image.upgrade().is_none(), "a cancelled slot releases the late image");
-        assert!(slot.take().is_none());
-        assert!(requests.lock().unwrap().is_empty(), "cancellation suppresses the wakeup");
+        assert!(weak_image.upgrade().is_none(), "a cancelled or dropped slot releases a late image (cancel: {cancel})");
+        assert!(requests.lock().unwrap().is_empty(), "a late result does not wake the viewport (cancel: {cancel})");
     }
-    {
-        let ctx = Context::default();
-        let (slot, callback) = ScreenshotSlot::detached(&ctx, ViewportId::ROOT, 1024);
-        let completed = image([2, 2]);
-        callback.complete(completed.clone());
-        let weak_image = Arc::downgrade(&completed);
-        drop(completed);
-        assert!(weak_image.upgrade().is_some(), "the slot retains the completed image");
 
-        drop(slot);
-        assert!(weak_image.upgrade().is_none(), "dropping the slot releases its image");
-    }
-    {
-        let ctx = Context::default();
-        let requests = observe_repaints(&ctx);
-        let (slot, callback) = ScreenshotSlot::detached(&ctx, ViewportId::ROOT, 1024);
-        drop(slot);
-
-        let late_image = image([1, 1]);
-        let weak_image = Arc::downgrade(&late_image);
-        callback.complete(late_image.clone());
-        drop(late_image);
-
-        assert!(weak_image.upgrade().is_none());
-        assert!(requests.lock().unwrap().is_empty(), "a late result does not wake the viewport");
-    }
+    let ctx = Context::default();
+    let (slot, callback) = ScreenshotSlot::detached(&ctx, ViewportId::ROOT, 1024);
+    let completed = image([2, 2]);
+    callback.complete(completed.clone());
+    let weak_image = Arc::downgrade(&completed);
+    drop(completed);
+    assert!(weak_image.upgrade().is_some(), "the slot retains the completed image");
+    drop(slot);
+    assert!(weak_image.upgrade().is_none(), "dropping the slot releases its image");
 }
 
 #[trial]
 fn rejects_oversized_malformed_and_overflowing_images() {
-    {
-        let ctx = Context::default();
+    let ctx = Context::default();
 
-        let (slot, callback) = ScreenshotSlot::detached(&ctx, ViewportId::ROOT, 16);
-        callback.complete(image([3, 3]));
-        assert!(matches!(slot.take(), Some(Err(ScreenshotError::ImageTooLarge { bytes: 36, max_bytes: 16, .. }))));
-        assert!(slot.take().is_none(), "a completion error is reported once");
+    let (slot, callback) = ScreenshotSlot::detached(&ctx, ViewportId::ROOT, 16);
+    let exact = image([2, 2]);
+    callback.complete(exact.clone());
+    assert!(Arc::ptr_eq(&slot.take().unwrap().unwrap(), &exact), "an image at the byte limit is accepted");
 
+    let (slot, callback) = ScreenshotSlot::detached(&ctx, ViewportId::ROOT, 16);
+    callback.complete(image([3, 3]));
+    assert!(matches!(slot.take(), Some(Err(ScreenshotError::ImageTooLarge { bytes: 36, max_bytes: 16, .. }))));
+    assert!(slot.take().is_none(), "a completion error is reported once");
+
+    let (slot, callback) = ScreenshotSlot::detached(&ctx, ViewportId::ROOT, 1024);
+    callback.complete(Arc::new(ColorImage { size: [2, 2], source_size: egui::Vec2::ZERO, pixels: vec![Color32::default(); 3] }));
+    assert!(matches!(slot.take(), Some(Err(ScreenshotError::MalformedImage { width: 2, height: 2, pixels: 3, .. }))));
+
+    // The pixel count overflows, or fits while the byte count does not.
+    for width in [usize::MAX, usize::MAX / 2] {
+        let height = if width == usize::MAX { 2 } else { 1 };
         let (slot, callback) = ScreenshotSlot::detached(&ctx, ViewportId::ROOT, 1024);
-        callback.complete(Arc::new(ColorImage { size: [2, 2], source_size: egui::Vec2::ZERO, pixels: vec![Color32::default(); 3] }));
-        assert!(matches!(slot.take(), Some(Err(ScreenshotError::MalformedImage { width: 2, height: 2, pixels: 3, .. }))));
-
-        let (slot, callback) = ScreenshotSlot::detached(&ctx, ViewportId::ROOT, 1024);
-        callback.complete(Arc::new(ColorImage { size: [usize::MAX, 2], source_size: egui::Vec2::ZERO, pixels: Vec::new() }));
-        assert!(matches!(slot.take(), Some(Err(ScreenshotError::DimensionsOverflow { width, height, .. })) if width == usize::MAX && height == 2));
-
-        // The pixel count fits but the byte count does not.
-        let wide = usize::MAX / 2;
-        let (slot, callback) = ScreenshotSlot::detached(&ctx, ViewportId::ROOT, 1024);
-        callback.complete(Arc::new(ColorImage { size: [wide, 1], source_size: egui::Vec2::ZERO, pixels: Vec::new() }));
-        assert!(matches!(slot.take(), Some(Err(ScreenshotError::DimensionsOverflow { width, height, .. })) if width == wide && height == 1));
-    }
-    {
-        let ctx = Context::default();
-        let (slot, callback) = ScreenshotSlot::detached(&ctx, ViewportId::ROOT, 16);
-        let exact = image([2, 2]);
-        callback.complete(exact.clone());
-        assert!(Arc::ptr_eq(&slot.take().unwrap().unwrap(), &exact));
+        callback.complete(Arc::new(ColorImage { size: [width, height], source_size: egui::Vec2::ZERO, pixels: Vec::new() }));
+        assert!(matches!(slot.take(), Some(Err(ScreenshotError::DimensionsOverflow { width: w, height: h, .. })) if w == width && h == height));
     }
 }
 

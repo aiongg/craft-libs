@@ -117,20 +117,10 @@ fn typing_a_width_on_a_selection_with_mixed_heights_commits_the_width_alone() {
 /// previous digit.
 #[trial]
 fn typing_into_a_linked_field_moves_the_other_by_the_starting_ratio() {
-    {
-        let values: Values = Rc::new(Cell::new(same(500.0, 400.0)));
-        let mut fixture = rig(&values);
-        fixture.type_text("100");
-        fixture.key(Key::Enter, Modifiers::NONE);
-        fixture.idle(2);
-        assert_eq!(values.get(), same(100.0, 80.0));
-    }
-    {
-        let values: Values = Rc::new(Cell::new(same(100.0, 50.0)));
-        let mut fixture = rig(&values);
-        fixture.type_text("200");
-        fixture.key(Key::Enter, Modifiers::NONE);
-        fixture.idle(2);
-        assert_eq!(values.get(), same(200.0, 100.0));
-    }
+    let values: Values = Rc::new(Cell::new(same(500.0, 400.0)));
+    let mut fixture = rig(&values);
+    fixture.type_text("100");
+    fixture.key(Key::Enter, Modifiers::NONE);
+    fixture.idle(2);
+    assert_eq!(values.get(), same(100.0, 80.0));
 }

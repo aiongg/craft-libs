@@ -71,26 +71,20 @@ fn the_escape_an_emptied_search_field_passes_on_reaches_its_body() {
     assert!(open.get(), "the body took it, so the dialog did not close");
 }
 
-/// Cmd+Enter (Ctrl+Enter off macOS) submits a multi-line field that submits and adds no line; Enter adds a line and
-/// does not submit.
+/// Cmd+Enter (Ctrl+Enter off macOS) submits a multi-line field that submits and adds no line; on a field that does not
+/// submit it does nothing; Enter adds a line and does not submit.
 #[trial]
 fn cmd_enter_submits_only_a_multi_line_field_that_submits() {
-    {
-        for os in [Os::Linux, Os::Mac] {
-            let (mut fixture, text, submitted) = focused_field(os, |field| field.lines(3).submits());
-            fixture.key(Key::Enter, Modifiers::COMMAND).idle(3);
-            assert_eq!(submitted.get().map(|mods| mods.cmd), Some(true), "{os:?}: Cmd+Enter submits");
-            assert_eq!(*text.borrow(), "hi", "{os:?}: Cmd+Enter adds no line break");
+    for (os, submits) in [(Os::Linux, true), (Os::Mac, true), (Os::Linux, false)] {
+        let (mut fixture, text, submitted) = focused_field(os, |field| if submits { field.lines(3).submits() } else { field.lines(3) });
+        fixture.key(Key::Enter, Modifiers::COMMAND).idle(3);
+        assert_eq!(submitted.get().map(|mods| mods.cmd), submits.then_some(true), "{os:?}, submits {submits}: Cmd+Enter");
+        assert_eq!(*text.borrow(), "hi", "{os:?}: Cmd+Enter adds no line break");
+        if submits {
             submitted.set(None);
             fixture.key(Key::Enter, Modifiers::NONE).idle(3);
             assert_eq!(submitted.get(), None, "{os:?}: Enter does not submit");
             assert!(text.borrow().contains('\n'), "{os:?}: Enter adds a line");
         }
-    }
-    {
-        let (mut fixture, text, submitted) = focused_field(Os::Linux, |field| field.lines(3));
-        fixture.key(Key::Enter, Modifiers::COMMAND).idle(3);
-        assert_eq!(submitted.get(), None, "no submit");
-        assert_eq!(*text.borrow(), "hi", "and no line break");
     }
 }
