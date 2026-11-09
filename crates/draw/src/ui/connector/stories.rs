@@ -37,7 +37,13 @@ fn connector_glued_at_both_ends(ui: &mut Ui, data: &mut StoryData) -> StoryOutpu
     let targets = targets();
     let item = data.value(
         "item",
-        ConnectorItem { id: 9, from: ConnectorEnd::Glued { target: 1, side: ConnectionSide::Right, site: None, at: Some([1.0, 0.5]) }, to: glued(2, ConnectionSide::Left), routing: Routing::Elbow, path: None },
+        ConnectorItem {
+            id: 9,
+            from: ConnectorEnd::Glued { target: 1, side: ConnectionSide::Right, site: None, at: Some([1.0, 0.5]) },
+            to: glued(2, ConnectionSide::Left),
+            routing: Routing::Elbow,
+            path: None,
+        },
     );
     on_canvas(ui, ConnectorHandles::new("Connector", Bind::bound(&mut *item), &targets))
 }
