@@ -23,6 +23,12 @@ pub fn take_reveal(ctx: &Context, owner: Id) -> Option<egui::Rect> {
     crate::contract::take_reveal(ctx, owner)
 }
 
+/// Queues a reveal of `rect` for the scroll owner `owner`, as a component that asked for it leaves it for the owner's
+/// next pass.
+pub fn queue_reveal(ctx: &Context, owner: Id, rect: egui::Rect) {
+    crate::contract::queue_reveal(ctx, owner, rect);
+}
+
 /// An edit response with no event, for a trial component that has no `cx.edit_response()` to call.
 pub fn edit_response<T>(response: egui::Response) -> crate::contract::EditResponse<T> {
     crate::contract::EditResponse::new(response, None, crate::contract::Validity::Ok)

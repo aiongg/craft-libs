@@ -17,6 +17,9 @@ impl<K> Default for RenameRequests<K> {
 /// key. A request for a key the source lacks, or for a collection that cannot rename the item, is dropped. A second
 /// request for the same collection replaces the first.
 pub fn request_rename<K: Clone + Send + Sync + 'static>(ctx: &Context, collection: Id, key: &K) {
+    if !crate::runtime::measure::effect(ctx, "request_rename") {
+        return;
+    }
     store::Service::<RenameRequests<K>>::run(ctx, |requests| {
         requests.0.retain(|(id, _)| *id != collection);
         requests.0.push((collection, key.clone()));

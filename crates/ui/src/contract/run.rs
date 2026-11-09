@@ -236,7 +236,7 @@ impl<C: Component> ShapeHooks<C> for LeafHooks {
     fn content(&mut self, _: &mut C, _: &mut Ui, _: &Env, _: &mut Cx<'_, C>, _: &AppValues) {}
 
     fn read(&mut self, _: &mut C, stage: &mut MemoryStage, id: Id, _: &Env) {
-        if let Some(scope) = self.scope {
+        if let Some(scope) = self.scope.filter(|_| !stage.is_peek()) {
             commands::register_instance(stage.ctx(), scope, id);
         }
     }
@@ -812,7 +812,8 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
     // 4 value
     let value = steps::value(&mut comp, &mut stage, id, step1.command.as_deref());
     let (shown, mixed) = (value.value, value.mixed);
-    let cancelled: Vec<_> = value.cancelled.into_iter().collect();
+    // A sizing pass reads the cancel and ends nothing: its stage is a copy, and the real run reads the cancel again.
+    let cancelled: Vec<_> = value.cancelled.into_iter().filter(|_| !sizing).collect();
     hooks.read(&mut comp, &mut stage, id, &env);
     let own_env = hooks.instance_scope(&comp).map(|scope| env.derive_local(|scoped| scoped.commands = scoped.commands.pushed(scope, id)));
     let env = own_env.as_ref().unwrap_or(&env);
@@ -995,7 +996,7 @@ fn measured_extent<C: Component>(
     let response = steps::inert_response(at.ui, at.resolved.id);
     let core = blank_core(at.env.view(), at.resolved, stage, at.ui.ctx().clone(), at.env.ink, response, at.command.clone());
     let mut cx = Cx::<C> { core, style, shown, mixed: false, events: Vec::new(), applied: 0, validity: Validity::Ok };
-    let extent = hooks.measured_extent(comp, at, &mut cx);
+    let extent = crate::runtime::measure::run(at.ui.ctx(), || hooks.measured_extent(comp, at, &mut cx));
     (extent, cx.shown.take())
 }
 

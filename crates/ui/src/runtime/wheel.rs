@@ -100,6 +100,13 @@ pub(crate) fn begin(ctx: &Context) {
     });
 }
 
+/// The component's share of this pass's wheel, left in place.
+pub(crate) fn peek(ctx: &Context, id: Id) -> Option<Wheel> {
+    PerViewport::<State>::with(ctx, pass::current_viewport(ctx), |state| {
+        state.shares.iter().find(|(owner, _)| *owner == id).map(|share| share.1.clone())
+    })
+}
+
 /// The component's share of this pass's wheel, once.
 pub(crate) fn take(ctx: &Context, id: Id) -> Option<Wheel> {
     PerViewport::<State>::with(ctx, pass::current_viewport(ctx), |state| {

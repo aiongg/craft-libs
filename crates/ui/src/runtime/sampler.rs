@@ -102,6 +102,9 @@ struct Registry {
 /// Registers `canvas` with `reach` for the modal layer whose body is running. `Cx::arm_sampler` and
 /// `Cx::keep_view_open` (contract layer) call it.
 pub(crate) fn register(ctx: &Context, canvas: Id, reach: Reach) {
+    if !crate::runtime::measure::effect(ctx, "sampler::register") {
+        return;
+    }
     let now = pass::root_frame_nr(ctx);
     let modal = overlay::modal_drawing(ctx);
     Service::<Registry>::run(ctx, |registry| {

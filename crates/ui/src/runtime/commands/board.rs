@@ -431,7 +431,7 @@ pub(crate) fn fire_bound(ctx: &Context, command: &ResolvedCommand) {
 
 /// Queues `command` for its instance with `source`; false when disabled.
 pub(crate) fn fire_resolved(ctx: &Context, command: &ResolvedCommand, source: FireSource) -> bool {
-    if !command.enabled {
+    if !command.enabled || !crate::runtime::measure::effect(ctx, "board::fire_resolved") {
         return false;
     }
     queue(

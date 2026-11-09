@@ -1115,6 +1115,17 @@ pub(crate) fn take_reveal(ctx: &Context, owner: Id) -> Option<Rect> {
     })
 }
 
+/// Queues a reveal request for `owner`.
+#[cfg(feature = "testing")]
+pub(crate) fn queue_reveal(ctx: &Context, owner: Id, rect: Rect) {
+    store::Service::<Reveals>::run(ctx, |reveals| reveals.0.push(Reveal { owner, rect }));
+}
+
+/// The reveal request addressed to `owner`, left queued.
+pub(crate) fn peek_reveal(ctx: &Context, owner: Id) -> Option<Rect> {
+    store::Service::<Reveals>::run(ctx, |reveals| reveals.0.iter().find(|reveal| reveal.owner == owner).map(|reveal| reveal.rect))
+}
+
 /// A page or end move a focused component left untaken, addressed to the scroll owner around it (9.2 rule 5).
 #[derive(Default)]
 struct ScrollMoves(Vec<(Id, NavMove)>);
@@ -1126,6 +1137,11 @@ pub(crate) fn take_scroll_moves(ctx: &Context, owner: Id) -> Vec<NavMove> {
         moves.0 = rest;
         mine.into_iter().map(|(_, mv)| mv).collect()
     })
+}
+
+/// The scroll moves addressed to `owner`, left queued.
+pub(crate) fn peek_scroll_moves(ctx: &Context, owner: Id) -> Vec<NavMove> {
+    store::Service::<ScrollMoves>::run(ctx, |moves| moves.0.iter().filter(|(id, _)| *id == owner).map(|(_, mv)| *mv).collect())
 }
 
 /// Step 15, settle: child edits adopted with `cx.adopt` join the pass's events and are applied, and the open state of the
