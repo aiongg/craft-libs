@@ -525,7 +525,10 @@ fn toggle_events<Id: Clone + PartialEq>(
     let ending = matches!(edit, EditEvent::Commit { .. } | EditEvent::Cancel { .. });
     let Some(step) = sweeps.of(column).feed(&edit) else {
         // The first cell of a sweep opens its gesture; the cells after it join that one.
+        // An Alt eye sweep only shows one layer: it has no gesture to report.
+        let shows_only = column == LayerColumn::Visibility;
         if let EditEvent::Begin { before: Mixed::Same(before), .. } = &edit
+            && !(shows_only && before.mods.alt)
             && running.is_none()
             && let Some(gesture) = sweeps.of(column).gesture()
         {
@@ -533,6 +536,7 @@ fn toggle_events<Id: Clone + PartialEq>(
             push_cell(events, Some(gesture), before.key.clone(), column, begin);
         }
         if let EditEvent::Commit { before: Mixed::Same(before), after, .. } = &edit
+            && !(shows_only && after.mods.alt)
             && let Some(gesture) = running
         {
             let commit = EditEvent::commit(gesture, Mixed::Same(before.on), after.on);
