@@ -179,6 +179,8 @@ struct Collected {
     mode_pick: Option<AreaMode>,
     /// The Only Web Colors check box was set to this.
     web_pick: Option<bool>,
+    /// The picker held no colour when the pass began: its edits begin from Mixed.
+    empty: bool,
 }
 
 impl Collected {
@@ -186,7 +188,7 @@ impl Collected {
     /// the colour the pass showed.
     fn adopt<V: Value>(&mut self, edit: EditResponse<V>, shown: PickedColor, map: impl FnOnce(&V, &mut PickedColor)) {
         let Some(event) = edit.event.as_ref() else { return };
-        let before = Mixed::Same(shown);
+        let before = if self.empty { Mixed::Mixed } else { Mixed::Same(shown) };
         let made = |value: &V| {
             let mut colour = shown;
             map(value, &mut colour);
@@ -208,6 +210,9 @@ impl Collected {
 #[derive(Clone)]
 struct Pass<'a> {
     shown: PickedColor,
+    /// The bound value is Mixed: no colour yet. The fields and the new half of the compare swatch show Mixed until the
+    /// first edit; `shown` is the base the edit starts from.
+    empty: bool,
     rules: Rules<'a>,
     mode: AreaMode,
     /// The model of the Compact rows.
@@ -216,6 +221,13 @@ struct Pass<'a> {
     web: bool,
     /// Whether the hex field takes the focus in this pass: the Full layout's first show.
     focus_hex: bool,
+}
+
+impl Pass<'_> {
+    /// `value`, or Mixed while the picker holds no colour yet.
+    fn shows<T>(&self, value: T) -> Mixed<T> {
+        if self.empty { Mixed::Mixed } else { Mixed::Same(value) }
+    }
 }
 
 /// A colour picker's body: a [`ColorArea`](super::ColorArea) and a [`ColorStrip`](super::ColorStrip), the channel
@@ -272,8 +284,8 @@ pub struct ColorPicker<'a> {
     eyedropper_busy: bool,
     /// The Full layout's compare swatch: the colour being edited over this one, the colour the host started from; a
     /// click on it sets it again.
-    #[prop]
-    compare: Option<Srgba>,
+    #[prop(into)]
+    compare: Option<Mixed<Srgba>>,
     warnings: Vec<ColorWarning>,
     /// Applied to every colour before it is reported, after Only Web Colors' snap.
     #[prop(func = "Fn(Srgba) -> Srgba")]
@@ -392,6 +404,7 @@ impl<'a> ColorPicker<'a> {
             focus_on_open,
             parts: &parts,
             latest: PickedColor::rgb(Srgba::BLACK),
+            empty: false,
             events: Vec::new(),
         };
         let shown = Stack::new().label(label).show(ui, |ui, body| run.show(ui, body));
@@ -416,6 +429,8 @@ struct Run<'s, 'a> {
     parts: &'s compact::Body<'a>,
     /// The colour after the edits landed so far.
     latest: PickedColor,
+    /// No edit has landed on a colour-less picker yet.
+    empty: bool,
     /// The edits landed, in order.
     events: Vec<EditEvent<PickedColor>>,
 }
@@ -447,14 +462,17 @@ impl<'a> Run<'_, 'a> {
             memo.opened = true;
         }
         let focus_hex = self.full && self.focus_on_open && first_show && body.resolved.enabled;
-        self.latest = self.value.read(&mut *body).and_then(|held| held.same().copied()).unwrap_or(PickedColor::rgb(Srgba::BLACK));
+        let held = self.value.read(&mut *body).and_then(|held| held.same().copied());
+        let empty = held.is_none();
+        self.empty = empty;
+        self.latest = held.unwrap_or(PickedColor::rgb(Srgba::BLACK));
         if let Some(color) = self.sampled {
             let next = self.latest.with_color(color.with_alpha(self.latest.color.a), &rules);
             self.set(body, next);
         }
 
-        let pass = Pass { shown: self.latest, rules: rules.clone(), mode, model, web: held_web, focus_hex };
-        let mut got = Collected::default();
+        let pass = Pass { shown: self.latest, empty, rules: rules.clone(), mode, model, web: held_web, focus_hex };
+        let mut got = Collected { empty, ..Collected::default() };
         self.parts.run(ui, &pass, &mut got);
 
         for edit in got.edits {
@@ -511,6 +529,7 @@ impl<'a> Run<'_, 'a> {
             _ => {}
         }
         let _ = self.value.write(&mut *body, &event);
+        self.empty = false;
         self.events.push(event);
     }
 
@@ -519,7 +538,8 @@ impl<'a> Run<'_, 'a> {
         if next == self.latest {
             return;
         }
-        let event = EditEvent::set(Mixed::Same(self.latest), next, self.name.clone(), None);
+        let before = if self.empty { Mixed::Mixed } else { Mixed::Same(self.latest) };
+        let event = EditEvent::set(before, next, self.name.clone(), None);
         self.land(body, event);
     }
 

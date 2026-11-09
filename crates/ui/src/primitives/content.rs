@@ -85,6 +85,7 @@ impl<'a> ContentPainterCx<'a> {
             painter: super::draw::faded_painter(&self.painter, share),
             tokens: self.tokens,
             direction: self.direction,
+            env: self.env,
             ink: self.ink,
         };
         paint(&faded);

@@ -683,7 +683,7 @@ new = "eyedropper_busy(bool)"
 [[setter]]
 type = "ColorPicker"
 old = "compare(Srgba)"
-new = "compare(Srgba)"
+new = "compare(impl Into<Mixed<Srgba>>)"
 
 [[setter]]
 type = "ColorPicker"

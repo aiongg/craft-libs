@@ -333,8 +333,8 @@ fn a_canvas_sample_sets_the_new_colour_while_on_top() {
     assert_eq!(request.key, "foreground");
     rig.app.borrow_mut().dialog.requests().answer_eyedropper("foreground", sampled);
     rig.fx.settle();
-    assert_eq!(rig.app.borrow().dialog.current().color, sampled, "the sample is the new colour");
-    assert_eq!(rig.app.borrow().dialog.opening().color, FOREGROUND, "the compare swatch keeps the opening colour");
+    assert_eq!(rig.app.borrow().dialog.current().map(|picked| picked.color), Some(sampled), "the sample is the new colour");
+    assert_eq!(rig.app.borrow().dialog.opening().map(|picked| picked.color), Some(FOREGROUND), "the compare swatch keeps the opening colour");
 }
 
 #[trial]
@@ -350,8 +350,8 @@ fn set_color_and_confirm_answer_ok_with_the_colour() {
     let mut dialog = ColorPickerDialog::new("fill", "Fill", FOREGROUND).web_colors_remembered(false);
     let set = PickedColor::rgb(Srgba::rgb(0.5, 0.5, 0.0));
     dialog.set_color(set);
-    assert_eq!(dialog.current(), set);
-    assert_eq!(dialog.opening().color, FOREGROUND, "the opening colour stays");
+    assert_eq!(dialog.current(), Some(set));
+    assert_eq!(dialog.opening().map(|picked| picked.color), Some(FOREGROUND), "the opening colour stays");
     let result = dialog.confirm(&Context::default()).expect("confirm answers");
     assert_eq!((result.key.as_str(), result.picked), ("fill", set));
 }
@@ -360,7 +360,7 @@ fn set_color_and_confirm_answer_ok_with_the_colour() {
 fn typed_cmyk_inks_come_back_in_the_result() {
     let inks = ModelValues::new("cmyk", &[10.0, 20.0, 30.0, 40.0]);
     let mut dialog = ColorPickerDialog::new("fill", "Fill", FOREGROUND).web_colors_remembered(false).kept(inks);
-    assert_eq!(dialog.opening().model, Some(inks), "the kept model values open the dialog");
+    assert_eq!(dialog.opening().and_then(|picked| picked.model), Some(inks), "the kept model values open the dialog");
     let result = dialog.confirm(&Context::default()).expect("confirm answers");
     assert_eq!(result.picked.model, Some(inks), "the inks the colour was picked in come back");
 }
@@ -419,4 +419,48 @@ fn a_picked_color_answers_without_capture_windows() {
     pick.tick_with(&ctx, 1, &|| Box::new(StillCapture::color(Srgba::rgb(0.25, 0.5, 0.75))));
     assert_eq!(pick.take("fill"), Some(Srgba::rgb(0.25, 0.5, 0.75)));
     assert!(pick.take_notice(&Words::english().set::<craft_color::ui::ScreenPickerWords>()).is_none());
+}
+
+/// A request from a Mixed swatch carries no colour: the dialog opens with empty channel fields and OK disabled, a typed
+/// value sets the colour, fills the other fields and enables OK, and OK answers with that colour.
+#[trial]
+fn a_request_without_a_colour_opens_empty_until_the_first_pick() {
+    let request = craft_ui::runtime::requests::ColorRequest::new("fills", None).title("Fills");
+    let mut rig = rig(ColorPickerDialog::from_request(request).web_colors_remembered(false));
+    let values = |rig: &Rig| -> Vec<String> {
+        let tree = rig.fx.tree();
+        tree.keys().into_iter().filter_map(|key| tree.value_of(key).map(str::to_owned)).collect()
+    };
+    let ok = rig.fx.by_label("OK").expect("OK").node;
+    assert!(rig.fx.tree().is_disabled_key(ok), "OK waits for a colour");
+    assert!(rig.app.borrow().dialog.current().is_none(), "no colour yet");
+    assert!(values(&rig).iter().any(|text| text == "Mixed"), "the new swatch shows Mixed: {:?}", values(&rig));
+    assert!(!values(&rig).iter().any(|text| text == "000000"), "the hex field is empty, not black");
+
+    let hex = rig.fx.by_label("Hex color").expect("the hex field");
+    rig.fx.click(&hex);
+    rig.fx.key(Key::A, Modifiers::COMMAND);
+    rig.fx.type_text("336699");
+    rig.fx.key(Key::Tab, Modifiers::NONE);
+    rig.fx.settle();
+    assert!(values(&rig).iter().any(|text| text == "51"), "the other fields show the colour: {:?}", values(&rig));
+    let ok = rig.fx.by_label("OK").expect("OK").node;
+    assert!(!rig.fx.tree().is_disabled_key(ok), "OK takes the colour");
+    rig.click("OK");
+    match rig.result() {
+        Some(DialogResult::Ok(ColorPickerResult { key, picked, .. })) => {
+            assert_eq!((key.as_str(), picked.color.to_rgba().0[..3].to_vec()), ("fills", vec![0x33, 0x66, 0x99]));
+        }
+        other => panic!("OK answers the typed colour: {other:?}"),
+    }
+}
+
+/// Cancel works while the dialog holds no colour.
+#[trial]
+fn a_dialog_without_a_colour_cancels() {
+    let request = craft_ui::runtime::requests::ColorRequest::new("fills", None);
+    let mut rig = rig(ColorPickerDialog::from_request(request).web_colors_remembered(false));
+    rig.fx.key(Key::Escape, Modifiers::NONE);
+    rig.fx.settle();
+    assert!(matches!(rig.result(), Some(DialogResult::Cancel)), "Esc cancels");
 }

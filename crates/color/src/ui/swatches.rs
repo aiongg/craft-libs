@@ -8,6 +8,7 @@ use craft_cms::convert::CmykConverter;
 use craft_i18n::Format;
 use craft_theme::Srgba;
 use craft_theme::variant::Tone;
+use craft_ui::choice::SwatchFace;
 use craft_ui::contract::{Bind, CommandSet, Held, NoValue, Outcome, Pattern, ReorderMove, ShowContainer as _, request_rename};
 use craft_ui::layout_components::Stack;
 use craft_ui::menu::PanelRow;
@@ -19,7 +20,7 @@ use craft_ui::primitives::ContentPainterCx;
 use craft_ui::runtime::commands::{CommandRef, CommandState};
 use craft_ui::runtime::env::{Count, Env};
 use craft_ui::runtime::toast::Toast;
-use egui::{Color32, CornerRadius, Rect, Response, Ui};
+use egui::{Rect, Response, Ui};
 
 use super::PickedColor;
 use crate::palette::{SwatchColor, SwatchEntry, SwatchFormat, SwatchGroup, SwatchNote, SwatchReport};
@@ -460,7 +461,7 @@ impl<'a> SwatchesPanel<'a> {
                         if let SwatchKey::Swatch(name) = info.key
                             && let Some(color) = colors.get(name.as_str())
                         {
-                            cx.painter.rect_filled(rect, CornerRadius::ZERO, Color32::from(color.to_srgb(cmyk)));
+                            SwatchFace::new(color.to_srgb(cmyk)).selected(info.selected).paint(cx, rect);
                         }
                     });
                 if let Some(key) = &st.selected {

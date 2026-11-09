@@ -319,6 +319,21 @@ fn a_swatch_is_named_with_its_value() {
     assert_eq!(rig.library.borrow().total(), 3);
 }
 
+/// The thumbnails are `SwatchFace`s: the clicked swatch reports selected through the access tree and the others do not.
+#[trial]
+fn a_swatch_thumbnail_reports_its_selection() {
+    let mut rig = SwatchesRig::new();
+    let red = rig.fixture.by_label("Red, #ff0000").expect("the swatch");
+    rig.fixture.click(&red);
+    rig.fixture.settle();
+    let selected = |rig: &SwatchesRig, label: &str| {
+        let node = rig.fixture.by_label(label).unwrap_or_else(|| panic!("no `{label}`")).node;
+        rig.fixture.tree().selected_of(node)
+    };
+    assert_eq!(selected(&rig, "Red, #ff0000"), Some(true), "the clicked swatch is selected");
+    assert_ne!(selected(&rig, "Pink, #ffcccc"), Some(true), "the other swatch is not");
+}
+
 /// New Swatch adds the foreground to the selected swatch's group under a free name, and only for the panel whose state
 /// holds the selection.
 #[trial]
