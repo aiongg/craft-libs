@@ -60,7 +60,10 @@ impl State {
         let (owner, part) = winner.map_or((None, None), |winner| (Some(winner.owner), winner.part));
         let text_stop = self.stop_of_focus().filter(|stop| stop.stop.text).map(|stop| stop.stop.id);
         let was_text = text_stop.is_some() && kind.commits_draft();
-        self.press.commit_now = text_stop.filter(|_| was_text);
+        // A press that takes focus for another component commits too: the page that component switches may remove the
+        // field in the same pass, so a later focus loss would never reach it.
+        let leaves = was_text || (kind == PressFocus::Take && owner != text_stop);
+        self.press.commit_now = text_stop.filter(|_| leaves);
         let pane = self.stop_of_focus().filter(|_| was_text).and_then(|rec| self.pane_of(&rec));
         self.press.plan = Some(Plan { kind, owner, root: at.root, part, pane, was_text });
     }

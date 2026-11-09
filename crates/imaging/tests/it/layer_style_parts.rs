@@ -141,7 +141,10 @@ fn new_in_the_contour_editor_suggests_the_contour_word() {
     fixture.click(&new);
     fixture.idle(3);
     let field = fixture.by_role(Role::TEXT_INPUT).into_iter().next().expect("the name field");
-    assert_eq!(fixture.tree().value_of(field.node), Some("Contour"), "the name field starts as the contour word");
+    assert!(
+        fixture.texts().iter().any(|text| text.text == "Contour" && field.rect.contains_rect(text.rect)),
+        "the name field shows the contour word"
+    );
     let named = host.borrow_mut().get_mut::<ContourEditorDialog>().and_then(ContourEditorDialog::take_action);
     assert_eq!(named, None::<ContourAction>);
 }
