@@ -228,3 +228,37 @@ fn a_menu_opened_from_a_popover_takes_a_click_on_its_row() {
     assert!(menu_rect(&fixture).is_none(), "the menu closed");
     assert!(fixture.by_label("Reset").is_some(), "the popover stays open");
 }
+
+/// A menu taller than both sides of its opener takes the side with more room, is capped to it, and scrolls its rows:
+/// it never covers its opener, and the arrow keys reach its last row.
+#[trial]
+fn a_menu_taller_than_either_side_of_its_opener_stays_on_one_side_and_scrolls_to_its_last_row() {
+    let mut fixture = Fixture::new(|ui| {
+        ui.add_space(280.0);
+        let button = Button::new("Open").show(ui);
+        Menu::new("Long").opened_by(&button, Trigger::Press).show(ui, |ui, _| {
+            for at in 0..17 {
+                MenuItem::new(format!("Row {at}")).show(ui);
+            }
+        });
+    });
+    fixture.settle();
+    let button = fixture.by_label("Open").expect("the opener has a node");
+    fixture.click(&button);
+    fixture.settle();
+    let menu = menu_rect(&fixture).expect("a press on the button opens the menu");
+    let room = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 600.0));
+    assert!(room.contains_rect(menu), "the menu {menu:?} stays inside the room");
+    assert!(
+        menu.bottom() <= button.rect.top() + 0.5 || menu.top() >= button.rect.bottom() - 0.5,
+        "the menu {menu:?} leaves the opener {:?} uncovered",
+        button.rect
+    );
+    for _ in 0..16 {
+        fixture.key(Key::ArrowDown, Modifiers::NONE);
+        fixture.settle();
+    }
+    let last = fixture.by_label("Row 16").expect("the last row has a node");
+    let menu = menu_rect(&fixture).expect("the menu is still open");
+    assert!(menu.contains_rect(last.rect), "the last row {:?} is revealed inside the menu {menu:?}", last.rect);
+}

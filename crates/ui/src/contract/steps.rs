@@ -1164,6 +1164,9 @@ pub(crate) fn settle<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>) {
     if C::OVERLAYS {
         super::overlay::write_open(&mut *cx.core.memory, owner);
     }
+    if focus::take_reveal_of(&cx.core.ctx, owner) {
+        cx.core.reveal.get_or_insert(cx.core.rect);
+    }
     if let Some(rect) = cx.core.reveal.take()
         && let Some(owner) = cx.core.env.scroll_owner().or_else(|| wheel::nearest_scroll_owner(&cx.core.ctx, rect))
     {

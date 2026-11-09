@@ -1349,6 +1349,27 @@ fn opened_overlay(ctx: &Context, overlay: &Overlay) -> Option<Overlay> {
     Some(resolved)
 }
 
+/// The room a layer's body is measured in before the layer is placed, from where its anchor is in this pass: the
+/// room `content_room` offers. `last` is the anchor the layer was placed at in an earlier pass, which an anchor the host
+/// reads from memory (`Pointer`, `Viewport`) needs; `None` when no anchor is known yet.
+pub(crate) fn measuring_room(
+    ctx: &Context,
+    overlay: &Overlay,
+    own: Rect,
+    own_to_screen: egui::emath::TSTransform,
+    last: Option<Rect>,
+    rtl: bool,
+) -> Option<egui::Vec2> {
+    let opened = opened_overlay(ctx, overlay);
+    let overlay = opened.as_ref().unwrap_or(overlay);
+    let Place::Anchored { anchor, .. } = &overlay.place else { return None };
+    let anchor = match anchor {
+        Anchor::Viewport(_) | Anchor::Pointer => last?,
+        _ => resolve_anchor(ctx, overlay, own, own_to_screen),
+    };
+    Some(content_room(overlay, areas::safe_rect(ctx), anchor, rtl))
+}
+
 fn anchor_rect(ctx: &Context, layer: &Layer<'_>, bounds: Rect, memory: &mut LayerMemory) -> Rect {
     let point = |at: Pos2| Rect::from_min_max(at, at);
     match &layer.overlay.place {
