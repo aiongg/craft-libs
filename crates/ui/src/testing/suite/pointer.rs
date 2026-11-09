@@ -6,7 +6,7 @@ use crate::contract::ShapeKind;
 use crate::runtime::egui::access::Declared;
 use crate::testing::fixture::{Fixture, Target};
 use crate::testing::sensing::{ProbeMember, ProbePart, ProbeRoot, RootReport, show};
-use crate::testing::story::{EditKind, Grip};
+use crate::testing::story::{EditKind, Grip, Required};
 use crate::testing::{Frames, input, pointer};
 use craft_behavior::{HitLevel, PartKey, Sense};
 use egui::{Pos2, Rect, Ui, Vec2};
@@ -117,8 +117,14 @@ fn parts_take_presses_in_their_hit_areas(subject: &Subject) -> Result<(), String
             let mut fixture = fixture;
             let before = fixture.data().snapshot();
             let travel = 2.0 * input::max_click_dist(fixture.ctx());
-            gesture(&mut fixture, &at(&grip, off_middle), travel);
-            if fixture.data().changed_since(&before).is_empty() {
+            // A refused value is moved while the pointer drags and put back at the release, so it is read before the release.
+            let refused = story.covers.contains(&Required::Invalid);
+            let moved_live = Cell::new(false);
+            fixture.drag_at_pausing(off_middle, Vec2::new(travel, 0.0), |fixture| {
+                moved_live.set(!fixture.data().changed_since(&before).is_empty());
+            });
+            let moved = if refused { moved_live.get() } else { !fixture.data().changed_since(&before).is_empty() };
+            if !moved {
                 return Err(format!("{}: a drag from {off_middle:?}, inside the part {part:?}, moved no value", story.name));
             }
         }

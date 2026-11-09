@@ -7,8 +7,9 @@ use craft_draw::ui::crop::{
     PerspectiveCropEvent, PerspectiveCropQuad, PerspectiveCropTool, PerspectiveQuad, grid_lines, grid_steps, is_valid, ordered,
 };
 use craft_ui::canvas::{Canvas, CanvasTool as _, NUDGE, NUDGE_FAR, ToolContext, ToolHost, ToolKey};
-use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, Show as _, ShowContainer as _, Validity};
 use craft_ui::runtime::access::Role;
+use craft_ui::runtime::env::Message;
 use craft_ui::testing::{Fixture, pointer, trial};
 use egui::{Key, Modifiers, Pos2, Vec2};
 use std::cell::RefCell;
@@ -72,6 +73,15 @@ struct Rig {
 
 impl Rig {
     fn new(quad: PerspectiveQuad) -> Self {
+        Self::build(quad, false)
+    }
+
+    /// A rig whose binding refuses a quad that cannot be committed, as a host's check does.
+    fn refusing(quad: PerspectiveQuad) -> Self {
+        Self::build(quad, true)
+    }
+
+    fn build(quad: PerspectiveQuad, refuse: bool) -> Self {
         let mut tool = PerspectiveCropTool::new();
         tool.set(quad);
         let host = Rc::new(RefCell::new(Host { tool, apply: false, discard: false, picked: None, edits: Vec::new() }));
@@ -81,7 +91,11 @@ impl Rig {
             let view = CanvasView::new(room, Point::new(200.0, 150.0), 1.0);
             let canvas = Canvas::new("Document").document(SIZE).view(view).show(ui, |ui, body| {
                 let mut host = shown.borrow_mut();
-                let out = PerspectiveCropQuad::new("Perspective crop", Bind::bound(host.tool.quad_mut())).show_at(ui, body.rect);
+                let bind = Bind::bound(host.tool.quad_mut()).check(move |quad: &PerspectiveQuad| match quad {
+                    Some(quad) if refuse && !is_valid(quad) => Validity::Refuse(Message::new("The corners do not make a convex quad")),
+                    _ => Validity::Ok,
+                });
+                let out = PerspectiveCropQuad::new("Perspective crop", bind).show_at(ui, body.rect);
                 host.apply |= out.apply;
                 host.discard |= out.discard;
                 host.picked = out.picked;
@@ -134,6 +148,24 @@ fn dragging_a_corner_keeps_the_press_offset_and_moves_only_that_corner() {
     let quad = rig.quad().expect("the quad stays");
     assert_eq!((quad[2].x, quad[2].y), (PAGE[2].x + 20.0, PAGE[2].y - 20.0), "the press offset is kept");
     assert_eq!((quad[0], quad[1], quad[3]), (PAGE[0], PAGE[1], PAGE[3]));
+}
+
+#[trial]
+fn a_corner_follows_the_pointer_to_a_non_convex_quad_and_the_release_is_refused() {
+    let mut rig = Rig::refusing(Some(PAGE));
+    let corner = rig.at(PAGE[2]);
+    let to = rig.at(Point::new(150.0, 100.0));
+    let from = corner;
+    rig.fixture.frame(vec![pointer::moved(from)]);
+    rig.fixture.frame(vec![pointer::press(from)]);
+    rig.fixture.frame(vec![pointer::moved(from + (to - from) * 0.5)]);
+    rig.fixture.frame(vec![pointer::moved(to)]);
+    let live = rig.quad().expect("the quad stays");
+    assert_ne!(live[2], PAGE[2], "the corner follows the pointer while the quad is refused");
+    assert!(!is_valid(&live), "the dragged quad is not convex");
+    rig.fixture.frame(vec![pointer::release(to)]);
+    rig.fixture.frame(Vec::new());
+    assert_eq!(rig.quad(), Some(PAGE), "committing the non-convex quad is refused");
 }
 
 #[trial]
