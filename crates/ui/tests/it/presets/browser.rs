@@ -94,7 +94,7 @@ fn the_row_menu_of_an_unselected_preset_acts_on_that_preset() {
     fixture.type_text("Plum");
     fixture.key(Key::Enter, Modifiers::NONE);
     fixture.idle(3);
-    let renamed = seen.borrow().iter().any(|event| matches!(event, PresetEvent::Rename { key: CORAL, text, .. } if text == "CoralPlum"));
+    let renamed = seen.borrow().iter().any(|event| matches!(event, PresetEvent::Rename { key: CORAL, text, .. } if text == "Plum"));
     assert!(renamed, "events: {:?}", seen.borrow());
 }
 
@@ -119,6 +119,6 @@ fn a_rename_request_names_the_browser_by_its_own_id() {
     fixture.type_text("Plum");
     fixture.key(Key::Enter, Modifiers::NONE);
     fixture.idle(3);
-    let renamed = seen.borrow().iter().any(|event| matches!(event, PresetEvent::Rename { key: CORAL, text, .. } if text == "CoralPlum"));
+    let renamed = seen.borrow().iter().any(|event| matches!(event, PresetEvent::Rename { key: CORAL, text, .. } if text == "Plum"));
     assert!(renamed, "events: {:?}", seen.borrow());
 }

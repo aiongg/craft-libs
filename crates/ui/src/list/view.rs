@@ -7,11 +7,10 @@ use super::predicate::{DropTest, RowTest, SourceTest};
 use super::{ListRow, RowEvent};
 use crate::contract::{
     Access, ActivateOn, Bind, BindMut, Collection, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, EditResponse,
-    LeadOnOpen, ListDrag, Props as _, Role, SelectMode, Show as _, Sizing,
+    LeadOnOpen, ListDrag, Props as _, Role, SelectMode, Sizing,
 };
 use crate::runtime::env::{Env, Label};
 use crate::style::{ComponentStyle, StyleCx};
-use crate::text::TextField;
 use craft_behavior::{ColumnKey, DisplayOrder, ItemSource, Metrics, Selection, SizeHint, SpanLayout};
 use craft_i18n::matcher::Matcher;
 use egui::{Id, Rect, Ui};
@@ -220,7 +219,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Collection for List<'_, K> {
     }
 
     fn rename_editor(&mut self, ui: &mut Ui, draft: Bind<'_, String>, label: Rect, name: &str) -> Option<EditResponse<String>> {
-        Some(TextField::new(name.to_owned(), draft).select_on_focus().show_at(ui, label))
+        Some(crate::text::rename_field(ui, draft, label, name))
     }
 }
 

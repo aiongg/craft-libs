@@ -216,7 +216,7 @@ fn history_starts_as_an_icon_and_the_other_panels_as_tabs_with_no_panel_rail() {
     assert!(!has_name(&tree, "Panels"), "no panel rail toolbar");
     assert!(fixture.preview.dock.is_visible(Panel::History));
     assert!(fixture.preview.dock.is_iconic(Panel::History));
-    for panel in [Panel::Swatches, Panel::Properties, Panel::Adjustments, Panel::Layers, Panel::Channels] {
+    for panel in [Panel::Properties, Panel::Adjustments, Panel::Layers, Panel::Channels] {
         assert!(!fixture.preview.dock.is_iconic(panel), "{panel:?} is in the expanded column");
         assert!(has_name(&tree, panel.label()), "{panel:?} has a tab");
     }

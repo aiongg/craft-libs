@@ -13,6 +13,7 @@ use craft_host::target::Os;
 use craft_theme::{Contrast, Mode, Size, TextSize};
 use egui::{Event, Id, Key, Modifiers, Pos2, Rect, Ui, Vec2};
 use std::cell::{Cell, RefCell};
+use std::collections::HashSet;
 use std::rc::Rc;
 
 /// A node of the AccessKit tree, as input addresses it.
@@ -326,19 +327,21 @@ impl Fixture {
     /// through `labelled_by`), else the first node that carries the text.
     pub fn by_label(&self, label: &str) -> Option<Target> {
         let tree = &self.tree;
-        let node = tree
-            .keys()
-            .into_iter()
+        let reported: HashSet<NodeKey> = tree.keys().into_iter().collect();
+        let ordered = self.in_tree_order(&reported);
+        let node = ordered
+            .iter()
+            .copied()
             .find(|key| {
                 super::access::name(tree, *key) == Some(label) && tree.role_of(*key) != Some(Role::LABEL) && super::access::is_interactive(tree, *key)
             })
-            .or_else(|| tree.keys().into_iter().find(|key| tree.name_of(*key) == Some(label)))?;
+            .or_else(|| ordered.iter().copied().find(|key| tree.name_of(*key) == Some(label)))?;
         self.target(node)
     }
 
-    /// The nodes of `role` in tree order: depth first from the root, children in their declared order.
-    pub fn by_role(&self, role: Role) -> Vec<Target> {
-        let wanted = self.tree.with_role(role);
+    /// The nodes of `wanted` in tree order: depth first from the root, children in their declared order. `by_label`
+    /// takes the first match in this order, so repeated labels resolve to the first on screen.
+    fn in_tree_order(&self, wanted: &HashSet<NodeKey>) -> Vec<NodeKey> {
         let mut ordered = Vec::with_capacity(wanted.len());
         let mut pending: Vec<NodeKey> = self.tree.root_key().into_iter().collect();
         while let Some(key) = pending.pop() {
@@ -347,7 +350,13 @@ impl Fixture {
             }
             pending.extend(self.tree.children_of(key).into_iter().rev());
         }
-        ordered.into_iter().filter_map(|node| self.target(node)).collect()
+        ordered
+    }
+
+    /// The nodes of `role` in tree order.
+    pub fn by_role(&self, role: Role) -> Vec<Target> {
+        let wanted: HashSet<NodeKey> = self.tree.with_role(role).into_iter().collect();
+        self.in_tree_order(&wanted).into_iter().filter_map(|node| self.target(node)).collect()
     }
 
     /// The sub-node of `part` below the component `component`.

@@ -12,35 +12,6 @@ pub use doc::{Blend, Doc, Layer, LayerId, LayerKind};
 pub use properties::{AdjustField, Align, RectField};
 pub use tools::{MarqueeStyle, MoveTarget, SampleSize, Tool, Tools};
 
-/// The foreground and background colours.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Colors {
-    pub fg: [u8; 3],
-    pub bg: [u8; 3],
-    /// The background well is the active one.
-    pub bg_active: bool,
-}
-
-impl Default for Colors {
-    fn default() -> Self {
-        Self::DEFAULT
-    }
-}
-
-impl Colors {
-    pub const DEFAULT: Colors = Colors { fg: [0, 0, 0], bg: [255, 255, 255], bg_active: false };
-
-    pub fn swap(&mut self) {
-        std::mem::swap(&mut self.fg, &mut self.bg);
-    }
-
-    /// Sets the active well's colour.
-    #[cfg(test)]
-    pub fn set_active(&mut self, color: [u8; 3]) {
-        *(if self.bg_active { &mut self.bg } else { &mut self.fg }) = color;
-    }
-}
-
 /// The canvas view: where the document sits and how large.
 #[derive(Clone, Debug, PartialEq)]
 pub struct View {
@@ -83,7 +54,6 @@ impl View {
 pub struct Mock {
     pub doc: Doc,
     pub tools: Tools,
-    pub colors: Colors,
     pub view: View,
     /// What happened to the document, oldest first.
     pub history: Vec<String>,
@@ -92,14 +62,7 @@ pub struct Mock {
 
 impl Default for Mock {
     fn default() -> Self {
-        Self {
-            doc: Doc::default(),
-            tools: Tools::default(),
-            colors: Colors::default(),
-            view: View::default(),
-            history: vec!["Open".to_owned()],
-            status: String::new(),
-        }
+        Self { doc: Doc::default(), tools: Tools::default(), view: View::default(), history: vec!["Open".to_owned()], status: String::new() }
     }
 }
 
@@ -310,17 +273,5 @@ mod tests {
         assert!(!view.fit_pending);
         view.set_zoom(1000.0);
         assert_eq!(view.zoom, 64.0);
-    }
-
-    #[test]
-    fn colours_swap_and_the_active_well_takes_the_pick() {
-        let mut colors = Colors::default();
-        colors.set_active([1, 2, 3]);
-        assert_eq!(colors.fg, [1, 2, 3]);
-        colors.swap();
-        assert_eq!((colors.fg, colors.bg), ([255, 255, 255], [1, 2, 3]));
-        colors.bg_active = true;
-        colors.set_active([9, 9, 9]);
-        assert_eq!(colors.bg, [9, 9, 9]);
     }
 }

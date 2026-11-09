@@ -20,6 +20,7 @@ pub use number::{NamedOr, NumberField, NumberName, NumberOutput, NumberPick, Num
 pub use selectable_text::{SelectableStyle, SelectableText};
 pub use text_field::TextField;
 
+use crate::contract::{Bind, EditResponse};
 use crate::primitives::TextKey;
 use crate::style::{ComponentStyle, IconLook, Ink, StyleCx, SurfaceLook};
 use craft_behavior::{Insets, Metrics, PartKey};
@@ -71,4 +72,11 @@ const TEXT: PartKey = PartKey::new("text");
 
 fn text_part<V>() -> TextKey<V> {
     TextKey::new(TEXT)
+}
+
+/// The text field every collection's `rename_editor` shows over an item's label: it selects the name on focus, so
+/// typing replaces it.
+pub(crate) fn rename_field(ui: &mut egui::Ui, draft: Bind<'_, String>, label: egui::Rect, name: &str) -> EditResponse<String> {
+    use crate::contract::Show as _;
+    TextField::new(name.to_owned(), draft).select_on_focus().show_at(ui, label)
 }

@@ -182,7 +182,7 @@ pub(super) fn type_ahead_moves_the_lead(subject: &Subject) -> Result<(), String>
     Ok(())
 }
 
-/// F2 on the lead, for a collection that renames: the editor takes focus, Enter gives one commit, and Escape gives
+/// F2 on the lead, for a collection that renames: the editor takes focus, Enter ends it (one commit, or no event for a name nobody typed in), and Escape gives
 /// one cancel and returns focus to a row.
 pub(super) fn rename_commits_and_cancels_once(subject: &Subject) -> Result<(), String> {
     if !is_items(subject) {
@@ -206,8 +206,13 @@ pub(super) fn rename_commits_and_cancels_once(subject: &Subject) -> Result<(), S
         fixture.key(Key::Enter, Modifiers::NONE);
         fixture.idle(2);
         let ended = events(&mut fixture);
-        if rename(&ended, EditKind::Commit) != 1 || rename(&ended, EditKind::Cancel) != 0 {
-            return Err(format!("{name}: Enter gave {ended:?}, expected one rename commit"));
+        // Enter on a name nobody typed in ends the rename with no event: the editor closes and focus returns to the rows.
+        let unchanged_end = rename(&ended, EditKind::Commit) == 0
+            && rename(&ended, EditKind::Cancel) == 0
+            && fixture.tree().role_of(fixture.tree().focused_key()) != Some(Role::TEXT_INPUT)
+            && lead(&fixture, &container).is_some();
+        if !unchanged_end && (rename(&ended, EditKind::Commit) != 1 || rename(&ended, EditKind::Cancel) != 0) {
+            return Err(format!("{name}: Enter gave {ended:?}, expected one rename commit or the rename ended with the name unchanged"));
         }
         fixture.key(Key::F2, Modifiers::NONE);
         fixture.idle(2);

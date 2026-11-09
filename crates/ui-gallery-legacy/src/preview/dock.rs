@@ -111,7 +111,6 @@ impl Panel {
     fn glyph(self) -> Icon {
         match self {
             Panel::Canvas => Icon::Image,
-            Panel::Swatches => Icon::SwatchBook,
             Panel::Properties => Icon::Adjustments,
             Panel::Adjustments => Icon::AdjustmentLayer,
             Panel::Layers => Icon::Layers,
@@ -122,16 +121,10 @@ impl Panel {
 }
 
 /// The canvas beside a dock at the end edge: an iconic column holding [History], then the
-/// expanded column with [Swatches], [Properties, Adjustments] and [Layers, Channels].
+/// expanded column with [Properties, Adjustments] and [Layers, Channels].
 fn default_workspace() -> Workspace<Panel> {
-    let expanded = Column::new(
-        vec![
-            Group::new(vec![Panel::Swatches], 0),
-            Group::new(vec![Panel::Properties, Panel::Adjustments], 0),
-            Group::new(vec![Panel::Layers, Panel::Channels], 0),
-        ],
-        WIDTH,
-    );
+    let expanded =
+        Column::new(vec![Group::new(vec![Panel::Properties, Panel::Adjustments], 0), Group::new(vec![Panel::Layers, Panel::Channels], 0)], WIDTH);
     let mut iconic = Column::new(vec![Group::new(vec![Panel::History], 0)], WIDTH);
     iconic.iconic = true;
     let root = Node::Split {
@@ -184,7 +177,6 @@ impl DockContent<Panel> for Content<'_> {
 
     fn dock_heights(&self, panel: &Panel) -> Option<DockHeights> {
         match panel {
-            Panel::Swatches => Some(DockHeights::new(110.0).compact(90.0)),
             Panel::Properties | Panel::Adjustments => Some(DockHeights::new(200.0).compact(120.0)),
             Panel::Layers | Panel::Channels | Panel::History => Some(DockHeights::new(0.0).fill(300.0)),
             Panel::Canvas => None,
