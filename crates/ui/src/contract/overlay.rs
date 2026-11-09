@@ -241,15 +241,15 @@ pub struct Opener {
     /// Whether the opener was enabled in the pass that recorded it; a disabled opener closes the layer.
     pub enabled: bool,
     /// Where the layer hangs when this opener opened it. `None` hangs it at the opener's rect, or, for a
-    /// `Trigger::Context` opener a pointer release opened, at the pointer.
+    /// `Trigger::Context` opener, at the pointer a release opened it at or the rect its key request named.
     pub anchor: Option<Anchor>,
     /// The other openers of the same layer.
     pub others: Vec<Opener>,
     /// Whether the opener's response fired `trigger` in the pass that recorded it. A container with no `open`
     /// binding applies it to the layer's open slot.
     pub(crate) fired: bool,
-    /// The fired context request was a secondary-button release, not a key.
-    pub(crate) by_pointer: bool,
+    /// How the opener fired, for where the layer hangs.
+    pub(crate) opening: Opening,
     /// The opener is pressed with the primary button, for `Trigger::Hold`.
     pub(crate) pressed: bool,
     /// A `Trigger::Click` opener's primary click completed in this pass: the release of the press that opened the
@@ -262,8 +262,9 @@ impl Opener {
         // The opener's `Response` carries the press path's verdict, for a root with its own egui widget and for an
         // arena member alike: whether the open press is on it and whether a click released on it.
         let pressed_on = response::is_pressed(anchor);
-        let (fired, by_pointer, pressed, clicked) = pointer::with_pass_pointer(&anchor.ctx, |pass| {
-            let Some(frame) = pass.frame.as_ref() else { return (false, false, false, false) };
+        let request = keys::context_request(&anchor.ctx, anchor.id);
+        let (fired, opening, pressed, clicked) = pointer::with_pass_pointer(&anchor.ctx, |pass| {
+            let Some(frame) = pass.frame.as_ref() else { return (false, Opening::Plain, false, false) };
             let inside = frame
                 .pos
                 .is_some_and(|pos| anchor.rect.contains(areas::layer_map(&anchor.ctx, anchor.layer_id).map_or(pos, |map| map.to_layer(pos))));
@@ -272,11 +273,16 @@ impl Opener {
             // then held; a `Click` opener's release completes the click that press began.
             let fired = match trigger {
                 Trigger::Click | Trigger::Press => pressed_on && frame.press.is_some_and(|press| press.button == PointerButton::Primary),
-                Trigger::Context => by_pointer || keys::context_request(&anchor.ctx, anchor.id).is_some(),
+                Trigger::Context => by_pointer || request.is_some(),
                 Trigger::Hover | Trigger::Hold | Trigger::Manual => false,
             };
+            let opening = match (trigger, request) {
+                (Trigger::Context, _) if fired && by_pointer => Opening::Pointer,
+                (Trigger::Context, Some(rect)) if fired => Opening::At(rect),
+                _ => Opening::Plain,
+            };
             let clicked = trigger == Trigger::Click && frame.release == Some(PointerButton::Primary) && response::pointer_clicked(anchor);
-            (fired, fired && by_pointer, pressed_on && pass.primary_down, clicked)
+            (fired, opening, pressed_on && pass.primary_down, clicked)
         });
         Opener {
             id: anchor.id,
@@ -287,7 +293,7 @@ impl Opener {
             anchor: None,
             others: Vec::new(),
             fired,
-            by_pointer,
+            opening,
             pressed,
             clicked,
         }
@@ -299,28 +305,42 @@ impl Opener {
     }
 
     /// The opener the layer's open slot says opened it, else the first.
-    fn active(&self, ctx: &Context) -> (&Opener, bool) {
+    fn active(&self, ctx: &Context) -> (&Opener, Opening) {
         let by = with_popups(ctx, |popups| popups.opened_by.get(&self.id).copied());
-        let found = by.and_then(|(id, trigger, pointer)| {
-            self.all().find(|opener| opener.id == id && opener.trigger == trigger).map(|opener| (opener, pointer))
+        let found = by.and_then(|(id, trigger, opening)| {
+            self.all().find(|opener| opener.id == id && opener.trigger == trigger).map(|opener| (opener, opening))
         });
         match found {
             Some(active) => active,
-            None => (self, false),
+            None => (self, Opening::Plain),
         }
     }
 }
 
+/// How an opener opened its layer: what decides where a `Trigger::Context` layer hangs.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub(crate) enum Opening {
+    /// A press, click, hold or the binding: the layer hangs from the opener.
+    #[default]
+    Plain,
+    /// A secondary-button release: the layer hangs at the pointer.
+    Pointer,
+    /// A context request by key or AccessKit at this rect in the opener's layer space: a collection's lead row.
+    At(Rect),
+}
+
 /// The anchor a layer opened by `opener` hangs from: the opener's own, else the layer's `Pointer` or `Viewport`
-/// place, else the pointer for a context request a secondary release made, else the opener's rect.
-fn opener_anchor(opener: &Opener, by_pointer: bool, place: &Place) -> Anchor {
+/// place, else the pointer for a context request a secondary release made, else the rect a key's context request
+/// named, else the opener's rect.
+fn opener_anchor(opener: &Opener, opening: Opening, place: &Place) -> Anchor {
     if let Some(anchor) = &opener.anchor {
         return anchor.clone();
     }
-    match place {
-        Place::Anchored { anchor: anchor @ (Anchor::Pointer | Anchor::Viewport(_)), .. } => anchor.clone(),
-        _ if opener.trigger == Trigger::Context && by_pointer => Anchor::Pointer,
-        _ => Anchor::Response,
+    match (place, opening) {
+        (Place::Anchored { anchor: anchor @ (Anchor::Pointer | Anchor::Viewport(_)), .. }, _) => anchor.clone(),
+        (_, Opening::Pointer) => Anchor::Pointer,
+        (_, Opening::At(rect)) => Anchor::Rect(rect),
+        (_, Opening::Plain) => Anchor::Response,
     }
 }
 
@@ -783,8 +803,8 @@ struct Popups {
     /// Every popup an owner showed or kept closed this pass, for the anchor's access node.
     anchors: Vec<(Id, PopupShown)>,
     /// The opener that opened each layer with openers, by the layer's first opener: its id and trigger (two
-    /// openers on one response differ by trigger) and whether a pointer release opened it.
-    opened_by: HashMap<Id, (Id, Trigger, bool)>,
+    /// openers on one response differ by trigger) and how it fired.
+    opened_by: HashMap<Id, (Id, Trigger, Opening)>,
 }
 
 fn with_popups<R>(ctx: &Context, f: impl FnOnce(&mut Popups) -> R) -> R {
@@ -1300,9 +1320,9 @@ fn area_id(id: Id) -> Id {
 /// owner's rect) or the given rect or point, in the space `own_to_screen` maps.
 pub(crate) fn resolve_anchor(ctx: &Context, overlay: &Overlay, own: Rect, own_to_screen: egui::emath::TSTransform) -> Rect {
     if let Some(first) = &overlay.opener {
-        let (opener, by_pointer) = first.active(ctx);
+        let (opener, opening) = first.active(ctx);
         let to_screen = areas::layer_to_screen(ctx, opener.layer);
-        return match opener_anchor(opener, by_pointer, &overlay.place) {
+        return match opener_anchor(opener, opening, &overlay.place) {
             Anchor::Rect(rect) => to_screen * rect,
             Anchor::Point(at) => to_screen * Rect::from_min_max(at, at),
             _ => to_screen * opener.rect,
@@ -1319,10 +1339,10 @@ pub(crate) fn resolve_anchor(ctx: &Context, overlay: &Overlay, own: Rect, own_to
 /// place (`Pointer`, `Viewport`).
 fn opened_overlay(ctx: &Context, overlay: &Overlay) -> Option<Overlay> {
     let first = overlay.opener.as_ref()?;
-    let (opener, by_pointer) = first.active(ctx);
+    let (opener, opening) = first.active(ctx);
     let mut resolved = overlay.clone();
     if let Place::Anchored { anchor, .. } = &mut resolved.place {
-        *anchor = opener_anchor(opener, by_pointer, &overlay.place);
+        *anchor = opener_anchor(opener, opening, &overlay.place);
     }
     Some(resolved)
 }
@@ -1341,36 +1361,73 @@ fn anchor_rect(ctx: &Context, layer: &Layer<'_>, bounds: Rect, memory: &mut Laye
     }
 }
 
+/// The most a layer's body may take: the fit's share of the safe rect `bounds`, at least as wide as the layer's
+/// least width, or the whole safe rect.
+fn cap(overlay: &Overlay, bounds: Rect, anchor: Rect) -> egui::Vec2 {
+    match overlay.fit {
+        OverlayFit::ContentCapped(share) => {
+            egui::Vec2::new((bounds.width() * share.x).max(overlay.min_width.points(anchor.width())), bounds.height() * share.y)
+        }
+        _ => bounds.size(),
+    }
+}
+
+/// The room a layer offers its content before it is placed: the cap, and for an anchored layer the cap within the
+/// larger side of its anchor along the side's axis. Content measured in it fits wherever `placement` puts it: on its
+/// preferred side when it fits there, else on the larger side.
+pub(crate) fn content_room(overlay: &Overlay, bounds: Rect, anchor: Rect, rtl: bool) -> egui::Vec2 {
+    let cap = cap(overlay, bounds, anchor);
+    let Place::Anchored { side, .. } = &overlay.place else { return cap.min(bounds.size()) };
+    let request = PlaceRequest::new(anchor, cap, bounds).side(*side).rtl(rtl).min_width(overlay.min_width);
+    let on = |side: Side| craft_behavior::overlay::place(&request.kept(Some(side))).rect.size();
+    let (vertical, other) = match side {
+        Side::Below => (true, Side::Above),
+        Side::Above => (true, Side::Below),
+        Side::Start => (false, Side::End),
+        _ => (false, Side::Start),
+    };
+    let (preferred, other) = (on(*side), on(other));
+    if vertical { egui::Vec2::new(preferred.x, preferred.y.max(other.y)) } else { egui::Vec2::new(preferred.x.max(other.x), preferred.y) }
+}
+
 /// Where the layer goes and the room its body has there.
 struct Placed {
     at: Pos2,
-    side: Side,
+    /// The side of the anchor an anchored layer took by its size; `None` while its size is unknown.
+    side: Option<Side>,
     /// The most the body may take from `at`: what the viewport leaves, within the fit's cap.
     room: egui::Vec2,
 }
 
 /// The pure placement of the anchored forms; the viewport centre or the given position for floats, kept inside the
-/// safe rect.
-fn placement(ctx: &Context, layer: &Layer<'_>, size: egui::Vec2, bounds: Rect, anchor: Rect, cap: egui::Vec2) -> Placed {
+/// safe rect. An anchored layer takes its side by its size: below its anchor, above when the room below is too short
+/// and the room above is larger, and keeps that side while it stays open and the content fits there or that side is
+/// the larger. Before its size is known (a popup's first, hidden pass) it takes no side and its body is offered
+/// `content_room`, so the size it measures decides the side.
+fn placement(ctx: &Context, layer: &Layer<'_>, size: Option<egui::Vec2>, bounds: Rect, anchor: Rect) -> Placed {
+    let rtl = layer.env.direction.is_rtl();
+    let cap = cap(layer.overlay, bounds, anchor);
     match &layer.overlay.place {
         Place::Anchored { side, align, .. } => {
-            let kept = overlay::entry(ctx, layer.id).map(|entry| entry.side);
-            let request = PlaceRequest::new(anchor, size, bounds)
-                .side(*side)
-                .align(*align)
-                .rtl(layer.env.direction.is_rtl())
-                .min_width(layer.overlay.min_width)
-                .kept(kept);
+            let Some(size) = size else {
+                let room = content_room(layer.overlay, bounds, anchor, rtl);
+                return Placed { at: anchor.left_bottom().clamp(bounds.min, bounds.max), side: None, room };
+            };
+            // The side taken in an earlier pass is the preferred one while the layer stays open: it stays while the
+            // content fits there or that side is the larger, so a size measured later (a body that grew) still flips it.
+            let taken = overlay::entry(ctx, layer.id).and_then(|entry| entry.side).unwrap_or(*side);
+            let request = PlaceRequest::new(anchor, size, bounds).side(taken).align(*align).rtl(rtl).min_width(layer.overlay.min_width);
             let placed = craft_behavior::overlay::place(&request);
             // The room is what the side the layer took leaves for a body as large as the cap.
             let room = craft_behavior::overlay::place(&request.kept(Some(placed.side)).size(cap)).rect.size();
-            Placed { at: placed.rect.min, side: placed.side, room }
+            Placed { at: placed.rect.min, side: Some(placed.side), room }
         }
         Place::Float(float) => {
+            let size = size.unwrap_or(egui::Vec2::ZERO);
             let min = float.pos.unwrap_or_else(|| bounds.center() - size / 2.0);
             let max_min = Pos2::new((bounds.right() - size.x).max(bounds.left()), (bounds.bottom() - size.y).max(bounds.top()));
             let at = Pos2::new(min.x.clamp(bounds.left(), max_min.x), min.y.clamp(bounds.top(), max_min.y));
-            Placed { at, side: Side::Below, room: (bounds.max - at).max(egui::Vec2::ZERO).min(cap) }
+            Placed { at, side: None, room: (bounds.max - at).max(egui::Vec2::ZERO).min(cap) }
         }
     }
 }
@@ -1396,14 +1453,8 @@ pub(crate) fn host(ctx: &Context, layer: &Layer<'_>, body: &mut dyn FnMut(&mut U
     if sized {
         let _ = layout_memory::read(ctx, size_id);
     }
-    let size = layer.size.or_else(|| areas::layer_rect(ctx, area).map(|rect| rect.size())).unwrap_or(egui::Vec2::ZERO);
-    let cap = match overlay.fit {
-        OverlayFit::ContentCapped(share) => {
-            egui::Vec2::new((bounds.width() * share.x).max(overlay.min_width.points(anchor.width())), bounds.height() * share.y)
-        }
-        _ => bounds.size(),
-    };
-    let placed = placement(ctx, layer, size, bounds, anchor, cap);
+    let size = layer.size.or_else(|| areas::layer_rect(ctx, area).map(|rect| rect.size()));
+    let placed = placement(ctx, layer, size, bounds, anchor);
     let tier = overlay.rank.tier();
     if sized && areas::layer_rect(ctx, area).is_none() {
         areas::seed_area(ctx, areas::layer_of(tier, area), placed.at, placed.room);
@@ -1596,8 +1647,8 @@ struct OpenerOpen {
     open: bool,
     /// The root frame an opener's trigger was last applied in: a frame's passes apply it once.
     applied: u64,
-    /// The opener that opened the layer by id and trigger, and whether a pointer release did.
-    by: Option<(Id, Trigger, bool)>,
+    /// The opener that opened the layer by id and trigger, and how it fired.
+    by: Option<(Id, Trigger, Opening)>,
 }
 
 /// The open state of a container with no binding: the slot of its first opener, with the triggers of every opener
@@ -1613,7 +1664,7 @@ pub(crate) fn opener_open(stage: &mut MemoryStage, first: &Opener) -> bool {
     if let Some(opener) = first.all().find(|opener| opener.fired) {
         if slot.applied != frame {
             slot.open = !slot.open;
-            slot.by = Some((opener.id, opener.trigger, opener.by_pointer));
+            slot.by = Some((opener.id, opener.trigger, opener.opening));
         }
         slot.applied = frame;
         overlay::claim_activation(&ctx, opener.id);
@@ -1621,7 +1672,7 @@ pub(crate) fn opener_open(stage: &mut MemoryStage, first: &Opener) -> bool {
         && !slot.open
     {
         slot.open = true;
-        slot.by = Some((opener.id, opener.trigger, false));
+        slot.by = Some((opener.id, opener.trigger, Opening::Plain));
     }
     for opener in first.all().filter(|opener| opener.clicked) {
         overlay::claim_activation(&ctx, opener.id);
