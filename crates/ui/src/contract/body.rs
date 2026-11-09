@@ -1058,6 +1058,8 @@ impl<'b> BodyHooks<'b> {
         match &props.mount {
             Mount::Pane(_) | Mount::Window { .. } => Sizing::Fill,
             Mount::Layer(_) | Mount::Viewport { .. } | Mount::FullWindow if self.fixed => Sizing::Fill,
+            // A layer the user can resize decides its own size: its body is given both axes.
+            Mount::Layer(overlay) | Mount::Viewport { fallback: overlay, .. } if overlay.fit == OverlayFit::Resizable => Sizing::Fill,
             Mount::Layer(_) | Mount::Viewport { .. } => Sizing::Content,
             _ => props.sizing,
         }
@@ -1267,7 +1269,7 @@ impl<'b> BodyHooks<'b> {
         // Along an axis the container is not given, its body is offered the room the container was offered and the
         // container takes what the body took.
         let content_sized = self.sizing(props) == Sizing::Content;
-        let content_y = content_sized || (self.sizing(props) == Sizing::Fill && !self.given.1);
+        let content_y = content_sized || ((self.sizing(props) == Sizing::Fill || !inner.max.y.is_finite()) && !self.given.1);
         let (bottom, footer_top) = if content_y {
             let body_room = (room.y - stacked_h - across_h).max(0.0);
             // A body that fills records the band it was given, which may predate the footer's measure: the line is
@@ -1739,11 +1741,19 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 let room = crate::layout::flow_room(ui);
                 // The available rect, not at least it: a fill child that took the whole room in an earlier pass (a
                 // content-sized layer offers its whole room before the footer is known) must not keep its remembered
-                // size once the room is less. Along an axis it is not given it takes its measured size.
-                Vec2::new(
-                    if room.x.is_finite() && self.given.0 { room.x } else { size.x },
-                    if room.y.is_finite() && self.given.1 { room.y } else { size.y },
-                )
+                // size once the room is less. Along an axis it is not given it takes its measured size. Along the main
+                // axis of the body it sits in it takes its share of what its siblings leave.
+                let axis = |room: f32, given: bool, along: craft_behavior::Axis, measured: f32| {
+                    if !(room.is_finite() && given) {
+                        return measured;
+                    }
+                    match crate::layout::main_fill(ui, along) {
+                        crate::layout::MainFill::Measuring => 0.0,
+                        crate::layout::MainFill::Share(share) => share,
+                        crate::layout::MainFill::Room => room,
+                    }
+                };
+                Vec2::new(axis(room.x, self.given.0, craft_behavior::Axis::X, size.x), axis(room.y, self.given.1, craft_behavior::Axis::Y, size.y))
             }
             Sizing::FillWidth => {
                 let room = crate::layout::flow_fill_room(ui).x;
@@ -1754,7 +1764,16 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 let held = !self.given.0 && self.held(props, &Env::of(ui)) && !Env::of(ui).content.0;
                 let room = if held { room.min(crate::layout::flow_room(ui).x) } else { room };
                 let across = self.given.0 || held;
-                Vec2::new(if room.is_finite() && across { size.x.max(room) } else { size.x }, size.y)
+                let width = if room.is_finite() && across {
+                    match crate::layout::main_fill(ui, craft_behavior::Axis::X) {
+                        crate::layout::MainFill::Measuring => 0.0,
+                        crate::layout::MainFill::Share(share) => share,
+                        crate::layout::MainFill::Room => size.x.max(room),
+                    }
+                } else {
+                    size.x
+                };
+                Vec2::new(width, size.y)
             }
             Sizing::Content => size,
         }

@@ -13,4 +13,6 @@ pub(crate) use column_group::{GLYPHS, LABELS, ambient_room, ambient_width};
 pub use label::{place_label, record_control_baseline};
 pub use slot::measure_slot;
 
-pub(crate) use body::{flow_fill_room, flow_room, in_grid_content_column, place_in_flow, run_body, run_body_measured, widen_cell};
+pub(crate) use body::{
+    MainFill, flow_fill_room, flow_room, in_grid_content_column, main_fill, place_in_flow, run_body, run_body_measured, widen_cell,
+};
