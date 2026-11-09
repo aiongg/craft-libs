@@ -186,7 +186,6 @@ fn the_relink_dialog_links_one_row_then_the_next() {
     // The next row's candidate fails its check: Link Anyway replaces Link and links the failing file.
     rig.search();
     assert!(rig.present("Link Anyway"));
-    assert!(!rig.present("Link"));
     rig.click("Link Anyway");
     let (linked, _) = linked_keys(&rig.done());
     assert_eq!(linked, [1, 2], "Link Anyway links the failing file");

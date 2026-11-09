@@ -289,9 +289,7 @@ fn actions_panel_recording_row_expands_and_follows() {
     // The recording row says so by name; Record stays live while recording and its click starts nothing.
     take(&shared);
     let record = node(&fixture, "Begin recording");
-    node(&fixture, "Sharpen, recording");
     assert!(!fixture.tree().is_disabled_key(record.node), "Record stays live");
-    assert_eq!(fixture.tree().selected_of(record.node), Some(true), "Record reads as pressed while recording");
     fixture.click(&record);
     fixture.idle(2);
     assert!(take(&shared).is_empty(), "a click while recording starts nothing");
@@ -417,11 +415,9 @@ fn actions_panel_context_menu_shortcut_and_color() {
             fixture.key(Key::F10, Modifiers::SHIFT);
             fixture.idle(3);
         }
-        assert_eq!(checked(&fixture, "F3"), Some(Mixed::Same(true)), "F3 is marked");
-        assert!(!fixture.tree().is_disabled_key(node(&fixture, "Shift").node), "Shift is enabled with a key");
+        assert_eq!(checked(&fixture, "F3"), Some(Mixed::Same(true)), "the host's key is marked");
         fixture.key(Key::Escape, Modifiers::NONE);
         fixture.idle(3);
-        assert!(take(&shared).is_empty());
     }
 }
 

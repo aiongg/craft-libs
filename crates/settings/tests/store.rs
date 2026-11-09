@@ -172,8 +172,7 @@ fn outside_edits_between_load_and_save_are_kept() {
     store.update(|p| p.general.language = "de".into());
     store.flush().unwrap();
     let text = read_config(tmp.path());
-    assert!(text.contains("# same second"), "{text}");
-    assert!(text.contains("language = \"de\""), "{text}");
+    assert!(text.contains("# same second") && text.contains("language = \"de\""), "{text}");
 }
 
 #[cfg(unix)]

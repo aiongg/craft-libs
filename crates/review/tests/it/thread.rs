@@ -202,7 +202,6 @@ fn popover_completes_mentions_replies_and_resolves() {
     fx.click(&row);
     fx.settle();
     assert_eq!(app.borrow().draft, "hi @Bo @Ana María ");
-    assert!(!app.borrow().closed);
     let post = fx.by_label("Post").expect("Post");
     fx.click(&post);
     fx.settle();

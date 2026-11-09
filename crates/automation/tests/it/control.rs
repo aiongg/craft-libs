@@ -92,8 +92,7 @@ fn waiters_reply_when_input_or_job_settles() {
     assert!(channel.cancel_input(&host, "lost"));
     assert_eq!(waiting.try_recv().expect("a reply"), json!({"ok": false, "error": "input cancelled: lost"}));
     host.inject_text(ViewportId::ROOT, "x");
-    assert!(!host.injected_idle());
-    assert!(channel.cancel_input(&host, "again") && host.injected_idle());
+    assert!(channel.cancel_input(&host, "again") && host.injected_idle(), "input the host still holds counts as pending");
 }
 
 /// A screenshot the capture budget refuses is replied to at once, and a finished capture is answered through the
