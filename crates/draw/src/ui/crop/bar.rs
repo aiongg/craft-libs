@@ -325,12 +325,12 @@ fn ratio_field(
 fn size_fields(ui: &mut Ui, settings: &mut CropSettings, words: &CropBarWords, document: &CropDocument, units: &Units, report: &mut Report) {
     let mut changed = false;
     let pixels_per_inch = settings.size.resolution_ppi().unwrap_or(document.resolution);
-    changed |= length_field(ui, "size-width", &words.width, &mut settings.size.width, pixels_per_inch);
+    changed |= length_field(ui, "size-width", &words.width, &mut settings.size.width, pixels_per_inch, units.points_per_inch());
     if clicked(&IconButton::new(IconId::new("swap_horizontal")).label(words.swap.clone()).show(ui)) {
         settings.swap_fields();
         changed = true;
     }
-    changed |= length_field(ui, "size-height", &words.height, &mut settings.size.height, pixels_per_inch);
+    changed |= length_field(ui, "size-height", &words.height, &mut settings.size.height, pixels_per_inch, units.points_per_inch());
 
     let resolution = settings.size.resolution.trim().replace(',', ".").parse::<f64>().ok().filter(|v| v.is_finite() && *v > 0.0);
     let mut typed = None;
@@ -376,17 +376,34 @@ fn size_fields(ui: &mut Ui, settings: &mut CropSettings, words: &CropBarWords, d
 
 /// A length field over a length kept in its own unit: a typed number is in that unit (pixels while unset), a typed
 /// unit is converted into it, and a cleared field is unset. Returns whether `value` changed.
-fn length_field(ui: &mut Ui, salt: &'static str, caption: &Label, value: &mut Option<CropLength>, pixels_per_inch: f64) -> bool {
+fn length_field(
+    ui: &mut Ui,
+    salt: &'static str,
+    caption: &Label,
+    value: &mut Option<CropLength>,
+    pixels_per_inch: f64,
+    points_per_inch: f64,
+) -> bool {
     let unit = value.map_or(UnitKind::Pixels, |length| length.unit);
     let mut typed = None;
+    let mut typed_unit = None;
     Field::new(caption.clone()).id_salt(salt).layout(FieldLayout::Caption(CAPTION)).sizing(Sizing::Content).show(ui, |ui, _| {
         let lengths = LengthUnits::new(unit, unit, pixels_per_inch);
         let field =
             NumberField::length(caption.clone(), Bind::given(value.map(|length| length.value)), lengths).range(LENGTH_MIN..=FIELD_MAX).show(ui);
         typed = field.value().copied();
+        typed_unit = field.typed_unit;
     });
     let Some(next) = typed else { return false };
-    let next = next.map(|length| CropLength::new(length, unit));
+    let next = next.map(|length| match typed_unit {
+        // The value is in the stored unit; a typed unit becomes the stored one, as in Photoshop.
+        Some(to) if to != unit => {
+            let pixels = unit.to_pixels(length, 1.0, pixels_per_inch, points_per_inch);
+            let converted = pixels.and_then(|pixels| to.from_pixels(pixels, 1.0, pixels_per_inch, points_per_inch));
+            converted.map_or(CropLength::new(length, unit), |value| CropLength::new(value, to))
+        }
+        _ => CropLength::new(length, unit),
+    });
     let changed = next != *value;
     *value = next;
     changed
