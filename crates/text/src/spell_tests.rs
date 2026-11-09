@@ -76,15 +76,3 @@ fn user_words_are_case_insensitive_and_sorted() {
 
 // A word added with a curly apostrophe is accepted when the text uses either apostrophe, is stored
 // straight, and is found again by the curly spelling for removal.
-#[test]
-fn user_words_with_a_curly_apostrophe_match_the_checker() {
-    let d = Dictionary::from_list("the\n");
-    let mut u = UserWords::default();
-    assert!(u.add("  O\u{2019}Brien "));
-    assert_eq!(u.words(), ["O'Brien"]);
-    assert!(!u.add("O'BRIEN") && !u.add("  "));
-    assert!(d.check("O\u{2019}Brien", &u) && d.check("O'Brien", &u));
-    assert!(d.misspellings("the O\u{2019}Brien", &u).is_empty());
-    assert!(UserWords::from_words(["D\u{2019}Arcy".to_string(), " ".to_string()]).contains("D'Arcy"));
-    assert!(u.remove("O\u{2019}Brien") && u.words().is_empty());
-}

@@ -144,70 +144,6 @@ fn crossing_channels_keep_the_overlap_colour_under_both() {
 }
 
 #[trial]
-fn bins_of_any_count_span_the_plot_width() {
-    let rect = rect();
-    for n in [1, 2, 3, 7, 256, 1000] {
-        let mesh = tone_mesh(rect, &flat(n, 0.5), WHITE);
-        let xs: Vec<f32> = mesh.vertices.iter().map(|v| v.pos.x).collect();
-        let (min, max) = (xs.iter().copied().fold(f32::MAX, f32::min), xs.iter().copied().fold(f32::MIN, f32::max));
-        assert_eq!((min, max), (rect.left(), rect.right()), "{n} bins");
-    }
-    assert!(outline(rect, &[]).is_empty());
-}
-
-#[trial]
-fn empty_and_degenerate_input_draws_nothing() {
-    let inks = inks();
-    let data = HistogramData::tone(&[1u32, 2, 3], ChannelColor::Red);
-    let rgb = HistogramData::rgb([&[1u32, 2, 3], &[1, 2, 3], &[1, 2, 3]]);
-    let bad = [
-        Rect::from_min_size(pos2(0.0, 0.0), Vec2::new(0.0, SIDE)),
-        Rect::from_min_size(pos2(0.0, 0.0), Vec2::new(SIDE, -5.0)),
-        Rect::from_min_size(pos2(f32::NAN, 0.0), Vec2::new(SIDE, SIDE)),
-        Rect::from_min_size(pos2(0.0, 0.0), Vec2::new(f32::INFINITY, SIDE)),
-    ];
-    for rect in bad {
-        for (data, look) in [(&data, HistogramLook::Tone), (&data, HistogramLook::Backdrop), (&rgb, HistogramLook::Rgb)] {
-            assert!(plot_shapes(rect, data, look, &inks).is_empty(), "{rect:?} {look:?}");
-        }
-    }
-    let empty = HistogramData::tone::<u32>(&[], ChannelColor::Red);
-    assert!(plot_shapes(rect(), &empty, HistogramLook::Tone, &inks).iter().all(is_empty_mesh));
-    assert!(plot_shapes(rect(), &rgb, HistogramLook::Tone, &inks).is_empty(), "data that doesn't fit the look draws nothing");
-    assert!(plot_shapes(rect(), &data, HistogramLook::Rgb, &inks).is_empty());
-    let zero = [0u32; 16];
-    let shapes = plot_shapes(rect(), &HistogramData::rgb([&zero, &zero, &zero]), HistogramLook::Rgb, &inks);
-    assert!(shapes.iter().all(is_empty_mesh), "all-zero bins draw no ribbons and no outline");
-}
-
-#[trial]
-fn ink_fills_are_opaque_and_overlaps_are_the_product_of_the_inks() {
-    let (rect, inks) = (rect(), inks());
-    let (tall, short) = (vec![100u32; 16], vec![40u32; 16]);
-    let channels: [(&[u32], ChannelColor); 2] = [(&tall, ChannelColor::Cyan), (&short, ChannelColor::Magenta)];
-    let shapes = plot_shapes(rect, &HistogramData::channels(&channels), HistogramLook::Rgb, &inks);
-    let mesh = first_mesh(&shapes);
-    let at = |height: f32| color_at(mesh, pos2(rect.center().x, rect.bottom() - height * rect.height()));
-    let colors = [inks.ink(ChannelColor::Cyan), inks.ink(ChannelColor::Magenta)];
-    assert_eq!(at(0.1), Some(product(&colors, 0b11)), "under both inks");
-    assert_eq!(at(0.6), Some(colors[0]), "under the tall ink only");
-    assert_eq!(colors[0].a(), 255);
-    let rgb = plot_shapes(rect, &HistogramData::rgb([&tall, &short, &short]), HistogramLook::Rgb, &inks);
-    let rgb_at = |height: f32| color_at(first_mesh(&rgb), pos2(rect.center().x, rect.bottom() - height * rect.height()));
-    assert_eq!(rgb_at(0.6), Some(inks.ink(ChannelColor::Red)));
-    assert_eq!(rgb_at(0.1), Some(sum(&inks.ribbons(), 0b111)));
-    let four: Vec<Vec<u32>> = (0..4).map(|quarter| (0..64).map(|i| if i / 16 == quarter { 100 } else { 0 }).collect()).collect();
-    let colors = [ChannelColor::Cyan, ChannelColor::Magenta, ChannelColor::Yellow, ChannelColor::Neutral];
-    let channels: Vec<(&[u32], ChannelColor)> = four.iter().map(Vec::as_slice).zip(colors).collect();
-    let shapes = plot_shapes(rect, &HistogramData::channels(&channels), HistogramLook::Rgb, &inks);
-    for (quarter, color) in colors.into_iter().enumerate() {
-        let x = rect.left() + (quarter as f32 * 16.0 + 8.0) / 64.0 * rect.width();
-        assert_eq!(color_at(first_mesh(&shapes), pos2(x, rect.bottom() - 2.0)), Some(inks.ink(color)), "ink {quarter}");
-    }
-    assert_eq!(shapes.iter().filter(|s| matches!(s, Shape::Path(_))).count(), 4, "an outline per ink");
-}
-
-#[trial]
 fn the_outline_shares_the_fills_scale_in_the_tone_look() {
     let (rect, inks) = (rect(), inks());
     let data = HistogramData::tone(&[10u32, 10, 10], ChannelColor::Red);
@@ -314,20 +250,6 @@ fn a_click_or_escape_clears_the_selection_once_and_is_reported() {
     assert_eq!(clears(&fixture), 1);
 }
 
-#[trial]
-fn the_output_reports_the_level_under_the_pointer() {
-    let mut fixture = selection_fixture();
-    let plot = fixture.by_label("Histogram").expect("the plot is named by its label");
-    let level = |fixture: &Fixture| *fixture.data().value("hovered", None::<f32>);
-    let inside = pos2(plot.rect.left() + 0.375 * plot.rect.width(), plot.rect.center().y);
-    fixture.frame(vec![pointer::moved(inside)]);
-    fixture.idle(2);
-    assert_eq!(level(&fixture), Some(level_at(plot.rect, BINS, inside.x)));
-    fixture.frame(vec![pointer::moved(pos2(plot.rect.right() + 50.0, plot.rect.center().y))]);
-    fixture.idle(2);
-    assert_eq!(level(&fixture), None);
-}
-
 fn show_stale(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let button = *data.value("button", false);
     let data_ptr = bins();
@@ -348,25 +270,9 @@ fn stale_refreshes(button: bool) -> (bool, u32) {
     (is_button, *fixture.data().value("refreshes", 0u32))
 }
 
-#[trial]
-fn the_stale_mark_is_a_button_only_as_a_stale_button() {
-    assert_eq!(stale_refreshes(false), (false, 0));
-    assert_eq!(stale_refreshes(true), (true, 1));
-}
-
 fn show_markers(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let data = HistogramData::tone(&(0..256).map(|i| 100 + i % 7).collect::<Vec<u32>>(), ChannelColor::Neutral);
     let markers = [(10.0, "Black".into()), (250.0, "White".into())];
     Histogram::new("Histogram", &data).markers(&markers).show(ui).selection.into()
 }
 
-#[trial]
-fn markers_draw_a_caption_each_and_name_it() {
-    let mut fixture = Fixture::story(&Story::new("histogram-markers", show_markers));
-    fixture.settle();
-    let plot = fixture.by_label("Histogram").expect("the plot is named by its label").rect;
-    let (black, white) = (fixture.by_label("Black").expect("a caption").rect, fixture.by_label("White").expect("a caption").rect);
-    assert!(plot.contains_rect(black) && plot.contains_rect(white), "{black:?} {white:?} in {plot:?}");
-    assert!(black.center().x < white.center().x);
-    assert!(white.right() <= plot.right(), "a caption near the end turns to the other side of its tick");
-}

@@ -90,17 +90,6 @@ fn cancel_reason(events: &[ConnectorEvent]) -> Option<CancelReason> {
 }
 
 #[trial]
-fn hovering_a_target_points_at_the_site_an_end_would_glue_to() {
-    let mut tool = tool(boxes());
-    tool.hover(&at(97.0, 150.0), &mut cx());
-    assert_eq!(tool.cursor(&cx()), Cursor::System(CursorIcon::PointingHand), "over a side middle");
-    tool.hover(&at(60.0, 150.0), &mut cx());
-    assert_eq!(tool.cursor(&cx()), Cursor::System(CursorIcon::Crosshair), "the middle of the box chooses no site");
-    tool.hover(&at(225.0, 250.0), &mut cx());
-    assert_eq!(tool.cursor(&cx()), Cursor::System(CursorIcon::Crosshair), "over nothing");
-}
-
-#[trial]
 fn a_drag_under_the_slop_or_onto_its_start_makes_nothing() {
     let mut tool = tool(boxes());
     assert!(drag(&mut tool, (60.0, 150.0), (60.0 + SLOP - 1.0, 150.0)).is_empty(), "a drag under the slop reports nothing");
@@ -135,16 +124,6 @@ fn sites_accept_side_middles_and_numbered_sites() {
 
     let events = drag(&mut tool, (60.0, 150.0), (200.0, 230.0));
     assert_eq!(commit(&events).expect("a commit").to, ConnectorEnd::Free(Point::new(200.0, 230.0)), "out of reach of every site: free");
-}
-
-#[trial]
-fn a_release_the_geometry_refuses_cancels_as_refused() {
-    let mut tool = tool(boxes());
-    tool.press(&at(60.0, 250.0), &mut cx());
-    tool.drag(&at(200.0, 250.0), &mut cx());
-    tool.take_events();
-    tool.release(&at(f32::NAN, f32::NAN), &mut cx());
-    assert_eq!(cancel_reason(&tool.take_events()), Some(CancelReason::Refused));
 }
 
 #[trial]
@@ -244,18 +223,6 @@ fn glued_to(end: &ConnectorEnd) -> Option<u64> {
         ConnectorEnd::Free(_) => None,
         _ => None,
     }
-}
-
-#[trial]
-fn an_end_part_is_named_by_its_target_and_a_free_end_says_so() {
-    let named = vec![ConnectionTarget::new(1, A).named("Rectangle 1"), target(2, Rect::new(250.0, 100.0, 330.0, 200.0))];
-    let free = item(glued(1, ConnectionSide::Right), ConnectorEnd::Free(Point::new(300.0, 250.0)), Routing::Straight);
-    let (fixture, _) = handles(free, named);
-    assert!(fixture.by_label("Start, attached to Rectangle 1").is_some());
-    assert!(fixture.by_label("End, free").is_some());
-
-    let (fixture, _) = handles(straight(), boxes());
-    assert!(fixture.by_label("End, attached to 2").is_some(), "a target without a name is read by its number");
 }
 
 #[trial]

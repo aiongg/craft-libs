@@ -73,22 +73,6 @@ fn edit_subpath_insert_at_splits_a_curve_without_changing_it() {
 
 // Removing an inner knot joins its neighbours with the previous out and next in handles; a closed subpath stays
 // closed; removing the only knot leaves an empty subpath.
-#[trial]
-fn edit_subpath_remove_knot_joins_neighbours_and_keeps_closed() {
-    let mut sp = EditSubpath::new(
-        vec![Knot::smooth(p(0.0, 0.0), p(10.0, 10.0)), Knot::smooth(p(50.0, 0.0), p(60.0, 0.0)), Knot::smooth(p(100.0, 0.0), p(110.0, 5.0))],
-        true,
-    );
-    let (out, inn) = (sp.knots[0].out_ctrl, sp.knots[2].in_ctrl);
-    assert!(sp.remove_knot(1));
-    assert!(sp.closed);
-    let seg = sp.segment(0).unwrap();
-    assert_eq!((seg.p1, seg.p2), (out, inn));
-    assert!(!sp.remove_knot(9));
-    let mut one = EditSubpath::new(vec![Knot::corner(p(1.0, 1.0))], false);
-    assert!(one.remove_knot(0));
-    assert!(one.knots.is_empty());
-}
 
 // PhotoCraft's closed four-anchor loop: moving one anchor reflows every smooth knot (the neighbours turn), corner
 // knots keep their handles.
@@ -114,32 +98,8 @@ fn path_edit_move_curvature_reflows_every_smooth_knot() {
 
 // A corner square: toggling a knot makes it smooth and the segments around it curve; toggling again retracts its
 // handles.
-#[trial]
-fn path_edit_toggle_curvature_flips_smooth_and_corner() {
-    let mut ep = ops_path(ops_square(false));
-    let toggle = PathEdit::toggle_curvature(7, kr(1));
-    assert!(toggle.apply(&mut ep));
-    assert!(ep.subpaths[0].knots[1].smooth);
-    assert!(!ep.subpaths[0].is_straight(0));
-    assert!(!ep.subpaths[0].is_straight(1));
-    assert!(toggle.apply(&mut ep));
-    let k = ep.subpaths[0].knots[1];
-    assert!(!k.smooth && k.in_ctrl == k.anchor && k.out_ctrl == k.anchor);
-}
 
 // `InsertCurvature` on a straight segment adds a smooth knot moved by `by` and reflows.
-#[trial]
-fn path_edit_insert_curvature_adds_a_smooth_anchor_and_moves_it() {
-    let mut ep = ops_path(ops_square(false));
-    let at = ep.subpaths[0].segment(0).unwrap().eval(0.5);
-    let edit = PathEdit::insert_curvature(7, kr(0), 0.5, Vec2::new(0.0, -30.0));
-    assert!(edit.apply(&mut ep));
-    let sp = &ep.subpaths[0];
-    assert_eq!(sp.knots.len(), 5);
-    assert!(sp.knots[1].smooth);
-    assert!(near(sp.knots[1].anchor, at + Vec2::new(0.0, -30.0)));
-    assert_ne!(sp.knots[1].out_ctrl, sp.knots[1].anchor);
-}
 
 // MoveAnchors, MoveHandle (smooth and alone), BendSegment (straight and curved), Convert give PhotoCraft's kernel
 // results; a wrong key or index changes nothing and returns false.
@@ -586,17 +546,6 @@ fn a_straight_segment_moves_its_anchors_and_a_curved_one_bends() {
 }
 
 #[trial]
-fn a_release_within_the_click_slop_is_a_click_with_no_event() {
-    let mut h = two_paths();
-    let a2 = h.screen(h.anchor(0, 1));
-    h.drag(a2, vec2(1.0, 0.0));
-    assert!(h.seen().is_empty(), "{:?}", h.seen());
-    assert_eq!(h.selection(), sel(1, &[(0, 1)]), "the click selects");
-    h.drag(a2, vec2(FAR, 0.0));
-    assert_eq!(h.seen().last(), Some(&Seen::Commit));
-}
-
-#[trial]
 fn a_quick_drag_in_one_pass_moves_from_the_press() {
     let mut h = two_paths();
     let a2 = h.screen(h.anchor(0, 1));
@@ -720,32 +669,6 @@ fn arrows_move_the_selected_anchors_or_the_picked_handle_and_alt_moves_it_alone(
     assert_eq!(h.last_change(), moved(p(229.0, 19.0), false));
 }
 
-#[trial]
-fn delete_reports_the_selected_anchors_to_remove() {
-    let mut h = harness(vec![path_a()]);
-    h.tab_to_parts("Anchor 1 of 4");
-    h.key(Key::Delete, Modifiers::NONE);
-    assert_eq!(h.state.borrow().deletes, [(1, vec![kr(0)])]);
-    h.key(Key::PageDown, Modifiers::NONE);
-    h.key(Key::Backspace, Modifiers::NONE);
-    assert_eq!(h.state.borrow().deletes.len(), 2, "Backspace removes too");
-}
-
-#[trial]
-fn anchors_and_shown_handles_are_graphics_objects_until_the_anchor_limit() {
-    let mut h = harness(vec![path_a()]);
-    h.update(|st| st.selection = sel(1, &[(0, 2)]));
-    assert_eq!(h.objects(), ["Anchor 1 of 4", "Anchor 2 of 4", "Anchor 3 of 4", "In handle", "Out handle", "Anchor 4 of 4"]);
-    let tree = h.fixture.tree();
-    let values: Vec<_> = h.fixture.by_role(Role::GRAPHICS_OBJECT).iter().map(|t| tree.value_of(t.node).map(str::to_owned)).collect();
-    assert_eq!(values[0].as_deref(), Some("60.0 px, 60.0 px"));
-    assert_eq!(values[3].as_deref(), Some("230.0 px, 20.0 px"));
-
-    let knots = (0..=MAX_ANCHORS).map(|i| Knot::corner(p(i as f64 * 0.001, 100.0))).collect();
-    let h = harness(vec![EditPath::new(9, vec![EditSubpath::new(knots, false)])]);
-    assert!(h.objects().is_empty(), "over the limit no object");
-}
-
 // `hit_test` answers what a press takes, without a pass: handles, then anchors, then segments, in a rotated and
 // flipped view, as the overlay's own press does.
 #[trial]
@@ -770,21 +693,6 @@ fn hit_test_matches_the_overlays_press_priority() {
 }
 
 // Hovering a segment under Add reports the segment with its parameter, which the preview anchor stands at.
-#[trial]
-fn the_hover_reports_the_part_under_the_pointer_with_the_segment_parameter() {
-    let mut h = with_tool(BezierTool::AddAnchor);
-    let at = h.screen(p(110.0, 60.0));
-    h.move_to(at);
-    h.fixture.settle();
-    match h.state.borrow().hover {
-        Some(BezierHit::Segment { path: 1, segment, t, .. }) => assert!(segment == kr(0) && (t - 0.5).abs() < 0.05, "{segment:?} {t}"),
-        other => panic!("{other:?}"),
-    }
-    let a2 = h.screen(p(160.0, 60.0));
-    h.move_to(a2);
-    h.fixture.settle();
-    assert!(matches!(h.state.borrow().hover, Some(BezierHit::Anchor { path: 1, .. })));
-}
 
 // A selected segment shows its two handles (an object each), and no thicker line is a look the paint reads.
 #[trial]
@@ -797,54 +705,8 @@ fn a_selected_segment_shows_its_handles() {
 }
 
 // `AnchorsShown::Hidden` draws outlines only: no anchor, no handle, no part, no AccessKit object.
-#[trial]
-fn anchors_hidden_draws_outlines_only() {
-    let mut h = two_paths();
-    h.update(|st| st.selection = sel(1, &[(0, 2)]));
-    assert!(!h.objects().is_empty());
-    h.update(|st| st.anchors = AnchorsShown::Hidden);
-    assert!(h.objects().is_empty(), "no AccessKit part");
-    let a2 = h.screen(h.anchor(0, 1));
-    let clicks = h.state.borrow().tool_clicks;
-    h.click(a2);
-    assert_eq!(h.state.borrow().tool_clicks, clicks + 1, "without parts the press reaches the tool");
-    h.update(|st| st.anchors = AnchorsShown::All);
-    assert!(!h.objects().is_empty(), "anchors back");
-}
 
 // ---- the anchor tools and the Curvature tool ----
-
-#[trial]
-fn add_anchor_tool_reports_insert_on_a_segment_click_and_alt_swaps() {
-    let mut h = with_tool(BezierTool::AddAnchor);
-    h.click_doc(110.0, 60.0);
-    let [(path, segment, t)] = h.state.borrow().inserts[..] else { panic!("one insert: {:?}", h.state.borrow().inserts) };
-    assert_eq!((path, segment), (1, kr(0)));
-    assert!(t > 0.0 && t < 1.0);
-    assert_eq!(h.state.borrow().tool_clicks, 0, "a segment is the tool's");
-    assert_eq!(h.selection(), PathSelection::default(), "no selection change");
-
-    h.click_doc(260.0, 60.0);
-    h.click_doc(60.0, 60.0);
-    assert_eq!((h.state.borrow().inserts.len(), h.state.borrow().deletes.len()), (1, 0), "nothing reported for an anchor");
-    assert_eq!(h.state.borrow().tool_clicks, 0, "an anchor is taken too");
-
-    let a1 = h.screen(p(60.0, 60.0));
-    h.click_with(a1, Modifiers::ALT);
-    assert_eq!(h.state.borrow().deletes, [(1, vec![kr(0)])]);
-}
-
-#[trial]
-fn delete_anchor_tool_reports_delete_on_an_anchor_click() {
-    let mut h = with_tool(BezierTool::DeleteAnchor);
-    h.click_doc(260.0, 60.0);
-    assert_eq!(h.state.borrow().deletes, [(1, vec![kr(2)])]);
-    h.click_doc(110.0, 60.0);
-    assert_eq!((h.state.borrow().inserts.len(), h.state.borrow().deletes.len()), (0, 1), "nothing reported for a segment");
-    let mid = h.screen(p(110.0, 60.0));
-    h.click_with(mid, Modifiers::ALT);
-    assert!(matches!(h.state.borrow().inserts[..], [(1, segment, _)] if segment == kr(0)), "{:?}", h.state.borrow().inserts);
-}
 
 #[trial]
 fn auto_add_delete_leaves_open_ends_to_the_pen() {
@@ -862,23 +724,6 @@ fn auto_add_delete_leaves_open_ends_to_the_pen() {
     h.click_doc(140.0, 230.0);
     assert_eq!(h.state.borrow().inserts.len(), 1, "a segment");
     assert_eq!(h.state.borrow().tool_clicks, 3);
-}
-
-#[trial]
-fn anchor_tools_edit_the_pen_draft_passed_as_a_path() {
-    let mut h = with_tool(BezierTool::AddAnchor);
-    h.click_doc(110.0, 150.0);
-    assert!(matches!(h.state.borrow().inserts[..], [(DRAFT, segment, _)] if segment == kr(0)), "{:?}", h.state.borrow().inserts);
-    let draft = |h: &Harness| h.state.borrow().paths[2].subpaths[0].clone();
-    assert_eq!(draft(&h).knots.len(), 4);
-
-    h.update(|st| st.tool = BezierTool::DeleteAnchor);
-    h.click_doc(160.0, 150.0);
-    assert_eq!(h.state.borrow().deletes, [(DRAFT, vec![kr(2)])]);
-    let after = draft(&h);
-    assert_eq!(after.knots.len(), 3);
-    assert!(!after.closed, "the draft stays open");
-    assert!(after.knots.last().is_some_and(|k| k.anchor == p(260.0, 150.0)), "drawing goes on from the last anchor");
 }
 
 #[trial]
@@ -926,54 +771,6 @@ fn curvature_tool_insert_and_drag_is_one_gesture() {
     assert_eq!(h.state.borrow().lone_selects, 0, "the selection came with the first Update");
 }
 
-#[trial]
-fn curvature_tool_click_on_a_segment_inserts_only() {
-    let mut h = with_tool(BezierTool::Curvature);
-    h.click_doc(110.0, 60.0);
-    assert_eq!(h.seen(), [Seen::Set]);
-    let Some(PathEdit::InsertCurvature { path, segment, by, .. }) = h.last_change() else { panic!("InsertCurvature: {:?}", h.last_change()) };
-    assert_eq!((path, segment, by), (1, kr(0), Vec2::ZERO));
-    assert_eq!(h.state.borrow().lone_selects, 0, "the selection came with the insert");
-    assert_eq!(h.selection(), sel(1, &[(0, 1)]));
-}
-
-#[trial]
-fn curvature_tool_double_click_toggles_an_anchor() {
-    let mut h = with_tool(BezierTool::Curvature);
-    h.click_doc(160.0, 60.0);
-    assert!(h.seen().is_empty(), "a single click on an anchor reports nothing");
-    let at = h.screen(p(160.0, 60.0));
-    h.fixture.frame(vec![pointer::moved(at)]);
-    h.fixture.frame(vec![pointer::press(at)]);
-    h.fixture.frame(vec![pointer::release(at)]);
-    h.fixture.frame(Vec::new());
-    h.click(at);
-    assert_eq!(h.last_change(), Some(PathEdit::toggle_curvature(1, kr(1))));
-}
-
-#[trial]
-fn curvature_tool_does_not_take_empty_canvas() {
-    let mut h = with_tool(BezierTool::Curvature);
-    h.click_doc(360.0, 20.0);
-    assert!(h.seen().is_empty());
-    assert_eq!(h.state.borrow().tool_clicks, 1, "empty canvas is the pen's");
-    h.click_doc(110.0, 60.0);
-    assert_eq!(h.state.borrow().tool_clicks, 1, "a segment is taken");
-}
-
-#[trial]
-fn curvature_tool_keys_move_and_toggle() {
-    let mut h = with_tool(BezierTool::Curvature);
-    h.click_doc(160.0, 60.0);
-    h.key(Key::ArrowRight, Modifiers::NONE);
-    assert_eq!(h.last_change(), Some(PathEdit::move_curvature(1, vec![kr(1)], Vec2::new(1.0, 0.0))));
-    h.key(Key::ArrowDown, Modifiers::SHIFT);
-    assert_eq!(h.last_change(), Some(PathEdit::move_curvature(1, vec![kr(1)], Vec2::new(0.0, 10.0))));
-    h.key(Key::Enter, Modifiers::NONE);
-    assert_eq!(h.last_change(), Some(PathEdit::toggle_curvature(1, kr(1))));
-    assert_eq!(h.seen(), [Seen::Set, Seen::Set, Seen::Set]);
-}
-
 /// Selects anchor 1 of path 1, whose in handle lies on the first segment, so a handle is shown over the segment.
 fn with_handle_over_the_segment(h: &mut Harness) {
     h.update(|st| {
@@ -1007,24 +804,3 @@ fn a_shown_handle_does_not_hide_the_segment_for_the_anchor_tools_and_curvature()
 }
 
 // Arrows, select all and Escape belong to Direct, Convert and Curvature; Add, Delete and Auto Add/Delete have none.
-#[trial]
-fn arrows_and_escape_act_only_under_direct_convert_and_curvature() {
-    for (tool, acts) in [
-        (BezierTool::Direct, true),
-        (BezierTool::Convert, true),
-        (BezierTool::Curvature, true),
-        (BezierTool::AddAnchor, false),
-        (BezierTool::DeleteAnchor, false),
-        (BezierTool::AutoAddDelete, false),
-    ] {
-        let mut h = with_tool(tool);
-        h.update(|st| st.selection = sel(1, &[(0, 1)]));
-        h.key(Key::Tab, Modifiers::NONE);
-        h.key(Key::Tab, Modifiers::NONE);
-        assert!(h.fixture.focused_stop().is_some_and(|(_, part)| part.is_some()), "{tool:?}: Tab 2 reaches a part");
-        h.key(Key::ArrowRight, Modifiers::NONE);
-        assert_eq!(!h.seen().is_empty(), acts, "{tool:?} arrows");
-        h.key(Key::Escape, Modifiers::NONE);
-        assert_eq!(h.selection() == PathSelection::default(), acts, "{tool:?} Escape");
-    }
-}

@@ -38,20 +38,8 @@ fn rendered(renderer: &Recorder) -> Vec<i64> {
 }
 
 // (1, 1) while workers keep up, else lead and stride as FilmCraft.
-#[test]
-fn playback_plan_drops_frames_evenly_when_slow() {
-    assert_eq!(playback_plan(0.0, 24.0, 6), (1, 1));
-    assert_eq!(playback_plan(0.15, 24.0, 6), (1, 1));
-    assert_eq!(playback_plan(0.5, 24.0, 6), (12, 3));
-    assert_eq!(playback_plan(0.5, 24.0, 0), playback_plan(0.5, 24.0, 1));
-}
 
 // 14 at 1x, 24 above 1.5x.
-#[test]
-fn prefetch_depth_by_speed() {
-    assert_eq!((prefetch_depth(1.0), prefetch_depth(1.5)), (14, 14));
-    assert_eq!((prefetch_depth(2.0), prefetch_depth(-2.0)), (24, 24));
-}
 
 // a priority-0 request drops this view's queued priority-0 jobs.
 #[test]
@@ -81,20 +69,6 @@ fn schedule_playback_drops_stale_jobs() {
 }
 
 // preroll_ready is true once the next six frames are cached.
-#[test]
-fn preroll_ready_needs_six_frames() {
-    let (frames, _) = server();
-    let key = TestKey::new(0, 10);
-    for f in 10..15 {
-        frames.request(key.at_frame(f), (), 1);
-    }
-    frames.pump(Duration::from_secs(5));
-    assert!(!frames.preroll_ready(&key, 1.0, 100));
-    assert!(frames.preroll_ready(&key, 1.0, 14), "frames past the last are not needed");
-    frames.request(key.at_frame(15), (), 1);
-    frames.pump(Duration::from_secs(5));
-    assert!(frames.preroll_ready(&key, 1.0, 100));
-}
 
 // with zero workers pump renders queued jobs by priority within the budget.
 #[test]

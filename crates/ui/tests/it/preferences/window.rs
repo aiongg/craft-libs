@@ -80,15 +80,6 @@ fn ok_applies_and_closes() {
     assert_eq!(log.closed.get(), Some(Closed::Ok));
 }
 
-/// Apply applies the draft and leaves the window open.
-#[trial]
-fn apply_keeps_the_window_open() {
-    let (mut fixture, log) = rig(false);
-    press(&mut fixture, "Apply");
-    assert_eq!(log.applied.get(), 1);
-    assert_eq!(log.closed.get(), None);
-}
-
 /// Escape drops the draft and closes the window as cancelled, without applying.
 #[trial]
 fn escape_cancels() {

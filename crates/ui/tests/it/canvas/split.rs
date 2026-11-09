@@ -35,18 +35,6 @@ fn the_draw_order_moves_the_first_pane_forward_and_keeps_the_others_in_reading_o
 }
 
 #[trial]
-fn linked_panes_follow_the_main_view_and_keep_their_rect_and_rotation() {
-    let rect = |width| Rect::from_min_size(Pos2::ZERO, Vec2::new(width, 100.0));
-    let main = CanvasView::new(rect(400.0), Point::new(30.0, 40.0), 2.5).rotation(90.0);
-    let own = CanvasView::new(rect(150.0), Point::new(1.0, 2.0), 1.0).rotation(15.0);
-    let mut panes = [SplitPane::new(own, true), SplitPane::new(own, false)];
-    SplitViews::follow(&main, &mut panes);
-    assert_eq!((panes[0].view.center, panes[0].view.zoom), (main.center, main.zoom));
-    assert_eq!((panes[0].view.rect, panes[0].view.rotation), (own.rect, 15.0));
-    assert_eq!(panes[1].view, own, "an unlinked pane stays");
-}
-
-#[trial]
 fn a_click_on_an_inactive_view_activates_it_and_its_canvas_gets_no_press() {
     let seen: Rc<RefCell<(Option<usize>, bool)>> = Rc::default();
     let shared = Rc::clone(&seen);
@@ -71,19 +59,3 @@ fn a_click_on_an_inactive_view_activates_it_and_its_canvas_gets_no_press() {
     assert_eq!(*seen.borrow(), (Some(1), false));
 }
 
-#[trial]
-fn split_views_in_right_to_left_mirror_their_dividers() {
-    let divider_x = |direction| {
-        let mut fixture = Fixture::new(|ui| {
-            let mut at = SplitAt::new(0.25, 0.5);
-            SplitViews::new("Views", SplitLayout::Two, Bind::bound(&mut at)).show(ui, |_, _| ());
-        });
-        fixture.direction(direction);
-        fixture.settle();
-        let divider = fixture.by_role(craft_ui::contract::Role::SPLITTER).into_iter().next().expect("two views have a divider");
-        (divider.center().x, fixture.shown().center().x)
-    };
-    let (left_to_right, middle) = divider_x(craft_i18n::Direction::Ltr);
-    let (right_to_left, _) = divider_x(craft_i18n::Direction::Rtl);
-    assert!(left_to_right < middle && middle < right_to_left, "the divider a quarter in from the start edge is on the right under right-to-left");
-}

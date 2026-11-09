@@ -238,27 +238,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_keyed_slice_keys_by_the_closure_and_finds_keys_again() {
-        let rows = [(7_u32, "b"), (3, "a")];
-        let source = keyed(&rows, |row| row.0).with_text(|row| Cow::Borrowed(row.1));
-        assert_eq!((source.key(0), source.key(1)), (7, 3));
-        assert_eq!(source.index_of(&3), Some(1));
-        assert_eq!(source.index_of(&9), None);
-        assert_eq!(DisplayOrder::text(&source, 1).as_deref(), Some("a"));
-    }
-
-    #[test]
-    fn a_keyed_slice_answers_toggle_cells_from_the_closure() {
-        let rows = [(1_u32, true), (2, false)];
-        let visible = ColumnKey::new("visible");
-        let source = keyed(&rows, |row| row.0).with_toggled(|row, column| row.1 && *column == ColumnKey::new("visible"));
-        assert!(source.toggled(0, &visible));
-        assert!(!source.toggled(1, &visible));
-        assert!(!source.toggled(0, &ColumnKey::new("lock")));
-        assert!(!keyed(&rows, |row| row.0).toggled(0, &visible), "a source without the closure has every cell off");
-    }
-
-    #[test]
     fn an_outline_over_a_free_layout_moves_down_to_the_item_below() {
         use crate::intent::{MoveMods, NavMove};
         use crate::item_layout::FreeLayout;

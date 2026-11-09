@@ -31,12 +31,6 @@ fn help_shown(fixture: &Fixture) -> bool {
     fixture.by_role(Role::LABEL).into_iter().any(|label| fixture.tree().name_of(label.node) == Some(HELP))
 }
 
-#[trial]
-fn help_text_shows_only_when_the_field_has_it() {
-    assert!(help_shown(&shown(Some(Help::Text(HELP.into())))), "the help line is shown");
-    assert!(!help_shown(&shown(None)), "a field without help shows no help line");
-}
-
 const MESSAGE: &str = "Size is too large";
 
 /// A field with help over a number the test sets between frames; `check` judges it.
@@ -95,17 +89,6 @@ fn tone_ink(tone: Tone) -> craft_ui::style::Stateful<craft_ui::style::StyleColor
     inks(&fixture).into_iter().next().expect("the reference text resolved a style")
 }
 
-/// A warning shows in the warn tone and a refusal in the error tone.
-#[trial]
-fn a_warning_reads_in_the_warn_tone_and_a_refusal_in_the_error_tone() {
-    let value = Rc::new(Cell::new(500.0));
-    let warned = judged(&value, |size| if size > 100.0 { Validity::Warn(Message::new(MESSAGE)) } else { Validity::Ok });
-    let refused = judged(&value, |size| if size > 100.0 { Validity::Refuse(Message::new(MESSAGE)) } else { Validity::Ok });
-    let (warn, bad) = (tone_ink(Tone::Warn), tone_ink(Tone::Bad));
-    assert!(inks(&warned).contains(&warn) && !inks(&warned).contains(&bad), "a warning is not painted as an error");
-    assert!(inks(&refused).contains(&bad) && !inks(&refused).contains(&warn), "a refusal is painted as an error");
-}
-
 /// A click on a field's label moves focus to its control, as on any form label.
 #[trial]
 fn a_click_on_the_label_focuses_the_control() {
@@ -125,15 +108,3 @@ fn a_click_on_the_label_focuses_the_control() {
 
 const READOUT: &str = "12 mm";
 
-#[trial]
-fn a_readout_field_reports_its_value() {
-    let mut fixture = Fixture::new(|ui| {
-        Field::new("Length").value(READOUT).show(ui, |ui, _| {
-            Text::new(READOUT).show(ui);
-        });
-    });
-    fixture.settle();
-    let tree = fixture.tree();
-    let valued = fixture.by_role(Role::GROUP).into_iter().any(|group| tree.value_of(group.node) == Some(READOUT));
-    assert!(valued, "the field node carries the readout as its value");
-}

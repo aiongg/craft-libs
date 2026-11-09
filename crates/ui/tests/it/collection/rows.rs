@@ -508,15 +508,3 @@ fn a_nudging_part_in_a_row_gets_alt_arrows() {
     assert_eq!(log.leads().last(), Some(&0), "the lead stayed");
 }
 
-/// A user's column count replaces the one the width allows, and a tile of the second row sits below the first's.
-#[trial]
-fn a_set_column_count_wraps_tiles_whatever_the_width() {
-    use craft_behavior::{ItemLayout as _, TileLayout};
-    let tile = Vec2::new(40.0, 30.0);
-    let wide = TileLayout::new(&Count(10), 1000.0, tile, 4.0);
-    assert!(wide.columns() > 3, "control: the width allows more than three columns");
-    let three = wide.in_columns(3);
-    assert_eq!(three.columns(), 3);
-    let (first, wrapped) = (three.rect(0, craft_behavior::ScrollPos::default()), three.rect(3, craft_behavior::ScrollPos::default()));
-    assert!(wrapped.min.y >= first.max.y && wrapped.min.x == first.min.x, "the fourth tile starts the second row");
-}

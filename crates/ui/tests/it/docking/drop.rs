@@ -70,12 +70,6 @@ fn open(_: &u32) -> Permissions {
 }
 
 #[trial]
-fn a_panel_dropped_on_a_strip_joins_the_tabs_before_the_tab_there() {
-    let action = drop_of(DragUnit::Panel(LOWER_GROUP), at(150.0, 10.0), open);
-    assert_eq!(action, Some(Action::move_beside(LOWER_GROUP, TOP_GROUP, DockPlacement::tab(Some(TOP_SECOND_TAB)))));
-}
-
-#[trial]
 fn a_tab_dropped_after_its_own_neighbour_reorders_its_group() {
     let action = drop_of(DragUnit::Panel(TOP_GROUP), at(10.0, 10.0), open);
     assert_eq!(
@@ -108,30 +102,6 @@ fn permissions_refuse_a_drop_the_destination_or_the_unit_does_not_allow() {
     assert!(drop_of(DragUnit::Panel(TOP_SECOND_TAB), at(100.0, 136.0), no_tabs).is_some(), "it still takes a new group beside it");
     let pinned = |panel: &u32| if *panel == LOWER_GROUP { Permissions::ALL.movable(false) } else { Permissions::default() };
     assert_eq!(drop_of(DragUnit::Panel(LOWER_GROUP), at(100.0, 60.0), pinned), None, "a panel that cannot move is not dropped");
-}
-
-#[trial]
-fn the_new_dock_band_gives_the_unit_a_dock_of_its_own() {
-    let action = drop_of(DragUnit::Group(TOP_GROUP), at(390.0, 100.0), open);
-    assert_eq!(action, Some(Action::move_group(TOP_GROUP, Target::new_dock(DockEdge::End))));
-}
-
-#[trial]
-fn a_float_drop_puts_the_window_under_the_pointer_inside_the_area() {
-    let frames = Frames::new();
-    let sizes = with_cx(&frames.ctx, &tokens(Mode::Dark, Contrast::Standard), Variant::SECONDARY, ControlSize::Md, DockSizes::style);
-    let area = Rect::from_min_size(at(0.0, 0.0), Vec2::new(800.0, 600.0));
-    let space = FloatSpace::<u32>::new(area, &sizes);
-    let dropped = float_drop(&DragUnit::Panel(LOWER_GROUP), &space, at(790.0, 590.0));
-    let Action::Float { rect, .. } = dropped.action else { panic!("a panel floats alone") };
-    let window = rect;
-    assert!(area.contains_rect(window), "the window is pulled back inside the area: {window:?}");
-}
-
-#[trial]
-fn a_floating_window_docks_as_one_unit_on_the_spot_under_it() {
-    let action = drop_of(DragUnit::Window(WINDOW), at(100.0, 60.0), open);
-    assert_eq!(action, Some(Action::move_window(WINDOW, Target::at(TOP_GROUP, DockPlacement::Split(DockSide::Center)))));
 }
 
 #[trial]

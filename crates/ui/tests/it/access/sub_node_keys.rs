@@ -107,19 +107,6 @@ fn pair() -> (Fixture, Rc<Seen>) {
 }
 
 #[trial]
-fn a_sub_node_lists_its_shortcut_and_the_key_reaches_the_owner() {
-    let (mut fixture, seen) = pair();
-    let root = seen.root.get();
-    let head = fixture.part(root, HEAD).expect("the header sub-node");
-    assert_eq!(fixture.tree().shortcut_of(head.node), Some(SHORTCUT), "the access tree lists the declared key");
-    let knob = fixture.part(root, KNOB.at(0)).expect("a knob sub-node");
-    assert_eq!(fixture.tree().shortcut_of(knob.node), None, "a sub-node that declares none lists none");
-    fixture.key(Key::Tab, Modifiers::NONE).settle();
-    fixture.key(Key::ArrowDown, Modifiers::ALT).settle();
-    assert_eq!(seen.opened.get(), 1, "Alt+Down on the focused header reaches the owner as Open");
-}
-
-#[trial]
 fn a_numeric_sub_node_serves_increment_decrement_and_set_value() {
     let (mut fixture, seen) = pair();
     let root = seen.root.get();

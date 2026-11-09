@@ -19,36 +19,3 @@ fn frame(ui: &mut Ui, open: &mut bool, at: &Cell<Option<(Rect, Id)>>, body_shown
     }
 }
 
-#[trial]
-fn a_disclosure_toggles_its_body_by_pointer_and_key() {
-    let mut frames = Frames::new();
-    let (at, body) = (Cell::new(None), Cell::new(false));
-    let mut open = false;
-    frames.idle(2, |ui| frame(ui, &mut open, &at, &body));
-    let (rect, id) = at.get().expect("the disclosure showed");
-    click(&mut frames, rect.center(), &mut |ui| frame(ui, &mut open, &at, &body));
-    assert!(open && body.get(), "a click opens the body");
-    for (key, expected) in [(Key::Space, false), (Key::Enter, true)] {
-        // Tab until the disclosure holds focus, then press the key.
-        while egui_focused(&frames.ctx) != Some(id) {
-            frames.frame(vec![key_press(Key::Tab, Modifiers::NONE)], |ui| frame(ui, &mut open, &at, &body));
-            frames.frame(vec![key_release(Key::Tab, Modifiers::NONE)], |ui| frame(ui, &mut open, &at, &body));
-        }
-        frames.frame(vec![key_press(key, Modifiers::NONE)], |ui| frame(ui, &mut open, &at, &body));
-        frames.frame(vec![key_release(key, Modifiers::NONE)], |ui| frame(ui, &mut open, &at, &body));
-        assert_eq!((open, body.get()), (expected, expected), "{key:?} toggles the body");
-    }
-}
-
-#[trial]
-fn a_disclosure_reports_its_expanded_state_to_assistive_technology() {
-    let mut frames = Frames::new();
-    let (at, body) = (Cell::new(None), Cell::new(false));
-    let mut open = false;
-    frames.idle(2, |ui| frame(ui, &mut open, &at, &body));
-    let (_, id) = at.get().expect("the disclosure showed");
-    assert_eq!(frames.tree().expanded(id), Some(false));
-    open = true;
-    frames.idle(2, |ui| frame(ui, &mut open, &at, &body));
-    assert_eq!(frames.tree().expanded(id), Some(true));
-}

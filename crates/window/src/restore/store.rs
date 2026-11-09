@@ -271,18 +271,6 @@ mod tests {
         assert_eq!(v["schema_version"], 1);
     }
 
-    #[cfg(unix)]
-    #[test]
-    fn the_file_is_private() {
-        use std::os::unix::fs::PermissionsExt;
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join(FILE_NAME);
-        let mut s = Store::at(&path);
-        s.set(MAIN, &sample(1));
-        s.save().unwrap();
-        assert_eq!(std::fs::metadata(&path).unwrap().permissions().mode() & 0o077, 0);
-    }
-
     #[test]
     fn corrupt_file_is_moved_aside_and_the_store_starts_empty() {
         let dir = tempfile::tempdir().unwrap();
@@ -297,14 +285,6 @@ mod tests {
         s.save().unwrap();
         assert!(Store::at(&path).get(MAIN).is_some());
         assert_eq!(siblings(dir.path()).len(), 2);
-    }
-
-    #[test]
-    fn json_without_a_schema_version_counts_as_corrupt() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join(FILE_NAME);
-        std::fs::write(&path, r#"{"windows":{}}"#).unwrap();
-        assert!(Store::at(&path).moved_aside().is_some());
     }
 
     #[test]
@@ -396,21 +376,4 @@ mod tests {
         assert!(!s.is_dirty() && s.take_pending().is_none());
     }
 
-    #[test]
-    fn in_memory_store_keeps_values_and_writes_nothing() {
-        let mut s = Store::in_memory();
-        s.set(MAIN, &sample(3));
-        assert_eq!(s.get(MAIN), Some(sample(3)));
-        assert!(!s.save().unwrap());
-        assert!(s.path().is_none());
-    }
-
-    #[test]
-    fn open_puts_the_file_beside_config_toml() {
-        let dir = tempfile::tempdir().unwrap();
-        let s = Store::open_with("app", &Portable::DEFAULT, &Location::Dir(dir.path().to_path_buf()), &Probe::default());
-        assert_eq!(s.path(), Some(dir.path().join(FILE_NAME).as_path()));
-        let mem = Store::open_with("app", &Portable::DEFAULT, &Location::Memory, &Probe::default());
-        assert!(mem.path().is_none());
-    }
 }

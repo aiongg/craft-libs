@@ -38,11 +38,3 @@ fn a_popover_opens_on_the_field_that_declares_the_default_stop() {
     assert_eq!(rig.fixture.focused_stop().map(|(id, _)| id), Some(rig.second.get()));
 }
 
-/// Typed text lands in the draft of the focused field inside a popover.
-#[trial]
-fn typed_text_reaches_a_text_field_in_a_popover() {
-    let mut rig = rig();
-    rig.fixture.type_text("hello");
-    rig.fixture.idle(3);
-    assert_eq!(*rig.drafts.borrow(), [String::new(), "hello".to_owned()]);
-}

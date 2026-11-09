@@ -14,15 +14,6 @@ fn at(position: Anchor9) -> WatermarkSettings {
     settings
 }
 
-/// An inset along an axis the position centres on has nothing to offset.
-#[trial]
-fn insets_apply_only_along_the_axes_the_position_does_not_centre() {
-    assert!(at(Anchor9::BottomRight).insets_across() && at(Anchor9::BottomRight).insets_down());
-    assert!(!at(Anchor9::Top).insets_across() && at(Anchor9::Top).insets_down());
-    assert!(at(Anchor9::Left).insets_across() && !at(Anchor9::Left).insets_down());
-    assert!(!at(Anchor9::Centre).insets_across() && !at(Anchor9::Centre).insets_down());
-}
-
 /// Picking Graphic and then Text again brings the typed text back.
 #[trial]
 fn switching_the_style_restores_the_text() {

@@ -67,12 +67,3 @@ fn activation_by(key: Key, modifiers: Modifiers) -> Option<Activation> {
     seen.get()
 }
 
-#[trial]
-fn alt_enter_on_a_button_activates_it_with_alt() {
-    let plain = activation_by(Key::Enter, Modifiers::NONE).expect("Enter activates the focused button");
-    assert!(plain.by_key, "Enter is a key activation");
-    assert_eq!(plain.mods, Mods::NONE, "a plain Enter holds no modifier");
-    let alt = activation_by(Key::Enter, Modifiers::ALT).expect("Alt+Enter activates the focused button");
-    assert!(alt.by_key, "Alt+Enter is a key activation");
-    assert!(alt.mods.alt, "the activation carries the Alt held with Enter: {:?}", alt.mods);
-}

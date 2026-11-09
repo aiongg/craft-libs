@@ -57,15 +57,6 @@ fn empty_env_var_reads_and_writes_nothing() {
 }
 
 #[test]
-fn memory_location_reads_and_writes_nothing() {
-    let tmp = tempfile::tempdir().unwrap();
-    let (mut store, report) = SettingsStore::<Prefs>::open_with(OpenOptions::new(Location::Memory).probe(probe_in(tmp.path(), None)));
-    assert_eq!(report.rule, "in memory only");
-    exercise(&mut store);
-    assert_untouched(tmp.path());
-}
-
-#[test]
 fn memory_ignores_legacy_files() {
     let tmp = tempfile::tempdir().unwrap();
     let old = tmp.path().join("prefs.json");

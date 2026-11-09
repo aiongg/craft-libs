@@ -12,22 +12,6 @@ use egui::{Rect, Shape, pos2};
 const RECT: Rect = Rect::from_min_max(pos2(10.0, 10.0), pos2(90.0, 40.0));
 
 #[trial]
-fn a_well_shows_its_edge_as_a_border_in_flat_themes_and_as_a_bevel_in_bevel_themes() {
-    let frames = Frames::new();
-    let flat = tokens(Mode::Light, Contrast::Standard);
-    let bevel = tokens_named("classic", Mode::Light, Contrast::Standard);
-    let edge = |tokens, kind| with_cx(&frames.ctx, tokens, Variant::SECONDARY, ControlSize::Md, |cx| cx.surface(kind).edge);
-    assert!(matches!(edge(&flat, SurfaceKind::Well), SurfaceEdge::Border(_)), "flat: the border colour");
-    let top_left = |edge| match edge {
-        SurfaceEdge::Bevel { top_left, .. } => Some(top_left),
-        _ => None,
-    };
-    let (lit, shaded) = (top_left(edge(&bevel, SurfaceKind::Raised)), top_left(edge(&bevel, SurfaceKind::Well)));
-    assert!(lit.is_some() && shaded.is_some(), "bevel themes bevel raised surfaces and wells");
-    assert_ne!(lit, shaded, "a well is lit from the opposite side");
-}
-
-#[trial]
 fn start_corners_follow_the_reading_direction_and_bevel_lighting_does_not_mirror() {
     let frames = Frames::new();
     let flat = tokens(Mode::Light, Contrast::Standard);

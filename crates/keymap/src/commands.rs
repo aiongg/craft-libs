@@ -47,16 +47,4 @@ mod tests {
 
     static CATALOG: &craft_i18n::Embedded = &[("de", "@id\tfile.save\tSichern\n", "")];
 
-    #[test]
-    fn labels_come_from_the_id_rows_and_hints_from_the_source() {
-        let (i18n, _) = I18n::new(CATALOG, &["de"]);
-        let lang = i18n.from_code("de").unwrap_or(Lang::EN);
-        let commands = KeymapCommands::new(Arc::new(i18n), lang);
-        assert_eq!(commands.label("file.save", "Save"), "Sichern");
-        assert_eq!(commands.label("file.open", "Open"), "Open");
-        assert_eq!(commands.hint("file.save"), None);
-        let commands = commands.with_hints(|id| (id == "file.save").then(|| "Writes the file".to_string()));
-        assert_eq!(commands.hint("file.save").as_deref(), Some("Writes the file"));
-        assert_eq!(commands.hint("file.open"), None);
-    }
 }

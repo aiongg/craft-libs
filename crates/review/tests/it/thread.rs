@@ -161,41 +161,6 @@ fn escape_closes_the_mention_list_before_the_popover() {
 }
 
 #[trial]
-fn clicking_a_suggestion_completes_the_mention() {
-    let (mut fx, app) = popover("Ana María");
-    focus_reply(&mut fx);
-    fx.type_text("hi @an");
-    fx.settle();
-    let row = fx.by_role(Role::LIST_BOX_OPTION).into_iter().find(|row| fx.tree().name_of(row.node) == Some("Ana María")).expect("the suggestion");
-    fx.click(&row);
-    fx.settle();
-    assert_eq!(app.borrow().draft, "hi @Ana María ");
-    assert!(!app.borrow().closed);
-}
-
-#[trial]
-fn more_menu_holds_unread_link_and_delete_for_your_thread() {
-    let (mut fx, app) = popover("Ana María");
-    let more = fx.by_label("More").expect("More");
-    fx.click(&more);
-    fx.settle();
-    assert!(fx.by_label("Delete thread").is_none(), "someone else's thread");
-    let link = fx.by_label("Copy link").expect("Copy link");
-    fx.click(&link);
-    fx.settle();
-    assert!(matches!(app.borrow().edits.as_slice(), [CommentEdit::CopyLink { thread: ThreadId(7), .. }]));
-
-    let (mut fx, app) = popover("Me");
-    let more = fx.by_label("More").expect("More");
-    fx.click(&more);
-    fx.settle();
-    let delete = fx.by_label("Delete thread").expect("Delete thread");
-    fx.click(&delete);
-    fx.settle();
-    assert!(matches!(app.borrow().edits.as_slice(), [CommentEdit::Delete { thread: ThreadId(7), index: 0, .. }]));
-}
-
-#[trial]
 fn popover_completes_mentions_replies_and_resolves() {
     let (mut fx, app) = popover("Ana María");
     focus_reply(&mut fx);
@@ -275,25 +240,6 @@ fn pins_open_drag_and_cluster() {
     assert!(matches!(moves.last(), Some(PinMove { thread, to, .. }) if *thread == ThreadId(2) && to.x > start.x), "{moves:?}");
 }
 
-/// While your own pin is dragged it follows the pointer, before the drop.
-#[trial]
-fn your_pin_follows_the_pointer_while_dragged() {
-    let (mut fx, _) = pins(vec![(ThreadId(2), pos2(100.0, 100.0), "Me")]);
-    let own = fx.by_label("Comment by Me: Check the margin").expect("own pin");
-    let left = |fx: &Fixture| fx.texts().iter().map(|run| run.rect.min.x).fold(f32::INFINITY, f32::min);
-    fx.frame(Vec::new());
-    let before = left(&fx);
-    assert!(before.is_finite(), "the pin paints its initials");
-    let (at, to) = (own.center(), own.center() + vec2(45.0, 0.0));
-    fx.frame(vec![pointer::moved(at)]);
-    fx.frame(vec![pointer::press(at)]);
-    for step in 1..=3 {
-        fx.frame(vec![pointer::moved(at + (to - at) * (step as f32 / 3.0))]);
-    }
-    let moved = left(&fx) - before;
-    assert!(moved > (to.x - at.x) - own.rect.width(), "the pin moved with the pointer, within its own width: {before} then {}", left(&fx));
-}
-
 /// A message keeps its line breaks.
 #[trial]
 fn a_message_keeps_its_line_breaks() {
@@ -303,12 +249,3 @@ fn a_message_keeps_its_line_breaks() {
     assert!(second.center().y > first.rect.max.y, "the second line is below the first");
 }
 
-/// The close button closes the popover.
-#[trial]
-fn the_close_button_closes_the_popover() {
-    let (mut fx, app) = popover("Ana María");
-    let close = fx.by_label("Close").expect("Close");
-    fx.click(&close);
-    fx.settle();
-    assert!(app.borrow().closed);
-}

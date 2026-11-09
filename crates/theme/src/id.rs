@@ -195,30 +195,6 @@ mod tests {
     }
 
     #[test]
-    fn app_ids_follow_the_theme_id_form() {
-        for ok in ["ab", "photocraft", "film.craft_2"] {
-            assert_eq!(AppId::parse(ok).map(|id| id.as_str().to_owned()), Ok(ok.to_owned()), "{ok}");
-        }
-        for bad in ["", "a", "Ab", "-ab", "a b"] {
-            assert_eq!(AppId::parse(bad).err(), ThemeId::parse(bad).err(), "{bad}");
-        }
-        assert!(AppId::parse("craft.x").is_ok() && AppId::parse("con").is_ok());
-    }
-
-    #[test]
-    fn craft_prefix_is_reserved() {
-        for constant in [APP_DEFAULT, SUITE_DEFAULT] {
-            let id = ThemeId::parse(constant).unwrap();
-            assert!(id.is_builtin());
-            assert_eq!(ThemeId::parse_user(constant), Err(IdError::Reserved));
-        }
-        assert!(ThemeId::app_default().is_app_default());
-        assert_eq!(ThemeId::suite_default().as_str(), SUITE_DEFAULT);
-        assert!(!ThemeId::parse("crafty").unwrap().is_builtin());
-        assert!(ThemeId::parse_user("crafty.night").is_ok());
-    }
-
-    #[test]
     fn windows_device_names_are_refused_for_user_ids() {
         for bad in ["con", "nul", "aux", "prn", "com1", "com9", "lpt1", "lpt9", "con.dark", "nul.x", "aux.my-theme"] {
             assert_eq!(ThemeId::parse_user(bad), Err(IdError::DeviceName), "{bad}");

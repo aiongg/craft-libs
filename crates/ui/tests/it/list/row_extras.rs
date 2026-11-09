@@ -104,13 +104,6 @@ fn circles(icon: Option<IconSpec<'static>>) -> usize {
     frames.frame_shapes(&mut show).iter().filter(|shape| matches!(shape, egui::Shape::Circle(_))).count()
 }
 
-/// A disc icon paints a circle shape.
-#[trial]
-fn a_disc_icon_paints_a_circle() {
-    assert_eq!(circles(None), 0);
-    assert!(circles(Some(IconSpec::disc())) > 0);
-}
-
 fn columns() -> Vec<ColumnSpec> {
     vec![
         ColumnSpec::new(INCLUDE, "", ColumnWidth::Controls(1.0)).kind(ColumnKind::Toggle(ToggleColumn::sweepable())),

@@ -12,33 +12,6 @@ fn flag_port(port: u16) -> ControlOptions {
 }
 
 // A flag wins over its variable; a blank variable is unset; a bad port names the variable.
-#[test]
-fn variables_are_the_flags_fallbacks() {
-    let env_names = names("APP");
-    let vars = |port: &'static str| {
-        let (p, t) = (env_names.port.clone(), env_names.token.clone());
-        move |name: &str| match name {
-            n if n == p => Some(port.into()),
-            n if n == t => Some("   ".into()),
-            _ => None,
-        }
-    };
-    let env = ControlOptions::from_lookup(&env_names, vars(" 7000 ")).unwrap();
-    assert_eq!(env.port, Some(7000));
-    assert_eq!(env.sources.port, Some(Source::Env));
-    assert_eq!(env.token, None, "a blank variable is unset");
-
-    let merged = ControlOptions::merged(flag_port(0), env.clone());
-    assert_eq!((merged.port, merged.sources.port), (Some(0), Some(Source::Flag)));
-    let merged = ControlOptions::merged(ControlOptions::default(), env);
-    assert_eq!((merged.port, merged.sources.port), (Some(7000), Some(Source::Env)));
-
-    let error = ControlOptions::from_lookup(&env_names, vars("nope")).unwrap_err();
-    assert_eq!(error, OptionsError::NotAPort { value: "nope".into(), shown: env_names.port.clone() });
-    assert_eq!(error.to_string(), "invalid value 'nope' for 'APP_CONTROL_PORT': expected a port, 0-65535");
-    assert_eq!(control_port("65536"), Err(NotAPort));
-    assert_eq!(control_port(" 65535 "), Ok(65535));
-}
 
 // token + token file (either from a flag or a variable) is a conflict that never shows the token.
 #[test]

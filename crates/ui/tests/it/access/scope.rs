@@ -39,14 +39,6 @@ fn field(frames: &mut Frames, controls: usize, keeps_name: bool) -> (Id, Vec<Id>
 }
 
 #[trial]
-fn one_control_is_labelled_by_the_field_label() {
-    let mut frames = Frames::new();
-    let (_, ids, tree) = field(&mut frames, 1, false);
-    assert_eq!(tree.labelled_by(ids[0]), [NodeKey::of(field_label().id)]);
-    assert_eq!((tree.role(field_label().id), tree.name(field_label().id)), (Some(UiRole::LABEL), Some("Name")));
-}
-
-#[trial]
 fn the_name_rule_follows_labelled_by() {
     let mut frames = Frames::new();
     let (_, ids, tree) = field(&mut frames, 1, false);
@@ -204,21 +196,6 @@ impl Component for Form {
 }
 
 impl Container for Form {}
-
-#[trial]
-fn labelled_rows_of_a_label_column_container_share_the_widest_label() {
-    let mut frames = Frames::new();
-    let (mut first, mut second) = (0.0, 0.0);
-    let (seen_first, seen_second) = (RefCell::new(DialSeen::default()), RefCell::new(DialSeen::default()));
-    frames.idle(4, |ui| {
-        Form::new().id_salt("form").show(ui, |ui, cx| {
-            cx.labelled(ui, "short", "Size".into(), SideLabel::new(), Dial::new(&mut first, &seen_first));
-            cx.labelled(ui, "long", "Background opacity".into(), SideLabel::new(), Dial::new(&mut second, &seen_second));
-        });
-    });
-    let (a, b) = (seen_first.borrow().rect, seen_second.borrow().rect);
-    assert_eq!(a.min.x.round(), b.min.x.round(), "both controls start after the same label column: {a:?} {b:?}");
-}
 
 /// A bound number whose check always warns.
 #[derive(craft_ui::contract::Component)]

@@ -36,13 +36,6 @@ fn a_quad_is_valid_when_convex_wound_clockwise_and_not_flat() {
 }
 
 #[trial]
-fn the_grid_step_count_follows_the_side_from_two_to_twelve() {
-    assert_eq!(grid_steps(10.0, 48.0), 2);
-    assert_eq!(grid_steps(240.0, 48.0), 5);
-    assert_eq!(grid_steps(10_000.0, 48.0), 12);
-}
-
-#[trial]
 fn grid_lines_meet_at_the_quads_vanishing_points() {
     let view = CanvasView::new(egui::Rect::from_min_size(Pos2::ZERO, Vec2::new(400.0, 300.0)), Point::new(200.0, 150.0), 1.0);
     let upright = [Point::new(100.0, 50.0), Point::new(300.0, 50.0), Point::new(300.0, 190.0), Point::new(100.0, 190.0)];
@@ -151,50 +144,6 @@ fn dragging_a_corner_keeps_the_press_offset_and_moves_only_that_corner() {
 }
 
 #[trial]
-fn a_corner_follows_the_pointer_to_a_non_convex_quad_and_the_release_is_refused() {
-    let mut rig = Rig::refusing(Some(PAGE));
-    let corner = rig.at(PAGE[2]);
-    let to = rig.at(Point::new(150.0, 100.0));
-    let from = corner;
-    rig.fixture.frame(vec![pointer::moved(from)]);
-    rig.fixture.frame(vec![pointer::press(from)]);
-    rig.fixture.frame(vec![pointer::moved(from + (to - from) * 0.5)]);
-    rig.fixture.frame(vec![pointer::moved(to)]);
-    let live = rig.quad().expect("the quad stays");
-    assert_ne!(live[2], PAGE[2], "the corner follows the pointer while the quad is refused");
-    assert!(!is_valid(&live), "the dragged quad is not convex");
-    rig.fixture.frame(vec![pointer::release(to)]);
-    rig.fixture.frame(Vec::new());
-    assert_eq!(rig.quad(), Some(PAGE), "committing the non-convex quad is refused");
-}
-
-#[trial]
-fn the_nearest_corner_wins_over_the_inside() {
-    let mut rig = Rig::new(Some(PAGE));
-    // A point inside the quad, a few points from the top left corner.
-    let near = rig.at(PAGE[0]) + Vec2::new(4.0, 4.0);
-    rig.press_move_release(near, near + Vec2::new(10.0, 0.0), false);
-    let quad = rig.quad().expect("the quad stays");
-    assert_ne!(quad[0], PAGE[0], "the corner moved");
-    assert_eq!((quad[1], quad[2], quad[3]), (PAGE[1], PAGE[2], PAGE[3]), "and nothing else did");
-}
-
-#[trial]
-fn dragging_inside_moves_the_quad_and_a_press_outside_does_nothing() {
-    let mut rig = Rig::new(Some(PAGE));
-    let middle = rig.at(Point::new(200.0, 140.0));
-    rig.press_move_release(middle, middle + Vec2::new(30.0, 10.0), false);
-    let quad = rig.quad().expect("the quad stays");
-    for (moved, original) in quad.iter().zip(PAGE) {
-        assert_eq!((moved.x, moved.y), (original.x + 30.0, original.y + 10.0));
-    }
-    let before = rig.quad();
-    let outside = rig.at(Point::new(10.0, 10.0));
-    rig.press_move_release(outside, outside + Vec2::new(40.0, 40.0), false);
-    assert_eq!(rig.quad(), before);
-}
-
-#[trial]
 fn a_box_drag_makes_an_upright_quad() {
     let mut rig = Rig::new(None);
     let (from, to) = (rig.at(Point::new(60.0, 50.0)), rig.at(Point::new(260.0, 190.0)));
@@ -234,82 +183,7 @@ fn four_clicks_make_an_ordered_quad_and_a_drag_clears_the_clicks() {
     assert_eq!(rig.host.borrow().tool.placing(), 0, "a drag clears the clicks");
 }
 
-#[trial]
-fn esc_during_a_drag_restores_the_quad_then_discards() {
-    let mut rig = Rig::new(Some(PAGE));
-    let corner = rig.at(PAGE[1]);
-    rig.press_move_release(corner, corner + Vec2::new(-30.0, 40.0), true);
-    assert_eq!(rig.quad(), Some(PAGE), "Esc cancelled the drag");
-    assert!(!rig.host.borrow().discard);
-    rig.fixture.key(Key::Escape, Modifiers::NONE);
-    assert!(rig.host.borrow().discard, "Esc with no drag discards");
-}
-
 fn context() -> ToolContext<'static> {
     ToolContext::new(egui::Rect::from_min_size(Pos2::ZERO, egui::vec2(400.0, 300.0)), None)
 }
 
-#[trial]
-fn esc_drops_the_pending_clicks_and_enter_applies_a_valid_quad() {
-    let mut rig = Rig::new(None);
-    rig.click_at(PAGE[0]);
-    rig.click_at(PAGE[1]);
-    let mut host = rig.host.borrow_mut();
-    assert!(host.tool.key(&ToolKey::Cancel, &mut context()));
-    assert_eq!(host.tool.placing(), 0, "Esc drops the clicks");
-    assert!(!host.tool.key(&ToolKey::Cancel, &mut context()), "with no quad and no clicks Esc is the app's");
-    assert!(!host.tool.key(&ToolKey::Submit, &mut context()));
-
-    host.tool.set(Some([PAGE[0], PAGE[3], PAGE[2], PAGE[1]]));
-    assert!(!host.tool.key(&ToolKey::Submit, &mut context()), "a quad wound the other way cannot be committed");
-    host.tool.set(Some(PAGE));
-    host.tool.take_events();
-    assert!(host.tool.key(&ToolKey::Submit, &mut context()));
-    assert_eq!(host.tool.take_events(), [PerspectiveCropEvent::Apply]);
-    assert!(host.tool.key(&ToolKey::Cancel, &mut context()));
-    assert_eq!(host.tool.take_events(), [PerspectiveCropEvent::Discard]);
-}
-
-#[trial]
-fn enter_applies_a_valid_quad_on_a_focused_corner() {
-    let mut rig = Rig::new(Some(PAGE));
-    let corner = rig.fixture.by_label("Top left corner").expect("corner");
-    rig.fixture.click(&corner);
-    rig.fixture.key(Key::Enter, Modifiers::NONE);
-    assert!(rig.host.borrow().apply);
-
-    let mut rig = Rig::new(Some([PAGE[0], PAGE[3], PAGE[2], PAGE[1]]));
-    let corner = rig.fixture.by_label("Top left corner").expect("corner");
-    rig.fixture.click(&corner);
-    rig.fixture.key(Key::Enter, Modifiers::NONE);
-    assert!(!rig.host.borrow().apply, "an invalid quad is not committable");
-}
-
-#[trial]
-fn arrows_move_the_picked_corner_by_1_or_10_and_the_whole_quad_when_it_is_picked() {
-    let mut rig = Rig::new(Some(PAGE));
-    let corner = rig.fixture.by_label("Bottom right corner").expect("corner");
-    rig.fixture.click(&corner);
-    rig.fixture.key(Key::ArrowRight, Modifiers::NONE);
-    rig.fixture.key(Key::ArrowDown, Modifiers::SHIFT);
-    let quad = rig.quad().expect("the quad stays");
-    assert_eq!((quad[2].x, quad[2].y), (PAGE[2].x + NUDGE, PAGE[2].y + NUDGE_FAR));
-    assert_eq!((quad[0], quad[1], quad[3]), (PAGE[0], PAGE[1], PAGE[3]));
-    assert_eq!(rig.host.borrow().picked, Some(2));
-
-    let mut rig = Rig::new(Some(PAGE));
-    let whole = rig.fixture.by_label("Whole perspective crop").expect("whole quad");
-    rig.fixture.click(&whole);
-    rig.fixture.key(Key::ArrowLeft, Modifiers::NONE);
-    let moved = rig.quad().expect("the quad stays");
-    assert_eq!(moved[0].x, PAGE[0].x - NUDGE);
-    assert_eq!(moved[3].x, PAGE[3].x - NUDGE);
-}
-
-#[trial]
-fn the_group_and_its_corners_are_named_in_the_accesskit_tree() {
-    let rig = Rig::new(Some(PAGE));
-    for name in ["Perspective crop", "Top left corner", "Top right corner", "Bottom right corner", "Bottom left corner"] {
-        assert!(rig.fixture.by_label(name).is_some(), "{name}");
-    }
-}

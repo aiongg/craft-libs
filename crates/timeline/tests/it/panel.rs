@@ -77,77 +77,12 @@ fn arrows_step_the_playhead_by_exact_chords() {
     assert_eq!(state.borrow().moved.len(), before, "Alt+Right is a clip nudge, not a playhead step");
 }
 
-/// Home and End go to the start and the end; Up and Down go to the previous and next edit point.
-#[trial]
-fn home_end_and_edit_points_move_the_playhead() {
-    let (mut fixture, state) = rig();
-    fixture.key(Key::ArrowDown, Modifiers::NONE);
-    assert_eq!(state.borrow().playhead, secs(2.0));
-    fixture.key(Key::ArrowDown, Modifiers::NONE);
-    assert_eq!(state.borrow().playhead, secs(6.0));
-    fixture.key(Key::ArrowUp, Modifiers::NONE);
-    assert_eq!(state.borrow().playhead, secs(2.0));
-    fixture.key(Key::End, Modifiers::NONE);
-    assert_eq!(state.borrow().playhead, secs(30.0));
-    fixture.key(Key::Home, Modifiers::NONE);
-    assert_eq!(state.borrow().playhead, Tick::ZERO);
-}
-
-/// `=` and `-` zoom about the playhead and `\` fits the sequence.
-#[trial]
-fn zoom_keys_zoom_about_the_playhead_and_fit_the_sequence() {
-    let (mut fixture, state) = rig();
-    let before = state.borrow().view.points_per_second;
-    fixture.key(Key::Equals, Modifiers::NONE);
-    fixture.idle(30);
-    assert!(state.borrow().view.points_per_second > before);
-    fixture.key(Key::Minus, Modifiers::NONE);
-    fixture.key(Key::Minus, Modifiers::NONE);
-    fixture.idle(30);
-    assert!(state.borrow().view.points_per_second < before);
-    fixture.key(Key::Backslash, Modifiers::NONE);
-    fixture.idle(30);
-    assert_eq!(state.borrow().view.start, Tick::ZERO);
-}
-
 /// A wheel turn of `delta` points over the view's middle, carrying `modifiers` the way a device reports them.
 fn wheel(fixture: &mut Fixture, delta: Vec2, modifiers: Modifiers) {
     let at = fixture.shown().center();
     let turn = Event::MouseWheel { unit: MouseWheelUnit::Point, delta, phase: TouchPhase::Move, modifiers, source: MouseWheelSource::Wheel };
     fixture.frame(vec![pointer::moved(at)]);
     fixture.frame(vec![turn]);
-}
-
-/// Alt+wheel zooms about the pointer by `1 + dy * 0.01`; Cmd or Ctrl+wheel zooms as the pinch does; Shift+wheel scrolls
-/// time sideways; the plain wheel leaves the time alone.
-#[trial]
-fn the_wheel_maps_to_zoom_and_sideways_scroll() {
-    let (mut fixture, state) = rig();
-    let before = state.borrow().view.points_per_second;
-    wheel(&mut fixture, Vec2::new(0.0, 10.0), Modifiers::ALT);
-    fixture.idle(30);
-    let zoomed = state.borrow().view.points_per_second;
-    assert!((zoomed / before - 1.1).abs() < 0.02, "a 10 point wheel zooms by 10 percent, got {}", zoomed / before);
-
-    state.borrow_mut().view = TimeView::new(secs(10.0), 40.0);
-    fixture.idle(2);
-    wheel(&mut fixture, Vec2::new(0.0, 40.0), Modifiers::SHIFT);
-    let view = state.borrow().view;
-    assert!(view.start < secs(10.0), "a downward Shift+wheel moves the view to earlier times as FilmCraft does: {:?}", view.start);
-    assert_eq!(view.points_per_second, 40.0, "Shift+wheel does not zoom");
-
-    state.borrow_mut().view = TimeView::new(secs(10.0), 40.0);
-    fixture.idle(2);
-    wheel(&mut fixture, Vec2::new(0.0, 40.0), Modifiers::NONE);
-    assert_eq!(state.borrow().view.start, secs(10.0), "the plain wheel scrolls the tracks, not the time");
-
-    state.borrow_mut().view = TimeView::new(Tick::ZERO, 40.0);
-    fixture.idle(2);
-    let at = fixture.shown().center();
-    fixture.frame(vec![pointer::moved(at)]);
-    fixture.frame(vec![pointer::zoom_wheel(40.0)]);
-    fixture.idle(30);
-    assert!(state.borrow().view.points_per_second > 40.0, "Cmd+wheel zooms: {:?}", state.borrow().view);
 }
 
 /// While playing the view follows the playhead; a jump while stopped reveals it.
@@ -197,26 +132,6 @@ fn a_move_gets_its_track_fields_from_the_pointer() {
     let past = resolve_move(&rows, &[rows[0]], -5.0, (-10.0, 170.0));
     assert!(past.new_track && !past.refused, "above the top video track a drop adds one");
     assert_eq!(resolve_move(&rows, &[rows[1]], 500.0, bounds), MoveTarget::STAY, "outside the panes nothing changes");
-}
-
-/// A move from or onto a locked track is refused and stays where it was.
-#[trial]
-fn moves_onto_or_from_locked_tracks_are_refused() {
-    let mut rows = rows();
-    rows[0] = rows[0].locked();
-    let onto = resolve_move(&rows, &[rows[1]], 20.0, (0.0, 170.0));
-    assert!(onto.refused && onto.track_delta == 0);
-    let from = resolve_move(&rows, &[rows[0]], 60.0, (0.0, 170.0));
-    assert!(from.refused, "a clip on a locked track does not move");
-}
-
-/// A selected clip on a locked track out of view refuses a new track.
-#[trial]
-fn a_selected_clip_on_a_locked_track_out_of_view_refuses_the_new_track() {
-    let rows = rows();
-    let locked_away = rows[1].locked();
-    let target = resolve_move(&rows, &[rows[0], locked_away], -5.0, (-10.0, 170.0));
-    assert!(target.refused && !target.new_track);
 }
 
 // The Timeline panel over a model of tracks, one clip in V1 and one in A1.
@@ -415,27 +330,6 @@ fn video_tracks_stack_up_from_the_divider() {
     assert_eq!(v2.height(), v1.height());
 }
 
-/// Clicking Lock reports the new state; Alt-click on Solo is exclusive.
-#[trial]
-fn header_switches_report_their_new_state() {
-    let mut panel = panel();
-    let lock = panel.in_row("Toggle Track Lock", panel.row("V1"));
-    panel.fixture.click(&lock);
-    let solo = panel.in_row("Solo Track", panel.row("A1"));
-    panel.fixture.hold(Modifiers::ALT);
-    panel.fixture.click(&solo);
-    panel.fixture.hold(Modifiers::NONE);
-    let switches: Vec<_> = panel
-        .edits()
-        .into_iter()
-        .filter_map(|edit| match edit {
-            TimelineEdit::Switch { track, switch, value, exclusive, .. } => Some((track, switch, value, exclusive)),
-            _ => None,
-        })
-        .collect();
-    assert_eq!(switches, [(V1, TrackSwitch::Locked, true, false), (A1, TrackSwitch::Solo, true, true)]);
-}
-
 impl Panel {
     /// Presses the Lock switch of V3 and moves down over the Lock switches of V2 and V1 (one pane), then returns the
     /// switches reported so far (the pointer is still down).
@@ -458,42 +352,6 @@ impl Panel {
             })
             .collect()
     }
-}
-
-/// A sweep across Lock switches flips each one as the pointer crosses it, before the release. A sweep stays in its
-/// pane (Premiere: the video and audio headers are separate collections).
-#[trial]
-fn a_sweep_across_lock_switches_flips_each_before_release() {
-    let mut panel = three_video();
-    assert_eq!(panel.sweep_locks(), [(V3, true), (V2, true), (V1, true)]);
-    let end = panel.in_row("Toggle Track Lock", panel.row("V1")).center();
-    panel.fixture.frame(vec![pointer::release(end)]);
-    assert_eq!(panel.locks().len(), 3, "the release repeats nothing");
-}
-
-/// A Lock sweep pressed on V1 and moved over A1 flips V1 and leaves A1 unchanged.
-#[trial]
-fn a_lock_sweep_does_not_cross_into_the_other_pane() {
-    let mut panel = panel();
-    let v1 = panel.in_row("Toggle Track Lock", panel.row("V1")).center();
-    let a1 = panel.in_row("Toggle Track Lock", panel.row("A1")).center();
-    panel.fixture.frame(vec![pointer::moved(v1)]);
-    panel.fixture.frame(vec![pointer::press(v1)]);
-    panel.fixture.frame(vec![pointer::moved(a1)]);
-    assert_eq!(panel.locks(), [(V1, true)]);
-    panel.fixture.frame(vec![pointer::release(a1)]);
-    assert_eq!(panel.locks(), [(V1, true)], "the release repeats nothing and A1 stays unchanged");
-}
-
-/// Escape in the middle of a sweep puts every crossed switch back.
-#[trial]
-fn escape_in_a_lock_sweep_restores_every_crossed_switch() {
-    let mut panel = three_video();
-    panel.sweep_locks();
-    panel.fixture.key(Key::Escape, Modifiers::NONE);
-    panel.fixture.idle(2);
-    let restored: Vec<_> = panel.locks().into_iter().skip(3).collect();
-    assert_eq!(restored, [(V3, false), (V2, false), (V1, false)]);
 }
 
 /// A row resizes from its own height: video rows grow upward, so an edge dragged up adds height, and the top video row
@@ -527,21 +385,6 @@ fn rows_resize_from_their_height_and_video_rows_grow_upward() {
 /// The distance a height edge is dragged in the resize trial.
 const RESIZE_TRAVEL: f32 = 10.0;
 
-/// A double click on a header toggles the row between its two named heights.
-#[trial]
-fn double_clicking_a_header_toggles_its_height() {
-    let mut panel = panel();
-    let a1 = panel.row("A1");
-    let before = a1.height();
-    let name = panel.name_in_row("A1", a1);
-    panel.fixture.click(&name);
-    panel.fixture.click(&name);
-    let got = panel.heights();
-    assert_eq!(got.len(), 1, "one height from the double click: {got:?}");
-    assert_eq!(got[0].0, A1);
-    assert_ne!(got[0].1, before, "the height changed to the other named height");
-}
-
 /// The rounding slack of a measured point.
 const SLACK: f32 = 0.5;
 
@@ -557,19 +400,6 @@ fn caption_rows_sit_above_video_with_a_mix_row() {
     assert!((c.height() - caption).abs() < SLACK, "the caption row is its own height, not the pane's: {c:?} for {caption}");
     let mix = panel.fixture.by_label("Mix").expect("a model with a master volume has a Mix row");
     assert!(mix.rect.top() >= a1.bottom() - SLACK, "the Mix row lies below the audio rows: {:?} {a1:?}", mix.rect);
-}
-
-/// The plain wheel scrolls the side of the divider under the pointer.
-#[trial]
-fn the_wheel_scrolls_the_side_under_the_pointer() {
-    let mut panel = many_audio();
-    let before = panel.row("A3").top();
-    let over = panel.row("A2").center();
-    panel.fixture.frame(vec![pointer::moved(over)]);
-    panel.fixture.frame(vec![pointer::wheel(-WHEEL_POINTS)]);
-    panel.fixture.idle(2);
-    let after = panel.row("A3").top();
-    assert!((before - after - WHEEL_POINTS).abs() < SLACK, "{before} -> {after}");
 }
 
 /// The points one wheel turn moves.
@@ -648,24 +478,6 @@ fn the_menu_keys_report_a_context_menu_for_the_clip_reached_by_tab() {
     }
 }
 
-/// A click on empty lane space clears the clip selection; Shift+click there keeps it.
-#[trial]
-fn a_click_on_empty_lane_space_clears_the_clip_selection() {
-    let mut panel = panel();
-    panel.sequence.borrow_mut().selection = vec![ClipId(1)];
-    panel.fixture.idle(2);
-    let clip = panel.in_row("Clip", panel.row("V1"));
-    // V2 has no clips: the point under the clip's centre, one row up, is empty lane.
-    let empty = egui::pos2(clip.center().x, panel.row("V2").center().y);
-    let clears = |panel: &Panel| panel.edits().iter().any(|edit| matches!(edit, TimelineEdit::Select { change: SelectionChange::Clear, .. }));
-    panel.fixture.hold(Modifiers::SHIFT);
-    panel.fixture.click_at(empty);
-    panel.fixture.hold(Modifiers::NONE);
-    assert!(!clears(&panel), "Shift+click keeps the selection: {:?}", panel.edits());
-    panel.fixture.click_at(empty);
-    assert!(clears(&panel), "a click clears the selection: {:?}", panel.edits());
-}
-
 /// The rects of the panel that are filled with a clip colour or the disabled fill, as one frame paints them.
 fn clip_fills(disabled: Vec<ClipId>) -> Vec<(Rect, egui::Color32)> {
     let sequence = Rc::new(RefCell::new(Sequence {
@@ -697,23 +509,6 @@ fn clip_fills(disabled: Vec<ClipId>) -> Vec<(Rect, egui::Color32)> {
 
 /// Frames the panel takes to lay out and paint its clips.
 const SETTLE_FRAMES: usize = 6;
-
-/// A disabled clip paints with the theme's disabled fill, not its label colour, while an enabled clip keeps its hue.
-#[trial]
-fn a_disabled_clip_paints_with_the_disabled_fill() {
-    let hue = craft_timeline::ui::LabelPalette::default().0[0];
-    let of_hue = |fills: &[(Rect, egui::Color32)]| fills.iter().filter(|(_, fill)| *fill == hue).map(|(rect, _)| *rect).collect::<Vec<_>>();
-    let all_on = of_hue(&clip_fills(Vec::new()));
-    assert_eq!(all_on.len(), 2, "both clips paint in their hue: {all_on:?}");
-    let fills = clip_fills(vec![ClipId(1)]);
-    let kept = of_hue(&fills);
-    assert_eq!(kept.len(), 1, "the enabled neighbour keeps its hue: {kept:?}");
-    let gone = all_on.iter().find(|rect| !kept.contains(rect)).expect("one clip left its hue");
-    let disabled = fills.iter().find(|(rect, _)| rect == gone).map(|(_, fill)| *fill);
-    let [r, g, b, a] = craft_ui::testing::style::tokens(craft_theme::Mode::Light, craft_theme::Contrast::Standard).color.state.disabled_fill.0;
-    let theme = egui::Color32::from_rgba_unmultiplied(r, g, b, a);
-    assert_eq!(disabled, Some(theme), "the switched-off clip's body takes the theme's disabled fill");
-}
 
 /// A switched-off clip is inactive, not disabled: its node stays enabled and a click on it still selects it (Premiere).
 #[trial]

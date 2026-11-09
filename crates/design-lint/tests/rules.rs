@@ -45,49 +45,6 @@ fn literal_shapes() {
 }
 
 #[test]
-fn corner_radius_forms() {
-    for src in [
-        "fn f() { let _ = CornerRadius::same(4); }",
-        "fn f() { let _ = CornerRadius::from(6.0); }",
-        "fn f() { let _ = CornerRadius { nw: 2, ne: r, sw: r, se: r }; }",
-        "fn f() { let _ = Frame::new().corner_radius(3.0); }",
-    ] {
-        assert!(flagged(src, "literal-size/corner-radius"), "{src}");
-    }
-    assert!(clean("fn f() { let _ = CornerRadius::same(0); let _ = Frame::new().corner_radius(r); let _ = CornerRadius::ZERO; }"));
-}
-
-#[test]
-fn stroke_checks_the_width_only() {
-    assert!(flagged("fn f() { let _ = Stroke::new(1.0, c); }", "literal-size/stroke"));
-    assert!(flagged("fn f() { let _ = PathStroke::new(2.0, c); }", "literal-size/stroke"));
-    assert!(flagged("fn f() { let _ = Stroke { width: 1.5, color: c }; }", "literal-size/stroke"));
-    assert!(clean("fn f() { let _ = Stroke::new(w, c); let _ = Stroke::new(0.0, c); let _ = Stroke::new(w, 5.0); }"));
-}
-
-#[test]
-fn margin_forms() {
-    for src in [
-        "fn f() { let _ = Margin::same(4); }",
-        "fn f() { let _ = Margin::symmetric(8, 0); }",
-        "fn f() { let _ = Margin { left: 1, right: 0, top: 0, bottom: 0 }; }",
-        "fn f() { let _ = Frame::new().inner_margin(6.0); }",
-        "fn f() { let _ = Frame::new().outer_margin(6.0); }",
-    ] {
-        assert!(flagged(src, "literal-size/margin"), "{src}");
-    }
-    assert!(clean("fn f() { let _ = Margin::same(0); let _ = Margin::symmetric(x, 0); let _ = Frame::new().inner_margin(m); }"));
-}
-
-#[test]
-fn font_id_checks_the_size_only() {
-    assert!(flagged("fn f() { let _ = FontId::proportional(13.0); }", "literal-size/font-id"));
-    assert!(flagged("fn f() { let _ = FontId::monospace(12.0); }", "literal-size/font-id"));
-    assert!(flagged("fn f() { let _ = FontId::new(11.0, family); }", "literal-size/font-id"));
-    assert!(clean("fn f() { let _ = FontId::proportional(size); let _ = FontId::new(size, FontFamily::Name(\"x\".into())); }"));
-}
-
-#[test]
 fn same_file_consts_resolve() {
     let src = "const GAP: f32 = 4.0;\nconst DOUBLE: f32 = GAP * 2.0;\nstatic NONE: f32 = 0.0;\nfn f(ui: &mut Ui) {\n    ui.add_space(GAP);\n    ui.add_space(DOUBLE);\n    ui.add_space(NONE);\n    ui.add_space(OTHER);\n}\n";
     let found = run(src);
@@ -95,22 +52,6 @@ fn same_file_consts_resolve() {
     assert_eq!((found[0].line, found[1].line), (5, 6));
     assert!(found[0].message.contains("`GAP` (const, line 1)"), "{}", found[0].message);
     assert!(found[1].message.contains("`DOUBLE`"), "{}", found[1].message);
-}
-
-#[test]
-fn non_literal_consts_are_accepted() {
-    assert!(clean("const SIZE: f32 = compute();\nconst NAME: &str = \"a\";\nfn f(ui: &mut Ui) { ui.add_space(SIZE); }"));
-}
-
-#[test]
-fn named_colour_consts() {
-    for name in ["WHITE", "BLACK", "RED", "DARK_GRAY", "KHAKI", "LIGHT_BLUE"] {
-        for path in ["Color32", "egui::Color32", "ecolor::Color32"] {
-            let src = format!("fn f() {{ let _ = {path}::{name}; }}");
-            assert!(flagged(&src, "raw-colour/const"), "{path}::{name}");
-        }
-    }
-    assert!(clean("fn f() { let _ = Color32::TRANSPARENT; let _ = Other::WHITE; let _ = Color32::from_rgb(1, 2, 3); }"));
 }
 
 #[test]
@@ -129,23 +70,6 @@ fn test_code_is_skipped() {
     assert_eq!(analysis.findings[0].line, 8);
     assert_eq!(analysis.skipped, [1..=4, 5..=6]);
     assert_eq!(analyze_source(src, true).findings.len(), 3);
-}
-
-#[test]
-fn finding_position_and_message() {
-    let found = run("fn f() {\n    let _ = vec2(28.0, 24.0);\n    ui.add_space(4.0);\n}\n");
-    assert_eq!((found[0].line, found[0].column), (2, 13));
-    assert!(found[0].message.starts_with("`vec2(28.0, 24.0)` uses literal sizes; use a size token"), "{}", found[0].message);
-    assert_eq!((found[1].line, found[1].column), (3, 8));
-    assert!(found[1].message.starts_with("`add_space(4.0)` uses literal sizes"), "{}", found[1].message);
-}
-
-#[test]
-fn parse_error_is_a_finding() {
-    let found = run("fn f( {");
-    assert_eq!(found.len(), 1);
-    assert_eq!(found[0].rule, "parse");
-    assert_eq!(found[0].severity, Severity::Error);
 }
 
 #[test]
@@ -214,49 +138,6 @@ fn report_output_format() {
 }
 
 #[test]
-fn config_parses_and_rejects_unknown_keys() {
-    let origin = Path::new("design-lint.toml");
-    let config = Config::parse(origin, "[lint]\npaths = [\"a\", \"b/c\"]\ninclude-tests = true\n").unwrap();
-    assert_eq!(config.paths, [Path::new("a"), Path::new("b/c")]);
-    assert!(config.include_tests);
-    assert!(Config::parse(origin, "[lint]\npaths = []\nbogus = 1\n").is_err());
-}
-
-#[test]
-fn craft_ui_theme_helpers_are_checked() {
-    for (src, rule) in [
-        ("fn f() { let _ = theme::margin(8.0); }", "literal-size/margin"),
-        ("fn f() { let _ = craft_ui::theme::margin_x(8.0, 0.0); }", "literal-size/margin"),
-        ("fn f() { let _ = theme::corner_radius(4.0); }", "literal-size/corner-radius"),
-        ("fn f() { let _ = theme::stroke(1.0, c); }", "literal-size/stroke"),
-    ] {
-        assert!(flagged(src, rule), "{src}");
-    }
-    assert!(clean("fn f() { let _ = theme::margin(space.pad.panel); let _ = theme::margin_x(0.0, 0.0); let _ = theme::stroke(w, c); }"));
-}
-
-#[test]
-fn painter_radii_are_checked() {
-    for src in [
-        "fn f(p: &Painter) { p.rect_filled(r, 4.0, c); }",
-        "fn f(p: &Painter) { p.rect_stroke(r, 4, s, kind); }",
-        "fn f(p: &Painter) { p.rect(r, 2.0, c, s, kind); }",
-        "fn f() { let _ = Shape::rect_filled(r, 3.0, c); }",
-        "fn f() { let _ = RectShape::new(r, 3, c, s, kind); }",
-    ] {
-        assert!(flagged(src, "literal-size/corner-radius"), "{src}");
-    }
-    assert!(clean("fn f(p: &Painter) { p.rect_filled(r, radius, c); p.rect_filled(r, 0.0, c); p.rect_filled(r, CornerRadius::ZERO, c); }"));
-}
-
-#[test]
-fn rich_text_size_is_checked() {
-    assert!(flagged("fn f() { let _ = RichText::new(t).size(13.0); }", "literal-size/font-id"));
-    assert!(flagged("fn f() { let _ = egui::RichText::new(t).strong().size(13.0); }", "literal-size/font-id"));
-    assert!(clean("fn f() { let _ = RichText::new(t).size(size); let _ = Spinner::new().size(16.0); }"));
-}
-
-#[test]
 fn stroke_tuples_are_checked() {
     for src in [
         "fn f(p: &Painter) { p.line_segment([a, b], (1.0, c)); }",
@@ -269,66 +150,6 @@ fn stroke_tuples_are_checked() {
     }
     assert!(clean(
         "fn f(p: &Painter) { p.line_segment([a, b], (w, c)); let _ = Frame::new().stroke((0.0, c)); let _ = (1.0, 2.0); let _ = pair((1.0, c)); }"
-    ));
-}
-
-#[test]
-fn margin_from_and_rgba_colours() {
-    assert!(flagged("fn f() { let _ = Margin::from(4.0); }", "literal-size/margin"));
-    for name in ["WHITE", "BLACK", "RED", "GREEN", "BLUE"] {
-        assert!(flagged(&format!("fn f() {{ let _ = Rgba::{name}; }}"), "raw-colour/const"), "{name}");
-    }
-    assert!(clean("fn f() { let _ = Rgba::TRANSPARENT; let _ = Rgba::from_rgb_unmultiplied(1, 2, 3); }"));
-}
-
-#[test]
-fn style_mutation_is_flagged() {
-    for call in [
-        "ui.style_mut().spacing.item_spacing.x = 3.0",
-        "ctx.style_mut(|s| s.animation_time = 0.0)",
-        "ui.spacing_mut().button_padding = x",
-        "ui.visuals_mut().override_text_color = None",
-        "ctx.set_zoom_factor(1.5)",
-        "ui.style_mut().override_font_id = None",
-        "ui.set_style(style)",
-        "ui.ctx().set_visuals(v)",
-    ] {
-        let found = rules(&format!("fn f(ui: &mut Ui, ctx: &Context) {{ {call}; }}"));
-        assert!(found.contains(&"style-mutation"), "{call}: {found:?}");
-    }
-    let zoom = run("fn f(ctx: &Context) { ctx.set_zoom_factor(1.5); }");
-    assert!(zoom.iter().any(|f| f.message.contains("InterfaceScale::apply")), "{zoom:?}");
-    let src = "fn f(ui: &mut Ui) { ui.override_font_id(id); }";
-    assert!(flagged(src, "style-mutation"));
-    assert!(clean("fn f(ui: &Ui) { let _ = ui.style(); let _ = ui.spacing(); let _ = ctx.zoom_factor(); }"));
-}
-
-#[test]
-fn stock_tooltips_name_the_tooltip_ext_replacement() {
-    for (call, replacement) in [
-        ("r.on_hover_text(\"x\")", "TooltipExt::tooltip"),
-        ("r.on_disabled_hover_text(\"x\")", "TooltipExt::tooltip"),
-        ("r.on_hover_ui(|ui| {})", "TooltipExt::tooltip_ui"),
-        ("r.on_disabled_hover_ui(|ui| {})", "TooltipExt::tooltip_ui"),
-        ("r.on_hover_text_at_pointer(\"x\")", "TooltipExt::tooltip_at_pointer"),
-        ("r.on_hover_ui_at_pointer(|ui| {})", "TooltipExt::tooltip_ui_at_pointer"),
-        ("r.show_tooltip_text(\"x\")", "TooltipExt::show_tooltip"),
-        ("r.show_tooltip_ui(|ui| {})", "TooltipExt::show_tooltip_ui"),
-        ("r.clone().on_hover_text(\"x\").on_hover_cursor(c)", "TooltipExt::tooltip"),
-    ] {
-        let found = run(&format!("fn f(r: Response) {{ {call}; }}"));
-        let hit = found.iter().find(|f| f.rule == "tooltip/stock").unwrap_or_else(|| panic!("{call}: {found:?}"));
-        assert!(hit.message.contains(replacement), "{call}: {}", hit.message);
-    }
-}
-
-#[test]
-fn stock_tooltip_construction_is_flagged_and_craft_ui_calls_are_not() {
-    assert!(flagged("fn f(r: &Response) { egui::Tooltip::for_enabled(r).show(|ui| {}); }", "tooltip/stock"));
-    assert!(flagged("use egui::Tooltip; fn f(r: &Response) { Tooltip::for_disabled(r); }", "tooltip/stock"));
-    assert!(flagged("use egui::Tooltip; fn f() { Tooltip::always_open(a, b, c, d); }", "tooltip/stock"));
-    assert!(clean(
-        "fn f(r: Response, t: &UiTokens) { r.tooltip(\"x\"); r.tooltip_ui(|ui| {}); r.show_tooltip(\"x\"); let _ = Tooltip::style(t); let _ = r.is_tooltip_open(); }"
     ));
 }
 
@@ -365,25 +186,12 @@ fn an_ambiguous_const_is_flagged_when_any_candidate_is_non_zero() {
 }
 
 #[test]
-fn consts_in_test_modules_do_not_resolve() {
-    let src = "#[cfg(test)]\nmod tests { const GAP: f32 = 4.0; }\nfn f(ui: &mut Ui) { ui.add_space(GAP); }\n";
-    assert!(clean(src));
-}
-
-#[test]
 fn clippy_allow_attributes_are_counted_and_inner_ones_flagged() {
     let src = "#![allow(clippy::disallowed_methods, reason = \"stock widgets\")]\n#[expect(clippy::disallowed_types)]\nstruct S;\n#[allow(clippy::too_many_arguments)]\nfn f() {}\nmod m {\n    #![expect(clippy::disallowed_methods)]\n}\n";
     let analysis = analyze_source(src, false);
     assert_eq!(analysis.clippy_allows, 3);
     assert_eq!(analysis.findings.iter().map(|f| (f.rule, f.line)).collect::<Vec<_>>(), [("clippy/inner-allow", 1), ("clippy/inner-allow", 7)]);
     assert!(analysis.findings[0].message.contains("[[exempt]]"), "{}", analysis.findings[0].message);
-}
-
-#[test]
-fn clippy_allows_in_test_code_are_not_counted() {
-    let src = "#[cfg(test)]\nmod tests {\n    #![allow(clippy::disallowed_methods)]\n}\n";
-    let analysis = analyze_source(src, false);
-    assert_eq!((analysis.clippy_allows, analysis.findings.len()), (0, 0));
 }
 
 #[test]

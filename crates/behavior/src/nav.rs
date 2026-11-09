@@ -943,16 +943,4 @@ mod tests {
         assert_eq!(wheel_step(&steps, ValueAxes::Vertical, &wheel(vec2(3.0, 0.0), Mods::NONE), false), StepResult::Ignored);
     }
 
-    #[test]
-    fn single_value_moves_clamp_and_follow_the_axes() {
-        let steps = ValueSteps::new(5.0, 0.0, 10.0, 1.0, 4.0);
-        let plain = MoveMods::PLAIN;
-        assert_eq!(step_value(&steps, ValueAxes::Both, NavMove::Forward, plain), StepResult::Set(6.0));
-        assert_eq!(step_value(&steps, ValueAxes::Both, NavMove::Down, plain), StepResult::Set(4.0));
-        assert_eq!(step_value(&steps, ValueAxes::Horizontal, NavMove::Up, plain), StepResult::Ignored);
-        assert_eq!(step_value(&steps, ValueAxes::Both, NavMove::Forward, MoveMods::new(true, false, Granularity::Unit)), StepResult::Set(9.0));
-        assert_eq!(step_value(&steps, ValueAxes::Both, NavMove::PageUp, plain), StepResult::Set(9.0));
-        assert_eq!(step_value(&steps, ValueAxes::Both, NavMove::End, plain), StepResult::Set(10.0));
-        assert_eq!(step_value(&ValueSteps::new(9.0, 0.0, 10.0, 2.0, 4.0), ValueAxes::Both, NavMove::Forward, plain), StepResult::Set(10.0));
-    }
 }

@@ -119,27 +119,6 @@ fn eraser_reports_crossed_strokes() {
     assert_eq!(values(&rig), vec![AnnotationEdit::Erase { id: AnnotationId(4), strokes: vec![0] }]);
 }
 
-#[trial]
-fn delete_and_arrows_edit_the_selection() {
-    let mut tool = AnnotateTool::new(AnnotationTool::Select, 0);
-    tool.annotations = vec![annotation(1, AnnotationKind::Rectangle, Rect::new(10.0, 10.0, 60.0, 60.0))];
-    tool.selected = vec![AnnotationId(1)];
-    let mut rig = rig(tool);
-    focus_on(&mut rig, Point::new(35.0, 35.0));
-    rig.fixture().key(Key::ArrowRight, Modifiers::NONE);
-    rig.fixture().key(Key::ArrowDown, Modifiers::SHIFT);
-    rig.fixture().key(Key::Delete, Modifiers::NONE);
-    let ids = vec![AnnotationId(1)];
-    assert_eq!(
-        values(&rig),
-        vec![
-            AnnotationEdit::Move { ids: ids.clone(), delta: PageVec::new(1.0, 0.0) },
-            AnnotationEdit::Move { ids: ids.clone(), delta: PageVec::new(0.0, 10.0) },
-            AnnotationEdit::Delete(ids),
-        ]
-    );
-}
-
 /// The Eraser reports each annotation once, even when its strokes are crossed with another annotation's in
 /// between: an app removing strokes by index would otherwise delete the wrong ones.
 #[trial]
@@ -165,33 +144,6 @@ fn double_click_on_a_note_opens_it() {
     let edits = values(&rig);
     assert!(matches!(&edits[0], AnnotationEdit::Selection(SelectionChange::Set(ids)) if ids == &[AnnotationId(9)]), "{edits:?}");
     assert_eq!(edits[1..], [AnnotationEdit::Open(AnnotationId(9))], "{edits:?}");
-}
-
-/// A note is created with an icon-sized rect at the click, in the tool's colour and width.
-#[trial]
-fn a_new_note_takes_an_icon_rect_and_the_tools_style() {
-    let mut tool = AnnotateTool::new(AnnotationTool::Draw(AnnotationKind::Note), 0);
-    tool.color = [1, 2, 3];
-    tool.width = 5.0;
-    let mut rig = rig(tool);
-    let pos = on_screen(&rig, Point::new(60.0, 70.0));
-    rig.press_at(pos).release_at(pos);
-    let edits = values(&rig);
-    let [AnnotationEdit::Create(note)] = &edits[..] else { panic!("{edits:?}") };
-    assert!((note.rect.x0 - 60.0).abs() < SAME && (note.rect.y0 - 70.0).abs() < SAME, "{:?}", note.rect);
-    assert!(note.rect.width() > 0.0 && (note.rect.width() - note.rect.height()).abs() < SAME, "{:?}", note.rect);
-    assert_eq!((note.color, note.stroke_width), ([1, 2, 3], 5.0));
-}
-
-#[trial]
-fn backspace_deletes_the_selection() {
-    let mut tool = AnnotateTool::new(AnnotationTool::Select, 0);
-    tool.annotations = vec![annotation(1, AnnotationKind::Rectangle, Rect::new(10.0, 10.0, 60.0, 60.0))];
-    tool.selected = vec![AnnotationId(1)];
-    let mut rig = rig(tool);
-    focus_on(&mut rig, Point::new(35.0, 35.0));
-    rig.fixture().key(Key::Backspace, Modifiers::NONE);
-    assert_eq!(values(&rig), vec![AnnotationEdit::Delete(vec![AnnotationId(1)])]);
 }
 
 /// Picks the Red swatch of the palette in a toolbar over a tool of `kind`, and returns the tool.

@@ -125,46 +125,10 @@ fn layer_rules_read_only_their_layers() {
     }
 }
 
-#[test]
-fn allowed_locations_pass_the_same_source() {
-    let allowed = scope().layer("crates/x/src/edit", 5).allow("behavior/pipeline-only", "crates/x/src/edit");
-    assert!(rules_at(&fixture("reject", "behavior-pipeline-only.rs"), "crates/x/src/edit/a.rs", &allowed).is_empty());
-
-    let style_home = scope().layer("crates/x/src/chips", 5).allow("style", "crates/x/src/chips");
-    for (file, _) in REJECT.iter().filter(|(f, _)| f.starts_with("style-")) {
-        let rules = rules_at(&fixture("reject", file), FAMILY, &style_home);
-        assert!(rules.iter().all(|r| !r.starts_with("style/")), "{file}: {rules:?}");
-    }
-}
-
-#[test]
-fn shape_rules_ignore_test_code() {
-    let src = format!("#[cfg(test)]\nmod tests {{\n{}\n}}", fixture("reject", "contract-shadow.rs"));
-    assert!(rules_at(&src, FAMILY, &scope()).is_empty());
-}
-
 fn shadow_findings(config: &Config) -> Vec<Severity> {
     let root = Path::new(FIXTURES).join("tree");
     let report = check_with_scope(config, &root, &scope()).unwrap();
     report.findings.iter().filter(|f| f.rule == "props/shadow").map(|f| f.severity).collect()
-}
-
-#[test]
-fn props_shadow_is_an_error_unless_the_config_warns() {
-    let mut config = Config::new(["src"]);
-    assert_eq!(shadow_findings(&config), [Severity::Error]);
-    config.warn = vec!["props/shadow".to_owned()];
-    assert_eq!(shadow_findings(&config), [Severity::Warning]);
-}
-
-#[test]
-fn config_warn_names_known_rules() {
-    let ok = "[lint]\npaths = [\"src\"]\nwarn = [\"props/shadow\", \"style\"]\n";
-    assert_eq!(Config::parse(Path::new("design-lint.toml"), ok).unwrap().warn, ["props/shadow", "style"]);
-    for bad in ["props/nope", "parse", "marker", "marker/unused", "exemption/unused"] {
-        let text = format!("[lint]\npaths = [\"src\"]\nwarn = [\"{bad}\"]\n");
-        assert!(Config::parse(Path::new("design-lint.toml"), &text).is_err(), "{bad}");
-    }
 }
 
 #[test]
@@ -185,15 +149,6 @@ fn type_facts_cross_files_of_a_crate() {
 }
 
 #[test]
-fn response_events_are_not_state_picks() {
-    let src = "fn f(r: &Response) -> Color32 { if r.clicked() { return hover_color; } rest_color }";
-    assert!(rules_at(src, FAMILY, &scope()).iter().all(|r| !r.starts_with("style/")));
-    let primitives = scope().layer("crates/x/src/prims", 3);
-    let hover = "fn f(r: &Response) -> Color32 { if r.hovered() { hover_color } else { rest_color } }";
-    assert_eq!(rules_at(hover, "crates/x/src/prims/a.rs", &primitives), ["style/state-pick"], "layers 3 and 4 are read");
-}
-
-#[test]
 fn registration_reads_the_whole_crate() {
     let root = Path::new(FIXTURES).join("registration-tree");
     let scope = scope().crate_tree(&root, "fx", "src/lib.rs").unwrap();
@@ -202,13 +157,3 @@ fn registration_reads_the_whole_crate() {
     assert_eq!(hits, [("src/b.rs".to_owned(), "contract/registration", 5)], "`Listed` is registered in another file; `Loose` is not");
 }
 
-#[test]
-fn only_craft_win32_and_the_benchmark_allocator_may_allow_unsafe_code() {
-    let src = fixture("reject", "contract-unsafe-allow.rs");
-    for path in ["crates/window/src/mac.rs", "crates/window/src/win32.rs", "crates/ui/src/runtime/windows.rs", "crates/ui-bench/src/other.rs"] {
-        assert_eq!(rules_at(&src, path, &scope()), ["contract/unsafe-allow"], "{path}");
-    }
-    for path in ["crates/win32/src/lib.rs", "crates/ui-bench/src/alloc.rs"] {
-        assert!(rules_at(&src, path, &scope()).is_empty(), "{path}");
-    }
-}

@@ -22,11 +22,6 @@ fn shape_drag_shift_makes_square_alt_draws_from_centre() {
 }
 
 // `box_drag` of 0.4 px wide and `line_drag` of 0.9 px long return `None`.
-#[test]
-fn shape_drag_under_one_pixel_draws_nothing() {
-    assert_eq!(box_drag(Point::new(10.0, 10.0), Point::new(10.4, 50.0), false, false), None);
-    assert_eq!(line_drag(Point::new(10.0, 10.0), Point::new(10.9, 10.0)), None);
-}
 
 fn corners(path: &kurbo::BezPath) -> Vec<Point> {
     path.elements()

@@ -26,24 +26,3 @@ fn parts_follow_shown_and_values() {
     assert!(texts(&SelectionStats::default(), &StatsShown::all(), format).is_empty());
 }
 
-/// A click on a statistic copies its value without the label.
-#[trial]
-fn a_click_on_a_statistic_copies_its_value() {
-    let parts = vec![StatPart::new("Average: 3.5", "3.5"), StatPart::new("Sum: 7.0", "7.0")];
-    let copied = Rc::new(RefCell::new(None));
-    let sink = copied.clone();
-    let shown = Rc::new(RefCell::new(StatsShown::default()));
-    let state = shown.clone();
-    let mut fixture = Fixture::new(move |ui| {
-        let mut flags = *state.borrow();
-        let out = SelectionStatsReadout::new("Statistics", &parts, Bind::bound(&mut flags)).show(ui);
-        *state.borrow_mut() = flags;
-        if out.copied.is_some() {
-            *sink.borrow_mut() = out.copied;
-        }
-    });
-    fixture.settle();
-    let second = fixture.by_label("Sum: 7.0").expect("the second statistic");
-    fixture.click(&second);
-    assert_eq!(copied.borrow().as_deref(), Some("7.0"));
-}

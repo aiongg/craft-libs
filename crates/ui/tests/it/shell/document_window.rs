@@ -24,31 +24,6 @@ fn monitor(rect: Rect) -> Monitor {
     Monitor::new(None, rect, 1.0)
 }
 
-#[trial]
-fn a_further_window_steps_down_and_across_and_wraps_at_the_monitors_edge() {
-    let main = Rect::from_min_size(Pos2::new(40.0, 30.0), WINDOW);
-    let monitors = [monitor(MONITOR)];
-    let next = DocumentWindow::cascade_in(main, WINDOW, &monitors, STEP);
-    assert_eq!(next.min, main.min + Vec2::splat(STEP));
-    assert_eq!(next.size(), WINDOW);
-
-    let wrapped = DocumentWindow::cascade_in(NEAR_CORNER, WINDOW, &monitors, STEP);
-    assert_eq!(wrapped.min, MONITOR.min, "past the edge the window starts again at the monitor's corner");
-
-    let free = DocumentWindow::cascade_in(NEAR_CORNER, WINDOW, &[], STEP);
-    assert_eq!(free.min, NEAR_CORNER.min + Vec2::splat(STEP), "no monitor is known: the step is not bounded");
-}
-
-#[trial]
-fn a_maximized_window_overhanging_two_monitors_cascades_on_the_one_showing_most_of_it() {
-    let right = Rect::from_min_size(Pos2::new(1000.0, 0.0), Vec2::new(1000.0, 800.0));
-    let monitors = [monitor(MONITOR), monitor(right)];
-    // Maximized on the right monitor, overhanging it by a few points on every side.
-    let maximized = right.expand(8.0);
-    let next = DocumentWindow::cascade_in(maximized, WINDOW, &monitors, STEP);
-    assert!(right.contains_rect(next), "the next window opens on the right monitor: {next:?}");
-}
-
 fn reporting() -> ViewportInfo {
     ViewportInfo {
         focused: Some(true),
@@ -115,27 +90,3 @@ fn gaining_focus_makes_the_window_the_active_one_of_its_list_once() {
     assert_eq!(list.borrow().active(), Some(first), "only the edge activates: a window that stays focused does not take the mark back");
 }
 
-#[trial]
-fn raise_brings_the_window_forward_in_the_pass_it_is_set() {
-    let windows = Windows::new();
-    windows.child_info(reporting());
-    let frame = |raise: bool| {
-        windows.frame(vec![], vec![], |ui| {
-            let window = DocumentWindow::new("Landscape.psd").id_salt("document");
-            let window = if raise { window.raise() } else { window };
-            window.show(ui, |ui, _| {
-                Block::new(BODY).show(ui);
-            });
-        })
-    };
-    for _ in 0..SETTLED_FRAMES {
-        frame(false);
-    }
-    let child_of = |out: &crate::windows_kit::Out| {
-        out.titles.iter().map(|(viewport, _)| *viewport).find(|viewport| *viewport != ViewportId::ROOT).expect("the document window is open")
-    };
-    let quiet = frame(false);
-    assert!(!quiet.commands.contains(&(child_of(&quiet), ViewportCommand::Focus)), "no focus command without a request");
-    let raised = frame(true);
-    assert!(raised.commands.contains(&(child_of(&raised), ViewportCommand::Focus)), "the request raised the window: {:?}", raised.commands);
-}

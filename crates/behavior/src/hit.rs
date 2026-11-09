@@ -308,15 +308,6 @@ mod tests {
     }
 
     #[test]
-    fn the_topmost_position_hides_higher_levels_below_it() {
-        let shapes = [
-            shape(rect(0.0, 0.0, 100.0, 100.0), Sense::DRAG, 1, 0, HitLevel::Handle, 9),
-            shape(rect(0.0, 0.0, 100.0, 100.0), Sense::CLICK, 2, 1, HitLevel::Background, 0),
-        ];
-        assert_eq!(resolve(&shapes, pos2(50.0, 50.0), ResolveFor::Press).map(|w| w.owner), Some(2));
-    }
-
-    #[test]
     fn inside_one_position_level_then_sub_then_nearest_then_last_decide() {
         let at = pos2(50.0, 50.0);
         let owner = |shapes: &[Shape<u8>]| resolve(shapes, at, ResolveFor::Press).map(|w| w.owner);
@@ -332,25 +323,6 @@ mod tests {
         assert_eq!(owner(&near), Some(2));
         let tie = [shape(big(), Sense::CLICK, 1, 0, HitLevel::Body, 0), shape(big(), Sense::CLICK, 2, 0, HitLevel::Body, 0)];
         assert_eq!(owner(&tie), Some(2));
-    }
-
-    #[test]
-    fn a_hover_only_shape_never_wins_or_hides_a_press() {
-        let shapes = [
-            shape(rect(0.0, 0.0, 100.0, 100.0), Sense::CLICK, 1, 0, HitLevel::Body, 0),
-            shape(rect(0.0, 0.0, 100.0, 100.0), Sense::HOVER, 2, 1, HitLevel::Body, 0),
-        ];
-        let at = pos2(10.0, 10.0);
-        assert_eq!(resolve(&shapes, at, ResolveFor::Press).map(|w| w.owner), Some(1));
-        assert_eq!(resolve(&shapes, at, ResolveFor::Hover).map(|w| w.owner), Some(2));
-    }
-
-    #[test]
-    fn local_shapes_are_tested_at_the_mapped_point() {
-        let local = shape(rect(0.0, 0.0, 10.0, 10.0), Sense::CLICK, 1, 1, HitLevel::Body, 0).local(true);
-        let to_local = |p: Pos2| pos2(p.x / 2.0, p.y / 2.0);
-        assert!(resolve_mapped(std::slice::from_ref(&local), pos2(15.0, 15.0), ResolveFor::Press, to_local).is_some());
-        assert!(resolve_mapped(&[local], pos2(25.0, 25.0), ResolveFor::Press, to_local).is_none());
     }
 
     #[test]

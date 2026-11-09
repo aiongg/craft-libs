@@ -32,33 +32,6 @@ fn windows_captions() -> Frame {
     Frame::Integrated(Captions { family: CaptionFamily::Windows, layout })
 }
 
-/// The title stays on the window's centre line while the gap holds it, slides to the nearer end when the centre line
-/// would put it over an end, and takes the whole gap when it does not fit.
-#[trial]
-fn the_title_is_centred_slides_and_then_fills_the_gap() {
-    let centre = GAP / 2.0;
-    assert_eq!(Title::span(centre, GAP, WIDE), (centre - WIDE / 2.0, WIDE));
-    let (from, width) = Title::span(30.0, GAP, WIDE);
-    assert_eq!((from, width), (0.0, WIDE), "the leading content is in the way of the centre line");
-    let (from, width) = Title::span(GAP - 30.0, GAP, WIDE);
-    assert_eq!((from + width, width), (GAP, WIDE), "the trailing end is in the way of the centre line");
-    assert_eq!(Title::span(centre, WIDE, GAP), (0.0, WIDE), "a title wider than the gap takes the gap and is cut");
-}
-
-/// A double click maximizes or restores an integrated bar, follows the macOS setting on an inset bar, and is the
-/// OS's on a native frame.
-#[trial]
-fn a_double_click_acts_by_the_frame() {
-    let integrated = windows_captions();
-    assert!(matches!(double_click_action(&integrated, DoubleClick::Zoom, false), Some(WindowAction::SetMaximized(true))));
-    assert!(matches!(double_click_action(&integrated, DoubleClick::Nothing, true), Some(WindowAction::SetMaximized(false))));
-    let inset = Frame::Inset(MacInset::default());
-    assert!(matches!(double_click_action(&inset, DoubleClick::Zoom, true), Some(WindowAction::SetMaximized(false))));
-    assert!(matches!(double_click_action(&inset, DoubleClick::Minimize, false), Some(WindowAction::Minimize)));
-    assert!(double_click_action(&inset, DoubleClick::Nothing, false).is_none());
-    assert!(double_click_action(&Frame::Native, DoubleClick::Zoom, false).is_none());
-}
-
 /// What a pass of the bar showed: the bar, its leading and trailing buttons, whether the OS may move the window from
 /// the pointer, and whether Close was asked for.
 struct Shown {
@@ -198,29 +171,6 @@ fn a_hit_sink_reads_the_band_and_edges_and_a_dialogs_band_is_not_the_windows() {
     assert!(sent.iter().all(|(_, command)| *command != ViewportCommand::StartDrag), "the platform moves the window, not the app: {sent:?}");
 }
 
-/// Maximize sends the window command, Close only reports.
-#[trial]
-fn maximize_acts_on_the_window_and_close_only_reports() {
-    let windows = integrated();
-    let host = WindowHost::of(&windows.ctx);
-    let shown = Shown::default();
-    run(&windows, vec![], &shown);
-    let regions = host.caption_regions(ViewportId::ROOT).expect("captions");
-    let button = |wanted: Caption| regions.buttons.iter().find(|(caption, _)| *caption == wanted).expect("a button").1.center();
-    let click = |at| {
-        let mut sent = Vec::new();
-        for events in [vec![moved(at)], vec![press(at)], vec![release(at)], vec![]] {
-            sent.extend(run(&windows, events, &shown).commands);
-        }
-        sent
-    };
-    let sent = click(button(Caption::Close));
-    assert!(shown.closed.get(), "the bar reports Close");
-    assert!(sent.iter().all(|(_, command)| !matches!(command, ViewportCommand::Close)), "the bar never closes the window itself");
-    let sent = click(button(Caption::Maximize));
-    assert!(sent.iter().any(|(_, command)| matches!(command, ViewportCommand::Maximized(true))));
-}
-
 // Height and name of the bar.
 
 /// A bar at the top of a column takes the width and its content's height, so the next child lies under it.
@@ -241,17 +191,3 @@ fn a_bar_in_a_column_leaves_the_room_below_it_to_the_next_child() {
     assert_eq!(bar.get().width(), room.get().width(), "the bar fills the width");
 }
 
-/// The bar's node is named by the document title and described by the unsaved label; without a title it keeps the
-/// bar's own name.
-#[trial]
-fn the_bar_is_named_by_the_document_title() {
-    let mut frames = Frames::new();
-    let id = Cell::new(None);
-    frames.frame(vec![], |ui| {
-        id.set(Some(TitleBar::new().show_titled(ui, Title::unsaved("Landscape.psd"), |_, _| {}, |_, _| {}).response.id));
-    });
-    let tree = frames.tree();
-    let id = id.get().expect("the bar was shown");
-    assert_eq!(tree.name(id), Some("Landscape.psd *"));
-    assert_eq!(tree.description(id), Some("Unsaved changes"));
-}

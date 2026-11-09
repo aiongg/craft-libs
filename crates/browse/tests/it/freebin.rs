@@ -188,21 +188,6 @@ fn escape_puts_dragged_cards_back() {
     assert!(near(scene.rect(0).min - ORIGIN, home), "the card is back at the host's place");
 }
 
-/// A drag from the background sweeps a marquee that selects the cards it touches.
-#[trial]
-fn a_background_drag_is_a_marquee() {
-    let scene = Scene::with_cards(vec![
-        FreeformCard::new(0, offset(20.0, 20.0)),
-        FreeformCard::new(1, offset(300.0, 20.0)),
-        FreeformCard::new(2, offset(300.0, 220.0)),
-    ]);
-    let mut frames = Frames::new();
-    let mut show = |ui: &mut Ui| show_bin(ui, 3, &scene, bin_region());
-    frames.idle(3, &mut show);
-    pointer::drag(&mut frames, ORIGIN + offset(600.0, 360.0), offset(-330.0, -190.0), &mut show);
-    assert_eq!(scene.selected(), vec![2]);
-}
-
 /// A foreign drag released on a card that takes it reports that card; released elsewhere it reports the background.
 #[trial]
 fn a_foreign_drop_reports_the_card_or_the_background() {

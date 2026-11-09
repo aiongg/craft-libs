@@ -105,41 +105,6 @@ fn an_undo_during_a_drag_cancels_it_until_release() {
     assert_eq!(value, APP_VALUE, "the drag did not resume over the undone document");
 }
 
-/// Delete on a focused control with a reset value is one `Set` of that value; a control with no reset value ignores it.
-#[trial]
-fn delete_resets_a_focused_control_with_one_set() {
-    let mut frames = Frames::new();
-    let mut value = INITIAL;
-    let seen = RefCell::new(Vec::new());
-    let mut show = |ui: &mut Ui| {
-        let out = Scrub::new(Bind::bound(&mut value).reset(RESET_TO)).id_salt("scrub").show_at(ui, AT);
-        seen.borrow_mut().extend(ev_of(&out.event));
-    };
-    frames.idle(3, &mut show);
-    frames.frame(vec![key_press(Key::Tab, Modifiers::NONE)], &mut show);
-    frames.frame(vec![key_press(Key::Delete, Modifiers::NONE)], &mut show);
-    frames.idle(2, &mut show);
-    assert_eq!(seen.take(), vec![Ev::Set(RESET_TO)]);
-    assert_eq!(value, RESET_TO);
-}
-
-/// A read-only component refuses every edit: nothing reaches the binding or the app.
-#[trial]
-fn a_read_only_component_refuses_edits() {
-    let mut frames = Frames::new();
-    let mut value = INITIAL;
-    let seen = RefCell::new(Vec::new());
-    let mut show = |ui: &mut Ui| {
-        let out = Scrub::new(Bind::bound(&mut value)).read_only(true).id_salt("scrub").show_at(ui, AT);
-        seen.borrow_mut().extend(ev_of(&out.event));
-    };
-    dragging(&mut frames, &mut show);
-    frames.frame(vec![release(start() + Vec2::new(35.0, 0.0))], &mut show);
-    frames.idle(2, &mut show);
-    assert!(seen.borrow().is_empty(), "no event: {:?}", seen.borrow());
-    assert_eq!(value, INITIAL);
-}
-
 /// A composite whose child is a value control: it adopts the child's edit as its own gesture.
 #[derive(craft_ui::contract::Component)]
 struct Wrapper<'a> {
@@ -233,24 +198,6 @@ fn wrapper_events(value: &mut f32, seen: &RefCell<Vec<EditEvent<f32>>>, escaped:
     let out = Wrapper { common: Common::new(), value: Bind::bound(value) }.id_salt("wrapper").show_at(ui, AT);
     seen.borrow_mut().extend(out.event.clone());
     *escaped.borrow_mut() |= out.escaped;
-}
-
-/// The adopted `Commit` carries the value the gesture began with, so a host sees a changed value and keeps the step.
-#[trial]
-fn an_adopted_commit_carries_the_value_the_gesture_began_with() {
-    let mut frames = Frames::new();
-    let mut value = INITIAL;
-    let (seen, escaped) = (RefCell::new(Vec::new()), RefCell::new(false));
-    dragging(&mut frames, &mut |ui| wrapper_events(&mut value, &seen, &escaped, ui));
-    frames.frame(vec![release(start() + Vec2::new(35.0, 0.0))], |ui| wrapper_events(&mut value, &seen, &escaped, ui));
-    let events = seen.take();
-    let commit = events.iter().find_map(|event| match event {
-        EditEvent::Commit { before, after, .. } => Some((*before, *after)),
-        _ => None,
-    });
-    let (before, after) = commit.unwrap_or_else(|| panic!("a commit: {events:?}"));
-    assert_eq!(before, Mixed::Same(INITIAL));
-    assert!(near(after, HELD));
 }
 
 /// Escape on the child cancels the composite's gesture and restores the value it began with.

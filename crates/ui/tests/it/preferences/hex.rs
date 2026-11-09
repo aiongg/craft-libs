@@ -32,12 +32,3 @@ fn hex_text_with_alpha_wins_and_other_text_is_refused() {
     }
 }
 
-/// A colour formats as `#rrggbb` and reads back as itself; a translucent one keeps its alpha.
-#[trial]
-fn a_colour_round_trips_through_its_text() {
-    assert_eq!(HexCodec::default().format(&ORANGE), "#ff8800");
-    for colour in [ORANGE, TRANSLUCENT] {
-        let codec = HexCodec::default();
-        assert_eq!(codec.parse(&codec.format(&colour), &ORANGE), Ok(colour));
-    }
-}

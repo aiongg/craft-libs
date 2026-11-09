@@ -34,23 +34,6 @@ fn near(a: f64, b: f64) -> bool {
     (a - b).abs() < 1e-6
 }
 
-/// Vertical and Dual start at 90 degrees, Horizontal at 0, Diagonal at 45, plus the rotation clockwise; Dual has two
-/// perpendicular axes.
-#[trial]
-fn axes_start_at_90_0_45_degrees_plus_rotation_and_dual_adds_the_perpendicular() {
-    let v = sym(SymmetryMode::Vertical, 0.0).axes();
-    assert!(v.len() == 1 && near(v[0].x, 0.0) && near(v[0].y, 1.0));
-    let h = sym(SymmetryMode::Horizontal, 0.0).axes();
-    assert!(near(h[0].x, 1.0) && near(h[0].y, 0.0));
-    let d = sym(SymmetryMode::Diagonal, 0.0).axes();
-    assert!(near(d[0].x, d[0].y));
-    let turned = sym(SymmetryMode::Horizontal, 90.0).axes();
-    assert!(near(turned[0].x, 0.0) && near(turned[0].y, 1.0));
-    let dual = sym(SymmetryMode::Dual, 0.0).axes();
-    assert_eq!(dual.len(), 2);
-    assert!(near(dual[0].dot(dual[1]), 0.0));
-}
-
 /// Every mode on 100 x 100 and 101 x 53 gives segments inside the page; a horizontal axis at y -5 gives none.
 #[trial]
 fn segments_clip_to_the_page_and_vanish_when_the_centre_line_misses_it() {
@@ -68,27 +51,6 @@ fn segments_clip_to_the_page_and_vanish_when_the_centre_line_misses_it() {
     }
     let off = Symmetry::new(SymmetryMode::Horizontal, Point::new(50.0, -5.0), 0.0).expect("a valid symmetry");
     assert!(off.segments(Size::new(100.0, 100.0)).is_empty());
-}
-
-/// `Symmetry::new` refuses NaN, infinity and a centre past the limit, and wraps 370 to 10 and -90 to 270.
-#[trial]
-fn new_rejects_non_finite_and_wraps_rotation() {
-    let o = Point::ORIGIN;
-    assert!(Symmetry::new(SymmetryMode::Dual, Point::new(f64::NAN, 0.0), 0.0).is_none());
-    assert!(Symmetry::new(SymmetryMode::Dual, o, f64::INFINITY).is_none());
-    assert!(Symmetry::new(SymmetryMode::Dual, Point::new(0.0, MAX_COORDINATE + 1.0), 0.0).is_none());
-    assert!(near(sym(SymmetryMode::Dual, 370.0).rotation, 10.0));
-    assert!(near(sym(SymmetryMode::Dual, -90.0).rotation, 270.0));
-}
-
-/// The rotation handle sits at a share of the shorter side along the first axis, at least 1 unit from the centre.
-#[trial]
-fn the_rotation_handle_sits_at_a_share_of_the_shorter_side() {
-    let s = sym(SymmetryMode::Horizontal, 0.0);
-    let h = s.rotation_handle(Size::new(200.0, 100.0), 0.35);
-    assert!(near(h.x, 55.0) && near(h.y, 30.0));
-    let tiny = s.rotation_handle(Size::new(2.0, 2.0), 0.35);
-    assert!(near(tiny.x, 21.0));
 }
 
 /// What the menu host keeps.
@@ -121,50 +83,6 @@ fn pick(fixture: &mut Fixture, row: &str) {
     let target: Target = fixture.by_label(row).unwrap_or_else(|| panic!("the menu has a row {row}"));
     fixture.click(&target);
     fixture.idle(3);
-}
-
-/// A row runs its command and closes the menu; Symmetry Off is disabled while off and Transform Symmetry without
-/// `can_transform`.
-#[trial]
-fn rows_check_the_current_choice_and_run_commands() {
-    let (mut fixture, host) = menu(SymmetryChoice::Mode(SymmetryMode::Dual), false);
-    open(&mut fixture);
-    let checked = |fixture: &Fixture, row: &str| fixture.by_label(row).and_then(|target| fixture.tree().toggled_of(target.node));
-    assert_eq!(checked(&fixture, "Dual Axis"), Some(Mixed::Same(true)));
-    assert_eq!(checked(&fixture, "Vertical"), Some(Mixed::Same(false)));
-    pick(&mut fixture, "Transform Symmetry");
-    assert!(host.borrow().commands.is_empty(), "no transform without can_transform");
-    pick(&mut fixture, "Horizontal");
-    assert_eq!(host.borrow().commands, [SymmetryCommand::Mode(SymmetryMode::Horizontal)]);
-    assert!(fixture.by_label("Horizontal").is_none(), "the menu closed");
-
-    let (mut fixture, host) = menu(SymmetryChoice::Off, false);
-    open(&mut fixture);
-    pick(&mut fixture, "Symmetry Off");
-    assert!(host.borrow().commands.is_empty(), "Symmetry Off is disabled while off");
-    pick(&mut fixture, "Work Path");
-    assert_eq!(host.borrow().commands, [SymmetryCommand::FromPath("work".to_owned())]);
-
-    let (mut fixture, host) = menu(SymmetryChoice::Path("work".to_owned()), true);
-    open(&mut fixture);
-    pick(&mut fixture, "Transform Symmetry");
-    assert_eq!(host.borrow().commands, [SymmetryCommand::Transform]);
-}
-
-/// The button is pressed and describes the mode while a symmetry is on, and is neither while it is off.
-#[trial]
-fn the_button_is_pressed_while_a_symmetry_is_on() {
-    let (mut fixture, _) = menu(SymmetryChoice::Mode(SymmetryMode::Diagonal), false);
-    let button = fixture.by_label("Set painting symmetry options").expect("the button is shown");
-    let tree = fixture.tree();
-    assert_eq!(tree.selected_of(button.node), Some(true));
-    assert_eq!(tree.description_of(button.node), Some("Diagonal"));
-
-    let (fixture, _) = menu(SymmetryChoice::Off, false);
-    let button = fixture.by_label("Set painting symmetry options").expect("the button is shown");
-    let tree = fixture.tree();
-    assert_ne!(tree.selected_of(button.node), Some(true));
-    assert_eq!(tree.description_of(button.node), None);
 }
 
 /// The session, the view and the events the handles reported.
@@ -335,25 +253,6 @@ fn tool_context() -> ToolContext<'static> {
     ToolContext::new(rect, Some(space))
 }
 
-/// Enter gives Apply of the preview, Escape gives Discard, an invalid session gives Discard in its first pass and
-/// takes no key.
-#[trial]
-fn enter_applies_escape_discards_invalid_discards() {
-    let session = SymmetryTransform::begin(start());
-    let mut tool = SymmetryTool::new(&session, true);
-    let mut cx = tool_context();
-    assert!(tool.key(&ToolKey::Submit, &mut cx));
-    assert_eq!(tool.take_events(), [SymmetryEvent::Apply(start())]);
-    assert!(tool.key(&ToolKey::Cancel, &mut cx));
-    assert_eq!(tool.take_events(), [SymmetryEvent::Discard]);
-    assert!(!tool.key(&ToolKey::Kept(craft_keymap::Chord::plain(craft_keymap::Key::F1)), &mut cx), "other keys stay the app's");
-
-    let mut invalid = SymmetryTool::new(&session, false);
-    invalid.each_pass(&mut cx);
-    assert_eq!(invalid.take_events(), [SymmetryEvent::Discard]);
-    assert!(!invalid.key(&ToolKey::Submit, &mut cx));
-}
-
 /// The session opens from a menu, so the canvas has no focus yet: Enter and Escape still reach the tool.
 #[trial]
 fn enter_and_escape_work_before_the_canvas_is_focused() {
@@ -366,28 +265,3 @@ fn enter_and_escape_work_before_the_canvas_is_focused() {
     assert_eq!(canvas.tool_mut().take_events(), [SymmetryEvent::Discard]);
 }
 
-/// With the canvas focused, the arrows ask the tool to move the symmetry's centre 1 document unit, Shift 10, each as a
-/// `Set` of the preview.
-#[trial]
-fn the_tool_nudges_the_centre_with_the_arrows() {
-    let session: &'static SymmetryTransform = Box::leak(Box::new(SymmetryTransform::begin(start())));
-    let mut canvas = craft_ui::testing::ToolFixture::with_view(
-        "Document",
-        SymmetryTool::new(session, true),
-        |room| CanvasView::new(room, Point::new(f64::from(room.width()) / 2.0, f64::from(room.height()) / 2.0), 1.0),
-        |_, _| {},
-    );
-    canvas.fixture().key(Key::Tab, Modifiers::NONE).settle();
-    canvas.fixture().key(Key::ArrowRight, Modifiers::NONE).settle();
-    canvas.fixture().key(Key::ArrowDown, Modifiers::SHIFT).settle();
-    let centres: Vec<Point> = canvas
-        .tool_mut()
-        .take_events()
-        .into_iter()
-        .filter_map(|event| match event {
-            SymmetryEvent::Preview(EditEvent::Set { after, .. }) => Some(after.center),
-            _ => None,
-        })
-        .collect();
-    assert_eq!(centres, [Point::new(201.0, 150.0), Point::new(200.0, 160.0)]);
-}

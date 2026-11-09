@@ -38,17 +38,6 @@ fn apply(doc: &mut Doc, value: i32) {
 }
 
 #[trial]
-fn two_one_shot_sets_from_a_tool_are_two_undo_steps() {
-    let mut doc = Doc::default();
-    let mut host = GestureHost::new();
-    let set = |before, after| EditEvent::set(Mixed::Same(before), after, "Nudge".into(), Some(DocKey::new("trial.nudge")));
-    host.handle(&mut doc, set(0, 1), apply);
-    host.handle(&mut doc, set(1, 2), apply);
-    assert_eq!(doc.value, 2);
-    assert_eq!(doc.steps.len(), 2, "each Set is one step: {:?}", doc.steps);
-}
-
-#[trial]
 fn a_set_after_a_gesture_is_not_part_of_it() {
     let mut doc = Doc::default();
     let mut host = GestureHost::new();

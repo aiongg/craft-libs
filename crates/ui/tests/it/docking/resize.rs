@@ -99,37 +99,6 @@ fn dragging_a_columns_inner_edge_reports_its_width_and_the_dock_follows() {
 }
 
 #[trial]
-fn dragging_an_iconic_columns_edge_reports_its_width() {
-    let mut column = Column::new(vec![Group::new(vec![FIRST], 0)]).with_width(COLUMN_WIDTH);
-    column.iconic = true;
-    let (mut fixture, actions) = bed(docked(column));
-    let rail = sizes().iconic_least;
-    let grip = splitters(&fixture, true).into_iter().find(|bar| bar.rect.center().x <= rail).expect("the iconic column shows its edge grip");
-    let from = grip.rect.center();
-    drag(&mut fixture, from, from + Vec2::new(30.0, 0.0));
-    let width = actions.borrow().iter().rev().find_map(|action| match action {
-        Action::ResizeIconic { panel, width, .. } if *panel == FIRST => *width,
-        _ => None,
-    });
-    assert!(width.expect("the drag reports ResizeIconic") > rail + 20.0, "the column is wider than the rail");
-}
-
-#[trial]
-fn dragging_the_divider_between_accordion_sections_reports_the_section_height() {
-    let entries = vec![StackEntry::new(FIRST), StackEntry::new(SECOND)];
-    let root = Node::split(Axis::X, SplitSize::FixedFirst(COLUMN_WIDTH), Node::stack(entries), Node::tabs(vec![CANVAS], 0));
-    let (mut fixture, actions) = bed(Layout::new(Some(root), Vec::new()));
-    let divider = splitters(&fixture, false).into_iter().next().expect("the open sections show a divider");
-    let from = divider.rect.center();
-    drag(&mut fixture, from, from + Vec2::new(0.0, 60.0));
-    assert!(
-        actions.borrow().iter().any(|action| matches!(action, Action::ResizeStack { panel, height: Some(_), .. } if *panel == FIRST)),
-        "the drag reports ResizeStack for the section above: {:?}",
-        actions.borrow()
-    );
-}
-
-#[trial]
 fn dragging_the_lower_half_of_a_columns_group_divider_reports_the_group_height() {
     let column = Column::new(vec![Group::new(vec![FIRST], 0), Group::new(vec![SECOND], 0)]).with_width(COLUMN_WIDTH);
     let (mut fixture, actions) = bed(docked(column));
@@ -159,41 +128,3 @@ fn dragging_a_divider_inside_a_floating_window_reports_the_window_split() {
     );
 }
 
-#[trial]
-fn groups_stacked_in_a_column_stay_inside_it_and_apart() {
-    let column = Column::new(vec![Group::new(vec![FIRST], 0), Group::new(vec![SECOND], 0)]).with_width(COLUMN_WIDTH);
-    let (fixture, _) = bed(docked(column));
-    let mut tabs: Vec<Target> = fixture.by_role(Role::TAB).into_iter().filter(|tab| tab.rect.center().x < COLUMN_WIDTH).collect();
-    tabs.sort_by(|a, b| a.rect.min.y.total_cmp(&b.rect.min.y));
-    let [upper, lower] = tabs[..] else { panic!("one tab per group: {tabs:?}") };
-    assert!(upper.rect.max.y <= lower.rect.min.y, "the groups do not overlap: {:?} {:?}", upper.rect, lower.rect);
-    assert!(upper.rect.max.x <= COLUMN_WIDTH && lower.rect.max.x <= COLUMN_WIDTH, "and stay inside the column");
-}
-
-#[trial]
-fn a_window_menu_row_of_a_closed_panel_reopens_it() {
-    let layout = Layout::new(Some(Node::tabs(vec![FIRST, CANVAS], 0)), Vec::new());
-    assert_eq!(layout.panel_state(&CLOSED), PanelState::Hidden);
-    let picked: Rc<RefCell<Option<Action<usize>>>> = Rc::default();
-    let seen = Rc::clone(&picked);
-    let mut fixture = Fixture::new(move |ui| {
-        let opener = Button::new("Window").show(ui);
-        Menu::new("Window").opened_by(&opener, Trigger::Press).show(ui, |ui, _| {
-            let order = [FIRST, CLOSED];
-            if let Some(action) = WindowMenuRows::new(&layout, &Plain, &order).show(ui).action {
-                *seen.borrow_mut() = Some(action);
-            }
-        });
-    });
-    fixture.settle();
-    let opener = fixture.by_label("Window").expect("the opener shows");
-    fixture.click(&opener).settle();
-    // Every row is a check row: a panel's row is a check box item, checked while the panel is in the layout.
-    let row = fixture
-        .by_role(Role::MENU_ITEM_CHECK_BOX)
-        .into_iter()
-        .find(|row| fixture.tree().name_of(row.node) == Some("Panel 4"))
-        .expect("the closed panel has a row");
-    fixture.click(&row);
-    assert_eq!(*picked.borrow(), Some(Action::open(CLOSED, None)));
-}

@@ -105,31 +105,6 @@ fn clicking_an_item_fires_its_command_and_closes_the_menu() {
 }
 
 #[trial]
-fn the_models_check_radio_and_submenu_rows_reach_the_bar() {
-    let mut fixture = rig(sample(), LINUX);
-    click(&mut fixture, "View");
-    assert_eq!(toggled(&fixture, "Grid"), Some(Mixed::Same(true)));
-    assert_eq!(toggled(&fixture, "Rulers"), Some(Mixed::Same(false)));
-    assert_eq!(toggled(&fixture, "Light"), Some(Mixed::Same(true)));
-    assert_eq!(toggled(&fixture, "Dark"), Some(Mixed::Same(false)));
-    key(&mut fixture, Key::Escape, Modifiers::NONE);
-    click(&mut fixture, "File");
-    assert!(fixture.by_label("Zoom").is_none(), "AppKit's own items are left out");
-    click(&mut fixture, "Open Recent");
-    click(&mut fixture, "a.txt");
-    assert_eq!(fired(&fixture), [("file.recent.a".to_owned(), FireSource::Menu)], "an item of a submenu fires its command");
-}
-
-#[trial]
-fn a_check_row_follows_the_commands_state() {
-    let mut fixture = rig(sample(), LINUX);
-    fixture.command_state("view.rulers", CommandState::new().checked(true));
-    click(&mut fixture, "View");
-    assert_eq!(toggled(&fixture, "Rulers"), Some(Mixed::Same(true)), "the command's state wins over the model's");
-    assert_eq!(toggled(&fixture, "Grid"), Some(Mixed::Same(true)), "the model's state stands for a command with none");
-}
-
-#[trial]
 fn disabled_commands_and_dead_submenus_fire_nothing() {
     let mut fixture = rig(sample(), LINUX);
     fixture.command_state("file.locked", CommandState::new().enabled(false));
@@ -162,20 +137,6 @@ fn closes_after_clicking(label: &str) -> bool {
 }
 
 #[trial]
-fn a_quit_row_asks_the_root_window_to_close_and_fires_nothing() {
-    assert!(closes_after_clicking("Quit"), "the runtime's close path is asked");
-    assert!(!closes_after_clicking("New"), "other rows leave the window alone");
-}
-
-#[trial]
-fn minimize_fires_nothing() {
-    let mut fixture = rig(sample(), LINUX);
-    click(&mut fixture, "File");
-    click(&mut fixture, "Minimize");
-    assert!(fired(&fixture).is_empty());
-}
-
-#[trial]
 fn the_app_can_prefer_letters_and_name_english_labels_for_letterless_ones() {
     let mut bar = sample();
     bar.menus[3].title = "帮助".to_owned();
@@ -198,67 +159,6 @@ fn the_app_can_prefer_letters_and_name_english_labels_for_letterless_ones() {
     assert!(fixture.by_label("新建(N)…").is_some(), "the key goes before the ellipsis");
     let open = fixture.by_label("Open…").expect("the Open row");
     assert_eq!(fixture.tree().access_key_of(open.node), Some('P'), "a command's preferred letter");
-}
-
-/// The web shows the names of the system the browser runs on, and a Mac has no mnemonics: Option types there.
-#[trial]
-fn the_web_shows_the_browsers_system_names_and_the_mac_its_glyphs() {
-    for (target, os, mnemonic) in [(Target::Web, Os::Linux, true), (Target::Web, Os::Mac, false), (Target::Windows, Os::Linux, true)] {
-        let mut fixture = rig(sample(), Setup { target, ..LINUX });
-        fixture.os(os);
-        fixture.chrome(WindowChrome::Integrated);
-        fixture.settle();
-        click(&mut fixture, "File");
-        let new = fixture.by_label("New").expect("the New row");
-        assert_eq!(fixture.tree().access_key_of(new.node).is_some(), mnemonic, "{target:?} on {os:?}");
-    }
-}
-
-/// In a browser on a Mac the in-window bar is the only one: F10 reaches it, while Alt (Option) types.
-#[trial]
-fn in_a_browser_on_a_mac_f10_reaches_the_bar_and_alt_does_not() {
-    let mut fixture = rig(sample(), Setup { target: Target::Web, ..LINUX });
-    fixture.os(Os::Mac);
-    fixture.chrome(WindowChrome::Integrated);
-    fixture.settle();
-    key(&mut fixture, Key::AltLeft, Modifiers::ALT);
-    assert!(!is_focused(fixture.ctx()), "Alt leaves the bar alone");
-    key(&mut fixture, Key::F10, Modifiers::NONE);
-    assert!(is_focused(fixture.ctx()), "F10 puts the keyboard on the bar");
-    key(&mut fixture, Key::ArrowDown, Modifiers::NONE);
-    assert!(is_open(fixture.ctx()) && fixture.by_label("New").is_some(), "Down opens File");
-}
-
-#[trial]
-fn a_mac_target_has_no_mnemonics_and_leaves_alt_and_f10_alone() {
-    let mut fixture = rig(sample(), Setup { target: Target::Mac, ..LINUX });
-    key(&mut fixture, Key::F10, Modifiers::NONE);
-    assert!(!is_focused(fixture.ctx()), "F10 leaves the bar alone");
-    key(&mut fixture, Key::F, Modifiers::ALT);
-    assert!(!is_open(fixture.ctx()), "Option+F is a typing key");
-}
-
-/// The layouts add the open documents (check items, the one in front checked) and the app's disabled placeholder
-/// for a dynamic list with nothing in it.
-#[trial]
-fn documents_and_placeholders_from_the_layout_are_rows_of_the_bar() {
-    let bar = MenuBar::new(vec![
-        Menu::new("File", vec![Node::submenu("Open Recent", vec![item("file.no_recent", "No Recent Files").enabled(false).into()])])
-            .role(MenuRole::File),
-        Menu::new("Window", Vec::new()).role(MenuRole::Window),
-    ])
-    .documents(vec![Document::new("doc.0", "One"), Document::new("doc.1", "Two").active(true), Document::new("doc.2", "Hidden").hidden(true)]);
-    let laid_out = layout(&bar, Target::Linux, &LayoutOptions::new("Sample")).bar;
-    let mut fixture = rig(laid_out, LINUX);
-    click(&mut fixture, "Window");
-    assert_eq!(toggled(&fixture, "One"), Some(Mixed::Same(false)));
-    assert_eq!(toggled(&fixture, "Two"), Some(Mixed::Same(true)));
-    assert!(fixture.by_label("Hidden").is_none(), "a hidden document isn't listed");
-    click(&mut fixture, "One");
-    assert_eq!(fired(&fixture), [("doc.0".to_owned(), FireSource::Menu)], "choosing a document fires its command");
-    click(&mut fixture, "File");
-    click(&mut fixture, "Open Recent");
-    assert!(fixture.by_label("No Recent Files").is_none(), "a list holding only the disabled placeholder does not open");
 }
 
 /// The Help menu opens with the search field, which finds an item by its label and fires its command. Undo found

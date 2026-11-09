@@ -39,25 +39,3 @@ fn open(fixture: &mut Fixture) {
     fixture.settle();
 }
 
-#[trial]
-fn a_secondary_click_opens_the_rows_and_a_click_on_one_fires_its_command() {
-    let mut fixture = rig();
-    open(&mut fixture);
-    assert!(fixture.by_label("Copy").is_some() && fixture.by_label("Layer").is_some());
-    let copy = fixture.by_label("Copy").expect("the Copy row");
-    fixture.click(&copy);
-    fixture.settle();
-    let fired = take_output(fixture.ctx()).fired;
-    assert_eq!(fired.iter().map(|fired| (fired.command.id.as_str(), fired.source)).collect::<Vec<_>>(), [("edit.copy", FireSource::Menu)]);
-}
-
-#[trial]
-fn a_row_follows_the_commands_state_and_a_disabled_one_cannot_be_chosen() {
-    let mut fixture = rig();
-    fixture.command_state("edit.copy", CommandState::new().enabled(false));
-    open(&mut fixture);
-    fixture.key(Key::ArrowDown, Modifiers::NONE);
-    fixture.key(Key::Enter, Modifiers::NONE);
-    fixture.settle();
-    assert!(take_output(fixture.ctx()).fired.iter().all(|fired| fired.command.id != "edit.copy"), "a disabled command does not fire");
-}

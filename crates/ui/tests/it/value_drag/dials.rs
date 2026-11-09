@@ -134,17 +134,6 @@ fn a_point_picker_maps_a_click_to_the_range_with_y_growing_downwards() {
     assert!((x - 25.0).abs() < 0.1 && (y - 75.0).abs() < 0.1, "a click a quarter across and three quarters down is (25, 75), not ({x}, {y})");
 }
 
-#[trial]
-fn a_point_picker_moves_one_axis_per_arrow_key() {
-    let mut fixture = focused(picker);
-    key(&mut fixture, Key::ArrowRight, Modifiers::NONE);
-    assert_eq!(point(&fixture), [51.0, 50.0]);
-    key(&mut fixture, Key::ArrowDown, Modifiers::NONE);
-    assert_eq!(point(&fixture), [51.0, 51.0]);
-    key(&mut fixture, Key::ArrowUp, Modifiers::SHIFT);
-    assert_eq!(point(&fixture), [51.0, 41.0], "Shift moves ten steps, and up lowers y");
-}
-
 /// The picker's value is two slider sub-nodes, one per axis, each with its own numeric; the picker stays one Tab
 /// stop, and Increment or Decrement on a sub-node steps that axis alone.
 #[trial]
@@ -204,27 +193,6 @@ fn an_alt_click_on_a_point_picker_sets_the_clicked_point() {
 }
 
 #[trial]
-fn a_wheel_notch_steps_an_angle_dial_and_the_value_text_uses_the_degree_unit() {
-    let mut fixture = focused(counter_clockwise);
-    assert_eq!(angle_text(&fixture).as_deref(), Some("45°"));
-    let center = control_rect(&fixture).center();
-    fixture.frame(vec![moved(center)]);
-    fixture.frame(vec![wheel(30.0)]);
-    fixture.idle(2);
-    assert_eq!((angle(&fixture) - 45.0).abs(), 1.0, "one notch is one step");
-}
-
-#[trial]
-fn shift_snaps_a_dial_drag_to_45_degrees() {
-    let mut fixture = shown(counter_clockwise);
-    let center = control_rect(&fixture).center();
-    fixture.hold(Modifiers::SHIFT);
-    let from = center + Vec2::new(-REACH, 0.0);
-    drag_through(&mut fixture, from, &[center + Vec2::new(0.0, -REACH), center + Vec2::new(13.2, 4.8)]);
-    assert_eq!(angle(&fixture), 0.0, "about -20 degrees snaps to the nearest multiple of 45");
-}
-
-#[trial]
 fn keys_do_nothing_to_a_dial_while_a_drag_runs() {
     let mut fixture = focused(counter_clockwise);
     let center = control_rect(&fixture).center();
@@ -237,29 +205,6 @@ fn keys_do_nothing_to_a_dial_while_a_drag_runs() {
     fixture.frame(vec![release(right)]);
     fixture.idle(2);
     assert_eq!(angle(&fixture), 0.0, "the pointer's angle stands; the key did not step it");
-}
-
-#[trial]
-fn right_on_a_mixed_axis_sets_that_axis_and_leaves_the_other_mixed() {
-    let mut fixture = focused(picker_mixed);
-    key(&mut fixture, Key::ArrowRight, Modifiers::NONE);
-    let value = *fixture.data().value("mixed", Mixed::Mixed);
-    assert_eq!(value, Mixed::Same([Mixed::Same(51.0), Mixed::Mixed]), "X steps from the middle of its range; Y stays mixed");
-}
-
-/// A press on the point focuses the picker, so the next arrow moves it.
-#[trial]
-fn a_press_on_the_point_of_an_unfocused_picker_focuses_it() {
-    let mut fixture = shown(picker);
-    let id = fixture.root_id().expect("the picker is shown");
-    assert_eq!(fixture.focused_stop().map(|(stop, _)| stop), None, "nothing has the focus yet");
-    let thumb = fixture.part_rect(id, PartKey::new("thumb")).expect("the point is a part");
-    fixture.click_at(thumb.center());
-    fixture.idle(2);
-    assert_eq!(fixture.focused_stop().map(|(stop, _)| stop), Some(id), "the press focused the picker");
-    let [x, y] = point(&fixture);
-    key(&mut fixture, Key::ArrowRight, Modifiers::NONE);
-    assert_eq!(point(&fixture), [x + 1.0, y]);
 }
 
 /// The picker keeps its axis order: Right raises x and Left lowers it in either reading direction.

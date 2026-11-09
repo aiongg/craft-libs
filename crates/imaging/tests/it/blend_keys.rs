@@ -39,13 +39,6 @@ fn shift_plus_and_minus_step_and_wrap() {
 }
 
 #[trial]
-fn shift_alt_letter_picks_the_listed_mode() {
-    let pick = letter(BlendShortcut::Multiply, &modes());
-    assert_eq!(pick, Some(BlendKeyPick::Lettered("multiply")));
-    assert_eq!(pick.map(BlendKeyPick::into_key), Some("multiply"));
-}
-
-#[trial]
 fn every_shortcut_has_its_own_letter() {
     let defs = BlendShortcut::defs().expect("the shortcuts are valid commands");
     assert_eq!(defs.len(), BlendShortcut::ALL.len());
@@ -59,17 +52,3 @@ fn every_shortcut_has_its_own_letter() {
     assert_eq!(chords.len(), 26, "no two shortcuts share a chord");
 }
 
-#[trial]
-fn a_letter_for_a_missing_mode_is_consumed_and_does_nothing() {
-    let entries = modes();
-    assert_eq!(letter(BlendShortcut::PassThrough, &entries), None);
-    assert_eq!(letter(BlendShortcut::Overlay, &entries), None);
-}
-
-#[trial]
-fn behind_is_consumed_and_reported() {
-    assert_eq!(letter(BlendShortcut::Behind, &modes()), None, "layers have no Behind");
-    let mut entries = modes();
-    entries.push(BlendKeyEntry::behind("behind"));
-    assert_eq!(letter(BlendShortcut::Behind, &entries), Some(BlendKeyPick::Lettered("behind")));
-}

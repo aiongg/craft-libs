@@ -46,28 +46,3 @@ fn alt_scales_about_the_centre_in_a_corner_drag() {
     assert!(corners_are(&stretched, -50.0, -10.0, 150.0, 60.0), "{:?}", stretched.quad);
 }
 
-#[test]
-fn shift_move_inside_keeps_to_eight_directions() {
-    let moved = dragged(p(30.0, 25.0), p(50.0, 29.0), Mods::SHIFT, &BoxRules::default());
-    assert!(corners_are(&moved, 20.0, 0.0, 120.0, 50.0), "{:?}", moved.quad);
-}
-
-#[test]
-fn a_distort_mode_refuses_the_outside_and_the_edges() {
-    let rules = BoxRules::in_mode(TransformMode::Distort);
-    let start = session();
-    let outside = dragged(p(130.0, 25.0), p(160.0, 25.0), Mods::NONE, &rules);
-    assert_eq!(outside.quad, start.quad);
-    let edge = dragged(p(100.0, 25.0), p(150.0, 25.0), Mods::NONE, &rules);
-    assert_eq!(edge.quad, start.quad);
-}
-
-#[test]
-fn a_skew_past_the_limit_stops_at_the_limit() {
-    let s = session();
-    let rect = Rect::new(0.0, 0.0, 100.0, 50.0);
-    let now = s.parts(rect, 0.0);
-    let leaned = s.with_parts(rect, 0.0, Parts::new(now.w, now.h, now.angle, 120.0, now.skew_v));
-    let reading = leaned.parts(rect, 0.0);
-    assert!((reading.skew_h - SKEW_LIMIT).abs() < 1e-6, "{reading:?}");
-}

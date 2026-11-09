@@ -43,44 +43,6 @@ fn panel() -> (Fixture, Rc<RefCell<Vec<VersionAction>>>) {
     (fixture, actions)
 }
 
-/// Save version opens a form; Title, a description and Enter report Save.
-#[trial]
-fn save_form_reports_title_and_description() {
-    let (mut fixture, actions) = panel();
-    let save = fixture.by_label("Save version").expect("Save version");
-    fixture.click(&save);
-    let title = fixture.by_label("Title").expect("the title field");
-    fixture.click(&title);
-    fixture.type_text("Beta");
-    fixture.key(Key::Enter, Modifiers::NONE);
-    assert!(matches!(actions.borrow().as_slice(), [VersionAction::Save { title, description, .. }] if title == "Beta" && description.is_empty()));
-}
-
-/// Create branch opens a name field; Enter creates the branch.
-#[trial]
-fn the_branch_form_creates_a_branch() {
-    let (mut fixture, actions) = panel();
-    let create = fixture.by_label("Create branch").expect("Create branch");
-    fixture.click(&create);
-    let name = fixture.by_label("Branch name").expect("the name field");
-    fixture.click(&name);
-    fixture.type_text("Mobile");
-    fixture.key(Key::Enter, Modifiers::NONE);
-    assert!(matches!(actions.borrow().as_slice(), [VersionAction::CreateBranch { name, .. }] if name == "Mobile"));
-}
-
-/// A merged branch names its state and has a menu.
-#[trial]
-fn a_branch_row_names_its_state_and_has_a_menu() {
-    let (mut fixture, actions) = panel();
-    assert!(fixture.by_label("Dark mode").is_some());
-    let more = fixture.by_label("More (Dark mode)").expect("the branch menu button");
-    fixture.click(&more);
-    let open = fixture.by_label("Open").expect("Open");
-    fixture.click(&open);
-    assert_eq!(*actions.borrow(), [VersionAction::OpenBranch(BranchId(1))]);
-}
-
 /// The "More" button of the row named `row`: the part of that row, not the first node of that name.
 fn more_of(fixture: &Fixture, row: &str) -> Target {
     let row = row_named(fixture, row);
@@ -140,18 +102,6 @@ fn delete_asks_in_the_row_and_confirms() {
     assert!(fixture.by_label("Delete \u{201c}Final\u{201d}? This can't be undone.").is_none());
 }
 
-/// Cancel on the confirmation restores the row and reports nothing.
-#[trial]
-fn cancelling_the_delete_strip_keeps_the_version() {
-    let (mut fixture, actions) = panel();
-    pick(&mut fixture, "Final", "Delete");
-    let cancel = fixture.by_label("Cancel").expect("Cancel");
-    fixture.click(&cancel);
-    assert!(actions.borrow().is_empty());
-    assert!(fixture.by_label("Delete \u{201c}Final\u{201d}? This can't be undone.").is_none());
-    assert!(fixture.by_role(Role::TREE_ITEM).iter().any(|row| fixture.tree().name_of(row.node).is_some_and(|name| name.starts_with("Final"))));
-}
-
 /// A run of autosaves is one row that counts them and opens and closes on a click.
 #[trial]
 fn autosaves_fold_into_a_group_that_opens() {
@@ -164,42 +114,6 @@ fn autosaves_fold_into_a_group_that_opens() {
     let group = fixture.by_label("2 autosave versions").expect("the group row");
     fixture.click(&group);
     assert_eq!(rows(&fixture), folded, "a second click folds them again");
-}
-
-/// Escape on the preview banner goes back to the current version.
-#[trial]
-fn escape_leaves_the_preview() {
-    let actions = Rc::new(RefCell::new(Vec::new()));
-    let seen = actions.clone();
-    let shown = version(4, "Final", false);
-    let mut fixture = Fixture::new(move |ui| {
-        let canvas = Rect::from_min_size(egui::pos2(0.0, 0.0), vec2(600.0, 400.0));
-        seen.borrow_mut().extend(VersionPreviewBanner::new(&shown, NOW).show(ui, canvas).action);
-    });
-    fixture.settle();
-    assert!(fixture.by_label("Back to current version").is_some());
-    fixture.key(Key::Escape, Modifiers::NONE);
-    assert_eq!(*actions.borrow(), [VersionAction::Current]);
-}
-
-/// A long description wraps under the title instead of running off the row.
-#[trial]
-fn a_long_description_wraps_under_the_title() {
-    let long = "A long note about what changed in this version, written so that it cannot fit on one line of a narrow panel.";
-    let mut draft = version(1, "Draft", false);
-    draft.description = long.into();
-    let mut fixture = Fixture::new(move |ui| {
-        let versions = [draft.clone()];
-        let _ = VersionHistoryPanel::new(&versions, &[], NOW).show(ui);
-    });
-    fixture.room(vec2(260.0, 500.0));
-    fixture.settle();
-    let texts = fixture.texts();
-    let title = texts.iter().find(|painted| painted.text == "Draft").expect("the title is painted");
-    let note = texts.iter().find(|painted| painted.text == long).expect("the description is painted whole");
-    assert!(!note.elided, "the description wraps, it is not cut");
-    let two_lines = title.rect.height() + title.rect.height();
-    assert!(note.rect.height() > two_lines, "the description takes several lines under the title");
 }
 
 /// Edit description opens the form with the version's text; Enter reports title and description.

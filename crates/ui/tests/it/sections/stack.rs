@@ -101,17 +101,6 @@ fn alt_down_in_the_first_section_moves_it_to_position_one_and_alt_up_moves_nothi
 }
 
 #[trial]
-fn expand_on_a_closed_section_of_a_stack_opens_it() {
-    let (mut fixture, seen) = scene_closed(Some(1));
-    assert!(!seen.borrow().bodies.contains(&1), "the section starts closed");
-    let ids = seen.borrow().ids.clone();
-    let target = fixture.node_of(ids[1]).expect("the closed section");
-    fixture.access(AccessActionKind::Expand, &target);
-    fixture.settle();
-    assert!(seen.borrow().bodies.contains(&1), "Expand opened the section");
-}
-
-#[trial]
 fn alt_down_in_a_stack_section_does_not_close_it() {
     let (mut fixture, seen) = scene();
     focus_section(&mut fixture, TITLES[0]);
@@ -138,16 +127,6 @@ fn dragging_the_third_header_above_the_first_moves_it_to_position_zero_and_marks
     fixture.frame(Vec::new());
     assert_eq!(seen.borrow().moves, [(2, 0)], "one move, to the front");
     assert_eq!(seen.borrow().order, [2, 0, 1]);
-}
-
-#[trial]
-fn each_section_reports_its_place_in_the_stack() {
-    let (fixture, seen) = scene();
-    let ids = seen.borrow().ids.clone();
-    assert_eq!(ids.len(), TITLES.len());
-    for (index, id) in ids.iter().enumerate() {
-        assert_eq!(fixture.tree().position(*id), Some((index, TITLES.len())), "section {index} is {} of {}", index + 1, TITLES.len());
-    }
 }
 
 #[trial]

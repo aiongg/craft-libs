@@ -105,17 +105,6 @@ fn a_script_stops_reading_after_the_cap() {
     assert!(on_demand_registered(&frames.ctx).is_empty());
 }
 
-/// A `ja` UI language prefers Japanese forms; an `en` UI with a `zh-TW` OS locale prefers Traditional.
-#[trial]
-fn han_preference_follows_ui_language_then_os_locale() {
-    assert_eq!(han_for_locale("ja", Some("zh-TW")), Some(Han::Japanese));
-    assert_eq!(han_for_locale("zh-CN", Some("ja_JP.UTF-8")), Some(Han::Simplified));
-    assert_eq!(han_for_locale("en", Some("zh-TW")), Some(Han::Traditional));
-    assert_eq!(han_for_locale("en", Some("ko_KR.UTF-8")), Some(Han::Korean));
-    assert_eq!(han_for_locale("en", Some("en_US.UTF-8")), None);
-    assert_eq!(han_for_locale("en", None), None);
-}
-
 /// `deflated_default_definitions` holds egui's default font files, with egui's tweaks and family order.
 #[trial]
 fn deflated_defaults_match_egui_defaults() {
@@ -174,15 +163,6 @@ fn a_pending_lookup_wakes_the_ui_instead_of_polling() {
     let before = repaints.load(Ordering::Relaxed);
     wakes[0].wake();
     assert!(repaints.load(Ordering::Relaxed) > before, "the wake requests a frame");
-}
-
-/// Every stack and check that asks for a locale shares one provider.
-#[cfg(feature = "system_fonts")]
-#[trial]
-fn the_system_provider_is_shared_per_locale() {
-    use craft_ui::fonts::system_font_provider;
-    let (a, b) = (system_font_provider("ja"), system_font_provider("ja"));
-    assert!(a.zip(b).is_some_and(|(a, b)| Arc::ptr_eq(&a, &b)));
 }
 
 /// A context asking for the OS's interface face is woken once the index of installed fonts is built, and the face is

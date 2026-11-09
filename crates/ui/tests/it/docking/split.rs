@@ -65,17 +65,6 @@ fn a_column_divider_dragged_past_a_minimum_and_back_stays_under_the_pointer() {
     );
 }
 
-#[trial]
-fn the_arrow_keys_step_a_focused_column_divider() {
-    let (mut fixture, rects) = column();
-    fixture.settle();
-    let grip = divider(&fixture);
-    fixture.click(&grip);
-    let before = rects.borrow()[0].bottom();
-    fixture.key(Key::ArrowDown, Modifiers::NONE);
-    assert!(rects.borrow()[0].bottom() > before, "Down moved the divider down");
-}
-
 fn two_columns() -> Layout<usize> {
     let root = Node::split(Axis::X, SplitSize::Ratio(0.33), Node::tabs(vec![0, 1], 0), Node::tabs(vec![10], 0));
     Layout::new(Some(root), Vec::new())

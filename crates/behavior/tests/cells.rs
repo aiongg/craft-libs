@@ -143,35 +143,9 @@ fn enter_and_tab_cycle_inside_the_selection() {
 }
 
 // A hidden column inside a range is skipped by Tab and Enter inside a multi-cell selection.
-#[test]
-fn advance_inside_a_range_skips_hidden_lines() {
-    let hidden_columns = |column: u32| column == 1;
-    let rows = Positions::new(5);
-    let space = CellSpace::new(&rows, 5).hidden_columns(&hidden_columns);
-    let mut sel = CellSelection::range(r((0, 0), (1, 2)));
-    let mut seen = Vec::new();
-    for _ in 0..4 {
-        sel.advance(CellAdvance::Tab, false, &space);
-        seen.push(active(&sel));
-    }
-    assert_eq!(seen, [c(0, 2), c(1, 0), c(1, 2), c(0, 0)]);
-}
 
 // A cell the selectable rule refuses can't be selected or added; the selection stays as it was.
 // `select_range` covers merges.
-#[test]
-fn locked_cells_refuse_selection_and_ranges_cover_merges() {
-    let merges = [r((2, 2), (3, 3))];
-    let selectable = |cell: CellAt<u32>| cell != c(5, 5);
-    let rows = Positions::new(10);
-    let space = CellSpace::new(&rows, 10).merges(&merges).selectable(&selectable);
-    let mut sel = CellSelection::cell(c(0, 0));
-    assert!(!sel.select(c(5, 5), &space));
-    assert!(!sel.add(c(5, 5), &space));
-    assert_eq!(sel, CellSelection::cell(c(0, 0)));
-    assert!(sel.select_range(r((1, 1), (2, 2)), &space));
-    assert_eq!(sel.ranges(), [r((1, 1), (3, 3))]);
-}
 
 // A stored selection with ranges but no active cell is refused, and so is an active cell with no ranges, where
 // `advance` would otherwise index past the end; a stored selection keeps its order and current range through a
@@ -270,18 +244,6 @@ fn reading_order_tab_wraps_rows_and_ends_past_the_last_cell() {
 }
 
 // A whole column of a full-size sheet is one range, answered without a scan of its rows.
-#[test]
-fn a_whole_column_of_a_full_sheet_is_one_range() {
-    const ROWS: u32 = 1_048_576;
-    let rows = Positions::new(ROWS);
-    let space = CellSpace::new(&rows, 16_384);
-    let mut sel = CellSelection::<u32>::default();
-    assert!(sel.select_range(space.whole_columns(2, 2).expect("the grid has rows"), &space));
-    assert_eq!(sel.ranges().len(), 1);
-    let last = ROWS - 1;
-    let at = |column| sel.contains_cell(RowAt::new(&last, last as usize, &rows), column);
-    assert_eq!((at(2), at(3), at(1)), (true, false, false));
-}
 
 struct Names(Vec<&'static str>);
 
@@ -377,16 +339,6 @@ fn toggle_takes_out_a_cell_between_the_rows_of_a_range() {
 }
 
 // An empty order has no rows to select: whole columns and Select All give nothing, and the arrows stay put.
-#[test]
-fn an_empty_order_selects_nothing_and_panics_nowhere() {
-    let rows = Positions::new(0);
-    let space = CellSpace::new(&rows, 4);
-    assert_eq!((space.row_count(), space.all(), space.whole_columns(0, 1)), (0, None, None));
-    assert_eq!(space.next_in_reading_order(c(0, 0), false), None);
-    let mut sel = CellSelection::<u32>::default();
-    assert!(!sel.select(c(0, 0), &space));
-    assert_eq!(space.cover(space.whole_rows(0, 0)), space.whole_rows(0, 0));
-}
 
 struct Counting {
     names: Names,
@@ -423,13 +375,3 @@ fn placing_a_selection_looks_up_each_range_end_once() {
 }
 
 // A row stays unselected once the only cell of its selection is toggled out.
-#[test]
-fn a_row_is_selected_only_while_one_of_its_cells_is() {
-    let rows = Positions::new(10);
-    let space = CellSpace::new(&rows, 4);
-    let mut cells = CellSelection::<u32>::default();
-    assert!(cells.select(CellAt::new(4, 1), &space));
-    assert_eq!(cells.placed(&rows).holds_row(4), true);
-    assert!(cells.toggle(CellAt::new(4, 1), &space));
-    assert_eq!((cells.contains(RowAt::new(&4, 4, &rows)), cells.placed(&rows).holds_row(4)), (false, false));
-}

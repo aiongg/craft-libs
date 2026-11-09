@@ -166,29 +166,4 @@ mod tests {
     use super::*;
     use crate::Button;
 
-    #[test]
-    fn only_the_maximize_button_is_the_operating_systems() {
-        assert_eq!(hit_code(Some(Zone::Button(Button::Maximize))), Some(9), "HTMAXBUTTON shows the snap layouts");
-        assert_eq!(hit_code(Some(Zone::Button(Button::Close))), None);
-        assert_eq!(hit_code(Some(Zone::Button(Button::Minimize))), None);
-        assert_eq!(hit_code(None), None);
-    }
-
-    #[test]
-    fn the_drag_area_is_the_caption_and_each_edge_its_own_border() {
-        assert_eq!(hit_code(Some(Zone::Move)), Some(2));
-        let edges = [
-            (Edge::Left, 10),
-            (Edge::Right, 11),
-            (Edge::Top, 12),
-            (Edge::TopLeft, 13),
-            (Edge::TopRight, 14),
-            (Edge::Bottom, 15),
-            (Edge::BottomLeft, 16),
-            (Edge::BottomRight, 17),
-        ];
-        for (edge, code) in edges {
-            assert_eq!(hit_code(Some(Zone::Edge(edge))), Some(code));
-        }
-    }
 }

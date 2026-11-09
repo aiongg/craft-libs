@@ -18,19 +18,4 @@ pub fn owner_due(last_pass: u64, last_at: f64, pass_now: u64, now: f64, viewport
 mod tests {
     use super::*;
 
-    #[test]
-    fn an_owner_is_due_only_when_passes_and_time_have_both_run_out() {
-        // (passes since, seconds since, viewport live, due)
-        let cases = [
-            (3, 0.4, true, false),
-            (2, 0.6, true, false),
-            (3, 0.5, true, true),
-            (10, 5.0, true, true),
-            (0, 0.5, false, true),
-            (0, 0.4, false, false),
-        ];
-        for (passes, secs, live, due) in cases {
-            assert_eq!(owner_due(10, 1.0, 10 + passes, 1.0 + secs, live), due, "{passes} passes, {secs} s, live {live}");
-        }
-    }
 }

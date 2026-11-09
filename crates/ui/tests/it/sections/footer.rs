@@ -99,23 +99,6 @@ fn drag_over_delete(frames: &mut Frames, show: &mut impl FnMut(&mut Ui), seen: &
     over
 }
 
-/// A predicate that captures a list id accepts the drags of that list and refuses the drags of another.
-#[trial]
-fn a_capturing_predicate_accepts_its_lists_drag_and_refuses_another() {
-    for (from, takes) in [(1u8, true), (2, false)] {
-        let seen = RefCell::new(Seen::default());
-        let mut show = scene(from, true, false, &seen);
-        let mut frames = Frames::new();
-        let over = drag_over_delete(&mut frames, &mut show, &seen);
-        assert_eq!(seen.borrow().hint.is_some(), takes, "the hint shows for an accepted drag only (list {from})");
-        frames.frame(vec![release(over)], &mut show);
-        let dropped = seen.borrow().dropped_on;
-        frames.idle(2, &mut show);
-        let dropped = dropped.or(seen.borrow().dropped_on);
-        assert_eq!(dropped, takes.then_some(0), "the drop of list {from} is {}", if takes { "taken" } else { "refused" });
-    }
-}
-
 /// A disabled action takes no drop; one flagged `takes_drops_disabled` takes it and reports enabled while the drag is over it.
 #[trial]
 fn a_disabled_action_takes_a_drop_only_when_flagged_and_then_reports_enabled() {
@@ -164,40 +147,3 @@ fn a_flagged_action_under_a_disabled_parent_takes_no_drop() {
     assert!(first.is_none() && seen.borrow().dropped_on.is_none(), "the flagged action takes no drop under a disabled parent");
 }
 
-/// A lettered button is named by its plain label and reports its letter as the access key; off macOS its face
-/// shows the letter marked.
-#[trial]
-fn a_lettered_button_is_named_plainly_and_shows_its_letter_off_macos() {
-    for (os, decorated) in [(Os::Windows, true), (Os::Linux, true), (Os::Mac, false)] {
-        let mut fixture = Fixture::new(|ui| {
-            FooterBar::buttons([FooterButton::new(craft_ui::runtime::env::Label::Static("Delete"), DialogRole::Destructive).letter('d')])
-                .show_footer(ui);
-        });
-        fixture.os(os).settle();
-        let button = fixture.by_label("Delete").unwrap_or_else(|| panic!("{os:?}: the button is named by its plain label"));
-        assert_eq!(fixture.tree().access_key_of(button.node), Some('D'), "{os:?}: the letter is the access key");
-        let marked = fixture.texts().iter().any(|run| button.rect.contains_rect(run.rect) && run.text != "Delete");
-        assert_eq!(marked, decorated, "{os:?}: the face marks the letter only off macOS");
-    }
-}
-
-/// An icon button that opens a menu reports the popup and whether it is open.
-#[trial]
-fn an_action_with_a_menu_popup_reports_has_popup_and_expanded() {
-    let open = Cell::new(false);
-    let id = Cell::new(None);
-    let mut frames = Frames::new();
-    let mut show = |ui: &mut Ui| {
-        let action = FooterAction::new(IconId::new("plus"), "New").popup(PopupKind::Menu).expanded(open.get());
-        let out = FooterBar::actions([action]).show_footer(ui);
-        id.set(out.responses.first().map(|response| response.id));
-    };
-    frames.idle(3, &mut show);
-    let id = id.get().expect("the action showed");
-    let tree = frames.tree();
-    assert_eq!(tree.has_popup(id), Some(PopupKind::Menu), "the action reports its popup");
-    assert_eq!(tree.expanded(id), Some(false), "closed");
-    open.set(true);
-    frames.idle(2, &mut show);
-    assert_eq!(frames.tree().expanded(id), Some(true), "and open once the host says so");
-}

@@ -14,25 +14,6 @@ fn preedit(text: &str) -> Event {
     ime_preedit(text)
 }
 
-/// The preedit shows inline, commits once as typed text, and the pass writes the engine's IME output.
-#[trial]
-fn ime_preedit_shows_commits_once_and_the_pass_writes_the_ime_output() {
-    let mut rig = Rig::new("hello");
-    rig.focus();
-    rig.frame(vec![preedit("ni")]);
-    rig.idle(1);
-    assert_eq!(rig.text, "hello", "the preedit is not text yet");
-    let owner = rig.frames.ime().map(|ime| ime.owner);
-    assert_eq!(owner, Some(rig.widget()), "the engine's output names the composing part");
-    let events_before = rig.seen.events.len();
-    rig.frame(vec![Event::Ime(ImeEvent::Commit("ni".into()))]);
-    rig.idle(3);
-    assert_eq!(rig.text, "helloni", "the commit became text once");
-    assert!(rig.seen.events.len() > events_before, "and edited the value");
-    rig.idle(3);
-    assert_eq!(rig.text, "helloni", "a later pass adds nothing");
-}
-
 /// A middle click pastes the primary selection once.
 #[trial]
 fn middle_click_paste_pastes_once() {

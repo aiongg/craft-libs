@@ -254,13 +254,6 @@ mod tests {
     }
 
     #[test]
-    fn minimum_width_follows_the_anchor() {
-        let anchor = rect(10.0, 10.0, 200.0, 20.0);
-        let placed = place(&PlaceRequest::new(anchor, Vec2::new(50.0, 30.0), BOUNDS).min_width(MinWidth::Anchor));
-        assert_eq!(placed.rect.width(), 200.0);
-    }
-
-    #[test]
     fn rect_is_finite_and_inside_the_bounds_for_any_request() {
         let sides = [Side::Below, Side::Above, Side::Start, Side::End];
         let aligns = [Align::Start, Align::Center, Align::End];

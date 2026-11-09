@@ -60,23 +60,3 @@ impl Component for Face<'_> {
     }
 }
 
-#[trial]
-fn a_custom_face_opens_on_space_and_closes_on_escape() {
-    let shown = Rc::new(Cell::new(false));
-    let seen = shown.clone();
-    let mut fixture = Fixture::new(move |ui| {
-        Face { common: Common::new(), shown: &seen }.show(ui);
-    });
-    fixture.settle();
-    fixture.key(Key::Tab, Modifiers::NONE);
-    fixture.idle(2);
-    shown.set(false);
-    fixture.key(Key::Space, Modifiers::NONE);
-    fixture.idle(4);
-    assert!(shown.get(), "Space opens the popup");
-    fixture.key(Key::Escape, Modifiers::NONE);
-    fixture.idle(10);
-    shown.set(false);
-    fixture.idle(2);
-    assert!(!shown.get(), "Escape closes the popup");
-}

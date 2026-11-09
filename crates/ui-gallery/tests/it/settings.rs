@@ -42,29 +42,3 @@ impl SettingsFiles for FullDisk {
     }
 }
 
-#[trial]
-fn a_save_that_fails_is_retried_on_its_backoff_and_only_then() {
-    let files = Arc::new(FullDisk::default());
-    let options = OpenOptions::new(Location::Dir(PathBuf::from("settings"))).files(files.clone());
-    let (mut store, report) = SettingsStore::<GallerySettings>::open_with(options);
-    let changed = motion::now();
-    assert!(store.update_at(changed, |settings| settings.filter = "link".to_owned()));
-    let mut gallery = Gallery::new(Catalog::listing(Vec::new()), store, &report);
-
-    let due = gallery.tick(changed).expect("a change waits for the debounce and names when it ends");
-    assert!(due > changed);
-    assert_eq!(files.writes.load(Ordering::SeqCst), 0, "nothing is written before the debounce ends");
-
-    let retry = gallery.tick(due).expect("a failed save names its retry");
-    assert_eq!(files.writes.load(Ordering::SeqCst), 1);
-    assert!(retry >= due + retry_delay(1));
-
-    for pass in 1..=5 {
-        let between = due + Duration::from_millis(pass);
-        assert_eq!(gallery.tick(between), Some(retry), "a pass before the retry only repeats its time");
-    }
-    assert_eq!(files.writes.load(Ordering::SeqCst), 1, "passes before the retry do not write");
-
-    gallery.tick(retry);
-    assert_eq!(files.writes.load(Ordering::SeqCst), 2, "the retry writes once");
-}

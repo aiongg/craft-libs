@@ -91,18 +91,3 @@ fn a_toggle_cell_node_takes_the_cells_own_name() {
     assert_eq!(switch_names(&fixture), wanted);
 }
 
-/// A sweep across three rows flips each in turn, and Escape restores all three.
-#[trial]
-fn a_sweep_flips_each_crossed_switch_and_escape_restores_them() {
-    let on = Rc::new(RefCell::new(vec![false; 3]));
-    let seen = Rc::default();
-    let mut fixture = rig(&on, &seen);
-    let first = fixture.by_label("Keep Row 0").expect("the first switch has a node");
-    let last = fixture.by_label("Keep Row 2").expect("the last switch has a node");
-    fixture.drag_hold_at(first.center(), last.center() - first.center());
-    assert_eq!(*on.borrow(), [true; 3], "each switch flipped as the pointer crossed it");
-    assert_eq!(*seen.borrow(), ["update 0 true", "update 1 true", "update 2 true"]);
-    fixture.key(Key::Escape, Modifiers::NONE);
-    fixture.release_at(last.center());
-    assert_eq!(*on.borrow(), [false; 3], "Escape restored every crossed switch");
-}

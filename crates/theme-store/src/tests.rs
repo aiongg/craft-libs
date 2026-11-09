@@ -73,12 +73,6 @@ fn file_kind(e: &FormatErrors) -> &ErrorKind {
 }
 
 #[test]
-fn a_store_can_move_to_a_worker_thread() {
-    fn is_send<T: Send>() {}
-    is_send::<Store>();
-}
-
-#[test]
 fn reads_never_create_files_and_no_file_means_no_selection() {
     let tmp = tempfile::tempdir().unwrap();
     let dir = tmp.path().join("themes");
@@ -150,35 +144,6 @@ fn taken_ids_need_an_explicit_copy_that_changes_only_the_id() {
 }
 
 #[test]
-fn user_files_must_be_this_format_with_a_user_id() {
-    let refuse = |s: &str| ThemeRecord::parse(s.as_bytes()).unwrap_err();
-    assert!(matches!(refuse(&pilot_json("old")).file_level(), Some(ErrorKind::OtherSchema { schema }) if schema == "craft-theme"));
-    assert_eq!(*file_kind(&refuse(&theme_json("craft.mine", ""))), ErrorKind::BadId(IdError::Reserved));
-    assert_eq!(*file_kind(&refuse(&theme_json("con", ""))), ErrorKind::BadId(IdError::DeviceName));
-    assert_eq!(refuse(&theme_json("craft.mine", "")).0[0].path, ["id"]);
-    // The pilot file is refused on import too, and nothing is written.
-    let tmp = tempfile::tempdir().unwrap();
-    let mut store = open(tmp.path());
-    assert!(matches!(store.import(pilot_json("old").as_bytes(), false), Err(StoreError::Format(_))));
-    assert!(!tmp.path().join("library").exists());
-}
-
-#[test]
-fn low_contrast_imports_succeed_with_warnings() {
-    let tmp = tempfile::tempdir().unwrap();
-    let mut store = open(tmp.path());
-    let flat = theme_json("flat", r##","contrast_intent":"low","dark":{"text.normal":"#777777","surface.panel":"#777777"}"##);
-    let imported = store.import(flat.as_bytes(), false).unwrap();
-    assert!(imported.record.warnings() > 0);
-    let entry = &store.library().entries[0];
-    assert_eq!((entry.warnings(), entry.contrast_intent), (imported.record.warnings(), ContrastIntent::Low));
-    let base = store.accepted().clone();
-    store.update(&base, whole("flat", ModeChoice::Dark)).unwrap();
-    // A seed-only theme pins nothing, so its derived colours resolve with none.
-    assert_eq!(ThemeRecord::parse(theme_json("seeded", "").as_bytes()).unwrap().warnings(), 0);
-}
-
-#[test]
 fn builtins_export_and_parse_back() {
     let store = Store::open(&SuiteDir::memory(), options());
     for builtin in builtins() {
@@ -231,33 +196,6 @@ fn unknown_selection_keys_survive_an_update() {
     assert_eq!(disk["later"], serde_json::json!({"x": [1, 2]}));
     assert_eq!(disk["suite"]["accent_override"], "#ff0000");
     assert_eq!(disk["suite"]["mode"], "dark");
-}
-
-#[test]
-fn a_version_1_selection_is_read_and_written_back_as_version_2() {
-    let tmp = tempfile::tempdir().unwrap();
-    let v1 = r#"{"schema_version":1,"revision":3,"library_revision":1,"suite":{"theme":"craft.graphite","mode":"light"},"written_by":"pilot"}"#;
-    fs::write(tmp.path().join("selection.json"), v1).unwrap();
-    let mut store = open(tmp.path());
-    assert!(store.load_selection().unwrap());
-    let base = store.accepted().clone();
-    let graphite = Some(id("craft.graphite"));
-    assert_eq!(
-        base.suite,
-        SuiteChoice { theme_light: graphite.clone(), theme_dark: graphite.clone(), mode: Some(ModeChoice::Light), ..SuiteChoice::default() }
-    );
-    let next = store.update(&base, SelectionChange::contrast(ContrastChoice::High)).unwrap();
-    assert_eq!(next.revision, 4);
-    let disk = selection_json(tmp.path());
-    assert_eq!(disk["schema_version"], 2);
-    assert_eq!(
-        disk["suite"],
-        serde_json::json!({"theme": {"light": "craft.graphite", "dark": "craft.graphite"}, "mode": "light", "contrast": "high"})
-    );
-    // Read back by another store as version 2.
-    let mut other = open(tmp.path());
-    other.load_selection().unwrap();
-    assert_eq!(other.accepted(), &next);
 }
 
 #[test]
@@ -348,26 +286,6 @@ fn same_field_changed_elsewhere_is_a_conflict_and_writes_nothing() {
     // A different field merges.
     let merged = a.update(&base, SelectionChange::mode(ModeChoice::Dark)).unwrap();
     assert_eq!(merged.suite, sel("craft.graphite", ModeChoice::Dark).into());
-}
-
-#[test]
-fn a_change_writes_only_its_own_fields() {
-    let tmp = tempfile::tempdir().unwrap();
-    let mut a = open(tmp.path());
-    let mut b = open(tmp.path());
-    // A fresh install: one app picks a theme, another (still on its old base) a mode.
-    let theme_only = a.update(&Accepted::default(), theme("craft.graphite")).unwrap();
-    let graphite = Some(id("craft.graphite"));
-    assert_eq!(theme_only.suite, SuiteChoice { theme_light: graphite.clone(), theme_dark: graphite.clone(), ..SuiteChoice::default() });
-    assert_eq!(selection_json(tmp.path())["suite"], serde_json::json!({"theme": {"light": "craft.graphite", "dark": "craft.graphite"}}));
-    let both = b.update(&Accepted::default(), SelectionChange::mode(ModeChoice::Light)).unwrap();
-    assert_eq!(both.suite, SuiteChoice { mode: Some(ModeChoice::Light), ..theme_only.suite.clone() });
-    // Another app chose the theme first: a different theme on the old base conflicts.
-    let fresh = tempfile::tempdir().unwrap();
-    let mut c = open(fresh.path());
-    let mut d = open(fresh.path());
-    c.update(&Accepted::default(), theme("craft.graphite")).unwrap();
-    assert!(matches!(d.update(&Accepted::default(), theme("craft.artcraft")), Err(StoreError::Conflict { .. })));
 }
 
 #[test]

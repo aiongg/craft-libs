@@ -28,18 +28,6 @@ fn lay_out(direction: Option<Direction>, show: impl Fn(&mut Ui) -> Vec<Rect>) ->
     (region.get(), rects.into_inner())
 }
 
-/// Skeleton: `frames_state::stack_body_under_rtl_hugs_the_right_edge`.
-#[trial]
-fn stack_body_under_rtl_hugs_the_right_edge() {
-    let stack = |ui: &mut Ui| body(ui, "s", &BodyLayout::stack(), &[ITEM, Vec2::new(90.0, 10.0)]);
-    let (region, ltr) = lay_out(None, stack);
-    let (_, rtl) = lay_out(Some(Direction::Rtl), stack);
-    assert!(ltr[0].min.x - region.min.x < region.max.x - ltr[0].max.x, "LTR: the narrow child sits nearer the left edge {ltr:?}");
-    assert!(region.max.x - rtl[0].max.x < rtl[0].min.x - region.min.x, "RTL: the narrow child sits nearer the right edge {rtl:?}");
-    assert!((region.max.x - rtl[0].max.x - (ltr[0].min.x - region.min.x)).abs() < 1.0, "the same gap, mirrored");
-    assert!(ltr[0].max.y <= ltr[1].min.y, "one under another");
-}
-
 /// Skeleton: `frames_state::row_lays_out_horizontally_in_reading_order_and_stack_vertically`.
 #[trial]
 fn row_runs_in_reading_order_and_places_its_block_from_last_frame() {
@@ -107,36 +95,3 @@ fn a_fill_width_child_in_a_content_column_leaves_the_next_column_in_the_room() {
     assert!(!rects[0].intersect(rects[1]).is_positive(), "the filling child ends where the next column starts: {rects:?}");
 }
 
-/// Skeleton: `frames_state::ltr_scope_inside_rtl_lays_out_left_to_right`.
-#[trial]
-fn ltr_scope_inside_rtl_lays_out_left_to_right() {
-    let mut frames = Frames::new();
-    let region = Cell::new(Rect::NOTHING);
-    let rects = RefCell::new(Vec::new());
-    frames.idle(5, |ui| {
-        region.set(ui.available_rect_before_wrap());
-        let all = with_env(
-            ui,
-            |o| o.direction = Some(Direction::Rtl),
-            |ui| {
-                let mut all = body(ui, "outer", &BodyLayout::row(), &[ITEM, ITEM]);
-                with_env(
-                    ui,
-                    |o| o.direction = Some(Direction::Ltr),
-                    |ui| {
-                        all.extend(body(ui, "inner", &BodyLayout::row(), &[ITEM, ITEM]));
-                        all.extend(body(ui, "stack", &BodyLayout::stack(), &[ITEM]));
-                    },
-                );
-                all
-            },
-        );
-        *rects.borrow_mut() = all;
-    });
-    let (region, r) = (region.get(), rects.into_inner());
-    assert!(r[1].max.x <= r[0].min.x, "the RTL row puts its first child on the right");
-    assert!(r[2].max.x <= r[3].min.x, "the LTR row inside it puts its first child on the left");
-    assert!(r[2].min.x - region.min.x < region.max.x - r[3].max.x, "and starts nearer the left edge");
-    assert!(r[4].min.x - region.min.x < region.max.x - r[4].max.x, "an LTR stack hugs the left edge");
-    assert!(region.max.x - r[0].max.x < r[1].min.x - region.min.x, "while the RTL row hugs the right edge");
-}

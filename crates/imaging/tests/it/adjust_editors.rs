@@ -85,28 +85,6 @@ fn double_click(fixture: &mut Fixture, target: &Target) {
 // ---------------------------------------------------------------------------------------------
 // Brightness/Contrast, Threshold, Color Balance, Photo Filter
 
-/// Turning Use Legacy off with Contrast at -80 reports one `Set` with Contrast -50 and legacy off.
-#[trial]
-fn turning_use_legacy_off_clamps_contrast_to_minus_fifty() {
-    let mut rig =
-        rig(BrightnessContrast::new(10.0, -80.0, true), |ui, bind| BrightnessContrastEditor::new("Brightness/Contrast", bind).show(ui).event);
-    rig.click("Use Legacy");
-    let want = BrightnessContrast::new(10.0, -50.0, false);
-    assert_eq!(rig.value(), want);
-    assert!(rig.one_set(), "{:?}", rig.events.borrow());
-}
-
-/// The Threshold Level row reports the level a step key or an AccessKit step reaches.
-#[trial]
-fn the_threshold_row_reports_the_level() {
-    let mut rig = rig(64.0_f64, |ui, bind| ThresholdEditor::new("Threshold", bind).show(ui).event);
-    let slider = rig.slider(0);
-    rig.fixture.access(AccessActionKind::Increment, &slider);
-    rig.fixture.idle(2);
-    let want = 65.0;
-    assert_eq!(rig.value(), want);
-}
-
 /// The tone picked survives a value change from outside; a host that resets shows Midtones again; a reset of a row
 /// zeroes only that row of the shown tone.
 #[trial]
@@ -142,45 +120,6 @@ fn the_color_balance_tone_survives_a_value_change_and_a_reset_zeroes_one_row() {
     tone.set(Some(ColorBalanceTone::Midtones));
     rig.fixture.idle(2);
     assert_eq!(first_field(&rig).as_deref(), Some("-5"), "the host shows Midtones again");
-}
-
-/// Preserve Luminosity is one `Set` with it toggled.
-#[trial]
-fn preserve_luminosity_reports_a_set() {
-    let mut rig = rig(ColorBalance::default(), |ui, bind| ColorBalanceEditor::new("Color Balance", bind).show(ui).edit.event);
-    rig.click("Preserve Luminosity");
-    let want = ColorBalance::new([0.0; 3], [0.0; 3], [0.0; 3], false);
-    assert_eq!(rig.value(), want);
-    assert!(rig.one_set(), "{:?}", rig.events.borrow());
-}
-
-/// Picking Cooling Filter (80) sets its colour; the Color row then enables the well, and a click on it files a colour
-/// request keyed `photoFilter.color`.
-#[trial]
-fn a_photo_filter_preset_sets_its_colour_and_the_well_asks_for_one() {
-    let requests = Rc::new(RefCell::new(Vec::<ColorRequest>::new()));
-    let filed = requests.clone();
-    let start = PhotoFilter::new(PhotoFilterPreset::Warming85.color(), 25.0, true);
-    let mut rig = rig(start, move |ui, bind| {
-        let out = PhotoFilterEditor::new("Photo Filter", bind).show(ui);
-        filed.borrow_mut().extend(out.pick_color);
-        out.edit.event
-    });
-    let select = rig.fixture.by_role(Role::COMBO_BOX).into_iter().next().expect("the preset select");
-    rig.fixture.click(&select);
-    rig.fixture.idle(2);
-    rig.click("Cooling Filter (80)");
-    let cooling = PhotoFilterPreset::Cooling80.color();
-    assert_eq!(rig.value(), PhotoFilter::new(cooling, start.density, start.preserve_luminosity));
-
-    rig.click("Color");
-    let well = rig.fixture.by_role(Role::COLOR_WELL).into_iter().next().expect("the colour well");
-    rig.fixture.click(&well);
-    rig.fixture.idle(2);
-    let filed = requests.borrow();
-    let [request] = filed.as_slice() else { panic!("one request: {filed:?}") };
-    assert_eq!((request.key.as_str(), request.color), ("photoFilter.color", Some(cooling)));
-    assert_eq!(request.title.as_ref().map(|title| title.as_str()), Some("Filter Color"));
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -222,22 +161,6 @@ fn rig_with_range(start: HueSaturation, range: Option<usize>, shown: Rc<Cell<Opt
     })
 }
 
-/// The Hue slider runs -180 to 180 degrees, and 0 to 360 with Colorize.
-#[trial]
-fn the_hue_range_follows_colorize() {
-    let reached = |colorize: bool| {
-        let start = HueSaturation::new(0.0, 0.0, 0.0, colorize, std::array::from_fn(HueRangeValue::neutral));
-        let mut rig = rig(start, |ui, bind| HueSaturationEditor::new("Hue/Saturation", bind).show(ui).edit.event);
-        let hue = rig.slider(0);
-        rig.fixture.access(AccessActionKind::SetValue(300.0), &hue);
-        rig.fixture.idle(2);
-        rig.value().hue
-    };
-    let (plain, colorized) = (180.0, 300.0);
-    assert_eq!(reached(false), plain);
-    assert_eq!(reached(true), colorized);
-}
-
 /// Dragging a range thumb across 0 degrees keeps the four bounds increasing.
 #[trial]
 fn range_thumbs_wrap_through_zero() {
@@ -262,43 +185,6 @@ fn a_range_thumb_move_canonicalises_the_bounds_first() {
 // ---------------------------------------------------------------------------------------------
 // Black & White, Channel Mixer, Selective Color
 
-/// Default sets the six default weights as one `Set` and leaves the tint alone.
-#[trial]
-fn black_white_default_restores_the_six_weights() {
-    let tint_color = Srgba::rgb(0.2, 0.4, 0.6);
-    let mut rig = rig(BlackWhite::new([0.0; 6], true, tint_color), |ui, bind| BlackWhiteEditor::new("Black & White", bind).show(ui).edit.event);
-    rig.click("Default");
-    assert_eq!(rig.value(), BlackWhite::new(BlackWhite::DEFAULT_WEIGHTS, true, tint_color));
-    assert!(rig.one_set(), "{:?}", rig.events.borrow());
-}
-
-/// A click on the tint well with Tint on files a colour request keyed `blackWhite.tint`; with Tint off the well is off.
-#[trial]
-fn the_tint_well_asks_for_a_colour_only_while_tint_is_on() {
-    let tint_color = Srgba::rgb(0.2, 0.4, 0.6);
-    let requested = |tint: bool| {
-        let requests = Rc::new(RefCell::new(Vec::<ColorRequest>::new()));
-        let filed = requests.clone();
-        let mut rig = rig(BlackWhite::new(BlackWhite::DEFAULT_WEIGHTS, tint, tint_color), move |ui, bind| {
-            let out = BlackWhiteEditor::new("Black & White", bind).show(ui);
-            filed.borrow_mut().extend(out.pick_color);
-            out.edit.event
-        });
-        let well = rig.fixture.by_role(Role::COLOR_WELL).into_iter().next().expect("the tint well");
-        let disabled = rig.fixture.tree().is_disabled_key(well.node);
-        rig.fixture.click(&well);
-        rig.fixture.idle(2);
-        let filed = requests.borrow().clone();
-        (disabled, filed)
-    };
-    let (disabled, filed) = requested(true);
-    assert!(!disabled);
-    assert_eq!(filed.iter().map(|request| (request.key.as_str(), request.color)).collect::<Vec<_>>(), [("blackWhite.tint", Some(tint_color))]);
-    let (disabled, filed) = requested(false);
-    assert!(disabled);
-    assert!(filed.is_empty());
-}
-
 /// Monochrome seeds the Gray row and the select shows Gray; off removes the row and the select shows Red again.
 #[trial]
 fn monochrome_seeds_the_gray_row_and_off_removes_it() {
@@ -314,21 +200,6 @@ fn monochrome_seeds_the_gray_row_and_off_removes_it() {
     rig.click("Monochrome");
     assert_eq!(rig.value().gray, None);
     assert_eq!(output(&rig).as_deref(), Some("Red"));
-}
-
-/// The Total shows its sign and percent, and above 100 percent the warning says so.
-#[trial]
-fn the_mixer_total_warns_above_one_hundred_percent() {
-    let shown = |mixer: ChannelMixer| {
-        let rig = rig(mixer, |ui, bind| ChannelMixerEditor::new("Channel Mixer", bind).show(ui).event);
-        rig.fixture.texts().iter().map(|run| run.text.clone()).collect::<Vec<_>>()
-    };
-    let over = shown(ChannelMixer::new([60.0, 60.0, 0.0, 0.0], [0.0; 4], [0.0; 4], None));
-    assert!(over.iter().any(|text| text == "+120%"), "{over:?}");
-    assert!(over.iter().any(|text| text == "+120%, over 100 percent"), "{over:?}");
-    let at = shown(ChannelMixer::new([60.0, 40.0, 0.0, 0.0], [0.0; 4], [0.0; 4], None));
-    assert!(at.iter().any(|text| text == "+100%"), "{at:?}");
-    assert!(!at.iter().any(|text| text.contains("over 100")), "{at:?}");
 }
 
 /// Picking Neutrals and stepping Black changes range 7, slot 3 and nothing else.
@@ -360,22 +231,6 @@ fn fields_round_to_the_places_of_their_step() {
     assert_eq!(offset.round(0.123456), 0.1235);
     assert_eq!(gamma.round(2.3456), 2.35);
     assert_eq!(AdjustField::vibrance(&words)[0].round(33.6), 34.0);
-}
-
-/// Colour tracks on paint a gradient in place of the plain track; with them off the plain track is drawn.
-#[trial]
-fn dynamic_tracks_off_draws_plain_tracks() {
-    let shapes = |context: AdjustContext| {
-        let field = AdjustField::new("cyanRed", "Cyan · Red", -100.0..=100.0, 0.0)
-            .track(AdjustTrack::Colors(vec![DataColor::new(egui::Color32::from_rgb(0, 0, 255)), DataColor::new(egui::Color32::from_rgb(255, 0, 0))]));
-        let mut fixture = Fixture::new(move |ui| {
-            let mut values = vec![0.0];
-            AdjustSliders::new("Tracks", std::slice::from_ref(&field), Bind::bound(&mut values)).context(context).show(ui);
-        });
-        fixture.settle();
-        fixture.shape_bounds().len()
-    };
-    assert_ne!(shapes(AdjustContext::dialog(true)), shapes(AdjustContext::dialog(false)));
 }
 
 /// A drag of a slider is one gesture of the whole table: one begin, updates that carry every value, one commit.

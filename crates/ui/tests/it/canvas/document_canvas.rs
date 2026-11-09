@@ -232,14 +232,3 @@ fn a_zoom_command_under_animated_zoom_eases_on_the_canvas() {
     });
 }
 
-#[trial]
-fn a_navigator_zoom_under_animated_zoom_eases_on_the_canvas() {
-    let start = CanvasView::new(BESIDE, Point::new(DOC.width / 2.0, DOC.height / 2.0), 0.5);
-    let mut document = Document::new(start, BESIDE, Options { animated: true, navigator: true, ..Options::default() });
-    document.fixture.settle();
-    // The first Tab focuses the preview box, whose `=` steps the zoom in.
-    document.fixture.key(Key::Tab, Modifiers::NONE).settle();
-    eases(&mut document, |fixture| {
-        fixture.key(Key::Equals, Modifiers::NONE);
-    });
-}

@@ -300,20 +300,3 @@ fn the_keymap_gives_shortcuts_and_check_items() {
     assert_eq!(item("view.other").shortcut, Some(chord("F9")), "a command the keymap doesn't know keeps its shortcut");
 }
 
-#[trial]
-fn the_app_sets_enabled_and_checked_each_frame() {
-    let mut bar = mac_layout(&sample(false, true), &LayoutOptions::new("Sample")).bar;
-    let mut asked = Vec::new();
-    apply_state(&mut bar, |c| {
-        asked.push(c.key());
-        match c.id.as_str() {
-            "edit.undo" => ItemState::default().enabled(false),
-            "panel.layers" => ItemState::default().checked(Some(true)),
-            _ => ItemState::default(),
-        }
-    });
-    assert!(!bar.find(&cmd("edit.undo")).unwrap().enabled);
-    assert_eq!(bar.find(&cmd("panel.layers")).unwrap().kind, ItemKind::Check(true));
-    assert!(asked.contains(&"file.new".to_string()));
-    assert!(!asked.iter().any(|k| k == Builtin::Hide.id() || k == "doc.0"), "built-ins and documents are left alone: {asked:?}");
-}

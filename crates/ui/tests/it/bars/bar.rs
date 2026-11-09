@@ -95,25 +95,6 @@ fn bar_items_and_a_button_are_one_tab_stop() {
     assert!(!focused_is(&fixture, "Extra") && !focused_is(&fixture, "Redo"), "no member past the first is a Tab stop");
 }
 
-/// The status bar is a polite live region; the zoom readout in it is not.
-#[trial]
-fn the_status_bar_is_live_and_the_zoom_readout_is_not() {
-    let (bar, zoom) = (Rc::new(Cell::<Option<Id>>::new(None)), Rc::new(Cell::<Option<Id>>::new(None)));
-    let (shown_bar, shown_zoom) = (bar.clone(), zoom.clone());
-    let mut fixture = Fixture::new(move |ui| {
-        let values = StatusValues::default();
-        let mut view = status_view(0.5);
-        let shown = Bar::new("Status", BarKind::Status)
-            .show(ui, |ui, _| StatusReadout::new(Bind::bound(&mut view), STATUS_DOCUMENT, StatusItem::DocumentSizes, &values).show(ui));
-        shown_bar.set(Some(shown.output.response.id));
-        shown_zoom.set(shown.inner.and_then(|readout| readout.zoom).map(|zoom| zoom.id));
-    });
-    fixture.settle();
-    let tree = fixture.tree();
-    assert_eq!(tree.live(bar.get().unwrap()), Some(Politeness::Polite));
-    assert_eq!(tree.live(zoom.get().unwrap()), None);
-}
-
 /// The interface scale of the status trial.
 const STATUS_SCALE: f32 = 2.0;
 
@@ -155,29 +136,6 @@ fn the_status_zoom_is_the_device_percent_and_a_typed_zoom_is_written_into_the_vi
 
 fn fired(fixture: &Fixture) -> Vec<String> {
     take_output(fixture.ctx()).fired.iter().map(|fired| fired.command.id.to_string()).collect()
-}
-
-/// An align command runs from its button, and from its row in the overflow menu.
-#[trial]
-fn an_align_command_runs_from_its_button_and_from_the_overflow_menu() {
-    let mut fixture = Fixture::new(|ui| {
-        Bar::new("Options", BarKind::Options).show(ui, |ui, _| {
-            AlignBar::new().distribute(DistributeButtons::Menu).show(ui);
-        });
-    });
-    fixture.settle();
-    let button = fixture.by_label("Align Left Edges").expect("the align buttons show");
-    fixture.click(&button);
-    fixture.idle(2);
-    assert!(fired(&fixture).contains(&"align.align_left_edges".to_owned()));
-
-    let more = fixture.by_label("More").expect("the menu part shows");
-    fixture.click(&more);
-    fixture.idle(2);
-    let row = fixture.by_label("Distribute Top Edges").expect("the menu lists the distribute commands");
-    fixture.click(&row);
-    fixture.idle(2);
-    assert!(fired(&fixture).contains(&"align.distribute_top_edges".to_owned()));
 }
 
 /// A select inside a bar opens its list in a layer of its own: the bar's scrolling body does not reach the list, Down

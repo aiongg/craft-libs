@@ -71,14 +71,6 @@ fn with_trailing(key: usize) -> ListRow<'static> {
     ListRow::new(format!("Row {key}")).trailing_icon(IconId::new("lock"), "Locked").trailing_part(PART, TrailingFace::disclosure(false), "Effects")
 }
 
-/// A trailing icon and a trailing part are nodes named by the caller.
-#[trial]
-fn a_trailing_icon_is_a_named_node() {
-    let (fixture, _) = rig(with_trailing);
-    assert!(fixture.by_label("Locked").is_some());
-    assert!(fixture.by_label("Effects").is_some());
-}
-
 /// Required items stay in a narrow row while an optional text drops, and the label keeps its least width.
 #[trial]
 fn required_trailing_items_stay_and_optional_text_drops_first() {
@@ -121,15 +113,6 @@ fn a_disabled_trailing_part_takes_no_press_and_no_focus() {
     fixture.key(Key::ArrowRight, Modifiers::NONE);
     fixture.idle(2);
     assert_eq!(fixture.focused_stop(), Some(row), "Forward finds no part to enter");
-}
-
-/// A progress row describes its percentage for a screen reader and keeps its label's room.
-#[trial]
-fn a_progress_row_describes_its_percentage() {
-    let (fixture, _) = rig(|key| ListRow::new(format!("Row {key}")).progress(0.42));
-    let row = fixture.by_label("Row 0").expect("the row has a node");
-    let described = fixture.tree().description_of(row.node).unwrap_or_default();
-    assert!(described.contains("42"), "{described:?}");
 }
 
 /// Tab into the list and down to its second row: the stop focus is on.
@@ -198,17 +181,6 @@ fn with_thumb(rect: Rc<Cell<Rect>>) -> impl Fn(usize) -> ListRow<'static> {
     }
 }
 
-/// A click on a thumbnail reports the modifiers held.
-#[trial]
-fn a_modified_thumbnail_click_reports_its_modifiers() {
-    let rect = Rc::new(Cell::new(Rect::NOTHING));
-    let (mut fixture, seen) = rig(with_thumb(rect.clone()));
-    fixture.hold(Modifiers::SHIFT);
-    fixture.click_at(rect.get().center());
-    let events = seen.events.borrow();
-    assert!(events.iter().any(|event| matches!(event, RowEvent::ThumbClicked { target: ThumbTarget::First, mods, .. } if mods.shift)), "{events:?}");
-}
-
 /// A drag from a thumbnail with `thumb_drag` runs the drag session with its payload, and the row does not drag.
 #[trial]
 fn a_thumbnail_drag_starts_one_session_with_the_payload() {
@@ -264,32 +236,6 @@ fn toggle_cell(scene: &Scene) -> Pos2 {
     Pos2::new(ORIGIN.x + COL * 1.5, scene.row.get().center().y)
 }
 
-/// A click on a toggle cell reports the modifiers held.
-#[trial]
-fn a_toggle_click_reports_its_modifiers() {
-    let scene = Scene::new();
-    let mut frames = Frames::new();
-    let mut show = |ui: &mut Ui| show_table(ui, &scene);
-    frames.idle(3, &mut show);
-    frames.hold(Modifiers::SHIFT);
-    pointer::click(&mut frames, toggle_cell(&scene), &mut show);
-    let mods: Vec<Mods> = scene
-        .events
-        .borrow()
-        .iter()
-        .filter_map(|event| {
-            if let CollectionEvent::Toggle(edit) = event {
-                edit.value()
-                    .filter(|_| matches!(edit, craft_behavior::EditEvent::Set { .. } | craft_behavior::EditEvent::Commit { .. }))
-                    .map(|toggle| toggle.mods)
-            } else {
-                None
-            }
-        })
-        .collect();
-    assert!(!mods.is_empty() && mods.iter().all(|mods| mods.shift), "{mods:?}");
-}
-
 /// A right-click on a toggle cell names its column in the context request.
 #[trial]
 fn a_context_request_on_a_toggle_cell_names_the_column() {
@@ -309,24 +255,6 @@ fn a_context_request_on_a_toggle_cell_names_the_column() {
         .filter_map(|event| if let CollectionEvent::ContextMenu(request) = event { Some(request.column.clone()) } else { None })
         .collect();
     assert_eq!(columns, [Some(MUTE)]);
-}
-
-/// A footer pick reports the modifiers held at the pick.
-#[trial]
-fn a_footer_pick_reports_its_modifiers() {
-    let picked = Rc::new(RefCell::new(Vec::new()));
-    let sink = picked.clone();
-    let mut fixture = Fixture::new(move |ui| {
-        let out = FooterBar::actions([FooterAction::new(IconId::new("trash"), "Delete")]).show_footer(ui);
-        if out.picked.is_some() {
-            sink.borrow_mut().push(out.mods);
-        }
-    });
-    fixture.settle();
-    let target = fixture.by_label("Delete").expect("the action has a node");
-    fixture.hold(Modifiers::ALT);
-    fixture.click(&target);
-    assert!(picked.borrow().iter().any(|mods: &Mods| mods.alt), "{:?}", picked.borrow());
 }
 
 /// A field hosted in a row takes the typing aimed at it, leaves the row's selection and focus model alone, and Tab

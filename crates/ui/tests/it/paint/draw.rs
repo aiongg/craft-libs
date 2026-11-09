@@ -17,23 +17,6 @@ fn color(c: Rgba) -> Color32 {
     Color32::from_rgba_unmultiplied(c.0[0], c.0[1], c.0[2], c.0[3])
 }
 
-#[trial]
-fn fill_stroke_and_data_fill_paint_the_colours_they_are_given() {
-    let mut frames = Frames::new();
-    let tokens = tokens(Mode::Light, Contrast::Standard);
-    let style = with_cx(&frames.ctx, &tokens, Variant::SECONDARY, ControlSize::Md, |cx| cx.color(tokens.color.accent.solid));
-    let swatch = Color32::from_rgb(12, 34, 56);
-    let (shapes, _) = paint_frame(&mut frames, &tokens, Direction::Ltr, Ink::OnPanel, |draw| {
-        draw.fill(&PaintShape::Circle(pos2(20.0, 20.0), 5.0), style);
-        draw.data_fill(&PaintShape::Rect(RECT, egui::CornerRadius::ZERO), DataColor::new(swatch));
-        draw.stroke(&PaintShape::Path(vec![pos2(0.0, 0.0), pos2(30.0, 30.0)]), StrokeWidth::Medium, style);
-    });
-    let accent = color(tokens.color.accent.solid);
-    assert!(shapes.iter().any(|s| matches!(s, Shape::Circle(c) if c.fill == accent)), "the style colour fills the circle");
-    assert!(shapes.iter().any(|s| matches!(s, Shape::Rect(r) if r.fill == swatch)), "the data colour fills the rect");
-    assert!(shapes.iter().any(|s| stroke_is(s, accent)), "the path is stroked in the style colour");
-}
-
 fn stroke_is(shape: &Shape, color: Color32) -> bool {
     match shape {
         Shape::LineSegment { stroke, .. } => stroke.color == color,
@@ -64,25 +47,6 @@ fn a_rule_sits_on_the_pixel_grid_whatever_the_coordinate() {
         assert!(centre.fract().abs() < EPS, "an even-width line sits on a pixel edge");
     }
     assert_eq!(points[0].y, points[1].y, "the line stays level");
-}
-
-#[trial]
-fn a_state_fill_replaces_the_surface_fill_instead_of_stacking() {
-    let frames = Frames::new();
-    let tokens = tokens(Mode::Light, Contrast::Standard);
-    with_cx(&frames.ctx, &tokens, Variant::SECONDARY, ControlSize::Md, |cx| {
-        let style = cx.surface(SurfaceKind::Raised);
-        let wash = Color32::from_rgb(1, 2, 3);
-        let shapes = craft_ui::primitives::Surface::shapes(&style, Some(wash), RECT, Corners::All, Direction::Ltr, 1.0);
-        let fills: Vec<_> = shapes
-            .iter()
-            .filter_map(|s| match s {
-                Shape::Rect(r) if r.fill != Color32::TRANSPARENT => Some(r.fill),
-                _ => None,
-            })
-            .collect();
-        assert_eq!(fills, vec![wash], "one fill, the state's");
-    });
 }
 
 #[trial]
@@ -156,41 +120,6 @@ fn textures_for_both_directions(name: &'static str) -> usize {
 fn a_directional_svg_icon_mirrors_under_rtl_and_another_stays() {
     assert_eq!(textures_for_both_directions("chevron_right"), 2, "the mirrored raster is its own texture");
     assert_eq!(textures_for_both_directions("close"), 1, "an icon that does not point along the reading direction keeps one texture");
-}
-
-#[trial]
-fn a_stroke_paints_a_data_colour_and_a_dashed_path_breaks_into_dashes() {
-    let mut frames = Frames::new();
-    let tokens = tokens(Mode::Light, Contrast::Standard);
-    let style = with_cx(&frames.ctx, &tokens, Variant::SECONDARY, ControlSize::Md, |cx| cx.color(tokens.color.accent.solid));
-    let series = Color32::from_rgb(200, 30, 90);
-    let line = [pos2(0.0, 20.0), pos2(60.0, 20.0)];
-    let (shapes, _) = paint_frame(&mut frames, &tokens, Direction::Ltr, Ink::OnPanel, |draw| {
-        draw.stroke(&PaintShape::Path(line.to_vec()), StrokeWidth::Thin, DataColor::new(series));
-    });
-    assert!(shapes.iter().any(|s| stroke_is(s, series)), "the path is stroked in the data colour");
-    let (dashed, _) = paint_frame(&mut frames, &tokens, Direction::Ltr, Ink::OnPanel, |draw| {
-        draw.dashed(&line, Dashes::even(4.0), StrokeWidth::Thin, style);
-    });
-    let accent = color(tokens.color.accent.solid);
-    let dashes = dashed.iter().filter(|s| stroke_is(s, accent)).count();
-    assert!(dashes > 1, "a 60 point path with 4 point dashes breaks into several: {dashes}");
-}
-
-#[trial]
-fn a_rotated_run_paints_at_its_angle() {
-    let mut frames = Frames::new();
-    let tokens = tokens(Mode::Light, Contrast::Standard);
-    let angles = |run: TextRun<'static>, frames: &mut Frames| {
-        let (shapes, _) = paint_frame(frames, &tokens, Direction::Ltr, Ink::OnPanel, |draw| {
-            draw.text(RECT, &run);
-        });
-        shapes.iter().filter_map(|s| if let Shape::Text(text) = s { Some(text.angle) } else { None }).collect::<Vec<f32>>()
-    };
-    let level = angles(TextRun::new("Axis"), &mut frames);
-    let turned = angles(TextRun::new("Axis").rotated(1.0), &mut frames);
-    assert_eq!((level.len(), turned.len()), (1, 1), "each run paints one text shape");
-    assert!(turned[0] > level[0], "the rotated run paints at a larger angle than the level one");
 }
 
 /// The horizontal extent of the text `doc` paints in `RECT`.

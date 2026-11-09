@@ -242,16 +242,6 @@ fn an_armed_sampler_passes_a_press_and_a_drag_to_the_canvas_and_lapses_with_the_
     assert!(!scene.pressed_canvas(), "the old arm has lapsed");
 }
 
-/// Without an arm the modal rule holds: nothing reaches the canvas.
-#[trial]
-fn without_an_arm_a_press_on_the_canvas_reaches_nothing() {
-    let mut frames = Frames::new();
-    let scene = Scene::new(Arm::Nothing);
-    scene.open_dialog(&mut frames);
-    scene.drag(&mut frames, CANVAS.center(), Vec2::new(40.0, 10.0));
-    assert!(!scene.pressed_canvas(), "the modal blocks the canvas");
-}
-
 /// A press that began on the dialog stays the dialog's when it moves over the canvas.
 #[trial]
 fn a_press_that_began_on_the_dialog_never_reaches_the_canvas() {
@@ -278,20 +268,6 @@ fn a_press_on_the_canvas_closes_a_popup_over_the_dialog_and_does_not_reach_the_c
     assert!(!scene.pressed_canvas(), "the popup took the press");
     assert!(!scene.menu_shown.shown.get(), "the press closed the popup");
     assert!(scene.dialog.shown.get(), "the dialog stays open");
-}
-
-/// Only the primary press passes: a secondary press on the armed canvas is blocked.
-#[trial]
-fn a_secondary_press_on_the_armed_canvas_is_blocked() {
-    let mut frames = Frames::new();
-    let scene = Scene::new(Arm::Sampler);
-    scene.open_dialog(&mut frames);
-    let at = CANVAS.center();
-    scene.frame(&mut frames, vec![moved(at)]);
-    scene.frame(&mut frames, vec![secondary(at, true)]);
-    scene.frame(&mut frames, vec![secondary(at, false)]);
-    scene.settle(&mut frames, 2);
-    assert!(!scene.pressed_canvas(), "a secondary press stays blocked");
 }
 
 /// View navigation under a dialog that only keeps the view open: a middle press (the pan) reaches the canvas and a

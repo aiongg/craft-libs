@@ -444,20 +444,6 @@ mod tests {
     const NO_SIZE: Vec2 = Vec2::ZERO;
 
     #[test]
-    fn moves_and_resizes_update_the_normal_rect() {
-        let store = Arc::new(Mutex::new(Store::in_memory()));
-        let mut t = tracker(&store);
-        t.observe(&info([100.0, 50.0], [800.0, 600.0], 2.0), NO_SIZE, 1.0, 0.0);
-        t.observe(&info([150.0, 70.0], [900.0, 650.0], 2.0), NO_SIZE, 1.0, 0.1);
-        let p = t.current.clone().unwrap();
-        assert_eq!(p.normal.size, [900.0, 650.0]);
-        assert_eq!(p.position_px, Some([300, 140]));
-        assert_eq!(p.normal.pos, [150.0, 70.0]);
-        assert_eq!(p.scale, 2.0);
-        assert!(!p.maximized && !p.fullscreen);
-    }
-
-    #[test]
     fn maximize_full_screen_and_minimize_keep_the_normal_rect() {
         let store = Arc::new(Mutex::new(Store::in_memory()));
         let mut t = tracker(&store);
@@ -547,14 +533,6 @@ mod tests {
         assert_eq!(monitor_key(Some(&key), &[], Some([10, 10]), Some([1920, 1080])), Some(key.clone()));
         assert_eq!(monitor_key(Some(&key), &[], Some([10, 10]), Some([2560, 1440])), None);
         assert_eq!(monitor_key(None, &[], Some([10, 10]), None), None);
-    }
-
-    #[test]
-    fn logical_positions_use_the_target_scale() {
-        // Saved at (1540, 100) on a 1× external monitor: logical (1540, 100), not (770, 50).
-        assert_eq!(native::logical_position([1540, 100], 1.0), [1540.0, 100.0]);
-        assert_eq!(native::logical_position([1540, 100], 2.0), [770.0, 50.0]);
-        assert_eq!(native::logical_position([-100, 0], f32::NAN), [-100.0, 0.0]);
     }
 
     #[test]

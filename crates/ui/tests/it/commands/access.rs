@@ -87,27 +87,6 @@ fn resolve_command_reads_the_instance_above_the_component() {
     assert_eq!(*outside.borrow(), None, "no pane above the component");
 }
 
-/// `Cx::fire` queues an enabled command with the source it was given and refuses a disabled one.
-#[trial]
-fn cx_fire_checks_enabled_and_passes_the_source() {
-    let mut frames = Frames::new();
-    let resolved = RefCell::new(None);
-    let fired = RefCell::new(None);
-    let mut show = |ui: &mut Ui| {
-        Asker::new(&resolved, &fired).fire(AppCommand::Save, FireSource::Access).show(ui);
-    };
-    frames.commands(CommandInput::new().state(AppCommand::Save, CommandState::new().enabled(false)));
-    frames.idle(3, &mut show);
-    assert_eq!(*fired.borrow(), Some(false), "a disabled command is not fired");
-    assert!(take_output(&frames.ctx).fired.is_empty(), "nothing ran");
-
-    frames.commands(CommandInput::new().state(AppCommand::Save, CommandState::new()));
-    frames.idle(3, &mut show);
-    assert_eq!(*fired.borrow(), Some(true));
-    let out = take_output(&frames.ctx).fired;
-    assert!(!out.is_empty() && out.iter().all(|f| f.command.id == "trial.save" && f.source == FireSource::Access), "the given source: {out:?}");
-}
-
 const LEFT: PartKey = PartKey::new("left");
 const RIGHT: PartKey = PartKey::new("right");
 

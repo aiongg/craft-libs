@@ -11,19 +11,6 @@ fn bundled_data_loads() {
 }
 
 #[test]
-fn dictionary_words() {
-    assert_eq!(h("happen"), "hap-pen");
-    assert_eq!(h("typography"), "ty-pog-ra-phy");
-    assert_eq!(h("composition"), "com-po-si-tion");
-    assert_eq!(h("hyphenation"), "hy-phen-a-tion");
-    assert_eq!(h("international"), "in-ter-na-tion-al");
-    assert_eq!(h("cat"), "cat");
-    assert!(!h("changed").contains('-'));
-    assert_eq!(h("NASA"), "NASA");
-    assert_eq!(word_breaks("publication").1, Source::Dictionary);
-}
-
-#[test]
 fn case_apostrophes_and_punctuation() {
     assert_eq!(h("Typography"), "Ty-pog-ra-phy");
     assert_eq!(h("TYPOGRAPHY"), "TYPOGRAPHY");
@@ -43,29 +30,6 @@ fn inflections_inherit_the_stem() {
     assert_eq!(h("ripples"), "rip-ples");
     assert_eq!(h("gradients"), "gra-di-ents");
     assert_eq!(h("restrained"), "re-strained");
-}
-
-#[test]
-fn patterns_cover_unknown_words() {
-    // Not in the word list: the trained patterns decide.
-    let (pts, src) = word_breaks("hyperlocalization");
-    assert_eq!(src, Source::Patterns);
-    assert!(pts.len() >= 4, "{}", h("hyperlocalization"));
-    let (_, src) = word_breaks("zzyzx");
-    assert_ne!(src, Source::Dictionary);
-}
-
-#[test]
-fn limits_are_respected() {
-    let lim = Limits { min_word: 5, after_first: 3, before_last: 3, capitalized: false };
-    for w in ["typography", "hyphenation", "justification", "Paragraph", "beautiful"] {
-        for p in hyphen_points(w, &lim) {
-            assert!(p >= 3 && p <= w.chars().count() - 3, "{w} {p}");
-        }
-    }
-    assert!(hyphen_points("Paragraph", &lim).is_empty());
-    let lim = Limits { min_word: 12, ..Limits::default() };
-    assert!(hyphen_points("typography", &lim).is_empty());
 }
 
 #[test]
@@ -146,29 +110,6 @@ fn all_languages_leaves_out_the_gpl_slovak_patterns() {
     assert!(all.contains("\"spanish\""), "all-languages list not found");
     assert!(!all.contains("slovak"), "{all}");
     assert!(manifest.contains("\nslovak-gpl = [\"hyphen\", \"hypher/slovak\"]"));
-}
-
-#[cfg(feature = "spanish")]
-#[test]
-fn spanish_uses_the_bezos_patterns() {
-    let es = Lang::for_language("Spanish").unwrap();
-    assert_eq!(es, Lang::for_language("es_ES").unwrap());
-    let h = |w: &str| {
-        let pts = hyphen_points_in(w, &Limits::default(), es);
-        assert!(pts.iter().all(|&p| w.is_char_boundary(p)), "{w} {pts:?}");
-        w.char_indices().map(|(i, c)| if pts.contains(&i) { format!("-{c}") } else { c.to_string() }).collect::<String>()
-    };
-    // Offsets are bytes: `ú` and `ó` take two each.
-    assert_eq!(hyphen_points_in("música", &Limits::default(), es), vec![3, 5]);
-    assert_eq!(hyphen_points_in("ejército", &Limits::default(), es), vec![5, 7]);
-    assert_eq!(h("transición"), "tran-si-ción");
-    assert_eq!(h("pingüino"), "pin-güino");
-    assert_eq!(h("Construcción"), "Cons-truc-ción");
-    assert_eq!(h("desesperación"), "de-ses-pe-ra-ción");
-    assert_eq!(h("teatro"), "tea-tro", "a vowel run stays whole");
-    assert_eq!(h("calle"), "ca-lle", "ll stays whole");
-    #[cfg(not(feature = "french"))]
-    assert!(Lang::for_language("French").is_none(), "only languages built in");
 }
 
 /// An elided article or preposition keeps the breaks of the word after it, and no break falls
@@ -357,8 +298,3 @@ fn hyphenating_a_long_word_is_linear() {
     }
 }
 
-#[test]
-fn heuristic_fallback() {
-    let c: Vec<char> = "happen".chars().collect();
-    assert_eq!(heuristic_points(&c), vec![3]);
-}

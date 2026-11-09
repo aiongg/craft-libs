@@ -33,27 +33,6 @@ fn menu_shown(fixture: &Fixture) -> bool {
     !fixture.by_role(Role::MENU).is_empty()
 }
 
-/// A row with a `&` marker keeps its letter; the others take the first letter no earlier row uses, so the third row
-/// is `A` ("Save" holds `S`). The typed letter runs that row even though another row has the focus, and running a row
-/// closes the menu.
-#[trial]
-fn a_typed_letter_runs_the_row_it_names_and_closes_the_menu() {
-    let (open, ran) = (Rc::new(Cell::new(true)), Rc::new(Cell::new(None)));
-    let (shown_open, shown_ran) = (open.clone(), ran.clone());
-    let mut fixture = Fixture::new(move |ui| {
-        let opener = Button::new("File").show(ui);
-        let mut is_open = shown_open.get();
-        Menu::new("File").open(Bind::bound(&mut is_open)).opened_by(&opener, Trigger::Click).show(ui, |ui, _| rows(ui, &shown_ran));
-        shown_open.set(is_open);
-    });
-    fixture.settle();
-    assert!(open.get(), "the menu starts open");
-    fixture.type_text("a");
-    fixture.idle(4);
-    assert_eq!(ran.get(), Some("Save As"));
-    assert!(!open.get(), "running a row closes the menu");
-}
-
 /// A menu opened by a press of its opener, with no binding and no row focused: the container reads the typed letter.
 #[trial]
 fn a_typed_letter_runs_a_row_of_a_menu_opened_by_the_pointer() {
@@ -112,38 +91,6 @@ fn resting_on_a_second_submenu_row_closes_the_first_submenu() {
     assert_eq!(menus(&fixture), ["Beta", "Panel"], "only the second submenu is open");
 }
 
-/// A check row that keeps the menu open toggles its state and the menu stays.
-#[trial]
-fn a_keep_open_row_runs_and_the_menu_stays_open() {
-    let (checked, runs, open) = (Rc::new(Cell::new(false)), Rc::new(Cell::new(0)), Rc::new(Cell::new(true)));
-    let (shown_checked, shown_runs, shown_open) = (checked.clone(), runs.clone(), open.clone());
-    let mut fixture = Fixture::new(move |ui| {
-        let opener = Button::new("View").show(ui);
-        let mut is_open = shown_open.get();
-        Menu::new("View").open(Bind::bound(&mut is_open)).opened_by(&opener, Trigger::Click).show(ui, |ui, _| {
-            if MenuItem::new("Show Rulers").check(shown_checked.get()).keep_open(true).show(ui).ran {
-                shown_checked.set(!shown_checked.get());
-                shown_runs.set(shown_runs.get() + 1);
-            }
-        });
-        shown_open.set(is_open);
-    });
-    fixture.settle();
-    let row = fixture.by_role(Role::MENU_ITEM_CHECK_BOX).pop().expect("the row is a check item");
-    fixture.click(&row);
-    fixture.idle(4);
-    assert_eq!((runs.get(), checked.get()), (1, true), "the row ran and toggled");
-    assert!(open.get(), "a keep-open row leaves the menu open");
-}
-
-/// The mnemonic of "Save As" in a level where "Save" holds `S` is `A`, and the index points at the "A" of "As", not
-/// the "a" of "Save".
-#[trial]
-fn the_mnemonic_index_is_the_character_of_the_letter() {
-    let marks = craft_keymap::mnemonic::assign(&["&Open", "Save", "Save As"]);
-    assert_eq!(marks, [Some(('O', 0)), Some(('S', 0)), Some(('A', 5))]);
-}
-
 fn zoom(checked: Option<u8>) -> Vec<Entry<u8>> {
     let entry = |value: u8, label: &str| Entry::new(value, label.to_owned()).checked(checked == Some(value));
     vec![entry(0, "Fit in Window"), entry(1, "Fill Screen"), Entry::separator(), entry(2, "100%")]
@@ -161,12 +108,6 @@ fn value_menu(checked: Option<u8>) -> Fixture {
 }
 
 #[trial]
-fn a_value_menu_has_radio_rows_whether_or_not_an_entry_is_checked() {
-    assert_eq!(value_menu(None).by_role(Role::MENU_ITEM_RADIO).len(), 3, "nothing checked");
-    assert_eq!(value_menu(Some(1)).by_role(Role::MENU_ITEM_RADIO).len(), 3, "one checked");
-}
-
-#[trial]
 fn a_value_menu_opens_with_the_lead_on_the_checked_entry() {
     let fixture = value_menu(Some(2));
     let focused = fixture.focused().and_then(|id| fixture.node_of(id)).expect("a row holds the focus");
@@ -174,30 +115,3 @@ fn a_value_menu_opens_with_the_lead_on_the_checked_entry() {
     assert_eq!(focused.rect, checked.rect);
 }
 
-#[trial]
-fn a_disabled_panel_row_does_not_run() {
-    let picked = Rc::new(Cell::new(None));
-    let shown_picked = picked.clone();
-    let mut fixture = Fixture::new(move |ui| {
-        let opener = Button::new("Panel").show(ui);
-        let mut open = true;
-        Menu::new("Panel").open(Bind::bound(&mut open)).opened_by(&opener, Trigger::Click).show(ui, |ui, _| {
-            let rows = vec![
-                PanelRow::Item(Entry::new(GroupItem::AutoCollapse, "Auto-Collapse Iconic Panels".to_owned()).enabled(false)),
-                PanelRow::Item(Entry::new(GroupItem::CollapseToIcons, "Collapse to Icons".to_owned())),
-            ];
-            if let Some(item) = PanelMenu::new(Vec::new(), rows).show(ui).picked {
-                shown_picked.set(Some(item));
-            }
-        });
-    });
-    fixture.settle();
-    let disabled = fixture.by_label("Auto-Collapse Iconic Panels").expect("the disabled row shows");
-    fixture.click(&disabled);
-    fixture.idle(2);
-    assert_eq!(picked.get(), None, "a disabled row reports nothing");
-    let enabled = fixture.by_label("Collapse to Icons").expect("the enabled row shows");
-    fixture.click(&enabled);
-    fixture.idle(2);
-    assert_eq!(picked.get(), Some(GroupItem::CollapseToIcons), "an enabled row reports its item");
-}

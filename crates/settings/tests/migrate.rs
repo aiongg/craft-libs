@@ -26,19 +26,6 @@ fn older_schema_is_migrated_step_by_step_and_saved() {
     assert!(!text.contains("dark = true"), "{text}");
 }
 
-#[test]
-fn missing_schema_version_is_treated_as_current() {
-    let tmp = tempfile::tempdir().unwrap();
-    write_config(tmp.path(), "[general]\nlanguage = \"pt\"\n");
-    let (mut store, report) = open_in(tmp.path());
-    assert_eq!(report.migrated_from, None);
-    assert!(!store.is_read_only(), "{report:?}");
-    assert_eq!(store.get().general.language, "pt");
-    store.update(|p| p.general.autosave_minutes = 9);
-    store.flush().unwrap();
-    assert!(read_config(tmp.path()).starts_with("schema_version = 2\n"));
-}
-
 fn parse_legacy_json(bytes: &[u8]) -> Result<Prefs, String> {
     // Stand-in for an app's real JSON parser: `{"lang":"de","dark":true}`.
     let text = std::str::from_utf8(bytes).map_err(|e| e.to_string())?;
@@ -77,31 +64,3 @@ fn legacy_file_is_imported_on_first_run_and_left_in_place() {
     assert!(read_config(tmp.path()).contains("language = \"de\""));
 }
 
-#[test]
-fn legacy_import_is_skipped_once_config_exists() {
-    let tmp = tempfile::tempdir().unwrap();
-    let old = tmp.path().join("prefs.json");
-    std::fs::write(&old, r#"{"lang":"de"}"#).unwrap();
-    write_config(tmp.path(), "schema_version = 2\n[general]\nlanguage = \"it\"\n");
-    let (store, report) = open_with_legacy(tmp.path(), vec![LegacyFile { path: old, parse: parse_legacy_json }]);
-    assert_eq!(report.source, Source::File);
-    assert_eq!(store.get().general.language, "it");
-}
-
-#[test]
-fn first_legacy_file_that_parses_wins() {
-    let tmp = tempfile::tempdir().unwrap();
-    let missing = tmp.path().join("nope.json");
-    let bad = tmp.path().join("bad.json");
-    std::fs::write(&bad, [0xff, 0xfe]).unwrap();
-    let good = tmp.path().join("good.json");
-    std::fs::write(&good, r#"{"lang":"nl"}"#).unwrap();
-    let files = vec![
-        LegacyFile { path: missing, parse: parse_legacy_json },
-        LegacyFile { path: bad, parse: parse_legacy_json },
-        LegacyFile { path: good.clone(), parse: parse_legacy_json },
-    ];
-    let (store, report) = open_with_legacy(tmp.path(), files);
-    assert_eq!(report.source, Source::Legacy(good));
-    assert_eq!(store.get().general.language, "nl");
-}

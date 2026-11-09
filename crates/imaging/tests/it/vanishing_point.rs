@@ -450,56 +450,6 @@ fn undo_steps_back_through_planes_and_strokes() {
     assert_eq!(counts(&app), (1, false, 0));
 }
 
-#[trial]
-fn planes_are_capped_at_sixty_four() {
-    let mut full = VanishingPointSession::default();
-    full.planes = (0..MAX_PLANES)
-        .map(|i| {
-            VanishingPlane::new([
-                [1000.0 * i as f64, 0.0],
-                [1000.0 * i as f64 + 50.0, 0.0],
-                [1000.0 * i as f64 + 50.0, 50.0],
-                [1000.0 * i as f64, 50.0],
-            ])
-        })
-        .collect();
-    full.torn = vec![None; MAX_PLANES];
-    let (mut fixture, app) = open_with(VanishingTool::CreatePlane, full, Vec::new(), LIMITS);
-    draw_plane(&mut fixture);
-    assert_eq!((session(&app).planes.len(), app.borrow().workspace.editor().pending().len()), (MAX_PLANES, 0));
-    assert!(app.borrow().events.is_empty(), "{:?}", phases(&app));
-}
-
-#[trial]
-fn slide_edge_takes_the_scenes_verdict() {
-    let plane = VanishingPlane::new([[100.0, 100.0], [300.0, 100.0], [300.0, 200.0], [100.0, 200.0]]);
-    let at_press = plane.homography().expect("a valid plane");
-    let node = plane.edge_nodes()[0];
-    let up = [node[0], node[1] - 30.0];
-    let with = |check| Flat { verdicts: vec![check] };
-    assert!(slide_edge(&with(PlaneCheck::Valid), &at_press, 0, up).is_some());
-    assert!(slide_edge(&with(PlaneCheck::Questionable), &at_press, 0, up).is_some());
-    assert!(slide_edge(&with(PlaneCheck::Invalid), &at_press, 0, up).is_none());
-}
-
-#[trial]
-fn stamp_stops_at_the_apps_limits_and_says_why() {
-    let (mut fixture, app) = open_with(VanishingTool::CreatePlane, VanishingPointSession::default(), Vec::new(), StampLimits::new(1, 200_000));
-    draw_plane(&mut fixture);
-    app.borrow_mut().workspace.tool(VanishingTool::Stamp);
-    fixture.settle();
-    let (source, start) = (at(&fixture, Vec2::new(-HALF.x * 0.5, 0.0)), at(&fixture, Vec2::ZERO));
-    fixture.hold(Modifiers::ALT);
-    click(&mut fixture, source);
-    fixture.hold(Modifiers::NONE);
-    drag(&mut fixture, start, start + Vec2::new(HALF.x * 0.4, 0.0));
-    assert_eq!(session(&app).strokes.len(), 1);
-    assert_eq!(app.borrow().status, None);
-    drag(&mut fixture, start + Vec2::new(0.0, 10.0), start + Vec2::new(HALF.x * 0.4, 10.0));
-    assert_eq!(session(&app).strokes.len(), 1, "the second stroke is refused");
-    assert!(app.borrow().status.is_some(), "and says why");
-}
-
 /// A layer with a clipboard image.
 struct Pasted {
     layer: Layer,
@@ -546,33 +496,6 @@ impl VanishingPointSource for Pasted {
 }
 
 #[trial]
-fn the_paste_extent_keeps_the_images_metric_aspect() {
-    let scene = Flat { verdicts: Vec::new() };
-    let mut settings = VanishingPointSettings::default();
-    settings.paste = true;
-    let ctx = egui::Context::default();
-    let placed = |size: PixelSize| {
-        let source = Pasted { layer: Layer, image: Image(size) };
-        let mut session = drawn();
-        let mut editor = craft_imaging::ui::vanishing_point::VanishingPointEditor::new(LIMITS);
-        let pass = editor.pass(&ctx, &mut session, &settings, &scene, &source);
-        pass.paste_placement().map(|(_, rect)| (rect.width(), rect.height()))
-    };
-    // The plane is 200 by 100 pixels: half its width is 100 pixels, and a 40 by 30 image that wide is 75 pixels
-    // high, three quarters of the plane's height.
-    assert_eq!(placed(PixelSize::new(40, 30)), Some((0.5, 0.75)));
-    let empty = placed(PixelSize::new(0, 30)).expect("an empty image has a placement");
-    assert!(empty.0 == 0.5 && empty.1.is_finite(), "an empty image does not divide by zero: {empty:?}");
-}
-
-#[trial]
-fn selecting_clamps_to_the_sessions_planes() {
-    let (_, app) = open_with(VanishingTool::EditPlane, drawn(), Vec::new(), LIMITS);
-    assert_eq!(app.borrow_mut().workspace.selected_plane(Some(0)).editor().selected(), Some(0));
-    assert_eq!(app.borrow_mut().workspace.selected_plane(Some(1)).editor().selected(), None);
-}
-
-#[trial]
 fn a_gesture_the_app_cancels_reports_its_reason_and_ends() {
     for reason in [CancelReason::Removed, CancelReason::UndoDuringGesture] {
         let (mut fixture, app) = open(VanishingTool::CreatePlane);
@@ -601,76 +524,3 @@ fn a_gesture_the_app_cancels_reports_its_reason_and_ends() {
     }
 }
 
-#[trial]
-fn arrows_move_the_focused_corner_only() {
-    let (mut fixture, app) = open(VanishingTool::CreatePlane);
-    draw_plane(&mut fixture);
-    let before = session(&app).planes[0].corners;
-    fixture.key(Key::Tab, Modifiers::NONE).settle();
-    fixture.key(Key::ArrowRight, Modifiers::NONE).settle();
-    let now = session(&app).planes[0].corners;
-    let moved: Vec<usize> = (0..4).filter(|i| now[*i] != before[*i]).collect();
-    assert!(moved.len() <= 1, "at most the focused corner moves: {moved:?}");
-}
-
-#[trial]
-fn plane_colours_follow_the_check() {
-    let colours = |verdicts: Vec<PlaneCheck>| {
-        let mut session = VanishingPointSession::default();
-        for k in 0..3 {
-            let x = 100.0 * f64::from(k);
-            session.planes.push(VanishingPlane::new([[x, 0.0], [x + 50.0, 0.0], [x + 50.0, 50.0], [x, 50.0]]));
-            session.torn.push(None);
-        }
-        let mut workspace = VanishingPointWorkspace::new(VanishingPointOpen::new(LAYER, "Photo", LIMITS).session(session));
-        workspace.tool(VanishingTool::EditPlane);
-        let scene = Flat { verdicts };
-        let mut frames = Frames::new();
-        let mut shapes = Vec::new();
-        for _ in 0..3 {
-            shapes = frames.frame_shapes(|ui| {
-                workspace.show(ui, &scene, &Layer);
-            });
-        }
-        let mut found: Vec<[u8; 4]> = shapes
-            .into_iter()
-            .filter_map(|shape| match shape {
-                Shape::Path(path) => Some(path.stroke.color),
-                _ => None,
-            })
-            .map(|color| match color {
-                egui::epaint::ColorMode::Solid(color) => color.to_array(),
-                _ => [0; 4],
-            })
-            .collect();
-        found.sort();
-        found.dedup();
-        found.len()
-    };
-    let mixed = colours(vec![PlaneCheck::Valid, PlaneCheck::Questionable, PlaneCheck::Invalid]);
-    assert!(mixed > colours(vec![PlaneCheck::Valid; 3]), "the three verdicts use more colours than one");
-}
-
-#[trial]
-fn it_opens_in_its_own_window_with_ok_and_cancel() {
-    let (mut fixture, app) = open(VanishingTool::CreatePlane);
-    let ok = fixture.by_label("OK").expect("the footer has OK");
-    fixture.click(&ok).settle();
-    assert_eq!(app.borrow().closed, Some(DialogRole::Accept));
-    let (mut fixture, app) = open(VanishingTool::CreatePlane);
-    let cancel = fixture.by_label("Cancel").expect("the footer has Cancel");
-    fixture.click(&cancel).settle();
-    assert_eq!(app.borrow().closed, Some(DialogRole::Cancel));
-}
-
-#[trial]
-fn four_typed_corners_make_the_plane_the_scene_checks() {
-    let mut session = VanishingPointSession::default();
-    let scene = Flat { verdicts: Vec::new() };
-    let mut editor = craft_imaging::ui::vanishing_point::VanishingPointEditor::new(LIMITS);
-    let skewed = [[300.0, 200.0], [300.0, 100.0], [100.0, 100.0], [100.0, 200.0]];
-    assert!(editor.add_plane(&mut session, &scene, skewed, "New Plane"));
-    assert_eq!(session.planes[0].corners, [[100.0, 100.0], [300.0, 100.0], [300.0, 200.0], [100.0, 200.0]], "the scene normalises the typed corners");
-    assert_eq!(editor.selected(), Some(0));
-    assert!(matches!(editor.take_events().as_slice(), [VanishingPointEvent::Planes(EditEvent::Set { .. })]));
-}

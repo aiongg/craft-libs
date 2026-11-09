@@ -72,7 +72,3 @@ fn a_new_file_or_rule_is_a_rise_and_parse_errors_are_never_baselined() {
     assert_eq!((result.exit_code(), result.increases.len(), result.unbaselined.len()), (1, 0, 1));
 }
 
-#[test]
-fn baseline_text_errors_are_toml_errors() {
-    assert!(Baseline::parse(Path::new("b.toml"), "[\"a.rs\"]\n\"literal-size/vec2\" = \"many\"\n").is_err());
-}

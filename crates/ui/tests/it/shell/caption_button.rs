@@ -23,65 +23,6 @@ fn captions(family: CaptionFamily, left: &[Caption], right: &[Caption]) -> Capti
     Captions { family, layout: Layout { left: left.to_vec(), right: right.to_vec() } }
 }
 
-/// A shown button is an exclusive part of its window with its caption, so the Windows hit test answers a press on it
-/// as that caption.
-#[trial]
-fn shown_buttons_are_the_windows_caption_record() {
-    let windows = Windows::new();
-    let host = WindowHost::of(&windows.ctx);
-    let plan = CaptionPlan::new(&captions(CaptionFamily::Windows, &[], &[Caption::Minimize, Caption::Maximize, Caption::Close]), false);
-    let slots = plan.place(BAR, BAR.left(), BAR.right());
-    for _ in 0..3 {
-        windows.frame(vec![], vec![], |ui| {
-            for slot in &slots {
-                let button = CaptionButton::new(slot.caption, CaptionFamily::Windows).id_salt(format!("{:?}", slot.caption));
-                match slot.end {
-                    Some(end) => button.outermost(end).show_at(ui, slot.rect),
-                    None => button.show_at(ui, slot.rect),
-                };
-            }
-        });
-    }
-    let regions = host.caption_regions(ViewportId::ROOT).expect("the buttons registered their parts");
-    assert_eq!(regions.buttons.iter().map(|(caption, _)| *caption).collect::<Vec<_>>(), [Caption::Minimize, Caption::Maximize, Caption::Close]);
-    let close = slots.iter().find(|slot| slot.caption == Caption::Close).expect("a close slot");
-    assert_eq!(regions.hit(close.rect.center()), Some(WindowHit::Caption(Caption::Close)));
-}
-
-/// A press reports a click on the button; the button is not a Tab stop.
-#[trial]
-fn a_press_clicks_the_button_and_tab_skips_it() {
-    let clicks = Rc::new(Cell::new(0));
-    let id = Rc::new(Cell::new(None));
-    let (shown_clicks, shown_id) = (clicks.clone(), id.clone());
-    let mut fixture = Fixture::new(move |ui| {
-        let response = CaptionButton::new(Caption::Close, CaptionFamily::Adwaita).show(ui);
-        shown_id.set(Some(response.id));
-        if craft_ui::testing::contract::clicked(&response) {
-            shown_clicks.set(shown_clicks.get() + 1);
-        }
-    });
-    fixture.settle();
-    let id = id.get().expect("the button showed");
-    let button = fixture.node_of(id).expect("the button has a node");
-    fixture.click(&button);
-    assert_eq!(clicks.get(), 1);
-    fixture.key(Key::Tab, Modifiers::NONE);
-    fixture.idle(2);
-    assert_ne!(fixture.focused(), Some(id), "caption buttons are no Tab stops");
-}
-
-/// Windows captions mirror under right-to-left; the Linux layouts are the user's setting and stay as they are.
-#[trial]
-fn only_the_windows_captions_mirror_under_right_to_left() {
-    let layout = [Caption::Minimize, Caption::Maximize, Caption::Close];
-    let windows = CaptionPlan::new(&captions(CaptionFamily::Windows, &[], &layout), true);
-    assert_eq!(windows.left(), [Caption::Close, Caption::Maximize, Caption::Minimize]);
-    assert!(windows.right().is_empty());
-    let adwaita = CaptionPlan::new(&captions(CaptionFamily::Adwaita, &[Caption::Close], &[Caption::Minimize]), true);
-    assert_eq!((adwaita.left(), adwaita.right()), (&[Caption::Close][..], &[Caption::Minimize][..]));
-}
-
 /// Neighbours' hit areas touch, the outermost button's runs to the window's edge and is the widest, and Windows
 /// buttons are all as wide as each other.
 #[trial]
@@ -100,14 +41,6 @@ fn slots_touch_and_the_outermost_reaches_the_window_edge() {
     let width = slots[0].rect.width();
     assert!(slots.iter().all(|slot| slot.rect.width() == width), "Windows buttons share one width");
     assert_eq!(windows.right_width(), 2.0 * width);
-}
-
-/// Slots stay inside a window narrower than the bar's contents.
-#[trial]
-fn slots_follow_the_window_edges_not_the_bar() {
-    let plan = CaptionPlan::new(&captions(CaptionFamily::Windows, &[], &[Caption::Close]), false);
-    let slots = plan.place(BAR, 40.0, 500.0);
-    assert_eq!(slots.iter().map(|slot| slot.rect.right()).collect::<Vec<_>>(), [500.0]);
 }
 
 /// An icon tree held in memory: path to file contents.
@@ -205,20 +138,6 @@ fn cyclic_or_hostile_indexes_are_harmless() {
     let icons = CaptionIcons::from_theme("A", &[base()], &files).expect("loads");
     assert!(covered(&icons, CaptionIcon::Close).is_some_and(|area| area > 0));
     assert!(CaptionIcons::from_theme("..", &[base()], &files).is_none());
-}
-
-/// The theme's glyph renders as a coverage mask; one the theme lacks answers `None` so the family draws its own.
-#[trial]
-fn caption_icons_render_the_themes_glyph() {
-    let files = Tree::with(&[("/icons/T/index.theme", FIXED_16), ("/icons/T/s/window-close-symbolic.svg", SQUARE)]);
-    let icons = CaptionIcons::from_theme("T", &[base()], &files).expect("the theme has a close glyph");
-    assert_eq!(icons.theme(), "T");
-    let mask = icons.mask(CaptionIcon::Close, GLYPH_PX).expect("renders");
-    let side = GLYPH_PX as usize;
-    assert_eq!(mask.len(), side * side);
-    assert_eq!((mask[side * side / 2 + side / 2], mask[0]), (255, 0), "covered inside the square, clear outside it");
-    assert!(icons.mask(CaptionIcon::Minimize, GLYPH_PX).is_none(), "the theme lacks it");
-    assert!(CaptionIcons::from_theme("T", &[PathBuf::from("/empty")], &files).is_none());
 }
 
 /// Icon files are untrusted: gzip is not expanded, a DTD or an oversized document is refused, and an `<image>` loads

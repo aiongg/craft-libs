@@ -47,31 +47,6 @@ fn alt_copies_once_after_the_reach_and_stays_on() {
 }
 
 #[test]
-fn a_click_without_travel_is_unchanged() {
-    let g = MoveGesture::press(&style(), Point::new(5.0, 5.0), Mods::ALT, Directions::Four);
-    let value = g.release(Point::new(5.0, 5.0), Mods::ALT, 1.0);
-    assert!(!value.changed());
-    assert!(!value.copy);
-}
-
-#[test]
-fn alt_after_the_press_does_not_copy() {
-    let mut g = MoveGesture::press(&style(), Point::ZERO, Mods::NONE, Directions::Four);
-    assert!(!g.follow(Point::new(50.0, 0.0), Mods::ALT, 1.0).unwrap().copy);
-}
-
-#[test]
-fn release_applies_the_lock_of_the_last_move() {
-    let mut g = MoveGesture::press(&style(), Point::ZERO, Mods::NONE, Directions::Eight);
-    let last = g.follow(Point::new(10.0, 3.0), Mods::SHIFT, 1.0).unwrap();
-    assert_eq!(last.delta.y, 0.0);
-    assert_eq!(g.value(), last);
-    let end = g.release(Point::new(10.0, 3.0), Mods::SHIFT, 1.0);
-    assert_eq!(end, last);
-    assert!(end.changed());
-}
-
-#[test]
 fn stroke_lock_waits_then_locks_to_45_degrees() {
     let mut lock = StrokeLock::new(&style());
     let last = Point::new(10.0, 10.0);

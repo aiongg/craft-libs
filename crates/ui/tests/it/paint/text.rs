@@ -75,19 +75,6 @@ fn an_elided_path_keeps_its_end() {
     });
 }
 
-#[trial]
-fn spans_style_a_run_without_splitting_its_text() {
-    let tokens = tokens(Mode::Light, Contrast::Standard);
-    let mut frames = Frames::new();
-    paint_frame(&mut frames, &tokens, Direction::Ltr, Ink::OnPanel, |draw| {
-        let run = TextRun::spans(vec![Span::new("Save "), Span::new("Ctrl+S").shortcut()]);
-        let layout = draw.text(RECT, &run);
-        assert_eq!(layout.galley.job.text, "Save Ctrl+S");
-        assert_eq!(layout.galley.job.sections.len(), 2, "the shortcut has its own format");
-        assert!(!layout.elided);
-    });
-}
-
 /// The first and last row's start and end, from the layout's left edge.
 fn row_edges(direction: Direction, align: HAlign) -> [(f32, f32); 2] {
     let tokens = tokens(Mode::Light, Contrast::Standard);

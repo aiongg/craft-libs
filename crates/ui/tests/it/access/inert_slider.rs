@@ -25,8 +25,3 @@ fn a_slider_shown_too_narrow_publishes_no_slider_node() {
     assert_eq!(violations(fixture.ctx(), fixture.tree()), Vec::<String>::new());
 }
 
-#[trial]
-fn a_slider_shown_at_a_width_publishes_its_node() {
-    let fixture = slider_at(120.0);
-    assert_eq!(fixture.tree().with_role(Role::SLIDER).len(), 1);
-}

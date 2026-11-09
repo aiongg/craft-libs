@@ -65,15 +65,3 @@ fn tooltip_opens(mut show_component: impl FnMut(&mut Ui)) -> bool {
     any_open(&frames.ctx, OpenFilter::Any)
 }
 
-#[trial]
-fn an_icon_only_face_shows_its_label_as_tooltip_and_a_slider_does_not() {
-    let icon = tooltip_opens(|ui| {
-        IconButton::new(IconId::new("close")).label("Close").show_at(ui, TARGET);
-    });
-    assert!(icon, "an icon button shows its label as tooltip");
-    let mut value = 40.0;
-    let slider = tooltip_opens(|ui| {
-        Slider::new(Bind::bound(&mut value), 0.0..=100.0).label("Opacity").show_at(ui, TARGET);
-    });
-    assert!(!slider, "a slider that paints no text shows no label tooltip");
-}

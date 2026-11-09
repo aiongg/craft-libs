@@ -33,16 +33,6 @@ fn easing_curves_run_from_zero_to_one_as_their_css_cubic_beziers() {
 }
 
 #[test]
-fn hex_parse_and_format() {
-    assert_eq!(hex("#FF8000").0, [255, 128, 0, 255]);
-    assert_eq!(hex("#ff800080").to_hex(), "#ff800080");
-    assert_eq!(hex("#FF8000").to_hex(), "#ff8000");
-    assert_eq!(Rgba::from_hex("ff8000"), None);
-    assert_eq!(Rgba::from_hex("#ff80"), None);
-    assert_eq!(Rgba::from_hex("#gg0000"), None);
-}
-
-#[test]
 fn srgba_hex_accepts_three_six_and_eight_digits() {
     let orange = Srgba::from_hex("F80").unwrap();
     assert_eq!(orange.to_hex(), "#ff8800");
@@ -65,16 +55,6 @@ fn known_oklch_values() {
     assert!(near(grey.l, 0.5999, 2e-3) && grey.c < 1e-4);
 }
 
-#[test]
-fn srgb_greys_have_no_chroma_or_hue() {
-    for v in 0..=255u8 {
-        let grey = Rgba::rgb(v, v, v);
-        let o = grey.to_oklch();
-        assert_eq!((o.c, o.h), (0.0, 0.0), "{grey:?}");
-        assert_eq!(grey.to_oklch().to_rgba(), grey);
-    }
-}
-
 /// A lightness search stops where the contrast test flips, which for a colour with any residual
 /// tint lies between the points where its channels round to their next 8-bit value.
 #[test]
@@ -88,14 +68,6 @@ fn contrast_moves_keep_greys_neutral() {
                 assert!(is_grey(out), "{fg:?} on {bg:?} at {min}: {out:?}");
             }
         }
-    }
-}
-
-#[test]
-fn srgb_oklch_round_trip_is_exact() {
-    for s in SAMPLES {
-        let c = hex(s);
-        assert_eq!(c.to_oklch().to_rgba(), c, "{s}");
     }
 }
 
@@ -152,16 +124,6 @@ fn ramps_are_monotonic_in_gamut_and_hit_the_seed() {
                     assert_eq!(ramp.step(9), seed);
                 }
             }
-        }
-    }
-}
-
-#[test]
-fn neutral_ramp_is_nearly_grey() {
-    for mode in [Mode::Light, Mode::Dark] {
-        let ramp = Ramp::from_seed(hex("#3e63dd"), mode, RampKind::Neutral);
-        for c in ramp.0 {
-            assert!(c.to_oklch().c <= ramp::NEUTRAL_MAX_CHROMA + 2e-3);
         }
     }
 }

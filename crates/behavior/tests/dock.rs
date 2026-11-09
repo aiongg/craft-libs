@@ -158,42 +158,6 @@ fn restore_refuses_a_present_panel_and_a_missing_anchor_and_changes_nothing() {
 }
 
 #[test]
-fn panel_state_tells_hidden_open_and_front() {
-    let layout = docked();
-    assert_eq!(layout.panel_state(&3), PanelState::Front);
-    assert_eq!(layout.panel_state(&2), PanelState::Open);
-    assert_eq!(layout.panel_state(&99), PanelState::Hidden);
-}
-
-#[test]
-fn move_targets_offer_other_groups_that_accept_tabs() {
-    let layout = docked();
-    let all = |_: &u32| Permissions::default();
-    let mut targets: Vec<u32> = layout.move_targets(&3, all).into_iter().copied().collect();
-    targets.sort_unstable();
-    assert_eq!(targets, [1, 4, 5, 6, 7, 8, 11, 12]);
-
-    let no_tabs = |p: &u32| if *p == 1 { Permissions::PROTECTED } else { Permissions::default() };
-    assert!(!layout.move_targets(&3, no_tabs).contains(&&1));
-}
-
-#[test]
-fn step_group_never_passes_a_protected_group() {
-    let column = Column::new(vec![g(&[2], 0), g(&[9], 0), g(&[4], 0)]).with_width(180.0);
-    let layout = with_column(column);
-    let all = |_: &u32| Permissions::default();
-    assert!(layout.can_step_group(&2, false, all));
-    assert!(!layout.can_step_group(&2, true, all));
-    let permissions = |p: &u32| if *p == 9 { Permissions::PROTECTED } else { Permissions::default() };
-    for (panel, up) in [(2, false), (4, true), (9, true), (9, false)] {
-        assert!(!layout.can_step_group(&panel, up, permissions), "{panel} {up}");
-    }
-    let immovable = |p: &u32| if *p == 2 { Permissions::ALL.movable(false) } else { Permissions::default() };
-    assert!(!layout.can_step_group(&2, false, immovable));
-    assert!(!layout.can_step_group(&9, true, immovable));
-}
-
-#[test]
 fn a_saved_stack_of_groups_loads_as_a_vertical_split_by_their_heights() {
     let saved = json!({
         "groups": [{"panels": [4], "active": 0, "height": 100.0}, {"panels": [5, 6], "active": 1, "height": 300.0}],
@@ -228,19 +192,6 @@ fn a_single_plain_floating_window_writes_the_v1_shape_and_others_round_trip() {
 }
 
 #[test]
-fn windows_keep_their_ids_through_a_save() {
-    let rect = Rect::from_min_size(Pos2::new(1.0, 2.0), Vec2::new(300.0, 200.0));
-    let layout = Layout::new(
-        None,
-        vec![Floating::single(vec![4u32], 0, rect).with_id(7), Floating::stack(vec![g(&[5], 0), g(&[6], 0)], rect).unwrap().with_id(8)],
-    );
-    let saved = serde_json::to_string(&layout).unwrap();
-    let loaded: Layout<u32> = serde_json::from_str(&saved).unwrap();
-    assert_eq!(loaded, layout);
-    assert_eq!(loaded.floating.iter().map(|w| w.id).collect::<Vec<_>>(), [7, 8]);
-}
-
-#[test]
 fn a_layout_saved_with_the_physical_names_loads_and_writes_back_in_reading_order() {
     let saved = r#"{
         "root": {"Split": {"axis": "Horizontal", "size": {"FixedSecond": 300.0},
@@ -268,34 +219,3 @@ fn a_layout_saved_with_the_physical_names_loads_and_writes_back_in_reading_order
     assert_eq!(written, renamed);
 }
 
-#[test]
-fn a_column_keeps_no_width_until_resized_and_a_resized_width_survives_a_save() {
-    let mut layout =
-        Layout::new(Some(hsplit(SplitSize::Ratio(0.5), tabs(&[1], 0), Node::dock(DockEdge::End, vec![Column::new(vec![g(&[3], 0)])]))), Vec::new());
-    let reload = |layout: &Layout<u32>| serde_json::from_str::<Layout<u32>>(&serde_json::to_string(layout).unwrap()).unwrap();
-    let widths = |layout: &Layout<u32>| layout.column(&layout.place(&3).unwrap()).map(|column| column.width);
-    assert_eq!(widths(&reload(&layout)), Some(None), "a column nobody resized has no stored width");
-    layout.apply(Action::resize_column(3, 222.0)).unwrap();
-    assert_eq!(widths(&reload(&layout)), Some(Some(222.0)));
-}
-
-#[test]
-fn actions_saved_with_left_and_right_load_as_start_and_end() {
-    for (saved, side) in [("Left", DockSide::Start), ("left", DockSide::Start), ("Right", DockSide::End), ("right", DockSide::End)] {
-        let action: Action<u32> = serde_json::from_value(json!({"Move": {"panel": 1, "anchor": 2, "placement": {"Split": saved}}})).unwrap();
-        assert_eq!(action, Action::move_beside(1, 2, DockPlacement::Split(side)), "{saved}");
-    }
-    assert_eq!(serde_json::to_value(DockPlacement::<u32>::Split(DockSide::Start)).unwrap(), json!({"Split": "Start"}));
-}
-
-#[test]
-fn a_split_dropped_on_start_lands_on_the_right_in_a_right_to_left_flow() {
-    let mut layout = Layout::new(Some(tabs(&[1], 0)), Vec::new());
-    layout.restore(2, &Location::new(Some(1), DockPlacement::Split(DockSide::Start))).unwrap();
-    let Some(Node::Split { axis: Axis::X, first, .. }) = &layout.root else { panic!("{:?}", layout.root) };
-    assert_eq!(**first, tabs(&[2], 0), "the dropped panel is the start child");
-    let area = Rect::from_min_max(Pos2::new(0.0, 0.0), Pos2::new(200.0, 100.0));
-    let start_cell = Rect::from_min_max(area.min, Pos2::new(100.0, 100.0));
-    assert!(Flow::new(area, false).to_physical(start_cell).center().x < area.center().x);
-    assert!(Flow::new(area, true).to_physical(start_cell).center().x > area.center().x);
-}

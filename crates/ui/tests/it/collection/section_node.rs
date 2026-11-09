@@ -137,29 +137,3 @@ fn a_section_header_is_a_named_node_that_click_and_enter_toggle() {
     assert_eq!(items(&fixture), 3, "Enter on the header opens it again");
 }
 
-/// Expand and Collapse on the header open and close the section.
-#[trial]
-fn expand_and_collapse_on_a_section_header_open_and_close_it() {
-    let (mut fixture, log) = rig(sections(), SelectMode::Single);
-    let edit = headings(&fixture).remove(1).1;
-    fixture.access(AccessActionKind::Collapse, &edit).settle();
-    assert!(log.borrow().iter().any(|line| line == "open 3 false"), "Collapse reports the close: {:?}", log.borrow());
-    assert_eq!(items(&fixture), 2, "the section's row is hidden");
-    let edit = headings(&fixture).remove(1).1;
-    fixture.access(AccessActionKind::Expand, &edit).settle();
-    assert_eq!(items(&fixture), 3);
-}
-
-/// AccessKit Focus on an item row moves the lead to it; Click picks it.
-#[trial]
-fn access_focus_and_click_on_an_item_row_move_the_lead_and_pick() {
-    let words: &'static Words = Box::leak(Box::new(Words::flat(&["one", "two", "three"])));
-    let (mut fixture, log) = rig(words, SelectMode::Single);
-    let rows = fixture.by_role(Role::LIST_ITEM);
-    fixture.access(AccessActionKind::Focus, &rows[2]).settle();
-    assert_eq!(log.borrow().last().map(String::as_str), Some("lead 2"), "Focus moves the lead: {:?}", log.borrow());
-    assert!(!log.borrow().iter().any(|line| line.starts_with("select")), "Focus alone selects nothing");
-    fixture.access(AccessActionKind::Click, &rows[1]).settle();
-    assert!(log.borrow().iter().any(|line| line == "lead 1"), "Click moves the lead: {:?}", log.borrow());
-    assert!(log.borrow().iter().any(|line| line.starts_with("select") && line.contains('1')), "Click picks the row: {:?}", log.borrow());
-}

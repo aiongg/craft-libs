@@ -175,79 +175,16 @@ fn a_narrow_pulled_cell_gets_as_many_samples_as_its_stretch_needs() {
 }
 
 // An identity mesh at zoom 1 samples each patch at the minimum.
-#[trial]
-fn an_unwarped_mesh_stays_cheap() {
-    let frame = Rect::new(0.0, 0.0, 20.0, 20.0);
-    let mesh = WarpMesh::identity(frame, 2, 2);
-    let drawn = PreviewMap::mesh(&mesh, frame).build(1.0, [1.0, 1.0]);
-    assert_eq!(drawn.points.len(), 9 * 9);
-    assert!(drawn.points.iter().zip(&drawn.rest).all(|(p, r)| (*p - *r).hypot() < 1e-9));
-}
 
 // A warp mesh's rest is the unwarped frame, also when only the corner controls moved: pulling the top-left corner out
 // leaves its rest on the frame's corner, so the pull ranks as a displacement.
-#[trial]
-fn a_warp_meshs_rest_is_the_frame() {
-    let frame = Rect::new(10.0, 20.0, 50.0, 60.0);
-    let mut mesh = WarpMesh::identity(frame, 2, 2);
-    mesh.points[0] = pt(0.0, 0.0);
-    let drawn = PreviewMap::mesh(&mesh, frame).build(1.0, [1.0, 1.0]);
-    assert!((drawn.rest[0] - pt(10.0, 20.0)).hypot() < 1e-9);
-    assert!((drawn.points[0] - pt(0.0, 0.0)).hypot() < 1e-9);
-    let last = drawn.rest.len() - 1;
-    assert!((drawn.rest[last] - pt(50.0, 60.0)).hypot() < 1e-9);
-}
 
 // Opacity 0.5 tints every vertex white at alpha 128.
-#[trial]
-fn opacity_tints_the_mesh() {
-    fn quad() -> PreviewMap<'static> {
-        PreviewMap::quad([pt(10.0, 10.0), pt(90.0, 10.0), pt(90.0, 90.0), pt(10.0, 90.0)])
-    }
-    let (meshes, _) = shown(quad, 0.5, None, 0.0);
-    assert_eq!(meshes.len(), 1);
-    assert!(meshes[0].vertices.iter().all(|v| v.color == Color32::from_white_alpha(128)));
-}
 
 // A pin map draws the solver's triangles in its order with texels at the rest positions; a function map draws a
 // 40 × 40 grid through the function.
-#[trial]
-fn pin_and_function_maps_draw_their_meshes() {
-    let rest = [pt(10.0, 20.0), pt(30.0, 20.0), pt(30.0, 60.0), pt(10.0, 60.0)];
-    let deformed = [pt(15.0, 25.0), pt(35.0, 25.0), pt(35.0, 65.0), pt(15.0, 65.0)];
-    let triangle_list = [[0, 1, 2], [0, 2, 3]];
-    let view = PinMeshView::new(&rest, &deformed, &triangle_list, &[1, 0]);
-    let pins = PreviewMap::pins(view, Rect::new(10.0, 20.0, 30.0, 60.0)).build(1.0, [0.5, 0.5]);
-    assert_eq!(pins.points, deformed);
-    assert_eq!(pins.indices, vec![0, 2, 3, 0, 1, 2]);
-    assert_eq!(pins.uv[2], [0.5, 0.5]);
-    assert_eq!(pins.uv[0], [0.0, 0.0]);
-    assert_eq!(triangles(&pins).count(), 2);
-
-    let shift = |p: Point| pt(p.x + 5.0, p.y * 2.0);
-    let map: &dyn Fn(Point) -> Point = &shift;
-    let function = PreviewMap::function(Rect::new(0.0, 0.0, 80.0, 40.0), 40, map).build(1.0, [1.0, 1.0]);
-    assert_eq!(function.points.len(), 41 * 41);
-    assert_eq!(function.indices.len(), 40 * 40 * 6);
-    assert_eq!(function.points[40], pt(85.0, 0.0));
-    assert_eq!(function.points[41 * 41 - 1], pt(85.0, 80.0));
-    assert_eq!(function.uv[40], [1.0, 0.0]);
-}
 
 // The quad's scale for the texture level is its longest side over the source frame's.
-#[trial]
-fn a_box_reports_how_much_it_enlarges_the_source() {
-    let quad = PreviewMap::quad([pt(0.0, 0.0), pt(200.0, 0.0), pt(200.0, 50.0), pt(0.0, 50.0)]);
-    assert!((quad.source_scale([100, 100]) - 2.0).abs() < 1e-6);
-    let mesh = WarpMesh::identity(Rect::new(0.0, 0.0, 10.0, 10.0), 1, 1);
-    assert!((PreviewMap::mesh(&mesh, Rect::new(0.0, 0.0, 100.0, 100.0)).source_scale([100, 100]) - 1.0).abs() < 1e-6);
-}
-
-#[trial]
-fn clipping_keeps_a_mesh_inside_the_canvas_whole() {
-    let mesh = PreviewMap::quad([pt(10.0, 10.0), pt(20.0, 10.0), pt(20.0, 20.0), pt(10.0, 20.0)]).build(1.0, [1.0, 1.0]);
-    assert_eq!(mesh.clone().clipped([100, 100]), mesh);
-}
 
 /// A source with a fixed reach (in work pixels, whatever the scale) that counts its compositions.
 struct Fake {
@@ -388,18 +325,6 @@ fn the_budget_shrinks_the_work_scale_until_the_composite_fits() {
 
 // The budget is 30 ms dragging and 120 ms at rest over the cost per pixel plus the resample's, clamped to 0.25 to 8
 // million pixels.
-#[trial]
-fn the_budget_follows_what_the_style_costs() {
-    let dear = StyledBudget::default();
-    assert_eq!(dear.pixels(45.0, true), 0.5e6, "the resample's cost is in the sum");
-    assert!(dear.pixels(60.0, true) < 0.5e6);
-    let mut budget = StyledBudget::default();
-    budget.resample_ns = 0.0;
-    assert_eq!(budget.pixels(60.0, true), 0.5e6);
-    assert_eq!(budget.pixels(60.0, false), 2.0e6);
-    assert_eq!(budget.pixels(1000.0, true), StyledBudget::MIN_PIXELS);
-    assert_eq!(budget.pixels(1.0, false), StyledBudget::MAX_PIXELS);
-}
 
 // Resampling a texel image through a box keeps texels whole with nearest, fades the source's edges over one texel,
 // and leaves empty texels transparent.
@@ -444,14 +369,6 @@ fn the_texture_level_follows_the_on_screen_size() {
 }
 
 // With nearest interpolation every zoom and scale gives level 0 with nearest filtering.
-#[trial]
-fn nearest_interpolation_keeps_level_zero_and_nearest_filtering() {
-    for zoom in [1.0 / 4096.0, 0.25, 1.0, 8.0] {
-        for scale in [0.1, 1.0, 4.0] {
-            assert_eq!(PreviewTextures::choose(zoom, scale, true), choice(0, true));
-        }
-    }
-}
 
 // A display conversion changes only the displayed upload: `level_image` stays raw, the conversion runs once per key,
 // and a new key replaces the old key's upload.

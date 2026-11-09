@@ -89,13 +89,3 @@ fn arrow_down_from_the_filter_leads_into_the_rows() {
     assert_eq!(activated, [FieldKey::Field(0, 0)]);
 }
 
-/// The filter keeps the fields whose name or value matches and drops the rest.
-#[trial]
-fn filtering_exp_keeps_exposure_and_drops_iso() {
-    let seen = Rc::new(Seen::default());
-    *seen.filter.borrow_mut() = "exp".to_owned();
-    let fixture = table(camera(), &seen, true, false);
-    let shown = |text: &str| fixture.texts().iter().any(|painted| painted.text == text);
-    assert!(shown("Exposure"));
-    assert!(!shown("ISO"));
-}

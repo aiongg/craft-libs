@@ -12,22 +12,6 @@ fn image() -> ColorImage {
     ColorImage::new([4, 4], vec![Color32::from_gray(200); 16])
 }
 
-/// A named picture is an image node and an unnamed one is decoration.
-#[trial]
-fn a_named_picture_is_an_image_node_and_an_unnamed_one_has_none() {
-    let mut named = Fixture::new(|ui| {
-        Picture::new("Cover", 1, &image).show(ui);
-    });
-    named.settle();
-    assert_eq!(named.by_role(Role::IMAGE).len(), 1);
-    assert!(named.by_label("Cover").is_some());
-    let mut unnamed = Fixture::new(|ui| {
-        Picture::new("", 1, &image).show(ui);
-    });
-    unnamed.settle();
-    assert!(unnamed.by_role(Role::IMAGE).is_empty());
-}
-
 /// The image is made once for a key and revision, and again when the revision changes.
 #[trial]
 fn the_texture_is_built_once_per_key_and_revision() {

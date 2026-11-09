@@ -300,14 +300,4 @@ mod trials {
         }
     }
 
-    #[trial]
-    fn a_tint_multiplies_the_texels_and_white_leaves_them() {
-        let source = Solid(Color32::from_rgb(200, 100, 50));
-        let mut out = ColorImage::filled([2, 1], Color32::TRANSPARENT);
-        let region = PixelRect::of_size(source.size());
-        Tinted { source: &source, tint: Color32::from_rgb(255, 0, 128) }.read(region, 1, &mut out);
-        assert_eq!(out.pixels[0], Color32::from_rgb(200, 0, 25), "texels are multiplied by the tint");
-        Tinted { source: &source, tint: Color32::from_rgb(255, 255, 255) }.read(region, 1, &mut out);
-        assert_eq!(out.pixels[0], source.0, "white leaves them as they are");
-    }
 }

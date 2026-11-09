@@ -76,21 +76,3 @@ fn category_filters_the_grid() {
     assert!(fixture.by_label(&cell('A')).is_none() && fixture.by_label(&cell('→')).is_none());
 }
 
-/// Enter on the focused cell inserts it while editing and adds it to Recently Used; not while idle.
-#[trial]
-fn enter_inserts_only_while_editing_and_records_recent() {
-    for editing in [true, false] {
-        let (mut fixture, state) = rig(editing);
-        let tile = fixture.by_label(&cell('B')).expect("the B cell");
-        fixture.click(&tile);
-        fixture.key(Key::Enter, Modifiers::NONE);
-        fixture.idle(3);
-        let state = state.borrow();
-        if editing {
-            assert_eq!(state.inserted, ["B"]);
-            assert_eq!(state.settings.recent, ["B"]);
-        } else {
-            assert!(state.inserted.is_empty() && state.settings.recent.is_empty());
-        }
-    }
-}

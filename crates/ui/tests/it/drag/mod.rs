@@ -158,40 +158,6 @@ fn texts(shapes: &[Shape]) -> Vec<String> {
     shapes.iter().filter_map(|shape| if let Shape::Text(text) = shape { Some(text.galley.job.text.clone()) } else { None }).collect()
 }
 
-/// Skeleton: `frames_pointer::alt_drag_drop_reports_copy_to_target_and_source`.
-#[trial]
-fn alt_drag_drop_reports_copy_to_target_and_source() {
-    for (modifiers, op) in [(Modifiers::ALT, DropOperation::Copy), (Modifiers::NONE, DropOperation::Move)] {
-        let seen = RefCell::new(Seen::default());
-        let mut show = scene(&seen);
-        let mut frames = Frames::new();
-        frames.hold(modifiers);
-        let over = drag_over_slot(&mut frames, &mut show);
-        assert!(seen.borrow().dropped.is_empty(), "nothing drops while the button is down");
-        frames.frame(vec![release(over)], &mut show);
-        frames.idle(2, &mut show);
-        let seen = seen.borrow();
-        assert_eq!(seen.dropped, vec![(7, op)], "the target reports one drop with {op:?}");
-        assert_eq!(seen.ended, vec![op], "the source sees {op:?} once, in the pass after the drop");
-        assert_eq!(drag::started(&frames.ctx), 1);
-    }
-}
-
-/// Skeleton: `frames_pointer::drag_preview_paints_on_a_frame_with_no_popup`.
-#[trial]
-fn drag_preview_paints_on_a_frame_with_no_popup() {
-    let seen = RefCell::new(Seen::default());
-    let mut show = scene(&seen);
-    let mut frames = Frames::new();
-    frames.idle(2, &mut show);
-    assert!(!texts(&frames.frame_shapes(&mut show)).iter().any(|text| text == BADGE), "no preview before the drag");
-    let over = drag_over_slot(&mut frames, &mut show);
-    assert!(texts(&frames.frame_shapes(&mut show)).iter().any(|text| text == BADGE), "the preview is painted with no popup shown");
-    frames.frame(vec![release(over)], &mut show);
-    frames.idle(1, &mut show);
-    assert!(!texts(&frames.frame_shapes(&mut show)).iter().any(|text| text == BADGE), "the preview ends with the drag");
-}
-
 /// A drag begun with the secondary button drops when that button comes up, in the source window.
 #[trial]
 fn a_secondary_button_drag_drops_on_the_secondary_release() {

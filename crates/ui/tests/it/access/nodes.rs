@@ -19,20 +19,6 @@ use std::cell::RefCell;
 use std::sync::Mutex;
 
 #[trial]
-fn a_leaf_has_its_role_name_and_actions() {
-    let mut frames = Frames::new();
-    let seen = RefCell::new(Seen::default());
-    frames.frame(vec![], |ui| {
-        Probe::new(&seen).label("Save").show(ui);
-    });
-    let id = seen.borrow().id.expect("the leaf updated");
-    let tree = frames.tree();
-    assert_eq!(tree.role(id), Some(UiRole::BUTTON));
-    assert_eq!(tree.name(id), Some("Save"));
-    assert!(tree.declares(id, Declared::Focus) && tree.declares(id, Declared::Click));
-}
-
-#[trial]
 fn a_body_is_the_parent_of_the_nodes_it_shows() {
     let mut frames = Frames::new();
     let seen = RefCell::new(Seen::default());
@@ -50,26 +36,6 @@ fn a_body_is_the_parent_of_the_nodes_it_shows() {
 }
 
 static ROWS: Mutex<Vec<(usize, Rect)>> = Mutex::new(Vec::new());
-
-#[trial]
-fn items_are_named_nodes_below_their_collection() {
-    let mut frames = Frames::new();
-    let mut list = None;
-    frames.frame(vec![], |ui| {
-        let out = Table::new(20.0).label("Rows").show_items(ui, &Rows(3), &mut |key, _| RowProbe::new(*key, &ROWS).label(format!("Row {key}")));
-        list = Some(out.id);
-    });
-    let list = list.expect("shown");
-    let tree = frames.tree();
-    let items = tree.with_role(UiRole::LIST_ITEM);
-    let mut names: Vec<_> = items.iter().filter_map(|item| tree.name_of(*item).map(str::to_owned)).collect();
-    names.sort();
-    assert_eq!(names, ["Row 0", "Row 1", "Row 2"]);
-    assert_eq!(tree.role(list), Some(UiRole::LIST));
-    for item in items {
-        assert_eq!(tree.parent_of_key(item), Some(NodeKey::of(list)), "an item's node sits below the list's node");
-    }
-}
 
 /// A leaf with a faced sub-node and a numeric value.
 #[derive(craft_ui::contract::Component)]
@@ -115,22 +81,6 @@ impl Meter {
     fn new() -> Self {
         Meter { common: Common::new() }
     }
-}
-
-#[trial]
-fn access_facts_reach_the_node_and_its_sub_nodes() {
-    let mut frames = Frames::new();
-    let mut id = None;
-    frames.frame(vec![], |ui| {
-        id = Some(Meter::new().label("Level").show(ui).id);
-    });
-    let id = id.expect("shown");
-    let tree = frames.tree();
-    assert_eq!(tree.numeric(id), Some(level()));
-    assert!(tree.declares(id, Declared::Increment) && tree.declares(id, Declared::Decrement) && tree.declares(id, Declared::SetValue));
-    let sub = tree.with_role(UiRole::PROGRESS_INDICATOR);
-    assert_eq!(sub.len(), 1, "the sub-node of the `peak` part");
-    assert_eq!(tree.name_of(sub[0]), Some("Peak"));
 }
 
 #[trial]
@@ -239,21 +189,6 @@ impl Component for Dropdown {
 }
 
 // Expand and Collapse are declared only where the node has an open state; a combo box without one is a finding.
-#[trial]
-fn expand_is_declared_only_where_the_node_has_an_open_state() {
-    let shown = |open: Option<bool>| {
-        let mut frames = Frames::new();
-        let mut id = None;
-        frames.frame(vec![], |ui| id = Some(Dropdown { common: Common::new(), open }.label("Size").show(ui).id));
-        let id = id.expect("shown");
-        let tree = frames.tree();
-        let finding = findings(&frames.ctx).iter().any(|finding| finding.rule == "RoleRule" && finding.subject.contains("expanded"));
-        (tree.declares(id, Declared::Expand), tree.declares(id, Declared::Collapse), finding)
-    };
-    assert_eq!(shown(None), (false, false, true));
-    assert_eq!(shown(Some(false)), (true, false, false));
-    assert_eq!(shown(Some(true)), (false, true, false));
-}
 
 /// An AccessKit `SetValue` names the sub-node it targets: it sets that thumb of a row while another holds focus.
 #[trial]

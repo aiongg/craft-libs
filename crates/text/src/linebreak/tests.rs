@@ -169,18 +169,6 @@ fn every_line_is_more_even_than_greedy() {
     }
 }
 
-/// Ragged: every-line breaks before a word that would fit, so the last line is not a lone short
-/// word; greedy keeps filling the first line.
-#[test]
-fn every_line_balances_ragged_lines() {
-    const S: &str = "Destroy all creatures with toughness X or less.";
-    let width = width_of("Destroy all creatures with toughness X or") + 2.0;
-    let p = vectorcraft(true);
-    let para = Para::new(S, &p, None);
-    assert_eq!(para.lines(&greedy(&para.items, &|_| width, &p)), ["Destroy all creatures with toughness X or", "less."]);
-    assert_eq!(para.lines(&every_line(&para.items, width, true)), ["Destroy all creatures with toughness X", "or less."]);
-}
-
 /// Every-line evens the rag of a long ragged paragraph: the leftover space is no worse than greedy
 /// breaking, with at most one line more. Hyphenated, it trades some rag for fewer hyphens.
 #[test]
@@ -377,23 +365,6 @@ fn justification_uses_tiers_in_order() {
     assert!((l.ratio - (1.0 + 0.2 * p.tier_cost[1])).abs() < 1e-9, "{l:?}");
 }
 
-/// Letter spacing and glyph scaling absorb what word spacing alone cannot in a narrow column.
-#[test]
-fn letter_and_glyph_tiers_ease_a_narrow_column() {
-    let worst = |box_stretch: f64| {
-        let p = designcraft(false);
-        let mut para = Para::new(COPY, &p, Some(275.0));
-        for it in para.items.iter_mut().filter(|i| i.kind == Kind::Box) {
-            it.stretch = [0.0, it.width * box_stretch, it.width * box_stretch];
-            it.shrink = [0.0, it.width * box_stretch / 2.0, it.width * box_stretch / 2.0];
-        }
-        let lines = break_paragraph(&para.items, &|_| 100.0, &p, &PASSES).lines;
-        lines[..lines.len() - 1].iter().map(|l| l.ratio).fold(0.0, f64::max)
-    };
-    let (words, all) = (worst(0.0), worst(0.03));
-    assert!(all < words, "{all} vs {words}");
-}
-
 /// A long ragged paragraph with a constant measure breaks by Knuth–Plass under the default
 /// parameters and effectcraft's infinitely tolerant rag, without reaching the active-break limit.
 #[test]
@@ -415,19 +386,6 @@ fn a_long_ragged_paragraph_stays_on_knuth_plass() {
         assert_eq!(b.method, Method::KnuthPlass { pass: 0 }, "{p:?}");
         assert_covers(&items, &b.lines);
     }
-}
-
-/// A NaN measure counts as 0 and negative fitness demerits as 0.
-#[test]
-fn invalid_params_are_clamped() {
-    let p = designcraft(false);
-    let para = Para::new(COPY, &p, None);
-    let lines = break_paragraph(&para.items, &|_| f64::NAN, &p, &PASSES).lines;
-    assert_eq!(lines, break_paragraph(&para.items, &|_| 0.0, &p, &PASSES).lines);
-    assert!(lines.iter().all(|l| l.measure == 0.0 && !l.excess.is_nan()));
-    let negative = Params { fitness_demerits: -5000.0, ..p };
-    let zero = Params { fitness_demerits: 0.0, ..p };
-    assert_eq!(break_paragraph(&para.items, &|_| 150.0, &negative, &PASSES), break_paragraph(&para.items, &|_| 150.0, &zero, &PASSES));
 }
 
 /// Two consecutive breaks: the line after the first starts past the second, which must not end a

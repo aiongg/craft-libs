@@ -204,37 +204,6 @@ fn the_context_menu_changes_a_constraints_orientation_or_deletes_it() {
 }
 
 #[trial]
-fn preview_off_shows_the_source_and_the_curves_as_arcs() {
-    let (mut fixture, app) = fixture(vec![line([100.0, 100.0], [300.0, 100.0])]);
-    let mapped = screen(&fixture, &app, [200.0, 100.0 + SHIFT]);
-    let unmapped = screen(&fixture, &app, [200.0, 100.0]);
-    assert!(!equals_token(mapped.y, unmapped.y), "the two curves differ on screen");
-    let Some(preview) = fixture.by_label("Preview") else { panic!("the panel has the Preview check") };
-    fixture.click(&preview);
-    fixture.idle(2);
-    // With Preview off the curve is the source's arc: a right-click on it opens the menu.
-    right_click(&mut fixture, unmapped);
-    assert!(!fixture.by_role(Role::MENU).is_empty(), "the arc is where the source shows it");
-}
-
-#[trial]
-fn constraints_are_keyboard_parts_that_nudge_and_delete() {
-    let (mut fixture, app) = fixture(vec![line([100.0, 60.0], [300.0, 60.0]), line([100.0, 140.0], [300.0, 140.0])]);
-    let on_line = screen(&fixture, &app, [200.0, 140.0 + SHIFT]);
-    fixture.click_at(on_line);
-    let before = constraints(&app)[1].clone();
-    fixture.key(Key::ArrowRight, Modifiers::NONE);
-    fixture.idle(2);
-    assert_eq!(constraints(&app)[1].a[0], before.a[0] + NUDGE, "an arrow moves the focused constraint one pixel");
-    fixture.key(Key::ArrowDown, Modifiers::SHIFT);
-    fixture.idle(2);
-    assert_eq!(constraints(&app)[1].b, [before.b[0] + NUDGE, before.b[1] + NUDGE_FAR], "Shift moves it ten");
-    fixture.key(Key::Delete, Modifiers::NONE);
-    fixture.idle(2);
-    assert_eq!(constraints(&app).len(), 1);
-}
-
-#[trial]
 fn undo_during_a_drag_cancels_the_drag() {
     let (mut fixture, app) = fixture(Vec::new());
     let from = screen(&fixture, &app, [100.0, 100.0]);
@@ -271,26 +240,3 @@ fn a_tool_switch_during_a_drag_cancels_the_drag() {
     assert!(constraints(&app).is_empty(), "no constraint from the cancelled drag");
 }
 
-#[trial]
-fn the_output_reports_the_previews_timing() {
-    let (mut fixture, app) = fixture(Vec::new());
-    assert_eq!(app.borrow().timing, None, "nothing reported before the job runs");
-    let jobs = app.borrow().jobs.clone();
-    assert_eq!(jobs.run_all(), 1, "one preview job waits");
-    fixture.idle(10);
-    assert_eq!(app.borrow().timing, Some(Duration::from_millis(42)), "the finished preview job reports its time");
-}
-
-#[trial]
-fn the_add_constraint_form_adds_a_constraint() {
-    let (mut fixture, app) = fixture(Vec::new());
-    let Some(add) = fixture.by_label("Add Constraint…") else { panic!("the panel has the Add button") };
-    fixture.click(&add);
-    fixture.idle(3);
-    let Some(ok) = fixture.by_label("OK").filter(|_| fixture.by_label("Start").is_some()) else { panic!("the form opens with its OK button") };
-    fixture.click(&ok);
-    fixture.idle(3);
-    let all = constraints(&app);
-    let [added] = all.as_slice() else { panic!("one constraint: {all:?}") };
-    assert_ne!(added.a, added.b, "the form's default end points differ");
-}

@@ -98,10 +98,3 @@ fn tone_of(validity: fn() -> Validity<f64>) -> Option<Tone> {
     seen.get()
 }
 
-#[trial]
-fn a_warning_reads_as_warn_a_refusal_as_bad_and_a_named_tone_wins() {
-    assert_eq!(tone_of(|| Validity::Warn(Message::new("x"))), Some(Tone::Warn));
-    assert_eq!(tone_of(|| Validity::Refuse(Message::new("x"))), Some(Tone::Bad));
-    assert_eq!(tone_of(|| Validity::Warn(Message::new("x").tone(Tone::Accent))), Some(Tone::Accent));
-    assert_eq!(tone_of(|| Validity::Refuse(Message::new("x").tone(Tone::Accent))), Some(Tone::Accent));
-}

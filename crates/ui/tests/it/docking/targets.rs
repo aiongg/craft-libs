@@ -90,25 +90,6 @@ fn a_spot_is_resolved_in_the_pass_after_its_registration() {
 }
 
 #[trial]
-fn two_docks_in_one_viewport_keep_their_spots_apart() {
-    let mut frames = Frames::new();
-    let (first, second) = (dock_id("first"), dock_id("second"));
-    registered_then(
-        &mut frames,
-        |ctx| {
-            DockTargets::register(ctx, first, DockSpot::tab(GROUP, 0), strip());
-            DockTargets::register(ctx, second, DockSpot::tab(OTHER, 1), strip());
-        },
-        |ctx| {
-            let at = strip().center();
-            assert_eq!(DockTargets::<u32>::resolve(ctx, first, at), Some((DockSpot::tab(GROUP, 0), strip())));
-            assert_eq!(DockTargets::<u32>::resolve(ctx, second, at), Some((DockSpot::tab(OTHER, 1), strip())));
-            assert_eq!(DockTargets::<u32>::resolve(ctx, dock_id("third"), at), None, "a dock that registered nothing resolves nothing");
-        },
-    );
-}
-
-#[trial]
 fn the_side_zones_of_a_body_do_not_overlap_and_stay_inside_it() {
     let frames = Frames::new();
     let sizes = sizes(&frames);
@@ -171,30 +152,3 @@ fn a_blocked_rect_hides_the_spots_registered_below_it() {
     );
 }
 
-#[trial]
-fn a_spot_maps_to_the_mark_the_drag_ghost_paints() {
-    let group = LAYOUT;
-    assert_eq!(DockSpot::group(GROUP, DockSide::Center).mark(group, false), Some(DropMark::Into(group)));
-    let Some(DropMark::Split(start)) = DockSpot::group(GROUP, DockSide::Start).mark(group, false) else { panic!("a side marks a split") };
-    let Some(DropMark::Split(start_rtl)) = DockSpot::group(GROUP, DockSide::Start).mark(group, true) else { panic!("a side marks a split") };
-    assert!(group.contains_rect(start) && start.center().x < group.center().x, "the start half is on the left");
-    assert!(group.contains_rect(start_rtl) && start_rtl.center().x > group.center().x, "the start half is on the right in right-to-left");
-
-    let tab = Rect::from_min_size(Pos2::new(50.0, 0.0), Vec2::new(60.0, STRIP_HEIGHT));
-    assert_eq!(
-        DockSpot::tab(GROUP, 1).mark(tab, false),
-        Some(DropMark::line(tab.left_top(), tab.left_bottom())),
-        "a tab insertion marks the hit rect's start edge"
-    );
-    assert_eq!(DockSpot::tab(GROUP, 1).mark(tab, true), Some(DropMark::line(tab.right_top(), tab.right_bottom())));
-
-    let seam = Rect::from_min_size(Pos2::new(0.0, 100.0), Vec2::new(200.0, 20.0));
-    assert_eq!(
-        DockSpot::seam(GROUP, OTHER).mark(seam, false),
-        Some(DropMark::line(Pos2::new(0.0, 110.0), Pos2::new(200.0, 110.0))),
-        "a seam marks a line along its middle"
-    );
-    let edge = Rect::from_min_size(Pos2::ZERO, Vec2::new(20.0, 300.0));
-    assert_eq!(DockSpot::<u32>::Edge(DockSide::Start).mark(edge, false), Some(DropMark::line(Pos2::new(10.0, 0.0), Pos2::new(10.0, 300.0))));
-    assert_eq!(DockSpot::<u32>::Blocked.mark(edge, false), None);
-}

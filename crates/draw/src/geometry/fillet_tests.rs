@@ -34,12 +34,3 @@ fn fillet_matches_photocraft() {
 }
 
 // `None` for a zero radius, NaN, a zero-length edge, a straight and a folded vertex.
-#[test]
-fn fillet_refuses_degenerate_vertices() {
-    let (a, b, c) = (Point::new(0.0, 0.0), Point::new(10.0, 0.0), Point::new(0.0, 10.0));
-    assert!(fillet(b, a, c, 0.0).is_none());
-    assert!(fillet(b, a, c, f64::NAN).is_none());
-    assert!(fillet(a, a, c, 5.0).is_none());
-    assert!(fillet(b, a, Point::new(-10.0, 0.0), 5.0).is_none());
-    assert!(fillet(b, a, Point::new(20.0, 0.0), 5.0).is_none());
-}

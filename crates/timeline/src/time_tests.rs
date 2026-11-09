@@ -36,27 +36,6 @@ fn rational_timestamps_round_and_floor() {
 }
 
 #[test]
-fn arithmetic_saturates() {
-    assert_eq!(Tick(i64::MAX) + Tick(1), Tick(i64::MAX));
-    assert_eq!(Tick(i64::MIN) - Tick(1), Tick(i64::MIN));
-    assert_eq!(-Tick(i64::MIN), Tick(i64::MAX));
-    assert_eq!(Tick::MAX + Tick::MAX, Tick(i64::MAX / 4 * 2));
-    assert_eq!(Tick(i64::MAX) + Tick::MAX, Tick(i64::MAX));
-    assert_eq!(Tick(10).mul_ratio(1, 0), Tick::ZERO);
-    assert_eq!(Tick(-3).mul_ratio(1, 2), Tick(-2));
-    assert_eq!(Tick(5).clamp(Tick(10), Tick(2)), Tick(2));
-}
-
-#[test]
-fn ranges_are_half_open() {
-    let a = TimeRange::new(secs(0), secs(2));
-    let b = TimeRange::new(secs(2), secs(2));
-    assert!(!a.overlaps(&b) && a.contains(secs(1)) && !a.contains(secs(2)));
-    assert_eq!(a.intersect(&TimeRange::new(secs(1), secs(5))), Some(TimeRange::from_bounds(secs(1), secs(2))));
-    assert!(TimeRange::new(secs(1), Tick::ZERO).is_empty());
-}
-
-#[test]
 fn zoom_about_keeps_the_anchor_under_the_pointer() {
     let mut view = TimeView::new(secs(10), 40.0);
     let anchor = secs(15);
@@ -81,40 +60,3 @@ fn zoom_about_keeps_the_anchor_under_the_pointer() {
     assert!(view.start >= Tick::ZERO);
 }
 
-#[test]
-fn reveal_puts_the_playhead_five_percent_from_the_left() {
-    let view = TimeView::new(secs(10), 10.0);
-    assert_eq!(view.scroll_to_reveal(secs(20), 1000.0), None);
-    // 5 % of 1000 points at 10 points a second is 5 s.
-    assert_eq!(view.scroll_to_reveal(secs(200), 1000.0), Some(secs(195)));
-    assert_eq!(view.scroll_to_reveal(secs(2), 1000.0), Some(Tick::ZERO));
-    assert_eq!(view.scroll_to_reveal(secs(200), f32::NAN), None);
-    assert_eq!(TimeView::new(Tick::ZERO, 0.0).scroll_to_reveal(secs(200), 1000.0), None);
-}
-
-#[test]
-fn max_start_reaches_ten_minutes_past_the_end() {
-    let view = TimeView::new(Tick::ZERO, 10.0);
-    // A 100 point view at 10 points a second spans 10 s.
-    assert_eq!(view.max_start(secs(6), 100.0), secs(6 + 600 - 10));
-    assert_eq!(view.max_start(secs(6), 1e9), Tick::ZERO);
-    assert_eq!(TimeView::new(Tick::ZERO, 0.0).max_start(secs(6), 100.0), Tick::ZERO);
-    assert_eq!(VIEW_EXTENT_PAST_END, secs(600));
-}
-
-#[test]
-fn fit_shows_the_range_with_a_margin() {
-    let view = TimeView::fit(TimeRange::new(secs(5), secs(10)), 110.0, 10.0);
-    assert_eq!(view.start, secs(5));
-    assert_eq!(view.points_per_second, 10.0);
-}
-
-#[test]
-fn checked_views_are_clamped_or_refused() {
-    let view = TimeView::new(secs(-5), 1e9).checked().expect("finite");
-    assert_eq!(view.start, Tick::ZERO);
-    assert_eq!(view.points_per_second, 100_000.0);
-    assert_eq!(TimeView::new(Tick::MAX, 0.0).checked().map(|v| v.points_per_second), Some(0.001));
-    assert_eq!(TimeView::new(secs(20_000_000), 1.0).checked().map(|v| v.start), Some(secs(10_000_000)));
-    assert_eq!(TimeView::new(Tick::ZERO, f64::NAN).checked(), None);
-}

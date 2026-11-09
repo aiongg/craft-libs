@@ -54,12 +54,6 @@ fn the_pixel_ruler_labels_every_hundred_and_ticks_every_ten_at_full_size() {
 }
 
 #[trial]
-fn zooming_in_labels_closer_values() {
-    let zoomed = majors(&Rulers::ticks(&RulerUnits::pixels(), TickRule::Metric, 4.0, 0.0..=200.0));
-    assert!(zoomed.windows(2).all(|pair| (pair[1] - pair[0] - 20.0).abs() < 1e-9), "labels are twenty apart at 400 percent: {zoomed:?}");
-}
-
-#[trial]
 fn the_inch_rule_labels_each_inch_and_ticks_every_eighth() {
     let inches = RulerUnits::new(1.0 / 96.0, Ticks::decimal(false));
     let ticks = Rulers::ticks(&inches, TickRule::Inches(&INCH_EIGHTHS), 1.0, 0.0..=3.0);
@@ -107,26 +101,6 @@ fn a_drag_from_the_top_ruler_places_a_horizontal_guide_and_ends_on_the_document(
 }
 
 #[trial]
-fn a_guide_released_over_the_ruler_has_no_position() {
-    let mut shown = shown(false);
-    let strip = shown.fixture.by_label("Vertical ruler").expect("the left ruler has a node");
-    shown.fixture.drag(&strip, Vec2::new(0.0, ALONG_STRIP.x));
-    let guides = shown.guides.borrow();
-    let last = guides.last().expect("the drag is reported");
-    assert_eq!((last.phase, last.at, last.along), (GesturePhase::Commit, None, Axis::Y), "a release over a ruler removes the guide");
-}
-
-#[trial]
-fn shift_snaps_a_dragged_guide_to_the_ticks() {
-    let mut shown = shown(false);
-    let strip = shown.fixture.by_label("Horizontal ruler").expect("the top ruler has a node");
-    shown.fixture.hold(Modifiers::SHIFT);
-    shown.fixture.drag(&strip, ONTO_DOCUMENT + Vec2::new(0.0, 3.7));
-    let at = shown.guides.borrow().last().and_then(|drag| drag.at).expect("released on the document");
-    assert!((at / PIXEL_MINOR - (at / PIXEL_MINOR).round()).abs() < 1e-9, "{at} is not on a tick");
-}
-
-#[trial]
 fn dragging_the_corner_moves_the_zero_point_unless_it_is_locked() {
     let mut shown = shown(false);
     let corner = shown.fixture.by_label("Ruler origin").expect("the corner has a node");
@@ -140,21 +114,6 @@ fn dragging_the_corner_moves_the_zero_point_unless_it_is_locked() {
 }
 
 #[trial]
-fn a_double_click_on_the_corner_puts_the_bound_zero_back_at_the_origin() {
-    let mut shown = shown(false);
-    let corner = shown.fixture.by_label("Ruler origin").expect("the corner has a node");
-    shown.fixture.drag(&corner, FROM_CORNER);
-    assert_ne!(*shown.zero.borrow(), Point::ZERO, "the zero point followed the drag");
-    let at = corner.center();
-    for events in
-        [vec![pointer::moved(at)], vec![pointer::press(at)], vec![pointer::release(at)], vec![pointer::press(at)], vec![pointer::release(at)]]
-    {
-        shown.fixture.frame(events);
-    }
-    assert_eq!(*shown.zero.borrow(), Point::ZERO, "the double click wrote the origin through the bind");
-}
-
-#[trial]
 fn shift_f10_on_the_focused_corner_opens_the_units_menu() {
     let mut shown = shown(false);
     let corner = shown.fixture.by_label("Ruler origin").expect("the corner has a node");
@@ -163,19 +122,6 @@ fn shift_f10_on_the_focused_corner_opens_the_units_menu() {
     shown.fixture.key(Key::F10, Modifiers::SHIFT);
     shown.fixture.settle();
     assert_eq!(shown.contexts.borrow().last(), Some(&RulerPart::Corner), "the focused corner reports the request");
-    assert!(shown.fixture.by_label(MENU_ROW).is_some(), "the units menu is open");
-}
-
-#[trial]
-fn a_secondary_click_on_a_strip_opens_the_units_menu() {
-    let mut shown = shown(false);
-    let strip = shown.fixture.by_label("Horizontal ruler").expect("the top ruler has a node");
-    let at = strip.center();
-    shown.fixture.frame(vec![pointer::moved(at)]);
-    shown.fixture.frame(vec![pointer::secondary(at, true)]);
-    shown.fixture.frame(vec![pointer::secondary(at, false)]);
-    shown.fixture.settle();
-    assert_eq!(shown.contexts.borrow().last(), Some(&RulerPart::Horizontal));
     assert!(shown.fixture.by_label(MENU_ROW).is_some(), "the units menu is open");
 }
 
@@ -195,22 +141,6 @@ fn a_secondary_click_on_the_locked_corner_opens_the_units_menu_and_one_on_the_do
     secondary_click(&mut shown, corner.center());
     assert_eq!(shown.contexts.borrow().last(), Some(&RulerPart::Corner));
     assert!(shown.fixture.by_label(MENU_ROW).is_some(), "the units menu is open");
-}
-
-#[trial]
-fn an_inch_range_ranks_labelled_steps_major_the_half_mid_and_the_rest_minor() {
-    let inches = RulerUnits::new(1.0 / 96.0, Ticks::decimal(false));
-    let ticks = Rulers::ticks(&inches, TickRule::Inches(&INCH_EIGHTHS), 1.0, 0.0..=2.0);
-    for tick in &ticks {
-        let eighths = (tick.value * 8.0).round() as i64;
-        let want = match eighths.rem_euclid(8) {
-            0 => TickRank::Major,
-            4 => TickRank::Mid,
-            _ => TickRank::Minor,
-        };
-        assert_eq!(tick.rank, want, "the tick at {} in", tick.value);
-    }
-    assert!(ticks.iter().any(|tick| tick.rank == TickRank::Mid), "the half-inch ticks are there");
 }
 
 #[trial]

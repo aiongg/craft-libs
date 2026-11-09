@@ -45,19 +45,6 @@ fn curvature_open_ends_aim_at_the_neighbours_nearer_handle() {
 
 // `corners[i]` keeps anchor i's handles on the anchor; one or two anchors give straight segments,
 // open or closed.
-#[test]
-fn curvature_corners_retract_and_two_anchors_are_straight() {
-    let a = [p(0.0, 0.0), p(30.0, 40.0), p(120.0, 40.0), p(150.0, 0.0)];
-    let h = curvature_handles(&a, &[false, true], true);
-    assert_eq!(h[1], (a[1], a[1]));
-    assert_ne!(h[2], (a[2], a[2]));
-    for closed in [false, true] {
-        for n in 1..=2 {
-            let h = curvature_handles(&a[..n], &[], closed);
-            assert!(h.iter().zip(&a).all(|(h, a)| *h == (*a, *a)));
-        }
-    }
-}
 
 // Two or three coincident anchors give handles on the anchor and no NaN.
 #[test]

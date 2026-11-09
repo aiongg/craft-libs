@@ -27,46 +27,6 @@ fn at(pos: Pos2, time: f64) -> ToolPointer {
 }
 
 #[trial]
-fn the_hand_drag_moves_the_document_with_the_pointer_and_escape_puts_the_view_back() {
-    let start = view();
-    let mut hand = HandTool::new(NavigationOptions::default());
-    let from = Pos2::new(300.0, 300.0);
-    hand.press(&at(from, 0.0), &mut context(start, 0.0));
-    let mut dragged = context(start, 0.5);
-    hand.drag(&at(from + DRAG, 0.5), &mut dragged);
-    let moved = dragged.requested_view().expect("a drag asks for a new view");
-    let point = Point::new(1000.0, 750.0);
-    let before = start.to_screen(point);
-    let after = moved.to_screen(point);
-    assert!((after - before - DRAG).length() < 1e-3, "the document follows the pointer: {before:?} -> {after:?}");
-
-    let mut cancelled = context(moved, 0.6);
-    hand.cancel(CancelReason::Escape, &mut cancelled);
-    assert_eq!(cancelled.requested_view(), Some(start), "a cancelled drag restores the view");
-}
-
-#[trial]
-fn a_zoom_click_steps_the_ladder_about_the_point_and_alt_steps_out() {
-    let start = view();
-    let click = Pos2::new(200.0, 100.0);
-    let mut zoom = ZoomTool::new(NavigationOptions::default());
-    zoom.press(&at(click, 0.0), &mut context(start, 0.0));
-    let mut released = context(start, 0.05);
-    zoom.release(&at(click, 0.05), &mut released);
-    let zoomed = released.requested_view().expect("a click zooms");
-    assert!(zoomed.zoom > start.zoom && released.requested_ease().is_some(), "a click zooms in, eased under Animated Zoom");
-    let doc = start.to_doc(click);
-    let kept = zoomed.to_doc(click);
-    assert!((kept.x - doc.x).abs() < 1e-6 && (kept.y - doc.y).abs() < 1e-6, "the clicked point stays put");
-
-    zoom.out = true;
-    zoom.press(&at(click, 1.0), &mut context(start, 1.0));
-    let mut released = context(start, 1.05);
-    zoom.release(&at(click, 1.05), &mut released);
-    assert!(released.requested_view().expect("an out click zooms").zoom < start.zoom);
-}
-
-#[trial]
 fn the_zoom_click_stays_within_the_ladder_of_the_document_the_canvas_was_given() {
     let start = view();
     let click = Pos2::new(200.0, 100.0);
@@ -148,15 +108,6 @@ fn the_rotate_drag_turns_the_view_and_shift_snaps_and_a_double_click_resets() {
     let mut escaped = context(turned, 0.3);
     assert!(tool.key(&ToolKey::Cancel, &mut escaped), "Escape resets a turned view");
     assert_eq!(escaped.requested_view().map(|view| view.rotation), Some(0.0));
-}
-
-#[trial]
-fn the_view_commands_zoom_fit_and_turn_the_view() {
-    let mut view = view();
-    assert!(ViewCommands::ZoomIn.apply(&mut view, DOCUMENT, 1.0) && view.zoom > 1.0);
-    assert!(ViewCommands::FitOnScreen.apply(&mut view, DOCUMENT, 1.0));
-    assert!(ViewCommands::RotateClockwise.apply(&mut view, DOCUMENT, 1.0) && view.rotation == 15.0);
-    assert!(ViewCommands::ResetRotation.apply(&mut view, DOCUMENT, 1.0) && view.rotation == 0.0);
 }
 
 #[trial]

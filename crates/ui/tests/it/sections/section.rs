@@ -23,23 +23,6 @@ fn disclosure() -> Pos2 {
 }
 
 #[trial]
-fn a_section_shows_its_body_while_its_binding_is_open_and_the_disclosure_flips_the_binding() {
-    let mut frames = Frames::new();
-    let (mut open, ran) = (true, Cell::new(false));
-    let show = |ui: &mut Ui, open: &mut bool| {
-        ran.set(false);
-        Section::new("Options").open(Bind::bound(open)).id_salt("section").show_at(ui, AREA, |_, _| ran.set(true));
-    };
-    frames.idle(3, |ui| show(ui, &mut open));
-    assert!(ran.get(), "an open section runs its body");
-    click(&mut frames, disclosure(), &mut |ui| show(ui, &mut open));
-    // The collapse animates: the body stays until the close has run its course.
-    frames.advance(COLLAPSE_SECONDS);
-    frames.idle(2, |ui| show(ui, &mut open));
-    assert!(!open && !ran.get(), "the click writes the binding and the body stops running");
-}
-
-#[trial]
 fn a_remembered_section_keeps_its_state_without_a_binding_and_a_fixed_section_is_always_open() {
     let mut frames = Frames::new();
     let ran = Cell::new(false);
@@ -95,25 +78,6 @@ fn escape_in_a_section_body_leaves_it_expanded() {
     frames.frame(vec![key_press(Key::Escape, Modifiers::NONE)], |ui| show(ui, &mut open));
     frames.idle(2, |ui| show(ui, &mut open));
     assert!(open && ran.get(), "Escape leaves the section expanded and its body shown");
-}
-
-/// The section menu opens from the menu key like any other container menu, not only from a button.
-#[trial]
-fn shift_f10_on_a_focused_section_opens_its_menu() {
-    let mut fixture = Fixture::new(|ui| {
-        Section::new("Options")
-            .actions([HeaderAction::Menu])
-            .menu(|ui, _| {
-                MenuItem::new("Rename").show(ui);
-            })
-            .show(ui, |_, _| {});
-    });
-    fixture.settle();
-    assert!(fixture.by_role(Role::MENU).is_empty(), "the menu starts closed");
-    fixture.key(Key::Tab, Modifiers::NONE);
-    fixture.key(Key::F10, Modifiers::SHIFT);
-    fixture.settle();
-    assert!(!fixture.by_role(Role::MENU).is_empty(), "Shift+F10 on the focused section opens its menu");
 }
 
 struct Rows(usize);

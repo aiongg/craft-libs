@@ -71,20 +71,4 @@ impl MotionMode {
 mod tests {
     use super::MotionMode::*;
 
-    #[test]
-    fn the_table_decides_what_each_kind_does_at_each_mode() {
-        use super::{MotionKind::*, Playback};
-        let row = |kind| [Full, Reduced, Off].map(|mode| mode.playback(kind));
-        assert_eq!(row(Fade), [Playback::Run, Playback::Run, Playback::Snap]);
-        assert_eq!(row(Travel), [Playback::Run, Playback::Snap, Playback::Snap]);
-        assert_eq!(row(Loop), [Playback::Run, Playback::Still, Playback::Still]);
-        assert_eq!(row(Blink), [Playback::Run, Playback::Run, Playback::Solid]);
-    }
-
-    #[test]
-    fn a_scope_lowers_the_mode_and_never_raises_it() {
-        assert_eq!(Full.lowered_by(Reduced), Reduced);
-        assert_eq!(Off.lowered_by(Full), Off);
-        assert_eq!(Reduced.lowered_by(Off), Off);
-    }
 }

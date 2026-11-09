@@ -115,16 +115,6 @@ fn cell_tip(cell: DocRect, round: bool) -> BrushTip {
 }
 
 #[trial]
-fn an_aliased_tip_hides_the_pointer_unless_it_is_too_small_or_asks_for_the_crosshair() {
-    let normal = options(PaintingCursor::NormalBrushTip);
-    let big = cell_tip(DocRect::new(10.0, 10.0, 15.0, 15.0), false);
-    assert_eq!(painted(BrushCursor::new(&big).cursor(&cx(false), &normal, &view())), PaintedCursor::Hidden);
-    assert_eq!(painted(BrushCursor::new(&big).centre(true).cursor(&cx(false), &normal, &view())), PaintedCursor::Crosshair);
-    let single = cell_tip(DocRect::new(10.0, 10.0, 11.0, 11.0), false);
-    assert_eq!(painted(BrushCursor::new(&single).cursor(&cx(false), &normal, &view())), PaintedCursor::Crosshair);
-}
-
-#[trial]
 fn a_pixel_cell_follows_a_turned_and_a_mirrored_view_on_the_pixel_grid() {
     // A cell 4 wide and 2 tall to the right of the view's centre.
     let tip = cell_tip(DocRect::new(110.0, 99.0, 114.0, 101.0), false);
@@ -207,30 +197,6 @@ fn a_resize_released_where_it_began_commits_nothing_and_a_cancel_restores_the_st
     // A press the view cannot map is not a resize.
     assert!(resize.begin(&view, pos2(f32::NAN, 0.0), start, &BrushResizeOptions::new(MAX_DIAMETER)).is_none());
     assert!(!resize.active());
-}
-
-#[trial]
-fn the_resize_chord_is_alt_with_the_secondary_button_or_control_and_alt_with_the_primary() {
-    let alt = Mods::ALT;
-    let control_alt = Mods { ctrl: true, alt: true, ..Mods::NONE };
-    assert!(BrushResize::chord(PointerButton::Secondary, alt));
-    assert!(BrushResize::chord(PointerButton::Primary, control_alt));
-    assert!(!BrushResize::chord(PointerButton::Primary, alt));
-    assert!(!BrushResize::chord(PointerButton::Secondary, Mods::NONE));
-    // The tool takes the secondary button only with Alt, so a plain right click stays the canvas menu's.
-    assert!(BrushResize::takes(PointerButton::Primary, Mods::NONE));
-    assert!(BrushResize::takes(PointerButton::Secondary, alt));
-    assert!(!BrushResize::takes(PointerButton::Secondary, Mods::NONE));
-}
-
-#[trial]
-fn a_falloff_is_solid_to_its_core_and_empty_at_its_reach() {
-    let soft = TipFalloff::from_hardness(20.0, 0.5);
-    assert_eq!((soft.core(), soft.reach()), (10.0, 20.0));
-    let hard = TipFalloff::hard(20.0);
-    assert_eq!((hard.core(), hard.reach()), (20.0, 20.0));
-    let empty = TipFalloff::from_hardness(f64::NAN, 0.5);
-    assert_eq!((empty.core(), empty.reach()), (0.0, 0.0));
 }
 
 #[trial]

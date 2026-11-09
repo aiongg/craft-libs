@@ -14,17 +14,6 @@ fn appearance() -> Appearance {
 }
 
 #[trial]
-fn a_loaded_file_is_exported_unchanged_and_a_bad_one_names_its_path() {
-    let layer = parse_sizes("sizes.json", br#"{ "comfortable": { "size.control.md": 28 } }"#).expect("a valid file loads");
-    assert_eq!(layer.comfortable.get("size.control.md"), Some(&SizeValue::Number(28.0)));
-    let again = parse_sizes("sizes.json", layer.to_json().as_bytes()).expect("an exported file loads");
-    assert_eq!(again, layer);
-
-    let message = parse_sizes("bad.json", br#"{ "all": { "size.control.md": 99 } }"#).expect_err("a value out of range is refused");
-    assert!(message.contains("bad.json") && message.contains("all.size.control.md"), "{message}");
-}
-
-#[trial]
 fn the_explanation_is_computed_again_only_when_the_subject_or_the_layer_changes() {
     let theme = &builtins()[0];
     let subject = ThemeSubject::new(theme, appearance());

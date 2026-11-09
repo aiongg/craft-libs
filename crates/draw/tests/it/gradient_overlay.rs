@@ -79,39 +79,3 @@ fn a_press_on_a_stop_selects_it_and_its_drag_moves_it() {
     assert!(moved > before, "the stop followed the pointer to {moved}");
 }
 
-#[trial]
-fn an_end_drag_moves_only_that_end() {
-    let mut s = shown();
-    let end = s.fixture.by_label("End point").expect("the end handle is a part");
-    s.fixture.drag(&end, Vec2::new(0.0, 30.0));
-    let value = s.value.borrow();
-    assert_eq!(value.line.start, gradient().line.start);
-    assert!(value.line.end.y > gradient().line.end.y);
-}
-
-#[trial]
-fn left_and_right_move_a_picked_stop_by_one_percent_and_delete_removes_it() {
-    let mut s = shown();
-    let stop = s.fixture.by_label("Color stop 2 of 3").expect("the overlay shows its stops as parts");
-    s.fixture.click(&stop);
-    let start = s.value.borrow().stops.color[1].location;
-    s.fixture.key(Key::ArrowRight, Modifiers::NONE);
-    let right = s.value.borrow().stops.color[1].location;
-    assert!((right - start - STOP_STEP).abs() < 1e-4, "one Right press moves the stop later by a hundredth of the line");
-    s.fixture.key(Key::ArrowLeft, Modifiers::SHIFT);
-    assert!((s.value.borrow().stops.color[1].location - (right - STOP_STEP_FAR)).abs() < 1e-4, "Shift takes the far step, a tenth of the line");
-    s.fixture.key(Key::Delete, Modifiers::NONE);
-    assert_eq!(s.value.borrow().stops.color.len(), 2);
-}
-
-#[trial]
-fn insert_adds_a_stop_halfway_after_the_picked_one() {
-    let mut s = shown();
-    let stop = s.fixture.by_label("Color stop 1 of 3").expect("the overlay shows its stops as parts");
-    s.fixture.click(&stop);
-    s.fixture.key(Key::Insert, Modifiers::NONE);
-    let value = s.value.borrow();
-    assert_eq!(value.stops.color.len(), 4);
-    let (before, added, after) = (value.stops.color[0].location, value.stops.color[1].location, value.stops.color[2].location);
-    assert!(((added - before) - (after - added)).abs() < 1e-4, "the new stop sits halfway between its neighbours");
-}

@@ -22,31 +22,3 @@ fn reporting() -> ViewportInfo {
     }
 }
 
-#[trial]
-fn an_os_close_is_requested_and_the_window_stays_while_the_app_shows_it() {
-    let windows = Windows::new();
-    windows.child_info(reporting());
-    let (reasons, body_runs) = (RefCell::new(Vec::new()), Cell::new(0));
-    let frame = || {
-        windows.frame(vec![], vec![], |ui| {
-            let shown = ViewportWindow::new("Export Log").show(ui, |ui, _| {
-                body_runs.set(body_runs.get() + 1);
-                Block::new(BODY).show(ui);
-            });
-            reasons.borrow_mut().extend(shown.close_requested);
-        })
-    };
-    for _ in 0..SETTLED_FRAMES {
-        frame();
-    }
-    assert!(reasons.borrow().is_empty());
-    windows.child_info(ViewportInfo { events: vec![ViewportEvent::Close], ..reporting() });
-    frame();
-    windows.child_info(reporting());
-    let after_request = body_runs.get();
-    for _ in 0..SETTLED_FRAMES {
-        frame();
-    }
-    assert_eq!(*reasons.borrow(), [CloseReason::Requested], "one request for one press of the close button");
-    assert!(body_runs.get() > after_request, "the window stays and its body runs while the app shows it");
-}

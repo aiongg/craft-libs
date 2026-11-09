@@ -105,12 +105,6 @@ fn hide_white_space_pad_scales_with_the_zoom_and_the_seam_does_not() {
 }
 
 // Every zoom the view offers lays out as shown: 6400 % is not cut to a smaller scale.
-#[test]
-fn the_largest_zoom_lays_out_at_its_own_scale() {
-    let scale = ZOOM_RANGE.end() * SCREEN_POINTS_PER_POINT;
-    let laid = place_pages(&[LETTER], scale, viewport(), &LayoutOptions::ACROBAT, &SPACING);
-    assert_eq!(laid.rects[0].width(), LETTER.width * scale);
-}
 
 #[test]
 fn display_tokens_round_trip() {

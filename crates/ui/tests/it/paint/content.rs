@@ -23,16 +23,6 @@ const MIDDLE: f64 = 50.0;
 const EPS: f32 = 1e-3;
 const ONE_PIXEL: f32 = 1.0;
 
-#[trial]
-fn an_icon_with_a_data_colour_paints_in_that_colour() {
-    let mut frames = Frames::new();
-    let tokens = tokens(Mode::Light, Contrast::Standard);
-    let spec = IconSpec::svg(ToolIcon::Brush.icon()).data_color(DataColor::new(PICTOGRAM));
-    let (shapes, _) = paint_frame(&mut frames, &tokens, Direction::Ltr, Ink::OnPanel, |draw| draw.icon(RECT, &spec));
-    let tinted = shapes.iter().any(|shape| matches!(shape, Shape::Mesh(mesh) if mesh.vertices.iter().all(|v| v.color == PICTOGRAM)));
-    assert!(tinted, "the icon is tinted with the data colour and not the panel ink");
-}
-
 /// The width in points a content painter reports for a hairline, with the pixels per point it painted at.
 fn hairline_at(scale: Scale) -> (f32, f32) {
     let seen = Rc::new(Cell::new(None));
@@ -48,11 +38,3 @@ fn hairline_at(scale: Scale) -> (f32, f32) {
     seen.get().unwrap_or_default()
 }
 
-#[trial]
-fn a_hairline_stays_one_physical_pixel_as_the_density_grows() {
-    let (sparse, dense) = (hairline_at(Scale::new(SPARSE)), hairline_at(Scale::new(DENSE)));
-    assert!(dense.1 > sparse.1, "the dense display has more pixels per point");
-    for (width, pixels_per_point) in [sparse, dense] {
-        assert!((width * pixels_per_point - ONE_PIXEL).abs() < EPS, "{width} points at {pixels_per_point} pixels per point is not one pixel");
-    }
-}

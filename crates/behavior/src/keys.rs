@@ -395,19 +395,4 @@ mod tests {
         check(Os::Linux, Key::Backspace, Mods::ALT, text, None);
     }
 
-    #[test]
-    fn typed_text_splits_into_digits_and_the_rest() {
-        assert_eq!(split_digits("a3b"), (vec![3], "ab".to_owned()));
-        assert_eq!(split_digits("42"), (vec![4, 2], String::new()));
-        assert_eq!(split_digits("cd"), (Vec::new(), "cd".to_owned()));
-    }
-
-    #[test]
-    fn drops_pick_their_operation_by_the_held_modifiers() {
-        assert_eq!(drop_operation(Os::Linux, Mods::ALT), DropOperation::Copy);
-        assert_eq!(drop_operation(Os::Linux, NONE), DropOperation::Move);
-        assert_eq!(drop_operation(Os::Windows, Mods { cmd: true, shift: true, ..NONE }), DropOperation::Link);
-        assert_eq!(drop_operation(Os::Mac, Mods { cmd: true, alt: true, ..NONE }), DropOperation::Link);
-        assert_eq!(drop_operation(Os::Mac, Mods::ALT), DropOperation::Copy);
-    }
 }

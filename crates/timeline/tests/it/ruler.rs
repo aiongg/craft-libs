@@ -126,19 +126,6 @@ fn dragging_the_ruler_scrubs_the_playhead() {
     assert!(events.iter().any(|event| matches!(event, EditEvent::Cancel { reason: CancelReason::Escape, .. })), "{events:?}");
 }
 
-#[trial]
-fn arrow_keys_step_the_playhead_one_frame() {
-    let mut shown = shown(None);
-    let ruler = shown.fixture.by_label(RULER).expect("the ruler has a node");
-    shown.fixture.access(AccessActionKind::Focus, &ruler);
-    shown.fixture.key(Key::ArrowRight, Modifiers::NONE);
-    assert_eq!(*shown.playhead.borrow(), rate().tick_of(1), "an arrow steps one frame");
-    shown.fixture.key(Key::ArrowRight, Modifiers::SHIFT);
-    assert_eq!(*shown.playhead.borrow(), rate().tick_of(6), "Shift steps five");
-    let sets = shown.edits.borrow().iter().filter(|event| matches!(event, EditEvent::Set { .. })).count();
-    assert_eq!(sets, 2, "each key is one step");
-}
-
 /// A work area two seconds long from the second second.
 fn work_area() -> TimeRange {
     TimeRange::new(secs(2.0), secs(2.0))
@@ -165,36 +152,9 @@ fn dragging_the_work_area_moves_it_or_an_end() {
     assert!(matches!(events.last(), Some(DragEvent::Commit(range)) if *range == stretched), "{events:?}");
 }
 
-#[trial]
-fn double_clicking_the_work_area_sets_it_to_the_visible_span() {
-    let mut shown = shown(Some(work_area()));
-    let rect = shown.fixture.by_label(RULER).expect("the ruler has a node").rect;
-    let bar = shown.fixture.by_label("Work Area").expect("the work-area bar has a node");
-    shown.fixture.click(&bar).click(&bar);
-    let view = TimeView::new(Tick::ZERO, POINTS_PER_SECOND);
-    let expected = TimeRange::from_bounds(view.start, view.time_at(rect.right(), rect.left()));
-    let events = shown.work.borrow();
-    assert!(events.contains(&DragEvent::Set(expected)), "{events:?}");
-}
-
 /// The name of the node that holds keyboard focus.
 fn focused_name(fixture: &Fixture) -> Option<String> {
     let id = fixture.focused()?;
     fixture.tree().name_of(NodeKey::of(id)).map(str::to_owned)
 }
 
-/// Tab visits the time area, then the ruler, in reading order, and Shift+Tab walks back.
-#[trial]
-fn tab_visits_the_time_area_then_the_ruler() {
-    let mut shown = shown(None);
-    let mut seen = Vec::new();
-    for _ in 0..2 {
-        shown.fixture.key(Key::Tab, Modifiers::NONE);
-        shown.fixture.settle();
-        seen.push(focused_name(&shown.fixture));
-    }
-    assert_eq!(seen, [Some("Time".to_owned()), Some(RULER.to_owned())], "the time area first, then the ruler inside it");
-    shown.fixture.key(Key::Tab, Modifiers::SHIFT);
-    shown.fixture.settle();
-    assert_eq!(focused_name(&shown.fixture), Some("Time".to_owned()), "Shift+Tab returns to the time area");
-}

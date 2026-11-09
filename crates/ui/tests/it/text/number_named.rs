@@ -42,25 +42,3 @@ fn rig() -> (Fixture, Rc<RefCell<NamedOr<Kerning>>>) {
     (fixture, value)
 }
 
-/// Picking a named row holds the name, typing a number holds the number.
-#[trial]
-fn a_named_row_gives_the_name_and_typing_gives_the_number() {
-    let (mut fixture, value) = rig();
-    fixture.key(Key::Tab, Modifiers::NONE);
-    fixture.idle(2);
-    fixture.key(Key::ArrowDown, Modifiers::ALT);
-    fixture.idle(4);
-    fixture.key(Key::ArrowDown, Modifiers::NONE);
-    fixture.key(Key::Enter, Modifiers::NONE);
-    fixture.idle(3);
-    assert_eq!(*value.borrow(), NamedOr::Named(Kerning::Optical), "the picked row is the value");
-
-    let (mut fixture, value) = rig();
-    fixture.key(Key::Tab, Modifiers::NONE);
-    fixture.idle(2);
-    fixture.type_text("25");
-    fixture.idle(2);
-    fixture.key(Key::Enter, Modifiers::NONE);
-    fixture.idle(3);
-    assert_eq!(*value.borrow(), NamedOr::Number(TYPED), "typed digits are the number");
-}

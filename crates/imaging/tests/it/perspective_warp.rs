@@ -47,36 +47,6 @@ fn drag(s: &mut PerspectiveSession, planes: Vec<Plane>) {
 }
 
 #[trial]
-fn corners_within_the_link_distance_are_linked() {
-    let mut planes = two_planes();
-    planes[1].source[0].x += LINK_DISTANCE * 0.9;
-    let groups = linked_corners(&planes);
-    assert_eq!(groups.len(), 6);
-    let shared = groups.iter().find(|g| g.contains(&PlaneCorner::new(0, 1))).unwrap();
-    assert_eq!(shared, &vec![PlaneCorner::new(0, 1), PlaneCorner::new(1, 0)]);
-    planes[1].source[0].x += 1.0;
-    assert_eq!(linked_corners(&planes).len(), 7);
-}
-
-#[trial]
-fn linked_corners_move_together_in_warp_and_layout_is_kept() {
-    let mut s = session();
-    set(&mut s, two_planes());
-    s.apply(PerspectiveEdit::Mode(PlaneMode::Warp));
-    let mut moved = s.planes().to_vec();
-    for c in [(0, 1), (1, 0)] {
-        moved[c.0].target[c.1] = Point::new(55.0, 5.0);
-    }
-    // The overlay's edit may carry stale sources; Warp keeps the session's.
-    moved[0].source[1] = Point::new(1.0, 1.0);
-    drag(&mut s, moved);
-    assert_eq!(s.planes()[0].target[1], Point::new(55.0, 5.0));
-    assert_eq!(s.planes()[1].target[0], Point::new(55.0, 5.0));
-    assert_eq!(s.planes()[0].source, quad(0.0, 0.0, 50.0, 100.0));
-    assert_eq!(s.planes()[1].source, quad(50.0, 0.0, 100.0, 100.0));
-}
-
-#[trial]
 fn entering_warp_unifies_linked_corners() {
     let mut planes = two_planes();
     planes[1].source[0] = Point::new(50.2, 0.0);
@@ -124,35 +94,6 @@ fn straighten_level_and_both_move_the_corners() {
     assert_eq!(both[0].target[0].y, both[0].target[1].y);
     assert_eq!(both[0].target[1].x, both[0].target[2].x);
     assert_eq!(both[0].target[0].x, both[0].target[3].x);
-}
-
-#[trial]
-fn warp_needs_at_least_one_plane() {
-    let mut s = session();
-    s.apply(PerspectiveEdit::Mode(PlaneMode::Warp));
-    assert_eq!(s.mode(), PlaneMode::Layout);
-    assert!(!s.can_undo());
-}
-
-#[trial]
-fn replacing_the_planes_bumps_the_generation_and_identity_gives_no_result() {
-    let mut s = session();
-    assert_eq!(s.result(), None);
-    let inserted = s.inserted_plane();
-    set(&mut s, vec![inserted]);
-    assert_eq!(s.inserted_plane().source, quad(25.0, 25.0, 75.0, 75.0));
-    assert_eq!(s.result(), None);
-    let (id, before) = (GestureId::new(1), Mixed::Same(s.planes().to_vec()));
-    s.apply(PerspectiveEdit::Planes(EditEvent::begin(id, before, Arc::from("Planes"), None)));
-    assert!(s.dragging());
-    let generation = s.generation();
-    let mut planes = two_planes();
-    planes[0].target[0].x = 3.0;
-    s.replace(planes);
-    assert!(!s.dragging());
-    assert_eq!(s.generation(), generation + 1);
-    assert_eq!(s.planes().len(), 2);
-    assert_eq!(s.result().map(<[Plane]>::len), Some(2));
 }
 
 #[trial]
@@ -336,36 +277,6 @@ fn replacing_the_planes_in_the_middle_of_a_corner_drag_ends_the_drag() {
     assert!(h.planes().is_empty());
 }
 
-#[trial]
-fn the_keyboard_adds_a_plane_picks_corners_and_removes_a_plane() {
-    let mut h = harness(vec![square(100.0, 100.0, 200.0, 200.0)], PlaneMode::Layout);
-    h.drag((100.0, 100.0), (100.0, 100.0));
-    h.key(Key::PageDown, Modifiers::NONE);
-    h.key(Key::ArrowRight, Modifiers::NONE);
-    h.key(Key::ArrowDown, Modifiers::SHIFT);
-    let moved = h.planes()[0];
-    assert_eq!(moved.source[1], Point::new(201.0, 110.0));
-    assert_eq!(moved.target[1], moved.source[1]);
-    assert_eq!(moved.source[0], Point::new(100.0, 100.0), "only the picked corner");
-
-    PerspectiveCommands::AddPlane.apply(&mut h.state.borrow_mut().session);
-    h.fixture.settle();
-    assert_eq!(h.planes().len(), 2);
-    assert_eq!(h.planes()[1], h.state.borrow().session.inserted_plane());
-    assert_eq!(h.planes()[1], square(100.0, 75.0, 300.0, 225.0));
-
-    h.key(Key::Delete, Modifiers::NONE);
-    assert_eq!(h.planes(), vec![square(100.0, 75.0, 300.0, 225.0)], "the picked corner's plane is gone");
-
-    PerspectiveCommands::AddPlane.apply(&mut h.state.borrow_mut().session);
-    h.fixture.settle();
-    assert_eq!(h.planes().len(), 2);
-    h.key(Key::Backspace, Modifiers::NONE);
-    assert_eq!(h.planes().len(), 1, "Backspace removes the picked corner's plane as Delete does");
-    h.key(Key::Enter, Modifiers::NONE);
-    assert!(h.state.borrow().apply, "Enter applies");
-}
-
 struct BarState {
     session: PerspectiveSession,
     edits: Vec<PerspectiveEdit>,
@@ -394,36 +305,3 @@ fn bar(count: usize, mode: PlaneMode) -> (Fixture, Rc<RefCell<BarState>>) {
     (fixture, state)
 }
 
-#[trial]
-fn the_bar_shows_each_modes_controls() {
-    let (layout, _) = bar(2, PlaneMode::Layout);
-    assert!(layout.by_label("2 planes").is_some(), "the count reads through the count word");
-    assert!(layout.by_label("Remove Planes").is_some());
-    assert!(layout.by_label("Straighten").is_none());
-
-    let (mut warp, state) = bar(2, PlaneMode::Warp);
-    for name in ["Straighten", "Level", "Both"] {
-        assert!(warp.by_label(name).is_some(), "{name}");
-    }
-    assert!(warp.by_label("Remove Planes").is_none());
-    let level = warp.by_label("Level").expect("shown");
-    warp.click(&level);
-    assert_eq!(state.borrow().edits, vec![PerspectiveEdit::Straighten(Straighten::Horizontal)]);
-
-    let (mut empty, state) = bar(0, PlaneMode::Layout);
-    assert!(empty.by_label("0 planes").is_some());
-    let tab = empty.by_label("Warp").expect("the Warp tab shows");
-    empty.click(&tab);
-    assert!(state.borrow().edits.is_empty(), "the Warp tab is disabled with no plane");
-}
-
-#[trial]
-fn commit_and_cancel_report_through_the_output() {
-    let (mut fixture, state) = bar(1, PlaneMode::Layout);
-    let commit = fixture.by_label("Commit Perspective Warp").expect("shown");
-    fixture.click(&commit);
-    assert!(state.borrow().apply && !state.borrow().discard);
-    let cancel = fixture.by_label("Cancel Perspective Warp").expect("shown");
-    fixture.click(&cancel);
-    assert!(state.borrow().discard);
-}

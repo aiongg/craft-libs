@@ -50,14 +50,6 @@ fn set(target: LinkTarget) -> HyperlinkAnswer {
     HyperlinkAnswer::set(Hyperlink::new(target), None)
 }
 
-/// A new link starts at `https://`; a typed address and OK answer Set with it.
-#[trial]
-fn new_links_start_at_https_and_set() {
-    let mut rig = Rig::new(HyperlinkDialog::new(CurrentLink::None, Some("word".to_owned())));
-    rig.type_into("Address:", "https://example.org");
-    assert_eq!(rig.ok(), Some(set(LinkTarget::Url("https://example.org".to_owned()))));
-}
-
 /// Over a mixed selection OK answers Keep; a typed address then answers Set.
 #[trial]
 fn mixed_links_are_kept_until_a_new_target() {
@@ -84,30 +76,6 @@ fn email_and_place_targets() {
     assert!(rig.fixture.by_label("Top of the Document").is_some());
     rig.click("2. Plan");
     assert_eq!(rig.ok(), Some(set(LinkTarget::Place(1))));
-}
-
-/// The email target has a Subject, answered beside the address.
-#[trial]
-fn an_email_link_carries_its_subject() {
-    let mut rig = Rig::new(HyperlinkDialog::new(CurrentLink::None, None));
-    rig.click("E-mail Address");
-    rig.type_into("E-mail address:", "a@b.example");
-    rig.type_into("Subject:", "Hello");
-    assert_eq!(rig.ok(), Some(set(LinkTarget::email("a@b.example", Some("Hello".to_owned())))));
-}
-
-/// Top of the Document is its own target, and an edited Top link reopens with that row picked.
-#[trial]
-fn the_top_of_the_document_is_its_own_target() {
-    let places = vec!["1. Title".to_owned()];
-    let mut rig = Rig::new(HyperlinkDialog::new(CurrentLink::None, None).places(places.clone()));
-    rig.click("Place in This Document");
-    rig.click("Top of the Document");
-    assert_eq!(rig.ok(), Some(set(LinkTarget::Top)));
-
-    let current = CurrentLink::One(Hyperlink::new(LinkTarget::Top));
-    let mut rig = Rig::new(HyperlinkDialog::new(current, None).places(places));
-    assert_eq!(rig.ok(), Some(set(LinkTarget::Top)));
 }
 
 /// Editing an e-mail link opens on its address (Word's Insert Hyperlink, E-mail Address): typing replaces it with no

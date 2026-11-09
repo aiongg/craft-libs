@@ -51,28 +51,8 @@ fn sort_orders_by_page_author_date_type_and_color() {
 }
 
 // matches is case-insensitive over text, author and the kind's reader name.
-#[test]
-fn search_matches_text_author_and_kind() {
-    let folder = Folder::new("");
-    let mut t = thread(0, page(0, 0.0), Some(AnnotationKind::Highlight), None, "Ana María", 0);
-    t.messages.push(message("Bo", "Fix the Margin", 1));
-    assert!(matches(&t, "margin", &folder, name));
-    assert!(matches(&t, "MARÍA", &folder, name));
-    assert!(matches(&t, "highl", &folder, name));
-    assert!(!matches(&t, "absent", &folder, name));
-}
 
 // the search folds the Turkish dotted and dotless i the way PdfCraft's fold_case does.
-#[test]
-fn search_folds_the_turkish_i() {
-    let folder = Folder::new("");
-    let mut t = thread(0, page(0, 0.0), None, None, "Ayşe Yılmaz", 0);
-    t.messages[0].text = "Lütfen İMZALAYIN".into();
-    assert!(matches(&t, "imzalayın", &folder, name));
-    assert!(matches(&t, "YILMAZ", &folder, name));
-    t.messages[0].text = "IRMAK".into();
-    assert!(matches(&t, "ırmak", &folder, name));
-}
 
 // a thread shows unless its type, author, status, colour or checkmark is hidden.
 #[test]

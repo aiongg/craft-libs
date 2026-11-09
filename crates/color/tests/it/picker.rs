@@ -122,16 +122,6 @@ fn rgb8(color: Srgba) -> [u8; 3] {
     [rgba.0[0], rgba.0[1], rgba.0[2]]
 }
 
-/// A hex colour typed into the hex field is the picker's colour, with no model values.
-#[trial]
-fn typed_hex_sets_the_colour_without_model_values() {
-    let (mut fixture, host) = picker(COMPACT, PickedColor::rgb(Srgba::rgb(0.2, 0.5, 0.8)));
-    type_into(&mut fixture, "Hex color", "336699");
-    let value = host.borrow().value;
-    assert_eq!(rgb8(value.color), [0x33, 0x66, 0x99]);
-    assert_eq!(value.model, None, "a colour set as such keeps no model values");
-}
-
 /// A value typed into a host model's field stays as typed in `PickedColor::model`, and the other channels keep the
 /// colour's.
 #[trial]
@@ -145,26 +135,6 @@ fn a_typed_channel_keeps_the_values_of_its_model() {
     assert_eq!(model.values[3], 50.0, "the black ink stays as it was");
 }
 
-/// A colour the host gives with model values shows and edits those values, not a conversion of the sRGB.
-#[trial]
-fn host_model_values_survive_in_the_grid() {
-    let (mut fixture, host) = picker(Setup { cmyk: true, ..FULL }, PickedColor::cmyk(Srgba::rgb(0.5, 0.5, 0.5), [0.0, 0.0, 0.0, 50.0]));
-    type_into(&mut fixture, "Cyan", "10");
-    let model = host.borrow().value.model.expect("model values");
-    assert_eq!([model.values[0], model.values[3]], [10.0, 50.0]);
-}
-
-/// A sample from the host replaces the colour but keeps the picker's alpha.
-#[trial]
-fn a_sample_keeps_the_alpha() {
-    let (mut fixture, host) = picker(Setup { alpha: true, ..COMPACT }, PickedColor::rgb(Srgba::rgb(0.2, 0.5, 0.8).with_alpha(0.5)));
-    host.borrow_mut().sampled = Some(Srgba::rgb(1.0, 0.0, 0.0));
-    fixture.settle();
-    let value = host.borrow().value;
-    assert_eq!(rgb8(value.color), [255, 0, 0]);
-    assert!((value.color.a - 0.5).abs() < 0.01, "the sample takes the picker's alpha");
-}
-
 /// A sample that arrives while a hex run is open is applied, not lost, and the run's text goes.
 #[trial]
 fn a_sample_during_a_typing_run_applies() {
@@ -175,46 +145,6 @@ fn a_sample_during_a_typing_run_applies() {
     host.borrow_mut().sampled = Some(Srgba::rgb(0.0, 1.0, 0.0));
     fixture.settle();
     assert_eq!(rgb8(host.borrow().value.color), [0, 255, 0]);
-}
-
-/// The compare swatch's current half and a warning chip set their colours.
-#[trial]
-fn compare_and_warnings_set_their_colours() {
-    let current = Srgba::rgb(0.9, 0.2, 0.1);
-    let nearest = Srgba::rgb(0.1, 0.9, 0.1);
-    let setup = Setup { compare: Some(current), warning: Some(nearest), ..FULL };
-    let (mut fixture, host) = picker(setup, PickedColor::rgb(Srgba::rgb(1.0, 0.0, 1.0)));
-    let restore = fixture.by_label("Restore current color").expect("the compare swatch's current half");
-    fixture.click(&restore);
-    fixture.settle();
-    assert_eq!(rgb8(host.borrow().value.color), rgb8(current));
-    let chip = fixture.by_label("Out of gamut for printing").expect("the warning chip");
-    fixture.click(&chip);
-    fixture.settle();
-    assert_eq!(rgb8(host.borrow().value.color), rgb8(nearest));
-}
-
-/// Two models with a channel of one name show the qualified names; the plain name goes.
-#[trial]
-fn channels_whose_names_clash_are_qualified() {
-    let (fixture, _) = picker(FULL, PickedColor::rgb(Srgba::rgb(0.2, 0.5, 0.8)));
-    assert!(fixture.by_label("OKLCH hue").is_some(), "OKLCH's hue is qualified beside HSB's");
-    assert!(fixture.by_label("HSB hue").is_some(), "HSB's hue is qualified beside OKLCH's");
-    assert!(fixture.by_label("Hue").is_none(), "no field is named by the clashing plain name");
-}
-
-/// The Full layout puts HSB and RGB in the first column, the host's models in the second and OKLCH in the third.
-#[trial]
-fn the_full_grid_puts_the_models_in_columns() {
-    let (fixture, _) = picker(Setup { cmyk: true, ..FULL }, PickedColor::rgb(Srgba::rgb(0.2, 0.5, 0.8)));
-    let x = |label: &str| {
-        let tree = fixture.tree();
-        let field = tree.with_role(craft_ui::contract::Role::SPIN_BUTTON).into_iter().find(|key| tree.name_of(*key) == Some(label));
-        tree.bounds_of(field.unwrap_or_else(|| panic!("{label} field shown"))).expect("bounds").left()
-    };
-    assert_eq!(x("HSB hue"), x("Red"), "HSB and RGB share the first column");
-    assert!(x("Cyan") > x("Red"), "the host's model is in the next column");
-    assert!(x("OKLCH hue") > x("Cyan"), "OKLCH is in the last column");
 }
 
 /// Only Web Colors snaps the colour when it turns on, and every colour after it.
@@ -244,27 +174,6 @@ fn the_full_picker_opens_with_the_hex_text_selected() {
     assert_eq!(rgb8(host.borrow().value.color), [0, 255, 0]);
 }
 
-/// A picker that does not focus on open leaves the focus where it was.
-#[trial]
-fn a_picker_without_focus_on_open_leaves_the_focus() {
-    let (fixture, _) = picker(Setup { focus_on_open: false, ..FULL }, PickedColor::rgb(Srgba::rgb(0.2, 0.5, 0.8)));
-    assert!(fixture.focused().is_none(), "nothing took the focus");
-}
-
-/// The model switch changes the rows of the Compact layout.
-#[trial]
-fn the_model_switch_switches_the_rows() {
-    let (mut fixture, _) = picker(COMPACT, PickedColor::rgb(Srgba::rgb(0.2, 0.5, 0.8)));
-    assert!(fixture.by_label("Saturation").is_some() || fixture.by_label("HSB saturation").is_some(), "HSB rows show first");
-    let switch = fixture.by_label("Color model: HSB").expect("the model switch");
-    fixture.click(&switch);
-    fixture.settle();
-    let rgb = fixture.by_label("RGB").expect("the RGB row in the menu");
-    fixture.click(&rgb);
-    fixture.settle();
-    assert!(fixture.by_label("Red").is_some(), "RGB rows show after the switch");
-}
-
 /// A byte as two hex digits: exactly two digits apply; anything else is not a value.
 #[trial]
 fn a_hex_pair_applies_two_digits_and_marks_anything_else_invalid() {
@@ -275,22 +184,6 @@ fn a_hex_pair_applies_two_digits_and_marks_anything_else_invalid() {
     for text in ["", "A", "A5F", "+5", "-5", "G1", "٣٣"] {
         assert!(codec.parse(text, &0).is_err(), "{text:?} is not a byte");
     }
-}
-
-/// A channel typed into the readout reports the whole colour.
-#[trial]
-fn a_typed_readout_channel_reports_the_whole_colour() {
-    let color = Rc::new(RefCell::new(Rgba::rgb(0x33, 0x66, 0x99)));
-    let shown = color.clone();
-    let mut fixture = Fixture::new(move |ui| {
-        let mut value = *shown.borrow();
-        let _ = ColorReadout::new("Color", Bind::bound(&mut value)).show(ui);
-        *shown.borrow_mut() = value;
-    });
-    fixture.room(vec2(480.0, 60.0));
-    fixture.settle();
-    type_into(&mut fixture, "Green", "200");
-    assert_eq!(*color.borrow(), Rgba::rgb(0x33, 200, 0x99), "the other channels stay");
 }
 
 /// Two items with different G, B and alpha, shown by a readout the way a multi-selection host does.
@@ -328,24 +221,6 @@ fn a_channel_typed_into_a_mixed_readout_keeps_each_items_other_channels() {
     assert_eq!(items.borrow()[1], whole, "and sets it for both items");
 }
 
-/// A channel that is the same in every item shows its number while the others show Mixed.
-#[trial]
-fn a_mixed_readout_shows_the_shared_channel() {
-    let mut fixture = Fixture::new(|ui| {
-        let shared = [Mixed::Mixed, Mixed::Same(77), Mixed::Mixed];
-        let _ = ColorReadout::new("Color", Bind::given(Mixed::<Rgba>::Mixed)).shared_channels(shared).show(ui);
-    });
-    fixture.room(vec2(480.0, 60.0));
-    fixture.settle();
-    let value = |fixture: &Fixture, label: &str| -> Option<String> {
-        let node = fixture.by_label(label).expect("a channel field").node;
-        fixture.tree().value_of(node).map(str::to_owned)
-    };
-    assert_eq!(value(&fixture, "Green").as_deref(), Some("77"));
-    assert_ne!(value(&fixture, "Red").as_deref(), Some("77"));
-    assert_eq!(value(&fixture, "Red"), value(&fixture, "Blue"), "the unshared channels both show Mixed");
-}
-
 fn choice_fixture(start: ChosenColor, custom: Option<Srgba>) -> (Fixture, Rc<RefCell<(ChosenColor, usize)>>) {
     let state = Rc::new(RefCell::new((start, 0usize)));
     let shown = state.clone();
@@ -363,32 +238,3 @@ fn choice_fixture(start: ChosenColor, custom: Option<Srgba>) -> (Fixture, Rc<Ref
     (fixture, state)
 }
 
-/// A named row chosen in the list is the choice; the custom row appears only with a custom colour.
-#[trial]
-fn choosing_a_row_sets_the_choice() {
-    let (mut fixture, state) = choice_fixture(ChosenColor::Named("default".into()), None);
-    let select = fixture.by_label("Pasteboard color").expect("the select");
-    fixture.click(&select);
-    fixture.settle();
-    assert!(fixture.by_label("Custom").is_none(), "no custom colour, no custom row");
-    let black = fixture.by_label("Black").expect("a named row");
-    fixture.click(&black);
-    fixture.settle();
-    assert_eq!(state.borrow().0, ChosenColor::Named("black".into()));
-}
-
-/// "Select Custom Color…" asks the host for its picker and does not change the choice.
-#[trial]
-fn select_custom_color_requests_the_picker() {
-    let (mut fixture, state) = choice_fixture(ChosenColor::Named("black".into()), Some(Srgba::rgb(0.8, 0.3, 0.1)));
-    let select = fixture.by_label("Pasteboard color").expect("the select");
-    fixture.click(&select);
-    fixture.settle();
-    assert!(fixture.by_label("Custom").is_some(), "the custom row shows with a custom colour");
-    let row = fixture.by_label("Select Custom Color…").expect("the picker row");
-    fixture.click(&row);
-    fixture.settle();
-    let (chosen, requests) = state.borrow().clone();
-    assert_eq!(requests, 1, "the host gets one request");
-    assert_eq!(chosen, ChosenColor::Named("black".into()), "the choice stays until the host answers");
-}

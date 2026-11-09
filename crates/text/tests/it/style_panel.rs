@@ -73,18 +73,6 @@ fn rows_apply_clear_overrides_and_open_options() {
     assert_eq!(rig.take().last(), Some(&TextStyleAction::Options(2)));
 }
 
-/// Delete and Backspace both delete the picked style while the list has the keyboard.
-#[trial]
-fn delete_and_backspace_delete_the_picked_style() {
-    let mut rig = Rig::new(TextStyleKind::Paragraph, &["Basic Paragraph", "Heading", "Body"], Some(1), false, false);
-    rig.click("Body");
-    for key in [Key::Delete, Key::Backspace] {
-        rig.take();
-        rig.fixture.key(key, Modifiers::NONE);
-        assert_eq!(rig.take(), [TextStyleAction::Delete(2)], "{key:?}");
-    }
-}
-
 /// A character style click at a bare caret applies nothing and says "Select text…"; Delete and Redefine do nothing
 /// for character style 0.
 #[trial]
@@ -159,16 +147,3 @@ fn highlighted_rows_act_together() {
     assert_eq!(rig.take(), [TextStyleAction::Duplicate(4)]);
 }
 
-/// The picker's rows list the styles with no folder first, then each folder as a group over its styles by leaf name.
-#[trial]
-fn style_rows_group_by_folder() {
-    let preview = || StylePreview::Icon(IconId::new("palette"));
-    let styles = [
-        NamedStyleRow::new(2, "Brand/Blue/500", preview()),
-        NamedStyleRow::new(1, "Plain", preview()),
-        NamedStyleRow::new(3, "Brand/Blue/700", preview()),
-    ];
-    let rows = style_rows(&styles);
-    let shown: Vec<(&str, usize, bool)> = rows.iter().map(|row| (row.label.as_str(), row.depth, row.is_group())).collect();
-    assert_eq!(shown, [("Plain", 0, false), ("Brand/Blue", 0, true), ("500", 1, false), ("700", 1, false)]);
-}

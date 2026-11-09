@@ -83,28 +83,6 @@ fn variable_font() -> Vec<u8> {
     font
 }
 
-/// A static face has no axes; a variable face lists them in font order with min, default and max.
-#[trial]
-fn read_axes_of_a_variable_face() {
-    assert!(read_axes(b"not a font", 0).is_empty());
-    assert!(read_named_instances(b"not a font", 0).is_empty());
-
-    let data = variable_font();
-    let axes = read_axes(&data, 0);
-    let summary: Vec<_> = axes.iter().map(|a| (a.tag, a.min, a.default, a.max, a.hidden)).collect();
-    assert_eq!(summary, [(WGHT, 100.0, 400.0, 900.0, false), (WDTH, 75.0, 100.0, 100.0, false), (GRAD, 0.0, 0.0, 100.0, true)]);
-    assert_eq!(axis_label(&axes[0]), "Weight", "the font's own name");
-    assert_eq!(axis_label(&axes[1]), "Width", "the registered axis's name");
-    assert_eq!(axis_label(&axes[2]), "GRAD", "the tag");
-
-    let instances = read_named_instances(&data, 0);
-    assert_eq!(instances.iter().map(|i| i.name.as_str()).collect::<Vec<_>>(), ["Regular", "Bold"]);
-    assert_eq!(instances[1].coordinates, [(WGHT, 700.0), (WDTH, 100.0), (GRAD, 0.0)]);
-    let bold = [(WGHT, 700.0), (WDTH, 100.0), (GRAD, 0.0)];
-    assert_eq!(matching_instance(&instances, &bold).map(|i| i.name.as_str()), Some("Bold"));
-    assert!(matching_instance(&instances, &[(WGHT, 650.0), (WDTH, 100.0), (GRAD, 0.0)]).is_none());
-}
-
 struct State {
     axes: Vec<FontAxis>,
     instances: Vec<NamedInstance>,

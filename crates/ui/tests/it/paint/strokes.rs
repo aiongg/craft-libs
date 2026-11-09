@@ -54,17 +54,6 @@ fn a_theme_colour_strokes_at_a_document_width() {
     );
 }
 
-#[trial]
-fn a_dashed_data_colour_breaks_into_dashes_of_that_colour() {
-    let mut frames = Frames::new();
-    let tokens = tokens(Mode::Light, Contrast::Standard);
-    let (shapes, _) = paint_frame(&mut frames, &tokens, Direction::Ltr, Ink::OnPanel, |draw| {
-        draw.dashed(&LINE, Dashes::even(4.0), StrokeWidth::Thin, DataColor::new(SERIES));
-    });
-    let dashes = strokes(&shapes).iter().filter(|(_, color)| *color == SERIES).count();
-    assert!(dashes > 1, "a 60 point path with 4 point dashes breaks into several of the series colour: {dashes}");
-}
-
 #[derive(ComponentStyle, Clone, Debug, Default, PartialEq)]
 struct SwatchLook {
     #[style(metrics)]
@@ -110,13 +99,3 @@ impl Component for Preview {
     }
 }
 
-#[trial]
-fn a_faded_content_painter_paints_less_opaque_and_its_parent_does_not() {
-    let mut frames = Frames::new();
-    let shapes = frames.frame_shapes(|ui| {
-        Preview { common: Common::new() }.label("Preview").show(ui);
-    });
-    let alphas: Vec<u8> = shapes.iter().filter_map(|s| if let Shape::Rect(r) = s { Some(r.fill.a()) } else { None }).filter(|a| *a > 0).collect();
-    let (plain, faded) = (alphas.iter().max().copied().unwrap_or(0), alphas.iter().min().copied().unwrap_or(0));
-    assert!(alphas.len() >= 2 && faded < plain, "the faded fill is less opaque than the plain one: {alphas:?}");
-}

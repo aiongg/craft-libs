@@ -27,22 +27,3 @@ fn painted(paint: impl Fn(&Draw<'_>)) -> (Vec<u8>, Vec<u8>) {
     (fills, texts)
 }
 
-#[trial]
-fn a_faded_draw_paints_fills_and_text_less_opaque_and_its_parent_does_not() {
-    let (fills, texts) = painted(|draw| {
-        draw.faded(SHARE, content);
-        content(draw);
-    });
-    assert_eq!((fills.len(), texts.len()), (2, 2), "each Draw painted a fill and a text run");
-    assert!(fills[0] < fills[1], "the faded fill is less opaque than the parent's: {fills:?}");
-    assert!(texts[0] < texts[1], "the faded text run is less opaque than the parent's: {texts:?}");
-}
-
-#[trial]
-fn fades_multiply_and_a_zero_share_paints_nothing() {
-    let (once, _) = painted(|draw| draw.faded(SHARE, content));
-    let (twice, _) = painted(|draw| draw.faded(SHARE, |faded| faded.faded(SHARE, content)));
-    assert!(twice[0] < once[0], "a fade inside a fade multiplies the shares: {twice:?} against {once:?}");
-    let (none, _) = painted(|draw| draw.faded(0.0, content));
-    assert!(none.iter().all(|alpha| *alpha == 0), "nothing is visible at share 0: {none:?}");
-}

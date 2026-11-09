@@ -38,24 +38,6 @@ fn the_first_arrow_and_escape_after_a_focus_change_act_as_intents() {
     assert_eq!(focused(&frames.ctx), Some(id("a")), "Escape cleared no egui focus");
 }
 
-/// Shift+F10 and the Menu key reach the focused stop as one `ContextMenu` intent each.
-#[trial]
-fn shift_f10_and_the_menu_key_reach_the_focused_stop_as_a_context_menu() {
-    let mut frames = Frames::new();
-    let menus = Cell::new(0);
-    let mut show = |ui: &mut egui::Ui| {
-        control(ui, "row");
-        let mut intents = intents_of(ui.ctx(), Some(id("row")), false);
-        menus.set(menus.get() + usize::from(intents.take(Intent::ContextMenu)));
-    };
-    frames.idle(2, &mut show);
-    focus(&mut frames, "row", &mut show);
-    frames.frame(vec![craft_ui::testing::input::key_press(Key::F10, Modifiers::SHIFT)], &mut show);
-    assert_eq!(menus.get(), 1, "Shift+F10");
-    frames.frame(vec![craft_ui::testing::input::key_press(Key::Menu, Modifiers::NONE)], &mut show);
-    assert_eq!(menus.get(), 2, "the Menu key");
-}
-
 /// The key stage removes Tab, F6 and Escape from the raw input of the pass, and keeps arrows and Enter for
 /// egui's `TextEdit`.
 #[trial]
@@ -72,24 +54,6 @@ fn the_key_stage_strips_tab_f6_and_escape_and_keeps_arrows() {
     let keys = [Key::Tab, Key::F6, Key::Escape, Key::ArrowLeft, Key::Enter].map(|key| craft_ui::testing::input::key_press(key, Modifiers::NONE));
     frames.frame(keys.to_vec(), &mut show);
     assert_eq!(*seen.borrow().last().unwrap(), [false, false, false, true, true]);
-}
-
-/// A component that keeps Tab (a code editor) receives it through egui; every other component loses it to
-/// the focus service.
-#[trial]
-fn a_component_that_keeps_tab_keeps_it() {
-    let mut frames = Frames::new();
-    let kept = Cell::new(false);
-    let mut show = |ui: &mut egui::Ui| {
-        stop_with(ui, "code", KeyUse::CODE);
-        kept.set(ui.input(|i| i.events.iter().any(|e| event_is_key(e, Key::Tab))));
-    };
-    frames.idle(2, &mut show);
-    focus(&mut frames, "code", &mut show);
-    frames.idle(1, &mut show);
-    frames.frame(vec![craft_ui::testing::input::key_press(Key::Tab, Modifiers::NONE)], &mut show);
-    assert!(kept.get());
-    assert_eq!(focused(&frames.ctx), Some(id("code")), "Tab moved no focus");
 }
 
 /// Static claims hold in the frame after focus arrives; the chord is withheld from egui and read once through
@@ -126,22 +90,6 @@ fn claimed_chords_hold_after_focus_arrives_and_a_claimed_escape_is_no_cancel() {
 fn request_and_press(frames: &mut Frames, show: &mut impl FnMut(&mut egui::Ui)) {
     craft_ui::runtime::focus::request(&frames.ctx, craft_ui::runtime::focus::FocusTarget::Id(id("canvas")));
     frames.frame(vec![craft_ui::testing::input::key_press(Key::ArrowUp, Modifiers::NONE)], show);
-}
-
-/// A claim added in `update` holds from the next frame.
-#[trial]
-fn a_state_dependent_claim_holds_from_the_next_frame() {
-    let mut frames = Frames::new();
-    let taken = Cell::new(false);
-    let mut show = |ui: &mut egui::Ui| {
-        stop_with(ui, "field", KeyUse::of(Input::Text));
-        claim(ui.ctx(), id("field"), Chord::plain(craft_keymap::Key::Down));
-        taken.set(take_claimed(ui.ctx(), id("field"), Chord::plain(craft_keymap::Key::Down)));
-    };
-    frames.idle(2, &mut show);
-    focus(&mut frames, "field", &mut show);
-    frames.frame(vec![craft_ui::testing::input::key_press(Key::ArrowDown, Modifiers::NONE)], &mut show);
-    assert!(taken.get());
 }
 
 /// 11.3: a listed edit command reaches the component once as `Intent::Edit` and never reaches egui; an

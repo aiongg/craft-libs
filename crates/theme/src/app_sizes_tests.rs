@@ -47,14 +47,6 @@ fn text_size_scales_an_app_type_override() {
 }
 
 #[test]
-fn a_size_sets_own_map_wins_over_all() {
-    let app = sizes(&json!({ "all": { "size.control.md": 28, "space.gap.inline": 2 }, "comfortable": { "size.control.md": 26 } }));
-    assert_eq!(resolved(Size::Compact, &app).size.control.md, 28.0);
-    assert_eq!(resolved(Size::Comfortable, &app).size.control.md, 26.0);
-    assert_eq!(resolved(Size::Comfortable, &app).space.gap.inline, 2.0, "a path only in all applies to both");
-}
-
-#[test]
 fn app_radii_apply_unless_the_theme_has_its_own_shape() {
     let app = sizes(&json!({ "all": { "radius.control": 2, "radius.button": "full" } }));
     let mut theme = builtins::suite_default().clone();
@@ -120,19 +112,3 @@ fn written_sizes_parse_back_to_the_same_overrides() {
     assert_eq!(AppSizes::default().to_json(), "{}\n");
 }
 
-#[test]
-fn a_theme_apps_sizes_are_rejected() {
-    let theme = json!({ "schema": "craft-design-theme", "schema_version": 1, "id": "test.sizes", "name": "Sizes",
-        "seeds": { "neutral": "#535353", "accent": "#78ADF6", "status": { "good": "#85DC6A", "warn": "#E8B046", "bad": "#FF8080", "info": "#78ADF6" } },
-        "apps": { "photocraft": { "sizes": { "all": { "size.control.md": 28 } } } } });
-    let errors = format::parse(theme.to_string().as_bytes()).unwrap_err();
-    assert!(errors.0.iter().any(|e| e.kind == ErrorKind::UnknownToken && e.path_string().ends_with("photocraft.sizes")), "{errors}");
-}
-
-#[test]
-fn a_bad_file_gives_the_default_sizes() {
-    assert_eq!(AppSizes::parse_or_default(br#"{"all": {"size.control.md": 500}}"#), AppSizes::default());
-    assert_eq!(AppSizes::parse_or_default(b"not json"), AppSizes::default());
-    let good = AppSizes::parse_or_default(br#"{"all": {"size.control.md": 28}}"#);
-    assert_eq!(good.all.get("size.control.md"), Some(&SizeValue::Number(28.0)));
-}

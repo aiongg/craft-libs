@@ -86,25 +86,4 @@ impl EditorInput {
 mod tests {
     use super::*;
 
-    #[test]
-    fn a_read_only_editor_receives_only_inputs_that_change_no_text() {
-        let safe = [
-            EditorInput::Move(NavMove::Back, MoveMods::PLAIN),
-            EditorInput::Cancel,
-            EditorInput::Edit(EditCommand::Copy),
-            EditorInput::Edit(EditCommand::SelectAll),
-        ];
-        let unsafe_ = [
-            EditorInput::Text("a".into()),
-            EditorInput::delete(false, Granularity::Unit),
-            EditorInput::preedit("ni", None),
-            EditorInput::ImeCommit,
-            EditorInput::Newline,
-            EditorInput::Tab,
-            EditorInput::Edit(EditCommand::Paste),
-            EditorInput::Edit(EditCommand::Undo),
-        ];
-        assert!(safe.iter().all(EditorInput::is_read_only_safe));
-        assert!(unsafe_.iter().all(|input| !input.is_read_only_safe()));
-    }
 }

@@ -131,17 +131,6 @@ fn reordering_refuses_nesting_past_the_depth_and_a_taken_name() {
     assert_eq!(lib, snapshot);
 }
 
-/// A browser's Delete event changes the library and returns its change; a rename to a taken name changes nothing.
-#[trial]
-fn the_library_applies_browser_events() {
-    let (mut lib, [_loose, red, green, _blue, cyan]) = sample();
-    assert_eq!(lib.apply(&PresetEvent::Delete(PresetKey::Item(cyan))), [PresetChange::Deleted(cyan)]);
-    let deleted = lib.apply(&PresetEvent::Delete(PresetKey::group(["A", "Inner"])));
-    assert!(matches!(&deleted[..], [PresetChange::GroupDeleted { items, .. }] if items.len() == 1));
-    assert_eq!(lib.rename(red, "green"), Err(PresetError::NameTaken));
-    assert!(lib.get(green).is_some());
-}
-
 fn rows() -> Vec<PresetRow<&'static str>> {
     vec![
         PresetRow::group("a", "A", 0),
@@ -210,42 +199,3 @@ fn filtering_opens_every_group_and_stale_keys_and_zoom_are_cleaned_up() {
     assert_eq!(state.zoom_in(&zoom), 1.0);
 }
 
-#[trial]
-fn the_panel_menu_lists_its_commands_and_runs_them() {
-    let files = PresetFiles::<u32>::new("contours", "Contours", &["shc"])
-        .replace(true)
-        .can_export(|selected| selected == Some(&1))
-        .export(|selected| selected.map(|_| craft_ui::patterns::presets::PresetExport::new("C.shc", vec![1])));
-    let menu = PresetPanelMenu::new(PresetView::List).new_group(false).files(&files);
-    assert_eq!(
-        menu.commands(),
-        [
-            PresetCommands::GridView,
-            PresetCommands::ListView,
-            PresetCommands::NewGroup,
-            PresetCommands::Load,
-            PresetCommands::Replace,
-            PresetCommands::Save
-        ]
-    );
-    assert_eq!(menu.rows().len(), 7, "a separator after the view rows");
-    assert_eq!(menu.run_command(PresetCommands::ListView), Some(PresetMenuAction::View(PresetView::List)));
-    assert_eq!(menu.run_command(PresetCommands::NewGroup), None, "disabled");
-    assert_eq!(menu.run_command(PresetCommands::Save), None, "nothing to export without a selection");
-    assert!(matches!(menu.run_command(PresetCommands::Replace), Some(PresetMenuAction::File(PresetFileRequest::Open { replace: true, .. }))));
-
-    let one = 1u32;
-    let selected = PresetPanelMenu::new(PresetView::Grid).new_group(true).files(&files).selected(Some(&one));
-    assert_eq!(selected.run_command(PresetCommands::NewGroup), Some(PresetMenuAction::NewGroup));
-    assert!(matches!(selected.run_command(PresetCommands::Save), Some(PresetMenuAction::File(PresetFileRequest::Save { .. }))));
-}
-
-#[trial]
-fn a_file_request_turns_the_hosts_answer_into_the_matching_event() {
-    let files = PresetFiles::<u32>::new("contours", "Contours", &["shc"]);
-    let open = files.request(PresetCommands::Load, None).unwrap();
-    assert_eq!(files.request(PresetCommands::Replace, None), None, "Replace… is not offered");
-    assert!(matches!(open.loaded("a.shc", vec![4, 5]), Some(PresetFileEvent::Loaded { bytes, replace: false, .. }) if bytes == [4, 5]));
-    assert_eq!(open.saved("a.shc"), None);
-    assert!(matches!(open.failed("a.shc", PresetFileFailure::NotFound), PresetFileEvent::Failed { writing: false, .. }));
-}

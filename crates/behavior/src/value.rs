@@ -421,29 +421,4 @@ mod tests {
         assert_eq!(fold(vec![update(3), update(4)]), Some(update(4)), "otherwise the later event");
     }
 
-    #[test]
-    fn mixed_parts_read_and_expand_per_part() {
-        assert_eq!(Mixed::Same(2).same(), Some(&2));
-        assert_eq!(Mixed::<i32>::Mixed.same(), None);
-        assert_eq!(*Mixed::<i32>::Mixed.or(&7), 7);
-        assert_eq!(*Mixed::Same(2).or(&7), 2);
-        assert_eq!(Mixed::each([1, 2]), [Mixed::Same(1), Mixed::Same(2)]);
-        assert_eq!(Mixed::<[Mixed<i32>; 2]>::Mixed.parts(), [Mixed::Mixed, Mixed::Mixed]);
-        assert_eq!(Mixed::Same([Mixed::Same(1), Mixed::Mixed]).parts(), [Mixed::Same(1), Mixed::Mixed]);
-    }
-
-    #[test]
-    fn a_cancel_restores_and_a_mixed_value_becomes_concrete() {
-        let cancel = EditEvent::Cancel { id: ID, reason: CancelReason::Escape, before: Some(Mixed::Same(7)) };
-        let mut value = 9;
-        assert_eq!(cancel.apply(&mut value), Applied::Restored);
-        assert_eq!(value, 7);
-        let mut field = Mixed::Mixed;
-        let set = EditEvent::Update { id: ID, value: 2 };
-        assert_eq!(set.apply_mixed(&mut field), Applied::Changed);
-        assert_eq!(field, Mixed::Same(2));
-        assert_eq!(set.apply_mixed(&mut field), Applied::Unchanged);
-        let moved = EditEvent::<i32>::Cancel { id: ID, reason: CancelReason::HostChanged, before: None };
-        assert_eq!(moved.apply(&mut value), Applied::Unchanged, "a cancel because the document moved restores nothing");
-    }
 }

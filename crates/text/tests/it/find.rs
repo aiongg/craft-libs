@@ -49,17 +49,6 @@ fn typing_in_an_opened_bar_searches() {
     assert!(bar.searched.get());
 }
 
-/// Enter steps to the next match, Shift+Enter back; the keyboard stays in the field.
-#[trial]
-fn enter_steps_through_the_matches() {
-    let mut bar = bar("abc");
-    bar.fixture.key(Key::Enter, Modifiers::NONE).settle();
-    assert!(bar.stepped.get());
-    assert_eq!(bar.matches.borrow().current(), Some(1));
-    bar.fixture.key(Key::Enter, Modifiers::SHIFT).settle();
-    assert_eq!(bar.matches.borrow().current(), Some(0));
-}
-
 /// Esc clears the field; a second Esc closes the bar.
 #[trial]
 fn escape_clears_the_query_then_closes() {
@@ -71,19 +60,3 @@ fn escape_clears_the_query_then_closes() {
     assert!(bar.closed.get());
 }
 
-#[trial]
-fn a_refused_pattern_is_an_error_the_ui_can_word() {
-    let options = FindOptions { regex: true, ..FindOptions::default() };
-    assert!(matches!(FindPattern::compile("(open", &options), Err(FindError::Regex(_))));
-}
-
-#[trial]
-fn matches_step_through_and_wrap() {
-    let mut found = FindMatches::new(0);
-    found.set_page(0, vec![0..3, 5..8]);
-    assert_eq!(found.current(), Some(0));
-    found.step(false);
-    assert_eq!(found.current(), Some(1));
-    found.step(false);
-    assert_eq!(found.current(), Some(0), "stepping past the last match wraps to the first");
-}

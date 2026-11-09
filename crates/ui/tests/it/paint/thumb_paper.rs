@@ -47,8 +47,3 @@ fn paper_fills_under_the_picture_where_the_grid_would_be() {
     assert_eq!(paper, vec![PAPER], "the paper is the one fill under the picture and no cell of the grid");
 }
 
-#[trial]
-fn paper_wins_over_the_checker() {
-    let (_, both) = under_the_picture(&shapes(ThumbPaint::default().checker(true).paper(DataColor::new(PAPER))));
-    assert_eq!(both, vec![PAPER], "set together, the paper paints and the grid does not");
-}

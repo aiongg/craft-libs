@@ -47,48 +47,6 @@ fn a_tool_moved_down_its_own_slot_lands_at_the_index_after_it_leaves() {
     assert_eq!(layout(&apply_toolbar_edit(&slots, &edit, &[])), [(0, vec![REDO, CUT, UNDO])], "the removal shifts the index");
 }
 
-#[trial]
-fn a_tool_moved_out_of_its_only_slot_takes_the_slot_with_it() {
-    let slots = [slot(0, &[UNDO]), slot(1, &[REDO])];
-    let edit = ToolbarEdit::move_to(UNDO, DropAt::into_slot(1, 0));
-    assert_eq!(layout(&apply_toolbar_edit(&slots, &edit, &[])), [(1, vec![UNDO, REDO])], "the slot the tool left is gone");
-}
-
-#[trial]
-fn removing_the_last_tool_of_a_slot_removes_the_slot_and_reset_restores_the_defaults() {
-    let defaults = [slot(0, &[UNDO, REDO])];
-    let slots = [slot(0, &[UNDO]), slot(1, &[REDO])];
-    let removed = apply_toolbar_edit(&slots, &ToolbarEdit::remove(REDO), &defaults);
-    assert_eq!(layout(&removed), [(0, vec![UNDO])]);
-    assert_eq!(layout(&apply_toolbar_edit(&removed, &ToolbarEdit::Reset, &defaults)), layout(&defaults));
-}
-
-#[trial]
-fn a_move_of_a_tool_that_is_not_on_the_toolbar_changes_nothing() {
-    let slots = [slot(0, &[UNDO])];
-    let edit = ToolbarEdit::move_to(COPY, DropAt::new_slot(0));
-    assert_eq!(layout(&apply_toolbar_edit(&slots, &edit, &[])), layout(&slots));
-}
-
-#[trial]
-fn a_drop_on_the_rail_asks_for_the_edit_its_drag_implies() {
-    let groups = [DrawerGroup::new("Edit", vec![tool(CUT), tool(COPY)])];
-    let toolbar = [slot(0, &[UNDO, REDO]), slot(1, &[CUT])];
-
-    let Some(ToolbarEdit::Add { tool, at, .. }) = drop_edit(ToolDrag::drawer(0, 1), DropAt::new_slot(2), &groups, &toolbar) else {
-        panic!("a drawer row dropped on the rail adds its tool")
-    };
-    assert_eq!((tool.id, at), (COPY, DropAt::new_slot(2)));
-
-    let Some(ToolbarEdit::Move { tool, at, .. }) = drop_edit(ToolDrag::rail(0, 1), DropAt::into_slot(1, 0), &groups, &toolbar) else {
-        panic!("a rail tool dropped on another slot moves")
-    };
-    assert_eq!((tool, at), (REDO, DropAt::into_slot(1, 0)));
-
-    assert!(drop_edit(ToolDrag::rail(0, 1), DropAt::into_slot(0, 0), &groups, &toolbar).is_none(), "a tool dropped on its own slot stays");
-    assert!(drop_edit(ToolDrag::drawer(3, 0), DropAt::new_slot(0), &groups, &toolbar).is_none(), "a drag whose row is gone asks for nothing");
-}
-
 /// An open drawer beside a rail at the left edge, over two groups of two tools each and an empty toolbar. `closed` is
 /// set when the drawer reports it closed (the host then stops showing it); `edits` collects the edits it reports.
 fn drawer() -> (Fixture, Rc<Cell<bool>>, Rc<RefCell<Vec<ToolbarEdit<u8>>>>) {

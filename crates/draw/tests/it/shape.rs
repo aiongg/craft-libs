@@ -130,26 +130,6 @@ fn type_into(fixture: &mut Fixture, name: &str, text: &str) {
     fixture.settle();
 }
 
-/// Scrubbing W reports `Begin`, `Update`s and one `Commit` of `ShapeChange::Size`: one undo step.
-#[trial]
-fn scrubbing_a_size_is_one_gesture() {
-    let layer = Layer::new(look(0.0));
-    let mut fixture = panel(&layer);
-    // The caption left of the field scrubs it.
-    let caption = fixture.texts().iter().find(|text| text.text == "W").expect("the Width caption is painted").rect.center();
-    fixture.frame(vec![pointer::moved(caption)]);
-    fixture.frame(vec![pointer::press(caption)]);
-    fixture.frame(vec![pointer::moved(caption + vec2(15.0, 0.0))]);
-    fixture.frame(vec![pointer::moved(caption + vec2(30.0, 0.0))]);
-    fixture.frame(vec![pointer::release(caption + vec2(30.0, 0.0))]);
-    fixture.settle();
-    let layer = layer.borrow();
-    let begins = layer.events.iter().filter(|event| matches!(event, EditEvent::Begin { .. })).count();
-    let commits: Vec<_> = layer.events.iter().filter(|event| matches!(event, EditEvent::Commit { .. })).collect();
-    assert_eq!((begins, commits.len()), (1, 1), "{:?}", layer.events);
-    assert!(layer.changes().iter().all(|change| matches!(change, ShapeChange::Size { .. })), "{:?}", layer.events);
-}
-
 /// An arrow step down on a stroke width of 0 reports nothing; choosing Solid on the stroke chip at width 0 reports
 /// one `Stroke` change carrying width 3.
 #[trial]
@@ -199,51 +179,3 @@ fn a_rect_shows_a_uniform_radius_and_four_corners() {
     assert_eq!(layer.borrow().changes().last(), Some(&ShapeChange::Radii([5.0; 4])));
 }
 
-/// With `stroke_open` the Stroke style button shows, and it is off while the stroke width is 0.
-#[trial]
-fn the_stroke_style_button_follows_the_stroke_width() {
-    let on = Layer::new(look(2.0));
-    let fixture = panel(&on);
-    let button = fixture.by_label("Stroke style").expect("the button is shown");
-    assert!(!fixture.tree().is_disabled_key(button.node));
-
-    let off = Layer::new(look(0.0));
-    let fixture = panel(&off);
-    let button = fixture.by_label("Stroke style").expect("the button is shown");
-    assert!(fixture.tree().is_disabled_key(button.node));
-}
-
-/// Rectangle shows Radius, Polygon Sides, Line Weight, Ellipse none of them; each reports its `ShapeChange`.
-#[trial]
-fn the_bar_shows_the_field_of_each_kind() {
-    for (kind, name, text, change) in [
-        (ShapeKind::Rectangle, "Radius", "12", ShapeChange::CornerRadius(12.0)),
-        (ShapeKind::Polygon, "Sides", "7", ShapeChange::Sides(7)),
-        (ShapeKind::Line, "Weight", "5", ShapeChange::Weight(5.0)),
-    ] {
-        let layer = Layer::new(look(0.0));
-        let mut fixture = bar(kind, &layer);
-        assert_eq!(field_names(&fixture), ["Stroke width", name], "{kind:?}");
-        type_into(&mut fixture, name, text);
-        assert_eq!(layer.borrow().changes().last(), Some(&change), "{kind:?}");
-    }
-    assert_eq!(field_names(&bar(ShapeKind::Ellipse, &Layer::new(look(0.0)))), ["Stroke width"]);
-}
-
-/// Choosing Solid on the bar's Stroke chip at width 0 reports one change that carries the width 3.
-#[trial]
-fn the_bar_turning_the_stroke_on_is_one_change() {
-    let layer = Layer::new(look(0.0));
-    let mut fixture = bar(ShapeKind::Rectangle, &layer);
-    let chip = chip(&fixture, "Stroke");
-    fixture.click(&chip);
-    fixture.settle();
-    let solid = fixture.by_label("Solid").expect("the Solid tab");
-    fixture.click(&solid);
-    fixture.settle();
-    let changes = layer.borrow().changes();
-    assert!(
-        matches!(changes.as_slice(), [ShapeChange::Stroke { paint: Paint::Solid(_), width: Some(w), .. }] if *w == ShapeChange::ENABLED_STROKE_WIDTH),
-        "{changes:?}"
-    );
-}

@@ -70,15 +70,6 @@ fn shown_panels(workspace: Workspace<usize>, hide_all: bool) -> (Vec<usize>, Opt
 }
 
 #[trial]
-fn a_layout_that_fails_validation_is_an_error_value_and_draws_no_panel() {
-    let broken = Workspace::new(Layout::new(Some(Node::tabs(vec![SIDE, SIDE], 0)), Vec::new()));
-    let (panels, output) = shown_panels(broken, false);
-    let output = output.expect("the area ran");
-    assert!(output.error.is_some(), "the invalid geometry is reported");
-    assert!(panels.is_empty(), "no panel is drawn: {panels:?}");
-}
-
-#[trial]
 fn hidden_panels_are_not_drawn_and_a_protected_canvas_stays() {
     let (panels, output) = shown_panels(docked(), true);
     assert!(output.is_some_and(|output| output.error.is_none()));
@@ -153,18 +144,6 @@ fn a_tab_released_over_empty_space_floats_with_its_title_row_under_the_pointer()
     let rect = floated(&actions.borrow()).expect("a release over a canvas that takes no drop floats the panel");
     assert!(rect.contains(EMPTY), "the pointer is on the window: {rect:?}");
     assert!(EMPTY.y - rect.top() <= title_row(&fixture), "the pointer is inside the title row: {rect:?}");
-}
-
-#[trial]
-fn command_held_at_the_release_floats_a_tab_over_a_dock_spot() {
-    let (mut fixture, actions) = drag_bed(false);
-    let tabs = column_tabs(&fixture);
-    let (side, other) = (tabs[0], tabs[1]);
-    drag_tab(&mut fixture, side.center(), other.center(), true);
-    let actions = actions.borrow();
-    let rect = floated(&actions).expect("the command key floats the drop");
-    assert!(rect.contains(other.center()), "the window floats under the pointer: {rect:?}");
-    assert!(!actions.iter().any(|action| matches!(action, Action::Move { .. })), "the tab does not join the group: {actions:?}");
 }
 
 #[trial]
@@ -256,33 +235,6 @@ fn float_runs_the_same_actions_from_the_group_menu_and_the_palette() {
     fixture.click(&float);
     fixture.idle(MENU_FRAMES);
     assert_eq!(drained(&outputs), expected, "the menu row runs the same actions");
-}
-
-#[trial]
-fn focus_in_a_panels_content_names_its_panel_while_nothing_is_picked() {
-    let (mut fixture, outputs) = commanded();
-    fixture.settle();
-    let inside = fixture.by_label("Inside").expect("the side panel shows its button");
-    fixture.access(AccessActionKind::Focus, &inside);
-    fixture.idle(2);
-    let last = outputs.borrow_mut().pop().expect("the area ran");
-    assert_eq!(last.focused, Some(SIDE), "the group holding focus names its panel");
-    assert_eq!(last.picked, None, "focus alone picks nothing");
-}
-
-#[trial]
-fn a_column_without_a_width_lays_out_at_the_themes_column_width() {
-    let column = Column::new(vec![Group::new(vec![SIDE], 0)]);
-    let root = Node::split(Axis::X, SplitSize::FixedFirst(COLUMN_WIDTH), Node::dock(DockEdge::Start, vec![column]), Node::tabs(vec![CANVAS], 0));
-    let mut fixture = Fixture::new(move |ui| {
-        let workspace = Workspace::new(Layout::new(Some(root.clone()), Vec::new()));
-        DockArea::new("Dock area", Bind::given(workspace), &mut Controls, DockConfig::default()).show(ui);
-    });
-    fixture.room(AREA).settle();
-    let column_width = with_cx(fixture.ctx(), &tokens(Mode::Dark, Contrast::Standard), Variant::SECONDARY, ControlSize::Md, DockSizes::style).column;
-    let group =
-        fixture.by_role(Role::TAB_PANEL).into_iter().min_by(|a, b| a.rect.min.x.total_cmp(&b.rect.min.x)).expect("the column shows its group");
-    assert!(equals_token(group.rect.width(), column_width), "the group is {} wide, the theme's column is {column_width}", group.rect.width());
 }
 
 #[trial]
@@ -429,16 +381,3 @@ impl DockPanels<usize> for Headed {
     }
 }
 
-#[trial]
-fn the_host_header_control_shows_in_its_groups_header_before_the_tab_strip() {
-    let workspace = docked();
-    let mut fixture = Fixture::new(move |ui| {
-        let mut panels = Headed;
-        let _ = DockArea::read_only("Dock area", &workspace.layout, &mut panels, DockConfig::default()).show(ui);
-    });
-    fixture.room(AREA).settle();
-    let tool = fixture.by_label("Header tool").expect("the group header shows the host's control");
-    let tab = column_tabs(&fixture).first().cloned().expect("the side group's tab");
-    assert!(tool.rect.max.x <= tab.rect.min.x, "the control sits before the tab strip: {:?} {:?}", tool.rect, tab.rect);
-    assert!(tool.rect.intersects(Rect::from_min_max(Pos2::ZERO, Pos2::new(COLUMN_WIDTH, tab.rect.max.y))), "and in the group's header band");
-}

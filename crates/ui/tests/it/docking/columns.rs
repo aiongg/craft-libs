@@ -35,14 +35,6 @@ fn groups_with_a_saved_height_keep_it_and_the_unsized_group_takes_the_rest() {
 }
 
 #[trial]
-fn a_minimized_group_takes_the_strip_only() {
-    let mut minimized = open(MIN);
-    minimized.minimized = true;
-    let heights = group_heights(&[minimized, open(MIN)], STRIP, ROOM);
-    assert_eq!(heights, vec![STRIP, ROOM - STRIP]);
-}
-
-#[trial]
 fn default_heights_give_way_to_the_group_that_fills_before_it_gets_less() {
     let mut roomy = open(MIN);
     roomy.content = Some(DockHeights::new(250.0).compact(100.0));

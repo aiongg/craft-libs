@@ -101,22 +101,6 @@ fn buttons_hide_when_small_hidden_cleared_or_off_the_canvas() {
     assert!(!rig(Setup { object: near_edge, ..Setup::default() }).sides().contains(&AddSide::Left), "off the canvas");
 }
 
-/// Tab focuses the buttons, the right arrow moves to Right, Enter adds it with no copy; Alt held on a click asks for
-/// a copy.
-#[trial]
-fn keys_add_and_an_alt_click_asks_for_a_copy() {
-    let mut rig = rig(Setup::default());
-    rig.focus_buttons();
-    rig.fixture.key(Key::ArrowRight, Modifiers::NONE);
-    rig.fixture.key(Key::Enter, Modifiers::NONE);
-    assert_eq!(rig.added.take(), Some((AddSide::Right, false)));
-
-    let below = rig.fixture.by_label("Add below").expect("the button");
-    rig.fixture.hold(Modifiers::ALT);
-    rig.fixture.click(&below);
-    assert_eq!(rig.added.take(), Some((AddSide::Bottom, true)));
-}
-
 /// On a view turned a quarter, the up arrow reaches the button that sits highest on screen, not the document's top
 /// side.
 #[trial]

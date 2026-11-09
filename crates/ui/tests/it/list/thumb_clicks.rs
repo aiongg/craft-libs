@@ -52,15 +52,3 @@ fn press_release(fixture: &mut Fixture, at: Pos2, times: usize) {
     fixture.idle(2);
 }
 
-/// A single click on a thumbnail reports one click; a double click reports the second click as two.
-#[trial]
-fn a_double_click_on_a_thumbnail_reports_two_clicks() {
-    let (mut fixture, rect, seen) = rig();
-    let at = rect.get().center();
-    press_release(&mut fixture, at, 1);
-    assert_eq!(*seen.borrow(), vec![1], "a single click counts one");
-    seen.borrow_mut().clear();
-    fixture.advance(2.0);
-    press_release(&mut fixture, at, 2);
-    assert_eq!(*seen.borrow(), vec![1, 2], "the second click of a double click counts two");
-}

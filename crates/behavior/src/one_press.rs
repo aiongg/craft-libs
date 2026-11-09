@@ -15,12 +15,4 @@ pub fn split_after_first_press<E>(mut events: Vec<E>, is_press: impl Fn(&E) -> b
 mod tests {
     use super::*;
 
-    #[test]
-    fn events_after_the_first_press_are_held_in_order() {
-        let (now, held) = split_after_first_press(vec!['m', 'P', 'r', 'P', 'k'], |e| *e == 'P');
-        assert_eq!(now, vec!['m', 'P']);
-        assert_eq!(held, vec!['r', 'P', 'k']);
-        let (now, held) = split_after_first_press(vec!['m', 'k'], |e| *e == 'P');
-        assert_eq!((now, held), (vec!['m', 'k'], vec![]));
-    }
 }

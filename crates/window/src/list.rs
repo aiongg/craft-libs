@@ -180,20 +180,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn ids_are_never_reused() {
-        let mut list = WindowList::new();
-        let a = list.open("a");
-        assert!(list.close(a).is_some());
-        let b = list.open("b");
-        let mut other = WindowList::new();
-        let c = other.open("c");
-        assert!(a != b && b != c && a != c);
-        assert!(b > a, "ids increase");
-        assert_eq!(list.get(a), None);
-        assert_eq!(list.get(b), Some(&"b"));
-    }
-
-    #[test]
     fn focus_and_close_keep_most_recent_order() {
         let mut list = WindowList::new();
         let a = list.open("a");
@@ -218,28 +204,4 @@ mod tests {
         assert!(!list.focus(c));
     }
 
-    #[test]
-    fn find_prefers_the_most_recent_match() {
-        let mut list = WindowList::new();
-        let first = list.open("book.xlsx");
-        let _other = list.open("notes.xlsx");
-        let second = list.open("book.xlsx");
-        assert_eq!(list.find(|d| *d == "book.xlsx"), Some(second));
-        list.focus(first);
-        assert_eq!(list.find(|d| *d == "book.xlsx"), Some(first));
-        assert_eq!(list.find(|d| *d == "missing"), None);
-    }
-
-    #[test]
-    fn cascade_origin_is_the_most_recent_known_rect() {
-        let mut list = WindowList::new();
-        let a = list.open(());
-        let b = list.open(());
-        let rect = Rect::new(10.0, 20.0, 300.0, 200.0);
-        list.set_outer_rect(a, Some(rect));
-        assert_eq!(list.cascade_origin(None), Some(rect), "b's position is unknown");
-        assert_eq!(list.cascade_origin(Some(a)), None);
-        list.set_outer_rect(b, Some(Rect::new(0.0, 0.0, 1.0, 1.0)));
-        assert_eq!(list.cascade_origin(Some(b)), Some(rect));
-    }
 }

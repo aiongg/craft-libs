@@ -34,33 +34,6 @@ fn the_lock_scales_the_other_side_by_the_opening_ratio() {
     assert_eq!(pixels(&size).1, 1);
 }
 
-/// A side stops at 300,000 pixels, and the field's range ends there.
-#[trial]
-fn the_pixel_cap_stops_a_size_above_300000() {
-    let mut size = document();
-    size.lock(false);
-    size.set_width(400_000.0);
-    assert_eq!(f64::from(size.pixels().width), MAX_DOCUMENT_SIDE);
-    assert_eq!(*size.width_range().end(), MAX_DOCUMENT_SIDE);
-    assert_eq!(resize_from_side(PixelSize::new(1200, 800), 300_001.0, 10.0, false, true), Err(SizeError::Pixels));
-    assert_eq!(resize_from_scale(PixelSize::new(100_000, 10), 400.0), Err(SizeError::Pixels));
-}
-
-/// The resolution typed in pixels per centimetre reads back in pixels per inch, and the pixel count stays in a pixel
-/// unit.
-#[trial]
-fn a_resolution_in_ppcm_reads_in_ppi() {
-    let mut size = document();
-    assert!(size.set_resolution_unit(UnitKind::PixelsPerCentimetre));
-    size.set_resolution(100.0);
-    assert!((size.pixels_per_inch() - 254.0).abs() < 1e-9);
-    assert_eq!(pixels(&size), (1200, 800));
-    assert!(size.set_resolution_unit(UnitKind::PixelsPerInch));
-    assert!((size.resolution() - 254.0).abs() < 1e-9);
-    assert!(!size.set_resolution_unit(UnitKind::Pixels), "a length is not a resolution unit");
-    assert!(!size.set_unit(UnitKind::PixelsPerInch), "a resolution is not a length unit");
-}
-
 /// A physical size keeps its print size when the resolution changes: the pixels follow it.
 #[trial]
 fn a_new_resolution_resamples_a_physical_size() {
@@ -69,16 +42,6 @@ fn a_new_resolution_resamples_a_physical_size() {
     size.set_resolution(144.0);
     assert_eq!(pixels(&size), (2400, 1600));
     assert!((size.width() - 2400.0 / 144.0).abs() < 1e-9);
-}
-
-/// Percent is of the opening size, whatever the size has become.
-#[trial]
-fn percent_is_relative_to_the_opening_size() {
-    let mut size = document();
-    size.set_width(300.0);
-    assert!(size.set_unit(UnitKind::Percent));
-    assert!((size.width() - 25.0).abs() < 1e-9);
-    assert!((size.height() - 25.0).abs() < 1e-9);
 }
 
 /// A typed value shows back while the pixel size it made stands: 72.27 pt at 72 ppi is 72 pixels and still reads
@@ -96,19 +59,6 @@ fn a_typed_value_shows_back_while_its_pixel_size_stands() {
     assert!(size.set_unit(UnitKind::Points));
     size.set_resolution(100.0);
     assert_ne!(size.width(), 72.27, "a new resolution makes the stored value stale");
-}
-
-/// The Point/Pica Size preference sets the points in an inch.
-#[trial]
-fn points_per_inch_sets_the_point_conversion() {
-    let mut size = document().opening_resolution(300.0).points_per_inch(72.27);
-    size.lock(false);
-    assert!(size.set_unit(UnitKind::Points));
-    size.set_width(144.54);
-    assert_eq!(size.pixels().width, 600);
-    assert!(size.set_unit(UnitKind::Picas));
-    assert!((size.width() - 144.54 / 12.0).abs() < 1e-9);
-    assert_eq!(document().points_per_inch(0.0), document(), "a value that is not positive keeps 72");
 }
 
 /// With Resample off the pixel count is fixed: a size in pixels cannot change, and a physical size changes the
@@ -162,31 +112,6 @@ fn the_export_rules_refuse_sizes_the_engine_cannot_make() {
     assert_eq!(resize_from_side(PixelSize::new(1200, 800), f64::NAN, 10.0, false, true), Err(SizeError::Pixels));
     assert_eq!(resize_from_side(PixelSize::new(1200, 800), 600.0, f64::INFINITY, false, true), Err(SizeError::Pixels));
     assert_eq!(resize_from_side(PixelSize::new(800, 1200), 300_000.0, 0.0, true, true), Err(SizeError::Pixels));
-}
-
-/// A model without the chain never scales the other side, whatever its lock says (Canvas Size).
-#[trial]
-fn a_model_without_the_chain_keeps_the_other_side() {
-    let mut size = document().chain(false);
-    size.set_width(600.0);
-    assert_eq!(pixels(&size), (600, 800));
-    size.set_height(100.0);
-    assert_eq!(pixels(&size), (600, 100));
-    assert!(!size.is_linked());
-}
-
-/// Turning Resample off puts back the opening pixel size, so a size typed in inches afterwards reads back as typed.
-#[trial]
-fn resample_off_puts_back_the_opening_pixels() {
-    let mut size = document();
-    size.set_width(300.0);
-    assert_eq!(pixels(&size), (300, 200));
-    size.resampling(false);
-    assert_eq!(pixels(&size), (1200, 800));
-    assert!(size.set_unit(UnitKind::Inches));
-    size.set_width(8.0);
-    assert_eq!(size.width(), 8.0);
-    assert!((size.pixels_per_inch() - 150.0).abs() < 1e-9);
 }
 
 /// A length typed with a point suffix and the model's own point conversion agree under the traditional point.

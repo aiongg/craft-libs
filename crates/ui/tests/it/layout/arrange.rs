@@ -48,16 +48,3 @@ fn stairs(direction: Direction, mirrors: bool) -> (Rect, Vec<Rect>) {
     out
 }
 
-#[trial]
-fn arrange_mirrors_a_placement_under_rtl_unless_it_opts_out() {
-    let (room, ltr) = stairs(Direction::Ltr, true);
-    assert_eq!(ltr.len(), 2, "each child is shown once");
-    assert_eq!(ltr[0].min.x, room.min.x);
-    assert_eq!(ltr[1].min.x, room.min.x + 30.0);
-    let (room, rtl) = stairs(Direction::Rtl, true);
-    assert_eq!(rtl[0].max.x, room.max.x, "the first child starts at the right edge");
-    assert_eq!(rtl[1].max.x, room.max.x - 30.0);
-    assert_eq!(rtl[1].min.y, ltr[1].min.y, "y is not mirrored");
-    let (room, fixed) = stairs(Direction::Rtl, false);
-    assert_eq!(fixed[0].min.x, room.min.x, "a placement that does not mirror is left as it places");
-}

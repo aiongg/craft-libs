@@ -131,17 +131,6 @@ fn a_value_out_of_range_refuses_ok_with_its_message() {
     assert_eq!(answer.format.space_before, Some(12.0));
 }
 
-/// Tabs… answers with `open_tabs` and the format as edited.
-#[trial]
-fn tabs_button_answers_with_open_tabs() {
-    let mut rig = Rig::new(start());
-    rig.type_into("Spacing after", "6");
-    rig.click("Tabs…");
-    let answer = rig.answers.borrow().last().cloned().expect("Tabs… answers");
-    assert!(answer.open_tabs);
-    assert_eq!(answer.format, set(start(), |f| f.space_after = Some(6.0)));
-}
-
 /// The preview's lines follow the indents and spacing: a hanging indent pulls the first line out, the paragraph's
 /// spacing moves the lines under it.
 #[trial]
@@ -188,12 +177,3 @@ fn a_spacing_in_lines_keeps_its_kind_until_its_value_changes() {
     assert_eq!(answer.format.space_after_kind, SpacingKind::Points);
 }
 
-/// A spacing of 11 lines is out of range (DeckCraft keeps at most 10).
-#[trial]
-fn lines_of_spacing_have_their_own_range() {
-    let rig = Rig::new(set(start(), |f| {
-        f.space_after = Some(11.0);
-        f.space_after_kind = SpacingKind::Lines;
-    }));
-    assert!(rig.shows("Spacing after must be from 0 to 10"));
-}

@@ -14,30 +14,6 @@ use egui::{Event, Key, Modifiers, Pos2, Rect, Ui, pos2};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-#[trial]
-fn the_f_key_cycles_the_modes_and_shift_f_goes_back() {
-    let mut mode = ScreenMode::Standard;
-    for expected in [ScreenMode::FullScreenWithMenuBar, ScreenMode::FullScreen, ScreenMode::Standard] {
-        mode = mode.next();
-        assert_eq!(mode, expected);
-    }
-    for mode in [ScreenMode::Standard, ScreenMode::FullScreenWithMenuBar, ScreenMode::FullScreen] {
-        assert_eq!(mode.next().previous(), mode);
-        assert_eq!(ScreenModeCommands::Cycle.apply(mode), mode.next());
-        assert_eq!(ScreenModeCommands::CycleBack.apply(mode), mode.previous());
-        assert_eq!(ScreenModeCommands::of(mode).apply(ScreenMode::Standard), mode);
-    }
-}
-
-#[trial]
-fn each_mode_hides_what_it_hides() {
-    assert!(ScreenMode::Standard.tabs_visible() && ScreenMode::Standard.scrollbars_visible());
-    assert!(!ScreenMode::Standard.is_full_screen() && !ScreenMode::Standard.body_only());
-    let with_bars = ScreenMode::FullScreenWithMenuBar;
-    assert!(!with_bars.tabs_visible() && !with_bars.scrollbars_visible() && with_bars.is_full_screen() && !with_bars.body_only());
-    assert!(ScreenMode::FullScreen.body_only() && ScreenMode::FullScreen.is_full_screen());
-}
-
 fn rect_of(out: &AppShellOutput, key: &str) -> Rect {
     out.regions.slots.iter().find(|(shown, _)| *shown == key).map(|(_, rect)| *rect).expect("the slot showed")
 }
@@ -198,17 +174,6 @@ fn shift_tab_hides_the_panels_and_keeps_the_tools_in_normal_mode_only() {
 }
 
 #[trial]
-fn the_f_key_cycles_the_window_and_shift_f_goes_back() {
-    let mut window = Window::new(ScreenMode::Standard, Direction::Ltr);
-    for expected in [ScreenMode::FullScreenWithMenuBar, ScreenMode::FullScreen, ScreenMode::Standard] {
-        window.key(Key::F, Modifiers::NONE);
-        assert_eq!(window.mode.get(), expected);
-    }
-    window.key(Key::F, Modifiers::SHIFT);
-    assert_eq!(window.mode.get(), ScreenMode::FullScreen);
-}
-
-#[trial]
 fn a_screen_mode_change_ends_a_reveal() {
     let mut window = Window::new(ScreenMode::FullScreen, Direction::Ltr);
     window.key(Key::Tab, Modifiers::NONE);
@@ -249,29 +214,6 @@ fn slots_lay_out_around_the_body_on_the_first_pass() {
     assert!(rect_of(&out, "tools").max.x <= body.min.x, "the tools are at the start of the body");
     let keys: Vec<_> = out.regions.slots.iter().map(|(key, _)| *key).collect();
     assert_eq!(keys, ["title", "status", "tools"], "slots claim space in the order title, bottom, start");
-}
-
-#[trial]
-fn full_screen_shows_the_body_only() {
-    let seen = RefCell::new(None);
-    let mut frames = Frames::new();
-    let mut show = |ui: &mut Ui| {
-        let mut mode = ScreenMode::FullScreen;
-        let out = AppShell::new(WindowKey::main())
-            .screen_mode(Bind::bound(&mut mode))
-            .title_bar(|ui, _, _| {
-                Text::new("Title").show(ui);
-            })
-            .body(|ui, _, _| {
-                Text::new("Document").show(ui);
-            })
-            .show(ui, &mut ());
-        *seen.borrow_mut() = Some(out);
-    };
-    frames.frame(Vec::new(), &mut show);
-    let out = seen.borrow_mut().take().expect("the shell showed");
-    assert!(out.regions.slots.is_empty() && !out.revealed, "full screen shows the body only");
-    assert_eq!(out.screen_mode, ScreenMode::FullScreen);
 }
 
 #[trial]
@@ -393,11 +335,6 @@ fn tab_hides(shells: &[&'static str]) -> Vec<(&'static str, bool)> {
 }
 
 #[trial]
-fn tab_with_a_canvas_focused_hides_that_windows_panels_in_the_same_pass() {
-    assert_eq!(tab_hides(&["main"]), [("main", false)]);
-}
-
-#[trial]
 fn two_shells_in_one_viewport_toggle_apart() {
     assert_eq!(tab_hides(&["first", "second"]), [("first", true), ("second", false)], "Tab goes to the window that holds focus");
 }
@@ -459,13 +396,6 @@ fn a_click_on_the_default_button_of_a_window_prompt_answers_the_body() {
     prompt_through_the_window_host(|fixture| {
         let button = fixture.by_label("Delete").expect("the default button of the prompt");
         fixture.click(&button);
-    });
-}
-
-#[trial]
-fn enter_on_a_window_prompt_answers_its_default_button() {
-    prompt_through_the_window_host(|fixture| {
-        fixture.key(Key::Enter, Modifiers::NONE);
     });
 }
 

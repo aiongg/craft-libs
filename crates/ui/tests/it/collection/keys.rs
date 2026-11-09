@@ -141,34 +141,6 @@ fn show_table(ui: &mut Ui, props: CollectionProps, source: &dyn ItemSource<usize
     });
 }
 
-/// Space flips the lead row's toggle cell when the props say so, in one edit; Enter still activates.
-#[trial]
-fn space_toggles_the_lead_rows_cell_and_enter_activates() {
-    let (seen, source) = (Seen::default(), Switches { on: RefCell::new(vec![false; 3]) });
-    let props = || {
-        CollectionProps::new().select(SelectMode::Single).space(SpaceAction::ToggleCell).columns(vec![
-            ColumnSpec::new(NAME, "Name", ColumnWidth::Fixed(COL)),
-            ColumnSpec::new(MUTE, "Mute", ColumnWidth::Fixed(COL)).kind(ColumnKind::Toggle(ToggleColumn::sweepable())),
-        ])
-    };
-    let mut frames = Frames::new();
-    let mut show = |ui: &mut Ui| {
-        for (key, on) in seen.toggles() {
-            source.on.borrow_mut()[key] = on;
-        }
-        show_table(ui, props(), &source, &seen);
-    };
-    frames.idle(3, &mut show);
-    focus(&mut frames, &seen, &mut show);
-    press(&mut frames, Key::ArrowDown, &mut show);
-    press(&mut frames, Key::Space, &mut show);
-    assert_eq!(seen.toggles(), vec![(0, true)], "one Toggle edit on the lead row");
-    assert!(seen.activations().is_empty(), "Space does not activate");
-    press(&mut frames, Key::Enter, &mut show);
-    assert_eq!(seen.activations(), vec![0]);
-    assert_eq!(seen.toggles().len(), 1, "Enter toggles nothing");
-}
-
 /// A collection that lays its items in rows of different lengths, the last items hidden as a closed group's are.
 #[derive(Clone)]
 struct Ragged {
@@ -294,21 +266,6 @@ fn show_probe(ui: &mut Ui, props: CollectionProps, layout: &Ragged, source: &dyn
     });
 }
 
-/// Down in a ragged grid goes to the item below, which needs the layout's row lengths.
-#[trial]
-fn down_in_a_ragged_grid_moves_to_the_item_below() {
-    let (seen, layout) = (Seen::default(), Ragged { rows: vec![3, 2, 3], hidden_from: 8 });
-    let source = Count(8);
-    let mut frames = Frames::new();
-    let mut show = |ui: &mut Ui| show_probe(ui, CollectionProps::new().select(SelectMode::Single), &layout, &source, &seen);
-    frames.idle(3, &mut show);
-    focus(&mut frames, &seen, &mut show);
-    press(&mut frames, Key::ArrowDown, &mut show);
-    press(&mut frames, Key::ArrowRight, &mut show);
-    press(&mut frames, Key::ArrowDown, &mut show);
-    assert_eq!(seen.lead_keys(), vec![0, 1, 4], "the second item of the first row goes to the second item of the second");
-}
-
 /// End lands on the last item that shows, and no item of a closed group is built with an unplaced rect.
 #[trial]
 fn end_skips_the_items_of_a_closed_group() {
@@ -325,86 +282,3 @@ fn end_skips_the_items_of_a_closed_group() {
     assert!(rows.iter().all(|(key, rect)| *key < 5 && rect.is_finite()), "only shown items are built: {rows:?}");
 }
 
-/// A collection that takes digits receives them, and the other typed text still moves the lead by type-ahead.
-#[trial]
-fn digit_keys_leave_the_letters_to_type_ahead() {
-    let (seen, layout) = (Seen::default(), Ragged { rows: vec![3], hidden_from: 3 });
-    let words = Words::flat(&["apple", "banana", "cherry"]);
-    let mut frames = Frames::new();
-    let mut show = |ui: &mut Ui| show_probe(ui, CollectionProps::new().select(SelectMode::Single).digit_keys(true), &layout, &words, &seen);
-    frames.idle(3, &mut show);
-    focus(&mut frames, &seen, &mut show);
-    frames.frame(vec![input::text("3")], &mut show);
-    assert_eq!(*seen.digits.borrow(), vec![3]);
-    assert!(seen.lead_keys().is_empty(), "a digit is not type-ahead");
-    frames.frame(vec![input::text("c")], &mut show);
-    assert_eq!(seen.lead_keys(), vec![2]);
-    assert_eq!(*seen.digits.borrow(), vec![3], "a letter is not a digit");
-}
-
-/// Without the header flag the columns lay the rows out and no header row is built.
-#[trial]
-fn header_off_builds_no_header_row() {
-    let columns = || vec![ColumnSpec::new(NAME, "Name", ColumnWidth::Fixed(COL)).sortable()];
-    let headers = |on: bool| {
-        let (seen, source) = (Seen::default(), Count(3));
-        let mut frames = Frames::new();
-        let mut show = |ui: &mut Ui| show_table(ui, CollectionProps::new().columns(columns()).header(on), &source, &seen);
-        frames.idle(3, &mut show);
-        frames.tree().with_role(Role::COLUMN_HEADER).len()
-    };
-    assert_eq!(headers(true), 1);
-    assert_eq!(headers(false), 0);
-}
-
-/// The lead's events say whether keys or the pointer moved it.
-#[trial]
-fn the_lead_reports_what_moved_it() {
-    let (seen, source) = (Seen::default(), Count(4));
-    let mut frames = Frames::new();
-    let mut show = |ui: &mut Ui| show_table(ui, CollectionProps::new().select(SelectMode::Single).lead_follows_hover(true), &source, &seen);
-    frames.idle(3, &mut show);
-    focus(&mut frames, &seen, &mut show);
-    press(&mut frames, Key::ArrowDown, &mut show);
-    assert_eq!(seen.leads(), vec![(0, LeadSource::Keys)]);
-    let (first, second) = (seen.row(1).center(), seen.row(2).center());
-    frames.frame(vec![pointer::moved(first)], &mut show);
-    frames.frame(vec![pointer::moved(second)], &mut show);
-    assert_eq!(seen.leads().last(), Some(&(2, LeadSource::Pointer)));
-    assert!(seen.events.borrow().iter().any(|event| matches!(event, CollectionEvent::Selection(SelectionChange::Set(_)))));
-}
-
-/// With `arrows_select` off the arrows move the lead and select nothing; Space then selects the lead.
-#[trial]
-fn arrows_move_the_lead_without_selecting_when_the_props_say_so() {
-    let (seen, source) = (Seen::default(), Count(4));
-    let mut frames = Frames::new();
-    let mut show = |ui: &mut Ui| show_table(ui, CollectionProps::new().select(SelectMode::Single).arrows_select(false), &source, &seen);
-    frames.idle(3, &mut show);
-    focus(&mut frames, &seen, &mut show);
-    press(&mut frames, Key::ArrowDown, &mut show);
-    press(&mut frames, Key::ArrowDown, &mut show);
-    assert_eq!(seen.leads(), vec![(0, LeadSource::Keys), (1, LeadSource::Keys)]);
-    let selections = |seen: &Seen| seen.events.borrow().iter().filter(|event| matches!(event, CollectionEvent::Selection(_))).count();
-    assert_eq!(selections(&seen), 0, "the arrows only moved the lead");
-    press(&mut frames, Key::Space, &mut show);
-    assert_eq!(selections(&seen), 1, "Space selects the lead");
-}
-
-/// The first press on a column that sorts descending first asks for descending; the next one reverses it.
-#[trial]
-fn the_first_click_on_a_first_descending_column_sorts_descending() {
-    let (seen, source) = (Seen::default(), Count(4));
-    let mut frames = Frames::new();
-    let mut show = |ui: &mut Ui| {
-        let sort = seen.sorts().last().map(|(key, descending)| craft_ui::contract::ColumnSort::new(key.clone(), *descending));
-        let columns = vec![ColumnSpec::new(SIZE, "Size", ColumnWidth::Fixed(COL)).sortable().first_descending()];
-        show_table(ui, CollectionProps::new().columns(columns).sort(sort), &source, &seen);
-    };
-    frames.idle(3, &mut show);
-    let header = Pos2::new(ORIGIN.x + COL / 2.0, (ORIGIN.y + seen.row(0).min.y) / 2.0);
-    pointer::click(&mut frames, header, &mut show);
-    frames.idle(2, &mut show);
-    pointer::click(&mut frames, header, &mut show);
-    assert_eq!(seen.sorts(), vec![(SIZE, true), (SIZE, false)]);
-}

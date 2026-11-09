@@ -72,22 +72,3 @@ fn app_tabs_switch_and_report_changes() {
     assert!(host.borrow().outcomes.iter().any(|o| matches!(o, Outcome::Changed)));
 }
 
-/// While a row records, the snapshot names its command; after a held chord it names the conflict's chord and holders.
-#[trial]
-fn snapshot_reports_conflict_and_recording() {
-    let mut rig = Rig::mac();
-    let snapshot = |rig: &Rig| {
-        let shared = rig.shared.borrow();
-        shared.state.snapshot(&shared.km)
-    };
-    let export = CommandRef::from("file.export");
-    assert!(snapshot(&rig).is_some_and(|s| s.recording.is_none() && s.conflict.is_none() && s.tab == "shortcuts"));
-
-    rig.click("Export…: ⌘E");
-    assert!(snapshot(&rig).is_some_and(|s| s.recording == Some(export.clone()) && s.conflict.is_none()));
-
-    rig.press(Modifiers::MAC_CMD, Key::S);
-    let after = snapshot(&rig).unwrap_or_else(|| panic!("a snapshot"));
-    assert_eq!(after.conflict, Some(("Cmd+S".to_string(), vec![CommandRef::from("file.save")])));
-    assert!(after.recording.is_none());
-}

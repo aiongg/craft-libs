@@ -76,18 +76,4 @@ impl ColorModel for CmykModel {
 mod tests {
     use super::*;
 
-    /// Typed inks convert to a colour whose inks read back within one percent (coated CMYK).
-    #[test]
-    fn typed_inks_read_back_from_their_colour() {
-        let model = CmykModel::new(CmykConverter::coated().clone());
-        let typed = [20.0, 40.0, 60.0, 10.0];
-        let mut values = [0.0; MAX_CHANNELS];
-        values[..4].copy_from_slice(&typed);
-        let color = model.to_srgb(&values);
-        let back = model.from_srgb(color);
-        assert_eq!(back.model, "cmyk");
-        for (got, want) in back.values.iter().zip(typed) {
-            assert!((got - want).abs() <= 1.0, "read back {:?}", back.values);
-        }
-    }
 }

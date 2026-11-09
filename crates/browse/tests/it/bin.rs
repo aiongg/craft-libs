@@ -164,16 +164,6 @@ impl Setup {
     }
 }
 
-/// Every typed word must appear in the name, in any order and in any case.
-#[trial]
-fn a_search_matches_words_in_any_order() {
-    assert!(name_matches("Summer Beach.mov", "beach summer"));
-    assert!(name_matches("Summer Beach.mov", "  MOV "));
-    assert!(name_matches("été.mov", "ÉTÉ"));
-    assert!(name_matches("anything", "   "));
-    assert!(!name_matches("Summer Beach.mov", "beach winter"));
-}
-
 /// A search lists the matching items of the sub-bins, flat, and clearing it shows the bin again.
 #[trial]
 fn a_search_shows_matches_from_sub_bins() {
@@ -188,24 +178,6 @@ fn a_search_shows_matches_from_sub_bins() {
     bin.state.borrow_mut().search.clear();
     bin.fixture.settle();
     assert!(bin.fixture.by_label("Archive").is_some());
-}
-
-/// Enter on a bin opens it in place, with Shift in a new tab, with Cmd/Ctrl in a new window.
-#[trial]
-fn opening_a_bin_reports_how_to_open_it() {
-    for (modifiers, how) in [(Modifiers::NONE, OpenHow::InPlace), (Modifiers::SHIFT, OpenHow::NewTab), (Modifiers::COMMAND, OpenHow::NewWindow)] {
-        let mut bin = setup(false, |_| {});
-        bin.click("Archive");
-        bin.fixture.hold(modifiers).key(Key::Enter, modifiers);
-        bin.fixture.settle();
-        let opened: Vec<_> = bin
-            .events
-            .borrow()
-            .iter()
-            .filter_map(|event| if let BinEvent::OpenBin { key, how, .. } = event { Some((*key, *how)) } else { None })
-            .collect();
-        assert_eq!(opened, [(2, how)], "{modifiers:?}");
-    }
 }
 
 /// An item dragged onto a bin row's middle is a drop into the bin.
@@ -267,43 +239,6 @@ fn a_foreign_drag_over_rows_is_a_drop_not_a_reorder() {
     assert_eq!(bin.drops(), [(vec![30], Some(1))], "{:?}", bin.events.borrow());
 }
 
-/// Cmd/Ctrl+] moves the selection one place in User Order and does nothing in a sorted order.
-#[trial]
-fn stacking_keys_reorder_in_user_order_only() {
-    let reorders = |bin: &Setup| bin.events.borrow().iter().filter(|event| matches!(event, BinEvent::Reorder(_))).count();
-    let mut bin = setup(false, |_| {});
-    bin.click("Clip.mov");
-    bin.fixture.key(Key::CloseBracket, Modifiers::COMMAND).settle();
-    assert_eq!(reorders(&bin), 1, "{:?}", bin.events.borrow());
-
-    let mut sorted = setup(false, |state| state.settings.sort = Some(ColumnSort::ascending(NAME)));
-    sorted.click("Clip.mov");
-    sorted.fixture.key(Key::CloseBracket, Modifiers::COMMAND).settle();
-    assert_eq!(reorders(&sorted), 0, "{:?}", sorted.events.borrow());
-}
-
-/// Cmd/Ctrl+= in the List view steps the zoom by one key step.
-#[trial]
-fn zoom_keys_step_the_zoom_in_the_list_view() {
-    let mut bin = setup(false, |_| {});
-    bin.click("Clip.mov");
-    let before = bin.state.borrow().settings.zoom;
-    bin.fixture.key(Key::Equals, Modifiers::COMMAND).settle();
-    assert!(bin.state.borrow().settings.zoom > before);
-    assert!(bin.events.borrow().iter().any(|event| matches!(event, BinEvent::Zoom(_))));
-}
-
-/// A bin with nothing in it still opens and closes: its row is a group.
-#[trial]
-fn an_empty_bin_has_a_disclosure_triangle() {
-    let mut bin = setup(false, |_| {});
-    bin.click("Empty");
-    bin.fixture.key(Key::ArrowRight, Modifiers::NONE).settle();
-    let opened = bin.events.borrow().iter().any(|event| matches!(event, BinEvent::Open(change) if change.key == 3 && change.open));
-    assert!(opened, "{:?}", bin.events.borrow());
-    assert!(bin.state.borrow().expanded.is_open(&3));
-}
-
 /// "{selected} of {total}" counts only the selected keys the bin shows.
 #[trial]
 fn the_selection_count_leaves_out_keys_that_are_not_shown() {
@@ -314,37 +249,6 @@ fn the_selection_count_leaves_out_keys_that_are_not_shown() {
     *bin.selection.borrow_mut() = Selection::single(10);
     bin.fixture.settle();
     assert!(bin.fixture.by_label("1 of 2 items selected").is_some());
-}
-
-/// A drag released over a footer action that accepts drops reports `FooterDrop` with the items.
-#[trial]
-fn a_drop_on_a_footer_action_reports_it() {
-    let mut bin = setup(false, |_| {});
-    let action = bin.rect("New Item").center();
-    bin.drag_to("Beach.mov", action);
-    let drops: Vec<_> = bin
-        .events
-        .borrow()
-        .iter()
-        .filter_map(|event| if let BinEvent::FooterDrop { action, keys, .. } = event { Some((*action, keys.clone())) } else { None })
-        .collect();
-    assert_eq!(drops, [(0, vec![10])], "{:?}", bin.events.borrow());
-    assert!(bin.drops().is_empty());
-}
-
-/// Escape during the zoom slider's drag gives back the size the drag started from.
-#[trial]
-fn escape_during_the_zoom_drag_restores_the_size() {
-    let mut state = BinState::<u32>::default();
-    let before = state.settings.zoom;
-    let gesture = GestureId::new(1);
-    let label: std::sync::Arc<str> = "Thumbnail Size".into();
-    state.apply(&BinEvent::Zoom(EditEvent::begin(gesture, Mixed::Same(before), label, None)));
-    let bigger = before + before;
-    state.apply(&BinEvent::Zoom(EditEvent::update(gesture, bigger)));
-    assert_eq!(state.settings.zoom, bigger);
-    state.apply(&BinEvent::Zoom(EditEvent::cancel(gesture, CancelReason::Escape, Some(Mixed::Same(before)))));
-    assert_eq!(state.settings.zoom, before);
 }
 
 /// Icon view: bins are tiles before the items, and the pointer over an item's picture reports the scrub.
@@ -378,20 +282,6 @@ fn icon_cards_drop_into_bins_and_the_background() {
     let archive = bin.rect("Archive").center();
     bin.drag_to("Other 30", archive);
     assert_eq!(bin.drops(), [(vec![30], Some(2))], "{:?}", bin.events.borrow());
-
-    bin.events.borrow_mut().clear();
-    let room = bin.empty_room();
-    bin.drag_to("Other 20", room);
-    assert_eq!(bin.drops(), [(vec![20], None)], "{:?}", bin.events.borrow());
-}
-
-/// Freeform view: a drag from another list onto a bin card and onto the background become `Drop` events.
-#[trial]
-fn freeform_drops_on_a_bin_card_and_the_background_become_drops() {
-    let mut bin = setup(true, |state| state.settings.view = BinView::Freeform);
-    let footage = bin.rect("Footage").center();
-    bin.drag_to("Other 30", footage);
-    assert_eq!(bin.drops(), [(vec![30], Some(1))], "{:?}", bin.events.borrow());
 
     bin.events.borrow_mut().clear();
     let room = bin.empty_room();

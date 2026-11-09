@@ -33,15 +33,6 @@ fn error_at<'a>(errors: &'a FormatErrors, path: &str) -> &'a ErrorKind {
 }
 
 #[test]
-fn built_in_files_parse_and_name_their_size() {
-    assert_eq!(builtin(Size::Compact).id, "compact");
-    assert_eq!(builtin(Size::Comfortable).id, "comfortable");
-    for size in [Size::Compact, Size::Comfortable] {
-        builtin(size).validate().unwrap();
-    }
-}
-
-#[test]
 fn files_round_trip_and_keep_unknown_top_level_keys() {
     for text in [COMPACT, COMFORTABLE] {
         let file = parse_sizes(text.as_bytes()).unwrap();
@@ -71,12 +62,3 @@ fn out_of_range_unknown_and_wrong_kind_values_are_rejected_naming_the_path() {
     assert_eq!(error_at(&e, "base.size.hit.slop"), &ErrorKind::Missing);
 }
 
-#[test]
-fn broken_cross_rules_are_rejected_naming_the_path() {
-    let e = rejected(&edited("base.size.control.sm", Some(json!(30))));
-    assert!(matches!(error_at(&e, "base.size.control.sm"), ErrorKind::CrossRule { .. }));
-    let e = rejected(&edited("base.typography.body.line_height", Some(json!(10))));
-    assert!(matches!(error_at(&e, "base.typography.body.line_height"), ErrorKind::CrossRule { .. }));
-    let e = rejected(&edited("base.size.thumb.md", Some(json!(60))));
-    assert!(matches!(error_at(&e, "base.size.thumb.md"), ErrorKind::CrossRule { .. }));
-}

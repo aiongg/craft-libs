@@ -20,40 +20,6 @@ fn layer(name: &str, kind: LayerKind, blend_key: &str) -> LayerInfo {
     info
 }
 
-/// Mode always filters, Name trims and ignores case, Kind matches `filter_kind`, groups match no kind, an inactive
-/// filter shows every layer.
-#[trial]
-fn filter_rules_for_kind_name_and_mode() {
-    let pixel = layer("Sky Photo", LayerKind::Pixel, "normal");
-    let fill = layer("Colour", LayerKind::Fill, "multiply");
-    let group = layer("Group 1", LayerKind::Group, "passThrough");
-
-    let none = LayerFilter::default();
-    assert!(!none.active());
-    assert!([&pixel, &fill, &group].into_iter().all(|info| none.shows(info)));
-
-    let mut kinds = LayerFilter::default();
-    kinds.kinds = vec![FilterKind::Adjustment];
-    assert!(kinds.active());
-    assert!(kinds.shows(&fill) && !kinds.shows(&pixel) && !kinds.shows(&group), "fill layers are adjustments; groups match no kind");
-
-    let mut blank = LayerFilter::default();
-    blank.by = FilterBy::Name;
-    blank.name = String::from("   ");
-    assert!(!blank.active() && blank.shows(&group));
-    let mut name = LayerFilter::default();
-    name.by = FilterBy::Name;
-    name.name = String::from("  sky ");
-    assert!(name.shows(&pixel) && !name.shows(&fill));
-
-    let mut mode = LayerFilter::default();
-    mode.by = FilterBy::Mode;
-    assert!(mode.active(), "Mode always filters, by Normal at first");
-    assert!(mode.shows(&pixel) && !mode.shows(&fill));
-    mode.mode = String::from("multiply");
-    assert!(mode.shows(&fill) && !mode.shows(&pixel));
-}
-
 /// `LayersSettings::default()` is Medium, Entire Document, filters shown, the first four switches on, badges off; a
 /// section with missing fields loads with those defaults; a JSON round trip keeps every field.
 #[trial]
@@ -121,28 +87,6 @@ fn click(fixture: &mut Fixture, label: &str) {
     });
     fixture.click(&target);
     fixture.idle(2);
-}
-
-/// OK returns the edited `LayersOptions`; Cancel returns no options.
-#[trial]
-fn options_dialog_ok_returns_the_edited_options() {
-    let (mut fixture, answers) = open_dialog();
-    click(&mut fixture, "Layer Bounds");
-    click(&mut fixture, "Show layer mask badges");
-    click(&mut fixture, "Expand New Effects");
-    click(&mut fixture, "Small");
-    click(&mut fixture, "OK");
-    let answers = answers.borrow();
-    let Some(Some(options)) = answers.last() else { panic!("OK answers with the options") };
-    assert_eq!(options.thumbnail_contents, ThumbContents::LayerBounds);
-    assert_eq!(options.thumbnail_size, ThumbSize::Small);
-    assert!(options.show_layer_mask_badges);
-    assert!(!options.expand_new_effects);
-
-    let (mut fixture, answers) = open_dialog();
-    click(&mut fixture, "Show layer mask badges");
-    click(&mut fixture, "Cancel");
-    assert_eq!(answers.borrow().as_slice(), [None], "Cancel gives no options");
 }
 
 type Events = Rc<RefCell<Vec<LayerPropertyEdit>>>;

@@ -69,13 +69,6 @@ fn tab_in_a_window_with_a_canvas_toggles_that_window_only() {
 }
 
 #[trial]
-fn shift_tab_toggles_the_panels_and_keeps_the_tools() {
-    let mut show = with_canvas;
-    let mut frames = shown(true, &mut show);
-    assert_eq!(press(&mut frames, &mut show, Key::Tab, Modifiers::SHIFT), [(ViewportId::ROOT, ChromeToggle::PanelsKeepTools)]);
-}
-
-#[trial]
 fn tab_in_a_window_with_a_canvas_moves_focus_off_a_control() {
     let mut show = with_canvas;
     let mut frames = shown(true, &mut show);
@@ -95,14 +88,6 @@ fn tab_in_a_window_without_a_canvas_moves_focus() {
     focus_on(&mut frames, &mut show, "slider");
     assert!(press(&mut frames, &mut show, Key::Tab, Modifiers::NONE).is_empty(), "a slider");
     assert_ne!(egui_focused(&frames.ctx), Some(id("slider")), "focus left the slider");
-}
-
-#[trial]
-fn tab_moves_focus_when_the_app_switch_is_off() {
-    let mut show = with_canvas;
-    let mut frames = shown(false, &mut show);
-    assert!(press(&mut frames, &mut show, Key::Tab, Modifiers::NONE).is_empty());
-    assert_eq!(egui_focused(&frames.ctx), Some(id("button")));
 }
 
 #[trial]

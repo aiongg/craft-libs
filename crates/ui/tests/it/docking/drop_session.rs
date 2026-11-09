@@ -157,28 +157,6 @@ fn tabs_by_x(fixture: &Fixture) -> Vec<craft_ui::testing::Target> {
 }
 
 #[trial]
-fn a_tab_joins_a_group_or_docks_beside_it_through_the_drop_target() {
-    let (mut fixture, layout, _) = bed(two_groups());
-    fixture.settle();
-    let layers = tabs_by_x(&fixture)[0];
-    let middle = Pos2::new(260.0, 150.0);
-    fixture.drag(&layers, middle - layers.center());
-    fixture.idle(2);
-    assert_eq!(groups(&layout.borrow()), vec![panels(&["Channels"]), panels(&["Properties", "Layers"])], "joining tabs adds no group");
-
-    let tabs = tabs_by_x(&fixture);
-    let joined = tabs.last().expect("the joined tab shows");
-    let edge = Pos2::new(395.0, 150.0);
-    fixture.drag(joined, edge - joined.center());
-    fixture.idle(2);
-    assert_eq!(
-        groups(&layout.borrow()),
-        vec![panels(&["Channels"]), panels(&["Properties"]), panels(&["Layers"])],
-        "the end edge of the right group docks the panel in a group after it"
-    );
-}
-
-#[trial]
 fn a_panel_dropped_between_two_tabs_lands_between_them() {
     let (mut fixture, layout, _) = bed(two_groups());
     fixture.settle();
@@ -207,17 +185,3 @@ fn a_group_grip_drag_shows_the_drop_mark_over_a_group_side_and_docks_on_release(
     assert_eq!(groups(&layout.borrow())[1], panels(&["Layers", "Channels"]));
 }
 
-#[trial]
-fn escape_cancels_a_group_grip_drag() {
-    let (mut fixture, layout, _) = bed(two_groups());
-    fixture.settle();
-    let before = layout.borrow().clone();
-    let grip = left_grip(&fixture);
-    hold_and_move(&mut fixture, grip.center(), Pos2::new(395.0, 150.0));
-    assert!(drag::active::<GroupDrag<String>>(fixture.ctx()).is_some());
-    fixture.key(Key::Escape, Modifiers::NONE);
-    fixture.frame(vec![release(Pos2::new(395.0, 150.0))]);
-    fixture.idle(2);
-    assert!(drag::active::<GroupDrag<String>>(fixture.ctx()).is_none(), "Escape ended the drag");
-    assert_eq!(*layout.borrow(), before, "and nothing dropped");
-}

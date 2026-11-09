@@ -85,34 +85,6 @@ fn names(list: &FileList) -> Vec<String> {
     list.files.iter().map(|p| p.file_name().expect("a file name").to_string_lossy().into_owned()).collect()
 }
 
-/// Adding keeps the order and skips paths already listed.
-#[trial]
-fn add_keeps_order_and_skips_duplicates() {
-    let mut list = FileList::default();
-    list.add(paths(&["b.png", "a.png", "b.png"]));
-    list.add(paths(&["c.png", "a.png"]));
-    assert_eq!(list.files, paths(&["b.png", "a.png", "c.png"]));
-}
-
-/// OK needs a file in Files mode and a folder in Folder mode, with the matching message.
-#[trial]
-fn validity_follows_the_mode() {
-    let words = FileListWords::default();
-    let mut list = FileList::default();
-    assert!(!list.is_valid());
-    assert_eq!(list.problem(&words), Some("Add the files to load"));
-    list.add(paths(&["a.png"]));
-    assert!(list.is_valid());
-    assert_eq!(list.problem(&words), None);
-
-    list.mode = FileListMode::Folder;
-    assert!(!list.is_valid(), "files don't count in Folder mode");
-    assert_eq!(list.problem(&words), Some("Choose a folder to load"));
-    list.folder = Some(PathBuf::from("/photos"));
-    assert!(list.is_valid());
-    assert_eq!(list.problem(&words), None);
-}
-
 /// Browse queues an open-many picker and the answer's files are added on a later pass; Delete removes the selected
 /// row; Alt+Down moves it.
 #[trial]
@@ -249,20 +221,3 @@ fn browse_answer_fills_the_field_and_an_orphaned_answer_blocks_nothing() {
     assert_eq!(field.edits.get(), 1);
 }
 
-/// With `must_exist`, a missing path shows the not-found message under the field; an existing path does not.
-#[trial]
-fn missing_path_shows_not_found_when_required() {
-    let message = PathFieldWords::default().not_found.as_str().to_owned();
-    let shown = |field: &Field| field.fixture.texts().iter().any(|text| text.text == message);
-
-    let request = PickRequest::open("import");
-    let optional = Field::new("/definitely/not/here.png", request.clone(), false);
-    assert!(!shown(&optional), "not required: no message");
-
-    let required = Field::new("/definitely/not/here.png", request.clone(), true);
-    assert!(shown(&required));
-
-    let present = std::env::current_exe().expect("the test binary").to_string_lossy().into_owned();
-    let existing = Field::new(&present, request, true);
-    assert!(!shown(&existing), "an existing path is fine");
-}

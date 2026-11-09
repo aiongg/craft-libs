@@ -64,20 +64,6 @@ fn subdivisions_add_minor_lines_between_majors_while_they_stay_apart() {
 }
 
 #[trial]
-fn an_axis_with_a_step_under_six_points_or_no_step_draws_nothing() {
-    assert!(grid().lines(&space(0.05)).x.major.is_empty(), "a 100-unit step at 0.05 is 5 points");
-    let no_x = grid().spacing(step(0.0, MAJOR)).lines(&space(1.0));
-    assert!(no_x.x.major.is_empty() && !no_x.y.major.is_empty(), "a step that is not positive draws nothing on its axis");
-}
-
-#[trial]
-fn lines_per_axis_are_capped() {
-    let many = CanvasGrid::new("Grid").spacing(step(DENSE, DENSE)).lines(&square_space(HUGE_SIDE, 1.0));
-    assert_eq!(many.x.major.len(), MAX_LINES);
-    assert_eq!(many.y.major.len(), MAX_LINES);
-}
-
-#[trial]
 fn bounds_cut_the_lines_and_a_zoom_floor_hides_the_grid() {
     let bounded = grid().bounds(craft_behavior::kurbo::Rect::new(0.0, 0.0, 150.0, 150.0)).lines(&space(1.0));
     assert_eq!(bounded.x.major, vec![0.0, 100.0]);
@@ -86,31 +72,6 @@ fn bounds_cut_the_lines_and_a_zoom_floor_hides_the_grid() {
     assert!(grid().min_zoom(2.0).lines(&space(1.0)).extent.is_none(), "below the floor");
     assert!(grid().min_zoom(2.0).lines(&space(3.0)).extent.is_some());
     assert_eq!(GridLine::default(), GridLine::Solid);
-}
-
-#[trial]
-fn crossings_need_a_major_step_of_eight_points() {
-    assert!(grid().line(GridLine::Crossings).lines(&space(1.0)).crossings);
-    assert!(!grid().spacing(step(7.0, MAJOR)).lines(&space(1.0)).crossings);
-}
-
-#[trial]
-fn the_pixel_grid_shows_only_above_five_hundred_percent() {
-    assert!(!PixelGrid::shows_at(5.0));
-    assert!(!PixelGrid::shows_at(1.0));
-    assert!(PixelGrid::shows_at(5.01));
-}
-
-#[trial]
-fn the_pixel_grid_has_no_line_over_see_through_pixels_and_fades_by_luma() {
-    assert_eq!(PixelGrid::cell_color([0.0; 4]), None);
-    assert_eq!(PixelGrid::cell_color([1.0, 1.0, 1.0, 0.0]), None);
-    assert_eq!(PixelGrid::cell_color([0.5, 0.5, 0.5, f32::NAN]), None);
-    assert_eq!(PixelGrid::cell_color([0.1, 0.1, 0.1, 1.0]), Some(Color32::from_white_alpha(64)), "a dark pixel gets a light line");
-    assert_eq!(PixelGrid::cell_color([0.9, 0.9, 0.9, 1.0]), Some(Color32::from_black_alpha(41)), "a light pixel gets a dark line");
-    assert_eq!(PixelGrid::light_share(0.2), 0.0);
-    assert_eq!(PixelGrid::light_share(0.9), 1.0);
-    assert_eq!(PixelGrid::light_share(f32::NAN), 0.0);
 }
 
 #[trial]

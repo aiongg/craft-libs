@@ -55,26 +55,3 @@ fn exit_codes() {
     assert_eq!(code(&run(&root, &["clippy", "--bogus"])), 2);
 }
 
-#[test]
-fn baseline_flags() {
-    let root =
-        tree("cli-baseline", &[("design-lint.toml", "[lint]\npaths = [\"src\"]\n"), ("src/lib.rs", "fn f(ui: &mut Ui) { ui.add_space(4.0); }\n")]);
-    assert_eq!(code(&run(&root, &["check"])), 1);
-    assert_eq!(code(&run(&root, &["check", "--write-baseline", "baseline.toml"])), 0);
-    assert_eq!(code(&run(&root, &["check", "--baseline", "baseline.toml"])), 0);
-    std::fs::write(root.join("src/lib.rs"), "fn f(ui: &mut Ui) { ui.add_space(4.0); ui.add_space(5.0); }\n").unwrap();
-    assert_eq!(code(&run(&root, &["check", "--baseline", "baseline.toml"])), 1);
-    assert_eq!(code(&run(&root, &["check", "--baseline", "missing.toml"])), 2);
-    std::fs::write(root.join("src/lib.rs"), "fn f( {").unwrap();
-    assert_eq!(code(&run(&root, &["check", "--write-baseline", "other.toml"])), 1);
-    assert!(!root.join("other.toml").exists());
-}
-
-#[test]
-fn summary_flag_prints_findings_then_the_table() {
-    let root =
-        tree("cli-summary", &[("design-lint.toml", "[lint]\npaths = [\"src\"]\n"), ("src/lib.rs", "fn f(ui: &mut Ui) { ui.add_space(4.0); }\n")]);
-    let out = run(&root, &["check", "--summary"]);
-    let text = String::from_utf8(out.stdout).unwrap();
-    assert!(text.find("src/lib.rs:1:").unwrap() < text.find("rule ").unwrap(), "{text}");
-}

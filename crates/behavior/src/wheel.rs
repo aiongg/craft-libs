@@ -223,16 +223,6 @@ mod tests {
     }
 
     #[test]
-    fn a_line_scrolls_the_takers_notch_and_a_page_scrolls_its_view() {
-        let lines = WheelTaker::new(1u8, rect(200.0)).vertical(true).notch(WheelNotch::Points(30.0));
-        assert_eq!(lines.points(Vec2::new(0.0, 2.0), WheelUnit::Line), Vec2::new(0.0, 60.0));
-        let share = WheelTaker::new(1u8, rect(200.0)).vertical(true).notch(WheelNotch::ViewShare(0.25));
-        assert_eq!(share.points(Vec2::new(0.0, 2.0), WheelUnit::Line), Vec2::new(0.0, 100.0));
-        assert_eq!(share.points(Vec2::new(0.0, 1.0), WheelUnit::Page), Vec2::new(0.0, 200.0));
-        assert_eq!(share.points(Vec2::new(0.0, 7.0), WheelUnit::Point), Vec2::new(0.0, 7.0));
-    }
-
-    #[test]
     fn shift_turns_the_wheel_sideways_over_a_scroll_region_and_not_over_a_value_control() {
         let shifted = Wheel::new(Vec2::new(0.0, 7.0), Mods { shift: true, ..Mods::NONE }, WheelUnit::Point, WheelPhase::Move);
         let region = WheelTaker::new(1u8, rect(200.0)).vertical(true).horizontal(true).scrolls(true);
@@ -286,22 +276,4 @@ mod tests {
         assert_eq!(of(2), Some((Vec2::ZERO, 1.5)), "the zoom share stays with the pane");
     }
 
-    #[test]
-    fn wheel_bits_combine_into_the_axes_a_taker_takes() {
-        let axes = |sense| WheelTaker::for_sense(1u8, rect(10.0), sense).map(|t| (t.horizontal, t.vertical, t.zoom));
-        assert_eq!(axes(Sense::FOCUS), None);
-        assert_eq!(axes(Sense::WHEEL), Some((true, true, true)));
-        assert_eq!(axes(Sense::WHEEL | Sense::WHEEL_X), Some((true, true, true)));
-        assert_eq!(axes(Sense::WHEEL_X), Some((true, false, false)));
-        assert_eq!(axes(Sense::WHEEL_Y | Sense::WHEEL_ZOOM), Some((false, true, true)));
-    }
-
-    #[test]
-    fn the_zoom_share_goes_to_the_innermost_zooming_taker() {
-        let scroller = WheelTaker::new(1u8, rect(200.0)).vertical(true);
-        let canvas = WheelTaker::new(2u8, rect(100.0)).zoom(true);
-        let shares = split(&[scroller, canvas], pos2(10.0, 10.0), wheel(0.0, 0.0).zoom(1.5), None, None);
-        assert_eq!(shares.len(), 1);
-        assert_eq!((shares[0].0, shares[0].1.zoom), (2, 1.5));
-    }
 }

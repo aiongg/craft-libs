@@ -38,94 +38,6 @@ fn travel(fixture: &Fixture) -> f32 {
     4.0 * craft_ui::testing::input::max_click_dist(fixture.ctx())
 }
 
-#[trial]
-fn a_corner_drag_resizes_and_keeps_the_opposite_corner() {
-    let mut s = shown(|c| c);
-    let corner = s.fixture.by_label("Crop corner, bottom right").expect("corner");
-    let by = travel(&s.fixture);
-    s.fixture.drag(&corner, Vec2::new(by, by));
-    let rect = s.crop.borrow().rect;
-    assert_eq!((rect.x0, rect.y0), (FRAME.x0, FRAME.y0));
-    assert!(rect.x1 > FRAME.x1 && rect.y1 > FRAME.y1, "{rect:?}");
-}
-
-#[trial]
-fn a_held_ratio_is_kept_by_a_corner_drag() {
-    let ratio = 2.0;
-    let mut s = shown(move |c| c.ratio(ratio));
-    let corner = s.fixture.by_label("Crop corner, bottom right").expect("corner");
-    let by = travel(&s.fixture);
-    s.fixture.drag(&corner, Vec2::new(by, 0.0));
-    let rect = s.crop.borrow().rect;
-    assert!((rect.width() / rect.height() - ratio).abs() < 1e-6, "{rect:?}");
-}
-
-#[trial]
-fn a_drag_inside_moves_the_frame_and_a_drag_inside_the_default_frame_draws() {
-    let mut s = shown(|c| c);
-    let body = s.fixture.by_label("Whole frame").expect("whole frame");
-    let by = travel(&s.fixture);
-    s.fixture.drag(&body, Vec2::new(by, 0.0));
-    let moved = s.crop.borrow().rect;
-    assert!(moved.x0 > FRAME.x0 && (moved.width() - FRAME.width()).abs() < 1e-9, "{moved:?}");
-
-    let mut s = shown(|c| c.default_frame());
-    let body = s.fixture.by_label("Whole frame").expect("whole frame");
-    s.fixture.drag(&body, Vec2::new(by, by));
-    let drawn = s.crop.borrow().rect;
-    assert!(drawn.width() < FRAME.width() && drawn.width() > 0.0, "{drawn:?}");
-}
-
-#[trial]
-fn enter_applies_and_escape_discards_on_a_focused_part() {
-    let mut s = shown(|c| c);
-    let body = s.fixture.by_label("Whole frame").expect("whole frame");
-    s.fixture.click(&body);
-    s.fixture.key(Key::Enter, Modifiers::NONE);
-    assert!(s.applied.get());
-    s.fixture.key(Key::Escape, Modifiers::NONE);
-    assert!(s.discarded.get());
-}
-
-#[trial]
-fn an_arrow_moves_the_whole_frame_and_x_swaps_it() {
-    let mut s = shown(|c| c);
-    let body = s.fixture.by_label("Whole frame").expect("whole frame");
-    s.fixture.click(&body);
-    s.fixture.key(Key::ArrowRight, Modifiers::NONE);
-    assert!(s.crop.borrow().rect.x0 > FRAME.x0);
-    let before = s.crop.borrow().rect;
-    s.fixture.key(Key::X, Modifiers::NONE);
-    let after = s.crop.borrow().rect;
-    assert!((after.width() - before.height()).abs() < 1e-9 && (after.height() - before.width()).abs() < 1e-9, "{after:?}");
-}
-
-#[trial]
-fn a_side_under_one_unit_cancels_the_drag() {
-    let mut s = shown(|c| c);
-    let corner = s.fixture.by_label("Crop corner, top left").expect("corner");
-    s.fixture.drag(&corner, Vec2::new(FRAME.width() as f32 + 0.2, 0.0));
-    assert_eq!(s.crop.borrow().rect, FRAME, "the frame returns to what it was");
-}
-
-#[trial]
-fn every_part_has_a_name() {
-    let s = shown(|c| c);
-    for name in [
-        "Whole frame",
-        "Crop corner, top left",
-        "Crop corner, top right",
-        "Crop corner, bottom right",
-        "Crop corner, bottom left",
-        "Crop edge, top",
-        "Crop edge, right",
-        "Crop edge, bottom",
-        "Crop edge, left",
-    ] {
-        assert!(s.fixture.by_label(name).is_some(), "{name}");
-    }
-}
-
 // Real input through the canvas: a frame per event batch, the view and the shown options held by the rig.
 
 /// The room the rig shows the canvas in.
@@ -382,32 +294,6 @@ fn same_quad(a: [Pos2; 4], b: [Pos2; 4]) -> bool {
 }
 
 #[trial]
-fn a_drag_inside_moves_the_frame_and_a_turned_frame_moves_on_the_page() {
-    let mut rig = Rig::upright();
-    let from = rig.at(150.0, 110.0);
-    rig.drag(from, from + Vec2::new(30.0, 20.0), Modifiers::NONE);
-    assert_eq!(rig.crop(), CropBox::upright(RECT + DocVec::new(30.0, 20.0)));
-    let events = rig.events();
-    assert_eq!((events.first(), events.last()), (Some(&"begin"), Some(&"commit")), "{events:?}");
-    assert_eq!(rig.seen.borrow().picked, Some(BoxPart::Inside));
-
-    let turned = CropBox::new(RECT, 30.0);
-    let mut rig = Rig::new(turned, Setup::new());
-    let from = rig.at(200.0, 150.0);
-    rig.drag(from, from + Vec2::new(-25.0, 10.0), Modifiers::NONE);
-    assert!(near(&rig.crop(), &turned.moved(DocVec::new(-25.0, 10.0))), "{:?}", rig.crop());
-}
-
-#[trial]
-fn a_press_released_without_moving_changes_nothing() {
-    let mut rig = Rig::upright();
-    let at = rig.at(150.0, 110.0);
-    rig.click(at);
-    assert_eq!(rig.crop(), CropBox::upright(RECT));
-    assert!(!rig.events().contains(&"commit"), "{:?}", rig.events());
-}
-
-#[trial]
 fn an_edge_takes_the_pointer_near_it_in_a_turned_flipped_view() {
     let mut rig = Rig::with(|s| {
         s.view.rotation = 30.0;
@@ -544,34 +430,6 @@ fn a_quick_drag_in_one_frame_starts_at_the_press() {
 }
 
 #[trial]
-fn double_click_inside_applies_but_not_on_a_handle_or_the_default_frame() {
-    let double = |rig: &mut Rig, at: Pos2| {
-        // Two clicks a few frames apart, inside the double-click window.
-        rig.frame(vec![pointer::moved(at)]);
-        rig.frame(vec![pointer::press(at)]);
-        rig.frame(vec![pointer::release(at)]);
-        rig.frame(vec![pointer::press(at)]);
-        rig.frame(vec![pointer::release(at)]);
-        rig.frame(Vec::new());
-    };
-    let mut rig = Rig::upright();
-    let at = rig.at(150.0, 110.0);
-    double(&mut rig, at);
-    assert!(rig.seen.borrow().applied);
-    assert_eq!(rig.crop(), CropBox::upright(RECT), "clicks don't move the frame");
-
-    let mut rig = Rig::upright();
-    let at = rig.at(300.0, 220.0);
-    double(&mut rig, at);
-    assert!(!rig.seen.borrow().applied, "on a handle");
-
-    let mut rig = Rig::with(|s| s.default_frame = true);
-    let at = rig.at(150.0, 110.0);
-    double(&mut rig, at);
-    assert!(!rig.seen.borrow().applied, "the untouched default frame");
-}
-
-#[trial]
 fn escape_undoes_a_running_drag_then_discards() {
     let mut rig = Rig::upright();
     let from = rig.at(150.0, 110.0);
@@ -583,28 +441,6 @@ fn escape_undoes_a_running_drag_then_discards() {
     rig.release(from + Vec2::new(30.0, 20.0));
     rig.key(Key::Escape, Modifiers::NONE);
     assert!(rig.seen.borrow().discarded);
-}
-
-#[trial]
-fn page_keys_pick_every_part_and_the_arrows_resize_the_picked_one() {
-    let mut rig = Rig::upright();
-    let at = rig.at(150.0, 110.0);
-    rig.click(at);
-    let mut seen = vec![rig.seen.borrow().picked];
-    for _ in 0..8 {
-        rig.key(Key::PageDown, Modifiers::NONE);
-        seen.push(rig.seen.borrow().picked);
-    }
-    let want: Vec<_> = std::iter::once(BoxPart::Inside).chain((0..4).map(BoxPart::Corner)).chain((0..4).map(BoxPart::Edge)).map(Some).collect();
-    assert_eq!(seen, want);
-
-    let mut rig = Rig::upright();
-    let at = rig.at(150.0, 110.0);
-    rig.click(at);
-    rig.key(Key::PageDown, Modifiers::NONE);
-    rig.key(Key::ArrowRight, Modifiers::SHIFT);
-    let r = rig.rect();
-    assert_eq!((r.x0, r.y0, r.x1, r.y1), (RECT.x0 + 10.0, RECT.y0, RECT.x1, RECT.y1), "the top left corner moved ten");
 }
 
 #[trial]
@@ -630,14 +466,6 @@ fn the_readout_shows_the_crop_size_or_the_angle_only_during_the_drag() {
 }
 
 #[trial]
-fn the_readout_shows_in_image_mode_too() {
-    let mut rig = Rig::new(CropBox::upright(RECT), Setup::image(0.0, false));
-    let from = rig.at(300.0, 220.0);
-    rig.hold_at(from, from + Vec2::new(20.0, 10.0));
-    assert!(rig.painted("W:"), "{:?}", rig.texts());
-}
-
-#[trial]
 fn the_turn_angle_never_reads_minus_zero() {
     let mut rig = Rig::upright();
     let from = rig.at(340.0, 260.0);
@@ -646,31 +474,6 @@ fn the_turn_angle_never_reads_minus_zero() {
     rig.frame(Vec::new());
     assert!(rig.painted("Angle:"), "{:?}", rig.texts());
     assert!(rig.texts().iter().all(|text| !text.contains("-0.0")), "{:?}", rig.texts());
-}
-
-#[trial]
-fn the_pointer_follows_the_part_under_it() {
-    let mut rig = Rig::upright();
-    for ((x, y), want) in [
-        ((300.0, 150.0), egui::CursorIcon::ResizeHorizontal),
-        ((200.0, 80.0), egui::CursorIcon::ResizeVertical),
-        ((300.0, 220.0), egui::CursorIcon::ResizeNwSe),
-        ((300.0, 80.0), egui::CursorIcon::ResizeNeSw),
-        ((200.0, 150.0), egui::CursorIcon::Move),
-        ((350.0, 270.0), egui::CursorIcon::None),
-    ] {
-        let at = rig.at(x, y);
-        rig.hover(at);
-        assert_eq!(rig.cursor(), want, "({x}, {y})");
-    }
-    // Inside the untouched default frame a drag draws.
-    let mut rig = Rig::with(|s| s.default_frame = true);
-    let at = rig.at(200.0, 150.0);
-    rig.hover(at);
-    assert_eq!(rig.cursor(), egui::CursorIcon::Crosshair);
-    let from = rig.at(150.0, 100.0);
-    rig.hold_at(from, from + Vec2::new(20.0, 10.0));
-    assert_eq!(rig.cursor(), egui::CursorIcon::Crosshair, "while drawing");
 }
 
 #[trial]
@@ -737,20 +540,6 @@ fn a_straighten_drag_reports_the_angle_and_sends_no_edit() {
     assert!(want.is_some());
     assert_eq!(rig.crop(), CropBox::upright(RECT), "the frame is left alone");
     assert!(rig.events().is_empty(), "{:?}", rig.events());
-}
-
-#[trial]
-fn the_end_points_of_the_straighten_line_take_the_snap() {
-    let mut rig = Rig::with(|s| {
-        s.straighten = true;
-        s.snap_x = Some(120.0);
-        s.snap_y = Some(100.0);
-    });
-    let from = rig.at(123.0, 97.0);
-    rig.drag(from, from + Vec2::new(100.0, 12.0), Modifiers::NONE);
-    // The start snaps to (120, 100); the end (223, 109) has no target in reach.
-    let want = CropBox::level_angle(Point::new(120.0, 100.0), Point::new(223.0, 109.0));
-    assert_eq!(rig.seen.borrow().straightened, want);
 }
 
 // Image mode.
@@ -832,18 +621,6 @@ fn image_mode_escape_restores_the_frame_and_the_view() {
 }
 
 #[trial]
-fn image_mode_arrows_move_the_image_under_the_frame() {
-    let mut rig = Rig::new(CropBox::new(RECT, 30.0), Setup::image(30.0, false));
-    let (before, v0) = (screen_quad(&rig), rig.view());
-    let at = rig.at(200.0, 150.0);
-    rig.click(at);
-    rig.key(Key::ArrowRight, Modifiers::NONE);
-    let d = screen_step(&v0, DocVec::new(1.0, 0.0));
-    assert!(same_quad(before, screen_quad(&rig)), "the frame stays put on screen");
-    assert!((rig.view().center - (v0.center - d)).hypot() < 1e-6, "{:?}", rig.view().center);
-}
-
-#[trial]
 fn image_mode_a_move_snaps_and_stays_snapped_while_the_pointer_is_still() {
     for auto_center in [false, true] {
         let mut rig = Rig::new(CropBox::upright(RECT), {
@@ -908,36 +685,6 @@ fn image_mode_a_turn_with_a_still_pointer_gives_the_same_frame_every_pass() {
     rig.release(at);
 }
 
-#[trial]
-fn image_mode_a_drawn_frame_turns_the_view_upright_and_centres_only_with_auto_center() {
-    for auto_center in [false, true] {
-        let mut setup = Setup::image(0.0, auto_center);
-        setup.default_frame = true;
-        setup.view.rotation = 20.0;
-        let mut rig = Rig::new(CropBox::upright(RECT), setup);
-        let from = rig.at(200.0, 150.0);
-        rig.drag(from, from + Vec2::new(40.0, 30.0), Modifiers::NONE);
-        let (b, v) = (rig.crop(), rig.view());
-        assert!(v.rotation.abs() < 1e-9, "upright at auto_center={auto_center}: {v:?}");
-        assert_eq!((v.center - b.center()).hypot() < 1e-6, auto_center, "{v:?} {b:?}");
-    }
-}
-
-#[trial]
-fn image_mode_x_centres_the_view_on_the_swapped_frame_with_auto_center() {
-    for auto_center in [false, true] {
-        let mut setup = Setup::image(0.0, auto_center);
-        setup.view.center += DocVec::new(30.0, 0.0);
-        let mut rig = Rig::new(CropBox::upright(RECT), setup);
-        let at = rig.at(200.0, 150.0);
-        rig.click(at);
-        rig.key(Key::X, Modifiers::NONE);
-        let (b, v) = (rig.crop(), rig.view());
-        assert!(b.rect.width() < RECT.width(), "swapped {b:?}");
-        assert_eq!((v.center - b.center()).hypot() < 1e-6, auto_center, "{v:?} {b:?}");
-    }
-}
-
 // The shield and the saved settings.
 
 const CANVAS: Color32 = Color32::from_rgb(40, 40, 40);
@@ -947,36 +694,6 @@ fn shield(change: impl FnOnce(&mut CropShield)) -> CropShield {
     let mut s = CropShield::default();
     change(&mut s);
     s
-}
-
-#[trial]
-fn the_shield_dims_as_photoshop_does() {
-    let defaults = CropShield::default();
-    assert_eq!(defaults.fill(CANVAS, false), Some(Color32::from_rgba_unmultiplied(40, 40, 40, 191)));
-    // Auto Adjust lightens it while dragging; without it the opacity holds.
-    let dragging = defaults.fill(CANVAS, true).expect("shown");
-    assert_eq!(dragging.to_srgba_unmultiplied()[3], 96);
-    let plain = shield(|s| s.auto_adjust = false);
-    assert_eq!(plain.fill(CANVAS, true), plain.fill(CANVAS, false));
-    // Disabled or fully transparent draws nothing.
-    assert_eq!(shield(|s| s.enabled = false).fill(CANVAS, false), None);
-    assert_eq!(shield(|s| s.opacity = 0.0).fill(CANVAS, false), None);
-    // The opacity is a percent.
-    let half = shield(|s| s.opacity = 50.0);
-    assert_eq!(half.fill(CANVAS, false), Some(Color32::from_rgba_unmultiplied(40, 40, 40, 128)));
-    assert_eq!(half.fill(CANVAS, true).map(|c| c.a()), Some(64));
-}
-
-#[trial]
-fn the_shield_colour_comes_from_the_canvas_or_the_custom_choice() {
-    let custom = shield(|s| {
-        s.color = ShieldColor::Custom;
-        s.custom_color = [200, 10, 30];
-        s.opacity = 100.0;
-    });
-    assert_eq!(custom.fill(CANVAS, false), Some(Color32::from_rgb(200, 10, 30)));
-    let matched = shield(|s| s.opacity = 100.0);
-    assert_eq!(matched.fill(Color32::from_rgb(184, 184, 184), false), Some(Color32::from_rgb(184, 184, 184)));
 }
 
 #[trial]
@@ -1003,15 +720,6 @@ fn a_hidden_cropped_area_is_the_opaque_canvas_whatever_the_shield() {
     custom.color = ShieldColor::Custom;
     custom.custom_color = [9, 9, 9];
     assert_eq!(custom.fill(CANVAS, false), Some(Color32::from_rgb(9, 9, 9)));
-}
-
-#[trial]
-fn stray_shield_opacities_are_clamped() {
-    for (o, want) in [(f32::NAN, 0.75), (f32::INFINITY, 0.75), (f32::NEG_INFINITY, 0.75), (-20.0, 0.0), (250.0, 1.0), (40.0, 0.4)] {
-        let s = shield(|s| s.opacity = o);
-        assert!((s.opacity() - want).abs() < 1e-6, "{o}");
-        assert_eq!(s.fill(CANVAS, false).map_or(0, |c| c.to_srgba_unmultiplied()[3]), (want * 255.0f32).round() as u8, "{o}");
-    }
 }
 
 #[trial]

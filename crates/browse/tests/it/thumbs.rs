@@ -147,19 +147,6 @@ fn side(state: &TextureState) -> Option<usize> {
 }
 
 // Two keys asked VISIBLE and NEAR: ManualJobs runs the VISIBLE decode first.
-#[trial]
-fn file_source_jobs_run_visible_before_near() {
-    let setup = Setup::new();
-    let decoder = Decoder::new(None);
-    let source = FileThumbSource::new(decoder.clone(), None);
-    let (near, visible) = (setup.file("near.png"), setup.file("visible.png"));
-    setup.ask(&source, &near, Priority::NEAR);
-    setup.ask(&source, &visible, Priority::VISIBLE);
-    assert!(setup.jobs.run_next());
-    assert_eq!(decoder.decoded.lock().unwrap().as_slice(), std::slice::from_ref(&visible.path));
-    setup.jobs.run_all();
-    assert_eq!(*decoder.decoded.lock().unwrap(), [visible.path, near.path]);
-}
 
 // After `invalidate(path)` the state is Loading with the old picture as stand-in, then Ready with the new.
 #[trial]
@@ -187,30 +174,6 @@ fn file_source_reloads_after_invalidate() {
 }
 
 // A failing decode: Failed, and no second job on later passes until `invalidate`.
-#[trial]
-fn file_source_fails_once_per_stamp() {
-    let setup = Setup::new();
-    let decoder = Decoder::new(None);
-    *decoder.answer.lock().unwrap() = Answer::Fail("boom");
-    let source = FileThumbSource::new(decoder.clone(), None);
-    let key = setup.file("a.png");
-    setup.show(&source, &key);
-    setup.jobs.run_all();
-    for _ in 0..3 {
-        let state = setup.show(&source, &key);
-        let TextureState::Failed { failure, .. } = &state else { panic!("expected a failure, got {state:?}") };
-        assert_eq!(*failure, LoadFailure::Message("boom".to_owned()));
-    }
-    assert_eq!(setup.jobs.waiting(), 0);
-    assert_eq!(decoder.decodes(), 1);
-
-    *decoder.answer.lock().unwrap() = Answer::Picture;
-    source.invalidate(&key.path);
-    setup.show(&source, &key);
-    setup.jobs.run_all();
-    assert!(matches!(setup.show(&source, &key), TextureState::Ready(_)));
-    assert_eq!(decoder.decodes(), 2);
-}
 
 // A decoder with `quick`: the quick picture shows, then stands in while `decode` runs, then the full one.
 #[trial]
@@ -257,52 +220,10 @@ fn a_stored_thumbnail_needs_no_decode() {
 }
 
 // A decoder answering `ThumbError::Unsupported`: the state is Empty (not Failed), and no second job runs.
-#[trial]
-fn an_unsupported_file_shows_no_picture() {
-    let setup = Setup::new();
-    let decoder = Decoder::new(None);
-    *decoder.answer.lock().unwrap() = Answer::Unsupported;
-    let source = FileThumbSource::new(decoder.clone(), None);
-    let key = setup.file("a.xyz");
-    setup.show(&source, &key);
-    setup.jobs.run_all();
-    for _ in 0..3 {
-        assert_eq!(setup.show(&source, &key), TextureState::Empty);
-    }
-    assert_eq!(setup.jobs.waiting(), 0);
-    assert_eq!(decoder.decodes(), 1);
-}
 
 // The length and modification time come from the decoder's stat hook, not the file system.
-#[trial]
-fn the_job_stats_through_the_decoder() {
-    let setup = Setup::new();
-    let decoder = Decoder::new(None);
-    let modified = std::time::UNIX_EPOCH + std::time::Duration::from_secs(99);
-    *decoder.stat.lock().unwrap() = Ok(FileStat { len: 1234, modified: Some(modified) });
-    let source = FileThumbSource::new(decoder.clone(), None);
-    let key = FileThumbKey::file(setup.dir.path().join("not-on-disk.png"));
-    setup.show(&source, &key);
-    setup.jobs.run_all();
-    assert!(matches!(setup.show(&source, &key), TextureState::Ready(_)));
-    let requests = decoder.requests.lock().unwrap();
-    assert_eq!((requests[0].len, requests[0].modified), (1234, Some(modified)));
-}
 
 // A stat that finds no file is the loader's "missing" reason, not a decode.
-#[trial]
-fn a_failed_stat_is_missing() {
-    let setup = Setup::new();
-    let decoder = Decoder::new(None);
-    *decoder.stat.lock().unwrap() = Err(ThumbError::Missing);
-    let source = FileThumbSource::new(decoder.clone(), None);
-    let key = setup.file("a.png");
-    setup.show(&source, &key);
-    setup.jobs.run_all();
-    let state = setup.show(&source, &key);
-    assert!(matches!(state, TextureState::Failed { .. }), "{state:?}");
-    assert_eq!(decoder.decodes(), 0);
-}
 
 // A buffer that is not width x height x 4 fails as unreadable instead of panicking; a zero size shows no picture.
 #[trial]

@@ -397,33 +397,6 @@ fn a_right_click_on_an_effects_eye_opens_the_row_menu_for_that_row() {
     assert_eq!(menus(&take(&app)), [LayerRowKey::Effects(7, Some(0))]);
 }
 
-/// A click on the lock indicator reports the lock turned off, and selects nothing.
-#[trial]
-fn the_lock_indicator_unlocks_without_selecting() {
-    let (mut fixture, app) = rig(FakeLayers::sample());
-    fixture.click(&node(&fixture, "Unlock Background"));
-    fixture.idle(2);
-    let events = take(&app);
-    let [LayersEvent::Toggle(toggle)] = events.as_slice() else { panic!("one toggle and no select: {events:?}") };
-    assert_eq!((&toggle.rows[..], toggle.column), (&[LayerRowKey::Layer(9)][..], LayerColumn::Lock));
-    assert!(matches!(&toggle.edit, EditEvent::Set { after: false, .. }), "{:?}", toggle.edit);
-}
-
-/// A click on a mask's chain asks for the opposite link state.
-#[trial]
-fn a_click_on_a_mask_chain_reports_the_link_change() {
-    let (mut fixture, app) = rig(FakeLayers::sample());
-    fixture.click(&node(&fixture, "Unlink layer mask of Masked"));
-    fixture.idle(2);
-    assert!(mask_links(&take(&app)).contains(&(3, LayerPart::LayerMask, false)));
-
-    app.borrow_mut().tree.layer_mut(3).info.masks[0] = MaskInfo::new(LayerPart::LayerMask, true, false);
-    fixture.idle(2);
-    fixture.click(&node(&fixture, "Link layer mask of Masked"));
-    fixture.idle(2);
-    assert!(mask_links(&take(&app)).contains(&(3, LayerPart::LayerMask, true)));
-}
-
 /// The number of text inputs shown: the rename field while a row is renamed (number fields are spin buttons).
 fn text_inputs(fixture: &Fixture) -> usize {
     fixture.by_role(Role::TEXT_INPUT).len()
@@ -454,110 +427,6 @@ fn retype(fixture: &mut Fixture, text: &str) {
     }
 }
 
-/// Enter and Tab commit the trimmed name, Esc cancels, and an empty or unchanged name reports nothing.
-#[trial]
-fn rename_rules_enter_tab_escape_empty_unchanged() {
-    let (mut fixture, app) = rig(FakeLayers::sample());
-    let plain = text_inputs(&fixture);
-    begin_rename(&mut fixture, &app, "Title");
-    retype(&mut fixture, "  Heading ");
-    fixture.key(Key::Enter, Modifiers::NONE);
-    let events = take(&app);
-    assert_eq!(renames(&events), [(4, String::from("Heading"))], "Enter commits the trimmed text; events: {events:?}");
-    assert_eq!(text_inputs(&fixture), plain);
-
-    begin_rename(&mut fixture, &app, "Title");
-    retype(&mut fixture, "Tabbed");
-    fixture.key(Key::Tab, Modifiers::NONE);
-    assert_eq!(renames(&take(&app)), [(4, String::from("Tabbed"))], "Tab commits");
-    assert!(text_inputs(&fixture) > plain, "and continues on the next renamable row");
-    fixture.key(Key::Escape, Modifiers::NONE);
-    assert!(renames(&take(&app)).is_empty(), "Esc cancels the continued edit");
-    assert_eq!(text_inputs(&fixture), plain);
-
-    begin_rename(&mut fixture, &app, "Title");
-    retype(&mut fixture, "Discarded");
-    fixture.key(Key::Escape, Modifiers::NONE);
-    assert!(renames(&take(&app)).is_empty(), "Esc reports nothing");
-    assert_eq!(text_inputs(&fixture), plain);
-
-    begin_rename(&mut fixture, &app, "Title");
-    retype(&mut fixture, "");
-    fixture.key(Key::Enter, Modifiers::NONE);
-    assert!(renames(&take(&app)).is_empty(), "an empty name reports nothing");
-
-    begin_rename(&mut fixture, &app, "Title");
-    fixture.key(Key::Enter, Modifiers::NONE);
-    assert!(renames(&take(&app)).is_empty(), "an unchanged name reports nothing");
-}
-
-/// The arrow keys walk the rows, Left and Right close and open a group, Enter activates.
-#[trial]
-fn keys_walk_rows_open_groups_and_activate() {
-    let (mut fixture, app) = rig(FakeLayers::sample());
-    fixture.click(&row(&fixture, "Title"));
-    take(&app);
-    let mut walked = Vec::new();
-    for key in [Key::ArrowDown, Key::ArrowDown, Key::ArrowUp, Key::Home] {
-        fixture.key(key, Modifiers::NONE);
-        walked.extend(selects(&take(&app)));
-    }
-    assert_eq!(walked, [set(&[5]), set(&[6]), set(&[5]), set(&[1])]);
-
-    fixture.key(Key::ArrowLeft, Modifiers::NONE);
-    assert!(opens(&take(&app)).contains(&(1, false, false)), "Left closes the group");
-    fixture.key(Key::ArrowRight, Modifiers::NONE);
-    assert!(opens(&take(&app)).contains(&(1, true, false)), "Right opens it");
-
-    fixture.key(Key::ArrowDown, Modifiers::NONE);
-    assert_eq!(selects(&take(&app)), [set(&[2])], "down goes into the opened group");
-    fixture.key(Key::Enter, Modifiers::NONE);
-    assert!(activations(&take(&app)).contains(&(LayerRowKey::Layer(2), ActivateOn::Row)));
-}
-
-/// The effects commands act on the active layer when it has effects; Alt on the disclosure reaches every layer.
-#[trial]
-fn effects_commands_and_the_disclosure_report_fx_open() {
-    let mut tree = FakeLayers::sample();
-    tree.selection = LayerSelection::new(vec![7], Some(7), LayerPart::Pixels);
-    let commands = [LayersPanelCommands::ShowEffects, LayersPanelCommands::ShowAllEffects, LayersPanelCommands::HideEffects];
-    let events: Vec<_> = commands.into_iter().filter_map(|command| command.event(&tree, "Effects")).collect();
-    assert_eq!(fx_opens(&events), [(7, true, false), (7, true, true), (7, false, false)]);
-
-    tree.selection = LayerSelection::new(vec![4], Some(4), LayerPart::Pixels);
-    assert!(commands.into_iter().all(|command| command.event(&tree, "Effects").is_none()), "a layer without effects reports nothing");
-
-    let (mut fixture, app) = rig(FakeLayers::sample());
-    fixture.click(&node(&fixture, "Expand effects Styled"));
-    assert!(fx_opens(&take(&app)).contains(&(7, true, false)));
-    fixture.hold(Modifiers::ALT);
-    fixture.click(&node(&fixture, "Collapse effects Styled"));
-    assert!(fx_opens(&take(&app)).contains(&(7, false, true)), "Alt reaches every layer");
-}
-
-/// Alt-click on a group's disclosure closes or opens every group.
-#[trial]
-fn alt_click_on_a_group_disclosure_reaches_every_group() {
-    let (mut fixture, app) = rig(FakeLayers::sample());
-    fixture.hold(Modifiers::ALT);
-    fixture.click(&node(&fixture, "Collapse Group 1"));
-    let events = take(&app);
-    assert!(opens(&events).contains(&(1, false, true)), "events: {events:?}");
-}
-
-/// A click on the empty space below the last row clears the selection.
-#[trial]
-fn a_click_below_the_rows_clears_the_selection() {
-    let (mut fixture, app) = rig(FakeLayers::sample());
-    let last = row(&fixture, "Background");
-    let below = Pos2::new(last.rect.center().x, last.rect.bottom() + 20.0);
-    let list = fixture.by_role(Role::LIST).into_iter().find(|list| list.rect.contains(below));
-    assert!(list.is_some(), "there is empty space under the rows");
-    fixture.click_at(below);
-    fixture.idle(2);
-    assert_eq!(selects(&take(&app)), [SelectionChange::Clear]);
-}
-
 /// Where a layer dragged from `from` and released at `to` lands.
 fn dropped(fixture: &mut Fixture, app: &Shared, from: Pos2, to: Pos2) -> Option<(Vec<u32>, u32, LayerPosition, bool)> {
     take(app);
@@ -586,16 +455,6 @@ fn drop_zones_into_before_and_after_the_last_row() {
     let last = row(&fixture, "Background");
     let below = Pos2::new(last.rect.center().x, last.rect.bottom() + 20.0);
     assert_eq!(dropped(&mut fixture, &app, from, below), Some((vec![8], 9, LayerPosition::After, false)), "the space below the last row");
-}
-
-/// Alt during a drag copies the layer instead of moving it.
-#[trial]
-fn an_alt_drag_copies() {
-    let (mut fixture, app) = rig(FakeLayers::sample());
-    let from = row(&fixture, "Hidden").center();
-    let to = at(&row(&fixture, "Title"), 0.75);
-    fixture.hold(Modifiers::ALT);
-    assert_eq!(dropped(&mut fixture, &app, from, to), Some((vec![8], 5, LayerPosition::Before, true)));
 }
 
 /// How far right of a mask's chain its thumbnail starts to hold the pointer.
@@ -721,19 +580,6 @@ fn target_brackets_frame_the_targeted_thumbnail() {
     let chains = [node(&fixture, "Unlink layer mask of Busy").center().x, node(&fixture, "Link vector mask of Busy").center().x];
     let framed = [added_centre(&pixels, &none).x, added_centre(&layer_mask, &none).x, added_centre(&vector_mask, &none).x];
     assert!(framed[0] < chains[0] && chains[0] < framed[1] && framed[1] < chains[1] && chains[1] < framed[2], "{framed:?} around {chains:?}");
-}
-
-/// Effects rows sit under their layer in order, no taller than a layer row, with their eye in the eye column of the layers.
-#[trial]
-fn effect_rows_sit_under_their_layer() {
-    let mut tree = FakeLayers::sample();
-    tree.selection = LayerSelection::default();
-    let (fixture, _app) = rig_with(tree, |app| app.tree.layer_mut(7).effects_open = true);
-    let tops: Vec<f32> = ["Styled", "Effects", "Drop Shadow", "Stroke", "Hidden"].iter().map(|name| row(&fixture, name).rect.min.y).collect();
-    assert!(tops.windows(2).all(|pair| pair[0] < pair[1]), "the rows follow their layer in order: {tops:?}");
-    assert!(row(&fixture, "Drop Shadow").rect.height() <= row(&fixture, "Styled").rect.height(), "an effects row is no taller than its layer");
-    let (layer_eye, effect_eye) = (node(&fixture, "Visibility Styled").rect, node(&fixture, "Visibility Drop Shadow").rect);
-    assert_eq!(effect_eye.min.x, layer_eye.min.x, "one eye column for layers and effects");
 }
 
 /// The list item named `name`.

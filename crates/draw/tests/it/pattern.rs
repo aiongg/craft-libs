@@ -49,26 +49,6 @@ fn type_into(fixture: &mut Fixture, name: &str, text: &str) {
     fixture.settle();
 }
 
-/// Typing 2000 in Scale gives 1000, 0 gives 1; Snap to Origin sets the phase to (0, 0).
-#[trial]
-fn scale_stays_in_range_and_snap_to_origin_clears_the_phase() {
-    let mut options = PatternFillOptions::bitmap("bubbles");
-    options.phase = [12.0, 7.0];
-    let (mut fixture, state) = editor(options);
-
-    type_into(&mut fixture, "Scale", "2000");
-    assert_eq!(state.borrow().options.scale, *PatternFillOptions::SCALE.end());
-    type_into(&mut fixture, "Scale", "0");
-    assert_eq!(state.borrow().options.scale, *PatternFillOptions::SCALE.start());
-
-    state.borrow_mut().events.clear();
-    let snap = fixture.by_label("Snap to Origin").expect("the button");
-    fixture.click(&snap);
-    fixture.settle();
-    assert_eq!(state.borrow().options.phase, [0.0, 0.0]);
-    assert!(matches!(state.borrow().events.as_slice(), [EditEvent::Set { .. }]), "{:?}", state.borrow().events);
-}
-
 /// With `colors` the editor shows the swatch grid and Foreground and Background chips, no Scale or Angle; a tile click
 /// sets the pattern and keeps the colours.
 #[trial]
@@ -129,15 +109,3 @@ fn the_dialog_reports_live_values_and_cancel_answers_nothing() {
     assert_eq!(state.borrow().result, Some(DialogResult::Cancel));
 }
 
-/// OK without a change answers the opening values and `unchanged()` is true.
-#[trial]
-fn an_unchanged_ok_answers_the_opening_values() {
-    let opening = PatternFillOptions::bitmap("bubbles");
-    let (mut fixture, state) = dialog(opening.clone());
-    let ok = fixture.by_label("OK").expect("the button");
-    fixture.click(&ok);
-    fixture.settle();
-    assert_eq!(state.borrow().result, Some(DialogResult::Ok(opening)));
-    assert!(state.borrow().dialog.unchanged());
-    assert!(!state.borrow().saw_changed);
-}

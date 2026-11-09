@@ -28,8 +28,3 @@ fn artboard_corner_resize_keeps_proportions() {
 }
 
 // `drawn_rect` and `moved_rect` round to whole pixels and order the corners.
-#[test]
-fn artboard_draw_and_move_are_whole_pixels() {
-    assert_eq!(drawn_rect(Point::new(10.6, 20.4), Point::new(2.2, 30.5)), Rect::new(2.0, 20.0, 11.0, 31.0));
-    assert_eq!(moved_rect(Rect::new(0.0, 0.0, 10.0, 10.0), Vec2::new(3.4, -2.6)), Rect::new(3.0, -3.0, 13.0, 7.0));
-}

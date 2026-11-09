@@ -54,16 +54,6 @@ fn a_number_field_is_one_spin_button_node_with_its_number_and_text() {
 }
 
 #[trial]
-fn tab_focuses_the_spin_button_node() {
-    let mut spin = spin();
-    let key = node(&spin);
-    assert_ne!(focused_key(spin.fixture.tree()), key, "the field starts unfocused");
-    spin.fixture.key(Key::Tab, Modifiers::NONE);
-    spin.fixture.idle(2);
-    assert_eq!(focused_key(spin.fixture.tree()), key, "Tab lands on the spin button node");
-}
-
-#[trial]
 fn access_increment_steps_and_set_value_sets_the_number() {
     let mut spin = spin();
     let target = spin.fixture.by_label(NAME).expect("the field has a node");

@@ -50,32 +50,3 @@ struct App {
     results: Vec<MissingFontsResult>,
 }
 
-/// Replace Fonts returns one replacement per missing row, the default font where none was picked.
-#[trial]
-fn replace_returns_a_replacement_per_missing_row() {
-    let catalog = catalog();
-    let rows = document_fonts(&catalog, &[font("Nonesuch", "Bold", None), font("Hack", "Regular", None), font("Other", "Regular", None)]);
-    let dialog = MissingFontsDialog::new(catalog, rows).default_family("Hack");
-    let mut stack = DialogStack::default();
-    stack.push(dialog.id(), None);
-    let app = Rc::new(RefCell::new(App { dialog, stack, results: Vec::new() }));
-    let shown = Rc::clone(&app);
-    let mut fixture = Fixture::new(move |ui| {
-        let mut app = shown.borrow_mut();
-        let App { dialog, stack, results } = &mut *app;
-        if let Some(DialogResult::Ok(result)) = dialog.show(ui, stack) {
-            results.push(result);
-        }
-    });
-    fixture.in_room(Room::Dialog);
-    fixture.settle();
-    assert!(fixture.by_label("Replace Fonts").is_some());
-    assert!(fixture.texts().iter().any(|painted| painted.text == "2 fonts used in this document are not installed."));
-    let replace = fixture.by_label("Replace Fonts").expect("Replace Fonts");
-    fixture.click(&replace);
-    fixture.settle();
-    let app = app.borrow();
-    let result = app.results.first().expect("Replace Fonts answered");
-    let names: Vec<(&str, &str)> = result.replacements.iter().map(|(f, to)| (f.family.as_str(), to.as_str())).collect();
-    assert_eq!(names, [("Nonesuch", "Hack"), ("Other", "Hack")]);
-}

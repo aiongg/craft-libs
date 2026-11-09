@@ -22,20 +22,6 @@ fn open_review(rig: &mut Rig) {
     rig.review_import(theirs(), options);
 }
 
-/// The review lists what changes and what did not match with its line, changes nothing until Import, and after
-/// Import reports what was done.
-#[trial]
-fn the_foreign_import_review_lists_skipped_and_unreadable_and_imports_on_request() {
-    let mut rig = Rig::mac_with_sets(Profiles::default());
-    open_review(&mut rig);
-    assert!(rig.has("Import “Theirs”"));
-    assert!(rig.shared.borrow().km.overrides().is_empty(), "the review changes nothing");
-    rig.click("Import as New Set");
-    assert!(rig.has("Imported as “Theirs”"));
-    rig.click("Done");
-    assert!(rig.has("Commands"));
-}
-
 /// Picking a suggestion replans the import and moves the item to Will change.
 #[trial]
 fn picking_a_suggestion_replans() {

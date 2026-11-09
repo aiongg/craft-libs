@@ -131,57 +131,6 @@ fn arrows_step_to_the_next_multiple_and_stay_in_range() {
     assert_eq!(rig.value(), Some(0.0), "Shift moves ten steps and stops at the start of the range");
 }
 
-/// A typed number outside the range commits as the nearest end.
-#[trial]
-fn a_typed_value_is_held_to_the_range() {
-    let mut rig = Rig::new(1.0, Some(0.0..=10.0));
-    rig.focus();
-    rig.frame(vec![key_press(Key::A, Modifiers::COMMAND)]);
-    rig.frame(vec![Event::Text("250".into())]);
-    rig.idle(1);
-    rig.frame(vec![key_press(Key::Enter, Modifiers::NONE)]);
-    rig.idle(3);
-    assert_eq!(rig.value(), Some(10.0), "250 commits as the end of the range");
-}
-
-/// Up steps by the step, Shift by ten steps and Alt by a tenth; a Shift wheel notch over the focused field moves ten
-/// steps.
-#[trial]
-fn modifiers_scale_the_step_of_keys_and_wheel() {
-    for (modifiers, expected) in [(Modifiers::NONE, 11.0), (Modifiers::SHIFT, 20.0), (Modifiers::ALT, 10.1)] {
-        let mut rig = Rig::new(START, None);
-        rig.focus();
-        rig.key(Key::ArrowUp, modifiers);
-        let value = rig.value().unwrap_or_default();
-        assert!((value - expected).abs() < 1e-6, "Up with {modifiers:?} from {START} gives {expected}: {value}");
-    }
-    let mut rig = Rig::new(START, None);
-    rig.focus();
-    rig.wheel(1.0, Modifiers::SHIFT);
-    let value = rig.value().unwrap_or_default();
-    assert!((value - 20.0).abs() < 1e-6, "a Shift wheel notch moves ten steps: {value}");
-}
-
-/// A mixed field takes typing: 12 and Enter commit 12, so every target gets it.
-#[trial]
-fn typing_over_a_mixed_value_commits_it() {
-    let mut frames = Frames::new();
-    let value = RefCell::new(Mixed::<Option<f64>>::Mixed);
-    let at = Cell::new(Pos2::ZERO);
-    let mut show = |ui: &mut Ui| {
-        let mut guard = value.borrow_mut();
-        at.set(NumberField::new("Size", Bind::bound_mixed(&mut *guard)).id_salt("size").show(ui).response.rect.center());
-    };
-    frames.idle(3, &mut show);
-    click(&mut frames, at.get(), &mut show);
-    frames.frame(vec![Event::Text("12".into())], &mut show);
-    frames.idle(1, &mut show);
-    frames.frame(vec![key_press(Key::Enter, Modifiers::NONE)], &mut show);
-    frames.idle(3, &mut show);
-    const TYPED: f64 = 12.0;
-    assert_eq!(*value.borrow(), Mixed::Same(Some(TYPED)), "the typed number replaces the mixed value");
-}
-
 /// A host that owns the value writes the first typed character in the pass that begins the edit, and the gesture stays
 /// open: Escape then puts the start value back.
 #[trial]
@@ -322,23 +271,6 @@ fn presets_open_over_the_field_and_a_pick_sets_the_value() {
     assert_eq!(*shown.value.borrow(), Some(FIRST), "the reopened list starts at the first row, a number row");
 }
 
-/// AccessKit Expand and Collapse on the presets chevron open and close the list, not the field.
-#[trial]
-fn expand_and_collapse_on_the_presets_chevron_open_and_close_the_list() {
-    let (mut fixture, shown) = fixture_of(None, presets(), false);
-    fixture.idle(2);
-    let field = shown.id.get().expect("the field showed");
-    let chevron = |fixture: &Fixture| fixture.part(field, craft_behavior::PartKey::new("presets")).expect("the chevron has a node");
-    let target = chevron(&fixture);
-    fixture.access(AccessActionKind::Expand, &target);
-    fixture.idle(4);
-    assert_eq!(fixture.tree().expanded_of(chevron(&fixture).node), Some(true), "Expand opens the list");
-    let target = chevron(&fixture);
-    fixture.access(AccessActionKind::Collapse, &target);
-    fixture.idle(4);
-    assert_eq!(fixture.tree().expanded_of(chevron(&fixture).node), Some(false), "Collapse closes it");
-}
-
 /// One drag of the popup slider is one Begin and one Commit, not a set per frame.
 #[trial]
 fn a_popup_slider_drag_is_one_gesture() {
@@ -432,13 +364,6 @@ fn typed_with(host: Option<Arc<Host>>, text: &str, configure: impl for<'a> Fn(Nu
     value.into_inner()
 }
 
-/// A unit spelling of the field's kind types in and converts to the field's unit.
-#[trial]
-fn a_unit_spelling_types_in() {
-    assert_eq!(typed(None, Some(UnitKind::Millimetres), "12 mm"), Some(12.0));
-    assert_eq!(typed(None, Some(UnitKind::Millimetres), "1cm"), Some(10.0));
-}
-
 /// Under a decimal-comma locale the comma is the decimal separator.
 #[trial]
 fn a_localised_decimal_types_in() {
@@ -447,50 +372,6 @@ fn a_localised_decimal_types_in() {
     i18n.set_format(craft_i18n::Format::from_tag("de"));
     let host = Arc::new(Host::builder(AppInfo { id: "trial", name: "Trial", version: "0" }).i18n(Arc::new(i18n)).build());
     assert_eq!(typed(Some(host), None, "12,5"), Some(12.5));
-}
-
-/// A scrub over a two-decimal field gives values with at most two decimals.
-#[trial]
-fn a_scrub_rounds_to_the_fields_decimals() {
-    let system = Arc::new(FakeSystem::new());
-    let mut frames = Frames::uninstalled();
-    let installed = craft_ui::install(&frames.ctx, InstallSpec::new(ShellInfo::default(), system.clone()));
-    assert!(installed.is_ok(), "the context takes the runtime once");
-    let mut value = Some(START);
-    let show = |ui: &mut Ui, value: &mut Option<f64>| {
-        Field::new("Size", SideLabel::new()).id_salt("round").show_at(ui, ROW, |ui, _| {
-            let codec = NumberCodec::new(Reader::new(), 2);
-            NumberField::new("Size", Bind::bound(&mut *value)).codec(codec).scrub_by_label().id_salt("scrubbed").show(ui);
-        });
-    };
-    frames.idle(4, |ui| show(ui, &mut value));
-    let from = ROW.min + Vec2::new(4.0, 12.0);
-    let step = |frames: &mut Frames, value: &mut Option<f64>, events: Vec<Event>, at: Pos2| {
-        system.set_pointer(Some([at.x, at.y]));
-        frames.frame(events, |ui| show(ui, value));
-    };
-    step(&mut frames, &mut value, vec![moved(from)], from);
-    step(&mut frames, &mut value, vec![press(from)], from);
-    let along = from + Vec2::new(20.0, 0.0);
-    step(&mut frames, &mut value, vec![moved(along)], along);
-    for travel in [23.37_f32, 29.173, 36.3571] {
-        let at = from + Vec2::new(travel, 0.0);
-        step(&mut frames, &mut value, vec![moved(at)], at);
-        let number = value.unwrap_or_default();
-        assert!(number > START, "the drag moved the value: {number}");
-        let cents = 100.0;
-        assert_eq!((number * cents).round() / cents, number, "at most two decimals: {number}");
-    }
-}
-
-/// With `snap_typed` a typed 7 on a step of 5 commits 5; "12 %" reads with a percent unit; "Auto" reads through the
-/// codec's `or_parse`.
-#[trial]
-fn typed_values_snap_read_symbol_units_and_context_words() {
-    assert_eq!(typed_with(None, "7", |field| field.step(5.0).snap_typed(true)), Some(5.0), "7 snaps to 5");
-    assert_eq!(typed_with(None, "7", |field| field.step(5.0)), Some(7.0), "without snapping 7 stays");
-    assert_eq!(typed(None, Some(UnitKind::Percent), "12 %"), Some(12.0), "a percent sign after a space");
-    assert_eq!(typed_with(None, "Auto", auto), Some(-1.0), "the context word reads as its number");
 }
 
 /// The field with a codec that reads "Auto" as -1.

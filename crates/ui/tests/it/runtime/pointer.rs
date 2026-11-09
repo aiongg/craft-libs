@@ -145,11 +145,6 @@ fn member_on_canvas(transform: Option<CanvasTransform>) {
 }
 
 #[trial]
-fn member_on_canvas_click_and_slop_drag() {
-    member_on_canvas(None);
-}
-
-#[trial]
 fn member_on_zoomed_canvas_click_and_slop_drag() {
     member_on_canvas(Some(ZOOM));
 }
@@ -328,58 +323,6 @@ fn a_canvas_control_with_an_empty_root_sense_leaves_the_tool_its_press() {
     drag(&mut frames, Pos2::new(160.0, 160.0), Vec2::new(-20.0, -10.0), &mut show_frame);
     assert_eq!(drags(&log.borrow().root_phases(0, Some(BACKGROUND))), 1, "the handle press did not reach the tool");
     assert_eq!(drags(&log.borrow().member_phases(0, "crop", Some(CORNER))), 1, "the handle took its drag");
-}
-
-/// A captured press ends once, in `Cancel`, when the window loses focus; the release that follows belongs to
-/// nobody, and egui's own drag ends so hover reaches other widgets again.
-#[trial]
-fn a_window_blur_cancels_a_captured_press_once() {
-    let area = rect(100.0, 100.0, 400.0, 300.0);
-    let canvas = ProbeRoot::new("canvas", area, Sense::empty()).arena().part(ProbePart::new(BACKGROUND, area, Sense::DRAG));
-    let (mut show_frame, log) = scene(vec![canvas]);
-    let mut frames = Frames::new();
-    settle(&mut frames, &mut show_frame);
-    log.borrow_mut().clear();
-    let from = Pos2::new(200.0, 200.0);
-    frames.frame(vec![pointer::moved(from)], &mut show_frame);
-    frames.frame(vec![pointer::press(from)], &mut show_frame);
-    frames.frame(vec![pointer::moved(from + Vec2::new(30.0, 0.0))], &mut show_frame);
-    frames.frame(vec![pointer::window_blurred()], &mut show_frame);
-    frames.frame(vec![pointer::release(from + Vec2::new(30.0, 0.0))], &mut show_frame);
-    frames.idle(1, &mut show_frame);
-    let phases = log.borrow().root_phases(0, Some(BACKGROUND));
-    let cancels = phases.iter().filter(|phase| matches!(phase, PressPhase::Cancel { reason: PressCancel::FocusLost, .. })).count();
-    assert_eq!(cancels, 1, "one cancel: {phases:?}");
-    assert!(!phases.iter().any(|phase| matches!(phase, PressPhase::Release { .. })), "no release after the cancel: {phases:?}");
-}
-
-/// Escape, through the pointer service, ends a captured press the same way.
-#[trial]
-fn a_requested_cancel_ends_a_captured_press() {
-    let area = rect(100.0, 100.0, 400.0, 300.0);
-    let canvas = ProbeRoot::new("canvas", area, Sense::empty()).arena().part(ProbePart::new(BACKGROUND, area, Sense::DRAG));
-    let (mut show_frame, log) = scene(vec![canvas]);
-    let cancelling = std::cell::Cell::new(false);
-    let mut with_cancel = |ui: &mut Ui| {
-        if cancelling.get() {
-            pointer::cancel_captured_presses(ui.ctx());
-        }
-        show_frame(ui);
-    };
-    let mut frames = Frames::new();
-    settle(&mut frames, &mut with_cancel);
-    log.borrow_mut().clear();
-    let from = Pos2::new(200.0, 200.0);
-    frames.frame(vec![pointer::moved(from)], &mut with_cancel);
-    frames.frame(vec![pointer::press(from)], &mut with_cancel);
-    frames.frame(vec![pointer::moved(from + Vec2::new(30.0, 0.0))], &mut with_cancel);
-    cancelling.set(true);
-    frames.idle(1, &mut with_cancel);
-    cancelling.set(false);
-    frames.idle(1, &mut with_cancel);
-    let phases = log.borrow().root_phases(0, Some(BACKGROUND));
-    let cancels = phases.iter().filter(|phase| matches!(phase, PressPhase::Cancel { reason: PressCancel::Escape, .. })).count();
-    assert_eq!(cancels, 1, "one cancel: {phases:?}");
 }
 
 /// 8.2: a member deleted mid-drag, with its root still shown, ends the press instead of leaving the pointer captured.

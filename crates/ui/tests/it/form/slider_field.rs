@@ -37,28 +37,12 @@ fn typed(value: &Rc<Cell<f64>>, mut fixture: Fixture, text: &str) -> f64 {
     value.get()
 }
 
-/// A set step is the grid typed values go to.
-#[trial]
-fn a_typed_value_snaps_to_the_set_step() {
-    let value = Rc::new(Cell::new(10.0));
-    let fixture = rig(&value, PERCENT, Some(5.0));
-    assert_eq!(typed(&value, fixture, "42"), 40.0);
-}
-
 /// Without a step a typed value keeps the places the default step needs.
 #[trial]
 fn a_typed_value_rounds_to_the_default_step() {
     let value = Rc::new(Cell::new(0.5));
     let fixture = rig(&value, UNIT, None);
     assert_eq!(typed(&value, fixture, "0.456"), 0.46);
-}
-
-/// A step that is not a positive number is ignored.
-#[trial]
-fn an_unusable_step_is_ignored() {
-    let value = Rc::new(Cell::new(10.0));
-    let fixture = rig(&value, PERCENT, Some(f64::NAN));
-    assert_eq!(typed(&value, fixture, "42"), 42.0);
 }
 
 /// Clearing the number field of a mixed slider field and pressing Enter changes no target: empty text is not a

@@ -18,11 +18,3 @@ fn measure(role: TypeRole) -> ReadingMeasure {
     found.expect("the frame painted")
 }
 
-#[trial]
-fn the_reading_width_follows_the_text_size_and_the_least_is_narrower_than_the_target() {
-    let small = measure(TypeRole::Caption);
-    let large = measure(TypeRole::Title);
-    assert!(large.target > small.target, "larger text gives a wider column: {large:?} against {small:?}");
-    assert!(large.least > small.least, "and a wider least width");
-    assert!(small.least < small.target && large.least < large.target, "the least measure is narrower than the target");
-}

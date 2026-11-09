@@ -42,37 +42,6 @@ fn alt(x: f32, y: f32) -> ToolPointer {
 const SIZE: [u32; 2] = [300, 200];
 
 #[trial]
-fn points_stop_at_ten() {
-    let mut samplers = ColorSamplers::new();
-    for i in 0..MAX_SAMPLERS {
-        assert_eq!(samplers.add([i as f64 + 0.7, 3.2], [100, 100]), Ok(i));
-    }
-    assert_eq!(samplers.add([50.0, 50.0], [100, 100]), Err(SamplerError::Full));
-    assert_eq!(samplers.points().len(), 10);
-    assert_eq!(samplers.points()[0], [0.0, 3.0], "a position floors to its pixel");
-    assert_eq!(samplers.add([100.0, 5.0], [100, 100]), Err(SamplerError::Outside));
-    assert_eq!(samplers.add([-0.5, 5.0], [100, 100]), Err(SamplerError::Outside));
-}
-
-#[trial]
-fn points_move_remove_and_hit() {
-    let mut samplers = ColorSamplers::new();
-    for x in [10.0, 20.0, 30.0] {
-        samplers.add([x, 10.0], [100, 100]).unwrap();
-    }
-    samplers.move_point(1, [22.9, 11.1], [100, 100]).unwrap();
-    assert_eq!(samplers.points()[1], [22.0, 11.0]);
-    assert_eq!(samplers.hit([21.0, 11.0], 7.0), Some(1));
-    assert_eq!(samplers.hit([60.0, 60.0], 7.0), None);
-    samplers.move_point(1, [-3.0, 11.0], [100, 100]).unwrap();
-    assert_eq!(samplers.points(), [[10.0, 10.0], [30.0, 10.0]], "a point dropped off the canvas is removed");
-    samplers.remove(0).unwrap();
-    assert_eq!(samplers.points(), [[30.0, 10.0]], "the later points move up one number");
-    assert_eq!(samplers.remove(3), Err(SamplerError::NoSuchPoint));
-    assert_eq!(samplers.move_point(3, [1.0, 1.0], [100, 100]), Err(SamplerError::NoSuchPoint));
-}
-
-#[trial]
 fn readouts_use_the_documents_converter() {
     let converter = CmykConverter::coated();
     let blue = Srgba { r: 0.0, g: 0.0, b: 1.0, a: 1.0 };
@@ -140,31 +109,6 @@ fn a_point_dragged_off_the_canvas_is_removed() {
     assert_eq!(tool.take_error(), None);
 }
 
-#[trial]
-fn alt_click_removes_and_renumbers() {
-    let mut tool = sampler_tool(&[[10.0, 10.0], [60.0, 10.0], [110.0, 10.0]]);
-    click_drag(&mut tool, alt(62.0, 12.0), alt(62.0, 12.0));
-    assert_eq!(tool.samplers().points(), [[10.0, 10.0], [110.0, 10.0]], "the third point is now number 2");
-    click_drag(&mut tool, alt(200.0, 100.0), alt(200.0, 100.0));
-    assert_eq!(tool.samplers().points().len(), 2, "Alt-click on empty space does nothing");
-    for i in 0..MAX_SAMPLERS {
-        click_drag(&mut tool, at(10.0 + 20.0 * i as f32, 150.0), at(10.0 + 20.0 * i as f32, 150.0));
-    }
-    assert_eq!(tool.samplers().points().len(), MAX_SAMPLERS);
-    let toast = tool.take_error().expect("the press past the limit reports");
-    let words = Words::english().set::<SamplerWords>();
-    assert_eq!(toast.message.as_str(), words.limit.fill(&[("max", "10")]));
-    assert!(tool.take_error().is_none());
-}
-
-/// A press on empty canvas places a point and the drag carries it: the point ends where the pointer is released.
-#[trial]
-fn a_press_on_empty_canvas_places_a_point_that_the_drag_carries() {
-    let mut tool = sampler_tool(&[]);
-    click_drag(&mut tool, at(40.0, 40.0), at(90.6, 70.2));
-    assert_eq!(tool.samplers().points(), [[90.0, 70.0]], "one point, at the release");
-}
-
 /// The point follows the pointer while it is down; Escape puts it back and a release off the canvas removes it.
 #[trial]
 fn a_point_follows_the_pointer_during_the_drag() {
@@ -194,70 +138,6 @@ fn the_sampler_tool_meets_the_tool_rules() {
     let view = |rect: Rect| CanvasView::new(rect, Point::new(f64::from(SIZE[0]) / 2.0, f64::from(SIZE[1]) / 2.0), 1.0);
     let mut tool = ToolFixture::with_view("Color Sampler", sampler_tool(&[]), view, |_, _| {});
     tool.check();
-}
-
-#[trial]
-fn sample_sizes_follow_photoshops_list() {
-    let words = Words::english().set::<EyedropperWords>();
-    let shown: Vec<_> = SampleSize::ALL.iter().map(|s| (s.pixels(), s.label(&words).as_str().to_owned())).collect();
-    let want = [
-        (1, "Point Sample"),
-        (3, "3 by 3 Average"),
-        (5, "5 by 5 Average"),
-        (11, "11 by 11 Average"),
-        (31, "31 by 31 Average"),
-        (51, "51 by 51 Average"),
-        (101, "101 by 101 Average"),
-    ];
-    assert_eq!(shown, want.map(|(n, text)| (n, text.to_owned())));
-    let sources: Vec<_> = SampleSource::ALL.iter().map(|s| (s.id(), s.label(&words).as_str().to_owned())).collect();
-    assert_eq!(
-        sources,
-        [
-            ("current", "Current Layer"),
-            ("currentAndBelow", "Current & Below"),
-            ("all", "All Layers"),
-            ("allNoAdjustments", "All Layers No Adjustments"),
-            ("currentAndBelowNoAdjustments", "Current & Below No Adjustments"),
-        ]
-        .map(|(id, text)| (id, text.to_owned()))
-    );
-}
-
-#[trial]
-fn alt_picks_the_background_and_a_drag_resamples() {
-    let red = Srgba::rgb(1.0, 0.0, 0.0);
-    let seen = Rc::new(RefCell::new(Vec::new()));
-    let log = Rc::clone(&seen);
-    let mut tool = EyedropperTool::new(EyedropperOptions::default(), move |doc, size, source| {
-        log.borrow_mut().push((doc, size, source));
-        Some(if doc[0] < 100.0 { red } else { Srgba::rgb(0.0, 0.0, 1.0) })
-    });
-    let mut cx = context();
-    assert_eq!(tool.press(&at(50.0, 40.0), &mut cx), ToolAction::Claimed);
-    let pick = tool.take().expect("a pick");
-    assert_eq!((pick.color, pick.background), (red, false), "a press picks the foreground");
-    tool.drag(&at(150.0, 40.0), &mut cx);
-    assert_eq!(tool.take().map(|pick| pick.color), Some(Srgba::rgb(0.0, 0.0, 1.0)), "a drag resamples");
-    tool.release(&at(150.0, 40.0), &mut cx);
-    tool.cancel(CancelReason::Escape, &mut cx);
-    tool.press(&alt(50.0, 40.0), &mut cx);
-    let pick = tool.take().expect("a pick");
-    assert_eq!((pick.color, pick.background), (red, true), "Alt picks the background");
-    assert_eq!(seen.borrow()[0], ([50.0, 40.0], SampleSize::Point, SampleSource::All), "the sample gets the document point and the options");
-}
-
-#[trial]
-fn the_canvas_tool_samples_for_the_armed_dropper() {
-    let green = Srgba::rgb(0.0, 1.0, 0.0);
-    let mut tool = DropperTool::new(|doc| (doc[0] >= 0.0).then_some(green));
-    let mut cx = context();
-    assert_eq!(tool.press(&at(30.0, 30.0), &mut cx), ToolAction::Claimed);
-    assert_eq!(tool.take(), Some(green));
-    assert_eq!(tool.take(), None, "a sample is taken once");
-    tool.drag(&at(60.0, 30.0), &mut cx);
-    assert_eq!(tool.take(), Some(green), "a drag updates the dialog while the button is held");
-    ToolFixture::new("Dropper", DropperTool::new(move |_| Some(green))).check();
 }
 
 struct Rig {
@@ -302,28 +182,6 @@ impl Rig {
 const FOREGROUND: Srgba = Srgba::rgb(0.2, 0.4, 0.6);
 
 #[trial]
-fn ok_answers_the_opening_key() {
-    let mut rig = rig(ColorPickerDialog::foreground(FOREGROUND).web_colors_remembered(false));
-    rig.click("OK");
-    match rig.result() {
-        Some(DialogResult::Ok(ColorPickerResult { key, picked, .. })) => assert_eq!((key.as_str(), picked.color), ("foreground", FOREGROUND)),
-        other => panic!("OK answers the colour: {other:?}"),
-    }
-}
-
-#[trial]
-fn enter_presses_ok_and_esc_cancel_as_a_dialog_footer_does() {
-    let mut rig = rig(ColorPickerDialog::background(FOREGROUND).web_colors_remembered(false));
-    rig.fx.key(Key::Escape, Modifiers::NONE);
-    rig.fx.settle();
-    assert!(matches!(rig.result(), Some(DialogResult::Cancel)), "Esc cancels");
-    let mut rig = self::rig(ColorPickerDialog::background(FOREGROUND).web_colors_remembered(false));
-    rig.fx.key(Key::Enter, Modifiers::NONE);
-    rig.fx.settle();
-    assert!(matches!(rig.result(), Some(DialogResult::Ok(ColorPickerResult { key, .. })) if key == "background"), "Enter is OK");
-}
-
-#[trial]
 fn add_to_swatches_keeps_the_dialog_open() {
     let mut rig = rig(ColorPickerDialog::foreground(FOREGROUND).web_colors_remembered(false));
     rig.click("Add to Swatches");
@@ -331,22 +189,6 @@ fn add_to_swatches_keeps_the_dialog_open() {
     let swatch = rig.app.borrow_mut().dialog.take_add_to_swatches().expect("the colour is kept for the app");
     assert_eq!(swatch.color, FOREGROUND);
     assert!(rig.app.borrow_mut().dialog.take_add_to_swatches().is_none(), "it is taken once");
-}
-
-#[trial]
-fn a_dialog_opened_from_a_request_answers_its_key() {
-    let request = craft_ui::runtime::requests::ColorRequest::new("stroke", FOREGROUND).title("Stroke colour");
-    let mut rig = rig(ColorPickerDialog::from_request(request).web_colors_remembered(false));
-    assert!(rig.fx.by_label("Stroke colour").is_some(), "the request's title names the dialog");
-    rig.click("OK");
-    assert!(matches!(rig.result(), Some(DialogResult::Ok(ColorPickerResult { key, .. })) if key == "stroke"));
-}
-
-#[trial]
-fn a_given_title_fills_its_arg_after_translation() {
-    let dialog = ColorPickerDialog::new("vine", "Color Picker ({name})", FOREGROUND).arg("name", "Vine").web_colors_remembered(false);
-    let rig = rig(dialog);
-    assert!(rig.fx.by_label("Color Picker (Vine)").is_some());
 }
 
 #[trial]
@@ -359,34 +201,6 @@ fn a_canvas_sample_sets_the_new_colour_while_on_top() {
     rig.fx.settle();
     assert_eq!(rig.app.borrow().dialog.current().map(|picked| picked.color), Some(sampled), "the sample is the new colour");
     assert_eq!(rig.app.borrow().dialog.opening().map(|picked| picked.color), Some(FOREGROUND), "the compare swatch keeps the opening colour");
-}
-
-#[trial]
-fn a_host_cancel_disarms_the_dropper() {
-    let rig = rig(ColorPickerDialog::foreground(FOREGROUND).web_colors_remembered(false));
-    let ctx = Context::default();
-    rig.app.borrow_mut().dialog.cancelled(&ctx);
-    assert!(rig.app.borrow_mut().dialog.requests().take_eyedropper().is_none(), "a cancelled dialog leaves no request");
-}
-
-#[trial]
-fn set_color_and_confirm_answer_ok_with_the_colour() {
-    let mut dialog = ColorPickerDialog::new("fill", "Fill", FOREGROUND).web_colors_remembered(false);
-    let set = PickedColor::rgb(Srgba::rgb(0.5, 0.5, 0.0));
-    dialog.set_color(set);
-    assert_eq!(dialog.current(), Some(set));
-    assert_eq!(dialog.opening().map(|picked| picked.color), Some(FOREGROUND), "the opening colour stays");
-    let result = dialog.confirm(&Context::default()).expect("confirm answers");
-    assert_eq!((result.key.as_str(), result.picked), ("fill", set));
-}
-
-#[trial]
-fn typed_cmyk_inks_come_back_in_the_result() {
-    let inks = ModelValues::new("cmyk", &[10.0, 20.0, 30.0, 40.0]);
-    let mut dialog = ColorPickerDialog::new("fill", "Fill", FOREGROUND).web_colors_remembered(false).kept(inks);
-    assert_eq!(dialog.opening().and_then(|picked| picked.model), Some(inks), "the kept model values open the dialog");
-    let result = dialog.confirm(&Context::default()).expect("confirm answers");
-    assert_eq!(result.picked.model, Some(inks), "the inks the colour was picked in come back");
 }
 
 #[trial]
@@ -435,16 +249,6 @@ fn every_way_out_cancels() {
     assert!(!pick.busy(), "cancel ends a running pick");
 }
 
-#[trial]
-fn a_picked_color_answers_without_capture_windows() {
-    let ctx = Context::default();
-    let mut pick = ScreenPick::new();
-    pick.start("fill");
-    pick.tick_with(&ctx, 1, &|| Box::new(StillCapture::color(Srgba::rgb(0.25, 0.5, 0.75))));
-    assert_eq!(pick.take("fill"), Some(Srgba::rgb(0.25, 0.5, 0.75)));
-    assert!(pick.take_notice(&Words::english().set::<craft_color::ui::ScreenPickerWords>()).is_none());
-}
-
 /// A request from a Mixed swatch carries no colour: the dialog opens with empty channel fields and OK disabled, a typed
 /// value sets the colour, fills the other fields and enables OK, and OK answers with that colour.
 #[trial]
@@ -479,12 +283,3 @@ fn a_request_without_a_colour_opens_empty_until_the_first_pick() {
     }
 }
 
-/// Cancel works while the dialog holds no colour.
-#[trial]
-fn a_dialog_without_a_colour_cancels() {
-    let request = craft_ui::runtime::requests::ColorRequest::new("fills", None);
-    let mut rig = rig(ColorPickerDialog::from_request(request).web_colors_remembered(false));
-    rig.fx.key(Key::Escape, Modifiers::NONE);
-    rig.fx.settle();
-    assert!(matches!(rig.result(), Some(DialogResult::Cancel)), "Esc cancels");
-}

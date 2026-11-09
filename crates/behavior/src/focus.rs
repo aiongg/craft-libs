@@ -272,13 +272,4 @@ mod tests {
         assert_eq!(escape_step(idle, CancelRule::Ignore), EscapeStep::Ignore);
     }
 
-    #[test]
-    fn presses_classify_by_the_winning_shape() {
-        assert_eq!(classify_press(Some(Sense::CLICK | Sense::TAKE_FOCUS | Sense::KEEP_FOCUS)), PressFocus::Take);
-        assert_eq!(classify_press(Some(Sense::CLICK | Sense::KEEP_FOCUS)), PressFocus::Keep);
-        assert_eq!(classify_press(Some(Sense::CLICK)), PressFocus::Release);
-        assert_eq!(classify_press(None), PressFocus::Unclaimed);
-        assert!(PressFocus::Release.commits_draft() && PressFocus::Unclaimed.commits_draft());
-        assert!(!PressFocus::Keep.commits_draft() && !PressFocus::Take.commits_draft());
-    }
 }

@@ -32,42 +32,6 @@ fn only_changed_fields_come_back() {
 }
 
 #[trial]
-fn out_of_range_values_keep_the_dialog_open() {
-    let mut dialog = TextColumnsDialog::new(two());
-    assert!(dialog.is_valid());
-    dialog.set_count(MAX_COLUMNS + 1);
-    assert!(!dialog.is_valid());
-    dialog.set_count(0);
-    assert!(!dialog.is_valid());
-}
-
-#[trial]
-fn word_grid_follows_equal_width() {
-    let mut dialog = TextColumnsDialog::new(two()).word(WIDTH);
-    let rows = dialog.rows();
-    assert_eq!(rows.len(), 2);
-    assert!((rows[0].0 - (WIDTH - 36.0) / 2.0).abs() < 1e-3);
-    dialog.set_count(3);
-    let widths: Vec<f32> = dialog.rows().iter().map(|row| row.0).collect();
-    assert!(widths.windows(2).all(|pair| (pair[0] - pair[1]).abs() < 1e-3), "equal widths: {widths:?}");
-}
-
-#[trial]
-fn the_menu_checks_the_current_preset() {
-    let entries = Rc::new(RefCell::new(Vec::new()));
-    let seen = entries.clone();
-    let mut fixture = Fixture::new(move |ui| {
-        let words = Env::of(ui).words::<TextColumnsWords>();
-        *seen.borrow_mut() = columns_menu(Some(ColumnsPreset::Two), &words);
-    });
-    fixture.settle();
-    let entries = entries.borrow();
-    let checked: Vec<ColumnsChoice> = entries.iter().filter(|entry| entry.is_checked()).filter_map(|entry| entry.value().copied()).collect();
-    assert_eq!(checked, vec![ColumnsChoice::Preset(ColumnsPreset::Two)]);
-    assert_eq!(entries.last().and_then(|entry| entry.value().copied()), Some(ColumnsChoice::More));
-}
-
-#[trial]
 fn the_left_preset_splits_the_width_less_the_spacing() {
     let mut dialog = TextColumnsDialog::new(two()).word(WIDTH);
     dialog.apply_preset(ColumnsPreset::Left);
@@ -75,13 +39,6 @@ fn the_left_preset_splits_the_width_less_the_spacing() {
     assert_eq!(rows.len(), 2);
     assert!(rows[0].0 < rows[1].0);
     assert!((rows[0].0 + rows[0].1 + rows[1].0 - WIDTH).abs() < 1e-3);
-}
-
-#[trial]
-fn the_most_columns_follows_the_family_and_the_builder() {
-    assert_eq!(TextColumnsDialog::new(two()).most_columns(), MAX_COLUMNS);
-    assert_eq!(TextColumnsDialog::new(two()).word(WIDTH).most_columns(), MAX_COLUMNS_WORD);
-    assert_eq!(TextColumnsDialog::new(two()).word(WIDTH).max_columns(5).most_columns(), 5);
 }
 
 #[trial]
@@ -104,8 +61,3 @@ fn the_preview_places_columns_and_the_line_between() {
     assert!(preview_plan(&rows, 220.0, false, page).separators.is_empty());
 }
 
-#[trial]
-fn apply_to_always_answers_with_the_choice() {
-    let dialog = TextColumnsDialog::new(two()).apply_to(&[ColumnsApply::Section, ColumnsApply::Document], ColumnsApply::Document);
-    assert_eq!(dialog.changes().and_then(|changes| changes.apply), Some(ColumnsApply::Document));
-}

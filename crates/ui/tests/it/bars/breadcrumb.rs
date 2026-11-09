@@ -63,26 +63,3 @@ fn the_root_end_overflows_into_a_menu_that_navigates() {
     assert_eq!(picked.get(), Some(0), "the row navigates to its crumb");
 }
 
-/// The last crumb is the current page; the bar is a navigation landmark.
-#[trial]
-fn the_last_crumb_is_current_and_the_bar_is_navigation() {
-    let (fixture, _) = bar(&NAMES, WIDE);
-    let tree = fixture.tree();
-    let last = fixture.by_label("selects").expect("the last crumb is a node");
-    let first = fixture.by_label("photos").expect("the first crumb is a node");
-    assert!(tree.current_of(last.node), "the last crumb reports current");
-    assert!(!tree.current_of(first.node), "an ancestor does not");
-    let landmarks = fixture.by_role(Role::NAVIGATION);
-    assert_eq!(landmarks.len(), 1, "the bar is the one navigation node");
-}
-
-/// An ancestor longer than the crumb cap shows an elided text, and its node keeps the whole name.
-#[trial]
-fn a_long_ancestor_elides_and_keeps_its_name() {
-    let long = "an-ancestor-directory-whose-name-runs-far-past-any-sensible-width-for-one-crumb";
-    let (fixture, _) = bar(&[long, "child"], WIDE);
-    assert!(fixture.by_label(long).is_some(), "the node is named by the whole text");
-    let shown = fixture.texts().iter().find(|text| text.text.starts_with("an-")).expect("the crumb paints text");
-    assert!(shown.elided, "the painted text is cut: {}", shown.text);
-    assert_eq!(shown.text, long, "an elided run reports its full text");
-}

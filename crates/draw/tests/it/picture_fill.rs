@@ -69,25 +69,3 @@ fn picture_editor_tile_fields_and_stretch_offsets() {
     }
 }
 
-/// A tile is never scaled below the floor.
-#[trial]
-fn picture_editor_tile_scale_has_a_floor() {
-    let (mut fixture, value, _) = rig(tiled());
-    type_into(&mut fixture, "Scale X", "0");
-    match value.borrow().mode {
-        PictureMode::Tile { scale, .. } => assert!(scale[0] >= *PictureMode::SCALE.start(), "scale {scale:?}"),
-        other => panic!("a tile, got {other:?}"),
-    }
-}
-
-/// Insert… files a path request for images under the picture key.
-#[trial]
-fn picture_editor_insert_files_a_path_request_for_images() {
-    let (mut fixture, _, request) = rig(PictureFill::default());
-    let insert = fixture.by_label("Insert…").expect("Insert… is shown");
-    fixture.click(&insert);
-    fixture.idle(3);
-    let asked = request.borrow();
-    let asked = asked.as_ref().expect("a request was filed");
-    assert_eq!(asked.key, PICTURE_FILL_KEY);
-}

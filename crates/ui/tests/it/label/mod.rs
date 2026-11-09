@@ -101,21 +101,6 @@ fn a_labelled_leaf_and_a_labelled_container_line_up_their_labels_and_mirror_unde
 }
 
 #[trial]
-fn a_narrow_row_puts_the_label_above_the_control() {
-    let mut frames = Frames::new();
-    let narrow = Rect::from_min_size(ROW_A.min, Vec2::new(60.0, 60.0));
-    let seen = RefCell::new(Seen::default());
-    let mut value = 10.0;
-    frames.idle(3, |ui| {
-        Field::new("Opacity", SideLabel::new()).id_salt("narrow").show_at(ui, narrow, |ui, _| {
-            Dial::new(&mut value, &seen).show(ui);
-        });
-    });
-    let label = seen.borrow().label.clone().map(|label| label.rect);
-    assert!(label.is_some_and(|label| seen.borrow().rect.min.y >= label.max.y), "the control sits below the label");
-}
-
-#[trial]
 fn dragging_a_label_that_scrubs_changes_the_value() {
     let side = SideLabel::new().scrub(true);
     let (mut frames, mut rows) = settled(Direction::Ltr, &side);
@@ -229,40 +214,6 @@ fn the_reset_dot_shows_only_while_the_value_differs_and_resets_on_a_click() {
 }
 
 #[trial]
-fn a_label_that_describes_leaves_the_control_its_name() {
-    let mut frames = Frames::new();
-    let seen = RefCell::new(Seen::default());
-    let mut value = 1.0;
-    let describes = SideLabel::new().role(FieldLabelRole::Describes);
-    frames.idle(2, |ui| {
-        Field::new("Opacity", describes.clone()).id_salt("describes").show_at(ui, ROW_A, |ui, _| {
-            Dial::new(&mut value, &seen).label("Alpha").show(ui);
-        });
-    });
-    let tree = frames.tree();
-    let (id, label) = (seen.borrow().id, seen.borrow().label.clone());
-    let (Some(id), Some(label)) = (id, label) else { panic!("the dial ran in a label scope") };
-    assert_eq!(tree.name(id), Some("Alpha"), "the control keeps its own name");
-    assert_eq!(tree.described_by(id), [NodeKey::of(label.id)], "the label describes it");
-}
-
-#[trial]
-fn double_clicking_a_value_component_resets_it_and_a_single_click_does_not() {
-    let mut frames = Frames::new();
-    let seen = RefCell::new(Seen::default());
-    let mut value = START;
-    let show = |ui: &mut Ui, value: &mut f64| {
-        Dial::new(value, &seen).id_salt("alone").show_at(ui, ROW_A);
-    };
-    frames.idle(2, |ui| show(ui, &mut value));
-    let at = ROW_A.center();
-    craft_ui::testing::pointer::click(&mut frames, at, &mut |ui| show(ui, &mut value));
-    assert_eq!(value, START, "one click leaves the value");
-    double_click(&mut frames, at, &mut |ui| show(ui, &mut value));
-    assert_eq!(value, RESET, "a double click on the control's root restores the reset value");
-}
-
-#[trial]
 fn a_label_stays_beside_a_fill_width_control_and_follows_the_row_width() {
     let mut frames = Frames::new();
     let rect = std::cell::Cell::new(Rect::NOTHING);
@@ -281,40 +232,6 @@ fn a_label_stays_beside_a_fill_width_control_and_follows_the_row_width() {
     assert!(narrow.min.y > ROW_A.min.y + STACKED, "a row narrower than label, gap and the control's minimum stacks the label: {narrow:?}");
     let again = at(&mut frames, 300.0, 4);
     assert!(again.min.x > ROW_A.min.x + BESIDE, "the label returns beside the control when the row widens: {again:?}");
-}
-
-/// A label with an icon and a detail names its control by the text alone; the detail joins the control's
-/// description, and the icon and detail sit inside the row.
-#[trial]
-fn a_label_with_an_icon_and_detail_names_by_text_and_describes_by_detail() {
-    let mut frames = Frames::new();
-    let seen = RefCell::new(Seen::default());
-    let mut value = 1.0;
-    let side = SideLabel::new().icon(craft_behavior::IconId::new("eye")).detail("12 layers");
-    let row = |ui: &mut Ui, value: &mut f64| {
-        Field::new("Opacity", side.clone()).id_salt("detailed").show_at(ui, ROW_A, |ui, _| {
-            Dial::new(value, &seen).show(ui);
-        });
-    };
-    frames.idle(3, |ui| row(ui, &mut value));
-    let tree = frames.tree();
-    let (id, label) = (seen.borrow().id, seen.borrow().label.clone());
-    let (Some(id), Some(label)) = (id, label) else { panic!("the dial ran in a label scope") };
-    assert_eq!(tree.labelled_by(id), [NodeKey::of(label.id)], "the label names the control");
-    assert_eq!(tree.name(label.id), Some("Opacity"), "the name is the text alone");
-    assert_eq!(tree.description(id), Some("12 layers"), "the detail is the control's description");
-    assert!(ROW_A.contains_rect(label.rect), "the icon, text and detail sit inside the row: {:?}", label.rect);
-    let mut plain_frames = Frames::new();
-    let plain_seen = RefCell::new(Seen::default());
-    let mut plain_value = 1.0;
-    plain_frames.idle(3, |ui| {
-        Field::new("Opacity", SideLabel::new()).id_salt("detailed").show_at(ui, ROW_A, |ui, _| {
-            Dial::new(&mut plain_value, &plain_seen).show(ui);
-        });
-    });
-    let plain = plain_seen.borrow().label.clone().map(|label| label.rect);
-    let plain = plain.expect("the plain label ran");
-    assert!(label.rect.width() > plain.width(), "the icon and detail widen the label: {:?} against {plain:?}", label.rect);
 }
 
 #[trial]

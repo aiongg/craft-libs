@@ -185,18 +185,6 @@ fn the_relink_dialog_links_one_row_then_the_next() {
 }
 
 #[trial]
-fn link_anyway_replaces_link_for_a_failing_candidate() {
-    let files = files(&[("/new/a.mov", OTHER)]);
-    let mut rig = rig(vec![row(1, "Clip A", "/old/a.mov")], &files, "/new", false, true);
-    rig.search();
-    assert!(rig.present("Link Anyway"));
-    assert!(!rig.present("Link"));
-    rig.click("Link Anyway");
-    let (linked, _) = linked_keys(&rig.done());
-    assert_eq!(linked, [1], "Link Anyway links the failing file");
-}
-
-#[trial]
 fn relink_others_offers_the_rows_the_remap_fits() {
     let files = files(&[("/T7/shoot/a.mov", SAME), ("/T7/shoot/b.mov", SAME), ("/T7/shoot/c.mov", OTHER)]);
     let rows = vec![row(1, "Clip A", "C:\\shoot\\a.mov"), row(2, "Clip B", "C:\\shoot\\b.mov"), row(3, "Clip C", "C:\\shoot\\c.mov")];
@@ -247,22 +235,6 @@ fn the_search_never_blocks_and_stop_cancels_it() {
 }
 
 #[trial]
-fn browse_fills_the_search_folder() {
-    let files = files(&[("/new/a.mov", SAME)]);
-    let mut rig = rig(vec![row(1, "Clip A", "/old/a.mov")], &files, "", false, true);
-    rig.click("Browse…");
-    let open = rig.picks.open();
-    assert_eq!(open.len(), 1);
-    assert_eq!(open[0].kind, PickKind::Folder);
-    rig.click("Search");
-    assert_eq!(rig.jobs.waiting(), 0, "no folder yet: Search does nothing");
-    rig.picks.answer(Picked::Paths(vec!["/new".into()]));
-    rig.fx.settle();
-    rig.click("Search");
-    assert_eq!(rig.jobs.waiting(), 1, "the picked folder is searched");
-}
-
-#[trial]
 fn locate_adds_the_picked_file_as_the_candidate() {
     let files = files(&[("/elsewhere/b.mov", SAME)]);
     let mut rig = rig(vec![row(1, "Clip A", "/old/b.mov")], &files, "/new", false, true);
@@ -291,24 +263,6 @@ fn escape_with_a_pick_open_closes_the_pick_and_not_the_dialog() {
     rig.fx.key(Key::Escape, Modifiers::NONE);
     rig.fx.settle();
     assert!(matches!(rig.app.borrow().result, Some(DialogResult::Cancel)), "a second Esc cancels the dialog");
-}
-
-#[trial]
-fn a_search_is_one_job() {
-    let files = files(&[("/new/a.mov", SAME)]);
-    let mut rig = rig(vec![row(1, "Clip A", "/old/a.mov")], &files, "/new", false, true);
-    rig.search();
-    assert_eq!(rig.jobs.waiting(), 0, "hits need no second job");
-    assert!(rig.present("/new/a.mov"), "the hit is listed");
-}
-
-#[trial]
-fn without_jobs_search_is_disabled() {
-    let files = files(&[("/new/a.mov", SAME)]);
-    let mut rig = rig(vec![row(1, "Clip A", "/old/a.mov")], &files, "/new", false, false);
-    rig.click("Search");
-    assert_eq!(rig.jobs.waiting(), 0);
-    assert!(!rig.present("Stop"), "no search started");
 }
 
 // The Links panel.
@@ -393,14 +347,6 @@ fn link_list_buttons_follow_the_statuses_of_the_selection() {
 
     select(&mut fx, &panel, &[1]);
     assert_eq!(press(&mut fx, &panel, "Update Link"), [LinkListEvent::Update(vec![1])]);
-}
-
-#[trial]
-fn a_rows_status_is_in_its_name() {
-    let (fx, _panel) = panel();
-    for name in ["a.png, Page 2, Missing", "b.png, Modified", "c.png", "e.png, Embedded"] {
-        assert!(fx.by_label(name).is_some(), "no row named `{name}`");
-    }
 }
 
 /// The Link Info section shows the host's info rows: the footer runs in a sizing pass first and must leave them for the

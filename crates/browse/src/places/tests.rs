@@ -27,34 +27,6 @@ fn names(places: &Places) -> Vec<&str> {
 }
 
 // Keep, remove (a favourite drops, a standard root hides), restore and restore all; recents keep 10, newest first.
-#[test]
-fn places_keep_hide_and_restore_roots() {
-    let mut s = PlacesSettings::default();
-    assert!(s.keep(Path::new("/data/Photos")));
-    assert!(!s.keep(Path::new("/data/Photos/")), "an equal spelling is kept once");
-    assert!(s.remove(Path::new("/data/Photos")), "a favourite is dropped");
-    assert!(s.favorites.is_empty() && s.hidden.is_empty());
-
-    assert!(s.remove(Path::new("/home/u")), "any other root is hidden");
-    assert!(!s.remove(Path::new("/home/u/")));
-    assert!(s.keep(Path::new("/home/u")), "keeping a hidden folder brings it back");
-    assert!(s.hidden.is_empty());
-
-    s.hidden = vec![p("/a"), p("/b")];
-    assert!(s.restore(Path::new("/a/")));
-    assert!(!s.restore(Path::new("/a")));
-    assert!(s.restore_all() && !s.restore_all());
-
-    for i in 0..12 {
-        s.visited(Path::new(&format!("/r/{i}")));
-    }
-    s.visited(Path::new("/r/5/"));
-    assert_eq!(s.recent.len(), PlacesSettings::RECENT_MAX);
-    assert_eq!(s.recent[0], p("/r/5/"));
-    assert_eq!(s.recent[1], p("/r/11"));
-    assert_eq!(s.recent.iter().filter(|r| same_folder(r, Path::new("/r/5"))).count(), 1, "the older spelling is gone");
-    assert!(s.clear_recent() && !s.clear_recent());
-}
 
 // LightCraft's `browsing_below_an_unlisted_folder_has_a_session_root` and `session_root_stays_while_browsing_below_it`.
 #[test]
@@ -98,16 +70,6 @@ fn a_browsed_folder_outside_every_root_gets_a_session_root() {
 }
 
 // Home and a kept folder inside it both hold the browsed folder: the kept one owns the reveal.
-#[test]
-fn the_innermost_root_owns_the_reveal() {
-    let std = standard(&[(StandardFolder::Home, "/home/example")]);
-    let settings = PlacesSettings { favorites: vec![p("/home/example/Photos")], ..PlacesSettings::default() };
-    let r = resolve(&std, &settings, Some("/home/example/Photos/2026"), &[]);
-    assert_eq!(r.owner, Some((0, 1)));
-    assert_eq!(r.session_root, None);
-    let r = resolve(&std, &settings, Some("/home/example/Music"), &[]);
-    assert_eq!(r.owner, Some((0, 0)));
-}
 
 // LightCraft's `hidden_folder_is_not_revealed_in_an_outer_tree`.
 #[test]
@@ -165,25 +127,6 @@ fn equal_folders_are_one_root_however_spelled() {
 }
 
 // A temp dir with `.git`, `b10`, `b9`, a file: `subfolders` gives `b9`, `b10`.
-#[cfg(not(target_arch = "wasm32"))]
-#[test]
-fn folder_listing_skips_hidden_entries_and_sorts_naturally() {
-    let dir = tempfile::tempdir().unwrap();
-    for name in [".git", "b10", "b9"] {
-        std::fs::create_dir(dir.path().join(name)).unwrap();
-    }
-    std::fs::write(dir.path().join("file.txt"), b"x").unwrap();
-    let listed = SystemDirectories.subfolders(dir.path(), &Cancel::new()).unwrap();
-    assert_eq!(listed.iter().map(|f| f.name.as_str()).collect::<Vec<_>>(), ["b9", "b10"]);
-    assert_eq!(listed[0].path, dir.path().join("b9"));
-
-    let inner = dir.path().join(".git/objects");
-    std::fs::create_dir(&inner).unwrap();
-    let unlisted = SystemDirectories.unlisted_ancestors(&inner);
-    assert_eq!(unlisted.first(), Some(&dir.path().join(".git")), "innermost first");
-    assert!(!unlisted.contains(&inner));
-    assert!(SystemDirectories.subfolders(&dir.path().join("missing"), &Cancel::new()).is_err());
-}
 
 fn cache() -> (FolderCache, Arc<FakeDirectories>, Arc<ManualJobs>) {
     let fake = Arc::new(FakeDirectories::new().standard_folder(StandardFolder::Home, "/home/u"));

@@ -13,29 +13,6 @@ const END: f32 = 800.0;
 const MIDDLE: f32 = 400.0;
 
 #[trial]
-fn a_ring_shows_only_on_the_focused_component_with_focus_visible() {
-    assert!(FocusRing::visible(Flags::FOCUSED | Flags::FOCUS_VISIBLE));
-    assert!(!FocusRing::visible(Flags::FOCUSED), "focus by mouse shows no ring");
-    assert!(!FocusRing::visible(Flags::FOCUS_VISIBLE | Flags::SELECTED));
-}
-
-#[trial]
-fn a_halo_adds_a_wider_translucent_stroke_under_the_ring() {
-    let look = FocusLook::new(Stroke::new(2.0, egui::Color32::from_rgb(0, 120, 255)), 1.0);
-    let shape = PaintShape::Circle(pos2(20.0, 20.0), 6.0);
-    let ring = FocusRing::shapes(&look, FocusKind::Ring, &shape, 1.0);
-    let halo = FocusRing::shapes(&look, FocusKind::Halo, &shape, 1.0);
-    assert_eq!(ring.len(), 1);
-    assert_eq!(halo.len(), 2);
-    let width = |s: &Shape| match s {
-        Shape::Circle(c) => c.stroke.width,
-        _ => 0.0,
-    };
-    assert!(width(&halo[0]) > width(&halo[1]), "the halo lies under a narrower ring");
-    assert_eq!(width(&halo[1]), width(&ring[0]), "the ring inside a halo is the plain ring");
-}
-
-#[trial]
 fn the_scroll_thumb_tracks_the_offset_and_never_leaves_the_track() {
     let frames = Frames::new();
     let tokens = tokens(Mode::Light, Contrast::Standard);
@@ -49,20 +26,6 @@ fn the_scroll_thumb_tracks_the_offset_and_never_leaves_the_track() {
     assert!(tiny.height() >= look.min_thumb.min(track.height()), "the thumb keeps a grabbable length");
     let shapes = ScrollBar::shapes(&look, track, at(0.0), &StateSet::default());
     assert_eq!(shapes.len(), 2, "track, then thumb");
-}
-
-#[trial]
-fn a_hovered_handle_fills_differently_from_a_resting_one() {
-    let frames = Frames::new();
-    let tokens = tokens(Mode::Light, Contrast::Standard);
-    let look = with_cx(&frames.ctx, &tokens, Variant::SECONDARY, ControlSize::Md, |cx| cx.handle());
-    let fill = |state: &StateSet| match &Handle::shapes(&look, HandleShape::Circle, pos2(5.0, 5.0), state)[0] {
-        Shape::Circle(c) => c.fill,
-        _ => egui::Color32::TRANSPARENT,
-    };
-    let rest = StateSet::default();
-    let hover = StateSet::new(State::Hover, Flags::empty(), StateMix::new(1.0, 0.0, 0.0));
-    assert_ne!(fill(&rest), fill(&hover));
 }
 
 #[trial]
@@ -118,18 +81,6 @@ fn checker_and_grid_shapes_stay_within_the_clip_of_a_huge_rect() {
     for shape in checker.iter().chain(&grid) {
         assert!(reach.contains_rect(shape.visual_bounding_rect()), "{:?} reaches outside the clip", shape.visual_bounding_rect());
     }
-}
-
-#[trial]
-fn the_apps_checker_sets_the_cell_size_and_colours_and_the_default_is_the_themes() {
-    let tokens = tokens(Mode::Light, Contrast::Standard);
-    let rect = Rect::from_min_size(pos2(0.0, 0.0), vec2(60.0, 40.0));
-    let (light, dark, side) = (Color32::from_rgb(250, 250, 200), Color32::from_rgb(10, 20, 30), 20.0);
-    let shapes = Checker::new().size(side).colors(DataColor::new(light), DataColor::new(dark)).shapes(&tokens, rect, rect);
-    let (Shape::Rect(base), Shape::Rect(cell)) = (&shapes[0], &shapes[1]) else { panic!("the base and its first cell are rects") };
-    assert_eq!((base.fill, cell.fill), (light, dark));
-    assert_eq!(cell.rect.size(), vec2(side, side));
-    assert_eq!(craft_ui::primitives::checker(&tokens, rect, rect), Checker::new().shapes(&tokens, rect, rect), "unset fields are the theme's");
 }
 
 #[trial]

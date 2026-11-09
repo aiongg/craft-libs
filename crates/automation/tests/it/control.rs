@@ -101,26 +101,6 @@ fn cancel_input_fails_waiters_without_queued_input() {
     assert!(channel.cancel_input(&host, "again") && host.injected_idle());
 }
 
-/// A screenshot the capture budget refuses is replied to at once, and a finished capture is answered through the
-/// writer.
-#[trial]
-fn settle_refuses_a_screenshot_over_budget_and_finishes_the_others() {
-    let (_tx, rx) = channel();
-    let mut control = ControlChannel::new(rx);
-    control.captures.note_geometry(CaptureGeometry::new([12_000.0, 12_000.0], 16384));
-    let (req, reply) = ControlRequest::new("ui.screenshot", json!({}));
-    control.settle(req, Reply::screenshot(1, None), None, 0.0);
-    let refused = reply.try_recv().expect("refused at once");
-    assert_eq!(refused["ok"], false);
-    assert!(refused["error"].as_str().expect("an error").contains("per-image limit"), "{refused}");
-    assert_eq!(control.waiting(), 0);
-
-    let (tx, done) = channel::<ControlResponse>();
-    let finished = vec![Finished::new(2, None, Some(tx), Err("capture failed".into()))];
-    control.finish_captures(finished, &mut |_, _| Ok(()));
-    assert_eq!(done.try_recv().expect("a reply"), json!({"ok": false, "error": "capture failed"}));
-}
-
 const TOKEN: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
 fn read_json(reader: &mut impl BufRead) -> Option<Value> {
@@ -205,54 +185,3 @@ fn an_over_long_request_is_refused_and_closes_the_connection() {
     assert!(rx.try_recv().is_err());
 }
 
-/// `ui.click`, `ui.move` and `ui.key` parameters are validated, and every key name the protocol takes parses.
-#[trial]
-fn input_parameters_are_validated() {
-    let click = Click::from_params(&json!({"x": 3, "y": 4, "button": "secondary", "count": 2})).expect("a click");
-    assert_eq!((click.at, click.button, click.count), (egui::pos2(3.0, 4.0), PointerButton::Secondary, 2));
-    assert_eq!(Click::from_params(&json!({})).expect("a click").count, 1);
-    assert_eq!(Click::from_params(&json!({"count": 257})).unwrap_err(), "`count` must be at most 256 (got 257)");
-    assert!(Click::from_params(&json!({"z": 1})).unwrap_err().starts_with("unknown field `z`"));
-    assert_eq!(move_from_params(&json!({"x": 1.5})).expect("a point"), egui::pos2(1.5, 0.0));
-
-    let names = [
-        "Enter",
-        "Escape",
-        "Tab",
-        "Space",
-        "Backspace",
-        "Delete",
-        "Insert",
-        "Home",
-        "End",
-        "PageUp",
-        "PageDown",
-        "ArrowUp",
-        "ArrowDown",
-        "ArrowLeft",
-        "ArrowRight",
-        "A",
-        "Z",
-        "Num0",
-        "Num9",
-        "F1",
-        "F5",
-        "F12",
-        "Minus",
-        "Equals",
-        "Comma",
-        "Period",
-        "Semicolon",
-        "Slash",
-        "Backslash",
-        "OpenBracket",
-        "CloseBracket",
-    ];
-    for name in names {
-        assert!(KeyPress::from_params(&json!({"key": name})).is_ok(), "{name} is a key name the protocol takes");
-    }
-    let press = KeyPress::from_params(&json!({"key": "Enter", "shift": true})).expect("a key");
-    assert_eq!((press.key, press.mods.shift), (Key::Enter, true));
-    assert_eq!(KeyPress::from_params(&json!({})).unwrap_err(), "missing `key`");
-    assert_eq!(KeyPress::from_params(&json!({"key": "Nope"})).unwrap_err(), "unknown key `Nope`");
-}

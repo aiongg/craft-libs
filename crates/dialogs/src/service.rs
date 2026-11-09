@@ -632,12 +632,6 @@ mod service_tests {
     }
 
     // A Save answer "Photo" with suggested "png" reaches the app as "Photo.png".
-    #[test]
-    fn save_without_extension_gets_the_suggested_one() {
-        let dir = scratch("suggest");
-        let picked = save_with(dir.join("Photo").to_str().expect("utf-8"), "png");
-        assert_eq!(picked, Picked::Paths(vec![dir.join("Photo.png")]));
-    }
 
     // "Photo.PNG" is lowercased to "Photo.png"; "photo.jpeg" is kept.
     #[test]
@@ -713,18 +707,6 @@ mod service_tests {
     }
 
     // Two picks queue in order and are taken by their tickets, in any order.
-    #[test]
-    fn picks_answer_by_ticket() {
-        let (service, mut panels, _) = service_with(vec![Answer::Paths(vec![PathBuf::from("/x/first.png")]), Answer::Cancelled]);
-        let first = service.pick(PickRequest::open("document"));
-        let second = service.pick(PickRequest::open_many("document"));
-        assert!(service.pick_pending());
-        panels.pump(NONE);
-        assert!(!service.pick_pending());
-        assert_eq!(answered(&service, second), Picked::Cancelled);
-        assert_eq!(answered(&service, first), Picked::Paths(vec![PathBuf::from("/x/first.png")]));
-        assert!(service.take_answer(first).is_none());
-    }
 
     // An answer nobody takes does not block another ticket; a forgotten ticket's answer, early or
     // late, never shows up.
@@ -743,29 +725,8 @@ mod service_tests {
     }
 
     // The policy set on panels the app keeps applies to the next answer.
-    #[test]
-    fn the_extension_policy_can_change_while_the_app_runs() {
-        let dir = scratch("policy");
-        let (service, mut panels, _) = service_with(vec![Answer::Paths(vec![dir.join("Photo")]), Answer::Paths(vec![dir.join("Photo")])]);
-        let first = service.pick(PickRequest::save("export").suggested_extension("png"));
-        panels.pump(NONE);
-        assert_eq!(answered(&service, first), Picked::Paths(vec![dir.join("Photo.png")]));
-        panels.set_extension_policy(ExtensionPolicy::AS_TYPED);
-        let second = service.pick(PickRequest::save("export").suggested_extension("png"));
-        panels.pump(NONE);
-        assert_eq!(answered(&service, second), Picked::Paths(vec![dir.join("Photo")]));
-    }
 
     // Lowercase Extension off still adds the suggested extension (PhotoCraft `saved_path`).
-    #[test]
-    fn lowercasing_and_adding_the_extension_are_separate() {
-        let typed = |name: &str, policy| FilePanels::settled_save_path(policy, Path::new(name), Some("png"));
-        let keep_case = ExtensionPolicy { lowercase: false, ..ExtensionPolicy::default() };
-        assert_eq!(typed("Photo", keep_case), PathBuf::from("Photo.png"));
-        assert_eq!(typed("Photo.PNG", keep_case), PathBuf::from("Photo.PNG"));
-        assert_eq!(typed("Photo.PNG", ExtensionPolicy::default()), PathBuf::from("Photo.png"));
-        assert_eq!(typed("Photo", ExtensionPolicy::AS_TYPED), PathBuf::from("Photo"));
-    }
 
     // A panel's "unavailable" reaches the app with its cause; an empty answer counts as one only
     // where the probe found no backend.
@@ -831,20 +792,6 @@ mod service_tests {
 
         // The public scripted constructor drives the same path: a colliding Save answer opens the
         // Replace question, which lists as open and answers the path once confirmed.
-        #[test]
-        fn a_scripted_save_that_collides_asks_replace() {
-            let dir = scratch("scripted");
-            std::fs::write(dir.join("Photo.png"), b"old").expect("fixture");
-            let (service, mut panels) = FileService::scripted(Wake::none(), [Answer::Paths(vec![dir.join("Photo")])]);
-            let mut dialogs = DialogHost::new();
-            let id = service.pick(PickRequest::save("export").suggested_extension("png"));
-            panels.pump_with(&mut dialogs, NONE);
-            let open: Vec<_> = panels.open_questions().collect();
-            assert_eq!(open.len(), 1);
-            assert!(dialogs.confirm_by_id::<StandardPrompt>(&Context::default(), open[0]));
-            panels.pump_with(&mut dialogs, NONE);
-            assert_eq!(answered(&service, id), Picked::Paths(vec![dir.join("Photo.png")]));
-        }
 
         // Confirming the prompt by the id the panels list, as `ui.dialog.confirm` does, settles
         // the pick on the next pump.

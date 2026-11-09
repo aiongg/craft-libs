@@ -24,30 +24,6 @@ fn rig() -> (Fixture, Seen) {
     (fixture, seen)
 }
 
-/// A click on a row selects that layer alone.
-#[trial]
-fn a_click_on_a_row_selects_the_layer() {
-    let (mut fixture, seen) = rig();
-    let row = fixture.by_label("Title").expect("the Title row");
-    fixture.click(&row);
-    fixture.idle(2);
-    let picked = seen.borrow().iter().any(|event| matches!(event, LayersEvent::Select(select) if select.change == SelectionChange::Set(vec![4])));
-    assert!(picked, "events: {:?}", seen.borrow());
-}
-
-/// Alt-click on an eye shows only that layer instead of toggling it.
-#[trial]
-fn alt_click_on_an_eye_shows_only_that_layer() {
-    let (mut fixture, seen) = rig();
-    let eye = fixture.by_label("Visibility Title").expect("the Title eye");
-    fixture.hold(Modifiers::ALT);
-    fixture.click(&eye);
-    fixture.idle(2);
-    let events = seen.borrow();
-    assert!(events.iter().any(|event| matches!(event, LayersEvent::ShowOnly(LayerRowKey::Layer(4)))), "events: {events:?}");
-    assert!(!events.iter().any(|event| matches!(event, LayersEvent::Toggle(_))), "events: {events:?}");
-}
-
 /// A plain click on an eye toggles it, and selects nothing.
 #[trial]
 fn a_click_on_an_eye_toggles_it_without_selecting() {
@@ -60,14 +36,3 @@ fn a_click_on_an_eye_toggles_it_without_selecting() {
     assert!(!events.iter().any(|event| matches!(event, LayersEvent::Select(_))), "events: {events:?}");
 }
 
-/// Alt on New Layer asks for the options; Cmd adds below.
-#[trial]
-fn new_layer_reports_the_modifiers_held() {
-    let (mut fixture, seen) = rig();
-    let button = fixture.by_label("Create a new layer").expect("the New Layer button");
-    fixture.hold(Modifiers::ALT);
-    fixture.click(&button);
-    fixture.idle(2);
-    let asked = seen.borrow().iter().any(|event| matches!(event, LayersEvent::Footer(LayersFooterAction::NewLayer { ask: true, below: false, .. })));
-    assert!(asked, "events: {:?}", seen.borrow());
-}

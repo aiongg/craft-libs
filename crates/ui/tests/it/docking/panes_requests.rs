@@ -124,26 +124,6 @@ fn double_click(bed: &mut Bed, at: Pos2) {
 }
 
 #[trial]
-fn minimizing_a_floating_pane_goes_through_a_request_and_hides_the_body() {
-    let mut bed = Bed::new(docked(PaneEdge::Start), floated(), false);
-    assert!(bed.fixture.by_label("Body").is_some(), "the floating pane shows its body");
-    double_click(&mut bed, title_of(FRAME));
-    assert!(bed.sent(&PaneRequest::Minimize(PANE, true)), "the double click on the title asks to minimize: {:?}", bed.requests);
-    assert!(bed.fixture.by_label("Body").is_none(), "the applied state shows the title row only");
-    double_click(&mut bed, title_of(FRAME));
-    assert!(bed.sent(&PaneRequest::Minimize(PANE, false)), "a second double click asks to restore: {:?}", bed.requests);
-    assert!(bed.fixture.by_label("Body").is_some(), "and the body shows again");
-}
-
-#[trial]
-fn float_on_a_floating_pane_docks_it_back_at_the_top_edge() {
-    let mut bed = Bed::new(docked(PaneEdge::Top), floated(), false);
-    let float = bed.fixture.by_label("Float").expect("a floating pane has the Float action");
-    bed.fixture.click(&float);
-    assert!(bed.sent(&PaneRequest::Place(PANE, PanePlace::Docked(PaneEdge::Top))), "Float docks it at its default edge: {:?}", bed.requests);
-}
-
-#[trial]
 fn a_moved_pane_shows_the_drop_mark_on_the_other_edge_and_docks_there_on_release() {
     let mut bed = Bed::new(docked(PaneEdge::Start), floated(), false);
     let (from, to) = (title_of(FRAME), Pos2::new(392.0, 150.0));

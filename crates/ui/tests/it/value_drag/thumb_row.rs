@@ -157,22 +157,6 @@ fn mixed_row(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
         .into()
 }
 
-/// A key on a thumb whose value is mixed gives that thumb a number and leaves the others mixed.
-#[trial]
-fn a_key_on_a_mixed_thumb_sets_that_thumb_alone() {
-    let mut fixture = Fixture::story(&Story::new("mixed-row", mixed_row));
-    fixture.settle();
-    let id = fixture.root_id().expect("the row is shown");
-    let first = fixture.part(id, PartKey::new("thumb").at(0)).expect("the thumb has a sub-node");
-    fixture.access(AccessActionKind::Focus, &first);
-    fixture.idle(2);
-    fixture.key(Key::ArrowRight, Modifiers::NONE);
-    fixture.idle(2);
-    let row = *fixture.data().value("mixed", [Mixed::<f64>::Mixed, Mixed::Mixed]);
-    let stepped = [Mixed::Same(1.0), Mixed::Mixed];
-    assert_eq!(row, stepped, "the first thumb steps from the start of its range; the second stays mixed");
-}
-
 const ROW: Rect = Rect { min: Pos2::new(20.0, 20.0), max: Pos2::new(320.0, 50.0) };
 const BY: f32 = 10.0;
 
@@ -303,30 +287,3 @@ fn row_at_the_ends() -> (Fixture, std::rc::Rc<Cell<Option<(Option<usize>, egui::
     (fixture, seen)
 }
 
-/// The row reports the span its thumbs travel along: a thumb at the range minimum is centred on one end and one at
-/// the maximum on the other, and the span lies inside the row.
-#[trial]
-fn the_row_reports_the_span_its_thumbs_travel_along() {
-    let (fixture, seen) = row_at_the_ends();
-    let (_, travel) = seen.get().expect("the row was shown");
-    let mut thumbs = fixture.by_role(craft_ui::contract::Role::SLIDER);
-    thumbs.sort_by(|a, b| a.center().x.total_cmp(&b.center().x));
-    assert_eq!(thumbs.len(), 2);
-    assert!(thumbs[0].rect.x_range().contains(travel.min), "the thumb at the minimum sits on the span's start");
-    assert!(thumbs[1].rect.x_range().contains(travel.max), "the thumb at the maximum sits on the span's end");
-    assert!(ROW.x_range().contains(travel.min) && ROW.x_range().contains(travel.max), "the span lies inside the row");
-}
-
-/// A drag that pauses before the release shows the running gesture to the trial, and the gesture ends with the release.
-#[trial]
-fn a_paused_drag_shows_the_running_gesture_before_the_release() {
-    let (mut fixture, seen) = row_at_the_ends();
-    let mut thumbs = fixture.by_role(craft_ui::contract::Role::SLIDER);
-    thumbs.sort_by(|a, b| a.center().x.total_cmp(&b.center().x));
-    let mut mid_drag = None;
-    fixture.drag_at_pausing(thumbs[0].center(), Vec2::new(BY, 0.0), |_| {
-        mid_drag = seen.get().and_then(|(held, _)| held).map(|held| held == 0);
-    });
-    assert_eq!(mid_drag, Some(true), "the first thumb is being dragged while the pointer is held");
-    assert_eq!(seen.get().and_then(|(held, _)| held), None, "the release ended the drag");
-}

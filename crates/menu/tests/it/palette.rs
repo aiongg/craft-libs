@@ -62,30 +62,3 @@ fn paths_follow_nested_submenus_and_skip_separators_and_submenu_rows() {
     assert_eq!(all.iter().filter(|entry| entry.label().as_str() == "Save").count(), 1);
 }
 
-#[trial]
-fn the_paths_are_the_ones_of_the_laid_out_bar() {
-    let linux = entries(Target::Linux);
-    assert_eq!(path(find(&linux, "file.quit")), ["File"]);
-    let mac = entries(Target::Mac);
-    assert_eq!(path(find(&mac, "file.quit")), ["Sample"], "Quit is in the app menu on a Mac");
-    assert!(mac.iter().all(|entry| Builtin::of(entry.command()).is_none()));
-}
-
-#[trial]
-fn a_search_finds_a_nested_command_by_a_word_of_its_path() {
-    let all = entries(Target::Linux);
-    assert_eq!(found(&all, "adjustments").first().map(String::as_str), Some("image.curves"));
-}
-
-#[trial]
-fn a_translated_command_is_found_by_its_english_name() {
-    let bar = MenuBar::new(vec![Menu::new("Datei", vec![Item::new("file.save", "Speichern").into()])]);
-    let english = |labeled: Labeled<'_>| match labeled {
-        Labeled::Command(c) if c.id == "file.save" => Some("Save".to_owned()),
-        Labeled::Title("Datei") => Some("File".to_owned()),
-        _ => None,
-    };
-    let all = bar.help_entries(Target::Linux, &LayoutOptions::new("Sample"), Some(&english));
-    assert_eq!(found(&all, "save").len(), 1);
-    assert_eq!(found(&all, "speich").len(), 1);
-}

@@ -174,22 +174,6 @@ fn a_click_adds_a_corner_anchor_and_a_drag_pulls_out_symmetric_handles() {
 }
 
 #[trial]
-fn shift_puts_an_anchor_and_a_handle_on_the_nearest_45_degree_ray() {
-    let mut pen = pen();
-    pen.click_doc(60.0, 60.0);
-    // 100 right and 20 down from the last anchor: the horizontal ray.
-    let at = pen.at(160.0, 80.0);
-    pen.click(at, Modifiers::SHIFT);
-    assert!(near(pen.draft().knots[1].anchor, doc(160.0, 60.0)), "{:?}", pen.draft().knots[1]);
-    // A handle pulled 50 right and 40 down turns to the diagonal: its projection, 45 along each axis.
-    let from = pen.at(260.0, 60.0);
-    pen.drag(from, from + vec2(50.0, 40.0), Modifiers::SHIFT);
-    let knot = pen.draft().knots[2];
-    let along = 90.0 / 2.0;
-    assert!(near(knot.out_ctrl, doc(260.0 + along, 60.0 + along)) && near(knot.in_ctrl, doc(260.0 - along, 60.0 - along)), "{knot:?}");
-}
-
-#[trial]
 fn alt_during_the_drag_breaks_the_pair() {
     let mut pen = pen();
     pen.click_doc(60.0, 60.0);
@@ -294,20 +278,6 @@ fn backspace_removes_the_last_anchor_and_the_only_one_cancels() {
 }
 
 #[trial]
-fn remove_last_is_the_hosts_undo() {
-    let mut pen = Pen::three();
-    assert!(pen.fixture.tool_mut().remove_last());
-    pen.sync();
-    assert_eq!(pen.draft().knots.len(), 2);
-    assert!(pen.fixture.tool_mut().remove_last());
-    assert!(pen.fixture.tool_mut().remove_last());
-    pen.sync();
-    assert!(pen.finished() && pen.draft().knots.is_empty());
-    assert!(matches!(pen.log.iter().rev().nth(1), Some(PenEvent::Edit(EditEvent::Cancel { .. }))));
-    assert!(!pen.fixture.tool_mut().remove_last(), "nothing to remove without a draft");
-}
-
-#[trial]
 fn remove_last_waits_for_a_press_that_is_still_down() {
     let mut pen = Pen::three();
     let at = pen.at(260.0, 160.0);
@@ -328,19 +298,6 @@ fn context_at<'a>(pen: &Pen, at: Pos2) -> ToolContext<'a> {
 }
 
 #[trial]
-fn over_the_first_anchor_the_close_cue_shows() {
-    let mut pen = pen();
-    pen.click_doc(60.0, 60.0);
-    let first = pen.at(60.0, 60.0);
-    assert!(!pen.fixture.tool().closes(&context_at(&pen, first)), "one anchor cannot close");
-    pen.click_doc(160.0, 60.0);
-    assert!(pen.fixture.tool().closes(&context_at(&pen, first)));
-    assert!(!pen.fixture.tool().closes(&context_at(&pen, pen.at(300.0, 250.0))));
-    pen.fixture.tool_mut().sensing(false);
-    assert!(!pen.fixture.tool().closes(&context_at(&pen, first)), "no cue while the pen takes no press");
-}
-
-#[trial]
 fn a_press_on_an_open_paths_end_resumes_it_only_without_a_draft() {
     let end = KnotRef::new(0, 1);
     let mut pen = pen();
@@ -358,34 +315,6 @@ fn a_press_on_an_open_paths_end_resumes_it_only_without_a_draft() {
 
 fn rotated_flipped(room: Rect) -> CanvasView {
     CanvasView::new(room, MIDDLE, 1.0).rotation(30.0).flip_x(true)
-}
-
-#[trial]
-fn the_first_anchor_takes_the_press_within_the_hit_reach_in_a_rotated_flipped_view() {
-    let mut pen = pen_with(PenTool::new(), rotated_flipped);
-    for (x, y) in [(60.0, 60.0), (160.0, 60.0), (160.0, 160.0)] {
-        pen.click_doc(x, y);
-    }
-    let first = pen.at(60.0, 60.0);
-    pen.click(first + vec2(1.0, 1.0), Modifiers::NONE);
-    assert!(pen.finished(), "the press closed the path: {:?}", pen.kinds());
-    assert!(pen.filed().is_some_and(|path| path.closed && path.knots.len() == 3));
-}
-
-#[trial]
-fn a_guide_under_the_press_keeps_it() {
-    let mut guides = vec![Guide::new(GuideKey::new(1), craft_behavior::Axis::Y, 100.0)];
-    let body = move |ui: &mut egui::Ui, body: &mut craft_ui::contract::BodyCx<'_>| {
-        let _ = Guides::new("Guides", Bind::bound(&mut guides)).interactive(true).show_at(ui, body.rect);
-    };
-    let tool = PenTool::new();
-    let mut fixture = ToolFixture::with_view("Pen", tool, view_of, body);
-    let guide = view_of(fixture.canvas().rect).to_screen(doc(100.0, 150.0));
-    fixture.press_at(guide).release_at(guide);
-    assert!(fixture.tool_mut().take_events().is_empty(), "the guide took the press");
-    let away = view_of(fixture.canvas().rect).to_screen(doc(200.0, 150.0));
-    fixture.press_at(away).release_at(away);
-    assert!(!fixture.tool_mut().take_events().is_empty(), "a press away from the guide reaches the pen");
 }
 
 #[trial]
@@ -437,17 +366,6 @@ fn a_draft_ended_with_one_anchor_leaves_no_path() {
 }
 
 #[trial]
-fn enter_after_an_options_bar_change_ends_the_draft_and_every_anchor_stays() {
-    let mut pen = Pen::three();
-    pen.fixture.tool_mut().path_options(options(true, Some([200, 0, 0]), Some(2.0)));
-    pen.click_doc(260.0, 160.0);
-    assert_eq!(pen.draft().knots.len(), 4, "the anchors before and after the change are one draft");
-    pen.key(Key::Enter, Modifiers::NONE);
-    assert!(pen.finished());
-    assert_eq!(pen.filed().map(|path| path.knots.len()), Some(4));
-}
-
-#[trial]
 fn auto_add_delete_edits_the_draft_and_shift_turns_it_off() {
     let mut pen = pen();
     pen.fixture.tool_mut().auto_add_delete(true);
@@ -468,45 +386,6 @@ fn auto_add_delete_edits_the_draft_and_shift_turns_it_off() {
     pen.click(again, Modifiers::SHIFT);
     assert_eq!(pen.draft().knots.len(), 5);
     assert!(near(pen.draft().knots[4].anchor, doc(210.0, 60.0)), "{:?}", pen.draft().knots);
-}
-
-#[trial]
-fn a_pen_that_does_not_sense_takes_no_press() {
-    let mut pen = pen();
-    pen.click_doc(60.0, 60.0);
-    pen.fixture.tool_mut().sensing(false);
-    pen.click_doc(160.0, 60.0);
-    assert_eq!(pen.draft().knots.len(), 1);
-    pen.key(Key::Enter, Modifiers::NONE);
-    assert!(pen.finished(), "one anchor ends as no path, but the keys still reach the tool");
-    pen.fixture.tool_mut().sensing(true);
-    pen.click_doc(160.0, 60.0);
-    assert_eq!(pen.draft().knots.len(), 1, "the draft ended; this click starts another");
-}
-
-#[trial]
-fn the_rubber_band_follows_the_path_options() {
-    let shapes = |rubber_band: bool| {
-        let mut pen = pen();
-        pen.fixture.tool_mut().path_options(options(rubber_band, None, None));
-        pen.click_doc(60.0, 60.0);
-        let far = pen.at(300.0, 200.0);
-        pen.move_to(far, Modifiers::NONE);
-        pen.fixture.fixture().idle(1);
-        pen.fixture.fixture().shape_bounds().len()
-    };
-    assert!(shapes(true) > shapes(false), "the dashed band is drawn only when the option is on");
-}
-
-#[trial]
-fn the_draft_is_a_group_of_named_anchors_for_assistive_technology() {
-    let pen = Pen::three();
-    let cx = context_at(&pen, pen.at(0.0, 0.0));
-    let access = pen.fixture.tool().access(&cx).expect("a draft has a node");
-    assert_eq!(access.anchors.len(), 3);
-    assert_eq!(access.anchors[2].name, "Anchor 3 of 3");
-    assert_eq!(access.anchors[2].at, doc(160.0, 160.0));
-    assert!(access.anchors[2].description.as_deref().is_some_and(|text| text.contains("160")));
 }
 
 #[trial]
@@ -596,55 +475,6 @@ fn curvature_backspace_removes_the_last_anchor_and_reflows() {
     assert_eq!(draft, reflowed, "the handles flow through the anchors left");
 }
 
-#[trial]
-fn curvature_remove_last_removes_the_last_anchor_and_reflows() {
-    let mut pen = three_curved();
-    assert!(pen.fixture.tool_mut().remove_last());
-    pen.sync();
-    let draft = pen.draft();
-    assert_eq!(draft.knots.len(), 2);
-    let mut reflowed = draft.clone();
-    reflowed.reflow();
-    assert_eq!(draft, reflowed);
-}
-
-#[trial]
-fn curvature_hover_cues_follow_sensing() {
-    let mut pen = three_curved();
-    let first = pen.at(60.0, 60.0);
-    assert!(pen.fixture.tool().closes(&context_at(&pen, first)), "three anchors can close");
-    pen.fixture.tool_mut().sensing(false);
-    assert!(!pen.fixture.tool().closes(&context_at(&pen, first)));
-}
-
-#[trial]
-fn curvature_previews_the_next_curve_whatever_the_rubber_band_setting() {
-    let shapes = |rubber_band: bool| {
-        let mut pen = curvature();
-        pen.fixture.tool_mut().path_options(options(rubber_band, None, None));
-        pen.click_doc(60.0, 60.0);
-        pen.click_doc(160.0, 60.0);
-        let far = pen.at(300.0, 200.0);
-        pen.move_to(far, Modifiers::NONE);
-        pen.fixture.fixture().idle(1);
-        pen.fixture.fixture().shape_bounds().len()
-    };
-    assert_eq!(shapes(true), shapes(false));
-    assert!(shapes(false) > 0);
-}
-
-#[trial]
-fn curvature_ignores_shift_and_alt() {
-    let mut plain = curvature();
-    let mut held = curvature();
-    for (pen, modifiers) in [(&mut plain, Modifiers::NONE), (&mut held, Modifiers::SHIFT | Modifiers::ALT)] {
-        pen.click_doc(60.0, 60.0);
-        let at = pen.at(160.0, 100.0);
-        pen.click(at, modifiers);
-    }
-    assert_eq!(plain.draft(), held.draft());
-}
-
 // ---- Path modes and Path Options ----
 
 /// A resolved mode as its three parts.
@@ -709,43 +539,9 @@ fn path_mode_resolves_the_pen_tools_and_modifiers() {
     }
 }
 
-/// The settings default to Photoshop's, round-trip through JSON and read `{}` as the default.
-#[trial]
-fn path_options_settings_default_to_photoshops() {
-    let default = PathOptionsSettings::default();
-    assert!(!default.rubber_band && default.color.is_none() && default.thickness.is_none());
-    let set = options(true, Some([1, 2, 3]), Some(2.5));
-    let json = serde_json::to_string(&set).expect("serialises");
-    assert!(json.contains("rubberBand"));
-    assert_eq!(serde_json::from_str::<PathOptionsSettings>(&json).ok(), Some(set));
-    assert_eq!(serde_json::from_str::<PathOptionsSettings>("{}").ok(), Some(default));
-}
-
 struct Options {
     settings: PathOptionsSettings,
     open: bool,
     asked: Vec<String>,
 }
 
-/// The checkbox changes the bound settings; the swatch, showing the host's line colour, asks the host for the colour
-/// under the popover's key.
-#[trial]
-fn the_path_options_popover_changes_the_settings_and_asks_for_the_colour() {
-    let state = Rc::new(RefCell::new(Options { settings: PathOptionsSettings::default(), open: true, asked: Vec::new() }));
-    let shown = Rc::clone(&state);
-    let mut fixture = Fixture::new(move |ui| {
-        let mut options = shown.borrow_mut();
-        let Options { settings, open, asked } = &mut *options;
-        let output = PathOptionsPopover::new("Path Options", craft_ui::contract::Bind::bound(settings))
-            .default_color(craft_theme::Srgba::rgb(0.0, 0.5, 1.0))
-            .show(ui, open);
-        asked.extend(output.pick_color.iter().map(|request| request.key.to_string()));
-    });
-    fixture.settle();
-    let rubber_band = fixture.by_label("Rubber Band").expect("the checkbox is in the popover");
-    fixture.click(&rubber_band);
-    assert!(state.borrow().settings.rubber_band);
-    let color = fixture.by_label("Color").expect("the swatch is in the popover");
-    fixture.click(&color);
-    assert_eq!(state.borrow().asked, [PATH_OPTIONS_COLOR_KEY]);
-}

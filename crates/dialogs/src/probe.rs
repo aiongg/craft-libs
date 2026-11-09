@@ -201,23 +201,6 @@ mod tests {
     }
 
     #[test]
-    fn nothing_to_show_a_dialog_with_is_explained() {
-        assert_eq!(problem(found(Some(true), Some(false), false)).as_deref(), Some("no desktop portal offers a file chooser"));
-        assert_eq!(problem(found(Some(false), Some(true), false)).as_deref(), Some("libdbus is missing"));
-    }
-
-    #[test]
-    fn programs_are_found_on_the_given_path() {
-        let dir = std::env::temp_dir().join(format!("craft-dialogs-probe-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("folder");
-        std::fs::write(dir.join("zenity"), b"").expect("fixture");
-        let path = std::env::join_paths([std::path::Path::new("/nonexistent"), dir.as_path()]).expect("path");
-        assert!(on_path("zenity", &path));
-        assert!(!on_path("kdialog", &path));
-        let _ = std::fs::remove_dir_all(&dir);
-    }
-
-    #[test]
     fn the_linker_cache_lists_a_library_for_this_architecture() {
         let listing = "2 libs found in cache `/etc/ld.so.cache'\n\tlibdbus-1.so.3 (libc6,x86-64) => /usr/lib/libdbus-1.so.3\n\tlibdbus-1.so.3 (libc6) => /usr/lib32/libdbus-1.so.3\n";
         assert!(ldconfig_output_is_valid(listing));

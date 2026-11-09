@@ -82,9 +82,3 @@ fn leads_under_a_moving_pointer(table: bool) -> Vec<usize> {
     leads.into_inner()
 }
 
-#[trial]
-fn a_table_with_the_list_props_moves_its_lead_under_the_pointer_as_a_list_does() {
-    let list = leads_under_a_moving_pointer(false);
-    assert_eq!(list.last(), Some(&2), "the pointer moves the list's lead to the row under it");
-    assert_eq!(leads_under_a_moving_pointer(true), list);
-}

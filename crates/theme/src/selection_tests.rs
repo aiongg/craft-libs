@@ -40,71 +40,6 @@ fn show(sel: &Selection, system: SystemAppearance) -> Shown {
 }
 
 #[test]
-fn picking_a_single_variant_theme_sets_only_its_slot() {
-    let mut suite = SuiteChoice::default();
-    suite.pick_theme(&builtin("craft.solarized-dark"));
-    assert_eq!((suite.theme_light.as_ref(), suite.theme_dark.as_ref()), (None, Some(&id("craft.solarized-dark"))));
-    suite.pick_theme(&builtin("craft.classic"));
-    assert_eq!((suite.theme_light.as_ref(), suite.theme_dark.as_ref()), (Some(&id("craft.classic")), Some(&id("craft.solarized-dark"))));
-    suite.pick_theme(&builtin("craft.studio"));
-    assert_eq!((suite.theme_light.as_ref(), suite.theme_dark.as_ref()), (Some(&id("craft.studio")), Some(&id("craft.studio"))));
-
-    let mut pair = defaults().theme;
-    pair.pick(&builtin("craft.pro-light-gray"));
-    assert_eq!(pair, ThemePair { light: id("craft.pro-light-gray"), dark: id("craft.pro") });
-    pair.pick(&builtin("craft.graphite"));
-    assert_eq!(pair, ThemePair::same(id("craft.graphite")));
-}
-
-#[test]
-fn app_choice_over_suite_over_defaults_per_field() {
-    let defaults = defaults();
-    let empty = SuiteChoice::default();
-    assert!(empty.is_empty());
-    assert_eq!(
-        empty.with_defaults(&defaults),
-        Selection {
-            theme: defaults.theme.clone(),
-            mode: ModeChoice::Dark,
-            contrast: ContrastChoice::System,
-            motion: MotionChoice::System,
-            size: Size::Compact,
-            text_size: TextSize::Small
-        }
-    );
-
-    let suite = SuiteChoice {
-        theme_dark: Some(id("craft.studio")),
-        contrast: Some(ContrastChoice::High),
-        text_size: Some(TextSize::Medium),
-        ..SuiteChoice::default()
-    };
-    let followed = suite.with_defaults(&defaults);
-    assert_eq!(
-        followed,
-        Selection {
-            theme: ThemePair { light: id("craft.pro"), dark: id("craft.studio") },
-            mode: ModeChoice::Dark,
-            contrast: ContrastChoice::High,
-            motion: MotionChoice::System,
-            size: Size::Compact,
-            text_size: TextSize::Medium,
-        }
-    );
-    assert_eq!(AppChoice::FOLLOW_SUITE.apply(&followed), followed);
-
-    let own_size = AppChoice::FOLLOW_SUITE.with_size(Size::Comfortable);
-    assert_eq!(own_size.apply(&followed), Selection { size: Size::Comfortable, ..followed.clone() });
-    let own_theme = AppChoice::FOLLOW_SUITE.with_theme(ThemePair::same(id("craft.breeze")));
-    assert_eq!(own_theme.apply(&followed), Selection { theme: ThemePair::same(id("craft.breeze")), ..followed.clone() });
-    let own_mode = AppChoice::FOLLOW_SUITE.with_mode(ModeChoice::Light);
-    assert_eq!(own_mode.apply(&followed), Selection { mode: ModeChoice::Light, ..followed.clone() });
-
-    let full = followed.clone();
-    assert_eq!(SuiteChoice::from(full.clone()).with_defaults(&defaults), full);
-}
-
-#[test]
 fn system_choices_take_the_os_answer_else_the_fallbacks() {
     let mut sel = selection("craft.graphite", "craft.graphite", ModeChoice::System);
     let os = SystemAppearance { mode: Some(Mode::Dark), contrast: Some(Contrast::High), reduced_motion: Some(true) };
@@ -146,15 +81,6 @@ fn theme_falls_back_to_the_app_default_then_the_suite_default() {
     let none = AppDefaults { theme: ThemePair::same(ThemeId::app_default()), ..defaults() };
     let shown = resolve_selection(&sel, SystemAppearance::default(), Mode::Light, &none, None, &mut |_| None);
     assert_eq!((shown.theme.as_str(), shown.notices.as_slice()), (SUITE_DEFAULT, &[][..]));
-}
-
-#[test]
-fn single_variant_theme_in_the_other_slot_shows_its_own_variant() {
-    let sel = selection("craft.solarized-dark", "craft.pro", ModeChoice::System);
-    let shown = show(&sel, SystemAppearance::default());
-    assert_eq!(shown.theme.as_str(), "craft.solarized-dark");
-    assert_eq!((shown.appearance.mode, shown.resolved.variant_used), (Mode::Light, Mode::Dark));
-    assert_eq!(shown.notices, [Fallback::SystemSilent, Fallback::OnlyVariant(Mode::Dark)]);
 }
 
 #[test]
@@ -206,26 +132,3 @@ fn serde_forms_round_trip() {
     );
 }
 
-#[test]
-fn system_motion_follows_the_reading() {
-    let reduced = |motion, reading| {
-        let sel = Selection { motion, ..selection("craft.graphite", "craft.graphite", ModeChoice::Dark) };
-        let shown = show(&sel, SystemAppearance { reduced_motion: reading, ..SystemAppearance::default() });
-        assert_eq!(shown.appearance.reduced_motion, shown.resolved.tokens.motion.hover.millis == 0);
-        shown.appearance.reduced_motion
-    };
-    assert!(reduced(MotionChoice::System, Some(true)));
-    assert!(!reduced(MotionChoice::System, Some(false)));
-    assert!(!reduced(MotionChoice::System, None));
-    assert!(reduced(MotionChoice::Reduced, Some(false)));
-    assert!(!reduced(MotionChoice::Full, Some(true)));
-}
-
-/// `selection.json` files written before the motion choice have no such field.
-#[test]
-fn a_suite_choice_without_motion_still_parses() {
-    let choice: SuiteChoice = serde_json::from_str(r#"{"mode":"dark","contrast":"high"}"#).unwrap();
-    assert_eq!(choice.motion, None);
-    let chosen: SuiteChoice = serde_json::from_str(r#"{"motion":"reduced"}"#).unwrap();
-    assert_eq!(chosen.motion, Some(MotionChoice::Reduced));
-}

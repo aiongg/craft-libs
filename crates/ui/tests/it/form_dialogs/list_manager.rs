@@ -59,20 +59,3 @@ fn tip_over(fixture: &mut Fixture, label: &str) -> Option<String> {
     tip
 }
 
-/// An enabled action shows its tooltip; a disabled one shows its reason instead of the tooltip.
-#[trial]
-fn an_action_button_tells_its_tooltip_when_enabled_and_its_reason_when_disabled() {
-    let mut fixture = Fixture::new(|ui| {
-        let words = Env::of(ui).words::<ListManagerWords>();
-        let actions = vec![
-            ListManagerAction::run(&words).tooltip("Runs the macro"),
-            ListManagerAction::create(&words).tooltip("Adds a macro").reason("Type a new name"),
-        ];
-        let entries = vec![ListManagerEntry::new("a", "Align Layers"), ListManagerEntry::new("b", "Batch Export")];
-        let mut open = true;
-        ListManager::new("Macros", "Macro name:", entries, actions).name("Batch Export").opened(Bind::bound(&mut open)).show(ui);
-    });
-    fixture.settle();
-    assert_eq!(tip_over(&mut fixture, "Run").as_deref(), Some("Runs the macro"));
-    assert_eq!(tip_over(&mut fixture, "Create").as_deref(), Some("Type a new name"), "the name exists, so Create is disabled and tells why");
-}

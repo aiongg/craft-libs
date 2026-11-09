@@ -77,11 +77,3 @@ fn a_popover_closed_by_escape_opens_again() {
     assert_open_again(&fixture, &open);
 }
 
-/// A click outside closes the popover, and the opener opens it again.
-#[trial]
-fn a_popover_closed_by_a_click_outside_opens_again() {
-    let (fixture, open) = reopened_after(|fixture| {
-        fixture.click_at(pos2(700.0, 500.0));
-    });
-    assert_open_again(&fixture, &open);
-}

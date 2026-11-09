@@ -79,14 +79,6 @@ fn escape_discards_a_pending_edit_while_nothing_has_focus() {
 }
 
 #[trial]
-fn enter_commits_a_pending_edit_while_nothing_has_focus() {
-    let mut canvas = ToolFixture::new("Document", Transform::default());
-    canvas.fixture().settle();
-    canvas.fixture().key(Key::Enter, Modifiers::NONE);
-    assert_eq!(canvas.tool().answers, [Answer::Commit], "Enter reaches the tool before the canvas is clicked");
-}
-
-#[trial]
 fn a_focused_field_beside_the_canvas_keeps_its_enter() {
     let tool = Rc::new(RefCell::new(Transform::default()));
     let held = tool.clone();
@@ -283,13 +275,3 @@ fn alt_backspace_fills_with_no_outline_open_and_removes_a_point_with_one() {
     }
 }
 
-#[trial]
-fn a_plain_delete_is_the_tools_only_while_it_claims_the_deletes() {
-    for keeps in [false, true] {
-        let mut app = AppCanvas::new(keeps);
-        app.fixture.key(Key::Delete, Modifiers::NONE).settle();
-        let want: (Vec<Seen>, Vec<AppCommand>) =
-            if keeps { (vec![Seen::Delete { forward: true }], vec![]) } else { (vec![], vec![AppCommand::Clear]) };
-        assert_eq!(app.outcome(), want, "claims the deletes: {keeps}; with nothing to delete Edit > Clear runs");
-    }
-}

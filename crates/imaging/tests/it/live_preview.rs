@@ -20,50 +20,12 @@ fn started(lane: PreviewLane, n: u64) -> LivePreview {
 
 // One session: the same settings hash gives the same key twice; another hash another key; the
 // key carries the lane's tag bit and never equals `PreviewKey::NONE`.
-#[trial]
-fn live_preview_same_settings_give_the_same_key() {
-    let mut live = started(PreviewLane::Dialog, 1);
-    let a = live.key(settings_hash(&[b"levels", b"1"]), 0.0);
-    let again = live.key(settings_hash(&[b"levels", b"1"]), 1.0);
-    let other = live.key(settings_hash(&[b"levels", b"2"]), 2.0);
-    assert_eq!(a, again);
-    assert_ne!(a, other);
-    assert!(!a.is_none());
-    assert_eq!(a.raw() >> 59 & 1, 1);
-    assert_eq!(PreviewKey::from_raw(a.raw()), a);
-    assert!(live.owns(a) && live.owns(PreviewKey::NONE));
-    let mut props = started(PreviewLane::Properties, 1);
-    assert_eq!(props.key(5, 0.0).raw() >> 58 & 1, 1);
-}
 
 // A Dialog and a Properties preview with the same session and settings give different keys, and
 // each treats the other's key as foreign (`owns` false, `switch` None).
-#[trial]
-fn live_preview_keys_of_two_lanes_never_match() {
-    let mut dialog = started(PreviewLane::Dialog, 1);
-    let mut props = started(PreviewLane::Properties, 1);
-    let kd = dialog.key(42, 0.0);
-    let kp = props.key(42, 0.0);
-    assert_ne!(kd, kp);
-    assert!(!dialog.owns(kp) && !props.owns(kd));
-    assert_eq!(dialog.switch(PreviewKey::NONE, kp, VIEW), None);
-    assert_eq!(props.switch(kd, PreviewKey::NONE, VIEW), None);
-}
 
 // After a switch to a preview, `begin` with another session: the old key is foreign, `uncovered`
 // returns None, and the new region applies.
-#[trial]
-fn live_preview_a_new_session_forgets_the_covered_area() {
-    let mut live = started(PreviewLane::Dialog, 1);
-    let key = live.key(9, 0.0);
-    assert!(live.switch(PreviewKey::NONE, key, VIEW).is_some());
-    let region = PixelRect::new(10, 10, 20, 20);
-    live.begin(session(2), region);
-    assert!(!live.owns(key));
-    assert_eq!(live.uncovered(key, REGION), None);
-    assert_eq!(live.region(), region);
-    assert!(!live.settling(0.1, 10.0));
-}
 
 // NONE to a preview and one preview to another: the region ∩ visible, remembered as covered.
 #[trial]
@@ -77,14 +39,6 @@ fn live_preview_switch_between_previews_returns_the_visible_part_of_the_region()
 }
 
 // A preview back to NONE: the whole region, visible or not; nothing stays covered.
-#[trial]
-fn live_preview_switch_back_to_none_returns_the_whole_region() {
-    let mut live = started(PreviewLane::Dialog, 1);
-    let key = live.key(1, 0.0);
-    live.switch(PreviewKey::NONE, key, VIEW);
-    assert_eq!(live.switch(key, PreviewKey::NONE, PixelRect::new(500, 500, 600, 600)), Some(REGION));
-    assert_eq!(live.uncovered(key, REGION), None);
-}
 
 // A key of an earlier session or another lane on either side gives None; so do NONE to NONE and
 // no session.

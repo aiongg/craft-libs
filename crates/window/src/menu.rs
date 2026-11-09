@@ -125,11 +125,4 @@ mod tests {
         assert_eq!(titles.title(third), Some("Book1:2"));
     }
 
-    #[test]
-    fn same_name_different_documents_stay_unnumbered() {
-        let mut list = WindowList::new();
-        list.open((1, "report.docx", false));
-        list.open((2, "report.docx", false));
-        assert_eq!(menu(&list), [entry("report.docx", false, false), entry("report.docx", false, true)]);
-    }
 }

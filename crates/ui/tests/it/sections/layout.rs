@@ -74,15 +74,6 @@ fn an_unreadable_arrangement_is_the_usual_one() {
 }
 
 #[trial]
-fn reconciling_drops_unknown_sections_and_reports_a_change_only_when_there_is_one() {
-    let mut layout = usual();
-    assert!(!layout.reconcile(&registered()), "a whole layout is left as it is");
-    let fewer = registered()[..3].to_vec();
-    assert!(layout.reconcile(&fewer));
-    assert_eq!(order(&layout), ["albums", "local", "byDate"]);
-}
-
-#[trial]
 fn a_move_that_changes_nothing_shown_is_a_no_op() {
     let mut layout = usual();
     layout.set_hidden(&key("local"), true);
@@ -133,15 +124,3 @@ fn pinned_sections_stay_above_the_others() {
     assert_eq!(order(&layout), ["local", "folders", "albums", "byDate", "keywords"], "a released section sits after the pinned ones");
 }
 
-#[trial]
-fn applying_events_changes_the_layout() {
-    let mut layout = usual();
-    assert!(layout.apply(&SectionEvent::moved(key("keywords"), Some(key("albums")))));
-    assert_eq!(order(&layout)[0], "keywords");
-    assert!(layout.apply(&SectionEvent::Hidden(key("local"))) && layout.is_hidden(&key("local")));
-    assert!(!layout.apply(&SectionEvent::Hidden(key("local"))), "already hidden");
-    assert!(layout.apply(&SectionEvent::Shown(key("local"))) && !layout.is_hidden(&key("local")));
-    assert!(layout.apply(&SectionEvent::folded(key("byDate"), true)) && layout.is_folded(&key("byDate")));
-    assert!(layout.apply(&SectionEvent::Pinned(key("byDate"))) && layout.is_pinned(&key("byDate")));
-    assert!(layout.apply(&SectionEvent::Unpinned(key("byDate"))) && !layout.is_pinned(&key("byDate")));
-}

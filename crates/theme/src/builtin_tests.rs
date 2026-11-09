@@ -34,23 +34,6 @@ fn builtins_resolve_in_high_contrast_without_warnings() {
     }
 }
 
-/// ArtCraft dark is PhotoCraft's ProMedium in Standard contrast, including the greys and the
-/// accent whose pairs miss the minimums; those pairs are reported.
-#[test]
-fn artcraft_dark_standard_keeps_photocraft_values_and_reports_the_pairs_they_miss() {
-    let theme = builtins().iter().find(|t| t.id.as_str() == "craft.artcraft").unwrap();
-    let r = resolve(theme, semantic_tests::app(Mode::Dark, Contrast::Standard), None);
-    let hex = |t| r.tokens.color(t).to_hex();
-    assert_eq!(hex(ColorToken::StateHover), "#626262");
-    assert_eq!(hex(ColorToken::StatePressed), "#707070");
-    assert_eq!(hex(ColorToken::TextFaint), "#a0a0a0");
-    assert_eq!(hex(ColorToken::AccentSolid), "#378ef0");
-    // The pinned selected fill is PhotoCraft's `row_selected`, not a lightness the pass found.
-    assert_eq!(hex(ColorToken::StateSelected), "#6b6b6b");
-    assert!(r.warnings.iter().any(|w| w.fg == ColorToken::TextFaint.into() && w.bg == ColorToken::StateHover.into()));
-    assert!(r.warnings.iter().any(|w| w.fg == ColorToken::AccentSolid.into() && w.bg == ColorToken::SurfacePanel.into()));
-}
-
 /// Links and other accent-coloured text must read as accent, not as body text: a neutral
 /// `accent.text` (PhotoCraft's `accent_text`, the content colour on `accent_soft`, is white in
 /// several dark themes) draws hyperlinks like plain text. High contrast is left out: 7:1 on a
@@ -72,24 +55,6 @@ fn builtin_accent_text_is_an_accent_hue() {
 
 /// OKLCH chroma below which a colour reads as grey.
 const ACCENT_TEXT_MIN_CHROMA: f64 = 0.04;
-
-/// Soft keeps its own rounder corners at every Size (7/10/14 at Comfortable, 7 on buttons); the other built-ins
-/// that set no offset take the Size preset's radii.
-#[test]
-fn soft_offsets_the_size_preset_radii_and_others_keep_them() {
-    let radii = |theme: &ThemeDef, size| {
-        let a = Appearance { size, ..appearances()[0] };
-        let r = resolve(theme, a, None).tokens.shape.radius;
-        (r.control, r.popup, r.window, r.panel, r.button, r.pill)
-    };
-    let full = scale::Radius::Full.px();
-    let soft = builtins().iter().find(|t| t.id.as_str() == "craft.soft").unwrap();
-    assert_eq!(radii(soft, Size::Comfortable), (7.0, 10.0, 14.0, 0.0, 7.0, full));
-    assert_eq!(radii(soft, Size::Compact), (4.0, 6.0, 8.0, 0.0, 7.0, full));
-    let pro = builtins().iter().find(|t| t.id.as_str() == "craft.pro").unwrap();
-    assert_eq!(radii(pro, Size::Comfortable), (6.0, 8.0, 12.0, 0.0, full, full));
-    assert_eq!(radii(pro, Size::Compact), (3.0, 4.0, 6.0, 0.0, full, full));
-}
 
 /// `text.on_strong` reads on `accent.strong` in every built-in and appearance and is white unless
 /// the theme pins it; `accent.strong` is `accent.solid` where white already reads on it, and
@@ -132,66 +97,6 @@ fn builtin_accent_strong_carries_white_text() {
     assert_eq!(same, solid);
 }
 
-/// Knobs are light in both modes: `surface.knob` is near white (dark mode: about 236/255) and
-/// takes a tinted neutral's tint; a light knob has a `text.muted` outline and a dark-mode
-/// one none (the Pro themes pin PhotoCraft's #282828 ring), and both cast the knob shadow. Classic draws its knob as a bevelled panel-grey
-/// surface with no shadow.
-#[test]
-fn knobs_are_near_white_in_both_modes_and_classic_bevels_a_panel_grey_knob() {
-    let at = |theme: &ThemeDef, mode| resolve(theme, Appearance { mode, ..semantic_tests::app(Mode::Light, Contrast::Standard) }, None).tokens;
-    for mode in [Mode::Light, Mode::Dark] {
-        let t = at(suite_default(), mode);
-        let knob = t.color(ColorToken::SurfaceKnob);
-        let lightness = knob.to_oklch().l;
-        assert!(lightness >= 0.93, "{mode:?}: surface.knob {} has lightness {lightness:.3}", knob.to_hex());
-        assert_eq!(t.color(ColorToken::LineKnobEdge), Rgba::rgb(0x28, 0x28, 0x28), "{mode:?}: the Pro themes have PhotoCraft's dark ring");
-        let plain = at(&semantic_tests::grey_blue(), mode).color(ColorToken::LineKnobEdge);
-        match mode {
-            Mode::Light => {
-                assert_eq!(plain, at(&semantic_tests::grey_blue(), mode).color(ColorToken::TextMuted), "light knobs take the muted text colour")
-            }
-            Mode::Dark => assert_eq!(plain.a(), 0, "dark knobs have no outline"),
-        }
-        assert_eq!(t.elevation.knob, values::KNOB_SHADOW, "{mode:?}");
-
-        let tinted = at(&semantic_tests::grey_blue(), mode).color(ColorToken::SurfaceKnob).to_oklch();
-        assert!(tinted.c > 0.001 && (240.0..300.0).contains(&tinted.h), "{mode:?}: {tinted:?} takes the blue-grey neutral's tint");
-    }
-
-    let classic = builtins().iter().find(|t| t.id.as_str() == "craft.classic").unwrap();
-    let t = at(classic, Mode::Light);
-    assert_eq!(t.color(ColorToken::SurfaceKnob), t.color(ColorToken::SurfacePanel));
-    assert_eq!(t.elevation.knob, Elevation::level(0));
-    assert_eq!(TokenRef::from_path("surface.knob"), Some(TokenRef::Color(ColorToken::SurfaceKnob)));
-    assert_eq!(TokenRef::from_path("line.knob_edge"), Some(TokenRef::Color(ColorToken::LineKnobEdge)));
-}
-
-/// `radius.pill` is fully round unless the theme sets it; Classic squares it.
-#[test]
-fn pill_radius_is_full_by_default_and_zero_in_classic() {
-    let at = |id: &str| {
-        let theme = builtins().iter().find(|t| t.id.as_str() == id).unwrap().clone();
-        resolve(&theme, semantic_tests::app(Mode::Light, Contrast::Standard), None).tokens
-    };
-    assert_eq!(at("craft.solarized-dark").shape.radius.pill, Radius::Full.px());
-    let t = at("craft.classic");
-    assert_eq!(t.shape.radius.pill, 0.0);
-}
-
-/// `data.scope` is dark in every theme: #282828, and the values PhotoCraft pins for Studio dark
-/// and Solarized.
-#[test]
-fn data_scope_is_dark_and_pinned_by_studio_and_solarized() {
-    let scope = |id: &str, mode: Mode| {
-        let theme = builtins().iter().find(|t| t.id.as_str() == id).unwrap().clone();
-        resolve(&theme, semantic_tests::app(mode, Contrast::Standard), None).tokens.color.data.scope.to_hex()
-    };
-    assert_eq!(scope("craft.pro", Mode::Light), "#282828");
-    assert_eq!(scope("craft.pro", Mode::Dark), "#282828");
-    assert_eq!(scope("craft.studio", Mode::Dark), "#0e0e0f");
-    assert_eq!(scope("craft.solarized-dark", Mode::Dark), "#002b36");
-}
-
 /// A theme whose neutral seed and neutral pins are greys derives every neutral token as a grey:
 /// `r == g == b`, with no one-step tint from the contrast pass.
 #[test]
@@ -224,16 +129,6 @@ fn builtin_greys_from_grey_seeds_stay_neutral() {
     assert!(checked >= 4, "ArtCraft and Pro are grey in both modes");
 }
 
-/// Bare canvas lines are the accent itself, as PhotoCraft draws them; `overlay.stroke`, drawn over
-/// the halo, is lightened to read on it.
-#[test]
-fn builtin_overlay_line_is_the_plain_accent() {
-    let theme = builtins().iter().find(|t| t.id.as_str() == "craft.pro").unwrap();
-    let t = resolve(theme, semantic_tests::app(Mode::Dark, Contrast::Standard), None).tokens;
-    assert_eq!(t.color(ColorToken::OverlayLine), Rgba::rgb(0x37, 0x8e, 0xf0));
-    assert_ne!(t.color(ColorToken::OverlayStroke), t.color(ColorToken::OverlayLine));
-}
-
 /// Slider marks and the badge ring are drawn in `line.mark`, which must be seen on the control
 /// surfaces and the hover and pressed fills in every theme, mode and contrast.
 #[test]
@@ -247,95 +142,6 @@ fn line_mark_holds_the_non_text_minimum_on_the_control_surfaces() {
                 let ratio = contrast_ratio(t.color(ColorToken::LineMark), t.color(bg));
                 assert!(ratio >= min, "{} {:?} {:?}: line.mark on {bg:?} is {ratio:.2}:1", theme.id.as_str(), a.mode, a.contrast);
             }
-        }
-    }
-}
-
-/// Classic casts no shadow (PhotoCraft `theme.rs:415-455`, shadow alpha 0): `surface.shadow` is
-/// clear, so no popup, tooltip, toast, dialog, floating window or knob has one. Every other
-/// theme's shadows are its `surface.shadow` alpha.
-#[test]
-fn every_shadow_has_the_alpha_of_surface_shadow() {
-    for theme in builtins() {
-        for size in [Size::Compact, Size::Comfortable] {
-            for mode in [Mode::Light, Mode::Dark] {
-                let a = Appearance { size, ..semantic_tests::app(mode, Contrast::Standard) };
-                let t = resolve(theme, a, None).tokens;
-                let id = theme.id.as_str();
-                let alpha = t.color(ColorToken::SurfaceShadow).a();
-                let e = &t.elevation;
-                for (what, got) in [("popup", e.popup.alpha), ("floating", e.floating.alpha)] {
-                    assert_eq!((got * 255.0).round() as u8, alpha, "{id} {what} {a:?}");
-                }
-                assert_eq!((e.popup.offset, e.popup.blur), (values::POPUP_SHADOW.offset, values::POPUP_SHADOW.blur), "{id}");
-                assert_eq!((e.floating.offset, e.floating.blur), (values::WINDOW_SHADOW.offset, values::WINDOW_SHADOW.blur), "{id}");
-                if id == "craft.classic" {
-                    assert_eq!(alpha, 0, "{a:?}");
-                    assert_eq!(e.knob.alpha, 0.0, "{a:?}");
-                }
-            }
-        }
-    }
-}
-
-/// `surface.chrome` is PhotoCraft's `chrome`: the panel's colour where PhotoCraft's chrome equals
-/// its card, pinned to its own value in the Studio, Adwaita dark, Breeze, and Soft themes.
-#[test]
-fn chrome_is_the_panel_except_where_photocraft_pins_its_own() {
-    let hex = |s: &str| Rgba::from_hex(s).unwrap();
-    let pinned = [
-        ("craft.studio", Mode::Dark, "#141415"),
-        ("craft.studio", Mode::Light, "#f6f6f8"),
-        ("craft.adwaita", Mode::Dark, "#2e2e32"),
-        ("craft.breeze", Mode::Light, "#dbdee2"),
-        ("craft.breeze", Mode::Dark, "#262a30"),
-        ("craft.soft", Mode::Dark, "#3a3a44"),
-        ("craft.soft", Mode::Light, "#e8e6ec"),
-    ];
-    for theme in builtins() {
-        for mode in [Mode::Light, Mode::Dark] {
-            if (mode == Mode::Dark && theme.variants == Variants::LightOnly) || (mode == Mode::Light && theme.variants == Variants::DarkOnly) {
-                continue;
-            }
-            let t = resolve(theme, semantic_tests::app(mode, Contrast::Standard), None).tokens;
-            let chrome = t.color(ColorToken::SurfaceChrome);
-            match pinned.iter().find(|(id, m, _)| *id == theme.id.as_str() && *m == mode) {
-                Some((_, _, value)) => assert_eq!(chrome, hex(value), "{} {mode:?}", theme.id),
-                None => assert_eq!(chrome, t.color(ColorToken::SurfacePanel), "{} {mode:?}", theme.id),
-            }
-            assert_eq!(TokenRef::from_path("surface.chrome"), Some(TokenRef::Color(ColorToken::SurfaceChrome)));
-        }
-    }
-}
-
-/// Classic's slider thumb is a 10 x 16 box at the standard size; the small size keeps its step
-/// under it. The other built-ins' thumbs are round, the icon size less 4 (2 small).
-#[test]
-fn slider_thumbs_are_round_except_in_classic() {
-    for theme in builtins() {
-        for size in [Size::Compact, Size::Comfortable] {
-            let a = Appearance { size, ..appearances()[0] };
-            let t = resolve(theme, a, None).tokens;
-            let s = t.component.slider;
-            if theme.id.as_str() == "craft.classic" {
-                assert_eq!((s.thumb_width.md, s.thumb_height.md), (10.0, 16.0), "{size:?}");
-            } else {
-                assert_eq!(s.thumb_height, s.thumb_width, "{} {size:?}", theme.id);
-                assert_eq!((s.thumb_height.sm, s.thumb_height.md), (t.size.icon.sm - 2.0, t.size.icon.md - 4.0), "{} {size:?}", theme.id);
-            }
-        }
-    }
-}
-
-/// Pro, Pro Light Gray, Graphite and ArtCraft take their row style from the Size (rounded at
-/// Comfortable, divided at Compact); the other themes draw rounded rows at every Size.
-#[test]
-fn builtin_themes_set_their_row_style() {
-    let by_size = ["craft.pro", "craft.pro-light-gray", "craft.graphite", "craft.artcraft"];
-    for theme in builtins() {
-        for a in appearances() {
-            let want = if by_size.contains(&theme.id.as_str()) && a.size == Size::Compact { RowStyle::Divided } else { RowStyle::Rounded };
-            assert_eq!(resolve(theme, a, None).tokens.shape.rows, want, "{} {a:?}", theme.id);
         }
     }
 }

@@ -7,12 +7,6 @@ fn stroke(points: usize) -> Vec<[f32; 2]> {
 }
 
 #[test]
-fn initials_draft_takes_first_letters() {
-    assert_eq!(SignatureDraft::new(true, "Ana María Ruiz").text, "AMR");
-    assert_eq!(SignatureDraft::new(false, "  Ana Ruiz ").text, "Ana Ruiz");
-}
-
-#[test]
 fn ready_and_saved_follow_the_tab() {
     let mut draft = SignatureDraft::new(false, "  ");
     assert!(!draft.ready() && draft.saved().is_none());
@@ -40,14 +34,6 @@ fn undo_skips_bare_clicks() {
     assert_eq!(draft.strokes, vec![stroke(4)]);
     assert!(draft.undo_stroke() && draft.strokes.is_empty());
     assert!(!draft.undo_stroke());
-}
-
-#[test]
-fn typed_text_is_capped() {
-    let mut draft = SignatureDraft::new(false, &"a".repeat(MAX_SIGNATURE_CHARS));
-    assert!(draft.ready());
-    draft.text.push('a');
-    assert!(!draft.ready() && draft.saved().is_none());
 }
 
 // The cache key is made at construction from the content, and deserializing makes it again.

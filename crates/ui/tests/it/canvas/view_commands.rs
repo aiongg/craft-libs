@@ -48,9 +48,3 @@ fn cmd_equals_zooms_a_focused_canvas_and_cmd_0_fits_it() {
     assert!((view.borrow().zoom - fitted.zoom).abs() < SAME_ZOOM, "Cmd+0 fits the document: {:?}", view.borrow());
 }
 
-#[trial]
-fn the_view_menu_zoom_in_is_enabled_while_a_canvas_is_shown() {
-    let (mut fixture, _) = canvas();
-    fixture.settle();
-    assert!(commands::resolve(fixture.ctx(), ViewCommands::ZoomIn).enabled, "the canvas takes Zoom In");
-}

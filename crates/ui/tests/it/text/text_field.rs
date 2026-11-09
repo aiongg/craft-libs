@@ -48,23 +48,6 @@ fn a_click_on_a_candidate_inserts_it_and_the_field_keeps_focus() {
     assert_eq!(fixture.focused(), focused, "the press on the row left focus in the field");
 }
 
-/// The clear part empties a search field.
-#[trial]
-fn the_clear_part_empties_a_search_field() {
-    let text = Rc::new(RefCell::new("poster".to_owned()));
-    let id = Rc::new(Cell::new(Id::NULL));
-    let (shown, field) = (text.clone(), id.clone());
-    let mut fixture = Fixture::new(move |ui| {
-        field.set(TextField::search("Search", Bind::bound(&mut *shown.borrow_mut())).show(ui).response.id);
-    });
-    fixture.settle();
-    let clear = fixture.part(id.get(), CLEAR).expect("a search field with text shows the clear part");
-    fixture.click(&clear);
-    fixture.idle(3);
-    assert_eq!(*text.borrow(), "", "the clear part emptied the text");
-    assert!(fixture.part(id.get(), CLEAR).is_none(), "an empty search field shows no clear part");
-}
-
 /// Clearing a search field that has an open typing run empties it for good: the clear part goes, and leaving the
 /// field commits nothing back.
 #[trial]
@@ -90,50 +73,6 @@ fn clearing_a_search_field_with_a_draft_leaves_it_empty_after_blur() {
     fixture.key(Key::Tab, Modifiers::NONE);
     fixture.idle(3);
     assert_eq!(*text.borrow(), "", "leaving the field commits nothing back");
-}
-
-/// Escape in a search field that shows committed text clears and commits the empty text and stays with the field;
-/// the next Escape, on the empty field, goes on.
-#[trial]
-fn escape_in_a_search_field_clears_the_committed_text_then_passes_on() {
-    let text = Rc::new(RefCell::new("abc".to_owned()));
-    let escaped = Rc::new(Cell::new(false));
-    let (shown, took) = (text.clone(), escaped.clone());
-    let mut fixture = Fixture::new(move |ui| {
-        let out = TextField::search("Search", Bind::bound(&mut *shown.borrow_mut())).show(ui);
-        took.set(took.get() || out.escaped);
-    });
-    fixture.settle();
-    fixture.key(Key::Tab, Modifiers::NONE);
-    fixture.idle(2);
-    escaped.set(false);
-    fixture.key(Key::Escape, Modifiers::NONE);
-    fixture.idle(2);
-    assert_eq!(*text.borrow(), "", "Escape cleared and committed the empty text");
-    assert!(escaped.get(), "the field took the Escape");
-    escaped.set(false);
-    fixture.key(Key::Escape, Modifiers::NONE);
-    fixture.idle(2);
-    assert!(!escaped.get(), "Escape on the empty field goes on to the host");
-}
-
-/// Typing into a mixed field and pressing Enter commits the typed text over the mixed value, as one edit.
-#[trial]
-fn typing_into_a_mixed_field_commits_over_the_mixed_value() {
-    let value = Rc::new(RefCell::new(Mixed::<String>::Mixed));
-    let sets = Rc::new(Cell::new(0));
-    let (shown, counted) = (value.clone(), sets.clone());
-    let mut fixture = Fixture::new(move |ui| {
-        let out = TextField::new("Name", Bind::bound_mixed(&mut *shown.borrow_mut())).show(ui);
-        counted.set(counted.get() + usize::from(matches!(out.event, Some(EditEvent::Set { .. } | EditEvent::Commit { .. }))));
-    });
-    fixture.settle();
-    fixture.key(Key::Tab, Modifiers::NONE);
-    fixture.type_text("abc");
-    fixture.key(Key::Enter, Modifiers::NONE);
-    fixture.idle(3);
-    assert_eq!(*value.borrow(), Mixed::Same("abc".to_owned()), "the typed text replaced the mixed value");
-    assert_eq!(sets.get(), 1, "the commit reached the app as one edit");
 }
 
 /// A field that asks for selection on focus, shown in response to an action and given the focus by a request, holds

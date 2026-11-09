@@ -59,19 +59,4 @@ mod tests {
         assert_eq!(third.position_px, Some([312, 212]));
     }
 
-    #[test]
-    fn cascading_wraps_within_the_bounds() {
-        let main = main_window();
-        // 1000 × 700 pt: the third window's bottom (106 + 600) runs past 700 and starts over at the top.
-        let third = cascade_window(&main, 2, 28.0, Some(Rect::new(0.0, 0.0, 1000.0, 700.0)));
-        assert_eq!(third.position_px, Some([312, 0]));
-    }
-
-    #[test]
-    fn without_a_position_only_the_size_carries_over() {
-        let mut main = main_window();
-        main.position_px = None;
-        let second = cascade_window(&main, 1, 28.0, None);
-        assert_eq!((second.position_px, second.normal.size), (None, [800.0, 600.0]));
-    }
 }

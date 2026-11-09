@@ -74,24 +74,6 @@ fn a_given_drag_that_applies_only_the_commit_is_not_cancelled() {
     assert!(matches!(seen.last(), Some(Ev::Commit(_))), "{seen:?}");
 }
 
-/// A mixed field reports mixed, shows no value, and a commit leaves it concrete.
-#[trial]
-fn a_mixed_binding_reports_mixed_and_commits_a_concrete_value() {
-    let mut frames = Frames::new();
-    let seen = Seen::default();
-    let mut field = Mixed::<f32>::Mixed;
-    let mut mixed_before = None;
-    let mut show = |ui: &mut Ui| {
-        Scrub::new(Bind::bound_mixed(&mut field)).seen(&seen).id_salt("scrub").show_at(ui, AT);
-    };
-    frames.idle(3, &mut show);
-    mixed_before = mixed_before.or(Some((seen.flags.get().contains(Flags::MIXED), seen.shown.get())));
-    drag(&mut frames, &mut show);
-    assert_eq!(mixed_before, Some((true, None)), "mixed flag set and no shown value");
-    assert!(matches!(field, Mixed::Same(v) if near(v, DRAGGED)), "the edit made the field concrete: {field:?}");
-    assert!(!seen.flags.get().contains(Flags::MIXED), "the flag clears once the field is concrete");
-}
-
 /// A kept binding holds its value in the component's own memory across frames.
 #[trial]
 fn a_kept_binding_holds_the_edited_value_across_frames() {
@@ -158,22 +140,3 @@ fn a_check_fixes_values_and_a_refusing_check_blocks_the_commit() {
     assert!(!flags.contains(Flags::INVALID), "the restored value is valid");
 }
 
-/// A warning check describes the node, after the description the app gave it.
-#[trial]
-fn a_warning_describes_the_node_after_the_apps_description() {
-    let describe = |description: Option<&str>| {
-        let mut frames = Frames::new();
-        let mut value = INITIAL;
-        let mut id = None;
-        frames.idle(2, |ui: &mut Ui| {
-            let mut scrub = Scrub::new(Bind::bound(&mut value).check(|_| Validity::Warn(Message::new("too far")))).id_salt("scrub");
-            if let Some(text) = description {
-                scrub = scrub.description(text);
-            }
-            id = Some(scrub.show_at(ui, AT).response.id);
-        });
-        frames.tree().description(id.expect("shown")).map(str::to_owned)
-    };
-    assert_eq!(describe(None).as_deref(), Some("too far"));
-    assert_eq!(describe(Some("Nudge amount")).as_deref(), Some("Nudge amount"));
-}

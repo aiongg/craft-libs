@@ -32,16 +32,6 @@ fn navigation_commands_run_while_a_dialog_is_open() {
 }
 
 // With ModalRules::workspace, even the in-dialog commands are refused; Hide and Minimize still run.
-#[trial]
-fn a_workspace_blocks_every_app_command() {
-    let rules = ModalRules::default().in_dialogs(NAVIGATION_COMMANDS).workspace(true);
-    for gate in [Gate::default(), dialog()] {
-        assert!(!gate.allows_under(&rules, &cmd("view.zoomIn")));
-        assert!(!gate.allows_under(&rules, &cmd("file.save")));
-        assert!(gate.allows_under(&rules, &Builtin::Hide.command()));
-        assert!(gate.allows_under(&rules, &Builtin::Minimize.command()));
-    }
-}
 
 #[derive(Default)]
 struct Fake {

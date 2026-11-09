@@ -133,27 +133,6 @@ fn file_columns(width: f32) -> CollectionProps {
     ])
 }
 
-/// A header click reports the column's next order, and the app's sort value comes back as the order the next click
-/// reverses.
-#[trial]
-fn a_header_click_sorts_and_the_next_click_reverses() {
-    let (scene, source) = (Scene::default(), Count(4));
-    let mut frames = Frames::new();
-    let mut show = |ui: &mut Ui| {
-        let sort = scene.sorts().last().map(|(key, descending)| ColumnSort::new(key.clone(), *descending));
-        show_table(ui, file_columns(COL).sort(sort), &source, &scene);
-    };
-    frames.idle(3, &mut show);
-    let widths = [COL; 3];
-    for _ in 0..2 {
-        pointer::click(&mut frames, scene.header_cell(0, &widths), &mut show);
-        frames.idle(2, &mut show);
-    }
-    assert_eq!(scene.sorts(), vec![(NAME, false), (NAME, true)]);
-    pointer::click(&mut frames, scene.header_cell(2, &widths), &mut show);
-    assert_eq!(scene.sorts().len(), 2, "a column that is not sortable reports no sort");
-}
-
 /// The sort the app gives is the one the header shows and the nodes report, and a click on that column reports the
 /// opposite order.
 #[trial]

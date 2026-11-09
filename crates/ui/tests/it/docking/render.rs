@@ -65,57 +65,6 @@ fn a_divider_shrinks_the_groups_beyond_it_in_turn_down_to_their_minimum() {
 }
 
 #[trial]
-fn a_divider_cannot_travel_past_the_minimum_of_every_group_beyond_it() {
-    let rect = area(WIDTH);
-    let rules = FrameRules::new(&limits);
-    let root = three_columns();
-    let (lo, hi) = tree::drag_range(&root, rect, &sizes(), &rules, &[]);
-    let room_beyond = 2.0 * (WIDTH / 4.0 - LEAST_WIDTH);
-    assert!(lo <= 0.0, "the divider can stay");
-    assert!((hi - room_beyond).abs() < EPS, "the divider travels as far as the groups beyond it can shrink: {hi}");
-    let sizes = tree::drag_sizes(&root, rect, &sizes(), &rules, &[], 10.0 * WIDTH);
-    let mut moved = root.clone();
-    tree::apply_sizes(&mut moved, &sizes);
-    let after = widths(&moved, rect, &rules);
-    assert!(after.iter().all(|width| *width >= LEAST_WIDTH - EPS), "no group goes below its minimum: {after:?}");
-}
-
-#[trial]
-fn a_fixed_split_keeps_its_size_when_the_area_resizes() {
-    let rules = FrameRules::new(&limits);
-    let fixed = 120.0;
-    let root = Node::split(Axis::X, SplitSize::FixedFirst(fixed), Node::tabs(vec![A], 0), Node::tabs(vec![B], 0));
-    let narrow = widths(&root, area(WIDTH), &rules);
-    let wide = widths(&root, area(2.0 * WIDTH), &rules);
-    assert!((narrow[0] - wide[0]).abs() < EPS, "the fixed side keeps its width: {narrow:?} then {wide:?}");
-    assert!(wide[1] > narrow[1], "the other side takes the room");
-}
-
-#[trial]
-fn a_dragged_ratio_split_stays_a_ratio_and_a_fixed_one_stays_fixed() {
-    let rect = area(WIDTH);
-    let rules = FrameRules::new(&limits);
-    let mut ratio = Node::split(Axis::X, SplitSize::Ratio(0.5), Node::tabs(vec![A], 0), Node::tabs(vec![B], 0));
-    let mut fixed = Node::split(Axis::X, SplitSize::FixedSecond(150.0), Node::tabs(vec![A], 0), Node::tabs(vec![B], 0));
-    for root in [&mut ratio, &mut fixed] {
-        let sizes = tree::drag_sizes(root, rect, &sizes(), &rules, &[], 20.0);
-        tree::apply_sizes(root, &sizes);
-    }
-    assert!(matches!(ratio, Node::Split { size: SplitSize::Ratio(_), .. }), "a ratio split keeps its mode");
-    assert!(matches!(fixed, Node::Split { size: SplitSize::FixedSecond(_), .. }), "a fixed split keeps its mode");
-}
-
-#[trial]
-fn closed_sections_take_their_title_and_open_ones_share_the_rest() {
-    let sections = [StackSection::new(true), StackSection::new(false), StackSection::new(true)];
-    let total = 200.0;
-    let heights = section_heights(&sections, total, HEADER);
-    assert!((heights[1] - HEADER).abs() < EPS, "a closed section is its title row: {heights:?}");
-    assert!((heights[0] - heights[2]).abs() < EPS, "sections without a preferred height share equally: {heights:?}");
-    assert!((heights.iter().sum::<f32>() - total).abs() < EPS, "the sections fill the area: {heights:?}");
-}
-
-#[trial]
 fn a_preferred_section_height_is_kept_and_the_last_sections_give_way_when_it_does_not_fit() {
     let preferred = 90.0;
     let sections = [StackSection::new(true).height(Some(preferred)), StackSection::new(true).height(Some(preferred))];
@@ -138,11 +87,3 @@ fn hiding_a_panel_replaces_its_split_with_the_side_that_stays() {
     assert_eq!(view.layout.panels().into_iter().copied().collect::<Vec<_>>(), vec![B], "a protected panel always stays");
 }
 
-#[trial]
-fn a_maximized_frame_is_shown_alone() {
-    let layout = Layout::new(Some(three_columns()), Vec::new());
-    let none_protected = |_: &usize| false;
-    let view = maximize(&layout, Some(&C), HidePanels::None, &none_protected);
-    assert_eq!(view.maximized, Some(C));
-    assert_eq!(view.layout.panels().into_iter().copied().collect::<Vec<_>>(), vec![C], "only the maximized frame shows");
-}

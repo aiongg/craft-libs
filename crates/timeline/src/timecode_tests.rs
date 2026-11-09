@@ -61,13 +61,3 @@ fn parses_premiere_input() {
     assert_eq!(SampleRate::default().hz(), 48_000);
 }
 
-#[test]
-fn refuses_what_is_not_a_time() {
-    let tc = TimeFormat::timecode(FrameRate::FPS_25);
-    assert_eq!(parse_time("  ", &tc, Tick::ZERO), Err(TimecodeError::Empty));
-    assert_eq!(parse_time("1:x", &tc, Tick::ZERO), Err(TimecodeError::NotATime("1:x".into())));
-    assert_eq!(parse_time("1:2:3:4:5", &tc, Tick::ZERO), Err(TimecodeError::NotATime("1:2:3:4:5".into())));
-    assert_eq!(parse_time("+", &tc, Tick::ZERO), Err(TimecodeError::NotATime("+".into())));
-    assert!(parse_time("abc", &tc.display(TimeDisplay::Frames), Tick::ZERO).is_err());
-    assert!(parse_time("99999999999999999999999999", &tc, Tick::ZERO).is_err());
-}

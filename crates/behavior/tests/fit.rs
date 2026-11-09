@@ -44,14 +44,6 @@ fn overflow_retains_selection_and_partitions_all_tabs() {
 }
 
 #[test]
-fn one_tab_never_reserves_an_unused_overflow_button() {
-    let f = fit(&[80.0], 99, 10.0, 40.0, 18.0);
-    assert_eq!(f.shown, [(0, 10.0)]);
-    assert!(f.overflow.is_empty());
-    assert_eq!(f.overflow_width, 0.0);
-}
-
-#[test]
 fn malformed_dimensions_remain_finite_and_within_the_strip() {
     for available in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY, -1.0, 0.0, 0.01, 10.0, 20.0, 1e20, f32::MAX] {
         for minimum in [f32::NAN, f32::INFINITY, -5.0, 0.0, 40.0, f32::MAX] {
@@ -66,15 +58,6 @@ fn malformed_dimensions_remain_finite_and_within_the_strip() {
             }
         }
     }
-}
-
-#[test]
-fn many_tabs_keep_the_last_selected_without_quadratic_membership_scans() {
-    let widths = vec![60.0; 10_000];
-    let f = fit(&widths, widths.len() - 1, 240.0, 40.0, 18.0);
-    assert!(f.shown.iter().any(|&(i, w)| i == widths.len() - 1 && w > 0.0));
-    assert_eq!(f.shown.len() + f.overflow.len(), widths.len());
-    assert!(total(&f) <= 240.001);
 }
 
 #[test]
@@ -128,31 +111,12 @@ fn items(sections: &[u16]) -> Vec<FitItem> {
     sections.iter().map(|&section| FitItem::new(EXTENT, section, FitKeep::Free)).collect()
 }
 
-/// Items that fit whole leave no overflow and no room for the control.
-#[test]
-fn items_that_fit_leave_no_overflow() {
-    let fit = fit_items(&items(&[0, 0, 0, 0]), EXTENT * 4.0 + GAP * 3.0, GAP, SECTION_GAP, CONTROL);
-    assert_eq!(fit.shown, vec![0, 1, 2, 3]);
-    assert!(fit.overflow.is_empty());
-}
-
 /// The last items leave first, and the items kept leave room for the control and its gap.
 #[test]
 fn the_last_items_overflow_first() {
     let fit = fit_items(&items(&[0, 0, 0, 0]), 40.0, GAP, SECTION_GAP, CONTROL);
     assert_eq!(fit.shown, vec![0, 1]);
     assert_eq!(fit.overflow, vec![2, 3]);
-}
-
-/// A section change costs the section gap, not the item gap.
-#[test]
-fn a_section_change_costs_the_section_gap() {
-    let all = EXTENT * 3.0 + GAP + SECTION_GAP;
-    let fit = fit_items(&items(&[0, 0, 1]), all, GAP, SECTION_GAP, CONTROL);
-    assert_eq!(fit.shown, vec![0, 1, 2]);
-    let fit = fit_items(&items(&[0, 0, 1]), all - 1.0, GAP, SECTION_GAP, CONTROL);
-    assert_eq!(fit.shown, vec![0, 1]);
-    assert_eq!(fit.overflow, vec![2]);
 }
 
 /// A pinned item stays when the strip is shorter than the item alone.

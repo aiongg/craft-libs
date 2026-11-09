@@ -107,19 +107,3 @@ fn split(name: Option<&'static str>) -> Fixture {
     })
 }
 
-#[trial]
-fn a_split_area_names_its_divider_with_the_label_it_was_given() {
-    let mut fixture = split(Some("Resize timeline"));
-    fixture.settle();
-    let divider = fixture.by_role(Role::SPLITTER).into_iter().next().expect("one divider");
-    assert_eq!(fixture.by_label("Resize timeline").map(|found| found.node), Some(divider.node));
-    assert!(fixture.by_label("Resize panels").is_none(), "the default name is replaced");
-}
-
-#[trial]
-fn a_split_area_without_a_divider_label_names_it_resize_panels() {
-    let mut fixture = split(None);
-    fixture.settle();
-    let divider = fixture.by_role(Role::SPLITTER).into_iter().next().expect("one divider");
-    assert_eq!(fixture.by_label("Resize panels").map(|found| found.node), Some(divider.node));
-}

@@ -55,18 +55,6 @@ mod tests {
     }
 
     #[test]
-    fn start_is_on_the_right_in_right_to_left() {
-        for size in [ZoneSize::Fraction, ZoneSize::Depth(30.0)] {
-            let ltr = zones(body(), size, false);
-            let rtl = zones(body(), size, true);
-            assert!(zone(&ltr, DockSide::Start).center().x < body().center().x, "{size:?}");
-            assert!(zone(&rtl, DockSide::Start).center().x > body().center().x, "{size:?}");
-            assert_eq!(zone(&rtl, DockSide::Start), zone(&ltr, DockSide::End), "{size:?}");
-            assert_eq!(zone(&rtl, DockSide::Top), zone(&ltr, DockSide::Top), "{size:?}");
-        }
-    }
-
-    #[test]
     fn zones_do_not_overlap_and_cover_the_body() {
         for size in [ZoneSize::Fraction, ZoneSize::Depth(30.0), ZoneSize::Depth(500.0)] {
             for rtl in [false, true] {

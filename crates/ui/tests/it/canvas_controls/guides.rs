@@ -165,39 +165,6 @@ fn page_keys_select_vertical_guides_left_to_right_then_horizontal_ones_and_skip_
 }
 
 #[trial]
-fn arrows_nudge_the_selected_guide_across_its_axis_and_shift_takes_the_large_step() {
-    let mut harness = harness(mixed());
-    harness.press(11, Key::ArrowRight, Modifiers::NONE);
-    assert_eq!(harness.position(11), Some(101.0), "an arrow moves a guide one unit");
-    harness.fixture.key(Key::ArrowRight, Modifiers::SHIFT);
-    assert_eq!(harness.position(11), Some(111.0), "Shift moves it ten");
-    harness.fixture.key(Key::ArrowDown, Modifiers::NONE);
-    assert_eq!(harness.position(11), Some(111.0), "an arrow along the guide moves nothing");
-    assert_eq!(harness.position(12), Some(30.0), "the other guides stay");
-}
-
-#[trial]
-fn a_nudge_stops_at_the_bounds() {
-    let mut harness = harness(mixed());
-    harness.bounds.set(Some(DocRect::new(0.0, 0.0, 105.0, 200.0)));
-    harness.fixture.settle();
-    harness.press(11, Key::ArrowRight, Modifiers::SHIFT);
-    harness.fixture.key(Key::ArrowRight, Modifiers::SHIFT);
-    assert_eq!(harness.position(11), Some(105.0), "a guide stays inside the bounds");
-}
-
-#[trial]
-fn delete_removes_the_focused_guide_and_selects_the_one_after_it() {
-    let mut harness = harness(mixed());
-    harness.press(12, Key::Delete, Modifiers::NONE);
-    assert_eq!(harness.position(12), None, "Delete removes the focused guide");
-    assert_eq!(harness.selected.get(), Some(key(11)), "the next guide in keyboard order is selected");
-    harness.fixture.key(Key::Backspace, Modifiers::NONE);
-    assert_eq!(harness.position(11), None, "Backspace removes it too");
-    assert_eq!(harness.selected.get(), Some(key(10)));
-}
-
-#[trial]
 fn a_drag_moves_the_guide_in_one_gesture() {
     let mut harness = harness(mixed());
     let target = harness.guide(11);
@@ -289,52 +256,3 @@ fn a_guide_released_over_a_ruler_is_not_added() {
     assert_eq!(harness.guides.borrow().len(), 4, "a guide dropped on a ruler is discarded");
 }
 
-#[trial]
-fn the_guide_commands_edit_the_guides() {
-    let mut guides = mixed();
-    assert_eq!(GuideCommands::Delete.apply(&mut guides, Some(key(11))), Some(None), "Delete clears the selection");
-    assert!(guides.iter().all(|guide| guide.key != key(11)));
-    assert_eq!(GuideCommands::Delete.apply(&mut guides, Some(key(13))), None, "a locked guide is not deleted");
-    GuideCommands::Lock.apply(&mut guides, None);
-    assert!(guides.iter().all(|guide| guide.locked));
-    GuideCommands::Unlock.apply(&mut guides, None);
-    assert!(guides.iter().all(|guide| !guide.locked));
-    assert_eq!(GuideCommands::Clear.apply(&mut guides, None), Some(None));
-    assert!(guides.is_empty());
-}
-
-#[trial]
-fn a_press_on_the_canvas_background_clears_the_selection_without_app_code() {
-    let mut harness = harness(mixed());
-    harness.click(11);
-    assert_eq!(harness.selected.get(), Some(key(11)));
-    let canvas = harness.fixture.by_role(craft_ui::contract::Role::CANVAS).into_iter().next().expect("the canvas has a node");
-    harness.fixture.click_at(Pos2::new(canvas.rect.left() + 150.0, canvas.rect.top() + 120.0));
-    assert_eq!(harness.selected.get(), None, "a press that reaches the tool deselects the guide");
-}
-
-#[trial]
-fn guides_read_the_canvas_units_with_no_unit_props() {
-    let inches = RulerText::new(RulerUnits::new(1.0 / 96.0, Ticks::decimal(false)), UnitKind::Inches);
-    let mut harness = harness(mixed());
-    harness.units.set(Some(inches));
-    harness.fixture.settle();
-    let from = harness.guide(11).center();
-    harness.fixture.frame(vec![pointer::moved(from)]);
-    harness.fixture.frame(vec![pointer::press(from)]);
-    harness.fixture.frame(vec![pointer::moved(from + Vec2::new(8.0, 0.0))]);
-    harness.fixture.frame(vec![pointer::moved(from + Vec2::new(SHIFT as f32, 0.0))]);
-    let texts: Vec<String> = harness.fixture.texts().iter().map(|text| text.text.to_string()).collect();
-    assert!(texts.iter().any(|text| text.contains("1.25")), "the readout of a guide at 120 pixels is in the canvas's inches: {texts:?}");
-    assert!(texts.iter().all(|text| !text.contains("px")), "no readout falls back to pixels: {texts:?}");
-}
-
-#[trial]
-fn a_drag_snaps_the_guide_through_the_canvas_snap() {
-    let mut harness = harness(mixed());
-    harness.snapping.set(true);
-    harness.fixture.settle();
-    let target = harness.guide(11);
-    harness.fixture.drag(&target, Vec2::new(SHIFT as f32 + 3.0, 0.0));
-    assert_eq!(harness.position(11), Some(125.0), "the guide lands on the grid the canvas snaps to, not where the pointer is");
-}

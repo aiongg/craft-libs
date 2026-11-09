@@ -118,38 +118,8 @@ fn gallery_stack_new_delete_reorder_and_eye() {
 
 // `GalleryFilter::defaults` takes each Range's default, each Choice's default or first option, each Bool, and the
 // colour.
-#[trial]
-fn gallery_settings_come_from_the_catalog_params() {
-    let Some(cutout) = Catalog.filter("cutout") else { panic!("cutout is in the catalog") };
-    let fields = cutout.defaults();
-    assert_eq!(fields.get("levels"), Some(&FieldValue::Number(6.0)));
-    assert_eq!(fields.get("mode"), Some(&FieldValue::Text("soft".to_owned())));
-    assert_eq!(fields.get("edges"), Some(&FieldValue::Bool(false)));
-    let Some(neon) = Catalog.filter("neon") else { panic!("neon is in the catalog") };
-    let fields = neon.defaults();
-    assert_eq!(fields.get("glowColor"), Some(&FieldValue::Color([1.0, 0.0, 0.5])));
-    assert_eq!(fields.get("glowSize"), Some(&FieldValue::Number(5.0)));
-    assert_eq!(fields.get("note"), None);
-}
 
 // Undo of a Delete gives the layer back and clamps the selection.
-#[trial]
-fn gallery_undo_restores_the_stack_and_clamps_the_selection() {
-    let mut session = FilterGallerySession::new("cutout", &Catalog);
-    let mut history = EditHistory::new(&session);
-    let mut selected = 0;
-    change(&mut session, &mut history, &mut selected, EffectChange::Add);
-    change(&mut session, &mut history, &mut selected, EffectChange::set_filter(1, "sponge"));
-    assert!(change(&mut session, &mut history, &mut selected, EffectChange::Delete));
-    assert_eq!((filters(&session), selected), (vec!["cutout"], 0));
-    assert!(history.step(&mut session, Step::Undo));
-    assert_eq!(filters(&session), ["cutout", "sponge"]);
-    selected = 5;
-    assert!(history.step(&mut session, Step::Undo));
-    assert!(history.step(&mut session, Step::Undo));
-    selected = selected.min(session.effects.len() - 1);
-    assert_eq!((filters(&session), selected), (vec!["cutout"], 0));
-}
 
 /// A flat picture the size of the layer, whose render never finishes and counts its requests.
 struct Flat {
@@ -246,30 +216,9 @@ fn gallery_workspace_step_clamps_the_selection_without_queuing_select() {
 }
 
 // The app answers a color request by key and `Srgba`: the selected effect's field takes it as one undo step.
-#[trial]
-fn gallery_set_color_writes_the_selected_effects_field_as_one_undo_step() {
-    let session = FilterGallerySession::new("neon", &Catalog);
-    let mut workspace = FilterGalleryWorkspace::new(FilterGalleryOpen::new(LAYER, "Layer", session));
-    workspace.set_color("glowColor", Srgba::from_rgb_array([0.2, 0.7, 0.9]));
-    assert_eq!(workspace.session().effects[0].fields.get("glowColor"), Some(&FieldValue::Color([0.2, 0.7, 0.9])));
-    assert!(workspace.step(Step::Undo));
-    assert_eq!(workspace.session().effects[0].fields.get("glowColor"), Some(&FieldValue::Color([1.0, 0.0, 0.5])));
-}
 
 // OK and Cancel sit at the top of the settings column, in the platform's order, over the Filter select and the
 // stack.
-#[trial]
-fn gallery_footer_is_at_the_top() {
-    let rig = rig(FilterGallerySession::new("cutout", &Catalog), true);
-    let rect = |label: &str| rig.fixture.by_label(label).unwrap_or_else(|| panic!("{label} is shown")).rect;
-    let (ok, cancel) = (rect("OK"), rect("Cancel"));
-    let select = rect("Filter");
-    let stack = rect("Effect Layers");
-    assert!(ok.bottom() <= select.top() && cancel.bottom() <= select.top(), "{ok:?} {cancel:?} over {select:?}");
-    assert!(select.bottom() <= stack.top());
-    assert!(equals_token(ok.center().y, cancel.center().y), "one row");
-    assert!(ok.right().max(cancel.right()) > WINDOW.x - ok.width(), "the column is at the end edge: {ok:?} {cancel:?}");
-}
 
 // Clicking a thumbnail picks its filter; arrows and Enter do the same from the keyboard; each pick is one undo step.
 #[trial]

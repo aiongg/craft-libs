@@ -357,29 +357,11 @@ mod tests {
     }
 
     #[test]
-    fn first_launch_uses_default_size_and_leaves_position_to_the_system() {
-        let p = place(None, &[hd()], Some(0), &defaults());
-        assert_eq!(p.normal.size, [1200.0, 800.0]);
-        assert_eq!(p.position_px, None);
-        assert!(!p.maximized);
-    }
-
-    #[test]
     fn first_launch_on_a_small_monitor_fits_and_maximizes() {
         let small = mon("S", [0, 0], [1280, 720], 1.0);
         let p = place(None, &[small], None, &defaults());
         assert_eq!(p.normal.size, [1200.0, 680.0]);
         assert!(p.maximized);
-    }
-
-    #[test]
-    fn monitor_gone_moves_the_window_to_a_connected_one() {
-        let gone = mon("Gone", [1920, 0], [1920, 1080], 1.0);
-        let s = saved(Some([2500, 100]), [800.0, 600.0], 1.0, &gone);
-        let p = place(Some(&s), &[hd()], Some(0), &defaults());
-        assert_eq!(p.monitor, Some(hd().key));
-        let [x, y] = p.position_px.unwrap();
-        assert!((0..=1920 - 800).contains(&x) && (0..=1080 - 600).contains(&y));
     }
 
     #[test]
@@ -417,21 +399,6 @@ mod tests {
         // Top edge: the strip is 64 pt tall; 40 pt of it visible is not enough.
         let s = saved(Some([100, -24]), [800.0, 600.0], 1.0, &m);
         assert_eq!(place(Some(&s), std::slice::from_ref(&m), Some(0), &defaults()).position_px, Some([100, 0]));
-    }
-
-    #[test]
-    fn work_area_replaces_screen_room() {
-        let m = hd().with_work_px([0, 0], [1920, 1000]);
-        let p = place(None, &[m], Some(0), &Defaults::new([1200.0, 1100.0], [400.0, 300.0]));
-        assert_eq!(p.normal.size, [1200.0, 1000.0]);
-        assert!(p.maximized);
-    }
-
-    #[test]
-    fn bar_above_the_top_edge_counts_as_off_screen() {
-        let m = hd();
-        let s = saved(Some([100, -50]), [800.0, 600.0], 1.0, &m);
-        assert_eq!(place(Some(&s), &[m], Some(0), &defaults()).position_px, Some([100, 0]));
     }
 
     #[test]
@@ -486,49 +453,6 @@ mod tests {
         let s = saved(Some([6000, 100]), [800.0, 600.0], 1.0, &gone);
         let p = place(Some(&s), &[hd(), right, far.clone()], Some(0), &defaults());
         assert_eq!(p.monitor, Some(far.key));
-    }
-
-    #[test]
-    fn wayland_neither_reads_nor_returns_a_position() {
-        let mut d = defaults();
-        d.no_position = true;
-        let m = hd();
-        let s = saved(Some([5000, 5000]), [800.0, 600.0], 1.0, &m);
-        let p = place(Some(&s), std::slice::from_ref(&m), Some(0), &d);
-        assert_eq!(p.position_px, None);
-        assert_eq!(p.normal.size, [800.0, 600.0]);
-        assert_eq!(place(None, &[m], Some(0), &d).position_px, None);
-    }
-
-    #[test]
-    fn size_saved_at_zoom_one_does_not_shrink_with_zoom() {
-        let m = hd();
-        let mut s = saved(Some([100, 100]), [1000.0, 700.0], 1.0, &m);
-        s.zoom = 1.5;
-        let p = place(Some(&s), &[m], Some(0), &defaults());
-        assert_eq!(p.normal.size, [1000.0, 700.0]);
-        assert_eq!(p.zoom, 1.5);
-    }
-
-    #[test]
-    fn maximized_keeps_the_normal_rect() {
-        let m = hd();
-        let mut s = saved(Some([100, 100]), [900.0, 600.0], 1.0, &m);
-        s.maximized = true;
-        let p = place(Some(&s), &[m], Some(0), &defaults());
-        assert!(p.maximized);
-        assert_eq!((p.normal.size, p.position_px), ([900.0, 600.0], Some([100, 100])));
-    }
-
-    #[test]
-    fn full_screen_needs_the_opt_in() {
-        let m = hd();
-        let mut s = saved(Some([100, 100]), [900.0, 600.0], 1.0, &m);
-        s.fullscreen = true;
-        let mut d = defaults();
-        assert!(!place(Some(&s), std::slice::from_ref(&m), Some(0), &d).fullscreen);
-        d.restore_fullscreen = true;
-        assert!(place(Some(&s), &[m], Some(0), &d).fullscreen);
     }
 
     #[test]

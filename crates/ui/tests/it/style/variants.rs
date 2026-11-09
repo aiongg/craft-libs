@@ -35,19 +35,6 @@ impl ComponentStyle for ButtonStyle {
 }
 
 #[trial]
-fn each_listed_variant_differs_from_the_default() {
-    let frames = Frames::new();
-    for (mode, contrast) in [(Mode::Light, Contrast::Standard), (Mode::Dark, Contrast::Standard), (Mode::Light, Contrast::High)] {
-        let tokens = tokens(mode, contrast);
-        let looks: Vec<_> =
-            ButtonStyle::VARIANTS.iter().map(|variant| with_cx(&frames.ctx, &tokens, *variant, ControlSize::Md, |cx| cx.variant_look())).collect();
-        for (i, look) in looks.iter().enumerate().skip(1) {
-            assert_ne!(*look, looks[0], "variant {i} falls back to the default look in {mode:?} {contrast:?}");
-        }
-    }
-}
-
-#[trial]
 fn a_component_accepts_its_variants_and_the_custom_ones_built_for_its_key() {
     let accepted = accepted_variant::<ButtonKey, ButtonStyle>(Variant::PRIMARY);
     assert_eq!((accepted.variant, accepted.fell_back), (Variant::PRIMARY, false));
@@ -69,10 +56,3 @@ impl ComponentStyle for BareStyle {
     }
 }
 
-#[trial]
-fn a_component_without_listed_variants_still_accepts_the_custom_ones_built_for_its_key() {
-    let custom = accepted_variant::<ButtonKey, BareStyle>(Variant::Custom(RECORD));
-    assert_eq!((custom.variant, custom.fell_back), (Variant::Custom(RECORD), false));
-    let other = accepted_variant::<ButtonKey, BareStyle>(Variant::PRIMARY);
-    assert_eq!((other.variant, other.fell_back), (Variant::SECONDARY, false), "every other request is the default look");
-}

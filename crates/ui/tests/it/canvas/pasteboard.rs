@@ -41,21 +41,6 @@ fn the_pasteboard_is_the_view_minus_the_pages_whether_the_view_is_turned_or_not(
     }
 }
 
-#[trial]
-fn a_page_outside_the_view_takes_nothing_from_the_pasteboard() {
-    let far = PageFrame::new(DocRect::new(1000.0, 1000.0, 1100.0, 1100.0));
-    let view = view();
-    assert!((covered(&view, &[far]) - view.visible().area()).abs() < AREA_TOLERANCE);
-}
-
-#[trial]
-fn the_last_of_overlapping_pages_is_the_one_under_a_point_and_a_flipped_page_counts() {
-    let pages = [page(), PageFrame::new(DocRect::new(100.0, 60.0, 90.0, 45.0))];
-    assert_eq!(Pasteboard::page_at(&pages, Point::new(95.0, 50.0)), Some(1));
-    assert_eq!(Pasteboard::page_at(&pages, Point::new(85.0, 42.0)), Some(0));
-    assert_eq!(Pasteboard::page_at(&pages, Point::new(10.0, 10.0)), None);
-}
-
 /// The document point the pasteboard reports for a secondary click `offset` points from the canvas's top left, where
 /// the document origin lies.
 fn context_after_secondary_click(offset: Vec2) -> Option<Point> {

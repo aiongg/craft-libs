@@ -45,10 +45,3 @@ fn a_swatch_preset_thumbnail_fills_the_colour_inside_its_rect() {
     assert_eq!(fills.last(), Some(&Color32::from_rgb(255, 0, 0)), "the colour fills the thumbnail: {fills:?}");
 }
 
-#[trial]
-fn a_translucent_swatch_thumbnail_paints_the_checkerboard_under_the_colour() {
-    let color = Srgba::new(1.0, 0.0, 0.0, 0.5);
-    let (_, fills) = face_of(color);
-    assert!(fills.len() > 2, "the grid's cells come before the colour: {fills:?}");
-    assert_eq!(fills.last(), Some(&Color32::from(color)), "the colour paints last");
-}

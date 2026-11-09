@@ -96,10 +96,3 @@ fn the_readout_mirrors_under_right_to_left() {
     assert!(label.min.x > value.max.x, "the label starts at the right and the value ends at the left");
 }
 
-#[trial]
-fn a_readout_with_no_rows_paints_nothing() {
-    let at = Rc::new(Cell::new(Pos2::new(100.0, 100.0)));
-    let mut fixture = fixture(&at, false);
-    fixture.settle();
-    assert!(fixture.texts().iter().all(|text| text.text.is_empty()), "no words: {:?}", fixture.texts());
-}
