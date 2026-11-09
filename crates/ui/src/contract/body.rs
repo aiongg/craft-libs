@@ -2030,7 +2030,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 // the sizing pass settled on: a child that fits itself into its room (a bar moving items into "More")
                 // fits the width the container takes, not the room it could have taken. Inside a content-sized parent
                 // the room already is that width.
-                let settled = real && !env.content.0;
+                let settled = real && !env.content.0 && matches!(props.mount, Mount::Layer(_) | Mount::Viewport { .. });
                 scoped.offered = (!self.given.0 && room.x.is_finite())
                     .then(|| if settled { self.wanted_width(&props).map_or(room.x, |wanted| wanted.min(room.x)) } else { room.x });
                 match scroll {

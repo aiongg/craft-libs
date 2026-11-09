@@ -524,7 +524,14 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             // the room, as a content-sized collection does: the body has no room of its own to hand it.
             Sizing::Fill => {
                 let (x, y) = self.from_content;
-                Vec2::new(if x { self.header.least_width() } else { 0.0 }, if y { height.min(room.y) } else { 0.0 })
+                let wide = if !x {
+                    0.0
+                } else if self.header.has_columns() {
+                    self.header.least_width()
+                } else {
+                    self.widest_row(comp, ui, id).min(room.x)
+                };
+                Vec2::new(wide, if y { height.min(room.y) } else { 0.0 })
             }
             Sizing::Content | Sizing::FillWidth => Vec2::new(if self.content_sized(comp) { self.content.x } else { 0.0 }, height.min(room.y)),
         }
