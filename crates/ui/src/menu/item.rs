@@ -62,7 +62,7 @@ struct Row {
     icon: bool,
 }
 
-/// A row's mnemonic as the level assigned it from the last pass's registrations: the letter and its character index
+/// A row's mnemonic as the level assigned it when the user last saw the rows: the letter and its character index
 /// in the row's text.
 struct Assigned {
     id: Id,
@@ -79,7 +79,9 @@ struct OpenSubmenu {
 #[derive(Default)]
 struct LevelState {
     now: Vec<Row>,
+    /// The letters of the rows as the user last saw them, for a typed letter that arrives before this pass's rows.
     shown: Vec<Assigned>,
+    lettered: bool,
     marks: bool,
     icons: bool,
     keyboard: bool,
@@ -98,7 +100,7 @@ struct LevelState {
 }
 
 /// The rows of one menu level: each registers its label, and the level gives every row its mnemonic from the
-/// registrations of the pass before. It also holds the level's one open submenu row and its active row. Rows
+/// registrations of this pass. It also holds the level's one open submenu row and its active row. Rows
 /// outside any menu get an inert level.
 #[derive(Clone)]
 pub(crate) struct MenuLevel {
@@ -160,6 +162,7 @@ impl MenuLevel {
             state.marks = state.now.iter().any(|row| row.mark.is_some());
             state.icons = state.now.iter().any(|row| row.icon);
             state.keyboard = keyboard;
+            state.lettered = lettered;
             state.now.clear();
             state.submenu = submenu;
             state.values = values;
@@ -180,7 +183,14 @@ impl MenuLevel {
     }
 
     fn mnemonic_of(&self, id: Id) -> Option<(char, usize)> {
-        self.with(|state| state.shown.iter().find(|row| row.id == id).and_then(|row| row.mnemonic))
+        self.with(|state| {
+            if !state.lettered {
+                return None;
+            }
+            let at = state.now.iter().position(|row| row.id == id)?;
+            let labels: Vec<&str> = state.now.iter().map(|row| row.text.as_str()).collect();
+            mnemonic::assign(&labels)[at]
+        })
     }
 
     /// The enabled row `typed` runs.
