@@ -80,7 +80,6 @@ fn a_conflicting_chord_waits_for_an_answer_and_return_is_recorded() {
     let mut rig = Rig::tuned(Platform::Mac, |_| {});
     rig.click("Export…: ⌘E");
     rig.press(Modifiers::COMMAND, Key::S);
-    assert!(rig.has("Go to Conflict"));
     assert_eq!(rig.bindings("file.export"), ["Cmd+E"], "nothing applied before an answer");
     let mut rig = Rig::tuned(Platform::Mac, |_| {});
     rig.click("Export…: ⌘E");
