@@ -561,7 +561,7 @@ impl<T: EdgeTracer> CanvasTool for SelectToolPass<'_, MagneticLassoTool<T>> {
                     tool.outline = None;
                     return true;
                 }
-                DraftKey::Retract if mods.is_none() => {
+                DraftKey::Retract if mods.is_none() || mods == Mods::ALT => {
                     tool.remove_last_point();
                     return true;
                 }

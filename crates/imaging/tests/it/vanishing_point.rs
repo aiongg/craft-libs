@@ -350,11 +350,11 @@ fn delete_removes_the_plane_and_escape_drops_a_half_plane_first() {
     kept.planes.clone_from(&planes);
     kept.torn.clone_from(&torn);
     let (mut fixture, app) = open_with(VanishingTool::EditPlane, kept, Vec::new(), LIMITS);
-    app.borrow_mut().workspace.selected_plane(Some(0));
-    // An empty spot near the canvas's lower corner, where no plane lies, gives the canvas the keyboard.
-    let corner = fixture.by_role(Role::CANVAS).into_iter().next().expect("the workspace shows a canvas").rect.right_bottom();
-    click(&mut fixture, corner - Vec2::splat(CORNER_INSET));
-    app.borrow_mut().workspace.selected_plane(Some(0));
+    // Select the first plane by clicking inside it: the layer shows at zoom 1, centred on the canvas.
+    let layer_middle = Vec2::new(LAYER[0] as f32, LAYER[1] as f32) / 2.0;
+    let inside_first_plane = at(&fixture, Vec2::new(200.0, 75.0) - layer_middle);
+    click(&mut fixture, inside_first_plane);
+    assert_eq!(app.borrow().workspace.editor().selected(), Some(0));
     fixture.key(Key::Delete, Modifiers::NONE).settle();
     let after = session(&app);
     assert_eq!(after.planes, planes[1..], "the children keep their place");
