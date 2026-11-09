@@ -1,0 +1,8 @@
+craft-automation it suite::
+craft-browse it suite::
+craft-draw it suite::
+craft-imaging it suite::
+craft-review it suite::
+craft-table it suite::
+craft-text it suite::
+craft-timeline it suite::
