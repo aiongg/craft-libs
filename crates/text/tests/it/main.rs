@@ -3,6 +3,7 @@
 mod character;
 mod columns;
 mod editor;
+#[cfg(feature = "find")]
 mod find;
 mod hyperlink;
 mod notes;
