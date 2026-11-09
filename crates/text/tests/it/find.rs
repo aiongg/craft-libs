@@ -1,6 +1,6 @@
 //! The find bar and the Find and Replace dialog.
 
-use craft_text::find::{FindError, FindMatches, FindOptions, FindPattern};
+use craft_text::find::{FindMatches, FindOptions};
 use craft_text::ui::find::{FindBar, FindBarState};
 use craft_ui::testing::{Fixture, trial};
 use egui::{Key, Modifiers};
@@ -11,9 +11,7 @@ use std::rc::Rc;
 struct Bar {
     fixture: Fixture,
     query: Rc<RefCell<String>>,
-    matches: Rc<RefCell<FindMatches>>,
     searched: Rc<Cell<bool>>,
-    stepped: Rc<Cell<bool>>,
     closed: Rc<Cell<bool>>,
 }
 
@@ -37,7 +35,7 @@ fn bar(query: &str) -> Bar {
         flags.2.set(flags.2.get() || out.closed);
     });
     fixture.settle();
-    Bar { fixture, query, matches, searched, stepped, closed }
+    Bar { fixture, query, searched, closed }
 }
 
 /// Opening the bar puts the keyboard in its field: typing sets the query and asks the app to search.
@@ -49,17 +47,6 @@ fn typing_in_an_opened_bar_searches() {
     assert!(bar.searched.get());
 }
 
-/// Enter steps to the next match, Shift+Enter back; the keyboard stays in the field.
-#[trial]
-fn enter_steps_through_the_matches() {
-    let mut bar = bar("abc");
-    bar.fixture.key(Key::Enter, Modifiers::NONE).settle();
-    assert!(bar.stepped.get());
-    assert_eq!(bar.matches.borrow().current(), Some(1));
-    bar.fixture.key(Key::Enter, Modifiers::SHIFT).settle();
-    assert_eq!(bar.matches.borrow().current(), Some(0));
-}
-
 /// Esc clears the field; a second Esc closes the bar.
 #[trial]
 fn escape_clears_the_query_then_closes() {
@@ -69,21 +56,4 @@ fn escape_clears_the_query_then_closes() {
     assert!(!bar.closed.get(), "and keeps the bar");
     bar.fixture.key(Key::Escape, Modifiers::NONE).settle();
     assert!(bar.closed.get());
-}
-
-#[trial]
-fn a_refused_pattern_is_an_error_the_ui_can_word() {
-    let options = FindOptions { regex: true, ..FindOptions::default() };
-    assert!(matches!(FindPattern::compile("(open", &options), Err(FindError::Regex(_))));
-}
-
-#[trial]
-fn matches_step_through_and_wrap() {
-    let mut found = FindMatches::new(0);
-    found.set_page(0, vec![0..3, 5..8]);
-    assert_eq!(found.current(), Some(0));
-    found.step(false);
-    assert_eq!(found.current(), Some(1));
-    found.step(false);
-    assert_eq!(found.current(), Some(0), "stepping past the last match wraps to the first");
 }

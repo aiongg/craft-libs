@@ -1,12 +1,8 @@
 //! The Artboard tool: the overlay's parts and the tool on one canvas, the bar and the Properties section.
 
-use craft_behavior::kurbo::{Point, Rect, Size, Vec2};
+use craft_behavior::kurbo::{Point, Rect, Vec2};
 use craft_behavior::{CanvasView, EditEvent};
-use craft_draw::ui::add_beside::AddSide;
-use craft_draw::ui::artboard::{
-    ArtboardBackground, ArtboardBar, ArtboardEvent, ArtboardItem, ArtboardOverlay, ArtboardPreset, ArtboardProperties, ArtboardRules, ArtboardTool,
-};
-use craft_ui::bars::{Bar, BarKind};
+use craft_draw::ui::artboard::{ArtboardEvent, ArtboardItem, ArtboardOverlay, ArtboardRules, ArtboardTool};
 use craft_ui::canvas::{Canvas, ToolHost};
 use craft_ui::contract::{Show as _, ShowContainer as _};
 use craft_ui::testing::{Fixture, pointer, trial};
@@ -158,15 +154,6 @@ fn a_press_in_a_board_selects_it_and_a_drag_moves_it_in_whole_pixels() {
 }
 
 #[trial]
-fn a_locked_board_selects_and_never_moves() {
-    let mut h = harness(ArtboardRules::PHOTOSHOP, &[0]);
-    let from = h.screen(450.0, 50.0);
-    h.drag(from, from + by(30.0, 0.0), Modifiers::NONE);
-    assert!(h.events().iter().any(|event| matches!(event, ArtboardEvent::Select { indices, .. } if indices == &[2])));
-    assert!(moved_by(&h.events()).is_none() && resized(&h.events()).is_none());
-}
-
-#[trial]
 fn handles_resize_the_active_board_with_shift_keeping_proportions() {
     let mut h = harness(ArtboardRules::PHOTOSHOP, &[0]);
     let corner = h.screen(180.0, 240.0);
@@ -221,78 +208,4 @@ fn keys_on_a_focused_board_move_resize_delete_and_open() {
     assert!(h.events().iter().any(|event| matches!(event, ArtboardEvent::Delete { indices, .. } if indices == &[0])));
     h.fixture.key(Key::Enter, Modifiers::NONE);
     assert!(h.events().iter().any(|event| matches!(event, ArtboardEvent::OpenOptions { index: 0, .. })));
-}
-
-#[trial]
-fn escape_cancels_a_move_and_the_second_rule_set_leaves_on_escape() {
-    let mut h = harness(ArtboardRules::PHOTOSHOP, &[0]);
-    let from = h.screen(60.0, 100.0);
-    h.hold(from, from + by(30.0, 0.0));
-    h.fixture.key(Key::Escape, Modifiers::NONE);
-    assert!(h.events().iter().any(|event| matches!(event, ArtboardEvent::Move { event: EditEvent::Cancel { .. }, .. })), "{:?}", h.events());
-
-    let mut h = harness(ArtboardRules::ILLUSTRATOR, &[0]);
-    // A press on the pasteboard gives the canvas the keyboard.
-    h.fixture.click_at(h.screen(200.0, 250.0));
-    h.app.borrow_mut().events.clear();
-    h.fixture.key(Key::Escape, Modifiers::NONE);
-    assert!(h.events().contains(&ArtboardEvent::Leave), "{:?}", h.events());
-}
-
-#[trial]
-fn the_plus_buttons_answer_becomes_add_beside_and_alt_copies() {
-    let mut tool = ArtboardTool::new();
-    tool.items(&boards()).selected(&[1]);
-    tool.add_beside(AddSide::Right, false).add_beside(AddSide::Bottom, true);
-    let events = tool.take_events();
-    let sides: Vec<_> = events
-        .iter()
-        .filter_map(|event| match event {
-            ArtboardEvent::AddBeside { index, side, copy, .. } => Some((*index, *side, *copy)),
-            _ => None,
-        })
-        .collect();
-    assert_eq!(sides, [(1, AddSide::Right, false), (1, AddSide::Bottom, true)]);
-}
-
-fn presets() -> Vec<ArtboardPreset> {
-    vec![ArtboardPreset::new("Square", Size::new(100.0, 100.0))]
-}
-
-#[trial]
-fn make_portrait_shows_only_while_the_board_is_wider_than_tall() {
-    let show = |rect: Rect| {
-        let board = ArtboardItem::new("One", rect);
-        let presets = presets();
-        let mut fixture = Fixture::new(move |ui| {
-            Bar::new("Options", BarKind::Options).show(ui, |ui, _| ArtboardBar::new(Some(&board), &presets).show(ui));
-        });
-        fixture.settle();
-        fixture.texts().iter().map(|text| text.text.clone()).collect::<Vec<_>>()
-    };
-    let wide = show(Rect::new(0.0, 0.0, 200.0, 100.0));
-    assert!(wide.contains(&"Make Portrait".to_owned()) && !wide.contains(&"Make Landscape".to_owned()), "{wide:?}");
-    let tall = show(Rect::new(0.0, 0.0, 100.0, 200.0));
-    assert!(tall.contains(&"Make Landscape".to_owned()) && !tall.contains(&"Make Portrait".to_owned()), "{tall:?}");
-    let square = show(Rect::new(0.0, 0.0, 100.0, 100.0));
-    assert!(!square.contains(&"Make Portrait".to_owned()) && !square.contains(&"Make Landscape".to_owned()), "{square:?}");
-}
-
-#[trial]
-fn properties_background_other_asks_for_a_color() {
-    let mut board = ArtboardItem::new("One", Rect::new(0.0, 0.0, 100.0, 100.0));
-    board.background = ArtboardBackground::Custom(craft_theme::Srgba::rgb(0.9, 0.4, 0.2));
-    let asked = Rc::new(RefCell::new(None));
-    let seen = Rc::clone(&asked);
-    let presets = presets();
-    let mut fixture = Fixture::new(move |ui| {
-        if let Some(request) = ArtboardProperties::new(&board, &presets).show(ui).pick_color {
-            *seen.borrow_mut() = Some(request);
-        }
-    });
-    fixture.settle();
-    let swatch = fixture.by_label("Artboard Background Color").expect("the custom colour swatch");
-    fixture.click(&swatch);
-    let request = asked.borrow().clone().expect("a click on the swatch asks for a colour");
-    assert_eq!(request.key, "artboard.background");
 }

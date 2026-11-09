@@ -24,8 +24,6 @@ mod guides;
 
 mod new_guide;
 
-mod properties;
-
 mod export;
 
 mod password;
@@ -38,7 +36,5 @@ mod save_for_web;
 mod watermark;
 
 mod list_manager;
-
-mod report;
 
 mod navigator_options;

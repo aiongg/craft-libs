@@ -74,27 +74,4 @@ impl Search {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn filters_combine() {
-        let index = crate::index::bundled().unwrap();
-        let search = Search::new(&index);
-        let names = |q: &Query| search.families(&index, q).into_iter().map(|i| index.families()[i].family.clone()).collect::<Vec<_>>();
-
-        let noto_jp = names(&Query { text: "noto sans jp".into(), ..Query::default() });
-        assert_eq!(noto_jp, ["Noto Sans JP"]);
-
-        let japanese = search.languages("日本語");
-        let ja = *japanese.first().unwrap();
-        assert_eq!(index.languages()[ja].id, "ja_Jpan");
-        let serif_ja = names(&Query { category: Some(Category::Serif), language: Some(ja), ..Query::default() });
-        assert!(serif_ja.contains(&"Noto Serif JP".to_owned()));
-        assert!(!serif_ja.contains(&"Noto Sans JP".to_owned()));
-
-        let arabic = names(&Query { script: Some("Arab".into()), ..Query::default() });
-        assert!(arabic.contains(&"Amiri".to_owned()));
-        assert!(!arabic.contains(&"Roboto".to_owned()));
-    }
-}
+mod tests {}

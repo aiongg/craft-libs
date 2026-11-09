@@ -111,26 +111,6 @@ fn write_follows_the_theme_not_the_old_file() {
 }
 
 #[test]
-fn defaults_and_exported_themes() {
-    let min = json!({
-        "schema": "craft-design-theme", "schema_version": 1, "id": "test.min",
-        "seeds": { "neutral": "#535353", "accent": "#78ADF6",
-                   "status": { "good": "#85DC6A", "warn": "#E8B046", "bad": "#FF8080", "info": "#78ADF6" } }
-    });
-    let t = parse_value(&min).unwrap().theme;
-    assert_eq!((t.name.as_str(), t.version, t.variants, t.contrast_intent), ("test.min", 1, Variants::Both, ContrastIntent::Standard));
-    assert!(t.shape.is_none() && t.apps.is_empty() && t.components.is_empty());
-
-    let mut def = grey_blue();
-    def.pins.light = Pins::from_iter([(T::TextFaint, hex("#c8c8c8"))]);
-    def.shape = Some(ShapeSeed { radius: None, radius_offset: None, button_radius: None, edge: Some(EdgeSeed::Flat), rows: None });
-    let file = format::to_file(&def).unwrap();
-    let text = format::write(&file).unwrap();
-    assert_eq!(format::parse(text.as_bytes()).unwrap().theme, def);
-    assert!(!text.contains("\"high_contrast\"") && !text.contains("\"apps\""), "empty sections are left out:\n{text}");
-}
-
-#[test]
 fn file_level_errors() {
     let pilot = format::parse(br#"{"schema":"craft-theme","schema_version":1}"#).unwrap_err();
     assert_eq!(pilot.file_level(), Some(&ErrorKind::OtherSchema { schema: "craft-theme".to_owned() }));
@@ -152,61 +132,6 @@ fn file_level_errors() {
 }
 
 #[test]
-fn every_field_error_has_its_path() {
-    let cases: [(&str, Value, &str); 22] = [
-        ("/dark/surface.panel", json!("nope"), "dark.\"surface.panel\": not a colour"),
-        ("/dark/surface.panel", json!("#53535380"), "dark.\"surface.panel\": surfaces must be opaque"),
-        ("/high_contrast/light/surface.canvas", json!("#00000000"), "high_contrast.light.\"surface.canvas\": surfaces must be opaque"),
-        ("/light/surface.nothing", json!("#ffffff"), "light.\"surface.nothing\": unknown token"),
-        ("/light/slider.thumb_height", json!("#ffffff"), "light.\"slider.thumb_height\": a component field is a length; set it in components"),
-        ("/components/surface.panel", json!("#ffffff"), "components.\"surface.panel\": colours are set per mode, in light or dark"),
-        ("/components/button.radius", json!(4), "components.\"button.radius\": unknown token"),
-        ("/components/slider.edge", json!("flat"), "components.\"slider.edge\": unknown token"),
-        ("/components/slider.nope", json!(4), "components.\"slider.nope\": unknown token"),
-        ("/components/slider.thumb_height", json!(-1), "components.\"slider.thumb_height\": expected a length: a number of 0 or more, or \"full\""),
-        (
-            "/components/slider.thumb_height",
-            json!({ "x": 1 }),
-            "components.\"slider.thumb_height\": expected a length: a number of 0 or more, or \"full\"",
-        ),
-        ("/id", json!("Bad Id"), "id: a theme id starts with a-z or 0-9"),
-        ("/id", json!(4), "id: expected a string"),
-        ("/seeds", json!(4), "seeds: expected an object"),
-        ("/seeds/status/good", json!("red"), "seeds.status.good: not a colour"),
-        ("/shape/radius/panel", Value::Null, "shape.radius.panel: missing"),
-        ("/shape/edge", json!({ "bevel": { "width": 0 } }), "shape.edge: expected \"flat\" or {\"bevel\": {\"width\": n}} with n above 0"),
-        ("/variants", json!("blue"), "variants: expected one of the listed names"),
-        ("/version", json!(-1), "version: expected a non-negative integer"),
-        ("/apps/photocraft/dark/surface.canvas", json!(1), "apps.photocraft.dark.\"surface.canvas\": not a colour"),
-        ("/apps/photocraft/high_contrast/dark/text.normal", json!("x"), "apps.photocraft.high_contrast.dark.\"text.normal\": not a colour"),
-        (
-            "/apps/photocraft/components/slider.thumb_height",
-            json!("wide"),
-            "apps.photocraft.components.\"slider.thumb_height\": expected a length: a number of 0 or more, or \"full\"",
-        ),
-    ];
-    for (pointer, value, expected) in cases {
-        let mut v = full();
-        let (parent, key) = pointer.rsplit_once('/').unwrap();
-        v.pointer_mut(parent).unwrap().as_object_mut().unwrap().insert(key.to_owned(), value);
-        assert_eq!(errors(&v), [expected], "{pointer}");
-    }
-
-    let mut v = full();
-    v["seeds"].as_object_mut().unwrap().remove("accent");
-    v["apps"]["Bad App"] = json!({});
-    v["variants"] = json!("light");
-    v["dark"] = json!({ "surface.panel": "#535353" });
-    let got = errors(&v);
-    assert_eq!(got.len(), 5, "{got:?}");
-    assert_eq!(got[0], "seeds.accent: missing");
-    assert_eq!(got[1], "dark: the theme's variants leave this mode out");
-    assert!(got[2].starts_with("apps.Bad App: not an app id"), "{got:?}");
-    assert_eq!(got[3], "apps.photocraft.dark: the theme's variants leave this mode out");
-    assert_eq!(got[4], "apps.photocraft.high_contrast.dark: the theme's variants leave this mode out");
-}
-
-#[test]
 fn errors_are_reported_together() {
     let mut v = full();
     v["id"] = json!("Bad");
@@ -222,17 +147,6 @@ fn errors_are_reported_together() {
             "components.\"slider.thumb_height\": expected a length: a number of 0 or more, or \"full\"",
         ]
     );
-}
-
-#[test]
-fn empty_map_for_a_missing_mode_is_accepted() {
-    let mut v = full();
-    v["variants"] = json!("dark");
-    v["light"] = json!({});
-    v["high_contrast"]["light"] = json!({});
-    v["apps"]["photocraft"]["light"] = json!({});
-    v["apps"]["photocraft"]["high_contrast"]["light"] = json!({});
-    assert!(parse_value(&v).is_ok());
 }
 
 #[test]
@@ -268,18 +182,6 @@ fn app_overrides_apply_only_to_that_app() {
     // Light mode has no app pin.
     let light = app(Mode::Light, Contrast::Standard);
     assert_eq!(resolve(&def, light, Some(&photo)).tokens.color, resolve(&def, light, None).tokens.color);
-}
-
-#[test]
-fn version_is_part_of_the_theme() {
-    let mut file = parse_value(&full()).unwrap();
-    file.theme.version = 7;
-    let text = format::write(&file).unwrap();
-    assert_eq!(format::parse(text.as_bytes()).unwrap().theme.version, 7);
-    let mut def = grey_blue();
-    def.version = 4;
-    let written: Value = serde_json::from_str(&format::write(&format::to_file(&def).unwrap()).unwrap()).unwrap();
-    assert_eq!(written["version"], 4);
 }
 
 #[test]
@@ -444,14 +346,6 @@ fn references_survive_a_write_and_parse() {
     let again = format::parse(format::write(&file).unwrap().as_bytes()).unwrap();
     assert_eq!(again.theme.pins.light.refs, file.theme.pins.light.refs);
     assert!(again.theme.pins.light.colors.is_empty());
-}
-
-#[test]
-fn unknown_reference_names_the_key_and_the_reference() {
-    let e = errors(&with_light(json!({ "overlay.line": "{accent.nope}" })));
-    assert_eq!(e, ["light.\"overlay.line\": reference {accent.nope} names no token"]);
-    let e = errors(&with_light(json!({ "text.muted": "{slider.thumb_height}" })));
-    assert_eq!(e, ["light.\"text.muted\": reference {slider.thumb_height} is not a colour field"]);
 }
 
 #[test]

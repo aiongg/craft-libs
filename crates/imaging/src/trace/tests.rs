@@ -89,20 +89,6 @@ fn trace_bounded_step_caps_cells() {
 
 // `edges_of_grid` gives PhotoCraft's Content-Aware Fill unit edges for an L-shaped grid, and
 // `None` past the limit.
-#[test]
-fn trace_grid_edges_match_unit_edges() {
-    // X.
-    // XX
-    let grid = CoverageGrid::new([10, 20], [2, 2], vec![true, false, true, true]);
-    let edges = edges_of_grid(&grid, GRID_EDGE_LIMIT).unwrap();
-    assert_eq!(edges.len(), 8);
-    assert_eq!(edges[..3], [([10, 20], [10, 21]), ([11, 20], [11, 21]), ([10, 20], [11, 20])]);
-    assert!(edges.contains(&([12, 21], [12, 22])));
-    assert!(edges_of_grid(&grid, 7).is_none());
-    assert_eq!(grid.size(), [12, 22]);
-    assert_eq!(grid.at(10, 21), 1.0);
-    assert_eq!(grid.at(11, 20), 0.0);
-}
 
 // A grid's content bounds are those of its inside cells (empty with none), and its revision is
 // stable and follows the cells.

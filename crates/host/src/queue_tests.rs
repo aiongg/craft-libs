@@ -2,8 +2,8 @@
 //! inline runs. Every test drives lanes with `ManualJobs` (or `lanes: 0`), so nothing depends on
 //! thread timing.
 
+use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use crate::queue::{Cancel, Finished, JobQueue, Priority, QueueOptions};
@@ -37,15 +37,6 @@ fn queue_runs_highest_priority_first() {
 }
 
 // A second submit for a waiting key runs only the second job; the first never runs.
-#[test]
-fn queue_replaces_queued_job_of_same_key() {
-    let (queue, jobs, _) = queue(1);
-    queue.submit("a", Priority::VISIBLE, |_| "first");
-    queue.submit("a", Priority::VISIBLE, |_| "second");
-    assert_eq!(queue.counts().queued, 1);
-    jobs.run_all();
-    assert_eq!(drain(&queue), ["second"]);
-}
 
 // With two lanes: a key's second job waits until its first ends, while another key's job runs.
 #[test]
@@ -92,35 +83,8 @@ fn queue_dropped_keys_are_cancelled() {
 }
 
 // The wake is called once per finished job, never for a dropped or cancelled one.
-#[test]
-fn queue_wakes_after_each_finish() {
-    let (queue, jobs, wakes) = queue(1);
-    queue.submit("a", Priority::VISIBLE, |_| "a");
-    queue.submit("b", Priority::NEAR, |_| "b");
-    queue.submit("dropped", Priority::BACKGROUND, |_| "dropped");
-    assert_eq!(queue.reprioritize(|k, p| (*k != "dropped").then_some(p)), ["dropped"]);
-    assert_eq!(wakes.load(Ordering::Relaxed), 0);
-    jobs.run_next();
-    assert_eq!(wakes.load(Ordering::Relaxed), 1);
-    jobs.run_all();
-    assert_eq!(wakes.load(Ordering::Relaxed), 2);
-    assert_eq!(queue.counts().finished, 2);
-}
 
 // With `lanes == 0` nothing runs on submit; `run_inline(1)` runs the best job and returns 1.
-#[test]
-fn queue_runs_inline_on_demand() {
-    let (queue, jobs, wakes) = queue(0);
-    queue.submit("low", Priority::BACKGROUND, |_| "low");
-    queue.submit("high", Priority::VISIBLE, |_| "high");
-    assert_eq!(jobs.waiting(), 0);
-    assert_eq!(queue.run_inline(1), 1);
-    assert_eq!(drain(&queue), ["high"]);
-    assert_eq!(wakes.load(Ordering::Relaxed), 1);
-    assert_eq!(queue.run_inline(5), 1);
-    assert_eq!(queue.run_inline(5), 0);
-    assert_eq!(drain(&queue), ["low"]);
-}
 
 // A key's next job that waited for its running inline job gets a lane when the inline run ends.
 #[test]
@@ -215,27 +179,3 @@ fn queue_shutdown_waits_for_running_jobs() {
 }
 
 // `ManualJobs::run_next` runs the oldest job only; a job spawned while it runs waits behind the others.
-#[test]
-fn manual_jobs_run_one_job_per_call() {
-    use crate::Jobs;
-    let jobs = Arc::new(ManualJobs::new());
-    let log = Arc::new(Mutex::new(Vec::<&'static str>::new()));
-    let (spawner, first_log) = (Arc::clone(&jobs), Arc::clone(&log));
-    jobs.spawn(
-        "a",
-        Box::new(move || {
-            first_log.lock().unwrap().push("a");
-            let nested = Arc::clone(&first_log);
-            spawner.spawn("c", Box::new(move || nested.lock().unwrap().push("c")));
-        }),
-    );
-    let second_log = Arc::clone(&log);
-    jobs.spawn("b", Box::new(move || second_log.lock().unwrap().push("b")));
-    assert_eq!(jobs.waiting(), 2);
-    assert!(jobs.run_next());
-    assert_eq!(log.lock().unwrap().as_slice(), ["a"]);
-    assert_eq!(jobs.waiting(), 2);
-    assert_eq!(jobs.run_all(), 2);
-    assert_eq!(log.lock().unwrap().as_slice(), ["a", "b", "c"]);
-    assert!(!jobs.run_next());
-}

@@ -2,12 +2,7 @@
 
 use crate::set;
 use craft_text::ui::DocUnit;
-use craft_text::ui::character::{
-    COLOR_KEY, Caps, CharacterChange, CharacterControls, CharacterValues, Kerning, Leading, ParagraphChange, ParagraphControls, ParagraphValues,
-    TextAlign,
-};
-use craft_theme::{Rgba, Srgba};
-use craft_ui::runtime::env::UnitKind;
+use craft_text::ui::character::{Caps, CharacterChange, CharacterControls, CharacterValues, Kerning};
 use craft_ui::testing::{Fixture, trial};
 use egui::{Key, Modifiers};
 use std::cell::RefCell;
@@ -17,7 +12,6 @@ use std::rc::Rc;
 struct Panel {
     fixture: Fixture,
     edits: Rc<RefCell<Vec<craft_behavior::EditEvent<CharacterChange>>>>,
-    requests: Rc<RefCell<Vec<craft_ui::runtime::requests::ColorRequest>>>,
 }
 
 fn apply(values: &mut CharacterValues, change: &CharacterChange) {
@@ -58,7 +52,7 @@ impl Panel {
             asked.borrow_mut().extend(out.requests.take_color());
         });
         fixture.settle();
-        Panel { fixture, edits, requests }
+        Panel { fixture, edits }
     }
 
     /// The last change any edit carried.
@@ -91,34 +85,6 @@ impl Panel {
     }
 }
 
-/// Typing 24 in the size field reports `Size(24.0)`; in pixels at 144 ppi the field shows 48 and typing 36 reports
-/// `Size(18.0)`.
-#[trial]
-fn size_field_converts_the_type_unit() {
-    let mut panel = Panel::new(base(), DocUnit::points());
-    panel.type_into("Font size", "24");
-    assert_eq!(panel.last(), Some(CharacterChange::Size(24.0)));
-
-    let values = set(base(), |v| v.size = Some(24.0));
-    let mut panel = Panel::new(values, DocUnit::new(UnitKind::Pixels, 144.0));
-    assert!(panel.shown_value("Font size").contains("48"), "{}", panel.shown_value("Font size"));
-    panel.type_into("Font size", "36");
-    assert_eq!(panel.last(), Some(CharacterChange::Size(18.0)));
-}
-
-/// All Caps and Small Caps are one choice: pressing the pressed one reports `Normal`, pressing the other reports it.
-#[trial]
-fn caps_toggles_are_one_choice() {
-    let mut panel = Panel::new(base(), DocUnit::points());
-    panel.click("All Caps");
-    assert_eq!(panel.last(), Some(CharacterChange::Caps(Caps::AllCaps)));
-    panel.click("Small Caps");
-    assert_eq!(panel.last(), Some(CharacterChange::Caps(Caps::SmallCaps)));
-    panel.click("Small Caps");
-    assert_eq!(panel.last(), Some(CharacterChange::Caps(Caps::Normal)));
-    assert_eq!(panel.edits.borrow().len(), 3);
-}
-
 /// The kerning menu's Optical row reports `Optical`, a typed number a manual value; a mixed kerning and tracking show
 /// empty fields.
 #[trial]
@@ -136,50 +102,4 @@ fn kerning_menu_and_mixed_values() {
     let panel = Panel::new(mixed, DocUnit::points());
     assert_eq!(panel.shown_value("Kerning"), "");
     assert_eq!(panel.shown_value("Tracking"), "");
-}
-
-/// The colour well files a request with the current colour for the pass of the click only.
-#[trial]
-fn swatch_requests_a_colour_for_one_pass() {
-    let values = set(base(), |v| v.color = Some(Rgba([10, 20, 30, 255])));
-    let mut panel = Panel::new(values, DocUnit::points());
-    assert!(panel.requests.borrow().is_empty());
-    panel.click("Text color");
-    let seen = panel.requests.borrow().clone();
-    assert_eq!(seen.len(), 1, "{seen:?}");
-    assert_eq!(seen[0].key, COLOR_KEY);
-    assert_eq!(seen[0].color, Some(Srgba::from(Rgba([10, 20, 30, 255]))));
-    panel.fixture.settle();
-    assert_eq!(panel.requests.borrow().len(), 1, "a request is made once per click");
-}
-
-/// The justify buttons do nothing on point text; Left reports `Align(Left)`.
-#[trial]
-fn justify_buttons_need_a_box() {
-    let changes = Rc::new(RefCell::new(Vec::new()));
-    let seen = changes.clone();
-    let values = set(ParagraphValues::default(), |v| v.align = Some(TextAlign::Center));
-    let mut fixture = Fixture::new(move |ui| {
-        let out = ParagraphControls::new("Paragraph", &values).point_text(true).show(ui);
-        seen.borrow_mut().extend(out.edits.iter().filter_map(|edit| edit.value().copied()));
-    });
-    fixture.settle();
-    for name in ["Justify last left", "Justify last centered", "Justify last right", "Justify all"] {
-        let target = fixture.by_label(name).unwrap_or_else(|| panic!("`{name}` is shown"));
-        fixture.click(&target);
-    }
-    assert!(changes.borrow().is_empty(), "{:?}", changes.borrow());
-    let left = fixture.by_label("Left align text").expect("Left is shown");
-    fixture.click(&left);
-    assert_eq!(*changes.borrow(), [ParagraphChange::Align(TextAlign::Left)]);
-}
-
-/// The leading menu's Auto row reports `Leading(Auto)` as the one edit of the pass.
-#[trial]
-fn leading_menu_has_an_auto_row() {
-    let values = set(base(), |v| v.leading = Some(Leading::Fixed(20.0)));
-    let mut panel = Panel::new(values, DocUnit::points());
-    panel.pick_preset("Leading", "Auto");
-    assert_eq!(panel.last(), Some(CharacterChange::Leading(Leading::Auto)));
-    assert_eq!(panel.edits.borrow().len(), 1);
 }

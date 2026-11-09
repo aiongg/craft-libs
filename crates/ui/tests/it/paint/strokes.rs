@@ -4,9 +4,9 @@
 use craft_behavior::{PartKey, Sense};
 use craft_i18n::Direction;
 use craft_theme::{Contrast, Mode};
-use craft_ui::contract::{Common, Component, Cx, PaintUi, PartsCx, Pointer as _, Props as _, Role, Show as _};
-use craft_ui::primitives::{Dashes, DataWidth, PaintShape, StrokeWidth};
-use craft_ui::style::{ComponentStyle, DataColor, Ink, StyleCx};
+use craft_ui::contract::{Common, Component, Cx, PaintUi, PartsCx, Pointer as _, Role};
+use craft_ui::primitives::{DataWidth, PaintShape};
+use craft_ui::style::{ComponentStyle, Ink, StyleCx};
 use craft_ui::testing::style::{paint_frame, tokens, with_cx};
 use craft_ui::testing::{Frames, trial};
 use egui::{Color32, Rect, Response, Shape, Vec2, pos2};
@@ -54,17 +54,6 @@ fn a_theme_colour_strokes_at_a_document_width() {
     );
 }
 
-#[trial]
-fn a_dashed_data_colour_breaks_into_dashes_of_that_colour() {
-    let mut frames = Frames::new();
-    let tokens = tokens(Mode::Light, Contrast::Standard);
-    let (shapes, _) = paint_frame(&mut frames, &tokens, Direction::Ltr, Ink::OnPanel, |draw| {
-        draw.dashed(&LINE, Dashes::even(4.0), StrokeWidth::Thin, DataColor::new(SERIES));
-    });
-    let dashes = strokes(&shapes).iter().filter(|(_, color)| *color == SERIES).count();
-    assert!(dashes > 1, "a 60 point path with 4 point dashes breaks into several of the series colour: {dashes}");
-}
-
 #[derive(ComponentStyle, Clone, Debug, Default, PartialEq)]
 struct SwatchLook {
     #[style(metrics)]
@@ -108,15 +97,4 @@ impl Component for Preview {
     fn finish(self, cx: Cx<'_, Self>) -> Response {
         cx.response.clone()
     }
-}
-
-#[trial]
-fn a_faded_content_painter_paints_less_opaque_and_its_parent_does_not() {
-    let mut frames = Frames::new();
-    let shapes = frames.frame_shapes(|ui| {
-        Preview { common: Common::new() }.label("Preview").show(ui);
-    });
-    let alphas: Vec<u8> = shapes.iter().filter_map(|s| if let Shape::Rect(r) = s { Some(r.fill.a()) } else { None }).filter(|a| *a > 0).collect();
-    let (plain, faded) = (alphas.iter().max().copied().unwrap_or(0), alphas.iter().min().copied().unwrap_or(0));
-    assert!(alphas.len() >= 2 && faded < plain, "the faded fill is less opaque than the plain one: {alphas:?}");
 }

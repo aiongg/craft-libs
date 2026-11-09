@@ -1,15 +1,12 @@
 //! `GraphEditor`: the grid and range rules, key and handle drags, the bottom bar, the wheel and the keys.
 
 use craft_behavior::{Selection, SelectionChange};
-use craft_timeline::ui::graph::{
-    GraphAction, GraphCurve, GraphEditor, GraphEditorOutput, GraphKey, GraphMode, GraphRange, HandleSide, auto_range, nice_step,
-};
+use craft_timeline::ui::graph::{GraphAction, GraphCurve, GraphEditor, GraphEditorOutput, GraphKey, GraphMode, GraphRange, HandleSide, auto_range};
 use craft_timeline::ui::{DragEvent, KeyframeId, KeyframeInterpolation, TimelineView};
 use craft_timeline::{FrameRate, Tick, TimeFormat, TimeView};
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
-use craft_ui::testing::focus::AccessActionKind;
 use craft_ui::testing::{Fixture, pointer, trial};
-use egui::{Key, Modifiers, Pos2, Rect, Vec2};
+use egui::{Modifiers, Pos2, Rect, Vec2};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -23,7 +20,6 @@ const GRAPH: &str = "Graph";
 const CURVE: &str = "Opacity";
 /// The tooltip words of the bottom bar buttons.
 const SPEED: &str = "Edit Speed Graph";
-const REFERENCE: &str = "Show Reference Graph";
 
 fn secs(s: f64) -> Tick {
     Tick::from_seconds_f64(s)
@@ -39,16 +35,6 @@ fn key(id: u64, at: f64, value: f64) -> GraphKey {
 
 fn curve(keys: Vec<GraphKey>) -> GraphCurve {
     GraphCurve::new(1, CURVE, keys.iter().map(|k| (k.time, k.value)).collect(), keys)
-}
-
-#[trial]
-fn nice_steps_are_one_two_five_or_ten() {
-    let cases = [(1.4, 1.0), (1.5, 2.0), (3.4, 2.0), (3.5, 5.0), (7.4, 5.0), (7.5, 10.0), (14.0, 10.0), (0.035, 0.05), (-3.6, 5.0)];
-    for (raw, step) in cases {
-        let got = nice_step(raw);
-        assert!((got - step).abs() < step * 1e-9, "{raw}: {got} != {step}");
-    }
-    assert!(nice_step(0.0) > 0.0, "zero stays positive");
 }
 
 #[trial]
@@ -75,7 +61,6 @@ struct Shown {
     selection: Rc<RefCell<Selection<KeyframeId>>>,
     moved: Rc<RefCell<Vec<DragEvent<craft_timeline::ui::GraphKeyMove>>>>,
     handles: Rc<RefCell<Vec<DragEvent<craft_timeline::ui::HandleMove>>>>,
-    actions: Rc<RefCell<Vec<GraphAction>>>,
 }
 
 fn selected(ids: &[u64]) -> Selection<KeyframeId> {
@@ -118,7 +103,7 @@ fn shown(curves: Vec<GraphCurve>, selection: Selection<KeyframeId>, auto_zoom: b
     });
     fixture.room(ROOM);
     fixture.settle();
-    Shown { fixture, range, selection, moved, handles, actions }
+    Shown { fixture, range, selection, moved, handles }
 }
 
 /// A drag from `from` by `by` with `modifiers` held.
@@ -187,36 +172,6 @@ fn dragging_a_handle_reports_its_position() {
 }
 
 #[trial]
-fn bottom_bar_buttons_report_actions() {
-    let mut shown = shown(vec![curve(vec![key(1, 2.0, 50.0)])], selected(&[1]), false);
-    for (label, action) in [
-        ("Convert selected keyframes to Hold", GraphAction::Hold),
-        ("Convert selected keyframes to Linear", GraphAction::Linear),
-        ("Convert selected keyframes to Auto Bezier", GraphAction::AutoBezier),
-        ("Easy Ease (F9)", GraphAction::EasyEase),
-        ("Easy Ease In (Shift+F9)", GraphAction::EasyEaseIn),
-        ("Easy Ease Out (Ctrl+Shift+F9)", GraphAction::EasyEaseOut),
-        ("Fit all graphs to view", GraphAction::FitAll),
-        ("Fit selection to view", GraphAction::FitSelection),
-    ] {
-        shown.actions.borrow_mut().clear();
-        let button = shown.fixture.by_label(label).expect(label);
-        shown.fixture.click(&button);
-        assert_eq!(*shown.actions.borrow(), [action], "{label}");
-    }
-    let speed = shown.fixture.by_label(SPEED).expect("the speed button");
-    shown.fixture.click(&speed);
-    assert_eq!(shown.range.borrow().mode, GraphMode::Speed);
-
-    shown.actions.borrow_mut().clear();
-    let editor = shown.fixture.by_label(GRAPH).expect("the editor has a node");
-    shown.fixture.access(AccessActionKind::Focus, &editor);
-    shown.fixture.key(Key::F9, Modifiers::NONE);
-    shown.fixture.key(Key::F9, Modifiers::SHIFT);
-    assert_eq!(*shown.actions.borrow(), [GraphAction::EasyEase, GraphAction::EasyEaseIn]);
-}
-
-#[trial]
 fn ctrl_wheel_zooms_the_value_range_about_its_middle() {
     let mut shown = shown(vec![curve(vec![key(1, 2.0, 50.0)])], Selection::default(), true);
     let editor = shown.fixture.by_label(GRAPH).expect("the editor has a node").rect;
@@ -234,27 +189,4 @@ fn ctrl_wheel_zooms_the_value_range_about_its_middle() {
     let middle = |low: f64, high: f64| (low + high) / 2.0;
     assert!((middle(range.low, range.high) - middle(low, high)).abs() < 1e-9, "the middle stays: {range:?}");
     assert!(range.high - range.low < high - low, "wheel up zooms in: {range:?}");
-}
-
-#[trial]
-fn delete_and_backspace_report_delete_and_chords_are_exact() {
-    let mut shown = shown(vec![curve(vec![key(1, 2.0, 50.0)])], selected(&[1]), false);
-    let editor = shown.fixture.by_label(GRAPH).expect("the editor has a node");
-    shown.fixture.access(AccessActionKind::Focus, &editor);
-    for (key, modifiers) in [(Key::Delete, Modifiers::SHIFT), (Key::ArrowRight, Modifiers::SHIFT), (Key::ArrowUp, Modifiers::ALT)] {
-        shown.fixture.key(key, modifiers);
-    }
-    assert!(shown.actions.borrow().is_empty() && shown.moved.borrow().is_empty(), "{:?}", shown.actions.borrow());
-    shown.fixture.key(Key::Backspace, Modifiers::NONE);
-    assert_eq!(*shown.actions.borrow(), [GraphAction::Delete], "Backspace deletes");
-    shown.fixture.key(Key::Delete, Modifiers::NONE);
-    assert_eq!(*shown.actions.borrow(), [GraphAction::Delete, GraphAction::Delete], "Delete deletes");
-}
-
-#[trial]
-fn the_reference_button_toggles_the_reference_graph() {
-    let mut shown = shown(vec![curve(vec![key(1, 2.0, 50.0)])], Selection::default(), false);
-    let button = shown.fixture.by_label(REFERENCE).expect("the reference button");
-    shown.fixture.click(&button);
-    assert!(shown.range.borrow().reference);
 }

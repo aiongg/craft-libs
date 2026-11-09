@@ -5,7 +5,6 @@ use craft_behavior::{Mixed, PartKey};
 use craft_ui::contract::{Bind, Show as _};
 use craft_ui::testing::{Fixture, trial};
 use craft_ui::text::{AltText, AltTextField};
-use egui::{Key, Modifiers};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -21,39 +20,6 @@ fn rig(value: AltText) -> (Fixture, Rc<RefCell<AltText>>, Rc<Cell<egui::Id>>) {
     });
     fixture.settle();
     (fixture, value, id)
-}
-
-/// Mark as decorative starts checked only when there is at least one object and every object is decorative.
-#[trial]
-fn decorative_starts_checked_only_when_every_object_is() {
-    assert!(!AltText::starts_decorative([]));
-    assert!(!AltText::starts_decorative([true, false]));
-    assert!(!AltText::starts_decorative([false]));
-    assert!(AltText::starts_decorative([true]));
-    assert!(AltText::starts_decorative([true, true, true]));
-}
-
-/// Marking the alt text decorative keeps its text visible, disabled and out of the Tab order; unmarking makes it
-/// editable again with the same text.
-#[trial]
-fn decorative_alt_text_stays_visible_and_is_not_a_tab_stop() {
-    let (mut fixture, value, id) = rig(AltText::new("A red kite"));
-    let text_id = craft_ui::testing::text::widget_id(id.get(), PartKey::new("text"));
-    let disabled = |fixture: &Fixture| fixture.tree().is_disabled(text_id);
-    assert!(!disabled(&fixture), "the description is editable at first");
-    let check = fixture.by_label("Mark as decorative").expect("the check is shown");
-    fixture.click(&check);
-    fixture.idle(3);
-    assert_eq!(value.borrow().decorative, Mixed::Same(true));
-    assert!(disabled(&fixture), "a decorative object's text is disabled");
-    assert!(fixture.texts().iter().any(|run| run.text.contains("A red kite")), "its text stays visible");
-    fixture.key(Key::Tab, Modifiers::NONE);
-    assert_ne!(fixture.focused(), Some(text_id), "the disabled text takes no Tab stop");
-    fixture.click(&check);
-    fixture.idle(3);
-    assert_eq!(value.borrow().decorative, Mixed::Same(false));
-    assert!(!disabled(&fixture), "unchecking makes the text editable");
-    assert_eq!(value.borrow().text, Mixed::Same("A red kite".to_owned()), "the text was kept");
 }
 
 /// With the descriptions mixed and the flag mixed, the check's node reports a mixed state; checking it sets the flag

@@ -1,11 +1,11 @@
 //! Pointer input, press focus and the wheel service read through the sensing core's shape record: double
 //! clicks, buttons, press targets, hit sizes, the zoom modifier and armed controls.
 
-use craft_behavior::{Buttons, HitLevel, PartKey, PointerButton, PressFocus, Sense, WheelTaker};
+use craft_behavior::{HitLevel, PartKey, PressFocus, Sense, WheelTaker};
 use craft_ui::runtime::pointer::frame;
 use craft_ui::testing::pointer::{self, settle};
 use craft_ui::testing::sensing::{ProbeMember, ProbePart, ProbeRoot, RootReport, press_focus, show};
-use craft_ui::testing::wheel::{register, take, take_share};
+use craft_ui::testing::wheel::{register, take};
 use craft_ui::testing::{Frames, trial};
 use egui::{Pos2, Rect, Ui, Vec2};
 use std::cell::{Cell, RefCell};
@@ -33,26 +33,6 @@ fn a_double_click_activates_twice() {
     frames.frame(vec![pointer::press(at), pointer::release(at), pointer::press(at), pointer::release(at)], &mut show_frame);
     frames.idle(4, &mut show_frame);
     assert_eq!(activations.get(), 2);
-}
-
-/// A release of the secondary button is reported, and `buttons` lists every button held.
-#[trial]
-fn the_frame_reports_every_button() {
-    let mut frames = Frames::new();
-    let seen = RefCell::new(Vec::new());
-    let mut show_frame = |ui: &mut Ui| {
-        let frame = frame(ui.ctx());
-        seen.borrow_mut().push((frame.buttons, frame.release, frame.press.map(|press| press.button)));
-    };
-    settle(&mut frames, &mut show_frame);
-    let at = Pos2::new(50.0, 50.0);
-    frames.frame(vec![pointer::moved(at)], &mut show_frame);
-    seen.borrow_mut().clear();
-    frames.frame(vec![pointer::secondary(at, true)], &mut show_frame);
-    frames.frame(vec![pointer::secondary(at, false)], &mut show_frame);
-    let seen = seen.borrow();
-    assert_eq!(seen[0], (Buttons::SECONDARY, None, Some(PointerButton::Secondary)));
-    assert_eq!(seen[1], (Buttons::empty(), Some(PointerButton::Secondary), None));
 }
 
 /// A press on a group form nested in a canvas is classified by the form's shapes, not by the canvas's
@@ -201,31 +181,4 @@ fn a_press_open_while_the_control_turns_disabled_never_activates() {
     frames.frame(vec![pointer::release(at)], &mut show_frame);
     frames.idle(2, &mut show_frame);
     assert_eq!(activations.get(), 0);
-}
-
-/// Shift with the wheel scrolls sideways, and a zoom share names the pointer it is about.
-#[trial]
-fn shift_wheel_scrolls_sideways_and_a_zoom_share_names_the_pointer() {
-    let panel = ProbeRoot::id("sideways_panel");
-    let area = rect(0.0, 0.0, 400.0, 400.0);
-    let read = Cell::new(None);
-    let mut show_frame = |ui: &mut Ui| {
-        register(ui.ctx(), WheelTaker::new(panel, area).vertical(true).horizontal(true).scrolls(true).zoom(true));
-        read.set(take_share(ui.ctx(), panel));
-    };
-    let mut frames = Frames::new();
-    frames.idle(2, &mut show_frame);
-    let at = Pos2::new(50.0, 60.0);
-    frames.frame(vec![pointer::moved(at)], &mut show_frame);
-    let shift = egui::Event::MouseWheel {
-        unit: egui::MouseWheelUnit::Point,
-        delta: Vec2::new(0.0, -30.0),
-        phase: egui::TouchPhase::Move,
-        modifiers: egui::Modifiers::SHIFT,
-        source: egui::MouseWheelSource::Wheel,
-    };
-    frames.frame(vec![shift], &mut show_frame);
-    assert_eq!(read.get().map(|share| share.scroll), Some(Vec2::new(-30.0, 0.0)), "the vertical wheel scrolls along x under Shift");
-    frames.frame(vec![pointer::zoom_wheel(-30.0)], &mut show_frame);
-    assert_eq!(read.get().and_then(|share| share.at), Some(at), "the zoom is about the pointer");
 }

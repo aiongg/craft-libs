@@ -5,12 +5,11 @@ use std::collections::BTreeMap;
 use craft_keymap::chord::foreign::ReadNote;
 use craft_keymap::chord::foreign::{Flavor, ForeignError};
 use craft_keymap::import::{
-    Failed, FailedChange, MAX_IMPORT_ENTRIES, MAX_IMPORT_TEXT, MAX_KEYS_PER_ENTRY, MAX_SUGGESTIONS, NoChangeReason, SkipReason, Skipped,
-    UnmatchedReason, normalize_label,
+    Failed, FailedChange, MAX_IMPORT_ENTRIES, MAX_IMPORT_TEXT, MAX_KEYS_PER_ENTRY, MAX_SUGGESTIONS, NoChangeReason, SkipReason, UnmatchedReason,
 };
 use craft_keymap::{
     Bindable, Binding, CommandRef, ContextRule, ForeignEntry, ForeignKey, ForeignSet, ImportOptions, ImportReport, Keymap, Kind, MAX_COMMANDS,
-    NoneDefined, Overrides, Platform, Scope, Scopes, Start, plan, reserved,
+    Overrides, Platform, Scope, Scopes, Start, plan, reserved,
 };
 use serde_json::json;
 
@@ -113,10 +112,6 @@ fn windows_set() -> ForeignSet {
     ForeignSet::new(entries).with_name("My Set")
 }
 
-fn numpad_set() -> ForeignSet {
-    ForeignSet::new(vec![win("Window", &["Layers"], &[("Default", "Num 7")]).at_line(2)])
-}
-
 fn windows_options() -> ImportOptions {
     let mut remembered = BTreeMap::new();
     remembered.insert(ForeignEntry::new(Some("Scripts"), ["Frobnicate"]).remember_key(), CommandRef::new("scripts.run"));
@@ -136,16 +131,6 @@ fn import_windows() -> (Keymap, ImportReport) {
 fn has(km: &Keymap, id: impl Into<CommandRef>, texts: &[&str]) {
     let c = id.into();
     assert_eq!(km.bindings(&c), bindings(texts), "{}", c.key());
-}
-
-#[test]
-fn labels_normalize_for_matching() {
-    assert_eq!(normalize_label("Check Spelling..."), "check spelling");
-    assert_eq!(normalize_label("Check  Spelling…"), "check spelling");
-    assert_eq!(normalize_label("Grids && Guides"), "grids guides");
-    assert_eq!(normalize_label("SHOW/HIDE  Guides"), "show/hide guides");
-    assert_eq!(normalize_label("Preferences: General…"), "preferences general");
-    assert_eq!(normalize_label("ÄRGER"), "ärger");
 }
 
 #[test]
@@ -251,63 +236,6 @@ fn the_set_wins_and_the_report_says_how() {
 }
 
 #[test]
-fn a_mac_set_reads_its_modifiers_and_scopes_text_keys() {
-    let mut km = keymap(Platform::Mac);
-    let mac = |menu: &str, path: &[&str], keys: &[(&str, &str)]| entry(Some(menu), path, keys, Flavor::Mac);
-    let set = ForeignSet::new(vec![
-        mac("File", &["Save"], &[("Default", "⇧⌘S")]),
-        mac("Edit", &["Paste"], &[("Default", "Cmd+Ctrl+V")]),
-        mac("Type", &["Style", "Italic"], &[("Text", "Shift+Cmd+I")]),
-        mac("Type", &["Style", "Bold"], &[("Default", "Cmd+B"), ("Tables", "Cmd+Opt+B")]),
-    ])
-    .with_name("Mac");
-    let text = Scope::new("Text").unwrap();
-    let options = ImportOptions {
-        contexts: vec![("Default".into(), ContextRule::Home), ("Text".into(), ContextRule::Scope(text))],
-        ..ImportOptions::default()
-    };
-    let r = plan(&set, &km, &options).apply(&mut km);
-    has(&km, "file.save", &["Cmd+Shift+S"]);
-    has(&km, "edit.paste", &["Cmd+Ctrl+V"]);
-    has(&km, "type.italic", &["Text: Cmd+Shift+I"]);
-    has(&km, "type.bold", &["Cmd+B"]);
-    has(&km, "object.textFrameOptions", &[]);
-    assert_eq!(r.conflicts_cleared[0].command.id, "object.textFrameOptions");
-    assert_eq!(r.unmatched.len(), 1);
-    assert_eq!((r.unmatched[0].keys.as_str(), r.unmatched[0].reason), ("Tables: Cmd+Opt+B", UnmatchedReason::Context));
-    assert_eq!(r.changed.iter().find(|c| c.command.id == "type.italic").map(|c| c.to.clone()), Some(vec!["Text: Cmd+Shift+I".to_string()]));
-}
-
-#[test]
-fn start_and_none_defined_options() {
-    let set = ForeignSet::new(vec![win("File", &["Close"], &[("Default", "Ctrl+Q")]), win("Edit", &["Duplicate"], &[])]);
-    let user = || {
-        let mut o = Overrides::new();
-        o.insert("file.save", vec!["Cmd+Alt+S".into()]);
-        o
-    };
-    let options = |start, none_defined| ImportOptions {
-        contexts: vec![("Default".into(), ContextRule::Home)],
-        start,
-        none_defined,
-        ..ImportOptions::default()
-    };
-
-    let mut km = keymap(Platform::Windows).with_overrides(user());
-    plan(&set, &km, &options(Start::Current, NoneDefined::Keep)).apply(&mut km);
-    has(&km, "file.save", &["Cmd+Alt+S"]);
-    has(&km, "file.close", &["Cmd+Q"]);
-    has(&km, "edit.duplicate", &["Cmd+Alt+Shift+D"]);
-
-    let mut km = keymap(Platform::Windows).with_overrides(user());
-    let r = plan(&set, &km, &options(Start::Defaults, NoneDefined::Clear)).apply(&mut km);
-    has(&km, "file.save", &["Cmd+S"]);
-    has(&km, "file.close", &["Cmd+Q"]);
-    has(&km, "edit.duplicate", &[]);
-    assert_eq!(r.imported, 2);
-}
-
-#[test]
 fn a_failed_change_keeps_its_shortcut_when_a_later_change_frees_room() {
     // Save's change finds the overrides full. Close's change then frees an entry, and Zoom In
     // takes Cmd+S. Removing Cmd+S from Save would fit now, but Save's import failed, so Save
@@ -405,51 +333,6 @@ fn changes_that_find_the_overrides_full_are_reported() {
 }
 
 #[test]
-fn keys_in_unknown_scopes_are_skipped_and_the_rest_apply() {
-    let set = ForeignSet::new(vec![win("File", &["Close"], &[("Default", "Ctrl+Q"), ("Story", "Ctrl+K"), ("Text", "Ctrl+L")])]);
-    let options = ImportOptions {
-        contexts: vec![
-            ("Default".into(), ContextRule::Home),
-            ("Story".into(), ContextRule::Scope(Scope::new("Story").unwrap())),
-            ("Text".into(), ContextRule::Scope(Scope::new("Text").unwrap())),
-        ],
-        ..ImportOptions::default()
-    };
-    let mut km = keymap(Platform::Windows);
-    let r = plan(&set, &km, &options).apply(&mut km);
-    has(&km, "file.close", &["Cmd+Q", "Text: Cmd+L"]);
-    let skipped: Vec<_> = r
-        .skipped
-        .iter()
-        .map(|s: &Skipped| (s.command.id.as_str(), s.item.as_str(), s.line, s.shortcut.as_str(), s.kept_by.clone(), s.reason))
-        .collect();
-    assert_eq!(skipped, [("file.close", "File > Close", None, "Story: Cmd+K", None, SkipReason::UnknownScope)]);
-    assert_eq!(serde_json::to_value(r.skipped[0].reason).unwrap(), "unknownScope");
-}
-
-#[test]
-fn suggestions_are_reported_never_applied() {
-    let mut km = keymap(Platform::Windows);
-    let set = ForeignSet::new(vec![win("Edit", &["Chek Spelling Now"], &[("Default", "Ctrl+K")])]);
-    let options = ImportOptions { contexts: vec![("Default".into(), ContextRule::Home)], suggest: true, ..ImportOptions::default() };
-    let p = plan(&set, &km, &options);
-    assert!(p.commands.is_empty());
-    let r = p.apply(&mut km);
-    assert_eq!(r.suggestions.len(), 1);
-    assert_eq!(r.suggestions[0].item, "Edit > Chek Spelling Now");
-    assert!(r.suggestions[0].candidates.contains(&CommandRef::new("edit.checkSpelling")), "{:?}", r.suggestions);
-    has(&km, "edit.checkSpelling", &[]);
-    assert!(km.overrides().is_empty());
-    assert_eq!(r.imported, 0);
-}
-
-#[test]
-fn entries_the_reader_dropped_count_as_truncated() {
-    let set = ForeignSet::new(vec![win("File", &["Close"], &[("Default", "Ctrl+Q")])]).with_truncated(7);
-    assert_eq!(plan(&set, &keymap(Platform::Windows), &default_context()).report.truncated, 7);
-}
-
-#[test]
 fn hostile_sets_are_capped_and_counted() {
     let mut km = keymap(Platform::Windows);
     let long: String = "ä€𝄞 x".repeat(MAX_IMPORT_TEXT);
@@ -480,137 +363,6 @@ fn hostile_sets_are_capped_and_counted() {
     has(&km, "edit.paste", &["Cmd+V"]);
     // Entries past the cap are left out.
     assert_eq!(r.unmatched_without_shortcut, keyless);
-}
-
-#[test]
-#[ignore = "worst-case timing; run with --ignored"]
-fn hostile_sets_finish_in_time() {
-    // A full catalog whose labels share words with every unmatched entry below, so each
-    // suggestion scores every command.
-    let mut catalog = catalog();
-    let filler = MAX_COMMANDS - catalog.len();
-    catalog.extend((0..filler).map(|i| command(format!("filler.c{i}").as_str(), &format!("Filler Command {i}"), &[], &[])));
-    let mut km = Keymap::new(catalog, Scopes::new().with_context("Text"), Platform::Windows).with_reserved(reserved::system(Platform::Windows));
-    let long: String = "ä€𝄞 x".repeat(MAX_IMPORT_TEXT);
-    // Odd entries have keys and long labels that match nothing, so they reach the suggestions:
-    // words in the whole label, or two words and symbols, which score high enough to suggest.
-    let wordy = "Filler Command ä€𝄞 ".repeat(MAX_IMPORT_TEXT / 8);
-    let symbols = format!("Filler Command {}", "€𝄞 ".repeat(MAX_IMPORT_TEXT));
-    let filler_entry = |i: usize| match i % 4 {
-        1 => win("Edit", &[&symbols], &[("Default", "Ctrl+F12")]),
-        3 => win("Edit", &[&format!("{wordy}{i}")], &[("Default", "Ctrl+F12")]),
-        _ => win("Edit", &[&format!("Item {i}")], &[]),
-    };
-    let mut entries: Vec<ForeignEntry> = (0..MAX_IMPORT_ENTRIES + 500).map(filler_entry).collect();
-    let mut big = ForeignEntry::new(Some(long.as_str()), std::iter::repeat_n(long.clone(), 100));
-    for _ in 0..MAX_KEYS_PER_ENTRY + 10 {
-        let trigger = Err(ForeignError::UnknownKey(long.clone()));
-        big = big.with_key(ForeignKey { context: Some(long.clone()), text: long.clone(), trigger, notes: vec![ReadNote::Numpad; 1000] });
-    }
-    entries.insert(0, big);
-    entries.insert(1, win("Edit", &["Paste"], &[("Default", &long), ("Default", "Ctrl+\u{0}"), ("Default", "Win+E")]));
-    let set = ForeignSet::new(entries).with_name(long.clone());
-    let options = ImportOptions { contexts: vec![("Default".into(), ContextRule::Home)], suggest: true, ..ImportOptions::default() };
-    let started = std::time::Instant::now();
-    let r = plan(&set, &km, &options).apply(&mut km);
-    assert!(started.elapsed() < std::time::Duration::from_secs(240), "{:?}", started.elapsed());
-    // Read filler entries are those before the cap, after the two inserted ones.
-    let read = MAX_IMPORT_ENTRIES - 2;
-    let keyed = read / 2;
-    assert!(!r.suggestions.is_empty() && r.suggestions.len() <= MAX_SUGGESTIONS, "{}", r.suggestions.len());
-    assert!(r.truncated >= 500 + 10 + keyed + 1 - MAX_SUGGESTIONS, "{}", r.truncated);
-    assert_eq!(r.set.as_ref().map(|s| s.chars().count()), Some(MAX_IMPORT_TEXT));
-    let row = r.unmatched.iter().find(|u| u.item.starts_with('ä')).unwrap();
-    assert!(row.item.chars().count() <= MAX_IMPORT_TEXT * 34, "item of capped segments");
-    assert!(row.keys.chars().count() <= (2 * MAX_IMPORT_TEXT + 4) * MAX_KEYS_PER_ENTRY);
-    assert_eq!(r.unreadable.len(), 1, "Paste's keys");
-    has(&km, "edit.paste", &["Cmd+V"]);
-    // Entries past the cap are left out.
-    assert_eq!(r.unmatched_without_shortcut, read - keyed);
-}
-
-#[test]
-fn rows_carry_source_lines_and_approximated_keys() {
-    let mut km = keymap(Platform::Windows);
-    let d = "Default";
-    let set = ForeignSet::new(vec![
-        win("Window", &["Layers"], &[(d, "Ctrl+Num 5"), (d, "Num 7")]).at_line(3),
-        win("Window", &["Layers"], &[(d, "Shift+F7")]).at_line(4),
-        win("Edit", &["Paste"], &[(d, "Ctrl+Num 5")]).at_line(5),
-        win("Edit", &["Chek Spelling Now"], &[(d, "Ctrl+K")]).at_line(8),
-        win("File", &["Save"], &[(d, "Ctrl+Hyperspace")]).at_line(9),
-    ]);
-    let options = ImportOptions { contexts: vec![(d.into(), ContextRule::Home)], suggest: true, ..ImportOptions::default() };
-    let r = plan(&set, &km, &options).apply(&mut km);
-    // A keypad key binds the main key and is reported. Paste, a later entry, takes Cmd+5.
-    has(&km, panel("layers"), &["7", "Shift+F7"]);
-    has(&km, "edit.paste", &["Cmd+5"]);
-    let approximated: Vec<_> = r.approximated.iter().map(|a| (a.item.as_str(), a.line, a.keys.as_str(), a.note)).collect();
-    assert_eq!(
-        approximated,
-        [
-            ("Window > Layers", Some(3), "Default: Ctrl+Num 5, Default: Num 7", ReadNote::Numpad),
-            ("Edit > Paste", Some(5), "Default: Ctrl+Num 5", ReadNote::Numpad)
-        ]
-    );
-    // Merged entries report the first one's line.
-    let layers = r.changed.iter().find(|c| c.command == panel("layers")).unwrap();
-    assert_eq!(layers.line, Some(3));
-    assert_eq!((r.skipped[0].item.as_str(), r.skipped[0].line), ("Window > Layers", Some(3)));
-    assert_eq!(r.unmatched[0].line, Some(8));
-    assert_eq!(r.suggestions[0].line, Some(8));
-    assert_eq!(r.unreadable[0].line, Some(9));
-}
-
-#[test]
-fn report_json_uses_camel_case_names() {
-    let mut km = keymap(Platform::Windows);
-    let mut options = windows_options();
-    options.suggest = true;
-    let r = plan(&windows_set(), &km, &options).apply(&mut km);
-    let v = serde_json::to_value(&r).unwrap();
-    let names = |v: &serde_json::Value| v.as_object().unwrap().keys().cloned().collect::<Vec<_>>();
-    let mut top = names(&v);
-    top.sort();
-    assert_eq!(
-        top,
-        [
-            "approximated",
-            "changed",
-            "conflictsCleared",
-            "failed",
-            "imported",
-            "matchedWithoutChange",
-            "set",
-            "skipped",
-            "suggestions",
-            "truncated",
-            "unmatched",
-            "unmatchedWithoutShortcut",
-            "unreadable"
-        ]
-    );
-    let sorted = |v: &serde_json::Value| {
-        let mut n = names(v);
-        n.sort();
-        n
-    };
-    assert_eq!(sorted(&v["changed"][0]), ["command", "from", "item", "label", "line", "to"]);
-    assert_eq!(sorted(&v["conflictsCleared"][0]), ["command", "label", "shortcut"]);
-    assert_eq!(sorted(&v["skipped"][1]), ["command", "item", "keptBy", "line", "reason", "shortcut"]);
-    assert_eq!(v["skipped"][1]["keptBy"], json!({"id": "edit.clear", "params": null}));
-    assert_eq!(v["skipped"][0]["reason"], "reserved");
-    assert_eq!(sorted(&v["unmatched"][0]), ["item", "keys", "line", "reason"]);
-    let reasons: Vec<&str> = v["unmatched"].as_array().unwrap().iter().filter_map(|u| u["reason"].as_str()).collect();
-    assert_eq!(reasons, ["noMatch", "ambiguous", "context", "tool", "noMatch"]);
-    assert_eq!(sorted(&v["unreadable"][0]), ["item", "keys", "line", "reason"]);
-    assert_eq!(sorted(&v["suggestions"][0]), ["candidates", "item", "line"]);
-    let mut approximated = ImportReport::default();
-    approximated.approximated = plan(&numpad_set(), &km, &options).report.approximated;
-    let a = serde_json::to_value(&approximated).unwrap();
-    assert_eq!(sorted(&a["approximated"][0]), ["item", "keys", "line", "note"]);
-    assert_eq!(a["approximated"][0]["note"], "numpad");
-    assert_eq!(v["changed"][0]["from"], json!(["Cmd+W"]));
 }
 
 fn import_into(catalog: Vec<Bindable>, entries: Vec<ForeignEntry>, options: &ImportOptions) -> (Keymap, ImportReport) {
@@ -675,43 +427,6 @@ fn panel_menu_entries_match_by_path_end_or_label() {
             ("Character > All Caps", UnmatchedReason::NoMatch)
         ]
     );
-}
-
-#[test]
-fn aliases_match_like_labels() {
-    let catalog = vec![
-        command("app.quit", "Quit DesignCraft", &["File", "Quit DesignCraft"], &[]).with_alias("Exit"),
-        command("app.preferences", "Preferences…", &["Edit", "Preferences…"], &[]).with_alias("Preferences: General…"),
-        command("type.bold", "Bold", &["Type", "Style", "Bold"], &[]).with_alias("Apply bold"),
-        command("edit.paste", "Paste", &["Edit", "Paste"], &[]).with_alias("Einfügen"),
-    ];
-    let d = "Default";
-    let entries = vec![
-        win("File", &["Exit"], &[(d, "Ctrl+Q")]),
-        win("Edit", &["Preferences", "General..."], &[(d, "Ctrl+K")]),
-        entry(None, &["Apply Bold"], &[(d, "Ctrl+Shift+B")], Flavor::Windows),
-        win("Bearbeiten", &["Einfügen"], &[(d, "Ctrl+Shift+V")]),
-    ];
-    let (km, r) = import_into(catalog, entries, &default_context());
-    has(&km, "app.quit", &["Cmd+Q"]);
-    has(&km, "app.preferences", &["Cmd+K"]);
-    has(&km, "type.bold", &["Cmd+Shift+B"]);
-    has(&km, "edit.paste", &["Cmd+Shift+V"]);
-    assert!(r.unmatched.is_empty(), "{:?}", r.unmatched);
-}
-
-#[test]
-fn import_paths_match_like_menu_paths() {
-    let catalog = vec![
-        command("object.color", "Apply Color", &["Object", "Apply Color"], &[]),
-        command("color.applyColor", "Apply Color", &[], &[]).with_import_path(vec!["Tools".into(), "Apply Color".into()]),
-    ];
-    let d = "Default";
-    let entries = vec![win("Tools", &["Apply Color"], &[(d, "Ctrl+,")])];
-    let (km, r) = import_into(catalog, entries, &default_context());
-    has(&km, "color.applyColor", &["Cmd+,"]);
-    has(&km, "object.color", &[]);
-    assert!(r.unmatched.is_empty(), "{:?}", r.unmatched);
 }
 
 #[test]

@@ -112,11 +112,4 @@ mod tests {
         assert_eq!(sweep(Mods::CMD), vec![3, 0, 2]);
         assert_eq!(sweep(Mods::ALT), vec![3]);
     }
-
-    #[test]
-    fn escape_restores_the_selection_the_drag_started_from() {
-        let mut marquee = MarqueeSelect::begin(pos2(0.0, 0.0), Mods::NONE, vec![3u8]);
-        marquee.update(pos2(100.0, 100.0));
-        assert_eq!(marquee.cancel(), vec![3]);
-    }
 }

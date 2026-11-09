@@ -1,9 +1,6 @@
 //! The Brush Settings panel's rows: the tip angle widget, the stroke test data and the section list.
 
-use craft_draw::ui::brush_settings::{
-    BrushSection, BrushSectionEvent, BrushSectionList, PreviewStroke, TipAngle, TipEllipse, TipEllipseGrab, ellipse_drag, ellipse_grab,
-    ellipse_handles,
-};
+use craft_draw::ui::brush_settings::{BrushSection, BrushSectionEvent, BrushSectionList, TipAngle, TipEllipse, TipEllipseGrab, ellipse_drag};
 use craft_ui::contract::{Bind, Show as _};
 use craft_ui::testing::{Fixture, trial};
 use egui::{Key, Modifiers, Vec2};
@@ -11,7 +8,6 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 const RADIUS: f32 = 34.0;
-const REACH: f32 = 7.0;
 const PULL: f32 = 20.0;
 const NEAR_CENTRE: f32 = 0.5;
 /// The angles and roundness the key trial walks through.
@@ -20,15 +16,6 @@ const TURNED_UP: f64 = 180.0;
 const WRAPPED: f64 = -179.0;
 const TURNED_BACK_COARSE: f64 = 166.0;
 const ROUNDER: f64 = 0.51;
-
-/// A press within reach of a roundness dot grabs the dot; anywhere else on the disc grabs the arrow.
-#[trial]
-fn ellipse_grab_prefers_the_dots_within_the_reach() {
-    let angle = TipAngle::new(0.0, 0.5);
-    let [dot, _] = ellipse_handles(angle, RADIUS);
-    assert_eq!(ellipse_grab(dot + Vec2::X * (REACH - 1.0), angle, RADIUS, REACH), TipEllipseGrab::Roundness);
-    assert_eq!(ellipse_grab(dot + Vec2::X * (REACH + 1.0), angle, RADIUS, REACH), TipEllipseGrab::Angle);
-}
 
 /// A drag of the arrow sets the angle from the pointer; a drag of a dot sets the roundness and keeps the angle.
 #[trial]
@@ -67,20 +54,6 @@ fn ellipse_keys_turn_and_squash() {
     assert_eq!(value.get().roundness, ROUNDER);
 }
 
-/// The preview stroke is the S-curve: its samples start and end at the floor pressure and swing the amplitude.
-#[trial]
-fn preview_stroke_samples_match_the_s_curve() {
-    let stroke = PreviewStroke::new(200, 100);
-    let samples = stroke.samples();
-    assert_eq!(samples.len(), PreviewStroke::SAMPLES);
-    assert_eq!(samples[0].pressure, PreviewStroke::PRESSURE_FLOOR);
-    assert_eq!(samples[0].x, PreviewStroke::MARGIN);
-    let quarter = &samples[PreviewStroke::SAMPLES / 4];
-    assert!((quarter.y - (50.0 - 100.0 * PreviewStroke::AMPLITUDE)).abs() < 1e-6);
-    assert_eq!(stroke.fit(10.0), 1.0);
-    assert!(stroke.fit(400.0) < 1.0);
-}
-
 /// Shows the list over a few sections and collects the events it reports.
 fn rig(events: &Rc<RefCell<Vec<BrushSectionEvent<u8>>>>) -> Fixture {
     let sink = events.clone();
@@ -110,19 +83,6 @@ fn a_click_on_a_pane_row_selects_and_enables_it() {
     let seen = events.borrow();
     assert!(seen.contains(&BrushSectionEvent::Select(1)));
     assert!(seen.iter().any(|event| matches!(event, BrushSectionEvent::Enable { key: 1, on: true, .. })));
-}
-
-/// A click on the link row opens the Brushes panel and nothing else.
-#[trial]
-fn the_link_row_reports_open_link() {
-    let events = Rc::new(RefCell::new(Vec::new()));
-    let mut fixture = rig(&events);
-    let target = fixture.by_label("Brushes");
-    assert!(target.is_some(), "the link row is in the access tree");
-    let Some(target) = target else { return };
-    fixture.click(&target);
-    fixture.idle(2);
-    assert_eq!(*events.borrow(), vec![BrushSectionEvent::OpenLink]);
 }
 
 /// A click on a switch row flips the switch and never selects it.

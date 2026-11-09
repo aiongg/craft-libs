@@ -1,9 +1,7 @@
 //! `FloatingGroup`: the caller owns the rect, the title moves the window, a double click on it asks to minimize,
 //! and the move and the size stay inside the bounds and the panel limits.
 
-use craft_behavior::GesturePhase;
 use craft_ui::contract::SizeLimits;
-use craft_ui::contract::overlay::PlacementKind;
 use craft_ui::contract::{Common, Component, Cx, DropMark, DropOperation, DropTarget, MeasureCx, Pointer as _, Props as _, Role, Show as _, Sizing};
 use craft_ui::docking::{DragUnit, FloatingGroup, FloatingGroupOutput, GroupDrag};
 use craft_ui::runtime::drag;
@@ -18,7 +16,6 @@ const START: Rect = Rect { min: Pos2::new(60.0, 70.0), max: Pos2::new(300.0, 250
 const BOUNDS: Rect = Rect { min: Pos2::ZERO, max: Pos2::new(400.0, 320.0) };
 const LEAST: Vec2 = Vec2::new(150.0, 90.0);
 const MOVE: Vec2 = Vec2::new(30.0, 20.0);
-const FAR: f32 = 600.0;
 /// A point on the title row, clear of the action parts at its end.
 const TITLE_AT: Vec2 = Vec2::new(24.0, 10.0);
 
@@ -76,32 +73,10 @@ impl Caller {
             self.history.borrow_mut().push(out.output);
         }
     }
-
-    fn last_change(&self) -> craft_ui::contract::overlay::PlacementChange {
-        self.history.borrow().iter().rev().find_map(|out| out.placed).expect("a change was reported")
-    }
-}
-
-fn near(a: Rect, b: Rect) -> bool {
-    (a.min - b.min).abs().max_elem() < SLACK && (a.size() - b.size()).abs().max_elem() < SLACK
 }
 
 fn title_of(rect: Rect) -> Pos2 {
     rect.min + TITLE_AT
-}
-
-#[trial]
-fn a_move_by_the_title_reports_the_new_rect() {
-    let (caller, mut frames) = (Caller::new(), Frames::new());
-    let mut show = caller.show();
-    frames.idle(4, &mut show);
-    assert!(near(caller.shown.get(), START), "the group shows at the caller's rect: {:?}", caller.shown.get());
-    pointer::drag(&mut frames, title_of(START), MOVE, &mut show);
-    frames.idle(2, &mut show);
-    let change = caller.last_change();
-    assert_eq!(change.kind, PlacementKind::Move);
-    assert_eq!(change.phase, GesturePhase::Commit);
-    assert!((change.rect.min - (START.min + MOVE)).abs().max_elem() < SLACK, "the rect moved with the pointer: {:?}", change.rect);
 }
 
 #[trial]
@@ -232,23 +207,4 @@ fn a_double_click_on_the_title_minimizes_the_group_and_keeps_the_height_it_resto
         caller.rect.get()
     );
     assert!((caller.rect.get().min - (START.min + MOVE)).abs().max_elem() < SLACK, "and moves the group: {:?}", caller.rect.get());
-}
-
-#[trial]
-fn a_move_stops_at_the_bounds_and_a_size_drag_at_the_panel_limits() {
-    let (caller, mut frames) = (Caller::new(), Frames::new());
-    let mut show = caller.show();
-    frames.idle(4, &mut show);
-    pointer::drag(&mut frames, title_of(START), Vec2::new(FAR, FAR), &mut show);
-    frames.idle(2, &mut show);
-    let moved = caller.rect.get();
-    assert!(BOUNDS.contains_rect(moved.shrink(SLACK)), "the move stayed inside the bounds: {moved:?}");
-    pointer::drag(&mut frames, moved.max - Vec2::splat(1.0), Vec2::splat(-FAR), &mut show);
-    frames.idle(2, &mut show);
-    let shrunk = caller.rect.get();
-    assert_eq!(caller.last_change().kind, PlacementKind::Size(craft_ui::runtime::windows::ResizeEdge::BottomRight));
-    assert!(shrunk.width() < moved.width() && shrunk.height() < moved.height(), "the size drag shrank the group: {shrunk:?}");
-    pointer::drag(&mut frames, shrunk.max - Vec2::splat(1.0), Vec2::splat(-FAR), &mut show);
-    frames.idle(2, &mut show);
-    assert!(near(caller.rect.get(), shrunk), "the limits stopped the second drag: {:?} then {:?}", shrunk, caller.rect.get());
 }

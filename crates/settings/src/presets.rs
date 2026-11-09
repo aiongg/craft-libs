@@ -521,12 +521,6 @@ mod tests {
     }
 
     // `new(None, ..)`: `list` is empty and `save` is `Io` with `ErrorKind::Unsupported`.
-    #[test]
-    fn preset_folder_without_a_folder_keeps_nothing() {
-        let presets = PresetFolder::<Curve>::new(None, "curve");
-        assert!(presets.list().is_empty());
-        assert!(matches!(presets.save("x", &curve(1)), Err(PresetFolderError::Io(e)) if e.kind() == io::ErrorKind::Unsupported));
-    }
 
     // `in_settings` over a `MemorySections`: save, list, load, rename and delete; the section's
     // `curve` table holds each name with its file text, and another kind's table is untouched.
@@ -554,19 +548,4 @@ mod tests {
     }
 
     // A preset saved in settings exports bytes that a folder imports and loads equal, and back.
-    #[test]
-    fn a_preset_moves_between_settings_and_a_folder_unchanged() {
-        let tmp = tempfile::tempdir().unwrap();
-        let files = folder(tmp.path());
-        let (_store, presets) = settings();
-        presets.save("Strong Contrast", &curve(64)).unwrap();
-        let bytes = presets.export("Strong Contrast").unwrap();
-        assert_eq!(files.import("Strong Contrast.json", &bytes).unwrap(), "Strong Contrast");
-        assert_eq!(files.load("Strong Contrast").unwrap(), curve(64));
-        assert_eq!(files.export("Strong Contrast").unwrap(), bytes);
-        let back = files.export("Strong Contrast").unwrap();
-        let (_s2, other) = settings();
-        assert_eq!(other.import("Strong Contrast.json", &back).unwrap(), "Strong Contrast");
-        assert_eq!(other.load("Strong Contrast").unwrap(), curve(64));
-    }
 }

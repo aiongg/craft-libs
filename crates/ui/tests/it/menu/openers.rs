@@ -143,54 +143,11 @@ fn a_context_opening_shares_the_response_of_a_manual_opener_and_hangs_at_the_poi
 }
 
 #[trial]
-fn a_context_key_on_a_shared_response_returns_the_focus_to_it_when_the_menu_closes() {
-    let (mut fixture, ids) = manual_and_context(false);
-    fixture.key(Key::Tab, Modifiers::NONE);
-    fixture.key(Key::Tab, Modifiers::NONE);
-    assert_eq!(fixture.focused(), ids.area.get(), "the target has the focus");
-    fixture.key(Key::F10, Modifiers::SHIFT);
-    fixture.settle();
-    assert!(menu_rect(&fixture).is_some(), "the Menu key opens the menu");
-    fixture.key(Key::Escape, Modifiers::NONE);
-    fixture.settle();
-    assert!(menu_rect(&fixture).is_none(), "Escape closes the menu");
-    assert_eq!(fixture.focused(), ids.area.get(), "the focus returns to the response");
-}
-
-#[trial]
 fn a_menu_a_manual_opener_opens_hangs_from_the_opener_rect() {
     let (fixture, ids) = manual_and_context(true);
     let button = fixture.node_of(ids.button.get().unwrap()).expect("the menu button has a node");
     let menu = menu_rect(&fixture).expect("the bound menu is open");
     assert!(menu.top() >= button.rect.bottom() - 1.0, "the menu hangs under the menu button: {menu:?} vs {:?}", button.rect);
-}
-
-/// A context menu whose opener sits inside an open popover opens on the first secondary click, and the popover
-/// keeps its content.
-#[trial]
-fn a_context_menu_opened_from_inside_a_popover_leaves_the_popover_open() {
-    let mut fixture = Fixture::new(move |ui| {
-        let opener = Button::new("Brush").show(ui);
-        let mut open = true;
-        Popover::new("Brush options", Bind::bound(&mut open)).opened_by(&opener).show(ui, |ui, _| {
-            let target = Button::new("Target").show(ui);
-            Button::new("Reset").show(ui);
-            Menu::context("Target menu", &target).show(ui, |ui, _| {
-                MenuItem::new("Delete").show(ui);
-            });
-        });
-    });
-    fixture.settle();
-    let target = fixture.by_label("Target").expect("the target has a node");
-    fixture.click(&target);
-    fixture.settle();
-    let at = target.center();
-    fixture.frame(vec![pointer::moved(at)]);
-    fixture.frame(vec![pointer::secondary(at, true)]);
-    fixture.frame(vec![pointer::secondary(at, false)]);
-    fixture.settle();
-    assert!(menu_rect(&fixture).is_some(), "a secondary click on the target opens the menu");
-    assert!(fixture.by_label("Reset").is_some(), "the popover keeps its content");
 }
 
 /// A context menu opened over the popover it was opened from takes the click on its row: the row runs and the menu

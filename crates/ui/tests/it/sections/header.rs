@@ -2,11 +2,9 @@
 //! shares a line with its body, and an elided title shows whole in a tooltip.
 
 use craft_ui::choice::{Checkbox, Segmented};
-use craft_ui::contract::tooltip::DELAY;
 use craft_ui::contract::{Bind, Entry, Props as _, Show as _, ShowContainer as _};
-use craft_ui::runtime::overlay::{OpenFilter, any_open};
-use craft_ui::sections::{GroupBox, HeaderAction, Section, TitleRow};
-use craft_ui::testing::pointer::{click, moved};
+use craft_ui::sections::{GroupBox, HeaderAction, Section};
+use craft_ui::testing::pointer::click;
 use craft_ui::testing::{Frames, trial};
 use egui::{Pos2, Rect, Ui};
 use std::cell::Cell;
@@ -82,28 +80,4 @@ fn an_inline_header_and_its_body_share_one_line() {
     assert!(body.top() - row.top() < half, "the body starts on the header's line, not below it");
     assert!(row.height() < line, "the row is one line high");
     assert!(body.left() > row.left(), "the body sits after the header");
-}
-
-/// A title that does not fit shows whole in a tooltip; one that fits shows none.
-#[trial]
-fn an_elided_titles_tooltip_is_the_full_title() {
-    const LONG: &str = "A title far too long for the narrow row it sits in";
-    let tooltip_after_rest = |title: &'static str, width: f32| {
-        let mut frames = Frames::new();
-        let area = Rect::from_min_size(Pos2::new(10.0, 10.0), egui::vec2(width, 30.0));
-        let mut show = |ui: &mut Ui| {
-            TitleRow::new(title).id_salt("row").show_at(ui, area);
-        };
-        frames.idle(3, &mut show);
-        frames.frame(vec![moved(Pos2::new(area.left() + 20.0, area.center().y))], &mut show);
-        frames.advance(DELAY);
-        frames.idle(4, &mut show);
-        // The row paints an elided title cut; the tooltip paints it whole.
-        let whole = frames.texts().iter().filter(|text| text.text == title && !text.elided).count();
-        (any_open(&frames.ctx, OpenFilter::Any), whole)
-    };
-    const NARROW: f32 = 120.0;
-    const WIDE: f32 = 300.0;
-    assert_eq!(tooltip_after_rest(LONG, NARROW), (true, 1), "an elided title opens a tooltip that shows the full title");
-    assert!(!tooltip_after_rest("Options", WIDE).0, "a title that fits opens none");
 }

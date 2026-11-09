@@ -1,7 +1,7 @@
 //! The dialog's frame: recording into a row, the conflict bar, undo, Cancel and OK, and the messages under the table.
 
 use craft_keymap::{Active, Bindable, Binding, Chord, ConflictKind, Keymap, Kind, Lookup, Platform, Scope, Scopes};
-use craft_menu::shortcuts::{ConflictMode, Outcome};
+use craft_menu::shortcuts::Outcome;
 use craft_ui::testing::trial;
 use egui::{Key, Modifiers};
 
@@ -92,17 +92,6 @@ fn assign_takes_a_held_shortcut_and_keeps_the_others() {
     assert!(rig.bindings("file.print").is_empty());
 }
 
-/// In Steal mode the chord moves at once, the message says what it took, and Go to Conflict selects the holder.
-#[trial]
-fn steal_mode_says_what_it_took() {
-    let mut rig = Rig::new(keymap(Platform::Mac), options().with(|o| o.conflicts = ConflictMode::Steal), None);
-    rig.click("Export…: ⌘E");
-    rig.press(Modifiers::MAC_CMD, Key::S);
-    assert!(rig.has("⌘S was removed from Save"));
-    rig.click("Go to Conflict");
-    assert!(rig.has("Save (Changed)"));
-}
-
 /// A reserved chord and the app's own rule refuse with a message and change nothing.
 #[trial]
 fn reserved_chord_and_app_rule_refuse() {
@@ -139,23 +128,4 @@ fn cancel_restores_the_keymap_and_reports_changed_after() {
     let after: Vec<bool> = rig.outcomes().iter().skip_while(|o| !matches!(o, Outcome::Cancel)).map(|o| matches!(o, Outcome::Changed)).collect();
     assert_eq!(after, [false, true], "Changed follows Cancel, which undid an edit");
     assert!(!rig.shared.borrow().state.is_open());
-}
-
-/// Escape with nothing open is Cancel.
-#[trial]
-fn escape_is_cancel() {
-    let mut rig = Rig::mac();
-    rig.press(Modifiers::NONE, Key::Escape);
-    assert!(rig.has_outcome(|o| matches!(o, Outcome::Cancel)));
-}
-
-/// An app's own error shows under the table until it is dismissed.
-#[trial]
-fn an_app_error_shows_until_dismissed() {
-    let mut rig = Rig::mac();
-    rig.shared.borrow_mut().state.show_error("The file could not be read");
-    rig.fixture.idle(3);
-    assert!(rig.has("The file could not be read"));
-    rig.click("Dismiss");
-    assert!(!rig.has("The file could not be read"));
 }

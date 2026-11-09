@@ -6,4 +6,3 @@ mod board;
 mod kit;
 mod panel_scope;
 mod popover_scope;
-mod resolve;

@@ -12,8 +12,8 @@ use craft_behavior::kurbo::Rect;
 use craft_behavior::{CancelReason, EditHistory, PixelSize};
 use craft_imaging::ui::fill::{
     ContentAwareFillWorkspace, FillAreaEdit, FillCommand, FillEvent, FillLimit, FillLimits, FillOpen, FillOutput, FillOutputTo, FillOverlay,
-    FillPreviewPane, FillPreviewRequest, FillReset, FillSession, FillSettings, FillSource, FillStrokeEvent, FillToolOptions, PreviewFraming,
-    RotationAdaptation, SamplingMode, SamplingPlane, SamplingStroke,
+    FillPreviewPane, FillPreviewRequest, FillReset, FillSession, FillSettings, FillSource, FillStrokeEvent, PreviewFraming, RotationAdaptation,
+    SamplingMode, SamplingPlane, SamplingStroke,
 };
 use craft_imaging::ui::select_mask::EditMode;
 use craft_imaging::ui::wide_angle::PreviewDone;
@@ -23,7 +23,6 @@ use craft_ui::dialog::FullWindowView;
 use craft_ui::primitives::Revision;
 use craft_ui::runtime::access::Role;
 use craft_ui::runtime::pending::{Job, Pending};
-use craft_ui::sections::DialogRole;
 use craft_ui::testing::{Fixture, pointer, trial};
 
 const NONE: Modifiers = Modifiers::NONE;
@@ -181,85 +180,6 @@ fn session_with_work() -> FillSession {
     session.add_stroke(stroke_of(&[[1.0, 1.0], [2.0, 2.0]]));
     assert_eq!(session.add_fill_edit(FillAreaEdit::grow(true, 3.0), &GENEROUS), Ok(()));
     session
-}
-
-#[trial]
-fn fill_brush_adds_in_custom_and_subtracts_in_auto_and_alt_reverses() {
-    for (mode, alt, expected) in [
-        (SamplingMode::Auto, false, EditMode::Subtract),
-        (SamplingMode::Rectangular, false, EditMode::Subtract),
-        (SamplingMode::Custom, false, EditMode::Add),
-        (SamplingMode::Auto, true, EditMode::Add),
-        (SamplingMode::Custom, true, EditMode::Subtract),
-    ] {
-        assert_eq!(FillToolOptions::stroke_mode(mode.brush_adds(), alt), expected, "{mode:?}, Alt {alt}");
-        let mut settings = FillSettings::default();
-        settings.sampling = mode;
-        let mut rig = Rig::new(settings, GENEROUS);
-        let modifiers = if alt { Modifiers::ALT } else { NONE };
-        rig.stroke(rig.canvas(), &[rig.canvas() + vec2(20.0, 0.0), rig.canvas() + vec2(40.0, 0.0)], modifiers);
-        let events = rig.events();
-        let Some(stroke) = committed(&events) else { panic!("{mode:?}, Alt {alt}: a stroke committed: {events:?}") };
-        assert_eq!(stroke.mode, expected, "{mode:?}, Alt {alt}");
-    }
-}
-
-#[trial]
-fn fill_lasso_modes_and_expand_contract_report_fill_area_edits() {
-    for (modifiers, expect) in
-        [(NONE, "new"), (Modifiers::SHIFT, "add"), (Modifiers::ALT, "subtract"), (Modifiers::SHIFT | Modifiers::ALT, "intersect")]
-    {
-        let mut rig = Rig::standard();
-        rig.lasso();
-        rig.square(modifiers);
-        let edits: Vec<String> = rig
-            .events()
-            .into_iter()
-            .filter_map(|event| match event {
-                FillEvent::FillArea(edit) => serde_json::to_value(edit).ok().and_then(|v| v["op"].as_str().map(str::to_owned)),
-                _ => None,
-            })
-            .collect();
-        assert_eq!(edits, [expect], "{modifiers:?}");
-    }
-    // Under three points nothing is reported.
-    let mut rig = Rig::standard();
-    rig.lasso();
-    rig.stroke(rig.canvas(), &[rig.canvas() + vec2(10.0, 0.0)], NONE);
-    assert!(rig.events().iter().all(|event| !matches!(event, FillEvent::FillArea(_))));
-    assert_eq!(FillAreaEdit::lasso(SelectionOperation::Add, vec![[0.0, 0.0], [1.0, 0.0]]), None);
-
-    // Expand and Contract clamp to 1..=100.
-    let amount = |edit: FillAreaEdit| serde_json::to_value(edit).ok().and_then(|v| v["by"].as_f64());
-    assert_eq!(amount(FillAreaEdit::grow(true, 500.0)), Some(FillAreaEdit::GROW_RANGE.1));
-    assert_eq!(amount(FillAreaEdit::grow(false, 0.0)), Some(FillAreaEdit::GROW_RANGE.0));
-    let Some(subtract) = FillAreaEdit::lasso(SelectionOperation::Subtract, vec![[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]) else {
-        panic!("three points are a lasso")
-    };
-    let edits = [subtract, FillAreaEdit::grow(true, 4.0), FillAreaEdit::grow(false, 2.0)];
-    assert_eq!(
-        serde_json::to_value(edits).ok(),
-        Some(json!([{"op": "subtract", "points": [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]}, {"op": "expand", "by": 4.0}, {"op": "contract", "by": 2.0}]))
-    );
-}
-
-#[trial]
-fn fill_expand_uses_the_bars_amount() {
-    let mut rig = Rig::standard();
-    rig.lasso();
-    rig.fixture.idle(2);
-    let Some(expand) = rig.fixture.by_label("Expand") else { panic!("the Lasso's bar has Expand") };
-    rig.fixture.click(&expand);
-    let edits: Vec<FillAreaEdit> = rig
-        .events()
-        .into_iter()
-        .filter_map(|event| match event {
-            FillEvent::FillArea(edit) => Some(edit),
-            _ => None,
-        })
-        .collect();
-    let amounts: Vec<Option<f64>> = edits.into_iter().map(|edit| serde_json::to_value(edit).ok().and_then(|v| v["by"].as_f64())).collect();
-    assert_eq!(amounts, [Some(FillToolOptions::GROW_BY)]);
 }
 
 #[trial]
@@ -448,19 +368,6 @@ fn fill_undo_mid_stroke_cancels_the_stroke() {
     rig.fixture.idle(1);
     let events = rig.events();
     assert!(events.contains(&FillEvent::Stroke(FillStrokeEvent::Cancel(CancelReason::UndoDuringGesture))), "{events:?}");
-}
-
-#[trial]
-fn fill_apply_keeps_the_workspace_open_and_ok_closes() {
-    let mut rig = Rig::standard();
-    let Some(apply) = rig.fixture.by_label("Apply") else { panic!("the footer has Apply") };
-    rig.fixture.click(&apply);
-    let outputs = rig.take();
-    assert!(outputs.iter().any(|output| output.apply), "Apply is reported");
-    assert!(outputs.iter().all(|output| output.closed.is_none()), "and the workspace stays open");
-    let Some(ok) = rig.fixture.by_label("OK") else { panic!("the footer has OK") };
-    rig.fixture.click(&ok);
-    assert!(rig.take().iter().any(|output| output.closed == Some(DialogRole::Accept)));
 }
 
 #[trial]

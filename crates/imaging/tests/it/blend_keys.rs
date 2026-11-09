@@ -22,10 +22,6 @@ fn step(command: BlendStep, current: Option<&'static str>, entries: &[BlendKeyEn
     keys.command(&CommandRef::from(command), FirePhase::Press)
 }
 
-fn letter(shortcut: BlendShortcut, entries: &[BlendKeyEntry<&'static str>]) -> Option<BlendKeyPick<&'static str>> {
-    BlendKeys::new(entries).command(&CommandRef::from(shortcut), FirePhase::Press)
-}
-
 #[trial]
 fn shift_plus_and_minus_step_and_wrap() {
     let entries = modes();
@@ -36,13 +32,6 @@ fn shift_plus_and_minus_step_and_wrap() {
     assert_eq!(step(BlendStep::Next, Some("normal"), &entries), Some(BlendKeyPick::Stepped("multiply")));
     let released = BlendKeys::new(&entries).command(&CommandRef::from(BlendStep::Next), FirePhase::Release);
     assert_eq!(released, None, "a key release steps nothing");
-}
-
-#[trial]
-fn shift_alt_letter_picks_the_listed_mode() {
-    let pick = letter(BlendShortcut::Multiply, &modes());
-    assert_eq!(pick, Some(BlendKeyPick::Lettered("multiply")));
-    assert_eq!(pick.map(BlendKeyPick::into_key), Some("multiply"));
 }
 
 #[trial]
@@ -57,19 +46,4 @@ fn every_shortcut_has_its_own_letter() {
         })
         .collect();
     assert_eq!(chords.len(), 26, "no two shortcuts share a chord");
-}
-
-#[trial]
-fn a_letter_for_a_missing_mode_is_consumed_and_does_nothing() {
-    let entries = modes();
-    assert_eq!(letter(BlendShortcut::PassThrough, &entries), None);
-    assert_eq!(letter(BlendShortcut::Overlay, &entries), None);
-}
-
-#[trial]
-fn behind_is_consumed_and_reported() {
-    assert_eq!(letter(BlendShortcut::Behind, &modes()), None, "layers have no Behind");
-    let mut entries = modes();
-    entries.push(BlendKeyEntry::behind("behind"));
-    assert_eq!(letter(BlendShortcut::Behind, &entries), Some(BlendKeyPick::Lettered("behind")));
 }

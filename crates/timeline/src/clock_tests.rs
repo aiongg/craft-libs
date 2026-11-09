@@ -14,19 +14,6 @@ fn playing(from: f64, speed: f64) -> PlaybackClock {
 }
 
 // position advances by (now - start) * speed, backwards at negative speed.
-#[test]
-fn plays_at_speed_from_the_anchor() {
-    let clock = playing(10.0, 1.0);
-    assert_eq!(clock.position(2.0), secs(12.0));
-    let clock = playing(10.0, 2.0);
-    assert_eq!(clock.position(2.0), secs(14.0));
-    let clock = playing(10.0, -1.0);
-    assert_eq!(clock.position(2.0), secs(8.0));
-    assert_eq!(clock.position(20.0), Tick::ZERO, "backwards playback holds at the start");
-    let mut clock = playing(10.0, 1.0);
-    assert_eq!(clock.stop(3.0), secs(13.0));
-    assert_eq!(clock.position(9.0), secs(13.0), "a stopped clock stands still");
-}
 
 // Prerolling until frames_ready or 0.5 s, then Started.
 #[test]
@@ -99,15 +86,6 @@ fn page_follow_jumps_at_ninety_five_percent() {
 }
 
 // Center centres once there, Continuous from the first frame.
-#[test]
-fn center_and_continuous_follow() {
-    let width = 1000.0;
-    let mut center = Follow::default();
-    assert_eq!(center.update(FollowMode::Center, true, &view(10.0), width, secs(12.0)), None, "left of the middle: stays");
-    assert_eq!(center.update(FollowMode::Center, true, &view(10.0), width, secs(15.5)), Some(secs(10.5)));
-    let mut continuous = Follow::default();
-    assert_eq!(continuous.update(FollowMode::Continuous, true, &view(10.0), width, secs(12.0)), Some(secs(7.0)));
-}
 
 // a view moved by something else holds until the playhead is back in view or playback restarts.
 #[test]

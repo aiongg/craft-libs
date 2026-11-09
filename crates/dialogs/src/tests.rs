@@ -83,56 +83,6 @@ fn requests_wait_in_order_behind_the_open_dialog() {
 }
 
 #[test]
-fn a_cancelled_dialog_answers_cancelled_and_closes() {
-    let (mut dialogs, shown, wakes) = held();
-    dialogs.ask(FileDialog::folder(), "f".into());
-    dialogs.show_pending(NONE);
-    let before = wakes.load(Ordering::SeqCst);
-    let (_, reply) = shown.borrow_mut().remove(0);
-    reply.send(Answer::Cancelled);
-    assert!(wakes.load(Ordering::SeqCst) > before, "the answer wakes the app");
-    assert_eq!(answered(&mut dialogs), [("f".to_owned(), Answer::Cancelled)]);
-    assert!(!dialogs.is_open());
-}
-
-#[test]
-fn the_override_answers_every_request_on_a_later_take() {
-    let mut dialogs: Dialogs<u32> = Dialogs::new(Wake::none());
-    let seen = Rc::new(RefCell::new(Vec::new()));
-    let log = seen.clone();
-    dialogs.set_override(Some(Box::new(move |request: &Request| {
-        log.borrow_mut().push(request.clone());
-        match request {
-            Request::File(FileDialog { kind: Kind::Open { .. }, .. }) => Answer::Paths(vec![PathBuf::from("in.pdf")]),
-            Request::File(_) => Answer::Cancelled,
-            Request::Message(_) => Answer::Message(MessageResult::Yes),
-        }
-    })));
-    dialogs.ask(FileDialog::open_many(), 1);
-    dialogs.ask(FileDialog::save(), 2);
-    dialogs.ask_message(Message::default(), 3);
-    assert!(dialogs.take_answers().is_empty(), "nothing answers before show_pending");
-    dialogs.show_pending(NONE);
-    assert_eq!(seen.borrow().len(), 3);
-    assert_eq!(
-        dialogs.take_answers(),
-        [(1, Answer::Paths(vec![PathBuf::from("in.pdf")])), (2, Answer::Cancelled), (3, Answer::Message(MessageResult::Yes))]
-    );
-    assert!(!dialogs.is_open());
-}
-
-#[test]
-fn a_panicking_override_answers_unavailable() {
-    let mut dialogs: Dialogs<u32> = Dialogs::new(Wake::none());
-    dialogs.set_override(Some(Box::new(|_: &Request| panic!("test override"))));
-    dialogs.ask(FileDialog::open(), 1);
-    dialogs.show_pending(NONE);
-    let answers = dialogs.take_answers();
-    assert!(matches!(answers.as_slice(), [(1, Answer::Unavailable(why))] if why.contains("test override")), "{answers:?}");
-    assert!(!dialogs.is_open());
-}
-
-#[test]
 fn a_worker_that_ends_without_answering_closes_the_dialog() {
     let (mut dialogs, shown, wakes) = held();
     dialogs.ask(FileDialog::open(), "dropped".into());

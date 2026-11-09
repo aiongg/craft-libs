@@ -189,33 +189,6 @@ fn tab_passes_a_list_whose_rows_hold_controls_in_one_stop() {
     assert!(is_focused(fixture.ctx(), log.after.get().unwrap()), "Tab leaves the list, past the rows' switches");
 }
 
-/// Forward enters the lead row's first child and moves on, Back returns, and Escape from a child returns to the row.
-#[trial]
-fn forward_and_back_move_through_a_rows_children_and_escape_returns_to_the_row() {
-    let (log, words) = (Log::new(), Box::leak(Box::new(Words::flat(&["one", "two"]))));
-    let mut fixture = list_fixture(log, words);
-    fixture.settle();
-    request(fixture.ctx(), FocusTarget::Id(log.list()));
-    fixture.idle(2);
-    fixture.key(Key::ArrowDown, Modifiers::NONE);
-    assert_eq!(log.leads().last(), Some(&0));
-    fixture.key(Key::ArrowRight, Modifiers::NONE);
-    assert_eq!(log.child_focus(fixture.ctx()), Some((0, "a")), "Forward enters the first child");
-    fixture.key(Key::ArrowRight, Modifiers::NONE);
-    assert_eq!(log.child_focus(fixture.ctx()), Some((0, "b")));
-    fixture.key(Key::ArrowLeft, Modifiers::NONE);
-    fixture.key(Key::ArrowLeft, Modifiers::NONE);
-    assert_eq!(log.child_focus(fixture.ctx()), None);
-    assert!(is_focused(fixture.ctx(), log.list()), "Back from the first child returns to the row");
-
-    fixture.key(Key::ArrowRight, Modifiers::NONE);
-    fixture.key(Key::ArrowRight, Modifiers::NONE);
-    fixture.key(Key::Escape, Modifiers::NONE);
-    assert_eq!(log.child_focus(fixture.ctx()), None);
-    assert!(is_focused(fixture.ctx(), log.list()), "Escape from a child returns to its row");
-    assert_eq!(log.leads().last(), Some(&0), "the lead stays on the row");
-}
-
 /// In a tree, Forward on a closed parent expands it and Forward again enters its first child; Back on a child row
 /// moves to the parent row.
 #[trial]

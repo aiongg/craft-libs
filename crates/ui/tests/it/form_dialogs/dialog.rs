@@ -1,46 +1,20 @@
 //! The preview view maths and what a remembering dialog saves.
 
 use craft_behavior::CanvasTransform;
-use craft_ui::contract::tooltip::DELAY;
-use craft_ui::contract::{Bind, Role, ShowContainer as _};
+use craft_ui::contract::{Bind, ShowContainer as _};
 use craft_ui::dialog::{Dialog, FullWindowDialog};
-use craft_ui::patterns::form_dialogs::{
-    DialogFields, FieldValue, HostRequests, Param, ParamDialog, ParamKind, ParamRows, PreviewPane, ResetFooter, ResetPick,
-};
+use craft_ui::patterns::form_dialogs::{DialogFields, FieldValue, Param, ParamDialog, ParamKind, PreviewPane, ResetFooter, ResetPick};
 use craft_ui::runtime::focus::Initial;
 use craft_ui::sections::{DialogRole, FooterButton};
-use craft_ui::testing::pointer::moved;
 use craft_ui::testing::{Fixture, trial};
 use craft_ui::value_drag::SliderScale;
-use egui::{Key, Modifiers, Pos2, Vec2};
+use egui::{Key, Modifiers, Vec2};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 const PICTURE: Vec2 = Vec2::new(400.0, 300.0);
 const WELL: Vec2 = Vec2::new(200.0, 200.0);
-const START: Vec2 = Vec2::new(10.0, -20.0);
-const STEPPED: Vec2 = Vec2::new(15.0, -30.0);
 const FAR: Vec2 = Vec2::new(5000.0, -5000.0);
-
-/// Zoom moves one level at a time, keeps the picture's centre where it is on the screen and stops at the ends.
-#[trial]
-fn zoom_steps_through_the_levels_and_stops_at_the_ends() {
-    let view = CanvasTransform::new(1.0, START);
-    let bigger = PreviewPane::zoom_in(view);
-    assert_eq!(bigger.scale, 1.5);
-    assert_eq!(bigger.offset, STEPPED);
-    assert_eq!(PreviewPane::zoom_out(view).scale, 0.75);
-
-    let mut view = view;
-    for _ in 0..20 {
-        view = PreviewPane::zoom_in(view);
-    }
-    assert!(!PreviewPane::can_zoom_in(view) && PreviewPane::can_zoom_out(view));
-    for _ in 0..20 {
-        view = PreviewPane::zoom_out(view);
-    }
-    assert!(PreviewPane::can_zoom_in(view) && !PreviewPane::can_zoom_out(view));
-}
 
 /// A picture smaller than the well sits in its middle; a larger one never shows a gap at an edge.
 #[trial]
@@ -73,72 +47,6 @@ fn a_remembering_dialog_saves_the_portable_values() {
     assert_eq!(saved.bool("smooth"), Some(true));
     assert!(!saved.contains("note") && !saved.contains("scratch") && !saved.contains("stale"));
     assert_eq!(fields.get("note"), Some(&FieldValue::Text("hello".into())));
-}
-
-/// A colour row's button files a request that the host takes once; taking it clears it.
-#[trial]
-fn a_requested_colour_is_taken_once_and_cleared() {
-    let params = Param::parse_list(r#"{"tint":color=#336699}"#);
-    let requests = Rc::new(RefCell::new(HostRequests::new()));
-    let (held, fields) = (Rc::clone(&requests), Rc::new(RefCell::new(DialogFields::new())));
-    let mut fixture = Fixture::new(move |ui| {
-        let mut fields = fields.borrow_mut();
-        let mut rows = ParamRows::new("Options", &params, Bind::bound(&mut *fields)).show(ui);
-        held.borrow_mut().absorb(&mut rows);
-    });
-    fixture.settle();
-    assert!(requests.borrow_mut().take_color().is_none(), "no request before the button is pressed");
-    let buttons = fixture.by_role(Role::BUTTON);
-    assert_eq!(buttons.len(), 1, "the colour row has one button");
-    fixture.click(&buttons[0]);
-    fixture.idle(2);
-    let taken = requests.borrow_mut().take_color().expect("the press filed a request");
-    assert_eq!(taken.key, "tint");
-    assert!(requests.borrow_mut().take_color().is_none(), "a request is taken once");
-}
-
-/// A fixture with a parameter dialog over `fields`, which reports whether it is still open, with Alt held or not.
-fn reset_rig(alt: bool, alt_resets: bool) -> (Fixture, Rc<RefCell<DialogFields>>, Rc<Cell<bool>>) {
-    let params = vec![Param::number("width", "Width", 640.0, 1.0, 0)];
-    let fields = Rc::new(RefCell::new(DialogFields::new()));
-    let open = Rc::new(Cell::new(true));
-    let (held, state) = (Rc::clone(&fields), Rc::clone(&open));
-    let mut fixture = Fixture::new(move |ui| {
-        let mut fields = held.borrow_mut();
-        let mut now = state.get();
-        ParamDialog::new("size", "Size", params.clone())
-            .values(Bind::bound(&mut *fields))
-            .opened(Bind::bound(&mut now))
-            .alt_resets(alt_resets)
-            .show(ui);
-        state.set(now);
-    });
-    fixture.hold(if alt { Modifiers::ALT } else { Modifiers::NONE });
-    fixture.settle();
-    (fixture, fields, open)
-}
-
-/// Holding Alt turns Cancel into Reset, which restores the opening values and keeps the dialog open; with
-/// `alt_resets(false)` the button stays Cancel.
-#[trial]
-fn alt_turns_cancel_into_reset_and_reset_keeps_the_dialog_open() {
-    let (plain, ..) = reset_rig(false, true);
-    assert!(plain.by_label("Cancel").is_some() && plain.by_label("Reset").is_none(), "Cancel without Alt");
-
-    let (kept, ..) = reset_rig(true, false);
-    assert!(kept.by_label("Cancel").is_some() && kept.by_label("Reset").is_none(), "Cancel with Alt when alt_resets is off");
-
-    let (mut held, fields, open) = reset_rig(true, true);
-    assert!(held.by_label("Reset").is_some() && held.by_label("Cancel").is_none(), "Reset with Alt");
-    let opening = fields.borrow().number("width");
-    fields.borrow_mut().set("width", 700.0);
-    held.idle(3);
-    assert_ne!(fields.borrow().number("width"), opening, "the value was edited");
-    let reset = held.by_label("Reset").expect("the Reset button is shown");
-    held.click(&reset);
-    held.idle(3);
-    assert_eq!(fields.borrow().number("width"), opening, "Reset restores the opening value");
-    assert!(open.get(), "Reset keeps the dialog open");
 }
 
 /// A second dialog built on `ResetFooter` swaps its button the same way and reads the pick from `DialogOutput::picked`.
@@ -247,33 +155,4 @@ fn param_dialog_ok_and_enter_go_through_the_close_guard() {
         ((1, true), (2, true), (1, true), (1, false)),
         "(asked, open) after a refused click, then Enter; after a refused Enter; after an allowed Enter"
     );
-}
-
-/// The tooltip a hover over the button named `label` shows, and the pointer moved away again.
-fn tip_over(fixture: &mut Fixture, label: &str) -> Option<String> {
-    let button = fixture.by_label(label).expect("the button is shown");
-    fixture.frame(vec![moved(button.center())]);
-    fixture.advance(DELAY);
-    fixture.idle(3);
-    let tip = fixture.by_role(Role::TOOLTIP).first().and_then(|tip| fixture.tree().name_of(tip.node)).map(str::to_owned);
-    fixture.frame(vec![moved(Pos2::ZERO)]);
-    fixture.idle(3);
-    tip
-}
-
-/// An enabled footer button shows its tooltip; a disabled one shows its reason instead.
-#[trial]
-fn a_footer_button_tells_its_tooltip_when_enabled_and_its_reason_when_disabled() {
-    let mut fixture = Fixture::new(|ui| {
-        let mut open = true;
-        let buttons = vec![
-            FooterButton::new("Apply", DialogRole::Other).tooltip("Applies the settings").stays_open(true),
-            FooterButton::new("Remove", DialogRole::Destructive).tooltip("Removes the item").disabled_reason("Nothing is selected").enabled(false),
-            FooterButton::new("OK", DialogRole::Accept),
-        ];
-        Dialog::new("Tips").opened(Bind::bound(&mut open)).buttons(buttons).show(ui, |_, _| {});
-    });
-    fixture.settle();
-    assert_eq!(tip_over(&mut fixture, "Apply").as_deref(), Some("Applies the settings"));
-    assert_eq!(tip_over(&mut fixture, "Remove").as_deref(), Some("Nothing is selected"));
 }

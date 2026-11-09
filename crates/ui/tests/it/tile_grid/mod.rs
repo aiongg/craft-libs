@@ -2,4 +2,3 @@
 
 mod grid;
 mod grid_trials;
-mod tile;

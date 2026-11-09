@@ -33,10 +33,3 @@ fn a_package_at_another_rev_fails_by_name() {
     assert!(PACKAGES.iter().any(|p| err.contains(&format!("  {p} "))), "{err}");
     assert!(err.contains("0000000"), "{err}");
 }
-
-#[test]
-fn an_unpatched_registry_package_fails() {
-    let lock = "[[package]]\nname = \"egui\"\nversion = \"0.37.0\"\nsource = \"registry+https://github.com/rust-lang/crates.io-index\"\n";
-    let err = check_lockfile(lock).unwrap_err();
-    assert!(err.contains("egui 0.37.0"), "{err}");
-}

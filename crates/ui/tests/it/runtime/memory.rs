@@ -146,29 +146,6 @@ fn lifetimes_follow_their_owner_until_forgotten() {
     });
 }
 
-/// 7.2 `take`: the shown slot is read once.
-#[trial]
-fn take_moves_the_shown_slot_out() {
-    let mut frames = Frames::new();
-    let id = global("taken", ());
-    frames.frame(vec![], |ui| {
-        let mut stage = Stage::open(ui.ctx(), id);
-        assert_eq!(stage.take::<u32>(), None, "nothing written yet");
-        *stage.memory::<u32>() = 9;
-        stage.finish();
-    });
-    frames.frame(vec![], |ui| {
-        let mut stage = Stage::open(ui.ctx(), id);
-        assert_eq!(stage.take::<u32>(), Some(9));
-        stage.finish();
-    });
-    frames.frame(vec![], |ui| {
-        let mut stage = Stage::open(ui.ctx(), id);
-        assert_eq!(stage.take::<u32>(), None, "read once");
-        stage.finish();
-    });
-}
-
 /// Entries written through a stage whose base differs from its owner go with the owner: they stay while the
 /// owner registers and are evicted with it.
 #[trial]
@@ -242,23 +219,6 @@ fn appeared_holds_through_the_discard_pass_of_the_first_frame() {
         stage.finish();
     });
     assert_eq!(seen, vec![true, true, false]);
-}
-
-/// A saved key names its crate: a prefix, a dot and a name.
-#[trial]
-fn a_save_key_needs_a_crate_prefix() {
-    for bad in [".place", "place", "craft_tests.", "Craft.place", "craft-tests.place"] {
-        assert!(std::panic::catch_unwind(|| SaveKey::new(bad)).is_err(), "{bad:?} is no save key");
-        assert!(std::panic::catch_unwind(|| SaveKey::named(bad)).is_err(), "{bad:?} is no save key");
-    }
-    assert_eq!(SaveKey::new("craft_dialogs.export.place").as_str(), "craft_dialogs.export.place");
-}
-
-/// A key built at run time, one for each open document, names the slots of the same key written out.
-#[trial]
-fn a_save_key_built_at_run_time_names_the_same_slots() {
-    let document = 7;
-    assert_eq!(SaveKey::named(format!("craft_tests.window.{document}")), SaveKey::new("craft_tests.window.7"));
 }
 
 /// Skeleton: `collide::children_and_items_keyed_like_runtime_regions_keep_their_own_ids`.

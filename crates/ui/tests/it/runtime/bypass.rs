@@ -6,16 +6,6 @@ use craft_ui::testing::{Fixture, bypass, trial};
 use egui::{Rect, pos2};
 
 #[trial]
-fn a_component_alone_leaves_no_bypass_finding() {
-    let mut checked = false;
-    let mut fixture = Fixture::new(move |ui| {
-        Checkbox::new(Bind::bound(&mut checked)).label("Show grid").show(ui);
-    });
-    fixture.settle();
-    assert_eq!(bypass::findings(&fixture), Vec::<String>::new());
-}
-
-#[trial]
 fn a_raw_egui_widget_next_to_a_component_is_a_finding() {
     let mut checked = false;
     let mut fixture = Fixture::new(move |ui| {

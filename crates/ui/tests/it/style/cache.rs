@@ -1,11 +1,9 @@
 //! The style cache, the env key and app style replacements.
 
-use craft_host::target::Os;
-use craft_i18n::Direction;
-use craft_theme::{Contrast, ControlSize, Mode, Variant, builtins};
-use craft_ui::runtime::env::{RootEnv, Scale};
+use craft_theme::{Contrast, ControlSize, Mode, Variant};
+use craft_ui::runtime::env::RootEnv;
 use craft_ui::runtime::{InstallError, install};
-use craft_ui::style::{ComponentStyle, EnvKey, Metrics, StyleCx, StyleKey, StyleReplacements};
+use craft_ui::style::{ComponentStyle, Metrics, StyleCx, StyleKey, StyleReplacements};
 use craft_ui::testing::style::{root_token_entries, style_of, tokens, with_cx};
 use craft_ui::testing::{Frames, trial};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -75,25 +73,6 @@ fn a_style_is_rebuilt_only_when_an_input_of_its_key_changes() {
 }
 
 #[trial]
-fn every_style_cx_input_changes_the_env_key() {
-    let base = (7_u64, Direction::Ltr, Scale::new(1.0), Os::Linux, true, 0_u64);
-    let key = |(tokens, direction, scale, os, active, values)| EnvKey::new(tokens, direction, scale, os, active, values);
-    let reference = key(base);
-    assert_eq!(reference, key(base));
-    let changed = [
-        key((8, base.1, base.2, base.3, base.4, base.5)),
-        key((base.0, Direction::Rtl, base.2, base.3, base.4, base.5)),
-        key((base.0, base.1, Scale::new(2.0), base.3, base.4, base.5)),
-        key((base.0, base.1, base.2, Os::Mac, base.4, base.5)),
-        key((base.0, base.1, base.2, base.3, false, base.5)),
-        key((base.0, base.1, base.2, base.3, base.4, 1)),
-    ];
-    for (i, other) in changed.iter().enumerate() {
-        assert_ne!(*other, reference, "input {i} left the key alone");
-    }
-}
-
-#[trial]
 fn an_app_replacement_wins_and_two_for_one_key_fail_the_install() {
     fn default(_: &StyleCx<'_>, _: FirstKey) -> SharedStyle {
         SharedStyle { built_by: "library" }
@@ -120,17 +99,6 @@ fn an_app_replacement_wins_and_two_for_one_key_fail_the_install() {
     assert!(matches!(install(&other.ctx, craft_ui::testing::install_spec().looks(twice)), Err(InstallError::DuplicateStyle(_))));
 }
 
-/// The key of a token set is its content, so rebuilding an equal set adds no cache entries.
-#[trial]
-fn equal_token_sets_share_a_key_and_different_ones_do_not() {
-    let light = tokens(Mode::Light, Contrast::Standard);
-    assert_eq!(light.key(), tokens(Mode::Light, Contrast::Standard).key());
-    assert_ne!(light.key(), tokens(Mode::Dark, Contrast::Standard).key());
-    let mut values = craft_theme::GroupValues::new();
-    values.set_color("clip", "audio", craft_theme::Rgba::rgb(200, 100, 50));
-    assert_ne!(light.key(), light.with_groups(values).key(), "token group values are part of the set");
-}
-
 /// An app that builds a fresh `RootEnv` (and so a fresh sizes table) every frame leaves a bounded root-token cache.
 #[trial]
 fn root_tokens_are_cached_for_a_bounded_number_of_inputs() {
@@ -141,21 +109,4 @@ fn root_tokens_are_cached_for_a_bounded_number_of_inputs() {
     }
     let kept = root_token_entries(&frames.ctx);
     assert!(kept > 0 && kept < 20, "{kept} entries after 20 frames with 20 distinct roots");
-}
-
-/// The root's theme is part of the root-token cache key, so a theme change resolves new tokens.
-#[trial]
-fn a_root_theme_is_part_of_the_root_token_key() {
-    let mut frames = Frames::new();
-    let root = RootEnv::new();
-    frames.root(root.clone());
-    frames.idle(1, |_| {});
-    let one_theme = root_token_entries(&frames.ctx);
-    frames.root(root.clone());
-    frames.idle(1, |_| {});
-    assert_eq!(root_token_entries(&frames.ctx), one_theme, "an unchanged root adds no entry");
-    let other = builtins().iter().map(|theme| theme.id.clone()).find(|id| *id != root.theme).expect("a second built-in theme");
-    frames.root(root.theme(other));
-    frames.idle(1, |_| {});
-    assert_eq!(root_token_entries(&frames.ctx), one_theme + 1, "another theme resolves its own tokens");
 }

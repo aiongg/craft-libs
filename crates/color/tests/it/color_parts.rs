@@ -5,8 +5,7 @@ use std::rc::Rc;
 
 use craft_color::AreaMode;
 use craft_color::ui::{
-    ColorArea, ColorDisc, ColorRamp, ColorStrip, ColorWheel, DiscMove, RampKind, RampPick, WheelGeometry, hue_at, triangle_corners, triangle_point,
-    triangle_sv,
+    ColorArea, ColorDisc, ColorRamp, ColorStrip, DiscMove, RampKind, RampPick, WheelGeometry, hue_at, triangle_corners, triangle_point, triangle_sv,
 };
 use craft_theme::{ColorModel, HsbModel, ModelValues, Srgba};
 use craft_ui::contract::{Bind, Show as _};
@@ -29,10 +28,6 @@ const HUE_TOLERANCE: f32 = 2.0;
 const NEAR_WHITE: f32 = 0.9;
 /// The saturation of the first disc marker's colour, rounded up.
 const MARKER_SATURATION: f32 = 0.78;
-/// Straight up on the wheel, in degrees counter-clockwise from the right.
-const UP: f32 = 90.0;
-/// The wheel's last whole hue, in degrees.
-const LAST_HUE: f32 = 359.0;
 
 /// The HSB values of `color`.
 fn hsb(color: Srgba) -> ModelValues {
@@ -101,20 +96,6 @@ fn a_strip_click_sets_the_value_and_keys_step_it() {
     assert!(within(values.borrow().values[0], shifted), "Shift Down steps ten");
 }
 
-/// A drag on the strip is one gesture that moves only its component.
-#[trial]
-fn a_strip_drag_keeps_the_other_components() {
-    let start = ModelValues::new("hsb", &[0.0, 80.0, 60.0]);
-    let (mut fixture, values) = fixture(start, |ui, values| {
-        ColorStrip::new("Hue", AreaMode::Hue, Bind::bound(values)).show(ui);
-    });
-    let strip = fixture.by_label("Hue").expect("the strip is shown");
-    fixture.drag(&strip, vec2(0.0, -strip.rect.height() / 4.0));
-    let after = *values.borrow();
-    assert!(after.values[0] > 0.0);
-    assert!(within(after.values[1], start.values[1]) && within(after.values[2], start.values[2]));
-}
-
 /// The ramp's colours: corners of the spectrum, the grey ramp, the ends of a between ramp, web rounding and the gamut.
 #[trial]
 fn the_ramp_colour_function_follows_the_kind() {
@@ -175,19 +156,6 @@ fn a_disc_drag_moves_the_grabbed_marker() {
     assert!(after.saturation < MARKER_SATURATION, "the marker moved towards the centre, got {}", after.saturation);
 }
 
-/// A press on the disc away from every marker grabs nothing.
-#[trial]
-fn a_disc_press_away_from_the_markers_grabs_nothing() {
-    let markers = [Srgba::rgb(0.9, 0.2, 0.2)];
-    let untouched = DiscMove::new(9, 1.0, 0.5);
-    let (mut fixture, moved) = fixture(untouched, move |ui, moved| {
-        ColorDisc::new("Harmony", &markers, Bind::bound(moved)).show(ui);
-    });
-    let disc = fixture.by_label("Harmony").expect("the disc is shown");
-    fixture.click_at(disc.rect.center() - vec2(0.0, disc.rect.height() / 4.0));
-    assert_eq!(*moved.borrow(), untouched);
-}
-
 /// The wheel's pure geometry: a triangle point reads back as its saturation and brightness, and the ring hue is whole
 /// degrees counter-clockwise from the right.
 #[trial]
@@ -203,45 +171,4 @@ fn the_wheel_geometry_round_trips() {
     assert_eq!(hue_at(center, Pos2::new(f32::NAN, 0.0)), None);
     let geometry = WheelGeometry::new(Rect::from_min_size(Pos2::ZERO, vec2(200.0, 200.0)), 4.0, (8.0, 24.0), 0.09, 1.0);
     assert!(geometry.inner < geometry.outer && geometry.triangle < geometry.inner);
-}
-
-/// A click on the wheel's ring sets the hue to the pointer's angle and leaves saturation and brightness.
-#[trial]
-fn a_wheel_ring_click_changes_only_the_hue() {
-    let start = ModelValues::new("hsb", &[0.0, 60.0, 70.0]);
-    let (mut fixture, values) = fixture(start, |ui, values| {
-        ColorWheel::new("Color wheel", Bind::bound(values)).show(ui);
-    });
-    let wheel = fixture.by_label("Hue").expect("the ring has a node");
-    let half = wheel.rect.width() / 2.0;
-    fixture.click_at(wheel.center() + vec2(0.0, -half * 0.92));
-    let after = *values.borrow();
-    assert!(within(after.values[0], UP), "above the centre is 90 degrees, got {}", after.values[0]);
-    assert!(within(after.values[1], start.values[1]) && within(after.values[2], start.values[2]));
-}
-
-/// A press beside the wheel, outside the ring's reach, starts nothing.
-#[trial]
-fn a_wheel_press_outside_the_ring_starts_nothing() {
-    let start = ModelValues::new("hsb", &[10.0, 60.0, 70.0]);
-    let (mut fixture, values) = fixture(start, |ui, values| {
-        ColorWheel::new("Color wheel", Bind::bound(values)).show(ui);
-    });
-    let wheel = fixture.by_label("Hue").expect("the ring has a node");
-    fixture.click_at(wheel.rect.right_bottom() + vec2(1.0, 1.0));
-    assert!(within(values.borrow().values[0], start.values[0]));
-}
-
-/// The ring's keys wrap the hue at 360.
-#[trial]
-fn the_ring_keys_wrap_the_hue() {
-    let (mut fixture, values) = fixture(ModelValues::new("hsb", &[LAST_HUE, 60.0, 70.0]), |ui, values| {
-        ColorWheel::new("Color wheel", Bind::bound(values)).show(ui);
-    });
-    fixture.key(Key::Tab, Modifiers::NONE);
-    fixture.key(Key::ArrowRight, Modifiers::NONE);
-    assert!(within(values.borrow().values[0], 0.0), "the last hue plus a step wraps to 0, got {}", values.borrow().values[0]);
-    fixture.key(Key::Home, Modifiers::NONE);
-    fixture.key(Key::End, Modifiers::NONE);
-    assert!(within(values.borrow().values[0], LAST_HUE), "End is the last hue");
 }

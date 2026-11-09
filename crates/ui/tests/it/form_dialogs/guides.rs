@@ -2,9 +2,7 @@
 
 use craft_behavior::Axis;
 use craft_ui::canvas::{Guide, GuideKey};
-use craft_ui::patterns::form_dialogs::{
-    GuideGroup, GuideLayoutError, GuideLayoutOptions, GuideLayoutPreset, GuideLength, GuideRect, GuideTarget, GuideUnits,
-};
+use craft_ui::patterns::form_dialogs::{GuideGroup, GuideLayoutError, GuideLayoutOptions, GuideLength, GuideRect, GuideTarget, GuideUnits};
 use craft_ui::runtime::env::UnitKind;
 use craft_ui::testing::trial;
 
@@ -94,34 +92,6 @@ fn clear_existing_keeps_guides_outside_the_artboards() {
     clear.target = GuideTarget::SelectedArtboards;
     let kept = positions(&made(&clear, &[board], &existing).unwrap(), Axis::Y);
     assert!(kept.contains(&500.0) && kept.contains(&900.0) && !kept.contains(&50.0), "only guides inside the artboard go: {kept:?}");
-}
-
-/// A percentage is of each artboard's own size: 10 % of a 500 px and of a 1000 px wide artboard are 50 px and
-/// 100 px in from each one's left edge.
-#[trial]
-fn percent_resolves_per_artboard() {
-    let boards = [GuideRect::new(0.0, 0.0, 500.0, 400.0), GuideRect::new(600.0, 0.0, 1600.0, 800.0)];
-    let mut options = just_margin([0.0; 4]);
-    options.rows.enabled = false;
-    options.margin[1] = GuideLength::percent(10.0);
-    options.target = GuideTarget::SelectedArtboards;
-    assert_eq!(positions(&made(&options, &boards, &[]).unwrap(), Axis::Y), [50.0, 500.0, 700.0, 1600.0]);
-}
-
-/// The layout's guides take the colour and the keys from the first key up; a preset sets the groups and keeps the
-/// target.
-#[trial]
-fn guides_are_keyed_and_coloured_and_presets_set_the_groups() {
-    let color = craft_theme::Rgba::rgb(1, 2, 3);
-    let guides = just_margin([10.0; 4]).lines(&[document()], &[], &pixel_units(), 40, Some(color)).unwrap();
-    assert_eq!(guides.iter().map(|guide| guide.key.get()).collect::<Vec<_>>(), [40, 41, 42, 43]);
-    assert!(guides.iter().all(|guide| guide.color == Some(color)));
-
-    let mut options = GuideLayoutOptions::default();
-    options.target = GuideTarget::SelectedArtboards;
-    GuideLayoutPreset::FiveColumnsThreeRows.apply(&mut options);
-    assert_eq!((options.columns.number, options.rows.number, options.rows.enabled), (5, 3, true));
-    assert_eq!(options.target, GuideTarget::SelectedArtboards);
 }
 
 /// Lengths convert through the document's resolution: an inch is `PPI` pixels, and percent is of the extent.

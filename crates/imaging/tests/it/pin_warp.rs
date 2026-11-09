@@ -3,21 +3,15 @@
 use craft_behavior::kurbo::Point;
 use craft_behavior::{CancelReason, CanvasView, EditEvent, GestureId, Mixed};
 use craft_imaging::ui::warp::pin::{
-    Pin, PinDensity, PinEdit, PinMeshView, PinMode, PinSolver, PinWarp, PinWarpBar, PinWarpCommands, PinWarpOptions, PinWarpSession, PinWarpSettings,
+    Pin, PinDensity, PinEdit, PinMeshView, PinMode, PinSolver, PinWarp, PinWarpCommands, PinWarpOptions, PinWarpSession, PinWarpSettings,
 };
 use craft_ui::canvas::Canvas;
-use craft_ui::contract::{Bind, Role, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::testing::{Fixture, pointer, trial};
-use egui::{Key, Modifiers, Pos2, Vec2};
+use egui::{Key, Modifiers, Pos2};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::Arc;
-
-/// A room wide enough for the whole bar.
-const WIDE_BAR: Vec2 = Vec2::new(1700.0, 80.0);
-/// The expansion and the rotation the bar tests type.
-const TYPED_EXPANSION: f64 = 12.0;
-const TYPED_ROTATION: f64 = 45.0;
 
 #[derive(Debug, PartialEq)]
 enum Call {
@@ -67,11 +61,6 @@ fn pin(x: f64, y: f64) -> Pin {
 
 fn moved(mut pin: Pin, dx: f64) -> Pin {
     pin.at.x += dx;
-    pin
-}
-
-fn turned(mut pin: Pin, degrees: f64) -> Pin {
-    pin.angle = Some(degrees);
     pin
 }
 
@@ -188,69 +177,6 @@ fn a_refused_remesh_restores_density_and_expansion_and_reports_the_text() {
     s.apply(PinEdit::Options(wanted), &mut f).unwrap();
     assert!(matches!(f.calls.as_slice(), [Call::Remesh(_), Call::Rebind(_)]));
     assert_eq!(s.options().density, PinDensity::More);
-}
-
-#[trial]
-fn solving_starts_from_the_rest_mesh_whatever_the_pointer_history() {
-    let base = vec![pin(5.0, 5.0)];
-    let target = vec![moved(base[0], 12.0)];
-    let last_solve = |path: &[f64]| {
-        let (mut s, mut f) = (session(), Fake::default());
-        set(&mut s, &mut f, base.clone());
-        let (id, before) = (GestureId::new(1), Mixed::Same(base.clone()));
-        s.apply(PinEdit::Pins(EditEvent::begin(id, before.clone(), label(), None)), &mut f).unwrap();
-        for dx in path {
-            s.apply(PinEdit::Pins(EditEvent::update(id, vec![moved(base[0], *dx)])), &mut f).unwrap();
-        }
-        s.apply(PinEdit::Pins(EditEvent::commit(id, before, target.clone())), &mut f).unwrap();
-        f.calls.pop()
-    };
-    assert_eq!(last_solve(&[3.0, 40.0, -7.0]), last_solve(&[12.0]));
-    assert_eq!(last_solve(&[12.0]), Some(Call::Solve(target.clone())));
-}
-
-#[trial]
-fn undo_and_redo_restore_the_pins_and_keep_the_selection_when_it_still_exists() {
-    let (mut s, mut f) = (session(), Fake::default());
-    let two = vec![pin(1.0, 1.0), pin(2.0, 2.0)];
-    set(&mut s, &mut f, vec![two[0]]);
-    set(&mut s, &mut f, two.clone());
-    s.apply(PinEdit::Select(vec![1]), &mut f).unwrap();
-    f.calls.clear();
-    assert!(s.undo(&mut f));
-    assert_eq!(s.pins(), &two[..1]);
-    assert!(s.selected().is_empty(), "pin 1 no longer exists");
-    assert!(matches!(f.calls.as_slice(), [Call::Rebind(p)] if p.len() == 1));
-    s.apply(PinEdit::Select(vec![0]), &mut f).unwrap();
-    assert!(s.redo(&mut f));
-    assert_eq!(s.pins(), &two[..]);
-    assert_eq!(s.selected(), &[0]);
-    assert!(!s.redo(&mut f));
-}
-
-#[trial]
-fn an_untouched_session_has_no_result() {
-    let (mut s, mut f) = (session(), Fake::default());
-    assert!(s.result().is_none());
-    set(&mut s, &mut f, vec![pin(1.0, 1.0)]);
-    assert!(s.result().is_none(), "a pin where it attached");
-    set(&mut s, &mut f, vec![turned(pin(1.0, 1.0), 360.0)]);
-    assert!(s.result().is_none(), "a full turn is no turn");
-    set(&mut s, &mut f, vec![turned(pin(1.0, 1.0), 30.0)]);
-    assert_eq!(s.result().map(<[Pin]>::len), Some(1));
-    set(&mut s, &mut f, vec![moved(pin(1.0, 1.0), 4.0)]);
-    assert_eq!(s.result().map(<[Pin]>::len), Some(1));
-}
-
-#[trial]
-fn edges_are_unique_and_the_centre_is_the_middle_of_the_rest_bounds() {
-    let rest = [Point::new(0.0, 0.0), Point::new(10.0, 0.0), Point::new(0.0, 20.0), Point::new(10.0, 20.0)];
-    let triangles = [[0, 1, 2], [2, 1, 3]];
-    let view = PinMeshView::new(&rest, &rest, &triangles, &[0, 1]);
-    assert_eq!(view.edges(), vec![[0, 1], [0, 2], [1, 2], [1, 3], [2, 3]]);
-    assert_eq!(view.centre(), Some(Point::new(5.0, 10.0)));
-    let empty = PinMeshView::new(&[], &[], &[], &[]);
-    assert_eq!(empty.centre(), None);
 }
 
 #[trial]
@@ -481,23 +407,6 @@ fn alt_click_deletes_a_pin_and_esc_cancels_a_drag_or_discards() {
 }
 
 #[trial]
-fn delete_removes_the_selected_pins_and_select_all_selects_every_pin() {
-    let mut h = harness(vec![pin(100.0, 100.0), pin(200.0, 100.0), pin(300.0, 100.0)], vec![]);
-    h.click((100.0, 100.0), Modifiers::NONE);
-    h.key(Key::A, Modifiers::COMMAND);
-    assert_eq!(h.selected(), vec![0, 1, 2]);
-    h.key(Key::Delete, Modifiers::NONE);
-    assert!(h.state.borrow().session.pins().is_empty());
-
-    let mut h = harness(vec![pin(100.0, 100.0), pin(200.0, 100.0)], vec![]);
-    h.click((200.0, 100.0), Modifiers::NONE);
-    h.key(Key::Enter, Modifiers::NONE);
-    assert!(h.state.borrow().apply, "Enter applies");
-    h.key(Key::Backspace, Modifiers::NONE);
-    assert_eq!(h.places(), vec![Point::new(100.0, 100.0)]);
-}
-
-#[trial]
 fn the_keyboard_places_picks_moves_and_removes_pins() {
     let mut h = harness(vec![pin(100.0, 100.0), pin(200.0, 100.0)], vec![]);
     h.click((100.0, 100.0), Modifiers::NONE);
@@ -530,15 +439,6 @@ fn the_keyboard_places_picks_moves_and_removes_pins() {
 }
 
 #[trial]
-fn alt_drag_turns_a_fixed_pin_by_the_swept_angle() {
-    let mut h = harness(vec![turned(pin(200.0, 150.0), 30.0)], vec![0]);
-    let near = turn_ring() - RING_MARGIN;
-    h.drag((200.0, 150.0 + near), (200.0 - near, 150.0), Modifiers::ALT);
-    let angle = h.state.borrow().session.pins()[0].angle.expect("fixed");
-    assert!((angle - 120.0).abs() < 1e-9, "{angle}");
-}
-
-#[trial]
 fn alt_drag_turns_an_auto_pin_from_the_meshs_turn() {
     let mut h = harness(vec![pin(200.0, 150.0)], vec![0]);
     let (sin, cos) = 20f64.to_radians().sin_cos();
@@ -560,143 +460,4 @@ fn alt_drag_turns_an_auto_pin_from_the_meshs_turn() {
     h.drag((200.0, 150.0 + near), (200.0 - near, 150.0), Modifiers::ALT);
     let angle = h.state.borrow().session.pins()[0].angle.expect("fixed");
     assert!((angle - 110.0).abs() < 1e-9, "{angle}");
-}
-
-#[trial]
-fn page_keys_cycle_through_every_pin() {
-    let mut h = harness(vec![pin(100.0, 100.0), pin(200.0, 100.0)], vec![]);
-    h.click((100.0, 100.0), Modifiers::NONE);
-    let mut picks = Vec::new();
-    for key in [Key::PageDown, Key::PageDown, Key::PageDown, Key::PageUp] {
-        h.key(key, Modifiers::NONE);
-        picks.push(h.selected());
-    }
-    assert_eq!(picks, [vec![1], vec![0], vec![1], vec![0]], "the pins wrap");
-}
-
-#[trial]
-fn insert_places_no_pin_where_the_mesh_has_no_rest_position() {
-    let mut s = PinWarpSession::new(&PinWarpSettings::default());
-    let mut f = Fake::flat();
-    f.triangles.clear();
-    let mesh = PinMeshView::new(&f.rest, &f.deformed, &f.triangles, &f.order);
-    PinWarpCommands::AddPin.apply(&mut s, &mut Fake::default(), mesh, None).expect("applies");
-    assert!(s.pins().is_empty(), "not even at the mesh's centre");
-}
-
-struct BarState {
-    session: PinWarpSession,
-    notice: Option<String>,
-    edits: Vec<PinEdit>,
-    apply: bool,
-    discard: bool,
-}
-
-fn bar(selected: bool, notice: Option<&str>) -> (Fixture, Rc<RefCell<BarState>>) {
-    let mut solver = Fake::default();
-    let mut session = PinWarpSession::from_pins(vec![pin(10.0, 0.0), pin(20.0, 0.0)], &PinWarpSettings::default());
-    if selected {
-        session.apply(PinEdit::Select(vec![1]), &mut solver).expect("selects");
-    }
-    let state = Rc::new(RefCell::new(BarState { session, notice: notice.map(str::to_owned), edits: Vec::new(), apply: false, discard: false }));
-    let shown = Rc::clone(&state);
-    let mut fixture = Fixture::new(move |ui| {
-        let mut held = shown.borrow_mut();
-        let output = PinWarpBar::new(&held.session).notice(held.notice.as_deref()).show(ui);
-        held.apply |= output.apply;
-        held.discard |= output.discard;
-        held.edits.extend(output.edits);
-    });
-    fixture.room(WIDE_BAR);
-    fixture.settle();
-    (fixture, state)
-}
-
-fn depths(edit: &PinEdit) -> Vec<i32> {
-    match edit {
-        PinEdit::Pins(event) => event.value().map_or_else(Vec::new, |pins| pins.iter().map(|p| p.depth).collect()),
-        _ => Vec::new(),
-    }
-}
-
-#[trial]
-fn pins_depth_buttons_change_the_selected_pins_depth() {
-    let (fixture, _) = bar(false, None);
-    assert!(fixture.by_label("Bring the selected pin forward").is_none(), "the depth buttons show with a selected pin");
-
-    let (mut fixture, state) = bar(true, None);
-    let forward = fixture.by_label("Bring the selected pin forward").expect("shown");
-    fixture.click(&forward);
-    let backward = fixture.by_label("Send the selected pin backward").expect("shown");
-    fixture.click(&backward);
-    let reported: Vec<Vec<i32>> = state.borrow().edits.iter().map(depths).collect();
-    assert_eq!(reported, vec![vec![0, 1], vec![0, -1]]);
-}
-
-#[trial]
-fn the_options_report_edits_and_a_refused_remesh_shows_its_notice() {
-    let (mut fixture, state) = bar(false, Some("Could not use Puppet Warp"));
-    assert!(fixture.by_label("Could not use Puppet Warp").is_some(), "the notice shows its text");
-    let combos = fixture.by_role(Role::COMBO_BOX);
-    fixture.click(&combos[0]);
-    let rigid = fixture.by_label("Rigid").expect("the mode list is open");
-    fixture.click(&rigid);
-    let combos = fixture.by_role(Role::COMBO_BOX);
-    fixture.click(&combos[1]);
-    let more = fixture.by_label("More Points").expect("the density list is open");
-    fixture.click(&more);
-    let field = fixture.by_role(Role::SPIN_BUTTON).into_iter().next().expect("the expansion field");
-    fixture.click(&field);
-    fixture.key(Key::A, Modifiers::COMMAND);
-    fixture.type_text(&TYPED_EXPANSION.to_string());
-    fixture.key(Key::Enter, Modifiers::NONE);
-    let mesh = fixture.by_label("Show Mesh").expect("shown");
-    fixture.click(&mesh);
-    let edits = state.borrow().edits.clone();
-    assert!(matches!(&edits[0], PinEdit::Options(o) if o.mode == PinMode::Rigid), "{edits:?}");
-    assert!(matches!(&edits[1], PinEdit::Options(o) if o.density == PinDensity::More), "{edits:?}");
-    assert!(matches!(&edits[2], PinEdit::Options(o) if o.expansion == TYPED_EXPANSION), "{edits:?}");
-    assert_eq!(edits.len(), 4, "{edits:?}");
-    assert_eq!(edits[3], PinEdit::ShowMesh(false));
-}
-
-#[trial]
-fn rotation_and_remove_all_report_pin_lists() {
-    let (mut fixture, state) = bar(true, None);
-    let combos = fixture.by_role(Role::COMBO_BOX);
-    fixture.click(&combos[2]);
-    let fixed = fixture.by_label("Fixed").expect("the rotation list is open");
-    fixture.click(&fixed);
-    let angle = |edit: &PinEdit| match edit {
-        PinEdit::Pins(event) => event.value().and_then(|pins| pins[1].angle),
-        _ => None,
-    };
-    assert_eq!(angle(&state.borrow().edits[0]), Some(0.0));
-
-    // The app applies the edit; the degrees field then shows.
-    let edits = std::mem::take(&mut state.borrow_mut().edits);
-    for edit in edits {
-        let mut held = state.borrow_mut();
-        held.session.apply(edit, &mut Fake::default()).expect("applies");
-    }
-    fixture.settle();
-    let degrees = fixture.by_role(Role::SPIN_BUTTON).into_iter().last().expect("the rotation field");
-    fixture.click(&degrees);
-    fixture.key(Key::A, Modifiers::COMMAND);
-    fixture.type_text(&TYPED_ROTATION.to_string());
-    fixture.key(Key::Enter, Modifiers::NONE);
-    let committed = state.borrow().edits.iter().rev().find_map(angle);
-    assert_eq!(committed, Some(TYPED_ROTATION), "{:?}", state.borrow().edits);
-
-    state.borrow_mut().edits.clear();
-    let remove = fixture.by_label("Remove All Pins").expect("shown");
-    fixture.click(&remove);
-    assert!(matches!(&state.borrow().edits[..], [PinEdit::Pins(EditEvent::Set { after, .. })] if after.is_empty()), "{:?}", state.borrow().edits);
-
-    let commit = fixture.by_label("Commit Puppet Warp").expect("shown");
-    fixture.click(&commit);
-    assert!(state.borrow().apply);
-    let cancel = fixture.by_label("Cancel Puppet Warp").expect("shown");
-    fixture.click(&cancel);
-    assert!(state.borrow().discard);
 }

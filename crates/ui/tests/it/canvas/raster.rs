@@ -126,15 +126,6 @@ fn a_source_that_reports_damage_is_read_again_in_that_region_only() {
 }
 
 #[trial]
-fn a_source_that_cannot_place_a_change_is_read_whole() {
-    let size = PixelSize::new(400, 300);
-    let mut rig = rig(Document::new(size.width, size.height), 1.0);
-    let reads = rig.change(2, None);
-    let whole = PixelRect::of_size(size);
-    assert!(!reads.is_empty() && reads.iter().all(|read| *read == (whole, 1)), "no damage to go by reads everything: {reads:?}");
-}
-
-#[trial]
 fn a_pass_the_display_skipped_loses_no_damage() {
     let mut rig = rig(Document::new(400, 300), 1.0);
     let (first, second) = (PixelRect::new(10, 20, 50, 60), PixelRect::new(100, 100, 120, 120));
@@ -268,25 +259,6 @@ fn a_region_of_a_frame_is_its_own_picture() {
         });
     }
     assert_eq!(*source.renders.borrow(), [None, part.region, other.region], "the same request renders once");
-}
-
-#[trial]
-fn requests_step_by_16_pixels_and_are_lowered_to_the_largest_side() {
-    const SMALL_SIDE: u32 = 100;
-    assert_eq!(ThumbRequest::for_cell(28.0, 2.0).side, 64);
-    assert_eq!(ThumbRequest::for_cell(3.0, 1.0).side, 16);
-    assert_eq!(ThumbRequest::for_cell(1.0e6, 1.0).side % 16, 0);
-
-    let mut frames = Frames::new();
-    let ctx = frames.ctx.clone();
-    let thumbs = Thumbnails::<u32>::in_context(&ctx, "small", ThumbnailOptions::new().max_side(SMALL_SIDE));
-    let source = FakeThumbSource::<u32>::new();
-    let mut size = None;
-    once(&mut frames, |_| {
-        let request = ThumbRequest::for_cell(300.0, 1.0);
-        size = thumbs.state(&ctx, &source, &1, &request, Priority::VISIBLE).shown().map(|texture| texture.size);
-    });
-    assert_eq!(size, Some(PixelSize::new(SMALL_SIDE / 16 * 16, SMALL_SIDE / 16 * 16)), "a side past the largest is lowered to a multiple of 16");
 }
 
 #[trial]

@@ -2,13 +2,10 @@
 
 mod chart;
 mod conditions;
-mod error_tag;
 mod fields;
-mod filter;
 mod grid;
 mod outline;
 mod refpick;
-mod slicer;
 mod stats;
 
 use craft_table::ui::testing::registered;

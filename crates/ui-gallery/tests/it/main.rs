@@ -1,7 +1,6 @@
 //! The viewer's integration tests: one binary, run by `libtest-mimic` over the registered trials.
 
 mod mock;
-mod settings;
 mod theme;
 mod viewer;
 

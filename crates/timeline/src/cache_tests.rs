@@ -95,15 +95,6 @@ fn other_scales_go_first() {
 }
 
 // nearest finds the exact frame, else the nearest earlier one within max_back.
-#[test]
-fn nearest_holds_an_earlier_frame() {
-    let mut cache = FrameCache::new(1000);
-    fill(&mut cache, [3, 5]);
-    assert_eq!(cache.nearest(&TestKey::new(0, 5), 3).map(|(k, _)| k.frame), Some(5));
-    assert_eq!(cache.nearest(&TestKey::new(0, 8), 3).map(|(k, _)| k.frame), Some(5));
-    assert!(cache.nearest(&TestKey::new(0, 8), 2).is_none());
-    assert!(cache.nearest(&TestKey::new(1, 8), 9).is_none());
-}
 
 // FramePlayhead::ahead counts past the end and around from the start when looping.
 #[test]

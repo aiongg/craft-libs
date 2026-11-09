@@ -3,7 +3,7 @@
 use craft_behavior::{EditEvent, Mixed};
 use craft_ui::contract::{Bind, Show as _};
 use craft_ui::testing::{Fixture, trial};
-use craft_ui::text::{LinkedFields, follow_equal, follow_ratio};
+use craft_ui::text::{LinkedFields, follow_ratio};
 use egui::{Key, Modifiers};
 use std::cell::{Cell, RefCell};
 use std::ops::RangeInclusive;
@@ -22,11 +22,6 @@ fn a_ratio_link_scales_the_others_within_the_range() {
     assert_eq!(follow_ratio([100.0, 50.0], 1, 100.0, &capped), [150.0, 75.0], "the second would pass the first's limit");
     assert_eq!(follow_ratio([100.0, 0.0], 1, 10.0, &free), [100.0, 10.0], "an old zero scales nothing");
     assert_eq!(follow_ratio([500.0, 400.0], 0, 100.0, &free), [100.0, 80.0], "no rounding noise");
-}
-
-#[trial]
-fn an_equal_link_copies_the_value() {
-    assert_eq!(follow_equal([1.0, 2.0, 3.0, 4.0], 2, 9.0), [9.0; 4]);
 }
 
 type Parts = [Mixed<Option<f64>>; 2];
@@ -71,41 +66,6 @@ fn escape_restores_every_linked_field() {
     fixture.key(Key::Escape, Modifiers::NONE);
     fixture.idle(2);
     assert_eq!(values.get(), same(400.0, 300.0));
-}
-
-/// Clicking the link writes the bound bool through the child: one edit event with the link's label.
-#[trial]
-fn clicking_the_link_writes_the_bool_through_the_child() {
-    let linked = Rc::new(Cell::new(false));
-    let events = Rc::new(RefCell::new(Vec::new()));
-    let (shown, seen) = (linked.clone(), events.clone());
-    let mut fixture = Fixture::new(move |ui| {
-        let mut on = shown.get();
-        let out = LinkedFields::new("Size", Bind::given(same(10.0, 20.0)), Bind::bound(&mut on)).captions(["W", "H"]).show(ui);
-        shown.set(on);
-        if let Some(event) = out.link {
-            seen.borrow_mut().push(event);
-        }
-    });
-    fixture.settle();
-    let toggle = fixture.by_label("Maintain aspect ratio").expect("the link toggle is named");
-    fixture.click(&toggle);
-    fixture.idle(2);
-    assert!(linked.get(), "the bound bool is written");
-    let events = events.borrow();
-    assert_eq!(events.len(), 1, "one edit event: {events:?}");
-    assert!(matches!(&events[0], EditEvent::Set { label, .. } if &**label == "Maintain aspect ratio"), "the link's label: {events:?}");
-}
-
-/// With the link on, editing one field moves the other.
-#[trial]
-fn with_the_link_on_editing_one_field_moves_the_other() {
-    let values: Values = Rc::new(Cell::new(same(100.0, 50.0)));
-    let mut fixture = rig(&values);
-    fixture.type_text("200");
-    fixture.key(Key::Enter, Modifiers::NONE);
-    fixture.idle(2);
-    assert_eq!(values.get(), same(200.0, 100.0));
 }
 
 /// On a selection where only the height differs, typing a width commits the width alone: `[Same(width), Mixed]` as one

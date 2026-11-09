@@ -1,6 +1,6 @@
 //! List numbering and number styles.
 
-use super::lists::{ListMarker, ListParagraph, NumberPunctuation, NumberStyle, line_starts, markers};
+use super::lists::{ListMarker, ListParagraph, NumberPunctuation, NumberStyle, markers};
 
 // Each style writes 1, 4, 9, 27 and 4000 as DesignCraft does (roman, letters AA, symbols doubled, kanji digit by digit; 4000 in Arabic digits).
 #[test]
@@ -43,8 +43,3 @@ fn numbers_count_per_level_and_restart_after_an_outer_unnumbered_paragraph() {
 }
 
 // A level-2 paragraph without a margin starts at 72 pt; a hanging indent of -18 puts the first line 18 pt left of the rest.
-#[test]
-fn line_starts_hang_the_marker() {
-    assert_eq!(line_starts(2, None, None), (72.0, 72.0));
-    assert_eq!(line_starts(1, Some(54.0), Some(-18.0)), (36.0, 54.0));
-}

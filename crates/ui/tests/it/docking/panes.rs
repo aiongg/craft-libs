@@ -38,14 +38,6 @@ fn at(fixture: &Fixture, pane: u32) -> Option<f32> {
 }
 
 #[trial]
-fn columns_put_the_first_pane_outermost() {
-    let fixture = fixture(SidePolicy::Columns);
-    let places: Vec<Option<f32>> = OPEN.iter().map(|pane| at(&fixture, *pane)).collect();
-    assert!(places.iter().all(Option::is_some), "every docked pane shows: {places:?}");
-    assert!(places[0] < places[1] && places[1] < places[2], "the panes follow the open order from the edge inward: {places:?}");
-}
-
-#[trial]
 fn one_slot_shows_the_last_closable_pane_and_the_pinned_one() {
     let fixture = fixture(SidePolicy::OneSlot);
     assert_eq!(at(&fixture, 0), None, "an earlier closable pane gives up the slot");

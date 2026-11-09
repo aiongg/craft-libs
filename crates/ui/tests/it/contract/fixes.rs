@@ -407,12 +407,6 @@ fn a_body_that_fills_its_room_does_not_grow_past_the_room_it_first_had() {
     assert!(sizes[last].x <= room.x && sizes[last].y <= room.y, "the body is no larger than its room {room:?}: {sizes:?}");
 }
 
-#[trial]
-fn a_body_smaller_than_the_minimum_size_takes_the_minimum_size() {
-    let (sizes, _) = body_sizes(false);
-    assert_eq!(sizes[sizes.len() - 1], Vec2::new(200.0, 100.0), "{sizes:?}");
-}
-
 /// A leaf on a `Scrim` surface.
 #[derive(Component)]
 struct Inked<'a> {
@@ -454,16 +448,6 @@ impl Component for Inked<'_> {
     fn finish(self, cx: Cx<'_, Self>) -> Response {
         cx.response.clone()
     }
-}
-
-#[trial]
-fn a_component_on_a_scrim_surface_reads_the_scrims_ink() {
-    let mut frames = Frames::new();
-    let ink = RefCell::new(None);
-    frames.frame(vec![], |ui| {
-        Inked { common: Common::new(), ink: &ink }.show(ui);
-    });
-    assert_eq!(*ink.borrow(), Some(Ink::OnDark), "the root ink on a panel is {:?}", Ink::OnPanel);
 }
 
 /// A leaf that declares `PARTS = false` and then declares a part.

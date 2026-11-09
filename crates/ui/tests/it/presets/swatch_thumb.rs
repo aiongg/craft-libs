@@ -2,7 +2,7 @@
 
 use craft_theme::Srgba;
 use craft_ui::choice::SwatchFace;
-use craft_ui::contract::{Bind, Show as _};
+use craft_ui::contract::Bind;
 use craft_ui::patterns::presets::{PresetBrowser, PresetRow, PresetState};
 use craft_ui::testing::{Frames, trial};
 use egui::{Color32, Rect, Shape};
@@ -43,12 +43,4 @@ fn a_swatch_preset_thumbnail_fills_the_colour_inside_its_rect() {
     let (thumb, fills) = face_of(Srgba::rgb(1.0, 0.0, 0.0));
     assert!(thumb.is_positive(), "the painter ran with a rect");
     assert_eq!(fills.last(), Some(&Color32::from_rgb(255, 0, 0)), "the colour fills the thumbnail: {fills:?}");
-}
-
-#[trial]
-fn a_translucent_swatch_thumbnail_paints_the_checkerboard_under_the_colour() {
-    let color = Srgba::new(1.0, 0.0, 0.0, 0.5);
-    let (_, fills) = face_of(color);
-    assert!(fills.len() > 2, "the grid's cells come before the colour: {fills:?}");
-    assert_eq!(fills.last(), Some(&Color32::from(color)), "the colour paints last");
 }

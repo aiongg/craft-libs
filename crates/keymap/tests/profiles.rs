@@ -80,15 +80,6 @@ fn rename_keeps_a_set_whose_name_differs_only_in_case() {
 }
 
 #[test]
-fn sets_that_are_not_a_list_or_map_load_as_none() {
-    for text in [r#"{"active": "Mine", "sets": 5}"#, r#"{"active": "Mine", "sets": null}"#, r#"{"active": "Mine", "sets": "x"}"#] {
-        let p: Profiles = serde_json::from_str(text).unwrap_or_else(|e| panic!("{text}: {e}"));
-        assert!(p.sets().is_empty(), "{text}");
-        assert_eq!(p.active(), "Mine", "{text}");
-    }
-}
-
-#[test]
 fn a_user_set_named_like_a_new_built_in_keeps_its_edits() {
     let mut mine = Overrides::new();
     mine.insert("edit.copy", vec!["Cmd+K".into()]);

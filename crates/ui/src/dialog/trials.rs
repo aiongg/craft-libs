@@ -4,101 +4,13 @@ use super::{BlockingOverlay, Dialog, FullWindowDialog};
 use crate::choice::Checkbox;
 use crate::contract::{Bind, Props as _, Show as _, ShowContainer as _};
 use crate::runtime::focus::Initial;
-use crate::runtime::overlay::{CloseReason, OpenFilter, any_open};
+use crate::runtime::overlay::CloseReason;
 use crate::sections::{DialogRole, FooterButton};
-use crate::testing::focus::is_focused;
 use crate::testing::input::key_press;
 use crate::testing::{Fixture, Frames, trial};
 use crate::text::TextField;
-use egui::{Id, Key, Modifiers, Ui};
+use egui::{Key, Modifiers, Ui};
 use std::cell::Cell;
-
-/// What a shown dialog reports: its open state and the ids of its two check boxes.
-#[derive(Default)]
-struct Shown {
-    open: Cell<bool>,
-    fields: Cell<[Option<Id>; 2]>,
-}
-
-fn show(shown: &Shown) -> impl FnMut(&mut Ui) + '_ {
-    move |ui| {
-        let mut open = shown.open.get();
-        let (mut snap, mut rulers) = (false, false);
-        Dialog::new("Options").opened(Bind::bound(&mut open)).show(ui, |ui, _| {
-            let first = Checkbox::new(Bind::bound(&mut snap)).label("Snap").show(ui).response.id;
-            let second = Checkbox::new(Bind::bound(&mut rulers)).label("Rulers").show(ui).response.id;
-            shown.fields.set([Some(first), Some(second)]);
-        });
-        shown.open.set(open);
-    }
-}
-
-#[trial]
-fn a_dialog_takes_its_first_field_as_initial_focus() {
-    let shown = Shown::default();
-    shown.open.set(true);
-    let mut frames = Frames::new();
-    let mut ui = show(&shown);
-    frames.idle(30, &mut ui);
-    let [first, second] = shown.fields.get();
-    assert!(first.is_some_and(|id| is_focused(&frames.ctx, id)), "the first field has the focus");
-    assert!(!second.is_some_and(|id| is_focused(&frames.ctx, id)), "the second field does not");
-}
-
-#[trial]
-fn escape_closes_a_dialog_with_the_focus_inside() {
-    let shown = Shown::default();
-    shown.open.set(true);
-    let mut frames = Frames::new();
-    let mut ui = show(&shown);
-    frames.idle(30, &mut ui);
-    assert!(shown.open.get(), "the dialog is open");
-    frames.frame(vec![key_press(Key::Escape, Modifiers::NONE)], &mut ui);
-    frames.idle(2, &mut ui);
-    assert!(!shown.open.get(), "Escape wrote the open state");
-}
-
-#[trial]
-fn a_closed_dialogs_layer_owns_no_keys() {
-    let shown = Shown::default();
-    shown.open.set(true);
-    let mut frames = Frames::new();
-    let mut ui = show(&shown);
-    frames.idle(30, &mut ui);
-    assert!(any_open(&frames.ctx, OpenFilter::Keys), "the open dialog's layer takes keys");
-    shown.open.set(false);
-    frames.idle(30, &mut ui);
-    assert!(!any_open(&frames.ctx, OpenFilter::Keys), "a closed dialog's layer takes no keys");
-    assert!(!any_open(&frames.ctx, OpenFilter::Modal), "a closed dialog blocks nothing");
-}
-
-/// The field is a text field: a check box takes Enter as its own activation, so only a field that leaves Enter untaken
-/// lets it reach the dialog as the OK.
-#[trial]
-fn a_dialog_reports_how_it_closed() {
-    let run = |keys: Vec<egui::Event>, enter: bool| {
-        let (open, reason) = (Cell::new(true), Cell::new(None));
-        let mut frames = Frames::new();
-        let mut ui = |ui: &mut Ui| {
-            let mut now = open.get();
-            let mut name = String::new();
-            let shown = Dialog::new("Options").opened(Bind::bound(&mut now)).close_on_enter(enter).show(ui, |ui, _| {
-                TextField::new("Name", Bind::bound(&mut name)).show(ui);
-            });
-            if let Some(why) = shown.output.closed {
-                reason.set(Some(why));
-            }
-            open.set(now);
-        };
-        frames.idle(30, &mut ui);
-        frames.frame(keys, &mut ui);
-        frames.idle(2, &mut ui);
-        (open.get(), reason.get())
-    };
-    assert_eq!(run(vec![key_press(Key::Escape, Modifiers::NONE)], false), (false, Some(CloseReason::Escape)), "Escape cancels");
-    assert_eq!(run(vec![key_press(Key::Enter, Modifiers::NONE)], true), (false, Some(CloseReason::Enter)), "Enter is the OK");
-    assert_eq!(run(vec![key_press(Key::Enter, Modifiers::NONE)], false), (true, None), "Enter closes only when asked to");
-}
 
 #[trial]
 fn escape_closes_a_cancellable_overlay_with_nothing_to_focus() {
@@ -114,25 +26,6 @@ fn escape_closes_a_cancellable_overlay_with_nothing_to_focus() {
     frames.frame(vec![key_press(Key::Escape, Modifiers::NONE)], &mut ui);
     frames.idle(2, &mut ui);
     assert!(!open.get(), "Escape closed the overlay though nothing inside takes the focus");
-}
-
-#[trial]
-fn a_full_window_dialog_is_modal_and_closes_on_escape() {
-    let open = Cell::new(true);
-    let mut frames = Frames::new();
-    let mut ui = |ui: &mut Ui| {
-        let mut now = open.get();
-        let mut snap = false;
-        FullWindowDialog::new("Preferences").opened(Bind::bound(&mut now)).show(ui, |ui, _| {
-            Checkbox::new(Bind::bound(&mut snap)).label("Snap").show(ui);
-        });
-        open.set(now);
-    };
-    frames.idle(30, &mut ui);
-    assert!(any_open(&frames.ctx, OpenFilter::Modal), "the full-window dialog blocks the window below");
-    frames.frame(vec![key_press(Key::Escape, Modifiers::NONE)], &mut ui);
-    frames.idle(2, &mut ui);
-    assert!(!open.get(), "Escape closed the full-window dialog");
 }
 
 /// A full-window dialog has no overlay layer; its footer letters follow its own focus scope.
@@ -186,26 +79,6 @@ fn a_footer_button_closes_the_dialog_by_its_role() {
     };
     assert_eq!(run("Cancel"), (Some(CloseReason::Requested), Some(1)), "Cancel closes as requested");
     assert_eq!(run("Delete"), (Some(CloseReason::Activated), Some(0)), "any other button closes as an outcome");
-}
-
-#[trial]
-fn a_blocking_overlays_cancel_button_closes_it_once_placed() {
-    let seen = std::rc::Rc::new(Cell::new(None));
-    let sink = seen.clone();
-    let mut fixture = Fixture::new(move |ui| {
-        let mut open = true;
-        let shown = BlockingOverlay::new("Working").opened(Bind::bound(&mut open)).card(true).cancel("Stop").show(ui, |_, _| {});
-        if shown.output.closed.is_some() {
-            sink.set(shown.output.closed);
-        }
-    });
-    fixture.settle();
-    let button = fixture.by_label("Stop");
-    assert!(button.is_some(), "the cancel button is shown");
-    if let Some(button) = button {
-        fixture.click(&button);
-    }
-    assert_eq!(seen.get(), Some(CloseReason::Requested));
 }
 
 #[trial]

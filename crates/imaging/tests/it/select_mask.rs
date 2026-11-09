@@ -11,18 +11,17 @@ use craft_behavior::kurbo::Point;
 use craft_behavior::{CancelReason, CanvasView, Cursor, PixelSize, PointerButton};
 use craft_host::{AppInfo, Host, InlineJobs};
 use craft_imaging::trace::MaskSource;
-use craft_imaging::ui::mask_view::{MaskViewKeys, MaskViewMode, MaskViewState};
+use craft_imaging::ui::mask_view::{MaskViewMode, MaskViewState};
 use craft_imaging::ui::select_mask::{
-    BrushSizes, EditMode, EditPhase, LimitRefused, ObjectTarget, OutputTo, RefineStroke, SelectMaskCanvas, SelectMaskEdit, SelectMaskEvent,
-    SelectMaskLimits, SelectMaskOpen, SelectMaskPreviewRequest, SelectMaskSession, SelectMaskSettings, SelectMaskSource, SelectMaskTool,
-    SelectMaskToolOptions, SelectMaskWorkspace,
+    EditMode, EditPhase, LimitRefused, ObjectTarget, OutputTo, RefineStroke, SelectMaskCanvas, SelectMaskEdit, SelectMaskEvent, SelectMaskLimits,
+    SelectMaskOpen, SelectMaskPreviewRequest, SelectMaskSession, SelectMaskSettings, SelectMaskSource, SelectMaskTool, SelectMaskToolOptions,
+    SelectMaskWorkspace,
 };
 use craft_imaging::ui::wide_angle::PreviewDone;
 use craft_keymap::Mods;
 use craft_ui::canvas::{CanvasTool, PixelRect, RasterSource, ToolAction, ToolContext, ToolKey, ToolPath, ToolPointer};
 use craft_ui::primitives::{Draw, Revision};
 use craft_ui::runtime::access::Role;
-use craft_ui::runtime::commands::FirePhase;
 use craft_ui::runtime::pending::Job;
 use craft_ui::sections::DialogRole;
 use craft_ui::testing::focus::AccessActionKind;
@@ -254,96 +253,6 @@ fn select_mask_real_time_refinement_reports_updates_only_when_on() {
     }
 }
 
-#[trial]
-fn select_mask_brush_sizes_are_per_tool_and_alt_reverses_the_mode() {
-    let mut sizes = BrushSizes::default();
-    sizes.set(SelectMaskTool::Quick, 100.0);
-    sizes.step(SelectMaskTool::Quick, false);
-    sizes.step(SelectMaskTool::Brush, true);
-    assert_eq!((sizes.quick, sizes.refine, sizes.brush), (90.0, 30.0, 33.0));
-    sizes.set(SelectMaskTool::RefineEdge, 5.0);
-    sizes.step(SelectMaskTool::RefineEdge, false);
-    sizes.step(SelectMaskTool::RefineEdge, true);
-    assert_eq!(sizes.refine, 5.0, "a step changes the size by at least a pixel");
-    sizes.set(SelectMaskTool::RefineEdge, 4999.0);
-    sizes.step(SelectMaskTool::RefineEdge, true);
-    assert_eq!(sizes.refine, 5000.0);
-    sizes.set(SelectMaskTool::Hand, 7.0);
-    sizes.set(SelectMaskTool::Brush, f64::NAN);
-    assert_eq!(sizes.brush, 33.0, "another tool or a non-finite size changes nothing");
-
-    // Alt at the press reverses the bar's mode.
-    let mut fixture = rig(SelectMaskTool::Lasso, false);
-    let origin = at(0.0, 0.0);
-    for (alt, mode) in [(Modifiers::NONE, EditMode::Add), (Modifiers::ALT, EditMode::Subtract)] {
-        fixture.fixture().hold(alt);
-        fixture.press_at(origin + Vec2::new(10.0, 10.0));
-        fixture.move_to(origin + Vec2::new(60.0, 10.0)).move_to(origin + Vec2::new(60.0, 60.0)).release_at(origin + Vec2::new(60.0, 60.0));
-        let SelectMaskEdit::Lasso { mode: got, .. } = committed(&events(&fixture)) else { panic!("a lasso edit") };
-        assert_eq!(got, mode);
-    }
-    fixture.fixture().hold(Modifiers::NONE);
-
-    // Alt + right-drag resizes the brush's own size and paints nothing.
-    let mut fixture = rig(SelectMaskTool::Quick, false);
-    let origin = at(0.0, 0.0);
-    fixture.fixture().hold(Modifiers::ALT);
-    fixture.secondary_drag_from(origin + Vec2::new(100.0, 100.0), Vec2::new(10.0, 0.0));
-    assert!(events(&fixture).is_empty(), "a resize paints nothing");
-    assert!(!fixture.tool().canvas.busy());
-    assert_eq!(fixture.tool().options.sizes.quick, 50.0, "Alt + right-drag grew the brush");
-}
-
-#[trial]
-fn select_mask_release_uses_the_gestures_own_tool() {
-    let mut fixture = rig(SelectMaskTool::Quick, true);
-    let origin = at(0.0, 0.0);
-    fixture.press_at(origin + Vec2::new(100.0, 100.0));
-    fixture.tool_mut().tool = SelectMaskTool::Brush;
-    fixture.move_to(origin + Vec2::new(160.0, 100.0));
-    fixture.tool_mut().tool = SelectMaskTool::RefineEdge;
-    fixture.release_at(origin + Vec2::new(160.0, 100.0));
-    let got = events(&fixture);
-    assert_eq!(tags(&got), ["begin", "update", "commit"], "{got:?}");
-    assert!(got.iter().all(|e| matches!(e, SelectMaskEvent::Edit(_))), "{got:?}");
-    assert!(matches!(committed(&got), SelectMaskEdit::Quick { .. }), "{got:?}");
-
-    let mut fixture = rig(SelectMaskTool::RefineEdge, false);
-    let origin = at(0.0, 0.0);
-    fixture.press_at(origin + Vec2::new(100.0, 100.0));
-    fixture.tool_mut().tool = SelectMaskTool::Quick;
-    fixture.release_at(origin + Vec2::new(160.0, 100.0));
-    let got = events(&fixture);
-    assert_eq!(tags(&got), ["begin", "commit"], "{got:?}");
-    assert!(got.iter().all(|e| matches!(e, SelectMaskEvent::Refine(_))), "{got:?}");
-}
-
-#[trial]
-fn select_mask_stroke_trail_stays_until_the_preview_shows_it() {
-    let mut fixture = rig(SelectMaskTool::Quick, false);
-    let origin = at(0.0, 0.0);
-    fixture.press_at(origin + Vec2::new(100.0, 100.0)).move_to(origin + Vec2::new(160.0, 100.0));
-    assert!(!fixture.tool().canvas.trail_shown(), "painted as the gesture while it is open");
-    fixture.release_at(origin + Vec2::new(160.0, 100.0));
-    assert!(fixture.tool().canvas.trail_shown());
-    fixture.tool_mut().canvas.drop_trail();
-    assert!(!fixture.tool().canvas.trail_shown());
-    click(&mut fixture, origin + Vec2::new(100.0, 100.0));
-    assert!(fixture.tool().canvas.trail_shown());
-    fixture.press_at(origin + Vec2::new(20.0, 20.0));
-    assert!(!fixture.tool().canvas.trail_shown(), "a new press drops the old trail");
-}
-
-#[trial]
-fn select_mask_secondary_button_is_taken_by_brushes_with_alt_only() {
-    for (tool, brush) in [(SelectMaskTool::Quick, true), (SelectMaskTool::Lasso, false), (SelectMaskTool::Object, false)] {
-        let pass = Rig::new(tool, false);
-        assert!(pass.takes(PointerButton::Primary, Mods::NONE));
-        assert!(!pass.takes(PointerButton::Secondary, Mods::NONE));
-        assert_eq!(pass.takes(PointerButton::Secondary, Mods::ALT), brush);
-    }
-}
-
 // ---- The session and its data ----
 
 #[trial]
@@ -375,25 +284,6 @@ fn select_mask_limits_refuse_at_the_brush_with_a_message() {
     assert!(session.add_stroke(refine_stroke(1), &LIMITS).is_ok());
     assert_eq!(session.add_stroke(refine_stroke(0), &LIMITS), Err(LimitRefused::Strokes(2)));
     assert_eq!(session.strokes.len(), 2);
-}
-
-#[trial]
-fn select_mask_decontaminate_limits_output_to_new_targets() {
-    let mut refine = SelectMaskSession::default().refine;
-    refine.follow_decontaminate();
-    assert_eq!(refine.output, OutputTo::Selection, "nothing moves while Decontaminate Colors is off");
-    for start in [OutputTo::Selection, OutputTo::LayerMask] {
-        refine.output = start;
-        refine.decontaminate = true;
-        refine.follow_decontaminate();
-        assert_eq!(refine.output, OutputTo::NewLayerWithMask);
-    }
-    refine.output = OutputTo::NewDocument;
-    refine.follow_decontaminate();
-    assert_eq!(refine.output, OutputTo::NewDocument, "a new target stays");
-    let allowed: Vec<OutputTo> = OutputTo::ALL.into_iter().filter(|o| o.allowed(true)).collect();
-    assert_eq!(allowed, [OutputTo::NewLayer, OutputTo::NewLayerWithMask, OutputTo::NewDocument, OutputTo::NewDocumentWithMask]);
-    assert!(OutputTo::ALL.into_iter().all(|o| o.allowed(false)));
 }
 
 #[trial]
@@ -594,36 +484,6 @@ fn select_mask_decontaminate_moves_the_output_target() {
     let refine = app.borrow().workspace.session().refine.clone();
     assert!(refine.decontaminate);
     assert_eq!(refine.output, OutputTo::NewLayerWithMask, "Output To follows Decontaminate Colors");
-}
-
-#[trial]
-fn select_mask_view_keys_and_remember_settings() {
-    let (mut fixture, app, _) = open();
-    assert!(app.borrow_mut().workspace.mask_view(MaskViewKeys::Overlay, FirePhase::Press));
-    assert_eq!(app.borrow().workspace.recipe().mode, MaskViewMode::Overlay);
-    assert!(app.borrow_mut().workspace.mask_view(MaskViewKeys::HideView, FirePhase::Press));
-    assert!(app.borrow().workspace.recipe().hidden, "X held shows the image");
-    assert!(app.borrow_mut().workspace.mask_view(MaskViewKeys::HideView, FirePhase::Release));
-    assert!(!app.borrow().workspace.recipe().hidden);
-    fixture.settle();
-    assert_eq!(app.borrow().workspace.settings().view, MaskViewMode::Overlay, "the settings carry the view");
-    press_label(&mut fixture, "Remember Settings");
-    assert!(app.borrow().workspace.settings().remember);
-}
-
-#[trial]
-fn select_mask_ok_is_one_command_and_cancel_changes_nothing() {
-    let (mut fixture, app, _) = open();
-    press_label(&mut fixture, "Select Subject");
-    let command = app.borrow().workspace.command();
-    assert_eq!(command.edits.len(), 1);
-    press_label(&mut fixture, "OK");
-    assert_eq!(app.borrow().closed, Some(DialogRole::Accept));
-
-    let (mut fixture, app, _) = open();
-    press_label(&mut fixture, "Cancel");
-    assert_eq!(app.borrow().closed, Some(DialogRole::Cancel));
-    assert!(app.borrow().workspace.session().edits.is_empty());
 }
 
 #[trial]

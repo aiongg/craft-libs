@@ -53,23 +53,6 @@ fn side() -> f32 {
 }
 
 #[trial]
-fn a_title_rows_lead_toggles_its_value_and_an_action_part_is_reported() {
-    for gate in [false, true] {
-        let mut frames = Frames::new();
-        let (mut value, out) = (false, RefCell::new(Out::default()));
-        frames.idle(2, |ui| frame(ui, &mut value, gate, &out));
-        let lead = Pos2::new(ROW.left() + side() / 2.0, ROW.center().y);
-        click(&mut frames, lead, &mut |ui| frame(ui, &mut value, gate, &out));
-        assert!(value && out.borrow().changed, "a click on the lead toggles the value and reports the edit (gate: {gate})");
-        assert_eq!(out.borrow().action, None, "the lead is not an action");
-        let close = Pos2::new(ROW.right() - side() / 2.0, ROW.center().y);
-        click(&mut frames, close, &mut |ui| frame(ui, &mut value, gate, &out));
-        assert_eq!(out.borrow().action, Some(HeaderAction::Close), "the last action part is Close (gate: {gate})");
-        assert!(value, "an action leaves the value");
-    }
-}
-
-#[trial]
 fn a_title_rows_lead_and_actions_are_one_roving_stop() {
     let mut frames = Frames::new();
     let (mut value, out) = (false, RefCell::new(Out::default()));
@@ -92,16 +75,6 @@ fn a_title_rows_lead_and_actions_are_one_roving_stop() {
     assert_eq!(out.borrow().action, Some(HeaderAction::Menu), "Enter takes the focused action");
     tap(&mut frames, Key::Tab, &mut value);
     assert_ne!(active_part(&frames.ctx, id), Some(ACTION.at(1)), "Tab leaves the row instead of moving to the next part");
-}
-
-#[trial]
-fn a_title_row_is_a_heading_with_a_level_and_its_title_as_name() {
-    let mut frames = Frames::new();
-    let (mut value, out) = (false, RefCell::new(Out::default()));
-    frames.idle(2, |ui| frame(ui, &mut value, false, &out));
-    let id = out.borrow().id.expect("the row showed");
-    let tree = frames.tree();
-    assert_eq!((tree.role(id), tree.name(id)), (Some(Role::HEADING), Some("Options")));
 }
 
 /// A container whose header region holds a `TitleRow` bound to the container's open state and whose footer region

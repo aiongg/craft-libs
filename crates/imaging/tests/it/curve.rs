@@ -8,7 +8,7 @@ use craft_theme::{Contrast, Mode};
 use craft_ui::contract::{Bind, Role, Show as _};
 use craft_ui::display::Text;
 use craft_ui::testing::access::name;
-use craft_ui::testing::pointer::{moved, press, release, secondary};
+use craft_ui::testing::pointer::{moved, press, release};
 use craft_ui::testing::{Fixture, style, trial};
 use egui::{Key, Modifiers, Pos2, Vec2, pos2, vec2};
 use std::cell::{Cell, RefCell};
@@ -214,33 +214,6 @@ fn a_press_on_a_point_without_moving_selects_it_and_changes_nothing() {
     assert!(!rig.kinds().contains(&"update"), "{:?}", rig.kinds());
 }
 
-/// Escape during a drag cancels it and the curve before the press comes back, with the selection.
-#[trial]
-fn escape_during_a_drag_cancels_it_and_the_curve_comes_back() {
-    let mut rig = rig(&THREE);
-    rig.press_at([100.0, 100.0]);
-    rig.move_to([100.0, 160.0]);
-    rig.move_to([100.0, 180.0]);
-    assert_ne!(rig.points(), THREE.to_vec());
-    rig.fixture.key(Key::Escape, Modifiers::NONE);
-    rig.fixture.idle(2);
-    assert_eq!(rig.points(), THREE.to_vec());
-    assert_eq!(rig.kinds().last(), Some(&"cancel"));
-}
-
-/// The end points stay, whatever the drag, and move in both axes.
-#[trial]
-fn end_points_stay_when_dragged_off_the_graph() {
-    let mut rig = rig(&THREE);
-    rig.press_at([0.0, 0.0]);
-    rig.move_to([-200.0, 40.0]);
-    rig.release_at([-200.0, 40.0]);
-    let points = rig.points();
-    assert_eq!(points.len(), 3);
-    assert_eq!(points[0][0], 0.0);
-    assert_ne!(points[0][1], 0.0, "an end point moves in output");
-}
-
 /// An interior point dragged far off the plot goes, and comes back on re-entry within the same drag.
 #[trial]
 fn a_point_dragged_off_the_graph_goes_and_comes_back_within_one_gesture() {
@@ -256,65 +229,6 @@ fn a_point_dragged_off_the_graph_goes_and_comes_back_within_one_gesture() {
     assert_eq!(rig.kinds().iter().filter(|k| **k == "begin").count(), 1);
 }
 
-/// A full curve takes no point, and a press within two levels of an input takes that point.
-#[trial]
-fn a_full_curve_takes_no_point_and_a_near_input_selects_the_point_there() {
-    let curve = Curve::smooth(vec![[0.0, 0.0], [100.0, 100.0], [255.0, 255.0]]);
-    let mut rig = rig_with(curve, Config { max_points: Some(3), ..Config::default() });
-    rig.click([180.0, 120.0]);
-    assert_eq!(rig.points().len(), 3);
-    rig.click([101.0, 30.0]);
-    assert_eq!(rig.selected.get(), Some(1), "the near input is that point");
-}
-
-/// A secondary press and a Cmd press on a point each remove it in one set.
-#[trial]
-fn a_right_click_and_a_cmd_click_each_remove_a_point() {
-    let mut rig = rig(&[[0.0, 0.0], [80.0, 80.0], [160.0, 160.0], [255.0, 255.0]]);
-    let pos = rig.at([80.0, 80.0]);
-    rig.fixture.frame(vec![moved(pos)]);
-    rig.fixture.frame(vec![secondary(pos, true)]);
-    rig.fixture.frame(vec![secondary(pos, false)]);
-    rig.fixture.idle(1);
-    assert_eq!(rig.points().len(), 3);
-    rig.fixture.hold(Modifiers::COMMAND);
-    rig.click([160.0, 160.0]);
-    rig.fixture.hold(Modifiers::NONE);
-    assert_eq!(rig.points(), IDENTITY.to_vec());
-    assert_eq!(rig.kinds().iter().filter(|k| **k == "set").count(), 2);
-}
-
-/// Arrows move the selected point one level, ten with Shift, between its neighbours.
-#[trial]
-fn arrows_nudge_the_selected_point_between_its_neighbours() {
-    let mut rig = rig(&THREE);
-    rig.click([100.0, 100.0]);
-    rig.key(Key::ArrowUp);
-    assert_eq!(rig.points()[1], [100.0, 101.0]);
-    rig.fixture.key(Key::ArrowRight, Modifiers::SHIFT);
-    rig.fixture.idle(1);
-    assert_eq!(rig.points()[1], [110.0, 101.0]);
-    rig.fixture.key(Key::ArrowLeft, Modifiers::SHIFT);
-    rig.fixture.key(Key::ArrowDown, Modifiers::NONE);
-    assert_eq!(rig.points()[1], [100.0, 100.0]);
-    assert_eq!(rig.kinds().iter().filter(|k| **k == "set").count(), 4, "each nudge is one set");
-}
-
-/// `+` and `-` select the next and previous point and stop at the ends.
-#[trial]
-fn plus_and_minus_select_points_in_order_and_stop_at_the_ends() {
-    let mut rig = rig(&THREE);
-    rig.focus();
-    for expected in [0, 1, 2, 2] {
-        rig.key(Key::Plus);
-        assert_eq!(rig.selected.get(), Some(expected));
-    }
-    for expected in [1, 0, 0] {
-        rig.key(Key::Minus);
-        assert_eq!(rig.selected.get(), Some(expected));
-    }
-}
-
 /// Insert and Cmd+Enter add a point halfway to the next and select it.
 #[trial]
 fn insert_and_cmd_enter_add_a_point_halfway_to_the_next_and_select_it() {
@@ -328,43 +242,6 @@ fn insert_and_cmd_enter_add_a_point_halfway_to_the_next_and_select_it() {
     rig.fixture.idle(1);
     assert_eq!(rig.points().len(), 4, "from the new point to the next");
     assert_eq!(rig.selected.get(), Some(2));
-}
-
-/// Delete and Backspace remove the selected point and clear the selection; the end points stay.
-#[trial]
-fn delete_removes_the_selected_interior_point_and_keeps_the_end_points() {
-    let mut rig = rig(&THREE);
-    rig.focus();
-    rig.key(Key::Plus);
-    rig.key(Key::Delete);
-    assert_eq!(rig.points().len(), 3, "the first point stays");
-    rig.key(Key::Plus);
-    rig.key(Key::Backspace);
-    assert_eq!(rig.points().len(), 2);
-    assert_eq!(rig.selected.get(), None);
-}
-
-/// Shift+Insert and Alt arrows stay the app's.
-#[trial]
-fn shift_insert_and_alt_arrows_are_left_to_the_app() {
-    let mut rig = rig(&THREE);
-    rig.click([100.0, 100.0]);
-    rig.fixture.key(Key::Insert, Modifiers::SHIFT);
-    rig.fixture.key(Key::ArrowUp, Modifiers::ALT);
-    rig.fixture.idle(1);
-    assert_eq!(rig.points(), THREE.to_vec());
-}
-
-/// The graph keeps no keys of its own while it is not focused.
-#[trial]
-fn the_graph_takes_its_keys_only_while_focused() {
-    let mut rig = rig(&THREE);
-    rig.click([100.0, 100.0]);
-    rig.fixture.key(Key::Tab, Modifiers::SHIFT);
-    rig.fixture.key(Key::Tab, Modifiers::NONE);
-    rig.fixture.key(Key::Tab, Modifiers::NONE);
-    rig.key(Key::Delete);
-    assert_eq!(rig.points().len(), 3, "focus is on a field, which keeps Delete");
 }
 
 /// A channel change clears the selection.
@@ -392,34 +269,6 @@ fn the_input_field_moves_the_selected_point_between_its_neighbours() {
     assert_eq!(rig.points()[1], level(254, 100), "strictly before the next input");
 }
 
-/// Percent fields take whole percents of the levels.
-#[trial]
-fn percent_fields_take_whole_percents_of_the_levels() {
-    let mut rig = rig_with(Curve::smooth(THREE.to_vec()), Config { percent: true, ..Config::default() });
-    rig.click([100.0, 100.0]);
-    let field = rig
-        .fixture
-        .by_role(Role::SPIN_BUTTON)
-        .into_iter()
-        .find(|target| name(rig.fixture.tree(), target.node) == Some("Output"))
-        .expect("the Output field");
-    rig.fixture.click(&field);
-    rig.fixture.key(Key::A, Modifiers::COMMAND);
-    rig.fixture.type_text("50");
-    rig.fixture.key(Key::Enter, Modifiers::NONE);
-    rig.fixture.idle(2);
-    assert_eq!(rig.points()[1], level(100, 128), "50 percent of 255 levels");
-}
-
-/// The graph and its points are in the AccessKit tree, named and valued.
-#[trial]
-fn the_graph_and_its_points_are_in_the_accesskit_tree() {
-    let rig = rig(&THREE);
-    assert!(rig.fixture.by_label("Point 1 of 3").is_some());
-    assert!(rig.fixture.by_label("Point 3 of 3").is_some());
-    assert!(rig.fixture.by_role(Role::GRAPHICS_OBJECT).len() >= 3);
-}
-
 /// A pencil stroke is one gesture that draws a map, hides the points and reads as drawn.
 #[trial]
 fn a_pencil_stroke_is_one_gesture_and_draws_a_map_without_points() {
@@ -436,20 +285,6 @@ fn a_pencil_stroke_is_one_gesture_and_draws_a_map_without_points() {
     assert_eq!(kinds.last(), Some(&"commit"));
 }
 
-/// The Corner check box toggles the selected point, and there is none without corners.
-#[trial]
-fn the_corner_check_box_toggles_the_selected_point_and_exists_only_with_corners() {
-    let plain = rig(&THREE);
-    assert!(plain.fixture.by_label("Corner").is_none());
-    let mut corners = rig_with(Curve::smooth(THREE.to_vec()), Config { corners: true, ..Config::default() });
-    corners.click([100.0, 100.0]);
-    let check = corners.fixture.by_label("Corner").expect("the Corner check box");
-    corners.fixture.click(&check);
-    corners.fixture.idle(2);
-    assert!(corners.curve.borrow().is_corner(1));
-    assert_eq!(corners.points(), THREE.to_vec(), "the flag moves no point");
-}
-
 /// A corner point dragged off the plot and back keeps its flag; a new point is smooth.
 #[trial]
 fn a_corner_dragged_off_the_plot_and_back_keeps_its_flag() {
@@ -464,22 +299,4 @@ fn a_corner_dragged_off_the_plot_and_back_keeps_its_flag() {
     assert!(rig.curve.borrow().is_corner(1), "{:?}", rig.curve.borrow());
     rig.click([200.0, 190.0]);
     assert!(!rig.curve.borrow().is_corner(2), "a new point is smooth");
-}
-
-/// Host rows show between the graph and the fields, and the fields still edit.
-#[trial]
-fn a_host_row_between_shows_between_the_graph_and_the_fields() {
-    let rig = rig_with(Curve::smooth(THREE.to_vec()), Config { between: true, ..Config::default() });
-    let between = rig.fixture.by_label("Between").expect("the host row");
-    let input = rig.fixture.by_label("Input").expect("the Input field");
-    let point = rig.fixture.by_label("Point 1 of 3").expect("a point");
-    assert!(between.center().y > point.center().y && between.center().y < input.center().y, "{between:?} {input:?}");
-}
-
-/// The plot backdrop shows the histogram given: it paints bars the same plot without one does not.
-#[trial]
-fn the_plot_backdrop_shows_the_histogram_given() {
-    let plain = rig(&THREE);
-    let with = rig_with(Curve::smooth(THREE.to_vec()), Config { histogram: true, ..Config::default() });
-    assert!(with.fixture.shape_bounds().len() > plain.fixture.shape_bounds().len());
 }

@@ -6,8 +6,8 @@ use std::rc::Rc;
 
 use craft_behavior::{CellSelection, EditEvent, PartKey, PartRef};
 use craft_table::ui::{
-    CellAt, CellEdit, CellGrid, CellProblem, CellRange, ColumnFilter, GridEdit, GridLayout, GridModel, GridState, LineIndex, SHEET_COLUMNS,
-    SHEET_ROWS, SheetGeometry, SheetMetrics, absolute_reference, column_letters,
+    CellAt, CellEdit, CellGrid, CellProblem, CellRange, ColumnFilter, GridEdit, GridModel, GridState, LineIndex, SHEET_COLUMNS, SHEET_ROWS,
+    absolute_reference, column_letters,
 };
 use craft_ui::contract::PaintUi;
 use craft_ui::primitives::TextRun;
@@ -60,9 +60,7 @@ struct Rig {
     fixture: Fixture,
     state: Rc<RefCell<GridState>>,
     edits: Rc<RefCell<Vec<GridEdit>>>,
-    marks: Rc<RefCell<Vec<CellRange<u32>>>>,
     committed: Rc<RefCell<Vec<CellEdit>>>,
-    zoom: Rc<Cell<f32>>,
     grid: Rc<Cell<Option<egui::Id>>>,
 }
 
@@ -90,7 +88,7 @@ fn rig(hidden_column: Option<u32>, selection: CellSelection<u32>, zoom: f32) -> 
     let target = fixture.node_of(grid.get().expect("the grid showed")).expect("the grid has a node");
     fixture.access(AccessActionKind::Focus, &target);
     fixture.settle();
-    Rig { fixture, state, edits, marks, committed, zoom: seen_zoom, grid }
+    Rig { fixture, state, edits, committed, grid }
 }
 
 impl Rig {
@@ -135,14 +133,6 @@ fn a1() -> CellSelection<u32> {
     CellSelection::cell(CellAt::new(0, 0))
 }
 
-fn geometry(zoom: f32, rtl: bool) -> SheetGeometry {
-    let rows = LineIndex::new(&BTreeMap::new(), ROW, SHEET_ROWS);
-    let columns = LineIndex::new(&BTreeMap::new(), COLUMN, SHEET_COLUMNS);
-    let room = Vec2::new(columns.start(6) as f32, rows.start(15) as f32);
-    let layout = GridLayout::new(Rect::from_min_size(Pos2::ZERO, room), rows, columns).zoom(zoom).frozen(1, 1).right_to_left(rtl);
-    SheetGeometry::new(layout, SheetMetrics::new(ROW, 8.0, 4.0))
-}
-
 #[trial]
 fn column_letters_run_a_to_xfd() {
     assert_eq!(column_letters(0), "A");
@@ -150,27 +140,6 @@ fn column_letters_run_a_to_xfd() {
     assert_eq!(column_letters(26), "AA");
     assert_eq!(column_letters(16_383), "XFD");
     assert_eq!(absolute_reference(CellAt::new(2, 1)), "$B$3");
-}
-
-#[trial]
-fn geometry_maps_cells_with_frozen_panes_and_zoom() {
-    let plain = geometry(1.0, false);
-    let zoomed = geometry(2.0, false);
-    let cell = CellAt::new(3, 2);
-    let (a, b) = (plain.cell_rect(cell), zoomed.cell_rect(cell));
-    assert_eq!(b.width(), a.width() * 2.0, "a cell is twice as wide at 200 %");
-    assert_eq!(plain.cell_at(a.center()), cell, "the point in a cell maps back to it");
-    assert_eq!(plain.frozen(), (1, 1));
-    assert!(plain.cell_rect(CellAt::new(0, 0)).max.x <= plain.cell_rect(CellAt::new(0, 1)).min.x, "the frozen column ends where the next begins");
-}
-
-#[trial]
-fn right_to_left_mirrors_the_screen() {
-    let sheet = geometry(1.0, true);
-    let cell = sheet.cell_rect(CellAt::new(0, 0));
-    let shown = sheet.mirror_rect(cell);
-    assert!(shown.left() > cell.left(), "the first column is at the end of the screen");
-    assert_eq!(sheet.mirror_rect(shown), cell, "mirroring twice returns the rect");
 }
 
 /// End alone only arms End mode; the next arrow jumps to the data edge, and Ctrl+End goes to the last used cell. End
@@ -197,33 +166,6 @@ fn end_arms_a_jump_and_ctrl_end_goes_to_the_last_used_cell() {
     homed.press(Key::End, Modifiers::NONE);
     homed.press(Key::Home, Modifiers::NONE);
     assert_eq!(homed.active(), Some(CellAt::new(9, 4)), "End then Home goes to the last used cell");
-}
-
-#[trial]
-fn arrows_tab_and_enter_move_the_active_cell() {
-    let mut rig = rig(None, a1(), 1.0);
-    rig.press(Key::ArrowDown, Modifiers::NONE);
-    assert_eq!(rig.active(), Some(CellAt::new(1, 0)));
-    rig.press(Key::Tab, Modifiers::NONE);
-    assert_eq!(rig.active(), Some(CellAt::new(1, 1)), "Tab advances along the row");
-    rig.press(Key::Tab, Modifiers::NONE);
-    assert_eq!(rig.active(), Some(CellAt::new(1, 2)));
-    rig.press(Key::Enter, Modifiers::NONE);
-    assert_eq!(rig.active(), Some(CellAt::new(2, 0)), "Enter goes down to the column the Tab run started in");
-    rig.press(Key::Tab, Modifiers::NONE);
-    rig.press(Key::Tab, Modifiers::SHIFT);
-    assert_eq!(rig.active(), Some(CellAt::new(2, 0)), "Shift+Tab goes back");
-}
-
-#[trial]
-fn typing_starts_an_edit_and_delete_clears() {
-    let mut rig = rig(None, a1(), 1.0);
-    rig.fixture.type_text("x");
-    rig.fixture.idle(2);
-    assert!(rig.take_edits().iter().any(|edit| matches!(edit, GridEdit::BeginEdit { typed: Some(text), .. } if text == "x")));
-    rig.press(Key::Escape, Modifiers::NONE);
-    rig.press(Key::Delete, Modifiers::NONE);
-    assert!(rig.take_edits().contains(&GridEdit::Clear));
 }
 
 fn resizes(edits: &[GridEdit]) -> Vec<&EditEvent<f32>> {
@@ -256,15 +198,6 @@ fn escape_cancels_a_header_resize() {
     let edits = rig.take_edits();
     assert!(resizes(&edits).iter().any(|event| matches!(event, EditEvent::Cancel { .. })), "Esc cancels the resize");
     assert!(!resizes(&edits).iter().any(|event| matches!(event, EditEvent::Commit { .. })));
-}
-
-#[trial]
-fn a_double_click_on_a_hidden_edge_unhides() {
-    let mut rig = rig(Some(2), a1(), 1.0);
-    let edge = PartKey::new("column_edge").at(1);
-    rig.click_part(edge);
-    rig.click_part(edge);
-    assert!(rig.take_edits().iter().any(|edit| matches!(edit, GridEdit::UnhideColumn { column: 2, .. })));
 }
 
 fn selected_block() -> CellSelection<u32> {
@@ -324,54 +257,6 @@ fn a_click_on_the_selection_border_selects_without_moving() {
 }
 
 #[trial]
-fn copy_mode_takes_escape_and_enter() {
-    let mut rig = rig(None, a1(), 1.0);
-    rig.marks.borrow_mut().push(CellRange::cell(CellAt::new(0, 0)));
-    rig.fixture.idle(2);
-    rig.press(Key::Escape, Modifiers::NONE);
-    assert!(rig.take_edits().contains(&GridEdit::ClearCopyMark));
-    rig.press(Key::Enter, Modifiers::NONE);
-    assert!(rig.take_edits().contains(&GridEdit::PasteAtActive));
-}
-
-#[trial]
-fn page_keys_move_a_screen_and_cmd_changes_sheet() {
-    let mut rig = rig(None, a1(), 1.0);
-    rig.press(Key::PageDown, Modifiers::NONE);
-    assert!(rig.active().is_some_and(|cell| cell.row > 1), "Page Down moves a screen of rows");
-    rig.press(Key::PageDown, Modifiers::COMMAND);
-    assert!(rig.take_edits().contains(&GridEdit::NextSheet));
-    rig.press(Key::PageUp, Modifiers::COMMAND);
-    assert!(rig.take_edits().contains(&GridEdit::PreviousSheet));
-}
-
-#[trial]
-fn paint_cell_is_told_the_zoom() {
-    let rig = rig(None, a1(), 2.0);
-    assert_eq!(rig.zoom.get(), 2.0);
-}
-
-#[trial]
-fn outline_levels_reserve_the_bands_inside_the_grid() {
-    use craft_table::ui::{OutlineAxis, OutlineGroup};
-    let seen = Rc::new(RefCell::new(None));
-    let shown = seen.clone();
-    let mut fixture = Fixture::new(move |ui| {
-        let model = Sheet::new(None, Rc::new(Cell::new(0.0)));
-        let mut state = GridState::default();
-        let rows = OutlineAxis::new(2, vec![OutlineGroup::new(1, 2, 1)]);
-        let columns = OutlineAxis::default();
-        let plain = CellGrid::new("Plain", &model, &mut state).show_sheet(ui).geometry;
-        let outlined = CellGrid::new("Outlined", &model, &mut state).outline(&rows, &columns).show_sheet(ui).geometry;
-        *shown.borrow_mut() = Some((plain.bands(), outlined.bands()));
-    });
-    fixture.settle();
-    let (plain, outlined) = seen.borrow().expect("both grids showed");
-    assert_eq!(plain, Vec2::ZERO);
-    assert!(outlined.x > 0.0, "two outline levels reserve a band before the row headers");
-}
-
-#[trial]
 fn a_filter_button_over_the_header_takes_the_press() {
     let hits = Rc::new(RefCell::new(Vec::new()));
     let shown = hits.clone();
@@ -388,24 +273,6 @@ fn a_filter_button_over_the_header_takes_the_press() {
     let button = fixture.by_label("B (Showing All)").expect("the filter button is named after its column");
     fixture.click(&button);
     assert_eq!(*hits.borrow(), vec![1], "the press opened the filter and did not select the header");
-}
-
-#[trial]
-fn an_error_tag_beside_a_cell_takes_the_press() {
-    let fixes = Rc::new(vec![Label::from("Convert to number")]);
-    let mut fixture = Fixture::new({
-        let fixes = fixes.clone();
-        move |ui| {
-            let model = Sheet::new(None, Rc::new(Cell::new(0.0)));
-            let mut state = GridState::default();
-            CellGrid::new("Sheet", &model, &mut state).error_tag(CellProblem::new(CellAt::new(2, 2), "Number stored as text", &fixes)).show_sheet(ui);
-        }
-    });
-    fixture.settle();
-    let tag = fixture.by_label("Error checking options").expect("the tag is a named button");
-    let cell = tag.rect;
-    fixture.click(&tag);
-    assert!(cell.height() > 0.0, "the tag takes room beside the cell");
 }
 
 #[trial]

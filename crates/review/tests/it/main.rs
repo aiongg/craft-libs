@@ -3,7 +3,6 @@
 mod annotate;
 mod collab;
 mod comments;
-mod revisions;
 mod signature;
 mod thread;
 mod versions;

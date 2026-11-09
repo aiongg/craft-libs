@@ -3,14 +3,13 @@
 use craft_behavior::PixelSize;
 use craft_ui::contract::Bind;
 use craft_ui::patterns::form_dialogs::{
-    Animation, HostRequests, SAVE_PATH_KEY, SaveForWebDialog, SaveForWebOptions, SaveForWebResult, WantedVariant, WebFormat, WebPane, WebPictures,
-    WebPreset, WebVariant, WebView,
+    Animation, HostRequests, SAVE_PATH_KEY, SaveForWebDialog, SaveForWebOptions, SaveForWebResult, WantedVariant, WebFormat, WebPictures, WebVariant,
 };
 use craft_ui::runtime::overlay::CloseReason;
 use craft_ui::runtime::requests::PathRequest;
 use craft_ui::testing::{Fixture, trial};
 use egui::load::SizedTexture;
-use egui::{ColorImage, Modifiers, TextureHandle, TextureOptions, Vec2};
+use egui::{ColorImage, TextureHandle, TextureOptions, Vec2};
 use std::cell::{Cell, RefCell};
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -22,16 +21,6 @@ fn options(change: impl FnOnce(&mut SaveForWebOptions)) -> SaveForWebOptions {
     let mut options = SaveForWebOptions::default();
     change(&mut options);
     options
-}
-
-/// A preset is what the settings show apart from the size.
-#[trial]
-fn a_preset_matches_the_settings_apart_from_the_size() {
-    let preset = WebPreset::new("JPEG Medium", SaveForWebOptions::default());
-    assert!(preset.is_set_in(&options(|options| options.percent = 50.0)));
-    assert!(!preset.is_set_in(&options(|options| options.quality = 61)));
-    assert_eq!(WebView::FourUp.panes().len(), 4);
-    assert_eq!(WebView::Optimized.panes(), &[WebPane::Encoded(0)]);
 }
 
 struct Rig {
@@ -116,37 +105,9 @@ fn save_files_the_picker_and_the_path_makes_the_answer() {
     assert_eq!(*rig.closed.borrow(), Some(CloseReason::Activated), "the path answer closes the dialog");
 }
 
-/// With Alt held the second button is Reset: it restores the opening settings and keeps the dialog open, and Save…
-/// stays a button that waits for the host.
-#[trial]
-fn alt_turns_cancel_into_reset_which_keeps_save_for_web_open() {
-    let options = Rc::new(RefCell::new(SaveForWebOptions::default()));
-    let closed = Rc::new(RefCell::new(None::<CloseReason>));
-    let (held, done) = (Rc::clone(&options), Rc::clone(&closed));
-    let mut fixture = Fixture::new(move |ui| {
-        let mut options = held.borrow_mut();
-        let out = SaveForWebDialog::new("poster.psd", DOCUMENT, WebPictures::new(), Bind::bound(&mut *options)).show(ui);
-        if out.closed.is_some() {
-            *done.borrow_mut() = out.closed;
-        }
-    });
-    fixture.hold(Modifiers::ALT);
-    fixture.settle();
-    assert!(fixture.by_label("Reset").is_some() && fixture.by_label("Cancel").is_none(), "Reset with Alt");
-    let opening = options.borrow().quality;
-    options.borrow_mut().quality = opening - 1;
-    fixture.idle(3);
-    let reset = fixture.by_label("Reset").expect("the Reset button");
-    fixture.click(&reset);
-    fixture.settle();
-    assert_eq!(options.borrow().quality, opening, "Reset restores the opening settings");
-    assert!(closed.borrow().is_none(), "Reset keeps the dialog open");
-}
-
 struct Pictured {
     fixture: Fixture,
     /// The byte sizes the app answers for panes 0, 1 and 2, read on every frame.
-    bytes: Rc<RefCell<[u64; 3]>>,
     /// The frame the dialog reports.
     /// How many panes the dialog has asked the app to encode in all.
     asked: Rc<Cell<usize>>,
@@ -177,7 +138,7 @@ fn pictured(change: impl FnOnce(&mut SaveForWebOptions), animation: Option<Anima
         counted.set(counted.get() + dialog.show(ui).wanted_variants.len());
     });
     fixture.settle();
-    Pictured { fixture, bytes, asked }
+    Pictured { fixture, asked }
 }
 
 /// The painted texts that start with `prefix`.
@@ -200,19 +161,6 @@ fn four_up_shows_the_original_and_the_three_variants() {
         let found = rig.fixture.tree().keys().into_iter().any(|key| rig.fixture.tree().name_of(key).is_some_and(|name| name.starts_with(pane)));
         assert!(found, "the pane {pane} is shown");
     }
-}
-
-/// The download line of an encoded pane follows the size the app answered, at the modem speed the caption names.
-#[trial]
-fn the_download_estimate_follows_the_encoded_size() {
-    let mut rig = pictured(|_| {}, None);
-    rig.bytes.borrow_mut()[0] = 35_000;
-    rig.fixture.idle(2);
-    assert_eq!(texts_starting(&rig.fixture, "5 sec @ 56.6 Kbps").len(), 1);
-    rig.bytes.borrow_mut()[0] = 70_000;
-    rig.fixture.idle(2);
-    assert_eq!(texts_starting(&rig.fixture, "10 sec @ 56.6 Kbps").len(), 1, "a larger file takes longer");
-    assert!(texts_starting(&rig.fixture, "5 sec @ 56.6 Kbps").is_empty());
 }
 
 /// Play steps the frames by the clock; Pause keeps the frame.

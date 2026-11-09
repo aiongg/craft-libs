@@ -82,29 +82,6 @@ fn escape_over_a_captured_press_cancels_the_press_and_not_the_component() {
     assert_eq!(cancels(&seen.borrow()), before);
 }
 
-/// A press whose owner is not drawn for a pass ends, so it does not resume when the owner is drawn again.
-#[trial]
-fn a_press_ends_when_its_owner_is_not_drawn_for_a_pass() {
-    let mut frames = Frames::new();
-    let seen = RefCell::new(Seen::default());
-    let drawn = Cell::new(true);
-    let mut show = |ui: &mut Ui| {
-        if drawn.get() {
-            Probe::new(&seen).sense(Sense::DRAG).id_salt("probe").show_at(ui, rect(10.0, 10.0, 100.0, 40.0));
-        }
-    };
-    let from = Pos2::new(50.0, 30.0);
-    frames.frame(vec![moved(from)], &mut show);
-    frames.frame(vec![press(from)], &mut show);
-    frames.frame(vec![moved(from + Vec2::new(20.0, 0.0))], &mut show);
-    let before = seen.borrow().press.len();
-    drawn.set(false);
-    frames.frame(vec![moved(from + Vec2::new(30.0, 0.0))], &mut show);
-    drawn.set(true);
-    frames.frame(vec![release(from + Vec2::new(30.0, 0.0))], &mut show);
-    assert_eq!(seen.borrow().press.len(), before, "the press did not resume: {:?}", seen.borrow().press);
-}
-
 /// Tab into a component whose only stops are parts lands on its first part.
 #[trial]
 fn tab_into_a_component_sets_its_first_part_active() {

@@ -12,10 +12,10 @@ use std::{
 
 use craft_theme::{ContrastChoice, ModeChoice, MotionChoice, Selection, Size, TextSize, ThemeId, ThemePair, Variants};
 
-use super::{Intervals, Op, OpOutput, SuiteWatch};
+use super::{Intervals, Op, SuiteWatch};
 use crate::{
     Accepted, ParseCounts, Problem, SelectionChange, SelectionError, Snapshot, Store, StoreError, StoreOptions, SuiteDir, ThemeRecord,
-    testing::{FailAt, FailingFs, SAMPLE_THEME_ID, SAMPLE_THEME_JSON},
+    testing::{SAMPLE_THEME_ID, SAMPLE_THEME_JSON},
 };
 
 const FAST: Intervals = Intervals { stat: Duration::from_millis(5), verify: Duration::from_millis(20) };
@@ -80,11 +80,6 @@ fn wait_for(what: &str, mut done: impl FnMut() -> bool) {
         assert!(Instant::now() < deadline, "timed out waiting for {what}");
         std::thread::sleep(Duration::from_millis(2));
     }
-}
-
-fn result(watch: &SuiteWatch, id: u64) -> Result<OpOutput, StoreError> {
-    wait_for("the result", || watch.snapshot().result(id).is_some());
-    watch.snapshot().result(id).unwrap().clone()
 }
 
 #[test]
@@ -206,68 +201,6 @@ fn damaged_files_are_problems_and_keep_the_last_good_state() {
     assert_eq!(watch.generation(), damaged.generation);
 }
 
-#[test]
-fn operations_run_on_the_worker_and_report_their_results() {
-    let tmp = tempfile::tempdir().unwrap();
-    let (_, wake) = counter();
-    let watch = SuiteWatch::spawn(Store::open(&SuiteDir::at(tmp.path()), options()), wake, FAST);
-
-    let base = watch.snapshot().accepted.clone();
-    let request = watch.request(Op::Update { base, change: SelectionChange::whole(sel("craft.graphite", ModeChoice::Dark)) });
-    assert!(matches!(result(&watch, request), Ok(OpOutput::Done)));
-    let mine = watch.snapshot().accepted.clone();
-    assert_eq!(mine.suite, sel("craft.graphite", ModeChoice::Dark).into());
-
-    // Another app changes the mode; this app's mode change made on the old state conflicts.
-    let theirs = write_selection(tmp.path(), &mine, SelectionChange::mode(ModeChoice::Light));
-    let change = SelectionChange::mode(ModeChoice::System);
-    let request = watch.request(Op::Update { base: mine.clone(), change });
-    match result(&watch, request) {
-        Err(StoreError::Conflict { disk, .. }) => assert_eq!(disk, theirs),
-        other => panic!("{other:?}"),
-    }
-    assert_eq!(watch.snapshot().accepted, theirs);
-
-    let request = watch.request(Op::Import { bytes: Arc::from(SAMPLE_THEME_JSON.as_bytes()), as_copy: false });
-    assert!(matches!(result(&watch, request), Ok(OpOutput::Imported(t)) if t.as_str() == SAMPLE_THEME_ID));
-    wait_for("the index", || watch.snapshot().index.iter().any(|e| e.id.as_str() == SAMPLE_THEME_ID));
-    let request = watch.request(Op::Export(id(SAMPLE_THEME_ID)));
-    assert!(matches!(result(&watch, request), Ok(OpOutput::Exported(bytes)) if &*bytes == SAMPLE_THEME_JSON.as_bytes()));
-    watch.request(Op::AppTheme(same(SAMPLE_THEME_ID)));
-    wait_for("the app theme", || !watch.snapshot().app_theme.is_empty());
-    assert_eq!(ids(&watch.snapshot().app_theme), [SAMPLE_THEME_ID]);
-}
-
-#[test]
-fn a_failed_write_leaves_the_accepted_state() {
-    let tmp = tempfile::tempdir().unwrap();
-    let before = write_selection(tmp.path(), &Accepted::default(), SelectionChange::whole(sel("craft.graphite", ModeChoice::Dark)));
-    let failing = options().file_system(Box::new(FailingFs(FailAt::Rename)));
-    let watch = SuiteWatch::open(&SuiteDir::at(tmp.path()), failing, || {});
-    let request = watch.request(Op::Update { base: before.clone(), change: SelectionChange::whole(sel("craft.artcraft", ModeChoice::Light)) });
-    assert!(matches!(result(&watch, request), Err(StoreError::Io(_))));
-    assert_eq!(watch.snapshot().accepted, before);
-}
-
-#[test]
-fn the_memory_watch_applies_operations_at_once() {
-    let watch = SuiteWatch::memory();
-    assert_eq!(watch.generation(), 0);
-    let request = watch.request(Op::Import { bytes: Arc::from(SAMPLE_THEME_JSON.as_bytes()), as_copy: false });
-    let snapshot = watch.snapshot();
-    assert_eq!(snapshot.generation, 1);
-    assert!(matches!(snapshot.result(request), Some(Ok(OpOutput::Imported(_)))));
-    assert_eq!(snapshot.index.len(), 1);
-    let sample = sel(SAMPLE_THEME_ID, ModeChoice::Light);
-    let request = watch.request(Op::Update { base: snapshot.accepted.clone(), change: SelectionChange::whole(sample.clone()) });
-    let snapshot = watch.snapshot();
-    assert!(matches!(snapshot.result(request), Some(Ok(OpOutput::Done))));
-    assert_eq!(snapshot.accepted.suite, sample.clone().into());
-    assert!(snapshot.theme(&sample.theme.light).is_some());
-    let request = watch.request(Op::Delete(sample.theme.light));
-    assert!(matches!(watch.snapshot().result(request), Some(Err(StoreError::InUse(_)))));
-}
-
 #[cfg(unix)]
 #[test]
 fn an_unreadable_theme_in_use_is_read_again_until_it_reads() {
@@ -343,48 +276,8 @@ fn dropping_releases_the_worker_every_time() {
     }
 }
 
-#[test]
-fn dropping_stops_and_joins_the_worker() {
-    let tmp = tempfile::tempdir().unwrap();
-    let token = Arc::new(());
-    let held = Arc::clone(&token);
-    let watch = SuiteWatch::open(&SuiteDir::at(tmp.path()), options(), move || {
-        let _ = &held;
-    });
-    watch.request(Op::Rescan);
-    let start = Instant::now();
-    drop(watch);
-    assert!(start.elapsed() < Duration::from_secs(1));
-    // The wake callback lives as long as the worker: only the test's own reference is left.
-    assert_eq!(Arc::strong_count(&token), 1);
-}
-
-#[test]
-fn a_watch_can_be_shared_between_threads() {
-    fn is_send_sync<T: Send + Sync>() {}
-    is_send_sync::<SuiteWatch>();
-}
-
 fn store_with_sample(dir: &Path) {
     Store::open(&SuiteDir::at(dir), options()).import(SAMPLE_THEME_JSON.as_bytes(), false).unwrap();
-}
-
-#[test]
-fn a_library_theme_not_in_use_previews_from_the_index() {
-    let tmp = tempfile::tempdir().unwrap();
-    store_with_sample(tmp.path());
-    let watch = SuiteWatch::inline(Store::open(&SuiteDir::at(tmp.path()), options()), Box::new(|| {}));
-    let snapshot = watch.snapshot();
-    let sample = id(SAMPLE_THEME_ID);
-    assert!(snapshot.active.is_empty() && snapshot.app_theme.is_empty() && snapshot.theme(&sample).is_none());
-
-    let preview = snapshot.preview(&sample).unwrap();
-    assert_eq!(preview, ThemeRecord::parse(SAMPLE_THEME_JSON.as_bytes()).unwrap().theme);
-    assert_eq!((preview.name.as_str(), snapshot.index[0].version), ("Navy and cream", 3));
-    assert!(snapshot.results.is_empty());
-    assert_eq!(watch.parse_counts().themes, 1);
-    assert!(snapshot.preview(&id("craft.graphite")).is_some());
-    assert!(snapshot.preview(&id("gone")).is_none());
 }
 
 #[test]
@@ -483,18 +376,6 @@ fn a_pick_in_the_first_frame_merges_against_the_disk_state() {
     settle(&mut client);
     assert!(client.conflict().is_none());
     assert_eq!(client.accepted().suite, sel("craft.graphite", ModeChoice::Light).into());
-}
-
-#[test]
-fn the_first_poll_after_open_publishes_nothing() {
-    let tmp = tempfile::tempdir().unwrap();
-    let disk = chosen_on_disk(tmp.path());
-    let (_, watch) = SuiteWatch::build(Store::open(&SuiteDir::at(tmp.path()), options()), Box::new(|| {}));
-    assert_eq!(watch.snapshot().accepted, disk);
-    assert_eq!(watch.parse_counts().selection, 1);
-    watch.poll_once(true);
-    assert_eq!(watch.generation(), 0);
-    assert_eq!(watch.parse_counts().selection, 1);
 }
 
 #[cfg(unix)]

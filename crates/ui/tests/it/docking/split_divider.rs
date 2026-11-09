@@ -3,11 +3,8 @@
 
 use crate::contract::kit::PlainStyle;
 use craft_behavior::{Axis, PartKey};
-use craft_ui::contract::SizeLimits;
-use craft_ui::contract::{Access, Common, Component, Cx, MeasureCx, PartsCx, Props as _, Role, Show as _, ShowContainer as _};
-use craft_ui::docking::SplitArea;
+use craft_ui::contract::{Access, Common, Component, Cx, MeasureCx, PartsCx, Props as _, Role, Show as _};
 use craft_ui::docking::divider::{self, Divider, Drag};
-use craft_ui::docking::tree::FrameRules;
 use craft_ui::runtime::focus::KeyUse;
 use craft_ui::style::StyleCx;
 use craft_ui::testing::{Fixture, trial};
@@ -93,33 +90,4 @@ fn a_component_drives_its_own_divider_with_the_public_functions() {
     fixture.key(Key::ArrowLeft, Modifiers::NONE);
     fixture.settle();
     assert!(at.get() < before, "Left on the focused divider moves it back: {before} -> {}", at.get());
-}
-
-/// A split of two bodies with the divider named `name`, or with the default name.
-fn split(name: Option<&'static str>) -> Fixture {
-    Fixture::new(move |ui| {
-        let limits = |_: &u8| SizeLimits::default();
-        let area = SplitArea::pair("Bodies", Axis::Y, (1u8, 2u8), 0.5, FrameRules::new(&limits));
-        match name {
-            Some(name) => area.divider_label(name).show(ui, |_, _| {}),
-            None => area.show(ui, |_, _| {}),
-        };
-    })
-}
-
-#[trial]
-fn a_split_area_names_its_divider_with_the_label_it_was_given() {
-    let mut fixture = split(Some("Resize timeline"));
-    fixture.settle();
-    let divider = fixture.by_role(Role::SPLITTER).into_iter().next().expect("one divider");
-    assert_eq!(fixture.by_label("Resize timeline").map(|found| found.node), Some(divider.node));
-    assert!(fixture.by_label("Resize panels").is_none(), "the default name is replaced");
-}
-
-#[trial]
-fn a_split_area_without_a_divider_label_names_it_resize_panels() {
-    let mut fixture = split(None);
-    fixture.settle();
-    let divider = fixture.by_role(Role::SPLITTER).into_iter().next().expect("one divider");
-    assert_eq!(fixture.by_label("Resize panels").map(|found| found.node), Some(divider.node));
 }

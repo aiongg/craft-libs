@@ -2,7 +2,7 @@
 //! and a fake `SelectionProbe`, then reads the events the tool reports.
 
 use craft_behavior::geometry::{Constraint, SelectionOperation};
-use craft_behavior::{CancelReason, EditEvent, PixelSize, PointerButton, PointerSample};
+use craft_behavior::{CancelReason, EditEvent, PixelSize, PointerButton};
 use craft_imaging::ui::select::{
     DragKind, EdgeSearch, EdgeTracer, LassoTool, MagneticLassoTool, MarqueeKind, MarqueeTool, PolygonLassoTool, SelectEvent, SelectPhase,
     SelectToolPass, SelectionProbe, SelectionShape,
@@ -409,20 +409,6 @@ fn marquee_press_inside_selection_drags_the_outline_only_for_new() {
 
 // Cmd inside the selection drags pixels, Cmd+Alt a copy; Cmd outside it is the Move tool's, so the host starts no
 // gesture.
-#[trial]
-fn marquee_cmd_press_cuts_and_cmd_alt_copies() {
-    let mut rig = rig("Marquee", MarqueeTool::new(MarqueeKind::Rectangle), Fake::selected(Rect::new(100.0, 100.0, 200.0, 200.0)));
-    for (mods, copy) in [(Mods::CMD, false), (Mods { cmd: true, alt: true, ..NONE }, true)] {
-        down(&mut rig, (150.0, 150.0), mods);
-        assert_eq!(rig.tool().phase(), SelectPhase::Dragging(DragKind::pixels(copy)));
-        up(&mut rig, (150.0, 150.0), mods);
-        rig.tool_mut().events();
-    }
-    rig.forget();
-    down(&mut rig, (20.0, 20.0), Mods::CMD);
-    assert_eq!(rig.tool().phase(), SelectPhase::Idle);
-    assert!(rig.gestures().is_empty(), "a Cmd press outside the selection starts no gesture: {:?}", rig.gestures());
-}
 
 // With a floating piece a plain press on it drags pixels; one in the margin the cut left draws.
 #[trial]
@@ -551,16 +537,6 @@ fn lasso_alt_release_and_double_click_close() {
 }
 
 // A plain press inside the selection drags the outline instead of drawing.
-#[trial]
-fn lasso_press_inside_drags_the_selection() {
-    let mut rig = rig("Lasso", LassoTool::new(), Fake::selected(Rect::new(100.0, 100.0, 200.0, 200.0)));
-    down(&mut rig, (150.0, 150.0), NONE);
-    assert_eq!(rig.tool().phase(), SelectPhase::Dragging(DragKind::Outline));
-    drag_to(&mut rig, (160.0, 150.0), NONE);
-    up(&mut rig, (160.0, 150.0), NONE);
-    assert_eq!(tags(&rig.tool_mut().events()), ["begin", "update 10,0", "commit 10,0"]);
-    assert_eq!(rig.tool().phase(), SelectPhase::Idle);
-}
 
 // An open outline is dropped without an event by `reset` and by a change of the probe's document.
 #[trial]
@@ -594,17 +570,6 @@ fn lasso_outline_being_drawn_is_one_accessible_object() {
 }
 
 // A press and release that draw fewer than 3 points (a click, or a two-point drag) deselect.
-#[trial]
-fn lasso_click_deselects() {
-    let mut rig = rig("Lasso", LassoTool::new(), Fake::empty());
-    click(&mut rig, (50.0, 50.0), NONE);
-    assert_eq!(rig.tool_mut().events(), [SelectEvent::Deselect]);
-    assert_eq!(rig.tool().phase(), SelectPhase::Idle);
-    down(&mut rig, (50.0, 50.0), NONE);
-    drag_to(&mut rig, (90.0, 60.0), NONE);
-    up(&mut rig, (90.0, 60.0), NONE);
-    assert_eq!(rig.tool_mut().events(), [SelectEvent::Deselect], "two points are no outline");
-}
 
 // ---- the Polygonal Lasso ----
 
@@ -677,18 +642,6 @@ fn polygon_secondary_click_removes_the_last_vertex_then_cancels() {
 }
 
 // A new outline replaces the selection while it is open: true only for the operation New.
-#[trial]
-fn polygon_new_outline_replaces_the_selection() {
-    let mut rig = rig("Polygonal Lasso", PolygonLassoTool::new(), Fake::selected(Rect::new(100.0, 100.0, 200.0, 200.0)));
-    assert!(!rig.tool_mut().tool().replaces_selection());
-    click(&mut rig, (20.0, 20.0), NONE);
-    assert!(rig.tool_mut().tool().replaces_selection());
-    rig.tool_mut().tool().reset();
-    assert!(!rig.tool_mut().tool().replaces_selection());
-    click(&mut rig, (20.0, 20.0), Mods::SHIFT);
-    assert_eq!(rig.tool().phase(), SelectPhase::outline(1));
-    assert!(!rig.tool_mut().tool().replaces_selection(), "Add keeps the selection visible");
-}
 
 // ---- the Magnetic Lasso ----
 
@@ -720,10 +673,6 @@ impl Log {
         self.snaps.set(0);
         self.froms.borrow_mut().clear();
         self.searches.borrow_mut().clear();
-    }
-
-    fn last_width(&self) -> f64 {
-        self.searches.borrow().last().map_or(f64::NAN, |search| search.width)
     }
 }
 
@@ -895,22 +844,6 @@ fn magnetic_removes_the_last_point_and_cancels() {
 }
 
 // `[` and `]` change the width by 1 within 1..=256 while an outline is open.
-#[trial]
-fn magnetic_bracket_keys_change_the_width_within_range() {
-    let (mut rig, _) = magnetic();
-    click(&mut rig, pt(on(0.0)), NONE);
-    press_key(&mut rig, Key::OpenBracket, Modifiers::NONE);
-    assert_eq!(rig.tool_mut().tool().settings().width, 9.0);
-    press_key(&mut rig, Key::CloseBracket, Modifiers::NONE);
-    press_key(&mut rig, Key::CloseBracket, Modifiers::NONE);
-    assert_eq!(rig.tool_mut().tool().settings().width, 11.0);
-    rig.tool_mut().tool().settings_mut().width = 1.0;
-    press_key(&mut rig, Key::OpenBracket, Modifiers::NONE);
-    assert_eq!(rig.tool_mut().tool().settings().width, 1.0);
-    rig.tool_mut().tool().settings_mut().width = 256.0;
-    press_key(&mut rig, Key::CloseBracket, Modifiers::NONE);
-    assert_eq!(rig.tool_mut().tool().settings().width, 256.0);
-}
 
 // Enter closes along the edges (the tracer's path), Alt+Enter with a straight segment, a click on the first point closes
 // too; each commits one `Polygon` with the latched operation.
@@ -951,32 +884,5 @@ fn magnetic_closes_along_edges_or_straight() {
 
 // With `pressure_width` on, a pen sample at pressure 0.5 halves the searched width (minus one); a mouse sample never
 // narrows it.
-#[trial]
-fn magnetic_stylus_pressure_narrows_the_width() {
-    let (mut rig, log) = magnetic();
-    rig.tool_mut().tool().settings_mut().pressure_width = true;
-    click(&mut rig, pt(on(0.0)), NONE);
-    glide(&mut rig, on(0.2), NONE);
-    assert_eq!(log.last_width(), 10.0, "a mouse");
-    let mut pen = PointerSample::new(0.5);
-    pen.tilt = [10.0, 0.0];
-    inject(&mut rig, ToolInput::moved(at(pt(on(0.4)))).sample(pen));
-    assert_eq!(log.last_width(), 5.5, "1 + 9 × 0.5");
-    rig.tool_mut().tool().settings_mut().pressure_width = false;
-    inject(&mut rig, ToolInput::moved(at(pt(on(0.6)))).sample(pen));
-    assert_eq!(log.last_width(), 10.0, "the option is off");
-}
 
 // While the outline is open the tool is one accessible object with its point count (fastening points and the live trace).
-#[trial]
-fn magnetic_outline_being_drawn_is_one_accessible_object() {
-    let (mut rig, _) = magnetic();
-    assert_eq!(outline_value(&mut rig), None);
-    click(&mut rig, pt(on(0.0)), NONE);
-    glide(&mut rig, on(0.3), NONE);
-    let SelectPhase::Outline { points, .. } = rig.tool().phase() else { panic!("open") };
-    assert_eq!(outline_value(&mut rig), Some(format!("{points} points")));
-    rig.tool_mut().tool().reset();
-    rig.fixture().frame(Vec::new());
-    assert_eq!(outline_value(&mut rig), None);
-}

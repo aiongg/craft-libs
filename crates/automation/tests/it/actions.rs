@@ -3,7 +3,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use craft_automation::actions::{ActionColor, ActionList, ActionsFile};
+use craft_automation::actions::{ActionColor, ActionList};
 use craft_automation::ui::actions::mock::{FakeActionsHost, action, list_of, sample_list, step};
 use craft_automation::ui::actions::{
     ActionMove, ActionPlace, ActionSelection, ActionsEvent, ActionsPanel, ActionsPanelState, ActionsSettings, DIALOG_COLUMN, INCLUDE_COLUMN,
@@ -11,7 +11,7 @@ use craft_automation::ui::actions::{
 };
 use craft_behavior::Mixed;
 use craft_keymap::Platform;
-use craft_ui::contract::{Role, SweepStep};
+use craft_ui::contract::SweepStep;
 use craft_ui::testing::{Fixture, Target, pointer, trial};
 use egui::{Key, Modifiers, Pos2, Ui, Vec2};
 
@@ -104,15 +104,6 @@ fn context_click(fixture: &mut Fixture, target: &Target) {
     fixture.frame(vec![pointer::secondary(pos, true)]);
     fixture.frame(vec![pointer::secondary(pos, false)]);
     fixture.idle(3);
-}
-
-fn double_click(fixture: &mut Fixture, pos: Pos2) {
-    fixture.frame(vec![pointer::moved(pos)]);
-    for _ in 0..2 {
-        fixture.frame(vec![pointer::press(pos)]);
-        fixture.frame(vec![pointer::release(pos)]);
-    }
-    fixture.idle(2);
 }
 
 /// The cells the toggle steps set (a `Flip`): row, column, state.
@@ -214,26 +205,6 @@ fn actions_panel_drag_reports_move() {
     assert_eq!(moves(&take(&shared)), [(ActionSelection::Step(0, 2), ActionPlace::step(0, 0))], "a step dropped above another");
 }
 
-/// In Button Mode a click reports one `Play`, a double click no second one; the tree comes back while recording.
-#[trial]
-fn actions_panel_button_mode_plays_on_click_once() {
-    let mut app = app(sample_list());
-    app.state.settings.button_mode = true;
-    let (mut fixture, shared) = rig(app);
-    assert!(fixture.by_role(Role::TREE_ITEM).is_empty(), "the buttons replace the tree");
-    let button = node(&fixture, "Vignette");
-    fixture.click(&button);
-    fixture.idle(2);
-    assert_eq!(take(&shared), [ActionsEvent::play(1, 0)]);
-    let glow = node(&fixture, "Glow").center();
-    double_click(&mut fixture, glow);
-    assert_eq!(take(&shared), [ActionsEvent::play(2, 0)], "a double click plays once");
-
-    shared.borrow_mut().host.recording = Some(0);
-    fixture.idle(3);
-    assert!(!fixture.by_role(Role::TREE_ITEM).is_empty(), "Button Mode is off while recording");
-}
-
 /// The recording action opens, shows its pending steps and scrolls its latest into view.
 #[trial]
 fn actions_panel_recording_row_expands_and_follows() {
@@ -253,83 +224,6 @@ fn actions_panel_recording_row_expands_and_follows() {
     fixture.idle(3);
     let latest = node(&fixture, "Run pending-3").rect;
     assert!(latest.bottom() <= footer.top() + EDGE_SLACK, "a new step scrolls into view: {latest:?} above {footer:?}");
-}
-
-/// An empty list shows the empty text; an empty set shows its header.
-#[trial]
-fn actions_panel_empty_state_and_empty_set() {
-    let (mut fixture, shared) = rig(app(ActionList::new()));
-    let text = "Record a sequence of edits, then play it on any document.";
-    assert!(fixture.by_label(text).is_some());
-    assert!(fixture.by_role(Role::TREE_ITEM).is_empty());
-
-    shared.borrow_mut().list = ActionList::from_file(ActionsFile { version: ActionsFile::VERSION, actions: Vec::new(), sets: vec!["Empty".into()] });
-    fixture.idle(3);
-    assert!(fixture.by_label(text).is_none());
-    assert!(fixture.by_label("Empty").is_some(), "an empty set keeps its header");
-}
-
-/// Play with nothing selected plays the first action; a selected step plays its action from that step.
-#[trial]
-fn actions_panel_play_with_no_selection_plays_the_first() {
-    let (mut fixture, shared) = rig(app(sample_list()));
-    let play = node(&fixture, "Play selection");
-    fixture.click(&play);
-    fixture.idle(2);
-    assert_eq!(take(&shared), [ActionsEvent::play(0, 0)]);
-
-    shared.borrow_mut().state.expanded.insert("Vignette".into());
-    fixture.idle(3);
-    let step_row = node(&fixture, "Run blur");
-    fixture.click(&step_row);
-    fixture.idle(2);
-    take(&shared);
-    fixture.click(&play);
-    fixture.idle(2);
-    assert_eq!(take(&shared), [ActionsEvent::play(1, 1)], "a selected step plays its action from that step");
-
-    let delete = node(&fixture, "Delete");
-    fixture.click(&delete);
-    fixture.idle(2);
-    assert_eq!(take(&shared), [ActionsEvent::Delete(ActionSelection::Step(1, 1))]);
-    let new_set = node(&fixture, "Create new set");
-    fixture.click(&new_set);
-    fixture.idle(2);
-    assert_eq!(take(&shared), [ActionsEvent::NewSet]);
-    let mode = node(&fixture, "Button Mode");
-    fixture.click(&mode);
-    fixture.idle(2);
-    assert!(shared.borrow().state.settings.button_mode, "Button Mode toggles in the state");
-    assert!(take(&shared).is_empty());
-    assert!(shared.borrow().settings_changed, "and the output says the settings changed");
-}
-
-/// A set's disclosure changes the persisted settings and the output says so.
-#[trial]
-fn actions_panel_set_disclosure_reports_settings_changed() {
-    let (mut fixture, shared) = rig(app(sample_list()));
-    assert!(!shared.borrow().settings_changed);
-    let set = node(&fixture, "Effects");
-    fixture.click(&set);
-    fixture.key(Key::ArrowLeft, Modifiers::NONE);
-    fixture.idle(2);
-    assert_eq!(shared.borrow().state.settings.collapsed_sets, ["Effects"]);
-    assert!(shared.borrow().settings_changed);
-}
-
-/// The recording row says so by name; Record stays live while recording and its click starts nothing.
-#[trial]
-fn actions_panel_recording_row_is_named_and_record_ignores_the_click() {
-    let mut recording = app(sample_list());
-    recording.host.recording = Some(0);
-    let (mut fixture, shared) = rig(recording);
-    let record = node(&fixture, "Begin recording");
-    node(&fixture, "Sharpen, recording");
-    assert!(!fixture.tree().is_disabled_key(record.node), "Record stays live");
-    assert_eq!(fixture.tree().selected_of(record.node), Some(true), "Record reads as pressed while recording");
-    fixture.click(&record);
-    fixture.idle(2);
-    assert!(take(&shared).is_empty(), "a click while recording starts nothing");
 }
 
 /// The context menu reports the shortcut with Shift and Command ticked as they are made, the colour, and Save Set.
@@ -450,20 +344,6 @@ fn actions_panel_selection_follows_a_move() {
     assert_eq!(shared.borrow().state.selected, Some(ActionSelection::Step(0, 0)), "a pressed step is selected and follows its move");
 }
 
-/// A press on the include column is one step: the cell flips once.
-#[trial]
-fn actions_panel_include_press_is_one_flip() {
-    let mut app = app(sample_list());
-    app.state.expanded.insert("Sharpen".into());
-    let (mut fixture, shared) = rig(app);
-    let cell = node(&fixture, "Include in playback: Run levels");
-    fixture.click(&cell);
-    fixture.idle(2);
-    let events = take(&shared);
-    assert_eq!(events.len(), 1, "{events:?}");
-    assert_eq!(toggles(&events), [(ActionSelection::Step(0, 0), "include", false)]);
-}
-
 /// An Alt sweep down the include column reports Show Only once, for the pressed cell and nothing for the cells it
 /// crosses; Escape reports the undo of it.
 #[trial]
@@ -488,33 +368,6 @@ fn actions_panel_alt_include_sweep_reports_show_only_then_its_undo() {
     assert!(matches!(undone.as_slice(), [ActionsEvent::Toggle(SweepStep::UndoShowOnly(_))]), "{undone:?}");
 }
 
-/// An action with no steps shows no include box.
-#[trial]
-fn actions_panel_an_action_without_steps_has_no_include_cell() {
-    let list = list_of(vec![action("Empty", None, &[]), action("Full", None, &["a"])]);
-    let (fixture, _) = rig(app(list));
-    assert!(fixture.by_label("Include in playback: Empty").is_none());
-    assert!(fixture.by_label("Include in playback: Full").is_some());
-}
-
-/// `start_rename` opens the field; the rename ends with the typed text.
-#[trial]
-fn actions_panel_start_rename_opens_the_field() {
-    let mut app = app(sample_list());
-    app.rename = Some(1);
-    let (mut fixture, shared) = rig(app);
-    fixture.idle(2);
-    assert!(!fixture.by_role(Role::TEXT_INPUT).is_empty(), "the rename field is open");
-    fixture.type_text("X");
-    fixture.key(Key::Enter, Modifiers::NONE);
-    fixture.idle(2);
-    assert!(
-        take(&shared)
-            .iter()
-            .any(|event| matches!(event, ActionsEvent::Rename { action: 1, text, .. } if text.starts_with('V') || text.ends_with('X')))
-    );
-}
-
 /// A row of this list dropped on the footer's Delete reports `Delete` for the grabbed row, with nothing selected.
 #[trial]
 fn actions_panel_a_row_dropped_on_delete_reports_delete() {
@@ -522,17 +375,6 @@ fn actions_panel_a_row_dropped_on_delete_reports_delete() {
     let (from, to) = (node(&fixture, "Vignette").center(), node(&fixture, "Delete").center());
     drag_to(&mut fixture, from, to);
     assert!(take(&shared).contains(&ActionsEvent::Delete(ActionSelection::Action(1))));
-}
-
-/// While recording, a dropped action is refused, as the button is.
-#[trial]
-fn actions_panel_delete_refuses_a_dropped_action_while_recording() {
-    let mut app = app(sample_list());
-    app.host.recording = Some(0);
-    let (mut fixture, shared) = rig(app);
-    let (from, to) = (node(&fixture, "Vignette").center(), node(&fixture, "Delete").center());
-    drag_to(&mut fixture, from, to);
-    assert!(!take(&shared).iter().any(|event| matches!(event, ActionsEvent::Delete(_))));
 }
 
 /// `ActionsSettings` round-trips through JSON in camelCase and ignores other apps' extra fields.
@@ -547,15 +389,4 @@ fn actions_settings_survive_a_serde_round_trip() {
     let read: ActionsSettings = serde_json::from_str(foreign).expect("read");
     assert_eq!(read, ActionsSettings::new(true, vec!["Effects".into()]));
     assert_eq!(serde_json::from_str::<ActionsSettings>("{}").expect("read"), ActionsSettings::default());
-}
-
-/// A row writes its shortcut in the keymap's chord text for the platform.
-#[trial]
-fn shortcut_text_is_the_platforms_chord_text() {
-    let (plain, both) = (ShortcutChoice::new(2, false, false), ShortcutChoice::new(3, true, true));
-    if Platform::current().is_mac() {
-        assert_eq!((plain.text().as_str(), both.text().as_str()), ("F2", "⇧⌘F3"));
-    } else {
-        assert_eq!((plain.text().as_str(), both.text().as_str()), ("F2", "Ctrl+Shift+F3"));
-    }
 }

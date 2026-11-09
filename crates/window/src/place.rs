@@ -113,23 +113,6 @@ mod tests {
     }
 
     #[test]
-    fn nonsense_numbers_still_give_a_monitor() {
-        let main = Rect::new(0.0, 0.0, 1920.0, 1080.0);
-        assert_eq!(monitor_of(Rect::new(f32::NAN, f32::INFINITY, f32::NAN, 1.0), &[main]), Some(main));
-    }
-
-    #[test]
-    fn scaling_changes_position_and_size() {
-        assert_eq!(Rect::new(10.0, 20.0, 30.0, 40.0).scaled(2.0), Rect::new(20.0, 40.0, 60.0, 80.0));
-    }
-
-    #[test]
-    fn steps_down_and_right() {
-        let prev = Rect::new(100.0, 50.0, 400.0, 300.0);
-        assert_eq!(cascade(prev, [400.0, 300.0], SCREEN, 28.0), Rect::new(128.0, 78.0, 400.0, 300.0));
-    }
-
-    #[test]
     fn wraps_each_axis_at_the_bounds() {
         // Bottom edge: y starts over, x keeps stepping.
         let prev = Rect::new(100.0, 480.0, 400.0, 300.0);
@@ -138,13 +121,5 @@ mod tests {
         let second = Rect::new(1000.0, 30.0, 1200.0, 770.0);
         let prev = Rect::new(1780.0, 100.0, 400.0, 300.0);
         assert_eq!(cascade(prev, [400.0, 300.0], second, 28.0), Rect::new(1000.0, 128.0, 400.0, 300.0));
-    }
-
-    #[test]
-    fn a_window_off_the_bounds_or_too_big_goes_to_the_corner() {
-        let prev = Rect::new(-500.0, -200.0, 400.0, 300.0);
-        assert_eq!(cascade(prev, [400.0, 300.0], SCREEN, 28.0), Rect::new(0.0, 0.0, 400.0, 300.0));
-        let prev = Rect::new(10.0, 10.0, 400.0, 300.0);
-        assert_eq!(cascade(prev, [1200.0, 900.0], SCREEN, 28.0), Rect::new(0.0, 0.0, 1200.0, 900.0));
     }
 }

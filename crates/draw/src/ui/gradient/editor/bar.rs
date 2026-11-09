@@ -227,7 +227,6 @@ impl<'a, P: Clone + Send + Sync + 'static> GradientBar<'a, P> {
 #[derive(Clone, Copy, Debug)]
 struct Geometry {
     ramp: Rect,
-    rect: Rect,
     rows: StopRows,
     midpoints: bool,
     opacity_midpoints: bool,
@@ -247,7 +246,7 @@ impl Geometry {
         );
         Geometry {
             ramp,
-            rect,
+
             rows,
             midpoints,
             opacity_midpoints,
@@ -372,16 +371,6 @@ impl Geometry {
                 Rect::from_x_y_ranges((x - self.hit / 2.0)..=(x + self.hit / 2.0), near..=far)
             }
         }
-    }
-
-    /// A stop marker's square and pointer.
-    fn marker_rect(&self, row: StopRow, at: f32) -> Rect {
-        let body = self.body(row, at);
-        let tip = match row {
-            StopRow::Color => self.ramp.bottom(),
-            StopRow::Opacity => self.ramp.top(),
-        };
-        body.union(Rect::from_x_y_ranges(body.x_range(), tip..=tip))
     }
 
     /// The colour stop or location a payload dropped at `pos` lands on.

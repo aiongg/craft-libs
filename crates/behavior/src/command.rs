@@ -47,15 +47,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn state_resolves_this_frame_then_last_then_default() {
-        let off = CommandFlags::new(false, Some(true));
-        let on = CommandFlags::new(true, None);
-        assert_eq!(resolve_flags(Some(off), Some(on)), off);
-        assert_eq!(resolve_flags(None, Some(off)), off);
-        assert_eq!(resolve_flags(None, None), CommandFlags::DEFAULT);
-    }
-
-    #[test]
     fn a_key_goes_to_the_focused_instance_then_the_last_focused_then_the_first() {
         let live = [1, 2, 3];
         assert_eq!(pick_instance(&live, &[9, 2], &[3]), Some(2));

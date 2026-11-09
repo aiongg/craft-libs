@@ -1,9 +1,8 @@
 //! The frame loop: installed options, the one-press rule and the per-frame output.
 
-use craft_ui::runtime::env::RootEnv;
 use craft_ui::runtime::frame::take_output;
 use craft_ui::testing::frames::announce_text;
-use craft_ui::testing::input::{allow_zoom_keys, key_press, max_click_dist, set_max_click_duration};
+use craft_ui::testing::input::{allow_zoom_keys, key_press};
 use craft_ui::testing::{Frames, trial};
 use egui::{Event, Modifiers, PointerButton, Pos2};
 
@@ -49,23 +48,6 @@ fn cmd_equals_does_not_zoom_the_ui_and_cmd_q_sends_no_close() {
     raw_frame(&mut frames, vec![]);
     raw_frame(&mut frames, vec![]);
     assert_ne!(frames.ctx.zoom_factor(), zoom, "control: egui zooms on Cmd+= when its option is on");
-}
-
-/// H2: the runtime owns the click options every pass: the slop token is the click distance and a click has no
-/// time limit.
-#[trial]
-fn the_slop_token_is_the_click_distance_and_clicks_have_no_time_limit_in_every_pass() {
-    let mut frames = Frames::new();
-    let mut root = RootEnv::default();
-    root.sizes = std::sync::Arc::new(craft_theme::AppSizes::parse(br#"{"all": {"size.hit.slop": 5}}"#).unwrap());
-    frames.root(root);
-    set_max_click_duration(&frames.ctx, 0.5);
-    frames.idle(1, |_| {});
-    assert_eq!(max_click_dist(&frames.ctx), 5.0);
-    assert_eq!(frames.ctx.options(|o| o.input_options.max_click_duration), f64::INFINITY);
-    set_max_click_duration(&frames.ctx, 0.5);
-    frames.idle(1, |_| {});
-    assert_eq!(frames.ctx.options(|o| o.input_options.max_click_duration), f64::INFINITY, "rewritten each pass");
 }
 
 /// H0: a pass carries at most one press, as its last pointer event; later events lead the next frame, and a

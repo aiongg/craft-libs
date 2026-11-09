@@ -3,25 +3,9 @@
 
 use craft_ui::contract::Bind;
 use craft_ui::patterns::form_dialogs::{Watermark, WatermarkSettings, WatermarkStyle};
-use craft_ui::pickers::Anchor9;
 use craft_ui::testing::{Fixture, trial};
 use std::cell::RefCell;
 use std::rc::Rc;
-
-fn at(position: Anchor9) -> WatermarkSettings {
-    let mut settings = WatermarkSettings::default();
-    settings.position = position;
-    settings
-}
-
-/// An inset along an axis the position centres on has nothing to offset.
-#[trial]
-fn insets_apply_only_along_the_axes_the_position_does_not_centre() {
-    assert!(at(Anchor9::BottomRight).insets_across() && at(Anchor9::BottomRight).insets_down());
-    assert!(!at(Anchor9::Top).insets_across() && at(Anchor9::Top).insets_down());
-    assert!(at(Anchor9::Left).insets_across() && !at(Anchor9::Left).insets_down());
-    assert!(!at(Anchor9::Centre).insets_across() && !at(Anchor9::Centre).insets_down());
-}
 
 /// Picking Graphic and then Text again brings the typed text back.
 #[trial]

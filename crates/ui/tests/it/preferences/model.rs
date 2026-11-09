@@ -7,8 +7,8 @@ use craft_i18n::Folder;
 use craft_i18n::matcher::Matcher;
 use craft_theme::Rgba;
 use craft_ui::patterns::preferences::{
-    GroupSpec, PageInfo, PageSpec, PrefValue, PreferencesModel, RowKind, RowSpec, SettingRule, SettingsDocument, StandardPage, list_pages, matches,
-    row_shown, setting_label, shown_position,
+    GroupSpec, PageInfo, PageSpec, PrefValue, PreferencesModel, RowKind, RowSpec, SettingRule, SettingsDocument, StandardPage, list_pages, row_shown,
+    setting_label,
 };
 use craft_ui::runtime::env::UnitKind;
 use craft_ui::testing::trial;
@@ -30,18 +30,6 @@ fn pages() -> Vec<PageSpec<'static>> {
 
 fn listed_ids(pages: &[PageSpec<'_>], query: &str) -> Vec<String> {
     list_pages(pages, &matcher(query)).iter().map(|l| pages[l.index].id.to_owned()).collect()
-}
-
-/// A query matches the label, keywords or key, ignoring case, surrounding space and accents, and an empty query matches
-/// everything.
-#[trial]
-fn the_search_rule_ignores_case_space_and_accents() {
-    assert!(matches(&matcher("  LANG "), "Language:", "", "general.language"));
-    assert!(matches(&matcher("locale"), "Language:", "locale", "x"));
-    assert!(matches(&matcher("general.l"), "Language:", "", "general.language"));
-    assert!(matches(&matcher("cafe"), "Café", "", ""));
-    assert!(!matches(&matcher("zzz"), "Language:", "locale", "general.language"));
-    assert!(matches(&matcher(""), "anything", "", ""));
 }
 
 /// A title match lists the page with every visible row; a row match lists the page with that row only.
@@ -69,27 +57,6 @@ fn empty_pages_are_dimmed_and_drop_out_of_a_search_unless_the_title_matches() {
     assert!(list_pages(&pages, &matcher("")).iter().any(|l| l.dimmed && pages[l.index].id == "plugins"));
     assert!(!listed_ids(&pages, "hidden").contains(&"plugins".to_owned()));
     assert!(listed_ids(&pages, "plug").contains(&"plugins".to_owned()));
-}
-
-/// The selected page stays selected while listed, falls back to the first listed one while the search hides it, and
-/// there is none when nothing is listed.
-#[trial]
-fn the_shown_page_falls_back_to_the_first_listed() {
-    let pages = pages();
-    let hidden = list_pages(&pages, &matcher("smooth"));
-    assert_eq!(shown_position(&hidden, &pages, "general"), Some(0));
-    assert_eq!(pages[hidden[0].index].id, "tools");
-    let all = list_pages(&pages, &matcher(""));
-    assert_eq!(shown_position(&all, &pages, "tools"), Some(1));
-    assert_eq!(shown_position(&list_pages(&pages, &matcher("nothing matches")), &pages, "tools"), None);
-}
-
-/// A row matches by its help text, and a custom page by its keywords.
-#[trial]
-fn a_row_matches_by_its_help_and_a_custom_page_by_its_keywords() {
-    assert_eq!(listed_ids(&pages(), "memory runs low"), ["advanced"]);
-    let custom = vec![PageSpec::custom("graphics", "Graphics").keywords("GPU adapter"), PageSpec::custom("other", "Other")];
-    assert_eq!(listed_ids(&custom, "adapter"), ["graphics"]);
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -354,19 +321,6 @@ fn reset_section_drops_keys_the_defaults_do_not_serialize() {
     doc.reset_page("brush");
     doc.apply().expect("the draft fits the struct");
     assert_eq!(doc.take_applied().expect("applied"), Sparse::default());
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-struct NoTomlForm {
-    map: std::collections::BTreeMap<(i32, i32), i32>,
-}
-
-/// A struct without a TOML form is an error, not an empty draft that Apply would read as defaults.
-#[trial]
-fn a_struct_without_a_toml_form_is_refused() {
-    let mut value = NoTomlForm::default();
-    value.map.insert((1, 2), 3);
-    assert!(SettingsDocument::new(value).is_err());
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]

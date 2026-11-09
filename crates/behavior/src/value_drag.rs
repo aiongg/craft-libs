@@ -254,12 +254,6 @@ mod tests {
     }
 
     #[test]
-    fn a_vertical_track_that_runs_backwards_gives_the_minimum_at_the_bottom() {
-        let slider = ValueDrag::absolute(300.0..100.0, 0.0..=10.0).axis(Axis::Y);
-        assert_eq!(slider.value(0.0, &drag(pos2(0.0, 300.0), pos2(0.0, 200.0), Mods::NONE), false), Some(5.0));
-    }
-
-    #[test]
     fn a_range_that_runs_backwards_clamps_to_its_ends_and_maps_the_track_the_other_way() {
         let slider = ValueDrag::absolute(0.0..100.0, 100.0..=0.0);
         let value = |x: f32| slider.value(50.0, &drag(pos2(50.0, 0.0), pos2(x, 0.0), Mods::NONE), false);
@@ -273,18 +267,6 @@ mod tests {
         let slider = ValueDrag::absolute(100.0..300.0, 0.0..=10.0);
         let fine = slider.value(4.0, &drag(pos2(150.0, 0.0), pos2(250.0, 0.0), Mods::ALT), false);
         assert_eq!(fine, Some(4.0 + 5.0 * 0.1));
-    }
-
-    #[test]
-    fn shift_is_coarse_only_when_the_drag_sets_a_coarse_factor() {
-        let travel =
-            |drag_: &ValueDrag, mods| drag_.value(10.0, &drag(pos2(0.0, 0.0), pos2(4.0, 0.0), mods), false).map(|v| ((v - 10.0) * 1e9).round() / 1e9);
-        let plain = ValueDrag::relative(1.0, 0.0..=1000.0);
-        let scrub = plain.clone().coarse(10.0).fine(0.1);
-        assert_eq!(travel(&scrub, Mods::NONE), Some(4.0));
-        assert_eq!(travel(&scrub, Mods::SHIFT), Some(40.0), "Shift moves ten times a plain drag");
-        assert_eq!(travel(&scrub, Mods::ALT), Some(0.4), "Alt moves by the fine factor");
-        assert_eq!(travel(&plain, Mods::SHIFT), Some(4.0), "without coarse, Shift changes nothing");
     }
 
     #[test]

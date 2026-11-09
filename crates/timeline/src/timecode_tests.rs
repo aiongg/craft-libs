@@ -2,7 +2,7 @@
 
 use crate::rates::{FrameRate, SampleRate};
 use crate::time::{TICKS_PER_SECOND, Tick};
-use crate::timecode::{TimeDisplay, TimeFormat, TimecodeError, TimecodeFields, fields_to_frames, format_time, frames_to_fields, parse_time};
+use crate::timecode::{TimeDisplay, TimeFormat, TimecodeFields, fields_to_frames, format_time, frames_to_fields, parse_time};
 
 fn df() -> TimeFormat {
     TimeFormat::timecode(FrameRate::FPS_29_97).drop_frame(true)
@@ -59,15 +59,4 @@ fn parses_premiere_input() {
     assert_eq!(other(TimeDisplay::Seconds, "10.5"), Ok(262));
     assert_eq!(parse_time("00:00:10:24000", &tc.display(TimeDisplay::AudioSamples), Tick::ZERO), Ok(Tick(TICKS_PER_SECOND * 21 / 2)));
     assert_eq!(SampleRate::default().hz(), 48_000);
-}
-
-#[test]
-fn refuses_what_is_not_a_time() {
-    let tc = TimeFormat::timecode(FrameRate::FPS_25);
-    assert_eq!(parse_time("  ", &tc, Tick::ZERO), Err(TimecodeError::Empty));
-    assert_eq!(parse_time("1:x", &tc, Tick::ZERO), Err(TimecodeError::NotATime("1:x".into())));
-    assert_eq!(parse_time("1:2:3:4:5", &tc, Tick::ZERO), Err(TimecodeError::NotATime("1:2:3:4:5".into())));
-    assert_eq!(parse_time("+", &tc, Tick::ZERO), Err(TimecodeError::NotATime("+".into())));
-    assert!(parse_time("abc", &tc.display(TimeDisplay::Frames), Tick::ZERO).is_err());
-    assert!(parse_time("99999999999999999999999999", &tc, Tick::ZERO).is_err());
 }

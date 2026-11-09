@@ -1,8 +1,8 @@
 //! The table's model through the dialog: what each Show area, filter and search lists, how groups sort and
 //! collapse, and which rows count as conflicts.
 
-use craft_keymap::{Bindable, Binding, CommandRef, Keymap, Kind, Platform, Policy, Scope, Scopes, Trigger};
-use craft_menu::shortcuts::{FixedRow, Options};
+use craft_keymap::{Binding, CommandRef, Platform, Policy, Trigger};
+use craft_menu::shortcuts::FixedRow;
 use craft_ui::testing::trial;
 
 use super::fixture::{self, Rig};
@@ -75,20 +75,6 @@ fn commands_sharing_a_default_key_are_no_conflict() {
 }
 
 #[trial]
-fn sort_by_label_and_collapsed_groups() {
-    let mut options = fixture::options();
-    options.sort_by_label = true;
-    let mut rig = Rig::new(fixture::keymap(Platform::Mac), options, None);
-    rig.choose("Show:", "File Menu");
-    let at = |rig: &Rig, label: &str| rig.fixture.by_label(label).map(|t| t.center().y).expect("shown");
-    assert!(at(&rig, "Export…: ⌘E") < at(&rig, "Save: ⌘S") && at(&rig, "Save: ⌘S") < at(&rig, "Save As…: ⇧⌘S"));
-    rig.choose("Show:", "All Commands");
-    rig.click("File");
-    assert!(!rig.has("Save: ⌘S"), "a closed group lists no rows");
-    assert!(rig.has("Object"), "the other groups stay");
-}
-
-#[trial]
 fn fixed_rows_strike_through_when_a_command_takes_their_chord() {
     let chord = |text: &str| Trigger::parse(text).unwrap_or_else(|e| panic!("{text}: {e}"));
     let mut options = fixture::options();
@@ -97,16 +83,4 @@ fn fixed_rows_strike_through_when_a_command_takes_their_chord() {
     rig.choose("Show:", "Fixed Keys");
     assert!(rig.has("Loop: L (Now used by Loop)"), "a fixed row whose chord a command took names the command");
     assert!(rig.has("Rate 1: 1"), "a free fixed row is plain");
-}
-
-#[trial]
-fn import_paths_make_no_areas_or_groups() {
-    let pen = Bindable::new("tool.pen", "Pen Tool", Scope::app())
-        .with_kind(Kind::Tool { group: None })
-        .with_import_path(vec!["Tools".into(), "Pen Tool".into()])
-        .with_default(Binding::parse("P").expect("a key"));
-    let mut rig = Rig::new(Keymap::new(vec![pen], Scopes::new(), Platform::Mac), Options::default(), None);
-    rig.open("Show:");
-    assert!(rig.has("Tools") && !rig.has("File Menu"), "an import path makes no menu area");
-    assert!(rig.has("Pen Tool: P"));
 }

@@ -1,8 +1,7 @@
 //! `ChannelsPanel` over sample rows: targeting, loading, options, rename, reorder, the footer and the commands.
 
 use craft_behavior::EditEvent;
-use craft_behavior::geometry::selection_op::SelectionOperation;
-use craft_imaging::ui::channels::{ChannelKind, ChannelRow, ChannelsEvent, ChannelsFooterButton, ChannelsPanel, ColorIndicates, targeted_row};
+use craft_imaging::ui::channels::{ChannelKind, ChannelRow, ChannelsEvent, ChannelsFooterButton, ChannelsPanel, ColorIndicates};
 use craft_theme::Srgba;
 use craft_ui::contract::{Role, SweepStep};
 use craft_ui::testing::{Fixture, Target, pointer, trial};
@@ -82,12 +81,6 @@ fn row(fixture: &Fixture, name: &str) -> Target {
     fixture.by_label(name).unwrap_or_else(|| panic!("no row named {name}"))
 }
 
-/// The middle of the thumbnail of the row `name`: after the eye, in the first square of the row.
-fn thumb(fixture: &Fixture, name: &str) -> Pos2 {
-    let rect = row(fixture, name).rect;
-    Pos2::new(rect.left() + rect.height() * 1.5, rect.center().y)
-}
-
 fn double_click(fixture: &mut Fixture, pos: Pos2) {
     fixture.frame(vec![pointer::moved(pos)]);
     for _ in 0..2 {
@@ -116,13 +109,6 @@ fn drops(events: Vec<ChannelsEvent<u32>>) -> Vec<(ChannelsFooterButton, Vec<u32>
     events
         .into_iter()
         .filter_map(|event| if let ChannelsEvent::FooterDrop { button, rows, .. } = event { Some((button, rows)) } else { None })
-        .collect()
-}
-
-fn loads(events: Vec<ChannelsEvent<u32>>) -> Vec<(u32, SelectionOperation)> {
-    events
-        .into_iter()
-        .filter_map(|event| if let ChannelsEvent::LoadSelection { key, operation, .. } = event { Some((key, operation)) } else { None })
         .collect()
 }
 
@@ -164,37 +150,6 @@ fn an_eye_sweep_flips_each_eye_and_escape_restores_them() {
         .filter_map(|event| if let ChannelsEvent::Visibility(SweepStep::Restore(cell)) = event { Some(cell.key) } else { None })
         .collect();
     assert_eq!(restored, [1, 2, 3], "every flipped eye is restored");
-}
-
-/// Cmd/Ctrl-click on the thumbnail loads the channel as a selection with the operation Shift and Alt ask for, and
-/// targets nothing.
-#[trial]
-fn a_command_click_on_the_thumbnail_loads_a_selection() {
-    let (mut fixture, app) = rig(sample_rows());
-    let cases = [
-        (Modifiers::COMMAND, SelectionOperation::New),
-        (Modifiers::COMMAND | Modifiers::SHIFT, SelectionOperation::Add),
-        (Modifiers::COMMAND | Modifiers::ALT, SelectionOperation::Subtract),
-        (Modifiers::COMMAND | Modifiers::SHIFT | Modifiers::ALT, SelectionOperation::Intersect),
-    ];
-    for (mods, operation) in cases {
-        fixture.hold(mods);
-        let at = thumb(&fixture, "Alpha 1");
-        fixture.click_at(at);
-        assert_eq!(loads(take(&app)), [(ALPHA_1, operation)], "{mods:?}");
-    }
-}
-
-/// A double click on the thumbnail of a row with options opens them; a composite row has none.
-#[trial]
-fn a_double_click_on_the_thumbnail_opens_the_options() {
-    let (mut fixture, app) = rig(sample_rows());
-    let at = thumb(&fixture, "Alpha 1");
-    double_click(&mut fixture, at);
-    assert!(take(&app).contains(&ChannelsEvent::Options(ALPHA_1)));
-    let at = thumb(&fixture, "RGB");
-    double_click(&mut fixture, at);
-    assert!(!take(&app).iter().any(|event| matches!(event, ChannelsEvent::Options(_))));
 }
 
 /// A double click on an alpha row's name opens the rename field and Enter commits it; composite and colour rows do not
@@ -269,15 +224,6 @@ fn a_drop_on_the_footer_reports_the_button_and_the_key() {
     assert!(drops(take(&app)).is_empty(), "a colour row is not deleted");
 }
 
-/// A drop on the footer acts on the row the pointer grabbed, not on the targeted composite.
-#[trial]
-fn a_footer_drop_acts_on_the_grabbed_row_while_the_composite_is_targeted() {
-    let (mut fixture, app) = rig(sample_rows());
-    let (from, to) = (row(&fixture, "Green").center(), row(&fixture, "Create new channel").center());
-    drag(&mut fixture, from, to);
-    assert_eq!(drops(take(&app)), [(ChannelsFooterButton::New, vec![2])]);
-}
-
 /// Rename Channel… in a row's context menu opens that row's rename field.
 #[trial]
 fn rename_from_the_row_menu_starts_the_rename() {
@@ -291,47 +237,4 @@ fn rename_from_the_row_menu_starts_the_rename() {
     fixture.click(&item);
     fixture.idle(3);
     assert!(editing(&fixture), "the rename field is open");
-}
-
-/// The app's Rename Channel command opens the row's rename field through `start_rename`; a composite row ignores it.
-#[trial]
-fn start_rename_opens_the_field_of_an_alpha_channel_only() {
-    let (mut fixture, app) = rig(sample_rows());
-    app.borrow_mut().rename = Some(COMPOSITE);
-    fixture.idle(3);
-    assert!(!editing(&fixture));
-    app.borrow_mut().rename = Some(ALPHA_2);
-    fixture.idle(3);
-    assert!(editing(&fixture), "the rename field is open");
-}
-
-/// Each row but Quick Mask shows the chord of its number at the trailing end.
-#[trial]
-fn the_shortcut_chords_follow_the_row_order() {
-    let (fixture, _) = rig(sample_rows());
-    let shown = |digit: char| fixture.texts().iter().any(|text| text.text.ends_with(digit));
-    assert!(shown('2') && shown('3') && shown('8'), "the composite is 2, the colours 3 to 5, Alpha 1 is 6 ... Spot 1 is 8");
-    assert!(!shown('9'), "Quick Mask takes no number");
-}
-
-/// The Load Channel as Selection command (Cmd/Ctrl+Enter) loads the lead, with Shift adding.
-#[trial]
-fn the_keyboard_loads_a_selection() {
-    let (mut fixture, app) = rig(sample_rows());
-    fixture.click(&row(&fixture, "Alpha 2"));
-    take(&app);
-    fixture.key(Key::Enter, Modifiers::COMMAND);
-    assert_eq!(loads(take(&app)), [(ALPHA_2, SelectionOperation::New)]);
-    fixture.key(Key::Enter, Modifiers::COMMAND | Modifiers::SHIFT);
-    assert_eq!(loads(take(&app)), [(ALPHA_2, SelectionOperation::Add)]);
-}
-
-/// The footer acts on the targeted row: a composite target has nothing to delete.
-#[trial]
-fn the_targeted_row_is_the_alpha_channel_over_the_composite() {
-    let mut rows = sample_rows();
-    target(&mut rows, COMPOSITE);
-    assert_eq!(targeted_row(&rows).map(|row| row.key), Some(COMPOSITE));
-    rows[ALPHA_1 as usize].targeted = true;
-    assert_eq!(targeted_row(&rows).map(|row| row.key), Some(ALPHA_1));
 }

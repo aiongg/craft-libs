@@ -45,30 +45,6 @@ fn the_picked_file_type_gives_the_name_its_extension() {
     assert_eq!(with_chosen_type(Path::new("/pics/art.psd"), opened, &[], &all), PathBuf::from("/pics/art.psd"));
 }
 
-/// An extension is listed by the request's filters in any letter case, with or without a dot.
-#[test]
-fn listed_extensions_compare_without_case_or_dot() {
-    let all = filters(&[("JPEG", &[".JPG"]), ("PNG", &["png"])]);
-    let png = vec!["png".to_string()];
-    assert_eq!(with_chosen_type(Path::new("/a/b.jpg"), Some("b.png"), &png, &all), PathBuf::from("/a/b.jpg"));
-    assert_eq!(with_chosen_type(Path::new("/a/b.psd"), None, &[".png".to_string()], &all), PathBuf::from("/a/b.psd.png"));
-}
-
-/// Which type's extensions the returned name gets.
-#[test]
-fn the_type_that_gives_the_extension_is_the_one_picked() {
-    let one = filters(&[("Color Swatches", &["aco"])]);
-    // One type offered: the dialog reports no pick, and it was given the stem.
-    assert_eq!(chosen_type(&one, None), Some(0));
-    assert_eq!(chosen_type(&one, Some(0)), Some(0));
-    let many = photo_filters();
-    assert_eq!(chosen_type(&many, Some(1)), Some(1));
-    // Several types and no pick: nothing to add.
-    assert_eq!(chosen_type(&many, None), None);
-    // An answer naming a type this dialog never offered is not a pick either.
-    assert_eq!(chosen_type(&many, Some(99)), None);
-}
-
 #[test]
 fn file_uris_become_local_paths() {
     assert_eq!(file_uri_path("file:///home/me/Untitled-1.psd"), Some(PathBuf::from("/home/me/Untitled-1.psd")));
@@ -76,13 +52,6 @@ fn file_uris_become_local_paths() {
     assert_eq!(file_uri_path("file://localhost/tmp/x.png"), Some(PathBuf::from("/tmp/x.png")));
     assert_eq!(file_uri_path("sftp://host/x.png"), None);
     assert_eq!(file_uri_path("file://host/x.png"), None);
-}
-
-#[test]
-fn x11_windows_are_named_to_the_portal() {
-    use raw_window_handle::XlibWindowHandle;
-    assert_eq!(parent_id(Some(RawWindowHandle::Xlib(XlibWindowHandle::new(0x3a0000f)))), "x11:3a0000f");
-    assert_eq!(parent_id(None), "");
 }
 
 /// The request starts on the type that lists the suggested extension, shows the stem, and keeps

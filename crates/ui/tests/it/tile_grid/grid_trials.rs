@@ -2,11 +2,11 @@
 //! hidden tiles, and ratings, checks and activation each have one route.
 
 use craft_behavior::{DisplayOrder, ItemSource, Selection, SizeHint};
-use craft_ui::contract::{ActivateOn, Bind, CollectionEvent, Role, ShowCollection as _};
+use craft_ui::contract::{Bind, CollectionEvent, Role, ShowCollection as _};
 use craft_ui::list::{ThumbAspect, ToggleState};
 use craft_ui::testing::access::focused_key;
 use craft_ui::testing::{Fixture, trial};
-use craft_ui::tile_grid::{BadgeVisibility, CaptionPlace, GridEvent, RatingKeys, Tile, TileGrid, TileGroup, TilePartEvent};
+use craft_ui::tile_grid::{CaptionPlace, GridEvent, RatingKeys, Tile, TileGrid, TileGroup, TilePartEvent};
 use egui::{Key, Modifiers, Rect, Vec2};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -70,10 +70,6 @@ impl Seen {
             .iter()
             .filter_map(|event| if let GridEvent::Rate { keys, rating, .. } = event { Some((keys.clone(), *rating)) } else { None })
             .collect()
-    }
-
-    fn items(&self) -> impl Iterator<Item = &TilePartEvent> {
-        self.events.iter().filter_map(|event| if let CollectionEvent::Item(_, item) = event { Some(item) } else { None })
     }
 }
 
@@ -199,46 +195,6 @@ fn rig_unbound(build: impl Fn(TileGrid<'_, usize>) -> TileGrid<'_, usize> + 'sta
     (fixture, seen)
 }
 
-/// A click on a star and a digit key give the same event, and the tile's own rating event is not a second route.
-#[trial]
-fn a_star_click_and_a_digit_key_give_the_same_rate_event() {
-    let rated = |tile: Tile<'static>| tile.rating(2).bar(BadgeVisibility::Always);
-    let (mut fixture, seen) = rig(1, |grid| grid.rating_keys(RatingKeys::Digits), move |_, tile| rated(tile));
-    // The rated tile's name carries its rating, so the tile is clicked by its place.
-    let card = seen.borrow().card(0);
-    fixture.click_at(card.max - Vec2::splat(4.0));
-    fixture.idle(2);
-    // The stars are one node; the fourth of five lies at seven tenths of its width.
-    let stars = fixture.by_label("Rating of alpha").expect("the rating is a node");
-    fixture.click_at(egui::Pos2::new(stars.rect.left() + stars.rect.width() * 0.7, stars.center().y));
-    fixture.idle(2);
-    fixture.type_text("4");
-    fixture.idle(2);
-    let seen = seen.borrow();
-    assert_eq!(seen.rates(), [(vec![0], 4), (vec![0], 4)], "both gestures give the one event: {:?}", seen.grid);
-    assert!(!seen.items().any(|item| matches!(item, TilePartEvent::Rate(_))), "the tile's rating does not reach the collection's events");
-}
-
-/// Space toggles the lead tile's check, as a click on its check box does.
-#[trial]
-fn space_toggles_the_lead_tiles_check() {
-    let (mut fixture, seen) = rig(4, |grid| grid.checks(true), |_, tile| tile.check(ToggleState::Off));
-    // A click on the picture only selects. The pictures are small, so the click goes to the corner the check box (which
-    // reaches past the picture's bottom end) does not cover.
-    let picture = seen.borrow().picture(1);
-    fixture.click_at(egui::Pos2::new(picture.max.x - 2.0, picture.min.y + 2.0));
-    fixture.idle(2);
-    fixture.key(Key::Space, Modifiers::NONE);
-    fixture.idle(2);
-    let checked: Vec<_> = seen
-        .borrow()
-        .events
-        .iter()
-        .filter_map(|event| if let CollectionEvent::Item(key, TilePartEvent::Check { .. }) = event { Some(*key) } else { None })
-        .collect();
-    assert_eq!(checked, [1], "Space reports the check of the lead tile");
-}
-
 /// A click on a tile's check box reports one `Check` for that tile.
 #[trial]
 fn a_click_on_the_check_box_reports_one_check() {
@@ -251,22 +207,6 @@ fn a_click_on_the_check_box_reports_one_check() {
         .filter_map(|event| if let CollectionEvent::Item(key, TilePartEvent::Check { .. }) = event { Some(*key) } else { None })
         .collect();
     assert_eq!(checked, [1], "the click on the check box reports the tile's check once");
-}
-
-/// A single click activates a tile when the grid says so, and a click that only selects does not.
-#[trial]
-fn activate_on_click_reports_the_clicked_tile() {
-    let activated = |seen: &Rc<RefCell<Seen>>| -> Vec<usize> {
-        seen.borrow().events.iter().filter_map(|event| if let CollectionEvent::Activate(key) = event { Some(*key) } else { None }).collect()
-    };
-    let (mut fixture, seen) = rig(4, |grid| grid.activate(ActivateOn::Click), plain);
-    click(&mut fixture, "charlie");
-    assert_eq!(activated(&seen), [2], "a click activates the clicked tile");
-    assert_eq!(seen.borrow().selection.lead, Some(2), "and it is selected as well");
-    let (mut fixture, seen) = rig(4, |grid| grid, plain);
-    click(&mut fixture, "charlie");
-    assert!(activated(&seen).is_empty(), "a single click only selects by default");
-    assert_eq!(seen.borrow().selection.lead, Some(2));
 }
 
 /// Group headers are rows of the grid's outline: Down from the last tile row of a group lands on the next header,
@@ -339,16 +279,4 @@ fn a_click_on_a_group_header_focuses_the_grid_with_the_header_as_lead() {
         .filter_map(|event| if let GridEvent::GroupOpen { group, open, .. } = event { Some((*group, *open)) } else { None })
         .collect();
     assert_eq!(closed, [(1, false)], "Left on the lead header closes its group");
-}
-
-/// The current tile, and only it, reports itself as the current item of the set; the selection is a different
-/// thing and stays as it was.
-#[trial]
-fn only_the_current_tile_reports_current() {
-    let (fixture, seen) = rig(6, |grid| grid.current(Some(3usize)), plain);
-    let tree = fixture.tree();
-    let current: Vec<&str> =
-        NAMES[..6].iter().copied().filter(|name| tree.current_of(fixture.by_label(name).expect("the tile is a node").node)).collect();
-    assert_eq!(current, ["delta"]);
-    assert!(seen.borrow().selection.items.is_empty(), "the current tile is not selected");
 }

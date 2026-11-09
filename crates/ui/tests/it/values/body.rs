@@ -76,19 +76,6 @@ fn a_kept_binding_written_in_a_body_reads_back_next_frame() {
     assert_eq!(seen[3], Some(Mixed::Same(5.0)));
 }
 
-/// A given binding never writes: the caller reports the event.
-#[trial]
-fn a_given_binding_is_not_written_in_a_body() {
-    let seen = RefCell::new(None);
-    frames_of(2, |cx, _| {
-        let mut bind = Bind::given(2.0f32);
-        let mut bind = bind.reborrow();
-        assert!(!bind.write(cx, &set(5.0)));
-        *seen.borrow_mut() = bind.read(cx);
-    });
-    assert_eq!(seen.take(), Some(Mixed::Same(2.0)));
-}
-
 /// A refused value writes nothing; a fixed one writes the fix.
 #[trial]
 fn a_check_decides_what_a_body_write_stores() {

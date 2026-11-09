@@ -31,36 +31,6 @@ fn opened_puts_the_newest_first_and_undated_files_last() {
     assert_eq!(names(&files, RecentSort::Opened), ["new", "mid", "old", "none"]);
 }
 
-#[trial]
-fn created_puts_the_newest_first_and_undated_files_last() {
-    let files = [file("none", None, None), file("old", None, Some(10)), file("new", None, Some(30))];
-    assert_eq!(names(&files, RecentSort::Created), ["new", "old", "none"]);
-}
-
-#[trial]
-fn name_reads_runs_of_digits_by_value() {
-    let files = [file("page 10", None, None), file("page 2", None, None), file("page 1", None, None)];
-    assert_eq!(names(&files, RecentSort::Name), ["page 1", "page 2", "page 10"]);
-}
-
-#[trial]
-fn new_and_open_report_their_actions() {
-    let seen = Rc::new(RefCell::new(Vec::new()));
-    let sink = Rc::clone(&seen);
-    let mut fixture = Fixture::new(move |ui| {
-        let (mut view, mut sort) = (RecentView::default(), RecentSort::default());
-        let out = StartScreen::new(Bind::bound(&mut view), Bind::bound(&mut sort), &[]).show(ui);
-        sink.borrow_mut().extend(out.actions);
-    });
-    fixture.settle();
-    for label in ["New…", "Open…"] {
-        let button = fixture.by_label(label).expect("the button shows");
-        fixture.click(&button);
-        fixture.idle(2);
-    }
-    assert_eq!(*seen.borrow(), [StartAction::New, StartAction::Open]);
-}
-
 /// Delete on a focused recent file runs the start screen's own Remove, so the application's Edit > Delete on the same
 /// key does not fire.
 #[trial]

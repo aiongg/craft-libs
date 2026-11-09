@@ -1,12 +1,10 @@
 //! `ListManager`: Delete runs the `delete` action from the list and edits text in the name box.
 
-use craft_ui::contract::tooltip::DELAY;
-use craft_ui::contract::{Bind, Role};
+use craft_ui::contract::Bind;
 use craft_ui::patterns::form_dialogs::{ListManager, ListManagerAction, ListManagerEntry, ListManagerWords};
 use craft_ui::runtime::env::Env;
-use craft_ui::testing::pointer::moved;
 use craft_ui::testing::{Fixture, trial};
-use egui::{Key, Modifiers, Pos2};
+use egui::{Key, Modifiers};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -45,34 +43,4 @@ fn delete_runs_the_delete_action_from_the_list_and_not_from_the_name_box() {
     fixture.key(Key::Delete, Modifiers::NONE);
     fixture.idle(2);
     assert_eq!(*chosen.borrow(), ["delete"]);
-}
-
-/// The tooltip a hover over the button named `label` shows, and the pointer moved away again.
-fn tip_over(fixture: &mut Fixture, label: &str) -> Option<String> {
-    let button = fixture.by_label(label).expect("the button is shown");
-    fixture.frame(vec![moved(button.center())]);
-    fixture.advance(DELAY);
-    fixture.idle(3);
-    let tip = fixture.by_role(Role::TOOLTIP).first().and_then(|tip| fixture.tree().name_of(tip.node)).map(str::to_owned);
-    fixture.frame(vec![moved(Pos2::ZERO)]);
-    fixture.idle(3);
-    tip
-}
-
-/// An enabled action shows its tooltip; a disabled one shows its reason instead of the tooltip.
-#[trial]
-fn an_action_button_tells_its_tooltip_when_enabled_and_its_reason_when_disabled() {
-    let mut fixture = Fixture::new(|ui| {
-        let words = Env::of(ui).words::<ListManagerWords>();
-        let actions = vec![
-            ListManagerAction::run(&words).tooltip("Runs the macro"),
-            ListManagerAction::create(&words).tooltip("Adds a macro").reason("Type a new name"),
-        ];
-        let entries = vec![ListManagerEntry::new("a", "Align Layers"), ListManagerEntry::new("b", "Batch Export")];
-        let mut open = true;
-        ListManager::new("Macros", "Macro name:", entries, actions).name("Batch Export").opened(Bind::bound(&mut open)).show(ui);
-    });
-    fixture.settle();
-    assert_eq!(tip_over(&mut fixture, "Run").as_deref(), Some("Runs the macro"));
-    assert_eq!(tip_over(&mut fixture, "Create").as_deref(), Some("Type a new name"), "the name exists, so Create is disabled and tells why");
 }

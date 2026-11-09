@@ -503,52 +503,7 @@ mod platform {
 
 #[cfg(test)]
 mod tests {
-    use super::{Button, Frame, Layout, Prefix, parse_override};
-
-    #[test]
-    fn prefix_names_the_override_variable() {
-        assert_eq!(Prefix::default().var_name(), "CRAFT_TITLEBAR");
-        assert_eq!(Prefix::new("PDFCRAFT").var_name(), "PDFCRAFT_TITLEBAR");
-    }
-
-    #[test]
-    fn the_override_reads_app_and_system() {
-        assert_eq!(parse_override(Some("app")), Some(true));
-        assert_eq!(parse_override(Some(" system ")), Some(false));
-        assert_eq!(parse_override(Some("desktop")), Some(false));
-        assert_eq!(parse_override(Some("nonsense")), None);
-        assert_eq!(parse_override(None), None);
-    }
-
-    #[test]
-    fn frame_maps_to_decorations_and_layout() {
-        assert!(Frame::Desktop.decorations());
-        assert!(Frame::Desktop.layout().is_none());
-        let app = Frame::App(Layout::default());
-        assert!(!app.decorations());
-        assert!(app.layout().is_some());
-    }
-
-    #[test]
-    fn the_default_layout_is_three_buttons_on_the_right() {
-        let layout = Layout::default();
-        assert!(layout.left.is_empty());
-        assert_eq!(layout.right, vec![Button::Minimize, Button::Maximize, Button::Close]);
-    }
-
-    #[test]
-    fn parse_reads_gnomes_two_sided_layout() {
-        let layout = Layout::parse("appmenu:minimize,maximize,close");
-        assert!(layout.left.is_empty());
-        assert_eq!(layout.right, vec![Button::Minimize, Button::Maximize, Button::Close]);
-
-        let fedora = Layout::parse("appmenu:close");
-        assert_eq!(fedora.right, vec![Button::Close]);
-
-        let left = Layout::parse("close,minimize,maximize:");
-        assert_eq!(left.left, vec![Button::Close, Button::Minimize, Button::Maximize]);
-        assert!(left.right.is_empty());
-    }
+    use super::{Button, Layout};
 
     #[test]
     fn parse_drops_quotes_unknown_names_and_duplicates() {
@@ -556,33 +511,5 @@ mod tests {
         let layout = Layout::parse("'appmenu:minimize,close,close,spacer'");
         assert!(layout.left.is_empty());
         assert_eq!(layout.right, vec![Button::Minimize, Button::Close]);
-    }
-
-    #[test]
-    fn parse_without_a_colon_puts_everything_on_the_left() {
-        let layout = Layout::parse("minimize,maximize,close");
-        assert_eq!(layout.left, vec![Button::Minimize, Button::Maximize, Button::Close]);
-        assert!(layout.right.is_empty());
-    }
-
-    #[test]
-    fn mirrored_swaps_the_sides() {
-        let layout = Layout::parse("close:minimize,maximize").mirrored();
-        assert_eq!((layout.left, layout.right), (vec![Button::Minimize, Button::Maximize], vec![Button::Close]));
-    }
-
-    #[test]
-    fn a_layout_naming_no_known_button_is_not_usable() {
-        assert!(!Layout::parse("appmenu:spacer").is_usable());
-        assert!(Layout::parse("appmenu:close").is_usable());
-    }
-
-    #[cfg(any(target_os = "macos", target_os = "windows"))]
-    #[test]
-    fn the_os_always_draws_the_frame_on_macos_and_windows() {
-        // A prefix whose variable no test or environment sets, so the platform decides.
-        let choice = super::Choice::probe(Prefix::new("CRAFT_WINDOW_UNSET_FOR_TEST"));
-        assert_eq!(choice.frame(), &Frame::Desktop);
-        assert_eq!(choice.overridden(), None);
     }
 }

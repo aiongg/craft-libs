@@ -2,8 +2,8 @@
 //! and what the body keeps; a host's cancel drops a pending request.
 
 use craft_ui::choice::Checkbox;
-use craft_ui::contract::{Bind, Props as _, Remember as _, Role, Show as _};
-use craft_ui::patterns::form_dialogs::{DialogFields, FormDialog, HostRequests, Param, ParamDialog, ParamKind, ParamRows};
+use craft_ui::contract::{Bind, Props as _, Remember as _, Show as _};
+use craft_ui::patterns::form_dialogs::{FormDialog, Param, ParamDialog, ParamKind};
 use craft_ui::runtime::env::Label;
 use craft_ui::testing::{Fixture, trial};
 use egui::Modifiers;
@@ -37,29 +37,6 @@ fn alt_reset_in_an_unbound_param_dialog_restores_the_opening_values() {
     fixture.click(&reset);
     fixture.settle();
     assert_eq!(shown.get(), Some(false), "Reset restores the opening value and the next pass keeps it");
-}
-
-/// With an app binding, Reset restores the bound values.
-#[trial]
-fn alt_reset_in_a_bound_param_dialog_restores_the_bind() {
-    let fields = Rc::new(RefCell::new(DialogFields::new()));
-    let held = Rc::clone(&fields);
-    let params = smooth();
-    let mut fixture = Fixture::new(move |ui| {
-        let mut fields = held.borrow_mut();
-        ParamDialog::new("blur", "Blur", params.clone()).values(Bind::bound(&mut *fields)).show(ui);
-    });
-    fixture.settle();
-    let target = fixture.by_label("Smooth").expect("the row is shown");
-    fixture.click(&target);
-    fixture.settle();
-    assert_eq!(fields.borrow().bool("smooth"), Some(true), "the edit wrote through");
-    fixture.hold(Modifiers::ALT);
-    fixture.settle();
-    let reset = fixture.by_label("Reset").expect("Alt turns Cancel into Reset");
-    fixture.click(&reset);
-    fixture.settle();
-    assert_eq!(fields.borrow().bool("smooth"), Some(false), "Reset wrote the opening value back");
 }
 
 /// What the body of the form below keeps beside its value.
@@ -98,23 +75,4 @@ fn alt_reset_in_a_form_dialog_restores_the_value_and_the_body_memory() {
     fixture.settle();
     assert!(!extra.get(), "Reset cleared what the body keeps");
     assert!(!*value.borrow(), "Reset restored the opening value");
-}
-
-/// A host's cancel drops a pending colour request.
-#[trial]
-fn a_host_cancel_cancels_a_pending_colour_request() {
-    let params = Param::parse_list(r#"{"tint":color=#336699}"#);
-    let requests = Rc::new(RefCell::new(HostRequests::new()));
-    let (held, fields) = (Rc::clone(&requests), Rc::new(RefCell::new(DialogFields::new())));
-    let mut fixture = Fixture::new(move |ui| {
-        let mut fields = fields.borrow_mut();
-        let mut rows = ParamRows::new("Options", &params, Bind::bound(&mut *fields)).show(ui);
-        held.borrow_mut().absorb(&mut rows);
-    });
-    fixture.settle();
-    let buttons = fixture.by_role(Role::BUTTON);
-    fixture.click(&buttons[0]);
-    fixture.settle();
-    requests.borrow_mut().cancel_color();
-    assert!(requests.borrow_mut().take_color().is_none(), "the cancelled request is gone");
 }

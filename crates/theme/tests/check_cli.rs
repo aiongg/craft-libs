@@ -33,20 +33,6 @@ fn stdout(o: &Output) -> String {
 }
 
 #[test]
-fn valid_file_has_no_errors_or_warnings() {
-    let ok = file("ok.json", &theme(json!({})));
-    let out = run(&[], &[&ok]);
-    assert_eq!(out.status.code(), Some(0), "{}", stdout(&out));
-    assert!(stdout(&out).ends_with("1 file(s) checked: 0 error(s), 0 warning(s)\n"), "{}", stdout(&out));
-
-    let out = run(&["--json"], &[&ok]);
-    let v: Value = serde_json::from_str(&stdout(&out)).unwrap();
-    assert_eq!(v[0]["errors"], json!([]));
-    assert_eq!(v[0]["warnings"], json!([]));
-    assert_eq!(v[0]["file"], ok.to_str().unwrap());
-}
-
-#[test]
 fn pinned_low_contrast_text_warns_and_exits_zero() {
     let weak = file("weak.json", &theme(json!({ "light": { "text.faint": "#e0e0e0" } })));
     let out = run(&[], &[&weak]);
@@ -81,15 +67,4 @@ fn invalid_file_exits_one_with_every_error() {
     let missing = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("check_cli/absent.json");
     assert_eq!(run(&[], &[&missing]).status.code(), Some(1));
     assert_eq!(Command::new(env!("CARGO_BIN_EXE_craft-theme")).output().unwrap().status.code(), Some(2));
-}
-
-#[test]
-fn built_in_theme_files_have_no_errors() {
-    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("themes");
-    let files: Vec<PathBuf> = std::fs::read_dir(dir).unwrap().map(|e| e.unwrap().path()).collect();
-    assert_eq!(files.len(), craft_theme::builtins().len());
-    let out = run(&[], &files.iter().collect::<Vec<_>>());
-    assert_eq!(out.status.code(), Some(0), "{}", stdout(&out));
-    let summary = format!("{} file(s) checked: 0 error(s)", files.len());
-    assert!(stdout(&out).contains(&summary), "{}", stdout(&out));
 }

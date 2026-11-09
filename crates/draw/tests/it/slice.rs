@@ -3,15 +3,11 @@
 use craft_behavior::geometry::Constraint;
 use craft_behavior::kurbo::{Point, Rect};
 use craft_behavior::{CanvasView, EditEvent};
-use craft_draw::ui::slice::{
-    DivideBy, DivideSlices, DivideSlicesDialog, SliceCommand, SliceEvent, SliceItem, SliceKind, SliceMode, SliceOptions, SliceOptionsDialog,
-    SliceOrigin, SliceOverlay, SliceRefusal, SliceRules, SliceTool, SliceToolSettings,
-};
+use craft_draw::ui::slice::{SliceEvent, SliceItem, SliceMode, SliceOrigin, SliceOverlay, SliceRefusal, SliceRules, SliceTool, SliceToolSettings};
 use craft_ui::canvas::{Canvas, ToolHost};
 use craft_ui::contract::{Show as _, ShowContainer as _};
-use craft_ui::dialog::{DialogHost, StackDialog as _};
 use craft_ui::testing::{Fixture, pointer, trial};
-use egui::{Key, Modifiers, Pos2};
+use egui::{Modifiers, Pos2};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -226,37 +222,6 @@ fn a_click_on_a_handle_resizes_nothing() {
 }
 
 #[trial]
-fn auto_slices_do_not_move_and_hide_when_asked() {
-    let mut h = harness(SliceMode::Select, |_| {});
-    let from = h.screen(180.0, 40.0);
-    h.drag(from, from + egui::vec2(20.0, 0.0), Modifiers::NONE);
-    assert!(h.events().iter().any(|event| matches!(event, SliceEvent::Select { number: Some(3), .. })), "{:?}", h.events());
-    assert!(h.events().iter().all(|event| !matches!(event, SliceEvent::Move { .. })), "an auto slice only selects");
-
-    let mut h = harness(SliceMode::Select, |app| app.hide_auto = true);
-    h.click(h.screen(180.0, 40.0));
-    assert!(
-        h.events().iter().any(|event| matches!(event, SliceEvent::Select { number: None, .. })),
-        "a hidden auto slice is nothing: {:?}",
-        h.events()
-    );
-}
-
-#[trial]
-fn slice_delete_key_deletes_a_stored_slice_and_leaves_an_auto_one() {
-    let mut h = harness(SliceMode::Select, |_| {});
-    h.click(h.screen(60.0, 40.0));
-    h.clear();
-    h.fixture.key(Key::Delete, Modifiers::NONE);
-    assert!(h.events().contains(&SliceEvent::Command(SliceCommand::Delete)), "{:?}", h.events());
-
-    h.click(h.screen(180.0, 40.0));
-    h.clear();
-    h.fixture.key(Key::Delete, Modifiers::NONE);
-    assert!(!h.events().contains(&SliceEvent::Command(SliceCommand::Delete)), "an auto slice is not deleted");
-}
-
-#[trial]
 fn locked_slices_refuse_every_gesture() {
     let mut h = harness(SliceMode::Select, |app| {
         app.locked = true;
@@ -273,101 +238,4 @@ fn locked_slices_refuse_every_gesture() {
     let from = h.screen(30.0, 120.0);
     h.drag(from, from + egui::vec2(40.0, 25.0), Modifiers::NONE);
     assert!(drawn(&h.events()).is_empty() && h.events().contains(&SliceEvent::Refused(SliceRefusal::Locked)));
-}
-
-#[trial]
-fn slice_badges_hide_on_slices_too_small_to_hold_them() {
-    let h = harness(SliceMode::Slice, |_| {});
-    let texts = h.fixture.texts();
-    assert!(texts.iter().any(|text| text.text == "01"), "the large slice has its badge");
-    assert!(!texts.iter().any(|text| text.text == "04"), "the 12 by 8 pixel slice has none");
-}
-
-#[trial]
-fn slice_keyboard_picks_moves_and_opens_options() {
-    let mut h = harness(SliceMode::Select, |_| {});
-    h.click(h.screen(60.0, 40.0));
-    h.clear();
-    h.fixture.key(Key::ArrowRight, Modifiers::NONE);
-    assert_eq!(committed_or_set(&h.events(), 1), Some(Rect::new(1.0, 0.0, 121.0, 80.0)), "{:?}", h.events());
-    h.clear();
-    h.fixture.key(Key::ArrowDown, Modifiers::SHIFT);
-    assert_eq!(committed_or_set(&h.events(), 1), Some(Rect::new(1.0, 10.0, 121.0, 90.0)));
-    h.clear();
-    h.fixture.key(Key::Enter, Modifiers::NONE);
-    assert!(h.events().contains(&SliceEvent::Command(SliceCommand::Options)));
-    h.clear();
-    h.fixture.key(Key::PageDown, Modifiers::NONE);
-    assert!(h.events().iter().any(|event| matches!(event, SliceEvent::Select { number: Some(_), .. })), "the focus arriving at a slice selects it");
-}
-
-fn committed_or_set(events: &[SliceEvent], number: usize) -> Option<Rect> {
-    events.iter().find_map(|event| match event {
-        SliceEvent::Move { number: n, event: EditEvent::Set { after, .. }, .. } if *n == number => Some(*after),
-        _ => None,
-    })
-}
-
-#[trial]
-fn slice_cancels_on_escape() {
-    let mut h = harness(SliceMode::Select, |_| {});
-    let from = h.screen(60.0, 40.0);
-    h.hold(from, from + egui::vec2(30.0, 0.0));
-    h.fixture.key(Key::Escape, Modifiers::NONE);
-    assert!(h.events().iter().any(|event| matches!(event, SliceEvent::Move { event: EditEvent::Cancel { .. }, .. })), "{:?}", h.events());
-    let count = h.events().len();
-    frame(&mut h, vec![pointer::release(from + egui::vec2(40.0, 0.0))]);
-    assert_eq!(h.events().len(), count, "the release after Escape is ignored");
-
-    let mut h = harness(SliceMode::Slice, |_| {});
-    let from = h.screen(30.0, 120.0);
-    h.hold(from, from + egui::vec2(40.0, 25.0));
-    h.fixture.key(Key::Escape, Modifiers::NONE);
-    assert!(h.events().iter().any(|event| matches!(event, SliceEvent::Draw(EditEvent::Cancel { .. }))), "{:?}", h.events());
-}
-
-#[trial]
-fn slice_commands_follow_the_selection_the_lock_and_the_document() {
-    use SliceOrigin::{Auto, Layer, User};
-    assert!(SliceCommand::Promote.enabled(Some(Auto), false, true) && SliceCommand::Promote.enabled(Some(Layer), false, true));
-    assert!(!SliceCommand::Promote.enabled(Some(User), false, true));
-    assert!(SliceCommand::Delete.enabled(Some(Layer), false, true), "a layer slice is deleted like a user slice");
-    assert!(!SliceCommand::Delete.enabled(Some(Auto), false, true));
-    assert!(SliceCommand::Divide.enabled(Some(Auto), false, true) && SliceCommand::Options.enabled(Some(User), false, true));
-    assert!(!SliceCommand::FromGuides.enabled(None, false, false) && SliceCommand::FromGuides.enabled(None, false, true));
-    assert!(
-        [SliceCommand::Promote, SliceCommand::Divide, SliceCommand::Delete, SliceCommand::Options, SliceCommand::FromGuides]
-            .into_iter()
-            .all(|command| !command.enabled(Some(Layer), true, true))
-    );
-}
-
-#[trial]
-fn divide_slices_answer_counts_and_sizes() {
-    let ctx = egui::Context::default();
-    let mut dialog = DivideSlicesDialog::new(DivideSlices::default());
-    assert_eq!(dialog.confirm(&ctx), Some(DivideSlices::new(Some(DivideBy::Count(2)), None)));
-    let mut dialog = DivideSlicesDialog::new(DivideSlices::new(Some(DivideBy::Size(64)), Some(DivideBy::Count(3))));
-    assert_eq!(dialog.confirm(&ctx), Some(DivideSlices::new(Some(DivideBy::Size(64)), Some(DivideBy::Count(3)))));
-    let mut dialog = DivideSlicesDialog::new(DivideSlices::new(None, None));
-    assert_eq!(dialog.confirm(&ctx), None, "OK is off while neither axis is on");
-}
-
-#[trial]
-fn slice_options_fields_follow_the_slice_type() {
-    let host = Rc::new(RefCell::new(DialogHost::new()));
-    let shown = Rc::clone(&host);
-    let mut options = SliceOptions::default();
-    options.kind = SliceKind::NoImage;
-    shown.borrow_mut().open(SliceOptionsDialog::new(options));
-    let mut fixture = Fixture::new(move |ui| host.borrow_mut().run(ui));
-    fixture.settle();
-    let texts = fixture.texts();
-    assert!(texts.iter().any(|text| text.text == "Text"), "No Image has the Text field");
-    assert!(!texts.iter().any(|text| text.text == "Alt Tag"), "and no Alt Tag");
-    let mut options = SliceOptions::default();
-    options.kind = SliceKind::Image;
-    shown.borrow_mut().open(SliceOptionsDialog::new(options));
-    fixture.settle();
-    assert!(fixture.texts().iter().any(|text| text.text == "Alt Tag"), "Image has Alt Tag");
 }

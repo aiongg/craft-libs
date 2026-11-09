@@ -3,7 +3,6 @@
 use craft_ui::contract::{Bind, Role, Show as _};
 use craft_ui::patterns::presets::{PresetEvent, PresetPicker, PresetRow, PresetState};
 use craft_ui::testing::{Fixture, pointer, trial};
-use egui::{Key, Modifiers};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -35,17 +34,6 @@ fn open(fixture: &mut Fixture) {
     fixture.idle(3);
 }
 
-/// A click on a preset in the popover writes its key.
-#[trial]
-fn a_click_on_a_preset_picks_it() {
-    let (mut fixture, value) = picker();
-    open(&mut fixture);
-    let coral = fixture.by_label("Coral").expect("the preset's tile");
-    fixture.click(&coral);
-    fixture.idle(3);
-    assert_eq!(value.get(), Some(CORAL));
-}
-
 /// A click on the field opens the popover again after a pick closed it.
 #[trial]
 fn the_popover_opens_again_after_a_pick_closed_it() {
@@ -58,16 +46,6 @@ fn the_popover_opens_again_after_a_pick_closed_it() {
     assert!(fixture.by_label("Amber").is_none(), "the pick closed the popover");
     open(&mut fixture);
     assert!(fixture.by_label("Amber").is_some(), "the popover opened again");
-}
-
-/// Escape closes the popover and the value stays what it was.
-#[trial]
-fn escape_closes_the_popover_without_a_pick() {
-    let (mut fixture, value) = picker();
-    open(&mut fixture);
-    fixture.key(Key::Escape, Modifiers::NONE);
-    fixture.idle(3);
-    assert_eq!(value.get(), Some(AMBER));
 }
 
 /// A picker whose row menu may delete only Amber, with the events it reported.

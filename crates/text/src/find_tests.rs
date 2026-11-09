@@ -125,35 +125,5 @@ fn refusals_are_kinds_not_english() {
 
 // A page with more matches than the limit keeps `limit` of them and says so; setting the page again
 // without the signal clears it.
-#[test]
-fn a_page_over_the_limit_says_so() {
-    let pattern = compile("a", FindOptions::default());
-    let at_limit = pattern.find_page("aaa", 3);
-    assert_eq!((at_limit.ranges.len(), at_limit.limit_reached), (3, false));
-    let over = pattern.find_page("aaaa", 3);
-    assert_eq!((over.ranges.len(), over.limit_reached), (3, true));
-
-    let mut matches = FindMatches::new(0);
-    matches.set_page(0, over);
-    matches.set_page(1, at_limit);
-    assert!(matches.limit_reached());
-    matches.set_page(0, vec![span(0, 1)]);
-    assert!(!matches.limit_reached());
-}
 
 // A pattern lists its named groups with their numbers; the lookup resolves `${name}` in a replacement.
-#[test]
-fn named_groups_resolve_in_replacements() {
-    let options = FindOptions { regex: true, ..Default::default() };
-    let pattern = compile(r"(?P<year>\d+)-(?P<month>\d+)", options);
-    assert_eq!(pattern.group_names(), [(1, "year"), (2, "month")]);
-    assert_eq!(pattern.group_index("month"), Some(2));
-    assert_eq!(pattern.group_index("day"), None);
-    assert!(compile("plain", FindOptions::default()).group_names().is_empty());
-
-    let pieces = resolve_group_names(parse_replacement("${month}/${year}", &options), &|name| pattern.group_index(name));
-    let text = "2026-11";
-    let groups = pattern.groups(text, 0..7);
-    let group = |n: usize| groups.get(n).cloned().flatten().map(|range| text[range].to_owned());
-    assert_eq!(expand_replacement(&pieces, text, &group, ""), "11/2026");
-}

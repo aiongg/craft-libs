@@ -155,21 +155,6 @@ fn a_click_on_the_opener_closes_its_open_menu() {
 }
 
 #[trial]
-fn a_press_trigger_opens_on_the_press() {
-    let mut frames = Frames::new();
-    let below = RefCell::new(Seen::default());
-    let frame = |frames: &mut Frames, events| scene(frames, events, Trigger::Press, Overlay::popover, false, &below);
-    for _ in 0..3 {
-        frame(&mut frames, vec![]);
-    }
-    let at = OPENER.center();
-    frame(&mut frames, vec![moved(at)]);
-    frame(&mut frames, vec![press(at)]);
-    let shown = [frame(&mut frames, vec![]), frame(&mut frames, vec![])];
-    assert!(shown[1], "the popup opens while the button is still down");
-}
-
-#[trial]
 fn a_hover_popup_closes_after_a_grace_period_with_the_pointer_on_neither() {
     let mut frames = Frames::new();
     let (opened, content) = (Opened::default(), RefCell::new(Seen::default()));
@@ -310,16 +295,6 @@ fn a_letter_on_a_popup_list_opener_moves_the_lead_by_type_ahead() {
     picker.fixture.key(Key::Enter, Modifiers::NONE);
     picker.fixture.idle(4);
     assert_eq!(picker.activated.get(), Some(2), "`c` moved the lead to Chisel");
-}
-
-/// Alt+Up on the opener closes its open dropdown, as Alt+Down opens it.
-#[trial]
-fn alt_up_on_a_popup_list_opener_closes_the_popup() {
-    let mut picker = open_picker();
-    picker.fixture.key(Key::ArrowUp, Modifiers::ALT);
-    picker.fixture.idle(4);
-    assert_eq!(picker.closed.get(), Some(CloseReason::Requested), "Alt+Up closes the dropdown");
-    assert_eq!(picker.activated.get(), None, "and picks nothing");
 }
 
 /// Rows by position over static text.

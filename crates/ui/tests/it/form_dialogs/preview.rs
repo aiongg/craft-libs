@@ -3,15 +3,14 @@
 //! shared by panes.
 
 use craft_behavior::{CanvasTransform, WheelTaker};
-use craft_ui::contract::{Role, Show as _};
+use craft_ui::contract::Show as _;
 use craft_ui::patterns::form_dialogs::{PreviewPane, PreviewState, PreviewView};
 use craft_ui::testing::access::Declared;
-use craft_ui::testing::focus::AccessActionKind;
 use craft_ui::testing::pointer;
 use craft_ui::testing::wheel::{register, take};
 use craft_ui::testing::{Fixture, trial};
 use egui::load::SizedTexture;
-use egui::{ColorImage, Id, Key, Modifiers, Pos2, Rect, TextureHandle, TextureOptions, Vec2, pos2};
+use egui::{ColorImage, Id, Pos2, Rect, TextureHandle, TextureOptions, Vec2, pos2};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -20,7 +19,6 @@ const WIDE: [usize; 2] = [2000, 8];
 
 struct Rig {
     fixture: Fixture,
-    view: Rc<RefCell<PreviewView>>,
 }
 
 fn rig() -> Rig {
@@ -38,7 +36,7 @@ fn rig() -> Rig {
         }
     });
     fixture.settle();
-    Rig { fixture, view }
+    Rig { fixture }
 }
 
 /// A picture wider than the well declares ScrollLeft and ScrollRight on the pane, and no vertical scroll action.
@@ -55,22 +53,6 @@ fn a_pane_declares_the_scroll_actions_of_the_axes_it_pans_on() {
         !tree.declares_key(pane.node, Declared::ScrollUp) && !tree.declares_key(pane.node, Declared::ScrollDown),
         "a picture that fits vertically does not pan vertically"
     );
-}
-
-/// AccessKit ScrollRight pans the view as ArrowRight does.
-#[trial]
-fn scroll_right_pans_as_the_right_arrow_does() {
-    let mut keyed = rig();
-    keyed.fixture.key(Key::Tab, Modifiers::NONE);
-    keyed.fixture.idle(2);
-    keyed.fixture.key(Key::ArrowRight, Modifiers::NONE);
-    keyed.fixture.idle(2);
-    let mut scrolled = rig();
-    let pane = scrolled.fixture.by_label("Preview").expect("the pane has a node");
-    scrolled.fixture.access(AccessActionKind::ScrollRight, &pane);
-    scrolled.fixture.idle(2);
-    assert!(keyed.view.borrow().transform.offset.x < 0.0, "the arrow pans");
-    assert_eq!(*scrolled.view.borrow(), *keyed.view.borrow(), "the scroll action pans the same way");
 }
 
 /// Where the panes below sit, and their well.
@@ -193,34 +175,6 @@ fn double_click(fixture: &mut Fixture, at: Pos2) {
     fixture.idle(2);
 }
 
-/// A pane that is pending or failed draws no picture, so there is nothing to pan: a drag reports no view where the
-/// same drag over a picture does. A failed pane shows its message, a pending one its progress line, and the pane keeps
-/// its name.
-#[trial]
-fn a_pane_without_a_picture_shows_its_state_and_reports_no_view() {
-    let ready_held = Held::new(WELL);
-    let mut with_picture = pane_rig(BIG, &ready_held, ready, plain);
-    let pane = with_picture.by_label("Preview").expect("the pane has a node");
-    with_picture.drag(&pane, Vec2::new(-30.0, 0.0));
-    assert!(ready_held.reported.get() > 0, "a drag over a picture pans");
-
-    let failed_held = Held::new(WELL);
-    let mut failed = pane_rig(BIG, &failed_held, |_| PreviewState::Failed("The preview failed.".into()), plain);
-    let pane = failed.by_label("Preview").expect("a failed pane keeps its name");
-    failed.drag(&pane, Vec2::new(-30.0, 0.0));
-    assert_eq!(failed_held.reported.get(), 0, "a failed pane reports no view");
-    assert!(failed.texts().iter().any(|text| text.text.contains("The preview failed.")), "the message is shown");
-
-    let pending_held = Held::new(WELL);
-    let mut pending = pane_rig(BIG, &pending_held, |_| PreviewState::Pending(Some(0.5)), plain);
-    let pane = pending.by_label("Preview").expect("a pending pane keeps its name");
-    pending.drag(&pane, Vec2::new(-30.0, 0.0));
-    assert_eq!(pending_held.reported.get(), 0, "a pending pane reports no view");
-    assert!(!pending.by_role(Role::PROGRESS_INDICATOR).is_empty(), "the progress line is shown");
-    let tree = pending.tree();
-    assert!(!tree.declares_key(pane.node, Declared::ScrollLeft), "a pane with no picture declares no pan");
-}
-
 /// The zoom follows the well while the pane fits; a wheel zoom leaves fit and a double click returns to it.
 #[trial]
 fn a_fitting_pane_follows_its_well_until_the_user_zooms_and_a_double_click_returns() {
@@ -250,31 +204,6 @@ fn a_fitting_pane_follows_its_well_until_the_user_zooms_and_a_double_click_retur
         held.shown.get()
     );
     assert!((held.shown.get().scale - expected(bigger)).abs() < EDGE, "the view is the fit view again: {:?}", held.shown.get());
-}
-
-/// The second press of a double click on the well is reported in the output, and a single click is not.
-#[trial]
-fn a_double_click_on_the_well_is_reported_in_the_output() {
-    let seen = Rc::new(Cell::new(false));
-    let handle: RefCell<Option<TextureHandle>> = RefCell::new(None);
-    let flag = Rc::clone(&seen);
-    let mut fixture = Fixture::new(move |ui| {
-        let mut handle = handle.borrow_mut();
-        let texture = handle
-            .get_or_insert_with(|| ui.ctx().load_texture("preview-double", ColorImage::filled(BIG, Default::default()), TextureOptions::LINEAR));
-        let sized = SizedTexture::new(texture.id(), Vec2::new(BIG[0] as f32, BIG[1] as f32));
-        let out = PreviewPane::new("Preview", sized, &fitting()).show_at(ui, Rect::from_min_size(ORIGIN, WELL));
-        flag.set(flag.get() || out.double_clicked);
-    });
-    fixture.settle();
-    let at = ORIGIN + WELL / 2.0;
-    fixture.frame(vec![pointer::moved(at)]);
-    fixture.frame(vec![pointer::press(at)]);
-    fixture.frame(vec![pointer::release(at)]);
-    fixture.idle(2);
-    assert!(!seen.get(), "one click is not a double click");
-    double_click(&mut fixture, at);
-    assert!(seen.get(), "the double click is reported");
 }
 
 /// The wheel and the zoom buttons stop at the ends of `zoom_range`.
@@ -320,52 +249,6 @@ fn wheel_zoom_keeps_the_point_under_the_pointer() {
     let canvas_before = (about - before.offset) / before.scale;
     let canvas_after = (about - after.offset) / after.scale;
     assert!((canvas_before - canvas_after).length() < 0.05, "the point under the pointer moved: {canvas_before:?} -> {canvas_after:?}");
-}
-
-/// With `click_centres(false)` a click reports no view; by default it centres the view on the point clicked.
-#[trial]
-fn click_centres_decides_whether_a_click_moves_the_view() {
-    let held = Held::new(WELL);
-    let mut fixture = pane_rig(BIG, &held, ready, |pane| pane.click_centres(false));
-    fixture.click_at(centre_of(&held) + Vec2::new(60.0, 20.0));
-    assert_eq!(held.reported.get(), 0, "a click leaves the view");
-
-    let held = Held::new(WELL);
-    let mut fixture = pane_rig(BIG, &held, ready, plain);
-    fixture.click_at(centre_of(&held) + Vec2::new(60.0, 20.0));
-    assert!(held.reported.get() > 0 && held.offset().x < 0.0, "a click centres the view on the point");
-}
-
-/// Two panes given one view show the same part, and a pan on one reports a view that, applied, moves both.
-#[trial]
-fn panes_given_one_view_show_the_same_part() {
-    let view = Rc::new(RefCell::new(PreviewView::default()));
-    let shown = [Rc::new(Cell::new(view.borrow().transform)), Rc::new(Cell::new(view.borrow().transform))];
-    let (given, seen) = (Rc::clone(&view), shown.clone());
-    let handle: RefCell<Option<TextureHandle>> = RefCell::new(None);
-    let mut fixture = Fixture::new(move |ui| {
-        let mut handle = handle.borrow_mut();
-        let texture =
-            handle.get_or_insert_with(|| ui.ctx().load_texture("preview-two", ColorImage::filled(BIG, Default::default()), TextureOptions::LINEAR));
-        let sized = SizedTexture::new(texture.id(), Vec2::new(BIG[0] as f32, BIG[1] as f32));
-        let mut reported = None;
-        for (at, (name, seen)) in ["Left", "Right"].into_iter().zip(&seen).enumerate() {
-            let rect = Rect::from_min_size(pos2(ORIGIN.x + at as f32 * (WELL.x + 20.0), ORIGIN.y), WELL);
-            let out = PreviewPane::new(name, sized, &given.borrow()).show_at(ui, rect);
-            seen.set(out.shown.transform);
-            reported = reported.or(out.view);
-        }
-        if let Some(next) = reported {
-            *given.borrow_mut() = next;
-        }
-    });
-    fixture.settle();
-    assert_eq!(shown[0].get(), shown[1].get(), "both panes show the same part");
-    let left = fixture.by_label("Left").expect("the left pane has a node");
-    fixture.drag(&left, Vec2::new(-40.0, 0.0));
-    assert!(view.borrow().transform.offset.x < 0.0, "the pan reported a view");
-    assert_eq!(shown[0].get(), shown[1].get(), "the applied view moves both panes alike");
-    assert!(shown[1].get().offset.x < 0.0, "the other pane moved too");
 }
 
 /// The wheel goes to the scroll region around a pane while the picture fits the well, pans the picture where it

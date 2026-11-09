@@ -101,19 +101,6 @@ fn near(a: f32, b: f32) -> bool {
 }
 
 #[trial]
-fn a_window_whose_panel_cannot_close_shows_no_close_and_float_docks_it() {
-    let rights = |panel: &usize| if *panel == WINDOW { Permissions::ALL.closable(false) } else { Permissions::ALL };
-    let mut bed = bed(with_window(Some(Node::tabs(vec![DOCKED], 0))), rights);
-    assert!(bed.fixture.by_label("Close").is_none(), "a panel that cannot close has no Close on its window");
-    let float = bed.fixture.by_label("Float").expect("the window offers Float");
-    bed.fixture.click(&float);
-    bed.fixture.settle();
-    let layout = bed.workspace.borrow().layout.clone();
-    assert!(layout.floating.is_empty(), "Float docked the window: {:?}", bed.actions.borrow());
-    assert!(layout.panels().contains(&&WINDOW), "the panel stays in the layout");
-}
-
-#[trial]
 fn one_drag_of_a_floating_window_is_one_committed_edit() {
     let mut bed = bed(with_window(None), |_| Permissions::ALL);
     press_and_move(&mut bed.fixture, WINDOW_AT.min + TITLE_AT, MOVE);

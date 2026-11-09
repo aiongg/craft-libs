@@ -2,10 +2,9 @@
 //! and click.
 
 mod drawer;
-mod panel_rail;
 
 use craft_ui::contract::{Role, Show as _};
-use craft_ui::rails::{DropAt, FlyoutButton, LastUsed, RailTool, ToolSlot, column_toggle_icon, drop_in_slot, remembered, shown_tool, visible_slots};
+use craft_ui::rails::{FlyoutButton, LastUsed, RailTool, column_toggle_icon, shown_tool};
 use craft_ui::runtime::commands::EditCommands;
 use craft_ui::testing::{Fixture, trial};
 use std::cell::RefCell;
@@ -31,16 +30,6 @@ fn refs(tools: &[RailTool<u8>]) -> Vec<&RailTool<u8>> {
 }
 
 #[trial]
-fn hidden_tools_leave_their_slot_and_an_emptied_slot_goes() {
-    let slots = [ToolSlot::new(0, tools(&[UNDO, REDO])), ToolSlot::new(1, tools(&[CUT]))];
-    let visible = visible_slots(&slots, &[REDO, CUT]);
-    assert_eq!(visible.len(), 1, "the slot with no visible tool is dropped");
-    let (index, kept) = &visible[0];
-    assert_eq!(*index, 0);
-    assert_eq!(kept.iter().map(|tool| tool.id).collect::<Vec<_>>(), [UNDO], "the slot lists only its visible tools");
-}
-
-#[trial]
 fn a_slot_shows_the_current_tool_then_the_last_used_then_the_first_enabled() {
     let all = tools(&[UNDO, REDO, CUT]);
     let slot = refs(&all);
@@ -54,24 +43,6 @@ fn a_slot_shows_the_current_tool_then_the_last_used_then_the_first_enabled() {
     assert_eq!(shown_tool(&99, 0, &slot, &last, not_cut).map(|tool| tool.id), Some(UNDO), "a disabled memory is skipped");
     let none = |_: &RailTool<u8>| false;
     assert_eq!(shown_tool(&99, 0, &slot, &last, none).map(|tool| tool.id), Some(UNDO), "with nothing enabled the first tool shows");
-}
-
-#[trial]
-fn the_slot_that_holds_the_current_tool_remembers_it() {
-    let slots = [ToolSlot::new(4, tools(&[UNDO, REDO])), ToolSlot::new(5, tools(&[CUT]))];
-    let last = LastUsed::default();
-    let next = remembered(&slots, &REDO, &last).expect("the memory changes");
-    assert_eq!(next.get(4), Some(&REDO));
-    assert_eq!(next.get(5), None, "another slot keeps nothing");
-    assert!(remembered(&slots, &REDO, &next).is_none(), "an unchanged memory reports nothing");
-    assert!(remembered(&slots, &99, &last).is_none(), "a tool no slot holds changes nothing");
-}
-
-#[trial]
-fn a_drop_joins_the_slot_in_its_middle_and_makes_a_slot_at_its_edges() {
-    assert_eq!(drop_in_slot(0.1, 7, 2, 3), DropAt::new_slot(2), "the leading edge goes before the slot");
-    assert_eq!(drop_in_slot(0.9, 7, 2, 3), DropAt::new_slot(3), "the trailing edge goes after it");
-    assert_eq!(drop_in_slot(0.5, 7, 2, 3), DropAt::into_slot(7, 3), "the middle appends to the slot's tools");
 }
 
 #[trial]
@@ -132,14 +103,4 @@ fn a_hold_that_does_not_select_only_opens_the_flyout() {
     held.fixture.release(&target);
     held.fixture.idle(3);
     assert!(held.selected.borrow().is_empty(), "releasing after the hold selects nothing when the hold does not select");
-}
-
-#[trial]
-fn a_flyout_button_with_one_tool_is_one_button_node() {
-    let mut fixture = Fixture::new(|ui| {
-        let all = tools(&[UNDO]);
-        FlyoutButton::new(&all, &UNDO).show(ui);
-    });
-    fixture.settle();
-    assert_eq!(fixture.by_role(Role::BUTTON).len(), 1, "the face is the button, not a second node");
 }

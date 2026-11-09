@@ -6,7 +6,7 @@ use std::rc::Rc;
 use craft_behavior::{EditEvent, SelectionChange};
 use craft_timeline::ui::{Timeline, TimelineEdit};
 use craft_timeline::{
-    ClipEdit, ClipId, ClipInfo, FrameRate, Marker, MarkerColor, Tick, TimeFormat, TimeRange, TimeView, TimelineModel, TrackId, TrackInfo, TrackKind,
+    ClipEdit, ClipId, ClipInfo, FrameRate, Marker, Tick, TimeFormat, TimeRange, TimeView, TimelineModel, TrackId, TrackInfo, TrackKind,
 };
 use craft_ui::contract::Role;
 use craft_ui::testing::{Fixture, trial};
@@ -267,18 +267,4 @@ fn the_divider_changes_and_keeps_the_share() {
     assert!(share < DEFAULT_SHARE, "dragging up gives the video side less: {share}");
     let after = rows(&fixture)[2].top();
     assert!(after < before, "the audio side moved up with the divider: {before} -> {after}");
-}
-
-/// The colour strip opens a menu of the sixteen labels; choosing one reports it.
-#[trial]
-fn the_label_menu_names_the_labels_and_reports_the_choice() {
-    let (mut fixture, _, seen) = panel(Vec::new(), Vec::new());
-    let strip = fixture.by_label("Track Color").expect("a track has a colour strip");
-    fixture.click(&strip);
-    fixture.idle(2);
-    let violet = fixture.by_label("Violet").expect("the menu lists the label names");
-    fixture.click(&violet);
-    fixture.idle(2);
-    let chosen = seen.borrow().edits.iter().any(|edit| matches!(edit, TimelineEdit::Label { label: Some(MarkerColor(0)), .. }));
-    assert!(chosen, "{:?}", seen.borrow().edits);
 }

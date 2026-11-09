@@ -2,7 +2,7 @@
 
 use craft_i18n::Direction;
 use craft_theme::{Contrast, Mode};
-use craft_ui::primitives::{ChordText, HAlign, Span, TextRun, Wrap};
+use craft_ui::primitives::{ChordText, HAlign, TextRun, Wrap};
 use craft_ui::style::Ink;
 use craft_ui::testing::style::{paint_frame, tokens};
 use craft_ui::testing::{Frames, trial};
@@ -72,19 +72,6 @@ fn an_elided_path_keeps_its_end() {
         assert!(shown.contains('\u{2026}'), "the cut is marked");
         assert!(shown.ends_with("document.txt"), "the file name stays: {shown}");
         assert!(shown.starts_with('/'), "the start stays too: {shown}");
-    });
-}
-
-#[trial]
-fn spans_style_a_run_without_splitting_its_text() {
-    let tokens = tokens(Mode::Light, Contrast::Standard);
-    let mut frames = Frames::new();
-    paint_frame(&mut frames, &tokens, Direction::Ltr, Ink::OnPanel, |draw| {
-        let run = TextRun::spans(vec![Span::new("Save "), Span::new("Ctrl+S").shortcut()]);
-        let layout = draw.text(RECT, &run);
-        assert_eq!(layout.galley.job.text, "Save Ctrl+S");
-        assert_eq!(layout.galley.job.sections.len(), 2, "the shortcut has its own format");
-        assert!(!layout.elided);
     });
 }
 

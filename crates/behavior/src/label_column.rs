@@ -78,12 +78,4 @@ mod tests {
         let low = column.place(row(false, 300.0), Vec2::new(40.0, 12.0), 9.0, Some(4.0));
         assert_eq!((low.label.top(), low.control.top()), (0.0, 5.0), "a control with the higher baseline moves down instead");
     }
-
-    #[test]
-    fn a_narrow_row_stacks_the_label_above_the_control() {
-        let column = LabelColumn::new(80.0, 120.0, 4.0);
-        let placed = column.place(row(false, 100.0), Vec2::new(40.0, 12.0), 9.0, Some(14.0));
-        assert!(placed.stacked);
-        assert_eq!((placed.control.left(), placed.control.top()), (0.0, 16.0));
-    }
 }

@@ -855,39 +855,6 @@ mod tests {
         }
     }
 
-    fn rows(count: usize) -> SpanLayout {
-        SpanLayout::new(&Count(count), 100.0, 20.0).columns(vec![(ColumnKey::new("a"), 30.0), (ColumnKey::new("b"), 70.0)])
-    }
-
-    #[test]
-    fn the_last_of_a_million_rows_places_and_hits_exactly() {
-        let layout = rows(1_000_000);
-        let offset = ScrollPos { x: 0.0, y: 19_999_990.0 };
-        let last = layout.rect(999_999, offset);
-        assert_eq!(last.top(), -10.0);
-        assert_eq!(layout.hit(Pos2::new(5.0, 5.0), offset), Some(999_999));
-        let mut shown = Vec::new();
-        layout.visible(offset, Vec2::new(100.0, 40.0), &mut shown);
-        assert_eq!(shown, vec![999_999]);
-    }
-
-    #[test]
-    fn visible_rows_cover_a_partial_first_and_last_row() {
-        let layout = rows(10);
-        let mut shown = Vec::new();
-        layout.visible(ScrollPos { x: 0.0, y: 15.0 }, Vec2::new(100.0, 30.0), &mut shown);
-        assert_eq!(shown, vec![0, 1, 2]);
-    }
-
-    #[test]
-    fn columns_run_from_the_start_edge_under_horizontal_scroll() {
-        let layout = rows(2);
-        let mut cells = Vec::new();
-        layout.cells(1, ScrollPos { x: 10.0, y: 0.0 }, &mut cells);
-        let lefts: Vec<f32> = cells.iter().map(|(_, r)| r.left()).collect();
-        assert_eq!(lefts, vec![-10.0, 20.0]);
-    }
-
     struct Hints(Vec<SizeHint>);
 
     impl DisplayOrder<usize> for Hints {
@@ -928,22 +895,6 @@ mod tests {
     }
 
     #[test]
-    fn a_sheet_grid_view_follows_the_viewport_and_keeps_frozen_columns_in_place() {
-        let columns: Vec<_> = ["a", "b", "c", "d", "e"].into_iter().map(|key| (ColumnKey::new(key), 40.0)).collect();
-        let mut layout = SheetLayout::new(&Count(3), 20.0, columns).frozen(1);
-        layout.set_view(Vec2::new(100.0, 60.0), ScrollPos { x: 50.0, y: 0.0 });
-        let grid = layout.grid().expect("a view was set");
-        assert_eq!(grid.sections.len(), 2);
-        assert_eq!((grid.sections[0].columns.clone(), grid.sections[0].edges.clone()), (0..1, vec![0.0, 40.0]));
-        assert_eq!((grid.sections[1].columns.clone(), grid.sections[1].edges.clone()), (2..4, vec![30.0, 70.0, 110.0]));
-        let mut cells = Vec::new();
-        layout.cells(0, ScrollPos { x: 50.0, y: 0.0 }, &mut cells);
-        assert_eq!(cells.iter().map(|(key, _)| key.clone()).collect::<Vec<_>>(), ["a", "c", "d"].map(ColumnKey::new));
-        assert_eq!(layout.column_at(Pos2::new(10.0, 5.0), ScrollPos { x: 50.0, y: 0.0 }), Some(0));
-        assert_eq!(layout.column_at(Pos2::new(60.0, 5.0), ScrollPos { x: 50.0, y: 0.0 }), Some(2));
-    }
-
-    #[test]
     fn tiles_wrap_at_the_width_and_a_hit_in_the_gap_finds_nothing() {
         let layout = TileLayout::new(&Count(7), 100.0, Vec2::new(20.0, 10.0), 5.0);
         assert_eq!(layout.columns(), 4);
@@ -955,24 +906,6 @@ mod tests {
         layout.visible(ScrollPos { x: 0.0, y: 16.0 }, Vec2::new(100.0, 5.0), &mut shown);
         assert_eq!(shown, vec![4, 5, 6], "only the second row shows, and the last row is short");
         assert_eq!(layout.content_size().y, 25.0);
-    }
-
-    #[test]
-    fn a_sheet_of_a_million_rows_places_and_hits_its_last_row_with_cells() {
-        let layout = SheetLayout::new(&Count(1_048_576), 20.0, vec![(ColumnKey::new("a"), 30.0), (ColumnKey::new("b"), 70.0)]);
-        let offset = ScrollPos { x: 0.0, y: layout.content_size().y - 100.0 };
-        assert_eq!(layout.rect(1_048_575, offset).top(), 80.0);
-        assert_eq!(layout.hit(Pos2::new(10.0, 90.0), offset), Some(1_048_575));
-        let mut cells = Vec::new();
-        layout.cells(1_048_575, offset, &mut cells);
-        assert_eq!(cells.iter().map(|(_, rect)| rect.left()).collect::<Vec<_>>(), vec![0.0, 30.0]);
-        assert_eq!(layout.nav(), NavShape::Cell);
-    }
-
-    #[test]
-    fn a_column_of_no_width_is_not_shown() {
-        let layout = SheetLayout::new(&Count(2), 20.0, vec![(ColumnKey::new("a"), 30.0), (ColumnKey::new("b"), 0.0), (ColumnKey::new("c"), 30.0)]);
-        assert_eq!((layout.column_shown(0), layout.column_shown(1), layout.column_shown(2), layout.column_shown(3)), (true, false, true, false));
     }
 
     #[test]

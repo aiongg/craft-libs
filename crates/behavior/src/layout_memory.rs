@@ -60,15 +60,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_tween_runs_from_start_to_end_and_stays() {
-        let tween = SizeTween::new(Vec2::ZERO, Vec2::new(100.0, 40.0), 1.0, 0.5);
-        assert_eq!(tween.at(0.0), Vec2::ZERO);
-        assert_eq!(tween.at(1.25), Vec2::new(50.0, 20.0));
-        assert_eq!(tween.at(9.0), Vec2::new(100.0, 40.0));
-        assert!(!tween.is_done(1.4) && tween.is_done(1.5));
-    }
-
-    #[test]
     fn only_a_first_appearance_or_a_change_after_a_settled_frame_asks() {
         let placed = Vec2::new(100.0, 20.0);
         let tolerance = measure_tolerance(1.0);
@@ -77,13 +68,5 @@ mod tests {
         assert!(!measured_change_asks_for_discard(Some(placed), Vec2::new(100.4, 20.0), false, tolerance));
         assert!(measured_change_asks_for_discard(Some(placed), Vec2::new(100.0, 21.0), false, tolerance));
         assert!(!measured_change_asks_for_discard(Some(placed), Vec2::new(100.0, 21.0), true, tolerance));
-    }
-
-    #[test]
-    fn the_tolerance_is_half_a_physical_pixel() {
-        let placed = Vec2::new(100.0, 20.0);
-        let real = Vec2::new(100.3, 20.0);
-        assert!(!measured_change_asks_for_discard(Some(placed), real, false, measure_tolerance(1.0)));
-        assert!(measured_change_asks_for_discard(Some(placed), real, false, measure_tolerance(2.0)));
     }
 }

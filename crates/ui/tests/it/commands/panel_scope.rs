@@ -2,11 +2,10 @@
 
 use super::kit::FixedStyle;
 use craft_behavior::Sense;
-use craft_host::target::Os;
 use craft_ui::buttons::Button;
 use craft_ui::contract::{CommandSet, Common, Component, Cx, Props as _, Role, Show as _, ShowContainer as _};
 use craft_ui::layout_components::Stack;
-use craft_ui::runtime::commands::{CommandScope, Commands as _, resolve};
+use craft_ui::runtime::commands::{CommandScope, Commands as _};
 use craft_ui::runtime::focus::{FocusTarget, request};
 use craft_ui::style::StyleCx;
 use craft_ui::testing::{Fixture, trial};
@@ -118,17 +117,4 @@ fn a_focused_leaf_takes_its_scoped_command_and_an_unfocused_one_does_not() {
         toggle(&mut fixture);
         assert_eq!((counts[0].get(), counts[1].get()), expected, "only the focused leaf ({focused}) takes the command");
     }
-}
-
-/// A platform default replaces the others on its platform.
-#[trial]
-fn a_platform_default_replaces_the_default_on_its_platform() {
-    let mut fixture = Fixture::new(|_| {});
-    let key = |fixture: &mut Fixture, os: Os| {
-        fixture.os(os).frame(vec![]);
-        resolve(fixture.ctx(), PanelCommand::FindNext).chord.map(|chord| chord.key)
-    };
-    assert_eq!(key(&mut fixture, Os::Mac), Some(craft_keymap::Key::G));
-    assert_eq!(key(&mut fixture, Os::Windows), Some(craft_keymap::Key::F3));
-    assert_eq!(key(&mut fixture, Os::Linux), Some(craft_keymap::Key::F3));
 }

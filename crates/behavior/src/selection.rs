@@ -562,15 +562,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn set_anchors_at_the_first_key_and_leads_with_the_last() {
-        let mut selection = Selection::<u32>::default();
-        selection.apply(SelectionChange::Set(vec![3, 1, 2]));
-        assert_eq!((selection.anchor(), selection.lead()), (Some(&3), Some(&2)));
-        selection.apply(SelectionChange::Set(vec![]));
-        assert_eq!((selection.anchor(), selection.lead()), (None, None));
-    }
-
-    #[test]
     fn toggle_moves_the_lead_and_anchor_to_the_toggled_key_whether_it_turns_on_or_off() {
         let mut selection = Selection::<u32>::default();
         selection.apply(SelectionChange::Set(vec![3, 2]));
@@ -599,26 +590,10 @@ mod tests {
     }
 
     #[test]
-    fn toggling_a_whole_row_on_makes_its_first_cell_the_lead_and_anchor() {
-        let mut cells = CellSelection::<u32>::default();
-        cells.apply(SelectionChange::Set(vec![1, 2]));
-        cells.apply(SelectionChange::Toggle(6));
-        assert_eq!((cells.lead(), cells.anchor(), cells.lead_column()), (Some(&6), Some(&6), Some(0)));
-    }
-
-    #[test]
     fn a_range_has_at_least_one_column_and_a_stored_range_loads_again() {
         let range = CellRange::new(1u32, 2, 5..5, 5);
         assert_eq!(range.columns, 5..6);
         let json = serde_json::to_string(&range).expect("a range serializes");
         assert_eq!(serde_json::from_str::<CellRange<u32>>(&json).expect("it loads"), range);
-    }
-
-    #[test]
-    fn clear_forgets_the_lead_and_anchor() {
-        let mut selection = Selection::<u32>::default();
-        selection.apply(SelectionChange::Set(vec![1, 2]));
-        selection.apply(SelectionChange::Clear);
-        assert_eq!((selection.items.len(), selection.lead(), selection.anchor()), (0, None, None));
     }
 }

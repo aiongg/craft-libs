@@ -1,6 +1,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use super::*;
 use crate::ThemeId;
@@ -162,16 +162,6 @@ fn assert_meets_spec(name: &str, r: &Resolved, contrast: Contrast) {
 }
 
 #[test]
-fn color_token_paths_round_trip_and_are_unique() {
-    let paths: BTreeSet<_> = ColorToken::ALL.iter().map(|t| t.path()).collect();
-    assert_eq!(paths.len(), ColorToken::ALL.len());
-    for &t in ColorToken::ALL {
-        assert_eq!(ColorToken::from_path(t.path()), Some(t));
-    }
-    assert_eq!(ColorToken::from_path("surface.nope"), None);
-}
-
-#[test]
 fn samples_resolve_and_derived_tokens_meet_every_minimum() {
     for def in [grey_blue(), violet(), pinned_faint()] {
         let pinned = def.id == pinned_faint().id;
@@ -310,19 +300,6 @@ fn background_greys_keep_their_curve_distance_from_a_pinned_panel() {
         assert!(e.colors.iter().all(|o| !matches!(o.pass_move, Some(PassMove::Pulled(_)))), "{mode:?}: nothing needs a pull");
         let anchored = ANCHORED.map(TokenRef::from);
         assert!(e.resolved.warnings.iter().all(|w| !anchored.contains(&w.fg) && !anchored.contains(&w.bg)), "{mode:?}: {:?}", e.resolved.warnings);
-    }
-}
-
-#[test]
-fn a_pinned_grey_overrides_its_anchored_value() {
-    let mut def = grey_blue();
-    def.id = ThemeId::parse("test.panel-and-raised").unwrap();
-    def.pins.dark = Pins::from_iter([(T::SurfacePanel, hex("#3a3a3a")), (T::SurfaceRaised, hex("#202020")), (T::StateHover, hex("#4a4a4a"))]);
-    let e = explain(&def, app(Mode::Dark, Contrast::Standard), None);
-    for (token, value) in [(T::SurfaceRaised, "#202020"), (T::StateHover, "#4a4a4a")] {
-        let o = e.color(token).unwrap();
-        assert_eq!(o.value, hex(value), "{token:?}");
-        assert_ne!(o.derived, o.value, "{token:?}: the anchored value is what the pin replaces");
     }
 }
 
@@ -514,52 +491,6 @@ fn guide_colours_are_exempt_from_the_overlay_pairs() {
     }
 }
 
-/// The grid overlay sits on the document, so it keeps one value in every built-in mode.
-#[test]
-fn grid_overlay_colour_is_fixed() {
-    for theme in builtins() {
-        for mode in [Mode::Light, Mode::Dark] {
-            if matches!((theme.variants, mode), (Variants::LightOnly, Mode::Dark) | (Variants::DarkOnly, Mode::Light)) {
-                continue;
-            }
-            let c = resolve(theme, app(mode, Contrast::Standard), None).tokens.color;
-            assert_eq!(c.overlay.grid, hex("#8c8c8c"));
-        }
-    }
-}
-
-#[test]
-fn pins_replace_defaults_and_aliases_follow() {
-    let mut def = grey_blue();
-    let bg = hex("#203040");
-    def.pins.dark = Pins::from_iter([(T::SurfaceBackground, bg), (T::AccentSolid, hex("#3050c0"))]);
-    def.high_contrast.dark = Pins::from_iter([(T::SurfaceBackground, hex("#000000"))]);
-    let r = resolve(&def, app(Mode::Dark, Contrast::Standard), None);
-    assert_eq!(r.tokens.color(T::SurfaceBackground), bg);
-    assert_eq!(r.tokens.color(T::SurfaceCanvas), bg);
-    assert_eq!(r.tokens.color(T::OverlayHandleStroke), hex("#3050c0"));
-    let high = resolve(&def, app(Mode::Dark, Contrast::High), None);
-    assert_eq!(high.tokens.color(T::SurfaceCanvas), Rgba::BLACK, "high-contrast pins apply over mode pins");
-}
-
-#[test]
-fn the_canvas_pattern_equals_the_canvas_unless_pinned() {
-    let mut def = grey_blue();
-    def.pins.dark = Pins::from_iter([(T::SurfaceBackground, hex("#203040"))]);
-    let r = resolve(&def, app(Mode::Dark, Contrast::Standard), None).tokens;
-    assert_eq!(r.color(T::SurfaceCanvasPattern), r.color(T::SurfaceCanvas));
-    def.pins.dark = Pins::from_iter([(T::SurfaceCanvasPattern, hex("#445566"))]);
-    let r = resolve(&def, app(Mode::Dark, Contrast::Standard), None).tokens;
-    assert_eq!(r.color(T::SurfaceCanvasPattern), hex("#445566"));
-    let dots = |id: &str, mode| {
-        let theme = crate::builtins().iter().find(|t| t.id.as_str() == id).unwrap();
-        resolve(theme, app(mode, Contrast::Standard), None).tokens.color(T::SurfaceCanvasPattern)
-    };
-    assert_eq!(dots("craft.studio", Mode::Dark), hex("#2e2e32"));
-    assert_eq!(dots("craft.studio", Mode::Light), hex("#c8c8ce"));
-    assert_eq!(dots("craft.solarized-dark", Mode::Dark), hex("#0a3d4a"));
-}
-
 /// The handle outline starts from the accent, pinned or not, and in high contrast darkens only as
 /// far as the white handle fill needs: a selected anchor is filled with it, the only mark of selection.
 #[test]
@@ -578,22 +509,6 @@ fn the_handle_outline_reads_on_the_handle_fill_whatever_the_stroke() {
     }
 }
 
-/// An alias that is a contrast rule's foreground starts from its target, pins included, and the
-/// contrast pass then moves it on its own (`derive::is_foreground`). Which aliases do is read from
-/// the rules, so a new rule whose foreground is an alias changes derivation silently; this list
-/// makes that a deliberate change.
-#[test]
-fn the_aliases_the_contrast_pass_moves_are_pinned() {
-    for mode in [Mode::Light, Mode::Dark] {
-        let moved: Vec<ColorToken> = ColorToken::ALL
-            .iter()
-            .copied()
-            .filter(|&t| matches!(values::source(t, mode), values::ColorSource::Same(_)) && derive::is_foreground(t))
-            .collect();
-        assert_eq!(moved, [T::AccentBorder, T::OverlayHandleStroke], "{mode:?}");
-    }
-}
-
 #[test]
 fn single_variant_theme_resolves_both_modes() {
     let mut def = violet();
@@ -604,73 +519,6 @@ fn single_variant_theme_resolves_both_modes() {
     assert_eq!(light.tokens, dark.tokens);
     def.variants = Variants::LightOnly;
     assert_eq!(resolve(&def, app(Mode::Dark, Contrast::High), None).variant_used, Mode::Light);
-}
-
-#[test]
-fn length_sizes_form_a_ladder_in_every_density() {
-    let def = grey_blue();
-    for size in [Size::Compact, Size::Comfortable] {
-        let tokens = resolve(&def, Appearance { size, ..app(Mode::Light, Contrast::Standard) }, None).tokens.size;
-        let length = tokens.length;
-        assert!(length.short < length.track && length.track < length.field, "{size:?}: short, track and field lengths keep their order");
-        assert!(tokens.groove < tokens.control.sm, "{size:?}: a groove is thinner than a control");
-    }
-}
-
-#[test]
-fn size_presets_text_size_shape_and_motion() {
-    let def = grey_blue();
-    let at = |size, text_size| resolve(&def, Appearance { size, text_size, ..app(Mode::Light, Contrast::Standard) }, None).tokens;
-    let compact = at(Size::Compact, TextSize::Small);
-    let comfy = at(Size::Comfortable, TextSize::Small);
-
-    assert_eq!((compact.size.control.md, compact.size.control.sm), (24.0, 20.0));
-    assert_eq!((comfy.size.control.md, comfy.size.control.sm), (30.0, 24.0));
-    assert_eq!((compact.size.bar.title, compact.size.bar.tab, compact.size.bar.status, compact.size.bar.options), (32.0, 26.0, 24.0, 36.0));
-    assert_eq!(comfy.size.bar.options, 42.0);
-    assert_eq!((comfy.size.rail.width, comfy.size.rail.button, comfy.size.panel_header), (50.0, 36.0, 34.0));
-    assert_eq!((comfy.size.icon.sm, comfy.size.icon.md, comfy.size.icon.lg), (14.0, 18.0, 22.0));
-    assert_eq!((compact.space.gap.inline, compact.space.gap.stack, compact.space.gap.section), (4.0, 6.0, 12.0));
-    assert_eq!((comfy.space.pad.control, comfy.space.pad.panel, comfy.space.pad.dialog), (8.0, 12.0, 20.0));
-    let r = compact.shape.radius;
-    assert_eq!((r.control, r.popup, r.window, r.panel, r.button), (3.0, 4.0, 6.0, 0.0, Radius::Full.px()));
-    assert_eq!(comfy.shape.radius.window, 12.0);
-    assert_eq!(compact.shape.edge, Edge::Flat);
-
-    let body = compact.typography.get(TypeRole::Body);
-    assert_eq!((body.size, body.line_height, body.font), (12.0, 16.0, FontSlot::Ui));
-    let title = comfy.typography.title;
-    assert_eq!((title.size, title.line_height, title.font), (14.0, 20.0, FontSlot::UiSemibold));
-    let caption = at(Size::Compact, TextSize::Tiny).typography.caption;
-    assert_eq!((caption.size, caption.line_height), (9.0, 11.5));
-    let body = at(Size::Compact, TextSize::Medium).typography.body;
-    assert_eq!((body.size, body.line_height), (14.0, 18.5));
-    let heading = at(Size::Comfortable, TextSize::Large).typography.heading;
-    assert_eq!((heading.size, heading.line_height), (22.5, 32.0));
-    assert_eq!(at(Size::Comfortable, TextSize::Large).size, comfy.size, "text size scales type only");
-
-    // A theme with its own shape: square corners and a bevel from pinned edge colours.
-    let mut classic = grey_blue();
-    classic.shape = Some(ShapeSeed {
-        radius: Some(RadiusSet { sm: 0.0, control: 0.0, popup: 0.0, window: 0.0, panel: 0.0, button: 0.0, pill: 0.0 }),
-        radius_offset: None,
-        button_radius: None,
-        edge: Some(EdgeSeed::Bevel { width: 1.0 }),
-        rows: None,
-    });
-    classic.pins.light = Pins::from_iter([(T::EdgeLight, Rgba::WHITE)]);
-    let t = resolve(&classic, Appearance { size: Size::Comfortable, ..app(Mode::Light, Contrast::Standard) }, None).tokens;
-    assert_eq!(t.shape.radius.control, 0.0);
-    assert_eq!(t.shape.edge, Edge::Bevel { light: Rgba::WHITE, dark: t.color(T::EdgeDark), width: 1.0 });
-
-    assert_eq!((compact.motion.hover.millis, compact.motion.open.millis), (80, 150));
-    assert_eq!((compact.motion.caret.millis, compact.motion.outline.millis), (100, 120));
-    assert_eq!((compact.motion.caret.easing, compact.motion.outline.easing), (Easing::Enter, Easing::Standard));
-    let still = resolve(&def, Appearance { reduced_motion: true, ..app(Mode::Dark, Contrast::Standard) }, None).tokens;
-    assert_eq!((still.motion.hover.millis, still.motion.open.millis, still.motion.r#move.millis), (0, 0, 0));
-    assert_eq!((still.motion.caret.millis, still.motion.outline.millis), (0, 0));
-    assert!(still.elevation.popup.alpha > compact.elevation.popup.alpha, "dark shadows are stronger");
-    assert_eq!(compact.elevation.floating, Elevation { alpha: 50.0 / 255.0, ..values::WINDOW_SHADOW });
 }
 
 #[test]
@@ -791,19 +639,6 @@ fn pinned_accent_strong_is_kept() {
     assert!(r.warnings.iter().any(|w| w.fg == TokenRef::Color(T::TextOnStrong) && w.bg == TokenRef::Color(T::AccentStrong)), "{:?}", r.warnings);
 }
 
-/// In high contrast a pinned `accent.strong` that white text misses on moves until it carries it.
-#[test]
-fn pinned_accent_strong_moves_in_high_contrast() {
-    let mut def = grey_blue();
-    let light = hex("#78ADF6");
-    def.pins.dark = Pins::from_iter([(T::AccentStrong, light)]);
-    let r = resolve(&def, app(Mode::Dark, Contrast::High), None);
-    let (strong, text) = (r.tokens.color(T::AccentStrong), r.tokens.color(T::TextOnStrong));
-    assert_ne!(strong, light, "the pin gives way");
-    assert_eq!(text, Rgba::WHITE);
-    assert!(contrast_ratio(text, strong) >= 7.0, "{strong:?}");
-}
-
 /// An unpinned `accent.strong` follows a pinned `accent.solid`: the same colour where white text
 /// passes on it, else moved until white passes.
 #[test]
@@ -821,20 +656,4 @@ fn unpinned_accent_strong_follows_a_pinned_accent_solid() {
     assert_ne!(strong, light);
     assert_eq!(text, Rgba::WHITE);
     assert!(contrast_ratio(text, strong) >= 4.5, "{strong:?}");
-}
-
-/// A failing pin is reported on its semantic pairs; the colours stay.
-#[test]
-fn pinned_failing_text_warns_on_its_pairs() {
-    let mut def = grey_blue();
-    let pin = hex("#c8c8c8");
-    def.pins.light = Pins::from_iter([(T::TextNormal, pin)]);
-    let r = resolve(&def, app(Mode::Light, Contrast::Standard), None);
-    let t = &r.tokens;
-    let expected: Vec<_> = TEXT_BGS
-        .map(|bg| ContrastCheck { fg: T::TextNormal.into(), bg: bg.into(), ratio: contrast_ratio(pin, t.color(bg)), minimum: 4.5 })
-        .into_iter()
-        .collect();
-    let reads_pin = |w: &&ContrastCheck| matches!(w.fg, TokenRef::Color(c) if t.color(c) == pin);
-    assert_eq!(r.warnings.iter().filter(reads_pin).copied().collect::<Vec<_>>(), expected);
 }

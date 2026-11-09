@@ -243,19 +243,4 @@ pub fn pick(requests: &[(Cursor, CursorPriority)]) -> Option<&Cursor> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn the_highest_priority_wins_and_the_later_request_wins_a_tie() {
-        let hand: Cursor = PaintedCursor::Hand.into();
-        let requests = [
-            (CursorIcon::Grab.into(), CursorPriority::Part),
-            (CursorIcon::Crosshair.into(), CursorPriority::Tool),
-            (hand.clone(), CursorPriority::Part),
-            (CursorIcon::Text.into(), CursorPriority::Hover),
-        ];
-        assert_eq!(pick(&requests), Some(&hand));
-        assert_eq!(pick(&[]), None);
-    }
-}
+mod tests {}

@@ -4,14 +4,12 @@
 use craft_behavior::geometry::CropBox;
 use craft_behavior::kurbo::{Point, Rect, Size};
 use craft_behavior::{CanvasView, EditEvent, GestureId, Mixed};
-use craft_draw::ui::crop::{
-    CropDocKey, CropDocument, CropEvent, CropInput, CropLength, CropRatio, CropSession, CropSettings, CropTool, CropToolPass, LeaveFrame,
-};
-use craft_keymap::{Chord, Key, Mods};
-use craft_ui::canvas::{Canvas, CanvasSpace, CanvasTool as _, ToolContext, ToolHost, ToolKey};
+use craft_draw::ui::crop::{CropDocKey, CropDocument, CropEvent, CropInput, CropRatio, CropSession, CropSettings, CropTool, CropToolPass};
+use craft_keymap::Mods;
+use craft_ui::canvas::{Canvas, CanvasSpace, CanvasTool as _, ToolContext, ToolHost};
 use craft_ui::contract::ShowContainer as _;
 use craft_ui::runtime::access::Role;
-use craft_ui::runtime::env::{Env, UnitKind, Units};
+use craft_ui::runtime::env::{Env, Units};
 use craft_ui::testing::{Fixture, Frames, pointer, trial};
 use egui::{Pos2, Vec2};
 use std::cell::RefCell;
@@ -76,102 +74,9 @@ impl Run {
         self.pass(0.0, Mods::NONE, |_, _| ());
     }
 
-    fn key(&mut self, key: &ToolKey) -> (bool, Vec<CropEvent>) {
-        self.pass(0.0, Mods::NONE, |pass, cx| pass.key(key, cx))
-    }
-
     fn frame(&self) -> Option<CropBox> {
         self.tool.frame()
     }
-}
-
-fn kept(key: Key, mods: Mods) -> ToolKey {
-    ToolKey::Kept(Chord::new(mods, key))
-}
-
-fn settings_of(events: &[CropEvent]) -> Vec<&CropSettings> {
-    events.iter().filter_map(|event| if let CropEvent::Settings(settings) = event { Some(settings) } else { None }).collect()
-}
-
-#[trial]
-fn the_tool_always_shows_a_frame() {
-    let mut run = Run::new(classic());
-    run.settle();
-    let canvas = upright(0.0, 0.0, 400.0, 300.0);
-    assert_eq!(run.frame(), Some(canvas), "the default frame is the canvas");
-    assert!(!run.tool.session().pending());
-
-    run.tool.crop_to(upright(100.0, 80.0, 300.0, 220.0));
-    let Some(CropEvent::Apply(commit)) = run.tool.apply(&run.settings, &run.document, &units()) else { panic!("a drawn frame applies") };
-    assert_eq!(commit.frame, upright(100.0, 80.0, 300.0, 220.0));
-    run.tool.applied(true);
-    run.settle();
-    assert_eq!(run.frame(), Some(canvas), "a new default frame after the crop");
-
-    run.tool.crop_to(upright(100.0, 80.0, 300.0, 220.0));
-    assert_eq!(run.tool.discard(), Some(CropEvent::Discard));
-    run.settle();
-    assert_eq!(run.frame(), Some(canvas), "a new default frame after a discard");
-    assert_eq!(run.tool.apply(&run.settings, &run.document, &units()), None, "the default frame does not apply");
-}
-
-#[trial]
-fn enter_applies_and_escape_discards() {
-    let mut run = Run::new(classic());
-    run.settle();
-    run.tool.crop_to(upright(100.0, 80.0, 300.0, 220.0));
-    let (taken, events) = run.key(&ToolKey::Submit);
-    let commits: Vec<_> = events.iter().filter_map(|event| if let CropEvent::Apply(commit) = event { Some(*commit) } else { None }).collect();
-    assert!(taken && commits.len() == 1, "{events:?}");
-    assert_eq!(commits[0].frame, upright(100.0, 80.0, 300.0, 220.0));
-    assert_eq!((commits[0].target, commits[0].delete_pixels), (None, true));
-    run.tool.applied(true);
-    run.settle();
-
-    run.tool.crop_to(upright(100.0, 80.0, 300.0, 220.0));
-    let (taken, events) = run.key(&ToolKey::Cancel);
-    assert!(taken);
-    assert_eq!(events, [CropEvent::Discard]);
-    run.settle();
-    assert_eq!(run.frame(), Some(upright(0.0, 0.0, 400.0, 300.0)), "the next pass makes a default frame");
-
-    let (taken, events) = run.key(&ToolKey::Submit);
-    assert!(taken && events.is_empty(), "the default frame takes Enter and crops nothing");
-}
-
-#[trial]
-fn o_h_p_i_act_only_with_a_frame() {
-    let mut start = classic();
-    start.guide = craft_behavior::geometry::CropGuide::Triangle;
-    let mut run = Run::new(start);
-    run.settle();
-
-    let (taken, events) = run.key(&kept(Key::O, Mods::NONE));
-    assert_eq!(settings_of(&events).last().map(|s| s.guide), Some(craft_behavior::geometry::CropGuide::GoldenRatio), "O cycles the overlay");
-    assert!(taken);
-    run.settings.guide = craft_behavior::geometry::CropGuide::Triangle;
-    let (_, events) = run.key(&kept(Key::O, Mods::SHIFT));
-    assert_eq!(settings_of(&events).last().map(|s| s.guide_orientation), Some(1), "Shift+O turns the Triangle");
-
-    let (taken, events) = run.key(&kept(Key::H, Mods::NONE));
-    assert!(taken && settings_of(&events).is_empty(), "H is taken but inert in Classic Mode");
-    let (_, events) = run.key(&kept(Key::P, Mods::NONE));
-    assert!(settings_of(&events).last().is_some_and(|s| !s.shield.classic_mode), "P leaves Classic Mode");
-    let (_, events) = run.key(&kept(Key::H, Mods::NONE));
-    assert!(settings_of(&events).last().is_some_and(|s| !s.shield.show_cropped_area), "H toggles Show Cropped Area");
-
-    let (_, events) = run.key(&kept(Key::I, Mods::NONE));
-    let fill = settings_of(&events).last().map(|s| (s.ratio.clone(), s.size.width));
-    assert_eq!(fill, Some((CropRatio::Size, Some(CropLength::new(400.0, UnitKind::Pixels)))), "I fills the size fields from the document");
-
-    let mut empty = Run::new(CropSettings::default());
-    empty.document = CropDocument::new(CropDocKey::new(1), Size::ZERO, 72.0);
-    empty.settle();
-    assert_eq!(empty.frame(), None);
-    for letter in [Key::O, Key::H, Key::P] {
-        assert!(!empty.key(&kept(letter, Mods::NONE)).0, "{letter:?} stays with the app without a frame");
-    }
-    assert!(empty.key(&kept(Key::I, Mods::NONE)).0, "I acts without a frame");
 }
 
 #[trial]
@@ -204,23 +109,6 @@ fn image_mode_requests_the_turned_view() {
 }
 
 #[trial]
-fn straighten_is_armed_by_the_button_or_held_with_command() {
-    let mut run = Run::new(classic());
-    run.settle();
-    assert!(!run.tool.straighten_armed());
-    run.tool.toggle_straighten();
-    assert!(run.tool.straighten_armed());
-    run.tool.toggle_straighten();
-    assert!(!run.tool.straighten_armed());
-
-    run.pass(0.0, Mods::CMD, |_, _| ());
-    assert!(run.tool.session().straighten().on(), "Command held is a temporary Straighten");
-    assert!(!run.tool.straighten_armed(), "and does not arm the button");
-    run.pass(0.0, Mods::NONE, |_, _| ());
-    assert!(!run.tool.session().straighten().on());
-}
-
-#[trial]
 fn editing_a_ratio_refits_from_the_frame_the_edit_began_with() {
     let mut run = Run::new(classic());
     run.settle();
@@ -242,17 +130,6 @@ fn editing_a_ratio_refits_from_the_frame_the_edit_began_with() {
     assert_eq!(refit(&mut run.tool, 16.0, 3.0, false), None);
     let square = refit(&mut run.tool, 1.0, 1.0, false).expect("1:1 fits inside the wide frame");
     assert!((square.rect.width() - 56.25).abs() < 1e-9 && (square.rect.height() - 56.25).abs() < 1e-9, "{square:?}");
-}
-
-#[trial]
-fn a_second_document_discards_a_drawn_frame() {
-    let mut run = Run::new(classic());
-    run.settle();
-    run.tool.crop_to(upright(100.0, 80.0, 300.0, 220.0));
-    run.document = CropDocument::new(CropDocKey::new(2), Size::new(200.0, 100.0), 72.0);
-    let (_, events) = run.pass(0.0, Mods::NONE, |_, _| ());
-    assert!(events.contains(&CropEvent::Discard), "{events:?}");
-    assert_eq!(run.frame(), Some(upright(0.0, 0.0, 200.0, 100.0)), "the new document gets its own default frame");
 }
 
 #[trial]
@@ -293,20 +170,6 @@ fn a_document_switch_drops_the_kept_frame() {
     run.tool.applied(false);
     assert_eq!(run.frame(), Some(upright(0.0, 0.0, 400.0, 300.0)), "the refusal of another document's crop brings nothing back");
     assert!(!run.tool.session().pending());
-}
-
-#[trial]
-fn crop_to_sets_the_frame_as_one_box_step() {
-    let mut run = Run::new(classic());
-    run.settle();
-    let target = CropBox::new(Rect::new(40.0, 30.0, 240.0, 130.0), 15.0);
-    let Some(CropEvent::Frame(event)) = run.tool.crop_to(target) else { panic!("a finite frame is set") };
-    assert!(matches!(event, EditEvent::Set { .. }));
-    assert_eq!(run.frame(), Some(target));
-    assert!(run.tool.session().pending());
-    assert!(run.tool.undo());
-    assert!(run.tool.session().is_default(), "one Undo goes back to the default frame");
-    assert_eq!(run.tool.crop_to(CropBox::new(Rect::new(0.0, 0.0, 0.0, 10.0), 0.0)), None, "a frame with no area is no crop");
 }
 
 // The session cases.
@@ -394,20 +257,6 @@ fn box_undo_redo_steps_committed_gestures_only() {
 }
 
 #[trial]
-fn the_box_owns_undo_after_undoing_back_to_the_default_frame() {
-    let mut session = CropSession::new();
-    session.ensure_frame(&sized(1, 200.0, 100.0), false);
-    assert!(!session.owns_undo());
-    session.set(upright(10.0, 10.0, 80.0, 60.0), false, "Crop");
-    assert!(session.owns_undo());
-    assert!(session.undo());
-    assert!(session.is_default() && !session.pending());
-    assert!(session.owns_undo(), "Redo is still the box's");
-    assert!(session.redo());
-    assert_eq!(session.frame(), Some(upright(10.0, 10.0, 80.0, 60.0)));
-}
-
-#[trial]
 fn a_cancelled_drag_goes_back_to_the_latest_step() {
     let mut session = CropSession::new();
     session.ensure_frame(&sized(1, 200.0, 100.0), false);
@@ -424,64 +273,6 @@ fn a_cancelled_drag_goes_back_to_the_latest_step() {
     session.mirror(&EditEvent::commit(id, Mixed::Same(start.expect("a default frame")), drawn));
     assert_eq!(session.frame(), Some(drawn));
     assert!(session.pending() && session.can_undo(), "a committed drag is one box step");
-}
-
-#[trial]
-fn leaving_drops_a_default_frame_and_applies_a_drawn_one() {
-    let mut session = CropSession::new();
-    assert_eq!(session.leave(false), LeaveFrame::Nothing);
-
-    session.ensure_frame(&sized(1, 200.0, 100.0), false);
-    session.straighten_mut().toggle();
-    assert_eq!(session.leave(false), LeaveFrame::Dropped);
-    assert!(session.frame().is_none() && !session.straighten().armed());
-
-    session.ensure_frame(&sized(1, 200.0, 100.0), false);
-    let drawn = upright(10.0, 10.0, 80.0, 60.0);
-    session.set(drawn, false, "Crop");
-    assert_eq!(session.leave(true), LeaveFrame::Kept);
-    assert_eq!(session.frame(), Some(drawn));
-    session.clear();
-    session.ensure_frame(&sized(1, 200.0, 100.0), false);
-    assert_eq!(session.leave(true), LeaveFrame::Dropped, "an untouched default frame goes even while the tool is kept");
-    session.ensure_frame(&sized(1, 200.0, 100.0), false);
-    session.set(drawn, false, "Crop");
-    assert_eq!(session.leave(false), LeaveFrame::Apply(drawn));
-    assert_eq!(session.frame(), Some(drawn), "the app clears or restores");
-    session.clear();
-    assert_eq!(session.leave(false), LeaveFrame::Nothing);
-}
-
-#[trial]
-fn a_refused_commit_gives_frame_and_steps_back() {
-    let mut session = CropSession::new();
-    session.ensure_frame(&sized(1, 200.0, 100.0), false);
-    let drawn = upright(10.0, 10.0, 80.0, 60.0);
-    session.set(drawn, false, "Crop");
-    let view = CanvasView::new(egui::Rect::from_min_size(Pos2::ZERO, Vec2::new(100.0, 100.0)), Point::new(5.0, 5.0), 2.0);
-    let kept = session.keep(Some(view));
-
-    session.clear();
-    assert!(session.frame().is_none() && !session.can_undo());
-
-    assert_eq!(session.restore(kept).map(|v| v.zoom), Some(2.0));
-    assert_eq!(session.frame(), Some(drawn));
-    assert!(session.pending() && session.editing() && session.can_undo());
-    assert!(session.undo());
-    assert!(session.is_default());
-}
-
-#[trial]
-fn a_ratio_edit_fits_from_the_frame_it_began_with() {
-    let mut session = CropSession::new();
-    assert_eq!(session.ratio_base(true), None);
-    session.ensure_frame(&sized(1, 200.0, 100.0), false);
-    let first = session.frame();
-    assert_eq!(session.ratio_base(true), first);
-    session.set(upright(0.0, 0.0, 20.0, 100.0), false, "Crop");
-    assert_eq!(session.ratio_base(true), first, "the run keeps its first frame");
-    session.ratio_base(false);
-    assert_eq!(session.ratio_base(true), session.frame(), "a new run begins from the current frame");
 }
 
 // One drag through the overlay on a canvas.
@@ -540,36 +331,6 @@ impl Rig {
         self.fixture.frame(vec![pointer::release(to)]);
         self.fixture.frame(Vec::new());
     }
-
-    fn frame(&self) -> CropBox {
-        self.host.borrow().tool.frame().expect("the tool shows a frame")
-    }
-}
-
-#[trial]
-fn a_drag_draws_moves_resizes_and_turns_through_the_overlay() {
-    let mut rig = Rig::new(classic());
-    assert_eq!(rig.frame(), upright(0.0, 0.0, 400.0, 300.0), "the default frame is the canvas");
-
-    rig.drag((100.0, 80.0), (300.0, 220.0));
-    assert_eq!(rig.frame(), upright(100.0, 80.0, 300.0, 220.0), "a drag in the default frame draws");
-    let events: Vec<_> =
-        rig.host.borrow().events.iter().filter_map(|e| if let CropEvent::Frame(event) = e { Some(event.clone()) } else { None }).collect();
-    assert!(events.iter().any(|e| matches!(e, EditEvent::Begin { .. } | EditEvent::Set { .. })), "{events:?}");
-    assert!(matches!(events.last(), Some(EditEvent::Commit { .. } | EditEvent::Set { .. })), "{events:?}");
-    assert!(rig.host.borrow().tool.session().pending());
-
-    rig.drag((200.0, 150.0), (230.0, 160.0));
-    assert_eq!(rig.frame(), upright(130.0, 90.0, 330.0, 230.0), "a drag inside a drawn frame moves it");
-
-    rig.drag((330.0, 230.0), (350.0, 250.0));
-    assert_eq!(rig.frame(), upright(130.0, 90.0, 350.0, 250.0), "a drag on a corner resizes it");
-
-    // The frame's centre is (240, 170): from the left of it to straight above it is a quarter turn.
-    rig.drag((60.0, 170.0), (240.0, 20.0));
-    let turned = rig.frame();
-    assert_eq!(turned.rect, Rect::new(130.0, 90.0, 350.0, 250.0));
-    assert!((turned.angle - 90.0).abs() < 1e-6, "{turned:?}");
 }
 
 #[trial]

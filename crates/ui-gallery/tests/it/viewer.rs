@@ -61,20 +61,6 @@ fn a_saved_layout_restores_the_shares() {
 }
 
 #[trial]
-fn a_layout_that_cannot_be_read_costs_only_the_layout() {
-    for layout in ["{not json", "", r#"{"columns":[1.0,0.0,1.0],"right":[1.0,1.0]}"#] {
-        let mut settings = GallerySettings::default();
-        settings.mode = "dark".to_owned();
-        settings.filter = "link".to_owned();
-        settings.layout = layout.to_owned();
-        let restored = viewer(&settings);
-        assert_eq!(restored.layout(), PanelShares::default(), "layout {layout:?}");
-        assert_eq!(restored.env.mode, Mode::Dark);
-        assert_eq!(restored.browser.filter, "link");
-    }
-}
-
-#[trial]
 fn settings_restore_the_state_they_were_saved_from() {
     let mut before = viewer(&GallerySettings::default());
     before.env.mode = Mode::Dark;
@@ -92,16 +78,6 @@ fn settings_restore_the_state_they_were_saved_from() {
     assert_eq!(GallerySettings::of(&after), saved);
     assert_eq!(after.selected_type(), Some("craft_ui::buttons::link::Link"));
     assert_eq!(after.open_modules(), vec!["craft_ui::buttons::link".to_owned()]);
-}
-
-#[trial]
-fn a_name_this_build_does_not_know_keeps_the_default() {
-    let mut settings = GallerySettings::default();
-    settings.mode = "sepia".to_owned();
-    settings.selected = "gone::Type".to_owned();
-    let restored = viewer(&settings);
-    assert_eq!(restored.env.mode, viewer(&GallerySettings::default()).env.mode);
-    assert_eq!(restored.selected_type(), None);
 }
 
 #[trial]

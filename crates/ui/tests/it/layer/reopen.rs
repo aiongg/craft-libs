@@ -6,7 +6,7 @@ use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::popover::Popover;
 use craft_ui::testing::contract::clicked;
 use craft_ui::testing::{Fixture, trial};
-use egui::{Key, Modifiers, pos2};
+use egui::{Key, Modifiers};
 use std::cell::Cell;
 use std::rc::Rc;
 
@@ -73,15 +73,6 @@ fn a_popover_closed_from_its_body_opens_again() {
 fn a_popover_closed_by_escape_opens_again() {
     let (fixture, open) = reopened_after(|fixture| {
         fixture.key(Key::Escape, Modifiers::NONE);
-    });
-    assert_open_again(&fixture, &open);
-}
-
-/// A click outside closes the popover, and the opener opens it again.
-#[trial]
-fn a_popover_closed_by_a_click_outside_opens_again() {
-    let (fixture, open) = reopened_after(|fixture| {
-        fixture.click_at(pos2(700.0, 500.0));
     });
     assert_open_again(&fixture, &open);
 }

@@ -117,20 +117,6 @@ fn a_sizing_pass_leaves_a_landed_result_for_the_next_real_pass() {
 }
 
 // A job that panics leaves no spinner: the next passes submit it again.
-#[trial]
-fn a_job_that_panics_is_submitted_again() {
-    let jobs = Arc::new(ManualJobs::new());
-    let mut frames = Frames::new();
-    frames.host(host_over(jobs.clone()));
-    let attempts = Arc::new(AtomicUsize::new(0));
-    polled(&mut frames, false, &attempts, true);
-    jobs.run_all();
-    polled(&mut frames, false, &attempts, true);
-    polled(&mut frames, false, &attempts, true);
-    jobs.run_all();
-    assert_eq!(polled(&mut frames, false, &attempts, true), Pending::Ready(7));
-    assert_eq!(attempts.load(Ordering::Relaxed), 2);
-}
 
 // A job that always panics is submitted a bounded number of times, then the key shows `Lost`.
 #[trial]

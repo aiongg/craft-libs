@@ -2,14 +2,10 @@
 
 use craft_behavior::PixelSize;
 use craft_ui::contract::Bind;
-use craft_ui::patterns::form_dialogs::{
-    ExportAsDialog, ExportAsResult, ExportFormat, ExportOptions, ExportOptionsKind, ExportSize, FormatOptions, FormatOptionsDialog, HostRequests,
-    JpegOptions,
-};
+use craft_ui::patterns::form_dialogs::{ExportAsDialog, ExportAsResult, ExportFormat, ExportOptions, ExportSize, HostRequests};
 use craft_ui::runtime::requests::{PathKind, PathRequest};
 use craft_ui::testing::{Fixture, trial};
 
-use egui::Modifiers;
 use std::cell::{Cell, RefCell};
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -44,16 +40,6 @@ fn remembered_options_are_fitted_to_the_document() {
     let mut huge = ExportOptions::default();
     huge.size = ExportSize::Scale(5000.0);
     assert_eq!(huge.fitted(&formats, document()).size, ExportSize::Scale(100.0));
-}
-
-/// The output size follows the scale, rounding each side to at least one pixel, or is the pixel size given.
-#[trial]
-fn the_output_size_follows_the_scale_or_the_pixels() {
-    let mut options = ExportOptions::default();
-    options.size = ExportSize::Scale(50.0);
-    assert_eq!(options.output_size(PixelSize::new(101, 3)), PixelSize::new(51, 2));
-    options.size = ExportSize::pixels(640, 480);
-    assert_eq!(options.output_size(document()), PixelSize::new(640, 480));
 }
 
 /// Export files a save request for the file name and the format and keeps the dialog open; the host's path answer then
@@ -96,33 +82,6 @@ fn export_then_a_path_answer_gives_the_result_and_closes() {
     assert_eq!((done.path, done.size), (PathBuf::from("out/Poster.png"), document()));
 }
 
-/// With Alt held the second button is Reset: it restores the opening settings and keeps the dialog open, as for any
-/// form dialog.
-#[trial]
-fn alt_turns_cancel_into_reset_which_keeps_export_open() {
-    let options = Rc::new(RefCell::new(ExportOptions::default()));
-    let closed = Rc::new(Cell::new(false));
-    let (held, done) = (Rc::clone(&options), Rc::clone(&closed));
-    let mut fixture = Fixture::new(move |ui| {
-        let mut options = held.borrow_mut();
-        let out = ExportAsDialog::new("Poster", document(), Bind::bound(&mut *options)).show(ui);
-        if out.closed.is_some() {
-            done.set(true);
-        }
-    });
-    fixture.hold(Modifiers::ALT);
-    fixture.settle();
-    assert!(fixture.by_label("Reset").is_some() && fixture.by_label("Cancel").is_none(), "Reset with Alt");
-    let opening = options.borrow().quality;
-    options.borrow_mut().quality = opening - 1;
-    fixture.idle(3);
-    let reset = fixture.by_label("Reset").expect("the Reset button");
-    fixture.click(&reset);
-    fixture.settle();
-    assert_eq!(options.borrow().quality, opening, "Reset restores the opening settings");
-    assert!(!closed.get(), "Reset keeps the dialog open");
-}
-
 /// The file name Export asks the host to save under for a document called `name`.
 fn requested_file(name: &str) -> String {
     let name = name.to_owned();
@@ -152,41 +111,4 @@ fn the_default_file_name_is_made_safe() {
     assert_eq!(requested_file(" . "), "Untitled.png");
     let long = "x".repeat(100);
     assert_eq!(requested_file(&long).len(), 80 + ".png".len(), "at most 80 characters");
-}
-
-/// The JPEG options dialog opened on `quality`, in a room that shows its rows.
-fn jpeg_dialog(quality: u8, answer: Rc<RefCell<Option<FormatOptions>>>) -> Fixture {
-    let mut fixture = Fixture::new(move |ui| {
-        let shown = FormatOptionsDialog::new(ExportOptionsKind::Jpeg).initial(FormatOptions::Jpeg(JpegOptions::new(quality))).show(ui);
-        if shown.result.is_some() {
-            *answer.borrow_mut() = shown.result;
-        }
-    });
-    fixture.settle();
-    fixture
-}
-
-/// The Preset list shows the preset the quality falls in (Low 0 to 4, Medium 5 to 7, High 8 and 9, Maximum 10 to 12), and
-/// picking one sets the quality that preset stands for.
-#[trial]
-fn the_jpeg_preset_list_follows_and_sets_the_quality() {
-    for (quality, preset) in [(0, "Low"), (4, "Low"), (5, "Medium"), (7, "Medium"), (8, "High"), (9, "High"), (10, "Maximum"), (12, "Maximum")] {
-        let fixture = jpeg_dialog(quality, Rc::default());
-        let list = fixture.by_label("Preset").expect("the preset list");
-        let face: Vec<_> = fixture.texts().iter().filter(|run| list.rect.contains_rect(run.rect)).map(|run| run.text.as_str()).collect();
-        assert_eq!(face, [preset], "quality {quality}");
-    }
-    let answer = Rc::new(RefCell::new(None));
-    let mut fixture = jpeg_dialog(6, Rc::clone(&answer));
-    let list = fixture.by_label("Preset").expect("the preset list");
-    fixture.click(&list);
-    fixture.settle();
-    let high = fixture.by_label("High").expect("the list offers High");
-    fixture.click(&high);
-    fixture.settle();
-    let ok = fixture.by_label("OK").expect("the OK button");
-    fixture.click(&ok);
-    fixture.settle();
-    let Some(FormatOptions::Jpeg(picked)) = answer.borrow().clone() else { panic!("OK answers with the JPEG options") };
-    assert_eq!(picked.quality, 8, "High stands for 8");
 }

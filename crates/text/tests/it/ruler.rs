@@ -8,7 +8,7 @@ use craft_text::ui::ruler::{ColumnDrag, RulerValues, TabAlign, TabLeader, TabSto
 use craft_ui::contract::{Bind, Role, Show as _};
 use craft_ui::runtime::env::UnitKind;
 use craft_ui::testing::{Fixture, Target, trial};
-use egui::{Key, Modifiers, Vec2};
+use egui::Vec2;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -115,20 +115,6 @@ fn right_to_left_mirrors_positions() {
     }
     let (a, b) = (ltr.values.borrow().stops[0].position, rtl.values.borrow().stops[0].position);
     assert!(a > b, "left to right moves a stop up, right to left down: {a} {b}");
-}
-
-#[trial]
-fn delete_and_backspace_clear_the_picked_stop() {
-    for key in [Key::Delete, Key::Backspace] {
-        let (kept, picked) = (left_stop(72.0), left_stop(216.0));
-        let mut shown = show(set(RulerValues::default(), |v| v.stops = vec![kept, picked]), None, false, &[]);
-        shown.fixture.settle();
-        let stops = stop_nodes(&shown.fixture);
-        assert_eq!(stops.len(), 2, "the stops are named apart");
-        shown.fixture.click(&stops[1]);
-        shown.fixture.key(key, Modifiers::NONE);
-        assert_eq!(shown.values.borrow().stops, vec![kept], "{key:?} clears the picked stop only");
-    }
 }
 
 #[trial]

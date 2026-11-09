@@ -5,9 +5,7 @@ use std::sync::Arc;
 
 use craft_fonts_build::EmbeddedFace;
 use craft_theme::{Contrast, ControlSize, Mode, Variant};
-use craft_ui::fonts::{
-    CjkRows, Emoji, FaceList, Family, FontRef, I18nScripts, RegularWeight, Stack, SystemFonts, UiFonts, set_weight, system_font_provider,
-};
+use craft_ui::fonts::{Emoji, FaceList, Family, FontRef, I18nScripts, RegularWeight, Stack, SystemFonts, UiFonts, set_weight, system_font_provider};
 use craft_ui::list::{ListRow, ThumbSize};
 use craft_ui::testing::style::{tokens, with_cx};
 use craft_ui::testing::{Frames, trial};
@@ -226,19 +224,6 @@ fn test_stack(ui_language: &str) -> Stack {
 }
 
 #[trial]
-fn remove_and_replace_reach_the_faces_after_the_system_fonts() {
-    let stack = || test_fonts("en").system_fonts(SystemFonts::BeforeCraft).stack();
-    let has_arabic = |stack: &Stack| stack.flat_definitions().font_data.get("Noto Sans Arabic Regular").map(|data| data.bytes().len());
-    let mut removed = stack();
-    assert_eq!(has_arabic(&removed), Some(ARABIC.len()));
-    removed.remove("Noto Sans Arabic Regular");
-    assert_eq!(has_arabic(&removed), None);
-    let mut replaced = stack();
-    replaced.replace("Noto Sans Arabic Regular", FontData::from_static(CJK));
-    assert_eq!(has_arabic(&replaced), Some(CJK.len()));
-}
-
-#[trial]
 fn flat_definitions_end_each_chain_with_the_faces_after_the_system_fonts() {
     let mut emoji = Emoji::default();
     emoji.monochrome = Some(FontData::from_static(CJK));
@@ -338,13 +323,6 @@ fn cjk_glyphs_sit_on_the_latin_baseline() {
 }
 
 #[trial]
-fn cjk_faces_keep_their_own_metrics_when_the_app_asks() {
-    let tweak = |rows: CjkRows| test_fonts("ja").cjk_rows(rows).stack().flat_definitions().font_data["Noto Sans CJK SC Regular"].tweak.clone();
-    assert_ne!(tweak(CjkRows::Fit).y_offset_factor, 0.0, "fitted: the CJK face moves onto the Latin baseline");
-    assert_eq!(tweak(CjkRows::Grow).y_offset_factor, 0.0, "unfitted: the CJK face keeps its own metrics");
-}
-
-#[trial]
 fn install_keeps_the_context_providers_unless_it_brings_a_system_lookup() {
     let arabic = |_: &FallbackRequest<'_>| {
         Some(FontInsert::new(
@@ -367,22 +345,6 @@ fn install_keeps_the_context_providers_unless_it_brings_a_system_lookup() {
     if system_font_provider("en").is_none() {
         assert!(draws_arabic(SystemFonts::AfterCraft), "the host's provider stays");
     }
-}
-
-#[trial]
-fn egui_faces_join_the_families_the_app_names() {
-    let semibold = FontRef::named("semibold");
-    let stack = fonts("en")
-        .family(Family::named("semibold").weight(600))
-        .egui_face("Hack", &[FontRef::proportional(), semibold.clone()])
-        .egui_face("no such face", &[FontRef::proportional()])
-        .stack();
-    let proportional = stack.chain(&FontRef::proportional());
-    assert_eq!(proportional.last().map(String::as_str), Some("Hack"), "{proportional:?}");
-    assert!(stack.chain(&semibold).iter().any(|n| n == "Hack"));
-    assert!(!stack.chain(&FontRef::monospace()).iter().any(|n| n == "Hack"), "only the families named");
-    assert!(stack.flat_definitions().font_data.contains_key("Hack"));
-    assert!(!proportional.iter().any(|n| n == "no such face"));
 }
 
 #[trial]

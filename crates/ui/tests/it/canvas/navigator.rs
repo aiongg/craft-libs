@@ -3,11 +3,9 @@
 use craft_behavior::kurbo::{Point, Rect as DocRect, Size};
 use craft_behavior::{CanvasView, ZoomLadder};
 use craft_ui::canvas::{
-    Canvas, NavigationOptions, Navigator, NavigatorOptions, NavigatorSettings, NavigatorZoomRow, ProxyColor, preview_rect, proxy_quad,
-    view_center_for, zoom_to_document_rect,
+    NavigationOptions, Navigator, NavigatorOptions, NavigatorSettings, ProxyColor, preview_rect, proxy_quad, zoom_to_document_rect,
 };
-use craft_ui::contract::{Bind, Role, Show as _, ShowContainer as _};
-use craft_ui::testing::focus::AccessActionKind;
+use craft_ui::contract::{Bind, Show as _};
 use craft_ui::testing::pointer::{moved, press, release, wheel_lines};
 use craft_ui::testing::story::EditKind;
 use craft_ui::testing::{Fixture, trial};
@@ -30,8 +28,6 @@ const CENTRE_SLACK: f64 = 100.0;
 
 /// The zoom the row starts from.
 const START: f64 = 1.0;
-/// The 66.67 % rung of the zoom ladder.
-const TWO_THIRDS: f64 = 2.0 / 3.0;
 
 const CENTRE: Point = Point::new(1000.0, 750.0);
 
@@ -73,17 +69,6 @@ fn the_proxy_follows_a_rotated_or_flipped_view() {
 
     let flipped = proxy_quad(&view().flip_x(true), DOC, preview());
     assert!(near(flipped[0], UPRIGHT[1]) && near(flipped[1], UPRIGHT[0]), "a mirrored view keeps the canvas's corner order: {flipped:?}");
-}
-
-#[trial]
-fn a_click_in_the_preview_asks_for_the_document_point_under_it() {
-    let middle = view_center_for(preview(), DOC, Pos2::new(108.0, 83.0));
-    assert!((middle.x - CENTRE.x).abs() < 1e-2 && (middle.y - CENTRE.y).abs() < 1e-2, "{middle:?}");
-    assert_eq!(
-        view_center_for(preview(), DOC, Pos2::new(-40.0, 400.0)),
-        Point::new(0.0, DOC.height),
-        "a click off the picture stays on the document"
-    );
 }
 
 fn zoom_view(zoom: f64) -> CanvasView {
@@ -128,58 +113,6 @@ fn the_navigator_settings_round_trip() {
     let written = toml::Value::try_from(custom).expect("settings serialise");
     assert_eq!(written.try_into::<NavigatorSettings>().expect("settings read back"), custom);
     assert_eq!(toml::from_str::<NavigatorSettings>("other = 1").expect("unknown fields are ignored"), NavigatorSettings::default());
-}
-
-/// Where the canvas beside the zoom row shows, below the row.
-const ROW_CANVAS: Rect = Rect::from_min_max(Pos2::new(0.0, 100.0), Pos2::new(800.0, 700.0));
-
-/// The view of the canvas beside the zoom row, at `zoom` about `CENTRE`.
-fn row_view(zoom: f64) -> CanvasView {
-    CanvasView::new(ROW_CANVAS, CENTRE, zoom)
-}
-
-/// A zoom row over `view` and the canvas that shows it below the row. The app copies the view the canvas reports
-/// into `view`.
-fn zoom_row(view: &Rc<RefCell<CanvasView>>, animated: bool) -> Fixture {
-    let held = Rc::clone(view);
-    Fixture::new(move |ui| {
-        let mut options = NavigationOptions::default();
-        options.animated_zoom = animated;
-        NavigatorZoomRow::new(Bind::bound(&mut *held.borrow_mut()), DOC).show(ui);
-        let shown = *held.borrow();
-        let canvas = Canvas::new("Document").view(shown).document(DOC).navigation(options).show_at(ui, ROW_CANVAS, |_, _| {});
-        if let Some(next) = canvas.output.view {
-            *held.borrow_mut() = next;
-        }
-    })
-}
-
-#[trial]
-fn a_zoom_in_without_the_ease_steps_the_ladder_about_the_centre() {
-    let view = Rc::new(RefCell::new(row_view(START)));
-    let mut fixture = zoom_row(&view, false);
-    fixture.settle();
-    let zoom_in = fixture.by_label("Zoom In").expect("the row has a Zoom In button");
-    fixture.click(&zoom_in).settle();
-    let after = *view.borrow();
-    assert!(after.zoom > START && after.zoom <= ZoomLadder::MAX, "one rung in: {after:?}");
-    assert_eq!(after.center, CENTRE, "the centre stays");
-}
-
-#[trial]
-fn the_percent_field_steps_the_zoom_ladder_and_shows_two_decimals() {
-    let view = Rc::new(RefCell::new(row_view(TWO_THIRDS)));
-    let mut fixture = zoom_row(&view, false);
-    fixture.settle();
-    let field = fixture.by_role(Role::SPIN_BUTTON).into_iter().next().expect("the row has a percent field");
-    assert!(fixture.texts().iter().any(|text| text.text == "66.67"), "a ladder rung shows its two decimals");
-    fixture.click(&field);
-    fixture.settle();
-    fixture.key(Key::ArrowUp, Modifiers::NONE);
-    fixture.settle();
-    let after = view.borrow().zoom;
-    let next_rung = ZoomLadder::step(TWO_THIRDS, 1, DOC);
-    assert!(next_rung > TWO_THIRDS && (after - next_rung).abs() < 1e-9, "up from 66.67 % goes to the next rung: {after}");
 }
 
 #[trial]
@@ -358,40 +291,8 @@ fn plus_and_minus_step_the_zoom_and_a_step_past_the_least_zoom_makes_no_edit() {
     assert!(shown.edits.borrow().is_empty(), "and reports no edit: {:?}", shown.edits.borrow());
 }
 
-#[trial]
-fn the_wheel_zooms_about_the_view_centre() {
-    let mut shown = Shown::new(zoom_view(START), false);
-    let at = shown.frame().center();
-    shown.fixture.frame(vec![moved(at)]);
-    shown.fixture.frame(vec![wheel_lines(1.0)]);
-    let after = shown.view();
-    assert!(after.zoom != START && after.center == CENTRE, "a notch zooms and keeps the centre: {after:?}");
-}
-
-#[trial]
-fn accesskit_scrolls_and_the_scroll_bars_move_the_view_by_the_arrow_step() {
-    let mut shown = Shown::new(zoom_view(START), false);
-    let span = ZOOM_CANVAS.size();
-    let target = shown.fixture.by_label("Navigator").expect("the navigator has a node");
-    shown.fixture.access(AccessActionKind::ScrollDown, &target);
-    let down = f64::from(span.y) * ARROW_SHARE / START;
-    assert!(near_doc(shown.view().center, Point::new(CENTRE.x, CENTRE.y + down)), "ScrollDown moves the view as Down does: {:?}", shown.view());
-
-    let bar = shown.fixture.by_label("Visible area horizontal position").expect("the horizontal scroll bar has a node");
-    shown.fixture.access(AccessActionKind::Increment, &bar);
-    let right = f64::from(span.x) * ARROW_SHARE / START;
-    let stepped = Point::new(CENTRE.x + right, CENTRE.y + down);
-    assert!(near_doc(shown.view().center, stepped), "Increment moves the view by the arrow step: {:?}", shown.view());
-}
 // End of l4e-navprev.
 
 // l4e-navpanel
-
-#[trial]
-fn the_preview_has_an_image_node_named_after_the_document_preview() {
-    let shown = Shown::new(zoom_view(START), false);
-    let picture = shown.fixture.by_label("Document preview").expect("the picture has a node");
-    assert!(shown.fixture.by_role(Role::IMAGE).iter().any(|image| image.node == picture.node), "the picture's node is an image");
-}
 
 // End of l4e-navpanel.

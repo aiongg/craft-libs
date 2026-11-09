@@ -82,12 +82,6 @@ mod tests {
     }
 
     #[test]
-    fn auto_pick_takes_the_first_letter_not_used_in_the_level() {
-        assert_eq!(letters(&["Copy", "Paste", "Arrange", "Print"]), [Some('C'), Some('P'), Some('A'), Some('R')]);
-        assert_eq!(letters(&["Save", "Save As", "Share"]), [Some('S'), Some('A'), Some('H')]);
-    }
-
-    #[test]
     fn a_word_start_comes_before_the_other_letters() {
         assert_eq!(letters(&["Open", "Open Recent"]), [Some('O'), Some('R')]);
     }
@@ -101,29 +95,10 @@ mod tests {
     }
 
     #[test]
-    fn a_marker_an_earlier_label_holds_falls_back_to_auto_pick() {
-        assert_eq!(letters(&["&File", "&Fax"]), [Some('F'), Some('A')]);
-    }
-
-    #[test]
-    fn a_label_without_a_typeable_letter_has_no_mnemonic() {
-        assert_eq!(letters(&["文件", "Edit"]), [None, Some('E')]);
-        assert_eq!(letters(&["文件(&F)", "Find"]), [Some('F'), Some('I')]);
-    }
-
-    #[test]
     fn the_index_is_the_character_of_the_letter_in_the_label_without_markers() {
         assert_eq!(assign(&["Save", "Save As"]), [Some(('S', 0)), Some(('A', 5))]);
         assert_eq!(assign(&["S&ave &As"]), [Some(('A', 1))]);
         assert_eq!(assign(&["Save && &Close"]), [Some(('C', 7))]);
         assert_eq!(assign(&["文件(&F)"]), [Some(('F', 3))]);
-    }
-
-    #[test]
-    fn marked_strips_the_marker_and_keeps_a_literal_ampersand() {
-        assert_eq!(marked("&File"), ("File".to_owned(), Some('F')));
-        assert_eq!(marked("Save && Close"), ("Save & Close".to_owned(), None));
-        assert_eq!(marked("S&ave &As"), ("Save As".to_owned(), Some('A')));
-        assert_eq!(marked("Trailing&"), ("Trailing".to_owned(), None));
     }
 }

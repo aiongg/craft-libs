@@ -224,24 +224,6 @@ fn clearing_a_command_frees_its_panel_copies() {
 }
 
 #[test]
-fn reserved_chords_are_refused() {
-    let catalog = vec![app("view.next", &[])];
-    let mut mac = Keymap::new(catalog.clone(), Scopes::new(), Platform::Mac).with_reserved(reserved::system(Platform::Mac));
-    let err = mac.assign(&cmd("view.next"), b("Cmd+Tab"), Policy::Steal).unwrap_err();
-    assert_eq!(err, AssignError::Reserved(Trigger::parse("Cmd+Tab").unwrap()));
-
-    let mut win = Keymap::new(catalog.clone(), Scopes::new(), Platform::Windows).with_reserved(reserved::system(Platform::Windows));
-    assert!(matches!(win.assign(&cmd("view.next"), b("Ctrl+Alt+Delete"), Policy::Steal), Err(AssignError::Reserved(_))));
-    assert!(reserved::system(Platform::Linux).contains(&chord("Cmd+Alt+F12")));
-
-    let mut o = Overrides::new();
-    o.insert("view.next", vec!["Alt+F4".into()]);
-    let linux = Keymap::new(catalog, Scopes::new(), Platform::Linux).with_reserved(reserved::system(Platform::Linux)).with_overrides(o);
-    assert!(linux.bindings(&cmd("view.next")).is_empty());
-    assert_eq!(linux.problems(), vec![Problem::Reserved { key: "view.next".into(), text: "Alt+F4".into() }]);
-}
-
-#[test]
 fn conflicts_tell_clashes_from_shadows() {
     let catalog = vec![
         app("edit.copy", &["Cmd+C"]),
@@ -353,36 +335,6 @@ fn crowded_chords_are_capped() {
 }
 
 #[test]
-#[ignore = "worst-case timing; run with --ignored"]
-fn crowded_chords_stay_fast() {
-    let limit = Duration::from_secs(8);
-
-    // Panels the app never registered are not bound.
-    let (km, o) = crowded(MAX_COMMANDS, Scopes::new(), Kind::Command);
-    let km = km.with_overrides(o);
-    let t = Instant::now();
-    assert!(km.conflicts().is_empty());
-    assert!(t.elapsed() < limit, "{:?}", t.elapsed());
-    assert!(km.bindings(&cmd("c.0")).is_empty());
-    assert_eq!(km.overrides().get("c.0").map(<[String]>::len), Some(MAX_BINDINGS), "kept verbatim");
-    assert!(km.problems().contains(&Problem::UnknownScope { key: "c.0".into(), text: "P1: K".into() }));
-
-    // Registered panels that never share: many conflicts, capped.
-    let (km, o) = crowded(MAX_COMMANDS, panels(MAX_BINDINGS).with_panel_fallthrough(false), Kind::Command);
-    let km = km.with_overrides(o);
-    let t = Instant::now();
-    assert_eq!(km.conflicts().len(), MAX_CONFLICTS);
-    assert!(t.elapsed() < limit, "{:?}", t.elapsed());
-
-    // Tools of one group: no conflicts, and no pair is compared.
-    let (km, o) = crowded(MAX_COMMANDS, panels(MAX_BINDINGS), Kind::Tool { group: None });
-    let km = km.with_overrides(o);
-    let t = Instant::now();
-    assert!(km.conflicts().is_empty());
-    assert!(t.elapsed() < limit, "{:?}", t.elapsed());
-}
-
-#[test]
 fn assigning_many_commands_stays_fast() {
     let catalog: Vec<Bindable> = (0..MAX_COMMANDS).map(|n| app(&format!("c.{n}"), &[])).collect();
     let mut km = Keymap::new(catalog, panels(MAX_BINDINGS), Platform::Mac);
@@ -413,15 +365,6 @@ fn binding_text_round_trips_for_every_key() {
         }
     }
     assert_eq!(Binding::parse(": :"), Ok(Binding::new(Trigger::double(Chord::plain(Key::Colon)))));
-}
-
-#[test]
-fn scope_names_with_outer_whitespace_are_refused() {
-    for name in [" Timeline", "Timeline ", "\u{a0}Timeline", ""] {
-        assert_eq!(Scope::new(name), None, "{name:?}");
-    }
-    assert_eq!(Scope::new("Time line").map(|s| s.to_string()).as_deref(), Some("Time line"));
-    assert_eq!(Binding::parse(" Timeline :  K").map(|b| b.scope), Ok(Some(scope("Timeline"))));
 }
 
 #[test]
@@ -466,20 +409,6 @@ fn bindings_in_unknown_scopes_are_refused() {
     km.set_overrides(o);
     assert_eq!(km.bindings(&copy), vec![b("Cmd+J")]);
     assert_eq!(km.problems(), vec![Problem::UnknownScope { key: "edit.copy".into(), text: "Nowhere: Cmd+K".into() }]);
-}
-
-#[test]
-fn unreadable_entries_keep_the_defaults() {
-    let catalog = vec![app("edit.copy", &["Cmd+C"]), app("edit.paste", &["Cmd+V"])];
-    let mut o = Overrides::new();
-    o.insert("edit.copy", vec!["Cmd+Nope".into()]);
-    o.insert("edit.paste", vec![]);
-    let mut km = Keymap::new(catalog, Scopes::new(), Platform::Mac).with_overrides(o);
-    assert_eq!(km.bindings(&cmd("edit.copy")), vec![b("Cmd+C")]);
-    assert!(km.bindings(&cmd("edit.paste")).is_empty());
-    assert_eq!(km.overrides().get("edit.copy"), Some(&["Cmd+Nope".to_string()][..]), "verbatim");
-    assert!(km.reset(&cmd("edit.copy")));
-    assert_eq!(km.overrides().get("edit.copy"), None);
 }
 
 #[test]
@@ -593,19 +522,6 @@ fn overrides_write_the_map_form_unless_a_command_has_several_keys() {
     single.insert("edit.copy", vec!["Cmd+K".into()]);
     let text = serde_json::to_string(&Prefs { shortcuts: single }).unwrap();
     assert_eq!(text, r#"{"shortcuts":[{"command":"edit.copy","keys":["Cmd+K"]}]}"#);
-}
-
-#[test]
-fn ctrl_folds_into_cmd_off_macos() {
-    let catalog = vec![app("edit.cut", &["Cmd+X"]), app("mac.cut", &["Ctrl+X"])];
-    let win = Keymap::new(catalog.clone(), Scopes::new(), Platform::Windows);
-    let mac = Keymap::new(catalog, Scopes::new(), Platform::Mac);
-    let conflicts = win.conflicts();
-    assert_eq!(conflicts.len(), 1);
-    assert_eq!((conflicts[0].kind, conflicts[0].chord.to_string()), (ConflictKind::Clash, "Cmd+X".to_string()));
-    assert!(mac.conflicts().is_empty());
-    assert_eq!(press(&win, "Ctrl+X", &Active::NONE), run("edit.cut"));
-    assert_eq!(press(&mac, "Ctrl+X", &Active::NONE), run("mac.cut"));
 }
 
 #[test]

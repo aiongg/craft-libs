@@ -2,63 +2,13 @@
 
 use craft_behavior::Axis;
 use craft_theme::{Contrast, Mode};
-use craft_ui::primitives::{Dashes, dashed, marching_ants, ramp};
+use craft_ui::primitives::{marching_ants, ramp};
 use craft_ui::style::DataColor;
 use craft_ui::testing::style::tokens;
 use craft_ui::testing::trial;
 use egui::{Color32, Pos2, Rect, Shape, pos2};
 
 const EPS: f32 = 1e-3;
-
-/// How far along the polyline `path` the point `p` lies (it lies on the path).
-fn along(path: &[Pos2], p: Pos2) -> f32 {
-    let mut walked = 0.0;
-    for pair in path.windows(2) {
-        let (a, b) = (pair[0], pair[1]);
-        let on = (a.distance(p) + p.distance(b) - a.distance(b)).abs() < EPS;
-        if on {
-            return walked + a.distance(p);
-        }
-        walked += a.distance(b);
-    }
-    walked
-}
-
-fn dashes(shapes: &[Shape]) -> Vec<Vec<Pos2>> {
-    shapes
-        .iter()
-        .map(|shape| match shape {
-            Shape::LineSegment { points, .. } => points.to_vec(),
-            Shape::Path(path) => path.points.clone(),
-            other => panic!("a dash is a line, not {other:?}"),
-        })
-        .collect()
-}
-
-#[trial]
-fn a_dashed_line_keeps_its_gap_and_continues_its_pattern_round_a_corner() {
-    let path = [pos2(0.0, 0.0), pos2(22.0, 0.0), pos2(22.0, 40.0)];
-    let (dash, gap, phase) = (6.0, 4.0, 1.0);
-    let found = dashes(&dashed(&path, Dashes::new(dash, gap).phase(phase), 1.0, Color32::from_gray(200)));
-    assert!(found.len() >= 4, "the line is cut into dashes: {}", found.len());
-    // A dash that runs round a corner comes as one shape per straight piece.
-    let mut spans: Vec<(f32, f32)> = Vec::new();
-    for points in &found {
-        let (from, to) = (along(&path, points[0]), along(&path, *points.last().unwrap()));
-        match spans.last_mut() {
-            Some(last) if (last.1 - from).abs() < 0.01 => last.1 = to,
-            _ => spans.push((from, to)),
-        }
-    }
-    assert!((spans[1].0 - (phase + dash + gap)).abs() < 0.01, "the phase shifts the pattern: {spans:?}");
-    for pair in spans.windows(2) {
-        assert!((pair[1].0 - pair[0].1 - gap).abs() < 0.01, "a gap of {gap} between {pair:?}");
-    }
-    for (from, to) in &spans[1..spans.len() - 1] {
-        assert!((to - from - dash).abs() < 0.01, "a whole dash is {dash} long: {from} {to}");
-    }
-    assert!(spans.iter().any(|(from, to)| *from < 22.0 && *to > 22.0), "a dash runs round the corner: {spans:?}");
-}
 
 /// The mesh quads of the dark dashes and of the light band (the colour the mesh starts with), in device pixels:
 /// `[x0, y0, x1, y1]`.

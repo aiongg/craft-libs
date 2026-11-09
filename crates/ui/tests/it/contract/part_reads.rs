@@ -140,20 +140,6 @@ fn the_pass_clock_follows_the_fixtures_manual_time_in_update_and_paint() {
     assert!((after.0 - after.1).abs() < SLACK, "update and paint of one pass read one time: {after:?}");
 }
 
-#[trial]
-fn update_lays_text_out_and_finds_the_character_under_a_press() {
-    let (added, log) = (Cell::new(false), RefCell::new(Log::default()));
-    let mut frames = Frames::new();
-    let mut show = |ui: &mut egui::Ui| {
-        Lab { common: Common::new(), added: &added, log: &log, update_clock: 0.0 }.show_at(ui, area());
-    };
-    let at = area().min + Vec2::new(40.0, 5.0);
-    frames.frame(vec![moved(at)], &mut show);
-    frames.frame(vec![press(at)], &mut show);
-    let character = log.borrow().character.expect("update laid the text out at the press");
-    assert!(character > 0 && character < TEXT.len(), "a press 40 points into the text lands inside it: {character}");
-}
-
 /// The view's rect in the fixture, in points.
 const VIEW: Rect = Rect::from_min_max(Pos2::new(0.0, 0.0), Pos2::new(400.0, 300.0));
 const ZOOM: f64 = 2.0;

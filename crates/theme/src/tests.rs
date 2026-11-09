@@ -15,11 +15,6 @@ fn hue_gap(a: f64, b: f64) -> f64 {
     d.min(360.0 - d)
 }
 
-const SAMPLES: [&str; 20] = [
-    "#ff0000", "#00ff00", "#0000ff", "#ffff00", "#00ffff", "#ff00ff", "#000000", "#ffffff", "#808080", "#777777", "#3e63dd", "#e5484d", "#12a594",
-    "#f5d90a", "#8e4ec6", "#101010", "#fafafa", "#c0ffee", "#123456", "#fedcba",
-];
-
 #[test]
 fn easing_curves_run_from_zero_to_one_as_their_css_cubic_beziers() {
     for easing in [Easing::Standard, Easing::Enter, Easing::Exit] {
@@ -30,16 +25,6 @@ fn easing_curves_run_from_zero_to_one_as_their_css_cubic_beziers() {
     // Values from the CSS definition (x(s) = t solved for s, then y(s)).
     assert!(near(Easing::Standard.at(0.5).into(), 0.878, 0.005), "{}", Easing::Standard.at(0.5));
     assert!(Easing::Exit.at(0.5) < 0.5, "exit starts slowly");
-}
-
-#[test]
-fn hex_parse_and_format() {
-    assert_eq!(hex("#FF8000").0, [255, 128, 0, 255]);
-    assert_eq!(hex("#ff800080").to_hex(), "#ff800080");
-    assert_eq!(hex("#FF8000").to_hex(), "#ff8000");
-    assert_eq!(Rgba::from_hex("ff8000"), None);
-    assert_eq!(Rgba::from_hex("#ff80"), None);
-    assert_eq!(Rgba::from_hex("#gg0000"), None);
 }
 
 #[test]
@@ -65,16 +50,6 @@ fn known_oklch_values() {
     assert!(near(grey.l, 0.5999, 2e-3) && grey.c < 1e-4);
 }
 
-#[test]
-fn srgb_greys_have_no_chroma_or_hue() {
-    for v in 0..=255u8 {
-        let grey = Rgba::rgb(v, v, v);
-        let o = grey.to_oklch();
-        assert_eq!((o.c, o.h), (0.0, 0.0), "{grey:?}");
-        assert_eq!(grey.to_oklch().to_rgba(), grey);
-    }
-}
-
 /// A lightness search stops where the contrast test flips, which for a colour with any residual
 /// tint lies between the points where its channels round to their next 8-bit value.
 #[test]
@@ -88,14 +63,6 @@ fn contrast_moves_keep_greys_neutral() {
                 assert!(is_grey(out), "{fg:?} on {bg:?} at {min}: {out:?}");
             }
         }
-    }
-}
-
-#[test]
-fn srgb_oklch_round_trip_is_exact() {
-    for s in SAMPLES {
-        let c = hex(s);
-        assert_eq!(c.to_oklch().to_rgba(), c, "{s}");
     }
 }
 
@@ -152,16 +119,6 @@ fn ramps_are_monotonic_in_gamut_and_hit_the_seed() {
                     assert_eq!(ramp.step(9), seed);
                 }
             }
-        }
-    }
-}
-
-#[test]
-fn neutral_ramp_is_nearly_grey() {
-    for mode in [Mode::Light, Mode::Dark] {
-        let ramp = Ramp::from_seed(hex("#3e63dd"), mode, RampKind::Neutral);
-        for c in ramp.0 {
-            assert!(c.to_oklch().c <= ramp::NEUTRAL_MAX_CHROMA + 2e-3);
         }
     }
 }

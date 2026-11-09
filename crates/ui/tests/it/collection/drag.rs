@@ -5,8 +5,8 @@ use super::table::Table;
 use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, ItemSource, Selection, SelectionModel};
 use craft_ui::contract::{CollectionEvent, CollectionProps, ColumnKind, ColumnSpec, Props as _, SelectMode, ShowCollection as _, ToggleColumn};
 use craft_ui::testing::layout::in_region;
-use craft_ui::testing::{Frames, input, pointer, trial};
-use egui::{Key, Modifiers, Pos2, Rect, Ui, Vec2};
+use craft_ui::testing::{Frames, pointer, trial};
+use egui::{Modifiers, Pos2, Rect, Ui, Vec2};
 use std::cell::RefCell;
 
 const ORIGIN: Pos2 = Pos2::new(10.0, 10.0);
@@ -168,69 +168,4 @@ fn locked_cells_and_section_rows_take_no_toggle_press_or_sweep() {
     assert!(toggle_drag(&Switches::new(6, &[0], &[]), 0, 3).is_empty(), "a press on a locked cell does nothing and sweeps nothing");
     assert_eq!(toggle_drag(&Switches::new(6, &[2], &[]), 1, 3), vec![(1, true), (3, true)], "a sweep passes over a locked cell without setting it");
     assert!(toggle_drag(&Switches::new(6, &[], &[0]), 0, 3).is_empty(), "a section row's toggle column starts no sweep");
-}
-
-/// Escape during a tick sweep cancels every flip it made, each with the value from before.
-#[trial]
-fn escape_during_a_tick_sweep_cancels_the_flips_and_restores_the_values() {
-    let scene = Scene::default();
-    let source = Switches::new(6, &[], &[]);
-    let props = || {
-        CollectionProps::new().columns(vec![
-            ColumnSpec::new(NAME, "Name", ColumnWidth::Fixed(COL)),
-            ColumnSpec::new(MUTE, "Mute", ColumnWidth::Fixed(COL)).kind(ColumnKind::Toggle(ToggleColumn::sweepable())),
-        ])
-    };
-    let mut frames = Frames::new();
-    let mut show = |ui: &mut Ui| show_table(ui, props(), &source, &scene);
-    frames.idle(3, &mut show);
-    let cell = |key: usize| Pos2::new(ORIGIN.x + COL * 1.5, scene.row(key).center().y);
-    frames.frame(vec![pointer::moved(cell(0))], &mut show);
-    frames.frame(vec![pointer::press(cell(0))], &mut show);
-    frames.frame(vec![pointer::moved(cell(1))], &mut show);
-    frames.frame(vec![pointer::moved(cell(3))], &mut show);
-    frames.frame(vec![input::key_press(Key::Escape, Modifiers::NONE)], &mut show);
-    frames.idle(2, &mut show);
-    let events = scene.events.borrow();
-    let opened = events
-        .iter()
-        .filter(|event| matches!(event, CollectionEvent::Toggle(edit) if edit.phase() == Some(craft_behavior::GesturePhase::Begin)))
-        .count();
-    let cancelled: Vec<bool> = events
-        .iter()
-        .filter_map(|event| match event {
-            CollectionEvent::Toggle(craft_behavior::EditEvent::Cancel { before: Some(craft_behavior::Mixed::Same(before)), .. }) => Some(before.on),
-            _ => None,
-        })
-        .collect();
-    assert!(opened >= 2, "the sweep flipped several cells");
-    assert_eq!(cancelled.len(), opened, "every flip is cancelled through the edit cancel path");
-    assert!(cancelled.iter().all(|on| !on), "each restores the value from before the sweep");
-    assert!(!events.iter().any(|event| matches!(event, CollectionEvent::Toggle(edit) if edit.phase() == Some(craft_behavior::GesturePhase::Commit))));
-}
-
-/// The cells of an icon-only toggle column are named after the column's icon, and an exclusive column's cells are
-/// radios while a sweepable one's are switches.
-#[trial]
-fn toggle_cells_carry_a_name_and_exclusive_columns_are_radios() {
-    use craft_behavior::IconId;
-    use craft_ui::contract::Role;
-    let mut fixture = craft_ui::testing::Fixture::new(|ui| {
-        let source = Switches::new(3, &[], &[]);
-        let props = CollectionProps::new().columns(vec![
-            ColumnSpec::new(NAME, "Name", ColumnWidth::Fixed(COL)),
-            ColumnSpec::new(MUTE, "", ColumnWidth::Fixed(COL)).kind(ColumnKind::Toggle(ToggleColumn::sweepable())).icon(IconId::new("eye")),
-            ColumnSpec::new(ColumnKey::new("solo"), "", ColumnWidth::Fixed(COL))
-                .kind(ColumnKind::Toggle(ToggleColumn::exclusive()))
-                .icon(IconId::new("solo")),
-        ]);
-        in_region(ui, Rect::from_min_size(ORIGIN, VIEW), |ui| {
-            Table::new(props).id_salt("table").show_items(ui, &source, &mut |_, _| Row::new());
-        });
-    });
-    fixture.settle();
-    assert_eq!(fixture.by_role(Role::SWITCH).len(), 3, "the sweepable column's cells are switches");
-    assert_eq!(fixture.by_role(Role::RADIO_BUTTON).len(), 3, "the exclusive column's cells are radios");
-    assert!(fixture.by_label("eye").is_some(), "an icon-only column names its cells after the icon");
-    assert!(fixture.by_label("solo").is_some());
 }

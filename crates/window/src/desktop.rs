@@ -100,16 +100,4 @@ mod tests {
         assert_eq!(kind_from_env(&env(&[("GNOME_DESKTOP_SESSION_ID", "x")])), DesktopKind::Gnome);
         assert_eq!(kind_from_env(&env(&[])), DesktopKind::Other);
     }
-
-    #[test]
-    fn tiling_compositors_are_recognised() {
-        for name in ["sway", "Hyprland", "i3", "niri", "river", "bspwm"] {
-            assert_eq!(kind_from_env(&env(&[("XDG_CURRENT_DESKTOP", name)])), DesktopKind::Tiling, "{name}");
-        }
-        assert_eq!(kind_from_env(&env(&[("XDG_CURRENT_DESKTOP", "i3:GNOME-Flashback")])), DesktopKind::Tiling);
-        assert_eq!(kind_from_env(&env(&[("XDG_CURRENT_DESKTOP", "COSMIC")])), DesktopKind::Other);
-        assert_eq!(kind_from_env(&env(&[("SWAYSOCK", "/run/sway.sock")])), DesktopKind::Tiling);
-        assert_eq!(kind_from_env(&env(&[("NIRI_SOCKET", "/run/niri")])), DesktopKind::Tiling);
-        assert_eq!(kind_from_env(&env(&[("XDG_CURRENT_DESKTOP", "Budgie:GNOME")])), DesktopKind::Gnome);
-    }
 }

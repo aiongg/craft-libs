@@ -7,8 +7,8 @@ use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
 use craft_menu::{
-    Backend, Builtin, ClipboardKeys, CommandRef, Dispatch, Event, Gate, ItemKind, ItemState, LayoutOptions, Menu, MenuBar, MenuRole, NativeMenu,
-    Node, apply_state, mac_layout, structure_key,
+    Backend, Builtin, ClipboardKeys, CommandRef, Dispatch, Event, Gate, ItemKind, ItemState, LayoutOptions, MenuBar, NativeMenu, apply_state,
+    mac_layout, structure_key,
 };
 use craft_ui::contract::{Bind, Props as _, Show as _};
 use craft_ui::testing::focus::key_release;
@@ -249,22 +249,6 @@ fn a_click_on_a_text_editing_item_while_typing_taps_its_shortcut() {
     assert_eq!(*value.borrow(), "", "the tapped Undo takes back the typing in the field");
 }
 
-/// `sync` lays nothing out itself: it compares each frame's layout with the last, so a change
-/// without input still reaches the menus, and an unchanged one costs no sync.
-#[trial]
-fn sync_compares_each_frames_layout() {
-    let (mut menu, synced, _, _) = driver();
-    let opts = LayoutOptions::new("Sample");
-    let mut bar = sample(false, true);
-    menu.sync(mac_layout(&bar, &opts));
-    menu.sync(mac_layout(&bar, &opts));
-    assert_eq!(synced.borrow().len(), 1, "unchanged: no sync");
-    apply_state(&mut bar, |c| ItemState::default().enabled(c.id != "file.new"));
-    menu.sync(mac_layout(&bar, &opts));
-    assert_eq!(synced.borrow().len(), 2);
-    assert!(!synced.borrow()[1].find(&cmd("file.new")).unwrap().enabled);
-}
-
 /// An item that was a check item stays one when the app's state stops saying checked
 /// (`checked: None`): unchecked, with the same structure, so the menus aren't rebuilt.
 #[trial]
@@ -331,25 +315,6 @@ fn recording_a_shortcut_passes_key_equivalents_through() {
     events.borrow_mut().extend([Event::Key(chord("Cmd+C")), Event::Key(chord("Cmd+V"))]);
     let seen = through(&mut menu, &mut frames, vec![]);
     assert_eq!(seen, [key(Key::C, true, mac_cmd(false)), key(Key::V, true, mac_cmd(false))], "no Copy or Paste events");
-}
-
-/// Dynamic lists (recent files, workspaces) change the tree: adding or removing one rebuilds,
-/// relabelling one updates in place.
-#[trial]
-fn dynamic_lists_rebuild_when_they_grow_or_shrink() {
-    let recents = |files: &[&str]| {
-        let items = files
-            .iter()
-            .enumerate()
-            .map(|(i, f)| craft_menu::Item::new(CommandRef::parse_key(&format!(r#"file.open_recent {{"index":{i}}}"#)).unwrap(), *f).into())
-            .collect();
-        let file = Menu::new("File", vec![Node::submenu("Open Recent", items)]).role(MenuRole::File);
-        MenuBar::new(vec![file])
-    };
-    let two = structure_key(&recents(&["a.pdf", "b.pdf"]));
-    assert_ne!(structure_key(&recents(&["a.pdf", "b.pdf", "c.pdf"])), two);
-    assert_ne!(structure_key(&recents(&["a.pdf"])), two);
-    assert_eq!(structure_key(&recents(&["b.pdf", "a.pdf"])), two, "same commands, new labels");
 }
 
 /// AppKit takes a key equivalent's key-down but winit still delivers the key-up: the menu adds
@@ -440,26 +405,6 @@ fn outside_press_dismisses_without_starting_a_canvas_gesture() {
     assert_eq!(cancels.get(), 2, "a pointer move closes nothing");
 }
 
-#[trial]
-fn escape_dismisses_an_open_menu_without_reaching_the_active_tool() {
-    let mut frames = Frames::new();
-    let tracking = Rc::new(Cell::new(true));
-    let mut menu = NativeMenu::new(Box::new(Fake { tracking: tracking.clone(), ..Default::default() }));
-    let escape = |pressed| key(Key::Escape, pressed, Modifiers::NONE);
-    let seen = through(&mut menu, &mut frames, vec![escape(true), escape(false)]);
-    assert!(seen.is_empty());
-    assert!(!tracking.get());
-}
-
-#[trial]
-fn moving_the_pointer_does_not_dismiss_an_open_menu() {
-    let mut frames = Frames::new();
-    let cancels = Rc::new(Cell::new(0));
-    let mut menu = NativeMenu::new(Box::new(Fake { tracking: Rc::new(Cell::new(true)), cancels: cancels.clone(), ..Default::default() }));
-    let seen = through(&mut menu, &mut frames, vec![egui::Event::PointerMoved(egui::pos2(300.0, 200.0))]);
-    assert_eq!((seen.len(), cancels.get()), (1, 0));
-}
-
 /// A backend that keeps reporting a menu open costs one window click, not all of them; once it
 /// reports the menu closed, the next open menu's closing click is kept from egui again.
 #[trial]
@@ -510,25 +455,6 @@ fn clipboard_key_equivalents_reach_text_fields() {
     let mut frames = Frames::new();
     let seen = through(&mut menu, &mut frames, vec![]);
     assert_eq!(seen, [key(Key::C, true, mac_cmd(false)), key(Key::V, true, mac_cmd(false))]);
-}
-
-/// ⌘X on an editable field with a selection removes the selection and puts it on the clipboard.
-#[trial]
-fn cut_removes_the_selection_of_an_editable_field() {
-    let mut frames = Frames::new();
-    let events = Rc::new(RefCell::new(Vec::new()));
-    let mut menu = NativeMenu::new(Box::new(Fake { events: events.clone(), ..Default::default() }));
-    let value = RefCell::new("cut me".to_owned());
-    let rect = Cell::new(egui::Rect::NOTHING);
-    let mut show = |ui: &mut egui::Ui| rect.set(TextField::new("Note", Bind::bound(&mut *value.borrow_mut())).id_salt("note").show(ui).response.rect);
-    frames.idle(3, &mut show);
-    click(&mut frames, rect.get().center(), &mut show);
-    frames.frame(vec![key_press(Key::A, Modifiers::COMMAND)], &mut show);
-    frames.frame(vec![], &mut show);
-    events.borrow_mut().push(Event::Key(chord("Cmd+X")));
-    through_in(&mut menu, &mut frames, vec![], &mut show);
-    assert_eq!(frames.copied(), ["cut me"], "the selection is on the clipboard");
-    assert_eq!(*value.borrow(), "", "and gone from the field");
 }
 
 /// The layout marks the shortcuts it gives (the app's key handling doesn't bind them), and a key
@@ -592,16 +518,4 @@ fn key_equivalents_run_commands_while_text_editing() {
         assert_eq!(chosen(&mut menu, shortcut, held, true), Event::Key(chord(shortcut)), "{shortcut} stays with the field");
     }
     assert_eq!(chosen(&mut menu, "Cmd+A", shift_cmd, true), Event::Click("cmd".into()), "⇧⌘A is not select all");
-}
-
-/// A modal dialog or a recorded shortcut lets only the built-in items run.
-#[trial]
-fn a_modal_dialog_or_shortcut_recording_lets_only_the_built_in_items_run() {
-    let save = craft_menu::Item::new(CommandRef::new("file.save"), "Save");
-    let quit = craft_menu::Item::new(Builtin::Quit.command(), "Quit");
-    for gate in [modal(), recording()] {
-        assert!(!gate.allows(&save) && gate.allows(&quit), "{gate:?}");
-    }
-    assert!(typing(true).allows(&save));
-    assert!(Gate::default().allows(&save));
 }

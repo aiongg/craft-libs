@@ -172,27 +172,6 @@ impl WarpMesh {
         (0..self.height()).step_by(3).flat_map(move |j| (0..w).step_by(3).map(move |i| j * w + i))
     }
 
-    /// The mesh's outer boundary: the top row, the right column, the bottom row backwards and the
-    /// left column backwards, closed.
-    pub(crate) fn outline(&self) -> BezPath {
-        let (w, h) = (self.width(), self.height());
-        let sides: [Vec<Point>; 4] = [
-            (0..w).map(|i| self.point(i, 0)).collect(),
-            (0..h).map(|j| self.point(w - 1, j)).collect(),
-            (0..w).rev().map(|i| self.point(i, h - 1)).collect(),
-            (0..h).rev().map(|j| self.point(0, j)).collect(),
-        ];
-        let mut path = BezPath::new();
-        path.move_to(sides[0][0]);
-        for side in &sides {
-            for &[a, b, c] in side[1..].as_chunks::<3>().0 {
-                path.curve_to(a, b, c);
-            }
-        }
-        path.close_path();
-        path
-    }
-
     /// The chain of cubic segments along control row `j`.
     pub(crate) fn row_path(&self, j: usize) -> BezPath {
         chain((0..self.width()).map(|i| self.point(i, j)).collect())

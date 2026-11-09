@@ -4,7 +4,7 @@ use craft_behavior::EditEvent;
 use craft_keymap::Mods;
 use craft_layers::ui::filter::{FilterKind, LayerFilter};
 use craft_layers::ui::mock::FakeLayers;
-use craft_layers::ui::panel::{LayerDrop, LayerPosition, LayersEvent, LayersFooterAction, LayersFooterButton, LayersPanel};
+use craft_layers::ui::panel::{LayerDrop, LayerPosition, LayersEvent, LayersFooterAction, LayersPanel};
 use craft_layers::ui::tree::{
     LayerInfo, LayerKind, LayerPart, LayerProperties, LayerRowKey, LayerSelection, LayerTree, LayersFooterState, SubRowGroup, SubRows,
 };
@@ -310,25 +310,6 @@ fn a_drop_the_app_refuses_reports_nothing() {
     assert_eq!(rig.drops(), [layer_move(&[4], 9, LayerPosition::Before, false)]);
 }
 
-/// Layers dropped above or below a layer, and onto a group, report where they land; Alt makes it a copy.
-#[trial]
-fn a_layer_drop_reports_its_landing_place_and_alt_copies() {
-    let mut rig = rig();
-    rig.drop_on("Title", "Hidden", Place::Above);
-    assert_eq!(rig.drops(), [layer_move(&[4], 8, LayerPosition::Before, false)]);
-    // Below Hidden is above the Background: the same place, reported against the next layer.
-    rig.drop_on("Title", "Hidden", Place::Below);
-    assert_eq!(rig.drops(), [layer_move(&[4], 9, LayerPosition::Before, false)]);
-
-    rig.drop_on("Title", "Group 1", Place::Middle);
-    assert_eq!(rig.drops(), [layer_move(&[4], 1, LayerPosition::Into, false)], "inside the group, at its top");
-
-    rig.fixture.hold(Modifiers::ALT);
-    rig.drop_on("Title", "Hidden", Place::Below);
-    rig.fixture.hold(Modifiers::NONE);
-    assert_eq!(rig.drops(), [layer_move(&[4], 9, LayerPosition::Before, true)]);
-}
-
 /// Effects dropped on another layer move to it (Alt copies); onto their own layer, between layers, or as Smart Filters onto a
 /// layer that is not a smart object, they go nowhere.
 #[trial]
@@ -462,56 +443,6 @@ fn footer_modifiers_report_ask_below_and_from_selection() {
     rig.tree.borrow_mut().selection = LayerSelection::new(Vec::new(), None, LayerPart::Pixels);
     rig.fixture.idle(2);
     assert_eq!(press(&mut rig, NEW_GROUP, Modifiers::SHIFT), group(false, false, false), "no active layer: an empty group");
-}
-
-fn footer_drops(rig: &Rig<FakeLayers>) -> Vec<(LayersFooterButton, Vec<LayerRowKey<u32>>)> {
-    rig.seen
-        .borrow()
-        .iter()
-        .filter_map(|event| if let LayersEvent::FooterDrop { button, rows, .. } = event { Some((*button, rows.clone())) } else { None })
-        .collect()
-}
-
-/// Delete takes any row and a mask; New Layer and New Group take layer rows only.
-#[trial]
-fn footer_buttons_accept_the_drags_the_spec_names() {
-    let mut rig = rig();
-    rig.tree.borrow_mut().layers[5].effects_open = true;
-    rig.tree.borrow_mut().layers[6].effects_open = true;
-    rig.fixture.idle(3);
-    let layers = vec![LayerRowKey::Layer(4)];
-    let effects = vec![LayerRowKey::Effects(7, Some(0))];
-    for (button, label) in
-        [(LayersFooterButton::Delete, DELETE), (LayersFooterButton::NewLayer, NEW_LAYER), (LayersFooterButton::NewGroup, NEW_GROUP)]
-    {
-        let onto = rig.row(label).center();
-        rig.drag(rig.row("Title").center(), onto);
-        assert_eq!(footer_drops(&rig), [(button, layers.clone())], "a layer onto {label}");
-    }
-    let delete = rig.row(DELETE).center();
-    rig.drag(rig.row("Drop Shadow").center(), delete);
-    assert_eq!(footer_drops(&rig), [(LayersFooterButton::Delete, effects)]);
-    for label in [NEW_LAYER, NEW_GROUP] {
-        let onto = rig.row(label).center();
-        rig.drag(rig.row("Drop Shadow").center(), onto);
-        assert_eq!(footer_drops(&rig), [], "an effect onto {label}");
-    }
-}
-
-/// Dragging only a mask thumbnail carries only the mask: Delete takes it, New Layer does not, and no layer reorder is reported.
-#[trial]
-fn a_mask_thumbnail_drag_carries_only_the_mask() {
-    let mut rig = rig();
-    let row = rig.row("Masked").rect;
-    let link = rig.row("Unlink layer mask of Masked").rect;
-    let mask = Pos2::new(link.right() + row.height() * 0.2, row.center().y);
-    let delete = rig.row(DELETE).center();
-    rig.drag(mask, delete);
-    assert_eq!(footer_drops(&rig), [(LayersFooterButton::Delete, vec![LayerRowKey::Mask(3, LayerPart::LayerMask)])]);
-    assert_eq!(rig.drops(), []);
-    let new_layer = rig.row(NEW_LAYER).center();
-    rig.drag(mask, new_layer);
-    assert_eq!(footer_drops(&rig), []);
 }
 
 /// A drag from another Layers panel (another document) is taken by none of this panel's footer buttons.

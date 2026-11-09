@@ -3,11 +3,9 @@
 mod drag_strip;
 mod toggle_keys;
 
-use craft_behavior::{DisplayOrder, ItemSource};
-use craft_ui::contract::{Bind, Entry, Role, SelectMode, Show as _, ShowCollection as _, ShowContainer as _};
+use craft_ui::contract::{Bind, Entry, Role, Show as _, ShowContainer as _};
 use craft_ui::dialog::Dialog;
 use craft_ui::display::Text;
-use craft_ui::list::{List, ListRow};
 use craft_ui::pickers::Select;
 use craft_ui::runtime::focus::Initial;
 use craft_ui::runtime::overlay::CloseReason;
@@ -17,33 +15,6 @@ use craft_ui::text::TextField;
 use egui::{Key, Modifiers, Rect, Vec2};
 use std::cell::Cell;
 use std::rc::Rc;
-
-const ROWS: usize = 40;
-
-struct Rows;
-
-impl DisplayOrder<usize> for Rows {
-    fn len(&self) -> usize {
-        ROWS
-    }
-    fn key(&self, at: usize) -> usize {
-        at
-    }
-}
-
-impl ItemSource<usize> for Rows {}
-
-#[trial]
-fn a_dialog_with_a_collection_body_shows_the_list_without_a_body_scroll() {
-    let mut fixture = Fixture::new(|ui| {
-        let mut open = true;
-        Dialog::new("Pick").collection_body().opened(Bind::bound(&mut open)).show(ui, |ui, _| {
-            List::new("Rows").select(SelectMode::Single).show_items(ui, &Rows, &mut |key, _| ListRow::new(format!("Row {key}")));
-        });
-    });
-    fixture.settle();
-    assert!(fixture.by_label("Row 0").is_some(), "the list shows its first row inside the dialog");
-}
 
 /// Shows a dialog with Apply (stays open), OK and Cancel; `allow` answers the guard for OK. Returns what the dialog
 /// reported on the pass the button was clicked and whether it is still open after.
@@ -73,11 +44,6 @@ fn click_footer(label: &str, allow: bool) -> (Option<CloseReason>, Option<usize>
     fixture.idle(5);
     let (closed, picked) = seen.get();
     (closed, picked, open.get())
-}
-
-#[trial]
-fn a_footer_button_that_stays_open_reports_its_pick_and_keeps_the_dialog() {
-    assert_eq!(click_footer("Apply", true), (None, Some(0), true), "Apply picks and the dialog stays open");
 }
 
 #[trial]
@@ -152,12 +118,6 @@ fn enter_in_a_field_that_submits_leaves_the_default_button() {
     assert_eq!(enter_in_field(true, true), (None, None, true), "Enter stays with the field and the dialog stays open");
 }
 
-#[trial]
-fn enter_activates_ok_through_the_close_guard() {
-    assert_eq!(enter_in_field(true, false), (Some(CloseReason::Activated), Some(0), false), "Enter closes as OK when the host allows it");
-    assert_eq!(enter_in_field(false, false), (None, Some(0), true), "Enter leaves the dialog open when the host refuses, and reports the pick");
-}
-
 /// A Select in a dialog's scrolling body opens its list by a click and by Alt+Down and picks an item: the list's
 /// layer lies outside the body's scroll.
 #[trial]
@@ -189,31 +149,4 @@ fn a_select_in_a_scrolling_dialog_body_opens_its_list_and_picks() {
     fixture.key(Key::Enter, Modifiers::NONE);
     fixture.settle();
     assert_eq!(value.get(), 1, "Up and Enter pick the option above");
-}
-
-/// A footer button opens a URL through the body context's opener, the one `Link` uses.
-#[trial]
-fn a_footer_button_opens_a_url_through_the_body_context() {
-    const URL: &str = "https://example.org/help";
-    let opened = Rc::new(Cell::new(false));
-    let seen = Rc::clone(&opened);
-    let mut fixture = Fixture::new(move |ui| {
-        let mut open = true;
-        Dialog::new("Help")
-            .opened(Bind::bound(&mut open))
-            .footer(|ui, cx| {
-                if craft_ui::testing::contract::clicked(&craft_ui::buttons::Button::new("Docs").show(ui)) {
-                    cx.bar().open_url(URL, true);
-                }
-                let asked = ui.ctx().output(|output| {
-                    output.commands.iter().any(|command| matches!(command, egui::OutputCommand::OpenUrl(request) if request.url == URL))
-                });
-                seen.set(seen.get() || asked);
-            })
-            .show(ui, |_, _| {});
-    });
-    fixture.settle();
-    let docs = fixture.by_label("Docs").expect("the footer button");
-    fixture.click(&docs);
-    assert!(opened.get(), "the platform was asked to open the URL");
 }

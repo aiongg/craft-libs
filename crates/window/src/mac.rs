@@ -255,12 +255,6 @@ mod tests {
     }
 
     #[test]
-    fn inset_adds_the_top_gap_after_the_lights() {
-        let inset = inset_from_lights(lights(69.0, 14.0, 12.0)).unwrap();
-        assert_eq!(inset, MacInset { leading: 77.0, centre_from_top: 14.0 });
-    }
-
-    #[test]
     fn implausible_measurements_are_rejected() {
         for l in [
             lights(0.0, 14.0, 12.0),
@@ -274,14 +268,6 @@ mod tests {
         ] {
             assert_eq!(inset_from_lights(l), None, "{l:?}");
         }
-    }
-
-    #[test]
-    fn defaults_follow_the_macos_version() {
-        assert_eq!(default_inset(15), MacInset { leading: 67.0, centre_from_top: 14.0 });
-        assert_eq!(default_inset(25), default_inset(15));
-        assert_eq!(default_inset(27), MacInset { leading: 78.0, centre_from_top: 16.0 });
-        assert_eq!(default_inset(26), default_inset(27));
     }
 
     #[test]

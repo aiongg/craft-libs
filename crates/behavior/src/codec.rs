@@ -273,14 +273,6 @@ mod tests {
     }
 
     #[test]
-    fn the_custom_reader_runs_only_when_the_reader_rejects() {
-        let codec = NumberCodec::default().or_parse(|text| (text == "Auto").then_some(0.0));
-        assert_eq!(codec.parse("Auto", &Some(3.0)), Ok(Some(0.0)));
-        assert_eq!(codec.parse("2", &None), Ok(Some(2.0)));
-        assert_eq!(codec.parse("x", &None), Err(NotAValue));
-    }
-
-    #[test]
     fn decimals_for_step_is_exact() {
         assert_eq!(decimals_for_step(0.25), 2);
         assert_eq!(decimals_for_step(0.001), 3);

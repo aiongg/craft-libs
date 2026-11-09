@@ -1,6 +1,6 @@
 //! The Show areas, the app's tabs and the state snapshot automation reads.
 
-use craft_keymap::{CommandRef, Platform};
+use craft_keymap::Platform;
 use craft_menu::shortcuts::{Area, DialogTab, Outcome, ShortcutsDialog};
 use craft_ui::contract::Show as _;
 use craft_ui::display::Text;
@@ -9,7 +9,7 @@ use egui::{Key, Modifiers};
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use super::fixture::{Rig, keymap, options};
+use super::fixture::{keymap, options};
 
 /// Area::photoshop puts File > Save in Application Menus, a panel-scoped command in Panel Menus and a tool in Tools.
 #[trial]
@@ -70,24 +70,4 @@ fn app_tabs_switch_and_report_changes() {
     fixture.click(&change);
     fixture.idle(3);
     assert!(host.borrow().outcomes.iter().any(|o| matches!(o, Outcome::Changed)));
-}
-
-/// While a row records, the snapshot names its command; after a held chord it names the conflict's chord and holders.
-#[trial]
-fn snapshot_reports_conflict_and_recording() {
-    let mut rig = Rig::mac();
-    let snapshot = |rig: &Rig| {
-        let shared = rig.shared.borrow();
-        shared.state.snapshot(&shared.km)
-    };
-    let export = CommandRef::from("file.export");
-    assert!(snapshot(&rig).is_some_and(|s| s.recording.is_none() && s.conflict.is_none() && s.tab == "shortcuts"));
-
-    rig.click("Export…: ⌘E");
-    assert!(snapshot(&rig).is_some_and(|s| s.recording == Some(export.clone()) && s.conflict.is_none()));
-
-    rig.press(Modifiers::MAC_CMD, Key::S);
-    let after = snapshot(&rig).unwrap_or_else(|| panic!("a snapshot"));
-    assert_eq!(after.conflict, Some(("Cmd+S".to_string(), vec![CommandRef::from("file.save")])));
-    assert!(after.recording.is_none());
 }

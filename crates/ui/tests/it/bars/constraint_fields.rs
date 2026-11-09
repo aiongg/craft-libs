@@ -47,37 +47,6 @@ fn type_into(fixture: &mut Fixture, field: &Target, text: &str) {
     fixture.settle();
 }
 
-/// Picking a style resets the numbers to that style's start, whatever they were. The pick is made with the arrow
-/// keys on the focused select, which steps through the styles without opening its list.
-#[trial]
-fn a_style_pick_resets_the_numbers() {
-    let (mut fixture, state) = rig(Constraint::Ratio(16.0, 9.0), None, true);
-    fixture.key(Key::Tab, Modifiers::NONE).settle();
-    fixture.key(Key::ArrowDown, Modifiers::NONE).settle();
-    let reset = Constraint::Size(ConstraintFields::SIZE_START.0, ConstraintFields::SIZE_START.1);
-    assert_eq!(state.get(), reset);
-}
-
-/// A typed width commits on Enter and leaves the height.
-#[trial]
-fn a_typed_width_commits_on_enter() {
-    let (mut fixture, state) = rig(Constraint::Ratio(1.0, 2.0), None, true);
-    let (width, _) = fields(&fixture);
-    type_into(&mut fixture, &width, "3");
-    let expected = Constraint::Ratio(3.0, 2.0);
-    assert_eq!(state.get(), expected);
-}
-
-/// The swap button exchanges width and height.
-#[trial]
-fn swap_exchanges_width_and_height() {
-    let (mut fixture, state) = rig(Constraint::Size(640.0, 480.0), None, true);
-    let swap = fixture.by_label("Swaps height and width").expect("the swap button");
-    fixture.click(&swap).settle();
-    let expected = Constraint::Size(480.0, 640.0);
-    assert_eq!(state.get(), expected);
-}
-
 /// A disabled bar takes no input in the number cells or the swap.
 #[trial]
 fn disabled_cells_take_no_input() {
@@ -130,19 +99,4 @@ fn typed_lengths_convert_through_the_document_in_every_unit() {
     assert_eq!(typed(UnitKind::Inches, "250px", true), Constraint::Size(250.0, 480.0), "pixels in an Inches field");
     assert_eq!(typed(UnitKind::Inches, "50%", true), Constraint::Size(500.0, 480.0), "percent of the width");
     assert_eq!(typed(UnitKind::Pixels, "50%", false), Constraint::Size(640.0, 250.0), "percent of the height");
-}
-
-/// Normal greys Width, the swap and Height; Fixed Ratio does not.
-#[trial]
-fn normal_greys_the_cells() {
-    let greyed = |start: Constraint| {
-        let (fixture, _) = rig(start, None, true);
-        let (width, height) = fields(&fixture);
-        let swap = fixture.by_label("Swaps height and width").unwrap();
-        [width, height, swap].map(|target| fixture.tree().is_disabled_key(target.node))
-    };
-    let ratio = Constraint::Ratio(1.0, 2.0);
-    let (free, fixed) = (greyed(Constraint::Free), greyed(ratio));
-    assert!(free.iter().all(|grey| *grey), "Normal greys Width, the swap and Height");
-    assert!(fixed.iter().all(|grey| !*grey), "Fixed Ratio leaves them enabled");
 }

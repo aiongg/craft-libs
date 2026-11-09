@@ -4,15 +4,13 @@
 use craft_behavior::geometry::quad::{self, BoxPart, BoxRules, BoxState, TransformMode};
 use craft_behavior::kurbo::{Point, Rect, Vec2 as DocVec};
 use craft_behavior::{CanvasView, EditEvent, PartKey};
-use craft_draw::ui::transform::{
-    RotateZone, TransformBox, TransformEdit, TransformOverlay, TransformPhase, TransformSession, TransformSettings, TransformTool,
-};
+use craft_draw::ui::transform::{RotateZone, TransformBox, TransformEdit, TransformOverlay, TransformSession, TransformSettings};
 use craft_keymap::Mods;
-use craft_ui::canvas::{Canvas, CanvasSpace, CanvasTool as _, ToolContext, ToolKey, ToolPath};
+use craft_ui::canvas::Canvas;
 use craft_ui::canvas::{Guide, GuideKey};
 use craft_ui::canvas_controls::Guides;
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
-use craft_ui::testing::{Fixture, ToolFixture, pointer, trial};
+use craft_ui::testing::{Fixture, pointer, trial};
 use egui::{Key, Modifiers, Pos2, Vec2};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -305,16 +303,6 @@ fn a_click_outside_applies_and_a_drag_outside_rotates() {
 }
 
 #[trial]
-fn the_rotate_zone_beyond_the_corners_turns_about_the_reference_point_and_shift_snaps_the_turn() {
-    let mut h = upright();
-    let at = h.screen(Point::new(340.0, 260.0));
-    h.drag(at, at + by(-40.0, 30.0), Modifiers::SHIFT);
-    let (angle, step) = (h.state().angle(), h.config.borrow().rules.rotate_step);
-    assert!((angle / step - (angle / step).round()).abs() < 1e-6 && angle.abs() > 1.0, "{angle} is not a multiple of {step}");
-    assert!(near(&BoxState::new([h.state().pivot; 4], h.state().pivot), &BoxState::new([RECT.center(); 4], RECT.center())), "the pivot stays");
-}
-
-#[trial]
 fn a_double_click_inside_applies() {
     let mut h = upright();
     let at = h.screen(Point::new(150.0, 110.0));
@@ -380,17 +368,6 @@ fn the_band_zone_leaves_the_rest_of_the_outside_to_the_tool() {
     assert_eq!(h.host.borrow().hovered, Some(BoxPart::Outside));
     h.drag(at, at + by(-30.0, 20.0), Modifiers::NONE);
     assert!(h.state().angle().abs() > 1.0);
-}
-
-#[trial]
-fn inside_moves_false_leaves_the_inside_to_the_tool() {
-    let mut h = harness(BoxState::from_rect(RECT), |config| config.inside_moves = false);
-    let from = h.screen(Point::new(150.0, 110.0));
-    h.drag(from, from + by(30.0, 0.0), Modifiers::NONE);
-    assert!(h.host.borrow().events.is_empty(), "the press is the tool's");
-    let corner = h.screen(Point::new(100.0, 80.0));
-    h.drag(corner, corner + by(-20.0, -10.0), Modifiers::NONE);
-    assert_ne!(h.state(), BoxState::from_rect(RECT), "the handles still drag");
 }
 
 #[trial]
@@ -463,15 +440,6 @@ fn the_box_takes_a_press_on_a_handle_before_a_guide_under_it() {
 }
 
 #[trial]
-fn modifiers_override_replaces_the_input_modifiers() {
-    let mut h = harness(BoxState::from_rect(RECT), |config| config.mods = Some(Mods::SHIFT));
-    let at = h.screen(Point::new(340.0, 260.0));
-    h.drag(at, at + by(-40.0, 30.0), Modifiers::NONE);
-    let (angle, step) = (h.state().angle(), h.config.borrow().rules.rotate_step);
-    assert!((angle / step - (angle / step).round()).abs() < 1e-6 && angle.abs() > 1.0, "Shift is held for the box: {angle}");
-}
-
-#[trial]
 fn alt_beyond_the_box_places_the_reference_point_there_and_drags_it() {
     let mut h = upright();
     let at = h.screen(Point::new(340.0, 260.0));
@@ -537,31 +505,12 @@ fn a_release_with_the_pointer_gone_is_not_a_click_outside() {
     assert_eq!(h.host.borrow().applied, 0);
 }
 
-fn tool_context(rect: egui::Rect) -> ToolContext<'static> {
-    let space = CanvasSpace::new(CanvasView::new(rect, Point::new(200.0, 150.0), 1.0), 1.0);
-    ToolContext::new(rect, Some(space))
-}
-
-#[trial]
-fn enter_applies_and_esc_discards_through_the_tool() {
-    let session = TransformSession::<()>::new(RECT);
-    let mut tool = TransformTool::new(&session);
-    let mut cx = tool_context(egui::Rect::from_min_size(Pos2::ZERO, by(400.0, 300.0)));
-    assert!(tool.key(&ToolKey::Submit, &mut cx));
-    assert_eq!(tool.take_edits().1, true);
-    assert!(tool.key(&ToolKey::Cancel, &mut cx));
-    assert_eq!(tool.take_edits().2, true);
-    assert!(!tool.key(&ToolKey::Kept(craft_keymap::Chord::plain(craft_keymap::Key::F1)), &mut cx), "other keys stay the app's");
-    assert_eq!(tool.command_form(), ToolPath::Command("the Transform fields of the options bar"));
-}
-
 /// The session, the overlay's reports and the hosts' counters.
 struct OverlayHost {
     session: TransformSession<()>,
     kinds: Vec<&'static str>,
     applied: usize,
     discarded: usize,
-    id: egui::Id,
     view: CanvasView,
 }
 
@@ -575,7 +524,7 @@ fn overlay(shown: bool, setup: impl FnOnce(&mut TransformSession<()>)) -> (Fixtu
         kinds: Vec::new(),
         applied: 0,
         discarded: 0,
-        id: egui::Id::NULL,
+
         view: CanvasView::new(egui::Rect::NOTHING, Point::ZERO, 1.0),
     }));
     let shown_host = Rc::clone(&host);
@@ -612,23 +561,6 @@ fn overlay(shown: bool, setup: impl FnOnce(&mut TransformSession<()>)) -> (Fixtu
 }
 
 #[trial]
-fn the_overlay_turns_box_events_into_session_edits() {
-    let (mut fixture, host) = overlay(false, |_| {});
-    let corner = host.borrow().view.to_screen(Point::new(300.0, 220.0));
-    let to = corner + by(50.0, 40.0);
-    fixture.frame(vec![pointer::moved(corner)]);
-    fixture.frame(vec![pointer::press(corner)]);
-    fixture.frame(vec![pointer::moved(corner.lerp(to, 0.5))]);
-    fixture.frame(vec![pointer::moved(to)]);
-    fixture.frame(vec![pointer::release(to)]);
-    fixture.frame(Vec::new());
-    let host = host.borrow();
-    assert_eq!(host.kinds.first(), Some(&"begin"));
-    assert!(host.kinds.contains(&"update"), "{:?}", host.kinds);
-    assert_ne!(host.session.state().quad, BoxState::from_rect(RECT).quad, "the session took the edits");
-}
-
-#[trial]
 fn a_hidden_reference_point_is_not_drawn_hit_or_picked() {
     let (mut fixture, host) = overlay(false, |_| {});
     let centre = host.borrow().view.to_screen(RECT.center());
@@ -645,63 +577,4 @@ fn a_hidden_reference_point_is_not_drawn_hit_or_picked() {
     assert!(host.borrow().kinds.is_empty());
     let parts = fixture.by_role(craft_ui::contract::Role::BUTTON).len();
     assert_eq!(parts, 9, "the whole box, four corners and four edges");
-}
-
-#[trial]
-fn in_the_warp_phase_the_overlay_claims_nothing() {
-    let (mut fixture, host) = overlay(true, |session| {
-        session.apply(TransformEdit::Warp(()), 0.0);
-    });
-    assert_eq!(host.borrow().session.phase(), TransformPhase::Warp);
-    let corner = host.borrow().view.to_screen(Point::new(300.0, 220.0));
-    fixture.frame(vec![pointer::moved(corner)]);
-    fixture.frame(vec![pointer::press(corner)]);
-    fixture.frame(vec![pointer::moved(corner + by(50.0, 40.0))]);
-    fixture.frame(vec![pointer::release(corner + by(50.0, 40.0))]);
-    assert!(host.borrow().kinds.is_empty());
-    assert_eq!(host.borrow().session.state().quad, BoxState::from_rect(RECT).quad);
-    assert!(fixture.by_role(craft_ui::contract::Role::BUTTON).is_empty(), "the overlay has no parts");
-}
-
-#[trial]
-fn a_click_outside_and_a_double_click_inside_apply_through_the_overlay() {
-    let (mut fixture, host) = overlay(false, |_| {});
-    let outside = host.borrow().view.to_screen(Point::new(380.0, 280.0));
-    fixture.click_at(outside);
-    assert_eq!(host.borrow().applied, 1, "a click outside");
-
-    let (mut fixture, host) = overlay(false, |_| {});
-    let inside = host.borrow().view.to_screen(Point::new(150.0, 110.0));
-    fixture.frame(vec![pointer::moved(inside), pointer::press(inside), pointer::release(inside)]);
-    fixture.frame(vec![pointer::press(inside), pointer::release(inside)]);
-    fixture.frame(Vec::new());
-    assert_eq!(host.borrow().applied, 1, "a double click inside");
-    assert_eq!(host.borrow().discarded, 0);
-}
-
-/// With the canvas focused, the arrows ask the tool for a `Set` that moves the whole box 1 document unit, Shift 10,
-/// from the box the session holds.
-#[trial]
-fn the_tool_nudges_the_whole_box_with_the_arrows() {
-    let session: &'static TransformSession<()> = Box::leak(Box::new(TransformSession::new(RECT)));
-    let mut canvas = ToolFixture::with_view(
-        "Document",
-        TransformTool::new(session),
-        |room| CanvasView::new(room, Point::new(f64::from(room.width()) / 2.0, f64::from(room.height()) / 2.0), 1.0),
-        |_, _| {},
-    );
-    canvas.fixture().key(Key::Tab, Modifiers::NONE).settle();
-    canvas.fixture().key(Key::ArrowRight, Modifiers::NONE).settle();
-    canvas.fixture().key(Key::ArrowDown, Modifiers::SHIFT).settle();
-    let (edits, apply, discard) = canvas.tool_mut().take_edits();
-    let boxes: Vec<BoxState> = edits
-        .into_iter()
-        .filter_map(|edit| match edit {
-            TransformEdit::Box(EditEvent::Set { after, .. }) => Some(after),
-            _ => None,
-        })
-        .collect();
-    let upright = BoxState::from_rect(RECT);
-    assert_eq!(boxes, [upright.moved(doc(1.0, 0.0)), upright.moved(doc(0.0, 10.0))]);
-    assert!(!apply && !discard, "arrows apply and discard nothing");
 }

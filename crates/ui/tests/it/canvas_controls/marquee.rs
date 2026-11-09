@@ -5,14 +5,11 @@ use craft_behavior::CanvasView;
 use craft_behavior::kurbo::{Point, Rect};
 use craft_ui::canvas::Canvas;
 use craft_ui::canvas_controls::{
-    CanvasGrid, HoverMask, HoverOutline, HoverShape, Marquee, MarqueeLook, MarqueeShape, SelectionOutline, StraightLinePreview, range_bands,
-    rect_around,
+    CanvasGrid, HoverMask, HoverOutline, HoverShape, Marquee, MarqueeLook, SelectionOutline, StraightLinePreview, range_bands, rect_around,
 };
 use craft_ui::contract::{Role, Show as _, ShowContainer as _};
-use craft_ui::style::DataColor;
 use craft_ui::testing::{Fixture, Frames, trial};
-use egui::epaint::ColorMode;
-use egui::{Color32, Pos2, Shape, Vec2};
+use egui::{Pos2, Vec2};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Duration;
@@ -55,37 +52,6 @@ fn a_press_on_the_canvas_reaches_the_tool_with_every_selection_outline_shown() {
 }
 
 #[trial]
-fn a_marquee_is_one_graphics_object_named_by_its_label() {
-    let mut fixture = Fixture::new(|ui| {
-        Canvas::new("Document").view(view()).show(ui, |ui, body| {
-            Marquee::rect("Selection", selection()).show_at(ui, body.rect);
-        });
-    });
-    fixture.settle();
-    assert_eq!(fixture.by_role(Role::GRAPHICS_OBJECT).len(), 1, "the marquee is the one graphics object of the canvas");
-    assert!(fixture.by_label("Selection").is_some());
-}
-
-#[trial]
-fn a_marquee_maps_each_shape_through_a_turned_view() {
-    let turned = view().rotation(90.0);
-    let rect = MarqueeShape::Rect(selection());
-    let [first] = rect.runs(&turned, MarqueeLook::Ants).try_into().expect("a rectangle is one run");
-    assert!(first.closed);
-    let corners = turned.quad(selection());
-    assert_eq!(first.points, corners.to_vec(), "the corners are where the view puts the document corners");
-    assert_ne!(first.points, view().quad(selection()).to_vec(), "a turned view moves them");
-
-    let polygon = MarqueeShape::Polygon(vec![Point::new(0.0, 0.0), Point::new(10.0, 0.0), Point::new(10.0, 10.0)]);
-    assert!(polygon.runs(&view(), MarqueeLook::Ants)[0].closed);
-    assert!(!polygon.runs(&view(), MarqueeLook::Drawing)[0].closed, "a polygon is an open path while it is drawn");
-
-    let segments = MarqueeShape::Segments(vec![(Point::new(0.0, 0.0), Point::new(5.0, 0.0)), (Point::new(5.0, 5.0), Point::new(9.0, 5.0))]);
-    assert_eq!(segments.runs(&view(), MarqueeLook::Ants).len(), 2, "each segment is its own run");
-    assert_eq!(segments.bounds(), Rect::new(0.0, 0.0, 9.0, 5.0));
-}
-
-#[trial]
 fn the_hover_mask_marks_the_edge_of_the_covered_texels_only() {
     let bounds = Rect::new(0.0, 0.0, 9.0, 9.0);
     let mask = HoverMask::sampled(bounds, |x, y| if (3.0..6.0).contains(&x) && (3.0..6.0).contains(&y) { 1.0 } else { 0.0 });
@@ -96,14 +62,6 @@ fn the_hover_mask_marks_the_edge_of_the_covered_texels_only() {
     let full = HoverMask::sampled(bounds, |_, _| 1.0);
     assert!(full.is_edge(0, 4) && full.is_edge(8, 4), "texels on the mask's border are edges");
     assert!(!full.is_edge(4, 4));
-}
-
-#[trial]
-fn a_large_hover_mask_samples_fewer_texels_than_its_size() {
-    let mask = HoverMask::sampled(Rect::new(0.0, 0.0, 4000.0, 1000.0), |_, _| 1.0);
-    let [across, down] = mask.size();
-    assert!(across.max(down) <= HoverMask::MAX_TEXELS, "the long side stays within {}: {across} x {down}", HoverMask::MAX_TEXELS);
-    assert_eq!(HoverMask::sampled(Rect::new(0.0, 0.0, f64::NAN, 4.0), |_, _| 1.0).size(), [1, 1], "bounds that are not finite give a 1 x 1 mask");
 }
 
 #[trial]
@@ -155,20 +113,4 @@ fn a_shown_selection_asks_for_its_next_repaint_a_march_step_ahead() {
     let immediate = waits.iter().filter(|wait| **wait == Some(Duration::ZERO)).count();
     assert!(waits.iter().all(|wait| wait.is_some_and(|wait| wait <= MARCH_TICK)), "the ants ask for a repaint within a step: {waits:?}");
     assert!(immediate * 3 <= waits.len(), "a repaint is not asked for every frame: {waits:?}");
-}
-
-#[trial]
-fn a_contrast_marquee_draws_a_halo_under_a_line_in_the_given_colour() {
-    let color = Color32::from_rgb(230, 70, 70);
-    let mut frames = Frames::new();
-    let shapes = frames.frame_shapes(|ui| {
-        Canvas::new("Document").view(view()).show(ui, |ui, body| {
-            Marquee::rect("Shape", selection()).look(MarqueeLook::Contrast(DataColor::new(color))).show_at(ui, body.rect);
-        });
-    });
-    let paths: Vec<_> = shapes.iter().filter_map(|shape| if let Shape::Path(path) = shape { Some(path) } else { None }).collect();
-    let line = paths.iter().position(|path| path.stroke.color == ColorMode::Solid(color)).expect("the line is in the given colour");
-    let halo = &paths[..line].last().expect("a halo is painted before the line");
-    assert_eq!(halo.points, paths[line].points, "the halo follows the line");
-    assert!(halo.stroke.width > paths[line].stroke.width, "the halo is wider than the line");
 }

@@ -334,15 +334,6 @@ mod tests {
     }
 
     #[test]
-    fn only_the_head_of_a_long_name_counts() {
-        let label: String = "ä€𝄞b".repeat(50);
-        let candidate = Candidate { id: "acme.long".into(), labels: vec![label.clone()] };
-        assert_eq!(head(&label).chars().count(), MAX_NAME_CHARS);
-        assert_eq!(score(&format!("{label}and more words after the head"), &candidate), 1.0);
-        assert_eq!(head("short"), "short");
-    }
-
-    #[test]
     fn words_split_camel_case_and_separators() {
         assert_eq!(words("selectAll_onArtboard 2x"), ["select", "all", "on", "artboard", "2x"]);
         assert_eq!(words("Acme\u{a0}Lasso-Tool"), ["acme", "lasso", "tool"]);

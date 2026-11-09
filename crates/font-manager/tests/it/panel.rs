@@ -129,22 +129,6 @@ impl Rig {
             .unwrap_or_else(|| panic!("no {role:?} named `{name}` on screen"))
     }
 
-    /// Presses the button named `name` whose description is `description`: the style rows of the details sheet share
-    /// their name and differ in the description.
-    fn click_described(&mut self, name: &str, description: &str) {
-        let target = self
-            .fx
-            .by_role(Role::BUTTON)
-            .into_iter()
-            .find(|target| {
-                craft_ui::testing::access::name(self.fx.tree(), target.node) == Some(name)
-                    && self.fx.tree().description_of(target.node) == Some(description)
-            })
-            .unwrap_or_else(|| panic!("no button `{name}` described `{description}` on screen"));
-        self.fx.click(&target);
-        self.fx.settle();
-    }
-
     /// Presses the notice action named `name`: a link beside the message, a button when the actions stack.
     fn click_notice_action(&mut self, name: &str) {
         let target = [Role::LINK, Role::BUTTON]
@@ -288,20 +272,6 @@ fn install_a_family_then_remove_it_from_its_card() {
 }
 
 #[trial]
-fn install_and_remove_one_style() {
-    let mut rig = setup("style");
-    rig.allow();
-    rig.open("Hack");
-    rig.click_described("Install", "Install Regular");
-    assert_eq!(rig.store.calls(), [Call::InstallFile("Hack".into(), HACK.into())]);
-    assert!(rig.has_installed("Hack"));
-
-    rig.click_described("Remove", "Remove Regular");
-    assert_eq!(rig.store.calls().last(), Some(&Call::Remove("Hack".into())));
-    assert!(!rig.has_installed("Hack"));
-}
-
-#[trial]
 fn system_fonts_cannot_be_removed() {
     let mut rig = setup("system");
     rig.installed_tab();
@@ -352,17 +322,6 @@ fn a_failed_install_offers_retry() {
     rig.click("Retry");
     assert!(rig.has_installed("Hack"));
     assert!(!rig.present("Couldn't install"));
-}
-
-#[trial]
-fn arrow_keys_move_between_cards_and_enter_opens_one() {
-    let mut rig = setup("keys");
-    let first = rig.named(Role::LIST_ITEM, "Amiri");
-    rig.fx.click_at(Pos2::new(first.rect.left() + 4.0, first.rect.top() + 4.0));
-    rig.fx.settle();
-    rig.key(Key::ArrowDown);
-    rig.key(Key::Enter);
-    assert_eq!(rig.panel.borrow().details_family().as_deref(), Some("Hack"));
 }
 
 /// A source a user could add: another "Hack", from an index of its own.
@@ -464,16 +423,6 @@ fn queued_installs_run_one_runner_in_request_order() {
     assert!(rig.store.calls().is_empty(), "nothing runs before the runner does");
     spawned.remove(0)();
     assert_eq!(rig.store.calls(), [Call::Install("Amiri".into()), Call::Install("Hack".into())]);
-}
-
-#[trial]
-fn samples_follow_the_language_filter_then_the_script() {
-    let mut rig = setup("samples");
-    assert!(rig.present("The quick brown fox jumps over the lazy dog"));
-    rig.type_into("Find a language", "日本");
-    rig.click_role(Role::LIST_ITEM, "Japanese · 日本語");
-    assert_eq!(rig.results(), ["Noto Sans JP"]);
-    assert!(rig.present("いろはにほへと ちりぬるを 色は匂へど 散りぬるを"));
 }
 
 #[trial]

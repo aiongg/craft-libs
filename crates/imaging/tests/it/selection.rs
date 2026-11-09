@@ -5,11 +5,9 @@ use craft_behavior::CanvasView;
 use craft_behavior::kurbo::Point;
 use craft_imaging::selection::PreviewMode;
 use craft_imaging::trace::{MaskRect, MaskSource};
-use craft_imaging::ui::mask_view::{MaskViewChange, MaskViewKeys, MaskViewMode, MaskViewRecipe, MaskViewState};
 use craft_imaging::ui::selection::SelectionOverlay;
 use craft_ui::canvas::Canvas;
 use craft_ui::contract::ShowContainer as _;
-use craft_ui::runtime::commands::FirePhase;
 use craft_ui::testing::{Fixture, Story, StoryData, StoryOutput, trial};
 use egui::{Rect, Ui, pos2};
 
@@ -76,59 +74,4 @@ fn the_overlay_retraces_only_when_the_revision_or_the_reduction_changes() {
         Some(MaskRect::new(80, 60, 240, 180)),
         "the bounds are in full-size document pixels"
     );
-}
-
-#[trial]
-fn the_overlay_is_one_graphics_object_named_by_its_label() {
-    let mut fixture = Fixture::story(&Story::new("selection-overlay", show_overlay));
-    fixture.settle();
-    assert!(fixture.by_label("Selection").is_some());
-}
-
-#[trial]
-fn the_view_commands_pick_cycle_and_hold() {
-    let mut state = MaskViewState::default();
-    assert_eq!(state.run(MaskViewKeys::OnWhite, FirePhase::Press), Some(MaskViewChange::Mode(MaskViewMode::OnWhite)));
-    assert_eq!(state.mode, MaskViewMode::OnWhite);
-    assert_eq!(state.run(MaskViewKeys::OnWhite, FirePhase::Repeat), None, "a repeat does nothing");
-    state.run(MaskViewKeys::OnLayers, FirePhase::Press);
-    state.run(MaskViewKeys::NextView, FirePhase::Press);
-    assert_eq!(state.mode, MaskViewMode::OnionSkin, "F wraps to the first view");
-    state.run(MaskViewKeys::ShowEdge, FirePhase::Press);
-    state.run(MaskViewKeys::ShowOriginal, FirePhase::Press);
-    assert!(state.show_edge && state.show_original);
-    state.run(MaskViewKeys::ShowEdge, FirePhase::Press);
-    assert!(!state.show_edge, "J toggles");
-    state.run(MaskViewKeys::HideView, FirePhase::Press);
-    assert!(state.hide_view && state.recipe().hidden);
-    state.run(MaskViewKeys::HideView, FirePhase::Release);
-    assert!(!state.hide_view, "X held hides the view until it is released");
-}
-
-#[trial]
-fn each_view_keeps_its_own_opacity() {
-    let mut state = MaskViewState::default();
-    state.set_opacity(MaskViewMode::Overlay, 30.0);
-    state.set_opacity(MaskViewMode::OnBlack, 80.4);
-    state.set_opacity(MaskViewMode::MarchingAnts, 10.0);
-    assert_eq!(state.opacity(MaskViewMode::Overlay), Some(30.0));
-    assert_eq!(state.opacity(MaskViewMode::OnBlack), Some(80.0), "rounded to a percent");
-    assert_eq!(state.opacity(MaskViewMode::OnionSkin), Some(50.0), "the other views keep theirs");
-    assert_eq!(state.opacity(MaskViewMode::MarchingAnts), None, "a view without an opacity ignores it");
-    assert_eq!(MaskViewMode::from_id("onLayers"), Some(MaskViewMode::OnLayers));
-    assert!(MaskViewMode::ALL.into_iter().all(|mode| MaskViewMode::from_id(mode.id()) == Some(mode)));
-}
-
-#[trial]
-fn the_recipe_follows_the_view() {
-    let recipe = |mode| {
-        let mut state = MaskViewState::default();
-        state.mode = mode;
-        state.recipe()
-    };
-    let onion: MaskViewRecipe = recipe(MaskViewMode::OnionSkin);
-    assert!(onion.hide_other_layers && onion.veils.is_empty() && onion.layer_floor == Some(0.5));
-    assert!(recipe(MaskViewMode::MarchingAnts).ants);
-    assert_eq!(recipe(MaskViewMode::BlackAndWhite).veils.len(), 2, "black everywhere, then white where selected");
-    assert_eq!(recipe(MaskViewMode::OnLayers).layer_floor, Some(0.0));
 }

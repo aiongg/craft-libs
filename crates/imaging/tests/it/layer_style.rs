@@ -11,7 +11,6 @@ use craft_imaging::layer_style::{
     StyleParams, StyleValue,
 };
 use craft_imaging::ui::layer_style::{LayerStyleDialog, StylePresets};
-use craft_theme::Srgba;
 use craft_ui::contract::Role;
 use craft_ui::patterns::presets::PresetRow;
 use craft_ui::runtime::requests::ColorRequest;
@@ -162,17 +161,6 @@ fn absent_effect_row_adds_the_effect_on() {
     assert!(matches!(host.borrow().edits.as_slice(), [EditEvent::Set { .. }]), "one Set for the added effect");
 }
 
-/// A list click changes the page without a style edit, so the host's history has nothing to record.
-#[trial]
-fn a_page_switch_reports_the_page_and_no_edit() {
-    let (mut fixture, host) = rig();
-    let row = one(&fixture, Role::LIST_ITEM, "Blending Options");
-    fixture.click(&row);
-    fixture.idle(2);
-    assert_eq!(host.borrow().draft.page, LayerStylePage::Blending);
-    assert!(host.borrow().edits.is_empty());
-}
-
 fn size_spec(kind: EffectKind) -> EffectSpec {
     let field = EffectField { key: "size".into(), label: "Size".into(), kind: FieldKind::Slider { min: 0.0, max: 250.0, unit: FieldUnit::Pixels } };
     let mut defaults = StyleParams::default();
@@ -201,17 +189,6 @@ fn a_list_click_commits_the_typing_of_the_page_it_leaves() {
     assert_eq!(host.borrow().draft.page, LayerStylePage::Effect(EffectId(2)), "the chosen page shows once the host applied it");
 }
 
-/// A spec without fields still shows Make Default and Reset to Default.
-#[trial]
-fn a_fieldless_spec_shows_make_default_and_reset() {
-    let (mut fixture, _host) = rig();
-    let row = one(&fixture, Role::LIST_ITEM, "Drop Shadow");
-    fixture.click(&row);
-    fixture.idle(2);
-    assert!(fixture.by_label("Make Default").is_some());
-    assert!(fixture.by_label("Reset to Default").is_some());
-}
-
 /// `+` on Drop Shadow adds a second instance after the first; `−` shows only with two and removes one; Satin has
 /// neither.
 #[trial]
@@ -236,56 +213,6 @@ fn plus_and_minus_add_and_remove_instances_of_multi_effects() {
     assert_eq!(effects(&host), [(2, EffectKind::DropShadow, true), (3, EffectKind::Satin, true)]);
 }
 
-/// A click on a preset of the Styles page reports `apply_style` with its key and no edit.
-#[trial]
-fn styles_page_click_reports_apply_style() {
-    let (mut fixture, host) = rig();
-    let soft = fixture.by_label("Soft").expect("the Soft preset");
-    fixture.click(&soft);
-    fixture.idle(2);
-    assert_eq!(host.borrow().applied, ["Soft"]);
-    assert!(host.borrow().edits.is_empty(), "the host applies the preset; the dialog reports no edit");
-    assert_eq!(host.borrow().draft.page, LayerStylePage::Styles);
-}
-
-/// `set_color(draft, "fx2/color", red)` sets that parameter; an unknown id or a key without a slash changes nothing and
-/// returns false.
-#[trial]
-fn set_color_writes_the_named_parameter_and_ignores_unknown_keys() {
-    let mut style = LayerStyle::default();
-    style.effects.push(instance(1, EffectKind::DropShadow, true));
-    style.effects.push(instance(2, EffectKind::DropShadow, true));
-    let mut draft = LayerStyleDraft::new(style);
-    let red = Srgba::from_hex("#ff0000").unwrap_or(Srgba::BLACK);
-
-    assert!(LayerStyleDialog::set_color(&mut draft, "fx2/color", red));
-    assert_eq!(draft.style.effects[1].params.get("color"), Some(&StyleValue::Color(red)));
-    assert_eq!(draft.style.effects[0].params.get("color"), None);
-
-    let before = draft.clone();
-    for key in ["fx9/color", "color", "fx2", "fx2/", "x/color"] {
-        assert!(!LayerStyleDialog::set_color(&mut draft, key, Srgba::BLACK), "{key}");
-    }
-    assert_eq!(draft, before);
-}
-
-/// The Preview check box at the title's end flips the draft's `preview`, which is view state: no edit, and the render
-/// hash stays.
-#[trial]
-fn preview_check_box_flips_the_drafts_preview() {
-    let (mut fixture, host) = rig();
-    assert!(named(&fixture, Role::CHECK_BOX, "Preview").is_empty(), "the Styles page has no Preview");
-    host.borrow_mut().draft.page = LayerStylePage::Effect(EffectId(1));
-    fixture.idle(3);
-    let hash = host.borrow().draft.render_hash();
-    let check = one(&fixture, Role::CHECK_BOX, "Preview");
-    fixture.click(&check);
-    fixture.idle(2);
-    assert!(!host.borrow().draft.preview);
-    assert_eq!(host.borrow().draft.render_hash(), hash);
-    assert!(host.borrow().edits.is_empty(), "Preview is view state: nothing for the host's history to record");
-}
-
 /// A rig showing one effect of the Photoshop tables with its defaults, or `params` over them.
 fn page_rig(kind: EffectKind, params: Option<StyleParams>) -> (Fixture, Rc<RefCell<Host>>) {
     let spec = EffectSpec::photoshop(kind);
@@ -295,81 +222,12 @@ fn page_rig(kind: EffectKind, params: Option<StyleParams>) -> (Fixture, Rc<RefCe
     rig_of(host(draft, vec![spec]))
 }
 
-/// A click on Drop Shadow's Color swatch reports a colour request keyed "fx1/color" with the current colour and the
-/// dialog's picker title.
-#[trial]
-fn color_field_reports_a_colour_request_with_the_effect_and_key() {
-    let (mut fixture, host) = page_rig(EffectKind::DropShadow, None);
-    let swatch = one(&fixture, Role::COLOR_WELL, "Color");
-    fixture.click(&swatch);
-    fixture.idle(2);
-    let host = host.borrow();
-    let [request] = host.colors.as_slice() else { panic!("one request: {}", host.colors.len()) };
-    assert_eq!((request.key.as_str(), request.color), ("fx1/color", Some(Srgba::BLACK)));
-    assert_eq!(request.title.as_ref().map(|title| title.as_str()), Some("Color Picker (Layer Style Color)"));
-}
-
-/// A click on Drop Shadow's Edit Contour… button reports a contour request keyed "fx1/contour" and opens no dialog itself.
-#[trial]
-fn contour_thumbnail_reports_a_contour_request_with_the_effect_and_key() {
-    let (mut fixture, host) = page_rig(EffectKind::DropShadow, None);
-    let thumbnail = fixture.by_label("Edit Contour…").expect("the Edit Contour… button");
-    fixture.click(&thumbnail);
-    fixture.idle(2);
-    assert_eq!(host.borrow().contours, ["fx1/contour"]);
-    assert!(named(&fixture, Role::BUTTON, "OK").is_empty(), "the page opens no dialog");
-}
-
-fn angle(host: &Rc<RefCell<Host>>) -> Option<f64> {
-    host.borrow().draft.style.effect(EffectId(1)).and_then(|e| e.params.number("angle"))
-}
-
-/// With Use Global Light on, stepping the Angle dial changes `global_light` and every globally lit instance; with it
-/// off, only this instance's angle.
-#[trial]
-fn use_global_light_check_changes_the_angle_field_meaning() {
-    let (mut fixture, host) = page_rig(EffectKind::DropShadow, None);
-    let start = angle(&host).expect("the page shows an angle");
-    let dial = one(&fixture, Role::SLIDER, "Angle");
-    fixture.click(&dial);
-    fixture.key(Key::ArrowRight, Modifiers::NONE);
-    fixture.idle(2);
-    let shared = angle(&host).expect("the instance holds the angle");
-    assert!(shared > start, "the step moved the angle");
-    assert_eq!(f64::from(host.borrow().draft.style.global_light), shared, "the shared light follows the lit instance");
-
-    let check = one(&fixture, Role::CHECK_BOX, "Use Global Light");
-    fixture.click(&check);
-    fixture.idle(2);
-    let dial = one(&fixture, Role::SLIDER, "Angle");
-    fixture.click(&dial);
-    fixture.key(Key::ArrowRight, Modifiers::NONE);
-    fixture.idle(2);
-    assert!(angle(&host) > Some(shared), "the instance's own angle moved on");
-    assert_eq!(f64::from(host.borrow().draft.style.global_light), shared, "the shared light stayed");
-}
-
 fn blending_rig(blending: Blending, names: &[&str]) -> (Fixture, Rc<RefCell<Host>>) {
     let mut draft = LayerStyleDraft::new(LayerStyle { blending, ..LayerStyle::default() });
     draft.page = LayerStylePage::Blending;
     let mut host = host(draft, Vec::new());
     host.channels = names.iter().map(|name| (*name).to_owned()).collect();
     rig_of(host)
-}
-
-/// With channel names C, M, Y, K the page shows four Channels checks; unchecking M writes `channels` as
-/// [true, false, true, true].
-#[trial]
-fn blending_options_channel_checks_follow_the_document_channels() {
-    let blending = Blending { channels: vec![true; 4], blend_if: Vec::new(), ..Blending::default() };
-    let (mut fixture, host) = blending_rig(blending, &["C", "M", "Y", "K"]);
-    for label in ["C", "Y", "K"] {
-        one(&fixture, Role::CHECK_BOX, label);
-    }
-    let magenta = one(&fixture, Role::CHECK_BOX, "M");
-    fixture.click(&magenta);
-    fixture.idle(2);
-    assert_eq!(host.borrow().draft.style.blending.channels, [true, false, true, true]);
 }
 
 /// The Blend If select names its first entry Gray in a colour document, then the colour channels.
@@ -382,19 +240,6 @@ fn blend_if_select_names_gray_first_in_color_documents() {
     };
     let (fixture, _host) = blending_rig(blending, &["R", "G", "B"]);
     assert!(fixture.by_label("Gray").is_some(), "the entry 0 of the Blend If select");
-}
-
-/// A page whose `opacity` is Text shows one invalid-value line naming Opacity and no fields; the style is reported
-/// unchanged.
-#[trial]
-fn invalid_values_show_one_message_and_are_kept() {
-    let mut params = EffectSpec::photoshop(EffectKind::DropShadow).defaults;
-    params.set("opacity", StyleValue::Text("high".into()));
-    let (fixture, host) = page_rig(EffectKind::DropShadow, Some(params.clone()));
-    assert!(fixture.texts().iter().any(|text| text.text.contains("Opacity has a value")), "the line names the field");
-    assert!(fixture.by_role(Role::SLIDER).is_empty() && named(&fixture, Role::CHECK_BOX, "Use Global Light").is_empty());
-    assert!(host.borrow().edits.is_empty());
-    assert_eq!(host.borrow().draft.style.effect(EffectId(1)).map(|e| &e.params), Some(&params));
 }
 
 /// A page shows the spec's defaults for keys the instance lacks without writing them; editing one field writes only

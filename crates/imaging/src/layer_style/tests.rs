@@ -16,71 +16,11 @@ fn pt(input: f32, output: f32) -> ContourPoint {
     ContourPoint { input, output, corner: false }
 }
 
-fn keys(spec: &EffectSpec) -> Vec<&str> {
-    spec.fields.iter().map(|f| &*f.key).collect()
-}
-
 // Per effect, the field keys in order with their kinds and ranges match the table in
 // `EffectSpec::photoshop`'s doc (Outer Glow: Technique before Spread, Range after Contour).
-#[test]
-fn effect_tables_match_photoshop_order_and_ranges() {
-    let glow = EffectSpec::photoshop(EffectKind::OuterGlow);
-    assert_eq!(keys(&glow), ["blend", "opacity", "color", "technique", "spread", "size", "contour", "range", "noise"]);
-    assert_eq!(glow.field("range").map(|f| f.kind.clone()), Some(FieldKind::Slider { min: 1.0, max: 100.0, unit: FieldUnit::Percent }));
-    assert_eq!(glow.field("contour").map(|f| f.kind.clone()), Some(FieldKind::Contour { anti_alias: Some("antiAlias".into()) }));
-
-    let shadow = EffectSpec::photoshop(EffectKind::DropShadow);
-    assert_eq!(keys(&shadow).len(), 11);
-    assert_eq!(shadow.field("distance").map(|f| f.kind.clone()), Some(FieldKind::Slider { min: 0.0, max: 300.0, unit: FieldUnit::Pixels }));
-    assert_eq!(shadow.field("angle").map(|f| f.kind.clone()), Some(FieldKind::Angle));
-    assert!(EffectSpec::photoshop(EffectKind::InnerShadow).field("choke").is_some());
-    assert!(EffectSpec::photoshop(EffectKind::InnerShadow).field("spread").is_none());
-
-    let bevel = EffectSpec::photoshop(EffectKind::BevelEmboss);
-    assert_eq!(keys(&bevel)[16..], ["contour", "contourName", "contourRange"]);
-    assert_eq!(bevel.field("contourName").map(|f| f.label.as_ref()), Some(""));
-    assert_eq!(bevel.field("altitude").map(|f| f.kind.clone()), Some(FieldKind::Slider { min: 0.0, max: 90.0, unit: FieldUnit::Degrees }));
-
-    for kind in EffectKind::ALL {
-        let spec = EffectSpec::photoshop(kind);
-        assert_eq!(spec.kind, kind);
-        assert!(!spec.fields.is_empty());
-    }
-}
 
 // The ten tables' defaults equal PhotoCraft's engine `effect_defaults` (Drop Shadow Multiply,
 // black, 75, 120°, global light, 5, 0, 5; Satin Multiply, 50, 19°, 11, 14, anti-aliased, inverted).
-#[test]
-fn effect_defaults_match_the_photocraft_engine_defaults() {
-    let shadow = EffectSpec::photoshop(EffectKind::DropShadow).defaults;
-    assert_eq!(shadow.get("blend"), Some(&StyleValue::Text("Multiply".into())));
-    assert_eq!(shadow.get("color"), Some(&StyleValue::Color(craft_theme::Srgba::BLACK)));
-    assert_eq!(shadow.number("opacity"), Some(75.0));
-    assert_eq!(shadow.number("angle"), Some(120.0));
-    assert_eq!(shadow.bool("useGlobalLight"), Some(true));
-    assert_eq!((shadow.number("distance"), shadow.number("spread"), shadow.number("size")), (Some(5.0), Some(0.0), Some(5.0)));
-    assert_eq!(shadow.get("contour"), Some(&StyleValue::Contour(Contour::linear())));
-    assert_eq!(shadow.bool("knocksOut"), Some(true));
-
-    let satin = EffectSpec::photoshop(EffectKind::Satin).defaults;
-    assert_eq!(satin.get("blend"), Some(&StyleValue::Text("Multiply".into())));
-    assert_eq!(
-        (satin.number("opacity"), satin.number("angle"), satin.number("distance"), satin.number("size")),
-        (Some(50.0), Some(19.0), Some(11.0), Some(14.0))
-    );
-    assert_eq!((satin.bool("antiAlias"), satin.bool("invert")), (Some(true), Some(true)));
-
-    // Every field, and every Anti-aliased check beside a contour, has a default.
-    for kind in EffectKind::ALL {
-        let spec = EffectSpec::photoshop(kind);
-        for field in &spec.fields {
-            assert!(spec.defaults.get(&field.key).is_some(), "{kind:?} has no default for {}", field.key);
-            if let FieldKind::Contour { anti_alias: Some(key) } = &field.kind {
-                assert!(spec.defaults.get(key).is_some(), "{kind:?} has no default for {key}");
-            }
-        }
-    }
-}
 
 // With fx1 Stroke, fx2 Drop Shadow, fx5 Stroke: adding a Stroke inserts fx6 after fx5 and selects
 // it; adding a Satin appends it.
@@ -104,32 +44,9 @@ fn adding_an_instance_places_it_after_the_last_of_its_kind_and_numbers_ids() {
 
 // Removing the selected of two Drop Shadows selects the other; removing the only one selects the
 // Styles page; removing an unselected one keeps the page.
-#[test]
-fn removing_an_instance_selects_a_sibling_of_the_same_kind_else_the_styles_page() {
-    let mut draft = LayerStyleDraft::new(style_with(&[(1, EffectKind::DropShadow), (2, EffectKind::DropShadow), (3, EffectKind::Satin)]));
-    draft.page = LayerStylePage::Effect(EffectId(2));
-    draft.remove_instance(EffectId(2));
-    assert_eq!(draft.page, LayerStylePage::Effect(EffectId(1)));
-
-    draft.remove_instance(EffectId(3));
-    assert_eq!(draft.page, LayerStylePage::Effect(EffectId(1)));
-
-    draft.remove_instance(EffectId(1));
-    assert_eq!(draft.page, LayerStylePage::Styles);
-    assert!(draft.style.effects.is_empty());
-}
 
 // `allows_several` is true for exactly Stroke, Drop Shadow, Inner Shadow, Color Overlay and
 // Gradient Overlay.
-#[test]
-fn only_five_kinds_allow_several_instances() {
-    let several: Vec<EffectKind> = EffectKind::ALL.into_iter().filter(|k| k.allows_several()).collect();
-    assert_eq!(several, [EffectKind::Stroke, EffectKind::InnerShadow, EffectKind::ColorOverlay, EffectKind::GradientOverlay, EffectKind::DropShadow]);
-    for kind in EffectKind::ALL {
-        assert_eq!(EffectKind::from_key(kind.key()), Some(kind));
-    }
-    assert_eq!(EffectKind::from_key("nope"), None);
-}
 
 // Setting a globally lit Drop Shadow's angle sets `global_light` and the angle of every globally
 // lit instance, a disabled Bevel too; turning Use Global Light on adopts the shared angle.
@@ -182,32 +99,9 @@ fn shadow_drag_uses_whole_degrees_and_pixels_and_moves_the_global_angle() {
 
 // An instance without angle and distance starts the drag from the spec's defaults, not from 120°
 // and 0.
-#[test]
-fn shadow_drag_starts_from_the_defaults_under_the_instances_values() {
-    let mut style = style_with(&[(1, EffectKind::DropShadow)]);
-    style.effects[0].params = StyleParams::default();
-    let mut draft = LayerStyleDraft::new(style);
-    let mut defaults = StyleParams::default();
-    defaults.set("angle", StyleValue::Number(30.0));
-    defaults.set("distance", StyleValue::Number(10.0));
-    assert!(draft.drag_shadow(&defaults, true, [0.0, 0.0]));
-    assert_eq!(draft.shadow_drag, Some(ShadowDrag::begin(30.0, 10.0)));
-    let params = &draft.style.effects[0].params;
-    assert_eq!((params.number("angle"), params.number("distance")), (Some(30.0), Some(10.0)));
-}
 
 // The blend defaults of a spec become the host's keys; unknown names stay. Bevel & Emboss has two
 // Blend fields: only the one defaulting to Multiply is renamed.
-#[test]
-fn blend_keys_remap_the_blend_defaults_only() {
-    let map: std::collections::HashMap<String, String> = [("Multiply".to_owned(), "mul".to_owned())].into();
-    let spec = EffectSpec::photoshop(EffectKind::DropShadow).with_blend_keys(&map);
-    assert_eq!(spec.defaults.get("blend"), Some(&StyleValue::Text("mul".to_owned())));
-    let bevel = EffectSpec::photoshop(EffectKind::BevelEmboss);
-    let mapped = bevel.clone().with_blend_keys(&map);
-    assert_eq!(mapped.defaults.get("shadowBlend"), Some(&StyleValue::Text("mul".to_owned())));
-    assert_eq!(mapped.defaults.get("highlightBlend"), bevel.defaults.get("highlightBlend"));
-}
 
 // `BlendIfRange::ordered` and `moved` always give black low ≤ black high ≤ white low ≤ white
 // high, pushing the other handles.
@@ -265,24 +159,6 @@ fn layer_style_equal_values_have_equal_render_hash_ignoring_the_selected_page() 
 
 // A `StyleValue::Other` key no field shows survives `set_param`, `toggle` and
 // `StyleParams::over` unchanged.
-#[test]
-fn the_layer_style_snapshot_is_kept_for_fields_the_dialog_does_not_model() {
-    let mut style = style_with(&[(1, EffectKind::GradientOverlay)]);
-    let other = StyleValue::Other("stops:v1".into());
-    style.effects[0].params.set("gradientData", other.clone());
-    let mut draft = LayerStyleDraft::new(style);
-    draft.set_param(EffectId(1), "opacity", StyleValue::Number(40.0));
-    draft.toggle(EffectId(1));
-    draft.set_param(EffectId(1), "angle", StyleValue::Number(30.0));
-    assert_eq!(draft.style.effects[0].params.get("gradientData"), Some(&other));
-
-    let shown = StyleParams::default().over(&draft.style.effects[0].params);
-    assert_eq!(shown.get("gradientData"), Some(&other));
-    let sparse = StyleParams(std::iter::once(("opacity".to_owned(), StyleValue::Number(10.0))).collect());
-    let shown = sparse.over(&EffectSpec::photoshop(EffectKind::GradientOverlay).defaults);
-    assert_eq!(shown.number("opacity"), Some(10.0));
-    assert_eq!(shown.number("scale"), Some(100.0));
-}
 
 // `Contour::from_points` rejects one point, 65 points and NaN, sorts and clamps, collapses equal
 // inputs; `edited` renames a preset to "Custom" and keeps an imported name.

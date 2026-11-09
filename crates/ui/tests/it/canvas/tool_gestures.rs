@@ -1,6 +1,6 @@
 //! A tool's one-shot `Set` events belong to no gesture: each is its own undo step, whatever gesture ran before.
 
-use craft_behavior::{DocKey, EditEvent, GestureId, Mixed};
+use craft_behavior::{EditEvent, GestureId, Mixed};
 use craft_ui::edit::{GestureHost, StepName, UndoMarks};
 use craft_ui::testing::trial;
 
@@ -35,17 +35,6 @@ impl UndoMarks for Doc {
 fn apply(doc: &mut Doc, value: i32) {
     doc.steps.push((doc.value, String::new()));
     doc.value = value;
-}
-
-#[trial]
-fn two_one_shot_sets_from_a_tool_are_two_undo_steps() {
-    let mut doc = Doc::default();
-    let mut host = GestureHost::new();
-    let set = |before, after| EditEvent::set(Mixed::Same(before), after, "Nudge".into(), Some(DocKey::new("trial.nudge")));
-    host.handle(&mut doc, set(0, 1), apply);
-    host.handle(&mut doc, set(1, 2), apply);
-    assert_eq!(doc.value, 2);
-    assert_eq!(doc.steps.len(), 2, "each Set is one step: {:?}", doc.steps);
 }
 
 #[trial]

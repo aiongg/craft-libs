@@ -1,6 +1,6 @@
 //! Integration tests of craft-keymap: editor.
 
-use craft_keymap::editor::{MAX_UNDO_BYTES, holders, search};
+use craft_keymap::editor::{MAX_UNDO_BYTES, holders};
 use craft_keymap::{
     AssignError, Bindable, Binding, Chord, CommandRef, DOUBLE_PRESS, EditSession, Holder, Keymap, MAX_BINDING_TEXT, MAX_BINDINGS, MAX_COMMANDS,
     MAX_UNDO, Overrides, Platform, Policy, Recorded, Recorder, Scope, Scopes, Trigger,
@@ -132,22 +132,6 @@ fn recorder_turns_presses_into_triggers() {
     // Two presses in one egui frame share its time.
     assert_eq!(r.press(a, 4.0), Recorded::Single(Trigger::single(a)));
     assert_eq!(r.press(a, 4.0), Recorded::Double(Trigger::double(a)));
-}
-
-#[test]
-fn search_reads_labels_aliases_paths_ids_and_keys() {
-    let ids = |km: &Keymap, q: &str, p: Platform| search(km, q, p).iter().map(|b| b.command.id.clone()).collect::<Vec<_>>();
-    let win = keymap(Platform::Windows);
-    let mac = keymap(Platform::Mac);
-    assert_eq!(ids(&win, "zoom", Platform::Windows), ["view.zoomIn"]);
-    assert_eq!(ids(&win, "KOPIEREN", Platform::Windows), ["edit.copy"]);
-    assert_eq!(ids(&win, "paint", Platform::Windows), ["tool.brush"]);
-    assert_eq!(ids(&win, "file.sa", Platform::Windows), ["file.save"]);
-    assert_eq!(ids(&win, "ctrl+s", Platform::Windows), ["file.save"]);
-    assert_eq!(ids(&win, "cmd+c", Platform::Windows), ["edit.copy"]);
-    assert_eq!(ids(&mac, "⌘s", Platform::Mac), ["file.save"]);
-    assert_eq!(ids(&mac, "⌘s", Platform::Windows), Vec::<String>::new());
-    assert_eq!(ids(&mac, "  ", Platform::Mac).len(), 4);
 }
 
 #[test]

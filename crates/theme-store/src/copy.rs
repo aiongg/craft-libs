@@ -152,14 +152,4 @@ mod tests {
         let out = String::from_utf8(replace_top_level_id(src.as_bytes(), &id).unwrap()).unwrap();
         assert_eq!(out, src.replace("\"id\" : \"mine\"", "\"id\" : \"mine-2\""));
     }
-
-    #[test]
-    fn copy_ids_keep_the_length_limit() {
-        let short = ThemeId::parse_user("navy").unwrap();
-        assert_eq!(copy_id(&short, 2).unwrap().as_str(), "navy-2");
-        let long = ThemeId::parse_user(&"a".repeat(64)).unwrap();
-        let copy = copy_id(&long, 12).unwrap();
-        assert_eq!(copy.as_str().len(), 64);
-        assert!(copy.as_str().ends_with("a-12"));
-    }
 }

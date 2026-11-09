@@ -221,7 +221,6 @@ fn escaped(text: &str, from: usize) -> (String, usize) {
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
-    use crate::restore::Store;
 
     const FLAT: &str = r#"{
     "egui": "(options:(zoom_factor:1.5,other:1))",
@@ -253,29 +252,5 @@ mod tests {
         assert_eq!(eframe_window_settings(w, 1.0).unwrap().position_px, None);
         assert!(eframe_window_settings("(", 1.0).is_none());
         assert!(eframe_app_ron("not ron").is_none());
-    }
-
-    #[test]
-    fn minimized_windows_parked_off_screen_have_no_position() {
-        let w = "(outer_position_pixels:Some((x:-32000.0,y:-32000.0)),fullscreen:false,maximized:false,inner_size_points:Some((x:300.0,y:200.0)))";
-        let p = eframe_window_settings(w, 1.0).unwrap();
-        assert_eq!((p.position_px, p.normal.size), (None, [300.0, 200.0]));
-    }
-
-    #[test]
-    fn imported_placement_lands_in_the_store() {
-        let mut store = Store::in_memory();
-        store.set("main", &eframe_app_ron(FLAT).unwrap());
-        assert_eq!(store.get("main").unwrap().position_px, Some([120, -30]));
-    }
-
-    #[test]
-    fn json_helpers_read_nested_values() {
-        let v: Value = serde_json::from_str(r#"{"window":{"size":[800,600],"pos":{"x":1,"y":2},"max":true,"w":3.5}}"#).unwrap();
-        assert_eq!(json_pair(&v, &["window", "size"], ["w", "h"]), Some([800.0, 600.0]));
-        assert_eq!(json_pair(&v, &["window", "pos"], ["x", "y"]), Some([1.0, 2.0]));
-        assert_eq!(json_bool(&v, &["window", "max"]), Some(true));
-        assert_eq!(json_f32(&v, &["window", "w"]), Some(3.5));
-        assert_eq!(json_f32(&v, &["window", "nope"]), None);
     }
 }

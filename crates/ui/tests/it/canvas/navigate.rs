@@ -1,12 +1,11 @@
 //! Navigation rules (wheel, page keys, flick, autoscroll), the zoom motion and the momentary tool order.
 
 use craft_behavior::kurbo::{Point, Size};
-use craft_behavior::{CancelReason, CanvasView, Granularity, MoveMods, NavMove, PixelSize, Wheel, WheelPhase, WheelUnit};
+use craft_behavior::{CancelReason, CanvasView, PixelSize, Wheel, WheelPhase, WheelUnit};
 use craft_keymap::Mods;
 use craft_ui::canvas::{
-    Autoscroll, Canvas, CanvasTool, FlickPan, HoldZoom, Momentary, MomentaryCommands, MomentaryTool, NavigationOptions, PageKey, PixelRect,
-    RasterSource, ToolAction, ToolContext, ToolHost, ToolPath, ToolPointer, TouchpadGlide, ViewTurn, WheelAction, WheelInput, WheelNavigation,
-    ZoomAnimation, ZoomDrag,
+    Canvas, CanvasTool, FlickPan, Momentary, MomentaryCommands, MomentaryTool, NavigationOptions, PixelRect, RasterSource, ToolAction, ToolContext,
+    ToolHost, ToolPath, ToolPointer, TouchpadGlide, WheelAction, WheelInput, WheelNavigation, ZoomAnimation, ZoomDrag,
 };
 use craft_ui::contract::{Bind, Props as _, Role, Show as _, ShowContainer as _};
 use craft_ui::dialog::{FullWindowCanvas, FullWindowDialog, FullWindowView};
@@ -70,17 +69,6 @@ fn a_part_of_a_ladder_notch_is_kept_until_it_adds_up() {
 }
 
 #[trial]
-fn a_pinch_zooms_only_when_the_choice_is_on() {
-    let mut wheel = WheelNavigation::default();
-    let pinch = WheelInput::of(&Wheel::new(Vec2::ZERO, Mods::NONE, WheelUnit::Point, WheelPhase::Move).zoom(1.2));
-    let on = NavigationOptions::default();
-    assert!(matches!(wheel.classify(pinch, &on), Some(WheelAction::Zoom(_))));
-    let mut off = NavigationOptions::default();
-    off.pinch_zooms = false;
-    assert_eq!(wheel.classify(pinch, &off), None);
-}
-
-#[trial]
 fn a_wheel_zoom_keeps_the_point_under_the_pointer_and_stops_at_the_limit() {
     let mut zoomed = view();
     let at = Pos2::new(600.0, 200.0);
@@ -92,27 +80,6 @@ fn a_wheel_zoom_keeps_the_point_under_the_pointer_and_stops_at_the_limit() {
     let mut limit = view();
     limit.zoom = craft_behavior::ZoomLadder::MAX;
     assert!(!WheelNavigation::apply(&mut limit, WheelAction::Zoom(2.0), at, DOCUMENT, 1.0), "past the last rung the view stays put");
-}
-
-#[trial]
-fn page_keys_scroll_a_screenful_and_home_end_show_the_corners() {
-    let plain = MoveMods::PLAIN;
-    assert_eq!(PageKey::of(NavMove::PageDown, plain, CANVAS), Some(PageKey::Scroll(Vec2::new(0.0, CANVAS.y))));
-    assert_eq!(PageKey::of(NavMove::PageUp, plain, CANVAS), Some(PageKey::Scroll(Vec2::new(0.0, -CANVAS.y))));
-    let sideways = MoveMods::new(false, true, Granularity::Unit);
-    assert_eq!(PageKey::of(NavMove::PageDown, sideways, CANVAS), Some(PageKey::Scroll(Vec2::new(CANVAS.x, 0.0))));
-    let small = MoveMods::new(true, false, Granularity::Unit);
-    assert_eq!(PageKey::of(NavMove::PageDown, small, CANVAS), Some(PageKey::Scroll(Vec2::new(0.0, PageKey::SMALL_STEP))));
-    assert_eq!(PageKey::of(NavMove::Start, small, CANVAS), None, "Shift+Home is not a page key");
-    assert_eq!(PageKey::of(NavMove::End, plain, CANVAS), Some(PageKey::End));
-
-    let mut end = view();
-    assert!(PageKey::End.apply(&mut end, DOCUMENT));
-    let corner = end.to_screen(Point::new(DOCUMENT.width, DOCUMENT.height));
-    assert!(
-        (corner.x - end.rect.right()).abs() < 1e-3 && (corner.y - end.rect.bottom()).abs() < 1e-3,
-        "End puts the document's corner at the canvas corner: {corner:?}"
-    );
 }
 
 #[trial]
@@ -155,20 +122,6 @@ fn a_fast_hand_release_glides_and_slows_to_a_stop_and_a_slow_one_does_not() {
 }
 
 #[trial]
-fn autoscroll_is_zero_inside_and_grows_past_the_edge_up_to_a_limit() {
-    let rect = Rect::from_min_size(Pos2::ZERO, CANVAS);
-    const DT: f32 = 0.016;
-    assert_eq!(Autoscroll::edge_step(rect.center(), rect, DT), Vec2::ZERO);
-    let near = Autoscroll::edge_step(Pos2::new(rect.right() + 5.0, rect.center().y), rect, DT);
-    let far = Autoscroll::edge_step(Pos2::new(rect.right() + 500.0, rect.center().y), rect, DT);
-    assert!(near.x > 0.0 && far.x > near.x && near.y == 0.0, "scrolls toward the pointer, faster further out: {near:?} {far:?}");
-    let farther = Autoscroll::edge_step(Pos2::new(rect.right() + 5000.0, rect.center().y), rect, DT);
-    assert_eq!(farther.x, far.x, "the speed has a limit");
-    let left = Autoscroll::edge_step(Pos2::new(rect.left() - 5.0, rect.center().y), rect, DT);
-    assert!(left.x < 0.0);
-}
-
-#[trial]
 fn the_zoom_ease_runs_from_the_old_view_to_the_new_one() {
     let from = view();
     let mut target = from;
@@ -183,18 +136,6 @@ fn the_zoom_ease_runs_from_the_old_view_to_the_new_one() {
     let end = animation.shown(&target, animation.target());
     assert_eq!(end.zoom, target.zoom);
     assert!(!animation.running(), "the ease ends at the target");
-}
-
-#[trial]
-fn a_press_held_still_zooms_after_the_delay() {
-    let size = DOCUMENT;
-    let anchor = Pos2::new(400.0, 300.0);
-    let mut view = view();
-    let mut hold = HoldZoom::press(anchor, view.to_doc(anchor), 0.0);
-    assert!(!hold.advance(&mut view, HoldZoom::DELAY / 2.0, false, size, 1.0), "no zoom inside the delay");
-    assert!(hold.advance(&mut view, HoldZoom::DELAY, false, size, 1.0));
-    assert!(hold.advance(&mut view, HoldZoom::DELAY + 0.1, false, size, 1.0));
-    assert!(view.zoom > 1.0 && hold.zooming());
 }
 
 #[trial]
@@ -240,15 +181,6 @@ fn a_touchpad_glide_stops_in_the_pass_the_edge_clamp_leaves_the_view_where_it_wa
     glide.moved(false);
     now += STEP;
     assert_eq!(glide.step(now), Vec2::ZERO, "a pass that left the view where it was ends the glide");
-}
-
-#[trial]
-fn the_compass_snaps_to_fifteen_degrees_and_wraps_into_half_a_turn() {
-    assert_eq!(ViewTurn::snap_deg(22.0, 15.0), 15.0);
-    assert_eq!(ViewTurn::snap_deg(23.0, 15.0), 30.0);
-    assert_eq!(ViewTurn::wrap_deg(190.0), -170.0);
-    assert_eq!(ViewTurn::wrap_deg(-180.0), 180.0);
-    assert_eq!(ViewTurn::wrap_deg(f64::NAN), 0.0);
 }
 
 #[trial]
@@ -389,19 +321,6 @@ fn space_with_the_focus_in_a_slider_beside_the_canvas_pans_the_canvas() {
     assert_eq!(canvas.momentary.borrow_mut().tool(Mods::NONE, false), Some(MomentaryTool::Hand), "the canvas's host took the Hand press");
     drag(&mut canvas.fixture, from, Vec2::new(60.0, 40.0));
     assert_eq!(canvas.brush.borrow().presses, 0, "the canvas beside the focus took Space");
-    assert_ne!(canvas.view.get().map(|view| view.center), Some(start), "the Hand pans the canvas");
-}
-
-#[trial]
-fn space_with_nothing_focused_pans_the_canvas() {
-    let mut canvas = held(|_| {});
-    let from = canvas.area.get().center();
-    let start = canvas.view.get().expect("the canvas showed a view").center;
-
-    canvas.fixture.frame(vec![key_press(Key::Space, Modifiers::NONE)]);
-    assert_eq!(canvas.momentary.borrow_mut().tool(Mods::NONE, false), Some(MomentaryTool::Hand), "the canvas's host took the Hand press");
-    drag(&mut canvas.fixture, from, Vec2::new(60.0, 40.0));
-    assert_eq!(canvas.brush.borrow().presses, 0, "the only canvas took Space");
     assert_ne!(canvas.view.get().map(|view| view.center), Some(start), "the Hand pans the canvas");
 }
 

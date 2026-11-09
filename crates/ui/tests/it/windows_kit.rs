@@ -153,11 +153,6 @@ impl Windows {
         CHILD_INFO.with(|kept| *kept.borrow_mut() = info);
     }
 
-    /// Lets `seconds` pass before the next frame.
-    pub fn advance(&self, seconds: f64) {
-        NOW.with(|now| now.set(now.get() + seconds));
-    }
-
     /// The window facts the root viewport reports from now on.
     pub fn root_info(&self, info: ViewportInfo) {
         *self.root_info.borrow_mut() = info;

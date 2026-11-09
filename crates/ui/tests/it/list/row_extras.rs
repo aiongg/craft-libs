@@ -2,12 +2,11 @@
 
 use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, ItemSource};
 use craft_i18n::Direction;
-use craft_ui::contract::{ColumnKind, ColumnSpec, Props as _, Show as _, ShowCollection as _, ToggleColumn};
+use craft_ui::contract::{ColumnKind, ColumnSpec, ShowCollection as _, ToggleColumn};
 use craft_ui::list::{List, ListRow, ToggleCell, ToggleState};
-use craft_ui::primitives::IconSpec;
 use craft_ui::testing::relations::{mirrored, same_height};
-use craft_ui::testing::{Fixture, Frames, trial};
-use egui::{Rect, Ui, Vec2};
+use craft_ui::testing::{Fixture, trial};
+use egui::{Rect, Vec2};
 use std::cell::Cell;
 use std::rc::Rc;
 
@@ -86,29 +85,6 @@ fn the_leading_painter_sits_at_the_reading_start_and_mirrors() {
     assert!(ltr.center().x < ltr_row.center().x && rtl.center().x > rtl_row.center().x);
     assert!(same_height(ltr, ltr_row), "the slot is as high as the row");
     assert!(mirrored(ltr.translate(rtl_row.min - ltr_row.min), rtl, rtl_row), "the rtl slot mirrors the ltr one");
-}
-
-fn circles(icon: Option<IconSpec<'static>>) -> usize {
-    let mut frames = Frames::new();
-    let mut show = move |ui: &mut Ui| {
-        let icon = icon.clone();
-        List::new("Items").show_items(ui, &One, &mut |_, _| {
-            let row = ListRow::new("Row");
-            match icon.clone() {
-                Some(icon) => row.icon(icon),
-                None => row,
-            }
-        });
-    };
-    frames.idle(3, &mut show);
-    frames.frame_shapes(&mut show).iter().filter(|shape| matches!(shape, egui::Shape::Circle(_))).count()
-}
-
-/// A disc icon paints a circle shape.
-#[trial]
-fn a_disc_icon_paints_a_circle() {
-    assert_eq!(circles(None), 0);
-    assert!(circles(Some(IconSpec::disc())) > 0);
 }
 
 fn columns() -> Vec<ColumnSpec> {

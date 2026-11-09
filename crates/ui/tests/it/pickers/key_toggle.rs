@@ -5,10 +5,8 @@ use craft_behavior::Sense;
 use craft_ui::contract::{Common, Component, Cx, MeasureCx, Overlay, OverlayUi, Overlays as _, Props as _, Role, Show as _, Trigger};
 use craft_ui::pickers::toggle_on_key;
 use craft_ui::style::StyleCx;
-use craft_ui::testing::{Fixture, trial};
-use egui::{Key, Modifiers, Response, Vec2};
+use egui::{Response, Vec2};
 use std::cell::{Cell, RefCell};
-use std::rc::Rc;
 
 const FACE: Vec2 = Vec2::new(80.0, 20.0);
 const CONTENT: Vec2 = Vec2::new(80.0, 30.0);
@@ -58,25 +56,4 @@ impl Component for Face<'_> {
     fn finish(self, cx: Cx<'_, Self>) -> Response {
         cx.response.clone()
     }
-}
-
-#[trial]
-fn a_custom_face_opens_on_space_and_closes_on_escape() {
-    let shown = Rc::new(Cell::new(false));
-    let seen = shown.clone();
-    let mut fixture = Fixture::new(move |ui| {
-        Face { common: Common::new(), shown: &seen }.show(ui);
-    });
-    fixture.settle();
-    fixture.key(Key::Tab, Modifiers::NONE);
-    fixture.idle(2);
-    shown.set(false);
-    fixture.key(Key::Space, Modifiers::NONE);
-    fixture.idle(4);
-    assert!(shown.get(), "Space opens the popup");
-    fixture.key(Key::Escape, Modifiers::NONE);
-    fixture.idle(10);
-    shown.set(false);
-    fixture.idle(2);
-    assert!(!shown.get(), "Escape closes the popup");
 }

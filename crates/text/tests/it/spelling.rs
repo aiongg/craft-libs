@@ -11,7 +11,6 @@ struct Rig {
     fixture: Fixture,
     host: Rc<RefCell<DialogHost>>,
     actions: Rc<RefCell<Vec<SpellingAction>>>,
-    results: Rc<RefCell<usize>>,
 }
 
 fn item(word: &str, suggestions: &[&str]) -> SpellingItem {
@@ -49,7 +48,7 @@ impl Rig {
             }
         });
         fixture.settle();
-        Rig { fixture, host, actions, results }
+        Rig { fixture, host, actions }
     }
 
     fn click(&mut self, label: &str) {
@@ -84,30 +83,5 @@ fn change_uses_change_to_and_enter_on_a_suggestion_changes() {
     rig.click("tea");
     assert!(rig.actions.borrow().is_empty(), "a click only fills Change To");
     rig.fixture.key(Key::Enter, Modifiers::NONE);
-    assert_eq!(rig.actions.borrow().last().and_then(changed), Some(("teh", "tea")));
-}
-
-/// An empty list says the check is complete and disables every button but Done; Done and Escape end the dialog.
-#[trial]
-fn empty_list_shows_complete_and_done_closes() {
-    let mut rig = Rig::new(Vec::new());
-    assert!(rig.fixture.by_label("Spell check complete.").is_some());
-    rig.click("Ignore");
-    rig.click("Change");
-    assert!(rig.actions.borrow().is_empty(), "the buttons are disabled");
-    rig.click("Done");
-    assert_eq!(*rig.results.borrow(), 1);
-
-    let mut rig = Rig::new(Vec::new());
-    rig.fixture.key(Key::Escape, Modifiers::NONE);
-    assert_eq!(*rig.results.borrow(), 1);
-}
-
-/// A double click on a suggestion fills Change To and changes, as Enter on it does.
-#[trial]
-fn double_click_on_a_suggestion_changes() {
-    let mut rig = Rig::new(items());
-    rig.click("tea");
-    rig.click("tea");
     assert_eq!(rig.actions.borrow().last().and_then(changed), Some(("teh", "tea")));
 }

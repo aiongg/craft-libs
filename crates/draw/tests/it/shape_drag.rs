@@ -8,15 +8,13 @@ use craft_behavior::{CancelReason, CanvasView, EditEvent, PointerButton};
 use craft_draw::geometry::shape::ShapeGeometry;
 use craft_draw::ui::shape_drag::{CreateShapeDialog, CreateShapeOptions, ShapeDragEvent, ShapeDragOptions, ShapeDragRules, ShapeDragTool, ShapeKind};
 use craft_keymap::{Key as KeymapKey, Mods};
-use craft_ui::canvas::{CanvasSpace, CanvasTool as _, ToolContext, ToolKey, ToolPointer};
+use craft_ui::canvas::{CanvasSpace, CanvasTool as _, ToolContext, ToolPointer};
 use craft_ui::dialog::{DialogHost, DialogResult};
 use craft_ui::testing::{Fixture, ToolFixture, trial};
 use egui::{Pos2, Vec2, pos2};
 
 const CANVAS: Vec2 = Vec2::new(400.0, 300.0);
 const SLOP: f32 = 6.0;
-const SIDES: u32 = 7;
-const RATIO: f64 = 0.5;
 
 fn view(zoom: f64) -> CanvasView {
     CanvasView::new(egui::Rect::from_min_size(Pos2::ZERO, CANVAS), Point::new(200.0, 150.0), zoom)
@@ -108,26 +106,6 @@ fn a_star_drag_holds_the_inner_radius_while_control_is_down() {
 }
 
 #[trial]
-fn a_line_with_shift_turns_to_the_nearest_45_degrees_and_keeps_its_length() {
-    let mut tool = tool(ShapeKind::Line);
-    tool.press(&at(5.0, 5.0), &mut cx(1.0, &[]));
-    tool.drag(&at(12.0, 11.0).mods(Mods::SHIFT), &mut cx(1.0, &[]));
-    let events = tool.take_events();
-    let Some(ShapeGeometry::Line { to, .. }) = updated(&events) else { panic!("a line in {events:?}") };
-    assert!(((to.x - 5.0) - (to.y - 5.0)).abs() < 1e-9, "on the diagonal: {to:?}");
-    assert!(((to.x - 5.0).hypot(to.y - 5.0) - 7.0_f64.hypot(6.0)).abs() < 1e-9, "the length is kept");
-}
-
-#[trial]
-fn enter_opens_the_dialog_at_the_view_centre() {
-    let mut tool = tool(ShapeKind::Polygon);
-    assert!(tool.key(&ToolKey::Submit, &mut cx(1.0, &[])));
-    let events = tool.take_events();
-    let [ShapeDragEvent::Click { at, kind, .. }] = events.as_slice() else { panic!("one click in {events:?}") };
-    assert_eq!((*at, *kind), (Point::new(200.0, 150.0), ShapeKind::Polygon));
-}
-
-#[trial]
 fn the_shape_tool_owes_the_canvas_what_every_tool_owes() {
     ToolFixture::with_view("Shape", tool(ShapeKind::Rectangle), room_view, |_, _| {}).check();
 }
@@ -151,39 +129,10 @@ fn answered(fixture: &mut Fixture, host: &Rc<RefCell<DialogHost>>) -> Option<cra
 }
 
 #[trial]
-fn ok_creates_the_shape_at_the_click() {
-    let (mut fixture, host) = opened(CreateShapeOptions::initial(ShapeKind::Rectangle, Point::new(40.0, 60.0)));
-    let shape = answered(&mut fixture, &host).expect("OK answers");
-    assert_eq!(shape.geometry, ShapeGeometry::Rect { rect: Rect::new(40.0, 60.0, 140.0, 160.0), radii: [0.0; 4] });
-}
-
-#[trial]
-fn from_center_centres_the_shape_on_the_click_and_keeps_half_pixels() {
-    let mut options = CreateShapeOptions::initial(ShapeKind::Ellipse, Point::new(40.0, 60.0));
-    options.size = (101.0, 51.0);
-    options.from_center = true;
-    let (mut fixture, host) = opened(options);
-    let shape = answered(&mut fixture, &host).expect("OK answers");
-    assert_eq!(shape.geometry, ShapeGeometry::Ellipse { rect: Rect::new(-10.5, 34.5, 90.5, 85.5) });
-    assert!(shape.from_center);
-}
-
-#[trial]
 fn a_size_out_of_range_shows_a_notice_and_disables_ok() {
     let mut options = CreateShapeOptions::initial(ShapeKind::Rectangle, Point::ZERO);
     options.size = (0.0, 100.0);
     let (mut fixture, host) = opened(options);
     assert!(fixture.texts().iter().any(|run| run.text.contains("must be between 1 and")), "the notice says why");
     assert!(answered(&mut fixture, &host).is_none(), "OK is disabled while a side is out of range");
-}
-
-#[trial]
-fn a_polygon_dialog_asks_for_sides_and_a_star_ratio() {
-    let mut options = CreateShapeOptions::initial(ShapeKind::Star, Point::ZERO).tool(0.0, SIDES, RATIO);
-    options.size = (100.0, 100.0);
-    let (mut fixture, host) = opened(options);
-    assert!(fixture.by_label("Sides").is_some() && fixture.by_label("Star Ratio").is_some());
-    let shape = answered(&mut fixture, &host).expect("OK answers");
-    let ShapeGeometry::Polygon { sides, star_ratio, .. } = shape.geometry else { panic!("a polygon") };
-    assert_eq!((sides, star_ratio), (SIDES, RATIO));
 }

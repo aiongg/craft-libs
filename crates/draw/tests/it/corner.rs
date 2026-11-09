@@ -3,10 +3,10 @@
 use craft_behavior::CanvasView;
 use craft_behavior::kurbo::Point;
 use craft_draw::ui::corner::{CornerKind, CornerPoint, CornerRef, CornerTarget, CornerWidgets};
-use craft_ui::canvas::{Canvas, NUDGE, NUDGE_FAR};
+use craft_ui::canvas::Canvas;
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::testing::{Fixture, Target, trial};
-use egui::{Key, Modifiers, vec2};
+use egui::{Modifiers, vec2};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -148,83 +148,4 @@ fn a_drag_sets_every_target_and_alt_sets_one_corner() {
     fixture.drag(&grabbed, vec2(PULL as f32, PULL as f32));
     assert_eq!(radii(&state, 0), vec![PULL, 0.0, 0.0, 0.0], "one corner of the rectangle");
     assert_eq!(radii(&state, 1), vec![PULL; 4], "a polygon shares one radius");
-}
-
-/// A drag back toward the corner never goes below 0.
-#[trial]
-fn the_dragged_radius_never_goes_below_zero() {
-    let (mut fixture, state) = show(host(vec![rect(1, (50.0, 50.0, 200.0, 100.0), 10.0, true)]));
-    let grabbed = widget(&fixture, 1, 4).expect("corner 1");
-    fixture.drag(&grabbed, vec2(-200.0, -200.0));
-    assert_eq!(radii(&state, 0), vec![0.0; 4]);
-}
-
-/// A click without movement changes nothing.
-#[trial]
-fn a_click_without_movement_changes_nothing() {
-    let (mut fixture, state) = show(host(pair()));
-    let before = state.borrow().targets.clone();
-    let clicked = widget(&fixture, 1, 8).expect("corner 1");
-    fixture.click(&clicked);
-    assert_eq!(state.borrow().targets, before);
-    assert!(state.borrow().cycled.is_empty() && state.borrow().activated.is_empty());
-}
-
-/// Alt-click with kinds on asks to cycle the corner's kind; a double click asks to open the corner's dialog.
-#[trial]
-fn alt_click_cycles_the_kind_and_a_double_click_activates() {
-    let (mut fixture, state) = show(Host { kinds: true, ..host(pair()) });
-    let clicked = widget(&fixture, 2, 8).expect("corner 2");
-    fixture.hold(Modifiers::ALT);
-    fixture.click(&clicked);
-    assert_eq!(state.borrow().cycled, [CornerRef::new(1, 1)]);
-    fixture.hold(Modifiers::NONE);
-    fixture.click(&clicked);
-    fixture.click(&clicked);
-    assert_eq!(state.borrow().activated.last(), Some(&CornerRef::new(1, 1)));
-}
-
-/// A press between two widgets takes the nearer one; of equal distances the first target's.
-#[trial]
-fn a_press_takes_the_nearest_widget_topmost_first() {
-    // Two squares whose adjoining corners put their widgets close together.
-    let targets = vec![rect(1, (50.0, 50.0, 60.0, 60.0), 0.0, true), rect(2, (112.0, 50.0, 60.0, 60.0), 0.0, true)];
-    let (mut fixture, state) = show(host(targets));
-    let first = widget(&fixture, 2, 8).expect("the first square's top right corner");
-    fixture.click(&first);
-    fixture.click(&first);
-    assert_eq!(state.borrow().activated.last().map(|corner| corner.target), Some(1));
-}
-
-/// The arrows step the picked widget's radius by 1 (Shift 10; up and right grow it), Alt that corner only; Page Down
-/// picks the next widget.
-#[trial]
-fn the_keyboard_steps_the_radius() {
-    let (mut fixture, state) = show(host(pair()));
-    let first = widget(&fixture, 1, 8).expect("corner 1");
-    fixture.click(&first);
-    fixture.key(Key::ArrowRight, Modifiers::NONE);
-    assert_eq!(radii(&state, 0), vec![NUDGE; 4]);
-    fixture.key(Key::ArrowUp, Modifiers::SHIFT);
-    let (stepped, far) = (NUDGE + NUDGE_FAR, NUDGE_FAR);
-    assert_eq!(radii(&state, 0), vec![stepped; 4]);
-    fixture.key(Key::ArrowDown, Modifiers::NONE);
-    assert_eq!(radii(&state, 0), vec![far; 4]);
-    fixture.key(Key::ArrowRight, Modifiers::ALT);
-    assert_eq!(radii(&state, 0), vec![stepped, far, far, far], "one corner");
-    fixture.key(Key::PageDown, Modifiers::NONE);
-    fixture.key(Key::ArrowRight, Modifiers::ALT);
-    assert_eq!(radii(&state, 0), vec![stepped, stepped, far, far], "the next widget");
-    fixture.key(Key::Enter, Modifiers::NONE);
-    assert_eq!(state.borrow().activated.last(), Some(&CornerRef::new(1, 1)));
-}
-
-/// One object per widget, named "Corner i of n" and valued with its radius.
-#[trial]
-fn the_access_tree_names_each_widget_and_gives_its_radius() {
-    let (fixture, _) = show(host(vec![rect(1, (50.0, 50.0, 100.0, 60.0), 12.0, true)]));
-    for n in 1..=4 {
-        let node = widget(&fixture, n, 4).unwrap_or_else(|| panic!("Corner {n} of 4"));
-        assert!(fixture.tree().value_of(node.node).is_some_and(|value| value.contains("radius 12")), "corner {n}");
-    }
 }

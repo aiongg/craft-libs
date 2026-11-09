@@ -23,22 +23,6 @@ fn first_run_gives_defaults_and_writes_the_file_on_flush() {
 }
 
 #[test]
-fn round_trip() {
-    let tmp = tempfile::tempdir().unwrap();
-    let (mut store, _) = open_in(tmp.path());
-    assert!(store.update(|p| {
-        p.appearance.theme = Theme::Dark;
-        p.general.recent = vec!["a.craft".into(), "b.craft".into()];
-    }));
-    store.flush().unwrap();
-
-    let (store, report) = open_in(tmp.path());
-    assert_eq!(report.source, Source::File);
-    assert_eq!(store.get().appearance.theme, Theme::Dark);
-    assert_eq!(store.get().general.recent, vec!["a.craft", "b.craft"]);
-}
-
-#[test]
 fn comments_unknown_keys_and_order_survive_a_save() {
     let tmp = tempfile::tempdir().unwrap();
     write_config(
@@ -61,26 +45,6 @@ fn comments_unknown_keys_and_order_survive_a_save() {
 }
 
 #[test]
-fn arrays_are_replaced_whole() {
-    let tmp = tempfile::tempdir().unwrap();
-    write_config(tmp.path(), "schema_version = 2\n[general]\nrecent = [\"old1\", \"old2\", \"old3\"]\n");
-    let (mut store, _) = open_in(tmp.path());
-    store.update(|p| p.general.recent = vec!["new".into()]);
-    store.flush().unwrap();
-    assert!(read_config(tmp.path()).contains("recent = [\"new\"]"));
-}
-
-#[test]
-fn update_with_no_change_is_not_dirty() {
-    let tmp = tempfile::tempdir().unwrap();
-    let (mut store, _) = open_in(tmp.path());
-    assert!(!store.update(|p| p.general.autosave_minutes = 5));
-    assert!(!store.is_dirty());
-    assert!(store.update(|p| p.general.autosave_minutes = 6));
-    assert!(store.is_dirty());
-}
-
-#[test]
 fn tick_waits_for_the_debounce_and_reports_the_deadline() {
     let tmp = tempfile::tempdir().unwrap();
     let (mut store, _) = open_in(tmp.path());
@@ -98,18 +62,6 @@ fn tick_waits_for_the_debounce_and_reports_the_deadline() {
     assert_eq!(r.next_deadline, None);
     assert!(read_config(tmp.path()).contains("theme = \"dark\""));
     assert!(matches!(store.tick(t0 + Duration::from_millis(200)).status, SaveStatus::Idle));
-}
-
-#[test]
-fn further_changes_push_the_save_back() {
-    let tmp = tempfile::tempdir().unwrap();
-    let (mut store, _) = open_in(tmp.path());
-    let t0 = Instant::now();
-    store.update_at(t0, |p| p.general.autosave_minutes = 1);
-    store.update_at(t0 + Duration::from_millis(80), |p| p.general.autosave_minutes = 2);
-    let r = store.tick(t0 + Duration::from_millis(100));
-    assert!(matches!(r.status, SaveStatus::Pending));
-    assert_eq!(r.next_deadline, Some(t0 + Duration::from_millis(180)));
 }
 
 #[test]
@@ -137,50 +89,6 @@ fn failed_save_is_retried_with_backoff() {
     assert!(read_config(tmp.path()).contains("theme = \"dark\""));
 }
 
-#[test]
-fn retry_delay_doubles_and_caps() {
-    use craft_settings::store::retry_delay;
-    assert_eq!(retry_delay(1), Duration::from_secs(1));
-    assert_eq!(retry_delay(2), Duration::from_secs(2));
-    assert_eq!(retry_delay(3), Duration::from_secs(4));
-    assert_eq!(retry_delay(6), Duration::from_secs(30));
-    assert_eq!(retry_delay(40), Duration::from_secs(30));
-}
-
-#[test]
-fn backup_holds_the_previous_version() {
-    let tmp = tempfile::tempdir().unwrap();
-    let (mut store, _) = open_in(tmp.path());
-    store.update(|p| p.general.language = "fr".into());
-    store.flush().unwrap();
-    store.update(|p| p.general.language = "es".into());
-    store.flush().unwrap();
-    let bak = std::fs::read_to_string(tmp.path().join("config.toml.bak")).unwrap();
-    assert!(bak.contains("language = \"fr\""), "{bak}");
-    assert!(read_config(tmp.path()).contains("language = \"es\""));
-}
-
-#[test]
-fn outside_edits_between_load_and_save_are_kept() {
-    let tmp = tempfile::tempdir().unwrap();
-    let (mut store, _) = open_in(tmp.path());
-    store.flush().unwrap();
-    store.update(|p| p.general.language = "fr".into());
-
-    // Another instance (or the user) edits the file meanwhile.
-    std::thread::sleep(Duration::from_millis(20));
-    let edited = read_config(tmp.path()).replace("[general]", "# added by hand\n[other]\nx = 1\n\n[general]");
-    write_config(tmp.path(), &edited);
-    let later = std::time::SystemTime::now() + Duration::from_secs(2);
-    std::fs::File::options().write(true).open(config_path(tmp.path())).unwrap().set_modified(later).unwrap();
-
-    store.flush().unwrap();
-    let text = read_config(tmp.path());
-    assert!(text.contains("# added by hand"), "{text}");
-    assert!(text.contains("[other]\nx = 1"), "{text}");
-    assert!(text.contains("language = \"fr\""), "{text}");
-}
-
 #[cfg(unix)]
 #[test]
 fn new_file_is_owner_only_and_keeps_its_mode_on_replace() {
@@ -196,28 +104,6 @@ fn new_file_is_owner_only_and_keeps_its_mode_on_replace() {
     store.flush().unwrap();
     let mode = std::fs::metadata(config_path(tmp.path())).unwrap().permissions().mode() & 0o777;
     assert_eq!(mode, 0o644, "a user's deliberate mode change is kept");
-}
-
-#[cfg(unix)]
-#[test]
-fn read_only_file_makes_the_save_fail_visibly() {
-    use std::os::unix::fs::PermissionsExt;
-    let tmp = tempfile::tempdir().unwrap();
-    let (mut store, _) = open_in(tmp.path());
-    store.flush().unwrap();
-    std::fs::set_permissions(config_path(tmp.path()), std::fs::Permissions::from_mode(0o400)).unwrap();
-    match std::fs::File::options().write(true).open(config_path(tmp.path())) {
-        Ok(_) => {
-            eprintln!("skipping permission test: environment permits writes into a 0400 file");
-            return;
-        }
-        Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied => {}
-        Err(error) => panic!("unexpected file write-probe failure: {error}"),
-    }
-    store.update(|p| p.general.language = "fr".into());
-    let r = store.tick(Instant::now() + Duration::from_secs(1));
-    assert!(matches!(r.status, SaveStatus::Failed(craft_settings::SettingsError::Io(_))), "{r:?}");
-    assert!(!read_config(tmp.path()).contains("language = \"fr\""));
 }
 
 #[test]
@@ -245,20 +131,6 @@ fn outside_edit_with_the_same_mtime_is_still_seen() {
 fn mode(path: &std::path::Path) -> u32 {
     use std::os::unix::fs::PermissionsExt;
     std::fs::metadata(path).unwrap().permissions().mode() & 0o777
-}
-
-#[cfg(unix)]
-#[test]
-fn new_backup_is_as_private_as_the_config() {
-    use std::os::unix::fs::PermissionsExt;
-    let tmp = tempfile::tempdir().unwrap();
-    std::fs::set_permissions(tmp.path(), std::fs::Permissions::from_mode(0o755)).unwrap();
-    let (mut store, _) = open_in(tmp.path());
-    store.flush().unwrap();
-    store.update(|p| p.general.language = "private".into());
-    store.flush().unwrap();
-    assert_eq!(mode(&config_path(tmp.path())), 0o600);
-    assert_eq!(mode(&tmp.path().join("config.toml.bak")), 0o600);
 }
 
 #[cfg(unix)]

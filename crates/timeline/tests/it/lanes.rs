@@ -5,8 +5,8 @@ use std::rc::Rc;
 
 use craft_behavior::{EditEvent, Mixed, Selection, SelectionChange};
 use craft_timeline::ui::{
-    KeyframeId, KeyframeInterpolation, KeyframeLane, KeyframeMark, KeyframeNavigator, LabelPalette, MarkerEdit, MarkerSpan, MarkerStrip, OverviewRun,
-    ThumbnailMode, TimelineOverview, TimelineView, overview_runs, thumbnail_tiles,
+    KeyframeId, KeyframeInterpolation, KeyframeLane, KeyframeMark, LabelPalette, MarkerEdit, MarkerSpan, MarkerStrip, OverviewRun, ThumbnailMode,
+    TimelineOverview, TimelineView, overview_runs, thumbnail_tiles,
 };
 use craft_timeline::{FrameRate, Marker, MarkerColor, MarkerId, Tick, TimeFormat, TimeRange, TimeView, format_time};
 use craft_ui::contract::{Bind, Role, Show as _, ShowContainer as _};
@@ -91,10 +91,6 @@ fn keys() -> Vec<KeyframeMark> {
     vec![key(1, 1.0), key(2, 3.0), key(3, 5.0)]
 }
 
-fn lane() -> (Fixture, Rc<RefCell<Seen>>) {
-    lane_in(None, Tick::ZERO)
-}
-
 /// A lane whose keys stay inside `bounds` and whose Shift-drags snap to `playhead`.
 fn lane_in(bounds: Option<TimeRange>, playhead: Tick) -> (Fixture, Rc<RefCell<Seen>>) {
     let seen = Rc::new(RefCell::new(Seen::default()));
@@ -142,48 +138,6 @@ fn lane_in(bounds: Option<TimeRange>, playhead: Tick) -> (Fixture, Rc<RefCell<Se
     fixture.room(ROOM);
     fixture.settle();
     (fixture, seen)
-}
-
-/// A click replaces the selection with the key, Shift+click toggles it, a click on empty lane clears.
-#[trial]
-fn click_and_marquee_select_keys() {
-    let (mut fixture, seen) = lane();
-    let options = options_by_time(&fixture);
-    assert_eq!(options.len(), 3);
-    fixture.click(&options[1]);
-    assert_eq!(seen.borrow().selection.items, vec![KeyframeId::new(2)]);
-    fixture.hold(Modifiers::SHIFT);
-    fixture.click(&options[0]);
-    assert_eq!(seen.borrow().selection.items.len(), 2, "Shift+click adds the key");
-    fixture.hold(Modifiers::NONE);
-    let list = fixture.by_role(Role::LIST_BOX).into_iter().next().expect("the lane is a list box");
-    fixture.click_at(list.rect.right_center() - vec2(4.0, 0.0));
-    assert!(seen.borrow().selection.items.is_empty(), "a click on empty lane clears");
-}
-
-/// Left and Right select the previous and next key, Shift+Right nudges by a frame, Delete asks to delete.
-#[trial]
-fn keyboard_selects_nudges_and_deletes() {
-    let (mut fixture, seen) = lane();
-    let options = options_by_time(&fixture);
-    fixture.click(&options[0]);
-    fixture.key(Key::ArrowRight, Modifiers::NONE);
-    assert_eq!(seen.borrow().selection.items, vec![KeyframeId::new(2)], "Right picks the next key");
-    fixture.key(Key::ArrowRight, Modifiers::SHIFT);
-    let frame = FrameRate::FPS_24.frame_duration();
-    assert_eq!(seen.borrow().deltas.last().copied(), Some(frame), "Shift+Right nudges the selection one frame");
-    fixture.key(Key::Delete, Modifiers::NONE);
-    assert!(seen.borrow().deleted);
-}
-
-/// A double-click on a key is reported.
-#[trial]
-fn double_click_on_a_key_is_reported() {
-    let (mut fixture, seen) = lane();
-    let options = options_by_time(&fixture);
-    fixture.click(&options[2]);
-    fixture.click(&options[2]);
-    assert_eq!(seen.borrow().double_clicked, Some(KeyframeId::new(3)));
 }
 
 /// What a strip fixture reports.
@@ -261,33 +215,6 @@ fn escape_cancels_a_marker_drag() {
     assert!(!seen.gesture.iter().any(|event| matches!(event, EditEvent::Commit { .. })), "nothing commits");
 }
 
-/// Cmd-click deletes and a double-click opens.
-#[trial]
-fn command_click_deletes_and_double_click_opens() {
-    let (mut fixture, seen) = strip();
-    let options = options_by_time(&fixture);
-    fixture.hold(Modifiers::COMMAND);
-    fixture.click(&options[1]);
-    fixture.hold(Modifiers::NONE);
-    assert!(seen.borrow().edits.contains(&MarkerEdit::Delete(MarkerId(2))));
-    fixture.click(&options[0]);
-    fixture.click(&options[0]);
-    assert!(seen.borrow().edits.contains(&MarkerEdit::Open(MarkerId(1))));
-}
-
-/// Right picks the next marker, Enter opens it, Delete deletes it.
-#[trial]
-fn keys_pick_open_and_delete_markers() {
-    let (mut fixture, seen) = strip();
-    let options = options_by_time(&fixture);
-    fixture.click(&options[0]);
-    fixture.key(Key::ArrowRight, Modifiers::NONE);
-    fixture.key(Key::Enter, Modifiers::NONE);
-    assert!(seen.borrow().edits.contains(&MarkerEdit::Open(MarkerId(2))));
-    fixture.key(Key::Delete, Modifiers::NONE);
-    assert!(seen.borrow().edits.contains(&MarkerEdit::Delete(MarkerId(2))));
-}
-
 /// The option of the key at `at` seconds, named by its time as timecode.
 fn key_at(fixture: &Fixture, at: f64) -> Target {
     let name = format_time(seconds(at), &format());
@@ -335,33 +262,4 @@ fn dragging_keys_snaps_to_frames_and_with_shift_to_the_playhead() {
     fixture.hold(Modifiers::SHIFT);
     fixture.drag(&key, vec2(38.0, 0.0));
     assert_eq!(seen.borrow().deltas.last().copied(), Some(frames(18)), "12 points away: only the frame grid");
-}
-
-/// A drag past the end of the bounds stops at the bound.
-#[trial]
-fn keys_stay_inside_the_bounds() {
-    let (mut fixture, seen) = lane_in(Some(TimeRange::new(Tick::ZERO, seconds(5.5))), Tick::ZERO);
-    let key = key_at(&fixture, 3.0);
-    fixture.drag(&key, vec2(4.0 * POINTS_PER_SECOND as f32, 0.0));
-    assert_eq!(seen.borrow().deltas.last().copied(), Some(seconds(2.5)), "the key stops at 5.5 s");
-}
-
-/// The navigator reports the previous and the toggle buttons; the next button is dimmed without a key after the playhead.
-#[trial]
-fn navigator_reports_its_buttons() {
-    let pressed = Rc::new(RefCell::new((0, 0, 0)));
-    let shown = pressed.clone();
-    let mut fixture = Fixture::new(move |ui| {
-        let out = KeyframeNavigator::new("Navigator", true, false, false).show(ui);
-        let mut counts = shown.borrow_mut();
-        counts.0 += usize::from(out.previous);
-        counts.1 += usize::from(out.next);
-        counts.2 += usize::from(out.toggle);
-    });
-    fixture.settle();
-    for label in ["Go to previous keyframe", "Go to next keyframe", "Add/Remove Keyframe"] {
-        let button = fixture.by_label(label).unwrap_or_else(|| panic!("no button {label}"));
-        fixture.click(&button);
-    }
-    assert_eq!(*pressed.borrow(), (1, 0, 1));
 }

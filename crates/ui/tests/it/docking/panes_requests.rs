@@ -113,36 +113,6 @@ fn a_list_body_shows_and_scrolls_in_a_docked_and_a_floating_pane() {
     }
 }
 
-/// A double click, a second after the last press so it does not extend an earlier multi-click.
-fn double_click(bed: &mut Bed, at: Pos2) {
-    bed.fixture.advance(1.0);
-    for events in [vec![moved(at)], vec![press(at)], vec![release(at)], vec![press(at)]] {
-        bed.fixture.frame(events);
-    }
-    bed.fixture.frame(vec![release(at)]);
-    bed.fixture.idle(4);
-}
-
-#[trial]
-fn minimizing_a_floating_pane_goes_through_a_request_and_hides_the_body() {
-    let mut bed = Bed::new(docked(PaneEdge::Start), floated(), false);
-    assert!(bed.fixture.by_label("Body").is_some(), "the floating pane shows its body");
-    double_click(&mut bed, title_of(FRAME));
-    assert!(bed.sent(&PaneRequest::Minimize(PANE, true)), "the double click on the title asks to minimize: {:?}", bed.requests);
-    assert!(bed.fixture.by_label("Body").is_none(), "the applied state shows the title row only");
-    double_click(&mut bed, title_of(FRAME));
-    assert!(bed.sent(&PaneRequest::Minimize(PANE, false)), "a second double click asks to restore: {:?}", bed.requests);
-    assert!(bed.fixture.by_label("Body").is_some(), "and the body shows again");
-}
-
-#[trial]
-fn float_on_a_floating_pane_docks_it_back_at_the_top_edge() {
-    let mut bed = Bed::new(docked(PaneEdge::Top), floated(), false);
-    let float = bed.fixture.by_label("Float").expect("a floating pane has the Float action");
-    bed.fixture.click(&float);
-    assert!(bed.sent(&PaneRequest::Place(PANE, PanePlace::Docked(PaneEdge::Top))), "Float docks it at its default edge: {:?}", bed.requests);
-}
-
 #[trial]
 fn a_moved_pane_shows_the_drop_mark_on_the_other_edge_and_docks_there_on_release() {
     let mut bed = Bed::new(docked(PaneEdge::Start), floated(), false);

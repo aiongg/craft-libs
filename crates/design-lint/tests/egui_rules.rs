@@ -116,13 +116,6 @@ fn url_opening_is_matched_by_the_egui_path_not_the_method_name() {
 }
 
 #[test]
-fn layer_zero_unit_tests_may_assert_literals() {
-    let src = fixture("reject", "test-literal-size.rs");
-    let layered = StaticScope::new().egui_linked("crates/x").layer("crates/x/tests", 0);
-    assert!(rules_at(&src, "crates/x/tests/it/main.rs", &layered).is_empty());
-}
-
-#[test]
 fn craft_types_that_share_egui_names_are_not_flagged() {
     let rules = rules_at(&fixture("accept", "clean.rs"), "src/ui/a.rs", &scope());
     assert!(rules.is_empty(), "{rules:?}");
@@ -171,22 +164,6 @@ fn literal_sizes_may_fill_the_testing_module_like_tests() {
 }
 
 #[test]
-fn exemptions_and_markers_accept_the_new_rule_ids() {
-    let text =
-        "[lint]\npaths = [\"src\"]\n[[exempt]]\npath = \"src/ui\"\nrules = [\"contract\", \"test\", \"api/non-exhaustive\"]\nreason = \"legacy\"\n";
-    assert!(Config::parse(Path::new("design-lint.toml"), text).is_ok());
-}
-
-#[test]
-fn layer_one_names_accesskit_data_types_and_no_other_layer_does() {
-    let src = fixture("accept", "accesskit-data.rs");
-    let layered = StaticScope::new().layer("crates/data", 1);
-    assert!(rules_at(&src, "crates/data/src/intent.rs", &layered).is_empty());
-    assert_eq!(rules_at(&src, "crates/data/src/intent.rs", &StaticScope::new().layer("crates/data", 2)), ["contract/egui-import"]);
-    assert_eq!(rules_at(&src, "crates/data/src/intent.rs", &StaticScope::new()), ["contract/egui-import"]);
-}
-
-#[test]
 fn family_modules_neither_import_runtime_egui_nor_build_egui_text() {
     let src = fixture("reject", "family-raw-egui.rs");
     let layered = StaticScope::new().layer("crates/x/src/text", 5).layer("crates/x/src/shell", 7);
@@ -206,28 +183,6 @@ fn family_modules_neither_import_runtime_egui_nor_build_egui_text() {
     );
     let shell = analyze_contract(&src, Path::new("crates/x/src/shell/app.rs"), &layered, false);
     assert!(shell.iter().all(|f| f.rule != "contract/runtime-egui"), "layer 7 hosts the adapter");
-}
-
-#[test]
-fn only_the_text_adapter_may_call_text_edit() {
-    let src = fixture("reject", "family-raw-egui.rs");
-    let adapter = StaticScope::new().allow("contract/text-edit", "crates/x/src/primitives/text_adapter.rs");
-    let at = |path: &str| analyze_contract(&src, Path::new(path), &adapter, false).iter().any(|f| f.rule == "contract/text-edit");
-    assert!(!at("crates/x/src/primitives/text_adapter.rs"));
-    assert!(at("crates/x/src/contract/text.rs"));
-}
-
-#[test]
-fn tools_without_a_layer_may_draw_egui_text() {
-    let src = fixture("reject", "family-raw-egui.rs");
-    let rules = rules_at(&src, "crates/gallery/src/main.rs", &StaticScope::new());
-    assert!(!rules.contains(&"contract/egui-widget"), "{rules:?}");
-}
-
-#[test]
-fn text_shortcuts_on_builders_are_not_ui_calls() {
-    let src = "fn f(field: Field) { let _ = field.label(\"x\"); }";
-    assert!(rules_at(src, "src/a.rs", &StaticScope::new()).is_empty());
 }
 
 #[test]

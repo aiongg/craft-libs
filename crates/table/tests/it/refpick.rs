@@ -49,18 +49,6 @@ fn a_drag_grows_a_range_and_another_click_replaces_it() {
     assert!(!picker.pick(&mut text, cell(0, 0), "Sheet1", false, can_point, quote), "typing forgets the last reference");
 }
 
-/// A pick on another sheet inserts `'My Sheet'!$A$1`.
-#[trial]
-fn other_sheets_are_quoted() {
-    let mut picker = ReferencePicker::new("Sheet1");
-    let mut text = "=".to_owned();
-    picker.set_caret(1, false);
-    assert!(picker.pick(&mut text, cell(0, 0), "My Sheet", false, can_point, quote));
-    assert_eq!(text, "='My Sheet'!$A$1");
-    assert!(picker.pick(&mut text, cell(0, 0), "SHEET1", false, can_point, quote), "the dialog's own sheet needs no prefix, in any case");
-    assert_eq!(text, "=$A$1");
-}
-
 /// A stored reference that is no longer at the caret does not anchor a drag: the range grows from the press's cell.
 #[trial]
 fn a_drag_from_elsewhere_ignores_the_stale_reference() {

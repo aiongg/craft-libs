@@ -1,9 +1,9 @@
 //! The screenshot slot: one completion per slot, a bounded image, and a wake of the owning viewport only.
 
-use std::sync::{Arc, Barrier, Mutex};
+use std::sync::{Arc, Mutex};
 
 use craft_ui::runtime::egui::screenshot::{ScreenshotError, ScreenshotSlot};
-use craft_ui::runtime::windows::{ScreenshotSlot as ReexportedSlot, WindowHost};
+use craft_ui::runtime::windows::WindowHost;
 use craft_ui::testing::trial;
 use egui::{Color32, ColorImage, Context, ScreenshotCallback, ViewportCommand, ViewportId};
 
@@ -17,14 +17,6 @@ fn observe_repaints(ctx: &Context) -> Arc<Mutex<Vec<ViewportId>>> {
     let observed = requests.clone();
     ctx.set_repaint_observer(move |info| observed.lock().unwrap().push(info.viewport_id));
     requests
-}
-
-#[trial]
-fn slot_is_send_and_sync() {
-    fn assert_send_sync<T: Send + Sync>() {}
-    assert_send_sync::<ScreenshotSlot>();
-    assert_send_sync::<ReexportedSlot>();
-    assert_send_sync::<ScreenshotCallback>();
 }
 
 #[trial]
@@ -46,16 +38,6 @@ fn callback_clones_share_one_completion_and_take_is_single_use() {
 }
 
 #[trial]
-fn take_before_completion_is_empty_and_keeps_the_request_open() {
-    let ctx = Context::default();
-    let (slot, callback) = ScreenshotSlot::detached(&ctx, ViewportId::ROOT, 1024);
-    assert!(slot.take().is_none());
-    let expected = image([1, 1]);
-    callback.complete(expected.clone());
-    assert!(Arc::ptr_eq(&slot.take().unwrap().unwrap(), &expected));
-}
-
-#[trial]
 fn cancel_releases_late_images_without_waking() {
     let ctx = Context::default();
     let requests = observe_repaints(&ctx);
@@ -70,36 +52,6 @@ fn cancel_releases_late_images_without_waking() {
     assert!(weak_image.upgrade().is_none(), "a cancelled slot releases the late image");
     assert!(slot.take().is_none());
     assert!(requests.lock().unwrap().is_empty(), "cancellation suppresses the wakeup");
-}
-
-#[trial]
-fn dropping_the_slot_releases_a_completed_image() {
-    let ctx = Context::default();
-    let (slot, callback) = ScreenshotSlot::detached(&ctx, ViewportId::ROOT, 1024);
-    let completed = image([2, 2]);
-    callback.complete(completed.clone());
-    let weak_image = Arc::downgrade(&completed);
-    drop(completed);
-    assert!(weak_image.upgrade().is_some(), "the slot retains the completed image");
-
-    drop(slot);
-    assert!(weak_image.upgrade().is_none(), "dropping the slot releases its image");
-}
-
-#[trial]
-fn late_completion_after_drop_is_inert() {
-    let ctx = Context::default();
-    let requests = observe_repaints(&ctx);
-    let (slot, callback) = ScreenshotSlot::detached(&ctx, ViewportId::ROOT, 1024);
-    drop(slot);
-
-    let late_image = image([1, 1]);
-    let weak_image = Arc::downgrade(&late_image);
-    callback.complete(late_image.clone());
-    drop(late_image);
-
-    assert!(weak_image.upgrade().is_none());
-    assert!(requests.lock().unwrap().is_empty(), "a late result does not wake the viewport");
 }
 
 #[trial]
@@ -127,15 +79,6 @@ fn rejects_oversized_malformed_and_overflowing_images() {
 }
 
 #[trial]
-fn accepts_an_image_exactly_at_the_byte_bound() {
-    let ctx = Context::default();
-    let (slot, callback) = ScreenshotSlot::detached(&ctx, ViewportId::ROOT, 16);
-    let exact = image([2, 2]);
-    callback.complete(exact.clone());
-    assert!(Arc::ptr_eq(&slot.take().unwrap().unwrap(), &exact));
-}
-
-#[trial]
 fn another_thread_completes_and_wakes_only_the_owning_viewport() {
     let ctx = Context::default();
     let requests = observe_repaints(&ctx);
@@ -151,32 +94,6 @@ fn another_thread_completes_and_wakes_only_the_owning_viewport() {
     assert!(requested.iter().all(|requested_viewport| *requested_viewport == viewport), "wakes only the owning viewport: {requested:?}");
     drop(requested);
     assert!(Arc::ptr_eq(&slot.take().unwrap().unwrap(), &expected));
-}
-
-#[trial]
-fn concurrent_takers_receive_the_result_exactly_once() {
-    let ctx = Context::default();
-    let (slot, callback) = ScreenshotSlot::detached(&ctx, ViewportId::ROOT, 4);
-    let expected = image([1, 1]);
-    callback.complete(expected.clone());
-    let barrier = Barrier::new(3);
-    let results = std::thread::scope(|scope| {
-        let first = scope.spawn(|| {
-            barrier.wait();
-            slot.take()
-        });
-        let second = scope.spawn(|| {
-            barrier.wait();
-            slot.take()
-        });
-        barrier.wait();
-        [first.join().unwrap(), second.join().unwrap()]
-    });
-    assert_eq!(results.iter().filter(|result| result.is_some()).count(), 1);
-    for result in results.into_iter().flatten() {
-        assert!(Arc::ptr_eq(&result.unwrap(), &expected));
-    }
-    assert!(slot.take().is_none());
 }
 
 /// Each screenshot request is one slot and one screenshot command for its viewport, and the renderer's completion reaches

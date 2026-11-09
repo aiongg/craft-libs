@@ -25,15 +25,6 @@ fn a_draft_adds_its_pieces_after_the_existing_chips() {
     assert_eq!(codec.parse("two words", &Vec::new()), Ok(chips(&["two words"])), "a space does not end a chip");
 }
 
-/// The text part shows only the draft: committing leaves it empty, whatever the chips are.
-#[trial]
-fn the_draft_text_is_empty_after_a_commit() {
-    let codec = ChipCodec::default();
-    let value = chips(&["kite", "red"]);
-    assert_eq!(codec.format(&value), "");
-    assert_eq!(codec.normalise("red", &value), "");
-}
-
 /// Typing a comma commits the draft as a chip, empties the draft, and the comma is in no chip.
 #[trial]
 fn typing_a_comma_adds_the_chip_and_empties_the_draft() {

@@ -83,11 +83,6 @@ impl<'a> Tap<'a> {
         Tap { common: Common::new(), seen: None, on: None }
     }
 
-    pub fn on(mut self, on: &'a std::cell::Cell<bool>) -> Self {
-        self.on = Some(on);
-        self
-    }
-
     pub fn seen(mut self, seen: &'a RefCell<(String, bool)>) -> Self {
         self.seen = Some(seen);
         self

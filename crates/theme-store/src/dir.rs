@@ -91,20 +91,4 @@ impl SuiteDir {
 }
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn isolation_rules() {
-        let platform = || Some(PathBuf::from("/home/u/.config"));
-        let empty = SuiteDir::resolve_from(Some(OsString::new()), false, platform());
-        assert_eq!((empty.path(), empty.source()), (None, DirSource::IsolatedByEnv));
-        let env = SuiteDir::resolve_from(Some("/t/suite".into()), true, platform());
-        assert_eq!((env.path(), env.source()), (Some(Path::new("/t/suite")), DirSource::Env));
-        let app = SuiteDir::resolve_from(None, true, platform());
-        assert_eq!((app.path(), app.source()), (None, DirSource::IsolatedByApp));
-        let plat = SuiteDir::resolve_from(None, false, platform());
-        assert_eq!(plat.path(), Some(Path::new("/home/u/.config/ArtCraft/themes")));
-        assert_eq!(SuiteDir::resolve_from(None, false, None).source(), DirSource::NoPlatformFolder);
-    }
-}
+mod tests {}

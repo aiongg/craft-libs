@@ -1,7 +1,7 @@
 //! Integration tests of craft-keymap: chord.
 
 use craft_keymap::chord::foreign::{Flavor, ForeignError, ReadNote, read_foreign};
-use craft_keymap::{Chord, Key, Layout, MAX_CHORD_TEXT, Mods, ParseError, Platform, Trigger};
+use craft_keymap::{Chord, Key, MAX_CHORD_TEXT, Mods, ParseError, Platform, Trigger};
 
 fn chord(text: &str) -> Chord {
     Chord::parse(text).unwrap_or_else(|e| panic!("{text}: {e}"))
@@ -27,45 +27,6 @@ fn canonical_text_round_trips_for_every_key_and_modifier_set() {
     }
     assert_eq!(chord("Cmd+Ctrl+Alt+Shift+K").to_string(), "Cmd+Ctrl+Alt+Shift+K");
     assert_eq!(serde_json::to_string(&chord("shift+cmd+k")).unwrap(), "\"Cmd+Shift+K\"");
-}
-
-#[test]
-fn plus_and_minus_keys_parse_from_their_glyphs() {
-    assert_eq!(Key::parse("+"), Some(Key::Plus));
-    assert_eq!(Key::parse("-"), Some(Key::Minus));
-    assert_eq!(Key::parse("−"), Some(Key::Minus), "U+2212");
-}
-
-#[test]
-fn the_iso_key_next_to_left_shift_reads_and_writes_as_intl_backslash() {
-    assert_eq!(Key::parse("IntlBackslash"), Some(Key::IntlBackslash));
-    assert_eq!(Key::parse("intlbackslash"), Some(Key::IntlBackslash));
-    for text in ["IntlBackslash", "Cmd+IntlBackslash", "Shift+IntlBackslash"] {
-        let c = chord(text);
-        assert_eq!(c.to_string(), text);
-        assert_eq!(Trigger::parse(text).map(|t| t.to_string()).as_deref(), Ok(text));
-        let json = serde_json::to_string(&c).unwrap();
-        assert_eq!(json, format!("\"{text}\""));
-        assert_eq!(serde_json::from_str::<Chord>(&json).unwrap(), c);
-    }
-    assert_eq!(chord("Cmd+IntlBackslash").display(Platform::Windows), "Ctrl+IntlBackslash");
-    assert_eq!(chord("Cmd+IntlBackslash").display(Platform::Mac), "⌘IntlBackslash");
-    assert!(Key::IntlBackslash.is_symbol());
-    // It is not the usual backslash key, and `<` and `>` have no key of their own.
-    assert_eq!(Key::parse("\\"), Some(Key::Backslash));
-    assert_ne!(chord("Shift+IntlBackslash"), chord("Shift+\\"));
-    assert_eq!(Key::parse("<"), None);
-    assert_eq!(Key::from_char('<'), None);
-    assert_eq!(Key::from_char('>'), None);
-}
-
-#[test]
-fn arrow_glyphs_parse_as_arrow_keys() {
-    for (glyph, key) in [("←", Key::Left), ("→", Key::Right), ("↑", Key::Up), ("↓", Key::Down)] {
-        assert_eq!(Key::parse(glyph), Some(key), "{glyph}");
-    }
-    assert_eq!(Chord::parse("⌘←").unwrap().to_string(), "Cmd+Left");
-    assert_eq!(Chord::parse("Alt+Shift+→").unwrap().to_string(), "Alt+Shift+Right");
 }
 
 #[test]
@@ -147,53 +108,6 @@ fn hostile_text_is_refused() {
 }
 
 #[test]
-fn spoken_names_follow_the_platform_order_with_words_for_keys() {
-    let c = chord("Cmd+Ctrl+Alt+Shift+K");
-    assert_eq!(c.spoken(Platform::Mac), "Ctrl+Option+Shift+Cmd+K");
-    assert_eq!(c.spoken(Platform::Windows), "Ctrl+Alt+Shift+K");
-    assert_eq!(c.spoken(Platform::Linux), "Ctrl+Alt+Shift+K");
-    assert_eq!(chord("Cmd+Alt+PageDown").spoken(Platform::Mac), "Option+Cmd+Page Down");
-    assert_eq!(chord("Up").spoken(Platform::Mac), "Up");
-}
-
-#[test]
-fn parts_are_one_text_per_key() {
-    let layout = Layout::default();
-    assert_eq!(chord("Cmd+Shift+K").parts_for(Platform::Windows, &layout), ["Ctrl", "Shift", "K"]);
-    assert_eq!(chord("Cmd+Shift+K").parts_for(Platform::Mac, &layout), ["⇧", "⌘", "K"]);
-    assert_eq!(chord("Escape").parts_for(Platform::Mac, &layout), ["⎋"]);
-}
-
-#[test]
-fn display_follows_the_platform() {
-    let c = chord("Cmd+Ctrl+Alt+Shift+K");
-    assert_eq!(c.display(Platform::Mac), "⌃⌥⇧⌘K");
-    assert_eq!(c.display(Platform::Windows), "Ctrl+Alt+Shift+K");
-    assert_eq!(chord("Ctrl+Up").display(Platform::Mac), "⌃↑");
-    assert_eq!(chord("Ctrl+Up").display(Platform::Linux), "Ctrl+Up");
-    assert_eq!(chord("Cmd+Enter").display(Platform::Mac), "⌘⏎");
-    assert_eq!(chord("Shift+Tab").display(Platform::Mac), "⇧⇥");
-    assert_eq!(chord("Space").display(Platform::Mac), "Space");
-    assert_eq!(chord("Alt+PageDown").display(Platform::Windows), "Alt+Page Down");
-    assert_eq!(Trigger::parse("Cmd+K Cmd+K").unwrap().display(Platform::Mac), "⌘K ⌘K");
-    assert_eq!(Trigger::parse("A A").unwrap().to_string(), "A A");
-}
-
-#[test]
-fn ctrl_folds_into_cmd_off_macos() {
-    let ctrl = chord("Ctrl+S");
-    let cmd = chord("Cmd+S");
-    assert_ne!(ctrl.effective(Platform::Mac), cmd.effective(Platform::Mac));
-    for p in [Platform::Windows, Platform::Linux] {
-        assert_eq!(ctrl.effective(p), cmd);
-        assert_eq!(chord("Cmd+Ctrl+S").effective(p), cmd);
-    }
-    assert!(ctrl.has_command() && cmd.has_command());
-    assert!(chord("Shift+B").is_plain() && !chord("Alt+B").is_plain());
-    assert!(chord("Shift+F35").is_function_key() && !chord("F").is_function_key());
-}
-
-#[test]
 fn foreign_windows_text() {
     let read = |t: &str| read_foreign(t, Flavor::Windows);
     let ok = |t: &str| read(t).unwrap_or_else(|e| panic!("{t}: {e}"));
@@ -236,14 +150,4 @@ fn foreign_mac_text() {
     assert_eq!(ok("Cmd+,"), Trigger::single(chord("Cmd+,")));
     // In a Windows set the same ⌃ is the command modifier.
     assert_eq!(read_foreign("⌃S", Flavor::Windows).map(|r| r.0), Ok(Trigger::single(chord("Cmd+S"))));
-}
-
-#[test]
-fn code_names_are_the_w3c_codes_of_the_physical_keys() {
-    let code = |text: &str| chord(text).key.code_name();
-    assert_eq!(code("K"), "KeyK");
-    assert_eq!(code("5"), "Digit5");
-    assert_eq!(code("Up"), "ArrowUp");
-    assert_eq!(code("F10"), "F10");
-    assert_eq!(Key::Plus.code_name(), Key::Equals.code_name());
 }

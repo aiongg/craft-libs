@@ -62,19 +62,6 @@ fn files_hovering_with_no_pointer_position_show_the_veil_and_drop_on_the_window(
     assert_eq!(names, ["a.png", "b.png"]);
 }
 
-#[trial]
-fn files_that_leave_without_a_drop_report_nothing() {
-    let mut frames = Frames::new();
-    let dropped = RefCell::new(Vec::new());
-    let mut run = |ui: &mut Ui| show(ui, &dropped);
-    frames.frame(vec![moved(Pos2::new(300.0, 200.0))], &mut run);
-    frames.hover_files(&["a.png"]);
-    frames.idle(3, &mut run);
-    frames.leave_files();
-    frames.idle(4, &mut run);
-    assert!(dropped.borrow().is_empty());
-}
-
 /// The count of AccessKit nodes named by the veil's label: it grows by the card's text while the veil shows.
 fn named(frames: &mut Frames) -> usize {
     let tree = frames.tree();

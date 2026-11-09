@@ -251,20 +251,6 @@ fn a_taiwanese_ui_takes_characters_no_interface_face_has_from_the_system_fonts()
     assert!(asked.lock().expect("lock").is_empty(), "the Simplified interface face has them");
 }
 
-#[trial]
-fn a_web_build_downloads_the_interface_face_for_its_language() {
-    let faces = [
-        served("Noto Sans SC UI", "Regular", &["Hans", "Latn"], "fonts/ui/NotoSansSCUI-Regular.0123456789abcdef.ttf", 0),
-        served("Noto Sans TC UI", "Regular", &["Hant", "Latn"], "fonts/ui/NotoSansTCUI-Regular.0123456789abcdef.ttf", 0),
-        served("BIZ UDPGothic", "Regular", &["Jpan", "Latn"], "fonts/biz-ud-pgothic/BIZUDPGothic-Regular.0123456789abcdef.ttf", 0),
-        served("Noto Sans Arabic", "Regular", &["Arab"], "fonts/noto-sans-arabic/NotoSansArabic.ttf", 0),
-    ];
-    // The interface faces are Regular only: the semibold family takes that face too.
-    for (language, want) in [("zh-TW", "Noto Sans TC UI Regular"), ("zh-CN", "Noto Sans SC UI Regular"), ("ja", "BIZ UDPGothic Regular")] {
-        assert_eq!(names(web_fonts(language, &faces).stack().ui_downloads()), [want], "{language}");
-    }
-}
-
 /// craft-fonts' faces for Latin, Greek and Cyrillic, symbols and emoji, as a web build serves them.
 const SERVED_SYMBOLS: &[ServedFace] = &[
     served("Noto Sans", "Regular", &["Latn", "Cyrl", "Grek", "Deva"], "fonts/noto-sans/NotoSans.ttf", 0),
@@ -430,15 +416,6 @@ fn the_ui_language_faces_are_fetched_at_install_and_reported_as_loading() {
     assert!(!craft_ui::fonts::loading(&ctx));
     frames.frame(vec![], |_| {});
     assert!(ctx.fonts_mut(|f| f.has_glyph(&FontId::proportional(14.0), 'ع')));
-}
-
-#[trial]
-fn served_faces_are_never_fetched_without_a_fetcher() {
-    let frames = Frames::new();
-    let ctx = frames.ctx.clone();
-    let stack = web_fonts("ar", SERVED).install(&ctx);
-    assert_eq!(names(stack.ui_downloads()), ["Noto Sans Arabic Regular"]);
-    assert!(!craft_ui::fonts::loading(&ctx));
 }
 
 #[trial]

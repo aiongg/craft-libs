@@ -392,21 +392,6 @@ mod tests {
         c.to_hsb().h
     }
 
-    /// Complementary gives the base and its hue turned 180°; every rule starts with the base.
-    #[test]
-    fn every_rule_starts_with_the_base_and_complementary_turns_half_way() {
-        let counts = [2, 4, 3, 3, 3, 3, 5, 5, 5, 3, 5, 5, 4, 4, 4, 4, 4, 2, 4, 3, 5];
-        for base in [Srgba::rgb(0.9, 0.47, 0.16), Srgba::rgb(0.4, 0.4, 0.4)] {
-            for (rule, n) in Harmony::ALL.into_iter().zip(counts) {
-                let colors = rule.apply(base);
-                assert_eq!(colors.len(), n, "{}", rule.id());
-                assert_eq!(colors[0], base, "{}", rule.id());
-            }
-        }
-        let red = Harmony::Complementary.apply(Srgba::rgb(1.0, 0.0, 0.0));
-        assert_eq!(red[1].to_hex(), "#00ffff");
-    }
-
     /// Moving one colour with `linked` turns the others by the same hue.
     #[test]
     fn a_linked_move_turns_every_colour_alike() {

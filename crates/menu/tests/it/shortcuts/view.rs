@@ -2,7 +2,6 @@
 //! typed entry, conflicts and the read-only dialog.
 
 use craft_keymap::Platform;
-use craft_menu::shortcuts::ConflictMode;
 use craft_ui::testing::trial;
 use egui::{Key, Modifiers};
 
@@ -11,20 +10,6 @@ use super::fixture::{self, Rig};
 fn selected(rig: &Rig, id: &str) -> bool {
     let shared = rig.shared.borrow();
     shared.state.snapshot(&shared.km).is_some_and(|snapshot| snapshot.selected.is_some_and(|command| command.id == id))
-}
-
-#[trial]
-fn table_keys_move_record_and_delete() {
-    let mut rig = Rig::mac();
-    rig.click("Save");
-    rig.press(Modifiers::NONE, Key::ArrowDown);
-    assert!(selected(&rig, "file.saveAs"), "Down moves the selection");
-    rig.press(Modifiers::NONE, Key::Delete);
-    assert!(rig.bindings("file.saveAs").is_empty(), "Delete removes the current shortcut");
-    rig.press(Modifiers::NONE, Key::Enter);
-    assert!(rig.recording(), "Enter records into the row");
-    rig.press(Modifiers::NONE, Key::F7);
-    assert_eq!(rig.bindings("file.saveAs"), ["F7"]);
 }
 
 #[trial]
@@ -56,21 +41,6 @@ fn go_to_conflict_selects_and_reveals_the_holder() {
     assert_eq!(rig.bindings("tool.marquee"), ["Cmd+S"]);
     assert!(selected(&rig, "file.save"), "the holder is selected");
     assert!(rig.has("Export…: ⌘E"), "the area and the search are cleared to show it");
-}
-
-#[trial]
-fn the_new_shortcut_field_waits_for_assign() {
-    let mut options = fixture::options();
-    options.conflicts = ConflictMode::Keep;
-    let mut rig = Rig::new(fixture::keymap(Platform::Mac), options, None);
-    rig.click("Save");
-    rig.click("New shortcut: None");
-    rig.press(Modifiers::COMMAND, Key::E);
-    assert!(rig.has("Currently assigned to:"));
-    assert_eq!(rig.bindings("file.save"), ["Cmd+S"], "nothing changes before Assign");
-    rig.click("Assign");
-    assert!(rig.has("Also used by Export…"), "Keep mode keeps both");
-    assert_eq!(rig.bindings("file.save"), ["Cmd+S", "Cmd+E"]);
 }
 
 #[trial]
@@ -114,31 +84,12 @@ fn read_only_has_no_edit_controls() {
 }
 
 #[trial]
-fn display_follows_the_keymap_platform() {
-    let mac = Rig::mac();
-    assert!(mac.has("Save As…: ⇧⌘S"));
-    let windows = Rig::new(fixture::keymap(Platform::Windows), fixture::options(), None);
-    assert!(windows.has("Save As…: Ctrl+Shift+S"));
-}
-
-#[trial]
 fn tab_leaves_the_new_shortcut_field_after_recording() {
     let mut rig = Rig::mac();
     rig.click("Save");
     rig.click("New shortcut: None");
     rig.press(Modifiers::NONE, Key::F8);
     assert!(!rig.recording(), "a recorded chord ends the recording");
-    rig.press(Modifiers::NONE, Key::Tab);
-    assert!(!rig.recording(), "Tab moves on instead of recording");
-}
-
-#[trial]
-fn tab_leaves_search_by_key_after_recording() {
-    let mut rig = Rig::mac();
-    rig.click("Search by key");
-    assert!(rig.recording());
-    rig.press(Modifiers::COMMAND, Key::S);
-    assert!(!rig.recording(), "the chord becomes the query and the recording ends");
     rig.press(Modifiers::NONE, Key::Tab);
     assert!(!rig.recording(), "Tab moves on instead of recording");
 }

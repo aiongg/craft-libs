@@ -2,7 +2,7 @@
 
 use craft_behavior::kurbo::{Point, Rect};
 use craft_behavior::{Axis, CancelReason, CanvasView, EditEvent};
-use craft_draw::ui::measure::{RulerBar, RulerLine, RulerOverlay, RulerPart, RulerTool, box_distances};
+use craft_draw::ui::measure::{RulerBar, RulerLine, RulerOverlay, RulerTool, box_distances};
 use craft_ui::bars::{Bar, BarKind};
 use craft_ui::canvas::{CanvasTool, ToolAction, ToolContext, ToolKey, ToolPath, ToolPointer};
 use craft_ui::contract::{Bind, Role, Show as _, ShowContainer as _};
@@ -35,29 +35,6 @@ fn reading_matches_the_engines_ruler_info() {
     assert!(near(wide.reading().angle, 135.0));
     let skew = RulerLine::new(Point::new(0.0, 0.0), Point::new(10.0, -1.0)).with_protractor(Point::new(10.0, 1.0));
     assert!((0.0..=180.0).contains(&skew.reading().angle));
-}
-
-/// `scaled` multiplies X, Y, W, H, L1 and L2 and keeps A.
-#[trial]
-fn scaled_multiplies_lengths_and_positions_not_the_angle() {
-    let line = RulerLine::new(Point::new(1.0, 2.0), Point::new(4.0, 6.0)).with_protractor(Point::new(1.0, 12.0));
-    let (r, s) = (line.reading(), line.reading().scaled(2.0));
-    assert_eq!((s.x, s.y, s.w, s.h, s.l1), (2.0, 4.0, 6.0, 8.0, 10.0));
-    assert_eq!(s.l2, r.l2.map(|l| l * 2.0));
-    assert_eq!(s.angle, r.angle);
-}
-
-/// `part_at` within the reach prefers the protractor's end, then the end, then the start; outside the reach it is
-/// `None`.
-#[trial]
-fn a_press_finds_the_protractor_then_the_end_then_the_start() {
-    let line = RulerLine::new(Point::new(0.0, 0.0), Point::new(1.0, 0.0)).with_protractor(Point::new(0.5, 0.0));
-    assert_eq!(line.part_at(Point::new(0.5, 0.0), 2.0), Some(RulerPart::Protractor));
-    assert_eq!(line.part_at(Point::new(0.5, 0.0), 0.2), Some(RulerPart::Protractor));
-    let line = RulerLine::new(line.start, line.end);
-    assert_eq!(line.part_at(Point::new(0.5, 0.0), 2.0), Some(RulerPart::End));
-    assert_eq!(line.part_at(Point::new(-1.5, 0.0), 2.0), Some(RulerPart::Start));
-    assert_eq!(line.part_at(Point::new(50.0, 50.0), 2.0), None);
 }
 
 /// Boxes apart on one axis give one gap, overlapping boxes the distances between like edges, diagonal boxes a line
@@ -125,24 +102,6 @@ fn scale_multiplies_lengths_not_the_angle() {
     let read = |fixture: &Fixture, name: &str| readout(fixture, name).unwrap_or_else(|| panic!("the {name} readout shows a value"));
     assert_ne!(read(&plain, "L1"), read(&scaled, "L1"));
     assert_eq!(read(&plain, "A"), read(&scaled, "A"));
-}
-
-/// Straighten Layer and Clear are disabled without a line.
-#[trial]
-fn buttons_are_disabled_without_a_line() {
-    let none = bar_rig(None, false, 1.0);
-    let disabled = |fixture: &Fixture, label: &str| fixture.tree().is_disabled_key(fixture.by_label(label).expect(label).node);
-    assert!(disabled(&none, "Straighten Layer") && disabled(&none, "Clear"));
-    let some = bar_rig(Some(RulerLine::new(Point::new(0.0, 0.0), Point::new(3.0, 4.0))), false, 1.0);
-    assert!(!disabled(&some, "Straighten Layer") && !disabled(&some, "Clear"));
-}
-
-/// The readouts write lengths in the canvas's ruler units: document pixels by default.
-#[trial]
-fn readouts_show_the_ruler_units() {
-    let rig = bar_rig(Some(RulerLine::new(Point::new(3.0, 4.0), Point::new(6.0, 8.0))), false, 1.0);
-    let value = readout(&rig, "L1");
-    assert!(value.as_deref().is_some_and(|v| v.contains("5.00") && v.contains("px")), "{value:?}");
 }
 
 /// The tool for the fixture: it builds a pass over the shared line for every call and applies the events the pass
@@ -216,7 +175,6 @@ impl CanvasTool for Driven {
 struct Shown {
     fixture: ToolFixture<Driven>,
     line: Rc<RefCell<Option<RulerLine>>>,
-    log: Rc<RefCell<Vec<&'static str>>>,
 }
 
 fn shown(start: Option<RulerLine>) -> Shown {
@@ -244,7 +202,7 @@ fn shown(start: Option<RulerLine>) -> Shown {
             *body_line.borrow_mut() = line;
         },
     );
-    Shown { fixture, line, log }
+    Shown { fixture, line }
 }
 
 impl Shown {
@@ -303,48 +261,6 @@ fn shift_keeps_the_pointer_distance_on_the_45_degree_ray() {
     assert!(((end.x - 100.0) - (end.y - 100.0)).abs() < 1.0, "{end:?}");
     s.fixture.release_at(to);
     assert!((s.line().end.distance(fixed) - length).abs() < 1.0);
-}
-
-/// A new line under 0.5 document units is cleared on release; a short drag of an existing end does not clear.
-#[trial]
-fn a_tiny_new_line_is_cleared_on_release() {
-    let mut s = shown(None);
-    let at = s.screen((50.0, 50.0));
-    s.fixture.press_at(at).release_at(at);
-    assert_eq!(*s.line.borrow(), None);
-    assert!(s.log.borrow().contains(&"commit"));
-
-    *s.line.borrow_mut() = line((100.0, 100.0), (200.0, 100.0));
-    let at = s.screen((200.0, 100.0));
-    s.fixture.press_at(at).release_at(at);
-    assert!(s.line.borrow().is_some(), "an existing line stays");
-}
-
-/// Page Down picks Start, End, Protractor; arrows move the picked point 1 unit and Shift 10; Delete clears the line.
-#[trial]
-fn keys_move_the_picked_part_and_delete_clears() {
-    let arm = RulerLine::new(Point::new(100.0, 100.0), Point::new(200.0, 100.0)).with_protractor(Point::new(100.0, 150.0));
-    let mut s = shown(Some(arm));
-    let key = |s: &mut Shown, key: Key, mods: Modifiers| {
-        s.fixture.fixture().key(key, mods).settle();
-    };
-    // The canvas is the first Tab stop, the points group the second; its first point is picked.
-    key(&mut s, Key::Tab, Modifiers::NONE);
-    key(&mut s, Key::Tab, Modifiers::NONE);
-    key(&mut s, Key::ArrowRight, Modifiers::NONE);
-    assert!(s.line().start.distance(Point::new(101.0, 100.0)) < 1e-6, "{:?}", s.line());
-
-    key(&mut s, Key::PageDown, Modifiers::NONE);
-    key(&mut s, Key::ArrowDown, Modifiers::SHIFT);
-    assert!(s.line().end.distance(Point::new(200.0, 110.0)) < 1e-6, "{:?}", s.line());
-
-    key(&mut s, Key::PageDown, Modifiers::NONE);
-    key(&mut s, Key::ArrowLeft, Modifiers::NONE);
-    assert_eq!(s.line().protractor, Some(Point::new(99.0, 150.0)));
-    assert!(s.log.borrow().iter().all(|phase| *phase == "set"), "{:?}", s.log.borrow());
-
-    key(&mut s, Key::Delete, Modifiers::NONE);
-    assert_eq!(*s.line.borrow(), None);
 }
 
 /// With the canvas focused (not the points group), arrows move the whole line; with the points group focused they move

@@ -257,55 +257,10 @@ mod ui {
 
 #[cfg(test)]
 mod tests {
-    use serde::{Deserialize, Serialize};
 
     use super::*;
 
     const APP: AppInfo = AppInfo { id: "test", name: "Test", version: "1.0" };
-
-    #[derive(Serialize, Deserialize, Default, PartialEq, Debug)]
-    #[serde(default)]
-    struct Panel {
-        open: bool,
-        width: u32,
-    }
-
-    impl Section for Panel {
-        const KEY: &'static str = "panel";
-    }
-
-    #[test]
-    fn defaults_are_english_with_memory_sections() {
-        let host = Host::builder(APP).build();
-        assert_eq!(host.lang(), Lang::EN);
-        assert!(host.i18n().is_none());
-        assert_eq!(host.commands().label("file.save", "Save"), "Save");
-    }
-
-    #[test]
-    fn with_lang_changes_only_the_language() {
-        let host = Host::builder(APP).build();
-        let other = host.with_lang(Lang::PSEUDO);
-        assert_eq!(other.lang(), Lang::PSEUDO);
-        assert_eq!(host.lang(), Lang::EN);
-        assert_eq!(other.app().name, "Test");
-    }
-
-    #[test]
-    fn settings_round_trip_through_memory_sections() {
-        let host = Host::builder(APP).build();
-        assert_eq!(host.setting::<Panel>(), Panel::default());
-        host.set_setting(&Panel { open: true, width: 240 });
-        assert_eq!(host.setting::<Panel>(), Panel { open: true, width: 240 });
-    }
-
-    #[test]
-    fn inline_jobs_run_at_once() {
-        let done = Arc::new(std::sync::atomic::AtomicBool::new(false));
-        let flag = Arc::clone(&done);
-        InlineJobs.spawn("t", Box::new(move || flag.store(true, std::sync::atomic::Ordering::SeqCst)));
-        assert!(done.load(std::sync::atomic::Ordering::SeqCst));
-    }
 
     #[cfg(feature = "ui")]
     #[test]

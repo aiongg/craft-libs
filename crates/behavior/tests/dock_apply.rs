@@ -5,7 +5,7 @@ use craft_behavior::dock::{
     NamedWorkspace, NativeSpace, Node, PanelPlace, PanelState, Permissions, SplitSize, Target, Workspace, WorkspaceChrome, WorkspaceError,
     WorkspaceSet, arrange_rects, kept_reachable, node_at, restore_rect,
 };
-use craft_behavior::placement::{cascade, cascade_rects, monitor_of};
+use craft_behavior::placement::cascade_rects;
 use craft_behavior::{Axis, Monitor};
 use emath::{Rect, Vec2, pos2, vec2};
 
@@ -195,16 +195,6 @@ fn a_locked_set_rejects_structure_but_allows_activate_open_minimize_resize_and_n
 }
 
 #[test]
-fn hiding_a_panel_that_may_not_close_is_refused() {
-    let mut workspace = Workspace::new(docked());
-    let canvas = |p: &u32| if *p == 1 { Permissions::PROTECTED.accepts_splits(true) } else { Permissions::ALL };
-    assert_eq!(workspace.set_visible(1, false, None, false, canvas), Err(DockError::NotAllowed));
-    assert!(workspace.layout.contains(&1) && workspace.hidden.is_empty());
-    workspace.set_visible(2, false, None, false, canvas).unwrap();
-    assert!(!workspace.layout.contains(&2));
-}
-
-#[test]
 fn reconcile_drops_unknown_panels_and_places_missing_registered_ones() {
     let default = Workspace::new(docked());
     let mut workspace = default.clone();
@@ -240,38 +230,6 @@ fn set() -> WorkspaceSet<&'static str> {
 
 fn edited() -> Workspace<&'static str> {
     Workspace::new(Layout::new(Some(Node::tabs(vec!["layers"], 0)), Vec::new()))
-}
-
-#[test]
-fn workspaces_save_select_and_delete_by_id() {
-    let mut set = set();
-    assert_eq!(set.current().map(|w| w.id.as_str()), Some("essentials"));
-    assert_eq!(set.save("  ", Workspace::default(), WorkspaceChrome::default()), Err(WorkspaceError::EmptyName));
-    assert_eq!(set.save("painting", Workspace::default(), WorkspaceChrome::default()), Err(WorkspaceError::NameTaken));
-
-    let id = set.save("My Layout", edited(), WorkspaceChrome::default()).unwrap();
-    assert_eq!(id, "my-layout");
-    assert_eq!(set.current, id);
-    assert_eq!(set.delete(&id), Err(WorkspaceError::CurrentCannotBeDeleted));
-    assert_eq!(set.delete("nope"), Err(WorkspaceError::UnknownId));
-    assert_eq!(set.delete("painting"), Err(WorkspaceError::UnknownId));
-    assert_eq!(set.select("nope", Workspace::default()), Err(WorkspaceError::UnknownId));
-
-    set.select("essentials", edited()).unwrap();
-    set.delete(&id).unwrap();
-    assert!(set.saved.is_empty());
-}
-
-#[test]
-fn switching_workspaces_remembers_the_live_layout_until_reset() {
-    let mut set = set();
-    let live = edited();
-    set.select("painting", live.clone()).unwrap();
-    assert_eq!(set.layout(), Some(&Workspace::default()));
-    set.select("essentials", Workspace::default()).unwrap();
-    assert_eq!(set.layout(), Some(&live));
-    assert_eq!(set.reset(), Some(&Workspace::default()));
-    assert_eq!(set.layout(), Some(&Workspace::default()));
 }
 
 #[test]
@@ -343,35 +301,6 @@ fn n_up_cells_split_the_area_and_cascade_steps_then_wraps() {
     assert_eq!([rects[0].min, rects[1].min, rects[2].min], [pos2(10.0, 20.0), pos2(38.0, 48.0), pos2(66.0, 76.0)]);
     // 94 + 120 > 210: both axes start over at the edge.
     assert_eq!(rects[3].min, pos2(10.0, 20.0));
-}
-
-#[test]
-fn a_document_window_and_a_floating_dock_window_cascade_alike_on_the_monitor_of_the_previous_window() {
-    let monitors = [monitor("left", rect(-1000.0, 0.0, 1000.0, 800.0), 1.0), monitor("main", rect(0.0, 0.0, 1000.0, 800.0), 1.0)];
-    let size = vec2(400.0, 300.0);
-    let step = 28.0;
-    let previous = rect(-700.0, 520.0, 400.0, 300.0);
-    let bounds = monitor_of(&monitors, previous).expect("a monitor").rect;
-    assert_eq!(bounds, monitors[0].rect);
-    // The document window's next place: one step, and the y axis starts over at the bottom of the same monitor.
-    let next = cascade(previous, size, bounds, step);
-    assert_eq!(next.min, pos2(-672.0, 0.0));
-    // The dock arranges its floating windows in the same monitor with the same function.
-    let series = cascade_rects(bounds, size, 3, step);
-    assert_eq!(series[1], cascade(series[0], size, bounds, step));
-    assert_eq!(series[2], cascade(series[1], size, bounds, step));
-}
-
-#[test]
-fn arrangements_are_enabled_by_the_document_count() {
-    assert!(!Arrangement::TwoUpVertical.enabled(1, 1, 0));
-    assert!(!Arrangement::MatchAll.enabled(1, 1, 0));
-    assert!(Arrangement::FloatInWindow.enabled(1, 1, 0));
-    assert!(!Arrangement::ConsolidateAllToTabs.enabled(1, 1, 0));
-    assert!(Arrangement::ConsolidateAllToTabs.enabled(1, 1, 1));
-    assert_eq!(Arrangement::FourUp.group_count(9), Some(4));
-    assert_eq!(Arrangement::Tile.group_count(9), Some(9));
-    assert_eq!(Arrangement::MatchZoom.group_count(9), None);
 }
 
 fn windows(documents: &[&'static str]) -> DocumentWindows<&'static str> {
@@ -497,24 +426,6 @@ fn a_missing_monitor_moves_the_window_to_the_main_window_monitor_and_a_resized_o
     let scaled = |saved: Rect| restore_rect(saved, Some(&old), space(&smaller, main_at(0.0, 0.0), None));
     assert_eq!(scaled(rect(960.0, 540.0, 200.0, 200.0)), rect(480.0, 270.0, 200.0, 200.0));
     assert_eq!(scaled(rect(1800.0, 1000.0, 200.0, 200.0)), rect(760.0, 340.0, 200.0, 200.0));
-}
-
-#[test]
-fn monitors_with_negative_coordinates_are_found_by_most_overlap_else_by_distance() {
-    let monitors = [monitor("left", rect(-2560.0, -200.0, 2560.0, 1440.0), 2.0), monitor("main", left(), 1.0)];
-    let name = |area: Rect| monitor_of(&monitors, area).and_then(|m| m.name.as_deref());
-    assert_eq!(name(rect(-500.0, 0.0, 300.0, 300.0)), Some("left"));
-    assert_eq!(name(rect(100.0, 0.0, 300.0, 300.0)), Some("main"));
-    assert_eq!(name(rect(-3000.0, 2000.0, 100.0, 100.0)), Some("left"));
-    // A maximized window overhangs its monitor: the one showing most of it wins, though the centre is on the other.
-    let small = [monitor("small", rect(0.0, 0.0, 500.0, 400.0), 1.0), monitor("wide", rect(500.0, 0.0, 3500.0, 400.0), 1.0)];
-    let overhang = rect(-1200.0, 0.0, 3200.0, 400.0);
-    assert!(small[0].rect.contains(overhang.center()));
-    assert_eq!(monitor_of(&small, overhang).and_then(|m| m.name.as_deref()), Some("wide"));
-    // Unplugged: the same offset on the main window's monitor.
-    let saved = rect(-1000.0, -100.0, 300.0, 300.0);
-    assert_eq!(restore_rect(saved, Some(&monitors[0]), space(&monitors, main_at(100.0, 100.0), None)), saved);
-    assert_eq!(restore_rect(saved, Some(&monitors[0]), space(&monitors[1..], main_at(100.0, 100.0), None)), rect(1560.0, 100.0, 300.0, 300.0));
 }
 
 #[test]

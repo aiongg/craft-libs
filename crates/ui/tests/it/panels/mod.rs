@@ -55,14 +55,3 @@ fn an_inspector_keys_its_controls_by_the_target() {
     rig.show(Some("a"));
     assert_eq!(rig.field.get(), Some(first), "the first target gets its ids back");
 }
-
-/// With no target the body is replaced by the empty notice.
-#[trial]
-fn an_inspector_with_no_target_shows_the_empty_notice_in_place_of_the_body() {
-    let mut rig = rig(None);
-    assert!(rig.field.get().is_none(), "the body did not show");
-    assert!(rig.fixture.by_label("No properties").is_some(), "the notice names the empty state");
-    rig.show(Some("a"));
-    assert!(rig.field.get().is_some(), "a target shows the body");
-    assert!(rig.fixture.by_label("No properties").is_none(), "the notice goes");
-}

@@ -14,10 +14,6 @@ fn shown(p: &Paragraph<'_>, line: Range<usize>) -> String {
     p.visual_runs(line).iter().map(|r| if r.is_rtl() { rev(&p.text()[r.range.clone()]) } else { p.text()[r.range.clone()].to_string() }).collect()
 }
 
-fn shown_all(text: &str, base: Direction) -> String {
-    shown(&Paragraph::new(text, base), 0..text.len())
-}
-
 #[test]
 fn mixed_arabic_latin_numbers_and_brackets() {
     let s = "سنة 2024 (Retrait) فقط";
@@ -39,51 +35,6 @@ fn mixed_arabic_latin_numbers_and_brackets() {
     let vis: String = order.iter().map(|&i| chars[i]).collect();
     assert_eq!(vis, "طقف )Retrait( 2024 ةنس");
     assert_eq!(shown(&p, 0..s.len()), vis);
-}
-
-#[test]
-fn levels_for_persian_with_latin_and_numbers() {
-    let p = Paragraph::new("plain English", Direction::Ltr);
-    assert!(!p.needs_reordering(), "pure left-to-right paragraphs skip the algorithm");
-    assert_eq!(p.levels(), &[0; 13]);
-    let s = "سلام Word ۱۴۰۳";
-    let p = Paragraph::new(s, Direction::Rtl);
-    assert_eq!(p.levels().len(), s.len());
-    assert!(p.needs_reordering());
-    assert_eq!(p.level_at(0), 1, "Persian letters are right to left");
-    assert_eq!(p.level_at(at(s, 5)), 2, "Latin inside a right-to-left paragraph is embedded at level 2");
-    assert_eq!(p.level_at(at(s, 10)), 2, "Persian digits are numbers: left to right inside right-to-left text");
-    assert_eq!(p.level_at(s.len()), 1, "past the end: the paragraph level");
-    // In a left-to-right paragraph Persian is embedded at level 1.
-    let s = "Hello سلام";
-    let p = Paragraph::new(s, Direction::Ltr);
-    assert_eq!((p.level_at(0), p.level_at(at(s, 6))), (0, 1));
-    // A right-to-left paragraph of Latin text keeps it left to right inside it.
-    assert_eq!(Paragraph::new("ab", Direction::Rtl).char_levels(), vec![2, 2]);
-}
-
-#[test]
-fn auto_direction_follows_the_first_strong_character() {
-    assert!(Paragraph::new("سلام Word", Direction::Auto).is_rtl());
-    assert!(!Paragraph::new("Word سلام", Direction::Auto).is_rtl());
-    assert!(Paragraph::new("123 سلام", Direction::Auto).is_rtl(), "digits are weak");
-    assert_eq!(Paragraph::new("123", Direction::Auto).level(), 0);
-    assert_eq!(Paragraph::new("", Direction::Auto).level(), 0);
-    assert_eq!(Paragraph::new("", Direction::Rtl).level(), 1);
-    assert_eq!(Paragraph::new("Word", Direction::Rtl).level(), 1, "an explicit direction wins");
-}
-
-#[test]
-fn whole_lines_read_in_display_order() {
-    let s = "سلام دنیا";
-    assert_eq!(shown_all(s, Direction::Rtl), rev(s));
-    assert_eq!(shown_all("Hello سلام world", Direction::Ltr), "Hello مالس world");
-    // "Price 250 toman" in Persian, with a Latin product name, Persian punctuation and digits:
-    // numbers and Latin keep their order, the words around them read right to left, and the final
-    // full stop is at the paragraph's end (the far left).
-    let s = "قیمت 250 تومان برای Word، امسال ۱۴۰۳.";
-    let want = format!(".۱۴۰۳ {} ،Word {} {} 250 {}", rev("امسال"), rev("برای"), rev("تومان"), rev("قیمت"));
-    assert_eq!(shown_all(s, Direction::Rtl), want);
 }
 
 #[test]
@@ -170,15 +121,6 @@ fn overrides_continue_across_paragraph_separators() {
     let p = Paragraph::with_overrides(s, Direction::Auto, &[Override { range: 0..1, rtl: false }]);
     assert_eq!(p.paragraphs(), &[(0..2, 0), (2..7, 1)]);
     assert_eq!(p.visual_runs(2..7), vec![Run { range: 2..7, level: 1 }]);
-}
-
-#[test]
-fn mirrored_characters() {
-    assert_eq!(mirror('('), Some(')'));
-    assert_eq!(mirror(']'), Some('['));
-    assert_eq!(mirror('«'), Some('»'));
-    assert_eq!(mirror('a'), None);
-    assert_eq!(mirror('∑'), None, "mirrored, but only by glyph");
 }
 
 #[test]

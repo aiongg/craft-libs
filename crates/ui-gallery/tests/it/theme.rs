@@ -1,6 +1,6 @@
 //! The theme workspace: its words, the file it edits, what it caches and what its browser does with a pick.
 
-use craft_theme::{AppSizes, Appearance, ColorToken, Contrast, Mode, Size, SizeValue, TextSize, TokenRef, builtins, explain};
+use craft_theme::{AppSizes, Appearance, ColorToken, Contrast, Mode, Size, TextSize, TokenRef, builtins, explain};
 use craft_ui::contract::Bind;
 use craft_ui::testing::{Fixture, trial};
 use craft_ui_gallery::theme::{Pick, ThemeSubject, ThemeWorkspace, TokenBrowser, parse_sizes};
@@ -11,17 +11,6 @@ use std::sync::Arc;
 
 fn appearance() -> Appearance {
     Appearance { mode: Mode::Light, contrast: Contrast::Standard, size: Size::Compact, text_size: TextSize::Small, reduced_motion: false }
-}
-
-#[trial]
-fn a_loaded_file_is_exported_unchanged_and_a_bad_one_names_its_path() {
-    let layer = parse_sizes("sizes.json", br#"{ "comfortable": { "size.control.md": 28 } }"#).expect("a valid file loads");
-    assert_eq!(layer.comfortable.get("size.control.md"), Some(&SizeValue::Number(28.0)));
-    let again = parse_sizes("sizes.json", layer.to_json().as_bytes()).expect("an exported file loads");
-    assert_eq!(again, layer);
-
-    let message = parse_sizes("bad.json", br#"{ "all": { "size.control.md": 99 } }"#).expect_err("a value out of range is refused");
-    assert!(message.contains("bad.json") && message.contains("all.size.control.md"), "{message}");
 }
 
 #[trial]

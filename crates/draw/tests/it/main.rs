@@ -48,7 +48,6 @@ mod artboard;
 mod slice;
 
 // draw-brush
-mod brush_presets;
 mod brush_settings;
 
 use craft_draw::testing::registered;

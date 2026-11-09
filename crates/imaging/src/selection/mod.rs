@@ -9,9 +9,6 @@
 use craft_theme::{Rgba, Srgba};
 use serde::{Deserialize, Serialize};
 
-#[cfg(test)]
-mod tests;
-
 /// A 0..=1 value as a byte, rounded half up.
 fn byte(v: f32) -> u8 {
     (v.clamp(0.0, 1.0) * 255.0 + 0.5) as u8

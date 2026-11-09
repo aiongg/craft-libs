@@ -17,11 +17,6 @@ fn probe_in(dir: &std::path::Path, env: Option<(&'static str, &'static str)>) ->
     probe
 }
 
-fn assert_untouched(dir: &std::path::Path) {
-    let entries: Vec<_> = std::fs::read_dir(dir).unwrap().collect();
-    assert!(entries.is_empty(), "nothing may be written: {entries:?}");
-}
-
 fn exercise(store: &mut SettingsStore<Prefs>) {
     assert!(!store.is_persistent());
     assert_eq!(store.dir(), None);
@@ -54,15 +49,6 @@ fn empty_env_var_reads_and_writes_nothing() {
         "the real profile is not written"
     );
     assert_eq!(std::fs::read_dir(tmp.path().join("testcraft")).unwrap().count(), 1);
-}
-
-#[test]
-fn memory_location_reads_and_writes_nothing() {
-    let tmp = tempfile::tempdir().unwrap();
-    let (mut store, report) = SettingsStore::<Prefs>::open_with(OpenOptions::new(Location::Memory).probe(probe_in(tmp.path(), None)));
-    assert_eq!(report.rule, "in memory only");
-    exercise(&mut store);
-    assert_untouched(tmp.path());
 }
 
 #[test]

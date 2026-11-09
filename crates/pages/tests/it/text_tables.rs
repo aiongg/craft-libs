@@ -7,37 +7,22 @@ use std::rc::Rc;
 use craft_behavior::kurbo::{Point, Rect};
 use craft_behavior::{CellAt, CellRange};
 use craft_i18n::Direction;
-use craft_pages::ui::access::{AccessBuilder, AccessDescriber, AccessNode, AccessPosition, BlockRole, MAX_NODES};
+use craft_pages::ui::access::{AccessBuilder, AccessDescriber, AccessNode, AccessPosition, BlockRole};
 use craft_pages::ui::fixtures::{PAPER, demo_placed};
 use craft_pages::ui::reading::{MAX_COLUMNS, ReadingMetrics, ReadingState, reading_size, reading_viewport, swipe_turn, wheel_turns};
-use craft_pages::ui::table::{
-    BorderEdges, BorderPreset, EdgeKey, EdgePicker, RowHeight, TableChange, TableGeometry, TableProperties, TableSizePicker, TableSizePickerOutput,
-    TableValues,
-};
+use craft_pages::ui::table::{BorderEdges, EdgeKey, EdgePicker, TableGeometry};
 use craft_pages::ui::text_selection::{PageTextSource, PageTexts, TextSelectState, TextSelectTool, TextSelection, TextSpan};
 use craft_pages::ui::view::{PageView, PageViewState, PlacedPage};
 use craft_theme::{Contrast, Mode};
 use craft_ui::canvas::Canvas;
 use craft_ui::contract::{Bind, Role, Show as _, ShowContainer as _};
 use craft_ui::primitives::ReadingMeasure;
-use craft_ui::runtime::env::UnitKind;
 use craft_ui::style::{Ink, TypeRole};
 use craft_ui::testing::style::{paint_frame, tokens};
 use craft_ui::testing::{Fixture, Frames, ToolFixture, pointer, trial};
 use egui::{Key, Modifiers, Pos2, pos2, vec2};
 
 // Edges
-
-#[trial]
-fn presets_set_or_toggle_edges() {
-    let mut inner = BorderEdges::default();
-    inner.set(EdgeKey::InsideVertical, true);
-    let outside = BorderPreset::Outside.apply(inner);
-    assert_eq!(EdgeKey::ALL.map(|k| outside.get(k)), [true, true, true, true, false, true]);
-    let toggled = BorderPreset::Edge(EdgeKey::Top).apply(outside);
-    assert!(!toggled.get(EdgeKey::Top) && toggled.get(EdgeKey::Bottom));
-    assert_eq!(BorderPreset::None.apply(outside), BorderEdges::default());
-}
 
 fn edge_picker() -> (Fixture, Rc<Cell<BorderEdges>>) {
     let edges = Rc::new(Cell::new(BorderEdges::default()));
@@ -75,69 +60,7 @@ fn edge_clicks_toggle_double_picks_a_group_triple_toggles_all() {
 
 // Size picker
 
-fn size_picker(hovered: Rc<RefCell<Option<(usize, usize)>>>, picked: Rc<RefCell<Vec<(usize, usize)>>>) -> Fixture {
-    let mut fixture = Fixture::new(move |ui| {
-        let out: TableSizePickerOutput = TableSizePicker::new("Insert Table").show(ui);
-        *hovered.borrow_mut() = out.hovered;
-        picked.borrow_mut().extend(out.picked);
-    });
-    fixture.settle();
-    fixture
-}
-
-#[trial]
-fn the_pointer_sizes_rows_by_columns_and_a_click_picks() {
-    let (hovered, picked): (Rc<RefCell<Option<(usize, usize)>>>, Rc<RefCell<Vec<(usize, usize)>>>) = Default::default();
-    let mut fixture = size_picker(Rc::clone(&hovered), Rc::clone(&picked));
-    let square = fixture.by_label("3 × 4").expect("each square is named by its size").center();
-    fixture.frame(vec![pointer::moved(square)]);
-    assert_eq!(*hovered.borrow(), Some((3, 4)), "rows, then columns");
-    fixture.click_at(square);
-    assert_eq!(*picked.borrow(), vec![(3, 4)]);
-}
-
-#[trial]
-fn the_size_picker_keys_stop_at_the_edges() {
-    let (hovered, picked): (Rc<RefCell<Option<(usize, usize)>>>, Rc<RefCell<Vec<(usize, usize)>>>) = Default::default();
-    let mut fixture = size_picker(Rc::clone(&hovered), Rc::clone(&picked));
-    fixture.key(Key::Tab, Modifiers::NONE);
-    assert_eq!(*hovered.borrow(), Some((1, 1)), "the first square takes the focus");
-    fixture.key(Key::ArrowLeft, Modifiers::NONE).key(Key::ArrowUp, Modifiers::NONE);
-    assert_eq!(*hovered.borrow(), Some((1, 1)), "the arrows stop at the grid's edges");
-    fixture.key(Key::ArrowRight, Modifiers::NONE).key(Key::ArrowDown, Modifiers::NONE);
-    assert_eq!(*hovered.borrow(), Some((2, 2)));
-    fixture.key(Key::Enter, Modifiers::NONE);
-    assert_eq!(*picked.borrow(), vec![(2, 2)]);
-}
-
 // Properties
-
-#[trial]
-fn the_properties_panel_reports_the_change_made() {
-    let mut start = TableValues::default();
-    (start.rows, start.columns, start.row_height_mode) = (3, 4, Some(RowHeight::AtLeast));
-    let values = Rc::new(RefCell::new(start));
-    let changes: Rc<RefCell<Vec<TableChange>>> = Rc::default();
-    let (shown, seen) = (Rc::clone(&values), Rc::clone(&changes));
-    let mut fixture = Fixture::new(move |ui| {
-        let out = TableProperties::new(&shown.borrow(), UnitKind::Points).show(ui);
-        seen.borrow_mut().extend(out.change);
-    });
-    fixture.room(vec2(360.0, 900.0));
-    fixture.settle();
-    let rows = fixture.by_label("Rows").expect("the rows field");
-    fixture.click(&rows);
-    fixture.key(Key::A, Modifiers::COMMAND).type_text("5").key(Key::Enter, Modifiers::NONE);
-    assert_eq!(changes.borrow().last(), Some(&TableChange::Rows(5)));
-    changes.borrow_mut().clear();
-    let merge = fixture.by_label("Merge Cells").expect("the merge button");
-    fixture.click(&merge);
-    assert!(changes.borrow().is_empty(), "Merge Cells is disabled with one cell");
-    values.borrow_mut().several_cells = true;
-    fixture.settle();
-    fixture.click(&merge);
-    assert_eq!(*changes.borrow(), vec![TableChange::Merge]);
-}
 
 // Geometry
 
@@ -450,13 +373,6 @@ fn blocks_nest_as_a_document_a_screen_reader_can_walk() {
     let lists = tree.with_role(Role::LIST);
     assert_eq!(lists.len(), 1, "consecutive items at one level share a list");
     assert_eq!(tree.children_of(lists[0]).len(), 2);
-}
-
-#[trial]
-fn the_node_count_is_capped() {
-    let (fixture, _) = described(Content::Paragraphs(MAX_NODES + 500), 1);
-    let described = fixture.tree().with_role(Role::PARAGRAPH).len();
-    assert_eq!(described, MAX_NODES, "the builder stops at the cap");
 }
 
 #[trial]

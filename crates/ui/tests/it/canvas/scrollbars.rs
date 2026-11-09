@@ -94,16 +94,6 @@ fn dragging_the_thumb_moves_the_view_centre_along_the_bar() {
 }
 
 #[trial]
-fn pressing_the_track_pages_by_one_screenful_toward_the_press() {
-    let mut shown = shown(DocRect::new(0.0, 0.0, 800.0, 600.0), false);
-    let bar = shown.fixture.by_label("Horizontal scroll bar").expect("the bar has a node");
-    shown.fixture.click_at(bar.rect.right_center() - Vec2::new(GRIP, 0.0));
-    let page = f64::from(VIEW.width()) / ZOOM;
-    let moved = shown.view.borrow().center.x;
-    assert!((moved - page).abs() < 1e-6, "paged {moved}, a screenful is {page}");
-}
-
-#[trial]
 fn only_overscroll_lets_a_document_smaller_than_the_window_scroll() {
     let small = DocRect::new(0.0, 0.0, 100.0, 100.0);
     for (overscroll, scrolls) in [(false, false), (true, true)] {

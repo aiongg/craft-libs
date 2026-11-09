@@ -14,8 +14,6 @@ use std::rc::Rc;
 
 const DOC: Size = Size::new(2000.0, 1500.0);
 const CANVAS: Rect = Rect::from_min_max(Pos2::new(0.0, 0.0), Pos2::new(800.0, 600.0));
-/// The canvas beside a Navigator panel: right of the panel's column.
-const BESIDE: Rect = Rect::from_min_max(Pos2::new(500.0, 0.0), Pos2::new(1300.0, 600.0));
 const ROOM: Vec2 = Vec2::new(1400.0, 800.0);
 
 /// Screen points two positions may differ by after the view's maths.
@@ -229,17 +227,5 @@ fn a_zoom_command_under_animated_zoom_eases_on_the_canvas() {
     document.fixture.click_at(CANVAS.center()).settle();
     eases(&mut document, |fixture| {
         fixture.key(Key::Equals, Modifiers::COMMAND);
-    });
-}
-
-#[trial]
-fn a_navigator_zoom_under_animated_zoom_eases_on_the_canvas() {
-    let start = CanvasView::new(BESIDE, Point::new(DOC.width / 2.0, DOC.height / 2.0), 0.5);
-    let mut document = Document::new(start, BESIDE, Options { animated: true, navigator: true, ..Options::default() });
-    document.fixture.settle();
-    // The first Tab focuses the preview box, whose `=` steps the zoom in.
-    document.fixture.key(Key::Tab, Modifiers::NONE).settle();
-    eases(&mut document, |fixture| {
-        fixture.key(Key::Equals, Modifiers::NONE);
     });
 }

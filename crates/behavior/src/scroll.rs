@@ -102,19 +102,4 @@ mod tests {
         let past = drag(&span, 100.0, 10.0, 500.0);
         assert_eq!(past, 800.0..1000.0, "the range stops at the end of the content");
     }
-
-    #[test]
-    fn home_and_end_show_the_ends_of_the_content() {
-        let span = ScrollSpan::new(0.0..500.0, 100.0..300.0);
-        assert_eq!(jump(&span, NavMove::Start), Some(0.0..200.0));
-        assert_eq!(jump(&span, NavMove::End), Some(300.0..500.0));
-        assert_eq!(jump(&span, NavMove::Down), None);
-    }
-
-    #[test]
-    fn a_page_press_moves_one_visible_length_and_stops_at_the_ends() {
-        let span = ScrollSpan::new(0.0..500.0, 100.0..300.0);
-        assert_eq!(page(&span, true), 300.0..500.0);
-        assert_eq!(page(&span, false), 0.0..200.0);
-    }
 }

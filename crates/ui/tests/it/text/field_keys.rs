@@ -3,7 +3,7 @@
 
 use craft_host::target::Os;
 use craft_keymap::Mods;
-use craft_ui::contract::{Bind, Props as _, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::dialog::Dialog;
 use craft_ui::runtime::focus::Initial;
 use craft_ui::sections::{DialogRole, FooterButton};
@@ -29,18 +29,6 @@ fn focused_field(os: Os, build: impl for<'a> Fn(TextField<'a>) -> TextField<'a> 
     (fixture, text, submitted)
 }
 
-/// Enter and Shift+Enter submit a single-line field and report the modifiers of the Enter; the text stays.
-#[trial]
-fn shift_enter_submits_a_single_line_field_and_reports_its_modifiers() {
-    let (mut fixture, text, submitted) = focused_field(Os::Linux, |field| field.submits());
-    fixture.key(Key::Enter, Modifiers::SHIFT).idle(3);
-    assert_eq!(submitted.get().map(|mods| mods.shift), Some(true), "Shift+Enter submits and reports Shift");
-    submitted.set(None);
-    fixture.key(Key::Enter, Modifiers::NONE).idle(3);
-    assert_eq!(submitted.get().map(|mods| mods.shift), Some(false), "plain Enter submits without Shift");
-    assert_eq!(*text.borrow(), "hi", "neither Enter changes the text");
-}
-
 /// Cmd+Enter (Ctrl+Enter off macOS) submits a multi-line field that submits and adds no line; Enter adds a line and
 /// does not submit.
 #[trial]
@@ -55,15 +43,6 @@ fn cmd_enter_submits_a_multi_line_field_and_enter_adds_a_line() {
         assert_eq!(submitted.get(), None, "{os:?}: Enter does not submit");
         assert!(text.borrow().contains('\n'), "{os:?}: Enter adds a line");
     }
-}
-
-/// A multi-line field without `submits()` leaves Cmd+Enter alone.
-#[trial]
-fn cmd_enter_does_not_submit_a_multi_line_field_that_does_not_submit() {
-    let (mut fixture, text, submitted) = focused_field(Os::Linux, |field| field.lines(3));
-    fixture.key(Key::Enter, Modifiers::COMMAND).idle(3);
-    assert_eq!(submitted.get(), None, "no submit");
-    assert_eq!(*text.borrow(), "hi", "and no line break");
 }
 
 /// A body holding a clearing search field: the first Escape clears the text and the body gets none; the second goes

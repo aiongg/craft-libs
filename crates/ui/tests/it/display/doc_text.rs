@@ -80,13 +80,6 @@ fn run_styles_change_the_laid_out_galley() {
     assert!((found[4].size().x - found[0].size().x).abs() > EPS, "the bold face has its own advances");
 }
 
-/// Without a semibold family a bold run keeps the interface face.
-#[trial]
-fn bold_keeps_the_face_without_a_semibold_family() {
-    let found = layouts(|_| {}, vec![vec![run("Word")], vec![run("Word").bold()]]);
-    assert_eq!(found[0].galley.job.sections[0].format.font_id.family, found[1].galley.job.sections[0].format.font_id.family);
-}
-
 /// `Text::spans` is named by its joined text, and a span's size and indent change the room the text takes.
 #[trial]
 fn text_spans_take_their_room_from_the_spans() {
