@@ -142,30 +142,22 @@ fn point(run: &Run, key: usize, dx: f32, dy: f32) -> Pos2 {
     Pos2::new(row.min.x + dx, row.min.y + dy)
 }
 
-/// Dropping on the middle of a group row puts the row in the group, as its first child, and marks the group row.
+/// Dropping on the middle of a group row, with or without rows of its own, puts the row in the group and marks the
+/// group row.
 #[trial]
 fn a_drop_on_the_middle_of_a_group_row_lands_inside_the_group() {
-    {
-        let (words, run) = (grove(), Run::default());
-        let mut frames = Frames::new();
-        let mut show = |ui: &mut Ui| show_grove(ui, List::new(SelectMode::Single).tree().reorder_into_groups(), &words, &run);
-        frames.idle(3, &mut show);
-        let at = point(&run, 1, SHALLOW, ROW_H / 2.0);
-        drag_to(&mut frames, &run, 4, at, &mut show);
-        assert!(matches!(drag::mark(&frames.ctx), Some(DropMark::Into(rect)) if rect.contains(at)), "the group row is marked");
-        release_at(&mut frames, at, &mut show);
-        assert_eq!(run.moves(), [(vec![4], 2, Some(1))], "row 4 lands right after the group row, inside the group");
-    }
-    {
-        let (words, run) = (grove(), Run::default());
-        let mut frames = Frames::new();
-        let mut show = |ui: &mut Ui| show_grove(ui, List::new(SelectMode::Single).tree().reorder_into_groups(), &words, &run);
-        frames.idle(3, &mut show);
-        let at = point(&run, 5, SHALLOW, ROW_H / 2.0);
-        drag_to(&mut frames, &run, 0, at, &mut show);
-        release_at(&mut frames, at, &mut show);
-        assert_eq!(run.moves(), [(vec![0], 5, Some(5))]);
-    }
+    let (words, run) = (grove(), Run::default());
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| show_grove(ui, List::new(SelectMode::Single).tree().reorder_into_groups(), &words, &run);
+    frames.idle(3, &mut show);
+    let at = point(&run, 1, SHALLOW, ROW_H / 2.0);
+    drag_to(&mut frames, &run, 4, at, &mut show);
+    assert!(matches!(drag::mark(&frames.ctx), Some(DropMark::Into(rect)) if rect.contains(at)), "the group row is marked");
+    release_at(&mut frames, at, &mut show);
+    let empty_group = point(&run, 5, SHALLOW, ROW_H / 2.0);
+    drag_to(&mut frames, &run, 0, empty_group, &mut show);
+    release_at(&mut frames, empty_group, &mut show);
+    assert_eq!(run.moves(), [(vec![4], 2, Some(1)), (vec![0], 5, Some(5))], "each row lands right after the group row, inside the group");
 }
 
 /// Below the last row of an open group, the pointer's indent picks the group or the level above it.

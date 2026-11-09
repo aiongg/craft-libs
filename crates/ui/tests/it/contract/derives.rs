@@ -1,15 +1,15 @@
 //! What the derives write: registrations and probes, style keys per instantiation, setters and style accessors.
 
 use super::kit::PlainStyle;
-use craft_behavior::{CancelReason, Metrics};
+use craft_behavior::CancelReason;
 use craft_theme::{Contrast, ControlSize, Mode, Rgba, Tokens, Variant};
 use craft_ui::canvas::{CanvasTool, ToolAction, ToolContext, ToolPath, ToolPointer};
 use craft_ui::contract::PatternKind;
 use craft_ui::contract::{
-    Common, Component, Cx, EditResponse, Internal, MeasureCx, Meta, Pattern, Props, Role, ShapeKind, Show as _, register_contract, shape,
+    Common, Component, Cx, EditResponse, Internal, MeasureCx, Meta, Pattern, Role, ShapeKind, Show as _, register_contract, shape,
 };
 use craft_ui::primitives::Draw;
-use craft_ui::style::{ComponentStyle, FocusLook, StyleCx, StyleKey, SurfaceLook, TokenGroup};
+use craft_ui::style::{StyleCx, StyleKey, TokenGroup};
 use craft_ui::testing::style::{tokens, with_cx};
 use craft_ui::testing::{Frames, Probe, registered, trial};
 use egui::{Response, Vec2};
@@ -251,18 +251,6 @@ fn each_instantiation_of_a_generic_component_has_its_own_style_key() {
         "a `#[style_key]` field is part of the key"
     );
     let _ = number;
-}
-
-/// A style with every part the derive reads.
-#[derive(Clone, Debug, PartialEq, ComponentStyle)]
-#[style(variants = [Variant::GHOST, Variant::PRIMARY])]
-struct Parts {
-    #[style(surface)]
-    surface: Option<SurfaceLook>,
-    #[style(focus)]
-    focus: FocusLook,
-    #[style(metrics)]
-    metrics: Metrics,
 }
 
 #[derive(Clone, TokenGroup)]

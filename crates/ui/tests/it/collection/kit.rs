@@ -315,12 +315,6 @@ impl<'a> List<'a> {
         self
     }
 
-    /// Row `key` is the current one.
-    pub fn current(mut self, key: usize) -> Self {
-        self.items = self.items.current(Some(key));
-        self
-    }
-
     pub fn selection(mut self, selection: Bind<'a, Selection<usize>>) -> Self {
         self.selection = Some(selection);
         self

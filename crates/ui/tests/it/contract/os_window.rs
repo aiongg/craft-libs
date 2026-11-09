@@ -3,25 +3,14 @@
 
 use super::kit::PlainStyle;
 use crate::windows_kit::Windows;
-use craft_host::target::{Caps, ShellInfo};
 use craft_ui::contract::overlay::{PlacementChange, PlacementKind};
-use craft_ui::contract::{
-    Bind, Common, Component, Container, ContainerProps, Cx, Mount, Overlay, Props as _, Role, Show as _, ShowContainer as _, Sizing,
-};
-use craft_ui::dialog::Dialog;
-use craft_ui::runtime::InstallSpec;
-use craft_ui::runtime::windows::{WindowHit, WindowHost, WindowSpec};
-use craft_ui::sections::{DialogRole, FooterButton};
-use craft_ui::shell::{Caption, CaptionFamily, Captions, Frame, Title, TitleBar};
+use craft_ui::contract::{Common, Component, Container, ContainerProps, Cx, Mount, Overlay, Props as _, Role, Show as _, ShowContainer as _, Sizing};
+use craft_ui::runtime::windows::WindowSpec;
 use craft_ui::style::StyleCx;
 use craft_ui::testing::layout::Block;
-use craft_ui::testing::pointer::{moved, press, release};
 use craft_ui::testing::trial;
-use craft_ui::testing::windows::NoWindows;
-use craft_window::policy::{Decision, Desktop, DesktopKind};
-use egui::{Pos2, Rect, Response, Vec2, ViewportCommand, ViewportId, ViewportInfo, vec2};
-use std::cell::{Cell, RefCell};
-use std::sync::Arc;
+use egui::{Pos2, Rect, Response, Vec2, ViewportInfo, vec2};
+use std::cell::RefCell;
 
 /// A container that logs the placement changes it is given.
 #[derive(craft_ui::contract::Component)]

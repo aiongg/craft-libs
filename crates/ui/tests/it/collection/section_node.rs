@@ -4,7 +4,7 @@
 
 use super::kit::{List, Row, Words};
 use craft_behavior::{DisplayOrder, ItemSource};
-use craft_ui::contract::{CollectionEvent, Props as _, Role, SelectMode, Show as _, ShowCollection as _};
+use craft_ui::contract::{CollectionEvent, Props as _, Role, SelectMode, ShowCollection as _};
 use craft_ui::testing::focus::AccessActionKind;
 use craft_ui::testing::layout::in_region;
 use craft_ui::testing::{Fixture, Target, trial};

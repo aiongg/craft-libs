@@ -3,13 +3,12 @@
 use crate::windows_kit::Windows;
 use craft_behavior::Monitor;
 use craft_ui::contract::{Props as _, Show as _, ShowContainer as _};
-use craft_ui::runtime::overlay::CloseReason;
 use craft_ui::shell::DocumentWindow;
 use craft_ui::testing::layout::Block;
 use craft_ui::testing::trial;
 use craft_window::{WindowId, WindowList};
-use egui::{Pos2, Rect, Vec2, ViewportCommand, ViewportEvent, ViewportId, ViewportInfo};
-use std::cell::{Cell, RefCell};
+use egui::{Pos2, Rect, Vec2, ViewportCommand, ViewportId, ViewportInfo};
+use std::cell::RefCell;
 
 const BODY: Vec2 = Vec2::new(120.0, 80.0);
 const WINDOW: Vec2 = Vec2::new(400.0, 300.0);

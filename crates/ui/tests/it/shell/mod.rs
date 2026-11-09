@@ -11,7 +11,7 @@ mod window_parts;
 mod start;
 
 use crate::contract::kit::Panel;
-use craft_ui::contract::{PaneEdge, ShowContainer as _};
+use craft_ui::contract::ShowContainer as _;
 use craft_ui::runtime::env::{BodyMode, RevealEdge, RootEnv, ShellCx, ShellRegions, WindowKey};
 use craft_ui::testing::{Frames, trial};
 use egui::{Rect, pos2};

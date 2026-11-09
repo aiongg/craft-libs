@@ -3,7 +3,7 @@
 use craft_behavior::{EditEvent, Mixed};
 use craft_ui::contract::{Bind, Show as _};
 use craft_ui::testing::{Fixture, trial};
-use craft_ui::text::{LinkedFields, follow_equal, follow_ratio};
+use craft_ui::text::{LinkedFields, follow_ratio};
 use egui::{Key, Modifiers};
 use std::cell::{Cell, RefCell};
 use std::ops::RangeInclusive;

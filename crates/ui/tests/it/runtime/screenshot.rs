@@ -3,7 +3,7 @@
 use std::sync::{Arc, Barrier, Mutex};
 
 use craft_ui::runtime::egui::screenshot::{ScreenshotError, ScreenshotSlot};
-use craft_ui::runtime::windows::{ScreenshotSlot as ReexportedSlot, WindowHost};
+use craft_ui::runtime::windows::WindowHost;
 use craft_ui::testing::trial;
 use egui::{Color32, ColorImage, Context, ScreenshotCallback, ViewportCommand, ViewportId};
 
