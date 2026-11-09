@@ -61,8 +61,8 @@ mod presets;
 mod prompts;
 mod rails;
 mod runtime;
-mod shell;
 mod sections;
+mod shell;
 
 mod style;
 mod suite_rtl;

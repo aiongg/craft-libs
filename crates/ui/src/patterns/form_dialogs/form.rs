@@ -334,7 +334,12 @@ impl<'a, V: Value + Default> FormDialog<'a, V> {
             let mut values = before.clone();
             let ok = {
                 let mut requests = requests.borrow_mut();
-                let mut form = FormCx { cx: &mut *cx, first, answers: if measuring { Vec::new() } else { std::mem::take(&mut answers) }, requests: &mut *requests };
+                let mut form = FormCx {
+                    cx: &mut *cx,
+                    first,
+                    answers: if measuring { Vec::new() } else { std::mem::take(&mut answers) },
+                    requests: &mut *requests,
+                };
                 body(ui, &mut form, &mut values)
             };
             if first {

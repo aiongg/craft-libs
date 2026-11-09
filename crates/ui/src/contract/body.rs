@@ -1533,7 +1533,9 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             self.offset.y -= f64::from(share.scroll.y);
             self.moved = true;
         }
-        if let (Some(rect), Some(view_rect)) = (if quiet { super::peek_reveal(&ctx, id) } else { super::take_reveal(&ctx, id) }, self.last.view.map(rect_of)) {
+        if let (Some(rect), Some(view_rect)) =
+            (if quiet { super::peek_reveal(&ctx, id) } else { super::take_reveal(&ctx, id) }, self.last.view.map(rect_of))
+        {
             let into = |low: f32, high: f32, view_low: f32, view_high: f32| {
                 if low < view_low {
                     low - view_low

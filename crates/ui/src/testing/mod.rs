@@ -36,10 +36,10 @@ pub mod wheel;
 pub mod windows;
 
 pub use crate::contract::{Exemption, PatternKind, PatternProbe, Probe, Registration};
-pub use craft_ui_macros::{story, trial};
-pub use fixture::{Fixture, Room, Target};
 #[cfg(feature = "testing")]
 pub use crate::runtime::measure::{run as measuring_run, take_effects};
+pub use craft_ui_macros::{story, trial};
+pub use fixture::{Fixture, Room, Target};
 pub use frames::Frames;
 #[doc(hidden)]
 pub use story::{
