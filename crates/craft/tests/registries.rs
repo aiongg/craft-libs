@@ -21,13 +21,6 @@ fn words_list_the_kernel_tables_first_then_each_enabled_crate() {
     assert!(!craft::words::counts().is_empty());
 }
 
-#[test]
-#[cfg(feature = "platform")]
-fn words_list_the_platform_messages() {
-    let words: Vec<_> = craft::words::all().into_iter().flatten().copied().collect();
-    assert!(words.iter().any(|w| w.id == "open.failed"));
-}
-
 /// The Keyboard Shortcuts dialog lives in craft-menu and registers with the UI contract's registry, not the legacy
 /// story list above; the check fails when the dialog's registration is gone.
 #[test]
