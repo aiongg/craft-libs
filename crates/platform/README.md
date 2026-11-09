@@ -7,14 +7,13 @@ pull in heavier dependencies.
 | Feature | Shared responsibility |
 | --- | --- |
 | default | Typed dialog outcomes; `PlatformText`; `open` (see below); no backend or toolkit. |
-| `dialogs` | Reserve waiting workers before eager UI-thread native picker creation; serial requests, failure delivery and completion wakeups. The backend factory belongs to the app. |
+| always (not wasm) | `dialogs`: reserve waiting workers before eager UI-thread native picker creation; serial requests, failure delivery and completion wakeups. The backend factory belongs to the app. |
 | always | `From<appearance::Reading> for craft_theme::SystemAppearance`, so a host hands the OS answer to `Base::resolve`. |
-| `ui` | Combine with `dialogs` for the deferred-close guard or with `appearance` for native theme mapping. |
 | `pointer` | Move the system pointer (`pointer::warp`), installed by the app as craft-ui's `Scrub::install_warp` service for a scrub's screen-edge wrap; macOS only, `false` elsewhere. |
 | `appearance` | Linux/BSD XDG desktop preference observation (colour scheme, contrast, reduced motion, button layout); browser contrast and motion media queries; owned cancellable subscriptions, bounded reads/helper capture, legacy compatibility and reconnect. |
 | `browser` | Wasm download link/object URL ownership, cleanup on setup failure or abandonment, and cleanup timer registration before clicking. |
 | always | `clock::Clock`: monotonic seconds (`web-time`, so also in the browser) for animation, autosave and deadlines, with a manual mode tests set and advance; `monotonic_ms`, `unix_ms`. |
-| `pacing` | `FrameCap` (desktop frame-rate cap without vsync), `WindowVisibility` (shown or hidden from the viewport info), `WorkBudget`/`WorkSlice` (background work per call, paused or sliced while hidden), `repaint_in`, `paint_while_hidden`. Adds `clock` and egui. |
+| always | `pacing`: `FrameCap` (desktop frame-rate cap without vsync), `WindowVisibility` (shown or hidden), `WorkBudget`/`WorkSlice` (background work per call, paused or sliced while hidden). No egui. |
 | always | The app log: `log` records to standard error and `<dir>/<app>.log` with `RUST_LOG`-style filters, rotation to `.1`/`.2`, per-instance logs while another instance runs, a size cap; `logs::crash`: the panic hook, crash log, last panic for the error window, and `catch`. |
 | always | `session::Session` and `SessionKeeper`: the documents open at the last quit and where the user was in each, stored in the app's settings (serde) for a "Reopen Last Session" preference; `to_reopen` skips what is already open; a stored list longer than 64 documents is cut. No egui. |
 | `usage` | `usage::sample`: the process's resident memory and the memory it may still use (`MemorySample`, `None` when unknown), for the status readout's Scratch and Efficiency items. Linux reads `/proc`; other platforms return `None`. |
@@ -48,17 +47,13 @@ Disconnected workers are failures. Apps own localization, document identity/revi
 actual save receipts, chained continuations and the decision to close.
 
 Retain the actual parent window through queued requests, preflight, the native picker AND any
-unconsumed application continuation. `DeferredClose::update` cancels close during pending work and
-returns a request to retry the application's normal close policy afterward. It never grants
-permission to discard work. Run those guards before `craft_quit::on_close_request` in `App::logic`.
-
-## Desktop appearance
-
+unconsumed application continuation. A close request that arrives meanwhile never grants permission to
+discard work: the app runs its normal close policy again afterward.
 `appearance::Watcher` caches the desktop preference and wakes only on changes. Subscription precedes
 the first read. ReadOne/legacy Read, the standard namespace and GNOME fallback are handled together;
 on GNOME the "default" (Light) setting and portal value 0 read as light; elsewhere 0 is no preference.
 Malformed values retain the last valid answer, and explicit no-preference clears it.
-`SystemReader::read()` gives colour scheme, contrast and reduced motion in one call on every target: the watcher on Linux/BSD, the browser media queries on the web (scheme from egui's system theme through `read_in(&ctx)`), no answers elsewhere. `SystemReader::for_egui()` repaints the context on a change, and `read_in(&ctx)` also runs `sync_native_window_theme`. `egui_service()` is the scheme-only callback over the same reader.
+`SystemReader::read()` gives colour scheme, contrast and reduced motion in one call on every target: the watcher on Linux/BSD, the browser media queries on the web, no answers elsewhere.
 
 `Watcher::wait_first(timeout)` blocks until the first answer, a known absence, or the timeout (about 250 ms in an eframe creator), so the first frame uses the desktop theme. Disconnection
 retains the last valid value until a fresh answer. A later service owner triggers a reread; session
@@ -71,8 +66,7 @@ are created.
 App-selected Light/Dark/System, custom palettes, window decorations and unknown-theme fallback remain
 application policy. `set_active(false)` suppresses wake notifications while continuing to cache.
 Four existing custom-palette service hooks retain their current signatures and receive change-only
-notifications even in manual mode; they do not change the chosen palette. Never infer Auto from the
-egui theme preference when an app implements Auto by explicitly applying a Light/Dark palette.
+notifications even in manual mode; they do not change the chosen palette.
 
 `Watcher::button_layout()` is GNOME's `org.gnome.desktop.wm.preferences` `button-layout`, read and
 followed on the same portal connection (ReadOne, then legacy Read; `gsettings` once when the portal
@@ -80,15 +74,6 @@ has no answer). It is the string as the desktop reports it, `None` until one arr
 runs the same wake callback. Malformed values keep the last one. `wait_first` does not wait for it.
 `craft_window::policy::LayoutWatch` turns it into the caption layout; craft-window takes the string,
 so it needs no D-Bus dependency.
-
-`sync_native_window_theme(ctx, observed)` forwards the cached Linux/BSD desktop answer to native
-decorations when egui's window policy is System, falling back to the current toolkit answer.
-Its output hook runs after egui's automatic
-window synchronization, including child-window output. Concrete Light/Dark preferences retain
-precedence, absence of both answers releases the native pin, and `sync_window_theme = false` opts out.
-It does not change styles or theme preference. Hosts whose custom palette is manual but whose
-native window follows System keep observation active for the native window. Native decoration
-rendering still depends on the window manager and requires visible acceptance testing.
 
 ### Contrast and reduced motion
 
@@ -115,5 +100,5 @@ and print iframe lifetimes remain separate. This service has no native filesyste
 Enable only the services a host uses. Applications retain palettes, settings, document identity,
 close policy, filters, names, MIME types and native command routing. Existing craft-settings,
 craft-atomic, craft-print, craft-docpath and craft-quit remain canonical. `craft-window` owns
-decoration selection and window-button layout; appearance observation and native color hints here
+decoration selection and window-button layout; appearance observation here
 do not choose a frame or draw an application header.

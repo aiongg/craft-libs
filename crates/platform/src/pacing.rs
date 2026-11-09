@@ -7,12 +7,10 @@
 //!   `App::logic`, with no vsync to pace it and with `ctx.input` frozen at the last drawn pass.
 //! - [`WorkBudget`] and [`WorkSlice`]: how long one call may spend on background work (an export,
 //!   a bounce, an index build) in each window state, or that it pauses while hidden.
-//! - [`repaint_in`] and [`paint_while_hidden`]: ask for the next frame at a time, and for the UI
-//!   pass to run while hidden (a screenshot or an automation client needs the painted pass).
 //!
 //! ```ignore
 //! // App::logic
-//! let state = WindowVisibility::current(ctx);
+//! let state = WindowVisibility::Shown;
 //! if let Some(slice) = EXPORT_BUDGET.slice(state, &self.clock) {
 //!     while slice.more(&self.clock) && export.step() {}
 //!     ctx.request_repaint();
@@ -31,18 +29,6 @@ pub enum WindowVisibility {
     /// Minimized or fully covered: only `App::logic` runs, and `ctx.input` repeats the last
     /// drawn pass's pointer and keys, so a gesture in progress ends here.
     Hidden,
-}
-
-impl WindowVisibility {
-    /// The state `info` reports: hidden when minimized or occluded (`ViewportInfo::visible`).
-    pub fn of(info: &egui::ViewportInfo) -> Self {
-        if info.visible() == Some(false) { Self::Hidden } else { Self::Shown }
-    }
-
-    /// The state of the viewport `ctx` is running.
-    pub fn current(ctx: &egui::Context) -> Self {
-        ctx.input(|i| Self::of(i.viewport()))
-    }
 }
 
 /// A frame-rate cap for presenting without vsync: waiting out the rest of a short minimum
@@ -123,21 +109,6 @@ impl WorkSlice {
     pub fn more(&self, clock: &Clock) -> bool {
         clock.now() < self.until
     }
-}
-
-/// Draw another frame `secs` from now; a negative `secs` means now, a non-finite one asks for
-/// nothing. An idle window draws no frames, so a timer that must fire asks for its own.
-#[track_caller]
-pub fn repaint_in(ctx: &egui::Context, secs: f64) {
-    if secs.is_finite() {
-        ctx.request_repaint_after(Duration::from_secs_f64(secs.max(0.0)));
-    }
-}
-
-/// Run and paint the next pass even when the window is hidden, for a screenshot or an automation
-/// client waiting on the widget tree. Holds for one frame; call it each frame it is needed.
-pub fn paint_while_hidden(ctx: &egui::Context) {
-    ctx.send_viewport_cmd(egui::ViewportCommand::RequestPaintWhileHidden);
 }
 
 #[cfg(test)]

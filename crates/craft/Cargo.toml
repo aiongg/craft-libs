@@ -72,7 +72,6 @@ ui = [
     "craft-host/ui",
     "craft-imaging?/ui",
     "craft-pages?/ui",
-    "craft-platform?/ui",
     "craft-print?/ui",
     "craft-quit?/ui",
     "craft-review?/ui",
@@ -178,8 +177,6 @@ platform = ["dep:craft-platform"]
 platform-appearance = ["platform", "craft-platform/appearance"]
 platform-browser = ["platform", "craft-platform/browser"]
 platform-clipboard = ["platform", "craft-platform/clipboard"]
-platform-dialogs = ["platform", "craft-platform/dialogs"]
-platform-pacing = ["platform", "craft-platform/pacing"]
 platform-pointer = ["platform", "craft-platform/pointer"]
 platform-screen = ["platform", "craft-platform/screen"]
 platform-usage = ["platform", "craft-platform/usage"]
@@ -192,7 +189,6 @@ print = ["dep:craft-print"]
 proof = ["dep:craft-proof"]
 
 quit = ["dep:craft-quit"]
-quit-menu = ["quit", "craft-quit/menu"]
 
 review = ["dep:craft-review"]
 
@@ -280,6 +276,3 @@ web-api = ["dep:craft-web-api"]
 web-host = ["dep:craft-web-host"]
 
 window = ["dep:craft-window"]
-window-restore-eframe = ["window", "craft-window/restore-eframe"] # native only: the window-restore store
-window-restore-ui = ["window", "craft-window/restore-ui"] # native only: the window-restore store
-window-restore-ui-glow = ["window", "craft-window/restore-ui-glow"] # native only: the window-restore store

@@ -264,25 +264,6 @@ fn an_offered_paste_ends_with_its_pass() {
     assert_eq!(clipboard.read_text().unwrap().as_deref(), Some("again"));
 }
 
-// Under egui the pass is the context's: an offer made while a pass runs is gone in the next one.
-#[cfg(feature = "ui")]
-#[test]
-fn the_egui_clipboard_counts_egui_passes() {
-    let ctx = egui::Context::default();
-    let mut clipboard = Clipboard::new(EventClipboard::for_egui(&ctx));
-    let run = |body: &mut dyn FnMut()| {
-        let mut output = ctx.run_ui(egui::RawInput::default(), |_| body());
-        output.textures_delta.clear();
-    };
-    let mut seen = Vec::new();
-    run(&mut || {
-        clipboard.offer_paste(vec![Flavor::text("pasted")]);
-        seen.push(clipboard.has(&[TEXT]));
-    });
-    run(&mut || seen.push(clipboard.has(&[TEXT])));
-    assert_eq!(seen, [true, false]);
-}
-
 // X11 target names and Wayland MIME types map to the formats SystemClipboard reads; a bitmap is
 // image/png only (jpeg and bmp offers read as None), so Paste is not enabled for them.
 #[test]
@@ -332,20 +313,6 @@ fn the_system_plan_names_the_flavor_it_writes() {
     let flavors = [Flavor::new(SVG, b"<svg/>".to_vec()), Flavor::new(PDF, Vec::new()), Flavor::new(PNG, vec![0]), Flavor::text("label")];
     assert_eq!(plan_write(&flavors, None).map(|(index, _)| index), Ok(3));
     assert!(matches!(plan_write(&flavors[..2], None), Err(ClipboardError::NoFormat)));
-}
-
-// Two copy commands in one pass reach the browser as two writes, the second replacing the first,
-// so copy_through_egui sends the best flavour only and says which.
-#[cfg(feature = "ui")]
-#[test]
-fn the_web_copy_sends_one_flavor() {
-    let ctx = egui::Context::default();
-    let flavors = [Flavor::new(SVG, b"<svg/>".to_vec()), Flavor::text("label"), rgba8_flavor(&image(1))];
-    let mut wrote = None;
-    let mut output = ctx.run_ui(egui::RawInput::default(), |ui| wrote = Some(copy_through_egui(ui.ctx(), &flavors)));
-    assert_eq!(wrote, Some(Ok(1)));
-    output.textures_delta.clear();
-    assert_eq!(output.platform_output.commands.len(), 1);
 }
 
 // On an X11 server the presence check answers from the TARGETS list: text copied by this

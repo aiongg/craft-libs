@@ -17,7 +17,7 @@ pub mod default_app;
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod default_app_tests;
 pub mod dialog_outcome;
-#[cfg(all(feature = "dialogs", not(target_arch = "wasm32")))]
+#[cfg(not(target_arch = "wasm32"))]
 pub mod dialogs;
 pub mod logs;
 mod message;
@@ -26,7 +26,6 @@ mod message_tests;
 pub mod open;
 #[cfg(test)]
 mod open_tests;
-#[cfg(feature = "pacing")]
 pub mod pacing;
 #[cfg(feature = "pointer")]
 pub mod pointer;

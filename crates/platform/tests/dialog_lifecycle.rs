@@ -1,6 +1,6 @@
 //! Integration tests of craft-platform: dialog lifecycle.
 
-#![cfg(all(feature = "dialogs", not(target_arch = "wasm32")))]
+#![cfg(not(target_arch = "wasm32"))]
 use craft_platform::{
     dialog_outcome::{DialogError, ErrorKind, Outcome},
     dialogs::{NativeDialogs, wait_prepared},
@@ -124,22 +124,6 @@ fn proven_absence_skips_native_factory() -> Result<(), Box<dyn std::error::Error
 fn missing_backend_answer_is_ambiguous() {
     assert_eq!(Outcome::<u8>::from_rfd(None), Outcome::Indeterminate);
 }
-#[cfg(feature = "ui")]
-#[test]
-fn held_close_retries_policy_without_granting_discard() {
-    let ctx = egui::Context::default();
-    let mut close = craft_platform::dialogs::DeferredClose::default();
-    let mut input = egui::RawInput::default();
-    input.viewports.entry(egui::ViewportId::ROOT).or_default().events.push(egui::ViewportEvent::Close);
-    let mut output = ctx.run_ui(input, |ui| assert!(!close.update(ui.ctx(), true)));
-    assert!(output.viewport_output[&egui::ViewportId::ROOT].commands.contains(&egui::ViewportCommand::CancelClose));
-    output.textures_delta.clear();
-    let mut output = ctx.run_ui(egui::RawInput::default(), |ui| assert!(close.update(ui.ctx(), false)));
-    assert!(!output.viewport_output[&egui::ViewportId::ROOT].commands.contains(&egui::ViewportCommand::Close));
-    output.textures_delta.clear();
-    let mut output = ctx.run_ui(egui::RawInput::default(), |ui| assert!(!close.update(ui.ctx(), false)));
-    output.textures_delta.clear();
-}
 #[test]
 fn notification_panic_cannot_kill_reserved_picker_worker() -> Result<(), Box<dyn std::error::Error>> {
     let (c, mut service) = NativeDialogs::<(), u8>::new(|| std::panic::resume_unwind(Box::new("wake failure")));
@@ -205,46 +189,4 @@ fn completion_between_pumps_cannot_reject_a_chained_request() -> Result<(), Box<
     assert_eq!(result, Some(Outcome::Selected(2)));
     assert!(!service.pending());
     Ok(())
-}
-
-#[cfg(feature = "ui")]
-#[test]
-fn pending_dialog_without_close_intent_does_not_schedule_viewport_work() {
-    let ctx = egui::Context::default();
-    let mut close = craft_platform::dialogs::DeferredClose::default();
-    // Let egui settle its own initial font/style passes before testing the idle host.
-    for _ in 0..4 {
-        let mut output = ctx.run_ui(egui::RawInput::default(), |_| {});
-        output.textures_delta.clear();
-    }
-    for _ in 0..3 {
-        let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
-            assert!(!close.update(ui.ctx(), true));
-        });
-        output.textures_delta.clear();
-        let viewport = output.viewport_output.get(&egui::ViewportId::ROOT).unwrap();
-        assert!(viewport.commands.is_empty(), "an idle picker must not enqueue commands: {:?}", viewport.commands);
-        assert_ne!(viewport.repaint_delay, std::time::Duration::ZERO, "an idle picker must not request another frame");
-    }
-    let mut output = ctx.run_ui(egui::RawInput::default(), |ui| assert!(!close.update(ui.ctx(), false)));
-    output.textures_delta.clear();
-}
-
-#[cfg(feature = "ui")]
-#[test]
-fn programmatic_close_is_held_until_the_pending_dialog_settles() {
-    let ctx = egui::Context::default();
-    let mut close = craft_platform::dialogs::DeferredClose::default();
-    let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
-        ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
-        assert!(!close.update(ui.ctx(), true));
-    });
-    output.textures_delta.clear();
-    let commands = &output.viewport_output.get(&egui::ViewportId::ROOT).unwrap().commands;
-    let last_close = commands.iter().rev().find(|command| matches!(command, egui::ViewportCommand::Close | egui::ViewportCommand::CancelClose));
-    assert_eq!(last_close, Some(&egui::ViewportCommand::CancelClose));
-    let mut output = ctx.run_ui(egui::RawInput::default(), |ui| assert!(close.update(ui.ctx(), false)));
-    output.textures_delta.clear();
-    let mut output = ctx.run_ui(egui::RawInput::default(), |ui| assert!(!close.update(ui.ctx(), false)));
-    output.textures_delta.clear();
 }

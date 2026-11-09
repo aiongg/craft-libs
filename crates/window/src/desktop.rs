@@ -1,6 +1,5 @@
 //! Which desktop and backend the window opens on, read from the environment and, on Wayland, the
-//! compositor's registry; and, with the `ui` feature, the part of the window the user can see
-//! (`visible_part`, `fit_window`).
+//! compositor's registry; and, with the `ui` feature, whether a window fits its monitor (`fits`).
 
 #[cfg(feature = "ui")]
 mod work_area;
@@ -8,7 +7,7 @@ mod work_area;
 mod work_area_tests;
 
 #[cfg(feature = "ui")]
-pub use work_area::{TASKBAR, WindowMode, fit_window, fits, visible_part, visible_rect};
+pub use work_area::{TASKBAR, fits};
 
 pub use craft_host::target::{Backend, DesktopKind};
 

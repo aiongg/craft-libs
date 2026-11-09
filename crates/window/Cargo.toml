@@ -8,19 +8,11 @@ rust-version.workspace = true
 repository.workspace = true
 
 [features]
-# `decorate`: set the decision on an `egui::ViewportBuilder`. `title_bar`: an app-drawn strip as
-# the title bar (on macOS with AppKit's `movable` flag). `Viewports`: one immediate viewport per window.
-ui = ["dep:egui", "appkit"]
+# `policy::apply` and `desktop::fits`: the frame decision on an `egui::ViewportBuilder`, and whether a window fits its monitor.
+ui = ["dep:egui"]
 # `mac::set_movable`: AppKit's `movable` flag, without egui. `native_menu`: the application menu bar
 # on macOS (other platforms build the same API as no-ops).
 appkit = ["dep:objc2", "dep:objc2-app-kit", "dep:objc2-foundation", "dep:muda"]
-# `restore::install`, `restore::Tracker` and placement for further windows, for eframe apps. eframe
-# needs a renderer: `restore-ui` turns on its wgpu (without backends), `restore-ui-glow` its glow.
-# Pick the one the app already uses: with both, eframe starts on wgpu.
-restore-ui = ["restore-eframe", "eframe/wgpu_no_default_features"]
-restore-ui-glow = ["restore-eframe", "eframe/glow"]
-# What the two above share; enable one of them instead.
-restore-eframe = ["ui", "dep:eframe", "dep:winit"]
 
 [dependencies]
 egui = { workspace = true, optional = true }
@@ -30,19 +22,12 @@ craft-settings = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-eframe = { version = "0.37", default-features = false, optional = true }
-winit = { version = "0.30", default-features = false, optional = true }
-
 # Only Linux and the BSDs probe a Wayland compositor; everywhere else the frame is the OS's.
 [target.'cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd"))'.dependencies]
 wayland-client = "0.31"
-# winit needs at least one windowing backend here. X11 needs no system libraries to build; the
-# apps add `wayland` themselves.
-eframe = { version = "0.37", default-features = false, features = ["x11"], optional = true }
 
-# `title_bar::sync_movable` (`NSWindow.movable`), `mac::TrafficLights` (button frames, OS version),
-# `native_menu` (muda menus, AppKit titles); eframe's winit already uses objc2 and objc2-app-kit.
+# `mac::set_movable` (`NSWindow.movable`), `mac::measure` (button frames, OS version),
+# `native_menu` (muda menus, AppKit titles).
 [target.'cfg(target_os = "macos")'.dependencies]
 muda = { version = "0.21.2", default-features = false, optional = true }
 objc2 = { version = "0.6.4", default-features = false, features = ["std"], optional = true }

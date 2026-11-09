@@ -43,9 +43,7 @@ use crate::model::{Builtin, Item, ItemKind, Menu, MenuBar, MenuRole, Node, Stand
 /// the main thread, when a menu bar is already installed, and on platforms without an application
 /// menu bar. It replaces an app menu from [`install_app_menu`].
 ///
-/// craft-menu owns the process's menu event handler. An app calls this or the deprecated
-/// `craft_quit::install_app_menu`, never both: called first, that one leaves this menu without
-/// events; called after, it replaces this menu bar with its app menu.
+/// craft-menu owns the process's menu event handler.
 pub fn install(ctx: &egui::Context, bar: &MenuBar) -> Option<NativeMenu> {
     install_with(ctx, bar, MacOptions::default())
 }
@@ -91,8 +89,7 @@ pub fn install_with(ctx: &egui::Context, bar: &MenuBar, options: MacOptions) -> 
 ///
 /// winit's Quit ends the process without asking, so unsaved work is lost. This Quit has the id
 /// [`craft_quit::QUIT_MENU_ID`] and runs [`craft_quit::on_menu_event`]: it asks the root window to
-/// close, the app's unsaved-changes check runs as for the close button, and
-/// [`craft_quit::on_close_request`] then quits. Call it once from the eframe app creator: winit
+/// close, and the app's unsaved-changes check runs as for the close button. Call it once from the eframe app creator: winit
 /// builds its default menu before that and would replace one installed earlier.
 ///
 /// Does nothing when this menu or a full menu bar ([`install`]) is already installed, and on
