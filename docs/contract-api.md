@@ -1737,7 +1737,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `pub const fn overflow(mut self, axis: Axis) -> Self`. The axis the rows overflow along (see [`CollectionProps::overflow`]).
   - `pub fn current<K: Send + Sync + 'static>(mut self, key: Option<K>) -> Self`. The current item: `Some(key)` marks the item with that key, `None` marks none. `K` is the collection's key type;
   - `pub fn empty(mut self, text: impl Into<Label>) -> Self`. The empty-state text.
-- `craft_ui::contract::CollectionResponse`: `pub struct CollectionResponse<K, E> { pub response: Response, pub events: Vec<CollectionEvent<K, E>>, pub visible: Range<usize>, pub shown: Vec<ShownRow<K>>, pub select: SelectMode, pub rename: bool, pub reorder: bool }`. The output of a collection.
+- `craft_ui::contract::CollectionResponse`: `pub struct CollectionResponse<K, E> { pub response: Response, pub events: Vec<CollectionEvent<K, E>>, pub visible: Range<usize>, pub shown: Vec<ShownRow<K>>, pub select: SelectMode, pub rename: bool, pub reorder: bool, pub activation_clicks: u8 }`. The output of a collection.
   - `pub fn opener(&self, opener: super::ItemOpener) -> Option<&Response>`. The response of the item part `opener` names: its click this pass and its rect. A menu or popover hangs from
 - `craft_ui::contract::ColumnAlign`: `pub enum ColumnAlign { Start, End }`. Where a column's content sits.
 - `craft_ui::contract::ColumnCommands`: `pub enum ColumnCommands { Resize, MoveLeft, MoveRight }`. The commands of a column header (17.1): resize and move work from the keyboard through them. The app lists
