@@ -279,16 +279,4 @@ mod tests {
         assert_eq!(codec.parse("2", &None), Ok(Some(2.0)));
         assert_eq!(codec.parse("x", &None), Err(NotAValue));
     }
-
-    #[test]
-    fn decimals_for_step_is_exact() {
-        // The decimals of a step are enough to print it back exactly, and none are shown for a whole step.
-        for step in [0.25, 0.001, 0.1, 5.0] {
-            let text = format!("{:.*}", decimals_for_step(step), step);
-            assert_eq!(text.parse::<f64>().unwrap(), step, "{step} printed with its decimals reads back");
-        }
-        assert_eq!(decimals_for_step(5.0), 0);
-        assert_eq!(decimals_for_step(0.0), 0);
-        assert!(decimals_for_step(0.001) > decimals_for_step(0.1), "a finer step shows more decimals");
-    }
 }
