@@ -624,8 +624,9 @@ pub(crate) fn run(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Placed {
             (width, f32::INFINITY)
         }
     };
-    // The room decides; a beside label gets the width it needs even where last frame's content was narrower.
-    let stacks = input.room < stack_below && !(input.content_row && input.side.layout == FieldLayout::Beside);
+    // The room decides; a beside label gets the width it needs even where last frame's content was narrower. A label
+    // that never sits beside stacks in an unbounded room as well.
+    let stacks = (input.room < stack_below || stack_below == f32::INFINITY) && !(input.content_row && input.side.layout == FieldLayout::Beside);
     // A stacked label has the row's width at most; its name elides there.
     let column = if stacks { column.min(input.row.width()) } else { column };
     let flow = if stacks || input.row.width() >= stack_below {
