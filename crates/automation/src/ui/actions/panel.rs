@@ -386,15 +386,20 @@ impl<'a> ActionsPanel<'a> {
                 let session = stack.memory::<Session>();
                 let out = show_body(ui, &body, &mut state, session, rename);
                 let menu = show_menu(ui, &body, &out.response, session);
-                let mut events = events.borrow_mut();
-                events.extend(out.events);
-                events.extend(menu);
-                out.selected
+                let mut reported = out.events;
+                reported.extend(menu);
+                (reported, out.selected)
             });
-        if let Some(selected) = shown.inner.flatten() {
-            state.borrow_mut().selected = selected;
+        // Only the real run's result comes back, so the body's events are reported once; the footer's follow them.
+        let mut reported = Vec::new();
+        if let Some((body_events, selected)) = shown.inner {
+            reported = body_events;
+            if let Some(selected) = selected {
+                state.borrow_mut().selected = selected;
+            }
         }
+        reported.extend(events.into_inner());
         let settings_changed = state.borrow().settings != settings_before;
-        ActionsPanelOutput { response: shown.output, events: events.into_inner(), settings_changed }
+        ActionsPanelOutput { response: shown.output, events: reported, settings_changed }
     }
 }
