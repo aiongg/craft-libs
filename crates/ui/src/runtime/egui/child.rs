@@ -8,9 +8,9 @@ fn stack_layout(right_to_left: bool) -> Layout {
     Layout::top_down(if right_to_left { Align::Max } else { Align::Min })
 }
 
-/// The physical layout of a `Row` body: left to right, right to left under RTL, items on the top line.
+/// The physical layout of a `Row` body: left to right, right to left under RTL, items centred on the cross axis.
 pub(crate) fn row_layout(right_to_left: bool, wrap: bool) -> Layout {
-    let layout = if right_to_left { Layout::right_to_left(Align::Min) } else { Layout::left_to_right(Align::Min) };
+    let layout = if right_to_left { Layout::right_to_left(Align::Center) } else { Layout::left_to_right(Align::Center) };
     layout.with_main_wrap(wrap)
 }
 
