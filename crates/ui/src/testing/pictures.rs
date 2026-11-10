@@ -48,6 +48,7 @@ pub fn sample_picture(key: u64, [width, height]: [u32; 2]) -> ColorImage {
 
 /// The shape of a sample brush tip.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum SampleTip {
     /// A hard round dab.
     Hard,

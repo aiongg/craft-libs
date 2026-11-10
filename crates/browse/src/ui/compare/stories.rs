@@ -28,7 +28,8 @@ fn gridded(key: u64) -> ColorImage {
     for (at, pixel) in image.pixels.iter_mut().enumerate() {
         let (x, y) = ((at % width) as u32, (at / width) as u32);
         if x % GRID.0 < GRID.1 || y % GRID.0 < GRID.1 {
-            *pixel = pixel.lerp_to_gamma(Color32::WHITE, 0.75);
+            let lift = |c: u8| c + (u8::MAX - c) / 4 * 3;
+            *pixel = Color32::from_rgb(lift(pixel.r()), lift(pixel.g()), lift(pixel.b()));
         }
     }
     image
