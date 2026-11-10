@@ -11,10 +11,12 @@ use craft_ui::notices::{
 };
 use craft_ui::popover::Popover;
 use craft_ui::runtime::commands::FireSource;
+use craft_ui::runtime::env::WindowKey;
 use craft_ui::runtime::focus::Initial;
 use craft_ui::runtime::focus::{FocusTarget, request};
 use craft_ui::runtime::frame::take_output;
 use craft_ui::runtime::toast::{self, Toast, ToastAction, ToastEnd};
+use craft_ui::shell::AppShell;
 use craft_ui::testing::input::key_press;
 use craft_ui::testing::{Fixture, Frames, trial};
 use egui::{Id, Key, Modifiers, Ui};
@@ -198,4 +200,19 @@ fn the_default_action_of_a_notice_takes_the_focus_of_an_opening_layer() {
     assert_eq!(craft_ui::testing::focus::active_part(fixture.ctx(), id), Some(PartKey::new("action").at(1)), "the default action holds focus");
     fixture.key(Key::Enter, Modifiers::NONE);
     assert_eq!(shown.get().1, Some(1), "Enter takes the default action");
+}
+
+/// A toast stack in a shell body shows once per pass although the body also runs for sizing; debug builds panic
+/// when its presence stage opens twice in a pass.
+#[trial]
+fn a_toast_stack_in_a_shell_body_opens_its_layer_once_per_pass() {
+    let mut fixture = Fixture::new(|ui| {
+        let ctx = ui.ctx().clone();
+        if toast::cards(&ctx).is_empty() {
+            toast::post(&ctx, Toast::new("poster.png was saved to Pictures."));
+        }
+        AppShell::embedded(WindowKey::new("toast-stack-shell")).body(|ui, _, _| ToastStack::show(ui)).show(ui, &mut ());
+    });
+    fixture.settle();
+    assert!(!fixture.texts().is_empty(), "the toast card shows");
 }
