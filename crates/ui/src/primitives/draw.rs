@@ -199,6 +199,21 @@ impl<'a> Draw<'a> {
         layout
     }
 
+    /// Paints a one-line `run` as `text` does, with the middle of its lowercase letters (the x-height) on the middle
+    /// of `rect`'s height. A chevron or icon centred on the same rect then sits on the text's centre line.
+    pub fn text_on_centre_line(&self, rect: Rect, run: &TextRun<'_>) -> TextLayout {
+        let layout = run.layout(self.painter.ctx(), &self.text_env(), rect.width());
+        let letters = TextRun { spans: vec![super::text::Span::new("x")], rotation: 0.0, ..run.clone() }.layout(
+            self.painter.ctx(),
+            &self.text_env(),
+            f32::INFINITY,
+        );
+        let at_end = self.text_direction == Direction::Rtl && !run.ltr;
+        let x = if at_end { rect.right() - layout.size().x } else { rect.left() };
+        self.galley(Pos2::new(x, rect.center().y - letters.galley.mesh_bounds.center().y), &layout);
+        layout
+    }
+
     /// Lays `text` out in `rect`'s width and paints it top aligned, its block placed in `rect` by `text.align` (Start
     /// and End swap sides under right-to-left). Each run keeps its own font, size and colour.
     pub fn doc(&self, rect: Rect, text: &DocText<'_>) -> TextLayout {

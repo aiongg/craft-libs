@@ -437,9 +437,9 @@ impl Component for TitleRow<'_> {
         if self.strength == HeaderStrength::Caption {
             title = title.color(cx.resolve(&cx.style.text.color));
         }
-        ui.draw().text(placed.title, &title);
+        ui.draw().text_on_centre_line(placed.title, &title);
         if let (Some(rect), Some(subtitle)) = (placed.subtitle, &self.subtitle) {
-            ui.draw().text(rect, &subtitle_run(subtitle.as_str(), role));
+            ui.draw().text_on_centre_line(rect, &subtitle_run(subtitle.as_str(), role));
         }
     }
 
