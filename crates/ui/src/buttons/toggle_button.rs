@@ -36,8 +36,8 @@ pub struct ToggleButtonStyle {
 }
 
 /// A secondary-looking button that stays pressed while on: it takes the accent fill and edge, and its raised surface
-/// draws pressed in. A click flips the value; AccessKit reports the button toggled. An `icon_only` button shows its
-/// icon on a square and keeps the label as its accessible name.
+/// draws pressed in. A click flips the value; AccessKit reports the button toggled. An `icon_only` button looks like an
+/// `IconButton`: its icon on a ghost square, the accent plate while on, and the label as its accessible name.
 #[derive(crate::contract::Component, crate::contract::Props)]
 pub struct ToggleButton<'a> {
     #[common]
@@ -56,7 +56,7 @@ pub struct ToggleButton<'a> {
     /// The type role of the label, for a path or a value in `Mono`; the label role by default.
     #[prop]
     role: Option<TypeRole>,
-    /// Shows only the icon, on a square; the label stays the accessible name.
+    /// Shows only the icon, as an `IconButton` does; the label stays the accessible name.
     #[style_key]
     #[prop(flag)]
     icon_only: bool,
@@ -115,16 +115,28 @@ impl Component for ToggleButton<'_> {
     }
 
     fn style(cx: &StyleCx<'_>, key: ToggleButtonStyleKey) -> ToggleButtonStyle {
-        let control = cx.control();
+        // An icon-only toggle draws as an icon button: the ghost square, with the on plate while on.
+        let ghost;
+        let cx = if key.icon_only {
+            ghost = cx.with_variant(Variant::GHOST);
+            &ghost
+        } else {
+            cx
+        };
         let (off, on) = (cx.variant_look(), face::on_parts(cx));
-        let mut surface = face::surface(cx, &off);
-        // A mixed value shows the off look, as Photoshop's style toggles do; the access state tells it from off.
-        surface.fill = off.fill.clone().on(on.fill.off).when(Flags::MIXED, off.fill.off.rest);
-        surface.border = off.edge.clone().map(|edge| edge.on(on.edge.as_ref().map_or(on.fill.off, |edge| edge.off)));
         let (mut text, mut icon) = face::ink(cx);
+        let (mut surface, metrics) = if key.icon_only {
+            let face = face::icon_face(cx);
+            icon = face.glyph;
+            (face.surface, face.metrics)
+        } else {
+            icon.color = icon.color.on(on.text.off);
+            (face::on_surface(cx, &off, &on), face::metrics(cx, &off))
+        };
+        // A mixed value shows the off look, as Photoshop's style toggles do; the access state tells it from off.
+        surface.fill = surface.fill.when(Flags::MIXED, off.fill.off.rest);
         text.color = text.color.on(on.text.off).when(Flags::MIXED, off.text.off.rest);
-        icon.color = icon.color.on(on.text.off).when(Flags::MIXED, off.text.off.rest);
-        let metrics = if key.icon_only { Metrics::new().min_size(Vec2::splat(control.height)) } else { face::metrics(cx, &off) };
+        icon.color = icon.color.when(Flags::MIXED, off.text.off.rest);
         ToggleButtonStyle { surface, metrics, focus: face::focus(cx), text, icon, face: FaceLook::of(cx) }
     }
 

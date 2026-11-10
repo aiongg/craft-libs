@@ -5,7 +5,7 @@ use super::face::{self, tinted};
 use crate::contract::{Access, Common, Component, Cx, MeasureCx, PaintUi, PopupKind, Props, Role, Styled as _};
 use crate::primitives::{IconSpec, PaintShape, StrokeWidth};
 use crate::runtime::commands::CommandRef;
-use crate::style::{ComponentStyle, DataColor, FocusLook, IconLook, StyleColor, StyleCx, SurfaceLook, UiTokens};
+use crate::style::{ComponentStyle, DataColor, FocusLook, IconLook, StyleColor, StyleCx, SurfaceLook};
 use craft_behavior::{Metrics, Sense};
 use craft_theme::{
     Srgba, Variant,
@@ -95,18 +95,12 @@ impl Component for IconButton<'_> {
     type Output = ButtonOutput;
 
     fn style(cx: &StyleCx<'_>, _: IconButtonStyleKey) -> IconButtonStyle {
-        let control = cx.control();
-        let (off, on) = (cx.variant_look(), face::on_parts(cx));
-        // An icon button is a square with control corners, as a ghost button of the old look; a capsule would round the
-        // selected plate.
-        let mut surface = face::surface(cx, &off).radius(UiTokens::corner(cx.tokens.shape.radius.control));
-        surface.fill = off.fill.clone().on(on.fill.off);
-        surface.border = off.edge.clone().map(|edge| edge.on(on.edge.as_ref().map_or(on.fill.off, |edge| edge.off)));
+        let face = face::icon_face(cx);
         IconButtonStyle {
-            surface,
-            metrics: Metrics::new().min_size(Vec2::splat(control.height)),
+            surface: face.surface,
+            metrics: face.metrics,
             focus: face::focus(cx),
-            glyph: IconLook::new(face::glyph_side(cx), off.text.clone().on(on.text.off)),
+            glyph: face.glyph,
             marker: cx.tokens.size.handle.sm,
             marker_color: cx.color(cx.tokens.color.accent.solid),
             marker_edge: cx.color(cx.tokens.color.line.mark),
