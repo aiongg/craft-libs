@@ -112,11 +112,11 @@ impl<'a, K: Value + 'static> BreadcrumbBar<'a, K> {
         }
     }
 
-    /// The width crumb `at` shows whole.
-    fn natural(&self, at: usize, cx: &MeasureCx<'_, Self>) -> f32 {
+    /// The size crumb `at` shows whole.
+    fn natural(&self, at: usize, cx: &MeasureCx<'_, Self>) -> Vec2 {
         match self.crumb_face(at, self.crumbs[at].label()) {
-            CrumbFace::Current(text) => cx.face(text).x,
-            CrumbFace::Ancestor(link) => cx.face(link).x,
+            CrumbFace::Current(text) => cx.face(text),
+            CrumbFace::Ancestor(link) => cx.face(link),
         }
     }
 
@@ -193,10 +193,12 @@ impl<K: Value + 'static> Component for BreadcrumbBar<'_, K> {
     /// The width of the whole path with every crumb and separator, at most the room the parent offers: a path that
     /// does not fit overflows behind the ellipsis instead of widening the bar past its room.
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        let crumbs: f32 = (0..self.crumbs.len()).map(|at| self.natural(at, cx)).sum();
+        let faces: Vec<Vec2> = (0..self.crumbs.len()).map(|at| self.natural(at, cx)).collect();
+        let crumbs: f32 = faces.iter().map(|face| face.x).sum();
+        let height = faces.iter().map(|face| face.y).fold(0.0, f32::max);
         let joints = self.crumbs.len().saturating_sub(1) as f32 * cx.style.joint;
         let whole = crumbs + joints;
-        Vec2::new(cx.room.map_or(whole, |room| whole.min(room)), cx.face(Text::new("x").role(TypeRole::BodyStrong)).y)
+        Vec2::new(cx.room.map_or(whole, |room| whole.min(room)), height)
     }
 
     fn fills(&self) -> Option<Axis> {
@@ -213,7 +215,7 @@ impl<K: Value + 'static> Component for BreadcrumbBar<'_, K> {
         let labels: Vec<String> = self.crumbs.iter().map(|crumb| cx.env.resolve(crumb.label()).as_str().to_owned()).collect();
         self.whole = Label::from(labels.join(PATH_JOINT));
         let ellipsis_width = cx.face(Text::new("\u{2026}")).x + cx.style.ellipsis_pad;
-        let full: Vec<f32> = (0..total).map(|at| self.natural(at, cx)).collect();
+        let full: Vec<f32> = (0..total).map(|at| self.natural(at, cx).x).collect();
         let wanted: Vec<f32> = (0..total).map(|at| self.wanted(at, full[at], cx.style.crumb_cap)).collect();
         // The fit runs from the current crumb back, so the root end overflows first.
         let backwards: Vec<FitItem> =
