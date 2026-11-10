@@ -281,7 +281,11 @@ impl<'a> StyleCx<'a> {
     pub fn text_well(&self) -> SurfaceLook {
         let well = self.surface(SurfaceKind::Well);
         let edge = Stateful::new(self.color(Rgba::TRANSPARENT)).when(Flags::FOCUSED, self.color(self.tokens.color.line.focus));
-        SurfaceLook::new(Stateful::new(StyleColor(well.fill))).kind(SurfaceKind::Well).radius(well.radius).border(edge, StrokeStep::W1.width(1.0))
+        let (fill, off) = (StyleColor(well.fill), self.color(self.tokens.color.state.disabled_fill));
+        SurfaceLook::new(Stateful::new(fill).off(States::new(fill, fill, fill, off)))
+            .kind(SurfaceKind::Well)
+            .radius(well.radius)
+            .border(edge, StrokeStep::W1.width(1.0))
     }
 
     /// The look of a text or value field: the text well with the failure colour on its edge while its value is
