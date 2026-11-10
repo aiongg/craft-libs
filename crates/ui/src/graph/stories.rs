@@ -151,7 +151,7 @@ fn plain_nodes(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 
 #[story(NodeGraph<'static, ()>, covers = [Many], drive = Drive::Custom(click_first_node))]
 fn zoomed(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    graph(ui, data, 4, &[(0, 1), (1, 2), (2, 3)], Some(CanvasTransform::new(ZOOM, Vec2::new(0.0, -PAN_UP))))
+    graph(ui, data, 4, &[(0, 1), (1, 2), (2, 3)], Some(CanvasTransform::new(ZOOM, -PAN_UP * Vec2::Y)))
 }
 
 #[story(Node<'static, ()>, covers = [Default])]
