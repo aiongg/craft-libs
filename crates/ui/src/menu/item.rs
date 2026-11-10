@@ -343,6 +343,8 @@ pub struct MenuItemStyle {
     detail: TextLook,
     /// The least space between the label and the shortcut: `space.gap.section`.
     shortcut_gap: f32,
+    /// The padding of the popup around the rows: `space.pad.regular`.
+    popup_pad: f32,
 }
 
 /// What a row reports.
@@ -359,6 +361,9 @@ pub struct MenuItemOutput {
     pub opens_submenu: bool,
     /// A submenu row's submenu is the open one of its level: show the `Menu` after the row.
     pub submenu_open: bool,
+    /// The row's rect grown by the menu's padding: where a submenu hangs from, so its first row is level with this one
+    /// and it starts at the popup's edge.
+    pub(crate) frame: Rect,
     level: MenuLevel,
     id: Id,
 }
@@ -588,6 +593,7 @@ impl Component for MenuItem<'_> {
             icon: IconLook::new(control.icon, ink(text.normal)),
             detail: TextLook::new(TypeRole::Caption, ink(text.muted)),
             shortcut_gap: tokens.space.gap.section,
+            popup_pad: tokens.space.pad.regular,
         }
     }
 
@@ -806,7 +812,8 @@ impl Component for MenuItem<'_> {
 
     fn finish(self, cx: Cx<'_, Self>) -> MenuItemOutput {
         let level = cx.env.get::<MenuLevel>();
-        MenuItemOutput { response: cx.response.clone(), ran: self.ran, opens_submenu: self.opens, submenu_open: self.open, level, id: cx.id }
+        let frame = cx.response.rect.expand(cx.style.popup_pad);
+        MenuItemOutput { response: cx.response.clone(), ran: self.ran, opens_submenu: self.opens, submenu_open: self.open, frame, level, id: cx.id }
     }
 }
 

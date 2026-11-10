@@ -228,11 +228,8 @@ impl<'a> Menu<'a> {
         let head = MenuItem::submenu(label.clone()).show(ui);
         let mut open = head.submenu_open;
         let mut body = body;
-        // The submenu hangs from the parent row as the menu's padding frames it: beside the popup's edge, its first row
-        // level with this row.
-        let pad = Env::of(ui).tokens.tokens().space.pad.regular;
-        let anchor = Anchor::Rect(head.response.rect.expand(pad));
-        let shown = Menu::submenu(label, &head.response).anchor(anchor).open(Bind::bound(&mut open)).show(ui, |ui, cx| body(ui, cx));
+        let shown =
+            Menu::submenu(label, &head.response).anchor(Anchor::Rect(head.frame)).open(Bind::bound(&mut open)).show(ui, |ui, cx| body(ui, cx));
         // `MenuItem::update` does not run in a measuring run, so `open` is false there and would clear the level's
         // open submenu the real run set.
         if crate::runtime::measure::effect(ui.ctx(), "menu::note_submenu") {
