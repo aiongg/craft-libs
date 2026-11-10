@@ -68,12 +68,15 @@ fn icon_button(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     IconButton::new(IconId::new("settings")).label("Settings").show(ui).into()
 }
 
-/// The icon button in its selected look next to the plain one.
+/// A tool strip: the first tool selected, as the gallery card shows it.
 #[story(IconButton<'static>, covers = [], drive = Drive::Never)]
 fn icon_button_selected(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let shown = Row::new().show(ui, |ui, _| {
-        IconButton::new(IconId::new("settings")).label("Settings").selected(true).id_salt("selected").show(ui);
-        IconButton::new(IconId::new("settings")).label("Settings").id_salt("plain").show(ui);
+        for (i, (icon, label)) in
+            [("undo", "Undo"), ("redo", "Redo"), ("copy", "Copy"), ("trash", "Delete"), ("settings", "Settings")].into_iter().enumerate()
+        {
+            IconButton::new(IconId::new(icon)).label(label).selected(i == 0).id_salt(icon).show(ui);
+        }
     });
     shown.into()
 }
