@@ -145,10 +145,13 @@ impl<'de> Deserialize<'de> for PanelId {
 /// The share a split beside a dock records. The dock's width comes from its columns, so the split never reads it.
 const BESIDE_DOCK: SplitSize = SplitSize::Ratio(0.5);
 
+/// The component tree column's width; the side column takes the dock column token.
+const TREE_WIDTH: f32 = 220.0;
+
 /// The components workspace: the component tree at the start edge, the overview in the centre, the stories above the
 /// properties, the inspector and the token browser at the end edge.
 pub fn default_components() -> Dock<PanelId> {
-    let tree = Column::new(vec![Group::new(vec![PanelId::Components], 0)]);
+    let tree = Column::new(vec![Group::new(vec![PanelId::Components], 0)]).with_width(TREE_WIDTH);
     let side = Column::new(vec![Group::new(vec![PanelId::Stories], 0), Group::new(vec![PanelId::Properties, PanelId::Inspect, PanelId::Tokens], 0)]);
     let centre = Node::split(Axis::X, BESIDE_DOCK, Node::tabs(vec![PanelId::Overview], 0), Node::dock(DockEdge::End, vec![side]));
     let root = Node::split(Axis::X, BESIDE_DOCK, Node::dock(DockEdge::Start, vec![tree]), centre);
