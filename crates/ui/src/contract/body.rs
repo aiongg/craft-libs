@@ -1864,7 +1864,9 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         self.measured_footer = Vec2::ZERO;
         self.measured_end = None;
         self.measured_controls = None;
-        self.last = BodyView::default();
+        // The measuring run lays a scrolling body's content out at the width the real run of this pass gives it: beside
+        // the bars the content extent the view keeps asks for, so the records it leaves serve that run.
+        self.last = BodyView { extent: self.last.extent, ..BodyView::default() };
         self.offset = ScrollPos::default();
         self.region_gap = gap_of(&at.env.tokens, Gap::Tight);
         self.header_gap = header_gap_of(&props, &at.env.tokens);

@@ -243,9 +243,8 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
     }
 
     /// Builds the rows once to measure the widest and records it under `sub(id, "widest")` for `extent`, when this
-    /// pass's width comes from the rows and no record of this pass serves the room (`Measured::serves`).
+    /// pass's width comes from the rows.
     fn record_widest(&mut self, comp: &C, at: &Measuring<'_, '_>, id: Id) {
-        let ctx = at.ui.ctx();
         let room = match at.at {
             ShowAt::Rect(rect) => rect.size(),
             ShowAt::Flow => crate::layout::flow_room(at.ui),
@@ -253,17 +252,28 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
         if self.source.is_empty() || (room.x.is_finite() && !self.content_sized(comp)) {
             return;
         }
-        let key = sub(id, "widest");
-        let tolerance = measure_tolerance(crate::runtime::egui::scale::pixels_per_point(ctx));
-        // The collection's width comes from its rows here: it is not given the width.
-        if layout_memory::measured(ctx, key)
-            .is_some_and(|found| layout_memory::Measured::serves(room.x, found.room.x, false, found.took.x, tolerance))
-        {
-            return;
-        }
         self.header.measure(at.scx);
-        let widest = self.widest_row(comp, at.ui, id);
-        layout_memory::record_measured(ctx, key, layout_memory::Measured { room, took: Vec2::new(widest, 0.0) });
+        self.widest_in(comp, at.ui, id, room);
+    }
+
+    /// The widest row in the room `room`: what a record of this pass under `sub(id, "widest")` found when it serves
+    /// the room (`Measured::serves`), else the rows built and measured now, and recorded there. The caller measures the
+    /// header first.
+    fn widest_in(&mut self, comp: &C, ui: &Ui, id: Id, room: Vec2) -> f32 {
+        let ctx = ui.ctx().clone();
+        let key = sub(id, "widest");
+        let tolerance = measure_tolerance(crate::runtime::egui::scale::pixels_per_point(&ctx));
+        // The collection's width comes from its rows here: it is not given the width.
+        if let Some(found) =
+            layout_memory::measured(&ctx, key).filter(|found| layout_memory::Measured::serves(room.x, found.room.x, false, found.took.x, tolerance))
+        {
+            return found.took.x;
+        }
+        #[cfg(feature = "testing")]
+        crate::runtime::measure::count_widest(&ctx, id);
+        let widest = self.widest_row(comp, ui, id);
+        layout_memory::record_measured(&ctx, key, layout_memory::Measured { room, took: Vec2::new(widest, 0.0) });
+        widest
     }
 
     fn widest_row_in(&mut self, comp: &C, ui: &Ui, id: Id) -> f32 {
@@ -577,7 +587,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             // Under a body sized from its content, a `Fill` collection offers its least width here too: the body
             // has no room of its own to hand it, and the layout above was made at the enclosing room.
             if self.from_content.0 && comp.props(Internal::new()).sizing == Sizing::Fill {
-                let wide = if self.header.has_columns() { self.header.least_width() } else { self.widest_row(comp, ui, id).min(room.x) };
+                let wide = if self.header.has_columns() { self.header.least_width() } else { self.widest_in(comp, ui, id, room).min(room.x) };
                 return Vec2::new(wide, height);
             }
             return Vec2::new(self.content.x, height);
@@ -593,7 +603,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                 } else if self.header.has_columns() {
                     self.header.least_width()
                 } else {
-                    self.widest_row(comp, ui, id).min(room.x)
+                    self.widest_in(comp, ui, id, room).min(room.x)
                 };
                 Vec2::new(wide, if y { height.min(room.y) } else { 0.0 })
             }
