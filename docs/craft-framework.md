@@ -369,6 +369,7 @@ This is the design: components name semantic tokens and never a pixel value or s
 | Gap inline / row / stack / section | 4 / 4 / 6 / 12 | 6 / 6 / 8 / 16 |
 | Padding control / panel / dialog | 6 / 8 / 16 | 8 / 12 / 20 |
 | Radius control / surface / window / panel | 3 / 4 / 6 / 0 | 6 / 8 / 12 / 0 |
+| Stroke thin / medium / thick / heavy | 1 / 1.5 / 2 / 3 | 1 / 1.5 / 2 / 3 |
 | Radius button / pill | full / full | full / full |
 | Bar title / tab / status / options | 32 / 26 / 24 / 36 | 38 / 30 / 30 / 42 |
 | Panel header | 28 | 34 |
@@ -843,6 +844,7 @@ A theme with its own shape replaces the radii or adds an offset to control, surf
 | --- | --- |
 | `size.control.sm`, `size.control.md` | Controls, fields, buttons |
 | `size.icon.sm`, `size.icon.md`, `size.icon.lg` | Icons |
+| `size.icon.glyph_sm`, `size.icon.glyph_md` | The glyph in an icon-only button |
 | `size.bar.title`, `size.bar.tab`, `size.bar.status`, `size.bar.options`, `size.bar.options_narrow` | Title bar, document tab bar, status bar, options bar |
 | `size.panel_header` | Panel headers |
 | `size.rail.width`, `size.rail.button`, `size.rail.panel_width`, `size.rail.panel_button` | Tool rail and panel rail |

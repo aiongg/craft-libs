@@ -4,9 +4,9 @@
 use crate::contract::{Component, Cx, MeasureCx, PaintUi, Styled as _};
 use crate::primitives::{IconSpec, TextRun};
 use crate::style::{FocusLook, IconLook, StyleColor, StyleCx, SurfaceKind, SurfaceLook, TextLook, TypeRole, VariantParts};
-use craft_behavior::Flow;
+use craft_behavior::{Flow, Insets, Metrics};
 use craft_theme::{
-    Stateful, States, Variant,
+    BySize, Stateful, States, Variant,
     variant::{Emphasis, Tone},
 };
 use egui::{Rect, Vec2, pos2};
@@ -61,15 +61,32 @@ impl FaceSpec<'_> {
     }
 }
 
+/// The metrics of a button with a face: the control's, with the horizontal padding at least the corner radius plus
+/// the gap, so the label and icons of a capsule clear its round ends.
+pub(super) fn metrics(cx: &StyleCx<'_>, parts: &VariantParts) -> Metrics {
+    let control = cx.control();
+    let round = f32::from(parts.radius.nw).min(control.height / 2.0);
+    Metrics::new().padding(Insets::horizontal(control.pad_x.max(round + control.gap))).min_size(Vec2::new(0.0, control.height)).gap(control.gap)
+}
+
+/// The side of the glyph in an icon-only button: the glyph role of the size, smaller than the icon side so the glyph
+/// reads below the cap height of the text beside it.
+pub(super) fn glyph_side(cx: &StyleCx<'_>) -> f32 {
+    let icon = &cx.tokens.size.icon;
+    BySize { sm: icon.glyph_sm, md: icon.glyph_md }.get(cx.size)
+}
+
 /// The surface of a button from its variant: raised unless ghost, the variant's fill and edge.
 pub(super) fn surface(cx: &StyleCx<'_>, parts: &VariantParts) -> SurfaceLook {
     let mut look = SurfaceLook::new(parts.fill.clone()).radius(parts.radius);
     if !matches!(cx.variant, Variant::Look { emphasis: Emphasis::Ghost, .. }) {
         look = look.kind(SurfaceKind::Raised).kind_down(SurfaceKind::Pressed);
     }
-    match &parts.edge {
-        Some(edge) => look.border(edge.clone(), cx.tokens.stroke.thin),
-        None => look,
+    // A variant without an edge draws none in any state: the kind's own edge would frame a disabled solid button, and
+    // a border in a clear colour would still leave an anti-aliased trace at the corners.
+    match parts.edge.clone() {
+        Some(edge) => look.border(edge, cx.tokens.stroke.thin).border_replaces_edge(),
+        None => look.border_replaces_edge(),
     }
 }
 
@@ -79,7 +96,7 @@ pub(super) fn on_parts(cx: &StyleCx<'_>) -> VariantParts {
     let soft = cx.with_variant(Variant::look(Emphasis::Soft, Tone::Accent)).variant_look();
     let colors = &cx.tokens.color;
     let fill = cx.color(colors.accent.soft);
-    let ink = cx.color(colors.accent.text);
+    let ink = cx.color(colors.accent.on_soft);
     VariantParts { fill: Stateful::new(fill), text: Stateful::new(ink).off(States::new(ink, ink, ink, soft.text.off.disabled)), ..soft }
 }
 
@@ -145,6 +162,13 @@ fn icon_at(slot: Rect, area: Rect, side: f32) -> Rect {
     Rect::from_center_size(pos2(slot.center().x, area.center().y), Vec2::splat(side))
 }
 
+/// The top of a label in `area`: its baseline sits where the baseline of centred body text sits, the text of the
+/// labels and fields beside a control, so a row of controls shares one baseline whatever the label's own role.
+fn text_top(draw: &crate::primitives::Draw<'_>, area: Rect, text: &crate::primitives::TextLayout) -> f32 {
+    let body = draw.layout(&TextRun::new("x").role(TypeRole::Body), f32::INFINITY);
+    area.center().y - body.size().y / 2.0 + body.first_baseline - text.first_baseline
+}
+
 /// Paints the face centred in `area`: the leading icon at the reading start, the trailing icon at the reading end.
 pub(crate) fn paint<C: Component>(ui: &PaintUi<'_>, cx: &Cx<'_, C>, ink: (&TextLook, &IconLook), look: &FaceLook, spec: &FaceSpec<'_>, area: Rect) {
     let (text_look, icon_look) = ink;
@@ -163,7 +187,7 @@ pub(crate) fn paint<C: Component>(ui: &PaintUi<'_>, cx: &Cx<'_, C>, ink: (&TextL
     if let (Some(text), Some(slot)) = (&text, slots.text)
         && !(spec.loading && spec.lead.is_none())
     {
-        draw.galley(pos2(slot.min.x, area.center().y - text.size().y / 2.0), text);
+        draw.galley(pos2(slot.min.x, text_top(&draw, area, text)), text);
     }
     if let (Some(trail), Some(slot)) = (spec.trail, slots.trail) {
         draw.icon(icon_at(slot, area, side), &tinted(trail, icon_color));

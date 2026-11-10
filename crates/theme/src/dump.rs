@@ -77,8 +77,8 @@ fn shape_lines(out: &mut Lines, shape: &ShapeTokens) {
 }
 
 fn stroke_lines(out: &mut Lines, stroke: &StrokeTokens) {
-    let StrokeTokens { thin, medium, thick, dash, dash_gap } = stroke;
-    for (k, v) in [("thin", thin), ("medium", medium), ("thick", thick), ("dash", dash), ("dash_gap", dash_gap)] {
+    let StrokeTokens { thin, medium, thick, heavy, dash, dash_gap } = stroke;
+    for (k, v) in [("thin", thin), ("medium", medium), ("thick", thick), ("heavy", heavy), ("dash", dash), ("dash_gap", dash_gap)] {
         out.line(&format!("stroke.{k}"), len(*v));
     }
 }
@@ -133,10 +133,12 @@ fn size_lines(out: &mut Lines, size: &SizeTokens) {
     let ControlSizes { sm, md } = control;
     out.line("size.control.sm", len(*sm));
     out.line("size.control.md", len(*md));
-    let IconSizes { sm, md, lg } = icon;
+    let IconSizes { sm, md, lg, glyph_sm, glyph_md } = icon;
     out.line("size.icon.sm", len(*sm));
     out.line("size.icon.md", len(*md));
     out.line("size.icon.lg", len(*lg));
+    out.line("size.icon.glyph_sm", len(*glyph_sm));
+    out.line("size.icon.glyph_md", len(*glyph_md));
     let RailSizes { width, button } = rail;
     out.line("size.rail.width", len(*width));
     out.line("size.rail.button", len(*button));

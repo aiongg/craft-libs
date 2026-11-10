@@ -19,7 +19,7 @@ pub use icon::{Icon, IconStyle};
 pub use kbd::{ChordWrite, Kbd, KbdStyle};
 pub use picture::{Picture, PictureSize, PictureStyle};
 pub use progress::{Progress, ProgressStyle};
-pub use spinner::{Spinner, SpinnerStyle};
+pub use spinner::{Spinner, SpinnerSize, SpinnerStyle};
 pub use text::{Elide, Shade, Text, TextStyle};
 pub use words::DisplayWords;
 

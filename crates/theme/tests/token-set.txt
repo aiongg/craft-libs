@@ -3,6 +3,7 @@
 # produces. Edit by hand: a new path needs its plan entry first.
 accent.border
 accent.hover
+accent.on_soft
 accent.pressed
 accent.soft
 accent.solid
@@ -110,6 +111,8 @@ size.hit.dead_zone
 size.hit.reveal
 size.hit.slop
 size.hit.target
+size.icon.glyph_md
+size.icon.glyph_sm
 size.icon.lg
 size.icon.md
 size.icon.sm
@@ -182,6 +185,7 @@ status.warn.solid_hover
 status.warn.solid_pressed
 stroke.dash
 stroke.dash_gap
+stroke.heavy
 stroke.medium
 stroke.thick
 stroke.thin

@@ -186,7 +186,7 @@ impl<C: Codec + Clone + 'static> TextField<'_, C> {
             trailing.push(Adornment::button(CLEAR, IconSpec::svg(IconId::new("close")), name));
         }
         if self.arrow {
-            trailing.push(Adornment::glyph(IconSpec::svg(IconId::new("chevron_down"))));
+            trailing.push(Adornment::glyph(crate::controls::disclosure::DisclosureGlyph::dropdown()));
         }
         trailing
     }

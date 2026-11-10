@@ -128,12 +128,24 @@ pub struct SurfaceLook {
     pub radius: CornerRadius,
     /// Which corners are rounded.
     pub corners: Corners,
+    /// The border replaces the kind's flat edge instead of drawing over it, so a state whose border is transparent
+    /// shows no frame. A bevel stays.
+    pub border_replaces_edge: bool,
 }
 
 impl SurfaceLook {
     /// A look with `fill` and no kind, border or radius.
     pub fn new(fill: Stateful<StyleColor>) -> Self {
-        SurfaceLook { kind: None, kind_down: None, fill, border: None, border_width: 0.0, radius: CornerRadius::ZERO, corners: Corners::All }
+        SurfaceLook {
+            kind: None,
+            kind_down: None,
+            fill,
+            border: None,
+            border_width: 0.0,
+            radius: CornerRadius::ZERO,
+            corners: Corners::All,
+            border_replaces_edge: false,
+        }
     }
 
     /// The surface kind in `state`: `kind_down` while pressed, else `kind`.
@@ -162,6 +174,12 @@ impl SurfaceLook {
     /// Sets which corners are rounded.
     pub fn corners(mut self, corners: Corners) -> Self {
         self.corners = corners;
+        self
+    }
+
+    /// The border replaces the kind's flat edge.
+    pub fn border_replaces_edge(mut self) -> Self {
+        self.border_replaces_edge = true;
         self
     }
 

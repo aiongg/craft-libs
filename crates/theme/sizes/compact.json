@@ -55,6 +55,8 @@
         "target": 8.0
       },
       "icon": {
+        "glyph_md": 12.0,
+        "glyph_sm": 10.0,
         "lg": 20.0,
         "md": 16.0,
         "sm": 12.0
@@ -120,6 +122,7 @@
     "stroke": {
       "dash": 4.0,
       "dash_gap": 3.0,
+      "heavy": 3.0,
       "medium": 1.5,
       "thick": 2.0,
       "thin": 1.0

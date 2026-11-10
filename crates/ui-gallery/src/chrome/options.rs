@@ -8,7 +8,7 @@ use craft_behavior::{IconId, Value};
 use craft_ui::bars::{Bar, BarCell, BarKind};
 use craft_ui::buttons::{IconButton, ToggleButton};
 use craft_ui::choice::Segmented;
-use craft_ui::contract::{Bind, Entry, Show as _, ShowContainer as _, Trigger};
+use craft_ui::contract::{Bind, Entry, Props as _, Show as _, ShowContainer as _, Trigger};
 use craft_ui::display::Divider;
 use craft_ui::layout_components::{Row, Stack};
 use craft_ui::menu::Menu;
@@ -54,7 +54,8 @@ fn more_form(ui: &mut Ui, viewer: &mut Viewer) {
 /// menu. Returns the axis chosen.
 fn variants_menu(ui: &mut Ui, shown: bool, has_target: bool) -> Option<VariantAxis> {
     let mut on = shown;
-    let button = ToggleButton::new("Variants", Bind::bound(&mut on)).trailing_icon(IconId::new("chevron-down")).show(ui);
+    let button =
+        ToggleButton::new("Variants", Bind::bound(&mut on)).trailing_icon(craft_ui::controls::disclosure::DisclosureGlyph::dropdown()).show(ui);
     let entries: Vec<Entry<VariantAxis>> = VariantAxis::ALL.into_iter().map(|axis| Entry::new(axis, axis.menu_label()).enabled(has_target)).collect();
     Menu::new("Variants").values().opened_by(&button.response, Trigger::Press).pick(ui, &entries).picked
 }
@@ -78,7 +79,11 @@ pub fn options_bar(ui: &mut Ui, viewer: &mut Viewer) {
         .show(ui, |ui, _| {
             pick(ui, "Theme", &mut env.theme, &themes);
             choose(ui, "Mode", &mut env.mode, &modes);
-            more = Some(ToggleButton::new("More appearance settings", Bind::bound(&mut *more_open)).icon(IconId::new("more")).icon_only().show(ui));
+            let button = IconButton::new(IconId::new("more")).label("More appearance settings").selected(*more_open).show(ui);
+            if button.clicks > 0 {
+                *more_open = !*more_open;
+            }
+            more = Some(button);
             Divider::vertical().show(ui);
             match workspace {
                 Workspace::Components => {

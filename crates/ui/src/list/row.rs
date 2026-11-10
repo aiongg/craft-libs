@@ -1470,7 +1470,7 @@ impl Component for ListRow<'_> {
         if let Some(open) = self.group
             && placed.disclosure.is_some()
         {
-            ui.face(DISCLOSURE, Disclosure::new(Bind::given(open)).node(false).label(cx.resolved.label.to_owned()));
+            ui.face(DISCLOSURE, Disclosure::new(Bind::given(open)).node(false).triangle(true).label(cx.resolved.label.to_owned()));
         }
         {
             let draw = ui.draw();

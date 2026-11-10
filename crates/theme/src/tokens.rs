@@ -151,6 +151,9 @@ pub struct AccentColors {
     pub border: Rgba,
     /// Accent-coloured text and links.
     pub text: Rgba,
+    /// Text on `accent.soft` (a selected icon button, a toggle button that is on): `accent.text`
+    /// moved toward white or black only as far as it needs to reach its minimum there.
+    pub on_soft: Rgba,
 }
 
 /// Colours of one status.
@@ -316,7 +319,18 @@ impl ColorTokens {
             },
             text: TextColors { normal: c, muted: c, faint: c, disabled: c, on_accent: c, on_strong: c, on_status: c, on_selected: c },
             line: LineColors { divider: c, border: c, control_edge: c, knob_edge: c, mark: c, focus: c },
-            accent: AccentColors { solid: c, hover: c, pressed: c, strong: c, strong_hover: c, strong_pressed: c, soft: c, border: c, text: c },
+            accent: AccentColors {
+                solid: c,
+                hover: c,
+                pressed: c,
+                strong: c,
+                strong_hover: c,
+                strong_pressed: c,
+                soft: c,
+                border: c,
+                text: c,
+                on_soft: c,
+            },
             status: Status { good: status, warn: status, bad: status, info: status },
             state: StateColors {
                 hover: c,
@@ -466,6 +480,8 @@ color_tokens! {
     AccentBorder = "accent.border" => accent.border;
     /// `accent.text`
     AccentText = "accent.text" => accent.text;
+    /// `accent.on_soft`
+    AccentOnSoft = "accent.on_soft" => accent.on_soft;
     /// `status.good.fg`
     StatusGoodFg = "status.good.fg" => status.good.fg;
     /// `status.good.bg`
@@ -798,6 +814,10 @@ pub struct IconSizes {
     pub md: f32,
     /// Rail and toolbar icons.
     pub lg: f32,
+    /// The glyph of a small icon-only button: smaller than `sm`, so it reads below the cap height of the text beside it.
+    pub glyph_sm: f32,
+    /// The glyph of a standard icon-only button.
+    pub glyph_md: f32,
 }
 
 /// Tool-rail sizes, in logical pixels.
@@ -994,6 +1014,8 @@ pub struct StrokeTokens {
     pub medium: f32,
     /// Heavy line.
     pub thick: f32,
+    /// Heaviest line: an arc or indicator that must read at a glance.
+    pub heavy: f32,
     /// Length of a dash.
     pub dash: f32,
     /// Gap between dashes.

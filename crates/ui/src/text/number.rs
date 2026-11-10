@@ -16,15 +16,15 @@ use crate::contract::{
     WordSetCx as _,
 };
 use crate::list::{List, ListRow};
-use crate::primitives::{IconSpec, TextOptions, TextRun};
+use crate::primitives::{TextOptions, TextRun};
 use crate::runtime::env::{Label, LengthUnits, UnitKind, Units};
 use crate::style::{ComponentStyle, StyleCx, SurfaceLook, TextLook, TypeRole};
 use crate::value_drag::Slider;
 use craft_behavior::Value;
 use craft_behavior::nav::{LARGE_STEPS, StepResult, ValueAxes, ValueSteps};
 use craft_behavior::{
-    Codec, DisplayOrder, Flow, HitLevel, HitPriority, IconId, ItemSource, Metrics, MoveMods, NavMove, NotAValue, NumberCodec, PartKey, Selection,
-    Sense, ValueDrag, decimals_for_step, wheel_step,
+    Codec, DisplayOrder, Flow, HitLevel, HitPriority, ItemSource, Metrics, MoveMods, NavMove, NotAValue, NumberCodec, PartKey, Selection, Sense,
+    ValueDrag, decimals_for_step, wheel_step,
 };
 use craft_theme::Stateful;
 use egui::{Pos2, Rect, Response, Vec2};
@@ -46,9 +46,6 @@ const ON_GRID: f64 = 1e-9;
 const PRESETS: PartKey = PartKey::new("presets");
 /// The chevron that opens the popup slider.
 const SLIDER: PartKey = PartKey::new("slider");
-
-/// The chevron's icon.
-const CHEVRON: &str = "chevron_down";
 
 /// What a presets row picks: a number the field takes, or a choice that is not a number (Auto, Metrics) and
 /// leaves the value alone.
@@ -598,7 +595,7 @@ impl<'a, V: NumberValue + 'static> NumberField<'a, V> {
     }
 
     fn adornments(chevrons: &[(PartKey, Label)]) -> Vec<Adornment> {
-        chevrons.iter().map(|(key, name)| Adornment::button(*key, IconSpec::svg(IconId::new(CHEVRON)), name.clone())).collect()
+        chevrons.iter().map(|(key, name)| Adornment::button(*key, crate::controls::disclosure::DisclosureGlyph::dropdown(), name.clone())).collect()
     }
 
     /// The rect of the text and the chevrons inside `rect`.
@@ -888,7 +885,7 @@ impl<V: NumberValue + 'static> Component for NumberField<'_, V> {
             ui.draw().text(Rect::from_min_size(Pos2::new(at.min.x, top), Vec2::new(at.width(), self.unit_size.y)), &run);
         }
         for (key, name) in chevrons {
-            ui.face(key, IconButton::new(IconId::new(CHEVRON)).label(name));
+            ui.face(key, IconButton::new(crate::controls::disclosure::DisclosureGlyph::dropdown()).label(name));
         }
     }
 

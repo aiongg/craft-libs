@@ -38,6 +38,8 @@ pub enum StrokeWidth {
     Medium,
     /// `stroke.thick`.
     Thick,
+    /// `stroke.heavy`.
+    Heavy,
 }
 
 impl StrokeWidth {
@@ -49,6 +51,7 @@ impl StrokeWidth {
             StrokeWidth::Thin => stroke.thin,
             StrokeWidth::Medium => stroke.medium,
             StrokeWidth::Thick => stroke.thick,
+            StrokeWidth::Heavy => stroke.heavy,
         }
     }
 }

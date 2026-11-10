@@ -29,9 +29,9 @@ pub trait Glyph {
         false
     }
 
-    /// Paints the glyph into `rect` in `color`. `mirrored` is set when a directional glyph is painted under
-    /// right-to-left: the glyph draws itself flipped.
-    fn paint(&self, painter: &Painter, rect: Rect, color: Color32, mirrored: bool);
+    /// Paints the glyph into `rect` in `color`, with the strokes of `tokens`. `mirrored` is set when a directional
+    /// glyph is painted under right-to-left: the glyph draws itself flipped.
+    fn paint(&self, painter: &Painter, tokens: &UiTokens, rect: Rect, color: Color32, mirrored: bool);
 }
 
 /// Where an icon's drawing comes from.
@@ -172,7 +172,7 @@ pub(crate) fn paint(painter: &Painter, tokens: &UiTokens, direction: Direction, 
         IconSource::Disc => {
             painter.circle_filled(square.center(), side / 2.0, color);
         }
-        IconSource::Glyph(glyph) => glyph.paint(painter, square, color, rtl && glyph.directional() && spec.mirror == Mirror::Auto),
+        IconSource::Glyph(glyph) => glyph.paint(painter, tokens, square, color, rtl && glyph.directional() && spec.mirror == Mirror::Auto),
         IconSource::Svg(id) => {
             let Some(index) = svg_set::find(id.name()) else {
                 log::error!("icon {:?} is not in the catalog", id.name());

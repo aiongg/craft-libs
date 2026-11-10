@@ -2,16 +2,13 @@
 
 use crate::contract::{Common, Component, Cx, MeasureCx, PaintUi, Pointer as _, PopupHandle, Props as _, Role, Styled as _};
 use crate::list::{RowThumb, ThumbAspect, ThumbPaint};
-use crate::primitives::{ContentPainterCx, IconSpec, TextRun};
+use crate::primitives::{ContentPainterCx, TextRun};
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, IconLook, Ink, StyleCx, TextLook, TypeRole};
 use crate::text::{Adornment, FieldStyle, place, reserve};
-use craft_behavior::{Flow, IconId, Metrics, Sense};
+use craft_behavior::{Flow, Metrics, Sense};
 use craft_theme::Stateful;
 use egui::{Rect, Response, Vec2};
-
-/// The icon of the chevron after the text.
-const CHEVRON: &str = "chevron_down";
 
 /// The style of a select face: the field's metrics, the text, the muted placeholder, the thumbnail's height and the
 /// chevron. The host owns the
@@ -80,7 +77,7 @@ impl<'a> SelectFace<'a> {
     }
 
     fn chevron() -> Adornment {
-        Adornment::glyph(IconSpec::svg(IconId::new(CHEVRON)))
+        Adornment::glyph(crate::controls::disclosure::DisclosureGlyph::dropdown())
     }
 }
 

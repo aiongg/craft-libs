@@ -740,7 +740,7 @@ impl Component for MenuItem<'_> {
         }
         if self.submenu {
             let slot = Flow::new(placed.trail, rtl).take_end(side).0;
-            draw.icon(centred(slot), &IconSpec::svg(IconId::new("chevron_right")).color(ink));
+            draw.icon(centred(slot), &crate::controls::disclosure::DisclosureGlyph::submenu().color(ink));
         } else if cx.part_if_declared(SHORTCUT).is_some()
             && let Some(keys) = self.keys(command)
         {

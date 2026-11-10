@@ -2,7 +2,6 @@
 
 use super::{PageLayoutMenus, PageSetupDialog};
 use crate::setup::PageSetup;
-use craft_behavior::IconId;
 use craft_ui::buttons::IconButton;
 use craft_ui::contract::{Bind, Props as _, Show as _};
 use craft_ui::runtime::env::UnitKind;
@@ -27,7 +26,7 @@ fn document_setup(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 #[story(PageLayoutMenus<'static>, covers = [Open], drive = Drive::Never)]
 fn margins_menu(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let setup = data.value("setup", PageSetup::default()).clone();
-    let opener = IconButton::new(IconId::new("chevron_down")).label("Margins").show(ui);
+    let opener = IconButton::new(craft_ui::controls::disclosure::DisclosureGlyph::dropdown()).label("Margins").show(ui);
     PageLayoutMenus::new(&setup).opened(Bind::given(true)).margins(ui, &opener);
     StoryOutput::default()
 }

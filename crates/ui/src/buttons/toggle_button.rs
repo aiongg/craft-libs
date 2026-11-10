@@ -124,7 +124,7 @@ impl Component for ToggleButton<'_> {
         let (mut text, mut icon) = face::ink(cx);
         text.color = text.color.on(on.text.off).when(Flags::MIXED, off.text.off.rest);
         icon.color = icon.color.on(on.text.off).when(Flags::MIXED, off.text.off.rest);
-        let metrics = if key.icon_only { Metrics::new().min_size(Vec2::splat(control.height)) } else { control.metrics() };
+        let metrics = if key.icon_only { Metrics::new().min_size(Vec2::splat(control.height)) } else { face::metrics(cx, &off) };
         ToggleButtonStyle { surface, metrics, focus: face::focus(cx), text, icon, face: FaceLook::of(cx) }
     }
 
