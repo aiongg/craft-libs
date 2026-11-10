@@ -93,8 +93,7 @@ pub(super) fn on_parts(cx: &StyleCx<'_>) -> VariantParts {
     let soft = cx.with_variant(Variant::look(Emphasis::Soft, Tone::Accent)).variant_look();
     let colors = &cx.tokens.color;
     let fill = cx.color(colors.accent.soft);
-    // The accent text moves toward white or black until it reads on the soft fill.
-    let ink = cx.color(craft_theme::ensure_contrast(colors.accent.text, colors.accent.soft, craft_theme::text_contrast_min(cx.contrast())));
+    let ink = cx.color(colors.accent.text);
     VariantParts { fill: Stateful::new(fill), text: Stateful::new(ink).off(States::new(ink, ink, ink, soft.text.off.disabled)), ..soft }
 }
 
