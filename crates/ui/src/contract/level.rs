@@ -1,10 +1,12 @@
 //! The catalog of registered types: the level of each, its plain display name, the surface its stories sit on, and
 //! the display title of a story. A viewer lists "Controls › Button › Loading" from these without string surgery.
 //!
-//! The level comes from one place. A type declared in craft-ui takes the first row of [`LIBRARY`] whose module
-//! prefix holds its module; a type of a family crate takes its level from what it registers as: a pattern is a
-//! Pattern, a leaf component a Control, a component with a body or items a Composite. A craft-ui type no row
-//! matches has no level, and the `catalog_names_are_unique_pascal_case_and_every_type_has_a_level` trial fails.
+//! The level follows the architectural kind, by the first of these rules that matches: a component with
+//! `canvas_control` is a Primitive; a pattern is a Pattern, except a craft-ui `shell::*` pattern (not
+//! `shell::title_bar`), which is a Shell; a craft-ui component takes the first row of [`LIBRARY`] whose module
+//! prefix holds its module; a component of a family crate is a Control when it is a leaf and a Composite when it
+//! has a body or items. A craft-ui component no row matches has no level, and the
+//! `catalog_names_are_unique_pascal_case_and_every_type_has_a_level` trial fails.
 //! The surface is declared per type in `level_table.rs` (the old gallery's `.on(Surface::..)`); a type with no row
 //! sits on the panel.
 
@@ -19,11 +21,11 @@ use std::collections::BTreeMap;
 pub enum Level {
     /// Colours, the edit lifecycle, stock egui.
     Foundations,
-    /// Surface, divider, stack, text, icon, canvas overlays.
+    /// Surface, divider, stack, text, icon, and the canvas overlays (`canvas_control` components).
     Primitives,
     /// Buttons, fields, sliders, selects, checkboxes.
     Controls,
-    /// Field rows, lists, tabs, menus, toasts.
+    /// Field rows, lists, tabs, and the Menu and Notice components.
     Composites,
     /// Panels, dialogs, rails, bars, dock areas.
     Patterns,
@@ -96,8 +98,6 @@ const LIBRARY: &[(&str, Level)] = &[
     ("patterns::dock", Patterns),
     ("patterns::form_dialogs", Patterns),
     ("patterns::presets", Composites),
-    ("patterns::preferences", Patterns),
-    ("patterns", Patterns),
     ("pickers", Controls),
     ("popover", Patterns),
     ("rails", Patterns),
@@ -125,17 +125,21 @@ fn parts(registration: &Registration) -> (&'static str, &'static str, Option<&Pr
     }
 }
 
-/// The level of `registration`; `None` for a craft-ui type that no row of [`LIBRARY`] holds.
+/// The level of `registration`; `None` for a craft-ui component that no row of [`LIBRARY`] holds.
 fn level_of(registration: &Registration) -> Option<Level> {
     let (module, _, probe) = parts(registration);
-    if let Some(inside) = module.strip_prefix("craft_ui::") {
-        return LIBRARY.iter().find(|(prefix, _)| within(inside, prefix)).map(|&(_, level)| level);
+    let inside = module.strip_prefix("craft_ui::");
+    let Some(probe) = probe else {
+        return Some(if inside.is_some_and(|inside| within(inside, "shell") && !within(inside, "shell::title_bar")) { Shells } else { Patterns });
+    };
+    if probe.canvas_control {
+        return Some(Primitives);
     }
-    Some(match probe {
-        None => Patterns,
-        Some(probe) if probe.shape == ShapeKind::Leaf => Controls,
-        Some(_) => Composites,
-    })
+    match inside {
+        Some(inside) => LIBRARY.iter().find(|(prefix, _)| within(inside, prefix)).map(|&(_, level)| level),
+        None if probe.shape == ShapeKind::Leaf => Some(Controls),
+        None => Some(Composites),
+    }
 }
 
 /// The surface the type's stories sit on: the one `SURFACES` declares, else the panel.

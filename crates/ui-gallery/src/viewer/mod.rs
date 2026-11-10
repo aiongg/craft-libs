@@ -18,4 +18,4 @@ pub use layout::{PanelId, default_components, default_for, default_theme, load a
 pub use picks::{CardState, DialogState, by_level, entry_of, levels};
 pub use settings::GallerySettings;
 pub use state::{Browser, Cells, Preview, Viewer, Workspace};
-pub use tree::{TreeKey, TreeRow, TreeRows, groups, level_named, rows, slug};
+pub use tree::{TreeKey, TreeRow, TreeRows, groups, level_named, open_level_of_selection, rows, slug};

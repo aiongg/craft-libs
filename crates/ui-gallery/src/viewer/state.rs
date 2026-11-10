@@ -49,6 +49,9 @@ pub struct Browser {
     pub scroll_to: Option<&'static str>,
     /// The selected component the Overview last followed to its level; the outer `None` before the first pass.
     pub followed: Option<Option<&'static str>>,
+    /// The selected component the tree last opened the level of; the outer `None` before the first pass. Applying settings
+    /// sets it to the restored selection, so a level closed before a restart stays closed.
+    pub tree_seen: Option<Option<&'static str>>,
 }
 
 /// What the dock shows.
@@ -116,6 +119,7 @@ impl Viewer {
             open_request: None,
             scroll_to: None,
             followed: None,
+            tree_seen: None,
         };
         let mut viewer = Viewer {
             env: RootEnv::default(),
@@ -149,6 +153,7 @@ impl Viewer {
             .catalog
             .component(&settings.selected)
             .map_or_else(Selection::default, |component| Selection::single(TreeKey::Component(component.type_name)));
+        browser.tree_seen = Some(browser.selected_type());
         browser.level.clone_from(&settings.level);
         browser.story_of = settings.story_of(&browser.catalog);
         let known = |name: &str| browser.catalog.component(name).is_some();
