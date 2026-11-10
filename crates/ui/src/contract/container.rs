@@ -447,6 +447,10 @@ pub enum Gap {
     Tight,
     /// `space.gap.section`.
     Section,
+    /// `space.gap.card_column`.
+    CardColumn,
+    /// `space.gap.card_row`.
+    CardRow,
 }
 
 /// What a container or collection adds to `Common`. A builder added here is added to the forwarder list in

@@ -14,5 +14,6 @@ pub use label::{place_label, record_control_baseline};
 pub use slot::measure_slot;
 
 pub(crate) use body::{
-    MainFill, counting_fills, fill_share, flow_fill_room, flow_room, in_grid_content_column, main_fill, place_in_flow, run_body, run_body_measured,
+    MainFill, counting_fills, fill_share, flow_fill_room, flow_room, in_grid_content_column, main_fill, place_in_cell, place_in_flow, run_body,
+    run_body_measured,
 };

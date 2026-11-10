@@ -466,6 +466,8 @@ fn gap_of(tokens: &UiTokens, gap: Gap) -> f32 {
     match gap {
         Gap::Tight => gaps.tight,
         Gap::Section => gaps.section,
+        Gap::CardColumn => gaps.card_column,
+        Gap::CardRow => gaps.card_row,
         _ => gaps.row,
     }
 }

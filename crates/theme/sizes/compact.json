@@ -102,6 +102,8 @@
       "gap": {
         "inline": 4.0,
         "row": 4.0,
+        "card_column": 14.0,
+        "card_row": 20.0,
         "section": 12.0,
         "stack": 6.0,
         "tight": 2.0

@@ -99,7 +99,7 @@ impl Card<'_> {
         // header band.
         let pad = if self.surface == Surface::Panel { Pad::Regular } else { Pad::None };
         let mut panel = Panel::new(self.title.to_owned())
-            .sizing(Sizing::FillWidth)
+            .sizing(Sizing::Fill)
             .command_scope(CardCommands::SCOPE)
             .selected(self.selected)
             .pickable()
@@ -173,6 +173,7 @@ impl Card<'_> {
         // dialog was closed (a story that cannot close its dialog has none).
         let closed = state.data.present::<bool>("open").is_some_and(|open| !*open);
         let dialog = &mut state.dialog;
+        let first_seen = shown.dialog.is_some() && !dialog.known;
         match (shown.dialog.is_some(), dialog.known) {
             (true, false) => *dialog = DialogState { known: true, hidden: true, shown: false },
             (true, true) => dialog.shown = true,
@@ -183,6 +184,14 @@ impl Card<'_> {
         }
         if dialog.hidden || dialog.shown != was_shown {
             ui.ctx().request_repaint();
+        }
+        // The card's start is the story with its dialog closed, so a dialog closed by its own button is back at the
+        // start and Reset hides.
+        if first_seen {
+            if let Some(open) = state.data.present::<bool>("open") {
+                *open = false;
+            }
+            state.start = None;
         }
         state.note_start();
     }
