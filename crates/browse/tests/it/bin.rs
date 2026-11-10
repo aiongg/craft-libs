@@ -250,7 +250,8 @@ fn the_selection_count_leaves_out_keys_that_are_not_shown() {
 fn the_icon_view_shows_bins_first_and_scrubs_items() {
     let mut bin = setup(false, |state| state.settings.view = BinView::Icon);
     let (footage, archive, title) = (bin.rect("Footage"), bin.rect("Archive"), bin.rect("Title.psd"));
-    assert!(footage.left() < archive.left() && archive.left() < title.left(), "bins first: {footage:?} {archive:?} {title:?}");
+    let reading = |rect: egui::Rect| (rect.top(), rect.left());
+    assert!(reading(footage) < reading(archive) && reading(archive) < reading(title), "bins first: {footage:?} {archive:?} {title:?}");
     assert!(bin.fixture.by_label("Beach.mov").is_none(), "a bin's items show when it is opened");
 
     bin.fixture.frame(vec![pointer::moved(pos2(title.left() + title.width() * 0.5, title.top() + 12.0))]).settle();
