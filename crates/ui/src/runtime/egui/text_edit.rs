@@ -104,7 +104,7 @@ pub(crate) fn show(ui: &mut Ui, edit: Edit<'_>) -> Shown {
             }
             None => job.append(text, 0.0, plain),
         }
-        ui.fonts_mut(|fonts| fonts.layout_job(job))
+        ui.fonts_mut(|fonts| crate::runtime::egui::text_layout::layout_with(fonts, job))
     };
     let hint_text = hint.map(|hint| egui::RichText::new(hint).font(FontId::proportional(font_id.size)));
     let output = ui.scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| {
