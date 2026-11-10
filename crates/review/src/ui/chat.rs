@@ -101,7 +101,7 @@ pub fn paint_chat_bubble(ui: &PaintUi<'_>, look: &BubbleLook, tip: Pos2, name: O
 #[non_exhaustive]
 pub enum ReviewCommand {
     /// Open the cursor chat box at the pointer.
-    #[command(label = "Cursor chat", icon = "note", default = "/")]
+    #[command(label = "Cursor chat", default = "/")]
     CursorChat,
 }
 

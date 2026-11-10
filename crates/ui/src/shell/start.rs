@@ -335,7 +335,7 @@ fn recent_section(
 ) {
     let words = page.words;
     let modes = [
-        Entry::new(RecentView::Grid, words.grid_view.clone()).icon(IconId::new("layout-grid")),
+        Entry::new(RecentView::Grid, words.grid_view.clone()).icon(IconId::new("layout_grid")),
         Entry::new(RecentView::List, words.list_view.clone()).icon(IconId::new("list")),
     ];
     let orders = [
