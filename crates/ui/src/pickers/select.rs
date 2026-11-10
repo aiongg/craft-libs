@@ -23,7 +23,7 @@ use crate::style::{ComponentStyle, Ink, StyleCx, SurfaceLook, TextLook, TypeRole
 use crate::text::TextField;
 use craft_behavior::nav::{StepResult, ValueAxes, ValueSteps};
 use craft_behavior::{CancelReason, GesturePhase, HitLevel, HitPriority, IconId, Metrics, NavMove, PartKey, Selection, Sense, Value, wheel_step};
-use craft_theme::Stateful;
+use craft_theme::{Stateful, States};
 use egui::{Ui, Vec2};
 
 #[cfg(feature = "testing")]
@@ -141,11 +141,13 @@ impl<T: Value + 'static> Component for Select<'_, T> {
     type Output = EditResponse<T>;
 
     fn style(cx: &StyleCx<'_>, _: SelectStyleKey<T>) -> SelectStyle {
+        let off = cx.color(cx.tokens.color.text.disabled);
+        let (ink, muted) = (cx.ink(Ink::OnPanel), cx.color(cx.tokens.color.text.muted));
         SelectStyle {
             surface: cx.field(),
             metrics: Metrics::new(),
-            text: TextLook::new(TypeRole::Body, Stateful::new(cx.ink(Ink::OnPanel))),
-            muted: TextLook::new(TypeRole::Body, Stateful::new(cx.color(cx.tokens.color.text.muted))),
+            text: TextLook::new(TypeRole::Body, Stateful::new(ink).off(States::new(ink, ink, ink, off))),
+            muted: TextLook::new(TypeRole::Body, Stateful::new(muted).off(States::new(muted, muted, muted, off))),
         }
     }
 

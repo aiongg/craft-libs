@@ -24,7 +24,7 @@ use crate::contract::{Bind, EditResponse};
 use crate::primitives::TextKey;
 use crate::style::{ComponentStyle, IconLook, Ink, StyleCx, SurfaceLook};
 use craft_behavior::{Insets, Metrics, PartKey};
-use craft_theme::Stateful;
+use craft_theme::{Stateful, States};
 use egui::Vec2;
 
 /// The style of a text field: padding and minimum size from the control metrics, and the sizes of the adornments
@@ -53,7 +53,10 @@ impl FieldStyle {
             .padding(Insets::horizontal(control.pad_x))
             .gap(control.gap)
             .min_size(Vec2::new(cx.tokens.size.length.field, control.height));
-        FieldStyle { surface: cx.field(), metrics, glyph: IconLook::new(control.icon, Stateful::new(cx.ink(Ink::OnPanel))), button: control.height }
+        let ink = cx.ink(Ink::OnPanel);
+        let off = cx.color(cx.tokens.color.text.disabled);
+        let glyph = IconLook::new(control.icon, Stateful::new(ink).off(States::new(ink, ink, ink, off)));
+        FieldStyle { surface: cx.field(), metrics, glyph, button: control.height }
     }
 
     /// The field's padding, gap and minimum size.

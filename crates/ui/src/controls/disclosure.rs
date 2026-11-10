@@ -7,6 +7,7 @@ use crate::primitives::{Glyph, PaintShape, StrokeWidth};
 use crate::style::{ComponentStyle, IconLook, Stateful, StyleCx, UiTokens, ink_color, rgba_color};
 use craft_behavior::{Metrics, Sense};
 use craft_i18n::Direction;
+use craft_theme::States;
 use egui::emath::GuiRounding as _;
 use egui::{Color32, Painter, Pos2, Rect, Shape, Stroke, Vec2};
 
@@ -116,7 +117,8 @@ impl DisclosureGlyph {
 
     /// The colour a disclosure component shows its glyph in at rest.
     fn resting(cx: &StyleCx<'_>) -> Stateful<crate::style::StyleColor> {
-        Stateful::new(cx.color(cx.tokens.color.text.muted))
+        let (muted, off) = (cx.color(cx.tokens.color.text.muted), cx.color(cx.tokens.color.text.disabled));
+        Stateful::new(muted).off(States::new(muted, muted, muted, off))
     }
 }
 

@@ -4,7 +4,7 @@
 use craft_ui::contract::{Bind, Entry, Props as _, Role, Show as _, ShowContainer as _};
 use craft_ui::form::Field;
 use craft_ui::pickers::Select;
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::testing::{Fixture, Frames, trial};
 use egui::{Id, Key, Modifiers};
 use std::cell::Cell;
 use std::rc::Rc;
@@ -145,4 +145,29 @@ fn a_select_in_a_radio_option_s_field_group_picks_by_click() {
     fixture.click(&red);
     fixture.idle(FADE_FRAMES);
     assert_eq!(value.get(), 1, "a click on a row picks it");
+}
+
+/// A disabled select shows its text and chevron in a different ink from an enabled one.
+#[trial]
+fn a_disabled_selects_ink_differs_from_an_enabled_ones() {
+    let inks = |enabled: bool| {
+        let mut value = 1u8;
+        let mut show = move |ui: &mut egui::Ui| {
+            let entries = [Entry::new(0u8, "Normal"), Entry::new(1, "Multiply")];
+            Select::new("Blend mode", Bind::bound(&mut value), &entries).enabled(enabled).show(ui);
+        };
+        let mut frames = Frames::new();
+        frames.idle(2, &mut show);
+        frames
+            .frame_shapes(&mut show)
+            .iter()
+            .filter_map(|shape| match shape {
+                egui::Shape::Text(text) => text.galley.job.sections.first().map(|section| section.format.color),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+    };
+    let (on, off) = (inks(true), inks(false));
+    assert!(!on.is_empty() && on.len() == off.len(), "both show the same text");
+    assert_ne!(on, off, "a disabled select's ink is the disabled ink");
 }

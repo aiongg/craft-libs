@@ -1135,6 +1135,8 @@ pub(crate) struct FaceSource<'a> {
     pub muted: Option<&'a crate::style::Stateful<crate::style::StyleColor>>,
     /// The flags the host owns for its faces: whether its value is invalid or warns.
     pub flags: crate::style::Flags,
+    /// Whether the host is enabled: a face of a disabled host paints with the Disabled state.
+    pub enabled: bool,
 }
 
 /// A face run is steps 1, 2, 4 (read only), 12 and 13 of the face component, inside the composite's step 13. It
@@ -1156,7 +1158,7 @@ pub(crate) fn paint_face<C: Show>(ui: &mut Ui, source: &FaceSource<'_>, part: Pa
     stage.face = true;
     let rect = source.result.rect;
     let flow = Flow::new(rect, env.direction.is_rtl());
-    let part_state = steps::part_state(source.result, step1.enabled, source.focus);
+    let part_state = steps::part_state(source.result, step1.enabled && source.enabled, source.focus);
     let mut flags = part_state.flags | face.flags() | source.flags;
     // A face shows the value the step-6 peek found, as `steps::state` reads it for a component: a checked check box
     // takes the on look.

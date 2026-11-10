@@ -7,7 +7,7 @@ use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, IconLook, Ink, StyleCx, TextLook, TypeRole};
 use crate::text::{Adornment, FieldStyle, place, reserve};
 use craft_behavior::{Flow, Metrics, Sense};
-use craft_theme::Stateful;
+use craft_theme::{Stateful, States};
 use egui::{Rect, Response, Vec2};
 
 /// The style of a select face: the field's metrics, the text, the muted placeholder, the thumbnail's height and the
@@ -92,12 +92,14 @@ impl Component for SelectFace<'_> {
 
     fn style(cx: &StyleCx<'_>, _: SelectFaceStyleKey) -> SelectFaceStyle {
         let field = FieldStyle::at(cx);
-        let muted = cx.color(cx.tokens.color.text.muted);
+        let off = cx.color(cx.tokens.color.text.disabled);
+        let (ink, muted) = (cx.ink(Ink::OnPanel), cx.color(cx.tokens.color.text.muted));
+        let ink = Stateful::new(ink).off(States::new(ink, ink, ink, off));
         SelectFaceStyle {
             metrics: field.metrics(),
-            text: TextLook::new(TypeRole::Body, cx.host_ink(Stateful::new(cx.ink(Ink::OnPanel)))),
-            placeholder: TextLook::new(TypeRole::Body, cx.host_muted_ink(Stateful::new(muted))),
-            chevron: IconLook::new(field.glyph().side, cx.host_ink(Stateful::new(cx.ink(Ink::OnPanel)))),
+            text: TextLook::new(TypeRole::Body, cx.host_ink(ink.clone())),
+            placeholder: TextLook::new(TypeRole::Body, cx.host_muted_ink(Stateful::new(muted).off(States::new(muted, muted, muted, off)))),
+            chevron: IconLook::new(field.glyph().side, cx.host_ink(ink)),
             thumb: cx.tokens.size.thumb.sm,
             field,
         }
