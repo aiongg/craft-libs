@@ -99,7 +99,7 @@ impl Card<'_> {
         // header band.
         let pad = if self.surface == Surface::Panel { Pad::Regular } else { Pad::None };
         let mut panel = Panel::new(self.title.to_owned())
-            .sizing(Sizing::FillWidth)
+            .sizing(Sizing::Fill)
             .command_scope(CardCommands::SCOPE)
             .selected(self.selected)
             .pickable()
