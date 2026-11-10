@@ -4,11 +4,11 @@
 mod stories;
 
 use crate::contract::{
-    Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, PaintUi, Props as _, Role, Validity, WordSetCx as _,
+    Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, FieldLayout, MeasureCx, PaintUi, Props as _, Role, SideLabel, Validity,
+    WordSetCx as _,
 };
-use crate::primitives::TextRun;
 use crate::runtime::env::{Label, UnitKind};
-use crate::style::{ComponentStyle, StyleColor, StyleCx};
+use crate::style::{ComponentStyle, StyleCx};
 use crate::text::NumberField;
 use crate::value_drag::{Slider, SliderScale, TrackFace};
 use craft_behavior::{Flow, Metrics, Mixed, Proposal, Sense, decimals_for_step};
@@ -20,23 +20,19 @@ const SHORT_RANGE: f64 = 10.0;
 const SHORT_STEP: f64 = 0.01;
 const LONG_STEP: f64 = 1.0;
 
-/// The number field is this many control heights wide.
-const FIELD_CONTROLS: f32 = 3.0;
-
 /// How a slider field arranges its caption, number field and slider.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum SliderFieldLayout {
-    /// The caption at the start and the number field at the end of one line, the slider across the full width on the
-    /// next.
+    /// The caption at the start and the number field at the end of one line (the label step's `Line` placement), the
+    /// slider across the full width on the next.
     #[default]
     Stacked,
     /// The number field and then the slider on one line, for a row whose enclosing `Field` shows the label.
     Inline,
 }
 
-/// The style of a slider field: the gap between its parts, the line height, the number field's width and the
-/// caption's colour.
+/// The style of a slider field: the gap between its parts, the line height and the number field's width.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
 #[non_exhaustive]
 pub struct SliderFieldStyle {
@@ -44,11 +40,12 @@ pub struct SliderFieldStyle {
     metrics: Metrics,
     /// The width of the number field, the same for every row so a column of fields lines up.
     field: f32,
+    /// The gap between the number field and the slider on one line.
+    inline_gap: f32,
     /// The height of the caption line.
     row: f32,
     /// The width of a stacked row with no more room offered: the same for every row, so a column of rows lines up.
     width: f32,
-    caption: StyleColor,
 }
 
 /// A caption and number field over a full-width slider, on one value. A drag on the slider, a step key, typing in the field or a
@@ -229,10 +226,10 @@ impl Component for SliderField<'_> {
         let control = cx.control();
         SliderFieldStyle {
             metrics: Metrics::new().gap(control.gap),
-            field: control.height * FIELD_CONTROLS,
+            field: cx.tokens.size.length.number,
+            inline_gap: cx.tokens.space.gap.section,
             row: control.height,
             width: cx.tokens.size.length.field,
-            caption: cx.color(cx.tokens.color.text.muted),
         }
     }
 
@@ -251,7 +248,7 @@ impl Component for SliderField<'_> {
         let slider = cx.child("slider", &mut look.slider(&name, shown, None, None), Proposal::Ideal);
         let field = cx.child("field", &mut look.field(&name, shown, None), Proposal::Ideal);
         match self.layout {
-            SliderFieldLayout::Inline => Vec2::new(slider.x + cx.gap() + cx.style.field, slider.y.max(field.y)),
+            SliderFieldLayout::Inline => Vec2::new(slider.x + cx.style.inline_gap + cx.style.field, slider.y.max(field.y)),
             SliderFieldLayout::Stacked => Vec2::new(slider.x.max(cx.style.width), cx.style.row.max(field.y) + cx.gap() + slider.y),
         }
     }
@@ -263,12 +260,9 @@ impl Component for SliderField<'_> {
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let shown = shown_of(cx.value());
         let name = cx.label();
-        let (caption, track, field) = match self.layout {
-            SliderFieldLayout::Inline => {
-                let (track, field) = arrange(cx.rect.size(), cx.style.metrics.gap, cx.style.field);
-                (None, track, field)
-            }
-            SliderFieldLayout::Stacked => stack(cx.rect.size(), cx.style.metrics.gap, cx.style.field, cx.style.row),
+        let (track, field) = match self.layout {
+            SliderFieldLayout::Inline => arrange(cx.rect.size(), cx.style.inline_gap, cx.style.field),
+            SliderFieldLayout::Stacked => stack(cx.rect.size(), cx.style.metrics.gap, cx.style.row),
         };
         let flow = Flow::new(cx.rect, cx.env.direction().is_rtl());
         let place = |logical: Rect| flow.to_physical(logical.translate(cx.rect.min.to_vec2()));
@@ -284,12 +278,13 @@ impl Component for SliderField<'_> {
             Some(tooltip) => field_view.tooltip(tooltip.clone()),
             None => field_view,
         };
-        if let Some(caption) = caption {
-            // The caption names the group; the field and the slider carry the name for assistive technology.
-            let run = TextRun::new(cx.resolved.label).color(cx.style.caption).elide();
-            ui.draw().text(place(caption), &run);
-        }
-        let typed = ui.child("field", place(field), field_view);
+        let typed = match self.layout {
+            // The label step puts the caption at the line's start and the field in the number cell at its end.
+            SliderFieldLayout::Stacked => {
+                ui.labelled("field", place(field), name.clone(), SideLabel::new().layout(FieldLayout::Line).scrub(true), field_view)
+            }
+            SliderFieldLayout::Inline => ui.child("field", place(field), field_view),
+        };
         let dragged = ui.child("slider", place(track), look.slider(&name, shown, Some(&on_slider), face));
         let start = *self.range.start();
         cx.adopt(&typed, &start, |value, mine| {
@@ -319,12 +314,10 @@ fn arrange(size: Vec2, gap: f32, field_width: f32) -> (Rect, Rect) {
     (rect(field + gap, track), rect(0.0, field))
 }
 
-/// The caption's, the slider's and the number field's rects in a room of `size`, in logical coordinates from the
-/// start edge: the caption and the number field on a line of height `row`, the slider across the room below it.
-fn stack(size: Vec2, gap: f32, field_width: f32, row: f32) -> (Option<Rect>, Rect, Rect) {
-    let field = field_width.min(size.x);
-    let caption = (size.x - field - gap).max(0.0);
-    let rect = |x: f32, y: f32, width: f32, height: f32| Rect::from_min_size(pos2(x, y), Vec2::new(width, height));
+/// The first line's and the slider's rects in a room of `size`, in logical coordinates from the start edge: a line of
+/// height `row` for the caption and the number field, and the slider across the room below it.
+fn stack(size: Vec2, gap: f32, row: f32) -> (Rect, Rect) {
     let below = row + gap;
-    (Some(rect(0.0, 0.0, caption, row)), rect(0.0, below, size.x, (size.y - below).max(0.0)), rect(size.x - field, 0.0, field, row))
+    let line = Rect::from_min_size(pos2(0.0, 0.0), Vec2::new(size.x, row));
+    (Rect::from_min_size(pos2(0.0, below), Vec2::new(size.x, (size.y - below).max(0.0))), line)
 }

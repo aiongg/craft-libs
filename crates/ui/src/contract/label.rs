@@ -96,6 +96,9 @@ pub enum FieldLayout {
     /// After the control, as check box and radio labels sit: the control takes its narrowest width and the label
     /// follows it, on the end side under RTL. The row never stacks.
     After,
+    /// On one line: the label at the start and the control in a `size.length.number` cell at the end, as a number
+    /// field sits over its slider. The label elides before the cell. The row never stacks.
+    Line,
 }
 
 /// The width of a caption's cell.
@@ -115,6 +118,8 @@ pub struct SideLabel {
     pub role: FieldLabelRole,
     /// Dragging the label scrubs the control's value.
     pub scrub: bool,
+    /// The label shows a dot at its end while the value differs from its reset value. Off unless a caller asks.
+    pub reset_dot: bool,
     /// An icon before the text, as large as the control's icons.
     pub icon: Option<IconSpec<'static>>,
     /// A line after the text in the muted text colour. It joins the control's description, not its name.
@@ -130,6 +135,7 @@ impl SideLabel {
             align: LabelAlign::End,
             role: FieldLabelRole::Names,
             scrub: false,
+            reset_dot: false,
             icon: None,
             detail: None,
         }
@@ -167,6 +173,13 @@ impl SideLabel {
     #[must_use]
     pub const fn scrub(mut self, on: bool) -> Self {
         self.scrub = on;
+        self
+    }
+
+    /// Shows a dot after the text while the control's value differs from its reset value; a click on it resets the value.
+    #[must_use]
+    pub const fn reset_dot(mut self, on: bool) -> Self {
+        self.reset_dot = on;
         self
     }
 
@@ -575,6 +588,13 @@ fn decide(ctx: &egui::Context, env: &Env, input: &LabelIn<'_>, kids: &Ui, leaf: 
         }
     }
     let baseline = leaf.baseline.get();
+    if input.side.layout == FieldLayout::Line {
+        let (cell, rest) = flow.take_end(env.tokens.size.length.number);
+        let width = natural.x.min((rest.rect().width() - gap).max(0.0));
+        let drop = (cell.height() - natural.y).max(0.0) / 2.0;
+        let label = Flow::new(rest.rect(), rtl).align(Vec2::new(width, natural.y), Align::Min, Align::Min).translate(Vec2::new(0.0, drop));
+        return Placed { label, control: cell };
+    }
     let (column, stack_below) = match input.side.layout {
         FieldLayout::Beside => {
             let own = natural.x;
@@ -584,7 +604,8 @@ fn decide(ctx: &egui::Context, env: &Env, input: &LabelIn<'_>, kids: &Ui, leaf: 
             (width, width + gap + input.control_min)
         }
         FieldLayout::Above => (natural.x, f32::INFINITY),
-        FieldLayout::After => (natural.x, 0.0),
+        // `Line` returned above.
+        FieldLayout::After | FieldLayout::Line => (natural.x, 0.0),
         FieldLayout::Caption(cell) => {
             let width = match cell {
                 ColumnWidth::Fixed(width) => width.min(natural.x),
@@ -639,7 +660,7 @@ pub(crate) fn control_after(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Rect
         return hidden_control(&ctx, input, flow, env.tokens.space.gap.inline);
     }
     let reset = scope::last_reset(&ctx, input.scope);
-    let slot = if reset.is_some() { env.tokens.size.handle.sm } else { 0.0 };
+    let slot = if reset.is_some() && input.side.reset_dot { env.tokens.size.handle.sm } else { 0.0 };
     let mut leaf = LabelLeaf::new(input.text.clone(), slot);
     leaf.resettable = reset.is_some();
     match &input.side.kind {
@@ -672,7 +693,7 @@ pub(crate) fn run(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Placed {
         scope::begin(&ctx, input.scope, input.owner, scope::Kind::Label(field_label(env, input, label_id, Rect::NOTHING)));
         return Placed { label: Rect::NOTHING, control: hidden_control(&ctx, input, flow, gap) };
     }
-    let slot = if reset.is_some() { slot_side } else { 0.0 };
+    let slot = if reset.is_some() && input.side.reset_dot { slot_side } else { 0.0 };
     let mut leaf = LabelLeaf::new(input.text.clone(), slot);
     leaf.scrub = input.enabled && (input.side.scrub || scope::last_scrub(&ctx, input.scope));
     leaf.resettable = reset.is_some();

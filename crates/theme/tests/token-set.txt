@@ -114,6 +114,7 @@ size.icon.lg
 size.icon.md
 size.icon.sm
 size.length.field
+size.length.number
 size.length.short
 size.length.track
 size.pane.least
