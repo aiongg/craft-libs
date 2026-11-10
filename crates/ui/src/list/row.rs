@@ -24,7 +24,7 @@ use crate::style::{ComponentStyle, Flags, IconLook, Ink, StyleColor, StyleCx, Su
 use craft_behavior::{ColumnKey, Flow, IconId, Metrics, Mixed, NavShape, PartKey, PartRef, PressPhase, Proposal, Roving, Sense};
 use craft_keymap::Mods;
 use craft_theme::variant::Tone;
-use craft_theme::{ControlSize, LabelColor, Rgba, RowStyle, Stateful, States, TypeRole, over};
+use craft_theme::{Contrast, ControlSize, LabelColor, Rgba, RowStyle, Stateful, States, TypeRole, contrast_ratio, identifiable_outline, over};
 use egui::{CornerRadius, Pos2, Rect, Response, Vec2};
 use std::any::Any;
 use std::sync::Arc;
@@ -635,6 +635,8 @@ const TEXT_CELL: PartKey = PartKey::new("text-cell");
 const TOGGLE_CELL: PartKey = PartKey::new("toggle-cell");
 const LABEL_CELL: PartKey = PartKey::new("label-cell");
 const DISCLOSURE: PartKey = PartKey::new("disclosure");
+/// Least contrast ratio of a selected fill on the panel for it to identify the row alone: standard, high.
+const OUTLINE_MIN: (f64, f64) = (3.0, 4.5);
 const LINK: PartKey = PartKey::new("link");
 const PROGRESS: PartKey = PartKey::new("progress");
 const LINES: PartKey = PartKey::new("lines");
@@ -779,6 +781,19 @@ fn fill_of(cx: &StyleCx<'_>, key: FillKey) -> Stateful<StyleColor> {
         fill = fill.when(rule.flags, c(rgba));
     }
     fill
+}
+
+/// The outline of a selected layer row: only where the selected fill is a tint over the panel, and in high contrast
+/// where the fill alone does not show on the panel; otherwise transparent.
+fn selected_outline(cx: &StyleCx<'_>) -> Rgba {
+    let colors = &cx.tokens.color;
+    let high = cx.contrast() == Contrast::High;
+    let panel = colors.surface.panel;
+    let selected = colors.state.selected;
+    let min = if high { OUTLINE_MIN.1 } else { OUTLINE_MIN.0 };
+    let shows = contrast_ratio(over(selected, panel), panel) >= min;
+    let tint = selected.0[3] < 255;
+    if tint || (high && !shows) { identifiable_outline(colors.line.control_edge, selected, &[panel], high) } else { Rgba::TRANSPARENT }
 }
 
 /// Which fill a flag rule paints.
@@ -1128,11 +1143,11 @@ impl Component for ListRow<'_> {
         let clear = Rgba::TRANSPARENT;
         let c = |rgba: Rgba| cx.color(rgba);
         let fill = fill_of(cx, FillKey { striped: key.striped, layer: key.layer });
-        let rounded = key.layer || tokens.shape.rows == RowStyle::Rounded;
+        let rounded = tokens.shape.rows == RowStyle::Rounded;
         let radius = if rounded { UiTokens::corner(tokens.shape.radius.control) } else { CornerRadius::ZERO };
         let mut surface = SurfaceLook::new(fill).radius(radius);
         if key.layer {
-            surface = surface.border(Stateful::new(c(clear)).when(Flags::SELECTED, c(colors.accent.solid)), tokens.stroke.thin);
+            surface = surface.border(Stateful::new(c(clear)).when(Flags::SELECTED, c(selected_outline(cx))), tokens.stroke.thin);
         }
         let ink = |base: Rgba| cx.row_ink(base);
         let base = match key.ink {
