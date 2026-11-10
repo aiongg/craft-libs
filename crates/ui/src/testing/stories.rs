@@ -1,5 +1,6 @@
 //! Stories of the kit's stand-in `Block`.
 
+use super::sample::words;
 use super::{StoryData, StoryOutput, story};
 use crate::contract::{Show as _, ShowContainer as _};
 use crate::sections::FooterBar;
@@ -16,9 +17,5 @@ fn block(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 
 #[story(FooterBar, covers = [Default])]
 fn footer_bar(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    FooterBar::body()
-        .show(ui, |ui, _| {
-            Block::new(CELL).show(ui);
-        })
-        .into()
+    FooterBar::body().show(ui, |ui, _| words(ui, 0..1)).into()
 }

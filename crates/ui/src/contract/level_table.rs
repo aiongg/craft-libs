@@ -90,7 +90,6 @@ pub(super) const SURFACES: &[(&str, &str, Surface)] = &[
     ("craft_ui", "FullWindowStatus", Own),
     ("craft_ui", "FullWindowTitle", Own),
     ("craft_ui", "FullWindowZoomBar", Own),
-    ("craft_ui", "Grid", Canvas),
     ("craft_ui", "GroupGrip", Own),
     ("craft_ui", "GuideLayoutDialog", Own),
     ("craft_ui", "Guides", Canvas),

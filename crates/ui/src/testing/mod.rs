@@ -23,6 +23,7 @@ pub mod pictures;
 pub mod pointer;
 pub mod props;
 pub mod relations;
+pub(crate) mod sample;
 pub mod sensing;
 #[cfg(all(feature = "snapshot", not(target_arch = "wasm32")))]
 pub mod snapshot;
