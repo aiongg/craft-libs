@@ -3,7 +3,7 @@
 //! child, so the two line up and behave alike.
 
 use super::{Component, Props};
-use super::{Cx, MeasureCx, PaintUi, PartsCx, Show};
+use super::{Cx, MeasureCx, PaintUi, PartsCx, Show, Styled as _};
 use crate::primitives::{IconSpec, TextRun, Wrap};
 use crate::runtime::access::{
     self,
@@ -14,8 +14,10 @@ use crate::runtime::env::{Env, Label};
 use crate::runtime::keys;
 use crate::runtime::layout_memory;
 use crate::runtime::memory::sub;
-use crate::style::{ComponentStyle, ResetMarkLook, StyleColor, StyleCx};
+use crate::runtime::words::CommonWords;
+use crate::style::{ComponentStyle, ResetMarkLook, Stateful, StyleColor, StyleCx, TextLook, TypeRole};
 use craft_behavior::{ColumnWidth, Flow, LabelColumn, Metrics, PartKey, PressState, Sense, ValueDrag};
+use craft_theme::States;
 use egui::{Align, Id, Rect, Response, Ui, UiBuilder, Vec2};
 use std::cell::Cell;
 use std::sync::Arc;
@@ -231,6 +233,9 @@ struct LabelStyle {
     gap: f32,
     /// The colour of the detail.
     muted: StyleColor,
+    /// The name: `text.muted`, dimmed with a disabled control.
+    #[style(text)]
+    name: TextLook,
 }
 
 /// What the label leaf reports.
@@ -319,6 +324,10 @@ impl Component for LabelLeaf {
             icon: cx.control().icon,
             gap: cx.tokens.space.gap.inline,
             muted: cx.color(cx.tokens.color.text.muted),
+            name: {
+                let (muted, off) = (cx.color(cx.tokens.color.text.muted), cx.color(cx.tokens.color.text.disabled));
+                TextLook::new(TypeRole::Label, Stateful::new(muted).off(States::new(muted, muted, muted, off)))
+            },
         }
     }
 
@@ -403,7 +412,7 @@ impl Component for LabelLeaf {
                 rest = after.take_start(cx.style.gap).1;
             }
             // A name wider than its room elides; the full text stays the accessible name.
-            let run = TextRun::new(cx.core.resolved.label).elide();
+            let run = TextRun::new(cx.core.resolved.label).color(cx.resolve(&cx.style.name.color)).elide();
             let name = draw.layout(&run, rest.rect().width()).size();
             let (name_rect, after) = rest.take_start(name.x);
             draw.text(centred(name_rect, name.y), &run);
@@ -428,6 +437,17 @@ impl Component for LabelLeaf {
             activated: self.activated,
         }
     }
+}
+
+/// The text a label draws: a beside text label ends in the colon of the scope's language, unless its text already
+/// does. The control's accessible name stays the text as given.
+fn drawn(env: &Env, input: &LabelIn<'_>) -> Label {
+    let text = env.view().resolve(input.text);
+    let beside_text = input.side.layout == FieldLayout::Beside && input.side.kind == LabelKind::Text;
+    if !beside_text || text.as_str().is_empty() || text.as_str().ends_with([':', '\u{ff1a}']) {
+        return text;
+    }
+    Label::from(env.words::<CommonWords>().caption.fill(&[("caption", text.as_str())]))
 }
 
 /// What the step needs of the row it runs for.
@@ -646,7 +666,7 @@ pub(crate) fn control_after(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Rect
     }
     let reset = scope::last_reset(&ctx, input.scope);
     let slot = if reset.is_some() { env.tokens.size.handle.sm } else { 0.0 };
-    let mut leaf = LabelLeaf::new(input.text.clone(), slot);
+    let mut leaf = LabelLeaf::new(drawn(env, input), slot);
     leaf.resettable = reset.is_some();
     match &input.side.kind {
         LabelKind::Glyph(glyph) => leaf.glyph = Some(glyph.resolved(env)),
@@ -679,7 +699,7 @@ pub(crate) fn run(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Placed {
         return Placed { label: Rect::NOTHING, control: hidden_control(&ctx, input, flow, gap) };
     }
     let slot = if reset.is_some() { slot_side } else { 0.0 };
-    let mut leaf = LabelLeaf::new(input.text.clone(), slot);
+    let mut leaf = LabelLeaf::new(drawn(env, input), slot);
     leaf.scrub = input.enabled && (input.side.scrub || scope::last_scrub(&ctx, input.scope));
     leaf.resettable = reset.is_some();
     leaf.differs = reset.is_some_and(|fact| fact.differs);

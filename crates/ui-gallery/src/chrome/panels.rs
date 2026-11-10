@@ -65,9 +65,9 @@ fn padded(ui: &mut Ui, mut add: impl FnMut(&mut Ui)) {
 /// The tree row part that opens a component's tab.
 const OPEN: TrailingPart = TrailingPart::new(0);
 
-/// A muted line where a panel has nothing to show yet.
+/// A faint line where a panel has nothing to show yet.
 fn hint(ui: &mut Ui, text: &'static str) {
-    Text::new(text).shade(Shade::Muted).show(ui);
+    Text::new(text).shade(Shade::Faint).show(ui);
 }
 
 /// A caption over a value.
@@ -122,7 +122,7 @@ impl Panels<'_> {
         let mut opened = None;
         let (filter, selection, open) = (&mut *self.filter, &mut *self.selection, &mut *self.open);
         Stack::new().fill().pad(Pad::Regular).show(ui, |ui, _| {
-            TextField::search("Filter components", Bind::bound(&mut *filter)).show(ui);
+            TextField::search("Filter components", Bind::bound(&mut *filter)).placeholder("Filter components").show(ui);
             let listed = List::<TreeKey>::new("Components")
                 .select(SelectMode::Single)
                 .tree(true)

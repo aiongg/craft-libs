@@ -1,6 +1,7 @@
 //! The label step: placement, mirroring, scrub, double-click reset and the reset dot.
 
 mod align;
+mod caption;
 mod glyph;
 pub mod group;
 pub mod kit;
