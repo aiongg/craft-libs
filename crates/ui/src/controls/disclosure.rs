@@ -17,6 +17,9 @@ const ARM: f32 = 0.1;
 /// The submenu arrow's base and depth, as shares of the glyph rect's side.
 const ARROW_BASE: f32 = 0.55;
 const ARROW_DEPTH: f32 = 0.35;
+/// The tree row triangle's base and depth, as shares of the glyph rect's side.
+const TREE_BASE: f32 = 0.36;
+const TREE_DEPTH: f32 = 0.23;
 
 /// The arrow every component shows for something that opens or unfolds: a chevron that turns from pointing to the
 /// end of the line (closed) to pointing down (open) as `open` goes from 0 to 1. A dropdown's arrow is the open
@@ -29,17 +32,19 @@ pub struct DisclosureGlyph {
     pub open: f32,
     /// A filled arrow in place of the stroked chevron.
     pub filled: bool,
+    /// The smaller filled triangle of a tree row (with `filled`).
+    pub tree: bool,
 }
 
 /// The dropdown arrow.
-static DROPDOWN: DisclosureGlyph = DisclosureGlyph { open: 1.0, filled: false };
+static DROPDOWN: DisclosureGlyph = DisclosureGlyph { open: 1.0, filled: false, tree: false };
 /// The submenu arrow.
-static SUBMENU: DisclosureGlyph = DisclosureGlyph { open: 0.0, filled: true };
+static SUBMENU: DisclosureGlyph = DisclosureGlyph { open: 0.0, filled: true, tree: false };
 
 impl DisclosureGlyph {
     /// A chevron `open` of the way turned.
     pub const fn new(open: f32) -> Self {
-        DisclosureGlyph { open, filled: false }
+        DisclosureGlyph { open, filled: false, tree: false }
     }
 
     /// The icon of the arrow after a dropdown's text: a button that opens a menu, a picker's face, a field with a list.
@@ -64,7 +69,8 @@ impl DisclosureGlyph {
         let flip = if rtl { -1.0 } else { 1.0 };
         let center = rect.center();
         let points: [Vec2; 3] = if self.filled {
-            let (half, depth) = (side * ARROW_BASE / 2.0, side * ARROW_DEPTH / 2.0);
+            let (base, depth) = if self.tree { (TREE_BASE, TREE_DEPTH) } else { (ARROW_BASE, ARROW_DEPTH) };
+            let (half, depth) = (side * base / 2.0, side * depth / 2.0);
             [Vec2::new(-depth, -half), Vec2::new(depth, 0.0), Vec2::new(-depth, half)]
         } else {
             let arm = side * ARM;
@@ -115,12 +121,15 @@ pub struct Disclosure<'a> {
     /// Whether the disclosure is its own AccessKit node; a part of another component's node turns it off.
     #[prop]
     node: bool,
+    /// The filled triangle of a tree row's expander in place of a section's chevron.
+    #[prop]
+    triangle: bool,
 }
 
 impl<'a> Disclosure<'a> {
     /// A disclosure of `open`.
     pub fn new(open: Bind<'a, bool>) -> Self {
-        Disclosure { common: Common::new(), open, node: true }
+        Disclosure { common: Common::new(), open, node: true, triangle: false }
     }
 }
 
@@ -165,8 +174,15 @@ impl Component for Disclosure<'_> {
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let open = cx.anim_bool("open", cx.value().copied().unwrap_or(false), spec::OPEN_RISE);
-        let glyph = DisclosureGlyph::new(open);
-        ui.draw().stroke(&PaintShape::Path(glyph.path(cx.rect, cx.env.direction())), StrokeWidth::Thin, cx.resolve(&cx.style.glyph.color));
+        let glyph = DisclosureGlyph { open, filled: self.triangle, tree: self.triangle };
+        let rect = Rect::from_center_size(cx.rect.center(), Vec2::splat(cx.style.glyph.side.min(cx.rect.width().min(cx.rect.height()))));
+        let points = glyph.path(rect, cx.env.direction());
+        let color = cx.resolve(&cx.style.glyph.color);
+        if self.triangle {
+            ui.draw().fill(&PaintShape::Polygon(points), color);
+        } else {
+            ui.draw().stroke(&PaintShape::Path(points), StrokeWidth::Thin, color);
+        }
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> EditResponse<bool> {
