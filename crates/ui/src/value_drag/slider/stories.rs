@@ -14,12 +14,12 @@ const CAP: f64 = 80.0;
 
 #[story(Slider<'static>, covers = [Default], drive = Drive::Step)]
 fn slider(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    Slider::new(Bind::bound(data.value("value", 40.0)), RANGE).label("Opacity").show(ui).into()
+    Slider::new(Bind::bound(data.ranged("value", 40.0, RANGE)), RANGE).label("Opacity").show(ui).into()
 }
 
 #[story(Slider<'static>, covers = [], drive = Drive::Drag(Grip::new(Slider::THUMB)))]
 fn slider_drag(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    Slider::new(Bind::bound(data.value("value", 40.0)), RANGE).label("Opacity").show(ui).into()
+    Slider::new(Bind::bound(data.ranged("value", 40.0, RANGE)), RANGE).label("Opacity").show(ui).into()
 }
 
 #[story(Slider<'static>, covers = [], drive = Drive::Step)]

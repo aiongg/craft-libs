@@ -20,6 +20,7 @@ pub mod internals;
 pub mod layout;
 pub mod memory;
 pub mod pointer;
+pub mod props;
 pub mod relations;
 pub mod sensing;
 mod stories;
@@ -39,6 +40,7 @@ pub use crate::runtime::measure::{active as is_measuring, body_runs as measuring
 pub use craft_ui_macros::{story, trial};
 pub use fixture::{Fixture, Impure, Room, Target};
 pub use frames::Frames;
+pub use props::story_props;
 #[doc(hidden)]
 pub use story::{
     CollectionKind, Drive, EditKind, Grip, Required, Story, StoryData, StoryOutput, StoryRegistration, StorySnapshot, show_as_only_item, stories,

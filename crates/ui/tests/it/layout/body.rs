@@ -94,3 +94,27 @@ fn a_fill_width_child_in_a_content_column_leaves_the_next_column_in_the_room() {
     assert!(rects[1].max.x <= region.get().max.x, "the second column lies inside the room: {rects:?} in {:?}", region.get());
     assert!(!rects[0].intersect(rects[1]).is_positive(), "the filling child ends where the next column starts: {rects:?}");
 }
+
+static TWO_COLUMNS: [ColumnWidth; 2] = [ColumnWidth::Content, ColumnWidth::Content];
+
+/// A `Grid` reports the extent of all its rows, so what follows it lies under its last row (the regression: only
+/// the first row was counted and the next sibling overlapped the rest).
+#[trial]
+fn a_sibling_after_a_grid_lies_under_its_last_row() {
+    let mut frames = Frames::new();
+    let rects = RefCell::new((Vec::new(), Rect::NOTHING));
+    frames.idle(5, |ui| {
+        let mut cells = Vec::new();
+        Grid::new(&TWO_COLUMNS).show(ui, |ui, _| {
+            for _ in 0..8 {
+                cells.push(Block::new(ITEM).show(ui).rect);
+            }
+        });
+        let after = Block::new(ITEM).show(ui).rect;
+        *rects.borrow_mut() = (cells, after);
+    });
+    let (cells, after) = rects.into_inner();
+    let cells = &cells[cells.len() - 8..];
+    let last = cells.iter().map(|cell| cell.max.y).fold(f32::MIN, f32::max);
+    assert!(after.min.y >= last, "the sibling lies under the last row: {cells:?} then {after:?}");
+}

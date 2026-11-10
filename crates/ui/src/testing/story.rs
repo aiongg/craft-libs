@@ -6,7 +6,7 @@ use craft_behavior::{EditEvent, PartKey, PartRef, Value};
 use egui::{Id, Response, Ui, Vec2};
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
-use std::ops::Range;
+use std::ops::{Range, RangeInclusive};
 
 /// A state a registered type must show in some story.
 #[non_exhaustive]
@@ -164,14 +164,25 @@ pub fn stories() -> Vec<&'static StoryRegistration> {
 /// The values a story shows, by name. Each is a `Value`, so the runner compares them before and after a drive.
 #[derive(Default)]
 pub struct StoryData {
-    values: HashMap<(&'static str, TypeId), Box<dyn Shown>>,
+    pub(super) values: HashMap<(&'static str, TypeId), Box<dyn Shown>>,
+    /// What a story said about how a value is edited: a range or a list of choices.
+    pub(super) how: HashMap<(&'static str, TypeId), Edit>,
     /// The story's `disabled_text`.
     disabled_text: Option<&'static str>,
 }
 
+/// How the Properties editor edits a value, beyond what its type says.
+pub(super) enum Edit {
+    /// A number stays inside this range.
+    Range(RangeInclusive<f64>),
+    /// The value is one of these, by label.
+    Choice(Vec<(&'static str, Box<dyn Shown>)>),
+}
+
 /// A story value with its type erased: it copies and compares itself.
-trait Shown {
+pub(super) trait Shown {
     fn copy(&self) -> Box<dyn Shown>;
+    fn assign(&mut self, from: &dyn Shown);
     fn same(&self, other: &dyn Shown) -> bool;
     fn any(&self) -> &dyn Any;
     fn any_mut(&mut self) -> &mut dyn Any;
@@ -180,6 +191,12 @@ trait Shown {
 impl<T: Value> Shown for T {
     fn copy(&self) -> Box<dyn Shown> {
         Box::new(self.clone())
+    }
+
+    fn assign(&mut self, from: &dyn Shown) {
+        if let Some(value) = from.any().downcast_ref::<T>() {
+            self.clone_from(value);
+        }
     }
 
     fn same(&self, other: &dyn Shown) -> bool {
@@ -218,6 +235,28 @@ impl StoryData {
         match slot.any_mut().downcast_mut::<T>() {
             Some(value) => value,
             None => unreachable!("a slot's value has the type its key names"),
+        }
+    }
+
+    /// Like [`StoryData::value`] for a number the Properties editor keeps inside `range`.
+    pub fn ranged<T: Value>(&mut self, name: &'static str, init: T, range: RangeInclusive<f64>) -> &mut T {
+        self.how.entry((name, TypeId::of::<T>())).or_insert(Edit::Range(range));
+        self.value(name, init)
+    }
+
+    /// Like [`StoryData::value`] for a value that is one of `options`, which the Properties editor offers by label.
+    pub fn choice<T: Value>(&mut self, name: &'static str, init: T, options: &[(&'static str, T)]) -> &mut T {
+        let list = || Edit::Choice(options.iter().map(|(label, value)| (*label, Box::new(value.clone()) as Box<dyn Shown>)).collect());
+        self.how.entry((name, TypeId::of::<T>())).or_insert_with(list);
+        self.value(name, init)
+    }
+
+    /// Puts every value that was there in `before` back to what it was then. A value added since stays.
+    pub fn restore(&mut self, before: &StorySnapshot) {
+        for (key, was) in &before.values {
+            if let Some(now) = self.values.get_mut(key) {
+                now.assign(&**was);
+            }
         }
     }
 
