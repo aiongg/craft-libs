@@ -9,6 +9,7 @@ use super::divider::{self, Divider, Drag};
 use super::group::GroupGrip;
 use super::{DockHeights, DockSizes, DockSpot, DockTargets, DockWords, DragUnit, PanelKey, PanelSpec, Splitter};
 use crate::buttons::IconButton;
+use crate::buttons::icon_button::IconButtonStyleKey;
 use crate::contract::SizeLimits;
 use crate::contract::overlay::Trigger;
 use crate::contract::{
@@ -23,7 +24,8 @@ use crate::style::{ComponentStyle, Corners, StyleCx, SurfaceKind};
 use craft_behavior::divider::{self as push, Segment};
 use craft_behavior::dock::{Column, DockEdge, Group};
 use craft_behavior::{Axis, DockSide, Flow, Metrics, PartKey, Sense, Value};
-use craft_theme::ControlSize;
+use craft_theme::variant::Tone;
+use craft_theme::{ControlSize, CustomVariant, Emphasis, States, Tokens, Variant, VariantLook};
 use egui::{Color32, Context, Id, Pos2, Rect, Response, Ui};
 use std::hash::Hash;
 
@@ -243,18 +245,24 @@ const ARM: f32 = 0.17;
 const REACH: f32 = 0.8;
 const PITCH: f32 = 1.4;
 
+/// The look of the collapse control: ghost, with the muted text until the pointer is over it, and no fill under the
+/// pointer.
+fn collapse_look(tokens: &Tokens) -> VariantLook {
+    let ghost = VariantLook::of(Emphasis::Ghost, Tone::Neutral, tokens);
+    let mut text = ghost.text;
+    text.rest = tokens.color.text.muted;
+    VariantLook::new(States::new(ghost.fill.rest, ghost.fill.rest, ghost.fill.rest, ghost.fill.rest), text)
+}
+
+const COLLAPSE: CustomVariant = CustomVariant::new::<IconButtonStyleKey>("craft_ui.dock-collapse", collapse_look);
+
 /// The glyph of a column's collapse control: a double chevron that points where the column goes, towards the window
-/// edge when it collapses to icons and away from it when it expands. It is drawn in the muted text until the pointer
-/// is over the button, then in the button's own text colour.
+/// edge when it collapses to icons and away from it when it expands.
 struct DoubleChevron {
     /// Whether it points to the right of the screen.
     right: bool,
     /// The stroke width.
     width: f32,
-    /// The colour at rest.
-    muted: Color32,
-    /// The button's rect, for the hover.
-    button: Rect,
 }
 
 impl Glyph for DoubleChevron {
@@ -262,8 +270,7 @@ impl Glyph for DoubleChevron {
         let arm = rect.width().min(rect.height()) * ARM;
         let flip = if self.right { 1.0 } else { -1.0 };
         let centre = rect.center();
-        let hovered = painter.ctx().rect_contains_pointer(painter.layer_id(), self.button);
-        let stroke = egui::Stroke::new(self.width, if hovered { color } else { self.muted });
+        let stroke = egui::Stroke::new(self.width, color);
         for step in [-0.5, 0.5] {
             let x = centre.x + flip * arm * PITCH * step;
             let points = [(-0.5, -1.0), (0.5, 0.0), (-0.5, 1.0)].map(|(dx, dy)| Pos2::new(x + flip * arm * REACH * dx, centre.y + arm * dy)).to_vec();
@@ -304,14 +311,12 @@ pub(super) fn show_bar<P: Clone + Send + Sync + 'static>(
         let split = bar.left() + side;
         (Rect::from_x_y_ranges(bar.left()..=split, bar.y_range()), Rect::from_x_y_ranges(split..=bar.right(), bar.y_range()))
     };
-    let [r, g, b, a] = crate::runtime::env::Env::of(ui).tokens.color.text.muted.0;
-    let chevron = DoubleChevron {
-        right: points_right(edge, expanded, rtl),
-        width: crate::runtime::env::Env::of(ui).tokens.stroke.thin,
-        muted: Color32::from_rgba_unmultiplied(r, g, b, a),
-        button: place,
-    };
-    let shown = IconButton::new(IconSpec::glyph(&chevron)).size(ControlSize::Sm).label(Label::from(toggle.to_owned())).show_at(ui, place);
+    let chevron = DoubleChevron { right: points_right(edge, expanded, rtl), width: crate::runtime::env::Env::of(ui).tokens.stroke.thin };
+    let shown = IconButton::new(IconSpec::glyph(&chevron))
+        .size(ControlSize::Sm)
+        .variant(Variant::Custom(COLLAPSE))
+        .label(Label::from(toggle.to_owned()))
+        .show_at(ui, place);
     let mut record = BarRecord::default();
     if clicked(&shown) {
         record.iconic = Some(expanded);
