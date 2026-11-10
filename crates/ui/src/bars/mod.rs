@@ -14,7 +14,7 @@ mod words;
 pub use align::{AlignAction, AlignBar, AlignBarOutput, DistributeButtons};
 pub use bar::{Bar, BarCommands, BarKind, BarOutput, BarStyle};
 pub use breadcrumb::{BreadcrumbBar, BreadcrumbBarStyle, BreadcrumbOutput, path_crumbs};
-pub use cell::{BarCell, BarCellStyle};
+pub use cell::BarCell;
 pub use constraint_fields::{ConstraintFields, ConstraintFieldsOutput};
 pub use craft_behavior::fit::FitKeep;
 pub use items::{BarItem, BarItems, BarItemsStyle, ItemDisplay};

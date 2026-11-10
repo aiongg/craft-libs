@@ -240,9 +240,9 @@ fn a_captioned_cell_shares_a_centre_line_and_the_trailing_group_ends_the_bar() {
                 IconButton::new(craft_behavior::IconId::new("check")).label("Reset").id_salt("reset").show(ui);
             })
             .show(ui, |ui, _| {
-                BarCell::new("Blend mode").show(ui, |ui, _| {
+                BarCell::new("Blend mode").show(ui, |ui, label| {
                     let mut value = 0u8;
-                    Select::new("Blend mode", Bind::bound(&mut value), &entries).id_salt("mode").show(ui);
+                    Select::new(label, Bind::bound(&mut value), &entries).id_salt("mode").show(ui);
                 });
             });
     });
@@ -250,7 +250,7 @@ fn a_captioned_cell_shares_a_centre_line_and_the_trailing_group_ends_the_bar() {
     let caption = fixture.by_role(Role::LABEL).into_iter().next().expect("the caption is shown");
     let control = fixture.by_role(Role::COMBO_BOX).into_iter().next().expect("the select is shown");
     let reset = fixture.by_label("Reset").expect("the trailing button is shown");
-    assert_eq!(caption.rect.center().y, control.rect.center().y, "the caption and the control share a centre line");
     assert!(caption.rect.max.x <= control.rect.min.x, "the caption comes before the control");
     assert!(control.rect.max.x < reset.rect.min.x, "the cell does not stretch over the trailing group");
+    assert_eq!(caption.rect.center().y, control.rect.center().y, "the caption and the control share a centre line");
 }

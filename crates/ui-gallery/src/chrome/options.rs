@@ -18,15 +18,15 @@ use egui::Ui;
 
 /// A select over `entries` in a cell with its caption.
 fn pick<T: Value>(ui: &mut Ui, caption: &'static str, value: &mut T, entries: &[Entry<T>]) {
-    BarCell::new(format!("{caption}:")).show(ui, |ui, _| {
-        Select::new(caption, Bind::bound(&mut *value), entries).show(ui);
+    BarCell::new(format!("{caption}:")).show(ui, |ui, label| {
+        Select::new(label, Bind::bound(&mut *value), entries).show(ui);
     });
 }
 
 /// A segmented row over `entries` in a cell with its caption.
 fn choose<T: Value>(ui: &mut Ui, caption: &'static str, value: &mut T, entries: &[Entry<T>]) {
-    BarCell::new(format!("{caption}:")).show(ui, |ui, _| {
-        Segmented::new(caption, Bind::bound(&mut *value), entries).show(ui);
+    BarCell::new(format!("{caption}:")).show(ui, |ui, label| {
+        Segmented::new(label, Bind::bound(&mut *value), entries).show(ui);
     });
 }
 
