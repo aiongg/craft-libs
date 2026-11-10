@@ -1,7 +1,7 @@
 //! What the viewer lists: every registered story, grouped by the component it shows.
 
 use craft_ui::contract::{self, Level, Probe, Registration};
-use craft_ui::testing::{StoryRegistration, registered, stories};
+use craft_ui::testing::{StoryRegistration, stories};
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
@@ -52,7 +52,7 @@ impl ComponentInfo {
 }
 
 /// The registry's catalog of the types linked into the running binary: each one's level and plain name.
-fn linked_catalog() -> &'static contract::Catalog {
+pub(crate) fn linked_catalog() -> &'static contract::Catalog {
     static CATALOG: OnceLock<contract::Catalog> = OnceLock::new();
     CATALOG.get_or_init(|| contract::catalog(&contract::registrations()))
 }
@@ -82,7 +82,7 @@ pub struct Declared {
 /// The registration of each registered component and pattern type, by the type's registered name.
 pub fn declared() -> HashMap<&'static str, Declared> {
     let mut out = HashMap::new();
-    for registration in registered() {
+    for registration in contract::registrations() {
         match registration {
             Registration::Component(probe) => {
                 out.insert(probe.type_name(), Declared { module: probe.module, purpose: probe.purpose, probe: Some(probe) });
