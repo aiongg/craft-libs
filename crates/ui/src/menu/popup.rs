@@ -3,8 +3,8 @@
 use super::item::{LevelMemory, MenuItem, MenuItemOutput, MenuLevel, level_env};
 use crate::contract::overlay::{Anchor, Dismiss, Outside, Popup};
 use crate::contract::{
-    Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, Entry, Focus as _, Mount, NoValue, Outcome, Overlay, Pad, Props as _,
-    Remember as _, Role, Show as _, ShowContainer as _, TooltipSpec, Trigger,
+    Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, Entry, Focus as _, Gap, Mount, NoValue, Outcome, Overlay, Pad,
+    Props as _, Remember as _, Role, Show as _, ShowContainer as _, TooltipSpec, Trigger,
 };
 use crate::display::Divider;
 use crate::runtime::env::{Env, Label};
@@ -159,6 +159,7 @@ impl<'a> Menu<'a> {
         let props = ContainerProps::new()
             .surface(SurfaceKind::Popup)
             .pad(Pad::Regular)
+            .body_gap(Gap::None)
             .roving(Roving::new(NavShape::Flat).arrows(Arrows::Vertical))
             .label_column(true)
             .mount(Mount::Layer(layer(false)));
@@ -177,7 +178,7 @@ impl<'a> Menu<'a> {
     /// The rows of a menu in the flow of the layer that shows them, with no surface and no close rules of their own:
     /// the menu of a control that owns its popup shows its entries through it.
     pub fn inline(label: impl Into<Label>) -> Self {
-        let props = ContainerProps::new().roving(Roving::new(NavShape::Flat).arrows(Arrows::Vertical)).label_column(true);
+        let props = ContainerProps::new().body_gap(Gap::None).roving(Roving::new(NavShape::Flat).arrows(Arrows::Vertical)).label_column(true);
         Menu { common: Common::new(), props, open: None, closed: None, submenu: false, values: false, opener: None, back: false, step: None }
             .label(label)
     }

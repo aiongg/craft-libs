@@ -448,6 +448,8 @@ impl Default for Collapse {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Gap {
+    /// No gap: rows touch, as in native menus.
+    None,
     /// `space.gap.row`.
     #[default]
     Row,
