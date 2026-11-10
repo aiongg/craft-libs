@@ -142,6 +142,22 @@ impl Mix for ecolor::Color32 {
     }
 }
 
+/// `None` is "no value of its own" (for ink, the ambient one): a blend with a value switches at the halfway point.
+impl<T: Mix> Mix for Option<T> {
+    fn mix(self, to: Option<T>, t: f32) -> Option<T> {
+        match (self, to) {
+            (Some(a), Some(b)) => Some(a.mix(b, t)),
+            (a, b) => {
+                if t < 0.5 {
+                    a
+                } else {
+                    b
+                }
+            }
+        }
+    }
+}
+
 /// Picks the value for a state.
 pub trait Resolve<T> {
     /// The value for `state` and `flags`, blended by `t`.

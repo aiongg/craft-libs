@@ -248,8 +248,8 @@ struct LabelStyle {
     /// The name: `text.muted`, dimmed with a disabled control.
     #[style(text)]
     name: TextLook,
-    /// The glyph and icon: the normal text colour, `text.disabled` with a disabled control.
-    glyph: Stateful<StyleColor>,
+    /// The glyph and icon: their own ink (`None`), `text.disabled` with a disabled control.
+    glyph: Stateful<Option<StyleColor>>,
 }
 
 /// What the label leaf reports.
@@ -350,8 +350,8 @@ impl Component for LabelLeaf {
                 TextLook::new(TypeRole::Label, Stateful::new(muted).off(States::new(muted, muted, muted, off)))
             },
             glyph: {
-                let (normal, off) = (cx.color(cx.tokens.color.text.normal), cx.color(cx.tokens.color.text.disabled));
-                Stateful::new(normal).off(States::new(normal, normal, normal, off))
+                let off = Some(cx.color(cx.tokens.color.text.disabled));
+                Stateful::new(None).off(States::new(None, None, None, off))
             },
         }
     }
@@ -419,7 +419,7 @@ impl Component for LabelLeaf {
         let (slot, mut rest) = flow.take_end(self.slot);
         let draw = ui.draw();
         let ink = cx.resolve(&cx.style.glyph);
-        let icon_of = |icon: &IconSpec<'static>| IconSpec { color: Some(ink), ..icon.clone() };
+        let icon_of = |icon: &IconSpec<'static>| IconSpec { color: ink.or(icon.color), ..icon.clone() };
         let middle = cx.rect.center().y;
         let centred = |rect: Rect, height: f32| Rect::from_min_size(egui::pos2(rect.min.x, middle - height / 2.0), Vec2::new(rect.width(), height));
         if let Some(glyph) = &self.glyph {
@@ -428,7 +428,7 @@ impl Component for LabelLeaf {
                     draw.icon(centred(rest.take_start(cx.style.icon).0, cx.style.icon), &icon_of(icon));
                 }
                 Glyph::Text(text) => {
-                    let run = TextRun::new(text.as_str()).color(ink);
+                    let run = ink.map_or_else(|| TextRun::new(text.as_str()), |ink| TextRun::new(text.as_str()).color(ink));
                     let size = draw.layout(&run, rest.rect().width()).size();
                     draw.text(centred(rest.take_start(size.x).0, size.y), &run);
                 }
