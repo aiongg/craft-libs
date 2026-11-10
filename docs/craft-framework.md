@@ -856,6 +856,7 @@ A theme with its own shape replaces the radii or adds an offset to control, surf
 | `size.ramp.groove` | Gradient ramp drawn as the groove of a value track |
 | `size.meter` | Bar that shows a quantity as a filled share of a bordered groove |
 | `size.marker.width`, `size.marker.height` | Triangular pointer mark on the edge of a value track |
+| `size.thumb_row` | The least height of a list row that shows a thumbnail (layers, channels, links, thumbnail lists) |
 | `size.rail.width`, `size.rail.button`, `size.rail.panel_width`, `size.rail.panel_button` | Tool rail and panel rail |
 | `size.length.field`, `size.length.track`, `size.length.short`, `size.length.number` | Text or value field, value track, short field, number field over a slider |
 | `size.list.*`, `size.tab.*`, `size.preset.*` | Lists, tab strips, preset browsers |

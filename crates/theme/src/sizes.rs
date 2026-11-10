@@ -114,6 +114,7 @@ pub(crate) fn leaves(b: &mut Preset) -> Vec<Leaf<'_>> {
         "base.size.thumb.md" Num 12.0..=96.0 => s.thumb.md;
         "base.size.thumb.lg" Num 12.0..=96.0 => s.thumb.lg;
         "base.size.thumb.card" Num 48.0..=512.0 => s.thumb.card;
+        "base.size.thumb_row" Num 16.0..=96.0 => s.thumb_row;
         "base.size.handle.sm" Num 2.0..=32.0 => s.handle.sm;
         "base.size.handle.md" Num 2.0..=32.0 => s.handle.md;
         "base.size.handle.ring" Num 2.0..=64.0 => s.handle.ring;

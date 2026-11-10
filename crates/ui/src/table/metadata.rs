@@ -12,6 +12,7 @@ use crate::runtime::env::{Env, Label};
 use crate::text::TextField;
 use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, EditEvent, ItemSource, Mixed};
 use craft_i18n::matcher::Matcher;
+use craft_theme::ControlSize;
 use egui::{Response, Ui};
 use std::borrow::Cow;
 use std::sync::Arc;
@@ -255,6 +256,7 @@ impl<'a> MetadataTable<'a> {
         let table = Table::<FieldKey>::new(label.clone(), columns)
             .id(rows)
             .select(SelectMode::Single)
+            .size(ControlSize::Sm)
             .striped(true)
             .header(false)
             .rows_stamp(query_stamp(query))

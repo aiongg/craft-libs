@@ -859,6 +859,8 @@ pub struct SizeTokens {
     pub panel_header: f32,
     /// Thumbnail sides.
     pub thumb: ThumbSizes,
+    /// The least height of a list row that shows a thumbnail.
+    pub thumb_row: f32,
     /// Canvas drag handles.
     pub handle: HandleSizes,
     /// Pointer tolerance.

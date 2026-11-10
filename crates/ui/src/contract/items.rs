@@ -750,9 +750,11 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         if let Some(scope) = command_scope {
             crate::runtime::commands::register_instance(&ctx, scope, id);
         }
+        let child_size = comp.props(Internal::new()).child_size;
         let base_env = env.derive(|scoped| {
             scoped.values.extend(values);
             scoped.arena = Some(ArenaId::new(id));
+            scoped.size = child_size.unwrap_or(cx.core.resolved.size);
         });
         self.header.paint(ui, cx, env, id, rtl);
         let len = self.source.len();

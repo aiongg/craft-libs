@@ -139,6 +139,7 @@ size.ramp.groove
 size.ruler.tick.mid
 size.thumb.card
 size.thumb.lg
+size.thumb_row
 size.thumb.md
 size.thumb.sm
 size.toggle

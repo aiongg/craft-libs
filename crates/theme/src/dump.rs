@@ -114,6 +114,7 @@ fn size_lines(out: &mut Lines, size: &SizeTokens) {
         bar,
         panel_header,
         thumb: thumbs,
+        thumb_row,
         handle,
         hit,
         checker,
@@ -155,6 +156,7 @@ fn size_lines(out: &mut Lines, size: &SizeTokens) {
     out.line("size.thumb.md", len(*md));
     out.line("size.thumb.lg", len(*lg));
     out.line("size.thumb.card", len(*card));
+    out.line("size.thumb_row", len(*thumb_row));
     let HandleSizes { sm, md, ring, hit: hit_radius, rotate_reach, band_inner, band_outer } = handle;
     out.line("size.handle.sm", len(*sm));
     out.line("size.handle.md", len(*md));
