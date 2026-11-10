@@ -26,7 +26,7 @@ use crate::tile_grid::{CaptionPlace, Tile, TileGrid, TilePartEvent, TileStatus};
 use craft_behavior::{IconId, SelectionChange, keyed};
 use craft_theme::Variant;
 use craft_theme::variant::Tone;
-use egui::{Pos2, Rect, Response, Ui, Vec2};
+use egui::{Pos2, Rect, Response, Ui};
 use std::borrow::Cow;
 use std::cell::RefCell;
 use std::path::{Path, PathBuf};
@@ -197,9 +197,10 @@ struct Page<'p> {
 }
 
 impl Page<'_> {
-    /// The gap between a section's control row and its first row of content.
+    /// An empty first child of a section body: the body gap (`Gap::Section`) then separates the control row from the
+    /// first row of content.
     fn body_top(&self, ui: &mut Ui) {
-        crate::runtime::egui::alloc::space(ui, Vec2::new(0.0, self.env.tokens.space.gap.section));
+        let _ = Row::new().show(ui, |_, _| {});
     }
 
     fn push(&self, action: StartAction) {
@@ -355,6 +356,7 @@ fn recent_section(
         Entry::new(RecentSort::Created, words.sort_created.clone()),
     ];
     let _ = Section::fixed(words.recent.clone())
+        .body_gap(Gap::Section)
         .command_scope(StartRecentCommands::SCOPE)
         .controls(|ui, _| {
             let _ = Segmented::new(words.view.clone(), view.borrow_mut().reborrowed(), &modes).show(ui);
@@ -438,6 +440,7 @@ fn recent_section(
 fn pinned_section(page: &Page<'_>, ui: &mut Ui, folders: &[PathBuf]) {
     let words = page.words;
     let _ = Section::fixed(words.pinned.clone())
+        .body_gap(Gap::Section)
         .command_scope(StartPinnedCommands::SCOPE)
         .controls(|ui, _| {
             if clicked(&Button::new(words.pin_folder.clone()).id_salt("pin").icon(IconId::new("new_folder")).show(ui)) {
@@ -483,7 +486,7 @@ fn pinned_section(page: &Page<'_>, ui: &mut Ui, folders: &[PathBuf]) {
 
 fn templates_section(page: &Page<'_>, ui: &mut Ui, templates: &[Template]) {
     let words = page.words;
-    let _ = Section::fixed(words.templates.clone()).show(ui, |ui, _| {
+    let _ = Section::fixed(words.templates.clone()).body_gap(Gap::Section).show(ui, |ui, _| {
         page.body_top(ui);
         let source = keyed(templates, |template: &Template| template.id.clone()).with_text(|template| Cow::Borrowed(template.name.as_str()));
         let out = page.grid::<String>(words.templates.clone(), false).show_items(ui, &source, &mut |id, _| {

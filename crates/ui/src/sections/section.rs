@@ -7,7 +7,7 @@ use super::title_row::{HeaderAction, HeaderStrength, MenuRows, TitleRow};
 use super::words::SectionWords;
 use crate::contract::overlay::Popup;
 use crate::contract::{
-    Bind, BindMut, BodyCx, Collapse, Common, Component, Container, ContainerProps, Cx, DragBand, HeaderRegion, NoValue, Outcome, Pointer as _,
+    Bind, BindMut, BodyCx, Collapse, Common, Component, Container, ContainerProps, Cx, DragBand, Gap, HeaderRegion, NoValue, Outcome, Pointer as _,
     Props as _, REORDER_BAND, Role, SaveKey, Show as _, Sizing, WordSetCx as _, reorder,
 };
 use crate::runtime::env::Label;
@@ -105,6 +105,13 @@ impl<'a> Section<'a> {
             nudged: None,
         }
         .label(title)
+    }
+
+    /// The spacing between the children of the body.
+    #[must_use]
+    pub fn body_gap(mut self, gap: Gap) -> Self {
+        self.props = self.props.body_gap(gap);
+        self
     }
 
     /// Whether the section starts open (the default). The state lives in the container unless `open` binds it.

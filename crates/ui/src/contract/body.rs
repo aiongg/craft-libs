@@ -1242,6 +1242,8 @@ impl<'b> BodyHooks<'b> {
             let builder = UiBuilder::new().max_rect(room).layout(layout).scope_id(sub(id, "controls"));
             let builder = if frame.node { access::with_parent(builder, id) } else { builder };
             let mut controls_ui = alloc::child(ui, builder);
+            // The same spacing in the measuring run and the placing run, whatever the parent's item spacing is.
+            style::set_item_spacing(&mut controls_ui, Vec2::splat(gap_of(&frame.env.tokens, Gap::Item)));
             let installed = Env::install_for(&controls_ui, frame.env.clone());
             comp.controls(&mut controls_ui, bcx);
             Env::restore(&ctx, installed);
