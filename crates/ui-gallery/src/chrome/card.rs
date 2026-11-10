@@ -282,8 +282,11 @@ impl StoryBody {
         let show = self.story.story.show;
         let at = ui.available_rect_before_wrap().min;
         let record = ShellCx::detached(window.clone(), BodyMode::Normal, Rect::from_min_size(at, vec2(ui.available_width(), self.room)));
+        // The measure runs in every pass, the card's own measuring runs included, where the shell below skips the story:
+        // its value text is the one the card can measure beside the story.
+        let mut measured_text = None;
         let took = host.stack().measure_in(ui, Proposal::Ideal, |ui, _| {
-            host.content(ui, show, &mut state.data, Some(&record));
+            measured_text = host.content(ui, show, &mut state.data, Some(&record)).value_text;
         });
         // A story that shows nothing in flow takes no more than its bare surface; under its own id, so its record does
         // not stand for the story's.
@@ -338,7 +341,8 @@ impl StoryBody {
         state.note_start();
         // A story that takes no room in flow paints in the shell's whole room, unless what it shows is a dialog.
         let flow = if took.y > bare.y { flow.get() } else { (!state.dialog.known).then_some(rect) };
-        BodyShown { flow, value_text: output.into_inner().flatten().and_then(|output| output.value_text) }
+        let value_text = output.into_inner().flatten().and_then(|output| output.value_text).or(measured_text);
+        BodyShown { flow, value_text }
     }
 }
 

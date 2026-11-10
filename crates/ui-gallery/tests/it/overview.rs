@@ -75,7 +75,8 @@ fn a_card_shows_its_picked_story_group_and_the_stories_panel_picks_another() {
     let mut gallery = gallery_selecting("Controls", "Slider", "Slider");
     let mut fixture = Fixture::new(move |ui| gallery.ui(ui));
     fixture.room(Vec2::new(1400.0, 900.0)).settle();
-    let tops: Vec<f32> = titles(values).iter().map(|title| top_of(&fixture, title).unwrap_or_else(|| panic!("the title `{title}` is painted"))).collect();
+    let tops: Vec<f32> =
+        titles(values).iter().map(|title| top_of(&fixture, title).unwrap_or_else(|| panic!("the title `{title}` is painted"))).collect();
     assert!(tops.windows(2).all(|pair| pair[0] < pair[1]), "the cases run down the card in declaration order: {:?}", titles(values));
     for title in titles(step) {
         assert!(!painted(&fixture, &title), "a case of another group is not on the card: {title}");

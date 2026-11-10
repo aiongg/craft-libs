@@ -189,9 +189,10 @@ impl Panels<'_> {
         let before = selection.items.clone();
         Stack::new().fill().pad(Pad::Regular).show(ui, |ui, _| {
             let source = keyed(&listed, |at| *at);
-            List::<usize>::new("Stories").select(SelectMode::Single).selection(Bind::bound(&mut selection)).show_items(ui, &source, &mut |at, _| {
-                ListRow::new(names.get(*at).cloned().unwrap_or_default())
-            });
+            List::<usize>::new("Stories")
+                .select(SelectMode::Single)
+                .selection(Bind::bound(&mut selection))
+                .show_items(ui, &source, &mut |at, _| ListRow::new(names.get(*at).cloned().unwrap_or_default()));
         });
         if selection.items != before
             && let Some(&picked) = selection.items.first()
