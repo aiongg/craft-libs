@@ -84,7 +84,7 @@ pub(super) fn surface(cx: &StyleCx<'_>, parts: &VariantParts) -> SurfaceLook {
     }
     // A variant without an edge draws none in any state: the kind's own edge would frame a disabled solid button.
     let edge = parts.edge.clone().unwrap_or_else(|| Stateful::new(cx.color(Rgba::TRANSPARENT)));
-    look.border(edge, cx.tokens.stroke.thin)
+    look.border(edge, cx.tokens.stroke.thin).border_replaces_edge()
 }
 
 /// The look of a control that is on: the accent's soft fill with the accent's text colour,

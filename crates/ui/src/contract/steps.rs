@@ -17,7 +17,7 @@ use crate::runtime::memory::{MemoryStage, sub};
 use crate::runtime::motion::{Drives as _, spec};
 use crate::runtime::windows::WindowHost;
 use crate::runtime::{inspect, keys, layout_memory, wheel};
-use crate::style::{ComponentStyle, Flags, Ink, StateSet, StyleCx, accepted_variant, resolve_style, surface_style};
+use crate::style::{ComponentStyle, Flags, Ink, StateSet, StyleCx, SurfaceEdge, accepted_variant, resolve_style, surface_style};
 use craft_behavior::{
     CancelReason, Cursor, CursorPriority, DragWarp, EditEvent, Gesture, GesturePhase, Input, Intent, KeyRole, Mixed, NavMove, PaintedCursor, PartKey,
     PartRef, PressCancel, Proposal, Roving, Sense, Value, ValueDrag,
@@ -1128,6 +1128,9 @@ pub(crate) fn paint_surface<C: Component>(ui: &Ui, env: &Env, cx: &Cx<'_, C>) {
             // A look that names its own radius (a capsule button) shapes the kind's fill and edge too, so no plate with the kind's corners shows outside it.
             if look.radius != egui::CornerRadius::ZERO {
                 style.radius = look.radius;
+            }
+            if look.border_replaces_edge && matches!(style.edge, SurfaceEdge::Border(_)) {
+                style.edge = SurfaceEdge::None;
             }
             let mut shapes = Surface::shapes(&style, Some(fill.egui()), cx.core.rect, look.corners, env.direction, ppp);
             if let Some(border) = &look.border {
