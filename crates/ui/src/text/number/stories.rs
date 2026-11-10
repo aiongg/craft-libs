@@ -2,7 +2,9 @@
 
 use super::{NumberField, NumberPick};
 use crate::contract::{Bind, Entry, Props as _, Show as _, ShowContainer as _, Validity};
+use crate::display::Text;
 use crate::form::Field;
+use crate::layout_components::Row;
 use crate::runtime::env::Message;
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use craft_behavior::{Mixed, NumberCodec, Reader};
@@ -21,10 +23,12 @@ fn number_field(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let out = Field::new("Size").id_salt("size").show(ui, |ui, _| {
         NumberField::new("Size", Bind::bound(data.value("size", Some(SIZE)))).range(RANGE).step(0.5).unit("pt").size(size).show(ui).edit
     });
-    Field::new("Disabled").id_salt("disabled").show(ui, |ui, _| {
-        NumberField::new("Disabled", Bind::bound(&mut Some(64.0))).unit("px").scrub_by_label().enabled(false).size(size).show(ui);
+    // A label of a disabled control would take a click that focuses nothing, so the row has a plain text label.
+    Row::new().fill_width().id_salt("disabled").show(ui, |ui, _| {
+        Text::new("Disabled").show(ui);
+        NumberField::new("Disabled", Bind::bound(&mut Some(64.0))).unit("px").enabled(false).size(size).show(ui);
     });
-    out.into()
+    out.inner.map(StoryOutput::from).unwrap_or_default()
 }
 
 #[story(NumberField<'static>, covers = [LongText], drive = Drive::Never)]

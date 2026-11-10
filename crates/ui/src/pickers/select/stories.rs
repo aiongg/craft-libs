@@ -2,7 +2,9 @@
 
 use super::Select;
 use crate::contract::{Bind, Entry, Props as _, Role, Show as _, ShowContainer as _, Validity};
+use crate::display::Text;
 use crate::form::Field;
+use crate::layout_components::Row;
 use crate::primitives::IconSpec;
 use crate::runtime::env::Message;
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
@@ -59,10 +61,12 @@ fn select(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     Field::new("No choice").id_salt("no-choice").show(ui, |ui, _| {
         Select::new("Profile", Bind::bound(&mut none), &profiles).placeholder("Choose a profile").size(size).enabled(!disabled).show(ui);
     });
-    Field::new("Disabled").id_salt("disabled").show(ui, |ui, _| {
+    // A label of a disabled control would take a click that focuses nothing, so the row has a plain text label.
+    Row::new().fill_width().id_salt("disabled").show(ui, |ui, _| {
+        Text::new("Disabled").show(ui);
         Select::new("Locked units", Bind::bound(&mut 2u8), &units).size(size).enabled(false).show(ui);
     });
-    out.into()
+    out.inner.map(StoryOutput::from).unwrap_or_default()
 }
 
 #[story(Select<'static, u8>, covers = [Mixed], drive = Drive::Never)]
