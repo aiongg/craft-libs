@@ -579,8 +579,8 @@ impl Component for MenuItem<'_> {
         let tokens = cx.tokens;
         let text = &tokens.color.text;
         let c = |rgba: Rgba| cx.color(rgba);
-        let surface = SurfaceLook::new(cx.row_surface()).radius(UiTokens::corner(tokens.shape.radius.sm));
-        let ink = |base: Rgba| cx.row_ink(base).off(States::new(c(base), c(base), c(base), c(text.disabled)));
+        let surface = SurfaceLook::new(cx.command_row_surface()).radius(UiTokens::corner(tokens.shape.radius.sm));
+        let ink = |base: Rgba| cx.command_row_ink(base).off(States::new(c(base), c(base), c(base), c(text.disabled)));
         let control = cx.control();
         // A row's content sits `space.pad.regular` in from the popup's own padding, so a label starts clear of the edge.
         let mut metrics = control.metrics();
@@ -676,10 +676,12 @@ impl Component for MenuItem<'_> {
                 (0.0, gained)
             }
         };
-        if enabled && ((hovered && moving) || focus_gained) && level.activate_row(cx.id) {
+        // Focus lands on a row of a menu that the pointer opened without making it active: only the keyboard does.
+        if enabled && ((hovered && moving) || (focus_gained && level.keyboard())) && level.activate_row(cx.id) {
             frame::request_repaint(&ctx);
         }
-        self.active = level.is_active(cx.id);
+        // A disabled row is never active.
+        self.active = enabled && level.is_active(cx.id);
         if hovered && waited < DWELL {
             frame::request_repaint(&ctx);
         }
@@ -721,6 +723,8 @@ impl Component for MenuItem<'_> {
         let mut flags = Flags::empty();
         flags.set(Flags::CHECKED, self.check == Some(true) || self.radio_mark == Some(true) || self.entry == Some(true));
         flags.set(Flags::LEAD, self.active);
+        // The row whose submenu is open keeps the hover tint while another row is active.
+        flags.set(Flags::EMPHASIZED, self.open && !self.active);
         flags
     }
 

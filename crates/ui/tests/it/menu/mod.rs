@@ -166,3 +166,34 @@ fn rows_of_an_inline_menu_shown_from_its_container_record_take_the_columns_of_la
         fixture.frame(vec![]);
     }
 }
+
+/// Whether the latest frame painted a fill over the row labelled `label` (the active row's fill).
+fn row_filled(fixture: &Fixture, label: &str) -> bool {
+    let row = fixture.by_label(label).expect("the row shows").rect;
+    // The popup's own surface contains every row; a row's fill is no taller than the row plus its rounding.
+    fixture.shape_bounds().iter().any(|shape| shape.contains_rect(row) && shape.height() < row.height() * 1.5)
+}
+
+/// A menu opened by the pointer paints no active row; the first arrow key makes the row it reaches active.
+#[trial]
+fn a_menu_opened_by_the_pointer_shows_no_active_row_until_a_key_moves_it() {
+    let mut fixture = Fixture::new(|ui| {
+        let opener = Button::new("File").show(ui);
+        Menu::new("File").opened_by(&opener, Trigger::Press).show(ui, |ui, _| {
+            for label in ["Open", "Save", "Close"] {
+                MenuItem::new(label).show(ui);
+            }
+        });
+    });
+    fixture.settle();
+    let opener = fixture.by_label("File").expect("the opener has a node");
+    fixture.click(&opener);
+    fixture.idle(4);
+    assert!(menu_shown(&fixture), "a press of the opener opens the menu");
+    let resting = ["Open", "Save", "Close"].map(|label| row_filled(&fixture, label));
+    assert_eq!(resting, [false; 3], "no row is active at rest");
+    fixture.key(egui::Key::ArrowDown, egui::Modifiers::NONE);
+    fixture.idle(4);
+    let after = ["Open", "Save", "Close"].map(|label| row_filled(&fixture, label));
+    assert_eq!(after.iter().filter(|&&on| on).count(), 1, "the arrow key makes one row active: {after:?}");
+}

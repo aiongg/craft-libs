@@ -26,7 +26,7 @@ impl<'a, T> EntryRows<'a, T> {
         let Some(value) = entry.value() else {
             return ListRow::spacer();
         };
-        let row = ListRow::new(self.labels[at].clone()).option().enabled(entry.is_enabled());
+        let row = ListRow::new(self.labels[at].clone()).option().command_form(true).enabled(entry.is_enabled());
         let row = match entry.icon_spec() {
             Some(icon) => row.icon(icon.clone()),
             None => row,
