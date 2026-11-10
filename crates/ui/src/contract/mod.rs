@@ -12,6 +12,8 @@ mod group;
 mod held;
 mod items;
 mod label;
+#[cfg(feature = "testing")]
+mod level;
 mod looks;
 mod mount;
 pub mod overlay;
@@ -58,6 +60,11 @@ pub use held::Held;
 pub use items::{ColumnCommands, SweepApply, SweepStep, request_rename, section_part};
 pub(crate) use items::{lead_position, put_toggle_names};
 pub use label::{CellWidth, FieldLabelRole, FieldLayout, GlyphLabel, LabelAlign, LabelKind, Scrub, SideLabel};
+#[cfg(feature = "testing")]
+pub(crate) use level::KIT_MODULES;
+#[doc(hidden)]
+#[cfg(feature = "testing")]
+pub use level::{Catalog, CatalogEntry, Level, Surface, catalog, story_title};
 pub use looks::Looks;
 pub use overlay::{Overlay, OverlayUi, Overlays, Popup, PopupHandle, SizeLimits, Trigger};
 pub use paint_ui::PaintUi;
