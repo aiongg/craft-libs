@@ -12,6 +12,7 @@ use crate::contract::{
 use crate::controls::disclosure::Disclosure;
 use crate::menu::Menu;
 use crate::primitives::{IconSpec, Span, TextRun};
+use crate::runtime::commands::CommandRef;
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, IconLook, Ink, StyleCx, TextLook, TypeRole};
 use craft_behavior::{CursorIcon, Flow, IconId, Metrics, NavShape, PartKey, Roving, Sense};
@@ -46,6 +47,21 @@ pub enum HeaderAction {
     Menu,
     /// Float the container out of its dock.
     Float,
+}
+
+/// An icon command at the end of a header: an icon button bound to a command, so its accessible name, enabled state and
+/// activation follow the command. The header's own actions (close, menu, float) come after the commands.
+#[derive(Clone, Debug)]
+pub struct HeaderCommand {
+    icon: IconId,
+    command: CommandRef,
+}
+
+impl HeaderCommand {
+    /// The icon `icon` that runs `command`.
+    pub fn new(icon: IconId, command: impl Into<CommandRef>) -> Self {
+        HeaderCommand { icon, command: command.into() }
+    }
 }
 
 /// What `TitleRow` reports: the lead's value edits and the action taken.
@@ -105,6 +121,7 @@ enum Lead<'a> {
 
 const LEAD: PartKey = PartKey::new("lead");
 const ACTION: PartKey = PartKey::new("action");
+const COMMAND: PartKey = PartKey::new("command");
 /// The title band: a click on it toggles a disclosure lead, and it carries the tooltip of an elided title.
 const TITLE: PartKey = PartKey::new("title");
 
@@ -157,6 +174,7 @@ pub struct TitleRow<'a> {
     handle: bool,
     lead: Lead<'a>,
     actions: Vec<HeaderAction>,
+    commands: Vec<HeaderCommand>,
     taken: Option<HeaderAction>,
     menu_rect: Option<Rect>,
     placed: Option<Placed>,
@@ -186,6 +204,7 @@ impl<'a> TitleRow<'a> {
             handle: false,
             lead: Lead::None,
             actions: Vec::new(),
+            commands: Vec::new(),
             taken: None,
             menu_rect: None,
             placed: None,
@@ -211,6 +230,13 @@ impl<'a> TitleRow<'a> {
     #[must_use]
     pub fn actions(mut self, actions: impl IntoIterator<Item = HeaderAction>) -> Self {
         self.actions = actions.into_iter().collect();
+        self
+    }
+
+    /// Icon commands before the action parts, in reading order.
+    #[must_use]
+    pub fn commands(mut self, commands: impl IntoIterator<Item = HeaderCommand>) -> Self {
+        self.commands = commands.into_iter().collect();
         self
     }
 
@@ -283,7 +309,8 @@ impl Component for TitleRow<'_> {
         let role = cx.style.text.role;
         let title = cx.layout(&TextRun::new(self.title_text(cx.resolved.label)).role(role)).galley.size();
         let subtitle = self.subtitle.as_ref().map(|subtitle| cx.layout(&subtitle_run(subtitle.as_str(), role)).galley.size().x);
-        let parts = usize::from(self.has_lead()) + usize::from(self.icon.is_some()) + usize::from(self.handle) + self.actions.len();
+        let parts =
+            usize::from(self.has_lead()) + usize::from(self.icon.is_some()) + usize::from(self.handle) + self.commands.len() + self.actions.len();
         // The parts are square on the row's height, which the height token can raise above the text's.
         let side = title.y.max(cx.style.metrics.min_size.y);
         let text = title.x + subtitle.map_or(0.0, |width| width + cx.gap());
@@ -304,19 +331,27 @@ impl Component for TitleRow<'_> {
             cx.part(LEAD, lead).sense(Sense::CLICK | Sense::FOCUS).focusable();
             flow = rest;
         }
-        // The last action sits at the end edge, so the group reads in the order given; stops register in that order.
+        // The last part sits at the end edge, so the group reads commands then actions in the order given; stops register
+        // in that order.
+        let commands = self.commands.len();
         let mut rects = Vec::new();
-        for _ in &self.actions {
-            let (action, rest) = flow.take_end(side);
-            rects.push(action);
+        for _ in 0..commands + self.actions.len() {
+            let (part, rest) = flow.take_end(side);
+            rects.push(part);
             flow = rest;
         }
         self.menu_rect = None;
-        for (at, action) in rects.into_iter().rev().enumerate() {
-            if self.actions[at] == HeaderAction::Menu {
-                self.menu_rect = Some(action);
-            }
-            cx.part(ACTION.at(at as u64), action).sense(Sense::CLICK | Sense::FOCUS).focusable();
+        for (at, rect) in rects.into_iter().rev().enumerate() {
+            let key = if at < commands {
+                COMMAND.at(at as u64)
+            } else {
+                let action = at - commands;
+                if self.actions[action] == HeaderAction::Menu {
+                    self.menu_rect = Some(rect);
+                }
+                ACTION.at(action as u64)
+            };
+            cx.part(key, rect).sense(Sense::CLICK | Sense::FOCUS).focusable();
         }
         cx.roving(Roving::new(NavShape::Flat));
         let band = flow.rect();
@@ -354,6 +389,11 @@ impl Component for TitleRow<'_> {
                 self.taken = Some(*action);
             }
         }
+        for (at, header) in self.commands.iter().enumerate() {
+            if let Some(source) = cx.part_activated(COMMAND.at(at as u64)) {
+                cx.fire(header.command.clone(), source);
+            }
+        }
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
@@ -366,6 +406,9 @@ impl Component for TitleRow<'_> {
                 ui.face(LEAD, Disclosure::new(Bind::given(value)).node(false).label(name));
             }
             Lead::Check(_) => ui.face(LEAD, Checkbox::new(Bind::given(value)).label(words.gate.clone())),
+        }
+        for (at, header) in self.commands.iter().enumerate() {
+            ui.face(COMMAND.at(at as u64), IconButton::command(header.icon.clone(), header.command.clone()));
         }
         for (at, action) in self.actions.iter().enumerate() {
             let (icon, label) = match action {

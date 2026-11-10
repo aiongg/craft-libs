@@ -1247,7 +1247,8 @@ impl<'a> OverlayUi<'a> {
             return None;
         }
         let anchor = resolve_anchor(&ctx, popup.id, &overlay, self.anchor, self.to_screen);
-        let layer = Layer { id: popup.id, owner, overlay: &overlay, anchor, env: &self.env, exiting: !open, fade: presence.t, size: None };
+        let layer =
+            Layer { id: popup.id, owner, overlay: &overlay, anchor, env: &self.env, exiting: !open, fade: presence.t, size: None, region: None };
         let resolved = self.resolved;
         let mut result = None;
         let mut requested = false;
@@ -1294,6 +1295,8 @@ pub(crate) struct Layer<'a> {
     /// The size the layer's content takes in this pass, when its container measured it before the layer shows;
     /// a layer without one is placed by the size it took last pass.
     pub size: Option<egui::Vec2>,
+    /// The screen rect the layer is contained in (see [`region_for`]): placement, scrim, clip and input blocking stop at it.
+    pub region: Option<Rect>,
 }
 
 /// What the host reports.
@@ -1406,6 +1409,31 @@ fn opened_overlay(ctx: &Context, overlay: &Overlay, stored: Option<Opening>) -> 
 /// The opening the layer `id` decided when it appeared, `None` before the host has run for it.
 fn stored_opening(ctx: &Context, id: Id) -> Option<Opening> {
     MemoryStage::peek::<LayerMemory>(ctx, memory_slot(id)).opening
+}
+
+/// The region a modal layer opened in `env` is contained in: the region of the embedded shell it is opened in
+/// (`AppShell::embedded`), `None` for a window's own layers and for every layer that is not a modal.
+pub(crate) fn region_for(env: &Env, overlay: &Overlay) -> Option<Rect> {
+    overlay.rank.is_modal().then(|| env.get::<crate::runtime::env::ShellEntry>().0.and_then(|shell| shell.region())).flatten()
+}
+
+/// The screen rect a layer of `overlay` opened in `env` keeps inside: the safe rect, or the part of it a contained
+/// layer's region leaves.
+pub(crate) fn screen_for(ctx: &Context, env: &Env, overlay: &Overlay) -> Rect {
+    let safe = areas::safe_rect(ctx);
+    region_for(env, overlay).map_or(safe, |region| region.intersect(safe))
+}
+
+impl Overlay {
+    /// The overlay as a layer contained in a region shows: its content may take the whole region, since the region is
+    /// what the host has to give.
+    pub(crate) fn in_region(&self) -> Overlay {
+        let mut overlay = self.clone();
+        if let OverlayFit::ContentCapped(_) = overlay.fit {
+            overlay.fit = OverlayFit::ContentCapped(ViewportShare::new(1.0, 1.0));
+        }
+        overlay
+    }
 }
 
 fn anchor_rect(ctx: &Context, layer: &Layer<'_>, bounds: Rect, memory: &mut LayerMemory) -> Rect {
@@ -1530,7 +1558,7 @@ pub(crate) fn host(ctx: &Context, layer: &Layer<'_>, body: &mut dyn FnMut(&mut U
     }
     let layer = &Layer { overlay: opened.as_ref().map_or(layer.overlay, |(overlay, _)| overlay), ..*layer };
     let overlay = layer.overlay;
-    let bounds = areas::safe_rect(ctx);
+    let bounds = layer.region.map_or_else(|| areas::safe_rect(ctx), |region| region.intersect(areas::safe_rect(ctx)));
     let anchor = anchor_rect(ctx, layer, bounds, &mut memory);
     let area = area_id(layer.id);
     // A container's layer is placed by the size its container measured for this pass, any other by the size it took last
@@ -1579,6 +1607,9 @@ pub(crate) fn host(ctx: &Context, layer: &Layer<'_>, body: &mut dyn FnMut(&mut U
     });
     overlay::begin_layer(ctx, layer.id, layer.exiting);
     let shown = areas::show_layer(ctx, &spec, |ui| {
+        if let Some(region) = layer.region {
+            ui.set_clip_rect(ui.clip_rect().intersect(region));
+        }
         areas::fade(ui, layer.fade * overlay.opacity);
         // The layer is not inside its opener's arena, roving group, scroll or row: its content starts from the
         // opener's inherited env with the layer-local fields fresh.
@@ -1611,6 +1642,7 @@ pub(crate) fn host(ctx: &Context, layer: &Layer<'_>, body: &mut dyn FnMut(&mut U
     entry.side = placed.side;
     entry.exiting = layer.exiting;
     entry.cover = cover;
+    entry.region = layer.region;
     entry.scoped = scope.is_some();
     entry.absorbs = overlay.dismiss.outside == Outside::Absorb;
     overlay::record(ctx, entry);

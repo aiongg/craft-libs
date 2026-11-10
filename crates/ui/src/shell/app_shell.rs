@@ -23,12 +23,12 @@ use crate::runtime::egui::pass;
 use crate::runtime::env::{AppValues, BodyMode, Env, Label, RevealEdge, ShellCx, ShellRegions, WindowKey};
 use crate::runtime::focus::FocusPolicy;
 use crate::runtime::frame::{note_shell, take_chrome_toggles};
-use crate::runtime::overlay::{OpenFilter, any_open};
+use crate::runtime::overlay::{self, OpenFilter, any_open};
 use crate::runtime::pointer;
 use crate::shell::Slot;
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind, UiTokens};
 use craft_behavior::{Metrics, Sense};
-use egui::{Rect, Response, Ui};
+use egui::{Rect, Response, Ui, Vec2};
 use std::sync::Arc;
 
 /// The closure that fills a region.
@@ -200,6 +200,7 @@ struct Parts {
     revealed: bool,
     panels_hidden: bool,
     mode: ScreenMode,
+    dialog: Option<Vec2>,
 }
 
 /// What [`AppShell::show`] drew.
@@ -217,6 +218,9 @@ pub struct AppShellOutput {
     pub panels_hidden: bool,
     /// The screen mode after this pass.
     pub screen_mode: ScreenMode,
+    /// For an embedded shell: the size of its largest open dialog. A dialog is contained in the shell's region and is
+    /// cut by it, so a size that equals the region on an axis tells the host to give the region more room on it.
+    pub dialog: Option<Vec2>,
 }
 
 impl Outcome for AppShellOutput {
@@ -434,6 +438,12 @@ impl<'a, S> AppShell<'a, S> {
                 .with_tabs(tabs)
                 .with_tab_reveal(kept.reveal.tab())
                 .with_panels_hidden(kept.reveal.panels_hidden());
+            // The room an embedded shell shows: its rect less what a scroll or a parent clips. Its dialogs are contained in
+            // it.
+            let region = cx.rect.intersect(ui.clip_rect());
+            if embedded {
+                shell = shell.with_region(region);
+            }
             for edge in [RevealEdge::Top, RevealEdge::Start, RevealEdge::End] {
                 shell = shell.with_edge_reveal(edge, kept.reveal.edge(edge));
             }
@@ -470,6 +480,8 @@ impl<'a, S> AppShell<'a, S> {
                     dialogs.run(ui);
                 }
             });
+            let dialog =
+                embedded.then(|| overlay::contained_in(&ctx, region)).and_then(|rects| rects.into_iter().map(|rect| rect.size()).reduce(Vec2::max));
 
             ToastStack::show(ui);
 
@@ -484,7 +496,7 @@ impl<'a, S> AppShell<'a, S> {
             kept.reveal.record(edges);
             let revealed = only && !regions.slots.is_empty();
             *cx.keep::<ShellState>() = kept;
-            Parts { regions, revealed, panels_hidden, mode }
+            Parts { regions, revealed, panels_hidden, mode, dialog }
         });
         let response = shown.output.response;
         match shown.inner {
@@ -494,6 +506,7 @@ impl<'a, S> AppShell<'a, S> {
                 revealed: parts.revealed,
                 panels_hidden: parts.panels_hidden,
                 screen_mode: parts.mode,
+                dialog: parts.dialog,
             },
             None => AppShellOutput {
                 response,
@@ -501,6 +514,7 @@ impl<'a, S> AppShell<'a, S> {
                 revealed: false,
                 panels_hidden: false,
                 screen_mode: ScreenMode::default(),
+                dialog: None,
             },
         }
     }

@@ -1601,6 +1601,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `const KEYS: crate::runtime::focus::KeyUse`. Keys the focused component keeps from egui and the shortcut dispatcher.
   - `fn keys(&self) -> crate::runtime::focus::KeyUse`. The keys this instance keeps in its current state. The default is `KEYS`; a component whose key use depends
   - `const SHOWS_LABEL: bool`. Whether the component paints its label as visible text. `false` for a face that shows only an icon or a
+  - `const LABELLED_AFTER: bool`. Whether the control draws only its mark and its text is the label step's, placed after it: a check box, a
   - `const SINGLE_VALUE: bool`. Whether the component edits one value that several selected things cannot disagree on (a colour picker's
   - `type Style`. The style type.
   - `type Output`. `Response`, `EditResponse<T>` or a richer type.
@@ -1919,6 +1920,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
 - `craft_ui::contract::ItemOpener`: `pub struct ItemOpener`. The part of one item that opens a menu or popover: `ItemCx::part_opener` names it and
 - `craft_ui::contract::ItemOutput`: `pub trait ItemOutput<E>: Outcome`. What an item's output may report beyond its response.
   - `fn into_event(self) -> Option<E>`. The event the collection reports for this item, `None` when the item reports nothing.
+  - `fn open_request(&self) -> Option<super::OpenChange<()>>`. The item asks to open or close its children, as a click on its disclosure does. The collection reports it
   - `fn label_rect(&self) -> Option<egui::Rect>`. The rect of the item's label, where a rename editor goes; `None` puts it over the whole row.
 - `craft_ui::contract::Job`: re-export of `craft_ui::runtime::pending::Job`.
 - `craft_ui::contract::LabelAlign`: `pub enum LabelAlign { End, Start }`. Where a beside label sits in its column.
@@ -3019,6 +3021,8 @@ One-shot screenshot slots and the facts a screenshot is measured against.
   - `pub fn with_tab_reveal(mut self, on: bool) -> Self`. The Tab reveal is on or off.
   - `pub fn with_edge_reveal(mut self, edge: RevealEdge, on: bool) -> Self`. The edge reveal of `edge` is on or off.
   - `pub fn with_float_bounds(mut self, bounds: Rect) -> Self`. Where floating frames may go: the body rect plus the area under bars that overlay the body.
+  - `pub fn with_region(mut self, region: Rect) -> Self`. The screen rect of the region this shell fills inside another window (`AppShell::embedded`). Modal layers opened
+  - `pub fn region(&self) -> Option<Rect>`. The region an embedded shell fills; `None` for a window's own shell.
   - `pub fn put(&self, values: &mut AppValues)`. Sets this value in `values`, where `BodyCx::shell` reads it. The shell calls it on the values of the scope that
   - `pub fn window(&self) -> &WindowKey`. The window's key; components in slots key their ids and memory by it.
   - `pub fn body_mode(&self) -> BodyMode`. The body mode of this pass.

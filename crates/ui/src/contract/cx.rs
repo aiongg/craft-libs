@@ -1,15 +1,14 @@
 //! The context types (1.5): `CxCore`, `Cx`, `BodyCx`, `ItemCx`, `MeasureCx`, `PartsCx` and `PartBuilder`, and the
 //! chapter traits implemented on them.
 
-use super::label::{self, LeafLabel};
-use super::run::ShowAt;
+use super::label;
 use super::{Component, Container, EditResponse, Resolved, Show, SideLabel, Tooltip, Validity, ValueOf};
 use crate::primitives::sensing::{PartDecl, PartResults};
 use crate::primitives::{Adopted, PaintRecord, PartResult, TextEnv, TextLayout, TextRun};
 use crate::runtime::access::{self, FieldLabel, Politeness};
 use crate::runtime::commands::{self, CommandAccess, CommandChain, CommandRef, Commands, FireSource, ResolvedCommand};
 use crate::runtime::drag::{self, DragPreview, DropTarget, WindowDropTarget};
-use crate::runtime::egui::{alloc, areas};
+use crate::runtime::egui::areas;
 use crate::runtime::env::{Env, EnvView, Label, Message};
 use crate::runtime::focus::{self, FocusShape};
 use crate::runtime::keys::{Intents, MenuKey};
@@ -1344,51 +1343,7 @@ impl<'a> BodyCx<'a> {
     /// the placement measured: the child (plus the label line when the label stacks), and the label when it is taller.
     /// `ui` is the body's `Ui`; `key` makes the child's id.
     pub fn labelled<C: Show>(&mut self, ui: &mut Ui, key: impl Hash + Debug, label: Label, side: SideLabel, child: C) -> C::Output {
-        let id = self.id.with(key);
-        let env = Env::of(ui);
-        let mut child = child;
-        let under = Some((self.resolved.enabled, self.resolved.size));
-        let ideal = super::measure_under(&mut child, &*ui, Some(id), Proposal::Ideal, under);
-        let avail = ui.available_rect_before_wrap();
-        // The child's own height: a stacked label pushes the control down, and the allocation below follows the placement.
-        let row = Rect::from_min_size(avail.min, Vec2::new(avail.width(), ideal.y));
-        let at = LeafLabel {
-            id,
-            owner: self.resolved.id,
-            parent: None,
-            row,
-            text: &label,
-            side: &side,
-            enabled: self.resolved.enabled,
-            size: self.resolved.size,
-        };
-        let placed = label::leaf(ui, &env, &at, &mut child);
-        // In a column that sizes from its content the row is the label plus the control, never the room around them.
-        let content = env.content.0;
-        let control_width = if content { placed.control.width().min(ideal.x) } else { placed.control.width() };
-        let mut control = Rect::from_min_size(placed.control.min, Vec2::new(control_width, ideal.y));
-        let rtl = env.direction.is_rtl();
-        if content && rtl {
-            control = control.translate(Vec2::new(placed.control.width() - control_width, 0.0));
-        }
-        let extent = if !content {
-            avail.width()
-        } else if rtl {
-            avail.max.x - control.min.x.min(placed.label.min.x)
-        } else {
-            control.max.x.max(placed.label.max.x) - avail.min.x
-        };
-        // A control beside its label in a content-sized column reports how far it reaches past the label column, so
-        // the column's container measures its rows at the widest label.
-        if content && ui.is_sizing_pass() && side.layout == super::label::FieldLayout::Beside && placed.label.bottom() > placed.control.top() {
-            let column = if matches!(side.kind, super::label::LabelKind::Glyph(_)) { crate::layout::GLYPHS } else { crate::layout::LABELS };
-            crate::layout::report_beyond(ui.ctx(), &column, env.tokens.space.gap.inline + control_width);
-        }
-        let output = super::run::show_leaf(super::Props::id(child, id), ui, ShowAt::Rect(control), None);
-        let bottom = control.bottom().max(placed.label.bottom());
-        placed.finish(ui.ctx());
-        alloc::space(ui, Vec2::new(extent, (bottom - row.top()).max(ideal.y)));
-        output
+        label::flow_leaf(ui, self.id.with(key), self.resolved.id, (self.resolved.enabled, self.resolved.size), label, side, child)
     }
 }
 

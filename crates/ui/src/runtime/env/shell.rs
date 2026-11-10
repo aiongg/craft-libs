@@ -122,6 +122,7 @@ struct Inner {
     panels_hidden: bool,
     regions: ShellRegions,
     float_bounds: Rect,
+    region: Option<Rect>,
     revealed_rects: RevealedRects,
 }
 
@@ -150,6 +151,7 @@ impl ShellCx {
             panels_hidden: false,
             regions,
             float_bounds,
+            region: None,
             revealed_rects: RevealedRects::default(),
         };
         ShellCx { inner: Arc::new(inner) }
@@ -188,6 +190,18 @@ impl ShellCx {
     pub fn with_float_bounds(mut self, bounds: Rect) -> Self {
         Arc::make_mut(&mut self.inner).float_bounds = bounds;
         self
+    }
+
+    /// The screen rect of the region this shell fills inside another window (`AppShell::embedded`). Modal layers opened
+    /// in the shell are contained in it.
+    pub fn with_region(mut self, region: Rect) -> Self {
+        Arc::make_mut(&mut self.inner).region = Some(region);
+        self
+    }
+
+    /// The region an embedded shell fills; `None` for a window's own shell.
+    pub fn region(&self) -> Option<Rect> {
+        self.inner.region
     }
 
     /// Sets this value in `values`, where `BodyCx::shell` reads it. The shell calls it on the values of the scope that

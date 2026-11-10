@@ -1,11 +1,15 @@
 //! Stories of `AppShell` and `ShellRegion`.
 
 use super::{AppShell, ShellRegion};
-use crate::contract::{Props as _, Show as _, ShowContainer as _};
+use crate::choice::Checkbox;
+use crate::contract::{Bind, Props as _, Show as _, ShowContainer as _};
+use crate::dialog::Dialog;
 use crate::display::Text;
+use crate::layout_components::{Grid, Stack};
 use crate::runtime::env::WindowKey;
 use crate::shell::{CanvasPanel, Slot};
 use crate::testing::{Drive, StoryData, StoryOutput, story};
+use craft_behavior::ColumnWidth;
 use egui::Ui;
 
 #[story(AppShell<'static, ()>, covers = [Default], drive = Drive::Never)]
@@ -66,4 +70,41 @@ fn shell_region(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
             Text::new("Window").show(ui);
         })
         .into()
+}
+
+/// What the story dialogs hold: two check boxes whose values the story keeps between passes.
+fn dialog_body(ui: &mut Ui, checks: &mut [bool; 2]) {
+    let [snap, rulers] = checks;
+    Stack::new().show(ui, |ui, _| {
+        Checkbox::new(Bind::bound(snap)).label("Snap to grid").show(ui);
+        Checkbox::new(Bind::bound(rulers)).label("Show rulers").show(ui);
+    });
+}
+
+/// Two embedded regions side by side, each with its own open dialog: a dialog opened in a region is placed in it, its
+/// scrim covers that region only and the other region stays in use.
+#[story(AppShell<'static, ()>, covers = [], drive = Drive::Never)]
+fn app_shell_dialogs_in_regions(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let mut checks = [*data.value("checks_a", [true, false]), *data.value("checks_b", [false, true])];
+    let mut open = [*data.value("open_a", true), *data.value("open_b", true)];
+    let mut shown = Vec::new();
+    let [checks_a, checks_b] = &mut checks;
+    let [open_a, open_b] = &mut open;
+    let region = |ui: &mut Ui, name: &str, checks: &mut [bool; 2], open: &mut bool| {
+        AppShell::embedded(WindowKey::new(format!("dialog-region-{name}")))
+            .body(|ui, _, _| {
+                Dialog::new(format!("Region {name}")).opened(Bind::bound(&mut *open)).show(ui, |ui, _| dialog_body(ui, checks));
+            })
+            .show(ui, &mut ())
+    };
+    const HALVES: &[ColumnWidth] = &[ColumnWidth::fill(1.0), ColumnWidth::fill(1.0)];
+    Grid::new(HALVES).fill().show(ui, |ui, _| {
+        shown.push(region(ui, "A", checks_a, open_a));
+        shown.push(region(ui, "B", checks_b, open_b));
+    });
+    *data.value("checks_a", [true, false]) = checks[0];
+    *data.value("checks_b", [false, true]) = checks[1];
+    *data.value("open_a", true) = open[0];
+    *data.value("open_b", true) = open[1];
+    shown.pop().map_or_else(StoryOutput::default, StoryOutput::from)
 }

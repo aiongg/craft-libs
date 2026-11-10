@@ -705,3 +705,70 @@ pub(crate) fn run(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Placed {
     scope::begin(&ctx, input.scope, input.owner, scope::Kind::Label(label));
     placed
 }
+
+/// Runs the label step for one leaf child in the flow of `ui`: `label` sits beside the child or above it, with the
+/// icon and detail of `side`, and the child takes the width the label leaves. The row is as high as the placement
+/// measured: the child (plus the label line when the label stacks), and the label when it is taller. `id` is the
+/// child's id, `owner` the component whose eviction takes the label scope's facts, and `under` the enabled state and
+/// size the child inherits.
+pub(crate) fn flow_leaf<C: Show>(
+    ui: &mut Ui,
+    id: Id,
+    owner: Id,
+    under: (bool, craft_theme::ControlSize),
+    label: Label,
+    side: SideLabel,
+    child: C,
+) -> C::Output {
+    let (enabled, size) = under;
+    let env = Env::of(ui);
+    let mut child = child;
+    let under = Some(under);
+    let ideal = super::run::measure_under(&mut child, &*ui, Some(id), craft_behavior::Proposal::Ideal, under);
+    let avail = ui.available_rect_before_wrap();
+    // The child's own height: a stacked label pushes the control down, and the allocation below follows the placement.
+    let row = Rect::from_min_size(avail.min, Vec2::new(avail.width(), ideal.y));
+    let at = LeafLabel { id, owner, parent: None, row, text: &label, side: &side, enabled, size };
+    let placed = leaf(ui, &env, &at, &mut child);
+    // In a column that sizes from its content the row is the label plus the control, never the room around them.
+    let content = env.content.0;
+    let control_width = if content { placed.control.width().min(ideal.x) } else { placed.control.width() };
+    let mut control = Rect::from_min_size(placed.control.min, Vec2::new(control_width, ideal.y));
+    let rtl = env.direction.is_rtl();
+    if content && rtl {
+        control = control.translate(Vec2::new(placed.control.width() - control_width, 0.0));
+    }
+    let extent = if !content {
+        avail.width()
+    } else if rtl {
+        avail.max.x - control.min.x.min(placed.label.min.x)
+    } else {
+        control.max.x.max(placed.label.max.x) - avail.min.x
+    };
+    // A control beside its label in a content-sized column reports how far it reaches past the label column, so
+    // the column's container measures its rows at the widest label.
+    if content && ui.is_sizing_pass() && side.layout == FieldLayout::Beside && placed.label.bottom() > placed.control.top() {
+        let column = if matches!(side.kind, LabelKind::Glyph(_)) { crate::layout::GLYPHS } else { crate::layout::LABELS };
+        crate::layout::report_beyond(ui.ctx(), &column, env.tokens.space.gap.inline + control_width);
+    }
+    let output = super::run::show_leaf(super::Props::id(child, id), ui, super::run::ShowAt::Rect(control), None);
+    let bottom = control.bottom().max(placed.label.bottom());
+    placed.finish(ui.ctx());
+    alloc::space(ui, Vec2::new(extent, (bottom - row.top()).max(ideal.y)));
+    output
+}
+
+/// Shows `child` in the flow of `ui`. A component whose `LABELLED_AFTER` is set and that carries a label shows it
+/// through the label step, after the control, unless a label scope already names the control (a `Field`, `labelled`):
+/// that scope's label is the visible text, so the control's own is not shown twice. Every other leaf shows as it is.
+pub(crate) fn show_leaf_in_flow<C: Show>(mut child: C, ui: &mut Ui) -> C::Output {
+    let shows = C::LABELLED_AFTER && child.shows_label() && child.common(super::Internal::new()).label != Label::Empty && !scope::in_label(ui.ctx());
+    if !shows {
+        return super::run::show_leaf(child, ui, super::run::ShowAt::Flow, None);
+    }
+    let label = std::mem::take(&mut child.common_mut(super::Internal::new()).label);
+    let id = super::steps::id::<C>(ui, &child.common(super::Internal::new()).id, false, true);
+    let env = Env::of(ui);
+    let side = SideLabel::new().layout(FieldLayout::After);
+    flow_leaf(ui, id, id, (env.enabled, env.size), label, side, child)
+}

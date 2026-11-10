@@ -779,6 +779,14 @@ fn scrub_warp<C: Component>(cx: &mut Cx<'_, C>, drag: &ValueDrag, pos: Pos2) -> 
     shift
 }
 
+/// Step 9, before the component: a control that `Component::LABELLED_AFTER` marks registers with its label scope, so a
+/// click on the label activates it.
+pub(crate) fn activate_by_label<C: Component>(cx: &Cx<'_, C>) {
+    if C::LABELLED_AFTER && scope::field_label(&cx.core.ctx).is_some() {
+        scope::register_activates(&cx.core.ctx);
+    }
+}
+
 /// Step 9, before the component: a drag on the side label (or on the component itself, for a scrub that
 /// `Scrub::on_field` declares) scrubs the value of a component that opts in with `Component::scrub`. A label scrub
 /// registers the control with its label scope so the label senses the drag from the next pass on.

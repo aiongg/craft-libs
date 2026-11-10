@@ -1,7 +1,7 @@
 //! `Button`, `IconButton`, `ToggleButton`, `SplitButton` and `Link`.
 
 pub mod button;
-mod face;
+pub(crate) mod face;
 pub mod icon_button;
 pub mod link;
 pub mod split_button;

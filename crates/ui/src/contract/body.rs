@@ -165,7 +165,7 @@ fn placement_of(ctx: &Context, id: Id, save: Option<&SaveKey>) -> Placement {
 /// The placement a layer is shown at: the caller's `placed` rect or `placed_at` position, else the saved or session placement, else for a
 /// floating resizable layer with a default size (`Overlay::size`) that size, within the screen less `screen_inset` on
 /// each side, centred or at the overlay's float position. A saved size and position win over the default.
-pub(crate) fn shown_placement(ctx: &Context, id: Id, save: Option<&SaveKey>, overlay: &super::Overlay, screen_inset: f32) -> Placement {
+pub(crate) fn shown_placement(ctx: &Context, id: Id, save: Option<&SaveKey>, overlay: &super::Overlay, screen: Rect, screen_inset: f32) -> Placement {
     if let Some(given) = Placement::given(overlay) {
         return given;
     }
@@ -176,7 +176,6 @@ pub(crate) fn shown_placement(ctx: &Context, id: Id, save: Option<&SaveKey>, ove
     if placement.size.is_some() {
         return placement;
     }
-    let screen = areas::safe_rect(ctx);
     let room = (screen.size() - Vec2::splat(2.0 * screen_inset)).max(Vec2::ZERO);
     let least = overlay.size_limits.min.min(room);
     let size = default.max(least).min(overlay.size_limits.max.unwrap_or(Vec2::INFINITY)).min(room);
@@ -1408,7 +1407,10 @@ impl<'b> BodyHooks<'b> {
     fn mount_room(&self, props: &ContainerProps, ui: &Ui, id: Id, at: ShowAt) -> Vec2 {
         match (overlay_of(props), self.fixed) {
             (Some(overlay), false) => {
-                let room = Self::layer_room(ui.ctx(), overlay).size();
+                let env = Env::of(ui);
+                let contained = super::overlay::region_for(&env, overlay).is_some();
+                let overlay = &if contained { overlay.in_region() } else { overlay.clone() };
+                let room = Self::layer_room(ui.ctx(), &env, overlay).size();
                 // An anchored layer's body runs in the room the anchor leaves on the side it takes, as the host
                 // offers it: a body taller than that scrolls instead of covering the anchor.
                 let ctx = ui.ctx();
@@ -1440,9 +1442,9 @@ impl<'b> BodyHooks<'b> {
         }
     }
 
-    /// The room a layer offers its content: the safe rect, or the share of it the overlay caps its content at.
-    fn layer_room(ctx: &Context, overlay: &super::Overlay) -> Rect {
-        let bounds = areas::safe_rect(ctx);
+    /// The room a layer offers its content: the safe rect (the region of a contained layer), or the share of it the overlay caps its content at.
+    fn layer_room(ctx: &Context, env: &Env, overlay: &super::Overlay) -> Rect {
+        let bounds = super::overlay::screen_for(ctx, env, overlay);
         match overlay.fit {
             super::overlay::OverlayFit::ContentCapped(share) => {
                 Rect::from_min_size(bounds.min, Vec2::new(bounds.width() * share.x, bounds.height() * share.y))
@@ -1697,8 +1699,10 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             Mount::FullWindow => true,
             Mount::Viewport { .. } if viewports::available(&ctx) => true,
             Mount::Layer(_) | Mount::Viewport { .. } => {
-                let placement = overlay_of(props)
-                    .map_or_else(Placement::default, |overlay| shown_placement(&ctx, id, save.as_ref(), overlay, env.tokens.space.inset.screen));
+                let placement = overlay_of(props).map_or_else(Placement::default, |overlay| {
+                    let screen = super::overlay::screen_for(&ctx, &env, overlay);
+                    shown_placement(&ctx, id, save.as_ref(), overlay, screen, env.tokens.space.inset.screen)
+                });
                 placement.pos.is_some() && placement.size.is_some()
             }
             _ => false,

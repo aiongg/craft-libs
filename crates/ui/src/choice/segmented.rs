@@ -1,16 +1,18 @@
-//! `Segmented`: one of a few options as adjoining pills. A leaf with a part per segment; each segment wears the face
-//! of a toggle button. The row is one Tab stop over its segments: arrows, Home and End move focus between them, Space
+//! `Segmented`: one of a few options as a strip of segments. A leaf with a part per segment; each segment wears a
+//! face that is flat and muted, with a hover fill, and takes the selection fill and edge while it is picked. The row is one Tab stop over its segments: arrows, Home and End move focus between them, Space
 //! or a click picks the focused one.
 
-use crate::buttons::ToggleButton;
+use crate::buttons::face::{self, FaceLook, FaceSpec};
 use crate::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Entry, Input, MeasureCx, Name, PaintUi, PartsCx, Props as _, Role,
     SetPosition,
 };
+use crate::primitives::IconSpec;
 use crate::runtime::env::Label;
 use crate::runtime::focus::{ActivateKeys, KeyUse};
-use crate::style::{ComponentStyle, Flags, FocusLook, StyleCx};
+use crate::style::{ComponentStyle, Flags, FocusLook, IconLook, StyleCx, SurfaceLook, TextLook, TypeRole};
 use craft_behavior::{Flow, Metrics, NavShape, PartKey, PartRef, Roving, Sense, Value};
+use craft_theme::{Rgba, Stateful, States};
 use egui::{Rect, Vec2};
 
 const SEGMENT: PartKey = PartKey::new("segment");
@@ -55,18 +57,14 @@ impl<'a, T: Value + 'static> Segmented<'a, T> {
         self.entries.iter().position(|entry| entry.value() == Some(value))
     }
 
-    /// The face segment `entry` wears: a toggle button, icon only when the entry has an icon.
-    fn face(entry: &Entry<T>, checked: bool) -> ToggleButton<'static> {
-        let face = ToggleButton::new(entry.label().clone(), Bind::given(checked)).enabled(entry.is_enabled());
-        match entry.icon_spec() {
-            Some(icon) => face.icon(icon.clone()).icon_only(),
-            None => face,
-        }
+    /// The face segment `entry` wears: icon only when the entry has an icon.
+    fn face(entry: &Entry<T>) -> Segment {
+        Segment::new(entry.label().clone(), entry.icon_spec().cloned()).enabled(entry.is_enabled())
     }
 
     /// Each segment's width: its face's own measure.
     fn widths(&self, cx: &MeasureCx<'_, Self>) -> Vec<f32> {
-        self.entries.iter().map(|entry| cx.face(Self::face(entry, false)).x).collect()
+        self.entries.iter().map(|entry| cx.face(Self::face(entry)).x).collect()
     }
 }
 
@@ -142,15 +140,104 @@ impl<T: Value + 'static> Component for Segmented<'_, T> {
         }
     }
 
-    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
-        let current = self.position_of(cx.value());
+    fn paint(&mut self, ui: &mut PaintUi<'_>, _: &Cx<'_, Self>) {
         for (at, entry) in self.entries.iter().enumerate() {
-            ui.face(Self::part(at), Self::face(entry, current == Some(at)));
+            ui.face(Self::part(at), Self::face(entry));
         }
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> EditResponse<T> {
         cx.edit_response()
+    }
+}
+
+/// The style of one segment: no fill or edge until hovered or picked, then the theme's selection fill and edge.
+#[derive(Clone, Debug, PartialEq, ComponentStyle)]
+#[non_exhaustive]
+struct SegmentStyle {
+    #[style(surface)]
+    surface: SurfaceLook,
+    #[style(metrics)]
+    metrics: Metrics,
+    #[style(focus)]
+    focus: FocusLook,
+    #[style(text)]
+    text: TextLook,
+    #[style(icon)]
+    icon: IconLook,
+    face: FaceLook,
+}
+
+/// What a segment of a `Segmented` shows: a label, or an icon with the label as its tooltip and name.
+#[derive(crate::contract::Component)]
+#[component(sample = Segment::sample)]
+struct Segment {
+    #[common]
+    common: Common,
+    icon: Option<IconSpec<'static>>,
+}
+
+impl Segment {
+    #[cfg(feature = "testing")]
+    fn sample() -> Self {
+        Segment::new(Label::from("Segment"), None)
+    }
+
+    fn new(label: Label, icon: Option<IconSpec<'static>>) -> Self {
+        Segment { common: Common::new(), icon }.label(label)
+    }
+
+    fn spec<'s>(&'s self, label: &'s str) -> FaceSpec<'s> {
+        FaceSpec { label: if self.icon.is_some() { "" } else { label }, role: None, lead: self.icon.as_ref(), trail: None, loading: false }
+    }
+}
+
+impl Component for Segment {
+    const ROLE: Role = Role::BUTTON;
+    const PARTS: bool = false;
+    const OVERLAYS: bool = false;
+    type Style = SegmentStyle;
+    type Output = egui::Response;
+
+    fn shows_label(&self) -> bool {
+        self.icon.is_none()
+    }
+
+    fn style(cx: &StyleCx<'_>, _: SegmentStyleKey) -> SegmentStyle {
+        let colors = &cx.tokens.color;
+        let c = |rgba| cx.color(rgba);
+        let (clear, hover, selected) = (c(Rgba::TRANSPARENT), c(colors.state.hover), c(colors.state.selected));
+        let disabled = c(colors.state.disabled_fill);
+        let fill = Stateful::new(clear).off(States::new(clear, hover, hover, clear)).on(States::new(selected, selected, selected, disabled));
+        let edge = Stateful::new(c(colors.line.control_edge)).off(States::new(clear, clear, clear, clear)).on(States::new(
+            c(colors.line.control_edge),
+            c(colors.line.control_edge),
+            c(colors.line.control_edge),
+            c(colors.line.divider),
+        ));
+        let (muted, on_selected, off) = (c(colors.text.muted), c(colors.text.on_selected), c(colors.text.disabled));
+        let ink = Stateful::new(muted).off(States::new(muted, muted, muted, off)).on(States::new(on_selected, on_selected, on_selected, off));
+        let control = cx.control();
+        SegmentStyle {
+            surface: SurfaceLook::new(fill).radius(cx.variant_look().radius).border(edge, cx.tokens.stroke.thin),
+            metrics: control.metrics(),
+            focus: face::focus(cx),
+            text: TextLook::new(TypeRole::Label, ink.clone()),
+            icon: IconLook::new(control.icon, ink),
+            face: FaceLook::of(cx),
+        }
+    }
+
+    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
+        face::measure(cx, &self.spec(cx.resolved.label))
+    }
+
+    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        face::paint(ui, cx, (&cx.style.text, &cx.style.icon), &cx.style.face, &self.spec(cx.resolved.label), cx.content_rect);
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> egui::Response {
+        cx.response.clone()
     }
 }
 

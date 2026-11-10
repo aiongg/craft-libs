@@ -13,14 +13,14 @@ use egui::{Rect, Vec2, pos2};
 
 /// The parts of a button's look that the face paints besides its text and icon looks.
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct FaceLook {
+pub(crate) struct FaceLook {
     /// The gap between icon and label.
     pub gap: f32,
 }
 
 impl FaceLook {
     /// The face look of the instance's variant: the control's gap.
-    pub(super) fn of(cx: &StyleCx<'_>) -> FaceLook {
+    pub(crate) fn of(cx: &StyleCx<'_>) -> FaceLook {
         FaceLook { gap: cx.control().gap }
     }
 }
@@ -32,7 +32,7 @@ pub(super) fn ink(cx: &StyleCx<'_>) -> (TextLook, IconLook) {
 }
 
 /// What a face shows.
-pub(super) struct FaceSpec<'a> {
+pub(crate) struct FaceSpec<'a> {
     pub label: &'a str,
     pub role: Option<TypeRole>,
     pub lead: Option<&'a IconSpec<'a>>,
@@ -88,12 +88,12 @@ pub(super) fn on_parts(cx: &StyleCx<'_>) -> VariantParts {
 }
 
 /// The focus ring of a button.
-pub(super) fn focus(cx: &StyleCx<'_>) -> FocusLook {
+pub(crate) fn focus(cx: &StyleCx<'_>) -> FocusLook {
     cx.focus_look()
 }
 
 /// The size of the face: its parts and the gaps between them.
-pub(super) fn measure<C: Component>(cx: &MeasureCx<'_, C>, spec: &FaceSpec<'_>) -> Vec2 {
+pub(crate) fn measure<C: Component>(cx: &MeasureCx<'_, C>, spec: &FaceSpec<'_>) -> Vec2 {
     let text = if spec.label.is_empty() { Vec2::ZERO } else { cx.layout(&spec.run()).size() };
     let icon = cx.icon();
     Vec2::new(text.x + icon * spec.icons() as f32 + cx.gap() * spec.gaps() as f32, text.y.max(icon))
@@ -150,7 +150,7 @@ fn icon_at(slot: Rect, area: Rect, side: f32) -> Rect {
 }
 
 /// Paints the face centred in `area`: the leading icon at the reading start, the trailing icon at the reading end.
-pub(super) fn paint<C: Component>(ui: &PaintUi<'_>, cx: &Cx<'_, C>, ink: (&TextLook, &IconLook), look: &FaceLook, spec: &FaceSpec<'_>, area: Rect) {
+pub(crate) fn paint<C: Component>(ui: &PaintUi<'_>, cx: &Cx<'_, C>, ink: (&TextLook, &IconLook), look: &FaceLook, spec: &FaceSpec<'_>, area: Rect) {
     let (text_look, icon_look) = ink;
     let (text_color, icon_color, side) = (cx.resolve(&text_look.color), cx.resolve(&icon_look.color), icon_look.side);
     let draw = ui.draw();
