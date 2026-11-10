@@ -43,15 +43,11 @@ impl ComponentInfo {
         }
     }
 
-    /// Whether the name, the type name or one of the story titles contains `filter`, ignoring case. An empty filter
-    /// matches.
+    /// Whether the name or one of the story titles contains `filter`, ignoring case. An empty filter matches.
     pub fn matches(&self, filter: &str) -> bool {
         let filter = filter.trim().to_lowercase();
         filter.is_empty()
-            || [self.name.as_str(), self.type_name]
-                .into_iter()
-                .chain(self.titles.iter().map(String::as_str))
-                .any(|text| text.to_lowercase().contains(&filter))
+            || [self.name.as_str()].into_iter().chain(self.titles.iter().map(String::as_str)).any(|text| text.to_lowercase().contains(&filter))
     }
 }
 

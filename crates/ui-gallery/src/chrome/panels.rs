@@ -9,13 +9,11 @@ use craft_behavior::IconId;
 use craft_behavior::{Selection, keyed};
 use craft_theme::Explained;
 use craft_theme::report::ContrastReport;
-use craft_theme::variant::Tone;
 use craft_ui::buttons::IconButton;
 use craft_ui::contract::{Bind, CollectionEvent, Pad, Props as _, Scroll, SelectMode, Show as _, ShowCollection as _, ShowContainer as _};
 use craft_ui::display::{Shade, Text};
 use craft_ui::layout_components::{Row, Stack};
 use craft_ui::list::{List, ListRow, OpenSet, RowEvent, TrailingFace, TrailingPart};
-use craft_ui::notices::Notice;
 use craft_ui::runtime::env::Label;
 use craft_ui::style::TypeRole;
 use craft_ui::testing::{StoryData, StorySnapshot, story_props};
@@ -67,10 +65,15 @@ fn padded(ui: &mut Ui, mut add: impl FnMut(&mut Ui)) {
 /// The tree row part that opens a component's tab.
 const OPEN: TrailingPart = TrailingPart::new(0);
 
+/// A muted line where a panel has nothing to show yet.
+fn hint(ui: &mut Ui, text: &'static str) {
+    Text::new(text).shade(Shade::Muted).show(ui);
+}
+
 /// A caption over a value.
 fn fact(ui: &mut Ui, name: &'static str, value: impl Into<Label>) {
     let value = value.into();
-    Stack::new().show(ui, |ui, _| {
+    Stack::new().fill_width().show(ui, |ui, _| {
         Text::new(name).role(TypeRole::Caption).shade(Shade::Muted).show(ui);
         Text::new(value.clone()).show(ui);
     });
@@ -164,7 +167,7 @@ impl Panels<'_> {
         let catalog = self.catalog;
         let Some(component) = self.selected() else {
             return scrolled(ui, |ui| {
-                Notice::new(Tone::Info, "Select a component to see its stories.").show(ui);
+                hint(ui, "Select a component");
             });
         };
         let (type_name, titles) = (component.type_name, component.titles.clone());
@@ -204,7 +207,7 @@ impl Panels<'_> {
         let target = component.as_ref().and_then(|component| self.target(component.type_name));
         let (Some(component), Some(index)) = (component, target) else {
             return scrolled(ui, |ui| {
-                Notice::new(Tone::Info, "Select a component to see its properties.").show(ui);
+                hint(ui, "Select a component");
             });
         };
         let title = self.title(&component, index);
@@ -242,11 +245,11 @@ impl Panels<'_> {
         let chosen = self.selected().is_some();
         scrolled(ui, |ui| {
             if !chosen {
-                Notice::new(Tone::Info, "Select a component to see its decision record.").show(ui);
+                hint(ui, "Select a component");
                 return;
             }
             let Some(probe) = probe else {
-                Notice::new(Tone::Info, "A pattern has no record of its own: its parts are the records.").show(ui);
+                hint(ui, "A pattern has no record of its own: its parts are the records.");
                 return;
             };
             fact(ui, "Shape", describe::shape(probe.shape));
