@@ -120,6 +120,7 @@ space.pad.control = 6
 space.pad.regular = 8
 space.pad.roomy = 16
 space.pad.chip = 4
+space.pad.segment = 10
 space.inset.screen = 16
 size.control.sm = 20
 size.control.md = 24

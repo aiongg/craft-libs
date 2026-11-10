@@ -254,6 +254,15 @@ impl<'a> StyleCx<'a> {
         control_metrics(self.tokens, self.size, self.line_ratio)
     }
 
+    /// `control`, with the side padding of a segment of a segmented control: `space.pad.control` at the small size
+    /// and `space.pad.segment` at the medium one.
+    pub fn segment_control(&self) -> ControlMetrics {
+        let pads = &self.tokens.space.pad;
+        let mut control = self.control();
+        control.pad_x = BySize { sm: pads.control, md: pads.segment }.get(self.size);
+        control
+    }
+
     /// The width of `text` set in the face of `role`: the sizes that follow the text (a row header's digit) read it
     /// here instead of borrowing an icon or control size.
     pub fn text_width(&self, role: craft_theme::TypeRole, text: &str) -> f32 {

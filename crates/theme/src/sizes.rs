@@ -153,6 +153,7 @@ pub(crate) fn leaves(b: &mut Preset) -> Vec<Leaf<'_>> {
         "base.space.pad.regular" Num 0.0..=32.0 => sp.pad.regular;
         "base.space.pad.roomy" Num 0.0..=32.0 => sp.pad.roomy;
         "base.space.pad.chip" Num 0.0..=32.0 => sp.pad.chip;
+        "base.space.pad.segment" Num 0.0..=32.0 => sp.pad.segment;
         "base.space.inset.screen" Num 0.0..=64.0 => sp.inset.screen;
     }
     let r = &mut b.radius;

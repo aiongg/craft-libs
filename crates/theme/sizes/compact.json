@@ -109,6 +109,7 @@
       },
       "pad": {
         "chip": 4.0,
+        "segment": 10.0,
         "control": 6.0,
         "regular": 8.0,
         "roomy": 16.0

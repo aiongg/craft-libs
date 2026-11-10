@@ -142,6 +142,7 @@ space.gap.item
 space.gap.tight
 space.inset.screen
 space.pad.chip
+space.pad.segment
 space.pad.control
 space.pad.regular
 space.pad.roomy

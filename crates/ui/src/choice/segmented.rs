@@ -217,7 +217,7 @@ impl Component for Segment {
         ));
         let (muted, on_selected, off) = (c(colors.text.muted), c(colors.text.on_selected), c(colors.text.disabled));
         let ink = Stateful::new(muted).off(States::new(muted, muted, muted, off)).on(States::new(on_selected, on_selected, on_selected, off));
-        let control = cx.control();
+        let control = cx.segment_control();
         SegmentStyle {
             surface: SurfaceLook::new(fill).radius(cx.variant_look().radius).border(edge, cx.tokens.stroke.thin),
             metrics: control.metrics(),

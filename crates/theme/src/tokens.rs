@@ -754,6 +754,8 @@ pub struct Pads {
     pub roomy: f32,
     /// Inside badges, key caps and chips: tighter than a control.
     pub chip: f32,
+    /// Beside the label of a medium segment of a segmented control.
+    pub segment: f32,
 }
 
 /// Spacing.

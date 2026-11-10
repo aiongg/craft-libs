@@ -89,8 +89,8 @@ fn space_lines(out: &mut Lines, space: &SpaceTokens) {
     for (k, v) in [("tight", tight), ("inline", inline), ("row", row), ("stack", stack), ("item", item), ("section", section)] {
         out.line(&format!("space.gap.{k}"), len(*v));
     }
-    let Pads { control, regular, roomy, chip } = pad;
-    for (k, v) in [("control", control), ("regular", regular), ("roomy", roomy), ("chip", chip)] {
+    let Pads { control, regular, roomy, chip, segment } = pad;
+    for (k, v) in [("control", control), ("regular", regular), ("roomy", roomy), ("chip", chip), ("segment", segment)] {
         out.line(&format!("space.pad.{k}"), len(*v));
     }
     let Insets { screen } = inset;
