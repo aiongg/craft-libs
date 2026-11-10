@@ -3534,6 +3534,7 @@ The fixture, the suite runner and the story helpers.
 - `craft_ui::testing::take_effects`: `pub fn take_effects(ctx: &Context) -> Vec<&'static str>`. The effects skipped in measuring runs this frame, in order; empties the log.
 - `craft_ui::testing::tool_story`: `pub fn tool_story(ui: &mut Ui, label: &'static str, tool: &mut dyn CanvasTool) -> StoryOutput`. Shows `tool` on a canvas named `label` over the [`stage`](super::stage) of `ui`, and runs it as the canvas's active tool. The
 - `craft_ui::testing::trial`: re-export of `craft_ui_macros::trial` (outside these crates).
+- `craft_ui::testing::widest_runs`: `pub fn widest_runs(ctx: &Context) -> Vec<(Id, u32)>`. The collections whose widest row was built and measured in the last pass that did so, and how many times each.
 
 ## `craft_ui::testing::access`
 
