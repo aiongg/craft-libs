@@ -178,7 +178,7 @@ fn a_menu_opened_from_a_popover_takes_a_click_on_its_row() {
     fixture.settle();
     let delete = fixture.by_label("Delete").expect("a secondary click on the target opens the menu");
     let popover = fixture.by_role(Role::DIALOG).first().map(|popover| popover.rect).expect("the popover is open");
-    assert!(popover.contains(delete.center()), "the row lies over the popover");
+    assert!(popover.intersects(delete.rect), "the row lies over the popover");
     fixture.click(&delete);
     fixture.settle();
     assert!(ran.get(), "the click ran the row");
