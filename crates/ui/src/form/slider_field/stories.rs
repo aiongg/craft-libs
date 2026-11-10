@@ -1,8 +1,7 @@
 //! Stories of `SliderField`.
 
 use super::SliderField;
-use crate::contract::{Bind, Props as _, Show as _, ShowContainer as _, Validity};
-use crate::form::Field;
+use crate::contract::{Bind, Props as _, Show as _, Validity};
 use crate::runtime::env::{Message, UnitKind};
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use crate::value_drag::SliderScale;
@@ -12,14 +11,10 @@ use egui::Ui;
 const PERCENT: std::ops::RangeInclusive<f64> = 0.0..=100.0;
 const CAP: f64 = 80.0;
 
-/// The field inside a `Field`, whose label scrubs the number field.
+/// The caption and number field over the slider.
 #[story(SliderField<'static>, covers = [Default], drive = Drive::Type("25"))]
 fn slider_field(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let mut out = None;
-    Field::new("Opacity").show(ui, |ui, _| {
-        out = Some(SliderField::new("Opacity", Bind::bound(data.value("opacity", 40.0)), PERCENT).unit_kind(UnitKind::Percent).show(ui));
-    });
-    out.map(StoryOutput::from).unwrap_or_default()
+    SliderField::new("Opacity", Bind::bound(data.value("opacity", 40.0)), PERCENT).unit_kind(UnitKind::Percent).show(ui).into()
 }
 
 #[story(SliderField<'static>, covers = [], drive = Drive::Never)]

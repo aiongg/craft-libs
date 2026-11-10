@@ -5,7 +5,7 @@ use std::sync::Arc;
 use craft_behavior::{EditEvent, IconId, Mixed};
 use craft_ui::buttons::IconButton;
 use craft_ui::contract::{Bind, EditResponse, Outcome, Props as _, Show as _, ShowContainer as _, clicked};
-use craft_ui::form::{Field, SliderField};
+use craft_ui::form::{Field, SliderField, SliderFieldLayout};
 use craft_ui::runtime::env::{Env, Label, UnitKind};
 use craft_ui::value_drag::SliderScale;
 use egui::{Response, Ui};
@@ -89,6 +89,7 @@ impl<'a> BrushSizeField<'a> {
                 .step(1.0)
                 .unit_kind(UnitKind::Pixels)
                 .enabled(max > 1.0)
+                .layout(SliderFieldLayout::Inline)
                 .show(ui);
             if restored.is_some() {
                 edit.event = restored;

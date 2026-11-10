@@ -11,7 +11,7 @@ use crate::buttons::Button;
 use crate::choice::Checkbox;
 use crate::contract::{Bind, Entry, Props as _, Show as _, ShowContainer as _, clicked};
 
-use crate::form::{Field, FieldGroup, SliderField};
+use crate::form::{Field, FieldGroup, SliderField, SliderFieldLayout};
 
 use crate::layout_components::Row;
 use crate::patterns::form_dialogs::{LinkedSize, Resample, resize_from_scale};
@@ -53,7 +53,10 @@ fn whole(units: &Units, name: Label, value: f64, range: RangeInclusive<f64>) -> 
 fn slider(ui: &mut Ui, label: &Label, key: &'static str, value: u8, range: RangeInclusive<f64>, percent: bool) -> Option<u8> {
     let mut picked = None;
     row(ui, label, key, |ui| {
-        let mut slider = SliderField::new(label.clone(), Bind::given(f64::from(value)), range.clone()).step(1.0).id_salt("slider");
+        let mut slider = SliderField::new(label.clone(), Bind::given(f64::from(value)), range.clone())
+            .step(1.0)
+            .id_salt("slider")
+            .layout(SliderFieldLayout::Inline);
         if percent {
             slider = slider.unit_kind(UnitKind::Percent);
         }

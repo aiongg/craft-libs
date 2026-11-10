@@ -275,14 +275,12 @@ fn rows(ui: &mut Ui, words: &PictureFillWords, pass: &mut Pass<'_>, modes: &Mode
             let next = pass.edited(|f| f.rotate_with_shape = on);
             pass.set(next);
         }
-        Field::new(words.transparency.clone()).id_salt("transparency").show(ui, |ui, _| {
-            let slider = SliderField::new(words.transparency.clone(), Bind::given(fill.transparency * 100.0), TRANSPARENCY)
-                .unit_kind(UnitKind::Percent)
-                .id_salt("slider");
-            let event = slider.show(ui).event;
-            let base = fill.clone();
-            pass.take(event, move |v| PictureFill { transparency: (v / 100.0).clamp(0.0, 1.0), ..base.clone() });
-        });
+        let slider = SliderField::new(words.transparency.clone(), Bind::given(fill.transparency * 100.0), TRANSPARENCY)
+            .unit_kind(UnitKind::Percent)
+            .id_salt("transparency");
+        let event = slider.show(ui).event;
+        let base = fill.clone();
+        pass.take(event, move |v| PictureFill { transparency: (v / 100.0).clamp(0.0, 1.0), ..base.clone() });
     });
 }
 

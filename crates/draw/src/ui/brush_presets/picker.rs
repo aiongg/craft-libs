@@ -6,7 +6,7 @@ use std::hash::Hash;
 use craft_behavior::{EditEvent, IconId, Mixed, Value};
 use craft_ui::buttons::IconButton;
 use craft_ui::contract::{Bind, BodyCx, EditResponse, Outcome, Props as _, Show as _, ShowContainer as _, Trigger, clicked};
-use craft_ui::form::{Field, SliderField};
+use craft_ui::form::SliderField;
 use craft_ui::layout_components::{Row, Stack};
 use craft_ui::menu::{Menu, MenuItem};
 use craft_ui::patterns::presets::{CellShape, PickerField, PresetEvent, PresetFooterOptions, PresetPicker, PresetRow, PresetState, PresetView};
@@ -210,13 +210,11 @@ impl<'a, K: Value + Eq + Hash> BrushPresetPicker<'a, K> {
                 diameter = size.edit.and_then(|edit| edit.event);
                 hardness = None;
                 if let Some(value) = values.hardness {
-                    let field = Field::new(words.hardness.clone()).show(ui, |ui, _| {
-                        SliderField::new(words.hardness.clone(), Bind::given(value * 100.0), 0.0..=100.0)
-                            .step(1.0)
-                            .unit_kind(UnitKind::Percent)
-                            .show(ui)
-                    });
-                    hardness = field.inner.and_then(|edit| edit.event).map(|event| event.map(|percent| (percent / 100.0).clamp(0.0, 1.0)));
+                    let field = SliderField::new(words.hardness.clone(), Bind::given(value * 100.0), 0.0..=100.0)
+                        .step(1.0)
+                        .unit_kind(UnitKind::Percent)
+                        .show(ui);
+                    hardness = field.event.map(|event| event.map(|percent| (percent / 100.0).clamp(0.0, 1.0)));
                 }
                 Row::new().show(ui, |ui, _| {
                     let icon = |name: &'static str| IconSpec::svg(IconId::new(name));

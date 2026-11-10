@@ -8,7 +8,7 @@ use crate::runtime::requests::{IMAGE_EXTENSIONS, PathKind, PathRequest};
 
 use crate::contract::{Bind, Entry, NoValue, Outcome, Props as _, Show as _, ShowContainer as _, clicked};
 
-use crate::form::{Field, FieldGroup, SliderField};
+use crate::form::{Field, FieldGroup, SliderField, SliderFieldLayout};
 
 use crate::layout_components::Row;
 use crate::pickers::{Anchor9, ReferencePoint, Select};
@@ -298,7 +298,11 @@ fn rows(ui: &mut Ui, words: &WatermarkWords, units: &Units, now: &mut WatermarkS
 fn percent_row(ui: &mut Ui, label: &Label, key: &'static str, value: f64, range: RangeInclusive<f64>, enabled: bool) -> Option<f32> {
     let mut picked = None;
     Field::new(label.clone()).id_salt(key).enabled(enabled).show(ui, |ui, _| {
-        let slider = SliderField::new(label.clone(), Bind::given(value), range.clone()).step(STEP).unit_kind(UnitKind::Percent).id_salt("slider");
+        let slider = SliderField::new(label.clone(), Bind::given(value), range.clone())
+            .step(STEP)
+            .unit_kind(UnitKind::Percent)
+            .id_salt("slider")
+            .layout(SliderFieldLayout::Inline);
         picked = slider.show(ui).value().cloned().map(|v| v as f32);
     });
     picked

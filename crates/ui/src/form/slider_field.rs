@@ -6,8 +6,9 @@ mod stories;
 use crate::contract::{
     Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, PaintUi, Props as _, Role, Validity, WordSetCx as _,
 };
+use crate::primitives::TextRun;
 use crate::runtime::env::{Label, UnitKind};
-use crate::style::{ComponentStyle, StyleCx};
+use crate::style::{ComponentStyle, StyleColor, StyleCx};
 use crate::text::NumberField;
 use crate::value_drag::{Slider, SliderScale, TrackFace};
 use craft_behavior::{Flow, Metrics, Mixed, Proposal, Sense, decimals_for_step};
@@ -19,7 +20,23 @@ const SHORT_RANGE: f64 = 10.0;
 const SHORT_STEP: f64 = 0.01;
 const LONG_STEP: f64 = 1.0;
 
-/// The style of a slider field: the gap between slider and number field, and the number field's width.
+/// The number field is this many control heights wide.
+const FIELD_CONTROLS: f32 = 3.0;
+
+/// How a slider field arranges its caption, number field and slider.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum SliderFieldLayout {
+    /// The caption at the start and the number field at the end of one line, the slider across the full width on the
+    /// next.
+    #[default]
+    Stacked,
+    /// The number field and then the slider on one line, for a row whose enclosing `Field` shows the label.
+    Inline,
+}
+
+/// The style of a slider field: the gap between its parts, the line height, the number field's width and the
+/// caption's colour.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
 #[non_exhaustive]
 pub struct SliderFieldStyle {
@@ -27,9 +44,14 @@ pub struct SliderFieldStyle {
     metrics: Metrics,
     /// The width of the number field, the same for every row so a column of fields lines up.
     field: f32,
+    /// The height of the caption line.
+    row: f32,
+    /// The width of a stacked row with no more room offered: the same for every row, so a column of rows lines up.
+    width: f32,
+    caption: StyleColor,
 }
 
-/// A slider with a number field after it over one value. A drag on the slider, a step key, typing in the field or a
+/// A caption and number field over a full-width slider, on one value. A drag on the slider, a step key, typing in the field or a
 /// scrub by the enclosing `Field`'s label is one edit stream (begin, updates, commit) of the one binding.
 ///
 /// The step moves the slider's keys and wheel and the field's keys, wheel and scrub; typed values snap to it. Without
@@ -42,6 +64,10 @@ pub struct SliderField<'a> {
     common: Common,
     value: Bind<'a, f64>,
     range: RangeInclusive<f64>,
+    /// Whether the caption and the number field share a line over the slider, or the number field comes first on the
+    /// slider's line for a row labelled by an enclosing `Field`.
+    #[prop]
+    layout: SliderFieldLayout,
     /// How positions along the slider's track map to values.
     #[prop]
     scale: SliderScale,
@@ -72,6 +98,7 @@ impl<'a> SliderField<'a> {
             common: Common::new(),
             value,
             range,
+            layout: SliderFieldLayout::Stacked,
             scale: SliderScale::Linear,
             step: None,
             wheel_step: None,
@@ -199,7 +226,18 @@ impl Component for SliderField<'_> {
     type Output = EditResponse<f64>;
 
     fn style(cx: &StyleCx<'_>, _: SliderFieldStyleKey) -> SliderFieldStyle {
-        SliderFieldStyle { metrics: Metrics::new().gap(cx.control().gap), field: cx.tokens.size.length.short }
+        let control = cx.control();
+        SliderFieldStyle {
+            metrics: Metrics::new().gap(control.gap),
+            field: control.height * FIELD_CONTROLS,
+            row: control.height,
+            width: cx.tokens.size.length.field,
+            caption: cx.color(cx.tokens.color.text.muted),
+        }
+    }
+
+    fn fills(&self) -> Option<craft_behavior::Axis> {
+        Some(craft_behavior::Axis::X)
     }
 
     fn sense(&self) -> Sense {
@@ -212,7 +250,10 @@ impl Component for SliderField<'_> {
         let look = self.look();
         let slider = cx.child("slider", &mut look.slider(&name, shown, None, None), Proposal::Ideal);
         let field = cx.child("field", &mut look.field(&name, shown, None), Proposal::Ideal);
-        Vec2::new(slider.x + cx.gap() + cx.style.field, slider.y.max(field.y))
+        match self.layout {
+            SliderFieldLayout::Inline => Vec2::new(slider.x + cx.gap() + cx.style.field, slider.y.max(field.y)),
+            SliderFieldLayout::Stacked => Vec2::new(slider.x.max(cx.style.width), cx.style.row.max(field.y) + cx.gap() + slider.y),
+        }
     }
 
     fn bind(&mut self) -> Option<BindMut<'_, f64>> {
@@ -222,7 +263,13 @@ impl Component for SliderField<'_> {
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let shown = shown_of(cx.value());
         let name = cx.label();
-        let (track, field) = arrange(cx.rect.size(), cx.style.metrics.gap, cx.style.field);
+        let (caption, track, field) = match self.layout {
+            SliderFieldLayout::Inline => {
+                let (track, field) = arrange(cx.rect.size(), cx.style.metrics.gap, cx.style.field);
+                (None, track, field)
+            }
+            SliderFieldLayout::Stacked => stack(cx.rect.size(), cx.style.metrics.gap, cx.style.field, cx.style.row),
+        };
         let flow = Flow::new(cx.rect, cx.env.direction().is_rtl());
         let place = |logical: Rect| flow.to_physical(logical.translate(cx.rect.min.to_vec2()));
         // The field is shown first, so it is the first Tab stop.
@@ -237,6 +284,11 @@ impl Component for SliderField<'_> {
             Some(tooltip) => field_view.tooltip(tooltip.clone()),
             None => field_view,
         };
+        if let Some(caption) = caption {
+            // The caption names the group; the field and the slider carry the name for assistive technology.
+            let run = TextRun::new(cx.resolved.label).color(cx.style.caption).elide();
+            ui.draw().text(place(caption), &run);
+        }
         let typed = ui.child("field", place(field), field_view);
         let dragged = ui.child("slider", place(track), look.slider(&name, shown, Some(&on_slider), face));
         let start = *self.range.start();
@@ -259,10 +311,20 @@ fn shown_of(shown: Option<&f64>) -> Mixed<f64> {
 }
 
 /// The slider's and the number field's rects in a room of `size`, in logical coordinates from the start edge: the
-/// field at the end, the slider in the room before it.
+/// field at the start, the slider in the room after it.
 fn arrange(size: Vec2, gap: f32, field_width: f32) -> (Rect, Rect) {
     let field = field_width.min(size.x);
     let track = (size.x - field - gap).max(0.0);
     let rect = |x: f32, width: f32| Rect::from_min_size(pos2(x, 0.0), Vec2::new(width, size.y));
-    (rect(0.0, track), rect(size.x - field, field))
+    (rect(field + gap, track), rect(0.0, field))
+}
+
+/// The caption's, the slider's and the number field's rects in a room of `size`, in logical coordinates from the
+/// start edge: the caption and the number field on a line of height `row`, the slider across the room below it.
+fn stack(size: Vec2, gap: f32, field_width: f32, row: f32) -> (Option<Rect>, Rect, Rect) {
+    let field = field_width.min(size.x);
+    let caption = (size.x - field - gap).max(0.0);
+    let rect = |x: f32, y: f32, width: f32, height: f32| Rect::from_min_size(pos2(x, y), Vec2::new(width, height));
+    let below = row + gap;
+    (Some(rect(0.0, 0.0, caption, row)), rect(0.0, below, size.x, (size.y - below).max(0.0)), rect(size.x - field, 0.0, field, row))
 }

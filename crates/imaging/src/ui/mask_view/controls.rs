@@ -5,7 +5,7 @@ use craft_theme::TypeRole;
 use craft_ui::choice::Checkbox;
 use craft_ui::contract::{Bind, Entry, Pattern, Props as _, Show as _, ShowContainer as _};
 use craft_ui::display::{Shade, Text};
-use craft_ui::form::{Field, SliderField};
+use craft_ui::form::{Field, SliderField, SliderFieldLayout};
 use craft_ui::layout_components::Stack;
 use craft_ui::pickers::Select;
 use craft_ui::runtime::commands::Commands as _;
@@ -69,6 +69,7 @@ impl<'a> MaskViewControls<'a> {
                 let opacity = SliderField::new(words.opacity.clone(), Bind::given(f64::from(percent)), 0.0..=100.0)
                     .step(1.0)
                     .unit_kind(UnitKind::Percent)
+                    .layout(SliderFieldLayout::Inline)
                     .show(ui);
                 if let Some(&value) = opacity.value() {
                     let value = (value as f32).round();
