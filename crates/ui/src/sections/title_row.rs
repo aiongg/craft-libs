@@ -15,7 +15,7 @@ use crate::primitives::{IconSpec, Span, TextRun};
 use crate::runtime::commands::CommandRef;
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, IconLook, Ink, StyleCx, TextLook, TypeRole};
-use craft_behavior::{CursorIcon, Flow, IconId, Metrics, NavShape, PartKey, Roving, Sense};
+use craft_behavior::{CursorIcon, Flow, IconId, Metrics, Mixed, NavShape, PartKey, Roving, Sense};
 use craft_theme::{Stateful, States};
 use egui::{Id, Rect, Response, Ui, Vec2};
 use std::borrow::Cow;
@@ -173,6 +173,9 @@ pub struct TitleRow<'a> {
     #[prop]
     handle: bool,
     lead: Lead<'a>,
+    /// Whether the gate's value is mixed: the check box lead shows the mixed face.
+    #[prop]
+    gate_mixed: bool,
     actions: Vec<HeaderAction>,
     commands: Vec<HeaderCommand>,
     taken: Option<HeaderAction>,
@@ -203,6 +206,7 @@ impl<'a> TitleRow<'a> {
             lead_name: None,
             handle: false,
             lead: Lead::None,
+            gate_mixed: false,
             actions: Vec::new(),
             commands: Vec::new(),
             taken: None,
@@ -405,7 +409,10 @@ impl Component for TitleRow<'_> {
                 let name = self.lead_name.as_ref().map_or_else(|| cx.resolved.label.to_owned(), |name| name.as_str().to_owned());
                 ui.face(LEAD, Disclosure::new(Bind::given(value)).node(false).label(name));
             }
-            Lead::Check(_) => ui.face(LEAD, Checkbox::new(Bind::given(value)).label(words.gate.clone())),
+            Lead::Check(_) => {
+                let shown = if self.gate_mixed { Mixed::Mixed } else { Mixed::Same(value) };
+                ui.face(LEAD, Checkbox::new(Bind::given(shown)).label(words.gate.clone()));
+            }
         }
         for (at, header) in self.commands.iter().enumerate() {
             ui.face(COMMAND.at(at as u64), IconButton::command(header.icon.clone(), header.command.clone()));

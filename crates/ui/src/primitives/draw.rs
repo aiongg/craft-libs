@@ -6,7 +6,7 @@ use super::rule::RuleKind;
 use super::surface::Surface;
 use super::text::{TextEnv, TextLayout, TextRun};
 use crate::fonts::stack_facts;
-use crate::style::{Corners, DataColor, Ink, StyleColor, SurfaceKind, UiTokens, ink_color, rule_look, surface_style};
+use crate::style::{Corners, DataColor, Ink, StyleColor, SurfaceKind, SurfaceStyle, UiTokens, ink_color, rule_look, surface_style};
 use craft_i18n::Direction;
 use egui::epaint::{CircleShape, RectShape};
 use egui::{Color32, CornerRadius, Painter, Pos2, Rect, Shape, Stroke, StrokeKind, TextureId, Vec2};
@@ -271,6 +271,11 @@ impl<'a> Draw<'a> {
     pub fn surface(&self, rect: Rect, kind: SurfaceKind, corners: Corners) {
         let style = surface_style(self.env.tokens, kind);
         self.painter.extend(Surface::shapes(&style, None, rect, corners, self.env.direction, self.painter.pixels_per_point()));
+    }
+
+    /// Paints a surface of an already resolved `style` (a kind's look with one field changed, as a knob's round radius).
+    pub fn surface_styled(&self, rect: Rect, style: &SurfaceStyle) {
+        self.painter.extend(Surface::shapes(style, None, rect, Corners::All, self.env.direction, self.painter.pixels_per_point()));
     }
 
     /// Fills `shape`.

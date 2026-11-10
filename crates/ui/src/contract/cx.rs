@@ -1261,6 +1261,7 @@ pub struct BodyCx<'a> {
     pub(crate) memory: &'a mut MemoryStage,
     open: &'a mut bool,
     gate: Option<&'a mut bool>,
+    gate_mixed: bool,
     close: Option<CloseReason>,
     field_message: Option<(Message, craft_theme::variant::Tone)>,
     owner: Option<BodyOwner<'a>>,
@@ -1277,7 +1278,7 @@ impl<'a> BodyCx<'a> {
         gate: Option<&'a mut bool>,
     ) -> Self {
         memory.claim(id);
-        BodyCx { id, env, resolved, rect, memory, open, gate, close: None, field_message: None, owner: None }
+        BodyCx { id, env, resolved, rect, memory, open, gate, gate_mixed: false, close: None, field_message: None, owner: None }
     }
 
     /// Asks the platform to open `url`, in a new tab where the platform has tabs and `new_tab` is set: the opener
@@ -1293,6 +1294,11 @@ impl<'a> BodyCx<'a> {
             return None;
         }
         self.env.host()?.files().take_answer(ticket)
+    }
+
+    pub(crate) fn with_gate_mixed(mut self, mixed: bool) -> Self {
+        self.gate_mixed = mixed;
+        self
     }
 
     pub(crate) fn with_field_message(mut self, message: Option<(Message, craft_theme::variant::Tone)>) -> Self {
@@ -1321,6 +1327,11 @@ impl<'a> BodyCx<'a> {
     /// step 15 applies a change. Under a gate that is off the body is disabled.
     pub fn gate(&mut self) -> Option<&mut bool> {
         self.gate.as_deref_mut()
+    }
+
+    /// Whether the gate's value is mixed: `gate` then reads off, and a title row's check box shows the mixed face.
+    pub fn gate_is_mixed(&self) -> bool {
+        self.gate_mixed
     }
 
     /// Asks the container to close, as `CloseReason::Requested`: step 15 closes it.

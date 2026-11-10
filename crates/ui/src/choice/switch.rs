@@ -6,7 +6,7 @@ use crate::contract::{
 };
 use crate::primitives::{PaintShape, StrokeWidth};
 use crate::runtime::focus::{ActivateKeys, KeyUse};
-use crate::style::{ComponentStyle, Flags, FocusLook, StyleColor, StyleCx};
+use crate::style::{ComponentStyle, Flags, FocusLook, StyleColor, StyleCx, SurfaceKind, SurfaceStyle};
 use craft_behavior::{Flow, Metrics, Sense};
 use craft_theme::{Stateful, States, variant::Tone};
 use egui::{CornerRadius, Rect, Vec2};
@@ -26,10 +26,8 @@ pub struct SwitchStyle {
     track: Stateful<StyleColor>,
     /// The track edge.
     edge: Stateful<StyleColor>,
-    /// The thumb.
-    thumb: Stateful<StyleColor>,
-    /// The thumb's outline.
-    thumb_edge: StyleColor,
+    /// The thumb: a round knob surface, with its outline and shadow.
+    thumb: SurfaceStyle,
     radius: CornerRadius,
     width: f32,
     height: f32,
@@ -65,18 +63,16 @@ impl Component for Switch<'_> {
         let control = cx.control();
         let colors = &cx.tokens.color;
         let on = cx.color(colors.accent.solid);
-        let (well, knob) = (cx.color(colors.surface.sunken), cx.color(colors.surface.knob));
+        let well = cx.color(colors.surface.sunken);
         let disabled = cx.color(colors.text.disabled);
-        let track = Stateful::new(well).on(States::new(on, on, on, disabled)).when(Flags::INVALID, well);
+        let track = Stateful::new(well).on(States::new(on, on, on, disabled));
         let edge = super::outline(cx).on(States::new(on, on, on, disabled)).when(Flags::INVALID, cx.tone(Tone::Bad));
-        let thumb = Stateful::new(knob);
         SwitchStyle {
             metrics: Metrics::new().min_size(Vec2::new(0.0, control.height)),
             focus: cx.focus_look(),
             track,
             edge,
-            thumb,
-            thumb_edge: cx.color(colors.line.knob_edge),
+            thumb: SurfaceStyle { radius: CornerRadius::same(u8::MAX), ..cx.surface(SurfaceKind::Knob) },
             radius: CornerRadius::same((control.icon / 2.0).round() as u8),
             width: cx.tokens.size.toggle,
             height: control.icon,
@@ -113,9 +109,8 @@ impl Component for Switch<'_> {
         draw.fill(&shape, cx.resolve(&style.track));
         draw.stroke(&shape, StrokeWidth::Medium, cx.resolve(&style.edge));
         let slot = Flow::new(track, cx.flow.is_rtl()).span(at * (style.width - style.height), style.height);
-        let thumb = PaintShape::Circle(slot.center(), (style.height - style.inset * 2.0) / 2.0);
-        draw.fill(&thumb, cx.resolve(&style.thumb));
-        draw.stroke(&thumb, StrokeWidth::Thin, style.thumb_edge);
+        let size = style.height - style.inset * 2.0;
+        ui.draw().surface_styled(Rect::from_center_size(slot.center(), Vec2::splat(size)), &style.thumb);
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> EditResponse<bool> {
