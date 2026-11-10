@@ -124,6 +124,9 @@ fn show_places(ui: &mut Ui, data: &mut StoryData, setup: Setup) -> StoryOutput {
         Text::new("Photo 7").show(ui);
         Text::new("Drag this photo onto a folder under Photos").shade(Shade::Muted).show(ui);
     });
+    if let Some(current) = current.as_deref() {
+        Text::new(format!("Browsing: {}", current.display())).shade(Shade::Muted).show(ui);
+    }
     let out = {
         let Demo { cache, .. } = &mut *demo;
         let mut tree = PlacesTree::new("Places", &places, cache).row_menu(|_| vec![Entry::new(String::from("folder.rename"), "Rename Folder…")]);
@@ -132,17 +135,11 @@ fn show_places(ui: &mut Ui, data: &mut StoryData, setup: Setup) -> StoryOutput {
         }
         tree.show(ui)
     };
-    if !setup.slow && demo.jobs.waiting() > 0 {
-        ctx.request_repaint();
-    }
     for event in &out.events {
         demo.settings.apply(event);
         if let PlacesEvent::Open(folder) = event {
             demo.current = Some(folder.clone());
         }
-    }
-    if let Some(current) = demo.current.as_deref() {
-        Text::new(format!("Browsing: {}", current.display())).shade(Shade::Muted).show(ui);
     }
     out.into()
 }

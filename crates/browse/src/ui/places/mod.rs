@@ -441,7 +441,10 @@ impl PlacesTree<'_> {
             *cx.keep::<Memory>() = memory;
             out.response
         });
-        cache.finish_pass();
+        // A pass that did not run the body asked for no folder: dropping what was not asked would cancel every listing.
+        if shown.inner.is_some() {
+            cache.finish_pass();
+        }
         let response = shown.inner.unwrap_or(shown.output);
         PlacesOutput { response, events }
     }

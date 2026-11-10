@@ -4,8 +4,8 @@
 use super::Table;
 use super::words::MetadataWords;
 use crate::contract::{
-    Bind, Pad, CollectionEvent, CollectionResponse, ColumnKind, ColumnSpec, NoValue, Outcome, Pattern, Props, SelectMode, Show as _, ShowCollection as _, ShowContainer as _,
-    ToggleColumn,
+    Bind, CollectionEvent, CollectionResponse, ColumnKind, ColumnSpec, NoValue, Outcome, Pad, Pattern, Props, SelectMode, Show as _,
+    ShowCollection as _, ShowContainer as _, ToggleColumn,
 };
 use crate::layout_components::Stack;
 use crate::list::{ListRow, RowEvent, ToggleCell, ToggleState};
