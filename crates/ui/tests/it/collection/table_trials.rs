@@ -396,6 +396,21 @@ fn shift_wheel_over_a_collection_scrolls_it_sideways() {
     assert_eq!(offset.y, 0.0, "and not down");
 }
 
+/// Regression: the wheel over the header row passed the table by; the table's scroll region covers its header.
+#[trial]
+fn the_wheel_over_the_header_scrolls_the_rows() {
+    let (scene, source) = (Scene::default(), Count(40));
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| show_table(ui, file_columns(COL), &source, &scene);
+    frames.idle(3, &mut show);
+    let before = scene.row(5).min.y;
+    frames.frame(vec![pointer::moved(scene.header_cell(1, &[COL; 3]))], &mut show);
+    frames.frame(vec![pointer::wheel(-60.0)], &mut show);
+    frames.idle(2, &mut show);
+    let after = scene.row(5).min.y;
+    assert!(after < before, "the rows scrolled: {before} -> {after}");
+}
+
 /// A vertical wheel event of `dy` points with Shift held.
 fn shift_wheel(dy: f32) -> egui::Event {
     egui::Event::MouseWheel {

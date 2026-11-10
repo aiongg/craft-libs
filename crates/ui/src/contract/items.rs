@@ -658,14 +658,15 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
     fn sensed(&mut self, comp: &mut C, cx: &mut Cx<'_, C>) {
         cx.core.collection_selection = Some(Box::new(self.selection.clone()));
         if self.scrolls {
-            // The taker covers the header row too: the wheel over the header scrolls the rows (Shift sideways).
+            // The taker covers the whole collection, header row and frame included: the wheel over the header scrolls
+            // the rows (Shift sideways).
             let view = self.below_header(cx.core.content_rect);
             let (vertical, horizontal) = (self.overflow == Axis::Y, self.content.x > view.width());
             let max = Vec2::new((self.content.x - view.width()).max(0.0), self.max_offset(view.height()) as f32);
             let offset = Vec2::new(self.offset_x as f32, self.offset as f32);
             wheel::register(
                 &cx.core.ctx,
-                WheelTaker::new(cx.core.id, cx.core.content_rect)
+                WheelTaker::new(cx.core.id, cx.core.rect)
                     .vertical((vertical && max.y > 0.0) || horizontal)
                     .horizontal(horizontal)
                     .scrolls(true)
