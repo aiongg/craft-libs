@@ -17,8 +17,8 @@ pub struct ToneRampStyle {
 
 /// A gradient through `stops`, evenly spaced from the start of the bar to its end: two stops for the tone bars of a
 /// curve, many for a hue spectrum. It runs along the width, or bottom to top when `vertical`. A ramp is a face: a
-/// slider shows it as its track, and a curve graph shows one under the plot and one beside it. It paints through the
-/// content painter's one ramp painter.
+/// slider shows it as its track, and a curve graph shows one under the plot and one beside it. Shown on its own in a
+/// flow, it spans the room along its axis. It paints through the content painter's one ramp painter.
 #[derive(Clone, Component, craft_ui::contract::Props)]
 #[component(content_painter, sample = ToneRamp::sample)]
 pub struct ToneRamp<'a> {
@@ -61,6 +61,10 @@ impl Component for ToneRamp<'_> {
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
         Vec2::splat(cx.style.thickness)
+    }
+
+    fn fills(&self) -> Option<Axis> {
+        Some(if self.vertical { Axis::Y } else { Axis::X })
     }
 
     fn sense(&self) -> Sense {

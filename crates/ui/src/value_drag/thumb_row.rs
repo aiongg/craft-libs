@@ -647,7 +647,8 @@ fn against(mv: NavMove) -> NavMove {
     }
 }
 
-/// Thumbs on one row, tip up, each a value of its own.
+/// Thumbs on one row, tip up, each a value of its own. The row spans the width its flow offers, so it lines up with
+/// the bars it marks positions on.
 #[derive(crate::contract::Component, crate::contract::Props)]
 #[component(probe(ThumbRow<'static, 4>))]
 pub struct ThumbRow<'a, const N: usize> {
@@ -757,6 +758,10 @@ impl<const N: usize> Component for ThumbRow<'_, N> {
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
         let groove = if self.track_face.is_some() { cx.style.track.thickness } else { 0.0 };
         Vec2::new(cx.style.length, cx.icon() + groove)
+    }
+
+    fn fills(&self) -> Option<craft_behavior::Axis> {
+        Some(craft_behavior::Axis::X)
     }
 
     fn sense(&self) -> Sense {
