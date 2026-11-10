@@ -4,7 +4,6 @@ use super::divider::{self, Divider, Drag};
 use super::dock_column::{BarRecord, bar_name, drag_column, register_edges, show_bar};
 use super::{DockSizes, DockSpot, DockTargets, DockWords, DragUnit, Flyout, GroupAt, PanelKey, PanelSpec, Splitter, start_group_drag};
 use crate::buttons::IconButton;
-use crate::contract::overlay::Popup;
 use crate::contract::{
     Access, Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, Edit as _, EditResponse, HeaderRegion, Name, Outcome, OverlayUi,
     Overlays as _, Pad, PaintUi, PartsCx, Pointer as _, Props as _, Role, ShowContainer as _, Sizing, WordSetCx as _,
@@ -13,7 +12,7 @@ use crate::menu::GroupItem;
 use crate::primitives::IconSpec;
 use crate::runtime::env::Label;
 use crate::runtime::focus::KeyUse;
-use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
+use crate::style::{ComponentStyle, Corners, StyleCx, SurfaceKind};
 use craft_behavior::dock::{Column, DockEdge, Group};
 use craft_behavior::{Axis, CursorIcon, DockSide, IconId, Metrics, PartKey, PressPhase, Sense, Value};
 use egui::{Id, Pos2, Rect, Response, Ui, Vec2};
@@ -120,7 +119,6 @@ pub struct IconicColumn<'a, P: Value + Hash + 'static> {
     open: Bind<'a, Option<P>>,
     view: Option<FlyoutView<'a, P>>,
     bar: Rect,
-    menu_button: bool,
     record: BarRecord,
     shown: Option<usize>,
     toggled: bool,
@@ -145,7 +143,7 @@ impl<'a, P: Value + Hash + 'static> IconicColumn<'a, P> {
     /// A column named `label` of the dock `dock`, over `column`, whose open flyout is the panel in `open`; `spec`
     /// reads each panel's label, icon and limits.
     pub fn new(label: impl Into<Label>, dock: Id, column: &'a Column<P>, open: Bind<'a, Option<P>>, spec: &'a dyn Fn(&P) -> PanelSpec) -> Self {
-        let props = ContainerProps::new().surface(SurfaceKind::Panel).sizing(Sizing::Fill).pad(Pad::None).header(HeaderRegion::new());
+        let props = ContainerProps::new().sizing(Sizing::Fill).pad(Pad::None).header(HeaderRegion::new());
         IconicColumn {
             common: Common::new(),
             props,
@@ -158,7 +156,6 @@ impl<'a, P: Value + Hash + 'static> IconicColumn<'a, P> {
             open,
             view: None,
             bar: Rect::NOTHING,
-            menu_button: false,
             record: BarRecord::default(),
             shown: None,
             toggled: false,
@@ -268,9 +265,7 @@ impl<P: Value + Hash + 'static> Component for IconicColumn<'_, P> {
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
         let sizes = cx.style.sizes;
         let plan = self.plan(rect, &sizes);
-        // A column no wider than the rail has no room for the menu button; the context request opens the menu.
         self.bar = plan.bar;
-        self.menu_button = plan.bar.width() > sizes.column.iconic_least;
         cx.part(super::dock_column::BAR, plan.bar)
             .sense(Sense::DRAG)
             .cursor(CursorIcon::Grab)
@@ -373,7 +368,10 @@ impl<P: Value + Hash + 'static> Component for IconicColumn<'_, P> {
         self.laid = Some(plan);
     }
 
-    fn paint(&mut self, ui: &mut PaintUi<'_>, _: &Cx<'_, Self>) {
+    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        // Painted here, not as the container's surface, which lies over what `paint` draws.
+        ui.draw().surface(cx.rect, SurfaceKind::Panel, Corners::All);
+        ui.draw().surface(self.bar, SurfaceKind::Background, Corners::None);
         let flat = self.flat();
         for (at, (group, panel)) in flat.iter().enumerate() {
             let Some(panel) = self.panel(*group, *panel) else { continue };
@@ -429,10 +427,7 @@ impl<P: Value + Hash + 'static> Component for IconicColumn<'_, P> {
         }
     }
 
-    fn finish(self, mut cx: Cx<'_, Self>) -> IconicColumnOutput<P> {
-        if let Some(opener) = self.record.opener {
-            Popup::toggle(opener, &mut cx);
-        }
+    fn finish(self, cx: Cx<'_, Self>) -> IconicColumnOutput<P> {
         let iconic = self.record.iconic.or(self.toggled.then_some(false));
         IconicColumnOutput { edit: cx.edit_response(), placed: cx.rect, iconic, picked: self.record.picked, width: self.width }
     }
@@ -465,6 +460,6 @@ impl<P: Value + Hash + 'static> Container for IconicColumn<'_, P> {
         if cx.shell().is_some_and(|shell| !shell.dock_visible()) {
             return;
         }
-        self.record = show_bar(ui, cx, Some(self.bar), false, self.auto_collapse, self.menu_button);
+        self.record = show_bar(ui, cx, Some(self.bar), false, self.auto_collapse, self.edge);
     }
 }
