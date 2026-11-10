@@ -45,7 +45,7 @@ pub use markers::{
     MARKER_POINT, MarkerDialog, MarkerDialogAction, MarkerDialogResult, MarkerDraft, MarkerEdit, MarkerSpan, MarkerStrip, MarkerStripOutput,
     MarkerWords,
 };
-pub use overview::{OverviewRun, TimelineOverview, TimelineOverviewOutput, overview_runs};
+pub use overview::{OverviewRun, OverviewRuns, TimelineOverview, TimelineOverviewOutput, overview_runs};
 pub use panel::{Timeline, TimelineEdit, TimelineOutput, TimelineToolbar, TrackSwitch};
 pub use preview::{FrameFit, FramePreview, frame_rect};
 pub use render_queue::{

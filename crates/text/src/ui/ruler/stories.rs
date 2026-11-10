@@ -1,5 +1,5 @@
-//! Stories of the text ruler: Word's ruler with stops and indents, the Tabs panel's with the selector and a picked
-//! stop, and a table row's column borders.
+//! Stories of the text ruler: Word's ruler with stops, a hanging indent and the tab selector, the Tabs panel's with a
+//! picked stop, and a table row's column borders.
 
 use super::items::FIRST;
 use super::{RulerValues, TabAlign, TabLeader, TabStop, TextRuler};
@@ -19,13 +19,23 @@ fn stop(position: f32, align: TabAlign) -> TabStop {
     TabStop { position, align, leader: TabLeader::None }
 }
 
+/// The distance between neighbouring sample stops, points.
+const STOP_PITCH: f32 = 22.0;
+/// The kinds of stop, in the order the sample stops repeat them.
+const KINDS: [TabAlign; 5] = [TabAlign::Left, TabAlign::Center, TabAlign::Right, TabAlign::Decimal, TabAlign::Bar];
+/// Stops of each kind.
+const STOPS_PER_KIND: usize = 4;
+/// The stop the Tabs panel story starts with picked.
+const PICKED: usize = 3;
+
+/// Four stops of each kind, one pitch apart, the kinds taking turns.
+fn sample_stops() -> Vec<TabStop> {
+    (0..KINDS.len() * STOPS_PER_KIND).map(|i| stop((i + 1) as f32 * STOP_PITCH, KINDS[i % KINDS.len()])).collect()
+}
+
+/// Word's ruler: the sample stops and a hanging indent.
 fn word() -> RulerValues {
-    RulerValues {
-        stops: vec![stop(72.0, TabAlign::Left), stop(180.0, TabAlign::Center), stop(288.0, TabAlign::Right), stop(360.0, TabAlign::Decimal)],
-        left_indent: 36.0,
-        first_line_indent: -18.0,
-        right_indent: 18.0,
-    }
+    RulerValues { stops: sample_stops(), left_indent: 36.0, first_line_indent: -36.0, right_indent: 0.0 }
 }
 
 fn inches() -> DocUnit {
@@ -34,8 +44,13 @@ fn inches() -> DocUnit {
 
 #[story(TextRuler<'static>, covers = [Default], drive = Drive::Drag(Grip::new(FIRST)))]
 fn with_stops_and_indents(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let kind = *data.value("kind", TabAlign::Left);
     let values = data.value("values", word());
-    TextRuler::new("Ruler", Bind::bound(&mut *values), COLUMN).unit(inches()).show(ui).into()
+    let out = TextRuler::new("Ruler", Bind::bound(&mut *values), COLUMN).unit(inches()).kind(kind).show(ui);
+    if let Some(next) = out.kind {
+        *data.value("kind", TabAlign::Left) = next;
+    }
+    out.into()
 }
 
 #[story(TextRuler<'static>, covers = [Mixed], drive = Drive::Never)]
@@ -55,8 +70,8 @@ fn indent_too_wide(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 
 #[story(TextRuler<'static>, covers = [], drive = Drive::Never)]
 fn tabs_panel(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let values = data.value("values", word());
-    TextRuler::new("Ruler", Bind::bound(&mut *values), COLUMN).unit(inches()).kind(TabAlign::Decimal).picked_stop(1).show(ui).into()
+    let values = data.value("values", RulerValues { stops: sample_stops(), ..RulerValues::default() });
+    TextRuler::new("Ruler", Bind::bound(&mut *values), COLUMN).unit(inches()).picked_stop(PICKED).show(ui).into()
 }
 
 #[story(TextRuler<'static>, covers = [], drive = Drive::Never)]

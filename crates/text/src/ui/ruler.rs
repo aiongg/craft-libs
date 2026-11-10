@@ -15,7 +15,7 @@
 //! ```
 
 use super::length::DocUnit;
-use craft_behavior::{GesturePhase, HitLevel, HitPriority, Metrics, Sense};
+use craft_behavior::{Axis, GesturePhase, HitLevel, HitPriority, Metrics, Sense};
 use craft_ui::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Input, MeasureCx, Name, Numeric, Outcome, PaintUi, PartsCx, Props as _,
     Role, WordSetCx as _,
@@ -286,7 +286,7 @@ pub struct TextRulerStyle {
     grip_gap: f32,
     /// How far a grip line reaches above and below the marker's middle.
     grip_reach: f32,
-    /// The length a ruler asks for along its axis.
+    /// The least length of the ruler, which spans the width it is given.
     length: f32,
 }
 
@@ -445,6 +445,10 @@ impl Component for TextRuler<'_> {
             grip_reach: tokens.size.handle.sm,
             length: tokens.size.length.track,
         }
+    }
+
+    fn fills(&self) -> Option<Axis> {
+        Some(Axis::X)
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {

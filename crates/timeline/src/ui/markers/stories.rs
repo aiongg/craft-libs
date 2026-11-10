@@ -50,13 +50,14 @@ fn start_view() -> TimeView {
     TimeView::new(Tick::ZERO, POINTS_PER_SECOND)
 }
 
-/// Shows the strip `show` makes inside a timeline view over `view`, which publishes the time axis the strip reads.
+/// Shows the strip `show` makes inside a strip timeline view over `view`, which publishes the time axis the strip reads.
 /// `show` builds the strip and shows it on every run of the view's body.
 fn in_view<R>(ui: &mut Ui, view: &mut TimeView, mut show: impl FnMut(&mut Ui) -> R) -> StoryOutput
 where
     StoryOutput: From<R>,
 {
     TimelineView::new("Timeline", Bind::bound(view), format(), seconds(16.0))
+        .strip()
         .show(ui, |ui, _| show(ui))
         .inner
         .map(StoryOutput::from)

@@ -272,6 +272,8 @@ pub struct TimelineView<'a> {
     /// snap line and the marquee.
     #[prop(into)]
     overlay: Option<&'a Overlay>,
+    /// Whether the horizontal bar shows; a [`strip`](Self::strip) view has none.
+    bar: bool,
 }
 
 impl<'a> TimelineView<'a> {
@@ -294,8 +296,19 @@ impl<'a> TimelineView<'a> {
             context_menu: false,
             anim: Anim::default(),
             overlay: None,
+            bar: true,
         }
         .label(label)
+    }
+
+    /// A view around one strip, a ruler or a lane on its own: as wide as its room and as tall as its content, with no
+    /// surface and no bar. The axis, the wheel and the keys are those of any view.
+    #[must_use]
+    pub fn strip(mut self) -> Self {
+        self.props.surface = None;
+        self.props.sizing = Sizing::FillWidth;
+        self.bar = false;
+        self
     }
 
     /// How the view follows the playhead at `playhead` while `playing`.
@@ -463,6 +476,9 @@ impl Component for TimelineView<'_> {
 
     /// The bar along the bottom edge, from the end of the headers to the end edge.
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
+        if !self.bar {
+            return;
+        }
         let Some(view) = cx.value().copied() else { return };
         let width = self.width(rect, cx.style);
         if !(view.points_per_second > 0.0 && view.points_per_second.is_finite() && width > 0.0) {
@@ -522,6 +538,9 @@ impl Component for TimelineView<'_> {
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        if !self.bar {
+            return;
+        }
         let Some(view) = cx.value().copied() else { return };
         let width = self.width(cx.rect, cx.style);
         if !(view.points_per_second > 0.0 && view.points_per_second.is_finite() && width > 0.0) {

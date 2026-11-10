@@ -2,7 +2,7 @@
 
 use craft_behavior::PartKey;
 use craft_theme::{Contrast, ControlSize, Mode, Variant};
-use craft_ui::primitives::{BarAxis, GridInk, GridLines, ScrollBar, grid_lines};
+use craft_ui::primitives::{BarAxis, GridInk, GridLines, ScrollBar, Tick, TickEdge, TickRank, grid_lines, ticks};
 use craft_ui::style::{DataColor, StateSet};
 use craft_ui::testing::style::{face_id, tokens, with_cx};
 use craft_ui::testing::{Frames, trial};
@@ -103,4 +103,22 @@ fn a_document_grid_draws_minor_lines_in_their_own_colour_through_the_view() {
         count(minor) > 0 && colors.iter().position(|c| *c == minor) < colors.iter().position(|c| *c == major),
         "minor lines sit under the majors"
     );
+}
+
+/// A labelled tick runs the whole depth of its strip, beside its label; the halfway tick is shorter and the others
+/// shorter still, on whichever edge the strip sits.
+#[trial]
+fn a_major_tick_spans_the_strip_and_outranks_mid_and_minor_ticks() {
+    let tokens = tokens(Mode::Dark, Contrast::Standard);
+    let strip = Rect::from_min_size(pos2(10.0, 20.0), vec2(300.0, 16.0));
+    for (edge, depth) in [(TickEdge::Bottom, strip.height()), (TickEdge::Right, strip.width())] {
+        let length = |rank| {
+            let shapes = ticks(&tokens, strip, edge, &[Tick::new(5.0, rank)], Rect::EVERYTHING, 1.0);
+            let bounds = shapes.iter().map(Shape::visual_bounding_rect).fold(Rect::NOTHING, |a, b| a.union(b));
+            if matches!(edge, TickEdge::Bottom) { bounds.height() } else { bounds.width() }
+        };
+        let (major, mid, minor) = (length(TickRank::Major), length(TickRank::Mid), length(TickRank::Minor));
+        assert!(major >= depth - EPS, "{edge:?}: the major tick spans the strip: {major} of {depth}");
+        assert!(major > mid && mid > minor && minor > 0.0, "{edge:?}: major {major}, mid {mid}, minor {minor}");
+    }
 }

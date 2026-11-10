@@ -85,16 +85,16 @@ impl KeyframeMark {
 }
 
 /// The icon that marks a key of `interpolation` on a lane: a diamond for Linear, a square for Hold, a circle for the
-/// Bezier kinds, with After Effects' own marks for Auto and the eases. Continuous Bezier has no mark of its own and
-/// shows the Bezier circle.
+/// Bezier kinds, with After Effects' own marks for Auto, Continuous and the eases.
 pub(crate) fn keyframe_icon(interpolation: KeyframeInterpolation) -> IconSpec<'static> {
     let name = match interpolation {
-        KeyframeInterpolation::Linear => "keyframe_linear",
-        KeyframeInterpolation::Hold => "keyframe_hold",
-        KeyframeInterpolation::Bezier | KeyframeInterpolation::ContinuousBezier => "keyframe_bezier",
-        KeyframeInterpolation::AutoBezier => "keyframe_auto_bezier",
-        KeyframeInterpolation::EaseIn => "keyframe_ease_in",
-        KeyframeInterpolation::EaseOut => "keyframe_ease_out",
+        KeyframeInterpolation::Linear => "key_linear_filled",
+        KeyframeInterpolation::Hold => "key_hold",
+        KeyframeInterpolation::Bezier => "key_bezier",
+        KeyframeInterpolation::ContinuousBezier => "key_continuous_bezier",
+        KeyframeInterpolation::AutoBezier => "key_auto_bezier",
+        KeyframeInterpolation::EaseIn => "key_ease_in",
+        KeyframeInterpolation::EaseOut => "key_ease_out",
     };
     IconSpec::svg(IconId::new(name))
 }
@@ -596,7 +596,7 @@ impl KeyframeNavigator {
                 let step = IconButton::new(previous).label(words.previous.clone()).enabled(has_previous).show(ui);
                 out.previous = clicked(&step);
             }
-            let diamond = IconId::new(if at_key { "keyframe_linear" } else { "diamond" });
+            let diamond = IconId::new(if at_key { "key_linear_filled" } else { "diamond" });
             out.toggle = clicked(&IconButton::new(diamond).label(words.add_remove.clone()).show(ui));
             if animated {
                 let next = IconSpec::svg(IconId::new("chevron_right")).mirror(Mirror::Never);

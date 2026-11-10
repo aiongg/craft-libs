@@ -10,7 +10,7 @@ use craft_ui::contract::{
 use craft_ui::primitives::{PaintShape, StrokeWidth};
 use craft_ui::runtime::env::Label;
 use craft_ui::style::{ComponentStyle, DataColor, StyleColor, StyleCx};
-use egui::{Color32, CornerRadius, Pos2, Rect, Response, Vec2, pos2};
+use egui::{Color32, CornerRadius, Pos2, Rangef, Rect, Response, Vec2, pos2};
 
 use crate::time::{Tick, TimeRange, TimeView};
 
@@ -28,37 +28,46 @@ fn overview_total(end: Tick) -> Tick {
     end + Tick::from_seconds_f64(TAIL_SECONDS)
 }
 
-/// A run of touching clips of one colour on one track, in the overview's own coordinates: the origin is the
-/// top-left corner of the overview.
+/// A run of touching clips of one colour on one track, along the overview's width.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct OverviewRun {
-    /// The run's place inside the overview.
-    pub rect: Rect,
+    /// The track's row, from the top.
+    pub track: usize,
+    /// The run's start and end, in points from the overview's start edge.
+    pub span: Rangef,
     /// The run's fill colour.
     pub color: Color32,
 }
 
-/// The overview's blocks for `tracks` (each a list of clip ranges and colours, in time order) as
-/// [`TimelineOverview`] draws them in an overview `size` points across, over the content's `end` plus the tail the
-/// overview adds. One row per track, each clip at least one point wide, and neighbours of one colour that touch or
-/// overlap merged into one run, which covers exactly the same pixels in the same order (a drum edit holds tens of
-/// thousands of clips under a point wide). The app caches the result per document revision and size.
+/// The runs of every track of a timeline, laid out along an overview of some width; [`TimelineOverview`] spreads the
+/// tracks' rows over its own height.
+#[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
+pub struct OverviewRuns {
+    /// The number of tracks, each a row.
+    pub tracks: usize,
+    /// The width the runs were laid out for, in points.
+    pub width: f32,
+    /// The runs, track by track.
+    pub runs: Vec<OverviewRun>,
+}
+
+/// The overview's runs for `tracks` (each a list of clip ranges and colours, in time order) along an overview `width`
+/// points across, over the content's `end` plus the tail the overview adds. Each clip is at least one point wide, and
+/// neighbours of one colour that touch or overlap merge into one run, which covers exactly the same pixels in the same
+/// order (a drum edit holds tens of thousands of clips under a point wide). The app caches the result per document
+/// revision and width.
 // soundcraft: crates/ui-egui/src/edit_window/universe.rs:15 `universe_runs`.
-pub fn overview_runs(tracks: &[Vec<(TimeRange, Color32)>], end: Tick, size: Vec2) -> Vec<OverviewRun> {
+pub fn overview_runs(tracks: &[Vec<(TimeRange, Color32)>], end: Tick, width: f32) -> OverviewRuns {
     let total = overview_total(end).0.max(1) as f32;
-    let row = (size.y / tracks.len().max(1) as f32).max(1.0);
     let mut runs = Vec::new();
-    for (index, clips) in tracks.iter().enumerate() {
-        let y = index as f32 * row;
-        let block = |from: f32, to: f32, color: Color32| OverviewRun {
-            rect: Rect::from_min_max(pos2(from, y + RUN_INSET), pos2(to, y + row - RUN_INSET)),
-            color,
-        };
+    for (track, clips) in tracks.iter().enumerate() {
+        let block = |from: f32, to: f32, color: Color32| OverviewRun { track, span: Rangef::new(from, to), color };
         let mut run: Option<(f32, f32, Color32)> = None;
         for &(range, color) in clips {
-            let from = range.start.0 as f32 / total * size.x;
-            let to = (range.end().0 as f32 / total * size.x).max(from + RUN_MIN_WIDTH);
+            let from = range.start.0 as f32 / total * width;
+            let to = (range.end().0 as f32 / total * width).max(from + RUN_MIN_WIDTH);
             run = match run {
                 Some((a, b, held)) if held == color && from >= a && from <= b => Some((a, b.max(to), held)),
                 Some((a, b, held)) => {
@@ -72,7 +81,7 @@ pub fn overview_runs(tracks: &[Vec<(TimeRange, Color32)>], end: Tick, size: Vec2
             runs.push(block(a, b, held));
         }
     }
-    runs
+    OverviewRuns { tracks: tracks.len(), width, runs }
 }
 
 /// The style of the overview.
@@ -85,6 +94,10 @@ pub struct OverviewStyle {
     window: StyleColor,
     /// The playhead's line.
     playhead: StyleColor,
+    /// The window box's corners.
+    radius: CornerRadius,
+    /// How far the window box reaches above and below the runs.
+    overhang: f32,
     /// The overview's height.
     height: f32,
 }
@@ -97,7 +110,7 @@ pub struct OverviewStyle {
 pub struct TimelineOverview<'a> {
     #[common]
     common: Common,
-    runs: &'a [OverviewRun],
+    runs: &'a OverviewRuns,
     view: Bind<'a, TimeView>,
     end: Tick,
     /// The width of the timeline's time area, in points: the width of the window box.
@@ -110,7 +123,7 @@ pub struct TimelineOverview<'a> {
 
 impl<'a> TimelineOverview<'a> {
     /// An overview named `label` of `runs` over `end`, that edits `view`.
-    pub fn new(label: impl Into<Label>, runs: &'a [OverviewRun], view: Bind<'a, TimeView>, end: Tick) -> Self {
+    pub fn new(label: impl Into<Label>, runs: &'a OverviewRuns, view: Bind<'a, TimeView>, end: Tick) -> Self {
         TimelineOverview { common: Common::new(), runs, view, end, shown_width: 0.0, playhead: None }.label(label).ltr_axis()
     }
 
@@ -125,6 +138,19 @@ impl<'a> TimelineOverview<'a> {
         let at = f64::from((x - rect.min.x) / rect.width().max(f32::EPSILON));
         let first = (at - self.shown_fraction(view) / 2.0).clamp(0.0, 1.0);
         TimeView { start: Tick((first * overview_total(self.end).0.max(1) as f64).round() as i64), ..*view }
+    }
+
+    /// Where `run` sits on an overview in `rect`: its track's row of the band the window box overhangs, inset by
+    /// [`RUN_INSET`] above and below, and its span stretched from the width the runs were laid out for.
+    fn run_rect(&self, run: &OverviewRun, rect: Rect, style: &OverviewStyle) -> Rect {
+        let band = rect.shrink2(Vec2::new(0.0, style.overhang));
+        let row = band.height() / self.runs.tracks.max(1) as f32;
+        let stretch = if self.runs.width > 0.0 { rect.width() / self.runs.width } else { 0.0 };
+        let top = band.min.y + run.track as f32 * row;
+        Rect::from_min_max(
+            pos2(rect.min.x + run.span.min * stretch, top + RUN_INSET),
+            pos2(rect.min.x + run.span.max * stretch, top + row - RUN_INSET),
+        )
     }
 
     /// The window box of `view`, in `rect`.
@@ -149,6 +175,8 @@ impl Component for TimelineOverview<'_> {
             metrics: Metrics::new(),
             window: cx.color(tokens.color.overlay.line),
             playhead: cx.color(tokens.color.accent.solid),
+            radius: cx.field().radius,
+            overhang: tokens.space.gap.tight,
             height: cx.control().height * HEIGHT_IN_CONTROLS,
         }
     }
@@ -195,11 +223,10 @@ impl Component for TimelineOverview<'_> {
         let Some(view) = cx.value().copied() else { return };
         let (rect, style) = (cx.rect, cx.style);
         let draw = ui.draw();
-        for run in self.runs {
-            let shape = PaintShape::Rect(run.rect.translate(rect.min.to_vec2()), CornerRadius::ZERO);
-            draw.data_fill(&shape, DataColor::new(run.color));
+        for run in &self.runs.runs {
+            draw.data_fill(&PaintShape::Rect(self.run_rect(run, rect, style), CornerRadius::ZERO), DataColor::new(run.color));
         }
-        draw.stroke(&PaintShape::Rect(self.window(&view, rect), CornerRadius::ZERO), StrokeWidth::Medium, style.window);
+        draw.stroke(&PaintShape::Rect(self.window(&view, rect), style.radius), StrokeWidth::Medium, style.window);
         if let Some(playhead) = self.playhead {
             let total = overview_total(self.end).0.max(1) as f64;
             let x = rect.min.x + (playhead.0 as f64 / total) as f32 * rect.width();
