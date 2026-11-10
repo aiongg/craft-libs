@@ -2,8 +2,7 @@
 
 use super::catalog::{Catalog, ComponentInfo};
 use craft_ui::contract::{Catalog as Levels, CatalogEntry, Level};
-use craft_ui::testing::{StoryData, StorySnapshot, registered};
-use std::sync::LazyLock;
+use craft_ui::testing::{StoryData, StorySnapshot};
 
 /// Whether a story's dialog is closed behind its button.
 #[derive(Clone, Copy, Debug, Default)]
@@ -50,10 +49,10 @@ impl CardState {
     }
 }
 
-/// The level, display name and surface of every registered type.
+/// The level, display name and surface of every registered type linked into the binary, the library's and the
+/// domain crates'.
 pub fn levels() -> &'static Levels {
-    static LEVELS: LazyLock<Levels> = LazyLock::new(|| craft_ui::contract::catalog(&registered()));
-    &LEVELS
+    super::catalog::linked_catalog()
 }
 
 /// The level facts of the component registered as `type_name`.

@@ -3,12 +3,12 @@
 use craft_behavior::Selection;
 use craft_settings::{Location, OpenOptions, SettingsFiles, SettingsStore};
 use craft_theme::ModeChoice;
-use craft_ui::contract::Level;
+use craft_ui::contract::{Level, Registration};
 use craft_ui::list::OpenSet;
 use craft_ui::testing::trial;
 use craft_ui_gallery::viewer::{
-    Catalog, ComponentInfo, GalleryCommands, GallerySettings, PanelId, TreeKey, Viewer, Workspace, default_for, load_layout, open_tabs, rows,
-    save_layout,
+    Catalog, ComponentInfo, GalleryCommands, GallerySettings, PanelId, TreeKey, Viewer, Workspace, by_level, default_for, load_layout, open_tabs,
+    rows, save_layout,
 };
 use std::collections::BTreeMap;
 use std::io;
@@ -163,4 +163,28 @@ fn every_linked_crate_registers() {
     assert!(stories > 0);
     let empty: Vec<_> = counts.iter().filter(|(_, count)| *count == 0).collect();
     assert!(empty.is_empty(), "no registrations from {empty:?}");
+}
+
+/// Regression: the Overview and the filter listed only craft-ui's types, so every domain crate's component had no
+/// card, no module and no story tab.
+#[trial]
+fn domain_crate_types_have_an_overview_entry_and_a_declaration() {
+    let _ = craft_ui_gallery::linked_counts();
+    let catalog = Catalog::linked();
+    let listed: Vec<&str> = by_level(&catalog, "").into_iter().flat_map(|(_, components)| components).map(|component| component.type_name).collect();
+    let domain: Vec<&'static str> = craft_ui::contract::registrations()
+        .into_iter()
+        .filter(|registration| registration.crate_name() != "craft-ui")
+        .filter_map(|registration| match registration {
+            Registration::Component(probe) => Some(probe.type_name()),
+            Registration::Pattern(probe) => Some(probe.type_name()),
+            _ => None,
+        })
+        .filter(|type_name| catalog.entries.iter().any(|entry| entry.type_name == *type_name))
+        .collect();
+    assert!(!domain.is_empty(), "no domain-crate type with a story is linked");
+    for type_name in domain {
+        assert!(listed.contains(&type_name), "{type_name} has no Overview entry");
+        assert!(catalog.declared.contains_key(type_name), "{type_name} has no declaration");
+    }
 }
