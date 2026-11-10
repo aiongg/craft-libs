@@ -1700,6 +1700,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `pub fn is_open(&self) -> bool`. Whether the body is open.
   - `pub fn open(&mut self) -> &mut bool`. The open state: a title row's disclosure binds to it, and step 15 writes a change to its owner.
   - `pub fn gate(&mut self) -> Option<&mut bool>`. The gate's shown copy, for a container whose value is a bool: a title row's check box binds to it, and
+  - `pub fn gate_is_mixed(&self) -> bool`. Whether the gate's value is mixed: `gate` then reads off, and a title row's check box shows the mixed face.
   - `pub fn request_close(&mut self)`. Asks the container to close, as `CloseReason::Requested`: step 15 closes it.
   - `pub fn request_close_as(&mut self, why: CloseReason)`. Asks the container to close and tells it why (an OK button is `Activated`, Enter is `Enter`): step 15
   - `pub fn labelled<C: Show>(&mut self, ui: &mut Ui, key: impl Hash + Debug, label: Label, side: SideLabel, child: C) -> C::Output`. Runs the label step (B2, 16.3) for one leaf child in the body's flow: `label` sits beside the child or above
@@ -2283,6 +2284,7 @@ The layout services: `LabelColumn`, `ColumnGroup`, the `Grid` cursor, `measure_s
   - `pub fn response(&self) -> Option<&Response>`. The child's response after `arrange` showed it.
 - `craft_ui::layout::RowAlign`: `pub enum RowAlign { Start, Center, End, SpaceBetween }`. Where a `Row` places its block of children along the row.
 - `craft_ui::layout::arrange`: `pub fn arrange(ui: &mut Ui, layout: &dyn Arrangement, children: &mut [Placed<'_>]) -> Rect`. Places `children` by `layout` in the rest of `ui` and shows each once. The placement is logical; its output
+- `craft_ui::layout::control_baseline`: `pub fn control_baseline(ctx: &egui::Context, id: Id, label: Vec2, label_baseline: f32) -> Option<f32>`. The control's first baseline from its top, as `record_control_baseline` stored it last pass. A control that paints
 - `craft_ui::layout::measure_slot`: `pub fn measure_slot(ui: &mut Ui, width: f32, body: impl FnOnce(&mut Ui)) -> Vec2`. Runs `body` in an invisible sizing pass `width` wide and returns the size it took. Nothing is allocated in
 - `craft_ui::layout::place_label`: `pub fn place_label(ui: &Ui, id: Id, column: &LabelColumn, flow: Flow, label: Vec2, label_baseline: f32) -> LabelPlacement`. Places a label of `label` size with baseline `label_baseline` and the control of the row `id` in `flow`'s
 - `craft_ui::layout::record_control_baseline`: `pub fn record_control_baseline(ui: &Ui, id: Id, baseline: f32)`. Stores the distance from the top of the control of the row `id` to its first baseline, for the next
@@ -2349,6 +2351,7 @@ Painters, `Draw`, the sensing core, the text adapter and `ImeSurface`.
   - `pub fn pixel_centre(&self, v: f32) -> f32`. `v` moved to the centre of the physical pixel it lies in: a line one physical pixel wide placed there fills that
   - `pub fn rule(&self, kind: RuleKind, from: Pos2, to: Pos2)`. Paints the line of `kind` from `from` to `to`.
   - `pub fn surface(&self, rect: Rect, kind: SurfaceKind, corners: Corners)`. Paints a surface of `kind` (tracks, plot wells).
+  - `pub fn surface_styled(&self, rect: Rect, style: &SurfaceStyle)`. Paints a surface of an already resolved `style` (a kind's look with one field changed, as a knob's round radius).
   - `pub fn fill(&self, shape: &PaintShape, color: StyleColor)`. Fills `shape`.
   - `pub fn stroke(&self, shape: &PaintShape, width: impl Into<DataStrokeWidth>, color: impl Into<StrokeColor>)`. Strokes `shape` at a theme width or a width from the document, in a theme colour or a colour from data (a
   - `pub fn data_fill(&self, shape: &PaintShape, color: DataColor)`. Fills `shape` with a colour from data (a swatch well, a layer label dot, an avatar). A `Draw` for an inactive
@@ -3485,6 +3488,7 @@ The style layer: the state set and its resolver, style parts and `ComponentStyle
   - `pub fn border_replaces_edge(mut self) -> Self`. The border replaces the kind's flat edge.
   - `pub fn border(mut self, border: Stateful<StyleColor>, width: f32) -> Self`. Sets the border colours and width.
 - `craft_ui::style::SurfaceStyle`: `pub struct SurfaceStyle { pub fill: Color32, pub radius: CornerRadius, pub edge: SurfaceEdge, pub shadow: Option<Shadow> }`. Everything a surface of one kind draws.
+  - `pub fn disabled(&self, panel: Color32, edge: Color32) -> SurfaceStyle`. This look while disabled: opaque, the fill moved toward `panel` (the disabled fill) by `Opacity::DISABLED`, the edge `edge`, and no
 - `craft_ui::style::TextLook`: `pub struct TextLook { pub role: TypeRole, pub color: Stateful<StyleColor>, pub ground: Option<Stateful<StyleColor>> }`. A component's text.
   - `pub fn new(role: TypeRole, color: Stateful<StyleColor>) -> Self`. A text look.
   - `pub fn on(mut self, ground: Stateful<StyleColor>) -> Self`. Declares the fill the text is painted on, for a text that sits on a part's own fill.
