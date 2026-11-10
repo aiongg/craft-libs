@@ -341,8 +341,9 @@ fn recent_section(
     let _ = Section::fixed(words.recent.clone())
         .command_scope(StartRecentCommands::SCOPE)
         .controls(|ui, _| {
-            let _ = Segmented::new(words.view.clone(), view.borrow_mut().reborrowed(), &modes).show(ui);
+            // The first control takes the end edge, so the sort comes first to read after the view switch.
             let _ = Select::new(words.sort.clone(), sort.borrow_mut().reborrowed(), &orders).show(ui);
+            let _ = Segmented::new(words.view.clone(), view.borrow_mut().reborrowed(), &modes).show(ui);
         })
         .show(ui, |ui, cx| {
             let mut lead = cx.keep::<Leads>().recent.clone().filter(|path| files.iter().any(|file| &file.path == path));

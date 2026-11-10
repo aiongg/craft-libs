@@ -149,6 +149,10 @@ pub struct TitleRowStyle {
     icon: IconLook,
     /// The width of a disclosure lead's slot: `size.icon.sm`, a small glyph beside the title.
     disclosure: f32,
+    /// The side padding of an inset row: `space.pad.control`.
+    inset: f32,
+    /// The side of an action part: the control height, which is below a tall header's height.
+    action: f32,
 }
 
 /// An optional icon, a title with an optional subtitle, a lead (a disclosure bound to the container's open state, or
@@ -184,6 +188,9 @@ pub struct TitleRow<'a> {
     /// the pointer, a handle mark at its end.
     #[prop]
     handle: bool,
+    /// Whether the row keeps `space.pad.control` on both sides, for a row that is not inside a padded container.
+    #[prop]
+    inset: bool,
     lead: Lead<'a>,
     actions: Vec<HeaderAction>,
     commands: Vec<HeaderCommand>,
@@ -214,6 +221,7 @@ impl<'a> TitleRow<'a> {
             fill: true,
             lead_name: None,
             handle: false,
+            inset: false,
             lead: Lead::None,
             actions: Vec::new(),
             commands: Vec::new(),
@@ -326,6 +334,8 @@ impl Component for TitleRow<'_> {
             text: TextLook::new(role, Stateful::new(shade).off(States::new(shade, shade, shade, disabled))),
             icon: IconLook::new(cx.control().icon, Stateful::new(ink).off(States::new(ink, ink, ink, disabled))),
             disclosure: cx.tokens.size.icon.sm,
+            inset: cx.tokens.space.pad.control,
+            action: cx.control().height,
         }
     }
 
@@ -339,7 +349,8 @@ impl Component for TitleRow<'_> {
         let side = title.y.max(cx.style.metrics.min_size.y);
         let text = title.x + subtitle.map_or(0.0, |width| width + cx.gap());
         let lead = if self.has_lead() { self.lead_side(side, cx.style.disclosure) - side } else { 0.0 };
-        let natural = text + side * parts as f32 + cx.gap() * parts as f32 + lead;
+        let inset = if self.inset { 2.0 * cx.style.inset } else { 0.0 };
+        let natural = text + side * parts as f32 + cx.gap() * parts as f32 + lead + inset;
         // A row takes the room it is offered, a filling row all of it, and never more: the title elides to what is left.
         let width = cx.room.map_or(natural, |room| if self.fill { room } else { natural.min(room) });
         Vec2::new(width, title.y)
@@ -352,6 +363,7 @@ impl Component for TitleRow<'_> {
     /// Lead and actions are focusable parts of one roving group.
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
         let side = rect.height();
+        let rect = if self.inset { rect.shrink2(Vec2::new(cx.style.inset, 0.0)) } else { rect };
         let mut flow = Flow::new(rect, cx.flow.is_rtl());
         if self.has_lead() {
             let (lead, rest) = flow.take_start(self.lead_side(side, cx.style.disclosure));
@@ -363,7 +375,7 @@ impl Component for TitleRow<'_> {
         let commands = self.commands.len();
         let mut rects = Vec::new();
         for _ in 0..commands + self.actions.len() {
-            let (part, rest) = flow.take_end(side);
+            let (part, rest) = flow.take_end(cx.style.action.min(side));
             rects.push(part);
             flow = rest;
         }
@@ -444,7 +456,7 @@ impl Component for TitleRow<'_> {
                 HeaderAction::Menu => ("more", words.menu.clone()),
                 HeaderAction::Float => ("float", words.float.clone()),
             };
-            ui.face(ACTION.at(at as u64), IconButton::new(IconId::new(icon)).label(label));
+            ui.face(ACTION.at(at as u64), IconButton::new(IconId::new(icon)).size(ControlSize::Sm).label(label));
         }
         let Some(placed) = self.placed else { return };
         let role = cx.style.text.role;

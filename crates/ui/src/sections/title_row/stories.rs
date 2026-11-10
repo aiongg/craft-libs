@@ -13,6 +13,7 @@ use egui::Ui;
 fn title_row(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let shown = TitleRow::new("Brush settings")
         .strength(HeaderStrength::Strong)
+        .inset(true)
         .actions([HeaderAction::Menu, HeaderAction::Float, HeaderAction::Close])
         .show(ui);
     Divider::horizontal().show(ui);

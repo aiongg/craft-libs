@@ -31,6 +31,7 @@ use craft_ui::list::{List, ListRow, OpenSet, RowInk};
 use craft_ui::menu::{Menu, MenuItem};
 use craft_ui::primitives::IconSpec;
 use craft_ui::runtime::env::{Env, Label};
+use craft_ui::style::TypeRole;
 use egui::{Response, Ui};
 
 use crate::places::{Folder, FolderCache, Listing, PlaceGroupKind, PlaceKind, Places, PlacesSettings, StandardFolder, folder_within, same_folder};
@@ -391,7 +392,7 @@ impl PlacesTree<'_> {
             let out = list.show_items(ui, &rows, &mut |key, _| {
                 let Some(row) = rows.at(key) else { return ListRow::spacer() };
                 match &row.content {
-                    Content::Heading(text) => ListRow::new(text.clone()).heading().ink(RowInk::Dimmed),
+                    Content::Heading(text) => ListRow::new(text.clone()).heading().role(TypeRole::Caption).ink(RowInk::Dimmed),
                     Content::Empty(text) | Content::Loading(text) => ListRow::new(text.clone()).ink(RowInk::Dimmed).depth(row.depth),
                     Content::Folder(name) => {
                         let line = ListRow::new(name.clone()).depth(row.depth).icon(IconSpec::svg(IconId::new("folder"))).ink(RowInk::Muted);
