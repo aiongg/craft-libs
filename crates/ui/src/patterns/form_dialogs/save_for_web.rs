@@ -7,31 +7,29 @@ use super::host_requests::{HostRequests, PreviewRequest};
 use super::preview::PreviewView;
 use super::size_model::LinkedSize;
 use super::sizing::{Resample, SizingWords};
-use crate::runtime::requests::{ColorRequest, HostAnswer, PathFilter, PathRequest};
+use crate::runtime::requests::{HostAnswer, PathFilter, PathRequest};
 
 use crate::contract::{Bind, NoValue, Outcome, Props as _, ShowContainer as _};
-
-use crate::dialog::{DialogId, DialogResult, DialogStack, StackDialog, dialog_id};
 
 use crate::layout_components::{Row, Stack};
 
 use crate::runtime::env::{Env, Label};
 
-use crate::runtime::memory::{MemoryStage, Remember as _, SaveKey, unique};
+use crate::runtime::memory::{Remember as _, SaveKey};
 
 use crate::runtime::motion::Animate;
 use crate::runtime::overlay::CloseReason;
 use craft_behavior::PixelSize;
 use craft_keymap::{Chord, Key, Mods};
 
-use craft_theme::{Rgba, Srgba};
+use craft_theme::Rgba;
 
 use egui::load::SizedTexture;
 use egui::{Response, Ui};
 
 use serde::{Deserialize, Serialize};
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 mod options;
 mod panes;
@@ -40,6 +38,14 @@ mod panes;
 mod stories;
 
 pub use panes::WebPane;
+
+mod hosted;
+mod model;
+
+pub use hosted::HostedSaveForWeb;
+pub use model::{
+    Animation, ColorTable, Dither, SaveForWebOptions, SaveForWebResult, WantedVariant, WebFormat, WebMetadata, WebPreset, WebVariant, WebView,
+};
 
 /// The key of the matte colour request the dialog files.
 pub const MATTE_COLOR_KEY: &str = "web.matte";
@@ -139,339 +145,6 @@ craft_ui::words! {
         pane_name: template "saveForWeb.paneName" = "{pane}: {first}, {second}";
         /// The pane waits for the app's encode.
         pane_pending: "saveForWeb.panePending" = "Encoding";
-    }
-}
-
-/// The formats of Save for Web.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[non_exhaustive]
-pub enum WebFormat {
-    /// GIF, indexed colour.
-    Gif,
-    /// PNG with an indexed palette of at most 256 colours.
-    Png8,
-    /// PNG with 24-bit colour.
-    Png24,
-    /// JPEG.
-    #[default]
-    Jpeg,
-    /// WebP, lossy or lossless.
-    WebP,
-    /// Wireless bitmap: one bit per pixel.
-    Wbmp,
-}
-
-impl WebFormat {
-    /// Every format, in the order of the format list.
-    pub const ALL: [WebFormat; 6] = [WebFormat::Gif, WebFormat::Png8, WebFormat::Png24, WebFormat::Jpeg, WebFormat::WebP, WebFormat::Wbmp];
-
-    /// The extension of a file in this format, without the dot.
-    pub fn extension(self) -> &'static str {
-        match self {
-            WebFormat::Gif => "gif",
-            WebFormat::Png8 | WebFormat::Png24 => "png",
-            WebFormat::Jpeg => "jpg",
-            WebFormat::WebP => "webp",
-            WebFormat::Wbmp => "wbmp",
-        }
-    }
-
-    /// The format list's entry.
-    pub fn name(self) -> &'static str {
-        match self {
-            WebFormat::Gif => "GIF",
-            WebFormat::Png8 => "PNG-8",
-            WebFormat::Png24 => "PNG-24",
-            WebFormat::Jpeg => "JPEG",
-            WebFormat::WebP => "WebP",
-            WebFormat::Wbmp => "WBMP",
-        }
-    }
-
-    /// Whether the format has a palette.
-    pub fn indexed(self) -> bool {
-        matches!(self, WebFormat::Gif | WebFormat::Png8)
-    }
-}
-
-/// How an indexed format's palette is chosen.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[non_exhaustive]
-pub enum ColorTable {
-    /// A palette weighted toward colours the eye notices.
-    Perceptual,
-    /// As Perceptual, favouring broad areas of colour and web-safe colours.
-    #[default]
-    Selective,
-    /// A palette sampled from the colours most common in the image.
-    Adaptive,
-    /// The 216 web-safe colours.
-    Restrictive,
-    /// The image's own colours, when it has at most 256.
-    Exact,
-}
-
-/// How an indexed format spreads colour error.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[non_exhaustive]
-pub enum Dither {
-    /// Nearest palette colour, no dither.
-    None,
-    /// Error diffusion; the amount sets its strength.
-    #[default]
-    Diffusion,
-    /// A regular halftone-like pattern.
-    Pattern,
-    /// Random noise.
-    Noise,
-}
-
-/// What metadata goes into a web file.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[non_exhaustive]
-pub enum WebMetadata {
-    /// No metadata.
-    None,
-    /// The copyright notice only.
-    #[default]
-    Copyright,
-    /// The copyright notice and contact details.
-    CopyrightAndContact,
-    /// All metadata.
-    All,
-}
-
-/// The view tabs over the panes. 2-Up is the default; the last tab is remembered.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[non_exhaustive]
-pub enum WebView {
-    /// The document alone.
-    Original,
-    /// The current settings' encode alone.
-    Optimized,
-    /// Original beside the current settings' encode.
-    #[default]
-    TwoUp,
-    /// Original, the current settings and two cheaper variants ([`four_up_variants`]).
-    FourUp,
-}
-
-impl WebView {
-    /// The panes this view shows, in reading order.
-    pub fn panes(self) -> &'static [WebPane] {
-        match self {
-            WebView::Original => &[WebPane::Original],
-            WebView::Optimized => &[WebPane::Encoded(0)],
-            WebView::TwoUp => &[WebPane::Original, WebPane::Encoded(0)],
-            WebView::FourUp => &[WebPane::Original, WebPane::Encoded(0), WebPane::Encoded(1), WebPane::Encoded(2)],
-        }
-    }
-}
-
-/// Save for Web's settings: the result, what is remembered, and what the app encodes each variant with.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[non_exhaustive]
-pub struct SaveForWebOptions {
-    /// The file format.
-    pub format: WebFormat,
-    /// 0 to 100 (JPEG, lossy WebP).
-    pub quality: u8,
-    /// The palette method; used by indexed formats.
-    pub color_table: ColorTable,
-    /// 2 to 256 (GIF, PNG-8).
-    pub colors: u16,
-    /// How colour error is spread; used by indexed formats.
-    pub dither: Dither,
-    /// 0 to 100.
-    pub dither_amount: u8,
-    /// Keeps transparency where the format allows it; otherwise the matte fills it.
-    pub transparency: bool,
-    /// Writes an interlaced file (GIF, PNG).
-    pub interlaced: bool,
-    /// 0 to 100.
-    pub web_snap: u8,
-    /// Writes a progressive JPEG.
-    pub progressive: bool,
-    /// Optimizes the JPEG encoding for a smaller file.
-    pub optimized: bool,
-    /// Encodes WebP losslessly; the quality is then ignored.
-    pub lossless: bool,
-    /// Embeds the colour profile in the file.
-    pub embed_profile: bool,
-    /// The matte, red, green and blue.
-    pub matte: [u8; 3],
-    /// Converts the colours to sRGB before encoding.
-    pub convert_srgb: bool,
-    /// What metadata goes into the file.
-    pub metadata: WebMetadata,
-    /// The output size in percent of the document, 1 to 1000 with two decimals.
-    pub percent: f64,
-    /// How the pixels are made when the size differs from the document's.
-    pub resample: Resample,
-}
-
-impl Default for SaveForWebOptions {
-    /// The opening values: JPEG quality 60, Selective 128 colours, Diffusion 88 %, transparency, white matte,
-    /// Optimized, Convert to sRGB, Copyright, 100 %.
-    fn default() -> Self {
-        Self {
-            format: WebFormat::Jpeg,
-            quality: 60,
-            color_table: ColorTable::Selective,
-            colors: 128,
-            dither: Dither::Diffusion,
-            dither_amount: 88,
-            transparency: true,
-            interlaced: false,
-            web_snap: 0,
-            progressive: false,
-            optimized: true,
-            lossless: false,
-            embed_profile: false,
-            matte: [255, 255, 255],
-            convert_srgb: true,
-            metadata: WebMetadata::Copyright,
-            percent: 100.0,
-            resample: Resample::Bicubic,
-        }
-    }
-}
-
-impl SaveForWebOptions {
-    /// Whether the matte row shows: the matte fills the transparency of formats that cannot keep it.
-    pub fn has_matte(&self) -> bool {
-        !matches!(self.format, WebFormat::Png24 | WebFormat::WebP) || !self.transparency
-    }
-
-    /// Whether the quality row shows.
-    pub fn has_quality(&self) -> bool {
-        match self.format {
-            WebFormat::Jpeg => true,
-            WebFormat::WebP => !self.lossless,
-            _ => false,
-        }
-    }
-}
-
-/// A named set of options in the Preset list.
-#[derive(Clone, Debug, PartialEq)]
-#[non_exhaustive]
-pub struct WebPreset {
-    /// The name in the list.
-    pub name: String,
-    /// The options the preset sets.
-    pub options: SaveForWebOptions,
-}
-
-impl WebPreset {
-    /// A preset named `name`.
-    pub fn new(name: impl Into<String>, options: SaveForWebOptions) -> Self {
-        WebPreset { name: name.into(), options }
-    }
-
-    /// Whether the preset is what `current` shows apart from the size.
-    pub fn is_set_in(&self, current: &SaveForWebOptions) -> bool {
-        self.options == SaveForWebOptions { percent: self.options.percent, ..current.clone() }
-    }
-}
-
-/// One encoded pane the app hands back for a variant the dialog asked for.
-#[derive(Clone, Debug)]
-#[non_exhaustive]
-pub struct WebVariant {
-    /// Which pane: 0 is the current settings, 1 and 2 the 4-Up variants.
-    pub index: usize,
-    /// The revision [`WantedVariant::revision`] gave; older answers are dropped.
-    pub revision: u64,
-    /// The encoded picture, drawn at `size` in document pixels (a reduced proxy texture is drawn at the full size),
-    /// or why the encode failed.
-    pub picture: Result<SizedTexture, Label>,
-    /// The encoded file size in bytes.
-    pub bytes: u64,
-    /// The palette size of an indexed format.
-    pub colors: Option<u16>,
-    /// The texture is a reduced proxy (the long side is capped at 2048 px).
-    pub proxy: bool,
-}
-
-impl WebVariant {
-    /// The encoded pane `index` of `revision`, shown from `texture`.
-    pub fn new(index: usize, revision: u64, texture: SizedTexture, bytes: u64) -> Self {
-        WebVariant { index, revision, picture: Ok(texture), bytes, colors: None, proxy: false }
-    }
-
-    /// The pane `index` of `revision` whose encode failed with `message`.
-    pub fn failed(index: usize, revision: u64, message: impl Into<Label>) -> Self {
-        WebVariant { index, revision, picture: Err(message.into()), bytes: 0, colors: None, proxy: false }
-    }
-
-    /// The palette size of an indexed format.
-    #[must_use]
-    pub fn colors(mut self, colors: u16) -> Self {
-        self.colors = Some(colors);
-        self
-    }
-
-    /// Marks the texture as a reduced proxy.
-    #[must_use]
-    pub fn proxy(mut self, proxy: bool) -> Self {
-        self.proxy = proxy;
-        self
-    }
-}
-
-/// A pane the dialog wants encoded.
-#[derive(Clone, Debug, PartialEq)]
-#[non_exhaustive]
-pub struct WantedVariant {
-    /// Which pane: 0 is the current settings, 1 and 2 the 4-Up variants.
-    pub index: usize,
-    /// The options to encode with and the revision to answer with.
-    pub request: PreviewRequest<SaveForWebOptions>,
-}
-
-/// What Save for Web returns.
-#[derive(Clone, Debug, PartialEq)]
-#[non_exhaustive]
-pub struct SaveForWebResult {
-    /// The settings the user confirmed.
-    pub options: SaveForWebOptions,
-    /// The file the user chose to write.
-    pub path: PathBuf,
-    /// The output width in pixels.
-    pub width: u32,
-    /// The output height in pixels.
-    pub height: u32,
-    remember: Option<(SaveKey, Last)>,
-}
-
-impl SaveForWebResult {
-    /// Stores the settings and the view for the next open of a dialog built with
-    /// [`SaveForWebDialog::remember`]. The app calls it after the file is written; without a remember key it does
-    /// nothing.
-    pub fn remember(&self, ui: &Ui) {
-        if let Some((key, last)) = &self.remember {
-            let mut stage = MemoryStage::open(ui.ctx(), unique(("craft_ui::save_for_web_result", key.as_str())));
-            *stage.saved::<Option<Last>>(key) = Some(last.clone());
-            stage.write_back();
-        }
-    }
-}
-
-/// An animation: the panes show one frame, and Play steps through them.
-#[derive(Clone, Copy, Debug, PartialEq)]
-#[non_exhaustive]
-pub struct Animation {
-    /// The number of frames; fewer than two shows no play row.
-    pub frames: u32,
-    /// Frames per second; 30 when it is not positive.
-    pub fps: f32,
-}
-
-impl Animation {
-    /// An animation of `frames` frames at `fps`.
-    pub fn new(frames: u32, fps: f32) -> Self {
-        Animation { frames, fps }
     }
 }
 
@@ -884,176 +557,5 @@ impl SaveForWebDialog<'_> {
             wanted.push(WantedVariant { index: 2, request: PreviewRequest::new(revision, quarter) });
         }
         wanted
-    }
-}
-
-/// A [`SaveForWebDialog`] the [`DialogHost`](crate::dialog::DialogHost) owns. It keeps the settings and what the app
-/// answers (the pictures), drops stale answers, keeps the colour and path requests until the app takes them, and
-/// finishes with the result when the file dialog's path comes back.
-///
-/// ```ignore
-/// let mut web = HostedSaveForWeb::new("poster.psd", PixelSize::new(1200, 800), original).animation(Animation::new(12, 24.0));
-/// // each pass: for want in web.wanted_variants() { encode(want) -> web.set_variant(variant) }
-/// // pick_color() -> picker -> answer_color(MATTE_COLOR_KEY, color); pick_path() -> file dialog -> answer_path(key, path)
-/// ```
-pub struct HostedSaveForWeb {
-    id: DialogId,
-    name: String,
-    size: PixelSize,
-    options: SaveForWebOptions,
-    presets: Vec<WebPreset>,
-    animation: Option<Animation>,
-    remember: Option<SaveKey>,
-    pictures: WebPictures,
-    taken: u64,
-    wanted: Vec<WantedVariant>,
-    frame: u32,
-    requests: HostRequests,
-    saving: bool,
-}
-
-impl HostedSaveForWeb {
-    /// A hosted dialog for the document `name` of `size` pixels showing `original` in the Original pane.
-    pub fn new(name: impl Into<String>, size: PixelSize, original: SizedTexture) -> Self {
-        HostedSaveForWeb {
-            id: dialog_id("save-for-web"),
-            name: name.into(),
-            size,
-            options: SaveForWebOptions::default(),
-            presets: Vec::new(),
-            animation: None,
-            remember: None,
-            pictures: WebPictures::new().original(original),
-            taken: 0,
-            wanted: Vec::new(),
-            frame: 0,
-            requests: HostRequests::new(),
-            saving: false,
-        }
-    }
-
-    /// The settings the dialog opens with.
-    #[must_use]
-    pub fn options(mut self, options: SaveForWebOptions) -> Self {
-        self.options = options;
-        self
-    }
-
-    /// The Preset list.
-    #[must_use]
-    pub fn presets(mut self, presets: Vec<WebPreset>) -> Self {
-        self.presets = presets;
-        self
-    }
-
-    /// The document is an animation of `animation.frames` frames.
-    #[must_use]
-    pub fn animation(mut self, animation: Animation) -> Self {
-        self.animation = Some(animation);
-        self
-    }
-
-    /// Remembers the last view and settings under `key`.
-    #[must_use]
-    pub fn remember(mut self, key: SaveKey) -> Self {
-        self.remember = Some(key);
-        self
-    }
-
-    /// The frame the panes show; the app encodes this frame.
-    pub fn frame(&self) -> u32 {
-        self.frame
-    }
-
-    /// The Original pane's picture, for the app to hand over the new frame's when [`frame`](Self::frame) changed.
-    pub fn set_original(&mut self, original: SizedTexture) {
-        self.pictures.original = Some(original);
-    }
-
-    /// The panes to encode when they changed since the last call.
-    pub fn wanted_variants(&mut self) -> Vec<WantedVariant> {
-        std::mem::take(&mut self.wanted)
-    }
-
-    /// An encoded pane; one for an older revision than the last asked for is dropped.
-    pub fn set_variant(&mut self, variant: WebVariant) {
-        if variant.revision >= self.taken {
-            self.pictures.set(variant);
-        }
-    }
-
-    /// The Matte button was pressed in the pass since the last call: the colour to ask the app's picker for, keyed
-    /// [`MATTE_COLOR_KEY`]. Returned once.
-    pub fn pick_color(&mut self) -> Option<ColorRequest> {
-        self.requests.take_color()
-    }
-
-    /// Save… was pressed in the pass since the last call: the file dialog to open, keyed [`SAVE_PATH_KEY`].
-    /// Returned once; answer with [`answer_path`](Self::answer_path).
-    pub fn pick_path(&mut self) -> Option<PathRequest> {
-        self.requests.take_path()
-    }
-
-    /// Answers the colour request `key`: the matte, without alpha. Other keys are ignored.
-    pub fn answer_color(&mut self, key: impl Into<String>, color: Srgba) {
-        self.requests.answer_color(key, color);
-    }
-
-    /// Answers the file dialog request `key` with the chosen path, which finishes the dialog.
-    pub fn answer_path(&mut self, key: impl Into<String>, path: PathBuf) {
-        self.saving = false;
-        self.requests.answer_path(key, path);
-    }
-
-    /// The host cancelled its picker or file dialog: the requests not taken yet are dropped and Save… works again.
-    pub fn cancel_requests(&mut self) {
-        self.saving = false;
-        self.requests.cancel();
-    }
-}
-
-impl StackDialog for HostedSaveForWeb {
-    type Result = SaveForWebResult;
-
-    fn id(&self) -> DialogId {
-        self.id
-    }
-
-    fn show(&mut self, ui: &mut Ui, _: &DialogStack) -> Option<DialogResult<SaveForWebResult>> {
-        let dialog = SaveForWebDialog::new(self.name.clone(), self.size, self.pictures.clone(), Bind::bound(&mut self.options))
-            .presets(self.presets.clone())
-            .saving(self.saving)
-            .answers(self.requests.take_answers());
-        let dialog = SaveForWebDialog { animation: self.animation, remember: self.remember.clone(), ..dialog };
-        let mut shown = dialog.show(ui);
-        self.frame = shown.frame;
-        if let Some(last) = shown.wanted_variants.first() {
-            self.taken = last.request.revision;
-            self.wanted = shown.wanted_variants;
-        }
-        if let Some(request) = shown.requests.take_color() {
-            self.requests.request_color(request);
-        }
-        if let Some(request) = shown.requests.take_path() {
-            self.requests.request_path(request);
-            self.saving = true;
-        }
-        match (shown.result, shown.closed) {
-            (Some(result), _) => Some(DialogResult::Ok(result)),
-            (None, Some(_)) => {
-                self.saving = false;
-                self.requests.cancel();
-                Some(DialogResult::Cancel)
-            }
-            (None, None) => None,
-        }
-    }
-
-    fn key(&self) -> Option<&str> {
-        Some("save-for-web")
-    }
-
-    fn cancelled(&mut self, _: &egui::Context) {
-        self.cancel_requests();
     }
 }
