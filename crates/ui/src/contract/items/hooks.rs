@@ -10,13 +10,13 @@ use crate::contract::cx::{BodyCx, Pointer as _};
 use crate::contract::run::{Measuring, ShapeHooks, ShowAt};
 use crate::contract::steps::ShapeKind;
 use crate::contract::{Bind, Collection, Cx, Internal, ItemCx, ItemOutput as _, PartsCx, Props, Show as _, Sizing};
-use crate::primitives::ScrollBar;
+use crate::primitives::{HiddenContent, ScrollBar};
 use crate::runtime::access::{self, Role, SetPosition};
 use crate::runtime::egui::{alloc, areas, child, response};
 use crate::runtime::env::{AppValues, ArenaId, Env, ItemFacts};
 use crate::runtime::memory::{MemoryStage, sub};
 use crate::runtime::{focus, keys, layout_memory, overlay, wheel};
-use crate::style::{StyleCx, scroll_bar_look};
+use crate::style::{ComponentStyle as _, StyleCx, SurfaceKind, scroll_bar_look, surface_style};
 use craft_behavior::{
     Axis, CancelReason, EditEvent, Intent, ItemLayout, Mixed, Proposal, ScrollPos, ScrollSpan, SelectionModel, Sense, WheelRoom, WheelTaker,
 };
@@ -666,6 +666,11 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         }
         if self.scrolls {
             let look = scroll_bar_look(&env.tokens);
+            // The rows blend into the surface the collection paints, else the one it sits on.
+            let own = cx.style.surface().and_then(|surface| surface.kind_in(&cx.core.state));
+            let background = surface_style(&env.tokens, SurfaceKind::under(own, env.surface)).fill;
+            let hidden = HiddenContent::new(self.content, rect.size(), Vec2::new(self.offset_x as f32, self.offset as f32), rtl);
+            ui.painter().extend(ScrollBar::fades(&look, rect, hidden, background));
             let thickness = look.thickness;
             let track = if rtl {
                 Rect::from_min_max(rect.min, Pos2::new(rect.min.x + thickness, rect.max.y))

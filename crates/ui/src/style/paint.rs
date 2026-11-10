@@ -87,6 +87,8 @@ pub struct ScrollBarLook {
     pub thickness: f32,
     /// The shortest the thumb gets along the bar.
     pub min_thumb: f32,
+    /// The length of the fade at an edge past which content is hidden.
+    pub fade: f32,
 }
 
 pub(crate) fn scroll_bar_look(tokens: &UiTokens) -> ScrollBarLook {
@@ -99,7 +101,7 @@ pub(crate) fn scroll_bar_look(tokens: &UiTokens) -> ScrollBarLook {
         style_color(c.text.normal),
         style_color(c.state.disabled_fill),
     ));
-    ScrollBarLook { track, thumb, thickness: tokens.size.handle.sm, min_thumb: tokens.size.handle.md * 2.0 }
+    ScrollBarLook { track, thumb, thickness: tokens.size.handle.sm, min_thumb: tokens.size.handle.md * 2.0, fade: tokens.size.scroll_fade }
 }
 
 /// The reset dot's colour and diameter.

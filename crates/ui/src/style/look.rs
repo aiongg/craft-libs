@@ -77,6 +77,15 @@ impl SurfaceKind {
             _ => super::Ink::OnPanel,
         }
     }
+
+    /// The surface content inside a box of kind `own` sits on: `own`, unless it paints no fill of its own (none, a
+    /// frame, a scrim), where the content sits on `outer`.
+    pub(crate) const fn under(own: Option<SurfaceKind>, outer: SurfaceKind) -> SurfaceKind {
+        match own {
+            None | Some(SurfaceKind::Frame | SurfaceKind::Scrim) => outer,
+            Some(kind) => kind,
+        }
+    }
 }
 
 /// Which corners of a surface are rounded. `Start` and `End` mirror under right-to-left.

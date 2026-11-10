@@ -15,7 +15,7 @@ use crate::runtime::egui::memory::FastMap;
 use crate::runtime::egui::{pass, repaint, scale, stack, style};
 use crate::runtime::frame::PerViewport;
 use crate::runtime::windows;
-use crate::style::{EnvKey, Ink, UiTokens};
+use crate::style::{EnvKey, Ink, SurfaceKind, UiTokens};
 use craft_behavior::{CanvasTransform, MotionMode};
 use craft_host::Host;
 use craft_host::target::{Os, ShellInfo};
@@ -80,6 +80,9 @@ pub struct Scoped {
     pub(crate) keyboard: Arc<craft_keymap::Layout>,
     /// The text and icon ink of the surface the scope sits on, set by a container for its body.
     pub ink: Ink,
+    /// The surface the scope's content sits on: the innermost container surface that paints a fill, set by that
+    /// container for its body. The window's background at the root and where a layer starts.
+    pub(crate) surface: SurfaceKind,
     /// The built-in text of the scope.
     pub(crate) words: Arc<Words>,
     /// How the scope writes numbers: the host's catalog format, else the system region's.
@@ -275,6 +278,7 @@ impl Env {
                 shell,
                 keyboard,
                 ink: Ink::default(),
+                surface: SurfaceKind::Background,
                 size: ControlSize::Md,
                 enabled: true,
                 read_only: false,
@@ -360,6 +364,7 @@ impl Env {
             s.row = None;
             s.item_facts = None;
             s.ink = Ink::default();
+            s.surface = SurfaceKind::Background;
         }))
     }
 

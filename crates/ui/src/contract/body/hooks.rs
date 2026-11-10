@@ -869,7 +869,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             self.reason = self.reason.or(close);
         }
         if is_open && scroll.is_some() {
-            self.paint_scroll_bars(ui, cx, &props, rtl, &env.tokens);
+            self.paint_scroll_bars(ui, cx, &props, rtl, env);
         }
         // The surface at the final rect, then the rules.
         if let Some(kind) = props.surface {

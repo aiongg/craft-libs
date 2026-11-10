@@ -190,6 +190,8 @@ pub struct SizeTokens {
     pub panel_header: f32,
     /// Least width of a popup surface: a menu or a popup list.
     pub popup_min: f32,
+    /// The length of the fade at an edge of a scroll region past which its content continues.
+    pub scroll_fade: f32,
     /// Thumbnail sides.
     pub thumb: ThumbSizes,
     /// The least height of a list row that shows a thumbnail.

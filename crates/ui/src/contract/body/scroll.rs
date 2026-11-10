@@ -1,13 +1,15 @@
 //! The body's scroll region: its offset and jumps, the scroll bars, their input and AccessKit scroll actions.
 
 use super::BodyHooks;
+use super::inherit::own_surface;
 use super::placement::overlay_of;
 use super::regions::rect_of;
 use crate::contract::{Container, ContainerProps, Cx, Scroll};
-use crate::primitives::ScrollBar;
+use crate::primitives::{HiddenContent, ScrollBar};
 use crate::runtime::egui::pass;
 use crate::runtime::egui::{memory as store, repaint, sizing};
-use crate::style::{UiTokens, scroll_bar_look};
+use crate::runtime::env::Env;
+use crate::style::{SurfaceKind, UiTokens, scroll_bar_look, surface_style};
 use craft_behavior::{Axis, PartKey, ScrollPos, ScrollSpan};
 use egui::{Context, Id, Pos2, Rect, Ui, Vec2};
 
@@ -60,9 +62,19 @@ pub(super) struct Bar {
 }
 
 impl BodyHooks<'_> {
-    /// The scroll bars over the body.
-    pub(super) fn paint_scroll_bars<C: Container>(&self, ui: &mut Ui, cx: &Cx<'_, C>, props: &ContainerProps, rtl: bool, tokens: &UiTokens) {
+    /// The edge fades and the scroll bars over the body. The fades blend the content into the surface it sits on.
+    pub(super) fn paint_scroll_bars<C: Container>(&self, ui: &mut Ui, cx: &Cx<'_, C>, props: &ContainerProps, rtl: bool, env: &Env) {
+        let tokens = &*env.tokens;
         let look = scroll_bar_look(tokens);
+        if let Some(view) = self.view
+            && let Some(scroll) = scroll_of(props)
+        {
+            let (ex, ey) = self.last.extent;
+            let content = Vec2::new(if scroll.horizontal_on() { ex } else { view.width() }, if scroll.vertical_on() { ey } else { view.height() });
+            let offset = Vec2::new(self.offset.x as f32, self.offset.y as f32);
+            let background = surface_style(tokens, SurfaceKind::under(own_surface(props, cx), env.surface)).fill;
+            ui.painter().extend(ScrollBar::fades(&look, view, HiddenContent::new(content, view.size(), offset, rtl), background));
+        }
         if let Some(view) = self.view {
             for (bar, span) in self.scroll_geometry(props, view, rtl, tokens) {
                 let overflow = span.content.end - span.content.start > span.visible.end - span.visible.start;

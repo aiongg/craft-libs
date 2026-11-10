@@ -869,6 +869,7 @@ A theme with its own shape replaces the radii or adds an offset to control, surf
 | `size.bar.title`, `size.bar.tab`, `size.bar.status`, `size.bar.options`, `size.bar.options_narrow` | Title bar, document tab bar, status bar, options bar |
 | `size.panel_header` | Panel headers |
 | `size.popup_min` | Least width of a popup surface (menus only; popup lists such as Select and ComboBox take their anchor's width) |
+| `size.scroll_fade` | Length of the fade at an edge of a scroll region past which its content continues |
 | `size.groove` | Groove of a value track |
 | `size.ramp.bar` | Gradient ramp drawn as a bar of its own |
 | `size.ramp.groove` | Gradient ramp drawn as the groove of a value track |

@@ -129,6 +129,7 @@ size.meter
 size.pane.least
 size.panel_header
 size.popup_min
+size.scroll_fade
 size.plot.height
 size.plot.width
 size.pointer_tip.x

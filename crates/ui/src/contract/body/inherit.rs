@@ -5,6 +5,7 @@ use super::reorder::REORDER_SCOPE;
 use crate::contract::{Container, ContainerProps, Cx, DragBand, Scroll, Sizing};
 use crate::runtime::commands::{self, CommandSet as _, WindowCommand};
 use crate::runtime::env::{AppValues, ArenaId, Scoped};
+use crate::style::{ComponentStyle as _, SurfaceKind};
 use craft_i18n::Direction;
 use egui::{Context, Id, Vec2};
 
@@ -17,6 +18,11 @@ pub(super) struct BodyScope {
     pub(super) scroll: Option<Scroll>,
     /// The width a side label beside the body took from the container's row.
     pub(super) label_width: f32,
+}
+
+/// The surface a container paints under its regions: its props' surface, else its style's in its current state.
+pub(super) fn own_surface<C: Container>(props: &ContainerProps, cx: &Cx<'_, C>) -> Option<SurfaceKind> {
+    props.surface.or_else(|| cx.style.surface().and_then(|look| look.kind_in(&cx.core.state)))
 }
 
 /// Registers the container as an instance of its command scope and of the window scope of its window.
@@ -52,6 +58,7 @@ impl BodyHooks<'_> {
             scoped.direction = Direction::Ltr;
         }
         scoped.ink = cx.core.ink;
+        scoped.surface = SurfaceKind::under(own_surface(props, cx), scoped.surface);
         scoped.start_room();
         // Along a width the container takes from its content, its regions measure at their content widths: a child
         // that fills takes what it needs, not the whole room.
