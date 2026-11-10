@@ -29,13 +29,15 @@ pub struct Stop {
     pub name: Option<&'static str>,
     /// The roving group the stop belongs to.
     pub group: Option<Id>,
+    /// The roving group of the innermost body the stop sits in, whether or not the stop joined it.
+    pub body: Option<Id>,
 }
 
 #[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers stops and groups"))]
 impl Stop {
     /// A stop of component `id` with `keys`, its own egui root.
     pub fn new(id: Id, keys: KeyUse) -> Stop {
-        Stop { id, part: None, root: id, keys, role: KeyRole::new(), text: false, default: false, name: None, group: None }
+        Stop { id, part: None, root: id, keys, role: KeyRole::new(), text: false, default: false, name: None, group: None, body: None }
     }
 
     /// A stop on a part of the component.
@@ -80,6 +82,12 @@ impl Stop {
         self
     }
 
+    /// Sits in the body of the roving group `group`, if any.
+    pub fn in_body(mut self, group: Option<Id>) -> Self {
+        self.body = group;
+        self
+    }
+
     pub(crate) fn key(&self) -> StopKey {
         (self.id, self.part)
     }
@@ -95,6 +103,8 @@ pub struct Group {
     pub roving: Roving,
     /// The member Tab arrives at, else the first.
     pub selected: Option<StopKey>,
+    /// The member moves start from, in place of the focused one.
+    pub lead: Option<StopKey>,
     /// The group is a collection row's children: Tab leaves the collection and Forward enters the row.
     pub row: bool,
     /// The collection a row group belongs to: Escape, Up and Down and Back from the first child return focus to it.
@@ -106,7 +116,7 @@ pub struct Group {
 impl Group {
     /// A group of `roving` rules.
     pub fn new(id: Id, roving: Roving) -> Group {
-        Group { id, roving, selected: None, row: false, owner: None, rtl: false }
+        Group { id, roving, selected: None, lead: None, row: false, owner: None, rtl: false }
     }
 
     /// Reads horizontal arrows in the group's direction.
@@ -118,6 +128,12 @@ impl Group {
     /// The member Tab arrives at: a stop key, so a part of a component can be the arrival.
     pub fn selected(mut self, member: StopKey) -> Self {
         self.selected = Some(member);
+        self
+    }
+
+    /// The member moves start from, in place of the focused one.
+    pub fn lead(mut self, member: StopKey) -> Self {
+        self.lead = Some(member);
         self
     }
 

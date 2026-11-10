@@ -538,8 +538,8 @@ pub(crate) struct StopsIn<'a> {
     pub parts: &'a PartsStep,
     /// The roving group of the body this component is shown in: its own stop joins it.
     pub group: Option<Id>,
-    /// The container's `ContainerProps.roving`: its body's members form this group.
-    pub body_roving: Option<Roving>,
+    /// The roving group of the innermost body this component is shown in, whether or not it joined it.
+    pub body: Option<Id>,
     /// The roving group of the collection row the component is shown in: stops with no group of their own join it.
     pub row: Option<Id>,
     /// The component is the collection item of its row: its parts join the row's group instead of a group of their own.
@@ -571,9 +571,6 @@ pub(crate) fn body_group(id: Id) -> Id {
 
 pub(crate) fn register_stops(input: &StopsIn<'_>) {
     let ctx = input.ctx;
-    if let Some(roving) = input.body_roving {
-        focus::register_group(ctx, Group::new(body_group(input.id), roving).rtl(input.rtl));
-    }
     debug_assert!(input.parts.rovings.len() <= 1, "a component declares one roving group; a second would be dropped");
     let row_parts = if input.item { input.row } else { None };
     let group = (!input.parts.rovings.is_empty() && row_parts.is_none()).then(|| sub(input.id, "roving"));
@@ -584,7 +581,7 @@ pub(crate) fn register_stops(input: &StopsIn<'_>) {
         focus::register_group(ctx, if let Some(arrival) = arrival { group.selected(arrival) } else { group });
     }
     let own = || {
-        let stop = Stop::new(input.id, input.keys).root(input.holder).role(input.role);
+        let stop = Stop::new(input.id, input.keys).root(input.holder).role(input.role).in_body(input.body);
         let stop = if input.default_stop { stop.default_stop() } else { stop };
         if input.text { stop.text() } else { stop }
     };

@@ -155,6 +155,14 @@ pub enum Sizing {
     Content,
 }
 
+/// A size role that sets the least width of a container's content.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum LeastWidth {
+    /// `size.popup_min`: popup surfaces.
+    Popup,
+}
+
 /// What dragging the header does.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
@@ -464,6 +472,8 @@ impl Default for Collapse {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Gap {
+    /// No gap: rows touch, as in native menus.
+    None,
     /// `space.gap.row`.
     #[default]
     Row,
@@ -489,6 +499,17 @@ pub(crate) struct InBar(pub bool);
 impl EnvValue for InBar {
     fn root() -> Self {
         InBar(false)
+    }
+}
+
+/// Set by a menu for its body: a horizontal divider takes `space.gap.inline` above and below its line, since the rows
+/// of a menu touch.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct InMenu(pub bool);
+
+impl EnvValue for InMenu {
+    fn root() -> Self {
+        InMenu(false)
     }
 }
 
@@ -534,6 +555,8 @@ pub struct ContainerProps {
     pub collapse: Option<Collapse>,
     /// The spacing between the children of the body.
     pub body_gap: Gap,
+    /// The least width of the content, from a size role; the content may be wider.
+    pub least_width: Option<LeastWidth>,
     /// A scope size for the body.
     pub child_size: Option<ControlSize>,
     /// The container is an arena root.
@@ -588,6 +611,7 @@ impl ContainerProps {
             focus: FocusPolicy::NONE,
             collapse: None,
             body_gap: Gap::Row,
+            least_width: None,
             child_size: None,
             arena: false,
             gates: false,
@@ -700,6 +724,12 @@ impl ContainerProps {
     /// The spacing between the children of the body.
     pub const fn body_gap(mut self, gap: Gap) -> Self {
         self.body_gap = gap;
+        self
+    }
+
+    /// The least width of the content, from a size role.
+    pub const fn least_width(mut self, least: LeastWidth) -> Self {
+        self.least_width = Some(least);
         self
     }
 

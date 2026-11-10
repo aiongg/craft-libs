@@ -458,6 +458,9 @@ pub struct Roving {
     /// Whether a move the group cannot make (a step past its first or last row, say) reaches the owning component
     /// instead of being dropped.
     pub hands_back: bool,
+    /// Whether the focused member is no lead, so the next move is a first move: forward moves land on the first
+    /// enabled member, backward moves on the last.
+    pub no_lead: bool,
 }
 
 /// Which arrow keys a roving group moves its lead with.
@@ -476,7 +479,17 @@ pub enum Arrows {
 impl Roving {
     /// A group of `shape` with Home and End, no wrap, no paging and no letters.
     pub const fn new(shape: NavShape) -> Roving {
-        Roving { shape, wrap: false, home_end: true, page: None, letters: Letters::None, arrows: Arrows::All, first_column: None, hands_back: false }
+        Roving {
+            shape,
+            wrap: false,
+            home_end: true,
+            page: None,
+            letters: Letters::None,
+            arrows: Arrows::All,
+            first_column: None,
+            hands_back: false,
+            no_lead: false,
+        }
     }
 
     /// Whether moves wrap.
@@ -522,8 +535,15 @@ impl Roving {
         self
     }
 
-    /// The state a step over this group starts from, at `lead`.
+    /// Whether the focused member is no lead: the next move starts at an end, as from a group with no lead.
+    pub const fn no_lead(mut self, on: bool) -> Self {
+        self.no_lead = on;
+        self
+    }
+
+    /// The state a step over this group starts from, at `lead`, or from no lead when the group has none.
     pub const fn state(&self, lead: Option<usize>) -> NavState {
+        let lead = if self.no_lead { None } else { lead };
         let page = match self.page {
             Some(rows) if rows > 0 => rows,
             _ => 10,

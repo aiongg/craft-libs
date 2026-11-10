@@ -113,6 +113,7 @@ fn size_lines(out: &mut Lines, size: &SizeTokens) {
         rail,
         bar,
         panel_header,
+        popup_min,
         thumb: thumbs,
         thumb_row,
         handle,
@@ -151,6 +152,7 @@ fn size_lines(out: &mut Lines, size: &SizeTokens) {
         out.line(&format!("size.bar.{k}"), len(*v));
     }
     out.line("size.panel_header", len(*panel_header));
+    out.line("size.popup_min", len(*popup_min));
     let ThumbSizes { sm, md, lg, card } = thumbs;
     out.line("size.thumb.sm", len(*sm));
     out.line("size.thumb.md", len(*md));

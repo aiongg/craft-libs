@@ -69,6 +69,44 @@ fn a_select_opens_from_the_keyboard_and_picks_with_arrows_and_enter() {
     assert_eq!(rig.value.get(), 0, "focus returned to the field, whose arrows step the value");
 }
 
+/// A row of the dropdown under the pointer has a fill.
+#[trial]
+fn a_select_dropdown_row_under_the_pointer_has_a_fill() {
+    let mut rig = rig();
+    rig.open();
+    let row = rig.fixture.by_label("Multiply").expect("the option shows").rect;
+    for step in [20.0, 8.0, 2.0, 0.0] {
+        rig.fixture.frame(vec![egui::Event::PointerMoved(row.center() + egui::vec2(step, 0.0))]);
+        rig.fixture.idle(2);
+    }
+    rig.fixture.advance(0.5);
+    rig.fixture.idle(6);
+    let row = rig.fixture.by_label("Multiply").expect("the option shows").rect;
+    assert!(row_filled(&rig.fixture, row), "the hovered option has a fill {:?}", rig.fixture.shape_bounds());
+}
+
+/// Whether a fill (not a focus ring or other stroke) covers `row` and is no taller than the row plus its rounding.
+fn row_filled(fixture: &Fixture, row: egui::Rect) -> bool {
+    let overshoot = fixture.shape_overshoot();
+    fixture
+        .shape_bounds()
+        .iter()
+        .enumerate()
+        .any(|(at, shape)| overshoot.get(at).is_none_or(|stroke| *stroke == 0.0) && shape.contains_rect(row) && shape.height() < row.height() * 1.5)
+}
+
+/// A popup list keeps its lead row filled while the field holds keyboard focus: the first Down moves the lead onto the
+/// option after the picked one and that row is filled.
+#[trial]
+fn the_lead_row_of_an_open_select_is_filled_after_an_arrow_key() {
+    let mut rig = rig();
+    rig.open();
+    rig.fixture.key(Key::ArrowDown, Modifiers::NONE);
+    rig.fixture.idle(4);
+    let row = rig.fixture.by_label("Multiply").expect("the option shows").rect;
+    assert!(row_filled(&rig.fixture, row), "the lead option has a fill {:?}", rig.fixture.shape_bounds());
+}
+
 /// The lead of the list starts again at every opening: a lead moved to the last row and abandoned with Escape does
 /// not come back when the list opens next.
 #[trial]

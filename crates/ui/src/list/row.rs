@@ -762,6 +762,7 @@ pub struct ListRowStyle {
 struct FillKey {
     striped: bool,
     layer: bool,
+    command: bool,
 }
 
 /// The fill of a row: a stripe at rest, the hover and pressed tints over it, the selection's
@@ -772,18 +773,26 @@ fn fill_of(cx: &StyleCx<'_>, key: FillKey) -> Stateful<StyleColor> {
     let rest = if key.striped { state.hover.faded(STRIPE) } else { clear };
     let hover = if key.layer { over(cx.tokens.color.accent.solid.faded(LAYER_TINT), state.hover) } else { state.hover };
     let c = |rgba: Rgba| cx.color(rgba);
-    let tinted = over(hover, rest);
+    // `over` keeps the alpha of what is under it, so over a clear rest the tint is the token itself.
+    let tinted = if rest.a() == 0 { hover } else { over(hover, rest) };
+    let pressed = if rest.a() == 0 { state.pressed } else { over(state.pressed, rest) };
     let selected_hover = if key.layer { state.selected } else { state.selected_hover };
-    let mut fill = Stateful::new(c(rest)).off(States::new(c(rest), c(tinted), c(over(state.pressed, rest)), c(rest))).on(States::new(
+    let mut fill = Stateful::new(c(rest)).off(States::new(c(rest), c(tinted), c(pressed), c(rest))).on(States::new(
         c(state.selected),
         c(selected_hover),
         c(selected_hover),
         c(state.selected),
     ));
-    for rule in flag_rules() {
+    if key.command {
+        // A command row is active by its lead alone: the pointer rests on a row without activating it.
+        fill = fill.off(States::new(c(rest), c(rest), c(rest), c(rest)));
+    }
+    for rule in flag_rules(key.command) {
         let rgba = match rule.fill {
             RuleFill::Tinted => tinted,
             RuleFill::SelectedHover => selected_hover,
+            RuleFill::Accent => cx.tokens.color.accent.solid,
+            RuleFill::Hover => hover,
         };
         fill = fill.when(rule.flags, c(rgba));
     }
@@ -808,45 +817,87 @@ fn selected_outline(cx: &StyleCx<'_>) -> Rgba {
 enum RuleFill {
     Tinted,
     SelectedHover,
+    Accent,
+    /// The hover token itself: translucent, so it tints the surface under a row of a menu.
+    Hover,
+}
+
+/// The ink paired with a rule's fill.
+#[derive(Clone, Copy)]
+enum RuleInk {
+    Base,
+    OnSelected,
+    OnAccent,
 }
 
 /// A flag rule of a row: the fill it paints and whether its ink is the selection's paired ink.
 struct FlagRule {
     flags: Flags,
     fill: RuleFill,
-    on_selected: bool,
+    ink: RuleInk,
 }
 
 /// The flag rules of a row in priority order. Fill and ink both derive from this list, so an ink always pairs with
 /// the fill under it: an emphasized row keeps its hover-like fill and base ink, the lead row on a selected row
-/// paints the selected hover fill with `text.on_selected`, and the lead row alone keeps the hover tint.
-fn flag_rules() -> [FlagRule; 3] {
-    [
-        FlagRule { flags: Flags::EMPHASIZED, fill: RuleFill::Tinted, on_selected: false },
-        FlagRule { flags: Flags::LEAD | Flags::SELECTED, fill: RuleFill::SelectedHover, on_selected: true },
-        FlagRule { flags: Flags::LEAD, fill: RuleFill::Tinted, on_selected: false },
+/// paints the selected hover fill with `text.on_selected`, and the lead row alone keeps the hover tint. The command
+/// form of a menu or popup list paints the lead row with `accent.solid` and `text.on_accent`.
+fn flag_rules(command: bool) -> Vec<FlagRule> {
+    let emphasized = FlagRule { flags: Flags::EMPHASIZED, fill: RuleFill::Tinted, ink: RuleInk::Base };
+    if command {
+        let emphasized = FlagRule { fill: RuleFill::Hover, ..emphasized };
+        return vec![emphasized, FlagRule { flags: Flags::LEAD, fill: RuleFill::Accent, ink: RuleInk::OnAccent }];
+    }
+    vec![
+        emphasized,
+        FlagRule { flags: Flags::LEAD | Flags::SELECTED, fill: RuleFill::SelectedHover, ink: RuleInk::OnSelected },
+        FlagRule { flags: Flags::LEAD, fill: RuleFill::Tinted, ink: RuleInk::Base },
     ]
 }
 
 impl StyleCx<'_> {
     /// The fill of a row of a list, a menu or any collection item: the one surface, the active (lead) row included.
     pub fn row_surface(&self) -> Stateful<StyleColor> {
-        fill_of(self, FillKey { striped: false, layer: false })
+        fill_of(self, FillKey { striped: false, layer: false, command: false })
+    }
+
+    /// The fill of a row of a menu or popup list: the active (lead) row is a command highlight in `accent.solid`, and a
+    /// row with an open submenu (emphasized) keeps the hover tint.
+    pub fn command_row_surface(&self) -> Stateful<StyleColor> {
+        fill_of(self, FillKey { striped: false, layer: false, command: true })
+    }
+
+    /// The surface of a face of a menu: the command highlight on square corners, as the old menu rows and bar titles
+    /// drew it. A face selects it with `SurfaceLook`'s fill from here and `command_row_ink` for its text and icons.
+    pub fn command_row_look(&self) -> SurfaceLook {
+        SurfaceLook::new(self.command_row_surface()).radius(egui::CornerRadius::ZERO)
     }
 
     /// The ink of a collection item's text or icon: `base`, and the theme's paired `text.on_selected` on the
     /// selection fills.
     pub fn row_ink(&self, base: Rgba) -> Stateful<StyleColor> {
-        row_ink_of(self, self.color(base))
+        row_ink_of(self, self.color(base), false)
+    }
+
+    /// The ink of a menu or popup list row: `base`, and `text.on_accent` on the active row.
+    pub fn command_row_ink(&self, base: Rgba) -> Stateful<StyleColor> {
+        row_ink_of(self, self.color(base), true)
     }
 }
 
 /// `row_ink` for a base that is already a style colour (a tone).
-fn row_ink_of(cx: &StyleCx<'_>, base: StyleColor) -> Stateful<StyleColor> {
+fn row_ink_of(cx: &StyleCx<'_>, base: StyleColor, command: bool) -> Stateful<StyleColor> {
     let on_selected = cx.color(cx.tokens.color.text.on_selected);
+    let on_accent = cx.color(cx.tokens.color.text.on_accent);
     let mut ink = Stateful::new(base).on(States::new(on_selected, on_selected, on_selected, on_selected));
-    for rule in flag_rules() {
-        ink = ink.when(rule.flags, if rule.on_selected { on_selected } else { base });
+    for rule in flag_rules(command) {
+        ink = ink.when(
+            rule.flags,
+            match rule.ink {
+                RuleInk::Base => base,
+                RuleInk::OnSelected => on_selected,
+                RuleInk::OnAccent => on_accent,
+            },
+        );
     }
     ink
 }
@@ -1154,14 +1205,14 @@ impl Component for ListRow<'_> {
         let text = &colors.text;
         let clear = Rgba::TRANSPARENT;
         let c = |rgba: Rgba| cx.color(rgba);
-        let fill = fill_of(cx, FillKey { striped: key.striped, layer: key.layer });
+        let fill = fill_of(cx, FillKey { striped: key.striped, layer: key.layer, command: false });
         let rounded = tokens.shape.rows == RowStyle::Rounded;
         let radius = if rounded { UiTokens::corner(tokens.shape.radius.control) } else { CornerRadius::ZERO };
         let mut surface = SurfaceLook::new(fill).radius(radius);
         if key.layer {
             surface = surface.border(Stateful::new(c(clear)).when(Flags::SELECTED, c(selected_outline(cx))), tokens.stroke.thin);
         }
-        let ink = |base: Rgba| cx.row_ink(base);
+        let ink = |base: Rgba| row_ink_of(cx, c(base), false);
         let base = match key.ink {
             RowInk::Normal => text.normal,
             RowInk::Muted => text.muted,
@@ -1179,14 +1230,14 @@ impl Component for ListRow<'_> {
                 sizes.icon,
                 match key.tone {
                     Tone::Neutral => ink(base),
-                    tone => row_ink_of(cx, cx.tone(tone)),
+                    tone => row_ink_of(cx, cx.tone(tone), false),
                 },
             ),
             trailing_icon: IconLook::new(
                 sizes.icon,
                 match key.trailing_tone {
                     Tone::Neutral => ink(base),
-                    tone => row_ink_of(cx, cx.tone(tone)),
+                    tone => row_ink_of(cx, cx.tone(tone), false),
                 },
             ),
             detail: TextLook::new(TypeRole::Caption, ink(text.faint)),

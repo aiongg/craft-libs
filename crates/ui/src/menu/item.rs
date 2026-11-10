@@ -11,7 +11,7 @@ use crate::runtime::access::PopupKind;
 use crate::runtime::commands::{CommandRef, FireSource, ResolvedCommand};
 use crate::runtime::env::{AppValues, EnvValue, Label};
 use crate::runtime::frame;
-use crate::style::{ComponentStyle, Flags, FocusLook, IconLook, StyleCx, SurfaceLook, TextLook, TypeRole, UiTokens};
+use crate::style::{ComponentStyle, Flags, IconLook, StyleCx, SurfaceLook, TextLook, TypeRole};
 use craft_behavior::{ColumnKey, Flow, IconId, Insets, Metrics, NavMove, PartKey, Sense};
 use craft_keymap::mnemonic;
 use craft_theme::{Rgba, States};
@@ -101,6 +101,8 @@ struct LevelState {
     active: Option<Id>,
     pointer: Option<Pos2>,
     previous_pointer: Option<Pos2>,
+    /// The padding of the popup around the rows, as the menu that set the level has it.
+    pad: f32,
 }
 
 /// The rows of one menu level: each registers its label, and the level gives every row its mnemonic from the
@@ -154,8 +156,9 @@ impl MenuLevel {
     /// Starts a body run over the level. The rows of this pass register in the measuring run and again in the real
     /// run; the first row a pass registers drops the rows of the passes before.
     /// Rows get no mnemonic when `lettered` is false: a Mac menu has no access letters.
-    fn begin(&self, submenu: bool, values: bool, keyboard: bool, lettered: bool, pointer: Option<Pos2>) {
+    fn begin(&self, submenu: bool, values: bool, keyboard: bool, lettered: bool, pointer: Option<Pos2>, pad: f32) {
         self.with(|state| {
+            state.pad = pad;
             state.keyboard = keyboard;
             state.lettered = lettered;
             state.submenu = submenu;
@@ -165,6 +168,11 @@ impl MenuLevel {
                 state.pointer = pointer;
             }
         });
+    }
+
+    /// The padding of the popup around the level's rows.
+    fn pad(&self) -> f32 {
+        self.with(|state| state.pad)
     }
 
     /// Ends a body run of pass `pass`: the rows of this pass give the letters the user sees. A pass that registered no
@@ -299,8 +307,24 @@ impl MenuLevel {
         })
     }
 
+    pub(crate) fn active(&self) -> Option<Id> {
+        self.with(|state| state.active)
+    }
+
+    pub(crate) fn has_active(&self) -> bool {
+        self.with(|state| state.active.is_some())
+    }
+
     fn is_active(&self, id: Id) -> bool {
         self.with(|state| state.active == Some(id))
+    }
+
+    /// Whether the user is in the open submenu of row `id`: the pointer is over it, or the keyboard has left `id` for it.
+    fn descended(&self, id: Id, focused: bool) -> bool {
+        self.with(|state| {
+            let Some(OpenSubmenu { row, rect }) = &state.open_submenu else { return false };
+            *row == id && (rect.zip(state.pointer).is_some_and(|(rect, pointer)| rect.contains(pointer)) || (state.keyboard && !focused))
+        })
     }
 
     /// Whether the pointer heads for the open submenu, which is not the one of row `id`.
@@ -314,11 +338,11 @@ impl MenuLevel {
 }
 
 /// The level a menu container puts into its body's env: the rows of the body register with it.
-pub(crate) fn level_env<C: Component>(cx: &Cx<'_, C>, values: &mut AppValues, submenu: bool, valued: bool) {
+pub(crate) fn level_env<C: Component>(cx: &Cx<'_, C>, values: &mut AppValues, submenu: bool, valued: bool, pad: f32) {
     let level = MenuLevel::of(&cx.recall::<LevelMemory>());
     let pointer = cx.core.ctx.input(|input| input.pointer.latest_pos());
     let keyboard = crate::runtime::focus::keyboard_in_menu(&cx.core.ctx);
-    level.begin(submenu, valued, keyboard, !cx.env.shell().os.is_mac(), pointer);
+    level.begin(submenu, valued, keyboard, !cx.env.shell().os.is_mac(), pointer, pad);
     values.set(level);
 }
 
@@ -330,17 +354,19 @@ pub struct MenuItemStyle {
     surface: SurfaceLook,
     #[style(metrics)]
     metrics: Metrics,
-    #[style(focus)]
-    focus: FocusLook,
-    /// The label, the shortcut's ink and the marks.
+    /// The label and the marks.
     #[style(text)]
     text: TextLook,
     /// The row's icon, the check and radio marks and the submenu arrow.
     #[style(icon)]
     icon: IconLook,
-    /// The detail after the label.
+    /// The detail after the label, in `text.muted`.
     #[style(text)]
     detail: TextLook,
+    /// The least space between the label and the shortcut: `space.gap.section`.
+    shortcut_gap: f32,
+    /// The gap between a submenu and its parent menu: `space.gap.tight`.
+    submenu_gap: f32,
 }
 
 /// What a row reports.
@@ -357,6 +383,9 @@ pub struct MenuItemOutput {
     pub opens_submenu: bool,
     /// A submenu row's submenu is the open one of its level: show the `Menu` after the row.
     pub submenu_open: bool,
+    /// The row's rect grown by the menu's padding: where a submenu hangs from, so its first row is level with this one
+    /// and it starts at the popup's edge.
+    pub(crate) frame: Rect,
     level: MenuLevel,
     id: Id,
 }
@@ -522,12 +551,12 @@ impl<'a> MenuItem<'a> {
         }
     }
 
-    fn place(&self, columns: &Columns, area: Rect, rtl: bool, gap: f32) -> Placed {
-        let step = |width: f32| if width > 0.0 { width + gap } else { 0.0 };
+    fn place(&self, columns: &Columns, area: Rect, rtl: bool, gap: f32, trail_gap: f32) -> Placed {
+        let step = |width: f32, gap: f32| if width > 0.0 { width + gap } else { 0.0 };
         let (mark, flow) = Flow::new(area, rtl).take_start(columns.mark);
         let (icon, flow) = flow.take_start(columns.icon);
-        let (trail, flow) = flow.take_end(step(columns.trail));
-        let (detail, flow) = flow.take_end(step(columns.detail));
+        let (trail, flow) = flow.take_end(step(columns.trail, trail_gap));
+        let (detail, flow) = flow.take_end(step(columns.detail, gap));
         Placed { mark, icon, label: flow.rect(), detail, trail }
     }
 
@@ -572,8 +601,14 @@ impl Component for MenuItem<'_> {
         let tokens = cx.tokens;
         let text = &tokens.color.text;
         let c = |rgba: Rgba| cx.color(rgba);
-        let surface = SurfaceLook::new(cx.row_surface()).radius(UiTokens::corner(tokens.shape.radius.sm));
-        let ink = |base: Rgba| cx.row_ink(base).off(States::new(c(base), c(base), c(base), c(text.disabled)));
+        // A checked row shows its mark, not a selection fill.
+        let clear = c(Rgba::TRANSPARENT);
+        let mut surface = cx.command_row_look();
+        surface.fill = surface.fill.on(States::new(clear, clear, clear, clear));
+        let ink = |base: Rgba| {
+            let disabled = c(text.disabled);
+            cx.command_row_ink(base).on(States::new(c(base), c(base), c(base), disabled)).off(States::new(c(base), c(base), c(base), disabled))
+        };
         let control = cx.control();
         // A row's content sits `space.pad.regular` in from the popup's own padding, so a label starts clear of the edge.
         let mut metrics = control.metrics();
@@ -581,10 +616,11 @@ impl Component for MenuItem<'_> {
         MenuItemStyle {
             surface,
             metrics,
-            focus: cx.focus_look(),
             text: TextLook::new(TypeRole::Body, ink(text.normal)),
             icon: IconLook::new(control.icon, ink(text.normal)),
-            detail: TextLook::new(TypeRole::Caption, ink(text.faint)),
+            detail: TextLook::new(TypeRole::Caption, ink(text.muted)),
+            shortcut_gap: tokens.space.gap.section,
+            submenu_gap: tokens.space.gap.tight,
         }
     }
 
@@ -597,8 +633,8 @@ impl Component for MenuItem<'_> {
         let run = TextRun::new(text.as_str()).role(cx.style.text.role);
         let label = if text.is_empty() { Vec2::ZERO } else { cx.layout_at(&run, f32::INFINITY).size() };
         let gap = cx.gap();
-        let step = |width: f32| if width > 0.0 { width + gap } else { 0.0 };
-        let rest = label.x + step(columns.detail) + step(columns.trail);
+        let step = |width: f32, gap: f32| if width > 0.0 { width + gap } else { 0.0 };
+        let rest = label.x + step(columns.detail, gap) + step(columns.trail, cx.style.shortcut_gap.max(gap));
         let padding = cx.style.metrics.padding;
         // A row measured before the level's widest mark or icon read narrower columns: the body's group adds the
         // widest columns to what the rows reach past them.
@@ -624,7 +660,7 @@ impl Component for MenuItem<'_> {
             return;
         }
         let rtl = cx.flow.is_rtl();
-        let placed = self.place(&columns, cx.content_rect, rtl, cx.gap());
+        let placed = self.place(&columns, cx.content_rect, rtl, cx.gap(), cx.style.shortcut_gap.max(cx.gap()));
         let (rect, _) = Flow::new(placed.trail, rtl).take_end(columns.trail);
         cx.part(SHORTCUT, rect);
     }
@@ -655,22 +691,28 @@ impl Component for MenuItem<'_> {
         let hovered = cx.response.hovered();
         let focused = cx.is_focused();
         let aimed = moving && level.aimed(cx.id);
-        let (waited, focus_gained) = {
+        let keyboard = level.keyboard();
+        let (waited, focus_gained, key_started) = {
             let rest = cx.memory::<Rest>();
             let gained = focused && !rest.focused;
             rest.focused = focused;
+            let started = keyboard && !rest.keyboard;
+            rest.keyboard = keyboard;
             // The pointer heading for the open submenu does not count as resting on this row.
             if hovered && !aimed {
-                (now - *rest.since.get_or_insert(now), gained)
+                (now - *rest.since.get_or_insert(now), gained, started)
             } else {
                 rest.since = None;
-                (0.0, gained)
+                (0.0, gained, started)
             }
         };
-        if enabled && ((hovered && moving) || focus_gained) && level.activate_row(cx.id) {
+        // The focused row of a menu that the pointer opened is not active: the keyboard makes it so when focus lands on
+        // it or the keyboard starts driving the menu.
+        if enabled && ((hovered && moving) || (focused && keyboard && (focus_gained || key_started))) && level.activate_row(cx.id) {
             frame::request_repaint(&ctx);
         }
-        self.active = level.is_active(cx.id);
+        // A disabled row is never active.
+        self.active = enabled && level.is_active(cx.id);
         if hovered && waited < DWELL {
             frame::request_repaint(&ctx);
         }
@@ -683,6 +725,10 @@ impl Component for MenuItem<'_> {
                 frame::request_repaint(&ctx);
             }
             self.open = level.submenu_open(cx.id);
+            // The active row is in the open submenu: this row keeps only the open-submenu tint.
+            if self.open && level.descended(cx.id, focused) {
+                self.active = false;
+            }
             return;
         }
         if hovered && waited >= DWELL && level.clear_submenu() {
@@ -712,6 +758,8 @@ impl Component for MenuItem<'_> {
         let mut flags = Flags::empty();
         flags.set(Flags::CHECKED, self.check == Some(true) || self.radio_mark == Some(true) || self.entry == Some(true));
         flags.set(Flags::LEAD, self.active);
+        // The row whose submenu is open keeps the hover tint while another row is active.
+        flags.set(Flags::EMPHASIZED, self.open && !self.active);
         flags
     }
 
@@ -729,7 +777,7 @@ impl Component for MenuItem<'_> {
         let detail_width = detail_run.as_ref().map_or(0.0, |run| draw.layout(run, f32::INFINITY).size().x);
         let trail = if self.submenu { side } else { cx.part_if_declared(SHORTCUT).map_or(0.0, |part| part.rect.width()) };
         let columns = Columns { mark: mark_column, icon: icon_column, detail: detail_width, trail };
-        let placed = self.place(&columns, cx.content_rect, rtl, gap);
+        let placed = self.place(&columns, cx.content_rect, rtl, gap, cx.style.shortcut_gap.max(gap));
         let ink = cx.resolve(&cx.style.icon.color);
         let centred = |slot: Rect| Rect::from_center_size(slot.center(), Vec2::splat(side));
         if columns.mark > 0.0 {
@@ -803,7 +851,10 @@ impl Component for MenuItem<'_> {
 
     fn finish(self, cx: Cx<'_, Self>) -> MenuItemOutput {
         let level = cx.env.get::<MenuLevel>();
-        MenuItemOutput { response: cx.response.clone(), ran: self.ran, opens_submenu: self.opens, submenu_open: self.open, level, id: cx.id }
+        // The frame is where a submenu hangs: the row with the popup padding, widened by `gap.tight` on both sides so a
+        // submenu that flips to the other side keeps the gap.
+        let frame = cx.response.rect.expand(level.pad()).expand2(egui::vec2(cx.style.submenu_gap, 0.0));
+        MenuItemOutput { response: cx.response.clone(), ran: self.ran, opens_submenu: self.opens, submenu_open: self.open, frame, level, id: cx.id }
     }
 }
 
@@ -821,4 +872,6 @@ fn glyph_span(layout: &TextLayout, at: usize) -> Option<(f32, f32)> {
 struct Rest {
     since: Option<f64>,
     focused: bool,
+    /// Whether the keyboard drove the menu in the last pass.
+    keyboard: bool,
 }

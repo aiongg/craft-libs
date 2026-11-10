@@ -110,6 +110,7 @@ pub(crate) fn leaves(b: &mut Preset) -> Vec<Leaf<'_>> {
         "base.size.bar.options" Num 16.0..=80.0 => s.bar.options;
         "base.size.bar.options_narrow" Num 16.0..=80.0 => s.bar.options_narrow;
         "base.size.panel_header" Num 16.0..=64.0 => s.panel_header;
+        "base.size.popup_min" Num 64.0..=640.0 => s.popup_min;
         "base.size.thumb.sm" Num 12.0..=96.0 => s.thumb.sm;
         "base.size.thumb.md" Num 12.0..=96.0 => s.thumb.md;
         "base.size.thumb.lg" Num 12.0..=96.0 => s.thumb.lg;

@@ -11,7 +11,7 @@ mod pick_focus;
 
 use craft_behavior::IconId;
 use craft_ui::buttons::Button;
-use craft_ui::contract::{Bind, Entry, Role, Show as _, ShowContainer as _, Trigger};
+use craft_ui::contract::{Bind, Entry, Props as _, Role, Show as _, ShowContainer as _, Trigger};
 use craft_ui::layout_components::Stack;
 use craft_ui::menu::{GroupItem, Menu, MenuItem, PanelMenu, PanelRow};
 use craft_ui::primitives::IconSpec;
@@ -165,4 +165,96 @@ fn rows_of_an_inline_menu_shown_from_its_container_record_take_the_columns_of_la
         assert_eq!(x(&fixture, "History"), x(&fixture, "Swatches"), "frame {frame}: an iconed row takes the mark column");
         fixture.frame(vec![]);
     }
+}
+
+/// Whether the latest frame painted a fill over the row labelled `label` (the active row's fill).
+fn row_filled(fixture: &Fixture, label: &str) -> bool {
+    let row = fixture.by_label(label).expect("the row shows").rect;
+    let overshoot = fixture.shape_overshoot();
+    // The popup's own surface contains every row; a row's fill is no taller than the row plus its rounding. A stroked
+    // shape (a ring) is no fill.
+    fixture
+        .shape_bounds()
+        .iter()
+        .enumerate()
+        .any(|(at, shape)| overshoot.get(at).is_none_or(|stroke| *stroke == 0.0) && shape.contains_rect(row) && shape.height() < row.height() * 1.5)
+}
+
+/// A menu opened by the pointer paints no active row; the pointer then rests on `hover`, if any, and the keys `keys`
+/// light the rows the result marks, with a disabled row at each end.
+fn keys_after_a_pointer_open(hover: Option<&str>, keys: &[egui::Key]) -> [bool; 5] {
+    const LABELS: [&str; 5] = ["Locked Top", "Open", "Save", "Close", "Locked Bottom"];
+    let mut fixture = Fixture::new(|ui| {
+        let opener = Button::new("File").show(ui);
+        Menu::new("File").opened_by(&opener, Trigger::Press).show(ui, |ui, _| {
+            for label in LABELS {
+                MenuItem::new(label).enabled(!label.starts_with("Locked")).show(ui);
+            }
+        });
+    });
+    fixture.settle();
+    let opener = fixture.by_label("File").expect("the opener has a node");
+    fixture.click(&opener);
+    fixture.idle(4);
+    assert!(menu_shown(&fixture), "a press of the opener opens the menu");
+    assert_eq!(LABELS.map(|label| row_filled(&fixture, label)), [false; 5], "no row is active at rest");
+    if let Some(row) = hover {
+        rest_on(&mut fixture, row);
+    }
+    for key in keys {
+        fixture.key(*key, egui::Modifiers::NONE);
+        fixture.idle(4);
+    }
+    LABELS.map(|label| row_filled(&fixture, label))
+}
+
+#[trial]
+fn the_first_down_or_home_of_a_pointer_opened_menu_activates_the_first_enabled_row() {
+    for key in [egui::Key::ArrowDown, egui::Key::Home] {
+        assert_eq!(keys_after_a_pointer_open(None, &[key]), [false, true, false, false, false], "{key:?}");
+    }
+}
+
+#[trial]
+fn the_first_up_or_end_of_a_pointer_opened_menu_activates_the_last_enabled_row() {
+    for key in [egui::Key::ArrowUp, egui::Key::End] {
+        assert_eq!(keys_after_a_pointer_open(None, &[key]), [false, false, false, true, false], "{key:?}");
+    }
+}
+
+#[trial]
+fn the_first_arrow_after_the_pointer_lit_a_row_moves_from_that_row() {
+    use egui::Key::{ArrowDown, ArrowUp};
+    assert_eq!(keys_after_a_pointer_open(Some("Save"), &[ArrowDown]), [false, false, false, true, false], "Down from Save");
+    assert_eq!(keys_after_a_pointer_open(Some("Save"), &[ArrowUp]), [false, true, false, false, false], "Up from Save");
+}
+
+#[trial]
+fn arrows_wrap_at_the_ends_of_a_menu() {
+    use egui::Key::{ArrowDown, ArrowUp};
+    assert_eq!(keys_after_a_pointer_open(None, &[ArrowDown, ArrowUp]), [false, false, false, true, false], "Up at the first row");
+    assert_eq!(keys_after_a_pointer_open(None, &[ArrowUp, ArrowDown]), [false, true, false, false, false], "Down at the last row");
+}
+
+/// The row of a submenu that is open while the pointer is inside it keeps a fill, as does the row under the pointer.
+#[trial]
+fn the_parent_of_an_open_submenu_keeps_a_fill_while_the_pointer_is_in_it() {
+    let submenu = |label: &str, inner: &str| {
+        PanelRow::Submenu(label.to_owned().into(), vec![PanelRow::Item(Entry::new(GroupItem::MoveTo(0), inner.to_owned()))])
+    };
+    let mut fixture = Fixture::new(move |ui| {
+        let opener = Button::new("Panel").show(ui);
+        Menu::new("Panel").opened_by(&opener, Trigger::Press).show(ui, |ui, _| {
+            PanelMenu::new(vec![submenu("Alpha", "Alpha One"), submenu("Beta", "Beta One")], Vec::new()).show(ui);
+        });
+    });
+    fixture.settle();
+    let opener = fixture.by_label("Panel").expect("the opener has a node");
+    fixture.click(&opener);
+    fixture.idle(4);
+    rest_on(&mut fixture, "Alpha");
+    assert!(row_filled(&fixture, "Alpha"), "the row under the pointer has a fill");
+    rest_on(&mut fixture, "Alpha One");
+    assert!(row_filled(&fixture, "Alpha One"), "the submenu row under the pointer has a fill");
+    assert!(row_filled(&fixture, "Alpha"), "the parent of the open submenu keeps a fill");
 }

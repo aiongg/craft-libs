@@ -87,3 +87,49 @@ fn menu_of_values(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
         output
     })
 }
+
+/// The Edit menu of a context menu: shortcuts, icons, a disabled row, check and radio rows and submenus two deep.
+#[story(Menu<'static>, covers = [], drive = Drive::Never)]
+fn context_menu(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let icons = *data.value("icons", true);
+    let icon = move |item: MenuItem<'static>, name: &'static str| if icons { item.icon(IconId::new(name)) } else { item };
+    in_row(ui, |ui| {
+        let target = Button::new("Right-click, or focus and press Shift+F10").show(ui);
+        let mut ran = false;
+        let shown = Menu::context("Edit", &target).show(ui, |ui, _| {
+            ran |= icon(MenuItem::new("Undo").shortcut("Ctrl+Z"), "undo").show(ui).ran;
+            ran |= icon(MenuItem::new("Redo").shortcut("Ctrl+Shift+Z").enabled(false), "redo").show(ui).ran;
+            Divider::horizontal().show(ui);
+            ran |= MenuItem::new("Cut").shortcut("Ctrl+X").show(ui).ran;
+            ran |= icon(MenuItem::new("Copy").shortcut("Ctrl+C"), "copy").show(ui).ran;
+            ran |= MenuItem::new("Paste").shortcut("Ctrl+V").show(ui).ran;
+            ran |= icon(MenuItem::new("Delete").shortcut("Delete"), "trash").show(ui).ran;
+            Divider::horizontal().show(ui);
+            Menu::submenu_row(ui, "View", |ui, _| {
+                ran |= MenuItem::new("Rulers").check(true).shortcut("Ctrl+R").show(ui).ran;
+                ran |= MenuItem::new("Grid").check(false).show(ui).ran;
+                ran |= MenuItem::new("Snap").check(true).enabled(false).show(ui).ran;
+                Divider::horizontal().show(ui);
+                Menu::submenu_row(ui, "Zoom", |ui, _| {
+                    ran |= MenuItem::new("Fit on Screen").shortcut("Ctrl+0").show(ui).ran;
+                    ran |= MenuItem::new("50%").show(ui).ran;
+                    ran |= MenuItem::new("100%").shortcut("Ctrl+1").show(ui).ran;
+                    ran |= MenuItem::new("200%").show(ui).ran;
+                });
+            });
+            Menu::submenu_row(ui, "Mode", |ui, _| {
+                ran |= MenuItem::new("RGB Color").radio_mark(true).show(ui).ran;
+                ran |= MenuItem::new("CMYK Color").radio_mark(false).show(ui).ran;
+                ran |= MenuItem::new("Grayscale").radio_mark(false).show(ui).ran;
+            });
+            Menu::submenu_row_enabled(ui, "Empty", false, |ui, _| {
+                MenuItem::new("Nothing to run").enabled(false).show(ui);
+            });
+            Divider::horizontal().show(ui);
+            ran |= MenuItem::new("Show Guides (stays open)").check(true).keep_open(true).show(ui).ran;
+        });
+        let mut output = StoryOutput::from(shown.output);
+        output.clicked |= ran;
+        output
+    })
+}

@@ -3,8 +3,8 @@
 use super::item::{LevelMemory, MenuItem, MenuItemOutput, MenuLevel, level_env};
 use crate::contract::overlay::{Anchor, Dismiss, Outside, Popup};
 use crate::contract::{
-    Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, Entry, Focus as _, Mount, NoValue, Outcome, Overlay, Pad, Props as _,
-    Remember as _, Role, Show as _, ShowContainer as _, TooltipSpec, Trigger,
+    Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, Entry, Focus as _, Gap, InMenu, LeastWidth, Mount, NoValue, Outcome,
+    Overlay, Pad, Props as _, Remember as _, Role, Show as _, ShowContainer as _, TooltipSpec, Trigger,
 };
 use crate::display::Divider;
 use crate::runtime::env::{Env, Label};
@@ -16,11 +16,13 @@ use craft_behavior::{Arrows, Metrics, NavShape, Roving, Sense, Value};
 use egui::{Response, Ui};
 
 /// The style of a menu: the surface comes from the container.
-#[derive(Clone, Debug, Default, PartialEq, ComponentStyle)]
+#[derive(Clone, Debug, PartialEq, ComponentStyle)]
 #[non_exhaustive]
 pub struct MenuStyle {
     #[style(metrics)]
     metrics: Metrics,
+    /// The padding of the popup around the rows.
+    pad: f32,
 }
 
 /// The neighbouring menu a top-level menu asks its bar for when Left or Right reaches it unhandled. The directions
@@ -153,13 +155,18 @@ pub struct Menu<'a> {
     step: Option<MenuStep>,
 }
 
+/// The padding of the popup around the rows.
+const POPUP_PAD: Pad = Pad::Regular;
+
 impl<'a> Menu<'a> {
     /// A menu named `label`. Its open state is the menu's slot until [`open`](Menu::open) binds it.
     pub fn new(label: impl Into<Label>) -> Self {
         let props = ContainerProps::new()
             .surface(SurfaceKind::Popup)
-            .pad(Pad::Regular)
-            .roving(Roving::new(NavShape::Flat).arrows(Arrows::Vertical))
+            .pad(POPUP_PAD)
+            .body_gap(Gap::None)
+            .least_width(LeastWidth::Popup)
+            .roving(Roving::new(NavShape::Flat).arrows(Arrows::Vertical).wrap(true))
             .label_column(true)
             .mount(Mount::Layer(layer(false)));
         Menu { common: Common::new(), props, open: None, closed: None, submenu: false, values: false, opener: None, back: false, step: None }
@@ -174,10 +181,16 @@ impl<'a> Menu<'a> {
         self
     }
 
-    /// The rows of a menu in the flow of the layer that shows them, with no surface and no close rules of their own:
-    /// the menu of a control that owns its popup shows its entries through it.
+    /// The rows of a menu in the flow of the layer that shows them, with the popup surface and padding of a menu but no
+    /// close rules of their own: the menu of a control that owns its popup shows its entries through it.
     pub fn inline(label: impl Into<Label>) -> Self {
-        let props = ContainerProps::new().roving(Roving::new(NavShape::Flat).arrows(Arrows::Vertical)).label_column(true);
+        let props = ContainerProps::new()
+            .surface(SurfaceKind::Popup)
+            .pad(POPUP_PAD)
+            .body_gap(Gap::None)
+            .least_width(LeastWidth::Popup)
+            .roving(Roving::new(NavShape::Flat).arrows(Arrows::Vertical).wrap(true))
+            .label_column(true);
         Menu { common: Common::new(), props, open: None, closed: None, submenu: false, values: false, opener: None, back: false, step: None }
             .label(label)
     }
@@ -218,11 +231,18 @@ impl<'a> Menu<'a> {
     /// A row that opens a submenu showing the rows of `body`, for use inside a menu body. The menu level holds which
     /// submenu row is open, so resting on a second submenu row closes the first.
     pub fn submenu_row(ui: &mut Ui, label: impl Into<Label>, body: impl FnMut(&mut Ui, &mut BodyCx<'_>)) -> MenuItemOutput {
+        Menu::submenu_row_enabled(ui, label, true, body)
+    }
+
+    /// [`submenu_row`](Menu::submenu_row) with `enabled`: a row with it false draws disabled and does not open (a
+    /// submenu none of whose rows can run).
+    pub fn submenu_row_enabled(ui: &mut Ui, label: impl Into<Label>, enabled: bool, body: impl FnMut(&mut Ui, &mut BodyCx<'_>)) -> MenuItemOutput {
         let label = label.into();
-        let head = MenuItem::submenu(label.clone()).show(ui);
+        let head = MenuItem::submenu(label.clone()).enabled(enabled).show(ui);
         let mut open = head.submenu_open;
         let mut body = body;
-        let shown = Menu::submenu(label, &head.response).open(Bind::bound(&mut open)).show(ui, |ui, cx| body(ui, cx));
+        let shown =
+            Menu::submenu(label, &head.response).anchor(Anchor::Rect(head.frame)).open(Bind::bound(&mut open)).show(ui, |ui, cx| body(ui, cx));
         // `MenuItem::update` does not run in a measuring run, so `open` is false there and would clear the level's
         // open submenu the real run set.
         if crate::runtime::measure::effect(ui.ctx(), "menu::note_submenu") {
@@ -256,8 +276,8 @@ impl Component for Menu<'_> {
     type Style = MenuStyle;
     type Output = MenuOutput;
 
-    fn style(_: &StyleCx<'_>, _: MenuStyleKey) -> MenuStyle {
-        MenuStyle::default()
+    fn style(cx: &StyleCx<'_>, _: MenuStyleKey) -> MenuStyle {
+        MenuStyle { metrics: Metrics::default(), pad: crate::contract::pad_of(cx.tokens, POPUP_PAD) }
     }
 
     fn sense(&self) -> Sense {
@@ -265,9 +285,17 @@ impl Component for Menu<'_> {
     }
 
     /// A row of a submenu level that took Back closes the menu. A typed letter runs the row it names; the container
-    /// reads it, so the letter works with no row focused.
+    /// reads it, so the letter works with no row focused. A level the pointer opened with no active row has no lead:
+    /// the first key enters it at an end. The active row is the lead, so the first key after the pointer lit a row
+    /// moves from that row; a row lit in this pass leads from the next, so only a key in the same frame as the pointer
+    /// move that lit it starts from the row lit before.
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         let level = MenuLevel::of(cx.memory::<LevelMemory>());
+        let keyboard = crate::runtime::focus::keyboard_in_menu(&cx.core.ctx);
+        self.props.roving = self.props.roving.map(|roving| roving.no_lead(!keyboard && !level.has_active()));
+        if let Some(row) = level.active() {
+            cx.roving_lead(row);
+        }
         if level.take_close() {
             match self.opener {
                 Some(opener) if self.open.is_none() => Popup::close(opener, cx),
@@ -289,7 +317,8 @@ impl Component for Menu<'_> {
     }
 
     fn content_env(&self, cx: &Cx<'_, Self>, values: &mut crate::runtime::env::AppValues) {
-        level_env(cx, values, self.submenu, self.values);
+        level_env(cx, values, self.submenu, self.values, cx.style.pad);
+        values.set(InMenu(true));
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> MenuOutput {

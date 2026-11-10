@@ -137,6 +137,20 @@ fn help_search_ignores_accents_and_matches_the_english_label_and_the_path() {
     }
 }
 
+#[trial]
+fn down_in_the_help_search_field_activates_the_first_row() {
+    let mut rig = rig(Direction::Ltr);
+    let help = rig.fixture.by_label("Help").expect("the Help title");
+    rig.fixture.click(&help);
+    rig.fixture.settle();
+    let search = rig.fixture.by_label("Search menus").expect("the search field");
+    rig.fixture.click(&search);
+    rig.fixture.settle();
+    assert!(!super::row_filled(&rig.fixture, "About"), "no row is active while the field holds focus");
+    rig.key(Key::ArrowDown);
+    assert!(super::row_filled(&rig.fixture, "About"), "Down from the field activates the first row");
+}
+
 /// An entry found by its label ranks before one found only through its menu path, whatever their order.
 #[trial]
 fn a_label_match_ranks_before_a_path_only_match() {
