@@ -9,6 +9,7 @@ use super::{
 };
 use super::{Inner, ItemFn};
 use super::{overlay, tooltip};
+use crate::layout::InFlow;
 use crate::primitives::sensing::{self, MemberSpec, PartDecl, RootSpec};
 use crate::primitives::{FaceRecord, PaintRecord, PartResult, face_id};
 use crate::runtime::access::{self, Politeness, Role, SetPosition, scope};
@@ -115,6 +116,12 @@ pub(crate) trait ShapeHooks<C: Component> {
     /// measured width and never sets the column's.
     fn fills_width(&self, comp: &C) -> bool {
         comp.fills() == Some(craft_behavior::Axis::X)
+    }
+
+    /// Whether the root is a line itself, which sits at the centre of a `Row`'s line, rather than a block or column,
+    /// which sits at its top. A leaf is a control on the line.
+    fn on_line(&self, _comp: &C) -> bool {
+        true
     }
 
     /// Whether the root fills the width alone: a root that fills both axes takes the room of a `Content` grid column
@@ -548,6 +555,7 @@ fn sense_root(ui: &Ui, member: Option<crate::runtime::env::ArenaId>, spec: RootS
 fn place_root<C: Component>(p: &Pass<'_, '_, C>, ui: &mut Ui, at: ShowAt, env: &Env, size: Vec2, inert: bool, rtl: bool) -> (Rect, bool) {
     // In a content-sized column a fill-width child takes its measured width in the flow and shows across the width
     // the column settles on, so it never sets that width.
+    let line = p.hooks.on_line(&*p.comp);
     let held = !inert
         && matches!(at, ShowAt::Flow)
         && ((env.content_column && p.hooks.fills_width(&*p.comp))
@@ -559,11 +567,12 @@ fn place_root<C: Component>(p: &Pass<'_, '_, C>, ui: &mut Ui, at: ShowAt, env: &
             .then(|| crate::layout::flow_room(ui).x)
             .filter(|width| width.is_finite())
             .unwrap_or(0.0);
-        let flowed = steps::place(ui, at, Vec2::new(p.measured.x.min(size.x), size.y), false);
+        let flowed = steps::place(ui, at, Vec2::new(p.measured.x.min(size.x), size.y), InFlow { fill: false, line });
         let across = Vec2::new(size.x.max(flowed.width()).max(column), flowed.height());
         if rtl { Rect::from_min_size(Pos2::new(flowed.max.x - across.x, flowed.min.y), across) } else { Rect::from_min_size(flowed.min, across) }
     } else {
-        steps::place(ui, at, if inert { Vec2::ZERO } else { size }, p.hooks.fills_width(&*p.comp) && !p.hooks.fills_width_only(&*p.comp))
+        let fill = p.hooks.fills_width(&*p.comp) && !p.hooks.fills_width_only(&*p.comp);
+        steps::place(ui, at, if inert { Vec2::ZERO } else { size }, InFlow { fill, line })
     };
     (rect, held)
 }

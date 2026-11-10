@@ -9,7 +9,7 @@ fn stack_layout(right_to_left: bool) -> Layout {
 }
 
 /// The physical layout of a `Row` body: left to right, right to left under RTL, items allocated from the top; the
-/// row's placement (`layout::place_in_flow`) centres them on its line.
+/// row's placement (`layout::place_in_cell`) puts them on its line.
 pub(crate) fn row_layout(right_to_left: bool, wrap: bool) -> Layout {
     let layout = if right_to_left { Layout::right_to_left(Align::Min) } else { Layout::left_to_right(Align::Min) };
     layout.with_main_wrap(wrap)
