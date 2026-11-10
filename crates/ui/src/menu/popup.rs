@@ -81,12 +81,9 @@ pub(crate) fn layer(submenu: bool) -> Overlay {
     base.dismiss(Dismiss::new().outside(Outside::Absorb).on_activate(true)).focus(FocusPolicy::MENU.initial(Initial::Default))
 }
 
-/// A separator rule of a menu body: rows touch, so the rule brings its own `space.gap.row` above and below it.
+/// A separator rule of a menu body: rows touch, so the rule carries the space above and below it.
 pub(crate) fn separator(ui: &mut Ui) {
-    let gap = Env::of(ui).tokens.tokens().space.gap.row;
-    ui.add_space(gap);
-    Divider::horizontal().show(ui);
-    ui.add_space(gap);
+    Divider::separator().show(ui);
 }
 
 /// Shows one row per entry, a rule for a separator, and returns the index of the entry that ran. In a value menu
