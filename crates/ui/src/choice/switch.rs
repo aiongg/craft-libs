@@ -14,6 +14,9 @@ use egui::{CornerRadius, Rect, Vec2};
 /// Where the thumb rests while the value is mixed: the middle of its travel.
 const MIXED_AT: f32 = 0.5;
 
+/// How much of the knob's opacity a disabled thumb keeps.
+const DISABLED_THUMB: f32 = 0.55;
+
 /// The style of a switch.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
 #[non_exhaustive]
@@ -28,6 +31,9 @@ pub struct SwitchStyle {
     edge: Stateful<StyleColor>,
     /// The thumb: a round knob surface, with its outline and shadow.
     thumb: SurfaceStyle,
+    /// The thumb's fill and outline while disabled: the knob's own colours dimmed, with no shadow.
+    thumb_fill: Stateful<StyleColor>,
+    thumb_edge: Stateful<StyleColor>,
     radius: CornerRadius,
     width: f32,
     height: f32,
@@ -67,7 +73,13 @@ impl Component for Switch<'_> {
         let disabled = cx.color(colors.text.disabled);
         let track = Stateful::new(well).on(States::new(on, on, on, disabled));
         let edge = super::outline(cx).on(States::new(on, on, on, disabled)).when(Flags::INVALID, cx.tone(Tone::Bad));
+        let dim = |c: craft_theme::Rgba| {
+            let (rest, faded) = (cx.color(c), cx.color(c.faded(DISABLED_THUMB)));
+            Stateful::new(rest).off(States::new(rest, rest, rest, faded))
+        };
         SwitchStyle {
+            thumb_fill: dim(colors.surface.knob),
+            thumb_edge: dim(colors.line.knob_edge),
             metrics: Metrics::new().min_size(Vec2::new(0.0, control.height)),
             focus: cx.focus_look(),
             track,
@@ -110,7 +122,15 @@ impl Component for Switch<'_> {
         draw.stroke(&shape, StrokeWidth::Medium, cx.resolve(&style.edge));
         let slot = Flow::new(track, cx.flow.is_rtl()).span(at * (style.width - style.height), style.height);
         let size = style.height - style.inset * 2.0;
-        ui.draw().surface_styled(Rect::from_center_size(slot.center(), Vec2::splat(size)), &style.thumb);
+        let mut thumb = style.thumb;
+        thumb.fill = cx.resolve(&style.thumb_fill).egui();
+        if let crate::style::SurfaceEdge::Border(stroke) = &mut thumb.edge {
+            stroke.color = cx.resolve(&style.thumb_edge).egui();
+        }
+        if cx.state.state == craft_theme::State::Disabled {
+            thumb.shadow = None;
+        }
+        ui.draw().surface_styled(Rect::from_center_size(slot.center(), Vec2::splat(size)), &thumb);
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> EditResponse<bool> {

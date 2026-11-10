@@ -28,3 +28,13 @@ fn switch_with_reason(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let tooltip = data.tooltip("Snap to the grid");
     Switch::new(Bind::bound(data.value("on", false))).label("Snap").tooltip(tooltip).show(ui).into()
 }
+
+#[story(Switch<'static>, covers = [], drive = Drive::Never)]
+fn switch_disabled_off(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    Switch::new(Bind::bound(data.value("off", false))).label("Disabled (off)").enabled(false).show(ui).into()
+}
+
+#[story(Switch<'static>, covers = [], drive = Drive::Never)]
+fn switch_disabled_on(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    Switch::new(Bind::bound(data.value("on", true))).label("Disabled (on)").enabled(false).show(ui).into()
+}
