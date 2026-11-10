@@ -303,3 +303,39 @@ fn a_focus_request_into_an_out_of_view_child_runs_it_and_scrolls_it_in() {
     let (_, rect) = buttons[last].get();
     assert!(view.get().contains_rect(rect), "the body scrolled the control into view: {rect:?} in {:?}", view.get());
 }
+
+/// Focus on a control outside every `Lazy` child, in the same arena as the children's controls, runs no child far out
+/// of view: the members of an arena share their egui root, and a child runs for the stop that holds focus, not for
+/// that root.
+#[trial]
+fn focus_on_another_member_of_the_arena_does_not_run_an_out_of_view_child() {
+    const CHILDREN: usize = 30;
+    let runs: Vec<Cell<usize>> = (0..CHILDREN).map(|_| Cell::new(0)).collect();
+    let outside = Cell::new(Id::NULL);
+    let mut show = |ui: &mut Ui| {
+        in_region(ui, Rect::from_min_size(ORIGIN, VIEW), |ui| {
+            Slab::new(ContainerProps::new().scroll(Scroll::vertical()).arena(true)).id_salt("panel").show(ui, |ui, _| {
+                let out = Button::new("Outside").show(ui);
+                if !ui.is_sizing_pass() {
+                    outside.set(out.id);
+                }
+                for (at, count) in runs.iter().enumerate() {
+                    craft_ui::contract::Lazy::new(at).show(ui, |ui| {
+                        count.set(count.get() + 1);
+                        Button::new(format!("Child {at}")).show(ui);
+                        Block::new(Vec2::new(LINE.x, HUNDRED)).show(ui);
+                    });
+                }
+            });
+        });
+    };
+    let mut frames = Frames::new();
+    frames.idle(3, &mut show);
+    request(&frames.ctx, FocusTarget::Id(outside.get()));
+    frames.idle(3, &mut show);
+    let last = CHILDREN - 1;
+    runs.iter().for_each(|count| count.set(0));
+    frames.frame(vec![], &mut show);
+    assert!(runs[0].get() > 0, "the child in view runs");
+    assert_eq!(runs[last].get(), 0, "the child far below the view does not run while another member holds focus");
+}

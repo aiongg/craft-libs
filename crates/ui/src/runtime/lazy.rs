@@ -60,7 +60,7 @@ struct Entry {
     /// extent is current. A content-sized scroll area is offered another room in its measuring run than in its real
     /// run, so each kind of run compares with its own.
     rooms: [Option<Vec2>; 2],
-    /// The components and egui roots of the stops the child registered in the last real run that showed it. The
+    /// The components of the stops the child registered in the last real run that showed it. The
     /// child runs while one of them holds focus or a focus request asks to reveal one.
     stops: Vec<Id>,
     /// This pass's decision, under the pass number that made it.
