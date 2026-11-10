@@ -47,6 +47,11 @@ impl DisclosureGlyph {
         DisclosureGlyph { open, filled: false, tree: false }
     }
 
+    /// A filled arrow `open` of the way turned; `tree` picks the smaller triangle of a tree row over a submenu's arrow.
+    pub const fn filled(open: f32, tree: bool) -> Self {
+        DisclosureGlyph { open, filled: true, tree }
+    }
+
     /// The icon of the arrow after a dropdown's text: a button that opens a menu, a picker's face, a field with a list.
     pub fn dropdown() -> crate::primitives::IconSpec<'static> {
         crate::primitives::IconSpec::glyph(&DROPDOWN)

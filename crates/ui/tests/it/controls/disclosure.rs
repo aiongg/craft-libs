@@ -21,7 +21,7 @@ fn disclosure_points_to_the_end_when_closed_and_down_when_open() {
         let open = tip(DisclosureGlyph::new(1.0), direction);
         assert!(open.y > 0.0 && open.x.abs() < 1e-3, "open points down in {direction:?}");
     }
-    let tree = DisclosureGlyph { open: 0.0, filled: true, tree: true };
-    let submenu = DisclosureGlyph { open: 0.0, filled: true, tree: false };
+    let tree = DisclosureGlyph::filled(0.0, true);
+    let submenu = DisclosureGlyph::filled(0.0, false);
     assert!(tip(tree, Direction::Ltr).x < tip(submenu, Direction::Ltr).x, "a tree row's triangle is smaller than a submenu's");
 }
