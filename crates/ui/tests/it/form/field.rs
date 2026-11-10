@@ -72,3 +72,40 @@ fn a_click_on_the_label_focuses_the_control() {
     fixture.click(&label);
     assert_eq!(focused_key(fixture.tree()), control.node, "the label's click focused the control");
 }
+
+/// A field's label and its control's text sit on one baseline, whatever the control's own padding. Guards against a
+/// label placed from the control's top while the control's text sits lower in a taller box.
+#[trial]
+fn a_label_and_its_control_text_share_a_baseline() {
+    use craft_ui::contract::Entry;
+    use craft_ui::pickers::Select;
+    use craft_ui::text::TextField;
+    let mut fixture = Fixture::new(|ui| {
+        let entries = [Entry::new(0u8, "Hamburg"), Entry::new(1, "Multiply")];
+        let mut mode = 0u8;
+        let mut text = String::from("Hamburg");
+        Field::new("Name").show(ui, |ui, _| TextField::new("Name", Bind::bound(&mut text)).show(ui));
+        Field::new("Blend").show(ui, |ui, _| Select::new("Blend", Bind::bound(&mut mode), &entries).show(ui).response);
+        Field::new("Size").show(ui, |ui, _| NumberField::new("Size", Bind::bound(&mut Some(12.0f64))).show(ui));
+    });
+    fixture.settle();
+    fixture.idle(3);
+    let texts = fixture.texts();
+    for (label, control) in [("Name", "Hamburg"), ("Blend", "Hamburg"), ("Size", "12")] {
+        let label_at = texts
+            .iter()
+            .find(|text| text.text == label)
+            .unwrap_or_else(|| panic!("no label {label}: {:?}", texts.iter().map(|t| (&t.text, t.rect)).collect::<Vec<_>>()));
+        let control_at = texts
+            .iter()
+            .filter(|text| text.text.starts_with(control) && text.rect.left() > label_at.rect.right())
+            .min_by(|a, b| (a.rect.center().y - label_at.rect.center().y).abs().total_cmp(&(b.rect.center().y - label_at.rect.center().y).abs()))
+            .unwrap_or_else(|| panic!("no control text for {label}"));
+        assert!(
+            label_at.rect.bottom().round() == control_at.rect.bottom().round(),
+            "{label}: label {:?} control text {:?}",
+            label_at.rect,
+            control_at.rect
+        );
+    }
+}

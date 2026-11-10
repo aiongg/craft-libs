@@ -394,6 +394,9 @@ pub(crate) fn run<C: Component>(
         drive_completions(cx, &mut state);
     }
     let resolved = resolve(&mut state, cx.value(), commit_now);
+    if let Some(baseline) = out.baseline {
+        cx.core.paint.borrow_mut().baseline.get_or_insert(baseline);
+    }
     facts(cx, &mut state, widget, &out, decl.rect, decl.options.mask, read_only);
     cx.core.text_invalid = state.invalid;
     cx.core.escape_to_list = state.completions.open;
