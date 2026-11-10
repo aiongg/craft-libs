@@ -11,8 +11,13 @@ use egui::Ui;
 pub struct ToastStack;
 
 impl ToastStack {
-    /// Shows every queued toast of the running viewport through the toast host.
+    /// Shows every queued toast of the running viewport through the toast host. The stack is a layer over the
+    /// viewport and takes no room in its parent, so a measuring run of the parent's body skips it: the real run
+    /// opens the host's stages once.
     pub fn show(ui: &Ui) {
+        if crate::runtime::measure::active(ui.ctx()) {
+            return;
+        }
         ToastHost::show(ui, &mut |ui, toast, salt| {
             let mut notice = Notice::new(toast.tone, toast.message.clone()).layout(NoticeLayout::Card).dismiss().id_salt(salt);
             if let Some(title) = &toast.title {
