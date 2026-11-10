@@ -7,7 +7,7 @@
 //! Alt keeps the meaning it has in Photoshop's levels: a drag that begins with Alt held moves one half of a split
 //! thumb alone, at full rate. On a thumb that is not split, Alt scales a drag finer as on every value control.
 
-use super::track::{self, Pick, Press, Scale, SliderScale, TrackFace, Travel};
+use super::track::{self, Pick, Press, Scale, SliderScale, TrackFace, Travel, travel};
 use super::words::ValueDragWords;
 use crate::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, Input, MeasureCx, Numeric, Outcome, PaintUi, PartsCx,
@@ -447,11 +447,6 @@ impl<const N: usize> RowRules<'_, N> {
     }
 }
 
-/// The horizontal span a thumb's centre travels along in a row at `rect`: the row inset by half a thumb on each side.
-fn travel(rect: Rect, thumb: f32) -> Rangef {
-    Rangef::new(rect.left() + thumb / 2.0, rect.right() - thumb / 2.0)
-}
-
 /// The thumbs on the row's track, in the row's pixels.
 struct Layout<'r, const N: usize> {
     rules: RowRules<'r, N>,
@@ -647,7 +642,8 @@ fn against(mv: NavMove) -> NavMove {
     }
 }
 
-/// Thumbs on one row, tip up, each a value of its own.
+/// Thumbs on one row, tip up, each a value of its own. The row spans the width its flow offers, so it lines up with
+/// the bars it marks positions on.
 #[derive(crate::contract::Component, crate::contract::Props)]
 #[component(probe(ThumbRow<'static, 4>))]
 pub struct ThumbRow<'a, const N: usize> {
@@ -757,6 +753,10 @@ impl<const N: usize> Component for ThumbRow<'_, N> {
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
         let groove = if self.track_face.is_some() { cx.style.track.thickness } else { 0.0 };
         Vec2::new(cx.style.length, cx.icon() + groove)
+    }
+
+    fn fills(&self) -> Option<craft_behavior::Axis> {
+        Some(craft_behavior::Axis::X)
     }
 
     fn sense(&self) -> Sense {

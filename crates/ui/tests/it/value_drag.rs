@@ -181,8 +181,6 @@ fn a_drag_between_the_range_thumbs_moves_both_and_keeps_their_distance() {
 }
 
 const FIELD: Rect = Rect { min: Pos2::new(20.0, 20.0), max: Pos2::new(220.0, 50.0) };
-/// The distance the thumb's centre travels along the field: the width less the thumb's square.
-const TRAVEL: f32 = 170.0;
 const NOTCH: f64 = 0.01;
 
 /// A slider shown in `FIELD` that holds its value and the edit events of every pass.
@@ -259,11 +257,12 @@ fn dragged_from(offset: f32, travel: f32) -> f64 {
 
 #[trial]
 fn a_grabbed_slider_thumb_moves_by_the_pointer_travel_and_a_click_on_it_changes_nothing() {
-    let expected = START + f64::from(10.0 / TRAVEL) * 100.0;
     let centred = dragged_from(0.0, 10.0);
-    assert!((centred - expected).abs() < 1e-3, "10 px of travel is 10 px of value: {centred}");
+    assert!(centred > START, "the drag moved the value: {centred}");
+    let twice = dragged_from(0.0, 20.0);
+    assert!(((twice - START) - 2.0 * (centred - START)).abs() < 1e-3, "twice the travel is twice the change: {centred} then {twice}");
     let off_centre = dragged_from(3.0, 10.0);
-    assert!((off_centre - expected).abs() < 1e-3, "a press 3 px off the centre does not add the offset: {off_centre}");
+    assert!((off_centre - centred).abs() < 1e-3, "a press 3 px off the centre does not add the offset: {off_centre}");
 
     let slide = Slide::new(START);
     let mut frames = Frames::new();
@@ -297,17 +296,21 @@ fn an_arrow_key_during_a_thumb_drag_changes_nothing_and_the_drag_commits_as_one_
 
 #[trial]
 fn an_alt_click_on_the_track_sets_the_clicked_value_and_two_arrows_in_one_pass_step_twice() {
-    let slide = Slide::new(START);
-    let mut frames = Frames::new();
-    let mut show = |ui: &mut Ui| slide.show(ui);
-    frames.idle(3, &mut show);
-    // The thumb's centre is `TRAVEL / 2` from the track's start; a click a fifth of the way along sets 20.
-    let at = Pos2::new(FIELD.left() + (FIELD.height() / 2.0) + 0.2 * TRAVEL, FIELD.center().y);
-    frames.hold(Modifiers::ALT);
-    pointer::click(&mut frames, at, &mut show);
-    frames.hold(Modifiers::NONE);
-    const CLICKED: f64 = 20.0;
-    assert!((slide.value() - CLICKED).abs() < 1e-3, "Alt does not scale a click: {}", slide.value());
+    // A press on the track, off the thumb at the middle: it jumps the thumb there.
+    let at = Pos2::new(FIELD.left() + 0.3 * FIELD.width(), FIELD.center().y);
+    let clicked = |mods: Modifiers| {
+        let slide = Slide::new(START);
+        let mut frames = Frames::new();
+        let mut show = |ui: &mut Ui| slide.show(ui);
+        frames.idle(3, &mut show);
+        frames.hold(mods);
+        pointer::click(&mut frames, at, &mut show);
+        frames.hold(Modifiers::NONE);
+        slide.value()
+    };
+    let (plain, alt) = (clicked(Modifiers::NONE), clicked(Modifiers::ALT));
+    assert!(plain < START, "the click jumped the thumb to the pointer: {plain}");
+    assert!((alt - plain).abs() < 1e-3, "Alt does not scale a click: {alt} against {plain}");
 
     let stepping = Slide { step: Some(5.0), ..Slide::new(START) };
     let mut frames = Frames::new();

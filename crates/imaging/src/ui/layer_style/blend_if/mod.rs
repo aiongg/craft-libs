@@ -87,7 +87,7 @@ impl<'a> BlendIfBar<'a> {
         let words = env.words::<BlendIfWords>();
         let units = env.units();
         let mut out: Option<EditResponse<BlendIfRange>> = None;
-        let shown_stack = Stack::new().label(label.clone()).show(ui, |ui, root| {
+        let shown_stack = Stack::new().fill_width().label(label.clone()).show(ui, |ui, root| {
             let held = range.reborrow().read(root);
             let mut row = match &held {
                 Some(Mixed::Same(range)) => range.row(),
@@ -103,7 +103,7 @@ impl<'a> BlendIfBar<'a> {
                 };
                 let readout =
                     craft_i18n::fmt(words.readout.as_str(), &[("black", &side(range.0[0], range.0[1])), ("white", &side(range.0[2], range.0[3]))]);
-                Row::new().align(RowAlign::End).show(ui, |ui, _| {
+                Row::new().fill_width().align(RowAlign::End).show(ui, |ui, _| {
                     Text::new(readout.clone()).role(TypeRole::Caption).shade(Shade::Muted).show(ui);
                 });
             }
