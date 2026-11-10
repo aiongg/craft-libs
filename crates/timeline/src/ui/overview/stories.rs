@@ -7,30 +7,37 @@ use egui::{Color32, Pos2, Ui, Vec2};
 
 use super::{TimelineOverview, overview_runs};
 use crate::time::{Tick, TimeRange, TimeView};
+use crate::ui::LabelPalette;
 
 /// The tracks of the story and the clips of each.
 const TRACKS: usize = 8;
-/// The clips of a track, one every `STEP` seconds, each `LENGTH` seconds long.
 const CLIPS: usize = 6;
-const STEP: f64 = 9.0;
-const LENGTH: f64 = 6.0;
-/// The content's end, in seconds.
-const END: f64 = CLIPS as f64 * STEP;
-/// The colours of the tracks, in turn.
-const COLORS: [Color32; 3] = [Color32::from_rgb(0x38, 0x0e, 0xa7), Color32::from_rgb(0x1d, 0x4a, 0x64), Color32::from_rgb(0x35, 0x54, 0x18)];
 
-fn tracks() -> Vec<Vec<(TimeRange, Color32)>> {
-    (0..TRACKS)
+/// Eight tracks of six clips in the label colours, of uneven lengths and gaps, and the end of the last clip.
+fn tracks() -> (Vec<Vec<(TimeRange, Color32)>>, Tick) {
+    let palette = LabelPalette::default();
+    let mut end = Tick::ZERO;
+    let tracks = (0..TRACKS)
         .map(|track| {
+            let mut at = (track % 3) as f64 * 2.0;
             (0..CLIPS)
                 .map(|clip| {
-                    let start = Tick::from_seconds_f64(clip as f64 * STEP + track as f64 * 0.5);
-                    (TimeRange::new(start, Tick::from_seconds_f64(LENGTH)), COLORS[track % COLORS.len()])
+                    let length = 6.0 + ((track + clip) % 4) as f64 * 3.0;
+                    let range = TimeRange::new(Tick::from_seconds_f64(at), Tick::from_seconds_f64(length));
+                    at += length + 1.0 + ((track + 2 * clip) % 3) as f64 * 2.0;
+                    end = end.max(range.end());
+                    (range, palette.0[(track * 2 + clip) % palette.0.len()])
                 })
                 .collect()
         })
-        .collect()
+        .collect();
+    (tracks, end)
 }
+
+/// Where the story's view starts and its zoom, in points per second, and its playhead, in seconds.
+const VIEW_START: f64 = 20.0;
+const VIEW_ZOOM: f64 = 10.0;
+const PLAYHEAD: f64 = 30.0;
 
 /// The closest zoom the invalid story accepts, in points per second.
 const CLOSEST_ZOOM: f64 = 100.0;
@@ -48,17 +55,14 @@ fn centre_the_window(fixture: &mut Fixture) {
 /// Shows the overview of the eight tracks over `view`.
 fn shown(ui: &mut Ui, view: Bind<'_, TimeView>) -> StoryOutput {
     let width = ui.available_width();
-    let runs = overview_runs(&tracks(), Tick::from_seconds_f64(END), Vec2::new(width, ui.available_height()));
-    TimelineOverview::new("Overview", &runs, view, Tick::from_seconds_f64(END))
-        .shown_width(width)
-        .playhead(Tick::from_seconds_f64(END / 2.0))
-        .show(ui)
-        .into()
+    let (tracks, end) = tracks();
+    let runs = overview_runs(&tracks, end, width);
+    TimelineOverview::new("Overview", &runs, view, end).shown_width(width).playhead(Tick::from_seconds_f64(PLAYHEAD)).show(ui).into()
 }
 
 #[story(TimelineOverview<'static>, covers = [Default], drive = Drive::Custom(centre_the_window))]
 fn eight_tracks(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    shown(ui, Bind::bound(data.value("view", TimeView::new(Tick::from_seconds_f64(10.0), 40.0))))
+    shown(ui, Bind::bound(data.value("view", TimeView::new(Tick::from_seconds_f64(VIEW_START), VIEW_ZOOM))))
 }
 
 #[story(TimelineOverview<'static>, covers = [Invalid], drive = Drive::Never)]

@@ -357,11 +357,15 @@ pub fn grid_lines_with(look: &GridLook, grid: &GridLines, ink: &GridInk, pixels_
     shapes
 }
 
-/// The tick marks of `ticks` on one edge of `rect` that `clip` shows: minor ones `gap.tight` long, mid ones
-/// `size.ruler.tick.mid`, major ones `gap.inline`.
+/// The tick marks of `ticks` on one edge of `rect` that `clip` shows, `stroke.thin` lines of `text.faint`: minor ones
+/// `gap.tight` long, mid ones `size.ruler.tick.mid`, major ones across the whole depth of `rect`, beside their labels.
 pub fn ticks(tokens: &UiTokens, rect: Rect, edge: TickEdge, ticks: &[Tick], clip: Rect, pixels_per_point: f32) -> Vec<Shape> {
-    let look = rule_look(tokens, RuleKind::Edge);
-    let (minor, mid, major) = (tokens.space.gap.tight, tokens.size.ruler.tick.mid, tokens.space.gap.inline);
+    let look = RuleLook { color: rgba_color(tokens.color.text.faint), width: tokens.stroke.thin };
+    let depth = match edge {
+        TickEdge::Bottom | TickEdge::Top => rect.height(),
+        TickEdge::Left | TickEdge::Right => rect.width(),
+    };
+    let (minor, mid, major) = (tokens.space.gap.tight, tokens.size.ruler.tick.mid, depth);
     ticks
         .iter()
         .filter_map(|tick| {

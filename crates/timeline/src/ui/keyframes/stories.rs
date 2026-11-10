@@ -2,6 +2,7 @@
 
 use craft_behavior::Selection;
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
+use craft_ui::layout_components::Row;
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
 
@@ -34,7 +35,7 @@ fn start_view() -> TimeView {
     TimeView::new(Tick::ZERO, POINTS_PER_SECOND)
 }
 
-/// Shows the lane `show` makes inside a timeline view over `view`, which publishes the time axis the lane reads.
+/// Shows the lane `show` makes inside a strip timeline view over `view`, which publishes the time axis the lane reads.
 /// `show` builds the lane and shows it on every run of the view's body.
 fn in_view<R>(ui: &mut Ui, view: &mut TimeView, mut show: impl FnMut(&mut Ui) -> R) -> StoryOutput
 where
@@ -42,6 +43,7 @@ where
 {
     let format = TimeFormat::timecode(FrameRate::FPS_24);
     TimelineView::new("Timeline", Bind::bound(view), format, seconds(12.0))
+        .strip()
         .show(ui, |ui, _| show(ui))
         .inner
         .map(StoryOutput::from)
@@ -52,12 +54,38 @@ fn selected() -> Selection<KeyframeId> {
     Selection::new(vec![KeyframeId::new(2), KeyframeId::new(3)], Some(KeyframeId::new(3)), Some(KeyframeId::new(2)))
 }
 
+/// The playhead of the lane story, in seconds.
+const PLAYHEAD: f64 = 4.0;
+
+/// A property's row: the stopwatch, the navigator and the lane, as a property shows its keys. The navigator's arrows
+/// move the playhead to the previous and the next key.
 #[story(KeyframeLane<'static>, covers = [Default])]
 fn linear_hold_and_bezier_keys(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let (keys, selection) = (keys(), selected());
+    let mut playhead = *data.value("playhead", seconds(PLAYHEAD));
+    let (before, after, at) =
+        (keys.iter().any(|k| k.time < playhead), keys.iter().any(|k| k.time > playhead), keys.iter().any(|k| k.time == playhead));
     let mut view = *data.value("view", start_view());
-    let shown = in_view(ui, &mut view, |ui| KeyframeLane::new("Keyframes", &keys, &selection).playhead(seconds(4.0)).show(ui));
+    let mut animated = *data.value("animated", true);
+    let shown = in_view(ui, &mut view, |ui| {
+        Row::new()
+            .show(ui, |ui, _| {
+                AnimationToggle::new(Bind::bound(&mut animated)).show(ui);
+                let navigator = KeyframeNavigator::new("Keyframe navigator", before, after, at).animated(animated).show(ui);
+                if navigator.previous {
+                    playhead = keys.iter().rev().find(|k| k.time < playhead).map_or(playhead, |k| k.time);
+                } else if navigator.next {
+                    playhead = keys.iter().find(|k| k.time > playhead).map_or(playhead, |k| k.time);
+                }
+                KeyframeLane::new("Keyframes", &keys, &selection).playhead(playhead).show(ui)
+            })
+            .inner
+            .map(StoryOutput::from)
+            .unwrap_or_default()
+    });
     *data.value("view", start_view()) = view;
+    *data.value("animated", true) = animated;
+    *data.value("playhead", seconds(PLAYHEAD)) = playhead;
     shown
 }
 

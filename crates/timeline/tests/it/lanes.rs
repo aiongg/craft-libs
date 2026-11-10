@@ -43,10 +43,31 @@ fn runs_merge_touching_clips_of_one_colour() {
     let [red, blue, ..] = LabelPalette::default().0;
     let clip = |at: f64, color| (TimeRange::new(seconds(at), seconds(1.0)), color);
     let tracks = vec![vec![clip(0.0, red), clip(1.0, red), clip(2.0, blue), clip(5.0, blue)]];
-    let runs: Vec<OverviewRun> = overview_runs(&tracks, seconds(10.0), vec2(200.0, 10.0));
+    let runs: Vec<OverviewRun> = overview_runs(&tracks, seconds(10.0), 200.0).runs;
     assert_eq!(runs.len(), 3, "two touching reds merge, the blue clips do not touch: {runs:?}");
     assert_eq!(runs[0].color, red);
-    assert!(runs[0].rect.width() > runs[1].rect.width() * 1.5);
+    assert!(runs[0].span.span() > runs[1].span.span() * 1.5);
+}
+
+/// Every track gets a row inside the overview, however tall the room it is shown in.
+#[trial]
+fn every_track_has_a_row_inside_the_overview() {
+    const TRACKS: usize = 8;
+    let palette = LabelPalette::default().0;
+    let tracks: Vec<_> = (0..TRACKS).map(|track| vec![(TimeRange::new(seconds(0.0), seconds(20.0)), palette[track])]).collect();
+    let mut fixture = Fixture::new(move |ui| {
+        let mut view = TimeView::new(Tick::ZERO, POINTS_PER_SECOND);
+        let runs = overview_runs(&tracks, seconds(40.0), ui.available_width());
+        TimelineOverview::new("Overview", &runs, Bind::bound(&mut view), seconds(40.0)).show(ui);
+    });
+    fixture.room(vec2(ROOM.x, ROOM.y * 10.0));
+    fixture.settle();
+    let overview = fixture.by_role(Role::IMAGE).into_iter().next().expect("the overview is an image").rect;
+    let rows: Vec<Rect> =
+        fixture.shape_bounds().iter().copied().filter(|b| b.height() < overview.height() / 2.0 && b.width() > overview.width() / 4.0).collect();
+    assert_eq!(rows.len(), TRACKS, "one run per track: {rows:?}");
+    assert!(rows.iter().all(|row| overview.expand(1.0).contains_rect(*row)), "every row lies inside {overview:?}: {rows:?}");
+    assert!(rows.windows(2).all(|pair| pair[1].top() >= pair[0].bottom() - 1.0), "rows stack top to bottom: {rows:?}");
 }
 
 /// A click centres the window at the pointer.
@@ -57,7 +78,7 @@ fn click_centres_the_view() {
     let mut fixture = Fixture::new(move |ui| {
         let mut view = shown.borrow_mut();
         let [red, ..] = LabelPalette::default().0;
-        let runs = overview_runs(&[vec![(TimeRange::new(seconds(0.0), seconds(20.0)), red)]], seconds(40.0), vec2(ROOM.x, 30.0));
+        let runs = overview_runs(&[vec![(TimeRange::new(seconds(0.0), seconds(20.0)), red)]], seconds(40.0), ROOM.x);
         TimelineOverview::new("Overview", &runs, Bind::bound(&mut *view), seconds(40.0)).shown_width(100.0).show(ui);
     });
     fixture.room(ROOM);
