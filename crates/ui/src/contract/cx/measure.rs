@@ -52,6 +52,14 @@ impl<C: Component> MeasureCx<'_, C> {
         commands::resolve_scoped(self.ui.ctx(), self.env.command_chain(), &command.into())
     }
 
+    /// The width a component whose height follows its width (wrapped text, a square plot) sizes at: the room the
+    /// parent offers, else the width the column has. A measuring run in a content column offers no room (nothing
+    /// there fills it), yet such a component takes the size it will show at: a message wider than a capped dialog
+    /// takes the lines it will show. `None` when the width is unbounded.
+    pub fn column_room(&self) -> Option<f32> {
+        self.room.or_else(|| Some(crate::layout::flow_room(self.ui).x).filter(|width| width.is_finite()))
+    }
+
     /// The label as given.
     pub fn label(&self) -> Label {
         self.resolved.label_value.clone()

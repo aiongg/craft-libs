@@ -340,6 +340,8 @@ pub struct PlotSizes {
     pub width: f32,
     /// Least height.
     pub height: f32,
+    /// The greatest side of a square plot that takes the room it is given (the graph of a curve editor).
+    pub most: f32,
 }
 
 /// Canvas drag handle sizes, in logical pixels.

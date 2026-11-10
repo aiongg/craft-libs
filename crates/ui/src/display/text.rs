@@ -128,9 +128,7 @@ impl Component for Text {
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        // A measuring run in a content column offers no room (nothing there fills it), yet a text wraps at the
-        // width the column has: a message wider than a capped dialog takes the lines it will show.
-        let wrap = cx.room.or_else(|| Some(crate::layout::flow_room(cx.ui).x).filter(|width| width.is_finite()));
+        let wrap = cx.column_room();
         if !self.spans.is_empty() {
             let doc = DocText { wrap: Some(wrap.unwrap_or(f32::INFINITY)), ..self.doc() };
             let layout = doc.layout(cx.ui.ctx(), cx.tokens, cx.env.text_direction());

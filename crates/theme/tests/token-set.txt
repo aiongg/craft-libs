@@ -131,6 +131,7 @@ size.panel_header
 size.popup_min
 size.scroll_fade
 size.plot.height
+size.plot.most
 size.plot.width
 size.pointer_tip.x
 size.pointer_tip.y
