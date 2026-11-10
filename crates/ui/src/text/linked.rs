@@ -225,12 +225,13 @@ impl<const N: usize> Component for LinkedFields<'_, N> {
         let group = cx.label();
         let words = cx.words::<LinkedWords>();
         let gap = cx.gap();
+        let colon = cx.layout(&TextRun::new(crate::contract::colon_of(&cx.words::<crate::runtime::words::CommonWords>()))).size().x;
         let mut cell = Vec2::ZERO;
         for (i, value) in shown.iter().enumerate() {
             let mut field = self.field(i, &group, &words, cx.format(), *value);
             let size = cx.child(("field", i), &mut field, Proposal::Ideal);
             let caption = match &self.captions {
-                Some(captions) => cx.layout(&TextRun::new(captions[i].as_str())).size().x + gap,
+                Some(captions) => cx.layout(&TextRun::new(captions[i].as_str())).size().x + colon + gap,
                 None => 0.0,
             };
             cell = cell.max(Vec2::new(size.x + caption, size.y));

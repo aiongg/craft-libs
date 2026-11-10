@@ -463,7 +463,12 @@ fn colon(env: &Env, input: &LabelIn<'_>) -> Option<String> {
     if !beside_text || text.as_str().is_empty() || text.as_str().ends_with([':', '\u{ff1a}']) {
         return None;
     }
-    Some(env.words::<CommonWords>().caption.fill(&[("caption", "")]))
+    Some(colon_of(&env.words::<CommonWords>()))
+}
+
+/// The colon of the scope's language that follows a caption's name.
+pub(crate) fn colon_of(words: &CommonWords) -> String {
+    words.caption.fill(&[("caption", "")])
 }
 
 /// What the step needs of the row it runs for.

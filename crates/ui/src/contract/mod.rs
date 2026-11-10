@@ -62,6 +62,7 @@ pub use group::{GroupHandle, GroupKind, GroupState};
 pub use held::Held;
 pub use items::{ColumnCommands, SweepApply, SweepStep, request_rename, section_part};
 pub(crate) use items::{lead_position, put_toggle_names};
+pub(crate) use label::colon_of;
 pub use label::{CellWidth, FieldLabelRole, FieldLayout, GlyphLabel, LabelAlign, LabelKind, Scrub, SideLabel};
 #[cfg(feature = "testing")]
 pub(crate) use level::KIT_MODULES;
