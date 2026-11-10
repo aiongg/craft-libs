@@ -10,6 +10,7 @@ use std::path::PathBuf;
 
 /// The time the age lines count from, in seconds since the Unix epoch.
 const NOW: i64 = 1_800_000_000;
+const HOUR: i64 = 3_600;
 const DAY: i64 = 86_400;
 /// The size of the stored pictures.
 const PICTURE: [usize; 2] = [64, 36];
@@ -65,13 +66,20 @@ fn fill(ui: &Ui) -> TextureStore<ThumbKey> {
 
 /// Six files and three templates, none with a picture: every tile shows the placeholder.
 fn plain_files() -> Vec<RecentFile> {
-    let file = |name: &str, days: i64| {
+    let file = |name: &str, age: i64| {
         let mut file = RecentFile::new(PathBuf::from("/home/user/Pictures").join(name), name);
-        file.opened = Some(NOW - days * DAY);
-        file.created = Some(NOW - (days + 30) * DAY);
+        file.opened = Some(NOW - age);
+        file.created = Some(NOW - age - DAY);
         file
     };
-    vec![file("Harbour.psd", 0), file("Poster draft.psd", 0), file("Logo.psd", 2), file("a10.psd", 9), file("a2.psd", 40), file("Scan 0007.psd", 400)]
+    vec![
+        file("Harbour.psd", 30),
+        file("Poster draft.psd", 2 * HOUR),
+        file("Logo.psd", 2 * DAY),
+        file("a10.psd", 9 * DAY),
+        file("a2.psd", 40 * DAY),
+        file("Scan 0007.psd", 400 * DAY),
+    ]
 }
 
 fn plain_templates() -> Vec<Template> {

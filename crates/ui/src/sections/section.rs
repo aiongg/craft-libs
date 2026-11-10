@@ -90,7 +90,7 @@ impl<'a> Section<'a> {
     }
 
     fn build(title: impl Into<Label>, collapsible: bool, props: ContainerProps) -> Self {
-        let props = props.header(HeaderRegion::new().rule_above(true));
+        let props = props.header(HeaderRegion::new().rule_above(true).gap(Gap::Tight));
         Section {
             common: Common::new(),
             props,
@@ -105,13 +105,6 @@ impl<'a> Section<'a> {
             nudged: None,
         }
         .label(title)
-    }
-
-    /// The spacing between the children of the body.
-    #[must_use]
-    pub fn body_gap(mut self, gap: Gap) -> Self {
-        self.props = self.props.body_gap(gap);
-        self
     }
 
     /// Whether the section starts open (the default). The state lives in the container unless `open` binds it.

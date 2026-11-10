@@ -21,7 +21,6 @@ use crate::primitives::{CachedTexture, ContentPainterCx, IconSpec, Revision, Tex
 use crate::runtime::commands::{CommandSet as _, Commands as _};
 use crate::runtime::env::{AgeStyle, Env, Label};
 use crate::sections::Section;
-use crate::style::UiTokens;
 use crate::tile_grid::{CaptionPlace, Tile, TileGrid, TilePartEvent, TileStatus};
 use craft_behavior::{IconId, SelectionChange, keyed};
 use craft_theme::Variant;
@@ -197,12 +196,6 @@ struct Page<'p> {
 }
 
 impl Page<'_> {
-    /// An empty first child of a section body: the body gap (`Gap::Section`) then separates the control row from the
-    /// first row of content.
-    fn body_top(&self, ui: &mut Ui) {
-        let _ = Row::new().show(ui, |_, _| {});
-    }
-
     fn push(&self, action: StartAction) {
         self.actions.borrow_mut().push(action);
     }
@@ -263,9 +256,8 @@ fn paint_picture(cx: &ContentPainterCx, rect: Rect, texture: CachedTexture) {
     }
     let scale = (rect.width() / size.x).min(rect.height() / size.y);
     let fitted = Rect::from_center_size(rect.center(), size * scale);
-    let radius = UiTokens::corner(cx.style_cx().tokens.shape.radius.control);
     let uv = Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0));
-    cx.painter.add(egui::epaint::RectShape::filled(fitted, radius, crate::primitives::textures::UNTINTED).with_texture(texture.id, uv));
+    cx.picture_rounded(texture.id, fitted, uv, cx.style_cx().tokens.shape.radius.control);
 }
 
 /// The folder a path is in, for the line under a file's name.
@@ -356,14 +348,12 @@ fn recent_section(
         Entry::new(RecentSort::Created, words.sort_created.clone()),
     ];
     let _ = Section::fixed(words.recent.clone())
-        .body_gap(Gap::Section)
         .command_scope(StartRecentCommands::SCOPE)
         .controls(|ui, _| {
             let _ = Segmented::new(words.view.clone(), view.borrow_mut().reborrowed(), &modes).show(ui);
             let _ = Select::new(words.sort.clone(), sort.borrow_mut().reborrowed(), &orders).show(ui);
         })
         .show(ui, |ui, cx| {
-            page.body_top(ui);
             let mut lead = cx.keep::<Leads>().recent.clone().filter(|path| files.iter().any(|file| &file.path == path));
             while let Some((command, _)) = cx.take_command::<StartRecentCommands>() {
                 let action = match (command, lead.clone()) {
@@ -440,7 +430,6 @@ fn recent_section(
 fn pinned_section(page: &Page<'_>, ui: &mut Ui, folders: &[PathBuf]) {
     let words = page.words;
     let _ = Section::fixed(words.pinned.clone())
-        .body_gap(Gap::Section)
         .command_scope(StartPinnedCommands::SCOPE)
         .controls(|ui, _| {
             if clicked(&Button::new(words.pin_folder.clone()).id_salt("pin").icon(IconId::new("new_folder")).show(ui)) {
@@ -448,7 +437,6 @@ fn pinned_section(page: &Page<'_>, ui: &mut Ui, folders: &[PathBuf]) {
             }
         })
         .show(ui, |ui, cx| {
-            page.body_top(ui);
             let mut lead = cx.keep::<Leads>().pinned.clone().filter(|path| folders.contains(path));
             while let Some((command, _)) = cx.take_command::<StartPinnedCommands>() {
                 let Some(path) = lead.clone() else { continue };
@@ -486,8 +474,7 @@ fn pinned_section(page: &Page<'_>, ui: &mut Ui, folders: &[PathBuf]) {
 
 fn templates_section(page: &Page<'_>, ui: &mut Ui, templates: &[Template]) {
     let words = page.words;
-    let _ = Section::fixed(words.templates.clone()).body_gap(Gap::Section).show(ui, |ui, _| {
-        page.body_top(ui);
+    let _ = Section::fixed(words.templates.clone()).show(ui, |ui, _| {
         let source = keyed(templates, |template: &Template| template.id.clone()).with_text(|template| Cow::Borrowed(template.name.as_str()));
         let out = page.grid::<String>(words.templates.clone(), false).show_items(ui, &source, &mut |id, _| {
             let Some(template) = templates.iter().find(|template| &template.id == id) else { return Tile::new(Label::Empty) };
