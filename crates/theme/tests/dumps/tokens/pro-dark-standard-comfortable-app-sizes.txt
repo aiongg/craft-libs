@@ -114,6 +114,7 @@ space.gap.tight = 3
 space.gap.inline = 6
 space.gap.row = 6
 space.gap.stack = 8
+space.gap.item = 10
 space.gap.section = 16
 space.pad.control = 8
 space.pad.regular = 14

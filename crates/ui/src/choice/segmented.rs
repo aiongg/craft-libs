@@ -80,7 +80,7 @@ impl<T: Value + 'static> Component for Segmented<'_, T> {
         SegmentedStyle {
             metrics: Metrics::new().min_size(Vec2::new(0.0, control.height)),
             focus: cx.focus_look(),
-            gap: cx.tokens.space.gap.stack,
+            gap: cx.tokens.space.gap.item,
             height: control.height,
         }
     }

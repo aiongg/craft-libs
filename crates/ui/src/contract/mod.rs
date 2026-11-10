@@ -47,6 +47,7 @@ pub use collection::{
     ContextMenuRequest, DragPayload, HeaderMenuRequest, ItemKeys, LeadOnOpen, LeadSource, ListDrag, OpenChange, Rename, ReorderMove, ReorderRule,
     RowState, SelectMode, ShownRow, SpaceAction, ToggleColumn, ToggleEdit,
 };
+pub(crate) use container::InBar;
 pub use container::{
     Collapse, ContainerProps, DragBand, EndRegion, FooterPlace, FooterRegion, Gap, HeaderRegion, Mount, Notch, Pad, PaneEdge, Scroll, ScrollAnchor,
     ScrollAxes, ShellPane, Sizing, ThemeScope,

@@ -138,6 +138,7 @@ space.gap.inline
 space.gap.row
 space.gap.section
 space.gap.stack
+space.gap.item
 space.gap.tight
 space.inset.screen
 space.pad.chip

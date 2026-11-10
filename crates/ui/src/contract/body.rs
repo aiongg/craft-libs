@@ -466,6 +466,7 @@ fn gap_of(tokens: &UiTokens, gap: Gap) -> f32 {
     match gap {
         Gap::Tight => gaps.tight,
         Gap::Stack => gaps.stack,
+        Gap::Item => gaps.item,
         Gap::Section => gaps.section,
         _ => gaps.row,
     }
@@ -2303,7 +2304,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 if let (false, true, Some(side)) = (real, env.content.0, props.label.as_ref().filter(|_| label_extra.x > 0.0 && label_extra.y <= 0.0))
                 {
                     let column = if matches!(side.kind, label::LabelKind::Glyph(_)) { layout::GLYPHS } else { layout::LABELS };
-                    layout::report_beyond(&ctx, &column, env.tokens.space.gap.inline + size.x);
+                    layout::report_beyond(&ctx, &column, label::label_gap(env) + size.x);
                 }
                 *size += label_extra;
             }

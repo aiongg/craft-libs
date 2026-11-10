@@ -98,6 +98,7 @@
     "space": {
       "gap": {
         "inline": 6.0,
+        "item": 10.0,
         "row": 6.0,
         "section": 16.0,
         "stack": 8.0,

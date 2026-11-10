@@ -24,7 +24,7 @@ impl BarCell {
     pub fn control<R>(self, ui: &mut Ui, control: impl FnOnce(&mut Ui, Label) -> R) -> R {
         let mut control = Some(control);
         let mut result = None;
-        Row::new().gap(Gap::Stack).show(ui, |ui, _| {
+        Row::new().gap(Gap::Item).show(ui, |ui, _| {
             Text::new(self.caption.clone()).shade(Shade::Muted).show(ui);
             if let Some(control) = control.take() {
                 result = Some(control(ui, self.caption.clone()));

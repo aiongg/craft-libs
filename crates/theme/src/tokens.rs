@@ -737,6 +737,8 @@ pub struct Gaps {
     pub row: f32,
     /// Between stacked rows.
     pub stack: f32,
+    /// Between neighbouring controls in a bar, and between a bar caption and its control.
+    pub item: f32,
     /// Between groups.
     pub section: f32,
 }

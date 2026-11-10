@@ -147,6 +147,7 @@ pub(crate) fn leaves(b: &mut Preset) -> Vec<Leaf<'_>> {
         "base.space.gap.inline" Num 0.0..=32.0 => sp.gap.inline;
         "base.space.gap.row" Num 0.0..=32.0 => sp.gap.row;
         "base.space.gap.stack" Num 0.0..=32.0 => sp.gap.stack;
+        "base.space.gap.item" Num 0.0..=32.0 => sp.gap.item;
         "base.space.gap.section" Num 0.0..=32.0 => sp.gap.section;
         "base.space.pad.control" Num 0.0..=32.0 => sp.pad.control;
         "base.space.pad.regular" Num 0.0..=32.0 => sp.pad.regular;
