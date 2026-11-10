@@ -199,6 +199,15 @@ impl<'a> Draw<'a> {
         layout
     }
 
+    /// `text` with the line centred vertically in `rect`: the placement of a single-line label in a control.
+    pub(crate) fn text_centred(&self, rect: Rect, run: &TextRun<'_>) -> TextLayout {
+        let layout = run.layout(self.painter.ctx(), &self.text_env(), rect.width());
+        let at_end = self.text_direction == Direction::Rtl && !run.ltr;
+        let x = if at_end { rect.right() - layout.size().x } else { rect.left() };
+        self.galley(Pos2::new(x, rect.center().y - layout.size().y / 2.0), &layout);
+        layout
+    }
+
     /// Lays `text` out in `rect`'s width and paints it top aligned, its block placed in `rect` by `text.align` (Start
     /// and End swap sides under right-to-left). Each run keeps its own font, size and colour.
     pub fn doc(&self, rect: Rect, text: &DocText<'_>) -> TextLayout {

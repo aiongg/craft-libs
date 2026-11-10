@@ -130,7 +130,7 @@ impl Component for SelectFace<'_> {
         if self.name {
             let look = if self.placeholder { &cx.style.placeholder } else { &cx.style.text };
             let run = TextRun::new(cx.resolved.label).role(look.role).elide().color(cx.resolve(&look.color));
-            ui.draw().text(placed.text, &run);
+            ui.draw().text_centred(placed.text, &run);
         }
         if let Some(rect) = placed.trailing.first() {
             chevron.paint(ui, *rect, cx.resolve(&cx.style.chevron.color));
