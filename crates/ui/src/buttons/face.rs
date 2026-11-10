@@ -3,7 +3,7 @@
 
 use crate::contract::{Component, Cx, MeasureCx, PaintUi, Styled as _};
 use crate::primitives::{IconSpec, TextRun};
-use crate::style::{FocusLook, IconLook, StyleColor, StyleCx, SurfaceKind, SurfaceLook, TextLook, TypeRole, VariantParts};
+use crate::style::{FocusLook, IconLook, StyleColor, StyleCx, SurfaceKind, SurfaceLook, TextLook, TypeRole, UiTokens, VariantParts};
 use craft_behavior::{Flow, Insets, Metrics, Proposal};
 use craft_theme::{
     BySize, Stateful, States, Variant,
@@ -93,6 +93,34 @@ pub(super) fn surface(cx: &StyleCx<'_>, parts: &VariantParts) -> SurfaceLook {
     match parts.edge.clone() {
         Some(edge) => look.border(edge, cx.tokens.stroke.thin).border_replaces_edge(),
         None => look.border_replaces_edge(),
+    }
+}
+
+/// The surface of a button that shows the on look while on: the variant's surface, with the on plate and edge in
+/// place of its fill and edge while on.
+pub(super) fn on_surface(cx: &StyleCx<'_>, off: &VariantParts, on: &VariantParts) -> SurfaceLook {
+    let mut look = surface(cx, off);
+    look.fill = off.fill.clone().on(on.fill.off);
+    look.border = off.edge.clone().map(|edge| edge.on(on.edge.as_ref().map_or(on.fill.off, |edge| edge.off)));
+    look
+}
+
+/// The look of a button that shows only its icon: an icon button, or a toggle button that is `icon_only`.
+pub(super) struct IconFace {
+    pub surface: SurfaceLook,
+    pub metrics: Metrics,
+    /// The glyph at the glyph side, in the on look's text colour while on.
+    pub glyph: IconLook,
+}
+
+/// The icon-only look of the instance's variant: a square of the control height with control corners, as a ghost
+/// button of the old look (a capsule would round the on plate), showing the on look while on.
+pub(super) fn icon_face(cx: &StyleCx<'_>) -> IconFace {
+    let (off, on) = (cx.variant_look(), on_parts(cx));
+    IconFace {
+        surface: on_surface(cx, &off, &on).radius(UiTokens::corner(cx.tokens.shape.radius.control)),
+        metrics: Metrics::new().min_size(Vec2::splat(cx.control().height)),
+        glyph: IconLook::new(glyph_side(cx), off.text.clone().on(on.text.off)),
     }
 }
 
