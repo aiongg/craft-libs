@@ -74,7 +74,7 @@ impl Component for Switch<'_> {
             focus: cx.focus_look(),
             track,
             edge,
-            thumb_disabled: thumb.disabled(cx.color(colors.surface.panel).egui(), cx.color(colors.line.divider).egui()),
+            thumb_disabled: thumb.disabled(cx.color(colors.state.disabled_fill).egui(), cx.color(colors.line.divider).egui()),
             thumb,
             radius: CornerRadius::same((control.icon / 2.0).round() as u8),
             width: cx.tokens.size.toggle,

@@ -41,7 +41,7 @@ pub struct SurfaceStyle {
 }
 
 impl SurfaceStyle {
-    /// This look while disabled: opaque, the fill moved toward `panel` by `Opacity::DISABLED`, the edge `edge`, and no
+    /// This look while disabled: opaque, the fill moved toward `panel` (the disabled fill) by `Opacity::DISABLED`, the edge `edge`, and no
     /// shadow.
     pub fn disabled(&self, panel: Color32, edge: Color32) -> SurfaceStyle {
         let edge = match self.edge {
