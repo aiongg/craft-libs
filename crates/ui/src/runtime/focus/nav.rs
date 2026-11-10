@@ -5,7 +5,7 @@ use super::{Act, BeginIn, FocusTarget, Initial, State, StopKey, StopRec};
 use crate::runtime::egui::focus as egui_focus;
 use craft_behavior::focus::after_removal;
 use craft_behavior::nav::step;
-use craft_behavior::{MoveMods, NavMove, NavOutline, NavStep, ScopeKind};
+use craft_behavior::{Arrows, MoveMods, NavMove, NavOutline, NavStep, ScopeKind};
 use egui::{Context, Id};
 use std::collections::HashSet;
 
@@ -234,10 +234,24 @@ impl State {
         }
     }
 
-    /// A roving move of the group of `from`: focus moves to the member the navigation core picks.
+    /// A roving move of the group of `from`: focus moves to the member the navigation core picks. A one-line text
+    /// stop in the body of a group that moves with Up and Down only, which it did not join, hands the group those
+    /// keys: they enter the group at its first or last member.
     fn roving_move(&mut self, from: StopKey, mv: NavMove, mods: MoveMods, horizontal: bool) -> Option<Vec<Act>> {
         let current = self.find_stop(from)?;
-        let group = self.group(current.stop.group?)?;
+        let (group, member) = match current.stop.group {
+            Some(group) => (self.group(group)?, true),
+            None => (self.group(current.stop.body?)?, false),
+        };
+        let hands_on = || {
+            current.stop.text
+                && !current.stop.role.value
+                && matches!(group.roving.arrows, Arrows::Vertical)
+                && matches!(mv, NavMove::Up | NavMove::Down)
+        };
+        if !member && !hands_on() {
+            return None;
+        }
         let mv = match (horizontal && group.rtl, mv) {
             (true, NavMove::Back) => NavMove::Forward,
             (true, NavMove::Forward) => NavMove::Back,

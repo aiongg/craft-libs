@@ -490,7 +490,7 @@ fn stops_step<C: Component>(at: StopsStep<'_>, hooks: &dyn ShapeHooks<C>, comp: 
         rtl,
         parts,
         group: steps::member_group(ctx, env.roving, id),
-        body_roving,
+        body: env.roving,
         row: env.row,
         item: env.item == Some(id),
         default_stop: resolved.default_stop,
@@ -748,8 +748,16 @@ fn run_in_host<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Opti
     }
     p.hooks.updated(comp, cx);
     steps::record_context(&cx.core);
-    if let (Some(roving), Some(arrival)) = (p.hooks.roving(comp), cx.core.roving_arrival) {
-        focus::register_group(&ctx, focus::Group::new(steps::body_group(id), roving).rtl(rtl).selected((arrival, None)));
+    // The body's group registers after `update`, which may change its rules from what the component knows now.
+    if let Some(roving) = p.hooks.roving(comp) {
+        let group = focus::Group::new(steps::body_group(id), roving).rtl(rtl);
+        focus::register_group(
+            &ctx,
+            match cx.core.roving_arrival {
+                Some(arrival) => group.selected((arrival, None)),
+                None => group,
+            },
+        );
     }
     // 10 overlay
     p.trace.mark(Step::Overlay);

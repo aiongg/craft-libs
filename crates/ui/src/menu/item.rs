@@ -11,8 +11,8 @@ use crate::runtime::access::PopupKind;
 use crate::runtime::commands::{CommandRef, FireSource, ResolvedCommand};
 use crate::runtime::env::{AppValues, EnvValue, Label};
 use crate::runtime::frame;
-use crate::style::{ComponentStyle, Flags, FocusLook, IconLook, StyleCx, SurfaceLook, TextLook, TypeRole};
-use craft_behavior::{ColumnKey, Flow, IconId, Insets, Intent, Metrics, NavMove, PartKey, Sense};
+use crate::style::{ComponentStyle, Flags, IconLook, StyleCx, SurfaceLook, TextLook, TypeRole};
+use craft_behavior::{ColumnKey, Flow, IconId, Insets, Metrics, NavMove, PartKey, Sense};
 use craft_keymap::mnemonic;
 use craft_theme::{Rgba, States};
 use egui::{Context, Id, Pos2, Rect, Response, Vec2, pos2};
@@ -307,15 +307,7 @@ impl MenuLevel {
         })
     }
 
-    /// The enabled row the first arrow key enters the level at: the last one for Up, the first for Down.
-    fn arrow_entry(&self, up: bool) -> Option<Id> {
-        self.with(|state| {
-            let mut enabled = state.shown.iter().filter(|row| row.enabled).map(|row| row.id);
-            if up { enabled.next_back() } else { enabled.next() }
-        })
-    }
-
-    fn has_active(&self) -> bool {
+    pub(crate) fn has_active(&self) -> bool {
         self.with(|state| state.active.is_some())
     }
 
@@ -358,8 +350,6 @@ pub struct MenuItemStyle {
     surface: SurfaceLook,
     #[style(metrics)]
     metrics: Metrics,
-    #[style(focus)]
-    focus: FocusLook,
     /// The label and the marks.
     #[style(text)]
     text: TextLook,
@@ -622,7 +612,6 @@ impl Component for MenuItem<'_> {
         MenuItemStyle {
             surface,
             metrics,
-            focus: cx.focus_look(),
             text: TextLook::new(TypeRole::Body, ink(text.normal)),
             icon: IconLook::new(control.icon, ink(text.normal)),
             detail: TextLook::new(TypeRole::Caption, ink(text.muted)),
@@ -713,20 +702,9 @@ impl Component for MenuItem<'_> {
                 (0.0, gained, started)
             }
         };
-        if focused
-            && key_started
-            && !(forward || back || cx.intents().untaken(&Intent::Cancel))
-            && !level.has_active()
-            && let Some(target) = level.arrow_entry(!focus_gained)
-        {
-            // The first key of a menu that the pointer opened without making a row active, taken as an arrow: Down
-            // moved focus off the first row and activates the first enabled row; Up could not move it and activates
-            // the last enabled row.
-            crate::runtime::focus::request(&ctx, crate::runtime::focus::FocusTarget::Id(target));
-            level.activate_row(target);
-            frame::request_repaint(&ctx);
-        // Focus lands on a row of a menu that the pointer opened without making it active: only the keyboard does.
-        } else if enabled && ((hovered && moving) || (focus_gained && level.keyboard())) && level.activate_row(cx.id) {
+        // The focused row of a menu that the pointer opened is not active: the keyboard makes it so when focus lands on
+        // it or the keyboard starts driving the menu.
+        if enabled && ((hovered && moving) || (focused && keyboard && (focus_gained || key_started))) && level.activate_row(cx.id) {
             frame::request_repaint(&ctx);
         }
         // A disabled row is never active.

@@ -29,13 +29,15 @@ pub struct Stop {
     pub name: Option<&'static str>,
     /// The roving group the stop belongs to.
     pub group: Option<Id>,
+    /// The roving group of the innermost body the stop sits in, whether or not the stop joined it.
+    pub body: Option<Id>,
 }
 
 #[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers stops and groups"))]
 impl Stop {
     /// A stop of component `id` with `keys`, its own egui root.
     pub fn new(id: Id, keys: KeyUse) -> Stop {
-        Stop { id, part: None, root: id, keys, role: KeyRole::new(), text: false, default: false, name: None, group: None }
+        Stop { id, part: None, root: id, keys, role: KeyRole::new(), text: false, default: false, name: None, group: None, body: None }
     }
 
     /// A stop on a part of the component.
@@ -77,6 +79,12 @@ impl Stop {
     /// Joins the roving group `group`.
     pub fn in_group(mut self, group: Id) -> Self {
         self.group = Some(group);
+        self
+    }
+
+    /// Sits in the body of the roving group `group`, if any.
+    pub fn in_body(mut self, group: Option<Id>) -> Self {
+        self.body = group;
         self
     }
 
