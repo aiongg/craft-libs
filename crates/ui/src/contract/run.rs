@@ -1196,7 +1196,7 @@ pub(crate) fn paint_face<C: Show>(ui: &mut Ui, source: &FaceSource<'_>, part: Pa
             text: None,
             muted: None,
             flags: crate::style::Flags::empty(),
-            enabled: step1.enabled,
+            enabled: step1.enabled && source.enabled,
             size: step1.size,
             kids: None,
         };

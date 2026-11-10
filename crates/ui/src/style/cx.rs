@@ -276,16 +276,23 @@ impl<'a> StyleCx<'a> {
         surface_style(self.tokens, kind)
     }
 
-    /// The look of a text well: the well surface with an edge over it that takes the focus colour while the well
-    /// holds focus, in any modality. A component that carries no value, so is never invalid, uses it as it is.
+    /// The look of a text well: the well surface with an edge that takes the focus colour while the well holds
+    /// focus, in any modality, and the quieter divider colour while it is disabled. The edge replaces the surface's
+    /// flat stroke; a bevelled well keeps its bevel and draws no further edge. A component that carries no value, so
+    /// is never invalid, uses it as it is.
     pub fn text_well(&self) -> SurfaceLook {
         let well = self.surface(SurfaceKind::Well);
-        let edge = Stateful::new(self.color(Rgba::TRANSPARENT)).when(Flags::FOCUSED, self.color(self.tokens.color.line.focus));
+        let colors = &self.tokens.color;
+        let flat = matches!(well.edge, super::surface::SurfaceEdge::Border(_));
+        let (rest, disabled) = if flat { (colors.line.control_edge, colors.line.divider) } else { (Rgba::TRANSPARENT, Rgba::TRANSPARENT) };
+        let (rest, disabled) = (self.color(rest), self.color(disabled));
+        let edge = Stateful::new(rest).off(States::new(rest, rest, rest, disabled)).when(Flags::FOCUSED, self.color(colors.line.focus));
         let (fill, off) = (StyleColor(well.fill), self.color(self.tokens.color.state.disabled_fill));
         SurfaceLook::new(Stateful::new(fill).off(States::new(fill, fill, fill, off)))
             .kind(SurfaceKind::Well)
             .radius(well.radius)
             .border(edge, StrokeStep::W1.width(1.0))
+            .border_replaces_edge()
     }
 
     /// The look of a text or value field: the text well with the failure colour on its edge while its value is

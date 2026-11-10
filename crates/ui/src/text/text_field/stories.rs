@@ -1,7 +1,8 @@
 //! Stories of `TextField`.
 
 use super::TextField;
-use crate::contract::{Bind, Props as _, Show as _, Validity};
+use crate::contract::{Bind, Props as _, Show as _, ShowContainer as _, Validity};
+use crate::form::Field;
 use crate::primitives::{Completer, Completion, IconSpec};
 use crate::runtime::env::Message;
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
@@ -11,14 +12,36 @@ use egui::{Key, Modifiers, Ui};
 use std::ops::Range;
 
 const SIZES: [(&str, ControlSize); 2] = [("Sm", ControlSize::Sm), ("Md", ControlSize::Md)];
+const LAYER_LONG: &str = "A layer name long enough to scroll inside the field while the caret moves along it";
 const LONG: &str = "A name that runs on well past the end of the field, so the field scrolls its text under the caret";
 
 #[story(TextField<'static, PlainText>, covers = [Default])]
 fn text_field(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let size = *data.choice("size", ControlSize::Md, &SIZES);
     let placeholder = data.value("placeholder", String::from("Untitled")).clone();
-    let out = TextField::new("Name", Bind::bound(data.value("name", String::new()))).placeholder(placeholder).size(size).show(ui);
-    TextField::search("Search, disabled", Bind::bound(&mut String::from("Off"))).size(size).enabled(false).show(ui);
+    let out = Field::new("Empty").id_salt("empty").show(ui, |ui, _| {
+        TextField::new("Name", Bind::bound(data.value("name", String::new()))).placeholder(placeholder.clone()).size(size).show(ui)
+    });
+    Field::new("Filled").id_salt("filled").show(ui, |ui, _| {
+        TextField::new("Layer", Bind::bound(&mut String::from("Background"))).placeholder(placeholder.clone()).size(size).show(ui);
+    });
+    Field::new("Long text").id_salt("long").show(ui, |ui, _| {
+        TextField::new("Layer name", Bind::bound(&mut String::from(LAYER_LONG))).size(size).show(ui);
+    });
+    let refuse_slash =
+        |text: &String| if text.contains('/') { Validity::Refuse(Message::new("A name cannot contain a slash")) } else { Validity::Ok };
+    Field::new("Invalid").id_salt("invalid").show(ui, |ui, _| {
+        TextField::new("Layer path", Bind::bound(&mut String::from("Layer/1")).check(refuse_slash)).size(size).show(ui);
+    });
+    Field::new("Leading icon").id_salt("leading").show(ui, |ui, _| {
+        TextField::new("Layer icon", Bind::bound(&mut String::from("Layers"))).leading(IconSpec::svg(IconId::new("layers"))).size(size).show(ui);
+    });
+    for (at, text) in ["", "Locked layer"].into_iter().enumerate() {
+        let name = if text.is_empty() { "Disabled, empty" } else { "Disabled, filled" };
+        Field::new(name).id_salt(("disabled", at)).show(ui, |ui, _| {
+            TextField::new(name, Bind::bound(&mut text.to_owned())).placeholder(placeholder.clone()).size(size).enabled(false).show(ui);
+        });
+    }
     out.into()
 }
 

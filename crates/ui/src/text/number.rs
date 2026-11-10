@@ -26,7 +26,7 @@ use craft_behavior::{
     Codec, DisplayOrder, Flow, HitLevel, HitPriority, ItemSource, Metrics, MoveMods, NavMove, NotAValue, NumberCodec, PartKey, Selection, Sense,
     ValueDrag, decimals_for_step, wheel_step,
 };
-use craft_theme::Stateful;
+use craft_theme::{Stateful, States};
 use egui::{Pos2, Rect, Response, Vec2};
 use std::borrow::Cow;
 use std::marker::PhantomData;
@@ -727,12 +727,13 @@ impl<V: NumberValue + 'static> Component for NumberField<'_, V> {
 
     fn style(cx: &StyleCx<'_>, _: NumberFieldStyleKey<V>) -> NumberStyle {
         let field = FieldStyle::at(cx);
+        let faint = cx.color(cx.tokens.color.text.faint);
         NumberStyle {
             surface: field.surface.clone(),
             // The width comes from the range's widest value or, with no range, the field's minimum (`measure`); the
             // style's minimum is only the height.
             metrics: field.metrics.min_size(Vec2::new(0.0, field.metrics.min_size.y)),
-            unit: TextLook::new(TypeRole::Body, Stateful::new(cx.color(cx.tokens.color.text.faint))),
+            unit: TextLook::new(TypeRole::Body, Stateful::new(faint).off(States::new(faint, faint, faint, cx.color(cx.tokens.color.text.disabled)))),
             field,
         }
     }
