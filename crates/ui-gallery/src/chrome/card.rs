@@ -103,6 +103,7 @@ impl Card<'_> {
             .command_scope(CardCommands::SCOPE)
             .selected(self.selected)
             .pickable()
+            .framed()
             .band(SurfaceKind::Background)
             .strength(HeaderStrength::Section)
             .pad(pad);

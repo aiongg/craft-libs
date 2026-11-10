@@ -29,6 +29,8 @@ pub struct PanelStyle {
     metrics: Metrics,
     /// The ring a selected panel shows inside its edge.
     ring: StyleColor,
+    /// The line of a framed panel's outline.
+    edge: StyleColor,
     corners: CornerRadius,
 }
 
@@ -63,6 +65,7 @@ type FooterFn<'a> = Box<dyn FnMut(&mut Ui, &mut BodyCx<'_>) + 'a>;
 ///   host. [`headerless`](Panel::headerless) leaves the header out.
 /// - Body: scrolls vertically; the panel fills the width and height offered.
 /// - Selected: `selected(true)` draws an accent ring inside the panel's edge, so a host can mark the picked panel.
+/// - Framed: `framed()` outlines the panel's edge in the border line colour.
 /// - Footer: the closure given to `footer` fills a footer bar under the body, separated by a rule.
 #[derive(crate::contract::Component, crate::contract::Props)]
 #[component(container)]
@@ -90,6 +93,7 @@ pub struct Panel<'a> {
     menu_opener: Option<Id>,
     closed: Option<CloseReason>,
     pickable: bool,
+    framed: bool,
     /// How much weight the header's title carries; a panel title by default.
     #[prop]
     strength: HeaderStrength,
@@ -119,6 +123,7 @@ impl<'a> Panel<'a> {
             menu_opener: None,
             closed: None,
             pickable: false,
+            framed: false,
             strength: HeaderStrength::Strong,
         }
         .label(title)
@@ -167,6 +172,13 @@ impl<'a> Panel<'a> {
         self
     }
 
+    /// A panel with a 1 px outline in the border line colour on its edge, over its header band and body.
+    #[must_use]
+    pub fn framed(mut self) -> Self {
+        self.framed = true;
+        self
+    }
+
     /// A panel with no header: the title names the panel for assistive technology only.
     #[must_use]
     pub fn headerless(mut self) -> Self {
@@ -191,7 +203,12 @@ impl Component for Panel<'_> {
     type Output = PanelOutput;
 
     fn style(cx: &StyleCx<'_>, _: PanelStyleKey) -> PanelStyle {
-        PanelStyle { metrics: Metrics::new(), ring: cx.color(cx.tokens.color.accent.solid), corners: UiTokens::corner(cx.tokens.shape.radius.panel) }
+        PanelStyle {
+            metrics: Metrics::new(),
+            ring: cx.color(cx.tokens.color.accent.solid),
+            edge: cx.color(cx.tokens.color.line.border),
+            corners: UiTokens::corner(cx.tokens.shape.radius.panel),
+        }
     }
 
     fn sense(&self) -> Sense {
@@ -199,6 +216,9 @@ impl Component for Panel<'_> {
     }
 
     fn paint_over(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        if self.framed {
+            ui.draw().stroke(&PaintShape::Rect(cx.rect, cx.style.corners), StrokeWidth::Thin, cx.style.edge);
+        }
         if cx.resolved.selected == Some(true) {
             ui.draw().stroke(&PaintShape::Rect(cx.rect, cx.style.corners), StrokeWidth::Medium, cx.style.ring);
         }
