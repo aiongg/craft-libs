@@ -3,7 +3,6 @@
 use super::{HeaderAction, HeaderStrength, TitleRow};
 use crate::contract::{Bind, Pad, Show as _, ShowContainer as _, Validity};
 use crate::display::Divider;
-use crate::layout_components::Stack;
 use crate::primitives::IconSpec;
 use crate::runtime::env::Message;
 use crate::sections::Panel;
