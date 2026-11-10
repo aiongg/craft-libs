@@ -314,6 +314,7 @@ Zoom rules as pure functions on a [`CanvasView`]: Photoshop's zoom range and Zoo
 - `craft_behavior::codec::NotAValue`: `pub struct NotAValue`. The text is not a value of the codec's type.
 - `craft_behavior::codec::NumberCodec`: `pub struct NumberCodec`. An optional number: empty text is `None`; anything else reads through a [`Reader`].
   - `pub fn new(reader: Reader, decimals: usize) -> Self`. A codec reading with `reader` and writing at most `decimals` decimal places.
+  - `pub fn fixed(mut self) -> Self`. The same codec writing every decimal place, trailing zeros included ("1.00"), as a field of a quantity shown
   - `pub fn or_parse(mut self, parse: impl Fn(&str) -> Option<f64> + Send + Sync + 'static) -> Self`. The same codec with `parse` as a second reader: it runs when the reader rejects the text, so words of the
   - `pub fn widest(&self, range: &RangeInclusive<f64>) -> String`. The widest text the codec writes for a number in `range`: the longer of its two ends, with every decimal
   - `pub fn decimals(&self) -> usize`. The most decimal places the codec writes.
@@ -1867,7 +1868,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `pub fn with_press(mut self, press: PressState) -> Self`. The label's press this pass.
   - `pub fn pressed(&self) -> bool`. The label is held down or being dragged.
 - `craft_ui::contract::FieldLabelRole`: `pub enum FieldLabelRole { Names, Describes }`. Whether a field label names its control or describes it.
-- `craft_ui::contract::FieldLayout`: `pub enum FieldLayout { Beside, Above, Caption(CellWidth), After }`. Where a side label sits relative to its control.
+- `craft_ui::contract::FieldLayout`: `pub enum FieldLayout { Beside, Above, Caption(CellWidth), After, Line }`. Where a side label sits relative to its control.
 - `craft_ui::contract::Focus`: `pub trait Focus`. Focus and keys (chapter 9).
   - `fn intents(&mut self) -> &mut Intents`. The intents routed to this component this pass: `cx.intents().take(Intent::Activate)`.
   - `fn claim(&mut self, chord: Chord)`. Claims `chord` for the next frames while this component is focused.
@@ -2078,13 +2079,14 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `pub const fn extent(mut self, extent: f32) -> Self`. The pane's size along its edge, exactly: the pane host shows it at this extent in every pass.
   - `pub const fn at(mut self, rect: Rect) -> Self`. The pane in `rect`, which the caller laid out for this pass. The pane takes no room from its siblings.
 - `craft_ui::contract::ShownRow`: `pub struct ShownRow<K> { pub key: K, pub rect: egui::Rect, pub cells: Vec<(ColumnKey, egui::Rect)>, pub openers: Vec<(super::ItemOpener, Response)> }`. The geometry of one row the collection showed this pass.
-- `craft_ui::contract::SideLabel`: `pub struct SideLabel { pub kind: LabelKind, pub layout: FieldLayout, pub align: LabelAlign, pub role: FieldLabelRole, pub scrub: bool, pub icon: Option<IconSpec<'static>>, pub detail: Option<Label> }`. What `ContainerProps.label` holds: how the label is shown and what it does. The text is `Common.label`.
+- `craft_ui::contract::SideLabel`: `pub struct SideLabel { pub kind: LabelKind, pub layout: FieldLayout, pub align: LabelAlign, pub role: FieldLabelRole, pub scrub: bool, pub reset_dot: bool, pub icon: Option<IconSpec<'static>>, pub detail: Option<Label> }`. What `ContainerProps.label` holds: how the label is shown and what it does. The text is `Common.label`.
   - `pub const fn new() -> Self`. A text label beside its control that names it.
   - `pub fn kind(mut self, kind: LabelKind) -> Self`. How the label is shown.
   - `pub const fn layout(mut self, layout: FieldLayout) -> Self`. Where the label sits.
   - `pub const fn align(mut self, align: LabelAlign) -> Self`. Where a beside label sits in its column: against the control by default.
   - `pub const fn role(mut self, role: FieldLabelRole) -> Self`. Whether the label names or describes its control.
   - `pub const fn scrub(mut self, on: bool) -> Self`. Lets a drag on the label scrub the control's value.
+  - `pub const fn reset_dot(mut self, on: bool) -> Self`. Shows a dot after the text while the control's value differs from its reset value; a click on it resets the value.
   - `pub fn icon(mut self, icon: impl Into<IconSpec<'static>>) -> Self`. Shows `icon` before the text.
   - `pub fn detail(mut self, detail: impl Into<Label>) -> Self`. Shows `detail` after the text, in the muted text colour, and adds it to the control's description.
 - `craft_ui::contract::SizeLimits`: re-export of `craft_ui::contract::overlay::SizeLimits`.
@@ -3488,7 +3490,7 @@ The style layer: the state set and its resolver, style parts and `ComponentStyle
   - `pub fn on(mut self, ground: Stateful<StyleColor>) -> Self`. Declares the fill the text is painted on, for a text that sits on a part's own fill.
 - `craft_ui::style::TokenGroup`: re-export of `craft_theme::TokenGroup` (outside these crates).
 - `craft_ui::style::Tokens`: re-export of `craft_theme::Tokens` (outside these crates).
-- `craft_ui::style::TrackLook`: `pub struct TrackLook { pub unfilled: Stateful<StyleColor>, pub filled: Stateful<StyleColor>, pub edge: Stateful<StyleColor>, pub edge_width: f32, pub thickness: f32, pub radius: CornerRadius, pub mark_length: f32, pub mark_width: f32, pub mark_color: Stateful<StyleColor>, pub snap: f32 }`. A value track: a groove with the part a value fills over it, and the marks and ticks along it. A slider, a
+- `craft_ui::style::TrackLook`: `pub struct TrackLook { pub unfilled: Stateful<StyleColor>, pub filled: Stateful<StyleColor>, pub edge: Stateful<StyleColor>, pub edge_width: f32, pub thickness: f32, pub ramp: f32, pub radius: CornerRadius, pub mark_length: f32, pub mark_width: f32, pub mark_color: Stateful<StyleColor>, pub snap: f32 }`. A value track: a groove with the part a value fills over it, and the marks and ticks along it. A slider, a
   - `pub fn groove(&self, rect: egui::Rect) -> egui::Rect`. The groove across the middle of `rect`.
 - `craft_ui::style::TypeRole`: re-export of `craft_theme::TypeRole` (outside these crates).
 - `craft_ui::style::UiTokens`: `pub struct UiTokens`. One resolved token set with the theme's token-group values and a key of their content. Each theme scope
@@ -3520,10 +3522,11 @@ The fixture, the suite runner and the story helpers.
 - `craft_ui::testing::is_measuring`: `pub fn active(ctx: &Context) -> bool`. Whether a measuring run is in progress.
 - `craft_ui::testing::measuring_run`: `pub fn run<R>(ctx: &Context, f: impl FnOnce() -> R) -> R`. Runs `f` as a measuring run. Nested calls are fine.
 - `craft_ui::testing::measuring_runs`: `pub fn body_runs(ctx: &Context) -> Vec<(Id, u32)>`. The bodies whose contents ran in a measuring run in the last pass that ran one, and how many runs each.
+- `craft_ui::testing::stage`: `pub fn stage(ui: &mut Ui) -> Rect`. Allocates the stage of a story of a canvas control or a root that fills both axes, and returns its rect: the width
 - `craft_ui::testing::story`: re-export of `craft_ui_macros::story` (outside these crates).
 - `craft_ui::testing::story_props`: re-export of `craft_ui::testing::props::story_props`.
 - `craft_ui::testing::take_effects`: `pub fn take_effects(ctx: &Context) -> Vec<&'static str>`. The effects skipped in measuring runs this frame, in order; empties the log.
-- `craft_ui::testing::tool_story`: `pub fn tool_story(ui: &mut Ui, label: &'static str, tool: &mut dyn CanvasTool) -> StoryOutput`. Shows `tool` on a canvas named `label` over the room left in `ui`, and runs it as the canvas's active tool. The
+- `craft_ui::testing::tool_story`: `pub fn tool_story(ui: &mut Ui, label: &'static str, tool: &mut dyn CanvasTool) -> StoryOutput`. Shows `tool` on a canvas named `label` over the [`stage`](super::stage) of `ui`, and runs it as the canvas's active tool. The
 - `craft_ui::testing::trial`: re-export of `craft_ui_macros::trial` (outside these crates).
 
 ## `craft_ui::testing::access`
