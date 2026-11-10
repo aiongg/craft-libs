@@ -124,4 +124,7 @@ fn a_reflow_is_a_label_that_moves_from_beside_to_above() {
     assert!(reflowed(&beside, &[("Layer name", at(0.0, 0.0)), ("%", at(0.0, 20.0)), ("%", at(60.0, 20.0))]));
     // Only the second "%" moves below the first: the repeats are told apart.
     assert!(reflowed(&beside, &[("Layer name", at(0.0, 0.0)), ("%", at(60.0, 0.0)), ("%", at(60.0, 20.0))]));
+    // Repeats already stacked in the base that keep their layout: no reflow.
+    let stacked = [("Layer name", at(0.0, 0.0)), ("%", at(0.0, 20.0)), ("%", at(0.0, 40.0))];
+    assert!(!reflowed(&stacked, &stacked));
 }

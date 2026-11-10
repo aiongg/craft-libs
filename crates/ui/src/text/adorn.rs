@@ -8,6 +8,7 @@ use crate::primitives::IconSpec;
 use crate::runtime::env::Label;
 use crate::style::StyleColor;
 use craft_behavior::{Flow, PartKey};
+use craft_theme::ControlSize;
 use egui::{Rect, vec2};
 use smallvec::SmallVec;
 
@@ -54,7 +55,7 @@ impl Adornment {
     pub fn paint(&self, ui: &mut PaintUi<'_>, rect: Rect, glyph_color: StyleColor) {
         match &self.button {
             None => ui.draw().icon(rect, &self.spec(Some(glyph_color))),
-            Some((part, name)) => ui.face(*part, IconButton::new(self.spec(None)).label(name.clone()).focusable(false)),
+            Some((part, name)) => ui.face(*part, IconButton::new(self.spec(None)).label(name.clone()).focusable(false).size(ControlSize::Sm)),
         }
     }
 }
