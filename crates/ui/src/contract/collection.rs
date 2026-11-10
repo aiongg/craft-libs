@@ -662,6 +662,8 @@ pub struct RowState {
     pub striped: bool,
     /// A tree row whose children show.
     pub open: bool,
+    /// The pointer is over the row.
+    pub hovered: bool,
 }
 
 /// A committed rename.

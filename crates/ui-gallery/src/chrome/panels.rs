@@ -9,8 +9,8 @@ use craft_behavior::IconId;
 use craft_behavior::{Selection, keyed};
 use craft_theme::Explained;
 use craft_theme::report::ContrastReport;
-use craft_ui::buttons::Button;
-use craft_ui::contract::{Bind, CollectionEvent, Pad, Scroll, SelectMode, Show as _, ShowCollection as _, ShowContainer as _};
+use craft_ui::buttons::IconButton;
+use craft_ui::contract::{Bind, CollectionEvent, Pad, Props as _, RowAlign, Scroll, SelectMode, Show as _, ShowCollection as _, ShowContainer as _};
 use craft_ui::display::{Shade, Text};
 use craft_ui::layout_components::{Row, Stack};
 use craft_ui::list::{List, ListRow, OpenSet, RowEvent, TrailingFace, TrailingPart};
@@ -119,7 +119,6 @@ impl Panels<'_> {
         let groups = viewer::groups(&shown);
         let by_key: HashMap<&TreeKey, &TreeRow> = shown.iter().map(|row| (&row.key, row)).collect();
         let before = self.selected().map(|component| component.type_name);
-        let pointer = ui.ctx().pointer_hover_pos();
         let mut opened = None;
         let (filter, selection, open) = (&mut *self.filter, &mut *self.selection, &mut *self.open);
         Stack::new().fill().pad(Pad::Regular).show(ui, |ui, _| {
@@ -136,7 +135,7 @@ impl Panels<'_> {
                         return item.group(row.open);
                     }
                     // The Open icon shows on the selected row and the row under the pointer.
-                    if cx.row.selected || pointer.is_some_and(|at| cx.rect.contains(at)) {
+                    if cx.row.selected || cx.row.hovered {
                         item.trailing_part(OPEN, TrailingFace::Icon(IconId::new("open").into()), format!("Open {}", row.label))
                     } else {
                         item
@@ -211,7 +210,6 @@ impl Panels<'_> {
             });
         };
         let title = self.title(&component, index);
-        let declared = self.catalog.declared.get(component.type_name).copied();
         let starts = &mut *self.starts;
         let data = data_of(self.cells, index);
         // The values exist once the story has run; the first pass that finds them records the start.
@@ -221,46 +219,48 @@ impl Panels<'_> {
         let changed = starts.get(&index).is_some_and(|start| !data.changed_since(start).is_empty());
         let mut reset = false;
         scrolled(ui, |ui| {
-            Row::new().show(ui, |ui, _| {
-                Text::new(component.name.clone()).role(TypeRole::Heading).show(ui);
-                Text::new(title.clone()).shade(Shade::Muted).show(ui);
+            Row::new().fill_width().align(RowAlign::SpaceBetween).show(ui, |ui, _| {
+                Row::new().show(ui, |ui, _| {
+                    Text::new(component.name.clone()).role(TypeRole::Heading).show(ui);
+                    Text::new(title.clone()).shade(Shade::Muted).show(ui);
+                });
                 if changed {
-                    reset = Button::new("Reset").show(ui).clicks > 0;
+                    reset = IconButton::new(IconId::new("undo")).label("Reset args").show(ui).clicks > 0;
                 }
             });
             story_props(ui, &mut *data);
-            fact(ui, "Type", component.type_name);
-            if let Some(declared) = declared {
-                fact(ui, "Module", declared.module);
-                fact(ui, "Purpose", declared.purpose);
-            }
         });
         if reset && let Some(start) = starts.get(&index) {
             data.restore(start);
         }
     }
 
+    /// The decision record of the selected component, then where it is declared and what it is for.
     fn record(&mut self, ui: &mut Ui) {
-        let probe = self.selected().and_then(|component| self.catalog.declared.get(component.type_name)).and_then(|declared| declared.probe);
-        let chosen = self.selected().is_some();
+        let component = self.selected().map(|component| component.type_name);
+        let declared = component.and_then(|type_name| self.catalog.declared.get(type_name));
         scrolled(ui, |ui| {
-            if !chosen {
+            let (Some(type_name), Some(declared)) = (component, declared) else {
                 hint(ui, "Select a component");
                 return;
-            }
-            let Some(probe) = probe else {
-                hint(ui, "A pattern has no record of its own: its parts are the records.");
-                return;
             };
-            fact(ui, "Shape", describe::shape(probe.shape));
-            fact(ui, "Role", describe::role(probe.role));
-            fact(ui, "Input", describe::input(probe.input));
-            fact(ui, "Keys it keeps", describe::keys(&probe.keys));
-            fact(ui, "Opens a popup", probe.overlay.to_string());
-            fact(ui, "Shows its label", probe.shows_label.to_string());
-            for exemption in probe.exempt {
-                fact(ui, "Exempt from", format!("{}: {}", exemption.case, exemption.reason));
+            match declared.probe {
+                None => hint(ui, "A pattern has no record of its own: its parts are the records."),
+                Some(probe) => {
+                    fact(ui, "Shape", describe::shape(probe.shape));
+                    fact(ui, "Role", describe::role(probe.role));
+                    fact(ui, "Input", describe::input(probe.input));
+                    fact(ui, "Keys it keeps", describe::keys(&probe.keys));
+                    fact(ui, "Opens a popup", probe.overlay.to_string());
+                    fact(ui, "Shows its label", probe.shows_label.to_string());
+                    for exemption in probe.exempt {
+                        fact(ui, "Exempt from", format!("{}: {}", exemption.case, exemption.reason));
+                    }
+                }
             }
+            fact(ui, "Type", type_name);
+            fact(ui, "Module", declared.module);
+            fact(ui, "Purpose", declared.purpose);
         });
     }
 
