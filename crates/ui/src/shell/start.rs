@@ -239,6 +239,7 @@ impl Page<'_> {
             .activate(ActivateOn::Click)
             .caption(CaptionPlace::Below)
             .detail_line()
+            .card()
             .aspect(f32::from(PICTURE_WIDE) / f32::from(PICTURE_HIGH))
             .zoom(CARD_ZOOM)
             .fill_row()
@@ -335,7 +336,7 @@ fn recent_section(
 ) {
     let words = page.words;
     let modes = [
-        Entry::new(RecentView::Grid, words.grid_view.clone()).icon(IconId::new("layout-grid")),
+        Entry::new(RecentView::Grid, words.grid_view.clone()).icon(IconId::new("layout_grid")),
         Entry::new(RecentView::List, words.list_view.clone()).icon(IconId::new("list")),
     ];
     let orders = [
