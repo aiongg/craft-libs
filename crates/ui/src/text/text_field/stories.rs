@@ -40,11 +40,11 @@ fn text_field(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
         row("Invalid").show(ui, |ui, _| {
             TextField::new("Layer path", Bind::bound(&mut String::from("Layer/1")).check(refuse_slash)).size(size).show(ui);
         });
-        row("Leading icon").show(ui, |ui, _| {
-            TextField::new("Layer icon", Bind::bound(&mut String::from("Layers"))).leading(IconSpec::svg(IconId::new("layers"))).size(size).show(ui);
-        });
         row("Password").show(ui, |ui, _| {
             TextField::new("Password", Bind::bound(&mut String::from("correct horse"))).masked().size(size).show(ui);
+        });
+        row("Leading icon").show(ui, |ui, _| {
+            TextField::new("Layer icon", Bind::bound(&mut String::from("Layers"))).leading(IconSpec::svg(IconId::new("layers"))).size(size).show(ui);
         });
         row("Multiline").show(ui, |ui, _| {
             TextField::new("Notes", Bind::bound(data.value("notes", String::from("Shot list\nGolden hour, wide\nDetail of the hands"))))
