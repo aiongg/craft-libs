@@ -727,7 +727,7 @@ impl Body<'_> {
             self.model_event(&HsbModel, event);
         }
         let add = Row::new().align(RowAlign::End).show(ui, |ui, _| {
-            IconButton::new(IconId::new("plus")).label(self.words.add_to_swatches.clone()).tooltip(self.words.create_swatch.clone()).show(ui)
+            IconButton::new(IconId::new("plus")).label(self.words.add_to_swatches.clone()).tooltip(self.words.create_swatch.clone()).show(ui).response
         });
         if add.inner.as_ref().is_some_and(clicked) {
             self.add_to_swatches = Some(self.target);

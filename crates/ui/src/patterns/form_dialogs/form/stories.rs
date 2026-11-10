@@ -9,11 +9,12 @@ use egui::Ui;
 
 #[story(FormDialog<'static, bool>, covers = [], drive = Drive::Never)]
 fn form_dialog(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let ok_enabled = *data.value("ok_enabled", true);
     FormDialog::own("Options")
         .opened(Bind::bound(data.value("open", true)))
         .show(ui, |ui, _, value| {
             Checkbox::new(Bind::bound(value)).label(Label::from("Smooth")).show(ui);
-            true
+            ok_enabled
         })
         .response
         .into()

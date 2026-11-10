@@ -189,13 +189,15 @@ impl<'a> Draw<'a> {
         width.points(self.env.tokens, self.painter.pixels_per_point())
     }
 
-    /// Lays `run` out in `rect`'s width and paints it at the reading start of `rect`, top aligned. Records the
-    /// elision and the first baseline.
+    /// Lays `run` out in `rect`'s width and paints it at the reading start of `rect`. A single line is centred
+    /// vertically in a taller `rect`, so a label in a control or a row sits at the same place whatever the room; a
+    /// wrapped run starts at the top. Records the elision and the first baseline.
     pub fn text(&self, rect: Rect, run: &TextRun<'_>) -> TextLayout {
         let layout = run.layout(self.painter.ctx(), &self.text_env(), rect.width());
         let at_end = self.text_direction == Direction::Rtl && !run.ltr;
         let x = if at_end { rect.right() - layout.size().x } else { rect.left() };
-        self.galley(Pos2::new(x, rect.top()), &layout);
+        let spare = if layout.galley.rows.len() <= 1 { (rect.height() - layout.size().y).max(0.0) } else { 0.0 };
+        self.galley(Pos2::new(x, rect.top() + spare / 2.0), &layout);
         layout
     }
 

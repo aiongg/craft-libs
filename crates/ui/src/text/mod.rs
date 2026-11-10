@@ -50,7 +50,7 @@ impl FieldStyle {
     pub fn at(cx: &StyleCx<'_>) -> FieldStyle {
         let control = cx.control();
         let metrics = Metrics::new()
-            .padding(Insets::new(control.pad_x, 0.0, control.pad_x, 0.0))
+            .padding(Insets::horizontal(control.pad_x))
             .gap(control.gap)
             .min_size(Vec2::new(cx.tokens.size.length.field, control.height));
         FieldStyle { surface: cx.field(), metrics, glyph: IconLook::new(control.icon, Stateful::new(cx.ink(Ink::OnPanel))), button: control.height }

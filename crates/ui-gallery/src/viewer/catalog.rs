@@ -1,8 +1,9 @@
 //! What the viewer lists: every registered story, grouped by the component it shows.
 
-use craft_ui::contract::{Probe, Registration};
+use craft_ui::contract::{self, Level, Probe, Registration};
 use craft_ui::testing::{StoryRegistration, registered, stories};
 use std::collections::HashMap;
+use std::sync::OnceLock;
 
 /// One registered story with the facts the viewer lists.
 #[derive(Clone, Copy)]
@@ -20,35 +21,45 @@ pub struct Entry {
 pub struct ComponentInfo {
     /// The registered type name.
     pub type_name: &'static str,
-    /// The module that declares the type; empty when the type has no probe.
-    pub module: &'static str,
+    /// The level the tree lists the component under.
+    pub level: Level,
+    /// The component's plain name.
+    pub name: String,
     /// The names of the component's stories.
     pub stories: Vec<&'static str>,
+    /// The display titles of the stories, in the order of `stories`.
+    pub titles: Vec<String>,
 }
 
 impl ComponentInfo {
-    /// A component with its stories.
-    pub fn new(type_name: &'static str, module: &'static str, stories: Vec<&'static str>) -> Self {
-        ComponentInfo { type_name, module, stories }
+    /// A component with its stories, each a name and a display title.
+    pub fn new(type_name: &'static str, level: Level, name: impl Into<String>, stories: &[(&'static str, &str)]) -> Self {
+        ComponentInfo {
+            type_name,
+            level,
+            name: name.into(),
+            stories: stories.iter().map(|(name, _)| *name).collect(),
+            titles: stories.iter().map(|(_, title)| (*title).to_owned()).collect(),
+        }
     }
 
-    /// The type's name without its module path, type arguments kept.
-    pub fn short_name(&self) -> String {
-        short_type(self.type_name)
-    }
-
-    /// Whether the type, its module or one of its stories contains `filter`, ignoring case. An empty filter matches.
+    /// Whether the name or one of the story titles contains `filter`, ignoring case. An empty filter matches.
     pub fn matches(&self, filter: &str) -> bool {
         let filter = filter.trim().to_lowercase();
-        filter.is_empty() || [self.type_name, self.module].iter().chain(&self.stories).any(|text| text.to_lowercase().contains(&filter))
+        filter.is_empty()
+            || [self.name.as_str()].into_iter().chain(self.titles.iter().map(String::as_str)).any(|text| text.to_lowercase().contains(&filter))
     }
 }
 
-/// The type's name without its module path, type arguments kept.
-pub fn short_type(type_name: &str) -> String {
-    let (path, arguments) = type_name.split_once('<').map_or((type_name, ""), |(path, rest)| (path, rest));
-    let name = path.rsplit("::").next().unwrap_or(path);
-    if arguments.is_empty() { name.to_owned() } else { format!("{name}<{arguments}") }
+/// The registry's catalog of the types linked into the running binary: each one's level and plain name.
+fn linked_catalog() -> &'static contract::Catalog {
+    static CATALOG: OnceLock<contract::Catalog> = OnceLock::new();
+    CATALOG.get_or_init(|| contract::catalog(&contract::registrations()))
+}
+
+/// The plain name of the component registered as `type_name`; the registered name when the registry lists no such type.
+pub fn display_name(type_name: &str) -> String {
+    linked_catalog().entry(type_name).map_or_else(|| type_name.to_owned(), |entry| entry.name.clone())
 }
 
 /// Every story linked into the viewer, ordered by type then story name.
@@ -85,17 +96,19 @@ pub fn declared() -> HashMap<&'static str, Declared> {
     out
 }
 
-/// The components of `entries`, in the order of their first story.
-pub fn components(entries: &[Entry], declared: &HashMap<&'static str, Declared>) -> Vec<ComponentInfo> {
+/// The components of `entries` that the registry lists, in the order of their first story.
+pub fn components(entries: &[Entry]) -> Vec<ComponentInfo> {
     let mut out: Vec<ComponentInfo> = Vec::new();
     for entry in entries {
+        let Some(listed) = linked_catalog().entry(entry.type_name) else { continue };
         let story = entry.registration.story.name;
+        let title = contract::story_title(&listed.name, story);
         match out.iter_mut().find(|component| component.type_name == entry.type_name) {
-            Some(component) => component.stories.push(story),
-            None => {
-                let module = declared.get(entry.type_name).map_or("", |declared| declared.module);
-                out.push(ComponentInfo::new(entry.type_name, module, vec![story]));
+            Some(component) => {
+                component.stories.push(story);
+                component.titles.push(title);
             }
+            None => out.push(ComponentInfo::new(entry.type_name, listed.level, listed.name.clone(), &[(story, &title)])),
         }
     }
     out
@@ -117,7 +130,7 @@ impl Catalog {
     pub fn linked() -> Self {
         let entries = entries();
         let declared = declared();
-        let components = components(&entries, &declared);
+        let components = components(&entries);
         Catalog { entries, components, declared }
     }
 

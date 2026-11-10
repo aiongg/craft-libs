@@ -1,5 +1,6 @@
 //! `IconButton`: a square ghost button that shows only an icon.
 
+use super::button::ButtonOutput;
 use super::face::{self, tinted};
 use crate::contract::{Access, Common, Component, Cx, MeasureCx, PaintUi, PopupKind, Props, Role, Styled as _};
 use crate::primitives::{IconSpec, PaintShape, StrokeWidth};
@@ -10,7 +11,7 @@ use craft_theme::{
     Srgba, Variant,
     variant::{Emphasis, Tone},
 };
-use egui::{Color32, Pos2, Response, Vec2};
+use egui::{Color32, Pos2, Vec2};
 
 /// The style of an icon button.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
@@ -87,7 +88,7 @@ impl Component for IconButton<'_> {
     const SHOWS_LABEL: bool = false;
     const OVERLAYS: bool = false;
     type Style = IconButtonStyle;
-    type Output = Response;
+    type Output = ButtonOutput;
 
     fn style(cx: &StyleCx<'_>, _: IconButtonStyleKey) -> IconButtonStyle {
         let control = cx.control();
@@ -157,7 +158,7 @@ impl Component for IconButton<'_> {
         }
     }
 
-    fn finish(self, cx: Cx<'_, Self>) -> Response {
-        cx.response.clone()
+    fn finish(self, cx: Cx<'_, Self>) -> ButtonOutput {
+        ButtonOutput::of(&cx, self.activated(&cx))
     }
 }

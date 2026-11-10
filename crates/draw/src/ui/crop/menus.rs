@@ -98,7 +98,7 @@ impl<'a> CropOverlayMenu<'a> {
             if appeared && opened {
                 *open = true;
             }
-            let opener = IconButton::new(IconId::new("grid")).label(words.overlay.clone()).popup(PopupKind::Menu).show(ui);
+            let opener = IconButton::new(IconId::new("grid")).label(words.overlay.clone()).popup(PopupKind::Menu).show(ui).response;
             if clicked(&opener) {
                 *open = !*open;
             }
@@ -198,7 +198,8 @@ impl<'a> CropOptionsMenu<'a> {
             if appeared && opened {
                 *open = true;
             }
-            let button = IconButton::new(IconId::new("settings")).label(words.options.clone()).popup(PopupKind::Dialog).expanded(*open).show(ui);
+            let button =
+                IconButton::new(IconId::new("settings")).label(words.options.clone()).popup(PopupKind::Dialog).expanded(*open).show(ui).response;
             if clicked(&button) {
                 *open = !*open;
             }

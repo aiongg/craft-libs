@@ -8,10 +8,13 @@ use egui::Ui;
 
 #[story(ReportDialog<'static>, covers = [], drive = Drive::Never)]
 fn report_dialog(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let notes = vec![
-        ReportNote::new(Tone::Warn, "Font Garamond was substituted"),
-        ReportNote::new(Tone::Info, "Page 4 has no bleed"),
-        ReportNote::new(Tone::Bad, "Image logo.tif could not be read"),
-    ];
+    let count = *data.ranged("notes", 3_usize, 0.0..=40.0);
+    let notes: Vec<ReportNote> = (0..count)
+        .map(|n| match n % 3 {
+            0 => ReportNote::new(Tone::Warn, format!("Font on page {} was substituted", n + 1)),
+            1 => ReportNote::new(Tone::Info, format!("Page {} has no bleed", n + 1)),
+            _ => ReportNote::new(Tone::Bad, format!("Image on page {} could not be read", n + 1)),
+        })
+        .collect();
     ReportDialog::new("Import Report", "Imported 12 pages.", notes).opened(Bind::bound(data.value("open", true))).show(ui).into()
 }
