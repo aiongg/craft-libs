@@ -219,7 +219,7 @@ pub struct DockGroup<'a, P: Clone + Hash + Send + Sync + 'static> {
     menu: Vec<PanelRow>,
     /// Whether the panel menu button shows beside the tabs; a context request on a tab opens the menu either way.
     #[prop]
-    menu_button: bool,
+    panel_menu_shown: bool,
     /// The state of each panel command for the shown panel, published in the group's scope every pass.
     #[prop]
     command_states: Vec<(DockCommands, CommandState)>,
@@ -250,7 +250,7 @@ impl<'a, P: Clone + Hash + Send + Sync + 'static> DockGroup<'a, P> {
             dock: None,
             zones: ZoneRule::Fraction,
             menu: Vec::new(),
-            menu_button: true,
+            panel_menu_shown: true,
             command_states: Vec::new(),
             extra: None,
             size: Vec2::ZERO,
@@ -372,7 +372,7 @@ impl<P: Clone + Hash + Send + Sync + 'static> Container for DockGroup<'_, P> {
     /// two leave.
     fn controls(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
         let words = cx.words::<DockWords>();
-        if !self.menu.is_empty() && self.menu_button {
+        if !self.menu.is_empty() && self.panel_menu_shown {
             let name = words.panel_menu.clone();
             let button = IconButton::new(IconId::new("more")).popup(PopupKind::Menu).label(name.clone()).show(ui);
             let rows = self.menu.clone();

@@ -12,7 +12,7 @@ use crate::contract::SizeLimits;
 use crate::contract::overlay::Trigger;
 use crate::contract::{
     Access, BodyCx, Common, Component, Container, ContainerProps, Cx, HeaderRegion, Name, NoValue, Outcome, Pad, PaintUi, PartsCx, Pointer,
-    Props as _, Role, Show as _, ShowContainer as _, Sizing, WordSetCx as _,
+    Props as _, Role, Show as _, ShowContainer as _, Sizing, WordSetCx as _, clicked,
 };
 use crate::menu::{GroupItem, Menu, MenuWords, PanelMenu, PanelRow};
 use crate::runtime::env::Label;
@@ -257,7 +257,7 @@ pub(super) fn show_bar(ui: &mut Ui, body: &mut BodyCx<'_>, rect: Option<Rect>, e
         None => button.show(ui),
     };
     let mut record = BarRecord::default();
-    if shown.clicked() {
+    if clicked(&shown) {
         record.iconic = Some(expanded);
     }
     let rows = vec![

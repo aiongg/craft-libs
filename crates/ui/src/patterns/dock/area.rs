@@ -691,7 +691,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
             .zones(scene.config.zone_rule())
             .movable(scene.permissions(shown).movable)
             .menu(menu)
-            .menu_button(hosted)
+            .panel_menu_shown(hosted)
             .command_states(states);
         if look.minimized {
             group = group.minimized();
