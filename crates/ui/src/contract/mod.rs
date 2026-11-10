@@ -482,6 +482,12 @@ pub trait Collection: Component + HasProps + Meta<Shape = shape::Items> {
         self.item_layout(source, width, cx)
     }
 
+    /// The width the collection asks for when it takes its width from its content, over its widest row: a grid of
+    /// cards asks for its declared number of columns. 0 asks for nothing.
+    fn ideal_width(&self, _cx: &StyleCx<'_>) -> f32 {
+        0.0
+    }
+
     /// A view of `source` for this pass, such as the rows a filter keeps; `None` shows `source` as it is.
     fn filtered<'s>(&self, _source: &'s dyn ItemSource<Self::Key>, _env: &crate::runtime::env::Env) -> Option<Box<dyn ItemSource<Self::Key> + 's>> {
         None

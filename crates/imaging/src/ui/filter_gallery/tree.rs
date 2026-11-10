@@ -4,10 +4,10 @@ use std::borrow::Cow;
 
 use craft_behavior::{DisplayOrder, ItemSource, Selection};
 use craft_ui::contract::{
-    ActivateOn, Bind, CollectionEvent, NoValue, Outcome, Props as _, SaveKey, SelectMode, ShowCollection as _, ShowContainer as _,
+    ActivateOn, Bind, CollectionEvent, NoValue, Outcome, Props as _, SaveKey, SelectMode, ShowCollection as _, ShowContainer as _, Sizing,
 };
 use craft_ui::layout_components::Stack;
-use craft_ui::list::ThumbAspect;
+use craft_ui::list::{ThumbAspect, ThumbSize};
 use craft_ui::primitives::textures::{Priority, ThumbFit, ThumbPaint, ThumbRequest, ThumbSource, Thumbnails};
 use craft_ui::sections::Section;
 use craft_ui::tile_grid::{Tile, TileGrid};
@@ -17,6 +17,12 @@ use super::catalog::{FilterIndex, GalleryThumb};
 
 /// A filter thumbnail's shape: PhotoCraft's 80 by 56.
 const THUMB_ASPECT: (u16, u16) = (10, 7);
+
+/// A thumbnail's height over its width.
+const THUMB_HEIGHT_SHARE: f32 = 0.7;
+
+/// Thumbnails in a row of a folder.
+const COLUMNS: usize = 3;
 
 /// The keys of one folder, in menu order.
 struct Folder<'a> {
@@ -96,6 +102,10 @@ impl<'a> FilterTree<'a> {
                     let folder = Folder { keys: &category.filters, index };
                     let mut selection = if current { Selection::single(selected.to_owned()) } else { Selection::default() };
                     let out = TileGrid::<String>::new(category.label.clone())
+                        .thumb_size(ThumbSize::Large)
+                        .aspect(1.0 / THUMB_HEIGHT_SHARE)
+                        .card_columns(COLUMNS)
+                        .sizing(Sizing::Content)
                         .select(SelectMode::Single)
                         .activate(ActivateOn::Click)
                         .natural_height(true)
