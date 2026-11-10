@@ -16,7 +16,9 @@ use crate::clock::FollowMode;
 use crate::markers::{Marker, MarkerColor};
 use crate::model::{ClipId, ClipInfo, TimelineModel, TrackId, TrackInfo, TrackKind};
 use crate::time::{Tick, TimeRange};
-use craft_behavior::{Axis, ColumnKey, ColumnWidth, CursorIcon, CursorPriority, EditEvent, IconId, MarqueeSelect, Metrics, Mixed, SelectionChange};
+use craft_behavior::{
+    Axis, ColumnKey, ColumnWidth, CursorIcon, CursorPriority, EditEvent, EditEvents, IconId, MarqueeSelect, Metrics, Mixed, SelectionChange,
+};
 use craft_ui::buttons::{IconButton, ToggleButton};
 use craft_ui::contract::{
     Bind, BodyLayout, CollectionEvent, CollectionResponse, ColumnEvent, Common, Component, Container, ContainerProps, Cx, EditResponse, NoValue,
@@ -396,7 +398,7 @@ impl Mapping<'_> {
                     )));
                 }
                 CollectionEvent::Item(track, row) => {
-                    edits.extend(row.clip.clone().map(TimelineEdit::Clip));
+                    edits.extend(row.clip.iter().cloned().map(TimelineEdit::Clip));
                     if let Some(change) = row.select.clone() {
                         edits.push(TimelineEdit::Select { change, unlinked: row.unlinked });
                     }
@@ -520,7 +522,7 @@ impl<M: TimelineModel> Timeline<'_, M> {
                 clips: &clips,
             };
             let palette = label_palette(&env.view());
-            let mut timecode_edit: Option<EditEvent<Tick>> = None;
+            let mut timecode_edit = EditEvents::new();
             let mut ruler_edits: Vec<TimelineEdit> = Vec::new();
             let mut ruler_snapped: Option<Tick> = None;
 
@@ -538,7 +540,7 @@ impl<M: TimelineModel> Timeline<'_, M> {
                 TopStrip::new().show(ui, |ui, _| {
                     Stack::new().show(ui, |ui, _| {
                         let field = TimecodeField::new(words.panel.clone(), Bind::given(playhead), format).large().show(ui);
-                        timecode_edit = field.edit.event;
+                        timecode_edit = field.edit.events;
                         toolbar = toolbar_row(ui, &words, snap, linked_selection, markers, playhead);
                     });
                     Stack::new().show(ui, |ui, _| {
@@ -556,7 +558,7 @@ impl<M: TimelineModel> Timeline<'_, M> {
                             None => ruler,
                         };
                         let ruler = ruler.show(ui);
-                        ruler_edits.extend(ruler.playhead.event.map(TimelineEdit::Playhead));
+                        ruler_edits.extend(ruler.playhead.events.into_iter().map(TimelineEdit::Playhead));
                         ruler_edits.extend(ruler.work_area.map(TimelineEdit::WorkArea));
                         ruler_snapped = ruler.snapped_at;
                     });
@@ -593,7 +595,7 @@ impl<M: TimelineModel> Timeline<'_, M> {
                                 Stack::new().show_at(ui, rect, |ui, _| show_pane(ui, side, indices));
                             }
                         });
-                    edits.extend(split.output.share().map(TimelineEdit::Divider));
+                    edits.extend(split.output.share().into_iter().map(TimelineEdit::Divider));
                 }
                 let placed = placed_rows(&panes, &tracks, &reports.shown);
                 if let Some((dragged, pointer)) = reports.drag {
@@ -672,12 +674,12 @@ impl<M: TimelineModel> Timeline<'_, M> {
                 }
                 *cx.keep::<Memory>() = memory;
             });
-            edits.extend(timecode_edit.map(TimelineEdit::Playhead));
+            edits.extend(timecode_edit.into_iter().map(TimelineEdit::Playhead));
             edits.extend(ruler_edits);
             shown.output
         };
         edits.extend(output.playhead.clone().map(TimelineEdit::Playhead));
-        if let Some(next) = output.view.event.as_ref().and_then(EditEvent::value) {
+        if let Some(next) = output.view.events.value() {
             *model.view() = *next;
         }
         if output.context_menu {

@@ -40,7 +40,7 @@ fn field(start: Tick) -> FieldRig {
         let mut value = shown_time.get();
         Field::new("Time").side(SideLabel::new().scrub(true)).show(ui, |ui, _| {
             let out = TimecodeField::new("Time", Bind::bound(&mut value), TimeFormat::timecode(rate())).show(ui);
-            shown_events.borrow_mut().extend(out.edit.event);
+            shown_events.borrow_mut().extend(out.edit.events);
             shown_errors.borrow_mut().extend(out.error);
         });
         shown_time.set(value);

@@ -65,7 +65,7 @@ fn shown(work_area: Option<TimeRange>) -> Shown {
                 None => ruler,
             };
             let out = ruler.show(ui);
-            seen_edits.borrow_mut().extend(out.playhead.event.clone());
+            seen_edits.borrow_mut().extend(out.playhead.events.iter().cloned());
             seen_work.borrow_mut().extend(out.work_area.clone());
         });
         *head.borrow_mut() = at;

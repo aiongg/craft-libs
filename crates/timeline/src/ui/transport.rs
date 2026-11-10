@@ -3,7 +3,7 @@
 #[cfg(feature = "screen-testing")]
 mod stories;
 
-use craft_behavior::{EditEvent, IconId};
+use craft_behavior::{EditEvents, IconId};
 use craft_ui::bars::{Bar, BarKind};
 use craft_ui::buttons::{Button, IconButton, ToggleButton};
 use craft_ui::choice::Checkbox;
@@ -260,7 +260,7 @@ impl<'a> TransportBar<'a> {
                 if *button == TransportButton::Loop {
                     let mut on = looping;
                     let edit = ToggleButton::new(name, Bind::bound(&mut on)).icon(button.icon(playing)).icon_only().show(ui);
-                    if edit.event.is_some() {
+                    if !edit.events.is_empty() {
                         pressed = Some(button.clone());
                     }
                 } else if clicked(&IconButton::new(button.icon(playing)).label(name).show(ui)) {
@@ -277,7 +277,7 @@ impl<'a> TransportBar<'a> {
                     for button in buttons {
                         let mut visible = !next.hidden.contains(button);
                         let edit = Checkbox::new(Bind::bound(&mut visible)).label(button.label(&words).to_owned()).show(ui);
-                        if edit.event.is_some() {
+                        if !edit.events.is_empty() {
                             next.hidden.retain(|hidden| hidden != button);
                             if !visible {
                                 next.hidden.push(button.clone());
@@ -314,7 +314,7 @@ pub struct MediaControlsOutput {
     /// -0.25 or +0.25 seconds.
     pub nudge: Option<f64>,
     /// A drag of the position slider, in seconds, as one gesture.
-    pub seek: Option<EditEvent<f64>>,
+    pub seek: EditEvents<f64>,
 }
 
 impl Outcome for MediaControlsOutput {
@@ -357,7 +357,7 @@ impl MediaControls {
         let units = env.units();
         let playable = duration.is_finite() && duration > 0.0;
         let position = if position.is_finite() { position.clamp(0.0, if playable { duration } else { 0.0 }) } else { 0.0 };
-        let (mut toggle, mut nudge, mut seek) = (false, None, None);
+        let (mut toggle, mut nudge, mut seek) = (false, None, EditEvents::new());
         let shown = Bar::new(label, BarKind::Tool).show(ui, |ui, _| {
             let play = IconId::new(if playing { "pause" } else { "play" });
             toggle = clicked(&IconButton::new(play).label(words.play_pause_media.clone()).show(ui));
@@ -370,7 +370,7 @@ impl MediaControls {
             let range = if playable { 0.0..=duration } else { 0.0..=1.0 };
             let marks: Vec<f64> = trim.filter(|_| playable).map(|(start, end)| [start, end]).into_iter().flatten().collect();
             let edit = Slider::new(Bind::given(position), range).step(NUDGE).marks(&marks).enabled(playable).label(words.seek.clone()).show(ui);
-            seek = edit.event;
+            seek = edit.events;
             Text::new(clock(&units, position)).role(TypeRole::Mono).show(ui);
         });
         MediaControlsOutput { response: shown.output.response, toggle, nudge, seek }
