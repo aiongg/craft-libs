@@ -1,13 +1,14 @@
 //! The catalog of registered types: the level of each, its plain display name, the surface its stories sit on, and
 //! the display title of a story. A viewer lists "Controls › Button › Loading" from these without string surgery.
 //!
-//! The level comes from one place. A type declared in craft-ui takes the first row of [`LIBRARY`] whose module
-//! prefix holds its module; a type of a family crate takes its level from what it registers as: a pattern is a
-//! Pattern, a leaf component a Control, a component with a body or items a Composite. A craft-ui type no row
-//! matches has no level, and the `catalog_has_no_unleveled_type` trial fails.
+//! Levels and surfaces are declared, one row per type, in `level_table.rs`: the old gallery declared them on its
+//! stories (`typed_story!(.., Level::X, ..).on(Surface::Y)`), and each row carries what the old gallery gave the
+//! type, or what its rules give a type added since. A type without a row has no level, and the
+//! `catalog_names_are_unique_pascal_case_and_every_type_has_a_level` trial fails.
 
-use super::registry::{PatternKind, Registration};
-use super::{Probe, ShapeKind};
+use super::Probe;
+use super::level_table::DECLARED;
+use super::registry::Registration;
 use std::collections::BTreeMap;
 
 /// Where a type sits in the design system, in the order a viewer lists them.
@@ -64,57 +65,6 @@ pub enum Surface {
     Own,
 }
 
-use Level::{Composites, Controls, Patterns, Primitives, Shells};
-use Surface::{Canvas, Chrome, Own, Panel};
-
-/// Where the craft-ui modules sit: a module prefix, its level and surface. The first row that holds a module wins,
-/// so a row for a module inside a prefix comes before the prefix.
-const LIBRARY: &[(&str, Level, Surface)] = &[
-    ("bars::breadcrumb", Controls, Panel),
-    ("bars", Patterns, Chrome),
-    ("buttons", Controls, Panel),
-    ("canvas", Primitives, Canvas),
-    ("canvas_controls", Primitives, Canvas),
-    ("choice", Controls, Panel),
-    ("contract", Primitives, Panel),
-    ("controls", Controls, Panel),
-    ("dialog", Patterns, Own),
-    ("display::badge", Controls, Panel),
-    ("display::kbd", Controls, Panel),
-    ("display::progress", Controls, Panel),
-    ("display::spinner", Controls, Panel),
-    ("display", Primitives, Panel),
-    ("docking", Patterns, Own),
-    ("form", Composites, Panel),
-    ("graph", Composites, Panel),
-    ("layout_components", Primitives, Panel),
-    ("list", Composites, Panel),
-    ("menu", Composites, Panel),
-    ("notices", Composites, Panel),
-    ("patterns::dock", Patterns, Own),
-    ("patterns::form_dialogs", Patterns, Own),
-    ("patterns::presets", Composites, Panel),
-    ("patterns::preferences", Patterns, Own),
-    ("patterns", Patterns, Panel),
-    ("pickers", Controls, Panel),
-    ("popover", Patterns, Panel),
-    ("rails", Patterns, Chrome),
-    ("sections::panel", Patterns, Own),
-    ("sections", Composites, Panel),
-    ("shell::title_bar", Patterns, Chrome),
-    ("shell", Shells, Own),
-    ("table", Composites, Panel),
-    ("tabs", Composites, Panel),
-    ("text", Controls, Panel),
-    ("tile_grid", Composites, Panel),
-    ("value_drag", Controls, Panel),
-];
-
-/// Whether `module` is `prefix` or inside it.
-fn within(module: &str, prefix: &str) -> bool {
-    module.strip_prefix(prefix).is_some_and(|rest| rest.is_empty() || rest.starts_with("::"))
-}
-
 /// The registration's module path, its type name and, for a component, its probe.
 fn parts(registration: &Registration) -> (&'static str, &'static str, Option<&Probe>) {
     match registration {
@@ -123,27 +73,11 @@ fn parts(registration: &Registration) -> (&'static str, &'static str, Option<&Pr
     }
 }
 
-/// The level and surface of `registration`; `None` for a craft-ui type that no row of [`LIBRARY`] holds.
+/// The level and surface declared for `registration` in the table; `None` for a type that has no row.
 fn classify(registration: &Registration) -> Option<(Level, Surface)> {
-    let (module, _, probe) = parts(registration);
-    if let Some(inside) = module.strip_prefix("craft_ui::") {
-        return LIBRARY.iter().find(|(prefix, ..)| within(inside, prefix)).map(|&(_, level, surface)| (level, surface));
-    }
-    let surface = match registration {
-        Registration::Pattern(pattern) => match pattern.kind {
-            PatternKind::Tool => Canvas,
-            PatternKind::Dialog => Own,
-            _ => Panel,
-        },
-        Registration::Component(probe) if probe.canvas_control => Canvas,
-        Registration::Component(_) => Panel,
-    };
-    let level = match probe {
-        None => Patterns,
-        Some(probe) if probe.shape == ShapeKind::Leaf => Controls,
-        Some(_) => Composites,
-    };
-    Some((level, surface))
+    let (crate_target, path) = (registration.crate_target(), base_path(parts(registration).1));
+    let short = path.rsplit("::").next().unwrap_or(path);
+    DECLARED.iter().find(|row| row.0 == crate_target && row.1 == short).map(|row| (row.2, row.3))
 }
 
 /// The type's path without its type arguments.
@@ -245,6 +179,34 @@ fn qualified(path: &str, short: &str, paths: &[&str]) -> String {
     modules.iter().map(|segment| pascal(segment)).collect::<String>() + short
 }
 
+/// Story titles the old gallery spelled in more than sentence case (initialisms, proper nouns, title case); a derived
+/// title that reads the same ignoring case and punctuation takes this spelling.
+const OLD_SPELLINGS: &[&str] = &[
+    "Black & White",
+    "Blending Options",
+    "Brightness/Contrast",
+    "Button Mode",
+    "CMYK",
+    "Channel Mixer",
+    "Color Balance",
+    "Copy with Alt",
+    "Create Shape",
+    "Divide Slice",
+    "History Options form",
+    "Hue/Saturation",
+    "InDesign columns",
+    "Magnetic Lasso",
+    "New Snapshot form",
+    "Photo Filter",
+    "PhotoCraft",
+    "Polygonal Lasso",
+    "Quick Mask and layer mask",
+    "RGB",
+    "Selective Color",
+    "Slice Options",
+    "Tilt-Shift",
+];
+
 /// `name` in snake case, with an acronym kept as one word.
 fn snake(name: &str) -> Vec<String> {
     let chars: Vec<char> = name.chars().collect();
@@ -277,6 +239,10 @@ pub fn story_title(type_name: &str, story: &str) -> String {
         return "Default".to_owned();
     }
     let text = rest.join(" ");
+    let plain = |text: &str| text.chars().filter(|c| c.is_alphanumeric()).flat_map(char::to_lowercase).collect::<String>();
+    if let Some(old) = OLD_SPELLINGS.iter().find(|old| plain(old) == plain(&text)) {
+        return (*old).to_owned();
+    }
     text[..1].to_uppercase() + &text[1..]
 }
 
@@ -284,6 +250,22 @@ pub fn story_title(type_name: &str, story: &str) -> String {
 /// an integration binary.
 fn linked() -> Vec<&'static Registration> {
     super::registrations().into_iter().filter(|registration| registration.crate_target() == registration.crate_name().replace('-', "_")).collect()
+}
+
+/// Guards against a table row whose type is gone, in every crate that has a linked registration.
+#[crate::testing::trial]
+fn level_table_has_no_stale_row() {
+    let linked = linked();
+    let named: std::collections::HashSet<(&str, &str)> = linked
+        .iter()
+        .map(|registration| {
+            let path = base_path(parts(registration).1);
+            (registration.crate_target(), path.rsplit("::").next().unwrap_or(path))
+        })
+        .collect();
+    let crates: std::collections::HashSet<&str> = named.iter().map(|(target, _)| *target).collect();
+    let stale: Vec<_> = DECLARED.iter().filter(|row| crates.contains(row.0) && !named.contains(&(row.0, row.1))).map(|row| (row.0, row.1)).collect();
+    assert!(stale.is_empty(), "rows without a registered type: {stale:?}");
 }
 
 /// Guards against a registered type that no row places (it would list under no level) and against names a
@@ -313,6 +295,7 @@ fn story_titles_drop_the_type_prefix_and_use_sentence_case() {
     assert_eq!(story_title("PerspectiveBar", "bar_in_layout"), "In layout");
     assert_eq!(story_title("Progress", "progress"), "Default");
     assert_eq!(story_title("Histogram", "inks"), "Inks");
+    assert_eq!(story_title("ActionsPanel", "actions_panel_button_mode"), "Button Mode");
     assert_eq!(story_title("PDFExport", "pdf_export_open"), "Open");
 }
 

@@ -14,6 +14,8 @@ mod items;
 mod label;
 #[cfg(feature = "testing")]
 mod level;
+#[cfg(feature = "testing")]
+mod level_table;
 mod looks;
 mod mount;
 pub mod overlay;
