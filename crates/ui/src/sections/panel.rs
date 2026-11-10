@@ -90,6 +90,9 @@ pub struct Panel<'a> {
     menu_opener: Option<Id>,
     closed: Option<CloseReason>,
     pickable: bool,
+    /// How much weight the header's title carries; a panel title by default.
+    #[prop]
+    strength: HeaderStrength,
 }
 
 impl<'a> Panel<'a> {
@@ -116,8 +119,24 @@ impl<'a> Panel<'a> {
             menu_opener: None,
             closed: None,
             pickable: false,
+            strength: HeaderStrength::Strong,
         }
         .label(title)
+    }
+
+    /// The header as a band of `kind` across the panel's width and top edge, with no rule under it. The header's
+    /// content keeps the regular padding on its sides whatever padding the body has.
+    #[must_use]
+    pub fn band(mut self, kind: SurfaceKind) -> Self {
+        self.props.header = Some(HeaderRegion::new().fill(kind).inset(Pad::Regular));
+        self
+    }
+
+    /// The padding tier around the body, regular by default. A header band keeps its own inset.
+    #[must_use]
+    pub fn pad(mut self, pad: Pad) -> Self {
+        self.props = self.props.pad(pad);
+        self
     }
 
     /// The action parts at the end of the header, in reading order.
@@ -200,7 +219,7 @@ impl Container for Panel<'_> {
 
     fn header(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
         let mut row =
-            TitleRow::new(cx.label()).strength(HeaderStrength::Strong).actions(self.actions.iter().copied()).commands(self.commands.iter().cloned());
+            TitleRow::new(cx.label()).strength(self.strength).actions(self.actions.iter().copied()).commands(self.commands.iter().cloned());
         if let Some(subtitle) = self.subtitle.clone() {
             row = row.subtitle(subtitle);
         }

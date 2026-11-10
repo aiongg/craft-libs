@@ -184,12 +184,29 @@ pub struct HeaderRegion {
     /// Whether the header has a trailing child region at its end edge, filled by `Container::controls`; the header
     /// itself fills the room it leaves.
     pub trailing: bool,
+    /// The surface a band behind the header paints. The band spans the container's width and starts at its top edge
+    /// whatever the body's padding, and has no rule.
+    pub fill: Option<SurfaceKind>,
+    /// The padding on the header's two sides: the header's own tier, independent of the body's.
+    pub inset: Pad,
 }
 
 impl HeaderRegion {
-    /// A header with no drag band, no rule, on its own line and with no trailing region.
+    /// A header with no drag band, no rule, on its own line, with no trailing region, no fill and no inset.
     pub const fn new() -> Self {
-        HeaderRegion { band: DragBand::None, rule: false, inline: false, trailing: false }
+        HeaderRegion { band: DragBand::None, rule: false, inline: false, trailing: false, fill: None, inset: Pad::None }
+    }
+
+    /// The surface of a band behind the header.
+    pub const fn fill(mut self, kind: SurfaceKind) -> Self {
+        self.fill = Some(kind);
+        self
+    }
+
+    /// The padding tier between the container's edge and the header's content.
+    pub const fn inset(mut self, pad: Pad) -> Self {
+        self.inset = pad;
+        self
     }
 
     /// What dragging the header does.

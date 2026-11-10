@@ -14,6 +14,7 @@ use craft_ui::notices::Notice;
 use craft_ui::pickers::Select;
 use craft_ui::runtime::env::WindowKey;
 use craft_ui::shell::AppShell;
+use craft_ui::style::SurfaceKind;
 use craft_ui::testing::StoryRegistration;
 use egui::{Align, Ui};
 
@@ -73,7 +74,7 @@ pub(super) fn selected_type(p: &Panels<'_>) -> Option<&'static str> {
 pub(super) fn on_background(ui: &mut Ui, key: &str, mut add: impl FnMut(&mut Ui, &mut BodyCx<'_>)) {
     AppShell::embedded(WindowKey::new(format!("gallery-centre-{key}")))
         .body(|ui, cx, _: &mut ()| {
-            Stack::new().fill().pad(Pad::Regular).show(ui, |ui, _| add(ui, cx));
+            Stack::new().fill().surface(SurfaceKind::Background).pad(Pad::Regular).show(ui, |ui, _| add(ui, cx));
         })
         .show(ui, &mut ());
 }

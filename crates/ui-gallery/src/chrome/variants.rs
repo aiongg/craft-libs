@@ -6,7 +6,7 @@ use super::overview::{Spec, apply, grid, on_background, selected_type, target_st
 use super::panels::Panels;
 use crate::viewer::{DIRECTIONS, MODES, PanelId, VariantAxis, entry_of};
 use craft_i18n::Direction;
-use craft_theme::ControlSize;
+use craft_theme::{ControlSize, Mode, ModeChoice};
 use craft_theme::variant::Tone;
 use craft_ui::buttons::Button;
 use craft_ui::contract::{Show as _, ShowContainer as _};
@@ -42,7 +42,19 @@ fn values(axis: VariantAxis) -> Option<Vec<Value>> {
     let sizes = [(ControlSize::Sm, "Sm"), (ControlSize::Md, "Md")];
     match axis {
         VariantAxis::Mode => {
-            Some(MODES.0.iter().map(|choice| Value { label: choice.label, look: Look { mode: Some(choice.value), ..Look::default() } }).collect())
+            // The two modes a card can show; System is the window's own choice.
+            let mode_of = |choice: ModeChoice| match choice {
+                ModeChoice::Light => Some(Mode::Light),
+                ModeChoice::Dark => Some(Mode::Dark),
+                _ => None,
+            };
+            Some(
+                MODES
+                    .0
+                    .iter()
+                    .filter_map(|choice| mode_of(choice.value).map(|mode| Value { label: choice.label, look: Look { mode: Some(mode), ..Look::default() } }))
+                    .collect(),
+            )
         }
         VariantAxis::Direction => Some(
             DIRECTIONS
@@ -109,7 +121,7 @@ pub(super) fn show(ui: &mut Ui, p: &mut Panels<'_>, tab: PanelId) -> bool {
         (Some((type_name, index)), Some(values)) => {
             let Some(entry) = entry_of(type_name) else { return false };
             let story = p.catalog.entries[index].registration;
-            let (mode, direction) = (p.env.mode, p.env.direction);
+            let (mode, direction) = (p.env.appearance(ui.ctx()).mode, p.env.direction);
             let shown = |look: &Look| match axis {
                 VariantAxis::Mode => look.mode == Some(mode),
                 VariantAxis::Direction => look.direction == Some(direction),
@@ -166,7 +178,7 @@ pub(super) fn show(ui: &mut Ui, p: &mut Panels<'_>, tab: PanelId) -> bool {
     apply(ui, p, &cards, reported);
     if let Some(card) = used.and_then(|spec| values(axis).and_then(|values| values.into_iter().nth(spec))) {
         if let Some(mode) = card.look.mode {
-            p.env.mode = mode;
+            p.env.mode = mode.into();
         }
         if let Some(direction) = card.look.direction {
             p.env.direction = direction;

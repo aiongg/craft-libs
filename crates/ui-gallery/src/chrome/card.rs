@@ -12,7 +12,7 @@ use craft_ui::contract::Show as _;
 use craft_ui::contract::{CommandSet, Commands as _, Pad, Props as _, ShowContainer as _, Sizing, Surface, ThemeScope};
 use craft_ui::layout_components::Stack;
 use craft_ui::runtime::env::{WindowKey, with_env};
-use craft_ui::sections::{HeaderCommand, Panel};
+use craft_ui::sections::{HeaderCommand, HeaderStrength, Panel};
 use craft_ui::shell::AppShell;
 use craft_ui::style::SurfaceKind;
 use craft_ui::testing::{StoryData, StoryOutput, StoryRegistration};
@@ -95,8 +95,17 @@ impl Card<'_> {
     /// Shows the card in the room `ui` offers, with the state of its story.
     pub fn show(&self, ui: &mut Ui, state: &mut CardState) -> CardEvents {
         let mut events = CardEvents::default();
-        let mut panel =
-            Panel::new(self.title.to_owned()).sizing(Sizing::FillWidth).command_scope(CardCommands::SCOPE).selected(self.selected).pickable();
+        // A story on the card's own surface sits inside the card's padding; any other surface runs edge to edge under the
+        // header band.
+        let pad = if self.surface == Surface::Panel { Pad::Regular } else { Pad::None };
+        let mut panel = Panel::new(self.title.to_owned())
+            .sizing(Sizing::FillWidth)
+            .command_scope(CardCommands::SCOPE)
+            .selected(self.selected)
+            .pickable()
+            .band(SurfaceKind::Background)
+            .strength(HeaderStrength::Section)
+            .pad(pad);
         if let Some(note) = self.note {
             panel = panel.subtitle(format!("· {note}"));
         }
