@@ -1209,7 +1209,7 @@ impl<'b> BodyHooks<'b> {
         Some(self.regions_size(props, body, header, footer, end) + pad)
     }
 
-    /// The header region (B1): the trailing controls take the end edge first (their first control sits at the edge)
+    /// The header region (B1): the trailing controls take the end edge first (in call order, as a box at the edge)
     /// and the header fills what they leave. Records the header's size and returns the close it asked for.
     fn header_region<C: Container>(
         &mut self,
@@ -1226,8 +1226,21 @@ impl<'b> BodyHooks<'b> {
         let mut header_rect = header.shrink2(Vec2::new(inset, 0.0));
         let mut controls = Vec2::ZERO;
         if trailing {
-            let layout = if rtl { Layout::left_to_right(Align::Center) } else { Layout::right_to_left(Align::Center) };
-            let builder = UiBuilder::new().max_rect(header).layout(layout).scope_id(sub(id, "controls"));
+            // The controls keep their call order (first at the start of their box); the box sits at the end edge.
+            let layout = if rtl { Layout::right_to_left(Align::Center) } else { Layout::left_to_right(Align::Center) };
+            let (_, wanted) = {
+                let installed = Env::install_for(ui, frame.env.clone());
+                let sized = crate::runtime::egui::sizing::run_sized(ui, header.width(), layout, |sizing| comp.controls(sizing, bcx));
+                Env::restore(&ctx, installed);
+                sized
+            };
+            let width = wanted.x.min(header.width());
+            let room = if rtl {
+                Rect::from_min_max(header.min, Pos2::new((header.min.x + width).min(header.max.x), header.max.y))
+            } else {
+                Rect::from_min_max(Pos2::new((header.max.x - width).max(header.min.x), header.min.y), header.max)
+            };
+            let builder = UiBuilder::new().max_rect(room).layout(layout).scope_id(sub(id, "controls"));
             let builder = if frame.node { access::with_parent(builder, id) } else { builder };
             let mut controls_ui = alloc::child(ui, builder);
             let installed = Env::install_for(&controls_ui, frame.env.clone());

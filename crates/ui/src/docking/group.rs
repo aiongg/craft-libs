@@ -368,10 +368,14 @@ impl<P: Clone + Hash + Send + Sync + 'static> Container for DockGroup<'_, P> {
         self.extra = extra;
     }
 
-    /// The end of the header: the panel menu button, then the bar the group is dragged by. The tabs take the room the
+    /// The end of the header: the bar the group is dragged by, then the panel menu button at the end edge. The tabs take the room the
     /// two leave.
     fn controls(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
         let words = cx.words::<DockWords>();
+        let unit = DragUnit::Group(self.anchor.clone());
+        let grip = GroupGrip::new(unit, self.active).ghost((self.size, cx.label())).movable(self.movable).label(words.move_group.fill(&[])).show(ui);
+        self.reported.toggle_minimized |= grip.double_pressed;
+        self.reported.drag_started |= grip.drag_started;
         if !self.menu.is_empty() && self.panel_menu_shown {
             let name = words.panel_menu.clone();
             let button = IconButton::new(IconId::new("more")).popup(PopupKind::Menu).label(name.clone()).show(ui);
@@ -379,10 +383,6 @@ impl<P: Clone + Hash + Send + Sync + 'static> Container for DockGroup<'_, P> {
             let shown = Menu::new(name).opened_by(&button, Trigger::Click).show(ui, |ui, _| PanelMenu::new(Vec::new(), rows.clone()).show(ui).picked);
             self.reported.item = shown.inner.flatten().or(self.reported.item);
         }
-        let unit = DragUnit::Group(self.anchor.clone());
-        let grip = GroupGrip::new(unit, self.active).ghost((self.size, cx.label())).movable(self.movable).label(words.move_group.fill(&[])).show(ui);
-        self.reported.toggle_minimized |= grip.double_pressed;
-        self.reported.drag_started |= grip.drag_started;
     }
 }
 

@@ -88,7 +88,7 @@ impl Outcome for ReorderableSectionsOutput {
 /// - Layout: the shown sections of the layout, pinned first, as the rows of a `SectionStack`; the layout is made to
 ///   hold exactly the registered sections first. Folding a section writes the layout; so does every event below.
 /// - Header: dragging it, or Alt with Up and Down in the section, moves the section among the others of its group.
-///   A header button opens the section menu: Hide, Fold or Unfold, Pin or Unpin, Move Up and Move Down as
+///   The context request on a header opens the section menu: Hide, Fold or Unfold, Pin or Unpin, Move Up and Move Down as
 ///   `SectionCommands` rows that run on this section, then a check item per registered section that shows or hides it.
 /// - Body: `body` shows the content of each open section.
 /// - Announcement: a move announces the section's new place politely.

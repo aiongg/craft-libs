@@ -21,8 +21,8 @@ fn title_row(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
             .actions([HeaderAction::Menu, HeaderAction::Float, HeaderAction::Close])
             .show(ui);
         output = shown.edit.into();
+        Divider::horizontal().show(ui);
     });
-    Divider::horizontal().show(ui);
     output
 }
 
