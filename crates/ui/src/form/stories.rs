@@ -32,7 +32,6 @@ fn field_above_with_status(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 #[story(Field, covers = [LongText], drive = Drive::Never)]
 fn field_long_text(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     Field::new("A label much longer than the column a form usually gives it")
-        .layout(FieldLayout::Above)
         .help(Help::Text("A help text much longer than the room under the control, so it wraps onto more than one line".into()))
         .show(ui, |ui, _| NumberField::new("Size", Bind::bound(data.value("long", Some(SIZE)))).show(ui))
         .into()

@@ -4,6 +4,8 @@ use craft_ui::contract::{Bind, Role, Show as _, ShowContainer as _, Validity};
 use craft_ui::form::{Field, Help};
 use craft_ui::runtime::env::Message;
 use craft_ui::testing::access::focused_key;
+use craft_ui::testing::story::stories;
+use craft_ui::testing::suite::text_size_case;
 use craft_ui::testing::{Fixture, trial};
 use craft_ui::text::NumberField;
 use std::cell::Cell;
@@ -108,4 +110,12 @@ fn a_label_and_its_control_text_share_a_baseline() {
             control_at.rect
         );
     }
+}
+
+/// A long label that lies beside its control at the base size and above it under larger text makes the field shorter
+/// or taller by a reflow; the text-size case compares heights only where the label is placed the same way.
+#[trial]
+fn the_text_size_case_accepts_a_label_that_moves_above_its_control() {
+    let entry = stories().into_iter().find(|entry| entry.story.name == "field_long_text").expect("the long-text story is registered");
+    assert_eq!(text_size_case(&entry.story), Ok(()));
 }

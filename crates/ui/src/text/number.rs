@@ -34,6 +34,11 @@ use std::ops::{Deref, RangeInclusive};
 
 /// The step of an arrow press, the wheel and the label scrub when the field sets none.
 const DEFAULT_STEP: f64 = 1.0;
+/// Whether the value is a number that is not finite; the field shows the dash for it, as for a mixed value.
+fn non_finite<V: NumberValue>(value: Option<&V>) -> bool {
+    value.is_some_and(|v| v.named().is_none() && v.number().is_some_and(|number| !number.is_finite()))
+}
+
 /// The placeholder of a mixed field.
 const BLANK: &str = "\u{2014}";
 
@@ -303,9 +308,9 @@ impl<V: NumberValue> Ruled<V> {
         self.rule.settle(self.decimals.map_or(snapped, |decimals| round_to(snapped, decimals)))
     }
 
-    /// The number the value holds, as the field shows it.
+    /// The number the value holds, as the field shows it; a non-finite number is shown as no number.
     fn shown(&self, v: &V) -> Option<f64> {
-        v.number().map(|number| number * self.scale)
+        v.number().filter(|number| number.is_finite()).map(|number| number * self.scale)
     }
 
     /// The name `text` spells, as a value of the field's type.
@@ -430,6 +435,9 @@ pub struct NumberField<'a, V: NumberValue + 'static = Option<f64>> {
     /// The decimals a committed value is rounded to; the display keeps the codec's.
     #[prop]
     commit_decimals: Option<usize>,
+    /// The field is as wide as the widest value of its range, when that is wider than a number cell.
+    #[prop]
+    fit_range: bool,
     /// An empty field means automatic: it shows the "Auto" word as its placeholder.
     #[prop]
     automatic: bool,
@@ -485,6 +493,7 @@ impl<'a, V: NumberValue + 'static> NumberField<'a, V> {
             presets: None,
             popup_slider: None,
             snap_typed: false,
+            fit_range: false,
             automatic: false,
             commit_decimals: None,
             fixed_decimals: None,
@@ -730,8 +739,8 @@ impl<V: NumberValue + 'static> Component for NumberField<'_, V> {
         let faint = cx.color(cx.tokens.color.text.faint);
         NumberStyle {
             surface: field.surface.clone(),
-            // The width comes from the range's widest value or, with no range, the field's minimum (`measure`); the
-            // style's minimum is only the height.
+            // The width is a number cell, or the range's widest value with `fit_range` (`measure`); the style's minimum
+            // is only the height.
             metrics: field.metrics.min_size(Vec2::new(0.0, field.metrics.min_size.y)),
             unit: TextLook::new(TypeRole::Body, Stateful::new(faint).off(States::new(faint, faint, faint, cx.color(cx.tokens.color.text.disabled)))),
             field,
@@ -745,8 +754,15 @@ impl<V: NumberValue + 'static> Component for NumberField<'_, V> {
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
         self.settle_lengths(&cx.env.units());
         let codec = self.ruled(&cx.env.units(), false, self.names(|row| cx.env.resolve(&row.label().clone())));
-        let sample = cx.value().map_or(Cow::Borrowed(""), |value| codec.sample(value));
-        let text = cx.layout(&TextRun::new(sample.as_ref())).size();
+        // The number's room is one digit and the caret; a field sized to its range (`fit_range`) takes the widest value.
+        let caret = cx.ui.visuals().text_cursor.stroke.width;
+        let text = if self.fit_range {
+            let sample = cx.value().map_or(Cow::Borrowed(""), |value| codec.sample(value));
+            cx.layout(&TextRun::new(sample.as_ref())).size()
+        } else {
+            let digit = cx.layout(&TextRun::new("0")).size();
+            Vec2::new(digit.x + caret, digit.y)
+        };
         self.unit_size = self.unit_extent(cx);
         let unit = self.unit_size.x;
         // The chevrons' extent is the span from the text's end to the last chevron's far edge, laid out in the
@@ -756,8 +772,8 @@ impl<V: NumberValue + 'static> Component for NumberField<'_, V> {
         let placed = Self::laid_out(cx.style, probe, false, &chevrons);
         let adornments = placed.trailing.last().map_or(0.0, |last| last.max.x - placed.text.max.x);
         let width = text.x + unit + adornments;
-        // A field is at least a number cell wide, so a column of fields ends at one edge; a field over no range has no
-        // widest value to size from and takes that width.
+        // A field is one number cell wide, the unit and the chevrons inside it, so a column of fields ends at one edge;
+        // it grows only when the room left for the number drops below one digit and the caret.
         let field = cx.style.field.metrics();
         let width = width.max(cx.tokens.size.length.number - field.padding.start - field.padding.end);
         Vec2::new(width, text.y.max(self.unit_size.y))
@@ -774,7 +790,7 @@ impl<V: NumberValue + 'static> Component for NumberField<'_, V> {
         self.options.steps_value = self.presets.is_none() && self.popup_slider.is_none();
         let shown = cx.value();
         if self.options.placeholder.is_none() {
-            if shown.is_none() {
+            if shown.is_none() || non_finite(shown) {
                 self.options.placeholder = Some(BLANK.into());
             } else if self.automatic {
                 self.options.placeholder = Some(cx.words::<TextWords>().automatic.clone());
@@ -892,7 +908,7 @@ impl<V: NumberValue + 'static> Component for NumberField<'_, V> {
         let placed = Self::laid_out(cx.style, cx.content_rect, rtl, &chevrons);
         let (_, unit) = self.text_and_unit(placed.text, rtl);
         // A mixed value shows the dash alone: a unit beside it would claim a measure the selection does not have.
-        if let (Some(unit), Some(label), Some(_)) = (unit, &self.unit, cx.value()) {
+        if let (Some(unit), Some(label), Some(_)) = (unit, &self.unit, cx.value().filter(|_| !non_finite(cx.value()))) {
             let top = unit.center().y - self.unit_size.y / 2.0;
             let at = unit;
             let run = TextRun::new(label.as_str()).role(cx.style.unit.role).color(cx.resolve(&cx.style.unit.color));

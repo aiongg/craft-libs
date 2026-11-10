@@ -33,9 +33,9 @@ fn zoom_step(value: f64, direction: i32) -> f64 {
     }
 }
 
-fn refuse_negative(size: &Option<f64>) -> Validity<Option<f64>> {
+fn refuse_over_six(size: &Option<f64>) -> Validity<Option<f64>> {
     match size {
-        Some(size) if *size < 0.0 => Validity::Refuse(Message::new("Size cannot be negative")),
+        Some(size) if *size > 6.0 => Validity::Refuse(Message::new("Value cannot exceed 6")),
         _ => Validity::Ok,
     }
 }
@@ -52,10 +52,10 @@ fn number_field(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
             NumberField::new("Mixed size", Bind::bound_mixed(data.value("mixed", Mixed::<Option<f64>>::Mixed))).unit("pt").size(size).show(ui);
         });
         row("Invalid").show(ui, |ui, _| {
-            NumberField::new("Columns", Bind::bound(data.value("negative", Some(-SIZE))).check(refuse_negative)).size(size).show(ui);
+            NumberField::new("Columns", Bind::bound(data.value("invalid", Some(7.0))).check(refuse_over_six)).size(size).show(ui);
         });
         row("Pop-up slider").show(ui, |ui, _| {
-            NumberField::new("Opacity", Bind::bound(data.value("opacity", Some(80.0))))
+            NumberField::new("Opacity", Bind::bound(data.value("opacity", Some(100.0))))
                 .range(RANGE)
                 .unit("%")
                 .popup_slider(RANGE)
@@ -94,7 +94,7 @@ fn number_field_mixed(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 
 #[story(NumberField<'static>, covers = [Invalid], drive = Drive::Never)]
 fn number_field_invalid(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    NumberField::new("Size", Bind::bound(data.value("negative", Some(-SIZE))).check(refuse_negative)).show(ui).edit.into()
+    NumberField::new("Size", Bind::bound(data.value("invalid", Some(7.0))).check(refuse_over_six)).show(ui).edit.into()
 }
 
 /// Focuses the field and opens its list or slider with Alt+Down.

@@ -32,6 +32,20 @@ fn shot(story: &Story, change: &dyn Fn(&mut Fixture)) -> Shot {
 }
 
 impl Shot {
+    /// Whether every two texts of this shot that `other` also shows lie one above the other in both or beside each
+    /// other in both: a label above its control in one shot and beside it in the other fails this.
+    fn stacks_like(&self, other: &Shot) -> bool {
+        let runs: Vec<_> = self.runs.iter().filter(|run| !run.elided && !run.text.trim().is_empty()).collect();
+        let stacked = |a: Rect, b: Rect| a.max.y <= b.min.y || b.max.y <= a.min.y;
+        let there = |run: &crate::runtime::egui::fixture::PaintedText| other.runs.iter().find(|same| same.text == run.text).map(|same| same.rect);
+        runs.iter().enumerate().all(|(at, first)| {
+            runs[at + 1..].iter().all(|second| match (there(first), there(second)) {
+                (Some(a), Some(b)) => stacked(first.rect, second.rect) == stacked(a, b),
+                _ => true,
+            })
+        })
+    }
+
     /// The text run at `run` stays in its part: it lies in the shown rect, or a scroll region's view cuts it. A run
     /// in a scroll region's content shows through the region's view, so it stays in its part when the whole run lies
     /// in the content, which scrolls, and what the view shows of it in the shown rect.
@@ -90,7 +104,9 @@ pub fn text_size_case(story: &Story) -> Result<(), String> {
     for (name, grown) in &variants {
         let size = after(grown);
         let slack = if *name == "scale 2" { SCALE_LAYOUT_SLACK } else { 0.0 };
-        if !(grows_with(before.x - slack, size.x) && grows_with(before.y - slack, size.y)) {
+        // A label that moves between beside and above its control reflows the field, and that can shorten it.
+        let reflowed = !base.stacks_like(grown);
+        if !(grows_with(before.x - slack, size.x) && (reflowed || grows_with(before.y - slack, size.y))) {
             return Err(format!("{}: under {name} the size went from {before:?} to {size:?}", story.name));
         }
         for run in base.runs.iter().filter(|run| !run.elided && !run.text.trim().is_empty() && inside(run.rect, base.shown)) {
