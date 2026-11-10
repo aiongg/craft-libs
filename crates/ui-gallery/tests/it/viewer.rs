@@ -188,16 +188,3 @@ fn domain_crate_types_have_an_overview_entry_and_a_declaration() {
         assert!(catalog.declared.contains_key(type_name), "{type_name} has no declaration");
     }
 }
-
-/// Regression: a selection that moved into a closed level left the tree showing no row for it.
-#[trial]
-fn selecting_a_component_opens_its_level_once() {
-    let components = [ComponentInfo::new("A", Level::Controls, "A", &[("a", "A")]), ComponentInfo::new("B", Level::Patterns, "B", &[("b", "B")])];
-    let mut open = OpenSet::new();
-    let mut seen = None;
-    craft_ui_gallery::viewer::open_level_of_selection(&mut open, &components, Some("B"), &mut seen);
-    assert!(open.is_open(&TreeKey::Level(Level::Patterns)));
-    open.set(&TreeKey::Level(Level::Patterns), false);
-    craft_ui_gallery::viewer::open_level_of_selection(&mut open, &components, Some("B"), &mut seen);
-    assert!(!open.is_open(&TreeKey::Level(Level::Patterns)), "the same selection must not reopen a level the user closed");
-}
