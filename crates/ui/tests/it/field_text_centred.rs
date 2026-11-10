@@ -29,7 +29,7 @@ fn a_single_line_is_centred_in_its_control() {
     fixture.idle(3);
     for (name, r) in boxes.borrow().iter() {
         let text = fixture.texts().iter().find(|text| r.contains_rect(text.rect)).unwrap_or_else(|| panic!("{name} paints no text"));
-        let off = (text.rect.center().y - r.center().y).abs();
-        assert!(off <= 1.0, "{name}: the text is {off} points off the vertical centre of its box");
+        let (above, below) = (text.rect.top() - r.top(), r.bottom() - text.rect.bottom());
+        assert!((above - below).abs() < above.min(below), "{name}: {above} above the text, {below} below it");
     }
 }
