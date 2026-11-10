@@ -5,7 +5,7 @@
 
 use craft_behavior::{IconId, Selection, SelectionChange, keyed};
 use craft_ui::contract::{
-    ActivateOn, Bind, CollectionEvent, CommandSet, Commands as _, ListDrag, NoValue, Outcome, Props as _, Remember as _, RowAlign, SelectMode,
+    ActivateOn, Bind, CollectionEvent, CommandSet, Commands as _, ListDrag, NoValue, Outcome, Props as _, Remember as _, SelectMode,
     ShowCollection as _, ShowContainer as _,
 };
 use craft_ui::layout_components::Row;
@@ -207,6 +207,9 @@ const FOOTER: [TextStyleCommand; 6] = [
     TextStyleCommand::Delete,
 ];
 
+/// How many of the footer's buttons stand at the start edge: Clear Override and Redefine.
+const START_ACTIONS: usize = 2;
+
 /// One styles panel, built per pass:
 ///
 /// ```ignore
@@ -324,13 +327,21 @@ impl<'a> TextStylesPanel<'a> {
                     _ => button,
                 }
             });
-            let shown = Row::new().fill().align(RowAlign::End).show(ui, |ui, _| FooterBar::actions(actions.clone()).show_footer(ui));
-            let Some(bar) = shown.inner else { return };
+            // The commands on the style itself stand at the start edge, the commands on the list at the end.
+            let (start, end) = actions.split_at(START_ACTIONS);
+            let shown = Row::new().fill_width().show(ui, |ui, _| {
+                let first = FooterBar::actions(start.to_vec()).at_start(true).show_footer(ui);
+                (first, FooterBar::actions(end.to_vec()).show_footer(ui))
+            });
+            let Some((first, last)) = shown.inner else { return };
+            let picked = first.picked.or(last.picked.map(|at| at + START_ACTIONS));
+            let mut bar = last;
+            bar.picked = picked;
             if let Some(drop) = &bar.dropped
                 && let Some(drag) = drop.payload::<ListDrag<u64>>()
             {
                 let many = drag.keys.len() > 1;
-                let dropped = match FOOTER.get(drop.index) {
+                let dropped = match FOOTER.get(drop.index + START_ACTIONS) {
                     Some(TextStyleCommand::Delete) if many => Some(TextStyleAction::DeleteHighlighted),
                     Some(TextStyleCommand::Delete) => (drag.grabbed != 0).then_some(TextStyleAction::Delete(drag.grabbed)),
                     Some(TextStyleCommand::New) if many => Some(TextStyleAction::DuplicateHighlighted),

@@ -48,6 +48,10 @@ pub struct FooterBar {
     /// default button (the first enabled `Accept` one) like a click on it.
     #[prop(name = "enter_activates")]
     enter: bool,
+    /// Whether the bar is a group at the start edge, as wide as its actions, instead of filling the row with its
+    /// actions at the end edge: a footer of two groups puts one bar of each side by side.
+    #[prop(name = "at_start")]
+    start: bool,
 }
 
 /// The payload a dropped-on action reports, type-erased so actions of different payload types share one footer.
@@ -506,9 +510,10 @@ impl FooterBar {
     pub fn body() -> Self {
         FooterBar {
             common: Common::new(),
-            props: ContainerProps::new().roving(Roving::new(NavShape::Flat)).layout(BodyLayout::row().align(RowAlign::End)),
+            props: ContainerProps::new().sizing(Sizing::FillWidth).roving(Roving::new(NavShape::Flat)).layout(BodyLayout::row().align(RowAlign::End)),
             content: Content::Body,
             enter: false,
+            start: false,
         }
     }
 
@@ -527,6 +532,10 @@ impl FooterBar {
     pub fn show_footer(mut self, ui: &mut Ui) -> FooterOutput {
         let content = std::mem::take(&mut self.content);
         let enter = self.enter;
+        if self.start {
+            self.props.layout = BodyLayout::row().align(RowAlign::Start);
+            self.props.sizing = Sizing::Content;
+        }
         let shown = self.show(ui, |ui, _| match &content {
             Content::Body => Shown::default(),
             Content::Actions(actions) => {

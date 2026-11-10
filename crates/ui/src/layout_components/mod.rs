@@ -168,11 +168,11 @@ impl<'a> Stack<'a> {
         self
     }
 
-    /// The footer's content: the closure fills a region under the body, outside its scroll. The body takes the room
-    /// the footer leaves.
+    /// The footer's content: the closure fills a region under the body, outside its scroll, separated from it by a
+    /// rule. The body takes the room the footer leaves.
     #[must_use]
     pub fn footer(mut self, content: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'a) -> Self {
-        self.props = self.props.footer(FooterRegion::new());
+        self.props = self.props.footer(FooterRegion::new().rule(true));
         self.footer = Some(Box::new(content));
         self
     }

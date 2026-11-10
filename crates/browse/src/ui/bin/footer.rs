@@ -38,11 +38,13 @@ pub(super) fn footer<K: TextureKey>(
     let mut events = Vec::new();
     let mut view = state.settings.view;
     let mut zoom_value = state.settings.zoom;
-    let mut all: Vec<FooterAction> = actions.to_vec();
+    let mut all: Vec<FooterAction> = Vec::new();
     let sort_at = (view != BinView::List).then(|| {
-        all.push(FooterAction::new(IconId::new("more"), words.sort_icons.clone()).popup(PopupKind::Menu));
-        all.len() - 1
+        all.push(FooterAction::new(IconId::new("menu"), words.sort_icons.clone()).popup(PopupKind::Menu));
+        0
     });
+    let first = all.len();
+    all.extend(actions.iter().cloned());
     let new_bin = all.len();
     all.push(FooterAction::new(IconId::new("new_folder"), words.new_bin.clone()));
 
@@ -65,13 +67,13 @@ pub(super) fn footer<K: TextureKey>(
     }
     if let Some(drop) = &bar.dropped {
         if let Some(drag) = drop.payload::<ListDrag<K>>() {
-            events.push(BinEvent::FooterDrop { action: drop.index, keys: drag.keys.clone() });
+            events.push(BinEvent::FooterDrop { action: drop.index - first, keys: drag.keys.clone() });
         }
     } else if let Some(at) = bar.picked {
         if at == new_bin {
             events.push(BinEvent::NewBin);
         } else if Some(at) != sort_at {
-            events.push(BinEvent::Footer { action: at });
+            events.push(BinEvent::Footer { action: at - first });
         }
     }
     if let Some(response) = sort_at.and_then(|at| bar.responses.get(at)) {
