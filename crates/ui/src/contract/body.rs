@@ -2337,7 +2337,11 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         // B4 footer: under the control column of a label-scoped container, which starts where the label step put
         // the control.
         if props.footer.is_some() {
-            let (footer_rect, offset) = self.place_footer(&props, &mut regions, inner, body_rect, rtl);
+            let (mut footer_rect, offset) = self.place_footer(&props, &mut regions, inner, body_rect, rtl);
+            // The region's height counts the gap (it is part of what the footer took), so the content starts below it.
+            let lead = props.footer.and_then(|footer| footer.gap).map_or(0.0, |gap| gap_of(&env.tokens, gap));
+            footer_rect.min.y += lead;
+            footer_rect.max.y = footer_rect.max.y.max(footer_rect.min.y);
             let mut bcx = BodyCx::new(body_id, env_view, resolved, footer_rect, &mut *cx.core.memory, &mut open, gate.as_mut())
                 .with_field_message(field_message)
                 .with_owner(owner);
@@ -2350,6 +2354,9 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             // The footer's width counts from the container's edge, past the column it starts after.
             if took.x > 0.0 {
                 took.x += offset;
+            }
+            if took.y > 0.0 {
+                took.y += lead;
             }
             self.footer_size = Some(took);
         }

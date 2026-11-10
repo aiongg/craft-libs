@@ -1,7 +1,7 @@
 //! `Field` (16.3): a container that shows one control with a side label, and a help line under it.
 
 use crate::contract::{
-    BodyCx, Common, Component, Container, ContainerProps, Cx, FieldLayout, FooterRegion, Props as _, Role, Show as _, SideLabel, Sizing,
+    BodyCx, Common, Component, Container, ContainerProps, Cx, FieldLayout, FooterRegion, Gap, Props as _, Role, Show as _, SideLabel, Sizing,
 };
 use crate::display::{Shade, Text};
 use crate::runtime::access::Access;
@@ -54,7 +54,7 @@ pub struct Field {
 impl Field {
     /// A field labelled `label`, beside its control, filling the width offered.
     pub fn new(label: impl Into<Label>) -> Self {
-        let props = ContainerProps::new().sizing(Sizing::FillWidth).footer(FooterRegion::new()).label(SideLabel::new());
+        let props = ContainerProps::new().sizing(Sizing::FillWidth).footer(FooterRegion::new().gap(Gap::Tight)).label(SideLabel::new());
         Field { common: Common::new(), props, help: None, layout: None, value: None }.label(label)
     }
 

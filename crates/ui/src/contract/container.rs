@@ -225,12 +225,14 @@ pub struct FooterRegion {
     pub rule: bool,
     /// Where the footer sits.
     pub place: FooterPlace,
+    /// The space above the footer's content, inside the region; none by default.
+    pub gap: Option<Gap>,
 }
 
 impl FooterRegion {
     /// A footer across the container under the line, with no rule.
     pub const fn new() -> Self {
-        FooterRegion { rule: false, place: FooterPlace::Across }
+        FooterRegion { rule: false, place: FooterPlace::Across, gap: None }
     }
 
     /// Whether a rule separates the footer from the content beside it.
@@ -242,6 +244,12 @@ impl FooterRegion {
     /// Where the footer sits.
     pub const fn place(mut self, place: FooterPlace) -> Self {
         self.place = place;
+        self
+    }
+
+    /// The space above the footer's content, inside the region.
+    pub const fn gap(mut self, gap: Gap) -> Self {
+        self.gap = Some(gap);
         self
     }
 }
