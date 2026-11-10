@@ -10,8 +10,10 @@ use std::hash::Hash;
 
 /// A child of a scroll area that runs only while it is in view. Out of view it takes the extent it had in the last
 /// pass that showed it and its content does not run. It runs when it was never shown at the scroll area's room, when
-/// it meets the view widened by the view's size on each side, while it holds keyboard focus, and when `keep` asks.
-/// Outside a scroll area it always runs.
+/// it meets the view widened by the view's size on each side, while one of the stops of its last run holds keyboard
+/// focus or is the target of a focus request, and when `keep` asks. Content that was never shown has no stops to
+/// find: a child an app focuses or scrolls to before it was ever in reach needs `keep`. Outside a scroll area it
+/// always runs.
 ///
 /// The key names the child among every `Lazy` of its scroll area, nested containers included. The idiom is
 /// `Lazy::new(key).show(ui, |ui| ..)` around each large child (a card, a row of cards) in the scroll body.
@@ -65,7 +67,7 @@ impl Lazy {
         let rect = child.min_rect();
         alloc::advance_past(ui, rect);
         if let Some(view) = view {
-            lazy::shown(&ctx, id, rect.size(), view.room, sizing, (!sizing).then(|| focus::focus_since(&ctx, from)));
+            lazy::shown(&ctx, id, rect.size(), view.room, sizing, (!sizing).then(|| focus::stops_since(&ctx, from)));
         }
         Some(out)
     }

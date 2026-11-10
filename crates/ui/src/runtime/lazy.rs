@@ -34,16 +34,19 @@ pub(crate) enum Decision {
     Skip(Vec2),
 }
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Default)]
 struct Entry {
-    /// The extent of the last run that showed the child.
+    /// The extent of the last run that showed the child. Both runs of a pass that skips the child take it, so it is
+    /// the same size in the measuring run and the real run; the real run comes last in a pass, so it is the real
+    /// run's extent.
     size: Option<Vec2>,
-    /// The scroll area's room in the last measuring run and the last real run that showed the child. A
-    /// content-sized scroll area is offered another room in its measuring run than in its real run, so each kind of
-    /// run compares with its own.
+    /// The scroll area's room in the last measuring run and the last real run that showed the child: whether the
+    /// extent is current. A content-sized scroll area is offered another room in its measuring run than in its real
+    /// run, so each kind of run compares with its own.
     rooms: [Option<Vec2>; 2],
-    /// Whether the child held keyboard focus in the last real run that showed it.
-    focus: bool,
+    /// The components and egui roots of the stops the child registered in the last real run that showed it. The
+    /// child runs while one of them holds focus or a focus request asks to reveal one.
+    stops: Vec<Id>,
     /// This pass's decision, under the pass number that made it.
     decided: Option<(u64, Decision)>,
     /// The last frame that read or wrote the entry.
@@ -77,9 +80,11 @@ fn same_room(a: Vec2, b: Vec2) -> bool {
 
 /// Decides whether the child `id`, whose content starts at `at` in this run, runs this pass. It runs when it has no
 /// extent from a run of this kind (`sizing` or real) that showed it at this room, when that extent placed at `at`
-/// meets the view's reach, when it held focus, or when `keep` asks for it. The first run of a pass decides; every
-/// later run of the pass gets the same answer, so a measuring run and the real run lay out the same children.
+/// meets the view's reach, when one of its stops holds focus or is the target of a focus request, or when `keep`
+/// asks for it. The first run of a pass decides; every later run of the pass gets the same answer, so a measuring
+/// run and the real run lay out the same children.
 pub(crate) fn decide(ctx: &Context, id: Id, view: &View, at: impl FnOnce(Vec2) -> Rect, sizing: bool, keep: bool) -> Decision {
+    let targets = crate::runtime::focus::targets(ctx);
     with(ctx, |store, pass_nr, frame| {
         let entry = store.entries.entry(id).or_default();
         entry.touched = frame;
@@ -89,8 +94,9 @@ pub(crate) fn decide(ctx: &Context, id: Id, view: &View, at: impl FnOnce(Vec2) -
             return decision;
         }
         let known = entry.rooms[usize::from(!sizing)].is_some_and(|room| same_room(room, view.room));
+        let focus = entry.stops.iter().any(|stop| targets.contains(&Some(*stop)));
         let decision = match entry.size {
-            Some(size) if known && !keep && !entry.focus && !at(size).intersects(view.reach()) => Decision::Skip(size),
+            Some(size) if known && !keep && !focus && !at(size).intersects(view.reach()) => Decision::Skip(size),
             _ => Decision::Run,
         };
         entry.decided = Some((pass_nr, decision));
@@ -99,15 +105,15 @@ pub(crate) fn decide(ctx: &Context, id: Id, view: &View, at: impl FnOnce(Vec2) -
 }
 
 /// Records what a run that showed the child `id` found: its extent at the scroll area's `room` in a run of this kind
-/// and, from a real run, whether it holds focus.
-pub(crate) fn shown(ctx: &Context, id: Id, size: Vec2, room: Vec2, sizing: bool, focus: Option<bool>) {
+/// and, from a real run, the stops it registered.
+pub(crate) fn shown(ctx: &Context, id: Id, size: Vec2, room: Vec2, sizing: bool, stops: Option<Vec<Id>>) {
     with(ctx, |store, _, frame| {
         let entry = store.entries.entry(id).or_default();
         entry.touched = frame;
         entry.size = Some(size);
         entry.rooms[usize::from(!sizing)] = Some(room);
-        if let Some(focus) = focus {
-            entry.focus = focus;
+        if let Some(stops) = stops {
+            entry.stops = stops;
         }
     });
 }

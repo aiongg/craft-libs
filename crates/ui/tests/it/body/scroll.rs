@@ -3,11 +3,13 @@
 
 use super::kit::Slab;
 use craft_behavior::ColumnWidth;
+use craft_ui::buttons::Button;
 use craft_ui::contract::{ContainerProps, Props as _, Scroll, Show as _, ShowContainer as _, Sizing};
 use craft_ui::layout_components::{Grid, Stack};
+use craft_ui::runtime::focus::{FocusTarget, request};
 use craft_ui::testing::layout::{Block, in_region};
 use craft_ui::testing::{Frames, pointer, trial};
-use egui::{Pos2, Rect, Ui, Vec2};
+use egui::{Id, Pos2, Rect, Ui, Vec2};
 use std::cell::{Cell, RefCell};
 
 const LINE: Vec2 = Vec2::new(100.0, 20.0);
@@ -258,4 +260,44 @@ fn an_out_of_view_child_does_not_run_until_it_scrolls_in() {
     }
     assert!(covered >= view.max.y, "the children in view after the jump ran in that frame: covered to {covered}, view {view:?}");
     frames.frame(vec![pointer::release(thumb + Vec2::new(0.0, 60.0))], &mut show);
+}
+
+/// A focus request for a control in a child far out of view runs that child, keeps the focus there, and the body
+/// scrolls the control into view: the child's stops from its last run name it.
+#[trial]
+fn a_focus_request_into_an_out_of_view_child_runs_it_and_scrolls_it_in() {
+    const CHILDREN: usize = 30;
+    let runs: Vec<Cell<usize>> = (0..CHILDREN).map(|_| Cell::new(0)).collect();
+    let buttons: Vec<Cell<(Id, Rect)>> = (0..CHILDREN).map(|_| Cell::new((Id::NULL, Rect::NOTHING))).collect();
+    let view = Cell::new(Rect::NOTHING);
+    let mut show = |ui: &mut Ui| {
+        in_region(ui, Rect::from_min_size(ORIGIN, VIEW), |ui| {
+            Slab::new(ContainerProps::new().scroll(Scroll::vertical())).id_salt("panel").show(ui, |ui, cx| {
+                view.set(cx.rect);
+                for (at, (count, button)) in runs.iter().zip(&buttons).enumerate() {
+                    craft_ui::contract::Lazy::new(at).show(ui, |ui| {
+                        count.set(count.get() + 1);
+                        let out = Button::new(format!("Child {at}")).show(ui);
+                        if !ui.is_sizing_pass() {
+                            button.set((out.id, out.rect));
+                        }
+                        Block::new(Vec2::new(LINE.x, HUNDRED)).show(ui);
+                    });
+                }
+            });
+        });
+    };
+    let mut frames = Frames::new();
+    frames.idle(3, &mut show);
+    let last = CHILDREN - 1;
+    runs.iter().for_each(|count| count.set(0));
+    frames.frame(vec![], &mut show);
+    assert_eq!(runs[last].get(), 0, "the child far below the view does not run");
+    let target = buttons[last].get().0;
+    request(&frames.ctx, FocusTarget::Id(target));
+    frames.idle(3, &mut show);
+    assert!(runs[last].get() > 0, "the requested child runs");
+    assert_eq!(frames.ctx.memory(|memory| memory.focused()), Some(target), "the focus stays on the requested control");
+    let (_, rect) = buttons[last].get();
+    assert!(view.get().contains_rect(rect), "the body scrolled the control into view: {rect:?} in {:?}", view.get());
 }
