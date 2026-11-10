@@ -18,7 +18,7 @@ use crate::contract::{
 use crate::list::{List, ListRow};
 use crate::primitives::{IconSpec, TextOptions, TextRun};
 use crate::runtime::env::{Label, LengthUnits, UnitKind, Units};
-use crate::style::{ComponentStyle, Ink, StyleCx, SurfaceLook, TextLook, TypeRole};
+use crate::style::{ComponentStyle, StyleCx, SurfaceLook, TextLook, TypeRole};
 use crate::value_drag::Slider;
 use craft_behavior::Value;
 use craft_behavior::nav::{LARGE_STEPS, StepResult, ValueAxes, ValueSteps};
@@ -34,6 +34,9 @@ use std::ops::{Deref, RangeInclusive};
 
 /// The step of an arrow press, the wheel and the label scrub when the field sets none.
 const DEFAULT_STEP: f64 = 1.0;
+/// The placeholder of a mixed field.
+const BLANK: &str = "\u{2014}";
+
 /// The decimals a field writes when neither a codec nor a unit kind says.
 const DEFAULT_DECIMALS: usize = 3;
 /// How far a value may sit off a multiple of the step and still count as on it.
@@ -720,7 +723,7 @@ impl<V: NumberValue + 'static> Component for NumberField<'_, V> {
             // The width comes from the range's widest value or, with no range, the field's minimum (`measure`); the
             // style's minimum is only the height.
             metrics: field.metrics.min_size(Vec2::new(0.0, field.metrics.min_size.y)),
-            unit: TextLook::new(TypeRole::Body, Stateful::new(cx.ink(Ink::OnPanel))),
+            unit: TextLook::new(TypeRole::Body, Stateful::new(cx.color(cx.tokens.color.text.faint))),
             field,
         }
     }
@@ -764,6 +767,9 @@ impl<V: NumberValue + 'static> Component for NumberField<'_, V> {
         self.options.centred = true;
         self.options.steps_value = self.presets.is_none() && self.popup_slider.is_none();
         let shown = cx.value();
+        if shown.is_none() && self.options.placeholder.is_none() {
+            self.options.placeholder = Some(BLANK.into());
+        }
         let names = self.names(|row| cx.env.resolve(&row.label().clone()));
         let blank = V::blank().unwrap_or_else(|| V::of_number(self.rule().blank()));
         cx.text(text_part::<V>(), text, &self.ruled(&cx.env.units(), shown.is_none(), names), shown.unwrap_or(&blank), &self.options);
