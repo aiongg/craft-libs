@@ -243,13 +243,13 @@ struct LabelStyle {
     icon: f32,
     /// The gap between the icon, the text and the detail.
     gap: f32,
-    /// The colour of the detail.
-    muted: StyleColor,
+    /// The detail: `text.muted`, `text.disabled` with a disabled control.
+    detail: Stateful<StyleColor>,
     /// The name: `text.muted`, dimmed with a disabled control.
     #[style(text)]
     name: TextLook,
-    /// The colour of the glyph, icon and detail while the label's control is disabled.
-    disabled: StyleColor,
+    /// The glyph and icon: the normal text colour, `text.disabled` with a disabled control.
+    glyph: Stateful<StyleColor>,
 }
 
 /// What the label leaf reports.
@@ -297,8 +297,8 @@ struct LabelLeaf {
 }
 
 impl LabelLeaf {
-    fn detail_run<'a>(&self, detail: &'a Label, style: &LabelStyle) -> TextRun<'a> {
-        TextRun::new(detail.as_str()).color(style.muted).wrap(Wrap::Wrap)
+    fn detail_run<'a>(&self, detail: &'a Label, ink: StyleColor) -> TextRun<'a> {
+        TextRun::new(detail.as_str()).color(ink).wrap(Wrap::Wrap)
     }
 
     #[cfg(feature = "testing")]
@@ -341,12 +341,18 @@ impl Component for LabelLeaf {
             reset: cx.reset_mark(),
             icon: cx.control().icon,
             gap: cx.tokens.space.gap.inline,
-            muted: cx.color(cx.tokens.color.text.muted),
+            detail: {
+                let (muted, off) = (cx.color(cx.tokens.color.text.muted), cx.color(cx.tokens.color.text.disabled));
+                Stateful::new(muted).off(States::new(muted, muted, muted, off))
+            },
             name: {
                 let (muted, off) = (cx.color(cx.tokens.color.text.muted), cx.color(cx.tokens.color.text.disabled));
                 TextLook::new(TypeRole::Label, Stateful::new(muted).off(States::new(muted, muted, muted, off)))
             },
-            disabled: cx.color(cx.tokens.color.text.disabled),
+            glyph: {
+                let (normal, off) = (cx.color(cx.tokens.color.text.normal), cx.color(cx.tokens.color.text.disabled));
+                Stateful::new(normal).off(States::new(normal, normal, normal, off))
+            },
         }
     }
 
@@ -380,7 +386,7 @@ impl Component for LabelLeaf {
                 _ => cx.room,
             };
             let left = room.map_or(f32::INFINITY, |room| (room - self.slot - width - cx.style.gap).max(0.0));
-            let detail = cx.layout_at(&self.detail_run(detail, cx.style), left).size();
+            let detail = cx.layout_at(&self.detail_run(detail, cx.style.detail.off.rest), left).size();
             width += cx.style.gap + detail.x;
             height = height.max(detail.y);
         }
@@ -412,18 +418,8 @@ impl Component for LabelLeaf {
         let flow = Flow::new(cx.rect, cx.core.env.direction().is_rtl());
         let (slot, mut rest) = flow.take_end(self.slot);
         let draw = ui.draw();
-        // While the control is disabled, every part reads in `text.disabled`.
-        let ink = (cx.state.state == craft_theme::State::Disabled).then_some(cx.style.disabled);
-        let icon_of = |icon: &IconSpec<'static>| match ink {
-            Some(color) => IconSpec { color: Some(color), ..icon.clone() },
-            None => icon.clone(),
-        };
-        fn tint(run: TextRun<'_>, ink: Option<StyleColor>) -> TextRun<'_> {
-            match ink {
-                Some(color) => run.color(color),
-                None => run,
-            }
-        }
+        let ink = cx.resolve(&cx.style.glyph);
+        let icon_of = |icon: &IconSpec<'static>| IconSpec { color: Some(ink), ..icon.clone() };
         let middle = cx.rect.center().y;
         let centred = |rect: Rect, height: f32| Rect::from_min_size(egui::pos2(rect.min.x, middle - height / 2.0), Vec2::new(rect.width(), height));
         if let Some(glyph) = &self.glyph {
@@ -432,7 +428,7 @@ impl Component for LabelLeaf {
                     draw.icon(centred(rest.take_start(cx.style.icon).0, cx.style.icon), &icon_of(icon));
                 }
                 Glyph::Text(text) => {
-                    let run = tint(TextRun::new(text.as_str()), ink);
+                    let run = TextRun::new(text.as_str()).color(ink);
                     let size = draw.layout(&run, rest.rect().width()).size();
                     draw.text(centred(rest.take_start(size.x).0, size.y), &run);
                 }
@@ -460,7 +456,7 @@ impl Component for LabelLeaf {
                 None => after,
             };
             if let Some(detail) = &self.detail {
-                let run = tint(self.detail_run(detail, cx.style), ink);
+                let run = self.detail_run(detail, cx.resolve(&cx.style.detail));
                 let (_, detail_flow) = after.take_start(cx.style.gap);
                 let size = draw.layout(&run, detail_flow.rect().width()).size();
                 draw.text(centred(detail_flow.rect(), size.y), &run);
