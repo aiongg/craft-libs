@@ -1238,11 +1238,17 @@ pub(crate) fn settle<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>) {
     if focus::take_reveal_of(&cx.core.ctx, owner) {
         cx.core.reveal.get_or_insert(cx.core.rect);
     }
-    if let Some(rect) = cx.core.reveal.take()
-        && let Some(owner) = cx.core.env.scroll_owner().or_else(|| wheel::nearest_scroll_owner(&cx.core.ctx, rect))
-    {
-        store::Service::<Reveals>::run(&cx.core.ctx, |reveals| reveals.0.push(Reveal { owner, rect }));
-        repaint::request(&cx.core.ctx);
+    if let Some(rect) = cx.core.reveal.take() {
+        request_reveal(&cx.core.ctx, cx.core.env.scroll_owner(), rect);
+    }
+}
+
+/// Asks `scroll_owner`, the scroll owner around the asker, else the innermost one of last pass that meets `rect`, to bring `rect`
+/// into view, and repaints.
+pub(crate) fn request_reveal(ctx: &Context, scroll_owner: Option<Id>, rect: Rect) {
+    if let Some(owner) = scroll_owner.or_else(|| wheel::nearest_scroll_owner(ctx, rect)) {
+        store::Service::<Reveals>::run(ctx, |reveals| reveals.0.push(Reveal { owner, rect }));
+        repaint::request(ctx);
     }
 }
 

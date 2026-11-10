@@ -177,7 +177,7 @@ pub(super) fn show(ui: &mut Ui, p: &mut Panels<'_>, tab: PanelId) -> bool {
         closed |= cx.take_cancel();
     });
     let used = reported.iter().find(|reported| reported.events.used).map(|reported| reported.spec);
-    apply(ui, p, &cards, reported);
+    apply(p, &cards, reported);
     if let Some(card) = used.and_then(|spec| values(axis).and_then(|values| values.into_iter().nth(spec))) {
         if let Some(mode) = card.look.mode {
             p.env.mode = mode.into();

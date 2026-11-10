@@ -193,6 +193,8 @@ impl Card<'_> {
                 *open = false;
             }
             state.start = None;
+            // The pass showed the dialog open; discard it so the card's first paint already has it closed.
+            ui.ctx().request_discard("gallery: a card's story opened a dialog on its first pass");
         }
         state.note_start();
     }

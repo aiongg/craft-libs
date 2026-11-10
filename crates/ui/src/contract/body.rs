@@ -16,7 +16,7 @@ use crate::runtime::access::{self, Politeness, Role};
 use crate::runtime::commands::{self, CommandSet as _, WindowCommand};
 use crate::runtime::egui::pass;
 use crate::runtime::egui::{alloc, areas, child, input, response, style, viewports};
-use crate::runtime::env::{AppValues, ArenaId, Env, Scoped};
+use crate::runtime::env::{AppValues, ArenaId, Env, Scoped, ShellEntry};
 use crate::runtime::focus::FocusPolicy;
 use crate::runtime::memory::{MemoryStage, SaveKey, sub};
 use crate::runtime::motion::{Driver, Presence, spec};
@@ -196,10 +196,10 @@ fn overlay_of(props: &ContainerProps) -> Option<&super::Overlay> {
 
 /// The layer a measuring run lays the regions out on: the one the real run shows them on, since egui keeps a
 /// region's `Ui` on one layer per pass. A viewport's own window keeps its widgets apart, so it measures on the parent's.
-fn measure_layer(props: &ContainerProps, id: Id, ui: &Ui) -> areas::Layer {
+fn measure_layer(props: &ContainerProps, id: Id, ui: &Ui, env: &Env) -> areas::Layer {
     let area = sub(id, "area");
     match &props.mount {
-        Mount::Viewport { .. } if windows::WindowHost::of(ui.ctx()).viewports_available() => ui.layer_id(),
+        Mount::Viewport { .. } if windows::WindowHost::of(ui.ctx()).viewports_available(env.get::<ShellEntry>().0.as_ref()) => ui.layer_id(),
         Mount::Layer(overlay) | Mount::Viewport { fallback: overlay, .. } => areas::layer_of(overlay.rank.tier(), area),
         Mount::FullWindow => areas::layer_of(super::mount::full_window_overlay(props.focus).rank.tier(), area),
         _ => ui.layer_id(),
@@ -1923,7 +1923,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 cx.core.rect = rect;
                 cx.core.flow = craft_behavior::Flow::new(rect, at.env.direction.is_rtl());
                 cx.core.content_rect = cx.core.flow.inset(cx.style.metrics().padding);
-                let builder = UiBuilder::new().layer_id(measure_layer(&props, id, at.ui)).max_rect(rect).sizing_pass().invisible();
+                let builder = UiBuilder::new().layer_id(measure_layer(&props, id, at.ui, at.env)).max_rect(rect).sizing_pass().invisible();
                 // The regions take explicit scope ids under `id`, so every component in them gets the id the real run
                 // gives it and the records it leaves match.
                 let mut measure_ui = Ui::new(ctx.clone(), sub(id, "measure"), builder);

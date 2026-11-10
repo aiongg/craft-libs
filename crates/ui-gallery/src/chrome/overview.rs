@@ -16,7 +16,7 @@ use craft_ui::runtime::env::WindowKey;
 use craft_ui::shell::AppShell;
 use craft_ui::style::SurfaceKind;
 use craft_ui::testing::StoryRegistration;
-use egui::{Align, Ui};
+use egui::Ui;
 
 /// The narrowest a card may be before the cards go to one column: a dock panel of the apps is about this wide, and a
 /// story drawn in less is no longer what the apps show.
@@ -96,7 +96,7 @@ pub(super) fn grid(
     Stack::new().fill().scroll(Scroll::vertical()).gap(Gap::CardRow).id_salt(scroll_id).show(ui, |ui, _| {
         reported.clear();
         for (row, chunk) in cards.chunks(columns).enumerate() {
-            Grid::new(if columns == 1 { ONE } else { TWO }).gap(Gap::CardColumn).fill_width().show(ui, |ui, _| {
+            Grid::new(if columns == 1 { ONE } else { TWO }).gap(Gap::CardColumn).fill_width().show(ui, |ui, cx| {
                 for (at, spec) in chunk.iter().enumerate() {
                     let state = p.cells.entry(spec.index).or_default();
                     // Each card is its own id scope: a story's `id_salt` and auto ids must not meet another card's.
@@ -113,6 +113,13 @@ pub(super) fn grid(
                         look: spec.look,
                     };
                     let events = card.show(ui, state);
+                    // The selected component's card is brought into view through the scroll container around the cards.
+                    if *p.scroll_to == Some(spec.type_name)
+                        && let Some(rect) = events.rect
+                    {
+                        cx.reveal(rect);
+                        *p.scroll_to = None;
+                    }
                     reported.push(Reported { spec: row * columns + at, events });
                 }
             });
@@ -123,9 +130,7 @@ pub(super) fn grid(
 
 /// Applies what the cards reported: a press selects the card's component and story, Open opens its tab, Reset gives
 /// the story its start values.
-pub(super) fn apply(ui: &mut Ui, p: &mut Panels<'_>, cards: &[Spec], reported: Vec<Reported>) {
-    let scroll = *p.scroll_to;
-    let mut scrolled = false;
+pub(super) fn apply(p: &mut Panels<'_>, cards: &[Spec], reported: Vec<Reported>) {
     for Reported { spec, events } in reported {
         let Some(spec) = cards.get(spec) else { continue };
         if events.reset {
@@ -138,15 +143,6 @@ pub(super) fn apply(ui: &mut Ui, p: &mut Panels<'_>, cards: &[Spec], reported: V
             *p.selection = Selection::single(TreeKey::Component(spec.type_name));
             p.story_of.insert(spec.type_name, spec.story.story.name);
         }
-        if scroll == Some(spec.type_name)
-            && let Some(rect) = events.rect
-        {
-            ui.scroll_to_rect(rect, Some(Align::TOP));
-            scrolled = true;
-        }
-    }
-    if scrolled {
-        *p.scroll_to = None;
     }
 }
 
@@ -196,7 +192,7 @@ pub(super) fn overview(ui: &mut Ui, p: &mut Panels<'_>) {
     if chosen != level {
         *p.level = chosen.title().to_owned();
     }
-    apply(ui, p, &cards, reported);
+    apply(p, &cards, reported);
 }
 
 /// The Overview's card of `component`: the story picked for it, else its first.
@@ -254,5 +250,5 @@ pub(super) fn component_tab(ui: &mut Ui, p: &mut Panels<'_>, type_name: &'static
         .collect();
     let mut reported = Vec::new();
     on_background(ui, "component", |ui, _| reported = grid(ui, ("component", type_name), &cards, p, true));
-    apply(ui, p, &cards, reported);
+    apply(p, &cards, reported);
 }

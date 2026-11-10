@@ -1281,6 +1281,11 @@ impl<'a> BodyCx<'a> {
         BodyCx { id, env, resolved, rect, memory, open, gate, gate_mixed: false, close: None, field_message: None, owner: None }
     }
 
+    /// Asks the nearest scroll owner around this body to bring `rect` (screen coordinates) into view.
+    pub fn reveal(&mut self, rect: Rect) {
+        super::steps::request_reveal(self.memory.ctx(), self.env.scroll_owner(), rect);
+    }
+
     /// Asks the platform to open `url`, in a new tab where the platform has tabs and `new_tab` is set: the opener
     /// `Link` uses. The footer's closure gets this context too.
     pub fn open_url(&mut self, url: &str, new_tab: bool) {

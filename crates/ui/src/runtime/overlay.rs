@@ -661,7 +661,7 @@ pub(crate) fn end_pass(ctx: &Context) {
 }
 
 fn modal_in_other_viewports(ctx: &Context, running: ViewportId) -> bool {
-    pass::live_viewports(ctx).into_iter().filter(|viewport| *viewport != running).any(|viewport| with_persist(ctx, viewport, |persist| persist.modal))
+    modal_viewport(ctx, running).is_some()
 }
 
 /// Whether a modal layer is open in a viewport other than `viewport`: the global open-modal fact the input hook
@@ -716,9 +716,13 @@ pub(crate) fn key_layer(ctx: &Context, scopes: &[Id]) -> LayerKeys {
     inside.map_or(LayerKeys::Window, |entry| LayerKeys::Class(entry.keys))
 }
 
-/// A viewport other than `viewport` that has a modal layer open: the window a blocked press raises.
+/// A viewport other than `viewport` that has a modal layer open: the window a blocked press raises. A window that
+/// has not been shown yet (no pass has run in it) does not block.
 pub(crate) fn modal_viewport(ctx: &Context, viewport: ViewportId) -> Option<ViewportId> {
-    pass::live_viewports(ctx).into_iter().filter(|other| *other != viewport).find(|other| with_persist(ctx, *other, |persist| persist.modal))
+    pass::live_viewports(ctx)
+        .into_iter()
+        .filter(|other| *other != viewport)
+        .find(|other| with_persist(ctx, *other, |persist| persist.modal) && super::windows::has_shown(ctx, *other))
 }
 
 /// Whether a layer of key class `class` that is not fading out was shown last frame.
