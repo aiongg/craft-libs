@@ -59,7 +59,7 @@ impl Component for SelectableText<'_> {
     type Output = EditResponse<String>;
 
     fn style(cx: &StyleCx<'_>, _: SelectableTextStyleKey) -> SelectableStyle {
-        SelectableStyle { metrics: Metrics::new().padding(Insets::new(cx.control().pad_x, 0.0, cx.control().pad_x, 0.0)) }
+        SelectableStyle { metrics: Metrics::new().padding(Insets::horizontal(cx.control().pad_x)) }
     }
 
     fn sense(&self) -> Sense {
