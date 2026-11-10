@@ -54,25 +54,19 @@ fn show(ui: &mut Ui, properties: &mut Option<LayerProperties>) -> StoryOutput {
     out.into()
 }
 
-#[story(BlendRows<'static>, covers = [Default], drive = Drive::Never, title = "Normal layer")]
+#[story(BlendRows<'static>, covers = [Default], drive = Drive::Never, group = "States", title = "Normal layer")]
 fn a_layer(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let properties = data.value("properties", Some(LayerProperties { opacity: OPACITY, ..LayerProperties::new("multiply") }));
     show(ui, properties)
 }
 
-#[story(BlendRows<'static>, covers = [], drive = Drive::Never, title = "Group")]
-fn a_group(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let properties = data.value("properties", Some(LayerProperties { group: true, ..LayerProperties::new("passThrough") }));
-    show(ui, properties)
-}
-
-#[story(BlendRows<'static>, covers = [], drive = Drive::Never, title = "Background")]
+#[story(BlendRows<'static>, covers = [], drive = Drive::Never, group = "States", title = "Background")]
 fn the_background(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let properties = data.value("properties", Some(LayerProperties { editable: false, ..LayerProperties::new("normal") }));
     show(ui, properties)
 }
 
-#[story(BlendRows<'static>, covers = [], drive = Drive::Never, title = "Several layers selected")]
+#[story(BlendRows<'static>, covers = [], drive = Drive::Never, group = "States", title = "Several layers selected")]
 fn mixed_locks(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let mut properties = LayerProperties::new("normal");
     properties.locks.pixels = true;
@@ -81,8 +75,14 @@ fn mixed_locks(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     show(ui, properties)
 }
 
-#[story(BlendRows<'static>, covers = [], drive = Drive::Never, title = "No active layer")]
+#[story(BlendRows<'static>, covers = [], drive = Drive::Never, group = "States", title = "No active layer")]
 fn no_layer(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let properties = data.value("properties", None::<LayerProperties>);
+    show(ui, properties)
+}
+
+#[story(BlendRows<'static>, covers = [], drive = Drive::Never, title = "Group")]
+fn a_group(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let properties = data.value("properties", Some(LayerProperties { group: true, ..LayerProperties::new("passThrough") }));
     show(ui, properties)
 }

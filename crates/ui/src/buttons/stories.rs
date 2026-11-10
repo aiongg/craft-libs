@@ -14,7 +14,7 @@ const SIZES: [(&str, ControlSize); 2] = [("Sm", ControlSize::Sm), ("Md", Control
 
 /// Every variant at each size (rows, each under its name) at rest, disabled and loading (columns). Where the full grid
 /// is wider than the room, the loading column is left out.
-#[story(Button<'static>, covers = [], drive = Drive::Never, title = "Variants")]
+#[story(Button<'static>, covers = [], drive = Drive::Never, group = "Variants", title = "Variants")]
 fn button_variants(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     const ALL: &[ColumnWidth] = &[ColumnWidth::Content; 4];
     const STATES: [(&str, bool, bool); 3] = [("rest", true, false), ("disabled", false, false), ("loading", true, true)];
@@ -41,7 +41,7 @@ fn button_variants(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     Grid::new(columns).show(ui, |ui, _| rows(ui, states)).into()
 }
 
-#[story(Button<'static>, covers = [Default], title = "Playground")]
+#[story(Button<'static>, covers = [Default], group = "Playground", title = "Playground")]
 fn button(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let variants = [("Primary", Variant::PRIMARY), ("Secondary", Variant::SECONDARY), ("Ghost", Variant::GHOST), ("Danger", Variant::DANGER)];
     let variant = *data.choice("variant", Variant::PRIMARY, &variants);
@@ -58,12 +58,12 @@ fn button(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     shown.into()
 }
 
-#[story(Button<'static>, covers = [], disabled_text = "Nothing to save")]
+#[story(Button<'static>, covers = [], disabled_text = "Nothing to save", group = "Playground", title = "With reason")]
 fn button_with_reason(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     Button::new("Save").tooltip(data.tooltip("Save the document")).show(ui).into()
 }
 
-#[story(Button<'static>, covers = [], drive = Drive::Never)]
+#[story(Button<'static>, covers = [], drive = Drive::Never, group = "Playground", title = "Loading")]
 fn button_loading(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     Button::new("Saving").icon(IconId::new("save")).loading(true).show(ui).into()
 }

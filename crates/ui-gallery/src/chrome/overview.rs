@@ -1,4 +1,4 @@
-//! The centre tabs: the Overview (the cards of one level), a component's tab (every story of it) and the Variants view
+//! The centre tabs: the Overview (the cards of one level), a component's tab (a card per story group) and the Variants view
 //! that replaces the front one.
 
 use super::card::{Card, CardEvents, CardStory, Look};
@@ -148,7 +148,8 @@ pub(super) fn grid(
     reported
 }
 
-/// Applies what the cards reported: a press selects the card's component (and the story of a card of one story), Open
+/// Applies what the cards reported: a press selects the card's component and picks the card's first story unless the
+/// picked one is on the card, Open
 /// opens its tab, Reset gives the card's stories their start values.
 pub(super) fn apply(ui: &mut Ui, p: &mut Panels<'_>, cards: &[Spec], reported: Vec<Reported>) {
     let scroll = *p.scroll_to;
@@ -165,8 +166,12 @@ pub(super) fn apply(ui: &mut Ui, p: &mut Panels<'_>, cards: &[Spec], reported: V
         }
         if events.pressed || events.opened {
             *p.selection = Selection::single(TreeKey::Component(spec.type_name));
-            if let [story] = spec.stories.as_slice() {
-                p.story_of.insert(spec.type_name, story.story.story.name);
+            // The picked story stays while it is one of the card's; else the card's first story is picked.
+            let picked = target_story(p, spec.type_name);
+            if let Some(first) = spec.stories.first()
+                && !spec.stories.iter().any(|story| Some(story.index) == picked)
+            {
+                p.story_of.insert(spec.type_name, first.story.story.name);
             }
         }
         if scroll == Some(spec.type_name)
@@ -230,13 +235,23 @@ pub(super) fn overview(ui: &mut Ui, p: &mut Panels<'_>) {
     apply(ui, p, &cards, reported);
 }
 
-/// The Overview's card of `component`: every story of it, in catalog order.
+/// The stories of group `group` of the component registered as `type_name`, under their captions.
+fn group_stories(p: &Panels<'_>, type_name: &'static str, group: usize, name: &str) -> Vec<SpecStory> {
+    p.catalog.group_stories(type_name, group).into_iter().map(|at| SpecStory::of(p, at, name)).collect()
+}
+
+/// The group the component registered as `type_name` shows: the group of its picked story, else its first.
+fn target_group(p: &Panels<'_>, type_name: &'static str) -> usize {
+    target_story(p, type_name).and_then(|at| p.catalog.group_at(type_name, at)).unwrap_or(0)
+}
+
+/// The Overview's card of `component`: the cases of the group of its picked story, in catalog order, with the group's
+/// name as a note when it is not the first group.
 fn component_card(p: &Panels<'_>, component: &ComponentInfo, selected: Option<&'static str>) -> Option<Spec> {
     let entry = entry_of(component.type_name)?;
-    let stories: Vec<SpecStory> = (0..p.catalog.entries.len())
-        .filter(|&at| p.catalog.entries[at].type_name == component.type_name)
-        .map(|at| SpecStory::of(p, at, &entry.name))
-        .collect();
+    let group = target_group(p, component.type_name);
+    let name = &component.groups.get(group)?.name;
+    let stories = group_stories(p, component.type_name, group, &entry.name);
     if stories.is_empty() {
         return None;
     }
@@ -244,9 +259,9 @@ fn component_card(p: &Panels<'_>, component: &ComponentInfo, selected: Option<&'
         key: component.type_name.to_owned(),
         type_name: component.type_name,
         title: entry.name.clone(),
-        note: None,
+        note: (group > 0).then(|| name.clone()),
         stories,
-        layout: entry.story_layout,
+        layout: entry.story_layout(name),
         surface: entry.surface,
         open: true,
         usable: false,
@@ -256,37 +271,36 @@ fn component_card(p: &Panels<'_>, component: &ComponentInfo, selected: Option<&'
     })
 }
 
-/// A component's tab: every story of the component as a card in one column.
+/// A component's tab: each story group of the component as a card in one column, titled with the group's name.
 pub(super) fn component_tab(ui: &mut Ui, p: &mut Panels<'_>, type_name: &'static str) {
     if variants::show(ui, p, PanelId::Component(type_name)) {
         return;
     }
-    let Some(entry) = entry_of(type_name) else {
+    let (Some(entry), Some(component)) = (entry_of(type_name), p.catalog.component(type_name)) else {
         on_background(ui, "component", |ui, _| {
             Notice::new(Tone::Info, "The component has no stories.").show(ui);
         });
         return;
     };
-    let target = target_story(p, type_name);
+    let target = target_group(p, type_name);
     let chosen = selected_type(p) == Some(type_name);
-    let cards: Vec<Spec> = (0..p.catalog.entries.len())
-        .filter(|&at| p.catalog.entries[at].type_name == type_name)
-        .map(|at| {
-            let story = SpecStory::of(p, at, &entry.name);
-            Spec {
-                key: format!("{type_name}/{}", story.story.story.name),
-                type_name,
-                title: story.caption.clone(),
-                note: None,
-                stories: vec![story],
-                layout: StoryLayout::Stacked,
-                surface: entry.surface,
-                open: false,
-                usable: false,
-                selected: chosen && target == Some(at),
-                look: Look::default(),
-                gated: false,
-            }
+    let cards: Vec<Spec> = component
+        .groups
+        .iter()
+        .enumerate()
+        .map(|(at, group)| Spec {
+            key: format!("{type_name}/{}", group.name),
+            type_name,
+            title: group.name.clone(),
+            note: None,
+            stories: group_stories(p, type_name, at, &entry.name),
+            layout: entry.story_layout(&group.name),
+            surface: entry.surface,
+            open: false,
+            usable: false,
+            selected: chosen && target == at,
+            look: Look::default(),
+            gated: false,
         })
         .collect();
     let mut reported = Vec::new();

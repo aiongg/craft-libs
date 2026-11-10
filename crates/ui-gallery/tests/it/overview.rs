@@ -47,30 +47,75 @@ fn top_of(fixture: &Fixture, text: &str) -> Option<f32> {
     fixture.texts().iter().find(|run| run.text == text).map(|run| run.rect.top())
 }
 
-/// A card shows every story of its component, in the order they are declared in, each under its caption.
+/// The registered type name of the component listed as `name`.
+fn type_of(name: &str) -> &'static str {
+    Catalog::linked().components.iter().find(|component| component.name == name).unwrap_or_else(|| panic!("{name} is listed")).type_name
+}
+
+/// The Overview at `level` with `filter`, the component listed as `selected` selected.
+fn gallery_selecting(level: &str, filter: &str, selected: &str) -> Gallery {
+    let (mut store, report) = SettingsStore::<GallerySettings>::open_with(OpenOptions::new(Location::Memory));
+    let mut settings = store.get().clone();
+    settings.level = level.to_owned();
+    settings.filter = filter.to_owned();
+    settings.selected = type_of(selected).to_owned();
+    store.set(settings);
+    Gallery::new(Catalog::linked(), Persisted::new(store, &report))
+}
+
+/// The Overview card shows the cases of the component's first story group, in declaration order, each under its
+/// title; picking another group in the Stories panel shows that group, with its name after the card's title.
 #[trial]
-fn a_card_shows_every_story_in_order_each_under_its_caption() {
+fn a_card_shows_its_picked_story_group_and_the_stories_panel_picks_another() {
     let catalog = Catalog::linked();
-    let component = catalog.components.iter().find(|component| component.name == "BlendIfBar").expect("BlendIfBar is listed");
-    assert!(component.stories.len() > 1, "BlendIfBar has more than one story");
-    let mut gallery = gallery_filtered("Composites", "BlendIfBar");
+    let slider = catalog.components.iter().find(|component| component.name == "Slider").expect("Slider is listed");
+    let [values, step, ..] = slider.groups.as_slice() else { panic!("Slider has groups: {:?}", slider.groups) };
+    assert_eq!((values.name.as_str(), step.name.as_str()), ("Values", "Step"), "Slider's groups are the old stories, in order");
+    let titles = |group: &craft_ui_gallery::viewer::StoryGroup| group.members.iter().map(|&at| slider.titles[at].clone()).collect::<Vec<_>>();
+    let mut gallery = gallery_selecting("Controls", "Slider", "Slider");
     let mut fixture = Fixture::new(move |ui| gallery.ui(ui));
     fixture.room(Vec2::new(1400.0, 900.0)).settle();
-    let tops: Vec<f32> =
-        component.titles.iter().map(|title| top_of(&fixture, title).unwrap_or_else(|| panic!("the caption `{title}` is painted"))).collect();
-    assert!(tops.windows(2).all(|pair| pair[0] < pair[1]), "the captions run down the card in catalog order: {:?}", component.titles);
-    // Each story's bar, known by its levels (unsplit 20 and 240, split 10 / 40 and 200 / 230), sits under its own
-    // caption and above the next one.
-    let bar = |levels: &str| {
-        fixture
-            .texts()
-            .iter()
-            .find(|run| run.text.contains(levels))
-            .map(|run| run.rect.top())
-            .unwrap_or_else(|| panic!("the bar {levels} is painted"))
-    };
-    let bars = [bar("240"), bar("200 / 230")];
-    assert!(tops[0] < bars[0] && bars[0] < tops[1] && tops[1] < bars[1], "each bar under its caption: captions {tops:?}, bars {bars:?}");
+    let tops: Vec<f32> = titles(values).iter().map(|title| top_of(&fixture, title).unwrap_or_else(|| panic!("the title `{title}` is painted"))).collect();
+    assert!(tops.windows(2).all(|pair| pair[0] < pair[1]), "the cases run down the card in declaration order: {:?}", titles(values));
+    for title in titles(step) {
+        assert!(!painted(&fixture, &title), "a case of another group is not on the card: {title}");
+    }
+    assert!(!painted(&fixture, "· Values"), "the first group has no note");
+    let row = fixture.by_label("Step").expect("the Stories panel lists the group Step");
+    fixture.click(&row).settle();
+    for title in titles(step) {
+        assert!(painted(&fixture, &title), "the picked group's case shows: {title}");
+    }
+    assert!(!painted(&fixture, &titles(values)[0]), "the first group gave way to the picked one");
+    assert!(painted(&fixture, "· Step"), "the picked group's name follows the card's title");
+}
+
+/// The painted texts right of `target`, on its row.
+fn beside(fixture: &Fixture, target: &craft_ui::testing::Target) -> Vec<String> {
+    let row = target.rect;
+    fixture
+        .texts()
+        .iter()
+        .filter(|run| run.rect.left() >= row.right() && run.rect.center().y > row.top() && run.rect.center().y < row.bottom())
+        .map(|run| run.text.clone())
+        .collect()
+}
+
+/// A form row's third column shows the slider's value text, the text the slider gives assistive technology, and
+/// follows a change of the value.
+#[trial]
+fn a_form_rows_value_column_shows_and_follows_the_sliders_value_text() {
+    let mut gallery = gallery_selecting("Controls", "Slider", "Slider");
+    let mut fixture = Fixture::new(move |ui| gallery.ui(ui));
+    fixture.room(Vec2::new(1400.0, 900.0)).settle();
+    let slider = fixture.by_label("Middle").expect("the Middle slider");
+    let before = fixture.tree().value_of(slider.node).expect("the slider has a value text").to_owned();
+    assert!(beside(&fixture, &slider).contains(&before), "the value column shows `{before}`: {:?}", beside(&fixture, &slider));
+    fixture.click(&slider).settle().key(egui::Key::ArrowRight, egui::Modifiers::NONE).settle();
+    let slider = fixture.by_label("Middle").expect("the Middle slider");
+    let after = fixture.tree().value_of(slider.node).expect("the slider has a value text").to_owned();
+    assert_ne!(after, before, "the key changed the value");
+    assert!(beside(&fixture, &slider).contains(&after), "the value column follows to `{after}`: {:?}", beside(&fixture, &slider));
 }
 
 fn painted(fixture: &Fixture, text: &str) -> bool {
@@ -102,20 +147,18 @@ fn window_stories_start_closed_behind_their_opener() {
 /// before anything of it paints, opens it by the button, and shows the button again once the story closed both.
 #[trial]
 fn dialogs_in_a_storys_own_shell_start_closed_and_close_back_to_the_opener() {
-    let mut gallery = gallery_filtered("Shells", "AppShell");
+    let (mut store, report) = SettingsStore::<GallerySettings>::open_with(OpenOptions::new(Location::Memory));
+    let mut settings = store.get().clone();
+    settings.level = "Shells".to_owned();
+    settings.filter = "AppShell".to_owned();
+    settings.stories.insert(type_of("AppShell").to_owned(), "app_shell_dialogs_in_regions".to_owned());
+    store.set(settings);
+    let mut gallery = Gallery::new(Catalog::linked(), Persisted::new(store, &report));
     let mut fixture = Fixture::new(move |ui| gallery.ui(ui));
     fixture.room(Vec2::new(1400.0, 900.0)).idle(1);
-    // The story of the dialogs is the AppShell card's third, under two that fill a view each: the wheel brings it in.
     let over = fixture.by_label("Open").expect("the card's Open").rect.center();
     let high = fixture.shown().height() / 5.0;
-    for _ in 0..60 {
-        if fixture.by_label("Show dialog").is_some_and(|opener| opener.rect.top() < high) {
-            break;
-        }
-        assert!(!painted(&fixture, "Snap to grid"), "nothing of the dialogs paints before the opener is pressed");
-        fixture.frame(vec![pointer::moved(over)]).frame(vec![pointer::wheel(-120.0)]).idle(1);
-    }
-    assert_eq!(openers(&fixture), 1, "the story shows its opener in view");
+    assert_eq!(openers(&fixture), 1, "the picked story shows its opener");
     assert!(!painted(&fixture, "Snap to grid"), "nothing of the dialogs paints before the opener is pressed");
     let opener = fixture.by_label("Show dialog").expect("the opener");
     fixture.click(&opener).settle();

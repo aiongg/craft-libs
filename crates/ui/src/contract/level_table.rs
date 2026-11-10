@@ -146,6 +146,12 @@ pub(super) const SURFACES: &[(&str, &str, Surface)] = &[
     ("craft_ui_gallery", "MoveTool", Canvas),
 ];
 
-/// `(crate target, type name, layout)` of each type whose stories the old gallery laid out other than stacked: in a
-/// grid of cases, or as the rows of a form. Sorted by crate target and name.
-pub(super) const STORY_LAYOUTS: &[(&str, &str, StoryLayout)] = &[("craft_imaging", "PerspectiveWarp", Columns(2)), ("craft_ui", "Slider", FormRows)];
+/// `(crate target, type name, story group, layout)` of each story group the old gallery laid out other than stacked:
+/// in a grid of cases, or as the rows of a form. Sorted by crate target, name and group.
+pub(super) const STORY_LAYOUTS: &[(&str, &str, &str, StoryLayout)] = &[
+    ("craft_imaging", "PerspectiveWarp", "Planes", Columns(2)),
+    ("craft_ui", "Slider", "Disabled", FormRows),
+    ("craft_ui", "Slider", "Right to left", FormRows),
+    ("craft_ui", "Slider", "Step", FormRows),
+    ("craft_ui", "Slider", "Values", FormRows),
+];

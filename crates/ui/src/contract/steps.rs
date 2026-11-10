@@ -1292,6 +1292,7 @@ fn report_access<C: Component>(comp: &C, cx: &Cx<'_, C>, input: &ReportIn<'_>) {
     let (ctx, id) = (&core.ctx, core.id);
     let mut access = Access::default();
     comp.access(&mut access, cx);
+    *core.value_text.borrow_mut() = access.value.clone().or_else(|| access.numeric.as_ref().and_then(|numeric| numeric.text.clone()));
     for node in &mut access.nodes {
         if let Some(toggle) = core.toggles.iter().find(|toggle| toggle.part == node.part) {
             node.expanded = Some(toggle.open);

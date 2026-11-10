@@ -29,13 +29,13 @@ fn on_canvas(ui: &mut Ui, planes: &mut Vec<Plane>, mode: PlaneMode) -> StoryOutp
     shown.inner.map(StoryOutput::from).unwrap_or_default()
 }
 
-#[story(PerspectiveWarp<'static>, covers = [Default], drive = Drive::Drag(Grip::part(CORNER.at(1)).toward(vec2(1.0, -1.0))), title = "Layout, two linked planes")]
+#[story(PerspectiveWarp<'static>, covers = [Default], drive = Drive::Drag(Grip::part(CORNER.at(1)).toward(vec2(1.0, -1.0))), group = "Planes", title = "Layout, two linked planes")]
 fn two_linked_planes_in_layout(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let planes = data.value("planes", two_linked_planes());
     on_canvas(ui, planes, PlaneMode::Layout)
 }
 
-#[story(PerspectiveWarp<'static>, covers = [Default], drive = Drive::Drag(Grip::part(CORNER.at(1)).toward(vec2(1.0, -1.0))), title = "Warp, the picture follows")]
+#[story(PerspectiveWarp<'static>, covers = [Default], drive = Drive::Drag(Grip::part(CORNER.at(1)).toward(vec2(1.0, -1.0))), group = "Planes", title = "Warp, the picture follows")]
 fn two_linked_planes_in_warp(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let planes = data.value("warped", two_linked_planes());
     on_canvas(ui, planes, PlaneMode::Warp)

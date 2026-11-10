@@ -12,10 +12,13 @@ use crate::primitives::{PaintShape, StrokeWidth};
 use crate::runtime::env::Label;
 use crate::runtime::focus::{ActivateKeys, KeepKeys, KeyUse};
 use crate::style::{ComponentStyle, FocusLook, StyleColor, StyleCx, TextLook, TrackLook};
-use craft_behavior::{HitLevel, HitPriority, Metrics, PartKey, PressPhase, Sense};
+use craft_behavior::{HitLevel, HitPriority, Metrics, PartKey, PressPhase, Sense, decimals_for_step};
 use craft_theme::Stateful;
 use egui::{Pos2, Rect, Vec2};
 use std::ops::RangeInclusive;
+
+/// The decimals of a slider's value text when the slider has no step.
+const STEPLESS_DECIMALS: usize = 1;
 
 #[cfg(feature = "testing")]
 mod stories;
@@ -84,7 +87,9 @@ pub struct Slider<'a> {
     /// moves along the track and ignores it.
     #[prop(quantity = "step")]
     wheel_step: Option<f64>,
-    /// The value as the caller words it ("50 %"), which assistive technology reads in place of the number.
+    /// The value as the caller words it ("50 %"), in place of the slider's own value text: the number in the step's
+    /// decimals, or in one decimal without a step. Assistive technology reads it, and so does a viewer that
+    /// shows the value beside the slider.
     #[prop(into)]
     value_text: Option<Label>,
     /// Paints the groove with `face`, a component shown as the look of the track (a colour gradient). The fill is not
@@ -274,14 +279,19 @@ impl Component for Slider<'_> {
         let scale = self.track_scale();
         let range = scale.min..=scale.max;
         let numeric = match cx.value() {
-            Some(value) => Numeric::new(*value, range),
+            Some(value) => {
+                let text = match &self.value_text {
+                    Some(text) => cx.env.resolve(text).as_str().to_owned(),
+                    None => {
+                        let decimals = self.step.map_or(STEPLESS_DECIMALS, decimals_for_step);
+                        cx.env.units().number(*value, decimals..=decimals)
+                    }
+                };
+                Numeric::new(*value, range).text(text)
+            }
             None => Numeric::empty(range),
         };
-        let numeric = numeric.step(scale.small());
-        access.numeric(match &self.value_text {
-            Some(text) => numeric.text(cx.env.resolve(text).as_str().to_owned()),
-            None => numeric,
-        });
+        access.numeric(numeric.step(scale.small()));
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {

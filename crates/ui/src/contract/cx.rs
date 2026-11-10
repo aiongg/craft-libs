@@ -169,6 +169,8 @@ pub struct CxCore<'a> {
     pub(crate) escape_to_list: bool,
     /// The text facts step 16 gives AccessKit, from the text adapter or the editor's `editor_state`.
     pub(crate) text_access: RefCell<Option<crate::runtime::access::text::TextFacts>>,
+    /// The value as the component words it to AccessKit, which step 16 notes for the output.
+    pub(crate) value_text: RefCell<Option<String>>,
     /// Enter was pressed in the text part.
     pub(crate) submitted: bool,
     /// Escape abandoned the text part's edit.
@@ -1027,6 +1029,7 @@ impl<C: Component> Edit for Cx<'_, C> {
         response.submit_mods = self.core.texts.as_ref().map_or(craft_keymap::Mods::NONE, |(_, text)| text.submit_mods());
         response.left_by_tab = self.core.texts.as_ref().and_then(|(_, text)| text.left_by_tab());
         response.unparsed = self.core.text_invalid;
+        response.value_text = self.core.value_text.borrow().clone();
         response.shown = match (&self.shown, self.mixed) {
             (_, true) => Some(Mixed::Mixed),
             (Some(value), false) => Some(Mixed::Same(Arc::clone(value))),

@@ -104,18 +104,33 @@ pub struct Story {
     pub disabled_text: Option<&'static str>,
     /// The caption a viewer shows over the story; `None` for the title made of its name (`contract::story_title`).
     pub title: Option<&'static str>,
+    /// The group a viewer shows the story in, with the other stories of the type that name it, as the cases of one
+    /// old gallery story; `None` for a story that is its own group, under its caption.
+    pub group: Option<&'static str>,
 }
 
 impl Story {
     /// A story that shows with `show`.
     pub const fn new(name: &'static str, show: fn(&mut Ui, &mut StoryData) -> StoryOutput) -> Self {
-        Story { name, covers: &[], show, drive: Drive::Auto, disabled_text: None, title: None }
+        Story { name, covers: &[], show, drive: Drive::Auto, disabled_text: None, title: None, group: None }
     }
 
     /// The caption a viewer shows over the story.
     pub const fn title(mut self, title: &'static str) -> Self {
         self.title = Some(title);
         self
+    }
+
+    /// The group a viewer shows the story in.
+    pub const fn group(mut self, group: &'static str) -> Self {
+        self.group = Some(group);
+        self
+    }
+
+    /// The name of the story's group as a story of the type whose display name is `type_name`: its group, else its
+    /// caption.
+    pub fn group_name(&self, type_name: &str) -> String {
+        self.group.map_or_else(|| self.caption(type_name), str::to_owned)
     }
 
     /// The story's caption as a story of the type whose display name is `type_name`: its title, else the one its
@@ -440,6 +455,8 @@ pub struct StoryOutput {
     pub collection: Vec<CollectionKind>,
     /// The positions a collection showed.
     pub visible: Option<Range<usize>>,
+    /// The shown value as the component words it ([`crate::contract::Outcome::value_text`]).
+    pub value_text: Option<String>,
 }
 
 impl StoryOutput {

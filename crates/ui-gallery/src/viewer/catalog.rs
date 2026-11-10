@@ -29,25 +29,58 @@ pub struct ComponentInfo {
     pub stories: Vec<&'static str>,
     /// The display titles of the stories, in the order of `stories`.
     pub titles: Vec<String>,
+    /// The story groups, in the order of their first story.
+    pub groups: Vec<StoryGroup>,
+}
+
+/// A named group of one component's stories, shown together as the cases of one old gallery story.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct StoryGroup {
+    /// The group's name (`Story::group_name`).
+    pub name: String,
+    /// The group's stories, as places in the component's `stories`, in declaration order.
+    pub members: Vec<usize>,
 }
 
 impl ComponentInfo {
     /// A component with its stories, each a name and a display title.
+    /// A component with its stories, each a name and a display title, and each its own group under its title.
     pub fn new(type_name: &'static str, level: Level, name: impl Into<String>, stories: &[(&'static str, &str)]) -> Self {
-        ComponentInfo {
-            type_name,
-            level,
-            name: name.into(),
-            stories: stories.iter().map(|(name, _)| *name).collect(),
-            titles: stories.iter().map(|(_, title)| (*title).to_owned()).collect(),
+        let mut info = ComponentInfo { type_name, level, name: name.into(), stories: Vec::new(), titles: Vec::new(), groups: Vec::new() };
+        for (story, title) in stories {
+            info.push(story, (*title).to_owned(), (*title).to_owned());
+        }
+        info
+    }
+
+    /// Adds `story` under `title` to the group named `group`, which is new unless an earlier story named it.
+    fn push(&mut self, story: &'static str, title: String, group: String) {
+        let place = self.stories.len();
+        self.stories.push(story);
+        self.titles.push(title);
+        match self.groups.iter_mut().find(|known| known.name == group) {
+            Some(known) => known.members.push(place),
+            None => self.groups.push(StoryGroup { name: group, members: vec![place] }),
         }
     }
 
-    /// Whether the name or one of the story titles contains `filter`, ignoring case. An empty filter matches.
+    /// The group that holds the story at `place` in `stories`.
+    pub fn group_of(&self, place: usize) -> Option<usize> {
+        self.groups.iter().position(|group| group.members.contains(&place))
+    }
+
+    /// Whether the name, one of the story titles or one of the group names contains `filter`, ignoring case. An empty
+    /// filter matches.
     pub fn matches(&self, filter: &str) -> bool {
         let filter = filter.trim().to_lowercase();
+        let groups = self.groups.iter().map(|group| group.name.as_str());
         filter.is_empty()
-            || [self.name.as_str()].into_iter().chain(self.titles.iter().map(String::as_str)).any(|text| text.to_lowercase().contains(&filter))
+            || [self.name.as_str()]
+                .into_iter()
+                .chain(self.titles.iter().map(String::as_str))
+                .chain(groups)
+                .any(|text| text.to_lowercase().contains(&filter))
     }
 }
 
@@ -101,15 +134,16 @@ pub fn components(entries: &[Entry]) -> Vec<ComponentInfo> {
     let mut out: Vec<ComponentInfo> = Vec::new();
     for entry in entries {
         let Some(listed) = linked_catalog().entry(entry.type_name) else { continue };
-        let story = entry.registration.story.name;
-        let title = entry.registration.story.caption(&listed.name);
-        match out.iter_mut().find(|component| component.type_name == entry.type_name) {
-            Some(component) => {
-                component.stories.push(story);
-                component.titles.push(title);
+        let story = &entry.registration.story;
+        let (title, group) = (story.caption(&listed.name), story.group_name(&listed.name));
+        let at = match out.iter().position(|component| component.type_name == entry.type_name) {
+            Some(at) => at,
+            None => {
+                out.push(ComponentInfo::new(entry.type_name, listed.level, listed.name.clone(), &[]));
+                out.len() - 1
             }
-            None => out.push(ComponentInfo::new(entry.type_name, listed.level, listed.name.clone(), &[(story, &title)])),
-        }
+        };
+        out[at].push(story.name, title, group);
     }
     out
 }
@@ -142,5 +176,22 @@ impl Catalog {
     /// The component registered as `type_name`.
     pub fn component(&self, type_name: &str) -> Option<&ComponentInfo> {
         self.components.iter().find(|component| component.type_name == type_name)
+    }
+
+    /// The catalog indices of the stories of the component registered as `type_name`, in the order of its `stories`.
+    pub fn stories_of(&self, type_name: &str) -> Vec<usize> {
+        (0..self.entries.len()).filter(|&at| self.entries[at].type_name == type_name).collect()
+    }
+
+    /// The catalog indices of the stories of group `group` of the component registered as `type_name`.
+    pub fn group_stories(&self, type_name: &str, group: usize) -> Vec<usize> {
+        let (Some(component), all) = (self.component(type_name), self.stories_of(type_name)) else { return Vec::new() };
+        component.groups.get(group).map_or_else(Vec::new, |group| group.members.iter().filter_map(|&place| all.get(place).copied()).collect())
+    }
+
+    /// The group of the component registered as `type_name` that holds the story at catalog index `story`.
+    pub fn group_at(&self, type_name: &str, story: usize) -> Option<usize> {
+        let place = self.stories_of(type_name).iter().position(|&at| at == story)?;
+        self.component(type_name)?.group_of(place)
     }
 }

@@ -340,6 +340,7 @@ fn blank_core<'a>(
         grid: crate::runtime::access::GridPlace::default(),
         escape_to_list: false,
         text_access: std::cell::RefCell::new(None),
+        value_text: std::cell::RefCell::new(None),
         submitted: false,
         escaped: false,
     }
