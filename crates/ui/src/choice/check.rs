@@ -25,7 +25,7 @@ pub struct CheckboxStyle {
     /// The box edge.
     edge: Stateful<StyleColor>,
     /// The check mark and the dash.
-    mark: StyleColor,
+    mark: Stateful<StyleColor>,
     radius: CornerRadius,
     side: f32,
 }
@@ -57,16 +57,16 @@ impl Component for Checkbox<'_> {
     fn style(cx: &StyleCx<'_>, _: CheckboxStyleKey) -> CheckboxStyle {
         let control = cx.control();
         let colors = &cx.tokens.color;
-        let (well, solid) = (cx.color(colors.surface.sunken), cx.color(colors.accent.solid));
+        let solid = cx.color(colors.accent.solid);
         let disabled = cx.color(colors.text.disabled);
-        let fill = Stateful::new(well).on(States::new(solid, solid, solid, disabled));
+        let fill = super::well(cx).on(States::new(solid, solid, solid, disabled));
         let edge = super::outline(cx).on(States::new(solid, solid, solid, disabled)).when(Flags::INVALID, cx.tone(Tone::Bad));
         CheckboxStyle {
             metrics: Metrics::new().min_size(Vec2::new(0.0, control.height)),
             focus: cx.focus_look(),
             fill,
             edge,
-            mark: cx.color(colors.text.on_accent),
+            mark: super::mark(cx),
             radius: cx.surface(SurfaceKind::Well).radius,
             side: control.icon,
         }
@@ -100,9 +100,9 @@ impl Component for Checkbox<'_> {
         if cx.mixed {
             let c = square.center();
             let half = Vec2::new(cx.style.side * DASH, 0.0);
-            draw.stroke(&PaintShape::Path(vec![c - half, c + half]), StrokeWidth::Medium, cx.style.mark);
+            draw.stroke(&PaintShape::Path(vec![c - half, c + half]), StrokeWidth::Medium, cx.resolve(&cx.style.mark));
         } else if cx.value().copied().unwrap_or(false) {
-            draw.stroke(&glyph::check(square), StrokeWidth::Medium, cx.style.mark);
+            draw.stroke(&glyph::check(square), StrokeWidth::Medium, cx.resolve(&cx.style.mark));
         }
     }
 

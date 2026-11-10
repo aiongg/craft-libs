@@ -185,16 +185,15 @@ impl<T: Value + 'static> Component for Radio<T> {
     fn style(cx: &StyleCx<'_>, _: RadioStyleKey<T>) -> RadioStyle {
         let control = cx.control();
         let colors = &cx.tokens.color;
-        let (well, solid, bad) = (cx.color(colors.surface.sunken), cx.color(colors.accent.solid), cx.tone(Tone::Bad));
+        let (solid, bad) = (cx.color(colors.accent.solid), cx.tone(Tone::Bad));
         let disabled = cx.color(colors.text.disabled);
-        let mark = cx.color(colors.text.on_accent);
         RadioStyle {
             metrics: Metrics::new().min_size(Vec2::new(0.0, control.height)),
             focus: cx.focus_look(),
             icon: control.icon,
-            fill: Stateful::new(well).on(States::new(solid, solid, solid, disabled)),
+            fill: super::well(cx).on(States::new(solid, solid, solid, disabled)),
             ring: super::outline(cx).on(States::new(solid, solid, solid, disabled)).when(Flags::INVALID, bad),
-            dot: Stateful::new(mark).off(States::new(mark, mark, mark, disabled)),
+            dot: super::mark(cx),
         }
     }
 

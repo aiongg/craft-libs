@@ -385,15 +385,27 @@ impl Component for LabelLeaf {
         let flow = Flow::new(cx.rect, cx.core.env.direction().is_rtl());
         let (slot, mut rest) = flow.take_end(self.slot);
         let draw = ui.draw();
+        // While the control is disabled, every part reads in `text.disabled`.
+        let ink = (cx.state.state == craft_theme::State::Disabled).then_some(cx.style.disabled);
+        let icon_of = |icon: &IconSpec<'static>| match ink {
+            Some(color) => IconSpec { color: Some(color), ..icon.clone() },
+            None => icon.clone(),
+        };
+        fn tint(run: TextRun<'_>, ink: Option<StyleColor>) -> TextRun<'_> {
+            match ink {
+                Some(color) => run.color(color),
+                None => run,
+            }
+        }
         let middle = cx.rect.center().y;
         let centred = |rect: Rect, height: f32| Rect::from_min_size(egui::pos2(rect.min.x, middle - height / 2.0), Vec2::new(rect.width(), height));
         if let Some(glyph) = &self.glyph {
             match glyph {
                 Glyph::Icon(icon) => {
-                    draw.icon(centred(rest.take_start(cx.style.icon).0, cx.style.icon), icon);
+                    draw.icon(centred(rest.take_start(cx.style.icon).0, cx.style.icon), &icon_of(icon));
                 }
                 Glyph::Text(text) => {
-                    let run = TextRun::new(text.as_str());
+                    let run = tint(TextRun::new(text.as_str()), ink);
                     let size = draw.layout(&run, rest.rect().width()).size();
                     draw.text(centred(rest.take_start(size.x).0, size.y), &run);
                 }
@@ -401,19 +413,16 @@ impl Component for LabelLeaf {
         } else {
             if let Some(icon) = &self.icon {
                 let (cell, after) = rest.take_start(cx.style.icon);
-                draw.icon(centred(cell, cx.style.icon), icon);
+                draw.icon(centred(cell, cx.style.icon), &icon_of(icon));
                 rest = after.take_start(cx.style.gap).1;
             }
             // A name wider than its room elides; the full text stays the accessible name.
-            let mut run = TextRun::new(cx.core.resolved.label).elide();
-            if cx.state.state == craft_theme::State::Disabled {
-                run = run.color(cx.style.disabled);
-            }
+            let run = tint(TextRun::new(cx.core.resolved.label).elide(), ink);
             let name = draw.layout(&run, rest.rect().width()).size();
             let (name_rect, after) = rest.take_start(name.x);
             draw.text(centred(name_rect, name.y), &run);
             if let Some(detail) = &self.detail {
-                let run = self.detail_run(detail, cx.style);
+                let run = tint(self.detail_run(detail, cx.style), ink);
                 let (_, detail_flow) = after.take_start(cx.style.gap);
                 let size = draw.layout(&run, detail_flow.rect().width()).size();
                 draw.text(centred(detail_flow.rect(), size.y), &run);

@@ -41,17 +41,15 @@ pub struct SurfaceStyle {
 }
 
 impl SurfaceStyle {
-    /// This look while disabled: fill and edge faded by `Opacity::DISABLED`, and no shadow.
-    pub fn disabled(&self) -> SurfaceStyle {
-        let fade = |c: Color32| c.gamma_multiply(craft_theme::Opacity::DISABLED);
+    /// This look while disabled: opaque, the fill moved toward `panel` by `Opacity::DISABLED`, the edge `edge`, and no
+    /// shadow.
+    pub fn disabled(&self, panel: Color32, edge: Color32) -> SurfaceStyle {
         let edge = match self.edge {
-            SurfaceEdge::Border(stroke) => SurfaceEdge::Border(Stroke::new(stroke.width, fade(stroke.color))),
-            SurfaceEdge::Bevel { top_left, bottom_right, width } => {
-                SurfaceEdge::Bevel { top_left: fade(top_left), bottom_right: fade(bottom_right), width }
-            }
+            SurfaceEdge::Border(stroke) => SurfaceEdge::Border(Stroke::new(stroke.width, edge)),
+            SurfaceEdge::Bevel { width, .. } => SurfaceEdge::Bevel { top_left: edge, bottom_right: edge, width },
             other => other,
         };
-        SurfaceStyle { fill: fade(self.fill), edge, shadow: None, ..*self }
+        SurfaceStyle { fill: craft_theme::Mix::mix(self.fill, panel, craft_theme::Opacity::DISABLED), edge, shadow: None, ..*self }
     }
 }
 

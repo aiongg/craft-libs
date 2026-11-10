@@ -65,9 +65,8 @@ impl Component for Switch<'_> {
         let control = cx.control();
         let colors = &cx.tokens.color;
         let on = cx.color(colors.accent.solid);
-        let well = cx.color(colors.surface.sunken);
         let disabled = cx.color(colors.text.disabled);
-        let track = Stateful::new(well).on(States::new(on, on, on, disabled));
+        let track = super::well(cx).on(States::new(on, on, on, disabled));
         let edge = super::outline(cx).on(States::new(on, on, on, disabled)).when(Flags::INVALID, cx.tone(Tone::Bad));
         let thumb = SurfaceStyle { radius: CornerRadius::same(u8::MAX), ..cx.surface(SurfaceKind::Knob) };
         SwitchStyle {
@@ -75,7 +74,7 @@ impl Component for Switch<'_> {
             focus: cx.focus_look(),
             track,
             edge,
-            thumb_disabled: thumb.disabled(),
+            thumb_disabled: thumb.disabled(cx.color(colors.surface.panel).egui(), cx.color(colors.line.divider).egui()),
             thumb,
             radius: CornerRadius::same((control.icon / 2.0).round() as u8),
             width: cx.tokens.size.toggle,
