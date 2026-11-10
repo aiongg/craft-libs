@@ -1856,12 +1856,20 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             None => {
                 #[cfg(feature = "testing")]
                 crate::runtime::measure::count_body(&ctx, id);
-                let origin = match at.at {
-                    ShowAt::Rect(rect) => rect.min,
+                let available = match at.at {
+                    ShowAt::Rect(rect) => rect,
                     // Not the cursor: in a right-to-left layout it extends to -inf along the line.
-                    ShowAt::Flow => at.ui.available_rect_before_wrap().min,
+                    ShowAt::Flow => at.ui.available_rect_before_wrap(),
                 };
-                let rect = Rect::from_min_size(origin, self.room);
+                let origin = available.min;
+                // Along an axis with no room limit the content grows away from its start edge: in a right-to-left
+                // layout that edge is the right one, so the measuring rect is as wide as a scrolling region and
+                // ends where the room does, as the real run's region does.
+                let rect = if self.room.x.is_infinite() && at.env.direction.is_rtl() && available.max.x.is_finite() {
+                    Rect::from_min_max(Pos2::new(available.max.x - super::MAX_EXTENT, origin.y), Pos2::new(available.max.x, origin.y + self.room.y))
+                } else {
+                    Rect::from_min_size(origin, self.room)
+                };
                 cx.core.rect = rect;
                 cx.core.flow = craft_behavior::Flow::new(rect, at.env.direction.is_rtl());
                 cx.core.content_rect = cx.core.flow.inset(cx.style.metrics().padding);
