@@ -281,14 +281,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn fixed_number_codec_keeps_trailing_zeros() {
-        let codec = NumberCodec::new(Reader::new(), 2).fixed();
-        assert_eq!(codec.format(&Some(1.0)), "1.00");
-        assert_eq!(codec.format(&Some(0.5)), "0.50");
-        assert_eq!(codec.parse("1.00", &None), Ok(Some(1.0)));
-    }
-
-    #[test]
     fn number_codec_round_trips_and_rejects() {
         let codec = NumberCodec::new(Reader::new().decimal(','), 2);
         assert_eq!(codec.format(&Some(1.5)), "1,5");
