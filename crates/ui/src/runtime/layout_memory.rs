@@ -508,14 +508,16 @@ fn reuse_allowed(ctx: &Context) -> bool {
 /// are the ones it measured under, no real run since found its content changed, the content did not change in this
 /// frame or the last, and the pass may take kept transcripts. When it does, the transcript's records serve this pass,
 /// its contributions are made again, and the bodies nested in it take theirs as well.
+///
+/// Only the outermost measuring run takes a kept transcript (a body's own measuring run, from its real run). Inside an
+/// enclosing measuring run every body runs its content, so a show call runs its closure and returns its result.
 pub(crate) fn kept_serves<K: PartialEq + Send + Sync + 'static>(ctx: &Context, body: Id, key: &K) -> bool {
-    if !reuse_allowed(ctx) {
+    if !reuse_allowed(ctx) || !crate::runtime::measure::outermost(ctx) {
         return false;
     }
     let moment = Moment::of(ctx);
     let pass = ctx.cumulative_pass_nr();
     let replay = with(ctx, &moment, |memory| {
-        // An enclosing body's transcript gave this body's records already.
         // An enclosing body's transcript gave this body's records already, when the inputs are the ones it ran under
         // there; else its own kept transcript (from a run at the inputs of its own real run) may serve.
         let under = |kept: &Kept| {
@@ -708,7 +710,7 @@ pub(crate) mod guard {
         ("layout::body::Cursors", "grid and spread cursors: opened and closed by the body's own run"),
         ("contract::steps::id::IdPass", "id registration: a measuring run keeps the ids it uses out of the pass (keeping_ids)"),
         // Read in measuring runs; written by real runs, the frame hooks or the host.
-        ("runtime::env::ViewportEnvs", "env per viewport: read"),
+        ("runtime::env::ViewportEnvs", "env per viewport: installs the run restores, and reads"),
         ("runtime::frame::FrameState", "frame state: read"),
         ("runtime::frame::ViewportRecord", "viewport record: read"),
         ("runtime::windows::Shared", "window shells: read"),
@@ -722,7 +724,7 @@ pub(crate) mod guard {
         ("runtime::drag::", "drag board and targets: read; targets register in real runs"),
         ("runtime::overlay::", "overlays: read; opens and closes are effects skipped in measuring runs"),
         ("contract::overlay::popups::Popups", "popups: read"),
-        ("runtime::lazy::Store", "lazy decisions: a measuring run decides from the same store; `shown` writes in real runs"),
+        ("runtime::lazy::Store", "lazy extents: the kept extent of content out of view, its own mechanism; a pass a kept transcript serves decides in its real run, which compares each row by its backstop"),
         ("contract::steps::scroll_owner::", "scroll reveals and moves: read; taken through take_queued"),
         ("contract::body::scroll::Jumps", "scroll jumps: taken through take_queued"),
         ("runtime::edit::CancelAll", "edit cancels: read; a measuring run ends nothing"),
@@ -732,7 +734,7 @@ pub(crate) mod guard {
         ("runtime::access::live::Announced", "live announcements: read"),
         ("runtime::toast::Queue", "toasts: read"),
         ("runtime::cursor::State", "cursor: read"),
-        ("runtime::motion::Wanted", "motion: repaint wishes, which a measuring run may add without changing layout"),
+        ("runtime::motion::Wanted", "motion: repaint wishes, read only to ask for a repaint; the real run adds the same"),
         ("runtime::ime::Engine", "IME: read"),
         ("runtime::sampler::", "samplers: read"),
         ("runtime::egui::input_filter::", "input filter: read"),

@@ -52,6 +52,11 @@ pub fn active(ctx: &Context) -> bool {
     depth(ctx) > 0
 }
 
+/// Whether the innermost measuring run is the outermost one: no other measuring run encloses it.
+pub(crate) fn outermost(ctx: &Context) -> bool {
+    depth(ctx) == 1
+}
+
 /// Whether the effect `what` may happen: `false` in a measuring run, and the caller skips it. Under test the
 /// skipped effects are logged for `take_effects`.
 pub fn effect(ctx: &Context, what: &'static str) -> bool {
