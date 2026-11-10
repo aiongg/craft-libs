@@ -187,8 +187,6 @@ pub struct RootEnv {
     pub direction: Direction,
     /// The motion choice; `System` follows the OS where it reports a preference, else full motion.
     pub motion: MotionChoice,
-    /// Nothing animates, whatever `motion` says (hosts and tests that must see end states).
-    pub still: bool,
     /// Light, dark, or the OS's mode.
     pub mode: ModeChoice,
     /// Standard, high, or the OS's contrast.
@@ -216,7 +214,6 @@ impl Default for RootEnv {
             text_size: TextSize::default(),
             direction: Direction::Ltr,
             motion: MotionChoice::Full,
-            still: false,
             mode: ModeChoice::Light,
             contrast: ContrastChoice::Standard,
             density: Size::default(),
@@ -255,10 +252,13 @@ impl RootEnv {
         self
     }
 
-    /// Sets the motion mode: `Off` stops every animation, `Reduced` and `Full` set the choice.
+    /// Sets the motion choice from a motion mode.
     pub fn motion(mut self, motion: MotionMode) -> Self {
-        self.still = motion == MotionMode::Off;
-        self.motion = if motion == MotionMode::Reduced { MotionChoice::Reduced } else { MotionChoice::Full };
+        self.motion = match motion {
+            MotionMode::Off => MotionChoice::Off,
+            MotionMode::Reduced => MotionChoice::Reduced,
+            _ => MotionChoice::Full,
+        };
         self
     }
 
@@ -300,12 +300,10 @@ impl RootEnv {
             ContrastChoice::High => Contrast::High,
             ContrastChoice::System => system.contrast.unwrap_or_default(),
         };
-        let motion = if self.still {
-            MotionMode::Off
-        } else if self.motion.reduced(system.reduced_motion) {
-            MotionMode::Reduced
-        } else {
-            MotionMode::Full
+        let motion = match self.motion {
+            MotionChoice::Off => MotionMode::Off,
+            choice if choice.reduced(system.reduced_motion) => MotionMode::Reduced,
+            _ => MotionMode::Full,
         };
         ResolvedRoot { mode, contrast, motion }
     }
