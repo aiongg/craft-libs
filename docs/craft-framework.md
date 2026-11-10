@@ -851,6 +851,8 @@ A theme with its own shape replaces the radii or adds an offset to control, surf
 | `size.panel_header` | Panel headers |
 | `size.rail.width`, `size.rail.button`, `size.rail.panel_width`, `size.rail.panel_button` | Tool rail and panel rail |
 | `size.list.*`, `size.tab.*`, `size.preset.*` | Lists, tab strips, preset browsers |
+| `size.canvas.stage_height`, `size.canvas.stage_width_min`, `size.canvas.stage_width_max` | The stage a story of a canvas control draws its canvas on: its height and the range of its width |
+| `size.thumb.card` | The picture side of a tile card at zoom 1 (tile grids, preset browsers, the start screen) |
 | `space.gap.*`, `space.pad.*` | Gaps between and padding inside components |
 
 Component values that differ by size set are in the `components` section of `sizes/compact.json` and `sizes/comfortable.json`: `options_bar.button`, `progress.width`, `button.height.sm`, `button.height.md`, `button.pad_x`, `dock.body_gap`, `status_bar.field_width`, `command_palette.row_height`, `inspector.header_height`, `inspector.icon`, `toolbar.*`, `toast.pad`, `toast.inset`, `channels.thumb`, `tile.*`. NumberField defaults to a width of three control heights. Apps set other widths per field.

@@ -129,7 +129,7 @@ pub struct TileGridStyle {
     /// The side of the disclosure column and the space beside the header's content.
     toggle: f32,
     pad: f32,
-    /// The picture side of a card at zoom 1: the medium thumbnail.
+    /// The picture side of a card at zoom 1: the card thumbnail.
     thumb: f32,
     /// What a tile adds around its picture.
     around: AroundPicture,
@@ -145,13 +145,13 @@ impl TileGridStyle {
             pinned: cx.color(colors.surface.panel),
             toggle: cx.tokens.size.icon.sm,
             pad: cx.tokens.space.gap.inline,
-            thumb: cx.tokens.size.thumb.md,
+            thumb: cx.tokens.size.thumb.card,
             around: Tile::around(cx),
             spacing: ArrangeSpacing::new(cx.tokens.space.gap.stack, cx.tokens.space.gap.inline, cx.tokens.size.panel_header),
         }
     }
 
-    /// The side of a picture at `zoom`, a factor on the medium thumbnail.
+    /// The side of a picture at `zoom`, a factor on the card thumbnail.
     fn picture_side(&self, zoom: f32) -> f32 {
         self.thumb * zoom.max(f32::EPSILON)
     }
@@ -165,7 +165,7 @@ impl TileGridStyle {
 /// A grid of tiles: one Tab stop, the selection rules of the collection contract, type-ahead on the tiles' names,
 /// rename in place, drag to reorder, files dropped from the OS, and the request for the app's context menu.
 ///
-/// The picture side is `zoom` times the medium thumbnail side: the factor the app's zoom control holds. A card is the
+/// The picture side is `zoom` times the card thumbnail side: the factor the app's zoom control holds. A card is the
 /// picture plus what the tile adds around it, whatever the layout. Pictures are `aspect` wide over high; with
 /// `justified` the tiles keep their own aspects (the source's `ItemSource::size_hint` as `SizeHint::Aspect`) and fill
 /// rows. `groups` put headers over runs of tiles; a header stays pinned at the top while its group scrolls. The grid
@@ -191,7 +191,7 @@ pub struct TileGrid<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     /// The width of a card over its picture's height.
     #[prop(quantity = "aspect ratio")]
     aspect: f32,
-    /// The picture side as a multiple of the medium thumbnail side; 1 is the medium thumbnail.
+    /// The picture side as a multiple of the card thumbnail side; 1 is the card thumbnail.
     #[prop(quantity = "zoom factor")]
     zoom: f32,
     /// Where every tile's caption goes; `CaptionPlace::None` keeps no room for one.
@@ -250,7 +250,7 @@ struct Placed {
 }
 
 impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> TileGrid<'a, K> {
-    /// A grid named `label`, with multiple selection and equal square cards of the medium thumbnail.
+    /// A grid named `label`, with multiple selection and equal square cards of the card thumbnail.
     pub fn new(label: impl Into<Label>) -> Self {
         TileGrid {
             common: Common::new(),
@@ -332,7 +332,9 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> TileGrid<'a, K> {
     /// the picture plus what the tile adds around it in every tiling.
     fn laid_out(&self, previous: Option<GridLayout>, source: &dyn ItemSource<K>, width: f32, cx: &StyleCx<'_>) -> GridLayout {
         let style = TileGridStyle::build(cx);
-        let (side, spacing, around) = (style.picture_side(self.zoom), style.spacing, style.around.get(self.caption, self.detail_line));
+        let (spacing, around) = (style.spacing, style.around.get(self.caption, self.detail_line));
+        // A card never outgrows the grid: in a column narrower than a card the card takes the column.
+        let side = style.picture_side(self.zoom).min(width - 2.0 * spacing.inset - around.size().x).max(1.0);
         let aspect = if self.aspect.is_finite() && self.aspect > 0.0 { self.aspect } else { 1.0 };
         let tail_height = ListRow::row_height(cx, ThumbSize::None, false);
         let recipe = self.items.rows_stamp.map(|stamp| Recipe {

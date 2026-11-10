@@ -88,7 +88,7 @@ struct Slot<K> {
 pub struct FreeBinStyle {
     #[style(metrics)]
     metrics: Metrics,
-    /// The picture side of a card at zoom 1: the medium thumbnail.
+    /// The picture side of a card at zoom 1: the card thumbnail.
     thumb: f32,
     /// What a tile adds around its picture.
     around: Around,
@@ -115,7 +115,7 @@ impl FreeBinStyle {
 /// A collection of cards at stored positions. A card without a position takes the next free cell of a flow, and with
 /// `flow_all` every card does.
 ///
-/// The picture side is `zoom` times the medium thumbnail side and pictures are `aspect` wide over high, as for
+/// The picture side is `zoom` times the card thumbnail side and pictures are `aspect` wide over high, as for
 /// `TileGrid`. Dragging a selected card moves the selection and the stacks of its cards; the output reports the new
 /// positions when the drag ends, and Escape leaves the cards where the host has them.
 #[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
@@ -133,7 +133,7 @@ pub struct FreeBin<'a, K: TextureKey + 'static> {
     /// Scrolls the card of `key` into view once.
     #[prop]
     reveal: Option<K>,
-    /// The picture side as a multiple of the medium thumbnail side; 1 is the medium thumbnail.
+    /// The picture side as a multiple of the card thumbnail side; 1 is the card thumbnail.
     #[prop(quantity = "zoom factor")]
     zoom: f32,
     /// The width of a card's picture over its height.

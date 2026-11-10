@@ -144,10 +144,11 @@ fn size_lines(out: &mut Lines, size: &SizeTokens) {
         out.line(&format!("size.bar.{k}"), len(*v));
     }
     out.line("size.panel_header", len(*panel_header));
-    let ThumbSizes { sm, md, lg } = thumbs;
+    let ThumbSizes { sm, md, lg, card } = thumbs;
     out.line("size.thumb.sm", len(*sm));
     out.line("size.thumb.md", len(*md));
     out.line("size.thumb.lg", len(*lg));
+    out.line("size.thumb.card", len(*card));
     let HandleSizes { sm, md, ring, hit: hit_radius, rotate_reach, band_inner, band_outer } = handle;
     out.line("size.handle.sm", len(*sm));
     out.line("size.handle.md", len(*md));

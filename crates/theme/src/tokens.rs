@@ -1011,6 +1011,8 @@ pub struct ThumbSizes {
     pub md: f32,
     /// Large.
     pub lg: f32,
+    /// The picture side of a tile card at zoom 1: the cards of a tile grid.
+    pub card: f32,
 }
 
 /// The font a type role uses. `craft_ui::fonts` maps each slot to a face.
