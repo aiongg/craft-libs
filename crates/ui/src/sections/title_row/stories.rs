@@ -6,24 +6,24 @@ use crate::display::Divider;
 use crate::layout_components::Stack;
 use crate::primitives::IconSpec;
 use crate::runtime::env::Message;
+use crate::sections::Panel;
+use crate::style::SurfaceKind;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use craft_behavior::{IconId, Mixed};
 use egui::Ui;
 
 #[story(TitleRow<'static>, covers = [], drive = Drive::Never)]
 fn title_row(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    // The padding a panel gives its header.
-    let mut output = StoryOutput::default();
-    Stack::new().pad(Pad::Regular).fill_width().show(ui, |ui, _| {
-        let shown = TitleRow::new("Brush settings")
-            .strength(HeaderStrength::Strong)
-            .fill(true)
-            .actions([HeaderAction::Menu, HeaderAction::Float, HeaderAction::Close])
-            .show(ui);
-        output = shown.edit.into();
-        Divider::horizontal().show(ui);
-    });
-    output
+    // The row as a panel shows it: inset in its header band, with a rule across the width under it.
+    Panel::new("Brush settings")
+        .band(SurfaceKind::Panel)
+        .pad(Pad::None)
+        .actions([HeaderAction::Menu, HeaderAction::Float, HeaderAction::Close])
+        .show(ui, |ui, _| {
+            Divider::horizontal().show(ui);
+        })
+        .output
+        .into()
 }
 
 #[story(TitleRow<'static>, covers = [Default])]
