@@ -9,7 +9,7 @@ use craft_behavior::IconId;
 use craft_behavior::{Selection, keyed};
 use craft_theme::Explained;
 use craft_theme::report::ContrastReport;
-use craft_ui::buttons::IconButton;
+use craft_ui::buttons::Button;
 use craft_ui::contract::{Bind, CollectionEvent, Pad, Props as _, Scroll, SelectMode, Show as _, ShowCollection as _, ShowContainer as _};
 use craft_ui::display::{Shade, Text};
 use craft_ui::layout_components::{Row, Stack};
@@ -225,7 +225,7 @@ impl Panels<'_> {
                 Text::new(component.name.clone()).role(TypeRole::Heading).show(ui);
                 Text::new(title.clone()).shade(Shade::Muted).show(ui);
                 if changed {
-                    reset = IconButton::new(IconId::new("undo")).label("Reset args").show(ui).clicked();
+                    reset = Button::new("Reset").show(ui).clicks > 0;
                 }
             });
             story_props(ui, &mut *data);
