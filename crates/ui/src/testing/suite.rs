@@ -26,7 +26,7 @@ mod variants;
 pub use body::title_case;
 pub use drive::values_case;
 pub use purity::measure_pure_case;
-pub use size::text_size_case;
+pub use size::{reflowed, text_size_case};
 pub use states::required_states;
 pub use variants::rtl_case;
 

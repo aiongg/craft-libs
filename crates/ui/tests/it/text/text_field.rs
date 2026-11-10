@@ -97,3 +97,63 @@ fn a_select_on_focus_field_takes_a_focus_request_with_all_its_text_selected() {
     let run = NodeKey::of(run_node(id, 0, 0));
     assert_eq!(fixture.tree().text_selection(id), Some(((run, 0), (run, 8))), "the field's whole text is selected");
 }
+
+/// A disabled field's text and placeholder are the theme's disabled text ink, and
+/// its well edge is the divider colour.
+#[trial]
+fn a_disabled_text_field_draws_the_disabled_ink_and_the_divider_edge() {
+    use craft_theme::{Contrast, ControlSize, Mode, Variant};
+    use craft_ui::testing::Frames;
+    use craft_ui::testing::style::{tokens, with_cx};
+    let mut frames = Frames::new();
+    let tokens = tokens(Mode::Light, Contrast::Standard);
+    let (disabled, divider) = with_cx(&frames.ctx, &tokens, Variant::SECONDARY, ControlSize::Md, |cx| {
+        (cx.color(tokens.color.text.disabled).egui(), cx.color(tokens.color.line.divider).egui())
+    });
+    let mut show = move |ui: &mut egui::Ui| {
+        TextField::new("Filled", Bind::bound(&mut String::from("Locked"))).enabled(false).show(ui);
+        TextField::new("Empty", Bind::bound(&mut String::new())).placeholder("Untitled").enabled(false).show(ui);
+    };
+    frames.idle(2, &mut show);
+    let shapes = frames.frame_shapes(&mut show);
+    // The colour that reaches the screen is the one in the galley rows' meshes: egui's disabled fade rewrites it, so a
+    // second fade shows here and not in the layout job's section format.
+    let painted: Vec<_> = shapes
+        .iter()
+        .filter_map(|shape| match shape {
+            egui::Shape::Text(text) => Some((
+                text.galley.text().to_owned(),
+                text.galley.rows.iter().flat_map(|row| row.visuals.mesh.vertices.iter().map(|vertex| vertex.color)).collect::<Vec<_>>(),
+            )),
+            _ => None,
+        })
+        .collect();
+    for word in ["Locked", "Untitled"] {
+        let (_, colours) = painted.iter().find(|(text, _)| text == word).unwrap_or_else(|| panic!("{word} is drawn"));
+        assert!(!colours.is_empty(), "{word} has glyph vertices");
+        assert!(colours.iter().all(|colour| *colour == disabled), "{word} is painted in the disabled ink: {colours:?}");
+    }
+    let edges = shapes.iter().any(|shape| matches!(shape, egui::Shape::Rect(rect) if rect.stroke.color == divider));
+    assert!(edges, "a disabled well's edge is line.divider");
+}
+
+/// A masked field draws one dot per character and never the characters themselves.
+#[trial]
+fn a_masked_text_field_draws_dots_not_its_text() {
+    use craft_ui::testing::Frames;
+    let mut frames = Frames::new();
+    let mut show = move |ui: &mut egui::Ui| {
+        TextField::new("Password", Bind::bound(&mut String::from("horse"))).masked().show(ui);
+    };
+    frames.idle(2, &mut show);
+    let drawn: Vec<String> = frames
+        .frame_shapes(&mut show)
+        .iter()
+        .filter_map(|shape| match shape {
+            egui::Shape::Text(text) => Some(text.galley.text().to_owned()),
+            _ => None,
+        })
+        .collect();
+    assert!(drawn.iter().any(|text| text == "\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}"), "five dots are drawn: {drawn:?}");
+    assert!(drawn.iter().all(|text| !text.contains("horse")), "the text is not drawn: {drawn:?}");
+}

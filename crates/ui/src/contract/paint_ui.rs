@@ -147,7 +147,16 @@ impl PaintUi<'_> {
             return;
         };
         let focus = self.active.filter(|(active, _)| *active == part).map(|(_, visible)| visible);
-        let source = FaceSource { id: self.id, result, focus, response: self.response, ink: self.text, muted: self.muted, flags: self.flags };
+        let source = FaceSource {
+            id: self.id,
+            result,
+            focus,
+            response: self.response,
+            ink: self.text,
+            muted: self.muted,
+            flags: self.flags,
+            enabled: self.enabled,
+        };
         let record = run::paint_face(self.ui, &source, part, face);
         let mut own = self.record.borrow_mut();
         if let Some(baseline) = record.baseline {

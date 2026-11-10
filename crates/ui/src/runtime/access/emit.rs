@@ -289,6 +289,7 @@ pub(crate) fn report(ctx: &Context, own: &Own<'_>) {
             description: spec.description.clone(),
             unnamed,
             inner_stop: None,
+            disabled: !own.enabled,
         },
     );
 }

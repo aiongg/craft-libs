@@ -9,7 +9,9 @@ use egui::Ui;
 
 #[story(Disclosure<'static>, covers = [Default])]
 fn disclosure(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    Disclosure::new(Bind::bound(data.value("open", false))).label("Details").show(ui).into()
+    let out = Disclosure::new(Bind::bound(data.value("open", false))).label("Details").show(ui);
+    Disclosure::new(Bind::bound(&mut false)).label("Details, disabled").enabled(false).show(ui);
+    out.into()
 }
 
 #[story(Disclosure<'static>, covers = [Mixed], drive = Drive::Never)]

@@ -1,10 +1,12 @@
 //! `Select`: opens from the keyboard and from a click, picks through the listbox, closes on Escape without a change and
 //! reports its popup to assistive technology.
 
+use craft_theme::{Contrast, ControlSize, Mode, Variant};
 use craft_ui::contract::{Bind, Entry, Props as _, Role, Show as _, ShowContainer as _};
 use craft_ui::form::Field;
 use craft_ui::pickers::Select;
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::testing::style::{tokens, with_cx};
+use craft_ui::testing::{Fixture, Frames, trial};
 use egui::{Id, Key, Modifiers};
 use std::cell::Cell;
 use std::rc::Rc;
@@ -145,4 +147,36 @@ fn a_select_in_a_radio_option_s_field_group_picks_by_click() {
     fixture.click(&red);
     fixture.idle(FADE_FRAMES);
     assert_eq!(value.get(), 1, "a click on a row picks it");
+}
+
+/// A disabled select draws its text and chevron in the theme's disabled text ink.
+#[trial]
+fn a_disabled_selects_ink_is_the_disabled_text_ink() {
+    let mut frames = Frames::new();
+    let tokens = tokens(Mode::Light, Contrast::Standard);
+    let disabled = with_cx(&frames.ctx, &tokens, Variant::SECONDARY, ControlSize::Md, |cx| cx.color(tokens.color.text.disabled)).egui();
+    let mut value = 1u8;
+    let mut show = move |ui: &mut egui::Ui| {
+        let entries = [Entry::new(0u8, "Normal"), Entry::new(1, "Multiply")];
+        Select::new("Blend mode", Bind::bound(&mut value), &entries).enabled(false).show(ui);
+    };
+    frames.idle(2, &mut show);
+    let inks: Vec<(&str, egui::Color32)> = frames
+        .frame_shapes(&mut show)
+        .iter()
+        .filter_map(|shape| match shape {
+            egui::Shape::Text(text) => text.galley.job.sections.first().map(|section| ("text", section.format.color)),
+            egui::Shape::LineSegment { stroke, .. } => Some(("chevron", stroke.color)),
+            egui::Shape::Path(path) => match path.stroke.color {
+                egui::epaint::ColorMode::Solid(color) => Some(("chevron", color)),
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect();
+    for part in ["text", "chevron"] {
+        let of_part: Vec<_> = inks.iter().filter(|(name, _)| *name == part).collect();
+        assert!(!of_part.is_empty(), "the select draws its {part}");
+        assert!(of_part.iter().all(|(_, color)| *color == disabled), "the {part} is the disabled ink: {of_part:?}");
+    }
 }

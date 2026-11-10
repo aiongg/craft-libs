@@ -94,14 +94,26 @@ pub(crate) fn show(ui: &mut Ui, edit: Edit<'_>) -> Shown {
     let had_focus = ui.memory(|memory| memory.has_focus(id));
     let entered = had_focus && ui.input(|input| input.key_pressed(egui::Key::Enter));
     let mut layouter = |ui: &Ui, text: &dyn egui::TextBuffer, wrap_width: f32| {
-        let text = text.as_str();
+        // egui masks only in its own layouter: a custom one lays out what it is given, so the dots are made here. The
+        // preedit range counts bytes of the real text, so a masked field shows no preedit underline.
+        let masked;
+        let text = if password {
+            masked = "\u{2022}".repeat(text.as_str().chars().count());
+            masked.as_str()
+        } else {
+            text.as_str()
+        };
         let mut job = LayoutJob::default();
         job.wrap.max_width = if multiline { wrap_width } else { f32::INFINITY };
         let mut plain = TextFormat::simple(font_id.clone(), ink);
         if let Some(size) = optical_size {
             plain.coords.push(*b"opsz", size);
         }
-        match preedit.as_ref().filter(|range| range.end <= text.len() && text.is_char_boundary(range.start) && text.is_char_boundary(range.end)) {
+        match preedit
+            .as_ref()
+            .filter(|_| !password)
+            .filter(|range| range.end <= text.len() && text.is_char_boundary(range.start) && text.is_char_boundary(range.end))
+        {
             Some(range) => {
                 job.append(&text[..range.start], 0.0, plain.clone());
                 job.append(&text[range.clone()], 0.0, TextFormat { underline: egui::Stroke::new(underline, ink), ..plain.clone() });
@@ -116,10 +128,11 @@ pub(crate) fn show(ui: &mut Ui, edit: Edit<'_>) -> Shown {
         // The text shows only inside the text part, however wide the line is.
         ui.set_clip_rect(rect.intersect(ui.clip_rect()));
         if !enabled && !focusable {
-            ui.disable();
+            super::style::disable_without_fade(ui);
         }
-        // The placeholder is the faint text colour.
-        super::style::set_hint_color(ui, crate::style::rgba_color(crate::runtime::env::Env::of(ui).tokens.color.text.faint));
+        // The placeholder is the faint text colour, the disabled one when the field is off.
+        let text_colors = &crate::runtime::env::Env::of(ui).tokens.color.text;
+        super::style::set_hint_color(ui, crate::style::rgba_color(if enabled { text_colors.faint } else { text_colors.disabled }));
         super::style::set_text_cursor(ui, caret_visible);
         super::style::set_text_selection(ui, crate::style::rgba_color(selection.0), crate::style::rgba_color(selection.1));
         let mut read = text.as_str();

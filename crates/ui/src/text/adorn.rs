@@ -8,6 +8,7 @@ use crate::primitives::IconSpec;
 use crate::runtime::env::Label;
 use crate::style::StyleColor;
 use craft_behavior::{Flow, PartKey};
+use craft_theme::ControlSize;
 use egui::{Rect, vec2};
 use smallvec::SmallVec;
 
@@ -54,7 +55,7 @@ impl Adornment {
     pub fn paint(&self, ui: &mut PaintUi<'_>, rect: Rect, glyph_color: StyleColor) {
         match &self.button {
             None => ui.draw().icon(rect, &self.spec(Some(glyph_color))),
-            Some((part, name)) => ui.face(*part, IconButton::new(self.spec(None)).label(name.clone()).focusable(false)),
+            Some((part, name)) => ui.face(*part, IconButton::new(self.spec(None)).label(name.clone()).focusable(false).size(ControlSize::Sm)),
         }
     }
 }
@@ -71,18 +72,38 @@ pub struct Placed {
     pub trailing: SmallVec<[Rect; 2]>,
 }
 
-/// The width the adornments take from a line, gaps included.
-pub fn reserve(style: &FieldStyle, leading: &[Adornment], trailing: &[Adornment]) -> f32 {
-    leading.iter().chain(trailing).map(|adornment| adornment.side(style) + style.metrics.gap).sum()
+/// The room a button at the end of a line takes from the box edge: `(line - side) / 2`, the same on every side, so
+/// the button sits in the line's square. A glyph keeps the field's padding.
+fn inset(style: &FieldStyle, first: Option<&Adornment>, padding: f32) -> f32 {
+    match first {
+        Some(adornment) if adornment.button.is_some() => ((style.metrics.min_size.y - adornment.side(style)) / 2.0).max(0.0),
+        _ => padding,
+    }
 }
 
-/// Places `leading` from the reading start and `trailing` from the reading end of `rect` (the field's content
-/// rect), each `style.metrics.gap` from its neighbour and centred on the line, and leaves the rest to the text.
-/// `trailing` is in reading order: its last adornment is at the end.
-pub fn place(rect: Rect, style: &FieldStyle, leading: &[Adornment], trailing: &[Adornment], rtl: bool) -> Placed {
+/// The width the adornments take from the content rect (the box minus its padding), gaps included, and the change of
+/// the edge inset a button makes.
+pub fn reserve(style: &FieldStyle, leading: &[Adornment], trailing: &[Adornment]) -> f32 {
+    let metrics = style.metrics;
+    let edges = inset(style, leading.first(), metrics.padding.start) - metrics.padding.start + inset(style, trailing.last(), metrics.padding.end)
+        - metrics.padding.end;
+    edges + leading.iter().chain(trailing).map(|adornment| adornment.side(style) + style.metrics.gap).sum::<f32>()
+}
+
+/// Places `leading` from the reading start and `trailing` from the reading end of the field's box (`content`, the
+/// content rect, with the padding added back), each
+/// `style.metrics.gap` from its neighbour and centred on the line, and leaves the rest to the text. A glyph at an
+/// edge sits one padding from it and a button `(line - side) / 2` from it. `trailing` is in reading order: its last
+/// adornment is at the end.
+pub fn place(content: Rect, style: &FieldStyle, leading: &[Adornment], trailing: &[Adornment], rtl: bool) -> Placed {
     let gap = style.metrics.gap;
+    let padding = style.metrics.padding;
     let centred = |cell: Rect, side: f32| Rect::from_center_size(cell.center(), vec2(cell.width(), side));
+    let (before, after) = if rtl { (padding.end, padding.start) } else { (padding.start, padding.end) };
+    let rect = Rect::from_min_max(content.min - vec2(before, 0.0), content.max + vec2(after, 0.0));
     let mut flow = Flow::new(rect, rtl);
+    flow = flow.take_start(inset(style, leading.first(), padding.start)).1;
+    flow = flow.take_end(inset(style, trailing.last(), padding.end)).1;
     let mut lead = SmallVec::new();
     for adornment in leading {
         let (cell, rest) = flow.take_start(adornment.side(style));

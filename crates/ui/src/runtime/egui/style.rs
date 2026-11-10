@@ -22,6 +22,13 @@ pub(crate) fn set_hint_color(ui: &mut Ui, color: egui::Color32) {
     ui.visuals_mut().weak_text_color = Some(color);
 }
 
+/// Disables `ui` without fading it: the contract already inks a disabled part in its disabled colour, so egui's own
+/// disabled alpha would dim it a second time.
+pub(crate) fn disable_without_fade(ui: &mut Ui) {
+    ui.visuals_mut().disabled_alpha = 1.0;
+    ui.disable();
+}
+
 /// Whether egui considers `ui` enabled.
 pub(crate) fn is_enabled(ui: &Ui) -> bool {
     ui.is_enabled()

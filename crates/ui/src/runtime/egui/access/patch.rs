@@ -7,13 +7,16 @@ use egui::{Context, Id};
 /// Writes one label-scope change.
 pub(crate) fn write_label_patch(ctx: &Context, patch: &LabelPatch) {
     match patch {
-        LabelPatch::Label { id, text } => {
+        LabelPatch::Label { id, text, disabled } => {
             ctx.accesskit_node_builder(*id, |node| {
                 if node.role() == accesskit::Role::Unknown {
                     node.set_role(accesskit::Role::Label);
                 }
                 if node.label().is_none() {
                     node.set_label(text.clone());
+                }
+                if *disabled {
+                    node.set_disabled();
                 }
             });
         }
