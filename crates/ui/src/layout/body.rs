@@ -424,6 +424,7 @@ pub(crate) fn run_body_measured<R>(ui: &mut Ui, id: Id, layout: &BodyLayout, gap
         }
         BodyLayout::Grid { columns } => {
             let inner = child::block(ui, None, child::column_layout(rtl), |ui| {
+                let top = ui.available_rect_before_wrap().top();
                 let last = measured_tracks(&ctx, sizing, id, columns.len());
                 let content_run = measure::active(&ctx) && Env::of(ui).content.0;
                 // A measuring run under a body sized from its content gives each fill column the width its cells
@@ -437,6 +438,15 @@ pub(crate) fn run_body_measured<R>(ui: &mut Ui, id: Id, layout: &BodyLayout, gap
                 let installed = Env::install_for(ui, Env::of(ui).derive_local(|scoped| scoped.grid = Some(id)));
                 let inner = body(ui);
                 Env::restore(&ctx, installed);
+                // Cells place from last pass's rows, so a measuring run's rows all start at the top: the grid reaches
+                // as far down as the rows this pass measured, whichever pass it is.
+                let rows = Service::<Cursors>::run(&ctx, |cursors| match cursors.0.get(&id) {
+                    Some(Cursor::Grid(cursor)) => {
+                        cursor.measured().rows.iter().sum::<f32>() + gap.y * cursor.measured().rows.len().saturating_sub(1) as f32
+                    }
+                    _ => 0.0,
+                });
+                alloc::reach_down_to(ui, top + rows);
                 inner
             })
             .0;

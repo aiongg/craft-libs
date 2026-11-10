@@ -12,6 +12,11 @@ pub(crate) fn advance_past(ui: &mut Ui, rect: Rect) {
     ui.advance_cursor_after_rect(rect);
 }
 
+/// Makes `ui`'s own rect reach down to `y`.
+pub(crate) fn reach_down_to(ui: &mut Ui, y: f32) {
+    ui.expand_to_include_y(y);
+}
+
 /// A child `Ui` of `ui` built by `builder`: it takes no space in the parent.
 pub(crate) fn child(ui: &mut Ui, builder: egui::UiBuilder) -> Ui {
     ui.new_child(builder)
