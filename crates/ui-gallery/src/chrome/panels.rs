@@ -46,14 +46,15 @@ pub struct Panels<'a> {
     pub revealed: Option<crate::theme::Pick>,
 }
 
-/// `add` in the panel's padding, scrolling vertically.
-fn scrolled(ui: &mut Ui, add: impl FnOnce(&mut Ui)) {
-    let mut add = Some(add);
-    Stack::new().fill().pad(Pad::Regular).scroll(Scroll::vertical()).show(ui, |ui, _| {
-        if let Some(add) = add.take() {
-            add(ui);
-        }
-    });
+/// `add` in the panel's padding, scrolling vertically. The body may run more than once in a pass, so `add` is `FnMut`.
+fn scrolled(ui: &mut Ui, mut add: impl FnMut(&mut Ui)) {
+    Stack::new().fill().pad(Pad::Regular).scroll(Scroll::vertical()).show(ui, |ui, _| add(ui));
+}
+
+/// `add` in the panel's padding, for a body that is a collection or scrolls itself. Like `scrolled`, `add` may run more
+/// than once in a pass.
+fn padded(ui: &mut Ui, mut add: impl FnMut(&mut Ui)) {
+    Stack::new().fill().pad(Pad::Regular).show(ui, |ui, _| add(ui));
 }
 
 /// A caption over a value.
@@ -198,7 +199,7 @@ impl Panels<'_> {
     fn theme_panel(&mut self, ui: &mut Ui, mut body: impl FnMut(&mut Self, &mut Ui, &Arc<Explained>, &Arc<ContrastReport>)) {
         self.themes.refresh(&self.subject);
         let (Some(explained), Some(report)) = (self.themes.explained().cloned(), self.themes.report().cloned()) else { return };
-        scrolled(ui, |ui| body(self, ui, &explained, &report));
+        padded(ui, |ui| body(self, ui, &explained, &report));
     }
 
     fn problems(&mut self, ui: &mut Ui) {

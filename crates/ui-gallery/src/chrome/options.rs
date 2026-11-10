@@ -4,20 +4,17 @@
 use crate::viewer::{
     CONTRASTS, DENSITIES, DIRECTIONS, GalleryCommands, MODES, MOTIONS, Preview, SCALES, TEXT_SIZES, VariantAxis, Viewer, Workspace, theme_entries,
 };
-use craft_behavior::{ColumnWidth, IconId, Value};
+use craft_behavior::{IconId, Value};
 use craft_ui::bars::{Bar, BarKind};
 use craft_ui::buttons::{IconButton, ToggleButton};
 use craft_ui::choice::Segmented;
 use craft_ui::contract::{Bind, Entry, Show as _, ShowContainer as _, Trigger};
 use craft_ui::display::{Divider, Shade, Text};
-use craft_ui::layout_components::Grid;
+use craft_ui::layout_components::{Row, Stack};
 use craft_ui::menu::Menu;
 use craft_ui::pickers::Select;
 use craft_ui::popover::Popover;
 use egui::Ui;
-
-/// The More popover's rows: a caption and its control.
-static FORM: [ColumnWidth; 2] = [ColumnWidth::Content, ColumnWidth::Content];
 
 /// A caption before the control it names.
 fn caption(ui: &mut Ui, text: &'static str) {
@@ -36,18 +33,23 @@ fn choose<T: Value>(ui: &mut Ui, caption_text: &'static str, value: &mut T, entr
     Segmented::new(caption_text, Bind::bound(value), entries).show(ui);
 }
 
+/// One line of a form: what `add` shows, in a row.
+fn line(ui: &mut Ui, mut add: impl FnMut(&mut Ui)) {
+    Row::new().show(ui, |ui, _| add(ui));
+}
+
 /// The More popover's form: the root values the bar's own controls leave out.
 fn more_form(ui: &mut Ui, viewer: &mut Viewer) {
     let env = &mut viewer.env;
     let (contrasts, densities, motions) = (CONTRASTS.entries(), DENSITIES.entries(), MOTIONS.entries());
     let (directions, text_sizes, scales) = (DIRECTIONS.entries(), TEXT_SIZES.entries(), SCALES.entries());
-    Grid::new(&FORM).show(ui, |ui, _| {
-        choose(ui, "Contrast", &mut env.contrast, &contrasts);
-        choose(ui, "Size", &mut env.density, &densities);
-        choose(ui, "Reduced motion", &mut env.motion, &motions);
-        choose(ui, "Direction", &mut env.direction, &directions);
-        choose(ui, "Text", &mut env.text_size, &text_sizes);
-        pick(ui, "Scale", &mut env.scale, &scales);
+    Stack::new().show(ui, |ui, _| {
+        line(ui, |ui| choose(ui, "Contrast", &mut env.contrast, &contrasts));
+        line(ui, |ui| choose(ui, "Size", &mut env.density, &densities));
+        line(ui, |ui| choose(ui, "Reduced motion", &mut env.motion, &motions));
+        line(ui, |ui| choose(ui, "Direction", &mut env.direction, &directions));
+        line(ui, |ui| choose(ui, "Text", &mut env.text_size, &text_sizes));
+        line(ui, |ui| pick(ui, "Scale", &mut env.scale, &scales));
     });
 }
 
@@ -69,13 +71,11 @@ pub fn options_bar(ui: &mut Ui, viewer: &mut Viewer) {
     );
     let has_target = viewer.browser.target_story().is_some();
     let workspace = viewer.workspace;
+    let mut more = None;
     Bar::new("Appearance", BarKind::Options).show(ui, |ui, _| {
         pick(ui, "Theme", &mut viewer.env.theme, &themes);
         choose(ui, "Mode", &mut viewer.env.mode, &modes);
-        let more = ToggleButton::new("More appearance settings", Bind::bound(&mut viewer.more_open)).icon(IconId::new("more")).icon_only().show(ui);
-        let mut open = viewer.more_open;
-        Popover::new("More appearance settings", Bind::bound(&mut open)).opened_by(&more.response).show(ui, |ui, _| more_form(ui, viewer));
-        viewer.more_open = open;
+        more = Some(ToggleButton::new("More appearance settings", Bind::bound(&mut viewer.more_open)).icon(IconId::new("more")).icon_only().show(ui));
         Divider::vertical().show(ui);
         match workspace {
             Workspace::Components => {
@@ -88,4 +88,10 @@ pub fn options_bar(ui: &mut Ui, viewer: &mut Viewer) {
         IconButton::command(IconId::new("undo"), GalleryCommands::ResetLayout).show(ui);
         choose(ui, "Workspace", &mut viewer.workspace, &workspaces);
     });
+    // The popover is a layer of its own: shown inside the bar it would take the bar's height.
+    if let Some(more) = more {
+        let mut open = viewer.more_open;
+        Popover::new("More appearance settings", Bind::bound(&mut open)).opened_by(&more.response).show(ui, |ui, _| more_form(ui, viewer));
+        viewer.more_open = open;
+    }
 }

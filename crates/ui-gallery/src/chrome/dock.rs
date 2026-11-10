@@ -12,6 +12,7 @@ use craft_ui::notices::Notice;
 use egui::Ui;
 
 /// The viewer's panels as the dock's contents.
+#[non_exhaustive]
 pub struct GalleryDock<'a> {
     /// What the panel bodies read and edit.
     pub panels: Panels<'a>,
