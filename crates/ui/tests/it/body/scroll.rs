@@ -19,6 +19,8 @@ const NEAR: f32 = 1.0;
 const BIG_STEP: f32 = 200.0;
 const HUNDRED: f32 = 100.0;
 const THUMB_GAIN: f32 = 150.0;
+/// How many view heights a thumb drag of 60 points over thirty 100-point children moves the content, at least.
+const JUMP_VIEWS: f32 = 3.0;
 /// What the gaps between lines add to a body's height, at most.
 const GAPS: f32 = 20.0;
 const FIRST_COLUMN: f32 = 100.0;
@@ -249,7 +251,7 @@ fn an_out_of_view_child_does_not_run_until_it_scrolls_in() {
     let before = top0 - seen.first_top.get();
     frames.frame(vec![pointer::moved(thumb + Vec2::new(0.0, 60.0))], &mut show);
     let jumped = top0 - seen.first_top.get();
-    assert!(jumped - before > 3.0 * view.height(), "the drag jumped several views: {before} -> {jumped}");
+    assert!(jumped - before > JUMP_VIEWS * view.height(), "the drag jumped several views: {before} -> {jumped}");
     let mut spans: Vec<(f32, f32)> = shown.borrow().iter().map(|rect| (rect.min.y, rect.max.y)).collect();
     spans.sort_by(|a, b| a.0.total_cmp(&b.0));
     let mut covered = view.min.y;
