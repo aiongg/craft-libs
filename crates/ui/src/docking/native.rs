@@ -8,7 +8,6 @@
 
 use super::{DockConfig, FloatingGroupOutput, PanelSpec};
 use crate::runtime::drag;
-use crate::runtime::env::ShellCx;
 use crate::runtime::windows::{WindowAction, WindowHost, WindowSpec};
 use craft_behavior::dock::{Action, Floating, NativeSpace, restore_rect};
 use craft_behavior::placement::monitor_of;
@@ -32,8 +31,8 @@ pub(crate) struct Opening {
 
 /// Whether the groups of panels with `specs` may open OS windows: the dock's `config` turns them on, the platform
 /// opens them and every panel allows it.
-pub(crate) fn allowed(ctx: &Context, shell: Option<&ShellCx>, config: &DockConfig, specs: &[PanelSpec]) -> bool {
-    config.native_windows && WindowHost::of(ctx).viewports_available(shell) && specs.iter().all(|spec| spec.allow_native)
+pub(crate) fn allowed(ctx: &Context, config: &DockConfig, specs: &[PanelSpec]) -> bool {
+    config.native_windows && WindowHost::of(ctx).viewports_available() && specs.iter().all(|spec| spec.allow_native)
 }
 
 /// The window a group of panels with `specs` opens: a document window when any panel is a document, else a tool
@@ -61,15 +60,8 @@ pub fn space_of<'a, P>(ctx: &Context, window: &Floating<P>, monitors: &'a [Monit
 
 /// How `window` shows: in an OS window at its restored rect when it is native and `config`, the platform and its
 /// panels allow one, else in the app window at its own rect. `specs` are its panels' specs.
-pub(crate) fn opening<P>(
-    ctx: &Context,
-    shell: Option<&ShellCx>,
-    config: &DockConfig,
-    window: &Floating<P>,
-    specs: &[PanelSpec],
-    bar: f32,
-) -> Opening {
-    if allowed(ctx, shell, config, specs) {
+pub(crate) fn opening<P>(ctx: &Context, config: &DockConfig, window: &Floating<P>, specs: &[PanelSpec], bar: f32) -> Opening {
+    if allowed(ctx, config, specs) {
         let monitors = super::desktop::monitors(ctx);
         if let Some(rect) = restore(window, space_of(ctx, window, &monitors, bar)) {
             return Opening { rect, spec: Some(spec_for(specs)) };

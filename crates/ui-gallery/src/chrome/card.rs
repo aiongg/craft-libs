@@ -152,6 +152,15 @@ impl Card<'_> {
         // not stand for the story's.
         let bare = host.stack().id(craft_ui::testing::memory::sub(host.id, "bare")).measure_in(ui, Proposal::Ideal, |_, _| {});
         let height = if took.y > bare.y { took.y } else { self.room };
+        // A story that opens a dialog or an OS window on its own and shows nothing in flow starts closed: nothing opens
+        // before the button is pressed. The measure above opens none.
+        if !state.dialog.known && took.y <= bare.y && state.data.present::<bool>("open").is_some_and(|open| *open) {
+            if let Some(open) = state.data.present::<bool>("open") {
+                *open = false;
+            }
+            state.dialog = DialogState { known: true, hidden: true, shown: false };
+            state.start = None;
+        }
         // A story that opens a dialog starts with it closed behind a button, as on the old gallery's Overview tiles.
         if state.dialog.hidden {
             if Button::new("Show dialog").show(ui).clicks == 0 {
@@ -178,6 +187,8 @@ impl Card<'_> {
         match (shown.dialog.is_some(), dialog.known) {
             (true, false) => *dialog = DialogState { known: true, hidden: true, shown: false },
             (true, true) => dialog.shown = true,
+            // An OS window has no layer in the card: it counts as shown from the pass after its button.
+            (false, true) if !dialog.hidden => dialog.shown = true,
             (false, _) => {}
         }
         if dialog.known && !dialog.hidden && closed && dialog.shown {

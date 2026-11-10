@@ -27,6 +27,9 @@ impl PartialEq for SharedPick {
 
 /// Shows the capture windows of a pick over a small monitor.
 fn captures(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    if !*data.value("open", true) {
+        return StoryOutput::default();
+    }
     let shared = data.value("pick", SharedPick(Arc::new(Mutex::new(ScreenPick::new())))).0.clone();
     let mut pick = shared.lock().unwrap_or_else(|e| e.into_inner());
     if !pick.busy() {
@@ -35,6 +38,12 @@ fn captures(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let image = monitor([0, 0], [96, 72], 1);
     pick.tick_with(ui.ctx(), 1, &move || Box::new(StillCapture::new(Ok(Capture::Images(vec![image.clone()])))));
     ScreenColorPicker::new(&mut pick, "Story").show(ui);
+    // A pick that ended (a click or Escape in a capture window) closes the story's windows until its button is pressed.
+    let ended = !pick.busy();
+    drop(pick);
+    if ended {
+        *data.value("open", true) = false;
+    }
     StoryOutput::default()
 }
 
@@ -44,7 +53,10 @@ fn screen_color_picker(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 }
 
 #[story(CaptureWindow, covers = [Default], drive = Drive::Never)]
-fn capture_window(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+fn capture_window(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    if !*data.value("open", true) {
+        return StoryOutput::default();
+    }
     let image = Snapshot::new(monitor([0, 0], [96, 72], 1)).ok().expect("a valid monitor");
     let [x, y, w, h] = capture::area(&image).cover();
     let rect = Rect::from_min_size(pos2(x, y), vec2(w, h));
@@ -53,6 +65,9 @@ fn capture_window(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
         let rect = ui.max_rect();
         CaptureView::new("monitor 1", &image, 1, LOUPE_ZOOM.1, hints.clone()).show_at(ui, rect)
     });
+    if shown.output.closed.is_some() {
+        *data.value("open", true) = false;
+    }
     match shown.inner {
         Some(output) => StoryOutput::from(output),
         None => StoryOutput::from(shown.output),

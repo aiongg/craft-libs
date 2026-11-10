@@ -206,7 +206,7 @@ impl Container for DocumentWindow<'_> {
 
     /// The title row of the fallback layer; an OS window has the title bar the app composes in its body.
     fn header(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
-        if WindowHost::of(cx.memory.ctx()).viewports_available(cx.shell().as_ref()) {
+        if WindowHost::of(cx.memory.ctx()).viewports_available() {
             return;
         }
         let shown = TitleRow::new(cx.label()).strength(HeaderStrength::Strong).actions([HeaderAction::Close]).show(ui);

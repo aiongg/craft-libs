@@ -9,6 +9,9 @@ use egui::Ui;
 
 #[story(DocumentWindow<'static>, covers = [Default], drive = Drive::Never)]
 fn document_window(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    if !*data.value("open", true) {
+        return StoryOutput::default();
+    }
     let mut guides = *data.value("guides", true);
     let shown = DocumentWindow::new("Landscape.psd")
         .show(ui, |ui, _| {
@@ -18,5 +21,8 @@ fn document_window(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
         })
         .output;
     *data.value("guides", true) = guides;
+    if shown.close_requested.is_some() {
+        *data.value("open", true) = false;
+    }
     shown.into()
 }

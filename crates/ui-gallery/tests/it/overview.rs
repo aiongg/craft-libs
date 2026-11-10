@@ -35,3 +35,14 @@ fn every_level_of_the_overview_runs_its_cards() {
         assert!(fixture.by_label("Open").is_some(), "{level} has cards");
     }
 }
+
+/// A story that opens a window or a dialog on its own starts closed in its card, behind the one opener button: no
+/// window title shows until the button is pressed.
+#[trial]
+fn window_stories_start_closed_behind_their_opener() {
+    let mut gallery = gallery_at("Shells");
+    let mut fixture = Fixture::new(move |ui| gallery.ui(ui));
+    fixture.room(Vec2::new(1400.0, 900.0)).settle();
+    assert!(fixture.by_label("Show dialog").is_some(), "a window story has its opener");
+    assert!(fixture.by_label("Export Log").is_none() && fixture.by_label("Landscape.psd").is_none(), "no window opens by itself");
+}

@@ -8,7 +8,7 @@ use super::run::{Host, HostCx, HostPass, ShowAt};
 use super::{ContainerProps, Mount, ShellPane};
 use crate::runtime::egui::areas;
 use crate::runtime::egui::panels::{self, Edge};
-use crate::runtime::env::{Env, Label, ShellEntry};
+use crate::runtime::env::{Env, Label};
 use crate::runtime::focus::FocusPolicy;
 use crate::runtime::layout_memory;
 use crate::runtime::memory::{MemoryStage, SaveKey, sub};
@@ -49,7 +49,7 @@ pub(super) fn host(props: &ContainerProps, at: &HostCx<'_>, open: bool, title: &
             (None, _) => closed(),
         },
         Mount::Viewport { fallback, spec } => {
-            if !WindowHost::of(ctx).viewports_available(at.env.get::<ShellEntry>().0.as_ref()) {
+            if !WindowHost::of(ctx).viewports_available() {
                 return match layer(fallback) {
                     (Some(fade), exiting) => {
                         Mounted { host: Box::new(LayerHost::new(fallback.clone(), props.save.clone(), exiting, fade, at.size)), exiting }

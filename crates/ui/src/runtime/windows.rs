@@ -8,7 +8,6 @@ use crate::runtime::egui::input::{self as raw_input, RawInput};
 use crate::runtime::egui::input_filter;
 use crate::runtime::egui::memory::Service;
 use crate::runtime::egui::{injected, pass, scale, screenshot, viewports, widgets};
-use crate::runtime::env::ShellCx;
 use crate::runtime::frame::{PassStep, PerViewport, Stamped};
 use crate::runtime::{overlay, pointer};
 use craft_behavior::{Cursor, CursorIcon, CursorPriority, PartRef, PointerButton};
@@ -1221,11 +1220,9 @@ impl WindowHost {
         shell_of(&self.ctx, pass::current_viewport(&self.ctx))
     }
 
-    /// Whether OS viewports can open from inside `shell` (`BodyCx::shell`): the capability is on, the integration does
-    /// not embed them, and the shell is not embedded (`AppShell::embedded`), whose windows show in its region.
-    pub fn viewports_available(&self, shell: Option<&ShellCx>) -> bool {
-        let embedded = shell.is_some_and(|shell| shell.region().is_some());
-        !embedded && base_shell(&self.ctx).caps.contains(Caps::VIEWPORTS) && viewports::available(&self.ctx)
+    /// Whether OS viewports can open: the capability is on and the integration does not embed them.
+    pub fn viewports_available(&self) -> bool {
+        base_shell(&self.ctx).caps.contains(Caps::VIEWPORTS) && viewports::available(&self.ctx)
     }
 
     /// Whether the running viewport's window is drawn; a minimized or covered window runs no UI pass, so this reads

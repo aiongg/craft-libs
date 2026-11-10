@@ -816,7 +816,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
             };
             let specs: Vec<PanelSpec> = window.panels().map(|panel| scene.spec(panel)).collect();
             let rights: Vec<Permissions> = window.panels().map(|panel| scene.permissions(panel)).collect();
-            let opening = native::opening(&ctx, body.shell().as_ref(), scene.config, window, &specs, scene.space.title_row);
+            let opening = native::opening(&ctx, scene.config, window, &specs, scene.space.title_row);
             let mut actions = vec![HeaderAction::Menu];
             if rights.iter().all(|rights| rights.movable) {
                 actions.push(HeaderAction::Float);

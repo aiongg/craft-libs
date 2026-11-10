@@ -3,7 +3,6 @@
 mod caption_button;
 
 mod document_window;
-mod embedded_viewport;
 mod screen_mode;
 mod window_parts;
 
