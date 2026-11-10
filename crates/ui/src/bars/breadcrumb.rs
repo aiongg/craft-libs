@@ -195,7 +195,7 @@ impl<K: Value + 'static> Component for BreadcrumbBar<'_, K> {
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
         let faces: Vec<Vec2> = (0..self.crumbs.len()).map(|at| self.natural(at, cx)).collect();
         let crumbs: f32 = faces.iter().map(|face| face.x).sum();
-        let height = faces.iter().map(|face| face.y).fold(0.0, f32::max);
+        let height = faces.iter().map(|face| face.y).fold(cx.face(Text::new("x")).y, f32::max);
         let joints = self.crumbs.len().saturating_sub(1) as f32 * cx.style.joint;
         let whole = crumbs + joints;
         Vec2::new(cx.room.map_or(whole, |room| whole.min(room)), height)

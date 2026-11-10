@@ -188,7 +188,7 @@ impl<'a> Draw<'a> {
         }
     }
 
-    fn width(&self, width: StrokeWidth) -> f32 {
+    pub(crate) fn width(&self, width: StrokeWidth) -> f32 {
         width.points(self.env.tokens, self.painter.pixels_per_point())
     }
 
@@ -289,6 +289,12 @@ impl<'a> Draw<'a> {
     /// Paints the line of `kind` from `from` to `to`.
     pub fn rule(&self, kind: RuleKind, from: Pos2, to: Pos2) {
         let look = rule_look(self.env.tokens, kind);
+        self.painter.extend(super::rule::Rule::shapes(&look, from, to, self.painter.pixels_per_point()));
+    }
+
+    /// Paints a line of theme width `width` and `color` from `from` to `to`, snapped to physical pixels as `rule` is.
+    pub(crate) fn line_snapped(&self, width: StrokeWidth, color: Color32, from: Pos2, to: Pos2) {
+        let look = crate::style::RuleLook { color, width: self.width(width) };
         self.painter.extend(super::rule::Rule::shapes(&look, from, to, self.painter.pixels_per_point()));
     }
 

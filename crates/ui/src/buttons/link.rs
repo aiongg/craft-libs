@@ -1,7 +1,7 @@
 //! `Link`: text in the accent colour, always underlined, that reports a click.
 
 use crate::contract::{Access, Common, Component, Cx, MeasureCx, PaintUi, Pointer as _, Role, Styled as _};
-use crate::primitives::{PaintShape, StrokeWidth, TextLayout, TextRun, Wrap};
+use crate::primitives::{StrokeWidth, TextLayout, TextRun, Wrap};
 use crate::style::{ComponentStyle, FocusLook, Stateful, StyleCx, TextLook, TypeRole};
 use craft_behavior::{CursorIcon, CursorPriority, Flow, Metrics, PointerButton, PressPhase, Sense};
 use craft_theme::variant::Tone;
@@ -19,8 +19,8 @@ pub struct LinkStyle {
     /// The text and underline colour: `accent.solid`, as PhotoCraft's links; `accent.text` at high contrast, which meets the text contrast `accent.solid` does not.
     #[style(text)]
     text: TextLook,
-    /// The underline's width, `stroke.thin`: the width `paint` strokes with.
-    underline: f32,
+    /// The underline's width, resolved by `measure` and `paint` alike.
+    underline: StrokeWidth,
 }
 
 /// A link: drawn in the accent colour in a type role (body by default) and underlined, so colour is not its only cue.
@@ -72,7 +72,7 @@ impl Component for Link {
         LinkStyle {
             metrics: Metrics::new(),
             focus: cx.focus_look(),
-            underline: cx.tokens.stroke.thin,
+            underline: StrokeWidth::Thin,
             text: TextLook::new(TypeRole::Body, Stateful::new(color).off(States::new(color, color, color, cx.color(colors.text.disabled)))),
         }
     }
@@ -84,7 +84,8 @@ impl Component for Link {
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
         let layout = cx.layout(&self.run(cx.resolved.label));
-        Vec2::new(layout.size().x, reach(&layout, cx.style.underline))
+        let underline = cx.style.underline.points(cx.tokens, cx.ui.ctx().pixels_per_point());
+        Vec2::new(layout.size().x, reach(&layout, underline))
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
@@ -114,7 +115,7 @@ impl Component for Link {
         let run = self.run(cx.resolved.label).color(color);
         let layout = draw.layout(&run, cx.content_rect.width());
         // A single line is centred with its underline in a taller rect, so the underline follows the text.
-        let underline = cx.style.underline;
+        let underline = draw.width(cx.style.underline);
         let total = reach(&layout, underline);
         let spare = if layout.galley.rows.len() <= 1 { (cx.content_rect.height() - total).max(0.0) } else { 0.0 };
         let top = cx.content_rect.top() + spare / 2.0;
@@ -122,7 +123,7 @@ impl Component for Link {
         draw.galley(Pos2::new(line.left(), top), &layout);
         // The stroke's top edge sits on the line box's bottom, so the whole stroke lies below every descender.
         let y = top + line_bottom(&layout).unwrap_or(layout.size().y) + underline / 2.0;
-        draw.stroke(&PaintShape::Path(vec![Pos2::new(line.left(), y), Pos2::new(line.right(), y)]), StrokeWidth::Thin, color);
+        draw.line_snapped(cx.style.underline, color.egui(), Pos2::new(line.left(), y), Pos2::new(line.right(), y));
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> Response {
