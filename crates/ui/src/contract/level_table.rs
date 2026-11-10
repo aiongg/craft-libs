@@ -1,7 +1,9 @@
 //! The surface of each registered type that does not sit on a dock panel, as the old gallery drew it: bars on the
 //! window chrome, canvas tools and overlays on the document, docks, dialogs and shells on their own. A type added
-//! since follows the same convention.
+//! since follows the same convention. A second table, `LEVELS`, holds the levels the old gallery declared for types
+//! of family crates that the shape rule of `level.rs` would list elsewhere.
 
+use super::level::Level;
 use super::level::Surface::{self, Canvas, Chrome, Own};
 
 /// `(crate target, type name, surface)`, sorted by crate target and name.
@@ -142,4 +144,62 @@ pub(super) const SURFACES: &[(&str, &str, Surface)] = &[
     ("craft_ui", "Watermark", Own),
     ("craft_ui", "WindowMenuRows", Own),
     ("craft_ui_gallery", "MoveTool", Canvas),
+];
+
+/// `(crate target, type name, level)` for the types whose level the old gallery declared and the shape rule of a
+/// family crate (pattern, leaf, body) does not give, sorted by crate target and name.
+pub(super) const LEVELS: &[(&str, &str, Level)] = &[
+    ("craft_color", "ColorArea", Level::Composites),
+    ("craft_color", "ColorDisc", Level::Composites),
+    ("craft_color", "ColorPicker", Level::Composites),
+    ("craft_color", "ColorPopover", Level::Composites),
+    ("craft_color", "ColorRamp", Level::Composites),
+    ("craft_color", "ColorWheel", Level::Composites),
+    ("craft_color", "PaintChip", Level::Composites),
+    ("craft_color", "SwatchPair", Level::Composites),
+    ("craft_color", "SwatchPalette", Level::Composites),
+    ("craft_dialogs", "PathField", Level::Composites),
+    ("craft_draw", "BrushPresetPicker", Level::Composites),
+    ("craft_draw", "BrushSectionList", Level::Composites),
+    ("craft_draw", "BrushStrokeStrip", Level::Composites),
+    ("craft_draw", "DynamicControlRow", Level::Composites),
+    ("craft_draw", "GradientEditor", Level::Composites),
+    ("craft_draw", "GradientPalette", Level::Composites),
+    ("craft_draw", "GradientSwatch", Level::Composites),
+    ("craft_draw", "PathOptionsPopover", Level::Composites),
+    ("craft_draw", "PatternFillEditor", Level::Composites),
+    ("craft_draw", "PictureFillEditor", Level::Composites),
+    ("craft_draw", "StrokeButton", Level::Composites),
+    ("craft_draw", "StrokeEditor", Level::Composites),
+    ("craft_draw", "TipEllipse", Level::Composites),
+    ("craft_draw", "TransformFields", Level::Composites),
+    ("craft_font_manager", "AxisSliders", Level::Composites),
+    ("craft_imaging", "BlendIfBar", Level::Composites),
+    ("craft_imaging", "BlurPinsOverlay", Level::Composites),
+    ("craft_imaging", "ContourField", Level::Composites),
+    ("craft_imaging", "CurveEditor", Level::Composites),
+    ("craft_imaging", "CurvePreview", Level::Composites),
+    ("craft_imaging", "Histogram", Level::Composites),
+    ("craft_imaging", "PerspectiveWarp", Level::Composites),
+    ("craft_imaging", "PinWarp", Level::Composites),
+    ("craft_imaging", "SelectionOverlay", Level::Composites),
+    ("craft_imaging", "TransformPreview", Level::Composites),
+    ("craft_layers", "BlendRows", Level::Composites),
+    ("craft_layers", "LayerFilterBar", Level::Composites),
+    ("craft_layers", "LayersOptionsDialog", Level::Composites),
+    ("craft_layers", "LayersPanel", Level::Composites),
+    ("craft_pages", "ColumnBar", Level::Composites),
+    ("craft_pages", "EdgePicker", Level::Composites),
+    ("craft_pages", "TableSizePicker", Level::Composites),
+    ("craft_table", "SelectionStatsReadout", Level::Composites),
+    ("craft_table", "Slicer", Level::Composites),
+    ("craft_text", "TextRuler", Level::Composites),
+    ("craft_theme_store", "ThemeChip", Level::Composites),
+    ("craft_timeline", "FramePreview", Level::Composites),
+    ("craft_timeline", "KeyframeLane", Level::Composites),
+    ("craft_timeline", "MediaControls", Level::Composites),
+    ("craft_timeline", "TimelineOverview", Level::Composites),
+    ("craft_timeline", "TimelineRuler", Level::Composites),
+    ("craft_timeline", "TransportBar", Level::Composites),
+    ("craft_ui_gallery", "TokenBrowser", Level::Foundations),
 ];
