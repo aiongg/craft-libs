@@ -259,6 +259,11 @@ impl<'a> TitleRow<'a> {
     /// Divides the room left between the lead and the actions: the icon, then the title, then the subtitle when
     /// both texts fit whole.
     fn place(&self, mut band: Flow, cx: &PartsCx<'_, Self>) -> Placed {
+        // A disclosure's glyph sits a gap before the title, as a title's own icon does; the gap is part of the title band,
+        // so a click beside the glyph toggles too.
+        if matches!(self.lead, Lead::Disclosure(_)) {
+            band = band.take_start(cx.gap()).1;
+        }
         let side = band.rect().height();
         let mut handle = None;
         if self.handle {
@@ -338,8 +343,7 @@ impl Component for TitleRow<'_> {
         if self.has_lead() {
             let (lead, rest) = flow.take_start(self.lead_side(side, cx.style.disclosure));
             cx.part(LEAD, lead).sense(Sense::CLICK | Sense::FOCUS).focusable();
-            // A disclosure's glyph sits a gap before the title, as a title's own icon does.
-            flow = if matches!(self.lead, Lead::Disclosure(_)) { rest.take_start(cx.gap()).1 } else { rest };
+            flow = rest;
         }
         // The last part sits at the end edge, so the group reads commands then actions in the order given; stops register
         // in that order.
