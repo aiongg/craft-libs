@@ -371,5 +371,5 @@ fn an_automatic_number_field_shows_auto_only_while_blank() {
         frames.texts().iter().any(|run| run.text == "Auto")
     };
     assert!(shows_auto(None), "a blank field shows Auto");
-    assert!(!shows_auto(Some(300.0)), "a field with a number does not");
+    assert!(!shows_auto(Some(START)), "a field with a number does not");
 }
