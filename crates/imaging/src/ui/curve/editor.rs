@@ -314,7 +314,7 @@ impl FieldsRow<'_> {
         let mut reports: Vec<(usize, EditResponse<Option<f64>>)> = Vec::new();
         Row::new().show(ui, |ui, _| {
             for (axis, name) in [(0, self.words.input.clone()), (1, self.words.output.clone())] {
-                let value = self.at.map(|i| self.to_field(points[i][axis]));
+                let value = Some(self.to_field(self.at.map_or(0.0, |i| points[i][axis])));
                 let mut field = NumberField::new(name.clone(), Bind::given(Mixed::Same(value)))
                     .range(self.range(axis))
                     .step(1.0)

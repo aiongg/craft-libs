@@ -5,7 +5,6 @@ use super::{Curve, CurveChannel, CurveEditor, CurvePreview, ToneRamp};
 use crate::ui::histogram::{ChannelColor, HistogramData};
 use craft_behavior::Mixed;
 use craft_ui::contract::{Bind, Show as _, Validity};
-use craft_ui::display::Text;
 use craft_ui::runtime::env::Message;
 use craft_ui::style::DataColor;
 use craft_ui::testing::{Drive, Grip, StoryData, StoryOutput, story};
@@ -32,14 +31,14 @@ fn channels() -> [CurveChannel; 4] {
 }
 
 fn bent() -> Curve {
-    Curve::smooth(vec![[0.0, 0.0], [64.0, 40.0], [128.0, 150.0], [255.0, 255.0]])
+    Curve::smooth(vec![[0.0, 0.0], [64.0, 48.0], [192.0, 214.0], [255.0, 255.0]])
 }
 
 /// The RGB composite with the other channels' curves behind it and a histogram under it.
 #[story(CurveEditor<'static>, covers = [Default], drive = Drive::Drag(Grip::new(PLOT)))]
 fn curve_editor(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let overlays = data
-        .value("overlays", vec![bent(), Curve::identity(255.0), Curve::smooth(vec![[0.0, 20.0], [255.0, 235.0]]), Curve::identity(255.0)])
+        .value("overlays", vec![bent(), Curve::smooth(vec![[0.0, 12.0], [128.0, 140.0], [255.0, 255.0]]), Curve::identity(255.0), Curve::identity(255.0)])
         .clone();
     let histogram = HistogramData::tone(&story_bins(0.0), ChannelColor::Neutral);
     let curve = data.value("curve", bent());
@@ -47,7 +46,7 @@ fn curve_editor(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
         .channels(&channels())
         .overlays(&overlays)
         .histogram(&histogram)
-        .hint("Click the graph to add a point")
+        .hint("Click to add a point · drag off or Ctrl-click or Delete to remove")
         .show(ui);
     output.into()
 }
@@ -59,20 +58,12 @@ fn curve_editor_pencil(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     CurveEditor::new("Curve", Bind::bound(curve)).pencil().show(ui).into()
 }
 
-/// The contour editor: corner points, percent fields and a host row between the graph and the fields.
+/// A contour: corner points and fields in percent; the Corner check box toggles the selected point.
 #[story(CurveEditor<'static>, covers = [], drive = Drive::Never)]
 fn curve_editor_corners(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let curve =
-        data.value("contour", Curve::from_parts(vec![[0.0, 0.0], [90.0, 160.0], [180.0, 100.0], [255.0, 255.0]], vec![false, true, false, false]));
-    CurveEditor::new("Contour", Bind::bound(curve))
-        .corners()
-        .percent()
-        .bars(false)
-        .between(|ui, _| {
-            Text::new("Name").show(ui);
-        })
-        .show(ui)
-        .into()
+    let points = vec![[0.0, 0.0], [64.0, 160.0], [128.0, 96.0], [192.0, 224.0], [255.0, 255.0]];
+    let curve = data.value("contour", Curve::from_parts(points, vec![false, false, true, false, false]));
+    CurveEditor::new("Contour", Bind::bound(curve)).corners().percent().show(ui).into()
 }
 
 /// Fields in percent of the levels, with the selection kept by the host.
