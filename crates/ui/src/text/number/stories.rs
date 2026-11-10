@@ -21,6 +21,18 @@ fn row(label: &'static str) -> Field {
     Field::new(label).side(SideLabel::new().align(LabelAlign::Start)).id_salt(label)
 }
 
+/// The zoom stops of the old PhotoCraft zoom field.
+const ZOOM_STOPS: [f64; 11] = [12.5, 25.0, 50.0, 100.0, 200.0, 400.0, 800.0, 1600.0, 3200.0, 6400.0, 12_800.0];
+
+/// The next zoom stop above `value` for a positive `direction`, the previous one below it otherwise.
+fn zoom_step(value: f64, direction: i32) -> f64 {
+    let mut stops = ZOOM_STOPS.into_iter();
+    match direction > 0 {
+        true => stops.find(|stop| *stop > value).unwrap_or(value),
+        false => stops.rfind(|stop| *stop < value).unwrap_or(value),
+    }
+}
+
 fn refuse_negative(size: &Option<f64>) -> Validity<Option<f64>> {
     match size {
         Some(size) if *size < 0.0 => Validity::Refuse(Message::new("Size cannot be negative")),
@@ -42,12 +54,28 @@ fn number_field(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
         row("Invalid").show(ui, |ui, _| {
             NumberField::new("Columns", Bind::bound(data.value("negative", Some(-SIZE))).check(refuse_negative)).size(size).show(ui);
         });
-        row("Not a number").show(ui, |ui, _| {
-            // Held outside the story data: NaN is never equal to itself, so the suite would read it as changed.
-            NumberField::new("Not a number", Bind::bound(&mut Some(f64::NAN))).size(size).show(ui);
+        row("Pop-up slider").show(ui, |ui, _| {
+            NumberField::new("Opacity", Bind::bound(data.value("opacity", Some(80.0))))
+                .range(RANGE)
+                .unit("%")
+                .popup_slider(RANGE)
+                .size(size)
+                .show(ui);
+        });
+        row("Zoom stops").show(ui, |ui, _| {
+            NumberField::new("Zoom", Bind::bound(data.value("zoom", Some(100.0))))
+                .range(0.1..=12_800.0)
+                .unit("%")
+                .stepper(zoom_step)
+                .size(size)
+                .show(ui);
         });
         row("Disabled").show(ui, |ui, _| {
             NumberField::new("Disabled", Bind::bound(&mut Some(64.0))).range(RANGE).step(0.5).unit("px").enabled(false).size(size).show(ui);
+        });
+        row("Not a number").show(ui, |ui, _| {
+            // Held outside the story data: NaN is never equal to itself, so the suite would read it as changed.
+            NumberField::new("Not a number", Bind::bound(&mut Some(f64::NAN))).size(size).show(ui);
         });
         first.inner
     });

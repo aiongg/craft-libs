@@ -756,14 +756,10 @@ impl<V: NumberValue + 'static> Component for NumberField<'_, V> {
         let placed = Self::laid_out(cx.style, probe, false, &chevrons);
         let adornments = placed.trailing.last().map_or(0.0, |last| last.max.x - placed.text.max.x);
         let width = text.x + unit + adornments;
-        // A field over no range has no widest value to size from, so it keeps the field's minimum width.
-        let rule = self.rule();
-        let width = if rule.low.is_finite() && rule.high.is_finite() {
-            width
-        } else {
-            let field = cx.style.field.metrics();
-            width.max(field.min_size.x - field.padding.start - field.padding.end)
-        };
+        // A field is at least a number cell wide, so a column of fields ends at one edge; a field over no range has no
+        // widest value to size from and takes that width.
+        let field = cx.style.field.metrics();
+        let width = width.max(cx.tokens.size.length.number - field.padding.start - field.padding.end);
         Vec2::new(width, text.y.max(self.unit_size.y))
     }
 
@@ -895,7 +891,8 @@ impl<V: NumberValue + 'static> Component for NumberField<'_, V> {
         let chevrons = self.chevrons(&cx.words::<TextWords>());
         let placed = Self::laid_out(cx.style, cx.content_rect, rtl, &chevrons);
         let (_, unit) = self.text_and_unit(placed.text, rtl);
-        if let (Some(unit), Some(label)) = (unit, &self.unit) {
+        // A mixed value shows the dash alone: a unit beside it would claim a measure the selection does not have.
+        if let (Some(unit), Some(label), Some(_)) = (unit, &self.unit, cx.value()) {
             let top = unit.center().y - self.unit_size.y / 2.0;
             let at = unit;
             let run = TextRun::new(label.as_str()).role(cx.style.unit.role).color(cx.resolve(&cx.style.unit.color));

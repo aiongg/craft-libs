@@ -219,11 +219,11 @@ impl<C: Codec + Clone + 'static> Component for TextField<'_, C> {
             None => Cow::Borrowed(""),
         };
         let text = if sample.is_empty() { self.options.placeholder.as_ref().map_or("", Label::as_str) } else { sample.as_ref() };
-        let mut size = cx.layout(&TextRun::new(text)).size();
+        let mut size = cx.layout(&TextRun::new(text).role(self.options.role)).size();
         // A multi-line field takes the height of its lines, and grows past them with longer text, as the editor does.
         if let Some(lines) = self.options.lines.filter(|_| self.options.multiline()) {
             let line = cx.layout(&TextRun::new("M").role(self.options.role)).size().y;
-            size.y = size.y.max(line * lines as f32);
+            size.y = size.y.max(cx.style.metrics().min_size.y + line * (lines - 1) as f32);
         }
         let clear = self.search.then(|| Self::clear_name(&cx.words::<words::TextWords>()));
         size.x += adorn::reserve(cx.style, &self.leading, &self.trailing(clear));

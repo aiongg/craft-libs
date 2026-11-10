@@ -24,7 +24,7 @@ fn row(label: &'static str) -> Field {
 #[story(TextField<'static, PlainText>, covers = [Default])]
 fn text_field(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let size = *data.choice("size", ControlSize::Md, &SIZES);
-    let placeholder = data.value("placeholder", String::from("Untitled")).clone();
+    let placeholder = data.value("placeholder", String::from("Layer name")).clone();
     let out = FieldGroup::new("Text field states").show(ui, |ui, _| {
         let first = row("Empty").show(ui, |ui, _| {
             TextField::new("Name", Bind::bound(data.value("name", String::new()))).placeholder(placeholder.clone()).size(size).show(ui)
