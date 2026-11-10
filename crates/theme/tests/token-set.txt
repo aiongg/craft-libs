@@ -181,6 +181,7 @@ status.warn.solid_hover
 status.warn.solid_pressed
 stroke.dash
 stroke.dash_gap
+stroke.heavy
 stroke.medium
 stroke.thick
 stroke.thin

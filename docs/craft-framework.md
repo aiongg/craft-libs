@@ -369,6 +369,7 @@ This is the design: components name semantic tokens and never a pixel value or s
 | Gap inline / row / stack / section | 4 / 4 / 6 / 12 | 6 / 6 / 8 / 16 |
 | Padding control / panel / dialog | 6 / 8 / 16 | 8 / 12 / 20 |
 | Radius control / surface / window / panel | 3 / 4 / 6 / 0 | 6 / 8 / 12 / 0 |
+| Stroke thin / medium / thick / heavy | 1 / 1.5 / 2 / 3 | 1 / 1.5 / 2 / 3 |
 | Radius button / pill | full / full | full / full |
 | Bar title / tab / status / options | 32 / 26 / 24 / 36 | 38 / 30 / 30 / 42 |
 | Panel header | 28 | 34 |

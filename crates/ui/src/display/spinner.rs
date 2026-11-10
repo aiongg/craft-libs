@@ -33,18 +33,41 @@ pub struct SpinnerStyle {
     inset: f32,
 }
 
+/// The side of a spinner, as the icon sizes and the control height name it. A spinner without one follows the
+/// control size around it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum SpinnerSize {
+    /// The small icon side.
+    Sm,
+    /// The medium icon side.
+    Md,
+    /// The large icon side.
+    Lg,
+    /// The height of a medium control.
+    Control,
+}
+
 /// The busy mark. Named by its label it is a busy progress indicator; without a label it is decoration, as inside
 /// a button that reports busy itself.
 #[derive(crate::contract::Component)]
 pub struct Spinner {
     #[common]
     common: Common,
+    /// The side, which is part of the style key.
+    #[style_key]
+    extent: Option<SpinnerSize>,
 }
 
 impl Spinner {
     /// A spinner at the icon side of the control size.
     pub fn new() -> Self {
-        Spinner { common: Common::new() }
+        Spinner { common: Common::new(), extent: None }
+    }
+
+    /// A spinner of `size`, whatever the control size around it.
+    pub fn extent(mut self, size: SpinnerSize) -> Self {
+        self.extent = Some(size);
+        self
     }
 }
 
@@ -64,9 +87,17 @@ impl Component for Spinner {
     type Style = SpinnerStyle;
     type Output = Response;
 
-    fn style(cx: &StyleCx<'_>, _: SpinnerStyleKey) -> SpinnerStyle {
+    fn style(cx: &StyleCx<'_>, key: SpinnerStyleKey) -> SpinnerStyle {
         let ink = Stateful::new(cx.color(cx.tokens.color.text.normal));
-        SpinnerStyle { metrics: Metrics::new(), arc: IconLook::new(cx.control().icon, cx.host_ink(ink)), inset: cx.tokens.space.gap.tight }
+        let (icon, control) = (&cx.tokens.size.icon, &cx.tokens.size.control);
+        let side = match key.extent {
+            None => cx.control().icon,
+            Some(SpinnerSize::Sm) => icon.sm,
+            Some(SpinnerSize::Md) => icon.md,
+            Some(SpinnerSize::Lg) => icon.lg,
+            Some(SpinnerSize::Control) => control.md,
+        };
+        SpinnerStyle { metrics: Metrics::new(), arc: IconLook::new(side, cx.host_ink(ink)), inset: cx.tokens.space.gap.tight }
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
@@ -99,7 +130,7 @@ impl Component for Spinner {
                 centre + radius * vec2(angle.cos(), angle.sin())
             })
             .collect();
-        ui.draw().stroke(&PaintShape::Path(points), StrokeWidth::Thick, cx.resolve(&cx.style.arc.color));
+        ui.draw().stroke(&PaintShape::Path(points), StrokeWidth::Heavy, cx.resolve(&cx.style.arc.color));
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> Response {

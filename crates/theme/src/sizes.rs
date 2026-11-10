@@ -174,6 +174,7 @@ pub(crate) fn leaves(b: &mut Preset) -> Vec<Leaf<'_>> {
         "base.stroke.thin" Num 0.25..=8.0 => st.thin;
         "base.stroke.medium" Num 0.25..=8.0 => st.medium;
         "base.stroke.thick" Num 0.25..=8.0 => st.thick;
+        "base.stroke.heavy" Num 0.25..=8.0 => st.heavy;
         "base.stroke.dash" Num 1.0..=32.0 => st.dash;
         "base.stroke.dash_gap" Num 1.0..=32.0 => st.dash_gap;
     }

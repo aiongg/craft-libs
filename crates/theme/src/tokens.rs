@@ -1006,6 +1006,8 @@ pub struct StrokeTokens {
     pub medium: f32,
     /// Heavy line.
     pub thick: f32,
+    /// Heaviest line: an arc or indicator that must read at a glance.
+    pub heavy: f32,
     /// Length of a dash.
     pub dash: f32,
     /// Gap between dashes.

@@ -171,6 +171,7 @@ size.canvas.compass = 24
 stroke.thin = 1
 stroke.medium = 1.5
 stroke.thick = 2
+stroke.heavy = 3
 stroke.dash = 4
 stroke.dash_gap = 3
 typography.caption.size = 10.5

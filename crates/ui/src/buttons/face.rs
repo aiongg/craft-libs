@@ -6,7 +6,7 @@ use crate::primitives::{IconSpec, TextRun};
 use crate::style::{FocusLook, IconLook, StyleColor, StyleCx, SurfaceKind, SurfaceLook, TextLook, TypeRole, VariantParts};
 use craft_behavior::{Flow, Insets, Metrics};
 use craft_theme::{
-    BySize, Rgba, Stateful, States, Variant,
+    BySize, Stateful, States, Variant,
     variant::{Emphasis, Tone},
 };
 use egui::{Rect, Vec2, pos2};
@@ -82,9 +82,12 @@ pub(super) fn surface(cx: &StyleCx<'_>, parts: &VariantParts) -> SurfaceLook {
     if !matches!(cx.variant, Variant::Look { emphasis: Emphasis::Ghost, .. }) {
         look = look.kind(SurfaceKind::Raised).kind_down(SurfaceKind::Pressed);
     }
-    // A variant without an edge draws none in any state: the kind's own edge would frame a disabled solid button.
-    let edge = parts.edge.clone().unwrap_or_else(|| Stateful::new(cx.color(Rgba::TRANSPARENT)));
-    look.border(edge, cx.tokens.stroke.thin).border_replaces_edge()
+    // A variant without an edge draws none in any state: the kind's own edge would frame a disabled solid button, and
+    // a border in a clear colour would still leave an anti-aliased trace at the corners.
+    match parts.edge.clone() {
+        Some(edge) => look.border(edge, cx.tokens.stroke.thin).border_replaces_edge(),
+        None => look.border_replaces_edge(),
+    }
 }
 
 /// The look of a control that is on: the accent's soft fill with the accent's text colour,
