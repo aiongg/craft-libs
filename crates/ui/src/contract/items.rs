@@ -773,9 +773,13 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         let placed = self.selection.placed(self.source);
         let mut row_groups = Vec::with_capacity(order.len());
         let mut shown_rows: Vec<ShownRow<C::Key>> = Vec::with_capacity(order.len());
-        // A section row the component lays out as its own `section_part` reports its own node; any other is the
-        // collection's: a heading named by the row's text.
-        for &at in order.iter().filter(|&&at| self.source.section_stop(at) && layout.shown(at)) {
+        // The collection reports the rows in view and the kept rows; a row built only because it is in the view's
+        // reach runs without being reported.
+        let reported = |built: usize, at: usize| built >= reach || shown.contains(&at);
+        // A section row the component lays out as its own `section_part` reports its own node; any other reported one
+        // is the collection's: a heading named by the row's text.
+        let sections = order.iter().enumerate().filter(|&(built, &at)| reported(built, at) && self.source.section_stop(at));
+        for (_, &at) in sections.filter(|&(_, &at)| layout.shown(at)) {
             if cx.part_if_declared(section_part(&self.source.key(at))).is_none() {
                 let row = self.screen(&layout, rect, at, offset, rtl);
                 self.report_section_node(&ctx, id, at, row, cx.core.resolved.enabled);
@@ -786,8 +790,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         let hover_at = crate::primitives::sensing::read_outcome(&ctx, ArenaId::new(cx.core.id)).hover.and(ctx.pointer_latest_pos());
         let place_rows = |ui: &mut Ui| {
             for (built, at) in order.into_iter().enumerate() {
-                // A row built only because it is in the view's reach is not one the collection shows.
-                let reported = built >= reach || shown.binary_search(&at).is_ok();
+                let reported = reported(built, at);
                 if self.source.section_stop(at) {
                     continue;
                 }
