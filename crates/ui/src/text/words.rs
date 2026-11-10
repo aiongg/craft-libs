@@ -5,6 +5,7 @@ craft_ui::words! {
     pub struct TextWords {
         clear: "textField.clear" = "Clear";
         presets: "textField.presets" = "Presets";
+        automatic: "textField.automatic" = "Auto";
         slider: "textField.slider" = "Slider";
     }
 }
