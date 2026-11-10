@@ -139,10 +139,13 @@ impl Card<'_> {
     /// as the story measures in the card's room: its content height, or the whole room for a story that fills it or
     /// shows nothing in flow (a dialog).
     ///
-    /// A story that opens a dialog, a modal or a window starts closed behind a button: the measure runs the story under
-    /// a shell record of its own (`ShellCx::dialog_opened`), so the card knows before the story ever paints. The button
-    /// turns the story's `open` value on and runs it, which opens the real thing (an OS window where the component
-    /// uses one). Once the measure no longer records it open, the card shows the button again.
+    /// A story that opens a dialog, a modal or a window starts closed behind a button, and nothing of what it opens
+    /// paints before the button is pressed. Two records say what the story shows (`ShellCx::dialog_shown`): a measure
+    /// that runs the story under a shell record of its own before anything paints, and the card's shell after it ran
+    /// the story, for a dialog in an embedded shell of the story's own, whose body runs in real runs only. When the
+    /// shell's record changes what the card shows, the card discards the pass, so nothing of that pass paints. The
+    /// button turns the story's `open` value on and runs it, which opens the real thing (an OS window where the
+    /// component uses one). Once nothing shows any more, the exit fade included, the card shows the button again.
     fn story_body(&self, ui: &mut Ui, state: &mut CardState) {
         let window = WindowKey::new(format!("card-{}-{}", self.key, state.resets));
         let host = Host {
@@ -159,15 +162,8 @@ impl Card<'_> {
         // not stand for the story's.
         let bare = host.stack().id(craft_ui::testing::memory::sub(host.id, "bare")).measure_in(ui, Proposal::Ideal, |_, _| {});
         let height = if took.y > bare.y { took.y } else { self.room };
-        let dialog = &mut state.dialog;
-        if record.dialog_opened() && !dialog.known {
-            // The card's start is the story with its dialog closed, so a dialog closed by its own button is back at the
-            // start and Reset hides.
-            *dialog = DialogState { known: true, hidden: true, shown: false };
-            if let Some(open) = state.data.present::<bool>("open") {
-                *open = false;
-            }
-            state.start = None;
+        if record.dialog_shown() && !state.dialog.painted {
+            close_at_start(state);
         }
         if state.dialog.hidden {
             state.note_start();
@@ -175,30 +171,54 @@ impl Card<'_> {
                 return;
             }
             ui.ctx().request_repaint();
-            state.dialog = DialogState { known: true, hidden: false, shown: false };
+            state.dialog = DialogState { known: true, hidden: false, shown: false, painted: true };
             if let Some(open) = state.data.present::<bool>("open") {
                 *open = true;
             }
         }
+        // A story that has not painted yet runs only in a pass that can still be discarded: what its shell's record
+        // finds open would paint otherwise. The next frame's first pass runs it.
+        let runs = state.dialog.painted || craft_ui::runtime::frame::discardable(ui.ctx());
+        let ran = std::cell::Cell::new(false);
         let rect = Rect::from_min_size(ui.available_rect_before_wrap().min, vec2(ui.available_width(), height));
-        AppShell::embedded(window)
-            .body(move |ui, _, data: &mut StoryData| {
-                host.stack().show(ui, |ui, _| host.content(ui, show, data, None));
+        let shown = AppShell::embedded(window)
+            .body(|ui, _, data: &mut StoryData| {
+                if runs {
+                    ran.set(!ui.is_sizing_pass());
+                    host.stack().show(ui, |ui, _| host.content(ui, show, data, None));
+                }
             })
             .show_at(ui, rect, &mut state.data);
-        // The measure runs in every run of the card, the card's own measuring runs included, where the shell does not
-        // run its body: so the measure's record, not the shell's report, says when the story closed what it opened.
-        let dialog = &mut state.dialog;
-        if dialog.known && !dialog.hidden {
-            if record.dialog_opened() {
-                dialog.shown = true;
-            } else if dialog.shown {
-                *dialog = DialogState { known: true, hidden: true, shown: false };
-                ui.ctx().request_repaint();
+        if !runs {
+            ui.ctx().request_repaint();
+        }
+        // The shell runs its body only in real runs (not in the card's own measuring runs, nor scrolled out of sight), so
+        // its record counts only when the story ran.
+        if ran.get() {
+            let dialog = &mut state.dialog;
+            if shown.dialog && !dialog.painted {
+                close_at_start(state);
+                craft_ui::runtime::frame::discard_pass(ui.ctx(), "gallery: a card's story showed a dialog the measure did not see");
+            } else if dialog.known && !dialog.hidden && dialog.shown && !shown.dialog {
+                *dialog = DialogState { known: true, hidden: true, shown: false, painted: true };
+                craft_ui::runtime::frame::discard_pass(ui.ctx(), "gallery: a card's dialog closed");
+            } else {
+                dialog.shown |= dialog.known && shown.dialog;
+                dialog.painted = true;
             }
         }
         state.note_start();
     }
+}
+
+/// Puts a story whose dialog shows at its start behind its button, with the dialog closed. The card's start is the
+/// story with its dialog closed, so a dialog closed by its own button is back at the start and Reset hides.
+fn close_at_start(state: &mut CardState) {
+    state.dialog = DialogState { known: true, hidden: true, shown: false, painted: false };
+    if let Some(open) = state.data.present::<bool>("open") {
+        *open = false;
+    }
+    state.start = None;
 }
 
 /// What a story runs in inside its card: the same in the measure and in the shell, ids included, so the measure reads

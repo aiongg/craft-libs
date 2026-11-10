@@ -11,6 +11,12 @@ pub(crate) fn request_discard(ctx: &Context, reason: &'static str) {
     ctx.request_discard(reason);
 }
 
+/// Whether a discard requested in the running pass would be honoured: egui runs at most `Options::max_passes` passes a
+/// frame.
+pub(crate) fn discardable(ctx: &Context) -> bool {
+    ctx.current_pass_index() + 1 < ctx.options(|options| options.max_passes.get())
+}
+
 /// Runs `f` in an invisible sizing pass `width` wide, from the parent's cursor, and returns what it took.
 /// The parent allocates nothing.
 pub(crate) fn run_sized<R>(ui: &mut Ui, width: f32, layout: Layout, f: impl FnOnce(&mut Ui) -> R) -> (R, Vec2) {

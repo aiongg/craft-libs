@@ -84,11 +84,13 @@ fn dialog_body(ui: &mut Ui, checks: &mut [bool; 2]) {
 }
 
 /// Two embedded regions side by side, each with its own open dialog: a dialog opened in a region is placed in it, its
-/// scrim covers that region only and the other region stays in use.
+/// scrim covers that region only and the other region stays in use. `open` opens both; once both are closed, `open` is
+/// off and turning it on opens both again.
 #[story(AppShell<'static, ()>, covers = [], drive = Drive::Never)]
 fn app_shell_dialogs_in_regions(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let mut checks = [*data.value("checks_a", [true, false]), *data.value("checks_b", [false, true])];
-    let mut open = [*data.value("open_a", true), *data.value("open_b", true)];
+    let shows = *data.value("open", true);
+    let mut open = if shows { [*data.value("open_a", true), *data.value("open_b", true)] } else { [false; 2] };
     let mut shown = Vec::new();
     let [checks_a, checks_b] = &mut checks;
     let [open_a, open_b] = &mut open;
@@ -107,7 +109,11 @@ fn app_shell_dialogs_in_regions(ui: &mut Ui, data: &mut StoryData) -> StoryOutpu
     });
     *data.value("checks_a", [true, false]) = checks[0];
     *data.value("checks_b", [false, true]) = checks[1];
-    *data.value("open_a", true) = open[0];
-    *data.value("open_b", true) = open[1];
+    if shows {
+        let closed = open == [false; 2];
+        *data.value("open", true) = !closed;
+        *data.value("open_a", true) = open[0] || closed;
+        *data.value("open_b", true) = open[1] || closed;
+    }
     shown.pop().map_or_else(StoryOutput::default, StoryOutput::from)
 }

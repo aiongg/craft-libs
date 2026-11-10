@@ -14,6 +14,9 @@ pub struct DialogState {
     pub hidden: bool,
     /// The dialog was seen open since the button was pressed.
     pub shown: bool,
+    /// The story has painted in the card, so it is past its start: a dialog the user opens with the story's own
+    /// controls stays open.
+    pub painted: bool,
 }
 
 /// What one shown story keeps between frames.

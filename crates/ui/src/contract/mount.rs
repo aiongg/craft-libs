@@ -37,12 +37,7 @@ pub(super) fn host(props: &ContainerProps, at: &HostCx<'_>, open: bool, title: &
         (presence.visible.then_some(presence.t), !open)
     };
     let closed = || Mounted { host: Box::new(ClosedHost), exiting: false };
-    if open && opens_dialog(&props.mount) {
-        if let Some(shell) = at.env.get::<ShellEntry>().0 {
-            shell.note_dialog();
-        }
-    }
-    match &props.mount {
+    let mounted = match &props.mount {
         Mount::Inline => Mounted { host: Box::new(InlineHost), exiting: false },
         Mount::Pane(pane) => Mounted { host: Box::new(PaneHost(*pane)), exiting: false },
         Mount::Window { .. } => Mounted { host: Box::new(WindowContentHost), exiting: false },
@@ -56,14 +51,13 @@ pub(super) fn host(props: &ContainerProps, at: &HostCx<'_>, open: bool, title: &
         },
         Mount::Viewport { fallback, spec } => {
             if !WindowHost::of(ctx).viewports_available() {
-                return match layer(fallback) {
+                match layer(fallback) {
                     (Some(fade), exiting) => {
                         Mounted { host: Box::new(LayerHost::new(fallback.clone(), props.save.clone(), exiting, fade, at.size)), exiting }
                     }
                     (None, _) => closed(),
-                };
-            }
-            if open {
+                }
+            } else if open {
                 let viewport = ViewportHost {
                     overlay: fallback.clone(),
                     title: title.clone(),
@@ -76,11 +70,17 @@ pub(super) fn host(props: &ContainerProps, at: &HostCx<'_>, open: bool, title: &
                 closed()
             }
         }
+    };
+    if (open || mounted.exiting) && opens_dialog(&props.mount) {
+        if let Some(shell) = at.env.get::<ShellEntry>().0 {
+            shell.note_dialog();
+        }
     }
+    mounted
 }
 
-/// Whether an open container of `mount` is a dialog, a modal or a window for the shell it opens in
-/// (`ShellCx::dialog_opened`): an OS window or its fallback, a full-window layer, or a layer with a dialog's focus
+/// Whether a shown container of `mount` is a dialog, a modal or a window for the shell it shows in
+/// (`ShellCx::dialog_shown`): an OS window or its fallback, a full-window layer, or a layer with a dialog's focus
 /// scope, modal or not. Menus, list boxes, popovers, tooltips and floating panes are not.
 fn opens_dialog(mount: &Mount) -> bool {
     match mount {

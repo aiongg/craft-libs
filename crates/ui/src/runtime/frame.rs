@@ -370,6 +370,18 @@ pub fn request_repaint_after(ctx: &Context, seconds: f64) {
     crate::runtime::egui::repaint::request_after(ctx, crate::runtime::egui::pass::current_viewport(ctx), seconds);
 }
 
+/// Whether the running pass can still be discarded: egui runs a bounded number of passes a frame, and a discard asked
+/// in the last one is ignored, so what that pass shows paints.
+pub fn discardable(ctx: &Context) -> bool {
+    crate::runtime::egui::sizing::discardable(ctx)
+}
+
+/// Discards the running pass, so nothing of it paints, and runs it again, when [`discardable`]: for a host that learns
+/// only after a part ran that the part showed what it must not.
+pub fn discard_pass(ctx: &Context, reason: &'static str) {
+    crate::runtime::egui::sizing::request_discard(ctx, reason);
+}
+
 /// Records the shell of window `window` in `viewport`, whose root container is `root`, so a chrome toggle finds the
 /// window that holds focus.
 pub(crate) fn note_shell(ctx: &Context, viewport: ViewportId, window: &WindowKey, root: Id) {

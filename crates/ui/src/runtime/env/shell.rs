@@ -139,7 +139,7 @@ impl PartialEq for RevealedRects {
     }
 }
 
-/// Whether the body opened a dialog, modal or window on this pass. The record is shared by the clones of one `ShellCx`.
+/// Whether the body showed a dialog, modal or window on this pass. The record is shared by the clones of one `ShellCx`.
 #[derive(Clone, Debug, Default)]
 struct DialogRecord(Arc<AtomicBool>);
 
@@ -268,16 +268,17 @@ impl ShellCx {
         self.inner.revealed_rects.0.lock().map(|rects| rects.clone()).unwrap_or_default()
     }
 
-    /// Records that a container in this shell is open as a dialog, a modal, a full-window layer or an OS window. Every
+    /// Records that a container in this shell shows as a dialog, a modal, a full-window layer or an OS window. Every
     /// container mount records itself here, measuring runs included.
     pub(crate) fn note_dialog(&self) {
         self.inner.dialog.0.store(true, Ordering::Relaxed);
     }
 
-    /// Whether a container in this shell was open on this pass as a dialog (a layer with a dialog's focus scope, modal
-    /// or not), a full-window layer or an OS window; menus, list boxes, popovers and tooltips do not count. A host reads
-    /// it after the body ran, a measure of the body included, so it knows before the first paint.
-    pub fn dialog_opened(&self) -> bool {
+    /// Whether a container in this shell showed on this pass as a dialog (a layer with a dialog's focus scope, modal or
+    /// not), a full-window layer or an OS window: open, or closed and still fading out. Menus, list boxes, popovers and
+    /// tooltips do not count. A host reads it after the body ran. A measure of the body records open containers only
+    /// (it runs no fades), so a host that reads it there knows before the first paint.
+    pub fn dialog_shown(&self) -> bool {
         self.inner.dialog.0.load(Ordering::Relaxed)
     }
 

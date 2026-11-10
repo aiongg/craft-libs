@@ -219,10 +219,11 @@ pub struct AppShellOutput {
     pub panels_hidden: bool,
     /// The screen mode after this pass.
     pub screen_mode: ScreenMode,
-    /// For an embedded shell: its body or its dialog host had a container open on this pass as a dialog, a modal, a
-    /// full-window layer or an OS window (`ShellCx::dialog_opened`), its own or one of an embedded shell inside it.
-    /// Menus, popovers and tooltips do not count. A host that keeps such content closed until asked reads it here,
-    /// or from a measure of the body under a `ShellCx` of its own, before the first paint.
+    /// For an embedded shell: its body or its dialog host showed a container on this pass as a dialog, a modal, a
+    /// full-window layer or an OS window, open or still fading out (`ShellCx::dialog_shown`), its own or one of an
+    /// embedded shell inside it. Menus, popovers and tooltips do not count. A host that keeps such content closed until
+    /// asked reads it from a measure of the body under a `ShellCx` of its own, before the first paint, and here for
+    /// what the measure cannot reach: the body of an embedded shell inside, which runs in real runs only.
     pub dialog: bool,
 }
 
@@ -517,8 +518,8 @@ impl<'a, S> AppShell<'a, S> {
                     dialogs.run(ui);
                 }
             });
-            // What opened here counts for the shell around this one too, so a host reads it from its own shell.
-            let opened = scope.dialog_opened();
+            // What shows here counts for the shell around this one too, so a host reads it from its own shell.
+            let opened = scope.dialog_shown();
             if opened && let Some(outer) = &outer {
                 outer.note_dialog();
             }
