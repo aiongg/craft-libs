@@ -46,6 +46,15 @@ impl CardState {
         }
     }
 
+    /// Opens the dialog the card holds closed behind its button, as the button does: the story runs again with its
+    /// `open` value on.
+    pub fn show_dialog(&mut self) {
+        self.dialog = DialogState { known: true, hidden: false, shown: false, painted: true };
+        if let Some(open) = self.data.present::<bool>("open") {
+            *open = true;
+        }
+    }
+
     /// Gives the story its start values again, on a fresh id scope.
     pub fn reset(&mut self) {
         *self = CardState { resets: self.resets + 1, ..CardState::default() };

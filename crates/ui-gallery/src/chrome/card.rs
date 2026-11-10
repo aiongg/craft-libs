@@ -1,6 +1,6 @@
 //! One card: a story live on its surface under a header with the component's name and, while the story differs from its
 //! start, Reset; the Open command of an Overview card opens the component's tab. The story runs in an embedded shell,
-//! so its dialogs open inside the card.
+//! so its dialogs open inside the card. [`StoryBody`] is the story part alone, which the component sheet renders too.
 
 use crate::viewer::{CardState, DialogState};
 use craft_behavior::IconId;
@@ -132,10 +132,47 @@ impl Card<'_> {
                 }
             }
             events.pressed |= cx.surface_pressed();
-            self.story_body(ui, state);
+            let body =
+                StoryBody { look: self.look, gated: self.gated, ..StoryBody::new(self.key.clone(), self.story, self.surface, self.room, Pad::None) };
+            body.show(ui, state);
         });
         events.rect = Some(shown.response.rect);
         events
+    }
+}
+
+/// A story on its surface, as a card's body shows it, and what showed.
+#[non_exhaustive]
+pub struct StoryBody {
+    /// The id scope of the story: unique among the stories of a pass.
+    pub key: String,
+    /// The story.
+    pub story: &'static StoryRegistration,
+    /// The surface the story sits on.
+    pub surface: Surface,
+    /// The height a story that fills is given.
+    pub room: f32,
+    /// The values the body sets for its story.
+    pub look: Look,
+    /// Whether the story's wheel takers take the wheel only while focused or armed.
+    pub gated: bool,
+    /// The margin of a story on the panel surface: none in a card, whose padding is that margin.
+    pub panel_pad: Pad,
+}
+
+/// What a story body showed.
+#[derive(Clone, Copy, Debug, Default)]
+#[non_exhaustive]
+pub struct BodyShown {
+    /// Where the story shows in flow: its surface, or the whole room for a story that takes no room in flow; `None`
+    /// for a story that shows only a dialog.
+    pub flow: Option<Rect>,
+}
+
+impl StoryBody {
+    /// The body of `story` on `surface`, in the window's look, with ungated wheel takers.
+    pub fn new(key: impl Into<String>, story: &'static StoryRegistration, surface: Surface, room: f32, panel_pad: Pad) -> Self {
+        StoryBody { key: key.into(), story, surface, room, look: Look::default(), gated: false, panel_pad }
     }
 
     /// The story on its surface, in an embedded shell of its own so its dialogs stay in the card. The shell is as tall
@@ -149,7 +186,7 @@ impl Card<'_> {
     /// shell's record changes what the card shows, the card discards the pass, so nothing of that pass paints. The
     /// button turns the story's `open` value on and runs it, which opens the real thing (an OS window where the
     /// component uses one). Once nothing shows any more, the exit fade included, the card shows the button again.
-    fn story_body(&self, ui: &mut Ui, state: &mut CardState) {
+    pub fn show(&self, ui: &mut Ui, state: &mut CardState) -> BodyShown {
         let window = WindowKey::new(format!("card-{}-{}", self.key, state.resets));
         let host = Host {
             id: craft_ui::testing::memory::global("gallery.card.story", (&self.key, state.resets)),
@@ -157,6 +194,7 @@ impl Card<'_> {
             look: self.look,
             surface: self.surface,
             gated: self.gated,
+            panel_pad: self.panel_pad,
         };
         let show = self.story.story.show;
         let at = ui.available_rect_before_wrap().min;
@@ -172,24 +210,23 @@ impl Card<'_> {
         if state.dialog.hidden {
             state.note_start();
             if Button::new("Show dialog").show(ui).clicks == 0 {
-                return;
+                return BodyShown::default();
             }
             ui.ctx().request_repaint();
-            state.dialog = DialogState { known: true, hidden: false, shown: false, painted: true };
-            if let Some(open) = state.data.present::<bool>("open") {
-                *open = true;
-            }
+            state.show_dialog();
         }
         // A story that has not painted yet runs only in a pass that can still be discarded: what its shell's record
         // finds open would paint otherwise. The next frame's first pass runs it.
         let runs = state.dialog.painted || craft_ui::runtime::frame::discardable(ui.ctx());
         let ran = std::cell::Cell::new(false);
+        let flow = std::cell::Cell::new(None);
         let rect = Rect::from_min_size(ui.available_rect_before_wrap().min, vec2(ui.available_width(), height));
         let shown = AppShell::embedded(window)
             .body(|ui, _, data: &mut StoryData| {
                 if runs {
                     ran.set(!ui.is_sizing_pass());
-                    host.stack().show(ui, |ui, _| host.content(ui, show, data, None));
+                    let surface = host.stack().show(ui, |ui, _| host.content(ui, show, data, None));
+                    flow.set(Some(surface.output.rect));
                 }
             })
             .show_at(ui, rect, &mut state.data);
@@ -212,6 +249,9 @@ impl Card<'_> {
             }
         }
         state.note_start();
+        // A story that takes no room in flow paints in the shell's whole room, unless what it shows is a dialog.
+        let flow = if took.y > bare.y { flow.get() } else { (!state.dialog.known).then_some(rect) };
+        BodyShown { flow }
     }
 }
 
@@ -235,6 +275,7 @@ struct Host {
     look: Look,
     surface: Surface,
     gated: bool,
+    panel_pad: Pad,
 }
 
 impl Host {
@@ -247,9 +288,9 @@ impl Host {
             // A story that paints its own surface sits on the background, as on the old gallery's cards.
             _ => SurfaceKind::Background,
         };
-        // On the card's own panel surface the card's padding is the story's margin; another surface keeps a margin of its
-        // own inside it.
-        let pad = if kind == SurfaceKind::Panel { Pad::None } else { Pad::Regular };
+        // On the panel surface the margin is the body's `panel_pad` (in a card, the card's padding is the margin); another
+        // surface keeps a margin of its own inside it.
+        let pad = if kind == SurfaceKind::Panel { self.panel_pad } else { Pad::Regular };
         let mut stack = Stack::new().id(self.id).fill_width().room_height(self.room).surface(kind).pad(pad);
         if let Some(mode) = self.look.mode {
             stack = stack.theme(ThemeScope::mode(mode));

@@ -18,6 +18,16 @@ name = "craft-ui-gallery"
 path = "src/main.rs"
 test = false
 
+# The component sheet's renderer: every story to a PNG, offscreen (desktop only).
+[[bin]]
+name = "component-sheet"
+path = "src/bin/component-sheet.rs"
+test = false
+required-features = ["sheet"]
+
+[features]
+sheet = ["craft-ui/snapshot", "dep:image"]
+
 [[test]]
 name = "it"
 path = "tests/it/main.rs"
@@ -65,6 +75,8 @@ craft-timeline = { workspace = true, features = ["screen-testing"] }
 craft-dialogs = { workspace = true, features = ["screen-testing"] }
 craft-font-manager = { workspace = true, features = ["screen-testing"] }
 craft-update = { workspace = true, features = ["screen-testing"] }
+# The component sheet crops and writes its images.
+image = { version = "0.25", default-features = false, features = ["png"], optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen-futures = "0.4"

@@ -9,6 +9,9 @@ pub mod theme;
 // The mock editor window.
 pub mod mock;
 
+/// The gallery window's default size, in points.
+pub const WINDOW: [f32; 2] = [1280.0, 800.0];
+
 /// The registrations of every crate whose stories the viewer shows, by crate.
 ///
 /// Each entry is a function of its crate that is passed by pointer, so the linker keeps that crate's object files and

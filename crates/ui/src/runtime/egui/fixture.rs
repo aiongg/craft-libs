@@ -28,6 +28,12 @@ pub(crate) struct FrameResult {
     pub bounds: Vec<Rect>,
     /// Half the stroke width of the shape behind `bounds[i]`: how far its edge may overshoot a rect it was drawn to.
     pub overshoot: Vec<f32>,
+    /// The texture changes the frame sent, for a renderer.
+    pub textures: egui::TexturesDelta,
+    /// The shapes the frame painted, as a renderer takes them.
+    pub shapes: Vec<egui::epaint::ClippedShape>,
+    /// The frame's pixels per point.
+    pub pixels_per_point: f32,
 }
 
 /// A text run a frame painted.
@@ -83,28 +89,36 @@ impl egui::DroppedFile for DroppedPath {
 
 /// The viewport facts a frame reports: a window-focus event also sets the root viewport's focus fact, as a host
 /// reports both, and the fact stays until the next such event. Before any event the focus is unknown.
-fn window_focus_facts(ctx: &Context, events: &[Event]) -> egui::ViewportIdMap<egui::ViewportInfo> {
+fn window_focus_facts(ctx: &Context, events: &[Event], native_pixels_per_point: Option<f32>) -> egui::ViewportIdMap<egui::ViewportInfo> {
     let last = events.iter().rev().find_map(|event| if let Event::WindowFocused(focused) = event { Some(*focused) } else { None });
     let focused = Service::<WindowFocus>::run(ctx, |state| {
         state.0 = last.or(state.0);
         state.0
     });
-    std::iter::once((egui::ViewportId::ROOT, egui::ViewportInfo { focused, ..egui::ViewportInfo::default() })).collect()
+    std::iter::once((egui::ViewportId::ROOT, egui::ViewportInfo { focused, native_pixels_per_point, ..egui::ViewportInfo::default() })).collect()
 }
 
 /// The focus the fixture's window last reported; unset before any focus event.
 #[derive(Default)]
 struct WindowFocus(Option<bool>);
 
-/// Runs one frame at `time` seconds with `events` and `files`, and drops its texture changes.
-pub(crate) fn run_frame(ctx: &Context, time: f64, screen: Vec2, events: Vec<Event>, files: OsFiles, ui: impl FnMut(&mut Ui)) -> FrameResult {
+/// Runs one frame at `time` seconds with `events` and `files`, on a window of `native_pixels_per_point` (egui's
+/// default when `None`).
+pub(crate) fn run_frame(
+    ctx: &Context,
+    time: f64,
+    screen: Vec2,
+    native_pixels_per_point: Option<f32>,
+    events: Vec<Event>,
+    files: OsFiles,
+    ui: impl FnMut(&mut Ui),
+) -> FrameResult {
     let screen = Rect::from_min_size(Pos2::ZERO, screen);
     let hovered_files = files.hovered.iter().map(|(name, mime)| egui::HoveredFile { path: Some(name.into()), mime: mime.clone() }).collect();
     let dropped_files = files.dropped.iter().map(|name| Arc::new(DroppedPath(name.into())) as egui::DroppedFileHandle).collect();
-    let viewports = window_focus_facts(ctx, &events);
+    let viewports = window_focus_facts(ctx, &events, native_pixels_per_point);
     let input = RawInput { screen_rect: Some(screen), time: Some(time), events, hovered_files, dropped_files, viewports, ..RawInput::default() };
     let mut output = ctx.run_ui(input, ui);
-    output.textures_delta.clear();
     let mut flat = Vec::new();
     for clipped in &output.shapes {
         let mut shapes = Vec::new();
@@ -157,6 +171,9 @@ pub(crate) fn run_frame(ctx: &Context, time: f64, screen: Vec2, events: Vec<Even
             interrupt: ime.should_interrupt_composition,
             caret: ime.cursor_rect,
         }),
+        textures: std::mem::take(&mut output.textures_delta),
+        shapes: output.shapes,
+        pixels_per_point: output.pixels_per_point,
     }
 }
 
