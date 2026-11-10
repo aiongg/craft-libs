@@ -10,30 +10,35 @@ use craft_font_manager::Catalog;
 #[cfg(feature = "font-picker")]
 use craft_font_manager::picker::{FontFilters, FontPicker, FontPickerSettings};
 use std::ops::RangeInclusive;
+#[cfg(feature = "font-picker")]
 use std::sync::Arc;
 
-use super::length::{DocUnit, length_field, shown};
-use craft_behavior::{ColumnWidth, EditEvent, IconId, Mixed, NumberCodec};
+use crate::ui::length::{DocUnit, shown};
+use craft_behavior::{ColumnWidth, EditEvent, IconId};
 use craft_theme::{Rgba, Srgba};
-use craft_ui::buttons::ToggleButton;
-use craft_ui::choice::{Checkbox, Segmented, Swatch};
-use craft_ui::contract::{Bind, Entry, GlyphLabel, LabelKind, NoValue, Outcome, Props as _, Show as _, ShowContainer as _, SideLabel};
+use craft_ui::choice::Swatch;
+#[cfg(feature = "font-picker")]
+use craft_ui::contract::Bind;
+use craft_ui::contract::{Entry, GlyphLabel, LabelKind, NoValue, Outcome, Props as _, Show as _, ShowContainer as _, SideLabel};
 use craft_ui::form::Field;
-use craft_ui::layout_components::{Grid, Row, Stack};
+use craft_ui::layout_components::{Grid, Stack};
 use craft_ui::patterns::form_dialogs::HostRequests;
-use craft_ui::pickers::Select;
-use craft_ui::runtime::env::{Env, Label, UnitKind, Units};
-use craft_ui::text::{NamedOr, NumberField, NumberName, NumberPick, NumberValue as _};
+use craft_ui::runtime::env::{Env, Label};
+use craft_ui::text::{NamedOr, NumberName, NumberPick, NumberValue as _};
 use egui::{Response, Ui};
 
+mod paragraph;
 mod paragraph_dialog;
+mod rows;
 #[cfg(feature = "screen-testing")]
 mod stories;
 
+pub use paragraph::{ParagraphChange, ParagraphControls, ParagraphControlsOutput, ParagraphDirection, ParagraphValues, ParagraphWords, TextAlign};
 pub use paragraph_dialog::{
     LineSpacing, ParagraphAlign, ParagraphAnswer, ParagraphDialog, ParagraphDialogWords, ParagraphFormat, ParagraphPreview, ParagraphPreviewStyle,
     SpacingKind, SpecialIndent,
 };
+use rows::{LengthRow, Lengths, PlainRow, Toggle, mixed, number_change, number_presets, picked_event, plain, select_row, string_entries, toggle_row};
 
 craft_ui::words! {
     /// The Character controls' words, English by default (PhotoCraft's tooltips). A control whose label is an icon or a
@@ -72,33 +77,6 @@ craft_ui::words! {
         ordinals: "character.ordinals" = "Ordinals";
         fractions: "character.fractions" = "Fractions";
         language: "character.language" = "Language";
-    }
-}
-
-craft_ui::words! {
-    /// The Paragraph controls' words, English by default (PhotoCraft's tooltips).
-    #[non_exhaustive]
-    pub struct ParagraphWords {
-        paragraph: "paragraph.title" = "Paragraph";
-        alignment: "paragraph.alignment" = "Alignment";
-        direction: "paragraph.direction" = "Direction";
-        left: "paragraph.left" = "Left align text";
-        center: "paragraph.center" = "Center text";
-        right: "paragraph.right" = "Right align text";
-        justify_left: "paragraph.justifyLeft" = "Justify last left";
-        justify_center: "paragraph.justifyCenter" = "Justify last centered";
-        justify_right: "paragraph.justifyRight" = "Justify last right";
-        justify_all: "paragraph.justifyAll" = "Justify all";
-        justify_needs_box: "paragraph.justifyNeedsBox" = "Justification needs a text box; point text has none";
-        direction_auto: "paragraph.directionAuto" = "Automatic paragraph direction";
-        direction_ltr: "paragraph.directionLtr" = "Left-to-right paragraph direction";
-        direction_rtl: "paragraph.directionRtl" = "Right-to-left paragraph direction";
-        start_indent: "paragraph.startIndent" = "Indent left margin";
-        end_indent: "paragraph.endIndent" = "Indent right margin";
-        first_line_indent: "paragraph.firstLineIndent" = "Indent first line";
-        space_before: "paragraph.spaceBefore" = "Add space before paragraph";
-        space_after: "paragraph.spaceAfter" = "Add space after paragraph";
-        hyphenate: "paragraph.hyphenate" = "Hyphenate";
     }
 }
 
@@ -143,11 +121,6 @@ const SHIFT_RANGE: RangeInclusive<f64> = -1296.0..=1296.0;
 const TRACKING_RANGE: RangeInclusive<f64> = -1000.0..=10000.0;
 /// The range of the scale fields, percent.
 const SCALE_RANGE: RangeInclusive<f64> = 0.0..=1000.0;
-/// The range of the indent fields, points.
-const INDENT_RANGE: RangeInclusive<f64> = -1296.0..=1296.0;
-/// The range of the space fields, points.
-const SPACE_RANGE: RangeInclusive<f64> = 0.0..=1296.0;
-
 /// Two columns of the same share, for the rows of two fields.
 static TWO_COLUMNS: [ColumnWidth; 2] = [ColumnWidth::fill(1.0), ColumnWidth::fill(1.0)];
 
@@ -641,384 +614,6 @@ impl<'a> CharacterControls<'a> {
         });
         CharacterControlsOutput { response: shown.output, edits, preview_family, requests }
     }
-}
-
-/// Paragraph alignment, in Photoshop's button order.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-#[non_exhaustive]
-pub enum TextAlign {
-    /// Left.
-    #[default]
-    Left,
-    /// Center.
-    Center,
-    /// Right.
-    Right,
-    /// Justify left.
-    JustifyLeft,
-    /// Justify center.
-    JustifyCenter,
-    /// Justify right.
-    JustifyRight,
-    /// Justify all.
-    JustifyAll,
-}
-
-impl TextAlign {
-    /// Whether the alignment needs a text box: justification has a line width to fill.
-    fn needs_box(self) -> bool {
-        matches!(self, TextAlign::JustifyLeft | TextAlign::JustifyCenter | TextAlign::JustifyRight | TextAlign::JustifyAll)
-    }
-}
-
-/// A paragraph's direction.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-#[non_exhaustive]
-pub enum ParagraphDirection {
-    /// From the paragraph's first strong character.
-    #[default]
-    Automatic,
-    /// Left to right.
-    LeftToRight,
-    /// Right to left.
-    RightToLeft,
-}
-
-/// The paragraph attributes at the type target; `None` where the selected paragraphs differ.
-#[derive(Clone, Debug, Default, PartialEq)]
-#[non_exhaustive]
-pub struct ParagraphValues {
-    /// The align.
-    pub align: Option<TextAlign>,
-    /// The direction.
-    pub direction: Option<ParagraphDirection>,
-    /// Indent at the start edge in points (the left in left-to-right text).
-    pub start_indent: Option<f32>,
-    /// Indent at the end edge in points (the right in left-to-right text).
-    pub end_indent: Option<f32>,
-    /// First-line indent in points.
-    pub first_line_indent: Option<f32>,
-    /// Space before the paragraph in points.
-    pub space_before: Option<f32>,
-    /// Space after the paragraph in points.
-    pub space_after: Option<f32>,
-    /// The hyphenate.
-    pub hyphenate: Option<bool>,
-}
-
-/// One change from the Paragraph controls.
-#[derive(Clone, Copy, Debug, PartialEq)]
-#[non_exhaustive]
-pub enum ParagraphChange {
-    /// Align.
-    Align(TextAlign),
-    /// Direction.
-    Direction(ParagraphDirection),
-    /// Indent at the start edge in points.
-    StartIndent(f32),
-    /// Indent at the end edge in points.
-    EndIndent(f32),
-    /// First-line indent in points.
-    FirstLineIndent(f32),
-    /// Space before the paragraph in points.
-    SpaceBefore(f32),
-    /// Space after the paragraph in points.
-    SpaceAfter(f32),
-    /// Hyphenate.
-    Hyphenate(bool),
-}
-
-/// What the Paragraph controls did this pass.
-#[derive(Debug)]
-#[non_exhaustive]
-pub struct ParagraphControlsOutput {
-    /// The controls' response.
-    pub response: Response,
-    /// As [`CharacterControlsOutput::edits`].
-    pub edits: Vec<EditEvent<ParagraphChange>>,
-}
-
-impl Outcome for ParagraphControlsOutput {
-    type Value = NoValue;
-
-    fn response(&self) -> &Response {
-        &self.response
-    }
-}
-
-/// The Paragraph panel's controls: the seven alignment buttons; the three direction buttons; left and right indent;
-/// first-line indent; space before and after; Hyphenate.
-///
-/// - The four justify buttons are disabled on point text ([`point_text`](Self::point_text)): justification needs a
-///   paragraph box or area type (Photoshop greys them).
-/// - Ranges in points: indents −1296–1296, space before and after 0–1296.
-#[must_use = "show the controls with `show`"]
-#[derive(craft_ui::contract::Pattern, craft_ui::contract::Props)]
-pub struct ParagraphControls<'a> {
-    label: Label,
-    values: &'a ParagraphValues,
-    /// The unit the length fields show. Default points.
-    #[prop]
-    unit: DocUnit,
-    /// Any of the formatted text is point text (no box): the justify buttons are disabled.
-    #[prop]
-    point_text: bool,
-}
-
-impl<'a> ParagraphControls<'a> {
-    /// Controls named `label` for the paragraph attributes `values`.
-    pub fn new(label: impl Into<Label>, values: &'a ParagraphValues) -> Self {
-        ParagraphControls { label: label.into(), values, unit: DocUnit::points(), point_text: false }
-    }
-
-    /// Shows the controls and returns the changes the user made.
-    pub fn show(self, ui: &mut Ui) -> ParagraphControlsOutput {
-        let values = self.values;
-        let point_text = self.point_text;
-        let env = Env::of(ui);
-        let words = env.words::<ParagraphWords>();
-        let units = env.units();
-        let lengths = Lengths { units: &units, unit: self.unit };
-
-        let aligns: Vec<Entry<TextAlign>> = [
-            (TextAlign::Left, "align_left", &words.left),
-            (TextAlign::Center, "align_center", &words.center),
-            (TextAlign::Right, "align_right", &words.right),
-            (TextAlign::JustifyLeft, "align_justify", &words.justify_left),
-            (TextAlign::JustifyCenter, "align_justify", &words.justify_center),
-            (TextAlign::JustifyRight, "align_justify", &words.justify_right),
-            (TextAlign::JustifyAll, "align_justify", &words.justify_all),
-        ]
-        .into_iter()
-        .map(|(align, icon, name)| {
-            let entry = Entry::new(align, name.clone()).icon(IconId::new(icon));
-            if point_text && align.needs_box() { entry.disabled_reason(words.justify_needs_box.clone()) } else { entry }
-        })
-        .collect();
-        let directions: Vec<Entry<ParagraphDirection>> = [
-            (ParagraphDirection::Automatic, "pilcrow", &words.direction_auto),
-            (ParagraphDirection::LeftToRight, "pilcrow_right", &words.direction_ltr),
-            (ParagraphDirection::RightToLeft, "pilcrow_left", &words.direction_rtl),
-        ]
-        .into_iter()
-        .map(|(direction, icon, name)| Entry::new(direction, name.clone()).icon(IconId::new(icon)))
-        .collect();
-
-        let mut edits: Vec<EditEvent<ParagraphChange>> = Vec::new();
-        let shown = Stack::new().fill_width().label(self.label).show(ui, |ui, _| {
-            let out = Segmented::new(words.alignment.clone(), Bind::given(mixed(values.align)), &aligns).show(ui);
-            edits.extend(out.event.map(|event| event.map(ParagraphChange::Align)));
-            let out = Segmented::new(words.direction.clone(), Bind::given(mixed(values.direction)), &directions).show(ui);
-            edits.extend(out.event.map(|event| event.map(ParagraphChange::Direction)));
-
-            Grid::new(&TWO_COLUMNS).fill_width().show(ui, |ui, _| {
-                let start = LengthRow {
-                    label: words.start_indent.clone(),
-                    glyph: GlyphLabel::text("→|"),
-                    value: values.start_indent,
-                    range: INDENT_RANGE,
-                    presets: &[],
-                };
-                let (event, _) = lengths.row(ui, start);
-                edits.extend(number_change(event, ParagraphChange::StartIndent));
-                let end = LengthRow {
-                    label: words.end_indent.clone(),
-                    glyph: GlyphLabel::text("|←"),
-                    value: values.end_indent,
-                    range: INDENT_RANGE,
-                    presets: &[],
-                };
-                let (event, _) = lengths.row(ui, end);
-                edits.extend(number_change(event, ParagraphChange::EndIndent));
-                let first = LengthRow {
-                    label: words.first_line_indent.clone(),
-                    glyph: GlyphLabel::text("¶→"),
-                    value: values.first_line_indent,
-                    range: INDENT_RANGE,
-                    presets: &[],
-                };
-                let (event, _) = lengths.row(ui, first);
-                edits.extend(number_change(event, ParagraphChange::FirstLineIndent));
-            });
-            Grid::new(&TWO_COLUMNS).fill_width().show(ui, |ui, _| {
-                let before = LengthRow {
-                    label: words.space_before.clone(),
-                    glyph: GlyphLabel::text("↑¶"),
-                    value: values.space_before,
-                    range: SPACE_RANGE,
-                    presets: &[],
-                };
-                let (event, _) = lengths.row(ui, before);
-                edits.extend(number_change(event, ParagraphChange::SpaceBefore));
-                let after = LengthRow {
-                    label: words.space_after.clone(),
-                    glyph: GlyphLabel::text("¶↓"),
-                    value: values.space_after,
-                    range: SPACE_RANGE,
-                    presets: &[],
-                };
-                let (event, _) = lengths.row(ui, after);
-                edits.extend(number_change(event, ParagraphChange::SpaceAfter));
-            });
-            let out = Checkbox::new(Bind::given(mixed(values.hyphenate))).label(words.hyphenate.clone()).show(ui);
-            edits.extend(out.event.map(|event| event.map(ParagraphChange::Hyphenate)));
-        });
-        ParagraphControlsOutput { response: shown.output, edits }
-    }
-}
-
-/// The unit the length fields of a pattern show their numbers in.
-struct Lengths<'u> {
-    units: &'u Units,
-    unit: DocUnit,
-}
-
-/// A length field of a row: its label, mark, value in points and range in points.
-struct LengthRow<'p> {
-    label: Label,
-    glyph: GlyphLabel,
-    value: Option<f32>,
-    range: RangeInclusive<f64>,
-    presets: &'p [Entry<NumberPick>],
-}
-
-/// A plain number field of a row: a count, a percentage, or a value in thousandths.
-struct PlainRow<'p> {
-    label: Label,
-    glyph: GlyphLabel,
-    value: Mixed<Option<f64>>,
-    range: RangeInclusive<f64>,
-    percent: bool,
-    presets: &'p [Entry<NumberPick>],
-}
-
-impl Lengths<'_> {
-    /// A field over a length in points, shown in the unit: its event in points and the preset row picked.
-    fn row(&self, ui: &mut Ui, spec: LengthRow<'_>) -> (Option<EditEvent<Option<f64>>>, Option<NumberPick>) {
-        let LengthRow { label, glyph, value, range, presets } = spec;
-        let points = value.map_or(Mixed::Mixed, |value| Mixed::Same(Some(f64::from(value))));
-        let field = Field::new(label.clone()).side(mark(glyph)).show(ui, |ui, _| {
-            let out = length_field(self.unit, label.clone(), points, range.clone()).presets(presets).scrub_by_label().show(ui);
-            (out.edit.event, out.preset)
-        });
-        field.inner.unwrap_or((None, None))
-    }
-
-    /// The kerning field: a number or the name of a presets row (Metrics, Optical).
-    fn kerning(
-        &self,
-        ui: &mut Ui,
-        label: Label,
-        glyph: GlyphLabel,
-        value: Option<NamedOr<KerningName>>,
-        presets: &[Entry<NumberPick>],
-    ) -> Option<EditEvent<NamedOr<KerningName>>> {
-        let units = self.units;
-        let shown = Field::new(label.clone()).side(mark(glyph)).show(ui, |ui, _| {
-            let field = NumberField::named(label.clone(), Bind::given(mixed(value))).range(TRACKING_RANGE).presets(presets).scrub_by_label();
-            field.codec(NumberCodec::new(units.reader(None), 0)).show(ui).edit.event
-        });
-        shown.inner.flatten()
-    }
-
-    /// A field over a number that is not a length: its event and the preset row picked.
-    fn plain(&self, ui: &mut Ui, spec: PlainRow<'_>) -> (Option<EditEvent<Option<f64>>>, Option<NumberPick>) {
-        let PlainRow { label, glyph, value, range, percent, presets } = spec;
-        let units = self.units;
-        let shown = Field::new(label.clone()).side(mark(glyph)).show(ui, |ui, _| {
-            let field = NumberField::new(label.clone(), Bind::given(value)).range(range.clone()).presets(presets).scrub_by_label();
-            let field = if percent {
-                field.unit_kind(UnitKind::Percent).unit(units.symbol(UnitKind::Percent)).step(UnitKind::Percent.step())
-            } else {
-                field.codec(NumberCodec::new(units.reader(None), 0))
-            };
-            let out = field.show(ui);
-            (out.edit.event, out.preset)
-        });
-        shown.inner.unwrap_or((None, None))
-    }
-}
-
-/// A label shown as a mark, whose drag scrubs the field.
-fn mark(glyph: GlyphLabel) -> SideLabel {
-    SideLabel::new().kind(LabelKind::Glyph(glyph)).scrub(true)
-}
-
-/// `value` as a field's value: a missing one is mixed.
-fn mixed<T>(value: Option<T>) -> Mixed<T> {
-    value.map_or(Mixed::Mixed, Mixed::Same)
-}
-
-/// `value` as a plain number field's value: a missing one is mixed.
-fn plain(value: Option<f32>) -> Mixed<Option<f64>> {
-    value.map_or(Mixed::Mixed, |value| Mixed::Same(Some(f64::from(value))))
-}
-
-/// A number field's event as a change; a cleared field is not one.
-fn number_change<C>(event: Option<EditEvent<Option<f64>>>, change: impl Fn(f32) -> C) -> Option<EditEvent<C>> {
-    let event = event?;
-    if matches!(event.value(), Some(None)) {
-        return None;
-    }
-    Some(event.map(|value| change(value.unwrap_or_default() as f32)))
-}
-
-/// A menu row that is not a number, as the one-step change it makes.
-fn picked_event<C>(change: C, name: &str) -> EditEvent<C> {
-    EditEvent::set(Mixed::Mixed, change, Arc::from(name), None)
-}
-
-/// The rows of a presets menu over groups of numbers, a separator between the groups.
-fn number_presets<'g>(units: &Units, groups: impl Iterator<Item = &'g [f32]>) -> Vec<Entry<NumberPick>> {
-    let mut rows = Vec::new();
-    for (at, group) in groups.enumerate() {
-        if at > 0 {
-            rows.push(Entry::separator());
-        }
-        rows.extend(group.iter().map(|&p| Entry::new(NumberPick::Number(f64::from(p)), units.number(f64::from(p), 0..=PRESET_DECIMALS))));
-    }
-    rows
-}
-
-/// Select entries over `(value, text)` pairs.
-fn string_entries(pairs: impl Iterator<Item = (String, String)>) -> Vec<Entry<String>> {
-    pairs.map(|(value, text)| Entry::new(value, text)).collect()
-}
-
-/// A row with a select over `entries`; its pick as a change.
-fn select_row<C>(ui: &mut Ui, label: &Label, value: Mixed<String>, entries: &[Entry<String>], change: impl Fn(String) -> C) -> Option<EditEvent<C>> {
-    let side = SideLabel::new().kind(LabelKind::Hidden);
-    let shown = Field::new(label.clone())
-        .side(side)
-        .show(ui, |ui, _| Select::new(label.clone(), Bind::given(value.clone()), entries).placeholder("—").show(ui).event);
-    shown.inner.flatten().map(|event| event.map(&change))
-}
-
-/// One toggle button of a row: its name, icon, state (`None` while the selection mixes) and the change it makes.
-struct Toggle<C> {
-    name: Label,
-    icon: &'static str,
-    on: Option<bool>,
-    change: Box<dyn Fn(bool) -> C>,
-}
-
-impl<C> Toggle<C> {
-    fn new(name: &Label, icon: &'static str, on: Option<bool>, change: Box<dyn Fn(bool) -> C>) -> Self {
-        Toggle { name: name.clone(), icon, on, change }
-    }
-}
-
-/// A row of icon toggle buttons; the pressed ones report their change when clicked.
-fn toggle_row<C>(ui: &mut Ui, toggles: Vec<Toggle<C>>) -> Vec<EditEvent<C>> {
-    let mut edits = Vec::new();
-    Row::new().wrap(true).show(ui, |ui, _| {
-        for toggle in &toggles {
-            let bind = Bind::given(mixed(toggle.on));
-            let out = ToggleButton::new(toggle.name.clone(), bind).icon(IconId::new(toggle.icon)).icon_only().show(ui);
-            edits.extend(out.event.map(|event| event.map(&toggle.change)));
-        }
-    });
-    edits
 }
 
 /// The OpenType buttons' icons in [`OPENTYPE_FEATURES`] order. The sets have no OpenType marks: the three ligature
