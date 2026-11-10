@@ -12,7 +12,7 @@ use crate::runtime::env::Label;
 use crate::runtime::focus::{ActivateKeys, KeyUse};
 use crate::style::{ComponentStyle, Flags, FocusLook, IconLook, StyleCx, SurfaceLook, TextLook, TypeRole, UiTokens};
 use craft_behavior::{Flow, Metrics, NavShape, PartKey, PartRef, Roving, Sense, Value};
-use craft_theme::{Rgba, Stateful, States};
+use craft_theme::{Contrast, Identify, Rgba, Stateful, States};
 use egui::{Rect, Vec2};
 
 const SEGMENT: PartKey = PartKey::new("segment");
@@ -206,7 +206,12 @@ impl Component for Segment {
     fn style(cx: &StyleCx<'_>, _: SegmentStyleKey) -> SegmentStyle {
         let colors = &cx.tokens.color;
         let c = |rgba| cx.color(rgba);
-        let (clear, hover, selected) = (c(Rgba::TRANSPARENT), c(colors.state.hover), c(colors.state.selected));
+        // In high contrast the selected segment shows on the surfaces it sits on, by its fill or its edge.
+        let high = cx.contrast() == Contrast::High;
+        let (selected_fill, on_selected) = Identify::on(&[colors.surface.panel, colors.surface.raised], high)
+            .edge(colors.line.control_edge)
+            .fill(colors.state.selected, colors.text.on_selected);
+        let (clear, hover, selected) = (c(Rgba::TRANSPARENT), c(colors.state.hover), c(selected_fill));
         let disabled = c(colors.state.disabled_fill);
         let fill = Stateful::new(clear).off(States::new(clear, hover, hover, clear)).on(States::new(selected, selected, selected, disabled));
         let edge = Stateful::new(c(colors.line.control_edge)).off(States::new(clear, clear, clear, clear)).on(States::new(
@@ -215,7 +220,7 @@ impl Component for Segment {
             c(colors.line.control_edge),
             c(colors.line.divider),
         ));
-        let (muted, on_selected, off) = (c(colors.text.muted), c(colors.text.on_selected), c(colors.text.disabled));
+        let (muted, on_selected, off) = (c(colors.text.muted), c(on_selected), c(colors.text.disabled));
         let ink = Stateful::new(muted).off(States::new(muted, muted, muted, off)).on(States::new(on_selected, on_selected, on_selected, off));
         let control = cx.segment_control();
         SegmentStyle {
