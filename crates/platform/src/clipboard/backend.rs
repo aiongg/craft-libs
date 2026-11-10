@@ -1,5 +1,6 @@
 //! Clipboard backends: the OS clipboard and the plan for what a write puts where.
 
+#[cfg(not(target_arch = "wasm32"))]
 use std::borrow::Cow;
 use std::path::PathBuf;
 

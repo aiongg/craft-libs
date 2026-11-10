@@ -1,11 +1,15 @@
 //! Where recovery copies go and the folder of copies: sidecars, orphans and removal.
 
 use serde::{Deserialize, Serialize};
+#[cfg(not(target_arch = "wasm32"))]
 use std::collections::HashMap;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
-use std::time::{Duration, SystemTime};
+#[cfg(not(target_arch = "wasm32"))]
+use std::time::Duration;
+use std::time::SystemTime;
 
+#[cfg(not(target_arch = "wasm32"))]
 use super::*;
 
 /// The recovery folder's name.
