@@ -16,8 +16,8 @@ fn loading_fonts_runs_one_discard_pass_in_the_frame_that_loads_them() {
     assert_eq!(frames.frame(vec![], |_| {}), 1, "and the next frame needs no extra pass");
 }
 
-/// 6.3: a text's width in points does not depend on the interface scale: glyph advances are not grid-fitted to the
-/// pixel size.
+/// 6.3: a text's width in points does not depend on the interface scale: glyph advances are measured unscaled, so hinting
+/// the outlines does not change them.
 #[trial]
 fn a_text_measures_the_same_width_at_every_scale() {
     let width_at = |scale: f32| {
