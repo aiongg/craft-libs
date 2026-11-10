@@ -737,6 +737,8 @@ pub struct Gaps {
     pub row: f32,
     /// Between stacked rows.
     pub stack: f32,
+    /// Between neighbouring controls in a bar, and between a bar caption and its control.
+    pub item: f32,
     /// Between groups.
     pub section: f32,
 }
@@ -752,6 +754,8 @@ pub struct Pads {
     pub roomy: f32,
     /// Inside badges, key caps and chips: tighter than a control.
     pub chip: f32,
+    /// Beside the label of a medium segment of a segmented control.
+    pub segment: f32,
 }
 
 /// Spacing.

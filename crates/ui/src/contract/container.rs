@@ -5,7 +5,7 @@ use super::overlay::{Overlay, Resize};
 use crate::layout::BodyLayout;
 use crate::runtime::access::{Politeness, SetPosition};
 use crate::runtime::commands::CommandScope;
-use crate::runtime::env::Label;
+use crate::runtime::env::{EnvValue, Label};
 use crate::runtime::focus::FocusPolicy;
 use crate::runtime::memory::SaveKey;
 use crate::runtime::windows::WindowSpec;
@@ -225,12 +225,14 @@ pub struct FooterRegion {
     pub rule: bool,
     /// Where the footer sits.
     pub place: FooterPlace,
+    /// The space above the footer's content, inside the region; none by default.
+    pub gap: Option<Gap>,
 }
 
 impl FooterRegion {
     /// A footer across the container under the line, with no rule.
     pub const fn new() -> Self {
-        FooterRegion { rule: false, place: FooterPlace::Across }
+        FooterRegion { rule: false, place: FooterPlace::Across, gap: None }
     }
 
     /// Whether a rule separates the footer from the content beside it.
@@ -242,6 +244,12 @@ impl FooterRegion {
     /// Where the footer sits.
     pub const fn place(mut self, place: FooterPlace) -> Self {
         self.place = place;
+        self
+    }
+
+    /// The space above the footer's content, inside the region.
+    pub const fn gap(mut self, gap: Gap) -> Self {
+        self.gap = Some(gap);
         self
     }
 }
@@ -428,8 +436,23 @@ pub enum Gap {
     Row,
     /// `space.gap.tight`.
     Tight,
+    /// `space.gap.stack`: between stacked rows.
+    Stack,
+    /// `space.gap.item`: between neighbouring controls in a bar, and between a bar caption and its control.
+    Item,
     /// `space.gap.section`.
     Section,
+}
+
+/// Set by a bar for its body: its fields put `space.gap.item` between a caption and the control, and a vertical
+/// divider takes a box wider than its line.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct InBar(pub bool);
+
+impl EnvValue for InBar {
+    fn root() -> Self {
+        InBar(false)
+    }
 }
 
 /// What a container or collection adds to `Common`. A builder added here is added to the forwarder list in

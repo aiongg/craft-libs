@@ -3,8 +3,8 @@
 use super::words::BarWords;
 use crate::buttons::IconButton;
 use crate::contract::{
-    Access, BodyCx, BodyLayout, Common, Component, Container, ContainerProps, Cx, EndRegion, Gap, NoValue, Outcome, Pad, Politeness, Props as _,
-    Role, Scroll, Show as _, Sizing, WordSetCx as _,
+    Access, BodyCx, BodyLayout, Common, Component, Container, ContainerProps, Cx, EndRegion, Gap, InBar, NoValue, Outcome, Pad, Politeness,
+    Props as _, Role, Scroll, Show as _, Sizing, WordSetCx as _,
 };
 use crate::runtime::access::Name;
 use crate::runtime::commands::{CommandSet as _, Commands as _};
@@ -100,12 +100,13 @@ impl<'a> Bar<'a> {
     pub fn new(label: impl Into<Label>, kind: BarKind) -> Self {
         let gap = match kind {
             BarKind::Tool => Gap::Tight,
-            BarKind::Options => Gap::Row,
+            BarKind::Options => Gap::Item,
             BarKind::Status => Gap::Section,
         };
+        let pad = if kind == BarKind::Options { Pad::Regular } else { Pad::Control };
         let mut props = ContainerProps::new()
             .surface(SurfaceKind::Chrome)
-            .pad(Pad::Control)
+            .pad(pad)
             .sizing(Sizing::FillWidth)
             .body_gap(gap)
             .child_size(ControlSize::Sm)
@@ -207,6 +208,10 @@ impl Component for Bar<'_> {
             };
             access.name(Name::Text(name.as_str().to_owned()));
         }
+    }
+
+    fn content_env(&self, _: &Cx<'_, Self>, values: &mut crate::runtime::env::AppValues) {
+        values.set(InBar(true));
     }
 
     /// The commit and cancel commands that ran this pass, from the buttons or from their chords.

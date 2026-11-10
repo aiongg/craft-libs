@@ -85,12 +85,12 @@ fn stroke_lines(out: &mut Lines, stroke: &StrokeTokens) {
 
 fn space_lines(out: &mut Lines, space: &SpaceTokens) {
     let SpaceTokens { gap, pad, inset } = space;
-    let Gaps { tight, inline, row, stack, section } = gap;
-    for (k, v) in [("tight", tight), ("inline", inline), ("row", row), ("stack", stack), ("section", section)] {
+    let Gaps { tight, inline, row, stack, item, section } = gap;
+    for (k, v) in [("tight", tight), ("inline", inline), ("row", row), ("stack", stack), ("item", item), ("section", section)] {
         out.line(&format!("space.gap.{k}"), len(*v));
     }
-    let Pads { control, regular, roomy, chip } = pad;
-    for (k, v) in [("control", control), ("regular", regular), ("roomy", roomy), ("chip", chip)] {
+    let Pads { control, regular, roomy, chip, segment } = pad;
+    for (k, v) in [("control", control), ("regular", regular), ("roomy", roomy), ("chip", chip), ("segment", segment)] {
         out.line(&format!("space.pad.{k}"), len(*v));
     }
     let Insets { screen } = inset;

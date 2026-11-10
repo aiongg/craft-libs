@@ -3,7 +3,7 @@
 
 use super::words::BarWords;
 use crate::buttons::IconButton;
-use crate::contract::{Bind, Entry, NoValue, Outcome, Props as _, Show as _, ShowContainer as _, SideLabel, Sizing, clicked};
+use crate::contract::{Bind, Entry, Gap, NoValue, Outcome, Props as _, Show as _, ShowContainer as _, SideLabel, Sizing, clicked};
 use crate::form::Field;
 use crate::layout_components::Row;
 use crate::menu::Menu;
@@ -139,7 +139,7 @@ impl<'a> ConstraintFields<'a> {
         let name: Arc<str> = words.constraint_style.as_str().into();
         let mut next = None;
         let mut unit_picked = None;
-        let shown = Row::new().enabled(enabled).show(ui, |ui, cx| {
+        let shown = Row::new().gap(Gap::Item).enabled(enabled).show(ui, |ui, cx| {
             let before = match constraint.reborrow().read(cx) {
                 Some(Mixed::Same(held)) => held,
                 _ => Constraint::Free,
