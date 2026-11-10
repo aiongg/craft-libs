@@ -111,13 +111,13 @@ impl Card<'_> {
         }
         let mut commands = Vec::new();
         if self.open {
-            commands.push(HeaderCommand::new(IconId::new("open"), CardCommands::Open));
+            commands.push(HeaderCommand::new(IconId::new("open"), CardCommands::Open).size(ControlSize::Sm));
         }
         if self.usable {
-            commands.push(HeaderCommand::new(IconId::new("check"), CardCommands::Use));
+            commands.push(HeaderCommand::new(IconId::new("check"), CardCommands::Use).size(ControlSize::Sm));
         }
         if state.changed() || state.dialog.shown {
-            commands.push(HeaderCommand::new(IconId::new("undo"), CardCommands::Reset));
+            commands.push(HeaderCommand::new(IconId::new("undo"), CardCommands::Reset).size(ControlSize::Sm));
         }
         let shown = panel.commands(commands).show(ui, |ui, cx| {
             while let Some((command, _)) = cx.take_command::<CardCommands>() {
