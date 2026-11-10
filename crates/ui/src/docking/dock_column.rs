@@ -7,30 +7,31 @@
 
 use super::divider::{self, Divider, Drag};
 use super::group::GroupGrip;
-use super::{DockHeights, DockSizes, DockSpot, DockTargets, DockWords, DragUnit, PanelKey, PanelSpec, Splitter};
-use crate::buttons::IconButton;
-use crate::buttons::icon_button::IconButtonStyleKey;
-use crate::contract::SizeLimits;
-use crate::contract::overlay::Trigger;
+use super::{DockSizes, DockSpot, DockTargets, DockWords, DragUnit, PanelKey, PanelSpec, Splitter};
 use crate::contract::{
-    Access, BodyCx, Common, Component, Container, ContainerProps, Cx, NoValue, Outcome, Pad, PaintUi, PartsCx, Props as _, Role, Show as _,
-    ShowContainer as _, Sizing, WordSetCx as _, clicked,
+    Access, BodyCx, Common, Component, Container, ContainerProps, Cx, NoValue, Outcome, Pad, PaintUi, PartsCx, Props as _, Role, ShowContainer as _,
+    Sizing, WordSetCx as _,
 };
-use crate::menu::{GroupItem, Menu, MenuWords, PanelMenu, PanelRow};
-use crate::primitives::{Glyph, IconSpec};
+use crate::menu::GroupItem;
 use crate::runtime::env::Label;
 use crate::runtime::focus::KeyUse;
 use crate::style::{ComponentStyle, Corners, StyleCx, SurfaceKind};
 use craft_behavior::divider::{self as push, Segment};
 use craft_behavior::dock::{Column, DockEdge, Group};
 use craft_behavior::{Axis, DockSide, Flow, Metrics, PartKey, Sense, Value};
-use craft_theme::variant::Tone;
-use craft_theme::{ControlSize, CustomVariant, Emphasis, States, Tokens, Variant, VariantLook};
-use egui::{Color32, Context, Id, Pos2, Rect, Response, Ui};
+use egui::{Context, Id, Pos2, Rect, Response, Ui};
 use std::hash::Hash;
 
 #[cfg(feature = "testing")]
 mod stories;
+
+mod bar;
+mod sizing;
+
+use bar::panel_names;
+pub(super) use bar::{BarRecord, bar_name, show_bar};
+use sizing::group_sizes;
+pub use sizing::{GroupSize, fit_widths, group_heights, stacked, width_bounds};
 
 const DIVIDER: PartKey = PartKey::new("divider");
 const EDGE: PartKey = PartKey::new("edge");
@@ -38,322 +39,6 @@ const EDGE: PartKey = PartKey::new("edge");
 /// The caller's view of one group: the group, the rect it takes and the body step's context. The dock passes the
 /// group to `DockPanels::group_view` or shows a `DockGroup` in it.
 pub type GroupView<'a, P> = Box<dyn FnMut(&Group<P>, Rect, &mut Ui, &mut BodyCx<'_>) + 'a>;
-
-/// The width bounds of an expanded column: no narrower than `least` or the widest minimum of its panels, no wider
-/// than the narrowest maximum.
-pub fn width_bounds(least: f32, limits: impl IntoIterator<Item = SizeLimits>) -> (f32, f32) {
-    let (mut lo, mut hi) = (least, f32::INFINITY);
-    for limit in limits {
-        lo = lo.max(limit.min.x);
-        hi = hi.min(limit.max.map_or(f32::INFINITY, |max| max.x));
-    }
-    (lo, hi.max(lo))
-}
-
-/// Column widths that fit `room`. Each entry is `(width, floor)`: a column with a floor shrinks in proportion, never
-/// below its floor; one without keeps its width. A dock saved on a larger screen still fits as far as the floors
-/// allow.
-pub fn fit_widths(columns: &[(f32, Option<f32>)], room: f32) -> Vec<f32> {
-    let mut widths: Vec<f32> = columns.iter().map(|(width, _)| *width).collect();
-    for _ in 0..columns.len() {
-        let total: f32 = widths.iter().sum();
-        if total <= room {
-            break;
-        }
-        let flex: f32 =
-            widths.iter().zip(columns).filter(|(width, (_, floor))| floor.is_some_and(|floor| **width > floor)).map(|(width, _)| *width).sum();
-        if flex <= 0.0 {
-            break;
-        }
-        let scale = ((room - (total - flex)) / flex).max(0.0);
-        for (width, (_, floor)) in widths.iter_mut().zip(columns) {
-            if let Some(floor) = *floor
-                && *width > floor
-            {
-                *width = (*width * scale).max(floor);
-            }
-        }
-    }
-    widths
-}
-
-/// A group of a column as [`group_heights`] sizes it. Heights include the tab strip.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
-#[non_exhaustive]
-pub struct GroupSize {
-    /// Only the strip shows.
-    pub minimized: bool,
-    /// The height the user set; `None` or not finite when the group was never resized.
-    pub saved: Option<f32>,
-    /// The least height.
-    pub min: f32,
-    /// The heights the panels ask for, with the strip added to `fill` only when it is above 0, so 0 still means the
-    /// group does not ask to fill.
-    pub content: Option<DockHeights>,
-}
-
-impl GroupSize {
-    /// An open group no shorter than `min` that was never resized and asks for no heights.
-    pub fn new(min: f32) -> Self {
-        GroupSize { minimized: false, saved: None, min, content: None }
-    }
-}
-
-/// The heights of stacked groups in a column body `room` high. Minimized groups take `strip`, groups with a saved
-/// height keep it, and the groups the user never resized whose content asks to fill share what is left. Without
-/// those, the groups without content heights share it, and when every open group has a height the last one takes
-/// the rest. Other groups take their default height, or their minimum. Default heights shrink towards their compact
-/// heights until the filling groups get their fill height, nearest the filling groups first; then every height
-/// shrinks in proportion towards its minimum.
-pub fn group_heights(groups: &[GroupSize], strip: f32, room: f32) -> Vec<f32> {
-    let saved = |group: &GroupSize| group.saved.filter(|height| height.is_finite());
-    let open: Vec<usize> = (0..groups.len()).filter(|at| groups.get(*at).is_some_and(|group| !group.minimized)).collect();
-    let unsaved =
-        |at: &usize, test: fn(Option<DockHeights>) -> bool| groups.get(*at).is_some_and(|group| saved(group).is_none() && test(group.content));
-    let mut shared: Vec<usize> = open.iter().copied().filter(|at| unsaved(at, |content| content.is_some_and(|content| content.fill > 0.0))).collect();
-    if shared.is_empty() {
-        shared = open.iter().copied().filter(|at| unsaved(at, |content| content.is_none())).collect();
-    }
-    if shared.is_empty() {
-        shared.extend(open.last());
-    }
-    let sized: Vec<usize> = open.iter().copied().filter(|at| !shared.contains(at)).collect();
-    let mut defaulted: Vec<usize> = sized.iter().copied().filter(|at| groups.get(*at).is_some_and(|group| saved(group).is_none())).collect();
-    let mut heights: Vec<f32> = groups
-        .iter()
-        .enumerate()
-        .map(|(at, group)| {
-            if group.minimized {
-                strip
-            } else if shared.contains(&at) {
-                0.0
-            } else {
-                saved(group).or(group.content.map(|content| content.default)).unwrap_or(group.min).max(group.min)
-            }
-        })
-        .collect();
-    let mins: Vec<f32> = groups.iter().map(|group| if group.minimized { strip } else { group.min }).collect();
-    let compacts: Vec<f32> = groups.iter().zip(&mins).map(|(group, min)| group.content.map_or(*min, |content| content.compact).max(*min)).collect();
-    let fill: f32 =
-        shared.iter().filter_map(|at| groups.get(*at)).map(|group| group.content.map_or(group.min, |content| content.fill).max(group.min)).sum();
-    defaulted.sort_by_key(|at| shared.iter().map(|shared| shared.abs_diff(*at)).min());
-    let mut deficit = heights.iter().sum::<f32>() + fill - room;
-    for at in defaulted {
-        if deficit <= 0.0 {
-            break;
-        }
-        if let (Some(height), Some(floor)) = (heights.get_mut(at), compacts.get(at)) {
-            let give = (*height - floor).clamp(0.0, deficit);
-            *height -= give;
-            deficit -= give;
-        }
-    }
-    let shared_min: f32 = shared.iter().filter_map(|at| mins.get(*at)).sum();
-    give_way(&mut heights, &sized, &mins, shared_min - room);
-    let free = (room - heights.iter().sum::<f32>()).max(0.0);
-    // The shared groups split what is left evenly, each at least its minimum: groups whose minimum is above the even
-    // share take their minimum and the rest split the remainder.
-    let mut floors: Vec<f32> = shared.iter().filter_map(|at| mins.get(*at).copied()).collect();
-    floors.sort_by(|a, b| b.total_cmp(a));
-    let (mut rest, mut count) = (free, floors.len());
-    for floor in floors {
-        if count > 1 && floor > rest / count as f32 {
-            rest -= floor;
-            count -= 1;
-        } else {
-            break;
-        }
-    }
-    let share = rest / count.max(1) as f32;
-    for at in &shared {
-        if let (Some(height), Some(min)) = (heights.get_mut(*at), mins.get(*at)) {
-            *height = share.max(*min);
-        }
-    }
-    heights
-}
-
-/// Shrinks the `which` heights in proportion towards their `floors` until the column's heights plus `extra` fit, or
-/// every one is at its floor.
-fn give_way(heights: &mut [f32], which: &[usize], floors: &[f32], extra: f32) {
-    let deficit = heights.iter().sum::<f32>() + extra;
-    let slack: f32 = which.iter().filter_map(|at| Some((heights.get(*at)? - floors.get(*at)?).max(0.0))).sum();
-    if deficit > 0.0 && slack > 0.0 {
-        let take = deficit.min(slack) / slack;
-        for at in which {
-            if let (Some(height), Some(floor)) = (heights.get_mut(*at), floors.get(*at)) {
-                *height -= (*height - floor).max(0.0) * take;
-            }
-        }
-    }
-}
-
-/// The rects of groups `heights` high, stacked from the top of `area`.
-pub fn stacked(area: Rect, heights: &[f32]) -> Vec<Rect> {
-    let mut top = area.top();
-    heights
-        .iter()
-        .map(|height| {
-            let rect = Rect::from_min_max(Pos2::new(area.left(), top), Pos2::new(area.right(), top + height));
-            top += height;
-            rect
-        })
-        .collect()
-}
-
-/// The sizes of the groups of `column` for [`group_heights`]: the strip added to the tallest minimum of a group's
-/// panels, and the largest of each of their [`DockHeights`] with the strip added.
-fn group_sizes<P>(column: &Column<P>, spec: &dyn Fn(&P) -> PanelSpec, sizes: &DockSizes) -> Vec<GroupSize> {
-    column
-        .groups
-        .iter()
-        .map(|group| {
-            let specs: Vec<PanelSpec> = group.panels.iter().map(spec).collect();
-            let body = specs.iter().map(|spec| spec.limits.min.y).fold(sizes.least, f32::max);
-            let content = specs
-                .iter()
-                .filter_map(|spec| spec.heights.filter(|heights| heights.valid()))
-                .reduce(|a, b| DockHeights::new(a.default.max(b.default)).compact(a.compact.max(b.compact)).fill(a.fill.max(b.fill)))
-                .map(|heights| {
-                    DockHeights::new(heights.default + sizes.strip)
-                        .compact(heights.compact.min(heights.default) + sizes.strip)
-                        .fill(if heights.fill > 0.0 { heights.fill + sizes.strip } else { 0.0 })
-                });
-            let mut size = GroupSize::new(sizes.strip + body);
-            size.minimized = group.minimized;
-            size.saved = group.height;
-            size.content = content;
-            size
-        })
-        .collect()
-}
-
-/// What the column bar recorded while the body ran, for the container to read when it finishes.
-#[derive(Default)]
-pub(super) struct BarRecord {
-    /// The user asked to collapse (`true`) or expand (`false`) the column.
-    pub(super) iconic: Option<bool>,
-    /// The dock row picked in the column menu.
-    pub(super) picked: Option<GroupItem>,
-}
-
-/// A double chevron's arms, as a share of the icon box's side: the glyph the collapse control draws is small beside
-/// the bar's other icons.
-const ARM: f32 = 0.17;
-
-/// How far each chevron of the pair reaches along the arrow, and the distance between the two, as shares of an arm.
-const REACH: f32 = 0.8;
-const PITCH: f32 = 1.4;
-
-/// The look of the collapse control: ghost, with the muted text until the pointer is over it, and no fill under the
-/// pointer.
-fn collapse_look(tokens: &Tokens) -> VariantLook {
-    let ghost = VariantLook::of(Emphasis::Ghost, Tone::Neutral, tokens);
-    let mut text = ghost.text;
-    text.rest = tokens.color.text.muted;
-    VariantLook::new(States::new(ghost.fill.rest, ghost.fill.rest, ghost.fill.rest, ghost.fill.rest), text)
-}
-
-const COLLAPSE: CustomVariant = CustomVariant::new::<IconButtonStyleKey>("craft_ui.dock-collapse", collapse_look);
-
-/// The glyph of a column's collapse control: a double chevron that points where the column goes, towards the window
-/// edge when it collapses to icons and away from it when it expands.
-struct DoubleChevron {
-    /// Whether it points to the right of the screen.
-    right: bool,
-    /// The stroke width.
-    width: f32,
-}
-
-impl Glyph for DoubleChevron {
-    fn paint(&self, painter: &egui::Painter, _: &crate::style::UiTokens, rect: Rect, color: Color32, _: bool) {
-        let arm = rect.width().min(rect.height()) * ARM;
-        let flip = if self.right { 1.0 } else { -1.0 };
-        let centre = rect.center();
-        let stroke = egui::Stroke::new(self.width, color);
-        for step in [-0.5, 0.5] {
-            let x = centre.x + flip * arm * PITCH * step;
-            let points = [(-0.5, -1.0), (0.5, 0.0), (-0.5, 1.0)].map(|(dx, dy)| Pos2::new(x + flip * arm * REACH * dx, centre.y + arm * dy)).to_vec();
-            painter.add(egui::Shape::line(points, stroke));
-        }
-    }
-}
-
-/// Whether the column's collapse control points to the right of the screen: towards the window edge when it collapses
-/// to icons and away from it when it expands.
-fn points_right(edge: DockEdge, expanded: bool, rtl: bool) -> bool {
-    let at_left = (edge == DockEdge::Start) != rtl;
-    at_left != expanded
-}
-
-/// Shows the column bar `bar` and its menu: a small chevron button, as high as the bar, at the bar's outer end collapses
-/// an expanded column to icons and expands an iconic one. The rest of the bar is `grip`: a drag moves the column, a
-/// double click collapses or expands it, and a context request opens the column menu. Returns what the user did.
-pub(super) fn show_bar<P: Clone + Send + Sync + 'static>(
-    ui: &mut Ui,
-    body: &mut BodyCx<'_>,
-    bar: Rect,
-    expanded: bool,
-    auto_collapse: bool,
-    edge: DockEdge,
-    grip: GroupGrip<P>,
-) -> BarRecord {
-    let words = body.words::<DockWords>();
-    let menu_words = body.words::<MenuWords>();
-    let rtl = crate::runtime::env::Env::of(ui).direction.is_rtl();
-    let toggle = if expanded { words.collapse_column.as_str() } else { words.expand_column.as_str() };
-    // The button sits at the outer end: the window edge the dock is on.
-    let side = bar.height().min(bar.width());
-    let (place, band) = if (edge == DockEdge::End) != rtl {
-        let split = bar.right() - side;
-        (Rect::from_x_y_ranges(split..=bar.right(), bar.y_range()), Rect::from_x_y_ranges(bar.left()..=split, bar.y_range()))
-    } else {
-        let split = bar.left() + side;
-        (Rect::from_x_y_ranges(bar.left()..=split, bar.y_range()), Rect::from_x_y_ranges(split..=bar.right(), bar.y_range()))
-    };
-    let chevron = DoubleChevron { right: points_right(edge, expanded, rtl), width: crate::runtime::env::Env::of(ui).tokens.stroke.thin };
-    let shown = IconButton::new(IconSpec::glyph(&chevron))
-        .size(ControlSize::Sm)
-        .variant(Variant::Custom(COLLAPSE))
-        .label(Label::from(toggle.to_owned()))
-        .show_at(ui, place);
-    let mut record = BarRecord::default();
-    if clicked(&shown) {
-        record.iconic = Some(expanded);
-    }
-    let opener = if band.width() > 0.0 {
-        let held = grip.show_at(ui, band);
-        if held.double_pressed {
-            record.iconic = Some(expanded);
-        }
-        held.response
-    } else {
-        shown.response().clone()
-    };
-    let rows = vec![
-        PanelRow::Item(crate::contract::Entry::new(GroupItem::CollapseToIcons, Label::from(toggle.to_owned()))),
-        PanelRow::Item(
-            crate::contract::Entry::new(GroupItem::AutoCollapse, Label::from(menu_words.panel_auto_collapse.as_str().to_owned()))
-                .checked(auto_collapse),
-        ),
-    ];
-    let picked = Menu::new(Label::from(words.panels.as_str().to_owned()))
-        .opened_by(&opener, Trigger::Context)
-        .show(ui, |ui, _| PanelMenu::new(Vec::new(), rows.clone()).show(ui).picked);
-    record.picked = picked.inner.flatten();
-    record
-}
-
-/// The name of a column's bar: the labels of its panels.
-pub(super) fn bar_name<P>(column: &Column<P>, spec: &dyn Fn(&P) -> PanelSpec, template: &crate::runtime::env::WordTemplate) -> String {
-    template.fill(&[("name", panel_names(column, spec).as_str())])
-}
-
-/// The labels of a column's panels, in order.
-fn panel_names<P>(column: &Column<P>, spec: &dyn Fn(&P) -> PanelSpec) -> String {
-    let names: Vec<String> = column.groups.iter().flat_map(|group| group.panels.iter()).map(|panel| spec(panel).label.as_str().to_owned()).collect();
-    names.join(", ")
-}
 
 /// What a dock column reports.
 #[derive(Debug)]
