@@ -880,6 +880,11 @@ impl<'a> EnvView<'a> {
     }
 
     /// The innermost scrolling body around the component.
+    /// Whether wheel takers in this scope take the vertical wheel only while focused or armed.
+    pub(crate) fn wheel_gated(&self) -> bool {
+        self.scoped.wheel_gated
+    }
+
     pub(crate) fn scroll_owner(&self) -> Option<Id> {
         self.scoped.scroll_owner
     }

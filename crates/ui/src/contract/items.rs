@@ -21,7 +21,7 @@ use crate::style::{StyleCx, scroll_bar_look};
 use craft_behavior::layout_memory::measure_tolerance;
 use craft_behavior::{
     Axis, CancelReason, ColumnKey, EditEvent, Flow, GestureId, Granularity, Intent, ItemLayout, ItemSource, Mixed, MoveMods, NavMove, NavState,
-    NavStep, Outline, PressPhase, Proposal, ScrollPos, ScrollSpan, SelectionChange, SelectionModel, Sense, TypeAhead, WheelTaker, nav,
+    NavStep, Outline, PressPhase, Proposal, ScrollPos, ScrollSpan, SelectionChange, SelectionModel, Sense, TypeAhead, WheelRoom, WheelTaker, nav,
 };
 use egui::{Context, Id, Pos2, Rect, Ui, UiBuilder, Vec2};
 use std::ops::Range;
@@ -661,12 +661,17 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             // The root's wheel sense registered a taker for the whole rect before this step; the scroll region's taker
             // comes after it, so it wins the share where the two rects are equal: Shift turns its vertical wheel sideways.
             let view = self.below_header(cx.core.content_rect);
+            let (vertical, horizontal) = (self.overflow == Axis::Y, self.content.x > view.width());
+            let max = Vec2::new((self.content.x - view.width()).max(0.0), self.max_offset(view.height()) as f32);
+            let offset = Vec2::new(self.offset_x as f32, self.offset as f32);
             wheel::register(
                 &cx.core.ctx,
                 WheelTaker::new(cx.core.id, view)
-                    .vertical(self.overflow == Axis::Y)
-                    .horizontal(self.content.x > view.width())
+                    .vertical(vertical && max.y > 0.0)
+                    .horizontal(horizontal)
                     .scrolls(true)
+                    .gated(cx.core.env.wheel_gated())
+                    .room(WheelRoom::new(offset, max - offset))
                     .zoom(comp.zooms()),
             );
         }
