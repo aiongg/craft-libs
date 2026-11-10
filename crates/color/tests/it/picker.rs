@@ -99,7 +99,7 @@ fn picker(setup: Setup, start: PickedColor) -> (Fixture, Rc<RefCell<Host>>) {
             picker = picker.warnings([ColorWarning::new("Out of gamut for printing", nearest)]);
         }
         let out = picker.show(ui);
-        host.reported += usize::from(out.event.is_some());
+        host.reported += usize::from(!out.events.is_empty());
         host.value = value;
         host.web = web;
     });
@@ -191,14 +191,14 @@ fn mixed_readout(items: Rc<RefCell<[Rgba; 2]>>) -> Fixture {
     let mut fixture = Fixture::new(move |ui| {
         let mut items = items.borrow_mut();
         let out = ColorReadout::new("Color", Bind::given(Mixed::<Rgba>::Mixed)).show(ui);
-        if let Some(edit) = out.channel
-            && let Some(Some(byte)) = edit.event.value()
-        {
-            for item in items.iter_mut() {
-                item.0[edit.channel.index()] = *byte;
+        for edit in &out.channel {
+            if let Some(Some(byte)) = edit.event.value() {
+                for item in items.iter_mut() {
+                    item.0[edit.channel.index()] = *byte;
+                }
             }
         }
-        if let Some(color) = out.event.as_ref().and_then(|event| event.value()) {
+        if let Some(color) = out.events.value() {
             items.fill(*color);
         }
     });

@@ -8,7 +8,7 @@
 //! `PatternFillEditor` and `PictureFillEditor`).
 
 use craft_behavior::Mixed;
-use craft_behavior::{Axis, EditEvent, Metrics, PartKey};
+use craft_behavior::{Axis, EditEvent, EditEvents, Metrics, PartKey};
 use craft_theme::Srgba;
 use craft_ui::choice::{ChoiceWords, Segmented, Swatch};
 use craft_ui::contract::{
@@ -195,7 +195,7 @@ struct LastSolid(Option<Srgba>);
 #[derive(Default)]
 struct Shown {
     kind: Option<FillKind>,
-    edit: Option<EditEvent<PickedColor>>,
+    edit: EditEvents<PickedColor>,
     screen_pick: Option<ScreenPickGesture>,
     gradient: Option<GradientPreview>,
     pattern: Option<ImagePreview>,
@@ -424,7 +424,7 @@ impl Component for PaintChip<'_> {
                 Paint::None => {}
                 Paint::Solid(color) => {
                     let picked = compact_picker(name.clone(), Bind::given(PickedColor::rgb(*color)), sampled).alpha(true).eyedropper(true).show(ui);
-                    shown.edit = picked.event;
+                    shown.edit = picked.events;
                     shown.screen_pick = picked.screen_pick;
                 }
                 Paint::Gradient(_) => shown.gradient = gradient.as_mut().and_then(|(_, editor)| editor.show(ui)),
@@ -438,8 +438,10 @@ impl Component for PaintChip<'_> {
         if let Some(kind) = shown.kind {
             let next = self.switched(kind, solid);
             cx.set(next);
-        } else if let Some(event) = shown.edit {
-            forward(cx, Some(&event));
+        } else {
+            for event in &shown.edit {
+                forward(cx, event);
+            }
         }
         if let Some(preview) = shown.gradient {
             cx.set(Paint::Gradient(preview));
@@ -506,9 +508,8 @@ impl Component for PaintChip<'_> {
     }
 }
 
-/// Reports the picker's `event` as an edit of the chip's paint.
-fn forward(cx: &mut Cx<'_, PaintChip<'_>>, event: Option<&EditEvent<PickedColor>>) {
-    let Some(event) = event else { return };
+/// Reports one of the picker's `event`s as an edit of the chip's paint.
+fn forward(cx: &mut Cx<'_, PaintChip<'_>>, event: &EditEvent<PickedColor>) {
     let value = event.value().map(|picked| Paint::Solid(picked.color));
     match (event, value) {
         (EditEvent::Set { .. }, Some(value)) => cx.set(value),

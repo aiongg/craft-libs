@@ -247,7 +247,7 @@ impl<'a> Body<'a> {
                 });
             })
             .output;
-        if let Some(mode) = picked.event.as_ref().and_then(|event| event.value()) {
+        if let Some(mode) = picked.value() {
             got.mode_pick = Some(*mode);
         }
     }
