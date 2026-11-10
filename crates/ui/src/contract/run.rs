@@ -836,7 +836,12 @@ fn run_in_host<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Opti
     p.injected = p.injected.or(injected);
 }
 
-fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>>, hooks: &mut dyn ShapeHooks<C>) -> C::Output {
+fn run<C: Component>(comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>>, hooks: &mut dyn ShapeHooks<C>) -> C::Output {
+    let _g = crate::diag::run_guard(std::any::type_name::<C>(), ui.is_sizing_pass());
+    run_inner(comp, ui, at, tip, hooks)
+}
+
+fn run_inner<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>>, hooks: &mut dyn ShapeHooks<C>) -> C::Output {
     let ctx = ui.ctx().clone();
     // Slots the last end hook evicted drop here, outside every lock and hook.
     memory::dispose_evicted(&ctx);
@@ -1074,6 +1079,7 @@ pub(super) fn measured_extent<C: Component>(
     style: &C::Style,
     shown: Option<Arc<ValueOf<C>>>,
 ) -> (Vec2, Option<Arc<ValueOf<C>>>) {
+    let _mg = crate::diag::meas_guard();
     let response = steps::inert_response(at.ui, at.resolved.id);
     let core = blank_core(at.env.view(), at.resolved, stage, at.ui.ctx().clone(), at.env.ink, response, at.command.clone());
     let mut cx = Cx::<C> { core, style, shown, mixed: at.mixed, events: Vec::new(), applied: 0, validity: Validity::Ok };

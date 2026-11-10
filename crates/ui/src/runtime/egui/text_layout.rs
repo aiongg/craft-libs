@@ -15,6 +15,7 @@ pub(crate) fn layout(ctx: &Context, job: LayoutJob) -> Arc<Galley> {
 
 /// [`layout`] over fonts the caller already holds.
 pub(crate) fn layout_with(fonts: &mut FontsView<'_>, mut job: LayoutJob) -> Arc<Galley> {
+    let _gg = crate::diag::galley_guard();
     for section in &mut job.sections {
         if section.format.line_height.is_none() {
             section.format.line_height = Some(fonts.row_height(&section.format.font_id).ceil());

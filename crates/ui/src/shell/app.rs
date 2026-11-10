@@ -121,6 +121,7 @@ struct Driver<A> {
     movable: Option<bool>,
     /// Whether the first fit of the root window to its monitor has run.
     fitted: bool,
+    diag_frame: Option<std::time::Instant>,
 }
 
 /// Maximizes the root window, once its monitor is known, when it is larger than the monitor's usable area (Photoshop
@@ -145,6 +146,9 @@ fn fit_first(ctx: &Context) -> bool {
 
 impl<A: ShellApp> eframe::App for Driver<A> {
     fn raw_input_hook(&mut self, ctx: &Context, _: &mut crate::runtime::egui::input::RawInput) {
+        if crate::diag::on() {
+            self.diag_frame = Some(std::time::Instant::now());
+        }
         let output = take_output(ctx);
         self.app.output(output);
         set_input(ctx, self.app.frame_input());
@@ -166,12 +170,20 @@ impl<A: ShellApp> eframe::App for Driver<A> {
         #[cfg(windows)]
         windows::route_root(ui.ctx(), || craft_window::native::NativeWindow::of_handle(&*frame));
         #[cfg(not(windows))]
-        let _ = frame;
+        let _ = &frame;
         // The monitor is known only once the window exists, so the fit runs from the first passes, and once.
         if !self.fitted {
             self.fitted = fit_first(ui.ctx());
         }
+        let t0 = std::time::Instant::now();
         self.app.ui(ui);
+        if crate::diag::on() {
+            let ui_ms = t0.elapsed().as_secs_f64() * 1e3;
+            let since = self.diag_frame.map_or(0.0, |t| t.elapsed().as_secs_f64() * 1e3);
+            let pass = ui.ctx().cumulative_pass_nr();
+            let cpu = frame.info().cpu_usage;
+            crate::diag::report(since, ui_ms, pass, cpu, &format!("pass{pass}"));
+        }
         super::title_bar::sync_movable(ui.ctx(), &mut self.movable);
     }
 }
@@ -216,7 +228,7 @@ fn create<A: ShellApp + 'static>(
         crate::install(&cc.egui_ctx, install).map_err(|error| format!("the runtime could not be installed: {error}"))?;
         // The suite's interface face; an app that installs its own fonts in `make` replaces it.
         crate::fonts::UiFonts::new(&crate::fonts::I18nScripts).install(&cc.egui_ctx);
-        Ok(Box::new(Driver { app: make(&cc.egui_ctx), movable: None, fitted: false }))
+        Ok(Box::new(Driver { app: make(&cc.egui_ctx), movable: None, fitted: false, diag_frame: None }))
     }
 }
 

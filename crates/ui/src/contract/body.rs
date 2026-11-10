@@ -1883,7 +1883,10 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         let tolerance = measure_tolerance(crate::runtime::egui::scale::pixels_per_point(&ctx));
         let reused = (self.reuse || at.ui.is_sizing_pass()).then(|| self.reusable(&props, &ctx, id, pad, tolerance)).flatten();
         let took = match reused {
-            Some(took) => took,
+            Some(took) => {
+                crate::diag::with(|s| s.reused += 1);
+                took
+            }
             None => {
                 #[cfg(feature = "testing")]
                 crate::runtime::measure::count_body(&ctx, id);
@@ -2110,6 +2113,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
     }
 
     fn content(&mut self, comp: &mut C, ui: &mut Ui, env: &Env, cx: &mut Cx<'_, C>, values: &AppValues) {
+        crate::diag::content(std::any::type_name::<C>(), ui.is_sizing_pass());
         let props = comp.props(Internal::new()).clone();
         let (id, ctx, rect) = (cx.core.id, cx.core.ctx.clone(), cx.core.rect);
         let rtl = env.direction.is_rtl();

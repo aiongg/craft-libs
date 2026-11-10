@@ -578,7 +578,9 @@ pub trait Show: Component + Meta<Shape = shape::Leaf> + sealed::Show {
 
     /// Measures without allocating: steps 1 to 5 under the id `show` would use next. It registers no id, opens no
     /// memory stage and reads memory through a peek that moves no slot.
+    #[track_caller]
     fn measure_in(&mut self, ui: &Ui, proposal: Proposal) -> Vec2 {
+        crate::diag::call("leaf", std::any::type_name::<Self>(), std::panic::Location::caller());
         run::measure_under(self, ui, None, proposal, None)
     }
 }
@@ -604,7 +606,9 @@ pub trait ShowContainer: Container + sealed::ShowContainer {
     /// Measures the container with `body` without allocating: steps 1 to 5 under the id `show` would use next, with
     /// the body, header, footer and end regions run once in an invisible sizing pass, laid out as `show` lays them
     /// out. The size comes from this pass's content alone; along an axis the body scrolls on it is at most the room.
+    #[track_caller]
     fn measure_in<R>(&mut self, ui: &Ui, proposal: Proposal, body: impl FnMut(&mut Ui, &mut BodyCx<'_>) -> R) -> Vec2 {
+        crate::diag::call("container", std::any::type_name::<Self>(), std::panic::Location::caller());
         run::measure_container(self, ui, proposal, body)
     }
 
