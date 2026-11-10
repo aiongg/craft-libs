@@ -241,7 +241,7 @@ fn radio_rows_labelled_through_the_body_select_on_click() {
     assert_eq!(value, 2, "a click on the second row's radio selects it");
 }
 
-/// The colour of the first outlined circle a frame painted: a radio's ring.
+/// The colour of the first outlined shape a frame painted: a radio's ring.
 fn ring_colour(show: impl FnMut(&mut Ui)) -> Color32 {
     let mut show = show;
     let mut frames = Frames::new();
@@ -250,7 +250,7 @@ fn ring_colour(show: impl FnMut(&mut Ui)) -> Color32 {
     shapes
         .iter()
         .find_map(|shape| match shape {
-            egui::Shape::Circle(circle) if circle.stroke.width > 0.0 => Some(circle.stroke.color),
+            egui::Shape::Rect(rect) if rect.stroke.width > 0.0 => Some(rect.stroke.color),
             _ => None,
         })
         .expect("a radio paints its ring")
