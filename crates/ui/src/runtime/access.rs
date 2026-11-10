@@ -99,7 +99,7 @@ pub struct Numeric {
     pub range: RangeInclusive<f64>,
     /// The step of an increment or decrement; it declares both actions.
     pub step: Option<f64>,
-    /// The value as the component shows it, when that differs from the number.
+    /// The value as the component words it ("40.0", "50 %"); assistive technology reads it in place of the number.
     pub text: Option<String>,
 }
 
