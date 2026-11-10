@@ -262,10 +262,11 @@ impl<'a> MetadataTable<'a> {
             .rows_stamp(query_stamp(query))
             .empty(empty)
             .show_items(ui, &source, &mut |_, icx| match &source.entries[icx.at] {
-                Entry::Group(group) => ListRow::new(group.name.clone()).cells(icx.cells()).heading(),
+                Entry::Group(group) => ListRow::new(group.name.clone()).cells(icx.cells()).heading().size(ControlSize::Sm),
                 Entry::Field(row) => {
                     let line = ListRow::new(row.name.clone())
                         .cells(icx.cells())
+                        .size(ControlSize::Sm)
                         .striped(icx.row.striped)
                         .cell_muted(NAME)
                         .cell_lines(VALUE, row.value.clone());
