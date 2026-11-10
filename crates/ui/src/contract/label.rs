@@ -12,7 +12,6 @@ use crate::runtime::access::{
 use crate::runtime::egui::{alloc, child};
 use crate::runtime::env::{Env, Label};
 use crate::runtime::keys;
-use crate::runtime::layout_memory;
 use crate::runtime::memory::sub;
 use crate::style::{ComponentStyle, ResetMarkLook, StyleColor, StyleCx};
 use craft_behavior::{ColumnWidth, Flow, LabelColumn, Metrics, PartKey, PressState, Sense, ValueDrag};
@@ -547,7 +546,7 @@ fn place_after(ctx: &egui::Context, input: &LabelIn<'_>, flow: Flow, gap: f32, l
         let control = control_cell.translate(Vec2::new(0.0, (height - control_cell.height()) / 2.0));
         return Placed { label, control };
     }
-    let control_baseline = layout_memory::read(ctx, sub(input.scope, "baseline")).map(|size| size.y);
+    let control_baseline = crate::layout::control_baseline(ctx, input.scope, label, label_baseline);
     let drop = control_baseline.map_or(0.0, |control| control - label_baseline);
     let (label_drop, control_drop) = (drop.max(0.0), (-drop).max(0.0));
     let label_size = Vec2::new(label_width, label.y);

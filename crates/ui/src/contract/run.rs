@@ -962,11 +962,12 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
     if real_pass {
         trace.mark(Step::Finish);
         steps::before_finish(&mut cx, activated, injected);
-        if shape == ShapeKind::Leaf {
-            let baseline = cx.core.paint.borrow().baseline;
-            if let Some(baseline) = baseline {
-                scope::record_baseline(&ctx, baseline - cx.core.rect.top());
-            }
+        // A control painting text through its faces (a select, a segmented control) reports that baseline too.
+        let baseline = cx.core.paint.borrow().baseline;
+        if let Some(baseline) = baseline {
+            scope::record_baseline(&ctx, baseline - cx.core.rect.top());
+        } else if shape == ShapeKind::Leaf {
+            scope::record_centre(&ctx, cx.core.rect.height() / 2.0);
         }
     }
     let output = comp.finish(cx);
@@ -1139,7 +1140,12 @@ pub(crate) fn paint_face<C: Show>(ui: &mut Ui, source: &FaceSource<'_>, part: Pa
     let rect = source.result.rect;
     let flow = Flow::new(rect, env.direction.is_rtl());
     let part_state = steps::part_state(source.result, step1.enabled, source.focus);
-    let flags = part_state.flags | face.flags() | source.flags;
+    let mut flags = part_state.flags | face.flags() | source.flags;
+    // A face shows the value the step-6 peek found, as `steps::state` reads it for a component: a checked check box
+    // takes the on look.
+    if (shown.as_deref().map(|value| value as &dyn std::any::Any)).and_then(|value| value.downcast_ref::<bool>()) == Some(&true) {
+        flags |= crate::style::Flags::CHECKED;
+    }
     let on = f32::from(u8::from(flags.intersects(crate::style::Flags::ON)));
     let state = StateSet::new(part_state.state, flags, crate::style::StateMix::new(part_state.t.hover, part_state.t.press, on));
     let mut core = blank_core(env.view(), &resolved, &mut stage, ctx.clone(), env.ink, source.response.clone(), None);

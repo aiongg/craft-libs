@@ -9,10 +9,10 @@ use crate::contract::{
 use crate::primitives::{PaintShape, StrokeWidth, glyph};
 use crate::runtime::env::EnvValue;
 use crate::runtime::focus::{ActivateKeys, KeyUse};
-use crate::style::{ComponentStyle, Flags, FocusLook, Ink, StyleColor, StyleCx};
+use crate::style::{ComponentStyle, Flags, FocusLook, StyleColor, StyleCx};
 use craft_behavior::{Metrics, NavShape, Roving, Value};
 use craft_theme::{Stateful, States, variant::Tone};
-use egui::Vec2;
+use egui::{CornerRadius, Rect, Vec2};
 use std::marker::PhantomData;
 use std::sync::{Arc, Mutex};
 
@@ -147,6 +147,8 @@ pub struct RadioStyle {
     #[style(focus)]
     focus: FocusLook,
     icon: f32,
+    /// The circle's fill.
+    fill: Stateful<StyleColor>,
     /// The circle's outline.
     ring: Stateful<StyleColor>,
     /// The mark inside a selected radio.
@@ -182,14 +184,17 @@ impl<T: Value + 'static> Component for Radio<T> {
 
     fn style(cx: &StyleCx<'_>, _: RadioStyleKey<T>) -> RadioStyle {
         let control = cx.control();
-        let (rest, accent, bad) = (cx.ink(Ink::OnPanel), cx.tone(Tone::Accent), cx.tone(Tone::Bad));
-        let disabled = cx.color(cx.tokens.color.text.disabled);
+        let colors = &cx.tokens.color;
+        let (well, solid, bad) = (cx.color(colors.surface.sunken), cx.color(colors.accent.solid), cx.tone(Tone::Bad));
+        let disabled = cx.color(colors.text.disabled);
+        let mark = cx.color(colors.text.on_accent);
         RadioStyle {
             metrics: Metrics::new().min_size(Vec2::new(0.0, control.height)),
             focus: cx.focus_look(),
             icon: control.icon,
-            ring: Stateful::new(rest).off(States::new(rest, accent, accent, disabled)).when(Flags::INVALID, bad),
-            dot: Stateful::new(accent).off(States::new(accent, accent, accent, disabled)).when(Flags::INVALID, bad),
+            fill: Stateful::new(well).on(States::new(solid, solid, solid, disabled)),
+            ring: super::outline(cx).on(States::new(solid, solid, solid, disabled)).when(Flags::INVALID, bad),
+            dot: Stateful::new(mark).off(States::new(mark, mark, mark, disabled)),
         }
     }
 
@@ -216,7 +221,10 @@ impl<T: Value + 'static> Component for Radio<T> {
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let center = cx.rect.center();
         let draw = ui.draw();
-        draw.stroke(&PaintShape::Circle(center, cx.style.icon / 2.0), StrokeWidth::Thin, cx.resolve(&cx.style.ring));
+        // A rectangle with full corner radius strokes inside its bounds, so the ring keeps the cell's width.
+        let circle = PaintShape::Rect(Rect::from_center_size(center, Vec2::splat(cx.style.icon)), CornerRadius::from(cx.style.icon / 2.0));
+        draw.fill(&circle, cx.resolve(&cx.style.fill));
+        draw.stroke(&circle, StrokeWidth::Medium, cx.resolve(&cx.style.ring));
         if self.checked {
             draw.fill(&glyph::dot(center, cx.style.icon), cx.resolve(&cx.style.dot));
         }

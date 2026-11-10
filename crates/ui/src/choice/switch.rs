@@ -28,6 +28,8 @@ pub struct SwitchStyle {
     edge: Stateful<StyleColor>,
     /// The thumb.
     thumb: Stateful<StyleColor>,
+    /// The thumb's outline.
+    thumb_edge: StyleColor,
     radius: CornerRadius,
     width: f32,
     height: f32,
@@ -62,17 +64,19 @@ impl Component for Switch<'_> {
     fn style(cx: &StyleCx<'_>, _: SwitchStyleKey) -> SwitchStyle {
         let control = cx.control();
         let colors = &cx.tokens.color;
-        let on = cx.accent_fill().off;
-        let (well, knob, on_knob) = (cx.color(colors.surface.sunken), cx.color(colors.surface.knob), cx.color(colors.text.on_strong));
-        let track = Stateful::new(well).on(on).when(Flags::INVALID, well);
-        let edge = Stateful::new(cx.color(colors.line.control_edge)).on(on).when(Flags::INVALID, cx.tone(Tone::Bad));
-        let thumb = Stateful::new(knob).on(States::new(on_knob, on_knob, on_knob, knob));
+        let on = cx.color(colors.accent.solid);
+        let (well, knob) = (cx.color(colors.surface.sunken), cx.color(colors.surface.knob));
+        let disabled = cx.color(colors.text.disabled);
+        let track = Stateful::new(well).on(States::new(on, on, on, disabled)).when(Flags::INVALID, well);
+        let edge = super::outline(cx).on(States::new(on, on, on, disabled)).when(Flags::INVALID, cx.tone(Tone::Bad));
+        let thumb = Stateful::new(knob);
         SwitchStyle {
             metrics: Metrics::new().min_size(Vec2::new(0.0, control.height)),
             focus: cx.focus_look(),
             track,
             edge,
             thumb,
+            thumb_edge: cx.color(colors.line.knob_edge),
             radius: CornerRadius::same((control.icon / 2.0).round() as u8),
             width: cx.tokens.size.toggle,
             height: control.icon,
@@ -107,10 +111,11 @@ impl Component for Switch<'_> {
         let draw = ui.draw();
         let shape = PaintShape::Rect(track, style.radius);
         draw.fill(&shape, cx.resolve(&style.track));
-        draw.stroke(&shape, StrokeWidth::Thin, cx.resolve(&style.edge));
+        draw.stroke(&shape, StrokeWidth::Medium, cx.resolve(&style.edge));
         let slot = Flow::new(track, cx.flow.is_rtl()).span(at * (style.width - style.height), style.height);
         let thumb = PaintShape::Circle(slot.center(), (style.height - style.inset * 2.0) / 2.0);
         draw.fill(&thumb, cx.resolve(&style.thumb));
+        draw.stroke(&thumb, StrokeWidth::Thin, style.thumb_edge);
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> EditResponse<bool> {
