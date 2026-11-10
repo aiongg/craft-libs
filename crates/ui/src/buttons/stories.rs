@@ -68,6 +68,22 @@ fn icon_button(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     IconButton::new(IconId::new("settings")).label("Settings").show(ui).into()
 }
 
+/// The icon button in its selected look next to the plain one.
+#[story(IconButton<'static>, covers = [], drive = Drive::Never)]
+fn icon_button_selected(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    let shown = Row::new().show(ui, |ui, _| {
+        IconButton::new(IconId::new("settings")).label("Settings").selected(true).id_salt("selected").show(ui);
+        IconButton::new(IconId::new("settings")).label("Settings").id_salt("plain").show(ui);
+    });
+    shown.into()
+}
+
+/// The toggle button on, as the gallery card shows it.
+#[story(ToggleButton<'static>, covers = [], drive = Drive::Never)]
+fn toggle_button_on(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    ToggleButton::new("Guides", Bind::bound(data.value("on", true))).show(ui).into()
+}
+
 #[story(ToggleButton<'static>, covers = [Default])]
 fn toggle_button(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let size = *data.choice("size", ControlSize::Md, &SIZES);

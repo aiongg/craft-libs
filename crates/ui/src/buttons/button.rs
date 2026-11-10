@@ -209,7 +209,7 @@ impl Component for Button<'_> {
         }
         face::paint(ui, cx, (&cx.style.text, &cx.style.icon), &cx.style.face, &self.spec(cx.resolved.label), cx.content_rect);
         if cx.part_if_declared(SPINNER).is_some() {
-            ui.face(SPINNER, Spinner::new());
+            ui.face(SPINNER, Spinner::new().size(cx.resolved.size));
         }
     }
 

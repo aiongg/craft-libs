@@ -790,6 +790,10 @@ pub struct IconSizes {
     pub md: f32,
     /// Rail and toolbar icons.
     pub lg: f32,
+    /// The glyph of a small icon-only button: smaller than `sm`, so it reads below the cap height of the text beside it.
+    pub glyph_sm: f32,
+    /// The glyph of a standard icon-only button.
+    pub glyph_md: f32,
 }
 
 /// Tool-rail sizes, in logical pixels.

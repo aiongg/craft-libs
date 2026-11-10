@@ -843,6 +843,7 @@ A theme with its own shape replaces the radii or adds an offset to control, surf
 | --- | --- |
 | `size.control.sm`, `size.control.md` | Controls, fields, buttons |
 | `size.icon.sm`, `size.icon.md`, `size.icon.lg` | Icons |
+| `size.icon.glyph_sm`, `size.icon.glyph_md` | The glyph in an icon-only button |
 | `size.bar.title`, `size.bar.tab`, `size.bar.status`, `size.bar.options`, `size.bar.options_narrow` | Title bar, document tab bar, status bar, options bar |
 | `size.panel_header` | Panel headers |
 | `size.rail.width`, `size.rail.button`, `size.rail.panel_width`, `size.rail.panel_button` | Tool rail and panel rail |

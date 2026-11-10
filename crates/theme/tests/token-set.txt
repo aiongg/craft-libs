@@ -110,6 +110,8 @@ size.hit.dead_zone
 size.hit.reveal
 size.hit.slop
 size.hit.target
+size.icon.glyph_md
+size.icon.glyph_sm
 size.icon.lg
 size.icon.md
 size.icon.sm

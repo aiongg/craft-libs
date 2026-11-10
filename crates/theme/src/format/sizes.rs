@@ -248,6 +248,8 @@ impl SizeSet {
         le("base.size.control.sm", s.control.sm, "at most base.size.control.md", s.control.md);
         le("base.size.icon.sm", s.icon.sm, "at most base.size.icon.md", s.icon.md);
         le("base.size.icon.md", s.icon.md, "at most base.size.icon.lg", s.icon.lg);
+        le("base.size.icon.glyph_sm", s.icon.glyph_sm, "at most base.size.icon.sm", s.icon.sm);
+        le("base.size.icon.glyph_md", s.icon.glyph_md, "at most base.size.icon.md", s.icon.md);
         le("base.size.thumb.sm", s.thumb.sm, "at most base.size.thumb.md", s.thumb.md);
         le("base.size.thumb.md", s.thumb.md, "at most base.size.thumb.lg", s.thumb.lg);
         let t = &self.base.typography;

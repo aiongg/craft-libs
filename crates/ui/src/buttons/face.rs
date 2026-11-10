@@ -6,7 +6,7 @@ use crate::primitives::{IconSpec, TextRun};
 use crate::style::{FocusLook, IconLook, StyleColor, StyleCx, SurfaceKind, SurfaceLook, TextLook, TypeRole, VariantParts};
 use craft_behavior::{Flow, Insets, Metrics};
 use craft_theme::{
-    BySize, Stateful, States, Variant,
+    ControlSize, Rgba, Stateful, States, Variant,
     variant::{Emphasis, Tone},
 };
 use egui::{Rect, Vec2, pos2};
@@ -69,11 +69,14 @@ pub(super) fn metrics(cx: &StyleCx<'_>, parts: &VariantParts) -> Metrics {
     Metrics::new().padding(Insets::horizontal(control.pad_x.max(round + control.gap))).min_size(Vec2::new(0.0, control.height)).gap(control.gap)
 }
 
-/// The side of the glyph in an icon-only button: smaller than the icon side, so the glyph reads below the cap height
-/// of the text beside it.
+/// The side of the glyph in an icon-only button: the glyph role of the size, smaller than the icon side so the glyph
+/// reads below the cap height of the text beside it.
 pub(super) fn glyph_side(cx: &StyleCx<'_>) -> f32 {
-    const LESS: BySize<f32> = BySize { sm: 2.0, md: 4.0 };
-    cx.control().icon - LESS.get(cx.size)
+    let icon = &cx.tokens.size.icon;
+    match cx.size {
+        ControlSize::Sm => icon.glyph_sm,
+        ControlSize::Md => icon.glyph_md,
+    }
 }
 
 /// The surface of a button from its variant: raised unless ghost, the variant's fill and edge.
@@ -82,10 +85,9 @@ pub(super) fn surface(cx: &StyleCx<'_>, parts: &VariantParts) -> SurfaceLook {
     if !matches!(cx.variant, Variant::Look { emphasis: Emphasis::Ghost, .. }) {
         look = look.kind(SurfaceKind::Raised).kind_down(SurfaceKind::Pressed);
     }
-    match &parts.edge {
-        Some(edge) => look.border(edge.clone(), cx.tokens.stroke.thin),
-        None => look,
-    }
+    // A variant without an edge draws none in any state: the kind's own edge would frame a disabled solid button.
+    let edge = parts.edge.clone().unwrap_or_else(|| Stateful::new(cx.color(Rgba::TRANSPARENT)));
+    look.border(edge, cx.tokens.stroke.thin)
 }
 
 /// The look of a control that is on: the accent's soft fill with the accent's text colour,
@@ -94,7 +96,8 @@ pub(super) fn on_parts(cx: &StyleCx<'_>) -> VariantParts {
     let soft = cx.with_variant(Variant::look(Emphasis::Soft, Tone::Accent)).variant_look();
     let colors = &cx.tokens.color;
     let fill = cx.color(colors.accent.soft);
-    let ink = cx.color(colors.accent.text);
+    // The accent text moves toward white or black until it reads on the soft fill.
+    let ink = cx.color(craft_theme::ensure_contrast(colors.accent.text, colors.accent.soft, craft_theme::text_contrast_min(cx.contrast())));
     VariantParts { fill: Stateful::new(fill), text: Stateful::new(ink).off(States::new(ink, ink, ink, soft.text.off.disabled)), ..soft }
 }
 
