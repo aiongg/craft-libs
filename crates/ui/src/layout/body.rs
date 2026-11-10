@@ -378,17 +378,32 @@ impl Spread {
     }
 }
 
-/// The rect a child of measured `size` takes in flow in `ui`: the next cell of the `Grid` or spread `Row` body that
-/// encloses it directly, else the next allocation of `ui`'s layout. A direct child of an unwrapped `Row` takes the
-/// row's line and sits at its vertical centre. In a `Grid` cell a child that `fill`s (declares `Sizing::Fill`) takes
-/// the cell's whole height from the cell's top, so the cards of one row share their top and bottom edges; any other
-/// child sits at the vertical centre of its cell.
-pub(crate) fn place_in_flow(ui: &mut Ui, size: Vec2) -> Rect {
-    place_in_cell(ui, size, false)
+/// What a child shown in flow is, for where it sits in the height of its slot.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct InFlow {
+    /// Whether the child fills its cell's height in a `Grid` (declares `Sizing::Fill`).
+    pub fill: bool,
+    /// Whether the child is a line itself: a control, a `Row` body that does not wrap, or a collection whose rows run
+    /// along X. Anything else is a block or a column.
+    pub line: bool,
 }
 
-/// `place_in_flow` for a child that `fill`s its cell's height when it sits in a `Grid`.
-pub(crate) fn place_in_cell(ui: &mut Ui, size: Vec2, fill: bool) -> Rect {
+impl InFlow {
+    /// A control on the line that does not fill its cell.
+    pub const LINE: InFlow = InFlow { fill: false, line: true };
+}
+
+/// The rect a child of measured `size` takes in flow in `ui`: the next cell of the `Grid` or spread `Row` body that
+/// encloses it directly, else the next allocation of `ui`'s layout. A direct child of an unwrapped `Row` takes the
+/// row's line: a line sits at its vertical centre, a block or column at its top. In a `Grid` cell a child that
+/// `fill`s takes the cell's whole height from the cell's top, so the cards of one row share their top and bottom
+/// edges; any other child sits at the vertical centre of its cell.
+pub(crate) fn place_in_flow(ui: &mut Ui, size: Vec2) -> Rect {
+    place_in_cell(ui, size, InFlow::LINE)
+}
+
+/// `place_in_flow` for a child that is `child`.
+pub(crate) fn place_in_cell(ui: &mut Ui, size: Vec2, child: InFlow) -> Rect {
     let env = Env::of(ui);
     let slot = Vec2::new(size.x, env.row_line.map_or(size.y, |line| line.max(size.y)));
     let cell = env.grid.and_then(|body| Service::<Cursors>::of(ui.ctx()).with(|cursors| cursors.0.get_mut(&body).map(|cursor| cursor.cell(slot))));
@@ -399,8 +414,12 @@ pub(crate) fn place_in_cell(ui: &mut Ui, size: Vec2, fill: bool) -> Rect {
         }
         None => alloc::space(ui, slot),
     };
-    let drop = if fill && cell.is_some() { 0.0 } else { ((rect.height() - size.y) / 2.0).max(0.0) };
-    Rect::from_min_max(egui::pos2(rect.min.x, rect.min.y + drop), egui::pos2(rect.max.x, rect.max.y - drop))
+    if child.fill && cell.is_some() {
+        return rect;
+    }
+    let spare = (rect.height() - size.y).max(0.0);
+    let (above, below) = if env.row_line.is_some() && !child.line { (0.0, spare) } else { (spare / 2.0, spare / 2.0) };
+    Rect::from_min_max(egui::pos2(rect.min.x, rect.min.y + above), egui::pos2(rect.max.x, rect.max.y - below))
 }
 
 /// The room a child shown in flow in `ui` measures and sizes in: the room of the next cell of the `Grid` or spread
