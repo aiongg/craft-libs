@@ -92,3 +92,31 @@ fn a_press_arms_a_gated_taker_until_the_pointer_leaves() {
     frames.frame(vec![pointer::wheel(-30.0)], &mut show_frame);
     assert_eq!(read.get(), (scroll, None), "once the pointer leaves, the panel takes it again");
 }
+
+/// Regression: a list opened from a wheel-gated scope (a gallery card) inherited the gate and never took the wheel; a
+/// layer starts ungated.
+#[craft_ui::testing::trial]
+fn a_list_opened_in_a_wheel_gated_scope_takes_the_wheel() {
+    use craft_ui::contract::{Bind, Entry, Role, Show as _};
+    let entries: Vec<Entry<u8>> = (0..60).map(|n| Entry::new(n, format!("Option {n}"))).collect();
+    let mut fixture = craft_ui::testing::Fixture::new(move |ui| {
+        craft_ui::runtime::env::with_env(
+            ui,
+            |env| env.wheel_gated = Some(true),
+            |ui| {
+                let mut picked = 0u8;
+                craft_ui::pickers::Select::new("Pick", Bind::bound(&mut picked), &entries).show(ui);
+            },
+        );
+    });
+    fixture.settle();
+    let field = *fixture.by_role(Role::COMBO_BOX).first().expect("the field shows");
+    fixture.click(&field);
+    fixture.settle();
+    let list = *fixture.by_role(Role::LIST_BOX).first().expect("the list opened");
+    let row = |fixture: &craft_ui::testing::Fixture| fixture.by_label("Option 2").expect("the row shows").rect.min.y;
+    let before = row(&fixture);
+    fixture.frame(vec![pointer::moved(list.rect.center())]).frame(vec![pointer::wheel(-60.0)]).settle();
+    let after = row(&fixture);
+    assert!(after < before, "the open list scrolled: {before} -> {after}");
+}
