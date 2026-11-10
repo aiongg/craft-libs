@@ -1174,9 +1174,13 @@ pub(crate) fn paint_face<C: Show>(ui: &mut Ui, source: &FaceSource<'_>, part: Pa
         };
         face.paint(&mut pui, &cx);
     }
-    let name = cx.core.paint.borrow().elided.clone().unwrap_or_else(|| step1.label.as_str().to_owned());
+    let (elided, baseline) = {
+        let paint = cx.core.paint.borrow();
+        (paint.elided.clone(), paint.baseline)
+    };
+    let name = elided.unwrap_or_else(|| step1.label.as_str().to_owned());
     // The face's own `access` adds its facts; the composite's step 16 fills the part's sub-node from the record.
     let mut access = super::Access::default();
     face.access(&mut access, &cx);
-    FaceRecord { part, name, flags, role: C::ROLE, numeric: access.numeric.take(), expanded: access.expanded, enabled: step1.enabled }
+    FaceRecord { part, name, flags, role: C::ROLE, numeric: access.numeric.take(), expanded: access.expanded, enabled: step1.enabled, baseline }
 }
