@@ -45,40 +45,76 @@ fn open_units_menu(fixture: &mut Fixture) {
     fixture.idle(2);
 }
 
+/// The values the Properties panel edits: the view (zoom in percent, rotation in degrees, flip, pixel aspect) and
+/// what the rulers let the pointer do.
+#[derive(Clone, Copy)]
+struct Settings {
+    zoom: f64,
+    rotation: f64,
+    flip: bool,
+    aspect: f64,
+    interactive: bool,
+    locked: bool,
+}
+
+fn settings(data: &mut StoryData) -> Settings {
+    Settings {
+        zoom: *data.ranged("zoom", 100.0, 10.0..=800.0),
+        rotation: *data.ranged("rotation", 0.0, -180.0..=180.0),
+        flip: *data.value("flip", false),
+        aspect: *data.ranged("aspect", 1.0, 0.5..=2.0),
+        interactive: *data.value("interactive", true),
+        locked: *data.value("locked", false),
+    }
+}
+
+/// `rulers` with the pointer settings applied.
+fn configured<'a>(rulers: Rulers<'a>, settings: Settings) -> Rulers<'a> {
+    rulers.interactive(settings.interactive).origin_locked(settings.locked)
+}
+
 /// A canvas whose view lies inside the strips and whose rulers count from `zero` in pixels.
-fn rulers_canvas(ui: &Ui, zero: Point) -> Canvas<'static> {
+fn rulers_canvas(ui: &Ui, zero: Point, settings: Settings) -> Canvas<'static> {
     let text = pixels();
-    Canvas::new("Document").view(CanvasView::new(ui.available_rect_before_wrap(), CENTRE, 1.0)).show_rulers(true).rulers(text, text, zero)
+    let view = CanvasView::new(ui.available_rect_before_wrap(), CENTRE, settings.zoom / 100.0)
+        .rotation(settings.rotation)
+        .flip_x(settings.flip)
+        .aspect(settings.aspect);
+    Canvas::new("Document").view(view).show_rulers(true).rulers(text, text, zero)
 }
 
 #[story(Rulers<'static>, covers = [Default], drive = Drive::Custom(drag_corner))]
 fn zero_point(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let settings = settings(data);
     let zero = data.value("zero", Point::ZERO);
-    let canvas = rulers_canvas(ui, *zero);
-    on_canvas_with(ui, canvas, |ui, at| Rulers::new("Rulers", Bind::bound(&mut *zero)).show_at(ui, at))
+    let canvas = rulers_canvas(ui, *zero, settings);
+    on_canvas_with(ui, canvas, |ui, at| configured(Rulers::new("Rulers", Bind::bound(&mut *zero)), settings).show_at(ui, at))
 }
 
 #[story(Rulers<'static>, covers = [Open], drive = Drive::Custom(open_units_menu))]
 fn units_menu(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let settings = settings(data);
     let zero = data.value("zero", Point::ZERO);
-    let canvas = rulers_canvas(ui, *zero);
-    on_canvas_with(ui, canvas, |ui, at| Rulers::new("Rulers", Bind::bound(&mut *zero)).units(&UNITS).show_at(ui, at))
+    let canvas = rulers_canvas(ui, *zero, settings);
+    on_canvas_with(ui, canvas, |ui, at| configured(Rulers::new("Rulers", Bind::bound(&mut *zero)), settings).units(&UNITS).show_at(ui, at))
 }
 
 #[story(Rulers<'static>, covers = [Mixed], drive = Drive::Custom(drag_corner))]
 fn zero_points_that_differ(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let settings = settings(data);
     let zero = data.value("zero", Mixed::<Point>::Mixed);
-    let canvas = rulers_canvas(ui, Point::ZERO);
-    on_canvas_with(ui, canvas, |ui, at| Rulers::new("Rulers", Bind::bound_mixed(&mut *zero)).show_at(ui, at))
+    let canvas = rulers_canvas(ui, Point::ZERO, settings);
+    on_canvas_with(ui, canvas, |ui, at| configured(Rulers::new("Rulers", Bind::bound_mixed(&mut *zero)), settings).show_at(ui, at))
 }
 
 #[story(Rulers<'static>, covers = [Invalid], drive = Drive::Custom(drag_corner))]
 fn zero_point_left_of_the_document(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let settings = settings(data);
     let zero = data.value("zero", Point::new(LEAST_X - 1.0, 0.0));
-    let canvas = rulers_canvas(ui, *zero);
+    let canvas = rulers_canvas(ui, *zero, settings);
     on_canvas_with(ui, canvas, |ui, at| {
         let inside =
             |zero: &Point| if zero.x < LEAST_X { Validity::Refuse(Message::new("The zero point is left of the document")) } else { Validity::Ok };
-        Rulers::new("Rulers", Bind::bound(&mut *zero).check(inside)).show_at(ui, at)
+        configured(Rulers::new("Rulers", Bind::bound(&mut *zero).check(inside)), settings).show_at(ui, at)
     })
 }

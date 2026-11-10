@@ -1578,6 +1578,7 @@ impl BodyHooks<'_> {
         scoped.transform = props.transform;
         scoped.content_column = content_column;
         scoped.row_room = None;
+        scoped.row_line = None;
         // A body with a room height of its own gives that height to the children that fill it.
         scoped.content = (!self.given.0, !self.given.1 && props.room_height.is_none());
         // A content-sized container offers its children, in the real run, the width this pass measured it at: a

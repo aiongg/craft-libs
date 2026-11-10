@@ -779,6 +779,9 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                 self.report_section_node(&ctx, id, at, row, cx.core.resolved.enabled);
             }
         }
+        // The pointer counts as over a row only while the sensing pass puts it on this collection, so a popup or another
+        // widget above it takes the hover as it does for the rows' parts.
+        let hover_at = crate::primitives::sensing::read_outcome(&ctx, ArenaId::new(cx.core.id)).hover.and(ctx.pointer_latest_pos());
         let place_rows = |ui: &mut Ui| {
             for at in order {
                 if self.source.section_stop(at) {
@@ -802,6 +805,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                     drop_target: self.drags.over.as_ref() == Some(&key),
                     current: current.as_ref() == Some(&key),
                     open: self.source.has_children(at) && self.source.open(at),
+                    hovered: hover_at.is_some_and(|pos| row.contains(pos)),
                     ..RowState::default()
                 };
                 let mut flags = crate::style::Flags::empty();

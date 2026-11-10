@@ -12,6 +12,7 @@ use crate::mock::MockState;
 use crate::theme::ThemeWorkspace;
 use craft_behavior::Selection;
 use craft_behavior::dock::Workspace as Dock;
+use craft_ui::contract::Level;
 use craft_ui::list::OpenSet;
 use craft_ui::runtime::env::RootEnv;
 use std::collections::HashMap;
@@ -29,7 +30,7 @@ pub struct Browser {
     pub filter: String,
     /// The selected row of the tree.
     pub selection: Selection<TreeKey>,
-    /// The open module groups.
+    /// The open level groups.
     pub open: OpenSet<TreeKey>,
     /// The components workspace's dock layout.
     pub dock: Dock<PanelId>,
@@ -42,6 +43,12 @@ pub struct Browser {
     pub generation: u32,
     /// The shown stories' values.
     pub cells: Cells,
+    /// The component whose tab a panel asked to open in this pass.
+    pub open_request: Option<&'static str>,
+    /// The component whose card the Overview brings into view when it is drawn, by its registered name.
+    pub scroll_to: Option<&'static str>,
+    /// The selected component the Overview last followed to its level; the outer `None` before the first pass.
+    pub followed: Option<Option<&'static str>>,
 }
 
 /// What the dock shows.
@@ -77,6 +84,8 @@ pub struct Viewer {
     pub preview: Preview,
     /// The Variants view of the target story, over the front centre tab, while one is open.
     pub variants: Option<VariantAxis>,
+    /// The centre tab the Variants view is open in.
+    pub variants_tab: Option<PanelId>,
     /// Whether the More popover of the options bar is open.
     pub more_open: bool,
     /// What the panels browse.
@@ -104,12 +113,16 @@ impl Viewer {
             level: String::new(),
             generation: 0,
             cells: Cells::new(),
+            open_request: None,
+            scroll_to: None,
+            followed: None,
         };
         let mut viewer = Viewer {
             env: RootEnv::default(),
             workspace: Workspace::default(),
             preview: Preview::default(),
             variants: None,
+            variants_tab: None,
             more_open: false,
             browser,
             themes: ThemeWorkspace::new(),
@@ -129,11 +142,8 @@ impl Viewer {
         let browser = &mut self.browser;
         browser.filter.clone_from(&settings.filter);
         browser.open = OpenSet::new();
-        for component in &browser.catalog.components {
-            let module = tree::module_of(component);
-            if settings.open_modules.iter().any(|saved| saved == module) {
-                browser.open.set(&TreeKey::Module(module), true);
-            }
+        for level in settings.open_levels.iter().filter_map(|saved| tree::level_named(saved)) {
+            browser.open.set(&TreeKey::Level(level), true);
         }
         browser.selection = browser
             .catalog
@@ -160,20 +170,10 @@ impl Viewer {
         self.browser.selected_type()
     }
 
-    /// The module groups of the tree that are open.
-    pub fn open_modules(&self) -> Vec<String> {
+    /// The slugs of the levels of the tree that are open, in level order.
+    pub fn open_levels(&self) -> Vec<String> {
         let browser = &self.browser;
-        let mut modules: Vec<_> = browser
-            .catalog
-            .components
-            .iter()
-            .map(tree::module_of)
-            .filter(|module| browser.open.is_open(&TreeKey::Module(module)))
-            .map(str::to_owned)
-            .collect();
-        modules.sort();
-        modules.dedup();
-        modules
+        Level::ALL.into_iter().filter(|level| browser.open.is_open(&TreeKey::Level(*level))).map(tree::slug).collect()
     }
 
     /// The dock layout of the shown workspace.

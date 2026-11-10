@@ -84,6 +84,18 @@ pub struct ButtonOutput {
     pub clicks: u32,
 }
 
+impl ButtonOutput {
+    /// The output of a button-like component `cx` that is `activated` this pass.
+    pub(super) fn of<C: Component>(cx: &Cx<'_, C>, activated: bool) -> Self {
+        let clicks = match (activated, cx.activation(), cx.press().phase) {
+            (true, Some(activation), PressPhase::Release { start, click: true, .. }) if !activation.by_key => start.clicks,
+            (true, ..) => 1,
+            (false, ..) => 0,
+        };
+        ButtonOutput { response: cx.response.clone(), clicks }
+    }
+}
+
 impl Deref for ButtonOutput {
     type Target = Response;
 
@@ -202,11 +214,6 @@ impl Component for Button<'_> {
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> ButtonOutput {
-        let clicks = match (self.activated(&cx), cx.activation(), cx.press().phase) {
-            (true, Some(activation), PressPhase::Release { start, click: true, .. }) if !activation.by_key => start.clicks,
-            (true, ..) => 1,
-            (false, ..) => 0,
-        };
-        ButtonOutput { response: cx.response.clone(), clicks }
+        ButtonOutput::of(&cx, self.activated(&cx))
     }
 }

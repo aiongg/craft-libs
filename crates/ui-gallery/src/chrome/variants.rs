@@ -14,7 +14,7 @@ use craft_ui::display::{Shade, Text};
 use craft_ui::layout_components::Row;
 use craft_ui::notices::Notice;
 use craft_ui::style::TypeRole;
-use egui::{Id, Key, Ui};
+use egui::Ui;
 
 /// One value of an axis: its name, the look a card shows it with, and what picking it sets.
 struct Value {
@@ -78,21 +78,20 @@ fn values(axis: VariantAxis) -> Option<Vec<Value>> {
 
 /// Whether the Variants view is open in `tab`: it opens in the tab that is in front when it is asked for and closes
 /// when another one comes to the front.
-fn open_in(ui: &Ui, p: &mut Panels<'_>, tab: PanelId) -> bool {
-    let owner_id = Id::unique("gallery.variants.tab");
+fn open_in(p: &mut Panels<'_>, tab: PanelId) -> bool {
     if p.variants.is_none() {
-        ui.data_mut(|data| data.remove::<PanelId>(owner_id));
+        *p.variants_tab = None;
         return false;
     }
-    match ui.data(|data| data.get_temp::<PanelId>(owner_id)) {
+    match *p.variants_tab {
         None => {
-            ui.data_mut(|data| data.insert_temp(owner_id, tab));
+            *p.variants_tab = Some(tab);
             true
         }
         Some(owner) if owner == tab => true,
         Some(_) => {
             *p.variants = None;
-            ui.data_mut(|data| data.remove::<PanelId>(owner_id));
+            *p.variants_tab = None;
             false
         }
     }
@@ -100,11 +99,11 @@ fn open_in(ui: &Ui, p: &mut Panels<'_>, tab: PanelId) -> bool {
 
 /// Shows the Variants view in `tab` when one is open there. Returns whether it did.
 pub(super) fn show(ui: &mut Ui, p: &mut Panels<'_>, tab: PanelId) -> bool {
-    if !open_in(ui, p, tab) {
+    if !open_in(p, tab) {
         return false;
     }
     let Some(axis) = *p.variants else { return false };
-    let mut closed = ui.input(|input| input.key_pressed(Key::Escape));
+    let mut closed = false;
     let target = selected_type(p).and_then(|type_name| target_story(p, type_name).map(|index| (type_name, index)));
     let cards: Vec<Spec> = match (target, values(axis)) {
         (Some((type_name, index)), Some(values)) => {
@@ -145,11 +144,11 @@ pub(super) fn show(ui: &mut Ui, p: &mut Panels<'_>, tab: PanelId) -> bool {
         ))
     });
     let mut reported = Vec::new();
-    on_background(ui, "variants", |ui| {
+    on_background(ui, "variants", |ui, cx| {
         Row::new().show(ui, |ui, _| {
             Text::new(heading.clone().unwrap_or_else(|| "Variants".to_owned())).role(TypeRole::Heading).show(ui);
             Text::new("Use one to set it").shade(Shade::Muted).show(ui);
-            closed |= Button::new("Close").show(ui).clicked();
+            closed |= Button::new("Close").show(ui).clicks > 0;
         });
         if cards.is_empty() {
             let text = if target.is_none() {
@@ -161,6 +160,7 @@ pub(super) fn show(ui: &mut Ui, p: &mut Panels<'_>, tab: PanelId) -> bool {
         } else {
             reported = grid(ui, "variants", &cards, p, false);
         }
+        closed |= cx.take_cancel();
     });
     let used = reported.iter().find(|reported| reported.events.used).map(|reported| reported.spec);
     apply(ui, p, &cards, reported);

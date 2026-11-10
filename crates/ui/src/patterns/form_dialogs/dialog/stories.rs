@@ -19,26 +19,30 @@ fn picture(ui: &Ui) -> SizedTexture {
     SizedTexture::new(id, Vec2::new(PICTURE[0] as f32, PICTURE[1] as f32))
 }
 
+const LAYOUTS: [(&str, ParamLayout); 2] = [("Beside", ParamLayout::Beside), ("Below", ParamLayout::Below)];
+
+/// A blur dialog with the `preview` and `layout` values of the story.
+fn blur_story(ui: &mut Ui, data: &mut StoryData, preview: bool, layout: ParamLayout) -> StoryOutput {
+    let preview = *data.value("preview", preview);
+    let layout = *data.choice("layout", layout, &LAYOUTS);
+    let dialog = ParamDialog::new("blur", "Blur", Param::parse_list(SPEC)).opened(Bind::bound(data.value("open", true)));
+    let dialog = if preview { dialog.preview(picture(ui)).layout(layout) } else { dialog };
+    dialog.show(ui).into()
+}
+
 #[story(ParamDialog<'static>, covers = [], drive = Drive::Never)]
 fn param_dialog(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    ParamDialog::new("blur", "Blur", Param::parse_list(SPEC)).opened(Bind::bound(data.value("open", true))).show(ui).into()
+    blur_story(ui, data, false, ParamLayout::Beside)
 }
 
 #[story(ParamDialog<'static>, covers = [], drive = Drive::Never)]
 fn param_dialog_with_preview(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let texture = picture(ui);
-    ParamDialog::new("blur", "Blur", Param::parse_list(SPEC)).opened(Bind::bound(data.value("open", true))).preview(texture).show(ui).into()
+    blur_story(ui, data, true, ParamLayout::Beside)
 }
 
 #[story(ParamDialog<'static>, covers = [], drive = Drive::Never)]
 fn param_dialog_with_preview_below(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let texture = picture(ui);
-    ParamDialog::new("blur", "Blur", Param::parse_list(SPEC))
-        .opened(Bind::bound(data.value("open", true)))
-        .preview(texture)
-        .layout(ParamLayout::Below)
-        .show(ui)
-        .into()
+    blur_story(ui, data, true, ParamLayout::Below)
 }
 
 #[story(ParamDialog<'static>, covers = [], drive = Drive::Never)]

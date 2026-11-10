@@ -4,7 +4,7 @@
 //! A saved layout names a component tab by its component's registered name. A name the catalog no longer has loads as a
 //! panel the reconciliation drops, so a layout saved by another build costs at most its component tabs.
 
-use super::catalog::short_type;
+use super::catalog::display_name;
 use super::state::Workspace;
 use craft_behavior::Axis;
 use craft_behavior::dock::{Column, DockEdge, Group, Layout, Node, Permissions, SplitSize, Workspace as Dock};
@@ -50,7 +50,7 @@ impl PanelId {
             PanelId::Inspect => "Inspect".to_owned(),
             PanelId::Tokens => "Tokens".to_owned(),
             PanelId::Overview => "Overview".to_owned(),
-            PanelId::Component(type_name) => short_type(type_name),
+            PanelId::Component(type_name) => display_name(type_name),
             PanelId::Preview => "Preview".to_owned(),
             PanelId::Detail => "Detail".to_owned(),
             PanelId::Problems => "Problems".to_owned(),
@@ -145,10 +145,13 @@ impl<'de> Deserialize<'de> for PanelId {
 /// The share a split beside a dock records. The dock's width comes from its columns, so the split never reads it.
 const BESIDE_DOCK: SplitSize = SplitSize::Ratio(0.5);
 
+/// The component tree column's width; the side column takes the dock column token.
+const TREE_WIDTH: f32 = 220.0;
+
 /// The components workspace: the component tree at the start edge, the overview in the centre, the stories above the
 /// properties, the inspector and the token browser at the end edge.
 pub fn default_components() -> Dock<PanelId> {
-    let tree = Column::new(vec![Group::new(vec![PanelId::Components], 0)]);
+    let tree = Column::new(vec![Group::new(vec![PanelId::Components], 0)]).with_width(TREE_WIDTH);
     let side = Column::new(vec![Group::new(vec![PanelId::Stories], 0), Group::new(vec![PanelId::Properties, PanelId::Inspect, PanelId::Tokens], 0)]);
     let centre = Node::split(Axis::X, BESIDE_DOCK, Node::tabs(vec![PanelId::Overview], 0), Node::dock(DockEdge::End, vec![side]));
     let root = Node::split(Axis::X, BESIDE_DOCK, Node::dock(DockEdge::Start, vec![tree]), centre);

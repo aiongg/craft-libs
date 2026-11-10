@@ -7,7 +7,7 @@ use super::variants;
 use crate::viewer::{ComponentInfo, PanelId, TreeKey, by_level, entry_of};
 use craft_behavior::{ColumnWidth, Selection};
 use craft_theme::variant::Tone;
-use craft_ui::contract::{Bind, Entry, Gap, Pad, Props as _, Scroll, Show as _, ShowContainer as _};
+use craft_ui::contract::{BodyCx, Bind, Entry, Gap, Pad, Props as _, Scroll, Show as _, ShowContainer as _};
 use craft_ui::display::{Shade, Text};
 use craft_ui::layout_components::{Grid, Row, Stack};
 use craft_ui::notices::Notice;
@@ -15,7 +15,7 @@ use craft_ui::pickers::Select;
 use craft_ui::runtime::env::WindowKey;
 use craft_ui::shell::AppShell;
 use craft_ui::testing::StoryRegistration;
-use egui::{Align, Id, Ui};
+use egui::{Align, Ui};
 
 /// The narrowest a card may be before the cards go to one column: a dock panel of the apps is about this wide, and a
 /// story drawn in less is no longer what the apps show.
@@ -70,10 +70,10 @@ pub(super) fn selected_type(p: &Panels<'_>) -> Option<&'static str> {
 
 /// The window's background (an embedded shell, which paints it and keeps its cards' dialogs in the tab) with the
 /// panel's padding around `add`.
-pub(super) fn on_background(ui: &mut Ui, key: &str, mut add: impl FnMut(&mut Ui)) {
+pub(super) fn on_background(ui: &mut Ui, key: &str, mut add: impl FnMut(&mut Ui, &mut BodyCx<'_>)) {
     AppShell::embedded(WindowKey::new(format!("gallery-centre-{key}")))
-        .body(|ui, _, _: &mut ()| {
-            Stack::new().fill().pad(Pad::Regular).show(ui, |ui, _| add(ui));
+        .body(|ui, cx, _: &mut ()| {
+            Stack::new().fill().pad(Pad::Regular).show(ui, |ui, _| add(ui, cx));
         })
         .show(ui, &mut ());
 }
@@ -123,48 +123,45 @@ pub(super) fn grid(
 /// Applies what the cards reported: a press selects the card's component and story, Open opens its tab, Reset gives
 /// the story its start values.
 pub(super) fn apply(ui: &mut Ui, p: &mut Panels<'_>, cards: &[Spec], reported: Vec<Reported>) {
-    let scroll: Option<String> = ui.data(|data| data.get_temp(scroll_id()));
+    let scroll = *p.scroll_to;
+    let mut scrolled = false;
     for Reported { spec, events } in reported {
         let Some(spec) = cards.get(spec) else { continue };
         if events.reset {
             p.cells.entry(spec.index).or_default().reset();
         }
         if events.opened {
-            p.opened = Some(spec.type_name);
+            *p.open_request = Some(spec.type_name);
         }
         if events.pressed || events.opened {
             *p.selection = Selection::single(TreeKey::Component(spec.type_name));
             p.story_of.insert(spec.type_name, spec.story.story.name);
         }
-        if scroll.as_deref() == Some(spec.key.as_str())
+        if scroll == Some(spec.type_name)
             && let Some(rect) = events.rect
         {
             ui.scroll_to_rect(rect, Some(Align::TOP));
-            ui.data_mut(|data| data.remove::<String>(scroll_id()));
+            scrolled = true;
         }
     }
-}
-
-/// Where the card to scroll to is kept until its card is drawn.
-fn scroll_id() -> Id {
-    Id::unique("gallery.overview.scroll_to")
+    if scrolled {
+        *p.scroll_to = None;
+    }
 }
 
 /// The level the selected component sits on, and a request to bring its card into view, when the selection changed
 /// since the last pass of the Overview.
-fn follow_selection(ui: &mut Ui, p: &mut Panels<'_>) {
-    let seen = Id::unique("gallery.overview.selection");
+fn follow_selection(p: &mut Panels<'_>) {
     let selected = selected_type(p);
-    let before: Option<Option<&'static str>> = ui.data(|data| data.get_temp(seen));
-    if before == Some(selected) {
+    if *p.followed == Some(selected) {
         return;
     }
-    ui.data_mut(|data| data.insert_temp(seen, selected));
+    *p.followed = Some(selected);
     if let Some(type_name) = selected
         && let Some(entry) = entry_of(type_name)
     {
         *p.level = entry.level.title().to_owned();
-        ui.data_mut(|data| data.insert_temp(scroll_id(), type_name.to_owned()));
+        *p.scroll_to = Some(type_name);
     }
 }
 
@@ -173,11 +170,11 @@ pub(super) fn overview(ui: &mut Ui, p: &mut Panels<'_>) {
     if variants::show(ui, p, PanelId::Overview) {
         return;
     }
-    follow_selection(ui, p);
+    follow_selection(p);
     let groups = by_level(p.catalog, p.filter);
     let Some(shown) = groups.iter().position(|(level, _)| level.title() == p.level.as_str()).or(if groups.is_empty() { None } else { Some(0) })
     else {
-        on_background(ui, "overview", |ui| {
+        on_background(ui, "overview", |ui, _| {
             Notice::new(Tone::Info, "No components match the filter.").show(ui);
         });
         return;
@@ -188,7 +185,7 @@ pub(super) fn overview(ui: &mut Ui, p: &mut Panels<'_>) {
     let cards: Vec<Spec> = groups[shown].1.iter().filter_map(|component| component_card(p, component, selected)).collect();
     let mut chosen = level;
     let mut reported = Vec::new();
-    on_background(ui, "overview", |ui| {
+    on_background(ui, "overview", |ui, _| {
         Row::new().show(ui, |ui, _| {
             Text::new("Level:").shade(Shade::Muted).show(ui);
             Select::new("Level", Bind::bound(&mut chosen), &entries).show(ui);
@@ -228,7 +225,7 @@ pub(super) fn component_tab(ui: &mut Ui, p: &mut Panels<'_>, type_name: &'static
         return;
     }
     let Some(entry) = entry_of(type_name) else {
-        on_background(ui, "component", |ui| {
+        on_background(ui, "component", |ui, _| {
             Notice::new(Tone::Info, "The component has no stories.").show(ui);
         });
         return;
@@ -255,6 +252,6 @@ pub(super) fn component_tab(ui: &mut Ui, p: &mut Panels<'_>, type_name: &'static
         })
         .collect();
     let mut reported = Vec::new();
-    on_background(ui, "component", |ui| reported = grid(ui, ("component", type_name), &cards, p, true));
+    on_background(ui, "component", |ui, _| reported = grid(ui, ("component", type_name), &cards, p, true));
     apply(ui, p, &cards, reported);
 }

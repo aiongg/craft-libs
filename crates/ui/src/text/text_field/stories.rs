@@ -6,14 +6,18 @@ use crate::primitives::{Completer, Completion, IconSpec};
 use crate::runtime::env::Message;
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use craft_behavior::{IconId, Mixed, PlainText};
+use craft_theme::ControlSize;
 use egui::{Key, Modifiers, Ui};
 use std::ops::Range;
 
+const SIZES: [(&str, ControlSize); 2] = [("Sm", ControlSize::Sm), ("Md", ControlSize::Md)];
 const LONG: &str = "A name that runs on well past the end of the field, so the field scrolls its text under the caret";
 
 #[story(TextField<'static, PlainText>, covers = [Default])]
 fn text_field(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    TextField::new("Name", Bind::bound(data.value("name", String::new()))).placeholder("Untitled").show(ui).into()
+    let size = *data.choice("size", ControlSize::Md, &SIZES);
+    let placeholder = data.value("placeholder", String::from("Untitled")).clone();
+    TextField::new("Name", Bind::bound(data.value("name", String::new()))).placeholder(placeholder).size(size).show(ui).into()
 }
 
 #[story(TextField<'static, PlainText>, covers = [LongText], drive = Drive::Never)]
@@ -44,7 +48,9 @@ fn text_field_disabled(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 
 #[story(TextField<'static, PlainText>, covers = [], drive = Drive::Type("query"))]
 fn text_field_search(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    TextField::search("Search", Bind::bound(data.value("query", String::new()))).placeholder("Search").show(ui).into()
+    let size = *data.choice("size", ControlSize::Md, &SIZES);
+    let placeholder = data.value("placeholder", String::from("Search")).clone();
+    TextField::search("Search", Bind::bound(data.value("query", String::new()))).placeholder(placeholder).size(size).show(ui).into()
 }
 
 /// Completes the words that start with the text before the caret.

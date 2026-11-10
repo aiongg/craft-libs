@@ -1,20 +1,17 @@
-//! The component tree: modules as groups, components under them, narrowed by the filter.
+//! The component tree: one group per level, the components of each under it, narrowed by the filter.
 
 use super::catalog::ComponentInfo;
 use craft_behavior::{DisplayOrder, ItemSource};
+use craft_ui::contract::Level;
 use craft_ui::list::OpenSet;
 use std::borrow::Cow;
-use std::collections::BTreeMap;
-
-/// The module a component without a probe is listed under.
-const UNDECLARED: &str = "Other";
 
 /// The key of a tree row.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[non_exhaustive]
 pub enum TreeKey {
-    /// A module group.
-    Module(&'static str),
+    /// A level group.
+    Level(Level),
     /// A component, by its registered type name.
     Component(&'static str),
 }
@@ -27,7 +24,7 @@ pub struct TreeRow {
     pub key: TreeKey,
     /// The text the row shows.
     pub label: String,
-    /// 0 for a module, 1 for a component.
+    /// 0 for a level, 1 for a component.
     pub depth: usize,
     /// Whether the row holds components.
     pub group: bool,
@@ -35,27 +32,34 @@ pub struct TreeRow {
     pub open: bool,
 }
 
-/// The module group a component is listed under.
-pub fn module_of(component: &ComponentInfo) -> &'static str {
-    if component.module.is_empty() { UNDECLARED } else { component.module }
+/// The slug a level is remembered by.
+pub fn slug(level: Level) -> String {
+    level.title().to_lowercase()
 }
 
-/// The rows of the tree for `filter`. A filter opens every group that holds a match, so the matches show.
+/// The level whose slug is `slug`.
+pub fn level_named(slug_text: &str) -> Option<Level> {
+    Level::ALL.into_iter().find(|level| slug(*level) == slug_text)
+}
+
+/// The rows of the tree for `filter`: the levels in order, each with the components that match, sorted by name
+/// ignoring case. A filter opens every level that holds a match, so the matches show; the open set stays as it is.
 pub fn rows(components: &[ComponentInfo], filter: &str, open: &OpenSet<TreeKey>) -> Vec<TreeRow> {
     let filtering = !filter.trim().is_empty();
-    let mut modules: BTreeMap<&'static str, Vec<&ComponentInfo>> = BTreeMap::new();
-    for component in components.iter().filter(|component| component.matches(filter)) {
-        modules.entry(module_of(component)).or_default().push(component);
-    }
     let mut rows = Vec::new();
-    for (module, members) in modules {
-        let key = TreeKey::Module(module);
+    for level in Level::ALL {
+        let mut members: Vec<&ComponentInfo> = components.iter().filter(|component| component.level == level && component.matches(filter)).collect();
+        if members.is_empty() {
+            continue;
+        }
+        members.sort_by_key(|component| component.name.to_lowercase());
+        let key = TreeKey::Level(level);
         let shown = filtering || open.is_open(&key);
-        rows.push(TreeRow { key, label: module.to_owned(), depth: 0, group: true, open: shown });
+        rows.push(TreeRow { key, label: level.title().to_owned(), depth: 0, group: true, open: shown });
         if shown {
             rows.extend(members.into_iter().map(|component| TreeRow {
                 key: TreeKey::Component(component.type_name),
-                label: component.short_name(),
+                label: component.name.clone(),
                 depth: 1,
                 group: false,
                 open: false,

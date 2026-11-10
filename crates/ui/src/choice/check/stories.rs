@@ -5,11 +5,14 @@ use crate::contract::{Bind, Props as _, Show as _, Validity};
 use crate::runtime::env::Message;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use craft_behavior::Mixed;
+use craft_theme::ControlSize;
 use egui::Ui;
 
 #[story(Checkbox<'static>, covers = [Default])]
 fn checkbox(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    Checkbox::new(Bind::bound(data.value("checked", false))).label("Show grid").show(ui).into()
+    let size = *data.choice("size", ControlSize::Md, &[("Sm", ControlSize::Sm), ("Md", ControlSize::Md)]);
+    let label = data.value("label", String::from("Show grid")).clone();
+    Checkbox::new(Bind::bound(data.value("checked", false))).label(label).size(size).show(ui).into()
 }
 
 #[story(Checkbox<'static>, covers = [Mixed], drive = Drive::Never)]
