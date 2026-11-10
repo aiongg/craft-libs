@@ -273,8 +273,9 @@ struct LabelLeaf {
     glyph: Option<Glyph>,
     /// The detail, resolved in the scope's language.
     detail: Option<Label>,
-    /// The text drawn when it differs from the name: the name with its colon.
-    shown: Option<String>,
+    /// The colon drawn after the name, in the scope's language; a separate run, so the name stays the one text a
+    /// narrow room elides.
+    colon: Option<String>,
     baseline: Cell<f32>,
     double_click: bool,
     dot_click: bool,
@@ -301,7 +302,7 @@ impl LabelLeaf {
             icon: None,
             glyph: None,
             detail: None,
-            shown: None,
+            colon: None,
             baseline: Cell::new(0.0),
             double_click: false,
             dot_click: false,
@@ -335,7 +336,7 @@ impl Component for LabelLeaf {
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        let line = cx.layout(&TextRun::new(self.shown.as_deref().unwrap_or(cx.resolved.label)));
+        let line = cx.layout(&TextRun::new(cx.resolved.label));
         let name = line.size();
         if let Some(glyph) = &self.glyph {
             let (shown, baseline) = match glyph {
@@ -351,7 +352,8 @@ impl Component for LabelLeaf {
             self.baseline.set(baseline);
             return Vec2::new(shown.x + self.slot, shown.y);
         }
-        let (mut width, mut height) = (name.x, name.y);
+        let colon = self.colon.as_deref().map_or(0.0, |colon| cx.layout(&TextRun::new(colon)).size().x);
+        let (mut width, mut height) = (name.x + colon, name.y);
         if self.icon.is_some() {
             width += cx.style.icon + cx.style.gap;
             height = height.max(cx.style.icon);
@@ -415,10 +417,21 @@ impl Component for LabelLeaf {
                 rest = after.take_start(cx.style.gap).1;
             }
             // A name wider than its room elides; the full text stays the accessible name.
-            let run = TextRun::new(self.shown.as_deref().unwrap_or(cx.core.resolved.label)).color(cx.resolve(&cx.style.name.color)).elide();
-            let name = draw.layout(&run, rest.rect().width()).size();
+            let ink = cx.resolve(&cx.style.name.color);
+            let colon = self.colon.as_deref().map(|colon| TextRun::new(colon).color(ink));
+            let colon_width = colon.as_ref().map_or(0.0, |run| draw.layout(run, f32::INFINITY).size().x);
+            let run = TextRun::new(cx.core.resolved.label).color(ink).elide();
+            let name = draw.layout(&run, (rest.rect().width() - colon_width).max(0.0)).size();
             let (name_rect, after) = rest.take_start(name.x);
             draw.text(centred(name_rect, name.y), &run);
+            let after = match colon {
+                Some(run) => {
+                    let (colon_rect, after) = after.take_start(colon_width);
+                    draw.text(centred(colon_rect, name.y), &run);
+                    after
+                }
+                None => after,
+            };
             if let Some(detail) = &self.detail {
                 let run = self.detail_run(detail, cx.style);
                 let (_, detail_flow) = after.take_start(cx.style.gap);
@@ -442,15 +455,15 @@ impl Component for LabelLeaf {
     }
 }
 
-/// The text a beside text label draws when it is not the name: the name followed by the scope's colon, unless the name
-/// ends in one. The label's node and the control keep the name as given.
-fn drawn(env: &Env, input: &LabelIn<'_>) -> Option<String> {
+/// The colon a beside text label draws after its name, unless the name ends in one. The label's node and the
+/// control keep the name as given.
+fn colon(env: &Env, input: &LabelIn<'_>) -> Option<String> {
     let text = env.view().resolve(input.text);
     let beside_text = input.side.layout == FieldLayout::Beside && input.side.kind == LabelKind::Text;
     if !beside_text || text.as_str().is_empty() || text.as_str().ends_with([':', '\u{ff1a}']) {
         return None;
     }
-    Some(env.words::<CommonWords>().caption.fill(&[("caption", text.as_str())]))
+    Some(env.words::<CommonWords>().caption.fill(&[("caption", "")]))
 }
 
 /// What the step needs of the row it runs for.
@@ -671,7 +684,7 @@ pub(crate) fn control_after(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Rect
     let slot = if reset.is_some() { env.tokens.size.handle.sm } else { 0.0 };
     let mut leaf = LabelLeaf::new(input.text.clone(), slot);
     leaf.resettable = reset.is_some();
-    leaf.shown = drawn(env, input);
+    leaf.colon = colon(env, input);
     match &input.side.kind {
         LabelKind::Glyph(glyph) => leaf.glyph = Some(glyph.resolved(env)),
         _ => {
@@ -707,7 +720,7 @@ pub(crate) fn run(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Placed {
     leaf.scrub = input.enabled && (input.side.scrub || scope::last_scrub(&ctx, input.scope));
     leaf.resettable = reset.is_some();
     leaf.differs = reset.is_some_and(|fact| fact.differs);
-    leaf.shown = drawn(env, input);
+    leaf.colon = colon(env, input);
     match &input.side.kind {
         LabelKind::Glyph(glyph) => leaf.glyph = Some(glyph.resolved(env)),
         _ => {

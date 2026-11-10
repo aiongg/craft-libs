@@ -21,9 +21,10 @@ fn a_beside_label_draws_a_colon_and_the_other_layouts_do_not() {
             cx.labelled(ui, "c", "Snap".into(), SideLabel::new().layout(FieldLayout::After), Dial::new(&mut 1.0, &seen[2]));
         });
     });
-    let drawn = |text: &str| frames.texts().iter().any(|run| run.text == text);
-    assert!(drawn("Width:"), "a beside label ends in a colon");
-    assert!(drawn("Height:") && !drawn("Height::"), "a colon the text has is not doubled");
-    assert!(drawn("Snap") && !drawn("Snap:"), "a label after its control has no colon");
+    let drawn = |text: &str| frames.texts().iter().filter(|run| run.text == text).count();
+    // The colon is its own run after the name: one for "Width", none for "Height:" (which has its own) and "Snap".
+    assert_eq!(drawn(":"), 1, "a beside label draws a colon unless it ends in one, and a label after its control has none");
+    assert_eq!(drawn("Width"), 1);
+    assert_eq!(drawn("Height:"), 1, "a colon the text has is not doubled");
     assert_eq!(seen[0].borrow().label.as_ref().map(|label| label.text.as_str()), Some("Width"), "the control's name has no colon");
 }
