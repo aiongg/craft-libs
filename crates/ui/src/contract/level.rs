@@ -188,7 +188,8 @@ pub struct Catalog {
 impl Catalog {
     /// The entry of the type whose registered name is `type_name`.
     pub fn entry(&self, type_name: &str) -> Option<&CatalogEntry> {
-        self.entries.iter().find(|entry| base_path(entry.type_name) == base_path(type_name))
+        let base = base_path(type_name);
+        self.entries.iter().find(|entry| entry.type_name.starts_with(base) && base_path(entry.type_name) == base)
     }
 }
 
