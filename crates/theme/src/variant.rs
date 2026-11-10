@@ -171,7 +171,11 @@ impl VariantLook {
             Emphasis::Soft => VariantLook::new(States::new(soft_fill, soft_fill, soft_fill, c.state.disabled_fill), text(fg))
                 .edge(States::new(edge, edge, edge, c.line.divider))
                 .radius(button),
-            Emphasis::Outline => VariantLook::new(state_fill, text(fg)).edge(States::new(edge, edge, edge, c.line.divider)).radius(button),
+            // A neutral outline darkens to the strongest ink under the pointer and the press; a toned one keeps its edge.
+            Emphasis::Outline => {
+                let lit = if tone == Tone::Neutral { c.text.normal } else { edge };
+                VariantLook::new(state_fill, text(fg)).edge(States::new(edge, lit, lit, c.line.divider)).radius(button)
+            }
             Emphasis::Ghost => VariantLook::new(state_fill, text(fg)).radius(button).edge(flat(clear)),
         }
     }
