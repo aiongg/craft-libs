@@ -2,7 +2,7 @@
 
 use super::Select;
 use crate::contract::{Bind, Entry, Props as _, Role, Show as _, ShowContainer as _, Validity};
-use crate::display::Text;
+use crate::display::{Shade, Text};
 use crate::form::Field;
 use crate::layout_components::Row;
 use crate::primitives::IconSpec;
@@ -63,7 +63,7 @@ fn select(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     });
     // A label of a disabled control would take a click that focuses nothing, so the row has a plain text label.
     Row::new().fill_width().id_salt("disabled").show(ui, |ui, _| {
-        Text::new("Disabled").show(ui);
+        Text::new("Disabled:").shade(Shade::Muted).show(ui);
         Select::new("Locked units", Bind::bound(&mut 2u8), &units).size(size).enabled(false).show(ui);
     });
     out.inner.map(StoryOutput::from).unwrap_or_default()

@@ -2,7 +2,7 @@
 
 use super::TextField;
 use crate::contract::{Bind, Props as _, Show as _, ShowContainer as _, Validity};
-use crate::display::Text;
+use crate::display::{Shade, Text};
 use crate::form::Field;
 use crate::layout_components::Row;
 use crate::primitives::{Completer, Completion, IconSpec};
@@ -41,7 +41,7 @@ fn text_field(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     for (at, text) in ["", "Locked layer"].into_iter().enumerate() {
         let name = if text.is_empty() { "Disabled, empty" } else { "Disabled, filled" };
         Row::new().fill_width().id_salt(("disabled", at)).show(ui, |ui, _| {
-            Text::new(name).show(ui);
+            Text::new(format!("{name}:")).shade(Shade::Muted).show(ui);
             TextField::new(name, Bind::bound(&mut text.to_owned())).placeholder(placeholder.clone()).size(size).enabled(false).show(ui);
         });
     }
