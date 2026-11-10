@@ -1,8 +1,11 @@
 //! Stories of the bars.
 
-use super::{Bar, BarItem, BarItems, BarKind, ItemDisplay};
+use super::{Bar, BarCell, BarItem, BarItems, BarKind, ItemDisplay};
+use crate::choice::Segmented;
+use crate::contract::{Bind, Entry};
 use crate::contract::{Show as _, ShowContainer as _};
 use crate::display::Text;
+use crate::pickers::Select;
 use crate::runtime::commands::EditCommands;
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use egui::{Key, Modifiers, Ui};
@@ -20,7 +23,7 @@ fn items() -> Vec<BarItem> {
     ]
 }
 
-#[story(Bar, covers = [Default], drive = Drive::Never)]
+#[story(Bar<'static>, covers = [Default], drive = Drive::Never)]
 fn bar(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     Bar::new("Tools", BarKind::Tool)
         .show(ui, |ui, _| {
@@ -29,7 +32,7 @@ fn bar(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
         .into()
 }
 
-#[story(Bar, covers = [], drive = Drive::Never)]
+#[story(Bar<'static>, covers = [], drive = Drive::Never)]
 fn bar_options(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     Bar::new("Brush options", BarKind::Options)
         .commit_cancel("Commit transform", "Cancel transform")
@@ -39,7 +42,28 @@ fn bar_options(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
         .into()
 }
 
-#[story(Bar, covers = [], drive = Drive::Never)]
+#[story(Bar<'static>, covers = [], drive = Drive::Never)]
+fn bar_captioned(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    let themes = [Entry::new(0u8, "ArtCraft"), Entry::new(1, "Paper")];
+    let modes = [Entry::new(0u8, "Light"), Entry::new(1, "Dark"), Entry::new(2, "System")];
+    Bar::new("Appearance", BarKind::Options)
+        .trailing(|ui| {
+            BarCell::new("Workspace").control(ui, |ui, label| {
+                Segmented::new(label, Bind::given(0u8), &modes).show(ui);
+            });
+        })
+        .show(ui, |ui, _| {
+            BarCell::new("Theme").control(ui, |ui, label| {
+                Select::new(label, Bind::given(0u8), &themes).show(ui);
+            });
+            BarCell::new("Mode").control(ui, |ui, label| {
+                Segmented::new(label, Bind::given(1u8), &modes).show(ui);
+            });
+        })
+        .into()
+}
+
+#[story(Bar<'static>, covers = [], drive = Drive::Never)]
 fn bar_status(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     Bar::new("Status", BarKind::Status)
         .show(ui, |ui, _| {

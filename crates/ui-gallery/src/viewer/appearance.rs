@@ -1,8 +1,7 @@
 //! The choices of the options bar: the named options of each root value, the theme list and the Variants axes.
 
-use craft_behavior::MotionMode;
 use craft_i18n::Direction;
-use craft_theme::{Contrast, Mode, Size, TextSize, ThemeDef, ThemeId, builtins};
+use craft_theme::{ContrastChoice, ModeChoice, MotionChoice, Size, TextSize, ThemeDef, ThemeId, builtins};
 use craft_ui::contract::Entry;
 use craft_ui::runtime::env::Scale;
 
@@ -50,8 +49,16 @@ macro_rules! choices {
     };
 }
 
-choices!(MODES: Mode = [(Mode::Light, "light", "Light"), (Mode::Dark, "dark", "Dark")]);
-choices!(CONTRASTS: Contrast = [(Contrast::Standard, "standard", "Standard"), (Contrast::High, "high", "High")]);
+choices!(MODES: ModeChoice = [
+    (ModeChoice::Light, "light", "Light"),
+    (ModeChoice::Dark, "dark", "Dark"),
+    (ModeChoice::System, "system", "System"),
+]);
+choices!(CONTRASTS: ContrastChoice = [
+    (ContrastChoice::Standard, "standard", "Standard"),
+    (ContrastChoice::High, "high", "High"),
+    (ContrastChoice::System, "system", "System"),
+]);
 choices!(TEXT_SIZES: TextSize = [
     (TextSize::Tiny, "tiny", "Tiny"),
     (TextSize::Small, "small", "Small"),
@@ -59,7 +66,11 @@ choices!(TEXT_SIZES: TextSize = [
     (TextSize::Large, "large", "Large"),
 ]);
 choices!(DENSITIES: Size = [(Size::Compact, "compact", "Compact"), (Size::Comfortable, "comfortable", "Comfortable")]);
-choices!(MOTIONS: MotionMode = [(MotionMode::Full, "full", "Off"), (MotionMode::Reduced, "reduced", "On")]);
+choices!(MOTIONS: MotionChoice = [
+    (MotionChoice::Full, "full", "Off"),
+    (MotionChoice::Reduced, "reduced", "On"),
+    (MotionChoice::System, "system", "System"),
+]);
 choices!(SCALES: Scale = [
     (Scale::new(1.0), "100", "100%"),
     (Scale::new(1.25), "125", "125%"),

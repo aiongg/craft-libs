@@ -21,6 +21,15 @@ pub enum ModeChoice {
     System,
 }
 
+impl From<Mode> for ModeChoice {
+    fn from(mode: Mode) -> Self {
+        match mode {
+            Mode::Light => ModeChoice::Light,
+            Mode::Dark => ModeChoice::Dark,
+        }
+    }
+}
+
 /// Standard, high, or whatever the OS reports.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -34,6 +43,15 @@ pub enum ContrastChoice {
     System,
 }
 
+impl From<Contrast> for ContrastChoice {
+    fn from(contrast: Contrast) -> Self {
+        match contrast {
+            Contrast::Standard => ContrastChoice::Standard,
+            Contrast::High => ContrastChoice::High,
+        }
+    }
+}
+
 /// Motion as designed, reduced, or whatever the OS reports.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -42,6 +60,8 @@ pub enum MotionChoice {
     Full,
     /// Reduced motion: every duration is zero.
     Reduced,
+    /// Nothing animates: for hosts and tests that must see end states. The reduced-motion appearance applies.
+    Off,
     /// The OS's reduced-motion setting, else full motion.
     #[default]
     System,
@@ -53,7 +73,7 @@ impl MotionChoice {
     pub fn reduced(self, system: Option<bool>) -> bool {
         match self {
             MotionChoice::Full => false,
-            MotionChoice::Reduced => true,
+            MotionChoice::Reduced | MotionChoice::Off => true,
             MotionChoice::System => system.unwrap_or(false),
         }
     }
