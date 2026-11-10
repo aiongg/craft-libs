@@ -9,7 +9,7 @@ use super::{PanelDrag, PanelKey, PanelTitle};
 use crate::buttons::IconButton;
 use crate::contract::{
     BodyCx, Common, Component, Container, ContainerProps, ContextMenuRequest, Cx, HeaderRegion, ListDrag, MeasureCx, Outcome, PaintUi, Pointer as _,
-    Props as _, Role, Show as _, ShowCollection as _, ShowContainer as _, Sizing, Trigger, WordSetCx as _,
+    PopupKind, Props as _, Role, Show as _, ShowCollection as _, ShowContainer as _, Sizing, Trigger, WordSetCx as _,
 };
 use crate::layout_components::Row;
 use crate::menu::{GroupItem, Menu, PanelMenu, PanelRow};
@@ -280,6 +280,11 @@ impl<P: Clone + Hash + Send + Sync + 'static> Component for DockGroup<'_, P> {
         ui.draw().surface(strip, SurfaceKind::Background, Corners::None);
     }
 
+    /// The group's frame, over the tabs and the body so the strip's tabs meet it.
+    fn paint_over(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        ui.draw().surface(cx.rect, SurfaceKind::Frame, Corners::None);
+    }
+
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         self.size = cx.rect.size();
         let Some(dock) = self.dock else { return };
@@ -375,13 +380,13 @@ impl<P: Clone + Hash + Send + Sync + 'static> Container for DockGroup<'_, P> {
         self.extra = extra;
     }
 
-    /// The end of the header: the panel menu button, then the bar the group is dragged by. The tabs take the room the
-    /// two leave.
+    /// The end of the header: the panel menu button. The tabs take the room it leaves.
     fn controls(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
         let words = cx.words::<DockWords>();
         if !self.menu.is_empty() && self.panel_menu_shown {
             let name = words.panel_menu.clone();
-            let button = IconButton::new(IconId::new("more")).size(ControlSize::Sm).label(name.clone()).show(ui);
+            let button =
+                IconButton::new(IconId::new("more")).size(ControlSize::Sm).popup(PopupKind::Menu).popup_mark(false).label(name.clone()).show(ui);
             let rows = self.menu.clone();
             let shown = Menu::new(name).opened_by(&button, Trigger::Click).show(ui, |ui, _| PanelMenu::new(Vec::new(), rows.clone()).show(ui).picked);
             self.reported.item = shown.inner.flatten().or(self.reported.item);
