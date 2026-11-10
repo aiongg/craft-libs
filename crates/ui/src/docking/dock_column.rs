@@ -594,7 +594,10 @@ impl<P: Value + Hash + 'static> Component for DockColumn<'_, P> {
         for pair in plan.open.windows(2) {
             ui.face(DIVIDER.at(pair[0] as u64), Splitter::new(Axis::Y));
         }
-        ui.face(EDGE.at(0), Splitter::new(Axis::X));
+        // The edge's line lies on the column's inner edge, over the frame; its handle stays inside the column.
+        let (rect, edge) = (cx.rect, self.edge_divider(cx.rect, &cx.style.sizes));
+        let x = if cx.flow.is_rtl() { rect.right() - (edge.at - rect.left()) } else { edge.at };
+        ui.face(EDGE.at(0), Splitter::new(Axis::X).boundary(x));
     }
 
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {

@@ -17,19 +17,23 @@ pub struct SplitterStyle {
 }
 
 /// A line between two panes, as thick across as the pointer's grab distance.
-#[derive(crate::contract::Component)]
+#[derive(crate::contract::Component, crate::contract::Props)]
 pub struct Splitter {
     #[common]
     common: Common,
     /// The axis the panes it divides follow: `X` for panes side by side, so the line is vertical.
     #[style_key]
     axis: Axis,
+    /// The boundary's coordinate across the line, where the handle's rect does not centre on it: a column's inner
+    /// edge, whose handle stays inside the column. The line lies on the boundary, over the column's frame.
+    #[prop(into, quantity = "coordinate")]
+    boundary: Option<f32>,
 }
 
 impl Splitter {
     /// A splitter between panes that follow `axis`.
     pub fn new(axis: Axis) -> Self {
-        Splitter { common: Common::new(), axis }
+        Splitter { common: Common::new(), axis, boundary: None }
     }
 }
 
@@ -58,8 +62,14 @@ impl Component for Splitter {
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let rect = cx.rect;
         let ends = match self.axis {
-            Axis::X => vec![rect.center_top(), rect.center_bottom()],
-            _ => vec![rect.left_center(), rect.right_center()],
+            Axis::X => {
+                let x = self.boundary.unwrap_or(rect.center().x);
+                vec![egui::Pos2::new(x, rect.top()), egui::Pos2::new(x, rect.bottom())]
+            }
+            _ => {
+                let y = self.boundary.unwrap_or(rect.center().y);
+                vec![egui::Pos2::new(rect.left(), y), egui::Pos2::new(rect.right(), y)]
+            }
         };
         ui.draw().stroke(&PaintShape::Path(ends), StrokeWidth::Thin, cx.resolve(&cx.style.line));
     }

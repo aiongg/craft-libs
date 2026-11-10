@@ -368,7 +368,10 @@ impl<P: Value + Hash + 'static> Component for IconicColumn<'_, P> {
             let icon: IconSpec<'static> = spec.icon.unwrap_or_else(|| IconId::new("more").into());
             ui.face(CELL.at(at as u64), IconButton::new(icon).label(spec.label).selected(self.shown == Some(at)));
         }
-        ui.face(EDGE.at(0), Splitter::new(Axis::X));
+        // The edge's line lies on the column's inner edge; its handle stays inside the column.
+        let (rect, edge) = (cx.rect, self.edge_divider(cx.rect, &cx.style.sizes.column));
+        let x = if cx.flow.is_rtl() { rect.right() - (edge.at - rect.left()) } else { edge.at };
+        ui.face(EDGE.at(0), Splitter::new(Axis::X).boundary(x));
     }
 
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
