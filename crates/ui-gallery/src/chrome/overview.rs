@@ -233,8 +233,10 @@ pub(super) fn overview(ui: &mut Ui, p: &mut Panels<'_>) {
 /// The Overview's card of `component`: every story of it, in catalog order.
 fn component_card(p: &Panels<'_>, component: &ComponentInfo, selected: Option<&'static str>) -> Option<Spec> {
     let entry = entry_of(component.type_name)?;
-    let stories: Vec<SpecStory> =
-        (0..p.catalog.entries.len()).filter(|&at| p.catalog.entries[at].type_name == component.type_name).map(|at| SpecStory::of(p, at, &entry.name)).collect();
+    let stories: Vec<SpecStory> = (0..p.catalog.entries.len())
+        .filter(|&at| p.catalog.entries[at].type_name == component.type_name)
+        .map(|at| SpecStory::of(p, at, &entry.name))
+        .collect();
     if stories.is_empty() {
         return None;
     }

@@ -4,8 +4,8 @@
 //! its dialogs open inside the card. [`StoryBody`] is the story part alone, which the component sheet renders too.
 
 use crate::viewer::{CardState, Cells, DialogState};
-use craft_behavior::{ColumnWidth, IconId};
 use craft_behavior::Proposal;
+use craft_behavior::{ColumnWidth, IconId};
 use craft_i18n::Direction;
 use craft_theme::{ControlSize, Mode};
 use craft_ui::buttons::Button;

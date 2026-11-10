@@ -148,7 +148,4 @@ pub(super) const SURFACES: &[(&str, &str, Surface)] = &[
 
 /// `(crate target, type name, layout)` of each type whose stories the old gallery laid out other than stacked: in a
 /// grid of cases, or as the rows of a form. Sorted by crate target and name.
-pub(super) const STORY_LAYOUTS: &[(&str, &str, StoryLayout)] = &[
-    ("craft_imaging", "PerspectiveWarp", Columns(2)),
-    ("craft_ui", "Slider", FormRows),
-];
+pub(super) const STORY_LAYOUTS: &[(&str, &str, StoryLayout)] = &[("craft_imaging", "PerspectiveWarp", Columns(2)), ("craft_ui", "Slider", FormRows)];

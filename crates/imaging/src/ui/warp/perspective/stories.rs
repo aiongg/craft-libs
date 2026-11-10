@@ -23,9 +23,9 @@ fn two_linked_planes() -> Vec<Plane> {
 fn on_canvas(ui: &mut Ui, planes: &mut Vec<Plane>, mode: PlaneMode) -> StoryOutput {
     let room = craft_ui::testing::stage(ui);
     let view = CanvasView::new(room, Point::new(f64::from(room.width()) / 2.0, f64::from(room.height()) / 2.0), 1.0);
-    let shown = Canvas::new("Document")
-        .view(view)
-        .show_at(ui, room, |ui, body| -> PerspectiveWarpOutput { PerspectiveWarp::new("Planes", Bind::bound(&mut *planes), mode, 0).show_at(ui, body.rect) });
+    let shown = Canvas::new("Document").view(view).show_at(ui, room, |ui, body| -> PerspectiveWarpOutput {
+        PerspectiveWarp::new("Planes", Bind::bound(&mut *planes), mode, 0).show_at(ui, body.rect)
+    });
     shown.inner.map(StoryOutput::from).unwrap_or_default()
 }
 

@@ -150,12 +150,7 @@ pub(super) fn show(ui: &mut Ui, p: &mut Panels<'_>, tab: PanelId) -> bool {
     };
     let heading = target.and_then(|(type_name, index)| {
         let entry = entry_of(type_name)?;
-        Some(format!(
-            "{} · {} in every {}",
-            entry.name,
-            p.catalog.entries[index].registration.story.caption(&entry.name),
-            noun(axis)
-        ))
+        Some(format!("{} · {} in every {}", entry.name, p.catalog.entries[index].registration.story.caption(&entry.name), noun(axis)))
     });
     let mut reported = Vec::new();
     on_background(ui, "variants", |ui, cx| {

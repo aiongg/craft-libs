@@ -23,9 +23,15 @@ fn button_variants(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let rows = |ui: &mut Ui, states: &[(&str, bool, bool)]| {
         for (name, variant) in variants {
             for (size_name, size) in SIZES {
-                Text::new(format!("{name} {size_name}")).shade(Shade::Muted).show(ui);
+                Text::new(format!("{name} {size_name}").to_lowercase()).shade(Shade::Muted).show(ui);
                 for &(state, enabled, loading) in states {
-                    Button::new(label.clone()).variant(variant).size(size).enabled(enabled).loading(loading).id_salt((name, size_name, state)).show(ui);
+                    Button::new(label.clone())
+                        .variant(variant)
+                        .size(size)
+                        .enabled(enabled)
+                        .loading(loading)
+                        .id_salt((name, size_name, state))
+                        .show(ui);
                 }
             }
         }
