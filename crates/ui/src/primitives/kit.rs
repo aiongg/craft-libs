@@ -72,7 +72,7 @@ impl Checker {
     /// The transparency grid preference's default, which an app shows until the user picks another: medium cells
     /// of 8 points, light colours (white and 80 % grey). The gallery's story documents show it.
     pub const PREFERENCE_DEFAULT: Checker =
-        Checker::new().size(8.0).colors(DataColor::new(Color32::WHITE), DataColor::new(Color32::from_rgb(204, 204, 204)));
+        Checker::new().size(8.0).colors(DataColor::new(Color32::from_rgb(255, 255, 255)), DataColor::new(Color32::from_rgb(204, 204, 204)));
 
     /// The theme's checker.
     pub const fn new() -> Self {
