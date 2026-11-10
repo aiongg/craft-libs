@@ -186,7 +186,12 @@ impl<'a> Menu<'a> {
     /// The rows of a menu in the flow of the layer that shows them, with no surface and no close rules of their own:
     /// the menu of a control that owns its popup shows its entries through it.
     pub fn inline(label: impl Into<Label>) -> Self {
-        let props = ContainerProps::new().body_gap(Gap::None).roving(Roving::new(NavShape::Flat).arrows(Arrows::Vertical)).label_column(true);
+        let props = ContainerProps::new()
+            .surface(SurfaceKind::Popup)
+            .pad(Pad::Regular)
+            .body_gap(Gap::None)
+            .roving(Roving::new(NavShape::Flat).arrows(Arrows::Vertical))
+            .label_column(true);
         Menu { common: Common::new(), props, open: None, closed: None, submenu: false, values: false, opener: None, back: false, step: None }
             .label(label)
     }
