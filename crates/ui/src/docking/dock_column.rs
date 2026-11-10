@@ -598,9 +598,8 @@ impl<P: Value + Hash + 'static> Component for DockColumn<'_, P> {
     }
 
     fn paint_over(&mut self, ui: &mut PaintUi<'_>, _: &Cx<'_, Self>) {
-        let Some(plan) = self.laid.as_ref() else { return };
-        for pair in plan.open.windows(2) {
-            ui.face(DIVIDER.at(pair[0] as u64), Splitter::new(Axis::Y));
+        if self.laid.is_none() {
+            return;
         }
         ui.face(EDGE.at(0), Splitter::new(Axis::X));
     }
