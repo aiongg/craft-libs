@@ -202,3 +202,29 @@ fn a_filling_child_of_the_scrolling_body_measures_its_content() {
     );
     assert!(path.rect.right() >= last.rect.right(), "the breadcrumb is at least as wide as its crumbs: {:?} holds {:?}", path.rect, last.rect);
 }
+
+/// An options bar in a stack's header whose members overflow its width takes the room for its scroll bar below the
+/// members. Without it the bar is only as tall as its members and the scroll bar lies over their lower part.
+#[trial]
+fn an_overflowing_bar_in_a_header_makes_room_for_its_scroll_bar() {
+    let mut fixture = Fixture::new(|ui| {
+        craft_ui::layout_components::Stack::new()
+            .fill()
+            .header(|ui, _| {
+                Bar::new("Options", BarKind::Options).show(ui, |ui, _| {
+                    for name in ["One", "Two", "Three", "Four", "Five", "Six"] {
+                        Button::new(name).show(ui);
+                    }
+                });
+            })
+            .show(ui, |ui, _| {
+                Button::new("Body").show(ui);
+            });
+    });
+    let mut height = |width: f32| {
+        fixture.room(Vec2::new(width, 400.0)).settle();
+        fixture.by_role(Role::GROUP).into_iter().next().expect("the bar is shown").rect.height()
+    };
+    let (fits, overflows) = (height(1000.0), height(150.0));
+    assert!(overflows > fits, "the overflowing bar is taller than the one that fits, by its scroll bar: {overflows} against {fits}");
+}

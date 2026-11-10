@@ -275,6 +275,15 @@ struct BodyScope {
     scroll: Option<Scroll>,
 }
 
+/// The room the scroll bars of `scroll` take from a view of `view` over content of `extent`: `bar` across the view
+/// for each axis whose content overflows it.
+fn overflow_inset(scroll: Scroll, extent: Vec2, view: Vec2, bar: f32) -> Vec2 {
+    Vec2::new(
+        if scroll.vertical_on() && f64::from(extent.y) > f64::from(view.y) + 0.5 { bar } else { 0.0 },
+        if scroll.horizontal_on() && f64::from(extent.x) > f64::from(view.x) + 0.5 { bar } else { 0.0 },
+    )
+}
+
 /// The scroll region of a container: its own, or for a layer the vertical one that takes the overflow of any fit
 /// (none when the body is one collection, which owns the scroll, or the overlay turns its body scroll off).
 fn scroll_of(props: &ContainerProps) -> Option<Scroll> {
@@ -2182,10 +2191,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                         let off = self.offset;
                         let big = super::MAX_EXTENT;
                         let bar = scroll_bar_look(&body_env.tokens).thickness;
-                        let inset = Vec2::new(
-                            if scroll.vertical_on() && f64::from(self.last.extent.1) > f64::from(at.height()) + 0.5 { bar } else { 0.0 },
-                            if scroll.horizontal_on() && f64::from(self.last.extent.0) > f64::from(at.width()) + 0.5 { bar } else { 0.0 },
-                        );
+                        let inset = overflow_inset(scroll, Vec2::new(self.last.extent.0, self.last.extent.1), at.size(), bar);
                         let seen = Rect::from_min_max(
                             Pos2::new(if rtl { at.min.x + inset.x } else { at.min.x }, at.min.y),
                             Pos2::new(if rtl { at.max.x } else { at.max.x - inset.x }, at.max.y - inset.y),
@@ -2208,7 +2214,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                         }
                         self.extent = Some(extent);
                         // Along an axis it scrolls the body took what the view shows; along the other it took its content.
-                        let took = extent + inset;
+                        let took = extent + overflow_inset(scroll, extent, at.size(), bar);
                         Some(Vec2::new(
                             if scroll.horizontal_on() { took.x.min(at.width()) } else { took.x },
                             if scroll.vertical_on() { took.y.min(at.height()) } else { took.y },
