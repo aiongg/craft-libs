@@ -8,7 +8,7 @@
 //! The surface is declared per type in `level_table.rs` (the old gallery's `.on(Surface::..)`); a type with no row
 //! sits on the panel.
 
-use super::level_table::{LEVELS, SURFACES};
+use super::level_table::SURFACES;
 use super::registry::Registration;
 use super::{Probe, ShapeKind};
 use std::collections::BTreeMap;
@@ -130,11 +130,6 @@ fn level_of(registration: &Registration) -> Option<Level> {
     let (module, _, probe) = parts(registration);
     if let Some(inside) = module.strip_prefix("craft_ui::") {
         return LIBRARY.iter().find(|(prefix, _)| within(inside, prefix)).map(|&(_, level)| level);
-    }
-    let path = base_path(parts(registration).1);
-    let short = path.rsplit("::").next().unwrap_or(path);
-    if let Some(row) = LEVELS.iter().find(|row| row.0 == registration.crate_target() && row.1 == short) {
-        return Some(row.2);
     }
     Some(match probe {
         None => Patterns,

@@ -78,7 +78,8 @@ fn body(ui: &mut Ui, _: &mut BodyCx<'_>, viewer: &mut Viewer) {
     let Viewer { env, workspace, preview, browser, themes, theme_dock, mock, variants, variants_tab, .. } = viewer;
     let subject = ThemeSubject::new(theme_of(&env.theme), env.appearance(ui.ctx()));
     let in_theme = *workspace == Workspace::Theme;
-    let Browser { catalog, filter, selection, open, dock, story_of, generation, cells, open_request, scroll_to, followed, level, .. } = browser;
+    let Browser { catalog, filter, selection, open, dock, story_of, generation, cells, open_request, scroll_to, followed, tree_seen, level, .. } =
+        browser;
     let dock: &mut Dock<_> = if in_theme { theme_dock } else { dock };
     let panels = Panels {
         catalog,
@@ -90,6 +91,7 @@ fn body(ui: &mut Ui, _: &mut BodyCx<'_>, viewer: &mut Viewer) {
         open_request,
         scroll_to,
         followed,
+        tree_seen,
         generation: *generation,
         themes,
         subject,

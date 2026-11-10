@@ -49,6 +49,8 @@ pub struct Browser {
     pub scroll_to: Option<&'static str>,
     /// The selected component the Overview last followed to its level; the outer `None` before the first pass.
     pub followed: Option<Option<&'static str>>,
+    /// The selected component the tree last opened the level of; the outer `None` before the first pass.
+    pub tree_seen: Option<Option<&'static str>>,
 }
 
 /// What the dock shows.
@@ -116,6 +118,7 @@ impl Viewer {
             open_request: None,
             scroll_to: None,
             followed: None,
+            tree_seen: None,
         };
         let mut viewer = Viewer {
             env: RootEnv::default(),

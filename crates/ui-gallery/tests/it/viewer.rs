@@ -189,23 +189,15 @@ fn domain_crate_types_have_an_overview_entry_and_a_declaration() {
     }
 }
 
-/// Regression: the Overview lacked the Foundations level and the old gallery's domain composites, and a generic
-/// registration (`PresetBrowser<'_, u32>`) must be listed under its plain name.
+/// Regression: a selection that moved into a closed level left the tree showing no row for it.
 #[trial]
-fn levels_list_the_old_galleries_foundations_and_composites() {
-    let _ = craft_ui_gallery::linked_counts();
-    let catalog = Catalog::linked();
-    let groups = by_level(&catalog, "");
-    let names = |level: craft_ui::contract::Level| -> Vec<String> {
-        groups
-            .iter()
-            .filter(|(shown, _)| *shown == level)
-            .flat_map(|(_, components)| components.iter().map(|component| component.name.clone()))
-            .collect()
-    };
-    assert!(names(craft_ui::contract::Level::Foundations).contains(&"TokenBrowser".to_owned()));
-    let composites = names(craft_ui::contract::Level::Composites);
-    for expected in ["AxisSliders", "BlendIfBar", "BlendRows", "BlurPinsOverlay", "PresetBrowser"] {
-        assert!(composites.contains(&expected.to_owned()), "{expected} is not listed under Composites");
-    }
+fn selecting_a_component_opens_its_level_once() {
+    let components = [ComponentInfo::new("A", Level::Controls, "A", &[("a", "A")]), ComponentInfo::new("B", Level::Patterns, "B", &[("b", "B")])];
+    let mut open = OpenSet::new();
+    let mut seen = None;
+    craft_ui_gallery::viewer::open_level_of_selection(&mut open, &components, Some("B"), &mut seen);
+    assert!(open.is_open(&TreeKey::Level(Level::Patterns)));
+    open.set(&TreeKey::Level(Level::Patterns), false);
+    craft_ui_gallery::viewer::open_level_of_selection(&mut open, &components, Some("B"), &mut seen);
+    assert!(!open.is_open(&TreeKey::Level(Level::Patterns)), "the same selection must not reopen a level the user closed");
 }

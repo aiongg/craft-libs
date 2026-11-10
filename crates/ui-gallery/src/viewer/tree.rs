@@ -42,6 +42,23 @@ pub fn level_named(slug_text: &str) -> Option<Level> {
     Level::ALL.into_iter().find(|level| slug(*level) == slug_text)
 }
 
+/// Opens the level of `selected` when the selection is not the one `seen` records, then records it, so a selection
+/// that moves into a closed level shows its row. The levels the user opened or closed otherwise stay as they are.
+pub fn open_level_of_selection(
+    open: &mut OpenSet<TreeKey>,
+    components: &[ComponentInfo],
+    selected: Option<&'static str>,
+    seen: &mut Option<Option<&'static str>>,
+) {
+    if *seen == Some(selected) {
+        return;
+    }
+    *seen = Some(selected);
+    if let Some(component) = selected.and_then(|type_name| components.iter().find(|component| component.type_name == type_name)) {
+        open.set(&TreeKey::Level(component.level), true);
+    }
+}
+
 /// The rows of the tree for `filter`: the levels in order, each with the components that match, sorted by name
 /// ignoring case. A filter opens every level that holds a match, so the matches show; the open set stays as it is.
 pub fn rows(components: &[ComponentInfo], filter: &str, open: &OpenSet<TreeKey>) -> Vec<TreeRow> {

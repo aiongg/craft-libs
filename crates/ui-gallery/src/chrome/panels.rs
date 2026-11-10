@@ -43,6 +43,8 @@ pub struct Panels<'a> {
     pub scroll_to: &'a mut Option<&'static str>,
     /// The selected component the Overview last followed to its level.
     pub followed: &'a mut Option<Option<&'static str>>,
+    /// The selected component the tree last opened the level of.
+    pub tree_seen: &'a mut Option<Option<&'static str>>,
     /// The reset count the cards' id scopes carry.
     pub generation: u32,
     /// What the theme panels share.
@@ -122,6 +124,8 @@ impl Panels<'_> {
     }
 
     fn components(&mut self, ui: &mut Ui) {
+        let selected = self.selected().map(|component| component.type_name);
+        viewer::open_level_of_selection(self.open, &self.catalog.components, selected, &mut *self.tree_seen);
         let shown = viewer::rows(&self.catalog.components, self.filter.as_str(), &*self.open);
         let groups = viewer::groups(&shown);
         let by_key: HashMap<&TreeKey, &TreeRow> = shown.iter().map(|row| (&row.key, row)).collect();
