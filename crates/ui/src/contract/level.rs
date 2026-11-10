@@ -10,7 +10,7 @@
 //! The surface is declared per type in `level_table.rs` (the old gallery's `.on(Surface::..)`); a type with no row
 //! sits on the panel.
 
-use super::level_table::SURFACES;
+use super::level_table::{STORY_LAYOUTS, SURFACES};
 use super::registry::Registration;
 use super::{Probe, ShapeKind};
 use std::collections::BTreeMap;
@@ -67,6 +67,20 @@ pub enum Surface {
     Chrome,
     /// The type paints its own panel, dock, dialog or shell, so the viewer adds no surface round it.
     Own,
+}
+
+/// How a viewer lays out the stories of one type together, as the old gallery's story of the type laid out its cases.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum StoryLayout {
+    /// One under the other, each under its caption.
+    #[default]
+    Stacked,
+    /// In rows of up to this many columns, each under its caption; fewer where a column would be narrower than a
+    /// viewer's least story width.
+    Columns(u8),
+    /// Form rows: each story's caption as the row's label, the story beside it.
+    FormRows,
 }
 
 use Level::{Composites, Controls, Patterns, Primitives, Shells};
@@ -149,6 +163,13 @@ fn surface_of(registration: &Registration) -> Surface {
     SURFACES.iter().find(|row| row.0 == registration.crate_target() && row.1 == short).map_or(Surface::Panel, |row| row.2)
 }
 
+/// How a viewer lays out the type's stories: the one `STORY_LAYOUTS` declares, else stacked.
+fn story_layout_of(registration: &Registration) -> StoryLayout {
+    let path = base_path(parts(registration).1);
+    let short = path.rsplit("::").next().unwrap_or(path);
+    STORY_LAYOUTS.iter().find(|row| row.0 == registration.crate_target() && row.1 == short).map_or(StoryLayout::Stacked, |row| row.2)
+}
+
 /// The type's path without its type arguments.
 fn base_path(type_name: &str) -> &str {
     type_name.split('<').next().unwrap_or(type_name)
@@ -168,6 +189,8 @@ pub struct CatalogEntry {
     pub level: Level,
     /// The surface its stories sit on.
     pub surface: Surface,
+    /// How its stories are laid out together.
+    pub story_layout: StoryLayout,
     /// The type's name with its type arguments, as the registry spells it; the key a story names its type by.
     pub type_name: &'static str,
     /// The type's display name: a PascalCase identifier, unique in the catalog.
@@ -216,9 +239,9 @@ pub fn catalog(registrations: &[&'static Registration]) -> Catalog {
             let name = qualified(path, short, &paths);
             match level_of(registration) {
                 Some(level) => {
-                    let surface = surface_of(registration);
+                    let (surface, story_layout) = (surface_of(registration), story_layout_of(registration));
                     let type_name = parts(registration).1;
-                    out.entries.push(CatalogEntry { registration, level, surface, type_name, name });
+                    out.entries.push(CatalogEntry { registration, level, surface, story_layout, type_name, name });
                 }
                 None => out.unleveled.push(parts(registration).1),
             }
@@ -290,7 +313,7 @@ fn linked() -> Vec<&'static Registration> {
     super::registrations().into_iter().filter(|registration| registration.crate_target() == registration.crate_name().replace('-', "_")).collect()
 }
 
-/// Guards against a surface row whose type is gone, in every crate that has a linked registration.
+/// Guards against a surface or story layout row whose type is gone, in every crate that has a linked registration.
 #[crate::testing::trial]
 fn surface_table_has_no_stale_row() {
     let linked = linked();
@@ -302,7 +325,8 @@ fn surface_table_has_no_stale_row() {
         })
         .collect();
     let crates: std::collections::HashSet<&str> = named.iter().map(|(target, _)| *target).collect();
-    let stale: Vec<_> = SURFACES.iter().filter(|row| crates.contains(row.0) && !named.contains(&(row.0, row.1))).map(|row| (row.0, row.1)).collect();
+    let rows = SURFACES.iter().map(|row| (row.0, row.1)).chain(STORY_LAYOUTS.iter().map(|row| (row.0, row.1)));
+    let stale: Vec<_> = rows.filter(|row| crates.contains(row.0) && !named.contains(row)).collect();
     assert!(stale.is_empty(), "rows without a registered type: {stale:?}");
 }
 

@@ -26,7 +26,7 @@ fn slider_drag(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     Slider::new(Bind::bound(data.ranged("value", 40.0, RANGE)), RANGE).label("Opacity").show(ui).into()
 }
 
-#[story(Slider<'static>, covers = [], drive = Drive::Step)]
+#[story(Slider<'static>, covers = [], drive = Drive::Step, title = "Log")]
 fn slider_log(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     Slider::new(Bind::bound(data.value("size", 8.0)), 1.0..=200.0).scale(SliderScale::Log).label("Brush size").show(ui).into()
 }
@@ -42,7 +42,7 @@ fn slider_invalid(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     Slider::new(Bind::bound(data.value("over", 95.0)).check(refuse_over), RANGE).label("Opacity").show(ui).into()
 }
 
-#[story(Slider<'static>, covers = [], drive = Drive::Never)]
+#[story(Slider<'static>, covers = [], drive = Drive::Never, title = "Marks")]
 fn slider_marks(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     Slider::new(Bind::bound(data.value("value", 25.0)), RANGE).marks(&[0.0, 25.0, 50.0, 100.0]).label("Opacity").show(ui).into()
 }

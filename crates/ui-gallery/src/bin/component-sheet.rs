@@ -207,7 +207,7 @@ fn write_tables(out: &Path, jobs: &[Job], done: &[Option<Done>]) -> std::io::Res
         let (status, size) = done.as_ref().map_or(("not run".to_owned(), None), |done| (clean(&done.status), done.size));
         let (w, h) = size.map_or((String::new(), String::new()), |(w, h)| (w.to_string(), h.to_string()));
         let story = job.story.story.name;
-        let title = clean(&craft_ui::contract::story_title(&job.name, story));
+        let title = clean(&job.story.story.caption(&job.name));
         let _ = writeln!(stories, "{}\t{}\t{}\t{story}\t{title}\t{}\t{status}\t{w}\t{h}", job.name, job.level, job.crate_name, file_name(job));
         if job.first {
             let _ = writeln!(components, "{}\t{}\t{}\t{story}\t{status}", job.name, job.level, job.crate_name);

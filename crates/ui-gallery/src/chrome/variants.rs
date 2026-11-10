@@ -2,14 +2,14 @@
 //! front centre tab's content.
 
 use super::card::Look;
-use super::overview::{Spec, apply, grid, on_background, selected_type, target_story};
+use super::overview::{Spec, SpecStory, apply, grid, on_background, selected_type, target_story};
 use super::panels::Panels;
 use crate::viewer::{DIRECTIONS, MODES, PanelId, VariantAxis, entry_of};
 use craft_i18n::Direction;
 use craft_theme::variant::Tone;
 use craft_theme::{ControlSize, Mode, ModeChoice};
 use craft_ui::buttons::Button;
-use craft_ui::contract::{Show as _, ShowContainer as _};
+use craft_ui::contract::{Show as _, ShowContainer as _, StoryLayout};
 use craft_ui::display::{Shade, Text};
 use craft_ui::layout_components::Row;
 use craft_ui::notices::Notice;
@@ -122,7 +122,6 @@ pub(super) fn show(ui: &mut Ui, p: &mut Panels<'_>, tab: PanelId) -> bool {
     let cards: Vec<Spec> = match (target, values(axis)) {
         (Some((type_name, index)), Some(values)) => {
             let Some(entry) = entry_of(type_name) else { return false };
-            let story = p.catalog.entries[index].registration;
             let (mode, direction) = (p.env.appearance(ui.ctx()).mode, p.env.direction);
             let shown = |look: &Look| match axis {
                 VariantAxis::Mode => look.mode == Some(mode),
@@ -133,11 +132,11 @@ pub(super) fn show(ui: &mut Ui, p: &mut Panels<'_>, tab: PanelId) -> bool {
                 .iter()
                 .map(|value| Spec {
                     key: format!("variant/{}/{}", noun(axis), value.label),
-                    index,
                     type_name,
                     title: value.label.to_owned(),
                     note: shown(&value.look).then(|| "shown now".to_owned()),
-                    story,
+                    stories: vec![SpecStory::of(p, index, &entry.name)],
+                    layout: StoryLayout::Stacked,
                     surface: entry.surface,
                     open: false,
                     usable: true,
@@ -154,7 +153,7 @@ pub(super) fn show(ui: &mut Ui, p: &mut Panels<'_>, tab: PanelId) -> bool {
         Some(format!(
             "{} · {} in every {}",
             entry.name,
-            craft_ui::contract::story_title(&entry.name, p.catalog.entries[index].registration.story.name),
+            p.catalog.entries[index].registration.story.caption(&entry.name),
             noun(axis)
         ))
     });

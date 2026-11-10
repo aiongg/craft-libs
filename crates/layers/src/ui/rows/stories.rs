@@ -7,9 +7,9 @@ use craft_ui::contract::Entry;
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
 
-/// Photoshop's blend modes, as the app offers them.
-fn modes() -> Vec<Entry<String>> {
-    FakeLayers::sample().blend_modes(false, "normal")
+/// Photoshop's blend modes, as the app offers them for a layer or, with Pass Through, a group.
+fn modes(group: bool) -> Vec<Entry<String>> {
+    FakeLayers::sample().blend_modes(group, "normal")
 }
 
 /// The opacity of the story's layer.
@@ -46,7 +46,7 @@ fn apply(properties: &mut LayerProperties, events: &[LayerPropertyEdit]) {
 }
 
 fn show(ui: &mut Ui, properties: &mut Option<LayerProperties>) -> StoryOutput {
-    let modes = modes();
+    let modes = modes(properties.as_ref().is_some_and(|properties| properties.group));
     let out = BlendRows::new(properties.as_ref(), &modes).show(ui);
     if let Some(properties) = properties {
         apply(properties, &out.events);
@@ -54,29 +54,35 @@ fn show(ui: &mut Ui, properties: &mut Option<LayerProperties>) -> StoryOutput {
     out.into()
 }
 
-#[story(BlendRows<'static>, covers = [Default], drive = Drive::Never)]
+#[story(BlendRows<'static>, covers = [Default], drive = Drive::Never, title = "Normal layer")]
 fn a_layer(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let properties = data.value("properties", Some(LayerProperties { opacity: OPACITY, ..LayerProperties::new("multiply") }));
     show(ui, properties)
 }
 
-#[story(BlendRows<'static>, covers = [], drive = Drive::Never)]
+#[story(BlendRows<'static>, covers = [], drive = Drive::Never, title = "Group")]
+fn a_group(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let properties = data.value("properties", Some(LayerProperties { group: true, ..LayerProperties::new("passThrough") }));
+    show(ui, properties)
+}
+
+#[story(BlendRows<'static>, covers = [], drive = Drive::Never, title = "Background")]
 fn the_background(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let properties = data.value("properties", Some(LayerProperties { editable: false, ..LayerProperties::new("normal") }));
     show(ui, properties)
 }
 
-#[story(BlendRows<'static>, covers = [], drive = Drive::Never)]
-fn no_layer(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let properties = data.value("properties", None::<LayerProperties>);
-    show(ui, properties)
-}
-
-#[story(BlendRows<'static>, covers = [], drive = Drive::Never)]
+#[story(BlendRows<'static>, covers = [], drive = Drive::Never, title = "Several layers selected")]
 fn mixed_locks(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let mut properties = LayerProperties::new("normal");
     properties.locks.pixels = true;
     properties.locks.position = true;
     let properties = data.value("properties", Some(properties));
+    show(ui, properties)
+}
+
+#[story(BlendRows<'static>, covers = [], drive = Drive::Never, title = "No active layer")]
+fn no_layer(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let properties = data.value("properties", None::<LayerProperties>);
     show(ui, properties)
 }

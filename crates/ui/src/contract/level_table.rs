@@ -1,7 +1,9 @@
-//! The surface of each registered type that does not sit on a dock panel, as the old gallery drew it: bars on the
-//! window chrome, canvas tools and overlays on the document, docks, dialogs and shells on their own. A type added
-//! since follows the same convention.
+//! How a viewer shows the stories of a type, as the old gallery drew them: the surface of each type that does not sit
+//! on a dock panel (bars on the window chrome, canvas tools and overlays on the document, docks, dialogs and shells on
+//! their own), and the layout of each type whose stories are not stacked. A type added since follows the same
+//! convention.
 
+use super::level::StoryLayout::{self, Columns, FormRows};
 use super::level::Surface::{self, Canvas, Chrome, Own};
 
 /// `(crate target, type name, surface)`, sorted by crate target and name.
@@ -142,4 +144,11 @@ pub(super) const SURFACES: &[(&str, &str, Surface)] = &[
     ("craft_ui", "Watermark", Own),
     ("craft_ui", "WindowMenuRows", Own),
     ("craft_ui_gallery", "MoveTool", Canvas),
+];
+
+/// `(crate target, type name, layout)` of each type whose stories the old gallery laid out other than stacked: in a
+/// grid of cases, or as the rows of a form. Sorted by crate target and name.
+pub(super) const STORY_LAYOUTS: &[(&str, &str, StoryLayout)] = &[
+    ("craft_imaging", "PerspectiveWarp", Columns(2)),
+    ("craft_ui", "Slider", FormRows),
 ];

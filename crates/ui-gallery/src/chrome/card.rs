@@ -1,16 +1,18 @@
-//! One card: a story live on its surface under a header with the component's name and, while the story differs from its
-//! start, Reset; the Open command of an Overview card opens the component's tab. The story runs in an embedded shell,
-//! so its dialogs open inside the card. [`StoryBody`] is the story part alone, which the component sheet renders too.
+//! One card: stories live on their surface under a header with the component's name and, while a story differs from
+//! its start, Reset; the Open command of an Overview card opens the component's tab. A card of several stories lays
+//! them out as the component's catalog entry says, each under its caption. Each story runs in an embedded shell, so
+//! its dialogs open inside the card. [`StoryBody`] is the story part alone, which the component sheet renders too.
 
-use crate::viewer::{CardState, DialogState};
-use craft_behavior::IconId;
+use crate::viewer::{CardState, Cells, DialogState};
+use craft_behavior::{ColumnWidth, IconId};
 use craft_behavior::Proposal;
 use craft_i18n::Direction;
 use craft_theme::{ControlSize, Mode};
 use craft_ui::buttons::Button;
 use craft_ui::contract::Show as _;
-use craft_ui::contract::{CommandSet, Commands as _, Pad, Props as _, ShowContainer as _, Sizing, Surface, ThemeScope};
-use craft_ui::layout_components::Stack;
+use craft_ui::contract::{CommandSet, Commands as _, Gap, Pad, Props as _, ShowContainer as _, Sizing, StoryLayout, Surface, ThemeScope};
+use craft_ui::display::{Shade, Text};
+use craft_ui::layout_components::{Grid, Stack};
 use craft_ui::runtime::env::{BodyMode, ShellCx, WindowKey, with_env};
 use craft_ui::sections::{HeaderCommand, HeaderStrength, Panel};
 use craft_ui::shell::AppShell;
@@ -49,6 +51,24 @@ pub struct Look {
     pub size: Option<ControlSize>,
 }
 
+/// One story a card shows.
+#[non_exhaustive]
+pub struct CardStory<'a> {
+    /// The index of the story in the catalog: the key of its state.
+    pub index: usize,
+    /// The story.
+    pub story: &'static StoryRegistration,
+    /// The story's caption.
+    pub caption: &'a str,
+}
+
+impl<'a> CardStory<'a> {
+    /// The story at catalog index `index`, under `caption`.
+    pub fn new(index: usize, story: &'static StoryRegistration, caption: &'a str) -> Self {
+        CardStory { index, story, caption }
+    }
+}
+
 /// What one card shows.
 #[non_exhaustive]
 pub struct Card<'a> {
@@ -56,11 +76,13 @@ pub struct Card<'a> {
     pub key: String,
     /// The component's display name.
     pub title: &'a str,
-    /// The story's title, when the card shows other than the component's first story.
+    /// A note after the title.
     pub note: Option<&'a str>,
-    /// The story.
-    pub story: &'static StoryRegistration,
-    /// The surface the story sits on.
+    /// The stories, in the order they show. A card of more than one shows each under its caption.
+    pub stories: &'a [CardStory<'a>],
+    /// How the stories are laid out together.
+    pub layout: StoryLayout,
+    /// The surface the stories sit on.
     pub surface: Surface,
     /// The height a story that fills is given: the visible height of the view the cards scroll in, as the old
     /// gallery's tiles gave it.
@@ -71,9 +93,9 @@ pub struct Card<'a> {
     pub usable: bool,
     /// Whether the card has the selection ring.
     pub selected: bool,
-    /// The values the card sets for its story.
+    /// The values the card sets for its stories.
     pub look: Look,
-    /// Whether the story's wheel takers take the wheel only while focused or armed: a card among others in a
+    /// Whether the stories' wheel takers take the wheel only while focused or armed: a card among others in a
     /// scrolling overview.
     pub gated: bool,
 }
@@ -94,9 +116,18 @@ pub struct CardEvents {
     pub rect: Option<Rect>,
 }
 
+/// The narrowest a column of stories may be, as the old gallery's story grids kept their cases.
+const STORY_MIN_WIDTH: f32 = 240.0;
+
+/// The column lists of story grids, by count.
+static COLUMNS: [ColumnWidth; 4] = [ColumnWidth::fill(1.0); 4];
+
+/// The columns of a form-rows card: the captions, then the stories.
+const FORM_ROWS: &[ColumnWidth] = &[ColumnWidth::Content, ColumnWidth::fill(1.0)];
+
 impl Card<'_> {
-    /// Shows the card in the room `ui` offers, with the state of its story.
-    pub fn show(&self, ui: &mut Ui, state: &mut CardState) -> CardEvents {
+    /// Shows the card in the room `ui` offers, with the states of its stories.
+    pub fn show(&self, ui: &mut Ui, cells: &mut Cells) -> CardEvents {
         let mut events = CardEvents::default();
         // A story on the card's own surface sits inside the card's padding; any other surface runs edge to edge under the
         // header band.
@@ -120,7 +151,8 @@ impl Card<'_> {
         if self.usable {
             commands.push(HeaderCommand::new(IconId::new("check"), CardCommands::Use).size(ControlSize::Sm));
         }
-        if state.changed() || state.dialog.shown {
+        let away = self.stories.iter().any(|story| cells.get(&story.index).is_some_and(|state| state.changed() || state.dialog.shown));
+        if away {
             commands.push(HeaderCommand::new(IconId::new("undo"), CardCommands::Reset).size(ControlSize::Sm));
         }
         let shown = panel.commands(commands).show(ui, |ui, cx| {
@@ -132,12 +164,58 @@ impl Card<'_> {
                 }
             }
             events.pressed |= cx.surface_pressed();
-            let body =
-                StoryBody { look: self.look, gated: self.gated, ..StoryBody::new(self.key.clone(), self.story, self.surface, self.room, Pad::None) };
-            body.show(ui, state);
+            self.stories_in(ui, cells);
         });
         events.rect = Some(shown.response.rect);
         events
+    }
+
+    /// The card's stories in its layout; a lone story without its caption.
+    fn stories_in(&self, ui: &mut Ui, cells: &mut Cells) {
+        if let [story] = self.stories {
+            self.body(ui, story, cells);
+            return;
+        }
+        match self.layout {
+            StoryLayout::FormRows => {
+                Grid::new(FORM_ROWS).fill_width().show(ui, |ui, _| {
+                    for story in self.stories {
+                        Text::new(story.caption.to_owned()).show(ui);
+                        Stack::new().fill_width().show(ui, |ui, _| self.body(ui, story, cells));
+                    }
+                });
+            }
+            StoryLayout::Columns(most) => {
+                let gap = Gap::Item.points(ui);
+                let fit = ((ui.available_width() + gap) / (STORY_MIN_WIDTH + gap)).floor() as usize;
+                let columns = fit.clamp(1, usize::from(most).clamp(1, COLUMNS.len()));
+                Grid::new(&COLUMNS[..columns]).gap(Gap::Item).fill_width().show(ui, |ui, _| {
+                    for story in self.stories {
+                        Stack::new().fill_width().show(ui, |ui, _| self.captioned(ui, story, cells));
+                    }
+                });
+            }
+            _ => {
+                Stack::new().fill_width().show(ui, |ui, _| {
+                    for story in self.stories {
+                        self.captioned(ui, story, cells);
+                    }
+                });
+            }
+        }
+    }
+
+    /// `story` under its caption, in the old gallery's caption style.
+    fn captioned(&self, ui: &mut Ui, story: &CardStory<'_>, cells: &mut Cells) {
+        Text::new(story.caption.to_owned()).shade(Shade::Muted).show(ui);
+        self.body(ui, story, cells);
+    }
+
+    /// The body of `story`, with its state.
+    fn body(&self, ui: &mut Ui, story: &CardStory<'_>, cells: &mut Cells) {
+        let key = format!("{}/{}", self.key, story.story.story.name);
+        let body = StoryBody { look: self.look, gated: self.gated, ..StoryBody::new(key, story.story, self.surface, self.room, Pad::None) };
+        body.show(ui, cells.entry(story.index).or_default());
     }
 }
 

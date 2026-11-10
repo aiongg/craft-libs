@@ -102,7 +102,7 @@ pub fn components(entries: &[Entry]) -> Vec<ComponentInfo> {
     for entry in entries {
         let Some(listed) = linked_catalog().entry(entry.type_name) else { continue };
         let story = entry.registration.story.name;
-        let title = contract::story_title(&listed.name, story);
+        let title = entry.registration.story.caption(&listed.name);
         match out.iter_mut().find(|component| component.type_name == entry.type_name) {
             Some(component) => {
                 component.stories.push(story);

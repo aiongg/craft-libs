@@ -1,13 +1,13 @@
 //! The centre tabs: the Overview (the cards of one level), a component's tab (every story of it) and the Variants view
 //! that replaces the front one.
 
-use super::card::{Card, CardEvents, Look};
+use super::card::{Card, CardEvents, CardStory, Look};
 use super::panels::Panels;
 use super::variants;
 use crate::viewer::{ComponentInfo, PanelId, TreeKey, by_level, entry_of};
 use craft_behavior::{ColumnWidth, Selection};
 use craft_theme::variant::Tone;
-use craft_ui::contract::{Bind, BodyCx, Entry, Gap, Lazy, Pad, Props as _, Scroll, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, BodyCx, Entry, Gap, Lazy, Pad, Props as _, Scroll, Show as _, ShowContainer as _, StoryLayout};
 use craft_ui::display::{Shade, Text};
 use craft_ui::layout_components::{Grid, Row, Stack};
 use craft_ui::notices::Notice;
@@ -25,19 +25,37 @@ const CARD_MIN_WIDTH: f32 = 290.0;
 const ONE: &[ColumnWidth] = &[ColumnWidth::fill(1.0)];
 const TWO: &[ColumnWidth] = &[ColumnWidth::fill(1.0); 2];
 
-/// The card of one story to show, before it is laid out.
+/// One story of a card to show.
+pub(super) struct SpecStory {
+    /// The index of the story in the catalog.
+    pub index: usize,
+    pub story: &'static StoryRegistration,
+    /// The story's caption.
+    pub caption: String,
+}
+
+impl SpecStory {
+    /// The story at catalog index `index` of the component whose display name is `name`.
+    pub fn of(p: &Panels<'_>, index: usize, name: &str) -> Self {
+        let story = p.catalog.entries[index].registration;
+        SpecStory { index, story, caption: story.story.caption(name) }
+    }
+}
+
+/// The card of one component to show, before it is laid out.
 pub(super) struct Spec {
     /// The id scope of the card.
     pub key: String,
-    /// The index of the story in the catalog.
-    pub index: usize,
     /// The registered name of the component.
     pub type_name: &'static str,
-    /// The component's display name.
+    /// The card's title.
     pub title: String,
-    /// The story's title, when it is shown beside the component's name.
+    /// A note after the title.
     pub note: Option<String>,
-    pub story: &'static StoryRegistration,
+    /// The stories the card shows, in order.
+    pub stories: Vec<SpecStory>,
+    /// How the stories are laid out together.
+    pub layout: StoryLayout,
     pub surface: craft_ui::contract::Surface,
     pub open: bool,
     pub usable: bool,
@@ -103,13 +121,15 @@ pub(super) fn grid(
             Lazy::new(key).keep(target).show(ui, |ui| {
                 Grid::new(if columns == 1 { ONE } else { TWO }).gap(Gap::CardColumn).fill_width().show(ui, |ui, _| {
                     for (at, spec) in chunk.iter().enumerate() {
-                        let state = p.cells.entry(spec.index).or_default();
+                        let stories: Vec<CardStory<'_>> =
+                            spec.stories.iter().map(|story| CardStory::new(story.index, story.story, &story.caption)).collect();
                         // Each card is its own id scope: a story's `id_salt` and auto ids must not meet another card's.
                         let card = Card {
                             key: format!("{}-{generation}", spec.key),
                             title: &spec.title,
                             note: spec.note.as_deref(),
-                            story: spec.story,
+                            stories: &stories,
+                            layout: spec.layout,
                             surface: spec.surface,
                             room,
                             open: spec.open,
@@ -118,7 +138,7 @@ pub(super) fn grid(
                             look: spec.look,
                             gated: spec.gated,
                         };
-                        let events = card.show(ui, state);
+                        let events = card.show(ui, p.cells);
                         reported.push(Reported { spec: row * columns + at, events });
                     }
                 });
@@ -128,22 +148,26 @@ pub(super) fn grid(
     reported
 }
 
-/// Applies what the cards reported: a press selects the card's component and story, Open opens its tab, Reset gives
-/// the story its start values.
+/// Applies what the cards reported: a press selects the card's component (and the story of a card of one story), Open
+/// opens its tab, Reset gives the card's stories their start values.
 pub(super) fn apply(ui: &mut Ui, p: &mut Panels<'_>, cards: &[Spec], reported: Vec<Reported>) {
     let scroll = *p.scroll_to;
     let mut scrolled = false;
     for Reported { spec, events } in reported {
         let Some(spec) = cards.get(spec) else { continue };
         if events.reset {
-            p.cells.entry(spec.index).or_default().reset();
+            for story in &spec.stories {
+                p.cells.entry(story.index).or_default().reset();
+            }
         }
         if events.opened {
             *p.open_request = Some(spec.type_name);
         }
         if events.pressed || events.opened {
             *p.selection = Selection::single(TreeKey::Component(spec.type_name));
-            p.story_of.insert(spec.type_name, spec.story.story.name);
+            if let [story] = spec.stories.as_slice() {
+                p.story_of.insert(spec.type_name, story.story.story.name);
+            }
         }
         if scroll == Some(spec.type_name)
             && let Some(rect) = events.rect
@@ -206,19 +230,21 @@ pub(super) fn overview(ui: &mut Ui, p: &mut Panels<'_>) {
     apply(ui, p, &cards, reported);
 }
 
-/// The Overview's card of `component`: the story picked for it, else its first.
+/// The Overview's card of `component`: every story of it, in catalog order.
 fn component_card(p: &Panels<'_>, component: &ComponentInfo, selected: Option<&'static str>) -> Option<Spec> {
-    let index = target_story(p, component.type_name)?;
-    let first = p.catalog.entries.iter().position(|entry| entry.type_name == component.type_name)?;
     let entry = entry_of(component.type_name)?;
-    let story = p.catalog.entries[index].registration;
+    let stories: Vec<SpecStory> =
+        (0..p.catalog.entries.len()).filter(|&at| p.catalog.entries[at].type_name == component.type_name).map(|at| SpecStory::of(p, at, &entry.name)).collect();
+    if stories.is_empty() {
+        return None;
+    }
     Some(Spec {
         key: component.type_name.to_owned(),
-        index,
         type_name: component.type_name,
         title: entry.name.clone(),
-        note: (index != first).then(|| craft_ui::contract::story_title(&entry.name, story.story.name)),
-        story,
+        note: None,
+        stories,
+        layout: entry.story_layout,
         surface: entry.surface,
         open: true,
         usable: false,
@@ -244,14 +270,14 @@ pub(super) fn component_tab(ui: &mut Ui, p: &mut Panels<'_>, type_name: &'static
     let cards: Vec<Spec> = (0..p.catalog.entries.len())
         .filter(|&at| p.catalog.entries[at].type_name == type_name)
         .map(|at| {
-            let story = p.catalog.entries[at].registration;
+            let story = SpecStory::of(p, at, &entry.name);
             Spec {
-                key: format!("{type_name}/{}", story.story.name),
-                index: at,
+                key: format!("{type_name}/{}", story.story.story.name),
                 type_name,
-                title: craft_ui::contract::story_title(&entry.name, story.story.name),
+                title: story.caption.clone(),
                 note: None,
-                story,
+                stories: vec![story],
+                layout: StoryLayout::Stacked,
                 surface: entry.surface,
                 open: false,
                 usable: false,
