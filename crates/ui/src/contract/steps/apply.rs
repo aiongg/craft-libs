@@ -169,7 +169,14 @@ pub(crate) fn apply_values<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>) -> Va
 /// measuring run; or a shown value whose size the earlier measures of this component took from the old value. A leaf
 /// measures itself again at each room and proposal it was measured at and asks only when a size differs; a body,
 /// whose measure runs its content, asks when any measuring run read the value.
-pub(crate) fn rerun_after_edit<C: Component>(comp: &mut C, cx: &Cx<'_, C>, edit: ValueEdit, input: &MeasureIn<'_>, resolved: &Resolved<'_>, leaf: bool) {
+pub(crate) fn rerun_after_edit<C: Component>(
+    comp: &mut C,
+    cx: &Cx<'_, C>,
+    edit: ValueEdit,
+    input: &MeasureIn<'_>,
+    resolved: &Resolved<'_>,
+    leaf: bool,
+) {
     let ctx = &cx.core.ctx;
     if edit.given {
         sizing::request_discard(ctx, "craft_ui: an edit changed a given value");

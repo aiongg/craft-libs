@@ -52,7 +52,7 @@ fn a_value_drag_with_no_earlier_reader_runs_one_pass_per_frame() {
     let frames = dragged_with_reader(false);
     assert!(frames.iter().all(|(passes, _)| *passes == 1), "one pass per drag frame: {frames:?}");
     assert!(frames.iter().all(|(_, (value, shown))| *shown == Some(*value)), "the reader below shows the dragged value: {frames:?}");
-    assert!(frames.windows(2).all(|pair| pair[1].1.0 > pair[0].1.0), "the drag moves the value: {frames:?}");
+    assert!(frames.windows(2).all(|pair| matches!(pair, [(_, (a, _)), (_, (b, _))] if b > a)), "the drag moves the value: {frames:?}");
 }
 
 /// A reader drawn before the control read the old value, so the frame runs again and the reader shows the new value in
@@ -81,5 +81,5 @@ fn a_control_whose_size_follows_its_value_shows_the_new_size_in_the_same_frame()
     let width = || rect.get().width();
     let dragged = drag(&mut frames, from, &mut show, || (value.get(), width()));
     assert!(dragged.iter().all(|(_, (value, width))| near(width - AT.width(), *value)), "the width follows the value in its frame: {dragged:?}");
-    assert!(dragged.windows(2).all(|pair| pair[1].1.0 > pair[0].1.0), "the drag moves the value: {dragged:?}");
+    assert!(dragged.windows(2).all(|pair| matches!(pair, [(_, (a, _)), (_, (b, _))] if b > a)), "the drag moves the value: {dragged:?}");
 }
