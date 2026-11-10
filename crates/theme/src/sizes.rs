@@ -139,6 +139,9 @@ pub(crate) fn leaves(b: &mut Preset) -> Vec<Leaf<'_>> {
         "base.size.pane.least" Num 16.0..=128.0 => s.pane.least;
         "base.size.ruler.tick.mid" Num 1.0..=32.0 => s.ruler.tick.mid;
         "base.size.canvas.compass" Num 16.0..=128.0 => s.canvas.compass;
+        "base.size.canvas.stage_height" Num 120.0..=1024.0 => s.canvas.stage_height;
+        "base.size.canvas.stage_width_min" Num 120.0..=1024.0 => s.canvas.stage_width_min;
+        "base.size.canvas.stage_width_max" Num 120.0..=2048.0 => s.canvas.stage_width_max;
         "base.size.dock.column" Num 120.0..=640.0 => s.dock.column;
     }
     let sp = &mut b.space;

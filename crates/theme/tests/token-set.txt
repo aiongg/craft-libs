@@ -91,6 +91,9 @@ size.bar.status
 size.bar.tab
 size.bar.title
 size.canvas.compass
+size.canvas.stage_height
+size.canvas.stage_width_max
+size.canvas.stage_width_min
 size.checker
 size.control.md
 size.control.sm

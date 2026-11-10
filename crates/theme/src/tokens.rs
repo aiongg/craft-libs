@@ -869,6 +869,12 @@ pub struct SizeTokens {
 pub struct CanvasSizes {
     /// The side of the canvas compass, the control that shows and resets the view rotation.
     pub compass: f32,
+    /// The height of the stage a story of a canvas control shows its canvas on.
+    pub stage_height: f32,
+    /// The least width of that stage.
+    pub stage_width_min: f32,
+    /// The greatest width of that stage.
+    pub stage_width_max: f32,
 }
 
 /// The sizes of a canvas ruler, in logical pixels.

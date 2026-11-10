@@ -20,7 +20,8 @@ fn boards() -> Vec<ArtboardItem> {
 #[story(ArtboardOverlay<'static>, covers = [Default])]
 fn two_artboards(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let (items, selected) = (boards(), [0_usize]);
-    Canvas::new("Document").show(ui, |ui, body| ArtboardOverlay::new("Artboards", &items, &selected).show_at(ui, body.rect));
+    let stage = craft_ui::testing::stage(ui);
+    Canvas::new("Document").show_at(ui, stage, |ui, body| ArtboardOverlay::new("Artboards", &items, &selected).show_at(ui, body.rect));
     StoryOutput::default()
 }
 

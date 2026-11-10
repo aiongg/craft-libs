@@ -178,8 +178,11 @@ fn size_lines(out: &mut Lines, size: &SizeTokens) {
     out.line("size.ruler.tick.mid", len(*mid));
     let DockColumnSizes { column } = dock;
     out.line("size.dock.column", len(*column));
-    let CanvasSizes { compass } = canvas;
+    let CanvasSizes { compass, stage_height, stage_width_min, stage_width_max } = canvas;
     out.line("size.canvas.compass", len(*compass));
+    out.line("size.canvas.stage_height", len(*stage_height));
+    out.line("size.canvas.stage_width_min", len(*stage_width_min));
+    out.line("size.canvas.stage_width_max", len(*stage_width_max));
 }
 
 fn slot(s: FontSlot) -> &'static str {

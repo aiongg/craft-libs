@@ -33,9 +33,9 @@ fn targets() -> Vec<CornerTarget> {
 /// Shows the control `control` builds and shows as the only canvas control of a canvas whose view has the document
 /// origin at its centre. The canvas body runs more than once per pass, so `control` builds it on every run.
 fn on_canvas(ui: &mut Ui, mut control: impl FnMut(&mut Ui, egui::Rect) -> CornerWidgetsOutput) -> StoryOutput {
-    let room = ui.available_rect_before_wrap();
+    let room = craft_ui::testing::stage(ui);
     let view = CanvasView::new(room, Point::new(f64::from(room.width()) / 2.0, f64::from(room.height()) / 2.0), 1.0);
-    let shown = Canvas::new("Document").view(view).show(ui, |ui, body| control(ui, body.rect));
+    let shown = Canvas::new("Document").view(view).show_at(ui, room, |ui, body| control(ui, body.rect));
     shown.inner.map(|out| StoryOutput::from(out.edit)).unwrap_or_default()
 }
 

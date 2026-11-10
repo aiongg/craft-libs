@@ -28,8 +28,9 @@ fn slices() -> Vec<SliceItem> {
 fn on_canvas(ui: &mut Ui, configure: impl for<'a> FnOnce(SliceOverlay<'a>) -> SliceOverlay<'a>) -> StoryOutput {
     let items = slices();
     let mut configure = Some(configure);
+    let stage = craft_ui::testing::stage(ui);
     let _ = Canvas::new("Document")
-        .show(ui, |ui, body| configure.take().map(|configure| configure(SliceOverlay::new("Slices", &items)).show_at(ui, body.rect)));
+        .show_at(ui, stage, |ui, body| configure.take().map(|configure| configure(SliceOverlay::new("Slices", &items)).show_at(ui, body.rect)));
     StoryOutput::default()
 }
 

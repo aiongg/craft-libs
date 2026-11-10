@@ -23,9 +23,9 @@ fn paths() -> Vec<EditPath> {
 /// Shows the overlay `overlay` builds and shows as the only canvas control of a canvas whose view has the document
 /// origin at its top left. The canvas body runs more than once per pass, so `overlay` builds it on every run.
 fn on_canvas(ui: &mut Ui, mut overlay: impl FnMut(&mut Ui, egui::Rect) -> BezierOutput) -> StoryOutput {
-    let room = ui.available_rect_before_wrap();
+    let room = craft_ui::testing::stage(ui);
     let view = CanvasView::new(room, Point::new(f64::from(room.width()) / 2.0, f64::from(room.height()) / 2.0), 1.0);
-    let shown = Canvas::new("Document").view(view).show(ui, |ui, body| overlay(ui, body.rect));
+    let shown = Canvas::new("Document").view(view).show_at(ui, room, |ui, body| overlay(ui, body.rect));
     shown.inner.map(StoryOutput::from).unwrap_or_default()
 }
 

@@ -25,12 +25,12 @@ fn drag_left_edge(fixture: &mut Fixture) {
 
 /// The handles over `edges` on a page canvas.
 fn handles(ui: &mut Ui, edges: Bind<'_, PageEdges>) -> StoryOutput {
-    let full = ui.available_rect_before_wrap();
+    let full = craft_ui::testing::stage(ui);
     let view = CanvasView::new(full, CENTRE, 1.0);
     let mut edges = edges;
     Canvas::new("Pages")
         .view(view)
-        .show(ui, |ui, body| {
+        .show_at(ui, full, |ui, body| {
             let page = demo_placed(1, CanvasView::new(body.rect, CENTRE, 1.0).to_screen(Point::ZERO)).remove(0);
             Some(MarginHandles::new("Margins", &page, edges.reborrowed()).header_footer().unit(UnitKind::Inches).show_at(ui, body.rect))
         })

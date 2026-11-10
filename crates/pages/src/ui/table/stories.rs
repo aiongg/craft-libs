@@ -86,6 +86,7 @@ fn cell_selection_overlay(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let ranges = vec![CellRange::cells(CellAt::new(0, 0), CellAt::new(0, 2)), CellRange::cells(CellAt::new(1, 0), CellAt::new(1, 1))];
     let selection = CellSelection::from_ranges(ranges, CellAt::new(1, 1)).unwrap_or_default();
     let mut overlay = Some(CellSelectionOverlay::new(&geometry, &selection));
-    let shown = Canvas::new("Table").show(ui, |ui, body| overlay.take().map(|overlay| overlay.show_at(ui, body.rect)));
+    let stage = craft_ui::testing::stage(ui);
+    let shown = Canvas::new("Table").show_at(ui, stage, |ui, body| overlay.take().map(|overlay| overlay.show_at(ui, body.rect)));
     shown.inner.flatten().map(StoryOutput::from).unwrap_or_default()
 }

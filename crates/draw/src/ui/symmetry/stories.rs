@@ -40,8 +40,8 @@ fn symmetry_on(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 #[story(SymmetryOverlay<'static>, covers = [Default], drive = Drive::Never)]
 fn dual_axis(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let symmetry = sample(SymmetryMode::Dual);
-    let room = ui.available_rect_before_wrap();
-    Canvas::new("Document").view(view(room)).show(ui, |ui, body| {
+    let room = craft_ui::testing::stage(ui);
+    Canvas::new("Document").view(view(room)).show_at(ui, room, |ui, body| {
         SymmetryOverlay::new("Symmetry", &symmetry, PAGE).show_at(ui, body.rect);
     });
     StoryOutput::default()
@@ -50,8 +50,8 @@ fn dual_axis(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 #[story(SymmetryOverlay<'static>, covers = [Default], drive = Drive::Never)]
 fn editing_guides(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let symmetry = sample(SymmetryMode::Vertical);
-    let room = ui.available_rect_before_wrap();
-    Canvas::new("Document").view(view(room)).show(ui, |ui, body| {
+    let room = craft_ui::testing::stage(ui);
+    Canvas::new("Document").view(view(room)).show_at(ui, room, |ui, body| {
         SymmetryOverlay::new("Symmetry", &symmetry, PAGE).editing(true).show_at(ui, body.rect);
     });
     StoryOutput::default()
@@ -60,9 +60,9 @@ fn editing_guides(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 #[story(SymmetryHandles<'static>, covers = [Default], drive = Drive::Drag(Grip::part(SYMMETRY.at(CENTRE))))]
 fn handles_on_a_canvas(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let symmetry = data.value("symmetry", sample(SymmetryMode::Vertical));
-    let room = ui.available_rect_before_wrap();
+    let room = craft_ui::testing::stage(ui);
     let shown = Canvas::new("Document")
         .view(view(room))
-        .show(ui, |ui, body| SymmetryHandles::new("Symmetry", Bind::bound(&mut *symmetry), PAGE).show_at(ui, body.rect));
+        .show_at(ui, room, |ui, body| SymmetryHandles::new("Symmetry", Bind::bound(&mut *symmetry), PAGE).show_at(ui, body.rect));
     shown.inner.map(|output| StoryOutput::from(output.edit)).unwrap_or_default()
 }

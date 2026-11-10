@@ -16,7 +16,7 @@ fn artboard() -> DocRect {
 
 /// The view of the canvas the story shows: the document origin at the top left of the canvas.
 fn view(ui: &Ui) -> CanvasView {
-    let rect = ui.available_rect_before_wrap();
+    let rect = craft_ui::testing::stage(ui);
     CanvasView::new(rect, Point::new(f64::from(rect.width()) / 2.0, f64::from(rect.height()) / 2.0), 1.0)
 }
 
@@ -24,7 +24,7 @@ fn view(ui: &Ui) -> CanvasView {
 fn on_canvas<'a>(ui: &mut Ui, handles: impl Fn(Rect) -> AddBesideHandles<'a>) -> StoryOutput {
     let board = [PageFrame::new(artboard()).name("Artboard 1").active(true)];
     let view = view(ui);
-    let shown = Canvas::new("Document").view(view).show(ui, |ui, body| {
+    let shown = Canvas::new("Document").view(view).show_at(ui, rect, |ui, body| {
         let name_clicked = Pasteboard::new("Pasteboard", &board).show_at(ui, body.rect).name_clicked.is_some();
         (handles(body.rect).show_at(ui, body.rect), name_clicked)
     });
