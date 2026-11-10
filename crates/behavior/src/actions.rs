@@ -110,12 +110,20 @@ pub enum Target {
     /// One of its parts.
     Part(PartRef),
     /// An item of a collection, and the part of the item the action came from.
+    #[non_exhaustive]
     Item {
         /// The item's key hash.
         key: u64,
         /// The item's part, `None` for its own area.
         part: Option<PartRef>,
     },
+}
+
+impl Target {
+    /// An item of a collection by key hash, and its part.
+    pub const fn item(key: u64, part: Option<PartRef>) -> Target {
+        Target::Item { key, part }
+    }
 }
 
 /// One action delivered to its handler.
