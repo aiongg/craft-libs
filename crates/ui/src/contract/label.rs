@@ -731,7 +731,8 @@ pub(crate) fn flow_leaf<C: Show>(
     let at = LeafLabel { id, owner, parent: None, row, text: &label, side: &side, enabled, size };
     let placed = leaf(ui, &env, &at, &mut child);
     // In a column that sizes from its content the row is the label plus the control, never the room around them.
-    let content = env.content.0;
+    // A row of a horizontal flow is as wide as its label and control: the room it has there is unbounded.
+    let content = env.content.0 || ui.layout().is_horizontal();
     let control_width = if content { placed.control.width().min(ideal.x) } else { placed.control.width() };
     let mut control = Rect::from_min_size(placed.control.min, Vec2::new(control_width, ideal.y));
     let rtl = env.direction.is_rtl();
