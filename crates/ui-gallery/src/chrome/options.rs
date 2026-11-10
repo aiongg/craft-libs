@@ -5,32 +5,29 @@ use crate::viewer::{
     CONTRASTS, DENSITIES, DIRECTIONS, GalleryCommands, MODES, MOTIONS, Preview, SCALES, TEXT_SIZES, VariantAxis, Viewer, Workspace, theme_entries,
 };
 use craft_behavior::{IconId, Value};
-use craft_ui::bars::{Bar, BarKind};
+use craft_ui::bars::{Bar, BarCell, BarKind};
 use craft_ui::buttons::{IconButton, ToggleButton};
 use craft_ui::choice::Segmented;
 use craft_ui::contract::{Bind, Entry, Show as _, ShowContainer as _, Trigger};
-use craft_ui::display::{Divider, Shade, Text};
+use craft_ui::display::Divider;
 use craft_ui::layout_components::{Row, Stack};
 use craft_ui::menu::Menu;
 use craft_ui::pickers::Select;
 use craft_ui::popover::Popover;
 use egui::Ui;
 
-/// A caption before the control it names.
-fn caption(ui: &mut Ui, text: &'static str) {
-    Text::new(format!("{text}:")).shade(Shade::Muted).show(ui);
+/// A select over `entries` in a cell with its caption.
+fn pick<T: Value>(ui: &mut Ui, caption: &'static str, value: &mut T, entries: &[Entry<T>]) {
+    BarCell::new(caption).show(ui, |ui, _| {
+        Select::new(caption, Bind::bound(&mut *value), entries).show(ui);
+    });
 }
 
-/// A select over `entries` after its caption.
-fn pick<T: Value>(ui: &mut Ui, caption_text: &'static str, value: &mut T, entries: &[Entry<T>]) {
-    caption(ui, caption_text);
-    Select::new(caption_text, Bind::bound(value), entries).show(ui);
-}
-
-/// A segmented row over `entries` after its caption.
-fn choose<T: Value>(ui: &mut Ui, caption_text: &'static str, value: &mut T, entries: &[Entry<T>]) {
-    caption(ui, caption_text);
-    Segmented::new(caption_text, Bind::bound(value), entries).show(ui);
+/// A segmented row over `entries` in a cell with its caption.
+fn choose<T: Value>(ui: &mut Ui, caption: &'static str, value: &mut T, entries: &[Entry<T>]) {
+    BarCell::new(caption).show(ui, |ui, _| {
+        Segmented::new(caption, Bind::bound(&mut *value), entries).show(ui);
+    });
 }
 
 /// One line of a form: what `add` shows, in a row.
@@ -72,22 +69,26 @@ pub fn options_bar(ui: &mut Ui, viewer: &mut Viewer) {
     let has_target = viewer.browser.target_story().is_some();
     let workspace = viewer.workspace;
     let mut more = None;
-    Bar::new("Appearance", BarKind::Options).show(ui, |ui, _| {
-        pick(ui, "Theme", &mut viewer.env.theme, &themes);
-        choose(ui, "Mode", &mut viewer.env.mode, &modes);
-        more = Some(ToggleButton::new("More appearance settings", Bind::bound(&mut viewer.more_open)).icon(IconId::new("more")).icon_only().show(ui));
-        Divider::vertical().show(ui);
-        match workspace {
-            Workspace::Components => {
-                if let Some(axis) = variants_menu(ui, viewer.variants.is_some(), has_target) {
-                    viewer.variants = Some(axis);
+    let Viewer { env, more_open, variants, preview, workspace: shown, .. } = viewer;
+    Bar::new("Appearance", BarKind::Options)
+        .trailing(|ui| {
+            IconButton::command(IconId::new("undo"), GalleryCommands::ResetLayout).show(ui);
+            choose(ui, "Workspace", shown, &workspaces);
+        })
+        .show(ui, |ui, _| {
+            pick(ui, "Theme", &mut env.theme, &themes);
+            choose(ui, "Mode", &mut env.mode, &modes);
+            more = Some(ToggleButton::new("More appearance settings", Bind::bound(&mut *more_open)).icon(IconId::new("more")).icon_only().show(ui));
+            Divider::vertical().show(ui);
+            match workspace {
+                Workspace::Components => {
+                    if let Some(axis) = variants_menu(ui, variants.is_some(), has_target) {
+                        *variants = Some(axis);
+                    }
                 }
+                Workspace::Theme => choose(ui, "Preview", preview, &previews),
             }
-            Workspace::Theme => choose(ui, "Preview", &mut viewer.preview, &previews),
-        }
-        IconButton::command(IconId::new("undo"), GalleryCommands::ResetLayout).show(ui);
-        choose(ui, "Workspace", &mut viewer.workspace, &workspaces);
-    });
+        });
     // The popover is a layer of its own: shown inside the bar it would take the bar's height.
     if let Some(more) = more {
         let mut open = viewer.more_open;
