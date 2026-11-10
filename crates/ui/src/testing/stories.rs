@@ -1,5 +1,6 @@
 //! Stories of the kit's stand-in `Block`.
 
+use super::sample::words;
 use super::{Drive, Grip, StoryData, StoryOutput, story};
 use crate::contract::{Bind, Props as _, Show as _, ShowContainer as _};
 use crate::form::Field;
@@ -18,11 +19,7 @@ fn block(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 
 #[story(FooterBar, covers = [Default])]
 fn footer_bar(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    FooterBar::body()
-        .show(ui, |ui, _| {
-            Block::new(CELL).show(ui);
-        })
-        .into()
+    FooterBar::body().show(ui, |ui, _| words(ui, 0..1)).into()
 }
 
 /// A slider shown in a field: the story's subject is the slider, and its value changes through its own thumb.

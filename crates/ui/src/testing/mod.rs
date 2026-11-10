@@ -22,6 +22,7 @@ pub mod memory;
 pub mod pointer;
 pub mod props;
 pub mod relations;
+pub(crate) mod sample;
 pub mod sensing;
 mod stage;
 mod stories;
