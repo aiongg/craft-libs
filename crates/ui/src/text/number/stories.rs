@@ -23,7 +23,7 @@ fn number_field(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
             NumberField::new("Size", Bind::bound(data.value("size", Some(SIZE)))).range(RANGE).step(0.5).unit("pt").size(size).show(ui).edit
         });
         Field::new("Disabled").id_salt("disabled").show(ui, |ui, _| {
-            NumberField::new("Disabled", Bind::bound(&mut Some(64.0))).unit("px").enabled(false).size(size).show(ui);
+            NumberField::new("Disabled", Bind::bound(&mut Some(64.0))).range(RANGE).step(0.5).unit("px").enabled(false).size(size).show(ui);
         });
         first.inner
     });
