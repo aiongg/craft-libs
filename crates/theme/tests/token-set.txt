@@ -92,6 +92,9 @@ size.bar.status
 size.bar.tab
 size.bar.title
 size.canvas.compass
+size.canvas.stage_height
+size.canvas.stage_width_max
+size.canvas.stage_width_min
 size.checker
 size.control.md
 size.control.sm
@@ -128,6 +131,7 @@ size.pointer_tip.y
 size.rail.button
 size.rail.width
 size.ruler.tick.mid
+size.thumb.card
 size.thumb.lg
 size.thumb.md
 size.thumb.sm

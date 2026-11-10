@@ -756,7 +756,7 @@ pub(crate) fn flow_leaf<C: Show>(
     // the column's container measures its rows at the widest label.
     if content && ui.is_sizing_pass() && side.layout == FieldLayout::Beside && placed.label.bottom() > placed.control.top() {
         let column = if matches!(side.kind, LabelKind::Glyph(_)) { crate::layout::GLYPHS } else { crate::layout::LABELS };
-        crate::layout::report_beyond(ui.ctx(), &column, label_gap(&env) + control_width);
+        crate::layout::report_beyond(ui.ctx(), std::slice::from_ref(&column), label_gap(&env) + control_width);
     }
     let output = super::run::show_leaf(super::Props::id(child, id), ui, super::run::ShowAt::Rect(control), None);
     let bottom = control.bottom().max(placed.label.bottom());

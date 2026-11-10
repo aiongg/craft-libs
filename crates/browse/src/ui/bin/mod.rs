@@ -51,10 +51,10 @@ use egui::{Id, Response, Ui, Vec2};
 
 use super::freebin::{FreeBinMove, FreeformCard};
 
-/// The default zoom: the medium thumbnail.
+/// The default zoom: the card thumbnail.
 const ZOOM_DEFAULT: f64 = 1.0;
 
-/// The zoom range the footer slider spans, as multiples of the medium thumbnail side, and the step of a zoom key.
+/// The zoom range the footer slider spans, as multiples of the card thumbnail side, and the step of a zoom key.
 const ZOOM_MIN: f64 = 0.5;
 const ZOOM_MAX: f64 = 4.0;
 const ZOOM_STEP: f64 = 0.25;
@@ -145,7 +145,7 @@ pub enum OpenHow {
 pub struct BinSettings {
     /// The view.
     pub view: BinView,
-    /// The card size in the Icon and Freeform views as a multiple of the medium thumbnail side.
+    /// The card size in the Icon and Freeform views as a multiple of the card thumbnail side.
     pub zoom: f64,
     /// List-view thumbnails.
     pub thumbnails: ThumbSize,
@@ -539,7 +539,7 @@ where
         self
     }
 
-    /// The zoom slider's range as multiples of the medium thumbnail side.
+    /// The zoom slider's range as multiples of the card thumbnail side.
     pub fn zoom_range(mut self, min: f64, max: f64) -> Self {
         self.zoom_range = (min, max);
         self

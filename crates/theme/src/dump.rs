@@ -147,10 +147,11 @@ fn size_lines(out: &mut Lines, size: &SizeTokens) {
         out.line(&format!("size.bar.{k}"), len(*v));
     }
     out.line("size.panel_header", len(*panel_header));
-    let ThumbSizes { sm, md, lg } = thumbs;
+    let ThumbSizes { sm, md, lg, card } = thumbs;
     out.line("size.thumb.sm", len(*sm));
     out.line("size.thumb.md", len(*md));
     out.line("size.thumb.lg", len(*lg));
+    out.line("size.thumb.card", len(*card));
     let HandleSizes { sm, md, ring, hit: hit_radius, rotate_reach, band_inner, band_outer } = handle;
     out.line("size.handle.sm", len(*sm));
     out.line("size.handle.md", len(*md));
@@ -189,8 +190,11 @@ fn size_lines(out: &mut Lines, size: &SizeTokens) {
     out.line("size.ruler.tick.mid", len(*mid));
     let DockColumnSizes { column } = dock;
     out.line("size.dock.column", len(*column));
-    let CanvasSizes { compass } = canvas;
+    let CanvasSizes { compass, stage_height, stage_width_min, stage_width_max } = canvas;
     out.line("size.canvas.compass", len(*compass));
+    out.line("size.canvas.stage_height", len(*stage_height));
+    out.line("size.canvas.stage_width_min", len(*stage_width_min));
+    out.line("size.canvas.stage_width_max", len(*stage_width_max));
 }
 
 fn slot(s: FontSlot) -> &'static str {

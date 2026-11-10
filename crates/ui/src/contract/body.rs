@@ -2099,7 +2099,12 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         let inner = cx.core.content_rect.shrink(pad);
         let room = self.room_size(rect, inner);
         let mut regions = self.regions(&props, inner, pad, room, rtl, self.measured_sizes());
-        let surface_slot = ui.painter().add(Shape::Noop);
+        // A layer's surface casts its shadow past the layer's own clip: it paints under the whole window.
+        let mut surface_painter = ui.painter().clone();
+        if matches!(props.mount, Mount::Layer(_)) {
+            surface_painter.set_clip_rect(ui.ctx().content_rect());
+        }
+        let surface_slot = surface_painter.add(Shape::Noop);
         let band_slot = ui.painter().add(Shape::Noop);
         // A measuring run lays out and measures: it registers no instance, focus body, scroll region or body layer,
         // and claims no room in a parent flow.
@@ -2318,7 +2323,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 if let (false, true, Some(side)) = (real, env.content.0, props.label.as_ref().filter(|_| label_extra.x > 0.0 && label_extra.y <= 0.0))
                 {
                     let column = if matches!(side.kind, label::LabelKind::Glyph(_)) { layout::GLYPHS } else { layout::LABELS };
-                    layout::report_beyond(&ctx, &column, label::label_gap(env) + size.x);
+                    layout::report_beyond(&ctx, std::slice::from_ref(&column), label::label_gap(env) + size.x);
                 }
                 *size += label_extra;
             }
@@ -2386,7 +2391,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         // The surface at the final rect, then the rules.
         if let Some(kind) = props.surface {
             let shapes = Surface::shapes(&surface_style(&env.tokens, kind), None, rect, Corners::All, env.direction, ctx.pixels_per_point());
-            ui.painter().set(surface_slot, Shape::Vec(shapes));
+            surface_painter.set(surface_slot, Shape::Vec(shapes));
         }
         if let Some(kind) = props.header.and_then(|header| header.fill) {
             let style = surface_style(&env.tokens, props.surface.unwrap_or(SurfaceKind::Panel));

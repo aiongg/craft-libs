@@ -30,6 +30,9 @@ use std::borrow::Cow;
 use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 
+/// The cards of the home screen start at twice the card thumbnail wide and grow to fill their row: one or two to a
+/// row in a panel.
+const CARD_ZOOM: f32 = 2.0;
 /// The width and height parts of a card's picture.
 const PICTURE_WIDE: u16 = 16;
 const PICTURE_HIGH: u16 = 9;
@@ -237,6 +240,8 @@ impl Page<'_> {
             .caption(CaptionPlace::Below)
             .detail_line()
             .aspect(f32::from(PICTURE_WIDE) / f32::from(PICTURE_HIGH))
+            .zoom(CARD_ZOOM)
+            .fill_row()
             .sizing(Sizing::FillWidth)
             .natural_height(true)
     }

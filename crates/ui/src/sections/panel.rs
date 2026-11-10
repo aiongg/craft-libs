@@ -238,8 +238,7 @@ impl Container for Panel<'_> {
     }
 
     fn header(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
-        let mut row =
-            TitleRow::new(cx.label()).strength(self.strength).actions(self.actions.iter().copied()).commands(self.commands.iter().cloned());
+        let mut row = TitleRow::new(cx.label()).strength(self.strength).actions(self.actions.iter().copied()).commands(self.commands.iter().cloned());
         if let Some(subtitle) = self.subtitle.clone() {
             row = row.subtitle(subtitle);
         }

@@ -15,16 +15,15 @@ fn artboard() -> DocRect {
 }
 
 /// The view of the canvas the story shows: the document origin at the top left of the canvas.
-fn view(ui: &Ui) -> CanvasView {
-    let rect = ui.available_rect_before_wrap();
+fn view(rect: Rect) -> CanvasView {
     CanvasView::new(rect, Point::new(f64::from(rect.width()) / 2.0, f64::from(rect.height()) / 2.0), 1.0)
 }
 
 /// Shows the artboard with `handles` over it on a canvas.
-fn on_canvas<'a>(ui: &mut Ui, handles: impl Fn(Rect) -> AddBesideHandles<'a>) -> StoryOutput {
+fn on_canvas<'a>(ui: &mut Ui, rect: Rect, handles: impl Fn(Rect) -> AddBesideHandles<'a>) -> StoryOutput {
     let board = [PageFrame::new(artboard()).name("Artboard 1").active(true)];
-    let view = view(ui);
-    let shown = Canvas::new("Document").view(view).show(ui, |ui, body| {
+    let view = view(rect);
+    let shown = Canvas::new("Document").view(view).show_at(ui, rect, |ui, body| {
         let name_clicked = Pasteboard::new("Pasteboard", &board).show_at(ui, body.rect).name_clicked.is_some();
         (handles(body.rect).show_at(ui, body.rect), name_clicked)
     });
@@ -38,16 +37,18 @@ fn on_canvas<'a>(ui: &mut Ui, handles: impl Fn(Rect) -> AddBesideHandles<'a>) ->
 
 #[story(AddBesideHandles<'static>, covers = [Default], drive = Drive::Never)]
 fn add_beside(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    let view = view(ui);
+    let rect = craft_ui::testing::stage(ui);
+    let view = view(rect);
     let neighbour = Rect::from_two_pos(
         view.to_screen(Point::new(artboard().x1 + 16.0, artboard().y0)),
         view.to_screen(Point::new(artboard().x1 + 80.0, artboard().y1)),
     );
     let clear = [neighbour];
-    on_canvas(ui, |_| AddBesideHandles::new("Add beside", artboard()).clear_of(&clear))
+    on_canvas(ui, rect, |_| AddBesideHandles::new("Add beside", artboard()).clear_of(&clear))
 }
 
 #[story(AddBesideHandles<'static>, covers = [Default], drive = Drive::Never)]
 fn add_beside_connecting(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    on_canvas(ui, |_| AddBesideHandles::new("Add beside", artboard()).connecting())
+    let rect = craft_ui::testing::stage(ui);
+    on_canvas(ui, rect, |_| AddBesideHandles::new("Add beside", artboard()).connecting())
 }

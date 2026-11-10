@@ -1,6 +1,5 @@
 //! The integration binary of craft-ui: every test is a registered trial.
 
-mod field_text_centred;
 mod access;
 mod access_selected;
 mod api_map;
@@ -22,6 +21,7 @@ mod dialogs;
 mod display;
 mod docking;
 mod drag;
+mod field_text_centred;
 // outer edit
 mod edit;
 // end of outer edit

@@ -14,7 +14,7 @@ const SCALE: f64 = 0.3;
 
 #[story(PageGrids<'static>, covers = [Default], drive = Drive::Never)]
 fn margins_and_columns_with_a_baseline_grid(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    let room = ui.available_rect_before_wrap();
+    let room = craft_ui::testing::stage(ui);
     let page = PageRect::new(0.0, 0.0, 612.0, 792.0);
     let placed = [PlacedPage {
         page: 0,
@@ -32,6 +32,6 @@ fn margins_and_columns_with_a_baseline_grid(ui: &mut Ui, _: &mut StoryData) -> S
     let view = CanvasView::new(room, Point::new(f64::from(room.width()) / 2.0, f64::from(room.height()) / 2.0), 1.0);
     let shown = Canvas::new("Document")
         .view(view)
-        .show(ui, |ui, body| PageGrids::new(&placed, &grids, 1.0, PageGridColors::default()).show_at(ui, body.rect));
+        .show_at(ui, room, |ui, body| PageGrids::new(&placed, &grids, 1.0, PageGridColors::default()).show_at(ui, body.rect));
     shown.inner.map(StoryOutput::from).unwrap_or_default()
 }

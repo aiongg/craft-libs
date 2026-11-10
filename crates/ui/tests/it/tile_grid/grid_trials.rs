@@ -199,7 +199,10 @@ fn rig_unbound(build: impl Fn(TileGrid<'_, usize>) -> TileGrid<'_, usize> + 'sta
 #[trial]
 fn a_click_on_the_check_box_reports_one_check() {
     let (mut fixture, seen) = rig(4, |grid| grid.checks(true), |_, tile| tile.check(ToggleState::Off));
-    click(&mut fixture, "bravo");
+    let boxes = fixture.by_role(Role::CHECK_BOX);
+    assert_eq!(boxes.len(), 4, "every tile shows a check box");
+    fixture.click(&boxes[1]);
+    fixture.idle(2);
     let checked: Vec<_> = seen
         .borrow()
         .events

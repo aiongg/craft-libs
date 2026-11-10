@@ -104,7 +104,8 @@ fn on_page(ui: &mut Ui, marks: &[TextMark], selection: Option<TextSelection>) ->
     let pages = demo_placed(1, Pos2::new(24.0, 24.0));
     let lines = Lines;
     let mut control = Some(TextMarks::new(&pages, &lines, marks));
-    let shown = Canvas::new("Page").show(ui, |ui, body| {
+    let stage = craft_ui::testing::stage(ui);
+    let shown = Canvas::new("Page").show_at(ui, stage, |ui, body| {
         control.take().map(|control| match selection {
             Some(selection) => control.selection(selection).show_at(ui, body.rect),
             None => control.show_at(ui, body.rect),

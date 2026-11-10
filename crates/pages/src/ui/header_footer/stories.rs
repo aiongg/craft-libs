@@ -17,14 +17,14 @@ const CENTRE: Point = Point::new(306.0, 396.0);
 
 #[story(HeaderFooterZones<'static>, covers = [Default], drive = Drive::Never)]
 fn zone_being_edited(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    let room = ui.available_rect_before_wrap();
+    let room = craft_ui::testing::stage(ui);
     let view = CanvasView::new(room, CENTRE, 1.0);
     let placed = demo_placed(1, view.to_screen(Point::ZERO));
     let bands = |_: usize| BANDS;
     let text = |at: ZoneAt| if at.zone == Zone::new(false, 1) { "Annual report".to_owned() } else { String::new() };
     Canvas::new("Pages")
         .view(view)
-        .show(ui, |ui, body| {
+        .show_at(ui, room, |ui, body| {
             HeaderFooterZones::new("Zones", &placed, &bands, PAPER, INK).text(text).editing(ZoneAt::new(0, Zone::new(true, 2))).show_at(ui, body.rect)
         })
         .inner

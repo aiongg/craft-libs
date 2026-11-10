@@ -15,7 +15,9 @@ const FRAME: DocRect = DocRect::new(200.0, 120.0, 440.0, 280.0);
 fn transform_phase(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let mut session = TransformSession::<()>::new(FRAME);
     let settings = TransformSettings::default();
-    let shown = Canvas::new("Document").show(ui, |ui, body| TransformOverlay::new("Free Transform", &session, &settings).show_at(ui, body.rect));
+    let stage = craft_ui::testing::stage(ui);
+    let shown =
+        Canvas::new("Document").show_at(ui, stage, |ui, body| TransformOverlay::new("Free Transform", &session, &settings).show_at(ui, body.rect));
     if let Some(output) = shown.inner {
         for edit in output.edits {
             session.apply(edit, 0.0);

@@ -29,7 +29,7 @@ pub enum ZoomStep {
 pub enum TileZoom {
     /// Factors on [`TileZoom::LADDER`], default 1.0 (card grids).
     Ladder,
-    /// A continuous factor on the medium thumbnail side (1 is the medium thumbnail), `step` per key press, `default`
+    /// A continuous factor on the card thumbnail side (1 is the card thumbnail), `step` per key press, `default`
     /// for Reset.
     #[non_exhaustive]
     Range {

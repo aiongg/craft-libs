@@ -44,7 +44,8 @@ fn caption(label: &str, name: &str) -> CompareCaption {
 /// tiles are placed in.
 fn filling(ui: &mut Ui, content: impl FnMut(&mut Ui, Rect) -> StoryOutput) -> StoryOutput {
     let mut content = content;
-    let shown = Row::new().fill().show(ui, |ui, body| content(ui, body.rect));
+    let room = craft_ui::testing::stage(ui);
+    let shown = Row::new().fill().show_at(ui, room, |ui, body| content(ui, body.rect));
     shown.inner.unwrap_or_default()
 }
 

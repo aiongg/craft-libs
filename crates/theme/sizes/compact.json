@@ -23,7 +23,10 @@
         "title": 32.0
       },
       "canvas": {
-        "compass": 24.0
+        "compass": 24.0,
+        "stage_height": 360.0,
+        "stage_width_max": 720.0,
+        "stage_width_min": 240.0
       },
       "checker": 4.0,
       "control": {
@@ -88,6 +91,7 @@
         }
       },
       "thumb": {
+        "card": 128.0,
         "lg": 48.0,
         "md": 24.0,
         "sm": 18.0

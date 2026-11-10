@@ -42,19 +42,20 @@ fn one_page_row(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 
 #[story(PageMetrics, covers = [Default], drive = Drive::Never)]
 fn page_metrics(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    let room = ui.available_rect_before_wrap();
+    let room = craft_ui::testing::stage(ui);
     let view = CanvasView::new(room, Point::new(f64::from(room.width()) / 2.0, f64::from(room.height()) / 2.0), 1.0);
-    let shown = Canvas::new("Document").view(view).show(ui, |ui, body| PageMetrics::new().show_at(ui, body.rect));
+    let shown = Canvas::new("Document").view(view).show_at(ui, room, |ui, body| PageMetrics::new().show_at(ui, body.rect));
     shown.inner.map(StoryOutput::from).unwrap_or_default()
 }
 
 #[story(PagePictures<'static>, covers = [Default], drive = Drive::Never)]
 fn page_pictures(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    let room = ui.available_rect_before_wrap();
+    let room = craft_ui::testing::stage(ui);
     let pages = DemoPages::new(1);
     let placed = demo_placed(1, Pos2::new(room.min.x + 20.0, room.min.y + 10.0));
     let view = CanvasView::new(room, Point::new(f64::from(room.width()) / 2.0, f64::from(room.height()) / 2.0), 1.0);
     let near: [(usize, Vec2); 0] = [];
-    let shown = Canvas::new("Document").view(view).show(ui, |ui, body| PagePictures::new(&pages, &placed, &near, PAPER).show_at(ui, body.rect));
+    let shown =
+        Canvas::new("Document").view(view).show_at(ui, room, |ui, body| PagePictures::new(&pages, &placed, &near, PAPER).show_at(ui, body.rect));
     shown.inner.map(StoryOutput::from).unwrap_or_default()
 }

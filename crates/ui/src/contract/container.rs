@@ -754,7 +754,8 @@ impl ContainerProps {
     }
 
     /// The labelled rows of the body share the widest label as one column. A nested container with its own
-    /// label column opens its own group; a row reads the innermost.
+    /// label column opens its own group; a row reads the innermost. A menu body is such a group: its rows share
+    /// their mark and icon columns through it.
     pub const fn label_column(mut self, on: bool) -> Self {
         self.label_column = on;
         self
