@@ -57,7 +57,8 @@ fn more_form(ui: &mut Ui, viewer: &mut Viewer) {
 /// menu. Returns the axis chosen.
 fn variants_menu(ui: &mut Ui, shown: bool, has_target: bool) -> Option<VariantAxis> {
     let mut on = shown;
-    let button = ToggleButton::new("Variants", Bind::bound(&mut on)).trailing_icon(IconId::new("chevron-down")).show(ui);
+    let button =
+        ToggleButton::new("Variants", Bind::bound(&mut on)).trailing_icon(craft_ui::controls::disclosure::DisclosureGlyph::dropdown()).show(ui);
     let entries: Vec<Entry<VariantAxis>> = VariantAxis::ALL.into_iter().map(|axis| Entry::new(axis, axis.menu_label()).enabled(has_target)).collect();
     Menu::new("Variants").values().opened_by(&button.response, Trigger::Press).pick(ui, &entries).picked
 }
