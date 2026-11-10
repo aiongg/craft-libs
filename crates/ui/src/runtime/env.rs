@@ -405,8 +405,8 @@ pub struct Scoped {
     pub enabled: bool,
     /// OR of every scope above.
     pub read_only: bool,
-    /// OR of every scope above: wheel takers inside register gated, taking the vertical wheel only while focused or
-    /// armed (a card in a scrolling overview).
+    /// OR of every scope above: wheel takers inside register gated, taking the wheel only while focused or armed
+    /// (a card in a scrolling overview). A layer opened from inside starts ungated.
     pub wheel_gated: bool,
     /// The flow direction: layout order, arrow keys and roving. A container whose axis keeps its order
     /// (`Props::ltr_axis`) sets it to left to right for what is inside.
@@ -676,6 +676,7 @@ impl Env {
             s.roving = None;
             s.transform = None;
             s.scroll_owner = None;
+            s.wheel_gated = false;
             s.unbounded = (false, false);
             s.item = None;
             s.row = None;
@@ -879,12 +880,12 @@ impl<'a> EnvView<'a> {
         self.scoped.facts_of(id)
     }
 
-    /// The innermost scrolling body around the component.
-    /// Whether wheel takers in this scope take the vertical wheel only while focused or armed.
+    /// Whether wheel takers in this scope take the wheel only while focused or armed.
     pub(crate) fn wheel_gated(&self) -> bool {
         self.scoped.wheel_gated
     }
 
+    /// The innermost scrolling body around the component.
     pub(crate) fn scroll_owner(&self) -> Option<Id> {
         self.scoped.scroll_owner
     }

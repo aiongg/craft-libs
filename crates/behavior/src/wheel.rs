@@ -83,7 +83,8 @@ pub struct WheelTaker<O> {
     pub vertical: bool,
     /// It takes zoom.
     pub zoom: bool,
-    /// A value control: it takes vertical scroll only while focused or armed. Horizontal scroll needs no gate.
+    /// It takes any axis (scroll or zoom) only while focused or armed: a value control without wheel bits, or any
+    /// taker inside a wheel-gated scope.
     pub gated: bool,
     /// A scroll region (a scrolling body or collection): Shift turns the vertical wheel sideways over it.
     pub scrolls: bool,
@@ -171,7 +172,7 @@ impl<O> WheelTaker<O> {
         self
     }
 
-    /// Whether vertical scroll needs focus or arming.
+    /// Whether every axis needs focus or arming.
     pub const fn gated(mut self, on: bool) -> Self {
         self.gated = on;
         self
@@ -220,7 +221,7 @@ impl<O> WheelTaker<O> {
 }
 
 /// The split rule: each axis of `wheel` goes to the innermost taker under `at` that takes it; a share no taker
-/// takes, or that a scroll region at its end in that direction cannot move, passes to the next enclosing one. A gated taker takes vertical scroll only while it is `focused` or
+/// takes, or that a scroll region at its end in that direction cannot move, passes to the next enclosing one. A gated taker takes no axis unless it is `focused` or
 /// `armed`. Shift turns a vertical wheel sideways when its vertical owner is a scroll region. Shares of one owner merge.
 pub fn split<O: Copy + PartialEq>(takers: &[WheelTaker<O>], at: Pos2, wheel: Wheel, focused: Option<O>, armed: Option<O>) -> Vec<(O, Wheel)> {
     // Takers register outer first, so among equal areas the later one is the deeper (or the upper) and goes first.
@@ -237,9 +238,11 @@ pub fn split<O: Copy + PartialEq>(takers: &[WheelTaker<O>], at: Pos2, wheel: Whe
     };
     let vertical =
         (wheel.scroll.y != 0.0).then(|| under.iter().find(|t| t.vertical && open(t) && t.has_room(true, wheel.scroll.y))).flatten().map(|t| t.owner);
-    let horizontal =
-        (wheel.scroll.x != 0.0).then(|| under.iter().find(|t| t.horizontal && t.has_room(false, wheel.scroll.x))).flatten().map(|t| t.owner);
-    let zoom = (wheel.zoom != 1.0).then(|| under.iter().find(|t| t.zoom)).flatten().map(|t| t.owner);
+    let horizontal = (wheel.scroll.x != 0.0)
+        .then(|| under.iter().find(|t| t.horizontal && open(t) && t.has_room(false, wheel.scroll.x)))
+        .flatten()
+        .map(|t| t.owner);
+    let zoom = (wheel.zoom != 1.0).then(|| under.iter().find(|t| t.zoom && open(t))).flatten().map(|t| t.owner);
     let mut shares: Vec<(O, Wheel)> = Vec::new();
     let parts = [(vertical, Vec2::new(0.0, wheel.scroll.y), 1.0), (horizontal, Vec2::new(wheel.scroll.x, 0.0), 1.0), (zoom, Vec2::ZERO, wheel.zoom)];
     for (owner, scroll, zoom) in parts {
@@ -309,16 +312,19 @@ mod tests {
     }
 
     #[test]
-    fn a_gated_control_takes_vertical_scroll_only_when_focused_or_armed_and_horizontal_always() {
+    fn a_gated_taker_takes_no_axis_until_focused_or_armed() {
         let panel = WheelTaker::new(1u8, rect(200.0)).vertical(true);
-        let slider = WheelTaker::new(2u8, rect(100.0)).vertical(true).horizontal(true).gated(true);
-        let takers = [panel, slider];
+        let canvas = WheelTaker::new(2u8, rect(100.0)).vertical(true).horizontal(true).zoom(true).gated(true);
+        let takers = [panel, canvas];
         let at = pos2(10.0, 10.0);
-        let owner_of_vertical = |focused, armed| split(&takers, at, wheel(0.0, 3.0), focused, armed).first().map(|(o, _)| *o);
-        assert_eq!(owner_of_vertical(None, None), Some(1));
-        assert_eq!(owner_of_vertical(Some(2), None), Some(2));
-        assert_eq!(owner_of_vertical(None, Some(2)), Some(2));
-        assert_eq!(split(&takers, at, wheel(3.0, 0.0), None, None).first().map(|(o, _)| *o), Some(2));
+        let owners = |gesture, focused, armed| split(&takers, at, gesture, focused, armed).into_iter().map(|(o, _)| o).collect::<Vec<_>>();
+        let trackpad = wheel(3.0, 5.0);
+        assert_eq!(owners(trackpad, None, None), [1], "the vertical share scrolls the panel; the sideways one goes nowhere");
+        assert_eq!(owners(wheel(0.0, 0.0).zoom(1.5), None, None), Vec::<u8>::new(), "zoom waits for the gate too");
+        let shifted = Wheel { mods: Mods { shift: true, ..Mods::NONE }, ..wheel(0.0, 5.0) };
+        assert_eq!(owners(shifted, None, None), [1], "Shift over the gated taker stays with the panel");
+        assert_eq!(owners(trackpad, Some(2), None), [2]);
+        assert_eq!(owners(trackpad, None, Some(2)), [2]);
     }
 
     #[test]

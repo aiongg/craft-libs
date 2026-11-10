@@ -658,15 +658,14 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
     fn sensed(&mut self, comp: &mut C, cx: &mut Cx<'_, C>) {
         cx.core.collection_selection = Some(Box::new(self.selection.clone()));
         if self.scrolls {
-            // The root's wheel sense registered a taker for the whole rect before this step; the scroll region's taker
-            // comes after it, so it wins the share where the two rects are equal: Shift turns its vertical wheel sideways.
+            // The taker covers the header row too: the wheel over the header scrolls the rows (Shift sideways).
             let view = self.below_header(cx.core.content_rect);
             let (vertical, horizontal) = (self.overflow == Axis::Y, self.content.x > view.width());
             let max = Vec2::new((self.content.x - view.width()).max(0.0), self.max_offset(view.height()) as f32);
             let offset = Vec2::new(self.offset_x as f32, self.offset as f32);
             wheel::register(
                 &cx.core.ctx,
-                WheelTaker::new(cx.core.id, view)
+                WheelTaker::new(cx.core.id, cx.core.content_rect)
                     .vertical((vertical && max.y > 0.0) || horizontal)
                     .horizontal(horizontal)
                     .scrolls(true)

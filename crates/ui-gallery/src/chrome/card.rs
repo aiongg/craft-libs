@@ -73,6 +73,9 @@ pub struct Card<'a> {
     pub selected: bool,
     /// The values the card sets for its story.
     pub look: Look,
+    /// Whether the story's wheel takers take the wheel only while focused or armed: a card among others in a
+    /// scrolling overview.
+    pub gated: bool,
 }
 
 /// What a card reported in a pass.
@@ -145,6 +148,7 @@ impl Card<'_> {
             room: self.room,
             look: self.look,
             surface: self.surface,
+            gated: self.gated,
         };
         let show = self.story.story.show;
         let took = host.stack().measure_in(ui, Proposal::Ideal, |ui, _| host.content(ui, show, &mut state.data));
@@ -207,6 +211,7 @@ struct Host {
     room: f32,
     look: Look,
     surface: Surface,
+    gated: bool,
 }
 
 impl Host {
@@ -231,13 +236,13 @@ impl Host {
 
     /// The story under the card's direction and control size.
     fn content(&self, ui: &mut Ui, show: StoryFn, data: &mut StoryData) {
-        let look = self.look;
+        let (look, gated) = (self.look, self.gated);
         with_env(
             ui,
             |env| {
                 env.direction = look.direction;
                 env.size = look.size;
-                env.wheel_gated = Some(true);
+                env.wheel_gated = Some(gated);
             },
             |ui| {
                 let _ = show(ui, data);
