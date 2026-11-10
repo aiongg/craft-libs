@@ -498,7 +498,6 @@ impl Scoped {
         self.fill_body = None;
         self.fill_share = None;
         self.offered = None;
-        self.lazy = None;
     }
 
     /// The facts the collection recorded for the item `id`.
@@ -704,7 +703,10 @@ impl Env {
     /// This env for a body that starts a layout room of its own (a layer, a pane): the flow grid and the content
     /// column of the room around it do not reach in.
     pub(crate) fn new_room(&self) -> Env {
-        self.derive_local(Scoped::start_room)
+        self.derive_local(|scoped| {
+            scoped.start_room();
+            scoped.lazy = None;
+        })
     }
 
     pub(crate) fn derive_local(&self, f: impl FnOnce(&mut Scoped)) -> Env {
