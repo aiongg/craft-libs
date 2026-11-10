@@ -12,6 +12,7 @@ use crate::runtime::access::{
 use crate::runtime::egui::{alloc, child};
 use crate::runtime::env::{Env, Label};
 use crate::runtime::keys;
+use crate::runtime::layout_memory;
 use crate::runtime::memory::sub;
 use crate::style::{ComponentStyle, ResetMarkLook, StyleColor, StyleCx};
 use craft_behavior::{ColumnWidth, Flow, LabelColumn, Metrics, PartKey, PressState, Sense, ValueDrag};
@@ -452,6 +453,8 @@ pub(crate) struct LabelIn<'a> {
     pub size: craft_theme::ControlSize,
     /// The narrowest the control can be; a row too narrow for the label column, the gap and this stacks the label above.
     pub control_min: f32,
+    /// The control is a leaf child shown in the flow with its label after it, not a field's body.
+    pub leaf: bool,
 }
 
 /// The label fact the scope records: the name's text, and the detail and the help line (resolved) as the control's
@@ -515,6 +518,7 @@ pub(crate) fn leaf<C: Show>(ui: &mut Ui, env: &Env, at: &LeafLabel<'_>, child: &
         enabled,
         size: at.size,
         control_min,
+        leaf: true,
     };
     let placed = run(ui, env, &input);
     LeafPlaced { control: placed.control, label: placed.label, scope }
@@ -528,16 +532,27 @@ pub(crate) struct Placed {
     pub control: Rect,
 }
 
-/// The `After` placement: the control's cell first, then the gap, then the label, the control and the label
-/// centred on each other across the row (a box, circle or track has no text baseline to align to).
-fn place_after(flow: Flow, control_min: f32, gap: f32, label: Vec2) -> Placed {
+/// The `After` placement: the control's cell first, then the gap, then the label. A leaf control (a box, circle or
+/// track has no text baseline) and its label are centred on each other across the row. For a field's control, as in
+/// `LabelColumn::place`, the one with the lower baseline moves down so the two baselines line up, using the baseline
+/// `record_control_baseline` stored last pass.
+fn place_after(ctx: &egui::Context, input: &LabelIn<'_>, flow: Flow, gap: f32, label: Vec2, label_baseline: f32) -> Placed {
     let rtl = flow.is_rtl();
-    let (control_cell, rest) = flow.take_start(control_min.min(flow.rect().width()));
+    let (control_cell, rest) = flow.take_start(input.control_min.min(flow.rect().width()));
     let (_, rest) = rest.take_start(gap);
-    let height = control_cell.height().max(label.y);
-    let label_size = Vec2::new(label.x.min(rest.rect().width()), height);
-    let label = Flow::new(rest.rect(), rtl).align(label_size, Align::Min, Align::Min);
-    let control = control_cell.translate(Vec2::new(0.0, (height - control_cell.height()) / 2.0));
+    let label_width = label.x.min(rest.rect().width());
+    if input.leaf {
+        let height = control_cell.height().max(label.y);
+        let label = Flow::new(rest.rect(), rtl).align(Vec2::new(label_width, height), Align::Min, Align::Min);
+        let control = control_cell.translate(Vec2::new(0.0, (height - control_cell.height()) / 2.0));
+        return Placed { label, control };
+    }
+    let control_baseline = layout_memory::read(ctx, sub(input.scope, "baseline")).map(|size| size.y);
+    let drop = control_baseline.map_or(0.0, |control| control - label_baseline);
+    let (label_drop, control_drop) = (drop.max(0.0), (-drop).max(0.0));
+    let label_size = Vec2::new(label_width, label.y);
+    let label = Flow::new(rest.rect(), rtl).align(label_size, Align::Min, Align::Min).translate(Vec2::new(0.0, label_drop));
+    let control = Rect::from_min_max(egui::pos2(control_cell.left(), control_cell.top() + control_drop), control_cell.max);
     Placed { label, control }
 }
 
@@ -607,7 +622,7 @@ fn decide(ctx: &egui::Context, env: &Env, input: &LabelIn<'_>, kids: &Ui, leaf: 
     };
 
     if input.side.layout == FieldLayout::After {
-        place_after(flow, input.control_min, gap, natural)
+        place_after(ctx, input, flow, gap, natural, baseline)
     } else {
         let placed = crate::layout::place_label(
             kids,
