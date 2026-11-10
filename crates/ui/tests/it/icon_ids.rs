@@ -1,13 +1,27 @@
 //! An icon id missing from the catalog draws nothing and raises no error at build time, so every id written as
-//! a literal in the workspace's sources must name a catalog icon.
+//! a literal in the workspace's sources must name a catalog icon. Ids built in match arms, tuple tables and struct
+//! fields are not scanned.
 
 use craft_behavior::IconId;
 use craft_ui::primitives::has_icon;
 use craft_ui::testing::trial;
 use std::path::{Path, PathBuf};
 
-/// The ways a source file writes an icon id as a string literal.
+/// The ways a source file writes an icon id as a string literal; a `const NAME_ICON: &str = ".."` is read by
+/// `const_icon`.
 const FORMS: [&str; 3] = ["IconId::new(\"", "icon(\"", "icon = \""];
+
+/// The string a `const <NAME>ICON: <type> = "<id>"` declaration holds, and its byte offset in `line`.
+fn const_icon(line: &str) -> Option<(usize, &str)> {
+    let rest = line.trim_start().trim_start_matches("pub ").trim_start_matches("pub(crate) ").strip_prefix("const ")?;
+    let (name, after) = rest.split_once(':')?;
+    if !name.ends_with("ICON") || !name.chars().all(|c| c.is_ascii_uppercase() || c == '_') {
+        return None;
+    }
+    let (_, value) = after.split_once("= \"")?;
+    let at = line.len() - value.len();
+    Some((at, &value[..value.find('"')?]))
+}
 
 fn sources(dir: &Path, out: &mut Vec<PathBuf>) {
     let Ok(entries) = std::fs::read_dir(dir) else { return };
@@ -35,6 +49,12 @@ fn every_icon_id_literal_in_the_workspace_names_a_catalog_icon() {
     for file in files.iter() {
         let text = std::fs::read_to_string(file).unwrap();
         for (number, line) in text.lines().enumerate().filter(|(_, line)| !line.trim_start().starts_with("//")) {
+            if let Some((at, id)) = const_icon(line) {
+                seen += 1;
+                if !has_icon(&IconId::from(std::borrow::Cow::Owned(id.to_owned()))) {
+                    unknown.push(format!("{}:{}: {:?}", file.strip_prefix(&root).unwrap().display(), number + 1, &line[at..at + id.len()]));
+                }
+            }
             for form in FORMS {
                 for (at, _) in line.match_indices(form) {
                     let before = line[..at].chars().next_back();

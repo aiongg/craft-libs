@@ -86,7 +86,7 @@ impl<'a> FillBar<'a> {
                 let operations = [
                     Entry::new(SelectionOperation::New, words.new_selection.clone()).icon(icon("square")),
                     Entry::new(SelectionOperation::Add, words.add_to_selection.clone()).icon(icon("plus")),
-                    Entry::new(SelectionOperation::Subtract, words.subtract_from_selection.clone()).icon(icon("squares_subtract")),
+                    Entry::new(SelectionOperation::Subtract, words.subtract_from_selection.clone()).icon(icon("minus")),
                     Entry::new(SelectionOperation::Intersect, words.intersect_with_selection.clone()).icon(icon("squares_subtract")),
                 ];
                 let picked = Segmented::new(words.options.clone(), Bind::given(options.lasso), &operations).show(ui).event;
