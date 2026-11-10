@@ -16,7 +16,8 @@ The Craft framework is the shared layer under every Craft app: the design system
     - [3.2 The craft facade](#32-the-craft-facade)
     - [3.3 Crate taxonomy](#33-crate-taxonomy)
     - [3.4 The host convention: services in, edits out](#34-the-host-convention-services-in-edits-out)
-    - [3.5 One egui revision](#35-one-egui-revision)
+    - [3.5 Runs and passes](#35-runs-and-passes)
+    - [3.6 One egui revision](#36-one-egui-revision)
 - [4. Design system](#4-design-system)
     - [4.1 Component layers](#41-component-layers)
     - [4.2 Ownership](#42-ownership)
@@ -216,7 +217,22 @@ queue.submit(photo_id, Priority::VISIBLE, move |cancel| decode(&path, cancel));
 while let Some(Finished { key, result }) = queue.try_recv() { show(key, result) } // on a later pass
 ```
 
-### 3.5 One egui revision
+### 3.5 Runs and passes
+
+A pass shows the whole UI once. egui may repeat a pass within a frame (a discard pass); only the frame's last pass is painted. Within a pass, a container's contents run twice: a measuring run, then the real run. Both runs of a pass give the same result.
+
+Content runs in every pass, and its sizes come from this pass. Layouts also read some state earlier passes left, for example a scroll area's offset and its last view and extent (step 4 and the scroll bars read them) and the sizes layout memory keeps (`runtime::layout_memory`; a changed size asks for a discard pass). The one exception to running in every pass is out-of-view content.
+
+**Out-of-view content.** Content inside a scroll area that is out of view this pass does not run. It keeps the extent it had in the last pass that showed it, and that extent changes only in a pass that shows the content. One mechanism (`runtime::lazy`, one store) serves every use:
+
+- The reach is the view widened by its own size on each side. Content in the reach runs before it scrolls in, so its stops keep their place in Tab order, a page move shows content that ran, and its extent is current when it shows.
+- `Lazy::new(key).show(ui, |ui| ..)` wraps a large child of a scroll body (a card, a row of cards, a section of an app panel). Out of reach it takes its remembered extent and its closure does not run. It runs when it was never shown at the scroll area's current room, when it meets the reach, while a stop from its last run holds keyboard focus or is the target of a focus request, and while `.keep(true)` asks for it. The key names the child among every `Lazy` of its scroll area. Outside a scroll area a `Lazy` always runs.
+- The first run of a pass decides which children run, so the measuring run and the real run lay out the same children.
+- Every scroll input moves the offset at step 4, before the content runs, so the decision sees the offset the pass paints. Wheel, page keys and reveals arrive there directly. A thumb drag, a track press or an AccessKit scroll action is sensed after the content ran: the pass queues it for step 4 and asks for a discard pass, so the move shows in the same frame.
+- A collection builds the rows in the reach, plus its lead, anchor, renaming and grabbed rows. It places the rows it does not build by the extents they had when last built, from the same store, and its output lists the rows in view and the kept rows. One difference from `Lazy`: rows it never built take its item layout's estimate, so a long list is never built whole.
+- Content that was never shown has no extent and no stops. Mark content with `.keep(true)` when the app focuses it or scrolls to it before it was ever in reach.
+
+### 3.6 One egui revision
 
 `craft-libs` pins one revision of the egui fork. Each app's `xtask` checks that its lockfile uses the same revision and fails with a clear message otherwise. Two revisions in one build would give two incompatible `Tokens` and `Ui` types.
 
@@ -435,14 +451,6 @@ This section indexes the components by layer. Examples and every state of each c
 ### Fill and content sizing
 
 A content-sized column (a `Stack::new()`, a menu or popover body) holds the children that fill: they never set the column's width, and they are shown across the width it settles on. A leaf declares that it fills with `fills()`; a container declares it with `Sizing`. A host that shows arbitrary components (the gallery, a dialog body) offers them fill width with `fill_width()`, and a story that fills both axes takes its room from `testing::stage`.
-
-### Runs and out-of-view content
-
-Every size comes from this pass: a container's contents run in one measuring run, then in the real run, and both give the same result. No layout reads what an earlier pass found, with one exception: content inside a scroll area that is out of view this pass does not run, and it keeps the extent it had in the last pass that showed it. That extent changes only in a pass that shows the content. One mechanism (`runtime::lazy`, one store) serves every use:
-
-- `Lazy::new(key).show(ui, |ui| ..)` wraps a large child of a scroll body (a card, a row of cards, a section of an app panel). Out of view it takes its remembered extent and its closure does not run. It runs when it was never shown at the scroll area's current room, when it meets the view widened by the view's size on each side, while it holds keyboard focus, and while `.keep(true)` asks for it (the target of a scroll the app requests). The key names the child among every `Lazy` of its scroll area. Outside a scroll area a `Lazy` always runs.
-- The first run of a pass decides which children run, so the measuring run and the real run lay out the same children.
-- A collection builds its rows in view plus its lead, anchor, renaming and grabbed rows, and places the rows it does not build by the extents they had when last built, from the same store. Rows it never built take its item layout's estimate, so a long list is never built whole.
 
 ### 6.2 Index by layer
 
