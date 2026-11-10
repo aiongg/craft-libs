@@ -236,3 +236,29 @@ fn a_fill_width_stack_is_measured_at_its_share() {
     assert_eq!(sweeps.get(), 3, "two measuring sweeps and the real run");
     assert!(runs.iter().all(|(_, count)| *count == 1), "one measuring run per body: {runs:?}");
 }
+
+/// A scrolling stack whose content overflows it: its measuring run lays the content out beside the bar, as its real
+/// run does, so the fill-width grid rows and the panels in them measure once per frame, not again in the real run.
+#[trial]
+fn panels_in_an_overflowing_scroll_stack_measure_once() {
+    use craft_behavior::ColumnWidth;
+    use craft_ui::contract::{Scroll, Sizing};
+    use craft_ui::layout_components::Grid;
+    use craft_ui::sections::Panel;
+    const TWO: &[ColumnWidth] = &[ColumnWidth::fill(1.0); 2];
+    let runs = runs_of_a_settled_frame(|ui| {
+        Stack::new().fill().scroll(Scroll::vertical()).show(ui, |ui, _| {
+            for row in 0..8 {
+                Grid::new(TWO).fill_width().show(ui, |ui, _| {
+                    for at in 0..2 {
+                        Panel::new(format!("Card {row} {at}")).sizing(Sizing::Fill).show(ui, |ui, _| {
+                            Block::new(Vec2::new(100.0, 80.0)).show(ui);
+                        });
+                    }
+                });
+            }
+        });
+    });
+    assert!(runs.len() >= 25, "the stack, every row and every panel measured: {runs:?}");
+    assert!(runs.iter().all(|(_, count)| *count == 1), "one measuring run per body: {runs:?}");
+}
