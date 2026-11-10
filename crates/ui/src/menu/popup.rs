@@ -1,6 +1,7 @@
 //! `Menu` (11.4, 15.4): the container of menu rows, on a menu layer, inline, or as a submenu.
 
-use super::item::{LevelMemory, MenuItem, MenuItemOutput, MenuLevel, level_env};
+use super::item::{MenuItem, MenuItemOutput};
+use super::level::{LevelMemory, MenuLevel, level_env};
 use crate::contract::overlay::{Anchor, Dismiss, Outside, Popup};
 use crate::contract::{
     Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, Entry, Focus as _, Gap, InMenu, LeastWidth, Mount, NoValue, Outcome,

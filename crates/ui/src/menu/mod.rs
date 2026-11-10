@@ -3,6 +3,7 @@
 pub mod bar;
 mod edit;
 pub(crate) mod item;
+pub(crate) mod level;
 mod panel;
 mod popup;
 pub mod search;

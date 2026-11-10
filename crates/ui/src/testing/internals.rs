@@ -40,5 +40,5 @@ pub fn reorder_gap_at(rects: &[Rect], axis: Axis, at: Pos2) -> Option<Gap> {
 
 /// Whether the pointer at `now`, having come from `from`, heads for `submenu`.
 pub fn pointer_heads_toward(from: Pos2, now: Pos2, submenu: Rect) -> bool {
-    crate::menu::item::heads_toward(from, now, submenu)
+    crate::menu::level::heads_toward(from, now, submenu)
 }
