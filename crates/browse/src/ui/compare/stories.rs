@@ -6,9 +6,10 @@ use craft_ui::layout_components::Row;
 use craft_ui::patterns::form_dialogs::PreviewView;
 use craft_ui::primitives::textures::Revision;
 use craft_ui::runtime::env::Env;
+use craft_ui::testing::pictures::sample_picture;
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use craft_ui::tile_grid::TileFlag;
-use egui::{ColorImage, Rect, Ui, Vec2, vec2};
+use egui::{Color32, ColorImage, Rect, Ui, Vec2};
 
 use super::{ArrangeSpace, CompareCaption, CompareImage, ComparePair, CompareTile, RenderState, survey_cell};
 
@@ -16,24 +17,26 @@ use super::{ArrangeSpace, CompareCaption, CompareImage, ComparePair, CompareTile
 const NARROW_SHARE: f32 = 0.4;
 
 /// The picture's size in pixels.
-const PICTURE: [u32; 2] = [480, 320];
+const PICTURE: [u32; 2] = [900, 600];
+/// The spacing and width of the picture's grid lines, in pixels.
+const GRID: (u32, u32) = (100, 2);
 
-/// A gradient with a grid, so zoom and pan show.
-fn gradient(hue: f32) -> ColorImage {
-    let [w, h] = PICTURE;
-    let mut pixels = Vec::with_capacity((w * h) as usize);
-    for y in 0..h {
-        for x in 0..w {
-            let on_grid = x % 40 == 0 || y % 40 == 0;
-            let level = if on_grid { 0.25 } else { 0.55 + 0.4 * (x as f32 / w as f32) };
-            pixels.push(egui::ecolor::Hsva::new(hue, 0.5, level, 1.0).into());
+/// The sample photo of `key` with light grid lines, so zoom and pan show.
+fn gridded(key: u64) -> ColorImage {
+    let mut image = sample_picture(key, PICTURE);
+    let width = image.size[0];
+    for (at, pixel) in image.pixels.iter_mut().enumerate() {
+        let (x, y) = ((at % width) as u32, (at / width) as u32);
+        if x % GRID.0 < GRID.1 || y % GRID.0 < GRID.1 {
+            let lift = |c: u8| c + (u8::MAX - c) / 4 * 3;
+            *pixel = Color32::from_rgb(lift(pixel.r()), lift(pixel.g()), lift(pixel.b()));
         }
     }
-    ColorImage { size: [w as usize, h as usize], source_size: vec2(w as f32, h as f32), pixels }
+    image
 }
 
-fn image(key: u64, hue: f32) -> CompareImage<'static> {
-    CompareImage::Picture(key, Revision::of(&hue.to_bits()), PICTURE, Box::new(move || gradient(hue)))
+fn image(key: u64) -> CompareImage<'static> {
+    CompareImage::Picture(key, Revision::of(&key), PICTURE, Box::new(move || gridded(key)))
 }
 
 fn caption(label: &str, name: &str) -> CompareCaption {
@@ -56,14 +59,12 @@ fn compare_pair(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
         let mut active = *data.value("active", 0usize);
         let view = data.value("view", PreviewView::fitting());
         let [left, right] = ComparePair::new(ArrangeSpace::new(18.0, 16.0)).rtl(rtl).rects(area);
-        let select = CompareTile::new("Select", Bind::bound(view), image(1, 0.58))
-            .caption(caption("Select", "IMG_0001.jpg"))
-            .active(active == 0)
-            .place(ui, left);
+        let select =
+            CompareTile::new("Select", Bind::bound(view), image(1)).caption(caption("Select", "IMG_0001.jpg")).active(active == 0).place(ui, left);
         if select.clicked {
             active = 0;
         }
-        let candidate = CompareTile::new("Candidate", Bind::bound(view), image(2, 0.08))
+        let candidate = CompareTile::new("Candidate", Bind::bound(view), image(2))
             .caption(caption("Candidate", "IMG_0002.jpg"))
             .active(active == 1)
             .rejected(true)
@@ -81,7 +82,7 @@ fn compare_tile_narrow(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     filling(ui, |ui, area| {
         let view = data.value("view", PreviewView::fitting());
         let rect = Rect::from_min_size(area.min, Vec2::splat(area.width() * NARROW_SHARE));
-        CompareTile::new("Select", Bind::bound(view), image(1, 0.58))
+        CompareTile::new("Select", Bind::bound(view), image(1))
             .caption(caption("Select", "A_file_name_much_longer_than_the_tile.jpeg"))
             .place(ui, rect)
             .into()
@@ -92,7 +93,7 @@ fn compare_tile_narrow(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 fn compare_tile_pending(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     filling(ui, |ui, area| {
         let view = data.value("view", PreviewView::fitting());
-        CompareTile::new("Candidate", Bind::bound(view), image(2, 0.08))
+        CompareTile::new("Candidate", Bind::bound(view), image(2))
             .caption(caption("Candidate", "IMG_0002.jpg"))
             .state(RenderState::Pending(true))
             .place(ui, area)
@@ -123,9 +124,8 @@ fn compare_survey(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
         let mut outs = Vec::new();
         for at in 0..COUNT {
             let rect = survey_cell(COUNT, at, area, ASPECT, rtl);
-            let hue = at as f32 / COUNT as f32;
             let name = format!("IMG_{at:04}.jpg");
-            let out = CompareTile::new(name.clone(), Bind::bound(view), image(at as u64, hue))
+            let out = CompareTile::new(name.clone(), Bind::bound(view), image(at as u64))
                 .caption(CompareCaption::new("", name))
                 .survey(true)
                 .place(ui, rect);

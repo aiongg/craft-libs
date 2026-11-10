@@ -487,7 +487,7 @@ fn paint_failure(cx: &ContentPainterCx<'_>, rect: Rect) {
 /// - The picture: a diagonal gradient between two colours whose hues come from the key's hash (start hue
 ///   `hash % 360`, end hue 120 degrees on), fully opaque except a transparent top-left quarter (so the checkerboard
 ///   shows), with `revision % 8` white bars of one texel along the bottom edge; [`aspect`](Self::aspect) shapes the
-///   frame.
+///   frame and [`opaque`](Self::opaque) fills the quarter, as a story's sample photos are.
 /// - [`later`](Self::later)`(true)` renders as `Later` jobs, so with a `ManualJobs` in [`ThumbnailOptions::jobs`]
 ///   pictures arrive one per `run_next`.
 /// - Keys given to [`failing`](Self::failing) fail with the message "Fake failure" (always as a `Later` job, since a
@@ -497,6 +497,7 @@ fn paint_failure(cx: &ContentPainterCx<'_>, rect: Rect) {
 pub struct FakeThumbSource<K> {
     revision: u64,
     later: bool,
+    opaque: bool,
     aspect: PixelSize,
     failing: Vec<K>,
     blank: Vec<K>,
@@ -506,13 +507,20 @@ pub struct FakeThumbSource<K> {
 impl<K: std::hash::Hash + PartialEq + Clone + Send + 'static> FakeThumbSource<K> {
     /// Synchronous square pictures at revision 0.
     pub fn new() -> Self {
-        Self { revision: 0, later: false, aspect: PixelSize::new(1, 1), failing: Vec::new(), blank: Vec::new() }
+        Self { revision: 0, later: false, opaque: false, aspect: PixelSize::new(1, 1), failing: Vec::new(), blank: Vec::new() }
     }
 
     /// Renders as `Later` jobs.
     #[must_use]
     pub fn later(mut self, later: bool) -> Self {
         self.later = later;
+        self
+    }
+
+    /// The picture has no transparent quarter.
+    #[must_use]
+    pub fn opaque(mut self, opaque: bool) -> Self {
+        self.opaque = opaque;
         self
     }
 
@@ -571,7 +579,7 @@ impl<K: std::hash::Hash + PartialEq + Clone + Send + 'static> ThumbSource<K> for
             return ThumbRender::Later(Box::new(|_| Err(LoadFailure::Message("Fake failure".to_owned()))));
         }
         let frame = thumb_size(self.aspect, request.side);
-        let image = fake_picture(frame, fake_hue(key), self.revision);
+        let image = fake_picture(frame, fake_hue(key), self.revision, self.opaque);
         if self.later { ThumbRender::Later(Box::new(move |_| Ok(LoadedPicture::Image(image)))) } else { ThumbRender::Ready(image) }
     }
 }
@@ -585,17 +593,24 @@ fn fake_hue(key: &impl std::hash::Hash) -> f32 {
     (hasher.finish() % 360) as f32
 }
 
-/// The fake source's picture: a gradient from `hue` to `hue + 120` degrees, a transparent top left quarter and
-/// `revision % 8` white texels along the bottom row.
+/// The opaque picture of a [`FakeThumbSource`] for `key` at revision 0, `frame` pixels: a sample picture for a
+/// component that takes an image rather than a source.
 #[cfg(feature = "testing")]
-fn fake_picture(frame: PixelSize, hue: f32, revision: u64) -> ColorImage {
+pub(crate) fn fake_thumb_image(key: &impl std::hash::Hash, frame: PixelSize) -> ColorImage {
+    fake_picture(frame, fake_hue(key), 0, true)
+}
+
+/// The fake source's picture: a gradient from `hue` to `hue + 120` degrees, a transparent top left quarter unless
+/// `opaque`, and `revision % 8` white texels along the bottom row.
+#[cfg(feature = "testing")]
+fn fake_picture(frame: PixelSize, hue: f32, revision: u64, opaque: bool) -> ColorImage {
     let PixelSize { width, height, .. } = frame;
     let bars = (revision % 8) as u32;
     thumb_image(frame, width.max(height), |x, y| {
         if y + 1 == height && x % 2 == 0 && x / 2 < bars {
             return [255, 255, 255, 255];
         }
-        if x < width / 2 && y < height / 2 {
+        if !opaque && x < width / 2 && y < height / 2 {
             return [0, 0, 0, 0];
         }
         let t = ((x as f32 + 0.5) / width as f32 + (y as f32 + 0.5) / height as f32) / 2.0;

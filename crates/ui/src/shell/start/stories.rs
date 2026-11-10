@@ -4,8 +4,9 @@ use super::StartScreen;
 use crate::contract::Bind;
 use crate::primitives::{LoadFailure, Revision, TextureState, TextureStore, TextureStoreOptions};
 use crate::shell::{RecentFile, RecentSort, RecentView, Template, ThumbKey};
+use crate::testing::pictures::sample_picture;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
-use egui::{Color32, ColorImage, Ui};
+use egui::Ui;
 use std::path::PathBuf;
 
 /// The time the age lines count from, in seconds since the Unix epoch.
@@ -13,7 +14,7 @@ const NOW: i64 = 1_800_000_000;
 const HOUR: i64 = 3_600;
 const DAY: i64 = 86_400;
 /// The size of the stored pictures.
-const PICTURE: [usize; 2] = [64, 36];
+const PICTURE: [u32; 2] = [64, 36];
 
 /// The view and sort the stories edit.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -50,13 +51,12 @@ fn picture_templates() -> Vec<Template> {
 fn fill(ui: &Ui) -> TextureStore<ThumbKey> {
     let ctx = ui.ctx();
     let store = TextureStore::<ThumbKey>::in_context(ctx, "start-stories", TextureStoreOptions::default());
-    let tints = [Color32::from_rgb(0x8a, 0x6f, 0x4d), Color32::from_rgb(0x4a, 0x7f, 0xc1), Color32::from_rgb(0x5f, 0x9e, 0x6e)];
-    for (file, tint) in picture_files().into_iter().zip(tints) {
+    for (file, key) in picture_files().into_iter().take(3).zip(0..) {
         if let Some(revision) = file.thumbnail {
-            let _ = store.get_or_put(ctx, ThumbKey::Recent(file.path), revision, || ColorImage::filled(PICTURE, tint));
+            let _ = store.get_or_put(ctx, ThumbKey::Recent(file.path), revision, || sample_picture(key, PICTURE));
         }
     }
-    let _ = store.get_or_put(ctx, ThumbKey::Template("a4".to_owned()), Revision::new(1), || ColorImage::filled(PICTURE, tints[0]));
+    let _ = store.get_or_put(ctx, ThumbKey::Template("a4".to_owned()), Revision::new(1), || sample_picture(3, PICTURE));
     let broken = ThumbKey::Recent(PathBuf::from("/home/ana/Print").join("Broken.fig"));
     if matches!(store.state(ctx, &broken, Revision::new(4)), TextureState::Missing) {
         store.put_failure(ctx, broken, Revision::new(4), LoadFailure::Unreadable);

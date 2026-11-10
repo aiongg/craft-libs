@@ -4,6 +4,7 @@ use craft_behavior::Mixed;
 use craft_ui::contract::Bind;
 use craft_ui::patterns::presets::PresetRow;
 use craft_ui::runtime::env::Env;
+use craft_ui::testing::pictures::{SampleTip, paint_tip, paint_wave};
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
 
@@ -15,9 +16,21 @@ const SOFT_SIZE: f64 = 45.0;
 const HARD_SIZE: f64 = 12.0;
 const MAX_SIZE: f64 = 5000.0;
 
+/// The tip and stroke of a preset with `tip`, in the ink of the surface; a soft tip's stroke is wider and half
+/// opaque.
+fn paint(tip: SampleTip) -> BrushRowPaint {
+    let (width, alpha) = if tip == SampleTip::Soft { (0.19, 0.5) } else { (0.12, 1.0) };
+    BrushRowPaint::new(
+        move |cx, rect| paint_tip(cx, rect, tip, cx.ink()),
+        move |cx, rect| paint_wave(cx, rect, width, cx.ink().gamma_multiply(alpha)),
+    )
+}
+
 fn rows(env: &Env, parts: BrushCardParts) -> Vec<PresetRow<u32>> {
-    let paint = BrushRowPaint::new(|_, _| {}, |_, _| {});
-    vec![brush_row(SOFT, "Soft Round", 0, SOFT_SIZE, parts, env, &paint), brush_row(HARD, "Hard Round", 0, HARD_SIZE, parts, env, &paint)]
+    vec![
+        brush_row(SOFT, "Soft Round", 0, SOFT_SIZE, parts, env, &paint(SampleTip::Soft)),
+        brush_row(HARD, "Hard Round", 0, HARD_SIZE, parts, env, &paint(SampleTip::Hard)),
+    ]
 }
 
 #[story(BrushPresetPicker<'static, u32>, covers = [Default], drive = Drive::Never)]

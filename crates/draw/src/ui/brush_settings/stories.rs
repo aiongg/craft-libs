@@ -4,12 +4,13 @@ use craft_behavior::Mixed;
 use craft_ui::contract::{Bind, Show as _, Validity};
 use craft_ui::primitives::Revision;
 use craft_ui::runtime::env::Message;
+use craft_ui::testing::pictures::stamped_stroke;
 use craft_ui::testing::{Drive, Grip, StoryData, StoryOutput, story};
-use egui::{Color32, ColorImage, Ui};
+use egui::{Color32, Ui};
 
 use super::{
-    BrushSection, BrushSectionList, BrushSettingsPanel, BrushSizeField, BrushStrokeStrip, DynamicControl, DynamicControlRow, StripImage, TipAngle,
-    TipEllipse,
+    BrushSection, BrushSectionList, BrushSettingsPanel, BrushSizeField, BrushStrokeStrip, DynamicControl, DynamicControlRow, PreviewStroke,
+    StripImage, TipAngle, TipEllipse,
 };
 
 const ANGLE: TipAngle = TipAngle::new(30.0, 0.6);
@@ -34,11 +35,24 @@ fn sections(on: bool) -> Vec<BrushSection<u8>> {
     ]
 }
 
-fn strip<'a>() -> BrushStrokeStrip<'a> {
+/// The diameter of the preview stroke's dabs, in points.
+const STROKE_DIAMETER: f64 = 18.0;
+
+/// The paint colour the test stroke is stamped in: the brush's colour, as the engine renders it.
+const PAINT: Color32 = Color32::from_rgb(0x37, 0x8E, 0xF0);
+
+/// The strip with the test stroke stamped in the paint colour, as the engine renders it.
+fn strip<'a>(ui: &Ui) -> BrushStrokeStrip<'a> {
+    let color = PAINT;
+    let diameter = STROKE_DIAMETER * f64::from(ui.ctx().pixels_per_point());
     BrushStrokeStrip::new(
         "Stroke preview",
         Revision::new(1),
-        StripImage::new(|[width, height]| ColorImage::filled([width, height], Color32::TRANSPARENT)),
+        StripImage::new(move |[width, height]| {
+            let stroke = PreviewStroke::new(width as u32, height as u32);
+            let samples: Vec<[f64; 3]> = stroke.samples().iter().map(|at| [at.x, at.y, f64::from(at.pressure)]).collect();
+            stamped_stroke([width, height], &samples, diameter * stroke.fit(diameter), color)
+        }),
     )
 }
 
@@ -49,7 +63,7 @@ fn panel(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     BrushSettingsPanel::new("Brush Settings", &sections, Bind::given(shown))
         .link_row()
         .can_update()
-        .strip(strip())
+        .strip(strip(ui))
         .show(ui, |ui, _, _| {
             let _ = BrushSizeField::new("Size", Bind::given(SIZE), MAX_SIZE).show(ui);
         })
@@ -61,7 +75,7 @@ fn panel_off(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let sections = sections(false);
     let shown = *data.value("shown", DYNAMICS);
     BrushSettingsPanel::new("Brush Settings", &sections, Bind::given(shown))
-        .strip(strip())
+        .strip(strip(ui))
         .show(ui, |ui, _, _| {
             let _ = BrushSizeField::new("Size", Bind::given(SIZE), MAX_SIZE).show(ui);
         })
@@ -103,7 +117,7 @@ fn dynamic_control_row(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 
 #[story(BrushStrokeStrip<'static>, covers = [Default], drive = Drive::Never)]
 fn stroke_strip(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    strip().show(ui).into()
+    strip(ui).show(ui).into()
 }
 
 #[story(BrushSizeField<'static>, covers = [Default], drive = Drive::Never)]

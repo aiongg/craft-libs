@@ -19,6 +19,7 @@ pub mod input;
 pub mod internals;
 pub mod layout;
 pub mod memory;
+pub mod pictures;
 pub mod pointer;
 pub mod props;
 pub mod relations;

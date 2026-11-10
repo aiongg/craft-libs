@@ -6,6 +6,7 @@ use super::{
 use crate::contract::{Bind, Props as _, Show as _, Validity};
 use crate::list::{ThumbAspect, ToggleState};
 use crate::runtime::env::Message;
+use crate::testing::pictures::StoryPictures;
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use craft_behavior::{IconId, Mixed};
 use craft_theme::Srgba;
@@ -31,7 +32,7 @@ fn tile_badges_and_bar(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let duplicate = TileBadge::new(BadgeSlot::StartBottom, BadgeKind::Text("Duplicate".into()), Tone::Warn, Some("Already in the bin".into()));
     let edited = TileBadge::new(BadgeSlot::EndBottom, BadgeKind::Glyph(IconId::new("flag")), Tone::Neutral, Some("Edited".into()));
     let out = Tile::new("IMG_0002.jpg")
-        .thumb(ThumbAspect::new(3, 2), |_, _| {})
+        .thumb(ThumbAspect::new(3, 2), StoryPictures::of(ui.ctx()).thumb(2))
         .rating(*rating)
         .flag(TileFlag::Picked)
         .label_color(Srgba::rgb(0.86, 0.31, 0.24))
@@ -86,7 +87,7 @@ fn tile_icon_face(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 fn tile_start_caption(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     Tile::new("7")
         .caption(CaptionPlace::Start)
-        .thumb(ThumbAspect::new(16, 9), |_, _| {})
+        .thumb(ThumbAspect::new(16, 9), StoryPictures::of(ui.ctx()).thumb(7))
         .hidden()
         .mark(TileMark::new(IconId::new("play"), "Has animations"))
         .show(ui)
