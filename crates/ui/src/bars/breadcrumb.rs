@@ -1,16 +1,15 @@
-//! `BreadcrumbBar`: a path as clickable segments, the current one last. A leaf whose crumbs are parts wearing `Link`
+//! `BreadcrumbBar`: a path as clickable segments, the current one last. A leaf whose crumbs are parts with plain-text
 //! faces in one part roving group. The leading crumbs that do not fit stand behind an ellipsis part that opens a menu
 //! of them.
 
 use super::words::BarWords;
-use crate::buttons::Link;
 use crate::contract::{
     Access, Common, Component, Cx, Entry, MeasureCx, Name, Outcome, OverlayUi, Overlays as _, PaintUi, PartsCx, Props as _, Role, Styled as _,
     WordSetCx as _,
 };
 use crate::display::{Elide, Shade, Text};
 use crate::menu::Menu;
-use crate::primitives::{IconSpec, Wrap};
+use crate::primitives::IconSpec;
 use crate::runtime::env::Label;
 use crate::runtime::focus::{ActivateKeys, KeyUse};
 use crate::style::{ComponentStyle, FocusLook, IconLook, Stateful, StyleCx, TypeRole};
@@ -105,12 +104,12 @@ impl<'a, K: Value + 'static> BreadcrumbBar<'a, K> {
         at + 1 == self.crumbs.len()
     }
 
-    /// The face crumb `at` wears: a link for an ancestor, strong text for the current crumb.
+    /// The face crumb `at` wears: plain text for an ancestor, strong text for the current crumb.
     fn crumb_face(&self, at: usize, label: &Label) -> CrumbFace {
         if self.is_last(at) {
             CrumbFace::Current(Text::new(label.clone()).role(TypeRole::BodyStrong).elide(Elide::End))
         } else {
-            CrumbFace::Ancestor(Link::new(label.clone()).wrap(Wrap::ElidePath))
+            CrumbFace::Ancestor(Text::new(label.clone()).elide(Elide::Path))
         }
     }
 
@@ -129,7 +128,7 @@ impl<'a, K: Value + 'static> BreadcrumbBar<'a, K> {
 }
 
 enum CrumbFace {
-    Ancestor(Link),
+    Ancestor(Text),
     Current(Text),
 }
 

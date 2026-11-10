@@ -4,8 +4,8 @@ use crate::contract::{Access, Common, Component, Cx, MeasureCx, PaintUi, Pointer
 use crate::primitives::{PaintShape, StrokeWidth, TextRun, Wrap};
 use crate::style::{ComponentStyle, FocusLook, Stateful, StyleCx, TextLook, TypeRole};
 use craft_behavior::{CursorIcon, CursorPriority, Flow, Metrics, PointerButton, PressPhase, Sense};
-use craft_theme::States;
 use craft_theme::variant::Tone;
+use craft_theme::{Contrast, States};
 use egui::{Pos2, Response, Vec2};
 
 /// The style of a link.
@@ -16,7 +16,7 @@ pub struct LinkStyle {
     metrics: Metrics,
     #[style(focus)]
     focus: FocusLook,
-    /// The text and underline colour: `accent.text`, the accent token for text and links, which meets the text contrast.
+    /// The text and underline colour: `accent.solid`, as PhotoCraft's links; `accent.text` at high contrast, which meets the text contrast `accent.solid` does not.
     #[style(text)]
     text: TextLook,
     /// How far the underline sits above the bottom of the text line.
@@ -67,7 +67,8 @@ impl Component for Link {
 
     fn style(cx: &StyleCx<'_>, key: LinkStyleKey) -> LinkStyle {
         let colors = &cx.tokens.color;
-        let color = key.tone.map_or_else(|| cx.color(colors.accent.text), |tone| cx.tone(tone));
+        let accent = if cx.contrast() == Contrast::High { colors.accent.text } else { colors.accent.solid };
+        let color = key.tone.map_or_else(|| cx.color(accent), |tone| cx.tone(tone));
         LinkStyle {
             metrics: Metrics::new(),
             focus: cx.focus_look(),
@@ -111,7 +112,9 @@ impl Component for Link {
         let draw = ui.draw();
         let layout = draw.text(cx.content_rect, &self.run(cx.resolved.label).color(color));
         let line = Flow::new(cx.content_rect, cx.flow.is_rtl()).take_start(layout.size().x).0;
-        let y = cx.content_rect.top() + layout.size().y - cx.style.underline;
+        // A single line is centred in a taller rect, so the underline follows the text, not the rect's top.
+        let spare = if layout.galley.rows.len() <= 1 { (cx.content_rect.height() - layout.size().y).max(0.0) } else { 0.0 };
+        let y = cx.content_rect.top() + spare / 2.0 + layout.size().y - cx.style.underline;
         draw.stroke(&PaintShape::Path(vec![Pos2::new(line.left(), y), Pos2::new(line.right(), y)]), StrokeWidth::Thin, color);
     }
 
