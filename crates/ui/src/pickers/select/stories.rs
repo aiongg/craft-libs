@@ -2,6 +2,7 @@
 
 use super::Select;
 use crate::contract::{Bind, Entry, Props as _, Role, Show as _, ShowContainer as _, Validity};
+use crate::contract::{LabelAlign, SideLabel};
 use crate::form::{Field, FieldGroup};
 use crate::primitives::IconSpec;
 use crate::runtime::env::Message;
@@ -40,6 +41,11 @@ fn tools() -> Vec<Entry<u8>> {
         .collect()
 }
 
+/// A row of the states story: the label column starts at the left edge, as the form list does.
+fn row(label: &'static str) -> Field {
+    Field::new(label).side(SideLabel::new().align(LabelAlign::Start)).id_salt(label)
+}
+
 #[story(Select<'static, u8>, covers = [Default], drive = Drive::Pick { row: 1 })]
 fn select(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let size = *data.choice("size", ControlSize::Md, &[("Sm", ControlSize::Sm), ("Md", ControlSize::Md)]);
@@ -47,21 +53,19 @@ fn select(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let units = units();
     let unit = data.choice("unit", 0u8, &[("Pixels", 0), ("Inches", 1), ("Centimetres", 2), ("Points", 3)]);
     let out = FieldGroup::new("Select states").show(ui, |ui, _| {
-        let first = Field::new("Units")
-            .id_salt("units")
-            .show(ui, |ui, _| Select::new("Units", Bind::bound(unit), &units).size(size).enabled(!disabled).show(ui));
-        Field::new("Resampling").id_salt("resampling").show(ui, |ui, _| {
+        let first = row("Units").show(ui, |ui, _| Select::new("Units", Bind::bound(unit), &units).size(size).enabled(!disabled).show(ui));
+        row("Resampling").show(ui, |ui, _| {
             Select::new("Resampling", Bind::bound(&mut 1u8), &resampling()).size(size).enabled(!disabled).show(ui);
         });
-        Field::new("Tool").id_salt("tool").show(ui, |ui, _| {
+        row("Tool").show(ui, |ui, _| {
             Select::new("Tool", Bind::bound(&mut 0u8), &tools()).size(size).enabled(!disabled).show(ui);
         });
         let profiles = [Entry::new(0u8, "sRGB"), Entry::new(1, "Display P3"), Entry::new(2, "Adobe RGB")];
         let mut none = u8::MAX;
-        Field::new("No choice").id_salt("no-choice").show(ui, |ui, _| {
+        row("No choice").show(ui, |ui, _| {
             Select::new("Profile", Bind::bound(&mut none), &profiles).placeholder("Choose a profile").size(size).enabled(!disabled).show(ui);
         });
-        Field::new("Disabled").id_salt("disabled").show(ui, |ui, _| {
+        row("Disabled").show(ui, |ui, _| {
             Select::new("Locked units", Bind::bound(&mut 2u8), &units).size(size).enabled(false).show(ui);
         });
         first.inner

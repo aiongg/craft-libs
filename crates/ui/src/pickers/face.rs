@@ -48,7 +48,7 @@ pub struct SelectFace<'a> {
     thumb: Option<(ThumbAspect, ThumbPaint<'a>)>,
     /// The picked entry's icon, drawn before the text in the chevron's ink.
     #[prop]
-    icon: Option<IconSpec<'static>>,
+    leading: Option<IconSpec<'static>>,
     /// Whether the text shows beside the thumbnail; `false` shows the thumbnail alone. The text is the face's
     /// accessible name either way.
     #[prop]
@@ -58,7 +58,7 @@ pub struct SelectFace<'a> {
 impl<'a> SelectFace<'a> {
     /// A face showing `text`, which is also its name.
     pub fn new(text: impl Into<Label>) -> Self {
-        SelectFace { common: Common::new(), placeholder: false, thumb: None, icon: None, name: true }.label(text)
+        SelectFace { common: Common::new(), placeholder: false, thumb: None, leading: None, name: true }.label(text)
     }
 
     /// A picture `aspect` times as wide as high before the text; `paint` draws into the picture's rect through the
@@ -79,8 +79,8 @@ impl<'a> SelectFace<'a> {
         self.thumb.as_ref().map_or(0.0, |(aspect, _)| aspect.of(style.thumb) + if self.name { style.field.metrics().gap } else { 0.0 })
     }
 
-    fn leading(&self) -> Vec<Adornment> {
-        self.icon.iter().map(|icon| Adornment::glyph(icon.clone())).collect()
+    fn leading_glyphs(&self) -> Vec<Adornment> {
+        self.leading.iter().map(|icon| Adornment::glyph(icon.clone())).collect()
     }
 
     fn chevron() -> Adornment {
@@ -119,7 +119,7 @@ impl Component for SelectFace<'_> {
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
         let text = if self.name { cx.layout(&TextRun::new(cx.resolved.label).role(cx.style.text.role)).size() } else { Vec2::ZERO };
         let picture = if self.thumb.is_some() { cx.style.thumb } else { 0.0 };
-        Vec2::new(self.lead(cx.style) + text.x + reserve(&cx.style.field, &self.leading(), &[Self::chevron()]), text.y.max(picture))
+        Vec2::new(self.lead(cx.style) + text.x + reserve(&cx.style.field, &self.leading_glyphs(), &[Self::chevron()]), text.y.max(picture))
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
@@ -132,7 +132,7 @@ impl Component for SelectFace<'_> {
             let _ = ui.child("thumb", picture, RowThumb::new(paint));
             flow = if self.name { rest.take_start(cx.style.field.metrics().gap).1 } else { rest };
         }
-        let leading = self.leading();
+        let leading = self.leading_glyphs();
         let placed = place(flow.rect(), &cx.style.field, &leading, std::slice::from_ref(&chevron), rtl);
         if let (Some(rect), Some(icon)) = (placed.leading.first(), leading.first()) {
             icon.paint(ui, *rect, cx.resolve(&cx.style.chevron.color));

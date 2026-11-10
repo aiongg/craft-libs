@@ -456,7 +456,9 @@ pub(crate) fn finish(ctx: &Context, container: Id, merged: Option<Merged>) {
                 report_unnamed(ctx, node.unnamed.clone().filter(|_| !named));
             }
             // A click on a label, as on any form label, moves focus to its one control.
-            if let (true, [only]) = (label.activated, &scope.nodes[..]) {
+            if let (true, [only]) = (label.activated, &scope.nodes[..])
+                && !only.disabled
+            {
                 crate::runtime::focus::request(ctx, only.inner_stop.unwrap_or(crate::runtime::focus::FocusTarget::Id(only.id)));
                 if scope.activates {
                     crate::runtime::keys::queue_activate(ctx, only.id);

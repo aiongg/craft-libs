@@ -297,7 +297,7 @@ impl<T: Value + 'static> Component for Select<'_, T> {
         };
         let mut face = SelectFace::new(text);
         if let Some(icon) = self.position(cx.value()).and_then(|at| self.entries[at].icon_spec()) {
-            face = face.icon(icon.clone());
+            face = face.leading(icon.clone());
         }
         ui.face(FACE, if muted { face.placeholder() } else { face });
     }

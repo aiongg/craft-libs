@@ -116,16 +116,22 @@ fn a_disabled_text_field_draws_the_disabled_ink_and_the_divider_edge() {
     };
     frames.idle(2, &mut show);
     let shapes = frames.frame_shapes(&mut show);
-    let texts: Vec<_> = shapes
+    // The colour that reaches the screen is the one in the galley rows' meshes: egui's disabled fade rewrites it, so a
+    // second fade shows here and not in the layout job's section format.
+    let painted: Vec<_> = shapes
         .iter()
         .filter_map(|shape| match shape {
-            egui::Shape::Text(text) => text.galley.job.sections.first().map(|section| (text.galley.text().to_owned(), section.format.color)),
+            egui::Shape::Text(text) => Some((
+                text.galley.text().to_owned(),
+                text.galley.rows.iter().flat_map(|row| row.visuals.mesh.vertices.iter().map(|vertex| vertex.color)).collect::<Vec<_>>(),
+            )),
             _ => None,
         })
         .collect();
     for word in ["Locked", "Untitled"] {
-        let (_, ink) = texts.iter().find(|(text, _)| text == word).unwrap_or_else(|| panic!("{word} is drawn: {texts:?}"));
-        assert_eq!(*ink, disabled, "{word} is the disabled ink");
+        let (_, colours) = painted.iter().find(|(text, _)| text == word).unwrap_or_else(|| panic!("{word} is drawn"));
+        assert!(!colours.is_empty(), "{word} has glyph vertices");
+        assert!(colours.iter().all(|colour| *colour == disabled), "{word} is painted in the disabled ink: {colours:?}");
     }
     let edges = shapes.iter().any(|shape| matches!(shape, egui::Shape::Rect(rect) if rect.stroke.color == divider));
     assert!(edges, "a disabled well's edge is line.divider");

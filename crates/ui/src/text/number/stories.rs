@@ -2,6 +2,7 @@
 
 use super::{NumberField, NumberPick};
 use crate::contract::{Bind, Entry, Props as _, Show as _, ShowContainer as _, Validity};
+use crate::contract::{LabelAlign, SideLabel};
 use crate::form::{Field, FieldGroup};
 use crate::runtime::env::Message;
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
@@ -15,14 +16,37 @@ const HUGE: f64 = 123_456_789_012_345.0;
 const AUTO: f64 = 0.0;
 const RANGE: std::ops::RangeInclusive<f64> = 0.0..=100.0;
 
+/// A row of the states story: the label column starts at the left edge, as the form list does.
+fn row(label: &'static str) -> Field {
+    Field::new(label).side(SideLabel::new().align(LabelAlign::Start)).id_salt(label)
+}
+
+fn refuse_negative(size: &Option<f64>) -> Validity<Option<f64>> {
+    match size {
+        Some(size) if *size < 0.0 => Validity::Refuse(Message::new("Size cannot be negative")),
+        _ => Validity::Ok,
+    }
+}
+
 #[story(NumberField<'static>, covers = [Default], drive = Drive::Type("42"))]
 fn number_field(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let size = *data.choice("control_size", ControlSize::Md, &[("Sm", ControlSize::Sm), ("Md", ControlSize::Md)]);
     let out = FieldGroup::new("Number field states").show(ui, |ui, _| {
-        let first = Field::new("Size").id_salt("size").show(ui, |ui, _| {
-            NumberField::new("Size", Bind::bound(data.value("size", Some(SIZE)))).range(RANGE).step(0.5).unit("pt").size(size).show(ui).edit
+        let first = row("Plain").show(ui, |ui, _| NumberField::new("Plain", Bind::bound(data.value("plain", Some(42.0)))).size(size).show(ui).edit);
+        row("With unit").show(ui, |ui, _| {
+            NumberField::new("Gap", Bind::bound(data.value("gap", Some(SIZE)))).range(RANGE).step(0.5).unit("mm").size(size).show(ui);
         });
-        Field::new("Disabled").id_salt("disabled").show(ui, |ui, _| {
+        row("Mixed").show(ui, |ui, _| {
+            NumberField::new("Mixed size", Bind::bound_mixed(data.value("mixed", Mixed::<Option<f64>>::Mixed))).unit("pt").size(size).show(ui);
+        });
+        row("Invalid").show(ui, |ui, _| {
+            NumberField::new("Columns", Bind::bound(data.value("negative", Some(-SIZE))).check(refuse_negative)).size(size).show(ui);
+        });
+        row("Not a number").show(ui, |ui, _| {
+            // Held outside the story data: NaN is never equal to itself, so the suite would read it as changed.
+            NumberField::new("Not a number", Bind::bound(&mut Some(f64::NAN))).size(size).show(ui);
+        });
+        row("Disabled").show(ui, |ui, _| {
             NumberField::new("Disabled", Bind::bound(&mut Some(64.0))).range(RANGE).step(0.5).unit("px").enabled(false).size(size).show(ui);
         });
         first.inner
@@ -42,10 +66,6 @@ fn number_field_mixed(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 
 #[story(NumberField<'static>, covers = [Invalid], drive = Drive::Never)]
 fn number_field_invalid(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let refuse_negative = |size: &Option<f64>| match size {
-        Some(size) if *size < 0.0 => Validity::Refuse(Message::new("Size cannot be negative")),
-        _ => Validity::Ok,
-    };
     NumberField::new("Size", Bind::bound(data.value("negative", Some(-SIZE))).check(refuse_negative)).show(ui).edit.into()
 }
 
