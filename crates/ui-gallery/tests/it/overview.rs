@@ -90,13 +90,23 @@ fn a_card_shows_its_picked_story_group_and_the_stories_panel_picks_another() {
     assert!(painted(&fixture, "· Step"), "the picked group's name follows the card's title");
 }
 
-/// The painted texts right of `target`, on its row.
+/// The painted texts right of `target` on its row, inside its card: left of the right edge of the card's Open, the
+/// nearest one above `target` in its column.
 fn beside(fixture: &Fixture, target: &craft_ui::testing::Target) -> Vec<String> {
     let row = target.rect;
+    let card_right = fixture
+        .by_role(Role::BUTTON)
+        .into_iter()
+        .filter(|open| fixture.tree().name_of(open.node) == Some("Open") && open.rect.bottom() < row.top() && open.rect.right() > row.right())
+        .min_by(|a, b| (row.top() - a.rect.bottom()).total_cmp(&(row.top() - b.rect.bottom())))
+        .expect("the card's Open")
+        .rect
+        .right();
     fixture
         .texts()
         .iter()
-        .filter(|run| run.rect.left() >= row.right() && run.rect.center().y > row.top() && run.rect.center().y < row.bottom())
+        .filter(|run| run.rect.left() >= row.right() && run.rect.right() <= card_right)
+        .filter(|run| run.rect.center().y > row.top() && run.rect.center().y < row.bottom())
         .map(|run| run.text.clone())
         .collect()
 }

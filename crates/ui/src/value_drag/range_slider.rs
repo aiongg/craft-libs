@@ -337,6 +337,17 @@ impl Component for RangeSlider<'_> {
         }
     }
 
+    fn value_text(&self, cx: &Cx<'_, Self>) -> Option<String> {
+        let pair = Self::current(cx);
+        pair.0.same()?;
+        pair.1.same()?;
+        let scale = self.track_scale();
+        let (from, to) = placed(&scale, &pair);
+        let units = cx.env.units();
+        let words = cx.words::<ValueDragWords>();
+        Some(words.range.fill(&[("from", scale.text(&units, from).as_str()), ("to", scale.text(&units, to).as_str())]))
+    }
+
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
         let scale = self.track_scale();
         let words = cx.words::<ValueDragWords>();

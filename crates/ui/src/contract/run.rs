@@ -604,6 +604,8 @@ fn run_in_host<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Opti
     // A sizing pass of the parent or host `Ui` allocates the size and stops: no parts, no body, and the stage
     // opened at step 3 is written back unchanged.
     if p.sizing || ui.is_sizing_pass() {
+        // The output words the value in a measuring run too, so what is measured beside the component holds it.
+        *p.cx.core.value_text.borrow_mut() = p.comp.value_text(p.cx);
         return;
     }
     p.real = true;

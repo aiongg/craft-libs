@@ -397,6 +397,14 @@ pub trait Component: Meta + Sized {
     /// Value, range, relations, sub-nodes and custom actions beyond role, label and flags.
     fn access(&self, _access: &mut Access, _cx: &Cx<'_, Self>) {}
 
+    /// The shown value as the component words it ("40.0", "20 to 60"), which assistive technology reads and a viewer
+    /// shows beside the component (`Outcome::value_text`); `None` for a component that words no value. Every pass
+    /// asks it, measuring runs included, so it reads the props, the shown value and the environment only. Step 16
+    /// gives it to the node, as the numeric value's text or else as the node's value.
+    fn value_text(&self, _cx: &Cx<'_, Self>) -> Option<String> {
+        None
+    }
+
     /// Builds the output from the finished context.
     fn finish(self, cx: Cx<'_, Self>) -> Self::Output;
 }

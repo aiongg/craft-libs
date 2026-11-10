@@ -12,13 +12,10 @@ use crate::primitives::{PaintShape, StrokeWidth};
 use crate::runtime::env::Label;
 use crate::runtime::focus::{ActivateKeys, KeepKeys, KeyUse};
 use crate::style::{ComponentStyle, FocusLook, StyleColor, StyleCx, TextLook, TrackLook};
-use craft_behavior::{HitLevel, HitPriority, Metrics, PartKey, PressPhase, Sense, decimals_for_step};
+use craft_behavior::{HitLevel, HitPriority, Metrics, PartKey, PressPhase, Sense};
 use craft_theme::Stateful;
 use egui::{Pos2, Rect, Vec2};
 use std::ops::RangeInclusive;
-
-/// The decimals of a slider's value text when the slider has no step.
-const STEPLESS_DECIMALS: usize = 1;
 
 #[cfg(feature = "testing")]
 mod stories;
@@ -279,19 +276,18 @@ impl Component for Slider<'_> {
         let scale = self.track_scale();
         let range = scale.min..=scale.max;
         let numeric = match cx.value() {
-            Some(value) => {
-                let text = match &self.value_text {
-                    Some(text) => cx.env.resolve(text).as_str().to_owned(),
-                    None => {
-                        let decimals = self.step.map_or(STEPLESS_DECIMALS, decimals_for_step);
-                        cx.env.units().number(*value, decimals..=decimals)
-                    }
-                };
-                Numeric::new(*value, range).text(text)
-            }
+            Some(value) => Numeric::new(*value, range),
             None => Numeric::empty(range),
         };
         access.numeric(numeric.step(scale.small()));
+    }
+
+    fn value_text(&self, cx: &Cx<'_, Self>) -> Option<String> {
+        let value = cx.value()?;
+        Some(match &self.value_text {
+            Some(text) => cx.env.resolve(text).as_str().to_owned(),
+            None => self.track_scale().text(&cx.env.units(), *value),
+        })
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
