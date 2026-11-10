@@ -36,6 +36,7 @@ pub struct SpinnerStyle {
 /// The side of a spinner, as the icon sizes and the control height name it. A spinner without one follows the
 /// control size around it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum SpinnerSize {
     /// The small icon side.
     Sm,
@@ -49,12 +50,13 @@ pub enum SpinnerSize {
 
 /// The busy mark. Named by its label it is a busy progress indicator; without a label it is decoration, as inside
 /// a button that reports busy itself.
-#[derive(crate::contract::Component)]
+#[derive(crate::contract::Component, crate::contract::Props)]
 pub struct Spinner {
     #[common]
     common: Common,
     /// The side, which is part of the style key.
     #[style_key]
+    #[prop]
     extent: Option<SpinnerSize>,
 }
 
@@ -62,12 +64,6 @@ impl Spinner {
     /// A spinner at the icon side of the control size.
     pub fn new() -> Self {
         Spinner { common: Common::new(), extent: None }
-    }
-
-    /// A spinner of `size`, whatever the control size around it.
-    pub fn extent(mut self, size: SpinnerSize) -> Self {
-        self.extent = Some(size);
-        self
     }
 }
 
