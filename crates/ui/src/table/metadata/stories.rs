@@ -9,15 +9,24 @@ fn groups() -> Vec<MetadataGroup> {
     vec![
         MetadataGroup::new(
             "Camera",
+            vec![MetadataRow::new("Make", "FUJIFILM"), MetadataRow::new("Model", "X100V"), MetadataRow::new("Lens", "23 mm f/2")],
+        ),
+        MetadataGroup::new(
+            "Exposure",
             vec![
-                MetadataRow::new("Make", "Hasselblad"),
-                MetadataRow::new("Exposure Time", "1/250 s").key("exif:ExposureTime"),
-                MetadataRow::new("Description", "A long free-text description that runs past the width of its column and wraps"),
+                MetadataRow::new("Exposure Time", "1/250").key("exif:ExposureTime"),
+                MetadataRow::new("Aperture", "f/4"),
+                MetadataRow::new("ISO speed", "200"),
+                MetadataRow::new("Focal Length", "23 mm"),
             ],
         ),
         MetadataGroup::new(
-            "XMP",
-            vec![MetadataRow::new("Creator", "A. Photographer").key("dc:creator"), MetadataRow::new("File", "IMG_0001.RAW").locked()],
+            "File",
+            vec![
+                MetadataRow::new("Creator", "A. Rivera").key("dc:creator"),
+                MetadataRow::new("Title", "IMG_2041").locked(),
+                MetadataRow::new("Software", "Ver 5.20"),
+            ],
         ),
     ]
 }
@@ -33,7 +42,7 @@ fn metadata_table(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 #[story(MetadataTable<'static>, covers = [], drive = Drive::Never)]
 fn metadata_table_chooser(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let mut filter = data.value("filter", String::new()).clone();
-    let mut chosen = data.value("chosen", vec!["Make".to_owned()]).clone();
+    let mut chosen = data.value("chosen", vec!["Make".to_owned(), "ISO speed".to_owned()]).clone();
     let out = MetadataTable::new("Metadata", &groups()).filter(Bind::bound(&mut filter)).choose(Bind::bound(&mut chosen)).show(ui);
     *data.value("filter", String::new()) = filter;
     *data.value("chosen", Vec::new()) = chosen;

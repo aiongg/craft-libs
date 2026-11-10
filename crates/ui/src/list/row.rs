@@ -292,6 +292,9 @@ pub struct ListRow<'a> {
     #[style_key]
     #[prop(flag)]
     pub(super) heading: bool,
+    /// The row has `space.gap.row` of empty room above its content, to set a group off from the one before.
+    #[prop]
+    pub(super) space_above: bool,
     /// Whether the row is its own AccessKit node; a face inside another component's part turns it off.
     #[prop]
     pub(super) node: bool,
@@ -412,6 +415,7 @@ impl<'a> ListRow<'a> {
             common: Common::new(),
             strong: false,
             heading: false,
+            space_above: false,
             node: true,
             ink: RowInk::Normal,
             tone: Tone::Neutral,
@@ -667,6 +671,8 @@ struct Sizes {
     /// The least height of a row with a thumbnail: `size.thumb_row`.
     thumb_row: f32,
     tight: f32,
+    /// The room `space_above` adds: `space.gap.row`.
+    gap_row: f32,
     label_line: f32,
     detail_line: f32,
     /// The room a text cell keeps free at each side of its text.
@@ -691,6 +697,7 @@ impl Sizes {
             thumb_pad: tokens.space.gap.stack,
             thumb_row: tokens.size.thumb_row,
             tight: tokens.space.gap.tight,
+            gap_row: tokens.space.gap.row,
             label_line: tokens.typography.get(role).line_height,
             detail_line: tokens.typography.get(TypeRole::Caption).line_height,
             cell_inset: control.pad_x,
@@ -1044,7 +1051,12 @@ impl ListRow<'_> {
     }
 
     fn place(&self, sizes: &Sizes, items: &[(f32, bool)], rect: Rect, rtl: bool) -> Placed {
-        self.place_in(&self.cells, sizes, items, rect, rtl)
+        if !self.space_above {
+            return self.place_in(&self.cells, sizes, items, rect, rtl);
+        }
+        let below = |rect: Rect| Rect::from_min_max(Pos2::new(rect.left(), (rect.top() + sizes.gap_row).min(rect.bottom())), rect.max);
+        let cells: Vec<_> = self.cells.iter().map(|(column, rect)| (column.clone(), below(*rect))).collect();
+        self.place_in(&cells, sizes, items, below(rect), rtl)
     }
 
     fn place_in(&self, cells_of: &[(ColumnKey, Rect)], sizes: &Sizes, items: &[(f32, bool)], rect: Rect, rtl: bool) -> Placed {
@@ -1193,6 +1205,7 @@ impl Component for ListRow<'_> {
         if self.spacer {
             return Vec2::ZERO;
         }
+        let above = if self.space_above { sizes.gap_row } else { 0.0 };
         let height = sizes.height(self.thumb, self.detail_line());
         let rtl = cx.env.direction().is_rtl();
         let room = cx.room.unwrap_or(0.0);
@@ -1218,6 +1231,7 @@ impl Component for ListRow<'_> {
                 let run = TextRun::new(cell.text.as_str()).role(cx.style.cell.role).wrap(Wrap::Wrap);
                 height.max(cx.layout_at(&run, sizes.cell_room(rect.width())).size().y + sizes.cell_pad)
             });
+        let height = height + above;
         if cx.proposal == Proposal::Min {
             return Vec2::new(probe_min, height);
         }
@@ -1781,6 +1795,7 @@ pub(crate) fn placement_under_fixed_sizes(row: &ListRow<'_>, width: f32, rtl: bo
         thumb_pad: 4.0,
         thumb_row: 28.0,
         tight: 2.0,
+        gap_row: 0.0,
         label_line: 16.0,
         detail_line: 12.0,
         cell_inset: 6.0,

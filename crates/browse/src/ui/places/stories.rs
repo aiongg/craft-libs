@@ -5,7 +5,8 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use craft_host::{ManualJobs, Wake};
-use craft_ui::contract::Entry;
+use craft_ui::contract::{Entry, Show as _};
+use craft_ui::display::{Shade, Text};
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
 
@@ -71,7 +72,7 @@ struct Setup {
 fn full_settings() -> PlacesSettings {
     PlacesSettings {
         favorites: vec![path("/home/u/Photos/2024/Studio")],
-        hidden: Vec::new(),
+        hidden: vec![path("/home/u/Music")],
         recent: vec![path("/home/u/Photos/2025"), path("/media/card/DCIM")],
         session_root: None,
     }
@@ -119,6 +120,10 @@ fn show_places(ui: &mut Ui, data: &mut StoryData, setup: Setup) -> StoryOutput {
         settings.session_root = places.session_root.clone();
         places
     };
+    ui.horizontal_wrapped(|ui| {
+        Text::new("Photo 7").show(ui);
+        Text::new("Drag this photo onto a folder under Photos").shade(Shade::Muted).show(ui);
+    });
     let out = {
         let Demo { cache, .. } = &mut *demo;
         let mut tree = PlacesTree::new("Places", &places, cache).row_menu(|_| vec![Entry::new(String::from("folder.rename"), "Rename Folder…")]);
@@ -132,6 +137,9 @@ fn show_places(ui: &mut Ui, data: &mut StoryData, setup: Setup) -> StoryOutput {
         if let PlacesEvent::Open(folder) = event {
             demo.current = Some(folder.clone());
         }
+    }
+    if let Some(current) = demo.current.as_deref() {
+        Text::new(format!("Browsing: {}", current.display())).shade(Shade::Muted).show(ui);
     }
     out.into()
 }

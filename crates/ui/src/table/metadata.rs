@@ -211,7 +211,18 @@ impl<'a> MetadataTable<'a> {
         let mut filter_changed = false;
         let rows = ui.scope_id().with("rows");
         if let Some(text) = filter {
-            let edit = TextField::search(words.filter.clone(), text).placeholder(words.filter.clone()).drives(rows).show(ui);
+            // The field starts where the table's text does: one cell inset from the left.
+            let inset = env.control(ControlSize::Sm).pad_x;
+            let mut room = ui.available_rect_before_wrap();
+            if env.direction.is_rtl() {
+                room.max.x -= inset;
+            } else {
+                room.min.x += inset;
+            }
+            let edit = ui.scope_builder(egui::UiBuilder::new().max_rect(room), |ui| {
+                TextField::search(words.filter.clone(), text).placeholder(words.filter.clone()).drives(rows).show(ui)
+            });
+            let edit = edit.inner;
             filter_changed = edit.event.is_some();
             if let Some(Mixed::Same(shown)) = &edit.shown {
                 query.clone_from(&**shown);
@@ -262,7 +273,7 @@ impl<'a> MetadataTable<'a> {
             .rows_stamp(query_stamp(query))
             .empty(empty)
             .show_items(ui, &source, &mut |_, icx| match &source.entries[icx.at] {
-                Entry::Group(group) => ListRow::new(group.name.clone()).cells(icx.cells()).heading(),
+                Entry::Group(group) => ListRow::new(group.name.clone()).cells(icx.cells()).heading().space_above(icx.at > 0),
                 Entry::Field(row) => {
                     let line = ListRow::new(row.name.clone())
                         .cells(icx.cells())
