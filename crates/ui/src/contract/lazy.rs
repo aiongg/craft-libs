@@ -9,8 +9,7 @@ use egui::{Pos2, Rect, Ui, UiBuilder, Vec2};
 use std::hash::Hash;
 
 /// A child of a scroll area that runs only while it is in view. Out of view it takes the extent it had in the last
-/// pass that showed it and its content does not run. It runs when it was never shown at the scroll area's room, when
-/// it meets the view widened by the view's size on each side, while one of the stops of its last run holds keyboard
+/// pass that showed it, at any room, and its content does not run. It runs when it was never shown, when it meets the view widened by the view's size on each side, while one of the stops of its last run holds keyboard
 /// focus or is the target of a focus request, and when `keep` asks. Content that was never shown has no stops to
 /// find: a child an app focuses or scrolls to before it was ever in reach needs `keep`. Outside a scroll area it
 /// always runs.
@@ -66,8 +65,8 @@ impl Lazy {
         let out = add(&mut child);
         let rect = child.min_rect();
         alloc::advance_past(ui, rect);
-        if let Some(view) = view {
-            lazy::shown(&ctx, id, rect.size(), view.room, sizing, (!sizing).then(|| focus::stops_since(&ctx, from)));
+        if view.is_some() {
+            lazy::shown(&ctx, id, rect.size(), sizing, (!sizing).then(|| focus::stops_since(&ctx, from)));
         }
         Some(out)
     }

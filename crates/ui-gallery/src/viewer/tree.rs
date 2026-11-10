@@ -1,6 +1,6 @@
 //! The component tree: one group per level, the components of each under it, narrowed by the filter.
 
-use super::catalog::ComponentInfo;
+use super::catalog::{ComponentInfo, fold_filter};
 use craft_behavior::{DisplayOrder, ItemSource};
 use craft_ui::contract::Level;
 use craft_ui::list::OpenSet;
@@ -62,14 +62,15 @@ pub fn open_level_of_selection(
 /// The rows of the tree for `filter`: the levels in order, each with the components that match, sorted by name
 /// ignoring case. A filter opens every level that holds a match, so the matches show; the open set stays as it is.
 pub fn rows(components: &[ComponentInfo], filter: &str, open: &OpenSet<TreeKey>) -> Vec<TreeRow> {
-    let filtering = !filter.trim().is_empty();
+    let filter = fold_filter(filter);
+    let filtering = !filter.is_empty();
     let mut rows = Vec::new();
     for level in Level::ALL {
-        let mut members: Vec<&ComponentInfo> = components.iter().filter(|component| component.level == level && component.matches(filter)).collect();
+        let mut members: Vec<&ComponentInfo> = components.iter().filter(|component| component.level == level && component.matches(&filter)).collect();
         if members.is_empty() {
             continue;
         }
-        members.sort_by_key(|component| component.name.to_lowercase());
+        members.sort_by_cached_key(|component| component.name.to_lowercase());
         let key = TreeKey::Level(level);
         let shown = filtering || open.is_open(&key);
         rows.push(TreeRow { key, label: level.title().to_owned(), depth: 0, group: true, open: shown });

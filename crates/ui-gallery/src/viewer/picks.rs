@@ -1,6 +1,6 @@
 //! What the centre tabs keep and derive: each shown story's state, and the components of the catalog by level.
 
-use super::catalog::{Catalog, ComponentInfo};
+use super::catalog::{Catalog, ComponentInfo, fold_filter};
 use craft_ui::contract::{Catalog as Levels, CatalogEntry, Level};
 use craft_ui::testing::{StoryData, StorySnapshot};
 
@@ -66,18 +66,19 @@ pub fn entry_of(type_name: &str) -> Option<&'static CatalogEntry> {
 /// The components of `catalog` that match `filter`, by level in listing order, each level's components by display name
 /// ignoring case; only levels that have components are listed.
 pub fn by_level<'a>(catalog: &'a Catalog, filter: &str) -> Vec<(Level, Vec<&'a ComponentInfo>)> {
-    let mut out: Vec<(Level, Vec<(&'static CatalogEntry, &ComponentInfo)>)> = Level::ALL.iter().map(|level| (*level, Vec::new())).collect();
-    for component in catalog.components.iter().filter(|component| component.matches(filter)) {
-        if let Some(entry) = entry_of(component.type_name)
-            && let Some((_, list)) = out.iter_mut().find(|(level, _)| *level == entry.level)
+    let filter = fold_filter(filter);
+    let mut out: Vec<(Level, Vec<(&str, &ComponentInfo)>)> = Level::ALL.iter().map(|level| (*level, Vec::new())).collect();
+    for component in catalog.components.iter().filter(|component| component.matches(&filter)) {
+        if let Some((level, name)) = component.listed()
+            && let Some((_, list)) = out.iter_mut().find(|(at, _)| *at == level)
         {
-            list.push((entry, component));
+            list.push((name, component));
         }
     }
     out.into_iter()
         .filter(|(_, list)| !list.is_empty())
         .map(|(level, mut list)| {
-            list.sort_by_key(|(entry, _)| entry.name.to_lowercase());
+            list.sort_by_key(|(name, _)| *name);
             (level, list.into_iter().map(|(_, component)| component).collect())
         })
         .collect()

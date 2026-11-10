@@ -29,26 +29,47 @@ pub struct ComponentInfo {
     pub stories: Vec<&'static str>,
     /// The display titles of the stories, in the order of `stories`.
     pub titles: Vec<String>,
+    /// The name and the titles in lower case, for the filter.
+    folded: Vec<String>,
+    /// The registry's level of the type and its display name in lower case; `None` when the registry does not list it.
+    listed: Option<(Level, String)>,
 }
 
 impl ComponentInfo {
     /// A component with its stories, each a name and a display title.
     pub fn new(type_name: &'static str, level: Level, name: impl Into<String>, stories: &[(&'static str, &str)]) -> Self {
-        ComponentInfo {
-            type_name,
-            level,
-            name: name.into(),
-            stories: stories.iter().map(|(name, _)| *name).collect(),
-            titles: stories.iter().map(|(_, title)| (*title).to_owned()).collect(),
+        let name = name.into();
+        let listed = linked_catalog().entry(type_name).map(|entry| (entry.level, entry.name.to_lowercase()));
+        let mut component =
+            ComponentInfo { type_name, level, folded: vec![name.to_lowercase()], name, stories: Vec::new(), titles: Vec::new(), listed };
+        for (story, title) in stories {
+            component.add_story(story, (*title).to_owned());
         }
+        component
     }
 
-    /// Whether the name or one of the story titles contains `filter`, ignoring case. An empty filter matches.
-    pub fn matches(&self, filter: &str) -> bool {
-        let filter = filter.trim().to_lowercase();
-        filter.is_empty()
-            || [self.name.as_str()].into_iter().chain(self.titles.iter().map(String::as_str)).any(|text| text.to_lowercase().contains(&filter))
+    /// Adds the story `story` with its display title.
+    pub fn add_story(&mut self, story: &'static str, title: String) {
+        self.stories.push(story);
+        self.folded.push(title.to_lowercase());
+        self.titles.push(title);
     }
+
+    /// Whether the name or one of the story titles contains the filter, ignoring case; `folded` is the filter as
+    /// [`fold_filter`] gives it. An empty filter matches.
+    pub fn matches(&self, folded: &str) -> bool {
+        folded.is_empty() || self.folded.iter().any(|text| text.contains(folded))
+    }
+
+    /// The registry's level of the type and its display name in lower case, the Overview's order within the level.
+    pub(crate) fn listed(&self) -> Option<(Level, &str)> {
+        self.listed.as_ref().map(|(level, name)| (*level, name.as_str()))
+    }
+}
+
+/// The filter as [`ComponentInfo::matches`] compares it: trimmed and in lower case.
+pub fn fold_filter(filter: &str) -> String {
+    filter.trim().to_lowercase()
 }
 
 /// The registry's catalog of the types linked into the running binary: each one's level and plain name.
@@ -104,10 +125,7 @@ pub fn components(entries: &[Entry]) -> Vec<ComponentInfo> {
         let story = entry.registration.story.name;
         let title = contract::story_title(&listed.name, story);
         match out.iter_mut().find(|component| component.type_name == entry.type_name) {
-            Some(component) => {
-                component.stories.push(story);
-                component.titles.push(title);
-            }
+            Some(component) => component.add_story(story, title),
             None => out.push(ComponentInfo::new(entry.type_name, listed.level, listed.name.clone(), &[(story, &title)])),
         }
     }
