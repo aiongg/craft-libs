@@ -73,6 +73,9 @@ pub struct Card<'a> {
     pub selected: bool,
     /// The values the card sets for its story.
     pub look: Look,
+    /// Whether the story's wheel takers take the wheel only while focused or armed: a card among others in a
+    /// scrolling overview.
+    pub gated: bool,
 }
 
 /// What a card reported in a pass.
@@ -153,6 +156,7 @@ impl Card<'_> {
             room: self.room,
             look: self.look,
             surface: self.surface,
+            gated: self.gated,
         };
         let show = self.story.story.show;
         let at = ui.available_rect_before_wrap().min;
@@ -230,6 +234,7 @@ struct Host {
     room: f32,
     look: Look,
     surface: Surface,
+    gated: bool,
 }
 
 impl Host {
@@ -255,12 +260,13 @@ impl Host {
     /// The story under the card's direction and control size; in a measure, under `record`, the shell that records
     /// what the story opens.
     fn content(&self, ui: &mut Ui, show: StoryFn, data: &mut StoryData, record: Option<&ShellCx>) {
-        let look = self.look;
+        let (look, gated) = (self.look, self.gated);
         with_env(
             ui,
             |env| {
                 env.direction = look.direction;
                 env.size = look.size;
+                env.wheel_gated = Some(gated);
                 if let Some(record) = record {
                     record.put(&mut env.values);
                 }

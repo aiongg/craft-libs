@@ -43,6 +43,8 @@ pub(super) struct Spec {
     pub usable: bool,
     pub selected: bool,
     pub look: Look,
+    /// Whether the card gates its story's wheel takers (`Card::gated`).
+    pub gated: bool,
 }
 
 /// What the cards of a pass reported, by card.
@@ -111,6 +113,7 @@ pub(super) fn grid(
                         usable: spec.usable,
                         selected: spec.selected,
                         look: spec.look,
+                        gated: spec.gated,
                     };
                     let events = card.show(ui, state);
                     reported.push(Reported { spec: row * columns + at, events });
@@ -217,6 +220,7 @@ fn component_card(p: &Panels<'_>, component: &ComponentInfo, selected: Option<&'
         usable: false,
         selected: selected == Some(component.type_name),
         look: Look::default(),
+        gated: true,
     })
 }
 
@@ -249,6 +253,7 @@ pub(super) fn component_tab(ui: &mut Ui, p: &mut Panels<'_>, type_name: &'static
                 usable: false,
                 selected: chosen && target == Some(at),
                 look: Look::default(),
+                gated: false,
             }
         })
         .collect();

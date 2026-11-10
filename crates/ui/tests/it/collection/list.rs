@@ -204,6 +204,44 @@ fn panel_body_and_list_share_the_wheel_rule() {
     assert!((last_row.get().bottom() - list.bottom()).abs() < SAME, "the list stopped at its end, not past it: {:?} in {list:?}", last_row.get());
 }
 
+/// A list inside a scrolling panel takes the wheel while it can scroll and hands it to the panel at its end.
+#[trial]
+fn a_list_at_its_end_hands_the_wheel_to_the_enclosing_panel() {
+    use crate::body::kit::Slab;
+    use craft_ui::contract::{ContainerProps, Scroll, ShowContainer as _};
+    use craft_ui::testing::layout::Block;
+    let words = Count(ROWS);
+    let seen = Seen::default();
+    let first_top = Cell::new(0.0f32);
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| {
+        in_region(ui, Rect::from_min_size(ORIGIN, VIEW), |ui| {
+            Slab::new(ContainerProps::new().scroll(Scroll::vertical())).id_salt("panel").show(ui, |ui, _| {
+                for line in 0..ROWS {
+                    if line == 0 {
+                        first_top.set(ui.next_widget_position().y);
+                    }
+                    Block::new(Vec2::new(VIEW.x, ROW_H)).show(ui);
+                }
+            });
+        });
+        in_region(ui, Rect::from_min_size(ORIGIN + Vec2::new(120.0, 10.0), Vec2::new(150.0, 100.0)), |ui| {
+            seen.take(List::new(SelectMode::None).id_salt("list").show_items(ui, &words, &mut |_, _| Row::new()));
+        });
+    };
+    frames.idle(3, &mut show);
+    let (list, top0) = (seen.rect.get(), first_top.get());
+    frames.frame(vec![pointer::moved(list.center())], &mut show);
+    frames.frame(vec![pointer::wheel(-WHEEL)], &mut show);
+    assert!((first_top.get() - top0).abs() < SAME, "the list takes the wheel while it has room");
+    for _ in 0..3 {
+        frames.frame(vec![pointer::wheel(-100_000.0)], &mut show);
+    }
+    assert_eq!(seen.range().end, ROWS, "the list reached its last row");
+    frames.frame(vec![pointer::wheel(-WHEEL)], &mut show);
+    assert!(top0 - first_top.get() > SAME, "at its end the list hands the wheel to the panel: {top0} -> {}", first_top.get());
+}
+
 /// A natural-height list in a scrolling page: the page and the list under one wheel, and the keys.
 struct Page {
     seen: Seen,

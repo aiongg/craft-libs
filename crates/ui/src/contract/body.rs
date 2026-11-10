@@ -28,7 +28,7 @@ use crate::style::{Corners, RuleKind, StyleCx, SurfaceKind, UiTokens, rule_look,
 use craft_behavior::layout_memory::measure_tolerance;
 use craft_behavior::{
     Axis, CancelRule, Cursor, CursorIcon, CursorPriority, EditEvent, GesturePhase, HitLevel, HitPriority, Intent, KeyRole, Mixed, PartKey, PartRef,
-    PressPhase, PressState, Roving, ScrollPos, ScrollSpan, WheelNotch, WheelTaker,
+    PressPhase, PressState, Roving, ScrollPos, ScrollSpan, WheelNotch, WheelRoom, WheelTaker,
 };
 use craft_host::target::{Caps, WindowChrome, WindowState};
 use craft_i18n::Direction;
@@ -2060,10 +2060,27 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                     Notch::Lines(lines) => WheelNotch::Points(lines * tokens.tokens().typography.body.line_height),
                     Notch::ViewShare(share) => WheelNotch::ViewShare(share),
                 };
-                wheel::register(
-                    &ctx,
-                    WheelTaker::new(pcx.id, view).vertical(scroll.vertical_on()).horizontal(scroll.horizontal_on()).scrolls(true).notch(notch),
+                // A region takes an axis only while its content overflows there, and hands the wheel on at its ends.
+                let max = self.max_offset(view.size());
+                let (vertical, horizontal) = (scroll.vertical_on() && max.y > 0.0, scroll.horizontal_on() && max.x > 0.0);
+                let (before, after) = (
+                    Vec2::new(self.offset.x as f32, self.offset.y as f32),
+                    Vec2::new((max.x - self.offset.x) as f32, (max.y - self.offset.y) as f32),
                 );
+                // A positive wheel moves the offset back on y, and on x in left-to-right flow.
+                let (positive, negative) = if rtl { (Vec2::new(after.x, before.y), Vec2::new(before.x, after.y)) } else { (before, after) };
+                if vertical || horizontal {
+                    wheel::register(
+                        &ctx,
+                        WheelTaker::new(pcx.id, view)
+                            .vertical(vertical)
+                            .horizontal(horizontal)
+                            .scrolls(true)
+                            .gated(crate::runtime::env::Env::of(pcx.ui).wheel_gated)
+                            .notch(notch)
+                            .room(WheelRoom::new(positive, negative)),
+                    );
+                }
             }
         }
         self.nudge = gap_of(tokens, Gap::Row);

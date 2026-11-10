@@ -175,7 +175,7 @@ impl ShowShape for shape::Body {
 
 impl ShowShape for shape::Items {
     const KIND: ShapeKind = ShapeKind::Items;
-    const DEFAULT_SENSE: Sense = Sense::CLICK.union(Sense::DRAG).union(Sense::FOCUS).union(Sense::WHEEL).union(Sense::TAKE_FOCUS);
+    const DEFAULT_SENSE: Sense = Sense::CLICK.union(Sense::DRAG).union(Sense::FOCUS).union(Sense::TAKE_FOCUS);
 }
 
 /// A token only craft-ui can build: the private field and `pub(crate)` constructor let derive output in any

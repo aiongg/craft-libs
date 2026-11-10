@@ -143,6 +143,7 @@ pub(super) fn show(ui: &mut Ui, p: &mut Panels<'_>, tab: PanelId) -> bool {
                     usable: true,
                     selected: false,
                     look: value.look,
+                    gated: false,
                 })
                 .collect()
         }
