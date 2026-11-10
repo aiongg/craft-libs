@@ -4,9 +4,9 @@
 use craft_behavior::Axis;
 use craft_behavior::dock::{Layout, Node, Permissions, SplitSize};
 use craft_ui::contract::SizeLimits;
-use craft_ui::contract::{Common, Component, Cx, MeasureCx, Pointer as _, Role, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, Common, Component, Cx, MeasureCx, Pointer as _, Role, Show as _, ShowContainer as _};
 use craft_ui::docking::tree::{self, FrameRules};
-use craft_ui::docking::{DockDropTarget, DockDropped, DockGroup, DockSizes, GroupDrag, PanelDrag, PanelKey, PanelTitle};
+use craft_ui::docking::{DockDropTarget, DockDropped, DockGroup, DockSizes, GroupDrag, PanelDrag, PanelKey, PanelTitle, SplitArea};
 use craft_ui::runtime::drag;
 use craft_ui::style::{ComponentStyle, StyleCx};
 use craft_ui::testing::pointer::{moved, press, release};
@@ -117,7 +117,8 @@ fn placed_groups(layout: &Layout<String>, origin: Pos2) -> Vec<(String, Vec<Stri
 
 type Bed = (Fixture, Rc<RefCell<Layout<String>>>, Rc<RefCell<Vec<DockDropped<String>>>>);
 
-/// A dock of the layout with a host that applies the drops it takes.
+/// A dock of the layout with a host that applies the drops it takes. The groups show in the body of a `SplitArea`, as a
+/// `DockArea` shows them, so each is a member of the area's arena.
 fn bed(layout: Layout<String>) -> Bed {
     let layout = Rc::new(RefCell::new(layout));
     let taken = Rc::new(RefCell::new(Vec::new()));
@@ -129,11 +130,15 @@ fn bed(layout: Layout<String>) -> Bed {
         let target = DockDropTarget::new(&ctx, dock_id(), &shown, &permissions);
         let origin = ui.max_rect().min;
         Host { common: Common::new(), target: &target, seen: &shared_taken }.show(ui);
-        for (anchor, panels, rect) in placed_groups(&shown, origin) {
-            let titles: Vec<PanelTitle> = panels.iter().map(|panel| PanelTitle::new(PanelKey::of(panel), panel.clone())).collect();
-            let active = titles.first().map_or(PanelKey::new(0), |title| title.key);
-            DockGroup::new(anchor, &titles, active).dock(dock_id()).show_at(ui, rect, |_, _| ());
-        }
+        let limits = |_: &String| SizeLimits::default();
+        let placed = placed_groups(&shown, origin);
+        SplitArea::new("Panels", Bind::given(shown.clone()), FrameRules::new(&limits)).show_at(ui, Rect::from_min_size(origin, AREA), |ui, _| {
+            for (anchor, panels, rect) in &placed {
+                let titles: Vec<PanelTitle> = panels.iter().map(|panel| PanelTitle::new(PanelKey::of(panel), panel.clone())).collect();
+                let active = titles.first().map_or(PanelKey::new(0), |title| title.key);
+                DockGroup::new(anchor.clone(), &titles, active).dock(dock_id()).show_at(ui, *rect, |_, _| ());
+            }
+        });
         for dropped in shared_taken.borrow_mut().drain(..) {
             shared_layout.borrow_mut().apply_with_permissions(dropped.action, permissions).expect("the model takes what the dock accepted");
         }

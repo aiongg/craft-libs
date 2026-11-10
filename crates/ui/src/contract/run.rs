@@ -650,6 +650,15 @@ fn run_in_host<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Opti
     let enabled = resolved.enabled && !inert;
     let sensing::RootResult { mut response, parts: results, press, activation, activated_member, sense: root_sense } =
         sense_root(ui, member, RootSpec { id, rect, own_sense: own, own: &decls, enabled }, arena);
+    // A root in an arena's body that is not one of its members lies over the members shown before it, and under those
+    // shown after it (8.3).
+    if member.is_none()
+        && enabled
+        && root_sense.intersects(Sense::CLICK | Sense::DRAG)
+        && let Some(outer) = env.arena
+    {
+        sensing::note_nested(&ctx, outer, rect.intersect(ui.clip_rect()));
+    }
     // The node exists before any child `Ui` runs, so the children find their parent (12.2). A member has no egui
     // widget, so it first registers the `Ui` it sits in as its parent.
     let node = create_node::<C>(&ctx, ui, id, member.is_some());
