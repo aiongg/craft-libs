@@ -4,9 +4,10 @@
 use super::Table;
 use super::words::MetadataWords;
 use crate::contract::{
-    Bind, CollectionEvent, CollectionResponse, ColumnKind, ColumnSpec, NoValue, Outcome, Pattern, Props, SelectMode, Show as _, ShowCollection as _,
-    ToggleColumn,
+    Bind, CollectionEvent, CollectionResponse, ColumnKind, ColumnSpec, NoValue, Outcome, Pad, Pattern, Props, SelectMode, Show as _,
+    ShowCollection as _, ShowContainer as _, ToggleColumn,
 };
+use crate::layout_components::Stack;
 use crate::list::{ListRow, RowEvent, ToggleCell, ToggleState};
 use crate::runtime::env::{Env, Label};
 use crate::text::TextField;
@@ -211,10 +212,16 @@ impl<'a> MetadataTable<'a> {
         let mut filter_changed = false;
         let rows = ui.scope_id().with("rows");
         if let Some(text) = filter {
-            let edit = TextField::search(words.filter.clone(), text).placeholder(words.filter.clone()).drives(rows).show(ui);
-            filter_changed = edit.event.is_some();
-            if let Some(Mixed::Same(shown)) = &edit.shown {
-                query.clone_from(&**shown);
+            // The field starts where the table's text does: one cell inset (`space.pad.control`) from the edge.
+            let mut text = text;
+            let edit = Stack::new()
+                .pad(Pad::Control)
+                .show(ui, |ui, _| TextField::search(words.filter.clone(), text.reborrowed()).placeholder(words.filter.clone()).drives(rows).show(ui));
+            if let Some(edit) = edit.inner {
+                filter_changed = edit.event.is_some();
+                if let Some(Mixed::Same(shown)) = &edit.shown {
+                    query.clone_from(&**shown);
+                }
             }
         }
         let query = query.trim();
@@ -262,7 +269,7 @@ impl<'a> MetadataTable<'a> {
             .rows_stamp(query_stamp(query))
             .empty(empty)
             .show_items(ui, &source, &mut |_, icx| match &source.entries[icx.at] {
-                Entry::Group(group) => ListRow::new(group.name.clone()).cells(icx.cells()).heading(),
+                Entry::Group(group) => ListRow::new(group.name.clone()).cells(icx.cells()).heading().space_above(icx.at > 0),
                 Entry::Field(row) => {
                     let line = ListRow::new(row.name.clone())
                         .cells(icx.cells())
