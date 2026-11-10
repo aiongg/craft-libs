@@ -302,8 +302,9 @@ pub(super) fn empty_collection_shows_no_rows(subject: &Subject) -> Result<(), St
     Ok(())
 }
 
-/// A collection with more rows than its room holds builds fewer rows than it has.
-pub(super) fn long_collection_builds_only_visible_rows(subject: &Subject) -> Result<(), String> {
+/// A collection whose rows reach past the reach (`runtime::lazy::reach`: the room and one room below it, at the top)
+/// builds fewer rows than it has.
+pub(super) fn long_collection_builds_rows_within_the_reach_only(subject: &Subject) -> Result<(), String> {
     if !is_items(subject) {
         return Ok(());
     }
@@ -311,17 +312,18 @@ pub(super) fn long_collection_builds_only_visible_rows(subject: &Subject) -> Res
         let Some((fixture, container, shown)) = with_rows(story, 1) else { continue };
         let Some((_, size)) = position_in_set(&fixture, shown[0].node) else { continue };
         let row = shown[0].rect.height();
+        if row.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) {
+            continue;
+        }
         // Items that wrap fill a row of their own: the set takes as many rows of the room as it has rows of items.
         let across = shown.iter().filter(|other| (other.rect.min.y - shown[0].rect.min.y).abs() < row / 2.0).count().max(1);
-        if row.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) || (size.div_ceil(across) as f32) * row <= 2.0 * container.rect.height() {
+        let (_, reach) = crate::runtime::lazy::reach(Default::default(), container.rect.size());
+        // A row that starts inside the reach is built, so the last one is out of it only when it starts below.
+        if ((size.div_ceil(across) - 1) as f32) * row <= reach.y {
             continue;
         }
         if shown.len() >= size {
-            return Err(format!(
-                "{}: all {size} rows are built though the room holds about {}",
-                story.name,
-                (container.rect.height() / row) as usize
-            ));
+            return Err(format!("{}: all {size} rows are built though the reach holds about {}", story.name, (reach.y / row) as usize + 1));
         }
     }
     Ok(())

@@ -71,7 +71,7 @@ const SHAPES: &[Case] = &[
     Case::new("items-rename", ANY, collection::rename_commits_and_cancels_once),
     Case::new("items-reorder", ANY, collection::keyboard_reorder_ends_once),
     Case::new("items-empty", ANY, collection::empty_collection_shows_no_rows),
-    Case::new("items-virtualisation", ANY, collection::long_collection_builds_only_visible_rows),
+    Case::new("items-virtualisation", ANY, collection::long_collection_builds_rows_within_the_reach_only),
     Case::new("items-scroll-frame", ANY, collection::scroll_shows_rows_in_the_same_frame),
     Case::new("items-cells", ANY, collection::cells_and_columns_are_reported),
 ];
