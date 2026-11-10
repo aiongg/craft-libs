@@ -64,6 +64,11 @@
         "short": 120.0,
         "track": 144.0
       },
+      "marker": {
+        "height": 8.0,
+        "width": 11.0
+      },
+      "meter": 6.0,
       "pane": {
         "least": 50.0
       },
@@ -72,11 +77,6 @@
         "height": 180.0,
         "width": 300.0
       },
-      "marker": {
-        "height": 8.0,
-        "width": 11.0
-      },
-      "meter": 6.0,
       "pointer_tip": {
         "x": 24.0,
         "y": 27.0
