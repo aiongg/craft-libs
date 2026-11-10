@@ -136,3 +136,24 @@ fn a_section_header_is_a_named_node_that_click_and_enter_toggle() {
     fixture.key(Key::Enter, Modifiers::NONE).settle();
     assert_eq!(items(&fixture), 3, "Enter on the header opens it again");
 }
+
+/// The access tree covers the reach: a section row one view below is a heading, one three views below is not there
+/// until it scrolls into the reach.
+#[trial]
+fn the_access_tree_has_the_section_headings_within_the_reach_only() {
+    const ROWS: usize = 80;
+    let mut words = Words::flat(&["row"; ROWS]);
+    words.sections = vec![0, 20, 50];
+    words.words[0] = "Near";
+    words.words[20] = "Below";
+    words.words[50] = "Far";
+    let words: &'static Words = Box::leak(Box::new(words));
+    let mut fixture = Fixture::new(move |ui| {
+        in_region(ui, region(), |ui| {
+            List::new(SelectMode::None).id_salt("list").show_items(ui, words, &mut |_, _| Row::new());
+        });
+    });
+    fixture.settle();
+    let names: Vec<String> = headings(&fixture).into_iter().map(|(name, _)| name).collect();
+    assert_eq!(names, ["Near", "Below"], "the heading one view below is in the access tree, the one three views below is not");
+}

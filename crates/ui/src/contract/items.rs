@@ -744,7 +744,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             None => (0..layout.column_count() as u64).collect(),
         };
         let grid = layout.grid().map(|grid| self.grid_screen(&layout, grid, rect, rtl));
-        let (shown, order, reach) = self.built(&layout, rect, offset);
+        let (shown, order, keep_set) = self.built(&layout, rect, offset);
         self.visible = shown.first().copied().unwrap_or(0)..shown.last().map_or(0, |last| last + 1);
         let command_scope = comp.props(Internal::new()).command_scope;
         if let Some(scope) = command_scope {
@@ -773,13 +773,12 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         let placed = self.selection.placed(self.source);
         let mut row_groups = Vec::with_capacity(order.len());
         let mut shown_rows: Vec<ShownRow<C::Key>> = Vec::with_capacity(order.len());
-        // The collection reports the rows in view and the kept rows; a row built only because it is in the view's
-        // reach runs without being reported.
-        let reported = |built: usize, at: usize| built >= reach || shown.contains(&at);
-        // A section row the component lays out as its own `section_part` reports its own node; any other reported one
-        // is the collection's: a heading named by the row's text.
-        let sections = order.iter().enumerate().filter(|&(built, &at)| reported(built, at) && self.source.section_stop(at));
-        for (_, &at) in sections.filter(|&(_, &at)| layout.shown(at)) {
+        // `ShownRow`s (the response, the openers) cover the rows in view and the kept rows; a row built only because it
+        // is in the view's reach runs without one. Its access nodes are reported like any content in the reach.
+        let reported = |at: usize| shown.binary_search(&at).is_ok() || keep_set.contains(&at);
+        // A section row the component lays out as its own `section_part` reports its own node; any other one is the
+        // collection's: a heading named by the row's text.
+        for &at in order.iter().filter(|&&at| self.source.section_stop(at) && layout.shown(at)) {
             if cx.part_if_declared(section_part(&self.source.key(at))).is_none() {
                 let row = self.screen(&layout, rect, at, offset, rtl);
                 self.report_section_node(&ctx, id, at, row, cx.core.resolved.enabled);
@@ -789,8 +788,8 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         // widget above it takes the hover as it does for the rows' parts.
         let hover_at = crate::primitives::sensing::read_outcome(&ctx, ArenaId::new(cx.core.id)).hover.and(ctx.pointer_latest_pos());
         let place_rows = |ui: &mut Ui| {
-            for (built, at) in order.into_iter().enumerate() {
-                let reported = reported(built, at);
+            for at in order.into_iter() {
+                let reported = reported(at);
                 if self.source.section_stop(at) {
                     continue;
                 }
@@ -1088,7 +1087,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
     /// rows in view and in the view's reach (`runtime::lazy::reach`, the rule out-of-view content follows
     /// everywhere), then the rows kept alive while scrolled further out (the lead, the anchor, the renaming row and
     /// the grabbed row).
-    fn built(&self, layout: &C::ItemLayout, view: Rect, offset: ScrollPos) -> (Vec<usize>, Vec<usize>, usize) {
+    fn built(&self, layout: &C::ItemLayout, view: Rect, offset: ScrollPos) -> (Vec<usize>, Vec<usize>, Vec<usize>) {
         let mut shown = Vec::new();
         layout.visible(offset, view.size(), &mut shown);
         let (from, size) = crate::runtime::lazy::reach(offset, view.size());
@@ -1097,15 +1096,16 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         order.extend(shown.iter().copied());
         order.sort_unstable();
         order.dedup();
-        let reach = order.len();
+        let mut kept = Vec::new();
         let keep = [self.lead.key.as_ref(), self.selection.anchor(), self.renaming.key.as_ref(), self.drags.grabbed.as_ref()];
         // An item of a closed group has no rect: it is never built.
         for at in keep.into_iter().flatten().filter_map(|key| self.index_of(key)).filter(|&at| layout.shown(at)) {
+            kept.push(at);
             if !order.contains(&at) {
                 order.push(at);
             }
         }
-        (shown, order, reach)
+        (shown, order, kept)
     }
 
     /// The rows since the last section row up to and including `at` (0 for a section row), continuing from `last`, the

@@ -77,9 +77,15 @@ struct ScrollState {
     follow_end: Option<bool>,
 }
 
-/// The offsets `scroll_input` moved scroll bodies to, for step 4 of each body's next pass.
+/// The offsets `scroll_input` moved scroll bodies to, with the frame that queued each, for step 4 of each body's next
+/// pass. An entry no body took in that frame or the next belongs to a body that is no longer shown: it is dropped.
 #[derive(Default)]
-struct Jumps(Vec<(Id, ScrollPos)>);
+struct Jumps(Vec<(Id, ScrollPos, u64)>);
+
+fn jump_frame(ctx: &Context) -> u64 {
+    let viewport = pass::current_viewport(ctx);
+    pass::frame_nr(ctx, viewport)
+}
 
 /// What the scroll region and the regions measured last pass.
 #[derive(Clone, Default)]
@@ -708,9 +714,10 @@ impl BodyHooks<'_> {
         let offset = self.clamped(scroll, view, offset);
         if offset != self.offset {
             let id = cx.core.id;
+            let frame = jump_frame(&ctx);
             store::Service::<Jumps>::run(&ctx, |jumps| {
-                jumps.0.retain(|(owner, _)| *owner != id);
-                jumps.0.push((id, offset));
+                jumps.0.retain(|(owner, _, queued)| *owner != id && queued + 1 >= frame);
+                jumps.0.push((id, offset, frame));
             });
             // A bound offset reaches the app in the repeated pass, as a held update does.
             sizing::request_discard(&ctx, sizing::HELD_UPDATE_RERUN);
@@ -1803,8 +1810,10 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         let view = self.last.view.map_or(Vec2::ZERO, |view| rect_of(view).size());
         // Step 4 applies, in order, the scroll bar and AccessKit moves of the last pass (`scroll_input`), this pass's
         // wheel share and the reveal request queued last pass.
+        let frame = jump_frame(&ctx);
         let jump = store::Service::<Jumps>::run(&ctx, |jumps| {
-            let at = jumps.0.iter().position(|(owner, _)| *owner == id)?;
+            jumps.0.retain(|(.., queued)| queued + 1 >= frame);
+            let at = jumps.0.iter().position(|(owner, ..)| *owner == id)?;
             Some(if quiet { jumps.0[at].1 } else { jumps.0.remove(at).1 })
         });
         if let Some(jump) = jump {
