@@ -127,6 +127,8 @@ pub(crate) fn pick_values_from<T: Value + 'static>(ui: &mut Ui, label: impl Into
 ///   from its row ([`submenu`](Menu::submenu)), whose `MenuItemOutput::submenu_open` says when it shows.
 /// - Every row of the body registers with the menu's level: the level gives each its mnemonic and runs the row a
 ///   typed letter names, with or without a focused row.
+/// - The body is one column group: the rows directly in it share the widest mark and icon columns, so their labels
+///   start at one edge.
 /// - A menu over value entries is a value menu ([`values`](Menu::values)) and shows with [`pick`](Menu::pick).
 ///
 /// Menu-body helpers (`EditMenu`, `PanelMenu`) show their rows in the body and return an output.
@@ -158,6 +160,7 @@ impl<'a> Menu<'a> {
             .surface(SurfaceKind::Popup)
             .pad(Pad::Regular)
             .roving(Roving::new(NavShape::Flat).arrows(Arrows::Vertical))
+            .label_column(true)
             .mount(Mount::Layer(layer(false)));
         Menu { common: Common::new(), props, open: None, closed: None, submenu: false, values: false, opener: None, back: false, step: None }
             .label(label)
@@ -174,7 +177,7 @@ impl<'a> Menu<'a> {
     /// The rows of a menu in the flow of the layer that shows them, with no surface and no close rules of their own:
     /// the menu of a control that owns its popup shows its entries through it.
     pub fn inline(label: impl Into<Label>) -> Self {
-        let props = ContainerProps::new().roving(Roving::new(NavShape::Flat).arrows(Arrows::Vertical));
+        let props = ContainerProps::new().roving(Roving::new(NavShape::Flat).arrows(Arrows::Vertical)).label_column(true);
         Menu { common: Common::new(), props, open: None, closed: None, submenu: false, values: false, opener: None, back: false, step: None }
             .label(label)
     }
@@ -287,10 +290,6 @@ impl Component for Menu<'_> {
 
     fn content_env(&self, cx: &Cx<'_, Self>, values: &mut crate::runtime::env::AppValues) {
         level_env(cx, values, self.submenu, self.values);
-    }
-
-    fn body_grown(&self, cx: &Cx<'_, Self>) -> f32 {
-        MenuLevel::of(&cx.recall::<LevelMemory>()).columns_width()
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> MenuOutput {

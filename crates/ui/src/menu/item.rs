@@ -12,15 +12,21 @@ use crate::runtime::commands::{CommandRef, FireSource, ResolvedCommand};
 use crate::runtime::env::{AppValues, EnvValue, Label};
 use crate::runtime::frame;
 use crate::style::{ComponentStyle, Flags, FocusLook, IconLook, StyleCx, SurfaceLook, TextLook, TypeRole, UiTokens};
-use craft_behavior::{Flow, IconId, Insets, Metrics, NavMove, PartKey, Sense};
+use craft_behavior::{ColumnKey, Flow, IconId, Insets, Metrics, NavMove, PartKey, Sense};
 use craft_keymap::mnemonic;
 use craft_theme::{Rgba, States};
-use egui::{Id, Pos2, Rect, Response, Vec2, pos2};
+use egui::{Context, Id, Pos2, Rect, Response, Vec2, pos2};
 use std::borrow::Cow;
 use std::sync::{Arc, Mutex, PoisonError};
 
 /// The part a row's shortcut text shows in, as the face of a `Kbd`.
 const SHORTCUT: PartKey = PartKey::new("shortcut");
+
+/// The column of a level's check and radio marks, and the gap after it, in the menu body's column group.
+const MARKS: ColumnKey = ColumnKey::new("menu_marks");
+
+/// The column of a level's row icons, and the gap after it, after the mark column.
+const ICONS: ColumnKey = ColumnKey::new("menu_icons");
 
 /// The seconds the pointer rests on a row before the row opens its submenu, or closes the open submenu.
 const DWELL: f64 = 0.3;
@@ -58,8 +64,6 @@ struct Row {
     id: Id,
     text: String,
     enabled: bool,
-    mark: Option<Mark>,
-    icon: bool,
 }
 
 /// A row's mnemonic as the level assigned it when the user last saw the rows: the letter and its character index
@@ -78,14 +82,12 @@ struct OpenSubmenu {
 
 #[derive(Default)]
 struct LevelState {
+    /// The rows of the pass `pass`, in the order they registered.
     now: Vec<Row>,
+    pass: u64,
     /// The letters of the rows as the user last saw them, for a typed letter that arrives before this pass's rows.
     shown: Vec<Assigned>,
     lettered: bool,
-    marks: bool,
-    icons: bool,
-    /// The side of a mark or icon column and the gap after it, as the rows measured them.
-    column: (f32, f32),
     keyboard: bool,
     /// A value menu: every row is a radio item.
     values: bool,
@@ -150,7 +152,7 @@ impl MenuLevel {
     }
 
     /// Starts a body run over the level. The rows of this pass register in the measuring run and again in the real
-    /// run; no row carries over from an earlier pass, because [`MenuLevel::end`] cleared them.
+    /// run; the first row a pass registers drops the rows of the passes before.
     /// Rows get no mnemonic when `lettered` is false: a Mac menu has no access letters.
     fn begin(&self, submenu: bool, values: bool, keyboard: bool, lettered: bool, pointer: Option<Pos2>) {
         self.with(|state| {
@@ -165,7 +167,7 @@ impl MenuLevel {
         });
     }
 
-    /// Ends the pass: the rows of this pass give the letters the user sees, and the level forgets them.
+    /// Ends a body run: the rows of this pass give the letters the user sees.
     pub(crate) fn end(&self) {
         self.with(|state| {
             let letters = if state.lettered {
@@ -175,28 +177,15 @@ impl MenuLevel {
                 vec![None; state.now.len()]
             };
             state.shown = state.now.iter().zip(letters).map(|(row, mnemonic)| Assigned { id: row.id, mnemonic, enabled: row.enabled }).collect();
-            state.now.clear();
-            state.marks = false;
-            state.icons = false;
         });
     }
 
-    /// The width the level's mark and icon columns add to the widest row, from the rows registered in this run.
-    pub(crate) fn columns_width(&self) -> f32 {
+    fn register(&self, pass: u64, row: Row) {
         self.with(|state| {
-            let (side, gap) = state.column;
-            [state.marks, state.icons].into_iter().filter(|on| *on).count() as f32 * (side + gap)
-        })
-    }
-
-    fn set_column(&self, side: f32, gap: f32) {
-        self.with(|state| state.column = (side, gap));
-    }
-
-    fn register(&self, row: Row) {
-        self.with(|state| {
-            state.marks |= row.mark.is_some();
-            state.icons |= row.icon;
+            if state.pass != pass {
+                state.pass = pass;
+                state.now.clear();
+            }
             match state.now.iter_mut().find(|known| known.id == row.id) {
                 Some(known) => *known = row,
                 None => state.now.push(row),
@@ -219,14 +208,6 @@ impl MenuLevel {
     pub(crate) fn target(&self, typed: char) -> Option<Id> {
         let typed = typed.to_ascii_uppercase();
         self.with(|state| state.shown.iter().find(|row| row.enabled && row.mnemonic.is_some_and(|(letter, _)| letter == typed)).map(|row| row.id))
-    }
-
-    fn marks(&self) -> bool {
-        self.with(|state| state.marks)
-    }
-
-    fn icons(&self) -> bool {
-        self.with(|state| state.icons)
     }
 
     pub(crate) fn values(&self) -> bool {
@@ -395,7 +376,8 @@ impl Outcome for MenuItemOutput {
     }
 }
 
-/// The widths of a row's columns and its trailing items, in points; zero for a column the row does not show.
+/// The widths of a row's columns and its trailing items, in points; zero for a column the row does not show. The mark
+/// and icon columns include the gap after them.
 struct Columns {
     mark: f32,
     icon: f32,
@@ -537,32 +519,39 @@ impl<'a> MenuItem<'a> {
 
     fn place(&self, columns: &Columns, area: Rect, rtl: bool, gap: f32) -> Placed {
         let step = |width: f32| if width > 0.0 { width + gap } else { 0.0 };
-        let (mark, flow) = Flow::new(area, rtl).take_start(step(columns.mark));
-        let (icon, flow) = flow.take_start(step(columns.icon));
+        let (mark, flow) = Flow::new(area, rtl).take_start(columns.mark);
+        let (icon, flow) = flow.take_start(columns.icon);
         let (trail, flow) = flow.take_end(step(columns.trail));
         let (detail, flow) = flow.take_end(step(columns.detail));
         Placed { mark, icon, label: flow.rect(), detail, trail }
     }
 
-    fn register(&self, level: &MenuLevel, id: Id, label: &str, enabled: bool, command: Option<&ResolvedCommand>) {
+    fn register(&self, ctx: &Context, level: &MenuLevel, id: Id, label: &str, enabled: bool) {
         let text = match self.mnemonic {
             Some(letter) => with_marker(label, letter),
             None => label.to_owned(),
         };
-        level.register(Row { id, text, enabled, mark: self.mark(command, level), icon: self.lead_icon(command).is_some() });
+        level.register(ctx.cumulative_pass_nr(), Row { id, text, enabled });
+    }
+
+    /// The row's mark and icon columns with the gap after each: as wide as the column group of the menu body gives
+    /// them (the widest of its rows, from this pass's measuring run), or the row's own outside a group.
+    fn lead_columns(&self, ctx: &Context, side: f32, gap: f32, command: Option<&ResolvedCommand>, level: &MenuLevel) -> (f32, f32) {
+        let own = |on: bool| if on { side + gap } else { 0.0 };
+        let shared = |column: &ColumnKey, width: f32| crate::layout::ambient_width(ctx, column, width).unwrap_or(width);
+        (shared(&MARKS, own(self.mark(command, level).is_some())), shared(&ICONS, own(self.lead_icon(command).is_some())))
     }
 
     fn columns(&self, cx: &MeasureCx<'_, Self>, level: &MenuLevel) -> Columns {
         let side = cx.icon();
         let command = cx.command();
-        let marked = self.mark(command, level).is_some() || level.marks();
-        let iconed = self.lead_icon(command).is_some() || level.icons();
+        let (mark, icon) = self.lead_columns(cx.ui.ctx(), side, cx.gap(), command, level);
         let detail = self.detail.as_ref().map_or(0.0, |detail| {
             let detail = cx.env.resolve(detail);
             cx.layout_at(&TextRun::new(detail.as_str()).role(cx.style.detail.role), f32::INFINITY).size().x
         });
         let trail = if self.submenu { side } else { self.keys(command).map_or(0.0, |keys| cx.face(keys).x) };
-        Columns { mark: if marked { side } else { 0.0 }, icon: if iconed { side } else { 0.0 }, detail, trail }
+        Columns { mark, icon, detail, trail }
     }
 }
 
@@ -596,18 +585,20 @@ impl Component for MenuItem<'_> {
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
         let level = cx.env.get::<MenuLevel>();
-        // The measuring run of the menu body registers the rows, so the real run's level reads this pass's marks and icons.
-        self.register(&level, cx.id, cx.resolved.label, cx.resolved.enabled, cx.command());
-        level.set_column(cx.icon(), cx.gap());
-        // The level's mark and icon columns are added after the body, from the rows this run registered.
-        let columns = Columns { mark: 0.0, icon: 0.0, ..self.columns(cx, &level) };
+        // The measuring run of the menu body registers the rows, so the real run's letters come from this pass's rows.
+        self.register(cx.ui.ctx(), &level, cx.id, cx.resolved.label, cx.resolved.enabled);
+        let columns = self.columns(cx, &level);
         let text = mnemonic::marked(cx.resolved.label).0;
         let run = TextRun::new(text.as_str()).role(cx.style.text.role);
         let label = if text.is_empty() { Vec2::ZERO } else { cx.layout_at(&run, f32::INFINITY).size() };
         let gap = cx.gap();
         let step = |width: f32| if width > 0.0 { width + gap } else { 0.0 };
-        let width = step(columns.mark) + step(columns.icon) + label.x + step(columns.detail) + step(columns.trail);
+        let rest = label.x + step(columns.detail) + step(columns.trail);
         let padding = cx.style.metrics.padding;
+        // A row measured before the level's widest mark or icon read narrower columns: the body's group adds the
+        // widest columns to what the rows reach past them.
+        crate::layout::report_beyond(cx.ui.ctx(), &[MARKS, ICONS], padding.start + padding.end + rest);
+        let width = columns.mark + columns.icon + rest;
         let room = cx.room.map(|room| (room - padding.start - padding.end).max(0.0));
         Vec2::new(room.map_or(width, |room| width.min(room)), label.y.max(cx.icon()))
     }
@@ -638,8 +629,7 @@ impl Component for MenuItem<'_> {
         let ctx = cx.core.ctx.clone();
         let level = cx.env.get::<MenuLevel>();
         let enabled = cx.resolved.enabled;
-        let command = cx.command.clone();
-        self.register(&level, cx.id, cx.resolved.label, enabled, command.as_deref());
+        self.register(&ctx, &level, cx.id, cx.resolved.label, enabled);
         let (mut forward, mut back) = (false, false);
         while let Some((step, _)) = cx.intents().take_move() {
             match step {
@@ -724,8 +714,7 @@ impl Component for MenuItem<'_> {
         let (rtl, side, gap) = (cx.flow.is_rtl(), cx.style.icon.side, cx.style.metrics.gap);
         let level = cx.env.get::<MenuLevel>();
         let command = cx.command.as_deref();
-        let marked = self.mark(command, &level).is_some() || level.marks();
-        let iconed = self.lead_icon(command).is_some() || level.icons();
+        let (mark_column, icon_column) = self.lead_columns(&cx.core.ctx, side, gap, command, &level);
         let text = mnemonic::marked(cx.resolved.label).0;
         let mark = self.mark(command, &level);
         let draw = ui.draw();
@@ -734,7 +723,7 @@ impl Component for MenuItem<'_> {
             detail.as_ref().map(|detail| TextRun::new(detail.as_str()).role(cx.style.detail.role).color(cx.resolve(&cx.style.detail.color)));
         let detail_width = detail_run.as_ref().map_or(0.0, |run| draw.layout(run, f32::INFINITY).size().x);
         let trail = if self.submenu { side } else { cx.part_if_declared(SHORTCUT).map_or(0.0, |part| part.rect.width()) };
-        let columns = Columns { mark: if marked { side } else { 0.0 }, icon: if iconed { side } else { 0.0 }, detail: detail_width, trail };
+        let columns = Columns { mark: mark_column, icon: icon_column, detail: detail_width, trail };
         let placed = self.place(&columns, cx.content_rect, rtl, gap);
         let ink = cx.resolve(&cx.style.icon.color);
         let centred = |slot: Rect| Rect::from_center_size(slot.center(), Vec2::splat(side));

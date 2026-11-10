@@ -368,12 +368,6 @@ pub trait Component: Meta + Sized {
     /// App values for content the component does not build: its body or its items. Runs once, at step 13.
     fn content_env(&self, _cx: &Cx<'_, Self>, _values: &mut crate::runtime::env::AppValues) {}
 
-    /// How much wider a measuring run's body is than its content measured, for an extent the body's own run produces
-    /// (a menu level's mark and icon columns, known once its rows have registered). Runs after the body.
-    fn body_grown(&self, _cx: &Cx<'_, Self>) -> f32 {
-        0.0
-    }
-
     /// After sensing, before paint: value maths, memory, popup triggers.
     fn update(&mut self, _cx: &mut Cx<'_, Self>) {}
 

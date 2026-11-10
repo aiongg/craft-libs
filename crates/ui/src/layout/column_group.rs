@@ -20,9 +20,9 @@ pub(crate) const GLYPHS: ColumnKey = ColumnKey::new("glyphs");
 struct Open(Vec<Frame>);
 
 enum Frame {
-    /// A group: rows report their widths and read the widest this pass found. `beyond` is, per column, the widest a
-    /// row that sits beside its label in a content-sized column reaches past the column: the gap and its control.
-    Group { id: Id, widest: HashMap<ColumnKey, f32>, beyond: HashMap<ColumnKey, f32>, room: Option<f32> },
+    /// A group: rows report their widths and read the widest this pass found. `beyond` is, per run of columns a row
+    /// sits after (in order from the start edge), the widest the row reaches past them (see [`report_beyond`]).
+    Group { id: Id, widest: HashMap<ColumnKey, f32>, beyond: HashMap<Vec<ColumnKey>, f32>, room: Option<f32> },
     /// No group: rows inside read none, whatever group is open outside.
     Barrier,
 }
@@ -41,9 +41,10 @@ impl ColumnGroup {
         Self::scope_measured(ui, key, rows).0
     }
 
-    /// `scope`, with the width the group's rows take in a measuring run once every row has reported: the widest
-    /// column and what the rows beside it reach past it. Only the end of the scope knows the widest column, so a
-    /// row that ran before the widest one measured against a narrower column than the real run gives it.
+    /// `scope`, with the width the group's rows take in a measuring run once every row has reported: for each run of
+    /// columns rows reported reaching past, the sum of those columns' widest widths and the most a row reaches past
+    /// them. Only the end of the scope knows the widest columns, so a row that ran before the widest one measured
+    /// against a narrower column than the real run gives it.
     pub(crate) fn scope_measured<R>(ui: &mut Ui, key: impl Hash + Debug, rows: impl FnOnce(&mut Ui, &mut ColumnGroup) -> R) -> (R, Option<f32>) {
         let ctx = ui.ctx().clone();
         let id = sub(ui.scope_id(), key);
@@ -54,15 +55,17 @@ impl ColumnGroup {
         if !crate::runtime::measure::active(&ctx) {
             return (result, None);
         }
-        let mut extent = None::<f32>;
-        for (column, width) in &widest {
+        let mut widths = HashMap::new();
+        for (column, width) in widest {
             // A row whose record a later sweep reused reports nothing there, so the widest of the pass stands.
-            let width = column_width(&ctx, id, column).map_or(*width, |found| found.max(*width));
-            layout_memory::record_measured(&ctx, sub(id, column), layout_memory::Measured { room: Vec2::ZERO, took: Vec2::new(width, 0.0) });
-            if let Some(past) = beyond.get(column) {
-                extent = Some(extent.unwrap_or(0.0).max(width + past));
-            }
+            let width = column_width(&ctx, id, &column).map_or(width, |found| found.max(width));
+            layout_memory::record_measured(&ctx, sub(id, &column), layout_memory::Measured { room: Vec2::ZERO, took: Vec2::new(width, 0.0) });
+            widths.insert(column, width);
         }
+        let extent = beyond
+            .iter()
+            .filter_map(|(columns, past)| columns.iter().map(|column| widths.get(column).copied()).sum::<Option<f32>>().map(|sum| sum + past))
+            .reduce(f32::max);
         (result, extent)
     }
 
@@ -117,12 +120,14 @@ pub(crate) fn ambient_room(ctx: &Context) -> Option<f32> {
     })
 }
 
-/// Reports that a row beside its label in column `column` of the innermost open group, in a content-sized column,
-/// reaches `past` beyond the column: the gap and its control. Nothing happens where no group is open or a barrier is.
-pub(crate) fn report_beyond(ctx: &Context, column: &ColumnKey, past: f32) {
+/// Reports that a row of the innermost open group, in a content-sized column, sits after `columns` (in order from the
+/// start edge: a label column, or a menu row's mark and icon columns) and reaches `past` beyond the last of them: for
+/// a labelled row the gap and its control. The group's extent sums the columns' widest widths before `past`. Nothing
+/// happens where no group is open or a barrier is.
+pub(crate) fn report_beyond(ctx: &Context, columns: &[ColumnKey], past: f32) {
     Service::<Open>::run(ctx, |open| {
         if let Some(Frame::Group { beyond, .. }) = open.0.last_mut() {
-            let widest = beyond.entry(column.clone()).or_insert(0.0);
+            let widest = beyond.entry(columns.to_vec()).or_insert(0.0);
             *widest = widest.max(past);
         }
     });
