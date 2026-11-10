@@ -438,6 +438,8 @@ pub(crate) fn finish(ctx: &Context, container: Id, merged: Option<Merged>) {
     let scope =
         Service::<Stack>::run(ctx, |stack| (stack.0.last().is_some_and(|scope| scope.container == container)).then(|| stack.0.pop()).flatten());
     let Some(scope) = scope else { return };
+    // The narrowest width the control reported in this real run confirms the measuring run's record of it.
+    crate::runtime::layout_memory::confirm(ctx, sub(container, "control_min"), Vec2::new(scope.control_min.unwrap_or(0.0), 0.0));
     match scope.kind {
         Kind::Label(label) => {
             let patches = label_patches(scope.container, &label, &scope.nodes);

@@ -39,6 +39,25 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         crate::contract::steps::ShapeKind::Body
     }
 
+    fn fold_took(&self, ctx: &Context, id: Id) {
+        for (key, took) in [
+            ("body", self.body_size),
+            ("header", self.header_size),
+            ("footer", self.footer_size),
+            ("end", self.end_size),
+            ("controls", self.controls_size),
+            ("extent", self.extent),
+        ] {
+            if let Some(took) = took {
+                layout_memory::fold(ctx, sub(id, key), took);
+            }
+        }
+    }
+
+    fn in_flow(&self, comp: &C) -> bool {
+        !matches!(comp.props(Internal::new()).mount, Mount::Layer(_) | Mount::FullWindow | Mount::Viewport { .. })
+    }
+
     fn host(&mut self, comp: &C, at: crate::contract::run::HostCx<'_>) -> Box<dyn crate::contract::run::Host> {
         let mounted = crate::contract::mount::host(comp.props(Internal::new()), &at, self.open, at.label);
         if mounted.exiting {
@@ -307,12 +326,28 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         let pad = Vec2::splat(2.0 * pad_of(at.scx.tokens, props.pad));
         let vertical = scroll_of(&props).is_some_and(|scroll| scroll.vertical_on());
         let tolerance = measure_tolerance(crate::runtime::egui::scale::pixels_per_point(&ctx));
-        let reused = (self.reuse || at.ui.is_sizing_pass()).then(|| self.reusable(&props, &ctx, id, pad, tolerance)).flatten();
+        // A record a run of this pass left serves as before; a kept one serves only while the inputs it was measured
+        // under hold.
+        let key = self.measure_key(&props, at.env, at.width);
+        let reused = (self.reuse || at.ui.is_sizing_pass())
+            .then(|| {
+                let serves = layout_memory::run_found(&ctx, id) || {
+                    let kept = layout_memory::kept_serves(&ctx, id, &key);
+                    if kept {
+                        crate::layout::column_group::replay(&ctx, id);
+                    }
+                    kept
+                };
+                serves.then(|| self.reusable(&props, &ctx, id, pad, tolerance)).flatten()
+            })
+            .flatten();
         let took = match reused {
             Some(took) => took,
             None => {
                 #[cfg(feature = "testing")]
                 crate::runtime::measure::count_body(&ctx, id);
+                crate::layout::column_group::forget(&ctx, id);
+                layout_memory::begin_measure(&ctx, id);
                 let available = match at.at {
                     ShowAt::Rect(rect) => rect,
                     // Not the cursor: in a right-to-left layout it extends to -inf along the line.
@@ -351,6 +386,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                         record(sub(id, key), size);
                     }
                 }
+                layout_memory::end_measure(&ctx, id, key);
                 let body = if self.open { self.body_size.unwrap_or(Vec2::ZERO) } else { Vec2::ZERO };
                 let (header, footer, end) =
                     (self.header_size.unwrap_or(Vec2::ZERO), self.footer_size.unwrap_or(Vec2::ZERO), self.end_size.unwrap_or(Vec2::ZERO));

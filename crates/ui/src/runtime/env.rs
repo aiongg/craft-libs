@@ -511,7 +511,7 @@ impl Scoped {
 
 /// Token-changing values for a container's body: the body and everything under it resolve their styles from the
 /// inherited theme in another mode.
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct ThemeScope {
     mode: Mode,
 }

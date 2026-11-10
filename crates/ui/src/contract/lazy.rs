@@ -3,6 +3,7 @@
 use crate::runtime::egui::alloc;
 use crate::runtime::env::Env;
 use crate::runtime::focus;
+use crate::runtime::layout_memory;
 use crate::runtime::lazy::{self, Decision};
 use crate::runtime::memory::sub;
 use egui::{Pos2, Rect, Ui, UiBuilder, Vec2};
@@ -50,6 +51,9 @@ impl Lazy {
         let available = ui.available_rect_before_wrap();
         let rtl = ui.layout().prefer_right_to_left();
         let sizing = ui.is_sizing_pass();
+        // In a real run the child counts in its body's content by its extent, whether it runs or not: what scrolls
+        // into reach does not change the body's content.
+        let real = !sizing && !crate::runtime::measure::active(&ctx);
         if let Some(view) = view {
             let at = |size: Vec2| {
                 let x = if rtl { available.max.x - size.x } else { available.min.x };
@@ -57,14 +61,24 @@ impl Lazy {
             };
             if let Decision::Skip(size) = lazy::decide(&ctx, id, &view, at, sizing, self.keep) {
                 alloc::space(ui, size);
+                if real {
+                    layout_memory::fold(&ctx, id, size);
+                }
                 return None;
             }
         }
         let from = focus::stop_count(&ctx);
         let layout = *ui.layout();
         let mut child = alloc::child(ui, UiBuilder::new().max_rect(available).layout(layout).scope_id(id));
+        if real {
+            layout_memory::open_content(&ctx, None);
+        }
         let out = add(&mut child);
         let rect = child.min_rect();
+        if real {
+            layout_memory::close_content(&ctx);
+            layout_memory::fold(&ctx, id, rect.size());
+        }
         alloc::advance_past(ui, rect);
         if let Some(view) = view {
             lazy::shown(&ctx, id, rect.size(), view.room, sizing, (!sizing).then(|| focus::stops_since(&ctx, from)));

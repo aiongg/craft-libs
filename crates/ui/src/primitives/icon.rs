@@ -23,7 +23,7 @@ pub enum Mirror {
 }
 
 /// A value glyph: an icon drawn from a value.
-pub trait Glyph {
+pub trait Glyph: Send + Sync {
     /// Whether the glyph has a reading direction (an arrow) and so flips under right-to-left.
     fn directional(&self) -> bool {
         false

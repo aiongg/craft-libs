@@ -110,6 +110,14 @@ pub(crate) fn count_body(ctx: &Context, id: Id) {
     });
 }
 
+/// The bodies whose contents ran in a measuring run in the last pass, and how many runs each; empty when that pass
+/// ran none.
+#[cfg(feature = "testing")]
+pub fn last_pass_body_runs(ctx: &Context) -> Vec<(Id, u32)> {
+    let last = ctx.cumulative_pass_nr().saturating_sub(1);
+    store::with::<BodyRuns, _>(ctx, |log| if log.pass == last { log.runs.clone() } else { Vec::new() })
+}
+
 /// The bodies whose contents ran in a measuring run in the last pass that ran one, and how many runs each.
 #[cfg(feature = "testing")]
 pub fn body_runs(ctx: &Context) -> Vec<(Id, u32)> {

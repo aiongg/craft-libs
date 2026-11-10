@@ -89,6 +89,15 @@ pub(crate) struct Measuring<'a, 's> {
 pub(crate) trait ShapeHooks<C: Component> {
     fn shape(&self) -> ShapeKind;
 
+    /// Counts what the shape's content took in this real run into its content scope, besides what its components
+    /// measured: content that allocates without a component (a raw egui allocation) changes this.
+    fn fold_took(&self, _ctx: &egui::Context, _id: Id) {}
+
+    /// Whether the shape takes room in its parent's flow: a layer or window mount does not.
+    fn in_flow(&self, _comp: &C) -> bool {
+        true
+    }
+
     /// Whether the shape's own `parts` hook can declare parts, which the component's `PARTS = false` does not cover.
     fn declares_parts(&self) -> bool {
         true
@@ -809,7 +818,23 @@ fn run_in_host<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Opti
         if C::ROLE == Role::Merged {
             scope::begin(&ctx, id, id, scope::Kind::Merge);
         }
+        // A real run counts what the components in a body's content measured, to confirm the body's kept
+        // measurement; a collection's rows are its own measure, not the enclosing body's.
+        let counted = (!p.sizing && !crate::runtime::measure::active(&ctx))
+            .then(|| match p.hooks.shape() {
+                ShapeKind::Body => Some(Some(id)),
+                ShapeKind::Item => Some(None),
+                _ => None,
+            })
+            .flatten();
+        if let Some(body) = counted {
+            crate::runtime::layout_memory::open_content(&ctx, body);
+        }
         p.hooks.content(comp, ui, env, cx, &values);
+        if counted.is_some() {
+            p.hooks.fold_took(&ctx, id);
+            crate::runtime::layout_memory::close_content(&ctx);
+        }
     }
     // The `over` parts are placed before `paint_over`, so the children it shows stack above them (8.3).
     ui.set_clip_rect(outer_clip);
@@ -928,6 +953,9 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
         scope::record_control_min(&ctx, min.x);
     }
     let measured = size;
+    if !sizing && !crate::runtime::measure::active(&ctx) && hooks.in_flow(&comp) {
+        crate::runtime::layout_memory::fold(&ctx, id, measured);
+    }
     let size = hooks.sized(&comp, ui, size);
     // A component shown at a rect fills it: the rect is its size, and a leaf that measures nothing (a content
     // painter) still shows there.
