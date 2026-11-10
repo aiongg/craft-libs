@@ -264,7 +264,7 @@ fn paint_picture(cx: &ContentPainterCx, rect: Rect, texture: CachedTexture) {
     let fitted = Rect::from_center_size(rect.center(), size * scale);
     let radius = UiTokens::corner(cx.style_cx().tokens.shape.radius.control);
     let uv = Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0));
-    cx.painter.add(egui::epaint::RectShape::filled(fitted, radius, egui::Color32::WHITE).with_texture(texture.id, uv));
+    cx.painter.add(egui::epaint::RectShape::filled(fitted, radius, crate::primitives::textures::UNTINTED).with_texture(texture.id, uv));
 }
 
 /// The folder a path is in, for the line under a file's name.
