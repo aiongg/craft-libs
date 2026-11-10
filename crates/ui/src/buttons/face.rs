@@ -93,7 +93,7 @@ pub(super) fn on_parts(cx: &StyleCx<'_>) -> VariantParts {
     let soft = cx.with_variant(Variant::look(Emphasis::Soft, Tone::Accent)).variant_look();
     let colors = &cx.tokens.color;
     let fill = cx.color(colors.accent.soft);
-    let ink = cx.color(colors.accent.text);
+    let ink = cx.color(colors.accent.on_soft);
     VariantParts { fill: Stateful::new(fill), text: Stateful::new(ink).off(States::new(ink, ink, ink, soft.text.off.disabled)), ..soft }
 }
 

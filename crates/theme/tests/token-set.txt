@@ -3,6 +3,7 @@
 # produces. Edit by hand: a new path needs its plan entry first.
 accent.border
 accent.hover
+accent.on_soft
 accent.pressed
 accent.soft
 accent.solid

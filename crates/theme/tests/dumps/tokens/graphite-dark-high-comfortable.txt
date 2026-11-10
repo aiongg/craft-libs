@@ -32,6 +32,7 @@ accent.strong_pressed = #003a90ff
 accent.soft = #12284cff
 accent.border = #5394feff
 accent.text = #98bfffff
+accent.on_soft = #98bfffff
 status.good.fg = #66d9bfff
 status.good.bg = #05251fff
 status.good.border = #006151ff
