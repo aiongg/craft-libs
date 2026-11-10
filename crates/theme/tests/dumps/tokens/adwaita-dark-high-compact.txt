@@ -143,6 +143,7 @@ size.panel_header = 28
 size.thumb.sm = 18
 size.thumb.md = 24
 size.thumb.lg = 48
+size.thumb_row = 32
 size.handle.sm = 6
 size.handle.md = 8
 size.handle.ring = 18
