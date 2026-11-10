@@ -12,7 +12,7 @@ use crate::runtime::commands::{CommandRef, FireSource, ResolvedCommand};
 use crate::runtime::env::{AppValues, EnvValue, Label};
 use crate::runtime::frame;
 use crate::style::{ComponentStyle, Flags, FocusLook, IconLook, StyleCx, SurfaceLook, TextLook, TypeRole, UiTokens};
-use craft_behavior::{Flow, IconId, Metrics, NavMove, PartKey, Sense};
+use craft_behavior::{Flow, IconId, Insets, Metrics, NavMove, PartKey, Sense};
 use craft_keymap::mnemonic;
 use craft_theme::{Rgba, States};
 use egui::{Id, Pos2, Rect, Response, Vec2, pos2};
@@ -551,9 +551,12 @@ impl Component for MenuItem<'_> {
         let surface = SurfaceLook::new(cx.row_surface()).radius(UiTokens::corner(tokens.shape.radius.sm));
         let ink = |base: Rgba| cx.row_ink(base).off(States::new(c(base), c(base), c(base), c(text.disabled)));
         let control = cx.control();
+        // A row's content sits `space.pad.regular` in from the popup's own padding, so a label starts clear of the edge.
+        let mut metrics = control.metrics();
+        metrics.padding = Insets::new(tokens.space.pad.regular, tokens.space.pad.regular, metrics.padding.top, metrics.padding.bottom);
         MenuItemStyle {
             surface,
-            metrics: control.metrics(),
+            metrics,
             focus: cx.focus_look(),
             text: TextLook::new(TypeRole::Body, ink(text.normal)),
             icon: IconLook::new(control.icon, ink(text.normal)),

@@ -156,7 +156,7 @@ impl<'a> Menu<'a> {
     pub fn new(label: impl Into<Label>) -> Self {
         let props = ContainerProps::new()
             .surface(SurfaceKind::Popup)
-            .pad(Pad::None)
+            .pad(Pad::Regular)
             .roving(Roving::new(NavShape::Flat).arrows(Arrows::Vertical))
             .mount(Mount::Layer(layer(false)));
         Menu { common: Common::new(), props, open: None, closed: None, submenu: false, values: false, opener: None, back: false, step: None }

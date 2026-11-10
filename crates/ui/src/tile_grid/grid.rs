@@ -188,6 +188,10 @@ pub struct TileGrid<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     /// Tiles keep their own aspect and fill rows, instead of equal cards.
     #[prop(flag)]
     justified: bool,
+    /// Equal cards grow to fill their row: the columns are those that fit at the zoomed card width, and the cards share
+    /// the width between them.
+    #[prop(flag)]
+    fill_row: bool,
     /// The width of a card over its picture's height.
     #[prop(quantity = "aspect ratio")]
     aspect: f32,
@@ -259,6 +263,7 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> TileGrid<'a, K> {
             selection: None,
             reveal: None,
             justified: false,
+            fill_row: false,
             aspect: 1.0,
             zoom: 1.0,
             caption: CaptionPlace::Below,
@@ -334,7 +339,12 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> TileGrid<'a, K> {
         let style = TileGridStyle::build(cx);
         let (spacing, around) = (style.spacing, style.around.get(self.caption, self.detail_line));
         // A card never outgrows the grid: in a column narrower than a card the card takes the column.
-        let side = style.picture_side(self.zoom).min(width - 2.0 * spacing.inset - around.size().x).max(1.0);
+        let mut side = style.picture_side(self.zoom).min(width - 2.0 * spacing.inset - around.size().x).max(1.0);
+        if self.fill_row && !self.justified {
+            let (free, gap, card) = (width - 2.0 * spacing.inset, spacing.gap, side + around.size().x);
+            let columns = ((free + gap) / (card + gap)).floor().max(1.0);
+            side = ((free - (columns - 1.0) * gap) / columns - around.size().x).max(1.0);
+        }
         let aspect = if self.aspect.is_finite() && self.aspect > 0.0 { self.aspect } else { 1.0 };
         let tail_height = ListRow::row_height(cx, ThumbSize::None, false);
         let recipe = self.items.rows_stamp.map(|stamp| Recipe {
