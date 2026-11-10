@@ -15,7 +15,7 @@ use crate::runtime::access::scope;
 use crate::runtime::access::{self, Politeness, Role};
 use crate::runtime::commands::{self, CommandSet as _, WindowCommand};
 use crate::runtime::egui::pass;
-use crate::runtime::egui::{alloc, areas, child, input, response, style, viewports};
+use crate::runtime::egui::{alloc, areas, child, input, memory as store, repaint, response, sizing, style, viewports};
 use crate::runtime::env::{AppValues, ArenaId, Env, Scoped};
 use crate::runtime::focus::FocusPolicy;
 use crate::runtime::memory::{MemoryStage, SaveKey, sub};
@@ -75,6 +75,16 @@ struct ScrollState {
     offset: (f64, f64),
     /// A bottom-anchored region follows the end while nothing moved it away.
     follow_end: Option<bool>,
+}
+
+/// The offsets `scroll_input` moved scroll bodies to, with the frame that queued each, for step 4 of each body's next
+/// pass. An entry no body took in that frame or the next belongs to a body that is no longer shown: it is dropped.
+#[derive(Default)]
+struct Jumps(Vec<(Id, ScrollPos, u64)>);
+
+/// The frame a jump is queued and taken in: the root's, since one store serves the bodies of every viewport.
+fn jump_frame(ctx: &Context) -> u64 {
+    pass::root_frame_nr(ctx)
 }
 
 /// What the scroll region and the regions measured last pass.
@@ -578,6 +588,9 @@ pub(super) struct BodyHooks<'b> {
     exiting: bool,
     offset: ScrollPos,
     offset_at_read: ScrollPos,
+    /// The offset this pass shows, as step 4 left it: what decides which out-of-view children run, in a measuring
+    /// run (which lays the content out from offset zero) as in the real run.
+    view_offset: ScrollPos,
     scroll_bound: bool,
     moved: bool,
     last: BodyView,
@@ -684,10 +697,46 @@ impl BodyHooks<'_> {
         }
     }
 
-    /// AccessKit scroll actions aimed at the container's node: a page along an axis, or an offset.
-    fn access_scroll<C: Container>(&mut self, props: &ContainerProps, cx: &mut Cx<'_, C>) {
-        use craft_behavior::{AccessAction as Action, AccessData as ActionData};
+    /// Thumb drags, track presses and AccessKit scroll actions. They move the view at step 4 of the next pass, as the
+    /// wheel does there, and that pass repeats this frame: the pass that paints an offset is the one whose step 4 set
+    /// it, so the content laid out for the view (out-of-view children skip their run, `runtime::lazy`) is the content
+    /// shown. A pass that repeats a frame carries no input, and a press held since the frame's first pass adds nothing
+    /// there.
+    fn scroll_input<C: Container>(&self, props: &ContainerProps, cx: &mut Cx<'_, C>) {
+        use super::Pointer as _;
         let Some(scroll) = scroll_of(props) else { return };
+        let ctx = cx.core.ctx.clone();
+        if ctx.current_pass_index() > 0 {
+            return;
+        }
+        let mut offset = self.offset;
+        if let Some(range) = cx.scroll_moved(SCROLL_Y) {
+            offset.y = range.start;
+        }
+        if let Some(range) = cx.scroll_moved(SCROLL_X) {
+            offset.x = range.start;
+        }
+        self.access_scroll(scroll, &mut offset, cx);
+        let view = self.last.view.map_or(Vec2::ZERO, |view| rect_of(view).size());
+        let offset = self.clamped(scroll, view, offset);
+        if offset != self.offset {
+            let id = cx.core.id;
+            let frame = jump_frame(&ctx);
+            store::Service::<Jumps>::run(&ctx, |jumps| {
+                jumps.0.retain(|(owner, _, queued)| *owner != id && queued + 1 >= frame);
+                jumps.0.push((id, offset, frame));
+            });
+            // A bound offset reaches the app in the repeated pass, as a held update does.
+            sizing::request_discard(&ctx, sizing::HELD_UPDATE_RERUN);
+            if !ctx.will_discard() {
+                repaint::request(&ctx);
+            }
+        }
+    }
+
+    /// AccessKit scroll actions aimed at the container's node, applied to `offset`: a page along an axis, or an offset.
+    fn access_scroll<C: Container>(&self, scroll: Scroll, offset: &mut ScrollPos, cx: &mut Cx<'_, C>) {
+        use craft_behavior::{AccessAction as Action, AccessData as ActionData};
         let rtl = cx.core.env.direction().is_rtl();
         let view = self.last.view.map_or(Vec2::ZERO, |view| rect_of(view).size());
         while let Some(request) = cx.core.intents.take_scroll_access(false) {
@@ -698,24 +747,21 @@ impl BodyHooks<'_> {
                 Action::ScrollRight => (false, !rtl),
                 _ => {
                     if let Some(ActionData::SetScrollOffset(point)) = request.data {
-                        self.offset = ScrollPos { x: point.x, y: point.y };
-                        self.moved = true;
+                        *offset = ScrollPos { x: point.x, y: point.y };
                     }
                     continue;
                 }
             };
-            let (visible, extent, offset) =
-                if vertical { (view.y, self.last.extent.1, self.offset.y) } else { (view.x, self.last.extent.0, self.offset.x) };
-            let span = ScrollSpan::new(0.0..f64::from(extent).max(f64::from(visible)), offset..offset + f64::from(visible));
+            let (visible, extent, at) = if vertical { (view.y, self.last.extent.1, offset.y) } else { (view.x, self.last.extent.0, offset.x) };
+            let span = ScrollSpan::new(0.0..f64::from(extent).max(f64::from(visible)), at..at + f64::from(visible));
             let start = craft_behavior::scroll::page(&span, toward_end).start;
             if vertical {
-                self.offset.y = start;
+                offset.y = start;
             } else {
-                self.offset.x = start;
+                offset.x = start;
             }
-            self.moved = true;
+            *offset = self.clamped(scroll, view, *offset);
         }
-        self.clamp_offset(scroll, view);
     }
 
     /// Alt+Up and Alt+Down while focus is anywhere in a section whose header is a reorder band. A section has no stop of
@@ -1152,6 +1198,7 @@ impl<'b> BodyHooks<'b> {
             exiting: false,
             offset: ScrollPos::default(),
             offset_at_read: ScrollPos::default(),
+            view_offset: ScrollPos::default(),
             scroll_bound: false,
             moved: false,
             last: BodyView::default(),
@@ -1530,9 +1577,15 @@ impl<'b> BodyHooks<'b> {
     }
 
     fn clamp_offset(&mut self, scroll: Scroll, view: Vec2) {
+        self.offset = self.clamped(scroll, view, self.offset);
+    }
+
+    fn clamped(&self, scroll: Scroll, view: Vec2, offset: ScrollPos) -> ScrollPos {
         let max = self.max_offset(view);
-        self.offset.x = if scroll.horizontal_on() { self.offset.x.clamp(0.0, max.x) } else { 0.0 };
-        self.offset.y = if scroll.vertical_on() { self.offset.y.clamp(0.0, max.y) } else { 0.0 };
+        ScrollPos {
+            x: if scroll.horizontal_on() { offset.x.clamp(0.0, max.x) } else { 0.0 },
+            y: if scroll.vertical_on() { offset.y.clamp(0.0, max.y) } else { 0.0 },
+        }
     }
 }
 
@@ -1771,7 +1824,18 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         self.offset_at_read = held;
         let rtl = env.direction.is_rtl();
         let view = self.last.view.map_or(Vec2::ZERO, |view| rect_of(view).size());
-        // Step 4 applies, in order, this pass's wheel share and the reveal request queued last pass.
+        // Step 4 applies, in order, the scroll bar and AccessKit moves of the last pass (`scroll_input`), this pass's
+        // wheel share and the reveal request queued last pass.
+        let frame = jump_frame(&ctx);
+        let jump = store::Service::<Jumps>::run(&ctx, |jumps| {
+            jumps.0.retain(|(.., queued)| queued + 1 >= frame);
+            let at = jumps.0.iter().position(|(owner, ..)| *owner == id)?;
+            Some(if quiet { jumps.0[at].1 } else { jumps.0.remove(at).1 })
+        });
+        if let Some(jump) = jump {
+            self.offset = jump;
+            self.moved = true;
+        }
         if let Some(share) = if quiet { wheel::peek(&ctx, id) } else { wheel::take(&ctx, id) } {
             let sign = if rtl { 1.0 } else { -1.0 };
             self.offset.x += f64::from(sign * share.scroll.x);
@@ -1821,6 +1885,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             self.offset.y = f64::from((self.last.extent.1 - view.y).max(0.0));
         }
         self.clamp_offset(scroll, view);
+        self.view_offset = self.offset;
     }
 
     fn overflow(&self) -> f32 {
@@ -1967,6 +2032,8 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             let mut stage = MemoryStage::open_peek(&ctx, id);
             let mut fresh = BodyHooks::new(&mut *self.body);
             fresh.read(comp, &mut stage, id, at.env);
+            // A peek stage holds no session scroll state: the measuring run decides by the offset this pass shows.
+            fresh.view_offset = self.view_offset;
             fresh.open = self.open;
             fresh.open_at_read = self.open;
             fresh.presence = self.presence;
@@ -2111,15 +2178,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             self.reason = self.reason.or(Some(CloseReason::Requested));
         }
         if scroll.is_some() {
-            if let Some(range) = cx.scroll_moved(SCROLL_Y) {
-                self.offset.y = range.start;
-                self.moved = true;
-            }
-            if let Some(range) = cx.scroll_moved(SCROLL_X) {
-                self.offset.x = range.start;
-                self.moved = true;
-            }
-            self.access_scroll(props, cx);
+            self.scroll_input(props, cx);
         }
         // AccessKit Expand, Collapse and Click reach a collapsible container as an activation: it folds or unfolds.
         if props.collapse.is_some() && cx.activation().is_some_and(|activation| activation.by_key) {
@@ -2304,9 +2363,18 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                         let mut region_ui =
                             alloc::child(&mut body_ui, UiBuilder::new().scope_id(sub(id, "scroll_region")).layout(layout_of).max_rect(max));
                         region_ui.set_clip_rect(at.intersect(body_ui.clip_rect()));
+                        // The view this pass shows, where this run lays the content out.
+                        let shown = self.view_offset;
+                        let shift = Vec2::new(
+                            if scroll.horizontal_on() { (shown.x - off.x) as f32 * if rtl { -1.0 } else { 1.0 } } else { 0.0 },
+                            if scroll.vertical_on() { (shown.y - off.y) as f32 } else { 0.0 },
+                        );
+                        let view = crate::runtime::lazy::View { owner: id, rect: seen.translate(shift), room: at.size() };
+                        let region_env = Env::install_for(&region_ui, body_env.derive_local(|scoped| scoped.lazy = Some(view)));
                         layout::run_body(&mut region_ui, layout_id, layout, gap, |ui| {
                             shared_labels(ui, id, label_column, room.x, &mut group_extent, |ui| body(ui, bcx))
                         });
+                        Env::restore(&ctx, region_env);
                         let extent = region_ui.min_rect().size();
                         if real {
                             crate::runtime::egui::widgets::note_scroll_region(&ctx, region_ui.clip_rect(), region_ui.min_rect().intersect(max));

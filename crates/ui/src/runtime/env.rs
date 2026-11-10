@@ -457,6 +457,8 @@ pub struct Scoped {
     /// The axes (horizontal, vertical) the innermost scrolling body scrolls on: the room along them is unbounded, so
     /// a child that fills there takes its content size.
     pub(crate) unbounded: (bool, bool),
+    /// The view of the innermost scroll area, for the children that run only in view (`contract::Lazy`).
+    pub(crate) lazy: Option<crate::runtime::lazy::View>,
     /// The id of the collection item the scope shows: its root is not a Tab stop (17.3).
     pub(crate) item: Option<Id>,
     /// The roving group of the collection row the scope shows: the stops of its components and parts join it, so
@@ -622,6 +624,7 @@ impl Env {
                 offered: None,
                 scroll_owner: None,
                 unbounded: (false, false),
+                lazy: None,
                 item: None,
                 row: None,
                 item_facts: None,
@@ -678,6 +681,7 @@ impl Env {
             s.scroll_owner = None;
             s.wheel_gated = false;
             s.unbounded = (false, false);
+            s.lazy = None;
             s.item = None;
             s.row = None;
             s.item_facts = None;
@@ -704,7 +708,10 @@ impl Env {
     /// This env for a body that starts a layout room of its own (a layer, a pane): the flow grid and the content
     /// column of the room around it do not reach in.
     pub(crate) fn new_room(&self) -> Env {
-        self.derive_local(Scoped::start_room)
+        self.derive_local(|scoped| {
+            scoped.start_room();
+            scoped.lazy = None;
+        })
     }
 
     pub(crate) fn derive_local(&self, f: impl FnOnce(&mut Scoped)) -> Env {
@@ -888,6 +895,11 @@ impl<'a> EnvView<'a> {
     /// The innermost scrolling body around the component.
     pub(crate) fn scroll_owner(&self) -> Option<Id> {
         self.scoped.scroll_owner
+    }
+
+    /// The view of the innermost scroll area around the scope.
+    pub(crate) fn lazy_view(&self) -> Option<crate::runtime::lazy::View> {
+        self.scoped.lazy
     }
 
     /// The roving group of the innermost body with `ContainerProps.roving`.

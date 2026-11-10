@@ -1,0 +1,155 @@
+//! Out-of-view content: inside a scroll area, a child that is out of view does not run; it takes the extent it had
+//! in the last pass that showed it. This is the one previous-pass state of the run model, kept for every user in
+//! one store: `contract::Lazy` children and the rows of a collection.
+
+use crate::runtime::egui::pass;
+use crate::runtime::frame::PerViewport;
+use craft_behavior::ScrollPos;
+use egui::{Context, Id, Rect, Vec2};
+use std::collections::HashMap;
+
+/// The view of the innermost scroll area, as the run that lays its content out sees it: the rect the pass shows,
+/// placed where this run puts the content (a measuring run lays it out from offset zero), and the room the scroll
+/// area was offered.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct View {
+    /// The scroll area; children's entries are kept under it.
+    pub(crate) owner: Id,
+    pub(crate) rect: Rect,
+    pub(crate) room: Vec2,
+}
+
+impl View {
+    fn reach(&self) -> Rect {
+        self.rect.expand2(margin(self.rect.size()))
+    }
+}
+
+/// How far beyond each edge of a view of size `view` out-of-view content still runs: one view size. A child there
+/// runs before it scrolls in, so its stops hold their place in Tab order, a page move shows content that ran, and its
+/// extent is current when it shows.
+fn margin(view: Vec2) -> Vec2 {
+    view
+}
+
+/// The reach of a view of size `view` scrolled to `offset`: the view widened by the margin on each side, clipped at
+/// the content's start, as the offset and size an item layout's range query takes. A collection builds its rows
+/// there; `Lazy` children run in the same reach.
+pub(crate) fn reach(offset: ScrollPos, view: Vec2) -> (ScrollPos, Vec2) {
+    let margin = margin(view);
+    let from = ScrollPos { x: (offset.x - f64::from(margin.x)).max(0.0), y: (offset.y - f64::from(margin.y)).max(0.0) };
+    let to = (offset.x + f64::from(view.x + margin.x), offset.y + f64::from(view.y + margin.y));
+    (from, Vec2::new((to.0 - from.x) as f32, (to.1 - from.y) as f32))
+}
+
+/// What a child of a scroll area does this pass.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum Decision {
+    Run,
+    /// Out of view: it takes this extent and does not run.
+    Skip(Vec2),
+}
+
+#[derive(Clone, Default)]
+struct Entry {
+    /// The extent of the last run that showed the child. Both runs of a pass that skips the child take it, so it is
+    /// the same size in the measuring run and the real run; the real run comes last in a pass, so it is the real
+    /// run's extent.
+    size: Option<Vec2>,
+    /// The scroll area's room in the last measuring run and the last real run that showed the child: whether the
+    /// extent is current. A content-sized scroll area is offered another room in its measuring run than in its real
+    /// run, so each kind of run compares with its own.
+    rooms: [Option<Vec2>; 2],
+    /// The components and egui roots of the stops the child registered in the last real run that showed it. The
+    /// child runs while one of them holds focus or a focus request asks to reveal one.
+    stops: Vec<Id>,
+    /// This pass's decision, under the pass number that made it.
+    decided: Option<(u64, Decision)>,
+    /// The last frame that read or wrote the entry.
+    touched: u64,
+}
+
+#[derive(Default)]
+struct Store {
+    entries: HashMap<Id, Entry>,
+    /// The frame the entries were last pruned in.
+    pruned: u64,
+}
+
+fn with<R>(ctx: &Context, f: impl FnOnce(&mut Store, u64, u64) -> R) -> R {
+    let viewport = pass::current_viewport(ctx);
+    let (pass_nr, frame) = (pass::pass_nr(ctx, viewport), pass::frame_nr(ctx, viewport));
+    PerViewport::<Store>::with(ctx, viewport, |store| {
+        // A child no pass reached in the last frame is gone from its scroll area.
+        if store.pruned != frame {
+            store.pruned = frame;
+            store.entries.retain(|_, entry| entry.touched + 1 >= frame);
+        }
+        f(store, pass_nr, frame)
+    })
+}
+
+/// Whether two rooms are the same within half a point: a child measured at another room is measured again.
+fn same_room(a: Vec2, b: Vec2) -> bool {
+    (a - b).abs().max_elem() <= 0.5
+}
+
+/// Decides whether the child `id`, whose content starts at `at` in this run, runs this pass. It runs when it has no
+/// extent from a run of this kind (`sizing` or real) that showed it at this room, when that extent placed at `at`
+/// meets the view's reach, when one of its stops holds focus or is the target of a focus request, or when `keep`
+/// asks for it. The first run of a pass decides; every later run of the pass gets the same answer, so a measuring
+/// run and the real run lay out the same children.
+pub(crate) fn decide(ctx: &Context, id: Id, view: &View, at: impl FnOnce(Vec2) -> Rect, sizing: bool, keep: bool) -> Decision {
+    let targets = crate::runtime::focus::targets(ctx);
+    with(ctx, |store, pass_nr, frame| {
+        let entry = store.entries.entry(id).or_default();
+        entry.touched = frame;
+        if let Some((decided_in, decision)) = entry.decided
+            && decided_in == pass_nr
+        {
+            return decision;
+        }
+        let known = entry.rooms[usize::from(!sizing)].is_some_and(|room| same_room(room, view.room));
+        let focus = entry.stops.iter().any(|stop| targets.contains(&Some(*stop)));
+        let decision = match entry.size {
+            Some(size) if known && !keep && !focus && !at(size).intersects(view.reach()) => Decision::Skip(size),
+            _ => Decision::Run,
+        };
+        entry.decided = Some((pass_nr, decision));
+        decision
+    })
+}
+
+/// Records what a run that showed the child `id` found: its extent at the scroll area's `room` in a run of this kind
+/// and, from a real run, the stops it registered.
+pub(crate) fn shown(ctx: &Context, id: Id, size: Vec2, room: Vec2, sizing: bool, stops: Option<Vec<Id>>) {
+    with(ctx, |store, _, frame| {
+        let entry = store.entries.entry(id).or_default();
+        entry.touched = frame;
+        entry.size = Some(size);
+        entry.rooms[usize::from(!sizing)] = Some(room);
+        if let Some(stops) = stops {
+            entry.stops = stops;
+        }
+    });
+}
+
+/// Records the extent of a collection row that was built this pass. The collection places the rows it does not
+/// build by it (its item layout answers for rows it never built).
+pub(crate) fn remember(ctx: &Context, id: Id, size: Vec2) {
+    shown(ctx, id, size, Vec2::ZERO, false, None);
+}
+
+/// Runs `f` with a reader of the extents rows had in the last pass that built them, for a collection that reads
+/// many entries at once.
+pub(crate) fn reading<R>(ctx: &Context, f: impl FnOnce(&dyn Fn(Id) -> Option<Vec2>) -> R) -> R {
+    with(ctx, |store, _, frame| {
+        let store = std::cell::RefCell::new(store);
+        f(&|id| {
+            let mut store = store.borrow_mut();
+            let entry = store.entries.get_mut(&id)?;
+            entry.touched = frame;
+            entry.size
+        })
+    })
+}

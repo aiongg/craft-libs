@@ -3,11 +3,13 @@
 
 use super::kit::Slab;
 use craft_behavior::ColumnWidth;
+use craft_ui::buttons::Button;
 use craft_ui::contract::{ContainerProps, Props as _, Scroll, Show as _, ShowContainer as _, Sizing};
 use craft_ui::layout_components::{Grid, Stack};
+use craft_ui::runtime::focus::{FocusTarget, request};
 use craft_ui::testing::layout::{Block, in_region};
 use craft_ui::testing::{Frames, pointer, trial};
-use egui::{Pos2, Rect, Ui, Vec2};
+use egui::{Id, Pos2, Rect, Ui, Vec2};
 use std::cell::{Cell, RefCell};
 
 const LINE: Vec2 = Vec2::new(100.0, 20.0);
@@ -17,6 +19,8 @@ const NEAR: f32 = 1.0;
 const BIG_STEP: f32 = 200.0;
 const HUNDRED: f32 = 100.0;
 const THUMB_GAIN: f32 = 150.0;
+/// How many view heights a thumb drag of 60 points over thirty 100-point children moves the content, at least.
+const JUMP_VIEWS: f32 = 3.0;
 /// What the gaps between lines add to a body's height, at most.
 const GAPS: f32 = 20.0;
 const FIRST_COLUMN: f32 = 100.0;
@@ -184,4 +188,118 @@ fn a_content_sized_scrolling_stack_is_as_tall_as_its_room_and_scrolls() {
     });
     assert!(extent.get() > VIEW.y, "the content is taller than the room: {}", extent.get());
     assert!((rect.get().height() - VIEW.y).abs() < NEAR, "a content-sized scrolling body takes the room's height, not zero: {:?}", rect.get());
+}
+
+/// Children of a scrolling body that run only in view (`Lazy`): one far below the view does not run and keeps the
+/// body's content size; scrolled into view, it runs again. A thumb drag that jumps several views shows children that
+/// ran in that frame. Guards the out-of-view rule, its one store, and that the decision sees the painted offset.
+#[trial]
+fn an_out_of_view_child_does_not_run_until_it_scrolls_in() {
+    const CHILDREN: usize = 30;
+    let runs: Vec<Cell<usize>> = (0..CHILDREN).map(|_| Cell::new(0)).collect();
+    let seen = Seen::default();
+    // The rects of the children the last pass ran for real.
+    let shown = RefCell::new(Vec::new());
+    let mut show = |ui: &mut Ui| {
+        shown.borrow_mut().clear();
+        in_region(ui, Rect::from_min_size(ORIGIN, VIEW), |ui| {
+            Slab::new(ContainerProps::new().scroll(Scroll::vertical())).id_salt("panel").show(ui, |ui, cx| {
+                seen.body.set(Some(cx.rect));
+                seen.first_top.set(ui.next_widget_position().y);
+                for (at, count) in runs.iter().enumerate() {
+                    craft_ui::contract::Lazy::new(at).show(ui, |ui| {
+                        count.set(count.get() + 1);
+                        let rect = Block::new(Vec2::new(LINE.x, HUNDRED)).show(ui).rect;
+                        if !ui.is_sizing_pass() {
+                            shown.borrow_mut().push(rect);
+                        }
+                    });
+                }
+                seen.content.set(ui.min_rect().height());
+            });
+        });
+    };
+    let mut frames = Frames::new();
+    frames.idle(3, &mut show);
+    let full = seen.content.get();
+    let last = CHILDREN - 1;
+    runs.iter().for_each(|count| count.set(0));
+    frames.frame(vec![], &mut show);
+    assert!(runs[0].get() > 0, "the child in view runs");
+    assert_eq!(runs[last].get(), 0, "the child far below the view does not run");
+    assert!((seen.content.get() - full).abs() <= SAME, "the content keeps its size: {} then {full}", seen.content.get());
+    let view = seen.body.get().expect("the body ran");
+    for _ in 0..CHILDREN {
+        wheel_at(&mut frames, view.center(), -BIG_STEP, &mut show);
+    }
+    runs.iter().for_each(|count| count.set(0));
+    frames.frame(vec![], &mut show);
+    assert!(runs[last].get() > 0, "scrolled to the end, the last child runs");
+    assert_eq!(runs[0].get(), 0, "and the first, far above the view, does not");
+    assert!((seen.content.get() - full).abs() <= SAME, "the content keeps its size at the end");
+
+    // Back at the top, a thumb drag of 60 points moves the content by several views in one frame.
+    for _ in 0..CHILDREN {
+        wheel_at(&mut frames, view.center(), BIG_STEP, &mut show);
+    }
+    let top0 = seen.first_top.get();
+    let thumb = Pos2::new(view.max.x - 2.0, view.min.y + 4.0);
+    frames.frame(vec![pointer::moved(thumb)], &mut show);
+    frames.frame(vec![pointer::press(thumb)], &mut show);
+    frames.frame(vec![pointer::moved(thumb + Vec2::new(0.0, 4.0))], &mut show);
+    frames.frame(vec![pointer::moved(thumb + Vec2::new(0.0, 8.0))], &mut show);
+    let before = top0 - seen.first_top.get();
+    frames.frame(vec![pointer::moved(thumb + Vec2::new(0.0, 60.0))], &mut show);
+    let jumped = top0 - seen.first_top.get();
+    assert!(jumped - before > JUMP_VIEWS * view.height(), "the drag jumped several views: {before} -> {jumped}");
+    let mut spans: Vec<(f32, f32)> = shown.borrow().iter().map(|rect| (rect.min.y, rect.max.y)).collect();
+    spans.sort_by(|a, b| a.0.total_cmp(&b.0));
+    let mut covered = view.min.y;
+    for (top, bottom) in spans {
+        if top <= covered + GAPS {
+            covered = covered.max(bottom);
+        }
+    }
+    assert!(covered >= view.max.y, "the children in view after the jump ran in that frame: covered to {covered}, view {view:?}");
+    frames.frame(vec![pointer::release(thumb + Vec2::new(0.0, 60.0))], &mut show);
+}
+
+/// A focus request for a control in a child far out of view runs that child, keeps the focus there, and the body
+/// scrolls the control into view: the child's stops from its last run name it.
+#[trial]
+fn a_focus_request_into_an_out_of_view_child_runs_it_and_scrolls_it_in() {
+    const CHILDREN: usize = 30;
+    let runs: Vec<Cell<usize>> = (0..CHILDREN).map(|_| Cell::new(0)).collect();
+    let buttons: Vec<Cell<(Id, Rect)>> = (0..CHILDREN).map(|_| Cell::new((Id::NULL, Rect::NOTHING))).collect();
+    let view = Cell::new(Rect::NOTHING);
+    let mut show = |ui: &mut Ui| {
+        in_region(ui, Rect::from_min_size(ORIGIN, VIEW), |ui| {
+            Slab::new(ContainerProps::new().scroll(Scroll::vertical())).id_salt("panel").show(ui, |ui, cx| {
+                view.set(cx.rect);
+                for (at, (count, button)) in runs.iter().zip(&buttons).enumerate() {
+                    craft_ui::contract::Lazy::new(at).show(ui, |ui| {
+                        count.set(count.get() + 1);
+                        let out = Button::new(format!("Child {at}")).show(ui);
+                        if !ui.is_sizing_pass() {
+                            button.set((out.id, out.rect));
+                        }
+                        Block::new(Vec2::new(LINE.x, HUNDRED)).show(ui);
+                    });
+                }
+            });
+        });
+    };
+    let mut frames = Frames::new();
+    frames.idle(3, &mut show);
+    let last = CHILDREN - 1;
+    runs.iter().for_each(|count| count.set(0));
+    frames.frame(vec![], &mut show);
+    assert_eq!(runs[last].get(), 0, "the child far below the view does not run");
+    let target = buttons[last].get().0;
+    request(&frames.ctx, FocusTarget::Id(target));
+    frames.idle(3, &mut show);
+    assert!(runs[last].get() > 0, "the requested child runs");
+    assert_eq!(frames.ctx.memory(|memory| memory.focused()), Some(target), "the focus stays on the requested control");
+    let (_, rect) = buttons[last].get();
+    assert!(view.get().contains_rect(rect), "the body scrolled the control into view: {rect:?} in {:?}", view.get());
 }

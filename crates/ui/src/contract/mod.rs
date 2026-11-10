@@ -12,6 +12,7 @@ mod group;
 mod held;
 mod items;
 mod label;
+mod lazy;
 #[cfg(feature = "testing")]
 mod level;
 #[cfg(feature = "testing")]
@@ -64,6 +65,7 @@ pub use items::{ColumnCommands, SweepApply, SweepStep, request_rename, section_p
 pub(crate) use items::{lead_position, put_toggle_names};
 pub(crate) use label::colon_of;
 pub use label::{CellWidth, FieldLabelRole, FieldLayout, GlyphLabel, LabelAlign, LabelKind, Scrub, SideLabel};
+pub use lazy::Lazy;
 #[cfg(feature = "testing")]
 pub(crate) use level::KIT_MODULES;
 #[doc(hidden)]

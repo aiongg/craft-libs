@@ -5,7 +5,7 @@ use super::{ItemsHooks, key_hash};
 use crate::contract::{Collection, Cx, SelectMode};
 use crate::runtime::egui::memory as store;
 use crate::runtime::memory::sub;
-use crate::runtime::{focus, layout_memory};
+use crate::runtime::{focus, lazy};
 use crate::style::Flags;
 use craft_behavior::{
     CellAt, CellDirection, CellSpace, Granularity, ItemLayout, MoveMods, NavMove, NavShape, PlacedSelection, RowAt, SelectionChange, SelectionModel,
@@ -43,9 +43,10 @@ pub(super) fn measured_id<K: std::hash::Hash>(collection: Id, key: &K) -> Id {
     sub(collection, ("row_size", key_hash(key)))
 }
 
-/// Runs `f` with a reader of the heights the last pass measured for auto rows.
+/// Runs `f` with a reader of the heights auto rows had in the last pass that built them: the rows the pass does not
+/// build, out of the view's reach, are placed by them (`runtime::lazy`).
 pub(super) fn measured_heights<R>(ctx: &Context, f: impl FnOnce(&dyn Fn(Id) -> Option<f32>) -> R) -> R {
-    layout_memory::peeking(ctx, |peek| f(&|id| peek(id).map(|size| size.y)))
+    lazy::reading(ctx, |read| f(&|id| read(id).map(|size| size.y)))
 }
 
 /// The id an auto-width item's measured widths (ideal, then minimum) are kept under.
@@ -53,15 +54,14 @@ pub(super) fn measured_width_id<K: std::hash::Hash>(collection: Id, key: &K) -> 
     sub(collection, ("item_width", key_hash(key)))
 }
 
-/// Runs `f` with a reader of the `(ideal, min)` widths the last pass measured for auto-width items.
+/// Runs `f` with a reader of the `(ideal, min)` widths auto-width items had in the last pass that built them.
 pub(super) fn measured_widths<R>(ctx: &Context, f: impl FnOnce(&dyn Fn(Id) -> Option<(f32, f32)>) -> R) -> R {
-    layout_memory::peeking(ctx, |peek| f(&|id| peek(id).map(|size| (size.x, size.y))))
+    lazy::reading(ctx, |read| f(&|id| read(id).map(|size| (size.x, size.y))))
 }
 
-/// Records the size an auto row measured this pass. The row is placed by it in the same pass, so the entry is
-/// never read for a placement and a change asks for no discard.
+/// Records the size an auto row measured this pass; the row is placed by it in the same pass.
 pub(super) fn record_measure(ctx: &Context, id: Id, size: Vec2) {
-    layout_memory::record(ctx, id, size);
+    lazy::remember(ctx, id, size);
 }
 
 impl<C: Collection> ItemsHooks<'_, '_, C> {

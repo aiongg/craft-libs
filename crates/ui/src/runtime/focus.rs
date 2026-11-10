@@ -176,6 +176,17 @@ pub(crate) fn stop_count(ctx: &Context) -> usize {
     with(ctx, |state| state.stops.len())
 }
 
+/// The components and egui roots of the stops registered since `from` (a `stop_count`).
+pub(crate) fn stops_since(ctx: &Context, from: usize) -> Vec<Id> {
+    with(ctx, |state| state.stops.get(from..).map_or_else(Vec::new, |stops| stops.iter().flat_map(|rec| [rec.stop.id, rec.stop.root]).collect()))
+}
+
+/// The egui root that holds focus and the component a request or Tab move asked its scroll owner to reveal.
+pub(crate) fn targets(ctx: &Context) -> [Option<Id>; 2] {
+    let focused = egui_focus::focused(ctx);
+    [focused, with(ctx, |state| state.revealed.map(|key| key.0))]
+}
+
 /// Where a request for the component `id` goes when it has no stop of its own: the first stop registered since
 /// `from` (a `stop_count`), which a component inside it holds.
 pub(crate) fn first_stop_inside(ctx: &Context, id: Id, from: usize) -> Option<FocusTarget> {

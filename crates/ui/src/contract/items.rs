@@ -631,7 +631,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         let offset = ScrollPos { x: self.offset_x, y: self.offset.clamp(0.0, self.max_offset(view.height())) };
         let mut layout = self.layout.take()?;
         Arc::make_mut(&mut layout).set_view(view.size(), offset);
-        let (_, order) = self.built(&layout, view, offset);
+        let (_, order, _) = self.built(&layout, view, offset);
         let rects = order.into_iter().map(|at| (self.source.key(at), self.screen(&layout, view, at, offset, rtl))).collect();
         self.layout = Some(layout);
         Some(Rc::new(Rows { rects, offset }))
@@ -759,7 +759,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             None => (0..layout.column_count() as u64).collect(),
         };
         let grid = layout.grid().map(|grid| self.grid_screen(&layout, grid, rect, rtl));
-        let (shown, order) = self.built(&layout, rect, offset);
+        let (shown, order, keep_set) = self.built(&layout, rect, offset);
         self.visible = shown.first().copied().unwrap_or(0)..shown.last().map_or(0, |last| last + 1);
         let command_scope = comp.props(Internal::new()).command_scope;
         if let Some(scope) = command_scope {
@@ -788,8 +788,12 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         let placed = self.selection.placed(self.source);
         let mut row_groups = Vec::with_capacity(order.len());
         let mut shown_rows: Vec<ShownRow<C::Key>> = Vec::with_capacity(order.len());
-        // A section row the component lays out as its own `section_part` reports its own node; any other is the
-        // collection's: a heading named by the row's text.
+        // `ShownRow`s (the response, the openers) cover the rows in view and the kept rows; a row built only because it
+        // is in the view's reach runs without one. Its access nodes are reported like any content in the reach.
+        let reported = |at: usize| shown.binary_search(&at).is_ok() || keep_set.contains(&at);
+        // A section row the component declares as its own `section_part`, in view or in the reach, reports its own
+        // node; any other one is the collection's: a heading named by the row's text (a row with no text makes an
+        // unnamed heading, which the access lint reports).
         for &at in order.iter().filter(|&&at| self.source.section_stop(at) && layout.shown(at)) {
             if cx.part_if_declared(section_part(&self.source.key(at))).is_none() {
                 let row = self.screen(&layout, rect, at, offset, rtl);
@@ -800,7 +804,8 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         // widget above it takes the hover as it does for the rows' parts.
         let hover_at = crate::primitives::sensing::read_outcome(&ctx, ArenaId::new(cx.core.id)).hover.and(ctx.pointer_latest_pos());
         let place_rows = |ui: &mut Ui| {
-            for at in order {
+            for at in order.into_iter() {
+                let reported = reported(at);
                 if self.source.section_stop(at) {
                     continue;
                 }
@@ -906,7 +911,9 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                     Arc::make_mut(&mut layout).set_width(at, ideal, min);
                     row = self.screen(&layout, rect, at, offset, rtl);
                 }
-                shown_rows.push(ShownRow::new(key.clone(), row, shown_cells.clone()));
+                if reported {
+                    shown_rows.push(ShownRow::new(key.clone(), row, shown_cells.clone()));
+                }
                 let out = match tip {
                     Some(tip) => item.show_at_with_tip(&mut row_ui, row, tip),
                     None => item.show_at(&mut row_ui, row),
@@ -915,7 +922,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                 self.report_toggle_cells(&ctx, (id, item_id), (at, &key), (shown_cells.as_slice(), cx.core.resolved.enabled), &cx.core.env);
                 let label = out.label_rect().unwrap_or(row);
                 crate::runtime::keys::redirect_node(&ctx, item_id, id, ITEM_NODE.at(key_hash(&key)));
-                if let Some(row) = shown_rows.last_mut() {
+                if reported && let Some(row) = shown_rows.last_mut() {
                     row.openers = self.item_openers(&row_ui, &ctx, id, cx.core.resolved.enabled, openers);
                 }
                 if let Some(ask) = out.open_request() {
@@ -1092,21 +1099,28 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
 }
 
 impl<C: Collection> ItemsHooks<'_, '_, C> {
-    /// The positions the pass builds: the rows in view, and all of them followed by the rows kept alive while
-    /// scrolled out of view (the lead, the anchor, the renaming row and the grabbed row).
-    fn built(&self, layout: &C::ItemLayout, view: Rect, offset: ScrollPos) -> (Vec<usize>, Vec<usize>) {
+    /// The rows in view, the positions the pass builds, and the kept rows. It builds the rows in view and in the
+    /// view's reach (`runtime::lazy::reach`, the rule out-of-view content follows everywhere), then the rows kept
+    /// alive while scrolled further out (the lead, the anchor, the renaming row and the grabbed row).
+    fn built(&self, layout: &C::ItemLayout, view: Rect, offset: ScrollPos) -> (Vec<usize>, Vec<usize>, Vec<usize>) {
         let mut shown = Vec::new();
         layout.visible(offset, view.size(), &mut shown);
+        let (from, size) = crate::runtime::lazy::reach(offset, view.size());
+        let mut order = Vec::new();
+        layout.visible(from, size, &mut order);
+        order.extend(shown.iter().copied());
+        order.sort_unstable();
+        order.dedup();
+        let mut kept = Vec::new();
         let keep = [self.lead.key.as_ref(), self.selection.anchor(), self.renaming.key.as_ref(), self.drags.grabbed.as_ref()];
-        let mut extra: Vec<usize> = Vec::new();
         // An item of a closed group has no rect: it is never built.
         for at in keep.into_iter().flatten().filter_map(|key| self.index_of(key)).filter(|&at| layout.shown(at)) {
-            if !shown.contains(&at) && !extra.contains(&at) {
-                extra.push(at);
+            kept.push(at);
+            if !order.contains(&at) {
+                order.push(at);
             }
         }
-        let order = shown.iter().copied().chain(extra).collect();
-        (shown, order)
+        (shown, order, kept)
     }
 
     /// The rows since the last section row up to and including `at` (0 for a section row), continuing from `last`, the
@@ -1608,7 +1622,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
     /// section, as a press does; Expand and Collapse open and close a row that has children.
     fn node_by_access(&mut self, comp: &C, cx: &mut Cx<'_, C>, layout: &C::ItemLayout, place: Placement) {
         use craft_behavior::AccessAction;
-        let (_, built) = self.built(layout, place.rect, place.offset);
+        let (_, built, _) = self.built(layout, place.rect, place.offset);
         let rows: Vec<(u64, usize)> = built
             .into_iter()
             .filter(|&at| !self.source.section_stop(at) || cx.part_if_declared(section_part(&self.source.key(at))).is_none())
@@ -1660,7 +1674,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         };
         while let Some(request) = cx.core.intents.take_access_where(wanted) {
             let Some(part) = request.target else { continue };
-            let (_, built) = self.built(layout, place.rect, place.offset);
+            let (_, built, _) = self.built(layout, place.rect, place.offset);
             let found = built.into_iter().find_map(|at| {
                 let key = self.source.key(at);
                 self.header
