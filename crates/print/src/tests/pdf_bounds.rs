@@ -1,5 +1,7 @@
 use super::*;
 
+use std::collections::HashMap;
+
 fn fixture(contents: &str, compressed: bool, unit: &str) -> Vec<u8> {
     let objects = [
         "<< /Type /Catalog /Pages 2 0 R >>".to_string(),
