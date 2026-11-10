@@ -1124,7 +1124,12 @@ pub(crate) fn paint_surface<C: Component>(ui: &Ui, env: &Env, cx: &Cx<'_, C>) {
     let ppp = ui.ctx().pixels_per_point();
     let shapes = match look.kind_in(&cx.core.state) {
         Some(kind) => {
-            let mut shapes = Surface::shapes(&surface_style(&env.tokens, kind), Some(fill.egui()), cx.core.rect, look.corners, env.direction, ppp);
+            let mut style = surface_style(&env.tokens, kind);
+            // A look that names its own radius (a capsule button) shapes the kind's fill and edge too, so no plate with the kind's corners shows outside it.
+            if look.radius != egui::CornerRadius::ZERO {
+                style.radius = look.radius;
+            }
+            let mut shapes = Surface::shapes(&style, Some(fill.egui()), cx.core.rect, look.corners, env.direction, ppp);
             if let Some(border) = &look.border {
                 let radius = look.corners.apply(look.radius, env.direction);
                 let color = cx.core.resolve(border);

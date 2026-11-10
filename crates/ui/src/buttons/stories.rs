@@ -1,7 +1,8 @@
 //! Stories of the buttons.
 
 use super::{Button, IconButton, Link, SplitButton, ToggleButton};
-use crate::contract::{Bind, Entry, Props as _, Show as _, Validity};
+use crate::contract::{Bind, Entry, Props as _, Show as _, ShowContainer as _, Validity};
+use crate::layout_components::{Row, Stack};
 use crate::runtime::env::Message;
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use craft_behavior::{IconId, Mixed};
@@ -24,6 +25,31 @@ fn button(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
         button = button.icon(IconId::new(icon));
     }
     let shown = button.show(ui);
+    shown.into()
+}
+
+/// Every variant at each size, at rest, disabled and loading.
+#[story(Button<'static>, covers = [], drive = Drive::Never)]
+fn button_variants(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let variants = [("Primary", Variant::PRIMARY), ("Secondary", Variant::SECONDARY), ("Ghost", Variant::GHOST), ("Danger", Variant::DANGER)];
+    let label = data.value("label", String::from("Button")).clone();
+    let shown = Stack::new().show(ui, |ui, _| {
+        for (_, size) in SIZES {
+            for (enabled, loading) in [(true, false), (false, false), (true, true)] {
+                Row::new().show(ui, |ui, _| {
+                    for (name, variant) in variants {
+                        Button::new(label.clone())
+                            .variant(variant)
+                            .size(size)
+                            .enabled(enabled)
+                            .loading(loading)
+                            .id_salt((name, enabled, loading))
+                            .show(ui);
+                    }
+                });
+            }
+        }
+    });
     shown.into()
 }
 
@@ -73,7 +99,7 @@ fn presets() -> [Entry<u8>; 4] {
 #[story(SplitButton<'static, u8>, covers = [Default], drive = Drive::Activate)]
 fn split_button(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let entries = presets();
-    SplitButton::new("Image Trace", &entries).arrow_label("Tracing presets").show(ui).into()
+    SplitButton::new("Trace", &entries).icon(IconId::new("image")).arrow_label("Tracing presets").show(ui).into()
 }
 
 fn open_menu(fixture: &mut Fixture) {
@@ -84,7 +110,7 @@ fn open_menu(fixture: &mut Fixture) {
 #[story(SplitButton<'static, u8>, covers = [Open], drive = Drive::Custom(open_menu))]
 fn split_button_open(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let entries = presets();
-    SplitButton::new("Image Trace", &entries).arrow_label("Tracing presets").show(ui).into()
+    SplitButton::new("Trace", &entries).icon(IconId::new("image")).arrow_label("Tracing presets").show(ui).into()
 }
 
 #[story(Link, covers = [Default])]

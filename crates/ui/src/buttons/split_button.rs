@@ -102,6 +102,7 @@ impl<T: Value + 'static> Component for SplitButton<'_, T> {
 
     fn style(cx: &StyleCx<'_>, _: SplitButtonStyleKey<T>) -> SplitButtonStyle {
         let parts = cx.variant_look();
+        let metrics = face::metrics(cx, &parts);
         let mut surface = face::surface(cx, &parts);
         let (fill, clear) = (parts.fill.off, cx.color(craft_theme::Rgba::TRANSPARENT));
         surface.fill = Stateful::new(fill.rest).off(States::new(fill.rest, fill.rest, fill.rest, fill.disabled));
@@ -109,7 +110,7 @@ impl<T: Value + 'static> Component for SplitButton<'_, T> {
         let (text, icon) = face::ink(cx);
         SplitButtonStyle {
             surface,
-            metrics: cx.control().metrics(),
+            metrics,
             focus: face::focus(cx),
             text,
             icon,

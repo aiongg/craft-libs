@@ -46,7 +46,7 @@ impl ButtonStyle {
         let (text, icon) = face::ink(cx);
         ButtonStyle {
             surface: face::surface(cx, &cx.variant_look()),
-            metrics: cx.control().metrics(),
+            metrics: face::metrics(cx, &cx.variant_look()),
             focus: face::focus(cx),
             text,
             icon,

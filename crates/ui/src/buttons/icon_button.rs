@@ -100,7 +100,7 @@ impl Component for IconButton<'_> {
             surface,
             metrics: Metrics::new().min_size(Vec2::splat(control.height)),
             focus: face::focus(cx),
-            glyph: IconLook::new(control.icon, off.text.clone().on(on.text.off)),
+            glyph: IconLook::new(face::glyph_side(cx), off.text.clone().on(on.text.off)),
             marker: cx.tokens.size.handle.sm,
             marker_color: cx.color(cx.tokens.color.accent.solid),
             marker_edge: cx.color(cx.tokens.color.line.mark),
