@@ -158,14 +158,16 @@ pub struct LevelsEditorStyle {
     metrics: Metrics,
     /// The height of a caption.
     caption: f32,
-    /// The height of the input thumb row.
+    /// The height of the input thumb row: its thumbs, so the gap under them is the one gap of the editor.
     row: f32,
     /// The height of the output row: its thumbs and the bar they hang from.
     bar_row: f32,
     /// The height of a row of fields.
     fields: f32,
-    /// The width of one field.
+    /// The width of a levels field: three digits.
     field: f32,
+    /// The width of the gamma field: a value like 9.99.
+    gamma_field: f32,
     /// The width the editor asks for when the parent offers none.
     width: f32,
     /// The light end of the output bar: the channel's bar colour.
@@ -377,12 +379,15 @@ fn arrange(size: Vec2, captions: bool, style: &LevelsEditorStyle) -> Rows {
 }
 
 /// The rects of `count` fields in a row: the first at the start, the last at the end, a middle one centred.
-fn field_rects(row: Rect, width: f32, count: usize) -> Vec<Rect> {
+fn field_rects(row: Rect, width: f32, middle: f32, count: usize) -> Vec<Rect> {
     let width = width.min(row.width() / count as f32);
-    let rect = |x: f32| Rect::from_min_size(pos2(x, row.top()), Vec2::new(width, row.height()));
+    let rect = |x: f32, width: f32| Rect::from_min_size(pos2(x, row.top()), Vec2::new(width, row.height()));
     match count {
-        3 => vec![rect(row.left()), rect(row.center().x - width / 2.0), rect(row.right() - width)],
-        _ => vec![rect(row.left()), rect(row.right() - width)],
+        3 => {
+            let middle = middle.min(row.width() / 3.0);
+            vec![rect(row.left(), width), rect(row.center().x - middle / 2.0, middle), rect(row.right() - width, width)]
+        }
+        _ => vec![rect(row.left(), width), rect(row.right() - width, width)],
     }
 }
 
@@ -422,11 +427,12 @@ impl Component for LevelsEditor<'_> {
         LevelsEditorStyle {
             metrics: Metrics::new().gap(control.gap),
             caption: row,
-            row,
-            bar_row: row.max(control.icon + cx.track().thickness),
+            row: control.icon,
+            bar_row: control.icon + cx.tokens.size.ramp.bar,
             fields: row,
-            field: cx.tokens.size.length.short,
-            width: cx.tokens.size.length.field,
+            field: cx.text_width(TypeRole::Body, "000") + 2.0 * control.pad_x,
+            gamma_field: cx.text_width(TypeRole::Body, "0.00") + 2.0 * control.pad_x,
+            width: cx.tokens.size.plot.width,
             bar: key.channel.bar(cx),
         }
     }
@@ -477,19 +483,20 @@ impl Component for LevelsEditor<'_> {
         let empty = HistogramData::tone(&[0u32; 256], self.channel);
         let plot = Rect::from_x_y_ranges(input.travel, at(rows.plot).y_range());
         ui.child("plot", plot, self.plot(&words, self.histogram.unwrap_or(&empty)));
-        let fields = field_rects(rows.fields_in, cx.style.field, 3);
+        let fields = field_rects(rows.fields_in, cx.style.field, cx.style.gamma_field, 3);
         let labels = [words.in_black.clone(), words.gamma.clone(), words.in_white.clone()];
         let values = [base.in_black, base.gamma, base.in_white];
         let typed: Vec<_> = (0..3)
             .map(|i| {
                 let step = if i == 1 { GAMMA_STEP } else { self.step };
                 let field = self.field(labels[i].clone(), values[i], input_range(self, i, placed), step);
+                let field = if i == 1 { field.fixed_decimals(decimals_for_step(GAMMA_STEP)) } else { field };
                 ui.child(("in-field", i), at(fields[i]), field)
             })
             .collect();
 
         let output = ui.child("output", at(rows.output), self.output_row(&words, shown, &bar));
-        let fields = field_rects(rows.fields_out, cx.style.field, 2);
+        let fields = field_rects(rows.fields_out, cx.style.field, 0.0, 2);
         let (low, high) = self.ends();
         let out_labels = [words.out_black.clone(), words.out_white.clone()];
         let out_values = [base.out_black, base.out_white];

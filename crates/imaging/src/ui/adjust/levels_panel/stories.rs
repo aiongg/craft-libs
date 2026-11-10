@@ -23,15 +23,31 @@ fn counts(shift: f32) -> [u32; 256] {
     counts
 }
 
-#[story(LevelsPanel<'static>, covers = [Default], drive = Drive::Never)]
-fn levels_panel(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let rig = data.value("rig", Rig { levels: vec![Levels::identity(0.0..=255.0); 4], armed: Some(TonePicker::Black) });
+fn rgb_panel(ui: &mut Ui, data: &mut StoryData, key: &'static str, levels: Vec<Levels>, armed: Option<TonePicker>) -> StoryOutput {
+    let rig = data.value(key, Rig { levels, armed });
     let histograms = [counts(0.0), counts(0.0), counts(12.0), counts(-12.0)];
     LevelsPanel::new("Levels", Bind::bound(&mut rig.levels), ToneChannels::of(ToneSpace::Rgb, false))
         .histograms(&histograms)
         .pickers(Bind::bound(&mut rig.armed))
         .show(ui)
         .into()
+}
+
+#[story(LevelsPanel<'static>, covers = [Default], drive = Drive::Never)]
+fn levels_panel(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    rgb_panel(ui, data, "rig", vec![Levels::identity(0.0..=255.0); 4], None)
+}
+
+#[story(LevelsPanel<'static>, covers = [], drive = Drive::Never)]
+fn levels_panel_after_auto(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let mut levels = vec![Levels::identity(0.0..=255.0); 4];
+    levels[0] = levels[0].auto(&counts(0.0));
+    rgb_panel(ui, data, "auto", levels, None)
+}
+
+#[story(LevelsPanel<'static>, covers = [], drive = Drive::Never)]
+fn levels_panel_picker(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    rgb_panel(ui, data, "picker", vec![Levels::identity(0.0..=255.0); 4], Some(TonePicker::Black))
 }
 
 #[story(LevelsPanel<'static>, covers = [], drive = Drive::Never)]

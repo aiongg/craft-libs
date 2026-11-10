@@ -3,6 +3,7 @@
 //! graph calls it with [`HistogramLook::Backdrop`] behind its curve.
 
 use super::data::{Blend, ChannelColor, HistogramData, HistogramLook, HistogramScale, LevelRange, Plot, color32};
+use craft_theme::Stroke as StrokeStep;
 use craft_ui::primitives::ContentPainterCx;
 use craft_ui::style::StyleCx;
 use egui::{Color32, CornerRadius, Mesh, Pos2, Rect, Shape, Stroke, StrokeKind, pos2};
@@ -87,19 +88,13 @@ impl HistogramInks {
 pub struct PlotFrame {
     fill: Color32,
     edge: Color32,
-    radius: CornerRadius,
 }
 
 impl PlotFrame {
-    /// The frame in the tokens of `cx`: `surface.sunken`, `line.control_edge` and the control radius.
+    /// The frame in the tokens of `cx`: `surface.sunken` and `line.control_edge`, with square corners.
     pub fn new(cx: &StyleCx<'_>) -> Self {
         let colors = &cx.tokens.color;
-        let radius = cx.tokens.shape.radius.control;
-        Self {
-            fill: color32(colors.surface.sunken),
-            edge: color32(colors.line.control_edge),
-            radius: CornerRadius::same(radius.round().clamp(0.0, 255.0) as u8),
-        }
+        Self { fill: color32(colors.surface.sunken), edge: color32(colors.line.control_edge) }
     }
 
     /// The frame with the plot filled by `fill`, for a plot on the scope.
@@ -112,16 +107,16 @@ impl PlotFrame {
 
 /// Paints the well of a plot over `rect`, and its edge when `bordered`.
 pub fn paint_frame(painter: &ContentPainterCx<'_>, rect: Rect, frame: &PlotFrame, bordered: bool) {
-    painter.painter.rect_filled(rect, frame.radius, frame.fill);
+    painter.painter.rect_filled(rect, CornerRadius::ZERO, frame.fill);
     if bordered {
         paint_edge(painter, rect, frame);
     }
 }
 
-/// Paints the edge of a plot over `rect`, one physical pixel wide, over what the plot drew.
+/// Paints the edge of a plot over `rect`, over what the plot drew, as wide as the border of a field.
 pub fn paint_edge(painter: &ContentPainterCx<'_>, rect: Rect, frame: &PlotFrame) {
-    let width = 1.0 / painter.pixels_per_point();
-    painter.painter.rect_stroke(rect, frame.radius, Stroke::new(width, frame.edge), StrokeKind::Inside);
+    let width = StrokeStep::W1.width(painter.pixels_per_point());
+    painter.painter.rect_stroke(rect, CornerRadius::ZERO, Stroke::new(width, frame.edge), StrokeKind::Inside);
 }
 
 /// Draws `data` in `look` into `rect`: no frame, no layout, no interaction, nothing in the AccessKit tree. `data` that

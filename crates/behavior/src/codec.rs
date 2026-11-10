@@ -141,12 +141,19 @@ type Custom = Arc<dyn Fn(&str) -> Option<f64> + Send + Sync>;
 pub struct NumberCodec {
     reader: Reader,
     decimals: usize,
+    /// Every decimal place is written, trailing zeros included.
+    fixed: bool,
     custom: Option<Custom>,
 }
 
 impl fmt::Debug for NumberCodec {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("NumberCodec").field("reader", &self.reader).field("decimals", &self.decimals).field("custom", &self.custom.is_some()).finish()
+        f.debug_struct("NumberCodec")
+            .field("reader", &self.reader)
+            .field("decimals", &self.decimals)
+            .field("fixed", &self.fixed)
+            .field("custom", &self.custom.is_some())
+            .finish()
     }
 }
 
@@ -157,7 +164,7 @@ impl PartialEq for NumberCodec {
             (Some(a), Some(b)) => Arc::ptr_eq(a, b),
             _ => false,
         };
-        self.reader == other.reader && self.decimals == other.decimals && same_custom
+        self.reader == other.reader && self.decimals == other.decimals && self.fixed == other.fixed && same_custom
     }
 }
 
@@ -191,7 +198,14 @@ const NUMBER_SAMPLE: &str = "0000.00";
 impl NumberCodec {
     /// A codec reading with `reader` and writing at most `decimals` decimal places.
     pub fn new(reader: Reader, decimals: usize) -> Self {
-        NumberCodec { reader, decimals, custom: None }
+        NumberCodec { reader, decimals, fixed: false, custom: None }
+    }
+
+    /// The same codec writing every decimal place, trailing zeros included ("1.00"), as a field of a quantity shown
+    /// at a set precision does.
+    pub fn fixed(mut self) -> Self {
+        self.fixed = true;
+        self
     }
 
     /// The same codec with `parse` as a second reader: it runs when the reader rejects the text, so words of the
@@ -232,7 +246,13 @@ impl Codec for NumberCodec {
     fn format(&self, v: &Option<f64>) -> String {
         let Some(number) = v else { return String::new() };
         let fixed = format!("{number:.*}", self.decimals);
-        let trimmed = if fixed.contains('.') { fixed.trim_end_matches('0').trim_end_matches('.') } else { &fixed };
+        let trimmed = if self.fixed {
+            &fixed
+        } else if fixed.contains('.') {
+            fixed.trim_end_matches('0').trim_end_matches('.')
+        } else {
+            &fixed
+        };
         trimmed.replace('.', &self.reader.decimal_separator().to_string())
     }
 
