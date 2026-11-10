@@ -79,6 +79,8 @@ pub struct TextOptions {
     /// The value handed to the part is the start the codec parses against; committing empty text that the codec
     /// rejects leaves the value mixed.
     pub mixed: bool,
+    /// The text sits in the middle of the part instead of at its start (numbers).
+    pub centred: bool,
 }
 
 impl Default for TextOptions {
@@ -102,6 +104,7 @@ impl Default for TextOptions {
             select_on_focus: false,
             submits: false,
             mixed: false,
+            centred: false,
         }
     }
 }

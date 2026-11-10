@@ -503,13 +503,16 @@ impl<'a, V: NumberValue + 'static> NumberField<'a, V> {
         Rule::new(range.as_ref(), self.step)
     }
 
-    /// Reads what a length field keeps from the env: the scale from stored to shown, and the shown unit's symbol
-    /// after the number unless the field sets a unit.
+    /// Reads what the field keeps from the env: a length field's scale from stored to shown, and the symbol of its unit
+    /// kind after the number unless the field sets a unit.
     fn settle_lengths(&mut self, units: &Units) {
-        let Some(lengths) = self.lengths else { return };
-        self.scale = units.length_scale(lengths).unwrap_or(1.0);
-        if self.unit.is_none() {
-            self.unit = Some(units.symbol(lengths.shown).into());
+        if let Some(lengths) = self.lengths {
+            self.scale = units.length_scale(lengths).unwrap_or(1.0);
+        }
+        if self.unit.is_none()
+            && let Some(kind) = self.unit_kind
+        {
+            self.unit = Some(units.symbol(kind).into());
         }
     }
 
@@ -751,13 +754,14 @@ impl<V: NumberValue + 'static> Component for NumberField<'_, V> {
         Vec2::new(width, text.y.max(self.unit_size.y))
     }
 
-    fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
+    fn parts(&mut self, _: Rect, cx: &mut PartsCx<'_, Self>) {
         self.settle_lengths(&cx.env.units());
         self.unit_size = self.unit_extent(cx);
         let rtl = cx.flow.is_rtl();
         let chevrons = self.chevrons(&cx.words::<TextWords>());
-        let placed = Self::laid_out(cx.style, rect, rtl, &chevrons);
+        let placed = Self::laid_out(cx.style, cx.content_rect, rtl, &chevrons);
         let (text, _) = self.text_and_unit(placed.text, rtl, cx.gap());
+        self.options.centred = true;
         self.options.steps_value = self.presets.is_none() && self.popup_slider.is_none();
         let shown = cx.value();
         let names = self.names(|row| cx.env.resolve(&row.label().clone()));
@@ -869,7 +873,7 @@ impl<V: NumberValue + 'static> Component for NumberField<'_, V> {
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let rtl = cx.flow.is_rtl();
         let chevrons = self.chevrons(&cx.words::<TextWords>());
-        let placed = Self::laid_out(cx.style, cx.rect, rtl, &chevrons);
+        let placed = Self::laid_out(cx.style, cx.content_rect, rtl, &chevrons);
         let (_, unit) = self.text_and_unit(placed.text, rtl, cx.style.metrics.gap);
         if let (Some(unit), Some(label)) = (unit, &self.unit) {
             let top = unit.center().y - self.unit_size.y / 2.0;

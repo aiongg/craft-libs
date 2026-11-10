@@ -314,6 +314,7 @@ pub(crate) fn run(state: &mut TextState, mut input: AdapterIn<'_>) -> AdapterOut
         char_limit: input.options.limit,
         preedit: preedit.clone(),
         rtl: input.rtl,
+        centred: input.options.centred,
         caret_visible: input.caret_visible,
         underline: input.underline,
     };
