@@ -1824,3 +1824,11 @@ phosphor = "key-ease-out"
 name = "keyframe_easy_ease"
 directional = false
 phosphor = "keyframe-easy-ease"
+
+[[icon]]
+name = "keyboard"
+directional = false
+lucide = "keyboard"
+phosphor = "keyboard"
+carbon = "keyboard"
+tabler = "keyboard"

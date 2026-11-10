@@ -1,11 +1,12 @@
 //! The header: Show (a select, or tabs with `Options::area_tabs`), Filter, Search with Search by key, and the
 //! keyboard pane's toggle.
 
-use craft_ui::buttons::ToggleButton;
-use craft_ui::contract::{Bind, BodyCx, Entry, Props as _, Show as _, ShowContainer as _, Sizing};
+use craft_ui::buttons::{IconButton, ToggleButton};
+use craft_ui::contract::{Bind, BodyCx, Entry, Props as _, Show as _, ShowContainer as _, Sizing, clicked};
 use craft_ui::form::Field;
 use craft_ui::layout_components::Row;
 use craft_ui::pickers::Select;
+use craft_ui::primitives::IconSpec;
 use craft_ui::text::TextField;
 use egui::Ui;
 
@@ -80,9 +81,13 @@ fn search(ui: &mut Ui, now: f64, env: &mut Env<'_>, state: &mut DialogState) {
     }
     let searching = matches!(state.recording.as_ref().map(|recording| &recording.target), Some(Target::Search));
     let name = words.search_by_key.clone();
-    let mut on = searching;
-    ToggleButton::new(name.clone(), Bind::bound(&mut on)).id_salt("searchKey").show(ui);
-    if on != searching {
+    let toggle = IconButton::new(IconSpec::svg(craft_behavior::IconId::new("keyboard")))
+        .id_salt("searchKey")
+        .label(name.clone())
+        .tooltip(name.clone())
+        .selected(searching)
+        .show(ui);
+    if clicked(&toggle) {
         if searching {
             state.stop_recording();
         } else {
