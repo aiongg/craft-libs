@@ -36,6 +36,10 @@ pub struct Frames {
     files: fixture::OsFiles,
     /// The size of the egui screen rect: the window every press has to land in.
     screen: Vec2,
+    /// The window's pixels per point; egui's default when `None`.
+    pixels_per_point: Option<f32>,
+    /// What the frames painted since the last `take_paint`, when they are recorded.
+    paint: Option<fixture::FullOutput>,
 }
 
 impl Default for Frames {
@@ -61,6 +65,22 @@ impl Frames {
         frames
     }
 
+    /// The window's pixels per point in every following frame.
+    pub fn pixels_per_point(&mut self, pixels_per_point: f32) {
+        self.pixels_per_point = Some(pixels_per_point);
+    }
+
+    /// Keeps what every following frame paints, for [`Frames::take_paint`].
+    pub fn record_paint(&mut self) {
+        self.paint.get_or_insert_with(fixture::FullOutput::default);
+    }
+
+    /// What the frames painted since the last call, as a renderer takes it: the last frame's shapes and every
+    /// texture change since. `None` unless [`Frames::record_paint`] was called.
+    pub fn take_paint(&mut self) -> Option<fixture::FullOutput> {
+        self.paint.as_mut().map(std::mem::take)
+    }
+
     /// A fresh context without the runtime, for frames that ran before `install`.
     pub fn uninstalled() -> Self {
         Frames {
@@ -81,6 +101,8 @@ impl Frames {
             told: egui::Modifiers::NONE,
             files: fixture::OsFiles::default(),
             screen: Self::SCREEN,
+            pixels_per_point: None,
+            paint: None,
         }
     }
 
@@ -195,7 +217,15 @@ impl Frames {
             events.insert(0, fixture::modifiers_changed(self.modifiers));
         }
         let files = fixture::OsFiles { hovered: self.files.hovered.clone(), dropped: std::mem::take(&mut self.files.dropped) };
-        let result = fixture::run_frame(&self.ctx, self.time, self.screen, events, files, ui);
+        let mut result = fixture::run_frame(&self.ctx, self.time, self.screen, self.pixels_per_point, events, files, ui);
+        match &mut self.paint {
+            Some(paint) => {
+                paint.textures_delta.append(std::mem::take(&mut result.textures));
+                paint.shapes = std::mem::take(&mut result.shapes);
+                paint.pixels_per_point = result.pixels_per_point;
+            }
+            None => result.textures.clear(),
+        }
         self.cursor = result.cursor;
         self.repaint_delay = result.repaint_delay;
         self.tree = result.tree;

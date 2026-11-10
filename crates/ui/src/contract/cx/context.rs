@@ -158,6 +158,9 @@ pub struct CxCore<'a> {
     pub(crate) escape_to_list: bool,
     /// The text facts step 16 gives AccessKit, from the text adapter or the editor's `editor_state`.
     pub(crate) text_access: RefCell<Option<crate::runtime::access::text::TextFacts>>,
+    /// The value as the component words it (`Component::value_text`), noted at step 16 or in a sizing pass for the
+    /// output.
+    pub(crate) value_text: RefCell<Option<String>>,
     /// Enter was pressed in the text part.
     pub(crate) submitted: bool,
     /// Escape abandoned the text part's edit.

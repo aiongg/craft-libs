@@ -102,12 +102,41 @@ pub struct Story {
     pub drive: Drive,
     /// The reason a disabled control shows (`disabled_text` of its tooltip), when the story gives its control one.
     pub disabled_text: Option<&'static str>,
+    /// The caption a viewer shows over the story; `None` for the title made of its name (`contract::story_title`).
+    pub title: Option<&'static str>,
+    /// The group a viewer shows the story in, with the other stories of the type that name it, as the cases of one
+    /// old gallery story; `None` for a story that is its own group, under its caption.
+    pub group: Option<&'static str>,
 }
 
 impl Story {
     /// A story that shows with `show`.
     pub const fn new(name: &'static str, show: fn(&mut Ui, &mut StoryData) -> StoryOutput) -> Self {
-        Story { name, covers: &[], show, drive: Drive::Auto, disabled_text: None }
+        Story { name, covers: &[], show, drive: Drive::Auto, disabled_text: None, title: None, group: None }
+    }
+
+    /// The caption a viewer shows over the story.
+    pub const fn title(mut self, title: &'static str) -> Self {
+        self.title = Some(title);
+        self
+    }
+
+    /// The group a viewer shows the story in.
+    pub const fn group(mut self, group: &'static str) -> Self {
+        self.group = Some(group);
+        self
+    }
+
+    /// The name of the story's group as a story of the type whose display name is `type_name`: its group, else its
+    /// caption.
+    pub fn group_name(&self, type_name: &str) -> String {
+        self.group.map_or_else(|| self.caption(type_name), str::to_owned)
+    }
+
+    /// The story's caption as a story of the type whose display name is `type_name`: its title, else the one its
+    /// name makes ([`crate::contract::story_title`]).
+    pub fn caption(&self, type_name: &str) -> String {
+        self.title.map_or_else(|| crate::contract::story_title(type_name, self.name), str::to_owned)
     }
 
     /// The states the story shows.
@@ -142,22 +171,33 @@ pub struct StoryRegistration {
     pub type_name: fn() -> &'static str,
     /// The story.
     pub story: Story,
+    /// The source file of the declaration.
+    pub file: &'static str,
+    /// The line of the declaration in `file`.
+    pub line: u32,
 }
 
 impl StoryRegistration {
     /// The registration `#[story]` writes.
     pub const fn new(crate_name: &'static str, crate_target: &'static str, type_name: fn() -> &'static str, story: Story) -> Self {
-        StoryRegistration { crate_name, crate_target, type_name, story }
+        StoryRegistration { crate_name, crate_target, type_name, story, file: "", line: 0 }
+    }
+
+    /// The registration declared at `line` of `file`.
+    pub const fn at(mut self, file: &'static str, line: u32) -> Self {
+        self.file = file;
+        self.line = line;
+        self
     }
 }
 
 inventory::collect!(StoryRegistration);
 
-/// Every story linked into the running binary, by type name and story name.
+/// Every story linked into the running binary, by type name, then in the order they are declared in.
 #[doc(hidden)]
 pub fn stories() -> Vec<&'static StoryRegistration> {
     let mut all: Vec<_> = inventory::iter::<StoryRegistration>().collect();
-    all.sort_by_key(|entry| ((entry.type_name)(), entry.story.name));
+    all.sort_by_key(|entry| ((entry.type_name)(), entry.file, entry.line));
     all
 }
 
@@ -415,6 +455,8 @@ pub struct StoryOutput {
     pub collection: Vec<CollectionKind>,
     /// The positions a collection showed.
     pub visible: Option<Range<usize>>,
+    /// The shown value as the component words it ([`crate::contract::Outcome::value_text`]).
+    pub value_text: Option<String>,
 }
 
 impl StoryOutput {

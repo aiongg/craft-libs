@@ -7,5 +7,6 @@ craft_ui::words! {
         upper: "rangeSlider.upper" = "Maximum";
         thumb_low: template "thumbRow.low" = "{name} low";
         thumb_high: template "thumbRow.high" = "{name} high";
+        range: template "rangeSlider.range" = "{from} to {to}";
     }
 }

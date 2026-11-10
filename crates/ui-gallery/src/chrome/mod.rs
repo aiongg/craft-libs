@@ -10,6 +10,7 @@ mod persist;
 mod shell;
 mod variants;
 
+pub use card::{BodyShown, Look, StoryBody};
 pub use options::options_bar;
 pub use panels::Panels;
 pub use persist::Persisted;

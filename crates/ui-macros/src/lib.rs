@@ -143,12 +143,14 @@ struct StoryArgs {
     covers: Vec<Ident>,
     drive: Option<Expr>,
     disabled_text: Option<Expr>,
+    title: Option<Expr>,
+    group: Option<Expr>,
 }
 
 impl Parse for StoryArgs {
     fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
         let ty: Type = input.parse()?;
-        let (mut covers, mut drive, mut disabled_text) = (Vec::new(), None, None);
+        let (mut covers, mut drive, mut disabled_text, mut title, mut group) = (Vec::new(), None, None, None, None);
         while input.peek(Token![,]) {
             input.parse::<Token![,]>()?;
             if input.is_empty() {
@@ -164,17 +166,26 @@ impl Parse for StoryArgs {
                 drive = Some(input.parse::<Expr>()?);
             } else if key == "disabled_text" {
                 disabled_text = Some(input.parse::<Expr>()?);
+            } else if key == "title" {
+                title = Some(input.parse::<Expr>()?);
+            } else if key == "group" {
+                group = Some(input.parse::<Expr>()?);
             } else {
-                return Err(syn::Error::new(key.span(), "`story` takes `covers = [..]`, `drive = ..` and `disabled_text = ..`"));
+                return Err(syn::Error::new(
+                    key.span(),
+                    "`story` takes `covers = [..]`, `drive = ..`, `disabled_text = ..`, `title = ..` and `group = ..`",
+                ));
             }
         }
-        Ok(StoryArgs { ty, covers, drive, disabled_text })
+        Ok(StoryArgs { ty, covers, drive, disabled_text, title, group })
     }
 }
 
 /// Registers a function as a story of a component type: `#[story(Slider, covers = [Default, Mixed])]` on
 /// `fn(&mut Ui, &mut StoryData) -> StoryOutput`. `drive = Drive::Step` names a drive other than the automatic one; `disabled_text = ".."` gives the story's control a
-/// reason to show while disabled, which the story takes from `StoryData::tooltip`.
+/// reason to show while disabled, which the story takes from `StoryData::tooltip`. `title = ".."` is the caption a
+/// viewer shows over the story. `group = ".."` puts the story in a named group with the type's other stories that
+/// name it, in declaration order; a viewer shows a group together, each story under its caption.
 /// The type's registration and the story meet by the type's registered name.
 #[proc_macro_attribute]
 pub fn story(attr: TokenStream, item: TokenStream) -> TokenStream {
@@ -186,6 +197,8 @@ pub fn story(attr: TokenStream, item: TokenStream) -> TokenStream {
     let covers = &args.covers;
     let drive = args.drive.as_ref().map(|drive| quote!(.drive(#drive)));
     let disabled_text = args.disabled_text.as_ref().map(|text| quote!(.disabled_text(#text)));
+    let title = args.title.as_ref().map(|title| quote!(.title(#title)));
+    let group = args.group.as_ref().map(|group| quote!(.group(#group)));
     quote! {
         #func
 
@@ -194,8 +207,9 @@ pub fn story(attr: TokenStream, item: TokenStream) -> TokenStream {
                 env!("CARGO_PKG_NAME"),
                 env!("CARGO_CRATE_NAME"),
                 ::std::any::type_name::<#ty>,
-                ::craft_ui::testing::Story::new(#name, #ident).covers(&[#(::craft_ui::testing::Required::#covers),*]) #drive #disabled_text,
+                ::craft_ui::testing::Story::new(#name, #ident).covers(&[#(::craft_ui::testing::Required::#covers),*]) #drive #disabled_text #title #group,
             )
+            .at(file!(), line!())
         }
     }
     .into()

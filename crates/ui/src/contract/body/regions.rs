@@ -38,6 +38,13 @@ pub(super) fn header_gap_of(props: &ContainerProps, tokens: &UiTokens) -> f32 {
     props.header.and_then(|header| header.gap).map_or(0.0, |gap| gap_of(tokens, gap))
 }
 
+impl Gap {
+    /// The gap in points, in the tokens `ui` shows with: for a host that decides how many children fit in a row.
+    pub fn points(self, ui: &Ui) -> f32 {
+        gap_of(&Env::of(ui).tokens, self)
+    }
+}
+
 pub(super) fn gap_of(tokens: &UiTokens, gap: Gap) -> f32 {
     let gaps = &tokens.tokens().space.gap;
     match gap {

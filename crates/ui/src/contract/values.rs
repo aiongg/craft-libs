@@ -23,6 +23,11 @@ pub trait Outcome {
     /// The component's response.
     fn response(&self) -> &Response;
 
+    /// The shown value as the component words it to assistive technology; `None` for a component that gives none.
+    fn value_text(&self) -> Option<&str> {
+        None
+    }
+
     /// The facts a story reports about this output: its id, click, edit kinds, collection kinds and visible range.
     /// Outputs that hold an `EditResponse` or a `CollectionResponse` forward to it.
     #[cfg(feature = "testing")]
@@ -378,6 +383,9 @@ pub struct EditResponse<T> {
     /// no value to show. A composite reads a child's new state here in the pass it changes. The value is shared with
     /// the component, so building the response copies nothing.
     pub shown: Option<Mixed<Arc<T>>>,
+    /// The shown value as the component words it to assistive technology ("40.0", "50 %"); `None` for a component
+    /// that gives no such text.
+    pub value_text: Option<String>,
 }
 
 impl<T> EditResponse<T> {
@@ -392,6 +400,7 @@ impl<T> EditResponse<T> {
             unparsed: false,
             validity,
             shown: None,
+            value_text: None,
         }
     }
 
@@ -410,6 +419,7 @@ impl<T> EditResponse<T> {
             unparsed: false,
             validity: Validity::Ok,
             shown,
+            value_text: None,
         }
     }
 
@@ -445,6 +455,7 @@ impl<T: Clone> EditResponse<T> {
             unparsed: self.unparsed,
             validity,
             shown,
+            value_text: self.value_text,
         }
     }
 }
@@ -456,9 +467,16 @@ impl<T: Value> Outcome for EditResponse<T> {
         &self.response
     }
 
+    fn value_text(&self) -> Option<&str> {
+        self.value_text.as_deref()
+    }
+
     #[cfg(feature = "testing")]
     fn story_facts(&self) -> crate::testing::StoryOutput {
-        crate::testing::StoryOutput::of_edit(&self.response, self.event.as_ref())
+        crate::testing::StoryOutput {
+            value_text: self.value_text.clone(),
+            ..crate::testing::StoryOutput::of_edit(&self.response, self.event.as_ref())
+        }
     }
 }
 

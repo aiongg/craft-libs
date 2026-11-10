@@ -2,16 +2,46 @@
 
 use super::{Button, IconButton, Link, SplitButton, ToggleButton};
 use crate::contract::{Bind, Entry, Props as _, Show as _, ShowContainer as _, Validity};
-use crate::layout_components::{Row, Stack};
+use crate::display::{Shade, Text};
+use crate::layout_components::{Grid, Row};
 use crate::runtime::env::Message;
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
-use craft_behavior::{IconId, Mixed};
+use craft_behavior::{ColumnWidth, IconId, Mixed, Proposal};
 use craft_theme::{ControlSize, Variant};
 use egui::{Key, Modifiers, Ui};
 
 const SIZES: [(&str, ControlSize); 2] = [("Sm", ControlSize::Sm), ("Md", ControlSize::Md)];
 
-#[story(Button<'static>, covers = [Default])]
+/// Every variant at each size (rows, each under its name) at rest, disabled and loading (columns). Where the full grid
+/// is wider than the room, the loading column is left out.
+#[story(Button<'static>, covers = [], drive = Drive::Never, group = "Variants", title = "Variants")]
+fn button_variants(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    const ALL: &[ColumnWidth] = &[ColumnWidth::Content; 4];
+    const STATES: [(&str, bool, bool); 3] = [("rest", true, false), ("disabled", false, false), ("loading", true, true)];
+    let variants = [("Primary", Variant::PRIMARY), ("Secondary", Variant::SECONDARY), ("Ghost", Variant::GHOST), ("Danger", Variant::DANGER)];
+    let label = data.value("label", String::from("Button")).clone();
+    let rows = |ui: &mut Ui, states: &[(&str, bool, bool)]| {
+        for (name, variant) in variants {
+            for (size_name, size) in SIZES {
+                Text::new(format!("{name} {size_name}").to_lowercase()).shade(Shade::Muted).show(ui);
+                for &(state, enabled, loading) in states {
+                    Button::new(label.clone())
+                        .variant(variant)
+                        .size(size)
+                        .enabled(enabled)
+                        .loading(loading)
+                        .id_salt((name, size_name, state))
+                        .show(ui);
+                }
+            }
+        }
+    };
+    let full = Grid::new(ALL).measure_in(ui, Proposal::Ideal, |ui, _| rows(ui, &STATES));
+    let (columns, states) = if full.x <= ui.available_width() { (ALL, &STATES[..]) } else { (&ALL[..3], &STATES[..2]) };
+    Grid::new(columns).show(ui, |ui, _| rows(ui, states)).into()
+}
+
+#[story(Button<'static>, covers = [Default], group = "Playground", title = "Playground")]
 fn button(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let variants = [("Primary", Variant::PRIMARY), ("Secondary", Variant::SECONDARY), ("Ghost", Variant::GHOST), ("Danger", Variant::DANGER)];
     let variant = *data.choice("variant", Variant::PRIMARY, &variants);
@@ -28,37 +58,12 @@ fn button(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     shown.into()
 }
 
-/// Every variant at each size, at rest, disabled and loading.
-#[story(Button<'static>, covers = [], drive = Drive::Never)]
-fn button_variants(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let variants = [("Primary", Variant::PRIMARY), ("Secondary", Variant::SECONDARY), ("Ghost", Variant::GHOST), ("Danger", Variant::DANGER)];
-    let label = data.value("label", String::from("Button")).clone();
-    let shown = Stack::new().show(ui, |ui, _| {
-        for (_, size) in SIZES {
-            for (enabled, loading) in [(true, false), (false, false), (true, true)] {
-                Row::new().show(ui, |ui, _| {
-                    for (name, variant) in variants {
-                        Button::new(label.clone())
-                            .variant(variant)
-                            .size(size)
-                            .enabled(enabled)
-                            .loading(loading)
-                            .id_salt((name, enabled, loading))
-                            .show(ui);
-                    }
-                });
-            }
-        }
-    });
-    shown.into()
-}
-
-#[story(Button<'static>, covers = [], disabled_text = "Nothing to save")]
+#[story(Button<'static>, covers = [], disabled_text = "Nothing to save", group = "Playground", title = "With reason")]
 fn button_with_reason(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     Button::new("Save").tooltip(data.tooltip("Save the document")).show(ui).into()
 }
 
-#[story(Button<'static>, covers = [], drive = Drive::Never)]
+#[story(Button<'static>, covers = [], drive = Drive::Never, group = "Playground", title = "Loading")]
 fn button_loading(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     Button::new("Saving").icon(IconId::new("save")).loading(true).show(ui).into()
 }

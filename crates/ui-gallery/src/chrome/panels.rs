@@ -173,6 +173,7 @@ impl Panels<'_> {
         }
     }
 
+    /// The story groups of the selected component; picking one shows it on the component's Overview card.
     fn stories(&mut self, ui: &mut Ui) {
         let catalog = self.catalog;
         let Some(component) = self.selected() else {
@@ -180,21 +181,24 @@ impl Panels<'_> {
                 hint(ui, "Select a component");
             });
         };
-        let (type_name, titles) = (component.type_name, component.titles.clone());
-        let listed: Vec<usize> = (0..catalog.entries.len()).filter(|&at| catalog.entries[at].type_name == type_name).collect();
+        let (type_name, names) = (component.type_name, component.groups.iter().map(|group| group.name.clone()).collect::<Vec<_>>());
+        let listed: Vec<usize> = (0..names.len()).collect();
+        let shown = self.target(type_name).and_then(|at| catalog.group_at(type_name, at));
         let mut selection = Selection::default();
-        selection.items.extend(self.target(type_name));
+        selection.items.extend(shown);
         let before = selection.items.clone();
         Stack::new().fill().pad(Pad::Regular).show(ui, |ui, _| {
             let source = keyed(&listed, |at| *at);
-            List::<usize>::new("Stories").select(SelectMode::Single).selection(Bind::bound(&mut selection)).show_items(ui, &source, &mut |at, _| {
-                ListRow::new(listed.iter().position(|shown| shown == at).and_then(|place| titles.get(place)).cloned().unwrap_or_default())
-            });
+            List::<usize>::new("Stories")
+                .select(SelectMode::Single)
+                .selection(Bind::bound(&mut selection))
+                .show_items(ui, &source, &mut |at, _| ListRow::new(names.get(*at).cloned().unwrap_or_default()));
         });
         if selection.items != before
-            && let Some(picked) = selection.items.first()
+            && let Some(&picked) = selection.items.first()
+            && let Some(&first) = catalog.group_stories(type_name, picked).first()
         {
-            self.story_of.insert(type_name, catalog.entries[*picked].registration.story.name);
+            self.story_of.insert(type_name, catalog.entries[first].registration.story.name);
         }
     }
 

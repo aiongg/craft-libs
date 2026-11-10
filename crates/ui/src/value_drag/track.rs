@@ -209,6 +209,9 @@ pub enum SliderScale {
     Power(f32),
 }
 
+/// The decimals of a track's value text when it has no step.
+const STEPLESS_DECIMALS: usize = 1;
+
 /// A range with an optional step and the scale that spreads it over a track.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Scale {
@@ -291,6 +294,12 @@ impl Scale {
         let below = (self.min + at.floor() * step).min(self.max);
         let above = (below + step).min(self.max);
         if value - below < above - value { below } else { above }
+    }
+
+    /// `value` as a track's value text: in the step's decimals, or in one decimal without a step.
+    pub fn text(&self, units: &crate::runtime::env::Units, value: f64) -> String {
+        let decimals = self.step.map_or(STEPLESS_DECIMALS, craft_behavior::decimals_for_step);
+        units.number(value, decimals..=decimals)
     }
 
     /// The change of one arrow press: the step, or a hundredth of the range.

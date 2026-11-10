@@ -338,15 +338,15 @@ impl Component for AngleDial<'_> {
         }
     }
 
+    fn value_text(&self, cx: &Cx<'_, Self>) -> Option<String> {
+        let decimals = decimals_for_step(self.step_size());
+        cx.value().map(|value| cx.env.units().text(UnitKind::Degrees, *value, decimals..=decimals))
+    }
+
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
         let (min, max) = self.bounds();
         let numeric = match cx.value() {
-            Some(value) => {
-                let mut numeric = Numeric::new(*value, min..=max);
-                let decimals = decimals_for_step(self.step_size());
-                numeric.text = Some(cx.env.units().text(UnitKind::Degrees, *value, decimals..=decimals));
-                numeric
-            }
+            Some(value) => Numeric::new(*value, min..=max),
             None => Numeric::empty(min..=max),
         };
         access.numeric(numeric.step(self.step_size()));

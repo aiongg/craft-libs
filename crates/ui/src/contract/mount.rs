@@ -279,7 +279,12 @@ impl Host for FullWindowHost {
         let window = region.unwrap_or_else(|| ctx.content_rect());
         let overlay = full_window_overlay(self.focus).place(Place::Float(FloatPlace::at(window.min)));
         let layer = Layer { id, owner: id, overlay: &overlay, anchor: Rect::ZERO, env, exiting: self.exiting, fade: self.fade, size: None, region };
-        let out = overlay::host(&ctx, &layer, &mut |ui| pass(ui, Some(ShowAt::Rect(window)), Some(&Env::of(ui))));
+        // The body is shown at the window's rect, which takes no room in the layer; the layer claims the window, so its
+        // recorded rect is the window's.
+        let out = overlay::host(&ctx, &layer, &mut |ui| {
+            ui.set_min_size(window.size());
+            pass(ui, Some(ShowAt::Rect(window)), Some(&Env::of(ui)));
+        });
         self.dismissed = out.dismissed;
     }
 

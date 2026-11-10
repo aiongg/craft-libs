@@ -84,7 +84,9 @@ pub struct Slider<'a> {
     /// moves along the track and ignores it.
     #[prop(quantity = "step")]
     wheel_step: Option<f64>,
-    /// The value as the caller words it ("50 %"), which assistive technology reads in place of the number.
+    /// The value as the caller words it ("50 %"), in place of the slider's own value text: the number in the step's
+    /// decimals, or in one decimal without a step. Assistive technology reads it, and so does a viewer that
+    /// shows the value beside the slider.
     #[prop(into)]
     value_text: Option<Label>,
     /// Paints the groove with `face`, a component shown as the look of the track (a colour gradient). The fill is not
@@ -277,11 +279,15 @@ impl Component for Slider<'_> {
             Some(value) => Numeric::new(*value, range),
             None => Numeric::empty(range),
         };
-        let numeric = numeric.step(scale.small());
-        access.numeric(match &self.value_text {
-            Some(text) => numeric.text(cx.env.resolve(text).as_str().to_owned()),
-            None => numeric,
-        });
+        access.numeric(numeric.step(scale.small()));
+    }
+
+    fn value_text(&self, cx: &Cx<'_, Self>) -> Option<String> {
+        let value = cx.value()?;
+        Some(match &self.value_text {
+            Some(text) => cx.env.resolve(text).as_str().to_owned(),
+            None => self.track_scale().text(&cx.env.units(), *value),
+        })
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
