@@ -543,7 +543,7 @@ pub(super) struct BodyHooks<'b> {
     measured_footer: Vec2,
     /// The end region's size from this pass's measuring run; `None` without one or inside the measuring run.
     measured_end: Option<Vec2>,
-    /// The trailing controls box as the measuring run found it; `None` there and before the first record.
+    /// The trailing controls box as the measuring run found it; `None` in the measuring run and without a record this pass.
     measured_controls: Option<Vec2>,
     /// The measuring run measures a closed layer whose exit fade still shows it as if it were open.
     shown_closed: bool,

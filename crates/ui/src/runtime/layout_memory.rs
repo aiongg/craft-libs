@@ -36,7 +36,7 @@ struct Entry {
 }
 
 /// What a measuring run found for a container (under its id) or one of its regions (under `sub(id, "header")`,
-/// `"footer"` and `"end"`): the room the container was offered and what the region took. Valid only in the egui pass
+/// `"footer"`, `"end"` and `"controls"`): the room the container was offered and what the region took. Valid only in the egui pass
 /// that recorded it.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct Measured {

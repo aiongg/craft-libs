@@ -2,7 +2,8 @@
 
 use super::{HeaderAction, HeaderStrength, TitleRow};
 use crate::contract::{Bind, Pad, Show as _, ShowContainer as _, Validity};
-use crate::display::Divider;
+use crate::display::{Divider, Text};
+use crate::layout_components::Stack;
 use crate::primitives::IconSpec;
 use crate::runtime::env::Message;
 use crate::sections::Panel;
@@ -14,15 +15,20 @@ use egui::Ui;
 #[story(TitleRow<'static>, covers = [], drive = Drive::Never)]
 fn title_row(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     // The row as a panel shows it: inset in its header band, with a rule across the width under it.
-    Panel::new("Brush settings")
-        .band(SurfaceKind::Panel)
-        .pad(Pad::None)
-        .actions([HeaderAction::Menu, HeaderAction::Float, HeaderAction::Close])
-        .show(ui, |ui, _| {
-            Divider::horizontal().show(ui);
-        })
-        .output
-        .into()
+    let mut output = StoryOutput::default();
+    Stack::new().fill_width().show(ui, |ui, _| {
+        output = Panel::new("Brush settings")
+            .band(SurfaceKind::Panel)
+            .pad(Pad::None)
+            .actions([HeaderAction::Menu, HeaderAction::Float, HeaderAction::Close])
+            .show(ui, |ui, _| {
+                Divider::horizontal().show(ui);
+                Text::new("drag the header to move the panel").show(ui);
+            })
+            .output
+            .into();
+    });
+    output
 }
 
 #[story(TitleRow<'static>, covers = [Default])]
