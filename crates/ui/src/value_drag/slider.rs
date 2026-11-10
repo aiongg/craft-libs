@@ -165,7 +165,7 @@ impl Component for Slider<'_> {
             space: MarkSpace::new(cx),
             thumb: track::states(cx, colors.surface.knob, colors.surface.knob, colors.surface.knob),
             thumb_edge: track::states(cx, colors.line.knob_edge, accent.strong_hover, accent.strong_pressed),
-            diameter: cx.tokens.size.handle.md,
+            diameter: cx.tokens.component.slider.thumb_height.get(cx.size),
             length,
         }
     }
@@ -186,7 +186,7 @@ impl Component for Slider<'_> {
         let value = cx.value().copied().unwrap_or_else(|| scale.middle());
         let thumb = thumb_rect(&scale, value, area, cx.flow);
         if self.track_face.is_some() {
-            cx.part(track::GROOVE, track::groove_rect(&cx.style.track, area));
+            cx.part(track::GROOVE, track::ramp_rect(&cx.style.track, area));
         }
         cx.part(TRACK, area).sense(Sense::CLICK | Sense::DRAG | Sense::TAKE_FOCUS).value_part().pointer_only("the arrow keys step the value");
         cx.part(Self::THUMB, thumb)

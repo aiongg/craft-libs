@@ -183,7 +183,7 @@ impl Component for RangeSlider<'_> {
             thumb: track::states(cx, colors.surface.knob, colors.surface.knob, colors.surface.knob),
             thumb_edge: track::states(cx, colors.line.knob_edge, accent.strong_hover, accent.strong_pressed),
             thumb_width: cx.tokens.size.handle.sm,
-            thumb_height: cx.tokens.size.handle.md,
+            thumb_height: cx.tokens.component.slider.thumb_height.get(cx.size),
             thumb_corner: UiTokens::corner(cx.tokens.shape.radius.sm),
             length,
         }
@@ -206,7 +206,7 @@ impl Component for RangeSlider<'_> {
         let pair = cx.value().cloned().unwrap_or((Mixed::Mixed, Mixed::Mixed));
         let (lower, upper) = placed(&scale, &pair);
         if self.track_face.is_some() {
-            cx.part(track::GROOVE, track::groove_rect(&cx.style.track, area));
+            cx.part(track::GROOVE, track::ramp_rect(&cx.style.track, area));
         }
         cx.part(TRACK, area).sense(Sense::CLICK | Sense::DRAG).value_part().pointer_only("the arrow keys step the focused thumb");
         for (key, value) in [(LOWER, lower), (UPPER, upper)] {

@@ -846,6 +846,8 @@ pub struct SizeTokens {
     pub length: LengthSizes,
     /// The thickness of the groove of a value track (a slider, a range slider, a progress bar).
     pub groove: f32,
+    /// Gradient ramps: the colours a value runs through, drawn as a bar or as the groove of a track.
+    pub ramp: RampSizes,
     /// The long side of the track of a two-state toggle (a switch).
     pub toggle: f32,
     /// Where a tip that follows the pointer (a gesture readout) sits from the pointer.
@@ -934,6 +936,15 @@ pub struct LengthSizes {
     pub track: f32,
     /// The width of a short field, such as a number beside a slider.
     pub short: f32,
+}
+
+/// Thicknesses of gradient ramps, in logical pixels.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct RampSizes {
+    /// A ramp drawn as a bar of its own: the output bar of a levels editor, a hue or saturation bar.
+    pub bar: f32,
+    /// A ramp drawn as the groove of a value track: the track of a colour channel slider.
+    pub groove: f32,
 }
 
 /// Plot sizes, in logical pixels.

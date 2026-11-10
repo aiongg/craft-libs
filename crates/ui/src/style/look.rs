@@ -238,6 +238,8 @@ pub struct TrackLook {
     pub edge_width: f32,
     /// The thickness of the groove.
     pub thickness: f32,
+    /// The thickness of the groove when a gradient ramp is its face.
+    pub ramp: f32,
     /// The corner radius of the groove and its fill.
     pub radius: CornerRadius,
     /// The length of a mark or tick below the groove.

@@ -38,7 +38,7 @@
         "height": 300.0,
         "width": 240.0
       },
-      "groove": 2.0,
+      "groove": 3.0,
       "handle": {
         "band_inner": 5.0,
         "band_outer": 18.0,
@@ -79,6 +79,10 @@
       "rail": {
         "button": 36.0,
         "width": 50.0
+      },
+      "ramp": {
+        "bar": 10.0,
+        "groove": 5.0
       },
       "ruler": {
         "tick": {

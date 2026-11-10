@@ -8,8 +8,8 @@ use std::fmt::Write as _;
 use crate::{
     BarSizes, BySize, CanvasSizes, ColorToken, ComponentTokens, ControlSizes, DockColumnSizes, Easing, Edge, Elevation, ElevationTokens, FloatSizes,
     FontSlot, Gaps, HandleSizes, HitSizes, IconSizes, Insets, LengthSizes, Motion, MotionTokens, Pads, PaneSizes, PlotSizes, RadiusSet, RailSizes,
-    Rgba, RowStyle, RulerSizes, RulerTickSizes, ShapeTokens, SizeTokens, SliderTokens, SpaceTokens, StrokeTokens, ThumbSizes, Tokens, TypeStyle,
-    TypeTokens, WindowSizes,
+    RampSizes, Rgba, RowStyle, RulerSizes, RulerTickSizes, ShapeTokens, SizeTokens, SliderTokens, SpaceTokens, StrokeTokens, ThumbSizes, Tokens,
+    TypeStyle, TypeTokens, WindowSizes,
 };
 
 /// The text of every token, one `key = value` line each, in a fixed order.
@@ -112,6 +112,7 @@ fn size_lines(out: &mut Lines, size: &SizeTokens) {
         plot,
         length,
         groove,
+        ramp,
         toggle,
         pointer_tip,
         float,
@@ -163,6 +164,9 @@ fn size_lines(out: &mut Lines, size: &SizeTokens) {
     out.line("size.length.track", len(*track));
     out.line("size.length.short", len(*short));
     out.line("size.groove", len(*groove));
+    let RampSizes { bar, groove: ramp_groove } = ramp;
+    out.line("size.ramp.bar", len(*bar));
+    out.line("size.ramp.groove", len(*ramp_groove));
     out.line("size.toggle", len(*toggle));
     out.line("size.pointer_tip.x", len(pointer_tip.x));
     out.line("size.pointer_tip.y", len(pointer_tip.y));

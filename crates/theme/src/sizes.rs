@@ -130,6 +130,8 @@ pub(crate) fn leaves(b: &mut Preset) -> Vec<Leaf<'_>> {
         "base.size.length.track" Num 48.0..=1024.0 => s.length.track;
         "base.size.length.short" Num 32.0..=512.0 => s.length.short;
         "base.size.groove" Num 0.25..=16.0 => s.groove;
+        "base.size.ramp.bar" Num 1.0..=64.0 => s.ramp.bar;
+        "base.size.ramp.groove" Num 0.25..=32.0 => s.ramp.groove;
         "base.size.toggle" Num 12.0..=96.0 => s.toggle;
         "base.size.pointer_tip.x" Num 0.0..=64.0 => s.pointer_tip.x;
         "base.size.pointer_tip.y" Num 0.0..=64.0 => s.pointer_tip.y;

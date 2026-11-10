@@ -31,6 +31,11 @@ pub(crate) fn groove_rect(look: &TrackLook, rect: Rect) -> Rect {
     Rect::from_center_size(rect.center(), Vec2::new(rect.width(), look.thickness))
 }
 
+/// The groove across the middle of `rect` when a gradient ramp is its face.
+pub(crate) fn ramp_rect(look: &TrackLook, rect: Rect) -> Rect {
+    Rect::from_center_size(rect.center(), Vec2::new(rect.width(), look.ramp))
+}
+
 /// A caller's look for the groove: a component shown as the face of the `GROOVE` part, such as a colour gradient. It
 /// replaces the groove and the fill.
 pub struct TrackFace<'a>(FaceFn<'a>);

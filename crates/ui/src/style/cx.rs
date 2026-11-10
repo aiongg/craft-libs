@@ -223,14 +223,16 @@ impl<'a> StyleCx<'a> {
     /// The look of a value track: a groove of `size.groove` with the part a value fills over it, and its marks.
     pub fn track(&self) -> TrackLook {
         let colors = &self.tokens.color;
-        let sunken = self.color(colors.surface.sunken);
+        let groove = self.color(colors.line.control_edge);
+        let muted = self.color(colors.text.muted);
         let disabled = self.color(colors.state.disabled_fill);
         TrackLook {
-            unfilled: Stateful::new(sunken).off(States::new(sunken, sunken, sunken, disabled)),
-            filled: self.accent_fill(),
+            unfilled: Stateful::new(groove).off(States::new(groove, groove, groove, disabled)),
+            filled: Stateful::new(muted).off(States::new(muted, muted, muted, self.color(colors.text.disabled))),
             edge: Stateful::new(self.color(colors.line.control_edge)),
             edge_width: self.tokens.stroke.thin,
             thickness: self.tokens.size.groove,
+            ramp: self.tokens.size.ramp.groove,
             radius: UiTokens::corner(self.tokens.shape.radius.pill),
             mark_length: self.tokens.space.gap.tight,
             mark_width: self.tokens.stroke.thin,

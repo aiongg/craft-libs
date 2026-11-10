@@ -101,7 +101,7 @@ impl Component for TrackRamp {
             metrics: craft_behavior::Metrics::new(),
             edge: cx.color(cx.tokens.color.line.control_edge),
             length: cx.tokens.size.length.track,
-            thickness: cx.tokens.size.groove,
+            thickness: cx.tokens.size.ramp.groove,
         }
     }
 
