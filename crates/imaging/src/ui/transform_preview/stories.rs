@@ -6,11 +6,10 @@
 
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 
-use craft_behavior::PixelSize;
 use craft_behavior::kurbo::{Point, Rect};
 use craft_ui::canvas::{PixelRect, RasterSource};
 use craft_ui::contract::Show as _;
-use craft_ui::primitives::Revision;
+use craft_ui::testing::canvas_story::StoryDocument;
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::{Color32, ColorImage, Ui};
 
@@ -57,27 +56,6 @@ pub(crate) enum Zoom {
     Percent(f64),
 }
 
-/// A transparent document of a given size: the checkerboard shows through.
-struct Blank([u32; 2]);
-
-impl RasterSource for Blank {
-    fn size(&self) -> PixelSize {
-        PixelSize::new(self.0[0], self.0[1])
-    }
-
-    fn revision(&self) -> Revision {
-        Revision::new(1)
-    }
-
-    fn damage(&self, _since: Revision) -> Option<PixelRect> {
-        Some(PixelRect::new(0, 0, 0, 0))
-    }
-
-    fn read(&self, _region: PixelRect, _factor: u32, out: &mut ColorImage) {
-        out.pixels.fill(Color32::TRANSPARENT);
-    }
-}
-
 impl Document {
     /// The default document.
     pub(crate) fn standard() -> Self {
@@ -107,10 +85,10 @@ impl Document {
     ) -> StoryOutput {
         let view = match (zoom, centre) {
             (Zoom::Fit, _) => StoryView::Fit,
-            (Zoom::Percent(percent), None) => StoryView::Zoom(percent / 100.0),
-            (Zoom::Percent(percent), Some(centre)) => StoryView::At { zoom: percent / 100.0, centre },
+            (Zoom::Percent(percent), None) => StoryView::Zoom(percent),
+            (Zoom::Percent(percent), Some(centre)) => StoryView::At { zoom: percent, centre },
         };
-        story_canvas(ui, Some(&Blank(self.size)), view, controls)
+        story_canvas(ui, Some(&StoryDocument::new(self.size[0], self.size[1])), view, controls)
     }
 
     /// The layer's textures, built once per layer size: `MockImage` at every mip level, each level

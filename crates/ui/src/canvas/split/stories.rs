@@ -2,10 +2,13 @@
 
 use super::{DIVIDER, PANE, SplitAt, SplitLayout, SplitViews};
 use crate::canvas::Canvas;
+use crate::canvas::RasterSource as _;
 use crate::contract::{Bind, ShowContainer as _, Validity};
 use crate::runtime::env::Message;
+use crate::testing::canvas_story::{StoryDocument, show_document};
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
-use craft_behavior::kurbo::Point;
+use craft_behavior::canvas::zoom;
+use craft_behavior::kurbo::Size;
 use craft_behavior::{CanvasView, Mixed};
 use egui::{Ui, Vec2};
 
@@ -15,12 +18,16 @@ const MOST_LEFT: f32 = 0.8;
 /// The names of the panes' canvases, by pane.
 const NAMES: [&str; 4] = ["Main view", "View", "View", "View"];
 
-/// Shows a view of the document in each pane of `layout`, the first pane active.
+/// Shows a view of the document, fitted to the pane, in each pane of `layout`, the first pane active.
 fn split(ui: &mut Ui, layout: SplitLayout, at: Bind<'_, SplitAt>, shown: SplitAt) -> StoryOutput {
+    let document = &StoryDocument::STANDARD;
+    let size = document.size();
+    let ppp = ui.pixels_per_point();
     let views = SplitViews::new("Views", layout, at).show(ui, |ui, body| {
         for (pane, rect) in layout.placed(shown, body.rect, body.env.direction().is_rtl()).into_iter().enumerate() {
-            let view = CanvasView::new(rect, Point::new(f64::from(rect.width()) / 2.0, f64::from(rect.height()) / 2.0), 1.0);
-            Canvas::new(NAMES[pane]).view(view).show_at(ui, rect, |_, _| ());
+            let mut view = CanvasView::new(rect, document.centre(), 1.0);
+            zoom::fit(&mut view, Size::new(f64::from(size.width), f64::from(size.height)), ppp, 0.0);
+            Canvas::new(NAMES[pane]).view(view).show_at(ui, rect, |ui, body| show_document(ui, body.rect, document));
         }
     });
     views.output.into()

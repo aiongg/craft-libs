@@ -14,6 +14,8 @@ use egui::Ui;
 /// A document of 240 by 160 pixels at 72 pixels per inch.
 const DOCUMENT: PixelSize = PixelSize::new(240, 160);
 const PIXELS_PER_INCH: f64 = 72.0;
+/// The document the canvas shows under the slices.
+const SHOWN: craft_ui::testing::canvas_story::StoryDocument = craft_ui::testing::canvas_story::StoryDocument::new(DOCUMENT.width, DOCUMENT.height);
 
 /// Two user slices, a layer slice and the auto slice between them.
 fn slices() -> Vec<SliceItem> {
@@ -29,8 +31,10 @@ fn on_canvas(ui: &mut Ui, configure: impl for<'a> FnOnce(SliceOverlay<'a>) -> Sl
     let items = slices();
     let mut configure = Some(configure);
     let stage = craft_ui::testing::stage(ui);
-    let _ = Canvas::new("Document")
-        .show_at(ui, stage, |ui, body| configure.take().map(|configure| configure(SliceOverlay::new("Slices", &items)).show_at(ui, body.rect)));
+    let _ = Canvas::new("Document").view(SHOWN.view(stage, ui.pixels_per_point(), 100.0)).show_at(ui, stage, |ui, body| {
+        craft_ui::testing::canvas_story::show_document(ui, body.rect, &SHOWN);
+        configure.take().map(|configure| configure(SliceOverlay::new("Slices", &items)).show_at(ui, body.rect))
+    });
     StoryOutput::default()
 }
 

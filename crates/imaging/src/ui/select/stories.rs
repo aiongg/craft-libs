@@ -2,10 +2,10 @@
 //! does. The events each tool reports are applied to a story selection (a rectangle in the hard coverage a marquee or
 //! outline gives), which the selection overlay shows. The first press inside the selection drags it.
 
+use craft_behavior::EditEvent;
 use craft_behavior::kurbo::{Point, Rect, Size};
-use craft_behavior::{CanvasView, EditEvent};
-use craft_ui::canvas::{Canvas, CanvasOutput, RasterDisplay, RasterSource as _, ToolHost};
-use craft_ui::contract::{Show as _, ShowContainer as _};
+use craft_ui::canvas::{Canvas, CanvasOutput, RasterSource as _, ToolHost};
+use craft_ui::contract::ShowContainer as _;
 use craft_ui::runtime::env::Env;
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
@@ -16,7 +16,7 @@ use super::{
     SelectionShape,
 };
 use crate::trace::{MaskRect, MaskSource};
-use crate::ui::mock_image::MockImage;
+use crate::ui::mock_image::{MockImage, StoryView};
 use crate::ui::selection::SelectionOverlay;
 
 craft_ui::words! {
@@ -165,14 +165,13 @@ fn on_canvas(ui: &mut Ui, data: &mut StoryData, name: &'static str, init: fn() -
     let selection = data.value("selection", Selection(Some(Rect::new(200.0, 150.0, 600.0, 450.0))));
     let image = MockImage::default();
     let size = image.size();
-    let (width, height) = (f64::from(size.width.max(1)), f64::from(size.height.max(1)));
-    let room = ui.available_rect_before_wrap();
-    let fit = (f64::from(room.width()) / width).min(f64::from(room.height()) / height);
-    let view = CanvasView::new(room, Point::new(width / 2.0, height / 2.0), fit);
+    let room = craft_ui::testing::stage(ui);
+    let view = StoryView::Fit.of(room, size, ui.pixels_per_point());
     let words = Env::of(ui).words::<SelectToolStoryWords>();
     let mask = RectMask { rect: selection.0, size: [size.width, size.height] };
-    let shown = Canvas::new("Document").document(Size::new(width, height)).view(view).show(ui, |ui, body| {
-        RasterDisplay::new("Picture", &image).show_at(ui, body.rect);
+    let document = Size::new(f64::from(size.width), f64::from(size.height));
+    let shown = Canvas::new("Document").document(document).view(view).show_at(ui, room, |ui, body| {
+        craft_ui::testing::canvas_story::show_document(ui, body.rect, &image);
         SelectionOverlay::new(words.selection.clone(), &mask).show_at(ui, body.rect);
     });
     if let Ok(mut tool) = held.0.lock() {

@@ -5,17 +5,17 @@ use super::RasterDisplayOutput;
 use crate::canvas::{PixelRect, RasterSource};
 use crate::contract::Show as _;
 use crate::primitives::{Checker, Revision};
-use crate::testing::canvas_story::on_canvas_view;
+use crate::testing::canvas_story::{on_canvas_view, story_view};
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use craft_behavior::kurbo::Point;
 use craft_behavior::{CanvasView, PixelSize};
 use egui::{Color32, ColorImage, Rect, Ui};
 
 /// The document's size in pixels.
-const DOCUMENT: PixelSize = PixelSize::new(320, 200);
+const DOCUMENT: PixelSize = PixelSize::new(640, 400);
 
 /// The document's centre, where the views look.
-const CENTER: Point = Point::new(160.0, 100.0);
+const CENTER: Point = Point::new(320.0, 200.0);
 
 /// How far the zoomed story magnifies the document, so single pixels show sharp.
 const MAGNIFIED: f64 = 4.0;
@@ -64,16 +64,12 @@ enum CheckerSize {
 }
 
 /// The view values the Properties panel edits: zoom in percent, rotation in degrees, flip and pixel aspect.
-fn view_values(data: &mut StoryData, zoom: f64, rotation: f64) -> impl Fn(Rect) -> CanvasView + Copy + use<> {
+fn view_values(data: &mut StoryData, zoom: f64, rotation: f64) -> impl Fn(Rect, f32) -> CanvasView + Copy + use<> {
     let zoom = *data.ranged("zoom", zoom, 10.0..=800.0);
     let rotation = *data.ranged("rotation", rotation, -180.0..=180.0);
     let flip = *data.value("flip", false);
     let aspect = *data.ranged("aspect", 1.0, 0.5..=2.0);
-    move |room| {
-        let mut view = view_of(room, |view| view.rotation(rotation).flip_x(flip).aspect(aspect));
-        view.zoom = zoom / 100.0;
-        view
-    }
+    move |room, ppp| story_view(room, ppp, CENTER, zoom).rotation(rotation).flip_x(flip).aspect(aspect)
 }
 
 /// The transparency grid under the document, from the story's `checker` value.
@@ -85,11 +81,6 @@ fn checker_of(data: &mut StoryData) -> Option<Checker> {
         CheckerSize::Medium => Some(Checker::new()),
         CheckerSize::Large => Some(Checker::new().size(16.0)),
     }
-}
-
-/// The view of the canvas over `room` that `adjust` makes of the one showing the whole document.
-fn view_of(room: Rect, adjust: impl FnOnce(CanvasView) -> CanvasView) -> CanvasView {
-    adjust(CanvasView::new(room, CENTER, 1.0))
 }
 
 /// The gradient, filling the canvas, over `checker`.
@@ -107,19 +98,19 @@ fn gradient(ui: &mut Ui, at: Rect, checker: Option<Checker>) -> RasterDisplayOut
 fn document(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let view = view_values(data, 100.0, 0.0);
     let checker = checker_of(data);
-    on_canvas_view(ui, view, |ui, at, _| gradient(ui, at, checker))
+    on_canvas_view(ui, view, None, |ui, at, _| gradient(ui, at, checker))
 }
 
 #[story(RasterDisplay<'static>, covers = [Default], drive = Drive::Never)]
 fn magnified(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let view = view_values(data, MAGNIFIED * 100.0, 0.0);
     let checker = checker_of(data);
-    on_canvas_view(ui, view, |ui, at, _| gradient(ui, at, checker))
+    on_canvas_view(ui, view, None, |ui, at, _| gradient(ui, at, checker))
 }
 
 #[story(RasterDisplay<'static>, covers = [Default], drive = Drive::Never)]
 fn turned(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let view = view_values(data, 100.0, TURN);
     let checker = checker_of(data);
-    on_canvas_view(ui, view, |ui, at, _| gradient(ui, at, checker))
+    on_canvas_view(ui, view, None, |ui, at, _| gradient(ui, at, checker))
 }

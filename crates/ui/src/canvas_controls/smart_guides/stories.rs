@@ -8,18 +8,21 @@ use craft_behavior::kurbo::{Point, Rect as DocRect};
 use egui::Ui;
 
 fn lines() -> Vec<SmartLine> {
-    vec![SmartLine::new(Point::new(60.0, 10.0), Point::new(60.0, 110.0)), SmartLine::new(Point::new(60.0, 110.0), Point::new(140.0, 110.0)).dashed()]
+    vec![
+        SmartLine::new(Point::new(280.0, 150.0), Point::new(280.0, 250.0)),
+        SmartLine::new(Point::new(280.0, 250.0), Point::new(360.0, 250.0)).dashed(),
+    ]
 }
 
 #[story(SmartGuides<'static>, covers = [Default])]
 fn alignment_lines(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let lines = lines();
-    on_canvas(ui, 1.0, |ui, at, _| SmartGuides::new(&lines, &[]).show_at(ui, at))
+    on_canvas(ui, |ui, at, _| SmartGuides::new(&lines, &[]).show_at(ui, at))
 }
 
 #[story(SmartGuides<'static>, covers = [Default])]
 fn distances_and_bounds(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let lines = lines();
-    let measures = [Measure::new(Point::new(60.0, 60.0), Point::new(140.0, 60.0))];
-    on_canvas(ui, 1.0, |ui, at, _| SmartGuides::new(&lines, &measures).bounds(DocRect::new(60.0, 10.0, 140.0, 110.0)).show_at(ui, at))
+    let measures = [Measure::new(Point::new(280.0, 200.0), Point::new(360.0, 200.0))];
+    on_canvas(ui, |ui, at, _| SmartGuides::new(&lines, &measures).bounds(DocRect::new(280.0, 150.0, 360.0, 250.0)).show_at(ui, at))
 }

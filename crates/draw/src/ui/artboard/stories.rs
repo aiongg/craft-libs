@@ -21,7 +21,12 @@ fn boards() -> Vec<ArtboardItem> {
 fn two_artboards(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let (items, selected) = (boards(), [0_usize]);
     let stage = craft_ui::testing::stage(ui);
-    Canvas::new("Document").show_at(ui, stage, |ui, body| ArtboardOverlay::new("Artboards", &items, &selected).show_at(ui, body.rect));
+    let bounds = items.iter().fold(items[0].rect, |bounds, item| bounds.union(item.rect));
+    let view = craft_ui::testing::canvas_story::story_view(stage, ui.pixels_per_point(), bounds.center(), 100.0);
+    Canvas::new("Document").view(view).show_at(ui, stage, |ui, body| {
+        craft_ui::testing::canvas_story::show_document(ui, body.rect, &craft_ui::testing::canvas_story::StoryDocument::STANDARD);
+        ArtboardOverlay::new("Artboards", &items, &selected).show_at(ui, body.rect)
+    });
     StoryOutput::default()
 }
 
