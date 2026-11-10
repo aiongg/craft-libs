@@ -123,6 +123,9 @@ size.length.field
 size.length.number
 size.length.short
 size.length.track
+size.marker.height
+size.marker.width
+size.meter
 size.pane.least
 size.panel_header
 size.plot.height
@@ -131,6 +134,8 @@ size.pointer_tip.x
 size.pointer_tip.y
 size.rail.button
 size.rail.width
+size.ramp.bar
+size.ramp.groove
 size.ruler.tick.mid
 size.thumb.card
 size.thumb.lg

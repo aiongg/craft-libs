@@ -851,6 +851,11 @@ A theme with its own shape replaces the radii or adds an offset to control, surf
 | `size.icon.glyph_sm`, `size.icon.glyph_md` | The glyph in an icon-only button |
 | `size.bar.title`, `size.bar.tab`, `size.bar.status`, `size.bar.options`, `size.bar.options_narrow` | Title bar, document tab bar, status bar, options bar |
 | `size.panel_header` | Panel headers |
+| `size.groove` | Groove of a value track |
+| `size.ramp.bar` | Gradient ramp drawn as a bar of its own |
+| `size.ramp.groove` | Gradient ramp drawn as the groove of a value track |
+| `size.meter` | Bar that shows a quantity as a filled share of a bordered groove |
+| `size.marker.width`, `size.marker.height` | Triangular pointer mark on the edge of a value track |
 | `size.rail.width`, `size.rail.button`, `size.rail.panel_width`, `size.rail.panel_button` | Tool rail and panel rail |
 | `size.length.field`, `size.length.track`, `size.length.short`, `size.length.number` | Text or value field, value track, short field, number field over a slider |
 | `size.list.*`, `size.tab.*`, `size.preset.*` | Lists, tab strips, preset browsers |

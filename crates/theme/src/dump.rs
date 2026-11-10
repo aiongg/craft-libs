@@ -7,9 +7,9 @@ use std::fmt::Write as _;
 
 use crate::{
     BarSizes, BySize, CanvasSizes, ColorToken, ComponentTokens, ControlSizes, DockColumnSizes, Easing, Edge, Elevation, ElevationTokens, FloatSizes,
-    FontSlot, Gaps, HandleSizes, HitSizes, IconSizes, Insets, LengthSizes, Motion, MotionTokens, Pads, PaneSizes, PlotSizes, RadiusSet, RailSizes,
-    Rgba, RowStyle, RulerSizes, RulerTickSizes, ShapeTokens, SizeTokens, SliderTokens, SpaceTokens, StrokeTokens, ThumbSizes, Tokens, TypeStyle,
-    TypeTokens, WindowSizes,
+    FontSlot, Gaps, HandleSizes, HitSizes, IconSizes, Insets, LengthSizes, MarkerSizes, Motion, MotionTokens, Pads, PaneSizes, PlotSizes, RadiusSet,
+    RailSizes, RampSizes, Rgba, RowStyle, RulerSizes, RulerTickSizes, ShapeTokens, SizeTokens, SliderTokens, SpaceTokens, StrokeTokens, ThumbSizes,
+    Tokens, TypeStyle, TypeTokens, WindowSizes,
 };
 
 /// The text of every token, one `key = value` line each, in a fixed order.
@@ -121,6 +121,9 @@ fn size_lines(out: &mut Lines, size: &SizeTokens) {
         plot,
         length,
         groove,
+        ramp,
+        meter,
+        marker,
         toggle,
         pointer_tip,
         float,
@@ -176,6 +179,13 @@ fn size_lines(out: &mut Lines, size: &SizeTokens) {
     out.line("size.length.short", len(*short));
     out.line("size.length.number", len(*number));
     out.line("size.groove", len(*groove));
+    let RampSizes { bar, groove: ramp_groove } = ramp;
+    out.line("size.ramp.bar", len(*bar));
+    out.line("size.ramp.groove", len(*ramp_groove));
+    out.line("size.meter", len(*meter));
+    let MarkerSizes { width: marker_width, height: marker_height } = marker;
+    out.line("size.marker.width", len(*marker_width));
+    out.line("size.marker.height", len(*marker_height));
     out.line("size.toggle", len(*toggle));
     out.line("size.pointer_tip.x", len(pointer_tip.x));
     out.line("size.pointer_tip.y", len(pointer_tip.y));

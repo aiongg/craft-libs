@@ -172,7 +172,6 @@ impl Component for RangeSlider<'_> {
     fn style(cx: &StyleCx<'_>, _: RangeSliderStyleKey) -> RangeSliderStyle {
         let control = cx.control();
         let colors = &cx.tokens.color;
-        let accent = &colors.accent;
         let length = cx.tokens.size.length.track;
         RangeSliderStyle {
             metrics: Metrics::new().min_size(Vec2::new(length, control.height)),
@@ -180,10 +179,10 @@ impl Component for RangeSlider<'_> {
             mark_text: track::mark_text(cx),
             track: cx.track(),
             space: MarkSpace::new(cx),
-            thumb: track::states(cx, colors.surface.knob, colors.surface.knob, colors.surface.knob),
-            thumb_edge: track::states(cx, colors.line.knob_edge, accent.strong_hover, accent.strong_pressed),
+            thumb: track::states(cx, colors.text.normal, colors.text.normal, colors.text.normal),
+            thumb_edge: track::states(cx, colors.text.muted, colors.text.muted, colors.text.muted),
             thumb_width: cx.tokens.size.handle.sm,
-            thumb_height: cx.tokens.size.handle.md,
+            thumb_height: cx.tokens.component.slider.thumb_height.get(cx.size),
             thumb_corner: UiTokens::corner(cx.tokens.shape.radius.sm),
             length,
         }
@@ -206,7 +205,7 @@ impl Component for RangeSlider<'_> {
         let pair = cx.value().cloned().unwrap_or((Mixed::Mixed, Mixed::Mixed));
         let (lower, upper) = placed(&scale, &pair);
         if self.track_face.is_some() {
-            cx.part(track::GROOVE, track::groove_rect(&cx.style.track, area));
+            cx.part(track::GROOVE, track::ramp_rect(&cx.style.track, area));
         }
         cx.part(TRACK, area).sense(Sense::CLICK | Sense::DRAG).value_part().pointer_only("the arrow keys step the focused thumb");
         for (key, value) in [(LOWER, lower), (UPPER, upper)] {
@@ -385,10 +384,10 @@ impl Component for RangeSlider<'_> {
         }
         let ink = MarkInk { marks: cx.resolve(&style.track.mark_color), labels: cx.resolve(&style.mark_text.color), role: style.mark_text.role };
         track::paint_marks(&draw, &style.track, &self.marks, &scale, Along { area, flow }, cx.rect, &ink);
-        for (key, thumb, shown) in thumbs {
+        for (key, thumb, _) in thumbs {
             let drawn = Rect::from_center_size(thumb.center(), Vec2::new(style.thumb_width, style.thumb_height));
             let shape = PaintShape::Rect(drawn, style.thumb_corner);
-            draw.fill(&shape, if shown { cx.resolve_part(key, &style.thumb) } else { cx.resolve(&style.track.unfilled) });
+            draw.fill(&shape, cx.resolve_part(key, &style.thumb));
             draw.stroke(&shape, StrokeWidth::Thin, cx.resolve_part(key, &style.thumb_edge));
         }
     }

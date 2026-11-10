@@ -347,10 +347,10 @@ struct Rows {
     fields_out: Rect,
 }
 
-/// The height of everything but the plot, with the gaps between all rows.
+/// The height of everything but the plot, with the gaps between all rows but the plot and the input row, which touch.
 fn fixed_height(captions: bool, style: &LevelsEditorStyle) -> f32 {
     let caption = if captions { style.caption } else { 0.0 };
-    let rows = if captions { 7.0 } else { 5.0 };
+    let rows = if captions { 6.0 } else { 4.0 };
     2.0 * caption + style.row + style.bar_row + 2.0 * style.fields + style.metrics.gap * (rows - 1.0)
 }
 
@@ -359,20 +359,20 @@ fn arrange(size: Vec2, captions: bool, style: &LevelsEditorStyle) -> Rows {
     let gap = style.metrics.gap;
     let plot = (size.y - fixed_height(captions, style)).max(0.0);
     let mut y = 0.0;
-    let mut row = |height: f32, shown: bool| {
+    let mut row = |height: f32, shown: bool, gap: f32| {
         let rect = Rect::from_min_size(pos2(0.0, y), Vec2::new(size.x, height));
         if shown {
             y += height + gap;
         }
         rect
     };
-    let caption_in = row(style.caption, captions);
-    let plot = row(plot, true);
-    let input = row(style.row, true);
-    let fields_in = row(style.fields, true);
-    let caption_out = row(style.caption, captions);
-    let output = row(style.bar_row, true);
-    let fields_out = row(style.fields, true);
+    let caption_in = row(style.caption, captions, gap);
+    let plot = row(plot, true, 0.0);
+    let input = row(style.row, true, gap);
+    let fields_in = row(style.fields, true, gap);
+    let caption_out = row(style.caption, captions, gap);
+    let output = row(style.bar_row, true, gap);
+    let fields_out = row(style.fields, true, gap);
     Rows { caption_in, plot, input, fields_in, caption_out, output, fields_out }
 }
 

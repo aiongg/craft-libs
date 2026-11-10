@@ -1,7 +1,7 @@
 //! `Progress`: a horizontal bar, filled by a fraction or moving a segment while the extent is unknown.
 
 use crate::contract::{Access, Animate as _, Common, Component, Cx, MeasureCx, Numeric, PaintUi, Role, Styled as _, WordSetCx as _};
-use crate::primitives::PaintShape;
+use crate::primitives::{PaintShape, StrokeWidth};
 use crate::style::{ComponentStyle, Flags, StyleColor, StyleCx, TrackLook};
 use craft_behavior::{Flow, Metrics, Sense};
 use craft_theme::variant::{Emphasis, Tone};
@@ -91,6 +91,16 @@ fn dashes(width: f32, thickness: f32) -> Vec<(f32, f32)> {
     spans
 }
 
+/// The track of a bar: a sunken, edged groove `size.meter` high.
+fn bar_track(cx: &StyleCx<'_>) -> TrackLook {
+    let colors = &cx.tokens.color;
+    let mut track = cx.track();
+    let sunken = cx.color(colors.surface.sunken);
+    track.unfilled = Stateful::new(sunken);
+    track.thickness = cx.tokens.size.meter;
+    track
+}
+
 impl Component for Progress {
     const ROLE: Role = Role::PROGRESS_INDICATOR;
     const PARTS: bool = false;
@@ -103,7 +113,7 @@ impl Component for Progress {
     fn style(cx: &StyleCx<'_>, _: ProgressStyleKey) -> ProgressStyle {
         ProgressStyle {
             metrics: Metrics::new(),
-            track: cx.track(),
+            track: bar_track(cx),
             fill: cx.variant_look().fill,
             radius: crate::style::UiTokens::corner(cx.tokens.shape.radius.pill),
             length: cx.tokens.size.length.track,
@@ -153,7 +163,9 @@ impl Component for Progress {
         let flow = Flow::new(track, cx.flow.is_rtl());
         let color = cx.resolve(&cx.style.fill);
         let draw = ui.draw();
-        draw.fill(&PaintShape::Rect(track, cx.style.radius), cx.resolve(&cx.style.track.unfilled));
+        let outline = PaintShape::Rect(track, cx.style.radius);
+        draw.fill(&outline, cx.resolve(&cx.style.track.unfilled));
+        draw.stroke(&outline, StrokeWidth::Thin, cx.resolve(&cx.style.track.edge));
         for (from, to) in spans {
             let span = flow.span(from * width, (to - from) * width);
             if span.width() > 0.0 {

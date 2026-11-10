@@ -50,8 +50,8 @@ pub struct ThumbRowStyle {
     ring_width: f32,
     /// How far from a thumb's centre a press grabs it.
     hit: f32,
-    /// The side of a thumb's triangle.
-    thumb: f32,
+    /// The width and height of a thumb's triangle.
+    thumb: Vec2,
     /// The track a track face paints.
     track: TrackLook,
     /// The length a row asks for along its axis.
@@ -748,8 +748,8 @@ impl<const N: usize> Component for ThumbRow<'_, N> {
             ring: Stateful::new(cx.color(clear)).off(States::new(cx.color(clear), cx.color(soft), cx.color(accent), cx.color(clear))),
             ring_width: cx.tokens.stroke.thick,
             hit: cx.tokens.size.hit.target,
-            thumb: cx.tokens.size.handle.md,
-            track: cx.track(),
+            thumb: Vec2::new(cx.tokens.size.marker.width, cx.tokens.size.marker.height),
+            track: TrackLook { thickness: cx.tokens.size.ramp.bar, ..cx.track() },
             length,
         }
     }
@@ -775,12 +775,12 @@ impl<const N: usize> Component for ThumbRow<'_, N> {
         );
         let row = cx.value().cloned().unwrap_or_else(all_mixed);
         let shown = rules.placed(&row);
-        let size = Vec2::splat(cx.style.thumb);
+        let size = cx.style.thumb;
         let layout = Layout::new(rules, rect, size, cx.flow.is_rtl(), 0.0, false);
         let xs = layout.xs(&shown);
         let groove = self.track_face.is_some().then_some(cx.style.track.thickness);
         let thumbs = band(rect, groove);
-        let top = thumbs.top() + (thumbs.height() - size.y) / 2.0;
+        let top = thumbs.top();
         let halves = self.halves(&rules, &shown);
         if let Some(thickness) = groove {
             cx.part(track::GROOVE, Rect::from_min_size(rect.min, Vec2::new(rect.width(), thickness)));
@@ -809,7 +809,7 @@ impl<const N: usize> Component for ThumbRow<'_, N> {
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         let rules = self.rules();
         let (rect, rtl, reach) = (cx.rect, cx.flow.is_rtl(), cx.style.hit);
-        let size = Vec2::splat(cx.style.thumb);
+        let size = cx.style.thumb;
         let row = cx.value().cloned().unwrap_or_else(all_mixed);
         let parts: Vec<PartRef> = std::iter::once(PartRef::from(ROW)).chain((0..N).map(|i| Thumb::PART.at(i as u64))).collect();
         for part in parts {
@@ -926,7 +926,7 @@ impl<const N: usize> Component for ThumbRow<'_, N> {
         let draw = ui.draw();
         let row = cx.value().cloned().unwrap_or_else(all_mixed);
         let shown = rules.placed(&row);
-        let size = Vec2::splat(style.thumb);
+        let size = style.thumb;
         let layout = Layout::new(rules, cx.rect, size, cx.flow.is_rtl(), style.hit, false);
         let xs = layout.xs(&shown);
         // The thumbs a press at the pointer would move take the hover look.
@@ -940,7 +940,7 @@ impl<const N: usize> Component for ThumbRow<'_, N> {
                 Press::Span => Vec::new(),
             });
         let thumbs = band(cx.rect, self.track_face.is_some().then_some(style.track.thickness));
-        let top = thumbs.top() + (thumbs.height() - size.y) / 2.0;
+        let top = thumbs.top();
         let halves = self.halves(&rules, &shown);
         for i in 0..N {
             // Coinciding halves are one triangle, which the low half draws.
@@ -962,7 +962,7 @@ impl<const N: usize> Component for ThumbRow<'_, N> {
 
     fn finish(self, mut cx: Cx<'_, Self>) -> ThumbRowOutput<N> {
         let running = cx.gesture().is_some();
-        let travel = travel(cx.rect, cx.style.thumb);
+        let travel = travel(cx.rect, cx.style.thumb.x);
         let held = running.then(|| cx.memory::<Held>().clone()).and_then(|held| held.thumb.map(|thumb| ThumbHold { thumb, mods: held.mods }));
         ThumbRowOutput { edit: cx.edit_response(), held, travel }
     }

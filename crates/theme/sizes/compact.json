@@ -41,7 +41,7 @@
         "height": 240.0,
         "width": 192.0
       },
-      "groove": 2.0,
+      "groove": 3.0,
       "handle": {
         "band_inner": 5.0,
         "band_outer": 18.0,
@@ -70,6 +70,11 @@
         "short": 96.0,
         "track": 128.0
       },
+      "marker": {
+        "height": 8.0,
+        "width": 11.0
+      },
+      "meter": 6.0,
       "pane": {
         "least": 40.0
       },
@@ -85,6 +90,10 @@
       "rail": {
         "button": 30.0,
         "width": 40.0
+      },
+      "ramp": {
+        "bar": 10.0,
+        "groove": 5.0
       },
       "ruler": {
         "tick": {

@@ -31,6 +31,11 @@ pub(crate) fn groove_rect(look: &TrackLook, rect: Rect) -> Rect {
     Rect::from_center_size(rect.center(), Vec2::new(rect.width(), look.thickness))
 }
 
+/// The groove across the middle of `rect` when a gradient ramp is its face.
+pub(crate) fn ramp_rect(look: &TrackLook, rect: Rect) -> Rect {
+    Rect::from_center_size(rect.center(), Vec2::new(rect.width(), look.ramp))
+}
+
 /// A caller's look for the groove: a component shown as the face of the `GROOVE` part, such as a colour gradient. It
 /// replaces the groove and the fill.
 pub struct TrackFace<'a>(FaceFn<'a>);
@@ -176,13 +181,16 @@ pub(crate) struct Fill {
     pub to: f32,
 }
 
-/// Paints the groove across the middle of `rect` in `groove`, and `fill` over it.
+/// Paints the groove across the middle of `rect` in `groove`, and `fill` over it. The groove runs from the centre of a
+/// thumb at the start to that of a thumb at the end, so a thumb at either end sits over the groove's end.
 pub(crate) fn paint(draw: &Draw<'_>, look: &TrackLook, rect: Rect, flow: Flow, groove: StyleColor, fill: Option<Fill>) {
-    let track = groove_rect(look, rect);
+    let inset = (rect.height() / 2.0).min(rect.width() / 2.0);
+    let track = groove_rect(look, rect.shrink2(Vec2::new(inset, 0.0)));
     let round = CornerRadius::same((look.thickness / 2.0).round() as u8);
     draw.fill(&PaintShape::Rect(track, round), groove);
     if let Some(fill) = fill {
-        let filled = Flow::new(track, flow.is_rtl()).span(fill.from, (fill.to - fill.from).max(0.0));
+        let (from, to) = ((fill.from - inset).max(0.0), (fill.to - inset).max(0.0));
+        let filled = Flow::new(track, flow.is_rtl()).span(from, (to - from).max(0.0));
         draw.fill(&PaintShape::Rect(filled, round), fill.color);
     }
 }
@@ -339,7 +347,8 @@ impl Scale {
 /// the start edge to half a thumb inside the end edge.
 pub(crate) fn thumb_rect(scale: &Scale, value: f64, rect: Rect, flow: Flow) -> Rect {
     let hit = rect.height();
-    flow.span(scale.position(value) as f32 * (rect.width() - hit).max(0.0), hit)
+    let across = flow.span(scale.position(value) as f32 * (rect.width() - hit).max(0.0), hit);
+    Rect::from_min_max(Pos2::new(across.left(), rect.top()), Pos2::new(across.right(), rect.bottom()))
 }
 
 /// What a press on a track moves.
