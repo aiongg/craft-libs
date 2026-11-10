@@ -1,19 +1,21 @@
 //! `Splitter`: the look of a split handle, a leaf the handles of a `SplitArea` wear as their face.
 
 use crate::contract::{Common, Component, Cx, PaintUi, Role, Styled as _};
-use crate::primitives::{PaintShape, StrokeWidth};
+use crate::primitives::{DataWidth, PaintShape};
 use crate::style::{ComponentStyle, Stateful, StyleColor, StyleCx};
 use craft_behavior::{Axis, Metrics, Sense};
 use craft_theme::States;
 use egui::{Response, Vec2};
 
-/// The style of a splitter: a line that takes the accent under the pointer.
+/// The style of a splitter: a hairline that becomes a thick accent line under the pointer.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
 #[non_exhaustive]
 pub struct SplitterStyle {
     #[style(metrics)]
     metrics: Metrics,
     line: Stateful<StyleColor>,
+    /// The line's width: a hairline at rest, thick under the pointer.
+    width: Stateful<f32>,
 }
 
 /// A line between two panes, as thick across as the pointer's grab distance.
@@ -51,8 +53,17 @@ impl Component for Splitter {
             _ => Vec2::new(along, across),
         };
         let rest = cx.color(color.line.divider);
-        let states = States::new(rest, cx.color(color.accent.hover), cx.color(color.accent.pressed), rest);
-        SplitterStyle { metrics: Metrics::new().min_size(least), line: Stateful::new(rest).off(states) }
+        let states = States::new(rest, cx.color(color.accent.solid), cx.color(color.accent.solid), rest);
+        SplitterStyle {
+            metrics: Metrics::new().min_size(least),
+            line: Stateful::new(rest).off(states),
+            width: Stateful::new(cx.tokens.stroke.thin).off(States::new(
+                cx.tokens.stroke.thin,
+                cx.tokens.stroke.thick,
+                cx.tokens.stroke.thick,
+                cx.tokens.stroke.thin,
+            )),
+        }
     }
 
     fn sense(&self) -> Sense {
@@ -61,17 +72,21 @@ impl Component for Splitter {
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let rect = cx.rect;
+        let width = cx.resolve(&cx.style.width);
+        // The line stays inside the handle, which is all of it that paints: a boundary at the handle's edge puts the
+        // line's width against it.
+        let half = width / 2.0;
         let ends = match self.axis {
             Axis::X => {
-                let x = self.boundary.unwrap_or(rect.center().x);
+                let x = self.boundary.map_or(rect.center().x, |at| at.clamp(rect.left() + half, (rect.right() - half).max(rect.left() + half)));
                 vec![egui::Pos2::new(x, rect.top()), egui::Pos2::new(x, rect.bottom())]
             }
             _ => {
-                let y = self.boundary.unwrap_or(rect.center().y);
+                let y = self.boundary.map_or(rect.center().y, |at| at.clamp(rect.top() + half, (rect.bottom() - half).max(rect.top() + half)));
                 vec![egui::Pos2::new(rect.left(), y), egui::Pos2::new(rect.right(), y)]
             }
         };
-        ui.draw().stroke(&PaintShape::Path(ends), StrokeWidth::Thin, cx.resolve(&cx.style.line));
+        ui.draw().stroke(&PaintShape::Path(ends), DataWidth::points(width), cx.resolve(&cx.style.line));
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> Response {

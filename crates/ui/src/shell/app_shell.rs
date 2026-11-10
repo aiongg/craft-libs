@@ -459,9 +459,14 @@ impl<'a, S> AppShell<'a, S> {
                             continue;
                         }
                         let extent = placed.extent(&tokens);
-                        let Placed { slot, edge, named, add, .. } = placed;
+                        let Placed { slot, edge, named, add, title, .. } = placed;
                         let pane = ShellPane::new(slot.key()).edge(*edge).extent(extent).at(rect_of(slot.key()));
                         let mut region = ShellRegion::pane(pane).id_salt(("slot", slot.key()));
+                        // A bar is as high as its content and the slot as high as its token, so the slot paints the bar's
+                        // surface under it: no band of the backdrop shows between the bar and the body.
+                        if !*title && matches!(edge, PaneEdge::Top | PaneEdge::Bottom) {
+                            region = region.surface(SurfaceKind::Chrome);
+                        }
                         if let Some(label) = slot.name().cloned().or_else(|| named.map(|name| name(&words))) {
                             region = region.label(label);
                         }

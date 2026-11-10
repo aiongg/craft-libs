@@ -162,7 +162,6 @@ use craft_ui::buttons::Button;
 use craft_ui::contract::Show as _;
 use craft_ui::docking::{DockCommands, DockScene, actions};
 use craft_ui::runtime::commands::{FireSource, fire};
-use craft_ui::testing::access::name;
 use craft_ui::testing::focus::AccessActionKind;
 
 const MENU_FRAMES: usize = 10;

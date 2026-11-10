@@ -385,8 +385,13 @@ impl<P: Clone + Hash + Send + Sync + 'static> Container for DockGroup<'_, P> {
         let words = cx.words::<DockWords>();
         if !self.menu.is_empty() && self.panel_menu_shown {
             let name = words.panel_menu.clone();
-            let button =
-                IconButton::new(IconId::new("more")).size(ControlSize::Sm).popup(PopupKind::Menu).popup_mark(false).label(name.clone()).show(ui);
+            // The button sits at the strip's top, level with the tab labels' caps, as the "…" of the old tab strips did.
+            let layout = egui::Layout::from_main_dir_and_cross_align(ui.layout().main_dir(), egui::Align::Min);
+            let button = ui
+                .with_layout(layout, |ui| {
+                    IconButton::new(IconId::new("more")).size(ControlSize::Sm).popup(PopupKind::Menu).popup_mark(false).label(name.clone()).show(ui)
+                })
+                .inner;
             let rows = self.menu.clone();
             let shown = Menu::new(name).opened_by(&button, Trigger::Click).show(ui, |ui, _| PanelMenu::new(Vec::new(), rows.clone()).show(ui).picked);
             self.reported.item = shown.inner.flatten().or(self.reported.item);

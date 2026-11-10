@@ -16,14 +16,15 @@ use crate::contract::{
     ShowContainer as _, Sizing, WordSetCx as _, clicked,
 };
 use crate::menu::{GroupItem, Menu, MenuWords, PanelMenu, PanelRow};
+use crate::primitives::{Glyph, IconSpec};
 use crate::runtime::env::Label;
 use crate::runtime::focus::KeyUse;
 use crate::style::{ComponentStyle, Corners, StyleCx, SurfaceKind};
 use craft_behavior::divider::{self as push, Segment};
 use craft_behavior::dock::{Column, DockEdge, Group};
-use craft_behavior::{Axis, DockSide, Flow, IconId, Metrics, PartKey, Sense, Value};
+use craft_behavior::{Axis, DockSide, Flow, Metrics, PartKey, Sense, Value};
 use craft_theme::ControlSize;
-use egui::{Context, Id, Pos2, Rect, Response, Ui};
+use egui::{Color32, Context, Id, Pos2, Rect, Response, Ui};
 use std::hash::Hash;
 
 #[cfg(feature = "testing")]
@@ -234,13 +235,37 @@ pub(super) struct BarRecord {
     pub(super) picked: Option<GroupItem>,
 }
 
-/// The icon of a column's collapse control: a double chevron that points where the column goes, towards the window
-/// edge when it collapses to icons and away from it when it expands. Directional icons mirror in a right-to-left
-/// interface, so the icon that draws pointing right there is the left one.
-fn collapse_icon(edge: DockEdge, expanded: bool, rtl: bool) -> &'static str {
+/// A double chevron's arms, as a share of the icon box's side: the glyph the collapse control draws is small beside
+/// the bar's other icons.
+const ARM: f32 = 0.15;
+
+/// The glyph of a column's collapse control: a double chevron that points where the column goes, towards the window
+/// edge when it collapses to icons and away from it when it expands.
+struct DoubleChevron {
+    /// Whether it points to the right of the screen.
+    right: bool,
+    /// The stroke width.
+    width: f32,
+}
+
+impl Glyph for DoubleChevron {
+    fn paint(&self, painter: &egui::Painter, rect: Rect, color: Color32, _: bool) {
+        let arm = rect.width().min(rect.height()) * ARM;
+        let flip = if self.right { 1.0 } else { -1.0 };
+        let centre = rect.center();
+        for step in [-0.5, 0.5] {
+            let x = centre.x + flip * arm * step;
+            let points = [(-0.5, -1.0), (0.5, 0.0), (-0.5, 1.0)].map(|(dx, dy)| Pos2::new(x + flip * arm * dx, centre.y + arm * dy)).to_vec();
+            painter.add(egui::Shape::line(points, egui::Stroke::new(self.width, color)));
+        }
+    }
+}
+
+/// Whether the column's collapse control points to the right of the screen: towards the window edge when it collapses
+/// to icons and away from it when it expands.
+fn points_right(edge: DockEdge, expanded: bool, rtl: bool) -> bool {
     let at_left = (edge == DockEdge::Start) != rtl;
-    let points_right = at_left != expanded;
-    if points_right != rtl { "chevrons_right" } else { "chevrons_left" }
+    at_left != expanded
 }
 
 /// Shows the column bar `bar` and its menu: a small chevron button, as high as the bar, at the bar's outer end collapses
@@ -259,7 +284,8 @@ pub(super) fn show_bar<P: Clone + Send + Sync + 'static>(
     let menu_words = body.words::<MenuWords>();
     let rtl = crate::runtime::env::Env::of(ui).direction.is_rtl();
     let toggle = if expanded { words.collapse_column.as_str() } else { words.expand_column.as_str() };
-    let button = IconButton::new(IconId::new(collapse_icon(edge, expanded, rtl))).size(ControlSize::Sm).label(Label::from(toggle.to_owned()));
+    let chevron = DoubleChevron { right: points_right(edge, expanded, rtl), width: crate::runtime::env::Env::of(ui).tokens.stroke.thin };
+    let button = IconButton::new(IconSpec::glyph(&chevron)).size(ControlSize::Sm).label(Label::from(toggle.to_owned()));
     // The button sits at the outer end: the window edge the dock is on.
     let side = bar.height().min(bar.width());
     let (place, band) = if (edge == DockEdge::End) != rtl {
