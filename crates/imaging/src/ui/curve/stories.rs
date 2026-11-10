@@ -38,7 +38,10 @@ fn bent() -> Curve {
 #[story(CurveEditor<'static>, covers = [Default], drive = Drive::Drag(Grip::new(PLOT)))]
 fn curve_editor(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let overlays = data
-        .value("overlays", vec![bent(), Curve::smooth(vec![[0.0, 12.0], [128.0, 140.0], [255.0, 255.0]]), Curve::identity(255.0), Curve::identity(255.0)])
+        .value(
+            "overlays",
+            vec![bent(), Curve::smooth(vec![[0.0, 12.0], [128.0, 140.0], [255.0, 255.0]]), Curve::identity(255.0), Curve::identity(255.0)],
+        )
         .clone();
     let histogram = HistogramData::tone(&story_bins(0.0), ChannelColor::Neutral);
     let curve = data.value("curve", bent());

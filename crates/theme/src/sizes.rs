@@ -131,6 +131,7 @@ pub(crate) fn leaves(b: &mut Preset) -> Vec<Leaf<'_>> {
         "base.size.dial" Num 16.0..=128.0 => s.dial;
         "base.size.plot.width" Num 48.0..=640.0 => s.plot.width;
         "base.size.plot.height" Num 32.0..=480.0 => s.plot.height;
+        "base.size.plot.most" Num 48.0..=1024.0 => s.plot.most;
         "base.size.length.field" Num 64.0..=1024.0 => s.length.field;
         "base.size.length.track" Num 48.0..=1024.0 => s.length.track;
         "base.size.length.short" Num 32.0..=512.0 => s.length.short;

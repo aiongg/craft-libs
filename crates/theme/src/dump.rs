@@ -174,9 +174,10 @@ fn size_lines(out: &mut Lines, size: &SizeTokens) {
     out.line("size.hit.reveal", len(*reveal));
     out.line("size.checker", len(*checker));
     out.line("size.dial", len(*dial));
-    let PlotSizes { width, height } = plot;
+    let PlotSizes { width, height, most } = plot;
     out.line("size.plot.width", len(*width));
     out.line("size.plot.height", len(*height));
+    out.line("size.plot.most", len(*most));
     let LengthSizes { field, track, short, number } = length;
     out.line("size.length.field", len(*field));
     out.line("size.length.track", len(*track));
