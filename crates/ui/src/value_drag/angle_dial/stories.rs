@@ -12,7 +12,7 @@ const CAP: f64 = 90.0;
 
 #[story(AngleDial<'static>, covers = [Default], drive = Drive::Step)]
 fn angle_dial(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    AngleDial::new(Bind::bound(data.value("angle", ANGLE))).label("Angle").show(ui).into()
+    AngleDial::new(Bind::bound(data.ranged("angle", ANGLE, 0.0..=360.0))).label("Angle").show(ui).into()
 }
 
 #[story(AngleDial<'static>, covers = [], drive = Drive::Drag(Grip::new(FACE)))]
