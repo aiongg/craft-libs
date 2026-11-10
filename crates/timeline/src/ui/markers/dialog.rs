@@ -4,7 +4,7 @@ use std::cell::Cell;
 
 use craft_ui::buttons::Button;
 use craft_ui::choice::{RadioGroup, Swatch};
-use craft_ui::contract::{Bind, Show as _, ShowContainer as _, clicked};
+use craft_ui::contract::{Bind, Outcome as _, Show as _, ShowContainer as _, clicked};
 use craft_ui::dialog::{DialogId, DialogResult, DialogStack, StackDialog, dialog_id};
 use craft_ui::form::{Field, FieldGroup};
 use craft_ui::layout_components::Row;
