@@ -49,6 +49,7 @@ struct Demo {
     jobs: Arc<ManualJobs>,
     settings: PlacesSettings,
     current: Option<PathBuf>,
+    last: Option<String>,
 }
 
 /// The demo as story data: compared by identity.
@@ -97,7 +98,7 @@ fn show_places(ui: &mut Ui, data: &mut StoryData, setup: Setup) -> StoryOutput {
             let jobs = Arc::new(ManualJobs::new());
             let repaint = ctx.clone();
             let cache = FolderCache::new(Arc::new(directories()), jobs.clone(), Wake::new(move || repaint.request_repaint()));
-            Shared(Arc::new(Mutex::new(Demo { cache, jobs, settings: (setup.settings)(), current: setup.current.map(path) })))
+            Shared(Arc::new(Mutex::new(Demo { cache, jobs, settings: (setup.settings)(), current: setup.current.map(path), last: None })))
         })
         .clone();
     let mut demo = demo.0.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -141,15 +142,18 @@ fn show_places(ui: &mut Ui, data: &mut StoryData, setup: Setup) -> StoryOutput {
         });
     }
     let events = out.as_ref().map(|out| out.events.clone()).unwrap_or_default();
-    if let Some(current) = demo.current.as_deref() {
-        Text::new(format!("Browsing: {}", current.display())).shade(Shade::Muted).show(ui);
-    }
     for event in &events {
         demo.settings.apply(event);
         if let PlacesEvent::Open(folder) = event {
             demo.current = Some(folder.clone());
         }
+        demo.last = Some(format!("{event:?}"));
     }
+    if let Some(current) = demo.current.as_deref() {
+        Text::new(format!("Browsing: {}", current.display())).shade(Shade::Muted).show(ui);
+    }
+    let last = demo.last.as_deref().map_or_else(|| String::from("No event yet"), |event| format!("Last event: {event}"));
+    Text::new(last).shade(Shade::Muted).show(ui);
     out.map(StoryOutput::from).unwrap_or_default()
 }
 
