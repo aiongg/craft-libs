@@ -120,8 +120,8 @@ fn a_dialog_closed_by_its_own_button_brings_the_opener_back() {
 /// card the wheel takers take the wheel only while focused or armed, so it scrolls the Overview.
 #[trial]
 fn the_wheel_over_a_card_scrolls_the_overview() {
-    // Controls is the level with a canvas card in the first view.
-    let mut gallery = gallery_at("Controls");
+    // The canvas overlays are Primitives.
+    let mut gallery = gallery_at("Primitives");
     let mut fixture = Fixture::new(move |ui| gallery.ui(ui));
     fixture.room(Vec2::new(1400.0, 900.0)).settle();
     let visible = fixture.shown();
