@@ -257,7 +257,8 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
     }
 
     /// The widest row in the room `room`: what a record of this pass under `sub(id, "widest")` found when it serves
-    /// the room (`Measured::serves`), else the rows built and measured now, and recorded there. The header is measured.
+    /// the room (`Measured::serves`), else the rows built and measured now, and recorded there. The caller measures the
+    /// header first.
     fn widest_in(&mut self, comp: &C, ui: &Ui, id: Id, room: Vec2) -> f32 {
         let ctx = ui.ctx().clone();
         let key = sub(id, "widest");
@@ -268,6 +269,8 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
         {
             return found.took.x;
         }
+        #[cfg(feature = "testing")]
+        crate::runtime::measure::count_widest(&ctx, id);
         let widest = self.widest_row(comp, ui, id);
         layout_memory::record_measured(&ctx, key, layout_memory::Measured { room, took: Vec2::new(widest, 0.0) });
         widest

@@ -25,6 +25,14 @@ struct BodyRuns {
     runs: Vec<(Id, u32)>,
 }
 
+/// The collections whose widest row was built and measured, with the pass that counted them.
+#[cfg(feature = "testing")]
+#[derive(Default)]
+struct WidestRuns {
+    pass: u64,
+    runs: Vec<(Id, u32)>,
+}
+
 /// Runs `f` as a measuring run. Nested calls are fine.
 pub fn run<R>(ctx: &Context, f: impl FnOnce() -> R) -> R {
     let set = |to: u32| store::put(ctx, depth_id(), to);
@@ -106,4 +114,25 @@ pub(crate) fn count_body(ctx: &Context, id: Id) {
 #[cfg(feature = "testing")]
 pub fn body_runs(ctx: &Context) -> Vec<(Id, u32)> {
     store::with::<BodyRuns, _>(ctx, |log| log.runs.clone())
+}
+
+/// Counts a build and measure of the rows of the collection `id` for its widest row in this pass.
+#[cfg(feature = "testing")]
+pub(crate) fn count_widest(ctx: &Context, id: Id) {
+    let pass = ctx.cumulative_pass_nr();
+    store::with::<WidestRuns, _>(ctx, |log| {
+        if log.pass != pass {
+            *log = WidestRuns { pass, runs: Vec::new() };
+        }
+        match log.runs.iter_mut().find(|(collection, _)| *collection == id) {
+            Some((_, count)) => *count += 1,
+            None => log.runs.push((id, 1)),
+        }
+    });
+}
+
+/// The collections whose widest row was built and measured in the last pass that did so, and how many times each.
+#[cfg(feature = "testing")]
+pub fn widest_runs(ctx: &Context) -> Vec<(Id, u32)> {
+    store::with::<WidestRuns, _>(ctx, |log| log.runs.clone())
 }

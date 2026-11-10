@@ -262,3 +262,24 @@ fn panels_in_an_overflowing_scroll_stack_measure_once() {
     assert!(runs.len() >= 25, "the stack, every row and every panel measured: {runs:?}");
     assert!(runs.iter().all(|(_, count)| *count == 1), "one measuring run per body: {runs:?}");
 }
+
+/// A `Fill` collection under a content-sized body builds and measures its widest row once per frame: the measuring
+/// run's record serves the other probes of the pass.
+#[trial]
+fn a_fill_collection_under_a_content_body_measures_its_widest_row_once() {
+    use crate::collection::kit::Words;
+    use craft_ui::contract::{Scroll, ShowCollection as _, Sizing};
+    use craft_ui::list::{List, ListRow};
+    use craft_ui::testing::widest_runs;
+    let words = Words::flat(&["short", "a row label wider than the others", "mid"]);
+    let mut show = |ui: &mut Ui| {
+        Stack::new().scroll(Scroll::horizontal()).show(ui, |ui, _| {
+            let _ = List::<usize>::new("Rows").sizing(Sizing::Fill).show_items(ui, &words, &mut |key, _| ListRow::new(words.words[*key]));
+        });
+    };
+    let mut frames = Frames::new();
+    frames.idle(3, &mut show);
+    frames.frame(vec![], &mut show);
+    let runs = widest_runs(&frames.ctx);
+    assert!(!runs.is_empty() && runs.iter().all(|(_, count)| *count == 1), "the widest row is measured once per collection: {runs:?}");
+}
