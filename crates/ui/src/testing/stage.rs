@@ -2,7 +2,7 @@
 
 use crate::layout::flow_room;
 use crate::runtime::env::Env;
-use egui::{Rect, Sense, Ui};
+use egui::{Rect, Ui};
 
 /// The height of a stage in the control heights of the ambient size, for a view that gives no bounded height (the
 /// scrolled Overview).
@@ -15,5 +15,5 @@ pub fn stage(ui: &mut Ui) -> Rect {
     let env = Env::of(ui);
     let height = if room.y.is_finite() { room.y } else { STAGE_CONTROLS * env.control(env.size).height };
     let width = if room.x.is_finite() { room.x } else { ui.available_width() };
-    ui.allocate_exact_size(egui::vec2(width, height), Sense::hover()).0
+    crate::runtime::egui::alloc::space(ui, egui::vec2(width, height))
 }
