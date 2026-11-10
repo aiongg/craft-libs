@@ -10,7 +10,7 @@ use craft_behavior::{Selection, keyed};
 use craft_theme::Explained;
 use craft_theme::report::ContrastReport;
 use craft_ui::buttons::Button;
-use craft_ui::contract::{Bind, CollectionEvent, Pad, Props as _, Scroll, SelectMode, Show as _, ShowCollection as _, ShowContainer as _};
+use craft_ui::contract::{Bind, CollectionEvent, Pad, Scroll, SelectMode, Show as _, ShowCollection as _, ShowContainer as _};
 use craft_ui::display::{Shade, Text};
 use craft_ui::layout_components::{Row, Stack};
 use craft_ui::list::{List, ListRow, OpenSet, RowEvent, TrailingFace, TrailingPart};
