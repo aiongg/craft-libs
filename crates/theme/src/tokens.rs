@@ -968,6 +968,8 @@ pub struct LengthSizes {
     pub track: f32,
     /// The width of a short field, such as a number beside a slider.
     pub short: f32,
+    /// The width of a number field over a slider.
+    pub number: f32,
 }
 
 /// Plot sizes, in logical pixels.

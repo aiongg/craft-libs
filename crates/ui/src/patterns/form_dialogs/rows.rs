@@ -8,7 +8,7 @@ use super::words::ParamWords;
 use crate::buttons::{Button, ToggleButton};
 use crate::choice::{Checkbox, Radio, RadioGroup};
 use crate::contract::{Bind, Entry, NoValue, Outcome, Props as _, Remember as _, Sampler as _, Show as _, ShowContainer as _, clicked};
-use crate::form::{Field, FieldGroup, SliderField};
+use crate::form::{Field, FieldGroup, SliderField, SliderFieldLayout};
 
 use crate::layout_components::{Row, Stack};
 
@@ -296,7 +296,7 @@ impl<'p> Pass<'p> {
         let value = self.work.number(line.key).unwrap_or(*range.start());
         let places = line.param.option().range_places();
         line.show(ui, |ui| {
-            let mut slider = SliderField::new(line.name.clone(), Bind::given(value), range.clone()).scale(scale);
+            let mut slider = SliderField::new(line.name.clone(), Bind::given(value), range.clone()).scale(scale).layout(SliderFieldLayout::Inline);
             if let Some(places) = places {
                 slider = slider.step(10f64.powi(-(places as i32)));
             }

@@ -162,6 +162,7 @@ size.plot.height = 180
 size.length.field = 240
 size.length.track = 144
 size.length.short = 120
+size.length.number = 90
 size.groove = 2
 size.toggle = 32.4
 size.pointer_tip.x = 24

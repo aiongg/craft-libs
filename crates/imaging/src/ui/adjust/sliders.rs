@@ -1,7 +1,7 @@
 //! [`AdjustSliders`]: a table of slider rows for the adjustments that are only sliders (Exposure, Vibrance,
 //! Posterize, VectorCraft's colour effects), and the row machinery every adjustment editor shares.
 //!
-//! An editor's value is one binding. Each row is a `Field` over a `SliderField` in the editor's `FieldGroup`; the
+//! An editor's value is one binding. Each row is a `SliderField` in the editor's `FieldGroup`; the
 //! rows' edits are lifted onto the editor's value ([`Run`]), so one slider drag, one typed number or one reset is one
 //! gesture of the whole value.
 
@@ -13,7 +13,7 @@ use std::sync::Arc;
 
 use craft_behavior::{EditEvent, Mixed, Value, decimals_for_step};
 use craft_ui::contract::{Bind, BodyCx, EditResponse, Pattern, Props as _, Remember as _, Show as _, ShowContainer as _};
-use craft_ui::form::{Field, FieldGroup, SliderField};
+use craft_ui::form::{FieldGroup, SliderField};
 use craft_ui::runtime::env::{Env, Label, UnitKind};
 use craft_ui::style::DataColor;
 use craft_ui::value_drag::TrackFace;
@@ -284,23 +284,18 @@ impl<'b, 'a, V: Value> Run<'b, 'a, V> {
         }
     }
 
-    /// One row: a `Field` over `field`'s slider showing `value`, its edit lifted onto the editor's value by `set` with
+    /// One row: `field`'s slider showing `value`, its edit lifted onto the editor's value by `set` with
     /// the number rounded to the field's step.
     pub(super) fn slider_row(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>, field: &AdjustField, value: f64, set: impl Fn(&V, f64) -> V) {
         let context = self.context;
-        let mut edit = None;
-        Field::new(field.label.clone()).id_salt(field.key).show(ui, |ui, _| {
-            edit = Some(field.slider(field.clamp(value), context).show(ui));
+        let mut edit = field.slider(field.clamp(value), context).id_salt(field.key).show(ui);
+        // A drag proposes the slider's own stops and the slider compares what it is shown with what it proposed, so
+        // the running gesture carries them as they are; the value that ends the edit is rounded to the field's places.
+        edit.event = edit.event.take().map(|event| match event {
+            EditEvent::Commit { .. } | EditEvent::Set { .. } => event.map(|x| field.round(x)),
+            running => running,
         });
-        if let Some(mut edit) = edit {
-            // A drag proposes the slider's own stops and the slider compares what it is shown with what it proposed, so
-            // the running gesture carries them as they are; the value that ends the edit is rounded to the field's places.
-            edit.event = edit.event.take().map(|event| match event {
-                EditEvent::Commit { .. } | EditEvent::Set { .. } => event.map(|x| field.round(x)),
-                running => running,
-            });
-            self.push(cx, edit, |now, x| set(now, *x));
-        }
+        self.push(cx, edit, |now, x| set(now, *x));
     }
 
     /// The pass's edit of the value. The response is the first part's until the caller puts the container's in

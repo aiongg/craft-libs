@@ -170,10 +170,11 @@ fn size_lines(out: &mut Lines, size: &SizeTokens) {
     let PlotSizes { width, height } = plot;
     out.line("size.plot.width", len(*width));
     out.line("size.plot.height", len(*height));
-    let LengthSizes { field, track, short } = length;
+    let LengthSizes { field, track, short, number } = length;
     out.line("size.length.field", len(*field));
     out.line("size.length.track", len(*track));
     out.line("size.length.short", len(*short));
+    out.line("size.length.number", len(*number));
     out.line("size.groove", len(*groove));
     out.line("size.toggle", len(*toggle));
     out.line("size.pointer_tip.x", len(pointer_tip.x));

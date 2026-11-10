@@ -256,9 +256,10 @@ impl<'a> CropOptionsMenu<'a> {
                     shield.opacity = CropShield::default().opacity;
                 }
                 let mut opacity = f64::from(shield.opacity);
-                Field::new(words.opacity_name.clone()).enabled(on).show(ui, |ui, _| {
-                    SliderField::new(words.opacity_name.clone(), Bind::bound(&mut opacity), 0.0..=100.0).unit_kind(UnitKind::Percent).show(ui);
-                });
+                SliderField::new(words.opacity_name.clone(), Bind::bound(&mut opacity), 0.0..=100.0)
+                    .unit_kind(UnitKind::Percent)
+                    .enabled(on)
+                    .show(ui);
                 shield.opacity = opacity as f32;
                 cx.labelled(
                     ui,

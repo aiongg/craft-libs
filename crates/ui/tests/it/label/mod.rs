@@ -193,7 +193,7 @@ fn circles(shapes: &[Shape]) -> usize {
 
 #[trial]
 fn the_reset_dot_shows_only_while_the_value_differs_and_resets_on_a_click() {
-    let side = SideLabel::new();
+    let side = SideLabel::new().reset_dot(true);
     let (mut frames, mut rows) = settled(Direction::Ltr, &side);
     let at_reset = {
         rows.container = RESET;
@@ -210,6 +210,18 @@ fn the_reset_dot_shows_only_while_the_value_differs_and_resets_on_a_click() {
     assert_eq!(rows.container, RESET, "a click on the dot resets the value");
     frames.idle(2, |ui| rows.show(ui, &side));
     assert_eq!(circles(&frames.frame_shapes(|ui| rows.show(ui, &side))), at_reset, "the dot is gone after the reset");
+}
+
+#[trial]
+fn a_label_shows_no_reset_dot_unless_asked() {
+    let side = SideLabel::new();
+    let (mut frames, mut rows) = settled(Direction::Ltr, &side);
+    rows.container = RESET;
+    frames.idle(2, |ui| rows.show(ui, &side));
+    let at_reset = circles(&frames.frame_shapes(|ui| rows.show(ui, &side)));
+    rows.container = RESET + 5.0;
+    frames.idle(2, |ui| rows.show(ui, &side));
+    assert_eq!(circles(&frames.frame_shapes(|ui| rows.show(ui, &side))), at_reset, "no dot while the value differs");
 }
 
 #[trial]

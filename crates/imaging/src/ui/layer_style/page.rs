@@ -198,13 +198,8 @@ fn field_row(ui: &mut Ui, input: &PageInput<'_>, field: &EffectField, shown: &St
             if let Some(default) = input.spec.defaults.number(key) {
                 bind = bind.reset(default);
             }
-            let slider = Field::new(label.clone())
-                .id_salt(key)
-                .show(ui, |ui, _| SliderField::new(label.clone(), bind.reborrowed(), *min..=*max).unit_kind(unit_kind(*unit)).step(1.0).show(ui))
-                .inner;
-            if let Some(slider) = slider {
-                push_edit(&mut out.edit, style_edit(&slider, input.style, |v| param(StyleValue::Number(v.round()))));
-            }
+            let slider = SliderField::new(label.clone(), bind.reborrowed(), *min..=*max).unit_kind(unit_kind(*unit)).step(1.0).id_salt(key).show(ui);
+            push_edit(&mut out.edit, style_edit(&slider, input.style, |v| param(StyleValue::Number(v.round()))));
         }
         FieldKind::Angle => {
             let value = shown.number(key).unwrap_or(0.0);

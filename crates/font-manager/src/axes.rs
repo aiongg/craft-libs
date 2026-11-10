@@ -249,12 +249,9 @@ impl<'a> AxisSliders<'a> {
                 let mut value = f64::from(value_of(&held, axis, drawn));
                 let name = Label::from(label_in(axis, &words));
                 let default = f64::from(axis.default.clamp(axis.min, axis.max));
-                let slider = Field::new(name.clone()).show(ui, |ui, _| {
-                    SliderField::new(name.clone(), Bind::bound(&mut value).reset(default), f64::from(axis.min)..=f64::from(axis.max))
-                        .step(if wide { 1.0 } else { 0.01 })
-                        .show(ui)
-                });
-                let Some(slider) = slider.inner else { continue };
+                let slider = SliderField::new(name.clone(), Bind::bound(&mut value).reset(default), f64::from(axis.min)..=f64::from(axis.max))
+                    .step(if wide { 1.0 } else { 0.01 })
+                    .show(ui);
                 if let Some(event) = slider.event {
                     let clamp = |v: f64| (v as f32).clamp(axis.min, axis.max);
                     let event = event.map(|v| {

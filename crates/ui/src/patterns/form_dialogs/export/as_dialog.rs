@@ -16,7 +16,7 @@ use crate::contract::{
 
 use crate::display::{Shade, Text};
 
-use crate::form::{Field, SliderField};
+use crate::form::{Field, SliderField, SliderFieldLayout};
 
 use crate::layout_components::{Row, Stack};
 
@@ -304,7 +304,10 @@ impl Pass<'_> {
         }
         if format.quality && !(format.lossless && options.lossless) {
             row(ui, &words.quality, "quality", |ui| {
-                let field = SliderField::new(words.quality.clone(), Bind::given(f64::from(options.quality)), QUALITY_RANGE).step(1.0).show(ui);
+                let field = SliderField::new(words.quality.clone(), Bind::given(f64::from(options.quality)), QUALITY_RANGE)
+                    .step(1.0)
+                    .layout(SliderFieldLayout::Inline)
+                    .show(ui);
                 if let Some(value) = field.value() {
                     options.quality = value.round().clamp(*QUALITY_RANGE.start(), *QUALITY_RANGE.end()) as u8;
                 }

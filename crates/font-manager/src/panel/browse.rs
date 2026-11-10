@@ -18,7 +18,7 @@ use craft_ui::contract::{
     Sizing, Styled as _, clicked,
 };
 use craft_ui::display::{Badge, Progress, Shade, Spinner, Text};
-use craft_ui::form::SliderField;
+use craft_ui::form::{SliderField, SliderFieldLayout};
 use craft_ui::layout_components::{Grid, Row, Stack};
 use craft_ui::list::{List, ListRow};
 use craft_ui::notices::{Notice, NoticeAction, NoticeLayout};
@@ -834,7 +834,10 @@ impl FontsPanel {
             let hint = self.sample_for(["Latn"]);
             TextField::new(browse.sample_text.clone(), Bind::bound(&mut self.settings.sample)).placeholder(Label::from(hint)).show(ui);
             let mut size = f64::from(self.settings.size);
-            SliderField::new(browse.size.clone(), Bind::bound(&mut size), 12.0..=120.0).unit_kind(UnitKind::Points).show(ui);
+            SliderField::new(browse.size.clone(), Bind::bound(&mut size), 12.0..=120.0)
+                .unit_kind(UnitKind::Points)
+                .layout(SliderFieldLayout::Inline)
+                .show(ui);
             self.settings.size = size as f32;
         });
     }
