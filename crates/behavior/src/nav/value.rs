@@ -2,9 +2,6 @@
 
 use crate::intent::{MoveMods, NavMove};
 use crate::wheel::Wheel;
-use emath::Rect;
-
-use super::*;
 
 /// The axes a single-value control reads moves on.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

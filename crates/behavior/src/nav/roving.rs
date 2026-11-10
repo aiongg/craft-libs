@@ -1,8 +1,6 @@
 //! Roving focus groups and type-ahead matching.
 
-use crate::intent::{MoveMods, NavMove};
-use crate::wheel::Wheel;
-use emath::Rect;
+use crate::intent::NavMove;
 
 use super::*;
 

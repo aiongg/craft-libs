@@ -1,7 +1,6 @@
 //! Outline navigation: one step through lists, trees, ragged rows and grids from a key move.
 
 use crate::intent::{MoveMods, NavMove};
-use crate::wheel::Wheel;
 use emath::Rect;
 
 /// The geometry a collection's keyboard navigation follows.

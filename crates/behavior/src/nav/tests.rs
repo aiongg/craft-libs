@@ -1,7 +1,9 @@
 //! Tests for navigation, roving and value stepping.
 
 use super::*;
-use crate::intent::Granularity;
+use crate::intent::{Granularity, MoveMods, NavMove};
+use crate::wheel::Wheel;
+use emath::Rect;
 
 struct Rows {
     depth: Vec<usize>,
