@@ -6,8 +6,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// Modules whose registrations are kit stand-ins, not components.
-const KIT_MODULES: [&str; 1] = ["craft_ui::testing::layout"];
+use crate::contract::KIT_MODULES;
 
 /// The first sentence of the first paragraph of `lines`, without its final full stop, safe inside a table cell.
 fn purpose(lines: &[&str]) -> String {
