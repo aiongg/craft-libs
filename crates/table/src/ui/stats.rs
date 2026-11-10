@@ -296,10 +296,12 @@ impl Component for SelectionStatsReadout<'_> {
         let words = cx.words::<StatsWords>();
         self.rects.clear();
         let mut flow = Flow::new(rect, cx.flow.is_rtl());
+        // The statistic that reaches the end edge takes the room left and elides; the ones after it take none, so
+        // they are not painted, though each keeps its part and access node.
         for (at, part) in self.parts.iter().enumerate() {
-            let width = cx.layout(&Self::run(&part.text, cx.style)).size().x;
+            let width = cx.layout(&Self::run(&part.text, cx.style)).size().x.min(flow.rect().width());
             let (taken, rest) = flow.take_start(width);
-            flow = rest.take_start(cx.style.gap).1;
+            flow = rest.take_start(cx.style.gap.min(rest.rect().width())).1;
             cx.part(STAT.at(at as u64), taken)
                 .sense(Sense::CLICK)
                 .cursor(CursorIcon::PointingHand)
@@ -358,8 +360,8 @@ impl Component for SelectionStatsReadout<'_> {
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let draw = ui.draw();
         let color = cx.resolve(&cx.style.text.color);
-        for (part, rect) in self.parts.iter().zip(&self.rects) {
-            draw.text(*rect, &Self::run(&part.text, cx.style).color(color));
+        for (part, rect) in self.parts.iter().zip(&self.rects).filter(|(_, rect)| rect.width() > 0.0) {
+            draw.text(*rect, &Self::run(&part.text, cx.style).elide().color(color));
         }
     }
 

@@ -4,7 +4,7 @@ use crate::contract::{Common, Component, Cx, MeasureCx, PaintUi, Props as _, Rol
 use crate::primitives::{DocRun, DocText, TextRun, Wrap};
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, StyleCx, TextLook, TypeRole};
-use craft_behavior::{Metrics, Sense};
+use craft_behavior::{Metrics, Proposal, Sense};
 use craft_theme::{Stateful, States, variant::Tone};
 use egui::{Response, Vec2};
 
@@ -139,7 +139,9 @@ impl Component for Text {
                 _ => layout.size(),
             };
         }
-        let layout = cx.layout_at(&self.run(cx.style.text.role, cx.resolved.label), wrap.unwrap_or(f32::INFINITY));
+        // At its least an elided line is the ellipsis.
+        let band = if cx.proposal == Proposal::Min && self.elide != Elide::Off { 0.0 } else { wrap.unwrap_or(f32::INFINITY) };
+        let layout = cx.layout_at(&self.run(cx.style.text.role, cx.resolved.label), band);
         // A cut line takes the whole room: its width must not follow where the last glyph happened to fit.
         match cx.room {
             Some(room) if layout.elided => Vec2::new(room, layout.size().y),

@@ -320,7 +320,7 @@ impl<V: NumberValue + 'static> Component for NumberField<'_, V> {
             surface: field.surface.clone(),
             // The width is a number cell, or the range's widest value with `fit_range` (`measure`); the style's minimum
             // is only the height.
-            metrics: field.metrics.min_size(Vec2::new(0.0, field.metrics.min_size.y)),
+            metrics: field.metrics.min_size(Vec2::new(0.0, field.metrics.min_size.y)).ideal_width(0.0),
             unit: TextLook::new(TypeRole::Body, Stateful::new(faint).off(States::new(faint, faint, faint, cx.color(cx.tokens.color.text.disabled)))),
             field,
         }

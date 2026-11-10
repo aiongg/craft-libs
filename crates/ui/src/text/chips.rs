@@ -207,11 +207,9 @@ impl Component for ChipField<'_> {
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
         let chips = cx.value().map_or(&[][..], Vec::as_slice);
-        let padding = cx.style.metrics.padding;
-        let room = cx.room.map(|room| (room - padding.start - padding.end).max(0.0));
-        let arranged = arrange(cx, chips, room);
+        let arranged = arrange(cx, chips, cx.room);
         let (_, start, width) = arranged.placement.draft;
-        Vec2::new(room.unwrap_or(start + width), arranged.height())
+        Vec2::new(cx.room.unwrap_or(start + width), arranged.height())
     }
 
     /// The chips and their remove parts, then the draft; the chip bodies are one roving group.

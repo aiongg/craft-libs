@@ -15,6 +15,8 @@ pub(super) struct BodyScope {
     pub(super) sizing: Sizing,
     pub(super) content_column: bool,
     pub(super) scroll: Option<Scroll>,
+    /// The width a side label beside the body took from the container's row.
+    pub(super) label_width: f32,
 }
 
 /// Registers the container as an instance of its command scope and of the window scope of its window.
@@ -72,7 +74,7 @@ impl BodyHooks<'_> {
 
     /// What the body inherits on top of the line's env: arena, transform, the room it is offered and its scroll axes.
     pub(super) fn scope_body(&self, scoped: &mut Scoped, props: &ContainerProps, id: Id, body: BodyScope) {
-        let BodyScope { room, real, sizing, content_column, scroll } = body;
+        let BodyScope { room, real, sizing, content_column, scroll, label_width } = body;
         if props.arena {
             scoped.arena = Some(ArenaId::new(id));
         }
@@ -86,8 +88,12 @@ impl BodyHooks<'_> {
         // child that fits itself into its room (a bar moving items into "More") fits the width the container
         // takes, not the room it could have taken. A fill container that is not given the width still takes at
         // least the room (`regions`), so it offers the room.
-        scoped.offered = (!self.given.0 && room.x.is_finite())
-            .then(|| if real && sizing == Sizing::Content { self.wanted_width(props).map_or(room.x, |wanted| wanted.min(room.x)) } else { room.x });
+        // A side label's column is not the body's: the children are offered what is left beside it.
+        scoped.offered = (!self.given.0 && room.x.is_finite()).then(|| {
+            let offered =
+                if real && sizing == Sizing::Content { self.wanted_width(props).map_or(room.x, |wanted| wanted.min(room.x)) } else { room.x };
+            (offered - label_width).max(0.0)
+        });
         match scroll {
             Some(scroll) => {
                 scoped.scroll_owner = Some(id);

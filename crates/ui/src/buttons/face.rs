@@ -4,7 +4,7 @@
 use crate::contract::{Component, Cx, MeasureCx, PaintUi, Styled as _};
 use crate::primitives::{IconSpec, TextRun};
 use crate::style::{FocusLook, IconLook, StyleColor, StyleCx, SurfaceKind, SurfaceLook, TextLook, TypeRole, VariantParts};
-use craft_behavior::{Flow, Insets, Metrics};
+use craft_behavior::{Flow, Insets, Metrics, Proposal};
 use craft_theme::{
     BySize, Stateful, States, Variant,
     variant::{Emphasis, Tone},
@@ -112,10 +112,17 @@ pub(crate) fn focus(cx: &StyleCx<'_>) -> FocusLook {
 }
 
 /// The size of the face: its parts and the gaps between them.
+/// The label elides in the room the icons and gaps leave, so a squeezed face is as wide as its room; at its least
+/// the label is elided to the ellipsis.
 pub(crate) fn measure<C: Component>(cx: &MeasureCx<'_, C>, spec: &FaceSpec<'_>) -> Vec2 {
-    let text = if spec.label.is_empty() { Vec2::ZERO } else { cx.layout(&spec.run()).size() };
     let icon = cx.icon();
-    Vec2::new(text.x + icon * spec.icons() as f32 + cx.gap() * spec.gaps() as f32, text.y.max(icon))
+    let fixed = icon * spec.icons() as f32 + cx.gap() * spec.gaps() as f32;
+    let band = match cx.proposal {
+        Proposal::Min => 0.0,
+        _ => cx.room.map_or(f32::INFINITY, |room| (room - fixed).max(0.0)),
+    };
+    let text = if spec.label.is_empty() { Vec2::ZERO } else { cx.layout_at(&spec.run(), band).size() };
+    Vec2::new(text.x + fixed, text.y.max(icon))
 }
 
 /// `icon` in `color`, unless the spec names a colour of its own.

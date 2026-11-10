@@ -344,8 +344,7 @@ impl Component for MenuItem<'_> {
         // widest columns to what the rows reach past them.
         crate::layout::report_beyond(cx.ui.ctx(), &[MARKS, ICONS], padding.start + padding.end + rest);
         let width = columns.mark + columns.icon + rest;
-        let room = cx.room.map(|room| (room - padding.start - padding.end).max(0.0));
-        Vec2::new(room.map_or(width, |room| width.min(room)), label.y.max(cx.icon()))
+        Vec2::new(cx.room.map_or(width, |room| width.min(room)), label.y.max(cx.icon()))
     }
 
     fn fills(&self) -> Option<craft_behavior::Axis> {

@@ -21,7 +21,8 @@ pub struct MeasureCx<'a, C: Component> {
     pub resolved: &'a Resolved<'a>,
     /// The size the parent proposes.
     pub proposal: Proposal,
-    /// The width the parent offers.
+    /// The width the parent offers the content: the parent's room less the component's padding, which the pipeline
+    /// adds to what `measure` returns.
     pub room: Option<f32>,
     pub(crate) value: Option<&'a ValueOf<C>>,
     pub(crate) ui: &'a Ui,
@@ -56,7 +57,7 @@ impl<C: Component> MeasureCx<'_, C> {
         self.resolved.label_value.clone()
     }
 
-    /// Lays `run` out in the room the parent offers, as `Draw::text` will paint it.
+    /// Lays `run` out in the content's room, as `Draw::text` will paint it.
     pub fn layout(&self, run: &TextRun<'_>) -> TextLayout {
         self.layout_at(run, self.room.unwrap_or(f32::INFINITY))
     }
@@ -85,10 +86,12 @@ impl<C: Component> MeasureCx<'_, C> {
     }
 
     /// The size `face` has when `PaintUi::face` shows it as the look of a part: steps 1, 2 and 4 of the face run
-    /// under the composite's resolved `enabled` and `size`, with no proposal.
+    /// under the composite's resolved `enabled` and `size`. A composite measured at its least measures the face at
+    /// its least; otherwise the face has no proposal.
     pub fn face<S: Show>(&self, mut face: S) -> Vec2 {
         let id = self.id.with("face");
-        crate::contract::measure_under(&mut face, self.ui, Some(id), Proposal::Ideal, Some(self.enabled_size))
+        let proposal = if self.proposal == Proposal::Min { Proposal::Min } else { Proposal::Ideal };
+        crate::contract::measure_under(&mut face, self.ui, Some(id), proposal, Some(self.enabled_size))
     }
 
     /// The icon side of the component's size.

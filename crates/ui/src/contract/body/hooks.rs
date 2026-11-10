@@ -633,7 +633,6 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         // A held fill-width container is part of the content column it sits in: its own stack is one too.
         let (sizing, held) = (self.sizing(&props), self.held(&props, env));
         let content_column = (sizing == Sizing::Content || held || !self.given.0) && matches!(props.layout, layout::BodyLayout::Stack);
-        let body_env = line_env.derive_local(|scoped| self.scope_body(scoped, &props, id, BodyScope { room, real, sizing, content_column, scroll }));
         let gap = Vec2::splat(gap_of(&env.tokens, props.body_gap));
         let layout_id = sub(id, "layout");
         // B2 label: the control gets the rect the label leaves; the label column adds to the container's extent.
@@ -664,6 +663,10 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             label_input = Some(input);
         }
         let label_extra = label_extra_of(regions.body, body_rect);
+        let body_env = line_env.derive_local(|scoped| {
+            let label_width = label_extra.x;
+            self.scope_body(scoped, &props, id, BodyScope { room, real, sizing, content_column, scroll, label_width });
+        });
         // B3 body, if open, under the body env; the gate is read after the header changed it.
         if is_open {
             let mut bcx = BodyCx::new(body_id, body_env.view(), resolved, body_rect, &mut *cx.core.memory, &mut open, gate.as_mut())

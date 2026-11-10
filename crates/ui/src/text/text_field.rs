@@ -11,7 +11,7 @@ use crate::contract::{
 };
 use crate::primitives::{Completer, IconSpec, TextOptions, TextRun};
 use crate::runtime::env::Label;
-use craft_behavior::{Codec, IconId, PartKey, PlainText, Sense};
+use craft_behavior::{Codec, IconId, PartKey, PlainText, Proposal, Sense};
 use egui::{Id, Rect, Vec2};
 use smallvec::SmallVec;
 use std::borrow::Cow;
@@ -224,6 +224,10 @@ impl<C: Codec + Clone + 'static> Component for TextField<'_, C> {
         if let Some(lines) = self.options.lines.filter(|_| self.options.multiline()) {
             let line = cx.layout(&TextRun::new("M").role(self.options.role)).size().y;
             size.y = size.y.max(cx.style.metrics().min_size.y + line * (lines - 1) as f32);
+        }
+        // At its least a field shows a short part of its text and scrolls the rest.
+        if cx.proposal == Proposal::Min {
+            size.x = 0.0;
         }
         let clear = self.search.then(|| Self::clear_name(&cx.words::<words::TextWords>()));
         size.x += adorn::reserve(cx.style, &self.leading, &self.trailing(clear));

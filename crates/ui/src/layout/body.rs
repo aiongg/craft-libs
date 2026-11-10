@@ -130,6 +130,112 @@ pub(crate) fn counting_fills(ui: &Ui, axis: Axis) -> bool {
     measure::active(ui.ctx()) && env.fill_body.is_some_and(|(_, along)| along == axis) && env.fill_share.is_none()
 }
 
+/// The shrink step of an unwrapped `Row` body, as its direct leaf children shown in flow see it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum Shrink {
+    /// The first sweep of a measuring run of the row: each leaf reports its widths to the row (`report_shrink`).
+    Count(Id),
+    /// Each leaf shows at most the width the measuring run of the row gave it (`shrink_cap`).
+    Apply(Id),
+}
+
+/// What a leaf of a shrinking row reported in the first sweep: the width it took there, the width it asks for in
+/// no room and the least it shrinks to.
+struct Reported {
+    took: f32,
+    ideal: f32,
+    least: f32,
+}
+
+/// The leaves each `Row` body counting this pass reported, in order, by body id.
+#[derive(Default)]
+struct ShrinkReports(HashMap<Id, Vec<Reported>>);
+
+/// How many leaves of each `Row` body showing at its widths have read theirs, by body id. A leaf's width is keyed by
+/// its place in the row: the first sweep runs under other ids than the sweeps that read the widths.
+#[derive(Default)]
+struct ShrinkOrder(HashMap<Id, usize>);
+
+/// Reports the widths of the next leaf of the row `row` that counts them.
+pub(crate) fn report_shrink(ctx: &egui::Context, row: Id, took: f32, ideal: f32, least: f32) {
+    let leaf = Reported { took, ideal, least: least.min(ideal) };
+    Service::<ShrinkReports>::run(ctx, |reports| reports.0.entry(row).or_default().push(leaf));
+}
+
+/// The width the shrink step of the row `row` gave its next leaf in this pass's measuring run.
+pub(crate) fn shrink_cap(ctx: &egui::Context, row: Id) -> Option<f32> {
+    let at = Service::<ShrinkOrder>::run(ctx, |order| {
+        let next = order.0.entry(row).or_insert(0);
+        *next += 1;
+        *next - 1
+    });
+    layout_memory::measured(ctx, sub(row, ("shrink", at))).map(|found| found.took.x)
+}
+
+/// The widths of the leaves of a row whose leaves, with `fixed` (its other children and gaps), ask for more than
+/// `room`: the shortfall comes off the last leaf first, down to its least, then off the one before it, and so on, as
+/// a flow gives each child what the ones before it left. A row that fits gives each leaf what it asks for.
+fn shrink_widths(leaves: &[Reported], fixed: f32, room: f32) -> Vec<f32> {
+    let mut short = fixed + leaves.iter().map(|leaf| leaf.ideal).sum::<f32>() - room;
+    let mut widths: Vec<f32> = leaves.iter().map(|leaf| leaf.ideal).collect();
+    for (leaf, width) in leaves.iter().zip(widths.iter_mut()).rev() {
+        let cut = short.clamp(0.0, leaf.ideal - leaf.least);
+        *width -= cut;
+        short -= cut;
+    }
+    widths
+}
+
+/// Runs `body`, the children of the unwrapped `Row` body `id`, in `ui`, the block they are placed in, with the row's
+/// shrink step: a row fits its room by narrowing the leaves that can shrink (elidable text, fields, selects), never
+/// past the least each reports (`Proposal::Min`).
+///
+/// A measuring run sweeps the children once in a child that takes no room, each leaf reporting its widths, and
+/// records the width `shrink_widths` gives each leaf for the rest of the pass. When a leaf took another width there,
+/// it sweeps them again at those widths. The real run shows each leaf at most at its width.
+fn run_shrinking<R>(ui: &mut Ui, id: Id, mut body: impl FnMut(&mut Ui) -> R) -> R {
+    let ctx = ui.ctx().clone();
+    let sweep = |ui: &mut Ui, shrink: Shrink, body: &mut dyn FnMut(&mut Ui) -> R| {
+        Service::<ShrinkOrder>::run(&ctx, |order| order.0.insert(id, 0));
+        let installed = Env::install_for(ui, Env::of(ui).derive_local(|scoped| scoped.shrink = Some(shrink)));
+        let inner = body(ui);
+        Env::restore(&ctx, installed);
+        Service::<ShrinkOrder>::run(&ctx, |order| order.0.remove(&id));
+        inner
+    };
+    if !measure::active(&ctx) {
+        return sweep(ui, Shrink::Apply(id), &mut body);
+    }
+    let room = flow_room(ui).x;
+    let first = crate::contract::keeping_ids(&ctx, || {
+        let mut first = ui.new_child(egui::UiBuilder::new().layout(*ui.layout()));
+        Service::<ShrinkReports>::run(&ctx, |reports| reports.0.insert(id, Vec::new()));
+        let inner = sweep(&mut first, Shrink::Count(id), &mut body);
+        let leaves = Service::<ShrinkReports>::run(&ctx, |reports| reports.0.remove(&id)).unwrap_or_default();
+        let rect = first.min_rect();
+        let fixed = rect.width() - leaves.iter().map(|leaf| leaf.took).sum::<f32>();
+        let widths = if room.is_finite() { shrink_widths(&leaves, fixed, room) } else { leaves.iter().map(|leaf| leaf.ideal).collect() };
+        let mut again = false;
+        for (at, (leaf, width)) in leaves.iter().zip(widths).enumerate() {
+            layout_memory::record_measured(
+                &ctx,
+                sub(id, ("shrink", at)),
+                layout_memory::Measured { room: Vec2::new(room, 0.0), took: Vec2::new(width, 0.0) },
+            );
+            // Half a point: less than a pixel shows at any scale the box runs.
+            again |= (leaf.took - width).abs() >= 0.5;
+        }
+        ((inner, rect, again), again)
+    });
+    match first {
+        (_, _, true) => sweep(ui, Shrink::Apply(id), &mut body),
+        (inner, rect, false) => {
+            ui.advance_cursor_after_rect(rect);
+            inner
+        }
+    }
+}
+
 /// Runs `body` as the content of the `Stack` (along y) or unwrapped `Row` (along x) body `id` in `ui`, the block
 /// it is placed in, when the body is given that axis.
 ///
@@ -428,7 +534,7 @@ pub(crate) fn run_body_measured<R>(ui: &mut Ui, id: Id, layout: &BodyLayout, gap
                         scoped.row_line = line;
                     }),
                 );
-                let inner = body(ui);
+                let inner = run_shrinking(ui, id, &mut body);
                 Env::restore(&ctx, installed);
                 record_line(ui, sizing, id);
                 inner
@@ -459,7 +565,7 @@ pub(crate) fn run_body_measured<R>(ui: &mut Ui, id: Id, layout: &BodyLayout, gap
                         scoped.row_line = line;
                     }),
                 );
-                let inner = body(ui);
+                let inner = if *wrap { body(ui) } else { run_shrinking(ui, id, &mut body) };
                 Env::restore(&ctx, installed);
                 if !*wrap {
                     record_line(ui, sizing, id);

@@ -30,12 +30,15 @@ pub struct Metrics {
     pub gap: f32,
     /// The least text width before eliding.
     pub min_text: f32,
+    /// The width the component takes where its room allows, though its content needs less: its ideal measure is at
+    /// least this wide, up to the room it is offered, and its least measure is its content's.
+    pub ideal_width: f32,
 }
 
 impl Metrics {
     /// No padding, no minimum, no wrap width.
     pub const fn new() -> Self {
-        Metrics { padding: Insets::new(0.0, 0.0, 0.0, 0.0), min_size: Vec2::ZERO, max_width: None, gap: 0.0, min_text: 0.0 }
+        Metrics { padding: Insets::new(0.0, 0.0, 0.0, 0.0), min_size: Vec2::ZERO, max_width: None, gap: 0.0, min_text: 0.0, ideal_width: 0.0 }
     }
 
     /// Sets the padding.
@@ -65,6 +68,12 @@ impl Metrics {
     /// Sets the least text width.
     pub const fn min_text(mut self, width: f32) -> Self {
         self.min_text = width;
+        self
+    }
+
+    /// Sets the width the component takes where its room allows.
+    pub const fn ideal_width(mut self, width: f32) -> Self {
+        self.ideal_width = width;
         self
     }
 }
