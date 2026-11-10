@@ -42,6 +42,14 @@ pub struct Panels<'a> {
     pub themes: &'a mut ThemeWorkspace,
     /// The theme and appearance the theme panels explain.
     pub subject: ThemeSubject<'a>,
+    /// The level the Overview shows, by its title.
+    pub level: &'a mut String,
+    /// The Variants view of the target story, while one is open.
+    pub variants: &'a mut Option<crate::viewer::VariantAxis>,
+    /// The root values; a Variants card that is used sets its value.
+    pub env: &'a mut craft_ui::runtime::env::RootEnv,
+    /// The component whose Open a card ran in this pass.
+    pub opened: Option<&'static str>,
     /// The row the Problems view picked in this pass, which the token browser brings into view.
     pub revealed: Option<crate::theme::Pick>,
 }
@@ -74,11 +82,8 @@ impl Panels<'_> {
             PanelId::Stories => self.stories(ui),
             PanelId::Properties => self.facts(ui),
             PanelId::Inspect => self.record(ui),
-            PanelId::Overview => {
-                let selected = self.selected().map(|component| component.type_name);
-                scrolled(ui, |ui| overview::stories(ui, self.catalog, self.cells, self.generation, selected));
-            }
-            PanelId::Component(type_name) => scrolled(ui, |ui| overview::stories(ui, self.catalog, self.cells, self.generation, Some(type_name))),
+            PanelId::Overview => overview::overview(ui, self),
+            PanelId::Component(type_name) => overview::component_tab(ui, self, type_name),
             PanelId::Preview => {}
             PanelId::Problems => self.problems(ui),
             PanelId::Tokens => self.tokens(ui),

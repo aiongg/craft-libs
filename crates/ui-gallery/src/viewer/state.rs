@@ -5,6 +5,7 @@ use super::appearance::VariantAxis;
 use super::catalog::Catalog;
 use super::commands::GalleryCommands;
 use super::layout::{self, PanelId};
+use super::picks::CardState;
 use super::settings::GallerySettings;
 use super::tree::{self, TreeKey};
 use crate::mock::MockState;
@@ -13,12 +14,11 @@ use craft_behavior::Selection;
 use craft_behavior::dock::Workspace as Dock;
 use craft_ui::list::OpenSet;
 use craft_ui::runtime::env::RootEnv;
-use craft_ui::testing::StoryData;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-/// The values each shown story keeps between frames, by story index.
-pub type Cells = HashMap<usize, StoryData>;
+/// What each shown story keeps between frames, by story index.
+pub type Cells = HashMap<usize, CardState>;
 
 /// What the panels browse: the catalog, the tree's state and the shown cells.
 #[non_exhaustive]
