@@ -16,7 +16,7 @@ use craft_ui::runtime::env::WindowKey;
 use craft_ui::shell::AppShell;
 use craft_ui::style::SurfaceKind;
 use craft_ui::testing::StoryRegistration;
-use egui::Ui;
+use egui::{Rect, Ui, vec2};
 
 /// The narrowest a card may be before the cards go to one column: a dock panel of the apps is about this wide, and a
 /// story drawn in less is no longer what the apps show.
@@ -117,7 +117,8 @@ pub(super) fn grid(
                     if *p.scroll_to == Some(spec.type_name)
                         && let Some(rect) = events.rect
                     {
-                        cx.reveal(rect);
+                        // A card taller than the view (its row is as tall as the tallest card) shows its top.
+                        cx.reveal(Rect::from_min_size(rect.min, vec2(rect.width(), rect.height().min(room))));
                         *p.scroll_to = None;
                     }
                     reported.push(Reported { spec: row * columns + at, events });
