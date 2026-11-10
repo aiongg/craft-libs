@@ -12,7 +12,7 @@ use crate::runtime::commands::{CommandRef, FireSource, ResolvedCommand};
 use crate::runtime::env::{AppValues, EnvValue, Label};
 use crate::runtime::frame;
 use crate::style::{ComponentStyle, Flags, FocusLook, IconLook, StyleCx, SurfaceLook, TextLook, TypeRole};
-use craft_behavior::{ColumnKey, Flow, IconId, Insets, Metrics, NavMove, PartKey, Sense};
+use craft_behavior::{ColumnKey, Flow, IconId, Insets, Intent, Metrics, NavMove, PartKey, Sense};
 use craft_keymap::mnemonic;
 use craft_theme::{Rgba, States};
 use egui::{Context, Id, Pos2, Rect, Response, Vec2, pos2};
@@ -715,6 +715,7 @@ impl Component for MenuItem<'_> {
         };
         if focused
             && key_started
+            && !(forward || back || cx.intents().untaken(&Intent::Cancel))
             && !level.has_active()
             && let Some(target) = level.arrow_entry(!focus_gained)
         {
