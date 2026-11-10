@@ -149,7 +149,10 @@ impl Card<'_> {
         let host = Host { id: Id::unique(("gallery.card.story", &self.key, state.resets)), room: self.room, look: self.look, surface: self.surface };
         let show = self.story.story.show;
         let took = host.stack().measure_in(ui, Proposal::Ideal, |ui, _| host.content(ui, show, &mut state.data));
-        let height = if took.y > 0.0 { took.y } else { self.room };
+        // A story that shows nothing in flow takes no more than its bare surface; under its own id, so its record does
+        // not stand for the story's.
+        let bare = host.stack().id(host.id.with("bare")).measure_in(ui, Proposal::Ideal, |_, _| {});
+        let height = if took.y > bare.y { took.y } else { self.room };
         let rect = Rect::from_min_size(ui.available_rect_before_wrap().min, vec2(ui.available_width(), height));
         AppShell::embedded(window)
             .body(move |ui, _, data: &mut StoryData| {
@@ -181,7 +184,10 @@ impl Host {
             // A story that paints its own surface sits on the background, as on the old gallery's cards.
             _ => SurfaceKind::Background,
         };
-        let mut stack = Stack::new().id(self.id).fill_width().room_height(self.room).surface(kind).pad(Pad::Regular);
+        // On the card's own panel surface the card's padding is the story's margin; another surface keeps a margin of its
+        // own inside it.
+        let pad = if kind == SurfaceKind::Panel { Pad::None } else { Pad::Regular };
+        let mut stack = Stack::new().id(self.id).fill_width().room_height(self.room).surface(kind).pad(pad);
         if let Some(mode) = self.look.mode {
             stack = stack.theme(ThemeScope::mode(mode));
         }

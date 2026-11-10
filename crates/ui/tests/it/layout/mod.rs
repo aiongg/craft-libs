@@ -10,6 +10,7 @@ mod label;
 mod memory;
 mod nested;
 mod reorder_band;
+mod room_height;
 mod row_room;
 mod scroll_region;
 mod slot;

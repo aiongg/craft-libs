@@ -1411,10 +1411,12 @@ fn stored_opening(ctx: &Context, id: Id) -> Option<Opening> {
     MemoryStage::peek::<LayerMemory>(ctx, memory_slot(id)).opening
 }
 
-/// The region a modal layer opened in `env` is contained in: the region of the embedded shell it is opened in
-/// (`AppShell::embedded`), `None` for a window's own layers and for every layer that is not a modal.
+/// The region a modal or floating window layer opened in `env` is contained in: the region of the embedded shell it is
+/// opened in (`AppShell::embedded`), `None` for a window's own layers and for popups, toasts and tooltips, which may
+/// reach past it.
 pub(crate) fn region_for(env: &Env, overlay: &Overlay) -> Option<Rect> {
-    overlay.rank.is_modal().then(|| env.get::<crate::runtime::env::ShellEntry>().0.and_then(|shell| shell.region())).flatten()
+    let contained = overlay.rank.is_modal() || matches!(overlay.rank, crate::runtime::overlay::Rank::Window);
+    contained.then(|| env.get::<crate::runtime::env::ShellEntry>().0.and_then(|shell| shell.region())).flatten()
 }
 
 /// The screen rect a layer of `overlay` opened in `env` keeps inside: the safe rect, or the part of it a contained
