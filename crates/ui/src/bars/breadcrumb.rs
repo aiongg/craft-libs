@@ -1,16 +1,15 @@
-//! `BreadcrumbBar`: a path as clickable segments, the current one last. A leaf whose crumbs are parts wearing `Link`
+//! `BreadcrumbBar`: a path as clickable segments, the current one last. A leaf whose crumbs are parts with plain-text
 //! faces in one part roving group. The leading crumbs that do not fit stand behind an ellipsis part that opens a menu
 //! of them.
 
 use super::words::BarWords;
-use crate::buttons::Link;
 use crate::contract::{
     Access, Common, Component, Cx, Entry, MeasureCx, Name, Outcome, OverlayUi, Overlays as _, PaintUi, PartsCx, Props as _, Role, Styled as _,
     WordSetCx as _,
 };
 use crate::display::{Elide, Shade, Text};
 use crate::menu::Menu;
-use crate::primitives::{IconSpec, Wrap};
+use crate::primitives::IconSpec;
 use crate::runtime::env::Label;
 use crate::runtime::focus::{ActivateKeys, KeyUse};
 use crate::style::{ComponentStyle, FocusLook, IconLook, Stateful, StyleCx, TypeRole};
@@ -46,7 +45,6 @@ pub struct BreadcrumbBarStyle {
     ellipsis_pad: f32,
     /// The most room an ancestor crumb asks for; a longer name elides.
     crumb_cap: f32,
-    height: f32,
 }
 
 /// What a breadcrumb bar reports.
@@ -105,20 +103,20 @@ impl<'a, K: Value + 'static> BreadcrumbBar<'a, K> {
         at + 1 == self.crumbs.len()
     }
 
-    /// The face crumb `at` wears: a link for an ancestor, strong text for the current crumb.
+    /// The face crumb `at` wears: plain text for an ancestor, strong text for the current crumb.
     fn crumb_face(&self, at: usize, label: &Label) -> CrumbFace {
         if self.is_last(at) {
             CrumbFace::Current(Text::new(label.clone()).role(TypeRole::BodyStrong).elide(Elide::End))
         } else {
-            CrumbFace::Ancestor(Link::new(label.clone()).wrap(Wrap::ElidePath))
+            CrumbFace::Ancestor(Text::new(label.clone()).elide(Elide::Path))
         }
     }
 
-    /// The width crumb `at` shows whole.
-    fn natural(&self, at: usize, cx: &MeasureCx<'_, Self>) -> f32 {
+    /// The size crumb `at` shows whole.
+    fn natural(&self, at: usize, cx: &MeasureCx<'_, Self>) -> Vec2 {
         match self.crumb_face(at, self.crumbs[at].label()) {
-            CrumbFace::Current(text) => cx.face(text).x,
-            CrumbFace::Ancestor(link) => cx.face(link).x,
+            CrumbFace::Current(text) => cx.face(text),
+            CrumbFace::Ancestor(link) => cx.face(link),
         }
     }
 
@@ -129,7 +127,7 @@ impl<'a, K: Value + 'static> BreadcrumbBar<'a, K> {
 }
 
 enum CrumbFace {
-    Ancestor(Link),
+    Ancestor(Text),
     Current(Text),
 }
 
@@ -178,28 +176,29 @@ impl<K: Value + 'static> Component for BreadcrumbBar<'_, K> {
     type Output = BreadcrumbOutput<K>;
 
     fn style(cx: &StyleCx<'_>, _: BreadcrumbBarStyleKey<K>) -> BreadcrumbBarStyle {
-        let control = cx.control();
+        let icon = cx.tokens.size.icon.sm;
         let gap = cx.tokens.space.gap.tight;
         let muted = cx.color(cx.tokens.color.text.muted);
         BreadcrumbBarStyle {
-            metrics: Metrics::new().min_size(Vec2::new(0.0, control.height)),
+            metrics: Metrics::new(),
             focus: cx.focus_look(),
-            separator: IconLook::new(control.icon, Stateful::new(muted)),
+            separator: IconLook::new(icon, Stateful::new(muted)),
             gap,
-            joint: control.icon + 2.0 * gap,
+            joint: icon + 2.0 * gap,
             ellipsis_pad: 2.0 * gap,
             crumb_cap: cx.tokens.size.length.field,
-            height: control.height,
         }
     }
 
     /// The width of the whole path with every crumb and separator, at most the room the parent offers: a path that
     /// does not fit overflows behind the ellipsis instead of widening the bar past its room.
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        let crumbs: f32 = (0..self.crumbs.len()).map(|at| self.natural(at, cx)).sum();
+        let faces: Vec<Vec2> = (0..self.crumbs.len()).map(|at| self.natural(at, cx)).collect();
+        let crumbs: f32 = faces.iter().map(|face| face.x).sum();
+        let height = faces.iter().map(|face| face.y).fold(cx.face(Text::new("x")).y, f32::max);
         let joints = self.crumbs.len().saturating_sub(1) as f32 * cx.style.joint;
         let whole = crumbs + joints;
-        Vec2::new(cx.room.map_or(whole, |room| whole.min(room)), cx.style.height)
+        Vec2::new(cx.room.map_or(whole, |room| whole.min(room)), height)
     }
 
     fn fills(&self) -> Option<Axis> {
@@ -216,7 +215,7 @@ impl<K: Value + 'static> Component for BreadcrumbBar<'_, K> {
         let labels: Vec<String> = self.crumbs.iter().map(|crumb| cx.env.resolve(crumb.label()).as_str().to_owned()).collect();
         self.whole = Label::from(labels.join(PATH_JOINT));
         let ellipsis_width = cx.face(Text::new("\u{2026}")).x + cx.style.ellipsis_pad;
-        let full: Vec<f32> = (0..total).map(|at| self.natural(at, cx)).collect();
+        let full: Vec<f32> = (0..total).map(|at| self.natural(at, cx).x).collect();
         let wanted: Vec<f32> = (0..total).map(|at| self.wanted(at, full[at], cx.style.crumb_cap)).collect();
         // The fit runs from the current crumb back, so the root end overflows first.
         let backwards: Vec<FitItem> =

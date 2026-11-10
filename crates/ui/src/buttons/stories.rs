@@ -138,5 +138,5 @@ fn split_button_open(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 
 #[story(Link, covers = [Default])]
 fn link(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    Link::new("Show all shortcuts").url("https://example.com/shortcuts").show(ui).into()
+    Link::new("Show all your shortcuts").url("https://example.com/shortcuts").show(ui).into()
 }
