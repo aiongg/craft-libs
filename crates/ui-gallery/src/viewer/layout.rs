@@ -4,7 +4,7 @@
 //! A saved layout names a component tab by its component's registered name. A name the catalog no longer has loads as a
 //! panel the reconciliation drops, so a layout saved by another build costs at most its component tabs.
 
-use super::catalog::short_type;
+use super::catalog::display_name;
 use super::state::Workspace;
 use craft_behavior::Axis;
 use craft_behavior::dock::{Column, DockEdge, Group, Layout, Node, Permissions, SplitSize, Workspace as Dock};
@@ -50,7 +50,7 @@ impl PanelId {
             PanelId::Inspect => "Inspect".to_owned(),
             PanelId::Tokens => "Tokens".to_owned(),
             PanelId::Overview => "Overview".to_owned(),
-            PanelId::Component(type_name) => short_type(type_name),
+            PanelId::Component(type_name) => display_name(type_name),
             PanelId::Preview => "Preview".to_owned(),
             PanelId::Detail => "Detail".to_owned(),
             PanelId::Problems => "Problems".to_owned(),
