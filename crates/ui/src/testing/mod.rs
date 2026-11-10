@@ -23,6 +23,7 @@ pub mod pointer;
 pub mod props;
 pub mod relations;
 pub mod sensing;
+mod stage;
 mod stories;
 pub mod story;
 pub mod style;
@@ -41,6 +42,7 @@ pub use craft_ui_macros::{story, trial};
 pub use fixture::{Fixture, Impure, Room, Target};
 pub use frames::Frames;
 pub use props::story_props;
+pub use stage::stage;
 #[doc(hidden)]
 pub use story::{
     CollectionKind, Drive, EditKind, Grip, Required, Story, StoryData, StoryOutput, StoryRegistration, StorySnapshot, show_as_only_item, stories,

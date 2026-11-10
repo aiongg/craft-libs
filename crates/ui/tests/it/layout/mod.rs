@@ -1,6 +1,7 @@
 mod body;
 mod column;
 mod end_region;
+mod fill_column;
 mod fill_share;
 mod first_pass;
 mod fonts;

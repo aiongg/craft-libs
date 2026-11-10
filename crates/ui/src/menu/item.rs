@@ -575,6 +575,10 @@ impl Component for MenuItem<'_> {
         Vec2::new(room.map_or(width, |room| width.min(room)), label.y.max(cx.icon()))
     }
 
+    fn fills(&self) -> Option<craft_behavior::Axis> {
+        Some(craft_behavior::Axis::X)
+    }
+
     fn sense(&self) -> Sense {
         Sense::CLICK | Sense::FOCUS
     }

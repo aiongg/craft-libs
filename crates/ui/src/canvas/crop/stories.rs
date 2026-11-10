@@ -19,7 +19,8 @@ fn crop() -> CropBox {
 
 /// Shows an overlay as the only canvas control of a canvas and returns its output.
 fn on_canvas(ui: &mut Ui, mut control: impl FnMut(&mut Ui, Rect) -> CropOverlayOutput) -> StoryOutput {
-    let shown = Canvas::new("Document").show(ui, |ui, body| control(ui, body.rect));
+    let room = crate::testing::stage(ui);
+    let shown = Canvas::new("Document").show_at(ui, room, |ui, body| control(ui, body.rect));
     shown.inner.map(|out| StoryOutput::from(out.edit)).unwrap_or_default()
 }
 

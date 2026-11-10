@@ -431,6 +431,10 @@ This section indexes the components by layer. Examples and every state of each c
 - Gallery stories for every state.
 - Everything in the checklist in [7.1](#71-required-for-every-component).
 
+### Fill and content sizing
+
+A content-sized column (a `Stack::new()`, a menu or popover body) holds the children that fill: they never set the column's width, and they are shown across the width it settles on. A leaf declares that it fills with `fills()`; a container declares it with `Sizing`. A host that shows arbitrary components (the gallery, a dialog body) offers them fill width with `fill_width()`, and a story that fills both axes takes its room from `testing::stage`.
+
 ### 6.2 Index by layer
 
 | Layer | Components |

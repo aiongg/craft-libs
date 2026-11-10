@@ -1,6 +1,6 @@
 //! The canvas the stories of canvas controls show their control on.
 
-use super::StoryOutput;
+use super::{StoryOutput, stage};
 use crate::canvas::Canvas;
 use crate::contract::ShowContainer as _;
 use craft_behavior::CanvasView;
@@ -12,7 +12,7 @@ pub(crate) fn origin_view(room: Rect, zoom: f64) -> CanvasView {
     CanvasView::new(room, Point::new(f64::from(room.width()) / zoom / 2.0, f64::from(room.height()) / zoom / 2.0), zoom)
 }
 
-/// Shows `control` as the only canvas control of a canvas over the room left in `ui`, whose view is [`origin_view`]
+/// Shows `control` as the only canvas control of a canvas over the [`stage`] of `ui`, whose view is [`origin_view`]
 /// at `zoom`, and returns the control's output. The control gets the canvas's rect and the view it shows.
 pub(crate) fn on_canvas<R: Into<StoryOutput>>(ui: &mut Ui, zoom: f64, control: impl FnMut(&mut Ui, Rect, &CanvasView) -> R) -> StoryOutput {
     on_canvas_view(ui, |room| origin_view(room, zoom), control)
@@ -24,13 +24,19 @@ pub(crate) fn on_canvas_view<R: Into<StoryOutput>>(
     view: impl FnOnce(Rect) -> CanvasView,
     mut control: impl FnMut(&mut Ui, Rect, &CanvasView) -> R,
 ) -> StoryOutput {
-    let view = view(ui.available_rect_before_wrap());
-    on_canvas_with(ui, Canvas::new("Document").view(view), |ui, rect| control(ui, rect, &view))
+    let room = stage(ui);
+    let view = view(room);
+    on_canvas_with(ui, room, Canvas::new("Document").view(view), |ui, rect| control(ui, rect, &view))
 }
 
-/// Shows `control` as the only canvas control of `canvas`, which the caller sets up, and returns the control's
-/// output. The body runs once to measure and once to draw, so `control` builds the control on each call.
-pub(crate) fn on_canvas_with<R: Into<StoryOutput>>(ui: &mut Ui, canvas: Canvas<'_>, mut control: impl FnMut(&mut Ui, Rect) -> R) -> StoryOutput {
-    let shown = canvas.show(ui, |ui, body| control(ui, body.rect));
+/// Shows `control` as the only canvas control of `canvas`, which the caller sets up over `room` (from [`stage`]), and
+/// returns the control's output. The body runs once to measure and once to draw, so `control` builds the control on each call.
+pub(crate) fn on_canvas_with<R: Into<StoryOutput>>(
+    ui: &mut Ui,
+    room: Rect,
+    canvas: Canvas<'_>,
+    mut control: impl FnMut(&mut Ui, Rect) -> R,
+) -> StoryOutput {
+    let shown = canvas.show_at(ui, room, |ui, body| control(ui, body.rect));
     shown.inner.map(Into::into).unwrap_or_default()
 }
