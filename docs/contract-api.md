@@ -1902,9 +1902,10 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `type Member`. The value a member stands for.
 - `craft_ui::contract::GroupState`: `pub struct GroupState<M> { pub selected: Option<M>, pub members: Vec<(M, Id, bool)> }`. A group's registrations: the members shown in the last pass and the member the group picked.
 - `craft_ui::contract::HeaderMenuRequest`: `pub struct HeaderMenuRequest { pub column: ColumnKey, pub at: Pos2 }`. A request for the context menu of a column header: the app lists `ColumnCommands` in it.
-- `craft_ui::contract::HeaderRegion`: `pub struct HeaderRegion { pub band: DragBand, pub rule: bool, pub rule_above: bool, pub inline: bool, pub trailing: bool, pub fill: Option<SurfaceKind>, pub inset: Pad }`. A header region, filled by `Container::header`.
+- `craft_ui::contract::HeaderRegion`: `pub struct HeaderRegion { pub band: DragBand, pub rule: bool, pub rule_above: bool, pub inline: bool, pub trailing: bool, pub fill: Option<SurfaceKind>, pub inset: Pad, pub gap: Option<Gap> }`. A header region, filled by `Container::header`.
   - `pub const fn new() -> Self`. A header with no drag band, no rule, on its own line, with no trailing region, no fill and no inset.
   - `pub const fn fill(mut self, kind: SurfaceKind) -> Self`. The surface of a band behind the header.
+  - `pub const fn gap(mut self, gap: Gap) -> Self`. The space between a stacked header and the body.
   - `pub const fn inset(mut self, pad: Pad) -> Self`. The padding tier between the container's edge and the header's content.
   - `pub const fn band(mut self, band: DragBand) -> Self`. What dragging the header does.
   - `pub const fn rule(mut self, on: bool) -> Self`. Whether a rule separates the header from the body.
