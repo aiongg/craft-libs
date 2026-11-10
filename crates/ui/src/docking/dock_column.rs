@@ -6,13 +6,14 @@
 //! user did; the dock decides what a drop changes.
 
 use super::divider::{self, Divider, Drag};
+use super::group::GroupGrip;
 use super::{DockHeights, DockSizes, DockSpot, DockTargets, DockWords, DragUnit, PanelKey, PanelSpec, Splitter, start_group_drag};
 use crate::buttons::IconButton;
 use crate::contract::SizeLimits;
 use crate::contract::overlay::Trigger;
 use crate::contract::{
-    Access, BodyCx, Common, Component, Container, ContainerProps, Cx, HeaderRegion, Name, NoValue, Outcome, Pad, PaintUi, PartsCx, Pointer,
-    Props as _, Role, Show as _, ShowContainer as _, Sizing, WordSetCx as _, clicked,
+    Access, BodyCx, Common, Component, Container, ContainerProps, Cx, HeaderRegion, NoValue, Outcome, Pad, PaintUi, PartsCx, Pointer, Props as _,
+    Role, Show as _, ShowContainer as _, Sizing, WordSetCx as _, clicked,
 };
 use crate::menu::{GroupItem, Menu, MenuWords, PanelMenu, PanelRow};
 use crate::runtime::env::Label;
@@ -20,7 +21,8 @@ use crate::runtime::focus::KeyUse;
 use crate::style::{ComponentStyle, Corners, StyleCx, SurfaceKind};
 use craft_behavior::divider::{self as push, Segment};
 use craft_behavior::dock::{Column, DockEdge, Group};
-use craft_behavior::{Axis, CursorIcon, DockSide, Flow, IconId, Metrics, PartKey, PressPhase, Sense, Value};
+use craft_behavior::{Axis, DockSide, Flow, IconId, Metrics, PartKey, Sense, Value};
+use craft_theme::ControlSize;
 use egui::{Align, Context, Id, Layout, Pos2, Rect, Response, Ui, Vec2};
 use std::hash::Hash;
 
@@ -245,12 +247,20 @@ fn collapse_icon(edge: DockEdge, expanded: bool, rtl: bool) -> &'static str {
 /// Shows the column bar and its menu, at `rect` or in the flow of `ui`: a small chevron button at the bar's outer end
 /// collapses an expanded column to icons and expands an iconic one; a context request on it opens the column menu.
 /// Returns what the user did.
-pub(super) fn show_bar(ui: &mut Ui, body: &mut BodyCx<'_>, rect: Option<Rect>, expanded: bool, auto_collapse: bool, edge: DockEdge) -> BarRecord {
+pub(super) fn show_bar<P: Clone + Send + Sync + 'static>(
+    ui: &mut Ui,
+    body: &mut BodyCx<'_>,
+    rect: Option<Rect>,
+    expanded: bool,
+    auto_collapse: bool,
+    edge: DockEdge,
+    grip: Option<GroupGrip<P>>,
+) -> BarRecord {
     let words = body.words::<DockWords>();
     let menu_words = body.words::<MenuWords>();
     let rtl = crate::runtime::env::Env::of(ui).direction.is_rtl();
     let toggle = if expanded { words.collapse_column.as_str() } else { words.expand_column.as_str() };
-    let button = IconButton::new(IconId::new(collapse_icon(edge, expanded, rtl))).label(Label::from(toggle.to_owned()));
+    let button = IconButton::new(IconId::new(collapse_icon(edge, expanded, rtl))).size(ControlSize::Sm).label(Label::from(toggle.to_owned()));
     let shown = match rect {
         Some(rect) => button.show_at(ui, rect),
         None if (edge == DockEdge::End) != rtl => ui.with_layout(Layout::right_to_left(Align::Min), |ui| button.show(ui)).inner,
@@ -260,6 +270,24 @@ pub(super) fn show_bar(ui: &mut Ui, body: &mut BodyCx<'_>, rect: Option<Rect>, e
     if clicked(&shown) {
         record.iconic = Some(expanded);
     }
+    // The rest of the bar drags the column, a double click collapses or expands it, and a context request opens the
+    // column menu.
+    let opener = match grip {
+        Some(grip) => {
+            let outer = rect.unwrap_or_else(|| ui.max_rect());
+            let band = if shown.rect.center().x > outer.center().x {
+                Rect::from_x_y_ranges(outer.left()..=shown.rect.left(), shown.rect.y_range())
+            } else {
+                Rect::from_x_y_ranges(shown.rect.right()..=outer.right(), shown.rect.y_range())
+            };
+            let held = grip.show_at(ui, band);
+            if held.double_pressed {
+                record.iconic = Some(expanded);
+            }
+            held.response
+        }
+        None => shown.response().clone(),
+    };
     let rows = vec![
         PanelRow::Item(crate::contract::Entry::new(GroupItem::CollapseToIcons, Label::from(toggle.to_owned()))),
         PanelRow::Item(
@@ -268,7 +296,7 @@ pub(super) fn show_bar(ui: &mut Ui, body: &mut BodyCx<'_>, rect: Option<Rect>, e
         ),
     ];
     let picked = Menu::new(Label::from(words.panels.as_str().to_owned()))
-        .opened_by(&shown, Trigger::Context)
+        .opened_by(&opener, Trigger::Context)
         .show(ui, |ui, _| PanelMenu::new(Vec::new(), rows.clone()).show(ui).picked);
     record.picked = picked.inner.flatten();
     record
@@ -366,7 +394,6 @@ pub struct DockColumn<'a, P: Value + Hash + 'static> {
     laid: Option<Plan>,
     resized: Vec<(P, f32)>,
     width: Option<f32>,
-    toggled: bool,
 }
 
 impl<'a, P: Value + Hash + 'static> DockColumn<'a, P> {
@@ -386,7 +413,6 @@ impl<'a, P: Value + Hash + 'static> DockColumn<'a, P> {
             laid: None,
             resized: Vec::new(),
             width: None,
-            toggled: false,
         }
         .label(label)
     }
@@ -526,11 +552,6 @@ impl<P: Value + Hash + 'static> Component for DockColumn<'_, P> {
         let sizes = cx.style.sizes;
         let plan = column_plan(self.column, self.spec, rect, &sizes, |_, _| None);
         let dividers = plan.dividers(rect, sizes.reach);
-        cx.part(BAR, plan.bar)
-            .sense(Sense::DRAG)
-            .cursor(CursorIcon::Grab)
-            .drag_cursor(CursorIcon::Grabbing)
-            .pointer_only("Move Panel To in the panel menu moves the panels of the column");
         for (key, _, divider) in dividers {
             divider::declare(cx, rect, DIVIDER, key, &divider);
         }
@@ -542,11 +563,6 @@ impl<P: Value + Hash + 'static> Component for DockColumn<'_, P> {
         let sizes = cx.style.sizes;
         let (rect, rtl, ctx) = (cx.rect, cx.flow.is_rtl(), cx.core.ctx.clone());
         let Some(base) = self.laid.take() else { return };
-        let bar = cx.part(BAR).clone();
-        if matches!(bar.press.phase, PressPhase::DragStart { start, .. } if start.button == craft_behavior::PointerButton::Primary) {
-            drag_column(cx, self.column, self.spec, rect.size());
-        }
-        self.toggled = bar.press.double_pressed();
         let mut plan = column_plan(self.column, self.spec, rect, &sizes, |key, divider| divider::pointer(cx, DIVIDER, key, divider));
         let dividers = base.dividers(rect, sizes.reach);
         let keyed: Vec<(u64, Divider)> = dividers.iter().map(|(key, _, divider)| (*key, *divider)).collect();
@@ -593,7 +609,6 @@ impl<P: Value + Hash + 'static> Component for DockColumn<'_, P> {
         let words = cx.words::<DockWords>();
         let sizes = cx.style.sizes;
         let Some(plan) = self.laid.as_ref() else { return };
-        access.node(BAR, Role::BUTTON).name = Name::Text(bar_name(self.column, self.spec, &words.move_column));
         for (key, _, divider) in plan.dividers(cx.rect, sizes.reach) {
             divider::describe(access, DIVIDER, key, &divider, words.resize.as_str(), sizes.step);
         }
@@ -602,7 +617,7 @@ impl<P: Value + Hash + 'static> Component for DockColumn<'_, P> {
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> DockColumnOutput<P> {
-        let iconic = self.bar.iconic.or(self.toggled.then_some(!self.column.iconic));
+        let iconic = self.bar.iconic;
         DockColumnOutput { response: cx.response.clone(), placed: cx.rect, iconic, picked: self.bar.picked, resized: self.resized, width: self.width }
     }
 }
@@ -640,6 +655,13 @@ impl<P: Value + Hash + 'static> Container for DockColumn<'_, P> {
         if cx.shell().is_some_and(|shell| !shell.dock_visible()) {
             return;
         }
-        self.bar = show_bar(ui, cx, None, true, self.auto_collapse, self.edge);
+        let grip = self.column.groups.first().and_then(|first| {
+            let anchor = first.panels.first()?;
+            let active = PanelKey::of(first.active_panel().unwrap_or(anchor));
+            let name = bar_name(self.column, self.spec, &cx.words::<DockWords>().move_column);
+            let ghost = (cx.rect.size(), Label::from(panel_names(self.column, self.spec)));
+            Some(GroupGrip::new(DragUnit::Column(anchor.clone()), active).ghost(ghost).label(name))
+        });
+        self.bar = show_bar(ui, cx, None, true, self.auto_collapse, self.edge, grip);
     }
 }

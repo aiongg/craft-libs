@@ -77,6 +77,12 @@ fn two_groups() -> Layout<String> {
     Layout::new(Some(root), Vec::new())
 }
 
+/// Two groups whose left one is wide enough to leave empty room in its header, which is its drag handle.
+fn wide_left_group() -> Layout<String> {
+    let root = Node::split(Axis::X, SplitSize::Ratio(0.5), Node::tabs(panels(&["Layers", "Channels"]), 0), Node::tabs(panels(&["Properties"]), 0));
+    Layout::new(Some(root), Vec::new())
+}
+
 /// The panels of each group, in reading order.
 fn groups(layout: &Layout<String>) -> Vec<Vec<String>> {
     let limits = |_: &String| SizeLimits::default();
@@ -145,7 +151,7 @@ fn hold_and_move(fixture: &mut Fixture, from: Pos2, to: Pos2) {
     fixture.idle(1);
 }
 
-/// The drag bar of the left group: the first button of its header.
+/// The drag handle of the left group: the first button of its header, over the empty room right of its tabs.
 fn left_grip(fixture: &Fixture) -> Pos2 {
     let mut buttons = fixture.by_role(Role::BUTTON);
     buttons.sort_by(|a, b| a.rect.min.x.total_cmp(&b.rect.min.x));
@@ -174,7 +180,7 @@ fn a_panel_dropped_between_two_tabs_lands_between_them() {
 
 #[trial]
 fn a_header_drag_shows_the_drop_mark_over_a_group_side_and_docks_on_release() {
-    let (mut fixture, layout, taken) = bed(two_groups());
+    let (mut fixture, layout, taken) = bed(wide_left_group());
     fixture.settle();
     let grip = left_grip(&fixture);
     hold_and_move(&mut fixture, grip, Pos2::new(395.0, 150.0));

@@ -2,6 +2,7 @@
 
 use super::divider::{self, Divider, Drag};
 use super::dock_column::{BarRecord, bar_name, drag_column, register_edges, show_bar};
+use super::group::GroupGrip;
 use super::{DockSizes, DockSpot, DockTargets, DockWords, DragUnit, Flyout, GroupAt, PanelKey, PanelSpec, Splitter, start_group_drag};
 use crate::buttons::IconButton;
 use crate::contract::{
@@ -460,6 +461,6 @@ impl<P: Value + Hash + 'static> Container for IconicColumn<'_, P> {
         if cx.shell().is_some_and(|shell| !shell.dock_visible()) {
             return;
         }
-        self.record = show_bar(ui, cx, Some(self.bar), false, self.auto_collapse, self.edge);
+        self.record = show_bar(ui, cx, Some(self.bar), false, self.auto_collapse, self.edge, None::<GroupGrip<P>>);
     }
 }

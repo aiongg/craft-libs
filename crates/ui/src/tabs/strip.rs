@@ -62,6 +62,9 @@ pub struct TabStripOutput<K> {
     /// The rect of each shown tab, in screen space, in the order the source lists them: where a drop between two
     /// tabs resolves its insertion index.
     pub tab_rects: Vec<(K, Rect)>,
+    /// The part of the strip's row that no tab and no overflow button takes, in screen space; its width is 0 when the
+    /// tabs fill the row. A host makes it a handle of its own, such as the grip a dock group is dragged by.
+    pub empty: Rect,
 }
 
 impl<K> Outcome for TabStripOutput<K> {
@@ -423,6 +426,14 @@ impl<K: Clone + Eq + Hash + Send + Sync + std::fmt::Debug + 'static> Component f
 
     fn finish(self, mut cx: Cx<'_, Self>) -> TabStripOutput<K> {
         let tab_rects = self.tab_rects(&cx);
+        let report = self.report();
+        let rest = craft_behavior::Flow::new(cx.core.content_rect, cx.flow.is_rtl()).take_start(report.tabs_end).1;
+        let rest = match (report.overflow > 0.0, self.kind.overflow_place()) {
+            (false, _) => rest,
+            (true, OverflowPlace::StripEnd) => rest.take_end(report.overflow).1,
+            (true, OverflowPlace::AfterTabs) => rest.take_start(report.overflow).1,
+        };
+        let empty = rest.rect();
         let TabStrip { picked, torn, .. } = self;
         let mut response = cx.collection_response();
         let (mut closed, mut menu) = (Vec::new(), None);
@@ -435,7 +446,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + std::fmt::Debug + 'static> Component f
             }
         }
         response.events = kept;
-        TabStripOutput { response, closed, menu, picked, torn_off: torn, tab_rects }
+        TabStripOutput { response, closed, menu, picked, torn_off: torn, tab_rects, empty }
     }
 }
 
