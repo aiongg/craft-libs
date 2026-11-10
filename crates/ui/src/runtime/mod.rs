@@ -17,6 +17,7 @@ pub mod layout_memory;
 pub(crate) mod lazy;
 pub(crate) mod lock_keys;
 pub(crate) mod measure;
+pub(crate) mod reads;
 pub mod memory;
 pub mod motion;
 pub mod overlay;

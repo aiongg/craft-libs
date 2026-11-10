@@ -3,9 +3,11 @@
 
 use crate::runtime::env::Message;
 use crate::runtime::memory::{MemoryStage, Savable, SaveKey, StageAccess};
+use crate::runtime::reads::{self, BindKey};
 use craft_behavior::{Applied, EditEvent, EditPolicy, Mixed, Value};
 use egui::Id;
 use egui::Response;
+use std::any::TypeId;
 use std::sync::Arc;
 
 /// What a check says about a value, with the message type of craft-ui.
@@ -229,6 +231,20 @@ impl<T: Value> BindMut<'_, T> {
         }
     }
 
+    /// The identity of the binding's value in this pass, for the read record: the bound place, or where the kept value
+    /// lives (`id` is the component it is kept under). A given value has none.
+    pub(crate) fn key(&self, id: Id) -> Option<BindKey> {
+        match &self.source {
+            SourceMut::Given(_) => None,
+            SourceMut::Mut(value) => Some(BindKey::Place(std::ptr::from_ref::<T>(value) as usize, TypeId::of::<T>())),
+            SourceMut::MutMixed(value) => Some(BindKey::Place(std::ptr::from_ref::<Mixed<T>>(value) as usize, TypeId::of::<Mixed<T>>())),
+            SourceMut::Kept => Some(match self.save {
+                Some(save) => BindKey::Saved(Id::NULL.with(&save.key)),
+                None => BindKey::Kept(id),
+            }),
+        }
+    }
+
     pub(crate) fn is_kept(&self) -> bool {
         matches!(self.source, SourceMut::Kept)
     }
@@ -292,6 +308,11 @@ impl<T: Value> BindMut<'_, T> {
     /// under the base id of `cx` (the saved tier when the binding has a `SaveKey`). `None` for a kept binding that
     /// holds nothing yet.
     pub fn read(&self, cx: &mut impl StageAccess) -> Option<Mixed<T>> {
+        let id = cx.base();
+        if let Some(key) = self.key(id) {
+            let ctx = cx.stage_mut().ctx().clone();
+            reads::note(&ctx, key, id, crate::runtime::measure::active(&ctx), &[]);
+        }
         match &self.source {
             SourceMut::Kept => {
                 let id = cx.base();

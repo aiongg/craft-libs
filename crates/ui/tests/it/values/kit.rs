@@ -56,12 +56,13 @@ pub struct Scrub<'a> {
     value: Bind<'a, f32>,
     one_pass: bool,
     set_by_access: bool,
+    grows: bool,
     seen: Option<&'a Seen>,
 }
 
 impl<'a> Scrub<'a> {
     pub fn new(value: Bind<'a, f32>) -> Self {
-        Scrub { common: Common::new(), value, one_pass: false, set_by_access: false, seen: None }
+        Scrub { common: Common::new(), value, one_pass: false, set_by_access: false, grows: false, seen: None }
     }
 
     /// A click begins, proposes and commits a step in one pass.
@@ -73,6 +74,12 @@ impl<'a> Scrub<'a> {
     /// An AccessKit `SetValue` request sets the value.
     pub fn set_by_access(mut self) -> Self {
         self.set_by_access = true;
+        self
+    }
+
+    /// The scrub is as much wider than `AT` as its value.
+    pub fn grows(mut self) -> Self {
+        self.grows = true;
         self
     }
 
@@ -91,8 +98,11 @@ impl Component for Scrub<'_> {
         PlainStyle::default()
     }
 
-    fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
-        AT.size()
+    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
+        match cx.value() {
+            Some(value) if self.grows => AT.size() + Vec2::new(*value, 0.0),
+            _ => AT.size(),
+        }
     }
 
     fn sense(&self) -> Sense {
