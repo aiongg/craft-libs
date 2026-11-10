@@ -358,3 +358,16 @@ fn areas_with_different_labels_keep_separate_flyouts() {
     assert!(opened.contains(&("Left", true)), "the flyout opened in the area that was clicked: {opened:?}");
     assert!(!opened.contains(&("Right", true)), "the other area's flyout stayed closed: {opened:?}");
 }
+
+// Guards against close buttons that follow the group instead of the panel: a tab shows one only when its own panel closes.
+#[trial]
+fn a_tab_shows_a_close_button_only_for_a_panel_that_can_close() {
+    let mut workspace = Workspace::new(Layout::new(Some(Node::tabs(vec![SIDE, CANVAS], 0)), Vec::new()));
+    let mut fixture = Fixture::new(move |ui| {
+        let mut panels = Recorder { shown: Rc::default() };
+        DockArea::new("Dock area", Bind::bound(&mut workspace), &mut panels, DockConfig::default().tab_close_buttons(true)).show(ui);
+    });
+    fixture.settle();
+    assert!(fixture.by_label("Close Panel 1").is_some(), "a closable panel's tab closes");
+    assert!(fixture.by_label("Close Panel 3").is_none(), "a protected panel's tab has no close button");
+}
