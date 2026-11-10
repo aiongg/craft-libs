@@ -135,6 +135,7 @@ impl Component for ToggleButton<'_> {
         };
         // A mixed value shows the off look, as Photoshop's style toggles do; the access state tells it from off.
         surface.fill = surface.fill.when(Flags::MIXED, off.fill.off.rest);
+        surface.border = surface.border.zip(off.edge.as_ref()).map(|(border, edge)| border.when(Flags::MIXED, edge.off.rest));
         text.color = text.color.on(on.text.off).when(Flags::MIXED, off.text.off.rest);
         icon.color = icon.color.when(Flags::MIXED, off.text.off.rest);
         ToggleButtonStyle { surface, metrics, focus: face::focus(cx), text, icon, face: FaceLook::of(cx) }

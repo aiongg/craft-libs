@@ -1,7 +1,7 @@
 //! `SplitButton`: the main part runs the action and never opens the menu, the arrow and Alt+Down open it, a pick
 //! reports the entry as one choice and closes the menu.
 
-use craft_behavior::Mixed;
+use craft_behavior::{IconId, Mixed};
 use craft_theme::{Rgba, contrast_ratio, text_contrast_min};
 use craft_ui::buttons::{Button, IconButton, SplitButton, ToggleButton};
 use craft_ui::contract::{Bind, CommandSet, Entry, Role, Show as _, ShowContainer as _};
@@ -207,27 +207,32 @@ fn a_mixed_toggle_reports_mixed_and_a_click_turns_it_on() {
     assert_eq!(fixture.tree().toggled_of(button.node), Some(Mixed::Same(true)));
 }
 
-/// A mixed toggle paints the off look, not a blend of off and on.
+/// A mixed toggle paints the off look, fill and edge, not a blend of off and on; labelled or icon-only.
 #[trial]
-fn a_mixed_toggle_paints_the_off_fill() {
-    let fill_of = |value: Mixed<bool>| {
-        let mut show = move |ui: &mut egui::Ui| {
-            let mut current = value;
-            ToggleButton::new("Bold", Bind::bound_mixed(&mut current)).show(ui);
+fn a_mixed_toggle_paints_the_off_look() {
+    for icon_only in [false, true] {
+        let look_of = |value: Mixed<bool>| {
+            let mut show = move |ui: &mut egui::Ui| {
+                let mut current = value;
+                let button = ToggleButton::new("Bold", Bind::bound_mixed(&mut current)).icon(IconId::new("check"));
+                if icon_only { button.icon_only() } else { button }.show(ui);
+            };
+            let mut frames = Frames::new();
+            frames.idle(2, &mut show);
+            let rects: Vec<_> = frames
+                .frame_shapes(&mut show)
+                .iter()
+                .filter_map(|shape| match shape {
+                    egui::Shape::Rect(rect) => Some((rect.fill, rect.stroke.color)),
+                    _ => None,
+                })
+                .collect();
+            assert!(!rects.is_empty(), "the toggle paints a surface");
+            rects
         };
-        let mut frames = Frames::new();
-        frames.idle(2, &mut show);
-        frames
-            .frame_shapes(&mut show)
-            .iter()
-            .find_map(|shape| match shape {
-                egui::Shape::Rect(rect) => Some(rect.fill),
-                _ => None,
-            })
-            .expect("the toggle paints a surface")
-    };
-    assert_eq!(fill_of(Mixed::Mixed), fill_of(Mixed::Same(false)), "a mixed toggle paints the off fill");
-    assert_ne!(fill_of(Mixed::Mixed), fill_of(Mixed::Same(true)), "and not the on fill");
+        assert_eq!(look_of(Mixed::Mixed), look_of(Mixed::Same(false)), "a mixed toggle paints the off look (icon only: {icon_only})");
+        assert_ne!(look_of(Mixed::Mixed), look_of(Mixed::Same(true)), "and not the on look (icon only: {icon_only})");
+    }
 }
 
 /// An armed toggle that disarms with Escape turns off on the first Escape and leaves the dialog open; the second
