@@ -698,28 +698,29 @@ impl Component for MenuItem<'_> {
         let hovered = cx.response.hovered();
         let focused = cx.is_focused();
         let aimed = moving && level.aimed(cx.id);
-        let (waited, focus_gained) = {
+        let keyboard = level.keyboard();
+        let (waited, focus_gained, key_started) = {
             let rest = cx.memory::<Rest>();
             let gained = focused && !rest.focused;
             rest.focused = focused;
+            let started = keyboard && !rest.keyboard;
+            rest.keyboard = keyboard;
             // The pointer heading for the open submenu does not count as resting on this row.
             if hovered && !aimed {
-                (now - *rest.since.get_or_insert(now), gained)
+                (now - *rest.since.get_or_insert(now), gained, started)
             } else {
                 rest.since = None;
-                (0.0, gained)
+                (0.0, gained, started)
             }
         };
-        let arrow = |key| ctx.input(|input| input.key_pressed(key));
-        let (up, down) = (arrow(egui::Key::ArrowUp), arrow(egui::Key::ArrowDown));
         if focused
-            && (up || down)
-            && level.keyboard()
+            && key_started
             && !level.has_active()
-            && let Some(target) = level.arrow_entry(up)
+            && let Some(target) = level.arrow_entry(!focus_gained)
         {
-            // The first arrow key of a menu that the pointer opened without making a row active: Down activates the
-            // first enabled row, Up the last, instead of moving focus from the row that held it.
+            // The first key of a menu that the pointer opened without making a row active, taken as an arrow: Down
+            // moved focus off the first row and activates the first enabled row; Up could not move it and activates
+            // the last enabled row.
             crate::runtime::focus::request(&ctx, crate::runtime::focus::FocusTarget::Id(target));
             level.activate_row(target);
             frame::request_repaint(&ctx);
@@ -888,4 +889,6 @@ fn glyph_span(layout: &TextLayout, at: usize) -> Option<(f32, f32)> {
 struct Rest {
     since: Option<f64>,
     focused: bool,
+    /// Whether the keyboard drove the menu in the last pass.
+    keyboard: bool,
 }
