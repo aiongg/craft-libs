@@ -7,7 +7,8 @@ use super::mount::{PaneGrip, pane_extent_id, pane_grip_id};
 use super::overlay::{OverlayFit, Place, PlacementChange, PlacementKind};
 use super::run::{Measuring, ShapeHooks, ShowAt};
 use super::{
-    Container, ContainerProps, Cx, DragBand, FooterPlace, Gap, Internal, Mount, Notch, Pad, PaneEdge, PartsCx, Scroll, SetPosition, Sizing, ValueOf,
+    Container, ContainerProps, Cx, DragBand, FooterPlace, Gap, Internal, LeastWidth, Mount, Notch, Pad, PaneEdge, PartsCx, Scroll, SetPosition,
+    Sizing, ValueOf,
 };
 use crate::layout::{self, ColumnGroup};
 use crate::primitives::{Rule, ScrollBar, Surface};
@@ -451,7 +452,7 @@ const GRIPS: [(i8, i8, CursorIcon); 8] = [
     (-1, 1, CursorIcon::ResizeNeSw),
 ];
 
-fn pad_of(tokens: &UiTokens, pad: Pad) -> f32 {
+pub(crate) fn pad_of(tokens: &UiTokens, pad: Pad) -> f32 {
     let pads = &tokens.tokens().space.pad;
     match pad {
         Pad::Control => pads.control,
@@ -472,6 +473,13 @@ fn gap_of(tokens: &UiTokens, gap: Gap) -> f32 {
         Gap::CardColumn => gaps.card_column,
         Gap::CardRow => gaps.card_row,
         _ => gaps.row,
+    }
+}
+
+fn least_of(tokens: &UiTokens, least: Option<LeastWidth>) -> f32 {
+    match least {
+        Some(LeastWidth::Popup) => tokens.tokens().size.popup_min,
+        None => 0.0,
     }
 }
 
@@ -554,6 +562,8 @@ pub(super) struct BodyHooks<'b> {
     open_given: bool,
     /// The gap between an inline header and the body, and between a header and its trailing region.
     region_gap: f32,
+    /// The least width of the content, from `ContainerProps::least_width`.
+    least_width: f32,
     /// How far the widest region wants to exceed the width the room allows, from this pass's measure.
     overflow: f32,
     /// The room the mount offers, in which a content-sized body runs.
@@ -1126,6 +1136,7 @@ impl<'b> BodyHooks<'b> {
             reuse: false,
             open_given: false,
             region_gap: 0.0,
+            least_width: 0.0,
             overflow: 0.0,
             room: Vec2::ZERO,
             open: true,
@@ -1283,7 +1294,7 @@ impl<'b> BodyHooks<'b> {
     fn wanted_width(&self, props: &ContainerProps) -> Option<f32> {
         self.measured_body.map(|body| {
             let (header, end) = (self.measured_header.unwrap_or(Vec2::ZERO), self.measured_end.unwrap_or(Vec2::ZERO));
-            let wanted = self.regions_size(props, body, header, self.measured_footer, end).x;
+            let wanted = self.regions_size(props, body, header, self.measured_footer, end).x.max(self.least_width);
             overlay_of(props).map_or(wanted, |overlay| wanted.max(super::overlay::opener_floor(overlay)))
         })
     }
@@ -1694,6 +1705,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         // The overlay host decides a layer's Escape; so does a full-window mount's.
         self.layer = matches!(props.mount, Mount::Layer(_) | Mount::Viewport { .. } | Mount::FullWindow);
         self.region_gap = gap_of(&env.tokens, Gap::Tight);
+        self.least_width = least_of(&env.tokens, props.least_width);
         let quiet = stage.is_peek() || crate::runtime::measure::active(&ctx);
         if !matches!(props.mount, Mount::Inline | Mount::Pane(_))
             && let Some(why) = if quiet { crate::runtime::overlay::peek_close(&ctx, id) } else { crate::runtime::overlay::take_close(&ctx, id) }
@@ -1835,6 +1847,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         self.last = BodyView::default();
         self.offset = ScrollPos::default();
         self.region_gap = gap_of(&at.env.tokens, Gap::Tight);
+        self.least_width = least_of(&at.env.tokens, props.least_width);
         self.room = match at.width {
             Some(width) => Vec2::new(width, props.room_height.unwrap_or(f32::INFINITY)),
             None => self.mount_room(&props, at.ui, id, at.at),

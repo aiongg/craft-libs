@@ -122,7 +122,7 @@ fn context_menu(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
                 ran |= MenuItem::new("CMYK Color").radio_mark(false).show(ui).ran;
                 ran |= MenuItem::new("Grayscale").radio_mark(false).show(ui).ran;
             });
-            Menu::submenu_row(ui, "Empty", |ui, _| {
+            Menu::submenu_row_enabled(ui, "Empty", false, |ui, _| {
                 MenuItem::new("Nothing to run").enabled(false).show(ui);
             });
             Divider::horizontal().show(ui);

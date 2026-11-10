@@ -140,6 +140,7 @@ size.bar.status = 30
 size.bar.options = 42
 size.bar.options_narrow = 36
 size.panel_header = 34
+size.popup_min = 240
 size.thumb.sm = 18
 size.thumb.md = 34
 size.thumb.lg = 48

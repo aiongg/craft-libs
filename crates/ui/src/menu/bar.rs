@@ -21,10 +21,11 @@ mod stories;
 use super::search::{HelpEntry, search_order};
 use super::words::MenuWords;
 use super::{Menu, MenuItem, MenuStep};
-use crate::buttons::ToggleButton;
+use crate::buttons::face::{self, FaceLook, FaceSpec};
 use crate::contract::{
-    Access, Bind, Common, Component, Cx, Focus as _, MeasureCx, MenuKey, Name, NoValue, Outcome, OverlayUi, Overlays as _, Pad, PaintUi, PartsCx,
-    Pointer as _, PopupHandle, PopupKind, Props as _, Role, SetPosition, Show as _, ShowContainer as _, Styled as _,
+    Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, MeasureCx, MenuKey, Name, NoValue, Outcome, OverlayUi,
+    Overlays as _, Pad, PaintUi, PartsCx, Pointer as _, PopupHandle, PopupKind, Props as _, Role, SetPosition, Show as _, ShowContainer as _,
+    Styled as _,
 };
 use crate::display::{Divider, Text};
 use crate::layout_components::Stack;
@@ -34,19 +35,100 @@ use crate::runtime::env::{EnvView, Label};
 use crate::runtime::focus::{self, FocusTarget};
 use crate::runtime::memory::{Facts, Remember as _};
 use crate::runtime::words::common::CommonWords;
-use crate::style::{ComponentStyle, StyleCx, TextLook, TypeRole};
+use crate::style::{ComponentStyle, FocusLook, IconLook, StyleCx, SurfaceLook, TextLook, TypeRole};
 use crate::text::TextField;
 use craft_behavior::fit::{FitItem, FitKeep, fit_items};
 use craft_behavior::{Arrows, Axis, Flow, Intent, Metrics, NavMove, NavShape, PartKey, PartRef, Roving, Sense};
 use craft_host::target::MenuPlacement;
 use craft_keymap::mnemonic;
-use craft_theme::Stateful;
+use craft_theme::{Stateful, States};
 use egui::{Context, Pos2, Rect, Response, Ui, Vec2, pos2};
 
 const TITLE: PartKey = PartKey::new("title");
 const MORE: PartKey = PartKey::new("more");
 
-/// The style of a menu bar: the titles wear toggle-button faces; the bar itself draws the mnemonic underline in the
+/// The style of a title's face: a menu row's surface and ink (flat, `radius.sm`, no border), with the accent fill and
+/// `text.on_accent` while its menu is open.
+#[derive(Clone, Debug, PartialEq, ComponentStyle)]
+#[non_exhaustive]
+struct TitleFaceStyle {
+    #[style(surface)]
+    surface: SurfaceLook,
+    #[style(metrics)]
+    metrics: Metrics,
+    #[style(focus)]
+    focus: FocusLook,
+    #[style(text)]
+    text: TextLook,
+    #[style(icon)]
+    icon: IconLook,
+    face: FaceLook,
+}
+
+/// The face of a menu title: lit while its menu is open.
+#[derive(crate::contract::Component, crate::contract::Props)]
+struct TitleFace {
+    #[common]
+    common: Common,
+    lit: Bind<'static, bool>,
+}
+
+impl TitleFace {
+    fn new(label: impl Into<Label>, lit: Bind<'static, bool>) -> Self {
+        TitleFace { common: Common::new(), lit }.label(label)
+    }
+}
+
+impl Component for TitleFace {
+    const ROLE: Role = Role::MENU_ITEM;
+    const PARTS: bool = false;
+    const OVERLAYS: bool = false;
+    type Style = TitleFaceStyle;
+    type Output = EditResponse<bool>;
+
+    fn style(cx: &StyleCx<'_>, _: TitleFaceStyleKey) -> TitleFaceStyle {
+        let tokens = cx.tokens;
+        let (accent, on_accent) = (cx.color(tokens.color.accent.solid), cx.color(tokens.color.text.on_accent));
+        let on = |color| States::new(color, color, color, color);
+        let surface = SurfaceLook::new(cx.row_surface().on(on(accent))).radius(crate::style::UiTokens::corner(tokens.shape.radius.sm));
+        let ink = cx.row_ink(tokens.color.text.normal).on(on(on_accent));
+        let control = cx.control();
+        TitleFaceStyle {
+            surface,
+            metrics: Metrics::new()
+                .padding(craft_behavior::Insets::horizontal(control.pad_x))
+                .min_size(Vec2::new(0.0, control.height))
+                .gap(control.gap),
+            focus: cx.focus_look(),
+            text: TextLook::new(TypeRole::Label, ink.clone()),
+            icon: IconLook::new(control.icon, ink),
+            face: FaceLook::of(cx),
+        }
+    }
+
+    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
+        face::measure(cx, &FaceSpec { label: cx.resolved.label, role: None, lead: None, trail: None, loading: false })
+    }
+
+    fn sense(&self) -> Sense {
+        Sense::HOVER
+    }
+
+    fn bind(&mut self) -> Option<BindMut<'_, bool>> {
+        Some(self.lit.reborrow())
+    }
+
+    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        let spec = FaceSpec { label: cx.resolved.label, role: None, lead: None, trail: None, loading: false };
+        face::paint(ui, cx, (&cx.style.text, &cx.style.icon), &cx.style.face, &spec, cx.content_rect);
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> EditResponse<bool> {
+        cx.edit_response()
+    }
+}
+
+/// The style of a menu bar: the titles wear row faces; the bar itself draws the mnemonic underline in the
 /// faces' label role and ink.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
 #[non_exhaustive]
@@ -210,8 +292,8 @@ impl<'a> MenuBar<'a> {
         refs.iter().zip(marks).map(|(label, mark)| (mnemonic::marked(label).0, mark)).collect()
     }
 
-    fn face(text: &str, lit: bool) -> ToggleButton<'static> {
-        ToggleButton::new(Label::from(text.to_owned()), Bind::given(lit))
+    fn face(text: &str, lit: bool) -> TitleFace {
+        TitleFace::new(Label::from(text.to_owned()), Bind::given(lit))
     }
 
     /// The text of the overflow title: "…" beside shown titles, "Menu" when it holds them all.
@@ -456,7 +538,9 @@ impl Component for MenuBar<'_> {
                             if let (Some(help), Some(rows)) = (help.filter(|help| help.menu == *at), help_rows.as_ref()) {
                                 // The field sits in a padded frame: its edge lines up with the row labels and it keeps clear of the first row.
                                 Stack::new().pad(Pad::Regular).fill_width().show(ui, |ui, _| {
-                                    TextField::search(words.bar_search.as_str().to_owned(), Bind::bound(&mut query.0)).show(ui);
+                                    TextField::search(words.bar_search.as_str().to_owned(), Bind::bound(&mut query.0))
+                                        .placeholder(words.bar_search.as_str().to_owned())
+                                        .show(ui);
                                 });
                                 let refs: Vec<[&str; 3]> =
                                     rows.iter().map(|[label, english, path]| [label.as_str(), english.as_str(), path.as_str()]).collect();

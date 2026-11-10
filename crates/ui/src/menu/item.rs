@@ -101,6 +101,8 @@ struct LevelState {
     active: Option<Id>,
     pointer: Option<Pos2>,
     previous_pointer: Option<Pos2>,
+    /// The padding of the popup around the rows, as the menu that set the level has it.
+    pad: f32,
 }
 
 /// The rows of one menu level: each registers its label, and the level gives every row its mnemonic from the
@@ -154,8 +156,9 @@ impl MenuLevel {
     /// Starts a body run over the level. The rows of this pass register in the measuring run and again in the real
     /// run; the first row a pass registers drops the rows of the passes before.
     /// Rows get no mnemonic when `lettered` is false: a Mac menu has no access letters.
-    fn begin(&self, submenu: bool, values: bool, keyboard: bool, lettered: bool, pointer: Option<Pos2>) {
+    fn begin(&self, submenu: bool, values: bool, keyboard: bool, lettered: bool, pointer: Option<Pos2>, pad: f32) {
         self.with(|state| {
+            state.pad = pad;
             state.keyboard = keyboard;
             state.lettered = lettered;
             state.submenu = submenu;
@@ -165,6 +168,11 @@ impl MenuLevel {
                 state.pointer = pointer;
             }
         });
+    }
+
+    /// The padding of the popup around the level's rows.
+    fn pad(&self) -> f32 {
+        self.with(|state| state.pad)
     }
 
     /// Ends a body run of pass `pass`: the rows of this pass give the letters the user sees. A pass that registered no
@@ -314,11 +322,11 @@ impl MenuLevel {
 }
 
 /// The level a menu container puts into its body's env: the rows of the body register with it.
-pub(crate) fn level_env<C: Component>(cx: &Cx<'_, C>, values: &mut AppValues, submenu: bool, valued: bool) {
+pub(crate) fn level_env<C: Component>(cx: &Cx<'_, C>, values: &mut AppValues, submenu: bool, valued: bool, pad: f32) {
     let level = MenuLevel::of(&cx.recall::<LevelMemory>());
     let pointer = cx.core.ctx.input(|input| input.pointer.latest_pos());
     let keyboard = crate::runtime::focus::keyboard_in_menu(&cx.core.ctx);
-    level.begin(submenu, valued, keyboard, !cx.env.shell().os.is_mac(), pointer);
+    level.begin(submenu, valued, keyboard, !cx.env.shell().os.is_mac(), pointer, pad);
     values.set(level);
 }
 
@@ -343,8 +351,8 @@ pub struct MenuItemStyle {
     detail: TextLook,
     /// The least space between the label and the shortcut: `space.gap.section`.
     shortcut_gap: f32,
-    /// The padding of the popup around the rows: `space.pad.regular`.
-    popup_pad: f32,
+    /// The gap between a submenu and its parent menu: `space.gap.tight`.
+    submenu_gap: f32,
 }
 
 /// What a row reports.
@@ -593,7 +601,7 @@ impl Component for MenuItem<'_> {
             icon: IconLook::new(control.icon, ink(text.normal)),
             detail: TextLook::new(TypeRole::Caption, ink(text.muted)),
             shortcut_gap: tokens.space.gap.section,
-            popup_pad: tokens.space.pad.regular,
+            submenu_gap: tokens.space.gap.tight,
         }
     }
 
@@ -812,7 +820,9 @@ impl Component for MenuItem<'_> {
 
     fn finish(self, cx: Cx<'_, Self>) -> MenuItemOutput {
         let level = cx.env.get::<MenuLevel>();
-        let frame = cx.response.rect.expand(cx.style.popup_pad);
+        // The frame is where a submenu hangs: the row with the popup padding, moved `gap.tight` toward the reading end.
+        let shift = if cx.flow.is_rtl() { -cx.style.submenu_gap } else { cx.style.submenu_gap };
+        let frame = cx.response.rect.expand(level.pad()).translate(egui::vec2(shift, 0.0));
         MenuItemOutput { response: cx.response.clone(), ran: self.ran, opens_submenu: self.opens, submenu_open: self.open, frame, level, id: cx.id }
     }
 }

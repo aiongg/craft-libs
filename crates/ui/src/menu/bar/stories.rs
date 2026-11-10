@@ -25,6 +25,23 @@ fn file(ui: &mut Ui) {
 fn view(ui: &mut Ui) {
     MenuItem::new("&Rulers").check(true).show(ui);
     MenuItem::new("&Grid").check(false).show(ui);
+    Divider::horizontal().show(ui);
+    MenuItem::new("&Fit on Screen").shortcut("Ctrl+0").show(ui);
+}
+
+fn image(ui: &mut Ui) {
+    Menu::submenu_row(ui, "&Adjustments", |ui, _| {
+        MenuItem::new("Levels\u{2026}").show(ui);
+        MenuItem::new("Curves\u{2026}").show(ui);
+        MenuItem::new("Hue/Saturation\u{2026}").show(ui);
+    });
+    MenuItem::new("Image &Size\u{2026}").show(ui);
+    MenuItem::new("&Canvas Size\u{2026}").show(ui);
+}
+
+fn window(ui: &mut Ui) {
+    MenuItem::new("&Workspace").show(ui);
+    MenuItem::new("&Layers").show(ui);
 }
 
 static HELP: LazyLock<Vec<HelpEntry>> = LazyLock::new(|| {
@@ -38,7 +55,10 @@ fn titles() -> Vec<MenuTitle<'static>> {
             EditMenu.show(ui);
         }),
         MenuTitle::new("&View", view),
+        MenuTitle::new("&Image", image),
+        MenuTitle::new("&Window", window),
         MenuTitle::new("&Help", |ui| {
+            MenuItem::new("&Keyboard Shortcuts").show(ui);
             MenuItem::new("&About").show(ui);
         }),
     ]
@@ -49,7 +69,7 @@ fn menu_bar(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let size = *data.choice("size", ControlSize::Md, &[("Sm", ControlSize::Sm), ("Md", ControlSize::Md)]);
     let search = *data.value("search", false);
     let bar = MenuBar::new("Main menu", titles()).size(size);
-    let bar = if search { bar.help(MenuHelp::new(3, HELP.as_slice())) } else { bar };
+    let bar = if search { bar.help(MenuHelp::new(5, HELP.as_slice())) } else { bar };
     bar.show(ui).into()
 }
 
@@ -66,7 +86,7 @@ fn menu_bar_open(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 
 #[story(MenuBar<'static>, covers = [], drive = Drive::Never)]
 fn menu_bar_with_help_search(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    MenuBar::new("Main menu", titles()).help(MenuHelp::new(3, HELP.as_slice())).show(ui).into()
+    MenuBar::new("Main menu", titles()).help(MenuHelp::new(5, HELP.as_slice())).show(ui).into()
 }
 
 #[story(EditMenu, covers = [Default], drive = Drive::Never)]
