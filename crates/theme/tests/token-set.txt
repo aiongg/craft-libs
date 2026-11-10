@@ -129,6 +129,7 @@ size.rail.button
 size.rail.width
 size.ruler.tick.mid
 size.thumb.lg
+size.thumb_row
 size.thumb.md
 size.thumb.sm
 size.toggle

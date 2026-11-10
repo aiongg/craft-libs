@@ -847,6 +847,7 @@ A theme with its own shape replaces the radii or adds an offset to control, surf
 | `size.icon.glyph_sm`, `size.icon.glyph_md` | The glyph in an icon-only button |
 | `size.bar.title`, `size.bar.tab`, `size.bar.status`, `size.bar.options`, `size.bar.options_narrow` | Title bar, document tab bar, status bar, options bar |
 | `size.panel_header` | Panel headers |
+| `size.thumb_row` | The least height of a list row that shows a thumbnail (layers, channels, links, thumbnail lists) |
 | `size.rail.width`, `size.rail.button`, `size.rail.panel_width`, `size.rail.panel_button` | Tool rail and panel rail |
 | `size.list.*`, `size.tab.*`, `size.preset.*` | Lists, tab strips, preset browsers |
 | `space.gap.*`, `space.pad.*` | Gaps between and padding inside components |

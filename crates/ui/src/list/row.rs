@@ -662,6 +662,8 @@ struct Sizes {
     min_label: f32,
     thumbs: [f32; 3],
     thumb_pad: f32,
+    /// The least height of a row with a thumbnail: `size.thumb_row`.
+    thumb_row: f32,
     tight: f32,
     label_line: f32,
     detail_line: f32,
@@ -685,6 +687,7 @@ impl Sizes {
             min_label: MIN_LABEL_HEIGHTS * control.height,
             thumbs: [thumbs.sm, thumbs.md, thumbs.lg],
             thumb_pad: tokens.space.gap.stack,
+            thumb_row: tokens.size.thumb_row,
             tight: tokens.space.gap.tight,
             label_line: tokens.typography.get(role).line_height,
             detail_line: tokens.typography.get(TypeRole::Caption).line_height,
@@ -703,11 +706,11 @@ impl Sizes {
     }
 
     /// The height of a row with a thumbnail of `thumb` and, if `detail`, a detail line: the control height, the
-    /// thumbnail with its padding, or the two lines of text, whichever is tallest.
+    /// thumbnail with its padding (at least `size.thumb_row`), or the two lines of text, whichever is tallest.
     fn height(&self, thumb: ThumbSize, detail: bool) -> f32 {
         let base = match self.side(thumb) {
             0.0 => self.row,
-            side => (side + self.thumb_pad).max(self.row),
+            side => (side + self.thumb_pad).max(self.thumb_row),
         };
         if detail { base.max(self.label_line + self.detail_line + self.gap) } else { base }
     }
@@ -1768,6 +1771,7 @@ pub(crate) fn placement_under_fixed_sizes(row: &ListRow<'_>, width: f32, rtl: bo
         min_label: 60.0,
         thumbs: [24.0, 32.0, 48.0],
         thumb_pad: 4.0,
+        thumb_row: 28.0,
         tight: 2.0,
         label_line: 16.0,
         detail_line: 12.0,
