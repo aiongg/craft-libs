@@ -158,7 +158,7 @@ pub struct LevelsEditorStyle {
     metrics: Metrics,
     /// The height of a caption.
     caption: f32,
-    /// The height of the input thumb row.
+    /// The height of the input thumb row: its thumbs, so the gap under them is the one gap of the editor.
     row: f32,
     /// The height of the output row: its thumbs and the bar they hang from.
     bar_row: f32,
@@ -427,8 +427,8 @@ impl Component for LevelsEditor<'_> {
         LevelsEditorStyle {
             metrics: Metrics::new().gap(control.gap),
             caption: row,
-            row,
-            bar_row: row.max(control.icon + cx.track().thickness),
+            row: control.icon,
+            bar_row: control.icon + cx.tokens.size.ramp.bar,
             fields: row,
             field: cx.text_width(TypeRole::Body, "000") + 2.0 * control.pad_x,
             gamma_field: cx.text_width(TypeRole::Body, "0.00") + 2.0 * control.pad_x,

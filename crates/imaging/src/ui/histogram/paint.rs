@@ -3,6 +3,7 @@
 //! graph calls it with [`HistogramLook::Backdrop`] behind its curve.
 
 use super::data::{Blend, ChannelColor, HistogramData, HistogramLook, HistogramScale, LevelRange, Plot, color32};
+use craft_theme::Stroke as StrokeStep;
 use craft_ui::primitives::ContentPainterCx;
 use craft_ui::style::StyleCx;
 use egui::{Color32, CornerRadius, Mesh, Pos2, Rect, Shape, Stroke, StrokeKind, pos2};
@@ -112,9 +113,9 @@ pub fn paint_frame(painter: &ContentPainterCx<'_>, rect: Rect, frame: &PlotFrame
     }
 }
 
-/// Paints the edge of a plot over `rect`, one physical pixel wide, over what the plot drew.
+/// Paints the edge of a plot over `rect`, over what the plot drew, as wide as the border of a field.
 pub fn paint_edge(painter: &ContentPainterCx<'_>, rect: Rect, frame: &PlotFrame) {
-    let width = 1.0 / painter.pixels_per_point();
+    let width = StrokeStep::W1.width(painter.pixels_per_point());
     painter.painter.rect_stroke(rect, CornerRadius::ZERO, Stroke::new(width, frame.edge), StrokeKind::Inside);
 }
 
