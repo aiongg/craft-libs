@@ -78,10 +78,14 @@ fn icon_button_selected(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     shown.into()
 }
 
-/// The toggle button on, as the gallery card shows it.
+/// One toggle off and one on with an icon, as the gallery card shows them.
 #[story(ToggleButton<'static>, covers = [], drive = Drive::Never)]
 fn toggle_button_on(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    ToggleButton::new("Guides", Bind::bound(data.value("on", true))).show(ui).into()
+    let shown = Row::new().show(ui, |ui, _| {
+        ToggleButton::new("Snap to grid", Bind::bound(data.value("snap", false))).id_salt("snap").show(ui);
+        ToggleButton::new("Guides", Bind::bound(data.value("on", true))).icon(IconId::new("eye")).id_salt("guides").show(ui);
+    });
+    shown.into()
 }
 
 #[story(ToggleButton<'static>, covers = [Default])]
