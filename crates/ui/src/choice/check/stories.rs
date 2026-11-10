@@ -31,3 +31,13 @@ fn checkbox_with_reason(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let tooltip = data.tooltip("Snap to the grid");
     Checkbox::new(Bind::bound(data.value("on", false))).label("Snap").tooltip(tooltip).show(ui).into()
 }
+
+#[story(Checkbox<'static>, covers = [], drive = Drive::Never)]
+fn checkbox_disabled_unchecked(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    Checkbox::new(Bind::bound(data.value("off", false))).label("Disabled (unchecked)").enabled(false).show(ui).into()
+}
+
+#[story(Checkbox<'static>, covers = [], drive = Drive::Never)]
+fn checkbox_disabled_checked(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    Checkbox::new(Bind::bound(data.value("on", true))).label("Disabled (checked)").enabled(false).show(ui).into()
+}

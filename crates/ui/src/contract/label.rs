@@ -230,6 +230,8 @@ struct LabelStyle {
     gap: f32,
     /// The colour of the detail.
     muted: StyleColor,
+    /// The colour of the name while the label's control is disabled.
+    disabled: StyleColor,
 }
 
 /// What the label leaf reports.
@@ -318,6 +320,7 @@ impl Component for LabelLeaf {
             icon: cx.control().icon,
             gap: cx.tokens.space.gap.inline,
             muted: cx.color(cx.tokens.color.text.muted),
+            disabled: cx.color(cx.tokens.color.text.disabled),
         }
     }
 
@@ -402,7 +405,10 @@ impl Component for LabelLeaf {
                 rest = after.take_start(cx.style.gap).1;
             }
             // A name wider than its room elides; the full text stays the accessible name.
-            let run = TextRun::new(cx.core.resolved.label).elide();
+            let mut run = TextRun::new(cx.core.resolved.label).elide();
+            if cx.state.state == craft_theme::State::Disabled {
+                run = run.color(cx.style.disabled);
+            }
             let name = draw.layout(&run, rest.rect().width()).size();
             let (name_rect, after) = rest.take_start(name.x);
             draw.text(centred(name_rect, name.y), &run);

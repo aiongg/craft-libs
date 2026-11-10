@@ -40,6 +40,21 @@ pub struct SurfaceStyle {
     pub shadow: Option<Shadow>,
 }
 
+impl SurfaceStyle {
+    /// This look while disabled: fill and edge faded by `Opacity::DISABLED`, and no shadow.
+    pub fn disabled(&self) -> SurfaceStyle {
+        let fade = |c: Color32| c.gamma_multiply(craft_theme::Opacity::DISABLED);
+        let edge = match self.edge {
+            SurfaceEdge::Border(stroke) => SurfaceEdge::Border(Stroke::new(stroke.width, fade(stroke.color))),
+            SurfaceEdge::Bevel { top_left, bottom_right, width } => {
+                SurfaceEdge::Bevel { top_left: fade(top_left), bottom_right: fade(bottom_right), width }
+            }
+            other => other,
+        };
+        SurfaceStyle { fill: fade(self.fill), edge, shadow: None, ..*self }
+    }
+}
+
 fn color(c: Rgba) -> Color32 {
     let [r, g, b, a] = c.0;
     Color32::from_rgba_unmultiplied(r, g, b, a)
