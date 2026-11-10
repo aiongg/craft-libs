@@ -83,7 +83,8 @@ pub(crate) fn show(ui: &mut Ui, edit: Edit<'_>) -> Shown {
     // The same font and optical size as a label of the same role: one text path.
     let env = crate::runtime::env::Env::of(ui);
     let tokens = &env.tokens;
-    let selection = tokens.color.state.text_selection;
+    // Behind selected text and the selected text itself: the field's roles.
+    let selection = (tokens.color.accent.soft, tokens.color.text.normal);
     let facts = crate::fonts::stack_facts(ui.ctx());
     let font_id = tokens.font(facts, role, mono);
     let optical_size = tokens.optical_size(facts, role, mono);
@@ -115,7 +116,7 @@ pub(crate) fn show(ui: &mut Ui, edit: Edit<'_>) -> Shown {
             ui.disable();
         }
         super::style::set_text_cursor(ui, caret_visible);
-        super::style::set_text_selection(ui, crate::style::rgba_color(selection));
+        super::style::set_text_selection(ui, crate::style::rgba_color(selection.0), crate::style::rgba_color(selection.1));
         let mut read = text.as_str();
         macro_rules! build {
             ($buffer:expr) => {{

@@ -73,18 +73,14 @@ pub(super) fn surface(cx: &StyleCx<'_>, parts: &VariantParts) -> SurfaceLook {
     }
 }
 
-/// The look of a control that is on: the selection fill with the theme's paired `text.on_selected`, inside the soft
-/// accent edge.
+/// The look of a control that is on: the accent's soft fill with its text colour pushed to the contrast text needs,
+/// inside the soft accent edge.
 pub(super) fn on_parts(cx: &StyleCx<'_>) -> VariantParts {
     let soft = cx.with_variant(Variant::look(Emphasis::Soft, Tone::Accent)).variant_look();
     let colors = &cx.tokens.color;
-    let c = |rgba| cx.color(rgba);
-    let (selected, hover, ink) = (c(colors.state.selected), c(colors.state.selected_hover), c(colors.text.on_selected));
-    VariantParts {
-        fill: Stateful::new(selected).off(States::new(selected, hover, hover, soft.fill.off.disabled)),
-        text: Stateful::new(ink).off(States::new(ink, ink, ink, soft.text.off.disabled)),
-        ..soft
-    }
+    let fill = cx.color(colors.accent.soft);
+    let ink = cx.color(craft_theme::ensure_contrast(colors.accent.text, colors.accent.soft, craft_theme::text_contrast_min(cx.contrast())));
+    VariantParts { fill: Stateful::new(fill), text: Stateful::new(ink).off(States::new(ink, ink, ink, soft.text.off.disabled)), ..soft }
 }
 
 /// The focus ring of a button.
