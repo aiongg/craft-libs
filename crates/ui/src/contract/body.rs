@@ -82,9 +82,9 @@ struct ScrollState {
 #[derive(Default)]
 struct Jumps(Vec<(Id, ScrollPos, u64)>);
 
+/// The frame a jump is queued and taken in: the root's, since one store serves the bodies of every viewport.
 fn jump_frame(ctx: &Context) -> u64 {
-    let viewport = pass::current_viewport(ctx);
-    pass::frame_nr(ctx, viewport)
+    pass::root_frame_nr(ctx)
 }
 
 /// What the scroll region and the regions measured last pass.
