@@ -213,11 +213,11 @@ impl<'a> MetadataTable<'a> {
         let rows = ui.scope_id().with("rows");
         if let Some(text) = filter {
             // The field starts where the table's text does: one cell inset (`space.pad.control`) from the edge.
-            let mut text = Some(text);
-            let edit = Stack::new().pad(Pad::Control).show(ui, |ui, _| {
-                text.take().map(|text| TextField::search(words.filter.clone(), text).placeholder(words.filter.clone()).drives(rows).show(ui))
-            });
-            if let Some(edit) = edit.inner.flatten() {
+            let mut text = text;
+            let edit = Stack::new()
+                .pad(Pad::Control)
+                .show(ui, |ui, _| TextField::search(words.filter.clone(), text.reborrowed()).placeholder(words.filter.clone()).drives(rows).show(ui));
+            if let Some(edit) = edit.inner {
                 filter_changed = edit.event.is_some();
                 if let Some(Mixed::Same(shown)) = &edit.shown {
                     query.clone_from(&**shown);
