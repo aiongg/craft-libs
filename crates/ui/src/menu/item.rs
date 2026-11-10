@@ -11,7 +11,7 @@ use crate::runtime::access::PopupKind;
 use crate::runtime::commands::{CommandRef, FireSource, ResolvedCommand};
 use crate::runtime::env::{AppValues, EnvValue, Label};
 use crate::runtime::frame;
-use crate::style::{ComponentStyle, Flags, FocusLook, IconLook, StyleCx, SurfaceLook, TextLook, TypeRole, UiTokens};
+use crate::style::{ComponentStyle, Flags, FocusLook, IconLook, StyleCx, SurfaceLook, TextLook, TypeRole};
 use craft_behavior::{ColumnKey, Flow, IconId, Insets, Metrics, NavMove, PartKey, Sense};
 use craft_keymap::mnemonic;
 use craft_theme::{Rgba, States};
@@ -589,8 +589,8 @@ impl Component for MenuItem<'_> {
         let c = |rgba: Rgba| cx.color(rgba);
         // A checked row shows its mark, not a selection fill.
         let clear = c(Rgba::TRANSPARENT);
-        let surface =
-            SurfaceLook::new(cx.command_row_surface().on(States::new(clear, clear, clear, clear))).radius(UiTokens::corner(tokens.shape.radius.sm));
+        let mut surface = cx.command_row_look();
+        surface.fill = surface.fill.on(States::new(clear, clear, clear, clear));
         let ink = |base: Rgba| {
             cx.command_row_ink(base).on(States::new(c(base), c(base), c(base), c(base))).off(States::new(c(base), c(base), c(base), c(text.disabled)))
         };

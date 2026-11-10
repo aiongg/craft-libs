@@ -852,6 +852,12 @@ impl StyleCx<'_> {
         fill_of(self, FillKey { striped: false, layer: false, heading: false, command: true })
     }
 
+    /// The surface of a face of a menu: the command highlight on square corners, as the old menu rows and bar titles
+    /// drew it. A face selects it with `SurfaceLook`'s fill from here and `command_row_ink` for its text and icons.
+    pub fn command_row_look(&self) -> SurfaceLook {
+        SurfaceLook::new(self.command_row_surface()).radius(egui::CornerRadius::ZERO)
+    }
+
     /// The ink of a collection item's text or icon: `base`, and the theme's paired `text.on_selected` on the
     /// selection fills.
     pub fn row_ink(&self, base: Rgba) -> Stateful<StyleColor> {
