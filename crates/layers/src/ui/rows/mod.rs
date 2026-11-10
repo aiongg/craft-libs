@@ -3,7 +3,7 @@
 #[cfg(feature = "screen-testing")]
 mod stories;
 
-use craft_behavior::{EditEvent, IconId};
+use craft_behavior::{EditEvent, EditEvents, IconId};
 use craft_theme::ControlSize;
 use craft_ui::buttons::ToggleButton;
 use craft_ui::contract::{Bind, Entry, NoValue, Outcome, Props as _, RowAlign, Show as _, ShowContainer as _, SideLabel, TooltipSpec};
@@ -147,9 +147,9 @@ impl<'a> BlendRows<'a> {
                     .enabled(editable)
                     .tooltip(TooltipSpec::new(blend_name).disabled_text(unavailable.clone()))
                     .show(ui);
-                events.extend(picked.event.map(LayerPropertyEdit::Blend));
+                events.extend(picked.events.into_iter().map(LayerPropertyEdit::Blend));
                 let caption = words.opacity.clone();
-                events.extend(percent_field(ui, &caption, props.opacity, editable, &unavailable).map(LayerPropertyEdit::Opacity));
+                events.extend(percent_field(ui, &caption, props.opacity, editable, &unavailable).into_iter().map(LayerPropertyEdit::Opacity));
             });
             if !locks {
                 return;
@@ -183,16 +183,16 @@ impl<'a> BlendRows<'a> {
                     }
                 });
                 let caption = words.fill.clone();
-                events.extend(percent_field(ui, &caption, props.fill, editable, &unavailable).map(LayerPropertyEdit::Fill));
+                events.extend(percent_field(ui, &caption, props.fill, editable, &unavailable).into_iter().map(LayerPropertyEdit::Fill));
             });
         });
         BlendRowsOutput { response: block.output, events }
     }
 }
 
-/// A 0 to 100 % field with its pop-up slider and a caption that scrubs it; returns its edit.
-fn percent_field(ui: &mut Ui, caption: &Label, value: f64, enabled: bool, reason: &Label) -> Option<EditEvent<f64>> {
-    let mut edit = None;
+/// A 0 to 100 % field with its pop-up slider and a caption that scrubs it; returns its edits.
+fn percent_field(ui: &mut Ui, caption: &Label, value: f64, enabled: bool, reason: &Label) -> EditEvents<f64> {
+    let mut edit = EditEvents::new();
     Field::new(caption.clone()).side(SideLabel::new().scrub(true)).show(ui, |ui, _| {
         let field = NumberField::new(caption.clone(), Bind::given(Some(value)))
             .range(0.0..=100.0)
@@ -203,7 +203,7 @@ fn percent_field(ui: &mut Ui, caption: &Label, value: f64, enabled: bool, reason
             .enabled(enabled)
             .tooltip(TooltipSpec::new(caption.clone()).disabled_text(reason.clone()))
             .show(ui);
-        edit = field.edit.event.map(|event| event.map(|typed| typed.unwrap_or(value)));
+        edit = field.edit.events.map(|typed| typed.unwrap_or(value));
     });
     edit
 }

@@ -539,10 +539,10 @@ impl Component for FontPicker<'_> {
         let list = cx.popup(POPUP);
         let preview = if list.is_open(&mut cx) { cx.memory::<Typing>().lead.clone() } else { None };
         let edit = cx.edit_response();
-        let committed = match &edit.event {
-            Some(EditEvent::Commit { after, .. } | EditEvent::Set { after, .. }) => Some(after.clone()),
+        let committed = edit.events.iter().rev().find_map(|event| match event {
+            EditEvent::Commit { after, .. } | EditEvent::Set { after, .. } => Some(after.clone()),
             _ => None,
-        };
+        });
         let picked = committed.or(self.picked);
         let mut bind = self.settings;
         if let Some(family) = &picked

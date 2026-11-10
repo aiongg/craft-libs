@@ -6,7 +6,7 @@ mod stories;
 
 use std::sync::Arc;
 
-use craft_behavior::{EditEvent, Mixed};
+use craft_behavior::{EditEvent, EditEvents, Mixed};
 use craft_ui::contract::{Bind, Entry, NoValue, Outcome, Pattern, Props, Show as _, ShowContainer as _};
 use craft_ui::form::{Field, FieldGroup, SliderField};
 use craft_ui::pickers::Select;
@@ -156,10 +156,10 @@ fn shown_axes(axes: &[FontAxis]) -> impl Iterator<Item = &FontAxis> {
 pub struct AxisSlidersOutput {
     /// The sliders' response.
     pub response: Response,
-    /// The edit of this pass on the values, folded: a slider drag is one gesture (begin, updates, commit); a key
+    /// The edits of this pass on the values, in order: a slider drag is one gesture (begin, updates, commit); a key
     /// step, a typed value and an instance pick are one set. The binding has already taken the values the events
     /// carry.
-    pub edit: Option<EditEvent<AxisValues>>,
+    pub edit: EditEvents<AxisValues>,
     /// A named instance was picked from the list.
     pub instance: Option<NamedInstance>,
 }
@@ -217,7 +217,7 @@ impl<'a> AxisSliders<'a> {
         let drawn = Drawn { weight, italic };
         let env = Env::of(ui);
         let words = env.words::<AxisSlidersWords>();
-        let mut edit: Option<EditEvent<AxisValues>> = None;
+        let mut edit = EditEvents::<AxisValues>::new();
         let mut instance: Option<NamedInstance> = None;
         let shown = FieldGroup::new(label).show(ui, |ui, cx| {
             if !instances.is_empty() {
@@ -239,7 +239,7 @@ impl<'a> AxisSliders<'a> {
                     }
                     let event = EditEvent::set(Mixed::Same(held), after, Arc::from("Font instance"), None);
                     write_event(&mut values, cx, &event);
-                    edit = EditEvent::fold(edit.take(), event);
+                    edit.push(event);
                     instance = Some(chosen.clone());
                 }
             }
@@ -252,7 +252,7 @@ impl<'a> AxisSliders<'a> {
                 let slider = SliderField::new(name.clone(), Bind::bound(&mut value).reset(default), f64::from(axis.min)..=f64::from(axis.max))
                     .step(if wide { 1.0 } else { 0.01 })
                     .show(ui);
-                if let Some(event) = slider.event {
+                for event in slider.events {
                     let clamp = |v: f64| (v as f32).clamp(axis.min, axis.max);
                     let event = event.map(|v| {
                         let mut all = held.clone();
@@ -260,7 +260,7 @@ impl<'a> AxisSliders<'a> {
                         all
                     });
                     write_event(&mut values, cx, &event);
-                    edit = EditEvent::fold(edit.take(), event);
+                    edit.push(event);
                 }
             }
         });

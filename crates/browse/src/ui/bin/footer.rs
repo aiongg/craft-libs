@@ -60,7 +60,7 @@ pub(super) fn footer<K: TextureKey>(
     if view != state.settings.view {
         events.push(BinEvent::View(view));
     }
-    if let Some(event) = edit.event {
+    for event in edit.events {
         events.push(BinEvent::Zoom(event));
     }
     if let Some(drop) = &bar.dropped {
