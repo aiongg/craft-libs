@@ -358,3 +358,18 @@ fn a_localised_decimal_types_in() {
     let host = Arc::new(Host::builder(AppInfo { id: "trial", name: "Trial", version: "0" }).i18n(Arc::new(i18n)).build());
     assert_eq!(typed(Some(host), None, "12,5"), Some(12.5));
 }
+
+/// An automatic field shows "Auto" while it is blank and its number once it has one.
+#[trial]
+fn an_automatic_number_field_shows_auto_only_while_blank() {
+    let shows_auto = |start: Option<f64>| {
+        let mut frames = Frames::new();
+        let mut value = start;
+        frames.idle(4, &mut |ui: &mut Ui| {
+            NumberField::new("Value", Bind::bound(&mut value)).automatic(true).id_salt("auto").show(ui);
+        });
+        frames.texts().iter().any(|run| run.text == "Auto")
+    };
+    assert!(shows_auto(None), "a blank field shows Auto");
+    assert!(!shows_auto(Some(START)), "a field with a number does not");
+}

@@ -3,7 +3,7 @@
 //! child, so the two line up and behave alike.
 
 use super::{Component, Props};
-use super::{Cx, MeasureCx, PaintUi, PartsCx, Show};
+use super::{Cx, MeasureCx, PaintUi, PartsCx, Show, Styled as _};
 use crate::primitives::{IconSpec, TextRun, Wrap};
 use crate::runtime::access::{
     self,
@@ -14,8 +14,10 @@ use crate::runtime::env::{Env, Label};
 use crate::runtime::keys;
 use crate::runtime::layout_memory;
 use crate::runtime::memory::sub;
-use crate::style::{ComponentStyle, ResetMarkLook, StyleColor, StyleCx};
+use crate::runtime::words::CommonWords;
+use crate::style::{ComponentStyle, ResetMarkLook, Stateful, StyleColor, StyleCx, TextLook, TypeRole};
 use craft_behavior::{ColumnWidth, Flow, LabelColumn, Metrics, PartKey, PressState, Sense, ValueDrag};
+use craft_theme::States;
 use egui::{Align, Id, Rect, Response, Ui, UiBuilder, Vec2};
 use std::cell::Cell;
 use std::sync::Arc;
@@ -231,6 +233,9 @@ struct LabelStyle {
     gap: f32,
     /// The colour of the detail.
     muted: StyleColor,
+    /// The name: `text.muted`, dimmed with a disabled control.
+    #[style(text)]
+    name: TextLook,
 }
 
 /// What the label leaf reports.
@@ -268,6 +273,9 @@ struct LabelLeaf {
     glyph: Option<Glyph>,
     /// The detail, resolved in the scope's language.
     detail: Option<Label>,
+    /// The colon drawn after the name, in the scope's language; a separate run, so the name stays the one text a
+    /// narrow room elides.
+    colon: Option<String>,
     baseline: Cell<f32>,
     double_click: bool,
     dot_click: bool,
@@ -294,6 +302,7 @@ impl LabelLeaf {
             icon: None,
             glyph: None,
             detail: None,
+            colon: None,
             baseline: Cell::new(0.0),
             double_click: false,
             dot_click: false,
@@ -319,6 +328,10 @@ impl Component for LabelLeaf {
             icon: cx.control().icon,
             gap: cx.tokens.space.gap.inline,
             muted: cx.color(cx.tokens.color.text.muted),
+            name: {
+                let (muted, off) = (cx.color(cx.tokens.color.text.muted), cx.color(cx.tokens.color.text.disabled));
+                TextLook::new(TypeRole::Label, Stateful::new(muted).off(States::new(muted, muted, muted, off)))
+            },
         }
     }
 
@@ -339,7 +352,8 @@ impl Component for LabelLeaf {
             self.baseline.set(baseline);
             return Vec2::new(shown.x + self.slot, shown.y);
         }
-        let (mut width, mut height) = (name.x, name.y);
+        let colon = self.colon.as_deref().map_or(0.0, |colon| cx.layout(&TextRun::new(colon)).size().x);
+        let (mut width, mut height) = (name.x + colon, name.y);
         if self.icon.is_some() {
             width += cx.style.icon + cx.style.gap;
             height = height.max(cx.style.icon);
@@ -403,10 +417,21 @@ impl Component for LabelLeaf {
                 rest = after.take_start(cx.style.gap).1;
             }
             // A name wider than its room elides; the full text stays the accessible name.
-            let run = TextRun::new(cx.core.resolved.label).elide();
-            let name = draw.layout(&run, rest.rect().width()).size();
+            let ink = cx.resolve(&cx.style.name.color);
+            let colon = self.colon.as_deref().map(|colon| TextRun::new(colon).color(ink));
+            let colon_width = colon.as_ref().map_or(0.0, |run| draw.layout(run, f32::INFINITY).size().x);
+            let run = TextRun::new(cx.core.resolved.label).color(ink).elide();
+            let name = draw.layout(&run, (rest.rect().width() - colon_width).max(0.0)).size();
             let (name_rect, after) = rest.take_start(name.x);
             draw.text(centred(name_rect, name.y), &run);
+            let after = match colon {
+                Some(run) => {
+                    let (colon_rect, after) = after.take_start(colon_width);
+                    draw.text(centred(colon_rect, name.y), &run);
+                    after
+                }
+                None => after,
+            };
             if let Some(detail) = &self.detail {
                 let run = self.detail_run(detail, cx.style);
                 let (_, detail_flow) = after.take_start(cx.style.gap);
@@ -428,6 +453,22 @@ impl Component for LabelLeaf {
             activated: self.activated,
         }
     }
+}
+
+/// The colon a beside text label draws after its name, unless the name ends in one. The label's node and the
+/// control keep the name as given.
+fn colon(env: &Env, input: &LabelIn<'_>) -> Option<String> {
+    let text = env.view().resolve(input.text);
+    let beside_text = input.side.layout == FieldLayout::Beside && input.side.kind == LabelKind::Text;
+    if !beside_text || text.as_str().is_empty() || text.as_str().ends_with([':', '\u{ff1a}']) {
+        return None;
+    }
+    Some(colon_of(&env.words::<CommonWords>()))
+}
+
+/// The colon of the scope's language that follows a caption's name.
+pub(crate) fn colon_of(words: &CommonWords) -> String {
+    words.caption.fill(&[("caption", "")])
 }
 
 /// What the step needs of the row it runs for.
@@ -648,6 +689,7 @@ pub(crate) fn control_after(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Rect
     let slot = if reset.is_some() { env.tokens.size.handle.sm } else { 0.0 };
     let mut leaf = LabelLeaf::new(input.text.clone(), slot);
     leaf.resettable = reset.is_some();
+    leaf.colon = colon(env, input);
     match &input.side.kind {
         LabelKind::Glyph(glyph) => leaf.glyph = Some(glyph.resolved(env)),
         _ => {
@@ -683,6 +725,7 @@ pub(crate) fn run(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Placed {
     leaf.scrub = input.enabled && (input.side.scrub || scope::last_scrub(&ctx, input.scope));
     leaf.resettable = reset.is_some();
     leaf.differs = reset.is_some_and(|fact| fact.differs);
+    leaf.colon = colon(env, input);
     match &input.side.kind {
         LabelKind::Glyph(glyph) => leaf.glyph = Some(glyph.resolved(env)),
         _ => {

@@ -9,7 +9,9 @@ use super::options::{
 use super::session::CropDocument;
 use craft_behavior::{EditEvent, IconId, NumberCodec};
 use craft_ui::buttons::{Button, IconButton, ToggleButton};
-use craft_ui::contract::{Bind, BodyCx, Entry, NoValue, Outcome, Props as _, Remember as _, Show as _, ShowContainer as _, Sizing, clicked};
+use craft_ui::contract::{
+    Bind, BodyCx, Entry, LabelKind, NoValue, Outcome, Props as _, Remember as _, Show as _, ShowContainer as _, SideLabel, Sizing, clicked,
+};
 use craft_ui::display::Divider;
 use craft_ui::form::Field;
 use craft_ui::layout_components::Row;
@@ -266,12 +268,13 @@ fn ratio_field(
     let current = shown.get(side).copied().unwrap_or(0.0);
     let salt = if side == 0 { "ratio-width" } else { "ratio-height" };
     let mut event = None;
-    Field::new(caption.clone()).id_salt(salt).sizing(Sizing::Content).show(ui, |ui, _| {
+    Field::new(caption.clone()).side(SideLabel::new().kind(LabelKind::Hidden)).id_salt(salt).sizing(Sizing::Content).show(ui, |ui, _| {
         let codec = NumberCodec::new(units.reader(None), RATIO_DECIMALS);
         let field = NumberField::new(caption.clone(), Bind::given((current > 0.0).then_some(current)))
             .codec(codec)
             .range(0.0..=RATIO_MAX)
             .step(RATIO_STEP)
+            .automatic(true)
             .show(ui);
         event = field.edit.event.clone();
     });
@@ -326,7 +329,7 @@ fn size_fields(ui: &mut Ui, settings: &mut CropSettings, words: &CropBarWords, d
     let mut typed = None;
     Field::new(words.resolution.clone()).id_salt("size-resolution").sizing(Sizing::Content).show(ui, |ui, _| {
         let codec = NumberCodec::new(units.reader(None), 2);
-        let field = NumberField::new(words.resolution.clone(), Bind::given(resolution)).codec(codec).range(0.0..=FIELD_MAX).show(ui);
+        let field = NumberField::new(words.resolution.clone(), Bind::given(resolution)).codec(codec).range(0.0..=FIELD_MAX).automatic(true).show(ui);
         typed = field.value().copied();
     });
     if let Some(value) = typed {

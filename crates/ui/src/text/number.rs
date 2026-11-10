@@ -430,6 +430,9 @@ pub struct NumberField<'a, V: NumberValue + 'static = Option<f64>> {
     /// The decimals a committed value is rounded to; the display keeps the codec's.
     #[prop]
     commit_decimals: Option<usize>,
+    /// An empty field means automatic: it shows the "Auto" word as its placeholder.
+    #[prop]
+    automatic: bool,
     /// The lengths a length field keeps and shows (`NumberField::length`).
     lengths: Option<LengthUnits>,
     /// How many shown units make one stored unit, read from the env in measure and parts; 1 for a plain field.
@@ -479,6 +482,7 @@ impl<'a, V: NumberValue + 'static> NumberField<'a, V> {
             presets: None,
             popup_slider: None,
             snap_typed: false,
+            automatic: false,
             commit_decimals: None,
             lengths: None,
             scale: 1.0,
@@ -764,8 +768,12 @@ impl<V: NumberValue + 'static> Component for NumberField<'_, V> {
         self.options.centred = true;
         self.options.steps_value = self.presets.is_none() && self.popup_slider.is_none();
         let shown = cx.value();
-        if shown.is_none() && self.options.placeholder.is_none() {
-            self.options.placeholder = Some(BLANK.into());
+        if self.options.placeholder.is_none() {
+            if shown.is_none() {
+                self.options.placeholder = Some(BLANK.into());
+            } else if self.automatic {
+                self.options.placeholder = Some(cx.words::<TextWords>().automatic.clone());
+            }
         }
         let names = self.names(|row| cx.env.resolve(&row.label().clone()));
         let blank = V::blank().unwrap_or_else(|| V::of_number(self.rule().blank()));

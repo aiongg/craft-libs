@@ -129,6 +129,7 @@ impl<'a> PathOptionsPopover<'a> {
                     let field = NumberField::new(words.thickness.clone(), Bind::given(before.thickness.map(f64::from)))
                         .range(range)
                         .step(PathOptionsSettings::THICKNESS_STEP)
+                        .automatic(true)
                         .unit_kind(UnitKind::Pixels)
                         .show(ui);
                     if let Some(thickness) = field.value().copied() {
