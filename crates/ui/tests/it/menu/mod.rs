@@ -112,3 +112,26 @@ fn a_value_menu_opens_with_the_lead_on_the_checked_entry() {
     let checked = fixture.by_label("100%").expect("the checked entry shows");
     assert_eq!(focused.rect, checked.rect);
 }
+
+/// Regression: a level reserves the mark column for every row once any row has a check, so the labels share one left
+/// edge, in the first frame the menu opens (not only after a later pass has seen the checked row).
+#[trial]
+fn plain_rows_align_with_a_checked_row_in_the_first_frame_of_a_menu() {
+    let mut fixture = Fixture::new(|ui| {
+        let opener = Button::new("View").show(ui);
+        let mut open = true;
+        Menu::new("View").open(Bind::bound(&mut open)).opened_by(&opener, Trigger::Click).show(ui, |ui, _| {
+            MenuItem::new("New").show(ui);
+            MenuItem::new("Open").show(ui);
+            MenuItem::new("Show Rulers").check(true).show(ui);
+        });
+    });
+    let x = |fixture: &Fixture, label: &str| fixture.texts().iter().find(|text| text.text.replace('&', "") == label).map(|text| text.rect.left());
+    let mut frames = 0;
+    while x(&fixture, "Show Rulers").is_none() && frames < 8 {
+        fixture.frame(vec![]);
+        frames += 1;
+    }
+    let (new, rulers) = (x(&fixture, "New").expect("New is shown"), x(&fixture, "Show Rulers").expect("Show Rulers is shown"));
+    assert_eq!(new, rulers, "the labels share one left edge in the first frame the menu shows");
+}

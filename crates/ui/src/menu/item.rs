@@ -152,18 +152,15 @@ impl MenuLevel {
     /// Rows get no mnemonic when `lettered` is false: a Mac menu has no access letters.
     fn begin(&self, submenu: bool, values: bool, keyboard: bool, lettered: bool, pointer: Option<Pos2>) {
         self.with(|state| {
-            // A pass that registered no row (a measuring pass run before the rows) keeps what the last full pass found.
-            if !state.now.is_empty() {
-                let letters = if lettered {
-                    let labels: Vec<&str> = state.now.iter().map(|row| row.text.as_str()).collect();
-                    mnemonic::assign(&labels)
-                } else {
-                    vec![None; state.now.len()]
-                };
-                state.shown = state.now.iter().zip(letters).map(|(row, mnemonic)| Assigned { id: row.id, mnemonic, enabled: row.enabled }).collect();
-                state.marks = state.now.iter().any(|row| row.mark.is_some());
-                state.icons = state.now.iter().any(|row| row.icon);
-            }
+            let letters = if lettered {
+                let labels: Vec<&str> = state.now.iter().map(|row| row.text.as_str()).collect();
+                mnemonic::assign(&labels)
+            } else {
+                vec![None; state.now.len()]
+            };
+            state.shown = state.now.iter().zip(letters).map(|(row, mnemonic)| Assigned { id: row.id, mnemonic, enabled: row.enabled }).collect();
+            state.marks = state.now.iter().any(|row| row.mark.is_some());
+            state.icons = state.now.iter().any(|row| row.icon);
             state.keyboard = keyboard;
             state.lettered = lettered;
             state.now.clear();
@@ -525,6 +522,14 @@ impl<'a> MenuItem<'a> {
         Placed { mark, icon, label: flow.rect(), detail, trail }
     }
 
+    fn register(&self, level: &MenuLevel, id: Id, label: &str, enabled: bool, command: Option<&ResolvedCommand>) {
+        let text = match self.mnemonic {
+            Some(letter) => with_marker(label, letter),
+            None => label.to_owned(),
+        };
+        level.register(Row { id, text, enabled, mark: self.mark(command, level), icon: self.lead_icon(command).is_some() });
+    }
+
     fn columns(&self, cx: &MeasureCx<'_, Self>, level: &MenuLevel) -> Columns {
         let side = cx.icon();
         let command = cx.command();
@@ -569,6 +574,8 @@ impl Component for MenuItem<'_> {
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
         let level = cx.env.get::<MenuLevel>();
+        // The measuring run of the menu body registers the rows, so the real run's level reads this pass's marks and icons.
+        self.register(&level, cx.id, cx.resolved.label, cx.resolved.enabled, cx.command());
         let columns = self.columns(cx, &level);
         let text = mnemonic::marked(cx.resolved.label).0;
         let run = TextRun::new(text.as_str()).role(cx.style.text.role);
@@ -608,12 +615,7 @@ impl Component for MenuItem<'_> {
         let level = cx.env.get::<MenuLevel>();
         let enabled = cx.resolved.enabled;
         let command = cx.command.clone();
-        let label = match self.mnemonic {
-            Some(letter) => with_marker(cx.resolved.label, letter),
-            None => cx.resolved.label.to_owned(),
-        };
-        let mark = self.mark(command.as_deref(), &level);
-        level.register(Row { id: cx.id, text: label, enabled, mark, icon: self.lead_icon(command.as_deref()).is_some() });
+        self.register(&level, cx.id, cx.resolved.label, enabled, command.as_deref());
         let (mut forward, mut back) = (false, false);
         while let Some((step, _)) = cx.intents().take_move() {
             match step {
