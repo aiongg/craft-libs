@@ -159,8 +159,8 @@ impl<'a> BlackWhiteEditor<'a> {
             cx.memory::<BlackWhiteMemory>().began = run.began();
             out = Some((run.finish(), pick_color, auto));
         });
-        let (edit, pick_color, auto) = out.expect("an editor shows its body");
-        BlackWhiteOutput { edit: lifted(Some(edit), shown.output), pick_color, auto }
+        let (edit, pick_color, auto) = out.map_or((None, None, false), |(edit, pick_color, auto)| (Some(edit), pick_color, auto));
+        BlackWhiteOutput { edit: lifted(edit, shown.output), pick_color, auto }
     }
 }
 
@@ -520,7 +520,7 @@ impl<'a> SelectiveColorEditor<'a> {
             memory.range = picked.unwrap_or(range);
             out = Some((run.finish(), picked.unwrap_or(range)));
         });
-        let (edit, shown_range) = out.expect("an editor shows its body");
-        SelectiveColorOutput { edit: lifted(Some(edit), shown.output), shown_range }
+        let (edit, shown_range) = out.map_or((None, 0), |(edit, range)| (Some(edit), range));
+        SelectiveColorOutput { edit: lifted(edit, shown.output), shown_range }
     }
 }

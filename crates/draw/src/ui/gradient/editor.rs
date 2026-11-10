@@ -334,7 +334,13 @@ impl<'a, P: Clone + Send + Sync + 'static> GradientEditor<'a, P> {
         });
         match shown.inner {
             Some((edit, dropped, screen_pick, selected)) => GradientEditorOutput { edit, color_requested: output, dropped, screen_pick, selected },
-            None => unreachable!("the editor's stack always shows its body"),
+            None => GradientEditorOutput {
+                edit: EditResponse::lifted(shown.output, None, None),
+                color_requested: None,
+                dropped: None,
+                screen_pick: None,
+                selected: None,
+            },
         }
     }
 }

@@ -365,8 +365,8 @@ impl<'a> ColorBalanceEditor<'a> {
             memory.tone = Some(picked.unwrap_or(tone));
             out = Some((run.finish(), picked.unwrap_or(tone)));
         });
-        let (edit, tone) = out.expect("an editor shows its body");
-        ColorBalanceOutput { edit: lifted(Some(edit), shown.output), tone }
+        let (edit, tone) = out.map_or((None, host_tone.unwrap_or_default()), |(edit, tone)| (Some(edit), tone));
+        ColorBalanceOutput { edit: lifted(edit, shown.output), tone }
     }
 }
 
@@ -650,7 +650,7 @@ impl<'a> PhotoFilterEditor<'a> {
             memory.use_color = Some(mode.unwrap_or(use_color));
             out = Some((run.finish(), pick_color));
         });
-        let (edit, pick_color) = out.expect("an editor shows its body");
-        PhotoFilterOutput { edit: lifted(Some(edit), shown.output), pick_color }
+        let (edit, pick_color) = out.map_or((None, None), |(edit, pick_color)| (Some(edit), pick_color));
+        PhotoFilterOutput { edit: lifted(edit, shown.output), pick_color }
     }
 }

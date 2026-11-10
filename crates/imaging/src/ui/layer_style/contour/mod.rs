@@ -254,7 +254,7 @@ impl<'a> ContourField<'a> {
         let words = env.words::<ContourWords>();
         let presets = Contour::presets();
         let mut result: Option<ContourFieldOutput> = None;
-        Stack::new().label(label.clone()).show(ui, |ui, root| {
+        let shown = Stack::new().label(label.clone()).show(ui, |ui, root| {
             let held = contour.reborrow().read(root).and_then(|held| held.same().cloned()).unwrap_or_else(Contour::linear);
             let mut key = presets
                 .iter()
@@ -304,6 +304,11 @@ impl<'a> ContourField<'a> {
             }
             result = Some(ContourFieldOutput { edit, anti_alias: anti_event, edit_contour, action });
         });
-        result.expect("the stack shows its body")
+        result.unwrap_or_else(|| ContourFieldOutput {
+            edit: EditResponse::lifted(shown.output, None, None),
+            anti_alias: None,
+            edit_contour: None,
+            action: None,
+        })
     }
 }

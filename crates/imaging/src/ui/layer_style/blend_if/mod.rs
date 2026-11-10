@@ -87,7 +87,7 @@ impl<'a> BlendIfBar<'a> {
         let words = env.words::<BlendIfWords>();
         let units = env.units();
         let mut out: Option<EditResponse<BlendIfRange>> = None;
-        Stack::new().label(label.clone()).show(ui, |ui, root| {
+        let shown_stack = Stack::new().label(label.clone()).show(ui, |ui, root| {
             let held = range.reborrow().read(root);
             let mut row = match &held {
                 Some(Mixed::Same(range)) => range.row(),
@@ -129,6 +129,6 @@ impl<'a> BlendIfBar<'a> {
             }
             out = Some(shown);
         });
-        out.expect("the stack shows its body")
+        out.unwrap_or_else(|| EditResponse::lifted(shown_stack.output, None, None))
     }
 }

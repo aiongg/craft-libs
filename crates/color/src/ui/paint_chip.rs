@@ -820,7 +820,7 @@ impl<'a> PaintList<'a> {
         let (paints, rows, options, label) = (self.paints, self.rows, self.options, self.label.clone());
         let mut output = None;
         let mut add = false;
-        Stack::new().show(ui, |ui, cx| {
+        let shown = Stack::new().show(ui, |ui, cx| {
             let held = match selected_bind.reborrow().read(cx) {
                 Some(Mixed::Same(Some(row))) if row < paints.len() => Selection::single(row),
                 _ => Selection::default(),
@@ -863,7 +863,8 @@ impl<'a> PaintList<'a> {
                 add = craft_ui::contract::clicked(&Button::new(words.add.clone()).icon(IconId::new("plus")).show(ui));
             }
         });
-        let Some(list) = output else { unreachable!("the stack ran its body") };
+        // A parent's measuring run reuses what it measured and does not run the body.
+        let Some(list) = output else { return PaintListOutput { response: shown.output, selected: None, events: Vec::new() } };
         let mut selected = None;
         let mut events = Vec::new();
         for event in list.events {

@@ -152,24 +152,22 @@ fn number(
     decimals: usize,
     enabled: bool,
 ) -> craft_ui::contract::EditResponse<Option<f64>> {
-    Field::new(label(name))
-        .show(ui, |ui, _| {
-            let field = NumberField::new(label(name), Bind::given(Some(value)))
-                .unit_kind(UnitKind::Percent)
-                .range(range.clone())
-                .step(1.0)
-                .commit_decimals(decimals)
-                .scrub_by_label()
-                .enabled(enabled);
-            match id {
-                Some(id) => field.id(id),
-                None => field,
-            }
-            .show(ui)
-            .edit
-        })
-        .inner
-        .expect("a field shows its control")
+    let shown = Field::new(label(name)).show(ui, |ui, _| {
+        let field = NumberField::new(label(name), Bind::given(Some(value)))
+            .unit_kind(UnitKind::Percent)
+            .range(range.clone())
+            .step(1.0)
+            .commit_decimals(decimals)
+            .scrub_by_label()
+            .enabled(enabled);
+        match id {
+            Some(id) => field.id(id),
+            None => field,
+        }
+        .show(ui)
+        .edit
+    });
+    shown.inner.unwrap_or_else(|| craft_ui::contract::EditResponse::lifted(shown.output, None, None))
 }
 
 impl Row<'_, '_> {

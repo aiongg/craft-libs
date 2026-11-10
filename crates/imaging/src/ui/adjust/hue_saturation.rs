@@ -392,7 +392,7 @@ impl<'a> HueSaturationEditor<'a> {
             memory.range = if now.colorize { 0 } else { picked.unwrap_or(at) };
             out = Some((run.finish(), if now.colorize { None } else { picked.unwrap_or(at).checked_sub(1) }));
         });
-        let (edit, shown_range) = out.expect("an editor shows its body");
-        HueSaturationOutput { edit: lifted(Some(edit), shown.output), shown_range }
+        let (edit, shown_range) = out.map_or((None, None), |(edit, range)| (Some(edit), range));
+        HueSaturationOutput { edit: lifted(edit, shown.output), shown_range }
     }
 }

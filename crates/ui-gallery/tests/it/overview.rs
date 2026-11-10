@@ -24,3 +24,14 @@ fn the_overview_shows_live_cards_with_their_open_command() {
     assert!(fixture.by_label("Open").is_some(), "a card header has Open");
     assert!(fixture.by_label("AngleDial").is_some(), "the cards are titled by the component's name");
 }
+
+/// Every level opens in the Overview and runs all its cards.
+#[trial]
+fn every_level_of_the_overview_runs_its_cards() {
+    for level in ["Primitives", "Controls", "Composites", "Patterns", "Shells"] {
+        let mut gallery = gallery_at(level);
+        let mut fixture = Fixture::new(move |ui| gallery.ui(ui));
+        fixture.room(Vec2::new(1400.0, 900.0)).settle();
+        assert!(fixture.by_label("Open").is_some(), "{level} has cards");
+    }
+}

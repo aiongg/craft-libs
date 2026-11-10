@@ -203,11 +203,16 @@ pub(super) fn read<V: Value>(bind: &mut Bind<'_, V>, cx: &mut BodyCx<'_>) -> Opt
     }
 }
 
-/// The edit a body collected, answered with the container's response.
+/// The edit a body collected, answered with the container's response. A body that did not run (a parent's measuring
+/// run reuses what it measured) collected none: the response carries no edit.
 pub(super) fn lifted<V>(edit: Option<EditResponse<V>>, response: Response) -> EditResponse<V> {
-    let mut edit = edit.expect("an editor shows its body");
-    edit.response = response;
-    edit
+    match edit {
+        Some(mut edit) => {
+            edit.response = response;
+            edit
+        }
+        None => EditResponse::lifted(response, None, None),
+    }
 }
 
 /// One pass over an editor's parts: the value they edit, and their edits lifted onto it and written to the editor's

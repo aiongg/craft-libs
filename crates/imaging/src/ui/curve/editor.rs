@@ -202,7 +202,7 @@ impl<'a> CurveEditor<'a> {
         let rules = CurveRules { levels: levels as f32, max_points: max_points.max(2) };
         let mut out: Option<(EditResponse<Curve>, Option<usize>)> = None;
         let name = label.clone();
-        Stack::new().label(label).show(ui, |ui, root| {
+        let shown = Stack::new().label(label).show(ui, |ui, root| {
             let memory = root.memory::<Memory>();
             let cleared = memory.channel.is_some_and(|seen| seen != channel);
             if cleared {
@@ -261,7 +261,8 @@ impl<'a> CurveEditor<'a> {
             }
             out = Some((edit, selected));
         });
-        let (edit, selected) = out.expect("the stack shows its body");
+        // A parent's measuring run reuses what it measured and does not run the body.
+        let (edit, selected) = out.unwrap_or_else(|| (EditResponse::lifted(shown.output, None, None), None));
         CurveEditorOutput { edit, selected }
     }
 }
