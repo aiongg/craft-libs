@@ -23,9 +23,8 @@ use super::words::MenuWords;
 use super::{Menu, MenuItem, MenuStep};
 use crate::buttons::face::{self, FaceLook, FaceSpec};
 use crate::contract::{
-    Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, MeasureCx, MenuKey, Name, NoValue, Outcome, OverlayUi,
-    Overlays as _, Pad, PaintUi, PartsCx, Pointer as _, PopupHandle, PopupKind, Props as _, Role, SetPosition, Show as _, ShowContainer as _,
-    Styled as _,
+    Access, Bind, Common, Component, Cx, Focus as _, MeasureCx, MenuKey, Name, NoValue, Outcome, OverlayUi, Overlays as _, Pad, PaintUi, PartsCx,
+    Pointer as _, PopupHandle, PopupKind, Props as _, Role, SetPosition, Show as _, ShowContainer as _, Styled as _,
 };
 use crate::display::{Divider, Text};
 use crate::layout_components::Stack;
@@ -41,7 +40,7 @@ use craft_behavior::fit::{FitItem, FitKeep, fit_items};
 use craft_behavior::{Arrows, Axis, Flow, Intent, Metrics, NavMove, NavShape, PartKey, PartRef, Roving, Sense};
 use craft_host::target::MenuPlacement;
 use craft_keymap::mnemonic;
-use craft_theme::{Stateful, States};
+use craft_theme::{Flags, Stateful, States};
 use egui::{Context, Pos2, Rect, Response, Ui, Vec2, pos2};
 
 const TITLE: PartKey = PartKey::new("title");
@@ -66,16 +65,22 @@ struct TitleFaceStyle {
 }
 
 /// The face of a menu title: lit while its menu is open.
-#[derive(crate::contract::Component, crate::contract::Props)]
+#[derive(crate::contract::Component)]
+#[component(sample = TitleFace::sample)]
 struct TitleFace {
     #[common]
     common: Common,
-    lit: Bind<'static, bool>,
+    lit: bool,
 }
 
 impl TitleFace {
-    fn new(label: impl Into<Label>, lit: Bind<'static, bool>) -> Self {
+    fn new(label: impl Into<Label>, lit: bool) -> Self {
         TitleFace { common: Common::new(), lit }.label(label)
+    }
+
+    #[cfg(feature = "testing")]
+    fn sample() -> Self {
+        TitleFace::new("Title", false)
     }
 }
 
@@ -84,7 +89,7 @@ impl Component for TitleFace {
     const PARTS: bool = false;
     const OVERLAYS: bool = false;
     type Style = TitleFaceStyle;
-    type Output = EditResponse<bool>;
+    type Output = egui::Response;
 
     fn style(cx: &StyleCx<'_>, _: TitleFaceStyleKey) -> TitleFaceStyle {
         let tokens = cx.tokens;
@@ -114,8 +119,8 @@ impl Component for TitleFace {
         Sense::HOVER
     }
 
-    fn bind(&mut self) -> Option<BindMut<'_, bool>> {
-        Some(self.lit.reborrow())
+    fn flags(&self) -> Flags {
+        if self.lit { Flags::SELECTED } else { Flags::empty() }
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
@@ -123,8 +128,8 @@ impl Component for TitleFace {
         face::paint(ui, cx, (&cx.style.text, &cx.style.icon), &cx.style.face, &spec, cx.content_rect);
     }
 
-    fn finish(self, cx: Cx<'_, Self>) -> EditResponse<bool> {
-        cx.edit_response()
+    fn finish(self, cx: Cx<'_, Self>) -> egui::Response {
+        cx.response.clone()
     }
 }
 
@@ -293,7 +298,7 @@ impl<'a> MenuBar<'a> {
     }
 
     fn face(text: &str, lit: bool) -> TitleFace {
-        TitleFace::new(Label::from(text.to_owned()), Bind::given(lit))
+        TitleFace::new(Label::from(text.to_owned()), lit)
     }
 
     /// The text of the overflow title: "…" beside shown titles, "Menu" when it holds them all.
