@@ -15,7 +15,8 @@ fn pick_four(fixture: &mut Fixture) {
 
 #[story(Rating<'static>, covers = [Default], drive = Drive::Custom(pick_four))]
 fn rating(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    Rating::new(Bind::bound(data.value("stars", 2u8)), 5).label("Rating").show(ui).into()
+    let disabled = *data.value("disabled", false);
+    Rating::new(Bind::bound(data.value("stars", 2u8)), 5).label("Rating").enabled(!disabled).show(ui).into()
 }
 
 #[story(Rating<'static>, covers = [Mixed], drive = Drive::Never)]

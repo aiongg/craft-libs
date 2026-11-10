@@ -6,12 +6,14 @@ use crate::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
 use std::sync::LazyLock;
 
-static INFO: LazyLock<AboutInfo> = LazyLock::new(|| {
-    AboutInfo::new("PhotoCraft", "An open-source, native image editor written in Rust.", "0.42.1 (a1b2c3d, 2026-10-30)")
-        .community(AboutLink::new("Join us on Discord", "https://discord.example/join"))
+fn info(community: bool) -> AboutInfo {
+    let info = AboutInfo::new("PhotoCraft", "An open-source, native image editor written in Rust.", "0.42.1 (a1b2c3d, 2026-10-30)")
         .links([AboutLink::new("Website", "https://example.org"), AboutLink::new("Source", "https://example.org/source")])
-        .built_with("egui · wgpu")
-});
+        .built_with("egui · wgpu");
+    if community { info.community(AboutLink::new("Join us on Discord", "https://discord.example/join")) } else { info }
+}
+
+const TABS: [(&str, AboutTab); 3] = [("About", AboutTab::About), ("Contributors", AboutTab::Contributors), ("Models", AboutTab::Models)];
 
 static CREDITS: LazyLock<Credits> = LazyLock::new(|| {
     Credits::new(
@@ -32,10 +34,16 @@ static CREDITS: LazyLock<Credits> = LazyLock::new(|| {
 
 #[story(AboutDialog<'static>, covers = [], drive = Drive::Never)]
 fn about_dialog(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    AboutDialog::new(&INFO, &CREDITS).opened(Bind::bound(data.value("open", true))).show(ui).into()
+    let tab = *data.choice("tab", AboutTab::About, &TABS);
+    let community = *data.value("community_button", true);
+    let info = info(community);
+    AboutDialog::new(&info, &CREDITS).tab(tab).opened(Bind::bound(data.value("open", true))).show(ui).into()
 }
 
 #[story(AboutDialog<'static>, covers = [], drive = Drive::Never)]
 fn about_dialog_contributors(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    AboutDialog::new(&INFO, &CREDITS).tab(AboutTab::Contributors).opened(Bind::bound(data.value("open", true))).show(ui).into()
+    let tab = *data.choice("tab", AboutTab::Contributors, &TABS);
+    let community = *data.value("community_button", true);
+    let info = info(community);
+    AboutDialog::new(&info, &CREDITS).tab(tab).opened(Bind::bound(data.value("open", true))).show(ui).into()
 }

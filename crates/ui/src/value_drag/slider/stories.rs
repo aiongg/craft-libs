@@ -7,6 +7,7 @@ use crate::runtime::env::Message;
 use crate::testing::{Drive, Grip, StoryData, StoryOutput, story};
 use crate::value_drag::TrackFace;
 use craft_behavior::Mixed;
+use craft_theme::ControlSize;
 use egui::Ui;
 
 const RANGE: std::ops::RangeInclusive<f64> = 0.0..=100.0;
@@ -14,7 +15,10 @@ const CAP: f64 = 80.0;
 
 #[story(Slider<'static>, covers = [Default], drive = Drive::Step)]
 fn slider(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    Slider::new(Bind::bound(data.ranged("value", 40.0, RANGE)), RANGE).label("Opacity").show(ui).into()
+    let size = *data.choice("size", ControlSize::Md, &[("Sm", ControlSize::Sm), ("Md", ControlSize::Md)]);
+    let disabled = *data.value("disabled", false);
+    let unfilled = *data.value("unfilled_track", false);
+    Slider::new(Bind::bound(data.ranged("value", 40.0, RANGE)), RANGE).label("Opacity").size(size).enabled(!disabled).fill(!unfilled).show(ui).into()
 }
 
 #[story(Slider<'static>, covers = [], drive = Drive::Drag(Grip::new(Slider::THUMB)))]

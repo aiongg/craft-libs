@@ -65,16 +65,23 @@ fn side_headerless(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
         .into()
 }
 
+/// The preview states the zoom bar shows: nothing, a render of unknown length, a render partly done.
+const PREVIEWS: [(&str, Option<Option<f32>>); 3] = [("Idle", None), ("Pending", Some(None)), ("Half done", Some(Some(0.4)))];
+
 #[story(FullWindowZoomBar, covers = [], drive = Drive::Never)]
 fn zoom_bar(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let note = *data.value("note", true);
     let view = data.value("view", FullWindowView::new());
-    FullWindowZoomBar::new(Bind::bound(view)).note("Preview 120 ms").show(ui).into()
+    let bar = FullWindowZoomBar::new(Bind::bound(view));
+    let bar = if note { bar.note("Preview 120 ms") } else { bar };
+    bar.show(ui).into()
 }
 
 #[story(FullWindowZoomBar, covers = [], drive = Drive::Never)]
 fn zoom_bar_with_progress(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let progress = *data.choice("preview", Some(Some(0.4)), &PREVIEWS);
     let view = data.value("view", FullWindowView::new());
-    FullWindowZoomBar::new(Bind::bound(view)).progress(Some(Some(0.4))).show(ui).into()
+    FullWindowZoomBar::new(Bind::bound(view)).progress(progress).show(ui).into()
 }
 
 #[story(FullWindowTitle, covers = [], drive = Drive::Never)]
@@ -98,10 +105,17 @@ fn status_failed(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 fn canvas(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     static IMAGE_SOURCE: Flat = Flat { colour: Color32::from_rgb(0x4a, 0x7f, 0xc1), half: true };
     static MASK: Flat = Flat { colour: Color32::from_rgba_premultiplied(0x40, 0x00, 0x00, 0x40), half: false };
+    let checkerboard = *data.value("checkerboard", true);
+    let overlay = *data.value("overlay", true);
+    let tint = *data.value("tint", true);
     let view = data.value("view", FullWindowView::new());
-    FullWindowCanvas::new(Bind::bound(view), &IMAGE_SOURCE)
-        .checkerboard(Checker::new())
-        .overlay(RasterOverlay::new(&MASK).tint(Color32::from_rgb(0xc0, 0x40, 0x40)))
-        .show(ui)
-        .into()
+    let mut canvas = FullWindowCanvas::new(Bind::bound(view), &IMAGE_SOURCE);
+    if checkerboard {
+        canvas = canvas.checkerboard(Checker::new());
+    }
+    if overlay {
+        let layer = RasterOverlay::new(&MASK);
+        canvas = canvas.overlay(if tint { layer.tint(Color32::from_rgb(0xc0, 0x40, 0x40)) } else { layer });
+    }
+    canvas.show(ui).into()
 }
