@@ -5,6 +5,7 @@ mod keyboard;
 pub(crate) mod kit;
 mod mounts;
 mod scroll;
+mod scroll_fade;
 
 mod content_sizing;
 mod footer_reserve;

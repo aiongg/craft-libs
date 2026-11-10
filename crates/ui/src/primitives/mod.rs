@@ -37,7 +37,7 @@ pub use kit::{
 };
 pub use reset_mark::ResetMark;
 pub use rule::{Rule, RuleKind};
-pub use scroll_bar::{BarAxis, ScrollBar};
+pub use scroll_bar::{BarAxis, HiddenContent, ScrollBar};
 pub use sensing::{PartResult, TextOutcome};
 pub use state_layer::{StateLayer, StateLayerKind};
 pub use surface::Surface;
