@@ -2,6 +2,7 @@
 
 use super::{MenuBar, MenuHelp, MenuTitle};
 use crate::contract::{Bind, Entry, Props as _, Show as _, ShowContainer as _};
+use crate::display::Divider;
 use crate::menu::{EditMenu, GroupItem, HelpEntry, Menu, MenuItem, PanelMenu, PanelRow};
 use crate::runtime::commands::EditCommands;
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
@@ -10,9 +11,15 @@ use egui::Ui;
 use std::sync::LazyLock;
 
 fn file(ui: &mut Ui) {
-    MenuItem::new("&New").show(ui);
-    MenuItem::new("&Open").show(ui);
-    MenuItem::new("&Save").show(ui);
+    MenuItem::new("&New\u{2026}").shortcut("Ctrl+N").show(ui);
+    MenuItem::new("&Open\u{2026}").shortcut("Ctrl+O").show(ui);
+    Menu::submenu_row(ui, "Open &Recent", |ui, _| {
+        MenuItem::new("poster.png").show(ui);
+        MenuItem::new("logo.svg").show(ui);
+    });
+    Divider::horizontal().show(ui);
+    MenuItem::new("&Save").shortcut("Ctrl+S").show(ui);
+    MenuItem::new("&Close").shortcut("Ctrl+W").show(ui);
 }
 
 fn view(ui: &mut Ui) {

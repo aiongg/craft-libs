@@ -342,7 +342,7 @@ impl Component for BarItems {
                 for &index in overflow {
                     let item = &present[index].item;
                     if previous.is_some_and(|section| section != item.section) {
-                        crate::menu::separator(ui);
+                        Divider::horizontal().show(ui);
                     }
                     MenuItem::command(item.command.clone()).show(ui);
                     previous = Some(item.section);

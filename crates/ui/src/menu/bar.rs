@@ -23,10 +23,11 @@ use super::words::MenuWords;
 use super::{Menu, MenuItem, MenuStep};
 use crate::buttons::ToggleButton;
 use crate::contract::{
-    Access, Bind, Common, Component, Cx, Focus as _, MeasureCx, MenuKey, Name, NoValue, Outcome, OverlayUi, Overlays as _, PaintUi, PartsCx,
+    Access, Bind, Common, Component, Cx, Focus as _, MeasureCx, MenuKey, Name, NoValue, Outcome, OverlayUi, Overlays as _, Pad, PaintUi, PartsCx,
     Pointer as _, PopupHandle, PopupKind, Props as _, Role, SetPosition, Show as _, ShowContainer as _, Styled as _,
 };
-use crate::display::Text;
+use crate::display::{Divider, Text};
+use crate::layout_components::Stack;
 use crate::primitives::{PaintShape, StrokeWidth, TextRun};
 use crate::runtime::commands::CommandRef;
 use crate::runtime::env::{EnvView, Label};
@@ -453,7 +454,10 @@ impl Component for MenuBar<'_> {
                     .show(ui, |ui, _| match slot {
                         Open::Title(at) => {
                             if let (Some(help), Some(rows)) = (help.filter(|help| help.menu == *at), help_rows.as_ref()) {
-                                TextField::search(words.bar_search.as_str().to_owned(), Bind::bound(&mut query.0)).show(ui);
+                                // The field sits in a padded frame, as the rows' gap sets it off from the first row.
+                                Stack::new().pad(Pad::Control).fill_width().show(ui, |ui, _| {
+                                    TextField::search(words.bar_search.as_str().to_owned(), Bind::bound(&mut query.0)).show(ui);
+                                });
                                 let refs: Vec<[&str; 3]> =
                                     rows.iter().map(|[label, english, path]| [label.as_str(), english.as_str(), path.as_str()]).collect();
                                 let mut seen: Vec<&CommandRef> = Vec::new();
@@ -478,7 +482,7 @@ impl Component for MenuBar<'_> {
                                 if listed.is_empty() && !query.0.trim().is_empty() {
                                     Text::new(words.bar_no_matches.as_str().to_owned()).show(ui);
                                 }
-                                super::popup::separator(ui);
+                                Divider::horizontal().show(ui);
                             }
                             (titles[*at].body)(ui);
                         }

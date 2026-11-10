@@ -15,6 +15,7 @@ use super::picker::PresetPicker;
 use super::words::PresetWords;
 use crate::buttons::{Button, IconButton};
 use crate::contract::{Bind, Outcome, Props as _, Remember as _, Show as _, ShowContainer as _, Trigger, Validity, clicked};
+use crate::display::Divider;
 use crate::form::Field;
 use crate::layout_components::Row;
 use crate::list::RowTest;
@@ -267,7 +268,7 @@ impl<'a, K: Value + Eq + Hash + 'static> NamedPresetRow<'a, K> {
                     let Some(files) = files else { return };
                     let commands = files.commands();
                     if !commands.is_empty() {
-                        crate::menu::separator(ui);
+                        Divider::horizontal().show(ui);
                     }
                     for command in commands {
                         if MenuItem::command(command).enabled(files.enabled(command, held.as_ref())).show(ui).ran {

@@ -478,6 +478,17 @@ impl EnvValue for InBar {
     }
 }
 
+/// Set by a menu for its body: a horizontal divider takes `space.gap.inline` above and below its line, since the rows
+/// of a menu touch.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct InMenu(pub bool);
+
+impl EnvValue for InMenu {
+    fn root() -> Self {
+        InMenu(false)
+    }
+}
+
 /// What a container or collection adds to `Common`. A builder added here is added to the forwarder list in
 /// `crates/ui-macros/src/props.rs` too.
 ///

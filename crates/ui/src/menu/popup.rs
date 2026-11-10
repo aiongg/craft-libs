@@ -3,7 +3,7 @@
 use super::item::{LevelMemory, MenuItem, MenuItemOutput, MenuLevel, level_env};
 use crate::contract::overlay::{Anchor, Dismiss, Outside, Popup};
 use crate::contract::{
-    Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, Entry, Focus as _, Gap, Mount, NoValue, Outcome, Overlay, Pad,
+    Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, Entry, Focus as _, Gap, InMenu, Mount, NoValue, Outcome, Overlay, Pad,
     Props as _, Remember as _, Role, Show as _, ShowContainer as _, TooltipSpec, Trigger,
 };
 use crate::display::Divider;
@@ -81,11 +81,6 @@ pub(crate) fn layer(submenu: bool) -> Overlay {
     base.dismiss(Dismiss::new().outside(Outside::Absorb).on_activate(true)).focus(FocusPolicy::MENU.initial(Initial::Default))
 }
 
-/// A separator rule of a menu body: rows touch, so the rule carries the space above and below it.
-pub(crate) fn separator(ui: &mut Ui) {
-    Divider::separator().show(ui);
-}
-
 /// Shows one row per entry, a rule for a separator, and returns the index of the entry that ran. In a value menu
 /// ([`Menu::values`]) every row is a radio item and the checked entry carries the mark; elsewhere a checked entry
 /// carries a check mark.
@@ -94,7 +89,7 @@ pub(crate) fn entry_rows<T>(ui: &mut Ui, entries: &[Entry<T>]) -> Option<usize> 
     let mut ran = None;
     for (at, entry) in entries.iter().enumerate() {
         if entry.is_separator() {
-            separator(ui);
+            Divider::horizontal().show(ui);
             continue;
         }
         let mut row = MenuItem::new(entry.label().clone()).enabled(entry.is_enabled()).entry_checked(entry.is_checked());
@@ -180,8 +175,8 @@ impl<'a> Menu<'a> {
         self
     }
 
-    /// The rows of a menu in the flow of the layer that shows them, with no surface and no close rules of their own:
-    /// the menu of a control that owns its popup shows its entries through it.
+    /// The rows of a menu in the flow of the layer that shows them, with the popup surface and padding of a menu but no
+    /// close rules of their own: the menu of a control that owns its popup shows its entries through it.
     pub fn inline(label: impl Into<Label>) -> Self {
         let props = ContainerProps::new()
             .surface(SurfaceKind::Popup)
@@ -233,7 +228,11 @@ impl<'a> Menu<'a> {
         let head = MenuItem::submenu(label.clone()).show(ui);
         let mut open = head.submenu_open;
         let mut body = body;
-        let shown = Menu::submenu(label, &head.response).open(Bind::bound(&mut open)).show(ui, |ui, cx| body(ui, cx));
+        // The submenu hangs from the parent row as the menu's padding frames it: beside the popup's edge, its first row
+        // level with this row.
+        let pad = Env::of(ui).tokens.tokens().space.pad.regular;
+        let anchor = Anchor::Rect(head.response.rect.expand(pad));
+        let shown = Menu::submenu(label, &head.response).anchor(anchor).open(Bind::bound(&mut open)).show(ui, |ui, cx| body(ui, cx));
         // `MenuItem::update` does not run in a measuring run, so `open` is false there and would clear the level's
         // open submenu the real run set.
         if crate::runtime::measure::effect(ui.ctx(), "menu::note_submenu") {
@@ -301,6 +300,7 @@ impl Component for Menu<'_> {
 
     fn content_env(&self, cx: &Cx<'_, Self>, values: &mut crate::runtime::env::AppValues) {
         level_env(cx, values, self.submenu, self.values);
+        values.set(InMenu(true));
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> MenuOutput {

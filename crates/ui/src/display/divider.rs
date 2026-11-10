@@ -1,5 +1,5 @@
 //! `Divider`: a separator line one physical pixel wide, horizontal or vertical.
-use crate::contract::{Common, Component, Cx, InBar, MeasureCx, PaintUi, Role};
+use crate::contract::{Common, Component, Cx, InBar, InMenu, MeasureCx, PaintUi, Role};
 use crate::primitives::RuleKind;
 use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::{Metrics, Sense};
@@ -20,7 +20,7 @@ pub struct DividerStyle {
     slot: f32,
     /// The least length of a line, vertical or horizontal: one control height.
     length: f32,
-    /// Above and below a separator's line: `space.gap.row`.
+    /// Above and below a horizontal line in a menu: `space.gap.inline`.
     separator_pad: f32,
 }
 
@@ -39,24 +39,17 @@ pub struct Divider {
     #[common]
     common: Common,
     axis: Axis,
-    padded: bool,
 }
 
 impl Divider {
     /// A line across the width offered.
     pub fn horizontal() -> Self {
-        Divider { common: Common::new(), axis: Axis::Horizontal, padded: false }
-    }
-
-    /// A line across the width offered with `space.gap.row` above and below it: the separator between rows that touch,
-    /// as in a menu.
-    pub fn separator() -> Self {
-        Divider { common: Common::new(), axis: Axis::Horizontal, padded: true }
+        Divider { common: Common::new(), axis: Axis::Horizontal }
     }
 
     /// A line down the full height of its row.
     pub fn vertical() -> Self {
-        Divider { common: Common::new(), axis: Axis::Vertical, padded: false }
+        Divider { common: Common::new(), axis: Axis::Vertical }
     }
 }
 
@@ -76,13 +69,13 @@ impl Component for Divider {
             width: cx.rule(RuleKind::Divider).width,
             slot: cx.tokens.space.gap.item,
             length: cx.control().height,
-            separator_pad: cx.tokens.space.gap.row,
+            separator_pad: cx.tokens.space.gap.inline,
         }
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
         match self.axis {
-            Axis::Horizontal if self.padded => Vec2::new(cx.style.length, cx.style.width + 2.0 * cx.style.separator_pad),
+            Axis::Horizontal if cx.env.get::<InMenu>().0 => Vec2::new(cx.style.length, cx.style.width + 2.0 * cx.style.separator_pad),
             Axis::Horizontal => Vec2::new(cx.style.length, cx.style.width),
             Axis::Vertical if cx.env.get::<InBar>().0 => Vec2::new(cx.style.slot.max(cx.style.width), cx.style.length),
             Axis::Vertical => Vec2::new(cx.style.width, cx.style.length),

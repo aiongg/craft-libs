@@ -2100,9 +2100,11 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         let inner = cx.core.content_rect.shrink(pad);
         let room = self.room_size(rect, inner);
         let mut regions = self.regions(&props, inner, pad, room, rtl, self.measured_sizes());
-        // A layer's surface casts its shadow past the layer's own clip: it paints under the whole window.
+        // A layer's surface casts its shadow past the layer's own clip: it paints under the whole window. So does a popup
+        // surface at the top of a layer a control owns (`Menu::inline`).
         let mut surface_painter = ui.painter().clone();
-        if matches!(props.mount, Mount::Layer(_)) {
+        let popup_in_layer = matches!(props.surface, Some(SurfaceKind::Popup)) && crate::runtime::overlay::drawing_parent(ui.ctx()).is_some();
+        if matches!(props.mount, Mount::Layer(_)) || popup_in_layer {
             surface_painter.set_clip_rect(ui.ctx().content_rect());
         }
         let surface_slot = surface_painter.add(Shape::Noop);

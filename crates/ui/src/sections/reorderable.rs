@@ -5,6 +5,7 @@ use super::title_row::HeaderAction;
 use super::words::ReorderableWords;
 use super::{Section, SectionStack};
 use crate::contract::{Bind, BodyCx, Entry, NoValue, Outcome, Pattern, Politeness, Props as _, Show as _, ShowContainer as _, announce};
+use crate::display::Divider;
 use crate::layout_components::Stack;
 use crate::menu::{MenuItem, entry_rows};
 use crate::runtime::commands::{CommandSet as _, CommandState, Commands as _};
@@ -207,7 +208,7 @@ fn section_menu(ui: &mut Ui, key: &SectionKey, held: &SectionLayout, sections: &
     for (command, _) in command_rows(key, held) {
         let _ = MenuItem::command(command).show(ui);
     }
-    crate::menu::separator(ui);
+    Divider::horizontal().show(ui);
     if let Some(event) = entry_rows(ui, &entries).and_then(|at| entries.get(at)).and_then(Entry::value) {
         events.push(event.clone());
     }

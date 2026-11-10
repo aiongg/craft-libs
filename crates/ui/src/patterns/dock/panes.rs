@@ -13,6 +13,7 @@ use crate::contract::{
     BodyCx, Common, Component, Container, ContainerProps, Cx, DropMark, DropOperation, DropTarget, HeaderRegion, Mount, NoValue, Outcome, Pad,
     PaneEdge, Pointer as _, Props as _, Remember as _, Role, Scroll, ShellPane, Show as _, ShowContainer as _, Sizing, WordSetCx as _,
 };
+use crate::display::Divider;
 use crate::docking::{DockRoot, DockWords, DragUnit, FloatingGroup, GroupDrag, PanelKey};
 use crate::menu::MenuItem;
 use crate::runtime::commands::{CommandSet as _, CommandState, Commands as _};
@@ -797,7 +798,7 @@ fn take_commands<P: Clone>(cx: &mut BodyCx<'_>, pass: &Pass<'_, P>, pane: &Shown
 /// The rows of a pane's menu: the app's, then the pane commands.
 fn pane_menu<P: Clone>(ui: &mut Ui, cx: &mut BodyCx<'_>, pane: &Shown<P>, content: &RefCell<&mut dyn PaneContent<P>>) {
     content.borrow_mut().menu(&pane.pane, ui, cx);
-    crate::menu::separator(ui);
+    Divider::horizontal().show(ui);
     let mut commands = Vec::new();
     if pane.spec.movable {
         commands.extend(MOVES);

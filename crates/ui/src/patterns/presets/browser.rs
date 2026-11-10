@@ -23,6 +23,7 @@ use crate::contract::{
     Bind, BodyCx, CollectionEvent, Entry, LeadSource, ListDrag, OpenChange, Pattern, Props, Rename, ReorderMove, ReorderRule, SelectMode, Show as _,
     ShowCollection as _, ShowContainer as _, request_rename,
 };
+use crate::display::Divider;
 use crate::layout_components::Stack;
 use crate::list::{List, ListRow, RowInk, RowTest, ThumbSize};
 use crate::menu::{Menu, MenuItem};
@@ -805,11 +806,11 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'_, K> {
                         ran.push(PresetEvent::Delete(target.clone()));
                     }
                     if !extra_items.is_empty() {
-                        crate::menu::separator(ui);
+                        Divider::horizontal().show(ui);
                     }
                     for entry in &extra_items {
                         if entry.is_separator() {
-                            crate::menu::separator(ui);
+                            Divider::horizontal().show(ui);
                         } else if let Some(value) = entry.value() {
                             let row = MenuItem::new(entry.label().clone()).enabled(entry.is_enabled());
                             if row.show(ui).ran {

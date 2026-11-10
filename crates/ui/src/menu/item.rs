@@ -332,15 +332,17 @@ pub struct MenuItemStyle {
     metrics: Metrics,
     #[style(focus)]
     focus: FocusLook,
-    /// The label, the shortcut's ink and the marks.
+    /// The label and the marks.
     #[style(text)]
     text: TextLook,
     /// The row's icon, the check and radio marks and the submenu arrow.
     #[style(icon)]
     icon: IconLook,
-    /// The detail after the label.
+    /// The detail after the label, in `text.muted`.
     #[style(text)]
     detail: TextLook,
+    /// The least space between the label and the shortcut: `space.gap.section`.
+    shortcut_gap: f32,
 }
 
 /// What a row reports.
@@ -522,12 +524,12 @@ impl<'a> MenuItem<'a> {
         }
     }
 
-    fn place(&self, columns: &Columns, area: Rect, rtl: bool, gap: f32) -> Placed {
-        let step = |width: f32| if width > 0.0 { width + gap } else { 0.0 };
+    fn place(&self, columns: &Columns, area: Rect, rtl: bool, gap: f32, trail_gap: f32) -> Placed {
+        let step = |width: f32, gap: f32| if width > 0.0 { width + gap } else { 0.0 };
         let (mark, flow) = Flow::new(area, rtl).take_start(columns.mark);
         let (icon, flow) = flow.take_start(columns.icon);
-        let (trail, flow) = flow.take_end(step(columns.trail));
-        let (detail, flow) = flow.take_end(step(columns.detail));
+        let (trail, flow) = flow.take_end(step(columns.trail, trail_gap));
+        let (detail, flow) = flow.take_end(step(columns.detail, gap));
         Placed { mark, icon, label: flow.rect(), detail, trail }
     }
 
@@ -585,6 +587,7 @@ impl Component for MenuItem<'_> {
             text: TextLook::new(TypeRole::Body, ink(text.normal)),
             icon: IconLook::new(control.icon, ink(text.normal)),
             detail: TextLook::new(TypeRole::Caption, ink(text.muted)),
+            shortcut_gap: tokens.space.gap.section,
         }
     }
 
@@ -597,8 +600,8 @@ impl Component for MenuItem<'_> {
         let run = TextRun::new(text.as_str()).role(cx.style.text.role);
         let label = if text.is_empty() { Vec2::ZERO } else { cx.layout_at(&run, f32::INFINITY).size() };
         let gap = cx.gap();
-        let step = |width: f32| if width > 0.0 { width + gap } else { 0.0 };
-        let rest = label.x + step(columns.detail) + step(columns.trail);
+        let step = |width: f32, gap: f32| if width > 0.0 { width + gap } else { 0.0 };
+        let rest = label.x + step(columns.detail, gap) + step(columns.trail, cx.style.shortcut_gap.max(gap));
         let padding = cx.style.metrics.padding;
         // A row measured before the level's widest mark or icon read narrower columns: the body's group adds the
         // widest columns to what the rows reach past them.
@@ -624,7 +627,7 @@ impl Component for MenuItem<'_> {
             return;
         }
         let rtl = cx.flow.is_rtl();
-        let placed = self.place(&columns, cx.content_rect, rtl, cx.gap());
+        let placed = self.place(&columns, cx.content_rect, rtl, cx.gap(), cx.style.shortcut_gap.max(cx.gap()));
         let (rect, _) = Flow::new(placed.trail, rtl).take_end(columns.trail);
         cx.part(SHORTCUT, rect);
     }
@@ -729,7 +732,7 @@ impl Component for MenuItem<'_> {
         let detail_width = detail_run.as_ref().map_or(0.0, |run| draw.layout(run, f32::INFINITY).size().x);
         let trail = if self.submenu { side } else { cx.part_if_declared(SHORTCUT).map_or(0.0, |part| part.rect.width()) };
         let columns = Columns { mark: mark_column, icon: icon_column, detail: detail_width, trail };
-        let placed = self.place(&columns, cx.content_rect, rtl, gap);
+        let placed = self.place(&columns, cx.content_rect, rtl, gap, cx.style.shortcut_gap.max(gap));
         let ink = cx.resolve(&cx.style.icon.color);
         let centred = |slot: Rect| Rect::from_center_size(slot.center(), Vec2::splat(side));
         if columns.mark > 0.0 {

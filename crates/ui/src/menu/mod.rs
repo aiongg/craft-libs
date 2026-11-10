@@ -15,6 +15,6 @@ pub use edit::{EditMenu, EditMenuOutput};
 pub use item::{MenuItem, MenuItemOutput, MenuItemStyle};
 pub use panel::{GroupItem, PanelMenu, PanelMenuOutput, PanelRow};
 pub use popup::{Menu, MenuOutput, MenuPick, MenuStep, MenuStyle};
-pub(crate) use popup::{entry_rows, layer, pick_values_from, separator};
+pub(crate) use popup::{entry_rows, layer, pick_values_from};
 pub use search::HelpEntry;
 pub use words::MenuWords;

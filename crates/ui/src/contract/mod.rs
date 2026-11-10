@@ -47,11 +47,11 @@ pub use collection::{
     ContextMenuRequest, DragPayload, HeaderMenuRequest, ItemKeys, LeadOnOpen, LeadSource, ListDrag, OpenChange, Rename, ReorderMove, ReorderRule,
     RowState, SelectMode, ShownRow, SpaceAction, ToggleColumn, ToggleEdit,
 };
-pub(crate) use container::InBar;
 pub use container::{
     Collapse, ContainerProps, DragBand, EndRegion, FooterPlace, FooterRegion, Gap, HeaderRegion, Mount, Notch, Pad, PaneEdge, Scroll, ScrollAnchor,
     ScrollAxes, ShellPane, Sizing, ThemeScope,
 };
+pub(crate) use container::{InBar, InMenu};
 pub use craft_ui_macros::{CommandSet, Component, Pattern, Props, register_contract};
 pub use cx::{
     Accessible, Activation, BodyCx, Cx, CxCore, Edit, Focus, ItemCx, ItemOpener, MeasureCx, PartBuilder, PartsCx, Pointer, Styled, WordSetCx,
