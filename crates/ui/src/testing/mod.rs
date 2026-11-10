@@ -46,7 +46,7 @@ pub use craft_ui_macros::{story, trial};
 pub use fixture::{Fixture, Impure, Room, Target};
 pub use frames::Frames;
 pub use props::story_props;
-pub use stage::stage;
+pub use stage::{stage, stage_fitting};
 #[doc(hidden)]
 pub use story::{
     CollectionKind, Drive, EditKind, Grip, Required, Story, StoryData, StoryOutput, StoryRegistration, StorySnapshot, show_as_only_item, stories,
