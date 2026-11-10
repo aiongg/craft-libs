@@ -897,6 +897,9 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                 if let Some(row) = shown_rows.last_mut() {
                     row.openers = self.item_openers(&row_ui, &ctx, id, cx.core.resolved.enabled, openers);
                 }
+                if let Some(ask) = out.open_request() {
+                    self.events.push(CollectionEvent::Open(OpenChange { key: key.clone(), open: ask.open, all: ask.all }));
+                }
                 if let Some(event) = out.into_event() {
                     self.events.push(CollectionEvent::Item(key.clone(), event));
                 }

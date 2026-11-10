@@ -99,6 +99,27 @@ fn a_press_on_a_trailing_part_reports_its_modifiers_and_keeps_the_selection() {
     assert_eq!(seen.selections.get(), 0);
 }
 
+/// A click on a group row's disclosure reports `CollectionEvent::Open`, the form the Right key reports, with Alt
+/// reaching every descendant.
+#[trial]
+fn a_click_on_a_disclosure_reports_an_open_change_like_the_keys() {
+    let opens = Rc::new(RefCell::new(Vec::new()));
+    let sink = opens.clone();
+    let mut fixture = Fixture::new(move |ui| {
+        let out = List::new("Items").select(SelectMode::Single).show_items(ui, &Two, &mut |key, _| ListRow::new(format!("Row {key}")).group(false));
+        for event in out.events {
+            if let CollectionEvent::Open(change) = event {
+                sink.borrow_mut().push((change.key, change.open, change.all));
+            }
+        }
+    });
+    fixture.settle();
+    let chevron = fixture.by_label("Expand Row 0").expect("the disclosure has a node");
+    fixture.hold(Modifiers::ALT);
+    fixture.click(&chevron);
+    assert_eq!(opens.borrow().as_slice(), [(0, true, true)]);
+}
+
 /// A disabled trailing part is a disabled node: a press on it reports nothing, and Forward from the row does not
 /// enter it.
 #[trial]

@@ -467,6 +467,12 @@ pub trait ItemOutput<E>: Outcome {
     /// The event the collection reports for this item, `None` when the item reports nothing.
     fn into_event(self) -> Option<E>;
 
+    /// The item asks to open or close its children, as a click on its disclosure does. The collection reports it
+    /// as `CollectionEvent::Open`, the same form the keys and the screen reader produce.
+    fn open_request(&self) -> Option<super::OpenChange<()>> {
+        None
+    }
+
     /// The rect of the item's label, where a rename editor goes; `None` puts it over the whole row.
     fn label_rect(&self) -> Option<egui::Rect> {
         None
