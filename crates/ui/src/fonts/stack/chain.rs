@@ -6,6 +6,7 @@ use craft_theme::InterfaceFont;
 use egui::{FontData, FontDefinitions, FontFamily};
 
 use super::{CjkRows, Family, SEMIBOLD, Stack, SystemFonts, UiFonts};
+use crate::fonts::defaults::SUITE_FACES;
 use crate::fonts::faces::{FaceList, baseline_fallback};
 use crate::fonts::script::EMOJI;
 use crate::fonts::system::ui_face::{SYSTEM_UI_REGULAR, SYSTEM_UI_SEMIBOLD, SystemUiFace};
@@ -182,8 +183,14 @@ impl UiFonts<'_> {
         for family in self.family_specs() {
             let default_family = if family.monospaced { &FontFamily::Monospace } else { &family.family };
             let default_chain = defaults.families.get(default_family).or_else(|| defaults.families.get(&FontFamily::Proportional));
-            let egui_faces: Vec<Face> =
-                default_chain.into_iter().flatten().filter_map(|name| Some(Face::new(name, (**defaults.font_data.get(name)?).clone()))).collect();
+            // The suite's interface face stands in for an app's own faces only where it has none; behind them, egui's faces follow.
+            let own_faces = !self.app_faces_for(&family).is_empty();
+            let egui_faces: Vec<Face> = default_chain
+                .into_iter()
+                .flatten()
+                .filter(|name| !(own_faces && SUITE_FACES.contains(&name.as_str())))
+                .filter_map(|name| Some(Face::new(name, (**defaults.font_data.get(name)?).clone())))
+                .collect();
             let mut chain = self.chain(&family, egui_faces);
             let cjk = chain.configured.iter().chain(&chain.after).filter(|face| cjk_names.contains(&face.name));
             cjk_faces.extend(cjk.map(|face| face.clone().weighted(family.weight).name));
@@ -221,6 +228,10 @@ impl UiFonts<'_> {
     /// Proportional and Monospace, every family an app face names, then the declared families.
     fn family_specs(&self) -> Vec<Family> {
         let mut specs = vec![Family::proportional(), Family::monospace()];
+        // With no face of its own for the interface, the app gets the suite's, whose semibold roles draw in Inter SemiBold.
+        if !self.app_faces.iter().any(|face| face.families.contains(&FontFamily::Proportional)) {
+            specs.push(Family::named(super::SEMIBOLD).weight(600));
+        }
         for family in self.app_faces.iter().flat_map(|f| &f.families) {
             if !specs.iter().any(|s| s.family == *family) {
                 specs.push(Family { family: family.clone(), weight: super::REGULAR, lead: None, monospaced: false });
