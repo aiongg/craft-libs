@@ -454,8 +454,8 @@ impl Component for MenuBar<'_> {
                     .show(ui, |ui, _| match slot {
                         Open::Title(at) => {
                             if let (Some(help), Some(rows)) = (help.filter(|help| help.menu == *at), help_rows.as_ref()) {
-                                // The field sits in a padded frame, as the rows' gap sets it off from the first row.
-                                Stack::new().pad(Pad::Control).fill_width().show(ui, |ui, _| {
+                                // The field sits in a padded frame: its edge lines up with the row labels and it keeps clear of the first row.
+                                Stack::new().pad(Pad::Regular).fill_width().show(ui, |ui, _| {
                                     TextField::search(words.bar_search.as_str().to_owned(), Bind::bound(&mut query.0)).show(ui);
                                 });
                                 let refs: Vec<[&str; 3]> =
