@@ -895,6 +895,16 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
             Some(crate::layout::flow_room(ui).x).filter(|width| width.is_finite() && !(env.content_column && crate::runtime::measure::active(&ctx)))
         }
     };
+    // A leaf in flow in a row that shrinks its children to fit shows at most the width the row gave it.
+    let shrink = env.shrink.filter(|_| shape == ShapeKind::Leaf && matches!(at, ShowAt::Flow) && comp.fills().is_none());
+    let cap = match shrink {
+        Some(crate::layout::Shrink::Apply(row)) => crate::layout::shrink_cap(&ctx, row),
+        _ => None,
+    };
+    let room = match cap {
+        Some(cap) => Some(room.map_or(cap, |room| room.min(cap))),
+        None => room,
+    };
     // A body root with parts steps its press machine before its measuring run, so the body reads this pass's part
     // presses in both runs (`BodyCx::part_press`). Step 8 finds the outcome. A member of another arena senses at step 8.
     if !sizing
@@ -927,8 +937,18 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
         let min = steps::measure(&mut comp, &input, &style, &resolved, shown.as_deref(), Vec2::ZERO);
         scope::record_control_min(&ctx, min.x);
     }
+    // The row gave the leaf no less than its least, so a leaf whose measure does not follow its room still fits.
+    let size = cap.map_or(size, |cap| Vec2::new(size.x.min(cap), size.y));
     let measured = size;
     let size = hooks.sized(&comp, ui, size);
+    if let Some(crate::layout::Shrink::Count(row)) = shrink {
+        let mut width = |proposal| {
+            let input = MeasureIn { ui: &*ui, env, proposal, room: None };
+            steps::measure(&mut comp, &input, &style, &resolved, shown.as_deref(), Vec2::ZERO).x
+        };
+        let (ideal, least) = (width(Proposal::Ideal), width(Proposal::Min));
+        crate::layout::report_shrink(&ctx, row, size.x, ideal, least);
+    }
     // A component shown at a rect fills it: the rect is its size, and a leaf that measures nothing (a content
     // painter) still shows there.
     let inert = match at {

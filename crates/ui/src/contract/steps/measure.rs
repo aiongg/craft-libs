@@ -16,8 +16,9 @@ pub(crate) struct MeasureIn<'a> {
     pub room: Option<f32>,
 }
 
-/// Step 5, measure: content size plus padding, then `max(min_size)`. `extent` is what the shape adds to the
-/// content: a body's remembered size or a collection's content size.
+/// Step 5, measure: content size plus padding, then `max(min_size)`, and for any proposal but `Min` at least the
+/// ideal width, up to the room. `extent` is what the shape adds to the content: a body's remembered size or a
+/// collection's content size.
 pub(crate) fn measure<C: Component>(
     comp: &mut C,
     input: &MeasureIn<'_>,
@@ -30,22 +31,28 @@ pub(crate) fn measure<C: Component>(
     let cx = measure_cx::<C>(input, style, resolved, value);
     let content = comp.measure(&cx) + extent;
     let padding = Vec2::new(metrics.padding.start + metrics.padding.end, metrics.padding.top + metrics.padding.bottom);
-    (content + padding).max(metrics.min_size)
+    let mut size = (content + padding).max(metrics.min_size);
+    if input.proposal != Proposal::Min {
+        size.x = size.x.max(input.room.map_or(metrics.ideal_width, |room| metrics.ideal_width.min(room)));
+    }
+    size
 }
 
-/// The read view `measure` and `parts` get.
+/// The read view `measure` and `parts` get. Its room is the content's: the parent's room less the padding
+/// `measure` adds.
 pub(crate) fn measure_cx<'a, C: Component>(
     input: &MeasureIn<'a>,
     style: &'a C::Style,
     resolved: &'a Resolved<'a>,
     value: Option<&'a ValueOf<C>>,
 ) -> MeasureCx<'a, C> {
+    let padding = style.metrics().padding;
     MeasureCx {
         env: input.env.view(),
         style,
         resolved,
         proposal: input.proposal,
-        room: input.room,
+        room: input.room.map(|room| (room - padding.start - padding.end).max(0.0)),
         value,
         ui: input.ui,
         tokens: &input.env.tokens,

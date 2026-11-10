@@ -6,7 +6,7 @@ use crate::primitives::{ContentPainterCx, IconSpec, TextRun};
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, IconLook, Ink, StyleCx, TextLook, TypeRole};
 use crate::text::{Adornment, FieldStyle, place, reserve};
-use craft_behavior::{Flow, Metrics, Sense};
+use craft_behavior::{Flow, Metrics, Proposal, Sense};
 use craft_theme::{Stateful, States};
 use egui::{Rect, Response, Vec2};
 
@@ -117,7 +117,12 @@ impl Component for SelectFace<'_> {
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        let text = if self.name { cx.layout(&TextRun::new(cx.resolved.label).role(cx.style.text.role)).size() } else { Vec2::ZERO };
+        // At its least the face elides its name to nothing.
+        let text = match (self.name, cx.proposal) {
+            (true, Proposal::Min) => Vec2::new(0.0, cx.layout(&TextRun::new(cx.resolved.label).role(cx.style.text.role)).size().y),
+            (true, _) => cx.layout(&TextRun::new(cx.resolved.label).role(cx.style.text.role)).size(),
+            (false, _) => Vec2::ZERO,
+        };
         let picture = if self.thumb.is_some() { cx.style.thumb } else { 0.0 };
         Vec2::new(self.lead(cx.style) + text.x + reserve(&cx.style.field, &self.leading_glyphs(), &[Self::chevron()]), text.y.max(picture))
     }

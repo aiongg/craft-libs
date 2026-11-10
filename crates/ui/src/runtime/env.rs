@@ -144,6 +144,9 @@ pub struct Scoped {
     /// extents of the other children and the gaps, over the number of children that fill. `None` while the body is
     /// measured, and without a measuring run of this pass.
     pub(crate) fill_share: Option<f32>,
+    /// The shrink step of the unwrapped `Row` body that encloses the scope: its direct leaf children report their
+    /// widths to it, or show in the widths it gave them (`layout::Shrink`).
+    pub(crate) shrink: Option<crate::layout::Shrink>,
     /// The width a body that sizes its width from its content was offered this pass, less its padding: the room its
     /// direct children share across a column or along a row, wider than the body's own band before it measured them.
     pub(crate) offered: Option<f32>,
@@ -196,6 +199,7 @@ impl Scoped {
         self.row_line = None;
         self.fill_body = None;
         self.fill_share = None;
+        self.shrink = None;
         self.offered = None;
     }
 
@@ -289,6 +293,7 @@ impl Env {
                 row_line: None,
                 fill_body: None,
                 fill_share: None,
+                shrink: None,
                 offered: None,
                 scroll_owner: None,
                 unbounded: (false, false),

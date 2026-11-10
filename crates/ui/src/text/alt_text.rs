@@ -168,8 +168,7 @@ impl Component for AltTextField<'_> {
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
         let (text, check) = sizes(cx);
-        let padding = cx.style.metrics.padding;
-        let width = cx.room.map_or(check.x, |room| (room - padding.start - padding.end).max(0.0));
+        let width = cx.room.unwrap_or(check.x);
         Vec2::new(width, text + cx.gap() + check.y)
     }
 
