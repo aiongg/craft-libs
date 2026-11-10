@@ -783,7 +783,9 @@ impl<const N: usize> Component for ThumbRow<'_, N> {
         let top = thumbs.top();
         let halves = self.halves(&rules, &shown);
         if let Some(thickness) = groove {
-            cx.part(track::GROOVE, Rect::from_min_size(rect.min, Vec2::new(rect.width(), thickness)));
+            // The groove spans the thumbs' travel, so the end thumbs' tips sit on its ends.
+            let span = travel(rect, cx.style.thumb.x);
+            cx.part(track::GROOVE, Rect::from_x_y_ranges(span, rect.min.y..=rect.min.y + thickness));
         }
         cx.part(ROW, rect).sense(Sense::CLICK | Sense::DRAG).value_part().pointer_only("the arrow keys step the focused thumb");
         for i in 0..N {

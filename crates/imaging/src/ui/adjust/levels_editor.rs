@@ -490,6 +490,7 @@ impl Component for LevelsEditor<'_> {
             .map(|i| {
                 let step = if i == 1 { GAMMA_STEP } else { self.step };
                 let field = self.field(labels[i].clone(), values[i], input_range(self, i, placed), step);
+                let field = if i == 1 { field.fixed_decimals(decimals_for_step(GAMMA_STEP)) } else { field };
                 ui.child(("in-field", i), at(fields[i]), field)
             })
             .collect();

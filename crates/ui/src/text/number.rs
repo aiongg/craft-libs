@@ -433,6 +433,9 @@ pub struct NumberField<'a, V: NumberValue + 'static = Option<f64>> {
     /// The decimals a committed value is rounded to; the display keeps the codec's.
     #[prop]
     commit_decimals: Option<usize>,
+    /// The field writes exactly this many decimals, zeros included ("1.00"), when it has no codec of its own.
+    #[prop]
+    fixed_decimals: Option<usize>,
     /// The lengths a length field keeps and shows (`NumberField::length`).
     lengths: Option<LengthUnits>,
     /// How many shown units make one stored unit, read from the env in measure and parts; 1 for a plain field.
@@ -483,6 +486,7 @@ impl<'a, V: NumberValue + 'static> NumberField<'a, V> {
             popup_slider: None,
             snap_typed: false,
             commit_decimals: None,
+            fixed_decimals: None,
             lengths: None,
             scale: 1.0,
             options: TextOptions::default(),
@@ -547,13 +551,17 @@ impl<'a, V: NumberValue + 'static> NumberField<'a, V> {
                 Some(lengths) => units.length_reader(lengths),
                 None => units.reader(self.unit_kind),
             };
-            NumberCodec::new(reader, self.decimals())
+            let codec = NumberCodec::new(reader, self.decimals());
+            if self.fixed_decimals.is_some() { codec.fixed() } else { codec }
         })
     }
 
     /// The most decimals the field writes.
     fn decimals(&self) -> usize {
-        self.codec.as_ref().map_or_else(|| self.unit_kind.map_or(DEFAULT_DECIMALS, |kind| *kind.decimals().end()), NumberCodec::decimals)
+        self.codec.as_ref().map_or_else(
+            || self.fixed_decimals.unwrap_or_else(|| self.unit_kind.map_or(DEFAULT_DECIMALS, |kind| *kind.decimals().end())),
+            NumberCodec::decimals,
+        )
     }
 
     /// The names the presets list holds that a value of this type can be: the labels of its `Choice` rows.
