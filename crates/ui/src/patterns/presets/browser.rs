@@ -585,6 +585,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'_, K> {
                     .select(SelectMode::Single)
                     .selection(Bind::given(selection))
                     .caption(captions)
+                    .thumb_size(ThumbSize::Large)
                     .aspect(card_aspect(cell_shape))
                     .zoom(zoom as f32)
                     .groups(&plan.groups)

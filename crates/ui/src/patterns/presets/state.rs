@@ -44,7 +44,7 @@ pub enum DefaultOpen {
 pub struct PresetState<K> {
     /// Grid or list. Independent of the zoom: a small thumbnail stays a grid.
     pub view: PresetView,
-    /// The thumbnail zoom, a factor of the medium thumbnail that both views follow.
+    /// The thumbnail zoom, a factor of the grid's large thumbnail that both views follow.
     pub zoom: f64,
     /// The groups whose open state differs from the default.
     pub toggled: HashSet<K>,

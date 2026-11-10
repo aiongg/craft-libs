@@ -36,7 +36,7 @@ use craft_ui::style::DataColor;
 use craft_ui::tile_grid::{CaptionPlace, GridEvent, ThumbnailSlider, Tile, TileGrid, TileGroup, TileMark, TileZoom, ZoomStep};
 use egui::{Pos2, Response, Ui};
 
-/// The thumbnail zoom: 0.5 to 1.5 of the medium thumbnail in steps of 0.25, 1 by default (PdfCraft's
+/// The thumbnail zoom: 0.5 to 1.5 of the card thumbnail in steps of 0.25, 1 by default (PdfCraft's
 /// `THUMBNAIL_ZOOM_RANGE` and its minus and plus step). The size row's [`ThumbnailSlider`] and the grid's zoom keys
 /// step it.
 pub const THUMBNAIL_ZOOM: TileZoom = TileZoom::bounded(0.5, 1.5, 0.25, 1.0);
@@ -169,7 +169,7 @@ impl Outcome for PageThumbnailsOutput {
 /// The thumbnails panel body, built per pass: a [`ThumbnailSlider`] row (with [`size`](Self::size)) over a craft-ui
 /// [`TileGrid`] of the pages.
 ///
-/// - Look (Acrobat; PowerPoint with [`CaptionPlace::Start`]): cards whose picture is the grid's medium thumbnail
+/// - Look (Acrobat; PowerPoint with [`CaptionPlace::Start`]): cards whose picture is the grid's card thumbnail
 ///   times the zoom, the aspect page 0's (`PageSource::page_size`; other pages are fitted into the card), a caption
 ///   with the page label (`PageSource::page_label`). The current page is the grid's current tile; picked pages are
 ///   its selected tiles. Pictures come from `Thumbnails<usize>` over [`PageSource`].
