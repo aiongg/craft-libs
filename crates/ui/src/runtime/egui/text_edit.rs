@@ -31,6 +31,8 @@ pub(crate) struct Edit<'a> {
     /// The bytes of `text` that are IME preedit, underlined.
     pub preedit: Option<Range<usize>>,
     pub rtl: bool,
+    /// The text sits in the middle of the rect.
+    pub centred: bool,
     /// Whether the caret is drawn in this pass.
     pub caret_visible: bool,
     /// The width of the preedit underline.
@@ -77,6 +79,7 @@ pub(crate) fn show(ui: &mut Ui, edit: Edit<'_>) -> Shown {
         char_limit,
         preedit,
         rtl,
+        centred,
         caret_visible,
         underline,
     } = edit;
@@ -133,7 +136,11 @@ pub(crate) fn show(ui: &mut Ui, edit: Edit<'_>) -> Shown {
                     .event_filter(filter)
                     .return_key(if multiline { Some(egui::KeyboardShortcut::new(egui::Modifiers::NONE, egui::Key::Enter)) } else { None })
                     .layouter(&mut layouter)
-                    .align(if rtl { egui::Align2::RIGHT_CENTER } else { egui::Align2::LEFT_CENTER });
+                    .align(match (centred, rtl) {
+                        (true, _) => egui::Align2::CENTER_CENTER,
+                        (false, true) => egui::Align2::RIGHT_CENTER,
+                        (false, false) => egui::Align2::LEFT_CENTER,
+                    });
                 if let Some(hint) = hint_text.clone() {
                     edit = edit.hint_text(hint);
                 }
