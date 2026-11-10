@@ -10,6 +10,11 @@ pub(crate) fn set_text_cursor(ui: &mut Ui, visible: bool) {
     }
 }
 
+/// Paints the selected text of `ui`'s text edits in `fill`.
+pub(crate) fn set_text_selection(ui: &mut Ui, fill: egui::Color32) {
+    ui.visuals_mut().selection.bg_fill = fill;
+}
+
 /// Whether egui considers `ui` enabled.
 pub(crate) fn is_enabled(ui: &Ui) -> bool {
     ui.is_enabled()
