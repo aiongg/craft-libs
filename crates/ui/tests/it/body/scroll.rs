@@ -339,3 +339,38 @@ fn focus_on_another_member_of_the_arena_does_not_run_an_out_of_view_child() {
     assert!(runs[0].get() > 0, "the child in view runs");
     assert_eq!(runs[last].get(), 0, "the child far below the view does not run while another member holds focus");
 }
+
+/// A child far out of view keeps its last extent when the scroll area's room changes (a pane resize): it does not
+/// run at the new room until it meets the reach, and the content keeps its size.
+#[trial]
+fn an_out_of_view_child_keeps_its_extent_when_the_room_changes() {
+    const CHILDREN: usize = 30;
+    let runs: Vec<Cell<usize>> = (0..CHILDREN).map(|_| Cell::new(0)).collect();
+    let width = Cell::new(VIEW.x);
+    let content = Cell::new(0.0);
+    let mut show = |ui: &mut Ui| {
+        in_region(ui, Rect::from_min_size(ORIGIN, Vec2::new(width.get(), VIEW.y)), |ui| {
+            Slab::new(ContainerProps::new().scroll(Scroll::vertical())).id_salt("panel").show(ui, |ui, _| {
+                for (at, count) in runs.iter().enumerate() {
+                    craft_ui::contract::Lazy::new(at).show(ui, |ui| {
+                        count.set(count.get() + 1);
+                        Block::new(Vec2::new(LINE.x, HUNDRED)).show(ui);
+                    });
+                }
+                content.set(ui.min_rect().height());
+            });
+        });
+    };
+    let mut frames = Frames::new();
+    frames.idle(3, &mut show);
+    let full = content.get();
+    let last = CHILDREN - 1;
+    for step in 1..=3 {
+        width.set(VIEW.x - GAPS * step as f32);
+        runs.iter().for_each(|count| count.set(0));
+        frames.frame(vec![], &mut show);
+        assert!(runs[0].get() > 0, "the child in view runs at the new room");
+        assert_eq!(runs[last].get(), 0, "the child far below the view does not run at the new room");
+        assert!((content.get() - full).abs() <= SAME, "the content keeps its size: {} then {full}", content.get());
+    }
+}

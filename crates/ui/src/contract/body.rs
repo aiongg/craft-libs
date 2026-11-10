@@ -2385,7 +2385,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                             if scroll.horizontal_on() { (shown.x - off.x) as f32 * if rtl { -1.0 } else { 1.0 } } else { 0.0 },
                             if scroll.vertical_on() { (shown.y - off.y) as f32 } else { 0.0 },
                         );
-                        let view = crate::runtime::lazy::View { owner: id, rect: seen.translate(shift), room: at.size() };
+                        let view = crate::runtime::lazy::View { owner: id, rect: seen.translate(shift) };
                         let region_env = Env::install_for(&region_ui, body_env.derive_local(|scoped| scoped.lazy = Some(view)));
                         layout::run_body(&mut region_ui, layout_id, layout, gap, |ui| {
                             shared_labels(ui, id, label_column, room.x, &mut group_extent, |ui| body(ui, bcx))
