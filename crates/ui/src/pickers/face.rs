@@ -47,6 +47,7 @@ pub struct SelectFace<'a> {
     placeholder: bool,
     thumb: Option<(ThumbAspect, ThumbPaint<'a>)>,
     /// The picked entry's icon, drawn before the text in the chevron's ink.
+    #[prop]
     icon: Option<IconSpec<'static>>,
     /// Whether the text shows beside the thumbnail; `false` shows the thumbnail alone. The text is the face's
     /// accessible name either way.
@@ -65,13 +66,6 @@ impl<'a> SelectFace<'a> {
     #[must_use]
     pub fn thumb(mut self, aspect: ThumbAspect, paint: impl FnOnce(&ContentPainterCx, Rect) + 'a) -> Self {
         self.thumb = Some((aspect, Box::new(paint)));
-        self
-    }
-
-    /// An icon before the text, the glyph of the field's style.
-    #[must_use]
-    pub fn icon(mut self, icon: impl Into<IconSpec<'static>>) -> Self {
-        self.icon = Some(icon.into());
         self
     }
 
