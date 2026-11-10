@@ -152,15 +152,18 @@ impl MenuLevel {
     /// Rows get no mnemonic when `lettered` is false: a Mac menu has no access letters.
     fn begin(&self, submenu: bool, values: bool, keyboard: bool, lettered: bool, pointer: Option<Pos2>) {
         self.with(|state| {
-            let letters = if lettered {
-                let labels: Vec<&str> = state.now.iter().map(|row| row.text.as_str()).collect();
-                mnemonic::assign(&labels)
-            } else {
-                vec![None; state.now.len()]
-            };
-            state.shown = state.now.iter().zip(letters).map(|(row, mnemonic)| Assigned { id: row.id, mnemonic, enabled: row.enabled }).collect();
-            state.marks = state.now.iter().any(|row| row.mark.is_some());
-            state.icons = state.now.iter().any(|row| row.icon);
+            // A pass that registered no row (a measuring pass run before the rows) keeps what the last full pass found.
+            if !state.now.is_empty() {
+                let letters = if lettered {
+                    let labels: Vec<&str> = state.now.iter().map(|row| row.text.as_str()).collect();
+                    mnemonic::assign(&labels)
+                } else {
+                    vec![None; state.now.len()]
+                };
+                state.shown = state.now.iter().zip(letters).map(|(row, mnemonic)| Assigned { id: row.id, mnemonic, enabled: row.enabled }).collect();
+                state.marks = state.now.iter().any(|row| row.mark.is_some());
+                state.icons = state.now.iter().any(|row| row.icon);
+            }
             state.keyboard = keyboard;
             state.lettered = lettered;
             state.now.clear();

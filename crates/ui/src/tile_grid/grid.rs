@@ -189,7 +189,7 @@ pub struct TileGrid<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     #[prop(flag)]
     justified: bool,
     /// Equal cards grow to fill their row: the columns are those that fit at the zoomed card width, and the cards share
-    /// the width between them.
+    /// the width between them, from the start edge with no grid inset.
     #[prop(flag)]
     fill_row: bool,
     /// The width of a card over its picture's height.
@@ -341,7 +341,7 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> TileGrid<'a, K> {
         // A card never outgrows the grid: in a column narrower than a card the card takes the column.
         let mut side = style.picture_side(self.zoom).min(width - 2.0 * spacing.inset - around.size().x).max(1.0);
         if self.fill_row && !self.justified {
-            let (free, gap, card) = (width - 2.0 * spacing.inset, spacing.gap, side + around.size().x);
+            let (free, gap, card) = (width, spacing.gap, side + around.size().x);
             let columns = ((free + gap) / (card + gap)).floor().max(1.0);
             side = ((free - (columns - 1.0) * gap) / columns - around.size().x).max(1.0);
         }
@@ -370,7 +370,7 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> TileGrid<'a, K> {
             arrangement.add_tail(self.tail.len(), tail_height, width, spacing);
             GridLayout::arranged(arrangement, width, around)
         } else {
-            GridLayout::equal(source, width, spacing.inset, style.card(side, aspect, around), spacing.gap)
+            GridLayout::equal(source, width, if self.fill_row { 0.0 } else { spacing.inset }, style.card(side, aspect, around), spacing.gap)
         };
         let layout = match recipe {
             Some(recipe) => layout.made_from(recipe),
