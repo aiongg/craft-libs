@@ -280,9 +280,9 @@ impl TabStopsDialog {
         let edit = Field::new(words.default_stops.clone())
             .show(ui, |ui, _| length_field(unit, words.default_stops.clone(), points, range.clone()).show(ui))
             .inner;
-        if let Some(event) = edit.and_then(|out| out.edit.event) {
+        for event in edit.into_iter().flat_map(|out| out.edit.events) {
             if !matches!(event, EditEvent::Update { .. } | EditEvent::Commit { .. } | EditEvent::Set { .. }) {
-                return;
+                continue;
             }
             if let Some(Some(points)) = event.value() {
                 self.default_interval = *points as f32;
@@ -335,7 +335,7 @@ impl TabStopsDialog {
             let field = Field::new(words.position.clone())
                 .show(ui, |ui, _| length_field(unit, words.position.clone(), Mixed::Same(Some(f64::from(stop.position))), range.clone()).show(ui))
                 .inner;
-            edits.extend(field.and_then(|field| field.edit.event).map(CellEdit::Position));
+            edits.extend(field.into_iter().flat_map(|field| field.edit.events).map(CellEdit::Position));
             let align = Select::new(words.alignment.clone(), Bind::given(stop.align), &aligns).show(ui);
             edits.extend(align.value().copied().map(CellEdit::Align));
             let leader = Select::new(words.leader.clone(), Bind::given(stop.leader), &leaders).show(ui);

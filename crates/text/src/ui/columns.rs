@@ -3,7 +3,7 @@
 //! [`TextColumnsDialog`], and Word's Layout > Columns menu ([`columns_menu`]).
 
 use super::length::{DocUnit, length_field, shown};
-use craft_behavior::{EditEvent, Metrics, Mixed, NumberCodec};
+use craft_behavior::{EditEvent, EditEvents, Metrics, Mixed, NumberCodec};
 use craft_theme::variant::Tone;
 use craft_ui::buttons::Button;
 use craft_ui::choice::Checkbox;
@@ -356,23 +356,25 @@ impl TextColumnsDialog {
 impl TextColumnsDialog {
     /// Applies a field's event: every `Update` shows in the dialog, and Escape (`Cancel`) restores the columns from
     /// before the gesture. `set` writes the field's value into the columns.
-    fn edit<V>(&mut self, event: Option<EditEvent<V>>, set: impl FnOnce(&mut Self, V)) {
-        match event {
-            Some(EditEvent::Begin { .. }) => self.draft = Some(self.edited.clone()),
-            Some(EditEvent::Update { value, .. }) => {
-                self.draft.get_or_insert_with(|| self.edited.clone());
-                set(self, value);
-            }
-            Some(EditEvent::Commit { after, .. } | EditEvent::Set { after, .. }) => {
-                self.draft = None;
-                set(self, after);
-            }
-            Some(EditEvent::Cancel { .. }) => {
-                if let Some(before) = self.draft.take() {
-                    self.edited = before;
+    fn edit<V>(&mut self, events: impl IntoIterator<Item = EditEvent<V>>, set: impl Fn(&mut Self, V)) {
+        for event in events {
+            match event {
+                EditEvent::Begin { .. } => self.draft = Some(self.edited.clone()),
+                EditEvent::Update { value, .. } => {
+                    self.draft.get_or_insert_with(|| self.edited.clone());
+                    set(self, value);
                 }
+                EditEvent::Commit { after, .. } | EditEvent::Set { after, .. } => {
+                    self.draft = None;
+                    set(self, after);
+                }
+                EditEvent::Cancel { .. } => {
+                    if let Some(before) = self.draft.take() {
+                        self.edited = before;
+                    }
+                }
+                _ => {}
             }
-            Some(_) | None => {}
         }
     }
 
@@ -383,8 +385,8 @@ impl TextColumnsDialog {
     }
 
     /// The Number field's event.
-    pub fn edit_count(&mut self, event: Option<EditEvent<Option<f64>>>) {
-        self.edit(event, |me, v| {
+    pub fn edit_count(&mut self, events: EditEvents<Option<f64>>) {
+        self.edit(events, |me, v| {
             if let Some(v) = v {
                 me.set_count(v.max(0.0) as u32);
             }
@@ -414,11 +416,10 @@ impl TextColumnsDialog {
         points: Option<f32>,
         enabled: bool,
         range: std::ops::RangeInclusive<f32>,
-    ) -> Option<EditEvent<Option<f32>>> {
+    ) -> EditEvents<Option<f32>> {
         let points = points.map_or(Mixed::Mixed, |p| Mixed::Same(Some(f64::from(p))));
         let field = length_field(self.unit, caption.to_owned(), points, f64::from(*range.start())..=f64::from(*range.end())).enabled(enabled);
-        let event = field.show(ui).edit.event?;
-        Some(event.map(|v| v.map(|p| p as f32)))
+        field.show(ui).edit.events.map(|v| v.map(|p| p as f32))
     }
 
     fn body(&mut self, ui: &mut Ui, words: &TextColumnsWords, units: &Units, valid: &Cell<bool>) {
@@ -432,7 +433,7 @@ impl TextColumnsDialog {
             let edit = Field::new(words.number.clone())
                 .show(ui, |ui, _| NumberField::new(words.number.clone(), Bind::given(shown)).codec(codec.clone()).show(ui))
                 .inner;
-            self.edit_count(edit.and_then(|out| out.edit.event));
+            self.edit_count(edit.map(|out| out.edit.events).unwrap_or_default());
             if bad {
                 Notice::new(Tone::Bad, Self::number_message(words, units, self.most_columns())).layout(NoticeLayout::Inline).show(ui);
             }
@@ -440,7 +441,7 @@ impl TextColumnsDialog {
                 let edit = Field::new(words.spacing.clone())
                     .show(ui, |ui, _| self.length_row(ui, words.spacing.as_str(), self.edited.spacing, true, 0.0..=MAX_SPACING))
                     .inner
-                    .flatten();
+                    .unwrap_or_default();
                 self.edit(edit, |me, v: Option<f32>| {
                     if let Some(v) = v {
                         me.edited.spacing = Some(v);
@@ -529,8 +530,8 @@ impl TextColumnsDialog {
     fn grid(&mut self, ui: &mut Ui, words: &TextColumnsWords, units: &Units) {
         let rows = self.rows();
         let equal = self.equal();
-        let mut width_edit = None;
-        let mut spacing_edit = None;
+        let mut width_edits: Vec<(usize, EditEvent<Option<f32>>)> = Vec::new();
+        let mut spacing_edits: Vec<(usize, EditEvent<Option<f32>>)> = Vec::new();
         let (width_name, spacing_name) = (bare(words.width.as_str()), bare(words.spacing.as_str()));
         for (i, (width, spacing)) in rows.iter().enumerate() {
             let number = units.number(i as f64 + 1.0, 0..=0);
@@ -539,20 +540,26 @@ impl TextColumnsDialog {
             Field::new(label).show(ui, |ui, _| {
                 let w = self.length_row(ui, width_name, Some(*width), !equal || i == 0, 0.0..=MAX_SPACING);
                 let s = self.length_row(ui, spacing_name, (!last).then_some(*spacing), !last, 0.0..=MAX_SPACING);
-                // A row without an event leaves an earlier row's event alone.
-                width_edit = w.map(|e| (i, e)).or(width_edit.take());
-                spacing_edit = s.map(|e| (i, e)).or(spacing_edit.take());
+                // A run of a row without events leaves the events an earlier run of it reported alone.
+                if !w.is_empty() {
+                    width_edits.retain(|(row, _)| *row != i);
+                    width_edits.extend(w.into_iter().map(|e| (i, e)));
+                }
+                if !s.is_empty() {
+                    spacing_edits.retain(|(row, _)| *row != i);
+                    spacing_edits.extend(s.into_iter().map(|e| (i, e)));
+                }
             });
         }
-        if let Some((i, event)) = width_edit {
-            self.edit(Some(event), |me, v: Option<f32>| {
+        for (i, event) in width_edits {
+            self.edit([event], |me, v: Option<f32>| {
                 if let Some(v) = v {
                     me.set_width(i, v);
                 }
             });
         }
-        if let Some((i, event)) = spacing_edit {
-            self.edit(Some(event), |me, v: Option<f32>| {
+        for (i, event) in spacing_edits {
+            self.edit([event], |me, v: Option<f32>| {
                 if let Some(v) = v {
                     me.set_spacing_after(i, v);
                 }

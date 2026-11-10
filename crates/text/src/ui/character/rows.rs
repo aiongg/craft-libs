@@ -4,7 +4,7 @@ use std::ops::RangeInclusive;
 use std::sync::Arc;
 
 use crate::ui::length::{DocUnit, length_field};
-use craft_behavior::{EditEvent, IconId, Mixed, NumberCodec};
+use craft_behavior::{EditEvent, EditEvents, IconId, Mixed, NumberCodec};
 use craft_ui::buttons::ToggleButton;
 use craft_ui::contract::{Bind, Entry, GlyphLabel, LabelKind, Show as _, ShowContainer as _, SideLabel};
 use craft_ui::form::Field;
@@ -43,14 +43,14 @@ pub(super) struct PlainRow<'p> {
 
 impl Lengths<'_> {
     /// A field over a length in points, shown in the unit: its event in points and the preset row picked.
-    pub(super) fn row(&self, ui: &mut Ui, spec: LengthRow<'_>) -> (Option<EditEvent<Option<f64>>>, Option<NumberPick>) {
+    pub(super) fn row(&self, ui: &mut Ui, spec: LengthRow<'_>) -> (EditEvents<Option<f64>>, Option<NumberPick>) {
         let LengthRow { label, glyph, value, range, presets } = spec;
         let points = value.map_or(Mixed::Mixed, |value| Mixed::Same(Some(f64::from(value))));
         let field = Field::new(label.clone()).side(mark(glyph)).show(ui, |ui, _| {
             let out = length_field(self.unit, label.clone(), points, range.clone()).presets(presets).scrub_by_label().show(ui);
-            (out.edit.event, out.preset)
+            (out.edit.events, out.preset)
         });
-        field.inner.unwrap_or((None, None))
+        field.inner.unwrap_or_default()
     }
 
     /// The kerning field: a number or the name of a presets row (Metrics, Optical).
@@ -61,17 +61,17 @@ impl Lengths<'_> {
         glyph: GlyphLabel,
         value: Option<NamedOr<KerningName>>,
         presets: &[Entry<NumberPick>],
-    ) -> Option<EditEvent<NamedOr<KerningName>>> {
+    ) -> EditEvents<NamedOr<KerningName>> {
         let units = self.units;
         let shown = Field::new(label.clone()).side(mark(glyph)).show(ui, |ui, _| {
             let field = NumberField::named(label.clone(), Bind::given(mixed(value))).range(TRACKING_RANGE).presets(presets).scrub_by_label();
-            field.codec(NumberCodec::new(units.reader(None), 0)).show(ui).edit.event
+            field.codec(NumberCodec::new(units.reader(None), 0)).show(ui).edit.events
         });
-        shown.inner.flatten()
+        shown.inner.unwrap_or_default()
     }
 
     /// A field over a number that is not a length: its event and the preset row picked.
-    pub(super) fn plain(&self, ui: &mut Ui, spec: PlainRow<'_>) -> (Option<EditEvent<Option<f64>>>, Option<NumberPick>) {
+    pub(super) fn plain(&self, ui: &mut Ui, spec: PlainRow<'_>) -> (EditEvents<Option<f64>>, Option<NumberPick>) {
         let PlainRow { label, glyph, value, range, percent, presets } = spec;
         let units = self.units;
         let shown = Field::new(label.clone()).side(mark(glyph)).show(ui, |ui, _| {
@@ -82,9 +82,9 @@ impl Lengths<'_> {
                 field.codec(NumberCodec::new(units.reader(None), 0))
             };
             let out = field.show(ui);
-            (out.edit.event, out.preset)
+            (out.edit.events, out.preset)
         });
-        shown.inner.unwrap_or((None, None))
+        shown.inner.unwrap_or_default()
     }
 }
 
@@ -104,12 +104,12 @@ pub(super) fn plain(value: Option<f32>) -> Mixed<Option<f64>> {
 }
 
 /// A number field's event as a change; a cleared field is not one.
-pub(super) fn number_change<C>(event: Option<EditEvent<Option<f64>>>, change: impl Fn(f32) -> C) -> Option<EditEvent<C>> {
-    let event = event?;
-    if matches!(event.value(), Some(None)) {
-        return None;
-    }
-    Some(event.map(|value| change(value.unwrap_or_default() as f32)))
+pub(super) fn number_change<C>(events: EditEvents<Option<f64>>, change: impl Fn(f32) -> C) -> EditEvents<C> {
+    events
+        .into_iter()
+        .filter(|event| !matches!(event.value(), Some(None)))
+        .map(|event| event.map(|value| change(value.unwrap_or_default() as f32)))
+        .collect()
 }
 
 /// A menu row that is not a number, as the one-step change it makes.
@@ -141,12 +141,12 @@ pub(super) fn select_row<C>(
     value: Mixed<String>,
     entries: &[Entry<String>],
     change: impl Fn(String) -> C,
-) -> Option<EditEvent<C>> {
+) -> EditEvents<C> {
     let side = SideLabel::new().kind(LabelKind::Hidden);
     let shown = Field::new(label.clone())
         .side(side)
-        .show(ui, |ui, _| Select::new(label.clone(), Bind::given(value.clone()), entries).placeholder("—").show(ui).event);
-    shown.inner.flatten().map(|event| event.map(&change))
+        .show(ui, |ui, _| Select::new(label.clone(), Bind::given(value.clone()), entries).placeholder("—").show(ui).events);
+    shown.inner.unwrap_or_default().map(&change)
 }
 
 /// One toggle button of a row: its name, icon, state (`None` while the selection mixes) and the change it makes.
@@ -170,7 +170,7 @@ pub(super) fn toggle_row<C>(ui: &mut Ui, toggles: Vec<Toggle<C>>) -> Vec<EditEve
         for toggle in &toggles {
             let bind = Bind::given(mixed(toggle.on));
             let out = ToggleButton::new(toggle.name.clone(), bind).icon(IconId::new(toggle.icon)).icon_only().show(ui);
-            edits.extend(out.event.map(|event| event.map(&toggle.change)));
+            edits.extend(out.events.map(&toggle.change));
         }
     });
     edits
