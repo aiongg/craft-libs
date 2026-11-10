@@ -48,7 +48,7 @@ pub struct DockSizes {
     pub least_pane: f32,
     /// The height of a group's tab strip or section title row (the panel header height), which every group height includes.
     pub strip: f32,
-    /// The height of a column bar (the panel header height).
+    /// The height of a column bar (a small control).
     pub bar: f32,
     /// The least body size of a column's group and the least width of an expanded column (the panel header height).
     pub least: f32,
@@ -80,7 +80,7 @@ impl DockSizes {
             gap: cx.tokens.space.gap.inline,
             least_pane: size.pane.least,
             strip: size.panel_header,
-            bar: size.panel_header,
+            bar: size.control.sm,
             least: size.panel_header,
             reach: size.hit.target,
             step: cx.control().gap,

@@ -94,10 +94,11 @@ pub struct ShellRegion {
 }
 
 impl ShellRegion {
-    /// The whole content of the window: its edges resize the window where the app draws the frame.
+    /// The whole content of the window: its edges resize the window where the app draws the frame. It paints no
+    /// surface of its own: the parts the shell places paint theirs, and a gap between them (a dock's gutter) shows the
+    /// window's clear colour.
     pub fn window() -> Self {
-        let props =
-            ContainerProps::new().mount(Mount::window(Resize::GRIPS)).surface(SurfaceKind::Background).command_scope(ScreenModeCommands::SCOPE);
+        let props = ContainerProps::new().mount(Mount::window(Resize::GRIPS)).command_scope(ScreenModeCommands::SCOPE);
         ShellRegion { common: Common::new(), props, shell: None }
     }
 
@@ -460,7 +461,6 @@ impl<'a, S> AppShell<'a, S> {
             for edge in [RevealEdge::Top, RevealEdge::Start, RevealEdge::End] {
                 shell = shell.with_edge_reveal(edge, kept.reveal.edge(edge));
             }
-            let backdrop = if only { SurfaceKind::Scrim } else { SurfaceKind::Canvas };
             let panels_hidden = kept.reveal.panels_hidden();
 
             let rect_of = |key| regions.slots.iter().find(|(shown, _)| *shown == key).map_or(Rect::ZERO, |(_, rect)| *rect);
@@ -475,17 +475,35 @@ impl<'a, S> AppShell<'a, S> {
                             continue;
                         }
                         let extent = placed.extent(&tokens);
-                        let Placed { slot, edge, named, add, .. } = placed;
+                        let Placed { slot, edge, named, add, title, .. } = placed;
                         let pane = ShellPane::new(slot.key()).edge(*edge).extent(extent).at(rect_of(slot.key()));
                         let mut region = ShellRegion::pane(pane).id_salt(("slot", slot.key()));
+                        // A bar is as high as its content and the slot as high as its token, so the slot paints the bar's
+                        // surface under it, and the bar sits at the slot's centre line: no band of the backdrop shows
+                        // between the bar and the body.
+                        let centred = !*title && matches!(edge, PaneEdge::Top | PaneEdge::Bottom);
+                        if centred {
+                            region = region.surface(SurfaceKind::Chrome);
+                        }
                         if let Some(label) = slot.name().cloned().or_else(|| named.map(|name| name(&words))) {
                             region = region.label(label);
                         }
-                        region.show(ui, |ui, bcx| add(ui, bcx, app));
+                        region.show(ui, |ui, bcx| {
+                            if centred {
+                                ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| add(ui, bcx, app));
+                            } else {
+                                add(ui, bcx, app);
+                            }
+                        });
                     }
                 };
                 show_slots(ui, false, app);
-                let center = ShellRegion::pane(ShellPane::new("body").at(regions.body)).surface(backdrop).label(body_label.clone());
+                // Only a body-only shell paints behind its body (the scrim). Otherwise the body paints what it shows, and the gaps
+                // between its parts (the dock's gutters) are the window's own clear colour.
+                let mut center = ShellRegion::pane(ShellPane::new("body").at(regions.body)).label(body_label.clone());
+                if only {
+                    center = center.surface(SurfaceKind::Scrim);
+                }
                 center.show(ui, |ui, bcx| {
                     if let Some(SlotBody(body)) = body.as_mut() {
                         body(ui, bcx, app);

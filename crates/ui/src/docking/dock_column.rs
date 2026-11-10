@@ -6,28 +6,32 @@
 //! user did; the dock decides what a drop changes.
 
 use super::divider::{self, Divider, Drag};
-use super::{DockHeights, DockSizes, DockSpot, DockTargets, DockWords, DragUnit, PanelKey, PanelSpec, Splitter, start_group_drag};
+use super::group::GroupGrip;
+use super::{DockHeights, DockSizes, DockSpot, DockTargets, DockWords, DragUnit, PanelKey, PanelSpec, Splitter};
 use crate::buttons::IconButton;
+use crate::buttons::icon_button::IconButtonStyleKey;
 use crate::contract::SizeLimits;
 use crate::contract::overlay::Trigger;
 use crate::contract::{
-    Access, BodyCx, Common, Component, Container, ContainerProps, Cx, HeaderRegion, Name, NoValue, Outcome, Pad, PaintUi, PartsCx, Pointer,
-    Props as _, Role, Show as _, ShowContainer as _, Sizing, WordSetCx as _, clicked,
+    Access, BodyCx, Common, Component, Container, ContainerProps, Cx, NoValue, Outcome, Pad, PaintUi, PartsCx, Props as _, Role, Show as _,
+    ShowContainer as _, Sizing, WordSetCx as _, clicked,
 };
 use crate::menu::{GroupItem, Menu, MenuWords, PanelMenu, PanelRow};
+use crate::primitives::{Glyph, IconSpec};
 use crate::runtime::env::Label;
 use crate::runtime::focus::KeyUse;
 use crate::style::{ComponentStyle, Corners, StyleCx, SurfaceKind};
 use craft_behavior::divider::{self as push, Segment};
 use craft_behavior::dock::{Column, DockEdge, Group};
-use craft_behavior::{Axis, CursorIcon, DockSide, Flow, IconId, Metrics, PartKey, PressPhase, Sense, Value};
-use egui::{Align, Context, Id, Layout, Pos2, Rect, Response, Ui, Vec2};
+use craft_behavior::{Axis, DockSide, Flow, Metrics, PartKey, Sense, Value};
+use craft_theme::variant::Tone;
+use craft_theme::{ControlSize, CustomVariant, Emphasis, States, Tokens, Variant, VariantLook};
+use egui::{Color32, Context, Id, Pos2, Rect, Response, Ui};
 use std::hash::Hash;
 
 #[cfg(feature = "testing")]
 mod stories;
 
-pub(super) const BAR: PartKey = PartKey::new("bar");
 const DIVIDER: PartKey = PartKey::new("divider");
 const EDGE: PartKey = PartKey::new("edge");
 
@@ -233,33 +237,99 @@ pub(super) struct BarRecord {
     pub(super) picked: Option<GroupItem>,
 }
 
-/// The icon of a column's collapse control: a double chevron that points where the column goes, towards the window
-/// edge when it collapses to icons and away from it when it expands. Directional icons mirror in a right-to-left
-/// interface, so the icon that draws pointing right there is the left one.
-fn collapse_icon(edge: DockEdge, expanded: bool, rtl: bool) -> &'static str {
-    let at_left = (edge == DockEdge::Start) != rtl;
-    let points_right = at_left != expanded;
-    if points_right != rtl { "chevrons_right" } else { "chevrons_left" }
+/// A double chevron's arms, as a share of the icon box's side: the glyph the collapse control draws is small beside
+/// the bar's other icons.
+const ARM: f32 = 0.17;
+
+/// How far each chevron of the pair reaches along the arrow, and the distance between the two, as shares of an arm.
+const REACH: f32 = 0.8;
+const PITCH: f32 = 1.4;
+
+/// The look of the collapse control: ghost, with the muted text until the pointer is over it, and no fill under the
+/// pointer.
+fn collapse_look(tokens: &Tokens) -> VariantLook {
+    let ghost = VariantLook::of(Emphasis::Ghost, Tone::Neutral, tokens);
+    let mut text = ghost.text;
+    text.rest = tokens.color.text.muted;
+    VariantLook::new(States::new(ghost.fill.rest, ghost.fill.rest, ghost.fill.rest, ghost.fill.rest), text)
 }
 
-/// Shows the column bar and its menu, at `rect` or in the flow of `ui`: a small chevron button at the bar's outer end
-/// collapses an expanded column to icons and expands an iconic one; a context request on it opens the column menu.
-/// Returns what the user did.
-pub(super) fn show_bar(ui: &mut Ui, body: &mut BodyCx<'_>, rect: Option<Rect>, expanded: bool, auto_collapse: bool, edge: DockEdge) -> BarRecord {
+const COLLAPSE: CustomVariant = CustomVariant::new::<IconButtonStyleKey>("craft_ui.dock-collapse", collapse_look);
+
+/// The glyph of a column's collapse control: a double chevron that points where the column goes, towards the window
+/// edge when it collapses to icons and away from it when it expands.
+struct DoubleChevron {
+    /// Whether it points to the right of the screen.
+    right: bool,
+    /// The stroke width.
+    width: f32,
+}
+
+impl Glyph for DoubleChevron {
+    fn paint(&self, painter: &egui::Painter, rect: Rect, color: Color32, _: bool) {
+        let arm = rect.width().min(rect.height()) * ARM;
+        let flip = if self.right { 1.0 } else { -1.0 };
+        let centre = rect.center();
+        let stroke = egui::Stroke::new(self.width, color);
+        for step in [-0.5, 0.5] {
+            let x = centre.x + flip * arm * PITCH * step;
+            let points = [(-0.5, -1.0), (0.5, 0.0), (-0.5, 1.0)].map(|(dx, dy)| Pos2::new(x + flip * arm * REACH * dx, centre.y + arm * dy)).to_vec();
+            painter.add(egui::Shape::line(points, stroke));
+        }
+    }
+}
+
+/// Whether the column's collapse control points to the right of the screen: towards the window edge when it collapses
+/// to icons and away from it when it expands.
+fn points_right(edge: DockEdge, expanded: bool, rtl: bool) -> bool {
+    let at_left = (edge == DockEdge::Start) != rtl;
+    at_left != expanded
+}
+
+/// Shows the column bar `bar` and its menu: a small chevron button, as high as the bar, at the bar's outer end collapses
+/// an expanded column to icons and expands an iconic one. The rest of the bar is `grip`: a drag moves the column, a
+/// double click collapses or expands it, and a context request opens the column menu. Returns what the user did.
+pub(super) fn show_bar<P: Clone + Send + Sync + 'static>(
+    ui: &mut Ui,
+    body: &mut BodyCx<'_>,
+    bar: Rect,
+    expanded: bool,
+    auto_collapse: bool,
+    edge: DockEdge,
+    grip: GroupGrip<P>,
+) -> BarRecord {
     let words = body.words::<DockWords>();
     let menu_words = body.words::<MenuWords>();
     let rtl = crate::runtime::env::Env::of(ui).direction.is_rtl();
     let toggle = if expanded { words.collapse_column.as_str() } else { words.expand_column.as_str() };
-    let button = IconButton::new(IconId::new(collapse_icon(edge, expanded, rtl))).label(Label::from(toggle.to_owned()));
-    let shown = match rect {
-        Some(rect) => button.show_at(ui, rect),
-        None if (edge == DockEdge::End) != rtl => ui.with_layout(Layout::right_to_left(Align::Min), |ui| button.show(ui)).inner,
-        None => button.show(ui),
+    // The button sits at the outer end: the window edge the dock is on.
+    let side = bar.height().min(bar.width());
+    let (place, band) = if (edge == DockEdge::End) != rtl {
+        let split = bar.right() - side;
+        (Rect::from_x_y_ranges(split..=bar.right(), bar.y_range()), Rect::from_x_y_ranges(bar.left()..=split, bar.y_range()))
+    } else {
+        let split = bar.left() + side;
+        (Rect::from_x_y_ranges(bar.left()..=split, bar.y_range()), Rect::from_x_y_ranges(split..=bar.right(), bar.y_range()))
     };
+    let chevron = DoubleChevron { right: points_right(edge, expanded, rtl), width: crate::runtime::env::Env::of(ui).tokens.stroke.thin };
+    let shown = IconButton::new(IconSpec::glyph(&chevron))
+        .size(ControlSize::Sm)
+        .variant(Variant::Custom(COLLAPSE))
+        .label(Label::from(toggle.to_owned()))
+        .show_at(ui, place);
     let mut record = BarRecord::default();
     if clicked(&shown) {
         record.iconic = Some(expanded);
     }
+    let opener = if band.width() > 0.0 {
+        let held = grip.show_at(ui, band);
+        if held.double_pressed {
+            record.iconic = Some(expanded);
+        }
+        held.response
+    } else {
+        shown.response().clone()
+    };
     let rows = vec![
         PanelRow::Item(crate::contract::Entry::new(GroupItem::CollapseToIcons, Label::from(toggle.to_owned()))),
         PanelRow::Item(
@@ -268,7 +338,7 @@ pub(super) fn show_bar(ui: &mut Ui, body: &mut BodyCx<'_>, rect: Option<Rect>, e
         ),
     ];
     let picked = Menu::new(Label::from(words.panels.as_str().to_owned()))
-        .opened_by(&shown, Trigger::Context)
+        .opened_by(&opener, Trigger::Context)
         .show(ui, |ui, _| PanelMenu::new(Vec::new(), rows.clone()).show(ui).picked);
     record.picked = picked.inner.flatten();
     record
@@ -283,19 +353,6 @@ pub(super) fn bar_name<P>(column: &Column<P>, spec: &dyn Fn(&P) -> PanelSpec, te
 fn panel_names<P>(column: &Column<P>, spec: &dyn Fn(&P) -> PanelSpec) -> String {
     let names: Vec<String> = column.groups.iter().flat_map(|group| group.panels.iter()).map(|panel| spec(panel).label.as_str().to_owned()).collect();
     names.join(", ")
-}
-
-/// Starts the move of the whole column when its bar is dragged: the drag session carries the column, named by its
-/// first panel, and its ghost is a frame the size of the column.
-pub(super) fn drag_column<P, C>(cx: &mut C, column: &Column<P>, spec: &dyn Fn(&P) -> PanelSpec, size: Vec2)
-where
-    P: Value + Hash,
-    C: Pointer,
-{
-    let Some(first) = column.groups.first() else { return };
-    let Some(anchor) = first.panels.first() else { return };
-    let active = PanelKey::of(first.active_panel().unwrap_or(anchor));
-    start_group_drag(cx, DragUnit::Column(anchor.clone()), active, Some((size, Label::from(panel_names(column, spec)))));
 }
 
 /// What a dock column reports.
@@ -361,18 +418,16 @@ pub struct DockColumn<'a, P: Value + Hash + 'static> {
     /// The rect the dock may grow within, which bounds how wide its inner edge can make the column.
     #[prop]
     within: Rect,
-    bar: BarRecord,
     /// The plan `parts` laid out this pass, which update, paint and access read.
     laid: Option<Plan>,
     resized: Vec<(P, f32)>,
     width: Option<f32>,
-    toggled: bool,
 }
 
 impl<'a, P: Value + Hash + 'static> DockColumn<'a, P> {
     /// A column named `label` of the dock `dock`, over `column`; `spec` reads each panel's limits and heights.
     pub fn new(label: impl Into<Label>, dock: Id, column: &'a Column<P>, spec: &'a dyn Fn(&P) -> PanelSpec) -> Self {
-        let props = ContainerProps::new().sizing(Sizing::Fill).pad(Pad::None).header(HeaderRegion::new());
+        let props = ContainerProps::new().sizing(Sizing::Fill).pad(Pad::None);
         DockColumn {
             common: Common::new(),
             props,
@@ -382,31 +437,62 @@ impl<'a, P: Value + Hash + 'static> DockColumn<'a, P> {
             auto_collapse: false,
             edge: DockEdge::Start,
             within: Rect::NOTHING,
-            bar: BarRecord::default(),
             laid: None,
             resized: Vec::new(),
             width: None,
-            toggled: false,
         }
         .label(label)
     }
 
     /// Shows the column; `view` shows one group in the rect it gets.
-    pub fn show_groups(self, ui: &mut Ui, mut view: impl FnMut(&Group<P>, Rect, &mut Ui, &mut BodyCx<'_>) + 'a) -> DockColumnOutput<P> {
-        let (column, spec) = (self.column, self.spec);
-        self.show(ui, move |ui, body| {
+    pub fn show_groups(self, ui: &mut Ui, view: impl FnMut(&Group<P>, Rect, &mut Ui, &mut BodyCx<'_>) + 'a) -> DockColumnOutput<P> {
+        self.show_groups_in(ui, None, view)
+    }
+
+    /// Shows the column at `rect` with no allocation, so its paint is clipped by the dock and not by a region of its
+    /// own: the accent line of its edge reaches into the gutter beside it.
+    pub(crate) fn show_groups_at(
+        self,
+        ui: &mut Ui,
+        rect: Rect,
+        view: impl FnMut(&Group<P>, Rect, &mut Ui, &mut BodyCx<'_>) + 'a,
+    ) -> DockColumnOutput<P> {
+        self.show_groups_in(ui, Some(rect), view)
+    }
+
+    fn show_groups_in(
+        self,
+        ui: &mut Ui,
+        at: Option<Rect>,
+        mut view: impl FnMut(&Group<P>, Rect, &mut Ui, &mut BodyCx<'_>) + 'a,
+    ) -> DockColumnOutput<P> {
+        let (column, spec, auto_collapse, edge) = (self.column, self.spec, self.auto_collapse, self.edge);
+        let mut bar = BarRecord::default();
+        let shown = &mut bar;
+        let body = move |ui: &mut Ui, body: &mut BodyCx<'_>| {
             if body.shell().is_some_and(|shell| !shell.dock_visible()) {
                 return;
             }
             let Some(sizes) = body.style::<DockColumn<'_, P>>().map(|style| style.sizes) else { return };
-            // The groups at the heights this pass's drag leaves them, in the measuring run and the real run alike.
+            // The bar and the groups at the heights this pass's drag leaves them, in the measuring run and the real
+            // run alike: the same plan `parts` lays out, so the dividers sit at the seams.
             let drags = |key: u64, divider: &Divider| divider::drag(body.part_press(DIVIDER.at(key)).phase, body.rect, false, divider);
-            let plan = body_plan(column, spec, Rect::from_min_size(body.rect.min, Vec2::ZERO), body.rect, &sizes, drags);
+            let plan = column_plan(column, spec, body.rect, &sizes, drags);
+            if let Some(grip) = column_grip(column, spec, body) {
+                *shown = show_bar(ui, body, plan.bar, true, auto_collapse, edge, grip);
+            }
             for (group, rect) in column.groups.iter().zip(&plan.groups) {
                 view(group, *rect, ui, body);
             }
-        })
-        .output
+        };
+        let mut output = match at {
+            Some(rect) => self.show_at(ui, rect, body),
+            None => self.show(ui, body),
+        }
+        .output;
+        output.iconic = bar.iconic;
+        output.picked = bar.picked;
+        output
     }
 
     /// The divider on the column's inner edge, which moves between the width bounds of its panels.
@@ -513,6 +599,11 @@ impl<P: Value + Hash + 'static> Component for DockColumn<'_, P> {
     type Style = DockColumnStyle;
     type Output = DockColumnOutput<P>;
 
+    /// The column's edge line lies centred on the edge, so half of it is outside the column.
+    fn paint_outset(tokens: &crate::style::UiTokens) -> f32 {
+        tokens.stroke.thick / 2.0
+    }
+
     fn style(cx: &StyleCx<'_>, _: DockColumnStyleKey<P>) -> DockColumnStyle {
         DockColumnStyle { metrics: Metrics::new(), sizes: DockSizes::style(cx) }
     }
@@ -526,11 +617,6 @@ impl<P: Value + Hash + 'static> Component for DockColumn<'_, P> {
         let sizes = cx.style.sizes;
         let plan = column_plan(self.column, self.spec, rect, &sizes, |_, _| None);
         let dividers = plan.dividers(rect, sizes.reach);
-        cx.part(BAR, plan.bar)
-            .sense(Sense::DRAG)
-            .cursor(CursorIcon::Grab)
-            .drag_cursor(CursorIcon::Grabbing)
-            .pointer_only("Move Panel To in the panel menu moves the panels of the column");
         for (key, _, divider) in dividers {
             divider::declare(cx, rect, DIVIDER, key, &divider);
         }
@@ -542,11 +628,6 @@ impl<P: Value + Hash + 'static> Component for DockColumn<'_, P> {
         let sizes = cx.style.sizes;
         let (rect, rtl, ctx) = (cx.rect, cx.flow.is_rtl(), cx.core.ctx.clone());
         let Some(base) = self.laid.take() else { return };
-        let bar = cx.part(BAR).clone();
-        if matches!(bar.press.phase, PressPhase::DragStart { start, .. } if start.button == craft_behavior::PointerButton::Primary) {
-            drag_column(cx, self.column, self.spec, rect.size());
-        }
-        self.toggled = bar.press.double_pressed();
         let mut plan = column_plan(self.column, self.spec, rect, &sizes, |key, divider| divider::pointer(cx, DIVIDER, key, divider));
         let dividers = base.dividers(rect, sizes.reach);
         let keyed: Vec<(u64, Divider)> = dividers.iter().map(|(key, _, divider)| (*key, *divider)).collect();
@@ -581,19 +662,23 @@ impl<P: Value + Hash + 'static> Component for DockColumn<'_, P> {
         ui.draw().surface(plan.bar, SurfaceKind::Background, Corners::None);
     }
 
-    fn paint_over(&mut self, ui: &mut PaintUi<'_>, _: &Cx<'_, Self>) {
+    /// The column's frame, then the dividers over it.
+    fn paint_over(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let Some(plan) = self.laid.as_ref() else { return };
+        ui.draw().surface(cx.rect, SurfaceKind::Frame, Corners::None);
         for pair in plan.open.windows(2) {
             ui.face(DIVIDER.at(pair[0] as u64), Splitter::new(Axis::Y));
         }
-        ui.face(EDGE.at(0), Splitter::new(Axis::X));
+        // The edge's line lies on the column's inner edge, over the frame; its handle stays inside the column.
+        let (rect, edge) = (cx.rect, self.edge_divider(cx.rect, &cx.style.sizes));
+        let x = if cx.flow.is_rtl() { rect.right() - (edge.at - rect.left()) } else { edge.at };
+        ui.face(EDGE.at(0), Splitter::new(Axis::X).boundary(x));
     }
 
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
         let words = cx.words::<DockWords>();
         let sizes = cx.style.sizes;
         let Some(plan) = self.laid.as_ref() else { return };
-        access.node(BAR, Role::BUTTON).name = Name::Text(bar_name(self.column, self.spec, &words.move_column));
         for (key, _, divider) in plan.dividers(cx.rect, sizes.reach) {
             divider::describe(access, DIVIDER, key, &divider, words.resize.as_str(), sizes.step);
         }
@@ -602,9 +687,18 @@ impl<P: Value + Hash + 'static> Component for DockColumn<'_, P> {
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> DockColumnOutput<P> {
-        let iconic = self.bar.iconic.or(self.toggled.then_some(!self.column.iconic));
-        DockColumnOutput { response: cx.response.clone(), placed: cx.rect, iconic, picked: self.bar.picked, resized: self.resized, width: self.width }
+        DockColumnOutput { response: cx.response.clone(), placed: cx.rect, iconic: None, picked: None, resized: self.resized, width: self.width }
     }
+}
+
+/// The grip of the column bar: a drag moves the whole column, its ghost the column's size and its panels' names.
+pub(super) fn column_grip<P: Value + Hash>(column: &Column<P>, spec: &dyn Fn(&P) -> PanelSpec, body: &BodyCx<'_>) -> Option<GroupGrip<P>> {
+    let first = column.groups.first()?;
+    let anchor = first.panels.first()?;
+    let active = PanelKey::of(first.active_panel().unwrap_or(anchor));
+    let name = bar_name(column, spec, &body.words::<DockWords>().move_column);
+    let ghost = (body.rect.size(), Label::from(panel_names(column, spec)));
+    Some(GroupGrip::new(DragUnit::Column(anchor.clone()), active).ghost(ghost).label(name))
 }
 
 /// Registers the drop bands of the two edges of the column in `rect` with the dock `dock`: a drop there makes a new
@@ -635,11 +729,4 @@ impl<P: Value + Hash + 'static> DockColumn<'_, P> {
     }
 }
 
-impl<P: Value + Hash + 'static> Container for DockColumn<'_, P> {
-    fn header(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
-        if cx.shell().is_some_and(|shell| !shell.dock_visible()) {
-            return;
-        }
-        self.bar = show_bar(ui, cx, None, true, self.auto_collapse, self.edge);
-    }
-}
+impl<P: Value + Hash + 'static> Container for DockColumn<'_, P> {}

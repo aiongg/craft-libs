@@ -3,9 +3,7 @@
 
 use super::hide::{self, Shown};
 use crate::contract::overlay::PlacementChange;
-use crate::contract::{
-    Bind, BindMut, BodyCx, Cx, Entry, NoValue, Outcome, Pad, Pointer as _, Props as _, ShowContainer as _, Sizing, WordSetCx as _,
-};
+use crate::contract::{Bind, BindMut, BodyCx, Cx, Entry, NoValue, Outcome, Pointer as _, Props as _, ShowContainer as _, Sizing, WordSetCx as _};
 use crate::docking::stack::{StackSection, StackSections, section_heights};
 use crate::docking::tree::FrameRules;
 use crate::docking::{
@@ -14,7 +12,6 @@ use crate::docking::{
     PanelSpec, PanelTitle, SplitArea, actions, cancel_on_replacement, dock_states, fit_widths, frame, move_actions,
 };
 use crate::docking::{cross_window, desktop, float_drop, native};
-use crate::layout_components::Stack;
 use crate::menu::{GroupItem, MenuWords, PanelMenu, PanelRow};
 use crate::runtime::commands::{CommandRef, CommandSet as _, Commands as _, focus_within};
 use crate::runtime::env::{Env, Label, RevealEdge, ShellCx, ShellEntry};
@@ -557,11 +554,6 @@ fn float_space<P: Clone + PartialEq>(bounds: Rect, sizes: &DockSizes, config: &D
     space
 }
 
-/// A region of `ui` at `rect` that holds one container.
-fn region<R>(ui: &mut Ui, rect: Rect, mut content: impl FnMut(&mut Ui) -> R) -> Option<R> {
-    Stack::new().fill().pad(Pad::None).show_at(ui, rect, |ui, _| content(ui)).inner
-}
-
 impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
     /// One group of the docked tree or of a floating window: a tab group, or the sections of an accordion.
     fn leaf(&mut self, ui: &mut Ui, body: &mut BodyCx<'_>, node: &Node<P>, rect: Rect) {
@@ -762,32 +754,24 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
             self.report.placed.push((first.clone(), cell));
             if column.iconic {
                 let open = plan.open.clone();
-                let Some(output) = region(ui, cell, |ui| {
-                    IconicColumn::new(name.clone(), scene.dock, column, Bind::given(open.clone()), &spec)
-                        .edge(plan.edge)
-                        .within(body.rect)
-                        .auto_collapse(scene.auto_collapse)
-                        .show_flyouts(ui, |group, at, ui, body| self.group_of(ui, body, group, at))
-                }) else {
-                    continue;
-                };
+                let output = IconicColumn::new(name.clone(), scene.dock, column, Bind::given(open.clone()), &spec)
+                    .edge(plan.edge)
+                    .within(body.rect)
+                    .auto_collapse(scene.auto_collapse)
+                    .show_flyouts_at(ui, cell, |group, at, ui, body| self.group_of(ui, body, group, at));
                 if let Some(event) = output.edit.event {
                     self.report.flyout.push(event);
                 }
                 let work = ColumnWork { iconic: output.iconic, picked: output.picked, resized: Vec::new(), width: output.width };
                 self.column_work(column, work);
             } else {
-                let Some(output) = region(ui, cell, |ui| {
-                    DockColumn::new(name.clone(), scene.dock, column, &spec)
-                        .edge(plan.edge)
-                        .within(body.rect)
-                        .auto_collapse(scene.auto_collapse)
-                        .show_groups(ui, |group, rect, ui, body| {
-                            self.group_of(ui, body, group, GroupAt::Show(rect));
-                        })
-                }) else {
-                    continue;
-                };
+                let output = DockColumn::new(name.clone(), scene.dock, column, &spec)
+                    .edge(plan.edge)
+                    .within(body.rect)
+                    .auto_collapse(scene.auto_collapse)
+                    .show_groups_at(ui, cell, |group, rect, ui, body| {
+                        self.group_of(ui, body, group, GroupAt::Show(rect));
+                    });
                 let work = ColumnWork { iconic: output.iconic, picked: output.picked, resized: output.resized, width: output.width };
                 self.column_work(column, work);
             }

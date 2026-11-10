@@ -62,9 +62,13 @@ pub struct IconButton<'a> {
     /// accent.
     #[prop(into)]
     badge: Option<Srgba>,
-    /// The kind of popup the button opens: AccessKit reports it, and a mark shows at the end-bottom corner.
+    /// The kind of popup the button opens: AccessKit reports it, and a mark shows at the end-bottom corner unless
+    /// [`popup_mark`](Self::popup_mark) is off.
     #[prop(into)]
     popup: Option<PopupKind>,
+    /// Whether the popup mark shows; off where the glyph itself names the popup, as a panel menu's "…" does.
+    #[prop]
+    popup_mark: bool,
     /// Whether the popup the button opens is open, as the host knows it.
     #[prop(into)]
     expanded: Option<bool>,
@@ -73,7 +77,7 @@ pub struct IconButton<'a> {
 impl<'a> IconButton<'a> {
     /// An icon button showing `icon`; `label` it with the accessible name.
     pub fn new(icon: impl Into<IconSpec<'a>>) -> Self {
-        IconButton { common: Common::new(), icon: icon.into(), focusable: true, badge: None, popup: None, expanded: None }
+        IconButton { common: Common::new(), icon: icon.into(), focusable: true, badge: None, popup: None, popup_mark: true, expanded: None }
     }
 
     /// An icon button bound to `command`: its label, enabled state and activation follow the command.
@@ -127,7 +131,7 @@ impl Component for IconButton<'_> {
         let glyph = egui::Rect::from_center_size(cx.rect.center(), Vec2::splat(cx.style.glyph.side));
         let draw = ui.draw();
         draw.icon(glyph, &tinted(&self.icon, cx.resolve(&cx.style.glyph.color)));
-        if self.popup.is_some() {
+        if self.popup.is_some() && self.popup_mark {
             let (end, bottom) = if cx.flow.is_rtl() {
                 (cx.rect.left() + cx.style.mark, cx.rect.bottom() - cx.style.mark)
             } else {

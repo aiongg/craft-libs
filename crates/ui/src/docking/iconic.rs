@@ -1,7 +1,7 @@
 //! `IconicColumn`: a column collapsed to one icon per panel, and the flyouts its icons open.
 
 use super::divider::{self, Divider, Drag};
-use super::dock_column::{BarRecord, bar_name, drag_column, register_edges, show_bar};
+use super::dock_column::{BarRecord, column_grip, register_edges, show_bar};
 use super::{DockSizes, DockSpot, DockTargets, DockWords, DragUnit, Flyout, GroupAt, PanelKey, PanelSpec, Splitter, start_group_drag};
 use crate::buttons::IconButton;
 use crate::contract::{
@@ -89,7 +89,8 @@ pub struct IconicColumnStyle {
 /// A column collapsed to icons: the column bar over icon groups, one cell per panel. A click or Enter on an icon
 /// opens the flyout of its panel beside the column, switches it to that panel or closes it; one flyout is open at a
 /// time. A drag of an icon starts a move of its panel, a drag of the band on top of a group a move of the group, a
-/// drag of the bar a move of the column; each starts through the drag session and closes the flyout. Escape and a press
+/// drag of the bar beside its button a move of the column; each starts through the drag session, and a press outside
+/// the flyout closes it. Escape and a press
 /// outside close the flyout; with `auto_collapse` the focus leaving it does too.
 ///
 /// The open flyout is the bound `Option<P>` of [`new`](IconicColumn::new), owned by the host like the layout: a click
@@ -121,7 +122,6 @@ pub struct IconicColumn<'a, P: Value + Hash + 'static> {
     bar: Rect,
     record: BarRecord,
     shown: Option<usize>,
-    toggled: bool,
     width: Option<f32>,
     /// The plan `parts` laid out this pass, which update and access read.
     laid: Option<Plan>,
@@ -158,7 +158,6 @@ impl<'a, P: Value + Hash + 'static> IconicColumn<'a, P> {
             bar: Rect::NOTHING,
             record: BarRecord::default(),
             shown: None,
-            toggled: false,
             width: None,
             laid: None,
         }
@@ -174,6 +173,18 @@ impl<'a, P: Value + Hash + 'static> IconicColumn<'a, P> {
     ) -> IconicColumnOutput<P> {
         self.view = Some(Box::new(view));
         self.show(ui, |_, _| ()).output
+    }
+
+    /// Shows the column at `rect` with no allocation, so its paint is clipped by the dock and not by a region of its
+    /// own: the accent line of its edge reaches into the gutter beside it.
+    pub(crate) fn show_flyouts_at(
+        mut self,
+        ui: &mut Ui,
+        rect: Rect,
+        view: impl FnMut(&Group<P>, GroupAt, &mut Ui, &mut BodyCx<'_>) -> Option<f32> + 'a,
+    ) -> IconicColumnOutput<P> {
+        self.view = Some(Box::new(view));
+        self.show_at(ui, rect, |_, _| ()).output
     }
 
     /// The panels of the column in order, each with its group.
@@ -248,6 +259,11 @@ impl<P: Value + Hash + 'static> Component for IconicColumn<'_, P> {
     type Style = IconicColumnStyle;
     type Output = IconicColumnOutput<P>;
 
+    /// The column's edge line lies centred on the edge, so half of it is outside the column.
+    fn paint_outset(tokens: &crate::style::UiTokens) -> f32 {
+        tokens.stroke.thick / 2.0
+    }
+
     fn style(cx: &StyleCx<'_>, _: IconicColumnStyleKey<P>) -> IconicColumnStyle {
         IconicColumnStyle { metrics: Metrics::new(), sizes: IconicSizes::style(cx) }
     }
@@ -266,11 +282,6 @@ impl<P: Value + Hash + 'static> Component for IconicColumn<'_, P> {
         let sizes = cx.style.sizes;
         let plan = self.plan(rect, &sizes);
         self.bar = plan.bar;
-        cx.part(super::dock_column::BAR, plan.bar)
-            .sense(Sense::DRAG)
-            .cursor(CursorIcon::Grab)
-            .drag_cursor(CursorIcon::Grabbing)
-            .pointer_only("Move Panel To in the panel menu moves the panels of the column");
         for (at, (_, _, cell)) in plan.cells.iter().enumerate() {
             let Some(panel) = self.flat().get(at).and_then(|(group, panel)| self.panel(*group, *panel)) else { continue };
             let label = (self.spec)(panel).label;
@@ -300,11 +311,6 @@ impl<P: Value + Hash + 'static> Component for IconicColumn<'_, P> {
         let dragging =
             |phase: PressPhase| matches!(phase, PressPhase::DragStart { start, .. } if start.button == craft_behavior::PointerButton::Primary);
         let mut began = false;
-        if dragging(cx.part(super::dock_column::BAR).press.phase) {
-            drag_column(cx, self.column, self.spec, rect.size());
-            began = true;
-        }
-        self.toggled = cx.part(super::dock_column::BAR).press.double_pressed();
         for (group, extent) in &plan.groups {
             if dragging(cx.part(GRIP.at(*group as u64)).press.phase)
                 && let Some(lead) = self.column.groups.get(*group)
@@ -379,14 +385,16 @@ impl<P: Value + Hash + 'static> Component for IconicColumn<'_, P> {
             let icon: IconSpec<'static> = spec.icon.unwrap_or_else(|| IconId::new("more").into());
             ui.face(CELL.at(at as u64), IconButton::new(icon).label(spec.label).selected(self.shown == Some(at)));
         }
-        ui.face(EDGE.at(0), Splitter::new(Axis::X));
+        // The edge's line lies on the column's inner edge; its handle stays inside the column.
+        let (rect, edge) = (cx.rect, self.edge_divider(cx.rect, &cx.style.sizes.column));
+        let x = if cx.flow.is_rtl() { rect.right() - (edge.at - rect.left()) } else { edge.at };
+        ui.face(EDGE.at(0), Splitter::new(Axis::X).boundary(x));
     }
 
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
         let words = cx.words::<DockWords>();
         let sizes = cx.style.sizes;
         let Some(plan) = self.laid.as_ref() else { return };
-        access.node(super::dock_column::BAR, Role::BUTTON).name = Name::Text(bar_name(self.column, self.spec, &words.move_column));
         for (at, (group, panel)) in self.flat().iter().enumerate() {
             let Some(panel) = self.panel(*group, *panel) else { continue };
             access.node(CELL.at(at as u64), Role::BUTTON).name = Name::Text((self.spec)(panel).label.as_str().to_owned());
@@ -428,8 +436,7 @@ impl<P: Value + Hash + 'static> Component for IconicColumn<'_, P> {
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> IconicColumnOutput<P> {
-        let iconic = self.record.iconic.or(self.toggled.then_some(false));
-        IconicColumnOutput { edit: cx.edit_response(), placed: cx.rect, iconic, picked: self.record.picked, width: self.width }
+        IconicColumnOutput { edit: cx.edit_response(), placed: cx.rect, iconic: self.record.iconic, picked: self.record.picked, width: self.width }
     }
 }
 
@@ -460,6 +467,8 @@ impl<P: Value + Hash + 'static> Container for IconicColumn<'_, P> {
         if cx.shell().is_some_and(|shell| !shell.dock_visible()) {
             return;
         }
-        self.record = show_bar(ui, cx, Some(self.bar), false, self.auto_collapse, self.edge);
+        if let Some(grip) = column_grip(self.column, self.spec, cx) {
+            self.record = show_bar(ui, cx, self.bar, false, self.auto_collapse, self.edge, grip);
+        }
     }
 }

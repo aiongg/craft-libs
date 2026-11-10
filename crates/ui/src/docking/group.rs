@@ -9,17 +9,17 @@ use super::{PanelDrag, PanelKey, PanelTitle};
 use crate::buttons::IconButton;
 use crate::contract::{
     BodyCx, Common, Component, Container, ContainerProps, ContextMenuRequest, Cx, HeaderRegion, ListDrag, MeasureCx, Outcome, PaintUi, Pointer as _,
-    Props as _, Role, Show as _, ShowCollection as _, ShowContainer as _, Sizing, Trigger, WordSetCx as _,
+    PopupKind, Props as _, Role, Show as _, ShowCollection as _, ShowContainer as _, Sizing, Trigger, WordSetCx as _,
 };
 use crate::layout_components::Row;
 use crate::menu::{GroupItem, Menu, PanelMenu, PanelRow};
-use crate::runtime::access::PopupKind;
 use crate::runtime::commands::{CommandSet as _, CommandState, Commands as _};
 use crate::runtime::env::Label;
 use crate::runtime::focus::{self, FocusTarget};
 use crate::style::{ComponentStyle, Corners, StyleCx, SurfaceKind};
 use crate::tabs::{Tab, TabKind, TabStrip, TornOff};
 use craft_behavior::{IconId, Metrics, PressPhase, Sense, keyed};
+use craft_theme::ControlSize;
 use egui::{Id, Pos2, Rect, Response, Ui, Vec2};
 use std::borrow::Cow;
 use std::hash::Hash;
@@ -53,7 +53,7 @@ impl Outcome for GroupGripOutput {
     }
 }
 
-/// The handle a group is dragged by: an unmarked bar at the end of the group's header. A drag starts through [`start_group_drag`] with the grip's unit; a double
+/// The handle a group is dragged by: an unmarked band over the empty room of the group's header. A drag starts through [`start_group_drag`] with the grip's unit; a double
 /// click is reported for the group to minimize.
 #[derive(crate::contract::Component, crate::contract::Props)]
 #[component(probe(GroupGrip<usize>))]
@@ -235,8 +235,7 @@ impl<'a, P: Clone + Hash + Send + Sync + 'static> DockGroup<'a, P> {
     /// The group named by `anchor` (one of its panels) with its `panels`, `active` showing. The group is named by the
     /// active panel's title.
     pub fn new(anchor: P, panels: &'a [PanelTitle], active: PanelKey) -> Self {
-        let props =
-            ContainerProps::new().sizing(Sizing::Fill).header(HeaderRegion::new().rule(true).trailing(true)).command_scope(DockCommands::SCOPE);
+        let props = ContainerProps::new().sizing(Sizing::Fill).header(HeaderRegion::new().trailing(true)).command_scope(DockCommands::SCOPE);
         let title = panels.iter().find(|panel| panel.key == active).map(|panel| panel.title.clone()).unwrap_or_default();
         DockGroup {
             common: Common::new(),
@@ -281,6 +280,11 @@ impl<P: Clone + Hash + Send + Sync + 'static> Component for DockGroup<'_, P> {
         ui.draw().surface(strip, SurfaceKind::Background, Corners::None);
     }
 
+    /// The group's frame, over the tabs and the body so the strip's tabs meet it.
+    fn paint_over(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        ui.draw().surface(cx.rect, SurfaceKind::Frame, Corners::None);
+    }
+
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         self.size = cx.rect.size();
         let Some(dock) = self.dock else { return };
@@ -320,6 +324,7 @@ impl<P: Clone + Hash + Send + Sync + 'static> Container for DockGroup<'_, P> {
         let (dock, anchor, rtl) = (self.dock, self.anchor.clone(), crate::runtime::env::Env::of(ui).direction.is_rtl());
         ui.set_min_height(crate::runtime::env::Env::of(ui).tokens.size.panel_header);
         let surface_pressed = cx.surface_pressed();
+        let (size, movable, move_group) = (self.size, self.movable, words.move_group.fill(&[]));
         let reported = &mut self.reported;
         Row::new().show(ui, |ui, _| {
             if let Some(hook) = extra.as_mut() {
@@ -358,6 +363,13 @@ impl<P: Clone + Hash + Send + Sync + 'static> Container for DockGroup<'_, P> {
             reported.closed.extend(strip.closed);
             reported.menu = strip.menu.or(reported.menu.take());
             reported.torn_off = strip.torn_off.or(reported.torn_off.take());
+            // The strip's empty room is the handle the group is dragged by; a double click on it minimizes the group.
+            if strip.empty.width() > 0.0 {
+                let unit = DragUnit::Group(anchor.clone());
+                let grip = GroupGrip::new(unit, active).ghost((size, cx.label())).movable(movable).label(move_group.clone()).show_at(ui, strip.empty);
+                reported.toggle_minimized |= grip.double_pressed;
+                reported.drag_started |= grip.drag_started;
+            }
             if !menu_rows.is_empty() {
                 let rows = menu_rows.clone();
                 let shown = Menu::context(panel_menu.clone(), &strip.response.response)
@@ -368,21 +380,22 @@ impl<P: Clone + Hash + Send + Sync + 'static> Container for DockGroup<'_, P> {
         self.extra = extra;
     }
 
-    /// The end of the header: the panel menu button, then the bar the group is dragged by. The tabs take the room the
-    /// two leave.
+    /// The end of the header: the panel menu button. The tabs take the room it leaves.
     fn controls(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
         let words = cx.words::<DockWords>();
         if !self.menu.is_empty() && self.panel_menu_shown {
             let name = words.panel_menu.clone();
-            let button = IconButton::new(IconId::new("more")).popup(PopupKind::Menu).label(name.clone()).show(ui);
+            // The button sits at the strip's top, level with the tab labels' caps, as the "…" of the old tab strips did.
+            let layout = egui::Layout::from_main_dir_and_cross_align(ui.layout().main_dir(), egui::Align::Min);
+            let button = ui
+                .with_layout(layout, |ui| {
+                    IconButton::new(IconId::new("more")).size(ControlSize::Sm).popup(PopupKind::Menu).popup_mark(false).label(name.clone()).show(ui)
+                })
+                .inner;
             let rows = self.menu.clone();
             let shown = Menu::new(name).opened_by(&button, Trigger::Click).show(ui, |ui, _| PanelMenu::new(Vec::new(), rows.clone()).show(ui).picked);
             self.reported.item = shown.inner.flatten().or(self.reported.item);
         }
-        let unit = DragUnit::Group(self.anchor.clone());
-        let grip = GroupGrip::new(unit, self.active).ghost((self.size, cx.label())).movable(self.movable).label(words.move_group.fill(&[])).show(ui);
-        self.reported.toggle_minimized |= grip.double_pressed;
-        self.reported.drag_started |= grip.drag_started;
     }
 }
 
