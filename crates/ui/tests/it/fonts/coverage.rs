@@ -45,24 +45,13 @@ fn coverage_names_language_string_and_character() {
     assert_covers(&stack, samples.into_iter().take(2));
 }
 
-/// A face without Vietnamese letters; the suite's own interface face has them.
-fn ubuntu_light() -> egui::FontData {
-    (**craft_ui::fonts::deflated_default_definitions().font_data.get("Ubuntu-Light").expect("an egui default face")).clone()
-}
-
 #[trial]
 fn a_latin_ui_takes_letters_its_face_lacks_from_a_latin_craft_face() {
     let cjk = EmbeddedFace { family: "Noto Sans CJK SC", style: "Regular", scripts: &["Hans", "Latn"], bytes: CJK, index: 0 };
     let noto_sans = EmbeddedFace { family: "Noto Sans", style: "Regular", scripts: &["Latn", "Cyrl", "Grek", "Deva"], bytes: NOTO_SANS, index: 0 };
     let vietnamese = [Sample::new("vi", "menu.file", "Tiếng Việt ổ ư ạ")];
     let stack = |faces: &[EmbeddedFace]| {
-        UiFonts::new(&I18nScripts)
-            .app_face("ui", ubuntu_light(), &[FontRef::proportional()])
-            .craft_faces(faces)
-            .languages(&["en", "vi", "zh-CN"])
-            .ui_language("vi")
-            .system_fonts(SystemFonts::Off)
-            .stack()
+        UiFonts::new(&I18nScripts).craft_faces(faces).languages(&["en", "vi", "zh-CN"]).ui_language("vi").system_fonts(SystemFonts::Off).stack()
     };
 
     let without = stack(&[cjk]);

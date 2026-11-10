@@ -103,8 +103,7 @@ fn a_script_stops_reading_after_the_cap() {
     assert!(on_demand_registered(&frames.ctx).is_empty());
 }
 
-/// `deflated_default_definitions` holds egui's default font files with egui's tweaks, and the suite's interface face
-/// ahead of them in the proportional and semibold families: the default face doesn't silently fall back to egui's.
+/// `deflated_default_definitions` holds egui's default font files, with egui's tweaks and family order.
 #[trial]
 fn deflated_defaults_match_egui_defaults() {
     let ours = deflated_default_definitions();
@@ -113,8 +112,7 @@ fn deflated_defaults_match_egui_defaults() {
     assert_eq!(bytes("Ubuntu-Light"), epaint_default_fonts::UBUNTU_LIGHT);
     assert_eq!(bytes("egui-icons"), epaint_default_fonts::EGUI_ICONS);
     let names = |family: FontFamily| ours.families[&family].clone();
-    assert_eq!(names(FontFamily::Proportional), ["Inter-Regular", "Ubuntu-Light", "egui-icons"]);
-    assert_eq!(names(FontFamily::Name(craft_ui::fonts::SEMIBOLD.into())), ["Inter-SemiBold", "Ubuntu-Light", "egui-icons"]);
+    assert_eq!(names(FontFamily::Proportional), ["Ubuntu-Light", "egui-icons"]);
     assert_eq!(names(FontFamily::Monospace), ["Hack", "Ubuntu-Light", "egui-icons"]);
 }
 

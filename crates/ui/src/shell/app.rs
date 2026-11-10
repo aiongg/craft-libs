@@ -214,8 +214,6 @@ fn create<A: ShellApp + 'static>(
             install = install.frame(decision);
         }
         crate::install(&cc.egui_ctx, install).map_err(|error| format!("the runtime could not be installed: {error}"))?;
-        // The suite's interface face; an app that installs its own fonts in `make` replaces it.
-        crate::fonts::UiFonts::new(&crate::fonts::I18nScripts).install(&cc.egui_ctx);
         Ok(Box::new(Driver { app: make(&cc.egui_ctx), movable: None, fitted: false }))
     }
 }

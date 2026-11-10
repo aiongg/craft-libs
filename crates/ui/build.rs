@@ -38,7 +38,7 @@ fn main() {
     deflate_egui_fonts(Path::new(&out));
 }
 
-/// Deflate egui's default fonts and the suite's interface face into `OUT_DIR/egui_fonts/` for `fonts::deflated_default_definitions`:
+/// Deflate egui's default fonts into `OUT_DIR/egui_fonts/` for `fonts::deflated_default_definitions`:
 /// egui's `default_fonts` feature embeds the same files uncompressed (1.4 MB), more than a web
 /// build's size budget allows.
 fn deflate_egui_fonts(out: &Path) {
@@ -49,14 +49,8 @@ fn deflate_egui_fonts(out: &Path) {
         ("egui-icons", epaint_default_fonts::EGUI_ICONS),
         ("Ubuntu-Light", epaint_default_fonts::UBUNTU_LIGHT),
     ];
-    // The suite's interface face (Inter, subset to Latin, Greek and Cyrillic; fonts/inter/OFL.txt).
-    println!("cargo::rerun-if-changed=fonts/inter");
-    let inter: Vec<(&str, Vec<u8>)> = ["Inter-Regular", "Inter-SemiBold"]
-        .into_iter()
-        .map(|name| (name, std::fs::read(format!("fonts/inter/{name}.ttf")).unwrap_or_else(|e| panic!("fonts/inter/{name}.ttf: {e}"))))
-        .collect();
     std::fs::create_dir_all(&dir).expect("create egui_fonts");
-    for (name, bytes) in fonts.into_iter().chain(inter.iter().map(|(name, bytes)| (*name, bytes.as_slice()))) {
+    for (name, bytes) in fonts {
         let mut z = flate2::write::DeflateEncoder::new(Vec::new(), flate2::Compression::best());
         z.write_all(bytes).expect("deflate");
         std::fs::write(dir.join(format!("{name}.ttf.deflate")), z.finish().expect("deflate")).expect("write egui font");
