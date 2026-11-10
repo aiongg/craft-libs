@@ -53,6 +53,17 @@ impl SurfaceStyle {
     }
 }
 
+impl craft_theme::Mix for SurfaceStyle {
+    /// The fill blends; radius, edge and shadow switch to `to` from the halfway point.
+    fn mix(self, to: SurfaceStyle, t: f32) -> SurfaceStyle {
+        if t >= 0.5 {
+            SurfaceStyle { fill: craft_theme::Mix::mix(self.fill, to.fill, t), ..to }
+        } else {
+            SurfaceStyle { fill: craft_theme::Mix::mix(self.fill, to.fill, t), ..self }
+        }
+    }
+}
+
 fn color(c: Rgba) -> Color32 {
     let [r, g, b, a] = c.0;
     Color32::from_rgba_unmultiplied(r, g, b, a)

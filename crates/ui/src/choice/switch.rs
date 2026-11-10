@@ -27,9 +27,7 @@ pub struct SwitchStyle {
     /// The track edge.
     edge: Stateful<StyleColor>,
     /// The thumb: a round knob surface, with its outline and shadow.
-    thumb: SurfaceStyle,
-    /// The thumb while disabled.
-    thumb_disabled: SurfaceStyle,
+    thumb: Stateful<SurfaceStyle>,
     radius: CornerRadius,
     width: f32,
     height: f32,
@@ -74,8 +72,12 @@ impl Component for Switch<'_> {
             focus: cx.focus_look(),
             track,
             edge,
-            thumb_disabled: thumb.disabled(cx.color(colors.state.disabled_fill).egui(), cx.color(colors.line.divider).egui()),
-            thumb,
+            thumb: Stateful::new(thumb).off(States::new(
+                thumb,
+                thumb,
+                thumb,
+                thumb.disabled(cx.color(colors.state.disabled_fill).egui(), cx.color(colors.line.divider).egui()),
+            )),
             radius: CornerRadius::same((control.icon / 2.0).round() as u8),
             width: cx.tokens.size.toggle,
             height: control.icon,
@@ -113,8 +115,7 @@ impl Component for Switch<'_> {
         draw.stroke(&shape, StrokeWidth::Medium, cx.resolve(&style.edge));
         let slot = Flow::new(track, cx.flow.is_rtl()).span(at * (style.width - style.height), style.height);
         let size = style.height - style.inset * 2.0;
-        let thumb = if cx.state.state == craft_theme::State::Disabled { &style.thumb_disabled } else { &style.thumb };
-        ui.draw().surface_styled(Rect::from_center_size(slot.center(), Vec2::splat(size)), thumb);
+        ui.draw().surface_styled(Rect::from_center_size(slot.center(), Vec2::splat(size)), &cx.resolve(&style.thumb));
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> EditResponse<bool> {
