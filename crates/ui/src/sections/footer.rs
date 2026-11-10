@@ -174,7 +174,7 @@ impl FooterAction {
         self.drops = Some(Arc::new(move |ui, action| {
             let accepts = Arc::clone(&accepts);
             let slot = DropAction::new(move |payload: &P| accepts(payload)).enabled(action.enabled || action.takes_drops_disabled);
-            let shown = slot.show(ui, |ui, _| action.icon_button(DropAction::<P>::accepting(ui)).show(ui));
+            let shown = slot.show(ui, |ui, _| action.icon_button(DropAction::<P>::accepting(ui)).show(ui).response);
             let response = shown.inner.unwrap_or_else(|| shown.output.response.clone());
             DropShown { response, dropped: shown.output.dropped.map(|payload| Arc::new(payload) as Dropped), over: shown.output.over }
         }));
@@ -543,7 +543,7 @@ impl FooterBar {
                             }
                             slot.response
                         }
-                        None => action.icon_button(false).show(ui),
+                        None => action.icon_button(false).show(ui).response,
                     };
                     if crate::contract::clicked(&response) {
                         shown.picked = Some(at);

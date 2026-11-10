@@ -54,32 +54,72 @@ impl RasterSource for Gradient {
     }
 }
 
+/// The checkerboard cell sizes the stories offer.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum CheckerSize {
+    None,
+    Small,
+    Medium,
+    Large,
+}
+
+/// The view values the Properties panel edits: zoom in percent, rotation in degrees, flip and pixel aspect.
+fn view_values(data: &mut StoryData, zoom: f64, rotation: f64) -> impl Fn(Rect) -> CanvasView + Copy + use<> {
+    let zoom = *data.ranged("zoom", zoom, 10.0..=800.0);
+    let rotation = *data.ranged("rotation", rotation, -180.0..=180.0);
+    let flip = *data.value("flip", false);
+    let aspect = *data.ranged("aspect", 1.0, 0.5..=2.0);
+    move |room| {
+        let mut view = view_of(room, |view| view.rotation(rotation).flip_x(flip).aspect(aspect));
+        view.zoom = zoom / 100.0;
+        view
+    }
+}
+
+/// The transparency grid under the document, from the story's `checker` value.
+fn checker_of(data: &mut StoryData) -> Option<Checker> {
+    let sizes = [("None", CheckerSize::None), ("Small", CheckerSize::Small), ("Medium", CheckerSize::Medium), ("Large", CheckerSize::Large)];
+    match *data.choice("checker", CheckerSize::Medium, &sizes) {
+        CheckerSize::None => None,
+        CheckerSize::Small => Some(Checker::new().size(4.0)),
+        CheckerSize::Medium => Some(Checker::new()),
+        CheckerSize::Large => Some(Checker::new().size(16.0)),
+    }
+}
+
 /// The view of the canvas over `room` that `adjust` makes of the one showing the whole document.
 fn view_of(room: Rect, adjust: impl FnOnce(CanvasView) -> CanvasView) -> CanvasView {
     adjust(CanvasView::new(room, CENTER, 1.0))
 }
 
-/// The gradient, filling the canvas.
-fn gradient(ui: &mut Ui, at: Rect, _: &CanvasView) -> RasterDisplayOutput {
+/// The gradient, filling the canvas, over `checker`.
+fn gradient(ui: &mut Ui, at: Rect, checker: Option<Checker>) -> RasterDisplayOutput {
     static SOURCE: Gradient = Gradient;
-    RasterDisplay::new("Picture", &SOURCE).checkerboard(Checker::new()).show_at(ui, at)
+    let display = RasterDisplay::new("Picture", &SOURCE);
+    match checker {
+        Some(checker) => display.checkerboard(checker),
+        None => display,
+    }
+    .show_at(ui, at)
 }
 
 #[story(RasterDisplay<'static>, covers = [Default], drive = Drive::Never)]
-fn document(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    on_canvas_view(ui, |room| view_of(room, |view| view), gradient)
+fn document(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let view = view_values(data, 100.0, 0.0);
+    let checker = checker_of(data);
+    on_canvas_view(ui, view, |ui, at, _| gradient(ui, at, checker))
 }
 
 #[story(RasterDisplay<'static>, covers = [Default], drive = Drive::Never)]
-fn magnified(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    let magnify = |mut view: CanvasView| {
-        view.zoom = MAGNIFIED;
-        view
-    };
-    on_canvas_view(ui, |room| view_of(room, magnify), gradient)
+fn magnified(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let view = view_values(data, MAGNIFIED * 100.0, 0.0);
+    let checker = checker_of(data);
+    on_canvas_view(ui, view, |ui, at, _| gradient(ui, at, checker))
 }
 
 #[story(RasterDisplay<'static>, covers = [Default], drive = Drive::Never)]
-fn turned(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    on_canvas_view(ui, |room| view_of(room, |view| view.rotation(TURN)), gradient)
+fn turned(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let view = view_values(data, 100.0, TURN);
+    let checker = checker_of(data);
+    on_canvas_view(ui, view, |ui, at, _| gradient(ui, at, checker))
 }

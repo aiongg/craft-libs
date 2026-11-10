@@ -43,8 +43,8 @@ pub struct GallerySettings {
     pub filter: String,
     /// The registered type name of the selected component; empty when none is.
     pub selected: String,
-    /// The module groups that are open in the tree.
-    pub open_modules: Vec<String>,
+    /// The slugs of the levels that are open in the tree.
+    pub open_levels: Vec<String>,
     /// The components workspace's dock layout, as `layout::save` writes it. Its own field and its own text, so a layout
     /// this build cannot read costs only the layout.
     pub dock: String,
@@ -77,7 +77,7 @@ impl GallerySettings {
             stories: browser.story_of.iter().map(|(component, story)| ((*component).to_owned(), (*story).to_owned())).collect(),
             filter: browser.filter.clone(),
             selected: viewer.selected_type().unwrap_or_default().to_owned(),
-            open_modules: viewer.open_modules(),
+            open_levels: viewer.open_levels(),
             dock: layout::save(&browser.dock),
             theme_dock: layout::save(&viewer.theme_dock),
         }

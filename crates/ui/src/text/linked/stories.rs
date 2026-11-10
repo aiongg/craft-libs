@@ -1,18 +1,23 @@
 //! Stories of `LinkedFields`.
 
 use super::{LinkMode, LinkedFields, LinkedLayout};
-use crate::contract::{Bind, Show as _, Validity};
+use crate::contract::{Bind, Props as _, Show as _, Validity};
 use crate::runtime::env::Message;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use craft_behavior::Mixed;
+use craft_theme::ControlSize;
 use egui::Ui;
 
 #[story(LinkedFields<'static, 2>, covers = [Default], drive = Drive::Type("120"))]
 fn linked_fields(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let size = *data.choice("size", ControlSize::Md, &[("Sm", ControlSize::Sm), ("Md", ControlSize::Md)]);
+    let disabled = *data.value("disabled", false);
     let linked = *data.value("linked", true);
     LinkedFields::new("Size", Bind::bound(data.value("size", Mixed::each([Some(100.0), Some(50.0)]))), Bind::given(linked))
         .captions(["W", "H"])
         .range(1.0..=1000.0)
+        .size(size)
+        .enabled(!disabled)
         .show(ui)
         .into()
 }

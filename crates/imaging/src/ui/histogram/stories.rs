@@ -22,21 +22,43 @@ fn humps() -> Vec<u32> {
 }
 
 #[story(Histogram<'static>, covers = [Default], drive = Drive::Never)]
-fn tone(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    let data = HistogramData::tone(&humps(), ChannelColor::Red);
-    Histogram::new("Histogram", &data).value("Red channel").marker(128.0).show(ui).into()
+fn tone(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let channels = [
+        ("Neutral", ChannelColor::Neutral),
+        ("Red", ChannelColor::Red),
+        ("Green", ChannelColor::Green),
+        ("Blue", ChannelColor::Blue),
+        ("Cyan", ChannelColor::Cyan),
+        ("Magenta", ChannelColor::Magenta),
+        ("Yellow", ChannelColor::Yellow),
+    ];
+    let channel = *data.choice("channel", ChannelColor::Red, &channels);
+    let stale = *data.value("stale", false);
+    let marker = *data.value("marker", true);
+    let bins = HistogramData::tone(&humps(), channel);
+    let mut histogram = Histogram::new("Histogram", &bins).value("Red channel");
+    if marker {
+        histogram = histogram.marker(128.0);
+    }
+    if stale {
+        histogram = histogram.stale(StaleMark::Mark("".into()));
+    }
+    histogram.show(ui).into()
 }
 
 #[story(Histogram<'static>, covers = [], drive = Drive::Never)]
-fn rgb(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+fn rgb(ui: &mut Ui, story: &mut StoryData) -> StoryOutput {
+    let scale = *story.choice("scale", HistogramScale::Typical, &[("Peak", HistogramScale::Peak), ("Typical", HistogramScale::Typical)]);
+    let marker = *story.value("marker", true);
     let (mut r, mut g, mut b) = (bell(100.0, 36.0, 9000.0), bell(120.0, 40.0, 8000.0), bell(150.0, 30.0, 7000.0));
     // Clipped pixels at both ends, far above the interior.
     for (bins, edges) in [(&mut r, (60_000, 9000)), (&mut g, (30_000, 2000)), (&mut b, (20_000, 40_000))] {
         bins[0] = edges.0;
         bins[LEVELS - 1] = edges.1;
     }
-    let data = HistogramData::rgb([&r, &g, &b]).scale(HistogramScale::Typical);
-    Histogram::new("RGB histogram", &data).value("Red, green and blue channels").marker(100.0).show(ui).into()
+    let data = HistogramData::rgb([&r, &g, &b]).scale(scale);
+    let histogram = Histogram::new("RGB histogram", &data).value("Red, green and blue channels");
+    if marker { histogram.marker(100.0) } else { histogram }.show(ui).into()
 }
 
 #[story(Histogram<'static>, covers = [], drive = Drive::Never)]
