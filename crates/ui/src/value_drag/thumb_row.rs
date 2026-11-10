@@ -7,7 +7,7 @@
 //! Alt keeps the meaning it has in Photoshop's levels: a drag that begins with Alt held moves one half of a split
 //! thumb alone, at full rate. On a thumb that is not split, Alt scales a drag finer as on every value control.
 
-use super::track::{self, Pick, Press, Scale, SliderScale, TrackFace, Travel};
+use super::track::{self, Pick, Press, Scale, SliderScale, TrackFace, Travel, travel};
 use super::words::ValueDragWords;
 use crate::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, Input, MeasureCx, Numeric, Outcome, PaintUi, PartsCx,
@@ -445,11 +445,6 @@ impl<const N: usize> RowRules<'_, N> {
         };
         self.settle(i, target, bounds)
     }
-}
-
-/// The horizontal span a thumb's centre travels along in a row at `rect`: the row inset by half a thumb on each side.
-fn travel(rect: Rect, thumb: f32) -> Rangef {
-    Rangef::new(rect.left() + thumb / 2.0, rect.right() - thumb / 2.0)
 }
 
 /// The thumbs on the row's track, in the row's pixels.

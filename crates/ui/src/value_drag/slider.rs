@@ -3,7 +3,7 @@
 //! or the reset intent restores the binding's reset value. The track maps positions to values through a
 //! [`SliderScale`], linear by default.
 
-use super::track::{self, Along, Fill, MarkInk, MarkSpace, Marks, Pick, Press, Scale, SliderScale, TrackFace, Travel, thumb_rect};
+use super::track::{self, Along, Fill, MarkInk, MarkSpace, Marks, Pick, Press, Scale, SliderScale, TrackFace, Travel};
 use crate::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, Input, MeasureCx, Numeric, PaintUi, PartsCx, Pointer as _,
     Remember as _, Role, Styled as _,
@@ -12,7 +12,7 @@ use crate::primitives::{PaintShape, StrokeWidth};
 use crate::runtime::env::Label;
 use crate::runtime::focus::{ActivateKeys, KeepKeys, KeyUse};
 use crate::style::{ComponentStyle, FocusLook, StyleColor, StyleCx, TextLook, TrackLook};
-use craft_behavior::{HitLevel, HitPriority, Metrics, PartKey, PressPhase, Sense};
+use craft_behavior::{Flow, HitLevel, HitPriority, Metrics, PartKey, PressPhase, Sense};
 use craft_theme::Stateful;
 use egui::{Pos2, Rect, Vec2};
 use std::ops::RangeInclusive;
@@ -143,6 +143,11 @@ impl<'a> Slider<'a> {
     fn track_scale(&self) -> Scale {
         Scale::new(&self.range, self.step, self.scale)
     }
+
+    /// The track in `rect` for a thumb of `style`, less the room of the mark labels.
+    fn along(&self, rect: Rect, style: &SliderStyle, flow: Flow) -> Along {
+        Along { area: self.marks.area(rect, &style.track), flow, thumb: style.diameter }
+    }
 }
 
 impl Component for Slider<'_> {
@@ -182,13 +187,13 @@ impl Component for Slider<'_> {
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
         self.marks.lay_out(&cx.style.mark_text, cx.style.space, |label| cx.env.resolve(label), |run| cx.layout(run).size());
         let scale = self.track_scale();
-        let area = self.marks.area(rect, &cx.style.track);
+        let along = self.along(rect, cx.style, cx.flow);
         let value = cx.value().copied().unwrap_or_else(|| scale.place(f64::NAN));
-        let thumb = thumb_rect(&scale, value, area, cx.flow);
+        let thumb = along.thumb_rect(scale.position(value));
         if self.track_face.is_some() {
-            cx.part(track::GROOVE, track::ramp_rect(&cx.style.track, area));
+            cx.part(track::GROOVE, track::ramp_rect(&cx.style.track, along));
         }
-        cx.part(TRACK, area).sense(Sense::CLICK | Sense::DRAG | Sense::TAKE_FOCUS).value_part().pointer_only("the arrow keys step the value");
+        cx.part(TRACK, along.area).sense(Sense::CLICK | Sense::DRAG | Sense::TAKE_FOCUS).value_part().pointer_only("the arrow keys step the value");
         cx.part(Self::THUMB, thumb)
             .sense(Sense::DRAG | Sense::TAKE_FOCUS)
             .priority(HitPriority::new(HitLevel::Handle, 0))
@@ -203,17 +208,16 @@ impl Component for Slider<'_> {
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         let scale = self.track_scale();
         let bounds = (scale.min, scale.max);
-        let area = self.marks.area(cx.rect, &cx.style.track);
-        let (rtl, half) = (cx.flow.is_rtl(), area.height() / 2.0);
-        let length = (area.width() - area.height()).max(1.0);
+        let along = self.along(cx.rect, cx.style, cx.flow);
+        let (rtl, height) = (cx.flow.is_rtl(), along.area.height());
+        let length = along.length().max(1.0);
         // The drag runs over positions along the track, so every scale shares the maths.
-        let travel = Travel { track: (area.left() + half)..(area.right() - half), units: 0.0..=1.0, rtl };
-        let pick = Pick { reach: half, overlap: area.height(), period: 0.0, span: false };
+        let travel = Travel { track: along.travel().min..along.travel().max, units: 0.0..=1.0, rtl };
+        let pick = Pick { reach: height / 2.0, overlap: height, period: 0.0, span: false };
         let marks = &self.marks;
         let at = |position: f64| marks.snapped(&scale, length, position).unwrap_or_else(|| scale.snap(scale.at_position(position)));
         let current = |cx: &Cx<'_, Self>| cx.value().copied().unwrap_or_else(|| scale.middle());
-        let flow = cx.flow;
-        let press_at = |cx: &Cx<'_, Self>, x: f32| pick.press(&[thumb_rect(&scale, current(cx), area, flow).center().x], x);
+        let press_at = |cx: &Cx<'_, Self>, x: f32| pick.press(&[along.x(scale.position(current(cx)))], x);
         for key in [Self::THUMB, TRACK] {
             let press = cx.part(key).press;
             match press.phase {
@@ -288,7 +292,7 @@ impl Component for Slider<'_> {
         let style = cx.style;
         let flow = cx.flow;
         let scale = self.track_scale();
-        let area = self.marks.area(cx.rect, &style.track);
+        let along = self.along(cx.rect, style, flow);
         let value = cx.value().copied();
         let faced = match &self.track_face {
             Some(face) => {
@@ -298,21 +302,20 @@ impl Component for Slider<'_> {
             None => false,
         };
         let draw = ui.draw();
-        let thumb = thumb_rect(&scale, value.unwrap_or_else(|| scale.place(f64::NAN)), area, flow);
+        let centre = Pos2::new(along.x(scale.position(value.unwrap_or_else(|| scale.place(f64::NAN)))), along.area.center().y);
         if !faced {
-            let reach = (thumb.center().x - flow.start_x()).abs();
+            let reach = (centre.x - flow.start_x()).abs();
             let fill = value.filter(|_| self.fill).map(|_| Fill { color: cx.resolve(&style.track.filled), from: 0.0, to: reach });
-            track::paint(&draw, &style.track, area, flow, cx.resolve(&style.track.unfilled), fill);
+            track::paint(&draw, &style.track, along, cx.resolve(&style.track.unfilled), fill);
         }
         let ink = MarkInk { marks: cx.resolve(&style.track.mark_color), labels: cx.resolve(&style.mark_text.color), role: style.mark_text.role };
-        track::paint_marks(&draw, &style.track, &self.marks, &scale, Along { area, flow }, cx.rect, &ink);
+        track::paint_marks(&draw, &style.track, &self.marks, &scale, along, cx.rect, &ink);
         let (fill, edge) = (cx.resolve_part(Self::THUMB, &style.thumb), cx.resolve_part(Self::THUMB, &style.thumb_edge));
         let knob = match self.thumb {
-            SliderThumb::Round => PaintShape::Circle(thumb.center(), style.diameter / 2.0),
+            SliderThumb::Round => PaintShape::Circle(centre, style.diameter / 2.0),
             SliderThumb::Triangle => {
-                let (half, top) = (style.diameter / 2.0, track::groove_rect(&style.track, area).bottom());
-                let centre = thumb.center().x;
-                PaintShape::Polygon(vec![Pos2::new(centre, top), Pos2::new(centre + half, top + half), Pos2::new(centre - half, top + half)])
+                let (half, top, x) = (style.diameter / 2.0, track::groove_rect(&style.track, along.area).bottom(), centre.x);
+                PaintShape::Polygon(vec![Pos2::new(x, top), Pos2::new(x + half, top + half), Pos2::new(x - half, top + half)])
             }
         };
         draw.fill(&knob, fill);

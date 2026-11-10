@@ -9,7 +9,7 @@ use craft_behavior::intent::{MoveMods, NavMove};
 use craft_behavior::nav::{LARGE_STEPS, STEP_SHARE, StepResult, ValueAxes, ValueSteps, step_value};
 use craft_behavior::{Flow, PartKey, PartRef, PressPhase, PressState, ValueDrag, Wheel, wheel_step};
 use craft_theme::{Rgba, Stateful, States};
-use egui::{CornerRadius, Pos2, Rect, Vec2};
+use egui::{CornerRadius, Pos2, Rangef, Rect, Vec2};
 use std::ops::{Range, RangeInclusive};
 
 /// The part a track face paints as: the groove across the middle of the control.
@@ -31,9 +31,17 @@ pub(crate) fn groove_rect(look: &TrackLook, rect: Rect) -> Rect {
     Rect::from_center_size(rect.center(), Vec2::new(rect.width(), look.thickness))
 }
 
-/// The groove across the middle of `rect` when a gradient ramp is its face.
-pub(crate) fn ramp_rect(look: &TrackLook, rect: Rect) -> Rect {
-    Rect::from_center_size(rect.center(), Vec2::new(rect.width(), look.ramp))
+/// The groove of `along` when a gradient ramp is its face: between the two end thumbs' centres, as the plain groove.
+pub(crate) fn ramp_rect(look: &TrackLook, along: Along) -> Rect {
+    Rect::from_center_size(along.span().center(), Vec2::new(along.span().width(), look.ramp))
+}
+
+/// Where a thumb's centre runs along a track across `rect`: from half a drawn `thumb` inside the start edge to half a
+/// thumb inside the end edge, so a thumb at either end is flush with that edge. Grooves and faces run between these
+/// two centres.
+pub(crate) fn travel(rect: Rect, thumb: f32) -> Rangef {
+    let inset = (thumb / 2.0).clamp(0.0, rect.width().max(0.0) / 2.0);
+    Rangef::new(rect.left() + inset, rect.right() - inset)
 }
 
 /// A caller's look for the groove: a component shown as the face of the `GROOVE` part, such as a colour gradient. It
@@ -128,19 +136,43 @@ impl Marks {
     }
 }
 
-/// Where positions lie along a track: the area it runs in, and the room a thumb keeps at each end.
+/// Where positions lie along a track: the area it runs in, and the width of a drawn thumb, which sets the room kept
+/// at each end ([`travel`]).
 #[derive(Clone, Copy)]
 pub(crate) struct Along {
     pub area: Rect,
     pub flow: Flow,
+    pub thumb: f32,
 }
 
 impl Along {
+    /// The span the thumbs' centres travel, left to right.
+    pub fn travel(&self) -> Rangef {
+        travel(self.area, self.thumb)
+    }
+
+    /// The length of the travel.
+    pub fn length(&self) -> f32 {
+        self.travel().span()
+    }
+
+    /// The part of the area between the two end thumbs' centres, which the groove spans.
+    pub fn span(&self) -> Rect {
+        Rect::from_x_y_ranges(self.travel(), self.area.y_range())
+    }
+
     /// The x of `position` (0 to 1) along the track, mirrored under right-to-left.
-    fn x(&self, position: f64) -> f32 {
-        let half = self.area.height() / 2.0;
-        let length = (self.area.width() - self.area.height()).max(0.0);
-        self.flow.span(half + position as f32 * length, 0.0).center().x
+    pub fn x(&self, position: f64) -> f32 {
+        let travel = self.travel();
+        let along = position as f32 * travel.span();
+        if self.flow.is_rtl() { travel.max - along } else { travel.min + along }
+    }
+
+    /// The square a press grabs a thumb at `position` in: as tall as the area, centred on the thumb, cut to the area
+    /// so it never reaches past the control's edge.
+    pub fn thumb_rect(&self, position: f64) -> Rect {
+        let hit = self.area.height();
+        Rect::from_center_size(Pos2::new(self.x(position), self.area.center().y), Vec2::splat(hit)).intersect(self.area)
     }
 }
 
@@ -181,16 +213,16 @@ pub(crate) struct Fill {
     pub to: f32,
 }
 
-/// Paints the groove across the middle of `rect` in `groove`, and `fill` over it. The groove runs from the centre of a
-/// thumb at the start to that of a thumb at the end, so a thumb at either end sits over the groove's end.
-pub(crate) fn paint(draw: &Draw<'_>, look: &TrackLook, rect: Rect, flow: Flow, groove: StyleColor, fill: Option<Fill>) {
-    let inset = (rect.height() / 2.0).min(rect.width() / 2.0);
-    let track = groove_rect(look, rect.shrink2(Vec2::new(inset, 0.0)));
+/// Paints the groove of `along` in `groove`, and `fill` over it. The groove runs from the centre of a thumb at the
+/// start to that of a thumb at the end, so a thumb at either end sits over the groove's end.
+pub(crate) fn paint(draw: &Draw<'_>, look: &TrackLook, along: Along, groove: StyleColor, fill: Option<Fill>) {
+    let track = groove_rect(look, along.span());
+    let inset = track.left() - along.area.left();
     let round = CornerRadius::same((look.thickness / 2.0).round() as u8);
     draw.fill(&PaintShape::Rect(track, round), groove);
     if let Some(fill) = fill {
         let (from, to) = ((fill.from - inset).max(0.0), (fill.to - inset).max(0.0));
-        let filled = Flow::new(track, flow.is_rtl()).span(from, (to - from).max(0.0));
+        let filled = Flow::new(track, along.flow.is_rtl()).span(from, (to - from).max(0.0));
         draw.fill(&PaintShape::Rect(filled, round), fill.color);
     }
 }
@@ -341,14 +373,6 @@ impl Scale {
         let StepResult::Set(next) = wheel_step(&self.steps(value, bounds, notch), ValueAxes::Both, wheel, rtl) else { return None };
         Some(self.settled(next, bounds))
     }
-}
-
-/// The square a thumb at `value` takes along `rect`: as tall as the rect, its centre moving from half a thumb inside
-/// the start edge to half a thumb inside the end edge.
-pub(crate) fn thumb_rect(scale: &Scale, value: f64, rect: Rect, flow: Flow) -> Rect {
-    let hit = rect.height();
-    let across = flow.span(scale.position(value) as f32 * (rect.width() - hit).max(0.0), hit);
-    Rect::from_min_max(Pos2::new(across.left(), rect.top()), Pos2::new(across.right(), rect.bottom()))
 }
 
 /// What a press on a track moves.
