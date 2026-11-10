@@ -12,10 +12,10 @@ use crate::runtime::memory::sub;
 use egui::{Context, Id, Rect, Ui, Vec2};
 
 /// The inputs a body's measuring run measures under. A later pass offering the same takes the body's kept
-/// measurement (`layout_memory::kept_serves`); its real run confirms that the content is the same.
+/// transcript (`layout_memory::kept_serves`); its real run checks that the content is the same.
 #[derive(PartialEq)]
 pub(super) struct MeasureKey {
-    props: ContainerProps,
+    props: u64,
     room: Vec2,
     given: (bool, bool),
     width: Option<f32>,
@@ -30,7 +30,7 @@ pub(super) struct MeasureKey {
 #[derive(PartialEq)]
 struct EnvFacts {
     style: crate::style::EnvKey,
-    words: usize,
+    words: u64,
     size: craft_theme::ControlSize,
     enabled: bool,
     text_direction: crate::runtime::env::Direction,
@@ -47,7 +47,7 @@ impl<'b> BodyHooks<'b> {
     /// The inputs this body's measuring run measures under, once `measured_extent` has its room.
     pub(super) fn measure_key(&self, props: &ContainerProps, env: &Env, width: Option<f32>) -> MeasureKey {
         MeasureKey {
-            props: props.clone(),
+            props: props.measure_fingerprint(),
             room: self.room,
             given: self.given,
             width,
@@ -55,7 +55,7 @@ impl<'b> BodyHooks<'b> {
             extent: self.last.extent,
             env: EnvFacts {
                 style: env.key,
-                words: std::sync::Arc::as_ptr(&env.words) as usize,
+                words: env.words.generation(),
                 size: env.size,
                 enabled: env.enabled,
                 text_direction: env.text_direction,

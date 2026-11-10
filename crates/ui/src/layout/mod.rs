@@ -2,7 +2,7 @@
 
 pub(crate) mod arrange;
 mod body;
-pub(crate) mod column_group;
+mod column_group;
 mod label;
 mod slot;
 

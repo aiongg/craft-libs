@@ -38,7 +38,7 @@ pub fn run<R>(ctx: &Context, f: impl FnOnce() -> R) -> R {
     let set = |to: u32| store::put(ctx, depth_id(), to);
     let before = depth(ctx);
     set(before + 1);
-    let out = f();
+    let out = super::layout_memory::guard::measuring(f);
     set(before);
     out
 }

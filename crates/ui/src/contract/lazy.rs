@@ -51,8 +51,8 @@ impl Lazy {
         let available = ui.available_rect_before_wrap();
         let rtl = ui.layout().prefer_right_to_left();
         let sizing = ui.is_sizing_pass();
-        // In a real run the child counts in its body's content by its extent, whether it runs or not: what scrolls
-        // into reach does not change the body's content.
+        // The child is not part of its body's transcript: in a real run it counts there by its extent, whether it
+        // runs or not, so what scrolls into reach does not change the body's content.
         let real = !sizing && !crate::runtime::measure::active(&ctx);
         if let Some(view) = view {
             let at = |size: Vec2| {
@@ -62,7 +62,7 @@ impl Lazy {
             if let Decision::Skip(size) = lazy::decide(&ctx, id, &view, at, sizing, self.keep) {
                 alloc::space(ui, size);
                 if real {
-                    layout_memory::fold(&ctx, id, size);
+                    layout_memory::backstop(&ctx, id, size);
                 }
                 return None;
             }
@@ -70,14 +70,10 @@ impl Lazy {
         let from = focus::stop_count(&ctx);
         let layout = *ui.layout();
         let mut child = alloc::child(ui, UiBuilder::new().max_rect(available).layout(layout).scope_id(id));
-        if real {
-            layout_memory::open_content(&ctx, None);
-        }
-        let out = add(&mut child);
+        let out = layout_memory::boundary(&ctx, || add(&mut child));
         let rect = child.min_rect();
         if real {
-            layout_memory::close_content(&ctx);
-            layout_memory::fold(&ctx, id, rect.size());
+            layout_memory::backstop(&ctx, id, rect.size());
         }
         alloc::advance_past(ui, rect);
         if let Some(view) = view {

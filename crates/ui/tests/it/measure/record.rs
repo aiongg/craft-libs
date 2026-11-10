@@ -335,6 +335,11 @@ fn a_room_change_measures_again_in_its_frame() {
     assert_eq!(passes, 1, "the new room is known before the run");
     assert!(!last_pass_measuring_runs(&frames.ctx).is_empty(), "the stacks measure at the new room");
     assert!(inner.width() <= at.width() + SLACK, "the inner stack fits the narrower room: {inner:?} in {at:?}");
+    // A fresh measure under new inputs is not motion: the next frame takes what it found.
+    let passes = frames.frame(vec![], show);
+    assert_eq!(passes, 1, "the frame after");
+    let runs = last_pass_measuring_runs(&frames.ctx);
+    assert!(runs.is_empty(), "the frame after the room change measures nothing again: {runs:?}");
 }
 
 /// The widest label of a label column becomes short: in that frame the controls move to the narrower column. The
@@ -388,4 +393,90 @@ fn a_value_change_without_a_size_change_runs_one_pass_and_no_measuring_run() {
         let runs = last_pass_measuring_runs(&frames.ctx);
         assert!(runs.is_empty(), "frame {step}: no body measures again: {runs:?}");
     }
+}
+
+/// The widest cell of a content-sized grid narrows: in that frame the second column moves to the narrower first one.
+/// The check asks each cell at the room its measuring run gave it, not at the track width the kept records give.
+#[trial]
+fn a_grid_narrows_in_the_frame_its_widest_cell_shrinks() {
+    use craft_behavior::ColumnWidth;
+    use craft_ui::layout_components::Grid;
+    static COLUMNS: [ColumnWidth; 2] = [ColumnWidth::Content, ColumnWidth::Content];
+    let first = Cell::new("A much longer first column label");
+    let second = Cell::new(Rect::NOTHING);
+    let show = |ui: &mut Ui| {
+        Stack::new().show(ui, |ui, _| {
+            Grid::new(&COLUMNS).show(ui, |ui, _| {
+                Text::new(first.get()).show(ui);
+                second.set(Text::new("Second").show(ui).rect);
+                Text::new("Short").show(ui);
+                Text::new("Again").show(ui);
+            });
+        });
+    };
+    let mut frames = Frames::new();
+    frames.idle(4, show);
+    let wide = second.get().min.x;
+    first.set("Tiny");
+    frames.frame(vec![], show);
+    let narrow = second.get().min.x;
+    assert!(narrow < wide - SLACK, "the second column moves left in the same frame: {wide} -> {narrow}");
+    frames.idle(3, show);
+    assert!((second.get().min.x - narrow).abs() <= SLACK, "and stays there: {narrow} -> {}", second.get().min.x);
+}
+
+/// A child of a row turns from content-sized to filling: in that frame it takes the room its sibling leaves. The
+/// check holds each child's sizing mode, not only its size.
+#[trial]
+fn a_child_that_starts_to_fill_takes_its_share_in_that_frame() {
+    let fills = Cell::new(false);
+    let seen = Cell::new((Rect::NOTHING, Rect::NOTHING));
+    let show = |ui: &mut Ui| {
+        let at = Rect::from_min_size(ui.cursor().min, Vec2::new(400.0, 40.0));
+        Row::new().fill().show_at(ui, at, |ui, _| {
+            Text::new("Name").show(ui);
+            let stack = if fills.get() { Stack::new().fill_width() } else { Stack::new() };
+            let inner = stack.show(ui, |ui, _| {
+                Text::new("Value").show(ui);
+            });
+            seen.set((at, inner.output.rect));
+        });
+    };
+    let mut frames = Frames::new();
+    frames.idle(4, show);
+    let (_, content) = seen.get();
+    fills.set(true);
+    frames.frame(vec![], show);
+    let (at, filled) = seen.get();
+    assert!(filled.width() > content.width() + SLACK, "the child fills in the same frame: {content:?} -> {filled:?}");
+    assert!((filled.max.x - at.max.x).abs() <= SLACK, "it ends at the row's end: {filled:?} in {at:?}");
+}
+
+/// A section closes: in every frame of the toggle the text below it starts under the section's rect as shown, so
+/// the new height shows in its frame.
+#[trial]
+fn a_collapse_toggle_shows_the_new_height_in_its_frame() {
+    let mut open = true;
+    let seen = Cell::new((Rect::NOTHING, Rect::NOTHING));
+    let show = |ui: &mut Ui, open: &mut bool| {
+        Stack::new().show(ui, |ui, _| {
+            let section = Section::new("Options").open(Bind::bound(open)).id_salt("section").show(ui, |ui, _| {
+                Text::new("First line of the body").show(ui);
+                Text::new("Second line of the body").show(ui);
+            });
+            let below = Text::new("Below").show(ui).rect;
+            seen.set((section.output.response.rect, below));
+        });
+    };
+    let mut frames = Frames::new();
+    frames.idle(4, |ui| show(ui, &mut open));
+    let (tall, _) = seen.get();
+    open = false;
+    for frame in 0..12 {
+        frames.frame(vec![], |ui| show(ui, &mut open));
+        let (section, below) = seen.get();
+        assert!(below.min.y >= section.max.y - SLACK, "frame {frame}: the text starts below the section: {section:?}, {below:?}");
+    }
+    let (closed, _) = seen.get();
+    assert!(closed.height() < tall.height() - SLACK, "the section closed: {tall:?} -> {closed:?}");
 }

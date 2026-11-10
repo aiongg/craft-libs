@@ -116,7 +116,7 @@ impl BodyHooks<'_> {
                 jumps.0.push((id, offset, frame));
             });
             // A bound offset reaches the app in the repeated pass, as a held update does.
-            sizing::request_discard(&ctx, sizing::HELD_UPDATE_RERUN);
+            sizing::request_discard(&ctx, sizing::Rerun::HeldUpdate);
             if !ctx.will_discard() {
                 repaint::request(&ctx);
             }

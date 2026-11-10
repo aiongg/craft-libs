@@ -229,7 +229,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         }
     }
 
-    fn sized(&self, comp: &C, _: &Ui, size: Vec2) -> Vec2 {
+    fn sized(&self, comp: &C, _: &Ui, _: Id, size: Vec2) -> Vec2 {
         let sizing = comp.props(Internal::new()).sizing;
         // Only a `Fill` collection measures its width from its content under a content-sized body; `FillWidth` takes
         // the room it is given on every run.

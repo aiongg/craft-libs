@@ -87,7 +87,7 @@ impl Default for Dismiss {
 }
 
 /// Data describing an egui layer. Presets fill focus and dismissal; builders change single fields.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct Overlay {
     /// Where it sits.

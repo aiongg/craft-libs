@@ -39,19 +39,18 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         crate::contract::steps::ShapeKind::Body
     }
 
-    fn fold_took(&self, ctx: &Context, id: Id) {
-        for (key, took) in [
+    fn regions(&self, id: Id) -> Vec<(Id, Vec2)> {
+        [
             ("body", self.body_size),
             ("header", self.header_size),
             ("footer", self.footer_size),
             ("end", self.end_size),
             ("controls", self.controls_size),
             ("extent", self.extent),
-        ] {
-            if let Some(took) = took {
-                layout_memory::fold(ctx, sub(id, key), took);
-            }
-        }
+        ]
+        .into_iter()
+        .filter_map(|(key, took)| took.map(|took| (sub(id, key), took)))
+        .collect()
     }
 
     fn in_flow(&self, comp: &C) -> bool {
@@ -331,13 +330,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         let key = self.measure_key(&props, at.env, at.width);
         let reused = (self.reuse || at.ui.is_sizing_pass())
             .then(|| {
-                let serves = layout_memory::run_found(&ctx, id) || {
-                    let kept = layout_memory::kept_serves(&ctx, id, &key);
-                    if kept {
-                        crate::layout::column_group::replay(&ctx, id);
-                    }
-                    kept
-                };
+                let serves = layout_memory::run_found(&ctx, id) || layout_memory::kept_serves(&ctx, id, &key);
                 serves.then(|| self.reusable(&props, &ctx, id, pad, tolerance)).flatten()
             })
             .flatten();
@@ -346,7 +339,6 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             None => {
                 #[cfg(feature = "testing")]
                 crate::runtime::measure::count_body(&ctx, id);
-                crate::layout::column_group::forget(&ctx, id);
                 layout_memory::begin_measure(&ctx, id);
                 let available = match at.at {
                     ShowAt::Rect(rect) => rect,
@@ -377,7 +369,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 comp.content_env(cx, &mut values);
                 self.content(comp, &mut measure_ui, at.env, cx, &values);
                 Env::restore(&ctx, installed);
-                let record = |key: Id, took: Vec2| layout_memory::record_measured(&ctx, key, layout_memory::Measured { room: self.room, took });
+                let record = |key: Id, took: Vec2| layout_memory::emit_record(&ctx, key, layout_memory::Measured { room: self.room, took });
                 record(id, self.body_size.unwrap_or(Vec2::ZERO));
                 for (key, size) in
                     [("header", self.header_size), ("footer", self.footer_size), ("end", self.end_size), ("controls", self.controls_size)]
@@ -432,7 +424,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         self.extent(comp, at.ui, at.at, id, at.scx)
     }
 
-    fn sized(&self, comp: &C, ui: &Ui, size: Vec2) -> Vec2 {
+    fn sized(&self, comp: &C, ui: &Ui, id: Id, size: Vec2) -> Vec2 {
         let props = comp.props(Internal::new());
         match self.sizing(props) {
             Sizing::Fill => {
@@ -445,7 +437,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                     if !(room.is_finite() && given) {
                         return measured;
                     }
-                    match crate::layout::main_fill(ui, along) {
+                    match crate::layout::main_fill(ui, id, along) {
                         crate::layout::MainFill::Measuring => 0.0,
                         crate::layout::MainFill::Share(share) => share,
                         crate::layout::MainFill::Room => room,
@@ -463,7 +455,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 let room = if held { room.min(crate::layout::flow_room(ui).x) } else { room };
                 let across = self.given.0 || held;
                 let width = if room.is_finite() && across {
-                    match crate::layout::main_fill(ui, craft_behavior::Axis::X) {
+                    match crate::layout::main_fill(ui, id, craft_behavior::Axis::X) {
                         crate::layout::MainFill::Measuring => 0.0,
                         crate::layout::MainFill::Share(share) => share,
                         crate::layout::MainFill::Room => size.x.max(room),

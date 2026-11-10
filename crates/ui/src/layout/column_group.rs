@@ -22,23 +22,28 @@ enum Report {
     Beyond(Vec<ColumnKey>, f32),
 }
 
-/// Per body, the reports its last measuring run made to groups open around it, and the frame that last used them. A
-/// pass that takes the body's kept measurement instead of running it makes them again (`replay`), so the groups'
-/// widths are what the run would have found.
-#[derive(Default)]
-struct Reports(HashMap<Id, (u64, Vec<(Id, Report)>)>);
+/// A row's report to the group `group`, as a measuring run hands it forward: a pass that takes a body's kept
+/// transcript makes it again, so the group's widths are what the run would have found.
+struct Reported {
+    group: Id,
+    report: Report,
+}
 
-/// Adds `report` to the innermost open group `group`, and to the reports of every body whose measuring run is open.
-fn add(ctx: &Context, group: Id, report: Report) -> Option<f32> {
-    let bodies = if crate::runtime::measure::active(ctx) { layout_memory::measuring_bodies(ctx) } else { Vec::new() };
-    if !bodies.is_empty() {
-        let frame = ctx.cumulative_frame_nr();
-        Service::<Reports>::run(ctx, |reports| {
-            for body in bodies {
-                reports.0.entry(body).or_insert_with(|| (frame, Vec::new())).1.push((group, report.clone()));
-            }
-        });
+impl layout_memory::Contribution for Reported {
+    fn apply(&self, ctx: &Context) {
+        add(ctx, self.group, self.report.clone());
     }
+
+    fn report(&self) -> (Id, f32) {
+        match &self.report {
+            Report::Width(column, width) => (self.group.with(("width", column)), *width),
+            Report::Beyond(columns, past) => (self.group.with(("beyond", columns)), *past),
+        }
+    }
+}
+
+/// Adds `report` to the innermost open group `group`; `None` when that group is not open.
+fn add(ctx: &Context, group: Id, report: Report) -> Option<f32> {
     Service::<Open>::run(ctx, |open| {
         let (widest, beyond) = open.0.iter_mut().rev().find_map(|frame| match frame {
             Frame::Group { id, widest, beyond, .. } if *id == group => Some((widest, beyond)),
@@ -59,27 +64,15 @@ fn add(ctx: &Context, group: Id, report: Report) -> Option<f32> {
     })
 }
 
-/// Drops the reports of `body`, whose measuring run starts now, and those no frame used since the last.
-pub(crate) fn forget(ctx: &Context, body: Id) {
-    let frame = ctx.cumulative_frame_nr();
-    Service::<Reports>::run(ctx, |reports| {
-        reports.0.remove(&body);
-        reports.0.retain(|_, (used, _)| *used + 1 >= frame);
-    });
-}
-
-/// Makes again the reports of `body`'s last measuring run to the groups open now: the pass takes its kept measurement.
-pub(crate) fn replay(ctx: &Context, body: Id) {
-    let frame = ctx.cumulative_frame_nr();
-    let made = Service::<Reports>::run(ctx, |reports| {
-        reports.0.get_mut(&body).map(|(used, made)| {
-            *used = frame;
-            made.clone()
-        })
-    });
-    for (group, report) in made.unwrap_or_default() {
-        add(ctx, group, report);
-    }
+/// Makes `report` to `group` through layout memory, which hands it forward from a measuring run.
+fn report(ctx: &Context, group: Id, report: Report) -> Option<f32> {
+    layout_memory::contribute(ctx, std::sync::Arc::new(Reported { group, report: report.clone() }));
+    // The contribution added it already; this reads what the group holds now.
+    let read = match report {
+        Report::Width(column, _) => Report::Width(column, 0.0),
+        Report::Beyond(columns, _) => Report::Beyond(columns, 0.0),
+    };
+    add(ctx, group, read)
 }
 
 /// The groups open in this pass, innermost last.
@@ -120,17 +113,13 @@ impl ColumnGroup {
         let result = rows(ui, &mut group);
         let Some(Frame::Group { id, widest, beyond, .. }) = Service::<Open>::run(&ctx, |open| open.0.pop()) else { return (result, None) };
         if !crate::runtime::measure::active(&ctx) {
-            // The rows' own widths, not the widths the record gave them, confirm a record a kept measurement serves.
-            for (column, width) in widest {
-                layout_memory::confirm(&ctx, sub(id, &column), Vec2::new(width, 0.0));
-            }
             return (result, None);
         }
         let mut widths = HashMap::new();
         for (column, width) in widest {
             // A row whose record a later sweep reused reports nothing there, so the widest of the pass stands.
             let width = column_width(&ctx, id, &column).map_or(width, |found| found.max(width));
-            layout_memory::record_measured(&ctx, sub(id, &column), layout_memory::Measured { room: Vec2::ZERO, took: Vec2::new(width, 0.0) });
+            layout_memory::emit_record(&ctx, sub(id, &column), layout_memory::Measured { room: Vec2::ZERO, took: Vec2::new(width, 0.0) });
             widths.insert(column, width);
         }
         let extent = beyond
@@ -201,12 +190,12 @@ pub(crate) fn report_beyond(ctx: &Context, columns: &[ColumnKey], past: f32) {
         _ => None,
     });
     if let Some(group) = group {
-        add(ctx, group, Report::Beyond(columns.to_vec(), past));
+        report(ctx, group, Report::Beyond(columns.to_vec(), past));
     }
 }
 
 fn shared_width(ctx: &Context, group: Id, column: &ColumnKey, content: f32) -> f32 {
-    let so_far = add(ctx, group, Report::Width(column.clone(), content)).unwrap_or(content);
+    let so_far = report(ctx, group, Report::Width(column.clone(), content)).unwrap_or(content);
     column_width(ctx, group, column).map_or(so_far, |found| found.max(so_far))
 }
 

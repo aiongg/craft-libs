@@ -98,9 +98,9 @@ pub(crate) fn apply_values<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>) {
     // above the field shows the edit in the frame it happens. egui gives the rerun no input events and caps a frame at
     // two passes, so nothing is delivered twice.
     if held.is_some() {
-        crate::runtime::egui::sizing::request_discard(&cx.core.ctx, crate::runtime::egui::sizing::HELD_UPDATE_RERUN);
+        crate::runtime::egui::sizing::request_discard(&cx.core.ctx, crate::runtime::egui::sizing::Rerun::HeldUpdate);
     } else if changed {
-        crate::runtime::egui::sizing::request_discard(&cx.core.ctx, "craft_ui: an edit changed the value");
+        crate::runtime::egui::sizing::request_discard(&cx.core.ctx, crate::runtime::egui::sizing::Rerun::Edit);
     }
     let repaint_next = held.is_some();
     let gesture = cx.core.memory.shown::<Gesture<ValueOf<C>>>(slot);

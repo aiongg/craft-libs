@@ -89,9 +89,11 @@ pub(crate) struct Measuring<'a, 's> {
 pub(crate) trait ShapeHooks<C: Component> {
     fn shape(&self) -> ShapeKind;
 
-    /// Counts what the shape's content took in this real run into its content scope, besides what its components
-    /// measured: content that allocates without a component (a raw egui allocation) changes this.
-    fn fold_took(&self, _ctx: &egui::Context, _id: Id) {}
+    /// What the shape's content took in this real run besides what its components measured, by id: content that
+    /// allocates without a component (a raw egui allocation) changes this.
+    fn regions(&self, _id: Id) -> Vec<(Id, Vec2)> {
+        Vec::new()
+    }
 
     /// Whether the shape takes room in its parent's flow: a layer or window mount does not.
     fn in_flow(&self, _comp: &C) -> bool {
@@ -116,7 +118,7 @@ pub(crate) trait ShapeHooks<C: Component> {
 
     /// The size step 6 allocates, from the measured `size`: a body that fills reads the available rect of `ui`: the
     /// parent's at step 5, and the host's at step 6 when the host runs the pass in a `Ui` of its own.
-    fn sized(&self, _comp: &C, _ui: &Ui, size: Vec2) -> Vec2 {
+    fn sized(&self, _comp: &C, _ui: &Ui, _id: Id, size: Vec2) -> Vec2 {
         size
     }
 
@@ -262,7 +264,7 @@ impl<C: Component> ShapeHooks<C> for LeafHooks {
         self.scope
     }
 
-    fn sized(&self, comp: &C, ui: &Ui, size: Vec2) -> Vec2 {
+    fn sized(&self, comp: &C, ui: &Ui, id: Id, size: Vec2) -> Vec2 {
         let room = crate::layout::flow_fill_room(ui);
         // The line height of a content-height row is not known inside `sized` (the other children have not run), so a
         // child that fills across it keeps its measured size there.
@@ -271,7 +273,7 @@ impl<C: Component> ShapeHooks<C> for LeafHooks {
             if !offered.is_finite() || content {
                 return measured;
             }
-            match crate::layout::main_fill(ui, along) {
+            match crate::layout::main_fill(ui, id, along) {
                 crate::layout::MainFill::Measuring => 0.0,
                 crate::layout::MainFill::Share(share) => share,
                 crate::layout::MainFill::Room => measured.max(offered),
@@ -600,7 +602,7 @@ fn run_in_host<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Opti
     // 6 place
     let at = host_at.unwrap_or(p.at);
     // A root that fills takes the room of the `Ui` its host runs it in: a pane's or a layer's own, not its parent's.
-    let size = if ui.scope_id() == p.parent { p.size } else { p.hooks.sized(&*p.comp, ui, p.measured) };
+    let size = if ui.scope_id() == p.parent { p.size } else { p.hooks.sized(&*p.comp, ui, id, p.measured) };
     let (rect, held) = place_root(p, ui, at, env, size, inert, rtl);
     p.trace.mark(Step::Place);
     // What the content wants past the room counts where the root's width comes from its content: a content-sized
@@ -818,22 +820,21 @@ fn run_in_host<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Opti
         if C::ROLE == Role::Merged {
             scope::begin(&ctx, id, id, scope::Kind::Merge);
         }
-        // A real run counts what the components in a body's content measured, to confirm the body's kept
-        // measurement; a collection's rows are its own measure, not the enclosing body's.
-        let counted = (!p.sizing && !crate::runtime::measure::active(&ctx))
+        // A real run checks a body's content against the kept transcript its records came from; a collection's rows
+        // are its own measure, not the enclosing body's, and a layer's content is not part of its parent's flow.
+        let scoped = (!p.sizing && !crate::runtime::measure::active(&ctx))
             .then(|| match p.hooks.shape() {
-                ShapeKind::Body => Some(Some(id)),
-                ShapeKind::Item => Some(None),
+                ShapeKind::Body => Some((Some(id), !p.hooks.in_flow(comp))),
+                ShapeKind::Item => Some((None, true)),
                 _ => None,
             })
             .flatten();
-        if let Some(body) = counted {
-            crate::runtime::layout_memory::open_content(&ctx, body);
+        if let Some((body, boundary)) = scoped {
+            crate::runtime::layout_memory::open_content(&ctx, body, boundary);
         }
         p.hooks.content(comp, ui, env, cx, &values);
-        if counted.is_some() {
-            p.hooks.fold_took(&ctx, id);
-            crate::runtime::layout_memory::close_content(&ctx);
+        if scoped.is_some() {
+            crate::runtime::layout_memory::close_content(&ctx, &p.hooks.regions(id));
         }
     }
     // The `over` parts are placed before `paint_over`, so the children it shows stack above them (8.3).
@@ -940,23 +941,29 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
     } else {
         (hooks.extent(&comp, ui, at, id, &scx), shown)
     };
-    let size = {
-        let input = MeasureIn { ui: &*ui, env, proposal: Proposal::Ideal, room };
-        steps::measure(&mut comp, &input, &style, &resolved, shown.as_deref(), extent)
+    let ask = |comp: &mut C, proposal: Proposal, room: Option<f32>, extent: Vec2| {
+        let input = MeasureIn { ui: &*ui, env, proposal, room };
+        steps::measure(comp, &input, &style, &resolved, shown.as_deref(), extent)
     };
+    let size = ask(&mut comp, Proposal::Ideal, room, extent);
+    // A leaf's measure calls are what its body's layout takes from it: a measuring run keeps them in the body's
+    // transcript, and a real run its kept transcript serves asks them again.
+    let leaf = shape == ShapeKind::Leaf && (!sizing || crate::runtime::measure::active(&ctx));
+    if leaf {
+        crate::runtime::layout_memory::leaf_call(&ctx, id, Proposal::Ideal, room, size, |proposal, room| ask(&mut comp, proposal, room, extent));
+    }
     trace.mark(Step::Measure);
     // A control in a label scope reports its narrowest width, in a measuring run too: the real run's label step reads
     // it to decide whether the row fits the label beside it.
     if shape == ShapeKind::Leaf && scope::in_label(&ctx) {
-        let input = MeasureIn { ui: &*ui, env, proposal: Proposal::Min, room: None };
-        let min = steps::measure(&mut comp, &input, &style, &resolved, shown.as_deref(), Vec2::ZERO);
+        let min = ask(&mut comp, Proposal::Min, None, Vec2::ZERO);
+        if leaf {
+            crate::runtime::layout_memory::leaf_call(&ctx, id, Proposal::Min, None, min, |proposal, room| ask(&mut comp, proposal, room, Vec2::ZERO));
+        }
         scope::record_control_min(&ctx, min.x);
     }
     let measured = size;
-    if !sizing && !crate::runtime::measure::active(&ctx) && hooks.in_flow(&comp) {
-        crate::runtime::layout_memory::fold(&ctx, id, measured);
-    }
-    let size = hooks.sized(&comp, ui, size);
+    let size = hooks.sized(&comp, ui, id, size);
     // A component shown at a rect fills it: the rect is its size, and a leaf that measures nothing (a content
     // painter) still shows there.
     let inert = match at {
@@ -1153,8 +1160,15 @@ fn measure_shape<C: Component>(
         let measuring = Measuring { ui, at: ShowAt::Flow, width, env: &env, scx: &scx, resolved: &resolved, command: step1.command.clone(), mixed };
         measured_extent(comp, hooks, &measuring, &mut stage, &style, shown)
     };
-    let input = MeasureIn { ui, env: &env, proposal, room: None };
-    steps::measure(comp, &input, &style, &resolved, shown.as_deref(), extent)
+    let ask = |comp: &mut C, proposal: Proposal| {
+        let input = MeasureIn { ui, env: &env, proposal, room: None };
+        steps::measure(comp, &input, &style, &resolved, shown.as_deref(), extent)
+    };
+    let size = ask(comp, proposal);
+    if hooks.shape() == ShapeKind::Leaf && (!ui.is_sizing_pass() || crate::runtime::measure::active(ui.ctx())) {
+        crate::runtime::layout_memory::leaf_call(ui.ctx(), id, proposal, None, size, |proposal, _| ask(comp, proposal));
+    }
+    size
 }
 
 /// The flags a host passes to its faces: the validity of its value. The rest (focus, selection, open) belong to the

@@ -6,14 +6,37 @@ use egui::{Context, Layout, Rect, Ui, UiBuilder, Vec2};
 /// the host, so the purity check of the suite's fixture lets it change state.
 pub(crate) const HELD_UPDATE_RERUN: &str = "craft_ui: an update is held for the next pass";
 
-/// The reason of the rerun layout memory asks for when a kept size changed.
-pub(crate) const LAYOUT_RERUN: &str = "craft_ui: layout memory changed";
+/// Why a pass asks egui to discard it and run again.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Rerun {
+    /// Layout memory: a size the pass placed by changed.
+    Layout,
+    /// An edit changed a value the pass showed.
+    Edit,
+    /// An update a binding held is delivered in the next pass.
+    HeldUpdate,
+    /// The input filter holds input the pass must see.
+    Input(&'static str),
+    /// An app or host's own reason.
+    App(&'static str),
+}
 
-/// The pass that asked for a discard last, and whether layout memory was its only reason.
-#[derive(Clone, Copy)]
+impl Rerun {
+    fn reason(self) -> &'static str {
+        match self {
+            Rerun::Layout => "craft_ui: layout memory changed",
+            Rerun::Edit => "craft_ui: an edit changed the value",
+            Rerun::HeldUpdate => HELD_UPDATE_RERUN,
+            Rerun::Input(reason) | Rerun::App(reason) => reason,
+        }
+    }
+}
+
+/// The pass that asked for a discard last, and every reason it asked for.
+#[derive(Clone)]
 struct Asked {
     pass: u64,
-    layout_only: bool,
+    reasons: Vec<Rerun>,
 }
 
 fn asked_id(ctx: &Context) -> egui::Id {
@@ -25,28 +48,29 @@ fn running_pass(ctx: &Context) -> u64 {
 }
 
 /// Asks egui to discard the running pass and run it again.
-pub(crate) fn request_discard(ctx: &Context, reason: &'static str) {
-    let (id, pass, layout) = (asked_id(ctx), running_pass(ctx), reason == LAYOUT_RERUN);
+pub(crate) fn request_discard(ctx: &Context, rerun: Rerun) {
+    let (id, pass) = (asked_id(ctx), running_pass(ctx));
     ctx.data_mut(|data| {
-        let asked = data.get_temp_mut_or(id, Asked { pass, layout_only: layout });
-        if asked.pass == pass {
-            asked.layout_only &= layout;
-        } else {
-            *asked = Asked { pass, layout_only: layout };
+        let asked = data.get_temp_mut_or(id, Asked { pass, reasons: Vec::new() });
+        if asked.pass != pass {
+            *asked = Asked { pass, reasons: Vec::new() };
+        }
+        if !asked.reasons.contains(&rerun) {
+            asked.reasons.push(rerun);
         }
     });
-    ctx.request_discard(reason);
+    ctx.request_discard(rerun.reason());
 }
 
-/// Whether the running pass reruns a discarded one, and something other than layout memory asked for it (an edit, a
-/// held update, egui itself): the rerun may show state the discarded pass did not.
-pub(crate) fn rerun_beyond_layout(ctx: &Context) -> bool {
+/// Why the running pass runs again: `None` in a frame's first pass, else the reasons the discarded pass asked for
+/// (empty when egui discarded it on its own).
+pub(crate) fn rerun_reasons(ctx: &Context) -> Option<Vec<Rerun>> {
     if ctx.current_pass_index() == 0 {
-        return false;
+        return None;
     }
     let (id, pass) = (asked_id(ctx), running_pass(ctx));
     let asked = ctx.data(|data| data.get_temp::<Asked>(id));
-    !asked.is_some_and(|asked| asked.pass + 1 == pass && asked.layout_only)
+    Some(asked.filter(|asked| asked.pass + 1 == pass).map(|asked| asked.reasons).unwrap_or_default())
 }
 
 /// Whether a discard requested in the running pass would be honoured: egui runs at most `Options::max_passes` passes a
