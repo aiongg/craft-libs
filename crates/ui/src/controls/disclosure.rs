@@ -4,9 +4,10 @@ use crate::contract::{
     Animate as _, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, PaintUi, Pointer as _, Role, Styled as _, spec,
 };
 use crate::primitives::{Glyph, PaintShape, StrokeWidth};
-use crate::style::{ComponentStyle, IconLook, Ink, Stateful, StyleCx, UiTokens};
+use crate::style::{ComponentStyle, IconLook, Stateful, StyleCx, UiTokens, ink_color, rgba_color};
 use craft_behavior::{Metrics, Sense};
 use craft_i18n::Direction;
+use egui::emath::GuiRounding as _;
 use egui::{Color32, Painter, Pos2, Rect, Shape, Stroke, Vec2};
 
 /// A quarter turn: closed points to the end, open points down.
@@ -90,14 +91,42 @@ impl DisclosureGlyph {
     }
 }
 
+impl DisclosureGlyph {
+    /// The side of the square the glyph is drawn in, from the tokens and never from the slot it is placed in: the
+    /// icon side for the chevron, the menu text size for the submenu arrow. Every placement shows the same shape.
+    fn side(&self, tokens: &UiTokens) -> f32 {
+        if self.filled { tokens.typography.body.size } else { tokens.size.icon.md }
+    }
+
+    /// The glyph's colour: the muted text colour in the place of the normal one. A state that recolours the ink (a
+    /// disabled control, a selected row, text on a fill) keeps its colour. The submenu arrow reads in its row's text
+    /// colour.
+    fn tone(&self, tokens: &UiTokens, ink: Color32) -> Color32 {
+        if !self.filled && ink == ink_color(tokens, crate::style::Ink::OnPanel) { rgba_color(tokens.color.text.muted) } else { ink }
+    }
+
+    /// The colour a disclosure component shows its glyph in at rest.
+    fn resting(cx: &StyleCx<'_>) -> Stateful<crate::style::StyleColor> {
+        Stateful::new(cx.color(cx.tokens.color.text.muted))
+    }
+}
+
 impl Glyph for DisclosureGlyph {
     fn directional(&self) -> bool {
         self.open < 1.0
     }
 
     fn paint(&self, painter: &Painter, tokens: &UiTokens, rect: Rect, color: Color32, mirrored: bool) {
-        let points = self.outline(rect, mirrored);
+        let rect = Rect::from_center_size(rect.center(), Vec2::splat(self.side(tokens)));
+        let mut points = self.outline(rect, mirrored);
+        let color = self.tone(tokens, color);
         if self.filled {
+            if self.open == 0.0 {
+                // The base is the arrow's vertical edge: on a pixel boundary it paints no half-covered column.
+                let x = points[0].x.round_to_pixels(painter.pixels_per_point());
+                points[0].x = x;
+                points[2].x = x;
+            }
             painter.add(Shape::convex_polygon(points, color, Stroke::NONE));
         } else {
             let width = StrokeWidth::Thin.points(tokens, painter.pixels_per_point());
@@ -148,7 +177,7 @@ impl Component for Disclosure<'_> {
 
     fn style(cx: &StyleCx<'_>, _: DisclosureStyleKey) -> DisclosureStyle {
         let side = cx.control().icon;
-        DisclosureStyle { metrics: Metrics::new().min_size(Vec2::splat(side)), glyph: IconLook::new(side, Stateful::new(cx.ink(Ink::OnPanel))) }
+        DisclosureStyle { metrics: Metrics::new().min_size(Vec2::splat(side)), glyph: IconLook::new(side, DisclosureGlyph::resting(cx)) }
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
