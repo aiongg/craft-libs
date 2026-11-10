@@ -1773,12 +1773,13 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
 - `craft_ui::contract::Common`: `pub struct Common`. What every component carries: the props the pipeline reads at step 1.
   - `pub const fn new() -> Common`. A `Common` with every prop unset, which the derive's constructors start from.
 - `craft_ui::contract::Component`: re-export of `craft_ui_macros::Component` (outside these crates).
-- `craft_ui::contract::ContainerProps`: `pub struct ContainerProps { pub mount: Mount, pub surface: Option<SurfaceKind>, pub pad: Pad, pub sizing: Sizing, pub layout: BodyLayout, pub header: Option<HeaderRegion>, pub scroll: Option<Scroll>, pub footer: Option<FooterRegion>, pub end: Option<EndRegion>, pub help: Option<Label>, pub position: Option<SetPosition>, pub focus: FocusPolicy, pub collapse: Option<Collapse>, pub body_gap: Gap, pub child_size: Option<ControlSize>, pub arena: bool, pub transform: Option<CanvasTransform>, pub theme: Option<ThemeScope>, pub command_scope: Option<CommandScope>, pub live: Option<Politeness>, pub label: Option<SideLabel>, pub roving: Option<Roving>, pub save: Option<SaveKey>, pub outer_edit: bool, pub collection_body: bool, pub label_column: bool }`. What a container or collection adds to `Common`. A builder added here is added to the forwarder list in
+- `craft_ui::contract::ContainerProps`: `pub struct ContainerProps { pub mount: Mount, pub surface: Option<SurfaceKind>, pub pad: Pad, pub sizing: Sizing, pub room_height: Option<f32>, pub layout: BodyLayout, pub header: Option<HeaderRegion>, pub scroll: Option<Scroll>, pub footer: Option<FooterRegion>, pub end: Option<EndRegion>, pub help: Option<Label>, pub position: Option<SetPosition>, pub focus: FocusPolicy, pub collapse: Option<Collapse>, pub body_gap: Gap, pub child_size: Option<ControlSize>, pub arena: bool, pub transform: Option<CanvasTransform>, pub theme: Option<ThemeScope>, pub command_scope: Option<CommandScope>, pub live: Option<Politeness>, pub label: Option<SideLabel>, pub roving: Option<Roving>, pub save: Option<SaveKey>, pub outer_edit: bool, pub collection_body: bool, pub label_column: bool }`. What a container or collection adds to `Common`. A builder added here is added to the forwarder list in
   - `pub const fn new() -> Self`. Props with every field at its default.
   - `pub fn mount(mut self, mount: Mount) -> Self`. Where the container lives.
   - `pub const fn surface(mut self, surface: SurfaceKind) -> Self`. The surface the container paints.
   - `pub const fn pad(mut self, pad: Pad) -> Self`. The padding tier.
   - `pub const fn sizing(mut self, sizing: Sizing) -> Self`. How the size follows the content.
+  - `pub const fn room_height(mut self, height: f32) -> Self`. The height the body offers its children in flow ([`room_height`](Self::room_height)).
   - `pub fn layout(mut self, layout: BodyLayout) -> Self`. How the body lays out its children.
   - `pub const fn header(mut self, header: HeaderRegion) -> Self`. A header region.
   - `pub const fn scroll(mut self, scroll: Scroll) -> Self`. A scroll region.
@@ -1880,11 +1881,12 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `fn take_menu_keys(&mut self) -> Vec<MenuKey>`. The menu-bar keys of the pass: F10 or a lone Alt press focus the bar, Alt and a letter open a menu.
 - `craft_ui::contract::FooterPlace`: `pub enum FooterPlace { Across, EndBottom, EndTop }`. Where a footer region sits.
   - `pub const fn in_end(self) -> bool`. Whether the footer sits in the end region.
-- `craft_ui::contract::FooterRegion`: `pub struct FooterRegion { pub rule: bool, pub place: FooterPlace }`. A footer region, filled by `Container::footer`.
+- `craft_ui::contract::FooterRegion`: `pub struct FooterRegion { pub rule: bool, pub place: FooterPlace, pub gap: Option<Gap> }`. A footer region, filled by `Container::footer`.
   - `pub const fn new() -> Self`. A footer across the container under the line, with no rule.
   - `pub const fn rule(mut self, on: bool) -> Self`. Whether a rule separates the footer from the content beside it.
   - `pub const fn place(mut self, place: FooterPlace) -> Self`. Where the footer sits.
-- `craft_ui::contract::Gap`: `pub enum Gap { Row, Tight, Section }`. The spacing between the children of a body.
+  - `pub const fn gap(mut self, gap: Gap) -> Self`. The space above the footer's content, inside the region.
+- `craft_ui::contract::Gap`: `pub enum Gap { Row, Tight, Stack, Item, Section, CardColumn, CardRow }`. The spacing between the children of a body.
 - `craft_ui::contract::GlyphLabel`: `pub struct GlyphLabel`. The visible form of a glyph label: an icon, or a short text such as "W" or "H". The accessible name stays the
   - `pub fn icon(icon: impl Into<IconSpec<'static>>) -> Self`. Shows `icon`, as large as the control's icons.
   - `pub fn text(text: impl Into<Label>) -> Self`. Shows `text`, resolved in the scope's language.
@@ -1897,8 +1899,10 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `type Member`. The value a member stands for.
 - `craft_ui::contract::GroupState`: `pub struct GroupState<M> { pub selected: Option<M>, pub members: Vec<(M, Id, bool)> }`. A group's registrations: the members shown in the last pass and the member the group picked.
 - `craft_ui::contract::HeaderMenuRequest`: `pub struct HeaderMenuRequest { pub column: ColumnKey, pub at: Pos2 }`. A request for the context menu of a column header: the app lists `ColumnCommands` in it.
-- `craft_ui::contract::HeaderRegion`: `pub struct HeaderRegion { pub band: DragBand, pub rule: bool, pub inline: bool, pub trailing: bool }`. A header region, filled by `Container::header`.
-  - `pub const fn new() -> Self`. A header with no drag band, no rule, on its own line and with no trailing region.
+- `craft_ui::contract::HeaderRegion`: `pub struct HeaderRegion { pub band: DragBand, pub rule: bool, pub inline: bool, pub trailing: bool, pub fill: Option<SurfaceKind>, pub inset: Pad }`. A header region, filled by `Container::header`.
+  - `pub const fn new() -> Self`. A header with no drag band, no rule, on its own line, with no trailing region, no fill and no inset.
+  - `pub const fn fill(mut self, kind: SurfaceKind) -> Self`. The surface of a band behind the header.
+  - `pub const fn inset(mut self, pad: Pad) -> Self`. The padding tier between the container's edge and the header's content.
   - `pub const fn band(mut self, band: DragBand) -> Self`. What dragging the header does.
   - `pub const fn rule(mut self, on: bool) -> Self`. Whether a rule separates the header from the body.
   - `pub const fn inline(mut self, on: bool) -> Self`. Whether the header shares a line with the body.
@@ -2333,11 +2337,13 @@ Painters, `Draw`, the sensing core, the text adapter and `ImeSurface`.
   - `pub fn full_text(&self) -> String`. The text of every run, joined.
 - `craft_ui::primitives::Draw`: `pub struct Draw<'a>`. The content-paint API `PaintUi::draw` gives.
   - `pub fn text(&self, rect: Rect, run: &TextRun<'_>) -> TextLayout`. Lays `run` out in `rect`'s width and paints it at the reading start of `rect`. A single line is centred
+  - `pub fn text_on_centre_line(&self, rect: Rect, run: &TextRun<'_>) -> TextLayout`. Paints a one-line `run` as `text` does, with the middle of its lowercase letters (the x-height) on the middle
   - `pub fn doc(&self, rect: Rect, text: &DocText<'_>) -> TextLayout`. Lays `text` out in `rect`'s width and paints it top aligned, its block placed in `rect` by `text.align` (Start
   - `pub fn layout(&self, run: &TextRun<'_>, max_width: f32) -> TextLayout`. Lays `run` out in `max_width` without painting it: the one text layout path for painters that measure before
   - `pub fn galley(&self, pos: Pos2, layout: &TextLayout)`. Paints a laid-out run at `pos`. Records the first baseline and, when the layout cut text, the full text, as
   - `pub fn icon(&self, rect: Rect, icon: &super::IconSpec<'_>)`. Paints `icon` centred in `rect`, in the colour or ink the spec names, mirrored under right-to-left when it is
   - `pub fn reset_mark(&self, look: &crate::style::ResetMarkLook, center: Pos2)`. Paints the reset dot of `look` centred on `center`.
+  - `pub fn pixel_centre(&self, v: f32) -> f32`. `v` moved to the centre of the physical pixel it lies in: a line one physical pixel wide placed there fills that
   - `pub fn rule(&self, kind: RuleKind, from: Pos2, to: Pos2)`. Paints the line of `kind` from `from` to `to`.
   - `pub fn surface(&self, rect: Rect, kind: SurfaceKind, corners: Corners)`. Paints a surface of `kind` (tracks, plot wells).
   - `pub fn fill(&self, shape: &PaintShape, color: StyleColor)`. Fills `shape`.
@@ -2370,7 +2376,7 @@ Painters, `Draw`, the sensing core, the text adapter and `ImeSurface`.
   - `pub fn shapes(look: &FocusLook, kind: FocusKind, shape: &PaintShape, pixels_per_point: f32) -> Vec<Shape>`. The shapes of the ring around `shape`, grown by `look.offset`. A halo adds a stroke twice as wide at a
 - `craft_ui::primitives::Glyph`: `pub trait Glyph`. A value glyph: an icon drawn from a value.
   - `fn directional(&self) -> bool`. Whether the glyph has a reading direction (an arrow) and so flips under right-to-left.
-  - `fn paint(&self, painter: &Painter, rect: Rect, color: Color32, mirrored: bool)`. Paints the glyph into `rect` in `color`. `mirrored` is set when a directional glyph is painted under
+  - `fn paint(&self, painter: &Painter, tokens: &UiTokens, rect: Rect, color: Color32, mirrored: bool)`. Paints the glyph into `rect` in `color`, with the strokes of `tokens`. `mirrored` is set when a directional
 - `craft_ui::primitives::GridAxis`: `pub struct GridAxis { pub minor: Vec<f64>, pub major: Vec<f64> }`. The lines of one axis: positions along it, in the grid's space.
 - `craft_ui::primitives::GridInk`: `pub struct GridInk { pub major: Option<DataColor>, pub minor: Option<DataColor>, pub stroke: GridStroke }`. The colours a grid's lines take; an unset one is the theme's.
   - `pub const fn new() -> Self`. The theme's colours and solid lines.
@@ -2445,7 +2451,7 @@ Painters, `Draw`, the sensing core, the text adapter and `ImeSurface`.
   - `pub fn shapes(kind: StateLayerKind, color: StyleColor, rect: Rect, radius: CornerRadius, width: f32) -> Vec<Shape>`. The shape of `color` over `rect`; an outline is `width` wide.
 - `craft_ui::primitives::StateLayerKind`: `pub enum StateLayerKind { Fill, Outline }`. How a state layer paints its colour.
 - `craft_ui::primitives::StrokeColor`: `pub enum StrokeColor { Theme(StyleColor), Data(DataColor) }`. The colour of a stroke: a theme colour or one from the data.
-- `craft_ui::primitives::StrokeWidth`: `pub enum StrokeWidth { Hairline, Thin, Medium, Thick }`. A line width from the theme, so content never picks a literal one.
+- `craft_ui::primitives::StrokeWidth`: `pub enum StrokeWidth { Hairline, Thin, Medium, Thick, Heavy }`. A line width from the theme, so content never picks a literal one.
 - `craft_ui::primitives::Surface`: `pub struct Surface`. The surface painter: shadow, fill, then edge.
   - `pub fn shapes(style: &SurfaceStyle, fill: Option<Color32>, rect: Rect, corners: Corners, direction: Direction, pixels_per_point: f32,) -> Vec<Shape>`. The shapes of `style` over `rect`, snapped to the pixel grid: shadow, fill, edge. `fill` replaces the
 - `craft_ui::primitives::TextKey`: `pub struct TextKey<V>`. A text part's key, typed by the value its codec gives.
@@ -2453,7 +2459,7 @@ Painters, `Draw`, the sensing core, the text adapter and `ImeSurface`.
   - `pub const fn key(self) -> PartKey`. The part key.
 - `craft_ui::primitives::TextLayout`: `pub struct TextLayout { pub galley: Arc<Galley>, pub elided: bool, pub full: String, pub first_baseline: f32, pub runs: Vec<LayoutRun>, pub rotation: f32 }`. A laid-out run.
   - `pub fn size(&self) -> egui::Vec2`. The galley size.
-- `craft_ui::primitives::TextOptions`: `pub struct TextOptions { pub placeholder: Option<Label>, pub lines: Option<usize>, pub limit: Option<usize>, pub mask: bool, pub live: bool, pub clear_on_escape: bool, pub mono: bool, pub role: TypeRole, pub ink: Option<Ink>, pub tab_inserts: bool, pub complete: Option<Arc<dyn Completer>>, pub replace_selection: Option<String>, pub commit_on: &'static [char], pub enabled: bool, pub steps_value: bool, pub select_on_focus: bool, pub submits: bool, pub mixed: bool }`. How a text part behaves beyond its codec.
+- `craft_ui::primitives::TextOptions`: `pub struct TextOptions { pub placeholder: Option<Label>, pub lines: Option<usize>, pub limit: Option<usize>, pub mask: bool, pub live: bool, pub clear_on_escape: bool, pub mono: bool, pub role: TypeRole, pub ink: Option<Ink>, pub tab_inserts: bool, pub complete: Option<Arc<dyn Completer>>, pub replace_selection: Option<String>, pub commit_on: &'static [char], pub enabled: bool, pub steps_value: bool, pub select_on_focus: bool, pub submits: bool, pub mixed: bool, pub centred: bool }`. How a text part behaves beyond its codec.
   - `pub fn new() -> Self`. Options with every default.
 - `craft_ui::primitives::TextOutcome`: `pub struct TextOutcome<V> { pub rect: Rect, pub draft: Option<String>, pub value: Option<V>, pub layout: Option<super::TextLayout>, pub caret_visible: bool, pub invalid: bool, pub committed_tag: Option<u32>, pub composing: bool, pub completions: Vec<super::Completion> }`. A text part's result this pass.
   - `pub const fn new(rect: Rect) -> Self`. An outcome over `rect` with no draft or value.
@@ -3448,6 +3454,7 @@ The style layer: the state set and its resolver, style parts and `ComponentStyle
   - `pub fn track(&self) -> TrackLook`. The look of a value track: a groove of `size.groove` with the part a value fills over it, and its marks.
   - `pub fn ink(&self, ink: Ink) -> StyleColor`. The colour text and icons on a surface read in.
   - `pub fn control(&self) -> ControlMetrics`. The height, icon side, padding and gap of a control at the ambient size.
+  - `pub fn segment_control(&self) -> ControlMetrics`. `control`, with the side padding of a segment of a segmented control: `space.pad.control` at the small size
   - `pub fn text_width(&self, role: craft_theme::TypeRole, text: &str) -> f32`. The width of `text` set in the face of `role`: the sizes that follow the text (a row header's digit) read it
   - `pub fn surface(&self, kind: SurfaceKind) -> SurfaceStyle`. What a surface of `kind` draws.
   - `pub fn text_well(&self) -> SurfaceLook`. The look of a text well: the well surface with an edge over it that takes the focus colour while the well
@@ -3465,13 +3472,14 @@ The style layer: the state set and its resolver, style parts and `ComponentStyle
 - `craft_ui::style::SurfaceEdge`: `pub enum SurfaceEdge { None, Border(Stroke), Bevel { top_left: Color32, bottom_right: Color32, width: f32 } }`. A surface's edge, resolved from the theme's edge style.
 - `craft_ui::style::SurfaceKind`: `pub enum SurfaceKind { Background, Canvas, Chrome, Panel, Raised, Pressed, Sunken, Well, Knob, Popup, Dialog, Floating, Scrim, Frame }`. The surface a container or part sits on, which picks fill, edge, shadow and ink.
   - `pub const fn ink(self) -> super::Ink`. The ink text and icons read on this surface.
-- `craft_ui::style::SurfaceLook`: `pub struct SurfaceLook { pub kind: Option<SurfaceKind>, pub kind_down: Option<SurfaceKind>, pub fill: Stateful<StyleColor>, pub border: Option<Stateful<StyleColor>>, pub border_width: f32, pub radius: CornerRadius, pub corners: Corners }`. A component's or part's surface.
+- `craft_ui::style::SurfaceLook`: `pub struct SurfaceLook { pub kind: Option<SurfaceKind>, pub kind_down: Option<SurfaceKind>, pub fill: Stateful<StyleColor>, pub border: Option<Stateful<StyleColor>>, pub border_width: f32, pub radius: CornerRadius, pub corners: Corners, pub border_replaces_edge: bool }`. A component's or part's surface.
   - `pub fn new(fill: Stateful<StyleColor>) -> Self`. A look with `fill` and no kind, border or radius.
   - `pub fn kind_in(&self, state: &super::StateSet) -> Option<SurfaceKind>`. The surface kind in `state`: `kind_down` while pressed, else `kind`.
   - `pub fn kind(mut self, kind: SurfaceKind) -> Self`. Sets the surface kind.
   - `pub fn kind_down(mut self, kind: SurfaceKind) -> Self`. Sets the kind used while pressed.
   - `pub fn radius(mut self, radius: CornerRadius) -> Self`. Sets the corner radius.
   - `pub fn corners(mut self, corners: Corners) -> Self`. Sets which corners are rounded.
+  - `pub fn border_replaces_edge(mut self) -> Self`. The border replaces the kind's flat edge.
   - `pub fn border(mut self, border: Stateful<StyleColor>, width: f32) -> Self`. Sets the border colours and width.
 - `craft_ui::style::SurfaceStyle`: `pub struct SurfaceStyle { pub fill: Color32, pub radius: CornerRadius, pub edge: SurfaceEdge, pub shadow: Option<Shadow> }`. Everything a surface of one kind draws.
 - `craft_ui::style::TextLook`: `pub struct TextLook { pub role: TypeRole, pub color: Stateful<StyleColor>, pub ground: Option<Stateful<StyleColor>> }`. A component's text.
@@ -3948,6 +3956,7 @@ Stories: named ways to show one registered type, and the data and output the run
 - `craft_ui::testing::story::StoryData`: `pub struct StoryData`. The values a story shows, by name. Each is a `Value`, so the runner compares them before and after a drive.
   - `pub fn tooltip(&self, text: &'static str) -> TooltipSpec`. A tooltip of `text`, with the story's `disabled_text` as the text it shows while disabled.
   - `pub fn value<T: Value>(&mut self, name: &'static str, init: T) -> &mut T`. The value named `name` of type `T`, created from `init` on first use. A name used with two types names two
+  - `pub fn present<T: Value>(&mut self, name: &'static str) -> Option<&mut T>`. The value named `name` of type `T` when a run has created it; never creates one, so asking does not make a
   - `pub fn ranged<T: Value>(&mut self, name: &'static str, init: T, range: RangeInclusive<f64>) -> &mut T`. Like [`StoryData::value`] for a number the Properties editor keeps inside `range`.
   - `pub fn choice<T: Value>(&mut self, name: &'static str, init: T, options: &[(&'static str, T)]) -> &mut T`. Like [`StoryData::value`] for a value that is one of `options`, which the Properties editor offers by label.
   - `pub fn restore(&mut self, before: &StorySnapshot)`. Puts every value that was there in `before` back to what it was then. A value added since stays.
