@@ -1,12 +1,14 @@
 //! Stories of `PresetPicker`.
 
 use super::{PickerField, PresetPicker};
+use crate::choice::SwatchFace;
 use crate::contract::{Bind, Props as _, Role, Show as _, Validity};
 use crate::list::ThumbAspect;
 use crate::patterns::presets::{PresetRow, PresetState};
 use crate::runtime::env::Message;
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use craft_behavior::Mixed;
+use craft_theme::Srgba;
 use egui::Ui;
 
 const AMBER: u32 = 11;
@@ -15,13 +17,16 @@ const TEAL: u32 = 21;
 
 /// Two groups of swatches.
 fn rows() -> Vec<PresetRow<u32>> {
-    let thumb = |row: PresetRow<u32>| row.preview(ThumbAspect::SQUARE, |_, _| {});
+    let thumb = |row: PresetRow<u32>, hex: &str| {
+        let color = Srgba::from_hex(hex).unwrap_or(Srgba::BLACK);
+        row.preview(ThumbAspect::SQUARE, move |cx, rect| SwatchFace::new(color).paint(cx, rect))
+    };
     vec![
         PresetRow::group(10, "Warm", 0).count(2),
-        thumb(PresetRow::item(AMBER, "Amber", 1)),
-        thumb(PresetRow::item(CORAL, "Coral", 1)),
+        thumb(PresetRow::item(AMBER, "Amber", 1), "#FFBF00"),
+        thumb(PresetRow::item(CORAL, "Coral", 1), "#FF7F50"),
         PresetRow::group(20, "Cool", 0).count(1),
-        thumb(PresetRow::item(TEAL, "Teal", 1)),
+        thumb(PresetRow::item(TEAL, "Teal", 1), "#008080"),
     ]
 }
 

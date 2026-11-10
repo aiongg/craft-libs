@@ -17,6 +17,8 @@ pub(crate) const UNTINTED: Color32 = Color32::from_gray(u8::MAX);
 mod thumbnails;
 #[cfg(feature = "testing")]
 pub use thumbnails::FakeThumbSource;
+#[cfg(feature = "testing")]
+pub(crate) use thumbnails::fake_thumb_image;
 pub use thumbnails::{ThumbFit, ThumbJob, ThumbPaint, ThumbRender, ThumbRequest, ThumbSource, ThumbnailOptions, Thumbnails, fit_rect, thumb_image};
 
 use crate::runtime::egui::{memory, pass, textures};

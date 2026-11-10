@@ -4,6 +4,7 @@ use super::{FreeBin, FreeformCard};
 use craft_behavior::{DisplayOrder, ItemSource};
 use craft_ui::contract::ShowCollection as _;
 use craft_ui::list::ThumbAspect;
+use craft_ui::testing::pictures::StoryPictures;
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use craft_ui::tile_grid::Tile;
 use egui::{Ui, vec2};
@@ -28,8 +29,9 @@ impl DisplayOrder<usize> for Cards {
 impl ItemSource<usize> for Cards {}
 
 fn bin(ui: &mut Ui, bin: FreeBin<'_, usize>, count: usize) -> StoryOutput {
+    let pictures = StoryPictures::of(ui.ctx());
     bin.show_items(ui, &Cards(count), &mut |key, _| {
-        let tile = Tile::new(format!("Clip {}", key + 1)).thumb(ThumbAspect::new(1, 1), |_, _| {});
+        let tile = Tile::new(format!("Clip {}", key + 1)).thumb(ThumbAspect::new(1, 1), pictures.thumb(*key as u64));
         if *key == 1 { tile.stack(2) } else { tile }
     })
     .into()
