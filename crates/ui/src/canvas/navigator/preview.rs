@@ -456,7 +456,7 @@ impl Component for Navigator<'_> {
         match preview {
             NavigatorPreview::Texture(texture) => {
                 painter.checker(fitted);
-                painter.picture(texture.id, fitted, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)));
+                painter.picture(texture.id, fitted, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), 0.0);
             }
             NavigatorPreview::Paint(NavigatorPaint(mut paint)) => paint(&painter, fitted),
             NavigatorPreview::None => painter.checker(fitted),

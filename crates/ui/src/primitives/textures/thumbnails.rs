@@ -451,7 +451,7 @@ fn paint_picture(cx: &ContentPainterCx<'_>, cell: Rect, texture: egui::TextureId
     } else if paint.checker {
         cx.checker(target);
     }
-    textures::paint(&cx.painter, texture, target, uv, paint.tint.0);
+    textures::paint(&cx.painter, texture, target, uv, paint.tint.0, egui::CornerRadius::ZERO);
 }
 
 /// The part of a picture a `Cover` fit shows in `cell`: centred, cut at the long sides.

@@ -498,7 +498,7 @@ impl Component for PreviewPane<'_> {
                             pos2((visible.min.x - picture.min.x) / size.x, (visible.min.y - picture.min.y) / size.y),
                             pos2((visible.max.x - picture.min.x) / size.x, (visible.max.y - picture.min.y) / size.y),
                         );
-                        painter.picture(texture.id, visible, uv);
+                        painter.picture(texture.id, visible, uv, 0.0);
                     }
                     if let Some(PaneOverlay(overlay)) = self.overlay.take() {
                         overlay(&painter, view, picture);

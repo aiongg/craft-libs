@@ -17,12 +17,11 @@ pub(crate) fn replace_region(handle: &mut TextureHandle, origin: [u32; 2], image
     handle.set_partial(origin.map(|n| n as usize), image, filter);
 }
 
-/// Paints `texture` in `rect`, the part `uv` of it, tinted by `tint`.
-pub(crate) fn paint(painter: &Painter, texture: TextureId, rect: Rect, uv: Rect, tint: Color32) {
-    painter.image(texture, rect, uv, tint);
-}
-
-/// Paints `texture` in `rect` like [`paint`], with the picture's corners rounded by `radius`.
-pub(crate) fn paint_rounded(painter: &Painter, texture: TextureId, rect: Rect, uv: Rect, tint: Color32, radius: CornerRadius) {
-    painter.add(egui::epaint::RectShape::filled(rect, radius, tint).with_texture(texture, uv));
+/// Paints `texture` in `rect`, the part `uv` of it, tinted by `tint`, with corners rounded by `radius`.
+pub(crate) fn paint(painter: &Painter, texture: TextureId, rect: Rect, uv: Rect, tint: Color32, radius: CornerRadius) {
+    if radius == CornerRadius::ZERO {
+        painter.image(texture, rect, uv, tint);
+    } else {
+        painter.add(egui::epaint::RectShape::filled(rect, radius, tint).with_texture(texture, uv));
+    }
 }

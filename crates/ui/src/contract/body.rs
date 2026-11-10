@@ -1280,9 +1280,9 @@ impl<'b> BodyHooks<'b> {
         bcx.close_requested()
     }
 
-    /// The space under a stacked header `header_h` high: `HeaderRegion::gap` when the header took any height.
+    /// The space under a stacked header `header_h` high: `HeaderRegion::gap` while the body shows, scaled by its presence.
     fn header_space(&self, header_h: f32) -> f32 {
-        if header_h > 0.0 { self.header_gap } else { 0.0 }
+        if header_h > 0.0 { self.header_gap * self.presence.t } else { 0.0 }
     }
 
     /// What a header, footer or end region took: what its content allocated.

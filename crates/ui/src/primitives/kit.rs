@@ -592,14 +592,9 @@ impl ContentPainterCx<'_> {
         self.painter.pixels_per_point()
     }
 
-    /// Paints the part `uv` of `texture` into `rect`, untinted.
-    pub fn picture(&self, texture: egui::TextureId, rect: Rect, uv: Rect) {
-        crate::runtime::egui::textures::paint(&self.painter, texture, rect, uv, super::textures::UNTINTED);
-    }
-
-    /// Paints the part `uv` of `texture` into `rect`, untinted, with corners of `radius` points.
-    pub fn picture_rounded(&self, texture: egui::TextureId, rect: Rect, uv: Rect, radius: f32) {
-        crate::runtime::egui::textures::paint_rounded(&self.painter, texture, rect, uv, super::textures::UNTINTED, UiTokens::corner(radius));
+    /// Paints the part `uv` of `texture` into `rect`, untinted, with corners of `radius` points (zero for square ones).
+    pub fn picture(&self, texture: egui::TextureId, rect: Rect, uv: Rect, radius: f32) {
+        crate::runtime::egui::textures::paint(&self.painter, texture, rect, uv, super::textures::UNTINTED, UiTokens::corner(radius));
     }
 
     /// Paints the transparency checkerboard over `rect`.

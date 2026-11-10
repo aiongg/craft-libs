@@ -123,7 +123,7 @@ impl Component for FramePreview {
                 let area = Rect::from_min_max(rect.min, pos2(rect.max.x, (rect.max.y - strip).max(rect.min.y)));
                 ui.draw().fill(&PaintShape::Rect(area, CornerRadius::ZERO), cx.style.backdrop);
                 let (target, uv) = frame_rect(area, size, self.fit);
-                ui.content_painter(cx).picture(texture, target, uv);
+                ui.content_painter(cx).picture(texture, target, uv, 0.0);
                 if let (Some(run), Some(line)) = (run, line) {
                     let at = Rect::from_min_size(pos2(rect.center().x - line.x / 2.0, rect.max.y - line.y), line);
                     ui.draw().text(at, &run);

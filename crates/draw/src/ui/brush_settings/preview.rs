@@ -156,7 +156,7 @@ impl Component for BrushStrokeStrip<'_> {
         let store = TextureStore::<Id>::in_context(ctx, "brush-stroke-strip", TextureStoreOptions::frames());
         let make = &self.make.0;
         let picture = store.get_or_put(ctx, cx.id, Revision::of(&(self.revision, pixels)), || make(pixels));
-        painter.picture(picture.id, rect, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)));
+        painter.picture(picture.id, rect, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), 0.0);
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> Response {

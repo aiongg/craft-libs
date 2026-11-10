@@ -148,6 +148,13 @@ impl<'a> Section<'a> {
         self
     }
 
+    /// The space between the header and the body when the section is open (`Gap::Tight` by default).
+    #[must_use]
+    pub fn header_gap(mut self, gap: Gap) -> Self {
+        self.update_header(|header| header.gap(gap));
+        self
+    }
+
     fn update_header(&mut self, change: impl FnOnce(HeaderRegion) -> HeaderRegion) {
         let header = change(self.props.header.unwrap_or_default());
         self.props.header = Some(header);

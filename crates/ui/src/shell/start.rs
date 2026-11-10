@@ -257,7 +257,7 @@ fn paint_picture(cx: &ContentPainterCx, rect: Rect, texture: CachedTexture) {
     let scale = (rect.width() / size.x).min(rect.height() / size.y);
     let fitted = Rect::from_center_size(rect.center(), size * scale);
     let uv = Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0));
-    cx.picture_rounded(texture.id, fitted, uv, cx.style_cx().tokens.shape.radius.control);
+    cx.picture(texture.id, fitted, uv, cx.style_cx().tokens.shape.radius.control);
 }
 
 /// The folder a path is in, for the line under a file's name.
@@ -348,6 +348,7 @@ fn recent_section(
         Entry::new(RecentSort::Created, words.sort_created.clone()),
     ];
     let _ = Section::fixed(words.recent.clone())
+        .header_gap(Gap::Section)
         .command_scope(StartRecentCommands::SCOPE)
         .controls(|ui, _| {
             let _ = Segmented::new(words.view.clone(), view.borrow_mut().reborrowed(), &modes).show(ui);
@@ -430,6 +431,7 @@ fn recent_section(
 fn pinned_section(page: &Page<'_>, ui: &mut Ui, folders: &[PathBuf]) {
     let words = page.words;
     let _ = Section::fixed(words.pinned.clone())
+        .header_gap(Gap::Section)
         .command_scope(StartPinnedCommands::SCOPE)
         .controls(|ui, _| {
             if clicked(&Button::new(words.pin_folder.clone()).id_salt("pin").icon(IconId::new("new_folder")).show(ui)) {
@@ -474,7 +476,7 @@ fn pinned_section(page: &Page<'_>, ui: &mut Ui, folders: &[PathBuf]) {
 
 fn templates_section(page: &Page<'_>, ui: &mut Ui, templates: &[Template]) {
     let words = page.words;
-    let _ = Section::fixed(words.templates.clone()).show(ui, |ui, _| {
+    let _ = Section::fixed(words.templates.clone()).header_gap(Gap::Section).show(ui, |ui, _| {
         let source = keyed(templates, |template: &Template| template.id.clone()).with_text(|template| Cow::Borrowed(template.name.as_str()));
         let out = page.grid::<String>(words.templates.clone(), false).show_items(ui, &source, &mut |id, _| {
             let Some(template) = templates.iter().find(|template| &template.id == id) else { return Tile::new(Label::Empty) };

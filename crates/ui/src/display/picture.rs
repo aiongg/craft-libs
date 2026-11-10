@@ -108,7 +108,7 @@ impl Component for Picture<'_> {
         let texture = store.get_or_put(&cx.ctx, (cx.resolved.id, self.key), self.revision, self.image);
         let target = fit_rect(cx.content_rect, texture.size_vec2());
         let whole = Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0));
-        ui.content_painter(cx).picture(texture.id, target, whole);
+        ui.content_painter(cx).picture(texture.id, target, whole, 0.0);
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> Response {
