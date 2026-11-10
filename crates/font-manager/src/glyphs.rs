@@ -16,12 +16,12 @@ use craft_ui::contract::{
 use craft_ui::display::Text;
 use craft_ui::layout_components::{Row, Stack};
 use craft_ui::list::ThumbAspect;
+use craft_ui::list::ThumbSize;
 use craft_ui::pickers::Select;
 use craft_ui::primitives::ContentPainterCx;
 use craft_ui::primitives::textures::{Priority, Revision, ThumbPaint, ThumbRender, ThumbRequest, ThumbSource, ThumbnailOptions, Thumbnails};
 use craft_ui::runtime::env::{Env, Label};
 use craft_ui::style::DataColor;
-use craft_ui::list::ThumbSize;
 use craft_ui::tile_grid::{CaptionPlace, ThumbnailSlider, Tile, TileGrid, TileZoom};
 use egui::{ColorImage, Rect, Response, Ui};
 use serde::{Deserialize, Serialize};
