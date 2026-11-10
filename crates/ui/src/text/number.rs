@@ -6,7 +6,7 @@
 #[cfg(feature = "testing")]
 mod stories;
 
-use super::adorn::{Adornment, Placed, place};
+use super::adorn::{Adornment, Placed, place, reserve};
 use super::words::TextWords;
 use super::{FieldStyle, text_part};
 use crate::buttons::IconButton;
@@ -34,11 +34,6 @@ use std::ops::{Deref, RangeInclusive};
 
 /// The step of an arrow press, the wheel and the label scrub when the field sets none.
 const DEFAULT_STEP: f64 = 1.0;
-/// Whether the value is a number that is not finite; the field shows the dash for it, as for a mixed value.
-fn non_finite<V: NumberValue>(value: Option<&V>) -> bool {
-    value.is_some_and(|v| v.named().is_none() && v.number().is_some_and(|number| !number.is_finite()))
-}
-
 /// The placeholder of a mixed field.
 const BLANK: &str = "\u{2014}";
 
@@ -46,6 +41,11 @@ const BLANK: &str = "\u{2014}";
 const DEFAULT_DECIMALS: usize = 3;
 /// How far a value may sit off a multiple of the step and still count as on it.
 const ON_GRID: f64 = 1e-9;
+
+/// Whether the value is a number that is not finite; the field shows the dash for it, as for a mixed value.
+fn non_finite<V: NumberValue>(value: Option<&V>) -> bool {
+    value.is_some_and(|v| v.named().is_none() && v.number().is_some_and(|number| !number.is_finite()))
+}
 
 /// The chevron that opens the presets list.
 const PRESETS: PartKey = PartKey::new("presets");
@@ -765,12 +765,8 @@ impl<V: NumberValue + 'static> Component for NumberField<'_, V> {
         };
         self.unit_size = self.unit_extent(cx);
         let unit = self.unit_size.x;
-        // The chevrons' extent is the span from the text's end to the last chevron's far edge, laid out in the
-        // field's minimum size, which is wide enough for any adornments.
-        let chevrons = self.chevrons(&cx.words::<TextWords>());
-        let probe = Rect::from_min_size(Pos2::ZERO, cx.style.field.metrics().min_size);
-        let placed = Self::laid_out(cx.style, probe, false, &chevrons);
-        let adornments = placed.trailing.last().map_or(0.0, |last| last.max.x - placed.text.max.x);
+        // The chevrons take their own room and the change of the edge inset a button makes.
+        let adornments = reserve(&cx.style.field, &[], &Self::adornments(&self.chevrons(&cx.words::<TextWords>())));
         let width = text.x + unit + adornments;
         // A field is one number cell wide, the unit and the chevrons inside it, so a column of fields ends at one edge;
         // it grows only when the room left for the number drops below one digit and the caret.
@@ -908,7 +904,7 @@ impl<V: NumberValue + 'static> Component for NumberField<'_, V> {
         let placed = Self::laid_out(cx.style, cx.content_rect, rtl, &chevrons);
         let (_, unit) = self.text_and_unit(placed.text, rtl);
         // A mixed value shows the dash alone: a unit beside it would claim a measure the selection does not have.
-        if let (Some(unit), Some(label), Some(_)) = (unit, &self.unit, cx.value().filter(|_| !non_finite(cx.value()))) {
+        if let (Some(unit), Some(label), Some(_)) = (unit, &self.unit, cx.value().filter(|value| !non_finite(Some(*value)))) {
             let top = unit.center().y - self.unit_size.y / 2.0;
             let at = unit;
             let run = TextRun::new(label.as_str()).role(cx.style.unit.role).color(cx.resolve(&cx.style.unit.color));

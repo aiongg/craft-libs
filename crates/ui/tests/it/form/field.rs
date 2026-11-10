@@ -4,10 +4,10 @@ use craft_ui::contract::{Bind, Role, Show as _, ShowContainer as _, Validity};
 use craft_ui::form::{Field, Help};
 use craft_ui::runtime::env::Message;
 use craft_ui::testing::access::focused_key;
-use craft_ui::testing::story::stories;
-use craft_ui::testing::suite::text_size_case;
+use craft_ui::testing::suite::reflowed;
 use craft_ui::testing::{Fixture, trial};
 use craft_ui::text::NumberField;
+use egui::{Rect, pos2, vec2};
 use std::cell::Cell;
 use std::rc::Rc;
 
@@ -112,10 +112,16 @@ fn a_label_and_its_control_text_share_a_baseline() {
     }
 }
 
-/// A long label that lies beside its control at the base size and above it under larger text makes the field shorter
-/// or taller by a reflow; the text-size case compares heights only where the label is placed the same way.
+/// The text-size case leaves a height out only where a label moved from beside its control to above it. Texts shown
+/// twice ("%", a dash) pair by occurrence, so repeats elsewhere do not hide a real shrink.
 #[trial]
-fn the_text_size_case_accepts_a_label_that_moves_above_its_control() {
-    let entry = stories().into_iter().find(|entry| entry.story.name == "field_long_text").expect("the long-text story is registered");
-    assert_eq!(text_size_case(&entry.story), Ok(()));
+fn a_reflow_is_a_label_that_moves_from_beside_to_above() {
+    let at = |x: f32, y: f32| Rect::from_min_size(pos2(x, y), vec2(40.0, 14.0));
+    let beside = [("Layer name", at(0.0, 0.0)), ("%", at(60.0, 0.0)), ("%", at(120.0, 0.0))];
+    // The label stays beside the first "%" and the second "%" stays beside it: no reflow, a shorter layout fails.
+    assert!(!reflowed(&beside, &[("Layer name", at(0.0, 0.0)), ("%", at(60.0, 0.0)), ("%", at(120.0, 0.0))]));
+    // The label moves above its control: a reflow.
+    assert!(reflowed(&beside, &[("Layer name", at(0.0, 0.0)), ("%", at(0.0, 20.0)), ("%", at(60.0, 20.0))]));
+    // Only the second "%" moves below the first: the repeats are told apart.
+    assert!(reflowed(&beside, &[("Layer name", at(0.0, 0.0)), ("%", at(60.0, 0.0)), ("%", at(60.0, 20.0))]));
 }

@@ -32,18 +32,9 @@ fn shot(story: &Story, change: &dyn Fn(&mut Fixture)) -> Shot {
 }
 
 impl Shot {
-    /// Whether every two texts of this shot that `other` also shows lie one above the other in both or beside each
-    /// other in both: a label above its control in one shot and beside it in the other fails this.
-    fn stacks_like(&self, other: &Shot) -> bool {
-        let runs: Vec<_> = self.runs.iter().filter(|run| !run.elided && !run.text.trim().is_empty()).collect();
-        let stacked = |a: Rect, b: Rect| a.max.y <= b.min.y || b.max.y <= a.min.y;
-        let there = |run: &crate::runtime::egui::fixture::PaintedText| other.runs.iter().find(|same| same.text == run.text).map(|same| same.rect);
-        runs.iter().enumerate().all(|(at, first)| {
-            runs[at + 1..].iter().all(|second| match (there(first), there(second)) {
-                (Some(a), Some(b)) => stacked(first.rect, second.rect) == stacked(a, b),
-                _ => true,
-            })
-        })
+    /// The texts this shot shows whole, in paint order, with their rects.
+    fn whole_texts(&self) -> Vec<(&str, Rect)> {
+        self.runs.iter().filter(|run| !run.elided && !run.text.trim().is_empty()).map(|run| (run.text.as_str(), run.rect)).collect()
     }
 
     /// The text run at `run` stays in its part: it lies in the shown rect, or a scroll region's view cuts it. A run
@@ -61,6 +52,22 @@ impl Shot {
                     inside(run, region.content) && (!seen.is_positive() || inside(seen, self.shown))
                 })
     }
+}
+
+/// Whether the layout reflowed from `base` to `grown`: two texts lie beside each other in `base` and one above the
+/// other in `grown`, as a label that moves above its control. The texts are `(text, rect)` in paint order; a text
+/// shown several times pairs its nth occurrence in one with its nth in the other, and a text one of them lacks pairs
+/// with nothing. A reflow can shorten the layout, so the growth check leaves the height out.
+pub fn reflowed(base: &[(&str, Rect)], grown: &[(&str, Rect)]) -> bool {
+    let stacked = |a: Rect, b: Rect| a.max.y <= b.min.y || b.max.y <= a.min.y;
+    let occurrence = |runs: &[(&str, Rect)], at: usize| runs[..at].iter().filter(|(text, _)| *text == runs[at].0).count();
+    let there = |at: usize| grown.iter().filter(|(text, _)| *text == base[at].0).nth(occurrence(base, at)).map(|(_, rect)| *rect);
+    (0..base.len()).any(|first| {
+        (first + 1..base.len()).any(|second| match (there(first), there(second)) {
+            (Some(a), Some(b)) => !stacked(base[first].1, base[second].1) && stacked(a, b),
+            _ => false,
+        })
+    })
 }
 
 /// Text layout at scale 2 may shave a point off a wrapped measure (68 becomes 67); real growth failures are larger.
@@ -104,9 +111,9 @@ pub fn text_size_case(story: &Story) -> Result<(), String> {
     for (name, grown) in &variants {
         let size = after(grown);
         let slack = if *name == "scale 2" { SCALE_LAYOUT_SLACK } else { 0.0 };
-        // A label that moves between beside and above its control reflows the field, and that can shorten it.
-        let reflowed = !base.stacks_like(grown);
-        if !(grows_with(before.x - slack, size.x) && (reflowed || grows_with(before.y - slack, size.y))) {
+        // A label that moves from beside to above its control reflows the field, and that can shorten it.
+        let moved = reflowed(&base.whole_texts(), &grown.whole_texts());
+        if !(grows_with(before.x - slack, size.x) && (moved || grows_with(before.y - slack, size.y))) {
             return Err(format!("{}: under {name} the size went from {before:?} to {size:?}", story.name));
         }
         for run in base.runs.iter().filter(|run| !run.elided && !run.text.trim().is_empty() && inside(run.rect, base.shown)) {

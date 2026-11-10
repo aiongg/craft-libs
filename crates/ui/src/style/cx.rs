@@ -253,7 +253,13 @@ impl<'a> StyleCx<'a> {
 
     /// The height, icon side, padding and gap of a control at the ambient size.
     pub fn control(&self) -> ControlMetrics {
-        control_metrics(self.tokens, self.size, self.line_ratio)
+        self.control_of(self.size)
+    }
+
+    /// `control` at `size`, whatever the ambient size: the part of a control that keeps its own size (a field's
+    /// adornment button) reads its height here.
+    pub fn control_of(&self, size: ControlSize) -> ControlMetrics {
+        control_metrics(self.tokens, size, self.line_ratio)
     }
 
     /// `control`, with the side padding of a segment of a segmented control: `space.pad.control` at the small size
