@@ -21,7 +21,7 @@ impl BarCell {
 
     /// Shows the caption, then the control `control` builds and shows with the caption as its label. Returns what
     /// `control` returns.
-    pub fn show<R>(self, ui: &mut Ui, control: impl FnOnce(&mut Ui, Label) -> R) -> R {
+    pub fn control<R>(self, ui: &mut Ui, control: impl FnOnce(&mut Ui, Label) -> R) -> R {
         let mut control = Some(control);
         let mut result = None;
         Row::new().show(ui, |ui, _| {

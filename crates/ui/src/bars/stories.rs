@@ -47,7 +47,7 @@ fn bar_captioned_select(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let themes = [Entry::new(0u8, "ArtCraft"), Entry::new(1, "Paper")];
     Bar::new("Appearance", BarKind::Options)
         .show(ui, |ui, _| {
-            BarCell::new("Theme").show(ui, |ui, label| {
+            BarCell::new("Theme").control(ui, |ui, label| {
                 Select::new(label, Bind::given(0u8), &themes).show(ui);
             });
         })
@@ -59,12 +59,12 @@ fn bar_captioned_segmented(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let modes = [Entry::new(0u8, "Light"), Entry::new(1, "Dark"), Entry::new(2, "System")];
     Bar::new("Appearance", BarKind::Options)
         .trailing(|ui| {
-            BarCell::new("Workspace").show(ui, |ui, label| {
+            BarCell::new("Workspace").control(ui, |ui, label| {
                 Segmented::new(label, Bind::given(0u8), &modes).show(ui);
             });
         })
         .show(ui, |ui, _| {
-            BarCell::new("Mode").show(ui, |ui, label| {
+            BarCell::new("Mode").control(ui, |ui, label| {
                 Segmented::new(label, Bind::given(1u8), &modes).show(ui);
             });
         })

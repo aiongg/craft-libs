@@ -240,7 +240,7 @@ fn a_captioned_cell_shares_a_centre_line_and_the_trailing_group_ends_the_bar() {
                 IconButton::new(craft_behavior::IconId::new("check")).label("Reset").id_salt("reset").show(ui);
             })
             .show(ui, |ui, _| {
-                BarCell::new("Blend mode").show(ui, |ui, label| {
+                BarCell::new("Blend mode").control(ui, |ui, label| {
                     let mut value = 0u8;
                     Select::new(label, Bind::bound(&mut value), &entries).id_salt("mode").show(ui);
                 });
