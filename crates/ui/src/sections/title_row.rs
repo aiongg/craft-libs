@@ -137,6 +137,8 @@ pub struct TitleRowStyle {
     /// The icon before the title.
     #[style(icon)]
     icon: IconLook,
+    /// The width of a disclosure lead's slot: `size.icon.sm`, a small glyph beside the title.
+    disclosure: f32,
 }
 
 /// An optional icon, a title with an optional subtitle, a lead (a disclosure bound to the container's open state, or
@@ -244,6 +246,11 @@ impl<'a> TitleRow<'a> {
         !matches!(self.lead, Lead::None)
     }
 
+    /// The width of the lead's slot: a disclosure's glyph takes the icon side, a check the row's height.
+    fn lead_side(&self, row: f32, icon: f32) -> f32 {
+        if matches!(self.lead, Lead::Disclosure(_)) { icon } else { row }
+    }
+
     /// The title as it shows: a caption reads in capitals.
     fn title_text<'t>(&self, label: &'t str) -> Cow<'t, str> {
         if self.strength == HeaderStrength::Caption { Cow::Owned(label.to_uppercase()) } else { Cow::Borrowed(label) }
@@ -302,6 +309,7 @@ impl Component for TitleRow<'_> {
             metrics: Metrics::new().min_size(Vec2::new(0.0, height)).gap(cx.control().gap),
             text: TextLook::new(role, Stateful::new(shade).off(States::new(shade, shade, shade, disabled))),
             icon: IconLook::new(cx.control().icon, Stateful::new(ink).off(States::new(ink, ink, ink, disabled))),
+            disclosure: cx.tokens.size.icon.sm,
         }
     }
 
@@ -314,7 +322,8 @@ impl Component for TitleRow<'_> {
         // The parts are square on the row's height, which the height token can raise above the text's.
         let side = title.y.max(cx.style.metrics.min_size.y);
         let text = title.x + subtitle.map_or(0.0, |width| width + cx.gap());
-        let natural = text + side * parts as f32 + cx.gap() * parts as f32;
+        let lead = if self.has_lead() { self.lead_side(side, cx.style.disclosure) - side } else { 0.0 };
+        let natural = text + side * parts as f32 + cx.gap() * parts as f32 + lead;
         Vec2::new(if self.fill { natural.max(cx.room.unwrap_or(0.0)) } else { natural }, title.y)
     }
 
@@ -327,9 +336,10 @@ impl Component for TitleRow<'_> {
         let side = rect.height();
         let mut flow = Flow::new(rect, cx.flow.is_rtl());
         if self.has_lead() {
-            let (lead, rest) = flow.take_start(side);
+            let (lead, rest) = flow.take_start(self.lead_side(side, cx.style.disclosure));
             cx.part(LEAD, lead).sense(Sense::CLICK | Sense::FOCUS).focusable();
-            flow = rest;
+            // A disclosure's glyph sits a gap before the title, as a title's own icon does.
+            flow = if matches!(self.lead, Lead::Disclosure(_)) { rest.take_start(cx.gap()).1 } else { rest };
         }
         // The last part sits at the end edge, so the group reads commands then actions in the order given; stops register
         // in that order.

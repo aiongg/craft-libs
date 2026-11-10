@@ -183,7 +183,8 @@ impl<'a> PageRangeField<'a> {
                     picked = Some(typed.pages.clone());
                 }
                 response = Some(field.response.clone());
-                let button = IconButton::new(craft_ui::controls::disclosure::DisclosureGlyph::dropdown()).label(words.select_pages.clone()).show(ui);
+                let button =
+                    IconButton::new(craft_ui::controls::disclosure::DisclosureGlyph::menu_button()).label(words.select_pages.clone()).show(ui);
                 let menu = Menu::new(words.select_pages.clone()).opened_by(&button, Trigger::Press).pick(ui, &presets);
                 if let Some(pages) = menu.picked {
                     picked = Some(pages);

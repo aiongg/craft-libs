@@ -276,6 +276,13 @@ impl<'a> Draw<'a> {
         self.painter.extend(super::ResetMark::shapes(look, center));
     }
 
+    /// `v` moved to the centre of the physical pixel it lies in: a line one physical pixel wide placed there fills that
+    /// pixel, and on a pixel edge it would split into two paler ones.
+    pub fn pixel_centre(&self, v: f32) -> f32 {
+        let ppp = self.painter.pixels_per_point();
+        ((v * ppp).floor() + 0.5) / ppp
+    }
+
     /// Paints the line of `kind` from `from` to `to`.
     pub fn rule(&self, kind: RuleKind, from: Pos2, to: Pos2) {
         let look = rule_look(self.env.tokens, kind);

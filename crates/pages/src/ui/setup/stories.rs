@@ -26,7 +26,7 @@ fn document_setup(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 #[story(PageLayoutMenus<'static>, covers = [Open], drive = Drive::Never)]
 fn margins_menu(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let setup = data.value("setup", PageSetup::default()).clone();
-    let opener = IconButton::new(craft_ui::controls::disclosure::DisclosureGlyph::dropdown()).label("Margins").show(ui);
+    let opener = IconButton::new(craft_ui::controls::disclosure::DisclosureGlyph::menu_button()).label("Margins").show(ui);
     PageLayoutMenus::new(&setup).opened(Bind::given(true)).margins(ui, &opener);
     StoryOutput::default()
 }

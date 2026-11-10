@@ -19,8 +19,8 @@ const ARM: f32 = 0.1;
 const ARROW_BASE: f32 = 0.55;
 const ARROW_DEPTH: f32 = 0.35;
 /// The tree row triangle's base and depth, as shares of the glyph rect's side.
-const TREE_BASE: f32 = 0.36;
-const TREE_DEPTH: f32 = 0.23;
+const TREE_BASE: f32 = 0.52;
+const TREE_DEPTH: f32 = 0.31;
 
 /// The arrow every component shows for something that opens or unfolds: a chevron that turns from pointing to the
 /// end of the line (closed) to pointing down (open) as `open` goes from 0 to 1. A dropdown's arrow is the open
@@ -35,27 +35,36 @@ pub struct DisclosureGlyph {
     pub filled: bool,
     /// The smaller filled triangle of a tree row (with `filled`).
     pub tree: bool,
+    /// The chevron's line width: a field's or picker's arrow is a fine line, a section's or a button's a firmer one.
+    pub stroke: StrokeWidth,
 }
 
-/// The dropdown arrow.
-static DROPDOWN: DisclosureGlyph = DisclosureGlyph { open: 1.0, filled: false, tree: false };
+/// The arrow of a field or picker.
+static DROPDOWN: DisclosureGlyph = DisclosureGlyph { open: 1.0, filled: false, tree: false, stroke: StrokeWidth::Thin };
+/// The arrow of a button that opens a menu.
+static MENU_BUTTON: DisclosureGlyph = DisclosureGlyph { open: 1.0, filled: false, tree: false, stroke: StrokeWidth::Medium };
 /// The submenu arrow.
-static SUBMENU: DisclosureGlyph = DisclosureGlyph { open: 0.0, filled: true, tree: false };
+static SUBMENU: DisclosureGlyph = DisclosureGlyph { open: 0.0, filled: true, tree: false, stroke: StrokeWidth::Thin };
 
 impl DisclosureGlyph {
     /// A chevron `open` of the way turned.
     pub const fn new(open: f32) -> Self {
-        DisclosureGlyph { open, filled: false, tree: false }
+        DisclosureGlyph { open, filled: false, tree: false, stroke: StrokeWidth::Medium }
     }
 
     /// A filled arrow `open` of the way turned; `tree` picks the smaller triangle of a tree row over a submenu's arrow.
     pub const fn filled(open: f32, tree: bool) -> Self {
-        DisclosureGlyph { open, filled: true, tree }
+        DisclosureGlyph { open, filled: true, tree, stroke: StrokeWidth::Thin }
     }
 
-    /// The icon of the arrow after a dropdown's text: a button that opens a menu, a picker's face, a field with a list.
+    /// The icon of the arrow after the text of a picker's face or a field with a list.
     pub fn dropdown() -> crate::primitives::IconSpec<'static> {
         crate::primitives::IconSpec::glyph(&DROPDOWN)
+    }
+
+    /// The icon of the arrow after the text of a button that opens a menu: the dropdown arrow in the firmer line.
+    pub fn menu_button() -> crate::primitives::IconSpec<'static> {
+        crate::primitives::IconSpec::glyph(&MENU_BUTTON)
     }
 
     /// The icon of the arrow at the end of a menu row that opens a submenu.
@@ -129,7 +138,7 @@ impl Glyph for DisclosureGlyph {
             }
             painter.add(Shape::convex_polygon(points, color, Stroke::NONE));
         } else {
-            let width = StrokeWidth::Thin.points(tokens, painter.pixels_per_point());
+            let width = self.stroke.points(tokens, painter.pixels_per_point());
             painter.add(Shape::line(points, Stroke::new(width, color)));
         }
     }
@@ -208,14 +217,14 @@ impl Component for Disclosure<'_> {
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let open = cx.anim_bool("open", cx.value().copied().unwrap_or(false), spec::OPEN_RISE);
-        let glyph = DisclosureGlyph { open, filled: self.triangle, tree: self.triangle };
-        let rect = Rect::from_center_size(cx.rect.center(), Vec2::splat(cx.style.glyph.side.min(cx.rect.width().min(cx.rect.height()))));
+        let glyph = DisclosureGlyph { open, filled: self.triangle, tree: self.triangle, stroke: StrokeWidth::Medium };
+        let rect = Rect::from_center_size(cx.rect.center(), Vec2::splat(cx.style.glyph.side));
         let points = glyph.path(rect, cx.env.direction());
         let color = cx.resolve(&cx.style.glyph.color);
         if self.triangle {
             ui.draw().fill(&PaintShape::Polygon(points), color);
         } else {
-            ui.draw().stroke(&PaintShape::Path(points), StrokeWidth::Thin, color);
+            ui.draw().stroke(&PaintShape::Path(points), glyph.stroke, color);
         }
     }
 
