@@ -11,7 +11,7 @@ use craft_ui::docking::{DockConfig, DockEvent, DockPanels, DockSizes, HidePanels
 use craft_ui::patterns::dock::{DockArea, DockAreaOutput};
 use craft_ui::style::Variant;
 use craft_ui::testing::layout::in_region;
-use craft_ui::testing::pointer::{moved, press, release};
+use craft_ui::testing::pointer::{moved, press, release, secondary};
 use craft_ui::testing::style::{tokens, with_cx};
 use craft_ui::testing::{Fixture, Target, trial};
 use egui::{Modifiers, Pos2, Rect, Ui, Vec2};
@@ -221,13 +221,7 @@ fn float_runs_the_same_actions_from_the_group_menu_and_the_palette() {
     fixture.idle(2);
     assert_eq!(drained(&outputs), expected, "the palette runs the command's actions");
 
-    let menu = fixture
-        .by_role(Role::BUTTON)
-        .into_iter()
-        .filter(|button| name(fixture.tree(), button.node) == Some("Panel Menu") && button.rect.max.x <= COLUMN_WIDTH)
-        .min_by(|a, b| a.rect.top().total_cmp(&b.rect.top()))
-        .expect("the side group has a menu button");
-    fixture.click(&menu);
+    open_side_group_menu(&mut fixture);
     fixture.idle(MENU_FRAMES);
     let float = fixture.by_label("Float").expect("the group menu lists Float");
     drained(&outputs);
@@ -287,17 +281,28 @@ fn applying(revoke: bool) -> (Fixture, Rc<RefCell<Workspace<usize>>>, Outputs) {
     (fixture, held, outputs)
 }
 
-/// Closes the side panel from its group menu.
-fn close_side_from_menu(fixture: &mut Fixture) {
-    fixture.room(AREA).settle();
-    let menu = fixture
-        .by_role(Role::BUTTON)
+/// Opens the menu of the side group with a context request on its first tab: a group with no menu rows of its own
+/// has no menu button.
+fn open_side_group_menu(fixture: &mut Fixture) {
+    let tab = fixture
+        .by_role(Role::TAB)
         .into_iter()
-        .filter(|button| name(fixture.tree(), button.node) == Some("Panel Menu") && button.rect.max.x <= COLUMN_WIDTH)
+        .filter(|tab| tab.rect.max.x <= COLUMN_WIDTH)
         .min_by(|a, b| a.rect.top().total_cmp(&b.rect.top()))
-        .expect("the side group has a menu button");
-    fixture.click(&menu);
+        .expect("the side group has a tab");
+    let at = tab.center();
+    fixture.frame(vec![moved(at)]);
+    fixture.frame(vec![secondary(at, true)]);
+    fixture.frame(vec![secondary(at, false)]);
+}
+
+/// Closes the side panel from its group menu; what opening the menu reported (the tab it was asked on takes the
+/// active place) is not counted.
+fn close_side_from_menu(fixture: &mut Fixture, outputs: &Outputs) {
+    fixture.room(AREA).settle();
+    open_side_group_menu(fixture);
     fixture.idle(MENU_FRAMES);
+    drained(outputs);
     let close = fixture.by_label("Close").expect("the group menu lists Close");
     fixture.click(&close);
     fixture.idle(MENU_FRAMES);
@@ -306,7 +311,7 @@ fn close_side_from_menu(fixture: &mut Fixture) {
 #[trial]
 fn closing_a_panel_from_its_group_menu_closes_it_in_the_bound_workspace_and_is_reported() {
     let (mut fixture, held, outputs) = applying(false);
-    close_side_from_menu(&mut fixture);
+    close_side_from_menu(&mut fixture, &outputs);
     assert!(!held.borrow().layout.panels().contains(&&SIDE), "the panel left the layout");
     assert!(drained(&outputs).contains(&Action::close(SIDE)), "the output reports the close");
 }
@@ -314,9 +319,10 @@ fn closing_a_panel_from_its_group_menu_closes_it_in_the_bound_workspace_and_is_r
 #[trial]
 fn an_action_the_workspace_refuses_changes_nothing_and_is_not_reported() {
     let (mut fixture, held, outputs) = applying(true);
-    close_side_from_menu(&mut fixture);
+    close_side_from_menu(&mut fixture, &outputs);
     assert_eq!(*held.borrow(), docked(), "the workspace is as it was");
-    assert!(drained(&outputs).is_empty(), "nothing is reported as applied");
+    let reported = drained(&outputs);
+    assert!(reported.is_empty(), "nothing is reported as applied: {reported:?}");
 }
 
 /// Panels named after their area, so a click can tell the areas apart.

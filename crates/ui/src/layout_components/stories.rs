@@ -1,7 +1,7 @@
 //! Stories of the layout components `Row`, `Stack` and `Grid`.
 
 use super::{Grid, Row, Stack};
-use crate::contract::{Show as _, ShowContainer as _};
+use crate::contract::{Gap, Pad, Show as _, ShowContainer as _};
 use crate::testing::layout::Block;
 use crate::testing::{StoryData, StoryOutput, story};
 use craft_behavior::ColumnWidth;
@@ -13,9 +13,19 @@ fn cell(ui: &Ui) -> Vec2 {
     Vec2::new(height * 2.0, height)
 }
 
+/// The gap and padding tier the Row and Stack stories edit.
+fn spacing(data: &mut StoryData) -> (Gap, Pad) {
+    let gap = *data.choice("gap", Gap::Row, &[("Row", Gap::Row), ("Tight", Gap::Tight), ("Section", Gap::Section)]);
+    let pad = *data.choice("pad", Pad::None, &[("None", Pad::None), ("Control", Pad::Control), ("Regular", Pad::Regular), ("Roomy", Pad::Roomy)]);
+    (gap, pad)
+}
+
 #[story(Row, covers = [Default])]
-fn row(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+fn row(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let (gap, pad) = spacing(data);
     Row::new()
+        .gap(gap)
+        .pad(pad)
         .show(ui, |ui, _| {
             Block::new(cell(ui)).show(ui);
             Block::new(cell(ui)).show(ui);
@@ -24,8 +34,11 @@ fn row(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 }
 
 #[story(Stack<'static>, covers = [Default])]
-fn stack(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+fn stack(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let (gap, pad) = spacing(data);
     Stack::new()
+        .gap(gap)
+        .pad(pad)
         .show(ui, |ui, _| {
             Block::new(cell(ui)).show(ui);
             Block::new(cell(ui)).show(ui);

@@ -3,6 +3,7 @@
 use super::{LastUsed, RailTool, ToolRail, ToolSlot};
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
+use std::num::NonZeroU8;
 
 /// The tools of the stories.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, craft_ui_macros::CommandSet)]
@@ -40,9 +41,17 @@ fn slots() -> Vec<ToolSlot<u8>> {
 }
 
 #[story(ToolRail<'static, u8>, covers = [Default], drive = Drive::Never)]
-fn tool_rail(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+fn tool_rail(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let columns = *data.ranged("columns", 1_u8, 1.0..=2.0);
+    let hidden =
+        data.choice("hidden", Vec::<u8>::new(), &[("None", Vec::new()), ("Pencil", vec![2]), ("Stamp", vec![4]), ("Eraser", vec![3])]).clone();
     let slots = slots();
     let last = LastUsed::default();
-    let out = ToolRail::new("Tools", &slots, &BRUSH, &last).column_toggle("Toolbar").edit_toolbar("Edit Toolbar").show_rail(ui, |_, _| {});
+    let out = ToolRail::new("Tools", &slots, &BRUSH, &last)
+        .columns(NonZeroU8::new(columns.max(1)).unwrap_or(NonZeroU8::MIN))
+        .hidden(&hidden)
+        .column_toggle("Toolbar")
+        .edit_toolbar("Edit Toolbar")
+        .show_rail(ui, |_, _| {});
     out.into()
 }

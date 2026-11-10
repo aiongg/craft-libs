@@ -25,11 +25,13 @@ fn sample_rows() -> Vec<PresetRow<u32>> {
 #[story(PresetBrowser<'static, u32>, covers = [], drive = Drive::Never)]
 fn preset_browser(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let rows = sample_rows();
+    let slider = *data.value("slider", true);
+    let new_group = *data.value("new_group", true);
     PresetBrowser::new("Swatches", Bind::bound(data.value("state", PresetState::<u32>::new())), &rows)
         .selected(11)
         .toolbar(true)
         .reorder(PresetReorder::items_and_groups().nest(1))
-        .footer(PresetFooterOptions::new())
+        .footer(PresetFooterOptions::new().slider(slider).new_group(new_group))
         .show(ui)
         .into()
 }
