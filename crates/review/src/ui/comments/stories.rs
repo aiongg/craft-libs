@@ -4,7 +4,9 @@ use craft_ui::contract::ShowCollection as _;
 use craft_ui::testing::{Drive, StoryData, StoryOutput, show_as_only_item, story};
 use egui::Ui;
 
-use super::{CardKey, CommentList, CommentRow, CommentsPanel, CommentsPanelState, RowEntry, Rows};
+use super::list::{CardKey, CommentList, RowEntry, Rows};
+use super::row::CommentRow;
+use super::{CommentsPanel, CommentsPanelState};
 use crate::annotate::AnnotationKind;
 use crate::comments::{CommentAnchor, CommentMessage, CommentThread, ReviewStatus, ThreadId};
 
