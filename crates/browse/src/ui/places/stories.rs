@@ -5,8 +5,9 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use craft_host::{ManualJobs, Wake};
-use craft_ui::contract::{Entry, Show as _};
+use craft_ui::contract::{Entry, Show as _, ShowContainer as _};
 use craft_ui::display::{Shade, Text};
+use craft_ui::layout_components::Stack;
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
 
@@ -124,24 +125,32 @@ fn show_places(ui: &mut Ui, data: &mut StoryData, setup: Setup) -> StoryOutput {
         Text::new("Photo 7").show(ui);
         Text::new("Drag this photo onto a folder under Photos").shade(Shade::Muted).show(ui);
     });
-    if let Some(current) = current.as_deref() {
+    let mut out = None;
+    {
+        let Demo { cache, .. } = &mut *demo;
+        Stack::new().room_height(380.0).show(ui, |ui, _| {
+            let mut tree =
+                PlacesTree::new("Places", &places, &mut *cache).row_menu(|_| vec![Entry::new(String::from("folder.rename"), "Rename Folder…")]);
+            if let Some(current) = current.as_deref() {
+                tree = tree.current(current);
+            }
+            let shown = tree.show(ui);
+            let response = shown.response.clone();
+            out = Some(shown);
+            response
+        });
+    }
+    let events = out.as_ref().map(|out| out.events.clone()).unwrap_or_default();
+    if let Some(current) = demo.current.as_deref() {
         Text::new(format!("Browsing: {}", current.display())).shade(Shade::Muted).show(ui);
     }
-    let out = {
-        let Demo { cache, .. } = &mut *demo;
-        let mut tree = PlacesTree::new("Places", &places, cache).row_menu(|_| vec![Entry::new(String::from("folder.rename"), "Rename Folder…")]);
-        if let Some(current) = current.as_deref() {
-            tree = tree.current(current);
-        }
-        tree.show(ui)
-    };
-    for event in &out.events {
+    for event in &events {
         demo.settings.apply(event);
         if let PlacesEvent::Open(folder) = event {
             demo.current = Some(folder.clone());
         }
     }
-    out.into()
+    out.map(StoryOutput::from).unwrap_or_default()
 }
 
 #[story(PlacesTree<'static>, covers = [Default, Many], drive = Drive::Never)]

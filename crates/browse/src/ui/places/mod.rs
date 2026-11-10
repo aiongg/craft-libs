@@ -345,7 +345,7 @@ impl PlacesTree<'_> {
         let favorites_group = places.groups.iter().any(|group| group.kind == PlaceGroupKind::Favorites);
         let mut events: Vec<PlacesEvent> = Vec::new();
 
-        let shown = Stack::new().fill().show(ui, |ui, cx| {
+        let mut shown = Stack::new().fill().show(ui, |ui, cx| {
             let mut memory = std::mem::take(cx.keep::<Memory>());
 
             if memory.active == Some(false) && around.window_active {
@@ -442,9 +442,7 @@ impl PlacesTree<'_> {
             out.response
         });
         // A pass that did not run the body asked for no folder: dropping what was not asked would cancel every listing.
-        if shown.inner.is_some() {
-            cache.finish_pass();
-        }
+        shown.settle(|_, _| cache.finish_pass());
         let response = shown.inner.unwrap_or(shown.output);
         PlacesOutput { response, events }
     }
