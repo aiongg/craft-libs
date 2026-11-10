@@ -428,6 +428,8 @@ pub enum Gap {
     Row,
     /// `space.gap.tight`.
     Tight,
+    /// `space.gap.stack`: between a caption and its control, and between the items of a bar.
+    Stack,
     /// `space.gap.section`.
     Section,
 }

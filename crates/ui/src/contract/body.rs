@@ -465,6 +465,7 @@ fn gap_of(tokens: &UiTokens, gap: Gap) -> f32 {
     let gaps = &tokens.tokens().space.gap;
     match gap {
         Gap::Tight => gaps.tight,
+        Gap::Stack => gaps.stack,
         Gap::Section => gaps.section,
         _ => gaps.row,
     }

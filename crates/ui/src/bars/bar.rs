@@ -100,12 +100,13 @@ impl<'a> Bar<'a> {
     pub fn new(label: impl Into<Label>, kind: BarKind) -> Self {
         let gap = match kind {
             BarKind::Tool => Gap::Tight,
-            BarKind::Options => Gap::Row,
+            BarKind::Options => Gap::Stack,
             BarKind::Status => Gap::Section,
         };
+        let pad = if kind == BarKind::Options { Pad::Regular } else { Pad::Control };
         let mut props = ContainerProps::new()
             .surface(SurfaceKind::Chrome)
-            .pad(Pad::Control)
+            .pad(pad)
             .sizing(Sizing::FillWidth)
             .body_gap(gap)
             .child_size(ControlSize::Sm)

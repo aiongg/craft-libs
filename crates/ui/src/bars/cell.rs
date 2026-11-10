@@ -1,6 +1,6 @@
 //! `BarCell`: a control in a bar with its caption before it.
 
-use crate::contract::{Show as _, ShowContainer as _};
+use crate::contract::{Gap, Show as _, ShowContainer as _};
 use crate::display::{Shade, Text};
 use crate::layout_components::Row;
 use crate::runtime::env::Label;
@@ -24,7 +24,7 @@ impl BarCell {
     pub fn control<R>(self, ui: &mut Ui, control: impl FnOnce(&mut Ui, Label) -> R) -> R {
         let mut control = Some(control);
         let mut result = None;
-        Row::new().show(ui, |ui, _| {
+        Row::new().gap(Gap::Stack).show(ui, |ui, _| {
             Text::new(self.caption.clone()).shade(Shade::Muted).show(ui);
             if let Some(control) = control.take() {
                 result = Some(control(ui, self.caption.clone()));
