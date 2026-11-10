@@ -5,7 +5,8 @@ use craft_ui::contract::Show as _;
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::{Ui, pos2};
 
-use super::{CommentComposer, CommentPin, CommentPins, Face, PinBubble, ThreadPopover};
+use super::pins::{Face, PinBubble};
+use super::{CommentComposer, CommentPin, CommentPins, ThreadPopover};
 use crate::comments::{CommentAnchor, CommentMessage, CommentThread, ReviewStatus, ThreadId};
 
 const NOW: i64 = 90_000;
