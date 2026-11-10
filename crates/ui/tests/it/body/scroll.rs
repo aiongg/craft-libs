@@ -187,20 +187,28 @@ fn a_content_sized_scrolling_stack_is_as_tall_as_its_room_and_scrolls() {
 }
 
 /// Children of a scrolling body that run only in view (`Lazy`): one far below the view does not run and keeps the
-/// body's content size; scrolled into view, it runs again. Guards the out-of-view rule and its one store.
+/// body's content size; scrolled into view, it runs again. A thumb drag that jumps several views shows children that
+/// ran in that frame. Guards the out-of-view rule, its one store, and that the decision sees the painted offset.
 #[trial]
 fn an_out_of_view_child_does_not_run_until_it_scrolls_in() {
     const CHILDREN: usize = 30;
     let runs: Vec<Cell<usize>> = (0..CHILDREN).map(|_| Cell::new(0)).collect();
     let seen = Seen::default();
+    // The rects of the children the last pass ran for real.
+    let shown = RefCell::new(Vec::new());
     let mut show = |ui: &mut Ui| {
+        shown.borrow_mut().clear();
         in_region(ui, Rect::from_min_size(ORIGIN, VIEW), |ui| {
             Slab::new(ContainerProps::new().scroll(Scroll::vertical())).id_salt("panel").show(ui, |ui, cx| {
                 seen.body.set(Some(cx.rect));
+                seen.first_top.set(ui.next_widget_position().y);
                 for (at, count) in runs.iter().enumerate() {
                     craft_ui::contract::Lazy::new(at).show(ui, |ui| {
                         count.set(count.get() + 1);
-                        Block::new(Vec2::new(LINE.x, HUNDRED)).show(ui);
+                        let rect = Block::new(Vec2::new(LINE.x, HUNDRED)).show(ui).rect;
+                        if !ui.is_sizing_pass() {
+                            shown.borrow_mut().push(rect);
+                        }
                     });
                 }
                 seen.content.set(ui.min_rect().height());
@@ -225,4 +233,29 @@ fn an_out_of_view_child_does_not_run_until_it_scrolls_in() {
     assert!(runs[last].get() > 0, "scrolled to the end, the last child runs");
     assert_eq!(runs[0].get(), 0, "and the first, far above the view, does not");
     assert!((seen.content.get() - full).abs() <= SAME, "the content keeps its size at the end");
+
+    // Back at the top, a thumb drag of 60 points moves the content by several views in one frame.
+    for _ in 0..CHILDREN {
+        wheel_at(&mut frames, view.center(), BIG_STEP, &mut show);
+    }
+    let top0 = seen.first_top.get();
+    let thumb = Pos2::new(view.max.x - 2.0, view.min.y + 4.0);
+    frames.frame(vec![pointer::moved(thumb)], &mut show);
+    frames.frame(vec![pointer::press(thumb)], &mut show);
+    frames.frame(vec![pointer::moved(thumb + Vec2::new(0.0, 4.0))], &mut show);
+    frames.frame(vec![pointer::moved(thumb + Vec2::new(0.0, 8.0))], &mut show);
+    let before = top0 - seen.first_top.get();
+    frames.frame(vec![pointer::moved(thumb + Vec2::new(0.0, 60.0))], &mut show);
+    let jumped = top0 - seen.first_top.get();
+    assert!(jumped - before > 3.0 * view.height(), "the drag jumped several views: {before} -> {jumped}");
+    let mut spans: Vec<(f32, f32)> = shown.borrow().iter().map(|rect| (rect.min.y, rect.max.y)).collect();
+    spans.sort_by(|a, b| a.0.total_cmp(&b.0));
+    let mut covered = view.min.y;
+    for (top, bottom) in spans {
+        if top <= covered + GAPS {
+            covered = covered.max(bottom);
+        }
+    }
+    assert!(covered >= view.max.y, "the children in view after the jump ran in that frame: covered to {covered}, view {view:?}");
+    frames.frame(vec![pointer::release(thumb + Vec2::new(0.0, 60.0))], &mut show);
 }
