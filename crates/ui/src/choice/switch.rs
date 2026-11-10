@@ -68,7 +68,7 @@ impl Component for Switch<'_> {
         let edge = Stateful::new(cx.color(colors.line.control_edge)).on(on).when(Flags::INVALID, cx.tone(Tone::Bad));
         let thumb = Stateful::new(knob).on(States::new(on_knob, on_knob, on_knob, knob));
         SwitchStyle {
-            metrics: Metrics::new().min_size(Vec2::splat(control.height)),
+            metrics: Metrics::new().min_size(Vec2::new(0.0, control.height)),
             focus: cx.focus_look(),
             track,
             edge,

@@ -185,7 +185,7 @@ impl<T: Value + 'static> Component for Radio<T> {
         let (rest, accent, bad) = (cx.ink(Ink::OnPanel), cx.tone(Tone::Accent), cx.tone(Tone::Bad));
         let disabled = cx.color(cx.tokens.color.text.disabled);
         RadioStyle {
-            metrics: control.metrics(),
+            metrics: Metrics::new().min_size(Vec2::new(0.0, control.height)),
             focus: cx.focus_look(),
             icon: control.icon,
             ring: Stateful::new(rest).off(States::new(rest, accent, accent, disabled)).when(Flags::INVALID, bad),

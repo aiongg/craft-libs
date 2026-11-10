@@ -61,7 +61,7 @@ impl Component for Checkbox<'_> {
         let fill = Stateful::new(well).on(solid).when(Flags::INVALID, well);
         let edge = Stateful::new(cx.color(colors.line.control_edge)).on(solid).when(Flags::INVALID, cx.tone(Tone::Bad));
         CheckboxStyle {
-            metrics: Metrics::new().min_size(Vec2::splat(control.height)),
+            metrics: Metrics::new().min_size(Vec2::new(0.0, control.height)),
             focus: cx.focus_look(),
             fill,
             edge,

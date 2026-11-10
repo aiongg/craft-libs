@@ -12,7 +12,6 @@ use crate::runtime::access::{
 use crate::runtime::egui::{alloc, child};
 use crate::runtime::env::{Env, Label};
 use crate::runtime::keys;
-use crate::runtime::layout_memory;
 use crate::runtime::memory::sub;
 use crate::style::{ComponentStyle, ResetMarkLook, StyleColor, StyleCx};
 use craft_behavior::{ColumnWidth, Flow, LabelColumn, Metrics, PartKey, PressState, Sense, ValueDrag};
@@ -529,19 +528,16 @@ pub(crate) struct Placed {
     pub control: Rect,
 }
 
-/// The `After` placement: the control's cell first, then the gap, then the label. As in `LabelColumn::place`, the
-/// one with the lower baseline moves down so the two baselines line up, using the baseline `record_control_baseline`
-/// stored last pass.
-fn place_after(ctx: &egui::Context, scope: Id, flow: Flow, control_min: f32, gap: f32, label: Vec2, label_baseline: f32) -> Placed {
+/// The `After` placement: the control's cell first, then the gap, then the label, the control and the label
+/// centred on each other across the row (a box, circle or track has no text baseline to align to).
+fn place_after(flow: Flow, control_min: f32, gap: f32, label: Vec2) -> Placed {
     let rtl = flow.is_rtl();
     let (control_cell, rest) = flow.take_start(control_min.min(flow.rect().width()));
     let (_, rest) = rest.take_start(gap);
-    let control_baseline = layout_memory::read(ctx, sub(scope, "baseline")).map(|size| size.y);
-    let drop = control_baseline.map_or(0.0, |control| control - label_baseline);
-    let (label_drop, control_drop) = (drop.max(0.0), (-drop).max(0.0));
-    let label_size = Vec2::new(label.x.min(rest.rect().width()), label.y);
-    let label = Flow::new(rest.rect(), rtl).align(label_size, Align::Min, Align::Min).translate(Vec2::new(0.0, label_drop));
-    let control = Rect::from_min_max(egui::pos2(control_cell.left(), control_cell.top() + control_drop), control_cell.max);
+    let height = control_cell.height().max(label.y);
+    let label_size = Vec2::new(label.x.min(rest.rect().width()), height);
+    let label = Flow::new(rest.rect(), rtl).align(label_size, Align::Min, Align::Min);
+    let control = control_cell.translate(Vec2::new(0.0, (height - control_cell.height()) / 2.0));
     Placed { label, control }
 }
 
@@ -611,7 +607,7 @@ fn decide(ctx: &egui::Context, env: &Env, input: &LabelIn<'_>, kids: &Ui, leaf: 
     };
 
     if input.side.layout == FieldLayout::After {
-        place_after(ctx, input.scope, flow, input.control_min, gap, natural, baseline)
+        place_after(flow, input.control_min, gap, natural)
     } else {
         let placed = crate::layout::place_label(
             kids,
@@ -760,16 +756,18 @@ pub(crate) fn flow_leaf<C: Show>(
 }
 
 /// Shows `child` in the flow of `ui`. A component whose `LABELLED_AFTER` is set and that carries a label shows it
-/// through the label step, after the control, unless a label scope already names the control (a `Field`, `labelled`):
+/// through the label step, after the control, unless a label scope already names the control (a `Field`, `labelled`;
+/// a member of a group, a radio, is named by the group and keeps its own text):
 /// that scope's label is the visible text, so the control's own is not shown twice. Every other leaf shows as it is.
 pub(crate) fn show_leaf_in_flow<C: Show>(mut child: C, ui: &mut Ui) -> C::Output {
-    let shows = C::LABELLED_AFTER && child.shows_label() && child.common(super::Internal::new()).label != Label::Empty && !scope::in_label(ui.ctx());
+    let env = Env::of(ui);
+    let named_by_scope = env.arena.is_none() && scope::in_label(ui.ctx());
+    let shows = C::LABELLED_AFTER && child.shows_label() && child.common(super::Internal::new()).label != Label::Empty && !named_by_scope;
     if !shows {
         return super::run::show_leaf(child, ui, super::run::ShowAt::Flow, None);
     }
     let label = std::mem::take(&mut child.common_mut(super::Internal::new()).label);
     let id = super::steps::id::<C>(ui, &child.common(super::Internal::new()).id, false, true);
-    let env = Env::of(ui);
     let side = SideLabel::new().layout(FieldLayout::After);
     flow_leaf(ui, id, id, (env.enabled, env.size), label, side, child)
 }
