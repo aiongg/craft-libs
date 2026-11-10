@@ -11,7 +11,7 @@ use crate::runtime::access::PopupKind;
 use crate::runtime::commands::{CommandRef, FireSource, ResolvedCommand};
 use crate::runtime::env::{AppValues, EnvValue, Label};
 use crate::runtime::frame;
-use crate::style::{ComponentStyle, Flags, FocusLook, IconLook, StyleCx, SurfaceLook, TextLook, TypeRole, UiTokens};
+use crate::style::{ComponentStyle, Flags, FocusLook, IconLook, StyleCx, SurfaceLook, TextLook, TypeRole};
 use craft_behavior::{ColumnKey, Flow, IconId, Insets, Metrics, NavMove, PartKey, Sense};
 use craft_keymap::mnemonic;
 use craft_theme::{Rgba, States};
@@ -311,6 +311,14 @@ impl MenuLevel {
         self.with(|state| state.active == Some(id))
     }
 
+    /// Whether the user is in the open submenu of row `id`: the pointer is over it, or the keyboard has left `id` for it.
+    fn descended(&self, id: Id, focused: bool) -> bool {
+        self.with(|state| {
+            let Some(OpenSubmenu { row, rect }) = &state.open_submenu else { return false };
+            *row == id && (rect.zip(state.pointer).is_some_and(|(rect, pointer)| rect.contains(pointer)) || (state.keyboard && !focused))
+        })
+    }
+
     /// Whether the pointer heads for the open submenu, which is not the one of row `id`.
     fn aimed(&self, id: Id) -> bool {
         self.with(|state| {
@@ -587,8 +595,13 @@ impl Component for MenuItem<'_> {
         let tokens = cx.tokens;
         let text = &tokens.color.text;
         let c = |rgba: Rgba| cx.color(rgba);
-        let surface = SurfaceLook::new(cx.row_surface()).radius(UiTokens::corner(tokens.shape.radius.sm));
-        let ink = |base: Rgba| cx.row_ink(base).off(States::new(c(base), c(base), c(base), c(text.disabled)));
+        // A checked row shows its mark, not a selection fill.
+        let clear = c(Rgba::TRANSPARENT);
+        let mut surface = cx.command_row_look();
+        surface.fill = surface.fill.on(States::new(clear, clear, clear, clear));
+        let ink = |base: Rgba| {
+            cx.command_row_ink(base).on(States::new(c(base), c(base), c(base), c(base))).off(States::new(c(base), c(base), c(base), c(text.disabled)))
+        };
         let control = cx.control();
         // A row's content sits `space.pad.regular` in from the popup's own padding, so a label starts clear of the edge.
         let mut metrics = control.metrics();
@@ -684,10 +697,12 @@ impl Component for MenuItem<'_> {
                 (0.0, gained)
             }
         };
-        if enabled && ((hovered && moving) || focus_gained) && level.activate_row(cx.id) {
+        // Focus lands on a row of a menu that the pointer opened without making it active: only the keyboard does.
+        if enabled && ((hovered && moving) || (focus_gained && level.keyboard())) && level.activate_row(cx.id) {
             frame::request_repaint(&ctx);
         }
-        self.active = level.is_active(cx.id);
+        // A disabled row is never active.
+        self.active = enabled && level.is_active(cx.id);
         if hovered && waited < DWELL {
             frame::request_repaint(&ctx);
         }
@@ -700,6 +715,10 @@ impl Component for MenuItem<'_> {
                 frame::request_repaint(&ctx);
             }
             self.open = level.submenu_open(cx.id);
+            // The active row is in the open submenu: this row keeps only the open-submenu tint.
+            if self.open && level.descended(cx.id, focused) {
+                self.active = false;
+            }
             return;
         }
         if hovered && waited >= DWELL && level.clear_submenu() {
@@ -729,6 +748,8 @@ impl Component for MenuItem<'_> {
         let mut flags = Flags::empty();
         flags.set(Flags::CHECKED, self.check == Some(true) || self.radio_mark == Some(true) || self.entry == Some(true));
         flags.set(Flags::LEAD, self.active);
+        // The row whose submenu is open keeps the hover tint while another row is active.
+        flags.set(Flags::EMPHASIZED, self.open && !self.active);
         flags
     }
 
