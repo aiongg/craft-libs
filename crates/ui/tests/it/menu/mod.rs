@@ -180,9 +180,9 @@ fn row_filled(fixture: &Fixture, label: &str) -> bool {
         .any(|(at, shape)| overshoot.get(at).is_none_or(|stroke| *stroke == 0.0) && shape.contains_rect(row) && shape.height() < row.height() * 1.5)
 }
 
-/// A menu opened by the pointer paints no active row; the keys `keys` then light the rows the result marks, with a
-/// disabled row at each end.
-fn keys_after_a_pointer_open(keys: &[egui::Key]) -> [bool; 5] {
+/// A menu opened by the pointer paints no active row; the pointer then rests on `hover`, if any, and the keys `keys`
+/// light the rows the result marks, with a disabled row at each end.
+fn keys_after_a_pointer_open(hover: Option<&str>, keys: &[egui::Key]) -> [bool; 5] {
     const LABELS: [&str; 5] = ["Locked Top", "Open", "Save", "Close", "Locked Bottom"];
     let mut fixture = Fixture::new(|ui| {
         let opener = Button::new("File").show(ui);
@@ -198,6 +198,9 @@ fn keys_after_a_pointer_open(keys: &[egui::Key]) -> [bool; 5] {
     fixture.idle(4);
     assert!(menu_shown(&fixture), "a press of the opener opens the menu");
     assert_eq!(LABELS.map(|label| row_filled(&fixture, label)), [false; 5], "no row is active at rest");
+    if let Some(row) = hover {
+        rest_on(&mut fixture, row);
+    }
     for key in keys {
         fixture.key(*key, egui::Modifiers::NONE);
         fixture.idle(4);
@@ -208,22 +211,29 @@ fn keys_after_a_pointer_open(keys: &[egui::Key]) -> [bool; 5] {
 #[trial]
 fn the_first_down_or_home_of_a_pointer_opened_menu_activates_the_first_enabled_row() {
     for key in [egui::Key::ArrowDown, egui::Key::Home] {
-        assert_eq!(keys_after_a_pointer_open(&[key]), [false, true, false, false, false], "{key:?}");
+        assert_eq!(keys_after_a_pointer_open(None, &[key]), [false, true, false, false, false], "{key:?}");
     }
 }
 
 #[trial]
 fn the_first_up_or_end_of_a_pointer_opened_menu_activates_the_last_enabled_row() {
     for key in [egui::Key::ArrowUp, egui::Key::End] {
-        assert_eq!(keys_after_a_pointer_open(&[key]), [false, false, false, true, false], "{key:?}");
+        assert_eq!(keys_after_a_pointer_open(None, &[key]), [false, false, false, true, false], "{key:?}");
     }
+}
+
+#[trial]
+fn the_first_arrow_after_the_pointer_lit_a_row_moves_from_that_row() {
+    use egui::Key::{ArrowDown, ArrowUp};
+    assert_eq!(keys_after_a_pointer_open(Some("Save"), &[ArrowDown]), [false, false, false, true, false], "Down from Save");
+    assert_eq!(keys_after_a_pointer_open(Some("Save"), &[ArrowUp]), [false, true, false, false, false], "Up from Save");
 }
 
 #[trial]
 fn arrows_wrap_at_the_ends_of_a_menu() {
     use egui::Key::{ArrowDown, ArrowUp};
-    assert_eq!(keys_after_a_pointer_open(&[ArrowDown, ArrowUp]), [false, false, false, true, false], "Up at the first row");
-    assert_eq!(keys_after_a_pointer_open(&[ArrowUp, ArrowDown]), [false, true, false, false, false], "Down at the last row");
+    assert_eq!(keys_after_a_pointer_open(None, &[ArrowDown, ArrowUp]), [false, false, false, true, false], "Up at the first row");
+    assert_eq!(keys_after_a_pointer_open(None, &[ArrowUp, ArrowDown]), [false, true, false, false, false], "Down at the last row");
 }
 
 /// The row of a submenu that is open while the pointer is inside it keeps a fill, as does the row under the pointer.

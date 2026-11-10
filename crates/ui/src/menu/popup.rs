@@ -286,11 +286,16 @@ impl Component for Menu<'_> {
 
     /// A row of a submenu level that took Back closes the menu. A typed letter runs the row it names; the container
     /// reads it, so the letter works with no row focused. A level the pointer opened with no active row has no lead:
-    /// the first key enters it at an end.
+    /// the first key enters it at an end. The active row is the lead, so the first key after the pointer lit a row
+    /// moves from that row; a row lit in this pass leads from the next, so only a key in the same frame as the pointer
+    /// move that lit it starts from the row lit before.
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         let level = MenuLevel::of(cx.memory::<LevelMemory>());
         let keyboard = crate::runtime::focus::keyboard_in_menu(&cx.core.ctx);
         self.props.roving = self.props.roving.map(|roving| roving.no_lead(!keyboard && !level.has_active()));
+        if let Some(row) = level.active() {
+            cx.roving_lead(row);
+        }
         if level.take_close() {
             match self.opener {
                 Some(opener) if self.open.is_none() => Popup::close(opener, cx),

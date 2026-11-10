@@ -144,6 +144,8 @@ pub struct CxCore<'a> {
     pub(crate) root_sense: Sense,
     /// The member of the container's roving group Tab arrives at, set by the group's pick.
     pub(crate) roving_arrival: Option<Id>,
+    /// The member of the container's roving group that moves start from, set by `Cx::roving_lead`.
+    pub(crate) roving_lead: Option<Id>,
     /// The collection's selection (a `Selection<K>`) and lead as the item step holds them, for `Cx::collection_selection`.
     pub(crate) collection_selection: Option<Box<dyn std::any::Any>>,
     /// The events and visible range the item step left for `collection_response`.
@@ -229,6 +231,13 @@ impl<C: Component> Cx<'_, C> {
     /// first member when none is named.
     pub fn roving_arrival(&mut self, member: Id) {
         self.core.roving_arrival = Some(member);
+    }
+
+    /// Names the member of this container's roving group that the next move starts from, in place of the focused one:
+    /// a menu's row that the pointer lit. The group registers after `update`, so a member named from the body's state
+    /// as `update` reads it takes effect from the next pass.
+    pub(crate) fn roving_lead(&mut self, member: Id) {
+        self.core.roving_lead = Some(member);
     }
 
     /// Moves focus to one of this component's focusable parts, in this pass: the rest of the pass reads the new

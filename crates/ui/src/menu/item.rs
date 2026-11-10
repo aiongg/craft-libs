@@ -307,6 +307,10 @@ impl MenuLevel {
         })
     }
 
+    pub(crate) fn active(&self) -> Option<Id> {
+        self.with(|state| state.active)
+    }
+
     pub(crate) fn has_active(&self) -> bool {
         self.with(|state| state.active.is_some())
     }

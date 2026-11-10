@@ -328,6 +328,7 @@ fn blank_core<'a>(
         reset_part: None,
         root_sense: Sense::empty(),
         roving_arrival: None,
+        roving_lead: None,
         collection_events: None,
         visible_rows: 0..0,
         gestures: Default::default(),
@@ -751,6 +752,10 @@ fn run_in_host<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Opti
     // The body's group registers after `update`, which may change its rules from what the component knows now.
     if let Some(roving) = p.hooks.roving(comp) {
         let group = focus::Group::new(steps::body_group(id), roving).rtl(rtl);
+        let group = match cx.core.roving_lead {
+            Some(lead) => group.lead((lead, None)),
+            None => group,
+        };
         focus::register_group(
             &ctx,
             match cx.core.roving_arrival {

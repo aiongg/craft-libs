@@ -103,6 +103,8 @@ pub struct Group {
     pub roving: Roving,
     /// The member Tab arrives at, else the first.
     pub selected: Option<StopKey>,
+    /// The member moves start from, in place of the focused one.
+    pub lead: Option<StopKey>,
     /// The group is a collection row's children: Tab leaves the collection and Forward enters the row.
     pub row: bool,
     /// The collection a row group belongs to: Escape, Up and Down and Back from the first child return focus to it.
@@ -114,7 +116,7 @@ pub struct Group {
 impl Group {
     /// A group of `roving` rules.
     pub fn new(id: Id, roving: Roving) -> Group {
-        Group { id, roving, selected: None, row: false, owner: None, rtl: false }
+        Group { id, roving, selected: None, lead: None, row: false, owner: None, rtl: false }
     }
 
     /// Reads horizontal arrows in the group's direction.
@@ -126,6 +128,12 @@ impl Group {
     /// The member Tab arrives at: a stop key, so a part of a component can be the arrival.
     pub fn selected(mut self, member: StopKey) -> Self {
         self.selected = Some(member);
+        self
+    }
+
+    /// The member moves start from, in place of the focused one.
+    pub fn lead(mut self, member: StopKey) -> Self {
+        self.lead = Some(member);
         self
     }
 

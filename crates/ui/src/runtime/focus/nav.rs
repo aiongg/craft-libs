@@ -261,7 +261,8 @@ impl State {
             return None;
         }
         let members: Vec<StopRec> = self.last_stops.iter().filter(|rec| rec.stop.group == Some(group.id)).cloned().collect();
-        let at = members.iter().position(|rec| rec.stop.key() == from);
+        let lead = group.lead.unwrap_or(from);
+        let at = members.iter().position(|rec| rec.stop.key() == lead);
         if group.row && mv == NavMove::Back && at == Some(0) {
             return Some(self.row_owner(&group).map(|rec| self.focus_stop(rec)).unwrap_or_default());
         }
