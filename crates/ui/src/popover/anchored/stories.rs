@@ -45,7 +45,9 @@ fn popover_with(ui: &mut Ui, data: &mut StoryData, build: impl Fn(Popover<'_>) -
 
 #[story(Popover<'static>, covers = [Default], drive = Drive::Never)]
 fn popover(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    popover_with(ui, data, |popover| popover)
+    let resizable = *data.value("resizable", false);
+    let enter = *data.value("enter", false);
+    popover_with(ui, data, |popover| popover.resizable(resizable).close_on_enter(enter))
 }
 
 #[story(Popover<'static>, covers = [], drive = Drive::Never)]
