@@ -776,10 +776,10 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         // `ShownRow`s (the response, the openers) cover the rows in view and the kept rows; a row built only because it
         // is in the view's reach runs without one. Its access nodes are reported like any content in the reach.
         let reported = |at: usize| shown.binary_search(&at).is_ok() || keep_set.contains(&at);
-        // A section row the component lays out as its own `section_part` reports its own node (for the rows it lays
-        // out); any other one is the collection's: a heading named by the row's text. A row with no text has no name
-        // for one, so the component that lays it out names it.
-        for &at in order.iter().filter(|&&at| self.source.section_stop(at) && layout.shown(at) && self.source.text(at).is_some()) {
+        // A section row the component declares as its own `section_part`, in view or in the reach, reports its own
+        // node; any other one is the collection's: a heading named by the row's text (a row with no text makes an
+        // unnamed heading, which the access lint reports).
+        for &at in order.iter().filter(|&&at| self.source.section_stop(at) && layout.shown(at)) {
             if cx.part_if_declared(section_part(&self.source.key(at))).is_none() {
                 let row = self.screen(&layout, rect, at, offset, rtl);
                 self.report_section_node(&ctx, id, at, row, cx.core.resolved.enabled);
@@ -1084,10 +1084,9 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
 }
 
 impl<C: Collection> ItemsHooks<'_, '_, C> {
-    /// The rows in view, the positions the pass builds, and how many of those are in the view's reach. It builds the
-    /// rows in view and in the view's reach (`runtime::lazy::reach`, the rule out-of-view content follows
-    /// everywhere), then the rows kept alive while scrolled further out (the lead, the anchor, the renaming row and
-    /// the grabbed row).
+    /// The rows in view, the positions the pass builds, and the kept rows. It builds the rows in view and in the
+    /// view's reach (`runtime::lazy::reach`, the rule out-of-view content follows everywhere), then the rows kept
+    /// alive while scrolled further out (the lead, the anchor, the renaming row and the grabbed row).
     fn built(&self, layout: &C::ItemLayout, view: Rect, offset: ScrollPos) -> (Vec<usize>, Vec<usize>, Vec<usize>) {
         let mut shown = Vec::new();
         layout.visible(offset, view.size(), &mut shown);

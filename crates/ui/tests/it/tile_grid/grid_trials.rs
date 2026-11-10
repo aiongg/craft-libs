@@ -35,7 +35,7 @@ impl DisplayOrder<usize> for Photos {
     }
 
     fn text(&self, at: usize) -> Option<std::borrow::Cow<'_, str>> {
-        Some(NAMES[at].into())
+        Some(NAMES[at % NAMES.len()].into())
     }
 }
 
@@ -89,7 +89,7 @@ fn rig(
             shown.borrow_mut().cards.push((*key, cx.rect));
             let record = shown.clone();
             let at = *key;
-            let tile = Tile::new(NAMES[at]).thumb(ThumbAspect::new(3, 2), move |_, rect| record.borrow_mut().pictures.push((at, rect)));
+            let tile = Tile::new(NAMES[at % NAMES.len()]).thumb(ThumbAspect::new(3, 2), move |_, rect| record.borrow_mut().pictures.push((at, rect)));
             dress(at, tile)
         });
         let mut seen = shown.borrow_mut();
@@ -282,4 +282,19 @@ fn a_click_on_a_group_header_focuses_the_grid_with_the_header_as_lead() {
         .filter_map(|event| if let GridEvent::GroupOpen { group, open, .. } = event { Some((*group, *open)) } else { None })
         .collect();
     assert_eq!(closed, [(1, false)], "Left on the lead header closes its group");
+}
+
+/// The access tree covers the view's reach: a group heading one view below is a heading node, one three views below
+/// is not there until it scrolls into the reach.
+#[trial]
+fn the_access_tree_has_the_group_headings_within_the_reach_only() {
+    let groups: &'static [TileGroup<usize>] =
+        Box::leak(Box::new([TileGroup::new(100, 0, 12, "Near"), TileGroup::new(101, 12, 30, "Below"), TileGroup::new(102, 42, 30, "Far")]));
+    let (fixture, _) = rig(72, move |grid| grid.groups(groups), plain);
+    let headings = fixture.tree().with_role(Role::HEADING);
+    let mut names: Vec<_> = headings.iter().filter_map(|key| fixture.tree().name_of(*key)).collect();
+    names.sort_unstable();
+    assert_eq!(names, ["Below", "Near"], "the heading one view below is in the access tree, the one three views below is not");
+    let below = headings.iter().find(|key| fixture.tree().name_of(**key) == Some("Below")).and_then(|key| fixture.target(*key));
+    assert!(below.is_some_and(|below| below.rect.min.y > ROOM.y), "the Below heading is out of view: {below:?}");
 }
