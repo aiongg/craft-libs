@@ -323,11 +323,6 @@ pub fn any_open(ctx: &Context, filter: OpenFilter) -> bool {
     })
 }
 
-/// The rects of the layers shown in this pass that are contained in `region`, not fading out.
-pub(crate) fn contained_in(ctx: &Context, region: Rect) -> Vec<Rect> {
-    with_pass(ctx, |pass| pass.current.iter().filter(|entry| !entry.exiting && entry.region == Some(region)).map(|entry| entry.rect).collect())
-}
-
 /// The layer that receives Cancel: the newest member of the topmost family that takes keys.
 pub fn top(ctx: &Context) -> Option<Id> {
     let viewport = pass::current_viewport(ctx);

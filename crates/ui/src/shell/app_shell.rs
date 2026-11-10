@@ -20,15 +20,15 @@ use crate::contract::{
 use crate::notices::ToastStack;
 use crate::runtime::commands::{CommandAccess as _, CommandSet as _};
 use crate::runtime::egui::pass;
-use crate::runtime::env::{AppValues, BodyMode, Env, Label, RevealEdge, ShellCx, ShellRegions, WindowKey};
+use crate::runtime::env::{AppValues, BodyMode, Env, Label, RevealEdge, ShellCx, ShellEntry, ShellRegions, WindowKey};
 use crate::runtime::focus::FocusPolicy;
 use crate::runtime::frame::{note_shell, take_chrome_toggles};
-use crate::runtime::overlay::{self, OpenFilter, any_open};
+use crate::runtime::overlay::{OpenFilter, any_open};
 use crate::runtime::pointer;
 use crate::shell::Slot;
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind, UiTokens};
 use craft_behavior::{Metrics, Sense};
-use egui::{Rect, Response, Ui, Vec2};
+use egui::{Rect, Response, Ui};
 use std::sync::Arc;
 
 /// The closure that fills a region.
@@ -201,7 +201,7 @@ struct Parts {
     revealed: bool,
     panels_hidden: bool,
     mode: ScreenMode,
-    dialog: Option<Vec2>,
+    dialog: bool,
 }
 
 /// What [`AppShell::show`] drew.
@@ -219,9 +219,11 @@ pub struct AppShellOutput {
     pub panels_hidden: bool,
     /// The screen mode after this pass.
     pub screen_mode: ScreenMode,
-    /// For an embedded shell: the size of its largest open dialog. A dialog is contained in the shell's region and is
-    /// cut by it, so a size that equals the region on an axis tells the host to give the region more room on it.
-    pub dialog: Option<Vec2>,
+    /// For an embedded shell: its body or its dialog host had a container open on this pass as a dialog, a modal, a
+    /// full-window layer or an OS window (`ShellCx::dialog_opened`), its own or one of an embedded shell inside it.
+    /// Menus, popovers and tooltips do not count. A host that keeps such content closed until asked reads it here,
+    /// or from a measure of the body under a `ShellCx` of its own, before the first paint.
+    pub dialog: bool,
 }
 
 impl Outcome for AppShellOutput {
@@ -400,6 +402,7 @@ impl<'a, S> AppShell<'a, S> {
     fn show_in(self, ui: &mut Ui, at: Option<Rect>, app: &mut S) -> AppShellOutput {
         let AppShell { window, bare, embedded, mut screen_mode, allow_reveal, edge_reveal, document_tabs, body_label, title, slots, mut body } = self;
         let env = Env::of(ui);
+        let outer = env.get::<ShellEntry>().0;
         let words = env.words::<ShellWords>();
         let tokens = env.tokens.clone();
         let body_label = body_label.unwrap_or_else(|| words.document.clone());
@@ -514,8 +517,12 @@ impl<'a, S> AppShell<'a, S> {
                     dialogs.run(ui);
                 }
             });
-            let dialog =
-                embedded.then(|| overlay::contained_in(&ctx, region)).and_then(|rects| rects.into_iter().map(|rect| rect.size()).reduce(Vec2::max));
+            // What opened here counts for the shell around this one too, so a host reads it from its own shell.
+            let opened = scope.dialog_opened();
+            if opened && let Some(outer) = &outer {
+                outer.note_dialog();
+            }
+            let dialog = embedded && opened;
 
             ToastStack::show(ui);
 
@@ -552,7 +559,7 @@ impl<'a, S> AppShell<'a, S> {
                 revealed: false,
                 panels_hidden: false,
                 screen_mode: ScreenMode::default(),
-                dialog: None,
+                dialog: false,
             },
         }
     }

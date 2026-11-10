@@ -8,13 +8,14 @@ use super::run::{Host, HostCx, HostPass, ShowAt};
 use super::{ContainerProps, Mount, ShellPane};
 use crate::runtime::egui::areas;
 use crate::runtime::egui::panels::{self, Edge};
-use crate::runtime::env::{Env, Label};
+use crate::runtime::env::{Env, Label, ShellEntry};
 use crate::runtime::focus::FocusPolicy;
 use crate::runtime::layout_memory;
 use crate::runtime::memory::{MemoryStage, SaveKey, sub};
 use crate::runtime::motion::{self, Presence};
 use crate::runtime::overlay::{Backdrop, CloseReason, Rank};
 use crate::runtime::windows::{self, ViewportOpen, WindowHost, WindowSpec};
+use craft_behavior::ScopeKind;
 use egui::{Id, Pos2, Rect, Ui, Vec2};
 
 /// The host a mount chose, and whether it shows the container fading out.
@@ -36,6 +37,11 @@ pub(super) fn host(props: &ContainerProps, at: &HostCx<'_>, open: bool, title: &
         (presence.visible.then_some(presence.t), !open)
     };
     let closed = || Mounted { host: Box::new(ClosedHost), exiting: false };
+    if open && opens_dialog(&props.mount) {
+        if let Some(shell) = at.env.get::<ShellEntry>().0 {
+            shell.note_dialog();
+        }
+    }
     match &props.mount {
         Mount::Inline => Mounted { host: Box::new(InlineHost), exiting: false },
         Mount::Pane(pane) => Mounted { host: Box::new(PaneHost(*pane)), exiting: false },
@@ -70,6 +76,17 @@ pub(super) fn host(props: &ContainerProps, at: &HostCx<'_>, open: bool, title: &
                 closed()
             }
         }
+    }
+}
+
+/// Whether an open container of `mount` is a dialog, a modal or a window for the shell it opens in
+/// (`ShellCx::dialog_opened`): an OS window or its fallback, a full-window layer, or a layer with a dialog's focus
+/// scope, modal or not. Menus, list boxes, popovers, tooltips and floating panes are not.
+fn opens_dialog(mount: &Mount) -> bool {
+    match mount {
+        Mount::Viewport { .. } | Mount::FullWindow => true,
+        Mount::Layer(overlay) => overlay.focus.kind == ScopeKind::Dialog,
+        Mount::Inline | Mount::Pane(_) | Mount::Window { .. } => false,
     }
 }
 

@@ -25,8 +25,12 @@ impl PartialEq for SharedPick {
     }
 }
 
-/// Shows the capture windows of a pick over a small monitor.
+/// Shows the capture windows of a pick over a small monitor while the story's `open` value is on; the pick's end turns
+/// it off.
 fn captures(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    if !*data.value("open", true) {
+        return StoryOutput::default();
+    }
     let shared = data.value("pick", SharedPick(Arc::new(Mutex::new(ScreenPick::new())))).0.clone();
     let mut pick = shared.lock().unwrap_or_else(|e| e.into_inner());
     if !pick.busy() {
@@ -35,6 +39,7 @@ fn captures(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let image = monitor([0, 0], [96, 72], 1);
     pick.tick_with(ui.ctx(), 1, &move || Box::new(StillCapture::new(Ok(Capture::Images(vec![image.clone()])))));
     ScreenColorPicker::new(&mut pick, "Story").show(ui);
+    *data.value("open", true) = pick.busy();
     StoryOutput::default()
 }
 
@@ -44,7 +49,11 @@ fn screen_color_picker(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 }
 
 #[story(CaptureWindow, covers = [Default], drive = Drive::Never)]
-fn capture_window(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+fn capture_window(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let open = data.value("open", true);
+    if !*open {
+        return StoryOutput::default();
+    }
     let image = Snapshot::new(monitor([0, 0], [96, 72], 1)).ok().expect("a valid monitor");
     let [x, y, w, h] = capture::area(&image).cover();
     let rect = Rect::from_min_size(pos2(x, y), vec2(w, h));
@@ -53,6 +62,7 @@ fn capture_window(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
         let rect = ui.max_rect();
         CaptureView::new("monitor 1", &image, 1, LOUPE_ZOOM.1, hints.clone()).show_at(ui, rect)
     });
+    *open = shown.output.closed.is_none();
     match shown.inner {
         Some(output) => StoryOutput::from(output),
         None => StoryOutput::from(shown.output),

@@ -11,7 +11,7 @@ use craft_ui::buttons::Button;
 use craft_ui::contract::Show as _;
 use craft_ui::contract::{CommandSet, Commands as _, Pad, Props as _, ShowContainer as _, Sizing, Surface, ThemeScope};
 use craft_ui::layout_components::Stack;
-use craft_ui::runtime::env::{WindowKey, with_env};
+use craft_ui::runtime::env::{BodyMode, ShellCx, WindowKey, with_env};
 use craft_ui::sections::{HeaderCommand, HeaderStrength, Panel};
 use craft_ui::shell::AppShell;
 use craft_ui::style::SurfaceKind;
@@ -138,6 +138,11 @@ impl Card<'_> {
     /// The story on its surface, in an embedded shell of its own so its dialogs stay in the card. The shell is as tall
     /// as the story measures in the card's room: its content height, or the whole room for a story that fills it or
     /// shows nothing in flow (a dialog).
+    ///
+    /// A story that opens a dialog, a modal or a window starts closed behind a button: the measure runs the story under
+    /// a shell record of its own (`ShellCx::dialog_opened`), so the card knows before the story ever paints. The button
+    /// turns the story's `open` value on and runs it, which opens the real thing (an OS window where the component
+    /// uses one). Once the measure no longer records it open, the card shows the button again.
     fn story_body(&self, ui: &mut Ui, state: &mut CardState) {
         let window = WindowKey::new(format!("card-{}-{}", self.key, state.resets));
         let host = Host {
@@ -147,13 +152,25 @@ impl Card<'_> {
             surface: self.surface,
         };
         let show = self.story.story.show;
-        let took = host.stack().measure_in(ui, Proposal::Ideal, |ui, _| host.content(ui, show, &mut state.data));
+        let at = ui.available_rect_before_wrap().min;
+        let record = ShellCx::detached(window.clone(), BodyMode::Normal, Rect::from_min_size(at, vec2(ui.available_width(), self.room)));
+        let took = host.stack().measure_in(ui, Proposal::Ideal, |ui, _| host.content(ui, show, &mut state.data, Some(&record)));
         // A story that shows nothing in flow takes no more than its bare surface; under its own id, so its record does
         // not stand for the story's.
         let bare = host.stack().id(craft_ui::testing::memory::sub(host.id, "bare")).measure_in(ui, Proposal::Ideal, |_, _| {});
         let height = if took.y > bare.y { took.y } else { self.room };
-        // A story that opens a dialog starts with it closed behind a button, as on the old gallery's Overview tiles.
+        let dialog = &mut state.dialog;
+        if record.dialog_opened() && !dialog.known {
+            // The card's start is the story with its dialog closed, so a dialog closed by its own button is back at the
+            // start and Reset hides.
+            *dialog = DialogState { known: true, hidden: true, shown: false };
+            if let Some(open) = state.data.present::<bool>("open") {
+                *open = false;
+            }
+            state.start = None;
+        }
         if state.dialog.hidden {
+            state.note_start();
             if Button::new("Show dialog").show(ui).clicks == 0 {
                 return;
             }
@@ -164,35 +181,21 @@ impl Card<'_> {
             }
         }
         let rect = Rect::from_min_size(ui.available_rect_before_wrap().min, vec2(ui.available_width(), height));
-        let shown = AppShell::embedded(window)
+        AppShell::embedded(window)
             .body(move |ui, _, data: &mut StoryData| {
-                host.stack().show(ui, |ui, _| host.content(ui, show, data));
+                host.stack().show(ui, |ui, _| host.content(ui, show, data, None));
             })
             .show_at(ui, rect, &mut state.data);
-        let was_shown = state.dialog.shown;
-        // A pass records the dialog's rect only some of the time, so it is the story's own `open` flag that says the
-        // dialog was closed (a story that cannot close its dialog has none).
-        let closed = state.data.present::<bool>("open").is_some_and(|open| !*open);
+        // The measure runs in every run of the card, the card's own measuring runs included, where the shell does not
+        // run its body: so the measure's record, not the shell's report, says when the story closed what it opened.
         let dialog = &mut state.dialog;
-        let first_seen = shown.dialog.is_some() && !dialog.known;
-        match (shown.dialog.is_some(), dialog.known) {
-            (true, false) => *dialog = DialogState { known: true, hidden: true, shown: false },
-            (true, true) => dialog.shown = true,
-            (false, _) => {}
-        }
-        if dialog.known && !dialog.hidden && closed && dialog.shown {
-            *dialog = DialogState { known: true, hidden: true, shown: false };
-        }
-        if dialog.hidden || dialog.shown != was_shown {
-            ui.ctx().request_repaint();
-        }
-        // The card's start is the story with its dialog closed, so a dialog closed by its own button is back at the
-        // start and Reset hides.
-        if first_seen {
-            if let Some(open) = state.data.present::<bool>("open") {
-                *open = false;
+        if dialog.known && !dialog.hidden {
+            if record.dialog_opened() {
+                dialog.shown = true;
+            } else if dialog.shown {
+                *dialog = DialogState { known: true, hidden: true, shown: false };
+                ui.ctx().request_repaint();
             }
-            state.start = None;
         }
         state.note_start();
     }
@@ -229,14 +232,18 @@ impl Host {
         stack
     }
 
-    /// The story under the card's direction and control size.
-    fn content(&self, ui: &mut Ui, show: StoryFn, data: &mut StoryData) {
+    /// The story under the card's direction and control size; in a measure, under `record`, the shell that records
+    /// what the story opens.
+    fn content(&self, ui: &mut Ui, show: StoryFn, data: &mut StoryData, record: Option<&ShellCx>) {
         let look = self.look;
         with_env(
             ui,
             |env| {
                 env.direction = look.direction;
                 env.size = look.size;
+                if let Some(record) = record {
+                    record.put(&mut env.values);
+                }
             },
             |ui| {
                 let _ = show(ui, data);
