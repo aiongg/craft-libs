@@ -604,11 +604,11 @@ impl<'a, V: NumberValue + 'static> NumberField<'a, V> {
     }
 
     /// The text rect and the unit's: the unit sits between the text and the chevrons.
-    fn text_and_unit(&self, text: Rect, rtl: bool, gap: f32) -> (Rect, Option<Rect>) {
+    fn text_and_unit(&self, text: Rect, rtl: bool) -> (Rect, Option<Rect>) {
         if self.unit_size.x <= 0.0 {
             return (text, None);
         }
-        let (unit, rest) = Flow::new(text, rtl).take_end(self.unit_size.x + gap);
+        let (unit, rest) = Flow::new(text, rtl).take_end(self.unit_size.x);
         (rest.rect(), Some(unit))
     }
 
@@ -735,7 +735,7 @@ impl<V: NumberValue + 'static> Component for NumberField<'_, V> {
         let sample = cx.value().map_or(Cow::Borrowed(""), |value| codec.sample(value));
         let text = cx.layout(&TextRun::new(sample.as_ref())).size();
         self.unit_size = self.unit_extent(cx);
-        let unit = if self.unit_size.x > 0.0 { self.unit_size.x + cx.gap() } else { 0.0 };
+        let unit = self.unit_size.x;
         // The chevrons' extent is the span from the text's end to the last chevron's far edge, laid out in the
         // field's minimum size, which is wide enough for any adornments.
         let chevrons = self.chevrons(&cx.words::<TextWords>());
@@ -760,7 +760,7 @@ impl<V: NumberValue + 'static> Component for NumberField<'_, V> {
         let rtl = cx.flow.is_rtl();
         let chevrons = self.chevrons(&cx.words::<TextWords>());
         let placed = Self::laid_out(cx.style, cx.content_rect, rtl, &chevrons);
-        let (text, _) = self.text_and_unit(placed.text, rtl, cx.gap());
+        let (text, _) = self.text_and_unit(placed.text, rtl);
         self.options.centred = true;
         self.options.steps_value = self.presets.is_none() && self.popup_slider.is_none();
         let shown = cx.value();
@@ -874,7 +874,7 @@ impl<V: NumberValue + 'static> Component for NumberField<'_, V> {
         let rtl = cx.flow.is_rtl();
         let chevrons = self.chevrons(&cx.words::<TextWords>());
         let placed = Self::laid_out(cx.style, cx.content_rect, rtl, &chevrons);
-        let (_, unit) = self.text_and_unit(placed.text, rtl, cx.style.metrics.gap);
+        let (_, unit) = self.text_and_unit(placed.text, rtl);
         if let (Some(unit), Some(label)) = (unit, &self.unit) {
             let top = unit.center().y - self.unit_size.y / 2.0;
             let (_, rest) = Flow::new(unit, rtl).take_start(cx.style.metrics.gap);
