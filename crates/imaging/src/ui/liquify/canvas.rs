@@ -1,235 +1,29 @@
 //! Liquify's canvas: the canvas tool, the backdrop layering, the freeze mask source, the lasso line, the mesh.
 
-use egui::{Color32, ColorImage, Response};
+mod backdrop;
+mod lasso;
+mod mesh;
 
-use craft_behavior::geometry::draft::{DraftEvent, DraftKind, DraftPoint, DraftReach, OutlineDraft};
-use craft_behavior::kurbo::Point;
-use craft_behavior::{CancelReason, Cursor, CursorIcon, PaintedCursor, PixelSize, PointerButton};
-use craft_behavior::{Input, Metrics};
-use craft_keymap::Mods;
-use craft_ui::canvas::{
-    CanvasTool, HandTool, NavigationOptions, PixelRect, RasterSource, ToolAction, ToolContext, ToolPath, ToolPointer, ZoomTool, canvas_space,
-};
-use craft_ui::canvas_controls::CanvasControlWords;
-use craft_ui::canvas_controls::brush::{BrushCursor, BrushCursorOptions, BrushDimensions, BrushLevel, BrushResize, BrushResizeOptions, BrushTip};
-use craft_ui::contract::{Access, Common, Component, Cx, PaintUi, Role};
-use craft_ui::primitives::{Draw, PaintShape, Revision, StrokeWidth};
-use craft_ui::style::{ComponentStyle, StyleColor, StyleCx};
+pub(super) use backdrop::MaskAtTexel;
+pub use backdrop::{BackdropLayering, LayeredImage};
+pub use lasso::{LassoLine, LassoLineStyle, LassoTone};
+pub use mesh::LiquifyMesh;
 
 use super::LiquifyEvent;
-use super::session::{BackdropMode, LiquifySettings, LiquifyStroke, StrokeEvent};
+use super::session::{LiquifySettings, LiquifyStroke, StrokeEvent};
 use super::tools::{LiquifyBrush, LiquifyTool, StrokeRecorder};
+use craft_behavior::geometry::draft::{DraftEvent, DraftKind, DraftPoint, DraftReach, OutlineDraft};
+use craft_behavior::kurbo::Point;
+use craft_behavior::{CancelReason, Cursor, CursorIcon, PaintedCursor, PointerButton};
+use craft_keymap::Mods;
+use craft_ui::canvas::{CanvasTool, HandTool, NavigationOptions, ToolAction, ToolContext, ToolPath, ToolPointer, ZoomTool};
+use craft_ui::canvas_controls::CanvasControlWords;
+use craft_ui::canvas_controls::brush::{BrushCursor, BrushCursorOptions, BrushDimensions, BrushLevel, BrushResize, BrushResizeOptions, BrushTip};
+use craft_ui::primitives::Draw;
 
 /// The seconds between the dabs of a tool that acts while the brush rests (PhotoCraft: 30 a
 /// second).
 const HOLD_INTERVAL: f64 = 1.0 / 30.0;
-
-/// The most a tint's alpha can be: the layer is drawn as it is.
-const OPAQUE: u8 = u8::MAX;
-
-/// The displaced mesh Show Mesh draws, from [`LiquifySource::mesh`](super::LiquifySource::mesh):
-/// `columns × rows` nodes in row order, in document pixels.
-#[derive(Clone, Debug, Default, PartialEq)]
-#[non_exhaustive]
-pub struct LiquifyMesh {
-    /// Nodes per row.
-    pub columns: usize,
-    /// Number of rows.
-    pub rows: usize,
-    /// The `columns × rows` nodes in row order, in document pixels.
-    pub points: Vec<Point>,
-}
-
-impl LiquifyMesh {
-    /// A mesh of `columns × rows` nodes in row order.
-    pub fn new(columns: usize, rows: usize, points: Vec<Point>) -> Self {
-        Self { columns, rows, points }
-    }
-
-    /// The mesh's lines in document pixels (each horizontal and vertical edge between neighbouring
-    /// nodes once), for the mesh lines control. A mesh whose `points` don't match `columns × rows`
-    /// has no lines.
-    pub fn edges(&self) -> Vec<[Point; 2]> {
-        // pc: crates/ui-egui/src/dialogs/liquify_ui.rs:1248 `draw_mesh` (PhotoCraft traces the
-        // field's iso-lines itself; the app supplies the displaced nodes, so the lines are the
-        // grid's edges).
-        if self.columns == 0 || self.rows == 0 || self.columns.checked_mul(self.rows) != Some(self.points.len()) {
-            return Vec::new();
-        }
-        let at = |row: usize, column: usize| self.points[row * self.columns + column];
-        let mut edges = Vec::with_capacity(2 * self.points.len());
-        for row in 0..self.rows {
-            for column in 0..self.columns {
-                if column + 1 < self.columns {
-                    edges.push([at(row, column), at(row, column + 1)]);
-                }
-                if row + 1 < self.rows {
-                    edges.push([at(row, column), at(row + 1, column)]);
-                }
-            }
-        }
-        edges
-    }
-}
-
-/// How the image and the backdrop are drawn for Show Backdrop: the opacity (0..=255) of the image and of the
-/// backdrop drawn behind or in front of it.
-///
-/// | Mode | Image | Backdrop |
-/// |---|---|---|
-/// | none shown | opaque | — |
-/// | In Front | opaque | in front, at the opacity |
-/// | Behind | at the opacity | behind, opaque |
-/// | Blend | at 1 − opacity | in front, at the opacity |
-#[derive(Clone, Copy, Debug, PartialEq)]
-#[non_exhaustive]
-pub struct BackdropLayering {
-    /// The opacity of the image.
-    pub image: u8,
-    /// The opacity of the backdrop drawn behind the image, if any.
-    pub behind: Option<u8>,
-    /// The opacity of the backdrop drawn in front of the image, if any.
-    pub front: Option<u8>,
-}
-
-impl BackdropLayering {
-    /// The layering for a backdrop that is shown (`shown`) in `mode` at `opacity` (0..=100).
-    pub fn of(shown: bool, mode: BackdropMode, opacity: f64) -> BackdropLayering {
-        // pc: crates/ui-egui/src/dialogs/liquify_ui.rs:876 `backdrop_layering` (Photoshop's modes,
-        // measured on its Liquify, #7609).
-        let fraction = if opacity.is_finite() { (opacity / 100.0).clamp(0.0, 1.0) } else { 0.0 };
-        let alpha = |a: f64| (a.clamp(0.0, 1.0) * f64::from(OPAQUE)).round() as u8;
-        if !shown {
-            return BackdropLayering { image: OPAQUE, behind: None, front: None };
-        }
-        match mode {
-            BackdropMode::InFront => BackdropLayering { image: OPAQUE, behind: None, front: Some(alpha(fraction)) },
-            BackdropMode::Behind => BackdropLayering { image: alpha(fraction), behind: Some(OPAQUE), front: None },
-            BackdropMode::Blend => BackdropLayering { image: alpha(1.0 - fraction), behind: None, front: Some(alpha(fraction)) },
-        }
-    }
-
-    /// Whether the image is drawn as it is, with nothing behind or in front of it.
-    pub(super) fn is_plain(&self) -> bool {
-        self.behind.is_none() && self.front.is_none() && self.image == OPAQUE
-    }
-}
-
-/// The image with the backdrop laid behind and in front of it as a [`BackdropLayering`] says,
-/// composited into one picture so the canvas draws it through its one image.
-pub struct LayeredImage<'a> {
-    image: &'a dyn RasterSource,
-    backdrop: &'a dyn RasterSource,
-    layering: BackdropLayering,
-}
-
-impl<'a> LayeredImage<'a> {
-    /// `image` laid out as `layering` says over and under `backdrop`.
-    pub fn new(image: &'a dyn RasterSource, backdrop: &'a dyn RasterSource, layering: BackdropLayering) -> Self {
-        Self { image, backdrop, layering }
-    }
-}
-
-/// `texel` (sRGBA, unmultiplied) with its alpha scaled by `opacity`.
-fn faded(texel: Color32, opacity: u8) -> Color32 {
-    let alpha = (u16::from(texel.a()) * u16::from(opacity) + 127) / 255;
-    Color32::from_rgba_premultiplied(texel.r(), texel.g(), texel.b(), alpha as u8)
-}
-
-/// `top` over `bottom`, both sRGBA unmultiplied.
-fn over(bottom: Color32, top: Color32) -> Color32 {
-    let (ta, ba) = (f32::from(top.a()) / 255.0, f32::from(bottom.a()) / 255.0);
-    let alpha = ta + ba * (1.0 - ta);
-    if alpha <= 0.0 {
-        return Color32::TRANSPARENT;
-    }
-    let mix = |t: u8, b: u8| ((f32::from(t) * ta + f32::from(b) * ba * (1.0 - ta)) / alpha).round() as u8;
-    Color32::from_rgba_premultiplied(mix(top.r(), bottom.r()), mix(top.g(), bottom.g()), mix(top.b(), bottom.b()), (alpha * 255.0).round() as u8)
-}
-
-impl RasterSource for LayeredImage<'_> {
-    fn size(&self) -> PixelSize {
-        self.image.size()
-    }
-
-    fn revision(&self) -> Revision {
-        let layering = (self.layering.image, self.layering.behind, self.layering.front);
-        Revision::of(&(self.image.revision(), self.backdrop.revision(), layering))
-    }
-
-    fn damage(&self, _: Revision) -> Option<PixelRect> {
-        None
-    }
-
-    fn read(&self, region: PixelRect, factor: u32, out: &mut ColorImage) {
-        out.pixels.fill(Color32::TRANSPARENT);
-        let backdrop_fits = self.backdrop.size() == self.image.size();
-        let mut layer = ColorImage::filled(out.size, Color32::TRANSPARENT);
-        let layers = [
-            self.layering.behind.filter(|_| backdrop_fits).map(|opacity| (self.backdrop, opacity)),
-            Some((self.image, self.layering.image)),
-            self.layering.front.filter(|_| backdrop_fits).map(|opacity| (self.backdrop, opacity)),
-        ];
-        for (source, opacity) in layers.into_iter().flatten() {
-            layer.pixels.fill(Color32::TRANSPARENT);
-            source.read(region, factor, &mut layer);
-            for (below, above) in out.pixels.iter_mut().zip(&layer.pixels) {
-                *below = over(*below, faded(*above, opacity));
-            }
-        }
-    }
-}
-
-/// The freeze mask at its reduced resolution, answering `read` in document pixels: each mask texel covers `texel`
-/// document pixels each way.
-pub(super) struct MaskAtTexel<'a> {
-    pub(super) mask: &'a dyn RasterSource,
-    pub(super) texel: u32,
-    pub(super) document: PixelSize,
-}
-
-impl RasterSource for MaskAtTexel<'_> {
-    fn size(&self) -> PixelSize {
-        self.document
-    }
-
-    fn revision(&self) -> Revision {
-        Revision::of(&(self.mask.revision(), self.texel))
-    }
-
-    fn damage(&self, _: Revision) -> Option<PixelRect> {
-        None
-    }
-
-    fn read(&self, region: PixelRect, factor: u32, out: &mut ColorImage) {
-        out.pixels.fill(Color32::TRANSPARENT);
-        let texel = i32::try_from(self.texel.max(1)).unwrap_or(1);
-        let mask = PixelRect::of_size(self.mask.size());
-        let wanted = PixelRect::new(
-            region.x0.div_euclid(texel),
-            region.y0.div_euclid(texel),
-            (region.x1 + texel - 1).div_euclid(texel),
-            (region.y1 + texel - 1).div_euclid(texel),
-        )
-        .intersect(&mask);
-        if wanted.is_empty() {
-            return;
-        }
-        let mut reduced = ColorImage::filled([wanted.width() as usize, wanted.height() as usize], Color32::TRANSPARENT);
-        self.mask.read(wanted, 1, &mut reduced);
-        let [width, height] = out.size;
-        let step = i32::try_from(factor.max(1)).unwrap_or(1);
-        for row in 0..height {
-            let y = (region.y0 + row as i32 * step).div_euclid(texel) - wanted.y0;
-            for column in 0..width {
-                let x = (region.x0 + column as i32 * step).div_euclid(texel) - wanted.x0;
-                if (0..wanted.width()).contains(&x) && (0..wanted.height()).contains(&y) {
-                    out.pixels[row * width + column] = reduced.pixels[y as usize * reduced.size[0] + x as usize];
-                }
-            }
-        }
-    }
-}
 
 /// How long the latest brush stroke has run and how many dabs it has made, measured in input
 /// time (the diagnostics PhotoCraft's stats line showed; the app adds its own field and preview
@@ -241,93 +35,6 @@ pub struct LiquifyTiming {
     pub dabs: usize,
     /// Seconds from the press to the latest dab.
     pub seconds: f64,
-}
-
-/// Whether the Freeze Lasso freezes or thaws.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-#[non_exhaustive]
-pub enum LassoTone {
-    /// The lasso freezes an area.
-    #[default]
-    Freeze,
-    /// The lasso (with Alt) thaws an area.
-    Thaw,
-}
-
-/// The style of the lasso line: its colour follows the tone.
-#[derive(Clone, Debug, PartialEq, ComponentStyle)]
-#[non_exhaustive]
-pub struct LassoLineStyle {
-    #[style(metrics)]
-    metrics: Metrics,
-    line: StyleColor,
-}
-
-/// The Freeze Lasso's path while it is drawn, a canvas control over document points: the bad tone when it freezes,
-/// the accent when it thaws.
-#[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
-#[component(canvas_control, sample = LassoLine::sample)]
-pub struct LassoLine<'a> {
-    #[common]
-    common: Common,
-    points: &'a [Point],
-    /// Freezing or thawing.
-    #[style_key]
-    #[prop]
-    tone: LassoTone,
-}
-
-impl<'a> LassoLine<'a> {
-    /// The line through `points`, document pixels.
-    pub fn new(points: &'a [Point]) -> Self {
-        LassoLine { common: Common::new(), points, tone: LassoTone::Freeze }
-    }
-}
-
-impl LassoLine<'static> {
-    /// A line across the document, for the suite.
-    fn sample() -> Self {
-        const LINE: [Point; 3] = [Point::new(20.0, 20.0), Point::new(120.0, 40.0), Point::new(80.0, 120.0)];
-        LassoLine::new(&LINE)
-    }
-}
-
-impl Component for LassoLine<'_> {
-    const ROLE: Role = Role::GROUP;
-    const ALT_ROLES: &'static [Role] = &[Role::None];
-    const INPUT: Input = Input::Display;
-    const PARTS: bool = false;
-    const STOPS: bool = false;
-    const OVERLAYS: bool = false;
-    const SHOWS_LABEL: bool = false;
-    type Style = LassoLineStyle;
-    type Output = Response;
-
-    fn style(cx: &StyleCx<'_>, key: LassoLineStyleKey) -> LassoLineStyle {
-        let colors = &cx.tokens.color;
-        let line = match key.tone {
-            LassoTone::Freeze => colors.status.bad.solid,
-            LassoTone::Thaw => colors.accent.solid,
-        };
-        LassoLineStyle { metrics: Metrics::new(), line: cx.color(line) }
-    }
-
-    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
-        let Some(space) = canvas_space(&cx.env) else { return };
-        if self.points.len() < 2 {
-            return;
-        }
-        let path = PaintShape::Path(self.points.iter().map(|point| space.view.to_screen(*point)).collect());
-        ui.draw().stroke(&path, StrokeWidth::Medium, cx.style.line);
-    }
-
-    fn access(&self, access: &mut Access, _: &Cx<'_, Self>) {
-        access.role(Role::None);
-    }
-
-    fn finish(self, cx: Cx<'_, Self>) -> Response {
-        cx.response.clone()
-    }
 }
 
 /// The state of Liquify's canvas between passes: the stroke being recorded, the Freeze Lasso being drawn, the
