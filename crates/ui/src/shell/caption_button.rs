@@ -9,7 +9,7 @@ use crate::primitives::{Glyph, IconSpec, PaintShape, TextureCache};
 use crate::runtime::access::Name;
 use crate::runtime::env::Label;
 use crate::runtime::windows::WindowHit;
-use crate::style::{ComponentStyle, IconLook, StyleColor, StyleCx};
+use crate::style::{ComponentStyle, IconLook, StyleColor, StyleCx, UiTokens};
 use craft_behavior::{Metrics, PartKey, Sense};
 use craft_theme::{Stateful, States};
 use egui::emath::GuiRounding as _;
@@ -398,7 +398,7 @@ struct Mark<'a> {
 }
 
 impl Glyph for Mark<'_> {
-    fn paint(&self, painter: &Painter, rect: Rect, color: Color32, _: bool) {
+    fn paint(&self, painter: &Painter, _: &UiTokens, rect: Rect, color: Color32, _: bool) {
         if self.face == Face::Windows {
             self.windows(painter, rect, color);
             return;

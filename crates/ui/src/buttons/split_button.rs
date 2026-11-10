@@ -9,7 +9,7 @@ use crate::menu::{self, Menu};
 use crate::primitives::{IconSpec, PaintShape, StrokeWidth};
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, Corners, FocusLook, IconLook, Stateful, StyleColor, StyleCx, SurfaceLook, TextLook};
-use craft_behavior::{Flow, HitLevel, HitPriority, IconId, Metrics, NavMove, PartKey, Sense, Value};
+use craft_behavior::{Flow, HitLevel, HitPriority, Metrics, NavMove, PartKey, Sense, Value};
 use craft_theme::{
     States, Variant,
     variant::{Emphasis, Tone},
@@ -194,7 +194,7 @@ impl<T: Value + 'static> Component for SplitButton<'_, T> {
         let draw = ui.draw();
         let side = cx.style.icon.side;
         let chevron = Rect::from_center_size(arrow.center(), Vec2::splat(side));
-        draw.icon(chevron, &IconSpec::svg(IconId::new("chevron_down")).color(cx.resolve(&cx.style.icon.color)));
+        draw.icon(chevron, &crate::controls::disclosure::DisclosureGlyph::dropdown().color(cx.resolve(&cx.style.icon.color)));
         let x = if rtl { arrow.right() } else { arrow.left() };
         let inset = cx.style.divider_inset;
         draw.stroke(

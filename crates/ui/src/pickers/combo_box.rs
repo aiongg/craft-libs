@@ -16,10 +16,10 @@ use crate::contract::{
     Overlays as _, PaintUi, PartsCx, Pointer as _, Props as _, Remember as _, Role, ShowCollection as _, WordSetCx as _,
 };
 use crate::list::{List, ListRow};
-use crate::primitives::{IconSpec, TextKey, TextOptions, TextRun};
+use crate::primitives::{TextKey, TextOptions, TextRun};
 use crate::runtime::env::Label;
 use crate::text::{Adornment, place, reserve};
-use craft_behavior::{HitLevel, HitPriority, IconId, NavMove, PartKey, PlainText, Selection, Sense};
+use craft_behavior::{HitLevel, HitPriority, NavMove, PartKey, PlainText, Selection, Sense};
 use craft_i18n::matcher::Matcher;
 use egui::{Rect, Vec2};
 
@@ -27,8 +27,6 @@ use egui::{Rect, Vec2};
 const TEXT: PartKey = PartKey::new("text");
 /// The chevron that opens and closes the list.
 const CHEVRON: PartKey = PartKey::new("chevron");
-/// The chevron's icon.
-const CHEVRON_ICON: &str = "chevron_down";
 
 fn text_key() -> TextKey<String> {
     TextKey::new(TEXT)
@@ -74,7 +72,7 @@ impl<'a> ComboBox<'a> {
     }
 
     fn trailing(name: Label) -> [Adornment; 1] {
-        [Adornment::button(CHEVRON, IconSpec::svg(IconId::new(CHEVRON_ICON)), name)]
+        [Adornment::button(CHEVRON, crate::controls::disclosure::DisclosureGlyph::dropdown(), name)]
     }
 
     /// Whether any option's label matches `query`.
@@ -214,7 +212,7 @@ impl Component for ComboBox<'_> {
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let name = cx.words::<PickerWords>().combo_options.clone();
-        ui.face(CHEVRON, IconButton::new(IconId::new(CHEVRON_ICON)).label(name));
+        ui.face(CHEVRON, IconButton::new(crate::controls::disclosure::DisclosureGlyph::dropdown()).label(name));
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> EditResponse<String> {

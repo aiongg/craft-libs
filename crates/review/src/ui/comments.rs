@@ -1147,7 +1147,7 @@ fn sort_menu(ui: &mut Ui, words: &CommentsWords, state: &mut CommentsPanelState)
     ];
     let current = sorts.iter().find(|(sort, _)| *sort == state.sort).map_or("", |(_, label)| label.as_str());
     let name = words.sort_by.fill(&[("sort", current)]);
-    let button = Button::new(name.clone()).trailing_icon(IconSpec::svg(IconId::new("chevron_down"))).show(ui);
+    let button = Button::new(name.clone()).trailing_icon(craft_ui::controls::disclosure::DisclosureGlyph::dropdown()).show(ui);
     let mut chosen = None;
     let active = state.sort;
     Menu::new(name).opened_by(&button, Trigger::Click).show(ui, |ui, _| {

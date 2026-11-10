@@ -5,7 +5,7 @@
 #[cfg(feature = "screen-testing")]
 mod stories;
 
-use craft_behavior::{Codec, IconId, NotAValue, NumberCodec};
+use craft_behavior::{Codec, NotAValue, NumberCodec};
 use craft_ui::buttons::IconButton;
 use craft_ui::choice::{Radio, RadioGroup};
 use craft_ui::contract::{
@@ -183,7 +183,7 @@ impl<'a> PageRangeField<'a> {
                     picked = Some(typed.pages.clone());
                 }
                 response = Some(field.response.clone());
-                let button = IconButton::new(IconId::new("chevron_down")).label(words.select_pages.clone()).show(ui);
+                let button = IconButton::new(craft_ui::controls::disclosure::DisclosureGlyph::dropdown()).label(words.select_pages.clone()).show(ui);
                 let menu = Menu::new(words.select_pages.clone()).opened_by(&button, Trigger::Press).pick(ui, &presets);
                 if let Some(pages) = menu.picked {
                     picked = Some(pages);
