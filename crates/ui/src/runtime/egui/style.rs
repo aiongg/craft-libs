@@ -17,6 +17,11 @@ pub(crate) fn set_text_selection(ui: &mut Ui, fill: egui::Color32, ink: egui::Co
     selection.stroke.color = ink;
 }
 
+/// Paints the hint of `ui`'s text edits in `color`: egui draws it in the visuals' weak text colour.
+pub(crate) fn set_hint_color(ui: &mut Ui, color: egui::Color32) {
+    ui.visuals_mut().weak_text_color = Some(color);
+}
+
 /// Whether egui considers `ui` enabled.
 pub(crate) fn is_enabled(ui: &Ui) -> bool {
     ui.is_enabled()

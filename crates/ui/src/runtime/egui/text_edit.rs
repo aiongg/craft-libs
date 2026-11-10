@@ -118,8 +118,8 @@ pub(crate) fn show(ui: &mut Ui, edit: Edit<'_>) -> Shown {
         if !enabled && !focusable {
             ui.disable();
         }
-        // egui draws the hint in the visuals' weak text colour; the placeholder is the faint text colour.
-        ui.visuals_mut().weak_text_color = Some(crate::style::rgba_color(crate::runtime::env::Env::of(ui).tokens.color.text.faint));
+        // The placeholder is the faint text colour.
+        super::style::set_hint_color(ui, crate::style::rgba_color(crate::runtime::env::Env::of(ui).tokens.color.text.faint));
         super::style::set_text_cursor(ui, caret_visible);
         super::style::set_text_selection(ui, crate::style::rgba_color(selection.0), crate::style::rgba_color(selection.1));
         let mut read = text.as_str();
