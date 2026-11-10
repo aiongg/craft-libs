@@ -266,7 +266,7 @@ struct DoubleChevron {
 }
 
 impl Glyph for DoubleChevron {
-    fn paint(&self, painter: &egui::Painter, rect: Rect, color: Color32, _: bool) {
+    fn paint(&self, painter: &egui::Painter, _: &crate::style::UiTokens, rect: Rect, color: Color32, _: bool) {
         let arm = rect.width().min(rect.height()) * ARM;
         let flip = if self.right { 1.0 } else { -1.0 };
         let centre = rect.center();
