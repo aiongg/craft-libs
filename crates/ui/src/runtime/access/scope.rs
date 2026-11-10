@@ -131,6 +131,8 @@ pub(crate) struct ScopeNode {
     pub unnamed: Option<Finding>,
     /// The first focus stop inside a control that has none of its own: where a click on its label moves focus.
     pub inner_stop: Option<crate::runtime::focus::FocusTarget>,
+    /// The control is disabled: a label that names only disabled controls is disabled too.
+    pub disabled: bool,
 }
 
 /// What a control tells its label scope about its reset (10.2).
@@ -339,8 +341,9 @@ pub(crate) struct Merged {
 /// One change a label scope makes to a node, decided here and written by `runtime::egui::access`.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum LabelPatch {
-    /// The label's own node: the role `Label` and the label's text, each only where the node has none yet.
-    Label { id: Id, text: String },
+    /// The label's own node: the role `Label` and the label's text, each only where the node has none yet, and
+    /// disabled when every control it labels is.
+    Label { id: Id, text: String, disabled: bool },
     /// `node` keeps its name and is described by `label`.
     DescribedBy { node: Id, label: Id },
     /// `node` is named `text`, the label's text, and keeps `label` as the node that labels it.
@@ -358,7 +361,7 @@ pub(crate) fn label_patches(container: Id, label: &FieldLabel, nodes: &[ScopeNod
     if nodes.is_empty() {
         return Vec::new();
     }
-    let mut patches = vec![LabelPatch::Label { id: label.id, text: label.text.clone() }];
+    let mut patches = vec![LabelPatch::Label { id: label.id, text: label.text.clone(), disabled: nodes.iter().all(|node| node.disabled) }];
     match nodes {
         [only] if label.role == FieldLabelRole::Describes || only.keeps_name => {
             patches.push(LabelPatch::DescribedBy { node: only.id, label: label.id });

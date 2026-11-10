@@ -97,3 +97,39 @@ fn a_select_on_focus_field_takes_a_focus_request_with_all_its_text_selected() {
     let run = NodeKey::of(run_node(id, 0, 0));
     assert_eq!(fixture.tree().text_selection(id), Some(((run, 0), (run, 8))), "the field's whole text is selected");
 }
+
+/// A disabled field's text and placeholder are the theme's disabled text ink, not that ink faded a second time, and
+/// its well edge is the divider colour.
+#[trial]
+fn a_disabled_text_field_draws_the_disabled_ink_once_and_the_divider_edge() {
+    use craft_theme::{Contrast, ControlSize, Mode, Variant};
+    use craft_ui::testing::Frames;
+    use craft_ui::testing::style::{tokens, with_cx};
+    let mut frames = Frames::new();
+    let tokens = tokens(Mode::Light, Contrast::Standard);
+    let (disabled, divider) = with_cx(&frames.ctx, &tokens, Variant::SECONDARY, ControlSize::Md, |cx| {
+        (cx.color(tokens.color.text.disabled).egui(), cx.color(tokens.color.line.divider).egui())
+    });
+    let mut show = move |ui: &mut egui::Ui| {
+        TextField::new("Filled", Bind::bound(&mut String::from("Locked"))).enabled(false).show(ui);
+        TextField::new("Empty", Bind::bound(&mut String::new())).placeholder("Untitled").enabled(false).show(ui);
+    };
+    frames.idle(2, &mut show);
+    let shapes = frames.frame_shapes(&mut show);
+    let texts: Vec<_> = shapes
+        .iter()
+        .filter_map(|shape| match shape {
+            egui::Shape::Text(text) => {
+                text.galley.job.sections.first().map(|section| (text.galley.text().to_owned(), section.format.color, text.opacity_factor))
+            }
+            _ => None,
+        })
+        .collect();
+    for word in ["Locked", "Untitled"] {
+        let (_, ink, fade) = texts.iter().find(|(text, ..)| text == word).unwrap_or_else(|| panic!("{word} is drawn: {texts:?}"));
+        assert_eq!(*ink, disabled, "{word} is the disabled ink");
+        assert_eq!(*fade, 1.0, "{word} is not faded again");
+    }
+    let edges = shapes.iter().any(|shape| matches!(shape, egui::Shape::Rect(rect) if rect.stroke.color == divider));
+    assert!(edges, "a disabled well's edge is line.divider");
+}

@@ -278,7 +278,7 @@ impl<'a> StyleCx<'a> {
 
     /// The look of a text well: the well surface with an edge that takes the focus colour while the well holds
     /// focus, in any modality, and the quieter divider colour while it is disabled. The edge replaces the surface's
-    /// flat stroke; a bevelled well keeps its bevel and draws no further edge. A component that carries no value, so
+    /// flat stroke; a bevelled well keeps its bevel and draws an edge only while it holds focus. A component that carries no value, so
     /// is never invalid, uses it as it is.
     pub fn text_well(&self) -> SurfaceLook {
         let well = self.surface(SurfaceKind::Well);

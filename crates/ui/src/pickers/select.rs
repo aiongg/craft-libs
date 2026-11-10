@@ -142,7 +142,7 @@ impl<T: Value + 'static> Component for Select<'_, T> {
 
     fn style(cx: &StyleCx<'_>, _: SelectStyleKey<T>) -> SelectStyle {
         let off = cx.color(cx.tokens.color.text.disabled);
-        let (ink, muted) = (cx.ink(Ink::OnPanel), cx.color(cx.tokens.color.text.muted));
+        let (ink, muted) = (cx.ink(Ink::OnPanel), cx.color(cx.tokens.color.text.faint));
         SelectStyle {
             surface: cx.field(),
             metrics: Metrics::new(),
@@ -295,7 +295,10 @@ impl<T: Value + 'static> Component for Select<'_, T> {
             None if cx.value().is_none() => (cx.env.resolve(&cx.words::<PickerWords>().mixed.clone()), true),
             None => (self.placeholder.as_ref().map_or(Label::Empty, |text| cx.env.resolve(text)), true),
         };
-        let face = SelectFace::new(text);
+        let mut face = SelectFace::new(text);
+        if let Some(icon) = self.position(cx.value()).and_then(|at| self.entries[at].icon_spec()) {
+            face = face.icon(icon.clone());
+        }
         ui.face(FACE, if muted { face.placeholder() } else { face });
     }
 

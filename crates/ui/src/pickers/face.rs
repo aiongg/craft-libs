@@ -2,7 +2,7 @@
 
 use crate::contract::{Common, Component, Cx, MeasureCx, PaintUi, Pointer as _, PopupHandle, Props as _, Role, Styled as _};
 use crate::list::{RowThumb, ThumbAspect, ThumbPaint};
-use crate::primitives::{ContentPainterCx, TextRun};
+use crate::primitives::{ContentPainterCx, IconSpec, TextRun};
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, IconLook, Ink, StyleCx, TextLook, TypeRole};
 use crate::text::{Adornment, FieldStyle, place, reserve};
@@ -10,7 +10,7 @@ use craft_behavior::{Flow, Metrics, Sense};
 use craft_theme::{Stateful, States};
 use egui::{Rect, Response, Vec2};
 
-/// The style of a select face: the field's metrics, the text, the muted placeholder, the thumbnail's height and the
+/// The style of a select face: the field's metrics, the text, the faint placeholder, the thumbnail's height and the
 /// chevron. The host owns the
 /// surface (the field well), so a face paints only its content.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
@@ -42,10 +42,12 @@ pub struct SelectFaceStyle {
 pub struct SelectFace<'a> {
     #[common]
     common: Common,
-    /// The text is a placeholder, not a pick: it shows in the muted ink.
+    /// The text is a placeholder, not a pick: it shows in the faint ink.
     #[prop(flag)]
     placeholder: bool,
     thumb: Option<(ThumbAspect, ThumbPaint<'a>)>,
+    /// The picked entry's icon, drawn before the text in the chevron's ink.
+    icon: Option<IconSpec<'static>>,
     /// Whether the text shows beside the thumbnail; `false` shows the thumbnail alone. The text is the face's
     /// accessible name either way.
     #[prop]
@@ -55,7 +57,7 @@ pub struct SelectFace<'a> {
 impl<'a> SelectFace<'a> {
     /// A face showing `text`, which is also its name.
     pub fn new(text: impl Into<Label>) -> Self {
-        SelectFace { common: Common::new(), placeholder: false, thumb: None, name: true }.label(text)
+        SelectFace { common: Common::new(), placeholder: false, thumb: None, icon: None, name: true }.label(text)
     }
 
     /// A picture `aspect` times as wide as high before the text; `paint` draws into the picture's rect through the
@@ -63,6 +65,13 @@ impl<'a> SelectFace<'a> {
     #[must_use]
     pub fn thumb(mut self, aspect: ThumbAspect, paint: impl FnOnce(&ContentPainterCx, Rect) + 'a) -> Self {
         self.thumb = Some((aspect, Box::new(paint)));
+        self
+    }
+
+    /// An icon before the text, the glyph of the field's style.
+    #[must_use]
+    pub fn icon(mut self, icon: impl Into<IconSpec<'static>>) -> Self {
+        self.icon = Some(icon.into());
         self
     }
 
@@ -74,6 +83,10 @@ impl<'a> SelectFace<'a> {
     /// The width of the thumbnail and its gap to the text, or nothing without a thumbnail.
     fn lead(&self, style: &SelectFaceStyle) -> f32 {
         self.thumb.as_ref().map_or(0.0, |(aspect, _)| aspect.of(style.thumb) + if self.name { style.field.metrics().gap } else { 0.0 })
+    }
+
+    fn leading(&self) -> Vec<Adornment> {
+        self.icon.iter().map(|icon| Adornment::glyph(icon.clone())).collect()
     }
 
     fn chevron() -> Adornment {
@@ -93,7 +106,7 @@ impl Component for SelectFace<'_> {
     fn style(cx: &StyleCx<'_>, _: SelectFaceStyleKey) -> SelectFaceStyle {
         let field = FieldStyle::at(cx);
         let off = cx.color(cx.tokens.color.text.disabled);
-        let (ink, muted) = (cx.ink(Ink::OnPanel), cx.color(cx.tokens.color.text.muted));
+        let (ink, muted) = (cx.ink(Ink::OnPanel), cx.color(cx.tokens.color.text.faint));
         let ink = Stateful::new(ink).off(States::new(ink, ink, ink, off));
         SelectFaceStyle {
             metrics: field.metrics(),
@@ -112,7 +125,7 @@ impl Component for SelectFace<'_> {
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
         let text = if self.name { cx.layout(&TextRun::new(cx.resolved.label).role(cx.style.text.role)).size() } else { Vec2::ZERO };
         let picture = if self.thumb.is_some() { cx.style.thumb } else { 0.0 };
-        Vec2::new(self.lead(cx.style) + text.x + reserve(&cx.style.field, &[], &[Self::chevron()]), text.y.max(picture))
+        Vec2::new(self.lead(cx.style) + text.x + reserve(&cx.style.field, &self.leading(), &[Self::chevron()]), text.y.max(picture))
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
@@ -125,7 +138,11 @@ impl Component for SelectFace<'_> {
             let _ = ui.child("thumb", picture, RowThumb::new(paint));
             flow = if self.name { rest.take_start(cx.style.field.metrics().gap).1 } else { rest };
         }
-        let placed = place(flow.rect(), &cx.style.field, &[], std::slice::from_ref(&chevron), rtl);
+        let leading = self.leading();
+        let placed = place(flow.rect(), &cx.style.field, &leading, std::slice::from_ref(&chevron), rtl);
+        if let (Some(rect), Some(icon)) = (placed.leading.first(), leading.first()) {
+            icon.paint(ui, *rect, cx.resolve(&cx.style.chevron.color));
+        }
         if self.name {
             let look = if self.placeholder { &cx.style.placeholder } else { &cx.style.text };
             let run = TextRun::new(cx.resolved.label).role(look.role).elide().color(cx.resolve(&look.color));

@@ -116,10 +116,11 @@ pub(crate) fn show(ui: &mut Ui, edit: Edit<'_>) -> Shown {
         // The text shows only inside the text part, however wide the line is.
         ui.set_clip_rect(rect.intersect(ui.clip_rect()));
         if !enabled && !focusable {
-            ui.disable();
+            super::style::disable_without_fade(ui);
         }
-        // The placeholder is the faint text colour.
-        super::style::set_hint_color(ui, crate::style::rgba_color(crate::runtime::env::Env::of(ui).tokens.color.text.faint));
+        // The placeholder is the faint text colour, the disabled one when the field is off.
+        let text_colors = &crate::runtime::env::Env::of(ui).tokens.color.text;
+        super::style::set_hint_color(ui, crate::style::rgba_color(if enabled { text_colors.faint } else { text_colors.disabled }));
         super::style::set_text_cursor(ui, caret_visible);
         super::style::set_text_selection(ui, crate::style::rgba_color(selection.0), crate::style::rgba_color(selection.1));
         let mut read = text.as_str();

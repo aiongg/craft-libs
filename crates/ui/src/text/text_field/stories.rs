@@ -2,9 +2,7 @@
 
 use super::TextField;
 use crate::contract::{Bind, Props as _, Show as _, ShowContainer as _, Validity};
-use crate::display::{Shade, Text};
-use crate::form::Field;
-use crate::layout_components::Row;
+use crate::form::{Field, FieldGroup};
 use crate::primitives::{Completer, Completion, IconSpec};
 use crate::runtime::env::Message;
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
@@ -21,31 +19,33 @@ const LONG: &str = "A name that runs on well past the end of the field, so the f
 fn text_field(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let size = *data.choice("size", ControlSize::Md, &SIZES);
     let placeholder = data.value("placeholder", String::from("Untitled")).clone();
-    let out = Field::new("Empty").id_salt("empty").show(ui, |ui, _| {
-        TextField::new("Name", Bind::bound(data.value("name", String::new()))).placeholder(placeholder.clone()).size(size).show(ui)
-    });
-    Field::new("Filled").id_salt("filled").show(ui, |ui, _| {
-        TextField::new("Layer", Bind::bound(&mut String::from("Background"))).placeholder(placeholder.clone()).size(size).show(ui);
-    });
-    Field::new("Long text").id_salt("long").show(ui, |ui, _| {
-        TextField::new("Layer name", Bind::bound(&mut String::from(LAYER_LONG))).size(size).show(ui);
-    });
-    let refuse_slash =
-        |text: &String| if text.contains('/') { Validity::Refuse(Message::new("A name cannot contain a slash")) } else { Validity::Ok };
-    Field::new("Invalid").id_salt("invalid").show(ui, |ui, _| {
-        TextField::new("Layer path", Bind::bound(&mut String::from("Layer/1")).check(refuse_slash)).size(size).show(ui);
-    });
-    Field::new("Leading icon").id_salt("leading").show(ui, |ui, _| {
-        TextField::new("Layer icon", Bind::bound(&mut String::from("Layers"))).leading(IconSpec::svg(IconId::new("layers"))).size(size).show(ui);
-    });
-    for (at, text) in ["", "Locked layer"].into_iter().enumerate() {
-        let name = if text.is_empty() { "Disabled, empty" } else { "Disabled, filled" };
-        Row::new().fill_width().id_salt(("disabled", at)).show(ui, |ui, _| {
-            Text::new(format!("{name}:")).shade(Shade::Muted).show(ui);
-            TextField::new(name, Bind::bound(&mut text.to_owned())).placeholder(placeholder.clone()).size(size).enabled(false).show(ui);
+    let out = FieldGroup::new("Text field states").show(ui, |ui, _| {
+        let first = Field::new("Empty").id_salt("empty").show(ui, |ui, _| {
+            TextField::new("Name", Bind::bound(data.value("name", String::new()))).placeholder(placeholder.clone()).size(size).show(ui)
         });
-    }
-    out.inner.map(StoryOutput::from).unwrap_or_default()
+        Field::new("Filled").id_salt("filled").show(ui, |ui, _| {
+            TextField::new("Layer", Bind::bound(&mut String::from("Background"))).placeholder(placeholder.clone()).size(size).show(ui);
+        });
+        Field::new("Long text").id_salt("long").show(ui, |ui, _| {
+            TextField::new("Layer name", Bind::bound(&mut String::from(LAYER_LONG))).size(size).show(ui);
+        });
+        let refuse_slash =
+            |text: &String| if text.contains('/') { Validity::Refuse(Message::new("A name cannot contain a slash")) } else { Validity::Ok };
+        Field::new("Invalid").id_salt("invalid").show(ui, |ui, _| {
+            TextField::new("Layer path", Bind::bound(&mut String::from("Layer/1")).check(refuse_slash)).size(size).show(ui);
+        });
+        Field::new("Leading icon").id_salt("leading").show(ui, |ui, _| {
+            TextField::new("Layer icon", Bind::bound(&mut String::from("Layers"))).leading(IconSpec::svg(IconId::new("layers"))).size(size).show(ui);
+        });
+        for (at, text) in ["", "Locked layer"].into_iter().enumerate() {
+            let name = if text.is_empty() { "Disabled, empty" } else { "Disabled, filled" };
+            Field::new(name).id_salt(("disabled", at)).show(ui, |ui, _| {
+                TextField::new(name, Bind::bound(&mut text.to_owned())).placeholder(placeholder.clone()).size(size).enabled(false).show(ui);
+            });
+        }
+        first.inner
+    });
+    out.inner.flatten().map(StoryOutput::from).unwrap_or_default()
 }
 
 #[story(TextField<'static, PlainText>, covers = [LongText], drive = Drive::Never)]
