@@ -1,7 +1,8 @@
-//! `List` and its rows: `ListRow`, `FindingsList`, `EventList` and `UndoList`.
+//! `List` and its rows: `ListRow`, `FindingsList`, `EventList`, `UndoList` and `HistoryPanel`.
 
 mod events;
 mod findings;
+mod history;
 mod predicate;
 pub(crate) mod row;
 #[cfg(feature = "testing")]
@@ -17,6 +18,10 @@ mod words;
 
 pub use events::{EventLevel, EventList, EventListStyle, EventLog, EventLogState, LevelCounts, LogEvent};
 pub use findings::{Finding, Findings, FindingsList, FindingsListStyle, FindingsSummary, FindingsSummaryStyle, Severity, summary_text};
+pub use history::{
+    HistoryEvent, HistoryFeatures, HistoryKey, HistoryMenu, HistoryOrder, HistoryOutput, HistoryPanel, HistoryPanelState, HistorySource,
+    HistoryWords, Snapshot, SnapshotId, SnapshotList, StepId, StepRows,
+};
 pub use predicate::{DropTest, RowTest, SourceTest};
 pub(crate) use row::RowThumb;
 pub use row::{
