@@ -1,10 +1,11 @@
 //! Stories of `ChipField`.
 
 use super::ChipField;
-use crate::contract::{Bind, Show as _, Validity};
+use crate::contract::{Bind, Props as _, Show as _, Validity};
 use crate::runtime::env::Message;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use craft_behavior::Mixed;
+use craft_theme::ControlSize;
 use egui::Ui;
 
 fn keywords() -> Vec<String> {
@@ -13,7 +14,14 @@ fn keywords() -> Vec<String> {
 
 #[story(ChipField<'static>, covers = [Default], drive = Drive::Type("sky"))]
 fn chip_field(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    ChipField::new("Keywords", Bind::bound(data.value("keywords", keywords()))).placeholder("Add a keyword").show(ui).into()
+    let size = *data.choice("size", ControlSize::Md, &[("Sm", ControlSize::Sm), ("Md", ControlSize::Md)]);
+    let disabled = *data.value("disabled", false);
+    ChipField::new("Keywords", Bind::bound(data.value("keywords", keywords())))
+        .placeholder("Add a keyword")
+        .size(size)
+        .enabled(!disabled)
+        .show(ui)
+        .into()
 }
 
 #[story(ChipField<'static>, covers = [LongText], drive = Drive::Never)]

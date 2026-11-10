@@ -10,7 +10,12 @@ const PICTURE: PixelSize = PixelSize::new(1600, 900);
 
 #[story(ImageSize<'static>, covers = [], drive = Drive::Never)]
 fn image_size(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let values = data.value("values", ImageSizeValues::new(PICTURE));
+    let resample = *data.value("resample", true);
+    let (values, applied) = data.value("values", (ImageSizeValues::new(PICTURE), true));
+    if *applied != resample {
+        *values = values.clone().resampling(resample);
+        *applied = resample;
+    }
     ImageSize::new(Bind::bound(values)).opened(Bind::given(true)).show(ui).into()
 }
 

@@ -2045,7 +2045,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
 - `craft_ui::contract::Resolved`: `pub struct Resolved<'p> { pub id: Id, pub label: &'p str, pub enabled: bool, pub read_only: bool, pub size: ControlSize, pub variant: Variant, pub selected: Option<bool> }`. `Common` after step 1; it borrows locals of the pipeline frame, never the component.
 - `craft_ui::contract::Role`: re-export of `craft_ui::runtime::access::Role`.
 - `craft_ui::contract::RowAlign`: `pub enum RowAlign { Start, Center, End, SpaceBetween }`. Where a `Row` places its block of children along the row.
-- `craft_ui::contract::RowState`: `pub struct RowState { pub selected: bool, pub lead: bool, pub drop_target: bool, pub dragging: bool, pub renaming: bool, pub emphasized: bool, pub current: bool, pub striped: bool, pub open: bool }`. What an item reads of its place in the collection; the item step joins it to the item's flags at step 12.
+- `craft_ui::contract::RowState`: `pub struct RowState { pub selected: bool, pub lead: bool, pub drop_target: bool, pub dragging: bool, pub renaming: bool, pub emphasized: bool, pub current: bool, pub striped: bool, pub open: bool, pub hovered: bool }`. What an item reads of its place in the collection; the item step joins it to the item's flags at step 12.
 - `craft_ui::contract::Sampler`: `pub trait Sampler: sealed::Host`. The canvas reach under a modal layer (15.5, 8.3): a control of a dialog keeps the canvas below it usable. It is
   - `fn arm_sampler(&mut self, canvas: Id)`. Arms a sampler for `canvas` (the canvas component's id): while the modal layer is open, primary presses on the
   - `fn keep_view_open(&mut self, canvas: Id)`. Keeps the view of `canvas` (the canvas component's id) usable under the modal layer: the wheel scrolls and
@@ -2332,7 +2332,7 @@ Painters, `Draw`, the sensing core, the text adapter and `ImeSurface`.
   - `pub const fn elide(mut self) -> Self`. Cuts the text to one row with an ellipsis at the end.
   - `pub fn full_text(&self) -> String`. The text of every run, joined.
 - `craft_ui::primitives::Draw`: `pub struct Draw<'a>`. The content-paint API `PaintUi::draw` gives.
-  - `pub fn text(&self, rect: Rect, run: &TextRun<'_>) -> TextLayout`. Lays `run` out in `rect`'s width and paints it at the reading start of `rect`, top aligned. Records the
+  - `pub fn text(&self, rect: Rect, run: &TextRun<'_>) -> TextLayout`. Lays `run` out in `rect`'s width and paints it at the reading start of `rect`. A single line is centred
   - `pub fn doc(&self, rect: Rect, text: &DocText<'_>) -> TextLayout`. Lays `text` out in `rect`'s width and paints it top aligned, its block placed in `rect` by `text.align` (Start
   - `pub fn layout(&self, run: &TextRun<'_>, max_width: f32) -> TextLayout`. Lays `run` out in `max_width` without painting it: the one text layout path for painters that measure before
   - `pub fn galley(&self, pos: Pos2, layout: &TextLayout)`. Paints a laid-out run at `pos`. Records the first baseline and, when the layout cut text, the full text, as
@@ -3509,6 +3509,7 @@ The fixture, the suite runner and the story helpers.
 - `craft_ui::testing::measuring_run`: `pub fn run<R>(ctx: &Context, f: impl FnOnce() -> R) -> R`. Runs `f` as a measuring run. Nested calls are fine.
 - `craft_ui::testing::measuring_runs`: `pub fn body_runs(ctx: &Context) -> Vec<(Id, u32)>`. The bodies whose contents ran in a measuring run in the last pass that ran one, and how many runs each.
 - `craft_ui::testing::story`: re-export of `craft_ui_macros::story` (outside these crates).
+- `craft_ui::testing::story_props`: re-export of `craft_ui::testing::props::story_props`.
 - `craft_ui::testing::take_effects`: `pub fn take_effects(ctx: &Context) -> Vec<&'static str>`. The effects skipped in measuring runs this frame, in order; empties the log.
 - `craft_ui::testing::tool_story`: `pub fn tool_story(ui: &mut Ui, label: &'static str, tool: &mut dyn CanvasTool) -> StoryOutput`. Shows `tool` on a canvas named `label` over the room left in `ui`, and runs it as the canvas's active tool. The
 - `craft_ui::testing::trial`: re-export of `craft_ui_macros::trial` (outside these crates).
@@ -3869,6 +3870,12 @@ Pointer events and gestures for trials that drive frames themselves.
 - `craft_ui::testing::pointer::window_blurred`: `pub fn window_blurred() -> Event`. The window losing focus.
 - `craft_ui::testing::pointer::zoom_wheel`: `pub fn zoom_wheel(dy: f32) -> Event`. A vertical wheel event of `dy` points with Ctrl or Cmd held, which zooms.
 
+## `craft_ui::testing::props`
+
+The Properties form of a story: one row per value the story keeps, with an editor for the kinds the framework
+
+- `craft_ui::testing::props::story_props`: `pub fn story_props(ui: &mut Ui, data: &mut StoryData) -> Response`. The editable form of `data`'s values, one row each, sorted by name; returns the form's response.
+
 ## `craft_ui::testing::relations`
 
 Relation assertions between rects and lengths: the tests compare layouts to each other and to tokens, never to
@@ -3938,6 +3945,9 @@ Stories: named ways to show one registered type, and the data and output the run
 - `craft_ui::testing::story::StoryData`: `pub struct StoryData`. The values a story shows, by name. Each is a `Value`, so the runner compares them before and after a drive.
   - `pub fn tooltip(&self, text: &'static str) -> TooltipSpec`. A tooltip of `text`, with the story's `disabled_text` as the text it shows while disabled.
   - `pub fn value<T: Value>(&mut self, name: &'static str, init: T) -> &mut T`. The value named `name` of type `T`, created from `init` on first use. A name used with two types names two
+  - `pub fn ranged<T: Value>(&mut self, name: &'static str, init: T, range: RangeInclusive<f64>) -> &mut T`. Like [`StoryData::value`] for a number the Properties editor keeps inside `range`.
+  - `pub fn choice<T: Value>(&mut self, name: &'static str, init: T, options: &[(&'static str, T)]) -> &mut T`. Like [`StoryData::value`] for a value that is one of `options`, which the Properties editor offers by label.
+  - `pub fn restore(&mut self, before: &StorySnapshot)`. Puts every value that was there in `before` back to what it was then. A value added since stays.
   - `pub fn changed_since(&self, before: &StorySnapshot) -> Vec<&'static str>`. The names of the values that differ from `before`; a value added since counts as changed.
   - `pub fn snapshot(&self) -> StorySnapshot`. A copy of every value.
 - `craft_ui::testing::story::StoryOutput`: `pub struct StoryOutput { pub id: Option<Id>, pub edits: Vec<EditKind>, pub clicked: bool, pub collection: Vec<CollectionKind>, pub visible: Option<Range<usize>> }`. What a story showed, type-erased: the response id, the kinds of its edit events and of its collection events.

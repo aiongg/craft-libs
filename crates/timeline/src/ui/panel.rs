@@ -760,8 +760,8 @@ fn toolbar_row(
             .icon_only()
             .show(ui);
         let refused = markers.iter().any(|marker| marker.start == playhead);
-        let add_marker = IconButton::new(IconSpec::svg(IconId::new("flag"))).label(words.add_marker.clone()).enabled(!refused).show(ui);
-        let settings = IconButton::new(IconSpec::svg(IconId::new("settings"))).label(words.settings.clone()).show(ui);
+        let add_marker = IconButton::new(IconSpec::svg(IconId::new("flag"))).label(words.add_marker.clone()).enabled(!refused).show(ui).response;
+        let settings = IconButton::new(IconSpec::svg(IconId::new("settings"))).label(words.settings.clone()).show(ui).response;
         (snap, linked, add_marker, settings)
     });
     shown.inner.map(|(snap, linked_selection, add_marker, settings)| TimelineToolbar { snap, linked_selection, add_marker, settings })

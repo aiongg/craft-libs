@@ -5,6 +5,7 @@ use crate::contract::{Bind, Entry, Props as _, Role, Show as _, Validity};
 use crate::runtime::env::Message;
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use craft_behavior::Mixed;
+use craft_theme::ControlSize;
 use egui::Ui;
 
 fn modes() -> [Entry<u8>; 3] {
@@ -14,7 +15,10 @@ fn modes() -> [Entry<u8>; 3] {
 #[story(Select<'static, u8>, covers = [Default], drive = Drive::Pick { row: 1 })]
 fn select(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let entries = modes();
-    Select::new("Blend mode", Bind::bound(data.value("mode", 0u8)), &entries).show(ui).into()
+    let size = *data.choice("size", ControlSize::Md, &[("Sm", ControlSize::Sm), ("Md", ControlSize::Md)]);
+    let disabled = *data.value("disabled", false);
+    let blend = data.choice("mode", 0u8, &[("Normal", 0), ("Multiply", 1), ("Screen", 2)]);
+    Select::new("Blend mode", Bind::bound(blend), &entries).size(size).enabled(!disabled).show(ui).into()
 }
 
 #[story(Select<'static, u8>, covers = [Mixed], drive = Drive::Never)]

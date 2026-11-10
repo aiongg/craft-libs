@@ -8,6 +8,7 @@ rust-version.workspace = true
 description = "Story viewer over craft-ui's registered stories"
 publish = false
 autotests = false
+default-run = "craft-ui-gallery"
 
 [lib]
 path = "src/lib.rs"

@@ -674,7 +674,10 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
         if let Some(height) = self.panels.group_view(members, active, ui, at, body) {
             return matches!(at, GroupAt::Measure(_)).then_some(height);
         }
-        let titles: Vec<PanelTitle> = members.iter().map(|panel| PanelTitle::new(PanelKey::of(panel), scene.spec(panel).label)).collect();
+        let titles: Vec<PanelTitle> = members
+            .iter()
+            .map(|panel| PanelTitle::new(PanelKey::of(panel), scene.spec(panel).label).closable(scene.permissions(panel).closable))
+            .collect();
         let shown = &members[active];
         let menu = self.menu_rows(body, shown);
         let permissions = |panel: &P| scene.permissions(panel);

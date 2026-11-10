@@ -216,7 +216,7 @@ pub struct DockGroup<'a, P: Clone + Hash + Send + Sync + 'static> {
     /// The grip drags the group.
     #[prop]
     movable: bool,
-    /// Tabs show a close button and close on a middle click.
+    /// Tabs of panels that are closable show a close button and close on a middle click.
     #[prop(flag)]
     closable: bool,
     /// The dock whose drop registry the group's spots go to.
@@ -347,7 +347,8 @@ impl<P: Clone + Hash + Send + Sync + 'static> Container for DockGroup<'_, P> {
             }
 
             let source = keyed(panels, |panel: &PanelTitle| panel.key).with_text(|panel| Cow::Borrowed(panel.title.as_str()));
-            let kind = if closable { TabKind::Document } else { TabKind::Panel };
+            let closes = |panel: &PanelTitle| closable && panel.closable;
+            let kind = if panels.iter().any(closes) { TabKind::Document } else { TabKind::Panel };
             let strip = TabStrip::new(name.clone())
                 .kind(kind)
                 .shown(active)
@@ -355,8 +356,9 @@ impl<P: Clone + Hash + Send + Sync + 'static> Container for DockGroup<'_, P> {
                 .accept_from(|_| false)
                 .drag_payload(move |drag: &ListDrag<PanelKey>| Some(PanelDrag { panel: drag.grabbed, from }))
                 .show_items(ui, &source, &mut |key, _| {
-                    let title = panels.iter().find(|panel| &panel.key == key).map_or_else(Label::default, |panel| panel.title.clone());
-                    Tab::new(title).closable(closable)
+                    let panel = panels.iter().find(|panel| &panel.key == key);
+                    let title = panel.map_or_else(Label::default, |panel| panel.title.clone());
+                    Tab::new(title).closable(panel.is_some_and(closes))
                 });
             let strip_id = strip.response.response.id;
             // A press on the group's empty body focuses its panel, as in Photoshop.

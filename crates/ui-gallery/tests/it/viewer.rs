@@ -3,6 +3,7 @@
 use craft_behavior::Selection;
 use craft_settings::{Location, OpenOptions, SettingsFiles, SettingsStore};
 use craft_theme::ModeChoice;
+use craft_ui::contract::Level;
 use craft_ui::list::OpenSet;
 use craft_ui::testing::trial;
 use craft_ui_gallery::viewer::{
@@ -43,10 +44,15 @@ impl SettingsFiles for MemoryFiles {
 
 fn components() -> Vec<ComponentInfo> {
     vec![
-        ComponentInfo::new("craft_ui::buttons::button::Button<'_>", "craft_ui::buttons::button", vec!["button", "button_long_text"]),
-        ComponentInfo::new("craft_ui::buttons::link::Link", "craft_ui::buttons::link", vec!["link"]),
-        ComponentInfo::new("craft_ui::display::text::Text", "craft_ui::display::text", vec!["text"]),
-        ComponentInfo::new("crate::Undeclared", "", vec!["undeclared"]),
+        ComponentInfo::new(
+            "craft_ui::buttons::button::Button<'_>",
+            Level::Controls,
+            "Button",
+            &[("button", "Default"), ("button_long_text", "Long text")],
+        ),
+        ComponentInfo::new("craft_ui::buttons::link::Link", Level::Controls, "Link", &[("link", "Default")]),
+        ComponentInfo::new("craft_ui::display::text::Text", Level::Primitives, "text", &[("text", "Default")]),
+        ComponentInfo::new("craft_ui::value_drag::AngleDial", Level::Controls, "AngleDial", &[("dial", "Default")]),
     ]
 }
 
@@ -108,7 +114,7 @@ fn settings_restore_the_state_they_were_saved_from() {
     before.env.mode = ModeChoice::System;
     before.browser.filter = "u".to_owned();
     before.browser.selection = Selection::single(TreeKey::Component("craft_ui::buttons::link::Link"));
-    before.browser.open.set(&TreeKey::Module("craft_ui::buttons::link"), true);
+    before.browser.open.set(&TreeKey::Level(Level::Controls), true);
     before.workspace = Workspace::Theme;
     before.open_component("craft_ui::buttons::link::Link");
     before.browser.level = "controls".to_owned();
@@ -123,28 +129,31 @@ fn settings_restore_the_state_they_were_saved_from() {
     let after = viewer(reopened.get());
     assert_eq!(GallerySettings::of(&after), saved);
     assert_eq!(after.selected_type(), Some("craft_ui::buttons::link::Link"));
-    assert_eq!(after.open_modules(), vec!["craft_ui::buttons::link".to_owned()]);
+    assert_eq!(after.open_levels(), vec!["controls".to_owned()]);
     assert_eq!(after.workspace, Workspace::Theme);
     assert_eq!(open_tabs(&after.browser.dock), ["craft_ui::buttons::link::Link"]);
     assert_eq!(after.browser.level, "controls");
 }
 
+/// The tree lists the levels in order and each level's components by plain name ignoring case; a filter opens the
+/// levels that hold a match and leaves the remembered open set as it was.
 #[trial]
-fn the_filter_shows_the_groups_that_hold_a_match_open() {
-    let closed = OpenSet::new();
-    let all = rows(&components(), "", &closed);
-    assert_eq!(all.len(), 4, "closed groups show alone");
-    assert!(all.iter().all(|row| row.group));
+fn the_tree_lists_levels_in_order_and_the_filter_keeps_the_open_set() {
+    let mut open = OpenSet::new();
+    let labels = |rows: &[craft_ui_gallery::viewer::TreeRow]| rows.iter().map(|row| row.label.clone()).collect::<Vec<_>>();
+    assert_eq!(labels(&rows(&components(), "", &open)), ["Primitives", "Controls"], "closed levels show alone");
 
-    let by_type = rows(&components(), "LINK", &closed);
-    let labels: Vec<_> = by_type.iter().map(|row| row.label.as_str()).collect();
-    assert_eq!(labels, ["craft_ui::buttons::link", "Link"]);
+    open.set(&TreeKey::Level(Level::Controls), true);
+    assert_eq!(labels(&rows(&components(), "", &open)), ["Primitives", "Controls", "AngleDial", "Button", "Link"]);
 
-    let by_story = rows(&components(), "long_text", &closed);
-    assert_eq!(by_story.last().map(|row| row.label.as_str()), Some("Button<'_>"));
+    let by_story = rows(&components(), "long text", &open);
+    assert_eq!(labels(&by_story), ["Controls", "Button"]);
 
-    let none = rows(&components(), "no such component", &closed);
-    assert!(none.is_empty());
+    let by_name = rows(&components(), "TEXT", &open);
+    assert_eq!(labels(&by_name), ["Primitives", "text", "Controls", "Button"], "a filter opens every level with a match");
+    assert!(!open.is_open(&TreeKey::Level(Level::Primitives)), "and leaves the open set alone");
+
+    assert!(rows(&components(), "no such component", &open).is_empty());
 }
 
 /// A crate with no registrations here was linked out, which in a release web build loses its stories.

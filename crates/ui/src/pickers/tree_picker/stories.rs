@@ -1,10 +1,11 @@
 //! Stories of `TreePicker`.
 
 use super::{TreeEntry, TreePicker};
-use crate::contract::{Bind, Show as _, Validity};
+use crate::contract::{Bind, Props as _, Show as _, Validity};
 use crate::runtime::env::Message;
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use craft_behavior::Mixed;
+use craft_theme::ControlSize;
 use egui::{Key, Modifiers, Ui};
 
 const ARCHIVE: u32 = 1;
@@ -26,7 +27,9 @@ fn albums() -> Vec<TreeEntry<u32>> {
 #[story(TreePicker<'static, u32>, covers = [Default], drive = Drive::Pick { row: 1 })]
 fn tree_picker(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let entries = albums();
-    TreePicker::new("Album", Bind::bound(data.value("album", None::<u32>)), &entries).show(ui).into()
+    let size = *data.choice("size", ControlSize::Md, &[("Sm", ControlSize::Sm), ("Md", ControlSize::Md)]);
+    let disabled = *data.value("disabled", false);
+    TreePicker::new("Album", Bind::bound(data.value("album", None::<u32>)), &entries).size(size).enabled(!disabled).show(ui).into()
 }
 
 #[story(TreePicker<'static, u32>, covers = [Mixed], drive = Drive::Never)]
