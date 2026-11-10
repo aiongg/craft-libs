@@ -72,6 +72,11 @@
         "height": 144.0,
         "width": 240.0
       },
+      "marker": {
+        "height": 8.0,
+        "width": 11.0
+      },
+      "meter": 6.0,
       "pointer_tip": {
         "x": 20.0,
         "y": 22.0

@@ -91,13 +91,13 @@ fn dashes(width: f32, thickness: f32) -> Vec<(f32, f32)> {
     spans
 }
 
-/// The track of a bar: a sunken, edged groove two thick strokes and a thin one high.
+/// The track of a bar: a sunken, edged groove `size.meter` high.
 fn bar_track(cx: &StyleCx<'_>) -> TrackLook {
     let colors = &cx.tokens.color;
     let mut track = cx.track();
     let sunken = cx.color(colors.surface.sunken);
     track.unfilled = Stateful::new(sunken);
-    track.thickness = 2.0 * cx.tokens.stroke.thick + cx.tokens.stroke.thin;
+    track.thickness = cx.tokens.size.meter;
     track
 }
 

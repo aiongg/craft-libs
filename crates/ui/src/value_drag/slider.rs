@@ -183,7 +183,7 @@ impl Component for Slider<'_> {
         self.marks.lay_out(&cx.style.mark_text, cx.style.space, |label| cx.env.resolve(label), |run| cx.layout(run).size());
         let scale = self.track_scale();
         let area = self.marks.area(rect, &cx.style.track);
-        let value = cx.value().copied().unwrap_or_else(|| scale.middle());
+        let value = cx.value().copied().unwrap_or_else(|| scale.place(f64::NAN));
         let thumb = thumb_rect(&scale, value, area, cx.flow);
         if self.track_face.is_some() {
             cx.part(track::GROOVE, track::ramp_rect(&cx.style.track, area));
@@ -298,7 +298,7 @@ impl Component for Slider<'_> {
             None => false,
         };
         let draw = ui.draw();
-        let thumb = thumb_rect(&scale, value.unwrap_or_else(|| scale.middle()), area, flow);
+        let thumb = thumb_rect(&scale, value.unwrap_or_else(|| scale.place(f64::NAN)), area, flow);
         if !faced {
             let reach = (thumb.center().x - flow.start_x()).abs();
             let fill = value.filter(|_| self.fill).map(|_| Fill { color: cx.resolve(&style.track.filled), from: 0.0, to: reach });
@@ -306,10 +306,7 @@ impl Component for Slider<'_> {
         }
         let ink = MarkInk { marks: cx.resolve(&style.track.mark_color), labels: cx.resolve(&style.mark_text.color), role: style.mark_text.role };
         track::paint_marks(&draw, &style.track, &self.marks, &scale, Along { area, flow }, cx.rect, &ink);
-        let (fill, edge) = (
-            if value.is_some() { cx.resolve_part(Self::THUMB, &style.thumb) } else { cx.resolve(&style.track.unfilled) },
-            cx.resolve_part(Self::THUMB, &style.thumb_edge),
-        );
+        let (fill, edge) = (cx.resolve_part(Self::THUMB, &style.thumb), cx.resolve_part(Self::THUMB, &style.thumb_edge));
         let knob = match self.thumb {
             SliderThumb::Round => PaintShape::Circle(thumb.center(), style.diameter / 2.0),
             SliderThumb::Triangle => {

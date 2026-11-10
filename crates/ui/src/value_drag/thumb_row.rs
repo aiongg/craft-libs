@@ -748,7 +748,7 @@ impl<const N: usize> Component for ThumbRow<'_, N> {
             ring: Stateful::new(cx.color(clear)).off(States::new(cx.color(clear), cx.color(soft), cx.color(accent), cx.color(clear))),
             ring_width: cx.tokens.stroke.thick,
             hit: cx.tokens.size.hit.target,
-            thumb: Vec2::new(cx.tokens.size.handle.md + cx.tokens.size.handle.sm / 2.0, cx.tokens.size.handle.md),
+            thumb: Vec2::new(cx.tokens.size.marker.width, cx.tokens.size.marker.height),
             track: TrackLook { thickness: cx.tokens.size.ramp.bar, ..cx.track() },
             length,
         }
@@ -780,7 +780,7 @@ impl<const N: usize> Component for ThumbRow<'_, N> {
         let xs = layout.xs(&shown);
         let groove = self.track_face.is_some().then_some(cx.style.track.thickness);
         let thumbs = band(rect, groove);
-        let top = thumbs.top() + (thumbs.height() - size.y) / 2.0;
+        let top = thumbs.top();
         let halves = self.halves(&rules, &shown);
         if let Some(thickness) = groove {
             cx.part(track::GROOVE, Rect::from_min_size(rect.min, Vec2::new(rect.width(), thickness)));
@@ -940,7 +940,7 @@ impl<const N: usize> Component for ThumbRow<'_, N> {
                 Press::Span => Vec::new(),
             });
         let thumbs = band(cx.rect, self.track_face.is_some().then_some(style.track.thickness));
-        let top = thumbs.top() + (thumbs.height() - size.y) / 2.0;
+        let top = thumbs.top();
         let halves = self.halves(&rules, &shown);
         for i in 0..N {
             // Coinciding halves are one triangle, which the low half draws.

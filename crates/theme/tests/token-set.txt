@@ -116,6 +116,9 @@ size.icon.sm
 size.length.field
 size.length.short
 size.length.track
+size.marker.height
+size.marker.width
+size.meter
 size.pane.least
 size.panel_header
 size.plot.height
