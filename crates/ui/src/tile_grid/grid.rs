@@ -150,7 +150,11 @@ impl TileGridStyle {
             card: cx.tokens.size.thumb.card,
             thumbs: [cx.tokens.size.thumb.sm, cx.tokens.size.thumb.md, cx.tokens.size.thumb.lg],
             around: Tile::around(cx, card),
-            spacing: ArrangeSpacing::new(cx.tokens.space.gap.stack, cx.tokens.space.gap.inline, cx.tokens.size.panel_header),
+            spacing: ArrangeSpacing::new(
+                if card { cx.tokens.space.gap.section } else { cx.tokens.space.gap.stack },
+                cx.tokens.space.gap.inline,
+                cx.tokens.size.panel_header,
+            ),
         }
     }
 

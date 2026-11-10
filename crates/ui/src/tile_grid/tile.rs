@@ -608,13 +608,14 @@ impl Component for Tile<'_> {
             c(state.selected_hover),
             c(state.selected),
         ));
-        let line = if key.card { c(colors.line.border) } else { c(clear) };
+        let line = c(clear);
         let edge = Stateful::new(line)
             .off(States::new(line, c(text.muted), c(text.muted), line))
             .on(States::new(c(colors.accent.solid), c(colors.accent.solid), c(colors.accent.solid), c(colors.accent.solid)))
             .when(Flags::CURRENT, c(colors.accent.solid));
         let radius = UiTokens::corner(tokens.shape.radius.control);
         let surface = SurfaceLook::new(fill).radius(radius).border(edge, tokens.stroke.thick);
+        let surface = if key.card { surface.kind(SurfaceKind::Raised) } else { surface };
         let on_selected = c(text.on_selected);
         let ink = |base: StyleColor| {
             Stateful::new(base).off(States::new(base, base, base, c(text.disabled))).on(States::new(

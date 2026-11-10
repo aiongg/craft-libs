@@ -21,11 +21,12 @@ use crate::primitives::{CachedTexture, ContentPainterCx, IconSpec, Revision, Tex
 use crate::runtime::commands::{CommandSet as _, Commands as _};
 use crate::runtime::env::{AgeStyle, Env, Label};
 use crate::sections::Section;
+use crate::style::UiTokens;
 use crate::tile_grid::{CaptionPlace, Tile, TileGrid, TilePartEvent, TileStatus};
 use craft_behavior::{IconId, SelectionChange, keyed};
 use craft_theme::Variant;
 use craft_theme::variant::Tone;
-use egui::{Pos2, Rect, Response, Ui};
+use egui::{Pos2, Rect, Response, Ui, Vec2};
 use std::borrow::Cow;
 use std::cell::RefCell;
 use std::path::{Path, PathBuf};
@@ -196,6 +197,11 @@ struct Page<'p> {
 }
 
 impl Page<'_> {
+    /// The gap between a section's control row and its first row of content.
+    fn body_top(&self, ui: &mut Ui) {
+        crate::runtime::egui::alloc::space(ui, Vec2::new(0.0, self.env.tokens.space.gap.section));
+    }
+
     fn push(&self, action: StartAction) {
         self.actions.borrow_mut().push(action);
     }
@@ -256,7 +262,9 @@ fn paint_picture(cx: &ContentPainterCx, rect: Rect, texture: CachedTexture) {
     }
     let scale = (rect.width() / size.x).min(rect.height() / size.y);
     let fitted = Rect::from_center_size(rect.center(), size * scale);
-    cx.picture(texture.id, fitted, Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)));
+    let radius = UiTokens::corner(cx.style_cx().tokens.shape.radius.control);
+    let uv = Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0));
+    cx.painter.add(egui::epaint::RectShape::filled(fitted, radius, egui::Color32::WHITE).with_texture(texture.id, uv));
 }
 
 /// The folder a path is in, for the line under a file's name.
@@ -299,28 +307,30 @@ impl StartScreen<'_> {
         let view = RefCell::new(view);
         let sort = RefCell::new(sort);
 
-        let shown = Stack::new().fill().scroll(Scroll::vertical()).gap(Gap::Section).pad(Pad::Regular).show(ui, |ui, cx| {
-            let current_view = view.borrow_mut().reborrow().read(cx).and_then(|held| held.same().copied()).unwrap_or_default();
-            let current_sort = sort.borrow_mut().reborrow().read(cx).and_then(|held| held.same().copied()).unwrap_or_default();
-            let mut files: Vec<RecentFile> = recent.iter().take(max_recent).cloned().collect();
-            sort_recent(&mut files, current_sort, &collator);
+        let shown = Stack::new().fill().scroll(Scroll::vertical()).show(ui, |ui, _| {
+            Stack::new().gap(Gap::Section).pad(Pad::Regular).fill_width().show(ui, |ui, cx| {
+                let current_view = view.borrow_mut().reborrow().read(cx).and_then(|held| held.same().copied()).unwrap_or_default();
+                let current_sort = sort.borrow_mut().reborrow().read(cx).and_then(|held| held.same().copied()).unwrap_or_default();
+                let mut files: Vec<RecentFile> = recent.iter().take(max_recent).cloned().collect();
+                sort_recent(&mut files, current_sort, &collator);
 
-            Row::new().gap(Gap::Tight).show(ui, |ui, _| {
-                if clicked(&Button::new(words.new.clone()).id_salt("new").variant(Variant::PRIMARY).show(ui)) {
-                    page.push(StartAction::New);
+                Row::new().gap(Gap::Tight).show(ui, |ui, _| {
+                    if clicked(&Button::new(words.new.clone()).id_salt("new").variant(Variant::PRIMARY).show(ui)) {
+                        page.push(StartAction::New);
+                    }
+                    if clicked(&Button::new(words.open.clone()).id_salt("open").show(ui)) {
+                        page.push(StartAction::Open);
+                    }
+                });
+
+                recent_section(&page, ui, &view, &sort, current_view, &files);
+                if let Some(pinned) = pinned {
+                    pinned_section(&page, ui, pinned);
                 }
-                if clicked(&Button::new(words.open.clone()).id_salt("open").show(ui)) {
-                    page.push(StartAction::Open);
+                if !templates.is_empty() {
+                    templates_section(&page, ui, templates);
                 }
             });
-
-            recent_section(&page, ui, &view, &sort, current_view, &files);
-            if let Some(pinned) = pinned {
-                pinned_section(&page, ui, pinned);
-            }
-            if !templates.is_empty() {
-                templates_section(&page, ui, templates);
-            }
         });
         StartOutput { response: shown.output, actions: actions.into_inner() }
     }
@@ -351,6 +361,7 @@ fn recent_section(
             let _ = Select::new(words.sort.clone(), sort.borrow_mut().reborrowed(), &orders).show(ui);
         })
         .show(ui, |ui, cx| {
+            page.body_top(ui);
             let mut lead = cx.keep::<Leads>().recent.clone().filter(|path| files.iter().any(|file| &file.path == path));
             while let Some((command, _)) = cx.take_command::<StartRecentCommands>() {
                 let action = match (command, lead.clone()) {
@@ -434,6 +445,7 @@ fn pinned_section(page: &Page<'_>, ui: &mut Ui, folders: &[PathBuf]) {
             }
         })
         .show(ui, |ui, cx| {
+            page.body_top(ui);
             let mut lead = cx.keep::<Leads>().pinned.clone().filter(|path| folders.contains(path));
             while let Some((command, _)) = cx.take_command::<StartPinnedCommands>() {
                 let Some(path) = lead.clone() else { continue };
@@ -472,6 +484,7 @@ fn pinned_section(page: &Page<'_>, ui: &mut Ui, folders: &[PathBuf]) {
 fn templates_section(page: &Page<'_>, ui: &mut Ui, templates: &[Template]) {
     let words = page.words;
     let _ = Section::fixed(words.templates.clone()).show(ui, |ui, _| {
+        page.body_top(ui);
         let source = keyed(templates, |template: &Template| template.id.clone()).with_text(|template| Cow::Borrowed(template.name.as_str()));
         let out = page.grid::<String>(words.templates.clone(), false).show_items(ui, &source, &mut |id, _| {
             let Some(template) = templates.iter().find(|template| &template.id == id) else { return Tile::new(Label::Empty) };
