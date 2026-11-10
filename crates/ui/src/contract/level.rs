@@ -12,6 +12,7 @@ use std::collections::BTreeMap;
 
 /// Where a type sits in the design system, in the order a viewer lists them.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[non_exhaustive]
 pub enum Level {
     /// Colours, the edit lifecycle, stock egui.
     Foundations,
@@ -50,6 +51,7 @@ impl Level {
 
 /// The surface a type's stories sit on in an app; a viewer draws a story on it.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum Surface {
     /// A dock panel (`surface.panel`): most types.
     #[default]
