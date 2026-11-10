@@ -54,6 +54,7 @@ impl Component for Switch<'_> {
     const ROLE: Role = Role::SWITCH;
     const KEYS: KeyUse = KeyUse::of(Input::Pointer).with_activate(ActivateKeys::Space);
     const PARTS: bool = false;
+    const LABELLED_AFTER: bool = true;
     const OVERLAYS: bool = false;
     type Style = SwitchStyle;
     type Output = EditResponse<bool>;

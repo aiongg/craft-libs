@@ -284,6 +284,10 @@ pub trait Component: Meta + Sized {
     /// glyph: with no tooltip set, its label is then its tooltip, since the label is the only visible name the
     /// pointer can reach. A component whose answer varies per instance overrides `shows_label`.
     const SHOWS_LABEL: bool = true;
+    /// Whether the control draws only its mark and its text is the label step's, placed after it: a check box, a
+    /// radio button or a switch. `Show::show` then runs the label step for an instance that carries a label and sits
+    /// in no label scope, and a click on the label in any scope activates the control as a click on it does.
+    const LABELLED_AFTER: bool = false;
     /// Whether the component edits one value that several selected things cannot disagree on (a colour picker's
     /// area, strip or ramp: it edits the colour it is given). Such a type has no mixed state and no mixed story.
     /// Two sources: a canvas control (`#[component(canvas_control)]`) is single-value by kind, since it edits one
@@ -537,7 +541,7 @@ pub trait Collection: Component + HasProps + Meta<Shape = shape::Items> {
 pub trait Show: Component + Meta<Shape = shape::Leaf> + sealed::Show {
     /// Shows the component in the flow of `ui`.
     fn show(self, ui: &mut Ui) -> Self::Output {
-        run::show_leaf(self, ui, ShowAt::Flow, None)
+        label::show_leaf_in_flow(self, ui)
     }
 
     /// Shows the component at `rect`, with no allocation.

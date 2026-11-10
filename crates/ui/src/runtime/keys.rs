@@ -152,6 +152,8 @@ struct AltTrack {
 #[derive(Default)]
 struct Stage {
     batch: Batch,
+    /// Controls a label click activates, queued by `queue_activate` for the next pass.
+    activate: Vec<Id>,
     routed: HashMap<Option<Id>, Routed>,
     claimed: Vec<(Id, Chord)>,
     claims: Vec<(Id, Chord)>,
@@ -536,7 +538,7 @@ pub(crate) fn take_nav(ctx: &Context) -> NavKeys {
 pub(crate) fn begin(ctx: &Context, press_captured: bool) -> bool {
     let os = crate::runtime::windows::os_of(ctx);
     let target = focus::focused_rec(ctx);
-    let (batch, nodes, captures) = current(ctx, |stage| {
+    let (batch, nodes, captures, activate) = current(ctx, |stage| {
         stage.routed.clear();
         stage.contexts.clear();
         stage.claimed.clear();
@@ -544,7 +546,7 @@ pub(crate) fn begin(ctx: &Context, press_captured: bool) -> bool {
         stage.claims.clear();
         stage.last_open_edits = std::mem::take(&mut stage.open_edits);
         stage.last_nodes = std::mem::take(&mut stage.nodes);
-        (std::mem::take(&mut stage.batch), stage.last_nodes.clone(), std::mem::take(&mut stage.captures))
+        (std::mem::take(&mut stage.batch), stage.last_nodes.clone(), std::mem::take(&mut stage.captures), std::mem::take(&mut stage.activate))
     });
     let modal = overlay::any_open(ctx, overlay::OpenFilter::Modal);
     let stale_repeat = |stale: &mut bool, press: &Press| {
@@ -642,6 +644,11 @@ pub(crate) fn begin(ctx: &Context, press_captured: bool) -> bool {
     }
     for request in &batch.access {
         route_access(ctx, request, &nodes, &mut routed, &mut activated);
+    }
+    for id in &activate {
+        if let Some(rec) = focus::stop_rec(ctx, (*id, None)) {
+            route_activate(ctx, &rec, &mut routed, &mut activated);
+        }
     }
     current(ctx, |stage| {
         stage.routed = routed;
@@ -746,6 +753,13 @@ pub(crate) fn take_shortcuts(ctx: &Context) -> Shortcuts {
 /// `false` when it does not list the command. A paste asks the platform for the clipboard text, which arrives as
 /// the paste event that becomes the intent. Focus is read as it is now: a menu pick returns focus in its pass
 /// before its command fires, and the command goes where focus returned.
+/// Activates the control `id` in the next pass, as Space on it does: a group member goes through its group's root. A
+/// click on a label that names the control queues it.
+pub(crate) fn queue_activate(ctx: &Context, id: Id) {
+    current(ctx, |stage| stage.activate.push(id));
+    crate::runtime::frame::request_repaint(ctx);
+}
+
 pub(crate) fn queue_edit(ctx: &Context, command: EditCommand) -> bool {
     let viewport = crate::runtime::egui::pass::current_viewport(ctx);
     if !focus::focused_rec(ctx).is_some_and(|rec| rec.stop.keys.edits.contains(command)) {

@@ -444,3 +444,53 @@ fn a_rating_shown_as_a_face_paints_its_stars_in_the_part() {
     }
     assert_eq!(star_centres(&shapes, host).len(), 5, "five stars are painted inside the part: {shapes:?}");
 }
+
+/// The visible text runs of the latest frame that read `text`.
+fn painted(fixture: &Fixture, text: &str) -> usize {
+    fixture.texts().iter().filter(|run| run.text == text).count()
+}
+
+/// A labelled check box, radio and switch shown alone draw their label beside the control, and a click on the label
+/// toggles them; in a `Field` the field's label is the one shown.
+#[trial]
+fn a_labelled_toggle_shows_its_label_once_and_a_click_on_the_label_toggles_it() {
+    let on = Rc::new(Cell::new(false));
+    let state = on.clone();
+    let mut alone = Fixture::new(move |ui| {
+        let mut value = state.get();
+        Checkbox::new(Bind::bound(&mut value)).label("Show grid").show(ui);
+        state.set(value);
+    });
+    alone.settle();
+    assert_eq!(painted(&alone, "Show grid"), 1, "a labelled check box shows its label");
+    let label = alone.by_role(Role::LABEL).into_iter().next().expect("the label is a node");
+    alone.click(&label);
+    alone.idle(3);
+    assert!(on.get(), "a click on the label toggles the check box");
+
+    let state = Rc::new(Cell::new(1u8));
+    let picked = state.clone();
+    let mut radios = Fixture::new(move |ui| {
+        let mut value = picked.get();
+        RadioGroup::new("Size", Bind::bound(&mut value)).show(ui, |ui, _| {
+            Radio::new(1u8).label("Small").show(ui);
+            Radio::new(2u8).label("Large").show(ui);
+        });
+        picked.set(value);
+    });
+    radios.settle();
+    assert_eq!(painted(&radios, "Large"), 1, "a labelled radio shows its label");
+    let large = radios.by_role(Role::LABEL).into_iter().find(|target| radios.tree().name_of(target.node) == Some("Large"));
+    radios.click(&large.expect("the label is a node"));
+    radios.idle(3);
+    assert_eq!(state.get(), 2, "a click on a radio's label selects it");
+
+    let in_field = Fixture::new(|ui| {
+        craft_ui::form::Field::new("Show grid").layout(craft_ui::contract::FieldLayout::After).show(ui, |ui, _| {
+            Checkbox::new(Bind::given(false)).label("Show grid").show(ui);
+        });
+    });
+    let mut in_field = in_field;
+    in_field.settle();
+    assert_eq!(painted(&in_field, "Show grid"), 1, "inside a field the label is shown once");
+}
