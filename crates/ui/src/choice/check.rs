@@ -6,7 +6,7 @@ use crate::primitives::{PaintShape, StrokeWidth, glyph};
 use crate::runtime::focus::{ActivateKeys, KeyUse};
 use crate::style::{ComponentStyle, Flags, FocusLook, StyleColor, StyleCx, SurfaceKind};
 use craft_behavior::{Metrics, Sense};
-use craft_theme::{Stateful, variant::Tone};
+use craft_theme::{Stateful, States, variant::Tone};
 use egui::{CornerRadius, Rect, Vec2};
 
 /// The mixed dash's half-length as a share of the box's side.
@@ -25,7 +25,7 @@ pub struct CheckboxStyle {
     /// The box edge.
     edge: Stateful<StyleColor>,
     /// The check mark and the dash.
-    mark: StyleColor,
+    mark: Stateful<StyleColor>,
     radius: CornerRadius,
     side: f32,
 }
@@ -57,15 +57,16 @@ impl Component for Checkbox<'_> {
     fn style(cx: &StyleCx<'_>, _: CheckboxStyleKey) -> CheckboxStyle {
         let control = cx.control();
         let colors = &cx.tokens.color;
-        let (well, solid) = (cx.color(colors.surface.sunken), cx.accent_fill().off);
-        let fill = Stateful::new(well).on(solid).when(Flags::INVALID, well);
-        let edge = Stateful::new(cx.color(colors.line.control_edge)).on(solid).when(Flags::INVALID, cx.tone(Tone::Bad));
+        let solid = cx.color(colors.accent.solid);
+        let disabled = cx.color(colors.text.disabled);
+        let fill = super::well(cx).on(States::new(solid, solid, solid, disabled));
+        let edge = super::outline(cx).on(States::new(solid, solid, solid, disabled)).when(Flags::INVALID, cx.tone(Tone::Bad));
         CheckboxStyle {
-            metrics: Metrics::new().min_size(Vec2::splat(control.height)),
+            metrics: Metrics::new().min_size(Vec2::new(0.0, control.height)),
             focus: cx.focus_look(),
             fill,
             edge,
-            mark: cx.color(colors.text.on_strong),
+            mark: super::mark(cx),
             radius: cx.surface(SurfaceKind::Well).radius,
             side: control.icon,
         }
@@ -95,13 +96,13 @@ impl Component for Checkbox<'_> {
         let draw = ui.draw();
         let shape = PaintShape::Rect(square, cx.style.radius);
         draw.fill(&shape, cx.resolve(&cx.style.fill));
-        draw.stroke(&shape, StrokeWidth::Thin, cx.resolve(&cx.style.edge));
+        draw.stroke(&shape, StrokeWidth::Medium, cx.resolve(&cx.style.edge));
         if cx.mixed {
             let c = square.center();
             let half = Vec2::new(cx.style.side * DASH, 0.0);
-            draw.stroke(&PaintShape::Path(vec![c - half, c + half]), StrokeWidth::Medium, cx.style.mark);
+            draw.stroke(&PaintShape::Path(vec![c - half, c + half]), StrokeWidth::Medium, cx.resolve(&cx.style.mark));
         } else if cx.value().copied().unwrap_or(false) {
-            draw.stroke(&glyph::check(square), StrokeWidth::Medium, cx.style.mark);
+            draw.stroke(&glyph::check(square), StrokeWidth::Medium, cx.resolve(&cx.style.mark));
         }
     }
 

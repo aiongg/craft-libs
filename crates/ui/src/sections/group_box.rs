@@ -91,8 +91,9 @@ impl Container for GroupBox<'_> {
     /// The gate's shown copy goes to the check box; the container applies a change at step 15.
     fn header(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
         let row = TitleRow::new(cx.label()).strength(self.strength).fill(self.header_fill).level(SECTION_LEVEL);
+        let mixed = cx.gate_is_mixed();
         match cx.gate() {
-            Some(gate) => row.gate(Bind::bound(gate)).show(ui),
+            Some(gate) => row.gate(Bind::bound(gate)).gate_mixed(mixed).show(ui),
             None => row.show(ui),
         };
     }

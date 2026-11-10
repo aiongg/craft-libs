@@ -2111,7 +2111,10 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         let real = !ui.is_sizing_pass();
         // Only a container that declares its value a gate (a group box) gates its content; a radio group whose value
         // is a bool does not.
+        // A mixed gate reads as off, and its check box shows the mixed face.
         self.gate = cx.shown.as_deref().filter(|_| props.gates).and_then(|value| (value as &dyn Any).downcast_ref::<bool>()).copied();
+        let gate_mixed = props.gates && cx.mixed;
+        self.gate = self.gate.or(gate_mixed.then_some(false));
         self.gate_at_read = self.gate;
         let window = window_instance(&props, id).filter(|window| *window != id);
         if real {
@@ -2129,6 +2132,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         // B1 header
         if props.header.is_some() {
             let mut bcx = BodyCx::new(body_id, env_view, resolved, regions.header, &mut *cx.core.memory, &mut open, gate.as_mut())
+                .with_gate_mixed(gate_mixed)
                 .with_field_message(field_message.clone())
                 .with_owner(owner);
             let trailing = props.header.is_some_and(|header| header.trailing);
@@ -2192,6 +2196,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 enabled: resolved.enabled,
                 size: resolved.size,
                 control_min: scope::measured_control_min(&ctx, id),
+                leaf: false,
             };
             body_rect = label::run(ui, env, &input).control;
             label_input = Some(input);

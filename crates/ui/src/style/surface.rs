@@ -40,6 +40,19 @@ pub struct SurfaceStyle {
     pub shadow: Option<Shadow>,
 }
 
+impl SurfaceStyle {
+    /// This look while disabled: opaque, the fill moved toward `panel` (the disabled fill) by `Opacity::DISABLED`, the edge `edge`, and no
+    /// shadow.
+    pub fn disabled(&self, panel: Color32, edge: Color32) -> SurfaceStyle {
+        let edge = match self.edge {
+            SurfaceEdge::Border(stroke) => SurfaceEdge::Border(Stroke::new(stroke.width, edge)),
+            SurfaceEdge::Bevel { width, .. } => SurfaceEdge::Bevel { top_left: edge, bottom_right: edge, width },
+            other => other,
+        };
+        SurfaceStyle { fill: craft_theme::Mix::mix(self.fill, panel, craft_theme::Opacity::DISABLED), edge, shadow: None, ..*self }
+    }
+}
+
 fn color(c: Rgba) -> Color32 {
     let [r, g, b, a] = c.0;
     Color32::from_rgba_unmultiplied(r, g, b, a)

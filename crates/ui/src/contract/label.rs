@@ -12,7 +12,6 @@ use crate::runtime::access::{
 use crate::runtime::egui::{alloc, child};
 use crate::runtime::env::{Env, Label};
 use crate::runtime::keys;
-use crate::runtime::layout_memory;
 use crate::runtime::memory::sub;
 use crate::runtime::words::CommonWords;
 use crate::style::{ComponentStyle, ResetMarkLook, Stateful, StyleColor, StyleCx, TextLook, TypeRole};
@@ -249,6 +248,8 @@ struct LabelStyle {
     /// The name: `text.muted`, dimmed with a disabled control.
     #[style(text)]
     name: TextLook,
+    /// The colour of the glyph, icon and detail while the label's control is disabled.
+    disabled: StyleColor,
 }
 
 /// What the label leaf reports.
@@ -345,6 +346,7 @@ impl Component for LabelLeaf {
                 let (muted, off) = (cx.color(cx.tokens.color.text.muted), cx.color(cx.tokens.color.text.disabled));
                 TextLook::new(TypeRole::Label, Stateful::new(muted).off(States::new(muted, muted, muted, off)))
             },
+            disabled: cx.color(cx.tokens.color.text.disabled),
         }
     }
 
@@ -410,15 +412,27 @@ impl Component for LabelLeaf {
         let flow = Flow::new(cx.rect, cx.core.env.direction().is_rtl());
         let (slot, mut rest) = flow.take_end(self.slot);
         let draw = ui.draw();
+        // While the control is disabled, every part reads in `text.disabled`.
+        let ink = (cx.state.state == craft_theme::State::Disabled).then_some(cx.style.disabled);
+        let icon_of = |icon: &IconSpec<'static>| match ink {
+            Some(color) => IconSpec { color: Some(color), ..icon.clone() },
+            None => icon.clone(),
+        };
+        fn tint(run: TextRun<'_>, ink: Option<StyleColor>) -> TextRun<'_> {
+            match ink {
+                Some(color) => run.color(color),
+                None => run,
+            }
+        }
         let middle = cx.rect.center().y;
         let centred = |rect: Rect, height: f32| Rect::from_min_size(egui::pos2(rect.min.x, middle - height / 2.0), Vec2::new(rect.width(), height));
         if let Some(glyph) = &self.glyph {
             match glyph {
                 Glyph::Icon(icon) => {
-                    draw.icon(centred(rest.take_start(cx.style.icon).0, cx.style.icon), icon);
+                    draw.icon(centred(rest.take_start(cx.style.icon).0, cx.style.icon), &icon_of(icon));
                 }
                 Glyph::Text(text) => {
-                    let run = TextRun::new(text.as_str());
+                    let run = tint(TextRun::new(text.as_str()), ink);
                     let size = draw.layout(&run, rest.rect().width()).size();
                     draw.text(centred(rest.take_start(size.x).0, size.y), &run);
                 }
@@ -426,14 +440,14 @@ impl Component for LabelLeaf {
         } else {
             if let Some(icon) = &self.icon {
                 let (cell, after) = rest.take_start(cx.style.icon);
-                draw.icon(centred(cell, cx.style.icon), icon);
+                draw.icon(centred(cell, cx.style.icon), &icon_of(icon));
                 rest = after.take_start(cx.style.gap).1;
             }
             // A name wider than its room elides; the full text stays the accessible name.
-            let ink = cx.resolve(&cx.style.name.color);
-            let colon = self.colon.as_deref().map(|colon| TextRun::new(colon).color(ink));
+            let name_ink = cx.resolve(&cx.style.name.color);
+            let colon = self.colon.as_deref().map(|colon| TextRun::new(colon).color(name_ink));
             let colon_width = colon.as_ref().map_or(0.0, |run| draw.layout(run, f32::INFINITY).size().x);
-            let run = TextRun::new(cx.core.resolved.label).color(ink).elide();
+            let run = TextRun::new(cx.core.resolved.label).color(name_ink).elide();
             let name = draw.layout(&run, (rest.rect().width() - colon_width).max(0.0)).size();
             let (name_rect, after) = rest.take_start(name.x);
             draw.text(centred(name_rect, name.y), &run);
@@ -446,7 +460,7 @@ impl Component for LabelLeaf {
                 None => after,
             };
             if let Some(detail) = &self.detail {
-                let run = self.detail_run(detail, cx.style);
+                let run = tint(self.detail_run(detail, cx.style), ink);
                 let (_, detail_flow) = after.take_start(cx.style.gap);
                 let size = draw.layout(&run, detail_flow.rect().width()).size();
                 draw.text(centred(detail_flow.rect(), size.y), &run);
@@ -507,6 +521,8 @@ pub(crate) struct LabelIn<'a> {
     pub size: craft_theme::ControlSize,
     /// The narrowest the control can be; a row too narrow for the label column, the gap and this stacks the label above.
     pub control_min: f32,
+    /// The control is a leaf child shown in the flow with its label after it, not a field's body.
+    pub leaf: bool,
 }
 
 /// The label fact the scope records: the name's text, and the detail and the help line (resolved) as the control's
@@ -570,6 +586,7 @@ pub(crate) fn leaf<C: Show>(ui: &mut Ui, env: &Env, at: &LeafLabel<'_>, child: &
         enabled,
         size: at.size,
         control_min,
+        leaf: true,
     };
     let placed = run(ui, env, &input);
     LeafPlaced { control: placed.control, label: placed.label, scope }
@@ -583,17 +600,25 @@ pub(crate) struct Placed {
     pub control: Rect,
 }
 
-/// The `After` placement: the control's cell first, then the gap, then the label. As in `LabelColumn::place`, the
-/// one with the lower baseline moves down so the two baselines line up, using the baseline `record_control_baseline`
-/// stored last pass.
-fn place_after(ctx: &egui::Context, scope: Id, flow: Flow, control_min: f32, gap: f32, label: Vec2, label_baseline: f32) -> Placed {
+/// The `After` placement: the control's cell first, then the gap, then the label. A leaf control (a box, circle or
+/// track has no text baseline) and its label are centred on each other across the row. For a field's control, as in
+/// `LabelColumn::place`, the one with the lower baseline moves down so the two baselines line up, using the baseline
+/// `record_control_baseline` stored last pass.
+fn place_after(ctx: &egui::Context, input: &LabelIn<'_>, flow: Flow, gap: f32, label: Vec2, label_baseline: f32) -> Placed {
     let rtl = flow.is_rtl();
-    let (control_cell, rest) = flow.take_start(control_min.min(flow.rect().width()));
+    let (control_cell, rest) = flow.take_start(input.control_min.min(flow.rect().width()));
     let (_, rest) = rest.take_start(gap);
-    let control_baseline = layout_memory::read(ctx, sub(scope, "baseline")).map(|size| size.y);
+    let label_width = label.x.min(rest.rect().width());
+    if input.leaf {
+        let height = control_cell.height().max(label.y);
+        let label = Flow::new(rest.rect(), rtl).align(Vec2::new(label_width, height), Align::Min, Align::Min);
+        let control = control_cell.translate(Vec2::new(0.0, (height - control_cell.height()) / 2.0));
+        return Placed { label, control };
+    }
+    let control_baseline = crate::layout::control_baseline(ctx, input.scope, label, label_baseline);
     let drop = control_baseline.map_or(0.0, |control| control - label_baseline);
     let (label_drop, control_drop) = (drop.max(0.0), (-drop).max(0.0));
-    let label_size = Vec2::new(label.x.min(rest.rect().width()), label.y);
+    let label_size = Vec2::new(label_width, label.y);
     let label = Flow::new(rest.rect(), rtl).align(label_size, Align::Min, Align::Min).translate(Vec2::new(0.0, label_drop));
     let control = Rect::from_min_max(egui::pos2(control_cell.left(), control_cell.top() + control_drop), control_cell.max);
     Placed { label, control }
@@ -673,7 +698,7 @@ fn decide(ctx: &egui::Context, env: &Env, input: &LabelIn<'_>, kids: &Ui, leaf: 
     };
 
     if input.side.layout == FieldLayout::After {
-        place_after(ctx, input.scope, flow, input.control_min, gap, natural, baseline)
+        place_after(ctx, input, flow, gap, natural, baseline)
     } else {
         let placed = crate::layout::place_label(
             kids,
@@ -830,16 +855,18 @@ pub(crate) fn flow_leaf<C: Show>(
 }
 
 /// Shows `child` in the flow of `ui`. A component whose `LABELLED_AFTER` is set and that carries a label shows it
-/// through the label step, after the control, unless a label scope already names the control (a `Field`, `labelled`):
+/// through the label step, after the control, unless a label scope already names the control (a `Field`, `labelled`;
+/// a member of a group, a radio, is named by the group and keeps its own text):
 /// that scope's label is the visible text, so the control's own is not shown twice. Every other leaf shows as it is.
 pub(crate) fn show_leaf_in_flow<C: Show>(mut child: C, ui: &mut Ui) -> C::Output {
-    let shows = C::LABELLED_AFTER && child.shows_label() && child.common(super::Internal::new()).label != Label::Empty && !scope::in_label(ui.ctx());
+    let env = Env::of(ui);
+    let named_by_scope = env.arena.is_none() && scope::in_label(ui.ctx());
+    let shows = C::LABELLED_AFTER && child.shows_label() && child.common(super::Internal::new()).label != Label::Empty && !named_by_scope;
     if !shows {
         return super::run::show_leaf(child, ui, super::run::ShowAt::Flow, None);
     }
     let label = std::mem::take(&mut child.common_mut(super::Internal::new()).label);
     let id = super::steps::id::<C>(ui, &child.common(super::Internal::new()).id, false, true);
-    let env = Env::of(ui);
     let side = SideLabel::new().layout(FieldLayout::After);
     flow_leaf(ui, id, id, (env.enabled, env.size), label, side, child)
 }

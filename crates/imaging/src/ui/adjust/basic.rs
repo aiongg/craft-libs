@@ -5,7 +5,9 @@ mod stories;
 
 use craft_theme::Srgba;
 use craft_ui::choice::{Checkbox, Radio, RadioGroup, Swatch};
-use craft_ui::contract::{Bind, EditResponse, Entry, Outcome, Pattern, Props as _, Remember as _, Show as _, ShowContainer as _};
+use craft_ui::contract::{
+    Bind, EditResponse, Entry, LabelKind, Outcome, Pattern, Props as _, Remember as _, Show as _, ShowContainer as _, SideLabel,
+};
 use craft_ui::form::{Field, FieldGroup};
 use craft_ui::layout_components::Row;
 use craft_ui::pickers::Select;
@@ -618,14 +620,14 @@ impl<'a> PhotoFilterEditor<'a> {
                     entries.push(Entry::new(None, words.custom.clone()));
                 }
                 entries.extend(PhotoFilterPreset::ALL.into_iter().map(|each| Entry::new(Some(each), each.label(&words))));
-                Field::new(words.filter.clone()).id_salt("filter").show(ui, |ui, _| {
+                Field::new(words.filter.clone()).side(SideLabel::new().kind(LabelKind::Hidden)).id_salt("filter").show(ui, |ui, _| {
                     Row::new().show(ui, |ui, _| {
                         Radio::new(false).label(words.filter.clone()).show(ui);
                         preset_edit =
                             Some(Select::new(words.filter.clone(), Bind::given(preset), &entries).enabled(!use_color).id_salt("preset").show(ui));
                     });
                 });
-                Field::new(words.color.clone()).id_salt("color").show(ui, |ui, _| {
+                Field::new(words.color.clone()).side(SideLabel::new().kind(LabelKind::Hidden)).id_salt("color").show(ui, |ui, _| {
                     Row::new().show(ui, |ui, _| {
                         Radio::new(true).label(words.color.clone()).show(ui);
                         let swatch =

@@ -80,6 +80,8 @@ pub(crate) struct Measuring<'a, 's> {
     pub scx: &'a StyleCx<'s>,
     pub resolved: &'a Resolved<'s>,
     pub command: Option<Arc<crate::runtime::commands::ResolvedCommand>>,
+    /// Whether the binding is mixed, as step 4 found it.
+    pub mixed: bool,
 }
 
 /// What differs by shape. The item step grows through the defaulted hooks at steps 4, 7, 8, 9, 11 and 17 (F6), and
@@ -892,10 +894,10 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
     // Sizes come from this pass: a sizing pass measures the shape from its content; in a real pass a body or item
     // shape takes what its measuring run found.
     let (extent, shown) = if sizing {
-        let measuring = Measuring { ui: &*ui, at, width: None, env, scx: &scx, resolved: &resolved, command: step1.command.clone() };
+        let measuring = Measuring { ui: &*ui, at, width: None, env, scx: &scx, resolved: &resolved, command: step1.command.clone(), mixed };
         measured_extent(&mut comp, &mut *hooks, &measuring, &mut stage, &style, shown)
     } else if matches!(shape, ShapeKind::Body | ShapeKind::Item) {
-        let measuring = Measuring { ui: &*ui, at, width: None, env, scx: &scx, resolved: &resolved, command: step1.command.clone() };
+        let measuring = Measuring { ui: &*ui, at, width: None, env, scx: &scx, resolved: &resolved, command: step1.command.clone(), mixed };
         (hooks.pass_extent(&mut comp, &measuring, &style, shown.clone()), shown)
     } else {
         (hooks.extent(&comp, ui, at, id, &scx), shown)
@@ -977,11 +979,12 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
     if real_pass {
         trace.mark(Step::Finish);
         steps::before_finish(&mut cx, activated, injected);
-        if shape == ShapeKind::Leaf {
-            let baseline = cx.core.paint.borrow().baseline;
-            if let Some(baseline) = baseline {
-                scope::record_baseline(&ctx, baseline - cx.core.rect.top());
-            }
+        // A control painting text through its faces (a select, a segmented control) reports that baseline too.
+        let baseline = cx.core.paint.borrow().baseline;
+        if let Some(baseline) = baseline {
+            scope::record_baseline(&ctx, baseline - cx.core.rect.top());
+        } else if shape == ShapeKind::Leaf {
+            scope::record_centre(&ctx, cx.core.rect.height() / 2.0);
         }
     }
     let output = comp.finish(cx);
@@ -1073,7 +1076,7 @@ pub(super) fn measured_extent<C: Component>(
 ) -> (Vec2, Option<Arc<ValueOf<C>>>) {
     let response = steps::inert_response(at.ui, at.resolved.id);
     let core = blank_core(at.env.view(), at.resolved, stage, at.ui.ctx().clone(), at.env.ink, response, at.command.clone());
-    let mut cx = Cx::<C> { core, style, shown, mixed: false, events: Vec::new(), applied: 0, validity: Validity::Ok };
+    let mut cx = Cx::<C> { core, style, shown, mixed: at.mixed, events: Vec::new(), applied: 0, validity: Validity::Ok };
     let extent = steps::measuring(at.ui.ctx(), || hooks.measured_extent(comp, at, &mut cx));
     (extent, cx.shown.take())
 }
@@ -1093,7 +1096,7 @@ fn measure_shape<C: Component>(
     let id = id.unwrap_or_else(|| steps::id::<C>(ui, &comp.common(Internal::new()).id, false, false));
     let common = comp.common(Internal::new()).clone();
     let step1 = steps::env::<C>(ui.ctx(), &env, &common);
-    let (shown, _) = steps::peek_value(comp, ui.ctx(), id, step1.command.as_deref());
+    let (shown, mixed) = steps::peek_value(comp, ui.ctx(), id, step1.command.as_deref());
     let scx = steps::style_cx(ui.ctx(), &env, &step1);
     let style = steps::style::<C>(ui.ctx(), &scx, comp.style_key());
     let resolved = steps::resolved(id, &step1, &common);
@@ -1106,7 +1109,7 @@ fn measure_shape<C: Component>(
         (Vec2::ZERO, shown)
     } else {
         let mut stage = MemoryStage::open_peek(ui.ctx(), id);
-        let measuring = Measuring { ui, at: ShowAt::Flow, width, env: &env, scx: &scx, resolved: &resolved, command: step1.command.clone() };
+        let measuring = Measuring { ui, at: ShowAt::Flow, width, env: &env, scx: &scx, resolved: &resolved, command: step1.command.clone(), mixed };
         measured_extent(comp, hooks, &measuring, &mut stage, &style, shown)
     };
     let input = MeasureIn { ui, env: &env, proposal, room: None };
@@ -1154,7 +1157,15 @@ pub(crate) fn paint_face<C: Show>(ui: &mut Ui, source: &FaceSource<'_>, part: Pa
     let rect = source.result.rect;
     let flow = Flow::new(rect, env.direction.is_rtl());
     let part_state = steps::part_state(source.result, step1.enabled, source.focus);
-    let flags = part_state.flags | face.flags() | source.flags;
+    let mut flags = part_state.flags | face.flags() | source.flags;
+    // A face shows the value the step-6 peek found, as `steps::state` reads it for a component: a checked check box
+    // takes the on look.
+    if (shown.as_deref().map(|value| value as &dyn std::any::Any)).and_then(|value| value.downcast_ref::<bool>()) == Some(&true) {
+        flags |= crate::style::Flags::CHECKED;
+    }
+    if mixed {
+        flags |= crate::style::Flags::MIXED;
+    }
     let on = f32::from(u8::from(flags.intersects(crate::style::Flags::ON)));
     let state = StateSet::new(part_state.state, flags, crate::style::StateMix::new(part_state.t.hover, part_state.t.press, on));
     let mut core = blank_core(env.view(), &resolved, &mut stage, ctx.clone(), env.ink, source.response.clone(), None);

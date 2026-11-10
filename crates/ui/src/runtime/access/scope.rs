@@ -105,6 +105,8 @@ struct Scope {
     open: Vec<(Id, usize)>,
     /// The first baseline of the first control, from the control's top.
     baseline: Option<f32>,
+    /// The centre line of the first control, from its top, for a control that paints no text.
+    centre: Option<f32>,
     /// The control that registered a reset value and whether its value differs from it.
     reset: Option<ResetFact>,
     /// The first message a control inside reported, with its resolved text.
@@ -153,6 +155,7 @@ pub(crate) fn begin(ctx: &Context, container: Id, owner: Id, kind: Kind) {
             nodes: Vec::new(),
             open: Vec::new(),
             baseline: None,
+            centre: None,
             reset: None,
             message: None,
             control_min: None,
@@ -217,6 +220,16 @@ pub(crate) fn record_baseline(ctx: &Context, baseline: f32) {
     Service::<Stack>::run(ctx, |stack| {
         if let Some(scope) = stack.0.iter_mut().rev().find(|scope| matches!(scope.kind, Kind::Label(_))) {
             scope.baseline.get_or_insert(baseline);
+        }
+    });
+}
+
+/// Records the centre line of a control that paints no text (a box, a track), measured from its top, in the innermost
+/// label scope; the label centres on it. The first control to report wins.
+pub(crate) fn record_centre(ctx: &Context, centre: f32) {
+    Service::<Stack>::run(ctx, |stack| {
+        if let Some(scope) = stack.0.iter_mut().rev().find(|scope| matches!(scope.kind, Kind::Label(_))) {
+            scope.centre.get_or_insert(centre);
         }
     });
 }
@@ -448,6 +461,9 @@ pub(crate) fn finish(ctx: &Context, container: Id, merged: Option<Merged>) {
             }
             if let Some(baseline) = scope.baseline {
                 layout_memory::record(ctx, sub(scope.container, "baseline"), Vec2::new(0.0, baseline));
+            }
+            if let (None, Some(centre)) = (scope.baseline, scope.centre) {
+                layout_memory::record(ctx, sub(scope.container, "centre"), Vec2::new(0.0, centre));
             }
             let slot = reset_slot(scope.container);
             match scope.reset {
