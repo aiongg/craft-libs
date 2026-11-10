@@ -714,6 +714,7 @@ fn run_in_host<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Opti
     overlay::drive_toggles(cx);
     steps::edit_intents(comp, cx);
     steps::scrub_by_label(comp, cx);
+    steps::activate_by_label(cx);
     comp.update(cx);
     if cfg!(debug_assertions) {
         let keys = text_keys.unwrap_or_else(|| comp.keys());

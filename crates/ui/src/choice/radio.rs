@@ -174,6 +174,7 @@ impl<T: Value + 'static> Radio<T> {
 impl<T: Value + 'static> Component for Radio<T> {
     const ROLE: Role = Role::RADIO_BUTTON;
     const KEYS: KeyUse = KeyUse::of(Input::Pointer).with_activate(ActivateKeys::Space);
+    const LABELLED_AFTER: bool = true;
     const PARTS: bool = false;
     const OVERLAYS: bool = false;
     type Style = RadioStyle;

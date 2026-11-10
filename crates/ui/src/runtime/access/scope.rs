@@ -111,6 +111,8 @@ struct Scope {
     message: Option<(Message, Tone, String)>,
     /// A control inside scrubs by the label.
     scrub: bool,
+    /// A control inside is activated by a click on the label, as a check box is.
+    activates: bool,
     /// The narrowest width of the first control.
     control_min: Option<f32>,
 }
@@ -155,6 +157,7 @@ pub(crate) fn begin(ctx: &Context, container: Id, owner: Id, kind: Kind) {
             message: None,
             control_min: None,
             scrub: false,
+            activates: false,
         })
     });
 }
@@ -279,6 +282,15 @@ pub(crate) fn register_scrub(ctx: &Context) {
     Service::<Stack>::run(ctx, |stack| {
         if let Some(scope) = stack.0.iter_mut().rev().find(|scope| matches!(scope.kind, Kind::Label(_))) {
             scope.scrub = true;
+        }
+    });
+}
+
+/// Registers that a control of the innermost label scope is activated by a click on the label.
+pub(crate) fn register_activates(ctx: &Context) {
+    Service::<Stack>::run(ctx, |stack| {
+        if let Some(scope) = stack.0.iter_mut().rev().find(|scope| matches!(scope.kind, Kind::Label(_))) {
+            scope.activates = true;
         }
     });
 }
@@ -430,6 +442,9 @@ pub(crate) fn finish(ctx: &Context, container: Id, merged: Option<Merged>) {
             // A click on a label, as on any form label, moves focus to its one control.
             if let (true, [only]) = (label.activated, &scope.nodes[..]) {
                 crate::runtime::focus::request(ctx, only.inner_stop.unwrap_or(crate::runtime::focus::FocusTarget::Id(only.id)));
+                if scope.activates {
+                    crate::runtime::keys::queue_activate(ctx, only.id);
+                }
             }
             if let Some(baseline) = scope.baseline {
                 layout_memory::record(ctx, sub(scope.container, "baseline"), Vec2::new(0.0, baseline));

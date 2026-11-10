@@ -203,7 +203,10 @@ pub(crate) fn report_finding(ctx: &Context, finding: Finding) {
 /// Fills the node step 8 created for `own`, registers it for action routing and in the label scope.
 pub(crate) fn report(ctx: &Context, own: &Own<'_>) {
     let access = own.access;
-    let mut name = named(&access.name, own.label, &[own.tooltip, own.elided]);
+    // A control the label scope names keeps its tooltip as a description, not as a name the label replaces.
+    let named_by_scope = own.label.is_empty() && scope::field_label(ctx).is_some_and(|label| label.role == scope::FieldLabelRole::Names);
+    let name_tooltip = own.tooltip.filter(|_| !named_by_scope);
+    let mut name = named(&access.name, own.label, &[name_tooltip, own.elided]);
     if own.names_nothing {
         name.text = None;
     }
