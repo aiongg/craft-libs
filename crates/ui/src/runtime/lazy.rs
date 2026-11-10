@@ -4,6 +4,7 @@
 
 use crate::runtime::egui::pass;
 use crate::runtime::frame::PerViewport;
+use craft_behavior::ScrollPos;
 use egui::{Context, Id, Rect, Vec2};
 use std::collections::HashMap;
 
@@ -19,11 +20,26 @@ pub(crate) struct View {
 }
 
 impl View {
-    /// The view widened by its own size on each side. A child there runs before it scrolls in, so its stops hold
-    /// their place in Tab order, a page move shows content that ran, and its extent is current when it shows.
     fn reach(&self) -> Rect {
-        self.rect.expand2(self.rect.size())
+        self.rect.expand2(margin(self.rect.size()))
     }
+}
+
+/// How far beyond each edge of a view of size `view` out-of-view content still runs: one view size. A child there
+/// runs before it scrolls in, so its stops hold their place in Tab order, a page move shows content that ran, and its
+/// extent is current when it shows.
+fn margin(view: Vec2) -> Vec2 {
+    view
+}
+
+/// The reach of a view of size `view` scrolled to `offset`: the view widened by the margin on each side, clipped at
+/// the content's start, as the offset and size an item layout's range query takes. A collection builds its rows
+/// there; `Lazy` children run in the same reach.
+pub(crate) fn reach(offset: ScrollPos, view: Vec2) -> (ScrollPos, Vec2) {
+    let margin = margin(view);
+    let from = ScrollPos { x: (offset.x - f64::from(margin.x)).max(0.0), y: (offset.y - f64::from(margin.y)).max(0.0) };
+    let to = (offset.x + f64::from(view.x + margin.x), offset.y + f64::from(view.y + margin.y));
+    (from, Vec2::new((to.0 - from.x) as f32, (to.1 - from.y) as f32))
 }
 
 /// What a child of a scroll area does this pass.
