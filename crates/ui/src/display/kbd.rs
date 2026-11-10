@@ -201,7 +201,7 @@ impl Component for Kbd {
             let look = SurfaceLook::new(Stateful::new(StyleColor(raised.fill))).kind(SurfaceKind::Raised).radius(raised.radius);
             (Some(look), Metrics::new().padding(key_pad), Stateful::new(cx.color(tokens.color.text.normal)))
         } else {
-            (None, Metrics::new(), cx.host_ink(muted))
+            (None, Metrics::new(), cx.host_muted_ink(cx.host_ink(muted)))
         };
         KbdStyle { keycap, metrics, text: TextLook::new(TypeRole::Caption, ink), key_pad, key_gap: tokens.space.gap.tight }
     }

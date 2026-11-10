@@ -584,7 +584,7 @@ impl Component for MenuItem<'_> {
             focus: cx.focus_look(),
             text: TextLook::new(TypeRole::Body, ink(text.normal)),
             icon: IconLook::new(control.icon, ink(text.normal)),
-            detail: TextLook::new(TypeRole::Caption, ink(text.faint)),
+            detail: TextLook::new(TypeRole::Caption, ink(text.muted)),
         }
     }
 
