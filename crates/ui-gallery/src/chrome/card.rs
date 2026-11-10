@@ -2,11 +2,13 @@
 //! start, Reset; the Open command of an Overview card opens the component's tab. The story runs in an embedded shell,
 //! so its dialogs open inside the card.
 
-use crate::viewer::CardState;
+use crate::viewer::{CardState, DialogState};
 use craft_behavior::IconId;
 use craft_behavior::Proposal;
 use craft_i18n::Direction;
 use craft_theme::{ControlSize, Mode};
+use craft_ui::buttons::Button;
+use craft_ui::contract::Show as _;
 use craft_ui::contract::{CommandSet, Commands as _, Pad, Props as _, ShowContainer as _, Sizing, Surface, ThemeScope};
 use craft_ui::layout_components::Stack;
 use craft_ui::runtime::env::{WindowKey, with_env};
@@ -105,7 +107,7 @@ impl Card<'_> {
         if self.usable {
             commands.push(HeaderCommand::new(IconId::new("check"), CardCommands::Use));
         }
-        if state.changed() {
+        if state.changed() || state.dialog.shown {
             commands.push(HeaderCommand::new(IconId::new("undo"), CardCommands::Reset));
         }
         let shown = panel.commands(commands).show(ui, |ui, cx| {
@@ -140,12 +142,39 @@ impl Card<'_> {
         // not stand for the story's.
         let bare = host.stack().id(craft_ui::testing::memory::sub(host.id, "bare")).measure_in(ui, Proposal::Ideal, |_, _| {});
         let height = if took.y > bare.y { took.y } else { self.room };
+        // A story that opens a dialog starts with it closed behind a button, as on the old gallery's Overview tiles.
+        if state.dialog.hidden {
+            if Button::new("Show dialog").show(ui).clicks == 0 {
+                return;
+            }
+            ui.ctx().request_repaint();
+            state.dialog = DialogState { known: true, hidden: false, shown: false };
+            if let Some(open) = state.data.present::<bool>("open") {
+                *open = true;
+            }
+        }
         let rect = Rect::from_min_size(ui.available_rect_before_wrap().min, vec2(ui.available_width(), height));
-        AppShell::embedded(window)
+        let shown = AppShell::embedded(window)
             .body(move |ui, _, data: &mut StoryData| {
                 host.stack().show(ui, |ui, _| host.content(ui, show, data));
             })
             .show_at(ui, rect, &mut state.data);
+        let was_shown = state.dialog.shown;
+        // A pass records the dialog's rect only some of the time, so it is the story's own `open` flag that says the
+        // dialog was closed (a story that cannot close its dialog has none).
+        let closed = state.data.present::<bool>("open").is_some_and(|open| !*open);
+        let dialog = &mut state.dialog;
+        match (shown.dialog.is_some(), dialog.known) {
+            (true, false) => *dialog = DialogState { known: true, hidden: true, shown: false },
+            (true, true) => dialog.shown = true,
+            (false, _) => {}
+        }
+        if dialog.known && !dialog.hidden && closed && dialog.shown {
+            *dialog = DialogState { known: true, hidden: true, shown: false };
+        }
+        if dialog.hidden || dialog.shown != was_shown {
+            ui.ctx().request_repaint();
+        }
         state.note_start();
     }
 }

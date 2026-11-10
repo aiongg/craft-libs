@@ -4,7 +4,7 @@
 use super::describe;
 use super::overview;
 use crate::theme::{AppLayerEditor, Problems, ThemeSubject, ThemeWorkspace, TokenBrowser, TokenDetail};
-use crate::viewer::{self, Catalog, Cells, CardState, ComponentInfo, PanelId, TreeKey, TreeRow, TreeRows};
+use crate::viewer::{self, CardState, Catalog, Cells, ComponentInfo, PanelId, TreeKey, TreeRow, TreeRows};
 use craft_behavior::IconId;
 use craft_behavior::{Selection, keyed};
 use craft_theme::Explained;

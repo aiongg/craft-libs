@@ -5,6 +5,18 @@ use craft_ui::contract::{Catalog as Levels, CatalogEntry, Level};
 use craft_ui::testing::{StoryData, StorySnapshot, registered};
 use std::sync::LazyLock;
 
+/// Whether a story's dialog is closed behind its button.
+#[derive(Clone, Copy, Debug, Default)]
+#[non_exhaustive]
+pub struct DialogState {
+    /// The story opened a dialog.
+    pub known: bool,
+    /// The dialog is closed: the card shows its button and does not run the story.
+    pub hidden: bool,
+    /// The dialog was seen open since the button was pressed.
+    pub shown: bool,
+}
+
 /// What one shown story keeps between frames.
 #[derive(Default)]
 #[non_exhaustive]
@@ -13,6 +25,8 @@ pub struct CardState {
     pub data: StoryData,
     /// The values after the first pass, which Reset restores; `None` before the story has run.
     pub start: Option<StorySnapshot>,
+    /// Where the story's dialog is: a story that opens one is shown closed, behind a "Show dialog" button.
+    pub dialog: DialogState,
     /// Counts the resets of this story; the card's id scope carries it, so a reset mounts the story anew.
     pub resets: u32,
 }

@@ -7,7 +7,7 @@ use super::variants;
 use crate::viewer::{ComponentInfo, PanelId, TreeKey, by_level, entry_of};
 use craft_behavior::{ColumnWidth, Selection};
 use craft_theme::variant::Tone;
-use craft_ui::contract::{BodyCx, Bind, Entry, Gap, Pad, Props as _, Scroll, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, BodyCx, Entry, Gap, Pad, Props as _, Scroll, Show as _, ShowContainer as _};
 use craft_ui::display::{Shade, Text};
 use craft_ui::layout_components::{Grid, Row, Stack};
 use craft_ui::notices::Notice;
