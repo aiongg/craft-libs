@@ -49,7 +49,7 @@ pub(super) fn footer<K: TextureKey>(
     let modes = [
         Entry::new(BinView::List, words.list_view.clone()).icon(IconId::new("list")),
         Entry::new(BinView::Icon, words.icon_view.clone()).icon(IconId::new("grid")),
-        Entry::new(BinView::Freeform, words.freeform_view.clone()).icon(IconId::new("layout-grid")),
+        Entry::new(BinView::Freeform, words.freeform_view.clone()).icon(IconId::new("layout_grid")),
     ];
     let row = Row::new().fill_width().align(RowAlign::End).show(ui, |ui, _| {
         Segmented::new(words.views.clone(), Bind::bound(&mut view), &modes).show(ui);

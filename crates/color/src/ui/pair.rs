@@ -425,10 +425,10 @@ impl Component for SwatchPair<'_> {
             }
         }
         if let Some(name) = self.default_button.clone() {
-            ui.face(DEFAULT, IconButton::new(IconId::new("default-colors")).label(name));
+            ui.face(DEFAULT, IconButton::new(IconId::new("default_colors")).label(name));
         }
         if let Some(name) = self.swap_button.clone() {
-            ui.face(SWAP, IconButton::new(IconId::new("swap-colors")).label(name));
+            ui.face(SWAP, IconButton::new(IconId::new("swap_colors")).label(name));
         }
     }
 

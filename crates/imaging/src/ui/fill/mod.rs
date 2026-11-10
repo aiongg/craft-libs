@@ -373,7 +373,7 @@ impl ContentAwareFillWorkspace {
                 FooterButton::new(common.cancel.clone(), DialogRole::Cancel),
             ])
             .side_footer(SideFooter::bottom().leading(|ui| {
-                let icon = IconSpec::svg(IconId::new("undo-2"));
+                let icon = IconSpec::svg(IconId::new("undo"));
                 reset_all = clicked(&IconButton::new(icon).label(params.reset.clone()).id_salt("reset-all").show(ui));
             }))
             .sides(|ui, _| {

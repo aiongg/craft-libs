@@ -86,8 +86,8 @@ impl<'a> FillBar<'a> {
                 let operations = [
                     Entry::new(SelectionOperation::New, words.new_selection.clone()).icon(icon("square")),
                     Entry::new(SelectionOperation::Add, words.add_to_selection.clone()).icon(icon("plus")),
-                    Entry::new(SelectionOperation::Subtract, words.subtract_from_selection.clone()).icon(icon("squares-subtract")),
-                    Entry::new(SelectionOperation::Intersect, words.intersect_with_selection.clone()).icon(icon("squares-intersect")),
+                    Entry::new(SelectionOperation::Subtract, words.subtract_from_selection.clone()).icon(icon("squares_subtract")),
+                    Entry::new(SelectionOperation::Intersect, words.intersect_with_selection.clone()).icon(icon("squares_subtract")),
                 ];
                 let picked = Segmented::new(words.options.clone(), Bind::given(options.lasso), &operations).show(ui).event;
                 if let Some(operation) = picked.and_then(|e| e.value().copied()) {
@@ -103,7 +103,7 @@ impl<'a> FillBar<'a> {
                 if let Some(by) = number(ui, &words.grow_by, options.grow_by, min..=max) {
                     options.grow_by = by;
                 }
-                if clicked(&IconButton::new(icon("undo-2")).label(reset.clone()).id_salt("reset").show(ui)) {
+                if clicked(&IconButton::new(icon("undo")).label(reset.clone()).id_salt("reset").show(ui)) {
                     reset_fill_area = true;
                 }
             }

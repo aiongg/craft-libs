@@ -514,7 +514,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'_, K> {
 
             if toolbar {
                 let modes = [
-                    Entry::new(PresetView::Grid, words.grid_view.clone()).icon(IconId::new("layout-grid")),
+                    Entry::new(PresetView::Grid, words.grid_view.clone()).icon(IconId::new("layout_grid")),
                     Entry::new(PresetView::List, words.list_view.clone()).icon(IconId::new("list")),
                 ];
                 let locked = view_lock.is_some();

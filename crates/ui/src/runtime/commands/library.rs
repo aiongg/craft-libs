@@ -16,7 +16,7 @@ pub enum EditCommands {
     #[command(label = "Copy", modal = "declared", edit = "copy", icon = "copy", default = "Cmd+C")]
     Copy,
     /// Paste the clipboard.
-    #[command(label = "Paste", modal = "declared", edit = "paste", icon = "clipboard", default = "Cmd+V")]
+    #[command(label = "Paste", modal = "declared", edit = "paste", default = "Cmd+V")]
     Paste,
     /// Select everything.
     #[command(label = "Select All", modal = "declared", edit = "select_all", default = "Cmd+A")]
