@@ -667,7 +667,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             wheel::register(
                 &cx.core.ctx,
                 WheelTaker::new(cx.core.id, view)
-                    .vertical(vertical && max.y > 0.0)
+                    .vertical((vertical && max.y > 0.0) || horizontal)
                     .horizontal(horizontal)
                     .scrolls(true)
                     .gated(cx.core.env.wheel_gated())

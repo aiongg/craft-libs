@@ -227,15 +227,16 @@ pub fn split<O: Copy + PartialEq>(takers: &[WheelTaker<O>], at: Pos2, wheel: Whe
     let mut under: Vec<&WheelTaker<O>> = takers.iter().rev().filter(|taker| taker.rect.contains(at)).collect();
     under.sort_by(|a, b| a.rect.area().total_cmp(&b.rect.area()));
     let open = |taker: &&WheelTaker<O>| !taker.gated || armed == Some(taker.owner) || focused == Some(taker.owner);
-    let vertical_taker = (wheel.scroll.y != 0.0).then(|| under.iter().find(|t| t.vertical && open(t) && t.has_room(true, wheel.scroll.y))).flatten();
+    let vertical_owner = (wheel.scroll.y != 0.0).then(|| under.iter().find(|t| t.vertical && open(t))).flatten();
     // Shift turns the vertical wheel sideways over a scroll region (Photoshop); a value control that takes the
     // vertical wheel keeps Shift as its modifier, and a device that already sends a sideways axis keeps it.
-    let wheel = if wheel.mods.shift && wheel.scroll.x == 0.0 && vertical_taker.is_some_and(|t| t.scrolls) {
+    let wheel = if wheel.mods.shift && wheel.scroll.x == 0.0 && vertical_owner.is_some_and(|t| t.scrolls) {
         Wheel { scroll: Vec2::new(wheel.scroll.y, 0.0), ..wheel }
     } else {
         wheel
     };
-    let vertical = if wheel.scroll.y != 0.0 { vertical_taker.map(|t| t.owner) } else { None };
+    let vertical =
+        (wheel.scroll.y != 0.0).then(|| under.iter().find(|t| t.vertical && open(t) && t.has_room(true, wheel.scroll.y))).flatten().map(|t| t.owner);
     let horizontal =
         (wheel.scroll.x != 0.0).then(|| under.iter().find(|t| t.horizontal && t.has_room(false, wheel.scroll.x))).flatten().map(|t| t.owner);
     let zoom = (wheel.zoom != 1.0).then(|| under.iter().find(|t| t.zoom)).flatten().map(|t| t.owner);
