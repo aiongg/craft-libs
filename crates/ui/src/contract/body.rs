@@ -571,6 +571,9 @@ pub(super) struct BodyHooks<'b> {
     exiting: bool,
     offset: ScrollPos,
     offset_at_read: ScrollPos,
+    /// The offset this pass shows, as step 4 left it: what decides which out-of-view children run, in a measuring
+    /// run (which lays the content out from offset zero) as in the real run.
+    view_offset: ScrollPos,
     scroll_bound: bool,
     moved: bool,
     last: BodyView,
@@ -1144,6 +1147,7 @@ impl<'b> BodyHooks<'b> {
             exiting: false,
             offset: ScrollPos::default(),
             offset_at_read: ScrollPos::default(),
+            view_offset: ScrollPos::default(),
             scroll_bound: false,
             moved: false,
             last: BodyView::default(),
@@ -1805,6 +1809,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             self.offset.y = f64::from((self.last.extent.1 - view.y).max(0.0));
         }
         self.clamp_offset(scroll, view);
+        self.view_offset = self.offset;
     }
 
     fn overflow(&self) -> f32 {
@@ -1948,6 +1953,8 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             let mut stage = MemoryStage::open_peek(&ctx, id);
             let mut fresh = BodyHooks::new(&mut *self.body);
             fresh.read(comp, &mut stage, id, at.env);
+            // A peek stage holds no session scroll state: the measuring run decides by the offset this pass shows.
+            fresh.view_offset = self.view_offset;
             fresh.open = self.open;
             fresh.open_at_read = self.open;
             fresh.presence = self.presence;
@@ -2268,9 +2275,18 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                         let mut region_ui =
                             alloc::child(&mut body_ui, UiBuilder::new().scope_id(sub(id, "scroll_region")).layout(layout_of).max_rect(max));
                         region_ui.set_clip_rect(at.intersect(body_ui.clip_rect()));
+                        // The view this pass shows, where this run lays the content out.
+                        let shown = self.view_offset;
+                        let shift = Vec2::new(
+                            if scroll.horizontal_on() { (shown.x - off.x) as f32 * if rtl { -1.0 } else { 1.0 } } else { 0.0 },
+                            if scroll.vertical_on() { (shown.y - off.y) as f32 } else { 0.0 },
+                        );
+                        let view = crate::runtime::lazy::View { owner: id, rect: seen.translate(shift), room: at.size() };
+                        let region_env = Env::install_for(&region_ui, body_env.derive_local(|scoped| scoped.lazy = Some(view)));
                         layout::run_body(&mut region_ui, layout_id, layout, gap, |ui| {
                             shared_labels(ui, id, label_column, room.x, &mut group_extent, |ui| body(ui, bcx))
                         });
+                        Env::restore(&ctx, region_env);
                         let extent = region_ui.min_rect().size();
                         if real {
                             crate::runtime::egui::widgets::note_scroll_region(&ctx, region_ui.clip_rect(), region_ui.min_rect().intersect(max));

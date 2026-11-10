@@ -7,7 +7,7 @@ use super::variants;
 use crate::viewer::{ComponentInfo, PanelId, TreeKey, by_level, entry_of};
 use craft_behavior::{ColumnWidth, Selection};
 use craft_theme::variant::Tone;
-use craft_ui::contract::{Bind, BodyCx, Entry, Gap, Pad, Props as _, Scroll, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, BodyCx, Entry, Gap, Lazy, Pad, Props as _, Scroll, Show as _, ShowContainer as _};
 use craft_ui::display::{Shade, Text};
 use craft_ui::layout_components::{Grid, Row, Stack};
 use craft_ui::notices::Notice;
@@ -79,8 +79,8 @@ pub(super) fn on_background(ui: &mut Ui, key: &str, mut add: impl FnMut(&mut Ui,
         .show(ui, &mut ());
 }
 
-/// The cards in one or two columns, scrolling vertically; each row is as tall as its tallest card. The cards report
-/// into `reported`.
+/// The cards in one or two columns, scrolling vertically; each row is as tall as its tallest card. A row out of view
+/// does not run (`Lazy`), except the one the selection scrolls to. The cards report into `reported`.
 pub(super) fn grid(
     ui: &mut Ui,
     scroll_id: impl std::hash::Hash + std::fmt::Debug,
@@ -96,25 +96,29 @@ pub(super) fn grid(
     Stack::new().fill().scroll(Scroll::vertical()).gap(Gap::CardRow).id_salt(scroll_id).show(ui, |ui, _| {
         reported.clear();
         for (row, chunk) in cards.chunks(columns).enumerate() {
-            Grid::new(if columns == 1 { ONE } else { TWO }).gap(Gap::CardColumn).fill_width().show(ui, |ui, _| {
-                for (at, spec) in chunk.iter().enumerate() {
-                    let state = p.cells.entry(spec.index).or_default();
-                    // Each card is its own id scope: a story's `id_salt` and auto ids must not meet another card's.
-                    let card = Card {
-                        key: format!("{}-{generation}", spec.key),
-                        title: &spec.title,
-                        note: spec.note.as_deref(),
-                        story: spec.story,
-                        surface: spec.surface,
-                        room,
-                        open: spec.open,
-                        usable: spec.usable,
-                        selected: spec.selected,
-                        look: spec.look,
-                    };
-                    let events = card.show(ui, state);
-                    reported.push(Reported { spec: row * columns + at, events });
-                }
+            let target = chunk.iter().any(|spec| *p.scroll_to == Some(spec.type_name));
+            let key = (generation, columns, chunk[0].key.as_str());
+            Lazy::new(key).keep(target).show(ui, |ui| {
+                Grid::new(if columns == 1 { ONE } else { TWO }).gap(Gap::CardColumn).fill_width().show(ui, |ui, _| {
+                    for (at, spec) in chunk.iter().enumerate() {
+                        let state = p.cells.entry(spec.index).or_default();
+                        // Each card is its own id scope: a story's `id_salt` and auto ids must not meet another card's.
+                        let card = Card {
+                            key: format!("{}-{generation}", spec.key),
+                            title: &spec.title,
+                            note: spec.note.as_deref(),
+                            story: spec.story,
+                            surface: spec.surface,
+                            room,
+                            open: spec.open,
+                            usable: spec.usable,
+                            selected: spec.selected,
+                            look: spec.look,
+                        };
+                        let events = card.show(ui, state);
+                        reported.push(Reported { spec: row * columns + at, events });
+                    }
+                });
             });
         }
     });

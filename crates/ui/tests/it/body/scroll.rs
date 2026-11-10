@@ -185,3 +185,44 @@ fn a_content_sized_scrolling_stack_is_as_tall_as_its_room_and_scrolls() {
     assert!(extent.get() > VIEW.y, "the content is taller than the room: {}", extent.get());
     assert!((rect.get().height() - VIEW.y).abs() < NEAR, "a content-sized scrolling body takes the room's height, not zero: {:?}", rect.get());
 }
+
+/// Children of a scrolling body that run only in view (`Lazy`): one far below the view does not run and keeps the
+/// body's content size; scrolled into view, it runs again. Guards the out-of-view rule and its one store.
+#[trial]
+fn an_out_of_view_child_does_not_run_until_it_scrolls_in() {
+    const CHILDREN: usize = 30;
+    let runs: Vec<Cell<usize>> = (0..CHILDREN).map(|_| Cell::new(0)).collect();
+    let seen = Seen::default();
+    let mut show = |ui: &mut Ui| {
+        in_region(ui, Rect::from_min_size(ORIGIN, VIEW), |ui| {
+            Slab::new(ContainerProps::new().scroll(Scroll::vertical())).id_salt("panel").show(ui, |ui, cx| {
+                seen.body.set(Some(cx.rect));
+                for (at, count) in runs.iter().enumerate() {
+                    craft_ui::contract::Lazy::new(at).show(ui, |ui| {
+                        count.set(count.get() + 1);
+                        Block::new(Vec2::new(LINE.x, HUNDRED)).show(ui);
+                    });
+                }
+                seen.content.set(ui.min_rect().height());
+            });
+        });
+    };
+    let mut frames = Frames::new();
+    frames.idle(3, &mut show);
+    let full = seen.content.get();
+    let last = CHILDREN - 1;
+    runs.iter().for_each(|count| count.set(0));
+    frames.frame(vec![], &mut show);
+    assert!(runs[0].get() > 0, "the child in view runs");
+    assert_eq!(runs[last].get(), 0, "the child far below the view does not run");
+    assert!((seen.content.get() - full).abs() <= SAME, "the content keeps its size: {} then {full}", seen.content.get());
+    let view = seen.body.get().expect("the body ran");
+    for _ in 0..CHILDREN {
+        wheel_at(&mut frames, view.center(), -BIG_STEP, &mut show);
+    }
+    runs.iter().for_each(|count| count.set(0));
+    frames.frame(vec![], &mut show);
+    assert!(runs[last].get() > 0, "scrolled to the end, the last child runs");
+    assert_eq!(runs[0].get(), 0, "and the first, far above the view, does not");
+    assert!((seen.content.get() - full).abs() <= SAME, "the content keeps its size at the end");
+}

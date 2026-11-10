@@ -14,6 +14,7 @@ pub mod inspect;
 pub mod install;
 pub mod keys;
 pub mod layout_memory;
+pub(crate) mod lazy;
 pub(crate) mod lock_keys;
 pub(crate) mod measure;
 pub mod memory;

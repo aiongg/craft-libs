@@ -436,6 +436,14 @@ This section indexes the components by layer. Examples and every state of each c
 
 A content-sized column (a `Stack::new()`, a menu or popover body) holds the children that fill: they never set the column's width, and they are shown across the width it settles on. A leaf declares that it fills with `fills()`; a container declares it with `Sizing`. A host that shows arbitrary components (the gallery, a dialog body) offers them fill width with `fill_width()`, and a story that fills both axes takes its room from `testing::stage`.
 
+### Runs and out-of-view content
+
+Every size comes from this pass: a container's contents run in one measuring run, then in the real run, and both give the same result. No layout reads what an earlier pass found, with one exception: content inside a scroll area that is out of view this pass does not run, and it keeps the extent it had in the last pass that showed it. That extent changes only in a pass that shows the content. One mechanism (`runtime::lazy`, one store) serves every use:
+
+- `Lazy::new(key).show(ui, |ui| ..)` wraps a large child of a scroll body (a card, a row of cards, a section of an app panel). Out of view it takes its remembered extent and its closure does not run. It runs when it was never shown at the scroll area's current room, when it meets the view widened by the view's size on each side, while it holds keyboard focus, and while `.keep(true)` asks for it (the target of a scroll the app requests). The key names the child among every `Lazy` of its scroll area. Outside a scroll area a `Lazy` always runs.
+- The first run of a pass decides which children run, so the measuring run and the real run lay out the same children.
+- A collection builds its rows in view plus its lead, anchor, renaming and grabbed rows, and places the rows it does not build by the extents they had when last built, from the same store. Rows it never built take its item layout's estimate, so a long list is never built whole.
+
 ### 6.2 Index by layer
 
 | Layer | Components |

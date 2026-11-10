@@ -454,6 +454,8 @@ pub struct Scoped {
     /// The axes (horizontal, vertical) the innermost scrolling body scrolls on: the room along them is unbounded, so
     /// a child that fills there takes its content size.
     pub(crate) unbounded: (bool, bool),
+    /// The view of the innermost scroll area, for the children that run only in view (`contract::Lazy`).
+    pub(crate) lazy: Option<crate::runtime::lazy::View>,
     /// The id of the collection item the scope shows: its root is not a Tab stop (17.3).
     pub(crate) item: Option<Id>,
     /// The roving group of the collection row the scope shows: the stops of its components and parts join it, so
@@ -496,6 +498,7 @@ impl Scoped {
         self.fill_body = None;
         self.fill_share = None;
         self.offered = None;
+        self.lazy = None;
     }
 
     /// The facts the collection recorded for the item `id`.
@@ -618,6 +621,7 @@ impl Env {
                 offered: None,
                 scroll_owner: None,
                 unbounded: (false, false),
+                lazy: None,
                 item: None,
                 row: None,
                 item_facts: None,
@@ -673,6 +677,7 @@ impl Env {
             s.transform = None;
             s.scroll_owner = None;
             s.unbounded = (false, false);
+            s.lazy = None;
             s.item = None;
             s.row = None;
             s.item_facts = None;
@@ -878,6 +883,11 @@ impl<'a> EnvView<'a> {
     /// The innermost scrolling body around the component.
     pub(crate) fn scroll_owner(&self) -> Option<Id> {
         self.scoped.scroll_owner
+    }
+
+    /// The view of the innermost scroll area around the scope.
+    pub(crate) fn lazy_view(&self) -> Option<crate::runtime::lazy::View> {
+        self.scoped.lazy
     }
 
     /// The roving group of the innermost body with `ContainerProps.roving`.

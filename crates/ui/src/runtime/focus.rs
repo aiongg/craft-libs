@@ -176,6 +176,12 @@ pub(crate) fn stop_count(ctx: &Context) -> usize {
     with(ctx, |state| state.stops.len())
 }
 
+/// Whether a stop registered since `from` (a `stop_count`) holds focus.
+pub(crate) fn focus_since(ctx: &Context, from: usize) -> bool {
+    let Some(root) = egui_focus::focused(ctx) else { return false };
+    with(ctx, |state| state.stops.get(from..).is_some_and(|stops| stops.iter().any(|rec| rec.stop.root == root)))
+}
+
 /// Where a request for the component `id` goes when it has no stop of its own: the first stop registered since
 /// `from` (a `stop_count`), which a component inside it holds.
 pub(crate) fn first_stop_inside(ctx: &Context, id: Id, from: usize) -> Option<FocusTarget> {
