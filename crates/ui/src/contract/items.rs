@@ -549,7 +549,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             (_, _) => {
                 let floor = overlay::drawing_parent(ui.ctx()).map_or(0.0, |layer| super::overlay::floor_width(ui.ctx(), layer));
                 widest = layout_memory::measured(ui.ctx(), sub(id, "widest")).map_or(0.0, |measured| measured.took.x);
-                widest.max(floor).min(room.x)
+                widest.max(comp.ideal_width(scx)).max(floor).min(room.x)
             }
         };
         let previous = self.layout.take().or_else(|| self.previous.take()).map(|held| Arc::try_unwrap(held).unwrap_or_else(|held| (*held).clone()));

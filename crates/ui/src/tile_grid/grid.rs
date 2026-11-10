@@ -130,7 +130,7 @@ pub struct TileGridStyle {
     toggle: f32,
     pad: f32,
     /// The picture side of a card at zoom 1: the medium thumbnail.
-    thumb: f32,
+    thumbs: [f32; 3],
     /// What a tile adds around its picture.
     around: AroundPicture,
     /// The gaps of the arrangement and the height of a group header.
@@ -145,15 +145,15 @@ impl TileGridStyle {
             pinned: cx.color(colors.surface.panel),
             toggle: cx.tokens.size.icon.sm,
             pad: cx.tokens.space.gap.inline,
-            thumb: cx.tokens.size.thumb.md,
+            thumbs: [cx.tokens.size.thumb.sm, cx.tokens.size.thumb.md, cx.tokens.size.thumb.lg],
             around: Tile::around(cx),
             spacing: ArrangeSpacing::new(cx.tokens.space.gap.stack, cx.tokens.space.gap.inline, cx.tokens.size.panel_header),
         }
     }
 
     /// The side of a picture at `zoom`, a factor on the medium thumbnail.
-    fn picture_side(&self, zoom: f32) -> f32 {
-        self.thumb * zoom.max(f32::EPSILON)
+    fn picture_side(&self, zoom: f32, size: ThumbSize) -> f32 {
+        size.pick(self.thumbs) * zoom.max(f32::EPSILON)
     }
 
     /// An equal card: a picture `side` wide with the aspect `aspect`, and what the tile adds around it.
@@ -191,9 +191,16 @@ pub struct TileGrid<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     /// The width of a card over its picture's height.
     #[prop(quantity = "aspect ratio")]
     aspect: f32,
-    /// The picture side as a multiple of the medium thumbnail side; 1 is the medium thumbnail.
+    /// The picture side as a multiple of the thumbnail side of `thumb_size`; 1 is that side.
     #[prop(quantity = "zoom factor")]
     zoom: f32,
+    /// The size setting of the pictures at zoom 1: the thumbnail side the zoom is a factor of.
+    #[prop]
+    thumb_size: ThumbSize,
+    /// The columns of cards a grid that takes its width from its content asks for: its width holds this many cards and
+    /// their gaps. 0 asks for none, so the content decides.
+    #[prop]
+    card_columns: usize,
     /// Where every tile's caption goes; `CaptionPlace::None` keeps no room for one.
     #[prop]
     caption: CaptionPlace,
@@ -261,6 +268,8 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> TileGrid<'a, K> {
             justified: false,
             aspect: 1.0,
             zoom: 1.0,
+            thumb_size: ThumbSize::Medium,
+            card_columns: 0,
             caption: CaptionPlace::Below,
             detail_line: false,
             groups: &[],
@@ -332,7 +341,8 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> TileGrid<'a, K> {
     /// the picture plus what the tile adds around it in every tiling.
     fn laid_out(&self, previous: Option<GridLayout>, source: &dyn ItemSource<K>, width: f32, cx: &StyleCx<'_>) -> GridLayout {
         let style = TileGridStyle::build(cx);
-        let (side, spacing, around) = (style.picture_side(self.zoom), style.spacing, style.around.get(self.caption, self.detail_line));
+        let (side, spacing, around) =
+            (style.picture_side(self.zoom, self.thumb_size), style.spacing, style.around.get(self.caption, self.detail_line));
         let aspect = if self.aspect.is_finite() && self.aspect > 0.0 { self.aspect } else { 1.0 };
         let tail_height = ListRow::row_height(cx, ThumbSize::None, false);
         let recipe = self.items.rows_stamp.map(|stamp| Recipe {
@@ -648,6 +658,18 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Collection for TileGrid<'_, K
     }
 
     /// The last layout again while the width, the rows stamp and everything the arrangement reads are the same.
+    fn ideal_width(&self, cx: &StyleCx<'_>) -> f32 {
+        if self.card_columns == 0 {
+            return 0.0;
+        }
+        let style = TileGridStyle::build(cx);
+        let aspect = if self.aspect.is_finite() && self.aspect > 0.0 { self.aspect } else { 1.0 };
+        let card = style.card(style.picture_side(self.zoom, self.thumb_size), aspect, style.around.get(self.caption, self.detail_line)).x;
+        let columns = self.card_columns as f32;
+        // Half a point over, so the division that counts the columns back never rounds below `columns`.
+        columns * card + (columns - 1.0) * style.spacing.gap + 2.0 * style.spacing.inset + 0.5
+    }
+
     fn item_layout_from(&self, previous: Option<GridLayout>, source: &dyn ItemSource<K>, width: f32, cx: &StyleCx<'_>) -> GridLayout {
         self.laid_out(previous, source, width, cx)
     }
