@@ -8,7 +8,7 @@ use craft_behavior::{CanvasTransform, EditEvent, keyed};
 use egui::{Pos2, Rect, Ui, Vec2};
 
 /// How far the zoomed story magnifies the graph.
-const ZOOM: f32 = 2.0;
+const ZOOM: f32 = 1.5;
 
 const NODE_WIDTH: f32 = 140.0;
 const NODE_HEIGHT: f32 = 72.0;
