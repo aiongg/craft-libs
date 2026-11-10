@@ -313,11 +313,6 @@ pub struct ListRow<'a> {
     #[style_key]
     #[prop]
     pub(super) layer: bool,
-    /// The command form, for the rows of a popup list: the active row is a command highlight (`accent.solid` fill,
-    /// `text.on_accent` ink), not a list selection.
-    #[style_key]
-    #[prop]
-    pub(super) command_form: bool,
     /// The row of a striped list that is tinted: every second row.
     #[style_key]
     #[prop]
@@ -422,7 +417,6 @@ impl<'a> ListRow<'a> {
             tone: Tone::Neutral,
             trailing_tone: Tone::Neutral,
             layer: false,
-            command_form: false,
             striped: false,
             role: None,
             italic: false,
@@ -776,8 +770,9 @@ fn fill_of(cx: &StyleCx<'_>, key: FillKey) -> Stateful<StyleColor> {
     let c = |rgba: Rgba| cx.color(rgba);
     // `over` keeps the alpha of what is under it, so over a clear rest the tint is the token itself.
     let tinted = if rest.a() == 0 { hover } else { over(hover, rest) };
+    let pressed = if rest.a() == 0 { state.pressed } else { over(state.pressed, rest) };
     let selected_hover = if key.layer { state.selected } else { state.selected_hover };
-    let mut fill = Stateful::new(c(rest)).off(States::new(c(rest), c(tinted), c(over(state.pressed, rest)), c(rest))).on(States::new(
+    let mut fill = Stateful::new(c(rest)).off(States::new(c(rest), c(tinted), c(pressed), c(rest))).on(States::new(
         c(state.selected),
         c(selected_hover),
         c(selected_hover),
@@ -1187,14 +1182,14 @@ impl Component for ListRow<'_> {
         let text = &colors.text;
         let clear = Rgba::TRANSPARENT;
         let c = |rgba: Rgba| cx.color(rgba);
-        let fill = fill_of(cx, FillKey { striped: key.striped, layer: key.layer, heading: key.heading, command: key.command_form });
+        let fill = fill_of(cx, FillKey { striped: key.striped, layer: key.layer, heading: key.heading, command: false });
         let rounded = key.layer || tokens.shape.rows == RowStyle::Rounded;
         let radius = if rounded { UiTokens::corner(tokens.shape.radius.control) } else { CornerRadius::ZERO };
         let mut surface = SurfaceLook::new(fill).radius(radius);
         if key.layer {
             surface = surface.border(Stateful::new(c(clear)).when(Flags::SELECTED, c(colors.accent.solid)), tokens.stroke.thin);
         }
-        let ink = |base: Rgba| row_ink_of(cx, c(base), key.command_form);
+        let ink = |base: Rgba| row_ink_of(cx, c(base), false);
         let base = match key.ink {
             RowInk::Normal => text.normal,
             RowInk::Muted => text.muted,
@@ -1212,14 +1207,14 @@ impl Component for ListRow<'_> {
                 sizes.icon,
                 match key.tone {
                     Tone::Neutral => ink(base),
-                    tone => row_ink_of(cx, cx.tone(tone), key.command_form),
+                    tone => row_ink_of(cx, cx.tone(tone), false),
                 },
             ),
             trailing_icon: IconLook::new(
                 sizes.icon,
                 match key.trailing_tone {
                     Tone::Neutral => ink(base),
-                    tone => row_ink_of(cx, cx.tone(tone), key.command_form),
+                    tone => row_ink_of(cx, cx.tone(tone), false),
                 },
             ),
             detail: TextLook::new(TypeRole::Caption, ink(text.faint)),

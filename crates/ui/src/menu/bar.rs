@@ -40,7 +40,7 @@ use craft_behavior::fit::{FitItem, FitKeep, fit_items};
 use craft_behavior::{Arrows, Axis, Flow, Intent, Metrics, NavMove, NavShape, PartKey, PartRef, Roving, Sense};
 use craft_host::target::MenuPlacement;
 use craft_keymap::mnemonic;
-use craft_theme::{Flags, Rgba, Stateful, States};
+use craft_theme::{Flags, Stateful};
 use egui::{Context, Pos2, Rect, Response, Ui, Vec2, pos2};
 
 const TITLE: PartKey = PartKey::new("title");
@@ -93,12 +93,8 @@ impl Component for TitleFace {
 
     fn style(cx: &StyleCx<'_>, _: TitleFaceStyleKey) -> TitleFaceStyle {
         let tokens = cx.tokens;
-        let (clear, accent, on_accent) = (cx.color(Rgba::TRANSPARENT), cx.color(tokens.color.accent.solid), cx.color(tokens.color.text.on_accent));
-        // Under the pointer a title wears the active-row highlight, as a lit one does.
-        let mut surface = cx.command_row_look();
-        surface.fill = surface.fill.off(States::new(clear, accent, accent, clear));
-        let normal = cx.color(tokens.color.text.normal);
-        let ink = cx.command_row_ink(tokens.color.text.normal).off(States::new(normal, on_accent, on_accent, normal));
+        let surface = cx.command_row_look();
+        let ink = cx.command_row_ink(tokens.color.text.normal);
         let control = cx.control();
         TitleFaceStyle {
             surface,
@@ -622,7 +618,7 @@ impl Component for MenuBar<'_> {
         let found = declared(cx);
         let texts = self.texts(&cx.env);
         let words = cx.env.words::<MenuWords>();
-        let underlined = cx.modifiers().alt;
+        let underlined = cx.modifiers().alt || cx.is_focused();
         for slot in Self::slots(found) {
             let part = Self::slot_part(slot);
             let text = match slot {
@@ -630,7 +626,8 @@ impl Component for MenuBar<'_> {
                 Open::More => Self::more_text(&words, found.shown),
             };
             let open = cx.core.toggles.iter().any(|toggle| toggle.part == part && toggle.open);
-            let lit = open || cx.part_state(part).flags.contains(Flags::FOCUS_VISIBLE);
+            // Under the pointer a title is the active row, as it is while its menu is open or the keyboard is on it.
+            let lit = open || cx.hover_pos(part).is_some() || cx.part_state(part).flags.contains(Flags::FOCUS_VISIBLE);
             ui.face(part, Self::face(&text, lit));
             if let Open::Title(at) = slot
                 && underlined

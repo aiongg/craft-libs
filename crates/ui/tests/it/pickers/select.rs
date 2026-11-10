@@ -80,8 +80,29 @@ fn a_select_dropdown_row_under_the_pointer_has_a_fill() {
     rig.fixture.advance(0.5);
     rig.fixture.idle(6);
     let row = rig.fixture.by_label("Multiply").expect("the option shows").rect;
-    let filled = rig.fixture.shape_bounds().iter().any(|shape| shape.contains_rect(row) && shape.height() < row.height() * 1.5);
-    assert!(filled, "the hovered option has a fill {:?}", rig.fixture.shape_bounds());
+    assert!(row_filled(&rig.fixture, row), "the hovered option has a fill {:?}", rig.fixture.shape_bounds());
+}
+
+/// Whether a fill (not a focus ring or other stroke) covers `row` and is no taller than the row plus its rounding.
+fn row_filled(fixture: &Fixture, row: egui::Rect) -> bool {
+    let overshoot = fixture.shape_overshoot();
+    fixture
+        .shape_bounds()
+        .iter()
+        .enumerate()
+        .any(|(at, shape)| overshoot.get(at).is_none_or(|stroke| *stroke == 0.0) && shape.contains_rect(row) && shape.height() < row.height() * 1.5)
+}
+
+/// A popup list keeps its lead row filled while the field holds keyboard focus: the first Down moves the lead onto the
+/// option after the picked one and that row is filled.
+#[trial]
+fn the_lead_row_of_an_open_select_is_filled_after_an_arrow_key() {
+    let mut rig = rig();
+    rig.open();
+    rig.fixture.key(Key::ArrowDown, Modifiers::NONE);
+    rig.fixture.idle(4);
+    let row = rig.fixture.by_label("Multiply").expect("the option shows").rect;
+    assert!(row_filled(&rig.fixture, row), "the lead option has a fill {:?}", rig.fixture.shape_bounds());
 }
 
 /// The lead of the list starts again at every opening: a lead moved to the last row and abandoned with Escape does

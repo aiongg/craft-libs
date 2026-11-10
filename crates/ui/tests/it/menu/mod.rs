@@ -11,7 +11,7 @@ mod pick_focus;
 
 use craft_behavior::IconId;
 use craft_ui::buttons::Button;
-use craft_ui::contract::{Bind, Entry, Role, Show as _, ShowContainer as _, Trigger};
+use craft_ui::contract::{Bind, Entry, Props as _, Role, Show as _, ShowContainer as _, Trigger};
 use craft_ui::layout_components::Stack;
 use craft_ui::menu::{GroupItem, Menu, MenuItem, PanelMenu, PanelRow};
 use craft_ui::primitives::IconSpec;
@@ -174,14 +174,15 @@ fn row_filled(fixture: &Fixture, label: &str) -> bool {
     fixture.shape_bounds().iter().any(|shape| shape.contains_rect(row) && shape.height() < row.height() * 1.5)
 }
 
-/// A menu opened by the pointer paints no active row; the first arrow key makes the focused (first) row active.
-#[trial]
-fn a_menu_opened_by_the_pointer_shows_no_active_row_until_a_key_moves_it() {
+/// A menu opened by the pointer paints no active row; the first Down activates the first enabled row, the first Up the
+/// last enabled one, with a disabled row at each end.
+fn first_arrow_after_a_pointer_open(key: egui::Key) -> [bool; 5] {
+    const LABELS: [&str; 5] = ["Locked Top", "Open", "Save", "Close", "Locked Bottom"];
     let mut fixture = Fixture::new(|ui| {
         let opener = Button::new("File").show(ui);
         Menu::new("File").opened_by(&opener, Trigger::Press).show(ui, |ui, _| {
-            for label in ["Open", "Save", "Close"] {
-                MenuItem::new(label).show(ui);
+            for label in LABELS {
+                MenuItem::new(label).enabled(!label.starts_with("Locked")).show(ui);
             }
         });
     });
@@ -190,12 +191,20 @@ fn a_menu_opened_by_the_pointer_shows_no_active_row_until_a_key_moves_it() {
     fixture.click(&opener);
     fixture.idle(4);
     assert!(menu_shown(&fixture), "a press of the opener opens the menu");
-    let resting = ["Open", "Save", "Close"].map(|label| row_filled(&fixture, label));
-    assert_eq!(resting, [false; 3], "no row is active at rest");
-    fixture.key(egui::Key::ArrowDown, egui::Modifiers::NONE);
+    assert_eq!(LABELS.map(|label| row_filled(&fixture, label)), [false; 5], "no row is active at rest");
+    fixture.key(key, egui::Modifiers::NONE);
     fixture.idle(4);
-    let after = ["Open", "Save", "Close"].map(|label| row_filled(&fixture, label));
-    assert_eq!(after, [true, false, false], "the first arrow key activates the focused first row, not the second");
+    LABELS.map(|label| row_filled(&fixture, label))
+}
+
+#[trial]
+fn the_first_down_of_a_pointer_opened_menu_activates_the_first_enabled_row() {
+    assert_eq!(first_arrow_after_a_pointer_open(egui::Key::ArrowDown), [false, true, false, false, false]);
+}
+
+#[trial]
+fn the_first_up_of_a_pointer_opened_menu_activates_the_last_enabled_row() {
+    assert_eq!(first_arrow_after_a_pointer_open(egui::Key::ArrowUp), [false, false, false, true, false]);
 }
 
 /// The row of a submenu that is open while the pointer is inside it keeps a fill, as does the row under the pointer.

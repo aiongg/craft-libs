@@ -67,7 +67,7 @@ fn titles() -> Vec<MenuTitle<'static>> {
 #[story(MenuBar<'static>, covers = [Default], drive = Drive::Never)]
 fn menu_bar(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let size = *data.choice("size", ControlSize::Md, &[("Sm", ControlSize::Sm), ("Md", ControlSize::Md)]);
-    let search = *data.value("search", false);
+    let search = *data.value("search", true);
     let bar = MenuBar::new("Main menu", titles()).size(size);
     let bar = if search { bar.help(MenuHelp::new(5, HELP.as_slice())) } else { bar };
     bar.show(ui).into()

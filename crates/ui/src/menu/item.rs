@@ -99,8 +99,6 @@ struct LevelState {
     submenu: bool,
     open_submenu: Option<OpenSubmenu>,
     active: Option<Id>,
-    /// The row that held focus, and the pass that saw it.
-    focused: Option<(Id, u64)>,
     pointer: Option<Pos2>,
     previous_pointer: Option<Pos2>,
     /// The padding of the popup around the rows, as the menu that set the level has it.
@@ -309,10 +307,11 @@ impl MenuLevel {
         })
     }
 
-    /// The row `id` holds focus in pass `pass`. Returns the other row that held it in the pass before, if any.
-    fn note_focus(&self, id: Id, pass: u64) -> Option<Id> {
+    /// The enabled row the first arrow key enters the level at: the last one for Up, the first for Down.
+    fn arrow_entry(&self, up: bool) -> Option<Id> {
         self.with(|state| {
-            state.focused.replace((id, pass)).filter(|(before, at)| *before != id && pass.saturating_sub(*at) <= 1).map(|(before, _)| before)
+            let mut enabled = state.shown.iter().filter(|row| row.enabled).map(|row| row.id);
+            if up { enabled.next_back() } else { enabled.next() }
         })
     }
 
@@ -711,16 +710,18 @@ impl Component for MenuItem<'_> {
                 (0.0, gained)
             }
         };
-        let before = if focused { level.note_focus(cx.id, ctx.cumulative_pass_nr()) } else { None };
-        if focus_gained
+        let arrow = |key| ctx.input(|input| input.key_pressed(key));
+        let (up, down) = (arrow(egui::Key::ArrowUp), arrow(egui::Key::ArrowDown));
+        if focused
+            && (up || down)
             && level.keyboard()
             && !level.has_active()
-            && let Some(first) = before
+            && let Some(target) = level.arrow_entry(up)
         {
-            // The first arrow key of a menu that the pointer opened without making a row active: it activates the row
-            // that held focus (the first one) instead of moving past it.
-            crate::runtime::focus::request(&ctx, crate::runtime::focus::FocusTarget::Id(first));
-            level.activate_row(first);
+            // The first arrow key of a menu that the pointer opened without making a row active: Down activates the
+            // first enabled row, Up the last, instead of moving focus from the row that held it.
+            crate::runtime::focus::request(&ctx, crate::runtime::focus::FocusTarget::Id(target));
+            level.activate_row(target);
             frame::request_repaint(&ctx);
         // Focus lands on a row of a menu that the pointer opened without making it active: only the keyboard does.
         } else if enabled && ((hovered && moving) || (focus_gained && level.keyboard())) && level.activate_row(cx.id) {
