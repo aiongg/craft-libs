@@ -122,6 +122,8 @@ struct Found {
 /// What a body's last measuring run found, kept for later passes.
 struct Kept {
     transcript: Arc<Transcript>,
+    /// Other inputs the transcript's records served in the pass that measured (`kept_also_under`).
+    aliases: Vec<Box<dyn Any + Send + Sync>>,
     /// False once a real run found the content changed.
     valid: bool,
     /// The last frame a real run found the content changed under the same inputs: content that changes measures
@@ -475,8 +477,24 @@ pub(crate) fn end_measure<K: PartialEq + Send + Sync + 'static>(ctx: &Context, b
         let transcript = Arc::new(Transcript { key: Box::new(key), items, leaves, real: Mutex::new(None) });
         memory.served.remove(&body);
         let moved = memory.kept.remove(&body).and_then(|last| last.moved);
-        memory.kept.insert(body, Kept { transcript: transcript.clone(), valid: true, moved, touched: moment.frame });
+        memory.kept.insert(body, Kept { transcript: transcript.clone(), aliases: Vec::new(), valid: true, moved, touched: moment.frame });
         memory.push(Item::Body(body, transcript));
+    });
+}
+
+/// The records `body`'s measuring run of this pass left also serve the inputs `key` (a real run offers its body other
+/// inputs than an enclosing measuring run did, and the records still serve them): a later pass offering `key` takes the
+/// transcript too.
+pub(crate) fn kept_also_under<K: PartialEq + Send + Sync + 'static>(ctx: &Context, body: Id, key: K) {
+    let moment = Moment::of(ctx);
+    let pass = ctx.cumulative_pass_nr();
+    with(ctx, &moment, |memory| {
+        let fresh = memory.measured.get(&body).is_some_and(|found| found.pass == pass && found.kept.is_none());
+        let Some(kept) = memory.kept.get_mut(&body).filter(|_| fresh) else { return };
+        let known = kept.transcript.key.downcast_ref::<K>() == Some(&key) || kept.aliases.iter().any(|alias| alias.downcast_ref::<K>() == Some(&key));
+        if !known && kept.aliases.len() < 2 {
+            kept.aliases.push(Box::new(key));
+        }
     });
 }
 
@@ -500,15 +518,19 @@ pub(crate) fn kept_serves<K: PartialEq + Send + Sync + 'static>(ctx: &Context, b
         // An enclosing body's transcript gave this body's records already.
         // An enclosing body's transcript gave this body's records already, when the inputs are the ones it ran under
         // there; else its own kept transcript (from a run at the inputs of its own real run) may serve.
+        let under = |kept: &Kept| {
+            kept.transcript.key.downcast_ref::<K>() == Some(key) || kept.aliases.iter().any(|alias| alias.downcast_ref::<K>() == Some(key))
+        };
         if let Some(transcript) = memory.served.get(&body).cloned()
-            && transcript.key.downcast_ref::<K>() == Some(key)
+            && (transcript.key.downcast_ref::<K>() == Some(key)
+                || memory.kept.get(&body).is_some_and(|kept| Arc::ptr_eq(&kept.transcript, &transcript) && under(kept)))
         {
             memory.push(Item::Body(body, transcript));
             return Some(Vec::new());
         }
         let kept = memory.kept.get_mut(&body)?;
         let settled = kept.moved.is_none_or(|frame| frame + 1 < moment.frame);
-        if !settled || !kept.valid || kept.transcript.key.downcast_ref::<K>() != Some(key) {
+        if !settled || !kept.valid || !under(kept) {
             return None;
         }
         kept.touched = moment.frame;
@@ -587,9 +609,10 @@ pub(crate) fn close_content(ctx: &Context, regions: &[(Id, Vec2)]) {
         let reports_differ = made.len() != scope.reported.len()
             || made.iter().zip(&scope.reported).any(|(was, now)| was.0 != now.0 || (was.1 - now.1).abs() > tolerance);
         let removed = reports_differ
-            || served.leaves.iter().any(|(id, leaf)| {
-                (!leaf.calls.is_empty() && !scope.visited.contains(id)) || (leaf.fill.is_some() && !scope.fills.contains(id))
-            });
+            || served
+                .leaves
+                .iter()
+                .any(|(id, leaf)| (!leaf.calls.is_empty() && !scope.visited.contains(id)) || (leaf.fill.is_some() && !scope.fills.contains(id)));
         if removed {
             #[cfg(feature = "testing")]
             if std::env::var_os("CRAFT_UI_TRACE_KEPT").is_some() {

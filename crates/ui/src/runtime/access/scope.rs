@@ -243,7 +243,8 @@ pub(crate) fn in_label(ctx: &Context) -> bool {
 
 /// Records the narrowest width of a control inside the innermost label scope. The first control to report wins.
 pub(crate) fn record_control_min(ctx: &Context, width: f32) {
-    let container = Service::<Stack>::run(ctx, |stack| stack.0.iter().rev().find(|scope| matches!(scope.kind, Kind::Label(_))).map(|scope| scope.container));
+    let container =
+        Service::<Stack>::run(ctx, |stack| stack.0.iter().rev().find(|scope| matches!(scope.kind, Kind::Label(_))).map(|scope| scope.container));
     if let Some(container) = container {
         layout_memory::contribute(ctx, std::sync::Arc::new(ControlMin { container, width }));
     }

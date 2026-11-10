@@ -330,12 +330,18 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         let key = self.measure_key(&props, at.env, at.width);
         let reused = (self.reuse || at.ui.is_sizing_pass())
             .then(|| {
-                let serves = layout_memory::run_found(&ctx, id) || layout_memory::kept_serves(&ctx, id, &key);
-                serves.then(|| self.reusable(&props, &ctx, id, pad, tolerance)).flatten()
+                let found = layout_memory::run_found(&ctx, id);
+                let serves = found || layout_memory::kept_serves(&ctx, id, &key);
+                serves.then(|| self.reusable(&props, &ctx, id, pad, tolerance)).flatten().map(|took| (took, found))
             })
             .flatten();
         let took = match reused {
-            Some(took) => took,
+            Some((took, found)) => {
+                if found {
+                    layout_memory::kept_also_under(&ctx, id, key);
+                }
+                took
+            }
             None => {
                 #[cfg(feature = "testing")]
                 crate::runtime::measure::count_body(&ctx, id);
