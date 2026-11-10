@@ -12,8 +12,8 @@ use super::words::ListWords;
 use crate::buttons::IconButton;
 use crate::choice::Checkbox;
 use crate::contract::{
-    Access, Bind, ColumnAlign, ColumnSpec, Common, Component, Cx, DragPreview, ItemOutput, MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx,
-    Pointer as _, Props as _, Role, RowState, Show, Styled as _, WordSetCx as _,
+    Access, Bind, ColumnAlign, ColumnSpec, Common, Component, Cx, DragPreview, ItemOutput, MeasureCx, Name, NoValue, OpenChange, Outcome, PaintUi,
+    PartsCx, Pointer as _, Props as _, Role, RowState, Show, Styled as _, WordSetCx as _,
 };
 use crate::controls::disclosure::Disclosure;
 use crate::display::Progress;
@@ -133,14 +133,6 @@ pub enum RowInk {
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum RowEvent {
-    /// The disclosure part of a group row was clicked: `open` is the state it asks for.
-    #[non_exhaustive]
-    Open {
-        /// The state the click asks for.
-        open: bool,
-        /// The change reaches every descendant too (Alt held).
-        all: bool,
-    },
     /// The link glyph before an extra thumbnail was clicked: `linked` is the state it asks for.
     #[non_exhaustive]
     LinkToggled {
@@ -181,6 +173,9 @@ pub struct RowOutput {
     pub response: Response,
     /// What the row's parts reported this pass.
     pub event: Option<RowEvent>,
+    /// The disclosure of a group row was clicked: the state it asks for. The collection reports it as
+    /// `CollectionEvent::Open`, as it does the keys.
+    pub open: Option<OpenChange<()>>,
     /// Where the label and detail are drawn, the full height of the row.
     pub label: Rect,
 }
@@ -196,6 +191,10 @@ impl Outcome for RowOutput {
 impl ItemOutput<RowEvent> for RowOutput {
     fn into_event(self) -> Option<RowEvent> {
         self.event
+    }
+
+    fn open_request(&self) -> Option<OpenChange<()>> {
+        self.open.clone()
     }
 
     fn label_rect(&self) -> Option<Rect> {
@@ -401,6 +400,7 @@ pub struct ListRow<'a> {
     #[prop(flag)]
     pub(super) option: bool,
     pub(super) event: Option<RowEvent>,
+    pub(super) open: Option<OpenChange<()>>,
     pub(super) label_rect: Rect,
 }
 
@@ -450,6 +450,7 @@ impl<'a> ListRow<'a> {
             group: None,
             option: false,
             event: None,
+            open: None,
             label_rect: Rect::NOTHING,
         }
         .label(label)
@@ -1308,7 +1309,8 @@ impl Component for ListRow<'_> {
         if let Some(open) = self.group
             && cx.part_activated(DISCLOSURE).is_some()
         {
-            self.event = Some(RowEvent::Open { open: !open, all: cx.part(DISCLOSURE).press.mods.alt });
+            let change = OpenChange::new((), !open);
+            self.open = Some(if cx.part(DISCLOSURE).press.mods.alt { change.all() } else { change });
         }
         for (at, thumb) in self.extras.iter().enumerate() {
             let part = LINK.at(at as u64);
@@ -1493,7 +1495,7 @@ impl Component for ListRow<'_> {
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> RowOutput {
-        RowOutput { response: cx.response.clone(), event: self.event, label: self.label_rect }
+        RowOutput { response: cx.response.clone(), event: self.event, open: self.open, label: self.label_rect }
     }
 }
 
