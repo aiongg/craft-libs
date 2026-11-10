@@ -203,7 +203,7 @@ fn the_default_action_of_a_notice_takes_the_focus_of_an_opening_layer() {
 }
 
 /// A toast stack in a shell body shows once per pass although the body also runs for sizing; debug builds panic
-/// when its presence stage opens twice in a pass (the gallery's Notice cards did).
+/// when its presence stage opens twice in a pass.
 #[trial]
 fn a_toast_stack_in_a_shell_body_opens_its_layer_once_per_pass() {
     let mut fixture = Fixture::new(|ui| {

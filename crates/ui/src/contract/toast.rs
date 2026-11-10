@@ -43,11 +43,11 @@ impl ToastHost {
     /// its timer paused; the first show of a toast announces it. When the queue empties the layer fades out with the
     /// last cards.
     ///
-    /// The layer takes no room in the body that calls it, so a measuring run of that body skips it and the real run
+    /// The layer takes no room in the body that calls it, so a sizing pass of that body skips it and the real run
     /// opens the layer's stages once per pass.
     pub fn show(ui: &Ui, card: &mut dyn FnMut(&mut Ui, &Toast, IdSalt) -> CardOutcome) {
         let ctx = ui.ctx();
-        if crate::runtime::measure::active(ctx) {
+        if ui.is_sizing_pass() {
             return;
         }
         let cards = toast::cards(ctx);
