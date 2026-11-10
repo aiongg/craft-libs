@@ -3,7 +3,6 @@
 use super::{Menu, MenuItem};
 use crate::buttons::Button;
 use crate::contract::{Bind, Entry, Props as _, Show as _, ShowContainer as _, Trigger};
-use crate::display::Divider;
 use crate::layout_components::Stack;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use craft_behavior::IconId;
@@ -65,7 +64,7 @@ fn menu(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
             ran |= icon(MenuItem::new("&New").shortcut("Ctrl+N"), "image").show(ui).ran;
             ran |= icon(MenuItem::new("Open").shortcut("Ctrl+O"), "settings").show(ui).ran;
             MenuItem::submenu("Open Recent").show(ui);
-            Divider::horizontal().show(ui);
+            super::popup::separator(ui);
             ran |= MenuItem::new("Show Rulers").check(true).show(ui).ran;
             ran |= MenuItem::new("Revert").enabled(false).show(ui).ran;
         });

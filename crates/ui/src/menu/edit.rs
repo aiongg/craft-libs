@@ -2,7 +2,6 @@
 
 use super::MenuItem;
 use crate::contract::Show as _;
-use crate::display::Divider;
 use crate::runtime::commands::EditCommands;
 use egui::Ui;
 
@@ -33,12 +32,12 @@ impl EditMenu {
         };
         row(ui, EditCommands::Undo);
         row(ui, EditCommands::Redo);
-        Divider::horizontal().show(ui);
+        super::popup::separator(ui);
         row(ui, EditCommands::Cut);
         row(ui, EditCommands::Copy);
         row(ui, EditCommands::Paste);
         row(ui, EditCommands::Delete);
-        Divider::horizontal().show(ui);
+        super::popup::separator(ui);
         row(ui, EditCommands::SelectAll);
         EditMenuOutput { ran }
     }

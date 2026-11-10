@@ -81,6 +81,14 @@ pub(crate) fn layer(submenu: bool) -> Overlay {
     base.dismiss(Dismiss::new().outside(Outside::Absorb).on_activate(true)).focus(FocusPolicy::MENU.initial(Initial::Default))
 }
 
+/// A separator rule of a menu body: rows touch, so the rule brings its own `space.gap.row` above and below it.
+pub(crate) fn separator(ui: &mut Ui) {
+    let gap = Env::of(ui).tokens.tokens().space.gap.row;
+    ui.add_space(gap);
+    Divider::horizontal().show(ui);
+    ui.add_space(gap);
+}
+
 /// Shows one row per entry, a rule for a separator, and returns the index of the entry that ran. In a value menu
 /// ([`Menu::values`]) every row is a radio item and the checked entry carries the mark; elsewhere a checked entry
 /// carries a check mark.
@@ -89,7 +97,7 @@ pub(crate) fn entry_rows<T>(ui: &mut Ui, entries: &[Entry<T>]) -> Option<usize> 
     let mut ran = None;
     for (at, entry) in entries.iter().enumerate() {
         if entry.is_separator() {
-            Divider::horizontal().show(ui);
+            separator(ui);
             continue;
         }
         let mut row = MenuItem::new(entry.label().clone()).enabled(entry.is_enabled()).entry_checked(entry.is_checked());

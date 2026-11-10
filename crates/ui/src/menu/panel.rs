@@ -4,7 +4,6 @@
 use super::MenuItem;
 use super::popup::{Menu, entry_rows};
 use crate::contract::{Entry, Show as _};
-use crate::display::Divider;
 use crate::runtime::commands::CommandRef;
 use crate::runtime::env::Label;
 use egui::Ui;
@@ -64,7 +63,7 @@ impl PanelMenu {
         let mut picked = None;
         Self::rows(ui, &self.host, &mut picked);
         if !self.host.is_empty() && !self.group.is_empty() {
-            Divider::horizontal().show(ui);
+            super::popup::separator(ui);
         }
         Self::rows(ui, &self.group, &mut picked);
         PanelMenuOutput { picked }
@@ -85,7 +84,7 @@ impl PanelMenu {
                     Menu::submenu_row(ui, label.clone(), |ui, _| Self::rows(ui, rows, picked));
                 }
                 PanelRow::Separator => {
-                    Divider::horizontal().show(ui);
+                    super::popup::separator(ui);
                 }
             }
         }

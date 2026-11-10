@@ -4,7 +4,6 @@
 mod stories;
 
 use crate::contract::{Bind, Entry, NoValue, Outcome, Props as _, Show as _};
-use crate::display::Divider;
 use crate::docking::{DockWords, WorkspaceCommands};
 use crate::menu::MenuItem;
 use crate::pickers::Select;
@@ -59,7 +58,7 @@ impl<'a, P> WorkspaceSwitcher<'a, P> {
             .header_menu(|ui, _| {
                 for ran in [WorkspaceCommands::Reset, WorkspaceCommands::New, WorkspaceCommands::Delete, WorkspaceCommands::Lock] {
                     if ran == WorkspaceCommands::Lock {
-                        Divider::horizontal().show(ui);
+                        crate::menu::separator(ui);
                     }
                     MenuItem::command(ran).show(ui);
                 }

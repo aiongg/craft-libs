@@ -26,7 +26,7 @@ use crate::contract::{
     Access, Bind, Common, Component, Cx, Focus as _, MeasureCx, MenuKey, Name, NoValue, Outcome, OverlayUi, Overlays as _, PaintUi, PartsCx,
     Pointer as _, PopupHandle, PopupKind, Props as _, Role, SetPosition, Show as _, ShowContainer as _, Styled as _,
 };
-use crate::display::{Divider, Text};
+use crate::display::Text;
 use crate::primitives::{PaintShape, StrokeWidth, TextRun};
 use crate::runtime::commands::CommandRef;
 use crate::runtime::env::{EnvView, Label};
@@ -478,7 +478,7 @@ impl Component for MenuBar<'_> {
                                 if listed.is_empty() && !query.0.trim().is_empty() {
                                     Text::new(words.bar_no_matches.as_str().to_owned()).show(ui);
                                 }
-                                Divider::horizontal().show(ui);
+                                super::popup::separator(ui);
                             }
                             (titles[*at].body)(ui);
                         }
