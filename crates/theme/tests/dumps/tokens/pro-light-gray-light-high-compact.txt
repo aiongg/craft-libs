@@ -141,6 +141,7 @@ size.bar.options = 36
 size.bar.options_narrow = 28
 size.panel_header = 28
 size.popup_min = 192
+size.scroll_fade = 20
 size.thumb.sm = 18
 size.thumb.md = 24
 size.thumb.lg = 48
