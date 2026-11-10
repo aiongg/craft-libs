@@ -13,7 +13,7 @@ use crate::contract::{
 use crate::primitives::TextRun;
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, StyleCx};
-use craft_behavior::{EditEvent, Flow, IconId, Metrics, Mixed, Proposal, Sense};
+use craft_behavior::{EditEvents, Flow, IconId, Metrics, Mixed, Proposal, Sense};
 use craft_i18n::Format;
 use egui::{Rect, Response, Vec2, pos2};
 use std::ops::{Deref, RangeInclusive};
@@ -98,8 +98,8 @@ type Parts<const N: usize> = [Mixed<Option<f64>>; N];
 pub struct LinkedOutput<const N: usize> {
     /// The edit of the values: every field's value after the link rule, one event per gesture.
     pub edit: EditResponse<Parts<N>>,
-    /// The link toggle's edit.
-    pub link: Option<EditEvent<bool>>,
+    /// The link toggle's edits.
+    pub link: EditEvents<bool>,
 }
 
 impl<const N: usize> Outcome for LinkedOutput<N> {
@@ -142,7 +142,7 @@ pub struct LinkedFields<'a, const N: usize> {
     values: Bind<'a, Parts<N>>,
     link: Bind<'a, bool>,
     /// The link child's event of this pass and the state it showed, kept from `paint` to `finish`.
-    link_event: Option<EditEvent<bool>>,
+    link_event: EditEvents<bool>,
     link_shown: Option<bool>,
     /// What the link keeps.
     #[prop]
@@ -163,7 +163,7 @@ impl<'a, const N: usize> LinkedFields<'a, N> {
             common: Common::new(),
             values,
             link,
-            link_event: None,
+            link_event: EditEvents::new(),
             link_shown: None,
             mode: LinkMode::Ratio,
             layout: LinkedLayout::Row,
@@ -302,7 +302,7 @@ impl<const N: usize> Component for LinkedFields<'_, N> {
         let is_on = |shown: &Mixed<Arc<bool>>| matches!(shown, Mixed::Same(on) if **on);
         let linked = link.shown.as_ref().is_some_and(is_on);
         self.link_shown = link.shown.as_ref().map(is_on);
-        self.link_event = link.event;
+        self.link_event = link.events;
         for (i, child) in children.iter().enumerate() {
             cx.adopt(child, &base, |value, mine| *mine = follow(mode, linked, base, i, *value, &ranges));
         }

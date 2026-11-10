@@ -152,7 +152,7 @@ impl<'a> ConstraintFields<'a> {
             ];
             Field::new(words.constraint_style.clone()).id_salt("style").sizing(Sizing::Content).show(ui, |ui, _| {
                 let pick = Select::new(words.constraint_style.clone(), Bind::given(StyleChoice::of(before)), &styles).show(ui);
-                if let Some(picked) = pick.event.as_ref().and_then(|event| event.value().copied())
+                if let Some(picked) = pick.value().copied()
                     && picked != StyleChoice::of(before)
                 {
                     now = picked.constraint();

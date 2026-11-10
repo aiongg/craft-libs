@@ -63,7 +63,7 @@ impl Session {
         let (doc, host, salt) = (&mut self.doc, &mut self.host, self.salt);
         self.frames.frame(events, |ui: &mut Ui| {
             let out = Scrub::new(Bind::given(doc.value)).label("Gain").doc_key(DocKey::new("trial.gain")).id_salt(salt).show_at(ui, AT);
-            if let Some(event) = out.event {
+            for event in out.events {
                 host.handle(doc, event, |doc, value| doc.set(value));
             }
         });

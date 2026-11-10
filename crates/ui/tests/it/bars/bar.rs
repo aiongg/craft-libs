@@ -116,7 +116,7 @@ fn the_status_zoom_is_the_device_percent_and_a_typed_zoom_is_written_into_the_vi
     let mut fixture = Fixture::new(move |ui| {
         let values = StatusValues::default();
         let shown = StatusReadout::new(Bind::bound(&mut *held.borrow_mut()), STATUS_DOCUMENT, StatusItem::DocumentSizes, &values).show(ui);
-        seen.set(seen.get() || shown.view.is_some());
+        seen.set(seen.get() || !shown.view.is_empty());
     });
     fixture.scale(Scale::new(STATUS_SCALE));
     fixture.settle();

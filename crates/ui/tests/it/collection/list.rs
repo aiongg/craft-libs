@@ -590,7 +590,7 @@ fn a_click_in_a_popup_list_picks_while_the_field_keeps_focus() {
         in_region(ui, Rect::from_min_size(ORIGIN, Vec2::new(200.0, 30.0)), |ui| {
             let out = craft_ui::text::TextField::new("Name", Bind::bound(&mut *text.borrow_mut())).id_salt("name").show(ui);
             field.set((out.response.id, out.response.rect));
-            if matches!(out.event, Some(EditEvent::Commit { .. })) {
+            if out.events.iter().any(|event| matches!(event, EditEvent::Commit { .. })) {
                 commits.set(commits.get() + 1);
             }
         });

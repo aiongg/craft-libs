@@ -391,7 +391,7 @@ impl<'a> PdfExportDialog<'a> {
                     .collect();
                 Field::new(words.standard.clone()).id_salt("standard").show(ui, |ui, _| {
                     let chosen = Select::new(words.standard.clone(), Bind::given(work.standard), &standards).show(ui);
-                    if let Some(next) = chosen.event.as_ref().and_then(|event| event.value().copied()) {
+                    if let Some(next) = chosen.value().copied() {
                         work.standard = next;
                         standard_picked = true;
                     }
@@ -403,7 +403,7 @@ impl<'a> PdfExportDialog<'a> {
                     .collect();
                 Field::new(words.compatibility.clone()).id_salt("compatibility").show(ui, |ui, _| {
                     let chosen = Select::new(words.compatibility.clone(), Bind::given(work.compatibility), &versions).show(ui);
-                    if let Some(next) = chosen.event.as_ref().and_then(|event| event.value().copied()) {
+                    if let Some(next) = chosen.value().copied() {
                         work.compatibility = next;
                     }
                 });

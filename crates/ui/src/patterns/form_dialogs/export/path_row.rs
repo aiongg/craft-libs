@@ -10,7 +10,7 @@ use crate::pickers::Select;
 use crate::runtime::env::{Env, Label};
 
 use crate::text::TextField;
-use craft_behavior::EditEvent;
+use craft_behavior::EditEvents;
 use egui::{Response, Ui};
 
 craft_ui::words! {
@@ -28,9 +28,9 @@ craft_ui::words! {
 pub struct OutputPathOutput {
     /// The row's response.
     pub response: Response,
-    /// The new path or template of this pass: a template the user picked, or the text field's edit. A given value
-    /// is applied by the caller.
-    pub edit: Option<EditEvent<String>>,
+    /// The edits of the path or template in this pass, in order: a template the user picked, then the text field's
+    /// edits. A given value is applied by the caller.
+    pub edit: EditEvents<String>,
     /// The Browse button pressed this pass: the host opens its file dialog for the request and writes the answer into
     /// the bound value.
     pub browse: Option<PathRequest>,
@@ -80,17 +80,18 @@ impl<'a> OutputPathRow<'a> {
         let words = Env::of(ui).words::<OutputPathWords>();
         let name = label.unwrap_or_else(|| words.output_to.clone());
         let entries: Vec<Entry<String>> = templates.iter().map(|(template, label)| Entry::new(template.clone(), label.clone())).collect();
-        let mut edit = None;
+        let mut edit = EditEvents::new();
         let mut browse = None;
         let shown = Field::new(name.clone()).id_salt(key.as_str()).show(ui, |ui, _| {
             Row::new().show(ui, |ui, _| {
+                edit = EditEvents::new();
                 if !entries.is_empty() {
                     let picked: EditResponse<String> =
                         Select::new(words.templates.clone(), value.reborrowed(), &entries).id_salt("templates").show(ui);
-                    edit = picked.event.or(edit.take());
+                    edit.extend(picked.events);
                 }
                 let typed = TextField::new(name.clone(), value.reborrowed()).id_salt("path").show(ui);
-                edit = typed.event.or(edit.take());
+                edit.extend(typed.events);
                 if clicked(&Button::new(words.browse.clone()).id_salt("browse").show(ui)) {
                     browse = Some(PathRequest::new(key.as_str(), kind.clone()));
                 }

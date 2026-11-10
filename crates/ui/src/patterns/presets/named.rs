@@ -229,7 +229,7 @@ impl<'a, K: Value + Eq + Hash + 'static> NamedPresetRow<'a, K> {
                         .inner;
                     let (mut submitted, mut escaped) = (false, false);
                     if let Some(edit) = edit {
-                        if let Some(value) = edit.event.as_ref().and_then(|event| event.value()) {
+                        if let Some(value) = edit.value() {
                             draft.text.clone_from(value);
                         }
                         (submitted, escaped) = (edit.submitted, edit.escaped);

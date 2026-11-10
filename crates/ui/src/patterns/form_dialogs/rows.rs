@@ -345,7 +345,7 @@ impl<'p> Pass<'p> {
             if let Some(v) = shown.edit.value().cloned().flatten() {
                 self.work.set(line.key, FieldValue::Number(v * factor));
             }
-            let picked = shown.unit.as_ref().and_then(|event| event.value().copied());
+            let picked = shown.unit.value().copied();
             if let Some(unit) = picked.and_then(|kind| choices.list().iter().find(|unit| unit.kind == kind)) {
                 self.work.set(choices.key(), FieldValue::Text(unit.id.clone()));
             }

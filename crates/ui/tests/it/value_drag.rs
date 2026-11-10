@@ -208,9 +208,7 @@ impl Slide {
         if let Some(step) = self.wheel_step {
             slider = slider.wheel_step(step);
         }
-        if let Some(event) = slider.show_at(ui, FIELD).event {
-            self.events.borrow_mut().push(event);
-        }
+        self.events.borrow_mut().extend(slider.show_at(ui, FIELD).events);
     }
 
     fn value(&self) -> f64 {

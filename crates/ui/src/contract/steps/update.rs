@@ -7,7 +7,7 @@ use crate::contract::cx::gesture_key;
 use crate::contract::{Component, Cx, Resolved, ValueOf};
 use crate::runtime::focus::{self};
 use crate::runtime::keys;
-use craft_behavior::{CancelReason, EditEvent, Gesture, GesturePhase, Input, Intent, PartRef, PressCancel};
+use craft_behavior::{CancelReason, Gesture, GesturePhase, Input, Intent, PartRef, PressCancel};
 
 /// Whether the component takes activations (a click, a key, AccessKit `Click`): a disabled or read-only one drops them.
 pub(crate) fn takes_activation(resolved: &Resolved<'_>) -> bool {
@@ -34,20 +34,13 @@ pub(crate) fn update_inputs(core: &mut CxCore<'_>) {
     }
 }
 
-/// Step 9, before the component: a gesture cancelled under its press is live again once the press is released, and a
-/// given caller's `Update` that fell in the pass of its `Begin` arrives now.
+/// Step 9, before the component: a gesture cancelled under its press is live again once the press is released.
 pub(crate) fn gesture_gate<C: Component>(comp: &C, cx: &mut Cx<'_, C>) {
     let held = cx.core.press_held() || scrub_press(comp, cx).is_some_and(|press| crate::contract::cx::press_down(&press.phase));
     let slot = gesture_key(cx.core.id);
     let gesture = cx.core.memory.shown::<Gesture<ValueOf<C>>>(slot);
     if gesture.dead && !held {
         gesture.dead = false;
-    }
-    if gesture.is_running()
-        && let Some(value) = gesture.held.take()
-    {
-        let id = gesture.id;
-        cx.events.push(EditEvent::update(id, value));
     }
 }
 

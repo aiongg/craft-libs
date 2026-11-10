@@ -24,7 +24,7 @@ fn pair() -> Pair {
         let area = SplitArea::pair("Bodies", Axis::Y, (1u8, 2u8), kept.get(), FrameRules::new(&limits)).show(ui, |_, body| {
             *seen.borrow_mut() = body.group_frames::<u8>().into_iter().map(|(_, rect)| rect).collect();
         });
-        if let Some(next) = area.output.share().as_ref().and_then(|event| event.value()) {
+        if let Some(next) = area.output.share().value() {
             kept.set(*next);
         }
     });

@@ -1,6 +1,6 @@
 //! A value component for the trials: a track that scrubs an `f32`, written with the derives.
 
-use craft_behavior::{CancelReason, EditEvent, GesturePhase, PartKey, PressPhase, Sense};
+use craft_behavior::{CancelReason, EditEvent, EditEvents, GesturePhase, PartKey, PressPhase, Sense};
 use craft_ui::contract::{
     Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, MeasureCx, PartsCx, Pointer as _, Role, Styled as _,
 };
@@ -138,7 +138,7 @@ impl Component for Scrub<'_> {
             PressPhase::Release { .. } if cx.gesture().is_some() => cx.commit(),
             _ => {}
         }
-        // After the drag's proposal: the pass's one response event is the later one (10.3).
+        // After the drag's proposal, so the response lists the Set after the drag's events.
         if self.set_by_access
             && let Some(requested) = cx.intents().take_set_value()
         {
@@ -159,7 +159,7 @@ impl Component for Scrub<'_> {
     }
 }
 
-/// What a response's event was, for the gesture trials.
+/// What a response's events were, for the gesture trials.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum Ev {
@@ -170,13 +170,18 @@ pub enum Ev {
     Set(f32),
 }
 
-pub fn ev_of(event: &Option<EditEvent<f32>>) -> Option<Ev> {
-    Some(match event.as_ref()? {
-        EditEvent::Begin { .. } => Ev::Begin,
-        EditEvent::Update { value, .. } => Ev::Update(*value),
-        EditEvent::Commit { after, .. } => Ev::Commit(*after),
-        EditEvent::Cancel { reason, .. } => Ev::Cancel(*reason),
-        EditEvent::Set { after, .. } => Ev::Set(*after),
-        _ => return None,
-    })
+pub fn ev_of(events: &EditEvents<f32>) -> Vec<Ev> {
+    events
+        .iter()
+        .filter_map(|event| {
+            Some(match event {
+                EditEvent::Begin { .. } => Ev::Begin,
+                EditEvent::Update { value, .. } => Ev::Update(*value),
+                EditEvent::Commit { after, .. } => Ev::Commit(*after),
+                EditEvent::Cancel { reason, .. } => Ev::Cancel(*reason),
+                EditEvent::Set { after, .. } => Ev::Set(*after),
+                _ => return None,
+            })
+        })
+        .collect()
 }

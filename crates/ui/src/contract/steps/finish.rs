@@ -13,12 +13,11 @@ use egui::{Context, Id, Response, Ui, Vec2};
 pub(crate) fn before_finish<C: Component>(cx: &mut Cx<'_, C>, activated: bool, injected: Option<FireSource>) {
     let by_key = activated && cx.core.activation.is_some_and(|activation| activation.by_key);
     response::rewrite_clicks(&mut cx.core.response, by_key || cx.core.part_clicked, cx.core.command.is_some());
-    // The response reports a change for a `Set` or a `Commit` that moved the value: the pass's last event decides, because
-    // `EditEvent::fold` yields one of them exactly when the last event is one.
-    let changed = match cx.events.last() {
-        Some(EditEvent::Commit { before, after, .. } | EditEvent::Set { before, after, .. }) => !matches!(before, Mixed::Same(held) if held == after),
+    // The response reports a change for a `Set` or a `Commit` of the pass that moved the value.
+    let changed = cx.events.iter().any(|event| match event {
+        EditEvent::Commit { before, after, .. } | EditEvent::Set { before, after, .. } => !matches!(before, Mixed::Same(held) if held == after),
         _ => false,
-    };
+    });
     if changed {
         response::mark_changed(&mut cx.core.response);
     }

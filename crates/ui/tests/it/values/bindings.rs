@@ -32,10 +32,12 @@ fn events(given: bool) -> (Vec<Ev>, f32) {
     let mut show = |ui: &mut Ui| {
         let bind = if given { Bind::given(value) } else { Bind::bound(&mut value) };
         let out = Scrub::new(bind).id_salt("scrub").show_at(ui, AT);
-        seen.borrow_mut().extend(ev_of(&out.event));
+        seen.borrow_mut().extend(ev_of(&out.events));
         // A given caller applies what it receives, as a document does.
-        if given && let Some(event) = &out.event {
-            event.apply(&mut value);
+        if given {
+            for event in &out.events {
+                event.apply(&mut value);
+            }
         }
     };
     drag(&mut frames, &mut show);
@@ -50,7 +52,9 @@ fn given_and_bound_bindings_give_equal_events() {
     let (bound, bound_value) = events(false);
     assert_eq!(given, bound, "the events follow the source-independent rules");
     assert_eq!(given_value, bound_value);
-    assert!(matches!(given.first(), Some(Ev::Begin)), "the folded Begin comes first: {given:?}");
+    assert!(matches!(given.first(), Some(Ev::Begin)), "the Begin comes first: {given:?}");
+    assert!(matches!(given.get(1), Some(Ev::Update(_))), "the first Update follows it: {given:?}");
+    assert!(given.windows(2).all(|pair| pair[0] != pair[1]), "no event is reported twice: {given:?}");
     assert!(matches!(given.last(), Some(Ev::Commit(v)) if near(*v, DRAGGED)), "the drag commits its last value: {given:?}");
 }
 
@@ -63,9 +67,11 @@ fn a_given_drag_that_applies_only_the_commit_is_not_cancelled() {
     let mut value = INITIAL;
     let mut show = |ui: &mut Ui| {
         let out = Scrub::new(Bind::given(value)).id_salt("scrub").show_at(ui, AT);
-        seen.borrow_mut().extend(ev_of(&out.event));
-        if let Some(EditEvent::Commit { after, .. }) = &out.event {
-            value = *after;
+        seen.borrow_mut().extend(ev_of(&out.events));
+        for event in &out.events {
+            if let EditEvent::Commit { after, .. } = event {
+                value = *after;
+            }
         }
     };
     drag(&mut frames, &mut show);
@@ -96,8 +102,8 @@ fn a_gesture_in_one_pass_reaches_the_app_as_one_set_with_label_and_key() {
     let sets = RefCell::new(Vec::new());
     let mut show = |ui: &mut Ui| {
         let out = Scrub::new(Bind::bound(&mut value)).one_pass().label("Nudge").doc_key(DocKey::new("trial.nudge")).id_salt("one").show_at(ui, AT);
-        sets.borrow_mut().extend(out.event.clone());
-        if let Some(EditEvent::Set { .. }) = &out.event {
+        sets.borrow_mut().extend(out.events.clone());
+        if out.events.iter().any(|event| matches!(event, EditEvent::Set { .. })) {
             assert!(out.response.changed(), "a Set marks the response changed");
         }
     };
@@ -124,7 +130,7 @@ fn a_check_fixes_values_and_a_refusing_check_blocks_the_commit() {
         let mut value = INITIAL;
         let mut show = |ui: &mut Ui| {
             let out = Scrub::new(Bind::bound(&mut value).check(check)).seen(&flags).id_salt("scrub").show_at(ui, AT);
-            seen.borrow_mut().extend(ev_of(&out.event));
+            seen.borrow_mut().extend(ev_of(&out.events));
         };
         drag(&mut frames, &mut show);
         (seen.take(), value, flags.flags.get())

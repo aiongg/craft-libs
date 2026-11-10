@@ -98,7 +98,7 @@ fn harness(guides: Vec<Guide>) -> Harness {
             if let Some(select) = output.select {
                 shown_selected.set(select);
             }
-            let phase = output.edit.event.as_ref().map(|event| match event {
+            let phase = output.edit.events.iter().map(|event| match event {
                 EditEvent::Begin { .. } => Seen::Begin,
                 EditEvent::Update { .. } => Seen::Update,
                 EditEvent::Commit { .. } => Seen::Commit,

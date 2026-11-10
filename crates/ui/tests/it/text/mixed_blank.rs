@@ -18,7 +18,7 @@ fn rig() -> Rig {
     let (shown, seen) = (value.clone(), events.clone());
     let mut fixture = Fixture::new(move |ui| {
         let out = HexField::hex("Colour", Bind::bound_mixed(&mut *shown.borrow_mut())).show(ui);
-        if out.event.is_some() {
+        if !out.events.is_empty() {
             seen.set(seen.get() + 1);
         }
     });

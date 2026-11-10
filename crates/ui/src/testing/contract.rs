@@ -29,9 +29,9 @@ pub fn queue_reveal(ctx: &Context, owner: Id, rect: egui::Rect) {
     crate::contract::queue_reveal(ctx, owner, rect);
 }
 
-/// An edit response with no event, for a trial component that has no `cx.edit_response()` to call.
+/// An edit response with no events, for a trial component that has no `cx.edit_response()` to call.
 pub fn edit_response<T>(response: egui::Response) -> crate::contract::EditResponse<T> {
-    crate::contract::EditResponse::new(response, None, crate::contract::Validity::Ok)
+    crate::contract::EditResponse::new(response, craft_behavior::EditEvents::new(), crate::contract::Validity::Ok)
 }
 
 /// Whether `response` reports a click, by pointer or by keyboard activation.

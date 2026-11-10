@@ -79,7 +79,7 @@ fn typing_a_width_on_a_selection_with_mixed_heights_commits_the_width_alone() {
         let mut current = parts.get();
         let out = LinkedFields::new("Size", Bind::bound(&mut current), Bind::given(false)).captions(["W", "H"]).show(ui);
         parts.set(current);
-        seen.borrow_mut().extend(out.edit.event.clone());
+        seen.borrow_mut().extend(out.edit.events.clone());
     });
     fixture.settle();
     let texts = fixture.texts();

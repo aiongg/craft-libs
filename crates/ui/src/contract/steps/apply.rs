@@ -3,9 +3,9 @@
 use super::measure::{MeasureIn, measure};
 use crate::contract::cx::gesture_key;
 use crate::contract::props::Resolved;
-use crate::contract::values::{Checked, landed};
+use crate::contract::values::Checked;
 use crate::contract::{Component, Cx, ValueOf};
-use crate::runtime::egui::{repaint, sizing};
+use crate::runtime::egui::sizing;
 use crate::runtime::reads::{self, BindKey};
 use craft_behavior::{Applied, CancelReason, EditEvent, Gesture, Mixed};
 use egui::Vec2;
@@ -25,8 +25,7 @@ pub(crate) struct ValueEdit {
 }
 
 /// Steps 11 and 15, apply: the events not yet applied are checked and written to the binding. A read-only component refuses
-/// every one. A given caller gets `Begin` in the pass a gesture began and its first `Update` in the next, because it has
-/// no source to hold the value now.
+/// every one.
 pub(crate) fn apply_values<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>) -> ValueEdit {
     let from = cx.applied;
     cx.applied = cx.events.len();
@@ -44,18 +43,6 @@ pub(crate) fn apply_values<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>) -> Va
     let shown_before = cx.shown.clone();
     let Some(mut bind) = comp.bind() else { return ValueEdit::default() };
     let key = bind.key(cx.core.id);
-    // The folded `Begin`: the updates after a `Begin` of this pass wait for the next pass of a given binding.
-    let mut held = None;
-    if bind.is_given()
-        && let Some(begin) = cx.events[from..].iter().rposition(|event| matches!(event, EditEvent::Begin { .. }))
-    {
-        let after = &cx.events[from + begin + 1..];
-        if !after.is_empty() && after.iter().all(|event| matches!(event, EditEvent::Update { .. })) {
-            held = after.last().and_then(|event| event.value().cloned());
-            cx.events.truncate(from + begin + 1);
-            cx.applied = cx.events.len();
-        }
-    }
     let slot = gesture_key(cx.core.id);
     let (mut emitted, mut began, mut landing, mut last_update) = (None, false, None, None);
     let (mut given, mut written) = (false, false);
@@ -102,7 +89,7 @@ pub(crate) fn apply_values<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>) -> Va
             given |= bind.get() != Some(Mixed::Same(value.clone()));
         }
         written |= bind.apply(event) != Applied::Unchanged && carries;
-        if let Some(value) = landed(event) {
+        if let Some(value) = event.landed() {
             landing = Some(value.clone());
         }
         at += 1;
@@ -116,20 +103,11 @@ pub(crate) fn apply_values<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>) -> Va
     } else {
         None
     };
-    // A pass that holds an update for the next pass runs again before painting, so the app has the update in the frame
-    // it happens. egui gives the rerun no input events and caps a frame at two passes, so nothing is delivered twice.
-    if held.is_some() {
-        sizing::request_discard(&cx.core.ctx, sizing::HELD_UPDATE_RERUN);
-    }
-    let repaint_next = held.is_some();
     let gesture = cx.core.memory.shown::<Gesture<ValueOf<C>>>(slot);
     let (running, watched) = (gesture.is_running().then_some(gesture.id), gesture.watched);
     if gesture.is_running() {
-        // The value held for the next pass is already readable from the response's `shown` in this one, so a host write of
-        // it is the gesture's own.
-        gesture.emitted = held.clone().or(emitted).or(gesture.emitted.take());
+        gesture.emitted = emitted.or(gesture.emitted.take());
         gesture.last_given = given_now.or(gesture.last_given.take());
-        gesture.held = held.or(gesture.held.take());
         // A value the check replaced is the gesture's proposal, so the next pass shows it.
         if let Some(value) = last_update {
             gesture.proposal = Some(value);
@@ -144,9 +122,6 @@ pub(crate) fn apply_values<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>) -> Va
             Some(id) => watch.arm(&ctx, id),
             None => watch.disarm(),
         }
-    }
-    if repaint_next {
-        repaint::request(&cx.core.ctx);
     }
     if let Some(value) = landing {
         if bind.is_kept() {

@@ -7,7 +7,7 @@ use crate::contract::{
 use crate::runtime::env::{Label, UnitKind};
 use crate::style::{ComponentStyle, StyleCx};
 use crate::text::NumberField;
-use craft_behavior::{EditEvent, Flow, Metrics, Mixed, Proposal, Sense};
+use craft_behavior::{EditEvents, Flow, Metrics, Mixed, Proposal, Sense};
 use egui::{Rect, Response, Vec2, pos2};
 use std::ops::{Deref, RangeInclusive};
 
@@ -31,7 +31,7 @@ pub struct UnitSelectOutput {
     /// The edit of the number.
     pub edit: EditResponse<Option<f64>>,
     /// The unit the user picked this pass.
-    pub unit: Option<EditEvent<UnitKind>>,
+    pub unit: EditEvents<UnitKind>,
 }
 
 impl Deref for UnitSelectOutput {
@@ -76,13 +76,14 @@ pub struct UnitSelect<'a> {
     #[prop]
     number_enabled: Option<bool>,
     /// The unit child's event of this pass, kept from `paint` to `finish`.
-    unit_event: Option<EditEvent<UnitKind>>,
+    unit_event: EditEvents<UnitKind>,
 }
 
 impl<'a> UnitSelect<'a> {
     /// A number field named `label` over `value`, with a select of `units` over `unit` after it.
     pub fn new(label: impl Into<Label>, value: Bind<'a, Option<f64>>, unit: Bind<'a, UnitKind>, units: &'a [Entry<UnitKind>]) -> Self {
-        UnitSelect { common: Common::new(), value, unit, units, range: None, unit_label: None, number_enabled: None, unit_event: None }.label(label)
+        UnitSelect { common: Common::new(), value, unit, units, range: None, unit_label: None, number_enabled: None, unit_event: EditEvents::new() }
+            .label(label)
     }
 
     fn number(&self, name: Label, value: Mixed<Option<f64>>, kind: Option<UnitKind>) -> NumberField<'static> {
@@ -157,7 +158,7 @@ impl Component for UnitSelect<'_> {
         let number = ui.child("number", place(number_rect), self.number(group.clone(), shown, kind));
         cx.adopt(&number, &start, |value, mine| *mine = *value);
         let select = Select::new(self.select_name(&group), self.unit.reborrowed(), self.units);
-        self.unit_event = ui.child("unit", place(select_rect), select).event;
+        self.unit_event = ui.child("unit", place(select_rect), select).events;
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> UnitSelectOutput {

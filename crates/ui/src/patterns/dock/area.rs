@@ -19,7 +19,7 @@ use crate::runtime::memory::Remember as _;
 use crate::runtime::windows::WindowHost;
 use crate::sections::HeaderAction;
 use craft_behavior::dock::{Action, Column, DockEdge, DockError, Group, Layout, Node, PanelPlace, Permissions, Workspace, node_at};
-use craft_behavior::{CancelReason, DockSide, EditEvent, Flow, GestureId, GesturePhase, Mixed, Proposal};
+use craft_behavior::{CancelReason, DockSide, EditEvent, EditEvents, Flow, GestureId, GesturePhase, Mixed, Proposal};
 use egui::{Context, Id, Pos2, Rect, Response, Ui, Vec2};
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
@@ -54,9 +54,10 @@ pub struct DockAreaOutput<P> {
     pub picked: Option<P>,
     /// Why nothing was drawn, when the workspace is invalid.
     pub error: Option<InvalidGeometry>,
-    /// The edit of the whole workspace this pass: a split divider's size, or the applied `actions` as one undo step.
-    /// A workspace bound by reference takes it itself; a given one needs the host to apply it.
-    pub edit: Option<EditEvent<Workspace<P>>>,
+    /// The edits of the whole workspace this pass, in order: a split divider's size, a floating window's move, and the
+    /// applied `actions` as one undo step. A workspace bound by reference takes them itself; a given one needs the host
+    /// to apply them.
+    pub edit: EditEvents<Workspace<P>>,
     /// Where commands float a panel, group or column: the area's float bounds and the sizes of what it drew.
     pub float_space: Option<FloatSpace<P>>,
     /// The area's response.
@@ -244,7 +245,7 @@ struct Passed<P> {
     events: Vec<DockEvent<P>>,
     focused: Option<P>,
     picked: Option<P>,
-    edit: Option<EditEvent<Workspace<P>>>,
+    edit: EditEvents<Workspace<P>>,
     space: Option<FloatSpace<P>>,
 }
 
@@ -337,7 +338,7 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
                 rtl,
             };
             let mut result = show_area(ui, body, &input, &rights, &mut *panels, flyout.as_mut());
-            if let Some(edit) = result.edit.as_ref() {
+            for edit in &result.edit {
                 workspace.reborrow().write(body, edit);
             }
             result.actions.extend(dropped.take());
@@ -345,12 +346,18 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
                 let proposed = std::mem::take(&mut result.actions);
                 let applied = apply_actions(body, workspace.reborrow(), &current, &*panels, locked, &label, proposed);
                 result.actions = applied.actions;
-                result.edit = applied.edit.or(result.edit.take());
+                result.edit.extend(applied.edit);
             }
             passed = Some(result);
         });
-        let Passed { actions, events, focused, picked, edit, space } =
-            passed.unwrap_or_else(|| Passed { actions: Vec::new(), events: Vec::new(), focused: None, picked: None, edit: None, space: None });
+        let Passed { actions, events, focused, picked, edit, space } = passed.unwrap_or_else(|| Passed {
+            actions: Vec::new(),
+            events: Vec::new(),
+            focused: None,
+            picked: None,
+            edit: EditEvents::new(),
+            space: None,
+        });
         if shown.output.dropped.is_some() {
             cross_window::accept_cross_window(&ctx);
         }
@@ -478,18 +485,16 @@ fn show_area<P: Clone + Eq + Hash + Debug + Send + Sync + 'static>(
             pass.dock(ui, split, DockPlan { edge, columns, rect, flow, open: open.clone() });
         }
     });
-    let edit = area.output.edit.event.map(|event| {
-        event.map(|edited| {
-            let mut next = current.clone();
-            view.write_back(&edited, &mut next.layout);
-            next
-        })
+    let mut edit = area.output.edit.events.map(|edited| {
+        let mut next = current.clone();
+        view.write_back(&edited, &mut next.layout);
+        next
     });
     register_bands(&scene, ctx, body.rect, &leaves);
     let moved = if floating { pass.windows(ui, body) } else { None };
     let mut report = pass.report;
     let label: Arc<str> = Arc::from(body.words::<DockWords>().move_window.as_str());
-    let edit = edit.or_else(|| moved.and_then(|(anchor, change)| window_edit(ctx, current, rights, &mut memory.moving, &anchor, &change, label)));
+    edit.extend(moved.and_then(|(anchor, change)| window_edit(ctx, current, rights, &mut memory.moving, &anchor, &change, label)));
 
     for event in report.flyout.drain(..) {
         match flyout.as_mut() {
@@ -759,9 +764,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
                     .within(body.rect)
                     .auto_collapse(scene.auto_collapse)
                     .show_flyouts_at(ui, cell, |group, at, ui, body| self.group_of(ui, body, group, at));
-                if let Some(event) = output.edit.event {
-                    self.report.flyout.push(event);
-                }
+                self.report.flyout.extend(output.edit.events);
                 let work = ColumnWork { iconic: output.iconic, picked: output.picked, resized: Vec::new(), width: output.width };
                 self.column_work(column, work);
             } else {
@@ -878,10 +881,10 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
                         self.leaf(ui, split, node, rect);
                     }
                 });
-                area.output.edit.event
+                area.output.edit.events
             });
             self.dock = area_dock;
-            if let Some(edited) = shown.inner.as_ref().and_then(Option::as_ref).and_then(|event| event.value()).and_then(|tree| tree.root.as_ref()) {
+            if let Some(edited) = shown.inner.as_ref().and_then(EditEvents::value).and_then(|tree| tree.root.as_ref()) {
                 self.report.actions.extend(split_resizes(&anchor, &window.root, edited));
             }
             let output = shown.output;

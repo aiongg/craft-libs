@@ -84,7 +84,6 @@ pub use registry::{
 };
 pub use sampler::Sampler;
 pub use settle::SettleCx;
-pub(crate) use values::landed;
 pub use values::{Bind, BindMut, EditResponse, ItemOutput, NoValue, Outcome, Validity, ValueOf, clicked};
 
 use crate::runtime::memory::sub;

@@ -374,7 +374,7 @@ impl Kit {
                     Dimension::Resolution => size.set_resolution(number),
                 }
             }
-            if let Some(kind) = shown.unit.as_ref().and_then(|event| event.value().copied()) {
+            if let Some(kind) = shown.unit.value().copied() {
                 match which {
                     Dimension::Width | Dimension::Height => size.set_unit(kind),
                     Dimension::Resolution => size.set_resolution_unit(kind),

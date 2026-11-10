@@ -11,7 +11,7 @@ use crate::runtime::commands::{self, CommandRef};
 use crate::runtime::env::{Env, Label, Units};
 use craft_behavior::canvas::zoom;
 use craft_behavior::kurbo::Size;
-use craft_behavior::{CanvasView, EditEvent, IconId, Mixed, PixelSize, ZoomLadder};
+use craft_behavior::{CanvasView, EditEvents, IconId, Mixed, PixelSize, ZoomLadder};
 use egui::{Response, Ui};
 use std::time::Duration;
 
@@ -145,9 +145,9 @@ pub struct StatusReadoutOutput {
     pub response: Response,
     /// The zoom field's response; `None` when the row did not run.
     pub zoom: Option<Response>,
-    /// The view change of this pass (a typed or scrubbed zoom about the view's centre), for a binding that does not
+    /// The view changes of this pass (a typed or scrubbed zoom about the view's centre), for a binding that does not
     /// write through.
-    pub view: Option<EditEvent<CanvasView>>,
+    pub view: EditEvents<CanvasView>,
     /// The item chosen in the menu this pass; the host stores it.
     pub item: Option<StatusItem>,
 }
@@ -161,7 +161,7 @@ impl Outcome for StatusReadoutOutput {
 
     #[cfg(feature = "testing")]
     fn story_facts(&self) -> crate::testing::StoryOutput {
-        crate::testing::StoryOutput::of_edit(&self.response, self.view.as_ref())
+        crate::testing::StoryOutput::of_edit(&self.response, &self.view)
     }
 }
 
@@ -201,7 +201,7 @@ impl<'a> StatusReadout<'a> {
         let text = self.item.text(self.values, &words, &env, ui.ctx());
         let pixels_per_point = env.scale.0;
         let document = self.document;
-        let mut event: Option<EditEvent<CanvasView>> = None;
+        let mut events = EditEvents::new();
         let shown = Row::new().show(ui, |ui, cx| {
             let current = match self.view.reborrow().read(cx) {
                 Some(Mixed::Same(current)) => Some(current),
@@ -219,12 +219,15 @@ impl<'a> StatusReadout<'a> {
                 }
                 number.show(ui)
             });
-            let typed = field.inner.as_ref().and_then(|zoom| zoom.edit.event.clone());
-            if let (Some(current), Some(typed)) = (current, typed) {
-                let edit =
-                    typed.map(|percent| percent.map_or(current, |percent| zoom::with_device(&current, percent / 100.0, document, pixels_per_point)));
-                self.view.reborrow().write(cx, &edit);
-                event = Some(edit);
+            let typed = field.inner.as_ref().map(|zoom| zoom.edit.events.clone()).unwrap_or_default();
+            events = match current {
+                Some(current) => {
+                    typed.map(|percent| percent.map_or(current, |percent| zoom::with_device(&current, percent / 100.0, document, pixels_per_point)))
+                }
+                None => EditEvents::new(),
+            };
+            for edit in &events {
+                self.view.reborrow().write(cx, edit);
             }
             let mut info = Text::new(text.clone()).elide(Elide::End);
             if let Some((_, tip)) = self.tips.iter().find(|(item, _)| *item == self.item) {
@@ -238,6 +241,6 @@ impl<'a> StatusReadout<'a> {
             (field.inner.map(|zoom| zoom.edit.response), menu.picked)
         });
         let (zoom, item) = shown.inner.unzip();
-        StatusReadoutOutput { response: shown.output, zoom: zoom.flatten(), view: event, item: item.flatten() }
+        StatusReadoutOutput { response: shown.output, zoom: zoom.flatten(), view: events, item: item.flatten() }
     }
 }

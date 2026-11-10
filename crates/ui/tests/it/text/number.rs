@@ -128,13 +128,8 @@ fn a_given_value_written_in_the_begin_pass_keeps_the_gesture() {
         let current = *value.borrow();
         let out = NumberField::new("Size", Bind::given(current)).id_salt("size").show(ui);
         at.set(out.response.rect.center());
-        if let Some(event) = out.event.clone() {
+        for event in out.events.iter().cloned() {
             match &event {
-                EditEvent::Begin { .. } => {
-                    if let Some(Mixed::Same(shown)) = &out.shown {
-                        *value.borrow_mut() = **shown;
-                    }
-                }
                 EditEvent::Update { value: v, .. } | EditEvent::Commit { after: v, .. } => *value.borrow_mut() = *v,
                 EditEvent::Cancel { before: Some(Mixed::Same(before)), .. } => *value.borrow_mut() = *before,
                 _ => {}
@@ -168,14 +163,10 @@ fn a_control_above_the_field_shows_the_typed_value_in_the_same_frame() {
         let current = *value.borrow();
         let out = NumberField::new("Size", Bind::given(current)).id_salt("size").show(ui);
         at.set(out.response.rect.center());
-        match &out.event {
-            Some(EditEvent::Begin { .. }) => {
-                if let Some(Mixed::Same(shown)) = &out.shown {
-                    *value.borrow_mut() = **shown;
-                }
+        for event in &out.events {
+            if let EditEvent::Update { value: v, .. } | EditEvent::Commit { after: v, .. } = event {
+                *value.borrow_mut() = *v;
             }
-            Some(EditEvent::Update { value: v, .. } | EditEvent::Commit { after: v, .. }) => *value.borrow_mut() = *v,
-            _ => {}
         }
     };
     frames.idle(3, &mut show);
@@ -213,7 +204,7 @@ fn fixture_of(range: Option<RangeInclusive<f64>>, presets: Vec<Entry<NumberPick>
         }
         let out = field.show(ui);
         id.set(Some(out.response.id));
-        events.borrow_mut().extend(out.event.clone());
+        events.borrow_mut().extend(out.events.clone());
         if out.preset.is_some() {
             picked.set(out.preset);
         }

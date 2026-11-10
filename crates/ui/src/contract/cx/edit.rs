@@ -49,16 +49,16 @@ pub trait Edit {
     /// Where this pass's gesture stands.
     fn gesture(&self) -> Option<GesturePhase>;
 
-    /// Maps the child's edit onto a clone of this component's shown value and queues the resulting event, following the
-    /// child's, for step 15. A composite whose own value is mixed or not yet shown maps the edit onto `start` instead;
-    /// its events then begin from a mixed value.
-    fn adopt<V: Value>(&self, child: &EditResponse<V>, start: &Self::Value, map: impl FnOnce(&V, &mut Self::Value));
+    /// Maps each of the child's events onto a clone of this component's shown value and queues the resulting events, in
+    /// the child's order, for step 15. A composite whose own value is mixed or not yet shown maps the edits onto
+    /// `start` instead; its events then begin from a mixed value.
+    fn adopt<V: Value>(&self, child: &EditResponse<V>, start: &Self::Value, map: impl Fn(&V, &mut Self::Value));
 
     /// The `EditResponse` a value component returns from `finish`.
     fn edit_response(&self) -> EditResponse<Self::Value>;
 
     /// Sets the running gesture's value, beginning a gesture if none runs and the press that carries it has had no
-    /// gesture cancelled.
+    /// gesture cancelled. A value equal to the gesture's last reported `Update` reports nothing again.
     fn propose(&mut self, v: Self::Value);
 
     /// A one-shot change outside a gesture.
@@ -172,30 +172,31 @@ impl<C: Component> Edit for Cx<'_, C> {
         Some(if began && !updated { GesturePhase::Begin } else { GesturePhase::Update })
     }
 
-    fn adopt<V: Value>(&self, child: &EditResponse<V>, start: &ValueOf<C>, map: impl FnOnce(&V, &mut ValueOf<C>)) {
-        let Some(event) = child.event.as_ref() else { return };
+    fn adopt<V: Value>(&self, child: &EditResponse<V>, start: &ValueOf<C>, map: impl Fn(&V, &mut ValueOf<C>)) {
         let before = self.before();
-        let mut mine = match &before {
-            Mixed::Same(value) => value.clone(),
-            Mixed::Mixed => start.clone(),
-        };
-        if let Some(value) = event.value() {
-            map(value, &mut mine);
+        for event in &child.events {
+            let mut mine = match &before {
+                Mixed::Same(value) => value.clone(),
+                Mixed::Mixed => start.clone(),
+            };
+            if let Some(value) = event.value() {
+                map(value, &mut mine);
+            }
+            let before = before.clone();
+            let adopted = match event {
+                EditEvent::Begin { id, label, doc_key, .. } => EditEvent::begin(*id, before, label.clone(), *doc_key),
+                EditEvent::Update { id, .. } => EditEvent::update(*id, mine),
+                EditEvent::Commit { id, .. } => EditEvent::commit(*id, before, mine),
+                EditEvent::Cancel { id, reason, .. } => EditEvent::cancel(*id, *reason, Some(before)),
+                EditEvent::Set { label, doc_key, .. } => EditEvent::set(before, mine, label.clone(), *doc_key),
+                _ => continue,
+            };
+            self.core.paint.borrow_mut().adopted.push(Adopted::new(adopted));
         }
-        let adopted = match event {
-            EditEvent::Begin { id, label, doc_key, .. } => EditEvent::begin(*id, before, label.clone(), *doc_key),
-            EditEvent::Update { id, .. } => EditEvent::update(*id, mine),
-            EditEvent::Commit { id, .. } => EditEvent::commit(*id, before, mine),
-            EditEvent::Cancel { id, reason, .. } => EditEvent::cancel(*id, *reason, Some(before)),
-            EditEvent::Set { label, doc_key, .. } => EditEvent::set(before, mine, label.clone(), *doc_key),
-            _ => return,
-        };
-        self.core.paint.borrow_mut().adopted.push(Adopted::new(adopted));
     }
 
     fn edit_response(&self) -> EditResponse<ValueOf<C>> {
-        let event = self.events.iter().cloned().fold(None, EditEvent::fold);
-        let mut response = EditResponse::new(self.core.response.clone(), event, self.validity.clone());
+        let mut response = EditResponse::new(self.core.response.clone(), self.events.iter().cloned().collect(), self.validity.clone());
         response.escaped = self.core.escaped || matches!(self.events.last(), Some(EditEvent::Cancel { reason: CancelReason::Escape, .. }));
         response.submitted = self.core.submitted;
         response.submit_mods = self.core.texts.as_ref().map_or(craft_keymap::Mods::NONE, |(_, text)| text.submit_mods());
@@ -228,10 +229,16 @@ impl<C: Component> Edit for Cx<'_, C> {
         }
         slot.proposal = Some(v.clone());
         let id = slot.id;
+        let report = slot.reported.as_ref() != Some(&v);
+        if report {
+            slot.reported = Some(v.clone());
+        }
         if started {
             self.events.push(EditEvent::begin(id, before, label, doc_key));
         }
-        self.events.push(EditEvent::update(id, v.clone()));
+        if report {
+            self.events.push(EditEvent::update(id, v.clone()));
+        }
         self.shown = Some(Arc::new(v));
         self.mixed = false;
     }

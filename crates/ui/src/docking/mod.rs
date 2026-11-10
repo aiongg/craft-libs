@@ -66,7 +66,7 @@ use crate::runtime::focus::KeyUse;
 use crate::runtime::memory::sub;
 use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::dock::{DockEdge, Layout, Node, SplitSize};
-use craft_behavior::{Axis, EditEvent, Flow, Metrics, PartKey, Sense};
+use craft_behavior::{Axis, EditEvents, Flow, Metrics, PartKey, Sense};
 use divider::{Divider, Drag};
 use egui::{Rect, Response};
 use std::fmt::Debug;
@@ -151,14 +151,14 @@ pub struct SplitAreaOutput<P> {
 const EVEN_SHARE: f32 = 0.5;
 
 impl<P: Clone + PartialEq + Send + Sync + 'static> SplitAreaOutput<P> {
-    /// The edit of a [`SplitArea::pair`]'s share: the first body's fraction of the room left after the divider, as the
+    /// The edits of a [`SplitArea::pair`]'s share: the first body's fraction of the room left after the divider, as the
     /// gesture the divider's drag or keys made.
-    pub fn share(&self) -> Option<EditEvent<f32>> {
+    pub fn share(&self) -> EditEvents<f32> {
         let share = |layout: Layout<P>| match layout.root {
             Some(Node::Split { size: SplitSize::Ratio(share), .. }) => share,
             _ => EVEN_SHARE,
         };
-        self.edit.event.clone().map(|event| event.map(share))
+        self.edit.events.clone().map(share)
     }
 }
 
