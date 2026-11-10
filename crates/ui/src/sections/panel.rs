@@ -3,30 +3,33 @@
 //! the body. The panel is one pane for F6.
 
 use super::FooterBar;
-use super::title_row::{HeaderAction, HeaderStrength, MenuRows, TitleRow};
+use super::title_row::{HeaderAction, HeaderCommand, HeaderStrength, MenuRows, TitleRow};
 use super::words::SectionWords;
 use crate::contract::overlay::Popup;
 use crate::contract::{
-    Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, FooterRegion, HeaderRegion, NoValue, Outcome, Pad, Props as _, Role,
-    Scroll, Show as _, ShowContainer as _, Sizing, WordSetCx as _,
+    Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, FooterRegion, HeaderRegion, NoValue, Outcome, Pad, PaintUi, Props as _,
+    Role, Scroll, Show as _, ShowContainer as _, Sizing, WordSetCx as _,
 };
-use crate::primitives::IconSpec;
+use crate::primitives::{IconSpec, PaintShape, StrokeWidth};
 use crate::runtime::env::Label;
 use crate::runtime::focus::FocusPolicy;
 use crate::runtime::overlay::CloseReason;
-use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
+use crate::style::{ComponentStyle, StyleColor, StyleCx, SurfaceKind, UiTokens};
 use craft_behavior::{Metrics, Sense};
-use egui::{Id, Response, Ui};
+use egui::{CornerRadius, Id, Response, Ui};
 
 #[cfg(feature = "testing")]
 mod stories;
 
 /// The style of a panel: the surface and padding come from the container.
-#[derive(Clone, Debug, Default, PartialEq, ComponentStyle)]
+#[derive(Clone, Debug, PartialEq, ComponentStyle)]
 #[non_exhaustive]
 pub struct PanelStyle {
     #[style(metrics)]
     metrics: Metrics,
+    /// The ring a selected panel shows inside its edge.
+    ring: StyleColor,
+    corners: CornerRadius,
 }
 
 /// What a panel reports: its response, the header action taken this pass and how it closed.
@@ -59,6 +62,7 @@ type FooterFn<'a> = Box<dyn FnMut(&mut Ui, &mut BodyCx<'_>) + 'a>;
 ///   stops showing it (bind the state with `opened` to keep it); Float is reported in `PanelOutput::action` for the
 ///   host. [`headerless`](Panel::headerless) leaves the header out.
 /// - Body: scrolls vertically; the panel fills the width and height offered.
+/// - Selected: `selected(true)` draws an accent ring inside the panel's edge, so a host can mark the picked panel.
 /// - Footer: the closure given to `footer` fills a footer bar under the body, separated by a rule.
 #[derive(crate::contract::Component, crate::contract::Props)]
 #[component(container)]
@@ -80,6 +84,7 @@ pub struct Panel<'a> {
     #[prop(func = "FnMut(&mut Ui, &mut BodyCx<'_>)")]
     menu: Option<MenuRows<'a>>,
     actions: Vec<HeaderAction>,
+    commands: Vec<HeaderCommand>,
     footer: Option<FooterFn<'a>>,
     taken: Option<HeaderAction>,
     menu_opener: Option<Id>,
@@ -104,6 +109,7 @@ impl<'a> Panel<'a> {
             icon: None,
             menu: None,
             actions: Vec::new(),
+            commands: Vec::new(),
             footer: None,
             taken: None,
             menu_opener: None,
@@ -116,6 +122,14 @@ impl<'a> Panel<'a> {
     #[must_use]
     pub fn actions(mut self, actions: impl IntoIterator<Item = HeaderAction>) -> Self {
         self.actions = actions.into_iter().collect();
+        self
+    }
+
+    /// The icon commands at the end of the header, before the actions, in reading order. Each is a Tab stop named and
+    /// enabled by its command, which an activation fires.
+    #[must_use]
+    pub fn commands(mut self, commands: impl IntoIterator<Item = HeaderCommand>) -> Self {
+        self.commands = commands.into_iter().collect();
         self
     }
 
@@ -147,12 +161,18 @@ impl Component for Panel<'_> {
     type Style = PanelStyle;
     type Output = PanelOutput;
 
-    fn style(_: &StyleCx<'_>, _: PanelStyleKey) -> PanelStyle {
-        PanelStyle::default()
+    fn style(cx: &StyleCx<'_>, _: PanelStyleKey) -> PanelStyle {
+        PanelStyle { metrics: Metrics::new(), ring: cx.color(cx.tokens.color.accent.solid), corners: UiTokens::corner(cx.tokens.shape.radius.panel) }
     }
 
     fn sense(&self) -> Sense {
         Sense::empty()
+    }
+
+    fn paint_over(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        if cx.resolved.selected == Some(true) {
+            ui.draw().stroke(&PaintShape::Rect(cx.rect, cx.style.corners), StrokeWidth::Medium, cx.style.ring);
+        }
     }
 
     fn finish(self, mut cx: Cx<'_, Self>) -> PanelOutput {
@@ -169,7 +189,8 @@ impl Container for Panel<'_> {
     }
 
     fn header(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
-        let mut row = TitleRow::new(cx.label()).strength(HeaderStrength::Strong).actions(self.actions.iter().copied());
+        let mut row =
+            TitleRow::new(cx.label()).strength(HeaderStrength::Strong).actions(self.actions.iter().copied()).commands(self.commands.iter().cloned());
         if let Some(subtitle) = self.subtitle.clone() {
             row = row.subtitle(subtitle);
         }
