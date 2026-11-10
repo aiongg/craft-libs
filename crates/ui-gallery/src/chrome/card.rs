@@ -93,20 +93,6 @@ impl Card<'_> {
     /// Shows the card in the room `ui` offers, with the state of its story.
     pub fn show(&self, ui: &mut Ui, state: &mut CardState) -> CardEvents {
         let mut events = CardEvents::default();
-        // As the old gallery's tiles: a card far outside the visible area is not run, for speed, and keeps the height
-        // it had; the cards near the view are run so they are ready when they scroll in.
-        let remembered = Id::unique(("gallery.card.size", &self.key, state.resets));
-        let known: Option<f32> = ui.data(|data| data.get_temp(remembered));
-        if !ui.is_sizing_pass()
-            && let Some(height) = known
-        {
-            let (top, view) = (ui.cursor().min.y, ui.clip_rect());
-            let near = view.expand2(vec2(0.0, view.height()));
-            if top >= near.max.y || top + height <= near.min.y {
-                ui.allocate_space(vec2(ui.available_width(), height));
-                return events;
-            }
-        }
         let mut panel =
             Panel::new(self.title.to_owned()).sizing(Sizing::FillWidth).command_scope(CardCommands::SCOPE).selected(self.selected).pickable();
         if let Some(note) = self.note {
@@ -133,11 +119,7 @@ impl Card<'_> {
             events.pressed |= cx.surface_pressed();
             self.story_body(ui, state);
         });
-        let rect = shown.response.rect;
-        if !ui.is_sizing_pass() {
-            ui.data_mut(|data| data.insert_temp(remembered, rect.height()));
-        }
-        events.rect = Some(rect);
+        events.rect = Some(shown.response.rect);
         events
     }
 
@@ -146,12 +128,17 @@ impl Card<'_> {
     /// shows nothing in flow (a dialog).
     fn story_body(&self, ui: &mut Ui, state: &mut CardState) {
         let window = WindowKey::new(format!("card-{}-{}", self.key, state.resets));
-        let host = Host { id: Id::unique(("gallery.card.story", &self.key, state.resets)), room: self.room, look: self.look, surface: self.surface };
+        let host = Host {
+            id: craft_ui::testing::memory::global("gallery.card.story", (&self.key, state.resets)),
+            room: self.room,
+            look: self.look,
+            surface: self.surface,
+        };
         let show = self.story.story.show;
         let took = host.stack().measure_in(ui, Proposal::Ideal, |ui, _| host.content(ui, show, &mut state.data));
         // A story that shows nothing in flow takes no more than its bare surface; under its own id, so its record does
         // not stand for the story's.
-        let bare = host.stack().id(host.id.with("bare")).measure_in(ui, Proposal::Ideal, |_, _| {});
+        let bare = host.stack().id(craft_ui::testing::memory::sub(host.id, "bare")).measure_in(ui, Proposal::Ideal, |_, _| {});
         let height = if took.y > bare.y { took.y } else { self.room };
         let rect = Rect::from_min_size(ui.available_rect_before_wrap().min, vec2(ui.available_width(), height));
         AppShell::embedded(window)
