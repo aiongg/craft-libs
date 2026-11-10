@@ -105,7 +105,7 @@ impl Card<'_> {
             .pickable()
             .framed()
             .band(SurfaceKind::Background)
-            .strength(HeaderStrength::Section)
+            .strength(HeaderStrength::Heading)
             .pad(pad);
         if let Some(note) = self.note {
             panel = panel.subtitle(format!("· {note}"));

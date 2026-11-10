@@ -179,6 +179,8 @@ pub struct HeaderRegion {
     pub band: DragBand,
     /// Whether a rule separates the header from the body. An inline header has no rule.
     pub rule: bool,
+    /// Whether a rule runs across the container's width above the header, at its top edge.
+    pub rule_above: bool,
     /// Whether the header shares a line with the body: the header at its measured width, the body in the rest.
     pub inline: bool,
     /// Whether the header has a trailing child region at its end edge, filled by `Container::controls`; the header
@@ -194,7 +196,7 @@ pub struct HeaderRegion {
 impl HeaderRegion {
     /// A header with no drag band, no rule, on its own line, with no trailing region, no fill and no inset.
     pub const fn new() -> Self {
-        HeaderRegion { band: DragBand::None, rule: false, inline: false, trailing: false, fill: None, inset: Pad::None }
+        HeaderRegion { band: DragBand::None, rule: false, rule_above: false, inline: false, trailing: false, fill: None, inset: Pad::None }
     }
 
     /// The surface of a band behind the header.
@@ -218,6 +220,12 @@ impl HeaderRegion {
     /// Whether a rule separates the header from the body.
     pub const fn rule(mut self, on: bool) -> Self {
         self.rule = on;
+        self
+    }
+
+    /// Whether a rule runs above the header.
+    pub const fn rule_above(mut self, on: bool) -> Self {
+        self.rule_above = on;
         self
     }
 

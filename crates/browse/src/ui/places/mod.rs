@@ -391,7 +391,7 @@ impl PlacesTree<'_> {
             let out = list.show_items(ui, &rows, &mut |key, _| {
                 let Some(row) = rows.at(key) else { return ListRow::spacer() };
                 match &row.content {
-                    Content::Heading(text) => ListRow::new(text.clone()).heading(),
+                    Content::Heading(text) => ListRow::new(text.clone()).heading().ink(RowInk::Dimmed),
                     Content::Empty(text) | Content::Loading(text) => ListRow::new(text.clone()).ink(RowInk::Dimmed).depth(row.depth),
                     Content::Folder(name) => {
                         let line = ListRow::new(name.clone()).depth(row.depth).icon(IconSpec::svg(IconId::new("folder"))).ink(RowInk::Muted);

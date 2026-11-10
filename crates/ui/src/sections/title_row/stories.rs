@@ -1,15 +1,26 @@
 //! Stories of `TitleRow`.
 
-use super::{HeaderStrength, TitleRow};
+use super::{HeaderAction, HeaderStrength, TitleRow};
 use crate::contract::{Bind, Show as _, Validity};
+use crate::display::Divider;
 use crate::primitives::IconSpec;
 use crate::runtime::env::Message;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use craft_behavior::{IconId, Mixed};
 use egui::Ui;
 
+#[story(TitleRow<'static>, covers = [], drive = Drive::Never)]
+fn title_row(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    let shown = TitleRow::new("Brush settings")
+        .strength(HeaderStrength::Strong)
+        .actions([HeaderAction::Menu, HeaderAction::Float, HeaderAction::Close])
+        .show(ui);
+    Divider::horizontal().show(ui);
+    shown.edit.into()
+}
+
 #[story(TitleRow<'static>, covers = [Default])]
-fn title_row(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+fn title_row_with_disclosure(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     TitleRow::new("Layers").disclosure(Bind::bound(data.value("open", false))).show(ui).edit.into()
 }
 

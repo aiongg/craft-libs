@@ -31,8 +31,10 @@ pub enum HeaderStrength {
     Normal,
     /// A panel or dialog title.
     Strong,
-    /// A section heading.
+    /// A section heading of a panel: emphasised body text.
     Section,
+    /// A large heading: the heading role.
+    Heading,
     /// A quiet heading: the caption role, faint, in capitals.
     Caption,
 }
@@ -314,7 +316,8 @@ impl Component for TitleRow<'_> {
         let (height, role, shade) = match key.strength {
             HeaderStrength::Normal => (cx.control().height, TypeRole::Label, text.normal),
             HeaderStrength::Strong => (cx.tokens.size.panel_header, TypeRole::Title, text.normal),
-            HeaderStrength::Section => (cx.tokens.size.panel_header, TypeRole::Heading, text.normal),
+            HeaderStrength::Section => (cx.tokens.size.panel_header, TypeRole::BodyStrong, text.normal),
+            HeaderStrength::Heading => (cx.tokens.size.panel_header, TypeRole::Heading, text.normal),
             HeaderStrength::Caption => (cx.control().height, TypeRole::Caption, text.faint),
         };
         let (shade, ink, disabled) = (cx.color(shade), cx.ink(Ink::OnPanel), cx.color(text.disabled));
@@ -337,7 +340,9 @@ impl Component for TitleRow<'_> {
         let text = title.x + subtitle.map_or(0.0, |width| width + cx.gap());
         let lead = if self.has_lead() { self.lead_side(side, cx.style.disclosure) - side } else { 0.0 };
         let natural = text + side * parts as f32 + cx.gap() * parts as f32 + lead;
-        Vec2::new(if self.fill { natural.max(cx.room.unwrap_or(0.0)) } else { natural }, title.y)
+        // A row takes the room it is offered, a filling row all of it, and never more: the title elides to what is left.
+        let width = cx.room.map_or(natural, |room| if self.fill { room } else { natural.min(room) });
+        Vec2::new(width, title.y)
     }
 
     fn sense(&self) -> Sense {

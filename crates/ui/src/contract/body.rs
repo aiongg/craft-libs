@@ -600,11 +600,14 @@ pub(super) struct BodyHooks<'b> {
     follows_end: bool,
 }
 
-/// The divider rules under the header and above the footer.
+/// The divider rules above and under the header and above the footer.
 fn paint_rules(ui: &mut Ui, props: &ContainerProps, env: &Env, inner: Rect, regions: &Regions) {
     let rule = rule_look(&env.tokens, RuleKind::Divider);
     let ppp = ui.ctx().pixels_per_point();
     let draw_rule = |from: f32, to: f32, y: f32| ui.painter().extend(Rule::shapes(&rule, Pos2::new(from, y), Pos2::new(to, y), ppp));
+    if props.header.is_some_and(|header| header.rule_above) {
+        draw_rule(inner.min.x, inner.max.x, regions.header.min.y);
+    }
     if props.header.is_some_and(|header| header.rule && !header.inline) {
         draw_rule(inner.min.x, inner.max.x, regions.header.max.y);
     }
