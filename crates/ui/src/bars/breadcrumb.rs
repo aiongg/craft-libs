@@ -45,7 +45,6 @@ pub struct BreadcrumbBarStyle {
     ellipsis_pad: f32,
     /// The most room an ancestor crumb asks for; a longer name elides.
     crumb_cap: f32,
-    height: f32,
 }
 
 /// What a breadcrumb bar reports.
@@ -177,18 +176,17 @@ impl<K: Value + 'static> Component for BreadcrumbBar<'_, K> {
     type Output = BreadcrumbOutput<K>;
 
     fn style(cx: &StyleCx<'_>, _: BreadcrumbBarStyleKey<K>) -> BreadcrumbBarStyle {
-        let control = cx.control();
+        let icon = cx.tokens.size.icon.sm;
         let gap = cx.tokens.space.gap.tight;
         let muted = cx.color(cx.tokens.color.text.muted);
         BreadcrumbBarStyle {
-            metrics: Metrics::new().min_size(Vec2::new(0.0, control.height)),
+            metrics: Metrics::new(),
             focus: cx.focus_look(),
-            separator: IconLook::new(control.icon, Stateful::new(muted)),
+            separator: IconLook::new(icon, Stateful::new(muted)),
             gap,
-            joint: control.icon + 2.0 * gap,
+            joint: icon + 2.0 * gap,
             ellipsis_pad: 2.0 * gap,
             crumb_cap: cx.tokens.size.length.field,
-            height: control.height,
         }
     }
 
@@ -198,7 +196,7 @@ impl<K: Value + 'static> Component for BreadcrumbBar<'_, K> {
         let crumbs: f32 = (0..self.crumbs.len()).map(|at| self.natural(at, cx)).sum();
         let joints = self.crumbs.len().saturating_sub(1) as f32 * cx.style.joint;
         let whole = crumbs + joints;
-        Vec2::new(cx.room.map_or(whole, |room| whole.min(room)), cx.style.height)
+        Vec2::new(cx.room.map_or(whole, |room| whole.min(room)), cx.face(Text::new("x").role(TypeRole::BodyStrong)).y)
     }
 
     fn fills(&self) -> Option<Axis> {

@@ -1,12 +1,12 @@
 //! `Link`: text in the accent colour, always underlined, that reports a click.
 
 use crate::contract::{Access, Common, Component, Cx, MeasureCx, PaintUi, Pointer as _, Role, Styled as _};
-use crate::primitives::{PaintShape, StrokeWidth, TextRun, Wrap};
+use crate::primitives::{PaintShape, StrokeWidth, TextLayout, TextRun, Wrap};
 use crate::style::{ComponentStyle, FocusLook, Stateful, StyleCx, TextLook, TypeRole};
 use craft_behavior::{CursorIcon, CursorPriority, Flow, Metrics, PointerButton, PressPhase, Sense};
 use craft_theme::variant::Tone;
 use craft_theme::{Contrast, States};
-use egui::{Pos2, Response, Vec2};
+use egui::{Pos2, Rect, Response, Vec2};
 
 /// The style of a link.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
@@ -19,7 +19,7 @@ pub struct LinkStyle {
     /// The text and underline colour: `accent.solid`, as PhotoCraft's links; `accent.text` at high contrast, which meets the text contrast `accent.solid` does not.
     #[style(text)]
     text: TextLook,
-    /// How far the underline sits above the bottom of the text line.
+    /// The underline's width.
     underline: f32,
 }
 
@@ -72,8 +72,8 @@ impl Component for Link {
         LinkStyle {
             metrics: Metrics::new(),
             focus: cx.focus_look(),
+            underline: cx.tokens.stroke.thin,
             text: TextLook::new(TypeRole::Body, Stateful::new(color).off(States::new(color, color, color, cx.color(colors.text.disabled)))),
-            underline: cx.tokens.stroke.thin / 2.0,
         }
     }
 
@@ -83,7 +83,8 @@ impl Component for Link {
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        cx.layout(&self.run(cx.resolved.label)).size()
+        let layout = cx.layout(&self.run(cx.resolved.label));
+        Vec2::new(layout.size().x, reach(&layout, cx.style.underline))
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
@@ -110,15 +111,31 @@ impl Component for Link {
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let color = cx.resolve(&cx.style.text.color);
         let draw = ui.draw();
-        let layout = draw.text(cx.content_rect, &self.run(cx.resolved.label).color(color));
+        let run = self.run(cx.resolved.label).color(color);
+        let layout = draw.layout(&run, cx.content_rect.width());
+        // A single line is centred with its underline in a taller rect, so the underline follows the text.
+        let total = reach(&layout, cx.style.underline);
+        let spare = if layout.galley.rows.len() <= 1 { (cx.content_rect.height() - total).max(0.0) } else { 0.0 };
+        let top = cx.content_rect.top() + spare / 2.0;
+        let text_rect = Rect::from_min_size(Pos2::new(cx.content_rect.left(), top), Vec2::new(cx.content_rect.width(), layout.size().y));
+        draw.text(text_rect, &run);
         let line = Flow::new(cx.content_rect, cx.flow.is_rtl()).take_start(layout.size().x).0;
-        // A single line is centred in a taller rect, so the underline follows the text, not the rect's top.
-        let spare = if layout.galley.rows.len() <= 1 { (cx.content_rect.height() - layout.size().y).max(0.0) } else { 0.0 };
-        let y = cx.content_rect.top() + spare / 2.0 + layout.size().y - cx.style.underline;
+        let y = top + line_bottom(&layout).unwrap_or(layout.size().y);
         draw.stroke(&PaintShape::Path(vec![Pos2::new(line.left(), y), Pos2::new(line.right(), y)]), StrokeWidth::Thin, color);
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> Response {
         cx.response.clone()
     }
+}
+
+/// The bottom of the first line's glyph box, from the top of the layout: the face's descent below the baseline, where
+/// the underline sits clear of descenders.
+fn line_bottom(layout: &TextLayout) -> Option<f32> {
+    layout.galley.rows.first().and_then(|placed| placed.row.glyphs.first().map(|glyph| placed.pos.y + glyph.logical_rect().bottom()))
+}
+
+/// The height a link takes: its text, and the underline's lower edge when that reaches below it.
+fn reach(layout: &TextLayout, underline: f32) -> f32 {
+    line_bottom(layout).map_or(layout.size().y, |bottom| layout.size().y.max(bottom + underline / 2.0))
 }
