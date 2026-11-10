@@ -289,7 +289,12 @@ impl Component for Menu<'_> {
         level_env(cx, values, self.submenu, self.values);
     }
 
+    fn body_grown(&self, cx: &Cx<'_, Self>) -> f32 {
+        MenuLevel::of(&cx.recall::<LevelMemory>()).columns_width()
+    }
+
     fn finish(self, cx: Cx<'_, Self>) -> MenuOutput {
+        MenuLevel::of(&cx.recall::<LevelMemory>()).end();
         MenuOutput { response: cx.response.clone(), closed: self.closed.or(self.back.then_some(CloseReason::Requested)), step: self.step }
     }
 }

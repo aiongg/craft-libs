@@ -33,7 +33,9 @@ fn hidden_characters_and_extras(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     ];
     Canvas::new("Frames")
         .view(view)
-        .show_at(ui, room, |ui, body| TextFrameMarks::new("Frame marks", view, &frames, LAYER, PAPER).hidden_characters(&marks).show_at(ui, body.rect))
+        .show_at(ui, room, |ui, body| {
+            TextFrameMarks::new("Frame marks", view, &frames, LAYER, PAPER).hidden_characters(&marks).show_at(ui, body.rect)
+        })
         .inner
         .map(StoryOutput::from)
         .unwrap_or_default()

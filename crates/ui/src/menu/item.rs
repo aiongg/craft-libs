@@ -84,6 +84,8 @@ struct LevelState {
     lettered: bool,
     marks: bool,
     icons: bool,
+    /// The side of a mark or icon column and the gap after it, as the rows measured them.
+    column: (f32, f32),
     keyboard: bool,
     /// A value menu: every row is a radio item.
     values: bool,
@@ -147,23 +149,13 @@ impl MenuLevel {
         }
     }
 
-    /// Starts a pass over the level: the rows that registered last pass get their letters, and the rows of this pass
-    /// register again.
+    /// Starts a body run over the level. The rows of this pass register in the measuring run and again in the real
+    /// run; no row carries over from an earlier pass, because [`MenuLevel::end`] cleared them.
     /// Rows get no mnemonic when `lettered` is false: a Mac menu has no access letters.
     fn begin(&self, submenu: bool, values: bool, keyboard: bool, lettered: bool, pointer: Option<Pos2>) {
         self.with(|state| {
-            let letters = if lettered {
-                let labels: Vec<&str> = state.now.iter().map(|row| row.text.as_str()).collect();
-                mnemonic::assign(&labels)
-            } else {
-                vec![None; state.now.len()]
-            };
-            state.shown = state.now.iter().zip(letters).map(|(row, mnemonic)| Assigned { id: row.id, mnemonic, enabled: row.enabled }).collect();
-            state.marks = state.now.iter().any(|row| row.mark.is_some());
-            state.icons = state.now.iter().any(|row| row.icon);
             state.keyboard = keyboard;
             state.lettered = lettered;
-            state.now.clear();
             state.submenu = submenu;
             state.values = values;
             if state.pointer != pointer {
@@ -173,8 +165,38 @@ impl MenuLevel {
         });
     }
 
+    /// Ends the pass: the rows of this pass give the letters the user sees, and the level forgets them.
+    pub(crate) fn end(&self) {
+        self.with(|state| {
+            let letters = if state.lettered {
+                let labels: Vec<&str> = state.now.iter().map(|row| row.text.as_str()).collect();
+                mnemonic::assign(&labels)
+            } else {
+                vec![None; state.now.len()]
+            };
+            state.shown = state.now.iter().zip(letters).map(|(row, mnemonic)| Assigned { id: row.id, mnemonic, enabled: row.enabled }).collect();
+            state.now.clear();
+            state.marks = false;
+            state.icons = false;
+        });
+    }
+
+    /// The width the level's mark and icon columns add to the widest row, from the rows registered in this run.
+    pub(crate) fn columns_width(&self) -> f32 {
+        self.with(|state| {
+            let (side, gap) = state.column;
+            [state.marks, state.icons].into_iter().filter(|on| *on).count() as f32 * (side + gap)
+        })
+    }
+
+    fn set_column(&self, side: f32, gap: f32) {
+        self.with(|state| state.column = (side, gap));
+    }
+
     fn register(&self, row: Row) {
         self.with(|state| {
+            state.marks |= row.mark.is_some();
+            state.icons |= row.icon;
             match state.now.iter_mut().find(|known| known.id == row.id) {
                 Some(known) => *known = row,
                 None => state.now.push(row),
@@ -576,7 +598,9 @@ impl Component for MenuItem<'_> {
         let level = cx.env.get::<MenuLevel>();
         // The measuring run of the menu body registers the rows, so the real run's level reads this pass's marks and icons.
         self.register(&level, cx.id, cx.resolved.label, cx.resolved.enabled, cx.command());
-        let columns = self.columns(cx, &level);
+        level.set_column(cx.icon(), cx.gap());
+        // The level's mark and icon columns are added after the body, from the rows this run registered.
+        let columns = Columns { mark: 0.0, icon: 0.0, ..self.columns(cx, &level) };
         let text = mnemonic::marked(cx.resolved.label).0;
         let run = TextRun::new(text.as_str()).role(cx.style.text.role);
         let label = if text.is_empty() { Vec2::ZERO } else { cx.layout_at(&run, f32::INFINITY).size() };

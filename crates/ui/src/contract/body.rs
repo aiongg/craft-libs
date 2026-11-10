@@ -2315,6 +2315,10 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 body_rect = label::control_after(ui, env, input);
                 label_extra = label_extra_of(regions.body, body_rect);
             }
+            if let (false, Some(size)) = (real, &mut self.body_size) {
+                // An extent that depends on what the body's run produced is added after the body, from this run's record.
+                size.x += comp.body_grown(cx);
+            }
             if let Some(size) = &mut self.body_size {
                 // A body beside its label in a content-sized column of rows reports how far it reaches past the label
                 // column, so that column's container measures its rows at the widest label.

@@ -6,8 +6,8 @@ use super::overview::{Spec, apply, grid, on_background, selected_type, target_st
 use super::panels::Panels;
 use crate::viewer::{DIRECTIONS, MODES, PanelId, VariantAxis, entry_of};
 use craft_i18n::Direction;
-use craft_theme::{ControlSize, Mode, ModeChoice};
 use craft_theme::variant::Tone;
+use craft_theme::{ControlSize, Mode, ModeChoice};
 use craft_ui::buttons::Button;
 use craft_ui::contract::{Show as _, ShowContainer as _};
 use craft_ui::display::{Shade, Text};
@@ -52,7 +52,9 @@ fn values(axis: VariantAxis) -> Option<Vec<Value>> {
                 MODES
                     .0
                     .iter()
-                    .filter_map(|choice| mode_of(choice.value).map(|mode| Value { label: choice.label, look: Look { mode: Some(mode), ..Look::default() } }))
+                    .filter_map(|choice| {
+                        mode_of(choice.value).map(|mode| Value { label: choice.label, look: Look { mode: Some(mode), ..Look::default() } })
+                    })
                     .collect(),
             )
         }
