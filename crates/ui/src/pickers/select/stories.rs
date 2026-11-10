@@ -14,7 +14,8 @@ fn modes() -> [Entry<u8>; 3] {
 #[story(Select<'static, u8>, covers = [Default], drive = Drive::Pick { row: 1 })]
 fn select(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let entries = modes();
-    Select::new("Blend mode", Bind::bound(data.value("mode", 0u8)), &entries).show(ui).into()
+    let blend = data.choice("mode", 0u8, &[("Normal", 0), ("Multiply", 1), ("Screen", 2)]);
+    Select::new("Blend mode", Bind::bound(blend), &entries).show(ui).into()
 }
 
 #[story(Select<'static, u8>, covers = [Mixed], drive = Drive::Never)]
