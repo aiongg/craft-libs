@@ -1,7 +1,6 @@
 //! `ReorderableSections` (24.4): a sidebar of sections the user folds, hides, pins and drags, over a `SectionLayout`.
 
 use super::layout::{SectionEvent, SectionKey, SectionLayout};
-use super::title_row::HeaderAction;
 use super::words::ReorderableWords;
 use super::{Section, SectionStack};
 use crate::contract::{Bind, BodyCx, Entry, NoValue, Outcome, Pattern, Politeness, Props as _, Show as _, ShowContainer as _, announce};
@@ -135,7 +134,6 @@ impl<'a> ReorderableSections<'a> {
                             .command_scope(SectionCommands::SCOPE)
                             .controls(|_, cx| section_commands(cx, key, &held, &mut local.borrow_mut()))
                             .menu(|ui, _| section_menu(ui, key, &held, sections, &mut local.borrow_mut()))
-                            .actions([HeaderAction::Menu])
                             .show(ui, |ui, cx| body(ui, key, cx))
                             .output;
                         if open == held.is_folded(key) {

@@ -1,8 +1,9 @@
 //! Stories of `TitleRow`.
 
 use super::{HeaderAction, HeaderStrength, TitleRow};
-use crate::contract::{Bind, Show as _, Validity};
+use crate::contract::{Bind, Pad, Show as _, ShowContainer as _, Validity};
 use crate::display::Divider;
+use crate::layout_components::Stack;
 use crate::primitives::IconSpec;
 use crate::runtime::env::Message;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
@@ -11,13 +12,18 @@ use egui::Ui;
 
 #[story(TitleRow<'static>, covers = [], drive = Drive::Never)]
 fn title_row(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    let shown = TitleRow::new("Brush settings")
-        .strength(HeaderStrength::Strong)
-        .inset(true)
-        .actions([HeaderAction::Menu, HeaderAction::Float, HeaderAction::Close])
-        .show(ui);
+    // The padding a panel gives its header.
+    let mut output = StoryOutput::default();
+    Stack::new().pad(Pad::Regular).fill_width().show(ui, |ui, _| {
+        let shown = TitleRow::new("Brush settings")
+            .strength(HeaderStrength::Strong)
+            .fill(true)
+            .actions([HeaderAction::Menu, HeaderAction::Float, HeaderAction::Close])
+            .show(ui);
+        output = shown.edit.into();
+    });
     Divider::horizontal().show(ui);
-    shown.edit.into()
+    output
 }
 
 #[story(TitleRow<'static>, covers = [Default])]

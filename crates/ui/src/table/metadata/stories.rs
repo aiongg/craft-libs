@@ -23,8 +23,11 @@ fn groups() -> Vec<MetadataGroup> {
 }
 
 #[story(MetadataTable<'static>, covers = [Default], drive = Drive::Never)]
-fn metadata_table(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    MetadataTable::new("Metadata", &groups()).show(ui).into()
+fn metadata_table(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let mut filter = data.value("filter", String::new()).clone();
+    let out = MetadataTable::new("Metadata", &groups()).filter(Bind::bound(&mut filter)).show(ui);
+    *data.value("filter", String::new()) = filter;
+    out.into()
 }
 
 #[story(MetadataTable<'static>, covers = [], drive = Drive::Never)]
