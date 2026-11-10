@@ -174,7 +174,7 @@ fn row_filled(fixture: &Fixture, label: &str) -> bool {
     fixture.shape_bounds().iter().any(|shape| shape.contains_rect(row) && shape.height() < row.height() * 1.5)
 }
 
-/// A menu opened by the pointer paints no active row; the first arrow key makes the row it reaches active.
+/// A menu opened by the pointer paints no active row; the first arrow key makes the focused (first) row active.
 #[trial]
 fn a_menu_opened_by_the_pointer_shows_no_active_row_until_a_key_moves_it() {
     let mut fixture = Fixture::new(|ui| {
@@ -195,13 +195,12 @@ fn a_menu_opened_by_the_pointer_shows_no_active_row_until_a_key_moves_it() {
     fixture.key(egui::Key::ArrowDown, egui::Modifiers::NONE);
     fixture.idle(4);
     let after = ["Open", "Save", "Close"].map(|label| row_filled(&fixture, label));
-    assert_eq!(after.iter().filter(|&&on| on).count(), 1, "the arrow key makes one row active: {after:?}");
+    assert_eq!(after, [true, false, false], "the first arrow key activates the focused first row, not the second");
 }
 
-/// The row of a submenu that is open while the pointer is inside it keeps a tint; only the row under the pointer is
-/// the active (accent) row. A disabled row under the pointer is never active.
+/// The row of a submenu that is open while the pointer is inside it keeps a fill, as does the row under the pointer.
 #[trial]
-fn the_parent_of_an_open_submenu_is_tinted_while_the_pointer_is_in_it() {
+fn the_parent_of_an_open_submenu_keeps_a_fill_while_the_pointer_is_in_it() {
     let submenu = |label: &str, inner: &str| {
         PanelRow::Submenu(label.to_owned().into(), vec![PanelRow::Item(Entry::new(GroupItem::MoveTo(0), inner.to_owned()))])
     };
@@ -216,8 +215,8 @@ fn the_parent_of_an_open_submenu_is_tinted_while_the_pointer_is_in_it() {
     fixture.click(&opener);
     fixture.idle(4);
     rest_on(&mut fixture, "Alpha");
-    assert!(row_filled(&fixture, "Alpha"), "the row under the pointer is active");
+    assert!(row_filled(&fixture, "Alpha"), "the row under the pointer has a fill");
     rest_on(&mut fixture, "Alpha One");
-    assert!(row_filled(&fixture, "Alpha One"), "the submenu row under the pointer is active");
-    assert!(row_filled(&fixture, "Alpha"), "the parent of the open submenu keeps a tint");
+    assert!(row_filled(&fixture, "Alpha One"), "the submenu row under the pointer has a fill");
+    assert!(row_filled(&fixture, "Alpha"), "the parent of the open submenu keeps a fill");
 }

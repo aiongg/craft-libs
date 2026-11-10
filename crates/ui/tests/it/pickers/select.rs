@@ -67,6 +67,23 @@ fn a_select_opens_from_the_keyboard_and_picks_with_arrows_and_enter() {
     assert_eq!(rig.value.get(), 0, "focus returned to the field, whose arrows step the value");
 }
 
+/// A row of the dropdown under the pointer has a fill.
+#[trial]
+fn a_select_dropdown_row_under_the_pointer_has_a_fill() {
+    let mut rig = rig();
+    rig.open();
+    let row = rig.fixture.by_label("Multiply").expect("the option shows").rect;
+    for step in [20.0, 8.0, 2.0, 0.0] {
+        rig.fixture.frame(vec![egui::Event::PointerMoved(row.center() + egui::vec2(step, 0.0))]);
+        rig.fixture.idle(2);
+    }
+    rig.fixture.advance(0.5);
+    rig.fixture.idle(6);
+    let row = rig.fixture.by_label("Multiply").expect("the option shows").rect;
+    let filled = rig.fixture.shape_bounds().iter().any(|shape| shape.contains_rect(row) && shape.height() < row.height() * 1.5);
+    assert!(filled, "the hovered option has a fill {:?}", rig.fixture.shape_bounds());
+}
+
 /// The lead of the list starts again at every opening: a lead moved to the last row and abandoned with Escape does
 /// not come back when the list opens next.
 #[trial]

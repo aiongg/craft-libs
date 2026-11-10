@@ -40,14 +40,14 @@ use craft_behavior::fit::{FitItem, FitKeep, fit_items};
 use craft_behavior::{Arrows, Axis, Flow, Intent, Metrics, NavMove, NavShape, PartKey, PartRef, Roving, Sense};
 use craft_host::target::MenuPlacement;
 use craft_keymap::mnemonic;
-use craft_theme::{Flags, Stateful, States};
+use craft_theme::{Flags, Rgba, Stateful, States};
 use egui::{Context, Pos2, Rect, Response, Ui, Vec2, pos2};
 
 const TITLE: PartKey = PartKey::new("title");
 const MORE: PartKey = PartKey::new("more");
 
-/// The style of a title's face: a menu row's surface and ink (flat, `radius.sm`, no border), with the accent fill and
-/// `text.on_accent` while its menu is open.
+/// The style of a title's face: a menu row's surface and ink (flat, square corners, no border), with the accent fill
+/// and `text.on_accent` under the pointer and while its menu is open or the keyboard is on it.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
 #[non_exhaustive]
 struct TitleFaceStyle {
@@ -64,7 +64,7 @@ struct TitleFaceStyle {
     face: FaceLook,
 }
 
-/// The face of a menu title: lit while its menu is open.
+/// The face of a menu title: lit while its menu is open or the keyboard is on it.
 #[derive(crate::contract::Component)]
 #[component(sample = TitleFace::sample)]
 struct TitleFace {
@@ -93,15 +93,17 @@ impl Component for TitleFace {
 
     fn style(cx: &StyleCx<'_>, _: TitleFaceStyleKey) -> TitleFaceStyle {
         let tokens = cx.tokens;
-        let (accent, on_accent) = (cx.color(tokens.color.accent.solid), cx.color(tokens.color.text.on_accent));
-        let on = |color| States::new(color, color, color, color);
-        let surface = SurfaceLook::new(cx.row_surface().on(on(accent))).radius(crate::style::UiTokens::corner(tokens.shape.radius.sm));
-        let ink = cx.row_ink(tokens.color.text.normal).on(on(on_accent));
+        let (clear, accent, on_accent) = (cx.color(Rgba::TRANSPARENT), cx.color(tokens.color.accent.solid), cx.color(tokens.color.text.on_accent));
+        // Under the pointer a title wears the active-row highlight, as a lit one does.
+        let mut surface = cx.command_row_look();
+        surface.fill = surface.fill.off(States::new(clear, accent, accent, clear));
+        let normal = cx.color(tokens.color.text.normal);
+        let ink = cx.command_row_ink(tokens.color.text.normal).off(States::new(normal, on_accent, on_accent, normal));
         let control = cx.control();
         TitleFaceStyle {
             surface,
             metrics: Metrics::new()
-                .padding(craft_behavior::Insets::horizontal(control.pad_x))
+                .padding(craft_behavior::Insets::horizontal(tokens.space.pad.regular))
                 .min_size(Vec2::new(0.0, control.height))
                 .gap(control.gap),
             focus: cx.focus_look(),
@@ -120,7 +122,7 @@ impl Component for TitleFace {
     }
 
     fn flags(&self) -> Flags {
-        if self.lit { Flags::SELECTED } else { Flags::empty() }
+        if self.lit { Flags::LEAD } else { Flags::empty() }
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
@@ -627,7 +629,8 @@ impl Component for MenuBar<'_> {
                 Open::Title(at) => texts[at].0.clone(),
                 Open::More => Self::more_text(&words, found.shown),
             };
-            let lit = cx.core.toggles.iter().any(|toggle| toggle.part == part && toggle.open);
+            let open = cx.core.toggles.iter().any(|toggle| toggle.part == part && toggle.open);
+            let lit = open || cx.part_state(part).flags.contains(Flags::FOCUS_VISIBLE);
             ui.face(part, Self::face(&text, lit));
             if let Open::Title(at) = slot
                 && underlined

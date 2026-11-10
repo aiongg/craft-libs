@@ -774,7 +774,8 @@ fn fill_of(cx: &StyleCx<'_>, key: FillKey) -> Stateful<StyleColor> {
     };
     let hover = if key.layer { over(cx.tokens.color.accent.solid.faded(LAYER_TINT), state.hover) } else { state.hover };
     let c = |rgba: Rgba| cx.color(rgba);
-    let tinted = over(hover, rest);
+    // `over` keeps the alpha of what is under it, so over a clear rest the tint is the token itself.
+    let tinted = if rest.a() == 0 { hover } else { over(hover, rest) };
     let selected_hover = if key.layer { state.selected } else { state.selected_hover };
     let mut fill = Stateful::new(c(rest)).off(States::new(c(rest), c(tinted), c(over(state.pressed, rest)), c(rest))).on(States::new(
         c(state.selected),

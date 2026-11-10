@@ -99,6 +99,8 @@ struct LevelState {
     submenu: bool,
     open_submenu: Option<OpenSubmenu>,
     active: Option<Id>,
+    /// The row that held focus, and the pass that saw it.
+    focused: Option<(Id, u64)>,
     pointer: Option<Pos2>,
     previous_pointer: Option<Pos2>,
     /// The padding of the popup around the rows, as the menu that set the level has it.
@@ -305,6 +307,17 @@ impl MenuLevel {
             state.active = Some(id);
             changed
         })
+    }
+
+    /// The row `id` holds focus in pass `pass`. Returns the other row that held it in the pass before, if any.
+    fn note_focus(&self, id: Id, pass: u64) -> Option<Id> {
+        self.with(|state| {
+            state.focused.replace((id, pass)).filter(|(before, at)| *before != id && pass.saturating_sub(*at) <= 1).map(|(before, _)| before)
+        })
+    }
+
+    fn has_active(&self) -> bool {
+        self.with(|state| state.active.is_some())
     }
 
     fn is_active(&self, id: Id) -> bool {
@@ -600,7 +613,8 @@ impl Component for MenuItem<'_> {
         let mut surface = cx.command_row_look();
         surface.fill = surface.fill.on(States::new(clear, clear, clear, clear));
         let ink = |base: Rgba| {
-            cx.command_row_ink(base).on(States::new(c(base), c(base), c(base), c(base))).off(States::new(c(base), c(base), c(base), c(text.disabled)))
+            let disabled = c(text.disabled);
+            cx.command_row_ink(base).on(States::new(c(base), c(base), c(base), disabled)).off(States::new(c(base), c(base), c(base), disabled))
         };
         let control = cx.control();
         // A row's content sits `space.pad.regular` in from the popup's own padding, so a label starts clear of the edge.
@@ -697,8 +711,19 @@ impl Component for MenuItem<'_> {
                 (0.0, gained)
             }
         };
+        let before = if focused { level.note_focus(cx.id, ctx.cumulative_pass_nr()) } else { None };
+        if focus_gained
+            && level.keyboard()
+            && !level.has_active()
+            && let Some(first) = before
+        {
+            // The first arrow key of a menu that the pointer opened without making a row active: it activates the row
+            // that held focus (the first one) instead of moving past it.
+            crate::runtime::focus::request(&ctx, crate::runtime::focus::FocusTarget::Id(first));
+            level.activate_row(first);
+            frame::request_repaint(&ctx);
         // Focus lands on a row of a menu that the pointer opened without making it active: only the keyboard does.
-        if enabled && ((hovered && moving) || (focus_gained && level.keyboard())) && level.activate_row(cx.id) {
+        } else if enabled && ((hovered && moving) || (focus_gained && level.keyboard())) && level.activate_row(cx.id) {
             frame::request_repaint(&ctx);
         }
         // A disabled row is never active.
@@ -841,9 +866,9 @@ impl Component for MenuItem<'_> {
 
     fn finish(self, cx: Cx<'_, Self>) -> MenuItemOutput {
         let level = cx.env.get::<MenuLevel>();
-        // The frame is where a submenu hangs: the row with the popup padding, moved `gap.tight` toward the reading end.
-        let shift = if cx.flow.is_rtl() { -cx.style.submenu_gap } else { cx.style.submenu_gap };
-        let frame = cx.response.rect.expand(level.pad()).translate(egui::vec2(shift, 0.0));
+        // The frame is where a submenu hangs: the row with the popup padding, widened by `gap.tight` on both sides so a
+        // submenu that flips to the other side keeps the gap.
+        let frame = cx.response.rect.expand(level.pad()).expand2(egui::vec2(cx.style.submenu_gap, 0.0));
         MenuItemOutput { response: cx.response.clone(), ran: self.ran, opens_submenu: self.opens, submenu_open: self.open, frame, level, id: cx.id }
     }
 }
