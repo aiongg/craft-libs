@@ -464,7 +464,7 @@ impl Mark<'_> {
         });
         let shown = Rect::from_min_size(rect.center().round_to_pixels(ppp) - Vec2::splat(px as f32 / ppp / 2.0), Vec2::splat(px as f32 / ppp));
         let uv = Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0));
-        crate::runtime::egui::textures::paint(painter, texture, shown, uv, color);
+        crate::runtime::egui::textures::paint(painter, texture, shown, uv, color, egui::CornerRadius::ZERO);
         true
     }
 

@@ -548,14 +548,14 @@ fn paint_image(painter: &ContentPainterCx<'_>, well: Rect, texture: CachedTextur
     let tiled = tiled && tile.x > 0.0 && tile.y > 0.0 && tile.x.is_finite() && tile.y.is_finite();
     let (cols, rows) = if tiled { ((well.width() / tile.x).ceil(), (well.height() / tile.y).ceil()) } else { (1.0, 1.0) };
     if !tiled || cols * rows > MAX_TILES {
-        painter.picture(texture.id, well, whole);
+        painter.picture(texture.id, well, whole, 0.0);
         return;
     }
     for row in 0..rows as usize {
         for col in 0..cols as usize {
             let cell = Rect::from_min_size(well.min + vec2(col as f32 * tile.x, row as f32 * tile.y), tile).intersect(well);
             let uv_max: Pos2 = pos2(cell.width() / tile.x, cell.height() / tile.y);
-            painter.picture(texture.id, cell, Rect::from_min_max(pos2(0.0, 0.0), uv_max));
+            painter.picture(texture.id, cell, Rect::from_min_max(pos2(0.0, 0.0), uv_max), 0.0);
         }
     }
 }

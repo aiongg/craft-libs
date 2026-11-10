@@ -191,17 +191,25 @@ pub struct HeaderRegion {
     pub fill: Option<SurfaceKind>,
     /// The padding on the header's two sides: the header's own tier, independent of the body's.
     pub inset: Pad,
+    /// The space between a stacked header and the body, none by default.
+    pub gap: Option<Gap>,
 }
 
 impl HeaderRegion {
     /// A header with no drag band, no rule, on its own line, with no trailing region, no fill and no inset.
     pub const fn new() -> Self {
-        HeaderRegion { band: DragBand::None, rule: false, rule_above: false, inline: false, trailing: false, fill: None, inset: Pad::None }
+        HeaderRegion { band: DragBand::None, rule: false, rule_above: false, inline: false, trailing: false, fill: None, inset: Pad::None, gap: None }
     }
 
     /// The surface of a band behind the header.
     pub const fn fill(mut self, kind: SurfaceKind) -> Self {
         self.fill = Some(kind);
+        self
+    }
+
+    /// The space between a stacked header and the body.
+    pub const fn gap(mut self, gap: Gap) -> Self {
+        self.gap = Some(gap);
         self
     }
 

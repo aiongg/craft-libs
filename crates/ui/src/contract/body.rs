@@ -461,6 +461,11 @@ fn pad_of(tokens: &UiTokens, pad: Pad) -> f32 {
     }
 }
 
+/// The space `props`' stacked header leaves before the body: its `HeaderRegion::gap`, none without one.
+fn header_gap_of(props: &ContainerProps, tokens: &UiTokens) -> f32 {
+    props.header.and_then(|header| header.gap).map_or(0.0, |gap| gap_of(tokens, gap))
+}
+
 fn gap_of(tokens: &UiTokens, gap: Gap) -> f32 {
     let gaps = &tokens.tokens().space.gap;
     match gap {
@@ -555,6 +560,8 @@ pub(super) struct BodyHooks<'b> {
     open_given: bool,
     /// The gap between an inline header and the body, and between a header and its trailing region.
     region_gap: f32,
+    /// The space between a stacked header and the body (`HeaderRegion::gap`), zero without one.
+    header_gap: f32,
     /// How far the widest region wants to exceed the width the room allows, from this pass's measure.
     overflow: f32,
     /// The room the mount offers, in which a content-sized body runs.
@@ -1132,6 +1139,7 @@ impl<'b> BodyHooks<'b> {
             reuse: false,
             open_given: false,
             region_gap: 0.0,
+            header_gap: 0.0,
             overflow: 0.0,
             room: Vec2::ZERO,
             open: true,
@@ -1242,6 +1250,8 @@ impl<'b> BodyHooks<'b> {
             let builder = UiBuilder::new().max_rect(room).layout(layout).scope_id(sub(id, "controls"));
             let builder = if frame.node { access::with_parent(builder, id) } else { builder };
             let mut controls_ui = alloc::child(ui, builder);
+            // The same spacing in the measuring run and the placing run, whatever the parent's item spacing is.
+            style::set_item_spacing(&mut controls_ui, Vec2::splat(gap_of(&frame.env.tokens, Gap::Item)));
             let installed = Env::install_for(&controls_ui, frame.env.clone());
             comp.controls(&mut controls_ui, bcx);
             Env::restore(&ctx, installed);
@@ -1270,6 +1280,11 @@ impl<'b> BodyHooks<'b> {
         bcx.close_requested()
     }
 
+    /// The space under a stacked header `header_h` high: `HeaderRegion::gap` while the body shows, scaled by its presence.
+    fn header_space(&self, header_h: f32) -> f32 {
+        if header_h > 0.0 { self.header_gap * self.presence.t } else { 0.0 }
+    }
+
     /// What a header, footer or end region took: what its content allocated.
     fn region_size(&self, ui: &Ui) -> Vec2 {
         ui.min_rect().size()
@@ -1291,7 +1306,7 @@ impl<'b> BodyHooks<'b> {
         } else {
             ((line.x + gap(end.x)).max(across.x), line.y.max(end.y) + across.y)
         };
-        if inline { Vec2::new(width, height) } else { Vec2::new(width.max(header.x), height + header.y) }
+        if inline { Vec2::new(width, height) } else { Vec2::new(width.max(header.x), height + header.y + self.header_space(header.y)) }
     }
 
     /// The width the regions ask for in a content-sized container: what they took together in this pass's measuring run.
@@ -1325,7 +1340,7 @@ impl<'b> BodyHooks<'b> {
         let across_h = if in_end { 0.0 } else { footer_h };
         let end_h = sizes.end.map_or(0.0, |end| end.y) + if in_end { footer_h } else { 0.0 };
         // An inline header takes no height of its own: the line is as high as the taller of header and body.
-        let stacked_h = if inline { 0.0 } else { header_h };
+        let stacked_h = if inline { 0.0 } else { header_h + self.header_space(header_h) };
         let top = inner.min.y + stacked_h;
         // Along an axis the container is not given, its body is offered the room the container was offered and the
         // container takes what the body took.
@@ -1709,6 +1724,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         // The overlay host decides a layer's Escape; so does a full-window mount's.
         self.layer = matches!(props.mount, Mount::Layer(_) | Mount::Viewport { .. } | Mount::FullWindow);
         self.region_gap = gap_of(&env.tokens, Gap::Tight);
+        self.header_gap = header_gap_of(props, &env.tokens);
         let quiet = stage.is_peek() || crate::runtime::measure::active(&ctx);
         if !matches!(props.mount, Mount::Inline | Mount::Pane(_))
             && let Some(why) = if quiet { crate::runtime::overlay::peek_close(&ctx, id) } else { crate::runtime::overlay::take_close(&ctx, id) }
@@ -1851,6 +1867,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         self.last = BodyView::default();
         self.offset = ScrollPos::default();
         self.region_gap = gap_of(&at.env.tokens, Gap::Tight);
+        self.header_gap = header_gap_of(&props, &at.env.tokens);
         self.room = match at.width {
             Some(width) => Vec2::new(width, props.room_height.unwrap_or(f32::INFINITY)),
             None => self.mount_room(&props, at.ui, id, at.at),

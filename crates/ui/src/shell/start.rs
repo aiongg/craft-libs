@@ -239,6 +239,7 @@ impl Page<'_> {
             .activate(ActivateOn::Click)
             .caption(CaptionPlace::Below)
             .detail_line()
+            .card()
             .aspect(f32::from(PICTURE_WIDE) / f32::from(PICTURE_HIGH))
             .zoom(CARD_ZOOM)
             .fill_row()
@@ -255,7 +256,8 @@ fn paint_picture(cx: &ContentPainterCx, rect: Rect, texture: CachedTexture) {
     }
     let scale = (rect.width() / size.x).min(rect.height() / size.y);
     let fitted = Rect::from_center_size(rect.center(), size * scale);
-    cx.picture(texture.id, fitted, Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)));
+    let uv = Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0));
+    cx.picture(texture.id, fitted, uv, cx.style_cx().tokens.shape.radius.control);
 }
 
 /// The folder a path is in, for the line under a file's name.
@@ -298,28 +300,30 @@ impl StartScreen<'_> {
         let view = RefCell::new(view);
         let sort = RefCell::new(sort);
 
-        let shown = Stack::new().fill().scroll(Scroll::vertical()).gap(Gap::Section).pad(Pad::Regular).show(ui, |ui, cx| {
-            let current_view = view.borrow_mut().reborrow().read(cx).and_then(|held| held.same().copied()).unwrap_or_default();
-            let current_sort = sort.borrow_mut().reborrow().read(cx).and_then(|held| held.same().copied()).unwrap_or_default();
-            let mut files: Vec<RecentFile> = recent.iter().take(max_recent).cloned().collect();
-            sort_recent(&mut files, current_sort, &collator);
+        let shown = Stack::new().fill().scroll(Scroll::vertical()).show(ui, |ui, _| {
+            Stack::new().gap(Gap::Section).pad(Pad::Regular).fill_width().show(ui, |ui, cx| {
+                let current_view = view.borrow_mut().reborrow().read(cx).and_then(|held| held.same().copied()).unwrap_or_default();
+                let current_sort = sort.borrow_mut().reborrow().read(cx).and_then(|held| held.same().copied()).unwrap_or_default();
+                let mut files: Vec<RecentFile> = recent.iter().take(max_recent).cloned().collect();
+                sort_recent(&mut files, current_sort, &collator);
 
-            Row::new().gap(Gap::Tight).show(ui, |ui, _| {
-                if clicked(&Button::new(words.new.clone()).id_salt("new").variant(Variant::PRIMARY).show(ui)) {
-                    page.push(StartAction::New);
+                Row::new().gap(Gap::Tight).show(ui, |ui, _| {
+                    if clicked(&Button::new(words.new.clone()).id_salt("new").variant(Variant::PRIMARY).show(ui)) {
+                        page.push(StartAction::New);
+                    }
+                    if clicked(&Button::new(words.open.clone()).id_salt("open").show(ui)) {
+                        page.push(StartAction::Open);
+                    }
+                });
+
+                recent_section(&page, ui, &view, &sort, current_view, &files);
+                if let Some(pinned) = pinned {
+                    pinned_section(&page, ui, pinned);
                 }
-                if clicked(&Button::new(words.open.clone()).id_salt("open").show(ui)) {
-                    page.push(StartAction::Open);
+                if !templates.is_empty() {
+                    templates_section(&page, ui, templates);
                 }
             });
-
-            recent_section(&page, ui, &view, &sort, current_view, &files);
-            if let Some(pinned) = pinned {
-                pinned_section(&page, ui, pinned);
-            }
-            if !templates.is_empty() {
-                templates_section(&page, ui, templates);
-            }
         });
         StartOutput { response: shown.output, actions: actions.into_inner() }
     }
@@ -335,7 +339,7 @@ fn recent_section(
 ) {
     let words = page.words;
     let modes = [
-        Entry::new(RecentView::Grid, words.grid_view.clone()).icon(IconId::new("layout-grid")),
+        Entry::new(RecentView::Grid, words.grid_view.clone()).icon(IconId::new("layout_grid")),
         Entry::new(RecentView::List, words.list_view.clone()).icon(IconId::new("list")),
     ];
     let orders = [
@@ -344,6 +348,7 @@ fn recent_section(
         Entry::new(RecentSort::Created, words.sort_created.clone()),
     ];
     let _ = Section::fixed(words.recent.clone())
+        .header_gap(Gap::Section)
         .command_scope(StartRecentCommands::SCOPE)
         .controls(|ui, _| {
             let _ = Segmented::new(words.view.clone(), view.borrow_mut().reborrowed(), &modes).show(ui);
@@ -426,6 +431,7 @@ fn recent_section(
 fn pinned_section(page: &Page<'_>, ui: &mut Ui, folders: &[PathBuf]) {
     let words = page.words;
     let _ = Section::fixed(words.pinned.clone())
+        .header_gap(Gap::Section)
         .command_scope(StartPinnedCommands::SCOPE)
         .controls(|ui, _| {
             if clicked(&Button::new(words.pin_folder.clone()).id_salt("pin").icon(IconId::new("new_folder")).show(ui)) {
@@ -470,7 +476,7 @@ fn pinned_section(page: &Page<'_>, ui: &mut Ui, folders: &[PathBuf]) {
 
 fn templates_section(page: &Page<'_>, ui: &mut Ui, templates: &[Template]) {
     let words = page.words;
-    let _ = Section::fixed(words.templates.clone()).show(ui, |ui, _| {
+    let _ = Section::fixed(words.templates.clone()).header_gap(Gap::Section).show(ui, |ui, _| {
         let source = keyed(templates, |template: &Template| template.id.clone()).with_text(|template| Cow::Borrowed(template.name.as_str()));
         let out = page.grid::<String>(words.templates.clone(), false).show_items(ui, &source, &mut |id, _| {
             let Some(template) = templates.iter().find(|template| &template.id == id) else { return Tile::new(Label::Empty) };

@@ -7,7 +7,7 @@ use super::title_row::{HeaderAction, HeaderStrength, MenuRows, TitleRow};
 use super::words::SectionWords;
 use crate::contract::overlay::Popup;
 use crate::contract::{
-    Bind, BindMut, BodyCx, Collapse, Common, Component, Container, ContainerProps, Cx, DragBand, HeaderRegion, NoValue, Outcome, Pointer as _,
+    Bind, BindMut, BodyCx, Collapse, Common, Component, Container, ContainerProps, Cx, DragBand, Gap, HeaderRegion, NoValue, Outcome, Pointer as _,
     Props as _, REORDER_BAND, Role, SaveKey, Show as _, Sizing, WordSetCx as _, reorder,
 };
 use crate::runtime::env::Label;
@@ -90,7 +90,7 @@ impl<'a> Section<'a> {
     }
 
     fn build(title: impl Into<Label>, collapsible: bool, props: ContainerProps) -> Self {
-        let props = props.header(HeaderRegion::new().rule_above(true));
+        let props = props.header(HeaderRegion::new().rule_above(true).gap(Gap::Tight));
         Section {
             common: Common::new(),
             props,
@@ -145,6 +145,13 @@ impl<'a> Section<'a> {
     pub fn controls(mut self, controls: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'a) -> Self {
         self.update_header(|header| header.trailing(true));
         self.controls = Some(Box::new(controls));
+        self
+    }
+
+    /// The space between the header and the body when the section is open (`Gap::Tight` by default).
+    #[must_use]
+    pub fn header_gap(mut self, gap: Gap) -> Self {
+        self.update_header(|header| header.gap(gap));
         self
     }
 

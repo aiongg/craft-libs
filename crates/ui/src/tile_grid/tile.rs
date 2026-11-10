@@ -20,7 +20,7 @@ use crate::list::{RowThumb, ThumbAspect, ThumbPaint, ToggleState};
 use crate::primitives::{ContentPainterCx, IconSpec, PaintShape, StrokeWidth, TextRun, Wrap};
 use crate::runtime::commands::CommandRef;
 use crate::runtime::env::{Label, Units};
-use crate::style::{ComponentStyle, DataColor, Flags, IconLook, StyleColor, StyleCx, SurfaceLook, TextLook, UiTokens};
+use crate::style::{ComponentStyle, Corners, DataColor, Flags, IconLook, StyleColor, StyleCx, SurfaceKind, SurfaceLook, TextLook, UiTokens};
 use craft_behavior::{AccessAction, AccessData, Flow, IconId, Insets, Metrics, Mixed, NavShape, PartKey, PressPhase, Proposal, Roving, Sense};
 use craft_keymap::Mods;
 use craft_theme::variant::{Emphasis, Tone};
@@ -97,6 +97,7 @@ const RATING_REASON: &str = "In a tile grid with rating keys, the digits rate th
 /// The sizes a tile takes from its control size and the tokens.
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct Sizes {
+    card: bool,
     inset: f32,
     tight: f32,
     bar: f32,
@@ -146,11 +147,13 @@ impl AroundPicture {
 }
 
 impl Sizes {
-    fn of(cx: &StyleCx<'_>) -> Sizes {
+    fn of(cx: &StyleCx<'_>, card: bool) -> Sizes {
         let (tokens, control) = (cx.tokens, cx.control());
         let line = tokens.typography.get(TypeRole::Caption).line_height;
+        let name_line = if card { tokens.typography.get(TypeRole::BodyStrong).line_height } else { line };
         let sizes = Sizes {
-            inset: tokens.space.gap.inline,
+            card,
+            inset: if card { tokens.space.pad.control } else { tokens.space.gap.inline },
             tight: tokens.space.gap.tight,
             bar: control.height,
             glyph: control.icon,
@@ -158,7 +161,7 @@ impl Sizes {
             dot: tokens.size.handle.md,
             range_bar: tokens.size.handle.sm,
             face: tokens.size.icon.lg,
-            name_line: line,
+            name_line,
             detail_line: line,
             start: control.height,
             thumbs: [tokens.size.thumb.sm, tokens.size.thumb.md],
@@ -170,7 +173,10 @@ impl Sizes {
     /// The height of the caption band under the picture.
     fn caption(&self, place: CaptionPlace, detail: bool) -> f32 {
         match place {
-            CaptionPlace::Below => 2.0 * self.tight + self.name_line + if detail { self.detail_line } else { 0.0 },
+            CaptionPlace::Below => {
+                let gaps = if self.card { self.inset } else { 2.0 * self.tight };
+                gaps + self.name_line + if detail { self.detail_line } else { 0.0 }
+            }
             _ => 0.0,
         }
     }
@@ -272,6 +278,11 @@ pub struct Tile<'a> {
     /// The card has a line for the detail, whether this tile has one or not: the grid's, applied to its tiles.
     #[prop]
     detail_line: bool,
+    /// The tile is a framed card: the picture inset in a raised surface, the name strong and the detail under it, both
+    /// at the reading start. The grid's, applied to its tiles.
+    #[style_key]
+    #[prop(flag)]
+    card: bool,
     /// A second line under the name.
     #[prop(into)]
     detail: Option<Label>,
@@ -343,6 +354,7 @@ impl<'a> Tile<'a> {
             common: Common::new(),
             caption: CaptionPlace::Below,
             detail_line: false,
+            card: false,
             detail: None,
             accessible_name: None,
             rating: None,
@@ -420,12 +432,12 @@ impl<'a> Tile<'a> {
     /// What a tile adds around its picture: its padding, the caption band under the picture or the column at its
     /// reading start. A tile grid sizes a tile as the picture plus this.
     pub fn around_picture(cx: &StyleCx<'_>, place: CaptionPlace, detail: bool) -> Around {
-        Self::around(cx).get(place, detail)
+        Self::around(cx, false).get(place, detail)
     }
 
     /// What a tile adds around its picture for every caption arrangement.
-    pub(super) fn around(cx: &StyleCx<'_>) -> AroundPicture {
-        Sizes::of(cx).around
+    pub(super) fn around(cx: &StyleCx<'_>, card: bool) -> AroundPicture {
+        Sizes::of(cx, card).around
     }
 
     /// Whether the caption band holds a detail line.
@@ -472,7 +484,8 @@ impl<'a> Tile<'a> {
         let band = Rect::from_min_max(egui::pos2(rest.rect().min.x, picture.bottom()), rest.rect().max);
         let (caption, name, detail, marks) = match self.caption {
             CaptionPlace::Below => {
-                let name = Rect::from_min_size(egui::pos2(band.left(), band.top() + sizes.tight), Vec2::new(band.width(), sizes.name_line));
+                let above = if sizes.card { sizes.inset } else { sizes.tight };
+                let name = Rect::from_min_size(egui::pos2(band.left(), band.top() + above), Vec2::new(band.width(), sizes.name_line));
                 let detail = self.detail.as_ref().map(|_| Rect::from_min_size(name.left_bottom(), Vec2::new(band.width(), sizes.detail_line)));
                 (band, name, detail, Vec::new())
             }
@@ -576,25 +589,33 @@ impl Component for Tile<'_> {
     type Style = TileStyle;
     type Output = TileOutput;
 
-    fn style(cx: &StyleCx<'_>, _: TileStyleKey) -> TileStyle {
+    fn style(cx: &StyleCx<'_>, key: TileStyleKey) -> TileStyle {
         let tokens = cx.tokens;
         let colors = &tokens.color;
         let (state, text) = (&colors.state, &colors.text);
         let clear = Rgba::TRANSPARENT;
         let c = |rgba: Rgba| cx.color(rgba);
-        let sizes = Sizes::of(cx);
-        let fill = Stateful::new(c(clear)).off(States::new(c(clear), c(state.hover), c(state.pressed), c(clear))).on(States::new(
+        let sizes = Sizes::of(cx, key.card);
+        let (rest, hover, pressed) = if key.card {
+            let raised = colors.surface.raised;
+            (c(raised), c(over(state.hover, raised)), c(over(state.pressed, raised)))
+        } else {
+            (c(clear), c(state.hover), c(state.pressed))
+        };
+        let fill = Stateful::new(rest).off(States::new(rest, hover, pressed, rest)).on(States::new(
             c(state.selected),
             c(state.selected_hover),
             c(state.selected_hover),
             c(state.selected),
         ));
-        let edge = Stateful::new(c(clear))
-            .off(States::new(c(clear), c(text.muted), c(text.muted), c(clear)))
+        let line = c(clear);
+        let edge = Stateful::new(line)
+            .off(States::new(line, c(text.muted), c(text.muted), line))
             .on(States::new(c(colors.accent.solid), c(colors.accent.solid), c(colors.accent.solid), c(colors.accent.solid)))
             .when(Flags::CURRENT, c(colors.accent.solid));
         let radius = UiTokens::corner(tokens.shape.radius.control);
         let surface = SurfaceLook::new(fill).radius(radius).border(edge, tokens.stroke.thick);
+        let surface = if key.card { surface.kind(SurfaceKind::Raised) } else { surface };
         let on_selected = c(text.on_selected);
         let ink = |base: StyleColor| {
             Stateful::new(base).off(States::new(base, base, base, c(text.disabled))).on(States::new(
@@ -613,9 +634,13 @@ impl Component for Tile<'_> {
         TileStyle {
             surface,
             metrics: Metrics::new().padding(Insets::new(sizes.inset, sizes.inset, sizes.inset, sizes.inset)).gap(sizes.tight),
-            name: TextLook::new(TypeRole::Caption, ink(c(text.muted))),
-            name_failed: TextLook::new(TypeRole::Caption, ink(cx.tone(Tone::Bad))),
-            detail: TextLook::new(TypeRole::Caption, ink(c(text.faint))),
+            name: if key.card {
+                TextLook::new(TypeRole::BodyStrong, ink(c(text.normal)))
+            } else {
+                TextLook::new(TypeRole::Caption, ink(c(text.muted)))
+            },
+            name_failed: TextLook::new(if key.card { TypeRole::BodyStrong } else { TypeRole::Caption }, ink(cx.tone(Tone::Bad))),
+            detail: TextLook::new(TypeRole::Caption, ink(c(if key.card { text.muted } else { text.faint }))),
             band_text: TextLook::new(TypeRole::Caption, fixed(text.on_status)).on(fixed(colors.status.bad.solid)),
             band_icon: IconLook::new(sizes.glyph, fixed(text.on_status)).on(fixed(colors.status.bad.solid)),
             mark: IconLook::new(sizes.glyph, ink(c(text.faint))),
@@ -755,7 +780,11 @@ impl Component for Tile<'_> {
         let style = cx.style;
         let picture = placed.picture;
         let flat = CornerRadius::ZERO;
-        ui.draw().fill(&PaintShape::Rect(picture, flat), style.placeholder);
+        if style.sizes.card {
+            ui.draw().surface(picture, SurfaceKind::Sunken, Corners::All);
+        } else {
+            ui.draw().fill(&PaintShape::Rect(picture, flat), style.placeholder);
+        }
         if let Some(paint) = self.first.take() {
             let _ = ui.child("picture", picture, RowThumb::new(paint));
         }
@@ -912,6 +941,15 @@ impl Tile<'_> {
         }
     }
 
+    /// Where a caption line of `width` starts in `rect`: centred, or at the reading start in a card.
+    fn text_x(&self, rect: Rect, width: f32, cx: &Cx<'_, Self>) -> f32 {
+        match (cx.style.sizes.card, cx.flow.is_rtl()) {
+            (false, _) => rect.center().x - width / 2.0,
+            (true, false) => rect.left(),
+            (true, true) => rect.right() - width,
+        }
+    }
+
     /// The name and detail in the caption band or column, the slash of a hidden tile and the marks.
     fn paint_caption(&self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>, placed: &Placed) {
         if self.caption == CaptionPlace::None {
@@ -925,7 +963,7 @@ impl Tile<'_> {
         if !self.renaming {
             let run = TextRun::new(cx.resolved.label).role(look.role).color(ink).wrap(Wrap::ElidePath);
             let layout = draw.layout(&run, placed.name.width());
-            let at = Pos2::new(placed.name.center().x - layout.size().x / 2.0, placed.name.top());
+            let at = Pos2::new(self.text_x(placed.name, layout.size().x, cx), placed.name.top());
             draw.galley(at, &layout);
             if self.hidden && self.caption == CaptionPlace::Start {
                 let name = Rect::from_min_size(at, layout.size());
@@ -935,7 +973,7 @@ impl Tile<'_> {
         if let (Some(detail), Some(rect)) = (&self.detail, placed.detail) {
             let run = TextRun::new(detail.as_str()).role(style.detail.role).color(cx.resolve(&style.detail.color)).wrap(Wrap::ElidePath);
             let layout = draw.layout(&run, rect.width());
-            draw.galley(Pos2::new(rect.center().x - layout.size().x / 2.0, rect.top()), &layout);
+            draw.galley(Pos2::new(self.text_x(rect, layout.size().x, cx), rect.top()), &layout);
         }
         for (mark, rect) in self.marks.iter().zip(&placed.marks) {
             draw.icon(*rect, &IconSpec::svg(mark.icon.clone()).color(cx.resolve(&style.mark.color)));

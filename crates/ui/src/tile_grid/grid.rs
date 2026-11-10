@@ -140,7 +140,7 @@ pub struct TileGridStyle {
 }
 
 impl TileGridStyle {
-    fn build(cx: &StyleCx<'_>) -> TileGridStyle {
+    fn build(cx: &StyleCx<'_>, card: bool) -> TileGridStyle {
         let colors = &cx.tokens.color;
         TileGridStyle {
             metrics: Metrics::new(),
@@ -149,8 +149,12 @@ impl TileGridStyle {
             pad: cx.tokens.space.gap.inline,
             card: cx.tokens.size.thumb.card,
             thumbs: [cx.tokens.size.thumb.sm, cx.tokens.size.thumb.md, cx.tokens.size.thumb.lg],
-            around: Tile::around(cx),
-            spacing: ArrangeSpacing::new(cx.tokens.space.gap.stack, cx.tokens.space.gap.inline, cx.tokens.size.panel_header),
+            around: Tile::around(cx, card),
+            spacing: ArrangeSpacing::new(
+                if card { cx.tokens.space.gap.section } else { cx.tokens.space.gap.stack },
+                cx.tokens.space.gap.inline,
+                cx.tokens.size.panel_header,
+            ),
         }
     }
 
@@ -214,6 +218,10 @@ pub struct TileGrid<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     /// Cards keep a line under the name for the tile's detail, whether a tile has one or not.
     #[prop(flag)]
     detail_line: bool,
+    /// Tiles are framed cards: the picture inset in a raised surface with the name and detail at the reading start.
+    #[style_key]
+    #[prop(flag)]
+    card: bool,
     /// The headers over runs of tiles, in display order.
     #[prop]
     groups: &'a [TileGroup<K>],
@@ -280,6 +288,7 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> TileGrid<'a, K> {
             card_columns: 0,
             caption: CaptionPlace::Below,
             detail_line: false,
+            card: false,
             groups: &[],
             collapsible: false,
             tail: &[],
@@ -348,13 +357,13 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> TileGrid<'a, K> {
     /// The layout of this pass: `previous` when it was made from the same recipe, else a new arrangement. A card is
     /// the picture plus what the tile adds around it in every tiling.
     fn laid_out(&self, previous: Option<GridLayout>, source: &dyn ItemSource<K>, width: f32, cx: &StyleCx<'_>) -> GridLayout {
-        let style = TileGridStyle::build(cx);
+        let style = TileGridStyle::build(cx, self.card);
         let spacing = style.spacing;
         let around = style.around.get(self.caption, self.detail_line);
         // A card never outgrows the grid: in a column narrower than a card the card takes the column.
         let mut side = style.picture_side(self.zoom, self.thumb_size).min(width - 2.0 * spacing.inset - around.size().x).max(1.0);
         if self.fill_row && !self.justified {
-            let (free, gap, card) = (width - 2.0 * spacing.inset, spacing.gap, side + around.size().x);
+            let (free, gap, card) = (width, spacing.gap, side + around.size().x);
             let columns = ((free + gap) / (card + gap)).floor().max(1.0);
             side = ((free - (columns - 1.0) * gap) / columns - around.size().x).max(1.0);
         }
@@ -384,8 +393,8 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> TileGrid<'a, K> {
             GridLayout::arranged(arrangement, width, around)
         } else {
             if self.fill_row {
-                // The columns fill the width inside the inset, and the row starts at the start edge.
-                GridLayout::equal(source, width - 2.0 * spacing.inset, 0.0, style.card(side, aspect, around), spacing.gap)
+                // The columns fill the whole width, and the row starts at the start edge.
+                GridLayout::equal(source, width, 0.0, style.card(side, aspect, around), spacing.gap)
             } else {
                 GridLayout::equal(source, width, spacing.inset, style.card(side, aspect, around), spacing.gap)
             }
@@ -435,8 +444,8 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for TileGrid<'_, K>
     type Style = TileGridStyle;
     type Output = TileGridOutput<K>;
 
-    fn style(cx: &StyleCx<'_>, _: TileGridStyleKey<K>) -> TileGridStyle {
-        TileGridStyle::build(cx)
+    fn style(cx: &StyleCx<'_>, key: TileGridStyleKey<K>) -> TileGridStyle {
+        TileGridStyle::build(cx, key.card)
     }
 
     /// One pointer part per header in view, over the tiles, and a disclosure part in it when headers collapse; one
@@ -682,7 +691,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Collection for TileGrid<'_, K
         if self.card_columns == 0 {
             return 0.0;
         }
-        let style = TileGridStyle::build(cx);
+        let style = TileGridStyle::build(cx, self.card);
         let aspect = if self.aspect.is_finite() && self.aspect > 0.0 { self.aspect } else { 1.0 };
         let card = style.card(style.picture_side(self.zoom, self.thumb_size), aspect, style.around.get(self.caption, self.detail_line)).x;
         let columns = self.card_columns as f32;
@@ -694,9 +703,10 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Collection for TileGrid<'_, K
         self.laid_out(previous, source, width, cx)
     }
 
-    /// Every tile gets the grid's caption place and detail line, and its row's rename state.
+    /// Every tile gets the grid's caption place and detail line, the card look, and its row's rename state.
     fn dress<'r>(&self, tile: Self::Item<'r>, row: &RowState) -> Self::Item<'r> {
-        tile.caption(self.caption).detail_line(self.detail_line).renaming(row.renaming)
+        let tile = tile.caption(self.caption).detail_line(self.detail_line).renaming(row.renaming);
+        if self.card { tile.card() } else { tile }
     }
 
     fn can_rename(&self, key: &K) -> bool {
