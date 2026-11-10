@@ -7,21 +7,21 @@
 
 use super::divider::{self, Divider, Drag};
 use super::{DockHeights, DockSizes, DockSpot, DockTargets, DockWords, DragUnit, PanelKey, PanelSpec, Splitter, start_group_drag};
+use crate::buttons::IconButton;
 use crate::contract::SizeLimits;
-use crate::contract::overlay::{Anchor, Popup, Trigger};
+use crate::contract::overlay::Trigger;
 use crate::contract::{
-    Access, Bind, BodyCx, Common, Component, Container, ContainerProps, Cx, HeaderRegion, Name, NoValue, Outcome, Pad, PaintUi, PartsCx, Pointer,
-    Props as _, Role, Show as _, ShowContainer as _, Sizing, WordSetCx as _,
+    Access, BodyCx, Common, Component, Container, ContainerProps, Cx, HeaderRegion, Name, NoValue, Outcome, Pad, PaintUi, PartsCx, Pointer,
+    Props as _, Role, Show as _, ShowContainer as _, Sizing, WordSetCx as _, clicked,
 };
 use crate::menu::{GroupItem, Menu, MenuWords, PanelMenu, PanelRow};
 use crate::runtime::env::Label;
 use crate::runtime::focus::KeyUse;
-use crate::sections::{HeaderAction, TitleRow};
-use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
+use crate::style::{ComponentStyle, Corners, StyleCx, SurfaceKind};
 use craft_behavior::divider::{self as push, Segment};
 use craft_behavior::dock::{Column, DockEdge, Group};
-use craft_behavior::{Axis, CursorIcon, DockSide, Flow, Metrics, PartKey, PressPhase, Sense, Value};
-use egui::{Context, Id, Pos2, Rect, Response, Ui, Vec2};
+use craft_behavior::{Axis, CursorIcon, DockSide, Flow, IconId, Metrics, PartKey, PressPhase, Sense, Value};
+use egui::{Align, Context, Id, Layout, Pos2, Rect, Response, Ui, Vec2};
 use std::hash::Hash;
 
 #[cfg(feature = "testing")]
@@ -229,33 +229,36 @@ fn group_sizes<P>(column: &Column<P>, spec: &dyn Fn(&P) -> PanelSpec, sizes: &Do
 pub(super) struct BarRecord {
     /// The user asked to collapse (`true`) or expand (`false`) the column.
     pub(super) iconic: Option<bool>,
-    /// The id of the bar's menu button, when it was pressed.
-    pub(super) opener: Option<Id>,
     /// The dock row picked in the column menu.
     pub(super) picked: Option<GroupItem>,
 }
 
-/// Shows the column bar and its menu, at `rect` or in the flow of `ui`: the disclosure collapses an expanded column and
-/// expands an iconic one, the menu button and the context request open the column menu. Returns what the user did.
-pub(super) fn show_bar(ui: &mut Ui, body: &mut BodyCx<'_>, rect: Option<Rect>, expanded: bool, auto_collapse: bool, menu_button: bool) -> BarRecord {
+/// The icon of a column's collapse control: a double chevron that points where the column goes, towards the window
+/// edge when it collapses to icons and away from it when it expands. Directional icons mirror in a right-to-left
+/// interface, so the icon that draws pointing right there is the left one.
+fn collapse_icon(edge: DockEdge, expanded: bool, rtl: bool) -> &'static str {
+    let at_left = (edge == DockEdge::Start) != rtl;
+    let points_right = at_left != expanded;
+    if points_right != rtl { "chevrons_right" } else { "chevrons_left" }
+}
+
+/// Shows the column bar and its menu, at `rect` or in the flow of `ui`: a small chevron button at the bar's outer end
+/// collapses an expanded column to icons and expands an iconic one; a context request on it opens the column menu.
+/// Returns what the user did.
+pub(super) fn show_bar(ui: &mut Ui, body: &mut BodyCx<'_>, rect: Option<Rect>, expanded: bool, auto_collapse: bool, edge: DockEdge) -> BarRecord {
     let words = body.words::<DockWords>();
     let menu_words = body.words::<MenuWords>();
-    let mut open = expanded;
-    let actions: &[HeaderAction] = if menu_button { &[HeaderAction::Menu] } else { &[] };
+    let rtl = crate::runtime::env::Env::of(ui).direction.is_rtl();
     let toggle = if expanded { words.collapse_column.as_str() } else { words.expand_column.as_str() };
-    let row =
-        TitleRow::new(Label::default()).disclosure(Bind::bound(&mut open)).lead_name(Label::from(toggle.to_owned())).actions(actions.iter().copied());
+    let button = IconButton::new(IconId::new(collapse_icon(edge, expanded, rtl))).label(Label::from(toggle.to_owned()));
     let shown = match rect {
-        Some(rect) => row.show_at(ui, rect),
-        None => row.show(ui),
+        Some(rect) => button.show_at(ui, rect),
+        None if (edge == DockEdge::End) != rtl => ui.with_layout(Layout::right_to_left(Align::Min), |ui| button.show(ui)).inner,
+        None => button.show(ui),
     };
-    let opener = shown.edit.response.id;
     let mut record = BarRecord::default();
-    if open != expanded {
-        record.iconic = Some(!open);
-    }
-    if shown.action == Some(HeaderAction::Menu) {
-        record.opener = Some(opener);
+    if clicked(&shown) {
+        record.iconic = Some(expanded);
     }
     let rows = vec![
         PanelRow::Item(crate::contract::Entry::new(GroupItem::CollapseToIcons, Label::from(toggle.to_owned()))),
@@ -264,11 +267,9 @@ pub(super) fn show_bar(ui: &mut Ui, body: &mut BodyCx<'_>, rect: Option<Rect>, e
                 .checked(auto_collapse),
         ),
     ];
-    let mut menu = Menu::new(Label::from(words.panels.as_str().to_owned())).opened_by(&shown.edit.response, Trigger::Manual);
-    if let Some(button) = shown.menu_rect {
-        menu = menu.anchor(Anchor::Rect(button));
-    }
-    let picked = menu.opened_by(&shown.edit.response, Trigger::Context).show(ui, |ui, _| PanelMenu::new(Vec::new(), rows.clone()).show(ui).picked);
+    let picked = Menu::new(Label::from(words.panels.as_str().to_owned()))
+        .opened_by(&shown, Trigger::Context)
+        .show(ui, |ui, _| PanelMenu::new(Vec::new(), rows.clone()).show(ui).picked);
     record.picked = picked.inner.flatten();
     record
 }
@@ -371,7 +372,7 @@ pub struct DockColumn<'a, P: Value + Hash + 'static> {
 impl<'a, P: Value + Hash + 'static> DockColumn<'a, P> {
     /// A column named `label` of the dock `dock`, over `column`; `spec` reads each panel's limits and heights.
     pub fn new(label: impl Into<Label>, dock: Id, column: &'a Column<P>, spec: &'a dyn Fn(&P) -> PanelSpec) -> Self {
-        let props = ContainerProps::new().surface(SurfaceKind::Panel).sizing(Sizing::Fill).pad(Pad::None).header(HeaderRegion::new());
+        let props = ContainerProps::new().sizing(Sizing::Fill).pad(Pad::None).header(HeaderRegion::new());
         DockColumn {
             common: Common::new(),
             props,
@@ -573,6 +574,13 @@ impl<P: Value + Hash + 'static> Component for DockColumn<'_, P> {
         self.laid = Some(plan);
     }
 
+    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        let Some(plan) = self.laid.as_ref() else { return };
+        // Painted here, not as the container's surface, which lies over what `paint` draws.
+        ui.draw().surface(cx.rect, SurfaceKind::Panel, Corners::All);
+        ui.draw().surface(plan.bar, SurfaceKind::Background, Corners::None);
+    }
+
     fn paint_over(&mut self, ui: &mut PaintUi<'_>, _: &Cx<'_, Self>) {
         let Some(plan) = self.laid.as_ref() else { return };
         for pair in plan.open.windows(2) {
@@ -593,10 +601,7 @@ impl<P: Value + Hash + 'static> Component for DockColumn<'_, P> {
         divider::describe(access, EDGE, 0, &edge, words.resize.as_str(), sizes.step);
     }
 
-    fn finish(self, mut cx: Cx<'_, Self>) -> DockColumnOutput<P> {
-        if let Some(opener) = self.bar.opener {
-            Popup::toggle(opener, &mut cx);
-        }
+    fn finish(self, cx: Cx<'_, Self>) -> DockColumnOutput<P> {
         let iconic = self.bar.iconic.or(self.toggled.then_some(!self.column.iconic));
         DockColumnOutput { response: cx.response.clone(), placed: cx.rect, iconic, picked: self.bar.picked, resized: self.resized, width: self.width }
     }
@@ -635,6 +640,6 @@ impl<P: Value + Hash + 'static> Container for DockColumn<'_, P> {
         if cx.shell().is_some_and(|shell| !shell.dock_visible()) {
             return;
         }
-        self.bar = show_bar(ui, cx, None, true, self.auto_collapse, true);
+        self.bar = show_bar(ui, cx, None, true, self.auto_collapse, self.edge);
     }
 }

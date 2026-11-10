@@ -1,5 +1,5 @@
-//! `DockGroup`: a group of panels as a container: a header of a collapse arrow, a grip, the panels' tab strip and
-//! the panel menu button over the body of the active panel.
+//! `DockGroup`: a group of panels as a container: a header of the panels' tab strip over the strip's drag band and the
+//! panel menu button, over the body of the active panel.
 
 use super::commands::DockCommands;
 use super::drop::{DragUnit, start_group_drag};
@@ -8,32 +8,28 @@ use super::words::DockWords;
 use super::{PanelDrag, PanelKey, PanelTitle};
 use crate::buttons::IconButton;
 use crate::contract::{
-    Bind, BodyCx, Common, Component, Container, ContainerProps, ContextMenuRequest, Cx, HeaderRegion, ListDrag, MeasureCx, Outcome, PaintUi,
-    Pointer as _, Props as _, Role, Show as _, ShowCollection as _, ShowContainer as _, Sizing, Styled as _, Trigger, WordSetCx as _,
+    BodyCx, Common, Component, Container, ContainerProps, ContextMenuRequest, Cx, HeaderRegion, ListDrag, MeasureCx, Outcome, PaintUi, Pointer as _,
+    Props as _, Role, Show as _, ShowCollection as _, ShowContainer as _, Sizing, Trigger, WordSetCx as _,
 };
-use crate::controls::disclosure::Disclosure;
 use crate::layout_components::Row;
-use crate::menu::{GroupItem, Menu, MenuWords, PanelMenu, PanelRow};
-use crate::primitives::IconSpec;
+use crate::menu::{GroupItem, Menu, PanelMenu, PanelRow};
 use crate::runtime::access::PopupKind;
 use crate::runtime::commands::{CommandSet as _, CommandState, Commands as _};
 use crate::runtime::env::Label;
 use crate::runtime::focus::{self, FocusTarget};
-use crate::style::{ComponentStyle, IconLook, Ink, Stateful, StyleCx, SurfaceKind};
+use crate::style::{ComponentStyle, Corners, StyleCx, SurfaceKind};
 use crate::tabs::{Tab, TabKind, TabStrip, TornOff};
 use craft_behavior::{IconId, Metrics, PressPhase, Sense, keyed};
 use egui::{Id, Pos2, Rect, Response, Ui, Vec2};
 use std::borrow::Cow;
 use std::hash::Hash;
 
-/// The style of a group grip: the icon box.
+/// The style of a group grip: its size comes from the tokens.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
 #[non_exhaustive]
 pub struct GroupGripStyle {
     #[style(metrics)]
     metrics: Metrics,
-    #[style(icon)]
-    glyph: IconLook,
 }
 
 /// What a group grip reports: its response, the second press of a double click and whether it started a group
@@ -57,7 +53,7 @@ impl Outcome for GroupGripOutput {
     }
 }
 
-/// The handle a group is dragged by. A drag starts through [`start_group_drag`] with the grip's unit; a double
+/// The handle a group is dragged by: an unmarked bar at the end of the group's header. A drag starts through [`start_group_drag`] with the grip's unit; a double
 /// click is reported for the group to minimize.
 #[derive(crate::contract::Component, crate::contract::Props)]
 #[component(probe(GroupGrip<usize>))]
@@ -91,13 +87,12 @@ impl<P: Clone + Send + Sync + 'static> Component for GroupGrip<P> {
     type Style = GroupGripStyle;
     type Output = GroupGripOutput;
 
-    fn style(cx: &StyleCx<'_>, _: GroupGripStyleKey<P>) -> GroupGripStyle {
-        let side = cx.control().icon;
-        GroupGripStyle { metrics: Metrics::new().min_size(Vec2::splat(side)), glyph: IconLook::new(side, Stateful::new(cx.ink(Ink::OnPanel))) }
+    fn style(_: &StyleCx<'_>, _: GroupGripStyleKey<P>) -> GroupGripStyle {
+        GroupGripStyle { metrics: Metrics::new() }
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        Vec2::splat(cx.style.glyph.side)
+        Vec2::new(cx.tokens.size.handle.band_outer, cx.tokens.size.panel_header)
     }
 
     fn sense(&self) -> Sense {
@@ -110,12 +105,6 @@ impl<P: Clone + Send + Sync + 'static> Component for GroupGrip<P> {
             start_group_drag(cx, self.unit.clone(), self.active, self.ghost.clone());
             self.started = true;
         }
-    }
-
-    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
-        let mut mark = IconSpec::svg(IconId::new("grip"));
-        mark.color = Some(cx.resolve(&cx.style.glyph.color));
-        ui.draw().icon(egui::Rect::from_center_size(cx.rect.center(), Vec2::splat(cx.style.glyph.side)), &mark);
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> GroupGripOutput {
@@ -195,7 +184,7 @@ struct Reported {
     drag_started: bool,
 }
 
-/// A group of panels: a header of collapse arrow, grip, tab strip and panel menu button over the active panel's
+/// A group of panels: a header of tab strip and panel menu button, dragged by its empty part, over the active panel's
 /// body. Show it with `show_at(group_rect)` in the body of a `SplitArea`, with an `IdSource::Id` made from the
 /// group's anchor so its state survives a re-dock. Under a `dock` id it registers the spots a drop lands on: the
 /// strip, and (while expanded) the sides and the middle of the body. The group is an instance of the `dockGroup`
@@ -228,6 +217,9 @@ pub struct DockGroup<'a, P: Clone + Hash + Send + Sync + 'static> {
     /// The rows of the group menu: the panel menu button and a context request on a tab open them.
     #[prop]
     menu: Vec<PanelRow>,
+    /// Whether the panel menu button shows beside the tabs; a context request on a tab opens the menu either way.
+    #[prop]
+    panel_menu_shown: bool,
     /// The state of each panel command for the shown panel, published in the group's scope every pass.
     #[prop]
     command_states: Vec<(DockCommands, CommandState)>,
@@ -243,11 +235,8 @@ impl<'a, P: Clone + Hash + Send + Sync + 'static> DockGroup<'a, P> {
     /// The group named by `anchor` (one of its panels) with its `panels`, `active` showing. The group is named by the
     /// active panel's title.
     pub fn new(anchor: P, panels: &'a [PanelTitle], active: PanelKey) -> Self {
-        let props = ContainerProps::new()
-            .surface(SurfaceKind::Panel)
-            .sizing(Sizing::Fill)
-            .header(HeaderRegion::new().rule(true).trailing(true))
-            .command_scope(DockCommands::SCOPE);
+        let props =
+            ContainerProps::new().sizing(Sizing::Fill).header(HeaderRegion::new().rule(true).trailing(true)).command_scope(DockCommands::SCOPE);
         let title = panels.iter().find(|panel| panel.key == active).map(|panel| panel.title.clone()).unwrap_or_default();
         DockGroup {
             common: Common::new(),
@@ -261,6 +250,7 @@ impl<'a, P: Clone + Hash + Send + Sync + 'static> DockGroup<'a, P> {
             dock: None,
             zones: ZoneRule::Fraction,
             menu: Vec::new(),
+            panel_menu_shown: true,
             command_states: Vec::new(),
             extra: None,
             size: Vec2::ZERO,
@@ -272,7 +262,6 @@ impl<'a, P: Clone + Hash + Send + Sync + 'static> DockGroup<'a, P> {
 
 impl<P: Clone + Hash + Send + Sync + 'static> Component for DockGroup<'_, P> {
     const ROLE: Role = Role::TAB_PANEL;
-    const PARTS: bool = false;
     type Style = DockGroupStyle;
     type Output = DockGroupOutput;
 
@@ -283,6 +272,13 @@ impl<P: Clone + Hash + Send + Sync + 'static> Component for DockGroup<'_, P> {
 
     fn sense(&self) -> Sense {
         Sense::SURFACE
+    }
+
+    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        let strip = Rect::from_min_size(cx.rect.min, Vec2::new(cx.rect.width(), cx.style.header));
+        // Painted here, not as the container's surface, which lies over what `paint` draws.
+        ui.draw().surface(cx.rect, SurfaceKind::Panel, Corners::All);
+        ui.draw().surface(strip, SurfaceKind::Background, Corners::None);
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
@@ -315,33 +311,17 @@ impl<P: Clone + Hash + Send + Sync + 'static> Container for DockGroup<'_, P> {
             self.reported.commands.push(command);
         }
         let words = cx.words::<DockWords>();
-        let menu_words = cx.words::<MenuWords>();
         let from = PanelKey::of(&self.anchor);
-        let (panels, active, closable, movable, minimized) = (self.panels, self.active, self.closable, self.movable, self.minimized);
+        let (panels, active, closable) = (self.panels, self.active, self.closable);
         let menu_rows = self.menu.clone();
         let panel_menu = words.panel_menu.clone();
         let mut extra = self.extra.take();
-        let (name, move_name) = (Label::from(words.panels.as_str().to_owned()), words.move_group.fill(&[]));
-        let (unit, ghost, dock, anchor, rtl) = (
-            DragUnit::Group(self.anchor.clone()),
-            (self.size, cx.label()),
-            self.dock,
-            self.anchor.clone(),
-            crate::runtime::env::Env::of(ui).direction.is_rtl(),
-        );
+        let name = Label::from(words.panels.as_str().to_owned());
+        let (dock, anchor, rtl) = (self.dock, self.anchor.clone(), crate::runtime::env::Env::of(ui).direction.is_rtl());
+        ui.set_min_height(crate::runtime::env::Env::of(ui).tokens.size.panel_header);
         let surface_pressed = cx.surface_pressed();
         let reported = &mut self.reported;
         Row::new().show(ui, |ui, _| {
-            let mut open = !minimized;
-            let arm_name = if minimized { menu_words.panel_expand.clone() } else { menu_words.panel_minimize.clone() };
-            Disclosure::new(Bind::bound(&mut open)).label(arm_name).show(ui);
-            if open == minimized {
-                reported.toggle_minimized = true;
-            }
-            let grip = GroupGrip::new(unit.clone(), active).ghost(ghost.clone()).movable(movable).label(move_name.clone()).show(ui);
-            reported.toggle_minimized |= grip.double_pressed;
-            reported.drag_started |= grip.drag_started;
-
             if let Some(hook) = extra.as_mut() {
                 hook.run(ui, cx);
             }
@@ -353,6 +333,7 @@ impl<P: Clone + Hash + Send + Sync + 'static> Container for DockGroup<'_, P> {
                 .kind(kind)
                 .shown(active)
                 .tear_off()
+                .natural_height(true)
                 .accept_from(|_| false)
                 .drag_payload(move |drag: &ListDrag<PanelKey>| Some(PanelDrag { panel: drag.grabbed, from }))
                 .show_items(ui, &source, &mut |key, _| {
@@ -387,15 +368,21 @@ impl<P: Clone + Hash + Send + Sync + 'static> Container for DockGroup<'_, P> {
         self.extra = extra;
     }
 
+    /// The end of the header: the panel menu button, then the bar the group is dragged by. The tabs take the room the
+    /// two leave.
     fn controls(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
-        if self.menu.is_empty() {
-            return;
+        let words = cx.words::<DockWords>();
+        if !self.menu.is_empty() && self.panel_menu_shown {
+            let name = words.panel_menu.clone();
+            let button = IconButton::new(IconId::new("more")).popup(PopupKind::Menu).label(name.clone()).show(ui);
+            let rows = self.menu.clone();
+            let shown = Menu::new(name).opened_by(&button, Trigger::Click).show(ui, |ui, _| PanelMenu::new(Vec::new(), rows.clone()).show(ui).picked);
+            self.reported.item = shown.inner.flatten().or(self.reported.item);
         }
-        let name = cx.words::<DockWords>().panel_menu.clone();
-        let button = IconButton::new(IconId::new("more")).popup(PopupKind::Menu).label(name.clone()).show(ui);
-        let rows = self.menu.clone();
-        let shown = Menu::new(name).opened_by(&button, Trigger::Click).show(ui, |ui, _| PanelMenu::new(Vec::new(), rows.clone()).show(ui).picked);
-        self.reported.item = shown.inner.flatten().or(self.reported.item);
+        let unit = DragUnit::Group(self.anchor.clone());
+        let grip = GroupGrip::new(unit, self.active).ghost((self.size, cx.label())).movable(self.movable).label(words.move_group.fill(&[])).show(ui);
+        self.reported.toggle_minimized |= grip.double_pressed;
+        self.reported.drag_started |= grip.drag_started;
     }
 }
 
