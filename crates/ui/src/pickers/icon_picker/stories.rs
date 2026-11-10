@@ -12,7 +12,7 @@ fn groups() -> Vec<IconPickerGroup<u8>> {
             "Selection",
             vec![
                 IconPickerItem::new(1, "Move").icon(IconId::new("move")),
-                IconPickerItem::new(2, "Marquee").icon(IconId::new("rectangularMarquee")).keywords(vec!["select".to_owned()]),
+                IconPickerItem::new(2, "Marquee").icon(IconId::new("marquee_rect")).keywords(vec!["select".to_owned()]),
             ],
         ),
         IconPickerGroup::new(

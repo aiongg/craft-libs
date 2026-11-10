@@ -160,7 +160,7 @@ impl<'a> FillPanel<'a> {
 
 /// A Reset icon button in a section header; whether it was pressed.
 fn reset_button(ui: &mut Ui, salt: &'static str, label: &Label) -> bool {
-    let icon = IconSpec::svg(IconId::new("undo-2"));
+    let icon = IconSpec::svg(IconId::new("undo"));
     clicked(&IconButton::new(icon).label(label.clone()).size(ControlSize::Sm).id_salt(salt).show(ui))
 }
 

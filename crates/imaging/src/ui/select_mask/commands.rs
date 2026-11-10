@@ -37,7 +37,7 @@ pub enum SelectMaskCommands {
     )]
     Object,
     /// Refine Edge Brush.
-    #[command(modal = "in_dialogs", label = "Refine Edge Brush Tool", icon = "brush-cleaning", kind = "tool", default = "R")]
+    #[command(modal = "in_dialogs", label = "Refine Edge Brush Tool", icon = "brush_cleaning", kind = "tool", default = "R")]
     RefineEdge,
     /// Brush.
     #[command(modal = "in_dialogs", label = "Brush Tool", icon = "brush", kind = "tool", default = "B")]

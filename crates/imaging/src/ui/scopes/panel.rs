@@ -549,7 +549,7 @@ impl Pass<'_> {
                     .show(ui, |ui, _| Select::new(words.channel_name.clone(), Bind::given(shown_key.to_owned()), &entries).show(ui))
             });
             picked = field.inner.and_then(|field| field.inner).and_then(|select| select.value().cloned());
-            let button = IconButton::new(IconId::new("rotate-cw")).label(words.uncached_refresh.clone()).size(ControlSize::Sm).show(ui);
+            let button = IconButton::new(IconId::new("rotate_cw")).label(words.uncached_refresh.clone()).size(ControlSize::Sm).show(ui);
             refresh = clicked(&button);
         });
         self.report.refresh |= refresh;

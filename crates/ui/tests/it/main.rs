@@ -34,6 +34,7 @@ mod form_dialogs;
 mod full_window_parts;
 // end of full-window parts
 mod glossary;
+mod icon_ids;
 mod internals;
 mod keys;
 mod keys_consumed;

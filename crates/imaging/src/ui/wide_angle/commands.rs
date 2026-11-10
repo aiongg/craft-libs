@@ -13,6 +13,6 @@ pub enum WideAngleCommands {
     #[command(modal = "in_dialogs", label = "Hand Tool", icon = "hand", kind = "tool", group = "wideAngleTools", default = "H")]
     Hand,
     /// Zoom the view.
-    #[command(modal = "in_dialogs", label = "Zoom Tool", icon = "zoom-in", kind = "tool", group = "wideAngleTools", default = "Z")]
+    #[command(modal = "in_dialogs", label = "Zoom Tool", icon = "zoom_in", kind = "tool", group = "wideAngleTools", default = "Z")]
     Zoom,
 }

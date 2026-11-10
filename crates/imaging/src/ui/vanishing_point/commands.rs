@@ -26,7 +26,7 @@ pub enum VanishingPointCommands {
     #[command(modal = "in_dialogs", label = "Hand Tool", icon = "hand", kind = "tool", default = "H")]
     Hand,
     /// Zoom.
-    #[command(modal = "in_dialogs", label = "Zoom Tool", icon = "zoom-in", kind = "tool", default = "Z")]
+    #[command(modal = "in_dialogs", label = "Zoom Tool", icon = "zoom_in", kind = "tool", default = "Z")]
     Zoom,
     /// Opens the form that adds a plane from its four corners.
     #[command(modal = "in_dialogs", label = "New Plane…", icon = "plus")]

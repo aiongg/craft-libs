@@ -17,31 +17,31 @@ pub enum LiquifyCommands {
     #[command(modal = "in_dialogs", label = "Forward Warp Tool", icon = "pointer", kind = "tool", default = "W")]
     ForwardWarp,
     /// Reconstruct.
-    #[command(modal = "in_dialogs", label = "Reconstruct Tool", icon = "brush-cleaning", kind = "tool", default = "R")]
+    #[command(modal = "in_dialogs", label = "Reconstruct Tool", icon = "brush_cleaning", kind = "tool", default = "R")]
     Reconstruct,
     /// Smooth.
     #[command(modal = "in_dialogs", label = "Smooth Tool", icon = "droplet", kind = "tool", default = "E")]
     Smooth,
     /// Twirl Clockwise.
-    #[command(modal = "in_dialogs", label = "Twirl Clockwise Tool", icon = "rotate-cw", kind = "tool", default = "C")]
+    #[command(modal = "in_dialogs", label = "Twirl Clockwise Tool", icon = "rotate_cw", kind = "tool", default = "C")]
     TwirlClockwise,
     /// Twirl Counterclockwise.
-    #[command(modal = "in_dialogs", label = "Twirl Counterclockwise Tool", icon = "rotate-ccw", kind = "tool")]
+    #[command(modal = "in_dialogs", label = "Twirl Counterclockwise Tool", icon = "rotate_ccw", kind = "tool")]
     TwirlCounterclockwise,
     /// Pucker.
     #[command(modal = "in_dialogs", label = "Pucker Tool", icon = "scan", kind = "tool", default = "S")]
     Pucker,
     /// Bloat.
-    #[command(modal = "in_dialogs", label = "Bloat Tool", icon = "maximize-2", kind = "tool", default = "B")]
+    #[command(modal = "in_dialogs", label = "Bloat Tool", icon = "maximize_2", kind = "tool", default = "B")]
     Bloat,
     /// Push Left.
-    #[command(modal = "in_dialogs", label = "Push Left Tool", icon = "arrow-left", kind = "tool", default = "O")]
+    #[command(modal = "in_dialogs", label = "Push Left Tool", icon = "arrow_left_fixed", kind = "tool", default = "O")]
     PushLeft,
     /// Freeze Mask.
     #[command(modal = "in_dialogs", label = "Freeze Mask Tool", icon = "lock", kind = "tool", default = "F")]
     Freeze,
     /// Thaw Mask.
-    #[command(modal = "in_dialogs", label = "Thaw Mask Tool", icon = "lock-open", kind = "tool", default = "D")]
+    #[command(modal = "in_dialogs", label = "Thaw Mask Tool", icon = "lock_open", kind = "tool", default = "D")]
     Thaw,
     /// Freeze Lasso: drag to freeze an area, Alt-drag to thaw it.
     #[command(
@@ -56,7 +56,7 @@ pub enum LiquifyCommands {
     #[command(modal = "in_dialogs", label = "Hand Tool", icon = "hand", kind = "tool", default = "H")]
     Hand,
     /// Zoom.
-    #[command(modal = "in_dialogs", label = "Zoom Tool", icon = "zoom-in", kind = "tool", default = "Z")]
+    #[command(modal = "in_dialogs", label = "Zoom Tool", icon = "zoom_in", kind = "tool", default = "Z")]
     Zoom,
     /// Makes the brush smaller.
     #[command(modal = "in_dialogs", label = "Smaller Brush", default = "[")]

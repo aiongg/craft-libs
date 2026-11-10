@@ -23,7 +23,7 @@ pub enum FillCommands {
     #[command(modal = "in_dialogs", label = "Hand Tool", icon = "hand", kind = "tool", default = "H")]
     Hand,
     /// Zoom.
-    #[command(modal = "in_dialogs", label = "Zoom Tool", icon = "zoom-in", kind = "tool", default = "Z")]
+    #[command(modal = "in_dialogs", label = "Zoom Tool", icon = "zoom_in", kind = "tool", default = "Z")]
     Zoom,
     /// Makes the Sampling Brush smaller.
     #[command(modal = "in_dialogs", label = "Smaller Brush", default = "[")]
