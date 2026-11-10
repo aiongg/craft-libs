@@ -61,10 +61,16 @@ impl FaceSpec<'_> {
     }
 }
 
-/// The surface of a button from its variant: raised unless ghost, the variant's fill and edge.
+/// The surface of a button from its variant: raised unless flat (ghost, or a custom look with no fill or edge at
+/// rest), the variant's fill and edge.
 pub(super) fn surface(cx: &StyleCx<'_>, parts: &VariantParts) -> SurfaceLook {
     let mut look = SurfaceLook::new(parts.fill.clone()).radius(parts.radius);
-    if !matches!(cx.variant, Variant::Look { emphasis: Emphasis::Ghost, .. }) {
+    let variant = cx.variant.resolve(cx.tokens);
+    let flat = match cx.variant {
+        Variant::Look { emphasis, .. } => emphasis == Emphasis::Ghost,
+        _ => matches!(cx.variant, Variant::Custom(_)) && variant.edge.is_none() && variant.fill.rest.a() == 0,
+    };
+    if !flat {
         look = look.kind(SurfaceKind::Raised).kind_down(SurfaceKind::Pressed);
     }
     match &parts.edge {

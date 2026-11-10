@@ -10,7 +10,7 @@ use crate::contract::{
 use crate::primitives::IconSpec;
 use crate::runtime::env::Label;
 use crate::runtime::focus::{ActivateKeys, KeyUse};
-use crate::style::{ComponentStyle, Flags, FocusLook, IconLook, StyleCx, SurfaceLook, TextLook, TypeRole};
+use crate::style::{ComponentStyle, Flags, FocusLook, IconLook, StyleCx, SurfaceLook, TextLook, TypeRole, UiTokens};
 use craft_behavior::{Flow, Metrics, NavShape, PartKey, PartRef, Roving, Sense, Value};
 use craft_theme::{Rgba, Stateful, States};
 use egui::{Rect, Vec2};
@@ -219,7 +219,7 @@ impl Component for Segment {
         let ink = Stateful::new(muted).off(States::new(muted, muted, muted, off)).on(States::new(on_selected, on_selected, on_selected, off));
         let control = cx.control();
         SegmentStyle {
-            surface: SurfaceLook::new(fill).radius(cx.variant_look().radius).border(edge, cx.tokens.stroke.thin),
+            surface: SurfaceLook::new(fill).radius(UiTokens::corner(cx.tokens.shape.radius.control)).border(edge, cx.tokens.stroke.thin),
             metrics: control.metrics(),
             focus: face::focus(cx),
             text: TextLook::new(TypeRole::Label, ink.clone()),
