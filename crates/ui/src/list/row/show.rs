@@ -139,6 +139,11 @@ impl Component for ListRow<'_> {
             return Vec2::new(probe_min, height);
         }
         let label = cx.layout(&TextRun::new(cx.resolved.label).role(cx.style.text.role)).size().x;
+        // The label band holds the detail line under the label, so it is as wide as the wider of the two.
+        let label = match self.detail.as_ref().filter(|_| self.detail_line()) {
+            Some(detail) => label.max(cx.layout(&TextRun::new(detail.as_str()).role(cx.style.detail.role)).size().x),
+            None => label,
+        };
         Vec2::new(probe_min - sizes.min_label + label.max(sizes.min_label) + self.indent_full(sizes), height)
     }
 

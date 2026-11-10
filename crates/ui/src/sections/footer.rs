@@ -502,11 +502,12 @@ pub(crate) fn display_order(roles: &[DialogRole], windows: bool) -> Vec<usize> {
 }
 
 impl FooterBar {
-    /// A footer bar whose content is its body.
+    /// A footer bar whose content is its body. It spans its region, so its content sits at the region's end edge; in a
+    /// container sized from its content it takes its content's width there and never widens the container.
     pub fn body() -> Self {
         FooterBar {
             common: Common::new(),
-            props: ContainerProps::new().roving(Roving::new(NavShape::Flat)).layout(BodyLayout::row().align(RowAlign::End)),
+            props: ContainerProps::new().sizing(Sizing::FillWidth).roving(Roving::new(NavShape::Flat)).layout(BodyLayout::row().align(RowAlign::End)),
             content: Content::Body,
             enter: false,
         }

@@ -5,6 +5,7 @@ mod fill_column;
 mod fill_share;
 mod first_pass;
 mod fonts;
+mod footer_end;
 mod footer_room;
 mod grid_fill_column;
 mod grid_row_stretch;
