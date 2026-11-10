@@ -293,7 +293,7 @@ impl Component for Menu<'_> {
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> MenuOutput {
-        MenuLevel::of(&cx.recall::<LevelMemory>()).end();
+        MenuLevel::of(&cx.recall::<LevelMemory>()).end(cx.core.ctx.cumulative_pass_nr());
         MenuOutput { response: cx.response.clone(), closed: self.closed.or(self.back.then_some(CloseReason::Requested)), step: self.step }
     }
 }

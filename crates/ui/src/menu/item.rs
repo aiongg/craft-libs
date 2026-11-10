@@ -167,9 +167,14 @@ impl MenuLevel {
         });
     }
 
-    /// Ends a body run: the rows of this pass give the letters the user sees.
-    pub(crate) fn end(&self) {
+    /// Ends a body run of pass `pass`: the rows of this pass give the letters the user sees. A pass that registered no
+    /// rows shows none.
+    pub(crate) fn end(&self, pass: u64) {
         self.with(|state| {
+            if state.pass != pass {
+                state.pass = pass;
+                state.now.clear();
+            }
             let letters = if state.lettered {
                 let labels: Vec<&str> = state.now.iter().map(|row| row.text.as_str()).collect();
                 mnemonic::assign(&labels)
