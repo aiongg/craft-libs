@@ -628,10 +628,11 @@ pub(crate) fn check_parts(ctx: &Context, component: &'static str, parts: &PartsS
 }
 
 /// Registers a wheel taker for next pass's split (8.6) from the wheel bits of `sense` (`WheelTaker::for_sense`); a
-/// value control without them takes the vertical wheel only while focused or armed.
-pub(crate) fn register_wheel(ctx: &Context, id: Id, rect: Rect, sense: Sense, value_control: bool) {
+/// value control without them takes the vertical wheel only while focused or armed. Inside a wheel-gated scope
+/// (`Overrides::wheel_gated`) every taker takes the vertical wheel only while focused or armed.
+pub(crate) fn register_wheel(ctx: &Context, id: Id, rect: Rect, sense: Sense, value_control: bool, gated: bool) {
     if let Some(taker) = craft_behavior::WheelTaker::for_sense(id, rect, sense) {
-        wheel::register(ctx, taker);
+        wheel::register(ctx, taker.gated(taker.gated || gated));
     } else if value_control {
         wheel::register(ctx, craft_behavior::WheelTaker::new(id, rect).vertical(true).gated(true));
     }

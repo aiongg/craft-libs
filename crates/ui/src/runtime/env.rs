@@ -405,6 +405,9 @@ pub struct Scoped {
     pub enabled: bool,
     /// OR of every scope above.
     pub read_only: bool,
+    /// OR of every scope above: wheel takers inside register gated, taking the vertical wheel only while focused or
+    /// armed (a card in a scrolling overview).
+    pub wheel_gated: bool,
     /// The flow direction: layout order, arrow keys and roving. A container whose axis keeps its order
     /// (`Props::ltr_axis`) sets it to left to right for what is inside.
     pub direction: Direction,
@@ -600,6 +603,7 @@ impl Env {
                 size: ControlSize::Md,
                 enabled: true,
                 read_only: false,
+                wheel_gated: false,
                 direction: root.direction,
                 text_direction: root.direction,
                 motion,
@@ -983,6 +987,8 @@ pub struct Overrides {
     pub enabled: Option<bool>,
     /// Only `true` has an effect.
     pub read_only: Option<bool>,
+    /// Only `true` has an effect.
+    pub wheel_gated: Option<bool>,
     /// Can only lower the mode.
     pub motion: Option<MotionMode>,
     /// Also the child `Ui`'s direction and layout.
@@ -1013,6 +1019,9 @@ impl Overrides {
         }
         if self.read_only == Some(true) {
             scoped.read_only = true;
+        }
+        if self.wheel_gated == Some(true) {
+            scoped.wheel_gated = true;
         }
         if let Some(motion) = self.motion {
             scoped.motion.mode = scoped.motion.mode.lowered_by(motion);

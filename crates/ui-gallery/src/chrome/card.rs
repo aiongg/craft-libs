@@ -237,6 +237,7 @@ impl Host {
             |env| {
                 env.direction = look.direction;
                 env.size = look.size;
+                env.wheel_gated = Some(true);
             },
             |ui| {
                 let _ = show(ui, data);
