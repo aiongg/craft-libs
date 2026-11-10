@@ -31,8 +31,10 @@ pub enum HeaderStrength {
     Normal,
     /// A panel or dialog title.
     Strong,
-    /// A section heading.
+    /// A section heading of a panel: emphasised body text.
     Section,
+    /// A large heading: the heading role.
+    Heading,
     /// A quiet heading: the caption role, faint, in capitals.
     Caption,
 }
@@ -147,6 +149,8 @@ pub struct TitleRowStyle {
     icon: IconLook,
     /// The width of a disclosure lead's slot: `size.icon.sm`, a small glyph beside the title.
     disclosure: f32,
+    /// The side of an action part: the control height, which is below a tall header's height.
+    action: f32,
 }
 
 /// An optional icon, a title with an optional subtitle, a lead (a disclosure bound to the container's open state, or
@@ -318,7 +322,8 @@ impl Component for TitleRow<'_> {
         let (height, role, shade) = match key.strength {
             HeaderStrength::Normal => (cx.control().height, TypeRole::Label, text.normal),
             HeaderStrength::Strong => (cx.tokens.size.panel_header, TypeRole::Title, text.normal),
-            HeaderStrength::Section => (cx.tokens.size.panel_header, TypeRole::Heading, text.normal),
+            HeaderStrength::Section => (cx.tokens.size.panel_header, TypeRole::BodyStrong, text.normal),
+            HeaderStrength::Heading => (cx.tokens.size.panel_header, TypeRole::Heading, text.normal),
             HeaderStrength::Caption => (cx.control().height, TypeRole::Caption, text.faint),
         };
         let (shade, ink, disabled) = (cx.color(shade), cx.ink(Ink::OnPanel), cx.color(text.disabled));
@@ -327,6 +332,7 @@ impl Component for TitleRow<'_> {
             text: TextLook::new(role, Stateful::new(shade).off(States::new(shade, shade, shade, disabled))),
             icon: IconLook::new(cx.control().icon, Stateful::new(ink).off(States::new(ink, ink, ink, disabled))),
             disclosure: cx.tokens.size.icon.sm,
+            action: cx.control().height,
         }
     }
 
@@ -341,7 +347,9 @@ impl Component for TitleRow<'_> {
         let text = title.x + subtitle.map_or(0.0, |width| width + cx.gap());
         let lead = if self.has_lead() { self.lead_side(side, cx.style.disclosure) - side } else { 0.0 };
         let natural = text + side * parts as f32 + cx.gap() * parts as f32 + lead;
-        Vec2::new(if self.fill { natural.max(cx.room.unwrap_or(0.0)) } else { natural }, title.y)
+        // A row takes the room it is offered, a filling row all of it, and never more: the title elides to what is left.
+        let width = cx.room.map_or(natural, |room| if self.fill { room } else { natural.min(room) });
+        Vec2::new(width, title.y)
     }
 
     fn sense(&self) -> Sense {
@@ -362,7 +370,7 @@ impl Component for TitleRow<'_> {
         let commands = self.commands.len();
         let mut rects = Vec::new();
         for _ in 0..commands + self.actions.len() {
-            let (part, rest) = flow.take_end(side);
+            let (part, rest) = flow.take_end(cx.style.action.min(side));
             rects.push(part);
             flow = rest;
         }
@@ -446,7 +454,7 @@ impl Component for TitleRow<'_> {
                 HeaderAction::Menu => ("more", words.menu.clone()),
                 HeaderAction::Float => ("float", words.float.clone()),
             };
-            ui.face(ACTION.at(at as u64), IconButton::new(IconId::new(icon)).label(label));
+            ui.face(ACTION.at(at as u64), IconButton::new(IconId::new(icon)).size(ControlSize::Sm).label(label));
         }
         let Some(placed) = self.placed else { return };
         let role = cx.style.text.role;

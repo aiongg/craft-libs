@@ -52,8 +52,7 @@ impl Outcome for SectionOutput {
 /// The closure that fills a section's trailing header region.
 type Controls<'a> = Box<dyn FnMut(&mut Ui, &mut BodyCx<'_>) + 'a>;
 
-/// An inline section of a panel that fills the width offered: a section-strength title row over a body, separated by
-/// a rule. The open state is the container's own (it starts open), the caller's binding, or remembered across runs
+/// An inline section of a panel that fills the width offered: a rule over a section-strength title row over a body. The open state is the container's own (it starts open), the caller's binding, or remembered across runs
 /// under a key; a fixed section is always open and shows the title alone.
 #[derive(crate::contract::Component, crate::contract::Props)]
 #[component(container)]
@@ -91,7 +90,7 @@ impl<'a> Section<'a> {
     }
 
     fn build(title: impl Into<Label>, collapsible: bool, props: ContainerProps) -> Self {
-        let props = props.header(HeaderRegion::new().rule(true));
+        let props = props.header(HeaderRegion::new().rule_above(true));
         Section {
             common: Common::new(),
             props,

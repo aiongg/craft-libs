@@ -380,9 +380,14 @@ impl<P: Clone + Hash + Send + Sync + 'static> Container for DockGroup<'_, P> {
         self.extra = extra;
     }
 
-    /// The end of the header: the panel menu button. The tabs take the room it leaves.
+    /// The end of the header: the bar the group is dragged by, then the panel menu button at the end edge. The tabs take the room the
+    /// two leave.
     fn controls(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
         let words = cx.words::<DockWords>();
+        let unit = DragUnit::Group(self.anchor.clone());
+        let grip = GroupGrip::new(unit, self.active).ghost((self.size, cx.label())).movable(self.movable).label(words.move_group.fill(&[])).show(ui);
+        self.reported.toggle_minimized |= grip.double_pressed;
+        self.reported.drag_started |= grip.drag_started;
         if !self.menu.is_empty() && self.panel_menu_shown {
             let name = words.panel_menu.clone();
             // The button sits at the strip's top, level with the tab labels' caps, as the "…" of the old tab strips did.

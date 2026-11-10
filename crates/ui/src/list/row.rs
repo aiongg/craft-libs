@@ -287,7 +287,7 @@ pub struct ListRow<'a> {
     #[style_key]
     #[prop]
     pub(super) strong: bool,
-    /// The row heads a group of rows: a wash under it, the title strong, the detail at the end of the same line and
+    /// The row heads a group of rows: the title strong, on no band, the detail at the end of the same line and
     /// the disclosure of a group.
     #[style_key]
     #[prop(flag)]
@@ -750,21 +750,14 @@ pub struct ListRowStyle {
 struct FillKey {
     striped: bool,
     layer: bool,
-    heading: bool,
 }
 
-/// The fill of a row: a stripe or the heading wash at rest, the hover and pressed tints over it, the selection's
+/// The fill of a row: a stripe at rest, the hover and pressed tints over it, the selection's
 /// fills, and the lead row's hover tint (selected hover on a selected row). An emphasized row keeps its hover tint.
 fn fill_of(cx: &StyleCx<'_>, key: FillKey) -> Stateful<StyleColor> {
     let state = &cx.tokens.color.state;
     let clear = Rgba::TRANSPARENT;
-    let rest = if key.heading {
-        state.hover
-    } else if key.striped {
-        state.hover.faded(STRIPE)
-    } else {
-        clear
-    };
+    let rest = if key.striped { state.hover.faded(STRIPE) } else { clear };
     let hover = if key.layer { over(cx.tokens.color.accent.solid.faded(LAYER_TINT), state.hover) } else { state.hover };
     let c = |rgba: Rgba| cx.color(rgba);
     let tinted = over(hover, rest);
@@ -813,7 +806,7 @@ fn flag_rules() -> [FlagRule; 3] {
 impl StyleCx<'_> {
     /// The fill of a row of a list, a menu or any collection item: the one surface, the active (lead) row included.
     pub fn row_surface(&self) -> Stateful<StyleColor> {
-        fill_of(self, FillKey { striped: false, layer: false, heading: false })
+        fill_of(self, FillKey { striped: false, layer: false })
     }
 
     /// The ink of a collection item's text or icon: `base`, and the theme's paired `text.on_selected` on the
@@ -1131,7 +1124,7 @@ impl Component for ListRow<'_> {
         let text = &colors.text;
         let clear = Rgba::TRANSPARENT;
         let c = |rgba: Rgba| cx.color(rgba);
-        let fill = fill_of(cx, FillKey { striped: key.striped, layer: key.layer, heading: key.heading });
+        let fill = fill_of(cx, FillKey { striped: key.striped, layer: key.layer });
         let rounded = key.layer || tokens.shape.rows == RowStyle::Rounded;
         let radius = if rounded { UiTokens::corner(tokens.shape.radius.control) } else { CornerRadius::ZERO };
         let mut surface = SurfaceLook::new(fill).radius(radius);

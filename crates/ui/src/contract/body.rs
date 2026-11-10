@@ -543,6 +543,8 @@ pub(super) struct BodyHooks<'b> {
     measured_footer: Vec2,
     /// The end region's size from this pass's measuring run; `None` without one or inside the measuring run.
     measured_end: Option<Vec2>,
+    /// The trailing controls box as the measuring run found it; `None` in the measuring run and without a record this pass.
+    measured_controls: Option<Vec2>,
     /// The measuring run measures a closed layer whose exit fade still shows it as if it were open.
     shown_closed: bool,
     /// A record of this pass may serve instead of a measuring run: in a real pass's step 5 and in a sizing pass, not
@@ -577,6 +579,7 @@ pub(super) struct BodyHooks<'b> {
     header_size: Option<Vec2>,
     footer_size: Option<Vec2>,
     end_size: Option<Vec2>,
+    controls_size: Option<Vec2>,
     extent: Option<Vec2>,
     view: Option<Rect>,
     save: Option<SaveKey>,
@@ -600,11 +603,14 @@ pub(super) struct BodyHooks<'b> {
     follows_end: bool,
 }
 
-/// The divider rules under the header and above the footer.
+/// The divider rules above and under the header and above the footer.
 fn paint_rules(ui: &mut Ui, props: &ContainerProps, env: &Env, inner: Rect, regions: &Regions) {
     let rule = rule_look(&env.tokens, RuleKind::Divider);
     let ppp = ui.ctx().pixels_per_point();
     let draw_rule = |from: f32, to: f32, y: f32| ui.painter().extend(Rule::shapes(&rule, Pos2::new(from, y), Pos2::new(to, y), ppp));
+    if props.header.is_some_and(|header| header.rule_above) {
+        draw_rule(inner.min.x, inner.max.x, regions.header.min.y);
+    }
     if props.header.is_some_and(|header| header.rule && !header.inline) {
         draw_rule(inner.min.x, inner.max.x, regions.header.max.y);
     }
@@ -1121,6 +1127,7 @@ impl<'b> BodyHooks<'b> {
             measured_header: None,
             measured_footer: Vec2::ZERO,
             measured_end: None,
+            measured_controls: None,
             shown_closed: false,
             reuse: false,
             open_given: false,
@@ -1144,6 +1151,7 @@ impl<'b> BodyHooks<'b> {
             header_size: None,
             footer_size: None,
             end_size: None,
+            controls_size: None,
             extent: None,
             view: None,
             save: None,
@@ -1206,7 +1214,7 @@ impl<'b> BodyHooks<'b> {
         Some(self.regions_size(props, body, header, footer, end) + pad)
     }
 
-    /// The header region (B1): the trailing controls take the end edge first (their first control sits at the edge)
+    /// The header region (B1): the trailing controls take the end edge first (in call order, as a box at the edge)
     /// and the header fills what they leave. Records the header's size and returns the close it asked for.
     fn header_region<C: Container>(
         &mut self,
@@ -1223,14 +1231,22 @@ impl<'b> BodyHooks<'b> {
         let mut header_rect = header.shrink2(Vec2::new(inset, 0.0));
         let mut controls = Vec2::ZERO;
         if trailing {
-            let layout = if rtl { Layout::left_to_right(Align::Center) } else { Layout::right_to_left(Align::Center) };
-            let builder = UiBuilder::new().max_rect(header).layout(layout).scope_id(sub(id, "controls"));
+            // The controls keep their call order (first at the start of their box); the box sits at the end edge.
+            let layout = if rtl { Layout::right_to_left(Align::Center) } else { Layout::left_to_right(Align::Center) };
+            // The box is as wide as the measuring run found it, at the end edge; in the measuring run it spans the header.
+            let room = match self.measured_controls.map(|measured| measured.x).filter(|_| header.width().is_finite()) {
+                Some(width) if rtl => Rect::from_min_max(header.min, Pos2::new((header.min.x + width).min(header.max.x), header.max.y)),
+                Some(width) => Rect::from_min_max(Pos2::new((header.max.x - width).max(header.min.x), header.min.y), header.max),
+                None => header,
+            };
+            let builder = UiBuilder::new().max_rect(room).layout(layout).scope_id(sub(id, "controls"));
             let builder = if frame.node { access::with_parent(builder, id) } else { builder };
             let mut controls_ui = alloc::child(ui, builder);
             let installed = Env::install_for(&controls_ui, frame.env.clone());
             comp.controls(&mut controls_ui, bcx);
             Env::restore(&ctx, installed);
             controls = controls_ui.min_rect().size();
+            self.controls_size = Some(controls);
             if controls.x > 0.0 {
                 let cut = controls.x + self.region_gap;
                 if rtl {
@@ -1831,6 +1847,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         self.measured_header = None;
         self.measured_footer = Vec2::ZERO;
         self.measured_end = None;
+        self.measured_controls = None;
         self.last = BodyView::default();
         self.offset = ScrollPos::default();
         self.region_gap = gap_of(&at.env.tokens, Gap::Tight);
@@ -1898,7 +1915,9 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 Env::restore(&ctx, installed);
                 let record = |key: Id, took: Vec2| layout_memory::record_measured(&ctx, key, layout_memory::Measured { room: self.room, took });
                 record(id, self.body_size.unwrap_or(Vec2::ZERO));
-                for (key, size) in [("header", self.header_size), ("footer", self.footer_size), ("end", self.end_size)] {
+                for (key, size) in
+                    [("header", self.header_size), ("footer", self.footer_size), ("end", self.end_size), ("controls", self.controls_size)]
+                {
                     if let Some(size) = size {
                         record(sub(id, key), size);
                     }
@@ -1942,6 +1961,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         self.measured_header = props.header.and_then(|_| took(sub(id, "header")));
         self.measured_footer = props.footer.as_ref().and_then(|_| took(sub(id, "footer"))).unwrap_or(Vec2::ZERO);
         self.measured_end = props.end.as_ref().and_then(|_| took(sub(id, "end")));
+        self.measured_controls = took(sub(id, "controls"));
         self.extent(comp, at.ui, at.at, id, at.scx)
     }
 
@@ -2477,6 +2497,9 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         }
         if let Some(size) = self.end_size {
             super::steps::record_size(ctx, sub(id, "end"), size);
+        }
+        if let Some(size) = self.controls_size {
+            super::steps::record_size(ctx, sub(id, "controls"), size);
         }
         if self.extent.is_some() || self.view.is_some() {
             let view = stage.shown::<BodyView>(sub(id, "view"));
