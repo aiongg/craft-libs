@@ -707,6 +707,7 @@ pub(crate) fn run(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Placed {
     leaf.scrub = input.enabled && (input.side.scrub || scope::last_scrub(&ctx, input.scope));
     leaf.resettable = reset.is_some();
     leaf.differs = reset.is_some_and(|fact| fact.differs);
+    leaf.shown = drawn(env, input);
     match &input.side.kind {
         LabelKind::Glyph(glyph) => leaf.glyph = Some(glyph.resolved(env)),
         _ => {
