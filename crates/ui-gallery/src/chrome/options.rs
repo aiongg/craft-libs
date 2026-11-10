@@ -1,56 +1,91 @@
-//! The options bar and the status bar.
+//! The options bar: the theme and mode, the rarer appearance options in More, the workspace's own controls, and Reset
+//! layout and the workspace switch at the end.
 
 use crate::viewer::{
-    CONTRASTS, CellFilter, DENSITIES, DIRECTIONS, GalleryCommands, MODES, MOTIONS, SCALES, SIZES, TEXT_SIZES, Workspace, theme_entries,
+    CONTRASTS, DENSITIES, DIRECTIONS, GalleryCommands, MODES, MOTIONS, Preview, SCALES, TEXT_SIZES, VariantAxis, Viewer, Workspace, theme_entries,
 };
-use craft_behavior::Value;
+use craft_behavior::{ColumnWidth, IconId, Value};
 use craft_ui::bars::{Bar, BarKind};
-use craft_ui::buttons::{Button, ToggleButton};
+use craft_ui::buttons::{IconButton, ToggleButton};
 use craft_ui::choice::Segmented;
-use craft_ui::contract::{Bind, Entry, Show as _, ShowContainer as _};
-use craft_ui::display::{Shade, Text};
-use craft_ui::layout_components::Stack;
+use craft_ui::contract::{Bind, Entry, Show as _, ShowContainer as _, Trigger};
+use craft_ui::display::{Divider, Shade, Text};
+use craft_ui::layout_components::Grid;
+use craft_ui::menu::Menu;
 use craft_ui::pickers::Select;
 use craft_ui::popover::Popover;
-use craft_ui::runtime::env::RootEnv;
 use egui::Ui;
 
-/// A select over `entries` after its caption.
-fn pick<T: Value>(ui: &mut Ui, caption: &'static str, value: &mut T, entries: &[Entry<T>]) {
-    Text::new(caption).shade(Shade::Muted).show(ui);
-    Select::new(caption, Bind::bound(value), entries).show(ui);
+/// The More popover's rows: a caption and its control.
+static FORM: [ColumnWidth; 2] = [ColumnWidth::Content, ColumnWidth::Content];
+
+/// A caption before the control it names.
+fn caption(ui: &mut Ui, text: &'static str) {
+    Text::new(format!("{text}:")).shade(Shade::Muted).show(ui);
 }
 
-/// The workspace switch, the root values the stories and panels are shown under (the theme first), the cells a story
-/// shows, the More popover for the rest, and Reset Layout last.
-pub fn options_bar(ui: &mut Ui, env: &mut RootEnv, cells: &mut CellFilter, workspace: &mut Workspace, more_open: &mut bool) {
-    let (modes, contrasts, text_sizes) = (MODES.entries(), CONTRASTS.entries(), TEXT_SIZES.entries());
-    let (directions, sizes) = (DIRECTIONS.entries(), SIZES.entries());
-    let (densities, motions, scales) = (DENSITIES.entries(), MOTIONS.entries(), SCALES.entries());
-    let (themes, workspaces) = (theme_entries(), [Entry::new(Workspace::Stories, "Stories"), Entry::new(Workspace::Theme, "Theme")]);
-    Bar::new("Appearance", BarKind::Options).show(ui, |ui, _| {
-        Segmented::new("Workspace", Bind::bound(&mut *workspace), &workspaces).show(ui);
-        pick(ui, "Theme", &mut env.theme, &themes);
-        pick(ui, "Mode", &mut env.mode, &modes);
-        pick(ui, "Contrast", &mut env.contrast, &contrasts);
-        pick(ui, "Text size", &mut env.text_size, &text_sizes);
-        Segmented::new("Direction", Bind::bound(&mut cells.direction), &directions).show(ui);
-        Segmented::new("Control size", Bind::bound(&mut cells.size), &sizes).show(ui);
-        let more = ToggleButton::new("More", Bind::bound(&mut *more_open)).show(ui);
-        Popover::new("More appearance options", Bind::bound(&mut *more_open)).opened_by(&more.response).show(ui, |ui, _| {
-            Stack::new().show(ui, |ui, _| {
-                pick(ui, "Density", &mut env.density, &densities);
-                pick(ui, "Motion", &mut env.motion, &motions);
-                pick(ui, "Scale", &mut env.scale, &scales);
-            });
-        });
-        Button::command(GalleryCommands::ResetLayout).show(ui);
+/// A select over `entries` after its caption.
+fn pick<T: Value>(ui: &mut Ui, caption_text: &'static str, value: &mut T, entries: &[Entry<T>]) {
+    caption(ui, caption_text);
+    Select::new(caption_text, Bind::bound(value), entries).show(ui);
+}
+
+/// A segmented row over `entries` after its caption.
+fn choose<T: Value>(ui: &mut Ui, caption_text: &'static str, value: &mut T, entries: &[Entry<T>]) {
+    caption(ui, caption_text);
+    Segmented::new(caption_text, Bind::bound(value), entries).show(ui);
+}
+
+/// The More popover's form: the root values the bar's own controls leave out.
+fn more_form(ui: &mut Ui, viewer: &mut Viewer) {
+    let env = &mut viewer.env;
+    let (contrasts, densities, motions) = (CONTRASTS.entries(), DENSITIES.entries(), MOTIONS.entries());
+    let (directions, text_sizes, scales) = (DIRECTIONS.entries(), TEXT_SIZES.entries(), SCALES.entries());
+    Grid::new(&FORM).show(ui, |ui, _| {
+        choose(ui, "Contrast", &mut env.contrast, &contrasts);
+        choose(ui, "Size", &mut env.density, &densities);
+        choose(ui, "Reduced motion", &mut env.motion, &motions);
+        choose(ui, "Direction", &mut env.direction, &directions);
+        choose(ui, "Text", &mut env.text_size, &text_sizes);
+        pick(ui, "Scale", &mut env.scale, &scales);
     });
 }
 
-/// The status bar: `text` and, when saving the settings failed, why.
-pub fn status_bar(ui: &mut Ui, text: &str) {
-    Bar::new("Status", BarKind::Status).show(ui, |ui, _| {
-        Text::new(text.to_owned()).show(ui);
+/// The Variants toggle and its menu of axes: the toggle shows whether a Variants view is open, and a press opens the
+/// menu. Returns the axis chosen.
+fn variants_menu(ui: &mut Ui, shown: bool, has_target: bool) -> Option<VariantAxis> {
+    let mut on = shown;
+    let button = ToggleButton::new("Variants", Bind::bound(&mut on)).trailing_icon(IconId::new("chevron-down")).show(ui);
+    let entries: Vec<Entry<VariantAxis>> = VariantAxis::ALL.into_iter().map(|axis| Entry::new(axis, axis.menu_label()).enabled(has_target)).collect();
+    Menu::new("Variants").values().opened_by(&button.response, Trigger::Press).pick(ui, &entries).picked
+}
+
+/// The theme and mode, the More popover, the workspace's own controls, then Reset layout and the workspace switch.
+pub fn options_bar(ui: &mut Ui, viewer: &mut Viewer) {
+    let (modes, themes) = (MODES.entries(), theme_entries());
+    let (previews, workspaces) = (
+        [Entry::new(Preview::App, "App"), Entry::new(Preview::Components, "Components")],
+        [Entry::new(Workspace::Components, "Components"), Entry::new(Workspace::Theme, "Theme")],
+    );
+    let has_target = viewer.browser.target_story().is_some();
+    let workspace = viewer.workspace;
+    Bar::new("Appearance", BarKind::Options).show(ui, |ui, _| {
+        pick(ui, "Theme", &mut viewer.env.theme, &themes);
+        choose(ui, "Mode", &mut viewer.env.mode, &modes);
+        let more = ToggleButton::new("More appearance settings", Bind::bound(&mut viewer.more_open)).icon(IconId::new("more")).icon_only().show(ui);
+        let mut open = viewer.more_open;
+        Popover::new("More appearance settings", Bind::bound(&mut open)).opened_by(&more.response).show(ui, |ui, _| more_form(ui, viewer));
+        viewer.more_open = open;
+        Divider::vertical().show(ui);
+        match workspace {
+            Workspace::Components => {
+                if let Some(axis) = variants_menu(ui, viewer.variants.is_some(), has_target) {
+                    viewer.variants = Some(axis);
+                }
+            }
+            Workspace::Theme => choose(ui, "Preview", &mut viewer.preview, &previews),
+        }
+        IconButton::command(IconId::new("undo"), GalleryCommands::ResetLayout).show(ui);
+        choose(ui, "Workspace", &mut viewer.workspace, &workspaces);
     });
 }

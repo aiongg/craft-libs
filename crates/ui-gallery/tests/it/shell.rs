@@ -7,13 +7,22 @@ use craft_ui_gallery::chrome::{Gallery, Persisted};
 use craft_ui_gallery::viewer::{Catalog, GallerySettings};
 use egui::Vec2;
 
-/// The shell shown at a desktop size runs its first frames: a panel at an explicit rect must not look like a second
-/// scroll owner to the collection it holds, which panicked the app at start.
+fn gallery_in(workspace: &str) -> Gallery {
+    let (mut store, report) = SettingsStore::<GallerySettings>::open_with(OpenOptions::new(Location::Memory));
+    let mut settings = store.get().clone();
+    settings.workspace = workspace.to_owned();
+    store.set(settings);
+    Gallery::new(Catalog::linked(), Persisted::new(store, &report))
+}
+
+/// Each workspace's dock runs its first frames at a desktop size and shows its panels' tabs: the components workspace
+/// the tree, the theme workspace the preview, which runs the mock application inside the dock.
 #[trial]
-fn the_shell_shows_at_a_desktop_size() {
-    let (store, report) = SettingsStore::<GallerySettings>::open_with(OpenOptions::new(Location::Memory));
-    let mut gallery = Gallery::new(Catalog::linked(), Persisted::new(store, &report));
-    let mut fixture = Fixture::new(move |ui| gallery.ui(ui));
-    fixture.room(Vec2::new(1400.0, 900.0)).settle();
-    assert!(fixture.by_label("Components").is_some(), "the components panel is shown");
+fn the_shell_shows_each_workspaces_panels_at_a_desktop_size() {
+    for (workspace, tab) in [("components", "Components"), ("theme", "Preview")] {
+        let mut gallery = gallery_in(workspace);
+        let mut fixture = Fixture::new(move |ui| gallery.ui(ui));
+        fixture.room(Vec2::new(1400.0, 900.0)).settle();
+        assert!(fixture.by_label(tab).is_some(), "the {workspace} workspace shows its {tab} tab");
+    }
 }

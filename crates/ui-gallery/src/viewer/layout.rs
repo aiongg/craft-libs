@@ -1,109 +1,211 @@
-//! The viewer's panel layout as plain data: the shares of its columns and of the right column's two panels.
+//! The viewer's dock layouts: the panels of each workspace, the default arrangements, what the user may do with a
+//! panel, and the saved form of a layout.
 //!
-//! The dock layout is rebuilt from the shares on load, so a saved layout the build cannot read costs only the layout.
+//! A saved layout names a component tab by its component's registered name. A name the catalog no longer has loads as a
+//! panel the reconciliation drops, so a layout saved by another build costs at most its component tabs.
 
+use super::catalog::short_type;
+use super::state::Workspace;
 use craft_behavior::Axis;
-use craft_behavior::dock::{Layout, Node, SplitSize};
+use craft_behavior::dock::{Column, DockEdge, Group, Layout, Node, Permissions, SplitSize, Workspace as Dock};
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeSet;
+use std::sync::{Mutex, PoisonError};
 
 /// A panel of the viewer's dock layouts.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
-pub enum GalleryPanel {
+pub enum PanelId {
     /// The component tree.
     Components,
-    /// The shown stories.
+    /// The target component's stories.
     Stories,
-    /// The component's facts.
-    Facts,
-    /// The decision record.
-    Record,
-    /// The theme's contrast problems.
-    Problems,
-    /// The theme's token browser.
+    /// The target story's facts and values.
+    Properties,
+    /// The decision record of the target component.
+    Inspect,
+    /// The token browser.
     Tokens,
+    /// The centre's first tab: every component of one level.
+    Overview,
+    /// A centre tab with every story of one component, by the component's registered type name.
+    Component(&'static str),
+    /// The theme workspace's centre: the mock app or the Controls level.
+    Preview,
     /// The picked token's detail.
     Detail,
+    /// The theme's contrast problems.
+    Problems,
     /// The app sizes editor.
-    Overrides,
+    AppSizes,
 }
 
-/// How wide each column is and how the right column divides, as shares of the whole.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[non_exhaustive]
-pub struct PanelShares {
-    /// The component tree, the stories and the right column, side by side.
-    pub columns: [f32; 3],
-    /// The facts over the decision record in the right column.
-    pub right: [f32; 2],
-}
-
-/// Shares are equal when they divide the room alike: a layout keeps ratios, so only the proportions survive it.
-impl PartialEq for PanelShares {
-    fn eq(&self, other: &Self) -> bool {
-        fn alike(a: &[f32], b: &[f32]) -> bool {
-            let (sum_a, sum_b) = (a.iter().sum::<f32>(), b.iter().sum::<f32>());
-            a.iter().zip(b).all(|(a, b)| (a / sum_a - b / sum_b).abs() < 1e-4)
+impl PanelId {
+    /// The panel's title.
+    pub fn title(self) -> String {
+        match self {
+            PanelId::Components => "Components".to_owned(),
+            PanelId::Stories => "Stories".to_owned(),
+            PanelId::Properties => "Properties".to_owned(),
+            PanelId::Inspect => "Inspect".to_owned(),
+            PanelId::Tokens => "Tokens".to_owned(),
+            PanelId::Overview => "Overview".to_owned(),
+            PanelId::Component(type_name) => short_type(type_name),
+            PanelId::Preview => "Preview".to_owned(),
+            PanelId::Detail => "Detail".to_owned(),
+            PanelId::Problems => "Problems".to_owned(),
+            PanelId::AppSizes => "App sizes".to_owned(),
         }
-        alike(&self.columns, &other.columns) && alike(&self.right, &other.right)
+    }
+
+    /// Whether the layout of `workspace` holds the panel. The token browser is in both.
+    pub fn in_workspace(self, workspace: Workspace) -> bool {
+        match self {
+            PanelId::Components | PanelId::Stories | PanelId::Properties | PanelId::Inspect | PanelId::Overview | PanelId::Component(_) => {
+                workspace == Workspace::Components
+            }
+            PanelId::Tokens => true,
+            PanelId::Preview | PanelId::Detail | PanelId::Problems | PanelId::AppSizes => workspace == Workspace::Theme,
+        }
+    }
+
+    /// Panels move, float and tab freely. Only a component tab closes: any other closed panel would have no way back
+    /// besides Reset layout.
+    pub fn permissions(&self) -> Permissions {
+        Permissions::ALL.closable(matches!(self, PanelId::Component(_)))
     }
 }
 
-impl Default for PanelShares {
-    fn default() -> Self {
-        PanelShares { columns: [2.0, 6.0, 3.0], right: [1.0, 1.0] }
+/// [`PanelId`] as saved: the same variants, with a component tab named by an owned string.
+#[derive(Serialize, Deserialize)]
+enum PanelRepr {
+    Components,
+    Stories,
+    Properties,
+    Inspect,
+    Tokens,
+    Overview,
+    Component(String),
+    Preview,
+    Detail,
+    Problems,
+    AppSizes,
+}
+
+/// The names of the component tabs read from saved layouts. A tab name is a `&'static str`, so each distinct name is
+/// kept once for the process.
+fn interned(name: String) -> &'static str {
+    static NAMES: Mutex<BTreeSet<&'static str>> = Mutex::new(BTreeSet::new());
+    let mut names = NAMES.lock().unwrap_or_else(PoisonError::into_inner);
+    if let Some(known) = names.get(name.as_str()) {
+        return known;
+    }
+    let leaked: &'static str = Box::leak(name.into_boxed_str());
+    names.insert(leaked);
+    leaked
+}
+
+impl Serialize for PanelId {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let repr = match *self {
+            PanelId::Components => PanelRepr::Components,
+            PanelId::Stories => PanelRepr::Stories,
+            PanelId::Properties => PanelRepr::Properties,
+            PanelId::Inspect => PanelRepr::Inspect,
+            PanelId::Tokens => PanelRepr::Tokens,
+            PanelId::Overview => PanelRepr::Overview,
+            PanelId::Component(name) => PanelRepr::Component(name.to_owned()),
+            PanelId::Preview => PanelRepr::Preview,
+            PanelId::Detail => PanelRepr::Detail,
+            PanelId::Problems => PanelRepr::Problems,
+            PanelId::AppSizes => PanelRepr::AppSizes,
+        };
+        repr.serialize(serializer)
     }
 }
 
-impl PanelShares {
-    /// Whether every share is a positive finite number.
-    pub fn is_valid(&self) -> bool {
-        self.columns.iter().chain(&self.right).all(|share| share.is_finite() && *share > 0.0)
-    }
-
-    /// The dock layout of the shares: each split gives its first child the fraction of what its two children share.
-    pub fn tree(&self) -> Layout<GalleryPanel> {
-        let [first, second, third] = self.columns;
-        let [above, below] = self.right;
-        let group = |id: GalleryPanel| Node::tabs(vec![id], 0);
-        let right = Node::split(Axis::Y, SplitSize::Ratio(above / (above + below)), group(GalleryPanel::Facts), group(GalleryPanel::Record));
-        let rest = Node::split(Axis::X, SplitSize::Ratio(second / (second + third)), group(GalleryPanel::Stories), right);
-        Layout::new(Some(Node::split(Axis::X, SplitSize::Ratio(first / (first + second + third)), group(GalleryPanel::Components), rest)), Vec::new())
-    }
-
-    /// The shares of `layout`, when it has the shape `tree` builds.
-    pub fn of_tree(layout: &Layout<GalleryPanel>) -> Option<PanelShares> {
-        let Some(Node::Split { axis: Axis::X, size: SplitSize::Ratio(outer), second: rest, .. }) = &layout.root else { return None };
-        let Node::Split { axis: Axis::X, size: SplitSize::Ratio(middle), second: right, .. } = rest.as_ref() else { return None };
-        let Node::Split { axis: Axis::Y, size: SplitSize::Ratio(inner), .. } = right.as_ref() else { return None };
-        let shares = PanelShares { columns: [*outer, (1.0 - outer) * middle, (1.0 - outer) * (1.0 - middle)], right: [*inner, 1.0 - inner] };
-        shares.is_valid().then_some(shares)
-    }
-
-    /// The saved text of the shares.
-    pub fn save(&self) -> String {
-        serde_json::to_string(self).unwrap_or_default()
-    }
-
-    /// The shares saved as `text`; the default when the text is empty, unreadable or holds a share that is not
-    /// positive.
-    pub fn load(text: &str) -> PanelShares {
-        serde_json::from_str::<PanelShares>(text).ok().filter(PanelShares::is_valid).unwrap_or_default()
+impl<'de> Deserialize<'de> for PanelId {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        Ok(match PanelRepr::deserialize(deserializer)? {
+            PanelRepr::Components => PanelId::Components,
+            PanelRepr::Stories => PanelId::Stories,
+            PanelRepr::Properties => PanelId::Properties,
+            PanelRepr::Inspect => PanelId::Inspect,
+            PanelRepr::Tokens => PanelId::Tokens,
+            PanelRepr::Overview => PanelId::Overview,
+            PanelRepr::Component(name) => PanelId::Component(interned(name)),
+            PanelRepr::Preview => PanelId::Preview,
+            PanelRepr::Detail => PanelId::Detail,
+            PanelRepr::Problems => PanelId::Problems,
+            PanelRepr::AppSizes => PanelId::AppSizes,
+        })
     }
 }
 
-/// The shares of the theme panels' columns: the problems, the tokens and the right column.
-const THEME_COLUMNS: [f32; 3] = [2.0, 4.0, 3.0];
-/// The shares of the right column: the detail over the app sizes.
-const THEME_RIGHT: [f32; 2] = [1.0, 1.0];
+/// The share a split beside a dock records. The dock's width comes from its columns, so the split never reads it.
+const BESIDE_DOCK: SplitSize = SplitSize::Ratio(0.5);
 
-/// The layout of the theme panels. Problems come first in the tree, so they are shown before the tokens in a pass:
-/// the token browser reveals the row a problem picks in the same pass.
-pub fn theme_layout() -> Layout<GalleryPanel> {
-    let [first, second, third] = THEME_COLUMNS;
-    let [above, below] = THEME_RIGHT;
-    let group = |id: GalleryPanel| Node::tabs(vec![id], 0);
-    let right = Node::split(Axis::Y, SplitSize::Ratio(above / (above + below)), group(GalleryPanel::Detail), group(GalleryPanel::Overrides));
-    let rest = Node::split(Axis::X, SplitSize::Ratio(second / (second + third)), group(GalleryPanel::Tokens), right);
-    Layout::new(Some(Node::split(Axis::X, SplitSize::Ratio(first / (first + second + third)), group(GalleryPanel::Problems), rest)), Vec::new())
+/// The components workspace: the component tree at the start edge, the overview in the centre, the stories above the
+/// properties, the inspector and the token browser at the end edge.
+pub fn default_components() -> Dock<PanelId> {
+    let tree = Column::new(vec![Group::new(vec![PanelId::Components], 0)]);
+    let side = Column::new(vec![Group::new(vec![PanelId::Stories], 0), Group::new(vec![PanelId::Properties, PanelId::Inspect, PanelId::Tokens], 0)]);
+    let centre = Node::split(Axis::X, BESIDE_DOCK, Node::tabs(vec![PanelId::Overview], 0), Node::dock(DockEdge::End, vec![side]));
+    let root = Node::split(Axis::X, BESIDE_DOCK, Node::dock(DockEdge::Start, vec![tree]), centre);
+    Dock::new(Layout::new(Some(root), Vec::new()))
+}
+
+/// The theme workspace: the preview in the centre; the problems, detail and app sizes above the token browser at the
+/// end edge. The problems come first in the tree, so they are shown before the tokens in a pass: the token browser
+/// reveals the row a problem picks in the same pass.
+pub fn default_theme() -> Dock<PanelId> {
+    let side = Column::new(vec![Group::new(vec![PanelId::Problems, PanelId::Detail, PanelId::AppSizes], 0), Group::new(vec![PanelId::Tokens], 0)]);
+    let root = Node::split(Axis::X, BESIDE_DOCK, Node::tabs(vec![PanelId::Preview], 0), Node::dock(DockEdge::End, vec![side]));
+    Dock::new(Layout::new(Some(root), Vec::new()))
+}
+
+/// The default layout of `workspace`.
+pub fn default_for(workspace: Workspace) -> Dock<PanelId> {
+    match workspace {
+        Workspace::Components => default_components(),
+        Workspace::Theme => default_theme(),
+    }
+}
+
+/// `saved` made valid for `workspace`: a layout that fails validation is replaced by the default, panels of the other
+/// workspace and component tabs `known` rejects are dropped, and missing panels come back where the default has them.
+pub fn reconciled(mut saved: Dock<PanelId>, workspace: Workspace, known: &dyn Fn(&str) -> bool) -> Dock<PanelId> {
+    let registered = |panel: &PanelId| {
+        panel.in_workspace(workspace)
+            && match panel {
+                PanelId::Component(name) => known(name),
+                _ => true,
+            }
+    };
+    saved.reconcile(registered, PanelId::permissions, &default_for(workspace));
+    saved.hidden.retain(|(panel, _)| registered(panel));
+    saved
+}
+
+/// The saved text of `layout`.
+pub fn save(layout: &Dock<PanelId>) -> String {
+    serde_json::to_string(layout).unwrap_or_default()
+}
+
+/// The layout saved as `text`, made valid for `workspace`; the default when the text is empty or unreadable.
+pub fn load(text: &str, workspace: Workspace, known: &dyn Fn(&str) -> bool) -> Dock<PanelId> {
+    serde_json::from_str::<Dock<PanelId>>(text).ok().map_or_else(|| default_for(workspace), |saved| reconciled(saved, workspace, known))
+}
+
+/// The component tabs `layout` holds, in layout order.
+pub fn open_tabs(layout: &Dock<PanelId>) -> Vec<&'static str> {
+    layout
+        .layout
+        .panels()
+        .into_iter()
+        .filter_map(|panel| match panel {
+            PanelId::Component(name) => Some(*name),
+            _ => None,
+        })
+        .collect()
 }
