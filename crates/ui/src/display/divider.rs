@@ -17,8 +17,6 @@ pub struct DividerStyle {
     metrics: Metrics,
     /// The line's width.
     width: f32,
-    /// The width of the box a vertical line sits in, the line centred: `space.gap.stack`.
-    slot: f32,
     /// The least length of a line, vertical or horizontal: one control height.
     length: f32,
 }
@@ -31,7 +29,7 @@ enum Axis {
 }
 
 /// A separator line in the divider colour, snapped to the pixel grid. A horizontal line takes the width it is
-/// offered (at least one control height; in a content-sized column it never widens the column) and a vertical one the height of its row, at least a control's height, in a box one gap wide with the line centred. Decoration: it is not in the
+/// offered (at least one control height; in a content-sized column it never widens the column) and a vertical one the height of its row, at least a control's height. Decoration: it is not in the
 /// AccessKit tree.
 #[derive(crate::contract::Component)]
 pub struct Divider {
@@ -63,18 +61,13 @@ impl Component for Divider {
     type Output = Response;
 
     fn style(cx: &StyleCx<'_>, _: DividerStyleKey) -> DividerStyle {
-        DividerStyle {
-            metrics: Metrics::new(),
-            width: cx.rule(RuleKind::Divider).width,
-            slot: cx.tokens.space.gap.stack,
-            length: cx.control().height,
-        }
+        DividerStyle { metrics: Metrics::new(), width: cx.rule(RuleKind::Divider).width, length: cx.control().height }
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
         match self.axis {
             Axis::Horizontal => Vec2::new(cx.style.length, cx.style.width),
-            Axis::Vertical => Vec2::new(cx.style.slot.max(cx.style.width), cx.style.length),
+            Axis::Vertical => Vec2::new(cx.style.width, cx.style.length),
         }
     }
 
