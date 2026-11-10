@@ -18,7 +18,7 @@ use crate::contract::{
 use crate::list::{List, ListRow};
 use crate::primitives::{IconSpec, TextOptions, TextRun};
 use crate::runtime::env::{Label, LengthUnits, UnitKind, Units};
-use crate::style::{ComponentStyle, Ink, StyleCx, SurfaceLook, TextLook, TypeRole};
+use crate::style::{ComponentStyle, StyleCx, SurfaceLook, TextLook, TypeRole};
 use crate::value_drag::Slider;
 use craft_behavior::Value;
 use craft_behavior::nav::{LARGE_STEPS, StepResult, ValueAxes, ValueSteps};
@@ -34,6 +34,9 @@ use std::ops::{Deref, RangeInclusive};
 
 /// The step of an arrow press, the wheel and the label scrub when the field sets none.
 const DEFAULT_STEP: f64 = 1.0;
+/// The placeholder of a mixed field.
+const BLANK: &str = "\u{2014}";
+
 /// The decimals a field writes when neither a codec nor a unit kind says.
 const DEFAULT_DECIMALS: usize = 3;
 /// How far a value may sit off a multiple of the step and still count as on it.
@@ -503,13 +506,16 @@ impl<'a, V: NumberValue + 'static> NumberField<'a, V> {
         Rule::new(range.as_ref(), self.step)
     }
 
-    /// Reads what a length field keeps from the env: the scale from stored to shown, and the shown unit's symbol
-    /// after the number unless the field sets a unit.
+    /// Reads what the field keeps from the env: a length field's scale from stored to shown, and the symbol of its unit
+    /// kind after the number unless the field sets a unit.
     fn settle_lengths(&mut self, units: &Units) {
-        let Some(lengths) = self.lengths else { return };
-        self.scale = units.length_scale(lengths).unwrap_or(1.0);
-        if self.unit.is_none() {
-            self.unit = Some(units.symbol(lengths.shown).into());
+        if let Some(lengths) = self.lengths {
+            self.scale = units.length_scale(lengths).unwrap_or(1.0);
+        }
+        if self.unit.is_none()
+            && let Some(kind) = self.unit_kind
+        {
+            self.unit = Some(units.symbol(kind).into());
         }
     }
 
@@ -601,11 +607,11 @@ impl<'a, V: NumberValue + 'static> NumberField<'a, V> {
     }
 
     /// The text rect and the unit's: the unit sits between the text and the chevrons.
-    fn text_and_unit(&self, text: Rect, rtl: bool, gap: f32) -> (Rect, Option<Rect>) {
+    fn text_and_unit(&self, text: Rect, rtl: bool) -> (Rect, Option<Rect>) {
         if self.unit_size.x <= 0.0 {
             return (text, None);
         }
-        let (unit, rest) = Flow::new(text, rtl).take_end(self.unit_size.x + gap);
+        let (unit, rest) = Flow::new(text, rtl).take_end(self.unit_size.x);
         (rest.rect(), Some(unit))
     }
 
@@ -717,7 +723,7 @@ impl<V: NumberValue + 'static> Component for NumberField<'_, V> {
             // The width comes from the range's widest value or, with no range, the field's minimum (`measure`); the
             // style's minimum is only the height.
             metrics: field.metrics.min_size(Vec2::new(0.0, field.metrics.min_size.y)),
-            unit: TextLook::new(TypeRole::Body, Stateful::new(cx.ink(Ink::OnPanel))),
+            unit: TextLook::new(TypeRole::Body, Stateful::new(cx.color(cx.tokens.color.text.faint))),
             field,
         }
     }
@@ -732,7 +738,7 @@ impl<V: NumberValue + 'static> Component for NumberField<'_, V> {
         let sample = cx.value().map_or(Cow::Borrowed(""), |value| codec.sample(value));
         let text = cx.layout(&TextRun::new(sample.as_ref())).size();
         self.unit_size = self.unit_extent(cx);
-        let unit = if self.unit_size.x > 0.0 { self.unit_size.x + cx.gap() } else { 0.0 };
+        let unit = self.unit_size.x;
         // The chevrons' extent is the span from the text's end to the last chevron's far edge, laid out in the
         // field's minimum size, which is wide enough for any adornments.
         let chevrons = self.chevrons(&cx.words::<TextWords>());
@@ -751,15 +757,19 @@ impl<V: NumberValue + 'static> Component for NumberField<'_, V> {
         Vec2::new(width, text.y.max(self.unit_size.y))
     }
 
-    fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
+    fn parts(&mut self, _: Rect, cx: &mut PartsCx<'_, Self>) {
         self.settle_lengths(&cx.env.units());
         self.unit_size = self.unit_extent(cx);
         let rtl = cx.flow.is_rtl();
         let chevrons = self.chevrons(&cx.words::<TextWords>());
-        let placed = Self::laid_out(cx.style, rect, rtl, &chevrons);
-        let (text, _) = self.text_and_unit(placed.text, rtl, cx.gap());
+        let placed = Self::laid_out(cx.style, cx.content_rect, rtl, &chevrons);
+        let (text, _) = self.text_and_unit(placed.text, rtl);
+        self.options.centred = true;
         self.options.steps_value = self.presets.is_none() && self.popup_slider.is_none();
         let shown = cx.value();
+        if shown.is_none() && self.options.placeholder.is_none() {
+            self.options.placeholder = Some(BLANK.into());
+        }
         let names = self.names(|row| cx.env.resolve(&row.label().clone()));
         let blank = V::blank().unwrap_or_else(|| V::of_number(self.rule().blank()));
         cx.text(text_part::<V>(), text, &self.ruled(&cx.env.units(), shown.is_none(), names), shown.unwrap_or(&blank), &self.options);
@@ -869,12 +879,11 @@ impl<V: NumberValue + 'static> Component for NumberField<'_, V> {
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let rtl = cx.flow.is_rtl();
         let chevrons = self.chevrons(&cx.words::<TextWords>());
-        let placed = Self::laid_out(cx.style, cx.rect, rtl, &chevrons);
-        let (_, unit) = self.text_and_unit(placed.text, rtl, cx.style.metrics.gap);
+        let placed = Self::laid_out(cx.style, cx.content_rect, rtl, &chevrons);
+        let (_, unit) = self.text_and_unit(placed.text, rtl);
         if let (Some(unit), Some(label)) = (unit, &self.unit) {
             let top = unit.center().y - self.unit_size.y / 2.0;
-            let (_, rest) = Flow::new(unit, rtl).take_start(cx.style.metrics.gap);
-            let at = rest.rect();
+            let at = unit;
             let run = TextRun::new(label.as_str()).role(cx.style.unit.role).color(cx.resolve(&cx.style.unit.color));
             ui.draw().text(Rect::from_min_size(Pos2::new(at.min.x, top), Vec2::new(at.width(), self.unit_size.y)), &run);
         }
