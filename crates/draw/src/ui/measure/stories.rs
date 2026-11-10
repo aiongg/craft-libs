@@ -3,10 +3,8 @@
 use super::model::RulerPart;
 use super::overlay::POINT;
 use super::{RulerBar, RulerLine, RulerOverlay};
-use craft_behavior::CanvasView;
 use craft_behavior::kurbo::Point;
 use craft_ui::bars::{Bar, BarKind};
-use craft_ui::canvas::Canvas;
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::testing::{Drive, Grip, StoryData, StoryOutput, story};
 use egui::Ui;
@@ -17,11 +15,7 @@ fn line() -> RulerLine {
 
 /// Shows the overlay over `line` as the only canvas control of a canvas.
 fn on_canvas(ui: &mut Ui, line: &mut Option<RulerLine>) -> StoryOutput {
-    let room = craft_ui::testing::stage(ui);
-    let view = CanvasView::new(room, Point::new(f64::from(room.width()) / 2.0, f64::from(room.height()) / 2.0), 1.0);
-    let shown =
-        Canvas::new("Document").view(view).show_at(ui, room, |ui, body| RulerOverlay::new("Ruler", Bind::bound(&mut *line)).show_at(ui, body.rect));
-    shown.inner.map(StoryOutput::from).unwrap_or_default()
+    craft_ui::testing::canvas_story::on_canvas(ui, 1.0, |ui, at, _| RulerOverlay::new("Ruler", Bind::bound(&mut *line)).show_at(ui, at))
 }
 
 #[story(RulerOverlay<'static>, covers = [Default], drive = Drive::Drag(Grip::part(POINT.at(RulerPart::End.key()))))]

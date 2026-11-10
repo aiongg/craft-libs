@@ -1,8 +1,7 @@
 //! Stories of the crop overlay.
 
 use super::{CropOverlay, CropOverlayOutput, FRAME};
-use crate::canvas::Canvas;
-use crate::contract::{Bind, Show as _, ShowContainer as _, Validity};
+use crate::contract::{Bind, Show as _, Validity};
 use crate::runtime::env::Message;
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use craft_behavior::Mixed;
@@ -19,9 +18,7 @@ fn crop() -> CropBox {
 
 /// Shows an overlay as the only canvas control of a canvas and returns its output.
 fn on_canvas(ui: &mut Ui, mut control: impl FnMut(&mut Ui, Rect) -> CropOverlayOutput) -> StoryOutput {
-    let room = crate::testing::stage(ui);
-    let shown = Canvas::new("Document").show_at(ui, room, |ui, body| control(ui, body.rect));
-    shown.inner.map(|out| StoryOutput::from(out.edit)).unwrap_or_default()
+    crate::testing::canvas_story::on_canvas(ui, 1.0, |ui, at, _| StoryOutput::from(control(ui, at).edit))
 }
 
 /// Drags the top left corner towards the middle of the crop by twice the drag threshold.

@@ -26,10 +26,10 @@ use egui::{Color32, ColorImage, Ui};
 
 use craft_behavior::kurbo::Point;
 use craft_behavior::{CanvasView, PixelSize};
-use craft_ui::canvas::{Canvas, PixelRect, RasterDisplay, RasterSource};
-use craft_ui::contract::{Show as _, ShowContainer as _};
-use craft_ui::primitives::{Checker, Revision};
+use craft_ui::canvas::{PixelRect, RasterSource};
+use craft_ui::primitives::Revision;
 use craft_ui::testing::StoryOutput;
+use craft_ui::testing::canvas_story::on_canvas_view;
 
 use crate::trace::{MaskRect, MaskSource};
 
@@ -302,7 +302,7 @@ pub(crate) enum StoryView {
     At { zoom: f64, centre: Point },
 }
 
-/// A story canvas: `image` (the default picture's size without one) under `view`, then `controls` called with the
+/// A story canvas over the stage: `image` (the default picture's size without one) under `view`, then `controls` called with the
 /// canvas's rect to show the controls of the story over it.
 pub(crate) fn story_canvas(
     ui: &mut Ui,
@@ -310,12 +310,11 @@ pub(crate) fn story_canvas(
     view: StoryView,
     mut controls: impl FnMut(&mut Ui, egui::Rect) -> StoryOutput,
 ) -> StoryOutput {
-    let at = ui.available_rect_before_wrap();
     let size = image.map_or_else(|| MockImage::default().size(), |image| image.size());
     let (width, height) = (f64::from(size.width.max(1)), f64::from(size.height.max(1)));
     let per_point = f64::from(ui.ctx().pixels_per_point());
     let middle = Point::new(width / 2.0, height / 2.0);
-    let canvas_view = match view {
+    let canvas_view = |at: egui::Rect| match view {
         StoryView::Fit => {
             let fit = (f64::from(at.width()) / width).min(f64::from(at.height()) / height);
             CanvasView::new(at, middle, fit)
@@ -323,11 +322,5 @@ pub(crate) fn story_canvas(
         StoryView::Zoom(percent) => CanvasView::new(at, middle, percent / 100.0 / per_point),
         StoryView::At { zoom, centre } => CanvasView::new(at, centre, zoom / 100.0 / per_point),
     };
-    let shown = Canvas::new("Document").view(canvas_view).show(ui, |ui, body| {
-        if let Some(image) = image {
-            RasterDisplay::new("Picture", image).checkerboard(Checker::new()).show_at(ui, body.rect);
-        }
-        controls(ui, body.rect)
-    });
-    shown.inner.unwrap_or_default()
+    on_canvas_view(ui, canvas_view, image, |ui, rect, _| controls(ui, rect))
 }

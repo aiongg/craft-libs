@@ -24,6 +24,7 @@ fn on_canvas<'a>(ui: &mut Ui, rect: Rect, handles: impl Fn(Rect) -> AddBesideHan
     let board = [PageFrame::new(artboard()).name("Artboard 1").active(true)];
     let view = view(rect);
     let shown = Canvas::new("Document").view(view).show_at(ui, rect, |ui, body| {
+        craft_ui::testing::canvas_story::show_document(ui, body.rect, &craft_ui::testing::canvas_story::StoryDocument::STANDARD);
         let name_clicked = Pasteboard::new("Pasteboard", &board).show_at(ui, body.rect).name_clicked.is_some();
         (handles(body.rect).show_at(ui, body.rect), name_clicked)
     });

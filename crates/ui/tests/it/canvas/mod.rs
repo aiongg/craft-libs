@@ -124,3 +124,4 @@ fn page_down_and_home_scroll_a_focused_canvas_and_the_arrows_stay_the_tools() {
     let corner = home.to_screen(Point::ORIGIN);
     assert!((corner.x - SHOWN.left()).abs() < 1e-3 && (corner.y - SHOWN.top()).abs() < 1e-3, "Home shows the document's top left: {home:?}");
 }
+mod story_canvas;

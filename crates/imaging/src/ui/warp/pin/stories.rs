@@ -1,18 +1,18 @@
-//! Stories of Puppet Warp: the pins on a plain canvas over a fake solver ([`IdwSolver`], an inverse-distance
+//! Stories of Puppet Warp: the pins over the transform preview stage, the layer's picture drawn through a fake solver ([`IdwSolver`], an inverse-distance
 //! deformation of a grid), and the options bar.
 
-use craft_behavior::CanvasView;
 use craft_behavior::kurbo::{Point, Rect as DocRect, Vec2};
-use craft_ui::canvas::Canvas;
-use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, Show as _};
 use craft_ui::testing::{Drive, Grip, StoryData, StoryOutput, story};
 use egui::{Ui, vec2};
 
-use super::{Pin, PinDensity, PinEdit, PinMeshView, PinSolver, PinWarp, PinWarpBar, PinWarpOptions, PinWarpOutput, PinWarpSession, PinWarpSettings};
+use super::{Pin, PinDensity, PinEdit, PinMeshView, PinSolver, PinWarp, PinWarpBar, PinWarpOptions, PinWarpSession, PinWarpSettings};
+use crate::ui::transform_preview::PreviewMap;
+use crate::ui::transform_preview::stories::{Document, Zoom, draw};
 
-/// The layer the pins deform.
+/// The layer the pins deform: the transform preview stage's layer.
 fn layer() -> DocRect {
-    DocRect::new(20.0, 20.0, 260.0, 200.0)
+    Document::standard().layer()
 }
 
 /// The mesh's cells per side.
@@ -106,20 +106,25 @@ pub(crate) fn sample_pins(layer: DocRect) -> Vec<Pin> {
     vec![pin((0.2, 0.25), (0.2, 0.25)), pin((0.8, 0.25), (0.9, 0.1)), pin((0.5, 0.75), (0.45, 0.85)), pin((0.15, 0.8), (0.15, 0.8))]
 }
 
-/// Shows `pins` on a canvas whose view has the document origin at its top left; the selection the pins report is kept.
+/// Shows `pins` over the transform preview stage: the layer's picture drawn by the real `TransformPreview` through
+/// the solver's mesh as the pins deform it, the pins over it; the selection the pins report is kept.
 fn on_canvas(ui: &mut Ui, data: &mut StoryData, pins: &mut Vec<Pin>, show_mesh: bool) -> StoryOutput {
-    let room = ui.available_rect_before_wrap();
-    let view = CanvasView::new(room, Point::new(f64::from(room.width()) / 2.0, f64::from(room.height()) / 2.0), 1.0);
     let selected = data.value("selected", vec![1usize]).clone();
-    let solver = IdwSolver::new(layer());
-    let shown = Canvas::new("Document").view(view).show(ui, |ui, body| -> PinWarpOutput {
-        PinWarp::new("Pins", Bind::bound(&mut *pins), solver.view()).selected_pins(&selected).show_mesh(show_mesh).show_at(ui, body.rect)
+    let doc = Document::standard();
+    let textures = doc.textures();
+    let layer = layer();
+    let mut reported = None;
+    let shown = doc.canvas(ui, Zoom::Fit, None, |ui, at| {
+        let solver = IdwSolver::solved(layer, pins);
+        draw(ui, at, &doc, &textures, PreviewMap::pins(solver.view(), layer), 1.0, false);
+        let output = PinWarp::new("Pins", Bind::bound(&mut *pins), solver.view()).selected_pins(&selected).show_mesh(show_mesh).show_at(ui, at);
+        reported = output.select.clone();
+        StoryOutput::from(output)
     });
-    let Some(output) = shown.inner else { return StoryOutput::default() };
-    if let Some(select) = output.select.clone() {
+    if let Some(select) = reported {
         *data.value("selected", vec![1usize]) = select;
     }
-    StoryOutput::from(output)
+    shown
 }
 
 fn pins_with_a_fixed_turn() -> Vec<Pin> {

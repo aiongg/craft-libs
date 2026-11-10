@@ -11,14 +11,19 @@ use egui::{Ui, vec2};
 
 /// The picture before any transform, in document units.
 const PICTURE: DocRect = DocRect::new(200.0, 120.0, 440.0, 280.0);
+/// The layer the box transforms, shown where the box is.
+const LAYER: craft_ui::testing::canvas_story::FlatPicture =
+    craft_ui::testing::canvas_story::FlatPicture::new(egui::Color32::from_rgba_premultiplied(60, 112, 155, 220));
 
 /// Shows the box `configure` builds over the story's box as the only canvas control of a canvas.
 fn on_canvas(ui: &mut Ui, data: &mut StoryData, configure: impl for<'a> Fn(TransformBox<'a>) -> TransformBox<'a>) -> StoryOutput {
     let state = data.value("box", BoxState::from_rect(PICTURE));
     let room = craft_ui::testing::stage(ui);
-    let shown = Canvas::new("Document")
-        .view(CanvasView::new(room, PICTURE.center(), 1.0))
-        .show_at(ui, room, |ui, body| configure(TransformBox::new("Free Transform", Bind::bound(&mut *state), PICTURE, 0.0)).show_at(ui, body.rect));
+    let shown = Canvas::new("Document").view(CanvasView::new(room, PICTURE.center(), 1.0)).show_at(ui, room, |ui, body| {
+        craft_ui::testing::canvas_story::show_document(ui, body.rect, &craft_ui::testing::canvas_story::StoryDocument::STANDARD);
+        craft_ui::testing::canvas_story::show_quad(ui, body.rect, "Layer", state.quad, &LAYER);
+        configure(TransformBox::new("Free Transform", Bind::bound(&mut *state), PICTURE, 0.0)).show_at(ui, body.rect)
+    });
     shown.inner.map(|output| StoryOutput::from(output.edit)).unwrap_or_default()
 }
 

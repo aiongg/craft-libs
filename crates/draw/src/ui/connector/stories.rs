@@ -1,9 +1,8 @@
 //! Stories of the connector handles and the connector bar.
 
-use craft_behavior::kurbo::{Point, Rect};
-use craft_behavior::{CanvasView, Mixed};
+use craft_behavior::Mixed;
+use craft_behavior::kurbo::Rect;
 use craft_ui::bars::{Bar, BarKind};
-use craft_ui::canvas::Canvas;
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::testing::{Drive, Grip, StoryData, StoryOutput, story};
 use egui::{Ui, vec2};
@@ -26,10 +25,7 @@ fn glued(target: u64, side: ConnectionSide) -> ConnectorEnd {
 /// Shows the handles `handles` builds and shows as the only canvas control of a canvas whose view has the document
 /// origin at its top left. The canvas body runs more than once per pass, so `handles` builds them on every run.
 fn on_canvas<R: Into<StoryOutput>>(ui: &mut Ui, mut handles: impl FnMut(&mut Ui, egui::Rect) -> R) -> StoryOutput {
-    let room = craft_ui::testing::stage(ui);
-    let view = CanvasView::new(room, Point::new(f64::from(room.width()) / 2.0, f64::from(room.height()) / 2.0), 1.0);
-    let shown = Canvas::new("Document").view(view).show_at(ui, room, |ui, body| handles(ui, body.rect));
-    shown.inner.map(Into::into).unwrap_or_default()
+    craft_ui::testing::canvas_story::on_canvas(ui, 1.0, |ui, at, _| handles(ui, at))
 }
 
 #[story(ConnectorHandles<'static>, covers = [Default], drive = Drive::Drag(Grip::part(super::handles::END.at(0)).toward(vec2(0.0, 1.0))))]

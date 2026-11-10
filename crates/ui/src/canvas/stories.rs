@@ -2,6 +2,7 @@
 
 use super::{Canvas, CropOverlay};
 use crate::contract::{Bind, Show as _, ShowContainer as _};
+use crate::testing::canvas_story::{StoryDocument, origin_view, show_document};
 use crate::testing::{StoryData, StoryOutput, story};
 use craft_behavior::CanvasTransform;
 use craft_behavior::geometry::CropBox;
@@ -18,7 +19,10 @@ fn crop() -> CropBox {
 #[story(Canvas, covers = [Default])]
 fn crop_tool(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let room = crate::testing::stage(ui);
-    let shown = Canvas::new("Document").show_at(ui, room, |ui, body| CropOverlay::new("Crop", Bind::given(crop())).show_at(ui, body.rect));
+    let shown = Canvas::new("Document").view(origin_view(room, 1.0)).show_at(ui, room, |ui, body| {
+        show_document(ui, body.rect, &StoryDocument::STANDARD);
+        CropOverlay::new("Crop", Bind::given(crop())).show_at(ui, body.rect)
+    });
     shown.output.into()
 }
 
@@ -34,5 +38,9 @@ fn zoomed(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 #[story(Canvas, covers = [Default])]
 fn freehand(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let room = crate::testing::stage(ui);
-    Canvas::new("Painting").show_at(ui, room, |_, _| ()).output.into()
+    Canvas::new("Painting")
+        .view(origin_view(room, 1.0))
+        .show_at(ui, room, |ui, body| show_document(ui, body.rect, &StoryDocument::STANDARD))
+        .output
+        .into()
 }

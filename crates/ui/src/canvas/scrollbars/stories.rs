@@ -4,7 +4,7 @@ use super::{CanvasScrollbars, HORIZONTAL};
 use crate::canvas::Canvas;
 use crate::contract::{Bind, Show as _, Validity};
 use crate::runtime::env::Message;
-use crate::testing::canvas_story::on_canvas_with;
+use crate::testing::canvas_story::{StoryDocument, on_canvas_with};
 use crate::testing::stage;
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, Target, story};
 use craft_behavior::kurbo::{Point, Rect as DocRect};
@@ -20,6 +20,8 @@ const GRIP_THRESHOLDS: f32 = 1.5;
 
 /// The document the bars scroll, in document units.
 const DOCUMENT: DocRect = DocRect::new(0.0, 0.0, 800.0, 600.0);
+/// The document the canvas shows, the same size as [`DOCUMENT`].
+const SHOWN: StoryDocument = StoryDocument::new(800, 600);
 
 /// The zoom that shows part of the document in the story's canvas.
 const ZOOM: f64 = 2.0;
@@ -48,7 +50,7 @@ fn scrolled_view(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let full = stage(ui);
     let overscroll = *data.value("overscroll", false);
     let view = data.value("view", view_over(full));
-    on_canvas_with(ui, full, Canvas::new("Document").view(view_over(full)), |ui, at| {
+    on_canvas_with(ui, full, Canvas::new("Document").view(view_over(full)), Some(&SHOWN), |ui, at| {
         CanvasScrollbars::new("Scroll bars", Bind::bound(&mut *view), DOCUMENT).overscroll(overscroll).show_at(ui, at)
     })
 }
@@ -58,7 +60,7 @@ fn views_that_differ(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let full = stage(ui);
     let overscroll = *data.value("overscroll", false);
     let view = data.value("view", Mixed::<CanvasView>::Mixed);
-    on_canvas_with(ui, full, Canvas::new("Document").view(view_over(full)), |ui, at| {
+    on_canvas_with(ui, full, Canvas::new("Document").view(view_over(full)), Some(&SHOWN), |ui, at| {
         CanvasScrollbars::new("Scroll bars", Bind::bound_mixed(&mut *view), DOCUMENT).overscroll(overscroll).show_at(ui, at)
     })
 }
@@ -68,7 +70,7 @@ fn view_scrolled_too_far(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let full = stage(ui);
     let overscroll = *data.value("overscroll", false);
     let view = data.value("view", view_over(full));
-    on_canvas_with(ui, full, Canvas::new("Document").view(view_over(full)), |ui, at| {
+    on_canvas_with(ui, full, Canvas::new("Document").view(view_over(full)), Some(&SHOWN), |ui, at| {
         let kept = |view: &CanvasView| {
             if view.center.x > LAST_CENTRE_X { Validity::Refuse(Message::new("The view cannot scroll further right")) } else { Validity::Ok }
         };

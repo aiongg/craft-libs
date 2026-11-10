@@ -107,19 +107,19 @@ fn gradient(ui: &mut Ui, at: Rect, checker: Option<Checker>) -> RasterDisplayOut
 fn document(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let view = view_values(data, 100.0, 0.0);
     let checker = checker_of(data);
-    on_canvas_view(ui, view, |ui, at, _| gradient(ui, at, checker))
+    on_canvas_view(ui, view, None, |ui, at, _| gradient(ui, at, checker))
 }
 
 #[story(RasterDisplay<'static>, covers = [Default], drive = Drive::Never)]
 fn magnified(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let view = view_values(data, MAGNIFIED * 100.0, 0.0);
     let checker = checker_of(data);
-    on_canvas_view(ui, view, |ui, at, _| gradient(ui, at, checker))
+    on_canvas_view(ui, view, None, |ui, at, _| gradient(ui, at, checker))
 }
 
 #[story(RasterDisplay<'static>, covers = [Default], drive = Drive::Never)]
 fn turned(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let view = view_values(data, 100.0, TURN);
     let checker = checker_of(data);
-    on_canvas_view(ui, view, |ui, at, _| gradient(ui, at, checker))
+    on_canvas_view(ui, view, None, |ui, at, _| gradient(ui, at, checker))
 }

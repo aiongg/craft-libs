@@ -45,7 +45,7 @@ fn artboards(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let view = view_values(data, 0.0);
     let border = border_of(data, PageBorder::DropShadow);
     let pages: &[PageFrame] = data.value("pages", boards());
-    on_canvas_view(ui, view, |ui, at, _| Pasteboard::new("Pasteboard", pages).border(border).show_at(ui, at))
+    on_canvas_view(ui, view, None, |ui, at, _| Pasteboard::new("Pasteboard", pages).border(border).show_at(ui, at))
 }
 
 #[story(Pasteboard<'static>, covers = [Default], drive = Drive::Never)]
@@ -53,7 +53,7 @@ fn page_with_a_line(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let view = view_values(data, 0.0);
     let border = border_of(data, PageBorder::Line);
     let pages: &[PageFrame] = data.value("pages", vec![PageFrame::new(DocRect::new(60.0, 40.0, 300.0, 220.0))]);
-    on_canvas_view(ui, view, |ui, at, _| Pasteboard::new("Pasteboard", pages).color(PasteboardColor::DarkGray).border(border).show_at(ui, at))
+    on_canvas_view(ui, view, None, |ui, at, _| Pasteboard::new("Pasteboard", pages).color(PasteboardColor::DarkGray).border(border).show_at(ui, at))
 }
 
 #[story(Pasteboard<'static>, covers = [Default], drive = Drive::Never)]
@@ -61,5 +61,5 @@ fn turned_view(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let view = view_values(data, TURN);
     let border = border_of(data, PageBorder::DropShadow);
     let pages: &[PageFrame] = data.value("pages", boards());
-    on_canvas_view(ui, view, |ui, at, _| Pasteboard::new("Pasteboard", pages).border(border).show_at(ui, at))
+    on_canvas_view(ui, view, None, |ui, at, _| Pasteboard::new("Pasteboard", pages).border(border).show_at(ui, at))
 }

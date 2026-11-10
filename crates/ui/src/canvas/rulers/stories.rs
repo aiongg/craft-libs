@@ -4,7 +4,7 @@ use super::{CORNER, Rulers};
 use crate::canvas::{Canvas, RulerText};
 use crate::contract::{Bind, Show as _, Validity};
 use crate::runtime::env::{Message, UnitKind};
-use crate::testing::canvas_story::on_canvas_with;
+use crate::testing::canvas_story::{StoryDocument, on_canvas_with};
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use crate::testing::{pointer, stage};
 use craft_behavior::kurbo::Point;
@@ -86,7 +86,9 @@ fn zero_point(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let zero = data.value("zero", Point::ZERO);
     let room = stage(ui);
     let canvas = rulers_canvas(room, *zero, settings);
-    on_canvas_with(ui, room, canvas, |ui, at| configured(Rulers::new("Rulers", Bind::bound(&mut *zero)), settings).show_at(ui, at))
+    on_canvas_with(ui, room, canvas, Some(&StoryDocument::STANDARD), |ui, at| {
+        configured(Rulers::new("Rulers", Bind::bound(&mut *zero)), settings).show_at(ui, at)
+    })
 }
 
 #[story(Rulers<'static>, covers = [Open], drive = Drive::Custom(open_units_menu))]
@@ -95,7 +97,9 @@ fn units_menu(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let zero = data.value("zero", Point::ZERO);
     let room = stage(ui);
     let canvas = rulers_canvas(room, *zero, settings);
-    on_canvas_with(ui, room, canvas, |ui, at| configured(Rulers::new("Rulers", Bind::bound(&mut *zero)), settings).units(&UNITS).show_at(ui, at))
+    on_canvas_with(ui, room, canvas, Some(&StoryDocument::STANDARD), |ui, at| {
+        configured(Rulers::new("Rulers", Bind::bound(&mut *zero)), settings).units(&UNITS).show_at(ui, at)
+    })
 }
 
 #[story(Rulers<'static>, covers = [Mixed], drive = Drive::Custom(drag_corner))]
@@ -104,7 +108,9 @@ fn zero_points_that_differ(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let zero = data.value("zero", Mixed::<Point>::Mixed);
     let room = stage(ui);
     let canvas = rulers_canvas(room, Point::ZERO, settings);
-    on_canvas_with(ui, room, canvas, |ui, at| configured(Rulers::new("Rulers", Bind::bound_mixed(&mut *zero)), settings).show_at(ui, at))
+    on_canvas_with(ui, room, canvas, Some(&StoryDocument::STANDARD), |ui, at| {
+        configured(Rulers::new("Rulers", Bind::bound_mixed(&mut *zero)), settings).show_at(ui, at)
+    })
 }
 
 #[story(Rulers<'static>, covers = [Invalid], drive = Drive::Custom(drag_corner))]
@@ -113,7 +119,7 @@ fn zero_point_left_of_the_document(ui: &mut Ui, data: &mut StoryData) -> StoryOu
     let zero = data.value("zero", Point::new(LEAST_X - 1.0, 0.0));
     let room = stage(ui);
     let canvas = rulers_canvas(room, *zero, settings);
-    on_canvas_with(ui, room, canvas, |ui, at| {
+    on_canvas_with(ui, room, canvas, Some(&StoryDocument::STANDARD), |ui, at| {
         let inside =
             |zero: &Point| if zero.x < LEAST_X { Validity::Refuse(Message::new("The zero point is left of the document")) } else { Validity::Ok };
         configured(Rulers::new("Rulers", Bind::bound(&mut *zero).check(inside)), settings).show_at(ui, at)

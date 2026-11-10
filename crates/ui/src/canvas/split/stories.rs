@@ -4,6 +4,7 @@ use super::{DIVIDER, PANE, SplitAt, SplitLayout, SplitViews};
 use crate::canvas::Canvas;
 use crate::contract::{Bind, ShowContainer as _, Validity};
 use crate::runtime::env::Message;
+use crate::testing::canvas_story::{StoryDocument, show_document};
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use craft_behavior::kurbo::Point;
 use craft_behavior::{CanvasView, Mixed};
@@ -20,7 +21,7 @@ fn split(ui: &mut Ui, layout: SplitLayout, at: Bind<'_, SplitAt>, shown: SplitAt
     let views = SplitViews::new("Views", layout, at).show(ui, |ui, body| {
         for (pane, rect) in layout.placed(shown, body.rect, body.env.direction().is_rtl()).into_iter().enumerate() {
             let view = CanvasView::new(rect, Point::new(f64::from(rect.width()) / 2.0, f64::from(rect.height()) / 2.0), 1.0);
-            Canvas::new(NAMES[pane]).view(view).show_at(ui, rect, |_, _| ());
+            Canvas::new(NAMES[pane]).view(view).show_at(ui, rect, |ui, body| show_document(ui, body.rect, &StoryDocument::STANDARD));
         }
     });
     views.output.into()

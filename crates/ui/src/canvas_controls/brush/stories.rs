@@ -2,7 +2,7 @@
 
 use super::{BrushDimensions, BrushResize, BrushResizeOptions, FalloffPreview, TipCell, TipFalloff};
 use crate::contract::Show as _;
-use crate::testing::canvas_story::on_canvas_view;
+use crate::testing::canvas_story::{StoryDocument, on_canvas_view};
 use crate::testing::{StoryData, StoryOutput, story};
 use craft_behavior::CanvasView;
 use craft_behavior::kurbo::{Point, Rect as DocRect};
@@ -33,18 +33,18 @@ fn brush_view(room: Rect) -> CanvasView {
 #[story(FalloffPreview<'static>, covers = [Default])]
 fn soft_tip(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let falloff = TipFalloff::from_hardness(RADIUS, SOFT);
-    on_canvas_view(ui, brush_view, |ui, rect, _| FalloffPreview::new(&falloff, CENTRE, RADIUS).show_at(ui, rect))
+    on_canvas_view(ui, brush_view, Some(&StoryDocument::STANDARD), |ui, rect, _| FalloffPreview::new(&falloff, CENTRE, RADIUS).show_at(ui, rect))
 }
 
 #[story(FalloffPreview<'static>, covers = [Default])]
 fn hard_tip(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let falloff = TipFalloff::hard(RADIUS);
-    on_canvas_view(ui, brush_view, |ui, rect, _| FalloffPreview::new(&falloff, CENTRE, RADIUS).show_at(ui, rect))
+    on_canvas_view(ui, brush_view, Some(&StoryDocument::STANDARD), |ui, rect, _| FalloffPreview::new(&falloff, CENTRE, RADIUS).show_at(ui, rect))
 }
 
 #[story(FalloffPreview<'static>, covers = [Default])]
 fn resize_in_progress(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    on_canvas_view(ui, brush_view, |ui, rect, view| {
+    on_canvas_view(ui, brush_view, Some(&StoryDocument::STANDARD), |ui, rect, view| {
         let mut resize = BrushResize::default();
         let press = view.to_screen(CENTRE);
         resize.begin(view, press, START, &BrushResizeOptions::new(MAX_DIAMETER));
@@ -60,10 +60,10 @@ fn resize_in_progress(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 
 #[story(TipCell, covers = [Default])]
 fn square_cell(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    on_canvas_view(ui, brush_view, |ui, rect, _| TipCell::new(CELL, false).show_at(ui, rect))
+    on_canvas_view(ui, brush_view, Some(&StoryDocument::STANDARD), |ui, rect, _| TipCell::new(CELL, false).show_at(ui, rect))
 }
 
 #[story(TipCell, covers = [Default])]
 fn round_cell(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    on_canvas_view(ui, brush_view, |ui, rect, _| TipCell::new(CELL, true).show_at(ui, rect))
+    on_canvas_view(ui, brush_view, Some(&StoryDocument::STANDARD), |ui, rect, _| TipCell::new(CELL, true).show_at(ui, rect))
 }

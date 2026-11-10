@@ -8,7 +8,7 @@
 
 pub mod access;
 pub mod bypass;
-pub(crate) mod canvas_story;
+pub mod canvas_story;
 pub mod contract;
 pub mod dump;
 pub mod fixture;

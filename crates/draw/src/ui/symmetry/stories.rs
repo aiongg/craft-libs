@@ -11,6 +11,9 @@ use egui::Ui;
 
 /// The page the guides run over, in document units.
 const PAGE: Size = Size::new(400.0, 300.0);
+/// The document the canvas shows: the page.
+const SHOWN: craft_ui::testing::canvas_story::StoryDocument =
+    craft_ui::testing::canvas_story::StoryDocument::new(PAGE.width as u32, PAGE.height as u32);
 
 /// The symmetry of the stories: Dual Axis at the page centre, turned a little.
 fn sample(mode: SymmetryMode) -> Symmetry {
@@ -42,6 +45,7 @@ fn dual_axis(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let symmetry = sample(SymmetryMode::Dual);
     let room = craft_ui::testing::stage(ui);
     Canvas::new("Document").view(view(room)).show_at(ui, room, |ui, body| {
+        craft_ui::testing::canvas_story::show_document(ui, body.rect, &SHOWN);
         SymmetryOverlay::new("Symmetry", &symmetry, PAGE).show_at(ui, body.rect);
     });
     StoryOutput::default()
@@ -52,6 +56,7 @@ fn editing_guides(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let symmetry = sample(SymmetryMode::Vertical);
     let room = craft_ui::testing::stage(ui);
     Canvas::new("Document").view(view(room)).show_at(ui, room, |ui, body| {
+        craft_ui::testing::canvas_story::show_document(ui, body.rect, &SHOWN);
         SymmetryOverlay::new("Symmetry", &symmetry, PAGE).editing(true).show_at(ui, body.rect);
     });
     StoryOutput::default()
@@ -61,8 +66,9 @@ fn editing_guides(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 fn handles_on_a_canvas(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let symmetry = data.value("symmetry", sample(SymmetryMode::Vertical));
     let room = craft_ui::testing::stage(ui);
-    let shown = Canvas::new("Document")
-        .view(view(room))
-        .show_at(ui, room, |ui, body| SymmetryHandles::new("Symmetry", Bind::bound(&mut *symmetry), PAGE).show_at(ui, body.rect));
+    let shown = Canvas::new("Document").view(view(room)).show_at(ui, room, |ui, body| {
+        craft_ui::testing::canvas_story::show_document(ui, body.rect, &SHOWN);
+        SymmetryHandles::new("Symmetry", Bind::bound(&mut *symmetry), PAGE).show_at(ui, body.rect)
+    });
     shown.inner.map(|output| StoryOutput::from(output.edit)).unwrap_or_default()
 }

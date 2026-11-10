@@ -1,10 +1,8 @@
 //! Stories of the gradient overlay.
 
-use craft_behavior::CanvasView;
 use craft_behavior::kurbo::Point;
 use craft_theme::Srgba;
-use craft_ui::canvas::Canvas;
-use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, Show as _};
 use craft_ui::testing::{Drive, Grip, StoryData, StoryOutput, story};
 use egui::{Ui, vec2};
 
@@ -29,10 +27,7 @@ fn state(data: &mut StoryData, selected: StopRef) -> (&mut LineGradient, &mut Op
 /// Shows the overlay `overlay` builds as the only canvas control of a canvas whose view is the room it is given. The
 /// canvas body runs more than once per pass, so `overlay` builds the overlay on every run.
 fn on_canvas(ui: &mut Ui, mut overlay: impl FnMut(&mut Ui, egui::Rect) -> craft_ui::contract::EditResponse<LineGradient>) -> StoryOutput {
-    let room = craft_ui::testing::stage(ui);
-    let view = CanvasView::new(room, Point::new(f64::from(room.width()) / 2.0, f64::from(room.height()) / 2.0), 1.0);
-    let shown = Canvas::new("Document").view(view).show_at(ui, room, |ui, body| overlay(ui, body.rect));
-    shown.inner.map(StoryOutput::from).unwrap_or_default()
+    craft_ui::testing::canvas_story::on_canvas(ui, 1.0, |ui, at, _| overlay(ui, at))
 }
 
 #[story(GradientOverlay<'static>, covers = [Default], drive = Drive::Drag(Grip::new(END).toward(vec2(0.0, 1.0))))]

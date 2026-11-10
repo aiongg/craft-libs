@@ -29,8 +29,10 @@ fn on_canvas(ui: &mut Ui, configure: impl for<'a> FnOnce(SliceOverlay<'a>) -> Sl
     let items = slices();
     let mut configure = Some(configure);
     let stage = craft_ui::testing::stage(ui);
-    let _ = Canvas::new("Document")
-        .show_at(ui, stage, |ui, body| configure.take().map(|configure| configure(SliceOverlay::new("Slices", &items)).show_at(ui, body.rect)));
+    let _ = Canvas::new("Document").view(craft_ui::testing::canvas_story::origin_view(stage, 1.0)).show_at(ui, stage, |ui, body| {
+        craft_ui::testing::canvas_story::show_document(ui, body.rect, &craft_ui::testing::canvas_story::StoryDocument::STANDARD);
+        configure.take().map(|configure| configure(SliceOverlay::new("Slices", &items)).show_at(ui, body.rect))
+    });
     StoryOutput::default()
 }
 
