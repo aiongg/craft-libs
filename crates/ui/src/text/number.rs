@@ -877,8 +877,7 @@ impl<V: NumberValue + 'static> Component for NumberField<'_, V> {
         let (_, unit) = self.text_and_unit(placed.text, rtl);
         if let (Some(unit), Some(label)) = (unit, &self.unit) {
             let top = unit.center().y - self.unit_size.y / 2.0;
-            let (_, rest) = Flow::new(unit, rtl).take_start(cx.style.metrics.gap);
-            let at = rest.rect();
+            let at = unit;
             let run = TextRun::new(label.as_str()).role(cx.style.unit.role).color(cx.resolve(&cx.style.unit.color));
             ui.draw().text(Rect::from_min_size(Pos2::new(at.min.x, top), Vec2::new(at.width(), self.unit_size.y)), &run);
         }
