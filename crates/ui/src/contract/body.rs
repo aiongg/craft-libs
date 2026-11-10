@@ -24,7 +24,7 @@ use crate::runtime::overlay::CloseReason;
 use crate::runtime::windows::{self, ResizeEdge, WindowAction, WindowHit};
 use crate::runtime::{keys, layout_memory, pointer, wheel};
 use crate::style::ComponentStyle as _;
-use crate::style::{Corners, RuleKind, StyleCx, UiTokens, rule_look, scroll_bar_look, surface_style};
+use crate::style::{Corners, RuleKind, StyleCx, SurfaceKind, UiTokens, rule_look, scroll_bar_look, surface_style};
 use craft_behavior::layout_memory::measure_tolerance;
 use craft_behavior::{
     Axis, CancelRule, Cursor, CursorIcon, CursorPriority, EditEvent, GesturePhase, HitLevel, HitPriority, Intent, KeyRole, Mixed, PartKey, PartRef,
@@ -33,7 +33,7 @@ use craft_behavior::{
 use craft_host::target::{Caps, WindowChrome, WindowState};
 use craft_i18n::Direction;
 use craft_keymap::{Chord, Key, Mods};
-use egui::{Align, Context, Id, Layout, Pos2, Rect, Shape, Ui, UiBuilder, Vec2, ViewportId};
+use egui::{Align, Context, CornerRadius, Id, Layout, Pos2, Rect, Shape, Ui, UiBuilder, Vec2, ViewportId};
 use serde::{Deserialize, Serialize};
 use std::any::Any;
 use std::sync::Arc;
@@ -468,6 +468,8 @@ fn gap_of(tokens: &UiTokens, gap: Gap) -> f32 {
         Gap::Stack => gaps.stack,
         Gap::Item => gaps.item,
         Gap::Section => gaps.section,
+        Gap::CardColumn => gaps.card_column,
+        Gap::CardRow => gaps.card_row,
         _ => gaps.row,
     }
 }
@@ -1214,10 +1216,11 @@ impl<'b> BodyHooks<'b> {
         frame: &RegionFrame<'_>,
         header: Rect,
         trailing: bool,
+        inset: f32,
     ) -> Option<CloseReason> {
         let ctx = ui.ctx().clone();
         let (id, rtl) = (frame.id, frame.rtl);
-        let mut header_rect = header;
+        let mut header_rect = header.shrink2(Vec2::new(inset, 0.0));
         let mut controls = Vec2::ZERO;
         if trailing {
             let layout = if rtl { Layout::left_to_right(Align::Center) } else { Layout::right_to_left(Align::Center) };
@@ -1246,6 +1249,7 @@ impl<'b> BodyHooks<'b> {
             took.x += controls.x + self.region_gap;
         }
         took.y = took.y.max(controls.y);
+        took.x += 2.0 * inset;
         self.header_size = Some(took);
         bcx.close_requested()
     }
@@ -1294,8 +1298,9 @@ impl<'b> BodyHooks<'b> {
         RegionSizes { header: self.measured_header, footer: self.measured_footer, end: self.measured_end }
     }
 
-    /// The regions inside `inner` (the rect minus padding and the padding tier), placed from `sizes`.
-    fn regions(&self, props: &ContainerProps, inner: Rect, room: Vec2, rtl: bool, sizes: RegionSizes) -> Regions {
+    /// The regions inside `inner` (the rect minus padding and the padding tier), placed from `sizes`. A header with a
+    /// band spreads over the `bleed` the padding leaves around `inner` at the top and the sides.
+    fn regions(&self, props: &ContainerProps, inner: Rect, bleed: f32, room: Vec2, rtl: bool, sizes: RegionSizes) -> Regions {
         let inline = props.header.is_some_and(|header| header.inline);
         let (in_end, full) = (footer_in_end(props), end_full_height(props));
         let header_h = if props.header.is_some() { sizes.header.unwrap_or(Vec2::ZERO).y } else { 0.0 };
@@ -1396,6 +1401,11 @@ impl<'b> BodyHooks<'b> {
             _ if full && props.end.is_some() => Rect::from_min_max(Pos2::new(body.min.x, footer_top), Pos2::new(body.max.x, footer_top + footer_h)),
             _ => band(footer_top, footer_top + footer_h),
         };
+        let header = if props.header.is_some_and(|header| header.fill.is_some()) {
+            Rect::from_min_max(header.min - Vec2::splat(bleed), Pos2::new(header.max.x + bleed, header.max.y - bleed))
+        } else {
+            header
+        };
         Regions { header, body, end, footer }
     }
 
@@ -1435,6 +1445,7 @@ impl<'b> BodyHooks<'b> {
                 ShowAt::Rect(rect) => rect.size(),
                 ShowAt::Flow => {
                     let room = crate::layout::flow_room(ui);
+                    let room = Vec2::new(room.x, props.room_height.unwrap_or(room.y));
                     // In a row that wraps, a body too wide for the rest of the line moves to the next one: it measures
                     // in the whole line, so its allocation carries its width and the row can wrap it.
                     let layout = ui.layout();
@@ -1580,7 +1591,8 @@ impl BodyHooks<'_> {
         scoped.content_column = content_column;
         scoped.row_room = None;
         scoped.row_line = None;
-        scoped.content = (!self.given.0, !self.given.1);
+        // A body with a room height of its own gives that height to the children that fill it.
+        scoped.content = (!self.given.0, !self.given.1 && props.room_height.is_none());
         // A content-sized container offers its children, in the real run, the width this pass measured it at: a
         // child that fits itself into its room (a bar moving items into "More") fits the width the container
         // takes, not the room it could have taken. A fill container that is not given the width still takes at
@@ -1823,7 +1835,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         self.offset = ScrollPos::default();
         self.region_gap = gap_of(&at.env.tokens, Gap::Tight);
         self.room = match at.width {
-            Some(width) => Vec2::new(width, f32::INFINITY),
+            Some(width) => Vec2::new(width, props.room_height.unwrap_or(f32::INFINITY)),
             None => self.mount_room(&props, at.ui, id, at.at),
         };
         self.given = self.given_axes(&props, at.env, at.at);
@@ -1993,7 +2005,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         let tokens = pcx.tokens;
         let inner = pcx.content_rect.shrink(pad_of(tokens, props.pad));
         let room = self.room_size(rect, inner);
-        let regions = self.regions(&props, inner, room, rtl, self.measured_sizes());
+        let regions = self.regions(&props, inner, pad_of(tokens, props.pad), room, rtl, self.measured_sizes());
         let scroll = scroll_of(&props);
         if self.open && scroll.is_some() {
             let view = regions.body;
@@ -2086,8 +2098,9 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         let pad = pad_of(&env.tokens, props.pad);
         let inner = cx.core.content_rect.shrink(pad);
         let room = self.room_size(rect, inner);
-        let mut regions = self.regions(&props, inner, room, rtl, self.measured_sizes());
+        let mut regions = self.regions(&props, inner, pad, room, rtl, self.measured_sizes());
         let surface_slot = ui.painter().add(Shape::Noop);
+        let band_slot = ui.painter().add(Shape::Noop);
         // A measuring run lays out and measures: it registers no instance, focus body, scroll region or body layer,
         // and claims no room in a parent flow.
         let real = !ui.is_sizing_pass();
@@ -2114,7 +2127,8 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 .with_field_message(field_message.clone())
                 .with_owner(owner);
             let trailing = props.header.is_some_and(|header| header.trailing);
-            close = close.or(self.header_region(comp, ui, &mut bcx, &frame, regions.header, trailing));
+            let inset = props.header.map_or(0.0, |header| pad_of(&env.tokens, header.inset));
+            close = close.or(self.header_region(comp, ui, &mut bcx, &frame, regions.header, trailing, inset));
         }
         let animated = props.collapse.is_some_and(|collapse| collapse.animated);
         let is_open = open || (animated && self.presence.visible);
@@ -2373,6 +2387,11 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         if let Some(kind) = props.surface {
             let shapes = Surface::shapes(&surface_style(&env.tokens, kind), None, rect, Corners::All, env.direction, ctx.pixels_per_point());
             ui.painter().set(surface_slot, Shape::Vec(shapes));
+        }
+        if let Some(kind) = props.header.and_then(|header| header.fill) {
+            let style = surface_style(&env.tokens, props.surface.unwrap_or(SurfaceKind::Panel));
+            let radius = CornerRadius { sw: 0, se: 0, ..style.radius };
+            ui.painter().set(band_slot, Shape::rect_filled(regions.header, radius, surface_style(&env.tokens, kind).fill));
         }
         paint_rules(ui, &props, env, inner, &regions);
     }

@@ -75,13 +75,30 @@ fn read_dropped(file: &OsFile) -> Result<AppSizes, String> {
 
 /// The dock of the shown workspace over the viewer's state.
 fn body(ui: &mut Ui, _: &mut BodyCx<'_>, viewer: &mut Viewer) {
-    let Viewer { env, workspace, preview, browser, themes, theme_dock, mock, .. } = viewer;
+    let Viewer { env, workspace, preview, browser, themes, theme_dock, mock, variants, variants_tab, .. } = viewer;
     let subject = ThemeSubject::new(theme_of(&env.theme), env.appearance(ui.ctx()));
     let in_theme = *workspace == Workspace::Theme;
-    let Browser { catalog, filter, selection, open, dock, story_of, generation, cells, starts, open_request, .. } = browser;
+    let Browser { catalog, filter, selection, open, dock, story_of, generation, cells, open_request, scroll_to, followed, level, .. } = browser;
     let dock: &mut Dock<_> = if in_theme { theme_dock } else { dock };
-    let panels =
-        Panels { catalog, filter, selection, open, story_of, cells, starts, open_request, generation: *generation, themes, subject, revealed: None };
+    let panels = Panels {
+        catalog,
+        filter,
+        selection,
+        open,
+        story_of,
+        cells,
+        open_request,
+        scroll_to,
+        followed,
+        generation: *generation,
+        themes,
+        subject,
+        level,
+        variants,
+        variants_tab,
+        env,
+        revealed: None,
+    };
     let mut content = GalleryDock { panels, preview: *preview, app: mock };
     // Component tabs are documents: they close from their ×.
     let config = DockConfig::default().tab_close_buttons(true);

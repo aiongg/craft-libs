@@ -184,12 +184,29 @@ pub struct HeaderRegion {
     /// Whether the header has a trailing child region at its end edge, filled by `Container::controls`; the header
     /// itself fills the room it leaves.
     pub trailing: bool,
+    /// The surface a band behind the header paints. The band spans the container's width and starts at its top edge
+    /// whatever the body's padding, and has no rule.
+    pub fill: Option<SurfaceKind>,
+    /// The padding on the header's two sides: the header's own tier, independent of the body's.
+    pub inset: Pad,
 }
 
 impl HeaderRegion {
-    /// A header with no drag band, no rule, on its own line and with no trailing region.
+    /// A header with no drag band, no rule, on its own line, with no trailing region, no fill and no inset.
     pub const fn new() -> Self {
-        HeaderRegion { band: DragBand::None, rule: false, inline: false, trailing: false }
+        HeaderRegion { band: DragBand::None, rule: false, inline: false, trailing: false, fill: None, inset: Pad::None }
+    }
+
+    /// The surface of a band behind the header.
+    pub const fn fill(mut self, kind: SurfaceKind) -> Self {
+        self.fill = Some(kind);
+        self
+    }
+
+    /// The padding tier between the container's edge and the header's content.
+    pub const fn inset(mut self, pad: Pad) -> Self {
+        self.inset = pad;
+        self
     }
 
     /// What dragging the header does.
@@ -442,6 +459,10 @@ pub enum Gap {
     Item,
     /// `space.gap.section`.
     Section,
+    /// `space.gap.card_column`.
+    CardColumn,
+    /// `space.gap.card_row`.
+    CardRow,
 }
 
 /// Set by a bar for its body: its fields put `space.gap.item` between a caption and the control, and a vertical
@@ -472,6 +493,10 @@ pub struct ContainerProps {
     pub pad: Pad,
     /// How the size follows the content.
     pub sizing: Sizing,
+    /// The height the body offers its children in flow, in place of the flow's (unbounded in a scrolling body): a
+    /// child that fills the height is given it, any other child takes its content height. A host that shows content
+    /// of either kind at a definite room (a story in a gallery card) sets it.
+    pub room_height: Option<f32>,
     /// How the body lays out its children.
     pub layout: BodyLayout,
     /// A header region.
@@ -536,6 +561,7 @@ impl ContainerProps {
             surface: None,
             pad: Pad::None,
             sizing: Sizing::Content,
+            room_height: None,
             layout: BodyLayout::Stack,
             header: None,
             scroll: None,
@@ -583,6 +609,12 @@ impl ContainerProps {
     /// How the size follows the content.
     pub const fn sizing(mut self, sizing: Sizing) -> Self {
         self.sizing = sizing;
+        self
+    }
+
+    /// The height the body offers its children in flow ([`room_height`](Self::room_height)).
+    pub const fn room_height(mut self, height: f32) -> Self {
+        self.room_height = Some(height);
         self
     }
 

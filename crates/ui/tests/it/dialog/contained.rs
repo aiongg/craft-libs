@@ -1,8 +1,9 @@
 //! A dialog opened in an embedded shell is contained in that shell's region.
 
 use craft_ui::buttons::Button;
-use craft_ui::contract::{Bind, Role, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, Role, Scroll, Show as _, ShowContainer as _};
 use craft_ui::dialog::Dialog;
+use craft_ui::layout_components::Stack;
 use craft_ui::runtime::env::WindowKey;
 use craft_ui::sections::{DialogRole, FooterButton};
 use craft_ui::shell::AppShell;
@@ -96,4 +97,28 @@ fn two_regions_each_keep_their_own_modal() {
     fixture.settle();
     assert!(!seen.open[0].get(), "the first dialog took its answer while the second is open");
     assert!(seen.open[1].get(), "the second dialog stays open");
+}
+
+/// An embedded shell scrolled out of sight with its dialog open shows nothing and does not fail: its region has no
+/// room, so neither its body nor its dialog runs in that pass.
+#[trial]
+fn an_embedded_shell_out_of_sight_shows_nothing() {
+    let mut fixture = Fixture::new(|ui| {
+        Stack::new().fill().scroll(Scroll::vertical()).show(ui, |ui, _| {
+            let _ = Button::new("Top").show(ui);
+            let view = ui.clip_rect();
+            let below = Rect::from_min_size(egui::pos2(view.min.x, view.max.y + view.height()), egui::vec2(view.width(), view.height()));
+            let mut open = true;
+            AppShell::embedded(WindowKey::new("out-of-sight"))
+                .body(|ui, _, _| {
+                    let _ = Button::new("Hidden").show(ui);
+                    Dialog::new("Out of sight").opened(Bind::bound(&mut open)).show(ui, |_, _| {});
+                })
+                .show_at(ui, below, &mut ());
+        });
+    });
+    fixture.settle();
+    assert!(fixture.by_label("Top").is_some(), "the visible part is shown");
+    assert!(fixture.by_role(Role::DIALOG).is_empty(), "the dialog of a shell out of sight is not shown");
+    assert!(fixture.by_label("Hidden").is_none(), "the body of a shell out of sight does not run");
 }

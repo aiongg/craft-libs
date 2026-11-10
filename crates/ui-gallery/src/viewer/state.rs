@@ -5,6 +5,7 @@ use super::appearance::VariantAxis;
 use super::catalog::Catalog;
 use super::commands::GalleryCommands;
 use super::layout::{self, PanelId};
+use super::picks::CardState;
 use super::settings::GallerySettings;
 use super::tree::{self, TreeKey};
 use crate::mock::MockState;
@@ -14,12 +15,11 @@ use craft_behavior::dock::Workspace as Dock;
 use craft_ui::contract::Level;
 use craft_ui::list::OpenSet;
 use craft_ui::runtime::env::RootEnv;
-use craft_ui::testing::{StoryData, StorySnapshot};
 use std::collections::HashMap;
 use std::sync::Arc;
 
-/// The values each shown story keeps between frames, by story index.
-pub type Cells = HashMap<usize, StoryData>;
+/// What each shown story keeps between frames, by story index.
+pub type Cells = HashMap<usize, CardState>;
 
 /// What the panels browse: the catalog, the tree's state and the shown cells.
 #[non_exhaustive]
@@ -43,10 +43,12 @@ pub struct Browser {
     pub generation: u32,
     /// The shown stories' values.
     pub cells: Cells,
-    /// The values each shown story started with, by story index, which Reset in the Properties panel goes back to.
-    pub starts: HashMap<usize, StorySnapshot>,
     /// The component whose tab a panel asked to open in this pass.
     pub open_request: Option<&'static str>,
+    /// The component whose card the Overview brings into view when it is drawn, by its registered name.
+    pub scroll_to: Option<&'static str>,
+    /// The selected component the Overview last followed to its level; the outer `None` before the first pass.
+    pub followed: Option<Option<&'static str>>,
 }
 
 /// What the dock shows.
@@ -82,6 +84,8 @@ pub struct Viewer {
     pub preview: Preview,
     /// The Variants view of the target story, over the front centre tab, while one is open.
     pub variants: Option<VariantAxis>,
+    /// The centre tab the Variants view is open in.
+    pub variants_tab: Option<PanelId>,
     /// Whether the More popover of the options bar is open.
     pub more_open: bool,
     /// What the panels browse.
@@ -109,14 +113,16 @@ impl Viewer {
             level: String::new(),
             generation: 0,
             cells: Cells::new(),
-            starts: HashMap::new(),
             open_request: None,
+            scroll_to: None,
+            followed: None,
         };
         let mut viewer = Viewer {
             env: RootEnv::default(),
             workspace: Workspace::default(),
             preview: Preview::default(),
             variants: None,
+            variants_tab: None,
             more_open: false,
             browser,
             themes: ThemeWorkspace::new(),
@@ -235,6 +241,5 @@ impl Browser {
     pub fn reset_stories(&mut self) {
         self.generation += 1;
         self.cells.clear();
-        self.starts.clear();
     }
 }

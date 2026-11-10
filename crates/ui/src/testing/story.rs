@@ -238,6 +238,17 @@ impl StoryData {
         }
     }
 
+    /// The value named `name` of type `T` when a run has created it; never creates one, so asking does not make a
+    /// value the story did not have.
+    #[allow(clippy::unreachable, reason = "the slot key holds the type, so the downcast cannot fail")]
+    pub fn present<T: Value>(&mut self, name: &'static str) -> Option<&mut T> {
+        let slot = self.values.get_mut(&(name, TypeId::of::<T>()))?;
+        match slot.any_mut().downcast_mut::<T>() {
+            Some(value) => Some(value),
+            None => unreachable!("a slot's value has the type its key names"),
+        }
+    }
+
     /// Like [`StoryData::value`] for a number the Properties editor keeps inside `range`.
     pub fn ranged<T: Value>(&mut self, name: &'static str, init: T, range: RangeInclusive<f64>) -> &mut T {
         self.how.entry((name, TypeId::of::<T>())).or_insert(Edit::Range(range));

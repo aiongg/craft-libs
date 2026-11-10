@@ -4,7 +4,7 @@
 use super::describe;
 use super::overview;
 use crate::theme::{AppLayerEditor, Problems, ThemeSubject, ThemeWorkspace, TokenBrowser, TokenDetail};
-use crate::viewer::{self, Catalog, Cells, ComponentInfo, PanelId, TreeKey, TreeRow, TreeRows};
+use crate::viewer::{self, CardState, Catalog, Cells, ComponentInfo, PanelId, TreeKey, TreeRow, TreeRows};
 use craft_behavior::IconId;
 use craft_behavior::{Selection, keyed};
 use craft_theme::Explained;
@@ -16,7 +16,7 @@ use craft_ui::layout_components::{Row, Stack};
 use craft_ui::list::{List, ListRow, OpenSet, RowEvent, TrailingFace, TrailingPart};
 use craft_ui::runtime::env::Label;
 use craft_ui::style::TypeRole;
-use craft_ui::testing::{StoryData, StorySnapshot, story_props};
+use craft_ui::testing::{StoryData, story_props};
 use craft_ui::text::TextField;
 use egui::Ui;
 use std::collections::HashMap;
@@ -37,16 +37,26 @@ pub struct Panels<'a> {
     pub story_of: &'a mut HashMap<&'static str, &'static str>,
     /// The shown stories' values.
     pub cells: &'a mut Cells,
-    /// The values each shown story started with, which Reset goes back to.
-    pub starts: &'a mut HashMap<usize, StorySnapshot>,
     /// The component whose tab the tree asked to open in this pass.
     pub open_request: &'a mut Option<&'static str>,
+    /// The component whose card the Overview brings into view when it is drawn.
+    pub scroll_to: &'a mut Option<&'static str>,
+    /// The selected component the Overview last followed to its level.
+    pub followed: &'a mut Option<Option<&'static str>>,
     /// The reset count the cards' id scopes carry.
     pub generation: u32,
     /// What the theme panels share.
     pub themes: &'a mut ThemeWorkspace,
     /// The theme and appearance the theme panels explain.
     pub subject: ThemeSubject<'a>,
+    /// The level the Overview shows, by its title.
+    pub level: &'a mut String,
+    /// The Variants view of the target story, while one is open.
+    pub variants: &'a mut Option<crate::viewer::VariantAxis>,
+    /// The centre tab the Variants view is open in.
+    pub variants_tab: &'a mut Option<PanelId>,
+    /// The root values; a Variants card that is used sets its value.
+    pub env: &'a mut craft_ui::runtime::env::RootEnv,
     /// The row the Problems view picked in this pass, which the token browser brings into view.
     pub revealed: Option<crate::theme::Pick>,
 }
@@ -80,7 +90,7 @@ fn fact(ui: &mut Ui, name: &'static str, value: impl Into<Label>) {
 }
 
 /// The values of the story at catalog index `index`: the one place the panels reach into the shown cells.
-fn data_of(cells: &mut Cells, index: usize) -> &mut StoryData {
+fn state_of(cells: &mut Cells, index: usize) -> &mut CardState {
     cells.entry(index).or_default()
 }
 
@@ -92,11 +102,8 @@ impl Panels<'_> {
             PanelId::Stories => self.stories(ui),
             PanelId::Properties => self.properties(ui),
             PanelId::Inspect => self.record(ui),
-            PanelId::Overview => {
-                let selected = self.selected().map(|component| component.type_name);
-                scrolled(ui, |ui| overview::stories(ui, self.catalog, self.cells, self.generation, selected));
-            }
-            PanelId::Component(type_name) => scrolled(ui, |ui| overview::stories(ui, self.catalog, self.cells, self.generation, Some(type_name))),
+            PanelId::Overview => overview::overview(ui, self),
+            PanelId::Component(type_name) => overview::component_tab(ui, self, type_name),
             PanelId::Preview => {}
             PanelId::Problems => self.problems(ui),
             PanelId::Tokens => self.tokens(ui),
@@ -210,13 +217,12 @@ impl Panels<'_> {
             });
         };
         let title = self.title(&component, index);
-        let starts = &mut *self.starts;
-        let data = data_of(self.cells, index);
+        let state = state_of(self.cells, index);
         // The values exist once the story has run; the first pass that finds them records the start.
-        if !starts.contains_key(&index) && !data.changed_since(&StoryData::default().snapshot()).is_empty() {
-            starts.insert(index, data.snapshot());
+        if !state.data.changed_since(&StoryData::default().snapshot()).is_empty() {
+            state.note_start();
         }
-        let changed = starts.get(&index).is_some_and(|start| !data.changed_since(start).is_empty());
+        let changed = state.changed();
         let mut reset = false;
         scrolled(ui, |ui| {
             Row::new().fill_width().align(RowAlign::SpaceBetween).show(ui, |ui, _| {
@@ -228,10 +234,10 @@ impl Panels<'_> {
                     reset = IconButton::new(IconId::new("undo")).label("Reset args").show(ui).clicks > 0;
                 }
             });
-            story_props(ui, &mut *data);
+            story_props(ui, &mut state.data);
         });
-        if reset && let Some(start) = starts.get(&index) {
-            data.restore(start);
+        if reset {
+            state.reset();
         }
     }
 

@@ -16,7 +16,7 @@ use crate::runtime::commands::CommandRef;
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, IconLook, Ink, StyleCx, TextLook, TypeRole};
 use craft_behavior::{CursorIcon, Flow, IconId, Metrics, NavShape, PartKey, Roving, Sense};
-use craft_theme::{Stateful, States};
+use craft_theme::{ControlSize, Stateful, States};
 use egui::{Id, Rect, Response, Ui, Vec2};
 use std::borrow::Cow;
 
@@ -55,12 +55,20 @@ pub enum HeaderAction {
 pub struct HeaderCommand {
     icon: IconId,
     command: CommandRef,
+    size: Option<ControlSize>,
 }
 
 impl HeaderCommand {
     /// The icon `icon` that runs `command`.
     pub fn new(icon: IconId, command: impl Into<CommandRef>) -> Self {
-        HeaderCommand { icon, command: command.into() }
+        HeaderCommand { icon, command: command.into(), size: None }
+    }
+
+    /// The control size of the button, in place of the row's.
+    #[must_use]
+    pub fn size(mut self, size: ControlSize) -> Self {
+        self.size = Some(size);
+        self
     }
 }
 
@@ -408,7 +416,8 @@ impl Component for TitleRow<'_> {
             Lead::Check(_) => ui.face(LEAD, Checkbox::new(Bind::given(value)).label(words.gate.clone())),
         }
         for (at, header) in self.commands.iter().enumerate() {
-            ui.face(COMMAND.at(at as u64), IconButton::command(header.icon.clone(), header.command.clone()));
+            let button = IconButton::command(header.icon.clone(), header.command.clone());
+            ui.face(COMMAND.at(at as u64), if let Some(size) = header.size { button.size(size) } else { button });
         }
         for (at, action) in self.actions.iter().enumerate() {
             let (icon, label) = match action {

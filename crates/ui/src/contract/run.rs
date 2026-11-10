@@ -550,11 +550,11 @@ fn place_root<C: Component>(p: &Pass<'_, '_, C>, ui: &mut Ui, at: ShowAt, env: &
         && ((env.content_column && p.hooks.fills_width(&*p.comp))
             || (crate::layout::in_grid_content_column(ui) && p.hooks.fills_width_only(&*p.comp)));
     let rect = if held {
-        let flowed = steps::place(ui, at, Vec2::new(p.measured.x.min(size.x), size.y));
+        let flowed = steps::place(ui, at, Vec2::new(p.measured.x.min(size.x), size.y), false);
         let across = Vec2::new(size.x.max(flowed.width()), flowed.height());
         if rtl { Rect::from_min_size(Pos2::new(flowed.max.x - across.x, flowed.min.y), across) } else { Rect::from_min_size(flowed.min, across) }
     } else {
-        steps::place(ui, at, if inert { Vec2::ZERO } else { size })
+        steps::place(ui, at, if inert { Vec2::ZERO } else { size }, p.hooks.fills_width(&*p.comp) && !p.hooks.fills_width_only(&*p.comp))
     };
     (rect, held)
 }

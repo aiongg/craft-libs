@@ -274,8 +274,15 @@ impl Spread {
 
 /// The rect a child of measured `size` takes in flow in `ui`: the next cell of the `Grid` or spread `Row` body that
 /// encloses it directly, else the next allocation of `ui`'s layout. A direct child of an unwrapped `Row` takes the
-/// row's line and sits at its vertical centre.
+/// row's line and sits at its vertical centre. In a `Grid` cell a child that `fill`s (declares `Sizing::Fill`) takes
+/// the cell's whole height from the cell's top, so the cards of one row share their top and bottom edges; any other
+/// child sits at the vertical centre of its cell.
 pub(crate) fn place_in_flow(ui: &mut Ui, size: Vec2) -> Rect {
+    place_in_cell(ui, size, false)
+}
+
+/// `place_in_flow` for a child that `fill`s its cell's height when it sits in a `Grid`.
+pub(crate) fn place_in_cell(ui: &mut Ui, size: Vec2, fill: bool) -> Rect {
     let env = Env::of(ui);
     let slot = Vec2::new(size.x, env.row_line.map_or(size.y, |line| line.max(size.y)));
     let cell = env.grid.and_then(|body| Service::<Cursors>::of(ui.ctx()).with(|cursors| cursors.0.get_mut(&body).map(|cursor| cursor.cell(slot))));
@@ -286,7 +293,7 @@ pub(crate) fn place_in_flow(ui: &mut Ui, size: Vec2) -> Rect {
         }
         None => alloc::space(ui, slot),
     };
-    let drop = ((rect.height() - size.y) / 2.0).max(0.0);
+    let drop = if fill && cell.is_some() { 0.0 } else { ((rect.height() - size.y) / 2.0).max(0.0) };
     Rect::from_min_max(egui::pos2(rect.min.x, rect.min.y + drop), egui::pos2(rect.max.x, rect.max.y - drop))
 }
 

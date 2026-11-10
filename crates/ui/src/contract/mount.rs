@@ -257,10 +257,11 @@ impl Host for FullWindowHost {
             return;
         }
         let ctx = parent.ctx().clone();
-        let window = ctx.content_rect();
+        // Opened in an embedded shell, the full-window layer fills the shell's region, as a modal there does.
+        let region = overlay::region_for(env, &full_window_overlay(self.focus));
+        let window = region.unwrap_or_else(|| ctx.content_rect());
         let overlay = full_window_overlay(self.focus).place(Place::Float(FloatPlace::at(window.min)));
-        let layer =
-            Layer { id, owner: id, overlay: &overlay, anchor: Rect::ZERO, env, exiting: self.exiting, fade: self.fade, size: None, region: None };
+        let layer = Layer { id, owner: id, overlay: &overlay, anchor: Rect::ZERO, env, exiting: self.exiting, fade: self.fade, size: None, region };
         let out = overlay::host(&ctx, &layer, &mut |ui| pass(ui, Some(ShowAt::Rect(window)), Some(&Env::of(ui))));
         self.dismissed = out.dismissed;
     }

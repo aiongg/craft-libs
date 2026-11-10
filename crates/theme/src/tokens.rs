@@ -741,6 +741,10 @@ pub struct Gaps {
     pub item: f32,
     /// Between groups.
     pub section: f32,
+    /// Between the columns of a grid of cards, outline included.
+    pub card_column: f32,
+    /// Between the rows of a grid of cards.
+    pub card_row: f32,
 }
 
 /// Inner padding, in logical pixels.

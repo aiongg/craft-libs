@@ -29,6 +29,8 @@ pub struct PanelStyle {
     metrics: Metrics,
     /// The ring a selected panel shows inside its edge.
     ring: StyleColor,
+    /// The line of a framed panel's outline.
+    edge: StyleColor,
     corners: CornerRadius,
 }
 
@@ -63,6 +65,7 @@ type FooterFn<'a> = Box<dyn FnMut(&mut Ui, &mut BodyCx<'_>) + 'a>;
 ///   host. [`headerless`](Panel::headerless) leaves the header out.
 /// - Body: scrolls vertically; the panel fills the width and height offered.
 /// - Selected: `selected(true)` draws an accent ring inside the panel's edge, so a host can mark the picked panel.
+/// - Framed: `framed()` outlines the panel's edge in the border line colour.
 /// - Footer: the closure given to `footer` fills a footer bar under the body, separated by a rule.
 #[derive(crate::contract::Component, crate::contract::Props)]
 #[component(container)]
@@ -89,6 +92,11 @@ pub struct Panel<'a> {
     taken: Option<HeaderAction>,
     menu_opener: Option<Id>,
     closed: Option<CloseReason>,
+    pickable: bool,
+    framed: bool,
+    /// How much weight the header's title carries; a panel title by default.
+    #[prop]
+    strength: HeaderStrength,
 }
 
 impl<'a> Panel<'a> {
@@ -114,8 +122,26 @@ impl<'a> Panel<'a> {
             taken: None,
             menu_opener: None,
             closed: None,
+            pickable: false,
+            framed: false,
+            strength: HeaderStrength::Strong,
         }
         .label(title)
+    }
+
+    /// The header as a band of `kind` across the panel's width and top edge, with no rule under it. The header's
+    /// content keeps the regular padding on its sides whatever padding the body has.
+    #[must_use]
+    pub fn band(mut self, kind: SurfaceKind) -> Self {
+        self.props.header = Some(HeaderRegion::new().fill(kind).inset(Pad::Regular));
+        self
+    }
+
+    /// The padding tier around the body, regular by default. A header band keeps its own inset.
+    #[must_use]
+    pub fn pad(mut self, pad: Pad) -> Self {
+        self.props = self.props.pad(pad);
+        self
     }
 
     /// The action parts at the end of the header, in reading order.
@@ -136,6 +162,21 @@ impl<'a> Panel<'a> {
     /// The menu the Menu action opens, as ready-made rows.
     pub(crate) fn set_menu_rows(&mut self, rows: MenuRows<'a>) {
         self.menu = Some(rows);
+    }
+
+    /// A panel a press picks: a press on its own surface, where no control inside takes it, is reported by
+    /// [`BodyCx::surface_pressed`] in the body, so a host can select the panel.
+    #[must_use]
+    pub fn pickable(mut self) -> Self {
+        self.pickable = true;
+        self
+    }
+
+    /// A panel with a 1 px outline in the border line colour on its edge, over its header band and body.
+    #[must_use]
+    pub fn framed(mut self) -> Self {
+        self.framed = true;
+        self
     }
 
     /// A panel with no header: the title names the panel for assistive technology only.
@@ -162,14 +203,22 @@ impl Component for Panel<'_> {
     type Output = PanelOutput;
 
     fn style(cx: &StyleCx<'_>, _: PanelStyleKey) -> PanelStyle {
-        PanelStyle { metrics: Metrics::new(), ring: cx.color(cx.tokens.color.accent.solid), corners: UiTokens::corner(cx.tokens.shape.radius.panel) }
+        PanelStyle {
+            metrics: Metrics::new(),
+            ring: cx.color(cx.tokens.color.accent.solid),
+            edge: cx.color(cx.tokens.color.line.border),
+            corners: UiTokens::corner(cx.tokens.shape.radius.panel),
+        }
     }
 
     fn sense(&self) -> Sense {
-        Sense::empty()
+        if self.pickable { Sense::SURFACE } else { Sense::empty() }
     }
 
     fn paint_over(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        if self.framed {
+            ui.draw().stroke(&PaintShape::Rect(cx.rect, cx.style.corners), StrokeWidth::Thin, cx.style.edge);
+        }
         if cx.resolved.selected == Some(true) {
             ui.draw().stroke(&PaintShape::Rect(cx.rect, cx.style.corners), StrokeWidth::Medium, cx.style.ring);
         }
@@ -190,7 +239,7 @@ impl Container for Panel<'_> {
 
     fn header(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
         let mut row =
-            TitleRow::new(cx.label()).strength(HeaderStrength::Strong).actions(self.actions.iter().copied()).commands(self.commands.iter().cloned());
+            TitleRow::new(cx.label()).strength(self.strength).actions(self.actions.iter().copied()).commands(self.commands.iter().cloned());
         if let Some(subtitle) = self.subtitle.clone() {
             row = row.subtitle(subtitle);
         }

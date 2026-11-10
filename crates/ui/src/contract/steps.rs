@@ -504,9 +504,9 @@ pub(crate) fn guard(size: Vec2, shape: ShapeKind) -> bool {
 }
 
 /// Step 6, place: in flow one allocation with no widget, at a rect none.
-pub(crate) fn place(ui: &mut Ui, at: super::run::ShowAt, size: Vec2) -> Rect {
+pub(crate) fn place(ui: &mut Ui, at: super::run::ShowAt, size: Vec2, fill: bool) -> Rect {
     match at {
-        super::run::ShowAt::Flow => crate::layout::place_in_flow(ui, size),
+        super::run::ShowAt::Flow => crate::layout::place_in_cell(ui, size, fill),
         super::run::ShowAt::Rect(rect) => rect,
     }
 }
