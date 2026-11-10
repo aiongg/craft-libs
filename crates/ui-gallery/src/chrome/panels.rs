@@ -5,17 +5,18 @@ use super::describe;
 use super::overview;
 use crate::theme::{AppLayerEditor, Problems, ThemeSubject, ThemeWorkspace, TokenBrowser, TokenDetail};
 use crate::viewer::{self, Catalog, Cells, ComponentInfo, PanelId, TreeKey, TreeRow, TreeRows};
+use craft_behavior::IconId;
 use craft_behavior::{Selection, keyed};
 use craft_theme::Explained;
 use craft_theme::report::ContrastReport;
-use craft_theme::variant::Tone;
-use craft_ui::contract::{Bind, CollectionEvent, Pad, Scroll, SelectMode, Show as _, ShowCollection as _, ShowContainer as _};
+use craft_ui::buttons::IconButton;
+use craft_ui::contract::{Bind, CollectionEvent, Pad, Props as _, RowAlign, Scroll, SelectMode, Show as _, ShowCollection as _, ShowContainer as _};
 use craft_ui::display::{Shade, Text};
-use craft_ui::layout_components::Stack;
-use craft_ui::list::{List, ListRow, OpenSet};
-use craft_ui::notices::Notice;
+use craft_ui::layout_components::{Row, Stack};
+use craft_ui::list::{List, ListRow, OpenSet, RowEvent, TrailingFace, TrailingPart};
 use craft_ui::runtime::env::Label;
 use craft_ui::style::TypeRole;
+use craft_ui::testing::{StoryData, StorySnapshot, story_props};
 use craft_ui::text::TextField;
 use egui::Ui;
 use std::collections::HashMap;
@@ -30,12 +31,16 @@ pub struct Panels<'a> {
     pub filter: &'a mut String,
     /// The selected row of the tree.
     pub selection: &'a mut Selection<TreeKey>,
-    /// The open module groups.
+    /// The open level groups.
     pub open: &'a mut OpenSet<TreeKey>,
     /// The story each component's card shows.
     pub story_of: &'a mut HashMap<&'static str, &'static str>,
     /// The shown stories' values.
     pub cells: &'a mut Cells,
+    /// The values each shown story started with, which Reset goes back to.
+    pub starts: &'a mut HashMap<usize, StorySnapshot>,
+    /// The component whose tab the tree asked to open in this pass.
+    pub open_request: &'a mut Option<&'static str>,
     /// The reset count the cards' id scopes carry.
     pub generation: u32,
     /// What the theme panels share.
@@ -57,13 +62,26 @@ fn padded(ui: &mut Ui, mut add: impl FnMut(&mut Ui)) {
     Stack::new().fill().pad(Pad::Regular).show(ui, |ui, _| add(ui));
 }
 
+/// The tree row part that opens a component's tab.
+const OPEN: TrailingPart = TrailingPart::new(0);
+
+/// A muted line where a panel has nothing to show yet.
+fn hint(ui: &mut Ui, text: &'static str) {
+    Text::new(text).shade(Shade::Muted).show(ui);
+}
+
 /// A caption over a value.
 fn fact(ui: &mut Ui, name: &'static str, value: impl Into<Label>) {
     let value = value.into();
-    Stack::new().show(ui, |ui, _| {
+    Stack::new().fill_width().show(ui, |ui, _| {
         Text::new(name).role(TypeRole::Caption).shade(Shade::Muted).show(ui);
         Text::new(value.clone()).show(ui);
     });
+}
+
+/// The values of the story at catalog index `index`: the one place the panels reach into the shown cells.
+fn data_of(cells: &mut Cells, index: usize) -> &mut StoryData {
+    cells.entry(index).or_default()
 }
 
 impl Panels<'_> {
@@ -72,7 +90,7 @@ impl Panels<'_> {
         match panel {
             PanelId::Components => self.components(ui),
             PanelId::Stories => self.stories(ui),
-            PanelId::Properties => self.facts(ui),
+            PanelId::Properties => self.properties(ui),
             PanelId::Inspect => self.record(ui),
             PanelId::Overview => {
                 let selected = self.selected().map(|component| component.type_name);
@@ -100,6 +118,8 @@ impl Panels<'_> {
         let shown = viewer::rows(&self.catalog.components, self.filter.as_str(), &*self.open);
         let groups = viewer::groups(&shown);
         let by_key: HashMap<&TreeKey, &TreeRow> = shown.iter().map(|row| (&row.key, row)).collect();
+        let before = self.selected().map(|component| component.type_name);
+        let mut opened = None;
         let (filter, selection, open) = (&mut *self.filter, &mut *self.selection, &mut *self.open);
         Stack::new().fill().pad(Pad::Regular).show(ui, |ui, _| {
             TextField::search("Filter components", Bind::bound(&mut *filter)).show(ui);
@@ -108,36 +128,57 @@ impl Panels<'_> {
                 .tree(true)
                 .selection(Bind::bound(&mut *selection))
                 .empty("No component matches the filter")
-                .show_items(ui, &TreeRows::new(&shown), &mut |key, _| {
+                .show_items(ui, &TreeRows::new(&shown), &mut |key, cx| {
                     let Some(row) = by_key.get(key) else { return ListRow::spacer() };
                     let item = ListRow::new(row.label.clone()).depth(row.depth);
-                    if row.group { item.group(row.open) } else { item }
+                    if row.group {
+                        return item.group(row.open);
+                    }
+                    // The Open icon shows on the selected row and the row under the pointer.
+                    if cx.row.selected || cx.row.hovered {
+                        item.trailing_part(OPEN, TrailingFace::Icon(IconId::new("open").into()), format!("Open {}", row.label))
+                    } else {
+                        item
+                    }
                 });
             for event in listed.events {
-                if let CollectionEvent::Open(change) = event {
-                    open.apply(&change.key, change.open, change.all, groups.iter());
+                match event {
+                    CollectionEvent::Open(change) => open.apply(&change.key, change.open, change.all, groups.iter()),
+                    CollectionEvent::Activate(TreeKey::Component(type_name)) => opened = Some(type_name),
+                    CollectionEvent::Item(TreeKey::Component(type_name), RowEvent::Trailing { .. }) => opened = Some(type_name),
+                    _ => {}
                 }
             }
         });
+        if let Some(type_name) = opened {
+            *self.open_request = Some(type_name);
+        }
+        // Selecting a component opens its level.
+        let now = self.selected().map(|component| (component.type_name, component.level));
+        if let Some((type_name, level)) = now
+            && Some(type_name) != before
+        {
+            self.open.set(&TreeKey::Level(level), true);
+        }
     }
 
     fn stories(&mut self, ui: &mut Ui) {
         let catalog = self.catalog;
-        let Some(type_name) = self.selected().map(|component| component.type_name) else {
+        let Some(component) = self.selected() else {
             return scrolled(ui, |ui| {
-                Notice::new(Tone::Info, "Select a component to see its stories.").show(ui);
+                hint(ui, "Select a component");
             });
         };
+        let (type_name, titles) = (component.type_name, component.titles.clone());
         let listed: Vec<usize> = (0..catalog.entries.len()).filter(|&at| catalog.entries[at].type_name == type_name).collect();
         let mut selection = Selection::default();
         selection.items.extend(self.target(type_name));
         let before = selection.items.clone();
         Stack::new().fill().pad(Pad::Regular).show(ui, |ui, _| {
             let source = keyed(&listed, |at| *at);
-            List::<usize>::new("Stories")
-                .select(SelectMode::Single)
-                .selection(Bind::bound(&mut selection))
-                .show_items(ui, &source, &mut |at, _| ListRow::new(catalog.entries[*at].registration.story.name));
+            List::<usize>::new("Stories").select(SelectMode::Single).selection(Bind::bound(&mut selection)).show_items(ui, &source, &mut |at, _| {
+                ListRow::new(listed.iter().position(|shown| shown == at).and_then(|place| titles.get(place)).cloned().unwrap_or_default())
+            });
         });
         if selection.items != before
             && let Some(picked) = selection.items.first()
@@ -154,44 +195,72 @@ impl Panels<'_> {
         picked.and_then(|name| stories.find(|&at| self.catalog.entries[at].registration.story.name == name)).or(first)
     }
 
-    fn facts(&mut self, ui: &mut Ui) {
-        let component = self.selected();
-        let declared = component.and_then(|component| self.catalog.declared.get(component.type_name));
-        scrolled(ui, |ui| {
-            let Some(component) = component else {
-                Notice::new(Tone::Info, "Select a component to see its facts.").show(ui);
-                return;
-            };
-            fact(ui, "Type", component.type_name);
-            fact(ui, "Stories", component.stories.join(", "));
-            if let Some(declared) = declared {
-                fact(ui, "Module", declared.module);
-                fact(ui, "Purpose", declared.purpose);
-            }
-        });
+    /// The display title of the story at catalog index `at` of `component`.
+    fn title(&self, component: &ComponentInfo, at: usize) -> String {
+        let place = self.catalog.entries[..at].iter().filter(|entry| entry.type_name == component.type_name).count();
+        component.titles.get(place).cloned().unwrap_or_default()
     }
 
-    fn record(&mut self, ui: &mut Ui) {
-        let probe = self.selected().and_then(|component| self.catalog.declared.get(component.type_name)).and_then(|declared| declared.probe);
-        let chosen = self.selected().is_some();
+    fn properties(&mut self, ui: &mut Ui) {
+        let component = self.selected().cloned();
+        let target = component.as_ref().and_then(|component| self.target(component.type_name));
+        let (Some(component), Some(index)) = (component, target) else {
+            return scrolled(ui, |ui| {
+                hint(ui, "Select a component");
+            });
+        };
+        let title = self.title(&component, index);
+        let starts = &mut *self.starts;
+        let data = data_of(self.cells, index);
+        // The values exist once the story has run; the first pass that finds them records the start.
+        if !starts.contains_key(&index) && !data.changed_since(&StoryData::default().snapshot()).is_empty() {
+            starts.insert(index, data.snapshot());
+        }
+        let changed = starts.get(&index).is_some_and(|start| !data.changed_since(start).is_empty());
+        let mut reset = false;
         scrolled(ui, |ui| {
-            if !chosen {
-                Notice::new(Tone::Info, "Select a component to see its decision record.").show(ui);
-                return;
-            }
-            let Some(probe) = probe else {
-                Notice::new(Tone::Info, "A pattern has no record of its own: its parts are the records.").show(ui);
+            Row::new().fill_width().align(RowAlign::SpaceBetween).show(ui, |ui, _| {
+                Row::new().show(ui, |ui, _| {
+                    Text::new(component.name.clone()).role(TypeRole::Heading).show(ui);
+                    Text::new(title.clone()).shade(Shade::Muted).show(ui);
+                });
+                if changed {
+                    reset = IconButton::new(IconId::new("undo")).label("Reset args").show(ui).clicks > 0;
+                }
+            });
+            story_props(ui, &mut *data);
+        });
+        if reset && let Some(start) = starts.get(&index) {
+            data.restore(start);
+        }
+    }
+
+    /// The decision record of the selected component, then where it is declared and what it is for.
+    fn record(&mut self, ui: &mut Ui) {
+        let component = self.selected().map(|component| component.type_name);
+        let declared = component.and_then(|type_name| self.catalog.declared.get(type_name));
+        scrolled(ui, |ui| {
+            let (Some(type_name), Some(declared)) = (component, declared) else {
+                hint(ui, "Select a component");
                 return;
             };
-            fact(ui, "Shape", describe::shape(probe.shape));
-            fact(ui, "Role", describe::role(probe.role));
-            fact(ui, "Input", describe::input(probe.input));
-            fact(ui, "Keys it keeps", describe::keys(&probe.keys));
-            fact(ui, "Opens a popup", probe.overlay.to_string());
-            fact(ui, "Shows its label", probe.shows_label.to_string());
-            for exemption in probe.exempt {
-                fact(ui, "Exempt from", format!("{}: {}", exemption.case, exemption.reason));
+            match declared.probe {
+                None => hint(ui, "A pattern has no record of its own: its parts are the records."),
+                Some(probe) => {
+                    fact(ui, "Shape", describe::shape(probe.shape));
+                    fact(ui, "Role", describe::role(probe.role));
+                    fact(ui, "Input", describe::input(probe.input));
+                    fact(ui, "Keys it keeps", describe::keys(&probe.keys));
+                    fact(ui, "Opens a popup", probe.overlay.to_string());
+                    fact(ui, "Shows its label", probe.shows_label.to_string());
+                    for exemption in probe.exempt {
+                        fact(ui, "Exempt from", format!("{}: {}", exemption.case, exemption.reason));
+                    }
+                }
             }
+            fact(ui, "Type", type_name);
+            fact(ui, "Module", declared.module);
+            fact(ui, "Purpose", declared.purpose);
         });
     }
 

@@ -44,24 +44,31 @@ fn drag_thumb(fixture: &mut Fixture) {
 #[story(CanvasScrollbars<'static>, covers = [Default], drive = Drive::Custom(drag_thumb))]
 fn scrolled_view(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let full = ui.available_rect_before_wrap();
+    let overscroll = *data.value("overscroll", false);
     let view = data.value("view", view_over(full));
-    on_canvas_view(ui, view_over, |ui, at, _| CanvasScrollbars::new("Scroll bars", Bind::bound(&mut *view), DOCUMENT).show_at(ui, at))
+    on_canvas_view(ui, view_over, |ui, at, _| {
+        CanvasScrollbars::new("Scroll bars", Bind::bound(&mut *view), DOCUMENT).overscroll(overscroll).show_at(ui, at)
+    })
 }
 
 #[story(CanvasScrollbars<'static>, covers = [Mixed], drive = Drive::Custom(drag_thumb))]
 fn views_that_differ(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let overscroll = *data.value("overscroll", false);
     let view = data.value("view", Mixed::<CanvasView>::Mixed);
-    on_canvas_view(ui, view_over, |ui, at, _| CanvasScrollbars::new("Scroll bars", Bind::bound_mixed(&mut *view), DOCUMENT).show_at(ui, at))
+    on_canvas_view(ui, view_over, |ui, at, _| {
+        CanvasScrollbars::new("Scroll bars", Bind::bound_mixed(&mut *view), DOCUMENT).overscroll(overscroll).show_at(ui, at)
+    })
 }
 
 #[story(CanvasScrollbars<'static>, covers = [Invalid], drive = Drive::Custom(drag_thumb))]
 fn view_scrolled_too_far(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let full = ui.available_rect_before_wrap();
+    let overscroll = *data.value("overscroll", false);
     let view = data.value("view", view_over(full));
     on_canvas_view(ui, view_over, |ui, at, _| {
         let kept = |view: &CanvasView| {
             if view.center.x > LAST_CENTRE_X { Validity::Refuse(Message::new("The view cannot scroll further right")) } else { Validity::Ok }
         };
-        CanvasScrollbars::new("Scroll bars", Bind::bound(&mut *view).check(kept), DOCUMENT).show_at(ui, at)
+        CanvasScrollbars::new("Scroll bars", Bind::bound(&mut *view).check(kept), DOCUMENT).overscroll(overscroll).show_at(ui, at)
     })
 }

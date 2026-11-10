@@ -5,6 +5,7 @@ use crate::contract::{Bind, Props as _, Show as _, Validity};
 use crate::runtime::env::Message;
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use craft_behavior::Mixed;
+use craft_theme::ControlSize;
 use egui::{Key, Modifiers, Ui};
 
 const TODAY: (i32, u8, u8) = (2026, 8, 14);
@@ -16,7 +17,9 @@ fn today() -> PickedDate {
 
 #[story(DatePicker<'static>, covers = [Default], drive = Drive::Type("2026-09-01"))]
 fn date_picker(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    DatePicker::new("From", Bind::bound(data.value("from", Some(today())))).today(today()).show(ui).into()
+    let size = *data.choice("size", ControlSize::Md, &[("Sm", ControlSize::Sm), ("Md", ControlSize::Md)]);
+    let disabled = *data.value("disabled", false);
+    DatePicker::new("From", Bind::bound(data.value("from", Some(today())))).today(today()).size(size).enabled(!disabled).show(ui).into()
 }
 
 #[story(DatePicker<'static>, covers = [LongText], drive = Drive::Never)]

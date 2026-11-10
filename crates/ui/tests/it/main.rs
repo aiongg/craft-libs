@@ -1,5 +1,6 @@
 //! The integration binary of craft-ui: every test is a registered trial.
 
+mod field_text_centred;
 mod access;
 mod access_selected;
 mod api_map;

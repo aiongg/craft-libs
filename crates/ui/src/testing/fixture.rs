@@ -220,14 +220,14 @@ impl Fixture {
     /// Light or dark, and standard or high contrast.
     pub fn theme(&mut self, mode: Mode, contrast: Contrast) -> &mut Self {
         self.set_root(|root| {
-            root.mode = mode;
-            root.contrast = contrast;
+            root.mode = mode.into();
+            root.contrast = contrast.into();
         })
     }
 
     /// The motion mode.
     pub fn motion(&mut self, motion: MotionMode) -> &mut Self {
-        self.set_root(|root| root.motion = motion)
+        self.set_root(|root| *root = std::mem::take(root).motion(motion))
     }
 
     /// The text-size step.

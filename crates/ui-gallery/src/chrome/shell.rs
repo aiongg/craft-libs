@@ -76,15 +76,21 @@ fn read_dropped(file: &OsFile) -> Result<AppSizes, String> {
 /// The dock of the shown workspace over the viewer's state.
 fn body(ui: &mut Ui, _: &mut BodyCx<'_>, viewer: &mut Viewer) {
     let Viewer { env, workspace, preview, browser, themes, theme_dock, mock, .. } = viewer;
-    let subject = ThemeSubject::new(theme_of(&env.theme), env.appearance());
+    let subject = ThemeSubject::new(theme_of(&env.theme), env.appearance(ui.ctx()));
     let in_theme = *workspace == Workspace::Theme;
-    let Browser { catalog, filter, selection, open, dock, story_of, generation, cells, .. } = browser;
+    let Browser { catalog, filter, selection, open, dock, story_of, generation, cells, starts, open_request, .. } = browser;
     let dock: &mut Dock<_> = if in_theme { theme_dock } else { dock };
-    let panels = Panels { catalog, filter, selection, open, story_of, cells, generation: *generation, themes, subject, revealed: None };
+    let panels =
+        Panels { catalog, filter, selection, open, story_of, cells, starts, open_request, generation: *generation, themes, subject, revealed: None };
     let mut content = GalleryDock { panels, preview: *preview, app: mock };
     // Component tabs are documents: they close from their ×.
-    let config = DockConfig::default();
+    let config = DockConfig::default().tab_close_buttons(true);
     DockArea::new(if in_theme { "Theme dock" } else { "Components dock" }, Bind::bound(&mut *dock), &mut content, config).show(ui);
+    if let Some(type_name) = content.panels.open_request.take() {
+        let _ = dock.set_visible(crate::viewer::PanelId::Component(type_name), true, Some(crate::viewer::PanelId::Overview), false, |panel| {
+            panel.permissions()
+        });
+    }
     // A closed component tab does not come back from the layout's record of closed panels.
     dock.hidden.retain(|(panel, _)| !matches!(panel, crate::viewer::PanelId::Component(_)));
 }

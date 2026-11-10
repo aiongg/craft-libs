@@ -163,7 +163,7 @@ impl<'a> SymmetryMenu<'a> {
         if let Some(value) = value {
             button = button.description(value);
         }
-        let button = button.id_salt("button").show(ui);
+        let button = button.id_salt("button").show(ui).response;
         let picked = Menu::new(self.label).values().opened_by(&button, Trigger::Press).pick(ui, &entries);
         SymmetryMenuOutput { response: button, command: picked.picked }
     }

@@ -46,7 +46,7 @@ pub struct DockSizes {
     pub gap: f32,
     /// The least extent of a pane along a split, and of a dock (the pane's least size).
     pub least_pane: f32,
-    /// The height of a group's tab strip or section title row (the tab bar height), which every group height includes.
+    /// The height of a group's tab strip or section title row (the panel header height), which every group height includes.
     pub strip: f32,
     /// The height of a column bar (the panel header height).
     pub bar: f32,
@@ -79,7 +79,7 @@ impl DockSizes {
             float_size: Vec2::new(size.float.width, size.float.height),
             gap: cx.tokens.space.gap.inline,
             least_pane: size.pane.least,
-            strip: size.bar.tab,
+            strip: size.panel_header,
             bar: size.panel_header,
             least: size.panel_header,
             reach: size.hit.target,

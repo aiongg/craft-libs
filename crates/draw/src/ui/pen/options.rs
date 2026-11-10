@@ -114,7 +114,7 @@ impl<'a> PathOptionsPopover<'a> {
     /// Adds the gear button to `ui` and, while `open`, the popover under it. The host owns `open`.
     pub fn show(mut self, ui: &mut Ui, open: &mut bool) -> PathOptionsOutput {
         let words = Env::of(ui).words::<PathOptionsWords>();
-        let gear = IconButton::new(IconId::new("settings")).label(words.title.clone()).show(ui);
+        let gear = IconButton::new(IconId::new("settings")).label(words.title.clone()).show(ui).response;
         let (mut edit, mut pick_color) = (None, None);
         let (settings, default_color) = (&mut self.settings, self.default_color);
         let _shown = Popover::new(self.label.clone(), Bind::bound(open)).opened_by(&gear).show(ui, |ui, cx| {

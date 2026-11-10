@@ -102,7 +102,8 @@ impl PaintUi<'_> {
     }
 
     /// Runs the label step (B2) for one leaf child at `rect`: the label's placement beside or above the child, the
-    /// label scope, scrub and the reset dot. The child gets the rect the label leaves.
+    /// label scope, scrub and the reset dot. The child gets the width the label leaves and its own height at the top
+    /// of that rect, as in a labelled container's body, so the label lines up with its baseline on either path.
     pub fn labelled<C: Show>(&mut self, key: impl Hash + Debug, rect: Rect, label: Label, side: SideLabel, child: C) -> C::Output {
         let id = self.id.with(key);
         let env = Env::of(self.ui);
@@ -110,7 +111,12 @@ impl PaintUi<'_> {
         let at =
             LeafLabel { id, owner: self.id, parent: Some(self.id), row: rect, text: &label, side: &side, enabled: self.enabled, size: self.size };
         let placed = crate::layout::ColumnGroup::barrier(&mut *self.ui, |ui| label::leaf(ui, &env, &at, &mut child));
-        let output = self.child_with(id, placed.control, child, None);
+        let mut control = placed.control;
+        if child.fills() != Some(craft_behavior::Axis::Y) {
+            let ideal = run::measure_under(&mut child, &*self.ui, Some(id), craft_behavior::Proposal::Ideal, Some((self.enabled, self.size)));
+            control.max.y = control.max.y.min(control.min.y + ideal.y);
+        }
+        let output = self.child_with(id, control, child, None);
         placed.finish(self.ui.ctx());
         output
     }
@@ -143,7 +149,11 @@ impl PaintUi<'_> {
         let focus = self.active.filter(|(active, _)| *active == part).map(|(_, visible)| visible);
         let source = FaceSource { id: self.id, result, focus, response: self.response, ink: self.text, muted: self.muted, flags: self.flags };
         let record = run::paint_face(self.ui, &source, part, face);
-        self.record.borrow_mut().faces.push(record);
+        let mut own = self.record.borrow_mut();
+        if let Some(baseline) = record.baseline {
+            own.baseline.get_or_insert(baseline);
+        }
+        own.faces.push(record);
     }
 
     /// The raw painter for an allowlisted content painter, clipped to the component's own rect.

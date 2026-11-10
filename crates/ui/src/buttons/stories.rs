@@ -5,11 +5,26 @@ use crate::contract::{Bind, Entry, Props as _, Show as _, Validity};
 use crate::runtime::env::Message;
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use craft_behavior::{IconId, Mixed};
+use craft_theme::{ControlSize, Variant};
 use egui::{Key, Modifiers, Ui};
 
+const SIZES: [(&str, ControlSize); 2] = [("Sm", ControlSize::Sm), ("Md", ControlSize::Md)];
+
 #[story(Button<'static>, covers = [Default])]
-fn button(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    Button::new("Save the document as a copy").icon(IconId::new("save")).show(ui).into()
+fn button(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let variants = [("Primary", Variant::PRIMARY), ("Secondary", Variant::SECONDARY), ("Ghost", Variant::GHOST), ("Danger", Variant::DANGER)];
+    let variant = *data.choice("variant", Variant::PRIMARY, &variants);
+    let size = *data.choice("size", ControlSize::Md, &SIZES);
+    let icon = *data.choice("icon", Some("save"), &[("None", None), ("Save", Some("save")), ("chevron_right", Some("chevron_right"))]);
+    let disabled = *data.value("disabled", false);
+    let loading = *data.value("loading", false);
+    let label = data.value("label", String::from("Save the document as a copy")).clone();
+    let mut button = Button::new(label).variant(variant).size(size).enabled(!disabled).loading(loading);
+    if let Some(icon) = icon {
+        button = button.icon(IconId::new(icon));
+    }
+    let shown = button.show(ui);
+    shown.into()
 }
 
 #[story(Button<'static>, covers = [], disabled_text = "Nothing to save")]
@@ -29,7 +44,10 @@ fn icon_button(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 
 #[story(ToggleButton<'static>, covers = [Default])]
 fn toggle_button(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    ToggleButton::new("Snap to grid", Bind::bound(data.value("on", false))).icon(IconId::new("eye")).show(ui).into()
+    let size = *data.choice("size", ControlSize::Md, &SIZES);
+    let disabled = *data.value("disabled", false);
+    let label = data.value("label", String::from("Snap to grid")).clone();
+    ToggleButton::new(label, Bind::bound(data.value("on", false))).icon(IconId::new("eye")).size(size).enabled(!disabled).show(ui).into()
 }
 
 #[story(ToggleButton<'static>, covers = [Mixed], drive = Drive::Never)]

@@ -145,11 +145,11 @@ fn hold_and_move(fixture: &mut Fixture, from: Pos2, to: Pos2) {
     fixture.idle(1);
 }
 
-/// The grip of the left group: the second button of its header, after the collapse arrow.
-fn left_grip(fixture: &Fixture) -> craft_ui::testing::Target {
-    let mut buttons: Vec<_> = fixture.by_role(Role::BUTTON).into_iter().filter(|button| button.rect.min.x < 100.0).collect();
+/// The drag bar of the left group: the first button of its header.
+fn left_grip(fixture: &Fixture) -> Pos2 {
+    let mut buttons = fixture.by_role(Role::BUTTON);
     buttons.sort_by(|a, b| a.rect.min.x.total_cmp(&b.rect.min.x));
-    buttons[1]
+    buttons[0].center()
 }
 
 fn tabs_by_x(fixture: &Fixture) -> Vec<craft_ui::testing::Target> {
@@ -173,12 +173,12 @@ fn a_panel_dropped_between_two_tabs_lands_between_them() {
 }
 
 #[trial]
-fn a_group_grip_drag_shows_the_drop_mark_over_a_group_side_and_docks_on_release() {
+fn a_header_drag_shows_the_drop_mark_over_a_group_side_and_docks_on_release() {
     let (mut fixture, layout, taken) = bed(two_groups());
     fixture.settle();
     let grip = left_grip(&fixture);
-    hold_and_move(&mut fixture, grip.center(), Pos2::new(395.0, 150.0));
-    assert!(drag::active::<GroupDrag<String>>(fixture.ctx()).is_some(), "the grip started a group drag of the dock's panel type");
+    hold_and_move(&mut fixture, grip, Pos2::new(395.0, 150.0));
+    assert!(drag::active::<GroupDrag<String>>(fixture.ctx()).is_some(), "the header drag started a group drag of the dock's panel type");
     assert!(drag::mark(fixture.ctx()).is_some(), "the dock's target accepts the drag over a group side");
     fixture.frame(vec![release(Pos2::new(395.0, 150.0))]);
     fixture.idle(2);

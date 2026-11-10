@@ -116,6 +116,8 @@ pub(crate) struct AdapterIn<'a> {
 pub(crate) struct AdapterOut {
     pub layout: TextLayout,
     pub focused: bool,
+    /// The screen y of the first row's baseline; `None` while the text is empty.
+    pub baseline: Option<f32>,
     /// The character `AdapterIn::click` fell at.
     pub clicked_char: Option<usize>,
 }
@@ -350,5 +352,7 @@ pub(crate) fn run(state: &mut TextState, mut input: AdapterIn<'_>) -> AdapterOut
     state.focused = shown.focused;
     let full = display;
     let clicked_char = input.click.map(|pos| shown.char_at(pos));
-    AdapterOut { layout: TextLayout::new(shown.galley, false, full), focused: shown.focused, clicked_char }
+    let layout = TextLayout::new(shown.galley, false, full);
+    let baseline = (!layout.full.is_empty()).then(|| shown.galley_pos.y + layout.first_baseline);
+    AdapterOut { layout, focused: shown.focused, baseline, clicked_char }
 }

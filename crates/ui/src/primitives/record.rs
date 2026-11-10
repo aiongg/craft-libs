@@ -56,6 +56,8 @@ pub(crate) struct FaceRecord {
     pub expanded: Option<bool>,
     /// Whether the face is enabled: a disabled face makes its part's sub-node disabled.
     pub enabled: bool,
+    /// The screen y of the face's first text baseline, which the composite's record takes when it has none yet.
+    pub baseline: Option<f32>,
 }
 
 /// The base id of the face painted for `part` of the composite `id`: owned by the composite, so the face's hover

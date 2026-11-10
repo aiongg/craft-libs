@@ -2045,7 +2045,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
 - `craft_ui::contract::Resolved`: `pub struct Resolved<'p> { pub id: Id, pub label: &'p str, pub enabled: bool, pub read_only: bool, pub size: ControlSize, pub variant: Variant, pub selected: Option<bool> }`. `Common` after step 1; it borrows locals of the pipeline frame, never the component.
 - `craft_ui::contract::Role`: re-export of `craft_ui::runtime::access::Role`.
 - `craft_ui::contract::RowAlign`: `pub enum RowAlign { Start, Center, End, SpaceBetween }`. Where a `Row` places its block of children along the row.
-- `craft_ui::contract::RowState`: `pub struct RowState { pub selected: bool, pub lead: bool, pub drop_target: bool, pub dragging: bool, pub renaming: bool, pub emphasized: bool, pub current: bool, pub striped: bool, pub open: bool }`. What an item reads of its place in the collection; the item step joins it to the item's flags at step 12.
+- `craft_ui::contract::RowState`: `pub struct RowState { pub selected: bool, pub lead: bool, pub drop_target: bool, pub dragging: bool, pub renaming: bool, pub emphasized: bool, pub current: bool, pub striped: bool, pub open: bool, pub hovered: bool }`. What an item reads of its place in the collection; the item step joins it to the item's flags at step 12.
 - `craft_ui::contract::Sampler`: `pub trait Sampler: sealed::Host`. The canvas reach under a modal layer (15.5, 8.3): a control of a dialog keeps the canvas below it usable. It is
   - `fn arm_sampler(&mut self, canvas: Id)`. Arms a sampler for `canvas` (the canvas component's id): while the modal layer is open, primary presses on the
   - `fn keep_view_open(&mut self, canvas: Id)`. Keeps the view of `canvas` (the canvas component's id) usable under the modal layer: the wheel scrolls and
@@ -2332,7 +2332,7 @@ Painters, `Draw`, the sensing core, the text adapter and `ImeSurface`.
   - `pub const fn elide(mut self) -> Self`. Cuts the text to one row with an ellipsis at the end.
   - `pub fn full_text(&self) -> String`. The text of every run, joined.
 - `craft_ui::primitives::Draw`: `pub struct Draw<'a>`. The content-paint API `PaintUi::draw` gives.
-  - `pub fn text(&self, rect: Rect, run: &TextRun<'_>) -> TextLayout`. Lays `run` out in `rect`'s width and paints it at the reading start of `rect`, top aligned. Records the
+  - `pub fn text(&self, rect: Rect, run: &TextRun<'_>) -> TextLayout`. Lays `run` out in `rect`'s width and paints it at the reading start of `rect`. A single line is centred
   - `pub fn doc(&self, rect: Rect, text: &DocText<'_>) -> TextLayout`. Lays `text` out in `rect`'s width and paints it top aligned, its block placed in `rect` by `text.align` (Start
   - `pub fn layout(&self, run: &TextRun<'_>, max_width: f32) -> TextLayout`. Lays `run` out in `max_width` without painting it: the one text layout path for painters that measure before
   - `pub fn galley(&self, pos: Pos2, layout: &TextLayout)`. Paints a laid-out run at `pos`. Records the first baseline and, when the layout cut text, the full text, as
@@ -2977,15 +2977,18 @@ One-shot screenshot slots and the facts a screenshot is measured against.
 - `craft_ui::runtime::env::MotionPolicy`: `pub struct MotionPolicy { pub mode: MotionMode, pub tokens: MotionTokens }`. The motion mode in effect, carried in `Env.motion`.
   - `pub const fn new(mode: MotionMode, tokens: MotionTokens) -> Self`. The policy that runs animations at `mode` with `tokens`.
 - `craft_ui::runtime::env::Overrides`: `pub struct Overrides { pub size: Option<ControlSize>, pub enabled: Option<bool>, pub read_only: Option<bool>, pub motion: Option<MotionMode>, pub direction: Option<Direction>, pub words: Option<WordsOverride>, pub values: AppValues }`. Changes to the inherited values for a stretch of code.
-- `craft_ui::runtime::env::RootEnv`: `pub struct RootEnv { pub sizes: Arc<AppSizes>, pub text_size: TextSize, pub direction: Direction, pub motion: MotionMode, pub mode: Mode, pub contrast: Contrast, pub density: Size, pub scale: Scale, pub tab_all_controls: bool, pub tab_toggles_chrome: bool, pub theme: ThemeId, pub values: AppValues, pub today: Option<CalendarDate> }`. The app's root values each frame.
+- `craft_ui::runtime::env::ResolvedRoot`: `pub struct ResolvedRoot { pub mode: Mode, pub contrast: Contrast, pub motion: MotionMode }`. The mode, contrast and motion of a pass, with `System` resolved.
+- `craft_ui::runtime::env::RootEnv`: `pub struct RootEnv { pub sizes: Arc<AppSizes>, pub text_size: TextSize, pub direction: Direction, pub motion: MotionChoice, pub mode: ModeChoice, pub contrast: ContrastChoice, pub density: Size, pub scale: Scale, pub tab_all_controls: bool, pub tab_toggles_chrome: bool, pub theme: ThemeId, pub values: AppValues, pub today: Option<CalendarDate> }`. The app's root values each frame.
   - `pub fn new() -> Self`. A root with every value at its default.
   - `pub fn scale(mut self, scale: Scale) -> Self`. Sets the interface scale.
   - `pub fn direction(mut self, direction: Direction) -> Self`. Sets the layout direction.
-  - `pub fn motion(mut self, motion: MotionMode) -> Self`. Sets the motion mode.
-  - `pub fn mode(mut self, mode: Mode) -> Self`. Sets light or dark.
+  - `pub fn motion(mut self, motion: MotionMode) -> Self`. Sets the motion choice from a motion mode.
+  - `pub fn mode(mut self, mode: impl Into<ModeChoice>) -> Self`. Sets the mode choice.
   - `pub fn theme(mut self, theme: ThemeId) -> Self`. Sets the theme.
-  - `pub fn appearance(&self) -> Appearance`. The appearance the root's tokens resolve under: the mode, contrast, density and text size.
-  - `pub fn contrast(mut self, contrast: Contrast) -> Self`. Sets standard or high contrast.
+  - `pub fn resolved(&self, ctx: &Context) -> ResolvedRoot`. What the choices resolve to on `ctx`'s pass: the one place `System` is replaced by the OS's answer.
+  - `pub fn resolved_for(&self, system: SystemAppearance) -> ResolvedRoot`. What the choices resolve to when the OS reports `system`.
+  - `pub fn appearance(&self, ctx: &Context) -> Appearance`. The appearance the root's tokens resolve under on `ctx`: the mode, contrast, density and text size.
+  - `pub fn contrast(mut self, contrast: impl Into<ContrastChoice>) -> Self`. Sets the contrast choice.
   - `pub fn density(mut self, density: Size) -> Self`. Sets the density preset.
   - `pub fn today(mut self, date: CalendarDate) -> Self`. Sets today's date, as the host's clock and time zone give it.
 - `craft_ui::runtime::env::Scale`: `pub struct Scale(pub f32)`. The interface scale: pixels per point.

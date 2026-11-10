@@ -3,7 +3,7 @@
 use craft_behavior::CanvasView;
 use craft_behavior::canvas::zoom;
 use craft_behavior::kurbo::{Point, Size};
-use craft_ui::bars::{Bar, BarItem, BarItems, BarKind, BreadcrumbBar, StatusItem, StatusReadout, StatusValues};
+use craft_ui::bars::{Bar, BarCell, BarItem, BarItems, BarKind, BreadcrumbBar, StatusItem, StatusReadout, StatusValues};
 use craft_ui::buttons::{Button, IconButton};
 use craft_ui::contract::{Bind, Entry, Props as _, Role, Show as _, ShowContainer as _};
 use craft_ui::pickers::Select;
@@ -227,4 +227,30 @@ fn an_overflowing_bar_in_a_header_makes_room_for_its_scroll_bar() {
     };
     let (fits, overflows) = (height(1000.0), height(150.0));
     assert!(overflows > fits, "the overflowing bar is taller than the one that fits, by its scroll bar: {overflows} against {fits}");
+}
+
+/// A captioned cell shows its caption and its control on one centre line, and is as wide as the two together; the
+/// bar's trailing group stays at the end edge.
+#[trial]
+fn a_captioned_cell_shares_a_centre_line_and_the_trailing_group_ends_the_bar() {
+    let mut fixture = Fixture::new(|ui| {
+        let entries = [Entry::new(0u8, "Normal"), Entry::new(1, "Multiply")];
+        Bar::new("Options", BarKind::Options)
+            .trailing(|ui| {
+                IconButton::new(craft_behavior::IconId::new("check")).label("Reset").id_salt("reset").show(ui);
+            })
+            .show(ui, |ui, _| {
+                BarCell::new("Blend mode").control(ui, |ui, label| {
+                    let mut value = 0u8;
+                    Select::new(label, Bind::bound(&mut value), &entries).id_salt("mode").show(ui);
+                });
+            });
+    });
+    fixture.settle();
+    let caption = fixture.by_role(Role::LABEL).into_iter().next().expect("the caption is shown");
+    let control = fixture.by_role(Role::COMBO_BOX).into_iter().next().expect("the select is shown");
+    let reset = fixture.by_label("Reset").expect("the trailing button is shown");
+    assert!(caption.rect.max.x <= control.rect.min.x, "the caption comes before the control");
+    assert!(control.rect.max.x < reset.rect.min.x, "the cell does not stretch over the trailing group");
+    assert_eq!(caption.rect.center().y, control.rect.center().y, "the caption and the control share a centre line");
 }

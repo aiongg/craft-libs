@@ -23,7 +23,8 @@ pub use craft_i18n::Direction;
 pub use craft_i18n::{AgeStyle, Count, Counted, WordRows, WordSet, WordTemplate, Words};
 use craft_i18n::{CalendarDate, DateFormat, Format};
 use craft_theme::{
-    AppSizes, Appearance, Contrast, ControlSize, Mode, MotionTokens, SUITE_DEFAULT, Size, TextSize, ThemeDef, ThemeId, builtins, resolve_sized,
+    AppSizes, Appearance, Contrast, ContrastChoice, ControlSize, Mode, ModeChoice, MotionChoice, MotionTokens, SUITE_DEFAULT, Size, SystemAppearance,
+    TextSize, ThemeDef, ThemeId, builtins, resolve_sized,
 };
 pub use craft_ui_macros::EnvValue;
 use egui::{Context, Id, Ui, ViewportId};
@@ -184,12 +185,12 @@ pub struct RootEnv {
     pub text_size: TextSize,
     /// The layout direction.
     pub direction: Direction,
-    /// The motion mode.
-    pub motion: MotionMode,
-    /// Light or dark.
-    pub mode: Mode,
-    /// Standard or high contrast.
-    pub contrast: Contrast,
+    /// The motion choice; `System` follows the OS where it reports a preference, else full motion.
+    pub motion: MotionChoice,
+    /// Light, dark, or the OS's mode.
+    pub mode: ModeChoice,
+    /// Standard, high, or the OS's contrast.
+    pub contrast: ContrastChoice,
     /// The density preset.
     pub density: Size,
     /// The interface scale over the native pixels per point.
@@ -212,9 +213,9 @@ impl Default for RootEnv {
             sizes: Arc::new(AppSizes::default()),
             text_size: TextSize::default(),
             direction: Direction::Ltr,
-            motion: MotionMode::default(),
-            mode: Mode::Light,
-            contrast: Contrast::Standard,
+            motion: MotionChoice::Full,
+            mode: ModeChoice::Light,
+            contrast: ContrastChoice::Standard,
             density: Size::default(),
             scale: Scale::default(),
             tab_all_controls: true,
@@ -251,15 +252,19 @@ impl RootEnv {
         self
     }
 
-    /// Sets the motion mode.
+    /// Sets the motion choice from a motion mode.
     pub fn motion(mut self, motion: MotionMode) -> Self {
-        self.motion = motion;
+        self.motion = match motion {
+            MotionMode::Off => MotionChoice::Off,
+            MotionMode::Reduced => MotionChoice::Reduced,
+            _ => MotionChoice::Full,
+        };
         self
     }
 
-    /// Sets light or dark.
-    pub fn mode(mut self, mode: Mode) -> Self {
-        self.mode = mode;
+    /// Sets the mode choice.
+    pub fn mode(mut self, mode: impl Into<ModeChoice>) -> Self {
+        self.mode = mode.into();
         self
     }
 
@@ -269,14 +274,55 @@ impl RootEnv {
         self
     }
 
-    /// The appearance the root's tokens resolve under: the mode, contrast, density and text size.
-    pub fn appearance(&self) -> Appearance {
-        Appearance { mode: self.mode, contrast: self.contrast, size: self.density, text_size: self.text_size, reduced_motion: false }
+    /// What the choices resolve to on `ctx`'s pass: the one place `System` is replaced by the OS's answer.
+    ///
+    /// egui reports only the OS theme (`Context::system_theme`); an OS that reports none gives `Mode::Light`,
+    /// and contrast and reduced motion, which neither egui nor `craft-window` expose, resolve to standard
+    /// contrast and full motion.
+    pub fn resolved(&self, ctx: &Context) -> ResolvedRoot {
+        let system = SystemAppearance {
+            mode: ctx.system_theme().map(|theme| if theme == egui::Theme::Dark { Mode::Dark } else { Mode::Light }),
+            contrast: None,
+            reduced_motion: None,
+        };
+        self.resolved_for(system)
     }
 
-    /// Sets standard or high contrast.
-    pub fn contrast(mut self, contrast: Contrast) -> Self {
-        self.contrast = contrast;
+    /// What the choices resolve to when the OS reports `system`.
+    pub fn resolved_for(&self, system: SystemAppearance) -> ResolvedRoot {
+        let mode = match self.mode {
+            ModeChoice::Light => Mode::Light,
+            ModeChoice::Dark => Mode::Dark,
+            ModeChoice::System => system.mode.unwrap_or(Mode::Light),
+        };
+        let contrast = match self.contrast {
+            ContrastChoice::Standard => Contrast::Standard,
+            ContrastChoice::High => Contrast::High,
+            ContrastChoice::System => system.contrast.unwrap_or_default(),
+        };
+        let motion = match self.motion {
+            MotionChoice::Off => MotionMode::Off,
+            choice if choice.reduced(system.reduced_motion) => MotionMode::Reduced,
+            _ => MotionMode::Full,
+        };
+        ResolvedRoot { mode, contrast, motion }
+    }
+
+    /// The appearance the root's tokens resolve under on `ctx`: the mode, contrast, density and text size.
+    pub fn appearance(&self, ctx: &Context) -> Appearance {
+        let resolved = self.resolved(ctx);
+        Appearance {
+            mode: resolved.mode,
+            contrast: resolved.contrast,
+            size: self.density,
+            text_size: self.text_size,
+            reduced_motion: resolved.motion != MotionMode::Full,
+        }
+    }
+
+    /// Sets the contrast choice.
+    pub fn contrast(mut self, contrast: impl Into<ContrastChoice>) -> Self {
+        self.contrast = contrast.into();
         self
     }
 
@@ -291,6 +337,18 @@ impl RootEnv {
         self.today = Some(date);
         self
     }
+}
+
+/// The mode, contrast and motion of a pass, with `System` resolved.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ResolvedRoot {
+    /// Light or dark.
+    pub mode: Mode,
+    /// Standard or high contrast.
+    pub contrast: Contrast,
+    /// The motion mode, before egui's animation time lowers it.
+    pub motion: MotionMode,
 }
 
 /// The inherited context of a `Ui`: one `Arc` clone per read.
@@ -377,6 +435,9 @@ pub struct Scoped {
     /// The width a `Row` body was offered this pass, before its `End` or `Center` lead narrowed the block: the room
     /// its direct children share. Only the row's own children read it.
     pub(crate) row_room: Option<f32>,
+    /// The line of an unwrapped `Row` body: the height of its tallest child in this pass's measuring run. Its direct
+    /// children placed in flow sit at the line's vertical centre. `None` while the row is measured.
+    pub(crate) row_line: Option<f32>,
     /// The `Stack` or `Row` body that encloses the scope and the axis it runs along, when a child that fills that
     /// axis shares the room its siblings leave (set only where the body is given the axis).
     pub(crate) fill_body: Option<(Id, craft_behavior::Axis)>,
@@ -431,6 +492,7 @@ impl Scoped {
         self.content_column = false;
         self.content = (false, false);
         self.row_room = None;
+        self.row_line = None;
         self.fill_body = None;
         self.fill_share = None;
         self.offered = None;
@@ -514,9 +576,10 @@ impl Env {
 
     /// The root env of a frame: the app's values with the pixels per point read back from egui.
     pub(crate) fn from_root(ctx: &Context, root: &RootEnv, host: Option<Arc<Host>>, pixels_per_point: f32) -> Env {
-        let inputs = TokenInputs::of(root);
+        let resolved = root.resolved(ctx);
+        let inputs = TokenInputs::of(root, resolved);
         let tokens = tokens_for(ctx, &inputs);
-        let motion = MotionPolicy::new(motion_mode(ctx, root), tokens.tokens().motion);
+        let motion = MotionPolicy::new(motion_mode(ctx, resolved.motion), tokens.tokens().motion);
         let os = windows::os_of(ctx);
         let scale = Scale(pixels_per_point);
         let line_ratio = crate::fonts::stack_facts(ctx).line_ratio;
@@ -549,6 +612,7 @@ impl Env {
                 content_column: false,
                 content: (false, false),
                 row_room: None,
+                row_line: None,
                 fill_body: None,
                 fill_share: None,
                 offered: None,
@@ -721,8 +785,8 @@ impl Drop for Restore<'_> {
 }
 
 /// The mode the root runs animations at: the app's, and off while egui's animation time is zero.
-fn motion_mode(ctx: &Context, root: &RootEnv) -> MotionMode {
-    if repaint::animation_time(ctx) > 0.0 { root.motion } else { root.motion.lowered_by(MotionMode::Off) }
+fn motion_mode(ctx: &Context, motion: MotionMode) -> MotionMode {
+    if repaint::animation_time(ctx) > 0.0 { motion } else { motion.lowered_by(MotionMode::Off) }
 }
 
 /// The newest few root-token inputs are kept; an app swaps its sizes rarely.
@@ -772,12 +836,12 @@ pub(crate) struct TokenInputs {
 }
 
 impl TokenInputs {
-    fn of(root: &RootEnv) -> Self {
+    fn of(root: &RootEnv, resolved: ResolvedRoot) -> Self {
         TokenInputs {
             sizes: root.sizes.clone(),
             theme: root.theme.clone(),
-            mode: root.mode,
-            contrast: root.contrast,
+            mode: resolved.mode,
+            contrast: resolved.contrast,
             density: root.density,
             text_size: root.text_size,
         }

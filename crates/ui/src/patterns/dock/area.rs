@@ -598,9 +598,10 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
         }
     }
 
-    /// The rows of the menu of `panel`'s group: the host's rows, then the panel commands the config shows, with
+    /// The rows of the menu of `panel`'s group, and whether the host gave any (only then does the group show a menu
+    /// button; a context request opens the menu either way): the host's rows, then the panel commands the config shows, with
     /// the Move Panel To submenu of the groups the panel can move to.
-    fn menu_rows(&mut self, body: &BodyCx<'_>, panel: &P) -> Vec<PanelRow> {
+    fn menu_rows(&mut self, body: &BodyCx<'_>, panel: &P) -> (Vec<PanelRow>, bool) {
         let scene = self.scene;
         let config = scene.config;
         let command = |command: DockCommands| PanelRow::Command(CommandRef::from(command));
@@ -622,11 +623,12 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
             group.push(command(DockCommands::ToggleMaximize));
         }
         let mut rows = self.panels.panel_rows(panel);
-        if !rows.is_empty() {
+        let hosted = !rows.is_empty();
+        if hosted {
             rows.push(PanelRow::Separator);
         }
         rows.extend(group);
-        rows
+        (rows, hosted)
     }
 
     /// Runs a panel command on `panel`: the event of a command the host carries out, else its actions.
@@ -674,9 +676,12 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
         if let Some(height) = self.panels.group_view(members, active, ui, at, body) {
             return matches!(at, GroupAt::Measure(_)).then_some(height);
         }
-        let titles: Vec<PanelTitle> = members.iter().map(|panel| PanelTitle::new(PanelKey::of(panel), scene.spec(panel).label)).collect();
+        let titles: Vec<PanelTitle> = members
+            .iter()
+            .map(|panel| PanelTitle::new(PanelKey::of(panel), scene.spec(panel).label).closable(scene.permissions(panel).closable))
+            .collect();
         let shown = &members[active];
-        let menu = self.menu_rows(body, shown);
+        let (menu, hosted) = self.menu_rows(body, shown);
         let permissions = |panel: &P| scene.permissions(panel);
         let states = dock_states(&DockScene::new(scene.layout, scene.space, false, &permissions), shown);
         let panels = RefCell::new(&mut *self.panels);
@@ -686,6 +691,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
             .zones(scene.config.zone_rule())
             .movable(scene.permissions(shown).movable)
             .menu(menu)
+            .panel_menu_shown(hosted)
             .command_states(states);
         if look.minimized {
             group = group.minimized();
@@ -834,7 +840,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
             if scene.config.close_button && rights.iter().all(|rights| rights.closable) {
                 actions.push(HeaderAction::Close);
             }
-            let rows = self.menu_rows(body, &active);
+            let (rows, _) = self.menu_rows(body, &active);
             let picked = Cell::new(None);
             let dropped = RefCell::new(None);
             let dock = scene.dock.with(("floating", window.id));

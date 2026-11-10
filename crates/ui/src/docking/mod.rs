@@ -102,12 +102,20 @@ pub struct PanelTitle {
     pub key: PanelKey,
     /// The tab's text.
     pub title: Label,
+    /// Whether the panel's tab shows a close button, where the group's tabs close.
+    pub closable: bool,
 }
 
 impl PanelTitle {
-    /// A panel `key` titled `title`.
+    /// A panel `key` titled `title`, not closable from its tab.
     pub fn new(key: PanelKey, title: impl Into<Label>) -> Self {
-        PanelTitle { key, title: title.into() }
+        PanelTitle { key, title: title.into(), closable: false }
+    }
+
+    /// Whether the panel's tab shows a close button.
+    pub fn closable(mut self, closable: bool) -> Self {
+        self.closable = closable;
+        self
     }
 }
 
