@@ -21,6 +21,7 @@ use craft_ui::primitives::ContentPainterCx;
 use craft_ui::primitives::textures::{Priority, Revision, ThumbPaint, ThumbRender, ThumbRequest, ThumbSource, ThumbnailOptions, Thumbnails};
 use craft_ui::runtime::env::{Env, Label};
 use craft_ui::style::DataColor;
+use craft_ui::list::ThumbSize;
 use craft_ui::tile_grid::{CaptionPlace, ThumbnailSlider, Tile, TileGrid, TileZoom};
 use egui::{ColorImage, Rect, Response, Ui};
 use serde::{Deserialize, Serialize};
@@ -356,6 +357,7 @@ impl<'a> GlyphsPanel<'a> {
             let recent: Vec<char> = state.recent.iter().filter_map(|g| g.chars().next()).collect();
             let mut activated: Option<String> = None;
             let strip = TileGrid::<usize>::new(words.recent.clone())
+                .thumb_size(ThumbSize::Medium)
                 .zoom(RECENT_ZOOM)
                 .caption(CaptionPlace::None)
                 .select(SelectMode::Single)
@@ -378,6 +380,7 @@ impl<'a> GlyphsPanel<'a> {
             let chars = category_chars(cx.memory::<CharsCache>(), source, &face_family, &face_style, &state.category, &state.recent);
             let mut marked = cx.memory::<Marked>().clone();
             let grid = TileGrid::<usize>::new(words.grid.clone())
+                .thumb_size(ThumbSize::Medium)
                 .zoom(size as f32)
                 .caption(CaptionPlace::None)
                 .select(SelectMode::Single)
