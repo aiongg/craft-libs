@@ -1,6 +1,8 @@
 //! Intents: a key, an AccessKit action or typed text turned into meaning (spec 9.2).
 
 use crate::part::PartRef;
+use craft_keymap::Mods;
+use emath::Vec2;
 use std::sync::Arc;
 
 /// A logical move. `Back` and `Forward` follow the reading direction; the runtime flips physical arrows
@@ -133,6 +135,34 @@ impl AccessRequest {
     }
 }
 
+/// What a disclosure action does to the children or popup it names.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum DiscloseTo {
+    /// Open when closed, close when open. The handler resolves it against the state it holds when it handles the action.
+    Toggle,
+    /// Open.
+    Open,
+    /// Close.
+    Close,
+}
+
+/// The name of an app-declared action, a const the app declares beside the component that handles it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct ActionId(&'static str);
+
+impl ActionId {
+    /// An action named `label`, a unique word within the component; it is also the label the access tree gives the action.
+    pub const fn new(label: &'static str) -> ActionId {
+        ActionId(label)
+    }
+
+    /// The word the action was declared with.
+    pub const fn label(self) -> &'static str {
+        self.0
+    }
+}
+
 /// What the runtime routes to a focused component.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
@@ -186,10 +216,20 @@ pub enum Intent {
         /// Toward the end.
         forward: bool,
     },
-    /// Open a `Trigger::Hold` or dropdown opener.
-    Open,
-    /// Close the dropdown of a dropdown opener.
-    Close,
+    /// Open, close or toggle the children of an item or the popup of an opener; `all` reaches every descendant.
+    #[non_exhaustive]
+    Disclose {
+        /// What happens to the disclosure.
+        to: DiscloseTo,
+        /// Apply to every descendant as well.
+        all: bool,
+    },
+    /// Open the details of the item or value: the meaning of a double click, and of its key.
+    OpenDetails,
+    /// An app-declared action.
+    Custom(ActionId),
+    /// A keyboard counterpart of a drag that moves: a step along `Vec2` (a unit axis), with the modifiers held.
+    Nudge(Vec2, Mods),
     /// An AccessKit action with no intent of its own.
     Access(AccessRequest),
 }
@@ -213,6 +253,11 @@ impl Intent {
     /// `MoveItem` toward the end when `forward`.
     pub const fn move_item(forward: bool) -> Intent {
         Intent::MoveItem { forward }
+    }
+
+    /// `Disclose` `to`, of every descendant when `all`.
+    pub const fn disclose(to: DiscloseTo, all: bool) -> Intent {
+        Intent::Disclose { to, all }
     }
 
     /// Whether `self` and `other` are the same kind of intent, whatever their data.

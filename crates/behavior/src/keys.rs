@@ -2,9 +2,10 @@
 //! Pure functions over craft-keymap's `Key` and `Mods`, where `cmd` is Ctrl on Windows and Linux and Cmd on
 //! macOS and `ctrl` is the Control key on macOS only.
 
-use crate::intent::{Granularity, Intent, MoveMods, NavMove};
+use crate::intent::{DiscloseTo, Granularity, Intent, MoveMods, NavMove};
 use craft_host::target::Os;
-use craft_keymap::{Key, Mods};
+use craft_keymap::{Chord, Key, Mods};
+use emath::Vec2;
 
 /// What the focused stop is, as far as the table's rows differ.
 #[derive(Clone, Copy, Debug, Default)]
@@ -39,6 +40,12 @@ pub struct KeyRole {
     /// A collection that leaves its arrow keys to the component around it (`ItemKeys::Owner`): they are no moves
     /// of this role.
     pub owner_arrows: bool,
+    /// The stop handles `Disclose` of every descendant (an outline collection): on macOS Option+Right and Option+Left
+    /// open and close all, which a text or value role keeps for its own moves.
+    pub disclose_all: bool,
+    /// The stop handles `OpenDetails` (a leaf that declares a double-click action): Alt+Enter on Windows and Linux,
+    /// Cmd+Down on macOS. A collection leaves this off: its Enter is `Activate`, which is its double-click meaning.
+    pub details: bool,
     /// The item that Ctrl or Cmd with Home goes to: the first one that is not frozen. Zero where nothing is frozen.
     pub home_row: usize,
 }
@@ -60,6 +67,8 @@ impl KeyRole {
             moves: false,
             deletes: false,
             owner_arrows: false,
+            disclose_all: false,
+            details: false,
             home_row: 0,
         }
     }
@@ -133,6 +142,18 @@ impl KeyRole {
     /// The arrow keys are the enclosing component's, not this role's moves.
     pub const fn owner_arrows(mut self, on: bool) -> Self {
         self.owner_arrows = on;
+        self
+    }
+
+    /// The stop opens and closes every descendant.
+    pub const fn disclose_all(mut self, on: bool) -> Self {
+        self.disclose_all = on;
+        self
+    }
+
+    /// The stop has a details action.
+    pub const fn details(mut self, on: bool) -> Self {
+        self.details = on;
         self
     }
 
@@ -210,8 +231,12 @@ pub fn intent(os: Os, key: Key, mods: Mods, role: KeyRole) -> Option<Intent> {
         Key::Enter if only(Mods::CMD) => return Some(Intent::SubmitForce),
         Key::Up if only(Mods::ALT) && role.reorderable => return Some(Intent::move_item(false)),
         Key::Down if only(Mods::ALT) && role.reorderable => return Some(Intent::move_item(true)),
-        Key::Down if only(Mods::ALT) => return Some(Intent::Open),
-        Key::Up if only(Mods::ALT) => return Some(Intent::Close),
+        Key::Right if mac && role.disclose_all && only(Mods::ALT) => return Some(Intent::disclose(DiscloseTo::Open, true)),
+        Key::Left if mac && role.disclose_all && only(Mods::ALT) => return Some(Intent::disclose(DiscloseTo::Close, true)),
+        Key::Enter if !mac && role.details && only(Mods::ALT) => return Some(Intent::OpenDetails),
+        Key::Down if mac && role.details && only(Mods::CMD) => return Some(Intent::OpenDetails),
+        Key::Down if only(Mods::ALT) => return Some(Intent::disclose(DiscloseTo::Open, false)),
+        Key::Up if only(Mods::ALT) => return Some(Intent::disclose(DiscloseTo::Close, false)),
         Key::PageUp if !mac && only(Mods::CMD) => return Some(Intent::switch_page(false)),
         Key::PageDown if !mac && only(Mods::CMD) => return Some(Intent::switch_page(true)),
         Key::OpenBracket | Key::OpenCurlyBracket if mac && shifted(Mods::CMD) => return Some(Intent::switch_page(false)),
@@ -231,6 +256,51 @@ pub fn intent(os: Os, key: Key, mods: Mods, role: KeyRole) -> Option<Intent> {
         return None;
     }
     movement(mac, key, mods, role)
+}
+
+const MODS: [Mods; 16] = {
+    let mut all = [Mods::NONE; 16];
+    let mut i = 0;
+    while i < 16 {
+        all[i] = Mods { cmd: i & 1 != 0, ctrl: i & 2 != 0, alt: i & 4 != 0, shift: i & 8 != 0 };
+        i += 1;
+    }
+    all
+};
+
+/// The chords that give a stop of `role` on `os` the action `wanted`, from the same rows as [`intent`]. A row that
+/// is not a table row has its chords listed here: `Activate` on Enter and Space (they follow the focused
+/// component's `KeyUse`) and `Nudge` on the arrow along its axis, for a nudge role. `Custom`, `Edit` and `Access`
+/// have no chord: commands and AccessKit carry them.
+pub fn chords(os: Os, role: KeyRole, wanted: &Intent) -> Vec<Chord> {
+    match wanted {
+        Intent::Activate => {
+            let space = (!role.space).then_some(Key::Space);
+            [Some(Key::Enter), space].into_iter().flatten().map(|key| Chord { mods: Mods::NONE, key }).collect()
+        }
+        Intent::Nudge(by, mods) if role.nudge => nudge_key(*by).map(|key| Chord { mods: *mods, key }).into_iter().collect(),
+        Intent::Nudge(..) | Intent::Custom(_) | Intent::Edit(_) | Intent::Access(_) => Vec::new(),
+        _ => Key::ALL
+            .iter()
+            .flat_map(|&key| MODS.iter().map(move |&mods| Chord { mods, key }))
+            .filter(|chord| intent(os, chord.key, chord.mods, role).as_ref() == Some(wanted))
+            .collect(),
+    }
+}
+
+/// Whether some chord gives a stop of `role` on `os` the action `wanted`: the step-7 check of `KeyPath::Table`.
+pub fn reaches(os: Os, role: KeyRole, wanted: &Intent) -> bool {
+    !chords(os, role, wanted).is_empty()
+}
+
+fn nudge_key(by: Vec2) -> Option<Key> {
+    match (by.x, by.y) {
+        (x, 0.0) if x < 0.0 => Some(Key::Left),
+        (x, 0.0) if x > 0.0 => Some(Key::Right),
+        (0.0, y) if y < 0.0 => Some(Key::Up),
+        (0.0, y) if y > 0.0 => Some(Key::Down),
+        _ => None,
+    }
 }
 
 /// Alt with an arrow on a value role: a fine move, the same on every OS. A text role keeps Left and Right for word
@@ -292,6 +362,7 @@ fn movement(mac: bool, key: Key, mods: Mods, role: KeyRole) -> Option<Intent> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::intent::ActionId;
 
     const NONE: Mods = Mods::NONE;
 
@@ -313,8 +384,8 @@ mod tests {
         for os in [Os::Linux, Os::Windows] {
             check(os, Key::Down, alt_mods, list, Some(Intent::move_item(true)));
             check(os, Key::Up, alt_mods, list, Some(Intent::move_item(false)));
-            check(os, Key::Down, alt_mods, any, Some(Intent::Open));
-            check(os, Key::Up, alt_mods, any, Some(Intent::Close));
+            check(os, Key::Down, alt_mods, any, Some(Intent::disclose(DiscloseTo::Open, false)));
+            check(os, Key::Up, alt_mods, any, Some(Intent::disclose(DiscloseTo::Close, false)));
             check(os, Key::Space, NONE, list, Some(Intent::Space));
             check(os, Key::Space, NONE, any, None);
             check(os, Key::PageDown, Mods::CMD, any, Some(Intent::switch_page(true)));
@@ -369,7 +440,7 @@ mod tests {
             check(os, Key::Right, Mods::ALT, value, fine(NavMove::Forward, false));
             check(os, Key::Left, Mods { shift: true, ..Mods::ALT }, value, fine(NavMove::Back, true));
             check(os, Key::Up, Mods::ALT, number, fine(NavMove::Up, false));
-            check(os, Key::Up, Mods::ALT, text, Some(Intent::Close));
+            check(os, Key::Up, Mods::ALT, text, Some(Intent::disclose(DiscloseTo::Close, false)));
         }
         let word = MoveMods::new(false, false, Granularity::Word);
         check(Os::Mac, Key::Left, Mods::ALT, text, Some(Intent::Move(NavMove::Back, word)));
@@ -393,5 +464,58 @@ mod tests {
         check(Os::Linux, Key::Backspace, Mods::ALT, list, None);
         check(Os::Mac, Key::Backspace, Mods::ALT, text, Some(Intent::delete(false, Granularity::Word)));
         check(Os::Linux, Key::Backspace, Mods::ALT, text, None);
+    }
+
+    #[test]
+    fn disclose_all_and_details_rows_follow_the_role_and_the_os() {
+        let tree = KeyRole::new().disclose_all(true);
+        let leaf = KeyRole::new().details(true);
+        let all = |to| Some(Intent::disclose(to, true));
+        check(Os::Mac, Key::Right, Mods::ALT, tree, all(DiscloseTo::Open));
+        check(Os::Mac, Key::Left, Mods::ALT, tree, all(DiscloseTo::Close));
+        // A role that does not handle disclose-all keeps the word move; so does a text role.
+        let word = MoveMods::new(false, false, Granularity::Word);
+        check(Os::Mac, Key::Right, Mods::ALT, KeyRole::new(), Some(Intent::Move(NavMove::Forward, word)));
+        check(Os::Mac, Key::Right, Mods::ALT, KeyRole::new().text(true), Some(Intent::Move(NavMove::Forward, word)));
+        check(Os::Linux, Key::Right, Mods::ALT, tree, None);
+        check(Os::Linux, Key::Enter, Mods::ALT, leaf, Some(Intent::OpenDetails));
+        check(Os::Windows, Key::Enter, Mods::ALT, leaf, Some(Intent::OpenDetails));
+        check(Os::Mac, Key::Down, Mods::CMD, leaf, Some(Intent::OpenDetails));
+        check(Os::Mac, Key::Enter, Mods::ALT, leaf, None);
+        check(Os::Linux, Key::Enter, Mods::ALT, KeyRole::new(), None);
+        check(Os::Mac, Key::Down, Mods::CMD, KeyRole::new(), Some(Intent::Move(NavMove::End, MoveMods::new(false, true, Granularity::Document))));
+    }
+
+    #[test]
+    fn reaches_and_chords_are_the_rows_read_backwards() {
+        let tree = KeyRole::new().disclose_all(true);
+        let open_all = Intent::disclose(DiscloseTo::Open, true);
+        assert_eq!(chords(Os::Mac, tree, &open_all), vec![Chord { mods: Mods::ALT, key: Key::Right }]);
+        assert!(!reaches(Os::Mac, KeyRole::new(), &open_all));
+        assert!(!reaches(Os::Linux, tree, &open_all));
+        let open = Intent::disclose(DiscloseTo::Open, false);
+        for os in [Os::Linux, Os::Windows, Os::Mac] {
+            assert_eq!(chords(os, KeyRole::new(), &open), vec![Chord { mods: Mods::ALT, key: Key::Down }]);
+            assert!(!reaches(os, KeyRole::new().nudge(true), &open));
+            assert!(reaches(os, KeyRole::new(), &Intent::ContextMenu));
+            assert!(!reaches(os, KeyRole::new(), &Intent::Rename));
+            assert!(reaches(os, KeyRole::new().rename(true), &Intent::Rename));
+            assert!(!reaches(os, KeyRole::new(), &Intent::Custom(ActionId::new("flip"))));
+            assert!(!reaches(os, KeyRole::new(), &Intent::OpenDetails));
+            assert!(reaches(os, KeyRole::new().details(true), &Intent::OpenDetails));
+        }
+        assert_eq!(chords(Os::Linux, KeyRole::new().details(true), &Intent::OpenDetails), vec![Chord { mods: Mods::ALT, key: Key::Enter }]);
+        let activate = chords(Os::Linux, KeyRole::new(), &Intent::Activate);
+        assert_eq!(activate.len(), 2);
+        assert_eq!(chords(Os::Linux, KeyRole::new().space(true), &Intent::Activate).len(), 1);
+    }
+
+    #[test]
+    fn a_nudge_is_reached_by_its_arrow_on_a_nudge_role_only() {
+        let left = Intent::Nudge(Vec2::new(-1.0, 0.0), Mods::SHIFT);
+        let role = KeyRole::new().nudge(true);
+        assert_eq!(chords(Os::Linux, role, &left), vec![Chord { mods: Mods::SHIFT, key: Key::Left }]);
+        assert!(!reaches(Os::Linux, KeyRole::new(), &left));
+        assert!(!reaches(Os::Linux, role, &Intent::Nudge(Vec2::new(1.0, 1.0), Mods::NONE)));
     }
 }

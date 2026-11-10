@@ -1,5 +1,6 @@
 //! Hit shapes, their priority and the arena's resolve rule (8.3).
 
+use crate::actions::PartActions;
 use crate::part::PartRef;
 use crate::sense::Sense;
 use emath::{Pos2, Rect, Vec2};
@@ -220,17 +221,25 @@ pub struct Shape<O> {
     pub local: bool,
     /// The least size across the hit area has, in points.
     pub min_across: f32,
+    /// What its gestures mean, as the part declared them.
+    pub acts: PartActions,
 }
 
 impl<O> Shape<O> {
     /// A shape of `owner` at stack `position`.
     pub const fn new(shape: HitShape, sense: Sense, owner: O, part: Option<PartRef>, priority: HitPriority, position: u32) -> Self {
-        Shape { shape, sense, owner, part, priority, position, local: false, min_across: 0.0 }
+        Shape { shape, sense, owner, part, priority, position, local: false, min_across: 0.0, acts: PartActions::NONE }
     }
 
     /// The hit area is at least `across` points wide and high.
     pub const fn min_across(mut self, across: f32) -> Self {
         self.min_across = across;
+        self
+    }
+
+    /// The part's declared actions.
+    pub fn acts(mut self, acts: PartActions) -> Self {
+        self.acts = acts;
         self
     }
 

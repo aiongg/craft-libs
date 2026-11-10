@@ -4,6 +4,7 @@
 //! The crate depends on no egui crate: it uses `emath`, `kurbo` (geometry), `serde` (saved data) and the `accesskit`
 //! data crate only.
 
+pub mod actions;
 pub mod anchor;
 
 pub mod arrangement;
@@ -57,6 +58,7 @@ pub mod geometry;
 
 pub use accesskit::{Action as AccessAction, ActionData as AccessData};
 
+pub use actions::{Click, Delivered, FireSource, PartActions, Target};
 pub use anchor::Anchor9;
 
 pub use arrangement::Arrangement;
@@ -79,7 +81,7 @@ pub use focus::{CancelRule, KeyOwner, OwnerClass, PressFocus, ScopeKind};
 pub use grid::{GridCursor, GridMeasure, resolve_columns};
 pub use hit::{HitLevel, HitPriority, HitShape, ResolveFor, Shape, Winner, resolve, resolve_mapped};
 pub use input::Input;
-pub use intent::{AccessRequest, EditCommand, Granularity, Intent, MoveMods, NavMove, TextPos};
+pub use intent::{AccessRequest, ActionId, DiscloseTo, EditCommand, Granularity, Intent, MoveMods, NavMove, TextPos};
 pub use item_layout::{FreeLayout, ItemLayout, LineIndex, SHEET_ZOOM, SheetLayout, SpanLayout, TileLayout};
 pub use item_marquee::{MarqueeMode, MarqueeSelect};
 pub use item_source::{DisplayOrder, ItemSource, Keyed, Outline, SizeHint, keyed};
