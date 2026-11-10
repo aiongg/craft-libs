@@ -222,7 +222,7 @@ impl<C: Codec + Clone + 'static> Component for TextField<'_, C> {
         let mut size = cx.layout(&TextRun::new(text)).size();
         // A multi-line field takes the height of its lines, and grows past them with longer text, as the editor does.
         if let Some(lines) = self.options.lines.filter(|_| self.options.multiline()) {
-            let line = cx.layout(&TextRun::new("M")).size().y;
+            let line = cx.layout(&TextRun::new("M").role(self.options.role)).size().y;
             size.y = size.y.max(line * lines as f32);
         }
         let clear = self.search.then(|| Self::clear_name(&cx.words::<words::TextWords>()));

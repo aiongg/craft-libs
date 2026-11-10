@@ -136,3 +136,24 @@ fn a_disabled_text_field_draws_the_disabled_ink_and_the_divider_edge() {
     let edges = shapes.iter().any(|shape| matches!(shape, egui::Shape::Rect(rect) if rect.stroke.color == divider));
     assert!(edges, "a disabled well's edge is line.divider");
 }
+
+/// A masked field draws one dot per character and never the characters themselves.
+#[trial]
+fn a_masked_text_field_draws_dots_not_its_text() {
+    use craft_ui::testing::Frames;
+    let mut frames = Frames::new();
+    let mut show = move |ui: &mut egui::Ui| {
+        TextField::new("Password", Bind::bound(&mut String::from("horse"))).masked().show(ui);
+    };
+    frames.idle(2, &mut show);
+    let drawn: Vec<String> = frames
+        .frame_shapes(&mut show)
+        .iter()
+        .filter_map(|shape| match shape {
+            egui::Shape::Text(text) => Some(text.galley.text().to_owned()),
+            _ => None,
+        })
+        .collect();
+    assert!(drawn.iter().any(|text| text == "\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}"), "five dots are drawn: {drawn:?}");
+    assert!(drawn.iter().all(|text| !text.contains("horse")), "the text is not drawn: {drawn:?}");
+}
