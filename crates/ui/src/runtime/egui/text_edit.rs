@@ -111,7 +111,9 @@ pub(crate) fn show(ui: &mut Ui, edit: Edit<'_>) -> Shown {
         }
         ui.fonts_mut(|fonts| crate::runtime::egui::text_layout::layout_with(fonts, job))
     };
-    let hint_text = hint.map(|hint| egui::RichText::new(hint).font(FontId::proportional(font_id.size)));
+    // The placeholder is drawn in the faint text colour.
+    let faint = crate::style::rgba_color(crate::runtime::env::Env::of(ui).tokens.color.text.faint);
+    let hint_text = hint.map(|hint| egui::RichText::new(hint).font(FontId::proportional(font_id.size)).color(faint));
     let output = ui.scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| {
         // The text shows only inside the text part, however wide the line is.
         ui.set_clip_rect(rect.intersect(ui.clip_rect()));
