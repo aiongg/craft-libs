@@ -6,7 +6,7 @@ use crate::primitives::{IconSpec, TextRun};
 use crate::style::{FocusLook, IconLook, StyleColor, StyleCx, SurfaceKind, SurfaceLook, TextLook, TypeRole, VariantParts};
 use craft_behavior::{Flow, Insets, Metrics};
 use craft_theme::{
-    ControlSize, Rgba, Stateful, States, Variant,
+    BySize, Rgba, Stateful, States, Variant,
     variant::{Emphasis, Tone},
 };
 use egui::{Rect, Vec2, pos2};
@@ -73,10 +73,7 @@ pub(super) fn metrics(cx: &StyleCx<'_>, parts: &VariantParts) -> Metrics {
 /// reads below the cap height of the text beside it.
 pub(super) fn glyph_side(cx: &StyleCx<'_>) -> f32 {
     let icon = &cx.tokens.size.icon;
-    match cx.size {
-        ControlSize::Sm => icon.glyph_sm,
-        ControlSize::Md => icon.glyph_md,
-    }
+    BySize { sm: icon.glyph_sm, md: icon.glyph_md }.get(cx.size)
 }
 
 /// The surface of a button from its variant: raised unless ghost, the variant's fill and edge.
