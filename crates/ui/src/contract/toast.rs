@@ -42,8 +42,14 @@ impl ToastHost {
     /// draws each with `card(ui, toast, salt)`, where `salt` is stable for the card. A card the pointer rests on keeps
     /// its timer paused; the first show of a toast announces it. When the queue empties the layer fades out with the
     /// last cards.
+    ///
+    /// The layer takes no room in the body that calls it, so a measuring run of that body skips it and the real run
+    /// opens the layer's stages once per pass.
     pub fn show(ui: &Ui, card: &mut dyn FnMut(&mut Ui, &Toast, IdSalt) -> CardOutcome) {
         let ctx = ui.ctx();
+        if crate::runtime::measure::active(ctx) {
+            return;
+        }
         let cards = toast::cards(ctx);
         let env = Env::of(ui);
         let id = sub(ui.scope_id(), "toast_host");
