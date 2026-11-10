@@ -36,8 +36,10 @@ pub use tool_host::{ToolHost, ToolHostResponse, ToolInput, ToolReadout};
 mod raster_source;
 pub use raster_source::{PixelRect, RasterSource};
 
+mod before_after;
 mod pasteboard;
 mod split;
+pub use before_after::{BeforeAfter, BeforeAfterMode, BeforeAfterPane, BeforeAfterPictures, BeforeAfterSide, BeforeAfterStyle, BeforeAfterWords};
 pub use pasteboard::{PageBorder, PageFrame, Pasteboard, PasteboardColor, PasteboardOutput, PasteboardStyle};
 pub use split::{SplitAt, SplitLayout, SplitPane, SplitStyle, SplitViews, SplitViewsOutput};
 pub use words::SplitWords;

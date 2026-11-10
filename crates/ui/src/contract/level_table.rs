@@ -64,6 +64,7 @@ pub(super) const SURFACES: &[(&str, &str, Surface)] = &[
     ("craft_ui", "AppShell", Own),
     ("craft_ui", "Bar", Chrome),
     ("craft_ui", "BarItems", Chrome),
+    ("craft_ui", "BeforeAfter", Canvas),
     ("craft_ui", "BlockingOverlay", Own),
     ("craft_ui", "Canvas", Canvas),
     ("craft_ui", "CanvasGrid", Canvas),

@@ -22,6 +22,7 @@ use std::rc::Rc;
 mod space;
 
 mod pasteboard;
+mod before_after;
 mod split;
 
 mod raster;
