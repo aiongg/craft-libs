@@ -63,7 +63,8 @@ impl ToastHost {
             store::put(ctx, sub(id, "shown"), Shown(toasts.clone()));
         }
         let overlay = Overlay::toast().place(Place::anchored(Anchor::Viewport(corner(&env)), Side::Above, Align::End));
-        let layer = Layer { id, owner: id, overlay: &overlay, anchor: Rect::NOTHING, env: &env, exiting: !open, fade: presence.t, size: None };
+        let layer =
+            Layer { id, owner: id, overlay: &overlay, anchor: Rect::NOTHING, env: &env, exiting: !open, fade: presence.t, size: None, region: None };
         overlay::host(ctx, &layer, &mut |ui| {
             for (at, toast) in toasts.iter().enumerate() {
                 let live = cards.get(at);

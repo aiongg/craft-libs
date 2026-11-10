@@ -152,6 +152,8 @@ pub(crate) struct OpenEntry {
     /// The entry is an OS window of the integration: it takes its place in the stack's order and facts, and no egui
     /// layer is shown for it.
     pub(crate) window: bool,
+    /// The screen rect the layer is contained in: its scrim, placement, clip and input blocking stop at it.
+    pub(crate) region: Option<Rect>,
 }
 
 impl OpenEntry {
@@ -172,7 +174,14 @@ impl OpenEntry {
             scoped: false,
             absorbs: false,
             window: false,
+            region: None,
         }
+    }
+
+    /// Whether the layer is a modal over its whole window: a modal contained in a region blocks only inside it, and the
+    /// window's keys, commands and hits stay with the rest.
+    pub(crate) fn blocks_window(&self) -> bool {
+        self.rank.is_modal() && self.region.is_none()
     }
 
     /// Whether the layer takes keys: the layers `top` can name. A layer with a focus scope takes keys whatever its rank.
@@ -308,10 +317,15 @@ pub fn any_open(ctx: &Context, filter: OpenFilter) -> bool {
     with_pass(ctx, |pass| {
         pass.last.iter().filter(|entry| !entry.exiting).any(|entry| match filter {
             OpenFilter::Any => true,
-            OpenFilter::Modal => entry.rank.is_modal(),
+            OpenFilter::Modal => entry.blocks_window(),
             OpenFilter::Keys => entry.takes_keys(),
         })
     })
+}
+
+/// The rects of the layers shown in this pass that are contained in `region`, not fading out.
+pub(crate) fn contained_in(ctx: &Context, region: Rect) -> Vec<Rect> {
+    with_pass(ctx, |pass| pass.current.iter().filter(|entry| !entry.exiting && entry.region == Some(region)).map(|entry| entry.rect).collect())
 }
 
 /// The layer that receives Cancel: the newest member of the topmost family that takes keys.
@@ -607,9 +621,9 @@ pub(crate) fn end_pass(ctx: &Context) {
                 persist.stack.push(member.id);
             }
         }
-        persist.modal = current.iter().any(|entry| entry.rank.is_modal() && !entry.exiting);
+        persist.modal = current.iter().any(|entry| entry.blocks_window() && !entry.exiting);
         persist.top_modal =
-            current.iter().rev().find(|entry| entry.rank.is_modal() && !entry.exiting).map(|entry| TopModal { id: entry.id, cover: entry.cover });
+            current.iter().rev().find(|entry| entry.blocks_window() && !entry.exiting).map(|entry| TopModal { id: entry.id, cover: entry.cover });
         persist.popup_over_modal = current.iter().filter(|entry| entry.rank == Rank::Popup && !entry.exiting).any(|popup| {
             let mut at = popup.parent;
             while let Some(parent) = at.and_then(|id| current.iter().find(|entry| entry.id == id)) {
@@ -635,7 +649,7 @@ pub(crate) fn end_pass(ctx: &Context) {
     // An owner takes a close in the frame after the request at the latest; one nobody took is for a layer that is not shown.
     let now = pass::root_frame_nr(ctx);
     Service::<Closes>::run(ctx, |closes| closes.0.retain(|(.., queued, carried)| *carried || queued + 1 >= now));
-    let top_modal = current.iter().rev().find(|entry| entry.rank.is_modal() && !entry.exiting);
+    let top_modal = current.iter().rev().find(|entry| entry.blocks_window() && !entry.exiting);
     if let Some(entry) = top_modal.filter(|entry| !entry.window) {
         areas::set_modal_layer(ctx, entry.layer);
     }
@@ -685,7 +699,7 @@ pub(crate) fn key_layer(ctx: &Context, scopes: &[Id]) -> LayerKeys {
     let stack = with_persist(ctx, viewport, |persist| persist.stack.clone());
     let (inside, modals) = with_pass(ctx, |pass| {
         let inside = scopes.iter().find_map(|scope| pass.last.iter().find(|entry| entry.id == *scope && !entry.exiting).cloned());
-        let modals: Vec<Id> = pass.last.iter().filter(|entry| entry.rank.is_modal() && !entry.exiting).map(|entry| entry.id).collect();
+        let modals: Vec<Id> = pass.last.iter().filter(|entry| entry.blocks_window() && !entry.exiting).map(|entry| entry.id).collect();
         (inside, modals)
     });
     let at = |id: Id| stack.iter().position(|layer| *layer == id);

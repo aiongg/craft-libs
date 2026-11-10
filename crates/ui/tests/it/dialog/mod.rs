@@ -1,5 +1,6 @@
 //! Dialog bodies and footer buttons.
 
+mod contained;
 mod drag_strip;
 mod toggle_keys;
 

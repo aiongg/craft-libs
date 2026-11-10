@@ -262,6 +262,7 @@ fn show_tip(call: TipCall<'_>) {
         exiting: !show,
         fade: presence.t,
         size: None,
+        region: None,
     };
     let mut rich = rich;
     overlay::host(ctx, &layer, &mut |ui| match rich.take() {

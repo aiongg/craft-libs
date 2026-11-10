@@ -191,8 +191,10 @@ impl Host for LayerHost {
         }
         let ctx = parent.ctx().clone();
         // A resizable layer with a default size is placed by it until the user or the caller sizes it.
-        let placement = shown_placement(&ctx, id, self.save.as_ref(), &self.overlay, env.tokens.space.inset.screen);
-        let mut overlay = self.overlay.clone();
+        let region = overlay::region_for(env, &self.overlay);
+        let mut overlay = if region.is_some() { self.overlay.in_region() } else { self.overlay.clone() };
+        let screen = overlay::screen_for(&ctx, env, &overlay);
+        let placement = shown_placement(&ctx, id, self.save.as_ref(), &overlay, screen, env.tokens.space.inset.screen);
         // An anchored resizable layer has no position to seed: its default size is held as its minimum until the
         // user resizes it.
         if overlay.fit == overlay::OverlayFit::Resizable
@@ -214,7 +216,7 @@ impl Host for LayerHost {
             ShowAt::Rect(rect) => rect.size(),
             ShowAt::Flow => self.size,
         });
-        let layer = Layer { id, owner: id, overlay: &overlay, anchor, env, exiting: self.exiting, fade: self.fade, size: Some(size) };
+        let layer = Layer { id, owner: id, overlay: &overlay, anchor, env, exiting: self.exiting, fade: self.fade, size: Some(size), region };
         let out = overlay::host(&ctx, &layer, &mut |ui| {
             // The container runs in the env the layer installed, not in its opener's.
             pass(ui, Some(at.unwrap_or(ShowAt::Flow)), Some(&Env::of(ui)));
@@ -257,7 +259,8 @@ impl Host for FullWindowHost {
         let ctx = parent.ctx().clone();
         let window = ctx.content_rect();
         let overlay = full_window_overlay(self.focus).place(Place::Float(FloatPlace::at(window.min)));
-        let layer = Layer { id, owner: id, overlay: &overlay, anchor: Rect::ZERO, env, exiting: self.exiting, fade: self.fade, size: None };
+        let layer =
+            Layer { id, owner: id, overlay: &overlay, anchor: Rect::ZERO, env, exiting: self.exiting, fade: self.fade, size: None, region: None };
         let out = overlay::host(&ctx, &layer, &mut |ui| pass(ui, Some(ShowAt::Rect(window)), Some(&Env::of(ui))));
         self.dismissed = out.dismissed;
     }
@@ -329,8 +332,17 @@ impl Host for ViewportHost {
                 crate::runtime::focus::pop_scope(&ctx);
             }
             if real {
-                let layer =
-                    Layer { id, owner: id, overlay: &window_rules, anchor: Rect::ZERO, env: &scoped_env, exiting: false, fade: 1.0, size: None };
+                let layer = Layer {
+                    id,
+                    owner: id,
+                    overlay: &window_rules,
+                    anchor: Rect::ZERO,
+                    env: &scoped_env,
+                    exiting: false,
+                    fade: 1.0,
+                    size: None,
+                    region: None,
+                };
                 *dismissed = overlay::host_window(&ctx, &layer, window).dismissed;
             }
             Env::restore(&ctx, installed);
