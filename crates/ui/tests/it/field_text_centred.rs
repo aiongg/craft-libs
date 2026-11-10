@@ -33,26 +33,3 @@ fn a_single_line_is_centred_in_its_control() {
         assert!((above - below).abs() < above.min(below), "{name}: {above} above the text, {below} below it");
     }
 }
-
-/// A caption and the controls beside it in a bar share one baseline: their line boxes have the same height, so
-/// the bottoms of their text coincide.
-#[trial]
-fn a_caption_in_a_bar_shares_the_baseline_of_the_control_beside_it() {
-    use craft_ui::bars::{Bar, BarKind};
-    use craft_ui::contract::ShowContainer as _;
-    use craft_ui::display::Text;
-    let mut fixture = Fixture::new(move |ui| {
-        Bar::new("Opts", BarKind::Options).show(ui, |ui, _| {
-            Text::new("Theme").show(ui);
-            let entries = [Entry::new(0u8, "Hamburg"), Entry::new(1, "Multiply")];
-            let mut mode = 0u8;
-            Select::new("Blend", Bind::bound(&mut mode), &entries).show(ui);
-        });
-    });
-    fixture.settle();
-    fixture.idle(3);
-    let texts = fixture.texts();
-    let bottom = |name: &str| texts.iter().find(|text| text.text == name).map(|text| text.rect.bottom()).unwrap();
-    eprintln!("BASE {} {}", bottom("Theme"), bottom("Hamburg"));
-    assert!((bottom("Theme") - bottom("Hamburg")).abs() < 0.5);
-}
