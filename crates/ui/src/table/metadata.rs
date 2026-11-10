@@ -4,9 +4,10 @@
 use super::Table;
 use super::words::MetadataWords;
 use crate::contract::{
-    Bind, CollectionEvent, CollectionResponse, ColumnKind, ColumnSpec, NoValue, Outcome, Pattern, Props, SelectMode, Show as _, ShowCollection as _,
+    Bind, Pad, CollectionEvent, CollectionResponse, ColumnKind, ColumnSpec, NoValue, Outcome, Pattern, Props, SelectMode, Show as _, ShowCollection as _, ShowContainer as _,
     ToggleColumn,
 };
+use crate::layout_components::Stack;
 use crate::list::{ListRow, RowEvent, ToggleCell, ToggleState};
 use crate::runtime::env::{Env, Label};
 use crate::text::TextField;
@@ -211,21 +212,16 @@ impl<'a> MetadataTable<'a> {
         let mut filter_changed = false;
         let rows = ui.scope_id().with("rows");
         if let Some(text) = filter {
-            // The field starts where the table's text does: one cell inset from the left.
-            let inset = env.control(ControlSize::Sm).pad_x;
-            let mut room = ui.available_rect_before_wrap();
-            if env.direction.is_rtl() {
-                room.max.x -= inset;
-            } else {
-                room.min.x += inset;
-            }
-            let edit = ui.scope_builder(egui::UiBuilder::new().max_rect(room), |ui| {
-                TextField::search(words.filter.clone(), text).placeholder(words.filter.clone()).drives(rows).show(ui)
+            // The field starts where the table's text does: one cell inset (`space.pad.control`) from the edge.
+            let mut text = Some(text);
+            let edit = Stack::new().pad(Pad::Control).show(ui, |ui, _| {
+                text.take().map(|text| TextField::search(words.filter.clone(), text).placeholder(words.filter.clone()).drives(rows).show(ui))
             });
-            let edit = edit.inner;
-            filter_changed = edit.event.is_some();
-            if let Some(Mixed::Same(shown)) = &edit.shown {
-                query.clone_from(&**shown);
+            if let Some(edit) = edit.inner.flatten() {
+                filter_changed = edit.event.is_some();
+                if let Some(Mixed::Same(shown)) = &edit.shown {
+                    query.clone_from(&**shown);
+                }
             }
         }
         let query = query.trim();

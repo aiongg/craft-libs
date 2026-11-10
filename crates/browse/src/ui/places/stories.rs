@@ -132,6 +132,9 @@ fn show_places(ui: &mut Ui, data: &mut StoryData, setup: Setup) -> StoryOutput {
         }
         tree.show(ui)
     };
+    if !setup.slow && demo.jobs.waiting() > 0 {
+        ctx.request_repaint();
+    }
     for event in &out.events {
         demo.settings.apply(event);
         if let PlacesEvent::Open(folder) = event {
