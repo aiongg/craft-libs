@@ -6,7 +6,7 @@ use crate::canvas::{Canvas, PixelRect, RasterDisplay, RasterSource};
 use crate::contract::{Show as _, ShowContainer as _};
 use crate::primitives::{Checker, Revision};
 use craft_behavior::geometry::quad::Homography;
-use craft_behavior::kurbo::Point;
+use craft_behavior::kurbo::{Point, Rect as DocRect};
 use craft_behavior::{CanvasView, PixelSize};
 use egui::{Color32, ColorImage, Rect, Ui};
 
@@ -16,12 +16,27 @@ use egui::{Color32, ColorImage, Rect, Ui};
 pub struct StoryDocument(PixelSize);
 
 impl StoryDocument {
-    /// The story document: 640 by 400 pixels, larger than the stage at one point per pixel.
+    /// The story document: 640 by 400 pixels.
     pub const STANDARD: StoryDocument = StoryDocument(PixelSize::new(640, 400));
 
     /// A transparent document of `width` by `height` pixels.
     pub const fn new(width: u32, height: u32) -> Self {
         StoryDocument(PixelSize::new(width, height))
+    }
+
+    /// The document's rect, in document units.
+    pub fn rect(&self) -> DocRect {
+        DocRect::new(0.0, 0.0, f64::from(self.0.width), f64::from(self.0.height))
+    }
+
+    /// The document's middle, in document units.
+    pub fn centre(&self) -> Point {
+        self.rect().center()
+    }
+
+    /// The view of `room` that shows the document at `percent` centred on its middle ([`story_view`]).
+    pub fn view(&self, room: Rect, pixels_per_point: f32, percent: f64) -> CanvasView {
+        story_view(room, pixels_per_point, self.centre(), percent)
     }
 }
 
@@ -43,27 +58,29 @@ impl RasterSource for StoryDocument {
     }
 }
 
-/// A view of `room` that puts the document's (0, 0) at its top left, `zoom` points per document unit.
-pub fn origin_view(room: Rect, zoom: f64) -> CanvasView {
-    CanvasView::new(room, Point::new(f64::from(room.width()) / zoom / 2.0, f64::from(room.height()) / zoom / 2.0), zoom)
+/// A view of `room` with the document point `centre` at its middle, at `percent` of one device pixel per document
+/// unit (100: one device pixel per document pixel) for `pixels_per_point` device pixels per point.
+pub fn story_view(room: Rect, pixels_per_point: f32, centre: Point, percent: f64) -> CanvasView {
+    CanvasView::new(room, centre, percent / 100.0 / f64::from(pixels_per_point))
 }
 
-/// Shows `control` as the only canvas control of a canvas over the [`stage`] of `ui`, whose view is [`origin_view`]
-/// at `zoom`, over [`StoryDocument::STANDARD`], and returns the control's output. The control gets the canvas's rect
-/// and the view it shows.
-pub fn on_canvas<R: Into<StoryOutput>>(ui: &mut Ui, zoom: f64, control: impl FnMut(&mut Ui, Rect, &CanvasView) -> R) -> StoryOutput {
-    on_canvas_view(ui, |room| origin_view(room, zoom), Some(&StoryDocument::STANDARD), control)
+/// Shows `control` as the only canvas control of a canvas over the [`stage`] of `ui`, over [`StoryDocument::STANDARD`]
+/// at 100 % centred on its middle ([`story_view`]), and returns the control's output. The control gets the canvas's
+/// rect and the view it shows.
+pub fn on_canvas<R: Into<StoryOutput>>(ui: &mut Ui, control: impl FnMut(&mut Ui, Rect, &CanvasView) -> R) -> StoryOutput {
+    on_canvas_view(ui, |room, ppp| StoryDocument::STANDARD.view(room, ppp, 100.0), Some(&StoryDocument::STANDARD), control)
 }
 
-/// The same over the view `view` makes of the room left in `ui`, and over `document` ([`on_canvas_with`]).
+/// The same over the view `view` makes of the room left in `ui` and its pixels per point, and over `document`
+/// ([`on_canvas_with`]).
 pub fn on_canvas_view<R: Into<StoryOutput>>(
     ui: &mut Ui,
-    view: impl FnOnce(Rect) -> CanvasView,
+    view: impl FnOnce(Rect, f32) -> CanvasView,
     document: Option<&dyn RasterSource>,
     mut control: impl FnMut(&mut Ui, Rect, &CanvasView) -> R,
 ) -> StoryOutput {
     let room = stage(ui);
-    let view = view(room);
+    let view = view(room, ui.pixels_per_point());
     on_canvas_with(ui, room, Canvas::new("Document").view(view), document, |ui, rect| control(ui, rect, &view))
 }
 

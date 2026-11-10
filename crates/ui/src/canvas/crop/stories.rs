@@ -13,12 +13,12 @@ use egui::{Rect, Ui, Vec2};
 const LEAST_WIDTH: f64 = 100.0;
 
 fn crop() -> CropBox {
-    CropBox::upright(DocRect::new(40.0, 30.0, 200.0, 140.0))
+    CropBox::upright(DocRect::new(240.0, 145.0, 400.0, 255.0))
 }
 
 /// Shows an overlay as the only canvas control of a canvas and returns its output.
 fn on_canvas(ui: &mut Ui, mut control: impl FnMut(&mut Ui, Rect) -> CropOverlayOutput) -> StoryOutput {
-    crate::testing::canvas_story::on_canvas(ui, 1.0, |ui, at, _| StoryOutput::from(control(ui, at).edit))
+    crate::testing::canvas_story::on_canvas(ui, |ui, at, _| StoryOutput::from(control(ui, at).edit))
 }
 
 /// Drags the top left corner towards the middle of the crop by twice the drag threshold.
@@ -43,7 +43,7 @@ fn crops_that_differ(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 
 #[story(CropOverlay<'static>, covers = [Invalid], drive = Drive::Custom(drag_top_left))]
 fn too_narrow(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let rect = data.value("crop", CropBox::upright(DocRect::new(40.0, 30.0, 40.0 + LEAST_WIDTH / 2.0, 110.0)));
+    let rect = data.value("crop", CropBox::upright(DocRect::new(240.0, 145.0, 240.0 + LEAST_WIDTH / 2.0, 225.0)));
     on_canvas(ui, |ui, at| {
         let narrow = |crop: &CropBox| {
             if crop.rect.width() < LEAST_WIDTH { Validity::Refuse(Message::new("The crop is too narrow")) } else { Validity::Ok }
@@ -54,13 +54,13 @@ fn too_narrow(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 
 #[story(CropOverlay<'static>, covers = [Default])]
 fn turned(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let rect = data.value("crop", CropBox::new(DocRect::new(60.0, 50.0, 180.0, 120.0), 15.0));
+    let rect = data.value("crop", CropBox::new(DocRect::new(260.0, 165.0, 380.0, 235.0), 15.0));
     on_canvas(ui, |ui, at| CropOverlay::new("Crop", Bind::bound(&mut *rect)).show_at(ui, at))
 }
 
 #[story(CropOverlay<'static>, covers = [Default])]
 fn ratio_held(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let rect = data.value("crop", CropBox::upright(DocRect::new(40.0, 30.0, 200.0, 120.0)));
+    let rect = data.value("crop", CropBox::upright(DocRect::new(240.0, 145.0, 400.0, 235.0)));
     on_canvas(ui, |ui, at| CropOverlay::new("Crop", Bind::bound(&mut *rect)).ratio(16.0 / 9.0).show_at(ui, at))
 }
 

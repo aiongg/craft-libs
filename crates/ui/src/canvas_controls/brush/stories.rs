@@ -2,14 +2,14 @@
 
 use super::{BrushDimensions, BrushResize, BrushResizeOptions, FalloffPreview, TipCell, TipFalloff};
 use crate::contract::Show as _;
-use crate::testing::canvas_story::{StoryDocument, on_canvas_view};
+use crate::testing::canvas_story::{StoryDocument, on_canvas_view, story_view};
 use crate::testing::{StoryData, StoryOutput, story};
 use craft_behavior::CanvasView;
 use craft_behavior::kurbo::{Point, Rect as DocRect};
 use egui::{Rect, Ui};
 
-/// Screen points per document unit.
-const ZOOM: f64 = 2.0;
+/// The zoom, in percent of one device pixel per document pixel.
+const ZOOM: f64 = 400.0;
 /// The document point at the middle of the canvas.
 const CENTRE: Point = Point::new(100.0, 100.0);
 /// The radius of the soft tip, in document units.
@@ -26,8 +26,8 @@ const DRAG_SHARE: f32 = 0.05;
 const CELL: DocRect = DocRect::new(96.0, 96.0, 104.0, 104.0);
 
 /// The view of a freehand canvas over `room` that shows `CENTRE` in its middle.
-fn brush_view(room: Rect) -> CanvasView {
-    CanvasView::new(room, CENTRE, ZOOM)
+fn brush_view(room: Rect, pixels_per_point: f32) -> CanvasView {
+    story_view(room, pixels_per_point, CENTRE, ZOOM)
 }
 
 #[story(FalloffPreview<'static>, covers = [Default])]

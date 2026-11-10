@@ -23,15 +23,16 @@ fn polygon(key: u64, points: &[(f64, f64)], radius: f64, individual: bool) -> Co
 
 /// A rectangle (each corner its own radius) and a hexagon (one radius for all corners), side by side.
 fn targets() -> Vec<CornerTarget> {
-    let rect = polygon(1, &[(40.0, 40.0), (200.0, 40.0), (200.0, 140.0), (40.0, 140.0)], RECT_RADIUS, true);
-    let hexagon = polygon(2, &[(300.0, 60.0), (360.0, 40.0), (420.0, 60.0), (420.0, 120.0), (360.0, 140.0), (300.0, 120.0)], HEXAGON_RADIUS, false);
+    let rect = polygon(1, &[(130.0, 150.0), (290.0, 150.0), (290.0, 250.0), (130.0, 250.0)], RECT_RADIUS, true);
+    let hexagon =
+        polygon(2, &[(390.0, 170.0), (450.0, 150.0), (510.0, 170.0), (510.0, 230.0), (450.0, 250.0), (390.0, 230.0)], HEXAGON_RADIUS, false);
     vec![rect, hexagon]
 }
 
 /// Shows the control `control` builds and shows as the only canvas control of a canvas whose view has the document
 /// origin at its centre. The canvas body runs more than once per pass, so `control` builds it on every run.
 fn on_canvas(ui: &mut Ui, mut control: impl FnMut(&mut Ui, egui::Rect) -> CornerWidgetsOutput) -> StoryOutput {
-    craft_ui::testing::canvas_story::on_canvas(ui, 1.0, |ui, at, _| StoryOutput::from(control(ui, at).edit))
+    craft_ui::testing::canvas_story::on_canvas(ui, |ui, at, _| StoryOutput::from(control(ui, at).edit))
 }
 
 #[story(CornerWidgets<'static>, covers = [Default], drive = Drive::Drag(Grip::part(WIDGET.at(0)).toward(vec2(1.0, 1.0))))]

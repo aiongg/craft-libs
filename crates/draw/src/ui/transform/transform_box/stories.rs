@@ -1,7 +1,6 @@
 //! Stories of the transform box: Free Transform with its reference point, the Move tool's controls and Distort.
 
 use super::{BOX, RotateZone, TransformBox};
-use craft_behavior::CanvasView;
 use craft_behavior::geometry::quad::{BoxPart, BoxRules, BoxState, TransformMode};
 use craft_behavior::kurbo::Rect as DocRect;
 use craft_ui::canvas::Canvas;
@@ -19,7 +18,8 @@ const LAYER: craft_ui::testing::canvas_story::FlatPicture =
 fn on_canvas(ui: &mut Ui, data: &mut StoryData, configure: impl for<'a> Fn(TransformBox<'a>) -> TransformBox<'a>) -> StoryOutput {
     let state = data.value("box", BoxState::from_rect(PICTURE));
     let room = craft_ui::testing::stage(ui);
-    let shown = Canvas::new("Document").view(CanvasView::new(room, PICTURE.center(), 1.0)).show_at(ui, room, |ui, body| {
+    let view = craft_ui::testing::canvas_story::story_view(room, ui.pixels_per_point(), PICTURE.center(), 100.0);
+    let shown = Canvas::new("Document").view(view).show_at(ui, room, |ui, body| {
         craft_ui::testing::canvas_story::show_document(ui, body.rect, &craft_ui::testing::canvas_story::StoryDocument::STANDARD);
         craft_ui::testing::canvas_story::show_quad(ui, body.rect, "Layer", state.quad, &LAYER);
         configure(TransformBox::new("Free Transform", Bind::bound(&mut *state), PICTURE, 0.0)).show_at(ui, body.rect)

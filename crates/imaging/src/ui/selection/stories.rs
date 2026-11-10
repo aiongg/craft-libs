@@ -19,10 +19,10 @@ const HUGE_SIZE: [u32; 2] = [40_000, 30_000];
 /// ... with a disc of this radius and this edge width in its middle, in document pixels.
 const HUGE_RADIUS: f64 = 1000.0;
 const HUGE_EDGE: f64 = 24.0;
-/// The view's zoom of the large case.
-const HUGE_ZOOM: f64 = 0.12;
-/// The subject's zoom.
-const SUBJECT_ZOOM: f64 = 1.0;
+/// The view's zoom of the large case, in percent.
+const HUGE_ZOOM: f64 = 12.0;
+/// The subject's zoom, in percent.
+const SUBJECT_ZOOM: f64 = 100.0;
 /// The floating piece's offset, in document pixels.
 const FLOAT_OFFSET: [i32; 2] = [220, -140];
 /// Mask pixels that count as one when the large mask is reduced.

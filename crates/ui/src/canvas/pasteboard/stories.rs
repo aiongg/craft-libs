@@ -3,14 +3,17 @@
 use super::{NAME, PageBorder, PageFrame, Pasteboard, PasteboardColor};
 use crate::contract::Show as _;
 use crate::style::DataColor;
-use crate::testing::canvas_story::{on_canvas_view, origin_view};
+use crate::testing::canvas_story::{on_canvas_view, story_view};
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use craft_behavior::CanvasView;
-use craft_behavior::kurbo::Rect as DocRect;
+use craft_behavior::kurbo::{Point, Rect as DocRect};
 use egui::{Color32, Rect, Ui};
 
 /// Degrees the turned story rotates the view by.
 const TURN: f64 = 15.0;
+
+/// The middle of the boards, where the views look.
+const BOARDS_CENTRE: Point = Point::new(240.0, 120.0);
 
 fn boards() -> Vec<PageFrame> {
     vec![
@@ -27,12 +30,12 @@ fn click_first_name(fixture: &mut Fixture) {
 }
 
 /// The view values the Properties panel edits: zoom in percent, rotation in degrees, flip and pixel aspect.
-fn view_values(data: &mut StoryData, rotation: f64) -> impl Fn(Rect) -> CanvasView + Copy + use<> {
+fn view_values(data: &mut StoryData, rotation: f64) -> impl Fn(Rect, f32) -> CanvasView + Copy + use<> {
     let zoom = *data.ranged("zoom", 100.0, 10.0..=800.0);
     let rotation = *data.ranged("rotation", rotation, -180.0..=180.0);
     let flip = *data.value("flip", false);
     let aspect = *data.ranged("aspect", 1.0, 0.5..=2.0);
-    move |room| origin_view(room, zoom / 100.0).rotation(rotation).flip_x(flip).aspect(aspect)
+    move |room, ppp| story_view(room, ppp, BOARDS_CENTRE, zoom).rotation(rotation).flip_x(flip).aspect(aspect)
 }
 
 /// The border round each page, from the story's `border` value.

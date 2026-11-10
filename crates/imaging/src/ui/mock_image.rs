@@ -29,7 +29,7 @@ use craft_behavior::{CanvasView, PixelSize};
 use craft_ui::canvas::{PixelRect, RasterSource};
 use craft_ui::primitives::Revision;
 use craft_ui::testing::StoryOutput;
-use craft_ui::testing::canvas_story::on_canvas_view;
+use craft_ui::testing::canvas_story::{on_canvas_view, story_view};
 
 use crate::trace::{MaskRect, MaskSource};
 
@@ -311,16 +311,21 @@ pub(crate) fn story_canvas(
     mut controls: impl FnMut(&mut Ui, egui::Rect) -> StoryOutput,
 ) -> StoryOutput {
     let size = image.map_or_else(|| MockImage::default().size(), |image| image.size());
-    let (width, height) = (f64::from(size.width.max(1)), f64::from(size.height.max(1)));
-    let per_point = f64::from(ui.ctx().pixels_per_point());
-    let middle = Point::new(width / 2.0, height / 2.0);
-    let canvas_view = |at: egui::Rect| match view {
-        StoryView::Fit => {
-            let fit = (f64::from(at.width()) / width).min(f64::from(at.height()) / height);
-            CanvasView::new(at, middle, fit)
+    on_canvas_view(ui, |at, ppp| view.of(at, size, ppp), image, |ui, rect, _| controls(ui, rect))
+}
+
+impl StoryView {
+    /// The view of the canvas rect `at` over a picture of `size` for `pixels_per_point` device pixels per point.
+    pub(crate) fn of(self, at: egui::Rect, size: PixelSize, pixels_per_point: f32) -> CanvasView {
+        let (width, height) = (f64::from(size.width.max(1)), f64::from(size.height.max(1)));
+        let middle = Point::new(width / 2.0, height / 2.0);
+        match self {
+            StoryView::Fit => {
+                let fit = (f64::from(at.width()) / width).min(f64::from(at.height()) / height);
+                CanvasView::new(at, middle, fit)
+            }
+            StoryView::Zoom(percent) => story_view(at, pixels_per_point, middle, percent),
+            StoryView::At { zoom, centre } => story_view(at, pixels_per_point, centre, zoom),
         }
-        StoryView::Zoom(percent) => CanvasView::new(at, middle, percent / 100.0 / per_point),
-        StoryView::At { zoom, centre } => CanvasView::new(at, centre, zoom / 100.0 / per_point),
-    };
-    on_canvas_view(ui, canvas_view, image, |ui, rect, _| controls(ui, rect))
+    }
 }

@@ -13,7 +13,7 @@ use crate::ui::gradient::{ColorStop, GradientEditor, GradientExtent, GradientLin
 fn gradient() -> LineGradient {
     let stop = |location, r, g, b| ColorStop::new(location, Srgba { r, g, b, a: 1.0 });
     LineGradient {
-        line: GradientLine { start: Point::new(60.0, 120.0), end: Point::new(260.0, 120.0) },
+        line: GradientLine { start: Point::new(220.0, 200.0), end: Point::new(420.0, 200.0) },
         stops: GradientStops::new(vec![stop(0.0, 0.1, 0.1, 0.9), stop(0.5, 0.9, 0.9, 0.2), stop(1.0, 0.9, 0.1, 0.1)]),
     }
 }
@@ -27,7 +27,7 @@ fn state(data: &mut StoryData, selected: StopRef) -> (&mut LineGradient, &mut Op
 /// Shows the overlay `overlay` builds as the only canvas control of a canvas whose view is the room it is given. The
 /// canvas body runs more than once per pass, so `overlay` builds the overlay on every run.
 fn on_canvas(ui: &mut Ui, mut overlay: impl FnMut(&mut Ui, egui::Rect) -> craft_ui::contract::EditResponse<LineGradient>) -> StoryOutput {
-    craft_ui::testing::canvas_story::on_canvas(ui, 1.0, |ui, at, _| overlay(ui, at))
+    craft_ui::testing::canvas_story::on_canvas(ui, |ui, at, _| overlay(ui, at))
 }
 
 #[story(GradientOverlay<'static>, covers = [Default], drive = Drive::Drag(Grip::new(END).toward(vec2(0.0, 1.0))))]

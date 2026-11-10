@@ -4,13 +4,15 @@ use super::PixelGrid;
 use crate::canvas::{PixelRect, RasterSource};
 use crate::contract::Show as _;
 use crate::primitives::Revision;
-use crate::testing::canvas_story::on_canvas;
+use crate::testing::canvas_story::{on_canvas_view, story_view};
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use craft_behavior::PixelSize;
+use craft_behavior::kurbo::Point;
 use egui::{Color32, ColorImage, Ui};
 
-/// The device zoom the story shows the document at: above the grid's threshold.
-const ZOOM: f64 = 8.0;
+/// The zoom the story shows the document at, in percent of one device pixel per document pixel: above the grid's
+/// threshold.
+const ZOOM: f64 = 800.0;
 
 const SIDE: u32 = 16;
 
@@ -41,5 +43,11 @@ impl RasterSource for Halves {
 
 #[story(PixelGrid<'static>, covers = [Default], drive = Drive::Never)]
 fn magnified(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    on_canvas(ui, ZOOM, |ui, at, _| PixelGrid::new("Pixel grid", &Halves).show_at(ui, at))
+    let centre = Point::new(f64::from(SIDE) / 2.0, f64::from(SIDE) / 2.0);
+    on_canvas_view(
+        ui,
+        |room, ppp| story_view(room, ppp, centre, ZOOM),
+        Some(&Halves),
+        |ui, at, _| PixelGrid::new("Pixel grid", &Halves).show_at(ui, at),
+    )
 }

@@ -17,7 +17,7 @@ const BENT: [Point; 4] = [Point::new(250.0, 110.0), Point::new(430.0, 130.0), Po
 /// Shows the quad `quad` builds and shows as the only canvas control of a canvas. The canvas body runs more than once
 /// per pass, so `quad` builds it on every run.
 fn on_canvas<R: Into<StoryOutput>>(ui: &mut Ui, mut quad: impl FnMut(&mut Ui, egui::Rect) -> R) -> StoryOutput {
-    craft_ui::testing::canvas_story::on_canvas(ui, 1.0, |ui, at, _| {
+    craft_ui::testing::canvas_story::on_canvas(ui, |ui, at, _| {
         craft_ui::testing::canvas_story::show_quad(ui, at, "Page", PAGE, &PAPER);
         quad(ui, at)
     })

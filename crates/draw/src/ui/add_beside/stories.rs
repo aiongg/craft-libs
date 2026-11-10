@@ -9,20 +9,20 @@ use craft_ui::contract::{Show as _, ShowContainer as _};
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::{Rect, Ui};
 
-/// The artboard the buttons surround, in document units.
+/// The artboard the buttons surround, in document units: in the middle of the story document.
 fn artboard() -> DocRect {
-    DocRect::new(40.0, 40.0, 240.0, 180.0)
+    DocRect::new(220.0, 130.0, 420.0, 270.0)
 }
 
-/// The view of the canvas the story shows: the document origin at the top left of the canvas.
-fn view(rect: Rect) -> CanvasView {
-    CanvasView::new(rect, Point::new(f64::from(rect.width()) / 2.0, f64::from(rect.height()) / 2.0), 1.0)
+/// The view of the canvas the story shows: the story document at 100 %, centred.
+fn view(ui: &Ui, rect: Rect) -> CanvasView {
+    craft_ui::testing::canvas_story::StoryDocument::STANDARD.view(rect, ui.pixels_per_point(), 100.0)
 }
 
 /// Shows the artboard with `handles` over it on a canvas.
 fn on_canvas<'a>(ui: &mut Ui, rect: Rect, handles: impl Fn(Rect) -> AddBesideHandles<'a>) -> StoryOutput {
     let board = [PageFrame::new(artboard()).name("Artboard 1").active(true)];
-    let view = view(rect);
+    let view = view(ui, rect);
     let shown = Canvas::new("Document").view(view).show_at(ui, rect, |ui, body| {
         craft_ui::testing::canvas_story::show_document(ui, body.rect, &craft_ui::testing::canvas_story::StoryDocument::STANDARD);
         let name_clicked = Pasteboard::new("Pasteboard", &board).show_at(ui, body.rect).name_clicked.is_some();
@@ -39,7 +39,7 @@ fn on_canvas<'a>(ui: &mut Ui, rect: Rect, handles: impl Fn(Rect) -> AddBesideHan
 #[story(AddBesideHandles<'static>, covers = [Default], drive = Drive::Never)]
 fn add_beside(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let rect = craft_ui::testing::stage(ui);
-    let view = view(rect);
+    let view = view(ui, rect);
     let neighbour = Rect::from_two_pos(
         view.to_screen(Point::new(artboard().x1 + 16.0, artboard().y0)),
         view.to_screen(Point::new(artboard().x1 + 80.0, artboard().y1)),

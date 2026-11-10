@@ -3,7 +3,7 @@
 use craft_ui::canvas::{Canvas, RasterSource};
 use craft_ui::primitives::Checker;
 use craft_ui::style::DataColor;
-use craft_ui::testing::canvas_story::{StoryDocument, on_canvas_with, origin_view};
+use craft_ui::testing::canvas_story::{StoryDocument, on_canvas_with};
 use craft_ui::testing::{Frames, StoryOutput, stage, trial};
 use egui::Shape;
 
@@ -13,7 +13,8 @@ fn dark_cells(document: Option<&dyn RasterSource>) -> usize {
     let mut frames = Frames::new();
     let mut show = |ui: &mut egui::Ui| {
         let room = stage(ui);
-        on_canvas_with(ui, room, Canvas::new("Document").view(origin_view(room, 1.0)), document, |_, _| StoryOutput::default());
+        let view = StoryDocument::STANDARD.view(room, ui.pixels_per_point(), 100.0);
+        on_canvas_with(ui, room, Canvas::new("Document").view(view), document, |_, _| StoryOutput::default());
     };
     frames.idle(1, &mut show);
     frames.frame_shapes(&mut show).iter().filter(|shape| matches!(shape, Shape::Rect(rect) if Some(DataColor::new(rect.fill)) == dark)).count()

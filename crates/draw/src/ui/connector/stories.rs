@@ -13,8 +13,8 @@ use crate::ui::stroke::{StrokeChoice, StrokeChoiceRow};
 
 fn targets() -> Vec<ConnectionTarget> {
     vec![
-        ConnectionTarget::new(1, Rect::new(40.0, 80.0, 120.0, 140.0)).named("Rectangle 1"),
-        ConnectionTarget::new(2, Rect::new(260.0, 40.0, 340.0, 100.0)).named("Rectangle 2"),
+        ConnectionTarget::new(1, Rect::new(170.0, 190.0, 250.0, 250.0)).named("Rectangle 1"),
+        ConnectionTarget::new(2, Rect::new(390.0, 150.0, 470.0, 210.0)).named("Rectangle 2"),
     ]
 }
 
@@ -25,7 +25,7 @@ fn glued(target: u64, side: ConnectionSide) -> ConnectorEnd {
 /// Shows the handles `handles` builds and shows as the only canvas control of a canvas whose view has the document
 /// origin at its top left. The canvas body runs more than once per pass, so `handles` builds them on every run.
 fn on_canvas<R: Into<StoryOutput>>(ui: &mut Ui, mut handles: impl FnMut(&mut Ui, egui::Rect) -> R) -> StoryOutput {
-    craft_ui::testing::canvas_story::on_canvas(ui, 1.0, |ui, at, _| handles(ui, at))
+    craft_ui::testing::canvas_story::on_canvas(ui, |ui, at, _| handles(ui, at))
 }
 
 #[story(ConnectorHandles<'static>, covers = [Default], drive = Drive::Drag(Grip::part(super::handles::END.at(0)).toward(vec2(0.0, 1.0))))]

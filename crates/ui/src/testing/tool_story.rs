@@ -12,9 +12,10 @@ use egui::Ui;
 /// The tool's type registers as a story host with `#[derive(Pattern)]` and `#[pattern(tool)]`.
 pub fn tool_story(ui: &mut Ui, label: &'static str, tool: &mut dyn CanvasTool) -> StoryOutput {
     let room = super::stage(ui);
+    let document = &super::canvas_story::StoryDocument::STANDARD;
     let shown = Canvas::new(label)
-        .view(super::canvas_story::origin_view(room, 1.0))
-        .show_at(ui, room, |ui, body| super::canvas_story::show_document(ui, body.rect, &super::canvas_story::StoryDocument::STANDARD));
+        .view(document.view(room, ui.pixels_per_point(), 100.0))
+        .show_at(ui, room, |ui, body| super::canvas_story::show_document(ui, body.rect, document));
     let _ = ToolHost::new().run(ui, &shown.output, tool);
     shown.output.into()
 }

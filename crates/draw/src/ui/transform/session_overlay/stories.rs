@@ -16,8 +16,9 @@ fn transform_phase(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let mut session = TransformSession::<()>::new(FRAME);
     let settings = TransformSettings::default();
     let stage = craft_ui::testing::stage(ui);
-    let shown = Canvas::new("Document").view(craft_ui::testing::canvas_story::origin_view(stage, 1.0)).show_at(ui, stage, |ui, body| {
-        craft_ui::testing::canvas_story::show_document(ui, body.rect, &craft_ui::testing::canvas_story::StoryDocument::STANDARD);
+    let document = &craft_ui::testing::canvas_story::StoryDocument::STANDARD;
+    let shown = Canvas::new("Document").view(document.view(stage, ui.pixels_per_point(), 100.0)).show_at(ui, stage, |ui, body| {
+        craft_ui::testing::canvas_story::show_document(ui, body.rect, document);
         TransformOverlay::new("Free Transform", &session, &settings).show_at(ui, body.rect)
     });
     if let Some(output) = shown.inner {
