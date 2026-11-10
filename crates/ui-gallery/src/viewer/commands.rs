@@ -8,10 +8,10 @@ use craft_ui::contract::CommandSet;
 #[command(prefix = "gallery")]
 #[non_exhaustive]
 pub enum GalleryCommands {
-    /// Put the panels back at their default sizes.
-    #[command(label = "Reset Layout")]
+    /// Put the shown workspace's panels back at their default places; open component tabs stay.
+    #[command(label = "Reset Layout", icon = "undo")]
     ResetLayout,
-    /// Show every story of the chosen component with fresh state.
-    #[command(label = "Reset Stories")]
+    /// Give every shown story fresh state.
+    #[command(label = "Reset Args")]
     ResetStories,
 }

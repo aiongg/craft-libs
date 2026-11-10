@@ -1,25 +1,24 @@
-//! The viewer's state: the root values the stories are shown under, the component tree and the cells of the shown
-//! stories, and the theme workspace.
+//! The viewer's state: the root values the stories are shown under, the component tree, the story each component
+//! shows, the dock layout of each workspace and the theme workspace.
 
-use super::appearance::CellFilter;
+use super::appearance::VariantAxis;
 use super::catalog::Catalog;
 use super::commands::GalleryCommands;
-use super::layout::{GalleryPanel, PanelShares, theme_layout};
+use super::layout::{self, PanelId};
 use super::settings::GallerySettings;
 use super::tree::{self, TreeKey};
+use crate::mock::MockState;
 use crate::theme::ThemeWorkspace;
 use craft_behavior::Selection;
-use craft_behavior::dock::Layout;
-use craft_i18n::Direction;
-use craft_theme::ControlSize;
+use craft_behavior::dock::Workspace as Dock;
 use craft_ui::list::OpenSet;
 use craft_ui::runtime::env::RootEnv;
 use craft_ui::testing::StoryData;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-/// The values each shown cell keeps between frames, by story index, direction and size.
-pub type Cells = HashMap<(usize, Direction, ControlSize), StoryData>;
+/// The values each shown story keeps between frames, by story index.
+pub type Cells = HashMap<usize, StoryData>;
 
 /// What the panels browse: the catalog, the tree's state and the shown cells.
 #[non_exhaustive]
@@ -32,23 +31,39 @@ pub struct Browser {
     pub selection: Selection<TreeKey>,
     /// The open module groups.
     pub open: OpenSet<TreeKey>,
-    /// The panel layout.
-    pub dock: Layout<GalleryPanel>,
-    /// Counts the resets of the stories; a cell's id scope names it, so a reset mounts the cell anew.
+    /// The components workspace's dock layout.
+    pub dock: Dock<PanelId>,
+    /// The story each component's card shows, by the component's registered name and the story's name. A component
+    /// without an entry shows its first story.
+    pub story_of: HashMap<&'static str, &'static str>,
+    /// The level the Overview shows, as its slug; empty until one is chosen.
+    pub level: String,
+    /// Counts the resets of the stories; a card's id scope names it, so a reset mounts the card anew.
     pub generation: u32,
-    /// The shown cells' values.
+    /// The shown stories' values.
     pub cells: Cells,
 }
 
-/// What the panels area shows.
+/// What the dock shows.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Workspace {
-    /// The component tree, the shown stories and the component's facts.
+    /// The component tree, the overview and component tabs, the stories and the target story's panels.
     #[default]
-    Stories,
-    /// The theme workspace: the tokens, contrast problems and app sizes of the chosen theme.
+    Components,
+    /// The theme workspace: the preview, and the tokens, contrast problems and app sizes of the chosen theme.
     Theme,
+}
+
+/// What the theme workspace's preview shows.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum Preview {
+    /// A mock application.
+    #[default]
+    App,
+    /// The Controls level's overview.
+    Components,
 }
 
 /// The viewer: the options bar's values and the browser.
@@ -56,18 +71,22 @@ pub enum Workspace {
 pub struct Viewer {
     /// The root values the window and every story run under, with the chosen theme.
     pub env: RootEnv,
-    /// Which cells of a story are shown.
-    pub cell_filter: CellFilter,
-    /// What the panels area shows.
+    /// What the dock shows.
     pub workspace: Workspace,
+    /// What the theme workspace's preview shows.
+    pub preview: Preview,
+    /// The Variants view of the target story, over the front centre tab, while one is open.
+    pub variants: Option<VariantAxis>,
     /// Whether the More popover of the options bar is open.
     pub more_open: bool,
     /// What the panels browse.
     pub browser: Browser,
     /// What the theme panels share.
     pub themes: ThemeWorkspace,
-    /// The layout of the theme panels.
-    pub theme_dock: Layout<GalleryPanel>,
+    /// The theme workspace's dock layout.
+    pub theme_dock: Dock<PanelId>,
+    /// The mock application the theme workspace's App preview shows.
+    pub mock: MockState,
     /// The revision of the theme workspace's app layer that `env.sizes` holds; none before the first sync.
     sizes_synced: Option<u64>,
 }
@@ -80,18 +99,22 @@ impl Viewer {
             filter: String::new(),
             selection: Selection::default(),
             open: OpenSet::new(),
-            dock: PanelShares::default().tree(),
+            dock: layout::default_components(),
+            story_of: HashMap::new(),
+            level: String::new(),
             generation: 0,
             cells: Cells::new(),
         };
         let mut viewer = Viewer {
             env: RootEnv::default(),
-            cell_filter: CellFilter::default(),
             workspace: Workspace::default(),
+            preview: Preview::default(),
+            variants: None,
             more_open: false,
             browser,
             themes: ThemeWorkspace::new(),
-            theme_dock: theme_layout(),
+            theme_dock: layout::default_theme(),
+            mock: MockState::default(),
             sizes_synced: None,
         };
         viewer.restore(settings);
@@ -101,7 +124,8 @@ impl Viewer {
     /// Takes the state `settings` saved, keeping the catalog, the cells and the theme workspace.
     pub fn restore(&mut self, settings: &GallerySettings) {
         settings.restore_env(&mut self.env);
-        self.cell_filter = settings.cell_filter();
+        self.workspace = settings.workspace();
+        self.preview = settings.preview();
         let browser = &mut self.browser;
         browser.filter.clone_from(&settings.filter);
         browser.open = OpenSet::new();
@@ -115,7 +139,11 @@ impl Viewer {
             .catalog
             .component(&settings.selected)
             .map_or_else(Selection::default, |component| Selection::single(TreeKey::Component(component.type_name)));
-        browser.dock = PanelShares::load(&settings.layout).tree();
+        browser.level.clone_from(&settings.level);
+        browser.story_of = settings.story_of(&browser.catalog);
+        let known = |name: &str| browser.catalog.component(name).is_some();
+        browser.dock = layout::load(&settings.dock, Workspace::Components, &known);
+        self.theme_dock = layout::load(&settings.theme_dock, Workspace::Theme, &known);
     }
 
     /// Makes the root's app sizes the theme workspace's app layer, when the layer was edited since the last sync.
@@ -148,18 +176,36 @@ impl Viewer {
         modules
     }
 
-    /// The shares of the panel layout; the default when the tree has lost its shape.
-    pub fn layout(&self) -> PanelShares {
-        PanelShares::of_tree(&self.browser.dock).unwrap_or_default()
+    /// The dock layout of the shown workspace.
+    pub fn dock_mut(&mut self) -> &mut Dock<PanelId> {
+        match self.workspace {
+            Workspace::Components => &mut self.browser.dock,
+            Workspace::Theme => &mut self.theme_dock,
+        }
+    }
+
+    /// Opens the tab of the component registered as `type_name` beside the Overview and shows it.
+    pub fn open_component(&mut self, type_name: &'static str) {
+        let _ = self.browser.dock.set_visible(PanelId::Component(type_name), true, Some(PanelId::Overview), false, |panel| panel.permissions());
+    }
+
+    /// Puts the shown workspace's panels back at their default places. The open component tabs are documents and stay.
+    pub fn reset_layout(&mut self) {
+        let workspace = self.workspace;
+        let tabs = layout::open_tabs(&self.browser.dock);
+        *self.dock_mut() = layout::default_for(workspace);
+        if workspace == Workspace::Components {
+            for tab in tabs {
+                self.open_component(tab);
+            }
+            let _ = self.browser.dock.set_visible(PanelId::Overview, true, None, false, |panel| panel.permissions());
+        }
     }
 
     /// Runs `command`.
     pub fn run(&mut self, command: GalleryCommands) {
         match command {
-            GalleryCommands::ResetLayout => {
-                self.browser.dock = PanelShares::default().tree();
-                self.theme_dock = theme_layout();
-            }
+            GalleryCommands::ResetLayout => self.reset_layout(),
             GalleryCommands::ResetStories => self.browser.reset_stories(),
         }
     }
@@ -172,6 +218,16 @@ impl Browser {
             TreeKey::Component(type_name) => Some(*type_name),
             _ => None,
         })
+    }
+
+    /// The index in the catalog of the story the selected component shows: the one picked for it, else its first.
+    pub fn target_story(&self) -> Option<usize> {
+        let stories = self.selected_stories();
+        let picked = self
+            .story_of
+            .get(self.selected_type()?)
+            .and_then(|name| stories.iter().copied().find(|&at| self.catalog.entries[at].registration.story.name == *name));
+        picked.or_else(|| stories.first().copied())
     }
 
     /// The indices of the stories of the selected component, in listing order.

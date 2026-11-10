@@ -1,8 +1,8 @@
-//! The choices of the options bar: the named options of each root value, the theme list and the cell filters.
+//! The choices of the options bar: the named options of each root value, the theme list and the Variants axes.
 
 use craft_behavior::MotionMode;
 use craft_i18n::Direction;
-use craft_theme::{Contrast, ControlSize, Mode, Size, TextSize, ThemeDef, ThemeId, builtins};
+use craft_theme::{Contrast, Mode, Size, TextSize, ThemeDef, ThemeId, builtins};
 use craft_ui::contract::Entry;
 use craft_ui::runtime::env::Scale;
 
@@ -59,26 +59,60 @@ choices!(TEXT_SIZES: TextSize = [
     (TextSize::Large, "large", "Large"),
 ]);
 choices!(DENSITIES: Size = [(Size::Compact, "compact", "Compact"), (Size::Comfortable, "comfortable", "Comfortable")]);
-choices!(MOTIONS: MotionMode = [(MotionMode::Full, "full", "Full"), (MotionMode::Reduced, "reduced", "Reduced"), (MotionMode::Off, "off", "Off")]);
+choices!(MOTIONS: MotionMode = [(MotionMode::Full, "full", "Off"), (MotionMode::Reduced, "reduced", "On")]);
 choices!(SCALES: Scale = [
     (Scale::new(1.0), "100", "100%"),
     (Scale::new(1.25), "125", "125%"),
     (Scale::new(1.5), "150", "150%"),
     (Scale::new(2.0), "200", "200%"),
 ]);
-choices!(DIRECTIONS: Option<Direction> = [(None, "both", "Both"), (Some(Direction::Ltr), "ltr", "LTR"), (Some(Direction::Rtl), "rtl", "RTL")]);
-choices!(SIZES: Option<ControlSize> = [(None, "both", "Both"), (Some(ControlSize::Sm), "sm", "Sm"), (Some(ControlSize::Md), "md", "Md")]);
+choices!(DIRECTIONS: Direction = [(Direction::Ltr, "ltr", "LTR"), (Direction::Rtl, "rtl", "RTL")]);
 
-/// Which cells of a story the viewer shows: the directions and control sizes it lays out. `None` shows both.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+/// What a Variants view repeats the story over.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
-pub struct CellFilter {
-    /// The direction the cells show.
-    pub direction: Option<Direction>,
-    /// The control size the cells show.
-    pub size: Option<ControlSize>,
+pub enum VariantAxis {
+    /// Every built-in theme.
+    Theme,
+    /// Light and dark.
+    Mode,
+    /// Standard and high contrast.
+    Contrast,
+    /// Compact and comfortable density.
+    Size,
+    /// Left to right and right to left.
+    Direction,
+    /// Small and medium controls.
+    ControlSize,
+    /// Every direction at every control size.
+    DirectionAndControlSize,
 }
 
+impl VariantAxis {
+    /// Every axis, in menu order.
+    pub const ALL: [VariantAxis; 7] = [
+        VariantAxis::Theme,
+        VariantAxis::Mode,
+        VariantAxis::Contrast,
+        VariantAxis::Size,
+        VariantAxis::Direction,
+        VariantAxis::ControlSize,
+        VariantAxis::DirectionAndControlSize,
+    ];
+
+    /// The Variants menu's item.
+    pub fn menu_label(self) -> &'static str {
+        match self {
+            VariantAxis::Theme => "Every theme",
+            VariantAxis::Mode => "Every mode (light, dark)",
+            VariantAxis::Contrast => "Every contrast (standard, high)",
+            VariantAxis::Size => "Every size (compact, comfortable)",
+            VariantAxis::Direction => "Every direction (LTR, RTL)",
+            VariantAxis::ControlSize => "Every control size (Sm, Md)",
+            VariantAxis::DirectionAndControlSize => "Every direction and control size",
+        }
+    }
+}
 /// The built-in theme saved as `name`.
 pub fn theme_named(name: &str) -> Option<ThemeId> {
     builtins().iter().find(|theme| theme.id.as_str() == name).map(|theme| theme.id.clone())

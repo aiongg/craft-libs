@@ -1,21 +1,25 @@
-//! The viewer's window: the options bar over the panels over the status bar, and the settings it keeps.
+//! The viewer's window: the shell with the options bar over the dock of the shown workspace, and the settings it keeps.
 
-use super::options::{options_bar, status_bar};
+use super::dock::GalleryDock;
+use super::options::options_bar;
 use super::panels::Panels;
 use super::persist::Persisted;
 use crate::theme::{ThemeSubject, parse_sizes};
-use crate::viewer::{Browser, Catalog, GalleryCommands, GalleryPanel, GallerySettings, Viewer, Workspace, theme_of};
+use crate::viewer::{Browser, Catalog, GalleryCommands, GallerySettings, Viewer, Workspace, theme_of};
+use craft_behavior::dock::Workspace as Dock;
 use craft_theme::AppSizes;
-use craft_ui::contract::SizeLimits;
-use craft_ui::contract::{Bind, CommandSet as _, ShowContainer as _};
-use craft_ui::docking::SplitArea;
-use craft_ui::docking::tree::FrameRules;
-use craft_ui::layout_components::Stack;
+use craft_ui::contract::{Bind, BodyCx, CommandSet as _, ShowContainer as _};
+use craft_ui::docking::DockConfig;
+use craft_ui::patterns::dock::DockArea;
 use craft_ui::popover::DropVeil;
 use craft_ui::runtime::drag::OsFile;
+use craft_ui::runtime::env::WindowKey;
 use craft_ui::runtime::frame::{FrameInput, FrameOutput};
+use craft_ui::runtime::toast::{self, Toast};
+use craft_ui::shell::AppShell;
 use craft_ui::shell::app::{CloseDecision, ShellApp};
-use egui::{Ui, Vec2};
+use egui::Ui;
+use std::collections::HashSet;
 use web_time::Instant;
 
 /// The viewer as the root window's app.
@@ -24,6 +28,8 @@ pub struct Gallery {
     persisted: Persisted,
     /// What came of the files last dropped on the theme workspace.
     drop_note: Option<String>,
+    /// The notes already shown as toasts.
+    noted: HashSet<String>,
     /// A command changed the viewer since the settings were last compared.
     command_ran: bool,
 }
@@ -37,17 +43,17 @@ impl Gallery {
     /// The viewer of `catalog` over `persisted`.
     pub fn new(catalog: Catalog, persisted: Persisted) -> Self {
         let viewer = Viewer::new(catalog, persisted.get());
-        Gallery { viewer, persisted, drop_note: None, command_ran: false }
+        Gallery { viewer, persisted, drop_note: None, noted: HashSet::new(), command_ran: false }
     }
 
-    fn status(&self) -> String {
-        let browser = &self.viewer.browser;
-        let shown = browser.selected_stories().len();
-        let total = browser.catalog.entries.len();
-        let mut parts = vec![format!("{shown} stories shown of {total}")];
-        parts.extend(self.persisted.notes());
-        parts.extend(self.drop_note.iter().cloned());
-        parts.join(". ")
+    /// Shows what the settings and a dropped file have to say, once each, as toasts.
+    fn announce(&mut self, ctx: &egui::Context) {
+        let notes = self.persisted.notes().into_iter().chain(self.drop_note.take());
+        for note in notes {
+            if self.noted.insert(note.clone()) {
+                toast::post(ctx, Toast::new(note));
+            }
+        }
     }
 }
 
@@ -65,6 +71,22 @@ fn read_dropped(file: &OsFile) -> Result<AppSizes, String> {
         (None, None) => return Err(format!("{}: the file has no content", file.name)),
     };
     parse_sizes(&file.name, &bytes)
+}
+
+/// The dock of the shown workspace over the viewer's state.
+fn body(ui: &mut Ui, _: &mut BodyCx<'_>, viewer: &mut Viewer) {
+    let Viewer { env, workspace, preview, browser, themes, theme_dock, mock, .. } = viewer;
+    let subject = ThemeSubject::new(theme_of(&env.theme), env.appearance());
+    let in_theme = *workspace == Workspace::Theme;
+    let Browser { catalog, filter, selection, open, dock, story_of, generation, cells, .. } = browser;
+    let dock: &mut Dock<_> = if in_theme { theme_dock } else { dock };
+    let panels = Panels { catalog, filter, selection, open, story_of, cells, generation: *generation, themes, subject, revealed: None };
+    let mut content = GalleryDock { panels, preview: *preview, app: mock };
+    // Component tabs are documents: they close from their ×.
+    let config = DockConfig::default();
+    DockArea::new(if in_theme { "Theme dock" } else { "Components dock" }, Bind::bound(&mut *dock), &mut content, config).show(ui);
+    // A closed component tab does not come back from the layout's record of closed panels.
+    dock.hidden.retain(|(panel, _)| !matches!(panel, crate::viewer::PanelId::Component(_)));
 }
 
 impl ShellApp for Gallery {
@@ -95,52 +117,25 @@ impl ShellApp for Gallery {
     }
 
     fn ui(&mut self, ui: &mut Ui) {
-        let status = self.status();
-        let Viewer { env, cell_filter, workspace, more_open, browser, themes, theme_dock, .. } = &mut self.viewer;
-        let in_theme = *workspace == Workspace::Theme;
-        let subject = ThemeSubject::new(theme_of(&env.theme), env.appearance());
-        if in_theme {
-            themes.refresh(&subject);
-        }
-        let shown_filter = *cell_filter;
-        let Browser { catalog, filter, selection, open, dock, generation, cells } = browser;
-        let dock = if in_theme { theme_dock } else { dock };
-        let limits = |_: &GalleryPanel| SizeLimits::at_least(Vec2::ZERO);
-        let rules = FrameRules::new(&limits);
-        let mut panels = Panels {
-            catalog,
-            filter,
-            selection,
-            open,
-            cells,
-            generation: *generation,
-            cell_filter: shown_filter,
-            themes: &mut *themes,
-            subject,
-            revealed: None,
-        };
-        let mut content = |ui: &mut Ui| {
-            Stack::new().fill().header(|ui, _| options_bar(ui, env, cell_filter, workspace, more_open)).footer(|ui, _| status_bar(ui, &status)).show(
-                ui,
-                |ui, _| {
-                    SplitArea::new("Panels", Bind::bound(dock), rules).show(ui, |ui, body| {
-                        for (group, rect) in body.group_frames::<GalleryPanel>() {
-                            panels.show(ui, group, rect);
-                        }
-                    });
-                },
-            );
+        let in_theme = self.viewer.workspace == Workspace::Theme;
+        let shell = |ui: &mut Ui, viewer: &mut Viewer| {
+            AppShell::new(WindowKey::main())
+                .options_bar(true, |ui, _, viewer: &mut Viewer| options_bar(ui, viewer))
+                .body_label("Gallery")
+                .body(body)
+                .show(ui, viewer);
         };
         let dropped = if in_theme {
-            DropVeil::new("Drop an app's sizes.json to load it").show(ui, |ui, _| content(ui)).dropped.clone()
+            let viewer = &mut self.viewer;
+            DropVeil::new("Drop an app's sizes.json to load it").show(ui, |ui, _| shell(ui, viewer)).dropped.clone()
         } else {
-            content(ui);
+            shell(ui, &mut self.viewer);
             None
         };
         if let Some(file) = dropped.as_ref().and_then(|dropped| dropped.files.first()) {
             self.drop_note = Some(match read_dropped(file) {
                 Ok(sizes) => {
-                    themes.edit_sizes(|layer| {
+                    self.viewer.themes.edit_sizes(|layer| {
                         *layer = sizes;
                         true
                     });
@@ -150,6 +145,7 @@ impl ShellApp for Gallery {
             });
         }
         self.viewer.sync_sizes();
+        self.announce(ui.ctx());
         // The controls change the viewer only on input, and a command only in `output`: a pass with neither has
         // nothing new to save.
         let edited = std::mem::take(&mut self.command_ran) || ui.ctx().input(|input| input.events.iter().any(is_edit));
