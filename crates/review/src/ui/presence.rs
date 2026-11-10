@@ -131,7 +131,7 @@ impl<'a> PeopleBar<'a> {
                 if hidden > 0 {
                     Badge::new(words.more.fill(&[("n", env.format().integer(hidden as u64).as_str())])).show(ui);
                 }
-                let chevron = IconButton::new(craft_ui::controls::disclosure::DisclosureGlyph::dropdown()).label(words.people.clone()).show(ui);
+                let chevron = IconButton::new(craft_ui::controls::disclosure::DisclosureGlyph::menu_button()).label(words.people.clone()).show(ui);
                 let mut entries = Vec::new();
                 if let Some(me) = me {
                     entries.push(Entry::new(PeopleCommand::You, words.you.fill(&[("name", me.name.as_str())])).swatch(swatch(me.color)));

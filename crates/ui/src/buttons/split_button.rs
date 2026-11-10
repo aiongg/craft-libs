@@ -195,8 +195,9 @@ impl<T: Value + 'static> Component for SplitButton<'_, T> {
         let draw = ui.draw();
         let side = cx.style.icon.side;
         let chevron = Rect::from_center_size(arrow.center(), Vec2::splat(side));
-        draw.icon(chevron, &crate::controls::disclosure::DisclosureGlyph::dropdown().color(cx.resolve(&cx.style.icon.color)));
+        draw.icon(chevron, &crate::controls::disclosure::DisclosureGlyph::menu_button().color(cx.resolve(&cx.style.icon.color)));
         let x = if rtl { arrow.right() } else { arrow.left() };
+        let x = draw.pixel_centre(x);
         let inset = cx.style.divider_inset;
         draw.stroke(
             &PaintShape::Path(vec![Pos2::new(x, cx.rect.top() + inset), Pos2::new(x, cx.rect.bottom() - inset)]),
