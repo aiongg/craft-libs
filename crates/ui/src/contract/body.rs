@@ -1433,6 +1433,7 @@ impl<'b> BodyHooks<'b> {
                 ShowAt::Rect(rect) => rect.size(),
                 ShowAt::Flow => {
                     let room = crate::layout::flow_room(ui);
+                    let room = Vec2::new(room.x, props.room_height.unwrap_or(room.y));
                     // In a row that wraps, a body too wide for the rest of the line moves to the next one: it measures
                     // in the whole line, so its allocation carries its width and the row can wrap it.
                     let layout = ui.layout();
@@ -1577,7 +1578,8 @@ impl BodyHooks<'_> {
         scoped.transform = props.transform;
         scoped.content_column = content_column;
         scoped.row_room = None;
-        scoped.content = (!self.given.0, !self.given.1);
+        // A body with a room height of its own gives that height to the children that fill it.
+        scoped.content = (!self.given.0, !self.given.1 && props.room_height.is_none());
         // A content-sized container offers its children, in the real run, the width this pass measured it at: a
         // child that fits itself into its room (a bar moving items into "More") fits the width the container
         // takes, not the room it could have taken. A fill container that is not given the width still takes at
@@ -1820,7 +1822,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         self.offset = ScrollPos::default();
         self.region_gap = gap_of(&at.env.tokens, Gap::Tight);
         self.room = match at.width {
-            Some(width) => Vec2::new(width, f32::INFINITY),
+            Some(width) => Vec2::new(width, props.room_height.unwrap_or(f32::INFINITY)),
             None => self.mount_room(&props, at.ui, id, at.at),
         };
         self.given = self.given_axes(&props, at.env, at.at);

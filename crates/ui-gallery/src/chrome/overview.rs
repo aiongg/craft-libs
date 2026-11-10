@@ -90,6 +90,8 @@ pub(super) fn grid(
     let mut reported = Vec::new();
     let columns = if one_column || ui.available_width() < 2.0 * CARD_MIN_WIDTH { 1 } else { 2 };
     let generation = p.generation;
+    // A story that fills its room gets the view's height, as on the old gallery's tiles.
+    let room = ui.available_height();
     Stack::new().fill().scroll(Scroll::vertical()).gap(Gap::Section).id_salt(scroll_id).show(ui, |ui, _| {
         reported.clear();
         for (row, chunk) in cards.chunks(columns).enumerate() {
@@ -103,6 +105,7 @@ pub(super) fn grid(
                         note: spec.note.as_deref(),
                         story: spec.story,
                         surface: spec.surface,
+                        room,
                         open: spec.open,
                         usable: spec.usable,
                         selected: spec.selected,

@@ -387,6 +387,16 @@ impl<'a, S> AppShell<'a, S> {
     /// the window. Each slot and the body get `app`, one after the other: the slots that do not cover the body, then the
     /// body, then the slots a reveal lays over it.
     pub fn show(self, ui: &mut Ui, app: &mut S) -> AppShellOutput {
+        self.show_in(ui, None, app)
+    }
+
+    /// Shows the shell at `rect` and takes that rect's room in the flow of `ui`, as [`show`](Self::show) does
+    /// otherwise: for an embedded shell whose host sized it (a story preview sized to its story).
+    pub fn show_at(self, ui: &mut Ui, rect: Rect, app: &mut S) -> AppShellOutput {
+        self.show_in(ui, Some(rect), app)
+    }
+
+    fn show_in(self, ui: &mut Ui, at: Option<Rect>, app: &mut S) -> AppShellOutput {
         let AppShell { window, bare, embedded, mut screen_mode, allow_reveal, edge_reveal, document_tabs, body_label, title, slots, mut body } = self;
         let env = Env::of(ui);
         let words = env.words::<ShellWords>();
@@ -396,7 +406,7 @@ impl<'a, S> AppShell<'a, S> {
         slots.sort_by_key(Placed::rank);
 
         let root = if embedded { ShellRegion::embedded() } else { ShellRegion::window() }.id_salt(window.as_str()).label(words.window.clone());
-        let shown = root.show(ui, |ui, cx| {
+        let shell_body = |ui: &mut Ui, cx: &mut BodyCx<'_>| {
             let ctx = ui.ctx().clone();
             let viewport = pass::current_viewport(&ctx);
             let mut kept = cx.keep::<ShellState>().clone();
@@ -441,6 +451,9 @@ impl<'a, S> AppShell<'a, S> {
             // The room an embedded shell shows: its rect less what a scroll or a parent clips. Its dialogs are contained in
             // it.
             let region = cx.rect.intersect(ui.clip_rect());
+            // An embedded shell scrolled or clipped out of sight shows nothing in this pass: its region has no room for
+            // its body or its dialogs.
+            let unseen = embedded && !region.is_positive();
             if embedded {
                 shell = shell.with_region(region);
             }
@@ -453,6 +466,9 @@ impl<'a, S> AppShell<'a, S> {
             let rect_of = |key| regions.slots.iter().find(|(shown, _)| *shown == key).map_or(Rect::ZERO, |(_, rect)| *rect);
             let scope = shell.clone();
             ShellRegion::scope(shell).id_salt("shell").show(ui, |ui, _| {
+                if unseen {
+                    return;
+                }
                 let mut show_slots = |ui: &mut Ui, covering: bool, app: &mut S| {
                     for (placed, shown) in slots.iter_mut().zip(&visible) {
                         if !*shown || only != covering {
@@ -497,7 +513,11 @@ impl<'a, S> AppShell<'a, S> {
             let revealed = only && !regions.slots.is_empty();
             *cx.keep::<ShellState>() = kept;
             Parts { regions, revealed, panels_hidden, mode, dialog }
-        });
+        };
+        let shown = match at {
+            Some(rect) => root.show_at_taking_room(ui, rect, shell_body),
+            None => root.show(ui, shell_body),
+        };
         let response = shown.output.response;
         match shown.inner {
             Some(parts) => AppShellOutput {

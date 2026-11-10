@@ -449,6 +449,10 @@ pub struct ContainerProps {
     pub pad: Pad,
     /// How the size follows the content.
     pub sizing: Sizing,
+    /// The height the body offers its children in flow, in place of the flow's (unbounded in a scrolling body): a
+    /// child that fills the height is given it, any other child takes its content height. A host that shows content
+    /// of either kind at a definite room (a story in a gallery card) sets it.
+    pub room_height: Option<f32>,
     /// How the body lays out its children.
     pub layout: BodyLayout,
     /// A header region.
@@ -513,6 +517,7 @@ impl ContainerProps {
             surface: None,
             pad: Pad::None,
             sizing: Sizing::Content,
+            room_height: None,
             layout: BodyLayout::Stack,
             header: None,
             scroll: None,
@@ -560,6 +565,12 @@ impl ContainerProps {
     /// How the size follows the content.
     pub const fn sizing(mut self, sizing: Sizing) -> Self {
         self.sizing = sizing;
+        self
+    }
+
+    /// The height the body offers its children in flow ([`room_height`](Self::room_height)).
+    pub const fn room_height(mut self, height: f32) -> Self {
+        self.room_height = Some(height);
         self
     }
 

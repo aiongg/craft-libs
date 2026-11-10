@@ -4,15 +4,19 @@
 
 use crate::viewer::CardState;
 use craft_behavior::IconId;
+use craft_behavior::Proposal;
 use craft_i18n::Direction;
 use craft_theme::{ControlSize, Mode};
-use craft_ui::contract::{CommandSet, Commands as _, Props as _, ShowContainer as _, Sizing, ThemeScope};
+use craft_ui::contract::{CommandSet, Commands as _, Pad, Props as _, ShowContainer as _, Sizing, Surface, ThemeScope};
 use craft_ui::layout_components::Stack;
 use craft_ui::runtime::env::{WindowKey, with_env};
-use craft_ui::runtime::pointer;
 use craft_ui::sections::{HeaderCommand, Panel};
 use craft_ui::shell::AppShell;
-use craft_ui::testing::StoryRegistration;
+use craft_ui::style::SurfaceKind;
+use craft_ui::testing::{StoryData, StoryOutput, StoryRegistration};
+
+/// A story's show function.
+type StoryFn = fn(&mut Ui, &mut StoryData) -> StoryOutput;
 use egui::{Id, Rect, Ui, vec2};
 
 /// The header commands of a card.
@@ -55,7 +59,10 @@ pub struct Card<'a> {
     /// The story.
     pub story: &'static StoryRegistration,
     /// The surface the story sits on.
-    pub surface: craft_ui::contract::Surface,
+    pub surface: Surface,
+    /// The height a story that fills is given: the visible height of the view the cards scroll in, as the old
+    /// gallery's tiles gave it.
+    pub room: f32,
     /// Whether the header has Open.
     pub open: bool,
     /// Whether the header has Use.
@@ -86,18 +93,22 @@ impl Card<'_> {
     /// Shows the card in the room `ui` offers, with the state of its story.
     pub fn show(&self, ui: &mut Ui, state: &mut CardState) -> CardEvents {
         let mut events = CardEvents::default();
-        // A card entirely outside the visible area is not run: its region would have no room, and a page of cards
-        // would run every story at once. It keeps the height it had.
+        // As the old gallery's tiles: a card far outside the visible area is not run, for speed, and keeps the height
+        // it had; the cards near the view are run so they are ready when they scroll in.
         let remembered = Id::unique(("gallery.card.size", &self.key, state.resets));
         let known: Option<f32> = ui.data(|data| data.get_temp(remembered));
-        if !ui.is_sizing_pass() {
+        if !ui.is_sizing_pass()
+            && let Some(height) = known
+        {
             let (top, view) = (ui.cursor().min.y, ui.clip_rect());
-            if top >= view.max.y || known.is_some_and(|height| top + height <= view.min.y) {
-                ui.allocate_space(vec2(ui.available_width(), known.unwrap_or(0.0)));
+            let near = view.expand2(vec2(0.0, view.height()));
+            if top >= near.max.y || top + height <= near.min.y {
+                ui.allocate_space(vec2(ui.available_width(), height));
                 return events;
             }
         }
-        let mut panel = Panel::new(self.title.to_owned()).sizing(Sizing::Content).command_scope(CardCommands::SCOPE).selected(self.selected);
+        let mut panel =
+            Panel::new(self.title.to_owned()).sizing(Sizing::FillWidth).command_scope(CardCommands::SCOPE).selected(self.selected).pickable();
         if let Some(note) = self.note {
             panel = panel.subtitle(format!("· {note}"));
         }
@@ -111,7 +122,6 @@ impl Card<'_> {
         if state.changed() {
             commands.push(HeaderCommand::new(IconId::new("undo"), CardCommands::Reset));
         }
-        let key = (self.key.clone(), state.resets);
         let shown = panel.commands(commands).show(ui, |ui, cx| {
             while let Some((command, _)) = cx.take_command::<CardCommands>() {
                 match command {
@@ -120,71 +130,76 @@ impl Card<'_> {
                     CardCommands::Use => events.used = true,
                 }
             }
-            self.story_body(ui, state, key.clone());
+            events.pressed |= cx.surface_pressed();
+            self.story_body(ui, state);
         });
         let rect = shown.response.rect;
-        ui.data_mut(|data| data.insert_temp(remembered, rect.height()));
+        if !ui.is_sizing_pass() {
+            ui.data_mut(|data| data.insert_temp(remembered, rect.height()));
+        }
         events.rect = Some(rect);
-        events.pressed = pointer::frame(ui.ctx()).press.is_some_and(|press| rect.contains(press.origin) && ui.clip_rect().contains(press.origin));
         events
     }
 
-    /// The story on its surface, in an embedded shell of its own.
-    fn story_body(&self, ui: &mut Ui, state: &mut CardState, key: (String, u32)) {
+    /// The story on its surface, in an embedded shell of its own so its dialogs stay in the card. The shell is as tall
+    /// as the story measures in the card's room: its content height, or the whole room for a story that fills it or
+    /// shows nothing in flow (a dialog).
+    fn story_body(&self, ui: &mut Ui, state: &mut CardState) {
         let window = WindowKey::new(format!("card-{}-{}", self.key, state.resets));
-        let (show, look, surface) = (self.story.story.show, self.look, self.surface);
-        let on_panel = matches!(surface, craft_ui::contract::Surface::Panel);
-        let title = self.title.to_owned();
-        // The embedded shell fills the room it is given, so the card gives it the height its story took last pass (or its
-        // largest dialog took, which the shell reports).
-        let content = Id::unique(("gallery.card.content", &self.key, state.resets));
-        let measured = Id::unique(("gallery.card.height", &window));
-        let height: f32 = ui.data(|data| data.get_temp(measured)).unwrap_or_else(|| ui.ctx().content_rect().height());
-        let width = ui.available_width();
-        let (room, _) = ui.allocate_exact_size(vec2(width, height), egui::Sense::hover());
-        let shown = ui
-            .scope_builder(egui::UiBuilder::new().max_rect(room), |ui| {
-                AppShell::embedded(window)
-                    .body(move |ui, _, data: &mut craft_ui::testing::StoryData| {
-                        let mut stack = Stack::new().id_salt(key.clone()).fill();
-                        if let Some(mode) = look.mode {
-                            stack = stack.theme(ThemeScope::mode(mode));
-                        }
-                        stack.show(ui, |ui, _| {
-                            with_env(
-                                ui,
-                                |env| {
-                                    env.direction = look.direction;
-                                    env.size = look.size;
-                                },
-                                |ui| {
-                                    if on_panel {
-                                        Panel::new(title.clone()).headerless().sizing(Sizing::FillWidth).show(ui, |ui, _| {
-                                            let _ = show(ui, data);
-                                        });
-                                    } else {
-                                        let _ = show(ui, data);
-                                    }
-                                    // What the story took is what the card's body is as tall as.
-                                    let taken = ui.min_rect().height();
-                                    if !ui.is_sizing_pass() && taken.is_finite() {
-                                        ui.data_mut(|data| data.insert_temp(content, taken));
-                                    }
-                                },
-                            );
-                        });
-                    })
-                    .show(ui, &mut state.data)
+        let host = Host { id: Id::unique(("gallery.card.story", &self.key, state.resets)), room: self.room, look: self.look, surface: self.surface };
+        let show = self.story.story.show;
+        let took = host.stack().measure_in(ui, Proposal::Ideal, |ui, _| host.content(ui, show, &mut state.data));
+        let height = if took.y > 0.0 { took.y } else { self.room };
+        let rect = Rect::from_min_size(ui.available_rect_before_wrap().min, vec2(ui.available_width(), height));
+        AppShell::embedded(window)
+            .body(move |ui, _, data: &mut StoryData| {
+                host.stack().show(ui, |ui, _| host.content(ui, show, data));
             })
-            .inner;
-        let wanted = shown.dialog.map_or(0.0, |dialog| dialog.y);
-        let taken = ui.data(|data| data.get_temp::<f32>(content)).unwrap_or(0.0);
-        // A story that draws nothing in flow (an overlay, a dialog) takes the viewport's height, as it did in the old gallery.
-        let next = if taken.max(wanted) > 0.0 { taken.max(wanted) } else { ui.ctx().content_rect().height() };
-        if (next - height).abs() > 0.5 {
-            ui.data_mut(|data| data.insert_temp(measured, next));
-            ui.ctx().request_repaint();
-        }
+            .show_at(ui, rect, &mut state.data);
         state.note_start();
+    }
+}
+
+/// What a story runs in inside its card: the same in the measure and in the shell, ids included, so the measure reads
+/// the state the story shows.
+#[derive(Clone, Copy)]
+struct Host {
+    id: Id,
+    /// The height a story that fills is given.
+    room: f32,
+    look: Look,
+    surface: Surface,
+}
+
+impl Host {
+    /// The story's surface over the card's width, with the card's mode.
+    fn stack(&self) -> Stack<'static> {
+        let kind = match self.surface {
+            Surface::Panel => SurfaceKind::Panel,
+            Surface::Canvas => SurfaceKind::Canvas,
+            Surface::Chrome => SurfaceKind::Chrome,
+            // A story that paints its own surface sits on the background, as on the old gallery's cards.
+            _ => SurfaceKind::Background,
+        };
+        let mut stack = Stack::new().id(self.id).fill_width().room_height(self.room).surface(kind).pad(Pad::Regular);
+        if let Some(mode) = self.look.mode {
+            stack = stack.theme(ThemeScope::mode(mode));
+        }
+        stack
+    }
+
+    /// The story under the card's direction and control size.
+    fn content(&self, ui: &mut Ui, show: StoryFn, data: &mut StoryData) {
+        let look = self.look;
+        with_env(
+            ui,
+            |env| {
+                env.direction = look.direction;
+                env.size = look.size;
+            },
+            |ui| {
+                let _ = show(ui, data);
+            },
+        );
     }
 }

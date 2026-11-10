@@ -89,6 +89,7 @@ pub struct Panel<'a> {
     taken: Option<HeaderAction>,
     menu_opener: Option<Id>,
     closed: Option<CloseReason>,
+    pickable: bool,
 }
 
 impl<'a> Panel<'a> {
@@ -114,6 +115,7 @@ impl<'a> Panel<'a> {
             taken: None,
             menu_opener: None,
             closed: None,
+            pickable: false,
         }
         .label(title)
     }
@@ -136,6 +138,14 @@ impl<'a> Panel<'a> {
     /// The menu the Menu action opens, as ready-made rows.
     pub(crate) fn set_menu_rows(&mut self, rows: MenuRows<'a>) {
         self.menu = Some(rows);
+    }
+
+    /// A panel a press picks: a press on its own surface, where no control inside takes it, is reported by
+    /// [`BodyCx::surface_pressed`] in the body, so a host can select the panel.
+    #[must_use]
+    pub fn pickable(mut self) -> Self {
+        self.pickable = true;
+        self
     }
 
     /// A panel with no header: the title names the panel for assistive technology only.
@@ -166,7 +176,7 @@ impl Component for Panel<'_> {
     }
 
     fn sense(&self) -> Sense {
-        Sense::empty()
+        if self.pickable { Sense::SURFACE } else { Sense::empty() }
     }
 
     fn paint_over(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
