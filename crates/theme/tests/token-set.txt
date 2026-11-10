@@ -134,6 +134,8 @@ slider.thumb_height.md
 slider.thumb_height.sm
 slider.thumb_width.md
 slider.thumb_width.sm
+space.gap.card_column
+space.gap.card_row
 space.gap.inline
 space.gap.row
 space.gap.section

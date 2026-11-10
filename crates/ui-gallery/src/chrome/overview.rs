@@ -93,10 +93,10 @@ pub(super) fn grid(
     let generation = p.generation;
     // A story that fills its room gets the view's height, as on the old gallery's tiles.
     let room = ui.available_height();
-    Stack::new().fill().scroll(Scroll::vertical()).gap(Gap::Section).id_salt(scroll_id).show(ui, |ui, _| {
+    Stack::new().fill().scroll(Scroll::vertical()).gap(Gap::CardRow).id_salt(scroll_id).show(ui, |ui, _| {
         reported.clear();
         for (row, chunk) in cards.chunks(columns).enumerate() {
-            Grid::new(if columns == 1 { ONE } else { TWO }).gap(Gap::Section).fill_width().show(ui, |ui, _| {
+            Grid::new(if columns == 1 { ONE } else { TWO }).gap(Gap::CardColumn).fill_width().show(ui, |ui, _| {
                 for (at, spec) in chunk.iter().enumerate() {
                     let state = p.cells.entry(spec.index).or_default();
                     // Each card is its own id scope: a story's `id_salt` and auto ids must not meet another card's.

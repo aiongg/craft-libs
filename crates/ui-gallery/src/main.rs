@@ -5,7 +5,7 @@ use craft_ui_gallery::chrome::Gallery;
 use craft_window::restore::Defaults;
 
 const TITLE: &str = "craft-ui stories";
-const WINDOW: [f32; 2] = [1100.0, 800.0];
+const WINDOW: [f32; 2] = [1280.0, 800.0];
 const WINDOW_MIN: [f32; 2] = [640.0, 480.0];
 
 fn spec() -> AppSpec {
