@@ -276,9 +276,13 @@ struct BodyScope {
 }
 
 /// The scroll region of a container: its own, or for a layer the vertical one that takes the overflow of any fit
-/// (none when the body is one collection, which owns the scroll, or the overlay turns its body scroll off).
+/// (none when the body is one collection, which owns the scroll, or the overlay turns its body scroll off). A
+/// container whose body is one collection has no scroll of its own, whatever its constructor set.
 fn scroll_of(props: &ContainerProps) -> Option<Scroll> {
-    props.scroll.or_else(|| overlay_of(props).filter(|overlay| overlay.body_scroll && !props.collection_body).map(|_| Scroll::vertical()))
+    if props.collection_body {
+        return None;
+    }
+    props.scroll.or_else(|| overlay_of(props).filter(|overlay| overlay.body_scroll).map(|_| Scroll::vertical()))
 }
 
 /// Whether the footer sits in the end region: it asks to, and the container has one.
