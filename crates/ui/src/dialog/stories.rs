@@ -76,8 +76,13 @@ fn dialog_prompt(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 #[story(Dialog<'static>, covers = [], drive = Drive::Never)]
 fn dialog_modeless(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let mut checks = *data.value("checks", [true, false]);
-    let shown: StoryOutput =
-        Dialog::new("Grid options").opened(Bind::bound(data.value("open", true))).modeless().show(ui, |ui, _| body(ui, &mut checks)).into();
+    let resizable = *data.value("resizable", false);
+    let shown: StoryOutput = Dialog::new("Grid options")
+        .opened(Bind::bound(data.value("open", true)))
+        .modeless()
+        .resizable(resizable)
+        .show(ui, |ui, _| body(ui, &mut checks))
+        .into();
     *data.value("checks", [true, false]) = checks;
     shown
 }
@@ -85,7 +90,9 @@ fn dialog_modeless(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 #[story(DialogFrame<'static>, covers = [Default], drive = Drive::Custom(close_box))]
 fn dialog_frame(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let mut checks = *data.value("checks", [true, false]);
-    let shown: StoryOutput = DialogFrame::new("Grid options").closable(true).show(ui, |ui, _| body(ui, &mut checks)).into();
+    let closable = *data.value("close box", true);
+    let roomy = *data.value("roomy", false);
+    let shown: StoryOutput = DialogFrame::new("Grid options").closable(closable).roomy(roomy).show(ui, |ui, _| body(ui, &mut checks)).into();
     *data.value("checks", [true, false]) = checks;
     shown
 }
@@ -118,11 +125,13 @@ fn full_window_dialog(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 
 #[story(BlockingOverlay<'static>, covers = [Default], drive = Drive::Never)]
 fn blocking_overlay(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let scrim = *data.value("scrim", true);
+    let card = *data.value("wait card", true);
     let mut checks = *data.value("checks", [true, false]);
     let shown: StoryOutput = BlockingOverlay::new("Exporting")
         .opened(Bind::bound(data.value("open", true)))
-        .card(true)
-        .scrim(true)
+        .card(card)
+        .scrim(scrim)
         .show(ui, |ui, _| body(ui, &mut checks))
         .into();
     *data.value("checks", [true, false]) = checks;

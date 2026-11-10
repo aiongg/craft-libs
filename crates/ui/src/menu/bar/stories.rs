@@ -1,10 +1,11 @@
 //! Stories of the menu bar, the edit menu and the panel menu.
 
 use super::{MenuBar, MenuHelp, MenuTitle};
-use crate::contract::{Bind, Entry, Show as _, ShowContainer as _};
+use crate::contract::{Bind, Entry, Props as _, Show as _, ShowContainer as _};
 use crate::menu::{EditMenu, GroupItem, HelpEntry, Menu, MenuItem, PanelMenu, PanelRow};
 use crate::runtime::commands::EditCommands;
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
+use craft_theme::ControlSize;
 use egui::Ui;
 use std::sync::LazyLock;
 
@@ -37,8 +38,12 @@ fn titles() -> Vec<MenuTitle<'static>> {
 }
 
 #[story(MenuBar<'static>, covers = [Default], drive = Drive::Never)]
-fn menu_bar(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    MenuBar::new("Main menu", titles()).show(ui).into()
+fn menu_bar(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let size = *data.choice("size", ControlSize::Md, &[("Sm", ControlSize::Sm), ("Md", ControlSize::Md)]);
+    let search = *data.value("search", false);
+    let bar = MenuBar::new("Main menu", titles()).size(size);
+    let bar = if search { bar.help(MenuHelp::new(3, HELP.as_slice())) } else { bar };
+    bar.show(ui).into()
 }
 
 fn open_file(fixture: &mut Fixture) {

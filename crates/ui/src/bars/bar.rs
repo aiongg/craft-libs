@@ -15,6 +15,9 @@ use craft_theme::ControlSize;
 use egui::{Response, Ui};
 use std::num::NonZeroU8;
 
+/// The trailing group's content.
+type TrailingFn<'a> = Box<dyn FnMut(&mut Ui) + 'a>;
+
 /// What a bar is for; it picks the bar's role, spacing and name.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
@@ -78,7 +81,7 @@ impl Outcome for BarOutput {
 /// scroll; they run `BarCommands`.
 #[derive(crate::contract::Component)]
 #[component(container)]
-pub struct Bar {
+pub struct Bar<'a> {
     #[common]
     common: Common,
     #[container]
@@ -89,9 +92,10 @@ pub struct Bar {
     commit_cancel: Option<(Label, Label)>,
     committed: bool,
     cancelled: bool,
+    trailing: Option<TrailingFn<'a>>,
 }
 
-impl Bar {
+impl<'a> Bar<'a> {
     /// A bar named `label` of `kind`.
     pub fn new(label: impl Into<Label>, kind: BarKind) -> Self {
         let gap = match kind {
@@ -111,8 +115,18 @@ impl Bar {
         if kind == BarKind::Status {
             props = props.live(Politeness::Polite);
         }
-        Bar { common: Common::new(), props, kind, rows: NonZeroU8::MIN, vertical: false, commit_cancel: None, committed: false, cancelled: false }
-            .label(label)
+        Bar {
+            common: Common::new(),
+            props,
+            kind,
+            rows: NonZeroU8::MIN,
+            vertical: false,
+            commit_cancel: None,
+            committed: false,
+            cancelled: false,
+            trailing: None,
+        }
+        .label(label)
     }
 
     /// Sets the number of rows the body holds.
@@ -138,6 +152,15 @@ impl Bar {
         self
     }
 
+    /// Ends the bar with a group of controls that stays at the reading end, outside the scroll, while the members
+    /// before it scroll. The group sits before the commit and cancel buttons.
+    #[must_use]
+    pub fn trailing(mut self, group: impl FnMut(&mut Ui) + 'a) -> Self {
+        self.trailing = Some(Box::new(group));
+        self.props = self.props.end(EndRegion::new());
+        self
+    }
+
     fn lay_out(mut self) -> Self {
         let layout = if self.vertical || self.rows.get() > 1 { BodyLayout::stack() } else { BodyLayout::row() };
         let scroll = if self.vertical { Scroll::vertical() } else { Scroll::horizontal() };
@@ -146,7 +169,7 @@ impl Bar {
     }
 }
 
-impl Component for Bar {
+impl Component for Bar<'_> {
     const ROLE: Role = Role::TOOLBAR;
     const PARTS: bool = false;
     const STOPS: bool = false;
@@ -198,9 +221,12 @@ impl Component for Bar {
     }
 }
 
-impl Container for Bar {
-    /// The cancel button, then the commit button at the reading end.
+impl Container for Bar<'_> {
+    /// The trailing group, then the cancel button and the commit button at the reading end.
     fn end(&mut self, ui: &mut Ui, _: &mut BodyCx<'_>) {
+        if let Some(group) = &mut self.trailing {
+            group(ui);
+        }
         let Some((commit, cancel)) = &self.commit_cancel else { return };
         IconButton::command(IconId::new("ban"), BarCommands::Cancel).label(cancel.clone()).show(ui);
         IconButton::command(IconId::new("check"), BarCommands::Commit).label(commit.clone()).show(ui);

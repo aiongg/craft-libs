@@ -2,7 +2,7 @@
 
 use craft_behavior::Selection;
 use craft_settings::{Location, OpenOptions, SettingsFiles, SettingsStore};
-use craft_theme::Mode;
+use craft_theme::ModeChoice;
 use craft_ui::contract::Level;
 use craft_ui::list::OpenSet;
 use craft_ui::testing::trial;
@@ -111,7 +111,7 @@ fn reset_layout_keeps_the_open_component_tabs() {
 #[trial]
 fn settings_restore_the_state_they_were_saved_from() {
     let mut before = viewer(&GallerySettings::default());
-    before.env.mode = Mode::Dark;
+    before.env.mode = ModeChoice::System;
     before.browser.filter = "u".to_owned();
     before.browser.selection = Selection::single(TreeKey::Component("craft_ui::buttons::link::Link"));
     before.browser.open.set(&TreeKey::Level(Level::Controls), true);

@@ -149,7 +149,11 @@ impl PaintUi<'_> {
         let focus = self.active.filter(|(active, _)| *active == part).map(|(_, visible)| visible);
         let source = FaceSource { id: self.id, result, focus, response: self.response, ink: self.text, muted: self.muted, flags: self.flags };
         let record = run::paint_face(self.ui, &source, part, face);
-        self.record.borrow_mut().faces.push(record);
+        let mut own = self.record.borrow_mut();
+        if let Some(baseline) = record.baseline {
+            own.baseline.get_or_insert(baseline);
+        }
+        own.faces.push(record);
     }
 
     /// The raw painter for an allowlisted content painter, clipped to the component's own rect.

@@ -9,6 +9,8 @@ use egui::{Pos2, Rect, Ui, Vec2};
 
 /// How far the zoomed story magnifies the graph.
 const ZOOM: f32 = 2.0;
+/// How far the zoomed story pans the canvas up, in layer points, so the second row's titles lie inside the view with room to grow.
+const PAN_UP: f32 = 48.0;
 
 const NODE_WIDTH: f32 = 140.0;
 const NODE_HEIGHT: f32 = 72.0;
@@ -149,7 +151,7 @@ fn plain_nodes(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 
 #[story(NodeGraph<'static, ()>, covers = [Many], drive = Drive::Custom(click_first_node))]
 fn zoomed(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    graph(ui, data, 4, &[(0, 1), (1, 2), (2, 3)], Some(CanvasTransform::new(ZOOM, Vec2::ZERO)))
+    graph(ui, data, 4, &[(0, 1), (1, 2), (2, 3)], Some(CanvasTransform::new(ZOOM, -PAN_UP * Vec2::Y)))
 }
 
 #[story(Node<'static, ()>, covers = [Default])]

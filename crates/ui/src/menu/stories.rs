@@ -6,6 +6,8 @@ use crate::contract::{Bind, Entry, Props as _, Show as _, ShowContainer as _, Tr
 use crate::display::Divider;
 use crate::layout_components::Stack;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
+use craft_behavior::IconId;
+use craft_theme::ControlSize;
 use egui::Ui;
 
 #[story(MenuItem<'static>, covers = [Default], drive = Drive::Activate)]
@@ -53,12 +55,15 @@ fn in_row(ui: &mut Ui, mut story: impl FnMut(&mut Ui) -> StoryOutput) -> StoryOu
 
 #[story(Menu<'static>, covers = [Default], drive = Drive::Never)]
 fn menu(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let size = *data.choice("size", ControlSize::Md, &[("Sm", ControlSize::Sm), ("Md", ControlSize::Md)]);
+    let icons = *data.value("icons", false);
+    let icon = move |item: MenuItem<'static>, name: &'static str| if icons { item.icon(IconId::new(name)) } else { item };
     in_row(ui, |ui| {
         let opener = Button::new("File").show(ui);
         let mut ran = false;
-        let shown = Menu::new("File").open(Bind::bound(data.value("open", true))).opened_by(&opener, Trigger::Click).show(ui, |ui, _| {
-            ran |= MenuItem::new("&New").shortcut("Ctrl+N").show(ui).ran;
-            ran |= MenuItem::new("Open").shortcut("Ctrl+O").show(ui).ran;
+        let shown = Menu::new("File").size(size).open(Bind::bound(data.value("open", true))).opened_by(&opener, Trigger::Click).show(ui, |ui, _| {
+            ran |= icon(MenuItem::new("&New").shortcut("Ctrl+N"), "image").show(ui).ran;
+            ran |= icon(MenuItem::new("Open").shortcut("Ctrl+O"), "settings").show(ui).ran;
             MenuItem::submenu("Open Recent").show(ui);
             Divider::horizontal().show(ui);
             ran |= MenuItem::new("Show Rulers").check(true).show(ui).ran;
