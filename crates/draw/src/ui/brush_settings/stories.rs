@@ -39,7 +39,7 @@ fn sections(on: bool) -> Vec<BrushSection<u8>> {
 const STROKE_DIAMETER: f64 = 18.0;
 
 /// The paint colour the test stroke is stamped in: the brush's colour, as the engine renders it.
-const PAINT: Color32 = Color32::from_rgb(0x3D, 0x63, 0xDE);
+const PAINT: Color32 = Color32::from_rgb(0x37, 0x8E, 0xF0);
 
 /// The strip with the test stroke stamped in the paint colour, as the engine renders it.
 fn strip<'a>(ui: &Ui) -> BrushStrokeStrip<'a> {
