@@ -303,6 +303,14 @@ impl MenuLevel {
         self.with(|state| state.active == Some(id))
     }
 
+    /// Whether the user is in the open submenu of row `id`: the pointer is over it, or the keyboard has left `id` for it.
+    fn descended(&self, id: Id, focused: bool) -> bool {
+        self.with(|state| {
+            let Some(OpenSubmenu { row, rect }) = &state.open_submenu else { return false };
+            *row == id && (rect.zip(state.pointer).is_some_and(|(rect, pointer)| rect.contains(pointer)) || (state.keyboard && !focused))
+        })
+    }
+
     /// Whether the pointer heads for the open submenu, which is not the one of row `id`.
     fn aimed(&self, id: Id) -> bool {
         self.with(|state| {
@@ -579,8 +587,13 @@ impl Component for MenuItem<'_> {
         let tokens = cx.tokens;
         let text = &tokens.color.text;
         let c = |rgba: Rgba| cx.color(rgba);
-        let surface = SurfaceLook::new(cx.command_row_surface()).radius(UiTokens::corner(tokens.shape.radius.sm));
-        let ink = |base: Rgba| cx.command_row_ink(base).off(States::new(c(base), c(base), c(base), c(text.disabled)));
+        // A checked row shows its mark, not a selection fill.
+        let clear = c(Rgba::TRANSPARENT);
+        let surface =
+            SurfaceLook::new(cx.command_row_surface().on(States::new(clear, clear, clear, clear))).radius(UiTokens::corner(tokens.shape.radius.sm));
+        let ink = |base: Rgba| {
+            cx.command_row_ink(base).on(States::new(c(base), c(base), c(base), c(base))).off(States::new(c(base), c(base), c(base), c(text.disabled)))
+        };
         let control = cx.control();
         // A row's content sits `space.pad.regular` in from the popup's own padding, so a label starts clear of the edge.
         let mut metrics = control.metrics();
@@ -694,6 +707,10 @@ impl Component for MenuItem<'_> {
                 frame::request_repaint(&ctx);
             }
             self.open = level.submenu_open(cx.id);
+            // The active row is in the open submenu: this row keeps only the open-submenu tint.
+            if self.open && level.descended(cx.id, focused) {
+                self.active = false;
+            }
             return;
         }
         if hovered && waited >= DWELL && level.clear_submenu() {

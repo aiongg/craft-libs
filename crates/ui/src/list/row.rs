@@ -791,6 +791,7 @@ fn fill_of(cx: &StyleCx<'_>, key: FillKey) -> Stateful<StyleColor> {
             RuleFill::Tinted => tinted,
             RuleFill::SelectedHover => selected_hover,
             RuleFill::Accent => cx.tokens.color.accent.solid,
+            RuleFill::Hover => hover,
         };
         fill = fill.when(rule.flags, c(rgba));
     }
@@ -803,6 +804,8 @@ enum RuleFill {
     Tinted,
     SelectedHover,
     Accent,
+    /// The hover token itself: translucent, so it tints the surface under a row of a menu.
+    Hover,
 }
 
 /// The ink paired with a rule's fill.
@@ -827,6 +830,7 @@ struct FlagRule {
 fn flag_rules(command: bool) -> Vec<FlagRule> {
     let emphasized = FlagRule { flags: Flags::EMPHASIZED, fill: RuleFill::Tinted, ink: RuleInk::Base };
     if command {
+        let emphasized = FlagRule { fill: RuleFill::Hover, ..emphasized };
         return vec![emphasized, FlagRule { flags: Flags::LEAD, fill: RuleFill::Accent, ink: RuleInk::OnAccent }];
     }
     vec![
