@@ -18,7 +18,9 @@ fn select(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let size = *data.choice("size", ControlSize::Md, &[("Sm", ControlSize::Sm), ("Md", ControlSize::Md)]);
     let disabled = *data.value("disabled", false);
     let blend = data.choice("mode", 0u8, &[("Normal", 0), ("Multiply", 1), ("Screen", 2)]);
-    Select::new("Blend mode", Bind::bound(blend), &entries).size(size).enabled(!disabled).show(ui).into()
+    let out = Select::new("Blend mode", Bind::bound(blend), &entries).size(size).enabled(!disabled).show(ui);
+    Select::new("Blend mode, disabled", Bind::bound(&mut 1u8), &entries).size(size).enabled(false).show(ui);
+    out.into()
 }
 
 #[story(Select<'static, u8>, covers = [Mixed], drive = Drive::Never)]

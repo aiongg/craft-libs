@@ -17,7 +17,9 @@ const LONG: &str = "A name that runs on well past the end of the field, so the f
 fn text_field(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let size = *data.choice("size", ControlSize::Md, &SIZES);
     let placeholder = data.value("placeholder", String::from("Untitled")).clone();
-    TextField::new("Name", Bind::bound(data.value("name", String::new()))).placeholder(placeholder).size(size).show(ui).into()
+    let out = TextField::new("Name", Bind::bound(data.value("name", String::new()))).placeholder(placeholder).size(size).show(ui);
+    TextField::search("Search, disabled", Bind::bound(&mut String::from("Off"))).size(size).enabled(false).show(ui);
+    out.into()
 }
 
 #[story(TextField<'static, PlainText>, covers = [LongText], drive = Drive::Never)]
