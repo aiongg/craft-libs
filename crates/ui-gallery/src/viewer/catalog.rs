@@ -51,10 +51,77 @@ impl ComponentInfo {
     }
 }
 
-/// The registry's catalog of the types linked into the running binary: each one's level and plain name.
+/// The types of the domain crates and of this gallery that the gallery lists at another level than the registry's shape
+/// rule gives (a pattern is a Pattern, a leaf a Control): the old gallery's Composites, and its Foundations. Each row is
+/// a crate target and the display names in it.
+const LEVELS: &[(Level, &str, &[&str])] = &[
+    (Level::Foundations, "craft_ui_gallery", &["TokenBrowser"]),
+    (
+        Level::Composites,
+        "craft_color",
+        &["ColorArea", "ColorDisc", "ColorPicker", "ColorPopover", "ColorRamp", "ColorWheel", "PaintChip", "SwatchPair", "SwatchPalette"],
+    ),
+    (Level::Composites, "craft_dialogs", &["PathField"]),
+    (
+        Level::Composites,
+        "craft_draw",
+        &[
+            "BrushPresetPicker",
+            "BrushSectionList",
+            "BrushStrokeStrip",
+            "DynamicControlRow",
+            "GradientEditor",
+            "GradientPalette",
+            "GradientSwatch",
+            "PathOptionsPopover",
+            "PatternFillEditor",
+            "PictureFillEditor",
+            "StrokeButton",
+            "StrokeEditor",
+            "TipEllipse",
+            "TransformFields",
+        ],
+    ),
+    (Level::Composites, "craft_font_manager", &["AxisSliders"]),
+    (
+        Level::Composites,
+        "craft_imaging",
+        &[
+            "BlendIfBar",
+            "BlurPinsOverlay",
+            "ContourField",
+            "CurveEditor",
+            "CurvePreview",
+            "Histogram",
+            "PerspectiveWarp",
+            "PinWarp",
+            "SelectionOverlay",
+            "TransformPreview",
+        ],
+    ),
+    (Level::Composites, "craft_layers", &["BlendRows", "LayerFilterBar", "LayersOptionsDialog", "LayersPanel"]),
+    (Level::Composites, "craft_pages", &["ColumnBar", "EdgePicker", "TableSizePicker"]),
+    (Level::Composites, "craft_table", &["SelectionStatsReadout", "Slicer"]),
+    (Level::Composites, "craft_text", &["TextRuler"]),
+    (Level::Composites, "craft_theme_store", &["ThemeChip"]),
+    (Level::Composites, "craft_timeline", &["FramePreview", "KeyframeLane", "MediaControls", "TimelineOverview", "TimelineRuler", "TransportBar"]),
+];
+
+/// The registry's catalog of the types linked into the running binary: each one's level and plain name, with the
+/// levels of [`LEVELS`] applied. Every consumer reads this one catalog.
 pub(crate) fn linked_catalog() -> &'static contract::Catalog {
     static CATALOG: OnceLock<contract::Catalog> = OnceLock::new();
-    CATALOG.get_or_init(|| contract::catalog(&contract::registrations()))
+    CATALOG.get_or_init(|| {
+        let mut catalog = contract::catalog(&contract::registrations());
+        for entry in &mut catalog.entries {
+            let target = entry.registration.crate_target();
+            if let Some((level, _, _)) = LEVELS.iter().find(|(_, krate, names)| *krate == target && names.contains(&entry.name.as_str())) {
+                entry.level = *level;
+            }
+        }
+        catalog.entries.sort_by_key(|entry| (entry.level, entry.name.to_lowercase()));
+        catalog
+    })
 }
 
 /// The plain name of the component registered as `type_name`; the registered name when the registry lists no such type.

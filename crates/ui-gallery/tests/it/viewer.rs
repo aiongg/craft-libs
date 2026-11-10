@@ -188,3 +188,24 @@ fn domain_crate_types_have_an_overview_entry_and_a_declaration() {
         assert!(catalog.declared.contains_key(type_name), "{type_name} has no declaration");
     }
 }
+
+/// Regression: the Overview lacked the Foundations level and the old gallery's domain composites, and a generic
+/// registration (`PresetBrowser<'_, u32>`) must be listed under its plain name.
+#[trial]
+fn levels_list_the_old_galleries_foundations_and_composites() {
+    let _ = craft_ui_gallery::linked_counts();
+    let catalog = Catalog::linked();
+    let groups = by_level(&catalog, "");
+    let names = |level: craft_ui::contract::Level| -> Vec<String> {
+        groups
+            .iter()
+            .filter(|(shown, _)| *shown == level)
+            .flat_map(|(_, components)| components.iter().map(|component| component.name.clone()))
+            .collect()
+    };
+    assert!(names(craft_ui::contract::Level::Foundations).contains(&"TokenBrowser".to_owned()));
+    let composites = names(craft_ui::contract::Level::Composites);
+    for expected in ["AxisSliders", "BlendIfBar", "BlendRows", "BlurPinsOverlay", "PresetBrowser"] {
+        assert!(composites.contains(&expected.to_owned()), "{expected} is not listed under Composites");
+    }
+}
