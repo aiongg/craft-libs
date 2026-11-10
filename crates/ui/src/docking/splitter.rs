@@ -14,6 +14,9 @@ pub struct SplitterStyle {
     #[style(metrics)]
     metrics: Metrics,
     line: Stateful<StyleColor>,
+    /// The line of a column's inner edge: none at rest, as the column's frame already draws that edge, and the accent
+    /// under the pointer.
+    edge_line: Stateful<StyleColor>,
     /// The line's width: a hairline at rest, thick under the pointer.
     width: Stateful<f32>,
 }
@@ -52,11 +55,13 @@ impl Component for Splitter {
             Axis::X => Vec2::new(across, along),
             _ => Vec2::new(along, across),
         };
-        let rest = cx.color(color.line.divider);
-        let states = States::new(rest, cx.color(color.accent.solid), cx.color(color.accent.solid), rest);
+        let rest = cx.color(color.line.border);
+        let accent = cx.color(color.accent.solid);
+        let clear = cx.color(craft_theme::Rgba::TRANSPARENT);
         SplitterStyle {
             metrics: Metrics::new().min_size(least),
-            line: Stateful::new(rest).off(states),
+            line: Stateful::new(rest).off(States::new(rest, accent, accent, rest)),
+            edge_line: Stateful::new(clear).off(States::new(clear, accent, accent, clear)),
             width: Stateful::new(cx.tokens.stroke.thin).off(States::new(
                 cx.tokens.stroke.thin,
                 cx.tokens.stroke.thick,
@@ -73,20 +78,18 @@ impl Component for Splitter {
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let rect = cx.rect;
         let width = cx.resolve(&cx.style.width);
-        // The line stays inside the handle, which is all of it that paints: a boundary at the handle's edge puts the
-        // line's width against it.
-        let half = width / 2.0;
         let ends = match self.axis {
             Axis::X => {
-                let x = self.boundary.map_or(rect.center().x, |at| at.clamp(rect.left() + half, (rect.right() - half).max(rect.left() + half)));
+                let x = self.boundary.unwrap_or(rect.center().x);
                 vec![egui::Pos2::new(x, rect.top()), egui::Pos2::new(x, rect.bottom())]
             }
             _ => {
-                let y = self.boundary.map_or(rect.center().y, |at| at.clamp(rect.top() + half, (rect.bottom() - half).max(rect.top() + half)));
+                let y = self.boundary.unwrap_or(rect.center().y);
                 vec![egui::Pos2::new(rect.left(), y), egui::Pos2::new(rect.right(), y)]
             }
         };
-        ui.draw().stroke(&PaintShape::Path(ends), DataWidth::points(width), cx.resolve(&cx.style.line));
+        let line = if self.boundary.is_some() { &cx.style.edge_line } else { &cx.style.line };
+        ui.draw().stroke(&PaintShape::Path(ends), DataWidth::points(width), cx.resolve(line));
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> Response {

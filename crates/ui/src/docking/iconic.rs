@@ -175,6 +175,18 @@ impl<'a, P: Value + Hash + 'static> IconicColumn<'a, P> {
         self.show(ui, |_, _| ()).output
     }
 
+    /// Shows the column at `rect` with no allocation, so its paint is clipped by the dock and not by a region of its
+    /// own: the accent line of its edge reaches into the gutter beside it.
+    pub(crate) fn show_flyouts_at(
+        mut self,
+        ui: &mut Ui,
+        rect: Rect,
+        view: impl FnMut(&Group<P>, GroupAt, &mut Ui, &mut BodyCx<'_>) -> Option<f32> + 'a,
+    ) -> IconicColumnOutput<P> {
+        self.view = Some(Box::new(view));
+        self.show_at(ui, rect, |_, _| ()).output
+    }
+
     /// The panels of the column in order, each with its group.
     /// The divider on the column's inner edge: the width runs from the rail to the width the column expands to.
     fn edge_divider(&self, rect: Rect, sizes: &DockSizes) -> Divider {
@@ -246,6 +258,11 @@ impl<P: Value + Hash + 'static> Component for IconicColumn<'_, P> {
     const KEYS: KeyUse = KeyUse::SPLITTER;
     type Style = IconicColumnStyle;
     type Output = IconicColumnOutput<P>;
+
+    /// The column's edge line lies centred on the edge, so half of it is outside the column.
+    fn paint_outset(tokens: &crate::style::UiTokens) -> f32 {
+        tokens.stroke.thick / 2.0
+    }
 
     fn style(cx: &StyleCx<'_>, _: IconicColumnStyleKey<P>) -> IconicColumnStyle {
         IconicColumnStyle { metrics: Metrics::new(), sizes: IconicSizes::style(cx) }

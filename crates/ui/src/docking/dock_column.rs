@@ -237,15 +237,24 @@ pub(super) struct BarRecord {
 
 /// A double chevron's arms, as a share of the icon box's side: the glyph the collapse control draws is small beside
 /// the bar's other icons.
-const ARM: f32 = 0.15;
+const ARM: f32 = 0.17;
+
+/// How far each chevron of the pair reaches along the arrow, and the distance between the two, as shares of an arm.
+const REACH: f32 = 0.8;
+const PITCH: f32 = 1.4;
 
 /// The glyph of a column's collapse control: a double chevron that points where the column goes, towards the window
-/// edge when it collapses to icons and away from it when it expands.
+/// edge when it collapses to icons and away from it when it expands. It is drawn in the muted text until the pointer
+/// is over the button, then in the button's own text colour.
 struct DoubleChevron {
     /// Whether it points to the right of the screen.
     right: bool,
     /// The stroke width.
     width: f32,
+    /// The colour at rest.
+    muted: Color32,
+    /// The button's rect, for the hover.
+    button: Rect,
 }
 
 impl Glyph for DoubleChevron {
@@ -253,10 +262,12 @@ impl Glyph for DoubleChevron {
         let arm = rect.width().min(rect.height()) * ARM;
         let flip = if self.right { 1.0 } else { -1.0 };
         let centre = rect.center();
+        let hovered = painter.ctx().rect_contains_pointer(painter.layer_id(), self.button);
+        let stroke = egui::Stroke::new(self.width, if hovered { color } else { self.muted });
         for step in [-0.5, 0.5] {
-            let x = centre.x + flip * arm * step;
-            let points = [(-0.5, -1.0), (0.5, 0.0), (-0.5, 1.0)].map(|(dx, dy)| Pos2::new(x + flip * arm * dx, centre.y + arm * dy)).to_vec();
-            painter.add(egui::Shape::line(points, egui::Stroke::new(self.width, color)));
+            let x = centre.x + flip * arm * PITCH * step;
+            let points = [(-0.5, -1.0), (0.5, 0.0), (-0.5, 1.0)].map(|(dx, dy)| Pos2::new(x + flip * arm * REACH * dx, centre.y + arm * dy)).to_vec();
+            painter.add(egui::Shape::line(points, stroke));
         }
     }
 }
@@ -284,8 +295,6 @@ pub(super) fn show_bar<P: Clone + Send + Sync + 'static>(
     let menu_words = body.words::<MenuWords>();
     let rtl = crate::runtime::env::Env::of(ui).direction.is_rtl();
     let toggle = if expanded { words.collapse_column.as_str() } else { words.expand_column.as_str() };
-    let chevron = DoubleChevron { right: points_right(edge, expanded, rtl), width: crate::runtime::env::Env::of(ui).tokens.stroke.thin };
-    let button = IconButton::new(IconSpec::glyph(&chevron)).size(ControlSize::Sm).label(Label::from(toggle.to_owned()));
     // The button sits at the outer end: the window edge the dock is on.
     let side = bar.height().min(bar.width());
     let (place, band) = if (edge == DockEdge::End) != rtl {
@@ -295,7 +304,14 @@ pub(super) fn show_bar<P: Clone + Send + Sync + 'static>(
         let split = bar.left() + side;
         (Rect::from_x_y_ranges(bar.left()..=split, bar.y_range()), Rect::from_x_y_ranges(split..=bar.right(), bar.y_range()))
     };
-    let shown = button.show_at(ui, place);
+    let [r, g, b, a] = crate::runtime::env::Env::of(ui).tokens.color.text.muted.0;
+    let chevron = DoubleChevron {
+        right: points_right(edge, expanded, rtl),
+        width: crate::runtime::env::Env::of(ui).tokens.stroke.thin,
+        muted: Color32::from_rgba_unmultiplied(r, g, b, a),
+        button: place,
+    };
+    let shown = IconButton::new(IconSpec::glyph(&chevron)).size(ControlSize::Sm).label(Label::from(toggle.to_owned())).show_at(ui, place);
     let mut record = BarRecord::default();
     if clicked(&shown) {
         record.iconic = Some(expanded);
@@ -424,28 +440,51 @@ impl<'a, P: Value + Hash + 'static> DockColumn<'a, P> {
     }
 
     /// Shows the column; `view` shows one group in the rect it gets.
-    pub fn show_groups(self, ui: &mut Ui, mut view: impl FnMut(&Group<P>, Rect, &mut Ui, &mut BodyCx<'_>) + 'a) -> DockColumnOutput<P> {
+    pub fn show_groups(self, ui: &mut Ui, view: impl FnMut(&Group<P>, Rect, &mut Ui, &mut BodyCx<'_>) + 'a) -> DockColumnOutput<P> {
+        self.show_groups_in(ui, None, view)
+    }
+
+    /// Shows the column at `rect` with no allocation, so its paint is clipped by the dock and not by a region of its
+    /// own: the accent line of its edge reaches into the gutter beside it.
+    pub(crate) fn show_groups_at(
+        self,
+        ui: &mut Ui,
+        rect: Rect,
+        view: impl FnMut(&Group<P>, Rect, &mut Ui, &mut BodyCx<'_>) + 'a,
+    ) -> DockColumnOutput<P> {
+        self.show_groups_in(ui, Some(rect), view)
+    }
+
+    fn show_groups_in(
+        self,
+        ui: &mut Ui,
+        at: Option<Rect>,
+        mut view: impl FnMut(&Group<P>, Rect, &mut Ui, &mut BodyCx<'_>) + 'a,
+    ) -> DockColumnOutput<P> {
         let (column, spec, auto_collapse, edge) = (self.column, self.spec, self.auto_collapse, self.edge);
         let mut bar = BarRecord::default();
         let shown = &mut bar;
-        let mut output = self
-            .show(ui, move |ui, body| {
-                if body.shell().is_some_and(|shell| !shell.dock_visible()) {
-                    return;
-                }
-                let Some(sizes) = body.style::<DockColumn<'_, P>>().map(|style| style.sizes) else { return };
-                // The bar and the groups at the heights this pass's drag leaves them, in the measuring run and the real
-                // run alike: the same plan `parts` lays out, so the dividers sit at the seams.
-                let drags = |key: u64, divider: &Divider| divider::drag(body.part_press(DIVIDER.at(key)).phase, body.rect, false, divider);
-                let plan = column_plan(column, spec, body.rect, &sizes, drags);
-                if let Some(grip) = column_grip(column, spec, body) {
-                    *shown = show_bar(ui, body, plan.bar, true, auto_collapse, edge, grip);
-                }
-                for (group, rect) in column.groups.iter().zip(&plan.groups) {
-                    view(group, *rect, ui, body);
-                }
-            })
-            .output;
+        let body = move |ui: &mut Ui, body: &mut BodyCx<'_>| {
+            if body.shell().is_some_and(|shell| !shell.dock_visible()) {
+                return;
+            }
+            let Some(sizes) = body.style::<DockColumn<'_, P>>().map(|style| style.sizes) else { return };
+            // The bar and the groups at the heights this pass's drag leaves them, in the measuring run and the real
+            // run alike: the same plan `parts` lays out, so the dividers sit at the seams.
+            let drags = |key: u64, divider: &Divider| divider::drag(body.part_press(DIVIDER.at(key)).phase, body.rect, false, divider);
+            let plan = column_plan(column, spec, body.rect, &sizes, drags);
+            if let Some(grip) = column_grip(column, spec, body) {
+                *shown = show_bar(ui, body, plan.bar, true, auto_collapse, edge, grip);
+            }
+            for (group, rect) in column.groups.iter().zip(&plan.groups) {
+                view(group, *rect, ui, body);
+            }
+        };
+        let mut output = match at {
+            Some(rect) => self.show_at(ui, rect, body),
+            None => self.show(ui, body),
+        }
+        .output;
         output.iconic = bar.iconic;
         output.picked = bar.picked;
         output
@@ -554,6 +593,11 @@ impl<P: Value + Hash + 'static> Component for DockColumn<'_, P> {
     const KEYS: KeyUse = KeyUse::SPLITTER;
     type Style = DockColumnStyle;
     type Output = DockColumnOutput<P>;
+
+    /// The column's edge line lies centred on the edge, so half of it is outside the column.
+    fn paint_outset(tokens: &crate::style::UiTokens) -> f32 {
+        tokens.stroke.thick / 2.0
+    }
 
     fn style(cx: &StyleCx<'_>, _: DockColumnStyleKey<P>) -> DockColumnStyle {
         DockColumnStyle { metrics: Metrics::new(), sizes: DockSizes::style(cx) }

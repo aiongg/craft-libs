@@ -94,10 +94,11 @@ pub struct ShellRegion {
 }
 
 impl ShellRegion {
-    /// The whole content of the window: its edges resize the window where the app draws the frame.
+    /// The whole content of the window: its edges resize the window where the app draws the frame. It paints no
+    /// surface of its own: the parts the shell places paint theirs, and a gap between them (a dock's gutter) shows the
+    /// window's clear colour.
     pub fn window() -> Self {
-        let props =
-            ContainerProps::new().mount(Mount::window(Resize::GRIPS)).surface(SurfaceKind::Background).command_scope(ScreenModeCommands::SCOPE);
+        let props = ContainerProps::new().mount(Mount::window(Resize::GRIPS)).command_scope(ScreenModeCommands::SCOPE);
         ShellRegion { common: Common::new(), props, shell: None }
     }
 
@@ -447,7 +448,6 @@ impl<'a, S> AppShell<'a, S> {
             for edge in [RevealEdge::Top, RevealEdge::Start, RevealEdge::End] {
                 shell = shell.with_edge_reveal(edge, kept.reveal.edge(edge));
             }
-            let backdrop = if only { SurfaceKind::Scrim } else { SurfaceKind::Canvas };
             let panels_hidden = kept.reveal.panels_hidden();
 
             let rect_of = |key| regions.slots.iter().find(|(shown, _)| *shown == key).map_or(Rect::ZERO, |(_, rect)| *rect);
@@ -474,7 +474,12 @@ impl<'a, S> AppShell<'a, S> {
                     }
                 };
                 show_slots(ui, false, app);
-                let center = ShellRegion::pane(ShellPane::new("body").at(regions.body)).surface(backdrop).label(body_label.clone());
+                // Only a body-only shell paints behind its body (the scrim). Otherwise the body paints what it shows, and the gaps
+                // between its parts (the dock's gutters) are the window's own clear colour.
+                let mut center = ShellRegion::pane(ShellPane::new("body").at(regions.body)).label(body_label.clone());
+                if only {
+                    center = center.surface(SurfaceKind::Scrim);
+                }
                 center.show(ui, |ui, bcx| {
                     if let Some(SlotBody(body)) = body.as_mut() {
                         body(ui, bcx, app);
