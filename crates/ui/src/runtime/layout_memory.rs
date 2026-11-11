@@ -53,9 +53,16 @@ struct Entry {
 pub(crate) struct Measured {
     pub room: Vec2,
     pub took: Vec2,
+    /// The other inputs the measure read, as a fingerprint: the shared column widths its rows were given (0 for none).
+    /// [`emit_record`] sets it.
+    pub inputs: u64,
 }
 
 impl Measured {
+    pub(crate) fn new(room: Vec2, took: Vec2) -> Measured {
+        Measured { room, took, inputs: 0 }
+    }
+
     /// Whether this record serves a run offered `now` along one axis, where it was offered `was` and what it measures
     /// took `took`: the rooms are equal (within `tolerance`), or the axis is not `given`, the old room did not bound
     /// what it took and it fits the room now. The one reuse rule for every record of this pass.
@@ -71,8 +78,8 @@ pub(crate) trait Contribution: Send + Sync {
     fn apply(&self, ctx: &Context);
 
     /// What the contribution reports: its target and kind by id, and its value. A real run's contributions are
-    /// compared with the transcript's by these.
-    fn report(&self) -> (Id, f32);
+    /// compared with the transcript's by these. `None` for a report only a measuring run makes.
+    fn report(&self) -> Option<(Id, f32)>;
 }
 
 /// One thing a measuring run handed forward, in the order it did.
@@ -140,7 +147,13 @@ impl Scope {
 
 /// A transcript open in a measuring run: a body's, or content whose emits no enclosing transcript takes.
 enum Open {
-    Body { id: Id, items: Vec<Item>, leaves: HashMap<Id, Leaf> },
+    /// `inputs`: the widest value of each input outside the body that its content read (`read_input`).
+    Body {
+        id: Id,
+        items: Vec<Item>,
+        leaves: HashMap<Id, Leaf>,
+        inputs: HashMap<Id, f32>,
+    },
     Boundary,
 }
 
@@ -298,21 +311,69 @@ fn real(ctx: &Context) -> bool {
 /// Hands forward what a measuring run found under `id`: it serves the rest of this pass, and joins the transcript of
 /// the innermost body whose measuring run is open. A run of this pass that finds, at the same room, something other
 /// than what a kept transcript gave the pass shows that transcript changed.
-pub(crate) fn emit_record(ctx: &Context, id: Id, measured: Measured) {
+pub(crate) fn emit_record(ctx: &Context, id: Id, mut measured: Measured) {
     let moment = Moment::of(ctx);
     let pass = ctx.cumulative_pass_nr();
     let tolerance = measure_tolerance(crate::runtime::egui::scale::pixels_per_point(ctx));
     with(ctx, &moment, |memory| {
+        // A record keys on what its measure read: the room, and the inputs the innermost open body read so far.
+        measured.inputs = memory
+            .measuring
+            .iter()
+            .rev()
+            .find_map(|open| match open {
+                Open::Body { inputs, .. } => Some(fingerprint(inputs)),
+                Open::Boundary => None,
+            })
+            .unwrap_or(0);
         let last = memory.measured.insert(id, Found { pass, measured, kept: None });
         if let Some(Found { pass: at, measured: was, kept: Some(from) }) = last
             && at == pass
+            && was.inputs == measured.inputs
             && (was.room - measured.room).abs().max_elem() <= tolerance
             && (was.took - measured.took).abs().max_elem() > tolerance
         {
+            #[cfg(feature = "testing")]
+            if std::env::var_os("CRAFT_UI_TRACE_KEPT").is_some() {
+                eprintln!("layout memory: a run of this pass found {id:?} at {measured:?}, its kept record said {was:?}");
+            }
             memory.changed(moment.frame, Some(from));
         }
         memory.push(Item::Record(id, measured));
     });
+}
+
+/// How many measuring runs are open: an aggregator opened now hands [`read_input`] this depth, so only the bodies
+/// opened inside it count what they read from it as an input.
+pub(crate) fn depth(ctx: &Context) -> usize {
+    let moment = Moment::of(ctx);
+    with(ctx, &moment, |memory| memory.measuring.len())
+}
+
+/// The content of the measuring runs open from `from` on read `value` from the input `key` outside them (a shared
+/// column's width): the records they emit key on it.
+pub(crate) fn read_input(ctx: &Context, from: usize, key: Id, value: f32) {
+    let moment = Moment::of(ctx);
+    with(ctx, &moment, |memory| {
+        for open in memory.measuring.iter_mut().skip(from) {
+            if let Open::Body { inputs, .. } = open {
+                let read = inputs.entry(key).or_insert(value);
+                *read = read.max(value);
+            }
+        }
+    });
+}
+
+fn fingerprint(inputs: &HashMap<Id, f32>) -> u64 {
+    use std::hash::{Hash as _, Hasher as _};
+    if inputs.is_empty() {
+        return 0;
+    }
+    let mut sorted: Vec<(u64, u32)> = inputs.iter().map(|(key, value)| (key.value(), value.to_bits())).collect();
+    sorted.sort_unstable();
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    sorted.hash(&mut hasher);
+    hasher.finish().max(1)
 }
 
 /// Makes `contribution` now. A measuring run joins it to the transcript of the innermost body whose run is open; a
@@ -324,8 +385,8 @@ pub(crate) fn contribute(ctx: &Context, contribution: Arc<dyn Contribution>) {
     with(ctx, &moment, |memory| {
         if measuring {
             memory.push(Item::Contribute(contribution));
-        } else if let Some(scope) = memory.checking() {
-            scope.reported.push(contribution.report());
+        } else if let (Some(scope), Some(report)) = (memory.checking(), contribution.report()) {
+            scope.reported.push(report);
         }
     });
 }
@@ -465,7 +526,7 @@ pub(crate) fn run_found(ctx: &Context, id: Id) -> bool {
 /// Opens the measuring run of `body`: what it hands forward until `end_measure` becomes its transcript.
 pub(crate) fn begin_measure(ctx: &Context, body: Id) {
     let moment = Moment::of(ctx);
-    with(ctx, &moment, |memory| memory.measuring.push(Open::Body { id: body, items: Vec::new(), leaves: HashMap::new() }));
+    with(ctx, &moment, |memory| memory.measuring.push(Open::Body { id: body, items: Vec::new(), leaves: HashMap::new(), inputs: HashMap::new() }));
 }
 
 /// Closes the measuring run of `body` and keeps its transcript under the inputs `key` it ran under.
@@ -600,13 +661,17 @@ pub(crate) fn close_content(ctx: &Context, regions: &[(Id, Vec2)]) {
             .items
             .iter()
             .filter_map(|item| match item {
-                Item::Contribute(contribution) => Some(contribution.report()),
+                Item::Contribute(contribution) => contribution.report(),
                 _ => None,
             })
             .collect();
         let order = |a: &(Id, f32), b: &(Id, f32)| a.0.value().cmp(&b.0.value()).then(a.1.total_cmp(&b.1));
+        // A measuring run may make one report twice (a label decided again after its control reported its minimum).
+        let same = |a: &mut (Id, f32), b: &mut (Id, f32)| a.0 == b.0 && (a.1 - b.1).abs() <= tolerance;
         made.sort_by(order);
+        made.dedup_by(same);
         scope.reported.sort_by(order);
+        scope.reported.dedup_by(same);
         // What the real run reported to the aggregators around its rows is what the measuring run did.
         let reports_differ = made.len() != scope.reported.len()
             || made.iter().zip(&scope.reported).any(|(was, now)| was.0 != now.0 || (was.1 - now.1).abs() > tolerance);
@@ -763,6 +828,8 @@ pub(crate) mod guard {
         ("runtime::env::host_dates::System", "host dates: cache"),
         ("fonts::stack::install::State", "installed fonts: cache"),
         ("primitives::textures::Loaded", "textures: cache"),
+        ("fonts::document::Registry", "document faces: cache; a face loads the same whichever run asks, and its repaint request is harmless"),
+        ("runtime::egui::fonts::Steps", "fonts plugin begin-pass steps: cache; a step added twice runs once"),
         // Testing logs.
         ("runtime::measure::", "measuring-run counts and the skipped-effect log (testing)"),
         ("testing::style::StyleRecord", "style log (testing)"),

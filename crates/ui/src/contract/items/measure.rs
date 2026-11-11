@@ -61,7 +61,7 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
         // it.
         layout_memory::boundary(&ctx, || {
             let widest = self.widest_row(comp, ui, id);
-            layout_memory::emit_record(&ctx, key, layout_memory::Measured { room, took: Vec2::new(widest, 0.0) });
+            layout_memory::emit_record(&ctx, key, layout_memory::Measured::new(room, Vec2::new(widest, 0.0)));
             widest
         })
     }

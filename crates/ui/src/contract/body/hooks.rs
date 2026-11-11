@@ -375,7 +375,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 comp.content_env(cx, &mut values);
                 self.content(comp, &mut measure_ui, at.env, cx, &values);
                 Env::restore(&ctx, installed);
-                let record = |key: Id, took: Vec2| layout_memory::emit_record(&ctx, key, layout_memory::Measured { room: self.room, took });
+                let record = |key: Id, took: Vec2| layout_memory::emit_record(&ctx, key, layout_memory::Measured::new(self.room, took));
                 record(id, self.body_size.unwrap_or(Vec2::ZERO));
                 for (key, size) in
                     [("header", self.header_size), ("footer", self.footer_size), ("end", self.end_size), ("controls", self.controls_size)]

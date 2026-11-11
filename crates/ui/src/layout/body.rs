@@ -178,7 +178,7 @@ fn run_sharing<R>(ui: &mut Ui, id: Id, axis: Axis, layout: egui::Layout, mut bod
         let inner = sweep(&mut first, None, &mut body);
         let fills = Service::<FillCounts>::run(&ctx, |counts| counts.0.remove(&id)).unwrap_or(0);
         let fixed = along(first.min_rect().size());
-        layout_memory::emit_record(&ctx, key, layout_memory::Measured { room: Vec2::ZERO, took: Vec2::new(fixed, fills as f32) });
+        layout_memory::emit_record(&ctx, key, layout_memory::Measured::new(Vec2::ZERO, Vec2::new(fixed, fills as f32)));
         let share = (fills > 0 && room.is_finite()).then(|| ((room - fixed) / fills as f32).max(0.0));
         let rect = first.min_rect();
         ((inner, rect, share), share.is_some())
@@ -368,7 +368,7 @@ fn record_line(ui: &Ui, sizing: bool, id: Id) {
 /// Records what a measuring run found under `id`; a real run records nothing.
 fn found(ctx: &egui::Context, sizing: bool, id: Id, room: Vec2, took: Vec2) {
     if sizing {
-        layout_memory::emit_record(ctx, id, layout_memory::Measured { room, took });
+        layout_memory::emit_record(ctx, id, layout_memory::Measured::new(room, took));
     }
 }
 

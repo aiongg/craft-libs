@@ -265,8 +265,8 @@ impl layout_memory::Contribution for ControlMin {
         });
     }
 
-    fn report(&self) -> (Id, f32) {
-        (sub(self.container, "control_min"), self.width)
+    fn report(&self) -> Option<(Id, f32)> {
+        Some((sub(self.container, "control_min"), self.width))
     }
 }
 
@@ -448,7 +448,7 @@ pub(crate) fn discard(ctx: &Context, container: Id) {
     let scope = Service::<Stack>::run(ctx, |stack| stack.0.last().is_some_and(|scope| scope.container == container).then(|| stack.0.pop()).flatten());
     if let Some(scope) = scope {
         let took = Vec2::new(scope.control_min.unwrap_or(0.0), 0.0);
-        layout_memory::emit_record(ctx, sub(container, "control_min"), layout_memory::Measured { room: Vec2::ZERO, took });
+        layout_memory::emit_record(ctx, sub(container, "control_min"), layout_memory::Measured::new(Vec2::ZERO, took));
     }
 }
 

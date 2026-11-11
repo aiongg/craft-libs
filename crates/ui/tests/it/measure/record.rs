@@ -480,3 +480,31 @@ fn a_collapse_toggle_shows_the_new_height_in_its_frame() {
     let (closed, _) = seen.get();
     assert!(closed.height() < tall.height() - SLACK, "the section closed: {tall:?} -> {closed:?}");
 }
+
+/// Fields that share a label column, in a stack measured before it shows (as a gallery card does): a settled frame
+/// runs one pass. The real run's label reports match the measuring run's, which reports a label twice and how far each
+/// row reaches past the column.
+#[trial]
+fn a_settled_shared_label_column_runs_one_pass_per_frame() {
+    use craft_ui::contract::{LabelAlign, SideLabel};
+    use craft_ui::form::{Field, FieldGroup};
+    let rows = |ui: &mut Ui| {
+        FieldGroup::new("Settings").show(ui, |ui, _| {
+            for label in ["Size", "Hue and saturation", "Gap"] {
+                Field::new(label).side(SideLabel::new().align(LabelAlign::Start)).id_salt(label).show(ui, |ui, _| {
+                    craft_ui::text::NumberField::new(label, Bind::given(Some(42.0))).unit("mm").show(ui);
+                });
+            }
+        });
+    };
+    // As a gallery card does: the stack measures its content before it shows it.
+    let show = |ui: &mut Ui| {
+        Stack::new().id_salt("card").measure_in(ui, craft_behavior::Proposal::Ideal, |ui, _| rows(ui));
+        Stack::new().id_salt("card").show(ui, |ui, _| rows(ui));
+    };
+    let mut frames = Frames::new();
+    frames.idle(4, show);
+    for frame in 0..6 {
+        assert_eq!(frames.frame(vec![], show), 1, "settled frame {frame}");
+    }
+}

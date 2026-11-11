@@ -50,7 +50,7 @@ fn running_pass(ctx: &Context) -> u64 {
 /// Asks egui to discard the running pass and run it again.
 pub(crate) fn request_discard(ctx: &Context, rerun: Rerun) {
     let (id, pass) = (asked_id(ctx), running_pass(ctx));
-    ctx.data_mut(|data| {
+    super::memory::locked(ctx, |data| {
         let asked = data.get_temp_mut_or(id, Asked { pass, reasons: Vec::new() });
         if asked.pass != pass {
             *asked = Asked { pass, reasons: Vec::new() };
@@ -69,7 +69,7 @@ pub(crate) fn rerun_reasons(ctx: &Context) -> Option<Vec<Rerun>> {
         return None;
     }
     let (id, pass) = (asked_id(ctx), running_pass(ctx));
-    let asked = ctx.data(|data| data.get_temp::<Asked>(id));
+    let asked = super::memory::peek_clone::<Asked>(ctx, id);
     Some(asked.filter(|asked| asked.pass + 1 == pass).map(|asked| asked.reasons).unwrap_or_default())
 }
 

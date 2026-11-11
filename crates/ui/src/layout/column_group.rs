@@ -34,10 +34,11 @@ impl layout_memory::Contribution for Reported {
         add(ctx, self.group, self.report.clone());
     }
 
-    fn report(&self) -> (Id, f32) {
+    fn report(&self) -> Option<(Id, f32)> {
         match &self.report {
-            Report::Width(column, width) => (self.group.with(("width", column)), *width),
-            Report::Beyond(columns, past) => (self.group.with(("beyond", columns)), *past),
+            Report::Width(column, width) => Some((self.group.with(("width", column)), *width)),
+            // Only a measuring run reports how far a row reaches past the columns: the group's extent is a measure.
+            Report::Beyond(..) => None,
         }
     }
 }
@@ -82,7 +83,8 @@ struct Open(Vec<Frame>);
 enum Frame {
     /// A group: rows report their widths and read the widest this pass found. `beyond` is, per run of columns a row
     /// sits after (in order from the start edge), the widest the row reaches past them (see [`report_beyond`]).
-    Group { id: Id, widest: HashMap<ColumnKey, f32>, beyond: HashMap<Vec<ColumnKey>, f32>, room: Option<f32> },
+    /// `depth`: the measuring runs open when the group opened (`layout_memory::depth`).
+    Group { id: Id, widest: HashMap<ColumnKey, f32>, beyond: HashMap<Vec<ColumnKey>, f32>, room: Option<f32>, depth: usize },
     /// No group: rows inside read none, whatever group is open outside.
     Barrier,
 }
@@ -108,7 +110,8 @@ impl ColumnGroup {
     pub(crate) fn scope_measured<R>(ui: &mut Ui, key: impl Hash + Debug, rows: impl FnOnce(&mut Ui, &mut ColumnGroup) -> R) -> (R, Option<f32>) {
         let ctx = ui.ctx().clone();
         let id = sub(ui.scope_id(), key);
-        Service::<Open>::run(&ctx, |open| open.0.push(Frame::Group { id, widest: HashMap::new(), beyond: HashMap::new(), room: None }));
+        let depth = layout_memory::depth(&ctx);
+        Service::<Open>::run(&ctx, |open| open.0.push(Frame::Group { id, widest: HashMap::new(), beyond: HashMap::new(), room: None, depth }));
         let mut group = ColumnGroup { id, ctx: ctx.clone() };
         let result = rows(ui, &mut group);
         let Some(Frame::Group { id, widest, beyond, .. }) = Service::<Open>::run(&ctx, |open| open.0.pop()) else { return (result, None) };
@@ -119,7 +122,7 @@ impl ColumnGroup {
         for (column, width) in widest {
             // A row whose record a later sweep reused reports nothing there, so the widest of the pass stands.
             let width = column_width(&ctx, id, &column).map_or(width, |found| found.max(width));
-            layout_memory::emit_record(&ctx, sub(id, &column), layout_memory::Measured { room: Vec2::ZERO, took: Vec2::new(width, 0.0) });
+            layout_memory::emit_record(&ctx, sub(id, &column), layout_memory::Measured::new(Vec2::ZERO, Vec2::new(width, 0.0)));
             widths.insert(column, width);
         }
         let extent = beyond
@@ -196,7 +199,19 @@ pub(crate) fn report_beyond(ctx: &Context, columns: &[ColumnKey], past: f32) {
 
 fn shared_width(ctx: &Context, group: Id, column: &ColumnKey, content: f32) -> f32 {
     let so_far = report(ctx, group, Report::Width(column.clone(), content)).unwrap_or(content);
-    column_width(ctx, group, column).map_or(so_far, |found| found.max(so_far))
+    let width = column_width(ctx, group, column).map_or(so_far, |found| found.max(so_far));
+    // The rows' measures depend on the width as well as on their room: a sweep that has seen only some of the labels
+    // gives a narrower one.
+    let depth = Service::<Open>::run(ctx, |open| {
+        open.0.iter().rev().find_map(|frame| match frame {
+            Frame::Group { id, depth, .. } if *id == group => Some(*depth),
+            _ => None,
+        })
+    });
+    if let Some(depth) = depth {
+        layout_memory::read_input(ctx, depth, sub(group, column), width);
+    }
+    width
 }
 
 /// The widest width of `column` a measuring run of this pass recorded for `group`.
