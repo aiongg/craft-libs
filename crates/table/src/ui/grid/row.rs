@@ -1,6 +1,6 @@
 //! One row of the grid: its cells as parts, the gridlines, the selection tint and the app's cell paint.
 
-use craft_behavior::{ColumnKey, Metrics, PartKey};
+use craft_behavior::{ColumnKey, Metrics, PartKey, Sense};
 use craft_ui::contract::{Access, Component, Cx, MeasureCx, Name, PaintUi, PartsCx, Role, Styled as _};
 use craft_ui::primitives::{PaintShape, RuleKind};
 use craft_ui::style::{ComponentStyle, Flags, Stateful, StyleColor, StyleCx};
@@ -69,6 +69,10 @@ impl Component for GridRow<'_> {
             background: cx.color(cx.tokens.color.surface.background),
             tint: Stateful::new(clear).when(Flags::LEAD, clear).when(Flags::SELECTED, cx.color(cx.tokens.color.state.text_selection)),
         }
+    }
+
+    fn sense(&self) -> Sense {
+        Sense::empty()
     }
 
     /// The row as the item step laid its cells out.
