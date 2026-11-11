@@ -2,9 +2,7 @@
 
 use craft_behavior::{Wheel, WheelPhase, WheelUnit};
 use craft_keymap::Mods;
-use craft_ui::canvas::{
-    Momentary, MomentaryCommands, MomentaryTool, NavigationOptions, TouchpadGlide,
-};
+use craft_ui::canvas::{Momentary, MomentaryCommands, MomentaryTool, NavigationOptions, TouchpadGlide};
 use craft_ui::runtime::commands::FirePhase;
 use craft_ui::testing::trial;
 use egui::Vec2;
@@ -46,4 +44,3 @@ fn space_is_the_hand_and_cmd_or_alt_added_in_any_order_switch_to_zoom() {
     momentary.fired(MomentaryCommands::ZoomIn, FirePhase::Release);
     assert_eq!(momentary.tool(Mods::NONE, false), None);
 }
-

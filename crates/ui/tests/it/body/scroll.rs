@@ -4,8 +4,8 @@
 use super::kit::Slab;
 use craft_behavior::ColumnWidth;
 use craft_ui::buttons::Button;
-use craft_ui::layout_components::Grid;
 use craft_ui::contract::{ContainerProps, Props as _, Scroll, Show as _, ShowContainer as _};
+use craft_ui::layout_components::Grid;
 use craft_ui::runtime::focus::{FocusTarget, request};
 use craft_ui::testing::layout::{Block, in_region};
 use craft_ui::testing::{Frames, pointer, trial};
