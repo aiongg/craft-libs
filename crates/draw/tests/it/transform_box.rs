@@ -131,29 +131,29 @@ fn harness(state: BoxState, setup: impl FnOnce(&mut Config)) -> Harness {
             host.discarded += usize::from(output.discard);
             (host.picked, host.hovered) = (output.picked, output.hovered);
             for event in &output.edit.events {
-            match event {
-                EditEvent::Begin { .. } => {
-                    host.events.push(Seen::Begin);
-                    host.before = Some(host.state);
+                match event {
+                    EditEvent::Begin { .. } => {
+                        host.events.push(Seen::Begin);
+                        host.before = Some(host.state);
+                    }
+                    EditEvent::Update { value, .. } => {
+                        host.events.push(Seen::Update);
+                        host.state = *value;
+                    }
+                    EditEvent::Commit { after, .. } => {
+                        host.events.push(Seen::Commit);
+                        host.state = *after;
+                    }
+                    EditEvent::Set { after, .. } => {
+                        host.events.push(Seen::Set);
+                        host.state = *after;
+                    }
+                    EditEvent::Cancel { .. } => {
+                        host.events.push(Seen::Cancel);
+                        host.state = host.before.take().unwrap_or(host.state);
+                    }
+                    _ => {}
                 }
-                EditEvent::Update { value, .. } => {
-                    host.events.push(Seen::Update);
-                    host.state = *value;
-                }
-                EditEvent::Commit { after, .. } => {
-                    host.events.push(Seen::Commit);
-                    host.state = *after;
-                }
-                EditEvent::Set { after, .. } => {
-                    host.events.push(Seen::Set);
-                    host.state = *after;
-                }
-                EditEvent::Cancel { .. } => {
-                    host.events.push(Seen::Cancel);
-                    host.state = host.before.take().unwrap_or(host.state);
-                }
-                _ => {}
-            }
             }
         }
     });
@@ -547,9 +547,9 @@ fn overlay(shown: bool, setup: impl FnOnce(&mut TransformSession<()>)) -> (Fixtu
         if let Some(output) = output {
             for edit in output.edits {
                 host.kinds.push(match &edit {
-                    TransformEdit::Box(EditEvent::Begin { .. } => "begin",
-                    TransformEdit::Box(EditEvent::Update { .. } => "update",
-                    TransformEdit::Box(EditEvent::Commit { .. } => "commit",
+                    TransformEdit::Box(EditEvent::Begin { .. }) => "begin",
+                    TransformEdit::Box(EditEvent::Update { .. }) => "update",
+                    TransformEdit::Box(EditEvent::Commit { .. }) => "commit",
                     _ => "other",
                 });
                 host.session.apply(edit, 0.0);
