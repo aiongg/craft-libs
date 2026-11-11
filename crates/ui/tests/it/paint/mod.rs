@@ -1,10 +1,3 @@
-mod data_paint;
-mod draw;
-mod host_ink;
-mod kit;
 mod painters;
-mod strokes;
-mod surface;
-mod text;
+
 mod texture_store;
-mod thumb_paper;
