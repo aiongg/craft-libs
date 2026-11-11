@@ -8,8 +8,6 @@ version = "0.25.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ad442f58ee04714aaa0ba0a2768c1ea1935b29507bb22ddece8cbbc76db02932"
 dependencies = [
- "enumn",
- "serde",
  "uuid",
 ]
 
@@ -37,7 +35,6 @@ checksum = "5a15f179cd60c4584b8a8c596927aadc462e27f2ca70c04e0071964a73ba7a75"
 dependencies = [
  "cfg-if",
  "once_cell",
- "serde",
  "version_check",
  "zerocopy",
 ]
@@ -2254,7 +2251,6 @@ source = "git+https://github.com/aiongg/egui.git?rev=4b93a86c52348eb53e883c9b6b9
 dependencies = [
  "bytemuck",
  "emath",
- "serde",
 ]
 
 [[package]]
@@ -2306,7 +2302,6 @@ dependencies = [
  "log",
  "nohash-hasher",
  "profiling",
- "serde",
  "smallvec",
  "unicode-segmentation",
  "web-sys",
@@ -2393,7 +2388,6 @@ version = "0.37.0"
 source = "git+https://github.com/aiongg/egui.git?rev=4b93a86c52348eb53e883c9b6b9f59c573608e07#4b93a86c52348eb53e883c9b6b9f59c573608e07"
 dependencies = [
  "bytemuck",
- "serde",
 ]
 
 [[package]]
@@ -2450,17 +2444,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "enumn"
-version = "0.1.14"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2f9ed6b3789237c8a0c1c505af1c7eb2c560df6186f01b098c3a1064ea532f38"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.119",
-]
-
-[[package]]
 name = "epaint"
 version = "0.37.0"
 source = "git+https://github.com/aiongg/egui.git?rev=4b93a86c52348eb53e883c9b6b9f59c573608e07#4b93a86c52348eb53e883c9b6b9f59c573608e07"
@@ -2477,7 +2460,6 @@ dependencies = [
  "parking_lot",
  "profiling",
  "self_cell",
- "serde",
  "skrifa 0.44.0",
  "smallvec",
  "unicode-bidi",
@@ -2697,7 +2679,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "835ae9d781464a79026cde387f9cbc650c9a4909d7cf7e658b127e3c35d2f35d"
 dependencies = [
  "bytemuck",
- "serde",
 ]
 
 [[package]]
