@@ -227,19 +227,13 @@ impl Browser {
 
     /// The index in the catalog of the story the selected component shows: the one picked for it, else its first.
     pub fn target_story(&self) -> Option<usize> {
-        let stories = self.selected_stories();
-        let picked = self
-            .story_of
-            .get(self.selected_type()?)
-            .and_then(|name| stories.iter().copied().find(|&at| self.catalog.entries[at].registration.story.name == *name));
-        picked.or_else(|| stories.first().copied())
+        let type_name = self.selected_type()?;
+        self.catalog.pick(type_name, self.story_of.get(type_name).copied())
     }
 
     /// The indices of the stories of the selected component, in listing order.
-    pub fn selected_stories(&self) -> Vec<usize> {
-        let Some(type_name) = self.selected_type() else { return Vec::new() };
-        let entries = &self.catalog.entries;
-        (0..entries.len()).filter(|&at| entries[at].type_name == type_name).collect()
+    pub fn selected_stories(&self) -> &[usize] {
+        self.selected_type().map_or(&[], |type_name| self.catalog.stories_of(type_name))
     }
 
     /// Gives every shown cell fresh state.
