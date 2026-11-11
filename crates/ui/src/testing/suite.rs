@@ -1,11 +1,12 @@
-//! The suite runner: one trial per registered type, running the shared cases of its shape over the stories the
-//! crate registered for it (22.4). A registered pattern gets one trial that shows its stories (24.4).
+//! The suite runner: one trial per registered type and group of cases, running the group's shared cases over the
+//! stories the crate registered for the type (22.4). A registered pattern gets one trial that shows its stories (24.4).
 //!
 //! A crate's integration binary calls [`trials`] once with its package name and `testing::registered()`, and hands
 //! the result to `libtest-mimic` beside its own `#[trial]` functions.
 //!
-//! The cases live in modules by family. A module exports `CASES`, its list of [`Case`]s; [`GROUPS`] lists the
-//! modules. A new family of cases adds a module and one line there.
+//! The cases live in modules by family. A module exports `CASES`, its list of [`Case`]s; [`GROUPS`] puts the modules
+//! in named groups, each a trial of its own, so a type's cases spread over the test threads. A new family of cases adds
+//! a module and puts it in a group.
 
 mod activation;
 mod body;
@@ -128,23 +129,33 @@ const SHAPES: &[Case] = &[
     Case::new("items-cells", ANY, collection::cells_and_columns_are_reported),
 ];
 
-/// The case modules, in the order their cases run.
-const GROUPS: &[&[Case]] = &[
-    states::CASES,
-    size::CASES,
-    drive::CASES,
-    activation::CASES,
-    variants::CASES,
-    text::CASES,
-    pointer::CASES,
-    purity::CASES,
-    SHAPES,
-    shape::CASES,
-    style::CASES,
+/// A group of case modules that runs as one trial per type. Its cases share one [`Subject`], and so the stories'
+/// [`Base`]s, which cannot cross threads.
+struct Group {
+    name: &'static str,
+    modules: &'static [&'static [Case]],
+}
+
+impl Group {
+    fn cases(&self) -> impl Iterator<Item = &'static Case> {
+        self.modules.iter().flat_map(|module| module.iter())
+    }
+}
+
+/// The groups, each a trial per type, and in each the modules in the order their cases run. The first group also
+/// checks the type's exemptions.
+const GROUPS: &[Group] = &[
+    Group { name: "reads", modules: &[states::CASES, size::CASES, shape::CASES] },
+    Group { name: "drives", modules: &[drive::CASES, pointer::CASES, purity::CASES, text::CASES] },
+    Group { name: "activation", modules: &[activation::CASES] },
+    Group { name: "variants", modules: &[variants::CASES] },
+    Group { name: "containers", modules: &[SHAPES] },
+    Group { name: "style", modules: &[style::CASES] },
 ];
 
+/// Every case of every group.
 fn cases() -> impl Iterator<Item = &'static Case> {
-    GROUPS.iter().flat_map(|group| group.iter())
+    GROUPS.iter().flat_map(Group::cases)
 }
 
 fn panic_text(payload: Box<dyn std::any::Any + Send>) -> String {
@@ -154,15 +165,19 @@ fn panic_text(payload: Box<dyn std::any::Any + Send>) -> String {
     }
 }
 
-fn run_type(probe: &'static Probe, stories: Vec<Story>) -> Result<(), Failed> {
+/// The cases of `group` over the stories of the type `probe` describes, and with `check_exemptions` the check that
+/// each exemption names a known case.
+fn run_group(probe: &'static Probe, group: &'static Group, check_exemptions: bool, stories: Vec<Story>) -> Result<(), Failed> {
     let subject = Subject::new(probe, stories);
     let mut failures = Vec::new();
-    for exemption in probe.exempt {
-        if !states::exemption_is_known(exemption.case) {
-            failures.push(format!("the exemption names the unknown case `{}`", exemption.case));
+    if check_exemptions {
+        for exemption in probe.exempt {
+            if !states::exemption_is_known(exemption.case) {
+                failures.push(format!("the exemption names the unknown case `{}`", exemption.case));
+            }
         }
     }
-    for case in cases() {
+    for case in group.cases() {
         if !runs_for(case, probe) {
             continue;
         }
@@ -175,8 +190,8 @@ fn run_type(probe: &'static Probe, stories: Vec<Story>) -> Result<(), Failed> {
     if failures.is_empty() { Ok(()) } else { Err(Failed::from(failures.join("\n"))) }
 }
 
-/// The trials of one package: a trial per registered type and one per story naming a type that is not linked. The
-/// per-shape cases belong to `craft-ui`'s own package and run once there.
+/// The trials of one package: a trial per registered type and group of cases, `suite::<type>::<group>`, and one per
+/// story naming a type that is not linked. The per-shape cases belong to `craft-ui`'s own package and run once there.
 pub fn trials(package: &'static str, registered: &[&'static Registration]) -> Vec<Trial> {
     let library = package.replace('-', "_");
     let own: Vec<_> = stories().into_iter().filter(|entry| entry.crate_name == package && entry.crate_target == library).collect();
@@ -187,7 +202,11 @@ pub fn trials(package: &'static str, registered: &[&'static Registration]) -> Ve
         if stories.is_empty() {
             stories.extend(probe.sample_story.map(|story| story()));
         }
-        trials.push(Trial::test(format!("suite::{}", probe.type_name()), move || run_type(probe, stories)));
+        for (index, group) in GROUPS.iter().enumerate() {
+            let stories = stories.clone();
+            let name = format!("suite::{}::{}", probe.type_name(), group.name);
+            trials.push(Trial::test(name, move || run_group(probe, group, index == 0, stories)));
+        }
     }
     let patterns: Vec<&'static PatternProbe> = registered.iter().copied().filter_map(Registration::pattern_probe).collect();
     for pattern in &patterns {
