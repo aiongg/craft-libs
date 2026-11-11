@@ -375,6 +375,60 @@ fn an_out_of_view_child_keeps_its_extent_when_the_room_changes() {
     }
 }
 
+/// Lazy cards in the rows of a grid, each keyed by itself: a change of the column count regroups the rows and runs
+/// only the cards in reach, the cards out of reach keeping their extents; the rows in reach are as tall as their
+/// tallest card. Guards that a `Lazy` in a `Grid` holds its cell, run or skipped.
+#[trial]
+fn a_column_change_of_lazy_grid_cells_runs_only_the_cells_in_reach() {
+    const CHILDREN: usize = 30;
+    const ONE: &[ColumnWidth] = &[ColumnWidth::fill(1.0)];
+    const TWO: &[ColumnWidth] = &[ColumnWidth::fill(1.0); 2];
+    let runs: Vec<Cell<usize>> = (0..CHILDREN).map(|_| Cell::new(0)).collect();
+    let columns = Cell::new(2);
+    // The rects of the cards the last pass ran for real.
+    let shown = RefCell::new(Vec::new());
+    let mut show = |ui: &mut Ui| {
+        shown.borrow_mut().clear();
+        in_region(ui, Rect::from_min_size(ORIGIN, VIEW), |ui| {
+            Slab::new(ContainerProps::new().scroll(Scroll::vertical())).id_salt("panel").show(ui, |ui, _| {
+                let count = columns.get();
+                for (row, chunk) in runs.chunks(count).enumerate() {
+                    Grid::new(if count == 1 { ONE } else { TWO }).id_salt(("row", row)).show(ui, |ui, _| {
+                        for (at, runs) in chunk.iter().enumerate() {
+                            let index = row * count + at;
+                            craft_ui::contract::Lazy::new(index).show(ui, |ui| {
+                                runs.set(runs.get() + 1);
+                                // Cards of one row differ in height.
+                                let rect = Block::new(Vec2::new(LINE.x, HUNDRED + GAPS * (index % 3) as f32)).show(ui).rect;
+                                if !ui.is_sizing_pass() {
+                                    shown.borrow_mut().push(rect);
+                                }
+                            });
+                        }
+                    });
+                }
+            });
+        });
+    };
+    let mut frames = Frames::new();
+    frames.idle(3, &mut show);
+    for count in [1, 2] {
+        columns.set(count);
+        runs.iter().for_each(|runs| runs.set(0));
+        frames.frame(vec![], &mut show);
+        let ran = runs.iter().filter(|runs| runs.get() > 0).count();
+        assert!(runs[0].get() > 0, "at {count} columns the card in view runs");
+        assert_eq!(runs[CHILDREN - 1].get(), 0, "at {count} columns the card far below the view does not run");
+        assert!(ran < CHILDREN / 2, "at {count} columns only the cards in reach run: {ran} of {CHILDREN}");
+        let shown = shown.borrow();
+        for (i, a) in shown.iter().enumerate() {
+            for b in &shown[i + 1..] {
+                assert!(!a.shrink(SAME).intersects(b.shrink(SAME)), "at {count} columns the cards that ran overlap: {a:?} and {b:?}");
+            }
+        }
+    }
+}
+
 /// A settled scroll body of lazy children runs one pass per frame: what the real run finds for each child, run or
 /// skipped, is what the pass that measured found.
 #[trial]
