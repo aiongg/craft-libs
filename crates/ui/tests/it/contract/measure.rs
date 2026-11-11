@@ -1,7 +1,7 @@
 //! A container's measure: its body's children measured under its layout, plus its pad, from this pass's content.
 
 use craft_behavior::Proposal;
-use craft_ui::contract::{Gap, Pad, Show, ShowContainer};
+use craft_ui::contract::{Gap, Pad, Props as _, Show, ShowContainer};
 use craft_ui::layout_components::Stack;
 use craft_ui::testing::layout::Block;
 use craft_ui::testing::{Frames, trial};

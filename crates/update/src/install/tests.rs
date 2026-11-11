@@ -115,7 +115,6 @@ fn a_tarball_binary_that_is_a_symlink_out_of_the_tree_is_refused() {
     reg.set_cksum();
     b.append_data(&mut reg, "wordcraft-0.3.0-linux-x86_64/share/applications/ai.storyteller.wordcraft.desktop", &b"hi"[..]).unwrap();
     b.into_inner().unwrap().finish().unwrap();
-    drop(std::io::stdout().flush());
 
     let result = linux::install_tree(app, &file, &paths);
     assert!(result.is_err(), "a symlink binary must be rejected: {result:?}");

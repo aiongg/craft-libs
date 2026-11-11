@@ -3,7 +3,7 @@
 use super::{control, event_is_key, focus, focused, id, stop_with};
 use craft_behavior::{AccessRequest, EditCommand, Input, Intent, NavMove, PartKey};
 use craft_keymap::Chord;
-use craft_ui::contract::Role;
+use craft_ui::contract::{Role, Show as _};
 use craft_ui::runtime::focus::{EditSet, KeyUse};
 use craft_ui::testing::focus::{claim, intents_of, take_claimed};
 use craft_ui::testing::input::{key_press, key_repeat};

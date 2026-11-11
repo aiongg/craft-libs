@@ -171,7 +171,7 @@ impl Component for Panel<'_> {
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         if let Some(seen) = self.seen {
-            record(seen, &[], true, cx);
+            record(seen, true, cx);
         }
     }
 

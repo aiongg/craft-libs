@@ -6,7 +6,7 @@ use std::sync::Arc;
 use craft_fonts_build::EmbeddedFace;
 use craft_ui::fonts::{FaceList, FontRef, I18nScripts, RegularWeight, Stack, SystemFonts, UiFonts, set_weight};
 use craft_ui::testing::trial;
-use egui::{FallbackRequest, FontData, FontFamily, FontInsert, FontPriority, InsertFontFamily};
+use egui::{FallbackRequest, FontData, FontProvider, FontFamily, FontInsert, FontPriority, InsertFontFamily};
 
 const ARABIC: &[u8] = include_bytes!("../../fonts/NotoSansArabic-test.ttf");
 const CJK: &[u8] = include_bytes!("../../fonts/NotoSansCJKsc-test.otf");

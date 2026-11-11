@@ -2,7 +2,7 @@
 //! opener, also while its close fade still runs.
 
 use craft_ui::buttons::Button;
-use craft_ui::contract::Bind;
+use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::popover::Popover;
 use craft_ui::testing::contract::clicked;
 use craft_ui::testing::{Fixture, trial};
