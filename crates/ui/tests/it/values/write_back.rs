@@ -10,9 +10,12 @@ use egui::{Pos2, Rect, Ui, Vec2};
 use std::cell::RefCell;
 
 const ROW: Rect = Rect { min: Pos2::new(10.0, 10.0), max: Pos2::new(310.0, 40.0) };
+
 const START: f64 = 10.0;
+
 /// The decimals of the field's codec.
 const DECIMALS: usize = 2;
+
 /// How far the host moves a value it overwrites.
 const OVERWRITE: f64 = 5.0;
 
