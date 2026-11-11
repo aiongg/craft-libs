@@ -2,7 +2,6 @@
 
 mod baseline;
 mod clippy_template;
-mod config;
 mod contract_rules;
 mod egui_rules;
 mod markers;

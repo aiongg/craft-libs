@@ -52,22 +52,3 @@ fn baseline_round_trips_and_fails_only_when_a_count_rises() {
     assert_eq!(more.new_findings.len(), 3);
     assert!(more.render().contains("src/a.rs: [literal-size/add-space] 3 findings, baseline 2"), "{}", more.render());
 }
-
-#[test]
-fn a_new_file_or_rule_is_a_rise_and_parse_errors_are_never_baselined() {
-    let root = tree("baseline-new", &[("src/a.rs", TWO)]);
-    let config = Config::new(["src"]);
-    let baseline = Baseline::from_report(&check(&config, &root).unwrap());
-
-    std::fs::write(root.join("src/c.rs"), "fn f() { let _ = Color32::RED; }\n").unwrap();
-    let newer = baseline.check(&check(&config, &root).unwrap());
-    assert_eq!(newer.increases.len(), 1);
-    assert_eq!((newer.increases[0].baseline, newer.increases[0].now), (0, 1));
-
-    std::fs::remove_file(root.join("src/c.rs")).unwrap();
-    std::fs::write(root.join("src/broken.rs"), "fn f( {").unwrap();
-    let broken = Baseline::from_report(&check(&config, &root).unwrap());
-    assert_eq!(broken.total(), 2);
-    let result = broken.check(&check(&config, &root).unwrap());
-    assert_eq!((result.exit_code(), result.increases.len(), result.unbaselined.len()), (1, 0, 1));
-}

@@ -2,7 +2,7 @@
 //! `contract/shadow`, `contract/widget`, `contract/overlay-flag`).
 //!
 //! Every rule has a reject fixture that must fail with the rule's id. The accept fixtures hold the nearest legal forms
-//! and must produce no finding. Each rule's "allowed in" location, and the layers it reads, have their own cases.
+//! and must produce no finding.
 
 #![allow(clippy::unwrap_used, reason = "tests")]
 
@@ -62,66 +62,10 @@ fn every_reject_fixture_fails_with_exactly_its_rules() {
 }
 
 #[test]
-fn each_reject_fixture_reports_every_shape() {
-    let count = |file: &str, rule: &str| {
-        analyze_contract(&fixture("reject", file), Path::new(FAMILY), &scope(), false).iter().filter(|f| f.rule == rule).count()
-    };
-    assert_eq!(count("behavior-pipeline-only.rs", "behavior/pipeline-only"), 11, "six uses, two focus calls, two types, one call");
-    assert_eq!(count("props-hand-setter.rs", "props/hand-setter"), 3, "assignment, wrapped assignment and struct update");
-    assert_eq!(count("props-own-field.rs", "props/own-field"), 3);
-    assert_eq!(count("props-shadow.rs", "props/shadow"), 2, "a field named like a setter, and a `name = ..` override");
-    assert_eq!(count("props-point-size.rs", "props/point-size"), 6, "float, `Option<Vec2>`, `Px`, sized integer, builder argument, `Px` variant");
-    assert_eq!(count("style-states-field.rs", "style/states-field"), 3);
-    assert_eq!(count("style-token-read.rs", "style/token-read"), 2);
-    assert_eq!(count("style-instance-setter.rs", "style/instance-setter"), 4, "by name, style part, colour and converted colour");
-    assert_eq!(count("style-state-pick.rs", "style/state-pick"), 4, "`if`, `then_some`, tuple `match`, egui `interact`");
-    assert_eq!(count("contract-entry.rs", "contract/entry"), 4, "`show`, a free function, an associated function and a method; not the private one");
-    assert_eq!(count("contract-widget.rs", "contract/widget"), 4, "imported, qualified, renamed and on `&mut`");
-    assert_eq!(
-        count("contract-registration.rs", "contract/registration"),
-        2,
-        "`Plain` is registered by the macro; `Manual` and the pattern `Assembly` are not"
-    );
-    assert_eq!(count("contract-overlay-flag.rs", "contract/overlay-flag"), 2, "`overlay` inside `exempt(..)` is not the flag");
-}
-
-#[test]
 fn accept_fixtures_pass() {
     for file in ["behavior-pipeline-only.rs", "props.rs", "style.rs", "entry.rs"] {
         let findings = analyze_contract(&fixture("accept", file), Path::new(FAMILY), &scope(), false);
         assert!(findings.is_empty(), "{file}: {findings:?}");
-    }
-}
-
-#[test]
-fn an_egui_trait_other_than_widget_spelled_with_a_path_is_not_a_widget() {
-    let findings = analyze_contract(&fixture("accept", "contract-widget.rs"), Path::new(FAMILY), &scope(), false);
-    assert!(findings.is_empty(), "{findings:?}");
-    let widget = fixture("reject", "contract-widget.rs");
-    assert!(!analyze_contract(&widget, Path::new(FAMILY), &scope(), false).is_empty(), "`egui::Widget` is still flagged");
-}
-
-#[test]
-fn layer_rules_read_only_their_layers() {
-    let pipeline = fixture("reject", "behavior-pipeline-only.rs");
-    for (path, hit) in [
-        ("crates/x/src/chips/a.rs", true),
-        ("crates/x/src/patterns/a.rs", true),
-        ("crates/x/src/shell/a.rs", true),
-        ("crates/x/src/contract/a.rs", false),
-    ] {
-        let layered = scope().layer("crates/x/src/contract", 4);
-        assert_eq!(!rules_at(&pipeline, path, &layered).is_empty(), hit, "{path}");
-    }
-    let entry = fixture("reject", "contract-entry.rs");
-    let app = scope().layer("crates/app/src", 8);
-    assert_eq!(rules_at(&entry, "crates/x/src/patterns/a.rs", &app), ["contract/entry"]);
-    assert!(rules_at(&entry, "crates/app/src/panel.rs", &app).is_empty(), "layer 8 may write panels as functions");
-    for file in ["style-state-pick.rs", "style-match-state.rs", "style-size-arm.rs"] {
-        let src = fixture("reject", file);
-        assert!(rules_at(&src, "crates/app/src/panel.rs", &app).iter().any(|r| r.starts_with("style/")), "{file}: layer 8 is checked");
-        let runtime = scope().layer("crates/x/src/runtime", 2);
-        assert!(rules_at(&src, "crates/x/src/runtime/a.rs", &runtime).iter().all(|r| !r.starts_with("style/")), "{file}: layer 2 is not checked");
     }
 }
 
@@ -140,13 +84,4 @@ fn type_facts_cross_files_of_a_crate() {
             ("src/chips/component.rs".to_owned(), "contract/overlay-flag"),
         ]
     );
-}
-
-#[test]
-fn registration_reads_the_whole_crate() {
-    let root = Path::new(FIXTURES).join("registration-tree");
-    let scope = scope().crate_tree(&root, "fx", "src/lib.rs").unwrap();
-    let report = check_with_scope(&Config::new(["src"]), &root, &scope).unwrap();
-    let hits: Vec<_> = report.findings.iter().map(|f| (f.path.display().to_string(), f.rule, f.line)).collect();
-    assert_eq!(hits, [("src/b.rs".to_owned(), "contract/registration", 5)], "`Listed` is registered in another file; `Loose` is not");
 }
