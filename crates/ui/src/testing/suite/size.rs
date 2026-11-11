@@ -28,10 +28,15 @@ fn shot(story: &Story, change: &dyn Fn(&mut Fixture)) -> Shot {
     let mut fixture = Fixture::story(story);
     change(&mut fixture);
     fixture.settle();
-    Shot { shown: fixture.shown(), runs: fixture.texts().to_vec(), scrolls: widgets::scroll_regions(fixture.ctx()) }
+    Shot::of(&fixture)
 }
 
 impl Shot {
+    /// What the settled `fixture` shows.
+    fn of(fixture: &Fixture) -> Shot {
+        Shot { shown: fixture.shown(), runs: fixture.texts().to_vec(), scrolls: widgets::scroll_regions(fixture.ctx()) }
+    }
+
     /// The texts this shot shows whole, in paint order, with their rects.
     fn whole_texts(&self) -> Vec<(&str, Rect)> {
         self.runs.iter().filter(|run| !run.elided && !run.text.trim().is_empty()).map(|run| (run.text.as_str(), run.rect)).collect()
@@ -74,13 +79,17 @@ pub fn reflowed(base: &[(&str, Rect)], grown: &[(&str, Rect)]) -> bool {
 const SCALE_LAYOUT_SLACK: f32 = 1.0;
 
 fn stories_grow_with_text_density_and_scale(subject: &Subject) -> Result<(), String> {
-    subject.stories.iter().try_for_each(text_size_case)
+    subject.stories.iter().try_for_each(|story| text_size_from(story, Shot::of(&subject.base(story).fixture)))
 }
 
 /// The suite's text-size case for one story: under a larger text size, either density and scale 2 the story grows
 /// and no text run that lay in its part leaves it.
 pub fn text_size_case(story: &Story) -> Result<(), String> {
-    let base = shot(story, &|_| {});
+    text_size_from(story, shot(story, &|_| {}))
+}
+
+/// The text-size case for `story`, whose settled default shot is `base`.
+fn text_size_from(story: &Story, base: Shot) -> Result<(), String> {
     let variants: [(&str, Shot); 4] = [
         (
             "text size",
@@ -133,16 +142,20 @@ pub fn text_size_case(story: &Story) -> Result<(), String> {
 /// contrast lay out alike.
 fn themes_keep_the_layout(subject: &Subject) -> Result<(), String> {
     use crate::testing::access::is_interactive;
+    let layout_of = |fixture: &Fixture| {
+        let tree = fixture.tree();
+        let parts: Vec<Rect> = tree.keys().into_iter().filter(|key| is_interactive(tree, *key)).filter_map(|key| tree.bounds_of(key)).collect();
+        (fixture.shown(), parts)
+    };
     for story in &subject.stories {
         let layout = |mode: Mode, contrast: Contrast| {
             let mut fixture = Fixture::story(story);
             fixture.theme(mode, contrast);
             fixture.settle();
-            let tree = fixture.tree();
-            let parts: Vec<Rect> = tree.keys().into_iter().filter(|key| is_interactive(tree, *key)).filter_map(|key| tree.bounds_of(key)).collect();
-            (fixture.shown(), parts)
+            layout_of(&fixture)
         };
-        let base = layout(Mode::Light, Contrast::Standard);
+        // The default env is light and standard contrast.
+        let base = layout_of(&subject.base(story).fixture);
         for (mode, contrast) in [(Mode::Dark, Contrast::Standard), (Mode::Light, Contrast::High), (Mode::Dark, Contrast::High)] {
             let other = layout(mode, contrast);
             let same = |a: &Rect, b: &Rect| (a.min - b.min).abs().max_elem() < 0.5 && (a.size() - b.size()).abs().max_elem() < 0.5;
@@ -158,7 +171,7 @@ fn themes_keep_the_layout(subject: &Subject) -> Result<(), String> {
 /// reports has finite bounds.
 fn a_tiny_room_breaks_nothing(subject: &Subject) -> Result<(), String> {
     for story in &subject.stories {
-        let width = shot(story, &|_| {}).shown.width();
+        let width = subject.base(story).fixture.shown().width();
         for room in [Vec2::splat(1.0), Vec2::new((width / 2.0).max(1.0), 300.0)] {
             let mut fixture = Fixture::story(story);
             fixture.room(room);
@@ -176,7 +189,7 @@ fn a_tiny_room_breaks_nothing(subject: &Subject) -> Result<(), String> {
 /// description: a cut label is the node's name, a cut description its description.
 fn elided_text_keeps_its_full_name(subject: &Subject) -> Result<(), String> {
     for story in &subject.stories {
-        let width = shot(story, &|_| {}).shown.width();
+        let width = subject.base(story).fixture.shown().width();
         if width < 40.0 {
             continue;
         }

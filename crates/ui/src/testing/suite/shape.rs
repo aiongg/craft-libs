@@ -34,11 +34,7 @@ fn small_rooms_paint_inside_the_shown_rect(subject: &Subject) -> Result<(), Stri
     let tokens = crate::testing::style::tokens(craft_theme::Mode::Light, craft_theme::Contrast::Standard);
     let outset = (subject.probe.paint_outset)(&tokens);
     for story in &subject.stories {
-        let settled = {
-            let mut fixture = Fixture::story(story);
-            fixture.settle();
-            fixture.shown().size()
-        };
+        let settled = subject.base(story).fixture.shown().size();
         for room in [Vec2::splat(1.0), settled / 2.0] {
             let mut fixture = Fixture::story(story);
             fixture.room(room);

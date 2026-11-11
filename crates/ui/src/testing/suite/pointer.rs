@@ -32,10 +32,10 @@ fn gesture(fixture: &mut Fixture, target: &Target, by: f32) {
 fn slop_separates_click_from_drag(subject: &Subject) -> Result<(), String> {
     let probe = subject.probe;
     for story in &subject.stories {
-        let (fixture, plan) = settled(story, probe);
+        let (fixture, plan) = subject.base(story).parts();
         let slop = input::max_click_dist(fixture.ctx());
         match plan {
-            Plan::Activate if !probe.carries_value() && fixture.tree().declares_key(root_target(&fixture).node, Declared::Click) => {
+            Plan::Activate if !probe.carries_value() && fixture.tree().declares_key(root_target(fixture).node, Declared::Click) => {
                 let part = fixture.click_part().zip(fixture.root_id());
                 let target = |fixture: &Fixture| part.and_then(|(part, id)| fixture.part(id, part)).unwrap_or_else(|| root_target(fixture));
                 for (by, expected) in [(0.5 * slop, 1), (2.0 * slop, 0)] {
@@ -88,7 +88,7 @@ fn at(target: &Target, point: Pos2) -> Target {
 fn parts_take_presses_in_their_hit_areas(subject: &Subject) -> Result<(), String> {
     let probe = subject.probe;
     for story in &subject.stories {
-        let (fixture, plan) = settled(story, probe);
+        let (fixture, plan) = subject.base(story).parts();
         let Some(id) = fixture.root_id() else { continue };
         let mut parts = crate::runtime::pointer::sensing_parts(fixture.ctx(), id, Sense::CLICK);
         for part in crate::runtime::pointer::sensing_parts(fixture.ctx(), id, Sense::DRAG) {

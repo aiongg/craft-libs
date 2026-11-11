@@ -1,7 +1,7 @@
 //! The variants the runner makes of every story, so authors write none of them: disabled, read-only, right-to-left,
 //! each motion mode and a language change.
 
-use super::drive::{cancels, root_target, run, settled, variants};
+use super::drive::{cancels, root_target, run, variants};
 use super::{ANY, Case, Subject};
 use crate::contract::Role;
 use crate::runtime::egui::access::{AccessTree, Declared, NodeKey};
@@ -35,7 +35,7 @@ fn acted(fixture: &mut Fixture, before: &crate::testing::story::StorySnapshot) -
 /// A story with `disabled_text` is reached by Tab and shows that reason. A story binds no command, so a fired command is read as the pass's click, which a bound command follows.
 fn disabled_changes_nothing(subject: &Subject) -> Result<(), String> {
     for story in &subject.stories {
-        let (_, plan) = settled(story, subject.probe);
+        let plan = subject.base(story).plan;
         for variant in variants(plan, subject.probe).into_iter().filter(|variant| !cancels(plan, *variant)) {
             let mut fixture = Fixture::story_scoped(story, |scope| scope.enabled = Some(false));
             fixture.settle();
@@ -88,7 +88,7 @@ fn read_only_changes_nothing(subject: &Subject) -> Result<(), String> {
         return Ok(());
     }
     for story in &subject.stories {
-        let (_, plan) = settled(story, subject.probe);
+        let plan = subject.base(story).plan;
         for variant in variants(plan, subject.probe).into_iter().filter(|variant| !cancels(plan, *variant)) {
             let mut fixture = Fixture::story_scoped(story, |scope| scope.read_only = Some(true));
             fixture.settle();
@@ -147,19 +147,27 @@ fn in_document_space(tree: &AccessTree, key: NodeKey) -> bool {
 /// not the parent's used rect: egui's used rect always holds the room's start point, so an end-edge component in a bare
 /// room changes the parent's width while its own stays.
 fn rtl_mirrors(subject: &Subject) -> Result<(), String> {
-    subject.stories.iter().try_for_each(rtl_case)
+    // The default direction is left to right.
+    subject.stories.iter().try_for_each(|story| rtl_from(story, &subject.base(story).fixture))
 }
 
 /// The suite's right-to-left case for one story.
 pub fn rtl_case(story: &Story) -> Result<(), String> {
-    let show = |direction: Direction| {
-        let mut fixture = Fixture::story(story);
-        fixture.direction(direction);
-        fixture.settle();
-        fixture
-    };
-    let (ltr, rtl) = (show(Direction::Ltr), show(Direction::Rtl));
-    let own = (root_target(&ltr).rect, root_target(&rtl).rect);
+    rtl_from(story, &shown_in(story, Direction::Ltr))
+}
+
+/// `story` settled in `direction`.
+fn shown_in(story: &Story, direction: Direction) -> Fixture {
+    let mut fixture = Fixture::story(story);
+    fixture.direction(direction);
+    fixture.settle();
+    fixture
+}
+
+/// The right-to-left case for `story`, whose settled left-to-right fixture is `ltr`.
+fn rtl_from(story: &Story, ltr: &Fixture) -> Result<(), String> {
+    let rtl = shown_in(story, Direction::Rtl);
+    let own = (root_target(ltr).rect, root_target(&rtl).rect);
     if (own.0.width() - own.1.width()).abs() > 0.5 {
         return Err(format!("{}: the component's width differs between directions", story.name));
     }
@@ -177,7 +185,7 @@ pub fn rtl_case(story: &Story) -> Result<(), String> {
 }
 
 fn bounds_after_drive(story: &Story, subject: &Subject, motion: MotionMode) -> Vec<Vec<egui::Rect>> {
-    let (_, plan) = settled(story, subject.probe);
+    let plan = subject.base(story).plan;
     let mut fixture = Fixture::story(story);
     fixture.motion(motion);
     fixture.settle();
@@ -199,7 +207,7 @@ fn motion_modes_settle(subject: &Subject) -> Result<(), String> {
         if off.windows(2).any(|pair| pair[0] != pair[1]) {
             return Err(format!("{}: under Off the painted shapes still change after the drive", story.name));
         }
-        let (_, plan) = settled(story, subject.probe);
+        let plan = subject.base(story).plan;
         let mut fixture = Fixture::story(story);
         fixture.motion(MotionMode::Reduced);
         fixture.settle();

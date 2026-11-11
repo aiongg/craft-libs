@@ -2,7 +2,7 @@
 //! measuring run before every real pass and compares state around the later passes of a frame; the case drives
 //! each story as the `values` case does and reports what the fixture saw.
 
-use super::drive::{run, settled, variants};
+use super::drive::{Plan, run, settled, variants};
 use super::{ANY, Case, Subject};
 use crate::contract::Probe;
 use crate::testing::fixture::{Fixture, Impure};
@@ -26,7 +26,12 @@ fn first_violation(story: &str, fixture: &Fixture) -> Option<String> {
 /// drive, the story shows no impure pass.
 pub fn measure_pure_case(probe: &Probe, story: &Story) -> Result<(), String> {
     let (fixture, plan) = settled(story, probe);
-    if let Some(failure) = first_violation(story.name, &fixture) {
+    pure_from(probe, story, &fixture, plan)
+}
+
+/// The `measure-pure` case for `story`, whose settled fixture is `settled_fixture` and whose drive is `plan`.
+fn pure_from(probe: &Probe, story: &Story, settled_fixture: &Fixture, plan: Plan) -> Result<(), String> {
+    if let Some(failure) = first_violation(story.name, settled_fixture) {
         return Err(failure);
     }
     for variant in variants(plan, probe) {
@@ -40,6 +45,13 @@ pub fn measure_pure_case(probe: &Probe, story: &Story) -> Result<(), String> {
 }
 
 fn drawing_changes_nothing(subject: &Subject) -> Result<(), String> {
-    let failures: Vec<String> = subject.stories.iter().filter_map(|story| measure_pure_case(subject.probe, story).err()).collect();
+    let failures: Vec<String> = subject
+        .stories
+        .iter()
+        .filter_map(|story| {
+            let (fixture, plan) = subject.base(story).parts();
+            pure_from(subject.probe, story, fixture, plan).err()
+        })
+        .collect();
     if failures.is_empty() { Ok(()) } else { Err(failures.join("; ")) }
 }
