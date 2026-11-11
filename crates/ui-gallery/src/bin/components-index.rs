@@ -6,6 +6,7 @@
 //! comparison.
 
 use craft_ui::testing::index::components_index;
+use craft_ui::testing::library_registrations;
 use std::fs;
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
@@ -19,7 +20,7 @@ fn workspace_root() -> PathBuf {
 
 fn main() -> ExitCode {
     let root = workspace_root();
-    let text = components_index(&root);
+    let text = components_index(&root, &library_registrations());
     let target = root.join(OUTPUT);
     if std::env::args().any(|argument| argument == "--check") {
         let current = fs::read_to_string(&target).unwrap_or_default();
