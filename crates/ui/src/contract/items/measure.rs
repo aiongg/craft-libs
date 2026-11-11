@@ -59,7 +59,7 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
         crate::runtime::measure::count_widest(&ctx, id);
         // A real run builds only the rows in view, so no kept transcript can hold the widest row: every pass measures
         // it.
-        layout_memory::boundary(&ctx, || {
+        layout_memory::boundary(&ctx, true, || {
             let widest = self.widest_row(comp, ui, id);
             layout_memory::emit_record(&ctx, key, layout_memory::Measured::new(room, Vec2::new(widest, 0.0)));
             widest

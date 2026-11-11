@@ -169,7 +169,7 @@ enum Open {
 /// A content scope of the real run.
 struct Scope {
     body: Option<Id>,
-    /// Whether a change found inside stops here: a collection's rows, a lazy row, a layer's content.
+    /// Whether a change found inside stops here: a collection's rows, a layer's content.
     boundary: bool,
     /// The transcript the body's records came from in this pass (checked against), or the one its measuring run of
     /// this pass left (whose `real` this run fills).
@@ -439,15 +439,17 @@ pub(crate) fn contribute(ctx: &Context, contribution: Arc<dyn Contribution>) {
 }
 
 /// Runs `f` as content whose emits no enclosing transcript takes, and whose real run no enclosing body checks: a
-/// collection's rows and its widest-row probe (measured every pass by the collection), a lazy row.
-pub(crate) fn boundary<R>(ctx: &Context, f: impl FnOnce() -> R) -> R {
+/// collection's rows and its widest-row probe (measured every pass by the collection), a layer's content, a lazy
+/// child. `stops_changes`: a change the real run finds inside drops no kept transcript outside. Content whose extent
+/// in the body around it comes from its measure (a lazy child) lets the change through.
+pub(crate) fn boundary<R>(ctx: &Context, stops_changes: bool, f: impl FnOnce() -> R) -> R {
     let moment = Moment::of(ctx);
     let measuring = crate::runtime::measure::active(ctx);
     with(ctx, &moment, |memory| {
         if measuring {
             memory.measuring.push(Open::Boundary);
         } else {
-            memory.scopes.push(Scope::boundary());
+            memory.scopes.push(Scope { boundary: stops_changes, ..Scope::boundary() });
         }
     });
     let out = f();

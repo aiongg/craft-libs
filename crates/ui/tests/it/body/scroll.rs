@@ -4,7 +4,7 @@
 use super::kit::Slab;
 use craft_behavior::ColumnWidth;
 use craft_ui::buttons::Button;
-use craft_ui::contract::{ContainerProps, Props as _, Scroll, Show as _, ShowContainer as _};
+use craft_ui::contract::{ContainerProps, Props as _, Scroll, Show as _, ShowContainer as _, Sizing};
 use craft_ui::layout_components::Grid;
 use craft_ui::runtime::focus::{FocusTarget, request};
 use craft_ui::testing::layout::{Block, in_region};
@@ -248,4 +248,40 @@ fn a_column_change_of_lazy_grid_cells_runs_only_the_cells_in_view() {
             }
         }
     }
+}
+
+/// Regression: a Lazy card that fills its grid cell took the cell the row's kept measure gave it, so content that grew
+/// inside it stayed clipped at the old row height. A change inside a Lazy reaches the bodies around it: the row grows
+/// to the card's new content in the frame of the change.
+#[trial]
+fn content_that_grows_inside_a_lazy_cell_that_fills_it_grows_its_row() {
+    const TWO: &[ColumnWidth] = &[ColumnWidth::fill(1.0); 2];
+    let tall = Cell::new(LINE.y);
+    let card = Cell::new(Rect::NOTHING);
+    let content = Cell::new(Rect::NOTHING);
+    let mut show = |ui: &mut Ui| {
+        in_region(ui, Rect::from_min_size(ORIGIN, VIEW), |ui| {
+            Slab::new(ContainerProps::new().scroll(Scroll::vertical())).id_salt("panel").show(ui, |ui, _| {
+                Grid::new(TWO).show(ui, |ui, _| {
+                    for index in 0..2 {
+                        craft_ui::contract::Lazy::new(index).show(ui, |ui| {
+                            let filled = Slab::new(ContainerProps::new().sizing(Sizing::Fill).scroll(Scroll::vertical()))
+                                .show(ui, |ui, _| Block::new(Vec2::new(LINE.x, if index == 0 { tall.get() } else { LINE.y })).show(ui).rect);
+                            if let (0, false, Some(rect)) = (index, ui.is_sizing_pass(), filled.inner) {
+                                card.set(filled.output.rect);
+                                content.set(rect);
+                            }
+                        });
+                    }
+                });
+            });
+        });
+    };
+    let mut frames = Frames::new();
+    frames.idle(3, &mut show);
+    assert!(card.get().contains_rect(content.get()), "the card holds its content: {:?} in {:?}", content.get(), card.get());
+    tall.set(HUNDRED);
+    frames.frame(vec![], &mut show);
+    assert!(content.get().height() > LINE.y + SAME, "the content grew: {:?}", content.get());
+    assert!(card.get().expand(SAME).contains_rect(content.get()), "the card grew to its content: {:?} in {:?}", content.get(), card.get());
 }
