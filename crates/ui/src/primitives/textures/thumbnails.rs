@@ -606,6 +606,8 @@ pub(crate) fn fake_thumb_image(key: &impl std::hash::Hash, frame: PixelSize) -> 
 fn fake_picture(frame: PixelSize, hue: f32, revision: u64, opaque: bool) -> ColorImage {
     let PixelSize { width, height, .. } = frame;
     let bars = (revision % 8) as u32;
+    let end = |degrees: f32| egui::ecolor::Hsva::new((degrees % 360.0) / 360.0, 0.6, 0.85, 1.0).to_srgba_unmultiplied();
+    let (from, to) = (end(hue), end(hue + 120.0));
     thumb_image(frame, width.max(height), |x, y| {
         if y + 1 == height && x % 2 == 0 && x / 2 < bars {
             return [255, 255, 255, 255];
@@ -614,8 +616,6 @@ fn fake_picture(frame: PixelSize, hue: f32, revision: u64, opaque: bool) -> Colo
             return [0, 0, 0, 0];
         }
         let t = ((x as f32 + 0.5) / width as f32 + (y as f32 + 0.5) / height as f32) / 2.0;
-        let end = |degrees: f32| egui::ecolor::Hsva::new((degrees % 360.0) / 360.0, 0.6, 0.85, 1.0).to_srgba_unmultiplied();
-        let (from, to) = (end(hue), end(hue + 120.0));
         let mix = |i: usize| (f32::from(from[i]) + (f32::from(to[i]) - f32::from(from[i])) * t).round() as u8;
         [mix(0), mix(1), mix(2), 255]
     })

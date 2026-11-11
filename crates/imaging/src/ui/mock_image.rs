@@ -22,6 +22,9 @@
 //!
 //! The module is behind `screen-testing`, with the stories.
 
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex, PoisonError};
+
 use egui::{Color32, ColorImage, Ui};
 
 use craft_behavior::kurbo::Point;
@@ -237,6 +240,33 @@ impl MockImage {
     }
 }
 
+/// One read of the picture: what [`MockImage::texels`] computes from.
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+struct ReadKey {
+    size: [u32; 2],
+    region: PixelRect,
+    factor: u32,
+    texels: [usize; 2],
+}
+
+impl MockImage {
+    /// The texels of a `[columns, rows]` read of `region` at `factor`: `pixel` at each texel's centre.
+    fn texels(&self, region: PixelRect, factor: u32, [columns, rows]: [usize; 2]) -> Arc<[Color32]> {
+        // new: samples `pixel` at each texel's centre.
+        let factor = f64::from(factor.max(1));
+        let mut texels = Vec::with_capacity(columns * rows);
+        for row in 0..rows {
+            let y = f64::from(region.y0) + (row as f64 + 0.5) * factor;
+            for column in 0..columns {
+                let x = f64::from(region.x0) + (column as f64 + 0.5) * factor;
+                let [r, g, b, a] = self.pixel(x, y);
+                texels.push(Color32::from_rgba_unmultiplied(r, g, b, a));
+            }
+        }
+        texels.into()
+    }
+}
+
 impl RasterSource for MockImage {
     fn size(&self) -> PixelSize {
         PixelSize::new(self.size[0], self.size[1])
@@ -251,17 +281,17 @@ impl RasterSource for MockImage {
     }
 
     fn read(&self, region: PixelRect, factor: u32, out: &mut ColorImage) {
-        // new: samples `pixel` at each texel's centre.
-        let [columns, rows] = out.size;
-        let factor = f64::from(factor.max(1));
-        for row in 0..rows {
-            let y = f64::from(region.y0) + (row as f64 + 0.5) * factor;
-            for column in 0..columns {
-                let x = f64::from(region.x0) + (column as f64 + 0.5) * factor;
-                let [r, g, b, a] = self.pixel(x, y);
-                out.pixels[row * columns + column] = Color32::from_rgba_unmultiplied(r, g, b, a);
-            }
-        }
+        // Every fixture of a trial run reads the same tiles anew, and computing them took most of the stories' trial
+        // time, so the texels of each read are kept for the process. They depend on the size, not on the revision.
+        static READS: Mutex<Option<HashMap<ReadKey, Arc<[Color32]>>>> = Mutex::new(None);
+        let key = ReadKey { size: self.size, region, factor, texels: out.size };
+        let cached = READS.lock().unwrap_or_else(PoisonError::into_inner).get_or_insert_default().get(&key).cloned();
+        let texels = cached.unwrap_or_else(|| {
+            let texels = self.texels(region, factor, out.size);
+            READS.lock().unwrap_or_else(PoisonError::into_inner).get_or_insert_default().insert(key, texels.clone());
+            texels
+        });
+        out.pixels.copy_from_slice(&texels);
     }
 }
 
