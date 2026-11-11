@@ -2,12 +2,13 @@
 
 use super::{Access, GridPlace, Name, Numeric, PopupKind, Role, SetPosition, SubNode, scope};
 use crate::runtime::egui::access::{self as adapter, NodeAction, NodeRole, NodeSpec, Toggle, write_node};
+use crate::runtime::egui::areas::Layer;
 use crate::runtime::env::Label;
 use crate::runtime::inspect::{self, Finding};
 use crate::runtime::{keys, memory::sub};
 use craft_behavior::{PartRef, RoleRule, is_checkable, is_selectable, role_violations};
 use craft_theme::Flags;
-use egui::{Context, Id, LayerId, Rect};
+use egui::{Context, Id, Rect};
 
 /// What step 16 knows about a component's own node.
 pub(crate) struct Own<'a> {
@@ -16,7 +17,7 @@ pub(crate) struct Own<'a> {
     pub role: NodeRole,
     pub rect: Rect,
     /// The layer whose space `rect` is in.
-    pub layer: LayerId,
+    pub layer: Layer,
     pub label: &'a str,
     /// The node's one control carries its label as its name: the node itself has no name.
     pub names_nothing: bool,
@@ -68,7 +69,7 @@ pub struct SubDecl<'a> {
     pub node: &'a SubNode,
     pub rect: Rect,
     /// The layer whose space `rect` and the node's bounds are in.
-    pub layer: LayerId,
+    pub layer: Layer,
     pub enabled: bool,
     pub focusable: bool,
     pub clickable: bool,
@@ -385,7 +386,7 @@ pub fn report_sub(ctx: &Context, decl: &SubDecl<'_>) {
 /// The root node of an overlay layer: the layer's content attaches below it, and a modal layer's root is modal. An
 /// exiting layer's root is hidden from the first pass it fades out, so nothing under it is reported while it still
 /// paints; the ids stay the same if the layer reopens.
-pub(crate) fn report_layer(ctx: &Context, id: Id, content: Id, (rect, layer): (Rect, LayerId), modal: bool, exiting: bool) {
+pub(crate) fn report_layer(ctx: &Context, id: Id, content: Id, (rect, layer): (Rect, Layer), modal: bool, exiting: bool) {
     adapter::register_parent(ctx, content, id);
     let mut spec = NodeSpec::layer_root();
     spec.rect = Some((rect, layer));

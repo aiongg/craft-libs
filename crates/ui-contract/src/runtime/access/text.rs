@@ -89,7 +89,7 @@ pub(crate) fn exposed(ctx: &Context, widget: Id) -> bool {
 /// the widget's own node folds into it, so a component whose root edits its value through the text (a text field, a
 /// spin button, an editable combo box) is one node that takes focus and the text actions. Call it after the node's
 /// common facts.
-pub(crate) fn report_text(ctx: &Context, owner: Id, layer: egui::LayerId, facts: &TextFacts) {
+pub(crate) fn report_text(ctx: &Context, owner: Id, layer: crate::runtime::egui::areas::Layer, facts: &TextFacts) {
     adapter::fold_widget(ctx, facts.widget, owner);
     let mut entries = Vec::new();
     if !facts.masked {

@@ -21,7 +21,7 @@ pub(crate) struct HeaderCell<'a> {
 }
 
 /// The `ColumnHeader` sub-nodes of the collection `owner`. Every cell is a focus stop of the header's roving group.
-pub(crate) fn report_header(ctx: &Context, owner: Id, enabled: bool, layer: egui::LayerId, cells: &[HeaderCell<'_>]) {
+pub(crate) fn report_header(ctx: &Context, owner: Id, enabled: bool, layer: crate::runtime::egui::areas::Layer, cells: &[HeaderCell<'_>]) {
     for cell in cells {
         let mut node = SubNode::new(cell.part, Role::COLUMN_HEADER);
         node.name = Name::Text(cell.name.to_owned());
