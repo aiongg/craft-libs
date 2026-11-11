@@ -3,7 +3,6 @@
 use super::popups::{OpenOp, PopupHandle, queue};
 use crate::contract::{Component, Cx, PartBuilder};
 use crate::runtime::focus::{self};
-use crate::runtime::memory::sub;
 use craft_behavior::Intent;
 use craft_behavior::PartRef;
 use egui::Id;
@@ -87,7 +86,7 @@ pub(crate) fn drive_toggles<C: Component>(cx: &mut Cx<'_, C>) {
         let phase = cx.core.results.get(&(part.key, part.index)).map(|result| result.press.phase);
         let on_press = toggle.decl.on_press;
         let by_pointer = match phase {
-            Some(phase) if on_press => cx.core.memory.shown::<crate::contract::SeenPress>(sub(popup.id, "press")).began(&phase),
+            Some(phase) if on_press => matches!(phase, craft_behavior::PressPhase::Down { .. }),
             Some(phase) => phase.is_click(),
             None => false,
         };

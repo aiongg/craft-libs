@@ -635,7 +635,7 @@ impl<'a> BezierOverlay<'a> {
                 self.report.context = Some((item.hit(paths, view, at), at));
             }
             match press.phase {
-                PressPhase::Down { start, .. } if start.button == PointerButton::Primary && press.went_down => {
+                PressPhase::Down { start, .. } if start.button == PointerButton::Primary => {
                     let hit = item.hit(paths, view, start.origin);
                     if self.tool.clicks() {
                         tools::anchor_click(self.tool, hit, press.mods, &mut self.report);
@@ -660,7 +660,7 @@ impl<'a> BezierOverlay<'a> {
         {
             let press = result.press;
             match press.phase {
-                PressPhase::Down { start, .. } if start.button == PointerButton::Primary && press.went_down => {
+                PressPhase::Down { start, .. } if start.button == PointerButton::Primary => {
                     *cx.press_slot::<Held>() = Some(Held { origin: start.origin, target: Target::Marquee, start: Vec::new(), began: false });
                 }
                 PressPhase::DragStart { start, pos, .. } | PressPhase::Drag { start, pos, .. } if start.button == PointerButton::Primary => {

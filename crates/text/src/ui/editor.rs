@@ -476,7 +476,7 @@ impl Component for TextEditor<'_> {
         let fallback = space.doc_rect(cx.rect);
 
         match press.phase {
-            PressPhase::Down { start, .. } if press.went_down && start.button == craft_behavior::PointerButton::Primary => {
+            PressPhase::Down { start, .. } if start.button == craft_behavior::PointerButton::Primary => {
                 edits.press(space.doc(start.origin), press.mods.shift, start.clicks, now);
             }
             PressPhase::DragStart { pos, .. } | PressPhase::Drag { pos, .. } => edits.drag(space.doc(pos)),

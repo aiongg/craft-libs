@@ -334,7 +334,7 @@ impl Component for ColorWheel<'_> {
             if !primary(&press) {
                 continue;
             }
-            if press.went_down {
+            if matches!(press.phase, PressPhase::Down { .. }) {
                 cx.focus_part(key);
             }
             match press.phase {

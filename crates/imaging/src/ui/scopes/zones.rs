@@ -318,10 +318,8 @@ impl Component for ToneZones<'_> {
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let held = cx.recall::<Held>();
         let over = |at: &usize| {
-            matches!(
-                cx.part(ZONE.at(*at as u64)).press.phase,
-                PressPhase::Hover | PressPhase::Down { .. } | PressPhase::DragStart { .. } | PressPhase::Drag { .. }
-            )
+            let phase = cx.part(ZONE.at(*at as u64)).press.phase;
+            matches!(phase, PressPhase::Hover) || phase.button_down()
         };
         let hovered = (0..self.zones.len()).find(over);
         let shown = held.pressed.or(hovered).or(cx.is_focused().then_some(held.focused).flatten());

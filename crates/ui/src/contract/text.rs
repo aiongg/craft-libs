@@ -321,7 +321,6 @@ pub(crate) fn run<C: Component>(
     // in edit, and a click that enters it puts the caret where it went down.
     let scrubs = cx.core.root_sense.contains(craft_behavior::Sense::DRAG);
     if scrubs {
-        use craft_behavior::PressPhase;
         let before = cx.core.memory.shown::<InEditBeforePress>(sub(id, "in_edit_before_press"));
         if cx.core.press.phase.is_drag() {
             // The root press focused the field; a press that travelled is a scrub, so the field is given back.
@@ -329,7 +328,7 @@ pub(crate) fn run<C: Component>(
                 crate::runtime::egui::focus::surrender(&ctx, widget);
                 focused = false;
             }
-        } else if !matches!(cx.core.press.phase, PressPhase::Down { .. }) {
+        } else if !cx.core.press.phase.button_down() {
             before.0 = focused;
         }
     }

@@ -296,7 +296,7 @@ impl PerspectiveWarp<'_> {
                 self.report.hovered = Some(corner_of(index));
             }
             match press.phase {
-                PressPhase::Down { start, .. } if start.button == PointerButton::Primary && press.went_down => {
+                PressPhase::Down { start, .. } if start.button == PointerButton::Primary => {
                     self.press_corner(cx, space, planes, corner_of(index), start.origin);
                 }
                 phase => self.track(cx, space, phase),
@@ -305,7 +305,7 @@ impl PerspectiveWarp<'_> {
         let Some(result) = cx.part_if_declared(PICTURE) else { return };
         let press = result.press;
         match press.phase {
-            PressPhase::Down { start, .. } if start.button == PointerButton::Primary && press.went_down => {
+            PressPhase::Down { start, .. } if start.button == PointerButton::Primary => {
                 self.press_picture(cx, space, planes, start.origin);
             }
             phase => self.track(cx, space, phase),
