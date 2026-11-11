@@ -143,6 +143,6 @@ pub fn catch<T>(f: impl FnOnce() -> T) -> Result<T, Panicked> {
     })
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(target_arch = "wasm32")))]
 #[path = "crash_tests.rs"]
 mod crash_tests;

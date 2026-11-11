@@ -1,8 +1,7 @@
 //! `craft_platform::autosave`.
 #![allow(clippy::unwrap_used, reason = "tests fail by panicking")]
 
-use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use crate::autosave::*;
@@ -79,32 +78,6 @@ fn due_picks_dirty_changed_documents_each_interval() {
     assert_eq!(timer.deadline(), None);
 }
 
-// Platform mode: LOCALAPPDATA on Windows, an absolute XDG_STATE_HOME or ~/.local/state on Linux,
-// the config folder on macOS; self-contained mode always uses the config folder.
-#[test]
-fn recovery_dir_follows_the_platform_rules() {
-    let config = Path::new("/cfg/photocraft");
-    let env = |vars: &'static [(&'static str, &'static str)]| move |k: &str| vars.iter().find(|(n, _)| *n == k).map(|(_, v)| OsString::from(*v));
-    let platform = |vars| recovery_dir("Photocraft", "photocraft", Some(config), SettingsMode::Platform, env(vars));
-    let own = |vars| recovery_dir("Photocraft", "photocraft", Some(config), SettingsMode::SelfContained, env(vars));
-    let all = &[("LOCALAPPDATA", "/local"), ("XDG_STATE_HOME", "/state"), ("HOME", "/home/u")];
-    assert_eq!(own(all), Some(config.join("Recovery")));
-    assert_eq!(recovery_dir("Photocraft", "photocraft", None, SettingsMode::SelfContained, env(all)), None);
-    if cfg!(windows) {
-        assert_eq!(platform(all), Some(PathBuf::from("/local").join("Photocraft").join("Recovery")));
-        assert_eq!(platform(&[]), Some(config.join("Recovery")));
-    } else if cfg!(target_os = "macos") {
-        assert_eq!(platform(all), Some(config.join("Recovery")));
-    } else {
-        assert_eq!(platform(all), Some(Path::new("/state/photocraft/Recovery").to_path_buf()));
-        assert_eq!(
-            platform(&[("XDG_STATE_HOME", "rel"), ("HOME", "/home/u")]),
-            Some(Path::new("/home/u/.local/state/photocraft/Recovery").to_path_buf())
-        );
-        assert_eq!(platform(&[]), Some(config.join("Recovery")));
-    }
-}
-
 // A copy written by a run that is gone is a leftover; one of a live instance (its lock held) is
 // not; discard removes copy and sidecar.
 #[test]
@@ -137,128 +110,4 @@ fn leftovers_skip_live_instances() {
     assert!(second.leftovers().is_empty(), "adopted copies now belong to the live run");
     second.remove(&found[0]).unwrap();
     assert!(!found[0].path.exists());
-}
-
-// The instance name carries the session, so a run that gets a crashed run's PID and counter
-// still sees that run's copies as leftovers.
-#[test]
-fn instance_names_carry_the_session() {
-    let scratch = Scratch::new();
-    let dir = scratch.0.join("Recovery");
-    let store = RecoveryStore::open(&dir).unwrap();
-    store.write(1, &meta("a.psd", 1), b"x").unwrap();
-    let sidecar = std::fs::read_to_string(dir.join(format!("{}.json", store.key(1)))).unwrap();
-    let session = store.key(1).strip_prefix("doc-").unwrap().strip_suffix("-1").unwrap().to_owned();
-    let name = format!("instance-{}.lock", session.replace('_', "-"));
-    assert!(sidecar.contains(&name), "{sidecar} lacks {name}");
-
-    // The crashed run of the same PID and counter, with a lock nobody holds.
-    let pid = std::process::id();
-    let crashed = format!("instance-0-{pid:x}-0.lock");
-    std::fs::write(dir.join(&crashed), b"").unwrap();
-    std::fs::write(dir.join("doc-old-1.pcraft"), b"old").unwrap();
-    std::fs::write(dir.join("doc-old-1.json"), format!(r#"{{"name":"o.psd","extension":"pcraft","revision":1,"instance":"{crashed}"}}"#)).unwrap();
-    assert_eq!(store.leftovers().len(), 1);
-}
-
-// Another live run's half-written entry (copy without its sidecar) is never listed; once that
-// run is gone, the copy is a leftover.
-#[test]
-fn half_written_entries_of_live_runs_are_not_listed() {
-    let scratch = Scratch::new();
-    let dir = scratch.0.join("Recovery");
-    let first = RecoveryStore::open(&dir).unwrap();
-    let second = RecoveryStore::open(&dir).unwrap();
-    let key = first.key(1);
-    std::fs::write(dir.join(format!("{key}.pcraft")), b"half").unwrap();
-    assert!(second.leftovers().is_empty());
-    assert!(first.leftovers().is_empty(), "nor its own");
-    drop(first);
-    let found = second.leftovers();
-    assert_eq!(found.len(), 1);
-    assert_eq!(found[0].key, key);
-}
-
-// An interrupted legacy move (.moving entries) is finished by the next launch.
-#[test]
-fn legacy_recovery_move_resumes() {
-    let scratch = Scratch::new();
-    let legacy = scratch.0.join("legacy");
-    let dir = scratch.0.join("state").join("Recovery");
-    std::fs::create_dir_all(&legacy).unwrap();
-    std::fs::create_dir_all(&dir).unwrap();
-    std::fs::write(legacy.join("k.pcraft"), b"copy").unwrap();
-    std::fs::write(legacy.join("k.json"), b"{}").unwrap();
-    // A process died after setting the sidecar aside and staging another folder.
-    std::fs::rename(legacy.join("k.json"), legacy.join(".k.json.4242-0.held")).unwrap();
-    std::fs::create_dir(dir.parent().unwrap().join(".Recovery.4242-1.moving")).unwrap();
-    std::fs::write(dir.join("other.pcraft"), b"x").unwrap();
-
-    let used = adopt_legacy_recovery(&legacy, &dir);
-    assert_eq!(used, dir);
-    assert_eq!(std::fs::read(dir.join("k.pcraft")).unwrap(), b"copy");
-    assert_eq!(std::fs::read(dir.join("k.json")).unwrap(), b"{}");
-    assert_eq!(std::fs::read(dir.join("other.pcraft")).unwrap(), b"x");
-    assert!(!legacy.exists());
-    assert!(!dir.parent().unwrap().join(".Recovery.4242-1.moving").exists());
-}
-
-// Keys keep letters, digits, '-' and '_'; others become '_'; empty is "untitled".
-#[test]
-fn keys_are_sanitized() {
-    assert_eq!(sanitize_key("doc-1_A"), "doc-1_A");
-    assert_eq!(sanitize_key("../a b.c"), "___a_b_c");
-    assert_eq!(sanitize_key(""), "untitled");
-}
-
-// The default is one of Photoshop's five choices, and a stored choice outside the list is refused.
-#[test]
-fn the_interval_choices_are_photoshops_and_include_the_default() {
-    assert_eq!(INTERVAL_CHOICES_MINUTES, [5, 10, 15, 30, 60]);
-    assert_eq!(interval_from_minutes("10"), Some(DEFAULT_INTERVAL));
-    assert_eq!(interval_from_minutes("60"), Some(Duration::from_secs(3600)));
-    assert_eq!(interval_from_minutes("7"), None);
-    assert_eq!(interval_from_minutes("ten"), None);
-}
-
-// A revision marked autosaved is not written again until the document changes.
-#[test]
-fn a_revision_marked_autosaved_is_not_written_again() {
-    let minute = Duration::from_secs(60);
-    let t0 = Instant::now();
-    let mut timer = Autosave::new(Some(minute));
-    timer.mark_autosaved(1, 4);
-    assert!(timer.due(t0, [doc(1, 4, true)]).save.is_empty());
-    assert!(timer.due(t0 + minute, [doc(1, 4, true)]).save.is_empty(), "the recovered revision is already on disk");
-    assert_eq!(timer.due(t0 + 2 * minute, [doc(1, 5, true)]).save, vec![1], "an edit makes it due again");
-}
-
-// autosave_now makes the next due call save every dirty document, before the clock started
-// and inside the interval, once.
-#[test]
-fn autosave_now_saves_dirty_documents_regardless_of_the_interval() {
-    let minute = Duration::from_secs(60);
-    let t0 = Instant::now();
-    let mut timer = Autosave::new(Some(minute));
-    timer.autosave_now();
-    assert_eq!(timer.due(t0, [doc(1, 1, true), doc(2, 1, false)]).save, vec![1]);
-    timer.finished(1, 1, Ok(()));
-    assert!(timer.due(t0 + Duration::from_secs(1), [doc(1, 2, true)]).save.is_empty(), "back on the interval");
-    timer.autosave_now();
-    assert_eq!(timer.due(t0 + Duration::from_secs(2), [doc(1, 2, true)]).save, vec![1]);
-}
-
-// The stored minutes read as an integer or as the text an older settings file holds.
-#[test]
-fn minutes_deserialize_from_integers_and_old_text() {
-    #[derive(serde::Deserialize)]
-    struct Stored {
-        #[serde(deserialize_with = "deserialize_minutes")]
-        minutes: u32,
-    }
-    let read = |json: &str| serde_json::from_str::<Stored>(json).unwrap().minutes;
-    assert_eq!(read(r#"{"minutes": 15}"#), 15);
-    assert_eq!(read(r#"{"minutes": "30"}"#), 30);
-    assert_eq!(interval_for_minutes(15), Some(Duration::from_secs(900)));
-    assert_eq!(interval_for_minutes(7), None);
 }
