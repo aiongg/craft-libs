@@ -736,10 +736,6 @@ pub fn utc_stamp(unix: i64, precision: TimePrecision) -> String {
 mod tests {
     use super::*;
 
-    fn region(tag: &str, hour_cycle: Option<HourCycle>) -> DateFormat {
-        DateFormat::new(&Region { hour_cycle, ..Region::from_tag(tag) })
-    }
-
     // 1970-01-01 is day 0 and a Thursday; 2000-02-29 exists and 2100-02-29 doesn't; from_days
     // and days round-trip across ±400-year cycles and years past 9999; Jan 31 + 1 month is Feb 29
     // in 2028.

@@ -34,6 +34,7 @@ const OLD_GEOMETRY: [&[u8]; 6] = [b"MediaBox", b"CropBox", b"BleedBox", b"TrimBo
 
 impl Sheets<'_> {
     /// Refuse annotation print/view visibility the Windows renderer cannot preserve.
+    #[cfg(windows)]
     pub(crate) fn check_print_annotations(&self) -> Result<(), Error> {
         if self.sheets.iter().all(|s| s.print_annotations_safe) {
             Ok(())
@@ -60,6 +61,7 @@ impl Sheets<'_> {
     /// the PDF is encrypted (strings are encrypted with keys made from their object's number),
     /// a page has annotations (an annotation belongs to one page; whether a renderer draws it on
     /// others is unknown), or the job would be too large.
+    #[cfg(windows)]
     pub(crate) fn repeated(&self, edits: &[Edit], repeat: Repeat) -> Result<Option<Vec<u8>>, Error> {
         self.write(edits, Some(repeat))
     }

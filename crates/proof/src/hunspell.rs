@@ -20,6 +20,7 @@ use crate::affix::AffixDict;
 
 pub use decode::decode;
 pub(crate) use decode::dic_entry_end;
+#[cfg(test)]
 pub(crate) use search::ordered;
 pub use search::{
     candidates, candidates_exact, candidates_in, clear_load_error, find, find_in, load_error, note_load, search_dirs, set_dictionary_dir,

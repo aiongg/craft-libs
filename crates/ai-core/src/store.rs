@@ -222,10 +222,6 @@ mod tests {
         StoreFile { connections: vec![c], defaults: vec![binding], ..StoreFile::default() }
     }
 
-    fn role() -> Role {
-        Role { id: RoleId::new("rewrite").unwrap(), label: "Rewrite".into(), capability: cap(), inputs: vec![InputRole::Prompt] }
-    }
-
     #[test]
     fn serialized_store_contains_no_secret_values() {
         let json = store().to_json().unwrap();

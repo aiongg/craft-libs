@@ -297,11 +297,6 @@ impl SuiteWatch {
         engine.poll(verify);
         self.shared.publish(&mut engine, true);
     }
-
-    #[cfg(test)]
-    pub(crate) fn parse_counts(&self) -> crate::ParseCounts {
-        lock(&self.shared.engine).store.parse_counts()
-    }
 }
 
 impl Drop for SuiteWatch {

@@ -468,7 +468,7 @@ pub fn printers_parsed(queues: &str, available: Option<&str>) -> Vec<Printer> {
 /// The Print dialog's printers from the Windows spooler's queues (name, and whether the driver
 /// takes two-sided settings when that is known): sorted by name, each once, the default marked
 /// when it is one of them.
-#[cfg(any(test, windows))]
+#[cfg(windows)]
 pub(crate) fn printer_list(queues: impl IntoIterator<Item = (String, Option<bool>)>, default: Option<&str>) -> Vec<Printer> {
     let mut queues: Vec<(String, Option<bool>)> = queues.into_iter().filter(|(n, _)| !n.trim().is_empty()).collect();
     queues.sort_by(|a, b| a.0.cmp(&b.0));

@@ -282,7 +282,7 @@ fn selected_folder(folder: &str, writable: bool) -> Result<PathBuf, String> {
     Ok(path)
 }
 
-#[cfg(any(windows, test))]
+#[cfg(windows)]
 fn msi_folder_argument(path: &Path) -> Result<String, String> {
     let value = path.to_str().ok_or("unusual characters in a path")?;
     if value.chars().any(|c| c == '"' || c.is_control()) {

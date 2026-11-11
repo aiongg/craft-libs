@@ -276,10 +276,6 @@ fn percent_affixes(tag: &str, latin: bool) -> (&'static str, &'static str) {
 mod tests {
     use super::*;
 
-    fn latin(tag: &str) -> Format {
-        Format::new(&Region::from_tag(tag), Digits::Latin)
-    }
-
     /// Windows always sets `sThousand`, so a decimal comma the user picks arrives beside a grouping
     /// comma: the numbers drop grouping rather than read `1,234,5`.
     #[test]

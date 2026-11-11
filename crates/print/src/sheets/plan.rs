@@ -6,6 +6,7 @@ use super::*;
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum Fit {
     /// Every sheet must be the paper's size (either way round).
+    #[cfg(windows)]
     Exact,
     /// Sheets are shrunk (never enlarged) to fit inside `margin` points of the paper's edges, and
     /// centred on it.
@@ -56,7 +57,9 @@ pub(crate) fn plan(sheets: &[Sheet], paper: (f64, f64), fit: Fit) -> Result<Vec<
         let rotate = (sheet.rotate + turn) % 360;
         let (w, h) = if turn == 0 { (w, h) } else { (h, w) };
         let frame = match fit {
+            #[cfg(windows)]
             Fit::Exact if close((w, h), paper) => None,
+            #[cfg(windows)]
             Fit::Exact => {
                 return Err(Error::Spool(format!(
                     "Windows prints one paper size per job: sheet {} is {:.2} × {:.2} in, the job's paper {:.2} × {:.2} in; print the sheets of each size separately",

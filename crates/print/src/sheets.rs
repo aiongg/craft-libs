@@ -46,6 +46,7 @@ mod xref;
 
 pub(crate) use plan::{Edit, Fit, plan};
 pub(crate) use read::{Sheet, Sheets, read};
+#[cfg(windows)]
 pub(crate) use update::Repeat;
 
 use object::*;

@@ -2,7 +2,9 @@
 //! numbers, so it is tested on every platform. The calls that hand them to the driver are in
 //! `windows.rs`.
 
-use crate::{Duplex, Error, Job};
+use crate::Error;
+#[cfg(windows)]
+use crate::{Duplex, Job};
 
 pub(crate) const NS_PSF: &str = "http://schemas.microsoft.com/windows/2003/08/printing/printschemaframework";
 pub(crate) const NS_PSK: &str = "http://schemas.microsoft.com/windows/2003/08/printing/printschemakeywords";
@@ -16,10 +18,12 @@ fn spool_error(e: impl std::fmt::Display) -> Error {
 
 /// Points to micrometres; `None` for a size no printer takes (at most 200 inches, so the
 /// conversion can't overflow).
+#[cfg(windows)]
 pub(crate) fn micrometres(points: f64) -> Option<u32> {
     (points.is_finite() && points > 0.0 && points <= 14_400.0).then(|| (points * 25_400.0 / 72.0).round() as u32)
 }
 
+#[cfg(windows)]
 pub(crate) fn points(micrometres: u32) -> f64 {
     f64::from(micrometres) * 72.0 / 25_400.0
 }
@@ -29,6 +33,7 @@ pub(crate) fn points(micrometres: u32) -> f64 {
 /// paper is merged in separately, as the driver's own option. Only schema keywords and bounded
 /// numbers go into the XML; the printer name and the document title never do. Two-sided is left
 /// out when the job doesn't set it, so the queue's default applies.
+#[cfg(windows)]
 pub(crate) fn ticket_xml(job: &Job, landscape: bool) -> String {
     let orientation = if landscape { "Landscape" } else { "Portrait" };
     let duplex = match job.duplex {
@@ -61,6 +66,7 @@ pub(crate) fn ticket_xml(job: &Job, landscape: bool) -> String {
 /// Standard paper sizes (points, portrait) and the names drivers give them. A driver can list
 /// one size twice, a plotter's "ARCH D" next to a custom 24 × 36 in entry; the named one is
 /// preferred (from storytold/pdfcraft#599).
+#[cfg(windows)]
 const NAMED_PAPERS: &[((f64, f64), &[&str])] = &[
     ((612.0, 792.0), &["Letter", "US Letter"]),
     ((612.0, 1008.0), &["Legal", "US Legal"]),
@@ -83,6 +89,7 @@ const NAMED_PAPERS: &[((f64, f64), &[&str])] = &[
 ];
 
 /// The usual names of a paper of this size (either way round, to half a point).
+#[cfg(windows)]
 pub(crate) fn paper_names(width: f64, height: f64) -> &'static [&'static str] {
     let (w, h) = (width.min(height), width.max(height));
     NAMED_PAPERS.iter().find(|((pw, ph), _)| (pw - w).abs() <= 0.5 && (ph - h).abs() <= 0.5).map_or(&[], |(_, names)| names)
@@ -90,6 +97,7 @@ pub(crate) fn paper_names(width: f64, height: f64) -> &'static [&'static str] {
 
 /// Whether a driver's paper name is `name`: it starts with it, ignoring case, and the name ends
 /// there ("A4 210 x 297 mm", not "A4 Extra" for "A4" or "ARCH E1" for "ARCH E").
+#[cfg(windows)]
 pub(crate) fn names_paper(display: Option<&str>, name: &str) -> bool {
     let Some(display) = display else { return false };
     display.get(..name.len()).is_some_and(|start| start.eq_ignore_ascii_case(name))
@@ -99,6 +107,7 @@ pub(crate) fn names_paper(display: Option<&str>, name: &str) -> bool {
 /// A driver paper offered for the job: its size in micrometres (as the driver lists it), its
 /// display name, and whether its option is a Print Schema keyword (`psk:ISOA4`) rather than a
 /// vendor's own.
+#[cfg(windows)]
 #[derive(Clone)]
 pub(crate) struct Paper<'a> {
     pub width: u32,
@@ -110,6 +119,7 @@ pub(crate) struct Paper<'a> {
 /// The driver paper for a sheet of `width` × `height` points (either way round): within a
 /// quarter of a millimetre, preferring the one named like the standard size, then a Print Schema
 /// keyword, then the closest; on a tie the driver's own order. Its index in `papers`.
+#[cfg(windows)]
 pub(crate) fn matching_paper(papers: &[Paper<'_>], width: f64, height: f64) -> Option<usize> {
     let (w, h) = (micrometres(width.min(height))?, micrometres(width.max(height))?);
     let names = paper_names(width, height);
@@ -174,6 +184,7 @@ pub(crate) fn verify_ticket(xml: &str, paper: Option<(u32, u32)>, landscape: boo
 
 /// What a driver's PrintCapabilities offer for the options [`verify_job_options`] checks. A
 /// field is `None` when the capabilities couldn't be read; that option is then checked strictly.
+#[cfg(windows)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Offered {
     /// The two-sided feature (`JobDuplexAllDocumentsContiguously`) has any option.
@@ -186,6 +197,7 @@ pub(crate) struct Offered {
 
 /// What these PrintCapabilities offer ([`Offered`]); all unknown when the document is not
 /// PrintCapabilities.
+#[cfg(windows)]
 pub(crate) fn offered(capabilities_xml: &str) -> Offered {
     let Ok(document) = roxmltree::Document::parse(capabilities_xml) else { return Offered::default() };
     let root = document.root_element();
@@ -207,12 +219,14 @@ pub(crate) fn offered(capabilities_xml: &str) -> Offered {
 }
 
 /// Whether a `pages`-page job asks for collated copies.
+#[cfg(windows)]
 pub(crate) fn collated_copies(job: &Job, pages: usize) -> bool {
     job.collate && job.copies.clamp(1, 999) > 1 && pages > 1
 }
 
 /// Whether collated copies are made by repeating the document in one job with one copy on the
 /// ticket: the job asks for them and the driver can't collate.
+#[cfg(windows)]
 pub(crate) fn repeats_collated(job: &Job, pages: usize, offered: Offered) -> bool {
     collated_copies(job, pages) && offered.collate == Some(false)
 }
@@ -222,6 +236,7 @@ pub(crate) fn repeats_collated(job: &Job, pages: usize, offered: Offered) -> boo
 /// duplex option other than the schema's (the blank backs would be guessed), several pages per
 /// sheet, binding (booklets and offset stacking included) or stapling, which would treat every
 /// copy as one document.
+#[cfg(windows)]
 pub(crate) fn one_job_sides(xml: &str) -> Option<bool> {
     let document = roxmltree::Document::parse(xml).ok()?;
     let features = |names: &'static [&'static str]| {
@@ -262,6 +277,7 @@ pub(crate) fn one_job_sides(xml: &str) -> Option<bool> {
 /// collated copies to the device only when its GPD or PPD has a Collate command). The job then
 /// asks for one copy and repeats the document instead ([`repeats_collated`]), in one job or a
 /// job per copy ([`one_job_sides`]). An unknown offer (`None`) is checked strictly.
+#[cfg(windows)]
 pub(crate) fn verify_job_options(xml: &str, job: &Job, pages: usize, offered: Offered) -> Result<(), Error> {
     let document = roxmltree::Document::parse(xml).map_err(spool_error)?;
     let root = document.root_element();
@@ -313,6 +329,7 @@ const NS_XML: &str = "http://www.w3.org/XML/1998/namespace";
 
 /// A PrintTicket that sets nothing. Merged and validated by a driver it comes back as the
 /// driver's own default ticket, which spells the driver's vendor namespaces the way the driver does.
+#[cfg(windows)]
 pub(crate) fn empty_ticket() -> String {
     format!(r#"<psf:PrintTicket version="1" xmlns:psf="{NS_PSF}" xmlns:psk="{NS_PSK}" xmlns:xsi="{NS_XSI}" xmlns:xsd="{NS_XSD}"/>"#)
 }
@@ -480,6 +497,7 @@ pub(crate) fn respell(ticket: &str, driver: &str) -> Option<String> {
 /// The widest unprintable margin of the paper, in micrometres, from PrintCapabilities computed
 /// for the job's ticket (`PageImageableSize`). The largest of the four, so content centred inside
 /// it is clear of every edge whichever way the driver measures. `None` when the driver doesn't say.
+#[cfg(windows)]
 pub(crate) fn imageable_margin(capabilities_xml: &str) -> Option<u32> {
     let document = roxmltree::Document::parse(capabilities_xml).ok()?;
     let imageable = document.root_element().children().find(|n| n.has_tag_name((NS_PSF, "Property")) && named(*n, "PageImageableSize"))?;
@@ -495,6 +513,7 @@ pub(crate) fn imageable_margin(capabilities_xml: &str) -> Option<u32> {
 
 /// The job file's name, which the spooler shows as the document's: the title, with anything that
 /// could leave the folder replaced and Windows' device names (`CON`, `LPT1`) avoided.
+#[cfg(windows)]
 pub(crate) fn job_filename(title: &str) -> String {
     let stem = title.strip_suffix(".pdf").or_else(|| title.strip_suffix(".PDF")).unwrap_or(title);
     let safe: String =

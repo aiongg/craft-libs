@@ -274,10 +274,6 @@ impl Folded {
 mod tests {
     use super::*;
 
-    fn key(locale: &str, s: &str) -> String {
-        Folder::new(locale).key(s)
-    }
-
     #[test]
     fn source_ranges_round_trip() {
         let f = Folder::new("de");

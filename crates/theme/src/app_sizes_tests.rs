@@ -2,7 +2,6 @@
 
 use serde_json::{Value, json};
 
-use super::format;
 use super::*;
 
 fn sizes(v: &Value) -> AppSizes {
