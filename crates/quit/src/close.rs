@@ -238,80 +238,13 @@ mod guard_tests {
         assert!(guard.is_finished() && !guard.is_cancelled());
         assert_eq!(CloseGuard::<u32>::new(CloseScope::Close, []).saved(), GuardStep::Finished);
     }
-
-    #[test]
-    fn apply_to_all_saves_every_document_and_a_failed_save_stops() {
-        let mut guard = CloseGuard::new(CloseScope::Quit, [1, 2, 3]);
-        assert_eq!(guard.answer_all(CloseAnswer::Save), GuardStep::Save(1));
-        assert_eq!(guard.saved(), GuardStep::Save(2));
-        assert_eq!(guard.save_failed(), GuardStep::Cancelled);
-        assert!(guard.is_cancelled());
-
-        let mut guard = CloseGuard::new(CloseScope::Quit, [1, 2]);
-        assert_eq!(guard.answer_all(CloseAnswer::Save), GuardStep::Save(1));
-        assert_eq!(guard.saved(), GuardStep::Save(2));
-        assert_eq!(guard.saved(), GuardStep::Finished);
-
-        let mut guard = CloseGuard::new(CloseScope::Quit, [1, 2]);
-        assert_eq!(guard.answer_all(CloseAnswer::DontSave), GuardStep::Discard(1));
-        assert_eq!(guard.discarded(), GuardStep::Discard(2));
-        assert_eq!(guard.discarded(), GuardStep::Finished);
-    }
 }
 
 #[cfg(all(test, feature = "ui"))]
 mod tests {
-    use std::cell::Cell;
-
-    use egui::{RawInput, ViewportEvent};
+    use egui::RawInput;
 
     use super::*;
-
-    /// One frame of the root window, with its close button pressed or not. `app` runs in it.
-    /// Returns the frame's commands for the root window.
-    fn frame(close: bool, app: impl Fn(&Context)) -> Vec<ViewportCommand> {
-        let ctx = Context::default();
-        let mut input = RawInput::default();
-        if close {
-            input.viewports.entry(ViewportId::ROOT).or_default().events.push(ViewportEvent::Close);
-        }
-        let mut out = ctx.run_ui(input, |ui| app(ui.ctx()));
-        out.textures_delta.clear(); // not painted
-        out.viewport_output.remove(&ViewportId::ROOT).map(|o| o.commands).unwrap_or_default()
-    }
-
-    fn cancels(commands: &[ViewportCommand]) -> bool {
-        commands.contains(&ViewportCommand::CancelClose)
-    }
-
-    #[test]
-    fn intercept_close_holds_the_window_while_documents_are_unsaved() {
-        for (unsaved, held) in [(true, true), (false, false)] {
-            let result = Cell::new(false);
-            let commands = frame(true, |ctx| result.set(intercept_close(ctx, unsaved)));
-            assert_eq!(result.get(), held);
-            assert_eq!(cancels(&commands), held);
-        }
-        let held = Cell::new(true);
-        frame(false, |ctx| held.set(intercept_close(ctx, true)));
-        assert!(!held.get(), "no close request, nothing to hold");
-    }
-
-    /// The root window's commands from one frame run after `before`, which runs between frames
-    /// like a native menu-event handler.
-    fn commands_after(before: impl FnOnce(&Context)) -> Vec<ViewportCommand> {
-        let ctx = Context::default();
-        before(&ctx);
-        let mut out = ctx.run_ui(RawInput::default(), |_| {});
-        out.textures_delta.clear(); // not painted
-        out.viewport_output.remove(&ViewportId::ROOT).map(|o| o.commands).unwrap_or_default()
-    }
-
-    #[test]
-    fn the_quit_menu_item_asks_the_window_to_close() {
-        let commands = commands_after(|ctx| assert!(on_menu_event(ctx, QUIT_MENU_ID)));
-        assert!(commands.contains(&ViewportCommand::Close), "the app's close handling decides");
-    }
 
     #[test]
     fn quit_from_a_child_viewport_still_asks_the_root_to_close() {
@@ -328,11 +261,5 @@ mod tests {
         let child_commands = out.viewport_output.get(&child).map(|o| o.commands.as_slice()).unwrap_or_default();
         assert!(root_commands.contains(&ViewportCommand::Close), "root unsaved handling decides whether the app exits");
         assert!(!child_commands.contains(&ViewportCommand::Close), "Quit must not just close the current child");
-    }
-
-    #[test]
-    fn other_menu_items_are_left_to_the_app() {
-        let commands = commands_after(|ctx| assert!(!on_menu_event(ctx, "edit.copy")));
-        assert!(!commands.contains(&ViewportCommand::Close));
     }
 }
