@@ -9,6 +9,7 @@ use crate::primitives::{HiddenContent, ScrollBar};
 use crate::runtime::egui::pass;
 use crate::runtime::egui::{memory as store, repaint, sizing};
 use crate::runtime::env::Env;
+use crate::runtime::lazy;
 use crate::style::{SurfaceKind, UiTokens, scroll_bar_look, surface_style};
 use craft_behavior::{Axis, PartKey, ScrollPos, ScrollSpan};
 use egui::{Context, Id, Pos2, Rect, Ui, Vec2};
@@ -17,12 +18,18 @@ const SCROLL_Y: PartKey = PartKey::new("body_scroll_y");
 
 const SCROLL_X: PartKey = PartKey::new("body_scroll_x");
 
-/// The scroll offset a container with no `Component::scroll` binding keeps for the session.
+/// The scroll offset a container with no `Component::scroll` binding keeps for the session, and the content extent
+/// every scrolling container keeps with it.
 #[derive(Clone, Default)]
 pub(super) struct ScrollState {
     pub(super) offset: (f64, f64),
     /// A bottom-anchored region follows the end while nothing moved it away.
     pub(super) follow_end: Option<bool>,
+    /// The same position named by content: the offset follows it while extents before its child change.
+    pub(super) anchor: Option<crate::runtime::lazy::Anchor>,
+    /// The content's extent from the last run that laid it out: it bounds the offset, so it is kept as long, a hidden
+    /// body's included.
+    pub(super) extent: (f32, f32),
 }
 
 /// The offsets `scroll_input` moved scroll bodies to, with the frame that queued each, for step 4 of each body's next
@@ -54,6 +61,32 @@ pub(super) fn scroll_of(props: &ContainerProps) -> Option<Scroll> {
     props.scroll.or_else(|| overlay_of(props).filter(|overlay| overlay.body_scroll).map(|_| Scroll::vertical()))
 }
 
+/// After the real run of the scroll body `id` laid out content of `extent` behind a view of `view`: the anchor rule
+/// (`lazy::follow`) moves the offset, and the pass runs again at it. A body that `keeps` no anchor (its offset is bound
+/// to the app, or it follows its end) has none.
+pub(super) fn follow_anchor(
+    ctx: &Context,
+    (id, scroll, keeps): (Id, Scroll, bool),
+    (extent, view): (Vec2, Vec2),
+    (offset, read): (&mut ScrollPos, ScrollPos),
+    anchor: &mut Option<lazy::Anchor>,
+) {
+    let placed = lazy::placed(ctx, id);
+    if !keeps {
+        *anchor = None;
+        return;
+    }
+    let short = |x: f64| x as f32;
+    let moved = Vec2::new(short(offset.x - read.x), short(offset.y - read.y));
+    let back = Vec2::new(short(offset.x), short(offset.y));
+    let ahead = (extent - view) - back;
+    if let Some(shift) = lazy::follow(anchor, &placed, moved, view, (back, ahead), (scroll.horizontal_on(), scroll.vertical_on())) {
+        offset.x += f64::from(shift.x);
+        offset.y += f64::from(shift.y);
+        sizing::request_discard(ctx, sizing::Rerun::Layout);
+    }
+}
+
 /// One axis of a scroll region: its track and its span.
 pub(super) struct Bar {
     pub(super) key: PartKey,
@@ -69,7 +102,7 @@ impl BodyHooks<'_> {
         if let Some(view) = self.view
             && let Some(scroll) = scroll_of(props)
         {
-            let (ex, ey) = self.last.extent;
+            let (ex, ey) = self.last_extent;
             let content = Vec2::new(if scroll.horizontal_on() { ex } else { view.width() }, if scroll.vertical_on() { ey } else { view.height() });
             let offset = Vec2::new(self.offset.x as f32, self.offset.y as f32);
             let background = surface_style(tokens, SurfaceKind::under(own_surface(props, cx), env.surface)).fill;
@@ -153,7 +186,7 @@ impl BodyHooks<'_> {
                     continue;
                 }
             };
-            let (visible, extent, at) = if vertical { (view.y, self.last.extent.1, offset.y) } else { (view.x, self.last.extent.0, offset.x) };
+            let (visible, extent, at) = if vertical { (view.y, self.last_extent.1, offset.y) } else { (view.x, self.last_extent.0, offset.x) };
             let span = ScrollSpan::new(0.0..f64::from(extent).max(f64::from(visible)), at..at + f64::from(visible));
             let start = craft_behavior::scroll::page(&span, toward_end).start;
             if vertical {
@@ -171,7 +204,7 @@ impl<'b> BodyHooks<'b> {
         let Some(scroll) = scroll_of(props) else { return Vec::new() };
         let thickness = scroll_bar_look(tokens).thickness;
         let (v_on, h_on) = (scroll.vertical_on(), scroll.horizontal_on());
-        let (ex, ey) = self.last.extent;
+        let (ex, ey) = self.last_extent;
         let mut bars = Vec::new();
         if v_on {
             let track = if rtl {
@@ -196,7 +229,7 @@ impl<'b> BodyHooks<'b> {
     }
 
     pub(super) fn max_offset(&self, view: Vec2) -> ScrollPos {
-        ScrollPos { x: f64::from((self.last.extent.0 - view.x).max(0.0)), y: f64::from((self.last.extent.1 - view.y).max(0.0)) }
+        ScrollPos { x: f64::from((self.last_extent.0 - view.x).max(0.0)), y: f64::from((self.last_extent.1 - view.y).max(0.0)) }
     }
 
     pub(super) fn clamp_offset(&mut self, scroll: Scroll, view: Vec2) {

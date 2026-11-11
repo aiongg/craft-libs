@@ -31,10 +31,9 @@ pub use reorder::REORDER_BAND;
 pub(crate) use window::MOVE_BAND;
 use window::WindowMode;
 
-/// What the scroll region and the regions measured last pass.
+/// The scroll region's view in the last pass that showed it.
 #[derive(Clone, Default)]
 struct BodyView {
-    extent: (f32, f32),
     view: Option<[f32; 4]>,
 }
 
@@ -82,9 +81,14 @@ pub(super) struct BodyHooks<'b> {
     /// The offset this pass shows, as step 4 left it: what decides which out-of-view children run, in a measuring
     /// run (which lays the content out from offset zero) as in the real run.
     view_offset: ScrollPos,
+    /// The scroll position named by content, kept with an offset the framework holds (`ScrollState`).
+    anchor: Option<crate::runtime::lazy::Anchor>,
+    anchor_at_read: Option<crate::runtime::lazy::Anchor>,
     scroll_bound: bool,
     moved: bool,
     last: BodyView,
+    /// The content's extent from the last run that laid it out, kept with the offset it bounds (`ScrollState`).
+    last_extent: (f32, f32),
     /// This pass's sizes, recorded at step 17.
     body_size: Option<Vec2>,
     header_size: Option<Vec2>,
@@ -142,9 +146,12 @@ impl<'b> BodyHooks<'b> {
             offset: ScrollPos::default(),
             offset_at_read: ScrollPos::default(),
             view_offset: ScrollPos::default(),
+            anchor: None,
+            anchor_at_read: None,
             scroll_bound: false,
             moved: false,
             last: BodyView::default(),
+            last_extent: (0.0, 0.0),
             body_size: None,
             header_size: None,
             footer_size: None,

@@ -8,7 +8,7 @@ use super::regions::{
     shared_line,
 };
 use super::reorder::REORDER_BAND;
-use super::scroll::{Jumps, ScrollState, jump_frame, overflow_inset, scroll_of};
+use super::scroll::{Jumps, ScrollState, follow_anchor, jump_frame, overflow_inset, scroll_of};
 use super::window::{WindowMode, os_window, window_instance};
 use super::{BodyHooks, BodyView};
 use crate::contract::cx::{BodyCx, BodyOwner};
@@ -169,6 +169,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         };
         self.last = stage.recall::<BodyView>(sub(id, "view"));
         let Some(scroll) = scroll else { return };
+        self.last_extent = stage.session::<ScrollState>(sub(id, "scroll")).extent;
         self.scroll_bound = comp.scroll().is_some();
         let held = match comp.scroll() {
             Some(bind) => match bind.get() {
@@ -177,9 +178,11 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             },
             None => {
                 let state = stage.session::<ScrollState>(sub(id, "scroll"));
+                self.anchor = state.anchor;
                 ScrollPos { x: state.offset.0, y: state.offset.1 }
             }
         };
+        self.anchor_at_read = self.anchor;
         self.offset = held;
         self.offset_at_read = held;
         let rtl = env.direction.is_rtl();
@@ -225,9 +228,9 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         let moves = if quiet { crate::contract::steps::peek_scroll_moves(&ctx, id) } else { crate::contract::steps::take_scroll_moves(&ctx, id) };
         for mv in moves {
             let (visible, extent, offset, vertical) = if scroll.vertical_on() {
-                (view.y, self.last.extent.1, self.offset.y, true)
+                (view.y, self.last_extent.1, self.offset.y, true)
             } else {
-                (view.x, self.last.extent.0, self.offset.x, false)
+                (view.x, self.last_extent.0, self.offset.x, false)
             };
             let span = ScrollSpan::new(0.0..f64::from(extent).max(f64::from(visible)), offset..offset + f64::from(visible));
             if let Some(range) = craft_behavior::scroll::jump(&span, mv) {
@@ -242,7 +245,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         let follows = stage.session::<ScrollState>(sub(id, "scroll")).follow_end.unwrap_or(true);
         self.follows_end = scroll.anchor == crate::contract::ScrollAnchor::End && follows;
         if self.follows_end && !self.moved {
-            self.offset.y = f64::from((self.last.extent.1 - view.y).max(0.0));
+            self.offset.y = f64::from((self.last_extent.1 - view.y).max(0.0));
         }
         self.clamp_offset(scroll, view);
         self.view_offset = self.offset;
@@ -290,8 +293,8 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         self.measured_end = None;
         self.measured_controls = None;
         // The measuring run lays a scrolling body's content out at the width the real run of this pass gives it: beside
-        // the bars the content extent the view keeps asks for, so the records it leaves serve that run.
-        self.last = BodyView { extent: self.last.extent, ..BodyView::default() };
+        // the bars the kept content extent asks for, so the records it leaves serve that run.
+        self.last = BodyView::default();
         self.offset = ScrollPos::default();
         self.region_gap = gap_of(&at.env.tokens, Gap::Tight);
         self.header_gap = header_gap_of(&props, &at.env.tokens);
@@ -745,7 +748,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                         let off = self.offset;
                         let big = crate::contract::MAX_EXTENT;
                         let bar = scroll_bar_look(&body_env.tokens).thickness;
-                        let inset = overflow_inset(scroll, Vec2::new(self.last.extent.0, self.last.extent.1), at.size(), bar);
+                        let inset = overflow_inset(scroll, Vec2::new(self.last_extent.0, self.last_extent.1), at.size(), bar);
                         let seen = Rect::from_min_max(
                             Pos2::new(if rtl { at.min.x + inset.x } else { at.min.x }, at.min.y),
                             Pos2::new(if rtl { at.max.x } else { at.max.x - inset.x }, at.max.y - inset.y),
@@ -765,13 +768,36 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                             if scroll.horizontal_on() { (shown.x - off.x) as f32 * if rtl { -1.0 } else { 1.0 } } else { 0.0 },
                             if scroll.vertical_on() { (shown.y - off.y) as f32 } else { 0.0 },
                         );
-                        let view = crate::runtime::lazy::View { owner: id, rect: seen.translate(shift) };
+                        let view = crate::runtime::lazy::View {
+                            owner: id,
+                            rect: seen.translate(shift),
+                            content: max,
+                            axes: (scroll.horizontal_on(), scroll.vertical_on()),
+                            rtl,
+                            anchor: self.anchor.map(|anchor| anchor.child),
+                        };
+                        // Only the run that lays the content out for the view places its children; a measure lays it
+                        // out for its own question.
+                        let lays_out = real && !crate::runtime::measure::active(&ctx);
+                        if lays_out {
+                            crate::runtime::lazy::begin(&ctx, id);
+                        }
                         let region_env = Env::install_for(&region_ui, body_env.derive_local(|scoped| scoped.lazy = Some(view)));
                         layout::run_body(&mut region_ui, layout_id, layout, gap, |ui| {
                             shared_labels(ui, id, label_column, room.x, &mut group_extent, |ui| body(ui, bcx))
                         });
                         Env::restore(&ctx, region_env);
                         let extent = region_ui.min_rect().size();
+                        if lays_out {
+                            let keeps = !self.scroll_bound && !self.follows_end;
+                            follow_anchor(
+                                &ctx,
+                                (id, scroll, keeps),
+                                (extent, seen.size()),
+                                (&mut self.offset, self.offset_at_read),
+                                &mut self.anchor,
+                            );
+                        }
                         if real {
                             crate::runtime::egui::widgets::note_scroll_region(&ctx, region_ui.clip_rect(), region_ui.min_rect().intersect(max));
                         }
@@ -965,7 +991,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             comp.closed(self.reason.take().unwrap_or(CloseReason::Requested));
         }
         self.write_open(comp, cx);
-        if self.offset != self.offset_at_read {
+        if self.offset != self.offset_at_read || self.anchor != self.anchor_at_read {
             match comp.scroll() {
                 Some(mut bind) => {
                     let (label, doc_key) = (cx.core.label_arc(), cx.core.resolved.doc_key);
@@ -974,9 +1000,11 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 None => {
                     let state = cx.core.memory.session::<ScrollState>(sub(cx.core.id, "scroll"));
                     state.offset = (self.offset.x, self.offset.y);
+                    state.anchor = self.anchor;
                 }
             }
             self.offset_at_read = self.offset;
+            self.anchor_at_read = self.anchor;
         }
     }
 
@@ -996,23 +1024,23 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         if let Some(size) = self.controls_size {
             crate::contract::steps::record_size(ctx, sub(id, "controls"), size);
         }
-        if self.extent.is_some() || self.view.is_some() {
-            let view = stage.shown::<BodyView>(sub(id, "view"));
-            if let Some(extent) = self.extent {
-                // A bottom-anchored region that follows the end shows the rows that arrived this pass in this
-                // frame: the repeated pass starts from the new extent.
-                if self.follows_end && !self.moved && (extent.y - view.extent.1).abs() > 0.5 {
-                    layout_memory::ask_discard(ctx);
-                }
-                view.extent = (extent.x, extent.y);
+        if let Some(extent) = self.extent {
+            let state = stage.session::<ScrollState>(sub(id, "scroll"));
+            // A bottom-anchored region that follows the end shows the rows that arrived this pass in this frame: the
+            // repeated pass starts from the new extent.
+            if self.follows_end && !self.moved && (extent.y - state.extent.1).abs() > 0.5 {
+                layout_memory::ask_discard(ctx);
             }
-            view.view = self.view.map(|view| [view.min.x, view.min.y, view.max.x, view.max.y]);
+            state.extent = (extent.x, extent.y);
+        }
+        if self.extent.is_some() || self.view.is_some() {
+            stage.shown::<BodyView>(sub(id, "view")).view = self.view.map(|view| [view.min.x, view.min.y, view.max.x, view.max.y]);
         }
         if *stage.session::<WindowMode>(sub(id, "window_mode")) != self.mode {
             *stage.session::<WindowMode>(sub(id, "window_mode")) = self.mode.clone();
         }
         if self.moved {
-            let at_end = self.last.view.map(rect_of).is_some_and(|view| self.offset.y >= f64::from(self.last.extent.1 - view.height()) - 0.5);
+            let at_end = self.last.view.map(rect_of).is_some_and(|view| self.offset.y >= f64::from(self.last_extent.1 - view.height()) - 0.5);
             stage.session::<ScrollState>(sub(id, "scroll")).follow_end = Some(at_end);
         }
     }
