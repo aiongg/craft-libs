@@ -703,3 +703,35 @@ fn an_item_menu_part_opens_the_callers_menu_under_it_and_escape_closes_it() {
     fixture.settle();
     assert_eq!(picked.get(), 1, "the pick ran");
 }
+
+/// A Ctrl or Cmd press toggles its row once: in the pass the button went down, not again in a discard pass of that
+/// frame or in the frames the press is held.
+#[trial]
+fn a_toggling_press_toggles_once_through_a_discard_pass_and_a_hold() {
+    let words = Words::flat(&["one", "two", "three"]);
+    let seen = Seen::default();
+    let selection = RefCell::new(Selection::<usize>::default());
+    let discard = Cell::new(false);
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| {
+        if discard.get() && craft_ui::runtime::frame::discardable(ui.ctx()) {
+            craft_ui::runtime::frame::discard_pass(ui.ctx(), "trial: the press frame runs twice");
+        }
+        let mut held = selection.borrow().clone();
+        show_words(ui, List::new(SelectMode::Multi).selection(Bind::bound(&mut held)), &words, &seen);
+        *selection.borrow_mut() = held;
+    };
+    frames.idle(3, &mut show);
+    let at = Pos2::new(seen.rect.get().min.x + 50.0, seen.rect.get().min.y + ROW_H * 1.5);
+    frames.hold(Modifiers::COMMAND);
+    frames.frame(vec![pointer::moved(at)], &mut show);
+    discard.set(true);
+    let passes = frames.frame(vec![pointer::press(at)], &mut show);
+    discard.set(false);
+    assert_eq!(passes, 2, "the press frame runs a discard pass");
+    frames.idle(2, &mut show);
+    frames.frame(vec![pointer::release(at)], &mut show);
+    frames.hold(Modifiers::NONE);
+    frames.idle(1, &mut show);
+    assert_eq!(selection.borrow().items, vec![1], "the row toggled once");
+}

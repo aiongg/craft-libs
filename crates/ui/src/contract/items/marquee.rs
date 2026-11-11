@@ -41,8 +41,12 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         let xf = self.xf;
         let layer = |point: Pos2| xf.map_or(point, |map| map.to_layer(point));
         match cx.core.press.phase {
+            // Once, in the pass the button went down: the phase stays `Down` while the press is held.
             PressPhase::Down { start, .. }
-                if props.marquee && start.button == PointerButton::Primary && Self::select_mode(comp) == SelectMode::Multi =>
+                if cx.core.press.went_down
+                    && props.marquee
+                    && start.button == PointerButton::Primary
+                    && Self::select_mode(comp) == SelectMode::Multi =>
             {
                 let origin = layer(start.origin);
                 // The press lands on the rows the user saw: the offset of the last pass.
