@@ -130,3 +130,9 @@ winit = { git = "https://github.com/storytold/winit.git", rev = "a517b3846ee8457
 # craft-audio's `decode` need the same override in their own workspace.
 [profile.dev.package.symphonia-bundle-flac]
 overflow-checks = false
+
+# Dependencies (egui, rendering, text shaping, syn) run optimised in dev and test builds, so
+# screen tests, design-lint and the debug gallery run at a usable speed. They build once per
+# target dir; the workspace's own crates stay unoptimised and incremental.
+[profile.dev.package."*"]
+opt-level = 2
