@@ -17,7 +17,7 @@ use crate::{Config, Error, Finding, check_structure, check_with_scope, exempt_si
 /// Types whose cases or fields are fixed by meaning (spec 24.1, `api/non-exhaustive`).
 const CLOSED: [&str; 9] = ["Mixed", "Politeness", "Numeric", "HitPriority", "ScrollPos", "PartRef", "SetPosition", "States", "StateMix"];
 
-/// Permission keys whose only allowed location is craft-ui's `runtime::egui`.
+/// Permission keys whose only allowed location is craft-ui-contract's `runtime::egui`.
 const EGUI_KEYS: [&str; 9] = [
     "contract/egui-import",
     "contract/allocate",
@@ -43,18 +43,24 @@ const fn place(krate: &'static str, module: &'static [&'static str]) -> Place {
 /// The locations that may use what `key` forbids. A key not listed here is allowed nowhere.
 fn places(key: &str) -> Vec<Place> {
     match key {
-        k if EGUI_KEYS.contains(&k) => vec![place("craft-ui", &["runtime", "egui"])],
-        "style-mutation" => vec![place("craft-ui", &["runtime", "egui", "style"]), place("craft-ui", &["runtime", "egui", "scale"])],
-        "contract/text-edit" => {
-            vec![place("craft-ui", &["runtime", "egui"]), place("craft-ui", &["primitives", "text_adapter"]), place("craft-ui", &["testing"])]
+        k if EGUI_KEYS.contains(&k) => vec![place("craft-ui-contract", &["runtime", "egui"])],
+        "style-mutation" => {
+            vec![place("craft-ui-contract", &["runtime", "egui", "style"]), place("craft-ui-contract", &["runtime", "egui", "scale"])]
         }
-        "contract/memory" => vec![place("craft-ui", &["runtime", "egui", "memory"])],
-        "contract/layers" => vec![place("craft-ui", &["runtime", "egui", "areas"])],
-        "contract/motion:clock" => vec![place("craft-ui", &["runtime", "motion"])],
+        "contract/text-edit" => vec![
+            place("craft-ui-contract", &["runtime", "egui"]),
+            place("craft-ui-contract", &["primitives", "text_adapter"]),
+            place("craft-ui-contract", &["testing"]),
+        ],
+        "contract/memory" => vec![place("craft-ui-contract", &["runtime", "egui", "memory"])],
+        "contract/layers" => vec![place("craft-ui-contract", &["runtime", "egui", "areas"])],
+        "contract/motion:clock" => vec![place("craft-ui-contract", &["runtime", "motion"])],
         "contract/platform:target" => vec![place("craft-platform", &[]), place("craft-host", &["target"])],
-        "behavior/pipeline-only" => vec![place("craft-ui", &["contract"]), place("craft-ui", &["primitives"]), place("craft-ui", &["edit"])],
-        k if k.starts_with("style/") => vec![place("craft-ui", &["style"])],
-        "test/kit" => vec![place("craft-ui", &["testing"])],
+        "behavior/pipeline-only" => {
+            vec![place("craft-ui-contract", &["contract"]), place("craft-ui-contract", &["primitives"]), place("craft-ui-widgets", &["edit"])]
+        }
+        k if k.starts_with("style/") => vec![place("craft-ui-contract", &["style"])],
+        "test/kit" => vec![place("craft-ui-contract", &["testing"])],
         _ => Vec::new(),
     }
 }
