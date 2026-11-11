@@ -34,11 +34,6 @@ impl ScreenMode {
         self == Self::Standard
     }
 
-    /// Whether the scroll bars show; the app's canvas draws them.
-    pub fn scrollbars_visible(self) -> bool {
-        self == Self::Standard
-    }
-
     /// Whether the window is in OS full screen.
     pub fn is_full_screen(self) -> bool {
         self != Self::Standard

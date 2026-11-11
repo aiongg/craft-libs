@@ -248,11 +248,6 @@ impl TileArrangement {
         first..first + count
     }
 
-    /// The tile counts of the rows in order, with each run of tiles of a closed group as a row of its own.
-    pub fn row_lengths(&self) -> Vec<usize> {
-        self.runs().into_iter().map(|run| run.len()).collect()
-    }
-
     /// The rows in order as ranges of tiles, with each run of tiles of a closed group as a range of its own.
     fn runs(&self) -> Vec<Range<usize>> {
         let mut runs = Vec::with_capacity(self.rows.len());

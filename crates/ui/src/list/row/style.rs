@@ -145,9 +145,6 @@ fn flag_rules(command: bool) -> Vec<FlagRule> {
 
 /// The row looks of the collection items, on a `StyleCx`: lists, menus and popup lists share them.
 pub trait RowStyleCx {
-    /// The fill of a row of a list, a menu or any collection item: the one surface, the active (lead) row included.
-    fn row_surface(&self) -> Stateful<StyleColor>;
-
     /// The fill of a row of a menu or popup list: the active (lead) row is a command highlight in `accent.solid`, and a
     /// row with an open submenu (emphasized) keeps the hover tint.
     fn command_row_surface(&self) -> Stateful<StyleColor>;
@@ -165,10 +162,6 @@ pub trait RowStyleCx {
 }
 
 impl RowStyleCx for StyleCx<'_> {
-    fn row_surface(&self) -> Stateful<StyleColor> {
-        fill_of(self, FillKey { striped: false, layer: false, command: false })
-    }
-
     fn command_row_surface(&self) -> Stateful<StyleColor> {
         fill_of(self, FillKey { striped: false, layer: false, command: true })
     }

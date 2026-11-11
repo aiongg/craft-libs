@@ -23,10 +23,6 @@ impl DockSides {
     pub const ALL: DockSides = DockSides { start: true, end: true, top: true, bottom: true };
     /// No side.
     pub const NONE: DockSides = DockSides { start: false, end: false, top: false, bottom: false };
-    /// The start and end sides.
-    pub const START_END: DockSides = DockSides { start: true, end: true, top: false, bottom: false };
-    /// The top and bottom sides.
-    pub const TOP_BOTTOM: DockSides = DockSides { start: false, end: false, top: true, bottom: true };
 
     /// Whether `side` is in the set; never `DockSide::Center`.
     pub const fn contains(self, side: DockSide) -> bool {
@@ -182,24 +178,10 @@ impl DockConfig {
         self
     }
 
-    /// The sides of the layout's outer edge that take a drop: all four with `side_edge_zones`, else the top and
-    /// bottom ones of `drop_edges`.
-    pub fn outer_edges(&self) -> DockSides {
-        let sides = self.drop_sides();
-        if self.side_edge_zones { sides } else { DockSides { start: false, end: false, ..sides } }
-    }
-
     /// The sides of a group that takes no tabs that take a drop beside it: all four with `side_edge_zones`, else
     /// `drop_edges`.
     pub fn drop_sides(&self) -> DockSides {
         if self.side_edge_zones { DockSides::ALL } else { self.drop_edges }
-    }
-
-    /// The sides of a frame or floating group that takes no tabs (a canvas) whose body takes a drop: none in the
-    /// docking profile (`new_dock_zones` without `side_edge_zones`), where only the bands along borders dock beside
-    /// it, else `drop_sides`.
-    pub fn canvas_sides(&self) -> DockSides {
-        if self.side_edge_zones || !self.new_dock_zones { self.drop_sides() } else { DockSides::NONE }
     }
 
     /// How a group's body divides into side zones in this profile.

@@ -14,9 +14,6 @@ use egui::{Context, Id, Pos2, Rect, Vec2};
 
 pub use craft_behavior::dock::{SIDE_ZONE_DEPTH_SHARE, SIDE_ZONE_FRACTION};
 
-/// The most of the layout's width and height the outer edge band takes.
-pub const EDGE_BAND_SHARE: f32 = 0.25;
-
 /// The sizes of a dock's drop bands and zones and of the windows it floats, resolved from the theme's tokens.
 /// A dock's component style calls [`Self::style`] from `Component::style`, so the sizes are cached with it.
 #[derive(Clone, Copy, Debug, PartialEq)]

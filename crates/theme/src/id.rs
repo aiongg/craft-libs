@@ -108,11 +108,6 @@ impl ThemeId {
         ThemeId(Arc::from(s))
     }
 
-    /// The id that means "the app's own default theme" ([`APP_DEFAULT`]).
-    pub fn app_default() -> Self {
-        Self::from_static(APP_DEFAULT)
-    }
-
     /// The id of the suite's default theme ([`SUITE_DEFAULT`]).
     pub fn suite_default() -> Self {
         Self::from_static(SUITE_DEFAULT)

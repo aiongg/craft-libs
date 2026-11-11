@@ -106,12 +106,7 @@ pub struct MetadataTableOutput {
     pub checked: Vec<Checked>,
 }
 
-impl MetadataTableOutput {
-    /// A check of the column picker changed: the chosen keys have changed.
-    pub fn chosen_changed(&self) -> bool {
-        !self.checked.is_empty()
-    }
-}
+impl MetadataTableOutput {}
 
 impl Outcome for MetadataTableOutput {
     type Value = NoValue;

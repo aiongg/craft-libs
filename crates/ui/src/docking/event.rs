@@ -134,19 +134,6 @@ impl<P: PartialEq> FloatSpace<P> {
         self
     }
 
-    /// Records what a drag floats from `panel`: the panel alone, its group and its dock column. The first record
-    /// of a panel wins: an iconic panel is recorded at its icon before its flyout.
-    pub fn record_sizes(&mut self, panel: &P, alone: Vec2, group: Vec2, column: Vec2)
-    where
-        P: Clone,
-    {
-        for (sizes, size) in [(&mut self.panels, alone), (&mut self.groups, group), (&mut self.columns, column)] {
-            if !sizes.iter().any(|(held, _)| held == panel) {
-                sizes.push((panel.clone(), size));
-            }
-        }
-    }
-
     /// The size a command floats `panel` at alone, when recorded.
     pub fn panel(&self, panel: &P) -> Option<Vec2> {
         Self::find(&self.panels, panel)
@@ -185,11 +172,5 @@ impl<P: PartialEq> FloatSpace<P> {
             Some(at) => self.contents[at].1 = height,
             None => self.contents.push((panel, height)),
         }
-    }
-
-    /// The height `panel`'s content used when it was last recorded; `None` for content that filled its body or was
-    /// never recorded.
-    pub fn content_height(&self, panel: &P) -> Option<f32> {
-        self.contents.iter().find(|(held, _)| held == panel).and_then(|(_, height)| *height)
     }
 }

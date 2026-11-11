@@ -229,18 +229,9 @@ pub struct AppChoice {
 }
 
 impl AppChoice {
-    /// Follows the suite in every field.
-    pub const FOLLOW_SUITE: AppChoice = AppChoice { theme: None, mode: None, size: None };
-
     /// A choice with all three fields given.
     pub const fn new(theme: Option<ThemePair>, mode: Option<ModeChoice>, size: Option<Size>) -> Self {
         Self { theme, mode, size }
-    }
-
-    /// This choice with the app's own theme.
-    pub fn with_theme(mut self, theme: ThemePair) -> Self {
-        self.theme = Some(theme);
-        self
     }
 
     /// This choice with the app's own mode.

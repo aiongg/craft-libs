@@ -109,11 +109,6 @@ impl LogEvent {
         let age = age.to_owned();
         ListRow::new(message).accessible_name(name).icon(IconSpec::svg(self.level.icon())).tone(self.level.tone()).striped(striped).trailing(age)
     }
-
-    /// The details line over the selected event's message: "Warning \u{b7} Render \u{b7} 2 min ago".
-    pub fn details_line(&self, words: &EventWords, age: &str) -> String {
-        words.details.fill(&[("level", self.level.word(words)), ("source", self.source.as_str()), ("time", age)])
-    }
 }
 
 /// What the log keeps between passes; the app stores it with its panel state.

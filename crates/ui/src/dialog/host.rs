@@ -31,11 +31,6 @@ impl<T> DialogResult<T> {
             DialogResult::Cancel => None,
         }
     }
-
-    /// True when the dialog closed with [`DialogResult::Cancel`].
-    pub fn is_cancel(&self) -> bool {
-        matches!(self, DialogResult::Cancel)
-    }
 }
 
 /// A dialog the host owns and shows: the app builds the value, [`DialogHost::open`]s it and reads
@@ -240,11 +235,6 @@ impl DialogHost {
         &self.stack
     }
 
-    /// The routing stack, mutably.
-    pub fn stack_mut(&mut self) -> &mut DialogStack {
-        &mut self.stack
-    }
-
     /// Opens `dialog` on top. Its id goes on the stack now; the dialog shows from the next
     /// [`run`](DialogHost::run). Returns the id.
     pub fn open<D: StackDialog>(&mut self, dialog: D) -> DialogId {
@@ -339,17 +329,6 @@ impl DialogHost {
         }
     }
 
-    /// [`confirm`](DialogHost::confirm) after `set` has changed the open `D`: the way automation
-    /// answers a dialog with other than its default (a prompt's Alternate answer, a check box
-    /// ticked). `false` as [`confirm`](DialogHost::confirm), and `set` does not run when no `D` is open.
-    pub fn confirm_with<D: StackDialog>(&mut self, ctx: &Context, set: impl FnOnce(&mut D)) -> bool {
-        match self.get_mut::<D>() {
-            Some(dialog) => set(dialog),
-            None => return false,
-        }
-        self.confirm::<D>(ctx)
-    }
-
     /// [`confirm`](DialogHost::confirm) for the open `D` that `id` names.
     pub fn confirm_by_id<D: StackDialog>(&mut self, ctx: &Context, id: DialogId) -> bool {
         match self.position_by_id::<D>(id) {
@@ -393,11 +372,6 @@ impl DialogHost {
         self.stack.remove_tree(id);
         self.cancel_orphans(Some(ctx));
         true
-    }
-
-    /// The top dialog of the stack, whoever shows it (the host or the app).
-    pub fn top_id(&self) -> Option<DialogId> {
-        self.stack.top()
     }
 
     /// The open dialog `id` ([`dialog_id`](super::dialog_id) of its key) as `Any`, for an app with

@@ -71,19 +71,6 @@ impl AltText {
     fn all_decorative(&self) -> bool {
         self.decorative == Mixed::Same(true)
     }
-
-    /// Whether Mark as decorative starts checked for objects with these flags: only when there is at least one and
-    /// every one is decorative.
-    pub fn starts_decorative(flags: impl IntoIterator<Item = bool>) -> bool {
-        let mut any = false;
-        for flag in flags {
-            if !flag {
-                return false;
-            }
-            any = true;
-        }
-        any
-    }
 }
 
 /// The description box's text form: the description as typed, with the decorative flag kept.

@@ -402,21 +402,6 @@ impl<'a> ListRow<'a> {
         self
     }
 
-    /// Sets whether the trailing part `part` acts. A disabled part is drawn disabled, takes no press and no focus, and
-    /// is exposed as disabled to a screen reader; it keeps its place in the row.
-    #[must_use]
-    pub fn trailing_enabled(mut self, part: TrailingPart, enabled: bool) -> Self {
-        let held = self.trailing.iter_mut().find_map(|trailing| match &mut trailing.item {
-            TrailingItem::Part { part: have, enabled, .. } if *have == part => Some(enabled),
-            _ => None,
-        });
-        debug_assert!(held.is_some(), "trailing part {part:?} is not in the row");
-        if let Some(held) = held {
-            *held = enabled;
-        }
-        self
-    }
-
     /// A component at the trailing end, in the width of a short field, that always shows: a field that edits a
     /// value of the row. The row shows `field` in its slot and hands its output to `output` in the pass it is shown. The
     /// field's stop joins the row's roving group like the row's focusable parts (Forward from the row enters it, Tab leaves the collection); it takes the keys it

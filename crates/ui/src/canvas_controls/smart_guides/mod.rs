@@ -9,15 +9,11 @@ use crate::contract::{Common, Component, Cx, MeasureCx, PaintUi, Role};
 use crate::primitives::{Dashes, PaintShape, Rule, StrokeWidth, TextRun};
 use crate::runtime::env::Units;
 use crate::style::{ComponentStyle, DataColor, RuleLook, StyleColor, StyleCx, TypeRole, UiTokens};
-use craft_behavior::geometry::snap::SnapLine;
 use craft_behavior::kurbo::{Point, Rect as DocRect};
-use craft_behavior::{Axis, Metrics, Sense};
+use craft_behavior::{Metrics, Sense};
 use craft_theme::{Rgba, contrast_ratio};
 use egui::emath::GuiRounding as _;
 use egui::{Color32, CornerRadius, Pos2, Response, Vec2};
-
-/// How far a snap line without a span reaches along its line, in document units: past any view.
-const WHOLE_VIEW: f64 = 1.0e6;
 
 /// An alignment line of [`SmartGuides`], in document coordinates.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -42,15 +38,6 @@ impl SmartLine {
     pub const fn dashed(mut self) -> Self {
         self.extension = true;
         self
-    }
-
-    /// The line a snap drew: along its span, or across the whole view when it has none.
-    pub fn from_snap(line: SnapLine) -> Self {
-        let (from, to) = line.span.unwrap_or((-WHOLE_VIEW, WHOLE_VIEW));
-        match line.along {
-            Axis::X => Self::new(Point::new(from, line.position), Point::new(to, line.position)),
-            _ => Self::new(Point::new(line.position, from), Point::new(line.position, to)),
-        }
     }
 }
 

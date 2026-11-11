@@ -678,9 +678,4 @@ impl ContentPainterCx<'_> {
     pub fn drop_mark(&self, from: Pos2, to: Pos2) {
         self.painter.extend(drop_mark(self.tokens, from, to, self.ppp()));
     }
-
-    /// The colour a plot reads grid and tick ink in.
-    pub fn grid_color(&self) -> Color32 {
-        rgba_color(self.tokens.color.overlay.grid)
-    }
 }

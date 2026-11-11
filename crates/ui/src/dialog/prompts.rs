@@ -229,19 +229,9 @@ impl StandardPrompt {
         self.chosen = choice;
     }
 
-    /// Sets the "Don't show again" box; it is reported with a Proceed answer, as a click would.
-    pub fn set_skip(&mut self, skip: bool) {
-        self.skip = skip;
-    }
-
     /// The delete confirmation for `count` items; `names` are the first few display names.
     pub fn confirm_delete(names: impl IntoIterator<Item = impl Into<String>>, count: usize) -> Self {
         Self::new(PromptKind::ConfirmDelete { names: names.into_iter().map(Into::into).collect(), count })
-    }
-
-    /// The damaged-file question for the file `name`.
-    pub fn damaged_file(name: impl Into<String>) -> Self {
-        Self::new(PromptKind::DamagedFile { name: name.into() })
     }
 
     /// The changed-on-disk question for the file `name`.
@@ -257,11 +247,6 @@ impl StandardPrompt {
     /// The layer-mask trash question.
     pub fn trash_mask() -> Self {
         Self::new(PromptKind::TrashMask)
-    }
-
-    /// Trashing a vector mask: "Delete the vector mask?" with OK (answering `PromptChoice::Proceed`) and Cancel.
-    pub fn trash_vector_mask() -> Self {
-        Self::new(PromptKind::TrashVectorMask)
     }
 
     /// A prompt with the app's own wording and buttons: rasterize a layer, or a GPU warning. Add the buttons with
