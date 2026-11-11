@@ -343,9 +343,7 @@ impl Component for Navigator<'_> {
             cx.cursor(CursorIcon::ZoomIn, CursorPriority::Part);
         }
         let mut held = cx.memory::<Held>().clone();
-        if press.went_down
-            && let Some(start) = press.phase.start()
-        {
+        if let PressPhase::Down { start, .. } = press.phase {
             held = Held { active: true, zoom: press.mods.cmd, on_proxy, from: Some(view) };
             if !held.zoom {
                 cx.begin();

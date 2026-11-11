@@ -387,7 +387,7 @@ impl Component for ColorRamp<'_> {
         let (bar, _) = self.layout(cx.rect, cx.style);
         let configured = self.ends.unwrap_or_else(Self::default_ends);
         let press = cx.part(BAR).press;
-        if primary(&press) && press.went_down {
+        if primary(&press) && matches!(press.phase, PressPhase::Down { .. }) {
             *cx.memory::<Held>() = Held { shift: press.mods.shift, alt: press.mods.alt, ends: Some(configured) };
         }
         let held = *cx.memory::<Held>();

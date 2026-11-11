@@ -566,14 +566,14 @@ impl Component for CurveGraph<'_> {
         if let Some(drag) = held.drag
             && drag.begun
             && !running
-            && !press.went_down
+            && !matches!(press.phase, PressPhase::Down { .. })
         {
             // Cancelled (Escape, an undo, an external change): the selection goes back too.
             selected = drag.before;
             held.drag = None;
         }
         match press.phase {
-            PressPhase::Down { start, .. } if press.went_down => {
+            PressPhase::Down { start, .. } => {
                 let origin = start.origin;
                 let secondary = start.button != PointerButton::Primary;
                 let command = press.mods.cmd || press.mods.ctrl;
@@ -829,7 +829,7 @@ impl CurveGraph<'_> {
             }
         };
         match press.phase {
-            PressPhase::Down { start, .. } if press.went_down && start.button == PointerButton::Primary => {
+            PressPhase::Down { start, .. } if start.button == PointerButton::Primary => {
                 let at = frame.map.value_at(start.origin);
                 let from = if press.mods.shift { held.end.as_ref().map_or(at, |(end, _)| *end) } else { at };
                 held.outputs = Curve::drawn(curve, |points, corners| self.samples(points, corners), self.levels);

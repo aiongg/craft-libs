@@ -505,7 +505,7 @@ impl<P: Clone + Send + Sync + 'static> GradientBar<'_, P> {
         let part = part_of(marker);
         let press = cx.part(part).press;
         match press.phase {
-            PressPhase::Down { .. } if press.went_down => {
+            PressPhase::Down { .. } => {
                 cx.memory::<Held>().before = self.selected_marker;
                 self.choose(Some(marker));
                 cx.focus_part(part);

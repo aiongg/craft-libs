@@ -182,8 +182,6 @@ pub(crate) struct Outcome {
     pub dragging: bool,
     /// The press winner released as a click this pass.
     pub activated: Option<Hit>,
-    /// The button went down this pass.
-    pub went_down: bool,
     xf: Option<LayerMap>,
 }
 
@@ -724,16 +722,7 @@ fn outcome_in(ctx: &Context, read: &PassRead, arena: ArenaId, layer: Layer, enab
             Some(target) => under.filter(|under| under.same(&target)),
             None => under,
         };
-        let outcome = Outcome {
-            pass: pass_nr,
-            hover,
-            target: step.target,
-            phase: step.phase,
-            dragging,
-            activated: step.activated,
-            went_down: step.went_down,
-            xf,
-        };
+        let outcome = Outcome { pass: pass_nr, hover, target: step.target, phase: step.phase, dragging, activated: step.activated, xf };
         state.outcome = Some(outcome);
         outcome
     });
@@ -847,7 +836,7 @@ fn part_press_in(
         _ => PressPhase::Idle,
     };
     let captured = won.is_some() && outcome.dragging && phase.is_drag();
-    let press = PressState::new(phase).mods(mods).sample(sample).captured(captured).went_down(won.is_some() && outcome.went_down);
+    let press = PressState::new(phase).mods(mods).sample(sample).captured(captured);
     PartPress { press, hovered, hover_pos }
 }
 
@@ -860,7 +849,7 @@ fn shape_press_in(outcome: &Outcome, mods: Mods, sample: Option<PointerSample>, 
         _ => PressPhase::Idle,
     };
     let captured = won.is_some() && phase.is_drag();
-    PressState::new(phase).mods(mods).sample(sample).captured(captured).went_down(won.is_some() && outcome.went_down)
+    PressState::new(phase).mods(mods).sample(sample).captured(captured)
 }
 
 /// The cursor a hovered part of `decls` declares, if any: the sensing core's request for the cursor service.

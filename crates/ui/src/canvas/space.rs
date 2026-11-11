@@ -130,7 +130,7 @@ pub struct BackgroundPress {
 impl BackgroundPress {
     /// What `press`, the press on the background part after the middle button's pan is taken out, reports.
     pub(super) fn of(press: &PressState) -> Self {
-        Self { pressed: press.went_down, context: context_click(press) }
+        Self { pressed: matches!(press.phase, PressPhase::Down { .. }), context: context_click(press) }
     }
 }
 

@@ -318,7 +318,8 @@ impl Component for SplitViews<'_> {
         // A press chooses the pane, as in Photoshop; Enter, Space and assistive technology activate it too.
         let chosen = |pane: &usize| {
             let part = PANE.at(*pane as u64);
-            cx.part_if_declared(part).is_some_and(|result| result.press.went_down) || cx.part_activated(part).is_some()
+            cx.part_if_declared(part).is_some_and(|result| matches!(result.press.phase, craft_behavior::PressPhase::Down { .. }))
+                || cx.part_activated(part).is_some()
         };
         self.activated = (0..self.layout.panes()).filter(|&pane| pane != active).find(chosen);
     }

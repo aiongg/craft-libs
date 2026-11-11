@@ -251,7 +251,7 @@ impl Component for ColorDisc<'_> {
         let grab_reach = cx.style.grab;
         let press = cx.part(DISC).press;
         let stop = self.stop();
-        if primary(&press) && press.went_down {
+        if primary(&press) && matches!(press.phase, PressPhase::Down { .. }) {
             let origin = press.phase.start().map(|start| start.origin);
             let near = origin.and_then(|origin| {
                 let distance = |index: usize| {

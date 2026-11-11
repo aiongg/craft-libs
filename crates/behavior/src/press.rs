@@ -151,9 +151,15 @@ pub enum PressPhase {
     Idle,
     /// The pointer is over the part.
     Hover,
-    /// The button went down on the part.
+    /// The button went down on the part: the first pass that reports the press, once per press.
     #[non_exhaustive]
     Down {
+        /// The press.
+        start: PressStart,
+    },
+    /// The button stays down on the part, within slop, in the passes after `Down`.
+    #[non_exhaustive]
+    Held {
         /// The press.
         start: PressStart,
     },
@@ -205,12 +211,18 @@ impl PressPhase {
     pub const fn start(&self) -> Option<PressStart> {
         match self {
             PressPhase::Down { start }
+            | PressPhase::Held { start }
             | PressPhase::DragStart { start, .. }
             | PressPhase::Drag { start, .. }
             | PressPhase::Release { start, .. }
             | PressPhase::Cancel { start, .. } => Some(*start),
             PressPhase::Idle | PressPhase::Hover => None,
         }
+    }
+
+    /// Whether the button is down: `Down`, `Held`, `DragStart` or `Drag`.
+    pub const fn button_down(&self) -> bool {
+        matches!(self, PressPhase::Down { .. } | PressPhase::Held { .. } | PressPhase::DragStart { .. } | PressPhase::Drag { .. })
     }
 
     /// Whether the phase is a drag in progress.
@@ -233,6 +245,7 @@ impl PressPhase {
         match self {
             PressPhase::Idle | PressPhase::Hover => self,
             PressPhase::Down { start } => PressPhase::Down { start: at(start) },
+            PressPhase::Held { start } => PressPhase::Held { start: at(start) },
             PressPhase::DragStart { start, pos } => PressPhase::DragStart { start: at(start), pos: point(pos) },
             PressPhase::Drag { start, pos, delta: d } => PressPhase::Drag { start: at(start), pos: point(pos), delta: delta(d) },
             PressPhase::Release { start, pos, click } => PressPhase::Release { start: at(start), pos: point(pos), click },
@@ -253,8 +266,6 @@ pub struct PressState {
     pub sample: Option<PointerSample>,
     /// A drag holds the pointer: nothing else hovers.
     pub captured: bool,
-    /// The button went down in this pass.
-    pub went_down: bool,
 }
 
 impl PressState {
@@ -263,7 +274,7 @@ impl PressState {
 
     /// A state in `phase` with no modifiers, sample or capture.
     pub const fn new(phase: PressPhase) -> Self {
-        PressState { phase, mods: Mods::NONE, sample: None, captured: false, went_down: false }
+        PressState { phase, mods: Mods::NONE, sample: None, captured: false }
     }
 
     /// The modifiers held.
@@ -284,18 +295,12 @@ impl PressState {
         self
     }
 
-    /// Whether the button went down in this pass.
-    pub const fn went_down(mut self, went_down: bool) -> Self {
-        self.went_down = went_down;
-        self
-    }
-
-    /// Whether the second press of a double click went down in this pass: true once, false while the button is held
-    /// and for a first press. Every double-click reader uses this, never `clicks >= 2` on a held phase.
+    /// Whether the phase is the `Down` of the second press of a double click: true once, false while the button is
+    /// held and for a first press. Every double-click reader uses this, never `clicks >= 2` on a later phase.
     pub const fn double_pressed(&self) -> bool {
-        match self.phase.start() {
-            Some(start) => self.went_down && start.clicks >= 2 && matches!(start.button, PointerButton::Primary),
-            None => false,
+        match self.phase {
+            PressPhase::Down { start } => start.clicks >= 2 && matches!(start.button, PointerButton::Primary),
+            _ => false,
         }
     }
 }
@@ -420,13 +425,11 @@ pub struct PressStep<T> {
     pub dragging: bool,
     /// The target released as a click in this pass.
     pub activated: Option<T>,
-    /// The button went down in this pass.
-    pub went_down: bool,
 }
 
 impl<T> Default for PressStep<T> {
     fn default() -> Self {
-        PressStep { target: None, phase: None, dragging: false, activated: None, went_down: false }
+        PressStep { target: None, phase: None, dragging: false, activated: None }
     }
 }
 
@@ -438,6 +441,8 @@ struct Open<T> {
     dragging: bool,
     /// Moved past slop on a target that senses no drag: the click is gone and nothing starts.
     abandoned: bool,
+    /// A pass reported the press: later passes within slop report `Held`, not `Down`.
+    reported: bool,
     /// Where the button went up, when it did in the pass the drag started. That pass reports `DragStart` and the
     /// next one the release, so every part reads a drag's start before its end.
     released_at: Option<Pos2>,
@@ -480,7 +485,6 @@ impl<T: Copy> PressMachine<T> {
     /// when no shape of this root takes the press.
     pub fn step(&mut self, input: PassInput<'_>, mut pick: impl FnMut(Pos2) -> Option<(T, Sense)>) -> PressStep<T> {
         let mut pos = input.pos;
-        let mut went_down = false;
         let mut drag_started = false;
         let mut released: Option<(T, PressStart, Pos2, bool, bool)> = None;
         let mut cancelled: Option<(T, PressStart, PressCancel)> = None;
@@ -551,9 +555,9 @@ impl<T: Copy> PressMachine<T> {
                             start: PressStart::new(at, button, time, clicks),
                             dragging: false,
                             abandoned: false,
+                            reported: false,
                             released_at: None,
                         });
-                    went_down = self.open.is_some();
                     drag_started = false;
                 }
                 PointerEvent::Released { button, pos: at } => {
@@ -578,7 +582,7 @@ impl<T: Copy> PressMachine<T> {
         }
         if let Some((target, start, reason)) = cancelled {
             let phase = PressPhase::Cancel { start, reason };
-            return PressStep { target: Some(target), phase: Some(phase), dragging: false, activated: None, went_down };
+            return PressStep { target: Some(target), phase: Some(phase), dragging: false, activated: None };
         }
         if let Some((target, start, at, was_dragging, click)) = released {
             let phase = PressPhase::Release { start, pos: at, click };
@@ -587,18 +591,20 @@ impl<T: Copy> PressMachine<T> {
                 phase: Some(phase),
                 dragging: was_dragging,
                 activated: (click && start.button == PointerButton::Primary).then_some(target),
-                went_down,
             };
         }
-        let Some(open) = self.open else { return PressStep::default() };
+        let Some(open) = self.open.as_mut() else { return PressStep::default() };
         let phase = if drag_started {
             PressPhase::DragStart { start: open.start, pos }
         } else if open.dragging {
             PressPhase::Drag { start: open.start, pos, delta: input.delta }
+        } else if open.reported {
+            PressPhase::Held { start: open.start }
         } else {
             PressPhase::Down { start: open.start }
         };
-        PressStep { target: Some(open.target), phase: Some(phase), dragging: open.dragging, activated: None, went_down }
+        open.reported = true;
+        PressStep { target: Some(open.target), phase: Some(phase), dragging: open.dragging, activated: None }
     }
 }
 
@@ -627,7 +633,9 @@ mod tests {
         assert_eq!(step.activated, Some(1));
         assert!(step.phase.is_some_and(|phase| phase.is_click()));
         let step = pass(&mut machine, &[], Sense::CLICK);
-        assert!(matches!(step.phase, Some(PressPhase::Down { .. })), "the second press stays open");
+        assert!(matches!(step.phase, Some(PressPhase::Down { .. })), "the second press is reported once it opens");
+        let step = pass(&mut machine, &[], Sense::CLICK);
+        assert!(matches!(step.phase, Some(PressPhase::Held { .. })), "and stays open");
         let step = pass(&mut machine, &[PointerEvent::released(pos2(0.0, 0.0))], Sense::CLICK);
         assert_eq!(step.activated, Some(1));
     }

@@ -345,7 +345,7 @@ impl PinWarp<'_> {
                 self.report.pointer = hover_pos.map(|at| space.view.to_doc(at));
             }
             match press.phase {
-                PressPhase::Down { start, .. } if start.button == PointerButton::Primary && press.went_down => {
+                PressPhase::Down { start, .. } if start.button == PointerButton::Primary => {
                     self.press_pin(cx, space, pins, i, (press.mods.alt, press.mods.shift), start.origin);
                 }
                 phase => self.track(cx, space, phase),
@@ -357,7 +357,7 @@ impl PinWarp<'_> {
             self.report.pointer = hover_pos.map(|at| space.view.to_doc(at));
         }
         match press.phase {
-            PressPhase::Down { start, .. } if start.button == PointerButton::Primary && press.went_down => {
+            PressPhase::Down { start, .. } if start.button == PointerButton::Primary => {
                 self.press_mesh(cx, space, pins, press.mods.alt, start.origin);
             }
             phase => self.track(cx, space, phase),

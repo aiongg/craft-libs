@@ -50,10 +50,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             if layout.mirrors() && rtl { flow.to_physical(Rect::from_min_size(at, Vec2::ZERO)).min } else { at }
         };
         let mods_now = crate::runtime::pointer::frame(&ctx).mods;
-        // The phase stays `Down` in every pass the press is held, a discard pass of the press's frame included; the
-        // press picks, toggles and starts its gestures once, in the pass the button went down.
-        if cx.core.press.went_down
-            && let PressPhase::Down { start, .. } = cx.core.press.phase
+        if let PressPhase::Down { start, .. } = cx.core.press.phase
             && local(start.origin).y >= 0.0
         {
             let primary = start.button == craft_behavior::PointerButton::Primary;

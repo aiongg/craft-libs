@@ -193,7 +193,7 @@ impl PopupHandle {
         let resting = core.response.hovered() || core.focus.visible;
         let toggled = match trigger {
             Trigger::Click => core.activation.is_some(),
-            Trigger::Press => core.memory.shown::<crate::contract::SeenPress>(sub(self.id, "press")).began(&core.press.phase),
+            Trigger::Press => matches!(core.press.phase, craft_behavior::PressPhase::Down { .. }),
             Trigger::Context => core.intents.take(Intent::ContextMenu),
             Trigger::Hover => self.dwell(&ctx, core.memory, "dwell", resting, crate::contract::tooltip::DELAY),
             Trigger::Hold => self.dwell(&ctx, core.memory, "dwell", core.press.phase.is_press(), HOLD),

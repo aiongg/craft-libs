@@ -180,3 +180,34 @@ fn touchpad_tap_activates_one_component() {
     tap_on_canvas(None, true);
     tap_on_canvas(Some(ZOOM), true);
 }
+
+/// A press reads `Down` in one pass only, the pass it went down, though its frame runs a discard pass and the
+/// button stays down for later frames: an owner that acts on `Down` acts once per press.
+#[trial]
+fn a_held_press_reads_down_once_through_a_discard_pass_and_later_frames() {
+    let (mut show_frame, log) = scene(vec![canvas(None)]);
+    let mut frames = Frames::new();
+    frames.idle(2, &mut show_frame);
+    log.borrow_mut().clear();
+
+    let at = Pos2::new(160.0, 360.0);
+    let mut first = true;
+    let passes = frames.frame(vec![pointer::moved(at), pointer::press(at)], |ui| {
+        if std::mem::take(&mut first) {
+            ui.ctx().request_discard("test");
+        }
+        show_frame(ui);
+    });
+    assert_eq!(passes, 2, "the press frame runs a discard pass");
+    frames.idle(3, &mut show_frame);
+    frames.frame(vec![pointer::release(at)], &mut show_frame);
+    frames.idle(1, &mut show_frame);
+
+    let phases = log.borrow().root_phases(0, Some(BACKGROUND));
+    assert!(matches!(phases.first(), Some(PressPhase::Down { .. })), "{phases:?}");
+    assert_eq!(phases.iter().filter(|phase| matches!(phase, PressPhase::Down { .. })).count(), 1, "{phases:?}");
+    let held = phases.iter().filter(|phase| matches!(phase, PressPhase::Held { .. })).count();
+    assert!(held > 3, "the discard pass and the held frames read Held: {phases:?}");
+    assert!(phases.iter().all(|phase| phase.button_down() || matches!(phase, PressPhase::Release { .. })), "{phases:?}");
+    assert!(matches!(phases.last(), Some(PressPhase::Release { .. })), "{phases:?}");
+}
