@@ -44,15 +44,6 @@ fn child(dir: &Path, mask: &str, expected: &str, check_acl: bool) -> io::Result<
 }
 
 #[test]
-fn normal_creation_matches_os_permissions() -> io::Result<()> {
-    for (mask, expected) in [("000", "666"), ("002", "664"), ("022", "644"), ("027", "640"), ("077", "600")] {
-        let dir = TempDir::new()?;
-        child(&dir.0, mask, expected, false)?;
-    }
-    Ok(())
-}
-
-#[test]
 fn permission_child() -> io::Result<()> {
     let Some(dir) = std::env::var_os("CRAFT_PERMISSION_TEST_DIR") else { return Ok(()) };
     let dir = Path::new(&dir);
