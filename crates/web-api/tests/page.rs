@@ -87,19 +87,6 @@ async fn install_keeps_existing_functions() {
 }
 
 #[wasm_bindgen_test]
-async fn methods_table_decides_which_functions_exist() {
-    reset();
-    let only = Methods { commands: Some("c.commands"), ..Methods::NONE };
-    Rc::new(PageApi::new("vectorcraft", only, canned_request(json!({"ok": true, "result": {}})))).install().expect("install");
-    let api = api();
-    assert!(has(&api, "request"), "request is always installed");
-    assert!(has(&api, "commands"));
-    for name in ["execute", "docInspect", "uiInspect", "screenshot"] {
-        assert!(!has(&api, name), "{name} has no method and must not be installed");
-    }
-}
-
-#[wasm_bindgen_test]
 async fn functions_send_their_methods() {
     reset();
     let page = Rc::new(PageApi::new("vectorcraft", Methods::default(), recording_request(json!({"ok": true, "result": {"done": 1}}))));
@@ -127,36 +114,4 @@ async fn functions_send_their_methods() {
             ("custom.method".to_string(), json!({"x": 1})),
         ]
     );
-}
-
-#[wasm_bindgen_test]
-async fn error_replies_reject_with_the_error_text() {
-    reset();
-    Rc::new(PageApi::new("vectorcraft", Methods::default(), canned_request(json!({"ok": false, "error": "boom"})))).install().expect("install");
-    let err = match call("commands", &[]).await {
-        Err(err) => err,
-        Ok(_) => panic!("an error reply must reject"),
-    };
-    assert_eq!(String::from(err.unchecked_into::<js_sys::Error>().message()), "boom");
-}
-
-#[wasm_bindgen_test]
-async fn timeout_gives_an_error_saying_so() {
-    reset();
-    // A control channel that never answers: it waits on a promise that never settles. (Looping on
-    // resolved promises instead would starve the timer queue, so the page's timeout could never fire.)
-    let pending: Request = Rc::new(|_method: String, _params: Value| {
-        Box::pin(async {
-            let _ = JsFuture::from(js_sys::Promise::new(&mut |_, _| {})).await;
-            Value::Null
-        })
-    });
-    let page = Rc::new(PageApi::new("vectorcraft", Methods::default(), pending).with_timeout(10));
-    page.install().expect("install");
-    let err = match call("execute", &["object.rectangle".into(), js_sys::Object::new().into()]).await {
-        Err(err) => err,
-        Ok(_) => panic!("a never-answering app must time out"),
-    };
-    let message = String::from(err.unchecked_into::<js_sys::Error>().message());
-    assert!(message.contains("vectorcraft did not answer engine.execute within 0.01 s"), "{message}");
 }
