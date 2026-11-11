@@ -7,8 +7,8 @@ use craft_ui::contract::SaveKey;
 use craft_ui::contract::{ContainerProps, Mount, Overlay, Props as _, Show as _, ShowContainer as _, Sizing};
 use craft_ui::runtime::InstallSpec;
 use craft_ui::testing::layout::Block;
-use craft_ui::testing::windows::NoWindows;
 use craft_ui::testing::trial;
+use craft_ui::testing::windows::NoWindows;
 use craft_window::restore::Store;
 use egui::{Pos2, Rect, Ui, Vec2, ViewportEvent, ViewportInfo};
 use std::cell::Cell;
@@ -82,4 +82,3 @@ fn a_close_request_not_taken_this_frame_does_not_close_the_container_later() {
     }
     assert!(ran.get() > before, "the container stayed open: the stale request did not close it");
 }
-

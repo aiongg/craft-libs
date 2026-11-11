@@ -30,4 +30,3 @@ fn the_registry_notation_parses_into_params() {
     assert!(!params[0].kind.fits(&FieldValue::Number(5000.0)));
     assert!(!params[1].kind.fits(&FieldValue::Text("wobble".into())));
 }
-

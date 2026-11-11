@@ -22,4 +22,3 @@ fn path_crumbs_keep_the_spelling_of_the_path() {
     assert_eq!(pairs("\\\\server\\share\\x"), expected(&[("server", "\\\\server"), ("share", "\\\\server\\share"), ("x", "\\\\server\\share\\x")]));
     assert!(pairs("").is_empty() && pairs("/").is_empty());
 }
-

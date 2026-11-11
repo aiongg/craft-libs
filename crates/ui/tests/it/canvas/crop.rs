@@ -210,14 +210,6 @@ impl Rig {
         self.frames.hold(Modifiers::NONE);
     }
 
-    /// Press at `from` and move to `to` with the button held.
-    fn hold_at(&mut self, from: Pos2, to: Pos2) {
-        self.press(from);
-        self.move_to(from.lerp(to, 0.5));
-        self.move_to(to);
-        self.frame(Vec::new());
-    }
-
     fn key(&mut self, key: Key, modifiers: Modifiers) {
         self.frame(vec![key_event(key, true, modifiers), key_event(key, false, modifiers)]);
         self.frame(Vec::new());

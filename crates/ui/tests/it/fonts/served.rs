@@ -51,7 +51,6 @@ const SERVED_SYMBOLS: &[ServedFace] = &[
     served("Noto Sans Math", "Regular", &["Zmth", "Zsym"], "fonts/noto-sans-math/NotoSansMath-Regular.ttf", 0),
 ];
 
-
 /// Fetches nothing until the test answers, on a clock the test moves.
 #[derive(Default)]
 struct FakeFetch {
@@ -175,7 +174,6 @@ fn a_missing_character_fetches_only_the_face_that_draws_it() {
     assert!(fetch.requested().is_empty(), "the emoji face is never a candidate for letters or keys");
 }
 
-
 #[trial]
 fn bytes_fetched_under_one_integrity_never_reach_a_face_requiring_another() {
     const URL: &str = "fonts/shared.ttf";
@@ -203,7 +201,6 @@ fn bytes_fetched_under_one_integrity_never_reach_a_face_requiring_another() {
     assert!(draws('ع'));
     assert!(!installed(&ctx, "Noto Sans Thai Regular"), "fetched without a check: the strict face does not take it");
 }
-
 
 #[trial]
 fn a_failed_download_moves_on_and_is_retried_later() {

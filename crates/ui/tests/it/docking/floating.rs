@@ -41,10 +41,7 @@ impl Caller {
 
     fn show(&self) -> impl FnMut(&mut Ui) + '_ {
         move |ui| {
-            let mut group = FloatingGroup::new("Layers", self.rect.get())
-                .sized(self.sizing)
-                .bounds(BOUNDS)
-                .limits(SizeLimits::at_least(LEAST));
+            let mut group = FloatingGroup::new("Layers", self.rect.get()).sized(self.sizing).bounds(BOUNDS).limits(SizeLimits::at_least(LEAST));
             if let Some(anchor) = self.anchor.get() {
                 group = group.window_of(anchor);
             }

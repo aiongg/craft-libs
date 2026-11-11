@@ -10,8 +10,6 @@ use craft_ui::text::{NumberField, TextField};
 use egui::{Event, Key, Modifiers};
 use std::ops::Range;
 
-
-
 struct Prefixes;
 
 impl Completer for Prefixes {

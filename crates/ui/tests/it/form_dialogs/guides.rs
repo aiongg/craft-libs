@@ -77,4 +77,3 @@ fn layout_lines_follow_the_columns_rows_and_margins() {
     many.columns.gutter = GuideLength::pixels(0.0);
     assert_eq!(made(&many, &[document(); TARGETS_OVER_LIMIT], &[]), Err(GuideLayoutError::TooMany));
 }
-

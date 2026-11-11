@@ -4,8 +4,7 @@
 use super::kit::{PlainStyle, Probe, Seen};
 use craft_behavior::Sense;
 use craft_ui::contract::{
-    Common, Component, Container, ContainerProps, Cx, MeasureCx, OverlayUi, PaintUi, PartsCx, Props as _, Role, Show as _, ShowContainer as _,
-    Sizing,
+    Common, Component, Container, ContainerProps, Cx, MeasureCx, OverlayUi, PaintUi, PartsCx, Props as _, Role, Show as _, ShowContainer as _, Sizing,
 };
 use craft_ui::runtime::env::{AppValues, EnvValue};
 use craft_ui::style::StyleCx;

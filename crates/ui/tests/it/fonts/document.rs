@@ -99,10 +99,6 @@ fn until_ready(frames: &mut Frames, tally: &Tally, owners: &[(&'static str, Vec<
     panic!("the faces did not become ready in {FRAMES_TO_READY} frames");
 }
 
-
-
-
-
 /// A stack install sets the whole definitions and drops the faces added one by one: the registry notices and adds
 /// them again, within the budget.
 #[trial]

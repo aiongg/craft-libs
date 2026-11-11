@@ -31,8 +31,6 @@ fn field(frames: &mut Frames, controls: usize, keeps_name: bool) -> (Id, Vec<Id>
     (container, ids, frames.tree())
 }
 
-
-
 #[trial]
 fn several_controls_make_the_container_labelled() {
     let mut frames = Frames::new();

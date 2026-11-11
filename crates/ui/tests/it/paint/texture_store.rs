@@ -3,7 +3,9 @@
 use craft_behavior::PixelSize;
 use craft_host::ManualJobs;
 use craft_host::queue::Cancel;
-use craft_ui::primitives::{LoadResult, LoadedPicture, LoaderOptions, Priority, Revision, TextureBudget, TextureLoader, TextureState, TextureStore, TextureStoreOptions};
+use craft_ui::primitives::{
+    LoadResult, LoadedPicture, LoaderOptions, Priority, Revision, TextureBudget, TextureLoader, TextureState, TextureStore, TextureStoreOptions,
+};
 use craft_ui::testing::{Frames, trial};
 use egui::{Color32, ColorImage, Context};
 use std::cell::Cell;

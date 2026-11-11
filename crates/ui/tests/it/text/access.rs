@@ -19,5 +19,3 @@ fn a_masked_field_exposes_no_value() {
     assert_eq!(fixture.tree().value(open.get()), Some("secret"));
     assert_eq!(fixture.tree().value(masked.get()), None, "a masked node has no value to read out");
 }
-
-

@@ -163,4 +163,3 @@ fn undo_in_a_dialog_reaches_the_dialog_and_not_the_application() {
     assert_eq!(undone.get(), 1, "the dialog took the undo");
     assert!(take_output(&frames.ctx).fired.is_empty(), "the application's undo stays blocked");
 }
-

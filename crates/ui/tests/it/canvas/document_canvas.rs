@@ -78,11 +78,6 @@ impl Document {
     fn last_seen(&self) -> (Rect, CanvasView) {
         *self.seen.borrow().last().expect("the body ran")
     }
-
-    /// The zooms the body showed since the last call.
-    fn shown_zooms(&self) -> Vec<f64> {
-        self.seen.borrow_mut().drain(..).map(|(_, view)| view.zoom).collect()
-    }
 }
 
 /// `view.rect` lies in `body` past the rulers along the top and left edges, out to the body's far corner.

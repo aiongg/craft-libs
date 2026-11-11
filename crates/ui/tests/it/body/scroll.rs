@@ -149,4 +149,3 @@ fn a_focus_request_into_an_out_of_view_child_runs_it_and_scrolls_it_in() {
     let (_, rect) = buttons[last].get();
     assert!(view.get().contains_rect(rect), "the body scrolled the control into view: {rect:?} in {:?}", view.get());
 }
-

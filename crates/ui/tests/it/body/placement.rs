@@ -5,7 +5,10 @@
 use crate::contract::kit::{PlainStyle, Probe, Seen};
 use craft_behavior::GesturePhase;
 use craft_ui::contract::overlay::{PlacementChange, PlacementKind};
-use craft_ui::contract::{BodyCx, Common, Component, Container, ContainerProps, Cx, DragBand, HeaderRegion, Mount, Overlay, Props as _, Role, Show as _, ShowContainer as _, Sizing};
+use craft_ui::contract::{
+    BodyCx, Common, Component, Container, ContainerProps, Cx, DragBand, HeaderRegion, Mount, Overlay, Props as _, Role, Show as _,
+    ShowContainer as _, Sizing,
+};
 use craft_ui::runtime::commands::{CommandSet, WindowCommand};
 use craft_ui::style::StyleCx;
 use craft_ui::testing::layout::allocate;
@@ -137,4 +140,3 @@ fn a_placed_layer_reports_its_move_and_keeps_no_placement_of_its_own() {
     frames.idle(3, &mut show);
     assert!((caller.rect.get().min - commit.rect.min).abs().max_elem() > SLACK, "no placement was stored: {:?}", caller.rect.get());
 }
-

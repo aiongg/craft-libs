@@ -7,8 +7,8 @@ use craft_behavior::{
     CellAt, CellRange, CellSelection, ColumnKey, ItemSource, PartKey, Selection, SelectionModel as _, Sense, SheetLayout, SpanLayout, keyed,
 };
 use craft_ui::contract::{
-    Bind, BindMut, Collection, CollectionEvent, CollectionProps, CollectionResponse, Common, Component, ContainerProps,
-    Cx, Focus as _, MeasureCx, PartsCx, Props as _, Role, SelectMode, ShowCollection as _,
+    Bind, BindMut, Collection, CollectionEvent, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, Focus as _, MeasureCx,
+    PartsCx, Props as _, Role, SelectMode, ShowCollection as _,
 };
 use craft_ui::runtime::focus::{FocusTarget, request};
 use craft_ui::style::StyleCx;

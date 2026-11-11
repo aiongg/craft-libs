@@ -55,12 +55,7 @@ impl Host {
     }
 
     fn with(state: &[bool], apply: SweepApply) -> Self {
-        Host {
-            eyes: Eyes(RefCell::new(state.to_vec())),
-            apply: RefCell::new(apply),
-            rows: RefCell::default(),
-            frames: RefCell::new(Frames::new()),
-        }
+        Host { eyes: Eyes(RefCell::new(state.to_vec())), apply: RefCell::new(apply), rows: RefCell::default(), frames: RefCell::new(Frames::new()) }
     }
 
     fn show(&self, ui: &mut Ui) {

@@ -8,7 +8,6 @@ use egui::{Key, Modifiers};
 use std::cell::Cell;
 use std::rc::Rc;
 
-
 type Parts = [Mixed<Option<f64>>; 2];
 type Values = Rc<Cell<Parts>>;
 
@@ -41,5 +40,3 @@ fn typing_into_a_linked_field_keeps_the_starting_ratio() {
     fixture.idle(2);
     assert_eq!(values.get(), same(100.0, 80.0));
 }
-
-

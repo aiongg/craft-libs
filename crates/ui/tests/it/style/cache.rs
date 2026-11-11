@@ -49,6 +49,3 @@ fn two_components_sharing_a_style_type_get_their_own_style() {
     });
     assert_eq!(BUILDS.load(Ordering::SeqCst), 2, "each key built once, every later read hit the cache");
 }
-
-
-

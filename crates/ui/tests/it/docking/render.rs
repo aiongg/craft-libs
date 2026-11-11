@@ -3,8 +3,8 @@
 use craft_behavior::Axis;
 use craft_behavior::dock::{Node, SplitSize};
 use craft_ui::contract::SizeLimits;
-use craft_ui::docking::tree::{self, FrameRules};
 use craft_ui::docking::DockSizes;
+use craft_ui::docking::tree::{self, FrameRules};
 use craft_ui::testing::trial;
 use egui::{Pos2, Rect, Vec2};
 

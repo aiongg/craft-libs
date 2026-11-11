@@ -52,4 +52,3 @@ fn reordering_a_group_changes_its_parent_and_keeps_its_presets() {
     lib.reorder(std::slice::from_ref(&a), end).unwrap();
     assert!(lib.group(&GroupPath::new(["B", "A"])).is_some(), "after Cyan, which is in B");
 }
-

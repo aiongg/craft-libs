@@ -36,6 +36,3 @@ fn clearing_a_search_field_with_a_draft_leaves_it_empty_after_blur() {
     fixture.idle(3);
     assert_eq!(*text.borrow(), "", "leaving the field commits nothing back");
 }
-
-
-

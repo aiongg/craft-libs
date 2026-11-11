@@ -62,4 +62,3 @@ fn a_modal_blocks_hits_and_commands_below_and_returns_focus_on_close() {
     assert!(is_focused(&frames.ctx, opener_id.get()), "focus returned to the opener");
     assert!(fire(&frames.ctx, Go::Go, FireSource::Automation), "commands fire again after the modal closed");
 }
-

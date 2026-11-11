@@ -177,4 +177,3 @@ fn an_armed_sampler_passes_a_press_and_a_drag_to_the_canvas_and_lapses_with_the_
     scene.drag(&mut frames, CANVAS.center(), Vec2::new(40.0, 10.0));
     assert!(!scene.pressed_canvas(), "the old arm has lapsed");
 }
-

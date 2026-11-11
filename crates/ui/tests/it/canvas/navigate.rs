@@ -3,7 +3,10 @@
 use craft_behavior::kurbo::{Point, Size};
 use craft_behavior::{CancelReason, CanvasView, Wheel, WheelPhase, WheelUnit};
 use craft_keymap::Mods;
-use craft_ui::canvas::{Canvas, CanvasTool, Momentary, MomentaryCommands, MomentaryTool, NavigationOptions, ToolAction, ToolContext, ToolHost, ToolPath, ToolPointer, TouchpadGlide};
+use craft_ui::canvas::{
+    Canvas, CanvasTool, Momentary, MomentaryCommands, MomentaryTool, NavigationOptions, ToolAction, ToolContext, ToolHost, ToolPath, ToolPointer,
+    TouchpadGlide,
+};
 use craft_ui::contract::{Props as _, Show as _, ShowContainer as _};
 use craft_ui::primitives::Draw;
 use craft_ui::runtime::commands::FirePhase;

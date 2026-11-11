@@ -35,4 +35,3 @@ fn an_app_command_pressed_with_the_focus_in_a_shell_body_is_taken_by_the_body_an
     assert_eq!(*taken.borrow(), [AppCommand::Save], "the body took the chord's command");
     assert!(take_output(&frames.ctx).fired.is_empty(), "a command the body took is not in the frame's output");
 }
-

@@ -27,7 +27,6 @@ fn rig() -> Rig {
     (fixture, value, events)
 }
 
-
 /// Enter on text that was emptied sends no event and the value stays Mixed.
 #[trial]
 fn enter_on_empty_text_leaves_a_mixed_field_mixed() {

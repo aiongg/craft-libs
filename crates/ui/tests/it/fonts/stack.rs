@@ -74,13 +74,6 @@ fn ui_language_face_leads_when_the_app_face_lacks_its_script() {
     }
 }
 
-
-
-
-
-
-
-
 fn test_fonts(ui_language: &str) -> UiFonts<'static> {
     UiFonts::new(&I18nScripts)
         .app_face("ui", egui_face("Ubuntu-Light"), &[FontRef::proportional()])
@@ -96,7 +89,6 @@ fn test_fonts(ui_language: &str) -> UiFonts<'static> {
 fn test_stack(ui_language: &str) -> Stack {
     test_fonts(ui_language).stack()
 }
-
 
 #[trial]
 fn face_list_prefers_a_face_with_the_whole_cluster() {
@@ -135,7 +127,3 @@ fn variable_faces_draw_at_regular_weight() {
     set.tweak.coords.push(*b"wght", 300.0);
     assert!(!set_weight(&mut set, 400));
 }
-
-
-
-

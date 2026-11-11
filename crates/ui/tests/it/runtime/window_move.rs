@@ -7,7 +7,9 @@ use crate::contract::kit::{PlainStyle, Probe, Seen};
 use crate::windows_kit::Windows;
 use craft_host::target::{ShellInfo, WindowChrome, WindowInfo, WindowKind};
 use craft_ui::contract::overlay::Resize;
-use craft_ui::contract::{BodyCx, Common, Component, Container, ContainerProps, Cx, DragBand, HeaderRegion, Mount, Props as _, Role, Show as _, ShowContainer as _, Sizing};
+use craft_ui::contract::{
+    BodyCx, Common, Component, Container, ContainerProps, Cx, DragBand, HeaderRegion, Mount, Props as _, Role, Show as _, ShowContainer as _, Sizing,
+};
 use craft_ui::runtime::InstallSpec;
 use craft_ui::style::StyleCx;
 use craft_ui::testing::layout::allocate;

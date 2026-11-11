@@ -44,4 +44,3 @@ fn a_damaged_arrangement_is_made_whole() {
     assert!(layout.is_folded(&key("keywords")) && !layout.is_hidden(&key("keywords")), "the first entry for a section counts; `collapsed` is read");
     assert!(!layout.is_hidden(&key("albums")) && !layout.is_folded(&key("albums")), "a flag that is not true or false is off");
 }
-

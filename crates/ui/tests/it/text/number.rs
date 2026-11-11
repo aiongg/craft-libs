@@ -105,8 +105,6 @@ fn arrows_step_to_the_next_multiple_and_stay_in_range() {
     assert_eq!(rig.value(), Some(0.0), "Shift moves ten steps and stops at the start of the range");
 }
 
-
-
 /// A field of `kind` (plain without one) under `host`'s locale, with `text` typed over its value and committed.
 fn typed(host: Option<Arc<Host>>, kind: Option<UnitKind>, text: &str) -> Option<f64> {
     typed_with(host, text, |field| match kind {
@@ -147,4 +145,3 @@ fn a_localised_decimal_types_in() {
     let host = Arc::new(Host::builder(AppInfo { id: "trial", name: "Trial", version: "0" }).i18n(Arc::new(i18n)).build());
     assert_eq!(typed(Some(host), None, "12,5"), Some(12.5));
 }
-

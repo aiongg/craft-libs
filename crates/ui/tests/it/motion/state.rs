@@ -128,4 +128,3 @@ fn a_component_animating_on_does_not_fight_the_state_mix() {
     frames.idle(60, &mut show);
     assert_eq!(frames.repaint_delay(), None, "with no loop under reduced motion, nothing is left to animate");
 }
-

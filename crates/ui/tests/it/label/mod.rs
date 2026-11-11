@@ -89,6 +89,3 @@ fn a_label_stays_beside_a_fill_width_control_and_follows_the_row_width() {
     let again = at(&mut frames, 300.0, 4);
     assert!(again.min.x > ROW_A.min.x + BESIDE, "the label returns beside the control when the row widens: {again:?}");
 }
-
-
-

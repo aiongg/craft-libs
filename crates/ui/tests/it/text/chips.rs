@@ -19,6 +19,3 @@ fn a_draft_adds_its_pieces_after_the_existing_chips() {
     assert_eq!(codec.parse("red, red", &Vec::new()), Ok(chips(&["red"])), "a piece the draft names twice is added once");
     assert_eq!(codec.parse("two words", &Vec::new()), Ok(chips(&["two words"])), "a space does not end a chip");
 }
-
-
-

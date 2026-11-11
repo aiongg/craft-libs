@@ -131,4 +131,3 @@ fn reset_section_drops_keys_the_defaults_do_not_serialize() {
     doc.apply().expect("the draft fits the struct");
     assert_eq!(doc.take_applied().expect("applied"), Sparse::default());
 }
-

@@ -51,4 +51,3 @@ fn without_resampling_a_physical_size_changes_the_resolution() {
     assert!((size.pixels_per_inch() - 150.0).abs() < 1e-9);
     assert!((size.height() - 800.0 / 150.0).abs() < 1e-9);
 }
-

@@ -94,4 +94,3 @@ fn a_filling_body_lies_between_its_header_and_its_footer_in_the_first_pass() {
     assert!(body.max.y <= footer.min.y + EDGE_SLACK, "the body ends at the footer's top: {body:?} {footer:?}");
     assert!(footer.max.y <= AREA.max.y + EDGE_SLACK, "the footer lies inside the container, at its foot: {footer:?}");
 }
-

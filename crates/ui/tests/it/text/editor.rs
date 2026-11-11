@@ -126,4 +126,3 @@ fn editor_input_reaches_an_editor_part_and_read_only_filtering_drops_edits() {
     let moves = rig.take();
     assert!(matches!(moves.as_slice(), [EditorInput::Move(..)]), "moves still arrive: {moves:?}");
 }
-

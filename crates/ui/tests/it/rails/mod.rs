@@ -64,4 +64,3 @@ fn a_click_selects_the_shown_tool_and_holding_opens_the_flyout() {
     held.fixture.idle(3);
     assert!(!held.fixture.by_role(Role::MENU).is_empty(), "a held press opens the flyout");
 }
-

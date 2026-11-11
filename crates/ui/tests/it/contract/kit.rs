@@ -85,12 +85,6 @@ impl<'a> Probe<'a> {
         self
     }
 
-    /// The probe leaves Escape untaken, so the scope around it applies its cancel rule.
-    pub fn leaves_cancel(mut self) -> Self {
-        self.takes_cancel = false;
-        self
-    }
-
     /// Each activation of the probe injects one from `source` (`Cx::activate`).
     pub fn injects(mut self, source: FireSource) -> Self {
         self.injects = Some(source);

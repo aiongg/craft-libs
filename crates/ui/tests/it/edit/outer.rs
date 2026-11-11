@@ -189,4 +189,3 @@ fn cancel_or_escape_takes_the_dialogs_field_edits_back() {
         assert!(matches!(app.outer[..], [OuterEdit::Begin { id: first, .. }, _, OuterEdit::Begin { id: second, .. }] if first != second));
     }
 }
-

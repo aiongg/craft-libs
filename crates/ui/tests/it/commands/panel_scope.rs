@@ -51,4 +51,3 @@ fn a_stack_scope_command_reaches_only_the_focused_stack() {
         assert_eq!((counts[0].get(), counts[1].get()), expected, "only the stack holding focus ({focused}) takes the command");
     }
 }
-
