@@ -275,11 +275,11 @@ impl StackDialog for FindReplaceDialog {
                     Text::new(words.go_to_what.clone()).show(ui);
                     let entries: Vec<Entry<usize>> = kinds.iter().enumerate().map(|(at, kind)| Entry::new(at, kind.clone())).collect();
                     let edit = Select::new(words.go_to_what.clone(), Bind::given(go_kind.min(kinds.len().saturating_sub(1))), &entries).show(ui);
-                    if let Some(value) = edit.event.as_ref().and_then(|event| event.value()) {
+                    if let Some(value) = edit.events.value() {
                         go_kind = *value;
                     }
                     let edit = TextField::new(words.go_to.clone(), Bind::given(target.clone())).show(ui);
-                    if let Some(value) = edit.event.as_ref().and_then(|event| event.value()) {
+                    if let Some(value) = edit.events.value() {
                         target.clone_from(value);
                     }
                     return;
@@ -294,7 +294,7 @@ impl StackDialog for FindReplaceDialog {
                 if edit.response.has_focus() {
                     last_field = Field::Find;
                 }
-                if let Some(value) = edit.event.as_ref().and_then(|event| event.value()) {
+                if let Some(value) = edit.events.value() {
                     query.clone_from(value);
                 }
                 submitted |= edit.submitted;
@@ -308,7 +308,7 @@ impl StackDialog for FindReplaceDialog {
                     if edit.response.has_focus() {
                         last_field = Field::With;
                     }
-                    if let Some(value) = edit.event.as_ref().and_then(|event| event.value()) {
+                    if let Some(value) = edit.events.value() {
                         with.clone_from(value);
                     }
                 }

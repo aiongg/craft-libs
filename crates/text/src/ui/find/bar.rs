@@ -137,7 +137,7 @@ impl<'a> FindBar<'a> {
                     state.opened = false;
                 }
             }
-            if let Some(value) = edit.event.as_ref().and_then(|event| event.value()) {
+            if let Some(value) = edit.events.value() {
                 query.clone_from(value);
                 out.search = true;
             }
