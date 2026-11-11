@@ -32,7 +32,7 @@ fn mode(path: &Path) -> io::Result<u32> {
 /// Set umask only in a separate shell process; changing it in a parallel test process races.
 fn child(dir: &Path, mask: &str, expected: &str, check_acl: bool) -> io::Result<()> {
     let output = Command::new("sh")
-        .args(["-c", "umask \"$1\"; exec \"$2\" --exact permission_child --nocapture", "permissions", mask])
+        .args(["-c", "umask \"$1\"; exec \"$2\" --exact integration::permissions::permission_child --nocapture", "permissions", mask])
         .arg(std::env::current_exe()?)
         .env("CRAFT_PERMISSION_TEST_DIR", dir)
         .env("CRAFT_PERMISSION_TEST_EXPECTED", expected)
