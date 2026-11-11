@@ -168,11 +168,13 @@ fn themes_keep_the_layout(subject: &Subject) -> Result<(), String> {
 }
 
 /// A room of one point and a room of half the settled width show without a panic, and everything the access tree
-/// reports has finite bounds.
+/// reports has finite bounds. The `paints-inside` case shows each story in the same room of one point and checks the
+/// same bounds there, so this case leaves that room to it when it runs.
 fn a_tiny_room_breaks_nothing(subject: &Subject) -> Result<(), String> {
+    let point = (!subject.runs("paints-inside")).then_some(Vec2::splat(1.0));
     for story in &subject.stories {
         let width = subject.base(story).fixture.shown().width();
-        for room in [Vec2::splat(1.0), Vec2::new((width / 2.0).max(1.0), 300.0)] {
+        for room in point.into_iter().chain([Vec2::new((width / 2.0).max(1.0), 300.0)]) {
             let mut fixture = Fixture::story(story);
             fixture.room(room);
             fixture.settle();

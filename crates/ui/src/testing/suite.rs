@@ -70,6 +70,11 @@ impl Subject {
         let index = index.unwrap_or_default();
         self.bases[index].get_or_init(|| Base::of(story, self.probe))
     }
+
+    /// Whether the case `name` runs for this type: its shapes take the type and the type is not exempt from it.
+    fn runs(&self, name: &str) -> bool {
+        cases().any(|case| case.name == name && runs_for(case, self.probe))
+    }
 }
 
 impl Base {
