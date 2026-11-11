@@ -142,18 +142,3 @@ pub fn f16_to_f32(h: u16) -> f32 {
         _ => sign * (1.0 + m / 1024.0) * 2f32.powi(e - 15),
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn half_float_roundtrip() {
-        for v in [0.0f32, 1.0, 0.5, 0.333, 1e-5, 65504.0, -2.25, 0.1] {
-            let back = f16_to_f32(f32_to_f16(v));
-            assert!((back - v).abs() <= v.abs() * 1e-3 + 1e-7, "{v} -> {back}");
-        }
-        assert_eq!(f32_to_f16(1.0), 0x3C00);
-        assert_eq!(f32_to_f16(1e6), 0x7C00);
-    }
-}

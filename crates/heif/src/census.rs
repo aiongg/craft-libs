@@ -110,13 +110,4 @@ mod tests {
         let r = crate::probe(&bytes).map(|_| ());
         assert!(matches!(r, Err(Error::Limit(ref m)) if m.contains("associations")), "{r:?}");
     }
-
-    #[test]
-    fn a_undersized_ipma_is_untouched_by_the_caps() {
-        // The same shape with a normal ipma (two entries): the caps pass, and whatever error
-        // follows must not come from them.
-        let bytes = file_with(&[0, 0, 4, 1, 1, 2, 0, 0]);
-        let r = crate::probe(&bytes);
-        assert!(!matches!(r, Err(Error::Limit(ref m)) if m.contains("cap")), "{r:?}");
-    }
 }

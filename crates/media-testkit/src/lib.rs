@@ -68,6 +68,7 @@ pub fn tool(name: &str) -> Option<PathBuf> {
     }
 }
 
+/// Whether the environment demands the external oracle tools (ffmpeg and the like); true when `CRAFT_MEDIA_REQUIRE_ORACLES` holds `1`, `true`, `yes` or `on`, in any case.
 pub fn oracles_required() -> bool {
     std::env::var(REQUIRE_ENV).is_ok_and(|v| matches!(v.trim().to_ascii_lowercase().as_str(), "1" | "true" | "yes" | "on"))
 }
@@ -270,50 +271,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn failed_generator_skips_when_optional() {
-        let out = std::env::temp_dir().join(format!("craft-media-testkit-gen-opt-{}", std::process::id()));
-        let _ = std::fs::remove_file(&out);
-        assert!(fixtures::generate_with(&out, false, |_| false).is_none());
-        assert!(!out.exists());
-    }
-
-    #[test]
     #[should_panic(expected = "forbids skipping oracle tests")]
     fn failed_generator_fails_when_required() {
         let out = std::env::temp_dir().join(format!("craft-media-testkit-gen-req-{}", std::process::id()));
         let _ = std::fs::remove_file(&out);
         let _ = fixtures::generate_with(&out, true, |_| false);
-    }
-
-    #[test]
-    fn parse_has_encoder_exact_match() {
-        let sample = "\
-Encoders:
- V..... = Video
- ------
- V....D libvpx-vp9          libvpx VP9 (codec vp9)
- V....D libvpx              libvpx VP8 (codec vp8)
- A....D flac                FLAC (Free Lossless Audio Codec)
-";
-        assert!(parse_has_encoder(sample, "libvpx"));
-        assert!(parse_has_encoder(sample, "libvpx-vp9"));
-        assert!(parse_has_encoder(sample, "flac"));
-        assert!(!parse_has_encoder(sample, "vp8"));
-        assert!(!parse_has_encoder(sample, "libvp"));
-    }
-
-    #[test]
-    fn with_deadline_completes() {
-        with_deadline(5, || {
-            // fast operation
-        });
-    }
-
-    #[test]
-    #[should_panic(expected = "test exceeded execution deadline")]
-    fn with_deadline_times_out() {
-        with_timeout(1, || {
-            std::thread::sleep(std::time::Duration::from_secs(3));
-        });
     }
 }

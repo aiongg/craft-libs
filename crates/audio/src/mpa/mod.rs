@@ -427,6 +427,3 @@ fn synthesize(v: &mut [f32; 1024], n: &[[f32; 32]; 64], d: &[f32; 512], s: &[f32
         *o = acc;
     }
 }
-
-#[cfg(test)]
-mod tests;

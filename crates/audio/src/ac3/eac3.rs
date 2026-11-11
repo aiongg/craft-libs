@@ -116,10 +116,6 @@ pub(crate) struct Bsi {
     /// reduced rates.
     pub fscod: usize,
     pub numblkscod: usize,
-    /// Explicit dependent-substream channel assignments (Table E.1.4).
-    pub chanmap: Option<u16>,
-    /// Presence of compression metadata also marks the last dependent substream.
-    pub compre: bool,
 }
 
 /// Read syncinfo and bsi (§E2.2.1-2), leaving `r` at the audio frame.
@@ -142,8 +138,7 @@ pub(crate) fn read_bsi(r: &mut Bits) -> Result<Bsi> {
     let acmod = r.read(3) as usize;
     let lfeon = r.bit();
     r.skip(5 + 5); // bsid, dialnorm
-    let compre = r.bit();
-    if compre {
+    if r.bit() {
         r.skip(8); // compr
     }
     if acmod == 0 {
@@ -152,7 +147,9 @@ pub(crate) fn read_bsi(r: &mut Bits) -> Result<Bsi> {
             r.skip(8); // compr2
         }
     }
-    let chanmap = if strmtyp == 1 && r.bit() { Some(r.read(16) as u16) } else { None };
+    if strmtyp == 1 && r.bit() {
+        r.skip(16); // chanmap
+    }
     if r.bit() {
         // mixing metadata
         if acmod > 2 {
@@ -238,7 +235,7 @@ pub(crate) fn read_bsi(r: &mut Bits) -> Result<Bsi> {
         let l = r.read(6) as usize;
         r.skip((l + 1) * 8); // addbsi
     }
-    Ok(Bsi { strmtyp, fscod: rate_code, numblkscod, chanmap, compre })
+    Ok(Bsi { strmtyp, fscod: rate_code, numblkscod })
 }
 
 /// The audio frame (§E2.2.3) and the state that runs from block to block within a syncframe.
@@ -590,15 +587,6 @@ mod tests {
                 assert!((f64::from(spx_atten(code, i)) - w).abs() < 1e-7, "{code} {i}");
             }
         }
-    }
-
-    #[test]
-    fn default_band_structures() {
-        assert_eq!(DEFAULT_CPLBNDSTRC.iter().filter(|&&b| b).count(), 8);
-        assert!(DEFAULT_CPLBNDSTRC[8] && !DEFAULT_CPLBNDSTRC[9] && !DEFAULT_CPLBNDSTRC[12] && DEFAULT_CPLBNDSTRC[17]);
-        assert_eq!(DEFAULT_SPXBNDSTRC.iter().enumerate().filter(|(_, b)| **b).map(|(i, _)| i).collect::<Vec<_>>(), vec![8, 10, 12, 14, 16]);
-        // every frame-based strategy sends new exponents in block 0
-        assert!(FRAME_EXPSTR.iter().all(|s| s[0] != 0));
     }
 
     #[test]

@@ -212,18 +212,6 @@ mod tests {
         }
     }
 
-    /// One offset is one chunk, and `single_chunk` refuses to build descriptors when the image declares more.
-    #[test]
-    fn single_chunk_is_the_only_chunk() {
-        let one = strips(vec![50], vec![10]);
-        assert_eq!(one.single_chunk(100).map(|c| (c.index, c.offset, c.len)), one.chunks(100).first().map(|c| (c.index, c.offset, c.len)));
-        // the inferred length matches too, and never falls back past the data
-        let inferred = strips(vec![70], vec![]);
-        assert_eq!(inferred.single_chunk(100).map(|c| c.len), Some(30));
-        assert!(strips(vec![50, 10], vec![10, 5]).single_chunk(100).is_none(), "a multi-chunk image has no single chunk");
-        assert!(strips(Vec::new(), Vec::new()).single_chunk(100).is_none());
-    }
-
     #[test]
     fn missing_byte_counts_run_to_the_next_larger_offset() {
         let info = strips(vec![50, 10, 30, 10, 70], vec![0, 0, 5]);

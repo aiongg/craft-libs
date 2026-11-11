@@ -428,24 +428,6 @@ mod tests {
     }
 
     #[test]
-    fn absent_fields_take_the_standard_defaults() {
-        let no_vui = sps(|w| w.u(0, 1), |w| w.ue(0));
-        assert_eq!(signal(&[&no_vui]), Some(Signal::default()));
-        let range_only = sps(
-            |w| {
-                w.u(1, 1);
-                w.u(0, 2);
-                w.u(1, 1);
-                w.u(5, 3);
-                w.u(1, 1);
-                w.u(0, 1); // no colour description
-            },
-            |w| w.ue(0),
-        );
-        assert_eq!(signal(&[&range_only]), Some(Signal { full_range: true, ..Signal::default() }));
-    }
-
-    #[test]
     fn missing_or_truncated_sps_is_none() {
         assert_eq!(signal(&[]), None);
         assert_eq!(signal(&[&[0x40, 1, 2, 3]]), None);

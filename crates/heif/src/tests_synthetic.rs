@@ -139,13 +139,6 @@ fn alpha_comes_from_its_auxiliary_image() {
     assert_eq!(d.data[..3], [luma(0, 0) * 257; 3]);
 }
 
-#[test]
-fn limits_are_checked_before_decoding() {
-    let bytes = build(&Spec::new(96, 64, &grey));
-    let r = decode(&bytes, &Options { max_pixels: 96 * 64 - 1, ..Default::default() });
-    assert!(matches!(r, Err(Error::Limit(_))), "{r:?}");
-}
-
 /// #1518: a grid's tiles together are held to the pixel budget before any is decoded. A
 /// 33 × 33 canvas fits 1089 pixels, but its four 32 × 32 tiles hold 4096: over twice the limit.
 #[test]

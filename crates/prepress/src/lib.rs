@@ -16,3 +16,10 @@ pub use cms::{CmsConversion, ProfileError};
 pub use coverage::{Above, Coverage, InkStats, MAX_REGIONS, Region, Stats};
 pub use ink::{Alternate, Ink, InkColor, InkId, InkSet, Overprint, Process, Spot, normalize_name, to_pdf_color};
 pub use plates::{Conversion, Error, Fallback, MAX_PLATE_PIXELS, MAX_SPOT_INKS, Options, Plates, plates};
+
+#[cfg(test)]
+extern crate self as craft_prepress;
+
+#[cfg(test)]
+#[path = "../tests/main.rs"]
+mod integration;
