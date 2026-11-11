@@ -160,6 +160,3 @@ impl NativeWindow {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {}

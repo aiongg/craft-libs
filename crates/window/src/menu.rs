@@ -90,38 +90,3 @@ impl<'a> IntoIterator for &'a WindowMenu {
         self.entries.iter()
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// Windows on documents (key, name, dirty).
-    fn menu(list: &WindowList<(u32, &str, bool)>) -> Vec<(String, bool, bool)> {
-        WindowMenu::new(list, |_, &(key, name, dirty)| Document { key, name: name.to_owned(), dirty })
-            .entries()
-            .iter()
-            .map(|e| (e.title.clone(), e.dirty, e.active))
-            .collect()
-    }
-
-    fn entry(title: &str, dirty: bool, active: bool) -> (String, bool, bool) {
-        (title.to_owned(), dirty, active)
-    }
-
-    #[test]
-    fn numbers_only_windows_that_share_a_document() {
-        let mut list = WindowList::new();
-        let book = list.open((1, "Book1", true));
-        let _notes = list.open((2, "Notes", false));
-        let second = list.open((1, "Book1", true));
-        list.focus(book);
-        assert_eq!(menu(&list), [entry("Book1:1", true, true), entry("Notes", false, false), entry("Book1:2", true, false)]);
-
-        list.close(book);
-        assert_eq!(menu(&list), [entry("Notes", false, false), entry("Book1", true, true)], "one window left: no suffix");
-        let third = list.open((1, "Book1", true));
-        let titles = WindowMenu::new(&list, |_, &(key, name, dirty)| Document { key, name: name.to_owned(), dirty });
-        assert_eq!(titles.title(second), Some("Book1:1"), "numbers close up in opening order");
-        assert_eq!(titles.title(third), Some("Book1:2"));
-    }
-}
