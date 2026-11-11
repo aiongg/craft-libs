@@ -94,3 +94,41 @@ fn a_filling_body_lies_between_its_header_and_its_footer_in_the_first_pass() {
     assert!(body.max.y <= footer.min.y + EDGE_SLACK, "the body ends at the footer's top: {body:?} {footer:?}");
     assert!(footer.max.y <= AREA.max.y + EDGE_SLACK, "the footer lies inside the container, at its foot: {footer:?}");
 }
+
+/// A row body beside an inline header and before an end region is measured in the line they leave, as it is shown:
+/// a wrapping text there shows on one line while the line has room for it, between the header and the end region.
+#[trial]
+fn a_row_body_between_an_inline_header_and_an_end_region_measures_in_the_line_they_leave() {
+    use craft_ui::contract::{BodyLayout, EndRegion, Show as _};
+    use craft_ui::display::Text;
+    use egui::UiBuilder;
+    const WORDS: &str = "File  Edit  Image";
+    let props =
+        ContainerProps::new().sizing(Sizing::FillWidth).layout(BodyLayout::row()).header(HeaderRegion::new().inline(true)).end(EndRegion::new());
+    let took = RefCell::new(Took::default());
+    let (text, alone) = (RefCell::new(Rect::NOTHING), RefCell::new(Rect::NOTHING));
+    let show = |ui: &mut Ui| {
+        ui.scope_builder(UiBuilder::new().max_rect(AREA), |ui| {
+            let bar = Regioned {
+                common: Common::new(),
+                props: props.clone(),
+                header: Some(Vec2::new(40.0, 20.0)),
+                end: Vec2::new(80.0, 20.0),
+                footer: Vec2::ZERO,
+                took: &took,
+            };
+            bar.show(ui, |ui, _| *text.borrow_mut() = Text::new(WORDS).show(ui).rect);
+        });
+        ui.scope_builder(UiBuilder::new().max_rect(AREA.translate(Vec2::new(0.0, 300.0))), |ui| *alone.borrow_mut() = Text::new(WORDS).show(ui).rect);
+    };
+    let mut frames = Frames::new();
+    frames.idle(3, show);
+    frames.frame(Vec::new(), show);
+    let (text, alone, took) = (*text.borrow(), *alone.borrow(), *took.borrow());
+    let (header, end) = (took.header.unwrap(), took.end.unwrap());
+    assert!((text.height() - alone.height()).abs() <= EDGE_SLACK, "the text shows on one line: {text:?}, alone {alone:?}");
+    assert!(
+        text.min.x >= header.max.x - EDGE_SLACK && text.max.x <= end.min.x + EDGE_SLACK,
+        "the text lies between {header:?} and {end:?}: {text:?}"
+    );
+}

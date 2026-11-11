@@ -4,7 +4,7 @@ use super::inherit::{BodyScope, register_instances};
 use super::open::open_now;
 use super::placement::{Placement, measure_layer, overlay_of, shown_placement};
 use super::regions::{
-    RegionFrame, end_full_height, footer_in_end, gap_of, header_gap_of, label_extra_of, least_of, pad_of, paint_rules, rect_of, shared_labels,
+    RegionFrame, RegionSizes, footer_in_end, gap_of, header_gap_of, label_extra_of, least_of, pad_of, paint_rules, rect_of, shared_labels,
 };
 use super::reorder::REORDER_BAND;
 use super::scroll::{Jumps, ScrollState, jump_frame, overflow_inset, scroll_of};
@@ -30,7 +30,7 @@ use crate::style::ComponentStyle as _;
 use crate::style::{Corners, StyleCx, SurfaceKind, scroll_bar_look, surface_style};
 use craft_behavior::layout_memory::measure_tolerance;
 use craft_behavior::{CancelRule, CursorIcon, EditEvent, KeyRole, Mixed, Roving, ScrollPos, ScrollSpan, WheelNotch, WheelRoom, WheelTaker};
-use egui::{Align, Context, CornerRadius, Id, Layout, Pos2, Rect, Shape, Ui, UiBuilder, Vec2};
+use egui::{Context, CornerRadius, Id, Pos2, Rect, Shape, Ui, UiBuilder, Vec2};
 use std::any::Any;
 use std::sync::Arc;
 
@@ -653,15 +653,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 scoped.roving = Some(crate::contract::steps::body_group(id));
             }
         });
-        // The content runs in reading order, so its roving order is its order on the line; the region is as wide as
-        // it measured, so the last child sits at the end edge. On the line it is centred; a full-height region starts
-        // at its top.
-        let end_region = |rect: Rect| {
-            let cross = if end_full_height(&props) { Align::Min } else { Align::Center };
-            let layout = if rtl { Layout::right_to_left(cross) } else { Layout::left_to_right(cross) };
-            let builder = UiBuilder::new().max_rect(rect).layout(layout).scope_id(sub(id, "end"));
-            if node { access::with_parent(builder, id) } else { builder }
-        };
+        let end_frame = RegionFrame { id, rtl, node, env: &line_env };
         // A footer in the end region is part of a column sized from its content: a fill-width child takes its
         // measured width there and shows across the column, so it never sets the column's width.
         let footer_env = if footer_in_end(&props) { region_env.derive_local(|scoped| scoped.content_column = true) } else { region_env.clone() };
@@ -673,6 +665,19 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         let content_column = (sizing == Sizing::Content || held || !self.given.0) && matches!(props.layout, layout::BodyLayout::Stack);
         let gap = Vec2::splat(gap_of(&env.tokens, props.body_gap));
         let layout_id = sub(id, "layout");
+        // The body is measured in the line the real run gives it: what the header and the end region leave. The
+        // measuring run places it once both have measured, so its end region runs first (its content never depends
+        // on the body); the real run places it from what they took and keeps reading order.
+        if !real && is_open {
+            if props.end.is_some() {
+                let mut end_cx = BodyCx::new(body_id, line_env.view(), resolved, regions.end, &mut *cx.core.memory, &mut open, gate.as_mut())
+                    .with_field_message(field_message.clone())
+                    .with_owner(owner);
+                close = close.or(self.end_region(comp, ui, &mut end_cx, &end_frame, &props, regions.end));
+            }
+            let sizes = RegionSizes { header: self.header_size, footer: self.measured_footer, end: self.end_size };
+            regions.body = self.regions(&props, inner, pad, room, rtl, sizes).body;
+        }
         // B2 label: the control gets the rect the label leaves; the label column adds to the container's extent.
         let mut body_rect = regions.body;
         let mut label_input = None;
@@ -845,16 +850,11 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 *size += label_extra;
             }
             self.view = Some(body_rect);
-            if props.end.is_some() {
+            if real && props.end.is_some() {
                 let mut end_cx = BodyCx::new(body_id, line_env.view(), resolved, regions.end, &mut *cx.core.memory, &mut open, gate.as_mut())
                     .with_field_message(field_message.clone())
                     .with_owner(owner);
-                let mut end_ui = alloc::child(ui, end_region(regions.end));
-                let installed = Env::install_for(&end_ui, line_env.clone());
-                comp.end(&mut end_ui, &mut end_cx);
-                Env::restore(&ctx, installed);
-                close = close.or(end_cx.close_requested());
-                self.end_size = Some(self.region_size(&end_ui));
+                close = close.or(self.end_region(comp, ui, &mut end_cx, &end_frame, &props, regions.end));
             }
         } else {
             // A collapsed body keeps its last full size in layout memory, so opening it again places by that size
