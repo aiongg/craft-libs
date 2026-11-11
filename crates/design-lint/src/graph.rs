@@ -180,39 +180,17 @@ pub fn check_graph(meta: &Metadata, maps: &LayerMaps) -> Vec<Site> {
 }
 
 /// Features that gate no dependency. A feature is allowed when it enables an optional dependency, directly
-/// or through another feature, or forwards to a feature of a workspace crate that is allowed. A feature that gates
-/// nothing itself is also allowed when an allowed feature of another workspace crate forwards to it: the lower
-/// crate of a split keeps the cfg of a feature whose dependency the crate above it enables.
+/// or through another feature, or forwards to a feature of a workspace crate that is allowed.
 pub fn check_features(meta: &Metadata) -> Vec<Site> {
     let mut sites = Vec::new();
     for package in &meta.packages {
         for feature in package.features.keys().filter(|f| *f != "default") {
-            if !allowed(meta, package, feature, &mut BTreeSet::new()) {
+            if !gates(meta, package, feature, &mut BTreeSet::new()) {
                 sites.push(Site::violation(FEATURES_GATE, format!("{}/{feature}", package.name)));
             }
         }
     }
     sites
-}
-
-/// Whether `feature` of `package` gates a dependency, or an allowed feature of another workspace crate forwards
-/// to it. `visiting` holds the features already on the forwarding chain, so a cycle allows nothing.
-fn allowed(meta: &Metadata, package: &Package, feature: &str, visiting: &mut BTreeSet<(String, String)>) -> bool {
-    if !visiting.insert((package.name.clone(), feature.to_owned())) {
-        return false;
-    }
-    // The features on the forwarding chain may not count as this feature's gate, or each would allow the other.
-    let mut chain = visiting.clone();
-    chain.remove(&(package.name.clone(), feature.to_owned()));
-    if gates(meta, package, feature, &mut chain) {
-        return true;
-    }
-    meta.packages.iter().filter(|upper| upper.name != package.name).any(|upper| {
-        upper.features.iter().any(|(name, members)| {
-            members.iter().any(|m| m.split_once('/').is_some_and(|(dep, sub)| dep.trim_end_matches('?') == package.name && sub == feature))
-                && allowed(meta, upper, name, visiting)
-        })
-    })
 }
 
 fn gates(meta: &Metadata, package: &Package, feature: &str, visiting: &mut BTreeSet<(String, String)>) -> bool {
@@ -234,23 +212,4 @@ fn gates(meta: &Metadata, package: &Package, feature: &str, visiting: &mut BTree
             None => optional(member),
         }
     })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn flagged(json: &str) -> Vec<String> {
-        check_features(&Metadata::parse(Path::new("."), json).unwrap()).into_iter().map(|s| s.subject).collect()
-    }
-
-    #[test]
-    fn a_feature_an_upper_crates_gating_feature_forwards_to_is_allowed() {
-        let json = r#"{"packages":[
-            {"name":"lower","features":{"testing":[],"loose":[]},"dependencies":[],"targets":[]},
-            {"name":"upper","features":{"testing":["lower/testing","dep:harness"],"echo":["lower/loose"]},
-             "dependencies":[{"name":"lower","kind":null,"optional":false},{"name":"harness","kind":null,"optional":true}],"targets":[]}
-        ]}"#;
-        assert_eq!(flagged(json), ["lower/loose", "upper/echo"]);
-    }
 }
