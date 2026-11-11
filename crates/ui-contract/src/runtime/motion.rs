@@ -225,6 +225,7 @@ struct Wanted {
 
 /// Motion that never ends while it shows.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[non_exhaustive]
 pub enum Looping {
     /// Wakes on a period: a stepped loop, a blinking caret.
     Periodic,

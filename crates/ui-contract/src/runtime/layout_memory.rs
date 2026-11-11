@@ -884,6 +884,7 @@ pub(crate) mod guard {
         ("runtime::sampler::", "samplers: read"),
         ("runtime::egui::input_filter::", "input filter: read"),
         ("runtime::egui::injected::Injected", "injected input: read"),
+        ("runtime::egui::repaint::Requested", "repaint requests: egui's repaint observer records them for the settle query; no run reads it"),
         ("runtime::egui::fixture::WindowFocus", "fixture window focus: read"),
         ("contract::tooltip::Grace", "tooltip grace: read"),
         ("runtime::egui::widgets::noted::Noted", "noted widgets: read"),

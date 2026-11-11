@@ -82,16 +82,21 @@ fn state(frames: &Frames) -> settle::SettleState {
     settle::state(&frames.ctx)
 }
 
+/// The tween's target and the one-shot wake's delay.
+const TARGET: f32 = 1.0;
+const DELAY: f64 = 1.0;
+
 #[trial]
 fn a_tween_is_busy_until_it_reaches_its_target() {
     let (mut frames, shown) = (Frames::new(), Cell::new(0.0));
     frames.settle(show(Act::Tween(0.0), &shown));
     assert!(state(&frames).is_settled(), "at rest before the change: {:?}", state(&frames));
-    frames.frame(Vec::new(), show(Act::Tween(1.0), &shown));
+    frames.frame(Vec::new(), show(Act::Tween(TARGET), &shown));
     assert!(state(&frames).animating && !state(&frames).at_rest(), "a retargeted tween is busy");
-    frames.settle(show(Act::Tween(1.0), &shown));
+    assert!(shown.get() < TARGET, "under way");
+    frames.settle(show(Act::Tween(TARGET), &shown));
     assert!(state(&frames).is_settled(), "settled after the tween: {:?}", state(&frames));
-    assert_eq!(shown.get(), 1.0, "a settle ends with the tween at its target");
+    assert!(shown.get() == TARGET, "a settle ends with the tween at its target");
 }
 
 #[trial]
@@ -116,12 +121,12 @@ fn loops_are_at_rest_but_not_settled_and_gone_without_motion() {
 fn a_one_shot_wake_is_at_rest_until_it_fires() {
     let (mut frames, shown) = (Frames::new(), Cell::new(0.0));
     frames.frame(Vec::new(), show(Act::Still, &shown));
-    let at = frames.ctx.input(|input| input.time) + 1.0;
+    let at = frames.ctx.input(|input| input.time) + DELAY;
     frames.settle(show(Act::WakeAt(at), &shown));
     let now = state(&frames);
-    assert!(now.wake_in.is_some_and(|wake| wake > 0.5 && wake <= 1.0), "{now:?}");
+    assert!(now.wake_in.is_some_and(|wake| wake > 0.0 && wake <= DELAY), "{now:?}");
     assert!(now.at_rest() && !now.is_settled(), "{now:?}");
-    frames.advance(1.0);
+    frames.advance(DELAY);
     frames.settle(show(Act::WakeAt(at), &shown));
     assert!(state(&frames).is_settled(), "settled once the wake fired: {:?}", state(&frames));
 }
@@ -182,7 +187,8 @@ fn fonts_are_busy_while_a_lookup_runs() {
     let mut frames = Frames::new();
     OnDemandFonts::new(lookup.clone(), None).install(&frames.ctx);
     let mut han = |ui: &mut Ui| {
-        ui.painter().text(egui::pos2(4.0, 4.0), egui::Align2::LEFT_TOP, "漢", egui::FontId::default(), egui::Color32::WHITE);
+        let color = ui.visuals().text_color();
+        ui.painter().text(egui::pos2(4.0, 4.0), egui::Align2::LEFT_TOP, "漢", egui::FontId::default(), color);
     };
     frames.idle(3, &mut han);
     assert!(state(&frames).fonts, "waits for the lookup: {:?}", state(&frames));

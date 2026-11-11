@@ -88,7 +88,7 @@ fn rerun_left_id(viewport: egui::ViewportId) -> egui::Id {
 pub(crate) fn end_pass(ctx: &Context) {
     let left = ctx.output(|output| output.requested_discard()) && !discardable(ctx);
     let id = rerun_left_id(super::pass::current_viewport(ctx));
-    super::memory::locked(ctx, |data| data.insert_temp(id, left));
+    super::memory::locked(ctx, |data| *data.get_temp_mut_or(id, false) = left);
 }
 
 /// Whether the last finished pass of `viewport` asked for a rerun that its frame did not run.
