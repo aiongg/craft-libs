@@ -97,13 +97,17 @@ impl<'a> PathField<'a> {
                 cx.memory::<Ticket>().0 = Some(id);
                 browsing = Some(id);
             }
-            let typed = row.edit.and_then(|event| {
-                let after = match &event {
-                    EditEvent::Commit { after, .. } | EditEvent::Set { after, .. } => after.clone(),
-                    _ => return None,
-                };
-                Some((after, event))
-            });
+            let typed = row
+                .edit
+                .into_iter()
+                .filter_map(|event| {
+                    let after = match &event {
+                        EditEvent::Commit { after, .. } | EditEvent::Set { after, .. } => after.clone(),
+                        _ => return None,
+                    };
+                    Some((after, event))
+                })
+                .last();
             let landed = typed.or_else(|| {
                 answered.map(|path| {
                     let event = EditEvent::set(Mixed::Same(before.clone()), path.clone(), label.as_str().into(), None);
