@@ -16,6 +16,6 @@ pub use slot::measure_slot;
 pub(crate) use crate::runtime::env::Shrink;
 
 pub(crate) use body::{
-    InFlow, MainFill, counting_fills, fill_share, flow_fill_room, flow_region, flow_room, in_grid_content_column, main_fill, place_in_cell, place_in_flow,
-    report_shrink, run_body, run_body_measured, shrink_cap, take_in_flow,
+    InFlow, MainFill, counting_fills, fill_share, flow_fill_room, flow_region, flow_room, in_grid_content_column, main_fill, place_in_cell,
+    place_in_flow, report_shrink, run_body, run_body_measured, shrink_cap, take_in_flow,
 };
