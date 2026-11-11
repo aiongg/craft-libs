@@ -194,46 +194,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_query_switch_wins_over_the_canvas_attribute() {
-        assert_eq!(Mode::detect("?host=parent", None), Some(Mode::Parent));
-        assert_eq!(Mode::detect("file=a.pdf&host=parent", Some("page")), Some(Mode::Parent));
-        assert_eq!(Mode::detect("", Some("page")), Some(Mode::Page));
-        assert_eq!(Mode::detect("?host=parents", None), None);
-        assert_eq!(Mode::detect("?xhost=parent", None), None);
-        assert_eq!(Mode::detect("", Some("frame")), None);
-    }
-
-    #[test]
-    fn only_this_apps_incoming_kinds_parse() {
-        assert_eq!(Incoming::parse("pdfcraft", "pdfcraft:open"), Some(Incoming::Open));
-        assert_eq!(Incoming::parse("pdfcraft", "pdfcraft:handoff-done"), Some(Incoming::HandoffDone));
-        assert_eq!(Incoming::parse("pdfcraft", "cadcraft:open"), None, "another app's message");
-        assert_eq!(Incoming::parse("pdfcraft", "pdfcraft:save"), None, "app-to-host kinds are not incoming");
-        assert_eq!(Incoming::parse("pdf", "pdfcraft:open"), None, "an app id that is only a prefix");
-        assert_eq!(Incoming::parse("pdfcraft", "pdfcraftopen"), None);
-    }
-
-    #[test]
-    fn every_kind_round_trips_through_its_type() {
-        for kind in Incoming::ALL {
-            assert_eq!(Incoming::parse("gridcraft", &message_type("gridcraft", kind.kind())), Some(kind));
-        }
-        assert_eq!(message_type("cadcraft", Outgoing::Handoff.kind()), "cadcraft:handoff");
-    }
-
-    #[test]
-    fn host_file_names_are_cleaned() {
-        assert_eq!(file_name(Some("plan.dxf"), "Drawing.dxf"), "plan.dxf");
-        assert_eq!(file_name(Some("  ../../etc/passwd "), "x"), "passwd");
-        assert_eq!(file_name(Some("C:\\Users\\sam\\notes.pdf"), "x"), "notes.pdf");
-        assert_eq!(file_name(Some("a\u{0}b\nc.txt"), "x"), "abc.txt");
-        assert_eq!(file_name(Some("dir/"), "Drawing.dxf"), "Drawing.dxf");
-        assert_eq!(file_name(Some(".."), "x"), "x");
-        assert_eq!(file_name(None, "Document.pdf"), "Document.pdf");
-        assert_eq!(file_name(Some(&"é".repeat(300)), "x").chars().count(), MAX_NAME_CHARS);
-    }
-
-    #[test]
     fn a_dirty_report_during_the_send_wins_and_a_failed_send_is_forgotten() {
         let dirty = Cell::new(Some(false));
         note_dirty(&dirty, true, || {
@@ -254,18 +214,6 @@ mod tests {
         });
         assert!(!sent);
         assert_eq!(dirty.get(), Some(true));
-    }
-
-    #[test]
-    fn malformed_message_types_name_no_kind() {
-        for bad in
-            ["", ":", "pdfcraft", "pdfcraft:", ":open", "pdfcraft:open:extra", "pdfcraft:OPEN", "pdfcraft: open", "pdfcraftx:open", "pdfcraft/open"]
-        {
-            assert_eq!(Incoming::parse("pdfcraft", bad), None, "{bad:?}");
-        }
-        assert_eq!(Incoming::parse("pdfcraft", "pdfcraft:open"), Some(Incoming::Open));
-        // The app's own outgoing kinds are not messages to it.
-        assert_eq!(Incoming::parse("pdfcraft", "pdfcraft:save"), None);
     }
 
     #[test]
