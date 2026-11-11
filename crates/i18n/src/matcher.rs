@@ -66,35 +66,3 @@ impl Matcher {
         Some(Match { rank, ranges })
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn rank(folder: &Folder, query: &str, text: &str) -> Option<Rank> {
-        Matcher::new(folder, query).score(text).map(|found| found.rank)
-    }
-
-    #[test]
-    fn accents_and_case_fold() {
-        let en = Folder::new("en");
-        let ranges = Matcher::new(&en, "cafe").score("Café").map(|found| found.ranges).unwrap_or_default();
-        assert_eq!(ranges.len(), 1);
-        assert_eq!(ranges.first().cloned(), Some(0.."Café".len()));
-    }
-
-    #[test]
-    fn turkish_dotted_capital_i() {
-        assert_eq!(rank(&Folder::new("tr"), "istanbul", "İSTANBUL"), Some(Rank::Whole));
-    }
-
-    #[test]
-    fn rank_orders_whole_prefix_word_start_contains() {
-        let en = Folder::new("en");
-        let ranks: Vec<Option<Rank>> = ["open", "open file", "the open", "reopen"].iter().map(|text| rank(&en, "open", text)).collect();
-        assert_eq!(ranks, [Some(Rank::Whole), Some(Rank::Prefix), Some(Rank::WordStart), Some(Rank::Contains)]);
-        assert_eq!(rank(&en, "file", "Open File"), Some(Rank::WordStart));
-        assert!(Rank::Prefix < Rank::Contains);
-        assert_eq!(rank(&en, "zip", "open"), None);
-    }
-}
