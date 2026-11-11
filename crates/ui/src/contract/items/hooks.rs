@@ -191,14 +191,15 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         }
         let ctx = ui.ctx();
         rows::measured_heights(ctx, |height| layout.measured(&|at| height(rows::measured_id(id, &self.source.key(at)))));
-        rows::measured_widths(ctx, |width| {
-            let asking: Vec<usize> = (0..self.source.len()).filter(|&at| layout.is_auto_width(at)).collect();
-            for at in asking {
-                if let Some((ideal, min)) = width(rows::measured_width_id(id, &self.source.key(at))) {
-                    layout.set_width(at, ideal, min);
+        if layout.auto_widths() {
+            rows::measured_widths(ctx, |width| {
+                for at in 0..self.source.len() {
+                    if let Some((ideal, min)) = width(rows::measured_width_id(id, &self.source.key(at))) {
+                        layout.set_width(at, ideal, min);
+                    }
                 }
-            }
-        });
+            });
+        }
         let content = layout.content_size();
         self.content = Vec2::new(content.x as f32, content.y as f32);
         self.columns = layout.column_count() as u32;
@@ -527,7 +528,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                         row = self.screen(&layout, rect, at, offset, rtl);
                     }
                 }
-                if layout.is_auto_width(at) {
+                if layout.auto_widths() {
                     let ideal = item.measure_in(&row_ui, Proposal::Ideal).x;
                     let min = item.measure_in(&row_ui, Proposal::Min).x;
                     rows::record_measure(&ctx, rows::measured_width_id(id, &key), Vec2::new(ideal, min));

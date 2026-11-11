@@ -1049,7 +1049,7 @@ Item geometry: where each item of a collection sits for a scroll offset and view
   - `fn is_auto(&self, _at: usize) -> bool`. Whether item `at` is as tall as it measures itself.
   - `fn measured(&mut self, _heights: &dyn Fn(usize) -> Option<f32>)`. Takes the measured heights of the auto items: `heights(at)` is `None` before the item's first measure.
   - `fn set_height(&mut self, _at: usize, _height: f32)`. An auto item measured `height` in this pass; the items after it move.
-  - `fn is_auto_width(&self, _at: usize) -> bool`. Whether item `at` is as wide as it measures itself. A layout that asks for widths places the items from
+  - `fn auto_widths(&self) -> bool`. Whether the items are as wide as they measure themselves. A layout that asks for widths places the items
   - `fn set_width(&mut self, _at: usize, _ideal: f32, _min: f32)`. An auto-width item measured `ideal` and `min` width. The values of the previous pass arrive before
   - `fn set_view(&mut self, _viewport: Vec2, _offset: ScrollPos)`. The viewport and scroll offset the grid view describes. Layouts without a grid ignore it.
 - `craft_behavior::item_layout::LineIndex`: `pub struct LineIndex`. Lines (rows or columns) with a default size, the lines whose size differs and their prefix sums, so the start

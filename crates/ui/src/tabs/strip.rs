@@ -215,7 +215,7 @@ impl ItemLayout for StripLayout {
         self.refit();
     }
 
-    fn is_auto_width(&self, _: usize) -> bool {
+    fn auto_widths(&self) -> bool {
         true
     }
 

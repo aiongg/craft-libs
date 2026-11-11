@@ -72,7 +72,7 @@ impl ItemLayout for Strip {
         (row == 0).then_some(self.widths.len())
     }
 
-    fn is_auto_width(&self, _: usize) -> bool {
+    fn auto_widths(&self) -> bool {
         true
     }
 
