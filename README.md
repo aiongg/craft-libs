@@ -142,9 +142,12 @@ craft-<name> = { git = "https://github.com/storytold/craft-libs", rev = "<commit
   timecode, the playback clock, a frame cache and frame server (egui-free); the timeline panel,
   ruler, clips, keyframe lanes, graph editor, transport, timecode fields, preview, overview and
   render queue (`ui` feature).
-- [`craft-ui`](crates/ui/README.md): SVG catalogs, icon buttons, tabs, pane controls, transactional docking, print settings and theme helpers for egui frontends;
-  assets, themes, localization and command handling stay in each app. Requires Rust 1.95 or later.
-- `craft-ui-macros`: the `StoryArgs` and `StoryChoice` derives for `craft_ui::story`; use them through `craft-ui`.
+- `craft-ui`: the UI library on egui: runtime, style, fonts, primitives, the component contract, layout,
+  components (docking, dialogs, canvas, lists, text, menus and more), patterns and the shell. Assets, themes, localization and commands
+  stay in each app. Design and architecture in [docs/craft-framework.md](docs/craft-framework.md).
+  Requires Rust 1.95 or later.
+- `craft-ui-macros`: the derives and macros of `craft-ui` (`Component`, `Props`, `ComponentStyle`, `Pattern`,
+  `CommandSet`, words, stories and trials); use them through `craft-ui`.
 - [`craft-vectorcraft-format`](crates/vectorcraft-format/README.md): the envelope of VectorCraft's
   `.vectorcraft` file: its members, versions, embedded images and the data after the JSON, with the
   document as a type parameter. The document and its migrations stay in VectorCraft.
@@ -152,13 +155,8 @@ craft-<name> = { git = "https://github.com/storytold/craft-libs", rev = "<commit
   `window.<app>` shape (`request`, `execute`, `commands`, `docInspect`, `uiInspect`, `screenshot`) over the app's
   JSON control channel.
 - [`craft-web-host`](crates/web-host/README.md): the host messages between a Craft app's web build and the page that hosts it (`?host=parent` or `data-host="page"`): one contract and one bridge for every app.
-- [Shared UI component audit](docs/ui-components-audit.md): source inventory, extraction priorities
-  and compatibility boundaries across the Craft suite.
-- [Theme infrastructure](docs/theme-infrastructure.md): eight-app comparison and the small shared
-  widget-state styling boundary.
-- [Panel docking](docs/ui-docking.md): validated panel moves, floating groups, workspace adapters
-  and an optional egui docking surface.
-- [Dialogs](docs/ui-dialogs.md): modal and modeless dialogs, footer roles and keys, prompts, the dialog stack, canvas pass-through, viewport windows
+- [Docking](docs/ui-docking.md): the dock model, `DockArea`, `SplitArea` and `PaneArea`.
+- [Dialogs](docs/ui-dialogs.md): `Dialog`, `DialogHost`, the dialog stack and the standard prompts.
 - [Craft framework](docs/craft-framework.md): the design, installation, architecture, design system, foundations, components, accessibility, tests, and the migration and landing plan
 
 ## License and credits
