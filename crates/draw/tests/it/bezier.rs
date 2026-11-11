@@ -302,7 +302,7 @@ fn harness(paths: Vec<EditPath>) -> Harness {
         st.hover = output.hover;
         st.changes.extend(output.change);
         if let Some(select) = output.select {
-            st.lone_selects += usize::from(event.is_none());
+            st.lone_selects += usize::from(output.edit.events.is_empty());
             st.selection = select;
         }
         if let Some((path, segment, t)) = output.insert {

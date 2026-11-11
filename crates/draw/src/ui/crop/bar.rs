@@ -278,17 +278,18 @@ fn ratio_field(
             .show(ui);
         events = field.edit.events.clone();
     });
-    let mut apply = |settings: &mut CropSettings, value: Option<f64>| {
+    // Returns whether the value changed the settings.
+    let apply = |settings: &mut CropSettings, value: Option<f64>| {
         let new = value.unwrap_or(0.0);
         if (new - current).abs() < 0.5 * 10f64.powi(-(RATIO_DECIMALS as i32)) {
-            return;
+            return false;
         }
         // The other side keeps what the bar shows, so an Original ratio becomes its sides.
         if let Some(other) = settings.ratio_fields.get_mut(1 - side) {
             *other = shown.get(1 - side).copied().unwrap_or(0.0);
         }
         settings.set_ratio_field(side, new);
-        *changed = true;
+        true
     };
     for event in events {
         match event {
@@ -298,11 +299,11 @@ fn ratio_field(
             }
             EditEvent::Update { value, .. } => {
                 *editing = true;
-                apply(settings, value);
+                *changed |= apply(settings, value);
             }
             EditEvent::Commit { after: value, .. } | EditEvent::Set { after: value, .. } => {
                 cx.memory::<RatioStart>().0 = None;
-                apply(settings, value);
+                *changed |= apply(settings, value);
             }
             EditEvent::Cancel { .. } => {
                 if let Some((ratio, fields)) = cx.memory::<RatioStart>().0.take() {

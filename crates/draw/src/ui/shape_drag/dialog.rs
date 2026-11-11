@@ -306,7 +306,7 @@ fn size_field(
         field = field.range(low.min(high)..=low.max(high));
     }
     let out = field.show(ui);
-    if let Some(kind) = out.unit.as_ref().and_then(|event| event.value().copied()) {
+    if let Some(kind) = out.unit.value().copied() {
         *unit = kind;
     }
     if let Some(value) = out.edit.value().copied().flatten()
