@@ -13,7 +13,7 @@ craft-design-lint check-clippy [--clippy-toml PATH]
 
 Exit code: 0 clean, 1 findings (or a rise over the baseline, or clippy drift or shadowing), 2 usage, configuration or I/O error.
 
-Craft-libs gallery: `cargo run -p craft-design-lint -- check --config crates/ui-gallery/design-lint.toml --deny-unused --summary`.
+craft-libs itself: `cargo run --release -p craft-design-lint -- check --config design-lint.toml --summary` (the root config lists the framework and family UI paths).
 
 ## Config
 
@@ -78,7 +78,7 @@ reason = "document-space drawing"
 
 Egui paths are resolved through the file's `use` items (one table per file, grouped, renamed and glob imports), so a craft type that shares a name with an egui type is not flagged unless it is imported from egui.
 
-Names are resolved through the file's `use` items, per module scope: grouped imports, renames (`use egui::Margin as M`), module aliases (`use craft_ui::theme as t`) and glob imports (`use craft_ui::theme::*`) all reach the rule table, so `margin(4.0)` is flagged after `use craft_ui::theme::margin`. A bare name that a fn in the same module defines is not extended through globs. Imports in a module do not apply in sibling modules.
+Names are resolved through the file's `use` items, per module scope: grouped imports, renames (`use egui::Margin as M`), module aliases (`use crate::theme as t`) and glob imports (`use crate::theme::*`) all reach the rule table, so `margin(4.0)` is flagged after `use crate::theme::margin`. A bare name that a fn in the same module defines is not extended through globs. Imports in a module do not apply in sibling modules.
 
 A literal is a number, optionally negated, parenthesised, cast or in arithmetic; zero is never flagged. A name is flagged when a `const` or `static` in the same file with that name has such a value. Consts are keyed by module and impl scope: a bare name takes the innermost scope that defines it, `Self::X`, `self::X`, `super::X`, `crate::X`, `Type::X` and `module::X` (last two segments) the scope they name, and a name with several candidates is flagged when any is non-zero.
 
@@ -123,7 +123,7 @@ The baseline stores error-finding counts per file and rule. The check fails when
 | `features/gate` | a Cargo feature of a mapped crate that gates no optional dependency, directly or through a workspace crate's feature |
 | `clone/baseline`, `clone/slack` | a family's duplicated tokens above or below its baseline |
 
-`graph/*` and `features/gate` breaches are excused by exception entries with the same rule and the subject as `path` (`craft-window->egui`, `craft-ui/fast`).
+`graph/*` and `features/gate` breaches are excused by exception entries with the same rule and the subject as `path` (`craft-window->egui`, `<crate>/<feature>`).
 
 ### Layer map: `design/layers/<crate>/`
 

@@ -32,7 +32,7 @@ One row per name in the author table (Overview) and per `pub` item a component a
 | `CellSelection` | The sheet's selection model | craft-behavior | 17.7 |
 | `Chord` | A key with modifiers, the one shortcut type, shown with `ChordText` | craft-keymap | 11.1 |
 | `ClipboardHandle`, `ClipItem` | The handle `cx.clipboard()` returns over `craft_platform::clipboard` | `craft_ui::runtime::commands` | 11.3 |
-| `Codec` library codecs | `PlainText`, `NumberCodec`, `LengthCodec` and `DateCodec`, beside `Codec` and `quantity::Reader` | craft-behavior | 18.3 |
+| `Codec` library codecs | `PlainText` and `NumberCodec` beside `Codec` and `quantity::Reader` (craft-behavior); `HexCodec`, `DateCodec` and the text fields' other codecs in craft-ui | craft-behavior, craft-ui | 18.3 |
 | Collection | A component that also implements `Collection` | `craft_ui::contract` | 1.3, 17 |
 | `CollectionEvent`, `ColumnEvent` | The events a collection reports, and its column events | `craft_ui::contract` | 17.1, 17.6 |
 | `CollectionProps` | A collection's plain data | `craft_ui::contract` | 17.1 |
@@ -150,7 +150,7 @@ One row per name in the author table (Overview) and per `pub` item a component a
 | Key table, `KeyRole` | The one table per OS that maps keys and modifiers to intents and `MoveMods`, as the pure function `keys::intent(os, key, mods, role)` | craft-behavior | 9.2 |
 | `craft_keymap::layout` | The keyboard-layout rule for shortcut matching and key labels, used by the dispatcher, the key table and `ChordText` | craft-keymap | 11.1 |
 | `Label` | Given or library text | `craft_ui::runtime::env` | 19.2 |
-| Label scope | A `LabelScope` a container with a side label opens for the controls inside, holding the label's id, rect and press state | `craft_ui::runtime::access` | 12.4 |
+| Label scope | The scope a container with a side label opens for the controls inside; a control reads the label's `FieldLabel` (id, rect, press state, text) with `cx.field_label()` | `craft_ui::runtime::access` | 12.4 |
 | Label step | Body sub-step B2, run for every container with a side label and by `PaintUi::labelled` | `craft_ui::contract` | 16.3 |
 | Layer | One of the architecture layers 0 to 8 | — | Overview |
 | Layer stack | The runtime's per-viewport record of shown egui layers and their order | `craft_ui::runtime` | 15.2 |
@@ -233,7 +233,7 @@ One row per name in the author table (Overview) and per `pub` item a component a
 | `Roving` | A roving group | craft-behavior | 9.5 |
 | `RowState` | An item's row facts from the collection; the row's id scope is its key | `craft_ui::contract` | 17.2, 17.5 |
 | Row shape | The theme's row drawing shape, `RowStyle` | craft-theme | 4.6 |
-| `RowStyle` | `ListRow`'s style struct, read with the theme's `RowShape` | the list family | 17.7 |
+| `ListRowStyle` | `ListRow`'s style struct; it reads the theme's `RowStyle` | `craft_ui::list` | 17.7 |
 | `runtime::toast::post` | Posts a toast from any code with a `Context` | `craft_ui::runtime::toast` | 15.5 |
 | `SaveKey` | A crate-prefixed key for the saved lifetime, never derived from an id | `craft_ui::runtime::memory` | 7.2 |
 | `ScopeKind`, `CancelRule`, `Initial`, `EnterRule` | A focus scope's kind, Escape rule, initial focus and Enter rule | craft-behavior (`ScopeKind`, `CancelRule`), `craft_ui::runtime::focus` (`Initial`, `EnterRule`) | 9.4 |
@@ -275,7 +275,6 @@ One row per name in the author table (Overview) and per `pub` item a component a
 | `TextKey`, `Codec` | The key of a text part and the conversion between its text and value | `craft_ui::primitives` (`TextKey`), craft-behavior (`Codec`) | 18.2 |
 | `TextPos` | A position in an editor's visible lines | craft-behavior | 18.4 |
 | `TextOptions`, `Completer`, `Completion` | A text part's options, and the trait and candidate type of its completion list | `craft_ui::primitives` (text adapter) | 18.2 |
-| `SpanStyler` | The trait that colours text spans | the text family | 18.2 |
 | `TextOutcome` | A text part's result this pass, with its `TextLayout`, from `cx.text(&key)` | `craft_ui::primitives` | 18.2 |
 | Text parts | `layout`, text outcomes and the editor stream and state, methods of `MeasureCx` and `PartsCx` | `craft_ui::contract` | 1.5, 18 |
 | `TextRun`, `TextLayout` | The one description of UI text, and its laid-out form | `craft_ui::primitives` | 5.2 |
