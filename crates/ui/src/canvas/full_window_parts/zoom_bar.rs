@@ -1,10 +1,10 @@
 //! `FullWindowZoomBar`: the zoom strip under a full-window canvas.
 
-use super::super::words::DialogWords;
 use super::view::FullWindowView;
 use crate::buttons::IconButton;
 use crate::canvas::ViewCommands;
 use crate::contract::{Bind, Entry, NoValue, Outcome, Props as _, Show as _, ShowContainer as _};
+use crate::dialog::DialogWords;
 use crate::display::{Elide, Progress, Shade, Text};
 use crate::layout_components::Row;
 use crate::pickers::Select;
@@ -56,7 +56,7 @@ impl Outcome for FullWindowZoomBarOutput {
 /// - **Progress or note.** While [`progress`](Self::progress) is set, a progress bar (indeterminate for
 ///   `Some(None)`); otherwise the [`note`](Self::note) in the faint shade, caption type, cut with an ellipsis.
 ///
-/// [`FullWindowDialog`]: super::super::FullWindowDialog
+/// [`FullWindowDialog`]: crate::dialog::FullWindowDialog
 #[derive(crate::contract::Pattern)]
 #[must_use = "show the bar with `show`"]
 pub struct FullWindowZoomBar<'a> {

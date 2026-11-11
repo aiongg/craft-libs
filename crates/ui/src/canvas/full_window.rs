@@ -1,12 +1,12 @@
 //! `FullWindowDialog` (16.5): a dialog over the whole window, on the panel surface, with the dialog focus trap.
 
-use super::frame::{self, DialogOutput, FOOTER, FooterCx, FooterFn, FooterHooks};
 use super::full_window_parts::SideFooter;
 use crate::canvas::ViewCommands;
 use crate::contract::{
     Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, EndRegion, FooterPlace, FooterRegion, HeaderRegion, Mount, Pad,
     Props as _, Role, SaveKey,
 };
+use crate::dialog::frame::{self, DialogOutput, FOOTER, FooterCx, FooterFn, FooterHooks};
 use crate::edit::outer::{self, OuterEnd};
 use crate::runtime::commands::{self, CommandScope, CommandSet as _};
 use crate::runtime::env::Label;
@@ -16,6 +16,11 @@ use crate::sections::FooterButton;
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
 use craft_behavior::{Metrics, Sense};
 use egui::Ui;
+
+#[cfg(feature = "testing")]
+mod stories;
+#[cfg(feature = "testing")]
+mod trials;
 
 /// The style of a full-window dialog: the surface comes from the container.
 #[derive(Clone, Debug, Default, PartialEq, ComponentStyle)]

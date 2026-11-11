@@ -4,6 +4,7 @@
 use super::hide::{self, Shown};
 use crate::contract::overlay::PlacementChange;
 use crate::contract::{Bind, BindMut, BodyCx, Cx, Entry, NoValue, Outcome, Pointer as _, Props as _, ShowContainer as _, Sizing, WordSetCx as _};
+use crate::docking::SplitFramesCx as _;
 use crate::docking::stack::{StackSection, StackSections, section_heights};
 use crate::docking::tree::FrameRules;
 use crate::docking::{

@@ -1,7 +1,7 @@
 //! `FullWindowStatus`: the progress or error line of a preview a full-window workspace computes off the UI thread.
 
-use super::super::words::DialogWords;
 use crate::contract::{NoValue, Outcome, Props as _, Show as _, ShowContainer as _};
+use crate::dialog::DialogWords;
 use crate::display::Progress;
 use crate::layout_components::Row;
 use crate::notices::{Notice, NoticeLayout};

@@ -2,25 +2,28 @@
 
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{Attribute, DeriveInput, Ident, Type};
+use syn::{Attribute, DeriveInput, Type};
 
-/// What a `#[derive(Pattern)]` declares: the instantiations a `#[pattern(probe(Type<..>, ..))]` lists, and the
-/// `PatternProbe` constructor of its kind (`#[pattern(tool)]`, `#[pattern(dialog)]`; `of` without either).
+/// What a `#[derive(Pattern)]` declares: the instantiations a `#[pattern(probe(Type<..>, ..))]` lists, and the path
+/// of the `PatternProbe` constructor of its kind (`#[pattern(tool)]`, `#[pattern(dialog)]`; `PatternProbe::of`
+/// without either). A kind's constructor lives beside the kind's trait and is bounded by it.
 struct Options {
     types: Vec<Type>,
-    probe: Ident,
+    probe: TokenStream,
 }
 
 fn options(attrs: &[Attribute]) -> syn::Result<Options> {
     let mut types = Vec::new();
-    let mut probe = Ident::new("of", proc_macro2::Span::call_site());
+    let mut probe = quote!(::craft_ui::contract::PatternProbe::of);
     for attr in attrs.iter().filter(|attr| attr.path().is_ident("pattern")) {
         attr.parse_nested_meta(|meta| {
-            for kind in ["tool", "dialog"] {
-                if meta.path.is_ident(kind) {
-                    probe = Ident::new(kind, proc_macro2::Span::call_site());
-                    return Ok(());
-                }
+            if meta.path.is_ident("tool") {
+                probe = quote!(::craft_ui::canvas::tool_probe);
+                return Ok(());
+            }
+            if meta.path.is_ident("dialog") {
+                probe = quote!(::craft_ui::dialog::dialog_probe);
+                return Ok(());
             }
             if !meta.path.is_ident("probe") {
                 return Err(meta.error("unknown `pattern` option; expected `probe(..)`, `tool` or `dialog`"));

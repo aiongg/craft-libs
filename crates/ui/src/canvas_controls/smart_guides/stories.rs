@@ -1,10 +1,10 @@
 //! Stories of `SmartGuides`.
 
 use super::{Measure, SmartGuides, SmartLine};
+use crate::canvas::testing::canvas_story::{StoryDocument, on_canvas_view};
 use crate::canvas::{PixelRect, RasterSource};
 use crate::contract::Show as _;
 use crate::primitives::Revision;
-use crate::testing::canvas_story::{StoryDocument, on_canvas_view};
 use crate::testing::{StoryData, StoryOutput, story};
 use craft_behavior::PixelSize;
 use craft_behavior::kurbo::{Point, Rect as DocRect};

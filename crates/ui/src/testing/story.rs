@@ -204,15 +204,15 @@ pub fn stories() -> Vec<&'static StoryRegistration> {
 /// The values a story shows, by name. Each is a `Value`, so the runner compares them before and after a drive.
 #[derive(Default)]
 pub struct StoryData {
-    pub(super) values: HashMap<(&'static str, TypeId), Box<dyn Shown>>,
+    pub(crate) values: HashMap<(&'static str, TypeId), Box<dyn Shown>>,
     /// What a story said about how a value is edited: a range or a list of choices.
-    pub(super) how: HashMap<(&'static str, TypeId), Edit>,
+    pub(crate) how: HashMap<(&'static str, TypeId), Edit>,
     /// The story's `disabled_text`.
     disabled_text: Option<&'static str>,
 }
 
 /// How the Properties editor edits a value, beyond what its type says.
-pub(super) enum Edit {
+pub(crate) enum Edit {
     /// A number stays inside this range.
     Range(RangeInclusive<f64>),
     /// The value is one of these, by label.
@@ -220,7 +220,7 @@ pub(super) enum Edit {
 }
 
 /// A story value with its type erased: it copies and compares itself.
-pub(super) trait Shown {
+pub(crate) trait Shown {
     fn copy(&self) -> Box<dyn Shown>;
     fn assign(&mut self, from: &dyn Shown);
     fn same(&self, other: &dyn Shown) -> bool;

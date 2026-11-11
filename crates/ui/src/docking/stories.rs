@@ -1,5 +1,6 @@
 //! Stories of the docking family.
 
+use super::SplitFramesCx as _;
 use super::stack::{StackSection, StackSections};
 use super::tree::FrameRules;
 use super::{DockGroup, DockPanels, DragUnit, GroupGrip, HANDLE, PanelKey, PanelSpec, PanelTitle, SplitArea, Splitter, WindowMenuRows};

@@ -20,7 +20,7 @@ pub use findings::{Finding, Findings, FindingsList, FindingsListStyle, FindingsS
 pub use predicate::{DropTest, RowTest, SourceTest};
 pub(crate) use row::RowThumb;
 pub use row::{
-    ListRow, ListRowStyle, RowEvent, RowInk, RowOutput, ThumbAspect, ThumbPaint, ThumbSize, ThumbTarget, TrailingFace, TrailingPart,
+    ListRow, ListRowStyle, RowEvent, RowInk, RowOutput, RowStyleCx, ThumbAspect, ThumbPaint, ThumbSize, ThumbTarget, TrailingFace, TrailingPart,
     label_color_label,
 };
 pub use toggle::{ToggleCell, ToggleFace, ToggleState};

@@ -1,10 +1,10 @@
 //! Stories of the rulers.
 
 use super::{CORNER, Rulers};
+use crate::canvas::testing::canvas_story::{StoryDocument, on_canvas_with};
 use crate::canvas::{Canvas, RulerText};
 use crate::contract::{Bind, Show as _, Validity};
 use crate::runtime::env::{Message, UnitKind};
-use crate::testing::canvas_story::{StoryDocument, on_canvas_with};
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use crate::testing::{pointer, stage};
 use craft_behavior::kurbo::Point;

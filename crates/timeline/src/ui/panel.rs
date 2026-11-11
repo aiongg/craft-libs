@@ -28,6 +28,7 @@ use craft_ui::contract::{
 };
 use craft_ui::display::Text;
 use craft_ui::docking::SplitArea;
+use craft_ui::docking::SplitFramesCx as _;
 use craft_ui::docking::tree::FrameRules;
 use craft_ui::layout_components::{Row, Stack};
 use craft_ui::menu::{Menu, MenuItem};

@@ -149,8 +149,8 @@ pub struct Scoped {
     /// measured, and without a measuring run of this pass.
     pub(crate) fill_share: Option<f32>,
     /// The shrink step of the unwrapped `Row` body that encloses the scope: its direct leaf children report their
-    /// widths to it, or show in the widths it gave them (`layout::Shrink`).
-    pub(crate) shrink: Option<crate::layout::Shrink>,
+    /// widths to it, or show in the widths it gave them.
+    pub(crate) shrink: Option<Shrink>,
     /// The width a body that sizes its width from its content was offered this pass, less its padding: the room its
     /// direct children share across a column or along a row, wider than the body's own band before it measured them.
     pub(crate) offered: Option<f32>,
@@ -173,6 +173,15 @@ pub struct Scoped {
     pub(crate) commands: CommandChain,
     pub(crate) host: Option<Arc<Host>>,
     pub(crate) values: AppValues,
+}
+
+/// The shrink step of an unwrapped `Row` body, as its direct leaf children shown in flow see it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum Shrink {
+    /// The first sweep of a measuring run of the row: each leaf reports its widths to the row (`layout::report_shrink`).
+    Count(Id),
+    /// Each leaf shows at most the width the measuring run of the row gave it (`layout::shrink_cap`).
+    Apply(Id),
 }
 
 /// What a collection records for one of its items in a pass: the row flags the item folds into its state (step 12)

@@ -3,7 +3,3 @@ config_version = 1
 [[module]]
 path = "docking"
 layer = 5
-
-[[module]]
-path = "patterns::dock"
-layer = 6

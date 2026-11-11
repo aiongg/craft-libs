@@ -202,7 +202,7 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> SplitArea<'a, P> 
     /// A two-body area: `bodies.0` first along `axis` and `bodies.1` after it, with one divider between them. The first
     /// body takes `share` of the room left after the divider; the area's response reports the divider's drags and keys
     /// as [`SplitAreaOutput::share`], and the host hands the share back in the next pass. The body reads each body's
-    /// rect with [`BodyCx::group_frames`].
+    /// rect with [`SplitFramesCx::group_frames`].
     pub fn pair(label: impl Into<Label>, axis: Axis, bodies: (P, P), share: f32, rules: FrameRules<'a, P>) -> Self {
         let root = Node::split(axis, SplitSize::Ratio(share), Node::tabs(vec![bodies.0], 0), Node::tabs(vec![bodies.1], 0));
         Self::new(label, Bind::given(Layout::new(Some(root), Vec::new())), rules)
@@ -226,16 +226,23 @@ struct PassDocks(Vec<(DockEdge, Rect)>);
 const FRAMES: &str = "split_frames";
 const DOCKS: &str = "split_docks";
 
-impl BodyCx<'_> {
+/// What a split area's body reads of the area's frames, on its `BodyCx`.
+pub trait SplitFramesCx {
     /// The groups of the split area this body belongs to, each as its anchor panel and its rect, with this pass's
     /// resize edits applied: a panel placed at its group's rect sits against the handle in the same pass.
-    pub fn group_frames<P: Clone + Send + Sync + 'static>(&self) -> Vec<(P, Rect)> {
-        self.memory.recall::<PassFrames<P>>(sub(self.id, FRAMES)).0
-    }
+    fn group_frames<P: Clone + Send + Sync + 'static>(&self) -> Vec<(P, Rect)>;
 
     /// The docks of the split area this body belongs to, each as its window edge and its rect, with this pass's
     /// resize edits applied.
-    pub fn dock_frames(&self) -> Vec<(DockEdge, Rect)> {
+    fn dock_frames(&self) -> Vec<(DockEdge, Rect)>;
+}
+
+impl SplitFramesCx for BodyCx<'_> {
+    fn group_frames<P: Clone + Send + Sync + 'static>(&self) -> Vec<(P, Rect)> {
+        self.memory.recall::<PassFrames<P>>(sub(self.id, FRAMES)).0
+    }
+
+    fn dock_frames(&self) -> Vec<(DockEdge, Rect)> {
         self.memory.recall::<PassDocks>(sub(self.id, DOCKS)).0
     }
 }

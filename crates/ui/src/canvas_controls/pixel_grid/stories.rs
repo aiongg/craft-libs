@@ -1,10 +1,10 @@
 //! Stories of `PixelGrid`.
 
 use super::PixelGrid;
+use crate::canvas::testing::canvas_story::{on_canvas_view, story_view};
 use crate::canvas::{PixelRect, RasterSource};
 use crate::contract::Show as _;
 use crate::primitives::Revision;
-use crate::testing::canvas_story::{on_canvas_view, story_view};
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use craft_behavior::PixelSize;
 use craft_behavior::kurbo::Point;

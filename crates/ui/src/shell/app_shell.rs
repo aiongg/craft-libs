@@ -6,7 +6,7 @@ mod dialogs;
 #[cfg(feature = "testing")]
 mod stories;
 
-pub use self::dialogs::WindowDialogs;
+pub use self::dialogs::{ShellDialogsCx, WindowDialogs};
 use super::canvas_shell::slots as keys;
 use super::regions::{Claim, SlotSize, layout};
 use super::reveal::{Aim, Reveal, Tracking};
@@ -259,7 +259,7 @@ impl Outcome for AppShellOutput {
 /// - **App state.** `S` is the state the slots and the body edit; [`show`](Self::show) hands each of them `&mut S` in
 ///   turn, so a title bar, a rail and a body that edit one document share it without interior mutability. An app with
 ///   no shared state uses `S = ()`.
-/// - **Dialogs.** The window owns one dialog host, shared by every body in it (`BodyCx::dialogs`). The shell runs it
+/// - **Dialogs.** The window owns one dialog host, shared by every body in it (`ShellDialogsCx::dialogs`). The shell runs it
 ///   after the body in each pass, so dialogs show over the window.
 /// - **Embedded.** [`embedded`](Self::embedded) shows a shell inside a region of another window. Its screen modes
 ///   hide and reveal its slots in that region and never ask the OS window for anything.

@@ -10,7 +10,6 @@
 //! | The panel menu | [`NavigatorCommands`] |
 
 mod menu;
-mod options;
 mod preview;
 mod proxy;
 #[cfg(feature = "testing")]
@@ -18,7 +17,6 @@ mod stories;
 mod zoom_row;
 
 pub use menu::NavigatorCommands;
-pub use options::{NavigatorOptions, NavigatorSettings, ProxyColor};
 pub use preview::{Navigator, NavigatorOutput, NavigatorPaint, NavigatorPreview, NavigatorStyle};
 pub use proxy::{preview_rect, proxy_quad, view_center_for, zoom_to_document_rect};
 pub use zoom_row::{NavigatorZoomRow, NavigatorZoomRowOutput};

@@ -21,7 +21,7 @@ use super::color_choice::{self, ColorChoice, ColorRowTexts, apply_color_answers}
 use crate::runtime::requests::HostAnswer;
 
 use super::{FormDialog, HostRequests, ParamDialogWords};
-use crate::canvas::{Guide, GuideColor};
+use crate::canvas_data::{Guide, GuideColor};
 
 use crate::choice::Checkbox;
 use crate::contract::{Bind, EditResponse, Entry, NoValue, Outcome, Props as _, Remember as _, Show as _, ShowContainer as _};

@@ -4,5 +4,5 @@ config_version = 1
 name = "reference-point-rtl"
 kind = "probe"
 rule = "probe/exempt/rtl"
-path = "crates/ui/src/pickers/reference_point.rs"
+path = "crates/ui-widgets/src/pickers/reference_point.rs"
 reason = "The nine points are positions in a box, not reading order: the left point stays on the left."

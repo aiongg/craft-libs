@@ -1,7 +1,7 @@
 //! Stories of the dialog shells.
 
 use super::modal::ModalDragStrip;
-use super::{BlockingOverlay, Dialog, DialogFrame, FullWindowDialog};
+use super::{BlockingOverlay, Dialog, DialogFrame};
 use crate::choice::Checkbox;
 use crate::contract::{Bind, Props as _, Show as _, ShowContainer as _};
 use crate::layout_components::Stack;
@@ -11,7 +11,7 @@ use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use egui::Ui;
 
 /// What the story dialogs hold: two check boxes whose values the story keeps between passes.
-fn body(ui: &mut Ui, checks: &mut [bool; 2]) {
+pub(crate) fn body(ui: &mut Ui, checks: &mut [bool; 2]) {
     let [snap, rulers] = checks;
     Stack::new().show(ui, |ui, _| {
         Checkbox::new(Bind::bound(snap)).label("Snap to grid").show(ui);
@@ -20,7 +20,7 @@ fn body(ui: &mut Ui, checks: &mut [bool; 2]) {
 }
 
 /// The drive of the shells with a close action: a click on it.
-fn close_box(fixture: &mut Fixture) {
+pub(crate) fn close_box(fixture: &mut Fixture) {
     if let Some(close) = fixture.by_label("Close") {
         fixture.click(&close);
     }
@@ -105,18 +105,6 @@ fn dialog_frame_with_footer(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
         .footer(|ui, _| {
             Checkbox::new(Bind::given(false)).label("Don't ask again").show(ui);
         })
-        .show(ui, |ui, _| body(ui, &mut checks))
-        .into();
-    *data.value("checks", [true, false]) = checks;
-    shown
-}
-
-#[story(FullWindowDialog<'static>, covers = [Default], drive = Drive::Custom(close_box))]
-fn full_window_dialog(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let mut checks = *data.value("checks", [true, false]);
-    let shown: StoryOutput = FullWindowDialog::new("Grid options")
-        .opened(Bind::bound(data.value("open", true)))
-        .closable(true)
         .show(ui, |ui, _| body(ui, &mut checks))
         .into();
     *data.value("checks", [true, false]) = checks;

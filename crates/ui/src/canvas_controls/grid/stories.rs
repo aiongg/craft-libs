@@ -1,8 +1,8 @@
 //! Stories of `CanvasGrid`.
 
 use super::{CanvasGrid, GridLine};
+use crate::canvas::testing::canvas_story::{StoryDocument, on_canvas};
 use crate::contract::Show as _;
-use crate::testing::canvas_story::{StoryDocument, on_canvas};
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
 

@@ -8,7 +8,6 @@
 
 pub mod access;
 pub mod bypass;
-pub mod canvas_story;
 pub mod contract;
 pub mod dump;
 pub mod fixture;
@@ -16,14 +15,12 @@ pub mod focus;
 pub mod frames;
 pub mod index;
 pub mod input;
-pub mod internals;
+mod key_trials;
 pub mod layout;
 pub mod memory;
 pub mod pictures;
 pub mod pointer;
-pub mod props;
 pub mod relations;
-pub(crate) mod sample;
 pub mod sensing;
 #[cfg(all(feature = "snapshot", not(target_arch = "wasm32")))]
 pub mod snapshot;
@@ -34,8 +31,6 @@ pub mod style;
 pub mod suite;
 pub mod surface;
 pub mod text;
-pub mod tool_fixture;
-mod tool_story;
 pub mod wheel;
 pub mod windows;
 
@@ -49,15 +44,22 @@ pub use crate::runtime::measure::{
 pub use craft_ui_macros::{story, trial};
 pub use fixture::{Fixture, Impure, Room, Target};
 pub use frames::Frames;
-pub use props::story_props;
 pub use stage::{stage, stage_fitting};
 #[doc(hidden)]
 pub use story::{
     CollectionKind, Drive, EditKind, Grip, Required, Story, StoryData, StoryOutput, StoryRegistration, StorySnapshot, show_as_only_item, stories,
 };
-pub use tool_fixture::ToolFixture;
-pub use tool_story::tool_story;
 pub use windows::install_spec;
+
+// split: re-exported from craft-ui-widgets after step 7
+pub use crate::story_kit::{props, story_props};
+pub mod internals {
+    //! Crate-private logic the trials check without a frame.
+    // split: re-exported from craft-ui-panels after step 7
+    pub use crate::testing_internals::*;
+}
+// split: re-exported from craft-ui-canvas after step 7
+pub use crate::canvas::testing::{canvas_story, tool_fixture, tool_fixture::ToolFixture, tool_story::tool_story};
 
 /// One registered trial.
 #[derive(Clone, Copy, Debug)]

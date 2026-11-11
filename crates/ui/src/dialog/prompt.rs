@@ -1,5 +1,4 @@
-//! `Prompt` (24.4): a question with answers on the modal preset of `Dialog`, and `accelerator_labels`, which the
-//! footer bar uses to show the letters.
+//! `Prompt` (24.4): a question with answers on the modal preset of `Dialog`.
 
 use super::frame::DialogOutput;
 use super::modal::Dialog;
@@ -11,32 +10,12 @@ use crate::runtime::env::{Env, Label};
 use crate::runtime::focus::Initial;
 use crate::runtime::overlay::CloseReason;
 use crate::sections::{DialogRole, FooterButton, Section};
-use craft_host::target::Os;
 use craft_keymap::mnemonic;
 use craft_theme::variant::Tone;
 use egui::{Response, Ui};
 
 #[cfg(feature = "testing")]
 mod stories;
-
-/// The labels of one prompt's buttons with their letters in the same style: `(Y)es` when every label starts with
-/// its letter (case-insensitive), otherwise the letter is appended to every label (`Ja (Y)`, `Nein (N)`), so one
-/// prompt never mixes the two. An answer without a letter keeps its text. macOS shows plain labels: the letters
-/// still work.
-pub fn accelerator_labels(answers: &[(&str, Option<char>)], os: Os) -> Vec<String> {
-    let starts_with = |label: &str, letter: char| label.chars().next().is_some_and(|first| first.to_uppercase().eq(letter.to_uppercase()));
-    let inline = answers.iter().all(|(label, letter)| letter.is_none_or(|letter| starts_with(label, letter)));
-    answers
-        .iter()
-        .map(|(label, letter)| match letter {
-            Some(letter) if os != Os::Mac => match label.chars().next() {
-                Some(first) if inline => format!("({first}){}", &label[first.len_utf8()..]),
-                _ => format!("{label} ({})", letter.to_uppercase()),
-            },
-            _ => (*label).to_owned(),
-        })
-        .collect()
-}
 
 /// One answer of a prompt before its button exists: the label, what the button means, whether it has a letter and
 /// whether it is available.

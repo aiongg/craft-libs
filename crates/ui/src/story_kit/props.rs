@@ -6,12 +6,12 @@
 //! listed and cannot be edited. The edits write straight into the story's values, so the story reads them in the
 //! next pass; [`StoryData::changed_since`] and [`StoryData::restore`] give "changed" and "reset".
 
-use super::story::{Edit, Shown, StoryData};
 use crate::choice::Checkbox;
 use crate::contract::{Bind, Entry, Props as _, Show as _, ShowContainer as _};
 use crate::display::{Shade, Text};
 use crate::form::{Field, FieldGroup};
 use crate::pickers::Select;
+use crate::testing::story::{Edit, Shown, StoryData};
 use crate::text::{NumberField, TextField};
 use egui::{Response, Ui};
 use std::any::Any;

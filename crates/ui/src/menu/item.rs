@@ -6,6 +6,7 @@ use crate::contract::{
     Styled as _,
 };
 use crate::display::Kbd;
+use crate::list::RowStyleCx as _;
 use crate::primitives::{IconSpec, PaintShape, StrokeWidth, TextLayout, TextRun, glyph};
 use crate::runtime::access::PopupKind;
 use crate::runtime::commands::{CommandRef, FireSource, ResolvedCommand};

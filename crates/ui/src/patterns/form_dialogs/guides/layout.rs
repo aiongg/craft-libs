@@ -2,7 +2,7 @@
 //! and the app's command make the same guides.
 
 use super::GuideDialogWords;
-use crate::canvas::{Guide, GuideKey};
+use crate::canvas_data::{Guide, GuideKey};
 use crate::runtime::env::{Label, UnitKind, Units};
 use craft_behavior::Axis;
 use craft_behavior::quantity::Reader;

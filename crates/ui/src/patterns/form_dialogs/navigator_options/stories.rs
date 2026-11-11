@@ -1,7 +1,7 @@
 //! Stories of Panel Options.
 
 use super::NavigatorOptionsDialog;
-use crate::canvas::{NavigatorOptions, ProxyColor};
+use crate::canvas_data::{NavigatorOptions, ProxyColor};
 use crate::contract::Bind;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;

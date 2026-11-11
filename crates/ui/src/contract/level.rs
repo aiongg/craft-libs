@@ -91,6 +91,8 @@ const LIBRARY: &[(&str, Level)] = &[
     ("bars::breadcrumb", Controls),
     ("bars", Patterns),
     ("buttons", Controls),
+    ("canvas::full_window", Patterns),
+    ("canvas::full_window_parts", Patterns),
     ("canvas", Primitives),
     ("canvas_controls", Primitives),
     ("choice", Controls),
@@ -126,6 +128,24 @@ const LIBRARY: &[(&str, Level)] = &[
     ("value_drag", Controls),
 ];
 
+/// The crates of the craft-ui library: the facade and the crates it re-exports, as `module_path!` spells them.
+const LIBRARY_CRATES: [&str; 8] = [
+    "craft_ui",
+    "craft_ui_runtime",
+    "craft_ui_contract",
+    "craft_ui_widgets",
+    "craft_ui_panels",
+    "craft_ui_canvas",
+    "craft_ui_patterns",
+    "craft_ui_shell",
+];
+
+/// `module`'s path inside the craft-ui library, without the crate name; `None` for a module of another crate.
+fn library_path(module: &str) -> Option<&str> {
+    let (krate, inside) = module.split_once("::")?;
+    LIBRARY_CRATES.contains(&krate).then_some(inside)
+}
+
 /// Whether `module` is `prefix` or inside it.
 fn within(module: &str, prefix: &str) -> bool {
     module.strip_prefix(prefix).is_some_and(|rest| rest.is_empty() || rest.starts_with("::"))
@@ -142,7 +162,7 @@ fn parts(registration: &Registration) -> (&'static str, &'static str, Option<&Pr
 /// The level of `registration`; `None` for a craft-ui component that no row of [`LIBRARY`] holds.
 fn level_of(registration: &Registration) -> Option<Level> {
     let (module, _, probe) = parts(registration);
-    let inside = module.strip_prefix("craft_ui::");
+    let inside = library_path(module);
     let Some(probe) = probe else {
         return Some(if inside.is_some_and(|inside| within(inside, "shell") && !within(inside, "shell::title_bar")) { Shells } else { Patterns });
     };
@@ -221,8 +241,13 @@ impl Catalog {
     }
 }
 
-/// Modules whose registrations are kit stand-ins, not components.
-pub(crate) const KIT_MODULES: [&str; 1] = ["craft_ui::testing::layout"];
+/// Modules of the library whose registrations are kit stand-ins, not components.
+const KIT_MODULES: [&str; 1] = ["testing::layout"];
+
+/// Whether `module` is one of the [`KIT_MODULES`].
+pub(crate) fn kit_module(module: &str) -> bool {
+    library_path(module).is_some_and(|inside| KIT_MODULES.contains(&inside))
+}
 
 /// The catalog of `registrations`, without the kit stand-ins of [`KIT_MODULES`].
 ///
@@ -231,7 +256,7 @@ pub(crate) const KIT_MODULES: [&str; 1] = ["craft_ui::testing::layout"];
 /// until the names differ.
 pub fn catalog(registrations: &[&'static Registration]) -> Catalog {
     let mut types: BTreeMap<&'static str, &'static Registration> = BTreeMap::new();
-    for &registration in registrations.iter().filter(|registration| !KIT_MODULES.contains(&parts(registration).0)) {
+    for &registration in registrations.iter().filter(|registration| !kit_module(parts(registration).0)) {
         types.entry(base_path(parts(registration).1)).or_insert(registration);
     }
     let mut by_short: BTreeMap<&str, Vec<&'static str>> = BTreeMap::new();

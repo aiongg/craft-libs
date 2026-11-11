@@ -4,7 +4,7 @@ use super::color_choice::{ColorChoice, ColorRowTexts, apply_color_answers, color
 use crate::runtime::requests::HostAnswer;
 
 use super::{FormDialog, HostRequests};
-use crate::canvas::{NavigatorOptions, ProxyColor};
+use crate::canvas_data::{NavigatorOptions, ProxyColor};
 
 use crate::contract::{Bind, NoValue, Outcome, ShowContainer as _};
 

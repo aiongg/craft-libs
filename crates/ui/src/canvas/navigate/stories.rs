@@ -1,10 +1,10 @@
 //! Stories of the compass.
 
 use crate::canvas::rotate::RIM;
+use crate::canvas::testing::canvas_story::on_canvas_with;
 use crate::canvas::{Canvas, RotateView, RotateViewOutput};
 use crate::contract::{Bind, Show as _, Validity};
 use crate::runtime::env::Message;
-use crate::testing::canvas_story::on_canvas_with;
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use craft_behavior::Mixed;
 use egui::{Ui, Vec2};

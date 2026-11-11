@@ -1,10 +1,10 @@
 //! `ToolFixture` (22.4, the tool row): drives a [`CanvasTool`] on a [`Canvas`] through press, drag, release and
 //! Escape, and checks what every tool owes the canvas.
 
-use super::{Fixture, Target, pointer};
 use crate::canvas::{Canvas, CanvasTool, ToolHost, ToolPath};
 use crate::contract::{BodyCx, ShowContainer as _};
 use crate::runtime::access::Role;
+use crate::testing::{Fixture, Target, pointer};
 use craft_behavior::kurbo::Size;
 use craft_behavior::{CanvasView, GesturePhase};
 use egui::{Event, Id, Key, Modifiers, Pos2, Rect, Ui, Vec2};

@@ -2,10 +2,10 @@
 //! moves the view, a drag of the proxy moves it by the distance dragged, a Cmd/Ctrl-drag zooms to the rectangle, the
 //! wheel and `+` and `-` zoom about the view centre, and the arrow and page keys move it.
 
-use super::ProxyColor;
 use super::proxy::{preview_rect, proxy_quad, view_center_for, zoom_to_document_rect};
 use crate::canvas::zoom_motion::{self, Steer};
 use crate::canvas::{CanvasWords, NavigationOptions, PageKey, ViewCommands, WheelAction, WheelNavigation};
+use crate::canvas_data::ProxyColor;
 use crate::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, Input, MeasureCx, Name, Outcome, PaintUi, PartsCx,
     Pointer as _, Props as _, Remember as _, Role, WordSetCx as _,

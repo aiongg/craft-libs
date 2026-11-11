@@ -1,7 +1,7 @@
 //! Stories of the guide dialogs.
 
 use super::{GuideLayoutDialog, GuideLayoutValues, GuideRect, GuideUnits, NewGuideDialog, NewGuideValues};
-use crate::canvas::{Guide, GuideColor, GuideKey};
+use crate::canvas_data::{Guide, GuideColor, GuideKey};
 use crate::contract::Bind;
 use crate::runtime::env::UnitKind;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
