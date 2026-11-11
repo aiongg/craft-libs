@@ -1,5 +1,8 @@
 //! Stories of `CompareTile`: a pair (active, rejected, pending, failed) and a survey.
 
+use std::collections::HashMap;
+use std::sync::{Mutex, PoisonError};
+
 use craft_theme::Srgba;
 use craft_ui::contract::{Bind, ShowContainer as _};
 use craft_ui::layout_components::Row;
@@ -21,8 +24,15 @@ const PICTURE: [u32; 2] = [900, 600];
 /// The spacing and width of the picture's grid lines, in pixels.
 const GRID: (u32, u32) = (100, 2);
 
-/// The sample photo of `key` with light grid lines, so zoom and pan show.
+/// The sample photo of `key` with light grid lines, so zoom and pan show. Every fixture uploads it anew, so each
+/// key's picture is made once per process.
 fn gridded(key: u64) -> ColorImage {
+    static MADE: Mutex<Option<HashMap<u64, ColorImage>>> = Mutex::new(None);
+    let mut made = MADE.lock().unwrap_or_else(PoisonError::into_inner);
+    made.get_or_insert_default().entry(key).or_insert_with(|| make_gridded(key)).clone()
+}
+
+fn make_gridded(key: u64) -> ColorImage {
     let mut image = sample_picture(key, PICTURE);
     let width = image.size[0];
     for (at, pixel) in image.pixels.iter_mut().enumerate() {
