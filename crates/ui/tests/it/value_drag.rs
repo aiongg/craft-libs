@@ -258,7 +258,7 @@ fn a_grabbed_slider_thumb_moves_by_the_pointer_travel_and_a_click_on_it_changes_
     let centred = dragged_from(0.0, 10.0);
     assert!(centred > START, "the drag moved the value: {centred}");
     let twice = dragged_from(0.0, 20.0);
-    assert!(((twice - START) - 2.0 * (centred - START)).abs() < 1e-3, "twice the travel is twice the change: {centred} then {twice}");
+    assert!(((twice - centred) - (centred - START)).abs() < 1e-3, "twice the travel is twice the change: {centred} then {twice}");
     let off_centre = dragged_from(3.0, 10.0);
     assert!((off_centre - centred).abs() < 1e-3, "a press 3 px off the centre does not add the offset: {off_centre}");
 

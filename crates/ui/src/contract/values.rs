@@ -494,10 +494,7 @@ impl<T: Value> Outcome for EditResponse<T> {
 
     #[cfg(feature = "testing")]
     fn story_facts(&self) -> crate::testing::StoryOutput {
-        crate::testing::StoryOutput {
-            value_text: self.value_text.clone(),
-            ..crate::testing::StoryOutput::of_edit(&self.response, &self.events)
-        }
+        crate::testing::StoryOutput { value_text: self.value_text.clone(), ..crate::testing::StoryOutput::of_edit(&self.response, &self.events) }
     }
 }
 

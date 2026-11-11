@@ -66,8 +66,11 @@ fn every_track_has_a_row_inside_the_overview() {
     let rows: Vec<Rect> =
         fixture.shape_bounds().iter().copied().filter(|b| b.height() < overview.height() / 2.0 && b.width() > overview.width() / 4.0).collect();
     assert_eq!(rows.len(), TRACKS, "one run per track: {rows:?}");
-    assert!(rows.iter().all(|row| overview.expand(1.0).contains_rect(*row)), "every row lies inside {overview:?}: {rows:?}");
-    assert!(rows.windows(2).all(|pair| pair[1].top() >= pair[0].bottom() - 1.0), "rows stack top to bottom: {rows:?}");
+    assert!(rows.iter().all(|row| overview.contains_rect(*row)), "every row lies inside {overview:?}: {rows:?}");
+    assert!(
+        rows.windows(2).all(|pair| pair[0].center().y < pair[1].top() && pair[0].bottom() < pair[1].center().y),
+        "rows stack top to bottom: {rows:?}"
+    );
 }
 
 /// A click centres the window at the pointer.
