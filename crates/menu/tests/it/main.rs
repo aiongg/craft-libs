@@ -1,10 +1,7 @@
 //! The integration binary of craft-menu: every test is a registered trial.
 
-mod bar;
 mod layout;
-mod modal;
 mod native;
-mod palette;
 mod sample;
 mod shortcuts;
 

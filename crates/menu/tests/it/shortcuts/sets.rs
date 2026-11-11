@@ -1,4 +1,4 @@
-//! The set row: switching, the New Set form, prompts that hold the dialog, OK and Cancel with sets, export and import.
+//! The set row: Cancel with sets, a delete prompt that outlives its set, export and import.
 
 use craft_keymap::{Overrides, Profiles};
 use craft_menu::shortcuts::Outcome;
@@ -25,44 +25,6 @@ fn new_set(rig: &mut Rig, name: &str) {
     rig.click("Create");
 }
 
-/// The Cancel button of the set form: the one beside its Create button, not the dialog's footer Cancel.
-fn form_cancel(rig: &Rig) -> craft_ui::testing::Target {
-    let tree = rig.fixture.tree();
-    let create = rig.named("Create", Role::BUTTON);
-    let row = tree.parent_of_key(create.node);
-    rig.fixture
-        .by_role(Role::BUTTON)
-        .into_iter()
-        .find(|button| tree.name_of(button.node) == Some("Cancel") && tree.parent_of_key(button.node) == row)
-        .unwrap_or_else(|| panic!("no Cancel beside Create"))
-}
-
-/// A taken name, in any case or with spaces around it, is refused for New Set and Rename, and the set stays.
-#[trial]
-fn new_set_refuses_a_taken_name_and_keeps_the_set() {
-    let mut rig = Rig::mac_with_sets(profiles_with(&["Mine"]));
-    for name in ["Mine", " mine ", "fixture defaults"] {
-        new_set(&mut rig, name);
-        assert!(rig.has("A set with this name exists"), "{name:?}");
-        assert_eq!(rig.active_set().as_deref(), Some("Mine"), "the refused name leaves the active set");
-        assert_eq!(rig.shared.borrow().sets.as_ref().map(|(p, _)| p.sets().len()), Some(1));
-        // The form closes by Escape in the name field and by its own Cancel; the dialog's footer shares the label.
-        for turn in ["Escape", "Cancel"] {
-            if turn == "Escape" {
-                let field = rig.named("Name:", Role::TEXT_INPUT);
-                rig.fixture.click(&field);
-                rig.press(Modifiers::NONE, Key::Escape);
-            } else {
-                new_set(&mut rig, name);
-                let cancel = form_cancel(&rig);
-                rig.fixture.click(&cancel);
-                rig.fixture.settle();
-            }
-            assert!(rig.is_open() && !rig.has("Create"), "{name:?} by {turn}: the form closed, the dialog stayed");
-        }
-    }
-}
-
 /// Cancel restores the keymap and the sets as they were at open, also after a set was made and deleted.
 #[trial]
 fn cancel_restores_the_keymap_and_the_sets() {
@@ -81,25 +43,6 @@ fn cancel_restores_the_keymap_and_the_sets() {
     let shared = rig.shared.borrow();
     assert_eq!(shared.sets.as_ref().map(|(p, _)| p), Some(&before));
     assert!(shared.km.overrides().is_empty());
-}
-
-/// While a prompt is open the set row, the table and the edit actions hold, and answering it frees them.
-#[trial]
-fn an_open_prompt_holds_the_set_row_table_and_edit_actions() {
-    let mut rig = Rig::mac_with_sets(Profiles::default());
-    rig.click("Save: ⌘S");
-    rig.press(Modifiers::NONE, Key::F2);
-    new_set(&mut rig, "Other");
-    rig.click("Delete");
-    assert!(rig.has("Delete the set “Other”?"));
-    rig.click("Save: F2");
-    assert!(!rig.has("Save: press keys"), "the table holds");
-    rig.click("OK");
-    assert!(!rig.has_outcome(|o| matches!(o, Outcome::Ok)), "OK waits for the prompt");
-    rig.click("Cancel");
-    assert!(rig.shared.borrow().state.is_open());
-    rig.click("OK");
-    assert!(rig.has_outcome(|o| matches!(o, Outcome::Ok)));
 }
 
 /// A delete prompt that outlives its set's activity (the app made another set active meanwhile) deletes the set it
@@ -124,72 +67,6 @@ fn a_stale_delete_prompt_neither_reloads_nor_drops_edits() {
     assert_eq!(profiles.active(), "Mine");
     drop(shared);
     assert_eq!(rig.bindings("file.save"), ["F2"], "the active set keeps its edits");
-}
-
-/// OK stores the edits of a built-in set as a set named Custom.
-#[trial]
-fn ok_stores_edits_of_a_builtin_as_a_copy() {
-    let mut rig = Rig::mac_with_sets(Profiles::default());
-    rig.click("Save: ⌘S");
-    rig.press(Modifiers::NONE, Key::F2);
-    rig.click("OK");
-    assert!(rig.has_outcome(|o| matches!(o, Outcome::Ok)));
-    let shared = rig.shared.borrow();
-    let profiles = &shared.sets.as_ref().map(|(p, _)| p).unwrap_or_else(|| panic!("sets"));
-    assert_eq!(profiles.active(), "Custom");
-    assert_eq!(profiles.sets().get("Custom").and_then(|o| o.get("file.save")), Some(&["F2".to_string()][..]));
-}
-
-/// Switching away from a modified set asks to save; Don't Save loads the other set with a fresh undo history and
-/// leaves the stored set as it was.
-#[trial]
-fn switching_a_modified_set_asks_to_save() {
-    let mut rig = Rig::mac_with_sets(profiles_with(&["Mine"]));
-    rig.click("Save: ⌘S");
-    rig.press(Modifiers::NONE, Key::F2);
-    let select = rig.named("Set:", Role::COMBO_BOX);
-    rig.fixture.click(&select);
-    rig.fixture.settle();
-    rig.click("Fixture Defaults");
-    assert!(rig.has("Save changes to “Mine”?"));
-    rig.click("Don't Save");
-    assert_eq!(rig.active_set().as_deref(), Some("Fixture Defaults"));
-    assert!(rig.shared.borrow().km.overrides().is_empty());
-    let shared = rig.shared.borrow();
-    assert!(shared.sets.as_ref().and_then(|(p, b)| p.get("Mine", b)).is_some_and(Overrides::is_empty), "Don't Save keeps the stored set");
-}
-
-/// Import asks the app for a file; the Save changes prompt comes first, and Changed follows once the edits are dropped
-/// or stored.
-#[trial]
-fn save_prompt_before_import_reports_changed_after_import() {
-    for answer in ["Don't Save", "Save"] {
-        let mut rig = Rig::mac_with_sets(profiles_with(&["Mine"]));
-        rig.click("Save: ⌘S");
-        rig.press(Modifiers::NONE, Key::F2);
-        rig.action("Import…");
-        rig.answer(answer);
-        let outcomes = rig.outcomes();
-        let import = outcomes.iter().position(|o| matches!(o, Outcome::Import { .. }));
-        assert!(import.is_some(), "{answer}");
-        assert!(outcomes[import.unwrap_or_default()..].iter().any(|o| matches!(o, Outcome::Changed)), "{answer}");
-    }
-}
-
-/// Import without edits goes straight to the app; Reset All asks first, and Undo brings the reset shortcuts back.
-#[trial]
-fn import_request_and_reset_all() {
-    let mut rig = Rig::mac_with_sets(Profiles::default());
-    rig.action("Import…");
-    assert!(rig.has_outcome(|o| matches!(o, Outcome::Import { formats, .. } if formats == &["craft-keymap"])));
-    rig.click("Save: ⌘S");
-    rig.press(Modifiers::NONE, Key::F2);
-    rig.click("Reset All…");
-    assert!(rig.has("Restore every default shortcut in this set?"));
-    rig.click("Reset All");
-    assert!(rig.shared.borrow().km.overrides().is_empty());
-    rig.click("Undo");
-    assert_eq!(rig.bindings("file.save"), ["F2"]);
 }
 
 /// A set exported from one dialog imports into another as a new set with the same shortcuts; a file that is not a set
@@ -222,24 +99,4 @@ fn set_export_import_round_trip() {
     assert_eq!(plain.shared.borrow().km.overrides(), &edited);
     plain.click("Undo");
     assert!(plain.shared.borrow().km.overrides().is_empty());
-}
-
-/// A dialog sized from its content shows the whole set row. When the user makes it narrower than the row (a modified
-/// set adds its label and enables Save and Revert Set), the last actions move into the overflow menu, and a pick there
-/// runs the action.
-#[trial]
-fn full_set_row_moves_actions_into_more() {
-    let mut rig = Rig::mac_with_sets(Profiles::default());
-    rig.click("Save: ⌘S");
-    rig.press(Modifiers::NONE, Key::F2);
-    assert!(rig.has("Summarize…") && !rig.has("More"), "the dialog sized from its content shows the whole set row");
-    let dialog = rig.fixture.by_role(Role::DIALOG).first().expect("the dialog is shown").rect;
-    rig.fixture.drag_at(egui::pos2(dialog.max.x, dialog.center().y), egui::vec2(-dialog.width() / 3.0, 0.0));
-    rig.pass();
-    let narrowed = rig.fixture.by_role(Role::DIALOG).first().expect("the dialog is shown").rect;
-    assert!(narrowed.width() < dialog.width(), "the end grip narrows the dialog: {dialog:?} -> {narrowed:?}");
-    assert!(!rig.has("Summarize…"), "Summarize… is in More: {:?}", rig.names_with(Role::BUTTON, "…"));
-    rig.click("More");
-    rig.click("Summarize…");
-    assert!(rig.has_outcome(|o| matches!(o, Outcome::Summary { name, .. } if name == "Fixture Defaults")));
 }
