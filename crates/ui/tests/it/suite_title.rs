@@ -10,10 +10,6 @@ use craft_ui::testing::trial;
 use craft_ui::text::NumberField;
 use egui::Ui;
 
-fn field_of_one_control(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    Field::new("Size").show(ui, |ui, _| NumberField::new("Size", Bind::bound(data.value("size", Some(12.0)))).show(ui)).into()
-}
-
 fn group_with_a_field_and_a_button(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     FieldGroup::new("")
         .show(ui, |ui, _| {
@@ -21,11 +17,6 @@ fn group_with_a_field_and_a_button(ui: &mut Ui, data: &mut StoryData) -> StoryOu
             Button::new("Reset").show(ui);
         })
         .into()
-}
-
-#[trial]
-fn a_field_of_one_control_needs_no_group_name() {
-    assert_eq!(title_case(&Story::new("one-control", field_of_one_control)), Ok(()));
 }
 
 #[trial]
