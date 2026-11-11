@@ -165,3 +165,10 @@ pub use matcher::{Hit, Matcher, Press};
 pub use parity::ReturnGlyph;
 pub use profiles::{Builtins, MAX_EXPORT_BYTES, MAX_SET_NAME, MAX_SETS, ProfileError, Profiles, SetProblem};
 pub use scope::{Active, CommandScope, MAX_SCOPE_NAME, Scope, ScopeKind, Scopes};
+
+#[cfg(test)]
+extern crate self as craft_keymap;
+
+#[cfg(test)]
+#[path = "../tests/main.rs"]
+mod integration;
