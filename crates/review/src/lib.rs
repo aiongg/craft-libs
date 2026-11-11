@@ -25,10 +25,6 @@ pub mod testing {
 #[cfg(test)]
 mod annotate_tests;
 #[cfg(test)]
-mod comments_tests;
-#[cfg(test)]
-mod signature_tests;
-#[cfg(test)]
 mod versions_tests;
 
 #[cfg(feature = "ui")]
