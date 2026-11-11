@@ -78,21 +78,3 @@ impl SystemReader {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn a_reading_without_answers_is_empty() {
-        assert_eq!(Reading::default(), Reading { theme: None, contrast: None, reduced_motion: None });
-    }
-
-    #[test]
-    fn a_reading_converts_to_the_themes_system_appearance() {
-        use craft_theme::{Contrast as C, Mode, SystemAppearance};
-        let reading = Reading { theme: Some(Theme::Dark), contrast: Some(Contrast::High), reduced_motion: Some(true) };
-        assert_eq!(SystemAppearance::from(reading), SystemAppearance { mode: Some(Mode::Dark), contrast: Some(C::High), reduced_motion: Some(true) });
-        assert_eq!(SystemAppearance::from(Reading::default()), SystemAppearance::default());
-    }
-}

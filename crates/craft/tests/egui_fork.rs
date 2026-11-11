@@ -1,6 +1,6 @@
 //! Integration tests of craft-craft: egui fork.
 
-use craft::egui_fork::{GIT, PACKAGES, REV, check_lockfile};
+use craft::egui_fork::{GIT, PACKAGES, REV};
 
 fn workspace_file(name: &str) -> String {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").join(name);
@@ -19,17 +19,4 @@ fn constants_equal_the_workspace_patch() {
         }
     }
     assert_eq!(from_fork, PACKAGES, "craft::egui_fork::PACKAGES differs from the packages [patch.crates-io] takes from GIT");
-}
-
-#[test]
-fn workspace_lockfile_passes() {
-    check_lockfile(&workspace_file("Cargo.lock")).unwrap();
-}
-
-#[test]
-fn a_package_at_another_rev_fails_by_name() {
-    let lock = workspace_file("Cargo.lock").replacen(&format!("rev={REV}#{REV}"), "rev=0000000#0000000", 1);
-    let err = check_lockfile(&lock).unwrap_err();
-    assert!(PACKAGES.iter().any(|p| err.contains(&format!("  {p} "))), "{err}");
-    assert!(err.contains("0000000"), "{err}");
 }

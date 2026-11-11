@@ -66,6 +66,3 @@ impl MotionMode {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {}

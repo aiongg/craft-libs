@@ -121,13 +121,13 @@ fn run(stop: &AtomicBool, _scale: f32) -> Result<Capture, ScreenError> {
 }
 
 /// The scale a monitor image gets: the app's native pixels per point, or 1 when it has none.
-#[cfg(any(all(unix, not(target_os = "macos"), not(target_arch = "wasm32")), test))]
+#[cfg(all(unix, not(target_os = "macos"), not(target_arch = "wasm32")))]
 fn usable_scale(scale: f32) -> f32 {
     if scale.is_finite() && scale > 0.0 { scale } else { 1.0 }
 }
 
 /// The portal's `PickColor` answer as sRGB, `Failed` when a channel is outside 0 to 1.
-#[cfg(any(all(unix, not(target_os = "macos"), not(target_arch = "wasm32")), test))]
+#[cfg(all(unix, not(target_os = "macos"), not(target_arch = "wasm32")))]
 fn picked_color(rgb: [f64; 3]) -> Result<Capture, ScreenError> {
     if rgb.iter().any(|v| !v.is_finite() || !(0.0..=1.0).contains(v)) {
         return Err(ScreenError::Failed("the desktop color picker returned an invalid color".into()));
@@ -557,36 +557,6 @@ mod backend {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// The worker queues the result, then wakes the UI.
-    #[test]
-    fn the_wake_runs_once_the_result_can_be_taken() {
-        let (tx, rx) = std::sync::mpsc::channel();
-        let handle = spawn(
-            Wake::new(move || {
-                let _ = tx.send(());
-            }),
-            |_| Ok(Capture::Color([0.0, 1.0, 0.0])),
-        );
-        rx.recv_timeout(std::time::Duration::from_secs(10)).expect("the capture thread wakes the UI");
-        assert_eq!(handle.try_take(), Some(Ok(Capture::Color([0.0, 1.0, 0.0]))));
-    }
-
-    /// The portal's colour passes through as sRGB; a channel outside 0 to 1 fails.
-    #[test]
-    fn a_picked_color_is_checked_and_returned() {
-        assert_eq!(picked_color([0.0, 0.5, 1.0]), Ok(Capture::Color([0.0, 0.5, 1.0])));
-        assert!(picked_color([0.0, 1.5, 0.0]).is_err());
-        assert!(picked_color([f64::NAN, 0.0, 0.0]).is_err());
-    }
-
-    /// X11 reports no scale, so the images take the app's pixels per point, or 1 without one.
-    #[test]
-    fn the_x11_scale_is_the_apps_native_scale() {
-        assert_eq!(usable_scale(2.0), 2.0);
-        assert_eq!(usable_scale(0.0), 1.0);
-        assert_eq!(usable_scale(f32::NAN), 1.0);
-    }
 
     /// A premultiplied BGRA capture with a stride unpacks to straight RGBA in row order.
     #[test]

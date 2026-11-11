@@ -1156,7 +1156,6 @@ dependencies = [
 name = "craft-crw"
 version = "0.1.0"
 dependencies = [
- "proptest",
  "serde",
  "serde_json",
  "sha2",
@@ -1219,7 +1218,6 @@ name = "craft-docpath"
 version = "0.1.0"
 dependencies = [
  "serde",
- "serde_json",
 ]
 
 [[package]]

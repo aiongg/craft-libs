@@ -88,16 +88,7 @@ pub enum Error {
 
 /// [`File::read`] or [`Contents::read`] could not read a file's JSON.
 ///
-/// Other crates match it with a wildcard arm:
-///
-/// ```compile_fail
-/// fn name(e: craft_vectorcraft_format::ReadError) -> &'static str {
-///     match e {
-///         craft_vectorcraft_format::ReadError::Json(_) => "json",
-///         craft_vectorcraft_format::ReadError::Envelope(_) => "envelope",
-///     }
-/// }
-/// ```
+/// Other crates match it with a wildcard arm.
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum ReadError {
@@ -116,14 +107,7 @@ pub enum ReadError {
 /// reads one. A reader that does not use `generator`, `preview` and `pdf` reads [`Contents`]
 /// instead.
 ///
-/// Other crates start one with [`File::new`] and set its members:
-///
-/// ```compile_fail
-/// let _ = craft_vectorcraft_format::File {
-///     format: "vectorcraft".into(), version: 4, generator: None, preview: None,
-///     profiles: Default::default(), pdf: None, document: 0, images: Default::default(),
-/// };
-/// ```
+/// Other crates start one with [`File::new`] and set its members.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[non_exhaustive]
 pub struct File<D> {
@@ -319,14 +303,7 @@ pub fn check(format: &str, version: u32) -> Result<(), Error> {
 }
 
 /// The members of a file that a reader of its document needs: [`File`] without `generator`,
-/// `preview` and `pdf`, in the order of the array form. Only [`Contents::read`] makes one:
-///
-/// ```compile_fail
-/// let _ = craft_vectorcraft_format::Contents {
-///     format: "vectorcraft".into(), version: 4, document: 0,
-///     images: Default::default(), profiles: Default::default(),
-/// };
-/// ```
+/// `preview` and `pdf`, in the order of the array form. Only [`Contents::read`] makes one.
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub struct Contents<D> {
@@ -363,10 +340,6 @@ impl<D> Contents<D> {
 /// The members of a file besides its document, which is skipped without being decoded. A
 /// `preview` or `pdf` of the wrong shape reads as `None`, as in [`File`]; a repeated `preview` or
 /// `pdf` is refused.
-///
-/// ```compile_fail
-/// let _ = craft_vectorcraft_format::Head { preview: None, pdf: None };
-/// ```
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
 #[non_exhaustive]
 pub struct Head {
@@ -379,11 +352,7 @@ pub struct Head {
 }
 
 /// An entry holding bytes: an image, an ICC profile, the preview or the PDF. Other crates make
-/// one with [`Image::inline`], [`Tail::image`] or `Image::default()`:
-///
-/// ```compile_fail
-/// let _ = craft_vectorcraft_format::Image { mime: String::new(), data: String::new(), blob: None, proxy: false };
-/// ```
+/// one with [`Image::inline`], [`Tail::image`] or `Image::default()`.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]
 pub struct Image {

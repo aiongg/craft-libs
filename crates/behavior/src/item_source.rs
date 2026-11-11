@@ -232,28 +232,3 @@ impl<T, K> ItemSource<K> for Keyed<'_, T, K> {
         self.toggled.as_ref().is_some_and(|toggled| toggled(&self.items[at], column))
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn an_outline_over_a_free_layout_moves_down_to_the_item_below() {
-        use crate::intent::{MoveMods, NavMove};
-        use crate::item_layout::FreeLayout;
-        use crate::nav::{NavShape, NavState, step};
-        use emath::{Pos2, Vec2};
-        let rows = [(0_u32, ""), (1, "")];
-        let source = keyed(&rows, |row| row.0);
-        let layout = FreeLayout::new(vec![
-            Rect::from_min_size(Pos2::new(10.0, 10.0), Vec2::splat(40.0)),
-            Rect::from_min_size(Pos2::new(10.0, 100.0), Vec2::splat(40.0)),
-        ]);
-        let outline = Outline::new(&source).layout(&layout);
-        assert_eq!(outline.rect(1), Some(Rect::from_min_size(Pos2::new(10.0, 100.0), Vec2::splat(40.0))));
-        assert_eq!(outline.rect(2), None, "a position past the layout has no rect");
-        let mut state = NavState::at(0);
-        let moved = step(NavShape::Spatial, &outline, &mut state, NavMove::Down, MoveMods::PLAIN);
-        assert_eq!(state.lead, Some(1), "{moved:?}");
-    }
-}

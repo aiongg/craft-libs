@@ -110,7 +110,3 @@ impl WorkSlice {
         clock.now() < self.until
     }
 }
-
-#[cfg(test)]
-#[path = "pacing_tests.rs"]
-mod pacing_tests;

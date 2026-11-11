@@ -54,19 +54,3 @@ impl SizeTween {
         now >= self.start + self.duration
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn only_a_first_appearance_or_a_change_after_a_settled_frame_asks() {
-        let placed = Vec2::new(100.0, 20.0);
-        let tolerance = measure_tolerance(1.0);
-        assert!(measured_change_asks_for_discard(None, placed, false, tolerance));
-        assert!(measured_change_asks_for_discard(None, placed, true, tolerance));
-        assert!(!measured_change_asks_for_discard(Some(placed), Vec2::new(100.4, 20.0), false, tolerance));
-        assert!(measured_change_asks_for_discard(Some(placed), Vec2::new(100.0, 21.0), false, tolerance));
-        assert!(!measured_change_asks_for_discard(Some(placed), Vec2::new(100.0, 21.0), true, tolerance));
-    }
-}

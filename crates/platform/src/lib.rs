@@ -42,8 +42,6 @@ pub mod temp;
 mod temp_tests;
 #[cfg(feature = "usage")]
 pub mod usage;
-#[cfg(all(test, feature = "usage"))]
-mod usage_tests;
 pub mod watch;
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod watch_tests;

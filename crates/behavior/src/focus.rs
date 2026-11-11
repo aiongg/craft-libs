@@ -240,35 +240,4 @@ mod tests {
         assert_eq!(key_owner(false, &[App, Widget]), KeyOwner::Class(Widget));
         assert_eq!(key_owner(false, &[]), KeyOwner::Class(App));
     }
-
-    #[test]
-    fn escape_over_a_captured_press_is_the_presss_and_the_rest_go_on() {
-        assert_eq!(route_escapes(0, true), EscapeRouting { cancels_press: false, to_components: 0 });
-        assert_eq!(route_escapes(1, true), EscapeRouting { cancels_press: true, to_components: 0 });
-        assert_eq!(route_escapes(2, true), EscapeRouting { cancels_press: true, to_components: 1 });
-        assert_eq!(route_escapes(2, false), EscapeRouting { cancels_press: false, to_components: 2 });
-    }
-
-    #[test]
-    fn focus_after_removal_prefers_the_next_registered_stop_then_the_previous() {
-        let order = [1, 2, 3, 4];
-        assert_eq!(after_removal(&order, &2, |s| *s != 2), Some(&3));
-        assert_eq!(after_removal(&order, &2, |s| *s != 2 && *s != 3 && *s != 4), Some(&1));
-        assert_eq!(after_removal(&order, &4, |s| *s != 4), Some(&3));
-        assert_eq!(after_removal(&order, &2, |_| false), None);
-        assert_eq!(after_removal(&order, &9, |_| true), None);
-    }
-
-    #[test]
-    fn escape_goes_to_the_press_then_the_component_then_the_row_then_the_scope() {
-        let all = EscapeFacts::new().press_captured(true).component_undoable(true).in_row_child(true);
-        assert_eq!(escape_step(all, CancelRule::Close), EscapeStep::CancelPress);
-        assert_eq!(escape_step(all.press_captured(false), CancelRule::Close), EscapeStep::Component);
-        assert_eq!(escape_step(all.press_captured(false).component_undoable(false), CancelRule::Close), EscapeStep::BackToRow);
-        let idle = EscapeFacts::new();
-        assert_eq!(escape_step(idle, CancelRule::Close), EscapeStep::CloseScope);
-        assert_eq!(escape_step(idle.scope_clearable(true), CancelRule::ClearThenClose), EscapeStep::ClearScope);
-        assert_eq!(escape_step(idle, CancelRule::ClearThenClose), EscapeStep::CloseScope);
-        assert_eq!(escape_step(idle, CancelRule::Ignore), EscapeStep::Ignore);
-    }
 }

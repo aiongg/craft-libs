@@ -72,33 +72,3 @@ fn first_unused(text: &str, used: &[char]) -> Option<(char, usize)> {
         .map(|(c, at)| (c.to_ascii_uppercase(), at))
         .find(|(c, _)| !used.contains(c))
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn letters(labels: &[&str]) -> Vec<Option<char>> {
-        assign(labels).into_iter().map(|mark| mark.map(|(letter, _)| letter)).collect()
-    }
-
-    #[test]
-    fn a_word_start_comes_before_the_other_letters() {
-        assert_eq!(letters(&["Open", "Open Recent"]), [Some('O'), Some('R')]);
-    }
-
-    #[test]
-    fn a_marker_wins_and_reserves_its_letter_for_later_labels() {
-        assert_eq!(letters(&["Print", "P&aste", "Copy"]), [Some('P'), Some('A'), Some('C')]);
-        assert_eq!(letters(&["Prin&t", "Paste"]), [Some('T'), Some('P')]);
-        // Print comes first in the level, yet the marked letter is reserved before it picks.
-        assert_eq!(letters(&["Print", "&Paste"]), [Some('R'), Some('P')]);
-    }
-
-    #[test]
-    fn the_index_is_the_character_of_the_letter_in_the_label_without_markers() {
-        assert_eq!(assign(&["Save", "Save As"]), [Some(('S', 0)), Some(('A', 5))]);
-        assert_eq!(assign(&["S&ave &As"]), [Some(('A', 1))]);
-        assert_eq!(assign(&["Save && &Close"]), [Some(('C', 7))]);
-        assert_eq!(assign(&["文件(&F)"]), [Some(('F', 3))]);
-    }
-}

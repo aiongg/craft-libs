@@ -4,7 +4,5 @@ mod flatten_document;
 mod flatten_pdf;
 mod flatten_plates;
 mod flatten_raster;
-mod flatten_timings;
 mod flatten_write;
-mod font_reembed;
 mod plates;

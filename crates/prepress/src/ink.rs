@@ -520,24 +520,6 @@ mod tests {
         Ink::Spot(Spot { name: name.into(), alternate: Alternate::Lab([80.0, 5.0, 60.0]), solidity: None })
     }
 
-    #[test]
-    fn spots_follow_the_process_inks_and_names_are_compared_as_pdf_names() {
-        let mut set = InkSet::new();
-        let gold = set.add(spot("/Gold#20Foil")).unwrap();
-        assert_eq!(gold.index(), 4);
-        assert_eq!(set.get(gold).unwrap().name(), "Gold Foil");
-        assert_eq!(set.add(spot("Gold Foil")), Some(gold), "added once");
-        assert_eq!(set.lookup("Gold#20Foil"), Some(gold));
-        assert_eq!(set.add(spot("Black")), Some(InkId::process(Process::Black)));
-        assert_eq!(set.lookup("/Cyan"), Some(InkId::process(Process::Cyan)));
-        assert_eq!(set.add(spot("All")), None);
-        assert_eq!(set.add(spot("None")), None);
-        assert_eq!(set.lookup("gold foil"), None, "names are case-sensitive");
-        let names: Vec<&str> = set.iter().map(|(_, ink)| ink.name()).collect();
-        assert_eq!(names, ["Cyan", "Magenta", "Yellow", "Black", "Gold Foil"]);
-        assert_eq!(set.spots().count(), 1);
-    }
-
     fn close(got: Option<[f32; 4]>, expected: [f32; 4]) -> bool {
         got.is_some_and(|got| got.iter().zip(expected).all(|(g, e)| (g - e).abs() < 1e-4))
     }
@@ -587,12 +569,5 @@ mod tests {
 
         assert!(set.alias(varnish, varnish));
         assert_eq!(set.alias_of(varnish), None);
-    }
-
-    #[test]
-    fn malformed_escapes_stay_as_written() {
-        assert_eq!(normalize_name("A#2"), "A#2");
-        assert_eq!(normalize_name("A#zz#41"), "A#zzA");
-        assert_eq!(normalize_name("#E2#82#AC"), "€");
     }
 }

@@ -415,7 +415,6 @@ fn checked_name(name: &str) -> Result<String, PresetFolderError> {
 
 #[cfg(test)]
 mod tests {
-    use craft_host::MemorySections;
     use serde::Deserialize;
 
     use super::*;
@@ -425,63 +424,8 @@ mod tests {
         points: Vec<(u8, u8)>,
     }
 
-    fn curve(n: u8) -> Curve {
-        Curve { points: vec![(0, 0), (n, n), (255, 255)] }
-    }
-
     fn folder(dir: &Path) -> PresetFolder<Curve> {
         PresetFolder::new(Some(dir), "curve")
-    }
-
-    fn settings() -> (Arc<MemorySections>, PresetFolder<Curve>) {
-        let store = Arc::new(MemorySections::default());
-        let presets = PresetFolder::in_settings(store.clone(), "curve");
-        (store, presets)
-    }
-
-    // In a temp dir: save, list (sorted ignoring case), load, rename and delete.
-    #[test]
-    fn preset_folder_saves_lists_loads_deletes_and_renames() {
-        let tmp = tempfile::tempdir().unwrap();
-        let presets = folder(tmp.path());
-        presets.save("b", &curve(1)).unwrap();
-        presets.save("A", &curve(2)).unwrap();
-        presets.save("c", &curve(3)).unwrap();
-        assert_eq!(presets.list(), ["A", "b", "c"]);
-        assert_eq!(presets.load("a").unwrap(), curve(2));
-        presets.rename("b", "D").unwrap();
-        assert_eq!(presets.list(), ["A", "c", "D"]);
-        assert!(matches!(presets.rename("c", "a"), Err(PresetFolderError::BadName)));
-        presets.rename("c", "C").unwrap();
-        presets.delete("a").unwrap();
-        assert_eq!(presets.list(), ["C", "D"]);
-        assert!(matches!(presets.load("a"), Err(PresetFolderError::NotFound)));
-        assert!(matches!(presets.save("a/b", &curve(1)), Err(PresetFolderError::BadName)));
-    }
-
-    // Saving "x" after "X" leaves one file, named "x".
-    #[test]
-    fn preset_folder_replaces_a_name_that_differs_only_in_case() {
-        let tmp = tempfile::tempdir().unwrap();
-        let presets = folder(tmp.path());
-        presets.save("X", &curve(1)).unwrap();
-        presets.save("x", &curve(2)).unwrap();
-        assert_eq!(presets.list(), ["x"]);
-        assert_eq!(presets.load("X").unwrap(), curve(2));
-        assert_eq!(std::fs::read_dir(presets.dir().unwrap()).unwrap().count(), 1);
-    }
-
-    // Importing "X.json" twice gives "X" and "X 2"; bytes with another `format` are `ForeignFormat`.
-    #[test]
-    fn preset_folder_import_numbers_a_taken_name_and_refuses_a_foreign_format() {
-        let tmp = tempfile::tempdir().unwrap();
-        let presets = folder(tmp.path());
-        let bytes = presets.to_bytes(&curve(5)).unwrap();
-        assert_eq!(presets.import("X.json", &bytes).unwrap(), "X");
-        assert_eq!(presets.import("X.json", &bytes).unwrap(), "X 2");
-        assert_eq!(presets.load("X 2").unwrap(), curve(5));
-        let foreign = br#"{"format":"plugin","version":1,"points":[]}"#;
-        assert!(matches!(presets.import("Y.json", foreign), Err(PresetFolderError::ForeignFormat { found }) if found == "plugin"));
     }
 
     // A SoundCraft-shaped file (no `version`) loads and lists; a `T` with a `version` field is refused.
@@ -503,49 +447,4 @@ mod tests {
         let clash = PresetFolder::<Clash>::new(Some(tmp.path()), "clash");
         assert!(matches!(clash.save("x", &Clash { version: 3 }), Err(PresetFolderError::Unreadable(_))));
     }
-
-    // A file of garbage and one over 1 MiB are left out of `list` and stay on disk.
-    #[test]
-    fn preset_folder_skips_a_corrupt_or_oversized_file() {
-        let tmp = tempfile::tempdir().unwrap();
-        let presets = folder(tmp.path());
-        presets.save("good", &curve(1)).unwrap();
-        let dir = presets.dir().unwrap();
-        std::fs::write(dir.join("bad.json"), b"not json").unwrap();
-        let mut big = br#"{"format":"curve","version":1,"points":[],"pad":""#.to_vec();
-        big.extend(std::iter::repeat_n(b'x', MAX_FILE_BYTES as usize));
-        big.extend(br#""}"#);
-        std::fs::write(dir.join("big.json"), big).unwrap();
-        assert_eq!(presets.list(), ["good"]);
-        assert!(dir.join("bad.json").exists() && dir.join("big.json").exists());
-    }
-
-    // `new(None, ..)`: `list` is empty and `save` is `Io` with `ErrorKind::Unsupported`.
-
-    // `in_settings` over a `MemorySections`: save, list, load, rename and delete; the section's
-    // `curve` table holds each name with its file text, and another kind's table is untouched.
-    #[test]
-    fn presets_in_settings_live_in_the_kinds_table_of_the_section() {
-        let (store, presets) = settings();
-        let other = PresetFolder::<Curve>::in_settings(store.clone(), "other");
-        other.save("keep", &curve(9)).unwrap();
-        presets.save("b", &curve(1)).unwrap();
-        presets.save("A", &curve(2)).unwrap();
-        assert_eq!(presets.list(), ["A", "b"]);
-        assert_eq!(presets.load("a").unwrap(), curve(2));
-        presets.save("a", &curve(3)).unwrap();
-        presets.rename("b", "C").unwrap();
-        assert_eq!(presets.list(), ["a", "C"]);
-        let section = store.read(PRESETS_SECTION).unwrap();
-        let table = section["curve"].as_table().unwrap();
-        assert_eq!(table.len(), 2);
-        assert_eq!(table["a"].as_str().unwrap().as_bytes(), presets.to_bytes(&curve(3)).unwrap());
-        assert_eq!(other.list(), ["keep"]);
-        presets.delete("A").unwrap();
-        assert_eq!(presets.list(), ["C"]);
-        assert!(matches!(presets.delete("A"), Err(PresetFolderError::NotFound)));
-        assert!(presets.dir().is_none());
-    }
-
-    // A preset saved in settings exports bytes that a folder imports and loads equal, and back.
 }

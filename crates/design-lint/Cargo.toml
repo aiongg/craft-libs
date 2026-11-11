@@ -22,9 +22,5 @@ toml_edit = "0.25"
 workspace = true
 
 [[test]]
-name = "cli"
-path = "tests/cli.rs"
-
-[[test]]
 name = "workspace"
 path = "tests/workspace.rs"

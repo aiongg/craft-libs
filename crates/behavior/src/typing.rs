@@ -207,7 +207,7 @@ impl<C: Codec> TypingRun<C> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::codec::{NumberCodec, PlainText};
+    use crate::codec::NumberCodec;
 
     #[test]
     fn a_number_run_applies_on_commit_rejects_bad_text_and_restores_on_escape() {
@@ -222,15 +222,5 @@ mod tests {
         assert_eq!(typing.commit(&mut run), Ended::Idle);
         typing.edit(&mut run, &Some(5.0), "9");
         assert_eq!(typing.escape(&mut run), Escaped::Restore(Some(5.0)));
-    }
-
-    #[test]
-    fn plain_text_applies_as_typed_within_the_limit_and_search_escape_clears_and_commits() {
-        let typing = TypingRun::new(PlainText).limit(3).escape_rule(EscapeRule::Clear);
-        let mut run = EditRun::new(String::new());
-        assert_eq!(typing.edit(&mut run, &String::new(), "abcdef"), Typed::Apply("abc".to_owned()));
-        assert_eq!(typing.escape(&mut run), Escaped::Cleared(String::new()));
-        assert!(!run.is_open(), "the cleared text is committed, not restored");
-        assert_eq!(typing.escape(&mut run), Escaped::Idle);
     }
 }

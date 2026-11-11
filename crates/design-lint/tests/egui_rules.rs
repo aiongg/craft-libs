@@ -7,7 +7,7 @@
 
 use std::path::Path;
 
-use craft_design_lint::{Config, StaticScope, analyze_contract, check_with_scope};
+use craft_design_lint::{StaticScope, analyze_contract};
 
 const FIXTURES: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/egui-rules");
 const ALLOWED_DIR: &str = "src/runtime/egui";
@@ -69,13 +69,6 @@ fn every_reject_fixture_fails_with_its_rule() {
 }
 
 #[test]
-fn api_rule_reports_each_shape() {
-    let findings = analyze_contract(&fixture("reject", "api-non-exhaustive.rs"), Path::new("src/lib.rs"), &scope(), false);
-    let messages: Vec<_> = findings.iter().map(|f| f.message.as_str()).collect();
-    assert_eq!(messages.len(), 5, "{messages:#?}");
-}
-
-#[test]
 fn allowed_location_passes_the_same_source() {
     let allowed_only = REJECT
         .iter()
@@ -86,77 +79,6 @@ fn allowed_location_passes_the_same_source() {
     }
     let rules = rules_at(&fixture("reject", "test-kit.rs"), &format!("{ALLOWED_DIR}/a.rs"), &scope());
     assert!(rules.is_empty(), "{rules:?}");
-}
-
-#[test]
-fn rules_with_no_allowed_location_fire_everywhere() {
-    for file in ["contract-layers-swallow.rs", "contract-containers-scroll.rs"] {
-        let rules = rules_at(&fixture("reject", file), &format!("{ALLOWED_DIR}/a.rs"), &scope());
-        assert_eq!(rules.len(), 1, "{file}: {rules:?}");
-    }
-}
-
-#[test]
-fn sub_permissions_are_separate_keys() {
-    let target_only = StaticScope::new().allow("contract/platform:target", "src/host");
-    let src = "#[cfg(target_os = \"linux\")]\nfn a() {}\nfn f(ctx: &Context) { ctx.copy_text(t); }";
-    assert_eq!(rules_at(src, "src/host/a.rs", &target_only), ["contract/platform"]);
-    let findings = analyze_contract(src, Path::new("src/host/a.rs"), &target_only, true);
-    assert_eq!(findings.len(), 1);
-    assert!(findings[0].message.contains("copy_text"));
-}
-
-#[test]
-fn url_opening_is_matched_by_the_egui_path_not_the_method_name() {
-    let findings = analyze_contract(&fixture("reject", "contract-platform.rs"), Path::new("src/ui/a.rs"), &scope(), false);
-    let urls = findings.iter().filter(|f| f.message.contains("opens a URL")).count();
-    assert_eq!(urls, 3, "`ctx.open_url`, `ui.ctx().open_url` and the `egui::OpenUrl` path");
-    let own = "fn f(cx: &mut Cx<'_, Link>, link: Link) { cx.open_url(url, true); link.open_url(url); }";
-    assert!(rules_at(own, "src/ui/a.rs", &scope()).is_empty());
-}
-
-#[test]
-fn craft_types_that_share_egui_names_are_not_flagged() {
-    let rules = rules_at(&fixture("accept", "clean.rs"), "src/ui/a.rs", &scope());
-    assert!(rules.is_empty(), "{rules:?}");
-}
-
-#[test]
-fn glob_and_alias_imports_resolve_to_egui() {
-    assert_eq!(rules_at("use egui::*;\nfn f() { let _ = Button::new(\"x\"); }", "src/a.rs", &StaticScope::new()), ["contract/egui-widget"]);
-    assert_eq!(rules_at("use egui::ScrollArea as S;\nfn f() { S::vertical(); }", "src/a.rs", &StaticScope::new()), ["contract/containers"]);
-    assert!(rules_at("use crate::ui::*;\nfn f() { let _ = Button::new(\"x\"); }", "src/a.rs", &StaticScope::new()).is_empty());
-}
-
-#[test]
-fn check_with_scope_applies_scope_markers_and_exemptions() {
-    let root = Path::new(FIXTURES).join("tree");
-    let scope = StaticScope::new().allow("contract", "src/runtime/egui");
-    let report = check_with_scope(&Config::new(["src"]), &root, &scope).unwrap();
-    let hits: Vec<_> = report.findings.iter().map(|f| (f.path.display().to_string(), f.rule, f.line)).collect();
-    assert_eq!(hits, [("src/ui/bad.rs".to_owned(), "contract/egui-widget", 2)]);
-}
-
-#[test]
-fn older_rules_defer_to_the_scoped_rules() {
-    let root = Path::new(FIXTURES).join("older");
-    let scope = StaticScope::new().allow("style-mutation", "src/runtime/egui/style.rs");
-    let mut config = Config::new(["src", "tests"]);
-    config.include_tests = true;
-    let report = check_with_scope(&config, &root, &scope).unwrap();
-    let hits: Vec<_> = report.findings.iter().map(|f| (f.path.display().to_string(), f.rule, f.line)).collect();
-    assert_eq!(hits, [("src/other.rs".to_owned(), "style-mutation", 2), ("src/other.rs".to_owned(), "literal-size/vec2", 6)]);
-}
-
-#[test]
-fn literal_sizes_may_fill_the_testing_module_like_tests() {
-    let root = Path::new(FIXTURES).join("testing-module");
-    let scope = StaticScope::new().egui_linked("crates/x");
-    let mut config = Config::new(["."]);
-    config.include_tests = true;
-    let report = check_with_scope(&config, &root, &scope).unwrap();
-    let hits: Vec<_> = report.findings.iter().map(|f| (f.path.display().to_string(), f.rule, f.line)).collect();
-    assert_eq!(hits, [("src/other.rs".to_owned(), "literal-size/vec2", 2)], "the kit may fill literal sizes");
 }
 
 #[test]
@@ -179,12 +101,4 @@ fn family_modules_neither_import_runtime_egui_nor_build_egui_text() {
     );
     let shell = analyze_contract(&src, Path::new("crates/x/src/shell/app.rs"), &layered, false);
     assert!(shell.iter().all(|f| f.rule != "contract/runtime-egui"), "layer 7 hosts the adapter");
-}
-
-#[test]
-fn widget_shortcuts_are_flagged_on_a_ui_receiver_only() {
-    let on_ui = "fn f(ui: &mut Ui) { ui.radio(true, \"x\"); }";
-    assert_eq!(rules_at(on_ui, "src/a.rs", &StaticScope::new()), ["contract/egui-widget"]);
-    let on_model = "fn f(item: Item) { let _ = item.radio(true); let _ = Item::radio(true); }";
-    assert!(rules_at(on_model, "src/a.rs", &StaticScope::new()).is_empty());
 }

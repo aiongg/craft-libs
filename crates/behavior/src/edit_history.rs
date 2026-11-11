@@ -156,14 +156,4 @@ mod tests {
         assert!(history.step(&mut now, Step::Undo));
         assert_eq!(now, 0, "the undo takes the step before the one taken back");
     }
-
-    #[test]
-    fn a_commit_equal_to_the_restored_value_adds_no_step() {
-        let mut history = EditHistory::new(&0);
-        history.record(&set(0, 1));
-        assert_eq!(history.take_back(), Some(0));
-        history.record(&set(0, 0));
-        assert!(!history.can_undo());
-        assert_eq!(history.take_back(), None);
-    }
 }

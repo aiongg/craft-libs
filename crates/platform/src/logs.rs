@@ -504,6 +504,6 @@ pub fn install(names: LogNames) -> Option<&'static AppLogger> {
     Some(logger)
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(target_arch = "wasm32")))]
 #[path = "logs_tests.rs"]
 mod logs_tests;

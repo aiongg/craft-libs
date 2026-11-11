@@ -10,6 +10,3 @@ pub fn split_after_first_press<E>(mut events: Vec<E>, is_press: impl Fn(&E) -> b
     };
     (events, held)
 }
-
-#[cfg(test)]
-mod tests {}

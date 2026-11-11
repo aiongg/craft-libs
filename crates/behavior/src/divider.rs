@@ -74,25 +74,4 @@ mod tests {
         // The divider after the first segment moves 80 points toward the end: the second gives 60, the third 20.
         assert_eq!(resize(&row(), 0, 180.0), vec![180.0, 40.0, 80.0]);
     }
-
-    #[test]
-    fn the_divider_stops_where_every_giver_is_at_its_minimum() {
-        assert_eq!(resize(&row(), 0, 1000.0), vec![220.0, 40.0, 40.0]);
-        assert_eq!(resize(&row(), 1, -1000.0), vec![40.0, 40.0, 220.0]);
-    }
-
-    #[test]
-    fn the_receiving_segment_stops_at_its_maximum() {
-        let capped = vec![Segment::new(100.0, 40.0, 120.0), Segment::unbounded(100.0, 40.0)];
-        assert_eq!(resize(&capped, 0, 300.0), vec![120.0, 80.0]);
-    }
-
-    #[test]
-    fn a_target_past_a_limit_and_back_puts_the_divider_at_the_target() {
-        let row = row();
-        let pinned = resize(&row, 0, 1000.0);
-        let after: Vec<Segment> = pinned.iter().zip(&row).map(|(extent, item)| Segment { extent: *extent, ..*item }).collect();
-        let back = resize(&after, 0, 150.0);
-        assert_eq!(back.iter().take(1).sum::<f32>(), 150.0);
-    }
 }

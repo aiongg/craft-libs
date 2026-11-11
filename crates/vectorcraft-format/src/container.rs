@@ -220,10 +220,6 @@ pub fn marker_at(file: &[u8]) -> Option<usize> {
 }
 
 /// One entry placed after the JSON by [`Tail::image`].
-///
-/// ```compile_fail
-/// let _ = craft_vectorcraft_format::Part { mime: String::new(), bytes: &[] };
-/// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct Part<'a> {

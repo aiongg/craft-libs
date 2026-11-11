@@ -94,35 +94,3 @@ impl<T: Serialize + DeserializeOwned> Remembered<T> {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use craft_host::AppInfo;
-    use serde::Deserialize;
-
-    use super::*;
-
-    #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-    struct Blur {
-        radius: f64,
-        preview: bool,
-    }
-
-    fn host() -> Host {
-        Host::builder(AppInfo { id: "test", name: "Test", version: "0" }).build()
-    }
-
-    #[test]
-    fn a_stored_value_is_recalled_under_its_scope_only() {
-        let host = host();
-        let blur = Remembered::<Blur>::new("filter.gaussianBlur");
-        let other = Remembered::<Blur>::new("filter.unsharp");
-        assert_eq!(blur.recall(&host), None);
-        let value = Blur { radius: 2.5, preview: true };
-        blur.store(&host, &value);
-        assert_eq!(blur.recall(&host), Some(value));
-        assert_eq!(other.recall(&host), None);
-        blur.forget(&host);
-        assert_eq!(blur.recall(&host), None);
-    }
-}

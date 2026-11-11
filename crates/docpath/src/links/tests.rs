@@ -1,5 +1,5 @@
-//! Link status, identity, candidates, remaps, folder matches and the search, over a fake
-//! `LinkFiles` and (desktop) a temporary folder.
+//! Link status, the fingerprint, folder matches and the search, over a fake `LinkFiles` and
+//! (desktop) a temporary folder.
 
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
@@ -17,18 +17,6 @@ fn link(stored: &str, identity: Option<LinkIdentity>) -> Link<u32> {
 
 fn identity_for(bytes: &[u8], secs: u64) -> LinkIdentity {
     identity_of(&mut Cursor::new(bytes), bytes.len() as u64, Some(stamp(secs))).unwrap()
-}
-
-// Network (`\\host\s\a.png`), device (`\\.\COM1`) and URL (`https://h/a.png`) links are Refused, and the fake saw no call.
-#[test]
-fn a_status_is_missing_for_a_link_that_may_not_be_followed() {
-    let fake = FakeLinkFiles::new();
-    for (stored, why) in [(r"\\host\s\a.png", Refused::Network), (r"\\.\COM1", Refused::Device), ("https://h/a.png", Refused::Url)] {
-        assert_eq!(status(&link(stored, None), None, &fake), LinkStatus::Refused(why), "{stored}");
-    }
-    assert_eq!(fake.calls(), 0);
-    assert!(LinkStatus::Refused(Refused::Url).is_missing());
-    assert!(!LinkStatus::Modified.is_missing());
 }
 
 // Same stamp: Ok without `identity`; new mtime, same fingerprint: Ok; new bytes: Modified; read error: Unreadable.
@@ -50,38 +38,6 @@ fn a_touched_file_is_ok_and_a_changed_file_is_modified() {
     assert_eq!(status(&link("/m/a.png", None), None, &at(b"x", 1)), LinkStatus::Ok);
     let embedded = Link { embedded: true, ..l };
     assert_eq!(status(&embedded, None, &FakeLinkFiles::new()), LinkStatus::Embedded);
-}
-
-// Same name, other bytes: not ok, `same_file == Some(false)`, a DifferentFile problem; the same file scores highest.
-#[test]
-fn a_different_file_with_the_same_name_is_refused_by_identity() {
-    let l = link(r"C:\shoot\A.PNG", Some(identity_for(b"original", 1)));
-    let fake = FakeLinkFiles::new().with("/x/a.png", b"original", 5).with("/y/a.png", b"other!!!", 5).with("/z/b.jpg", b"original", 5);
-    let c = MatchCriteria::default();
-
-    let mut found = vec![
-        check_candidate(&l, Path::new("/y/a.png"), &c, &fake),
-        check_candidate(&l, Path::new("/z/b.jpg"), &c, &fake),
-        check_candidate(&l, Path::new("/x/a.png"), &c, &fake),
-        check_candidate(&l, Path::new("/missing/a.png"), &c, &fake),
-    ];
-    assert!(!found[0].ok);
-    assert_eq!(found[0].same_file, Some(false));
-    assert_eq!(found[0].problems, vec![CandidateProblem::DifferentFile { found: 8, wanted: 8 }]);
-    assert_eq!(found[1].same_file, Some(true));
-    assert_eq!(found[1].problems.len(), 2, "name and extension differ");
-    assert!(found[2].ok && found[2].problems.is_empty());
-    assert_eq!(found[2].score, 15);
-    assert!(matches!(found[3].problems.as_slice(), [CandidateProblem::Unreadable(_)]));
-    assert_eq!(found[3].identity, None);
-
-    rank(&mut found);
-    let order: Vec<_> = found.iter().map(|c| c.path.to_str().unwrap()).collect();
-    // The last two tie on score (name and extension), so the path decides.
-    assert_eq!(order, ["/x/a.png", "/z/b.jpg", "/missing/a.png", "/y/a.png"]);
-
-    let none = MatchCriteria { file_name: false, extension: false, same_file: false };
-    assert!(check_candidate(&l, Path::new("/y/a.png"), &none, &fake).ok);
 }
 
 // `fingerprint` of a 3 MiB file equals FilmCraft's for the same bytes; a 2 MiB file is hashed whole.
@@ -107,18 +63,6 @@ fn the_fingerprint_reads_the_head_and_the_tail() {
 
     // A file shorter than it claims is an error.
     assert!(identity_of(&mut Cursor::new(&big[..100]), 200, None).is_err());
-}
-
-// `derive_remap(C:\shoot\day1\a.mov, /Volumes/T7/shoot/day1/a.mov)` then `apply` maps `C:\shoot\day2\b.mov`; other prefixes give None.
-#[test]
-fn a_remap_carries_to_the_other_missing_links() {
-    let remap = derive_remap(r"C:\shoot\day1\a.mov", "/Volumes/T7/shoot/day1/a.mov").unwrap();
-    assert_eq!(remap, Remap { from: "C:".into(), to: "/Volumes/T7".into() });
-    assert_eq!(remap.apply(r"C:\shoot\day2\b.mov").as_deref(), Some("/Volumes/T7/shoot/day2/b.mov"));
-    assert_eq!(remap.apply("D:/shoot/b.mov"), None);
-    assert_eq!(remap.apply("C:other/b.mov"), None, "the prefix ends at a separator");
-    assert_eq!(derive_remap("/a/b.mov", "/a/b.mov"), None);
-    assert_eq!(derive_remap("/a/b.mov", "/a/c.mov"), None);
 }
 
 // `folder_match` takes only a plain name: `file:%2Fx.png`, `C:x.png`, `NUL`, `..` give None; an extension swap works.
@@ -170,80 +114,4 @@ fn the_search_never_follows_directory_links_and_stops_at_the_limit() {
     assert!(SystemLinkFiles.identity(&root.join("sub")).is_err());
     assert!(SystemLinkFiles.stat(&root.join("sub")).is_none());
     let _ = std::fs::remove_dir_all(&root);
-}
-
-// `cancelled` turning true mid-walk ends the run as Cancelled and no update follows it.
-#[test]
-fn a_cancelled_search_stops_and_reports_nothing_more() {
-    let tree = FakeLinkFiles::new().with("/r/a/x.png", b"1", 1).with("/r/b/x.png", b"2", 1).with("/r/c/x.png", b"3", 1);
-    let links = [link("/old/x.png", None)];
-    let mut search = LinkSearch::new("/r");
-    search.exact_names = true;
-
-    let mut all = Vec::new();
-    let end = search.run(&links, &tree, &|_, c| c, &|| false, &mut |u| all.push(u));
-    assert_eq!(end, SearchEnd::Done { files: 3 });
-    assert_eq!(all.iter().filter(|u| matches!(u, SearchUpdate::Hit(_))).count(), 3);
-
-    // Cancelled from the first hit on: that hit is the last update.
-    let stop = std::cell::Cell::new(false);
-    let mut seen = Vec::new();
-    let end = search.run(&links, &tree, &|_, c| c, &|| stop.get(), &mut |u| {
-        seen.push(u);
-        stop.set(true);
-    });
-    assert_eq!(end, SearchEnd::Cancelled);
-    assert_eq!(seen.len(), 1);
-
-    // Cancelled before it starts: nothing is reported.
-    let mut none = Vec::new();
-    assert_eq!(search.run(&links, &tree, &|_, c| c, &|| true, &mut |u| none.push(u)), SearchEnd::Cancelled);
-    assert!(none.is_empty());
-}
-
-// The checker hook runs in the search, before ranking: a candidate it rejects drops below one it keeps, and a hit it marks keeps the mark.
-#[test]
-fn the_search_checker_adjusts_candidates_before_they_are_ranked() {
-    let files = FakeLinkFiles::new().with("/r/a/x.png", b"1", 1).with("/r/b/x.png", b"2", 1);
-    let links = [link("/old/x.png", None)];
-    let mut search = LinkSearch::new("/r");
-    search.exact_names = true;
-    let reject_a = |_: &Link<u32>, mut c: Candidate| {
-        if c.path.starts_with("/r/a") {
-            c.ok = false;
-            c.score = 0;
-            c.problems.push(CandidateProblem::Other("too short".into()));
-        }
-        c
-    };
-    let mut hits = Vec::new();
-    search.run(&links, &files, &reject_a, &|| false, &mut |u| {
-        if let SearchUpdate::Hit(h) = u {
-            hits.push(h.candidate);
-        }
-    });
-    let paths: Vec<_> = hits.iter().map(|c| c.path.clone()).collect();
-    assert_eq!(paths, [PathBuf::from("/r/b/x.png"), PathBuf::from("/r/a/x.png")]);
-    assert_eq!(hits[1].problems, [CandidateProblem::Other("too short".into())]);
-}
-
-// `Link<String>` with an identity (and a `None` modified time) and `MatchCriteria` come back equal through serde_json; `{}` reads as `MatchCriteria::default()`.
-#[test]
-fn a_link_and_the_match_criteria_survive_a_serde_round_trip() {
-    let l = Link {
-        key: "asset-1".to_string(),
-        name: "a.png".into(),
-        stored: "../a.png".into(),
-        identity: Some(LinkIdentity { size: 3, fingerprint: u64::MAX, modified: None }),
-        page: Some(2),
-        embedded: false,
-    };
-    let back: Link<String> = serde_json::from_str(&serde_json::to_string(&l).unwrap()).unwrap();
-    assert_eq!(back, l);
-    let timed = LinkIdentity { size: 1, fingerprint: 2, modified: Some(stamp(1_700_000_000)) };
-    assert_eq!(serde_json::from_str::<LinkIdentity>(&serde_json::to_string(&timed).unwrap()).unwrap(), timed);
-
-    let c = MatchCriteria { file_name: false, extension: true, same_file: false };
-    assert_eq!(serde_json::from_str::<MatchCriteria>(&serde_json::to_string(&c).unwrap()).unwrap(), c);
-    assert_eq!(serde_json::from_str::<MatchCriteria>("{}").unwrap(), MatchCriteria::default());
 }

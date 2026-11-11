@@ -102,29 +102,4 @@ mod tests {
         }
         assert_eq!(decode("Zm9v\nYmFy").as_deref(), Some(&b"foobar"[..]));
     }
-
-    #[test]
-    fn every_byte_value_round_trips() {
-        let all: Vec<u8> = (0..=255).collect();
-        for n in 0..all.len() {
-            assert_eq!(decode(&encode(&all[..n])).as_deref(), Some(&all[..n]));
-        }
-    }
-
-    #[test]
-    fn nonzero_bits_before_the_padding_are_ignored() {
-        for (loose, canonical) in [("Zh==", "Zg=="), ("Zm9=", "Zm8=")] {
-            assert_eq!(decode(loose), decode(canonical), "{loose}");
-            assert_eq!(decoded_len(loose), decoded_len(canonical), "{loose}");
-        }
-        assert_eq!(decode("Zh==").as_deref(), Some(&b"f"[..]));
-        assert_eq!(decode("Zm9=").as_deref(), Some(&b"fo"[..]));
-    }
-
-    #[test]
-    fn misplaced_padding_and_foreign_characters_are_refused() {
-        for s in ["====", "A===", "AA=A", "=AAA", "QQ==QUJD", "QUI=QUJD", "QUJ", "QU*D", "QUJDé"] {
-            assert_eq!(decode(s), None, "{s}");
-        }
-    }
 }

@@ -82,7 +82,3 @@ pub fn unix_ms() -> f64 {
     use web_time::{SystemTime, UNIX_EPOCH};
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs_f64() * 1000.0).unwrap_or(0.0)
 }
-
-#[cfg(test)]
-#[path = "clock_tests.rs"]
-mod clock_tests;

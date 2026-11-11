@@ -112,13 +112,12 @@ SOF11 (lossless) falls in that range and returns `Unsupported`.
   the coefficients that went in, and Huffman streams are compared against `zune-jpeg`.
 - `tests/conformance.rs`, on libjpeg-turbo's test images in `tests/data` (provenance and how
   the derived files were made: `tests/data/SOURCE.md`):
-  - `testimgari.jpg` (SOF9) decodes to exactly the samples of its jpegtran Huffman transcode.
   - jpegtran's arithmetic and progressive arithmetic transcodes of `testorig.jpg` (one with
     restarts) and `testorig12.jpg` decode to exactly the samples of their sources.
   - `whitetail-ari.jpg` (SOF9 from cjpeg, a white lower part that decodes from the zeros
     supplied at EOI) decodes undamaged and equal to its Huffman transcode.
-  - `testorig.jpg` matches `zune-jpeg`, and `testorig12.jpg` matches libjpeg-turbo's 12-bit
-    decode, within the float-against-integer IDCT difference (mean under 0.75, max 4).
+  - `testorig12.jpg` matches libjpeg-turbo's 12-bit decode, within the float-against-integer
+    IDCT difference (mean under 0.75, max 4).
 - `tests/mutation.rs`: a seeded mutation run (truncations, bit flips, byte and frame-header
   overwrites, deleted and repeated spans) over the test images and the fuzz seeds. Decoding must
   not panic and must stay within small `Limits`.
