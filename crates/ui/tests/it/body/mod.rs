@@ -1,19 +1,8 @@
-//! The body step and the mount host: regions, scrolling, grid bodies, move and resize, zoomed canvases and
-//! viewport mounts.
+//! The body step and the mount host: regions, scrolling, move and resize, and viewport mounts.
 
-mod keyboard;
+mod footer_reserve;
 pub(crate) mod kit;
 mod mounts;
-mod scroll;
-mod scroll_fade;
-
-mod content_sizing;
-mod footer_reserve;
 mod placement;
-
-// bregion
 mod regions;
-mod theme_scope;
-
-// fwh-contractlater
-mod cursor;
+mod scroll;

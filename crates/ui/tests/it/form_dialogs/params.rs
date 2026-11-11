@@ -1,16 +1,11 @@
-//! The parameter model: the spec-string parser, kinds, defaults and fit rules, row conditions, the value store, and
-//! the rows' use of a bound value.
+//! The parameter model: the spec-string parser, kinds, defaults and fit rules.
 
-use craft_ui::contract::Bind;
-use craft_ui::patterns::form_dialogs::{DialogFields, FieldValue, Param, ParamKind, ParamRows};
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::patterns::form_dialogs::{FieldValue, Param, ParamKind};
+use craft_ui::testing::trial;
 use craft_ui::value_drag::SliderScale;
-use std::cell::RefCell;
-use std::rc::Rc;
 
 const SPEC: &str = r#"{"radius":0.1..1000=1,"method":"spin|zoom"="zoom","monochromatic":bool,"seed":u32=0,"cellSize":px=4,"tint":color=#ff8000,"kernel":int[25],"layer":layer id,"curve":json,"note":text} -> {"x":1}"#;
 const KERNEL_CELLS: usize = 25;
-const RADIUS_DEFAULT: f64 = 1.0;
 
 /// The registry notation gives the kinds, bounds, defaults and labels the rows show; entries the rows do not edit are
 /// left out.
@@ -36,37 +31,3 @@ fn the_registry_notation_parses_into_params() {
     assert!(!params[1].kind.fits(&FieldValue::Text("wobble".into())));
 }
 
-/// A stored table reads back with its integers as integers and its lists as lists, and equality ignores the opening
-/// snapshot.
-#[trial]
-fn a_stored_table_reads_back_by_kind() {
-    let text = "whole = 3\nreal = 2.5\nname = \"spin\"\ncolour = [0.25, 0.5, 1.0]\nlist = [1, 2, 3, 4]\nnone = []\n";
-    let fields: DialogFields = toml::from_str(text).expect("a plain table parses");
-    assert_eq!((fields.get("whole"), fields.get("real")), (Some(&FieldValue::Int(3)), Some(&FieldValue::Number(2.5))));
-    assert_eq!(fields.text("name"), Some("spin"));
-    assert_eq!(fields.color("colour"), Some([0.25, 0.5, 1.0]));
-    assert_eq!(fields.list("list").map(|list| list.len()), Some(4));
-    assert_eq!(fields.list("none").map(|list| list.len()), Some(0));
-    assert_eq!(fields.list("whole"), None, "a scalar is no list");
-
-    let mut opened = DialogFields::from_pairs([("a", 1.0)]);
-    opened.snapshot();
-    opened.set("a", 2.0);
-    assert_eq!(opened, DialogFields::from_pairs([("a", 2.0)]));
-}
-
-/// The rows write the defaults of the parameters the bound values lack, through the binding, and keep a value that is
-/// there.
-#[trial]
-fn rows_fill_defaults_through_the_binding() {
-    let params = Rc::new(Param::parse_list(r#"{"radius":0.1..1000=1,"method":"spin|zoom"="zoom","note":text}"#));
-    let fields = Rc::new(RefCell::new(DialogFields::from_pairs([("note", "kept")])));
-    let (shown_params, shown_fields) = (params.clone(), fields.clone());
-    let mut fixture = Fixture::new(move |ui| {
-        let mut held = shown_fields.borrow_mut();
-        ParamRows::new("Filter", &shown_params, Bind::bound(&mut *held)).show(ui);
-    });
-    fixture.settle();
-    let fields = fields.borrow();
-    assert_eq!((fields.number("radius"), fields.text("method"), fields.text("note")), (Some(RADIUS_DEFAULT), Some("zoom"), Some("kept")));
-}

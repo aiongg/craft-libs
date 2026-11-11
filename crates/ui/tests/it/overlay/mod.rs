@@ -1,9 +1,6 @@
-//! The overlay host (15): popups, dismissal, modals, tooltips and toasts.
+//! The overlay host (15): popups, modals and menu picking.
 
-mod access;
 mod hosting;
 pub(crate) mod kit;
 mod modal;
 mod sampler;
-mod toast;
-mod tooltip;

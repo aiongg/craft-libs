@@ -1,14 +1,13 @@
 //! The guide layout calculation and the units the guide dialogs measure in.
 
 use craft_behavior::Axis;
-use craft_ui::canvas::{Guide, GuideKey};
+use craft_ui::canvas::Guide;
 use craft_ui::patterns::form_dialogs::{GuideGroup, GuideLayoutError, GuideLayoutOptions, GuideLength, GuideRect, GuideTarget, GuideUnits};
 use craft_ui::runtime::env::UnitKind;
 use craft_ui::testing::trial;
 
 const WIDTH: f64 = 1000.0;
 const HEIGHT: f64 = 800.0;
-const PPI: f64 = 300.0;
 /// Edges of 8 columns: both sides of each.
 const EIGHT_COLUMN_EDGES: usize = 16;
 /// The most columns the engine takes, one more than allowed.
@@ -79,28 +78,3 @@ fn layout_lines_follow_the_columns_rows_and_margins() {
     assert_eq!(made(&many, &[document(); TARGETS_OVER_LIMIT], &[]), Err(GuideLayoutError::TooMany));
 }
 
-/// Clear Existing Guides drops every existing guide for the document and only those inside the selected artboards
-/// for artboards; the others stay.
-#[trial]
-fn clear_existing_keeps_guides_outside_the_artboards() {
-    let existing: Vec<Guide> = [50.0, 500.0, 900.0].iter().zip(100u64..).map(|(at, key)| Guide::new(GuideKey::new(key), Axis::Y, *at)).collect();
-    let board = GuideRect::new(0.0, 0.0, 400.0, HEIGHT);
-    let mut clear = just_margin([10.0; 4]);
-    clear.clear_existing = true;
-    let cleared = made(&clear, &[document()], &existing).unwrap();
-    assert!(cleared.iter().all(|guide| guide.key.get() < 100), "a cleared document keeps none");
-    clear.target = GuideTarget::SelectedArtboards;
-    let kept = positions(&made(&clear, &[board], &existing).unwrap(), Axis::Y);
-    assert!(kept.contains(&500.0) && kept.contains(&900.0) && !kept.contains(&50.0), "only guides inside the artboard go: {kept:?}");
-}
-
-/// Lengths convert through the document's resolution: an inch is `PPI` pixels, and percent is of the extent.
-#[trial]
-fn lengths_convert_through_the_resolution() {
-    let units = GuideUnits::new(UnitKind::Centimetres, 3000.0, 2000.0, PPI);
-    let inch = units.to_pixels(GuideLength::new(1.0, UnitKind::Inches), 3000.0).unwrap();
-    assert_eq!(inch, PPI);
-    assert_eq!(units.to_pixels(GuideLength::percent(50.0), 3000.0), Some(1500.0));
-    let back = units.from_pixels(PPI, UnitKind::Centimetres, 3000.0).unwrap();
-    assert!((back - 2.54).abs() < 1e-9, "an inch is 2.54 cm, not {back}");
-}

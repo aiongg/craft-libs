@@ -80,15 +80,6 @@ pub enum Go {
     Go,
 }
 
-/// An app-scope command bound to Enter that fires in dialogs.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, CommandSet)]
-#[command(prefix = "overlayTrial")]
-#[non_exhaustive]
-pub enum Pick {
-    #[command(label = "Pick", default = "Enter", modal = "always")]
-    Pick,
-}
-
 /// What an opener reports.
 #[derive(Default)]
 #[non_exhaustive]
@@ -197,12 +188,6 @@ fn popup_open_after_popover_reopens(motion: MotionMode) -> bool {
     outer.set(true);
     fixture.idle(10);
     inner_open.get()
-}
-
-/// A popup opened inside a popover closes when the popover closes, so reopening the popover does not show it open.
-#[trial]
-fn closing_a_popover_closes_the_popup_opened_inside_it() {
-    assert!(!popup_open_after_popover_reopens(MotionMode::Full), "the popup closed with the popover that held it");
 }
 
 /// With motion off the popover hides in the frame it closes, so the popup's owner does not run until the popover

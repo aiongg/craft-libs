@@ -5,41 +5,26 @@ use crate::contract::kit::PlainStyle;
 use craft_ui::contract::{BodyCx, Common, Component, Container, ContainerProps, Cx, Role};
 use craft_ui::style::StyleCx;
 use craft_ui::testing::layout::allocate;
-use egui::{Rect, Response, Ui, Vec2};
-use std::cell::RefCell;
-
-/// The rects the regions of a `Slab` took.
-#[derive(Default)]
-#[non_exhaustive]
-pub struct Regions {
-    pub header: Option<Rect>,
-    pub footer: Option<Rect>,
-}
+use egui::{Response, Ui, Vec2};
 
 #[derive(craft_ui::contract::Component)]
 #[component(container)]
-pub struct Slab<'a> {
+pub struct Slab {
     #[common]
     common: Common,
     #[container]
     props: ContainerProps,
     header: Vec2,
     footer: Vec2,
-    regions: Option<&'a RefCell<Regions>>,
 }
 
-impl<'a> Slab<'a> {
+impl Slab {
     pub fn new(props: ContainerProps) -> Self {
-        Slab { common: Common::new(), props, header: Vec2::new(100.0, 24.0), footer: Vec2::new(100.0, 16.0), regions: None }
-    }
-
-    pub fn regions(mut self, regions: &'a RefCell<Regions>) -> Self {
-        self.regions = Some(regions);
-        self
+        Slab { common: Common::new(), props, header: Vec2::new(100.0, 24.0), footer: Vec2::new(100.0, 16.0) }
     }
 }
 
-impl Component for Slab<'_> {
+impl Component for Slab {
     const ROLE: Role = Role::GROUP;
     type Style = PlainStyle;
     type Output = Response;
@@ -53,18 +38,12 @@ impl Component for Slab<'_> {
     }
 }
 
-impl Container for Slab<'_> {
+impl Container for Slab {
     fn header(&mut self, ui: &mut Ui, _: &mut BodyCx<'_>) {
-        let rect = allocate(ui, self.header);
-        if let Some(regions) = self.regions {
-            regions.borrow_mut().header = Some(rect);
-        }
+        allocate(ui, self.header);
     }
 
     fn footer(&mut self, ui: &mut Ui, _: &mut BodyCx<'_>) {
-        let rect = allocate(ui, self.footer);
-        if let Some(regions) = self.regions {
-            regions.borrow_mut().footer = Some(rect);
-        }
+        allocate(ui, self.footer);
     }
 }

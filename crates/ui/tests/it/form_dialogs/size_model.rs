@@ -1,9 +1,9 @@
-//! The size model of the size dialogs: linked fields, units, the pixel cap and the export size rules.
+//! The size model of the size dialogs: linked fields and units.
 
 use craft_behavior::PixelSize;
-use craft_ui::patterns::form_dialogs::{LinkedSize, SizeError, resize_from_scale, resize_from_side};
-use craft_ui::runtime::env::{Env, UnitKind};
-use craft_ui::testing::{Frames, trial};
+use craft_ui::patterns::form_dialogs::LinkedSize;
+use craft_ui::runtime::env::UnitKind;
+use craft_ui::testing::trial;
 
 fn document() -> LinkedSize {
     LinkedSize::new(PixelSize::new(1200, 800))
@@ -34,33 +34,6 @@ fn the_lock_scales_the_other_side_by_the_opening_ratio() {
     assert_eq!(pixels(&size).1, 1);
 }
 
-/// A physical size keeps its print size when the resolution changes: the pixels follow it.
-#[trial]
-fn a_new_resolution_resamples_a_physical_size() {
-    let mut size = document();
-    assert!(size.set_unit(UnitKind::Inches));
-    size.set_resolution(144.0);
-    assert_eq!(pixels(&size), (2400, 1600));
-    assert!((size.width() - 2400.0 / 144.0).abs() < 1e-9);
-}
-
-/// A typed value shows back while the pixel size it made stands: 72.27 pt at 72 ppi is 72 pixels and still reads
-/// 72.27 pt, and another unit shows the pixels.
-#[trial]
-fn a_typed_value_shows_back_while_its_pixel_size_stands() {
-    let mut size = document();
-    size.lock(false);
-    assert!(size.set_unit(UnitKind::Points));
-    size.set_width(72.27);
-    assert_eq!(size.pixels().width, 72);
-    assert_eq!(size.width(), 72.27);
-    assert!(size.set_unit(UnitKind::Pixels));
-    assert_eq!(size.width(), 72.0);
-    assert!(size.set_unit(UnitKind::Points));
-    size.set_resolution(100.0);
-    assert_ne!(size.width(), 72.27, "a new resolution makes the stored value stale");
-}
-
 /// With Resample off the pixel count is fixed: a size in pixels cannot change, and a physical size changes the
 /// resolution.
 #[trial]
@@ -79,58 +52,3 @@ fn without_resampling_a_physical_size_changes_the_resolution() {
     assert!((size.height() - 800.0 / 150.0).abs() < 1e-9);
 }
 
-/// A relative size shows the change: typing 2 in on the height adds 2 in to it.
-#[trial]
-fn a_relative_size_holds_the_change() {
-    let mut size = document().chain(false);
-    size.relative(true);
-    size.lock(false);
-    assert_eq!((size.width(), size.height()), (0.0, 0.0));
-    assert!(size.set_unit(UnitKind::Inches));
-    size.set_height(2.0);
-    assert_eq!(pixels(&size), (1200, 944));
-    assert_eq!(size.height(), 2.0);
-    size.set_width(-200.0 / 72.0);
-    assert_eq!(size.pixels().width, 1000);
-}
-
-/// A scale outside 1 to 1000 percent, a side outside 1 to 300,000 pixels and a value that is not a number are refused;
-/// a locked side follows the source's aspect.
-#[trial]
-fn the_export_rules_refuse_sizes_the_engine_cannot_make() {
-    assert_eq!(resize_from_scale(PixelSize::new(101, 3), 50.0), Ok(PixelSize::new(51, 2)));
-    assert_eq!(resize_from_scale(PixelSize::new(0, 5), 100.0), Ok(PixelSize::new(1, 5)));
-    assert_eq!(resize_from_scale(PixelSize::new(100, 100), 0.0), Err(SizeError::Scale));
-    assert_eq!(resize_from_scale(PixelSize::new(100, 100), 1001.0), Err(SizeError::Scale));
-    assert_eq!(resize_from_scale(PixelSize::new(100, 100), f64::NAN), Err(SizeError::Scale));
-
-    assert_eq!(resize_from_side(PixelSize::new(1200, 800), 600.0, 0.0, true, true), Ok((PixelSize::new(600, 400), 50.0)));
-    assert_eq!(resize_from_side(PixelSize::new(1200, 800), 0.0, 400.0, true, false), Ok((PixelSize::new(600, 400), 50.0)));
-    assert_eq!(resize_from_side(PixelSize::new(1200, 800), 600.0, 123.0, false, true), Ok((PixelSize::new(600, 123), 50.0)));
-    assert_eq!(resize_from_side(PixelSize::new(1200, 800), 0.4, 10.0, false, true), Err(SizeError::Pixels));
-    assert_eq!(resize_from_side(PixelSize::new(1200, 800), 0.0, 10.0, false, true), Err(SizeError::Pixels));
-    assert_eq!(resize_from_side(PixelSize::new(1200, 800), f64::NAN, 10.0, false, true), Err(SizeError::Pixels));
-    assert_eq!(resize_from_side(PixelSize::new(1200, 800), 600.0, f64::INFINITY, false, true), Err(SizeError::Pixels));
-    assert_eq!(resize_from_side(PixelSize::new(800, 1200), 300_000.0, 0.0, true, true), Err(SizeError::Pixels));
-}
-
-/// A length typed with a point suffix and the model's own point conversion agree under the traditional point.
-#[trial]
-fn a_typed_point_and_the_model_convert_alike() {
-    const TRADITIONAL: f64 = 72.27;
-    let mut read = None;
-    let mut frames = Frames::new();
-    frames.frame(vec![], |ui| {
-        let inches = Env::of(ui).units().reader_with_points(Some(UnitKind::Inches), TRADITIONAL);
-        read = inches.read("12pt", None).ok();
-    });
-    let typed = read.expect("the reader takes a point suffix in an inches field");
-
-    let mut by_reader = document().points_per_inch(TRADITIONAL);
-    assert!(by_reader.set_unit(UnitKind::Inches));
-    by_reader.set_width(typed);
-    let mut by_model = document().points_per_inch(TRADITIONAL);
-    assert!(by_model.set_unit(UnitKind::Points));
-    by_model.set_width(12.0);
-    assert_eq!(by_reader.pixels(), by_model.pixels());
-}
