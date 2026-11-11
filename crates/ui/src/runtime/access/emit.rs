@@ -151,9 +151,15 @@ fn declare_actions(spec: &mut NodeSpec, focusable: bool, clickable: bool, numeri
     if clickable {
         spec.actions.push(NodeAction::Click);
     }
-    if numeric.is_some_and(|numeric| numeric.step.is_some()) {
-        spec.actions.push(NodeAction::Increment);
-        spec.actions.push(NodeAction::Decrement);
+    if let Some(numeric) = numeric.filter(|numeric| numeric.step.is_some()) {
+        // A step that cannot move the value is not offered: no Increment at the range's end, unless the value wraps.
+        let stuck = |at_end: bool| at_end && !numeric.wraps;
+        if !stuck(numeric.value.is_some_and(|value| value >= *numeric.range.end())) {
+            spec.actions.push(NodeAction::Increment);
+        }
+        if !stuck(numeric.value.is_some_and(|value| value <= *numeric.range.start())) {
+            spec.actions.push(NodeAction::Decrement);
+        }
     }
     if numeric.is_some() {
         spec.actions.push(NodeAction::SetValue);

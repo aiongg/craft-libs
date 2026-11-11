@@ -109,6 +109,7 @@ struct Sizes {
     name_line: f32,
     detail_line: f32,
     start: f32,
+    /// The picture width of a tile measured on its own: least, and ideal (a grid's card thumbnail at zoom 1).
     thumbs: [f32; 2],
     around: AroundPicture,
 }
@@ -164,7 +165,7 @@ impl Sizes {
             name_line,
             detail_line: line,
             start: control.height,
-            thumbs: [tokens.size.thumb.sm, tokens.size.thumb.md],
+            thumbs: [tokens.size.thumb.sm, tokens.size.thumb.card],
             around: AroundPicture::default(),
         };
         Sizes { around: AroundPicture::of(&sizes), ..sizes }
@@ -512,22 +513,27 @@ impl<'a> Tile<'a> {
         let (mut bar, mut stars, mut flag, mut dot) = (None, None, None, None);
         if bar_shown {
             let rect = Rect::from_min_max(egui::pos2(picture.left(), floor - sizes.bar), egui::pos2(picture.right(), floor));
-            let mut inner = Flow::new(rect, rtl).take_start(sizes.inset).1;
-            let mut cell = |width: f32| {
-                let (taken, rest) = inner.take_start(width);
-                inner = rest.take_start(sizes.inset).1;
-                taken
+            // The stars and the flag run from the start, the dot sits at the end, each with an inset after it. A part
+            // that does not fit in what the earlier ones left is left out, and so is every part after it.
+            let mut room = Flow::new(rect, rtl).take_start(sizes.inset).1;
+            let mut fitting = true;
+            let mut take = |width: f32, at_end: bool| {
+                fitting &= width + sizes.inset <= room.rect().width();
+                fitting.then(|| {
+                    if at_end {
+                        let (taken, rest) = room.take_end(width + sizes.inset);
+                        room = rest;
+                        Rect::from_center_size(taken.center(), Vec2::new(width, taken.height()))
+                    } else {
+                        let (taken, rest) = room.take_start(width);
+                        room = rest.take_start(sizes.inset).1;
+                        taken
+                    }
+                })
             };
-            if self.rating.is_some() {
-                stars = Some(Rect::from_center_size(cell(faces.stars.x).center(), faces.stars));
-            }
-            if self.flag.is_some() {
-                flag = Some(Rect::from_center_size(cell(sizes.glyph).center(), Vec2::splat(sizes.glyph)));
-            }
-            if self.label_color.is_some() {
-                let (taken, _) = Flow::new(rect, rtl).take_end(sizes.dot + sizes.inset);
-                dot = Some(Rect::from_center_size(taken.center(), Vec2::splat(sizes.dot)));
-            }
+            stars = self.rating.and_then(|_| take(faces.stars.x, false));
+            flag = self.flag.and_then(|_| take(sizes.glyph, false)).map(|cell| Rect::from_center_size(cell.center(), Vec2::splat(sizes.glyph)));
+            dot = self.label_color.and_then(|_| take(sizes.dot, true)).map(|cell| Rect::from_center_size(cell.center(), Vec2::splat(sizes.dot)));
             floor = rect.top();
             bar = Some(rect);
         }
@@ -671,11 +677,11 @@ impl Component for Tile<'_> {
         let ratio = self.aspect.of(1.0);
         let caption = sizes.caption(self.caption, self.has_detail_line());
         let column = sizes.column(self.caption);
-        if let Some(room) = cx.room {
-            return Vec2::new(room, ((room - column).max(0.0) / ratio) + caption);
-        }
+        // The picture is a card of a grid at zoom 1: as wide as the thumbnail side, with what the density adds around
+        // it. A narrower room shrinks the picture to fit.
         let side = if cx.proposal == Proposal::Min { sizes.thumbs[0] } else { sizes.thumbs[1] };
-        Vec2::new(ratio * side + column, side + caption)
+        let width = cx.room.map_or(side + column, |room| room.min(side + column));
+        Vec2::new(width, ((width - column).max(0.0) / ratio) + caption)
     }
 
     fn sense(&self) -> Sense {
@@ -689,7 +695,7 @@ impl Component for Tile<'_> {
         self.pills = self.corner_badges(&words, &cx.env.units());
         let faces = Faces {
             check: cx.face(Checkbox::new(Bind::given(Mixed::Same(false)))),
-            stars: cx.face(Rating::new(Bind::given(0u8), STARS)),
+            stars: cx.face(Rating::new(Bind::given(0u8), STARS).compact(true)),
             pill: cx.face(Badge::new("0")).y,
             corner: self.corner.as_ref().map_or(Vec2::ZERO, |(icon, command)| cx.face(IconButton::command(icon.clone(), command.clone()))),
         };
@@ -709,7 +715,8 @@ impl Component for Tile<'_> {
             cx.part(CHECK, *at).sense(Sense::CLICK).flags(flags).pointer_only(CHECK_REASON);
         }
         if let Some(stars) = placed.stars {
-            cx.part(RATING, stars).sense(Sense::CLICK).pointer_only(RATING_REASON);
+            // A click rates by where it lands; AccessKit rates with Increment, Decrement and SetValue instead.
+            cx.part(RATING, stars).sense(Sense::CLICK).access_click(false).pointer_only(RATING_REASON);
         }
         for (at, (badge, rect)) in self.pills.iter().zip(&placed.pills).enumerate() {
             let part = cx.part(PILL.at(at as u64), *rect);
@@ -905,7 +912,7 @@ impl Tile<'_> {
         ui.draw().fill(&PaintShape::Rect(bar, CornerRadius::ZERO), cx.resolve(&style.plate));
         if let (Some(rating), Some(_)) = (self.rating, placed.stars) {
             let words = cx.words::<TileWords>();
-            ui.face(RATING, Rating::new(Bind::given(rating), STARS).label(words.rating.fill(&[("name", cx.resolved.label)])));
+            ui.face(RATING, Rating::new(Bind::given(rating), STARS).compact(true).label(words.rating.fill(&[("name", cx.resolved.label)])));
         }
         let draw = ui.draw();
         if let (Some(flag), Some(rect)) = (self.flag, placed.flag) {

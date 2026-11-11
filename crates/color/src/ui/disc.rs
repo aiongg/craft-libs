@@ -369,7 +369,7 @@ impl Component for ColorDisc<'_> {
             let node = access.node(MARKER.at(index as u64), Role::SLIDER);
             node.name = Name::Text(name);
             let text = words.value.fill(&[("hue", hue.as_str()), ("saturation", saturation.as_str())]);
-            node.numeric = Some(Numeric::new(f64::from(live.hue.rem_euclid(360.0)), 0.0..=360.0).step(f64::from(KEY_STEP)).text(text));
+            node.numeric = Some(Numeric::new(f64::from(live.hue.rem_euclid(360.0)), 0.0..=360.0).step(f64::from(KEY_STEP)).wraps(true).text(text));
         }
     }
 

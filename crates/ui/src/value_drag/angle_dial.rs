@@ -347,7 +347,7 @@ impl Component for AngleDial<'_> {
             Some(value) => Numeric::new(*value, min..=max),
             None => Numeric::empty(min..=max),
         };
-        access.numeric(numeric.step(self.step_size()));
+        access.numeric(numeric.step(self.step_size()).wraps(self.wraps()));
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {

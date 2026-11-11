@@ -1,6 +1,6 @@
 //! Stories of `TileGrid`.
 
-use super::{GridEvent, TileGrid, TileGroup};
+use super::{GridEvent, TileGrid, TileGridOutput, TileGroup};
 use crate::contract::ShowCollection as _;
 use crate::list::ThumbAspect;
 use crate::testing::pictures::StoryPictures;
@@ -35,9 +35,29 @@ fn mix(key: usize) -> usize {
 /// The label colours the photos cycle through.
 const LABELS: [Srgba; 4] = [Srgba::rgb(0.86, 0.27, 0.24), Srgba::rgb(0.9, 0.67, 0.16), Srgba::rgb(0.27, 0.63, 0.35), Srgba::rgb(0.27, 0.47, 0.86)];
 
-/// Photo `key`: its picture, a rating, and from the key the odd pick, reject, colour label and Duplicate badge.
-fn photo(pictures: &StoryPictures, key: usize) -> Tile<'static> {
-    let mut tile = Tile::new(format!("Photo {}", key + 1)).thumb(thumb_aspect(key), pictures.thumb(key as u64)).rating((mix(key) % 6) as u8);
+/// The library's ratings, one per photo, kept in the story's data: the first `count` start from the key, and a
+/// rating the grid reports replaces them.
+struct Ratings<'d>(&'d mut Vec<u8>);
+
+impl<'d> Ratings<'d> {
+    fn of(data: &'d mut StoryData, count: usize) -> Self {
+        Ratings(data.value("ratings", (0..count).map(|key| (mix(key) % 6) as u8).collect()))
+    }
+
+    fn apply(&mut self, events: &[GridEvent<usize>]) {
+        for event in events {
+            if let GridEvent::Rate { keys, rating } = event {
+                for key in keys {
+                    self.0[*key] = *rating;
+                }
+            }
+        }
+    }
+}
+
+/// Photo `key` rated `rating`: its picture, and from the key the odd pick, reject, colour label and Duplicate badge.
+fn photo(pictures: &StoryPictures, key: usize, rating: u8) -> Tile<'static> {
+    let mut tile = Tile::new(format!("Photo {}", key + 1)).thumb(thumb_aspect(key), pictures.thumb(key as u64)).rating(rating);
     if key.is_multiple_of(11) {
         tile = tile.flag(TileFlag::Picked);
     }
@@ -78,41 +98,44 @@ impl ItemSource<usize> for Photos {
     }
 }
 
-fn grid(ui: &mut Ui, grid: TileGrid<'_, usize>, count: usize) -> StoryOutput {
+fn grid(ui: &mut Ui, data: &mut StoryData, grid: TileGrid<'_, usize>, count: usize) -> TileGridOutput<usize> {
     let pictures = StoryPictures::of(ui.ctx());
-    grid.show_items(ui, &Photos(count), &mut |key, _| photo(&pictures, *key)).into()
+    let mut ratings = Ratings::of(data, count);
+    let out = grid.show_items(ui, &Photos(count), &mut |key, _| photo(&pictures, *key, ratings.0[*key]));
+    ratings.apply(&out.events);
+    out
 }
 
 #[story(TileGrid<'static, usize>, covers = [Default, Many], drive = Drive::Never)]
-fn tile_grid_many(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    grid(ui, TileGrid::new("Library").empty("No photos"), 60)
+fn tile_grid_many(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    grid(ui, data, TileGrid::new("Library").empty("No photos"), 60).into()
 }
 
 #[story(TileGrid<'static, usize>, covers = [One], drive = Drive::Never)]
-fn tile_grid_one(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    grid(ui, TileGrid::new("Library").empty("No photos"), 1)
+fn tile_grid_one(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    grid(ui, data, TileGrid::new("Library").empty("No photos"), 1).into()
 }
 
 #[story(TileGrid<'static, usize>, covers = [Empty], drive = Drive::Never)]
-fn tile_grid_empty(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    grid(ui, TileGrid::new("Library").empty("No photos"), 0)
+fn tile_grid_empty(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    grid(ui, data, TileGrid::new("Library").empty("No photos"), 0).into()
 }
 
 #[story(TileGrid<'static, usize>, covers = [], drive = Drive::Never)]
-fn tile_grid_justified(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    grid(ui, TileGrid::new("Library").justified(), 40)
+fn tile_grid_justified(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    grid(ui, data, TileGrid::new("Library").justified(), 40).into()
 }
 
 #[story(TileGrid<'static, usize>, covers = [], drive = Drive::Never)]
 fn tile_grid_groups(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let open = data.value("open", [true, false, true]);
+    let open = *data.value("open", [true, false, true]);
     let groups = [
         TileGroup::new(GROUP_KEYS[0], 0, 12, "October 2026").detail("12 photos").open(open[0]),
         TileGroup::new(GROUP_KEYS[1], 12, 8, "September 2026").detail("8 photos").open(open[1]),
         TileGroup::new(GROUP_KEYS[2], 20, 10, "August 2026").detail("10 photos").open(open[2]),
     ];
-    let pictures = StoryPictures::of(ui.ctx());
-    let out = TileGrid::new("Library").groups(&groups).collapsible().zoom(2.0).show_items(ui, &Photos(30), &mut |key, _| photo(&pictures, *key));
+    let out = grid(ui, data, TileGrid::new("Library").groups(&groups).collapsible().zoom(2.0), 30);
+    let open = data.value("open", open);
     for event in &out.events {
         if let GridEvent::GroupOpen { group, open: wanted } = event {
             open[*group] = *wanted;

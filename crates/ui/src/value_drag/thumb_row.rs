@@ -914,7 +914,7 @@ impl<const N: usize> Component for ThumbRow<'_, N> {
             };
             let node = access.node(Thumb::PART.at(i as u64), Role::SLIDER);
             node.name = named(cx.resolved.label, name);
-            node.numeric = Some(numeric.step(step));
+            node.numeric = Some(numeric.step(step).wraps(rules.wrap.is_some()));
         }
     }
 

@@ -51,18 +51,23 @@ pub struct RatingStyle {
 }
 
 /// A rating over a `u8` from 0 (unrated) to `max`. A `Mixed` binding shows no star lit.
-#[derive(crate::contract::Component)]
+#[derive(crate::contract::Component, crate::contract::Props)]
 pub struct Rating<'a> {
     #[common]
     common: Common,
     value: Bind<'a, u8>,
     max: u8,
+    /// The compact form, for a rating shown over a picture (a tile's badge bar): only the lit stars, at the small
+    /// glyph size, one star and the tight gap apart. The cells keep their places, so a click on cell n still means n.
+    #[style_key]
+    #[prop]
+    compact: bool,
 }
 
 impl<'a> Rating<'a> {
     /// A rating of `value` with `max` stars.
     pub fn new(value: Bind<'a, u8>, max: u8) -> Self {
-        Rating { common: Common::new(), value, max }
+        Rating { common: Common::new(), value, max, compact: false }
     }
 
     fn current(&self, shown: Option<&u8>) -> u8 {
@@ -92,26 +97,32 @@ impl Component for Rating<'_> {
     type Style = RatingStyle;
     type Output = EditResponse<u8>;
 
-    fn style(cx: &StyleCx<'_>, _: RatingStyleKey) -> RatingStyle {
+    fn style(cx: &StyleCx<'_>, key: RatingStyleKey) -> RatingStyle {
         let control = cx.control();
+        let (side, cell, metrics) = if key.compact {
+            let side = cx.tokens.size.icon.glyph_sm;
+            (side, side + cx.tokens.space.gap.tight, Metrics::new())
+        } else {
+            (control.icon, control.height, Metrics::new().min_size(Vec2::splat(control.height)))
+        };
         let text = &cx.tokens.color.text;
         let bad = cx.tone(Tone::Bad);
-        let look = |rest| {
-            IconLook::new(control.icon, Stateful::new(rest).off(States::new(rest, rest, rest, cx.color(text.disabled))).when(Flags::INVALID, bad))
-        };
+        let look =
+            |rest| IconLook::new(side, Stateful::new(rest).off(States::new(rest, rest, rest, cx.color(text.disabled))).when(Flags::INVALID, bad));
         let tint = Stateful::new(cx.color(Rgba::TRANSPARENT)).when(Flags::INVALID, cx.color(cx.tokens.color.status.bad.bg));
         RatingStyle {
-            metrics: Metrics::new().min_size(Vec2::splat(control.height)),
+            metrics,
             surface: Some(SurfaceLook::new(tint).radius(cx.surface(SurfaceKind::Well).radius)),
             focus: cx.focus_look(),
             lit: look(cx.ink(Ink::OnPanel)),
             unlit: look(cx.color(text.muted)),
-            cell: control.height,
+            cell,
         }
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        Vec2::new(cx.style.cell * f32::from(self.max), cx.style.cell)
+        let high = if self.compact { cx.style.lit.side } else { cx.style.cell };
+        Vec2::new(cx.style.cell * f32::from(self.max), high)
     }
 
     fn sense(&self) -> Sense {
@@ -179,6 +190,9 @@ impl Component for Rating<'_> {
         let shown = hovered.unwrap_or(current);
         let draw = ui.draw();
         for (at, cell) in (0..self.max).zip(Self::cells(cx.rect, cx.style.cell, cx.flow.is_rtl(), self.max)) {
+            if self.compact && at >= shown {
+                break;
+            }
             let (look, name) = if at < shown { (&cx.style.lit, "star_filled") } else { (&cx.style.unlit, "star") };
             let icon = Rect::from_center_size(cell.center(), Vec2::splat(look.side));
             draw.icon(icon, &IconSpec::svg(IconId::new(name)).color(cx.resolve(&look.color)));
