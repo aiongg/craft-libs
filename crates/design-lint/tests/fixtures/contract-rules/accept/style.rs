@@ -90,3 +90,10 @@ fn events(response: &Response, lexer: &Lexer, theme: &Theme) {
     let _ = matches!(kind, Kind::Hover);
     let _ = cx.state() == other;
 }
+
+/// Built with a struct expression by a higher crate of the same library: its public field is hidden, so the type
+/// stays out of the public API's non-exhaustive rule.
+pub struct ChipCorner {
+    #[doc(hidden)]
+    pub radius: f32,
+}

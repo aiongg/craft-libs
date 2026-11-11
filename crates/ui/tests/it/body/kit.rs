@@ -7,6 +7,7 @@ use craft_ui::style::StyleCx;
 use craft_ui::testing::layout::allocate;
 use egui::{Response, Ui, Vec2};
 
+/// A container whose header and footer are blocks of a fixed size around its body.
 #[derive(craft_ui::contract::Component)]
 #[component(container)]
 pub struct Slab {
@@ -19,6 +20,7 @@ pub struct Slab {
 }
 
 impl Slab {
+    /// A slab with the trial's `props`.
     pub fn new(props: ContainerProps) -> Self {
         Slab { common: Common::new(), props, header: Vec2::new(100.0, 24.0), footer: Vec2::new(100.0, 16.0) }
     }

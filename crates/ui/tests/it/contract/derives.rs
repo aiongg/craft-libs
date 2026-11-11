@@ -110,7 +110,7 @@ fn a_registration_records_the_facts_the_contract_types_state() {
     assert_eq!(tagged.len(), 2, "one probe per listed instantiation");
     assert!(tagged.iter().any(|probe| probe.type_name().ends_with("Plain>")) && tagged.iter().any(|probe| probe.type_name().ends_with("Number>")));
     for probe in &tagged {
-        assert_eq!((probe.shape, probe.role, probe.crate_name), (ShapeKind::Leaf, Role::SLIDER, "craft-ui"));
+        assert_eq!((probe.shape, probe.role, probe.crate_name), (ShapeKind::Leaf, Role::SLIDER, env!("CARGO_PKG_NAME")));
         assert!(probe.carries_value() && !probe.overlay && !probe.canvas_control && probe.exempt.is_empty());
     }
 
@@ -120,6 +120,6 @@ fn a_registration_records_the_facts_the_contract_types_state() {
     assert_eq!((handle[0].exempt[0].case, handle[0].exempt[0].reason), ("sizes", "fills the canvas"));
 
     assert_eq!(named("::Panel<")[0].shape, ShapeKind::Body);
-    assert_eq!(named("kit::Table")[0].shape, ShapeKind::Items);
+    assert_eq!(named(std::any::type_name::<super::kit::Table>())[0].shape, ShapeKind::Items);
     assert!(named("::Hooked<")[0].overlay, "`#[component(container, overlay)]` declares the open state");
 }
