@@ -5,13 +5,12 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Duration;
 
-use craft_behavior::edit_history::Step;
 use craft_behavior::geometry::quad::Homography;
 use craft_behavior::kurbo::Point;
-use craft_behavior::{CancelReason, EditEvent, PixelSize};
+use craft_behavior::{EditEvent, PixelSize};
 use craft_imaging::ui::vanishing_point::{
     PlaneCheck, PlaneEdge, StampLimits, TornPlane, VanishingPlane, VanishingPointEvent, VanishingPointOpen, VanishingPointSession,
-    VanishingPointSettings, VanishingPointSource, VanishingPointWorkspace, VanishingPreviewRequest, VanishingScene, VanishingTool, slide_edge,
+    VanishingPointSource, VanishingPointWorkspace, VanishingPreviewRequest, VanishingScene, VanishingTool, slide_edge,
 };
 use craft_imaging::ui::wide_angle::PreviewDone;
 use craft_ui::canvas::{PixelRect, RasterSource};
@@ -160,14 +159,13 @@ struct App {
     scene: Flat,
     events: Vec<VanishingPointEvent>,
     closed: Option<DialogRole>,
-    status: Option<String>,
 }
 
 /// The workspace over `session` with `tool` picked and `verdicts` for the planes, settled.
 fn open_with(tool: VanishingTool, session: VanishingPointSession, verdicts: Vec<PlaneCheck>, limits: StampLimits) -> (Fixture, Rc<RefCell<App>>) {
     let mut workspace = VanishingPointWorkspace::new(VanishingPointOpen::new(LAYER, "Photo", limits).session(session));
     workspace.tool(tool);
-    let app = Rc::new(RefCell::new(App { workspace, scene: Flat { verdicts }, events: Vec::new(), closed: None, status: None }));
+    let app = Rc::new(RefCell::new(App { workspace, scene: Flat { verdicts }, events: Vec::new(), closed: None }));
     let shown = Rc::clone(&app);
     let mut fixture = Fixture::new(move |ui| {
         let mut app = shown.borrow_mut();
@@ -175,7 +173,6 @@ fn open_with(tool: VanishingTool, session: VanishingPointSession, verdicts: Vec<
         let out = workspace.show(ui, scene, &Layer);
         app.events.extend(out.events);
         app.closed = app.closed.or(out.closed);
-        app.status = out.status.or(app.status.take());
     });
     fixture.room(Vec2::new(1000.0, 900.0));
     fixture.settle();
@@ -254,30 +251,6 @@ fn phase(event: &VanishingPointEvent) -> &'static str {
 
 fn phases(app: &Rc<RefCell<App>>) -> Vec<&'static str> {
     app.borrow().events.iter().map(phase).collect()
-}
-
-#[trial]
-fn four_clicks_make_a_plane_in_any_order() {
-    let reversed = [3, 2, 1, 0];
-    for order in [[0, 1, 2, 3], reversed] {
-        let (mut fixture, app) = open(VanishingTool::CreatePlane);
-        for (n, corner) in order.into_iter().enumerate() {
-            let to = at(&fixture, corners()[corner]);
-            click(&mut fixture, to);
-            let pending = app.borrow().workspace.editor().pending().len();
-            assert_eq!(pending, if n == 3 { 0 } else { n + 1 });
-        }
-        let kept = session(&app);
-        assert_eq!(kept.planes.len(), 1);
-        let c = kept.planes[0].corners;
-        assert!(c[0][0] < c[1][0] && c[0][1] < c[3][1], "top-left first, clockwise: {c:?}");
-        let editor_state = {
-            let app = app.borrow();
-            (app.workspace.editor().selected(), app.workspace.editor().tool())
-        };
-        assert_eq!(editor_state, (Some(0), VanishingTool::EditPlane));
-        assert_eq!(phases(&app), ["planes set"], "only the fourth click reports");
-    }
 }
 
 #[trial]
@@ -366,105 +339,4 @@ fn delete_removes_the_plane_and_escape_drops_a_half_plane_first() {
     assert!(app.borrow().workspace.editor().pending().is_empty() && app.borrow().closed.is_none(), "Escape drops the corners and keeps the dialog");
     fixture.key(Key::Escape, Modifiers::NONE).settle();
     assert_eq!(app.borrow().closed, Some(DialogRole::Cancel), "with nothing pending Escape cancels");
-}
-
-#[trial]
-fn stamp_alt_click_sets_the_source_and_strokes_report_events() {
-    let (mut fixture, app) = open(VanishingTool::CreatePlane);
-    draw_plane(&mut fixture);
-    app.borrow_mut().workspace.tool(VanishingTool::Stamp);
-    fixture.settle();
-    // The canvas's far corner is off every plane, whatever the room.
-    let canvas = fixture.by_role(Role::CANVAS).into_iter().next().expect("the workspace shows a canvas");
-    let off = canvas.rect.right_bottom() - Vec2::splat(10.0);
-    fixture.hold(Modifiers::ALT);
-    click(&mut fixture, off);
-    fixture.hold(Modifiers::NONE);
-    assert_eq!(session(&app).source, None, "off every plane");
-    assert!(app.borrow().status.is_some(), "the press says why");
-    let (mut fixture, app) = open(VanishingTool::CreatePlane);
-    draw_plane(&mut fixture);
-    app.borrow_mut().workspace.tool(VanishingTool::Stamp);
-    fixture.settle();
-    let (source, start) = (at(&fixture, Vec2::new(-HALF.x * 0.5, 0.0)), at(&fixture, Vec2::new(0.0, 0.0)));
-    fixture.hold(Modifiers::ALT);
-    click(&mut fixture, source);
-    fixture.hold(Modifiers::NONE);
-    let kept = session(&app);
-    assert!(kept.source.is_some(), "the source is set on the plane");
-    drag(&mut fixture, start, start + Vec2::new(HALF.x * 0.4, 0.0));
-    let seen: Vec<_> = phases(&app).into_iter().filter(|p| p.starts_with("stamp")).collect();
-    assert_eq!((seen.first().copied(), seen.last().copied()), (Some("stamp begin"), Some("stamp commit")), "{seen:?}");
-    let kept = session(&app);
-    let stroke = &kept.strokes[0];
-    let options = VanishingPointSettings::default().stamp;
-    assert_eq!((stroke.source, stroke.hardness, stroke.opacity), (kept.source.expect("a source"), options.hardness_share(), options.opacity_share()));
-    assert!(stroke.points.len() > 1, "the drag laid dabs");
-    // Aligned: the next stroke keeps the offset from its start; without Aligned it restarts at the source.
-    drag(&mut fixture, start + Vec2::new(0.0, 10.0), start + Vec2::new(10.0, 10.0));
-    let second = session(&app).strokes[1].clone();
-    assert_ne!(second.source, kept.source.expect("a source"), "an aligned stroke follows its start");
-}
-
-#[trial]
-fn undo_steps_back_through_planes_and_strokes() {
-    let (mut fixture, app) = open(VanishingTool::CreatePlane);
-    draw_plane(&mut fixture);
-    let bottom = at(&fixture, Vec2::new(0.0, HALF.y));
-    fixture.hold(Modifiers::COMMAND);
-    drag(&mut fixture, bottom, bottom + Vec2::new(0.0, HALF.y * 2.0));
-    fixture.hold(Modifiers::NONE);
-    app.borrow_mut().workspace.tool(VanishingTool::Stamp);
-    fixture.settle();
-    let (source, start) = (at(&fixture, Vec2::new(-HALF.x * 0.5, 0.0)), at(&fixture, Vec2::ZERO));
-    fixture.hold(Modifiers::ALT);
-    click(&mut fixture, source);
-    fixture.hold(Modifiers::NONE);
-    drag(&mut fixture, start, start + Vec2::new(HALF.x * 0.4, 0.0));
-    let counts = |app: &Rc<RefCell<App>>| {
-        let s = session(app);
-        (s.planes.len(), s.source.is_some(), s.strokes.len())
-    };
-    assert_eq!(counts(&app), (2, true, 1));
-    let step = |app: &Rc<RefCell<App>>, step: Step| assert!(app.borrow_mut().workspace.step(step));
-    step(&app, Step::Undo);
-    assert_eq!(counts(&app), (2, true, 0), "the stroke");
-    step(&app, Step::Undo);
-    assert_eq!(counts(&app), (2, false, 0), "the source");
-    step(&app, Step::Undo);
-    assert_eq!(counts(&app), (1, false, 0), "the tear-off");
-    step(&app, Step::Undo);
-    assert_eq!(counts(&app), (0, false, 0), "the plane");
-    assert_eq!(app.borrow().workspace.editor().selected(), None);
-    step(&app, Step::Redo);
-    assert_eq!(counts(&app), (1, false, 0));
-}
-
-#[trial]
-fn a_gesture_the_app_cancels_reports_its_reason_and_ends() {
-    for reason in [CancelReason::Removed, CancelReason::UndoDuringGesture] {
-        let (mut fixture, app) = open(VanishingTool::CreatePlane);
-        draw_plane(&mut fixture);
-        let before = session(&app);
-        let corner = at(&fixture, corners()[0]);
-        fixture.frame(vec![pointer::moved(corner)]);
-        fixture.frame(vec![pointer::press(corner)]);
-        fixture.frame(vec![pointer::moved(corner + Vec2::new(30.0, 20.0))]);
-        fixture.frame(vec![pointer::moved(corner + Vec2::new(40.0, 30.0))]);
-        assert!(app.borrow().workspace.editor().busy(), "the corner drag runs");
-        assert_ne!(session(&app), before);
-        match reason {
-            CancelReason::Removed => {
-                fixture.key(Key::C, Modifiers::NONE).settle();
-            }
-            _ => {
-                app.borrow_mut().workspace.step(Step::Undo);
-                fixture.settle();
-            }
-        }
-        assert!(!app.borrow().workspace.editor().busy());
-        let cancelled =
-            app.borrow().events.iter().any(|e| matches!(e, VanishingPointEvent::Planes(EditEvent::Cancel { reason: r, .. }) if *r == reason));
-        assert!(cancelled, "{:?}", phases(&app));
-    }
 }

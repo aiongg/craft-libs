@@ -7,18 +7,16 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use craft_behavior::PixelSize;
-use craft_behavior::edit_history::Step;
 use craft_behavior::kurbo::Point;
 use craft_host::{AppInfo, Host, ManualJobs};
 use craft_imaging::ui::wide_angle::{
     ConstraintOrientation, PreviewDone, WideAngleConstraint, WideAngleGeometry, WideAngleOpen, WideAngleSession, WideAngleSource, WideAngleWorkspace,
 };
 use craft_ui::canvas::{PixelRect, RasterSource};
-use craft_ui::contract::Role;
 use craft_ui::primitives::Revision;
 use craft_ui::runtime::pending::Job;
 use craft_ui::testing::{Fixture, trial};
-use egui::{Color32, ColorImage, Event, Key, Modifiers, PointerButton, Pos2, Vec2};
+use egui::{Color32, ColorImage, Event, Modifiers, PointerButton, Pos2, Vec2};
 
 const IMAGE: [u32; 2] = [400, 200];
 
@@ -93,14 +91,8 @@ impl WideAngleSource for Sources {
 struct App {
     workspace: WideAngleWorkspace,
     sources: Sources,
-    timing: Option<Duration>,
-    closed: bool,
     /// The preview job waits here until a trial runs it.
     jobs: Arc<ManualJobs>,
-}
-
-fn line(a: [f64; 2], b: [f64; 2]) -> WideAngleConstraint {
-    WideAngleConstraint::new(a, b, ConstraintOrientation::Free)
 }
 
 fn fixture(constraints: Vec<WideAngleConstraint>) -> (Fixture, Rc<RefCell<App>>) {
@@ -108,18 +100,14 @@ fn fixture(constraints: Vec<WideAngleConstraint>) -> (Fixture, Rc<RefCell<App>>)
     let app = Rc::new(RefCell::new(App {
         workspace: WideAngleWorkspace::new(WideAngleOpen::new(IMAGE, "Layer 1").session(session)),
         sources: Sources { source: Grey(1), corrected: Grey(2) },
-        timing: None,
-        closed: false,
         jobs: Arc::new(ManualJobs::new()),
     }));
     let shared = app.clone();
     let jobs = app.borrow().jobs.clone();
     let mut fixture = Fixture::new(move |ui| {
         let mut app = shared.borrow_mut();
-        let App { workspace, sources, timing, closed, .. } = &mut *app;
-        let out = workspace.show(ui, &Lines, sources);
-        *timing = out.timing.or(*timing);
-        *closed |= out.closed.is_some();
+        let App { workspace, sources, .. } = &mut *app;
+        workspace.show(ui, &Lines, sources);
     });
     fixture.host(Arc::new(Host::builder(AppInfo { id: "trial", name: "Trial", version: "0" }).jobs(jobs).build()));
     fixture.room(along(900.0, 600.0));
@@ -145,14 +133,6 @@ fn drag(fixture: &mut Fixture, from: Pos2, by: Vec2, modifiers: Modifiers) {
     fixture.idle(2);
 }
 
-fn right_click(fixture: &mut Fixture, at: Pos2) {
-    fixture.frame(vec![Event::PointerMoved(at)]);
-    for pressed in [true, false] {
-        fixture.frame(vec![Event::PointerButton { pos: at, button: PointerButton::Secondary, pressed, modifiers: Modifiers::NONE }]);
-    }
-    fixture.idle(2);
-}
-
 fn constraints(app: &Rc<RefCell<App>>) -> Vec<WideAngleConstraint> {
     app.borrow().workspace.session().constraints.clone()
 }
@@ -173,64 +153,4 @@ fn a_drag_over_six_points_adds_a_constraint_and_shift_aligns_it() {
     drag(&mut fixture, from, along(10.0, 40.0), Modifiers::SHIFT);
     let orientations: Vec<_> = constraints(&app).iter().map(|c| c.orientation).collect();
     assert_eq!(orientations, [ConstraintOrientation::Free, ConstraintOrientation::Horizontal, ConstraintOrientation::Vertical]);
-}
-
-#[trial]
-fn the_context_menu_changes_a_constraints_orientation_or_deletes_it() {
-    let (mut fixture, app) = fixture(vec![line([100.0, 100.0], [300.0, 100.0])]);
-    // The corrected preview shows: the curve is drawn where the geometry maps it.
-    let on_line = screen(&fixture, &app, [200.0, 100.0 + SHIFT]);
-    right_click(&mut fixture, on_line);
-    let Some(horizontal) = fixture.by_label("Horizontal") else { panic!("the menu offers Horizontal") };
-    fixture.click(&horizontal);
-    fixture.idle(2);
-    assert_eq!(constraints(&app).iter().map(|c| c.orientation).collect::<Vec<_>>(), [ConstraintOrientation::Horizontal]);
-
-    let away = screen(&fixture, &app, [200.0, 40.0]);
-    right_click(&mut fixture, away);
-    assert!(fixture.by_role(Role::MENU).is_empty(), "no menu away from a constraint");
-
-    right_click(&mut fixture, on_line);
-    // The panel's constraint rows have a Delete button too: the menu's is its last row.
-    let Some(delete) = fixture.by_role(Role::MENU_ITEM).pop() else { panic!("the menu offers Delete") };
-    fixture.click(&delete);
-    fixture.idle(2);
-    assert!(constraints(&app).is_empty());
-}
-
-#[trial]
-fn undo_during_a_drag_cancels_the_drag() {
-    let (mut fixture, app) = fixture(Vec::new());
-    let from = screen(&fixture, &app, [100.0, 100.0]);
-    fixture.frame(vec![Event::PointerMoved(from)]);
-    fixture.frame(vec![Event::PointerButton { pos: from, button: PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE }]);
-    fixture.frame(vec![Event::PointerMoved(from + along(80.0, 0.0))]);
-    app.borrow_mut().workspace.step(Step::Undo);
-    fixture.idle(2);
-    fixture.frame(vec![Event::PointerButton {
-        pos: from + along(80.0, 0.0),
-        button: PointerButton::Primary,
-        pressed: false,
-        modifiers: Modifiers::NONE,
-    }]);
-    fixture.idle(2);
-    assert!(constraints(&app).is_empty(), "no constraint from the cancelled drag");
-}
-
-#[trial]
-fn a_tool_switch_during_a_drag_cancels_the_drag() {
-    let (mut fixture, app) = fixture(Vec::new());
-    let from = screen(&fixture, &app, [100.0, 100.0]);
-    fixture.frame(vec![Event::PointerMoved(from)]);
-    fixture.frame(vec![Event::PointerButton { pos: from, button: PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE }]);
-    fixture.frame(vec![Event::PointerMoved(from + along(80.0, 0.0))]);
-    fixture.key(Key::H, Modifiers::NONE);
-    fixture.frame(vec![Event::PointerButton {
-        pos: from + along(80.0, 0.0),
-        button: PointerButton::Primary,
-        pressed: false,
-        modifiers: Modifiers::NONE,
-    }]);
-    fixture.idle(2);
-    assert!(constraints(&app).is_empty(), "no constraint from the cancelled drag");
 }

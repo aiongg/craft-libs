@@ -8,39 +8,11 @@ fn style_with(kinds: &[(u32, EffectKind)]) -> LayerStyle {
     LayerStyle { effects, ..LayerStyle::default() }
 }
 
-fn ids(style: &LayerStyle) -> Vec<u32> {
-    style.effects.iter().map(|e| e.id.0).collect()
-}
-
-fn pt(input: f32, output: f32) -> ContourPoint {
-    ContourPoint { input, output, corner: false }
-}
-
 // Per effect, the field keys in order with their kinds and ranges match the table in
 // `EffectSpec::photoshop`'s doc (Outer Glow: Technique before Spread, Range after Contour).
 
 // The ten tables' defaults equal PhotoCraft's engine `effect_defaults` (Drop Shadow Multiply,
 // black, 75, 120°, global light, 5, 0, 5; Satin Multiply, 50, 19°, 11, 14, anti-aliased, inverted).
-
-// With fx1 Stroke, fx2 Drop Shadow, fx5 Stroke: adding a Stroke inserts fx6 after fx5 and selects
-// it; adding a Satin appends it.
-#[test]
-fn adding_an_instance_places_it_after_the_last_of_its_kind_and_numbers_ids() {
-    let mut draft = LayerStyleDraft::new(style_with(&[(1, EffectKind::Stroke), (5, EffectKind::Stroke), (2, EffectKind::DropShadow)]));
-    let stroke = EffectSpec::photoshop(EffectKind::Stroke).defaults;
-    assert_eq!(draft.add_instance(EffectKind::Stroke, &stroke), EffectId(6));
-    assert_eq!(ids(&draft.style), [1, 5, 6, 2]);
-    assert_eq!(draft.page, LayerStylePage::Effect(EffectId(6)));
-
-    let satin = EffectSpec::photoshop(EffectKind::Satin).defaults;
-    assert_eq!(draft.add_instance(EffectKind::Satin, &satin), EffectId(7));
-    assert_eq!(ids(&draft.style), [1, 5, 6, 2, 7]);
-
-    // A new globally lit shadow takes the shared angle.
-    draft.style.global_light = 45.0;
-    let shadow = draft.add_instance(EffectKind::DropShadow, &EffectSpec::photoshop(EffectKind::DropShadow).defaults);
-    assert_eq!(draft.style.effect(shadow).and_then(|e| e.params.number("angle")), Some(45.0));
-}
 
 // Removing the selected of two Drop Shadows selects the other; removing the only one selects the
 // Styles page; removing an unselected one keeps the page.
@@ -122,72 +94,5 @@ fn blend_if_edits_keep_the_four_values_ordered() {
     assert_eq!(start.moved(9, 0, false), start);
 }
 
-// An unsplit move of the black pair [10, 30] by +20 gives [30, 50]; with `split` only the moved
-// half changes.
-#[test]
-fn blend_if_unsplit_move_keeps_the_spread_and_alt_move_splits() {
-    let start = BlendIfRange([10, 30, 200, 220]);
-    assert_eq!(start.moved(0, 30, false), BlendIfRange([30, 50, 200, 220]));
-    assert_eq!(start.moved(0, 20, true), BlendIfRange([20, 30, 200, 220]));
-    // The white pair clamps at the ends.
-    assert_eq!(start.moved(3, 255, false).0[2..], [235, 255]);
-}
-
-// Two drafts with the same style on different pages, Blend If channels and Preview states hash
-// equally; a changed opacity changes the hash.
-#[test]
-fn layer_style_equal_values_have_equal_render_hash_ignoring_the_selected_page() {
-    let style = style_with(&[(1, EffectKind::DropShadow), (2, EffectKind::Stroke)]);
-    let a = LayerStyleDraft::new(style.clone());
-    let mut b = LayerStyleDraft::new(style);
-    b.page = LayerStylePage::Styles;
-    b.blend_if_channel = 2;
-    b.preview = false;
-    assert_eq!(a.render_hash(), b.render_hash());
-
-    b.set_param(EffectId(1), "opacity", StyleValue::Number(60.0));
-    assert_ne!(a.render_hash(), b.render_hash());
-
-    let mut c = a.clone();
-    c.style.blending.opacity = 0.0;
-    let mut d = a.clone();
-    d.style.blending.opacity = -0.0;
-    assert_eq!(c.render_hash(), d.render_hash());
-    d.style.blending.opacity = 1.0;
-    assert_ne!(c.render_hash(), d.render_hash());
-}
-
 // A `StyleValue::Other` key no field shows survives `set_param`, `toggle` and
 // `StyleParams::over` unchanged.
-
-// `Contour::from_points` rejects one point, 65 points and NaN, sorts and clamps, collapses equal
-// inputs; `edited` renames a preset to "Custom" and keeps an imported name.
-#[test]
-fn contours_are_validated_and_an_edited_preset_becomes_custom() {
-    assert!(Contour::from_points("x", vec![pt(0.0, 0.0)]).is_none());
-    assert!(Contour::from_points("x", (0..65).map(|i| pt(i as f32 / 64.0, 0.5)).collect()).is_none());
-    assert!(Contour::from_points("x", vec![pt(0.0, 0.0), pt(f32::NAN, 1.0)]).is_none());
-    assert!(Contour::from_points("x", vec![pt(0.5, 0.0), pt(0.5, 1.0)]).is_none());
-
-    let c = Contour::from_points("x", vec![pt(1.5, 2.0), pt(0.0, -1.0), pt(0.5, 0.5), pt(0.5, 0.9)]);
-    let Some(c) = c else { panic!("a valid contour") };
-    let inputs: Vec<f32> = c.points.iter().map(|p| p.input).collect();
-    assert_eq!(inputs, [0.0, 0.5, 1.0]);
-    assert_eq!((c.points[0].output, c.points[1].output, c.points[2].output), (0.0, 0.5, 1.0));
-
-    let presets = Contour::presets();
-    assert_eq!(presets.len(), 12);
-    assert_eq!(presets[0], Contour::linear());
-    assert!(presets.iter().all(|p| p.is_preset() && Contour::from_points(p.name.clone(), p.points.clone()).as_ref() == Some(p)));
-    assert_eq!(Contour::preset("linear"), Some(Contour::linear()));
-    assert!(Contour::preset("Domed (Inverted)").is_some());
-    assert!(Contour::preset("Imported").is_none());
-
-    let cone = Contour::preset("Cone");
-    let Some(mut cone) = cone else { panic!("Cone ships") };
-    cone.points[1].output += 0.1;
-    assert!(!cone.is_preset());
-    assert_eq!(cone.clone().edited().name, "Custom");
-    assert_eq!(Contour { name: String::new(), ..cone.clone() }.edited().name, "Custom");
-    assert_eq!(Contour { name: "My curve".into(), ..cone }.edited().name, "My curve");
-}

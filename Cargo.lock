@@ -1373,7 +1373,6 @@ dependencies = [
  "kurbo 0.13.1",
  "libtest-mimic",
  "serde",
- "serde_json",
 ]
 
 [[package]]

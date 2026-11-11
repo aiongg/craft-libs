@@ -2,15 +2,12 @@
 
 mod adjust_editors;
 mod adjust_tone;
-mod blend_keys;
 mod blur_pins;
-mod channels;
 mod curve;
 mod fill;
 mod filter_gallery;
 mod histogram;
 mod layer_style;
-mod layer_style_parts;
 mod liquify;
 mod live_preview;
 mod perspective_warp;

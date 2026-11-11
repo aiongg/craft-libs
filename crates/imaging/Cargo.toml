@@ -32,7 +32,6 @@ serde = { workspace = true }
 craft-imaging = { path = ".", features = ["screen-testing"] }
 egui = { workspace = true, features = ["default_fonts", "serde"] }
 libtest-mimic = "0.8"
-serde_json = { workspace = true }
 
 [[test]]
 name = "it"

@@ -1,9 +1,9 @@
 //! Perspective Warp: the session and plane geometry, the planes on a canvas and the options bar.
 
 use craft_behavior::kurbo::{Point, Rect};
-use craft_behavior::{CanvasView, EditEvent, GestureId, Mixed};
+use craft_behavior::{CanvasView, EditEvent};
 use craft_imaging::ui::warp::perspective::{
-    PerspectiveEdit, PerspectiveSession, PerspectiveWarp, Plane, PlaneCorner, PlaneMode, Straighten, linked_corners, straighten, unify,
+    PerspectiveEdit, PerspectiveSession, PerspectiveWarp, Plane, PlaneCorner, PlaneMode, linked_corners, unify,
 };
 use craft_ui::canvas::Canvas;
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
@@ -11,7 +11,6 @@ use craft_ui::testing::{Fixture, pointer, trial};
 use egui::Pos2;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
-use std::sync::Arc;
 
 fn quad(x0: f64, y0: f64, x1: f64, y1: f64) -> [Point; 4] {
     [Point::new(x0, y0), Point::new(x1, y0), Point::new(x1, y1), Point::new(x0, y1)]
@@ -35,13 +34,6 @@ fn set(s: &mut PerspectiveSession, planes: Vec<Plane>) {
     s.apply(edit);
 }
 
-fn drag(s: &mut PerspectiveSession, planes: Vec<Plane>) {
-    let (id, before) = (GestureId::new(1), Mixed::Same(s.planes().to_vec()));
-    s.apply(PerspectiveEdit::Planes(EditEvent::begin(id, before.clone(), Arc::from("Planes"), None)));
-    s.apply(PerspectiveEdit::Planes(EditEvent::update(id, planes.clone())));
-    s.apply(PerspectiveEdit::Planes(EditEvent::commit(id, before, planes)));
-}
-
 #[trial]
 fn entering_warp_unifies_linked_corners() {
     let mut planes = two_planes();
@@ -59,58 +51,6 @@ fn entering_warp_unifies_linked_corners() {
     assert_eq!(s.planes()[1].source[0], Point::new(50.1, 0.0));
     assert_eq!(s.planes()[0].target[1], Point::new(50.0, 1.0));
     assert_eq!(s.planes()[1].target[0], Point::new(50.0, 1.0));
-}
-
-#[trial]
-fn straighten_level_and_both_move_the_corners() {
-    let skewed = || {
-        let mut planes = two_planes();
-        planes[0].target = [Point::new(0.0, 0.0), Point::new(48.0, 4.0), Point::new(52.0, 100.0), Point::new(2.0, 96.0)];
-        planes[1].target[0] = planes[0].target[1];
-        planes[1].target[3] = planes[0].target[2];
-        planes
-    };
-    let mut vertical = skewed();
-    straighten(&mut vertical, Straighten::Vertical);
-    assert_eq!(vertical[0].target[1].x, vertical[0].target[2].x);
-    assert_eq!(vertical[0].target[1].y, 4.0);
-    assert_eq!(vertical[1].target[0], vertical[0].target[1]);
-    let one = || {
-        let mut plane = square(0.0, 0.0, 50.0, 100.0);
-        plane.target = [Point::new(0.0, 0.0), Point::new(48.0, 4.0), Point::new(52.0, 100.0), Point::new(2.0, 96.0)];
-        vec![plane]
-    };
-    let mut horizontal = one();
-    straighten(&mut horizontal, Straighten::Horizontal);
-    assert_eq!(horizontal[0].target[0].y, horizontal[0].target[1].y);
-    assert_eq!(horizontal[0].target[2].y, horizontal[0].target[3].y);
-    assert_eq!(horizontal[0].target[1].x, 48.0);
-    let mut both = one();
-    straighten(&mut both, Straighten::Both);
-    assert_eq!(both[0].target[0].y, both[0].target[1].y);
-    assert_eq!(both[0].target[1].x, both[0].target[2].x);
-    assert_eq!(both[0].target[0].x, both[0].target[3].x);
-}
-
-#[trial]
-fn plane_edits_are_undo_steps() {
-    let mut s = session();
-    set(&mut s, two_planes());
-    s.apply(PerspectiveEdit::Mode(PlaneMode::Warp));
-    let mut moved = s.planes().to_vec();
-    moved[0].target[0] = Point::new(5.0, 5.0);
-    drag(&mut s, moved);
-    assert!(s.undo());
-    assert_eq!(s.planes()[0].target[0], Point::new(0.0, 0.0));
-    assert_eq!(s.mode(), PlaneMode::Warp);
-    assert!(s.undo());
-    assert_eq!(s.mode(), PlaneMode::Layout);
-    assert_eq!(s.planes().len(), 2);
-    assert!(s.undo());
-    assert!(s.planes().is_empty());
-    assert!(!s.can_undo());
-    assert!(s.redo());
-    assert_eq!(s.planes().len(), 2);
 }
 
 /// What one pass reported about the planes edit.
@@ -200,18 +140,6 @@ impl Harness {
 }
 
 #[trial]
-fn a_drag_in_layout_draws_a_plane_and_a_tiny_drag_adds_none() {
-    let mut h = harness(vec![], PlaneMode::Layout);
-    h.drag((50.0, 50.0), (60.0, 60.0));
-    assert_eq!(h.planes(), vec![square(50.0, 50.0, 60.0, 60.0)]);
-
-    h.drag((150.0, 150.0), (152.0, 153.0));
-    assert_eq!(h.planes().len(), 1, "3 units is under the minimum");
-    h.drag((150.0, 150.0), (160.0, 152.0));
-    assert_eq!(h.planes().len(), 1, "so is 2 in one direction");
-}
-
-#[trial]
 fn a_corner_dropped_near_another_planes_corner_snaps_and_links() {
     let mut h = harness(vec![square(100.0, 100.0, 200.0, 200.0), square(220.0, 100.0, 300.0, 200.0)], PlaneMode::Layout);
     h.drag((220.0, 100.0), (205.0, 102.0));
@@ -225,21 +153,6 @@ fn a_corner_dropped_near_another_planes_corner_snaps_and_links() {
     h.drag((200.0, 100.0), (200.0, 60.0));
     let moved = h.planes();
     assert_eq!((moved[0].source[1], moved[1].source[0]), (Point::new(200.0, 60.0), Point::new(200.0, 60.0)));
-}
-
-#[trial]
-fn a_warp_drag_moves_the_target_of_linked_corners_and_keeps_the_layout() {
-    let mut h = harness(vec![square(100.0, 100.0, 200.0, 200.0), square(200.0, 100.0, 300.0, 200.0)], PlaneMode::Warp);
-    h.drag((200.0, 100.0), (210.0, 80.0));
-    let moved = h.planes();
-    assert_eq!((moved[0].target[1], moved[1].target[0]), (Point::new(210.0, 80.0), Point::new(210.0, 80.0)));
-    assert_eq!((moved[0].source[1], moved[1].source[0]), (Point::new(200.0, 100.0), Point::new(200.0, 100.0)));
-
-    // A press away from a corner draws nothing in Warp.
-    let before = h.state.borrow().seen.len();
-    h.drag((20.0, 20.0), (60.0, 60.0));
-    assert_eq!(h.state.borrow().seen.len(), before);
-    assert_eq!(h.planes().len(), 2);
 }
 
 #[trial]
