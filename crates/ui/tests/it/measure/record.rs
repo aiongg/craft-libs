@@ -537,3 +537,45 @@ fn a_settled_shared_label_column_runs_one_pass_per_frame() {
         assert_eq!(frames.frame(vec![], show), 1, "settled frame {frame}");
     }
 }
+
+/// A leaf whose measure reads an input besides its room, which the measuring run and the real run give differently,
+/// keeps its kept call in settled frames: the real run asks it again under the input the call read. A menu row before
+/// the level's first check mark read a narrower mark column in the measuring run's sweep; a bar's title, measured to be
+/// arranged, read its column at the room the measuring run gave the bar's gap.
+#[trial]
+fn a_settled_leaf_that_read_an_input_besides_its_room_runs_one_pass() {
+    use craft_ui::contract::Trigger;
+    use craft_ui::menu::{Menu, MenuItem};
+    use craft_ui::shell::{Caption, CaptionFamily, Captions, Frame, Title, TitleBar};
+    let menu = |ui: &mut Ui| {
+        let opener = Button::new("File").show(ui);
+        let mut open = true;
+        Menu::new("File").open(Bind::bound(&mut open)).opened_by(&opener, Trigger::Click).show(ui, |ui, _| {
+            MenuItem::new("New").shortcut("Ctrl+N").show(ui);
+            MenuItem::new("Show Rulers").check(true).show(ui);
+        });
+    };
+    let bar = |ui: &mut Ui| {
+        let layout = craft_window::Layout { left: vec![], right: vec![Caption::Minimize, Caption::Maximize, Caption::Close] };
+        let frame = Frame::Integrated(Captions { family: CaptionFamily::Windows, layout });
+        let _ = TitleBar::new().frame(frame).show_titled(
+            ui,
+            Title::new("Landscape.psd"),
+            |ui, _| {
+                Text::new("File  Edit").show(ui);
+            },
+            |ui, _| {
+                Text::new("Share").show(ui);
+            },
+        );
+    };
+    let shows: [(&str, &dyn Fn(&mut Ui)); 2] = [("menu", &menu), ("title bar", &bar)];
+    for (name, show) in shows {
+        let mut frames = Frames::new();
+        frames.idle(4, show);
+        // A kept call that mismatches makes every other settled frame run two passes.
+        for frame in 0..4 {
+            assert_eq!(frames.frame(vec![], show), 1, "{name}: settled frame {frame} runs one pass");
+        }
+    }
+}

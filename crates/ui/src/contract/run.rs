@@ -971,21 +971,25 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
         let input = MeasureIn { ui: &*ui, env, proposal, room };
         steps::measure(comp, &input, &style, &resolved, shown.as_deref(), extent)
     };
-    let size = ask(&mut comp, Proposal::Ideal, room, extent);
+    let (size, inputs) = ask(&mut comp, Proposal::Ideal, room, extent);
     // A leaf's measure calls are what its body's layout takes from it: a measuring run keeps them in the body's
     // transcript, and a real run its kept transcript serves asks them again. A leaf shown at a rect takes no room in
     // the flow: its body's layout takes the rect, and any measure its caller sized the rect by records itself.
     let leaf = shape == ShapeKind::Leaf && matches!(at, ShowAt::Flow) && (!sizing || crate::runtime::measure::active(&ctx));
     if leaf {
-        crate::runtime::layout_memory::leaf_call(&ctx, id, Proposal::Ideal, room, size, |proposal, room| ask(&mut comp, proposal, room, extent));
+        crate::runtime::layout_memory::leaf_call(&ctx, id, Proposal::Ideal, room, inputs, size, |proposal, room| {
+            ask(&mut comp, proposal, room, extent).0
+        });
     }
     trace.mark(Step::Measure);
     // A control in a label scope reports its narrowest width, in a measuring run too: the real run's label step reads
     // it to decide whether the row fits the label beside it.
     let min = (shape == ShapeKind::Leaf && scope::in_label(&ctx)).then(|| {
-        let min = ask(&mut comp, Proposal::Min, None, Vec2::ZERO);
+        let (min, inputs) = ask(&mut comp, Proposal::Min, None, Vec2::ZERO);
         if leaf {
-            crate::runtime::layout_memory::leaf_call(&ctx, id, Proposal::Min, None, min, |proposal, room| ask(&mut comp, proposal, room, Vec2::ZERO));
+            crate::runtime::layout_memory::leaf_call(&ctx, id, Proposal::Min, None, inputs, min, |proposal, room| {
+                ask(&mut comp, proposal, room, Vec2::ZERO).0
+            });
         }
         scope::record_control_min(&ctx, min.x);
         min
@@ -1006,7 +1010,7 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
     if let Some(crate::layout::Shrink::Count(row)) = shrink {
         let mut width = |proposal| {
             let input = MeasureIn { ui: &*ui, env, proposal, room: None };
-            steps::measure(&mut comp, &input, &style, &resolved, shown.as_deref(), Vec2::ZERO).x
+            steps::measure(&mut comp, &input, &style, &resolved, shown.as_deref(), Vec2::ZERO).0.x
         };
         let (ideal, least) = (width(Proposal::Ideal), width(Proposal::Min));
         crate::layout::report_shrink(&ctx, row, id, size.x, ideal, least);
@@ -1212,9 +1216,9 @@ fn measure_shape<C: Component>(
         let input = MeasureIn { ui, env: &env, proposal, room: None };
         steps::measure(comp, &input, &style, &resolved, shown.as_deref(), extent)
     };
-    let took = ask(comp, proposal);
+    let (took, inputs) = ask(comp, proposal);
     if hooks.shape() == ShapeKind::Leaf && (!ui.is_sizing_pass() || crate::runtime::measure::active(ui.ctx())) {
-        crate::runtime::layout_memory::leaf_call(ui.ctx(), id, proposal, None, took, |proposal, _| ask(comp, proposal));
+        crate::runtime::layout_memory::leaf_call(ui.ctx(), id, proposal, None, inputs, took, |proposal, _| ask(comp, proposal).0);
     }
     if let Some(key) = comp.bind().and_then(|bind| bind.key(id)) {
         reads::note(ui.ctx(), key, id, true, &[Sample { proposal, room: None, took }]);

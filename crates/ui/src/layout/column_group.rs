@@ -208,10 +208,10 @@ fn shared_width(ctx: &Context, group: Id, column: &ColumnKey, content: f32) -> f
             _ => None,
         })
     });
-    if let Some(depth) = depth {
-        layout_memory::read_input(ctx, depth, sub(group, column), width);
+    match depth {
+        Some(depth) => layout_memory::read_input(ctx, depth, sub(group, column), width),
+        None => width,
     }
-    width
 }
 
 /// The widest width of `column` a measuring run of this pass recorded for `group`.
