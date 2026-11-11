@@ -14,6 +14,10 @@ proc-macro = true
 workspace = true
 
 [dependencies]
-proc-macro2 = "1"
+# syn and proc-macro2 build once per feature set, and this crate (and so the whole framework) is rebuilt whenever that
+# set changes. Other proc-macro crates in a build add their syn features to the one syn every proc macro shares
+# (visit-mut, fold, extra-traits, span locations), so this crate asks for all of them: the set is then the same in
+# every build, whichever crates it links.
+proc-macro2 = { version = "1", features = ["span-locations"] }
 quote = "1"
-syn = { version = "2", features = ["full", "visit"] }
+syn = { version = "2", features = ["full", "visit", "visit-mut", "fold", "extra-traits"] }

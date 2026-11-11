@@ -2,7 +2,7 @@
 """The craft-libs build loop: cargo with one fixed feature set, so every local build shares one variant of each crate.
 
     cl check <crate> [cargo args]                 cargo check -p <crate> --tests, canonical features
-    cl test <crate> [cargo args] [-- test args]   cargo test -p <crate> --lib --tests, canonical features
+    cl test <crate> [cargo args] [-- test args]   cargo test -p <crate> --tests, canonical features
     cl build gallery [cargo args]                 the debug gallery binary (target/debug/craft-ui-gallery)
     cl build <crate> [cargo args]                 cargo build -p <crate>, canonical features
     cl render <crate|ui> <Component> [--story <name>] [--out <dir>] [--threads N]
@@ -132,7 +132,7 @@ def main():
         if command == "check":
             run(top, with_features(["check", "-p", pkg, "--tests"], features) + args)
         if command == "test":
-            run(top, with_features(["test", "-p", pkg, "--lib", "--tests"], features) + args)
+            run(top, with_features(["test", "-p", pkg, "--tests"], features) + args)
         run(top, with_features(["build", "-p", pkg], features) + args)
     if command == "render":
         if len(rest) < 2:
