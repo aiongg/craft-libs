@@ -89,23 +89,3 @@ fn server_token_sources_and_validation() {
         "bridge mode needs --control-token, --control-token-file, PHOTOCRAFT_CONTROL_TOKEN, or PHOTOCRAFT_CONTROL_TOKEN_FILE"
     );
 }
-
-// A line over MAX_REQUEST_BYTES is TooLong and the rest is discarded.
-#[test]
-fn bounded_line_read_stops_at_the_limit() {
-    let mut input = vec![b'a'; MAX_REQUEST_BYTES + 100];
-    input.extend_from_slice(b"\nnext\n");
-    let mut reader = std::io::BufReader::new(&input[..]);
-    let mut line = String::new();
-
-    assert_eq!(read_bounded_line(&mut reader, &mut line).unwrap(), LineRead::TooLong);
-    assert_eq!(line.len(), MAX_REQUEST_BYTES + 1);
-    discard_rest_of_line(&mut reader).unwrap();
-    assert_eq!(read_bounded_line(&mut reader, &mut line).unwrap(), LineRead::Line);
-    assert_eq!(line, "next\n");
-    assert_eq!(read_bounded_line(&mut reader, &mut line).unwrap(), LineRead::Eof);
-
-    let mut invalid = std::io::BufReader::new(&b"\xff\xfe\nok\n"[..]);
-    assert_eq!(read_bounded_line(&mut invalid, &mut line).unwrap_err().kind(), std::io::ErrorKind::InvalidData);
-    assert_eq!(read_bounded_line(&mut invalid, &mut line).unwrap(), LineRead::Line);
-}

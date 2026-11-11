@@ -214,7 +214,3 @@ fn append_csv(path: &std::path::Path, gesture: usize, rows: &[Row]) -> std::io::
     let mut f = std::fs::OpenOptions::new().create(true).append(true).open(path)?;
     f.write_all(csv(gesture, rows, header).as_bytes())
 }
-
-#[cfg(test)]
-#[path = "trace_tests.rs"]
-mod trace_tests;

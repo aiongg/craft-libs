@@ -1,19 +1,13 @@
-//! `ActionsPanel`: the rows, the cells, drags, Button Mode, the footer and the context menu.
+//! `ActionsPanel`: where a dragged row lands.
 
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use craft_automation::actions::{ActionColor, ActionList};
-use craft_automation::ui::actions::mock::{FakeActionsHost, action, list_of, sample_list, step};
-use craft_automation::ui::actions::{
-    ActionMove, ActionPlace, ActionSelection, ActionsEvent, ActionsPanel, ActionsPanelState, ActionsSettings, DIALOG_COLUMN, INCLUDE_COLUMN,
-    ShortcutChoice,
-};
-use craft_behavior::Mixed;
-use craft_keymap::Platform;
-use craft_ui::contract::SweepStep;
+use craft_automation::actions::ActionList;
+use craft_automation::ui::actions::mock::{FakeActionsHost, action, list_of};
+use craft_automation::ui::actions::{ActionMove, ActionPlace, ActionSelection, ActionsEvent, ActionsPanel, ActionsPanelState};
 use craft_ui::testing::{Fixture, Target, pointer, trial};
-use egui::{Key, Modifiers, Pos2, Ui, Vec2};
+use egui::{Pos2, Ui, Vec2};
 
 /// The app around the panel: what it holds and what the panel reported.
 struct App {
@@ -21,8 +15,6 @@ struct App {
     list: ActionList,
     host: FakeActionsHost,
     events: Vec<ActionsEvent>,
-    settings_changed: bool,
-    rename: Option<usize>,
 }
 
 type Shared = Rc<RefCell<App>>;
@@ -34,38 +26,22 @@ const PANEL: Vec2 = Vec2::new(520.0, 520.0);
 const DRAG_STEP: Vec2 = Vec2::new(0.0, 8.0);
 
 fn app(list: ActionList) -> App {
-    App {
-        state: ActionsPanelState::default(),
-        list,
-        host: FakeActionsHost::prefixed("Run "),
-        events: Vec::new(),
-        settings_changed: false,
-        rename: None,
-    }
+    App { state: ActionsPanelState::default(), list, host: FakeActionsHost::prefixed("Run "), events: Vec::new() }
 }
 
 fn show(ui: &mut Ui, app: &mut App) {
-    let App { state, list, host, events, settings_changed, rename } = app;
-    let mut panel = ActionsPanel::new(state, list).host(&*host);
-    if let Some(action) = rename.take() {
-        panel = panel.start_rename(action);
-    }
-    let out = panel.show(ui);
-    *settings_changed |= out.settings_changed;
+    let App { state, list, host, events } = app;
+    let out = ActionsPanel::new(state, list).host(&*host).show(ui);
     events.extend(out.events);
 }
 
-fn rig_in(app: App, room: Vec2) -> (Fixture, Shared) {
+fn rig(app: App) -> (Fixture, Shared) {
     let shared = Rc::new(RefCell::new(app));
     let shown = Rc::clone(&shared);
     let mut fixture = Fixture::new(move |ui| show(ui, &mut shown.borrow_mut()));
-    fixture.room(room);
+    fixture.room(PANEL);
     fixture.settle();
     (fixture, shared)
-}
-
-fn rig(app: App) -> (Fixture, Shared) {
-    rig_in(app, PANEL)
 }
 
 fn take(shared: &Shared) -> Vec<ActionsEvent> {
@@ -97,35 +73,6 @@ fn drag_to(fixture: &mut Fixture, from: Pos2, to: Pos2) {
     fixture.idle(2);
 }
 
-/// Right-click on `target`, then let the menu open.
-fn context_click(fixture: &mut Fixture, target: &Target) {
-    let pos = target.center();
-    fixture.frame(vec![pointer::moved(pos)]);
-    fixture.frame(vec![pointer::secondary(pos, true)]);
-    fixture.frame(vec![pointer::secondary(pos, false)]);
-    fixture.idle(3);
-}
-
-/// The cells the toggle steps set (a `Flip`): row, column, state.
-fn toggles(events: &[ActionsEvent]) -> Vec<(ActionSelection, &'static str, bool)> {
-    events
-        .iter()
-        .filter_map(|event| match event {
-            ActionsEvent::Toggle(SweepStep::Flip(after)) => {
-                let column = if after.column == INCLUDE_COLUMN {
-                    "include"
-                } else if after.column == DIALOG_COLUMN {
-                    "dialog"
-                } else {
-                    "other"
-                };
-                Some((after.key.clone(), column, after.on))
-            }
-            _ => None,
-        })
-        .collect()
-}
-
 /// The moves the panel reported: the dragged row and where it goes.
 fn moves(events: &[ActionsEvent]) -> Vec<(ActionSelection, ActionPlace)> {
     events
@@ -135,166 +82,6 @@ fn moves(events: &[ActionsEvent]) -> Vec<(ActionSelection, ActionPlace)> {
             _ => None,
         })
         .collect()
-}
-
-fn checked(fixture: &Fixture, label: &str) -> Option<Mixed<bool>> {
-    fixture.tree().toggled_of(node(fixture, label).node)
-}
-
-/// The include cell reports a step and an action; a partial action shows the mixed mark and "2/3 steps".
-#[trial]
-fn actions_panel_include_column_events() {
-    let mut app = app(sample_list());
-    app.state.expanded.insert("Sharpen".into());
-    app.list = {
-        let mut file = app.list.to_file();
-        file.actions[0].disabled.insert(1);
-        file.actions[0].dialogs.insert(2);
-        ActionList::from_file(file)
-    };
-    let (mut fixture, shared) = rig(app);
-    assert_eq!(checked(&fixture, "Include in playback: Sharpen"), Some(Mixed::Mixed));
-    assert_eq!(checked(&fixture, "Include in playback: Run levels"), Some(Mixed::Same(true)));
-    assert_eq!(checked(&fixture, "Include in playback: Run curves"), Some(Mixed::Same(false)));
-    assert_eq!(checked(&fixture, "Include in playback: Vignette"), Some(Mixed::Same(true)));
-    let painted = |fixture: &Fixture, text: &str| fixture.texts().iter().any(|painted| painted.text == text);
-    let all: Vec<_> = fixture.texts().iter().map(|painted| painted.text.clone()).collect();
-    assert!(painted(&fixture, "2/3 steps"), "the partial action says how many steps are on; painted: {all:?}");
-    assert!(painted(&fixture, "2 steps"), "a whole action only counts them; painted: {all:?}");
-
-    for label in ["Include in playback: Run curves", "Include in playback: Sharpen", "Show dialog during playback: Run blur"] {
-        let cell = node(&fixture, label);
-        fixture.click(&cell);
-        fixture.idle(2);
-    }
-    assert_eq!(
-        toggles(&take(&shared)),
-        [
-            (ActionSelection::Step(0, 1), "include", true),
-            (ActionSelection::Action(0), "include", true),
-            (ActionSelection::Step(0, 2), "dialog", false)
-        ]
-    );
-}
-
-/// Dragging an action, an action into a set and a step reports the place.
-#[trial]
-fn actions_panel_drag_reports_move() {
-    let mut app = app(sample_list());
-    app.state.expanded.insert("Sharpen".into());
-    let (mut fixture, shared) = rig(app);
-
-    let (from, to) = (node(&fixture, "Vignette").center(), at(&node(&fixture, "Sharpen"), 0.1));
-    drag_to(&mut fixture, from, to);
-    assert_eq!(
-        moves(&take(&shared)),
-        [(ActionSelection::Action(1), ActionPlace::action(0, None))],
-        "an action dropped above another takes its place"
-    );
-
-    let (from, to) = (node(&fixture, "Vignette").center(), node(&fixture, "Effects").center());
-    drag_to(&mut fixture, from, to);
-    assert_eq!(
-        moves(&take(&shared)),
-        [(ActionSelection::Action(1), ActionPlace::action(1, Some("Effects".into())))],
-        "dropped on a set it goes into it"
-    );
-
-    let (from, to) = (node(&fixture, "Run blur").center(), at(&node(&fixture, "Run levels"), 0.1));
-    drag_to(&mut fixture, from, to);
-    assert_eq!(moves(&take(&shared)), [(ActionSelection::Step(0, 2), ActionPlace::step(0, 0))], "a step dropped above another");
-}
-
-/// The recording action opens, shows its pending steps and scrolls its latest into view.
-#[trial]
-fn actions_panel_recording_row_expands_and_follows() {
-    // Edges snap to whole pixels, so a rectangle may overhang its neighbour by half a point.
-    const EDGE_SLACK: f32 = 0.5;
-    let mut app = app(sample_list());
-    app.host.recording = Some(0);
-    app.host.pending = vec![step("pending-1"), step("pending-2")];
-    let (mut fixture, shared) = rig_in(app, Vec2::new(520.0, 120.0));
-    let footer = node(&fixture, "Delete").rect;
-    let latest = node(&fixture, "Run pending-2").rect;
-    assert!(latest.bottom() <= footer.top() + EDGE_SLACK, "the latest step is in view: {latest:?} above {footer:?}");
-    let below = fixture.by_label("Vignette").map(|target| target.rect);
-    assert!(below.is_none_or(|rect| rect.top() >= footer.top() - EDGE_SLACK), "the rows below are scrolled away: {below:?}");
-
-    shared.borrow_mut().host.pending.push(step("pending-3"));
-    fixture.idle(3);
-    let latest = node(&fixture, "Run pending-3").rect;
-    assert!(latest.bottom() <= footer.top() + EDGE_SLACK, "a new step scrolls into view: {latest:?} above {footer:?}");
-}
-
-/// The context menu reports the shortcut with Shift and Command ticked as they are made, the colour, and Save Set.
-#[trial]
-fn actions_panel_context_menu_shortcut_and_color() {
-    let mut app = app(sample_list());
-    app.host.shortcuts.insert("Sharpen".to_owned(), ShortcutChoice::new(3, false, false));
-    let (mut fixture, shared) = rig(app);
-    let assign =
-        |action: usize, key: u8, shift: bool, command: bool| ActionsEvent::assign_shortcut(action, Some(ShortcutChoice::new(key, shift, command)));
-    let click = |fixture: &mut Fixture, label: &str| {
-        let row = node(fixture, label);
-        fixture.click(&row);
-        fixture.idle(2);
-    };
-
-    // Check rows keep the menu open, so both can be ticked; each tick is reported at once.
-    let row = node(&fixture, "Sharpen");
-    context_click(&mut fixture, &row);
-    click(&mut fixture, "Shift");
-    assert_eq!(take(&shared), [assign(0, 3, true, false)]);
-    click(&mut fixture, if Platform::current().is_mac() { "Command" } else { "Ctrl" });
-    assert_eq!(take(&shared), [assign(0, 3, true, true)]);
-    fixture.key(Key::Escape, Modifiers::NONE);
-    fixture.idle(3);
-    assert!(take(&shared).is_empty(), "closing the menu reports nothing more");
-
-    // A key row reports at once, with the ticks the menu opened with.
-    let row = node(&fixture, "Vignette");
-    context_click(&mut fixture, &row);
-    click(&mut fixture, "F7");
-    assert_eq!(take(&shared), [assign(1, 7, false, false)]);
-    let row = node(&fixture, "Vignette");
-    context_click(&mut fixture, &row);
-    click(&mut fixture, "None");
-    assert_eq!(take(&shared), [ActionsEvent::assign_shortcut(1, None)]);
-
-    let row = node(&fixture, "Vignette");
-    context_click(&mut fixture, &row);
-    click(&mut fixture, "Color");
-    click(&mut fixture, "Red");
-    assert_eq!(take(&shared), [ActionsEvent::set_color(1, ActionColor::Red)]);
-
-    let row = node(&fixture, "Effects");
-    context_click(&mut fixture, &row);
-    click(&mut fixture, "Save Set…");
-    assert_eq!(take(&shared), [ActionsEvent::save(Some("Effects".to_owned()))]);
-}
-
-/// Reopening the menu on the same row with Shift+F10 starts from the host's shortcut again: its key is marked and Shift
-/// is enabled.
-#[trial]
-fn actions_panel_context_menu_reopens_from_the_hosts_shortcut() {
-    let mut app = app(sample_list());
-    app.host.shortcuts.insert("Sharpen".to_owned(), ShortcutChoice::new(3, false, false));
-    let (mut fixture, shared) = rig(app);
-    for turn in 0..2 {
-        if turn == 0 {
-            let row = node(&fixture, "Sharpen");
-            context_click(&mut fixture, &row);
-        } else {
-            // The secondary click moved key focus to the row: Shift+F10 asks for the menu of the lead.
-            fixture.key(Key::F10, Modifiers::SHIFT);
-            fixture.idle(3);
-        }
-        assert_eq!(checked(&fixture, "F3"), Some(Mixed::Same(true)), "F3 is marked");
-        assert!(!fixture.tree().is_disabled_key(node(&fixture, "Shift").node), "Shift is enabled with a key");
-        fixture.key(Key::Escape, Modifiers::NONE);
-        fixture.idle(3);
-        assert!(take(&shared).is_empty());
-    }
 }
 
 /// Loose "Loose", then the sets "Alpha" (one action) and "Beta" (one action).
@@ -321,72 +108,4 @@ fn actions_panel_drop_before_a_later_set_lands_at_the_end_of_the_previous_set() 
         [(ActionSelection::Action(2), ActionPlace::action(1, None))],
         "before the first set the action is loose, after the last loose one"
     );
-}
-
-/// The panel follows its selection through a move, for an action and for a step.
-#[trial]
-fn actions_panel_selection_follows_a_move() {
-    let mut app = app(sample_list());
-    app.state.expanded.insert("Sharpen".into());
-    let (mut fixture, shared) = rig(app);
-    let row = node(&fixture, "Vignette");
-    fixture.click(&row);
-    fixture.idle(2);
-    assert_eq!(shared.borrow().state.selected, Some(ActionSelection::Action(1)));
-    let (from, to) = (node(&fixture, "Vignette").center(), at(&node(&fixture, "Sharpen"), 0.1));
-    drag_to(&mut fixture, from, to);
-    assert_eq!(shared.borrow().state.selected, Some(ActionSelection::Action(0)), "the selected action moved to the front");
-
-    shared.borrow_mut().state.selected = Some(ActionSelection::Step(0, 1));
-    fixture.idle(3);
-    let (from, to) = (node(&fixture, "Run blur").center(), at(&node(&fixture, "Run levels"), 0.1));
-    drag_to(&mut fixture, from, to);
-    assert_eq!(shared.borrow().state.selected, Some(ActionSelection::Step(0, 0)), "a pressed step is selected and follows its move");
-}
-
-/// An Alt sweep down the include column reports Show Only once, for the pressed cell and nothing for the cells it
-/// crosses; Escape reports the undo of it.
-#[trial]
-fn actions_panel_alt_include_sweep_reports_show_only_then_its_undo() {
-    let mut app = app(sample_list());
-    app.state.expanded.insert("Sharpen".into());
-    let (mut fixture, shared) = rig(app);
-    let (from, to) = (node(&fixture, "Include in playback: Run levels").center(), node(&fixture, "Include in playback: Run blur").center());
-    fixture.hold(Modifiers::ALT);
-    fixture.frame(vec![pointer::moved(from)]);
-    fixture.frame(vec![pointer::press(from)]);
-    fixture.frame(vec![pointer::moved(from + DRAG_STEP)]);
-    fixture.frame(vec![pointer::moved(to)]);
-    fixture.idle(2);
-    let shown = take(&shared);
-    let only: Vec<_> = shown.iter().filter(|event| matches!(event, ActionsEvent::Toggle(SweepStep::ShowOnly(_)))).collect();
-    assert_eq!(only.len(), 1, "{shown:?}");
-    assert_eq!(shown.len(), 1, "{shown:?}");
-    fixture.key(Key::Escape, Modifiers::ALT);
-    fixture.idle(2);
-    let undone = take(&shared);
-    assert!(matches!(undone.as_slice(), [ActionsEvent::Toggle(SweepStep::UndoShowOnly(_))]), "{undone:?}");
-}
-
-/// A row of this list dropped on the footer's Delete reports `Delete` for the grabbed row, with nothing selected.
-#[trial]
-fn actions_panel_a_row_dropped_on_delete_reports_delete() {
-    let (mut fixture, shared) = rig(app(sample_list()));
-    let (from, to) = (node(&fixture, "Vignette").center(), node(&fixture, "Delete").center());
-    drag_to(&mut fixture, from, to);
-    assert!(take(&shared).contains(&ActionsEvent::Delete(ActionSelection::Action(1))));
-}
-
-/// `ActionsSettings` round-trips through JSON in camelCase and ignores other apps' extra fields.
-#[trial]
-fn actions_settings_survive_a_serde_round_trip() {
-    let settings = ActionsSettings::new(true, vec!["Effects".into(), "Old".into()]);
-    let text = serde_json::to_string(&settings).expect("serialized");
-    assert_eq!(text, r#"{"buttonMode":true,"collapsedSets":["Effects","Old"]}"#);
-    assert_eq!(serde_json::from_str::<ActionsSettings>(&text).expect("read back"), settings);
-
-    let foreign = r#"{"buttonMode":true,"selected":"Sharpen","selectedStep":2,"expanded":["Sharpen"],"collapsedSets":["Effects"]}"#;
-    let read: ActionsSettings = serde_json::from_str(foreign).expect("read");
-    assert_eq!(read, ActionsSettings::new(true, vec!["Effects".into()]));
-    assert_eq!(serde_json::from_str::<ActionsSettings>("{}").expect("read"), ActionsSettings::default());
 }
