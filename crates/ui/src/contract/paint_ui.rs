@@ -10,6 +10,7 @@ use crate::primitives::{ContentPainterCx, Draw, DrawEnv, PaintRecord};
 use crate::runtime::access;
 use crate::runtime::egui::{alloc, child};
 use crate::runtime::env::{Env, Label};
+use crate::runtime::layout_memory;
 use crate::runtime::memory::sub;
 use crate::style::{Flags, Ink, Stateful, StyleColor, StyleCx};
 use craft_behavior::PartRef;
@@ -110,15 +111,18 @@ impl PaintUi<'_> {
         let mut child = child;
         let at =
             LeafLabel { id, owner: self.id, parent: Some(self.id), row: rect, text: &label, side: &side, enabled: self.enabled, size: self.size };
-        let placed = crate::layout::ColumnGroup::barrier(&mut *self.ui, |ui| label::leaf(ui, &env, &at, &mut child));
-        let mut control = placed.control;
-        if child.fills() != Some(craft_behavior::Axis::Y) {
-            let ideal = run::measure_under(&mut child, &*self.ui, Some(id), craft_behavior::Proposal::Ideal, Some((self.enabled, self.size)));
-            control.max.y = control.max.y.min(control.min.y + ideal.y);
-        }
-        let output = self.child_with(id, control, child, None);
-        placed.finish(self.ui.ctx());
-        output
+        let ctx = self.ui.ctx().clone();
+        layout_memory::boundary(&ctx, || {
+            let placed = crate::layout::ColumnGroup::barrier(&mut *self.ui, |ui| label::leaf(ui, &env, &at, &mut child));
+            let mut control = placed.control;
+            if child.fills() != Some(craft_behavior::Axis::Y) {
+                let ideal = run::measure_under(&mut child, &*self.ui, Some(id), craft_behavior::Proposal::Ideal, Some((self.enabled, self.size)));
+                control.max.y = control.max.y.min(control.min.y + ideal.y);
+            }
+            let output = self.child_with(id, control, child, None);
+            placed.finish(&ctx);
+            output
+        })
     }
 
     fn child_with<C: Show>(&mut self, id: Id, rect: Rect, child: C, tip: Option<TipFn<'_>>) -> C::Output {
@@ -131,7 +135,9 @@ impl PaintUi<'_> {
         let ctx = kids.ctx().clone();
         let env = super::cx::child_env(&Env::of(kids), self.enabled, self.size);
         let installed = Env::install_for(kids, env);
-        let output = run::show_leaf(super::Props::id(child, id), kids, ShowAt::Rect(rect), tip);
+        // The child sits in a rect its owner chose, and the owner's own measure answers for it: no body's transcript
+        // holds it.
+        let output = layout_memory::boundary(&ctx, || run::show_leaf(super::Props::id(child, id), kids, ShowAt::Rect(rect), tip));
         Env::restore(&ctx, installed);
         output
     }

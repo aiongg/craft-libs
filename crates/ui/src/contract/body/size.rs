@@ -11,7 +11,65 @@ use crate::runtime::layout_memory;
 use crate::runtime::memory::sub;
 use egui::{Context, Id, Rect, Ui, Vec2};
 
+/// The inputs a body's measuring run measures under. A later pass offering the same takes the body's kept
+/// transcript (`layout_memory::kept_serves`); its real run checks that the content is the same.
+#[derive(PartialEq)]
+pub(super) struct MeasureKey {
+    props: u64,
+    room: Vec2,
+    given: (bool, bool),
+    width: Option<f32>,
+    /// Whether the body shows, and how much of it an animated collapse shows.
+    shows: (bool, f32),
+    /// The content extent the view keeps, which decides the scroll bars' inset.
+    extent: (f32, f32),
+    env: EnvFacts,
+}
+
+/// What a body's measure reads of its env besides the room.
+#[derive(PartialEq)]
+struct EnvFacts {
+    style: crate::style::EnvKey,
+    words: u64,
+    size: craft_theme::ControlSize,
+    enabled: bool,
+    text_direction: crate::runtime::env::Direction,
+    content: (bool, bool),
+    content_column: bool,
+    unbounded: (bool, bool),
+    row_room: Option<f32>,
+    row_line: Option<f32>,
+    offered: Option<f32>,
+    grid: Option<Id>,
+}
+
 impl<'b> BodyHooks<'b> {
+    /// The inputs this body's measuring run measures under, once `measured_extent` has its room.
+    pub(super) fn measure_key(&self, props: &ContainerProps, env: &Env, width: Option<f32>) -> MeasureKey {
+        MeasureKey {
+            props: props.measure_fingerprint(),
+            room: self.room,
+            given: self.given,
+            width,
+            shows: (self.open, self.presence.t),
+            extent: self.last.extent,
+            env: EnvFacts {
+                style: env.key,
+                words: env.words.generation(),
+                size: env.size,
+                enabled: env.enabled,
+                text_direction: env.text_direction,
+                content: env.content,
+                content_column: env.content_column,
+                unbounded: env.unbounded,
+                row_room: env.row_room,
+                row_line: env.row_line,
+                offered: env.offered,
+                grid: env.grid,
+            },
+        }
+    }
+
     /// How the container's size follows its content here: a pane or a rect the host gives is filled; a layer sizes
     /// from its content until the user sizes it; an inline container follows its props.
     pub(super) fn sizing(&self, props: &ContainerProps) -> Sizing {

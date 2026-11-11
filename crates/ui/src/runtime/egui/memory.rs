@@ -225,6 +225,8 @@ impl<S: Default + Send + 'static> Service<S> {
 
     /// Runs `f` on the state under the service's lock.
     pub(crate) fn with<R>(&self, f: impl FnOnce(&mut S) -> R) -> R {
+        #[cfg(feature = "testing")]
+        crate::runtime::layout_memory::guard::touch::<S>();
         f(&mut self.0.lock().unwrap_or_else(PoisonError::into_inner))
     }
 }

@@ -102,10 +102,11 @@ pub(crate) enum MainFill {
     Room,
 }
 
-/// What a child of `ui`'s body that fills along `axis` takes there. Called once per such child and run.
-pub(crate) fn main_fill(ui: &Ui, axis: Axis) -> MainFill {
+/// What the child `id` of `ui`'s body that fills along `axis` takes there. Called once per such child and run.
+pub(crate) fn main_fill(ui: &Ui, id: Id, axis: Axis) -> MainFill {
     let env = Env::of(ui);
     let Some((body, _)) = env.fill_body.filter(|(_, along)| *along == axis) else { return MainFill::Room };
+    layout_memory::leaf_fill(ui.ctx(), id, body, axis);
     if let Some(share) = env.fill_share {
         return MainFill::Share(share);
     }
@@ -139,9 +140,10 @@ pub(crate) enum Shrink {
     Apply(Id),
 }
 
-/// What a leaf of a shrinking row reported in the first sweep: the width it took there, the width it asks for in
-/// no room and the least it shrinks to.
+/// What a leaf of a shrinking row reported in the first sweep: its id, the width it took there, the width it asks for
+/// in no room and the least it shrinks to.
 struct Reported {
+    leaf: Id,
     took: f32,
     ideal: f32,
     least: f32,
@@ -151,25 +153,19 @@ struct Reported {
 #[derive(Default)]
 struct ShrinkReports(HashMap<Id, Vec<Reported>>);
 
-/// How many leaves of each `Row` body showing at its widths have read theirs, by body id. A leaf's width is keyed by
-/// its place in the row: the first sweep runs under other ids than the sweeps that read the widths.
-#[derive(Default)]
-struct ShrinkOrder(HashMap<Id, usize>);
-
-/// Reports the widths of the next leaf of the row `row` that counts them.
-pub(crate) fn report_shrink(ctx: &egui::Context, row: Id, took: f32, ideal: f32, least: f32) {
-    let leaf = Reported { took, ideal, least: least.min(ideal) };
+/// Reports the widths of the leaf `leaf` of the row `row` that counts them.
+pub(crate) fn report_shrink(ctx: &egui::Context, row: Id, leaf: Id, took: f32, ideal: f32, least: f32) {
+    let leaf = Reported { leaf, took, ideal, least: least.min(ideal) };
     Service::<ShrinkReports>::run(ctx, |reports| reports.0.entry(row).or_default().push(leaf));
 }
 
-/// The width the shrink step of the row `row` gave its next leaf in this pass's measuring run.
-pub(crate) fn shrink_cap(ctx: &egui::Context, row: Id) -> Option<f32> {
-    let at = Service::<ShrinkOrder>::run(ctx, |order| {
-        let next = order.0.entry(row).or_insert(0);
-        *next += 1;
-        *next - 1
-    });
-    layout_memory::measured(ctx, sub(row, ("shrink", at))).map(|found| found.took.x)
+/// The width the shrink step of the row `row` gave its leaf `leaf` in this pass's measuring run.
+pub(crate) fn shrink_cap(ctx: &egui::Context, row: Id, leaf: Id) -> Option<f32> {
+    layout_memory::measured(ctx, shrink_key(row, leaf)).map(|found| found.took.x)
+}
+
+fn shrink_key(row: Id, leaf: Id) -> Id {
+    sub(row, ("shrink", leaf))
 }
 
 /// The widths of the leaves of a row whose leaves, with `fixed` (its other children and gaps), ask for more than
@@ -192,23 +188,24 @@ fn shrink_widths(leaves: &[Reported], fixed: f32, room: f32) -> Vec<f32> {
 ///
 /// A measuring run sweeps the children once in a child that takes no room, each leaf reporting its widths, and
 /// records the width `shrink_widths` gives each leaf for the rest of the pass. When a leaf took another width there,
-/// it sweeps them again at those widths. The real run shows each leaf at most at its width.
+/// it sweeps them again at those widths. The real run shows each leaf at most at its width. Every sweep runs in a
+/// child of `ui` with its layout, so the children get the same ids in each, and the records a measuring run leaves
+/// are the ones the real run's children read and check.
 fn run_shrinking<R>(ui: &mut Ui, id: Id, mut body: impl FnMut(&mut Ui) -> R) -> R {
     let ctx = ui.ctx().clone();
+    let layout = *ui.layout();
     let sweep = |ui: &mut Ui, shrink: Shrink, body: &mut dyn FnMut(&mut Ui) -> R| {
-        Service::<ShrinkOrder>::run(&ctx, |order| order.0.insert(id, 0));
         let installed = Env::install_for(ui, Env::of(ui).derive_local(|scoped| scoped.shrink = Some(shrink)));
         let inner = body(ui);
         Env::restore(&ctx, installed);
-        Service::<ShrinkOrder>::run(&ctx, |order| order.0.remove(&id));
         inner
     };
     if !measure::active(&ctx) {
-        return sweep(ui, Shrink::Apply(id), &mut body);
+        return child::block(ui, None, layout, |ui| sweep(ui, Shrink::Apply(id), &mut body)).0;
     }
     let room = flow_room(ui).x;
     let first = crate::contract::keeping_ids(&ctx, || {
-        let mut first = ui.new_child(egui::UiBuilder::new().layout(*ui.layout()));
+        let mut first = ui.new_child(egui::UiBuilder::new().layout(layout));
         Service::<ShrinkReports>::run(&ctx, |reports| reports.0.insert(id, Vec::new()));
         let inner = sweep(&mut first, Shrink::Count(id), &mut body);
         let leaves = Service::<ShrinkReports>::run(&ctx, |reports| reports.0.remove(&id)).unwrap_or_default();
@@ -216,19 +213,15 @@ fn run_shrinking<R>(ui: &mut Ui, id: Id, mut body: impl FnMut(&mut Ui) -> R) -> 
         let fixed = rect.width() - leaves.iter().map(|leaf| leaf.took).sum::<f32>();
         let widths = if room.is_finite() { shrink_widths(&leaves, fixed, room) } else { leaves.iter().map(|leaf| leaf.ideal).collect() };
         let mut again = false;
-        for (at, (leaf, width)) in leaves.iter().zip(widths).enumerate() {
-            layout_memory::record_measured(
-                &ctx,
-                sub(id, ("shrink", at)),
-                layout_memory::Measured { room: Vec2::new(room, 0.0), took: Vec2::new(width, 0.0) },
-            );
+        for (leaf, width) in leaves.iter().zip(widths) {
+            layout_memory::emit_record(&ctx, shrink_key(id, leaf.leaf), layout_memory::Measured::new(Vec2::new(room, 0.0), Vec2::new(width, 0.0)));
             // Half a point: less than a pixel shows at any scale the box runs.
             again |= (leaf.took - width).abs() >= 0.5;
         }
         ((inner, rect, again), again)
     });
     match first {
-        (_, _, true) => sweep(ui, Shrink::Apply(id), &mut body),
+        (_, _, true) => child::block(ui, None, layout, |ui| sweep(ui, Shrink::Apply(id), &mut body)).0,
         (inner, rect, false) => {
             ui.advance_cursor_after_rect(rect);
             inner
@@ -283,7 +276,7 @@ fn run_sharing<R>(ui: &mut Ui, id: Id, axis: Axis, layout: egui::Layout, mut bod
         let inner = sweep(&mut first, None, &mut body);
         let fills = Service::<FillCounts>::run(&ctx, |counts| counts.0.remove(&id)).unwrap_or(0);
         let fixed = along(first.min_rect().size());
-        layout_memory::record_measured(&ctx, key, layout_memory::Measured { room: Vec2::ZERO, took: Vec2::new(fixed, fills as f32) });
+        layout_memory::emit_record(&ctx, key, layout_memory::Measured::new(Vec2::ZERO, Vec2::new(fixed, fills as f32)));
         let share = (fills > 0 && room.is_finite()).then(|| ((room - fixed) / fills as f32).max(0.0));
         let rect = first.min_rect();
         ((inner, rect, share), share.is_some())
@@ -492,7 +485,7 @@ fn record_line(ui: &Ui, sizing: bool, id: Id) {
 /// Records what a measuring run found under `id`; a real run records nothing.
 fn found(ctx: &egui::Context, sizing: bool, id: Id, room: Vec2, took: Vec2) {
     if sizing {
-        layout_memory::record_measured(ctx, id, layout_memory::Measured { room, took });
+        layout_memory::emit_record(ctx, id, layout_memory::Measured::new(room, took));
     }
 }
 

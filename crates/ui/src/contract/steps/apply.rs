@@ -154,14 +154,14 @@ pub(crate) fn rerun_after_edit<C: Component>(
 ) {
     let ctx = &cx.core.ctx;
     if edit.given {
-        sizing::request_discard(ctx, "craft_ui: an edit changed a given value");
+        sizing::request_discard(ctx, sizing::Rerun::Edit);
         return;
     }
     let Some(key) = edit.key.filter(|_| edit.written || edit.shown) else { return };
     let id = cx.core.id;
     let earlier = reads::earlier(ctx, key, id);
     if edit.written && earlier.other {
-        return sizing::request_discard(ctx, "craft_ui: an edit changed a value an earlier run read");
+        return sizing::request_discard(ctx, sizing::Rerun::Edit);
     }
     let resized = if leaf {
         earlier.samples.iter().any(|sample| {
@@ -172,6 +172,6 @@ pub(crate) fn rerun_after_edit<C: Component>(
         earlier.measured
     };
     if resized {
-        sizing::request_discard(ctx, "craft_ui: an edit changed the size of the editing component");
+        sizing::request_discard(ctx, sizing::Rerun::Edit);
     }
 }

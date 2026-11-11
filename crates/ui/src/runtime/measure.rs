@@ -38,7 +38,7 @@ pub fn run<R>(ctx: &Context, f: impl FnOnce() -> R) -> R {
     let set = |to: u32| store::put(ctx, depth_id(), to);
     let before = depth(ctx);
     set(before + 1);
-    let out = f();
+    let out = super::layout_memory::guard::measuring(f);
     set(before);
     out
 }
@@ -50,6 +50,11 @@ fn depth(ctx: &Context) -> u32 {
 /// Whether a measuring run is in progress.
 pub fn active(ctx: &Context) -> bool {
     depth(ctx) > 0
+}
+
+/// Whether the innermost measuring run is the outermost one: no other measuring run encloses it.
+pub(crate) fn outermost(ctx: &Context) -> bool {
+    depth(ctx) == 1
 }
 
 /// Whether the effect `what` may happen: `false` in a measuring run, and the caller skips it. Under test the
@@ -108,6 +113,14 @@ pub(crate) fn count_body(ctx: &Context, id: Id) {
             None => log.runs.push((id, 1)),
         }
     });
+}
+
+/// The bodies whose contents ran in a measuring run in the last pass, and how many runs each; empty when that pass
+/// ran none.
+#[cfg(feature = "testing")]
+pub fn last_pass_body_runs(ctx: &Context) -> Vec<(Id, u32)> {
+    let last = ctx.cumulative_pass_nr().saturating_sub(1);
+    store::with::<BodyRuns, _>(ctx, |log| if log.pass == last { log.runs.clone() } else { Vec::new() })
 }
 
 /// The bodies whose contents ran in a measuring run in the last pass that ran one, and how many runs each.

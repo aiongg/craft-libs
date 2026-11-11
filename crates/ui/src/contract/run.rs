@@ -91,6 +91,17 @@ pub(crate) struct Measuring<'a, 's> {
 pub(crate) trait ShapeHooks<C: Component> {
     fn shape(&self) -> ShapeKind;
 
+    /// What the shape's content took in this real run besides what its components measured, by id: content that
+    /// allocates without a component (a raw egui allocation) changes this.
+    fn regions(&self, _id: Id) -> Vec<(Id, Vec2)> {
+        Vec::new()
+    }
+
+    /// Whether the shape takes room in its parent's flow: a layer or window mount does not.
+    fn in_flow(&self, _comp: &C) -> bool {
+        true
+    }
+
     /// Whether the shape's own `parts` hook can declare parts, which the component's `PARTS = false` does not cover.
     fn declares_parts(&self) -> bool {
         true
@@ -109,7 +120,7 @@ pub(crate) trait ShapeHooks<C: Component> {
 
     /// The size step 6 allocates, from the measured `size`: a body that fills reads the available rect of `ui`: the
     /// parent's at step 5, and the host's at step 6 when the host runs the pass in a `Ui` of its own.
-    fn sized(&self, _comp: &C, _ui: &Ui, size: Vec2) -> Vec2 {
+    fn sized(&self, _comp: &C, _ui: &Ui, _id: Id, size: Vec2) -> Vec2 {
         size
     }
 
@@ -261,7 +272,7 @@ impl<C: Component> ShapeHooks<C> for LeafHooks {
         self.scope
     }
 
-    fn sized(&self, comp: &C, ui: &Ui, size: Vec2) -> Vec2 {
+    fn sized(&self, comp: &C, ui: &Ui, id: Id, size: Vec2) -> Vec2 {
         let room = crate::layout::flow_fill_room(ui);
         // The line height of a content-height row is not known inside `sized` (the other children have not run), so a
         // child that fills across it keeps its measured size there.
@@ -270,7 +281,7 @@ impl<C: Component> ShapeHooks<C> for LeafHooks {
             if !offered.is_finite() || content {
                 return measured;
             }
-            match crate::layout::main_fill(ui, along) {
+            match crate::layout::main_fill(ui, id, along) {
                 crate::layout::MainFill::Measuring => 0.0,
                 crate::layout::MainFill::Share(share) => share,
                 crate::layout::MainFill::Room => measured.max(offered),
@@ -602,7 +613,7 @@ fn run_in_host<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Opti
     // 6 place
     let at = host_at.unwrap_or(p.at);
     // A root that fills takes the room of the `Ui` its host runs it in: a pane's or a layer's own, not its parent's.
-    let size = if ui.scope_id() == p.parent { p.size } else { p.hooks.sized(&*p.comp, ui, p.measured) };
+    let size = if ui.scope_id() == p.parent { p.size } else { p.hooks.sized(&*p.comp, ui, id, p.measured) };
     let (rect, held) = place_root(p, ui, at, env, size, inert, rtl);
     p.trace.mark(Step::Place);
     // What the content wants past the room counts where the root's width comes from its content: a content-sized
@@ -824,7 +835,22 @@ fn run_in_host<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Opti
         if C::ROLE == Role::Merged {
             scope::begin(&ctx, id, id, scope::Kind::Merge);
         }
+        // A real run checks a body's content against the kept transcript its records came from; a collection's rows
+        // are its own measure, not the enclosing body's, and a layer's content is not part of its parent's flow.
+        let scoped = (!p.sizing && !crate::runtime::measure::active(&ctx))
+            .then(|| match p.hooks.shape() {
+                ShapeKind::Body => Some((Some(id), !p.hooks.in_flow(comp))),
+                ShapeKind::Item => Some((None, true)),
+                _ => None,
+            })
+            .flatten();
+        if let Some((body, boundary)) = scoped {
+            crate::runtime::layout_memory::open_content(&ctx, body, boundary);
+        }
         p.hooks.content(comp, ui, env, cx, &values);
+        if scoped.is_some() {
+            crate::runtime::layout_memory::close_content(&ctx, &p.hooks.regions(id));
+        }
     }
     // The `over` parts are placed before `paint_over`, so the children it shows stack above them (8.3).
     ui.set_clip_rect(outer_clip);
@@ -914,7 +940,7 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
     // A leaf in flow in a row that shrinks its children to fit shows at most the width the row gave it.
     let shrink = env.shrink.filter(|_| shape == ShapeKind::Leaf && matches!(at, ShowAt::Flow) && comp.fills().is_none());
     let cap = match shrink {
-        Some(crate::layout::Shrink::Apply(row)) => crate::layout::shrink_cap(&ctx, row),
+        Some(crate::layout::Shrink::Apply(row)) => crate::layout::shrink_cap(&ctx, row, id),
         _ => None,
     };
     let room = match cap {
@@ -941,16 +967,26 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
     } else {
         (hooks.extent(&comp, ui, at, id, &scx), shown)
     };
-    let size = {
-        let input = MeasureIn { ui: &*ui, env, proposal: Proposal::Ideal, room };
-        steps::measure(&mut comp, &input, &style, &resolved, shown.as_deref(), extent)
+    let ask = |comp: &mut C, proposal: Proposal, room: Option<f32>, extent: Vec2| {
+        let input = MeasureIn { ui: &*ui, env, proposal, room };
+        steps::measure(comp, &input, &style, &resolved, shown.as_deref(), extent)
     };
+    let size = ask(&mut comp, Proposal::Ideal, room, extent);
+    // A leaf's measure calls are what its body's layout takes from it: a measuring run keeps them in the body's
+    // transcript, and a real run its kept transcript serves asks them again. A leaf shown at a rect takes no room in
+    // the flow: its body's layout takes the rect, and any measure its caller sized the rect by records itself.
+    let leaf = shape == ShapeKind::Leaf && matches!(at, ShowAt::Flow) && (!sizing || crate::runtime::measure::active(&ctx));
+    if leaf {
+        crate::runtime::layout_memory::leaf_call(&ctx, id, Proposal::Ideal, room, size, |proposal, room| ask(&mut comp, proposal, room, extent));
+    }
     trace.mark(Step::Measure);
     // A control in a label scope reports its narrowest width, in a measuring run too: the real run's label step reads
     // it to decide whether the row fits the label beside it.
     let min = (shape == ShapeKind::Leaf && scope::in_label(&ctx)).then(|| {
-        let input = MeasureIn { ui: &*ui, env, proposal: Proposal::Min, room: None };
-        let min = steps::measure(&mut comp, &input, &style, &resolved, shown.as_deref(), Vec2::ZERO);
+        let min = ask(&mut comp, Proposal::Min, None, Vec2::ZERO);
+        if leaf {
+            crate::runtime::layout_memory::leaf_call(&ctx, id, Proposal::Min, None, min, |proposal, room| ask(&mut comp, proposal, room, Vec2::ZERO));
+        }
         scope::record_control_min(&ctx, min.x);
         min
     });
@@ -966,14 +1002,14 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
     // The row gave the leaf no less than its least, so a leaf whose measure does not follow its room still fits.
     let size = cap.map_or(size, |cap| Vec2::new(size.x.min(cap), size.y));
     let measured = size;
-    let size = hooks.sized(&comp, ui, size);
+    let size = hooks.sized(&comp, ui, id, size);
     if let Some(crate::layout::Shrink::Count(row)) = shrink {
         let mut width = |proposal| {
             let input = MeasureIn { ui: &*ui, env, proposal, room: None };
             steps::measure(&mut comp, &input, &style, &resolved, shown.as_deref(), Vec2::ZERO).x
         };
         let (ideal, least) = (width(Proposal::Ideal), width(Proposal::Min));
-        crate::layout::report_shrink(&ctx, row, size.x, ideal, least);
+        crate::layout::report_shrink(&ctx, row, id, size.x, ideal, least);
     }
     // A component shown at a rect fills it: the rect is its size, and a leaf that measures nothing (a content
     // painter) still shows there.
@@ -1172,8 +1208,14 @@ fn measure_shape<C: Component>(
         let measuring = Measuring { ui, at: ShowAt::Flow, width, env: &env, scx: &scx, resolved: &resolved, command: step1.command.clone(), mixed };
         measured_extent(comp, hooks, &measuring, &mut stage, &style, shown)
     };
-    let input = MeasureIn { ui, env: &env, proposal, room: None };
-    let took = steps::measure(comp, &input, &style, &resolved, shown.as_deref(), extent);
+    let ask = |comp: &mut C, proposal: Proposal| {
+        let input = MeasureIn { ui, env: &env, proposal, room: None };
+        steps::measure(comp, &input, &style, &resolved, shown.as_deref(), extent)
+    };
+    let took = ask(comp, proposal);
+    if hooks.shape() == ShapeKind::Leaf && (!ui.is_sizing_pass() || crate::runtime::measure::active(ui.ctx())) {
+        crate::runtime::layout_memory::leaf_call(ui.ctx(), id, proposal, None, took, |proposal, _| ask(comp, proposal));
+    }
     if let Some(key) = comp.bind().and_then(|bind| bind.key(id)) {
         reads::note(ui.ctx(), key, id, true, &[Sample { proposal, room: None, took }]);
     }

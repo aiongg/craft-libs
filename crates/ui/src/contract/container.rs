@@ -593,6 +593,49 @@ impl Default for ContainerProps {
 }
 
 impl ContainerProps {
+    /// A fingerprint of the props a body's measure reads: equal props give equal fingerprints. What it leaves out
+    /// (focus, arena, gates, commands, live region, roving, save key, set position) does not change a size. Glyphs
+    /// show as `Glyph(..)`: an icon is a component of the content, which the content check asks.
+    pub(crate) fn measure_fingerprint(&self) -> u64 {
+        use std::fmt::Write as _;
+        /// FNV-1a over the `Debug` text, without building it: `Debug` writes every `f32` so that it reads back
+        /// exactly.
+        struct Fnv(u64);
+        impl std::fmt::Write for Fnv {
+            fn write_str(&mut self, text: &str) -> std::fmt::Result {
+                for byte in text.bytes() {
+                    self.0 = (self.0 ^ u64::from(byte)).wrapping_mul(0x0100_0000_01b3);
+                }
+                Ok(())
+            }
+        }
+        let mut hash = Fnv(0xcbf2_9ce4_8422_2325);
+        let _ = write!(
+            hash,
+            "{:?}|{:?}|{:?}|{:?}|{:?}|{:?}|{:?}|{:?}|{:?}|{:?}|{:?}|{:?}|{:?}|{:?}|{:?}|{:?}|{:?}|{:?}|{:?}|{:?}",
+            self.mount,
+            self.surface,
+            self.pad,
+            self.sizing,
+            self.room_height,
+            self.layout,
+            self.header,
+            self.scroll,
+            self.footer,
+            self.end,
+            self.help,
+            self.collapse,
+            self.body_gap,
+            self.least_width,
+            self.child_size,
+            self.transform,
+            self.theme,
+            self.label,
+            self.outer_edit,
+            self.collection_body,
+        );
+        hash.0
+    }
     /// Props with every field at its default.
     pub const fn new() -> Self {
         ContainerProps {

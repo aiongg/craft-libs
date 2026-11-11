@@ -79,8 +79,18 @@ impl MonoHost {
 
     /// The size of the laid-out text, in document units.
     fn extent(&self) -> Vec2 {
+        self.extent_in_columns(0)
+    }
+
+    /// The size of the laid-out text with one more cell at the end of the widest row, where the caret after its last
+    /// char goes.
+    fn extent_with_caret_cell(&self) -> Vec2 {
+        self.extent_in_columns(1)
+    }
+
+    fn extent_in_columns(&self, extra: usize) -> Vec2 {
         let rows = self.rows();
-        let widest = rows.iter().map(ExactSizeIterator::len).max().unwrap_or(0);
+        let widest = rows.iter().map(ExactSizeIterator::len).max().unwrap_or(0) + extra;
         Vec2::new((widest as f64 * CELL) as f32, (rows.len() as f64 * LINE) as f32)
     }
 }
@@ -145,7 +155,8 @@ impl TextEditorHost for MonoHost {
             .map(|(line, (chars, text))| {
                 let count = chars.len();
                 let positions: Vec<f32> = (0..count).map(|at| (at as f64 * CELL) as f32).collect();
-                let rect = Rect::from_min_size(Pos2::new(0.0, (line as f64 * LINE) as f32), Vec2::new((count as f64 * CELL) as f32, LINE as f32));
+                let (y0, y1) = (line as f64 * LINE, (line + 1) as f64 * LINE);
+                let rect = Rect::from_min_max(Pos2::new(0.0, y0 as f32), Pos2::new((count as f64 * CELL) as f32, y1 as f32));
                 let runs = vec![HostRun { bytes: 0..text.len(), rtl: false, positions, widths: vec![CELL as f32; count] }];
                 HostLine { chars, rect, baseline: rect.center().y + TEXT_SIZE / 3.0, runs, text }
             })
@@ -246,7 +257,7 @@ fn over_canvas(ui: &mut Ui, text: &mut String, mut bind: Bind<'_, TextSelection>
     });
     let view = CanvasView::new(room, Point::new(f64::from(room.width()) / 2.0, f64::from(room.height()) / 2.0), 1.0);
     let shown = Canvas::new("Document").view(view).show_at(ui, room, |ui, _| {
-        let bounds = Rect::from_min_size(view.to_screen(Point::ZERO), host.extent() + Vec2::new(CELL as f32, 0.0));
+        let bounds = Rect::from_min_size(view.to_screen(Point::ZERO), host.extent_with_caret_cell());
         MonoText { common: Common::new(), rows: host.row_texts() }.show_at(ui, bounds);
         TextEditor::new("Text", &mut host, bind.reborrowed()).show_at(ui, bounds)
     });

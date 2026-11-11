@@ -11,7 +11,7 @@ use craft_theme::Srgba;
 use craft_ui::canvas::Canvas;
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::testing::{Fixture, trial};
-use egui::Vec2;
+use egui::{Key, Modifiers, Vec2};
 
 fn black() -> Srgba {
     Srgba { r: 0.0, g: 0.0, b: 0.0, a: 1.0 }
@@ -76,4 +76,16 @@ fn a_press_on_a_stop_selects_it_and_its_drag_moves_it() {
     s.fixture.drag(&stop, Vec2::new(40.0, 0.0));
     let moved = s.value.borrow().stops.color[1].location;
     assert!(moved > before, "the stop followed the pointer to {moved}");
+}
+
+#[trial]
+fn a_cancelled_press_on_a_stop_leaves_the_selection_as_it_was() {
+    let mut s = shown();
+    let stop = s.fixture.by_label("Color stop 2 of 3").expect("the overlay shows its stops as parts");
+    s.fixture.press(&stop);
+    assert_eq!(*s.selected.borrow(), Some(StopRef::Color(1)), "the press selects the stop");
+    s.fixture.key(Key::Escape, Modifiers::NONE);
+    s.fixture.release(&stop);
+    s.fixture.settle();
+    assert_eq!(*s.selected.borrow(), None);
 }

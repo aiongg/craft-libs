@@ -374,3 +374,26 @@ fn an_out_of_view_child_keeps_its_extent_when_the_room_changes() {
         assert!((content.get() - full).abs() <= SAME, "the content keeps its size: {} then {full}", content.get());
     }
 }
+
+/// A settled scroll body of lazy children runs one pass per frame: what the real run finds for each child, run or
+/// skipped, is what the pass that measured found.
+#[trial]
+fn a_settled_lazy_scroll_body_runs_one_pass_per_frame() {
+    const CHILDREN: usize = 30;
+    let mut show = |ui: &mut Ui| {
+        in_region(ui, Rect::from_min_size(ORIGIN, VIEW), |ui| {
+            Slab::new(ContainerProps::new().scroll(Scroll::vertical())).id_salt("panel").show(ui, |ui, _| {
+                for at in 0..CHILDREN {
+                    craft_ui::contract::Lazy::new(at).show(ui, |ui| {
+                        Block::new(Vec2::new(LINE.x, HUNDRED)).show(ui);
+                    });
+                }
+            });
+        });
+    };
+    let mut frames = Frames::new();
+    frames.idle(3, &mut show);
+    for frame in 0..10 {
+        assert_eq!(frames.frame(vec![], &mut show), 1, "idle frame {frame}");
+    }
+}
