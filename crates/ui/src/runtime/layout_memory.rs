@@ -689,7 +689,8 @@ pub(crate) fn end_hook(ctx: &Context) {
 }
 
 /// The testing-build guard of measuring runs. A measuring run hands values forward only through `emit_record` and
-/// `contribute`: a service it touches otherwise panics with the service's type, unless the type is classified below.
+/// `contribute`: in a frame a test fixture drives, a service it touches otherwise panics with the service's type, unless
+/// the type is classified below.
 /// Services give `&mut` for reads and writes alike, so the guard classifies by type, not by access. `Arc` handles kept
 /// in component memory and raw `ctx.data_mut` writes are outside it.
 pub(crate) mod guard {
@@ -697,6 +698,8 @@ pub(crate) mod guard {
     thread_local! {
         static MEASURING: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
         static EMITTING: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+        static STRICT: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+        static LOGGED: std::cell::RefCell<std::collections::HashSet<&'static str>> = std::cell::RefCell::default();
     }
 
     /// The services a measuring run may touch, with why that hands nothing forward around layout memory.
@@ -724,11 +727,18 @@ pub(crate) mod guard {
         ("runtime::drag::", "drag board and targets: read; targets register in real runs"),
         ("runtime::overlay::", "overlays: read; opens and closes are effects skipped in measuring runs"),
         ("contract::overlay::popups::Popups", "popups: read"),
-        ("runtime::lazy::Store", "lazy extents: the kept extent of content out of view, its own mechanism; a pass a kept transcript serves decides in its real run, which compares each row by its backstop"),
+        (
+            "runtime::lazy::Store",
+            "lazy extents: the kept extent of content out of view, its own mechanism; a pass a kept transcript serves decides in its real run, which compares each row by its backstop",
+        ),
         ("contract::steps::scroll_owner::", "scroll reveals and moves: read; taken through take_queued"),
         ("contract::body::scroll::Jumps", "scroll jumps: taken through take_queued"),
         ("runtime::edit::CancelAll", "edit cancels: read; a measuring run ends nothing"),
         ("runtime::commands::board::Board", "commands: read; registration is an effect skipped in measuring runs"),
+        (
+            "shell::app_shell::dialogs::Hosts",
+            "dialog hosts: one handle per window, made on first use; dialogs open on clicks, which only real runs sense",
+        ),
         ("runtime::memory::Registry", "component memory: a measuring run writes only to its peek stage"),
         ("runtime::egui::access::Reported", "access reports: read; reports are written by real runs"),
         ("runtime::access::live::Announced", "live announcements: read"),
@@ -779,6 +789,17 @@ pub(crate) mod guard {
         out
     }
 
+    /// Runs `f`, a frame a test fixture drives: a touch the guard does not allow panics. Outside it (an app built
+    /// with the testing feature, such as the gallery) the guard names each such service once on stderr.
+    pub(crate) fn strict<R>(f: impl FnOnce() -> R) -> R {
+        #[cfg(feature = "testing")]
+        STRICT.with(|depth| depth.set(depth.get() + 1));
+        let out = f();
+        #[cfg(feature = "testing")]
+        STRICT.with(|depth| depth.set(depth.get() - 1));
+        out
+    }
+
     /// A service of type `S` is touched.
     #[cfg(feature = "testing")]
     pub(crate) fn touch<S>() {
@@ -787,6 +808,12 @@ pub(crate) mod guard {
         }
         let name = std::any::type_name::<S>();
         if CLASSIFIED.iter().any(|(ty, _)| name.contains(ty)) {
+            return;
+        }
+        if STRICT.with(std::cell::Cell::get) == 0 {
+            if LOGGED.with(|logged| logged.borrow_mut().insert(name)) {
+                eprintln!("craft-ui guard: a measuring run touched the service {name}");
+            }
             return;
         }
         if std::env::var_os("CRAFT_UI_GUARD_LOG").is_some() {

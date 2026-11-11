@@ -947,8 +947,9 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
     };
     let size = ask(&mut comp, Proposal::Ideal, room, extent);
     // A leaf's measure calls are what its body's layout takes from it: a measuring run keeps them in the body's
-    // transcript, and a real run its kept transcript serves asks them again.
-    let leaf = shape == ShapeKind::Leaf && (!sizing || crate::runtime::measure::active(&ctx));
+    // transcript, and a real run its kept transcript serves asks them again. A leaf shown at a rect takes no room in
+    // the flow: its body's layout takes the rect, and any measure its caller sized the rect by records itself.
+    let leaf = shape == ShapeKind::Leaf && matches!(at, ShowAt::Flow) && (!sizing || crate::runtime::measure::active(&ctx));
     if leaf {
         crate::runtime::layout_memory::leaf_call(&ctx, id, Proposal::Ideal, room, size, |proposal, room| ask(&mut comp, proposal, room, extent));
     }
