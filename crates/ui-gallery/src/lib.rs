@@ -19,33 +19,43 @@ pub const WINDOW: [f32; 2] = [1280.0, 800.0];
 type Registered = fn() -> Vec<&'static craft_ui::testing::Registration>;
 
 fn crates() -> Vec<(&'static str, Registered)> {
-    let crates: Vec<(&'static str, Registered)> = vec![
-        ("craft-automation", craft_automation::testing::registered),
-        ("craft-browse", craft_browse::ui::testing::registered),
-        ("craft-color", craft_color::ui::testing::registered),
-        ("craft-draw", craft_draw::testing::registered),
-        ("craft-imaging", craft_imaging::testing::registered),
-        ("craft-layers", craft_layers::testing::registered),
-        ("craft-menu", craft_menu::testing::registered),
-        ("craft-pages", craft_pages::testing::registered),
-        ("craft-print", craft_print::testing::registered),
-        ("craft-review", craft_review::testing::registered),
-        ("craft-table", craft_table::ui::testing::registered),
-        ("craft-text", craft_text::testing::registered),
-        ("craft-theme-store", craft_theme_store::ui::registered),
-        ("craft-timeline", craft_timeline::testing::registered),
-    ];
+    #[allow(unused_mut, clippy::vec_init_then_push)]
+    let mut crates: Vec<(&'static str, Registered)> = Vec::new();
+    #[cfg(feature = "automation")]
+    crates.push(("craft-automation", craft_automation::testing::registered));
+    #[cfg(feature = "browse")]
+    crates.push(("craft-browse", craft_browse::ui::testing::registered));
+    #[cfg(feature = "color")]
+    crates.push(("craft-color", craft_color::ui::testing::registered));
+    #[cfg(feature = "draw")]
+    crates.push(("craft-draw", craft_draw::testing::registered));
+    #[cfg(feature = "imaging")]
+    crates.push(("craft-imaging", craft_imaging::testing::registered));
+    #[cfg(feature = "layers")]
+    crates.push(("craft-layers", craft_layers::testing::registered));
+    #[cfg(feature = "menu")]
+    crates.push(("craft-menu", craft_menu::testing::registered));
+    #[cfg(feature = "pages")]
+    crates.push(("craft-pages", craft_pages::testing::registered));
+    #[cfg(feature = "print")]
+    crates.push(("craft-print", craft_print::testing::registered));
+    #[cfg(feature = "review")]
+    crates.push(("craft-review", craft_review::testing::registered));
+    #[cfg(feature = "table")]
+    crates.push(("craft-table", craft_table::ui::testing::registered));
+    #[cfg(feature = "text")]
+    crates.push(("craft-text", craft_text::testing::registered));
+    #[cfg(feature = "theme-store")]
+    crates.push(("craft-theme-store", craft_theme_store::ui::registered));
+    #[cfg(feature = "timeline")]
+    crates.push(("craft-timeline", craft_timeline::testing::registered));
     // These do not build for the web, so their stories are in the native gallery only.
-    #[cfg(not(target_arch = "wasm32"))]
-    let crates = [
-        crates,
-        vec![
-            ("craft-dialogs", craft_dialogs::testing::registered as Registered),
-            ("craft-font-manager", craft_font_manager::testing::registered),
-            ("craft-update", craft_update::testing::registered),
-        ],
-    ]
-    .concat();
+    #[cfg(all(feature = "dialogs", not(target_arch = "wasm32")))]
+    crates.push(("craft-dialogs", craft_dialogs::testing::registered));
+    #[cfg(all(feature = "font-manager", not(target_arch = "wasm32")))]
+    crates.push(("craft-font-manager", craft_font_manager::testing::registered));
+    #[cfg(all(feature = "update", not(target_arch = "wasm32")))]
+    crates.push(("craft-update", craft_update::testing::registered));
     std::hint::black_box(crates)
 }
 

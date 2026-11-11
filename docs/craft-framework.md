@@ -1554,7 +1554,7 @@ The story viewer (desktop and web) over the registered stories of every `ui` cra
 | `theme` | The theme workspace: panels that explain a theme and its appearance | exists |
 | `mock` | The mock editor window: shell, title bar, rails, dock, document tabs, canvas and dialogs | exists |
 | `bin/components-index`, `bin/contract-api` | Write [components-index.md](components-index.md) and [contract-api.md](contract-api.md) | exists |
-| `bin/component-sheet` | Renders every story of every registered component to a PNG, offscreen | exists |
+| `story-render` (crate `crates/story-render`) | Renders a component's stories to PNG files, offscreen, linking only the crates its features name | exists |
 
 #### craft-ui-macros
 

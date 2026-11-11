@@ -1,0 +1,154 @@
+#!/usr/bin/env -S python3 -I
+"""The craft-libs build loop: cargo with one fixed feature set, so every local build shares one variant of each crate.
+
+    cl check <crate> [cargo args]                 cargo check -p <crate> --tests, canonical features
+    cl test <crate> [cargo args] [-- test args]   cargo test -p <crate> --lib --tests, canonical features
+    cl build gallery [cargo args]                 the debug gallery binary (target/debug/craft-ui-gallery)
+    cl build <crate> [cargo args]                 cargo build -p <crate>, canonical features
+    cl render <crate|ui> <Component> [--story <name>] [--out <dir>] [--threads N]
+                                                  the component's stories as PNGs through the story-render bin
+    cl features <crate>                           print the canonical --features value for <crate>
+    cl cargo <args...>                            cargo through the job pool, no features added
+
+Every cargo command runs through build-slot (the box-wide job pool; see ~/.local/bin/build-slot). CARGO_TARGET_DIR
+defaults to <worktree>-target when that directory exists beside the worktree.
+
+Why one feature set: cargo builds a crate once per distinct feature set, and everything above it again. The gallery
+turns on craft-ui's `app`, the story renderer `snapshot`, the tests `testing` and the domain crates' `screen-testing`;
+a command that leaves one of them off builds a second variant of the framework (minutes) and the dependants above it.
+The canonical set for a crate is its own test feature (`screen-testing`, else `testing`) plus, for every crate that
+depends on the framework, craft-ui's `app`, `testing` and `snapshot` (or craft-ui-contract's `testing` and `snapshot`
+and craft-ui-shell's `app` for the framework crates themselves). Builds that take other features (CI's
+`--all-features`, wasm checks) belong on GitHub.
+"""
+
+import json
+import os
+import subprocess
+import sys
+
+ANCHORS = {
+    # package -> the features of its framework dependencies that every local build keeps on
+    "craft-ui": ["craft-ui-contract/snapshot", "craft-ui-shell/app"],
+    "craft-ui-shell": ["app", "craft-ui-contract/snapshot"],
+    "craft-ui-patterns": ["craft-ui-contract/snapshot"],
+    "craft-ui-canvas": ["craft-ui-contract/snapshot"],
+    "craft-ui-panels": ["craft-ui-contract/snapshot"],
+    "craft-ui-widgets": ["craft-ui-contract/snapshot"],
+    "craft-ui-contract": ["snapshot"],
+    "craft-ui-test-kit": ["craft-ui-contract/snapshot"],
+    "craft-ui-gallery": ["apps", "craft-ui/snapshot"],
+    "story-render": [],
+}
+FACADE_ANCHORS = ["craft-ui/app", "craft-ui/testing", "craft-ui/snapshot"]
+# Domain crates the story renderer can link, by the crate's short name.
+RENDER_FEATURES = {
+    "automation", "browse", "color", "draw", "imaging", "layers", "menu", "pages", "print", "review", "table", "text",
+    "theme-store", "timeline", "dialogs", "font-manager", "update",
+}
+
+
+def fail(message):
+    print(f"cl: {message}", file=sys.stderr)
+    sys.exit(2)
+
+
+def worktree():
+    top = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True)
+    if top.returncode != 0:
+        fail("not inside a git worktree")
+    return top.stdout.strip()
+
+
+def metadata(top):
+    out = subprocess.run(
+        ["cargo", "metadata", "--no-deps", "--format-version", "1", "--offline"], cwd=top, capture_output=True, text=True
+    )
+    if out.returncode != 0:
+        fail("cargo metadata failed:\n" + out.stderr)
+    return {p["name"]: p for p in json.loads(out.stdout)["packages"]}
+
+
+def package(packages, name):
+    if name in packages:
+        return packages[name]
+    if "craft-" + name in packages:
+        return packages["craft-" + name]
+    fail(f"no workspace package named {name}")
+
+
+def canonical(packages, name):
+    """The canonical feature list of a package."""
+    p = package(packages, name)
+    features = []
+    if "screen-testing" in p["features"]:
+        features.append("screen-testing")
+    elif "testing" in p["features"] and p["name"] != "craft-ui-test-kit":
+        features.append("testing")
+    if p["name"] in ANCHORS:
+        features += ANCHORS[p["name"]]
+    elif any(d["name"] == "craft-ui" for d in p["dependencies"]):
+        features += FACADE_ANCHORS
+    return p["name"], features
+
+
+def run(top, cargo_args):
+    env = dict(os.environ)
+    if "CARGO_TARGET_DIR" not in env and os.path.isdir(top + "-target"):
+        env["CARGO_TARGET_DIR"] = top + "-target"
+    cmd = ["build-slot", "cargo"] + cargo_args
+    print("cl: " + " ".join(cmd) + f"  (target {env.get('CARGO_TARGET_DIR', 'target/')})", file=sys.stderr)
+    sys.stdout.flush()
+    os.chdir(top)
+    os.execvpe("build-slot", cmd, env)
+
+
+def with_features(args, features):
+    return args + (["--features", ",".join(features)] if features else [])
+
+
+def main():
+    if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help"):
+        print(__doc__.strip())
+        sys.exit(0)
+    command, rest = sys.argv[1], sys.argv[2:]
+    top = worktree()
+    if command == "cargo":
+        run(top, rest)
+    packages = metadata(top)
+    if command == "features":
+        if not rest:
+            fail("cl features <crate>")
+        print(",".join(canonical(packages, rest[0])[1]))
+        return
+    if command in ("check", "test", "build"):
+        if not rest:
+            fail(f"cl {command} <crate> [args]")
+        name, args = rest[0], rest[1:]
+        if command == "build" and name == "gallery":
+            pkg, features = canonical(packages, "craft-ui-gallery")
+            run(top, with_features(["build", "-p", pkg, "--bin", "craft-ui-gallery"], features) + args)
+        pkg, features = canonical(packages, name)
+        if command == "check":
+            run(top, with_features(["check", "-p", pkg, "--tests"], features) + args)
+        if command == "test":
+            run(top, with_features(["test", "-p", pkg, "--lib", "--tests"], features) + args)
+        run(top, with_features(["build", "-p", pkg], features) + args)
+    if command == "render":
+        if len(rest) < 2:
+            fail("cl render <crate|ui> <Component> [--story <name>] [--out <dir>] [--threads N]")
+        crate, component, options = rest[0], rest[1], rest[2:]
+        short = crate.removeprefix("craft-")
+        features = []
+        if short != "ui":
+            if short not in RENDER_FEATURES:
+                fail(f"{crate} is not a crate the story renderer links; one of: ui, " + ", ".join(sorted(RENDER_FEATURES)))
+            features = [short]
+        if "--out" not in options:
+            options += ["--out", os.path.join(os.environ.get("CL_RENDER_DIR", os.path.expanduser("~/.cache/story-render")), component)]
+        run(top, with_features(["run", "-q", "-p", "story-render", "--bin", "story-render"], features) + ["--", "--only", component] + options)
+    fail(f"unknown command {command}; see cl --help")
+
+
+if __name__ == "__main__":
+    main()

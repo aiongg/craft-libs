@@ -1,14 +1,19 @@
-//! Renders every story of every registered component to a PNG, offscreen and in one process, for the side-by-side
-//! component sheet.
+//! Renders a component's stories to PNG files, offscreen and in one process, for the old/new comparison pages.
 //!
-//! `cargo run --release -p craft-ui-gallery --features sheet --bin component-sheet -- --out <dir>` writes, into `<dir>`:
-//! `new-<Name>--<story>.png` for every story, `new-<Name>.png` for the story a component's Overview card shows (its
-//! first), `stories.tsv` and `components.tsv`. Each story runs in a card's story body (`StoryBody`) in a fresh context,
-//! in ArtCraft Dark at 2 pixels per point with the interface fonts, and its image is cropped to the story's surface
-//! and the layers it opened. A story whose dialog the card holds behind its button is shown with the dialog open.
+//! `cargo run -p story-render --features <crate> -- --only <Name> --out <dir>` writes, into `<dir>`:
+//! `new-<Name>--<story>.png` for every story of the component, `new-<Name>.png` for the story its Overview card
+//! shows (its first), `stories.tsv` and `components.tsv`. Each story runs in a card's story body (`StoryBody`) in a
+//! fresh context, in ArtCraft Dark at 2 pixels per point with the interface fonts, and its image is cropped to the
+//! story's surface and the layers it opened. A story whose dialog the card holds behind its button is shown with the
+//! dialog open.
 //!
-//! Options: `--only Name,Name` renders those components only; `--threads N` (default: the cores, at most 8);
-//! `--width W` and `--room H` set the card's story width and the height a filling story gets, in points.
+//! The bin links the framework and only the domain crates its features name (`--features color` for craft-color's
+//! components; `--features apps` for every crate, as the gallery links them), so a change in one crate rebuilds that
+//! crate and this bin, not the gallery.
+//!
+//! Options: `--only Name,Name` renders those components only (all registered components without it); `--story name`
+//! renders the story of that name only; `--threads N` (default: the cores, at most 8); `--width W` and `--room H`
+//! set the card's story width and the height a filling story gets, in points.
 
 use craft_ui::contract::{Pad, Surface};
 use craft_ui::fonts::{I18nScripts, UiFonts};
@@ -39,6 +44,7 @@ const ROOM: f32 = 692.0;
 struct Options {
     out: PathBuf,
     only: Option<Vec<String>>,
+    story: Option<String>,
     threads: usize,
     width: f32,
     room: f32,
@@ -47,12 +53,13 @@ struct Options {
 fn options() -> Result<Options, String> {
     let mut args = std::env::args().skip(1);
     let threads = std::thread::available_parallelism().map_or(1, |n| n.get()).min(8);
-    let mut options = Options { out: PathBuf::new(), only: None, threads, width: WIDTH, room: ROOM };
+    let mut options = Options { out: PathBuf::new(), only: None, story: None, threads, width: WIDTH, room: ROOM };
     while let Some(arg) = args.next() {
         let mut value = || args.next().ok_or_else(|| format!("{arg} needs a value"));
         match arg.as_str() {
             "--out" => options.out = PathBuf::from(value()?),
             "--only" => options.only = Some(value()?.split(',').map(str::to_owned).collect()),
+            "--story" => options.story = Some(value()?),
             "--threads" => options.threads = value()?.parse().map_err(|_| "--threads takes a number".to_owned())?,
             "--width" => options.width = value()?.parse().map_err(|_| "--width takes points".to_owned())?,
             "--room" => options.room = value()?.parse().map_err(|_| "--room takes points".to_owned())?,
@@ -83,16 +90,19 @@ struct Done {
     size: Option<(u32, u32)>,
 }
 
-fn jobs(only: Option<&[String]>) -> Vec<Job> {
+fn jobs(options: &Options) -> Vec<Job> {
     let catalog = Catalog::linked();
     let mut jobs = Vec::new();
     for component in &catalog.components {
-        if only.is_some_and(|only| !only.iter().any(|name| *name == component.name)) {
+        if options.only.as_ref().is_some_and(|only| !only.iter().any(|name| *name == component.name)) {
             continue;
         }
         let Some(entry) = entry_of(component.type_name) else { continue };
         let stories = catalog.stories_of(component.type_name).iter().map(|&at| &catalog.entries[at]);
         for (at, story) in stories.enumerate() {
+            if options.story.as_ref().is_some_and(|name| *name != story.registration.story.name) {
+                continue;
+            }
             jobs.push(Job {
                 name: component.name.clone(),
                 level: entry.level.title(),
@@ -221,12 +231,12 @@ fn main() -> ExitCode {
     let options = match options() {
         Ok(options) => options,
         Err(error) => {
-            let _ = writeln!(std::io::stderr(), "component-sheet: {error}");
+            let _ = writeln!(std::io::stderr(), "story-render: {error}");
             return ExitCode::FAILURE;
         }
     };
     if let Err(error) = std::fs::create_dir_all(&options.out) {
-        let _ = writeln!(std::io::stderr(), "component-sheet: cannot create {}: {error}", options.out.display());
+        let _ = writeln!(std::io::stderr(), "story-render: cannot create {}: {error}", options.out.display());
         return ExitCode::FAILURE;
     }
     // A story's panic is its status; any other panic goes to the default hook.
@@ -240,11 +250,15 @@ fn main() -> ExitCode {
         let at = info.location().map(|at| format!(" at {}:{}", at.file(), at.line())).unwrap_or_default();
         PANIC.with(|last| *last.borrow_mut() = clean(&format!("{}{at}", message.unwrap_or_default())));
     }));
-    let jobs = jobs(options.only.as_deref());
+    let jobs = jobs(&options);
+    if jobs.is_empty() {
+        let _ = writeln!(std::io::stderr(), "story-render: no story matches; is the component's crate among this bin's features?");
+        return ExitCode::FAILURE;
+    }
     let done: Vec<Mutex<Option<Done>>> = jobs.iter().map(|_| Mutex::new(None)).collect();
     let next = AtomicUsize::new(0);
     std::thread::scope(|scope| {
-        for _ in 0..options.threads.max(1) {
+        for _ in 0..options.threads.max(1).min(jobs.len()) {
             scope.spawn(|| {
                 let env = root_env();
                 let mut renderer = Renderer::new();
@@ -261,11 +275,11 @@ fn main() -> ExitCode {
     });
     let done: Vec<Option<Done>> = done.into_iter().map(|slot| slot.into_inner().ok().flatten()).collect();
     if let Err(error) = write_tables(&options.out, &jobs, &done) {
-        let _ = writeln!(std::io::stderr(), "component-sheet: cannot write the tables: {error}");
+        let _ = writeln!(std::io::stderr(), "story-render: cannot write the tables: {error}");
         return ExitCode::FAILURE;
     }
     let ok = done.iter().flatten().filter(|done| done.status == "ok").count();
     let components = jobs.iter().filter(|job| job.first).count();
-    let _ = writeln!(std::io::stdout(), "component-sheet: {ok} of {} stories of {components} components rendered", jobs.len());
+    let _ = writeln!(std::io::stdout(), "story-render: {ok} of {} stories of {components} components rendered", jobs.len());
     ExitCode::SUCCESS
 }
