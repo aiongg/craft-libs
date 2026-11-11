@@ -2,8 +2,7 @@
 //! groups differ from the default open state, and the search text.
 
 use super::model::PresetRow;
-use super::words::PresetWords;
-use crate::contract::{Entry, OpenChange};
+use crate::contract::OpenChange;
 use crate::tile_grid::TileZoom;
 use std::collections::HashSet;
 use std::hash::Hash;
@@ -79,15 +78,6 @@ impl<K> PresetState<K> {
     /// Whether the search text filters the list (it is not blank).
     pub fn filtering(&self) -> bool {
         !self.filter.trim().is_empty()
-    }
-
-    /// The two entries for the host's panel menu, "Grid View" and "List View", carrying the view they choose; the one
-    /// for the current view is checked.
-    pub fn view_menu_items(&self, words: &PresetWords) -> [Entry<PresetView>; 2] {
-        [
-            Entry::new(PresetView::Grid, words.grid_view.clone()).checked(self.view == PresetView::Grid),
-            Entry::new(PresetView::List, words.list_view.clone()).checked(self.view == PresetView::List),
-        ]
     }
 }
 

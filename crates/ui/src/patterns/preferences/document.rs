@@ -218,12 +218,6 @@ impl<T: Serialize + DeserializeOwned + Default + Clone + PartialEq, C: CustomSet
         self.texts = OnceLock::new();
     }
 
-    /// The app's custom part, for the app to open the dialog a [`PreferencesOutput::pick_color`](super::PreferencesOutput)
-    /// request asks for.
-    pub fn custom_mut(&mut self) -> &mut C {
-        &mut self.custom
-    }
-
     /// The saved value the window started from (or last applied).
     pub fn saved(&self) -> &T {
         &self.saved

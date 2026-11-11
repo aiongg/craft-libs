@@ -93,11 +93,6 @@ impl HostedSaveForWeb {
         self.frame
     }
 
-    /// The Original pane's picture, for the app to hand over the new frame's when [`frame`](Self::frame) changed.
-    pub fn set_original(&mut self, original: SizedTexture) {
-        self.pictures.original = Some(original);
-    }
-
     /// The panes to encode when they changed since the last call.
     pub fn wanted_variants(&mut self) -> Vec<WantedVariant> {
         std::mem::take(&mut self.wanted)

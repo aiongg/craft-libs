@@ -2,7 +2,7 @@
 //! owned by a `DialogHost`. A command form is a `ParamDialog` without a preview.
 
 use super::fields::{DialogFields, FieldValue};
-use crate::runtime::requests::{ColorRequest, EyedropperRequest, HostAnswer, PathRequest};
+use crate::runtime::requests::{ColorRequest, HostAnswer, PathRequest};
 
 use super::form::FormDialog;
 use super::host_requests::HostRequests;
@@ -581,11 +581,6 @@ impl HostedParamDialog {
         &self.fields
     }
 
-    /// The values the dialog shows, for the app to set (a script, a colour picker's answer).
-    pub fn fields_mut(&mut self) -> &mut DialogFields {
-        &mut self.fields
-    }
-
     /// The colour parameter whose button was pressed, once.
     pub fn pick_color(&mut self) -> Option<ColorRequest> {
         self.requests.take_color()
@@ -594,11 +589,6 @@ impl HostedParamDialog {
     /// The Browse button that was pressed, once.
     pub fn pick_path(&mut self) -> Option<PathRequest> {
         self.requests.take_path()
-    }
-
-    /// The eyedropper toggle that was pressed, once.
-    pub fn pick_eyedropper(&mut self) -> Option<EyedropperRequest> {
-        self.requests.take_eyedropper()
     }
 
     /// Answers the colour request `key`: the dialog writes the colour into its values in its next pass.

@@ -38,18 +38,6 @@ impl UiTokens {
         self.density
     }
 
-    /// The same tokens with the theme's values under token group paths. It is a different set: its own key.
-    pub fn with_groups(&self, groups: GroupValues) -> Self {
-        let groups = Arc::new(groups);
-        UiTokens {
-            key: content_key(&self.tokens, &groups, self.contrast, self.density),
-            tokens: self.tokens.clone(),
-            groups,
-            contrast: self.contrast,
-            density: self.density,
-        }
-    }
-
     /// The source tokens.
     pub fn tokens(&self) -> &Arc<Tokens> {
         &self.tokens

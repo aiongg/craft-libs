@@ -76,11 +76,6 @@ impl UnsavedChangesDialog {
         self.chosen = Some(answer);
     }
 
-    /// Sets the "Apply to All" box. It counts only while more than one document remains.
-    pub fn set_apply_to_all(&mut self, on: bool) {
-        self.apply_to_all = on;
-    }
-
     /// How many documents the guard still asks about, this one included; above one the "Apply to All" box shows.
     #[must_use]
     pub fn remaining(mut self, remaining: usize) -> Self {

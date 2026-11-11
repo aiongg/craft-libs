@@ -105,16 +105,6 @@ impl SplitLayout {
             SplitLayout::Four => vec![1, 2, 3, 0],
         }
     }
-
-    /// The order the body shows the panes in: reading order, with pane `first` moved to the front. Panes keep their
-    /// position and number; the widgets inside them register in this order, so it sets their tab order.
-    pub fn draw_order(self, first: usize) -> Vec<usize> {
-        let mut order = self.reading_order();
-        if let Some(at) = order.iter().position(|&pane| pane == first) {
-            order[..=at].rotate_right(1);
-        }
-        order
-    }
 }
 
 /// One pane's view: its own, or linked to the main view's zoom and position.

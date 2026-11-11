@@ -19,7 +19,7 @@ pub use wheel::{WheelAction, WheelInput, WheelNavigation};
 use super::frame_step;
 use craft_behavior::kurbo::{Rect as DocRect, Size, Vec2 as DocVec};
 use craft_behavior::{CanvasView, Wheel, WheelPhase, WheelUnit};
-use egui::{Pos2, Rect, Vec2};
+use egui::{Rect, Vec2};
 
 /// Moves `view` by `delta` screen points (a Hand drag, a scroll): the document follows the pointer, in any rotation
 /// or mirror.
@@ -265,26 +265,6 @@ impl Autoscroll {
     pub const MAX_SPEED: f32 = 2400.0;
     /// Extra speed per point the pointer is past the edge.
     pub const GAIN: f32 = 12.0;
-
-    /// The scroll this pass, in screen points, for a drag with the pointer at `pointer` over a canvas `rect`: zero
-    /// inside it, each axis toward the pointer.
-    pub fn edge_step(pointer: Pos2, rect: Rect, dt: f32) -> Vec2 {
-        if !pointer.x.is_finite() || !pointer.y.is_finite() || !dt.is_finite() || dt <= 0.0 || rect.width() <= 0.0 || rect.height() <= 0.0 {
-            return Vec2::ZERO;
-        }
-        let past = |p: f32, lo: f32, hi: f32| {
-            if p < lo {
-                p - lo
-            } else if p > hi {
-                p - hi
-            } else {
-                0.0
-            }
-        };
-        let dt = frame_step(f64::from(dt)) as f32;
-        let axis = |d: f32| if d == 0.0 { 0.0 } else { d.signum() * (Self::MIN_SPEED + Self::GAIN * d.abs()).min(Self::MAX_SPEED) * dt };
-        Vec2::new(axis(past(pointer.x, rect.left(), rect.right())), axis(past(pointer.y, rect.top(), rect.bottom())))
-    }
 
     /// Moves `view` by `step` screen points, never past the image's on-screen bounds in the direction of travel (a
     /// view already past a limit is not pulled back). Returns the move in document units, or `None` when the view did

@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 
 use super::color::Rgba;
-use super::components::{ComponentField, OverrideError};
+use super::components::ComponentField;
 use super::ramp::Mode;
 use super::tokens::{ColorTokens, Edge, RadiusSet, RowStyle, Status, TokenRef};
 use crate::{AppId, ThemeId};
@@ -64,29 +64,6 @@ impl ThemeDef {
                 bad: o.status.bad.unwrap_or(self.seeds.status.bad),
                 info: o.status.info.unwrap_or(self.seeds.status.info),
             },
-        }
-    }
-
-    /// Every override that resolution skips, in the theme and in its app overrides: a pin on a
-    /// component field, which is a length.
-    pub fn override_errors(&self) -> Vec<OverrideError> {
-        let mut out = Vec::new();
-        let high = [&self.high_contrast.light, &self.high_contrast.dark];
-        let own = [&self.pins.light, &self.pins.dark];
-        pin_errors(own.into_iter().chain(high), &mut out);
-        for app in self.apps.values() {
-            pin_errors([&app.pins.light, &app.pins.dark, &app.high_contrast.light, &app.high_contrast.dark], &mut out);
-        }
-        out
-    }
-}
-
-fn pin_errors<'a>(pins: impl IntoIterator<Item = &'a Pins>, out: &mut Vec<OverrideError>) {
-    for pins in pins {
-        for &key in pins.colors.keys().chain(pins.refs.keys()) {
-            if let TokenRef::Component(field) = key {
-                out.push(OverrideError::PinNotColor(field));
-            }
         }
     }
 }
@@ -340,29 +317,6 @@ pub enum TextSize {
 impl TextSize {
     /// Every step, smallest first.
     pub const ALL: [TextSize; 4] = [TextSize::Tiny, TextSize::Small, TextSize::Medium, TextSize::Large];
-
-    /// The step a Photoshop-style `interface.uiFontSize` value names (`tiny`, `small`, `medium`,
-    /// `large`: PhotoCraft's `UiFontSize`, Preferences › Interface › UI Font Size). Other text:
-    /// `None`.
-    pub fn from_ui_font_size(value: &str) -> Option<TextSize> {
-        match value {
-            "tiny" => Some(TextSize::Tiny),
-            "small" => Some(TextSize::Small),
-            "medium" => Some(TextSize::Medium),
-            "large" => Some(TextSize::Large),
-            _ => None,
-        }
-    }
-
-    /// The `interface.uiFontSize` value of this step, the inverse of [`Self::from_ui_font_size`].
-    pub fn ui_font_size(self) -> &'static str {
-        match self {
-            TextSize::Tiny => "tiny",
-            TextSize::Small => "small",
-            TextSize::Medium => "medium",
-            TextSize::Large => "large",
-        }
-    }
 }
 
 /// The multipliers of the four text-size steps on the type roles, a runtime value an app may

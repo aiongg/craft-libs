@@ -84,11 +84,6 @@ impl AlignAction {
         AlignAction::DistributeHorizontally,
         AlignAction::DistributeVertically,
     ];
-
-    /// Whether the command is one of the six align commands rather than a distribute command.
-    pub fn is_align(self) -> bool {
-        Self::ALIGN.contains(&self)
-    }
 }
 
 /// Where the distribute commands sit.

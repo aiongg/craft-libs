@@ -1,6 +1,6 @@
 //! `Popover` (15, 16): a non-modal popup anchored to the control that opened it, holding a body the app builds.
 
-use crate::contract::overlay::{Anchor, Dismiss, Outside, OverlayFit};
+use crate::contract::overlay::{Anchor, Dismiss, OverlayFit};
 use crate::contract::{
     Bind, BindMut, Common, Component, Container, ContainerProps, Cx, Mount, NoValue, Outcome, Overlay, Pad, Props as _, Role, SaveKey, Trigger,
 };
@@ -163,15 +163,6 @@ impl<'a> Popover<'a> {
     pub fn close_on_enter(self, on: bool) -> Self {
         self.overlay(|mut overlay| {
             overlay.dismiss = overlay.dismiss.enter(on);
-            overlay
-        })
-    }
-
-    /// Whether the press that closes the popover from outside reaches nothing below it.
-    #[must_use]
-    pub fn absorb_outside(self, on: bool) -> Self {
-        self.overlay(|mut overlay| {
-            overlay.dismiss = overlay.dismiss.outside(if on { Outside::Absorb } else { Outside::Close });
             overlay
         })
     }

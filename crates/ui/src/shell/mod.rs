@@ -40,7 +40,7 @@ mod caption_button;
 mod caption_icons;
 
 pub use caption_button::{CaptionButton, CaptionEnd, CaptionPlan, CaptionSlot};
-pub use caption_icons::{CaptionIcon, CaptionIcons, CaptionMask, RenderIconFn, ThemeFiles, base_dirs, caption_icon_theme};
+pub use caption_icons::{CaptionIcon, CaptionIcons, CaptionMask, RenderIconFn};
 pub use craft_window::policy::{CaptionFamily, Captions, Frame, MacInset};
 
 // A document's window: a container in its own OS viewport.

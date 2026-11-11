@@ -378,16 +378,6 @@ impl<'a> ToolContext<'a> {
         self.requests.ease = Some(ViewEase { anchor });
     }
 
-    /// The view the tool set in this call, for a test of a tool.
-    pub fn requested_view(&self) -> Option<CanvasView> {
-        self.requests.view
-    }
-
-    /// The ease the tool asked for in this call, for a test of a tool.
-    pub fn requested_ease(&self) -> Option<ViewEase> {
-        self.requests.ease
-    }
-
     /// Paints marching ants along `points` (closed when `closed`) in a paint call; it paints nothing in any other.
     /// The ants march on the runtime's pass clock, step by step, and the pass asks for its next repaint a step ahead
     /// only while some are painted; where motion is off they stand still.

@@ -119,11 +119,6 @@ impl HostRequests {
         self.color = None;
     }
 
-    /// Drops the Browse request not taken yet (the file dialog was cancelled).
-    pub fn cancel_path(&mut self) {
-        self.path = None;
-    }
-
     /// Drops the eyedropper request not taken yet.
     pub fn cancel_eyedropper(&mut self) {
         self.eyedropper = None;

@@ -232,14 +232,6 @@ impl<'a> BrushCursor<'a> {
         PaintedCursor::outline(rings)
     }
 
-    /// The screen rect of an aliased tip's cell through `view`, every edge rounded to a multiple of
-    /// `1 / pixels_per_point` so its outline lies on physical pixels at any zoom. `None` for another outline or a
-    /// cell that is not finite. Under a turned view the rect is the axis-aligned box of the mapped corners.
-    pub fn pixel_cell(&self, view: &CanvasView, pixels_per_point: f32) -> Option<Rect> {
-        let BrushTipOutline::Pixels { cell, .. } = &self.tip.outline else { return None };
-        snapped_cell(view, *cell, pixels_per_point)
-    }
-
     /// The aliased tip's cell as a canvas control, for the tool to show beside the hidden pointer; `None` for another
     /// outline.
     pub fn tip_cell(&self) -> Option<TipCell> {
