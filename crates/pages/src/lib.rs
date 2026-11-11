@@ -27,8 +27,6 @@ pub mod range;
 #[cfg(test)]
 mod range_tests;
 pub mod setup;
-#[cfg(test)]
-mod setup_tests;
 #[cfg(feature = "ui")]
 pub mod ui;
 
