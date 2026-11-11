@@ -138,11 +138,14 @@ overflow-checks = false
 opt-level = 2
 
 # The workspace crates whose code runs in every screen-test frame (the framework runtime, the theme's colour maths
-# and the behaviour cores) build at opt-level 1: unoptimised, they made the test binaries several times slower, and
-# opt-level 1 keeps their incremental rebuilds short.
+# and the behaviour cores), and craft-proof, whose tests parse and check whole dictionaries, build at opt-level 1:
+# unoptimised, they made the test binaries several times slower, and opt-level 1 keeps their incremental rebuilds
+# short.
 [profile.dev.package.craft-ui]
 opt-level = 1
 [profile.dev.package.craft-theme]
 opt-level = 1
 [profile.dev.package.craft-behavior]
+opt-level = 1
+[profile.dev.package.craft-proof]
 opt-level = 1

@@ -164,7 +164,8 @@ fn many_pack_languages_keep_the_hyphenation_cache_bounded() {
     std::fs::create_dir_all(&root).unwrap();
     packs::set_packs_dir(Some(root.clone()));
     let start = std::time::Instant::now();
-    for i in 0..3000 {
+    // Four times the cache's bound: every language past the 256th evicts one.
+    for i in 0..1024 {
         let lang =
             ProofLang::from_tag(Some(&format!("q{}{}-{}", (b'a' + (i / 1000) as u8) as char, (b'a' + (i / 100 % 10) as u8) as char, 100 + i % 100)));
         assert!(lang.pack_locale().is_some(), "{lang:?}");

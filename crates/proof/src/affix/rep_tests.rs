@@ -10,7 +10,8 @@ fn rep_table_is_capped_and_drops_oversized_entries() {
     // Bytes, not letters, bound `to`: 31 four-byte letters are 124 bytes.
     let wide = "\u{1D51E}".repeat(MAX_WORD_BYTES / 4 + 1);
     aff += &format!("REP q {}\nREP {} q\nREP q {wide}\n", "z".repeat(1 << 20), "z".repeat(MAX_WORD_BYTES + 1));
-    for i in 0..200_000 {
+    // Twice the cap, under a header that claims far more.
+    for i in 0..2 * MAX_REP_ENTRIES {
         aff += &format!("REP q z{i}\n");
     }
     let d = AffixDict::from_hunspell(&aff, "1\nkot\n", &[]).unwrap();
