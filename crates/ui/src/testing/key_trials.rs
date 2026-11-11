@@ -4,6 +4,7 @@ use crate::runtime::commands::{ChromeCommand, CommandInput, CommandSet as _};
 use crate::runtime::env::RootEnv;
 use crate::runtime::focus::{FocusTarget, KeyUse, request};
 use crate::runtime::frame::{ChromeToggle, take_output};
+use crate::runtime::keys::{intents_of, take_shortcuts};
 use crate::testing::focus::{Stop, egui_focused, named_id, register_stop, widget};
 use crate::testing::input::{key_press, key_repeat};
 use crate::testing::{Frames, trial};
@@ -123,10 +124,10 @@ fn press_k(name: &str) -> (Vec<craft_keymap::Chord>, usize) {
     let mut show = move |ui: &mut Ui| {
         stop(ui, "button", KeyUse::of(Input::Pointer));
         stop(ui, "recorder", KeyUse::RECORDER);
-        let mut intents = super::intents_of(ui.ctx(), Some(stop_id), false);
+        let mut intents = intents_of(ui.ctx(), Some(stop_id), false);
         let chords = intents.take_chords();
         if !chords.is_empty() {
-            let shortcuts = super::take_shortcuts(ui.ctx()).keys.len();
+            let shortcuts = take_shortcuts(ui.ctx()).keys.len();
             *sink.borrow_mut() = (chords, shortcuts);
         }
     };

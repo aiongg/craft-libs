@@ -2,9 +2,9 @@
 
 use super::{CanvasScrollbars, HORIZONTAL};
 use crate::canvas::Canvas;
+use crate::canvas::testing::canvas_story::{StoryDocument, on_canvas_with, story_view};
 use crate::contract::{Bind, Show as _, Validity};
 use crate::runtime::env::Message;
-use crate::testing::canvas_story::{StoryDocument, on_canvas_with, story_view};
 use crate::testing::stage;
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, Target, story};
 use craft_behavior::kurbo::{Point, Rect as DocRect};

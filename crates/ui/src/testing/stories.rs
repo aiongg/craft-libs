@@ -1,9 +1,7 @@
 //! Stories of the kit's stand-in `Block`.
 
-use super::sample::words;
 use super::{StoryData, StoryOutput, story};
-use crate::contract::{Show as _, ShowContainer as _};
-use crate::sections::FooterBar;
+use crate::contract::Show as _;
 use crate::testing::layout::Block;
 use egui::{Ui, Vec2};
 
@@ -13,9 +11,4 @@ const CELL: Vec2 = Vec2::new(40.0, 20.0);
 #[story(Block, covers = [Default])]
 fn block(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     Block::new(CELL).show(ui).into()
-}
-
-#[story(FooterBar, covers = [Default])]
-fn footer_bar(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    FooterBar::body().show(ui, |ui, _| words(ui, 0..1)).into()
 }

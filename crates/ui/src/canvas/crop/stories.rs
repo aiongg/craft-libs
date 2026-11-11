@@ -18,7 +18,7 @@ fn crop() -> CropBox {
 
 /// Shows an overlay as the only canvas control of a canvas and returns its output.
 fn on_canvas(ui: &mut Ui, mut control: impl FnMut(&mut Ui, Rect) -> CropOverlayOutput) -> StoryOutput {
-    crate::testing::canvas_story::on_canvas(ui, |ui, at, _| StoryOutput::from(control(ui, at).edit))
+    crate::canvas::testing::canvas_story::on_canvas(ui, |ui, at, _| StoryOutput::from(control(ui, at).edit))
 }
 
 /// Drags the top left corner towards the middle of the crop by twice the drag threshold.

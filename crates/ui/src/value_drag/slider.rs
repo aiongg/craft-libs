@@ -19,6 +19,8 @@ use std::ops::RangeInclusive;
 
 #[cfg(feature = "testing")]
 mod stories;
+#[cfg(feature = "testing")]
+mod trials;
 
 /// The track the thumb rides on.
 pub(crate) const TRACK: PartKey = PartKey::new("track");

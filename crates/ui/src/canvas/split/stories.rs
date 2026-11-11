@@ -3,9 +3,9 @@
 use super::{DIVIDER, PANE, SplitAt, SplitLayout, SplitViews};
 use crate::canvas::Canvas;
 use crate::canvas::RasterSource as _;
+use crate::canvas::testing::canvas_story::{StoryDocument, show_document};
 use crate::contract::{Bind, ShowContainer as _, Validity};
 use crate::runtime::env::Message;
-use crate::testing::canvas_story::{StoryDocument, show_document};
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use craft_behavior::canvas::zoom;
 use craft_behavior::kurbo::Size;

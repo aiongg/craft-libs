@@ -202,6 +202,3 @@ fn with<R>(ctx: &Context, viewport: ViewportId, f: impl FnOnce(&mut Stage) -> R)
 fn current<R>(ctx: &Context, f: impl FnOnce(&mut Stage) -> R) -> R {
     with(ctx, crate::runtime::egui::pass::current_viewport(ctx), f)
 }
-
-#[cfg(feature = "testing")]
-mod trials;

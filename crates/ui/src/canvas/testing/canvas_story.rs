@@ -1,10 +1,10 @@
 //! The canvas the stories of canvas controls show their control on: a canvas over the [`stage`] with a document under
 //! the control, drawn by [`RasterDisplay`] over the transparency grid's default checkerboard.
 
-use super::{StoryOutput, stage};
 use crate::canvas::{Canvas, PixelRect, RasterDisplay, RasterSource};
 use crate::contract::{Show as _, ShowContainer as _};
 use crate::primitives::{Checker, Revision};
+use crate::testing::{StoryOutput, stage};
 use craft_behavior::geometry::quad::Homography;
 use craft_behavior::kurbo::{Point, Rect as DocRect};
 use craft_behavior::{CanvasView, PixelSize};

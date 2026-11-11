@@ -1,8 +1,8 @@
 //! Stories of the brush overlays: each control on a canvas with a view, as a freehand tool shows it.
 
 use super::{BrushDimensions, BrushResize, BrushResizeOptions, FalloffPreview, TipCell, TipFalloff};
+use crate::canvas::testing::canvas_story::{StoryDocument, on_canvas_view, story_view};
 use crate::contract::Show as _;
-use crate::testing::canvas_story::{StoryDocument, on_canvas_view, story_view};
 use crate::testing::{StoryData, StoryOutput, story};
 use craft_behavior::CanvasView;
 use craft_behavior::kurbo::{Point, Rect as DocRect};
