@@ -24,7 +24,6 @@ pub mod tree;
 mod window_menu;
 mod words;
 
-
 mod commands;
 pub(crate) mod cross_window;
 pub mod native;

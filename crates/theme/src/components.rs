@@ -6,23 +6,6 @@ use super::parts::BySize;
 use super::sizes::Preset;
 use super::values;
 
-/// An override that can't be applied.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum OverrideError {
-    /// A pin on a field that is not a colour.
-    PinNotColor(ComponentField),
-}
-
-impl std::fmt::Display for OverrideError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            OverrideError::PinNotColor(field) => write!(f, "{}: not a colour", field.path()),
-        }
-    }
-}
-
-impl std::error::Error for OverrideError {}
-
 /// Names one component token. Theme files address it by [`ComponentField::path`], e.g.
 /// `"slider.thumb_width"`. Each sets the standard size; the small size keeps its step under it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
