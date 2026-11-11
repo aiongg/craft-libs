@@ -200,11 +200,6 @@ impl Intent {
         Intent::Delete { forward, by, shift: false }
     }
 
-    /// `Delete` of `by` with Shift held.
-    pub const fn shift_delete(forward: bool, by: Granularity) -> Intent {
-        Intent::Delete { forward, by, shift: true }
-    }
-
     /// `SwitchPage` to the next page when `forward`.
     pub const fn switch_page(forward: bool) -> Intent {
         Intent::SwitchPage { forward }

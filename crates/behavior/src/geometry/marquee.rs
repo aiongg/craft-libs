@@ -138,11 +138,6 @@ impl MarqueeGesture {
         Self { pointer: screen, at_press: mods, live: mods, released_shift: false, released_alt: false, start: at, end: at, begun: false }
     }
 
-    /// The mods held at the press, for the host's selection mode (add, subtract).
-    pub fn press_mods(&self) -> Mods {
-        self.at_press
-    }
-
     /// The pointer on screen as last followed.
     pub fn pointer(&self) -> Pos2 {
         self.pointer

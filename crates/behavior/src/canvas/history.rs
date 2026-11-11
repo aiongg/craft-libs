@@ -37,7 +37,6 @@ impl<K> ViewPlace<K> {
 /// history.visit(at(1));
 /// history.leave(at(1));
 /// history.visit(at(2));
-/// # let _ = history.can_go(-1, |_| true);
 /// ```
 #[derive(Clone, Debug, PartialEq)]
 pub struct ViewHistory<K> {
@@ -87,12 +86,6 @@ impl<K: Clone + PartialEq> ViewHistory<K> {
         let current = self.entries.get(self.at).map(|e| &e.key);
         let usable = |i: &usize| self.entries.get(*i).is_some_and(|e| Some(&e.key) != current && exists(&e.key));
         if step < 0 { (0..self.at).rev().find(usable) } else { (self.at.saturating_add(1)..self.entries.len()).find(usable) }
-    }
-
-    /// Whether Go Back (`step` < 0) or Go Forward (`step` > 0) has a place to go to, skipping
-    /// places whose key no longer `exists` (a deleted page): for the menu items' enabled state.
-    pub fn can_go(&self, step: isize, exists: impl Fn(&K) -> bool) -> bool {
-        self.target(step, exists).is_some()
     }
 
     /// Go Back or Go Forward: the place to show, skipping places that no longer exist. Going

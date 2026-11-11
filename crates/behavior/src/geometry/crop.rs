@@ -10,7 +10,7 @@ use kurbo::{Point, Rect, Size, Vec2};
 use serde::{Deserialize, Serialize};
 
 /// Smallest side (document units) a gesture may leave behind.
-pub const MIN_FRAME: f64 = 1.0;
+const MIN_FRAME: f64 = 1.0;
 
 /// The crop frame: a document rect and the angle it is turned by about its centre.
 ///
@@ -169,10 +169,7 @@ impl CropBox {
     pub fn turned_to(&self, grab: f64, to: Point, step: Option<f64>, image: bool) -> Self {
         let sweep = (direction(self.center(), to) - grab).to_degrees();
         let a = if image { self.angle - sweep } else { self.angle + sweep };
-        let angle = normalized_angle(match step {
-            Some(step) if step > 0.0 => (a / step).round() * step,
-            _ => a,
-        });
+        let angle = step.map_or(normalized_angle(a), |step| snap_angle(a, step));
         Self { angle, ..*self }
     }
 
@@ -252,13 +249,29 @@ pub fn turn(p: Point, c: Point, deg: f64) -> Point {
     Point::new(c.x + k * dx - s * dy, c.y + s * dx + k * dy)
 }
 
-/// An angle in degrees brought into (-180, 180]; 0 for anything not finite.
+/// An angle in degrees brought into (-180, 180]; 0 for anything not finite. An angle already in range comes back
+/// exactly.
 pub fn normalized_angle(deg: f64) -> f64 {
     if !deg.is_finite() {
         return 0.0;
     }
-    let a = deg.rem_euclid(360.0);
-    if a > 180.0 { a - 360.0 } else { a }
+    let a = deg % 360.0;
+    if a > 180.0 {
+        a - 360.0
+    } else if a <= -180.0 {
+        a + 360.0
+    } else {
+        a
+    }
+}
+
+/// `deg` on the nearest multiple of `step` degrees, brought into (-180, 180]; a step that is not finite and positive
+/// is ignored.
+pub fn snap_angle(deg: f64, step: f64) -> f64 {
+    if !(step.is_finite() && step > 0.0) {
+        return normalized_angle(deg);
+    }
+    normalized_angle((deg / step).round() * step)
 }
 
 /// The direction of `p` from `c`, in radians.
@@ -624,5 +637,19 @@ impl GuideShow {
             Self::Always => true,
             Self::Never => false,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn angles_wrap_into_the_half_open_turn() {
+        assert_eq!(normalized_angle(-180.0), 180.0, "-180 is 180");
+        assert_eq!(normalized_angle(-0.1), -0.1, "an angle in range comes back exactly");
+        assert_eq!(normalized_angle(f64::NAN), 0.0);
+        assert_eq!(snap_angle(-170.0, 45.0), 180.0, "a snap past -180 wraps");
+        assert_eq!(snap_angle(37.5, 0.0), 37.5, "a step of 0 is ignored");
     }
 }

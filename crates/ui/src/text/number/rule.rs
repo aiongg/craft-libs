@@ -2,7 +2,7 @@
 
 use super::value::NumberValue;
 use super::{DEFAULT_STEP, ON_GRID};
-use craft_behavior::nav::LARGE_STEPS;
+use craft_behavior::nav::{LARGE_STEPS, snap_to_step};
 use craft_behavior::{Codec, MoveMods, NotAValue, NumberCodec, decimals_for_step};
 use std::borrow::Cow;
 use std::marker::PhantomData;
@@ -72,7 +72,7 @@ impl Rule {
 
     /// `value` on the nearest multiple of the step.
     fn snap(&self, value: f64) -> f64 {
-        round_to((value / self.step).round() * self.step, decimals_for_step(self.step))
+        round_to(snap_to_step(value, self.step, 0.0, f64::NEG_INFINITY..=f64::INFINITY), decimals_for_step(self.step))
     }
 }
 

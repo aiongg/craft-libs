@@ -42,9 +42,6 @@ bitflags! {
 }
 
 impl Sense {
-    /// The bits that make a shape a wheel taker; `WheelTaker::for_sense` reads them.
-    pub const WHEELS: Sense = Sense::WHEEL.union(Sense::WHEEL_X).union(Sense::WHEEL_Y).union(Sense::WHEEL_ZOOM);
-
     /// The bits that make a shape a press candidate.
     pub const PRESS: Sense = Sense::CLICK.union(Sense::DRAG);
 

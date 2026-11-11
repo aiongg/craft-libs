@@ -20,7 +20,9 @@ use crate::runtime::focus::{ActivateKeys, FocusShape, KeepKeys, KeyUse};
 use crate::style::{ComponentStyle, DataColor, FocusLook, StyleColor, StyleCx, TrackLook};
 use craft_behavior::nav::{LARGE_STEPS, StepResult, ValueAxes, ValueSteps, step_value};
 use craft_behavior::part::PartRef;
-use craft_behavior::{HitLevel, HitPriority, Metrics, Mixed, MoveMods, NavMove, PartKey, PressPhase, PressState, Sense, Wheel, wheel_step};
+use craft_behavior::{
+    HitLevel, HitPriority, Metrics, Mixed, MoveMods, NavMove, PartKey, PressPhase, PressState, Sense, Wheel, wheel_step, wrap_value,
+};
 use craft_keymap::Mods;
 use craft_theme::{Rgba, Stateful, States};
 use egui::{Pos2, Rangef, Rect, Vec2, pos2};
@@ -278,7 +280,7 @@ impl<const N: usize> RowRules<'_, N> {
 
     /// `value` in a wrapping row: from the start of `scale`, less than a period on.
     fn wrapped(&self, scale: &Scale, value: f64) -> f64 {
-        self.wrap.map_or(value, |period| scale.min + (value - scale.min).rem_euclid(period))
+        self.wrap.map_or(value, |period| wrap_value(value, scale.min, period))
     }
 
     /// `delta` as the short way round a wrapping row, in `-period / 2..=period / 2`.
@@ -349,10 +351,7 @@ impl<const N: usize> RowRules<'_, N> {
     /// to where the value is, counted from the first thumb forward.
     fn aim(&self, values: &[f64; N], i: usize, value: f64) -> f64 {
         match (self.anchored, self.wrap) {
-            (Some(anchor), Some(period)) if i != anchor.first => {
-                let base = values[anchor.first];
-                base + (value - base).rem_euclid(period)
-            }
+            (Some(anchor), Some(period)) if i != anchor.first => wrap_value(value, values[anchor.first], period),
             (Some(_), _) => values[i] + self.short(value - values[i]),
             _ => value,
         }

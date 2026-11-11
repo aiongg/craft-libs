@@ -32,9 +32,4 @@ impl CanvasTransform {
     pub fn to_layer(&self, canvas: Pos2) -> Pos2 {
         Pos2::new(canvas.x * self.scale + self.offset.x, canvas.y * self.scale + self.offset.y)
     }
-
-    /// The canvas point under a position in the layer.
-    pub fn to_canvas(&self, layer: Pos2) -> Pos2 {
-        Pos2::new((layer.x - self.offset.x) / self.scale, (layer.y - self.offset.y) / self.scale)
-    }
 }

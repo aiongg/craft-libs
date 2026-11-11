@@ -377,7 +377,7 @@ impl OutlineDraft {
 
     /// Whether a press at `at` would close the outline (the tool's close cursor or ring): the
     /// same test as [`press`](Self::press).
-    pub fn hits_start(&self, at: DraftPoint) -> bool {
+    fn hits_start(&self, at: DraftPoint) -> bool {
         if self.points.len() < 3 {
             return false;
         }

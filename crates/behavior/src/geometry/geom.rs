@@ -1,31 +1,7 @@
-//! Plane geometry the canvas overlays share, in document or screen units: point in polygon,
-//! segment clipping, a vector's angle, and a polygon carried through a projective map with the
-//! part behind the camera cut off. Pure maths beside [`quad`](super::quad), on kurbo types.
-//!
-//! Curve flattening is kurbo's; the projective map of a box is
-//! [`quad::Homography`](super::quad::Homography).
+//! Plane geometry the canvas overlays share, in document or screen units: segment clipping. Pure maths beside
+//! [`quad`](super::quad), on kurbo types; curve flattening is kurbo's.
 
-use kurbo::{Point, Rect, Vec2};
-
-use super::quad::Homography;
-
-/// The least homogeneous depth `w` a projected point keeps: points at or behind a perspective
-/// camera would flip through infinity and draw long lines across the view.
-pub const NEAR_W: f64 = 0.5;
-
-/// Whether `p` is inside the polygon `points` (closed implicitly) by the nonzero winding rule,
-/// so a self-crossing outline is filled where it winds.
-pub fn point_in_polygon(p: Point, points: &[Point]) -> bool {
-    let n = points.len();
-    let mut winding = 0;
-    for i in 0..n {
-        let (a, b) = (points[i], points[(i + 1) % n]);
-        if (a.y <= p.y) != (b.y <= p.y) && a.x + (b.x - a.x) * (p.y - a.y) / (b.y - a.y) < p.x {
-            winding += if b.y > a.y { 1 } else { -1 };
-        }
-    }
-    winding != 0
-}
+use kurbo::{Point, Rect};
 
 /// The part of segment `a`–`b` inside `rect` (Liang–Barsky), or `None` when none is.
 pub fn clip_segment(a: Point, b: Point, rect: Rect) -> Option<(Point, Point)> {
@@ -44,39 +20,4 @@ pub fn clip_segment(a: Point, b: Point, rect: Rect) -> Option<(Point, Point)> {
         }
     }
     (t0 <= t1).then(|| (a + d * t0, a + d * t1))
-}
-
-/// `v`'s angle from the x axis in degrees, −180 to 180, positive towards +y (clockwise on a
-/// y-down screen).
-pub fn angle_deg(v: Vec2) -> f64 {
-    v.y.atan2(v.x).to_degrees()
-}
-
-/// The closed polygon `points` through `m`, cut at `w = NEAR_W` before the perspective divide, so
-/// only the part in front of the camera is drawn; empty when none of it is. Points that come out
-/// non-finite are dropped.
-pub fn project_clipped(m: &Homography, points: &[Point]) -> Vec<Point> {
-    let homogeneous: Vec<[f64; 3]> = points
-        .iter()
-        .map(|p| {
-            let row = |i: usize| {
-                let r = m.row(i);
-                r[0] * p.x + r[1] * p.y + r[2]
-            };
-            [row(0), row(1), row(2)]
-        })
-        .collect();
-    let mut out = Vec::new();
-    for (i, a) in homogeneous.iter().enumerate() {
-        let b = &homogeneous[(i + 1) % homogeneous.len()];
-        let (a_in, b_in) = (a[2] >= NEAR_W, b[2] >= NEAR_W);
-        if a_in {
-            out.push(*a);
-        }
-        if a_in != b_in {
-            let t = (NEAR_W - a[2]) / (b[2] - a[2]);
-            out.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, NEAR_W]);
-        }
-    }
-    out.iter().map(|q| Point::new(q[0] / q[2], q[1] / q[2])).filter(|q| q.x.is_finite() && q.y.is_finite()).collect()
 }

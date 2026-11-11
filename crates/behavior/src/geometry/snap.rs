@@ -56,19 +56,6 @@ impl SnapTarget {
     pub const fn new(along: Axis, position: f64, kind: SnapKind) -> Self {
         SnapTarget { along, position, kind, span: None }
     }
-
-    /// The target with its extent along its line, for drawing a smart guide.
-    pub const fn with_span(mut self, from: f64, to: f64) -> Self {
-        self.span = Some((from, to));
-        self
-    }
-}
-
-impl SnapKind {
-    /// Drawn as a smart guide (magenta) rather than snapped silently.
-    pub fn is_smart(self) -> bool {
-        matches!(self, SnapKind::LayerEdge | SnapKind::LayerCenter)
-    }
 }
 
 /// One snap position on one axis.
@@ -179,7 +166,7 @@ impl SnapTargets {
 
     /// Add a rectangle's four edges as `edge` targets and its two centre lines as `center`
     /// targets, each spanning the rectangle.
-    pub fn add_rect(&mut self, rect: Rect, edge: SnapKind, center: SnapKind) {
+    fn add_rect(&mut self, rect: Rect, edge: SnapKind, center: SnapKind) {
         let r = rect.abs();
         let (xs, ys) = ((r.y0, r.y1), (r.x0, r.x1));
         for (along, position, kind, span) in [
@@ -323,15 +310,6 @@ impl SnapTargets {
             }
         }
         (delta, lines)
-    }
-
-    /// `value` across the lines that run `along` an axis, snapped to the nearest target within `tolerance`, for a
-    /// guide drag or a ruler's snap closure.
-    pub fn snap_axis(&self, along: Axis, value: f64, tolerance: f64) -> (f64, Option<SnapLine>) {
-        match self.nearest(along, value, tolerance) {
-            Some(t) => (t.position, Some(SnapLine { along, position: t.position, kind: t.kind, span: t.span })),
-            None => (value, None),
-        }
     }
 }
 

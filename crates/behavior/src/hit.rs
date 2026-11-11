@@ -86,7 +86,7 @@ impl HitShape {
 
     /// Whether `point` hits the shape grown to be at least `across` wide and high: the hit area of a part is never
     /// smaller than the pointer's target size.
-    pub fn hit_across(&self, point: Pos2, across: f32) -> bool {
+    fn hit_across(&self, point: Pos2, across: f32) -> bool {
         let reach = LINE_REACH.max(across / 2.0);
         match self {
             HitShape::Rect(rect) => {

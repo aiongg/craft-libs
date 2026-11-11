@@ -20,7 +20,6 @@ pub struct ValueDrag {
     mapping: Mapping,
     axis: Axis,
     range: RangeInclusive<f64>,
-    wrap_range: bool,
     warp: bool,
     hide_cursor: bool,
     fine: f64,
@@ -41,30 +40,12 @@ impl ValueDrag {
     /// A track whose `start` lies after its `end` runs backwards, as a vertical slider's does, and a range whose start
     /// exceeds its end maps the track the other way; the value stays within the range either way.
     pub fn absolute(track: Range<f32>, range: RangeInclusive<f64>) -> Self {
-        ValueDrag {
-            mapping: Mapping::Absolute { track },
-            axis: Axis::X,
-            range,
-            wrap_range: false,
-            warp: false,
-            hide_cursor: false,
-            fine: FINE,
-            coarse: None,
-        }
+        ValueDrag { mapping: Mapping::Absolute { track }, axis: Axis::X, range, warp: false, hide_cursor: false, fine: FINE, coarse: None }
     }
 
     /// The value changes by `rate` units per point of travel from the press. Vertical travel upwards increases it.
     pub fn relative(rate: f64, range: RangeInclusive<f64>) -> Self {
-        ValueDrag {
-            mapping: Mapping::Relative { rate },
-            axis: Axis::X,
-            range,
-            wrap_range: false,
-            warp: false,
-            hide_cursor: false,
-            fine: FINE,
-            coarse: None,
-        }
+        ValueDrag { mapping: Mapping::Relative { rate }, axis: Axis::X, range, warp: false, hide_cursor: false, fine: FINE, coarse: None }
     }
 
     /// The axis the pointer travels on; the default is horizontal.
@@ -83,12 +64,6 @@ impl ValueDrag {
     /// larger step has no meaning, so Shift changes nothing.
     pub const fn coarse(mut self, factor: f64) -> Self {
         self.coarse = Some(factor);
-        self
-    }
-
-    /// Wraps the value past either end of the range instead of stopping there, as a hue dial does.
-    pub const fn wrap_range(mut self, on: bool) -> Self {
-        self.wrap_range = on;
         self
     }
 
@@ -196,8 +171,17 @@ impl ValueDrag {
 
     fn fit(&self, value: f64) -> f64 {
         let (low, high) = (self.range.start().min(*self.range.end()), self.range.start().max(*self.range.end()));
-        if self.wrap_range && high > low { low + (value - low).rem_euclid(high - low) } else { value.clamp(low, high) }
+        value.clamp(low, high)
     }
+}
+
+/// `value` moved by whole periods into `low..low + period`, as a wrapping slider or dial holds it. A period that is
+/// not finite and positive leaves the value as it is.
+pub fn wrap_value(value: f64, low: f64, period: f64) -> f64 {
+    if !(period.is_finite() && period > 0.0) {
+        return value;
+    }
+    low + (value - low).rem_euclid(period)
 }
 
 /// The pointer warps of one drag. The OS reports the pointer at its new place a frame after a warp, so a warp
@@ -262,5 +246,11 @@ mod tests {
         assert_eq!(at(&mut warp, landed + Vec2::new(10.0, 0.0)), Some(209.0));
         assert_eq!(scrub.warp_by(pos2(250.0, 100.0), bounds), None, "no warp away from the edges");
         assert_eq!(ValueDrag::relative(1.0, 0.0..=1.0).warp_by(edge, bounds), None, "a drag that does not warp stays put");
+    }
+
+    #[test]
+    fn wrap_value_brings_values_into_one_period() {
+        assert_eq!(wrap_value(-10.0, 0.0, 360.0), 350.0);
+        assert_eq!(wrap_value(5.0, 0.0, 0.0), 5.0, "a period of 0 leaves the value, not NaN");
     }
 }

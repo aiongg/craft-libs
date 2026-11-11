@@ -10,7 +10,7 @@ use crate::primitives::{ContentPainterCx, PaintShape};
 use crate::runtime::access::Name;
 use crate::runtime::focus::{ActivateKeys, KeepKeys, KeyUse};
 use crate::style::{ComponentStyle, FocusLook, StyleCx};
-use craft_behavior::nav::{LARGE_STEPS, STEP_SHARE, StepResult, ValueAxes, ValueSteps, step_value};
+use craft_behavior::nav::{LARGE_STEPS, STEP_SHARE, StepResult, ValueAxes, ValueSteps, snap_to_step, step_value};
 use craft_behavior::{
     AccessAction, Axis, HitLevel, HitPriority, Metrics, Mixed, MoveMods, NavMove, PartKey, PressPhase, PressState, Sense, ValueDrag, Wheel,
     decimals_for_step, wheel_step,
@@ -154,11 +154,7 @@ impl<'a> PointPicker<'a> {
     /// `value` on `axis` in its range, and on `grid`.
     fn settle(&self, axis: usize, value: f64, grid: Option<f64>) -> f64 {
         let (min, max) = (*self.ranges()[axis].start(), *self.ranges()[axis].end());
-        let value = value.clamp(min, max);
-        match grid {
-            Some(step) => (min + ((value - min) / step).round() * step).min(max),
-            None => value,
-        }
+        grid.map_or(value.clamp(min, max), |step| snap_to_step(value, step, min, min..=max))
     }
 
     /// Where the point stands on each axis: a mixed axis stands in the middle of its range.

@@ -86,7 +86,7 @@ impl CellRange<u32> {
     }
 
     /// Whether the range is one cell.
-    pub fn is_single_cell(&self) -> bool {
+    fn is_single_cell(&self) -> bool {
         self.top() == self.bottom() && self.left() == self.right()
     }
 
@@ -232,7 +232,7 @@ impl<'a, K: Value> CellSpace<'a, K> {
     }
 
     /// The rectangle `r` by position, normal (the first row on top); `None` when an end row left the order.
-    pub fn place_range(&self, r: &CellRange<K>) -> Option<CellRange<u32>> {
+    fn place_range(&self, r: &CellRange<K>) -> Option<CellRange<u32>> {
         let a = u32::try_from(self.rows.index_of(&r.first)?).ok()?;
         let b = u32::try_from(self.rows.index_of(&r.last)?).ok()?;
         Some(CellRange::rect(a.min(b), a.max(b), r.columns.start, r.columns.end.saturating_sub(1)))
@@ -456,12 +456,6 @@ impl<K: Value> CellSelection<K> {
     /// selection.
     pub fn head(&self, space: &CellSpace<'_, K>) -> Option<CellAt<u32>> {
         Some(Placed::of(self, space)?.head())
-    }
-
-    /// One cell, or one merged cell, selected: Enter and Tab then move the selection rather than the active cell
-    /// inside it ([`advance`](Self::advance)).
-    pub fn is_single_cell(&self, space: &CellSpace<'_, K>) -> bool {
-        Placed::of(self, space).is_some_and(|placed| placed.is_single_cell(space))
     }
 
     /// A click, or an arrow's landing cell: `c` alone (its merged cell whole, the active cell at the merge's

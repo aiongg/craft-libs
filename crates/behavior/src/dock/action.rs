@@ -469,11 +469,6 @@ impl<P> DockPlacement<P> {
         Self::Tab { before }
     }
 
-    /// Builds [`DockPlacement::SplitSized`].
-    pub fn split_sized(zone: DockSide, size: SplitSize, outer: SplitSize) -> Self {
-        Self::SplitSized { zone, size, outer }
-    }
-
     /// Builds [`DockPlacement::Group`].
     pub fn group(below: bool, height: Option<f32>) -> Self {
         Self::Group { below, height }

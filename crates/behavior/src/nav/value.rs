@@ -2,6 +2,7 @@
 
 use crate::intent::{MoveMods, NavMove};
 use crate::wheel::Wheel;
+use std::ops::RangeInclusive;
 
 /// The axes a single-value control reads moves on.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -116,4 +117,25 @@ pub fn wheel_step(steps: &ValueSteps, axes: ValueAxes, wheel: &Wheel, rtl: bool)
     };
     let delta = steps.notch * scale * f64::from(along.signum());
     StepResult::Set((steps.value + delta).clamp(steps.min, steps.max))
+}
+
+/// How near a stop, in steps, a value counts as on it.
+const ON_STOP: f64 = 1e-9;
+
+/// `value` clamped to `range`, then on the nearest of the stops `origin + k * step` and the ends of `range`; a tie
+/// goes to the larger stop. A value on a stop comes back unchanged. A value that is not finite, or a step that is not
+/// finite and positive, comes back only clamped.
+pub fn snap_to_step(value: f64, step: f64, origin: f64, range: RangeInclusive<f64>) -> f64 {
+    let (low, high) = (range.start().min(*range.end()), range.start().max(*range.end()));
+    let value = value.clamp(low, high);
+    if !(value.is_finite() && step.is_finite() && step > 0.0) {
+        return value;
+    }
+    let at = (value - origin) / step;
+    if (at - at.round()).abs() < ON_STOP {
+        return value;
+    }
+    let below = (origin + at.floor() * step).max(low);
+    let above = (origin + at.ceil() * step).min(high);
+    if value - below < above - value { below } else { above }
 }

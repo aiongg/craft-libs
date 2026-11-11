@@ -150,7 +150,7 @@ pub struct TypeAhead {
 
 impl TypeAhead {
     /// The seconds after which the next letter starts a new prefix.
-    pub const RESET_AFTER: f64 = 1.0;
+    const RESET_AFTER: f64 = 1.0;
 
     /// An empty buffer.
     pub const fn new() -> Self {

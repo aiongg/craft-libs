@@ -52,9 +52,4 @@ impl Anchor9 {
         let index = Anchor9::ALL.iter().position(|point| *point == self).unwrap_or(4);
         (index % 3, index / 3)
     }
-
-    /// The point in column `column` and row `row`; each is limited to 0 to 2.
-    pub fn from_cell(column: usize, row: usize) -> Anchor9 {
-        Anchor9::ALL[row.min(2) * 3 + column.min(2)]
-    }
 }

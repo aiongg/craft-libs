@@ -6,7 +6,7 @@ use crate::primitives::{Draw, PaintShape, TextRun};
 use crate::runtime::env::Label;
 use crate::style::{StyleColor, StyleCx, TextLook, TrackLook, TypeRole};
 use craft_behavior::intent::{MoveMods, NavMove};
-use craft_behavior::nav::{LARGE_STEPS, STEP_SHARE, StepResult, ValueAxes, ValueSteps, step_value};
+use craft_behavior::nav::{LARGE_STEPS, STEP_SHARE, StepResult, ValueAxes, ValueSteps, snap_to_step, step_value};
 use craft_behavior::{Flow, PartKey, PartRef, PressPhase, PressState, ValueDrag, Wheel, wheel_step};
 use craft_theme::{Rgba, Stateful, States};
 use egui::{CornerRadius, Pos2, Rangef, Rect, Vec2};
@@ -253,11 +253,6 @@ pub(crate) struct Scale {
     kind: SliderScale,
 }
 
-/// Whether a count of steps from the start is a whole number, allowing for rounding.
-fn on_stop(at: f64) -> bool {
-    (at - at.round()).abs() < 1e-9
-}
-
 /// One Page key's change along a log track: a tenth of the track.
 const LARGE_POSITION: f64 = 0.1;
 
@@ -318,14 +313,7 @@ impl Scale {
     /// on a stop stays as it is.
     pub fn snap(&self, value: f64) -> f64 {
         let value = self.place(value);
-        let Some(step) = self.step else { return value };
-        let at = (value - self.min) / step;
-        if value == self.max || on_stop(at) {
-            return value;
-        }
-        let below = (self.min + at.floor() * step).min(self.max);
-        let above = (below + step).min(self.max);
-        if value - below < above - value { below } else { above }
+        self.step.map_or(value, |step| snap_to_step(value, step, self.min, self.min..=self.max))
     }
 
     /// `value` as a track's value text: in the step's decimals, or in one decimal without a step.

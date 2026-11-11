@@ -12,6 +12,7 @@ use super::zoom_motion::{HoldZoom, ZoomDrag};
 use super::{CanvasTool, ToolAction, ToolContext, ToolKey, ToolPath, ToolPointer};
 use crate::primitives::Draw;
 use craft_behavior::canvas::zoom;
+use craft_behavior::geometry::crop::normalized_angle;
 use craft_behavior::kurbo::Size;
 use craft_behavior::{CancelReason, CanvasView, Cursor, PaintedCursor, ZoomLadder};
 use craft_keymap::Mods;
@@ -73,8 +74,8 @@ impl ViewCommands {
             ViewCommands::ActualPixels => {
                 zoom::about(view, view.rect.center(), ZoomLadder::clamp(1.0, size), false, pixels_per_point);
             }
-            ViewCommands::RotateClockwise => view.rotation = ViewTurn::wrap_deg(view.rotation + ROTATE_STEP_DEG),
-            ViewCommands::RotateCounterclockwise => view.rotation = ViewTurn::wrap_deg(view.rotation - ROTATE_STEP_DEG),
+            ViewCommands::RotateClockwise => view.rotation = normalized_angle(view.rotation + ROTATE_STEP_DEG),
+            ViewCommands::RotateCounterclockwise => view.rotation = normalized_angle(view.rotation - ROTATE_STEP_DEG),
             ViewCommands::ResetRotation => view.rotation = 0.0,
         }
         *view != before

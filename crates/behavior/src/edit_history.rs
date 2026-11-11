@@ -108,16 +108,6 @@ impl<T: Value> EditHistory<T> {
         Some(entry.value)
     }
 
-    /// The name of the step an undo would take back ("Opacity" for "Undo Opacity").
-    pub fn undo_name(&self) -> Option<&str> {
-        self.undo.last().map(|entry| &*entry.name)
-    }
-
-    /// The name of the step a redo would apply.
-    pub fn redo_name(&self) -> Option<&str> {
-        self.redo.last().map(|entry| &*entry.name)
-    }
-
     /// An undo would change something.
     pub fn can_undo(&self) -> bool {
         !self.undo.is_empty()
@@ -151,7 +141,6 @@ mod tests {
 
         assert_eq!(history.take_back(), Some(1), "the value before the newest step");
         assert!(history.can_redo(), "redo is as it was");
-        assert_eq!(history.redo_name(), Some("Fill"));
         let mut now = 1;
         assert!(history.step(&mut now, Step::Undo));
         assert_eq!(now, 0, "the undo takes the step before the one taken back");

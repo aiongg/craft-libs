@@ -101,3 +101,13 @@ fn spatial_moves_go_to_the_nearest_item_in_that_direction() {
     assert_eq!(go(&mut state, NavMove::Up), NavStep::Moved(0));
     assert_eq!(go(&mut state, NavMove::Up), NavStep::Stay);
 }
+
+#[test]
+fn snap_to_step_keeps_stops_and_range_ends() {
+    assert_eq!(snap_to_step(9.5, 4.0, 0.0, 0.0..=10.0), 10.0, "the end of the range is a stop");
+    assert_eq!(snap_to_step(9.0, 4.0, 0.0, 0.0..=10.0), 10.0, "a tie goes to the larger stop");
+    assert_eq!(snap_to_step(-2.5, 1.0, 0.0, f64::NEG_INFINITY..=f64::INFINITY), -2.0, "ties go up for negatives too");
+    assert_eq!(snap_to_step(0.3, 0.1, 0.0, 0.0..=1.0), 0.3, "a value on a stop comes back unchanged");
+    assert_eq!(snap_to_step(4.9, 2.0, 0.0, 1.0..=10.0), 4.0, "the grid starts at the origin, not the range");
+    assert_eq!(snap_to_step(12.0, 0.0, 0.0, 0.0..=10.0), 10.0, "a step of 0 only clamps");
+}

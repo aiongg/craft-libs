@@ -10,8 +10,9 @@ use crate::primitives::{PaintShape, StrokeWidth};
 use crate::runtime::env::UnitKind;
 use crate::runtime::focus::{ActivateKeys, KeepKeys, KeyUse};
 use crate::style::{ComponentStyle, FocusLook, StyleColor, StyleCx, SurfaceLook};
-use craft_behavior::nav::{LARGE_STEPS, StepResult, ValueAxes, ValueSteps, step_value};
-use craft_behavior::{HitShape, Metrics, MoveMods, NavMove, PartKey, PressPhase, Sense, Wheel, decimals_for_step, wheel_step};
+use craft_behavior::geometry::crop::snap_angle;
+use craft_behavior::nav::{LARGE_STEPS, StepResult, ValueAxes, ValueSteps, snap_to_step, step_value};
+use craft_behavior::{HitShape, Metrics, MoveMods, NavMove, PartKey, PressPhase, Sense, Wheel, decimals_for_step, wheel_step, wrap_value};
 use craft_theme::{Stateful, States};
 use egui::{CornerRadius, Pos2, Rect, Vec2};
 use std::ops::RangeInclusive;
@@ -137,13 +138,10 @@ impl<'a> AngleDial<'a> {
         self.wrap.unwrap_or_else(|| (max - min - TURN).abs() <= TURN_TOLERANCE)
     }
 
-    /// `value` on the nearest stop of the grid of `step`, in the range: a multiple of the step from the start, or the
-    /// end.
+    /// `value` on the nearest stop of the grid of `step` from the range's start, in the range.
     fn snap(&self, value: f64, step: f64) -> f64 {
         let (min, max) = self.bounds();
-        let value = value.clamp(min, max);
-        let stop = (min + ((value - min) / step).round() * step).min(max);
-        if (max - value).abs() < (stop - value).abs() { max } else { stop }
+        snap_to_step(value, step, min, min..=max)
     }
 
     /// The value `delta` degrees from `value` (`None`: mixed, which steps from the range's start), brought back into
@@ -154,7 +152,7 @@ impl<'a> AngleDial<'a> {
         let (min, max) = self.bounds();
         let target = value.unwrap_or(min) + delta;
         let span = max - min;
-        let wrapped = if self.wraps() && span > 0.0 && !(min..=max).contains(&target) { min + (target - min).rem_euclid(span) } else { target };
+        let wrapped = if self.wraps() && !(min..=max).contains(&target) { wrap_value(target, min, span) } else { target };
         self.snap(wrapped, if fine { self.step_size() / LARGE_STEPS } else { self.step_size() })
     }
 
@@ -222,7 +220,7 @@ impl Pointing {
         }
         let mut angle = self.orientation.angle_of(offset);
         if snap {
-            angle = (angle / OCTANT).round() * OCTANT;
+            angle = snap_angle(angle, OCTANT);
         }
         let current = current.unwrap_or(self.min);
         let nearest = (-2..=2)
@@ -231,7 +229,7 @@ impl Pointing {
             .min_by(|a, b| (a - current).abs().total_cmp(&(b - current).abs()));
         Some(match nearest {
             Some(value) => value,
-            None if self.wraps && self.max - self.min < TURN => self.min + (angle - self.min).rem_euclid(self.max - self.min),
+            None if self.wraps && self.max - self.min < TURN => wrap_value(angle, self.min, self.max - self.min),
             None => angle.clamp(self.min, self.max),
         })
     }

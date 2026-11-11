@@ -140,7 +140,7 @@ impl LineIndex {
     }
 
     /// One line per size, in order; the lines at `default` are not stored.
-    pub fn from_sizes(sizes: impl IntoIterator<Item = f32>, default: f32) -> Self {
+    fn from_sizes(sizes: impl IntoIterator<Item = f32>, default: f32) -> Self {
         let default_size = f64::from(default.max(0.0));
         let mut custom = Vec::new();
         let mut count = 0u32;

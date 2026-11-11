@@ -12,6 +12,7 @@ use crate::primitives::{PaintShape, StrokeWidth};
 use crate::runtime::env::{Env, Label};
 use crate::runtime::focus::KeyUse;
 use crate::style::{ComponentStyle, StyleColor, StyleCx};
+use craft_behavior::geometry::crop::{normalized_angle, snap_angle};
 use craft_behavior::{CancelReason, CanvasView, CursorIcon, HitLevel, HitPriority, HitShape, Metrics, PartKey, PressPhase, Sense};
 use egui::{Align2, Pos2, Rect, Response, Ui, Vec2};
 
@@ -146,8 +147,7 @@ impl Component for RotateView<'_> {
         let flip = self.flip_x;
         let angle = |pointer: Pos2, snap: bool| {
             let raw = if flip { -pointer_deg(pointer, center) } else { pointer_deg(pointer, center) };
-            let raw = if snap { ViewTurn::snap_deg(raw, Self::SNAP_DEG) } else { raw };
-            ViewTurn::wrap_deg(raw)
+            if snap { snap_angle(raw, Self::SNAP_DEG) } else { normalized_angle(raw) }
         };
         let press = cx.part(RIM).press;
         let snap = press.mods.shift;
@@ -171,7 +171,7 @@ impl Component for RotateView<'_> {
         {
             let step = if mods.shift { Self::SNAP_DEG } else { 1.0 };
             let sign = if direction.x > 0.0 || direction.y < 0.0 { 1.0 } else { -1.0 };
-            let next = ViewTurn::wrap_deg(shown + sign * step * if flip { -1.0 } else { 1.0 });
+            let next = normalized_angle(shown + sign * step * if flip { -1.0 } else { 1.0 });
             cx.set(next);
         }
     }
@@ -226,39 +226,14 @@ impl ViewTurn {
         if !angle.is_finite() {
             angle = self.start_rotation;
         }
-        if snap {
-            angle = Self::snap_deg(angle, RotateView::SNAP_DEG);
-        }
-        Self::wrap_deg(angle)
+        if snap { snap_angle(angle, RotateView::SNAP_DEG) } else { normalized_angle(angle) }
     }
 
     /// The change of the view's rotation for a pointer turn of `delta` screen degrees (clockwise positive). A
     /// mirrored view turns the other way on screen for the same angle, so the sign flips to keep the image under the
     /// pointer.
     pub fn screen_delta(delta: f64, flip_x: bool) -> f64 {
-        let d = Self::wrap_deg(delta);
-        if flip_x { Self::wrap_deg(-d) } else { d }
-    }
-
-    /// `a` degrees wrapped into `(-180, 180]`; not a finite number gives 0.
-    pub fn wrap_deg(a: f64) -> f64 {
-        if !a.is_finite() {
-            return 0.0;
-        }
-        let mut x = a % 360.0;
-        if x > 180.0 {
-            x -= 360.0;
-        } else if x <= -180.0 {
-            x += 360.0;
-        }
-        x
-    }
-
-    /// The nearest multiple of `step` degrees, wrapped; a step that is not positive is ignored.
-    pub fn snap_deg(a: f64, step: f64) -> f64 {
-        if !(step.is_finite() && step > 0.0) {
-            return Self::wrap_deg(a);
-        }
-        Self::wrap_deg((a / step).round() * step)
+        let d = normalized_angle(delta);
+        if flip_x { normalized_angle(-d) } else { d }
     }
 }

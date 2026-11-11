@@ -177,11 +177,6 @@ impl GridCursor {
     pub fn measured(&self) -> &GridMeasure {
         &self.measured
     }
-
-    /// The height the rows took last pass, gaps included.
-    pub fn last_height(&self) -> f32 {
-        self.last_rows.iter().sum::<f32>() + self.gap.y * self.last_rows.len().saturating_sub(1) as f32
-    }
 }
 
 #[cfg(test)]

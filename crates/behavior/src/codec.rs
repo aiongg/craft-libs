@@ -187,7 +187,7 @@ pub fn decimals_for_step(step: f64) -> usize {
 }
 
 /// The most places `decimals_for_step` reports.
-pub const MAX_STEP_DECIMALS: usize = 12;
+const MAX_STEP_DECIMALS: usize = 12;
 
 /// How far a scaled step may sit from a whole number, relative to its size, and still count as whole.
 const STEP_TOLERANCE: f64 = 1e-9;

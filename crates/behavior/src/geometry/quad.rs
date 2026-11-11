@@ -218,27 +218,6 @@ impl BoxRules {
         self
     }
 
-    /// The rules with `degrees` as the angle ⇧ snaps a rotation to.
-    pub fn with_rotate_step(mut self, degrees: f64) -> BoxRules {
-        self.rotate_step = degrees;
-        self
-    }
-
-    /// The rules of a box that only resizes and moves: a selection frame (CadCraft's and GridCraft's
-    /// rectangle selections). `mode` [`TransformMode::Free`],
-    /// `scale` [`ScaleRule::Free`] (corners stretch, ⇧ keeps the proportions, edges stretch their
-    /// one axis, as VectorCraft and DesignCraft), `aspect_linked` true, `allow` everything off (no
-    /// rotate, skew or distort: the outside and ⌘-drags only scale), `rotate_step` 15.
-    pub fn resize_only() -> BoxRules {
-        BoxRules {
-            mode: TransformMode::Free,
-            scale: ScaleRule::Free,
-            aspect_linked: true,
-            allow: BoxAllow { rotate: false, skew: false, distort: false },
-            rotate_step: 15.0,
-        }
-    }
-
     /// The mode drags follow: a mode the content refuses scales as Free Transform does.
     pub fn effective_mode(&self) -> TransformMode {
         let refused = match self.mode {
@@ -267,7 +246,7 @@ impl BoxRules {
     /// ([`ScaleRule::Free`]) or an unlinked aspect ratio turns ⇧ over on corners and edges. Mode
     /// keys ([`TransformMode::Distort`], [`TransformMode::Perspective`]) are not added here: they
     /// are part of [`drag_kind`](Self::drag_kind). [`drag`] acts on these modifiers.
-    pub fn drag_modifiers(&self, part: BoxPart, mods: Mods) -> Mods {
+    fn drag_modifiers(&self, part: BoxPart, mods: Mods) -> Mods {
         let mut mods = mods;
         // ⌘-drags the content refuses scale like plain drags, ⌥ and ⇧ keeping their meaning.
         match part {
@@ -658,25 +637,6 @@ impl BoxState {
         d.x.abs() <= scale * 1e-9 && d.y.abs() <= scale * 1e-9
     }
 
-    /// The affine map taking `rect`'s corners to the box; `None` once the box is distorted out of a
-    /// parallelogram (Distort, Perspective), when a host maps through the quad instead.
-    pub fn affine_from(&self, rect: Rect) -> Option<Affine> {
-        let (w, h) = (rect.width(), rect.height());
-        if w <= 0.0 || h <= 0.0 {
-            return None;
-        }
-        let q = &self.quad;
-        let tol = 1e-3 * (1.0 + w.max(h));
-        let d = (q[0].to_vec2() + q[2].to_vec2()) - (q[1].to_vec2() + q[3].to_vec2());
-        if d.x.abs() > tol || d.y.abs() > tol {
-            return None;
-        }
-        let (x, y) = ((q[1] - q[0]) / w, (q[3] - q[0]) / h);
-        let t = q[0] - x * rect.x0 - y * rect.y0;
-        let m = [x.x, x.y, y.x, y.y, t.x, t.y];
-        m.iter().all(|v| v.is_finite()).then(|| Affine::new(m))
-    }
-
     /// The box read as the options bar shows it, `rect` being the box before the transform and
     /// `skew_v` the V skew the host keeps (degrees). A mirrored box reads as a negative W or H,
     /// whichever keeps the angle nearer 0 (Flip Horizontal is W −100 % at 0°); flipped both ways
@@ -723,19 +683,6 @@ impl BoxState {
             s = s.skewed_about_pivot(rect, skew_v, to.skew_h, to.skew_v);
         }
         s
-    }
-
-    /// The signed W and H factors of the box ([`parts`](Self::parts)): a mirrored side reads
-    /// negative.
-    pub fn signed_scale(&self, rect: Rect, skew_v: f64) -> (f64, f64) {
-        let p = self.parts(rect, skew_v);
-        (p.w, p.h)
-    }
-
-    /// The box with W and H set to the signed factors `w` and `h`, the angle and skews kept. A
-    /// negative factor mirrors that side instead of turning the box.
-    pub fn with_signed_scale(&self, rect: Rect, skew_v: f64, w: f64, h: f64) -> Self {
-        self.with_parts(rect, skew_v, Parts { w, h, ..self.parts(rect, skew_v) })
     }
 
     /// The signed factors `(w, h)` after the side on `axis` (0: W, 1: H) is set to `typed` with W

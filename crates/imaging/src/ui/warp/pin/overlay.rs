@@ -1,6 +1,7 @@
 //! [`PinWarp`]: Puppet Warp's pins on the canvas, placed, moved, turned and removed by pointer and
 //! keyboard. Each pin is a part in the canvas's arena; the mesh is one part below them.
 
+use craft_behavior::geometry::crop::normalized_angle;
 use craft_behavior::kurbo::{Point, Vec2 as DocVec};
 use craft_behavior::{
     Axis, CancelReason, CanvasView, CursorIcon, EditCommand, Granularity, HitLevel, HitPriority, HitShape, Intent, Metrics, NavShape, PartKey,
@@ -205,7 +206,7 @@ impl Drag {
                 if let Some(pin) = pins.get_mut(*pin)
                     && let Some(now) = angle_of(pointer - pin.at)
                 {
-                    pin.angle = Some(wrap_degrees(base + (now - from)));
+                    pin.angle = Some(normalized_angle(base + (now - from)));
                 }
             }
         }
@@ -222,12 +223,6 @@ impl Default for Drag {
 /// The angle of `v` in degrees, `None` for the zero vector.
 fn angle_of(v: DocVec) -> Option<f64> {
     (v.hypot() > 0.0).then(|| v.y.atan2(v.x).to_degrees())
-}
-
-/// `degrees` in (−180, 180].
-fn wrap_degrees(degrees: f64) -> f64 {
-    let wrapped = (degrees + 180.0).rem_euclid(360.0) - 180.0;
-    if wrapped == -180.0 { 180.0 } else { wrapped }
 }
 
 /// The selected pin nearest screen point `p` and within `reach` of it.

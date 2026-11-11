@@ -138,12 +138,6 @@ impl EscapeFacts {
         self
     }
 
-    /// The focused component has something to undo.
-    pub const fn component_undoable(mut self, on: bool) -> Self {
-        self.component_undoable = on;
-        self
-    }
-
     /// Focus is on a row's child.
     pub const fn in_row_child(mut self, on: bool) -> Self {
         self.in_row_child = on;

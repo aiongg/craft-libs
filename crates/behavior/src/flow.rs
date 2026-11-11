@@ -107,7 +107,7 @@ impl Flow {
     }
 
     /// Splits `width` from the start edge of `rect`: `(the start part, the rest)`.
-    pub fn split_start(&self, rect: Rect, width: f32) -> (Rect, Rect) {
+    fn split_start(&self, rect: Rect, width: f32) -> (Rect, Rect) {
         let width = width.clamp(0.0, rect.width().max(0.0));
         if self.rtl {
             let cut = rect.right() - width;
