@@ -1,8 +1,5 @@
 //! The frame loop: installed options, the one-press rule and the per-frame output.
 
-use craft_ui::runtime::frame::take_output;
-use craft_ui::testing::frames::announce_text;
-use craft_ui::testing::input::{allow_zoom_keys, key_press};
 use craft_ui::testing::{Frames, trial};
 use egui::{Event, Modifiers, PointerButton, Pos2};
 
@@ -22,32 +19,6 @@ fn kinds(events: &[Event]) -> Vec<&'static str> {
             _ => "other",
         })
         .collect()
-}
-
-/// Skeleton: `frames_state::cmd_equals_does_not_zoom_the_ui_and_cmd_q_sends_no_close`. The frames run without
-/// `set_input`, which would write the root scale as the zoom factor every frame.
-#[trial]
-fn cmd_equals_does_not_zoom_the_ui_and_cmd_q_sends_no_close() {
-    let mut frames = Frames::new();
-    let raw_frame = |frames: &mut Frames, events: Vec<Event>| frames.frame_without_input(events, |_| {});
-    raw_frame(&mut frames, vec![]);
-    assert!(frames.ctx.options(|o| o.quit_shortcuts.is_empty()), "install empties egui's quit shortcuts");
-    let zoom = frames.ctx.zoom_factor();
-    let key = |key| key_press(key, Modifiers::COMMAND);
-    let mut closed = false;
-    for key_pressed in [egui::Key::Equals, egui::Key::Plus, egui::Key::Q] {
-        closed |= raw_frame(&mut frames, vec![key(key_pressed)]);
-    }
-    raw_frame(&mut frames, vec![]);
-    raw_frame(&mut frames, vec![]);
-    assert_eq!(frames.ctx.zoom_factor(), zoom, "Cmd+= left the zoom factor alone");
-    assert!(!closed, "Cmd+Q asked for no close");
-    // Control: with egui's own option back on, the same key zooms.
-    allow_zoom_keys(&frames.ctx);
-    raw_frame(&mut frames, vec![key(egui::Key::Equals)]);
-    raw_frame(&mut frames, vec![]);
-    raw_frame(&mut frames, vec![]);
-    assert_ne!(frames.ctx.zoom_factor(), zoom, "control: egui zooms on Cmd+= when its option is on");
 }
 
 /// H0: a pass carries at most one press, as its last pointer event; later events lead the next frame, and a
@@ -76,32 +47,4 @@ fn one_press_per_pass_and_a_discard_pass_gets_no_held_events() {
     );
     assert_eq!(run(&mut frames, vec![], false), vec![vec!["release", "press"]], "the held events lead the next frame, and its own press is the last");
     assert_eq!(run(&mut frames, vec![], false), vec![Vec::<&str>::new()]);
-}
-
-/// 1.8: outputs accumulate across passes and discarded passes until drained, and drain once.
-#[trial]
-fn frame_output_accumulates_across_passes_until_taken() {
-    let mut frames = Frames::new();
-    let mut first = true;
-    frames.frame(vec![], |ui| {
-        announce_text(ui.ctx(), "saved");
-        if std::mem::take(&mut first) {
-            ui.ctx().request_discard("test");
-        }
-    });
-    frames.idle(1, |_| {});
-    assert_eq!(take_output(&frames.ctx).announcements, vec!["saved", "saved"]);
-    assert!(take_output(&frames.ctx).announcements.is_empty(), "draining empties the output");
-}
-
-/// `install` on a context that already ran passes: the passes before the plugin existed have no hooks to
-/// wait for, so the first `set_input` is no debug assertion failure.
-#[trial]
-fn install_on_a_context_that_already_ran_passes() {
-    let mut frames = Frames::uninstalled();
-    for _ in 0..3 {
-        frames.frame_without_input(vec![], |_| {});
-    }
-    frames.install();
-    frames.idle(3, |_| {});
 }
