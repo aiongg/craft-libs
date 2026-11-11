@@ -142,12 +142,6 @@ craft-<name> = { git = "https://github.com/storytold/craft-libs", rev = "<commit
   timecode, the playback clock, a frame cache and frame server (egui-free); the timeline panel,
   ruler, clips, keyframe lanes, graph editor, transport, timecode fields, preview, overview and
   render queue (`ui` feature).
-- `craft-ui`: the UI library on egui: runtime, style, fonts, primitives, the component contract, layout,
-  components (docking, dialogs, canvas, lists, text, menus and more), patterns and the shell. Assets, themes, localization and commands
-  stay in each app. Design and architecture in [docs/craft-framework.md](docs/craft-framework.md).
-  Requires Rust 1.95 or later.
-- `craft-ui-macros`: the derives and macros of `craft-ui` (`Component`, `Props`, `ComponentStyle`, `Pattern`,
-  `CommandSet`, words, stories and trials); use them through `craft-ui`.
 - [`craft-vectorcraft-format`](crates/vectorcraft-format/README.md): the envelope of VectorCraft's
   `.vectorcraft` file: its members, versions, embedded images and the data after the JSON, with the
   document as a type parameter. The document and its migrations stay in VectorCraft.
@@ -155,10 +149,43 @@ craft-<name> = { git = "https://github.com/storytold/craft-libs", rev = "<commit
   `window.<app>` shape (`request`, `execute`, `commands`, `docInspect`, `uiInspect`, `screenshot`) over the app's
   JSON control channel.
 - [`craft-web-host`](crates/web-host/README.md): the host messages between a Craft app's web build and the page that hosts it (`?host=parent` or `data-host="page"`): one contract and one bridge for every app.
+
+## Craft framework
+
+The shared UI layer of the Craft apps: the design system, the UI library on egui, the host convention and the
+feature families above. Assets, localization and commands stay in each app. Requires Rust 1.95 or later. Design and
+architecture: [docs/craft-framework.md](docs/craft-framework.md).
+
+- [`craft`](crates/craft/README.md): the facade: one dependency, one pin and one import root for an app, with a
+  feature per crate.
+- `craft-ui`: the UI library's facade, which re-exports its six crates under one root (`craft_ui::…`):
+  - `craft-ui-contract`: runtime, style, fonts, primitives, the component contract, layout and the test kit;
+  - `craft-ui-widgets`: the components (buttons, choices, fields, lists, menus, pickers, tabs, tables, bars);
+  - `craft-ui-panels`: sections, dialogs, docking and rails;
+  - `craft-ui-canvas`: the canvas, its tools and controls, and the full-window dialogs;
+  - `craft-ui-patterns`: ready-made dialogs, presets, preferences and dock areas;
+  - `craft-ui-shell`: the app shell, the title bar and the eframe entry point.
+- `craft-ui-macros`: the derives and macros of the library (`Component`, `Props`, `ComponentStyle`, `Pattern`,
+  `CommandSet`, words, stories and trials); use them through `craft-ui`.
+- `craft-behavior`: the behaviour cores with no egui: press lifecycle, value drags, navigation, item layouts, edit
+  events and the dock model.
+- [`craft-theme`](crates/theme/README.md) and [`craft-theme-store`](crates/theme-store/README.md): the token model,
+  the built-in themes and the suite's theme selection ([docs/suite-themes.md](docs/suite-themes.md)).
+- [`craft-host`](crates/host/README.md): the services an app installs once and every feature reads.
+- `craft-win32`: the Win32 calls that need `unsafe`, behind a safe API; the one crate that allows `unsafe`.
+- Tools, not shipped in apps: `craft-ui-gallery` (the story viewer), `story-render` (one component's stories to
+  PNG files), [`craft-design-lint`](crates/design-lint/README.md), `craft-ui-bench`, `craft-ui-test-kit`.
+
+Framework docs:
+
+- [Craft framework](docs/craft-framework.md): the design, installation, architecture, design system, foundations,
+  components, accessibility, tests, and the migration and landing plan.
+- [Development workflow](docs/development.md): the `cl` commands, the one fixed feature set, what not to run
+  locally, CI coverage, the profiles, the job pool and what a new worktree's first build costs.
+- [Writing a component](docs/authoring.md), the [component index](docs/components-index.md), the
+  [contract API](docs/contract-api.md) and the [glossary](docs/glossary.md).
 - [Docking](docs/ui-docking.md): the dock model, `DockArea`, `SplitArea` and `PaneArea`.
 - [Dialogs](docs/ui-dialogs.md): `Dialog`, `DialogHost`, the dialog stack and the standard prompts.
-- [Craft framework](docs/craft-framework.md): the design, installation, architecture, design system, foundations, components, accessibility, tests, and the migration and landing plan
-- [Development workflow](docs/development.md): the `cl` commands, the one fixed feature set, what not to run locally, the profiles, the job pool and what a new worktree's first build costs
 
 ## License and credits
 
