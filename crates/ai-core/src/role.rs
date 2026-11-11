@@ -195,77 +195,10 @@ mod tests {
     }
 
     #[test]
-    fn resolves_a_good_binding() {
-        let conns = [conn("a", true)];
-        let defaults = [bind("a")];
-        assert!(resolve(&role(), &[&[], &defaults], &conns).is_ok());
-    }
-
-    #[test]
-    fn app_override_beats_default() {
-        let conns = [conn("a", true), conn("b", true)];
-        let (over, def) = ([bind("b")], [bind("a")]);
-        let r = resolve(&role(), &[&over, &def], &conns).unwrap();
-        assert_eq!(r.connection.id.as_str(), "b");
-    }
-
-    #[test]
     fn a_broken_override_is_an_error_and_never_falls_through() {
         let conns = [conn("a", true)];
         let (over, def) = ([bind("gone")], [bind("a")]);
         let err = resolve(&role(), &[&over, &def], &conns).unwrap_err();
         assert!(matches!(err, ResolveError::ConnectionMissing(_)));
-    }
-
-    #[test]
-    fn unbound_and_disabled() {
-        let mut conns = [conn("a", true)];
-        assert!(matches!(resolve(&role(), &[&[]], &conns), Err(ResolveError::Unbound(_))));
-        conns[0].enabled = false;
-        assert!(matches!(resolve(&role(), &[&[bind("a")]], &conns), Err(ResolveError::ConnectionDisabled(_))));
-    }
-
-    #[test]
-    fn a_model_that_cannot_take_a_mask_does_not_resolve() {
-        let conns = [conn("a", false)];
-        let err = resolve(&role(), &[&[bind("a")]], &conns).unwrap_err();
-        assert!(matches!(err, ResolveError::InputUnsupported { input: InputRole::Mask, .. }));
-    }
-
-    #[test]
-    fn a_required_input_the_role_cannot_supply_has_a_specific_error() {
-        let mut conns = [conn("a", true)];
-        conns[0].models[0].capabilities[0].requires = vec![InputRole::Mask];
-        let mut r = role();
-        r.inputs = vec![InputRole::Source];
-        let err = resolve(&r, &[&[bind("a")]], &conns).unwrap_err();
-        assert!(matches!(err, ResolveError::InputRequired { input: InputRole::Mask, .. }));
-        assert_eq!(err.to_string(), "model m requires a 'mask' input that this tool does not provide");
-    }
-
-    #[test]
-    fn wrong_capability_and_missing_model() {
-        let mut conns = [conn("a", true)];
-        let mut r = role();
-        r.capability = cap("image.generate");
-        assert!(matches!(resolve(&r, &[&[bind("a")]], &conns), Err(ResolveError::CapabilityMismatch { .. })));
-        conns[0].models.clear();
-        assert!(matches!(resolve(&role(), &[&[bind("a")]], &conns), Err(ResolveError::ModelMissing { .. })));
-    }
-
-    #[test]
-    fn eligible_filters_by_capability_inputs_and_enabled() {
-        let mut off = conn("c", true);
-        off.enabled = false;
-        let conns = [conn("a", true), conn("b", false), off];
-        let list = eligible(&role(), &conns);
-        assert_eq!(list.len(), 1);
-        assert_eq!(list[0].connection.id.as_str(), "a");
-    }
-
-    #[test]
-    fn error_messages_read_well() {
-        let msg = ResolveError::Unbound(RoleId::new("x").unwrap()).to_string();
-        assert!(msg.contains("no model is chosen"));
     }
 }

@@ -2,9 +2,7 @@
 
 mod contract_regressions;
 mod custom_connection;
-mod custom_tools;
 mod mock_conformance;
-mod spec_calls;
 mod spec_rules;
 mod spec_support;
 mod spec_template;

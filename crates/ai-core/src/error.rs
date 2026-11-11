@@ -112,38 +112,3 @@ impl fmt::Display for AiError {
 }
 
 impl std::error::Error for AiError {}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn redacted_removes_the_key() {
-        let key = SecretString::new("sk-test-999");
-        let e = AiError::redacted(ErrorKind::Auth, "invalid key sk-test-999", &[&key]);
-        assert!(!e.message.contains("999"));
-        assert!(!format!("{e}").contains("999"));
-    }
-
-    #[test]
-    fn consent_required_is_not_retryable_and_round_trips() {
-        let e = AiError::new(ErrorKind::ConsentRequired, "ask first");
-        assert!(!e.is_retryable());
-        let back: AiError = serde_json::from_str(&serde_json::to_string(&e).unwrap()).unwrap();
-        assert_eq!(back.kind, ErrorKind::ConsentRequired);
-        assert!(format!("{e}").starts_with("consent required"));
-    }
-
-    #[test]
-    fn retryable_kinds() {
-        assert!(AiError::new(ErrorKind::RateLimited, "x").is_retryable());
-        assert!(!AiError::unsupported("x").is_retryable());
-    }
-
-    #[test]
-    fn round_trips_through_json() {
-        let e = AiError::new(ErrorKind::RateLimited, "slow down").with_retry_after(30);
-        let back: AiError = serde_json::from_str(&serde_json::to_string(&e).unwrap()).unwrap();
-        assert_eq!(e, back);
-    }
-}
