@@ -137,6 +137,7 @@ fn report_access<C: Component>(comp: &C, cx: &Cx<'_, C>, input: &ReportIn<'_>) {
         component: std::any::type_name::<C>(),
         role,
         rect: core.rect,
+        layer: core.response.layer_id,
         label: resolved.label,
         names_nothing: access.value.is_none() && carried.as_deref() == Some(resolved.label),
         tooltip,
@@ -172,7 +173,7 @@ fn report_access<C: Component>(comp: &C, cx: &Cx<'_, C>, input: &ReportIn<'_>) {
         keys::register_node(ctx, id, folded.inner, None, focusable);
     }
     if let Some(facts) = core.text_access.take() {
-        crate::runtime::access::text::report_text(ctx, id, &facts);
+        crate::runtime::access::text::report_text(ctx, id, core.response.layer_id, &facts);
     }
     if core.member_of.is_some() && flags.contains(Flags::FOCUSED) {
         access::set_focus(ctx, id);
@@ -217,6 +218,7 @@ fn report_sub(core: &CxCore<'_>, input: &ReportIn<'_>, node: &SubNode, face: Opt
         component: "",
         node: &node,
         rect: result.map_or(core.rect, |result| result.rect),
+        layer: core.response.layer_id,
         enabled: core.resolved.enabled && face.is_none_or(|face| face.enabled),
         focusable: takes_focus(core.resolved) && declared.is_some_and(|(_, extras)| extras.focusable),
         clickable: core.resolved.enabled && declared.is_some_and(|(decl, extras)| decl.sense.contains(Sense::CLICK) && !extras.no_access_click),
@@ -241,6 +243,7 @@ pub(crate) fn report_inert<C: Component>(cx: &Cx<'_, C>) {
             component: std::any::type_name::<C>(),
             role,
             rect: core.rect,
+            layer: core.response.layer_id,
             label: "",
             names_nothing: false,
             tooltip: None,

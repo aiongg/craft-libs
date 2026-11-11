@@ -181,7 +181,7 @@ pub(crate) fn host(ctx: &Context, layer: &Layer<'_>, body: &mut dyn FnMut(&mut U
         let installed = Env::install_for(ui, layer.env.capture().env());
         let real = !ui.is_sizing_pass();
         if real && (layer.exiting || matches!(overlay.rank, Rank::Popup | Rank::Modal { .. })) {
-            access::report_layer(ctx, layer.id, ui.unique_id(), ui.max_rect(), overlay.rank.is_modal(), layer.exiting);
+            access::report_layer(ctx, layer.id, ui.unique_id(), (ui.max_rect(), ui.layer_id()), overlay.rank.is_modal(), layer.exiting);
         }
         if let (Some(policy), true) = (scope, real) {
             let entering = !std::mem::replace(&mut memory.scope_entered, true);

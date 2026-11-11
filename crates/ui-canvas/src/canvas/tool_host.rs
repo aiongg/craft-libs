@@ -446,7 +446,7 @@ const TOOL_ANCHOR: PartKey = PartKey::new("tool anchor");
 /// size at each anchor, clamped to the canvas. The ids derive from the canvas id, so they stay the same from pass to
 /// pass.
 fn report_access(ctx: &Context, canvas: &CanvasOutput, rect: Rect, tool: &ToolAccess) {
-    let owner = canvas.response.id;
+    let (owner, layer) = (canvas.response.id, canvas.response.layer_id);
     let to_screen = |point: kurbo::Point| canvas.space.map(|space| space.view.to_screen(point));
     let bounds = tool.bounds.and_then(|bounds| {
         let corners = [(bounds.x0, bounds.y0), (bounds.x1, bounds.y0), (bounds.x1, bounds.y1), (bounds.x0, bounds.y1)];
@@ -461,20 +461,33 @@ fn report_access(ctx: &Context, canvas: &CanvasOutput, rect: Rect, tool: &ToolAc
     if let Some(value) = &tool.value {
         node.value(value.clone());
     }
-    access::report_sub(ctx, &sub_decl(owner, &node, bounds.unwrap_or(at_centre), owner));
+    access::report_sub(ctx, &sub_decl(owner, &node, (bounds.unwrap_or(at_centre), layer), owner));
     let parent = access::sub_node_id(owner, tool_part);
     for (index, anchor) in (0u64..).zip(&tool.anchors) {
         let mut node = SubNode::new(PartRef::from((TOOL_ANCHOR, index)), Role::GRAPHICS_OBJECT);
         node.name = Name::Text(anchor.name.clone());
         node.description.clone_from(&anchor.description);
         let place = to_screen(anchor.at).map_or(at_centre, |at| Rect::from_center_size(rect.clamp(at), Vec2::ZERO));
-        access::report_sub(ctx, &sub_decl(owner, &node, place, parent));
+        access::report_sub(ctx, &sub_decl(owner, &node, (place, layer), parent));
     }
 }
 
 /// A sub-node of the canvas that is read only: not focusable, not clickable, never the active part.
-fn sub_decl(owner: Id, node: &SubNode, rect: Rect, parent: Id) -> SubDecl<'_> {
-    SubDecl { owner, component: "", node, rect, enabled: true, focusable: false, clickable: false, active: false, face: None, label: "", parent }
+fn sub_decl(owner: Id, node: &SubNode, (rect, layer): (Rect, egui::LayerId), parent: Id) -> SubDecl<'_> {
+    SubDecl {
+        owner,
+        component: "",
+        node,
+        rect,
+        layer,
+        enabled: true,
+        focusable: false,
+        clickable: false,
+        active: false,
+        face: None,
+        label: "",
+        parent,
+    }
 }
 
 /// Paints the tool over the canvas, clipped to it.

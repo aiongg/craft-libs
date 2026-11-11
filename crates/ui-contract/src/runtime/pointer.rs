@@ -410,8 +410,7 @@ pub(crate) fn root_bounds(ctx: &Context, root: Id) -> Option<(ViewportId, Layer,
                 })
             })
         })?;
-        let screen =
-            areas::layer_map(ctx, layer).map_or(bounds, |map| egui::Rect::from_two_pos(map.to_screen(bounds.min), map.to_screen(bounds.max)));
+        let screen = areas::screen_rect(ctx, layer, bounds);
         Some((viewport, layer, screen))
     })
 }

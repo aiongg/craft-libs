@@ -417,7 +417,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         for &at in order.iter().filter(|&&at| self.source.section_stop(at) && layout.shown(at)) {
             if cx.part_if_declared(section_part(&self.source.key(at))).is_none() {
                 let row = self.screen(&layout, rect, at, offset, rtl);
-                self.report_section_node(&ctx, id, at, row, cx.core.resolved.enabled);
+                self.report_section_node(&ctx, id, at, (row, parent), cx.core.resolved.enabled);
             }
         }
         // The pointer counts as over a row only while the sensing pass puts it on this collection, so a popup or another
@@ -537,7 +537,13 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                     None => item.show_at(&mut row_ui, row),
                 };
                 // After the row is shown: its toggle cells have recorded their names by then.
-                self.report_toggle_cells(&ctx, (id, item_id), (at, &key), (shown_cells.as_slice(), cx.core.resolved.enabled), &cx.core.env);
+                self.report_toggle_cells(
+                    &ctx,
+                    (id, item_id),
+                    (at, &key),
+                    (shown_cells.as_slice(), row_ui.layer_id(), cx.core.resolved.enabled),
+                    &cx.core.env,
+                );
                 let label = out.label_rect().unwrap_or(row);
                 crate::runtime::keys::redirect_node(&ctx, item_id, id, ITEM_NODE.at(key_hash(&key)));
                 if let Some(row) = shown_rows.last_mut() {

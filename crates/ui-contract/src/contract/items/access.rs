@@ -17,7 +17,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         ctx: &Context,
         (id, item): (Id, Id),
         (at, key): (usize, &C::Key),
-        (cells, enabled): (&[(ColumnKey, Rect)], bool),
+        (cells, layer, enabled): (&[(ColumnKey, Rect)], egui::LayerId, bool),
         env: &crate::runtime::env::EnvView<'_>,
     ) {
         for (column, toggle) in self.header.toggle_columns() {
@@ -33,6 +33,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                 component: "",
                 node: &node,
                 rect: *rect,
+                layer,
                 enabled: enabled && self.source.enabled(at) && self.toggle_open(at, &column),
                 focusable: false,
                 clickable: true,
@@ -47,7 +48,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
 
     /// The collection's node for the section row `at` that the component does not lay out itself: a heading named by
     /// the row's text, expandable when it has children, that serves Click, Expand and Collapse.
-    pub(super) fn report_section_node(&self, ctx: &Context, id: Id, at: usize, rect: Rect, enabled: bool) {
+    pub(super) fn report_section_node(&self, ctx: &Context, id: Id, at: usize, (rect, layer): (Rect, egui::LayerId), enabled: bool) {
         let mut node = access::SubNode::new(section_part(&self.source.key(at)), Role::HEADING);
         node.name = access::Name::Text(self.source.text(at).map(|text| text.into_owned()).unwrap_or_default());
         node.level(self.source.depth(at) + 1);
@@ -59,6 +60,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             component: "",
             node: &node,
             rect,
+            layer,
             enabled: enabled && self.source.enabled(at),
             focusable: false,
             clickable: true,

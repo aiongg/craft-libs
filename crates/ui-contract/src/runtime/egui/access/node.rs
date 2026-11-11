@@ -51,7 +51,8 @@ impl NodeAction {
 /// Everything one node says, decided by `runtime::access`.
 pub(crate) struct NodeSpec {
     pub role: NodeRole,
-    pub rect: Option<Rect>,
+    /// The node's rect and the layer whose space it is in: a transformed body's nodes are written in its layer.
+    pub rect: Option<(Rect, egui::LayerId)>,
     pub hidden: bool,
     pub label: Option<String>,
     pub description: Option<String>,
@@ -163,9 +164,9 @@ fn write_numeric(node: &mut accesskit::Node, numeric: &Numeric) {
     }
 }
 
-fn write_identity(node: &mut accesskit::Node, spec: &NodeSpec) {
+fn write_identity(node: &mut accesskit::Node, spec: &NodeSpec, rect: Option<Rect>) {
     node.set_role(spec.role);
-    if let Some(rect) = spec.rect {
+    if let Some(rect) = rect {
         node.set_bounds(bounds(rect));
     }
     if spec.hidden {
@@ -316,8 +317,9 @@ fn write_actions(node: &mut accesskit::Node, spec: &NodeSpec) {
 pub(crate) fn write_node(ctx: &Context, id: Id, spec: &NodeSpec) {
     crate::runtime::egui::widgets::note_node(ctx, id);
     super::note_written(ctx, id);
+    let rect = spec.rect.map(|(rect, layer)| crate::runtime::egui::areas::screen_rect(ctx, layer, rect));
     ctx.accesskit_node_builder(id, |node| {
-        write_identity(node, spec);
+        write_identity(node, spec, rect);
         write_relations(node, spec);
         write_states(node, spec);
         write_actions(node, spec);

@@ -505,7 +505,7 @@ impl Header {
                 sort: self.sort_of(&self.specs[cell.spec].key),
             })
             .collect();
-        report_header(ctx, id, cx.core.resolved.enabled, &cells);
+        report_header(ctx, id, cx.core.resolved.enabled, cx.core.response.layer_id, &cells);
     }
 
     /// The display position of the header part that holds focus.

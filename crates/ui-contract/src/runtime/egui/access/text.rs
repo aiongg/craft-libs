@@ -21,7 +21,9 @@ pub(crate) struct RunLink {
 pub(crate) struct RunNode<'a> {
     pub id: Id,
     pub parent: Id,
+    /// The run's rect and the layer whose space it and the character offsets are in.
     pub rect: Rect,
+    pub layer: egui::LayerId,
     pub text: &'a str,
     pub rtl: bool,
     /// Each character's start offset from the run's left edge, and its advance.
@@ -57,49 +59,62 @@ fn word_starts(text: &str) -> Vec<u8> {
     starts
 }
 
+/// A run's rect and character offsets on the screen.
+struct ScreenRun {
+    rect: Rect,
+    positions: Vec<f32>,
+    widths: Vec<f32>,
+}
+
 /// Creates and fills the `TextRun` node of `run` below its parent.
 pub(crate) fn write_run(ctx: &Context, run: &RunNode<'_>) {
     super::register_parent(ctx, run.id, run.parent);
     crate::runtime::egui::widgets::note_node(ctx, run.id);
+    let scale = crate::runtime::egui::areas::layer_scale(ctx, run.layer);
+    let screen = ScreenRun {
+        rect: crate::runtime::egui::areas::screen_rect(ctx, run.layer, run.rect),
+        positions: run.positions.iter().map(|at| at * scale).collect(),
+        widths: run.widths.iter().map(|width| width * scale).collect(),
+    };
     ctx.accesskit_node_builder(run.id, |node| {
         node.set_role(accesskit::Role::TextRun);
         node.set_bounds(accesskit::Rect {
-            x0: f64::from(run.rect.min.x),
-            y0: f64::from(run.rect.min.y),
-            x1: f64::from(run.rect.max.x),
-            y1: f64::from(run.rect.max.y),
+            x0: f64::from(screen.rect.min.x),
+            y0: f64::from(screen.rect.min.y),
+            x1: f64::from(screen.rect.max.x),
+            y1: f64::from(screen.rect.max.y),
         });
         node.set_value(run.text.to_owned());
         node.set_character_lengths(lengths(run.text));
-        node.set_character_positions(run.positions.to_vec());
-        node.set_character_widths(run.widths.to_vec());
+        node.set_character_positions(screen.positions.clone());
+        node.set_character_widths(screen.widths.clone());
         node.set_word_starts(word_starts(run.text));
         node.set_text_direction(if run.rtl { accesskit::TextDirection::RightToLeft } else { accesskit::TextDirection::LeftToRight });
     });
     for (at, link) in run.links.iter().enumerate() {
-        write_link(ctx, run, at, link);
+        write_link(ctx, run, &screen, at, link);
     }
 }
 
 /// The `Link` child of a run for `link`: named by the characters it covers, bounded by their extent in the run.
-fn write_link(ctx: &Context, run: &RunNode<'_>, at: usize, link: &RunLink) {
-    let end = link.chars.end.min(run.positions.len()).min(run.widths.len());
+fn write_link(ctx: &Context, run: &RunNode<'_>, screen: &ScreenRun, at: usize, link: &RunLink) {
+    let end = link.chars.end.min(screen.positions.len()).min(screen.widths.len());
     let start = link.chars.start.min(end);
     if start == end {
         return;
     }
     let name: String = run.text.chars().skip(start).take(end - start).collect();
-    let (from, to) = (run.positions[start], run.positions[end - 1] + run.widths[end - 1]);
+    let (from, to) = (screen.positions[start], screen.positions[end - 1] + screen.widths[end - 1]);
     let id = run.id.with(("link", at));
     super::register_parent(ctx, id, run.id);
     crate::runtime::egui::widgets::note_node(ctx, id);
     ctx.accesskit_node_builder(id, |node| {
         node.set_role(accesskit::Role::Link);
         node.set_bounds(accesskit::Rect {
-            x0: f64::from(run.rect.min.x + from.min(to)),
-            y0: f64::from(run.rect.min.y),
-            x1: f64::from(run.rect.min.x + from.max(to)),
-            y1: f64::from(run.rect.max.y),
+            x0: f64::from(screen.rect.min.x + from.min(to)),
+            y0: f64::from(screen.rect.min.y),
+            x1: f64::from(screen.rect.min.x + from.max(to)),
+            y1: f64::from(screen.rect.max.y),
         });
         node.set_label(name);
         node.set_url(link.target.clone());

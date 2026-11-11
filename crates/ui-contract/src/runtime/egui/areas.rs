@@ -46,6 +46,16 @@ pub(crate) fn layer_map(ctx: &Context, layer: LayerId) -> Option<LayerMap> {
     ctx.layer_transform_to_global(layer).map(LayerMap)
 }
 
+/// The screen rect of `rect` in `layer`.
+pub(crate) fn screen_rect(ctx: &Context, layer: LayerId, rect: Rect) -> Rect {
+    layer_map(ctx, layer).map_or(rect, |map| Rect::from_two_pos(map.to_screen(rect.min), map.to_screen(rect.max)))
+}
+
+/// How many screen points one point of `layer` spans.
+pub(crate) fn layer_scale(ctx: &Context, layer: LayerId) -> f32 {
+    layer_map(ctx, layer).map_or(1.0, |map| map.0.scaling)
+}
+
 /// How high `layer` stands in egui's layer order, which the overlay host sets each pass: a larger value lies over a
 /// smaller one. A layer egui does not list stands lowest.
 pub(crate) fn layer_position(ctx: &Context, layer: LayerId) -> usize {

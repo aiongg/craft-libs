@@ -1,10 +1,12 @@
 //! Finding a component in the access tree: by name, role, ancestor and path, and its bounds in points.
 
+use craft_behavior::{CanvasTransform, Sense};
 use craft_ui::contract::{Props as _, Role, Show as _, ShowContainer as _};
 use craft_ui::runtime::egui::access::{NodeKey, Query};
 use craft_ui::runtime::env::Scale;
 use craft_ui::testing::{Fixture, trial};
 use craft_ui_test_kit::contract::{Panel, Probe, Seen};
+use egui::Vec2;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -93,4 +95,29 @@ fn a_found_nodes_bounds_are_points_that_hit_it_at_every_scale() {
         bounds.push(at);
     }
     assert_eq!(bounds[0], bounds[1], "bounds are in points, the same at every scale");
+}
+
+/// A button in an arena whose body is shown zoomed in on its own layer, as a node graph's is: its node's bounds are
+/// where the screen shows it, not its rect in the body's layer, so a click at their centre presses it.
+#[trial]
+fn a_node_in_a_transformed_body_is_bounded_where_the_screen_shows_it() {
+    let zoom = CanvasTransform::new(2.0, Vec2::new(10.0, 5.0));
+    let inside = Rc::new(RefCell::new(Seen::default()));
+    let seen = inside.clone();
+    let filler = RefCell::new(Seen::default());
+    let mut fixture = Fixture::new(move |ui| {
+        Panel::new().label("Zoomed").arena(true).sense(Sense::CLICK).transform(zoom).show(ui, |ui, _| {
+            Probe::new(&seen).label("Inside").show(ui);
+            // Room below, so the zoomed button stays inside the body's clip.
+            Probe::new(&filler).label("Filler").size(Vec2::splat(200.0)).show(ui);
+        });
+    });
+    fixture.settle();
+    let tree = fixture.tree();
+    let [button] = tree.find(&Query::path(["Zoomed", "Inside"]).expect("a path"))[..] else { panic!("one button") };
+    let at = tree.bounds_of(button).expect("bounds");
+    let local = inside.borrow().rect;
+    assert_eq!(at.size(), local.size() * zoom.scale, "the bounds carry the body's zoom");
+    fixture.click_at(at.center());
+    assert_eq!(inside.borrow().activations, 1, "a click at the bounds' centre presses the button");
 }

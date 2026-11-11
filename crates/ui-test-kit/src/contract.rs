@@ -1,6 +1,6 @@
 //! Components for the contract trials, written with the derives: a leaf, a container and a collection.
 
-use craft_behavior::{Intent, ItemSource, Metrics, PartRef, PressPhase, Selection, Sense, SpanLayout};
+use craft_behavior::{CanvasTransform, Intent, ItemSource, Metrics, PartRef, PressPhase, Selection, Sense, SpanLayout};
 use craft_ui::contract::{
     Collection, CollectionProps, Common, Component, Container, ContainerProps, Cx, Focus as _, MeasureCx, Pointer as _, Props as _, Role,
 };
@@ -159,6 +159,12 @@ impl<'a> Panel<'a> {
     /// What the panel senses.
     pub fn sense(mut self, sense: Sense) -> Self {
         self.sense = sense;
+        self
+    }
+
+    /// Shows the panel's body through `transform` on its own layer.
+    pub fn transform(mut self, transform: CanvasTransform) -> Self {
+        self.props = self.props.transform(transform);
         self
     }
 }

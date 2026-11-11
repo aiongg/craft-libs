@@ -7,7 +7,7 @@ use crate::runtime::inspect::{self, Finding};
 use crate::runtime::{keys, memory::sub};
 use craft_behavior::{PartRef, RoleRule, is_checkable, is_selectable, role_violations};
 use craft_theme::Flags;
-use egui::{Context, Id, Rect};
+use egui::{Context, Id, LayerId, Rect};
 
 /// What step 16 knows about a component's own node.
 pub(crate) struct Own<'a> {
@@ -15,6 +15,8 @@ pub(crate) struct Own<'a> {
     pub component: &'static str,
     pub role: NodeRole,
     pub rect: Rect,
+    /// The layer whose space `rect` is in.
+    pub layer: LayerId,
     pub label: &'a str,
     /// The node's one control carries its label as its name: the node itself has no name.
     pub names_nothing: bool,
@@ -65,6 +67,8 @@ pub struct SubDecl<'a> {
     pub component: &'static str,
     pub node: &'a SubNode,
     pub rect: Rect,
+    /// The layer whose space `rect` and the node's bounds are in.
+    pub layer: LayerId,
     pub enabled: bool,
     pub focusable: bool,
     pub clickable: bool,
@@ -233,7 +237,7 @@ pub(crate) fn report(ctx: &Context, own: &Own<'_>) {
     relations.controls.extend(own.popups.iter().filter(|popup| popup.open).map(|popup| popup.id));
     let numeric = access.numeric.as_ref();
     let mut spec = NodeSpec::new(own.role);
-    spec.rect = Some(own.rect);
+    spec.rect = Some((own.rect, own.layer));
     spec.hidden = name.hidden;
     spec.label = name.text.clone();
     spec.description = description.map(str::to_owned);
@@ -316,6 +320,7 @@ pub fn report_sub(ctx: &Context, decl: &SubDecl<'_>) {
                 id,
                 parent: decl.parent,
                 rect: node.bounds.unwrap_or(decl.rect),
+                layer: decl.layer,
                 text: &run.text,
                 rtl: run.rtl,
                 positions: &run.positions,
@@ -335,7 +340,7 @@ pub fn report_sub(ctx: &Context, decl: &SubDecl<'_>) {
     let numeric = node.numeric.as_ref().or_else(|| decl.face.as_ref().and_then(|face| face.numeric));
     let expanded = expanded_of(flags, node.expanded.or_else(|| decl.face.as_ref().and_then(|face| face.expanded)));
     let mut spec = NodeSpec::new(role);
-    spec.rect = Some(node.bounds.unwrap_or(decl.rect));
+    spec.rect = Some((node.bounds.unwrap_or(decl.rect), decl.layer));
     spec.label = name.text.clone();
     spec.labelled_by = name.labelled_by.clone();
     spec.description = node.description.clone();
@@ -380,10 +385,10 @@ pub fn report_sub(ctx: &Context, decl: &SubDecl<'_>) {
 /// The root node of an overlay layer: the layer's content attaches below it, and a modal layer's root is modal. An
 /// exiting layer's root is hidden from the first pass it fades out, so nothing under it is reported while it still
 /// paints; the ids stay the same if the layer reopens.
-pub(crate) fn report_layer(ctx: &Context, id: Id, content: Id, rect: Rect, modal: bool, exiting: bool) {
+pub(crate) fn report_layer(ctx: &Context, id: Id, content: Id, (rect, layer): (Rect, LayerId), modal: bool, exiting: bool) {
     adapter::register_parent(ctx, content, id);
     let mut spec = NodeSpec::layer_root();
-    spec.rect = Some(rect);
+    spec.rect = Some((rect, layer));
     spec.modal = modal;
     spec.hidden = exiting;
     write_node(ctx, id, &spec);
