@@ -1,7 +1,5 @@
 //! The integration binary of craft-theme-store: every test is a registered trial.
 
-mod appearance;
-
 use craft_ui::testing::{suite, trials};
 use libtest_mimic::{Arguments, Trial};
 

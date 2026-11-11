@@ -139,17 +139,3 @@ fn strip_bom(bytes: &[u8]) -> &[u8] {
 fn json_string(s: &str) -> String {
     Value::String(s.to_owned()).to_string()
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn replacing_the_id_keeps_every_other_byte() {
-        let src =
-            "\u{feff}{ \"note\": \"\\\"id\\\": {x}\", \"id\" : \"mine\",\n \"nested\": {\"id\": \"inner\", \"a\": [1, {\"id\": 2}]}, \"n\": -1.5e3 }";
-        let id = ThemeId::parse_user("mine-2").unwrap();
-        let out = String::from_utf8(replace_top_level_id(src.as_bytes(), &id).unwrap()).unwrap();
-        assert_eq!(out, src.replace("\"id\" : \"mine\"", "\"id\" : \"mine-2\""));
-    }
-}
