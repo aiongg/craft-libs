@@ -76,7 +76,11 @@ fn a_row_too_wide_for_its_room_shrinks_its_children_to_fit_in_order() {
     assert!(another.max.x <= room_end + SLACK, "the last child ends at {} past the room's end {room_end}", another.max.x);
     assert!(text.min.x < choose.min.x && choose.max.x <= another.min.x + SLACK, "children overlap: {text:?} {choose:?} {another:?}");
     assert!(text.width() > 0.0 && choose.width() > 0.0 && another.width() > 0.0, "a child has no width: {text:?} {choose:?} {another:?}");
-    // The shortfall comes off the later children first: the field narrows only once they are at their least.
+    // The shortfall comes off the leading children first: in a room the field's narrowing covers, the buttons keep
+    // their widths; in a narrower one the button after it narrows once the field is at its least.
+    let [_, mid_text, mid_choose, _] = labelled_row(420.0);
+    assert!(mid_text.width() < wide_text.width() - SLACK, "the field kept its width {} in a 420 room", mid_text.width());
+    assert!((mid_choose.width() - wide_choose.width()).abs() <= SLACK, "the button narrowed to {} before the field", mid_choose.width());
+    assert!(text.width() < wide_text.width() - SLACK, "the field kept its width {} in the narrow room", text.width());
     assert!(choose.width() < wide_choose.width() - SLACK, "the button kept its width {} in the narrow room", choose.width());
-    assert!(text.width() <= wide_text.width() + SLACK, "the field grew: {} from {}", text.width(), wide_text.width());
 }

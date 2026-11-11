@@ -268,7 +268,8 @@ impl Component for SelectionStatsReadout<'_> {
         }
     }
 
-    /// The statistics side by side, at least one text line tall.
+    /// The statistics side by side, at least one text line tall, at most as wide as the room: the ones that don't fit
+    /// elide or drop out (`parts`).
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
         let line = cx.layout(&Self::run("0", cx.style)).size().y;
         let mut size = Vec2::new(0.0, line);
@@ -277,6 +278,7 @@ impl Component for SelectionStatsReadout<'_> {
             size.x += text.x + if at > 0 { cx.style.gap } else { 0.0 };
             size.y = size.y.max(text.y);
         }
+        size.x = cx.room.map_or(size.x, |room| size.x.min(room));
         size
     }
 
