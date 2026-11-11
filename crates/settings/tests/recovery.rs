@@ -1,6 +1,6 @@
 //! Integration tests of craft-settings: recovery.
 
-mod common;
+use super::common;
 
 use common::{Theme, config_path, open_in, read_config, write_config};
 use craft_settings::{ReadOnlyReason, SettingsError, Source};

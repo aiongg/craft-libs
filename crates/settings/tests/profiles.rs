@@ -1,5 +1,5 @@
 //! `Profiles`.
-mod common;
+use super::common;
 
 use common::Prefs;
 use craft_settings::profiles::PROFILES_DIR;
