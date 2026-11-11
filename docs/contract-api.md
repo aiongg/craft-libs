@@ -102,6 +102,7 @@ Pure UI behaviours (layer 1): press lifecycle, `ValueDrag`, navigation, item lay
 - `craft_behavior::Metrics`: re-export of `craft_behavior::sizing::Metrics`.
 - `craft_behavior::Mixed`: re-export of `craft_behavior::value::Mixed`.
 - `craft_behavior::Monitor`: re-export of `craft_behavior::monitor::Monitor`.
+- `craft_behavior::MonitorKey`: re-export of `craft_behavior::monitor::MonitorKey`.
 - `craft_behavior::MotionKind`: re-export of `craft_behavior::motion::MotionKind`.
 - `craft_behavior::MotionMode`: re-export of `craft_behavior::motion::MotionMode`.
 - `craft_behavior::MoveMods`: re-export of `craft_behavior::intent::MoveMods`.
@@ -202,7 +203,6 @@ Pure UI behaviours (layer 1): press lifecycle, `ValueDrag`, navigation, item lay
   - `pub const fn decimal(whole: bool) -> Self`. PhotoCraft's decimal steps; `whole` keeps the step a whole number of units without 2.5.
 - `craft_behavior::TileLayout`: re-export of `craft_behavior::item_layout::TileLayout`.
 - `craft_behavior::TypeAhead`: `pub struct TypeAhead`. Typed letters of the last second as one prefix.
-  - `pub const RESET_AFTER: f64`. The seconds after which the next letter starts a new prefix.
   - `pub const fn new() -> Self`. An empty buffer.
   - `pub fn push(&mut self, letter: char, now: f64) -> &str`. Adds `letter` typed at `now` seconds and returns the prefix.
   - `pub fn pick<'a>(prefix: &str, from: Option<usize>, len: usize, label: impl Fn(usize) -> std::borrow::Cow<'a, str>) -> Option<usize>`. The entry a prefix picks: the first match from the position after `from` (from `from` itself when the
@@ -215,7 +215,6 @@ Pure UI behaviours (layer 1): press lifecycle, `ValueDrag`, navigation, item lay
   - `pub const LIMIT: usize`. Entries kept; the oldest go first.
   - `pub fn leave(&mut self, place: ViewPlace<K>)`. The view is about to jump away from `place`: its entry keeps the centre and zoom the
   - `pub fn visit(&mut self, place: ViewPlace<K>)`. The view jumped to `place`. Visiting after Go Back drops the Go Forward entries; visiting
-  - `pub fn can_go(&self, step: isize, exists: impl Fn(&K) -> bool) -> bool`. Whether Go Back (`step` < 0) or Go Forward (`step` > 0) has a place to go to, skipping
   - `pub fn go(&mut self, step: isize, exists: impl Fn(&K) -> bool) -> Option<ViewPlace<K>>`. Go Back or Go Forward: the place to show, skipping places that no longer exist. Going
 - `craft_behavior::ViewPlace`: `pub struct ViewPlace<K> { pub key: K, pub center: Point, pub zoom: f64 }`. Where a view stood: what it showed (`key`: a page, an artboard, a document) and the view's
   - `pub const fn new(key: K, center: Point, zoom: f64) -> Self`. The view of `key` centred on `center` at `zoom`.
@@ -241,6 +240,7 @@ Pure UI behaviours (layer 1): press lifecycle, `ValueDrag`, navigation, item lay
 - `craft_behavior::resolve_mapped`: re-export of `craft_behavior::hit::resolve_mapped`.
 - `craft_behavior::role_violations`: re-export of `craft_behavior::role_rule::role_violations`.
 - `craft_behavior::wheel_step`: `pub fn wheel_step(steps: &ValueSteps, axes: ValueAxes, wheel: &Wheel, rtl: bool) -> StepResult`. Maps a wheel event to the new value of a single-value control: one `notch` per event, up for positive scroll.
+- `craft_behavior::wrap_value`: re-export of `craft_behavior::value_drag::wrap_value`.
 
 ## `craft_behavior::anchor`
 
@@ -250,7 +250,6 @@ The nine points of a box, shared by the transform box rules and the reference po
   - `pub const ALL: [Anchor9; 9]`. Every point, row by row from the top left.
   - `pub fn uv(self) -> (f64, f64)`. Where the point sits in the box: 0 to 1 across from the left edge and down from the top.
   - `pub fn cell(self) -> (usize, usize)`. The point's column and row in the 3 by 3 grid, counted from the top left.
-  - `pub fn from_cell(column: usize, row: usize) -> Anchor9`. The point in column `column` and row `row`; each is limited to 0 to 2.
 
 ## `craft_behavior::arrangement`
 
@@ -267,7 +266,6 @@ The transform a canvas body is shown through, and the canvas view with its zoom 
 - `craft_behavior::canvas::CanvasTransform`: `pub struct CanvasTransform { pub scale: f32, pub offset: Vec2 }`. A canvas body's mapping from canvas coordinates to its layer: `screen = canvas * scale + offset`.
   - `pub const fn new(scale: f32, offset: Vec2) -> Self`. The transform with `scale` layer points per canvas unit and the canvas origin at `offset`.
   - `pub fn to_layer(&self, canvas: Pos2) -> Pos2`. The position in the layer of a canvas point.
-  - `pub fn to_canvas(&self, layer: Pos2) -> Pos2`. The canvas point under a position in the layer.
 - `craft_behavior::canvas::CanvasView`: `pub struct CanvasView { pub rect: ScreenRect, pub center: Point, pub zoom: f64, pub rotation: f64, pub flip_x: bool, pub aspect: f64 }`. How a canvas shows its document: where, how large, turned and mirrored how. Apps convert their
   - `pub fn new(rect: ScreenRect, center: Point, zoom: f64) -> Self`. An upright, unmirrored, square-pixel view of `rect` showing `center` at `zoom`.
   - `pub const fn rotation(mut self, degrees: f64) -> Self`. The same view turned `degrees` clockwise.
@@ -300,7 +298,6 @@ The transform a canvas body is shown through, and the canvas view with its zoom 
   - `pub const LIMIT: usize`. Entries kept; the oldest go first.
   - `pub fn leave(&mut self, place: ViewPlace<K>)`. The view is about to jump away from `place`: its entry keeps the centre and zoom the
   - `pub fn visit(&mut self, place: ViewPlace<K>)`. The view jumped to `place`. Visiting after Go Back drops the Go Forward entries; visiting
-  - `pub fn can_go(&self, step: isize, exists: impl Fn(&K) -> bool) -> bool`. Whether Go Back (`step` < 0) or Go Forward (`step` > 0) has a place to go to, skipping
   - `pub fn go(&mut self, step: isize, exists: impl Fn(&K) -> bool) -> Option<ViewPlace<K>>`. Go Back or Go Forward: the place to show, skipping places that no longer exist. Going
 - `craft_behavior::canvas::ViewPlace`: `pub struct ViewPlace<K> { pub key: K, pub center: Point, pub zoom: f64 }`. Where a view stood: what it showed (`key`: a page, an artboard, a document) and the view's
   - `pub const fn new(key: K, center: Point, zoom: f64) -> Self`. The view of `key` centred on `center` at `zoom`.
@@ -345,7 +342,6 @@ Zoom rules as pure functions on a [`CanvasView`]: Photoshop's zoom range and Zoo
   - `fn normalise(&self, _text: &str, v: &Self::Value) -> String`. The text the field shows after committing `v`, which was parsed from `text`.
   - `fn caret_on_focus(&self, _text: &str) -> Caret`. Where the caret goes when the part takes focus with this text.
   - `fn sample(&self, current: &Self::Value) -> Cow<'_, str>`. The widest typical text, for the field's ideal width. Codecs with bounded text only; `PlainText` returns
-- `craft_behavior::codec::MAX_STEP_DECIMALS`: `pub const MAX_STEP_DECIMALS: usize`. The most places `decimals_for_step` reports.
 - `craft_behavior::codec::NotAValue`: `pub struct NotAValue`. The text is not a value of the codec's type.
 - `craft_behavior::codec::NumberCodec`: `pub struct NumberCodec`. An optional number: empty text is `None`; anything else reads through a [`Reader`].
   - `pub fn new(reader: Reader, decimals: usize) -> Self`. A codec reading with `reader` and writing at most `decimals` decimal places.
@@ -431,7 +427,7 @@ The dock model: the tree of splits over panel frames, the side of a group a drop
 - `craft_behavior::dock::DockSide`: `pub enum DockSide { Start, End, Top, Bottom, Center }`. The side of a group a dropped panel docks on, in reading order: `Start` is the left half in a left-to-right
   - `pub const fn axis(self) -> Option<Axis>`. The axis the side splits along; `None` for `Center`.
   - `pub fn area(self, group: Rect) -> Rect`. The part of `group` a panel docked on this side takes: the half on that side, or the whole group.
-- `craft_behavior::dock::Action`: `pub enum Action<P> { Move { panel: P, anchor: P, placement: DockPlacement<P> }, Float { panel: P, rect: Rect }, Close { panel: P }, Activate { panel: P }, Open { panel: P, anchor: Option<P> }, OpenAt { panel: P, anchor: P, placement: DockPlacement<P> }, MoveFloating { panel: P, rect: Rect }, ResizeSplit { path: Vec<bool>, size: SplitSize }, ResizeWindowSplit { panel: P, path: Vec<bool>, size: SplitSize }, SetStackOpen { panel: P, open: bool }, ResizeStack { panel: P, height: Option<f32> }, MoveGroup { panel: P, to: Target<P> }, StepGroup { panel: P, up: bool }, MoveColumn { panel: P, to: Target<P> }, MoveWindow { panel: P, to: Target<P> }, CloseGroup { panel: P }, CloseWindow { panel: P }, CloseOthers { panel: P }, SetMinimized { panel: P, minimized: bool }, SetIconic { panel: P, iconic: bool }, ResizeColumn { panel: P, width: f32 }, ResizeGroup { panel: P, height: Option<f32> }, ResizeIconic { panel: P, width: Option<f32> }, SetNative { panel: P, rect: Option<Rect> }, SetMonitor { panel: P, monitor: Option<Monitor>, monitor_size: Option<[f32; 2]> }, MovePanel { panel: P, to: Target<P> } }`. Groups, columns and floating windows are named by a panel they contain.
+- `craft_behavior::dock::Action`: `pub enum Action<P> { Move { panel: P, anchor: P, placement: DockPlacement<P> }, Float { panel: P, rect: Rect }, Close { panel: P }, Activate { panel: P }, Open { panel: P, anchor: Option<P> }, OpenAt { panel: P, anchor: P, placement: DockPlacement<P> }, MoveFloating { panel: P, rect: Rect }, ResizeSplit { path: Vec<bool>, size: SplitSize }, ResizeWindowSplit { panel: P, path: Vec<bool>, size: SplitSize }, SetStackOpen { panel: P, open: bool }, ResizeStack { panel: P, height: Option<f32> }, MoveGroup { panel: P, to: Target<P> }, StepGroup { panel: P, up: bool }, MoveColumn { panel: P, to: Target<P> }, MoveWindow { panel: P, to: Target<P> }, CloseGroup { panel: P }, CloseWindow { panel: P }, CloseOthers { panel: P }, SetMinimized { panel: P, minimized: bool }, SetIconic { panel: P, iconic: bool }, ResizeColumn { panel: P, width: f32 }, ResizeGroup { panel: P, height: Option<f32> }, ResizeIconic { panel: P, width: Option<f32> }, SetNative { panel: P, placement: Option<Placement> }, MovePanel { panel: P, to: Target<P> } }`. Groups, columns and floating windows are named by a panel they contain.
   - `pub fn move_beside(panel: P, anchor: P, placement: DockPlacement<P>) -> Self`. Builds [`Action::Move`].
   - `pub fn float(panel: P, rect: Rect) -> Self`. Builds [`Action::Float`].
   - `pub fn close(panel: P) -> Self`. Builds [`Action::Close`].
@@ -455,8 +451,7 @@ The dock model: the tree of splits over panel frames, the side of a group a drop
   - `pub fn resize_column(panel: P, width: f32) -> Self`. Builds [`Action::ResizeColumn`].
   - `pub fn resize_group(panel: P, height: Option<f32>) -> Self`. Builds [`Action::ResizeGroup`].
   - `pub fn resize_iconic(panel: P, width: Option<f32>) -> Self`. Builds [`Action::ResizeIconic`].
-  - `pub fn set_native(panel: P, rect: Option<Rect>) -> Self`. Builds [`Action::SetNative`].
-  - `pub fn set_monitor(panel: P, monitor: Option<Monitor>, monitor_size: Option<[f32; 2]>) -> Self`. Builds [`Action::SetMonitor`].
+  - `pub fn set_native(panel: P, placement: Option<Placement>) -> Self`. Builds [`Action::SetNative`].
   - `pub fn move_panel(panel: P, to: Target<P>) -> Self`. Builds [`Action::MovePanel`].
 - `craft_behavior::dock::Arrangement`: `pub enum Arrangement { TileAllVertically, TileAllHorizontally, TwoUpVertical, TwoUpHorizontal, ThreeUpVertical, ThreeUpHorizontal, ThreeUpStacked, FourUp, SixUp, ConsolidateAllToTabs, Cascade, Tile, FloatInWindow, FloatAllInWindows, NewWindowForDocument, MatchZoom, MatchLocation, MatchRotation, MatchAll }`. One Window › Arrange entry. The n-up entries split the document area into that many
   - `pub fn group_count(self, documents: usize) -> Option<usize>`. How many document groups an n-up or tile arrangement wants, `None` for the window and
@@ -470,7 +465,6 @@ The dock model: the tree of splits over panel frames, the side of a group a drop
 - `craft_behavior::dock::DockError`: `pub enum DockError { LimitExceeded, DuplicatePanel, MissingPanel, MissingTarget, InvalidSelection, InvalidGeometry, InvalidPlacement, NotAllowed, UnsupportedVersion }`. Why a layout edit or load was refused. The layout is unchanged when an edit fails.
 - `craft_behavior::dock::DockPlacement`: `pub enum DockPlacement<P> { Tab { before: Option<P> }, Split(DockSide), SplitSized { zone: DockSide, size: SplitSize, outer: SplitSize }, Group { below: bool, height: Option<f32> }, Column { after: bool }, Edge(DockSide) }`. Where a moved panel goes relative to an anchor panel.
   - `pub fn tab(before: Option<P>) -> Self`. Builds [`DockPlacement::Tab`].
-  - `pub fn split_sized(zone: DockSide, size: SplitSize, outer: SplitSize) -> Self`. Builds [`DockPlacement::SplitSized`].
   - `pub fn group(below: bool, height: Option<f32>) -> Self`. Builds [`DockPlacement::Group`].
   - `pub fn column(after: bool) -> Self`. Builds [`DockPlacement::Column`].
   - `pub fn allowed_by(&self, anchor: Permissions, floating: bool) -> bool`. Whether the anchor's permissions take this placement: tabs need `accepts_tabs`, side
@@ -483,7 +477,7 @@ The dock model: the tree of splits over panel frames, the side of a group a drop
   - `pub fn split_into(&mut self, n: usize)`. Split the docked documents into `n` groups for an n-up arrangement, in order. The first
   - `pub fn new_window_for(&mut self, document: &D, rect: Rect) -> u64`. A second view of `document`: the same document id in a new window; the app keeps one
   - `pub fn to_actions<P: Clone + Eq + Hash>(&self, layout: &Layout<P>, panel_of: impl Fn(u64) -> P) -> Vec<Action<P>>`. The dock actions that put `self` into `layout`, for the dock to draw the windows. The
-- `craft_behavior::dock::Floating`: `pub struct Floating<P> { pub id: u64, pub root: Node<P>, pub rect: Rect, pub native: Option<Rect>, pub monitor: Option<Monitor>, pub monitor_size: Option<[f32; 2]>, pub minimized: bool }`. A floating window: a tree of groups like the docked layout's, without docks.
+- `craft_behavior::dock::Floating`: `pub struct Floating<P> { pub id: u64, pub root: Node<P>, pub rect: Rect, pub native: Option<Placement>, pub minimized: bool }`. A floating window: a tree of groups like the docked layout's, without docks.
   - `pub fn new(root: Node<P>, rect: Rect) -> Self`. A window holding `root`. Each call makes a new window, with a fresh [`Self::id`]: build
   - `pub fn single(panels: Vec<P>, active: usize, rect: Rect) -> Self`. A window with one group. Each call makes a new window, as [`Self::new`] does.
   - `pub fn with_id(mut self, id: u64) -> Self`. The window with `id`, for a layout the app builds in code, such as a default layout:
@@ -512,8 +506,6 @@ The dock model: the tree of splits over panel frames, the side of a group a drop
 - `craft_behavior::dock::MAX_PANELS`: `pub const MAX_PANELS: usize`. Most panels a layout may hold. Larger layouts fail with [`DockError::LimitExceeded`](super::DockError::LimitExceeded).
 - `craft_behavior::dock::NamedWorkspace`: `pub struct NamedWorkspace<P> { pub id: String, pub name: String, pub layout: Workspace<P>, pub chrome: WorkspaceChrome, pub keeps_shortcuts: bool, pub keeps_menus: bool }`. One named workspace.
   - `pub fn new(id: impl Into<String>, name: impl Into<String>, layout: Workspace<P>) -> Self`. A workspace named `name` with the stable id `id`, showing every bar and keeping no shortcuts or menus.
-- `craft_behavior::dock::NativeSpace`: `pub struct NativeSpace<'a> { pub monitors: &'a [Monitor], pub main: Option<Rect>, pub monitor_size: Option<Vec2>, pub bar: f32 }`. What a saved native window is placed against.
-  - `pub fn new(monitors: &'a [Monitor], bar: f32) -> Self`. A space of `monitors` whose windows have a `bar`-high bar, with no main window known.
 - `craft_behavior::dock::Node`: `pub enum Node<P> { Split { axis: Axis, size: SplitSize, first: Box<Node<P>>, second: Box<Node<P>> }, Tabs { panels: Vec<P>, active: usize }, Stack { entries: Vec<StackEntry<P>> }, Dock { side: DockEdge, columns: Vec<Column<P>> } }`. A node of a layout tree.
   - `pub fn tabs(panels: Vec<P>, active: usize) -> Self`. A group of tabs with tab `active` selected.
   - `pub fn split(axis: Axis, size: SplitSize, first: Node<P>, second: Node<P>) -> Self`. Two children along `axis`, sharing the room by `size`.
@@ -559,10 +551,7 @@ The dock model: the tree of splits over panel frames, the side of a group a drop
 - `craft_behavior::dock::ZoneSize`: `pub enum ZoneSize { Depth(f32), Fraction }`. How deep the side zones of a body are.
 - `craft_behavior::dock::arrange_rects`: `pub fn arrange_rects(arrangement: Arrangement, area: Rect, n: usize) -> Option<Vec<Rect>>`. The cells of an n-up or Tile All arrangement inside `area`, in reading order. `Tile All
 - `craft_behavior::dock::first_active`: `pub fn first_active<P>(root: &Node<P>) -> Option<&P>`. The shown panel of a tree's first group.
-- `craft_behavior::dock::kept_reachable`: `pub fn kept_reachable(rect: Rect, monitors: &[Monitor], bar: f32) -> Rect`. `rect` made safe (its bar `bar` high), and moved wholly onto the nearest of `monitors` when too little of its
 - `craft_behavior::dock::node_at`: `pub fn node_at<'a, P>(mut node: &'a Node<P>, path: &[bool]) -> Option<&'a Node<P>>`. The node at `path` from `root`: false is a split's first child, true its second.
-- `craft_behavior::dock::restore_rect`: `pub fn restore_rect(saved: Rect, monitor: Option<&Monitor>, space: NativeSpace<'_>) -> Rect`. Where a native window from a saved layout opens.
-- `craft_behavior::dock::sanitized`: `pub fn sanitized(rect: Rect) -> Rect`. A rect safe to hand to the windowing system: finite, its size and position bounded.
 - `craft_behavior::dock::tree_panels`: `pub fn tree_panels<P>(root: &Node<P>) -> Vec<&P>`. The panels of a tree in order, without recursion; at most [`MAX_PANELS`].
 - `craft_behavior::dock::zones`: `pub fn zones(body: Rect, size: ZoneSize, rtl: bool) -> [(DockSide, Rect); 5]`. The zones of `body`, the part of a group below its tab strip: the start and end zones along its full height,
 
@@ -576,8 +565,6 @@ The dock model: the tree of splits over panel frames, the side of a group a drop
   - `pub fn is_open(&self) -> bool`. A gesture is open: a caller that restores a draft waits for it to end.
   - `pub fn step(&mut self, now: &mut T, step: Step) -> bool`. Steps `now` back or forward. False when there is nowhere to go. An open gesture is abandoned.
   - `pub fn take_back(&mut self) -> Option<T>`. Takes back the newest undo step without a redo entry, for an edit that was refused: `settled` returns to the
-  - `pub fn undo_name(&self) -> Option<&str>`. The name of the step an undo would take back ("Opacity" for "Undo Opacity").
-  - `pub fn redo_name(&self) -> Option<&str>`. The name of the step a redo would apply.
   - `pub fn can_undo(&self) -> bool`. An undo would change something.
   - `pub fn can_redo(&self) -> bool`. A redo would change something.
 - `craft_behavior::edit_history::Step`: `pub enum Step { Undo, Redo }`. Which way [`EditHistory::step`] goes.
@@ -596,8 +583,6 @@ The dock model: the tree of splits over panel frames, the side of a group a drop
 
 When a component's remembered state is due for eviction.
 
-- `craft_behavior::eviction::GRACE_PASSES`: `pub const GRACE_PASSES: u64`. Passes of the viewport that last showed an owner that must go by before its shown entries can be evicted.
-- `craft_behavior::eviction::GRACE_SECS`: `pub const GRACE_SECS: f64`. Seconds since an owner's last registration before its shown entries can be evicted.
 - `craft_behavior::eviction::owner_due`: `pub fn owner_due(last_pass: u64, last_at: f64, pass_now: u64, now: f64, viewport_live: bool) -> bool`. Whether the owner last registered at pass `last_pass` and time `last_at` is due: both the pass count and the
 
 ## `craft_behavior::fit`
@@ -628,7 +613,6 @@ The fit rules: which tabs, bar items or titles stay in a strip and which go to a
   - `pub fn span(&self, start: f32, width: f32) -> Rect`. The full-height rect `width` wide that begins `start` from the start edge.
   - `pub fn take_start(&self, width: f32) -> (Rect, Flow)`. Takes `width` from the start edge: the taken rect, and the flow of the rest.
   - `pub fn take_end(&self, width: f32) -> (Rect, Flow)`. Takes `width` from the end edge: the taken rect, and the flow of the rest.
-  - `pub fn split_start(&self, rect: Rect, width: f32) -> (Rect, Rect)`. Splits `width` from the start edge of `rect`: `(the start part, the rest)`.
   - `pub fn inset(&self, insets: Insets) -> Rect`. The rect shrunk by `insets`.
   - `pub fn align(&self, size: Vec2, h: Align, v: Align) -> Rect`. A rect of `size` in the flow's rect: `h` along the reading direction (`Min` is the start edge), `v`
   - `pub fn to_physical(&self, logical: Rect) -> Rect`. A rect given in logical x (from the start edge of this flow's rect) as a physical rect.
@@ -647,7 +631,6 @@ Pure focus rules (spec 9.3, 9.4, 8.3): key ownership, focus after removal, the E
 - `craft_behavior::focus::EscapeFacts`: `pub struct EscapeFacts { pub press_captured: bool, pub component_undoable: bool, pub in_row_child: bool, pub scope_clearable: bool }`. The facts the Escape order reads.
   - `pub const fn new() -> Self`. No fact set.
   - `pub const fn press_captured(mut self, on: bool) -> Self`. A press is captured.
-  - `pub const fn component_undoable(mut self, on: bool) -> Self`. The focused component has something to undo.
   - `pub const fn in_row_child(mut self, on: bool) -> Self`. Focus is on a row's child.
   - `pub const fn scope_clearable(mut self, on: bool) -> Self`. The scope has content to clear.
 - `craft_behavior::focus::EscapeRouting`: `pub struct EscapeRouting { pub cancels_press: bool, pub to_components: usize }`. How the Escapes that arrived in one pass split between the captured press and the components.
@@ -751,15 +734,15 @@ The crop frame's pure geometry: the box, where a press lands on it, what each ge
 - `craft_behavior::geometry::crop::GuideShow`: `pub enum GuideShow { Auto, Always, Never }`. When the guide shows.
   - `pub const ALL: [GuideShow; 3]`. Every rule, in menu order.
   - `pub fn shows(self, gesture: bool) -> bool`. Whether the guide shows, `gesture` being a crop drag in progress.
-- `craft_behavior::geometry::crop::MIN_FRAME`: `pub const MIN_FRAME: f64`. Smallest side (document units) a gesture may leave behind.
 - `craft_behavior::geometry::crop::crop_view`: `pub fn crop_view(b: &CropBox, view: &CanvasView) -> CanvasView`. `view` turned so the frame `b` shows upright (rotation `-b.angle`), the frame's centre kept where it is on screen.
 - `craft_behavior::geometry::crop::crop_view_about`: `pub fn crop_view_about(b: &CropBox, view: &CanvasView, pivot: Point) -> CanvasView`. [`crop_view`] keeping document point `pivot` where it is on screen. `view` itself when anything is not finite.
 - `craft_behavior::geometry::crop::direction`: `pub fn direction(c: Point, p: Point) -> f64`. The direction of `p` from `c`, in radians.
 - `craft_behavior::geometry::crop::drawn`: `pub fn drawn(anchor: Point, cur: Point, ratio: Option<f64>, mods: Mods) -> Rect`. A new frame drawn from `anchor` to `cur`: ⇧ square, ⌥ from the centre, `ratio` held.
 - `craft_behavior::geometry::crop::hit_rect`: `pub fn hit_rect(rect: Rect, point: Point, reach: f64) -> BoxPart`. [`CropBox::part_at`] for a plain upright `rect`, with no frame or view.
 - `craft_behavior::geometry::crop::image_turn`: `pub fn image_turn(frame_angle: f64) -> f64`. The turn the image-mode readout shows: clockwise positive, the frame's angle undone, never -0.
-- `craft_behavior::geometry::crop::normalized_angle`: `pub fn normalized_angle(deg: f64) -> f64`. An angle in degrees brought into (-180, 180]; 0 for anything not finite.
+- `craft_behavior::geometry::crop::normalized_angle`: `pub fn normalized_angle(deg: f64) -> f64`. An angle in degrees brought into (-180, 180]; 0 for anything not finite. An angle already in range comes back
 - `craft_behavior::geometry::crop::screen_step`: `pub fn screen_step(view: &CanvasView, by: Vec2) -> Vec2`. An arrow step `by` (screen points) as the document vector it is in `view`, at one document unit per point.
+- `craft_behavior::geometry::crop::snap_angle`: `pub fn snap_angle(deg: f64, step: f64) -> f64`. `deg` on the nearest multiple of `step` degrees, brought into (-180, 180]; a step that is not finite and positive
 - `craft_behavior::geometry::crop::turn`: `pub fn turn(p: Point, c: Point, deg: f64) -> Point`. `p` turned `deg` degrees clockwise on screen (y down) about `c`.
 
 ## `craft_behavior::geometry::draft`
@@ -788,7 +771,6 @@ An outline being drawn by a selection or freeform tool, and how it closes: [`Out
   - `pub fn points(&self) -> &[Point]`. The outline's points so far, in document units; empty with no outline.
   - `pub fn straight(&self) -> &[usize]`. Indices into [`points`](Self::points) whose incoming segment is straight.
   - `pub fn rubber_band(&self) -> Option<[Point; 2]>`. The rubber band from the last vertex to the pointer while straight segments are on and
-  - `pub fn hits_start(&self, at: DraftPoint) -> bool`. Whether a press at `at` would close the outline (the tool's close cursor or ring): the
   - `pub fn is_open(&self) -> bool`. Whether an outline is open.
   - `pub fn is_down(&self) -> bool`. Whether the primary button is down on an open outline.
   - `pub fn takes_retract(&self) -> bool`. Whether [`retract`](Self::retract) acts: an outline is open and the button is up (between
@@ -796,13 +778,9 @@ An outline being drawn by a selection or freeform tool, and how it closes: [`Out
 
 ## `craft_behavior::geometry::geom`
 
-Plane geometry the canvas overlays share, in document or screen units: point in polygon,
+Plane geometry the canvas overlays share, in document or screen units: segment clipping. Pure maths beside
 
-- `craft_behavior::geometry::geom::NEAR_W`: `pub const NEAR_W: f64`. The least homogeneous depth `w` a projected point keeps: points at or behind a perspective
-- `craft_behavior::geometry::geom::angle_deg`: `pub fn angle_deg(v: Vec2) -> f64`. `v`'s angle from the x axis in degrees, −180 to 180, positive towards +y (clockwise on a
 - `craft_behavior::geometry::geom::clip_segment`: `pub fn clip_segment(a: Point, b: Point, rect: Rect) -> Option<(Point, Point)>`. The part of segment `a`–`b` inside `rect` (Liang–Barsky), or `None` when none is.
-- `craft_behavior::geometry::geom::point_in_polygon`: `pub fn point_in_polygon(p: Point, points: &[Point]) -> bool`. Whether `p` is inside the polygon `points` (closed implicitly) by the nonzero winding rule,
-- `craft_behavior::geometry::geom::project_clipped`: `pub fn project_clipped(m: &Homography, points: &[Point]) -> Vec<Point>`. The closed polygon `points` through `m`, cut at `w = NEAR_W` before the perspective divide, so
 
 ## `craft_behavior::geometry::lock`
 
@@ -822,7 +800,6 @@ The Ui-free rules of a marquee drag: [`MarqueeGesture`], the options bar's [`Con
   - `pub fn corners(self, start: Point, end: Point, square: bool, centre: bool) -> (Point, Point)`. The corners of the marquee dragged from `start` to `end`: the style applied, ⇧ (`square`)
 - `craft_behavior::geometry::marquee::MarqueeGesture`: `pub struct MarqueeGesture`. The rules of a marquee drag: ⇧ and ⌥ counted only when pressed after the
   - `pub fn press(screen: Pos2, at: Point, mods: Mods) -> Self`. A press at `screen` (screen points) and `at` (document units, snapped by the host) with
-  - `pub fn press_mods(&self) -> Mods`. The mods held at the press, for the host's selection mode (add, subtract).
   - `pub fn pointer(&self) -> Pos2`. The pointer on screen as last followed.
   - `pub fn has_begun(&self) -> bool`. The tool began the gesture with its first drag call.
   - `pub fn follow(&mut self, screen: Option<Pos2>, mods: Mods)`. The pass's mods and pointer (`None` keeps the last one): records ⇧ and ⌥ being
@@ -870,22 +847,16 @@ Box geometry of transform boxes: where the box goes when a part of it is dragged
   - `pub fn with_scale(mut self, scale: ScaleRule) -> BoxRules`. The rules with `scale` as the plain corner and edge drag rule.
   - `pub fn with_aspect_linked(mut self, linked: bool) -> BoxRules`. The rules with the options bar's aspect link on or off.
   - `pub fn with_allow(mut self, allow: BoxAllow) -> BoxRules`. The rules with `allow` as what the content permits.
-  - `pub fn with_rotate_step(mut self, degrees: f64) -> BoxRules`. The rules with `degrees` as the angle ⇧ snaps a rotation to.
-  - `pub fn resize_only() -> BoxRules`. The rules of a box that only resizes and moves: a selection frame (CadCraft's and GridCraft's
   - `pub fn effective_mode(&self) -> TransformMode`. The mode drags follow: a mode the content refuses scales as Free Transform does.
   - `pub fn allows(&self, part: BoxPart) -> bool`. Whether a drag of `part` changes the box: in Distort only the corners, the inside and the
-  - `pub fn drag_modifiers(&self, part: BoxPart, mods: Mods) -> Mods`. The modifiers a drag of `part` acts on, from the keys held: ⌘ is dropped on a corner or
   - `pub fn drag_kind(&self, part: BoxPart, mods: Mods) -> Option<BoxDrag>`. What a drag of `part` with `mods` held (as the host has them, before
 - `craft_behavior::geometry::quad::BoxState`: `pub struct BoxState { pub quad: [Point; 4], pub pivot: Point }`. A transform box: its four corners clockwise from the top left (as the box was before any
   - `pub const fn new(quad: [Point; 4], pivot: Point) -> Self`. A box with the corners `quad`, clockwise from the top left, and the reference point `pivot`.
   - `pub fn from_rect(r: Rect) -> Self`. The box of `r`, the reference point at its centre.
   - `pub fn moved(&self, by: Vec2) -> Self`. The box and its reference point moved by `by`.
   - `pub fn is_parallelogram(&self) -> bool`. Whether the box is still an affine image of its rect (opposite sides parallel), so W and H
-  - `pub fn affine_from(&self, rect: Rect) -> Option<Affine>`. The affine map taking `rect`'s corners to the box; `None` once the box is distorted out of a
   - `pub fn parts(&self, rect: Rect, skew_v: f64) -> Parts`. The box read as the options bar shows it, `rect` being the box before the transform and
   - `pub fn with_parts(&self, rect: Rect, skew_v: f64, mut to: Parts) -> Self`. The box with the options bar's fields set to `to`: W and H scale it along its own axes, the
-  - `pub fn signed_scale(&self, rect: Rect, skew_v: f64) -> (f64, f64)`. The signed W and H factors of the box ([`parts`](Self::parts)): a mirrored side reads
-  - `pub fn with_signed_scale(&self, rect: Rect, skew_v: f64, w: f64, h: f64) -> Self`. The box with W and H set to the signed factors `w` and `h`, the angle and skews kept. A
   - `pub fn linked_scale(now:(f64, f64), axis: usize, typed: f64) -> (f64, f64)`. The signed factors `(w, h)` after the side on `axis` (0: W, 1: H) is set to `typed` with W
   - `pub fn point_at(&self, at: Anchor9) -> Point`. One of the box's nine points, through the box's own frame (a distorted box's centre is
   - `pub fn anchor_of_pivot(&self) -> Option<Anchor9>`. The point of the nine the reference point is on, within 0.05 document units; `None` for a
@@ -929,23 +900,19 @@ Box geometry of transform boxes: where the box goes when a part of it is dragged
   - `pub const fn rect(at_press: Rect) -> Self`. A moving rectangle that was `at_press` when the gesture began.
   - `pub const fn axis(along: Axis) -> Self`. Only the coordinate across the lines that run `along` snaps: x for `Axis::Y`.
 - `craft_behavior::geometry::snap::SnapKind`: `pub enum SnapKind { Guide, Grid, Bounds, Center, LayerEdge, LayerCenter, Selection }`. What a target is, so an app can filter (Snap To › Guides only) and the lines can be drawn in
-  - `pub fn is_smart(self) -> bool`. Drawn as a smart guide (magenta) rather than snapped silently.
 - `craft_behavior::geometry::snap::SnapLine`: `pub struct SnapLine { pub along: Axis, pub position: f64, pub kind: SnapKind, pub span: Option<(f64, f64)> }`. The line the UI draws for a snap that happened.
 - `craft_behavior::geometry::snap::SnapOptions`: `pub struct SnapOptions { pub on: bool, pub guides: bool, pub grid: bool, pub layers: bool, pub document_bounds: bool, pub selection: bool, pub smart_guides: bool }`. View › Snap To and View › Show › Smart Guides, as the app stores them.
 - `craft_behavior::geometry::snap::SnapTarget`: `pub struct SnapTarget { pub along: Axis, pub position: f64, pub kind: SnapKind, pub span: Option<(f64, f64)> }`. One snap position on one axis.
   - `pub const fn new(along: Axis, position: f64, kind: SnapKind) -> Self`. A full-height line of `kind` running `along` an axis, at `position` across it: a line along `Axis::Y`
-  - `pub const fn with_span(mut self, from: f64, to: f64) -> Self`. The target with its extent along its line, for drawing a smart guide.
 - `craft_behavior::geometry::snap::SnapTargets`: `pub struct SnapTargets`. The snap targets of one gesture.
   - `pub fn new() -> Self`. No targets.
   - `pub fn add(&mut self, target: SnapTarget)`. Add one target.
-  - `pub fn add_rect(&mut self, rect: Rect, edge: SnapKind, center: SnapKind)`. Add a rectangle's four edges as `edge` targets and its two centre lines as `center`
   - `pub fn with_document(self, options: &SnapOptions, bounds: Rect, guides: impl IntoIterator<Item =(Axis, f64)>, grid: Option<(Point, Vec2)>,) -> Self`. Guides as full-height targets, grid lines of `spacing` from `origin` over `bounds`, the
   - `pub fn filtered(&self, keep: impl Fn(SnapKind) -> bool) -> SnapTargets`. Only the targets `keep` accepts (Snap To with one kind off).
   - `pub fn is_empty(&self) -> bool`. Whether there is no target.
   - `pub fn nearest(&self, along: Axis, value: f64, tolerance: f64) -> Option<SnapTarget>`. The nearest target among the lines that run `along` an axis, within `tolerance` of `value` across them.
   - `pub fn snap_point(&self, point: Point, tolerance: f64) -> (Point, Vec<SnapLine>)`. `point` snapped on each axis independently, with the lines to draw.
   - `pub fn snap_rect(&self, rect: Rect, tolerance: f64) -> (Vec2, Vec<SnapLine>)`. The offset that moves `rect` so its nearest edge or centre meets a target on each axis,
-  - `pub fn snap_axis(&self, along: Axis, value: f64, tolerance: f64) -> (f64, Option<SnapLine>)`. `value` across the lines that run `along` an axis, snapped to the nearest target within `tolerance`, for a
 - `craft_behavior::geometry::snap::across_axis`: `pub const fn across_axis(along: Axis) -> Axis`. The axis across `along`: a line running along `Axis::Y` (vertical) is placed on `Axis::X`.
 - `craft_behavior::geometry::snap::coordinate_across`: `pub const fn coordinate_across(along: Axis, p: Point) -> f64`. The coordinate of `p` a line running `along` an axis is placed by: x for a line along `Axis::Y`.
 - `craft_behavior::geometry::snap::motion_across`: `pub fn motion_across(along: Axis) -> Vec2`. The document direction a line running `along` an axis moves in: x for a line along `Axis::Y`. A screen caller
@@ -965,7 +932,6 @@ The `Grid` cursor: columns resolved from last pass's measurements, and the cell 
   - `pub fn in_content_column(&self) -> bool`. Whether the next child goes in a `Content` column.
   - `pub fn widen(&mut self, size: Vec2)`. The cell last placed measured `size` after all: its column and row record that, and a `Content` column offers
   - `pub fn measured(&self) -> &GridMeasure`. What this pass measured.
-  - `pub fn last_height(&self) -> f32`. The height the rows took last pass, gaps included.
 - `craft_behavior::grid::GridMeasure`: `pub struct GridMeasure { pub columns: Vec<f32>, pub rows: Vec<f32> }`. What a `Grid` pass measured: the widest child per column and the tallest per row.
   - `pub const fn new(columns: Vec<f32>, rows: Vec<f32>) -> Self`. A measurement of `columns` and `rows`.
 - `craft_behavior::grid::resolve_columns`: `pub fn resolve_columns(columns: &[ColumnWidth], content: &[f32], room: f32, gap: f32) -> Vec<f32>`. The width of each column in `room`: `Fixed` is the app's width, `Content` the widest child of last pass
@@ -984,7 +950,6 @@ Hit shapes, their priority and the arena's resolve rule (8.3).
   - `pub fn polyline(points: Vec<Pos2>, closed: bool) -> Self`. A chain of segments, closed when `closed`.
   - `pub fn outside_polygon(within: Rect, polygon: Vec<Pos2>) -> Self`. The part of `within` outside `polygon`.
   - `pub fn bounds(&self) -> Rect`. The smallest rectangle around the shape.
-  - `pub fn hit_across(&self, point: Pos2, across: f32) -> bool`. Whether `point` hits the shape grown to be at least `across` wide and high: the hit area of a part is never
   - `pub fn hit(&self, point: Pos2) -> bool`. Whether `point` hits the shape.
 - `craft_behavior::hit::LINE_REACH`: `pub const LINE_REACH: f32`. How far from a line a point still hits it, in points.
 - `craft_behavior::hit::ResolveFor`: `pub enum ResolveFor { Press, Hover }`. What a resolution is for.
@@ -1012,7 +977,6 @@ Intents: a key, an AccessKit action or typed text turned into meaning (spec 9.2)
 - `craft_behavior::intent::Granularity`: `pub enum Granularity { Unit, Word, Line, Paragraph, Document }`. How far a move reaches.
 - `craft_behavior::intent::Intent`: `pub enum Intent { Activate, Submit, SubmitForce, Cancel, Move(NavMove, MoveMods), Delete { forward: bool, by: Granularity, shift: bool }, Space, Digit(u8), Rename, ContextMenu, Reset, Text(Arc<str>), Tab, Edit(EditCommand), SwitchPage { forward: bool }, MoveItem { forward: bool }, Open, Close, Access(AccessRequest) }`. What the runtime routes to a focused component.
   - `pub const fn delete(forward: bool, by: Granularity) -> Intent`. `Delete` of `by`, forward or back.
-  - `pub const fn shift_delete(forward: bool, by: Granularity) -> Intent`. `Delete` of `by` with Shift held.
   - `pub const fn switch_page(forward: bool) -> Intent`. `SwitchPage` to the next page when `forward`.
   - `pub const fn move_item(forward: bool) -> Intent`. `MoveItem` toward the end when `forward`.
   - `pub fn same_kind(&self, other: &Intent) -> bool`. Whether `self` and `other` are the same kind of intent, whatever their data.
@@ -1056,7 +1020,6 @@ Item geometry: where each item of a collection sits for a scroll offset and view
   - `fn set_view(&mut self, _viewport: Vec2, _offset: ScrollPos)`. The viewport and scroll offset the grid view describes. Layouts without a grid ignore it.
 - `craft_behavior::item_layout::LineIndex`: `pub struct LineIndex`. Lines (rows or columns) with a default size, the lines whose size differs and their prefix sums, so the start
   - `pub fn uniform(size: f32, count: u32) -> Self`. `count` lines of `size` each (negative or NaN sizes count as `0.0`).
-  - `pub fn from_sizes(sizes: impl IntoIterator<Item = f32>, default: f32) -> Self`. One line per size, in order; the lines at `default` are not stored.
   - `pub fn set(&mut self, line: u32, size: f32)`. Gives `line` the size `size`; the lines after it move. A line at or past `count` is ignored.
   - `pub fn start(&self, line: u32) -> f64`. The start of `line`: the sum of the sizes before it. A line past the last one continues at the default size.
   - `pub fn end(&self, line: u32) -> f64`. The end of `line`: its start plus its size.
@@ -1174,10 +1137,15 @@ The tolerance rule of layout memory: when a measured size asks for a discard pas
 
 ## `craft_behavior::monitor`
 
-The monitor type of persisted layouts.
+The connected monitors, as every window placement reads them.
 
-- `craft_behavior::monitor::Monitor`: `pub struct Monitor { pub name: Option<String>, pub rect: Rect, pub scale: f32 }`. A display in desktop logical points, the one monitor type of saved data. Applications on an egui with monitor
-  - `pub fn new(name: Option<String>, rect: Rect, scale: f32) -> Self`. A display at `rect` with `scale` physical pixels per logical point.
+- `craft_behavior::monitor::Monitor`: `pub struct Monitor { pub key: MonitorKey, pub pos_px: [i32; 2], pub size_px: [u32; 2], pub scale: f32, pub work_px: Option<([i32; 2], [u32; 2])> }`. A connected monitor, in physical pixels of the desktop's coordinate space (negative for a monitor left of or
+  - `pub fn new(key: MonitorKey, pos_px: [i32; 2], size_px: [u32; 2], scale: f32) -> Self`. A monitor at `pos_px` of `size_px` pixels with `scale`, usable in full.
+  - `pub fn with_work_px(mut self, pos_px: [i32; 2], size_px: [u32; 2]) -> Self`. Sets the usable area (see [`work_px`](Self::work_px)).
+  - `pub fn rect_px(&self) -> Rect`. The monitor's area in pixels.
+  - `pub fn points_at(&self, window_scale: f32) -> Rect`. The monitor's area in points of a window whose scale is `window_scale`. Monitors that touch in pixels touch
+- `craft_behavior::monitor::MonitorKey`: `pub struct MonitorKey { pub name: String, pub size_px: [u32; 2] }`. Identifies a monitor across launches: the name the platform reports and its size in pixels.
+  - `pub fn new(name: impl Into<String>, size_px: [u32; 2]) -> Self`. A key for the monitor called `name` with size `size_px`.
 
 ## `craft_behavior::motion`
 
@@ -1233,7 +1201,6 @@ The navigation core (spec 9.5): shapes, the key-free outline, stepping, roving g
 - `craft_behavior::nav::STEP_SHARE`: `pub const STEP_SHARE: f64`. The share of a value's span that one small step is, when a control sets no step.
 - `craft_behavior::nav::StepResult`: `pub enum StepResult { Set(f64), Ignored }`. What a single-value move does.
 - `craft_behavior::nav::TypeAhead`: `pub struct TypeAhead`. Typed letters of the last second as one prefix.
-  - `pub const RESET_AFTER: f64`. The seconds after which the next letter starts a new prefix.
   - `pub const fn new() -> Self`. An empty buffer.
   - `pub fn push(&mut self, letter: char, now: f64) -> &str`. Adds `letter` typed at `now` seconds and returns the prefix.
   - `pub fn pick<'a>(prefix: &str, from: Option<usize>, len: usize, label: impl Fn(usize) -> std::borrow::Cow<'a, str>) -> Option<usize>`. The entry a prefix picks: the first match from the position after `from` (from `from` itself when the
@@ -1242,6 +1209,7 @@ The navigation core (spec 9.5): shapes, the key-free outline, stepping, roving g
   - `pub const fn new(value: f64, min: f64, max: f64, small: f64, large: f64) -> Self`. Steps over `min..=max` from `value`. The fine step is `small / LARGE_STEPS` and a wheel notch is `small`.
   - `pub const fn fine(mut self, fine: f64) -> Self`. The same steps with an Alt arrow of `fine`.
   - `pub const fn notch(mut self, notch: f64) -> Self`. The same steps with a wheel notch of `notch`.
+- `craft_behavior::nav::snap_to_step`: `pub fn snap_to_step(value: f64, step: f64, origin: f64, range: RangeInclusive<f64>) -> f64`. `value` clamped to `range`, then on the nearest of the stops `origin + k * step` and the ends of `range`; a tie
 - `craft_behavior::nav::step`: `pub fn step(shape: NavShape, outline: &dyn NavOutline, state: &mut NavState, mv: NavMove, mods: MoveMods) -> NavStep`. Steps the lead of a navigation of `shape` over `outline` by `mv`. `mods.extend` keeps the anchor at the
 - `craft_behavior::nav::step_value`: `pub fn step_value(steps: &ValueSteps, axes: ValueAxes, mv: NavMove, mods: MoveMods) -> StepResult`. Maps a move to the new value of a slider, dial, rating, resize handle or colour pad. `Forward`, `Up` and
 - `craft_behavior::nav::wheel_step`: `pub fn wheel_step(steps: &ValueSteps, axes: ValueAxes, wheel: &Wheel, rtl: bool) -> StepResult`. Maps a wheel event to the new value of a single-value control: one `notch` per event, up for positive scroll.
@@ -1292,11 +1260,22 @@ A size in whole pixels.
 
 ## `craft_behavior::placement`
 
-Where windows go on the desktop: which monitor a window is on, and where the next window of a cascade opens.
+Where windows go on the desktop: where a saved window opens ([`place`]), which monitor a window is on, and where
 
+- `craft_behavior::placement::Defaults`: `pub struct Defaults { pub size: [f32; 2], pub min: [f32; 2], pub screen_room: [f32; 2], pub restore_fullscreen: bool, pub no_position: bool }`. What the app wants when nothing (usable) is saved, and how the platform behaves.
+  - `pub fn new(size: [f32; 2], min: [f32; 2]) -> Self`. Defaults for a first window of `size` points and a minimum of `min` points.
+  - `pub fn with_screen_room(mut self, room: [f32; 2]) -> Self`. Set the room a monitor loses to the taskbar, Dock or menu bar.
+  - `pub fn with_restore_fullscreen(mut self, on: bool) -> Self`. Set whether full screen is restored.
+  - `pub fn with_no_position(mut self, on: bool) -> Self`. Set whether the platform hides window positions.
+- `craft_behavior::placement::NormalRect`: `pub struct NormalRect { pub pos: [f32; 2], pub size: [f32; 2] }`. A rectangle in logical points at zoom 1: top-left corner and size.
+- `craft_behavior::placement::Placement`: `pub struct Placement { pub normal: NormalRect, pub position_px: Option<[i32; 2]>, pub scale: f32, pub zoom: f32, pub maximized: bool, pub fullscreen: bool, pub monitor: Option<MonitorKey> }`. What to remember about a window, and what [`place`] returns for the app to open it with.
+  - `pub fn new(size: [f32; 2], scale: f32) -> Self`. A window of `size` points, position unknown, on a monitor of `scale`, not maximized.
+  - `pub fn repaired(&self) -> Option<Placement>`. The record with out-of-range numbers repaired, or `None` when its size is no size.
+  - `pub fn position(&self) -> Option<[f32; 2]>`. The outer top-left corner in desktop points at the saved scale, where the position is known.
 - `craft_behavior::placement::cascade`: `pub fn cascade(previous: Rect, size: Vec2, bounds: Rect, step: f32) -> Rect`. Where a window of `size` opens after the one at `previous`: one `step` right and down. An axis on which that
 - `craft_behavior::placement::cascade_rects`: `pub fn cascade_rects(area: Rect, size: Vec2, n: usize, step: f32) -> Vec<Rect>`. `n` windows of `size` in a cascade inside `area`: the first at its top left, each next one [`cascade`]d from the
-- `craft_behavior::placement::monitor_of`: `pub fn monitor_of(monitors: &[Monitor], window: Rect) -> Option<&Monitor>`. The monitor `window` is on: the one showing most of it or, when none shows it, the nearest. By area, not by a
+- `craft_behavior::placement::monitor_of`: `pub fn monitor_of(monitors: &[Monitor], window_px: Rect) -> Option<&Monitor>`. The monitor the window at `window_px` (desktop pixels) is on: the one showing most of it or, when none shows it,
+- `craft_behavior::placement::place`: `pub fn place(saved: Option<&Placement>, monitors: &[Monitor], home: Option<usize>, d: &Defaults) -> Placement`. Where a window opens: `saved` kept on a connected monitor, else the default size on `home`
 
 ## `craft_behavior::press`
 
@@ -1304,7 +1283,6 @@ Pointer values and the press lifecycle (8.1, 8.2), egui-free: the runtime conver
 
 - `craft_behavior::press::Buttons`: `pub struct Buttons: u8 (flag set)`. The pointer buttons held.
   - `pub const fn of(button: PointerButton) -> Buttons`. The flag of one button.
-- `craft_behavior::press::MULTI_CLICK_TIME`: `pub const MULTI_CLICK_TIME: f64`. The longest gap between presses that still count as one multi-click, in seconds.
 - `craft_behavior::press::MultiTouch`: `pub struct MultiTouch { pub translation: Vec2, pub zoom: f32, pub rotation: f32, pub center: Pos2 }`. A two-finger gesture.
   - `pub const fn new(translation: Vec2, zoom: f32, rotation: f32, center: Pos2) -> Self`. A gesture around `center`.
 - `craft_behavior::press::PassInput`: `pub struct PassInput<'a> { pub events: &'a [PointerEvent], pub slop: f32, pub pos: Pos2, pub delta: Vec2, pub held: bool, pub cancel: Option<PressCancel> }`. What the machine reads of one pass.
@@ -1407,7 +1385,6 @@ Selection models: what a collection's selection holds and how a change applies t
   - `pub fn cells(from: CellAt<K>, to: CellAt<K>) -> Self`. The rectangle from the anchor cell `from` to the lead cell `to`, whichever way round they lie.
   - `pub fn cell(c: CellAt<u32>) -> Self`. One cell.
   - `pub fn contains(&self, c: CellAt<u32>) -> bool`. Whether `c` lies in the range.
-  - `pub fn is_single_cell(&self) -> bool`. Whether the range is one cell.
   - `pub fn rows(&self) -> RangeInclusive<u32>`. The rows the range spans.
   - `pub fn column_span(&self) -> RangeInclusive<u32>`. The columns the range spans.
   - `pub fn intersects(&self, other: &Self) -> bool`. Whether the two ranges share a cell.
@@ -1424,7 +1401,6 @@ Selection models: what a collection's selection holds and how a change applies t
   - `pub fn from_ranges(ranges: Vec<CellRange<K>>, active: CellAt<K>) -> Option<Self>`. Several ranges with `active` in the last one, which is the current range, and the anchor at `active`. `None`
   - `pub fn bounds(&self, space: &CellSpace<'_, K>) -> Option<CellRange<u32>>`. The smallest range holding every selected range, by position; `None` for the empty selection.
   - `pub fn head(&self, space: &CellSpace<'_, K>) -> Option<CellAt<u32>>`. The corner of the current range opposite the anchor: the end Shift+arrows move; `None` for the empty
-  - `pub fn is_single_cell(&self, space: &CellSpace<'_, K>) -> bool`. One cell, or one merged cell, selected: Enter and Tab then move the selection rather than the active cell
   - `pub fn select(&mut self, c: CellAt<K>, space: &CellSpace<'_, K>) -> bool`. A click, or an arrow's landing cell: `c` alone (its merged cell whole, the active cell at the merge's
   - `pub fn select_range(&mut self, range: CellRange<K>, space: &CellSpace<'_, K>) -> bool`. A header click, a header drag or Select All: `range` alone, covered over merges unless it is whole lines
   - `pub fn extend_to(&mut self, c: CellAt<K>, space: &CellSpace<'_, K>) -> bool`. Shift+click and a drag: the current range runs from the anchor to `c`, covered over merges; the active cell
@@ -1464,7 +1440,6 @@ Selection models: what a collection's selection holds and how a change applies t
 The library's sense set, for a root or a part.
 
 - `craft_behavior::sense::Sense`: `pub struct Sense: u16 (flag set)`. What a root or a part senses. The egui adapter maps the root's sense to egui's.
-  - `pub const WHEELS: Sense`. The bits that make a shape a wheel taker; `WheelTaker::for_sense` reads them.
   - `pub const PRESS: Sense`. The bits that make a shape a press candidate.
   - `pub const fn takes_press(self) -> bool`. Whether a press can start on a shape with this sense.
 
@@ -1575,13 +1550,13 @@ The value core of chapter 10: the bound every value type meets, `Mixed`, edit ev
   - `pub const fn axis(mut self, axis: Axis) -> Self`. The axis the pointer travels on; the default is horizontal.
   - `pub const fn fine(mut self, factor: f64) -> Self`. The factor Alt (Option) applies to travel.
   - `pub const fn coarse(mut self, factor: f64) -> Self`. The factor Shift applies to travel. A drag sets none by default: on an absolute drag such as a slider's a
-  - `pub const fn wrap_range(mut self, on: bool) -> Self`. Wraps the value past either end of the range instead of stopping there, as a hue dial does.
   - `pub const fn warp(mut self, on: bool) -> Self`. Warps the pointer to the other side of the window when the drag reaches an edge, so the drag has no end
   - `pub const fn hide_cursor(mut self, on: bool) -> Self`. Hides the pointer while the drag runs, as a scrub does that warps the pointer.
   - `pub const fn warps(&self) -> bool`. Whether the pointer warps at a window edge.
   - `pub fn warp_by(&self, pos: Pos2, bounds: Rect) -> Option<Vec2>`. How far to move the pointer when the drag at `pos` has reached an edge of `bounds` on the drag's axis: to
   - `pub fn value(&self, start: f64, press: &PressState, rtl: bool) -> Option<f64>`. The value the press gives, `None` while it gives none: before a drag starts, and after a cancel. `start` is the
   - `pub fn value_shifted(&self, start: f64, press: &PressState, rtl: bool, shift: Vec2) -> Option<f64>`. [`ValueDrag::value`] for a pointer that warped by `shift` in total ([`DragWarp::shift`]): the pointer
+- `craft_behavior::value_drag::wrap_value`: `pub fn wrap_value(value: f64, low: f64, period: f64) -> f64`. `value` moved by whole periods into `low..low + period`, as a wrapping slider or dial holds it. A period that is
 
 ## `craft_behavior::wheel`
 
@@ -2848,10 +2823,11 @@ Per-pass and per-frame services and the one egui adapter.
   - `pub const fn grid(rows: usize, columns: usize) -> Self`. A grid of `rows` rows and `columns` columns.
   - `pub const fn cell(row: usize, column: usize) -> Self`. The cell at `row` and `column`.
 - `craft_ui::runtime::access::Name`: `pub enum Name { FromLabel, Text(String), Joined(Vec<String>), LabelledBy(Id), Decorative }`. How a node or sub-node is named.
-- `craft_ui::runtime::access::Numeric`: `pub struct Numeric { pub value: Option<f64>, pub range: RangeInclusive<f64>, pub step: Option<f64>, pub text: Option<String> }`. A numeric value.
+- `craft_ui::runtime::access::Numeric`: `pub struct Numeric { pub value: Option<f64>, pub range: RangeInclusive<f64>, pub step: Option<f64>, pub wraps: bool, pub text: Option<String> }`. A numeric value.
   - `pub fn new(value: f64, range: RangeInclusive<f64>) -> Self`. A value in a range.
   - `pub fn empty(range: RangeInclusive<f64>) -> Self`. A range with no value.
   - `pub fn step(mut self, step: f64) -> Self`. The step of an increment or decrement.
+  - `pub fn wraps(mut self, wraps: bool) -> Self`. Whether a step past one end of the range continues from the other.
   - `pub fn text(mut self, text: impl Into<String>) -> Self`. The value as shown.
 - `craft_ui::runtime::access::Politeness`: `pub enum Politeness { Polite, Assertive }`. How urgently a live announcement is read.
 - `craft_ui::runtime::access::PopupKind`: `pub enum PopupKind { Menu, Listbox, Tree, Grid, Dialog }`. The kind of popup a component opens.
@@ -3529,7 +3505,7 @@ The toast queue: one per viewport, filled from any code with a `Context`.
   - `pub fn desktop_pointer(&self) -> Option<Pos2>`. The system pointer in desktop points, as the platform tells it or, failing that, as the window a drag
   - `pub fn warp_pointer(&self, to: Pos2) -> bool`. Moves the system pointer to `to` in desktop points; false where the platform cannot.
   - `pub fn facts(&self, viewport: ViewportId) -> Option<WindowFacts>`. `viewport`'s window facts, once it has reported its inner rect.
-  - `pub fn monitors(&self, window_scale: f32) -> Vec<craft_behavior::Monitor>`. The connected monitors in the points of a window whose scale is `window_scale` ([`WindowFacts::scale`]), as
+  - `pub fn monitors(&self) -> Vec<Monitor>`. The connected monitors, in desktop pixels; none where the platform does not list them.
   - `pub fn set_outer(&self, viewport: ViewportId, outer: Rect) -> bool`. Places `viewport`'s outer rect at `outer`: its position, and the inner size that leaves the window's
   - `pub fn viewport_of(&self, id: Id) -> Option<ViewportId>`. The viewport of the container `id` while its window is open.
   - `pub fn viewport_at(&self, at: Pos2) -> Option<ViewportId>`. The window under the desktop point `at`: where windows overlap, the focused one, else the one focused last,

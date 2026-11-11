@@ -20,6 +20,7 @@ const MAX_POINTS: f32 = 100_000.0;
 /// `pos` is `Placement::position_px` divided by `Placement::scale`; it is informational, and
 /// `[0, 0]` when the position is unknown.
 #[derive(Clone, Copy, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct NormalRect {
     /// Top-left corner in points.
     pub pos: [f32; 2],

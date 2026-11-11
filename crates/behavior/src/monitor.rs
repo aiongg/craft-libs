@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 /// after a re-plug), and a monitor switched to another resolution is a different place to put a
 /// window. A key that no longer matches falls back to the nearest connected monitor.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct MonitorKey {
     /// The monitor name the platform reports.
     pub name: String,
