@@ -216,3 +216,10 @@ pub fn decode(bytes: &[u8], limits: &Limits, adobe_transform: Option<u8>) -> Res
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+extern crate self as craft_jpeg;
+
+#[cfg(test)]
+#[path = "../tests/main.rs"]
+mod integration;
