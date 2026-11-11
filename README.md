@@ -158,6 +158,7 @@ craft-<name> = { git = "https://github.com/storytold/craft-libs", rev = "<commit
 - [Docking](docs/ui-docking.md): the dock model, `DockArea`, `SplitArea` and `PaneArea`.
 - [Dialogs](docs/ui-dialogs.md): `Dialog`, `DialogHost`, the dialog stack and the standard prompts.
 - [Craft framework](docs/craft-framework.md): the design, installation, architecture, design system, foundations, components, accessibility, tests, and the migration and landing plan
+- [Development workflow](docs/development.md): the `cl` commands, the one fixed feature set, what not to run locally, the profiles, the job pool and what a new worktree's first build costs
 
 ## License and credits
 
