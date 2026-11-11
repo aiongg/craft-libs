@@ -11,6 +11,7 @@ use egui::{Pos2, Rect, Response, Vec2};
 use std::cell::Cell;
 
 const AROUND: PartKey = PartKey::new("around");
+
 /// The half diagonal of the turned box.
 const REACH: f32 = 30.0;
 
