@@ -27,13 +27,19 @@ impl PlainStyle {
 /// What a probe saw while it ran.
 #[non_exhaustive]
 pub struct Seen {
+    /// The rect of the last `update`.
     pub rect: Rect,
+    /// The id of the last `update`.
     pub id: Option<Id>,
     /// The press phases of the probe's own shapes, one per pass that had a press.
     pub press: Vec<PressPhase>,
+    /// How many passes had an activation.
     pub activations: u32,
+    /// How many cancel intents the component took.
     pub cancels: u32,
+    /// The active part in the last `update`.
     pub active: Option<PartRef>,
+    /// How many times `update` ran.
     pub updates: u32,
 }
 
@@ -71,15 +77,18 @@ pub struct Probe<'a> {
 }
 
 impl<'a> Probe<'a> {
+    /// A 40 × 20 probe, labelled "Probe", that records into `seen`.
     pub fn new(seen: &'a RefCell<Seen>) -> Self {
         Probe { common: Common::new(), size: Vec2::new(40.0, 20.0), sense: None, takes_cancel: true, injects: None, seen }.label("Probe")
     }
 
+    /// The probe's size.
     pub fn size(mut self, size: Vec2) -> Self {
         self.size = size;
         self
     }
 
+    /// What the probe senses.
     pub fn sense(mut self, sense: Sense) -> Self {
         self.sense = Some(sense);
         self
@@ -130,20 +139,24 @@ pub struct Panel<'a> {
 }
 
 impl<'a> Panel<'a> {
+    /// A panel with an empty body that senses nothing.
     pub fn new() -> Self {
         Panel { common: Common::new(), props: ContainerProps::new(), sense: Sense::empty(), seen: None }
     }
 
+    /// Records what the panel gets in `update` into `seen`.
     pub fn seen(mut self, seen: &'a RefCell<Seen>) -> Self {
         self.seen = Some(seen);
         self
     }
 
+    /// Whether the panel's body is an arena.
     pub fn arena(mut self, on: bool) -> Self {
         self.props = self.props.arena(on);
         self
     }
 
+    /// What the panel senses.
     pub fn sense(mut self, sense: Sense) -> Self {
         self.sense = sense;
         self
@@ -224,6 +237,7 @@ impl Collection for Table {
 pub struct RowProbe {
     #[common]
     common: Common,
+    /// Where each row records its key and rect.
     pub log: &'static std::sync::Mutex<Vec<(usize, Rect)>>,
     key: usize,
 }

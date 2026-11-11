@@ -122,6 +122,7 @@ pub struct Out {
 /// A context with the runtime installed whose child viewports are OS windows.
 #[non_exhaustive]
 pub struct Windows {
+    /// The installed context.
     pub ctx: Context,
     root_info: RefCell<ViewportInfo>,
 }

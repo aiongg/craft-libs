@@ -25,7 +25,8 @@ pub(super) fn check(cx: &Cx<'_>, out: &mut Vec<Finding>) {
     items(cx, &cx.file.items, out);
 }
 
-/// Walks the items reachable through `pub` modules; private modules, test code and hidden items are not public API.
+/// Walks the items reachable through `pub` modules; private modules, test code and hidden items and fields are not
+/// public API.
 fn items(cx: &Cx<'_>, list: &[Item], out: &mut Vec<Finding>) {
     for item in list {
         match item {
@@ -60,8 +61,8 @@ fn items(cx: &Cx<'_>, list: &[Item], out: &mut Vec<Finding>) {
                 if is_pub(&s.vis) && !doc_hidden(&s.attrs) && !is_test_attr_any(&s.attrs) && !cx.scope.is_closed(&s.ident.to_string()) =>
             {
                 let public_fields = match &s.fields {
-                    Fields::Named(f) => f.named.iter().any(|f| is_pub(&f.vis)),
-                    Fields::Unnamed(f) => f.unnamed.iter().any(|f| is_pub(&f.vis)),
+                    Fields::Named(f) => f.named.iter().any(|f| is_pub(&f.vis) && !doc_hidden(&f.attrs)),
+                    Fields::Unnamed(f) => f.unnamed.iter().any(|f| is_pub(&f.vis) && !doc_hidden(&f.attrs)),
                     Fields::Unit => false,
                 };
                 if public_fields && !has(&s.attrs, "non_exhaustive") {

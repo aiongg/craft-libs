@@ -1,9 +1,11 @@
 //! What the derives write: registrations and probes, style keys per instantiation, setters and style accessors.
 
-use super::kit::PlainStyle;
-use craft_behavior::CancelReason;
+use super::kit::{PlainStyle, RowProbe};
+use craft_behavior::{CancelReason, ItemSource, Selection, SpanLayout};
 use craft_ui::canvas::{CanvasTool, ToolAction, ToolContext, ToolPath, ToolPointer};
-use craft_ui::contract::{Common, Component, Cx, EditResponse, Pattern, Role, ShapeKind, register_contract};
+use craft_ui::contract::{
+    Collection, CollectionProps, Common, Component, Container, ContainerProps, Cx, EditResponse, Pattern, Role, ShapeKind, register_contract,
+};
 use craft_ui::primitives::Draw;
 use craft_ui::style::StyleCx;
 use craft_ui::testing::{Probe, trial};
@@ -61,6 +63,73 @@ impl Component for Handle {
     }
 }
 
+/// A container that declares an open state.
+#[derive(Component)]
+#[component(container, overlay)]
+struct Frame {
+    #[common]
+    common: Common,
+    #[container]
+    props: ContainerProps,
+}
+
+impl Component for Frame {
+    const ROLE: Role = Role::GROUP;
+    type Style = PlainStyle;
+    type Output = Response;
+
+    fn style(_: &StyleCx<'_>, _: FrameStyleKey) -> PlainStyle {
+        PlainStyle::default()
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
+}
+
+impl Container for Frame {}
+
+/// A collection: one row per key.
+#[derive(Component)]
+#[component(collection)]
+struct Rows {
+    #[common]
+    common: Common,
+    #[container]
+    props: ContainerProps,
+    items: CollectionProps,
+}
+
+impl Component for Rows {
+    const ROLE: Role = Role::LIST;
+    type Style = PlainStyle;
+    type Output = Response;
+
+    fn style(_: &StyleCx<'_>, _: RowsStyleKey) -> PlainStyle {
+        PlainStyle::default()
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
+}
+
+impl Collection for Rows {
+    type Key = usize;
+    type ItemLayout = SpanLayout;
+    type Selection = Selection<usize>;
+    type Item<'r> = RowProbe;
+    type ItemEvent = ();
+
+    fn items(&self) -> &CollectionProps {
+        &self.items
+    }
+
+    fn item_layout(&self, source: &dyn ItemSource<usize>, width: f32, _: &StyleCx<'_>) -> SpanLayout {
+        SpanLayout::new(source, width, 10.0)
+    }
+}
+
 /// A row of tools: a pattern assembles components and has no contract shape of its own.
 #[derive(Pattern)]
 struct ToolRow;
@@ -110,7 +179,7 @@ fn a_registration_records_the_facts_the_contract_types_state() {
     assert_eq!(tagged.len(), 2, "one probe per listed instantiation");
     assert!(tagged.iter().any(|probe| probe.type_name().ends_with("Plain>")) && tagged.iter().any(|probe| probe.type_name().ends_with("Number>")));
     for probe in &tagged {
-        assert_eq!((probe.shape, probe.role, probe.crate_name), (ShapeKind::Leaf, Role::SLIDER, "craft-ui"));
+        assert_eq!((probe.shape, probe.role, probe.crate_name), (ShapeKind::Leaf, Role::SLIDER, env!("CARGO_PKG_NAME")));
         assert!(probe.carries_value() && !probe.overlay && !probe.canvas_control && probe.exempt.is_empty());
     }
 
@@ -119,7 +188,8 @@ fn a_registration_records_the_facts_the_contract_types_state() {
     assert!(handle[0].canvas_control && !handle[0].carries_value());
     assert_eq!((handle[0].exempt[0].case, handle[0].exempt[0].reason), ("sizes", "fills the canvas"));
 
-    assert_eq!(named("::Panel<")[0].shape, ShapeKind::Body);
-    assert_eq!(named("kit::Table")[0].shape, ShapeKind::Items);
-    assert!(named("::Hooked<")[0].overlay, "`#[component(container, overlay)]` declares the open state");
+    let frame = named("derives::Frame");
+    assert_eq!(frame[0].shape, ShapeKind::Body);
+    assert!(frame[0].overlay, "`#[component(container, overlay)]` declares the open state");
+    assert_eq!(named("derives::Rows")[0].shape, ShapeKind::Items);
 }
