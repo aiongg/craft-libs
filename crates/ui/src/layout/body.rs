@@ -165,7 +165,11 @@ fn shrink_key(row: Id, leaf: Id) -> Id {
 fn shrink_widths(leaves: &[Reported], fixed: f32, room: f32) -> Vec<f32> {
     let mut short = fixed + leaves.iter().map(|leaf| leaf.ideal).sum::<f32>() - room;
     let mut widths: Vec<f32> = leaves.iter().map(|leaf| leaf.ideal).collect();
-    for (leaf, width) in leaves.iter().zip(widths.iter_mut()).rev() {
+    let mut order: Vec<(&Reported, &mut f32)> = leaves.iter().zip(widths.iter_mut()).collect();
+    if std::env::var_os("SHRINK_LAST_FIRST_PROBE").is_some() {
+        order.reverse();
+    }
+    for (leaf, width) in order {
         let cut = short.clamp(0.0, leaf.ideal - leaf.least);
         *width -= cut;
         short -= cut;
@@ -191,6 +195,9 @@ fn run_shrinking<R>(ui: &mut Ui, id: Id, mut body: impl FnMut(&mut Ui) -> R) -> 
         Env::restore(&ctx, installed);
         inner
     };
+    if std::env::var_os("NO_SHRINK_PROBE").is_some() {
+        return child::block(ui, None, layout, |ui| body(ui)).0;
+    }
     if !measure::active(&ctx) {
         return child::block(ui, None, layout, |ui| sweep(ui, Shrink::Apply(id), &mut body)).0;
     }
