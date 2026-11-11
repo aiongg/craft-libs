@@ -1013,7 +1013,7 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
             steps::measure(&mut comp, &input, &style, &resolved, shown.as_deref(), Vec2::ZERO).0.x
         };
         let (ideal, least) = (width(Proposal::Ideal), width(Proposal::Min));
-        crate::layout::report_shrink(&ctx, row, id, size.x, ideal, least);
+        crate::layout::report_shrink(&ctx, row, id, size.x, ideal, least, matches!(C::INPUT, Input::Text | Input::Editor));
     }
     // A component shown at a rect fills it: the rect is its size, and a leaf that measures nothing (a content
     // painter) still shows there.

@@ -132,21 +132,24 @@ pub(crate) fn counting_fills(ui: &Ui, axis: Axis) -> bool {
 }
 
 /// What a leaf of a shrinking row reported in the first sweep: its id, the width it took there, the width it asks for
-/// in no room and the least it shrinks to.
+/// in no room, the least it shrinks to, and whether it edits text (a narrowed text editor scrolls its text, so it
+/// loses nothing a reader needs).
 struct Reported {
     leaf: Id,
     took: f32,
     ideal: f32,
     least: f32,
+    scrolls: bool,
 }
 
 /// The leaves each `Row` body counting this pass reported, in order, by body id.
 #[derive(Default)]
 struct ShrinkReports(HashMap<Id, Vec<Reported>>);
 
-/// Reports the widths of the leaf `leaf` of the row `row` that counts them.
-pub(crate) fn report_shrink(ctx: &egui::Context, row: Id, leaf: Id, took: f32, ideal: f32, least: f32) {
-    let leaf = Reported { leaf, took, ideal, least: least.min(ideal) };
+/// Reports the widths of the leaf `leaf` of the row `row` that counts them, and whether the leaf edits text
+/// (`scrolls`).
+pub(crate) fn report_shrink(ctx: &egui::Context, row: Id, leaf: Id, took: f32, ideal: f32, least: f32, scrolls: bool) {
+    let leaf = Reported { leaf, took, ideal, least: least.min(ideal), scrolls };
     Service::<ShrinkReports>::run(ctx, |reports| reports.0.entry(row).or_default().push(leaf));
 }
 
@@ -160,19 +163,24 @@ fn shrink_key(row: Id, leaf: Id) -> Id {
 }
 
 /// The widths of the leaves of a row whose leaves, with `fixed` (its other children and gaps), ask for more than
-/// `room`: the shortfall comes off the last leaf first, down to its least, then off the one before it, and so on, as
-/// a flow gives each child what the ones before it left. A row that fits gives each leaf what it asks for.
+/// `room`. The leaves that edit text give way first: narrowed, they scroll their text and lose nothing. The rest of the
+/// shortfall comes off the other leaves, which elide. Within each tier the leaves share the shortfall in proportion
+/// to their range (ideal less least), so no leaf goes to its least while another keeps its ideal. A row that fits
+/// gives each leaf what it asks for.
 fn shrink_widths(leaves: &[Reported], fixed: f32, room: f32) -> Vec<f32> {
     let mut short = fixed + leaves.iter().map(|leaf| leaf.ideal).sum::<f32>() - room;
     let mut widths: Vec<f32> = leaves.iter().map(|leaf| leaf.ideal).collect();
-    let mut order: Vec<(&Reported, &mut f32)> = leaves.iter().zip(widths.iter_mut()).collect();
-    if std::env::var_os("SHRINK_LAST_FIRST_PROBE").is_some() {
-        order.reverse();
-    }
-    for (leaf, width) in order {
-        let cut = short.clamp(0.0, leaf.ideal - leaf.least);
-        *width -= cut;
-        short -= cut;
+    for tier in [true, false] {
+        let range = |leaf: &Reported| leaf.ideal - leaf.least;
+        let total: f32 = leaves.iter().filter(|leaf| leaf.scrolls == tier).map(range).sum();
+        if short <= 0.0 || total <= 0.0 {
+            continue;
+        }
+        let share = (short / total).min(1.0);
+        for (leaf, width) in leaves.iter().zip(widths.iter_mut()).filter(|(leaf, _)| leaf.scrolls == tier) {
+            *width -= range(leaf) * share;
+        }
+        short -= total * share;
     }
     widths
 }
@@ -195,9 +203,6 @@ fn run_shrinking<R>(ui: &mut Ui, id: Id, mut body: impl FnMut(&mut Ui) -> R) -> 
         Env::restore(&ctx, installed);
         inner
     };
-    if std::env::var_os("NO_SHRINK_PROBE").is_some() {
-        return child::block(ui, None, layout, |ui| body(ui)).0;
-    }
     if !measure::active(&ctx) {
         return child::block(ui, None, layout, |ui| sweep(ui, Shrink::Apply(id), &mut body)).0;
     }
