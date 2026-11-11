@@ -3,7 +3,7 @@
 
 use crate::runtime::egui::memory::Service;
 use crate::runtime::egui::{alloc, child};
-use crate::runtime::env::Env;
+use crate::runtime::env::{Env, Shrink};
 use crate::runtime::layout_memory;
 use crate::runtime::measure;
 use crate::runtime::memory::sub;
@@ -129,15 +129,6 @@ pub(crate) fn fill_share(ui: &Ui, axis: Axis) -> Option<f32> {
 pub(crate) fn counting_fills(ui: &Ui, axis: Axis) -> bool {
     let env = Env::of(ui);
     measure::active(ui.ctx()) && env.fill_body.is_some_and(|(_, along)| along == axis) && env.fill_share.is_none()
-}
-
-/// The shrink step of an unwrapped `Row` body, as its direct leaf children shown in flow see it.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) enum Shrink {
-    /// The first sweep of a measuring run of the row: each leaf reports its widths to the row (`report_shrink`).
-    Count(Id),
-    /// Each leaf shows at most the width the measuring run of the row gave it (`shrink_cap`).
-    Apply(Id),
 }
 
 /// What a leaf of a shrinking row reported in the first sweep: its id, the width it took there, the width it asks for
