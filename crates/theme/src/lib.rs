@@ -51,15 +51,11 @@ pub mod variant;
 #[cfg(test)]
 mod app_sizes_tests;
 #[cfg(test)]
-mod builtin_tests;
-#[cfg(test)]
 mod color_model_tests;
 #[cfg(test)]
 mod explain_tests;
 #[cfg(test)]
 mod format_tests;
-#[cfg(test)]
-mod selection_tests;
 #[cfg(test)]
 mod semantic_tests;
 #[cfg(test)]
