@@ -2,6 +2,7 @@
 //! written in the test.
 
 use super::*;
+use craft_ui::testing::trial;
 
 /// A mask over a row-major `Vec<f32>` at the origin.
 struct Plane {
@@ -47,7 +48,7 @@ impl MaskSource for Plane {
 
 // Segments of a known 4 × 3 block mask: two merged horizontal runs, two merged vertical runs, one
 // padding cell found at a mask touching `bounds`.
-#[test]
+#[trial]
 fn trace_merges_runs_and_pads_one_cell() {
     let mut mask = Plane::blank(4, 3);
     mask.fill(0, 0, 4, 3);
@@ -61,7 +62,7 @@ fn trace_merges_runs_and_pads_one_cell() {
 
 // A one-pixel-wide line traced at step 8 still gives segments (the coarse-cell edge sample), and
 // every segment end stays inside `bounds`.
-#[test]
+#[trial]
 fn trace_coarse_cells_keep_one_pixel_selections() {
     let mut mask = Plane::blank(64, 64);
     mask.fill(1, 0, 2, 64);

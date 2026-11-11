@@ -1,6 +1,7 @@
 //! Tests for the swatch file codecs.
 
 use super::*;
+use craft_ui::testing::trial;
 
 fn values(c: &SwatchColor) -> Vec<f32> {
     match *c {
@@ -26,7 +27,7 @@ fn group(name: &str, entries: Vec<SwatchEntry>) -> SwatchGroup {
 }
 
 /// An `.aco` file with RGB, CMYK and Lab swatches round-trips with each colour in its model.
-#[test]
+#[trial]
 fn aco_round_trips_colours_in_their_own_model() {
     let colors = [
         ("Red", SwatchColor::Rgb([1.0, 0.0, 0.25])),
@@ -53,7 +54,7 @@ fn aco_round_trips_colours_in_their_own_model() {
 }
 
 /// `.ase` keeps groups and spot colours; `.aco` flattens them and says so.
-#[test]
+#[trial]
 fn ase_keeps_groups_and_aco_reports_flattening() {
     let mut spot = SwatchEntry::new("Spot Orange", SwatchColor::Cmyk([0.0, 0.5, 1.0, 0.0]));
     spot.kind = SwatchKind::Spot;

@@ -3,12 +3,13 @@
 use crate::rates::{FrameRate, SampleRate};
 use crate::time::{TICKS_PER_SECOND, Tick};
 use crate::timecode::{TimeDisplay, TimeFormat, TimecodeFields, fields_to_frames, format_time, frames_to_fields, parse_time};
+use craft_ui::testing::trial;
 
 fn df() -> TimeFormat {
     TimeFormat::timecode(FrameRate::FPS_29_97).drop_frame(true)
 }
 
-#[test]
+#[trial]
 fn drop_frame_skips_two_labels_a_minute() {
     let rate = FrameRate::FPS_29_97;
     assert_eq!(format_time(rate.tick_of(1800), &df()), "00;01;00;02");
@@ -21,7 +22,7 @@ fn drop_frame_skips_two_labels_a_minute() {
     assert_eq!(frames_to_fields(-30, rate, false), TimecodeFields { negative: true, hours: 0, minutes: 0, seconds: 1, frames: 0 });
 }
 
-#[test]
+#[trial]
 fn parses_premiere_input() {
     let rate = FrameRate::FPS_25;
     let tc = TimeFormat::timecode(rate);

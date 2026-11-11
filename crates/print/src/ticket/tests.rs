@@ -1,4 +1,5 @@
 use super::*;
+use craft_ui::testing::trial;
 
 /// The namespace of the Brother driver's own keywords.
 const BROTHER: &str = "http://schemas.brother.info/mfc/printing/2006/11/printschemakeywords";
@@ -13,7 +14,7 @@ fn brother(prefix: &str) -> String {
 }
 
 /// The ticket Windows returns (`ns0000`) gets the driver's own `brpsk` back, in the declaration, the names and the QName values, but not in text.
-#[test]
+#[trial]
 fn a_vendor_namespace_gets_the_prefix_the_driver_declares_it_with() {
     let merged = brother("ns0000");
     assert_eq!(respell(&merged, &brother("brpsk")), Some(brother("brpsk")), "declaration, names and QName values; not the text");
@@ -40,7 +41,7 @@ fn two_namespaces(a: &str, b: &str, extra: &str) -> String {
 /// written with a prefix (an element or an attribute, unlike a `name` value) would still parse and
 /// resolve, but to the other namespace. Each ticket here is well-formed and has every prefix
 /// declared, so `respell` leaves it alone for the name, not because the result didn't parse.
-#[test]
+#[trial]
 fn a_swap_does_not_move_an_element_or_attribute_name_to_the_other_namespace() {
     let driver = two_namespaces("ns0001", "ns0000", "");
     let refused = |extra: &str| {

@@ -3,6 +3,7 @@
 use crate::clips::{ClipEdge, EdgeZones, edge_at};
 use crate::model::ClipId;
 use crate::time::{TICKS_PER_SECOND, Tick, TimeRange, TimeView};
+use craft_ui::testing::trial;
 
 const ZONES: EdgeZones = EdgeZones { edge: 7.0, roll: 2.5 };
 
@@ -22,7 +23,7 @@ fn view() -> TimeView {
 // edge_zone is the edge size, at most a third of the width, None for zero width.
 
 // edge_at prefers the edge whose clip the pointer is inside.
-#[test]
+#[trial]
 fn the_clip_under_the_pointer_wins_a_shared_cut() {
     let clips = [(ClipId(2), range(5, 10)), (ClipId(1), range(0, 5))];
     // the cut is at x = 50

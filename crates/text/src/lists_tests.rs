@@ -1,9 +1,10 @@
 //! List numbering and number styles.
 
 use super::lists::{ListMarker, ListParagraph, NumberPunctuation, NumberStyle, markers};
+use craft_ui::testing::trial;
 
 // 1. 2. then a bullet at level 0 restarts; a level-1 run between level-0 numbers keeps them counting; empty paragraphs neither show nor count.
-#[test]
+#[trial]
 fn numbers_count_per_level_and_restart_after_an_outer_unnumbered_paragraph() {
     let number = |start| ListMarker::Number { style: NumberStyle::Arabic, start, punctuation: NumberPunctuation::Period };
     let mut empty = ListParagraph::new(0, Some(number(1)));

@@ -133,6 +133,7 @@ pub fn exec_program(text: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
+    use craft_ui::testing::trial;
 
     use super::*;
 
@@ -140,7 +141,7 @@ mod tests {
         App::by_id(id).unwrap()
     }
 
-    #[test]
+    #[trial]
     fn quotes_exec_paths_per_the_spec() {
         assert_eq!(exec_quote(Path::new("/home/ana/My Apps/p.AppImage")).unwrap(), "\"/home/ana/My Apps/p.AppImage\"");
         assert_eq!(exec_quote(Path::new("/a/\"q\" $HOME `x`.AppImage")).unwrap(), r#""/a/\\"q\\" \\$HOME \\`x\\`.AppImage""#);

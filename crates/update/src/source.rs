@@ -215,8 +215,9 @@ impl ReleaseSource for GitHubSource {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use craft_ui::testing::trial;
 
-    #[test]
+    #[trial]
     fn a_reset_past_the_quota_window_cannot_stop_the_api_for_good() {
         assert_eq!(retry_at(Some(i64::MAX), 1_000), 1_000 + 60 * 60);
         assert_eq!(retry_at(Some(99_999_999_999), 1_000), 1_000 + 60 * 60);

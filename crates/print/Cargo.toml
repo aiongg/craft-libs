@@ -6,6 +6,12 @@ license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 description = "System PDF print spooler for the Craft apps: CUPS and Windows"
+autotests = false
+
+[lib]
+# The lib's test target is the crate's one test executable: its trials and, with `screen-testing`, the
+# screen tests in tests/it.
+harness = false
 
 [features]
 default = []
@@ -44,14 +50,8 @@ roxmltree = "0.21"
 # Inflating the print-ready PDF's cross-reference and object streams (src/sheets.rs).
 miniz_oxide = "0.9"
 
-[[test]]
-name = "it"
-path = "tests/it/main.rs"
-harness = false
-required-features = ["screen-testing"]
-
 [dev-dependencies]
-libtest-mimic = "0.8"
+craft-ui = { workspace = true, features = ["testing"] }
 tempfile = "3"
 roxmltree = "0.21"
 miniz_oxide = "0.9"

@@ -34,3 +34,14 @@ pub use comments::{CommentAnchor, CommentFilter, CommentMessage, CommentSort, Co
 pub use revisions::{Revision, RevisionAction, RevisionKind};
 pub use signature::{SavedSignature, SignatureDraft, SignatureImage, SignatureTab};
 pub use versions::{Branch, BranchId, BranchState, HistoryRow, Version, VersionId};
+
+#[cfg(all(test, feature = "screen-testing"))]
+extern crate self as craft_review;
+#[cfg(all(test, feature = "screen-testing"))]
+#[path = "../tests/it/main.rs"]
+mod integration;
+
+#[cfg(test)]
+fn main() {
+    craft_ui::testing::run(module_path!(), env!("CARGO_PKG_NAME"), &craft_ui::testing::registered_in(env!("CARGO_PKG_NAME")));
+}

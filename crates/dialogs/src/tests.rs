@@ -1,3 +1,4 @@
+use craft_ui::testing::trial;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -45,7 +46,7 @@ fn answered(dialogs: &mut Dialogs<Rc<str>>) -> Vec<(String, Answer)> {
     dialogs.take_answers().into_iter().map(|(then, answer)| (then.to_string(), answer)).collect()
 }
 
-#[test]
+#[trial]
 fn a_worker_that_ends_without_answering_closes_the_dialog() {
     let (mut dialogs, shown, wakes) = held();
     dialogs.ask(FileDialog::open(), "dropped".into());

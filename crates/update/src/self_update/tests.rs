@@ -4,10 +4,11 @@ use super::detect::*;
 use super::helper::*;
 #[cfg(unix)]
 use super::*;
+use craft_ui::testing::trial;
 
 /// The helper reads back exactly what the launcher passed it, paths with spaces and
 /// apostrophes included, and nothing that is incomplete or unknown.
-#[test]
+#[trial]
 fn the_update_helper_reads_back_its_arguments() {
     let exe = Path::new(r"C:\Users\O'Brien\AppData\Local\Programs\ArtCraft Launcher\artcraft-launcher.exe");
     let msi = Finish::Msi(PathBuf::from(r"C:\Users\O'Brien\AppData\Local\ArtCraft Launcher\cache\artcraft-launcher-0.7.0-windows-x64.msi"));
@@ -37,7 +38,7 @@ fn the_update_helper_reads_back_its_arguments() {
 /// The helper finishes only the launcher's own update: its own installation, with the
 /// download from its own cache. A signed launcher must not run or start anything else.
 #[cfg(windows)]
-#[test]
+#[trial]
 fn the_update_helper_refuses_anything_but_the_launchers_own_update() {
     let dir = tempfile::tempdir().unwrap();
     let folder = dir.path().join("ArtCraft Launcher");
@@ -104,7 +105,7 @@ fn exited_pid() -> u32 {
 
 /// A missing or malformed executable must be rejected before any installed file is changed.
 #[cfg(windows)]
-#[test]
+#[trial]
 fn a_portable_update_requires_a_signed_launcher_even_without_an_mz_header() {
     use std::io::Write;
     for launcher in [None, Some(b"not a Windows program".as_slice()), Some(b"".as_slice())] {
@@ -139,7 +140,7 @@ fn a_portable_update_requires_a_signed_launcher_even_without_an_mz_header() {
 /// A copy that fails part way through puts the previous files back and removes the new ones,
 /// so the launcher that starts again is the old one, whole.
 #[cfg(windows)]
-#[test]
+#[trial]
 fn a_portable_update_that_fails_part_way_puts_the_old_files_back() {
     use std::io::Write;
     let dir = tempfile::tempdir().unwrap();
@@ -172,7 +173,7 @@ fn a_portable_update_that_fails_part_way_puts_the_old_files_back() {
 
 /// A Cargo build tree is not recognised by names: an installed copy in a folder literally
 /// called `target` stays an installed copy.
-#[test]
+#[trial]
 fn an_installed_copy_in_a_folder_called_target_is_not_a_development_build() {
     let dir = tempfile::tempdir().unwrap();
     let folder = dir.path().join("target").join("ArtCraft Launcher");

@@ -90,7 +90,7 @@ mod tests {
     use super::*;
 
     #[cfg(unix)]
-    #[test]
+    #[craft_ui::testing::trial]
     fn atomic_write_does_not_follow_a_temporary_file_symlink() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("installed.json");

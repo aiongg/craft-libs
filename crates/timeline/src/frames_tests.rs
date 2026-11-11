@@ -1,5 +1,6 @@
 //! The frame server.
 
+use craft_ui::testing::trial;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -41,7 +42,7 @@ fn rendered(renderer: &Recorder) -> Vec<i64> {
 // 14 at 1x, 24 above 1.5x.
 
 // a priority-0 request drops this view's queued priority-0 jobs.
-#[test]
+#[trial]
 fn an_on_screen_request_replaces_older_ones() {
     let (frames, renderer) = server();
     frames.request(TestKey::new(0, 1), (), 0);

@@ -2,6 +2,8 @@
 //! the incremental update that gives them one shape (all platforms), and a job reaching a
 //! paused test printer (Windows).
 
+use craft_ui::testing::trial;
+
 /// One page of a test PDF: its MediaBox (`None` = inherited from the page tree's root, which is
 /// Letter), CropBox and `/Rotate`.
 #[derive(Clone, Copy)]
@@ -132,7 +134,7 @@ fn frame_of(updated: &[u8], original: usize) -> String {
     tail.lines().find(|l| l.starts_with("q ")).unwrap_or_default().to_string()
 }
 
-#[test]
+#[trial]
 fn shrink_to_fit_reframes_sheets_on_the_paper() {
     use crate::sheets::{Fit, plan, read};
     // Tabloid onto Letter with an 18 pt margin: 756 / 1224 of the height wins, centred.

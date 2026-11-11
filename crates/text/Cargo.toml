@@ -6,6 +6,12 @@ license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 description = "Text processing below the Craft composer: hyphenation with a bundled US English dictionary and patterns, other languages through hypher"
+autotests = false
+
+[lib]
+# The lib's test target is the crate's one test executable: its trials and, with `screen-testing`, the
+# screen tests in tests/it.
+harness = false
 
 [lints]
 workspace = true
@@ -34,15 +40,8 @@ regex-syntax = { version = "0.8", optional = true }
 craft-font-manager = { workspace = true, optional = true }
 
 [dev-dependencies]
-libtest-mimic = "0.8"
 unicode-segmentation = "1.13"
 craft-ui = { workspace = true, features = ["testing"] }
-
-[[test]]
-name = "it"
-path = "tests/it/main.rs"
-harness = false
-required-features = ["screen-testing"]
 
 [[example]]
 name = "hyphgen"

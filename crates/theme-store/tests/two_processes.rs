@@ -2,6 +2,7 @@
 //! and neither overwrites the other's field. The test binary runs itself as the two children.
 #![cfg(not(target_arch = "wasm32"))]
 
+use craft_ui::testing::trial;
 use std::{path::Path, process::Command};
 
 use craft_theme::{ModeChoice, SuiteChoice, ThemeId, ThemePair};
@@ -17,7 +18,7 @@ fn both(theme: &str) -> SelectionChange {
     SelectionChange::themes(ThemePair::same(ThemeId::parse(theme).unwrap()))
 }
 
-#[test]
+#[trial]
 fn two_processes_keep_every_update() {
     if let (Ok(role), Ok(dir)) = (std::env::var(ROLE), std::env::var(DIR)) {
         child(&role, Path::new(&dir));
@@ -33,7 +34,7 @@ fn two_processes_keep_every_update() {
         .into_iter()
         .map(|role| {
             Command::new(&exe)
-                .args(["--exact", "two_processes_keep_every_update", "--test-threads=1", "--nocapture"])
+                .args(["--exact", "two_processes::two_processes_keep_every_update", "--test-threads=1", "--nocapture"])
                 .env(ROLE, role)
                 .env(DIR, tmp.path())
                 .spawn()

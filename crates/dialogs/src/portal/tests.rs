@@ -1,6 +1,7 @@
 use super::*;
+use craft_ui::testing::trial;
 
-#[test]
+#[trial]
 fn file_uris_become_local_paths() {
     assert_eq!(file_uri_path("file:///home/me/Untitled-1.psd"), Some(PathBuf::from("/home/me/Untitled-1.psd")));
     assert_eq!(file_uri_path("file:///home/me/A%20b%C3%A9.png"), Some(PathBuf::from("/home/me/A bé.png")));

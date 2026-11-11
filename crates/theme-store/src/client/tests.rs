@@ -1,5 +1,6 @@
 #![cfg(not(target_arch = "wasm32"))]
 
+use craft_ui::testing::trial;
 use std::{
     sync::Arc,
     time::{Duration, Instant},
@@ -43,7 +44,7 @@ fn settle(client: &mut SuiteClient) {
     }
 }
 
-#[test]
+#[trial]
 fn quick_picks_never_conflict_with_each_other() {
     // Theme, then mode: both land.
     let mut client = SuiteClient::memory();
@@ -90,7 +91,7 @@ fn quick_picks_never_conflict_with_each_other() {
     assert!(client.conflict().is_none() && client.failure().is_none());
 }
 
-#[test]
+#[trial]
 fn a_library_theme_on_its_way_never_shows_the_app_default() {
     let mut client = SuiteClient::memory();
     client.sync();

@@ -388,3 +388,14 @@ impl<T> Dialogs<T> {
 fn panic_text(panic: &(dyn std::any::Any + Send)) -> Option<&str> {
     panic.downcast_ref::<&str>().copied().or_else(|| panic.downcast_ref::<String>().map(String::as_str))
 }
+
+#[cfg(all(test, feature = "screen-testing"))]
+extern crate self as craft_dialogs;
+#[cfg(all(test, feature = "screen-testing"))]
+#[path = "../tests/it/main.rs"]
+mod integration;
+
+#[cfg(test)]
+fn main() {
+    craft_ui::testing::run(module_path!(), env!("CARGO_PKG_NAME"), &craft_ui::testing::registered_in(env!("CARGO_PKG_NAME")));
+}

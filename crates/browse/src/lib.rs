@@ -14,3 +14,14 @@ pub mod places;
 pub mod thumbs;
 #[cfg(feature = "ui")]
 pub mod ui;
+
+#[cfg(all(test, feature = "screen-testing"))]
+extern crate self as craft_browse;
+#[cfg(all(test, feature = "screen-testing"))]
+#[path = "../tests/it/main.rs"]
+mod integration;
+
+#[cfg(test)]
+fn main() {
+    craft_ui::testing::run(module_path!(), env!("CARGO_PKG_NAME"), &craft_ui::testing::registered_in(env!("CARGO_PKG_NAME")));
+}

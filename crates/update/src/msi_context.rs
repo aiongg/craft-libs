@@ -176,10 +176,11 @@ fn current_user_sid() -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use craft_ui::testing::trial;
 
     const CODE: &str = "{12345678-1234-1234-1234-123456789ABC}";
 
-    #[test]
+    #[trial]
     fn a_product_code_packs_the_way_windows_installer_names_its_keys() {
         assert_eq!(packed_code("{12345678-ABCD-EF01-2345-6789ABCDEF01}").as_deref(), Some("87654321DCBA10FE32547698BADCFE10"));
         assert_eq!(packed_code("{12345678-abcd-ef01-2345-6789abcdef01}").as_deref(), Some("87654321DCBA10FE32547698BADCFE10"));
@@ -189,7 +190,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[trial]
     fn unavailable_context_never_becomes_a_fresh_install() {
         let unavailable = || Err(ProbeError::Unavailable("query failed".into()));
         assert!(update_scope(true, Some(CODE), |_| unavailable(), |_| None).is_err());

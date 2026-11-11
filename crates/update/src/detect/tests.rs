@@ -1,11 +1,12 @@
 //! Tests for detection.
 
 use super::*;
+use craft_ui::testing::trial;
 
 /// A program whose VERSIONINFO has a ProductVersion in the U.S. English UTF-16 table but no
 /// `\VarFileInfo\Translation` entry still has a version.
 #[cfg(windows)]
-#[test]
+#[trial]
 fn a_version_without_a_translation_entry_is_found() {
     let dir = tempfile::tempdir().unwrap();
     let exe = dir.path().join("photocraft.exe");
@@ -102,7 +103,7 @@ fn resource_only_program(product: &str) -> Vec<u8> {
     file
 }
 
-#[test]
+#[trial]
 fn recognises_appimage_names_conservatively() {
     let pdf = ["pdfcraft", "printcraft"];
     let v = |n: &str| appimage_version(n, &pdf);

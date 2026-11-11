@@ -281,8 +281,9 @@ pub(crate) fn submit_with_progress(pdf: &[u8], job: &Job, progress: &mut dyn FnM
 #[cfg(test)]
 mod tests {
     use super::*;
+    use craft_ui::testing::trial;
 
-    #[test]
+    #[trial]
     fn one_thread_at_a_time_is_in_the_print_ticket_provider() {
         use std::sync::Barrier;
         use std::sync::atomic::{AtomicUsize, Ordering};

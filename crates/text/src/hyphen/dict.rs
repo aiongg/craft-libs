@@ -156,8 +156,9 @@ pub fn parse_hyphenated(s: &str) -> (String, u64) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use craft_ui::testing::trial;
 
-    #[test]
+    #[trial]
     fn roundtrip() {
         let e: Vec<(String, u64)> = ["ty-pog-ra-phy", "cat", "hap-pen", "o'clock", "naïve-té", "naïve"].iter().map(|s| parse_hyphenated(s)).collect();
         let d = Dictionary::from_entries(e);

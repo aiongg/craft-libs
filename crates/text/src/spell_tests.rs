@@ -1,9 +1,10 @@
 //! The spelling engine on small word lists and the bundled dictionary.
 
 use crate::spell::Dictionary;
+use craft_ui::testing::trial;
 
 // "teh" suggests "the" first (a transposition), and nearer words come before more common ones.
-#[test]
+#[trial]
 fn suggestions_rank_by_distance_then_frequency() {
     let d = Dictionary::english();
     assert_eq!(d.suggest("teh", 3)[0], "the");

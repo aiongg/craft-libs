@@ -1,6 +1,7 @@
 //! Version history rows.
 
 use crate::versions::*;
+use craft_ui::testing::trial;
 
 fn version(id: u64, created: i64, autosave: bool) -> Version {
     Version {
@@ -13,7 +14,7 @@ fn version(id: u64, created: i64, autosave: bool) -> Version {
     }
 }
 
-#[test]
+#[trial]
 fn autosave_runs_group_between_named_versions() {
     let versions = [
         version(1, 10, false),
