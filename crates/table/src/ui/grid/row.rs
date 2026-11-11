@@ -57,6 +57,8 @@ impl<'r> GridRow<'r> {
 
 impl Component for GridRow<'_> {
     const ROLE: Role = Role::ROW;
+    // The grid is the one stop: its keys move the active cell, so a row and its cells take no focus.
+    const STOPS: bool = false;
     type Style = GridRowStyle;
     type Output = Response;
 

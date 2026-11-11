@@ -6,7 +6,7 @@ use std::sync::mpsc::{Receiver, channel};
 use std::time::Duration;
 
 use craft_automation::control::{ControlChannel, ControlRequest, ControlResponse, Reply, expired_error, timeout_error};
-use craft_automation::security::{AUTH_DEADLINE, MAX_REQUEST_BYTES};
+use craft_automation::security::MAX_REQUEST_BYTES;
 use craft_automation::server;
 use craft_ui::runtime::motion;
 use craft_ui::runtime::windows::WindowHost;
@@ -144,7 +144,9 @@ fn server_authenticates_then_forwards() {
 /// sent is dispatched.
 #[trial]
 fn an_unauthenticated_connection_is_closed_at_the_deadline_whatever_it_sends() {
-    let (rx, addr) = server::start(0, TOKEN.into(), host()).expect("started");
+    // A short deadline, so the test does not wait out the real one.
+    let deadline = Duration::from_millis(400);
+    let (rx, addr) = server::start_with_deadline(0, TOKEN.into(), host(), deadline).expect("started");
     // Blank lines and partial frames, one byte every 20 ms: each read succeeds long before the idle timeout.
     let mut stream = TcpStream::connect(addr).expect("connected");
     let started = motion::now();
@@ -159,7 +161,7 @@ fn an_unauthenticated_connection_is_closed_at_the_deadline_whatever_it_sends() {
     }
     let served = started.elapsed();
     assert!(closed, "the trickle did not keep the connection open");
-    assert!(served < AUTH_DEADLINE + Duration::from_secs(3), "the trickle did not extend the deadline: {served:?}");
+    assert!(served < deadline + Duration::from_secs(3), "the trickle did not extend the deadline: {served:?}");
     assert!(rx.try_recv().is_err(), "nothing was dispatched");
 }
 

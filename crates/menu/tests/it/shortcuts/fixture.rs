@@ -136,7 +136,7 @@ impl Rig {
     pub(crate) fn click(&mut self, label: &str) {
         let target = self.find(label);
         self.fixture.click(&target);
-        self.fixture.idle(3);
+        self.fixture.settle();
     }
 
     /// Runs a set row action: its item when the row shows it, else its entry in More.
@@ -157,12 +157,12 @@ impl Rig {
             .rfind(|node| tree.name_of(node.node) == Some(label) && !tree.is_disabled_key(node.node))
             .unwrap_or_else(|| panic!("no enabled answer named {label:?}"));
         self.fixture.click(&button);
-        self.fixture.idle(3);
+        self.fixture.settle();
     }
 
     pub(crate) fn press(&mut self, modifiers: Modifiers, key: Key) {
         self.fixture.key(key, modifiers);
-        self.fixture.idle(3);
+        self.fixture.settle();
     }
 
     /// The node of `role` named `label`.
@@ -177,7 +177,7 @@ impl Rig {
 
     /// Runs the frames a change made outside the dialog needs to show.
     pub(crate) fn pass(&mut self) {
-        self.fixture.idle(3);
+        self.fixture.settle();
     }
 
     /// Types `text` into the Search field.
@@ -202,7 +202,7 @@ impl Rig {
     pub(crate) fn open(&mut self, label: &str) {
         let select = self.control(label, Role::COMBO_BOX);
         self.fixture.click(&select);
-        self.fixture.idle(3);
+        self.fixture.settle();
     }
 
     /// Picks `entry` in the select of the row `label`.
@@ -217,7 +217,7 @@ impl Rig {
         match option {
             Some(option) => {
                 self.fixture.click(&option);
-                self.fixture.idle(3);
+                self.fixture.settle();
             }
             None => self.click(entry),
         }
@@ -269,6 +269,6 @@ impl Rig {
             }
         });
         self.shared.borrow_mut().jobs.push(job);
-        self.fixture.idle(3);
+        self.fixture.settle();
     }
 }

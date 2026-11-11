@@ -15,6 +15,7 @@ use craft_ui::contract::Role;
 use craft_ui::patterns::presets::PresetRow;
 use craft_ui::runtime::requests::ColorRequest;
 use craft_ui::testing::access::{NodeKey, name};
+use craft_ui::testing::focus::AccessActionKind;
 use craft_ui::testing::{Fixture, Target, trial};
 use egui::{Key, Modifiers, Vec2};
 
@@ -109,16 +110,11 @@ fn one(fixture: &Fixture, role: Role, label: &str) -> Target {
     named(fixture, role, label).into_iter().next().unwrap_or_else(|| panic!("a {role:?} named {label}"))
 }
 
-/// Tabs until `target` holds focus, so a press on its track does not move its value.
+/// Gives `target` the focus through its access node's focus action.
 fn focus(fixture: &mut Fixture, target: &Target) {
-    for _ in 0..64 {
-        if fixture.focused_stop().is_some_and(|(id, _)| NodeKey::of(id) == target.node) {
-            return;
-        }
-        fixture.key(Key::Tab, Modifiers::NONE);
-        fixture.idle(1);
-    }
-    panic!("no Tab stop reached {target:?}");
+    fixture.access(AccessActionKind::Focus, target);
+    fixture.idle(1);
+    assert!(fixture.focused_stop().is_some_and(|(id, _)| NodeKey::of(id) == target.node), "{target:?} took the focus");
 }
 
 fn effects(host: &Rc<RefCell<Host>>) -> Vec<(u32, EffectKind, bool)> {

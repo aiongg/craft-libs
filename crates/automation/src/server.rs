@@ -23,6 +23,18 @@ use crate::security::{
 /// `host`. The app prints
 /// `control server listening on <addr>`.
 pub fn start(port: u16, token: String, host: WindowHost) -> std::io::Result<(Receiver<ControlRequest>, SocketAddr)> {
+    start_with_deadline(port, token, host, AUTH_DEADLINE)
+}
+
+/// [`start`] with `auth_deadline` in place of [`AUTH_DEADLINE`], so a test sees a connection closed at the deadline
+/// without waiting the real one.
+#[doc(hidden)]
+pub fn start_with_deadline(
+    port: u16,
+    token: String,
+    host: WindowHost,
+    auth_deadline: Duration,
+) -> std::io::Result<(Receiver<ControlRequest>, SocketAddr)> {
     let (tx, rx) = channel::<ControlRequest>();
     let listener = TcpListener::bind(("127.0.0.1", port))?;
     let addr = listener.local_addr()?;
@@ -40,7 +52,7 @@ pub fn start(port: u16, token: String, host: WindowHost) -> std::io::Result<(Rec
             let token = Arc::clone(&token);
             std::thread::spawn(move || {
                 let _permit = permit;
-                serve(stream, &token, &tx, &host, AUTH_DEADLINE);
+                serve(stream, &token, &tx, &host, auth_deadline);
             });
         }
     });

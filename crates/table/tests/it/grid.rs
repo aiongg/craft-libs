@@ -1,7 +1,7 @@
 //! `CellGrid`: geometry, keys, header edges, the fill handle, the range border, copy mode and the chrome on the sheet.
 
 use std::cell::{Cell, RefCell};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 
 use craft_behavior::{CellSelection, EditEvent, PartKey, PartRef};
@@ -323,4 +323,56 @@ fn point_mode_reaches_the_data_edge_with_end_and_ctrl_arrows() {
         let edge = format!("={}", absolute_reference(CellAt::new(5, SHEET_COLUMNS - 1)));
         assert_eq!(written, Some(CellEdit::new(CellAt::new(5, 5), edge)), "{what} pointed at the last column of the row");
     }
+}
+
+/// The test sheet, recording the rows whose cells it paints.
+struct Painted {
+    sheet: Sheet,
+    rows: Rc<RefCell<BTreeSet<u32>>>,
+}
+
+impl GridModel for Painted {
+    fn rows(&self) -> &LineIndex {
+        self.sheet.rows()
+    }
+
+    fn columns(&self) -> &LineIndex {
+        self.sheet.columns()
+    }
+
+    fn last_used(&self) -> CellAt<u32> {
+        self.sheet.last_used()
+    }
+
+    fn paint_cell(&self, ui: &mut PaintUi<'_>, rect: Rect, cell: CellAt<u32>, zoom: f32) {
+        self.rows.borrow_mut().insert(cell.row);
+        self.sheet.paint_cell(ui, rect, cell, zoom);
+    }
+
+    fn cell_text(&self, cell: CellAt<u32>) -> String {
+        self.sheet.cell_text(cell)
+    }
+}
+
+/// A pass runs only the rows in view: a row holds no stops and its height is exact, so no row out of view needs to
+/// run before it scrolls in.
+#[trial]
+fn a_pass_runs_only_the_rows_in_view() {
+    const ROOM: Vec2 = Vec2::new(400.0, 300.0);
+    let painted = Rc::new(RefCell::new(BTreeSet::new()));
+    let rows = painted.clone();
+    let state = RefCell::new(GridState::new(a1(), 1.0));
+    let mut fixture = Fixture::new(move |ui| {
+        let model = Painted { sheet: Sheet::new(None, Rc::new(Cell::new(1.0))), rows: rows.clone() };
+        let mut shown = state.borrow().clone();
+        CellGrid::new("Sheet", &model, &mut shown).show_sheet(ui);
+        *state.borrow_mut() = shown;
+    });
+    fixture.room(ROOM).settle();
+    painted.borrow_mut().clear();
+    fixture.idle(1);
+    let painted = painted.borrow();
+    assert!(painted.contains(&0), "the first row is in view");
+    let in_view = (ROOM.y / ROW).ceil() as u32;
+    assert!(painted.iter().all(|&row| row < in_view), "rows past the view ran: {painted:?}");
 }

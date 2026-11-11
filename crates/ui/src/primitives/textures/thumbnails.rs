@@ -601,11 +601,21 @@ pub(crate) fn fake_thumb_image(key: &impl std::hash::Hash, frame: PixelSize) -> 
 }
 
 /// The fake source's picture: a gradient from `hue` to `hue + 120` degrees, a transparent top left quarter unless
-/// `opaque`, and `revision % 8` white texels along the bottom row.
+/// `opaque`, and `revision % 8` white texels along the bottom row. Every test context renders its pictures anew, so
+/// each picture is made once per process.
 #[cfg(feature = "testing")]
 fn fake_picture(frame: PixelSize, hue: f32, revision: u64, opaque: bool) -> ColorImage {
-    let PixelSize { width, height, .. } = frame;
+    type Key = (u32, u32, u32, u32, bool);
+    static MADE: Mutex<Option<HashMap<Key, ColorImage>>> = Mutex::new(None);
     let bars = (revision % 8) as u32;
+    let key = (frame.width, frame.height, hue.to_bits(), bars, opaque);
+    let mut made = MADE.lock().unwrap_or_else(PoisonError::into_inner);
+    made.get_or_insert_default().entry(key).or_insert_with(|| make_fake_picture(frame, hue, bars, opaque)).clone()
+}
+
+#[cfg(feature = "testing")]
+fn make_fake_picture(frame: PixelSize, hue: f32, bars: u32, opaque: bool) -> ColorImage {
+    let PixelSize { width, height, .. } = frame;
     let end = |degrees: f32| egui::ecolor::Hsva::new((degrees % 360.0) / 360.0, 0.6, 0.85, 1.0).to_srgba_unmultiplied();
     let (from, to) = (end(hue), end(hue + 120.0));
     thumb_image(frame, width.max(height), |x, y| {

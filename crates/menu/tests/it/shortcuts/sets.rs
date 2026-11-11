@@ -56,7 +56,7 @@ fn new_set_refuses_a_taken_name_and_keeps_the_set() {
                 new_set(&mut rig, name);
                 let cancel = form_cancel(&rig);
                 rig.fixture.click(&cancel);
-                rig.fixture.idle(3);
+                rig.fixture.settle();
             }
             assert!(rig.is_open() && !rig.has("Create"), "{name:?} by {turn}: the form closed, the dialog stayed");
         }
@@ -149,7 +149,7 @@ fn switching_a_modified_set_asks_to_save() {
     rig.press(Modifiers::NONE, Key::F2);
     let select = rig.named("Set:", Role::COMBO_BOX);
     rig.fixture.click(&select);
-    rig.fixture.idle(3);
+    rig.fixture.settle();
     rig.click("Fixture Defaults");
     assert!(rig.has("Save changes to “Mine”?"));
     rig.click("Don't Save");

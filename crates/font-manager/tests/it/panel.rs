@@ -366,14 +366,14 @@ fn sources_setup(name: &str) -> Rig {
 }
 
 impl Rig {
-    /// Frames until `done`, for work on the panel's own threads.
+    /// Frames until `done`, for work the panel runs as Host jobs: the rig's Host runs them inline, and the panel reads
+    /// their results in its next passes.
     fn wait(&mut self, done: impl Fn(&FontsPanel) -> bool) {
-        for _ in 0..200 {
+        for _ in 0..20 {
             if done(&self.panel.borrow()) {
                 self.fx.settle();
                 return;
             }
-            std::thread::sleep(std::time::Duration::from_millis(5));
             self.fx.idle(1);
         }
         panic!("timed out");
