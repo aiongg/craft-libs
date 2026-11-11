@@ -112,7 +112,7 @@ impl PaintUi<'_> {
         let at =
             LeafLabel { id, owner: self.id, parent: Some(self.id), row: rect, text: &label, side: &side, enabled: self.enabled, size: self.size };
         let ctx = self.ui.ctx().clone();
-        layout_memory::boundary(&ctx, || {
+        layout_memory::boundary(&ctx, true, || {
             let placed = crate::layout::ColumnGroup::barrier(&mut *self.ui, |ui| label::leaf(ui, &env, &at, &mut child));
             let mut control = placed.control;
             if child.fills() != Some(craft_behavior::Axis::Y) {
@@ -137,7 +137,7 @@ impl PaintUi<'_> {
         let installed = Env::install_for(kids, env);
         // The child sits in a rect its owner chose, and the owner's own measure answers for it: no body's transcript
         // holds it.
-        let output = layout_memory::boundary(&ctx, || run::show_leaf(super::Props::id(child, id), kids, ShowAt::Rect(rect), tip));
+        let output = layout_memory::boundary(&ctx, true, || run::show_leaf(super::Props::id(child, id), kids, ShowAt::Rect(rect), tip));
         Env::restore(&ctx, installed);
         output
     }

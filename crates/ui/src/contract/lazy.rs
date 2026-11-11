@@ -76,7 +76,8 @@ impl Lazy {
         let mark = focus::mark(&ctx);
         let layout = *ui.layout();
         let mut child = alloc::child(ui, UiBuilder::new().max_rect(available).layout(layout).scope_id(id));
-        let out = layout_memory::boundary(&ctx, || add(&mut child));
+        // Its extent in the body around it comes from its content's measure, so a change inside reaches that body.
+        let out = layout_memory::boundary(&ctx, false, || add(&mut child));
         let rect = child.min_rect();
         if real {
             layout_memory::backstop(&ctx, id, rect.size());
