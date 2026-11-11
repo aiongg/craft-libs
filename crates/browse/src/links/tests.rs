@@ -1,5 +1,6 @@
 //! `LinkMonitor` over `FakeLinkFiles` and `ManualJobs`.
 
+use craft_ui::testing::trial;
 use std::io;
 use std::path::Path;
 use std::sync::{Arc, Mutex, PoisonError};
@@ -49,7 +50,7 @@ fn monitor(files: &Arc<Disk>, jobs: &Arc<ManualJobs>) -> LinkMonitor<u32> {
 }
 
 // A file changes once: one LinkChange Ok -> Modified, and nothing on the following passes.
-#[test]
+#[trial]
 fn the_monitor_reports_a_change_once() {
     let files = Disk::new(FakeLinkFiles::new().with("/p/a.png", b"abc", 1));
     let a = link(1, "/p/a.png", files.identity_of("/p/a.png"));
@@ -74,7 +75,7 @@ fn the_monitor_reports_a_change_once() {
 // `window_focused` checks every link again; unchanged links report nothing.
 
 // A check that finished before the link was updated is stale when it is taken in: it reports nothing, and the newer check decides.
-#[test]
+#[trial]
 fn a_check_older_than_known_now_is_dropped() {
     let files = Disk::new(FakeLinkFiles::new().with("/p/a.png", b"abc", 1));
     let old = link(1, "/p/a.png", files.identity_of("/p/a.png"));

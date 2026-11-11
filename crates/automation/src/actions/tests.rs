@@ -1,5 +1,6 @@
 //! The action list, its file and the player.
 
+use craft_ui::testing::trial;
 use serde_json::{Value, json};
 
 use super::*;
@@ -31,7 +32,7 @@ impl ActionRunner for Script {
 
 // `moved_index` cases (the moved item, items between, items outside); `move_step` within an action
 // remaps `disabled` and `dialogs`, and between actions carries the flags along.
-#[test]
+#[trial]
 fn action_list_moves_follow_the_selection() {
     assert_eq!(moved_index(1, 1, 3), 3);
     assert_eq!(moved_index(2, 1, 3), 1);
@@ -60,7 +61,7 @@ fn action_list_moves_follow_the_selection() {
 }
 // PhotoCraft's `actions.json` shape (steps as `[id, params]`, colour names, no `sets`) loads and
 // saves unchanged; empty sets survive in `sets`.
-#[test]
+#[trial]
 fn action_list_file_round_trip_keeps_pc_json() {
     let text = r#"{"version":1,"actions":[{"name":"A","steps":[["image.levels",{"gamma":1.2}]],"disabled":[0],"set":"S","color":"red"},{"name":"B","steps":[]}]}"#;
     let file = ActionsFile::from_json(text).unwrap();
@@ -78,7 +79,7 @@ fn action_list_file_round_trip_keeps_pc_json() {
 }
 // One budget is charged across nested plays and stops at the limit; a call back to a running
 // action is refused as `Recursive`.
-#[test]
+#[trial]
 fn action_player_charges_a_shared_budget_and_detects_loops() {
     struct Nested<'a>(&'a ActionList, Vec<PlaybackRefusal>);
     impl ActionRunner for Nested<'_> {

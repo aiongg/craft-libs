@@ -1,8 +1,9 @@
 //! Tests for installing, updating and removing apps.
 
 use super::*;
+use craft_ui::testing::trial;
 
-#[test]
+#[trial]
 fn swap_keeps_the_old_copy_until_the_new_one_is_in_place() {
     let dir = tempfile::tempdir().unwrap();
     let dest = dir.path().join("app");
@@ -21,7 +22,7 @@ fn swap_keeps_the_old_copy_until_the_new_one_is_in_place() {
     assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
 }
 
-#[test]
+#[trial]
 fn a_release_without_a_checksum_is_refused_before_anything_is_fetched() {
     use crate::http::tests::{Reply, body, serve};
     let base = App::by_id("wordcraft").unwrap();
@@ -68,7 +69,7 @@ fn tarball(path: &Path, entries: &[&str]) {
 }
 
 #[cfg(target_os = "freebsd")]
-#[test]
+#[trial]
 fn remove_files_refuses_escaping_paths() {
     assert!(freebsd::remove_files(&[PathBuf::from("/etc/shadow")], false).is_err());
     if let Some(home) = crate::folders::home_dir() {
@@ -78,7 +79,7 @@ fn remove_files_refuses_escaping_paths() {
 }
 
 #[cfg(target_os = "linux")]
-#[test]
+#[trial]
 fn a_tarball_binary_that_is_a_symlink_out_of_the_tree_is_refused() {
     use std::os::unix::fs::PermissionsExt;
     let base = App::by_id("wordcraft").unwrap();
@@ -180,7 +181,7 @@ fn update_bundle(root: &linux::Root<'_>, system: bool) -> Result<(), String> {
 }
 
 #[cfg(target_os = "linux")]
-#[test]
+#[trial]
 fn a_self_update_never_uninstalls_the_app_it_runs_from() {
     // The update landed earlier and never restarted, so only the restart is left.
     let (result, calls) = with_fake_flatpak("1.14.6", 1, ALREADY_THERE, 0, |root| update_bundle(root, false));
@@ -197,7 +198,7 @@ fn a_self_update_never_uninstalls_the_app_it_runs_from() {
     }
 }
 
-#[test]
+#[trial]
 fn install_rejects_an_artifact_whose_version_is_not_the_advertised_one() {
     // The release advertises 99.0.0, but the selected artifact is an older official build
     // (filename and URL tag say 0.4.0). The guard must refuse before any download.
@@ -247,6 +248,7 @@ fn install_rejects_an_artifact_whose_version_is_not_the_advertised_one() {
 #[cfg(target_os = "macos")]
 mod macos_checks {
     use crate::version;
+    use craft_ui::testing::trial;
 
     use super::macos::{TEAM_ID, signed_by};
     use super::*;
@@ -299,7 +301,7 @@ mod macos_checks {
         panic!("hdiutil create failed after 5 tries: {said}");
     }
 
-    #[test]
+    #[trial]
     fn only_the_teams_signature_passes() {
         let dir = tempfile::tempdir().unwrap();
         let app = bundle(dir.path(), "0.6.0");

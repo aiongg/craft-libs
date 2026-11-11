@@ -1,5 +1,6 @@
 //! The frame cache.
 
+use craft_ui::testing::trial;
 use std::sync::Arc;
 
 use crate::cache::{FrameCache, FrameCacheKey, FramePlayhead, FrameSize};
@@ -55,7 +56,7 @@ fn playhead(current: i64, start: i64, end: i64, looping: bool) -> FramePlayhead<
 }
 
 // with a playhead, unreached frames go first, then the one reached last.
-#[test]
+#[trial]
 fn spares_the_frames_the_preview_reaches_next() {
     let mut cache = FrameCache::new(50);
     cache.set_playhead(Some(playhead(5, 5, 20, false)));

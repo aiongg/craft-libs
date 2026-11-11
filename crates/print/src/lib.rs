@@ -662,3 +662,14 @@ pub fn command_preview(job: &Job) -> Result<Vec<String>, Error> {
         None => Err(Error::Spool("printing to a printer isn't available on this platform yet; save the print-ready PDF instead".into())),
     }
 }
+
+#[cfg(all(test, feature = "screen-testing"))]
+extern crate self as craft_print;
+#[cfg(all(test, feature = "screen-testing"))]
+#[path = "../tests/it/main.rs"]
+mod integration;
+
+#[cfg(test)]
+fn main() {
+    craft_ui::testing::run(module_path!(), env!("CARGO_PKG_NAME"), &craft_ui::testing::registered_in(env!("CARGO_PKG_NAME")));
+}

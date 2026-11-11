@@ -367,7 +367,7 @@ mod run_tests {
     use super::*;
 
     #[cfg(unix)]
-    #[test]
+    #[craft_ui::testing::trial]
     fn successful_helpers_can_write_past_the_stdout_capture_limit() {
         let out = run("/bin/sh", &["-c", "head -c 9437184 /dev/zero"], Duration::from_secs(10)).unwrap();
         assert_eq!(out.len(), 8 << 20);
@@ -377,6 +377,7 @@ mod run_tests {
 #[cfg(test)]
 mod inherited_pipe_tests {
     use super::*;
+    use craft_ui::testing::trial;
     use std::io::Write;
 
     fn fixture_args(name: &str, marker: &str) -> Vec<String> {
@@ -390,7 +391,7 @@ mod inherited_pipe_tests {
         std::path::PathBuf::from(&args[args.iter().position(|arg| arg == "--skip").unwrap() + 1])
     }
 
-    #[test]
+    #[trial]
     #[ignore = "self-spawned subprocess fixture"]
     fn pipe_holder() {
         let dir = fixture_dir();
@@ -410,7 +411,7 @@ mod inherited_pipe_tests {
         std::fs::write(dir.join("done"), []).unwrap();
     }
 
-    #[test]
+    #[trial]
     #[ignore = "self-spawned subprocess fixture"]
     fn pipe_parent() {
         let dir = fixture_dir();
@@ -445,7 +446,7 @@ mod inherited_pipe_tests {
         }
     }
 
-    #[test]
+    #[trial]
     fn exited_helper_does_not_wait_past_deadline_for_inherited_pipes() {
         let exe = std::env::current_exe().unwrap();
         // The direct child has to start a second test process and fill both pipes before the

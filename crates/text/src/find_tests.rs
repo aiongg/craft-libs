@@ -1,6 +1,7 @@
 //! Find patterns, replacements and the matches across pages.
 
 use crate::find::{FindError, FindOptions, FindPattern, PARAGRAPH_MARK};
+use craft_ui::testing::trial;
 
 fn span(start: usize, end: usize) -> std::ops::Range<usize> {
     start..end
@@ -14,7 +15,7 @@ fn compile(query: &str, options: FindOptions) -> FindPattern {
 }
 
 // ^p matches a paragraph mark and makes the pattern span paragraphs; <(c?t)> with wildcards finds "cat" and "cut" as whole words; an unclosed [ is a Wildcards error.
-#[test]
+#[trial]
 fn word_codes_and_wildcards_compile() {
     let paragraph = compile("a^pb", FindOptions::default());
     assert!(paragraph.spans_paragraphs());

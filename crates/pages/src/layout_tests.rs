@@ -1,5 +1,6 @@
 //! Page placement, fits and spreads.
 
+use craft_ui::testing::trial;
 use std::ops::Range;
 
 use kurbo::{Point, Size};
@@ -15,7 +16,7 @@ fn viewport() -> Size {
     Size::new(1000.0, 800.0)
 }
 
-#[test]
+#[trial]
 fn spreads_follow_the_cover_rule() {
     let options = LayoutOptions { display: PageDisplay::TwoUp, cover: true, ..LayoutOptions::ACROBAT };
     let laid = place_pages(&[LETTER; 5], 0.5, viewport(), &options, &SPACING);
@@ -37,7 +38,7 @@ fn spreads_follow_the_cover_rule() {
     assert_eq!(shown_row(0, 0, &options), 0..0);
 }
 
-#[test]
+#[trial]
 fn hide_white_space_cuts_margins_and_keeps_coordinates() {
     let mut laid = place_pages(&[LETTER; 3], 1.0, viewport(), &LayoutOptions::ACROBAT, &SPACING);
     let before = laid.rects[1].size();

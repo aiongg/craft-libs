@@ -572,6 +572,7 @@ impl Files for FileService {
 mod service_tests {
     //! Behaviour tests with `Dialogs::set_override` standing in for the panels.
 
+    use craft_ui::testing::trial;
     use std::cell::RefCell;
     use std::rc::Rc;
 
@@ -619,7 +620,7 @@ mod service_tests {
 
     // An answer nobody takes does not block another ticket; a forgotten ticket's answer, early or
     // late, never shows up.
-    #[test]
+    #[trial]
     fn an_orphaned_answer_blocks_no_other_pick() {
         let (service, mut panels, _) = service_with(vec![Answer::Cancelled, Answer::Paths(vec![PathBuf::from("/x/b.png")]), Answer::Cancelled]);
         let orphan = service.pick(PickRequest::open("a"));

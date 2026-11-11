@@ -193,8 +193,9 @@ pub fn parse_scutil(out: &str) -> Option<SystemProxy> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use craft_ui::testing::trial;
 
-    #[test]
+    #[trial]
     fn windows_bypass_list() {
         assert_eq!(windows_bypass("*.local;10.*; localhost;<local>"), ["*.local", "10.*", "localhost"]);
         assert!(windows_bypass("").is_empty());

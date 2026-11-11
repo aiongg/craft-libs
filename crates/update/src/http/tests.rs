@@ -1,6 +1,7 @@
 //! Tests for the update HTTP client.
 
 use super::*;
+use craft_ui::testing::trial;
 
 use std::io::{BufRead, BufReader};
 use std::net::TcpListener;
@@ -96,20 +97,20 @@ fn run(script: Vec<Reply>) -> (Result<Vec<u8>, String>, Vec<Option<String>>) {
     (result, seen)
 }
 
-#[test]
+#[trial]
 fn a_dropped_connection_resumes_where_it_stopped() {
     let (result, ranges) = run(vec![Reply::DropAfter(300_000), Reply::Ranged]);
     assert_eq!(result.unwrap(), body().0);
     assert_eq!(ranges, [None, Some("300000".to_string())]);
 }
 
-#[test]
+#[trial]
 fn a_server_that_ignores_ranges_starts_over() {
     let (result, _) = run(vec![Reply::DropAfter(123_456), Reply::Full]);
     assert_eq!(result.unwrap(), body().0);
 }
 
-#[test]
+#[trial]
 fn corrupt_data_is_fetched_again_and_never_kept() {
     let (result, _) = run(vec![Reply::Corrupt, Reply::Full]);
     assert_eq!(result.unwrap(), body().0);
@@ -117,7 +118,7 @@ fn corrupt_data_is_fetched_again_and_never_kept() {
     assert!(result.unwrap_err().contains("checksum"));
 }
 
-#[test]
+#[trial]
 fn a_gzip_bomb_answer_is_refused_before_parsing() {
     // A few hundred bytes on the wire that decode to more than MAX_SMALL. ureq's own limit
     // sits below the transparent gzip decoder, so only a cap on the decoded stream (CWE-409)

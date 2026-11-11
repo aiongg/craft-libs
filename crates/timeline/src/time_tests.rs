@@ -1,12 +1,13 @@
 //! Tick, TimeRange and TimeView.
 
 use crate::time::{TICKS_PER_SECOND, Tick, TimeView};
+use craft_ui::testing::trial;
 
 fn secs(s: i64) -> Tick {
     Tick(s * TICKS_PER_SECOND)
 }
 
-#[test]
+#[trial]
 fn zoom_about_keeps_the_anchor_under_the_pointer() {
     let mut view = TimeView::new(secs(10), 40.0);
     let anchor = secs(15);

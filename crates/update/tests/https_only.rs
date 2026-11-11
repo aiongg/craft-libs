@@ -1,5 +1,6 @@
-//! `Http::new` as an app gets it: an integration test builds the library without `cfg(test)`.
+//! `Http::new` as an app gets it, through the public API only.
 
+use craft_ui::testing::trial;
 use std::io::{BufRead, BufReader, Write};
 use std::net::TcpListener;
 use std::sync::Arc;
@@ -28,7 +29,7 @@ fn serve() -> (String, Arc<AtomicUsize>) {
     (base, seen)
 }
 
-#[test]
+#[trial]
 fn the_remote_agents_refuse_plain_http_and_loopback_links_use_the_direct_agents() {
     let (base, seen) = serve();
     let http = Http::new("craft-update-tests/0").unwrap();

@@ -1,5 +1,6 @@
 //! Behaviour tests of `client`.
 
+use craft_ui::testing::trial;
 use serde_json::json;
 
 use super::*;
@@ -9,7 +10,7 @@ const TOKEN: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789a
 // call returns Ok(result) for ok replies and Err(error) otherwise.
 
 // A stale reply left by a timed-out call is skipped, and a transport failure closes the client.
-#[test]
+#[trial]
 fn replies_are_matched_by_id() {
     use std::io::{BufRead, Write};
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();

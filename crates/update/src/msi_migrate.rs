@@ -163,6 +163,7 @@ pub(crate) mod windows {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use craft_ui::testing::trial;
 
     const CODE: &str = "{500F5254-26F4-4AAA-B90D-6F3FD9947D14}";
 
@@ -189,7 +190,7 @@ mod tests {
         Some(Path::new(r"C:\Program Files"))
     }
 
-    #[test]
+    #[trial]
     fn a_folder_that_only_shares_a_prefix_with_the_profile_is_outside_it() {
         let old = r"C:\Users\Anna\GridCraft";
         assert_eq!(plan(user(), &p(old), "GridCraft", &profile(), pf()), moved(old, old));

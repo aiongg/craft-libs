@@ -1,5 +1,6 @@
 //! Tests of connector routes, ported from FigCraft's engine tests (`board_route.rs`).
 
+use craft_ui::testing::trial;
 use kurbo::{Point, Rect};
 
 use super::connector::{ConnectionSide, ConnectorPath, ROOM, RouteEnd, Routing, attached_sides, reshaped, route, route_along};
@@ -12,7 +13,7 @@ const A: Rect = Rect::new(0.0, 0.0, 100.0, 100.0);
 
 // An elbow whose short way would cross a joined box goes around it, keeping `ROOM` from it
 // (`board_connector_tests.rs:141`).
-#[test]
+#[trial]
 fn connector_elbow_goes_around_joined_boxes_by_room() {
     use ConnectionSide::{Left, Right};
     let b = Rect::new(300.0, 0.0, 400.0, 100.0);
@@ -38,7 +39,7 @@ fn connector_elbow_goes_around_joined_boxes_by_room() {
 // `reshaped` of a first or last run keeps it on its end through an extra run; a straight route
 // has no path; `attached_sides` gives the sides it left by (`board_reshape_tests.rs:67`, `:123`,
 // `:130`; `connector_anywhere_tests.rs:81`).
-#[test]
+#[trial]
 fn connector_reshape_keeps_first_and_last_runs_on_their_ends() {
     use ConnectionSide::{Bottom, Left, Right};
     let a = Rect::new(0.0, 0.0, 100.0, 100.0);

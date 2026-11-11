@@ -1,6 +1,7 @@
 //! Tests of the Layer Style model.
 
 use super::*;
+use craft_ui::testing::trial;
 
 fn style_with(kinds: &[(u32, EffectKind)]) -> LayerStyle {
     let effects =
@@ -22,7 +23,7 @@ fn style_with(kinds: &[(u32, EffectKind)]) -> LayerStyle {
 
 // Setting a globally lit Drop Shadow's angle sets `global_light` and the angle of every globally
 // lit instance, a disabled Bevel too; turning Use Global Light on adopts the shared angle.
-#[test]
+#[trial]
 fn global_light_angle_is_shared_by_effects_that_use_it() {
     let mut draft = LayerStyleDraft::new(style_with(&[(1, EffectKind::DropShadow), (2, EffectKind::BevelEmboss), (3, EffectKind::Satin)]));
     draft.toggle(EffectId(2));
@@ -46,7 +47,7 @@ fn global_light_angle_is_shared_by_effects_that_use_it() {
 
 // From 120° and 5 px, a drag of (4.5, −2.2) lands on whole degrees and pixels by the offset rule;
 // with Use Global Light the shared angle follows; a drag back under 0.5 px keeps the angle.
-#[test]
+#[trial]
 fn shadow_drag_uses_whole_degrees_and_pixels_and_moves_the_global_angle() {
     let mut draft = LayerStyleDraft::new(style_with(&[(1, EffectKind::DropShadow)]));
     assert!(draft.drags_shadow());
@@ -77,7 +78,7 @@ fn shadow_drag_uses_whole_degrees_and_pixels_and_moves_the_global_angle() {
 
 // `BlendIfRange::ordered` and `moved` always give black low ≤ black high ≤ white low ≤ white
 // high, pushing the other handles.
-#[test]
+#[trial]
 fn blend_if_edits_keep_the_four_values_ordered() {
     assert_eq!(BlendIfRange::ordered([10, 5, 200, 100]), BlendIfRange([10, 10, 200, 200]));
     let start = BlendIfRange([10, 30, 200, 220]);

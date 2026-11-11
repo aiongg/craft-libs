@@ -1,4 +1,5 @@
 use super::*;
+use craft_ui::testing::trial;
 
 fn fixture(contents: &str, compressed: bool, unit: &str) -> Vec<u8> {
     let objects = [
@@ -59,7 +60,7 @@ fn fixture(contents: &str, compressed: bool, unit: &str) -> Vec<u8> {
     pdf
 }
 
-#[test]
+#[trial]
 fn reframe_preserves_single_direct_and_indirect_content_streams() {
     for compressed in [false, true] {
         for (name, contents) in [("single", "3 0 R"), ("direct-array", "[3 0 R]"), ("indirect-array", "5 0 R")] {
@@ -79,7 +80,7 @@ fn reframe_preserves_single_direct_and_indirect_content_streams() {
     }
 }
 
-#[test]
+#[trial]
 fn object_stream_and_parsed_container_budgets_are_job_wide() {
     let dict = vec![];
     let mut budget = Budget { decoded: MAX_DECODED - 4, ..Budget::default() };

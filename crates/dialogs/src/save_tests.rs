@@ -1,5 +1,6 @@
 //! `craft_dialogs::save`, with a scripted `Files` and an inline `FileWatch`.
 
+use craft_ui::testing::trial;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -87,7 +88,7 @@ fn scratch(name: &str) -> PathBuf {
 
 // After another writer changed the document's own file, Save asks; Replace writes, Save As opens
 // the picker, Cancel cancels; a file the app wrote itself (written) never asks.
-#[test]
+#[trial]
 fn a_file_changed_on_disk_is_asked_about_once() {
     let dir = scratch("changed");
     let file = dir.join("a.pdf");
@@ -125,7 +126,7 @@ fn a_file_changed_on_disk_is_asked_about_once() {
 }
 
 // A write that finishes for another document (its save was cancelled) leaves a newer save alone.
-#[test]
+#[trial]
 fn a_late_write_does_not_free_another_save() {
     let (files, mut watch, mut flow) = (ScriptedFiles::default(), watch(), SaveFlow::new());
     assert_eq!(

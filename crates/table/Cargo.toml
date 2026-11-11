@@ -7,6 +7,10 @@ license.workspace = true
 rust-version.workspace = true
 repository.workspace = true
 
+[lib]
+# Every test lives in the `it` integration binary, so `cargo test` builds the library once.
+test = false
+
 [lints]
 workspace = true
 
@@ -27,7 +31,6 @@ egui = { workspace = true, optional = true }
 [dev-dependencies]
 craft-table = { path = ".", features = ["screen-testing"] }
 egui = { workspace = true, features = ["default_fonts", "serde"] }
-libtest-mimic = "0.8"
 
 [[test]]
 name = "it"

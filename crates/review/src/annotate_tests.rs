@@ -1,5 +1,6 @@
 //! Annotation geometry.
 
+use craft_ui::testing::trial;
 use kurbo::{Point, Rect};
 
 use crate::annotate::{Annotation, AnnotationHandle, AnnotationHit, AnnotationId, AnnotationKind, hit};
@@ -30,7 +31,7 @@ fn square(id: u64, kind: AnnotationKind) -> Annotation {
 // handles by kind; none for markups and locked ones.
 
 // hit order: selected handles, then last-drawn bodies.
-#[test]
+#[trial]
 fn hit_prefers_handles_then_the_topmost_body() {
     let (below, above) = (square(1, AnnotationKind::Rectangle), square(2, AnnotationKind::Rectangle));
     let all = [below, above];

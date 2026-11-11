@@ -24,7 +24,7 @@ pub const HARNESS: &str = "test/harness";
 pub const CFG_TEST: &str = "test/cfg-test";
 /// A float literal asserted in a test that shows a component or reads tokens.
 pub const LITERAL_SIZE: &str = "test/literal-size";
-/// A `#[test]` that is `#[ignore]`d, so never runs.
+/// A `#[test]` or `#[trial]` that is `#[ignore]`d, so never runs.
 pub const IGNORED: &str = "test/ignored";
 
 /// Identifiers that mean a test shows a component or reads token values.
@@ -71,7 +71,7 @@ impl Walk<'_, '_> {
                 format!("`#[test]` fn `{ident}` in a `harness = false` target is never run; register it as a trial"),
             );
         }
-        if is_unit_test(attrs) && attrs.iter().any(|a| a.path().is_ident("ignore")) {
+        if is_test_fn(attrs) && attrs.iter().any(|a| a.path().is_ident("ignore")) {
             self.cx.flag_span(
                 self.out,
                 IGNORED,

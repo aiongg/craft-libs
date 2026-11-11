@@ -6,6 +6,12 @@ edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
 repository.workspace = true
+autotests = false
+
+[lib]
+# The lib's test target is the crate's one test executable: its trials and, with `screen-testing`, the
+# screen tests in tests/it.
+harness = false
 
 # Versions the apps already pin (rfd 0.17.2, raw-window-handle 0.6.2), so adopting the crate adds
 # nothing new to their Cargo.lock. rfd without its `wayland` feature, which links libwayland-client
@@ -45,14 +51,8 @@ ui = ["dep:craft-behavior", "dep:craft-ui", "dep:egui"]
 # The stories and the integration binary of the file service's UI parts.
 screen-testing = ["ui", "craft-ui/testing"]
 
-[[test]]
-name = "it"
-path = "tests/it/main.rs"
-harness = false
-required-features = ["screen-testing"]
-
 [dev-dependencies]
-libtest-mimic = "0.8"
+craft-ui = { workspace = true, features = ["testing"] }
 
 [lints]
 workspace = true

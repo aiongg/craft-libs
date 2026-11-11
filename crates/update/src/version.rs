@@ -150,12 +150,13 @@ pub fn is_update(latest: &Version, installed: &Version) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use craft_ui::testing::trial;
 
     fn v(s: &str) -> Version {
         parse(s).unwrap()
     }
 
-    #[test]
+    #[trial]
     fn a_build_from_main_is_never_offered_its_own_release() {
         let running = v("0.17.0-integration.20261029.f5b3f123");
         assert!(is_local_build(&running));
@@ -168,7 +169,7 @@ mod tests {
         assert!(!offers_update(&v("0.18.0"), &v("0.18.0-DEV.4")));
     }
 
-    #[test]
+    #[trial]
     fn orders_versions_and_spots_updates() {
         assert!(is_newer(&v("0.10.0"), &v("0.9.9")));
         assert!(is_newer(&v("0.2.0"), &v("0.2.0-rc.5")));

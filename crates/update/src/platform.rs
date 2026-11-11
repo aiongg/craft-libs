@@ -260,6 +260,7 @@ pub fn pick_asset<'a>(release: &'a Release, stems: &[&str], platform: Platform, 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use craft_ui::testing::trial;
 
     fn release(names: &[&str]) -> Release {
         Release {
@@ -285,7 +286,7 @@ mod tests {
         "SHA256SUMS.txt",
     ];
 
-    #[test]
+    #[trial]
     fn picks_the_native_build_first_and_falls_back_to_emulation() {
         let r = release(PHOTO);
         let pick = |os, arch, kinds: &[PackageKind]| pick_asset(&r, &["photocraft"], Platform { os, arch }, kinds).map(|(a, _)| a.name.clone());

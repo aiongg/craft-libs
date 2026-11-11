@@ -2,6 +2,7 @@
 //! Behaviour tests of `security`.
 
 use super::*;
+use craft_ui::testing::trial;
 
 const TOKEN: &str = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
 
@@ -17,7 +18,7 @@ fn scratch_dir(name: &str) -> std::path::PathBuf {
 }
 
 // A connection's first line must be a matching `auth`; anything else is refused and closes.
-#[test]
+#[trial]
 fn first_line_must_authenticate() {
     let auth = |token: &str| format!(r#"{{"id": 7, "method": "auth", "params": {{"token": "{token}"}}}}"#);
     let refused = |id: Value| serde_json::json!({"id": id, "ok": false, "error": "authentication required"});
@@ -42,7 +43,7 @@ fn first_line_must_authenticate() {
 }
 
 // Tokens are 64 lower-case hex; a file token is trimmed; both supplied is a conflict.
-#[test]
+#[trial]
 fn server_token_sources_and_validation() {
     let generated = generate_token().unwrap();
     validate_token(&generated).unwrap();

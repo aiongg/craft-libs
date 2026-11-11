@@ -1,8 +1,9 @@
 //! Page range text and From/To ranges.
 
 use super::*;
+use craft_ui::testing::trial;
 
-#[test]
+#[trial]
 fn range_text_parses_sorted_unique_and_bounded() {
     assert_eq!(parse_pages("5, 1-3; 2", 9), Ok(vec![0, 1, 2, 4]));
     assert_eq!(parse_pages("3-1", 9), Ok(vec![0, 1, 2]));

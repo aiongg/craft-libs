@@ -1,4 +1,5 @@
 use super::*;
+use craft_ui::testing::trial;
 
 fn rev(s: &str) -> String {
     s.chars().rev().collect()
@@ -9,7 +10,7 @@ fn shown(p: &Paragraph<'_>, line: Range<usize>) -> String {
     p.visual_runs(line).iter().map(|r| if r.is_rtl() { rev(&p.text()[r.range.clone()]) } else { p.text()[r.range.clone()].to_string() }).collect()
 }
 
-#[test]
+#[trial]
 fn mixed_arabic_latin_numbers_and_brackets() {
     let s = "سنة 2024 (Retrait) فقط";
     let p = Paragraph::new(s, Direction::Rtl);
@@ -32,7 +33,7 @@ fn mixed_arabic_latin_numbers_and_brackets() {
     assert_eq!(shown(&p, 0..s.len()), vis);
 }
 
-#[test]
+#[trial]
 fn hostile_text_never_panics() {
     // Explicit embeddings, isolates, unmatched pops, marks with no base, deep nesting.
     let rlo = "\u{202E}".repeat(200);
@@ -65,7 +66,7 @@ fn hostile_text_never_panics() {
     }
 }
 
-#[test]
+#[trial]
 fn runs_never_split_a_grapheme_cluster() {
     use unicode_segmentation::UnicodeSegmentation;
     let cases = [

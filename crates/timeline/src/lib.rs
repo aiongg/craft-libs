@@ -48,3 +48,14 @@ mod timecode_tests;
 pub mod testing {
     craft_ui::testing_registered!();
 }
+
+#[cfg(all(test, feature = "screen-testing"))]
+extern crate self as craft_timeline;
+#[cfg(all(test, feature = "screen-testing"))]
+#[path = "../tests/it/main.rs"]
+mod integration;
+
+#[cfg(test)]
+fn main() {
+    craft_ui::testing::run(module_path!(), env!("CARGO_PKG_NAME"), &craft_ui::testing::registered_in(env!("CARGO_PKG_NAME")));
+}

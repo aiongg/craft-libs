@@ -83,3 +83,17 @@ fn offered_release(json: &str, repo: &str, current_version: &str) -> Result<Opti
 
 #[cfg(test)]
 pub(crate) const TEST_AGENT: &str = "ArtCraft-Launcher-Test/0.0";
+
+#[cfg(test)]
+extern crate self as craft_update;
+#[cfg(test)]
+#[path = "../tests/https_only.rs"]
+mod https_only;
+#[cfg(all(test, feature = "screen-testing"))]
+#[path = "../tests/it/main.rs"]
+mod integration;
+
+#[cfg(test)]
+fn main() {
+    craft_ui::testing::run(module_path!(), env!("CARGO_PKG_NAME"), &craft_ui::testing::registered_in(env!("CARGO_PKG_NAME")));
+}

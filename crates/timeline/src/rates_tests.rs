@@ -2,8 +2,9 @@
 
 use crate::rates::FrameRate;
 use crate::time::{TICKS_PER_SECOND, Tick};
+use craft_ui::testing::trial;
 
-#[test]
+#[trial]
 fn frame_boundaries_round_trip_at_every_rate() {
     for rate in FrameRate::COMMON.into_iter().chain([FrameRate::new(37_516, 1000)]) {
         for f in [-1000, -1, 0, 1, 2, 29, 1799, 1_000_003] {

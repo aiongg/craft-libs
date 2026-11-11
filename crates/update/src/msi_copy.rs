@@ -220,6 +220,7 @@ pub(crate) mod windows {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use craft_ui::testing::trial;
 
     const CODE: &str = "{500F5254-26F4-4AAA-B90D-6F3FD9947D14}";
 
@@ -227,7 +228,7 @@ mod tests {
         list.iter().map(|c| c.to_string()).collect()
     }
 
-    #[test]
+    #[trial]
     fn a_registration_in_the_other_context_is_another_copys_and_stops_the_update() {
         for (hive, other) in [(MsiScope::PerUser, MsiScope::PerMachine), (MsiScope::PerMachine, MsiScope::PerUser)] {
             let error =
@@ -236,7 +237,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[trial]
     fn the_update_stops_unless_exactly_one_product_is_registered() {
         let copy = MsiCopy::Registered { hive: MsiScope::PerMachine };
         assert!(update_arguments(copy, &[], |_| panic!("must not look up"), |_| panic!("must not read the records")).is_err());

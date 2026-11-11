@@ -385,6 +385,7 @@ impl std::error::Error for SelectionError {}
 
 #[cfg(test)]
 mod tests {
+    use craft_ui::testing::trial;
     use serde_json::json;
 
     use super::*;
@@ -401,7 +402,7 @@ mod tests {
         SelectionChange::themes(ThemePair::same(id(theme)))
     }
 
-    #[test]
+    #[trial]
     fn merge_table() {
         let base = choice(Some("craft.artcraft"), Some(ModeChoice::System));
         let dark_disk = choice(Some("craft.artcraft"), Some(ModeChoice::Dark));
@@ -432,7 +433,7 @@ mod tests {
         assert_eq!(merge(&base, &none, &SelectionChange::mode(ModeChoice::Dark)), Some(choice(None, Some(ModeChoice::Dark))));
     }
 
-    #[test]
+    #[trial]
     fn version_1_is_read_into_both_slots_and_upgraded_on_write() {
         let v1 = br#"{"schema_version":1,"revision":6,"library_revision":1,"suite":{"theme":"user.navy","mode":"system","x":2}}"#;
         let doc = parse_selection(v1).unwrap();

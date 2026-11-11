@@ -1,5 +1,6 @@
 #![cfg(not(target_arch = "wasm32"))]
 
+use craft_ui::testing::trial;
 use std::{
     fs,
     path::Path,
@@ -60,7 +61,7 @@ fn wait_for(what: &str, mut done: impl FnMut() -> bool) {
     }
 }
 
-#[test]
+#[trial]
 fn a_same_metadata_replacement_is_found_by_the_byte_comparison() {
     let tmp = tempfile::tempdir().unwrap();
     let path = tmp.path().join("selection.json");
@@ -101,7 +102,7 @@ fn settle(client: &mut crate::SuiteClient) {
     });
 }
 
-#[test]
+#[trial]
 fn a_pick_in_the_first_frame_merges_against_the_disk_state() {
     for change in [SelectionChange::mode(ModeChoice::Light), SelectionChange::themes(ThemePair::same(id("craft.artcraft")))] {
         let tmp = tempfile::tempdir().unwrap();

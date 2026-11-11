@@ -1,5 +1,6 @@
 #![cfg(not(target_arch = "wasm32"))]
 
+use craft_ui::testing::trial;
 use std::{fs, path::Path, time::Duration};
 
 use craft_theme::{ContrastChoice, ModeChoice, MotionChoice, Selection, Size, TextSize, ThemeId, ThemePair};
@@ -49,7 +50,7 @@ fn theme_json(id: &str, extra: &str) -> String {
     )
 }
 
-#[test]
+#[trial]
 fn a_newer_selection_is_never_overwritten() {
     let tmp = tempfile::tempdir().unwrap();
     let path = tmp.path().join("selection.json");
@@ -67,7 +68,7 @@ fn a_newer_selection_is_never_overwritten() {
     assert!(!tmp.path().join("library").exists());
 }
 
-#[test]
+#[trial]
 fn a_damaged_selection_keeps_the_last_state_and_moves_aside_only_when_written() {
     let tmp = tempfile::tempdir().unwrap();
     let path = tmp.path().join("selection.json");
@@ -102,7 +103,7 @@ fn a_damaged_selection_keeps_the_last_state_and_moves_aside_only_when_written() 
     assert!(moved[0].file_name().unwrap().to_str().unwrap().starts_with("selection.broken-"));
 }
 
-#[test]
+#[trial]
 fn ids_users_cant_create_never_reach_the_file_system() {
     let tmp = tempfile::tempdir().unwrap();
     let library = tmp.path().join("library");

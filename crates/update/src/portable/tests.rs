@@ -1,10 +1,11 @@
 //! Tests for the portable install.
 
 use super::*;
+use craft_ui::testing::trial;
 use std::io::Write;
 
 /// Validation of the installed copy is part of the transaction, while a backup still exists.
-#[test]
+#[trial]
 fn a_self_update_that_fails_validation_puts_the_previous_files_back() {
     let dir = tempfile::tempdir().unwrap();
     let staging = dir.path().join("launcher-update");
@@ -47,7 +48,7 @@ fn archive(root: &Path, name: &str, files: &[(&str, &[u8])]) -> PathBuf {
     path
 }
 
-#[test]
+#[trial]
 fn stale_junction_record_cannot_remove_files_after_retargeting() {
     use std::process::Command;
 
@@ -84,7 +85,7 @@ fn stale_junction_record_cannot_remove_files_after_retargeting() {
 }
 
 /// ZIP 9 strips a drive prefix from enclosed paths; the original name must still be rejected.
-#[test]
+#[trial]
 fn rejects_drive_prefixed_names_before_writing_files() {
     let dir = tempfile::tempdir().unwrap();
     let zip = archive(dir.path(), "drive.zip", &[("c:escape.exe", b"bad".as_slice())]);
@@ -94,7 +95,7 @@ fn rejects_drive_prefixed_names_before_writing_files() {
     assert_eq!(std::fs::read_dir(&output).unwrap().count(), 0);
 }
 
-#[test]
+#[trial]
 fn rejects_traversal_and_case_collisions() {
     let dir = tempfile::tempdir().unwrap();
     for (name, files) in [

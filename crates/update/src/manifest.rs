@@ -48,8 +48,9 @@ impl Manifest {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use craft_ui::testing::trial;
 
-    #[test]
+    #[trial]
     fn round_trips_and_survives_garbage() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("installed.json");

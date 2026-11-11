@@ -1,5 +1,6 @@
 use super::*;
 use crate as spool;
+use craft_ui::testing::trial;
 
 mod windows_native;
 
@@ -10,7 +11,7 @@ const STAND_IN_LP: &str = "CRAFT_STAND_IN_LP";
 /// then plays `lp`. It records its arguments and stdin in the folder named by [`STAND_IN_LP`], or,
 /// when the folder is `refuse`, exits without reading stdin, the way `lp` refuses an unknown
 /// printer.
-#[test]
+#[trial]
 fn stand_in_for_lp() {
     let Some(record) = std::env::var_os(STAND_IN_LP) else { return };
     if record == "refuse" {
@@ -32,7 +33,7 @@ fn stand_in_lp(record: &std::ffi::OsStr) -> std::process::Command {
     c
 }
 
-#[test]
+#[trial]
 fn print_jobs_reach_lp_on_stdin_never_through_a_shared_temp_folder() {
     // The job used to be written to `<temp>/craft-print-<pid>/job-<time>.pdf` and handed to `lp`
     // by name. In a shared /tmp another local user can predict that folder, create it first (or
@@ -97,7 +98,7 @@ userdict /XJXEFIsetpageproperties known\n\
 *EFRaster Hold: \"\"\n\
 *CloseUI: *EFRaster\n";
 
-#[test]
+#[trial]
 fn printer_options_come_from_the_ppd() {
     let options = spool::parse_ppd(&spool::ppd_text(FIERY_PPD));
     let keys: Vec<&str> = options.iter().map(|o| o.key.as_str()).collect();

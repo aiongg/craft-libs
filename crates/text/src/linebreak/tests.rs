@@ -2,6 +2,7 @@
 //! sets mirror vectorcraft's and designcraft's composers.
 
 use super::*;
+use craft_ui::testing::trial;
 
 const CHAR: f64 = 6.0;
 const SPACE: f64 = 3.0;
@@ -94,7 +95,7 @@ fn assert_covers(items: &[Item], lines: &[Line]) {
     assert_eq!(lines.last().map(|l| l.next), Some(items.len()));
 }
 
-#[test]
+#[trial]
 fn lines_fit_and_cover_the_paragraph() {
     let text = [COPY; 2].join(" ");
     for ragged in [false, true] {
@@ -118,7 +119,7 @@ fn lines_fit_and_cover_the_paragraph() {
 
 /// Two consecutive breaks: the line after the first starts past the second, which must not end a
 /// line `4..3` from there.
-#[test]
+#[trial]
 fn lines_never_end_before_they_start() {
     let items = [
         Item::boxed(10.0),
@@ -141,7 +142,7 @@ fn spans(lines: &[Line]) -> Vec<(usize, usize)> {
 
 /// A final word wider than the measure is one overfull line: the fill before the forced break
 /// doesn't end it and leave an empty line. Consecutive forced breaks still make an empty line.
-#[test]
+#[trial]
 fn an_overlong_last_word_adds_no_empty_line() {
     let fill = [Item::boxed(20.0), Item::fill(), Item::forced()];
     assert_eq!(spans(&break_paragraph(&fill, &|_| 11.0, &Params::default(), &[2.5, f64::INFINITY]).lines), [(0, 2)]);
@@ -151,7 +152,7 @@ fn an_overlong_last_word_adds_no_empty_line() {
 
 /// Overfull lines keep the hyphen limit too: with a limit of 1, no two consecutive lines end at a
 /// hyphen even when every line is overfull.
-#[test]
+#[trial]
 fn overfull_lines_keep_the_hyphen_limit() {
     let items =
         [Item::boxed(10.0), Item::penalty(1.0, 0.0, true), Item::boxed(10.0), Item::penalty(1.0, 0.0, true), Item::boxed(10.0), Item::forced()];

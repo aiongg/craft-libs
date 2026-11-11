@@ -315,10 +315,11 @@ pub(crate) fn truncate(s: &str, max: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use craft_ui::testing::trial;
 
     const REPO: &str = "storytold/photocraft";
 
-    #[test]
+    #[trial]
     fn only_plain_https_links_pass() {
         assert!(safe_web_link("https://github.com/storytold/photocraft/releases/tag/v1"));
         for bad in [
@@ -356,7 +357,7 @@ mod tests {
         )
     }
 
-    #[test]
+    #[trial]
     fn traversal_cannot_escape_the_repository() {
         // Raw-prefix matches but the interpreted path climbs into another repository (CWE-180).
         for url in [
@@ -377,7 +378,7 @@ mod tests {
         assert!(download_url_under("https://github.com/storytold/photocraft/releases/download/v0.5.0/photocraft-0.5.0-macos-universal.dmg", &prefix));
     }
 
-    #[test]
+    #[trial]
     fn file_names_cannot_escape() {
         for bad in ["", "..", "a/b", "a\\b", ".hidden", "c:x", "x\u{0}"] {
             assert!(!valid_file_name(bad), "{bad:?}");

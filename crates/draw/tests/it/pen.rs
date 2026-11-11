@@ -119,7 +119,6 @@ impl Pen {
                 PenEvent::Edit(_) => "other",
                 PenEvent::Finished => "finished",
                 PenEvent::Resumed(..) => "resumed",
-                _ => "unknown",
             })
             .collect()
     }

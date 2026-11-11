@@ -1,9 +1,10 @@
 use super::*;
+use craft_ui::testing::trial;
 
 /// A virama doesn't split a word: the limits count the whole word, and no point falls before a
 /// mark or next to a joiner.
 #[cfg(feature = "hindi")]
-#[test]
+#[trial]
 fn indic_word_limits_span_viramas() {
     let hi = Lang::for_language("hi").unwrap();
     // न म स ् क ा र: unrestricted points before म, स and र; only स has two letters on each side.
@@ -21,7 +22,7 @@ fn indic_word_limits_span_viramas() {
 
 /// Slovak's patterns are GPL-2.0-or-later: only their own feature turns them on, never
 /// `all-languages`.
-#[test]
+#[trial]
 fn all_languages_leaves_out_the_gpl_slovak_patterns() {
     let manifest = include_str!("../../Cargo.toml");
     let all = manifest.split("all-languages = [").nth(1).and_then(|s| s.split(']').next()).unwrap_or_default();
@@ -100,7 +101,7 @@ fn heuristic_ref(c: &[char]) -> Vec<usize> {
     out
 }
 
-#[test]
+#[trial]
 fn linear_limits_and_heuristic_match_the_reference() {
     let long = "hyphenation".repeat(40);
     let words = [

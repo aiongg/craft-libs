@@ -1,10 +1,11 @@
 //! The pure scope helpers.
 
 use super::*;
+use craft_ui::testing::trial;
 
 // Mean, Std Dev, the median rule (half reached), the percentile of a level and of a range, and the
 // clipped percents, against counts worked out by hand (PhotoCraft's `histogram_panel/tests.rs`).
-#[test]
+#[trial]
 fn histogram_statistics_match_the_reference_counts() {
     assert!(histogram_statistics(&[0; 256], None).is_none());
 

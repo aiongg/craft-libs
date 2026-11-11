@@ -1,5 +1,6 @@
 //! Tests of rounded corners.
 
+use craft_ui::testing::trial;
 use kurbo::{Point, Vec2};
 
 use super::fillet::fillet;
@@ -10,7 +11,7 @@ fn near(a: f64, b: f64) -> bool {
 
 // PhotoCraft's values: a right angle of a 100 × 60 rectangle caps at 30 and steps (1, 1); an
 // acute triangle vertex; a small radius is kept.
-#[test]
+#[trial]
 fn fillet_matches_photocraft() {
     let (a, b, c) = (Point::new(0.0, 0.0), Point::new(100.0, 0.0), Point::new(0.0, 60.0));
     let Some(f) = fillet(b, a, c, 1e12) else { panic!("a right angle rounds") };

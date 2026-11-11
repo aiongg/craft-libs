@@ -2,8 +2,8 @@
 //!
 //! `Fixture` shows a closure or a story over [`Frames`]; `suite` runs the shared cases over every registered type.
 //!
-//! The registration half of the kit: `#[trial]` functions list themselves in [`TRIALS`], and the integration
-//! binary's runner collects them. The fixture half drives frames ([`Frames`]) and reaches the runtime's
+//! The registration half of the kit: `#[trial]` functions list themselves in [`TRIALS`], and [`run`],
+//! every test executable's runner, collects them. The fixture half drives frames ([`Frames`]) and reaches the runtime's
 //! crate-private services the trials check.
 
 pub mod access;
@@ -71,12 +71,19 @@ pub struct Trial {
     pub name: &'static str,
     /// The trial; it fails by panicking.
     pub run: fn(),
+    /// Whether it runs only when asked for (`--ignored`): a fixture that another trial starts as a subprocess.
+    pub ignored: bool,
 }
 
 impl Trial {
     /// A registration, as `#[trial]` writes it.
     pub const fn new(module: &'static str, name: &'static str, run: fn()) -> Trial {
-        Trial { module, name, run }
+        Trial { module, name, run, ignored: false }
+    }
+
+    /// The registration of an `#[ignore]`d trial, as `#[trial]` writes it.
+    pub const fn ignored(module: &'static str, name: &'static str, run: fn()) -> Trial {
+        Trial { module, name, run, ignored: true }
     }
 
     /// The name filters match: the module path below the crate, then the function.
@@ -95,6 +102,33 @@ pub fn trials() -> Vec<&'static Trial> {
     let mut all: Vec<_> = inventory::iter::<Trial>().collect();
     all.sort_by_key(|trial| trial.full_name());
     all
+}
+
+/// Runs a test executable and exits: the `#[trial]`s declared in the crate whose root module is `crate_root` or in
+/// `package`'s library crate, and the suite's trials over `registered`. Every test executable's `main` calls it, with
+/// its own `module_path!()`.
+pub fn run(crate_root: &str, package: &'static str, registered: &[&'static Registration]) -> ! {
+    let library = package.replace('-', "_");
+    let own = |module: &str| {
+        [crate_root, library.as_str()].into_iter().any(|root| module.strip_prefix(root).is_some_and(|rest| rest.is_empty() || rest.starts_with("::")))
+    };
+    let mut tests: Vec<libtest_mimic::Trial> = trials()
+        .into_iter()
+        .filter(|trial| own(trial.module))
+        .map(|trial| {
+            let run = trial.run;
+            libtest_mimic::Trial::test(trial.full_name(), move || {
+                run();
+                Ok(())
+            })
+            .with_ignored_flag(trial.ignored)
+        })
+        .collect();
+    tests.extend(suite::trials(package, registered));
+    // A trial that re-runs its executable as a stand-in for another program passes that program's arguments after
+    // `--`; they are the stand-in's, not the runner's.
+    let args = libtest_mimic::Arguments::from_iter(std::env::args().take_while(|arg| arg != "--"));
+    libtest_mimic::run(&args, tests).exit()
 }
 
 /// Every registration declared in the library crate of the package `crate_name` and linked into the running

@@ -153,12 +153,13 @@ impl Pins {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use craft_ui::testing::trial;
 
     fn pinned(tag: &str) -> VersionTrack {
         VersionTrack::Pinned(tag.into())
     }
 
-    #[test]
+    #[trial]
     fn an_entry_from_a_newer_launcher_is_left_to_the_launcher_and_kept_on_save() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("versions.json");

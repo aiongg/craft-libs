@@ -1,5 +1,6 @@
 //! Tests for the install queue.
 
+use craft_ui::testing::trial;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc;
@@ -80,7 +81,7 @@ fn behind_a_running_install(
     })
 }
 
-#[test]
+#[trial]
 fn installers_never_run_at_the_same_time() {
     let queue = Queue::new();
     let (inside, most, handled) = (AtomicUsize::new(0), AtomicUsize::new(0), AtomicUsize::new(0));
@@ -116,7 +117,7 @@ fn installers_never_run_at_the_same_time() {
     assert_eq!(handled.load(Ordering::SeqCst), 24);
 }
 
-#[test]
+#[trial]
 fn a_waiting_job_can_be_cancelled_and_is_left_out_of_the_call() {
     let queue = Queue::new();
     let calls = Calls::default();
@@ -153,7 +154,7 @@ fn a_waiting_job_can_be_cancelled_and_is_left_out_of_the_call() {
     assert_eq!(calls.taken(), [line(&["apt-get", "install", "-y", "b.deb"])]);
 }
 
-#[test]
+#[trial]
 fn an_installer_that_dies_frees_the_queue_and_fails_its_jobs() {
     let queue = Queue::new();
     let jobs = [(install(), "a.deb"), (install(), "b.deb")];

@@ -300,6 +300,7 @@ impl DisplayCaches {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use craft_ui::testing::trial;
 
     fn p3() -> Arc<Profile> {
         Arc::new(Builtin::DisplayP3.profile().clone())
@@ -310,7 +311,7 @@ mod tests {
     }
 
     /// Choosing another monitor profile changes the signature and drops the cached transform.
-    #[test]
+    #[trial]
     fn choosing_a_monitor_profile_changes_the_signature() {
         let caches = DisplayCaches::new();
         let source = srgb();

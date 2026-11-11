@@ -245,7 +245,6 @@ fn phase(event: &VanishingPointEvent) -> &'static str {
         VanishingPointEvent::Planes(e) => of("planes", e),
         VanishingPointEvent::Paste(e) => of("paste", e),
         VanishingPointEvent::Stamp(e) => of("stamp", e),
-        _ => "other",
     }
 }
 

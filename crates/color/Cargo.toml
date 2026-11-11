@@ -6,6 +6,12 @@ edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
 repository.workspace = true
+autotests = false
+
+[lib]
+# The lib's test target is the crate's one test executable: its trials and, with `screen-testing`, the
+# screen tests in tests/it.
+harness = false
 
 [lints]
 workspace = true
@@ -32,15 +38,8 @@ egui = { workspace = true, optional = true }
 serde = { workspace = true }
 
 [dev-dependencies]
-craft-color = { path = ".", features = ["screen-testing"] }
+craft-ui = { workspace = true, features = ["testing"] }
 egui = { workspace = true, features = ["default_fonts", "serde"] }
-libtest-mimic = "0.8"
-
-[[test]]
-name = "it"
-path = "tests/it/main.rs"
-harness = false
-required-features = ["screen-testing"]
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 egui_kittest = { version = "0.37", features = ["wgpu"] }

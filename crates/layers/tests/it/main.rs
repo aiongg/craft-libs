@@ -3,23 +3,6 @@
 mod panel_input;
 mod panel_order;
 
-use craft_ui::testing::{suite, trials};
-use libtest_mimic::{Arguments, Trial};
-
 fn main() {
-    let args = Arguments::from_args();
-    let own = module_path!();
-    let mut trials: Vec<Trial> = trials()
-        .into_iter()
-        .filter(|trial| trial.module == own || trial.module.starts_with(&format!("{own}::")))
-        .map(|trial| {
-            let run = trial.run;
-            Trial::test(trial.full_name(), move || {
-                run();
-                Ok(())
-            })
-        })
-        .collect();
-    trials.extend(suite::trials(env!("CARGO_PKG_NAME"), &craft_layers::testing::registered()));
-    libtest_mimic::run(&args, trials).exit();
+    craft_ui::testing::run(module_path!(), env!("CARGO_PKG_NAME"), &craft_layers::testing::registered());
 }

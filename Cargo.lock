@@ -1077,7 +1077,6 @@ dependencies = [
  "craft-ui",
  "egui",
  "getrandom 0.3.4",
- "libtest-mimic",
  "log",
  "png 0.17.16",
  "serde",
@@ -1106,7 +1105,6 @@ name = "craft-browse"
 version = "0.1.0"
 dependencies = [
  "craft-behavior",
- "craft-browse",
  "craft-docpath",
  "craft-host",
  "craft-i18n",
@@ -1116,7 +1114,6 @@ dependencies = [
  "craft-ui",
  "egui",
  "kurbo 0.13.1",
- "libtest-mimic",
  "serde",
  "tempfile",
 ]
@@ -1135,7 +1132,6 @@ version = "0.1.0"
 dependencies = [
  "craft-behavior",
  "craft-cms",
- "craft-color",
  "craft-host",
  "craft-i18n",
  "craft-keymap",
@@ -1146,7 +1142,6 @@ dependencies = [
  "craft-window",
  "egui",
  "egui_kittest",
- "libtest-mimic",
  "serde",
 ]
 
@@ -1186,7 +1181,6 @@ dependencies = [
  "craft-ui",
  "egui",
  "futures-lite",
- "libtest-mimic",
  "log",
  "objc2 0.6.5",
  "objc2-app-kit 0.3.2",
@@ -1232,7 +1226,6 @@ dependencies = [
  "craft-ui",
  "egui",
  "kurbo 0.13.1",
- "libtest-mimic",
  "serde",
 ]
 
@@ -1270,7 +1263,6 @@ dependencies = [
  "craft-ui",
  "egui",
  "epaint_default_fonts",
- "libtest-mimic",
  "log",
  "serde",
  "skrifa 0.44.0",
@@ -1358,14 +1350,12 @@ dependencies = [
  "craft-behavior",
  "craft-host",
  "craft-i18n",
- "craft-imaging",
  "craft-keymap",
  "craft-theme",
  "craft-ui",
  "egui",
  "egui_kittest",
  "kurbo 0.13.1",
- "libtest-mimic",
  "serde",
 ]
 
@@ -1402,7 +1392,6 @@ dependencies = [
  "craft-theme",
  "craft-ui",
  "egui",
- "libtest-mimic",
  "serde",
  "serde_json",
 ]
@@ -1435,7 +1424,6 @@ dependencies = [
  "craft-ui",
  "craft-window",
  "egui",
- "libtest-mimic",
  "serde",
  "serde_json",
 ]
@@ -1451,7 +1439,6 @@ dependencies = [
  "craft-ui",
  "egui",
  "kurbo 0.13.1",
- "libtest-mimic",
  "serde",
 ]
 
@@ -1548,7 +1535,6 @@ dependencies = [
  "craft-ui",
  "craft-winprint-gdi",
  "egui",
- "libtest-mimic",
  "log",
  "miniz_oxide 0.9.1",
  "roxmltree 0.21.2",
@@ -1591,7 +1577,6 @@ dependencies = [
  "egui",
  "image",
  "kurbo 0.13.1",
- "libtest-mimic",
  "serde",
  "serde_json",
 ]
@@ -1620,7 +1605,6 @@ dependencies = [
  "craft-theme",
  "craft-ui",
  "egui",
- "libtest-mimic",
 ]
 
 [[package]]
@@ -1635,7 +1619,6 @@ dependencies = [
  "egui",
  "hypher",
  "icu_segmenter",
- "libtest-mimic",
  "miniz_oxide 0.8.9",
  "regex",
  "regex-syntax",
@@ -1670,7 +1653,6 @@ dependencies = [
  "craft-ui",
  "dirs",
  "egui",
- "libtest-mimic",
  "serde",
  "serde_json",
  "tempfile",
@@ -1685,7 +1667,6 @@ dependencies = [
  "craft-theme",
  "craft-ui",
  "egui",
- "libtest-mimic",
  "serde",
  "web-time",
 ]
@@ -1773,7 +1754,6 @@ dependencies = [
  "eframe",
  "egui",
  "image",
- "libtest-mimic",
  "proc-macro2",
  "quote",
  "serde",
@@ -1805,7 +1785,6 @@ dependencies = [
  "flate2",
  "getrandom 0.3.4",
  "image",
- "libtest-mimic",
  "log",
  "plist",
  "semver",

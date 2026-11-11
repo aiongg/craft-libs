@@ -61,3 +61,17 @@ pub use watch::{Op, OpOutput, RESULTS_KEPT, STAT_INTERVAL, Snapshot, SuiteWatch,
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+extern crate self as craft_theme_store;
+#[cfg(all(test, feature = "screen-testing"))]
+#[path = "../tests/it/main.rs"]
+mod integration;
+#[cfg(test)]
+#[path = "../tests/two_processes.rs"]
+mod two_processes;
+
+#[cfg(test)]
+fn main() {
+    craft_ui::testing::run(module_path!(), env!("CARGO_PKG_NAME"), &craft_ui::testing::registered_in(env!("CARGO_PKG_NAME")));
+}

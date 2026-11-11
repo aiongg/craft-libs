@@ -7,6 +7,10 @@ license.workspace = true
 rust-version.workspace = true
 repository.workspace = true
 
+[lib]
+# Every test lives in the `it` integration binary, so `cargo test` builds the library once.
+test = false
+
 [features]
 default = []
 # `FontsPanel`: the whole interface as one egui panel, with the picker, the Glyphs panel, the axis sliders and the
@@ -38,7 +42,6 @@ skrifa = { version = "0.44", default-features = false, features = ["std"], optio
 
 [dev-dependencies]
 craft-font-manager = { path = ".", features = ["screen-testing"] }
-libtest-mimic = "0.8"
 
 [[test]]
 name = "it"

@@ -1,5 +1,6 @@
 //! `Places::resolve`, folder equality and `FolderCache` over a fake `Directories` and `ManualJobs`.
 
+use craft_ui::testing::trial;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -27,7 +28,7 @@ fn names(places: &Places) -> Vec<&str> {
 // Keep, remove (a favourite drops, a standard root hides), restore and restore all; recents keep 10, newest first.
 
 // LightCraft's `browsing_below_an_unlisted_folder_has_a_session_root` and `session_root_stays_while_browsing_below_it`.
-#[test]
+#[trial]
 fn a_browsed_folder_outside_every_root_gets_a_session_root() {
     let home = "/home/example";
     let hidden = p("/home/example/.hidden");
@@ -70,7 +71,7 @@ fn a_browsed_folder_outside_every_root_gets_a_session_root() {
 // Home and a kept folder inside it both hold the browsed folder: the kept one owns the reveal.
 
 // LightCraft's `hidden_folder_is_not_revealed_in_an_outer_tree`.
-#[test]
+#[trial]
 fn a_hidden_folder_never_opens_a_tree_through_itself() {
     let std = standard(&[(StandardFolder::Pictures, "/home/example/Pictures"), (StandardFolder::Home, "/home/example")]);
     let kept = p("/home/example/AppData/Temp/lc");
@@ -93,7 +94,7 @@ fn a_hidden_folder_never_opens_a_tree_through_itself() {
 }
 
 // LightCraft's `equivalent_paths_are_one_local_location`: `/a/b/`, `/a/./b` are one root.
-#[test]
+#[trial]
 fn equal_folders_are_one_root_however_spelled() {
     assert!(same_folder(Path::new("/a/b/"), Path::new("/a/./b")));
     assert!(same_folder(Path::new("/a/x/../b"), Path::new("/a//b")));
@@ -138,7 +139,7 @@ fn names_of(listing: Listing<'_>) -> Vec<String> {
 }
 
 // A listing that started before a refresh shows, but stays stale and is listed again; before the fix its landing cleared the refresh.
-#[test]
+#[trial]
 fn a_listing_started_before_a_refresh_is_listed_again() {
     let (mut cache, fake, jobs) = cache();
     fake.add_folder("/x/a");

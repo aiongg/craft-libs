@@ -141,12 +141,19 @@ fn egui_linked(meta: &Metadata) -> BTreeSet<String> {
     meta.packages.iter().filter(|p| links_egui(meta, &p.name, &default, &mut Vec::new())).map(|p| p.name.clone()).collect()
 }
 
-/// Test and bench targets with `harness = false`, as paths relative to the crate directory.
+/// Test and bench targets with `harness = false`, and the library's sources when its test target has
+/// `harness = false`, as paths relative to the crate directory.
 fn harness_free_targets(dir: &Path) -> Result<Vec<PathBuf>, Error> {
     let manifest = dir.join("Cargo.toml");
     let Ok(text) = std::fs::read_to_string(&manifest) else { return Ok(Vec::new()) };
     let table: toml::Table = toml::from_str(&text).map_err(|e| Error::Toml { path: manifest.clone(), message: e.to_string() })?;
     let mut out = Vec::new();
+    if let Some(lib) = table.get("lib").and_then(toml::Value::as_table)
+        && lib.get("harness").and_then(toml::Value::as_bool) == Some(false)
+    {
+        let path = Path::new(lib.get("path").and_then(toml::Value::as_str).unwrap_or("src/lib.rs"));
+        out.push(path.parent().map(Path::to_path_buf).unwrap_or_default());
+    }
     for (kind, folder) in [("test", "tests"), ("bench", "benches")] {
         for target in table.get(kind).and_then(toml::Value::as_array).into_iter().flatten().filter_map(toml::Value::as_table) {
             if target.get("harness").and_then(toml::Value::as_bool) != Some(false) {

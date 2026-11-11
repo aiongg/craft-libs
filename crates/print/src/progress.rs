@@ -28,8 +28,9 @@ pub(crate) fn run<T: Send>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use craft_ui::testing::trial;
 
-    #[test]
+    #[trial]
     fn callback_unwind_closes_progress_and_reaps_the_worker() {
         let finished = std::sync::atomic::AtomicBool::new(false);
         let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {

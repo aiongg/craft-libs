@@ -2,6 +2,7 @@
 
 use super::clock::{ClockEvent, PREROLL_TIMEOUT_S, PlaybackClock, PlaybackState};
 use super::time::{Tick, TimeRange};
+use craft_ui::testing::trial;
 
 fn secs(s: f64) -> Tick {
     Tick::from_seconds_f64(s)
@@ -16,7 +17,7 @@ fn playing(from: f64, speed: f64) -> PlaybackClock {
 // position advances by (now - start) * speed, backwards at negative speed.
 
 // Prerolling until frames_ready or 0.5 s, then Started.
-#[test]
+#[trial]
 fn preroll_waits_for_frames_or_the_timeout() {
     let mut clock = PlaybackClock::new();
     assert_eq!(clock.toggle(1.0, secs(5.0)), None);
@@ -34,7 +35,7 @@ fn preroll_waits_for_frames_or_the_timeout() {
 }
 
 // Looped at the loop end, Stopped at stop_at.
-#[test]
+#[trial]
 fn loops_and_stops_at_the_stop_point() {
     let mut clock = playing(1.0, 1.0);
     clock.set_loop(Some(TimeRange::from_bounds(secs(1.0), secs(3.0))));
