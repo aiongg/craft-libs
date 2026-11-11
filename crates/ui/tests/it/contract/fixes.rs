@@ -230,7 +230,7 @@ fn the_step_log_is_kept_in_fixture_frames_only() {
 
     let app = Frames::new();
     let seen = RefCell::new(Seen::default());
-    let mut output = app.ctx.run_ui(egui::RawInput::default(), |ui| {
+    let mut output = app.ctx.run_ui(craft_ui::testing::windows::RawInput::default(), |ui| {
         Probe::new(&seen).show(ui);
     });
     output.textures_delta.clear();
