@@ -8,7 +8,7 @@ use craft_ui::display::Text;
 use craft_ui::runtime::env::{RevealEdge, RootEnv, WindowKey};
 use craft_ui::shell::{AppShell, AppShellOutput, ScreenMode, Slot, SlotSize};
 use craft_ui::testing::input::key_press;
-use craft_ui::testing::pointer::{click, moved, press, release, settle};
+use craft_ui::testing::pointer::{click, moved, press, release};
 use craft_ui::testing::{Fixture, Frames, trial};
 use egui::{Event, Key, Modifiers, Pos2, Rect, Ui, pos2};
 use std::cell::{Cell, RefCell};
@@ -324,10 +324,10 @@ fn tab_hides(shells: &[&'static str]) -> Vec<(&'static str, bool)> {
             });
         }
     };
-    settle(&mut frames, &mut show);
+    frames.idle(2, &mut show);
     let room = *window.borrow();
     click(&mut frames, pos2(room.max.x - room.width() / (2.0 * shells.len() as f32), room.center().y), &mut show);
-    settle(&mut frames, &mut show);
+    frames.idle(2, &mut show);
     frames.frame(vec![key_press(Key::Tab, Modifiers::NONE)], &mut show);
     seen.borrow().clone()
 }

@@ -384,9 +384,18 @@ impl AccessTree {
         false
     }
 
+    fn reported(&self) -> impl Iterator<Item = NodeKey> + '_ {
+        self.update.nodes.iter().filter(|(key, node)| !node.is_hidden() && !self.below_hidden.contains(key)).map(|(key, _)| NodeKey(key.0))
+    }
+
     /// Every node that assistive technology reports.
     pub fn keys(&self) -> Vec<NodeKey> {
-        self.update.nodes.iter().filter(|(key, node)| !node.is_hidden() && !self.below_hidden.contains(key)).map(|(key, _)| NodeKey(key.0)).collect()
+        self.reported().collect()
+    }
+
+    /// The number of nodes that assistive technology reports.
+    pub fn node_count(&self) -> usize {
+        self.reported().count()
     }
 
     /// The role of a node by key.

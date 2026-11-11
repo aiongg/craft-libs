@@ -1,6 +1,6 @@
 //! Activation, declared actions, AccessKit focus and cancelled presses.
 
-use super::drive::{Plan, root_target, run, settled, variant_name, variants};
+use super::drive::{Plan, for_input, input_fixture, root_target, run, variant_name, variants};
 use super::{ANY, Case, Subject};
 use crate::contract::ShapeKind;
 use crate::runtime::access::Role;
@@ -37,7 +37,7 @@ fn each_activation_clicks_once(subject: &Subject) -> Result<(), String> {
             continue;
         }
         for variant in variants(plan, subject.probe) {
-            let (mut fixture, _) = settled(story, subject.probe);
+            let mut fixture = input_fixture(story);
             fixture.take_outputs();
             run(&mut fixture, plan, variant);
             let clicks = fixture.take_outputs().iter().filter(|output| output.clicked).count();
@@ -68,7 +68,7 @@ fn each_part_activates_once(subject: &Subject) -> Result<(), String> {
         for part in parts {
             // Paths: 0 click, 1 AccessKit Click, 2 and 3 the activation keys.
             for path in 0..4 {
-                let (mut fixture, _) = settled(story, subject.probe);
+                let mut fixture = input_fixture(story);
                 let Some(target) = fixture.root_id().and_then(|id| fixture.part(id, part)) else { continue };
                 if fixture.tree().data_of(target.node).is_some_and(|node| node.is_disabled()) {
                     continue;
@@ -91,11 +91,11 @@ fn each_part_activates_once(subject: &Subject) -> Result<(), String> {
                     }
                     _ => {
                         fixture.access(AccessActionKind::Focus, &target);
-                        fixture.idle(1);
+                        fixture.settle();
                         fixture.key(keys[path - 2].0, Modifiers::NONE);
                     }
                 }
-                fixture.idle(2);
+                fixture.settle();
                 let clicks = fixture.take_outputs().iter().filter(|output| output.clicked).count();
                 if clicks != 1 {
                     return Err(format!("{}: {name} on the part {part:?} gave {clicks} clicks", story.name));
@@ -135,12 +135,12 @@ fn declared_actions_are_handled(subject: &Subject) -> Result<(), String> {
             .flat_map(|key| actions.iter().filter(move |(declared, _)| tree.declares_key(key, *declared)).map(move |(_, kind)| (key, *kind)))
             .collect();
         for (key, kind) in nodes {
-            let (mut fixture, _) = settled(story, subject.probe);
+            let mut fixture = input_fixture(story);
             let Some(target) = fixture.target(key) else { continue };
             let (before, focus) = (signature(fixture.tree()), fixture.focused());
             fixture.take_outputs();
             fixture.access(kind, &target);
-            fixture.idle(2);
+            fixture.settle();
             let outputs = fixture.take_outputs();
             let acted = outputs.iter().any(|output| output.clicked || !output.edits.is_empty())
                 || signature(fixture.tree()) != before
@@ -187,9 +187,9 @@ fn every_intent_has_a_declared_action(subject: &Subject) -> Result<(), String> {
     };
     for story in subject.stories.iter().filter(|story| !story.covers.contains(&Required::Invalid)) {
         for &(key, _, step) in keys.iter().filter(|(_, kept, _)| *kept) {
-            let (mut fixture, _) = settled(story, probe);
+            let mut fixture = input_fixture(story);
             fixture.key(Key::Tab, Modifiers::NONE);
-            fixture.idle(2);
+            fixture.settle();
             let (before, was_open) = (fixture.data().snapshot(), any_expanded(fixture.tree()));
             let declares_before = |declared| {
                 let tree = fixture.tree();
@@ -200,7 +200,7 @@ fn every_intent_has_a_declared_action(subject: &Subject) -> Result<(), String> {
             fixture.take_outputs();
             let focus_before = fixture.tree().focused_key();
             fixture.key(key, Modifiers::NONE);
-            fixture.idle(2);
+            fixture.settle();
             let clicked = fixture.take_outputs().iter().any(|output| output.clicked);
             let changed = !fixture.data().changed_since(&before).is_empty();
             let radios = fixture.tree().with_role(Role::RADIO_BUTTON);
@@ -244,15 +244,14 @@ fn every_intent_has_a_declared_action(subject: &Subject) -> Result<(), String> {
 /// AccessKit `Focus` on a node that declares it gives the component key focus.
 fn access_focus_focuses(subject: &Subject) -> Result<(), String> {
     for story in &subject.stories {
-        let (fixture, _) = settled(story, subject.probe);
+        let mut fixture = input_fixture(story);
         let node =
             fixture.tree().keys().into_iter().find(|key| {
                 fixture.tree().declares_key(*key, Declared::Focus) && fixture.tree().data_of(*key).is_some_and(|node| !node.is_disabled())
             });
         let Some(target) = node.and_then(|key| fixture.target(key)) else { continue };
-        let mut fixture = fixture;
         fixture.access(AccessActionKind::Focus, &target);
-        fixture.idle(1);
+        fixture.settle();
         if fixture.focused().is_none() {
             return Err(format!("{}: AccessKit Focus focused nothing", story.name));
         }
@@ -272,7 +271,7 @@ fn escape_and_blur_cancel_a_press(subject: &Subject) -> Result<(), String> {
             continue;
         }
         for escape in [true, false] {
-            let (mut fixture, _) = settled(story, subject.probe);
+            let mut fixture = input_fixture(story);
             let target = root_target(&fixture);
             let before = fixture.data().snapshot();
             fixture.take_outputs();
@@ -283,7 +282,7 @@ fn escape_and_blur_cancel_a_press(subject: &Subject) -> Result<(), String> {
                 fixture.frame(vec![pointer::window_blurred()]);
             }
             fixture.release(&target);
-            fixture.idle(2);
+            fixture.settle();
             let outputs = fixture.take_outputs();
             let ended = outputs.iter().flat_map(|output| output.edits.iter()).any(|kind| matches!(kind, EditKind::Commit | EditKind::Set));
             if outputs.iter().any(|output| output.clicked) || ended || !fixture.data().changed_since(&before).is_empty() {
@@ -309,7 +308,7 @@ fn removal_cancels_a_press(subject: &Subject) -> Result<(), String> {
         let outputs: Rc<RefCell<Vec<StoryOutput>>> = Rc::default();
         let (hidden, id): (Rc<Cell<bool>>, Rc<Cell<Option<Id>>>) = (Rc::default(), Rc::default());
         let (shared_data, shared_outputs, shared_hidden, shared_id, show) = (data.clone(), outputs.clone(), hidden.clone(), id.clone(), story.show);
-        let mut fixture = Fixture::new(move |ui| {
+        let fixture = Fixture::new(move |ui| {
             if shared_hidden.get() {
                 return;
             }
@@ -317,7 +316,7 @@ fn removal_cancels_a_press(subject: &Subject) -> Result<(), String> {
             shared_id.set(output.id);
             shared_outputs.borrow_mut().push(output);
         });
-        fixture.settle();
+        let mut fixture = for_input(fixture);
         let Some(id) = id.get() else { continue };
         let Some(target) = part.and_then(|part| fixture.part(id, part)).or_else(|| fixture.node_of(id)) else { continue };
         let before = data.borrow().snapshot();
@@ -330,7 +329,7 @@ fn removal_cancels_a_press(subject: &Subject) -> Result<(), String> {
             return Err(format!("{}: a press still holds the pointer after its component was not shown for a pass", story.name));
         }
         fixture.release(&target);
-        fixture.idle(2);
+        fixture.settle();
         let outputs = std::mem::take(&mut *outputs.borrow_mut());
         let ended = outputs.iter().flat_map(|output| output.edits.iter()).any(|kind| matches!(kind, EditKind::Commit | EditKind::Set));
         if outputs.iter().any(|output| output.clicked) || ended || !data.borrow().changed_since(&before).is_empty() {

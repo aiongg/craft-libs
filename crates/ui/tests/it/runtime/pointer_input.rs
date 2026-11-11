@@ -3,7 +3,7 @@
 
 use craft_behavior::{HitLevel, PartKey, PressFocus, Sense, WheelTaker};
 use craft_ui::runtime::pointer::frame;
-use craft_ui::testing::pointer::{self, settle};
+use craft_ui::testing::pointer;
 use craft_ui::testing::sensing::{ProbeMember, ProbePart, ProbeRoot, RootReport, press_focus, show};
 use craft_ui::testing::wheel::{register, take};
 use craft_ui::testing::{Frames, trial};
@@ -27,7 +27,7 @@ fn a_double_click_activates_twice() {
         activations.set(activations.get() + usize::from(reports[0].root.activated));
     };
     let mut frames = Frames::new();
-    settle(&mut frames, &mut show_frame);
+    frames.idle(2, &mut show_frame);
     let at = Pos2::new(120.0, 115.0);
     frames.frame(vec![pointer::moved(at)], &mut show_frame);
     frames.frame(vec![pointer::press(at), pointer::release(at), pointer::press(at), pointer::release(at)], &mut show_frame);
@@ -54,7 +54,7 @@ fn a_press_on_a_nested_group_is_classified_inside_the_group() {
         show(ui, &roots);
     };
     let mut frames = Frames::new();
-    settle(&mut frames, &mut show_frame);
+    frames.idle(2, &mut show_frame);
     let mut at = |point: Pos2| {
         frames.frame(vec![pointer::moved(point)], &mut show_frame);
         press_focus(&frames.ctx, point)
@@ -74,7 +74,7 @@ fn the_click_target_decides_which_roots_start_a_press() {
     let roots = [card, handle];
     let mut show_frame = |ui: &mut Ui| reports.borrow_mut().push(show(ui, &roots));
     let mut frames = Frames::new();
-    settle(&mut frames, &mut show_frame);
+    frames.idle(2, &mut show_frame);
     reports.borrow_mut().clear();
     pointer::click(&mut frames, Pos2::new(120.0, 150.0), &mut show_frame);
     let activated = |root: usize| reports.borrow().iter().filter(|frame| frame[root].root.activated).count();
@@ -102,7 +102,7 @@ fn a_small_part_is_hit_within_the_target_size() {
         clicks.set(clicks.get() + usize::from(reports[0].member("dot").is_some_and(|dot| dot.phase(part).is_click())));
     };
     let mut frames = Frames::new();
-    settle(&mut frames, &mut show_frame);
+    frames.idle(2, &mut show_frame);
     let margin = (target.get() - side) / 2.0;
     assert!(margin > 0.0, "the target size is larger than the part");
     pointer::click(&mut frames, Pos2::new(200.0 - margin + 1.0, 201.0), &mut show_frame);
@@ -153,7 +153,7 @@ fn a_press_on_a_member_arms_its_wheel_taker() {
     };
     let on_slider = Pos2::new(70.0, 60.0);
     let mut frames = Frames::new();
-    settle(&mut frames, &mut show_frame);
+    frames.idle(2, &mut show_frame);
     pointer::click(&mut frames, on_slider, &mut show_frame);
     frames.frame(vec![pointer::wheel(-30.0)], &mut show_frame);
     let scroll = Some(Vec2::new(0.0, -30.0));
@@ -173,7 +173,7 @@ fn a_press_open_while_the_control_turns_disabled_never_activates() {
         activations.set(activations.get() + usize::from(reports[0].root.activated));
     };
     let mut frames = Frames::new();
-    settle(&mut frames, &mut show_frame);
+    frames.idle(2, &mut show_frame);
     frames.frame(vec![pointer::moved(at)], &mut show_frame);
     frames.frame(vec![pointer::press(at)], &mut show_frame);
     disabled.set(true);

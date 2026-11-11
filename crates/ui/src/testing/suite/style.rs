@@ -4,7 +4,7 @@
 //! and built-in theme. A type with no story is measured through its `#[component(sample = ..)]`. A type with
 //! neither fails, since its style is never measured.
 
-use super::drive::{run, settled, variants};
+use super::drive::{input_fixture, run, variants};
 use super::{ANY, Case, Subject};
 use crate::style::UiTokens;
 use crate::style::{StyleColor, SurfaceKind, SurfaceLook};
@@ -62,7 +62,7 @@ fn read_sources(subject: &Subject) -> Result<Vec<Source>, String> {
         }
         let plan = base.plan;
         for variant in variants(plan, subject.probe) {
-            let (mut fixture, _) = settled(story, subject.probe);
+            let mut fixture = input_fixture(story);
             run(&mut fixture, plan, variant);
             take(&fixture);
         }

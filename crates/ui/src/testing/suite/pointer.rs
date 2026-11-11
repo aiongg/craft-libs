@@ -1,6 +1,6 @@
 //! The pointer rows of 22.4: slop, hit areas and the arena winner.
 
-use super::drive::{Plan, root_target, settled};
+use super::drive::{Plan, input_fixture, root_target};
 use super::{ANY, Case, Subject};
 use crate::contract::ShapeKind;
 use crate::runtime::egui::access::Declared;
@@ -39,7 +39,7 @@ fn slop_separates_click_from_drag(subject: &Subject) -> Result<(), String> {
                 let part = fixture.click_part().zip(fixture.root_id());
                 let target = |fixture: &Fixture| part.and_then(|(part, id)| fixture.part(id, part)).unwrap_or_else(|| root_target(fixture));
                 for (by, expected) in [(0.5 * slop, 1), (2.0 * slop, 0)] {
-                    let (mut fixture, _) = settled(story, probe);
+                    let mut fixture = input_fixture(story);
                     let target = target(&fixture);
                     fixture.take_outputs();
                     gesture(&mut fixture, &target, by);
@@ -51,7 +51,7 @@ fn slop_separates_click_from_drag(subject: &Subject) -> Result<(), String> {
             }
             Plan::Drag(Grip { part, .. }) if probe.carries_value() => {
                 for (by, begins) in [(0.5 * slop, 0), (2.0 * slop, 1)] {
-                    let (mut fixture, _) = settled(story, probe);
+                    let mut fixture = input_fixture(story);
                     let Some(grip) = fixture.root_id().and_then(|id| fixture.part(id, part)) else { continue };
                     fixture.take_outputs();
                     gesture(&mut fixture, &grip, by);
@@ -97,7 +97,7 @@ fn parts_take_presses_in_their_hit_areas(subject: &Subject) -> Result<(), String
             }
         }
         for part in parts {
-            let (mut fixture, _) = settled(story, probe);
+            let mut fixture = input_fixture(story);
             let Some(target) = fixture.root_id().and_then(|id| fixture.part(id, part)) else { continue };
             if fixture.tree().data_of(target.node).is_none_or(|node| node.is_disabled()) || target.rect.area() <= 0.0 {
                 continue;
@@ -114,7 +114,7 @@ fn parts_take_presses_in_their_hit_areas(subject: &Subject) -> Result<(), String
         if let (Plan::Drag(Grip { part, .. }), true) = (plan, probe.carries_value()) {
             let Some(grip) = fixture.root_id().and_then(|id| fixture.part(id, part)) else { continue };
             let off_middle = Pos2::new(grip.rect.center().x + 0.25 * grip.rect.width(), grip.rect.center().y);
-            let (mut fixture, _) = settled(story, probe);
+            let mut fixture = input_fixture(story);
             let before = fixture.data().snapshot();
             let travel = 2.0 * input::max_click_dist(fixture.ctx());
             // A refused value is moved while the pointer drags and put back at the release, so it is read before the release.
@@ -201,7 +201,7 @@ fn arena_winner_ignores_show_order(subject: &Subject) -> Result<(), String> {
         let (flag, late) = (Rc::new(Cell::new(reversed)), Rc::new(Cell::new(false)));
         let (mut show_frame, log) = scene(flag, late);
         let mut frames = Frames::new();
-        pointer::settle(&mut frames, &mut show_frame);
+        frames.idle(2, &mut show_frame);
         log.borrow_mut().clear();
         pointer::click(&mut frames, overlap, &mut show_frame);
         let (handle, body) = (clicks_of(&log, "a", Some(PORT)), clicks_of(&log, "b", None));
@@ -216,7 +216,7 @@ fn arena_winner_ignores_show_order(subject: &Subject) -> Result<(), String> {
     let (reversed, late) = (Rc::new(Cell::new(false)), Rc::new(Cell::new(false)));
     let (mut show_frame, log) = scene(reversed, late.clone());
     let mut frames = Frames::new();
-    pointer::settle(&mut frames, &mut show_frame);
+    frames.idle(2, &mut show_frame);
     log.borrow_mut().clear();
     frames.frame(vec![pointer::moved(pressed)], &mut show_frame);
     frames.frame(vec![pointer::press(pressed)], &mut show_frame);

@@ -1,7 +1,7 @@
 //! The variants the runner makes of every story, so authors write none of them: disabled, read-only, right-to-left,
 //! each motion mode and a language change.
 
-use super::drive::{cancels, root_target, run, variants};
+use super::drive::{cancels, for_input, root_target, run, variants};
 use super::{ANY, Case, Subject};
 use crate::contract::Role;
 use crate::runtime::egui::access::{AccessTree, Declared, NodeKey};
@@ -37,8 +37,7 @@ fn disabled_changes_nothing(subject: &Subject) -> Result<(), String> {
     for story in &subject.stories {
         let plan = subject.base(story).plan;
         for variant in variants(plan, subject.probe).into_iter().filter(|variant| !cancels(plan, *variant)) {
-            let mut fixture = Fixture::story_scoped(story, |scope| scope.enabled = Some(false));
-            fixture.settle();
+            let mut fixture = for_input(Fixture::story_scoped(story, |scope| scope.enabled = Some(false)));
             let before = fixture.data().snapshot();
             fixture.take_outputs();
             run(&mut fixture, plan, variant);
@@ -46,10 +45,9 @@ fn disabled_changes_nothing(subject: &Subject) -> Result<(), String> {
                 return Err(format!("{}: a disabled story acted on drive {variant}", story.name));
             }
         }
-        let mut fixture = Fixture::story_scoped(story, |scope| scope.enabled = Some(false));
-        fixture.settle();
+        let mut fixture = for_input(Fixture::story_scoped(story, |scope| scope.enabled = Some(false)));
         fixture.key(Key::Tab, Modifiers::NONE);
-        fixture.idle(2);
+        fixture.settle();
         let explanation = {
             let tree = fixture.tree();
             tree.keys()
@@ -68,7 +66,7 @@ fn disabled_changes_nothing(subject: &Subject) -> Result<(), String> {
                 return Err(format!("{}: a disabled story with `disabled_text` is not a Tab stop", story.name));
             }
             fixture.advance(crate::contract::tooltip::DELAY);
-            fixture.idle(3);
+            fixture.settle();
             if !fixture.texts().iter().any(|run| run.text.contains(reason)) {
                 return Err(format!("{}: the reason `{reason}` does not show on focus", story.name));
             }
@@ -90,8 +88,7 @@ fn read_only_changes_nothing(subject: &Subject) -> Result<(), String> {
     for story in &subject.stories {
         let plan = subject.base(story).plan;
         for variant in variants(plan, subject.probe).into_iter().filter(|variant| !cancels(plan, *variant)) {
-            let mut fixture = Fixture::story_scoped(story, |scope| scope.read_only = Some(true));
-            fixture.settle();
+            let mut fixture = for_input(Fixture::story_scoped(story, |scope| scope.read_only = Some(true)));
             let before = fixture.data().snapshot();
             fixture.take_outputs();
             run(&mut fixture, plan, variant);
@@ -99,8 +96,7 @@ fn read_only_changes_nothing(subject: &Subject) -> Result<(), String> {
                 return Err(format!("{}: a read-only story acted on drive {variant}", story.name));
             }
         }
-        let mut fixture = Fixture::story_scoped(story, |scope| scope.read_only = Some(true));
-        fixture.settle();
+        let mut fixture = for_input(Fixture::story_scoped(story, |scope| scope.read_only = Some(true)));
         let tree = fixture.tree();
         let reports = tree.keys().into_iter().any(|key| tree.data_of(key).is_some_and(|node| node.is_read_only()));
         let focusable = tree.keys().into_iter().any(|key| tree.declares_key(key, Declared::Focus) && is_interactive(tree, key));
@@ -246,7 +242,7 @@ fn a_language_change_keeps_the_ids(subject: &Subject) -> Result<(), String> {
         fixture.settle();
         let id = fixture.root_id();
         fixture.host(japanese.clone());
-        fixture.idle(4);
+        fixture.settle();
         if fixture.root_id() != id {
             return Err(format!("{}: the id changed with the language", story.name));
         }

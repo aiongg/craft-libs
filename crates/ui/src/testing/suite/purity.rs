@@ -3,7 +3,7 @@
 //! compared around the later passes of a frame. The case drives each story as the `values` case does and reports what
 //! the fixture saw.
 
-use super::drive::{Plan, plan, run, variants};
+use super::drive::{Plan, for_input, plan, run, variants};
 use super::{ANY, Case, Subject};
 use crate::contract::Probe;
 use crate::testing::fixture::{Fixture, Impure};
@@ -23,11 +23,11 @@ fn first_violation(story: &str, fixture: &Fixture) -> Option<String> {
     fixture.impure().first().map(|impure| describe(story, impure))
 }
 
-/// A settled fixture of `story` under the purity probe.
+/// A fixture of `story` under the purity probe, settled for the drives it takes.
 fn probed(story: &Story) -> Fixture {
     let mut fixture = Fixture::story(story);
-    fixture.probe_purity().settle();
-    fixture
+    fixture.probe_purity();
+    for_input(fixture)
 }
 
 /// The `measure-pure` case over one story of the type `probe` describes: settled and then driven by each way of its

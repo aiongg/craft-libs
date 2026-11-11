@@ -54,11 +54,6 @@ pub fn zoom_wheel(dy: f32) -> Event {
     fixture::zoom_wheel_event(dy)
 }
 
-/// Two frames with no input, so last pass's registrations exist before the first event.
-pub fn settle(frames: &mut Frames, show: &mut impl FnMut(&mut Ui)) {
-    frames.idle(2, show);
-}
-
 /// Hover in one frame, press in the next, release in the next, then one idle frame.
 pub fn click(frames: &mut Frames, at: Pos2, show: &mut impl FnMut(&mut Ui)) {
     frames.frame(vec![moved(at)], &mut *show);

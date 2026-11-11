@@ -1,6 +1,6 @@
 //! Text cases: paste, IME composition and the editor's lines in the AccessKit tree.
 
-use super::drive::{Plan, focus_subject, settled};
+use super::drive::{Plan, focus_subject, input_fixture};
 use super::{ANY, Case, Subject};
 use crate::testing::fixture::Fixture;
 use crate::testing::story::EditKind;
@@ -43,7 +43,7 @@ fn typing_fixtures(subject: &Subject) -> Vec<(String, Fixture)> {
         if !matches!(subject.base(story).plan, Plan::Type(..)) {
             continue;
         }
-        let (mut fixture, _) = settled(story, subject.probe);
+        let mut fixture = input_fixture(story);
         let editable = focus_subject(&mut fixture)
             && fixture
                 .tree()
@@ -64,7 +64,7 @@ fn paste_lands_once(subject: &Subject) -> Result<(), String> {
     }
     for (name, mut fixture) in typing_fixtures(subject) {
         fixture.frame(vec![Event::Paste("qzq".to_owned())]);
-        fixture.idle(2);
+        fixture.settle();
         let count = shown_text(&fixture).matches("qzq").count();
         if count != 1 {
             return Err(format!("{name}: a paste landed {count} times"));
@@ -93,7 +93,7 @@ fn ime_composition_is_guarded(subject: &Subject) -> Result<(), String> {
             return Err(format!("{name}: Enter or Escape while composing gave {kinds:?}"));
         }
         fixture.frame(vec![Event::Ime(ImeEvent::Commit("kzk".to_owned()))]);
-        fixture.idle(2);
+        fixture.settle();
         let count = shown_text(&fixture).matches("kzk").count();
         if count != 1 {
             return Err(format!("{name}: a composition landed {count} times"));
@@ -110,7 +110,7 @@ fn editor_lines_reach_accesskit(subject: &Subject) -> Result<(), String> {
     }
     for (name, mut fixture) in typing_fixtures(subject) {
         fixture.frame(vec![Event::Text("qzq".to_owned())]);
-        fixture.idle(2);
+        fixture.settle();
         if !fixture.texts().iter().any(|run| run.text.contains("qzq")) {
             continue;
         }

@@ -17,7 +17,6 @@ use crate::runtime::egui::fixture::AccessActionKind;
 use crate::runtime::focus::EndKey;
 use crate::testing::fixture::{Fixture, Target};
 use crate::testing::story::{CollectionKind, EditKind, Story};
-use craft_behavior::MotionMode;
 use craft_host::target::Os;
 use egui::{Key, Modifiers};
 
@@ -25,12 +24,12 @@ fn is_items(subject: &Subject) -> bool {
     matches!(subject.probe.shape, ShapeKind::Items)
 }
 
-/// A settled fixture of `story`, and the rows it shows when there are at least `least` of them.
+/// A fixture of `story` on Linux keys, settled for input, and the rows it shows when there are at least `least` of
+/// them.
 fn with_rows(story: &Story, least: usize) -> Option<(Fixture, Target, Vec<Target>)> {
     let mut fixture = Fixture::story(story);
-    fixture.motion(MotionMode::Off);
     fixture.os(Os::Linux);
-    fixture.settle();
+    let fixture = super::drive::for_input(fixture);
     let container = root(&fixture)?;
     let shown = rows(&fixture, container.node);
     (shown.len() >= least).then_some((fixture, container, shown))
@@ -84,7 +83,7 @@ pub(super) fn keys_move_the_lead(subject: &Subject) -> Result<(), String> {
         let ends = if focus_on_cell(&fixture) { Modifiers::COMMAND } else { Modifiers::NONE };
         let expect = |fixture: &mut Fixture, key: Key, mods: Modifiers, at: usize, what: &str| -> Result<(), String> {
             fixture.key(key, mods);
-            fixture.idle(2);
+            fixture.settle();
             match lead(fixture, &container) {
                 Some(found) if found == at => Ok(()),
                 found => Err(format!("{name}: after {what} the lead is {found:?}, expected {at}")),
@@ -96,11 +95,11 @@ pub(super) fn keys_move_the_lead(subject: &Subject) -> Result<(), String> {
         if owner_arrows(&fixture) {
             // The arrows reach the owner's commands: they are no moves of the lead.
             fixture.key(Key::ArrowDown, Modifiers::NONE);
-            fixture.idle(2);
+            fixture.settle();
             expect(&mut fixture, Key::ArrowUp, Modifiers::NONE, first, "Down and Up (the owner's arrows)")?;
         } else {
             fixture.key(Key::ArrowDown, Modifiers::NONE);
-            fixture.idle(2);
+            fixture.settle();
             match lead(&fixture, &container) {
                 Some(found) if found == first + 1 || (wrapped && found > first) => {}
                 found => return Err(format!("{name}: after Down the lead is {found:?}, expected {}", first + 1)),
@@ -116,19 +115,19 @@ pub(super) fn keys_move_the_lead(subject: &Subject) -> Result<(), String> {
                 // End alone arms the mode and leaves the lead; the next arrow jumps to the data edge, which can lie
                 // outside the shown rows, where no row reports the lead.
                 fixture.key(Key::End, Modifiers::NONE);
-                fixture.idle(2);
+                fixture.settle();
                 if lead(&fixture, &container) != Some(first) {
                     return Err(format!("{name}: End moved the lead, but it declares End mode"));
                 }
                 fixture.key(Key::ArrowDown, Modifiers::NONE);
-                fixture.idle(2);
+                fixture.settle();
                 let jumped = lead(&fixture, &container);
                 if jumped == Some(first + 1) {
                     return Err(format!("{name}: End then Down moved the lead one row, expected the jump to the data edge"));
                 }
                 // Ctrl+End goes to the last used cell and scrolls it into view, so the lead is read again.
                 fixture.key(Key::End, Modifiers::COMMAND);
-                fixture.idle(2);
+                fixture.settle();
                 match lead(&fixture, &container) {
                     Some(found) if found > first && jumped.is_none_or(|edge| found >= edge) => {}
                     found => {
@@ -142,7 +141,7 @@ pub(super) fn keys_move_the_lead(subject: &Subject) -> Result<(), String> {
             }
         }
         fixture.key(Key::PageDown, Modifiers::NONE);
-        fixture.idle(2);
+        fixture.settle();
         if lead(&fixture, &container).is_none_or(|found| found == 0) {
             return Err(format!("{name}: Page Down left the lead on the first row"));
         }
@@ -190,7 +189,7 @@ pub(super) fn type_ahead_moves_the_lead(subject: &Subject) -> Result<(), String>
         let Some(letter) = names[target] else { continue };
         row_click::click(&mut fixture, &shown[0]);
         fixture.type_text(&letter.to_string());
-        fixture.idle(2);
+        fixture.settle();
         let Some((_, size)) = position_in_set(&fixture, shown[0].node) else { continue };
         let found = lead(&fixture, &container);
         if found != Some(target) {
@@ -212,7 +211,7 @@ pub(super) fn rename_commits_and_cancels_once(subject: &Subject) -> Result<(), S
         row_click::click(&mut fixture, &shown[0]);
         fixture.take_outputs();
         fixture.key(Key::F2, Modifiers::NONE);
-        fixture.idle(2);
+        fixture.settle();
         let began = events(&mut fixture);
         if rename(&began, EditKind::Begin) == 0 {
             continue;
@@ -222,7 +221,7 @@ pub(super) fn rename_commits_and_cancels_once(subject: &Subject) -> Result<(), S
             return Err(format!("{name}: F2 began a rename and the editor does not hold the focus"));
         }
         fixture.key(Key::Enter, Modifiers::NONE);
-        fixture.idle(2);
+        fixture.settle();
         let ended = events(&mut fixture);
         // Enter on a name nobody typed in ends the rename with no event: the editor closes and focus returns to the rows.
         let unchanged_end = rename(&ended, EditKind::Commit) == 0
@@ -233,10 +232,10 @@ pub(super) fn rename_commits_and_cancels_once(subject: &Subject) -> Result<(), S
             return Err(format!("{name}: Enter gave {ended:?}, expected one rename commit or the rename ended with the name unchanged"));
         }
         fixture.key(Key::F2, Modifiers::NONE);
-        fixture.idle(2);
+        fixture.settle();
         events(&mut fixture);
         fixture.key(Key::Escape, Modifiers::NONE);
-        fixture.idle(2);
+        fixture.settle();
         let cancelled = events(&mut fixture);
         if rename(&cancelled, EditKind::Cancel) != 1 || rename(&cancelled, EditKind::Commit) != 0 {
             return Err(format!("{name}: Escape gave {cancelled:?}, expected one rename cancel"));
@@ -258,7 +257,7 @@ pub(super) fn keyboard_reorder_ends_once(subject: &Subject) -> Result<(), String
         row_click::click(&mut fixture, &shown[0]);
         fixture.take_outputs();
         fixture.key(Key::ArrowDown, Modifiers::ALT);
-        fixture.idle(2);
+        fixture.settle();
         let kinds = events(&mut fixture);
         let reorders: Vec<EditKind> = kinds
             .iter()
@@ -406,11 +405,11 @@ fn header_cells_report_column_events(story: &Story) -> Result<(), String> {
     }
     let columns = |fixture: &mut Fixture| events(fixture).contains(&CollectionKind::Column);
     fixture.access(AccessActionKind::Focus, &first);
-    fixture.idle(2);
+    fixture.settle();
     fixture.take_outputs();
     if fixture.tree().declares_key(first.node, Declared::Click) && fixture.tree().declares_sort(first.node) {
         fixture.key(Key::Enter, Modifiers::NONE);
-        fixture.idle(2);
+        fixture.settle();
         if !columns(&mut fixture) {
             return Err(format!("{name}: Enter on a sortable header gave no column event"));
         }
@@ -418,21 +417,21 @@ fn header_cells_report_column_events(story: &Story) -> Result<(), String> {
     let enabled = |fixture: &Fixture, command: ColumnCommands| commands::resolve(fixture.ctx(), command).enabled;
     if enabled(&fixture, ColumnCommands::Resize) {
         commands::fire(fixture.ctx(), ColumnCommands::Resize, FireSource::Automation);
-        fixture.idle(2);
+        fixture.settle();
         fixture.take_outputs();
         fixture.key(Key::ArrowRight, Modifiers::NONE);
-        fixture.idle(2);
+        fixture.settle();
         if !columns(&mut fixture) {
             return Err(format!("{name}: the Resize Column command and an arrow key gave no column event"));
         }
         fixture.key(Key::Enter, Modifiers::NONE);
-        fixture.idle(2);
+        fixture.settle();
     }
     for command in [ColumnCommands::MoveRight, ColumnCommands::MoveLeft] {
         if enabled(&fixture, command) {
             fixture.take_outputs();
             commands::fire(fixture.ctx(), command, FireSource::Automation);
-            fixture.idle(2);
+            fixture.settle();
             if !columns(&mut fixture) {
                 return Err(format!("{name}: {command:?} gave no column event"));
             }

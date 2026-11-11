@@ -129,8 +129,7 @@ fn focusable_stories_are_tab_reachable(subject: &Subject) -> Result<(), String> 
         if !focusable {
             continue;
         }
-        let mut fixture = Fixture::story(story);
-        fixture.settle();
+        let mut fixture = super::drive::input_fixture(story);
         fixture.key(Key::Tab, Modifiers::NONE);
         if fixture.focused().is_none() {
             return Err(format!("{}: Tab reached nothing", story.name));

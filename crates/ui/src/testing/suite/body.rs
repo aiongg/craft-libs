@@ -4,6 +4,7 @@
 //! body does not overflow.
 
 use super::Subject;
+use super::drive::input_fixture;
 use super::nodes::{focus_within, root, subtree};
 use crate::contract::{MOVE_BAND, ShapeKind};
 use crate::runtime::access::Role;
@@ -12,7 +13,6 @@ use crate::runtime::overlay;
 use crate::testing::access::is_interactive;
 use crate::testing::fixture::Fixture;
 use crate::testing::story::Story;
-use craft_behavior::MotionMode;
 use egui::{Key, Modifiers, Vec2};
 
 fn is_body(subject: &Subject) -> bool {
@@ -24,11 +24,9 @@ fn on_layer(fixture: &Fixture) -> bool {
     fixture.root_id().is_some_and(|id| overlay::entry(fixture.ctx(), id).is_some_and(|entry| !entry.exiting))
 }
 
-/// A settled fixture of `story` with motion off, when its container is on a layer.
+/// A fixture of `story` settled for input, when its container is on a layer.
 fn layer_fixture(story: &Story) -> Option<Fixture> {
-    let mut fixture = Fixture::story(story);
-    fixture.motion(MotionMode::Off);
-    fixture.settle();
+    let fixture = input_fixture(story);
     on_layer(&fixture).then_some(fixture)
 }
 
@@ -100,7 +98,7 @@ pub(super) fn layer_closes_on_escape(subject: &Subject) -> Result<(), String> {
             continue;
         }
         fixture.key(Key::Escape, Modifiers::NONE);
-        fixture.idle(3);
+        fixture.settle();
         if on_layer(&fixture) {
             return Err(format!("{}: the layer is still open after Escape", story.name));
         }
@@ -153,7 +151,7 @@ pub(super) fn layer_leaves_no_dangling_focus(subject: &Subject) -> Result<(), St
         let Some(container) = root(&fixture) else { continue };
         let was: Vec<NodeKey> = subtree(fixture.tree(), container.node);
         fixture.key(Key::Escape, Modifiers::NONE);
-        fixture.idle(3);
+        fixture.settle();
         if was.contains(&fixture.tree().focused_key()) {
             return Err(format!("{}: focus stays on a node of the closed layer", story.name));
         }
@@ -201,9 +199,7 @@ pub(super) fn overflowing_body_scrolls_to_its_end(subject: &Subject) -> Result<(
         return Ok(());
     }
     for story in &subject.stories {
-        let mut fixture = Fixture::story(story);
-        fixture.motion(MotionMode::Off);
-        fixture.settle();
+        let mut fixture = input_fixture(story);
         let Some(container) = root(&fixture) else { continue };
         let start = overflow(&fixture, container.node, container.rect.max.y);
         if start <= 1.0 {
@@ -214,7 +210,7 @@ pub(super) fn overflowing_body_scrolls_to_its_end(subject: &Subject) -> Result<(
         for _ in 0..40 {
             fixture.frame(vec![crate::testing::pointer::wheel(-120.0)]);
         }
-        fixture.idle(2);
+        fixture.settle();
         let Some(after) = root(&fixture) else { continue };
         let left = overflow(&fixture, after.node, after.rect.max.y);
         if left > 1.0 {

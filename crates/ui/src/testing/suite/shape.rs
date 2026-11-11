@@ -83,11 +83,10 @@ fn leaf_degenerate_rects() -> Result<(), Failed> {
         let inert = index < 4;
         let value = Rc::new(RefCell::new(40.0_f64));
         let shown = value.clone();
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = super::drive::for_input(Fixture::new(move |ui| {
             let mut value = shown.borrow_mut();
             Slider::new(Bind::bound(&mut *value), 0.0..=100.0).label("Opacity").show_at(ui, rect);
-        });
-        fixture.idle(3);
+        }));
         if !inert {
             continue;
         }
@@ -98,7 +97,7 @@ fn leaf_degenerate_rects() -> Result<(), Failed> {
         }
         fixture.key(egui::Key::Tab, egui::Modifiers::NONE);
         fixture.key(egui::Key::ArrowRight, egui::Modifiers::NONE);
-        fixture.idle(2);
+        fixture.settle();
         if (*value.borrow() - 40.0).abs() > f64::EPSILON {
             return Err(Failed::from(format!("a slider shown at {rect:?} changed its value to {}", value.borrow())));
         }

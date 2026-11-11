@@ -8,7 +8,7 @@ use crate::runtime::egui::access::{Declared, NodeKey};
 use crate::runtime::egui::fixture::AccessActionKind;
 use crate::testing::fixture::{Fixture, Target};
 use crate::testing::story::{Drive, EditKind, Grip, Required, Story};
-use craft_behavior::{Input, Sense};
+use craft_behavior::{Input, MotionMode, Sense};
 use egui::{Id, Key, Modifiers, Pos2, Vec2};
 
 pub(super) const CASES: &[Case] = &[
@@ -119,11 +119,11 @@ pub(super) fn activate(fixture: &mut Fixture, variant: usize, target: &Target) {
         1 | 2 => {
             fixture.key(Key::Tab, none);
             fixture.key(if variant == 1 { Key::Enter } else { Key::Space }, none);
-            fixture.idle(2);
+            fixture.settle();
         }
         _ => {
             fixture.access(AccessActionKind::Click, target);
-            fixture.idle(2);
+            fixture.settle();
         }
     }
 }
@@ -135,11 +135,11 @@ fn step(fixture: &mut Fixture, variant: usize, target: &Target) {
         let part = fixture.by_role(Role::SLIDER).into_iter().find(|slider| tree.declares_key(slider.node, Declared::Increment));
         let target = if tree.declares_key(target.node, Declared::Increment) { *target } else { part.unwrap_or(*target) };
         fixture.access(AccessActionKind::Increment, &target);
-        fixture.idle(2);
+        fixture.settle();
     } else {
         fixture.key(Key::Tab, Modifiers::NONE);
         fixture.key(Key::ArrowRight, Modifiers::NONE);
-        fixture.idle(2);
+        fixture.settle();
     }
 }
 
@@ -157,7 +157,7 @@ fn drag(fixture: &mut Fixture, from: Pos2, toward: Vec2, escape: bool) {
     }
     fixture.key(Key::Escape, Modifiers::NONE);
     fixture.frame(vec![crate::testing::pointer::release(from + by)]);
-    fixture.idle(2);
+    fixture.settle();
 }
 
 /// The rows a popup offers: the options, menu entries, tree items and list items (a `TileGrid` tile) on screen.
@@ -183,7 +183,7 @@ fn pick(fixture: &mut Fixture, row: usize, by_click: bool) {
         }
         fixture.key(Key::Enter, none);
     }
-    fixture.idle(2);
+    fixture.settle();
 }
 
 /// Presses Tab until the focus is inside the subject (its root or a descendant), for at most one cycle of the stops.
@@ -238,7 +238,7 @@ pub(super) fn run(fixture: &mut Fixture, plan: Plan, variant: usize) {
             // Enter inserts a line in multi-line text, which Cmd/Ctrl+Enter commits; the node declares which it is.
             let multiline = fixture.tree().role_of(fixture.tree().focused_key()) == Some(Role::MULTILINE_TEXT_INPUT);
             fixture.key(Key::Enter, if multiline { Modifiers::COMMAND } else { Modifiers::NONE });
-            fixture.idle(2);
+            fixture.settle();
         }
         Plan::Pick(row) => pick(fixture, row, variant == 1),
         Plan::Custom(custom) => custom(fixture),
@@ -252,6 +252,19 @@ pub(super) fn settled(story: &Story, probe: &Probe) -> (Fixture, Plan) {
     fixture.settle();
     let plan = plan(story, probe, &fixture);
     (fixture, plan)
+}
+
+/// `fixture` settled for a case that sends input. Such cases run without motion: tweens jump to their end, so a
+/// settle after an action ends once the action has landed rather than when its feedback has finished playing. The
+/// motion case drives stories under each motion mode itself.
+pub(super) fn for_input(mut fixture: Fixture) -> Fixture {
+    fixture.motion(MotionMode::Off).settle();
+    fixture
+}
+
+/// A fixture of `story`, settled for a case that sends input ([`for_input`]).
+pub(super) fn input_fixture(story: &Story) -> Fixture {
+    for_input(Fixture::story(story))
 }
 
 /// What the runs of one story's drive did.
@@ -270,7 +283,7 @@ fn runs_of(story: &Story, probe: &Probe, plan: Plan) -> Runs {
     let mut changed_by = Vec::new();
     let mut unchanged_by = Vec::new();
     for variant in variants(plan, probe) {
-        let (mut fixture, _) = settled(story, probe);
+        let mut fixture = input_fixture(story);
         let before = fixture.data().snapshot();
         fixture.take_outputs();
         run(&mut fixture, plan, variant);
@@ -344,7 +357,7 @@ fn a_double_click_resets_with_one_set(subject: &Subject) -> Result<(), String> {
     for story in &subject.stories {
         let plan = subject.base(story).plan;
         let Plan::Drag(Grip { part, .. }) = plan else { continue };
-        let (mut fixture, _) = settled(story, subject.probe);
+        let mut fixture = input_fixture(story);
         run(&mut fixture, plan, 0);
         let Some(grip) = fixture.root_id().and_then(|id| fixture.part(id, part)) else { continue };
         let before = fixture.data().snapshot();
@@ -376,7 +389,8 @@ fn mixed_commits_a_concrete_value(subject: &Subject) -> Result<(), String> {
                 .into_iter()
                 .any(|key| fixture.tree().data_of(key).is_some_and(|node| node.toggled() == Some(crate::runtime::egui::access::Toggled::Mixed)))
         };
-        let (mut fixture, plan) = settled(story, subject.probe);
+        let plan = subject.base(story).plan;
+        let mut fixture = input_fixture(story);
         if !is_mixed(&fixture) {
             return Err(format!("{}: the mixed story reports no mixed node", story.name));
         }

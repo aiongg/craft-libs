@@ -1,7 +1,7 @@
 //! The sensing core over probe roots: the press lifecycle, arenas, press targets, parts and the shape record.
 
 use craft_behavior::{CanvasTransform, HitLevel, PartKey, PressFocus, PressPhase, Sense};
-use craft_ui::testing::pointer::{self, drag, settle};
+use craft_ui::testing::pointer::{self, drag};
 use craft_ui::testing::sensing::{ProbeMember, ProbePart, ProbeRoot, RootReport, SenseReport, cover, egui_click_target, press_focus, show};
 use craft_ui::testing::{Frames, trial};
 use egui::{Pos2, Rect, Ui, Vec2};
@@ -94,7 +94,7 @@ const ZOOM: CanvasTransform = CanvasTransform::new(2.0, Vec2::new(10.0, 5.0));
 fn member_on_canvas(transform: Option<CanvasTransform>) {
     let (mut show_frame, log) = scene(vec![canvas(transform)]);
     let mut frames = Frames::new();
-    settle(&mut frames, &mut show_frame);
+    frames.idle(2, &mut show_frame);
     let button = log.borrow().last().to_screen(Pos2::new(205.0, 175.0));
     let root_rect = rect(100.0, 100.0, 500.0, 300.0);
     assert!(root_rect.contains(button), "the button lies on the canvas: {button:?}");
@@ -159,7 +159,7 @@ fn card(arena: bool) {
     let root = if arena { root.arena() } else { root };
     let (mut show_frame, log) = scene(vec![root]);
     let mut frames = Frames::new();
-    settle(&mut frames, &mut show_frame);
+    frames.idle(2, &mut show_frame);
 
     pointer::click(&mut frames, Pos2::new(170.0, 135.0), &mut show_frame);
     assert_eq!(log.borrow().member_clicks(0, "child"), 1, "the child was clicked once (arena: {arena})");
@@ -179,7 +179,7 @@ fn interactive_container_activates_on_its_background_only() {
 fn tap_on_canvas(transform: Option<CanvasTransform>, gone: bool) {
     let (mut show_frame, log) = scene(vec![canvas(transform)]);
     let mut frames = Frames::new();
-    settle(&mut frames, &mut show_frame);
+    frames.idle(2, &mut show_frame);
     let button = log.borrow().last().to_screen(Pos2::new(205.0, 175.0));
     log.borrow_mut().clear();
 
@@ -225,7 +225,7 @@ fn drag_from_a_member_part_reaches_the_part_and_not_the_member() {
     );
     let (mut show_frame, log) = scene(vec![graph]);
     let mut frames = Frames::new();
-    settle(&mut frames, &mut show_frame);
+    frames.idle(2, &mut show_frame);
     log.borrow_mut().clear();
 
     // A drag from the port starts one part drag and no move of the node.
@@ -252,7 +252,7 @@ fn a_click_only_part_clicks_and_a_dragged_press_on_it_does_nothing() {
         )));
     let (mut show_frame, log) = scene(vec![list]);
     let mut frames = Frames::new();
-    settle(&mut frames, &mut show_frame);
+    frames.idle(2, &mut show_frame);
     log.borrow_mut().clear();
     let eye = Pos2::new(490.0, 112.0);
 
@@ -281,7 +281,7 @@ fn a_press_beside_an_edge_part_outside_the_root_reaches_the_widget_below() {
     );
     let (mut show_frame, log) = scene(vec![below, root]);
     let mut frames = Frames::new();
-    settle(&mut frames, &mut show_frame);
+    frames.idle(2, &mut show_frame);
     log.borrow_mut().clear();
 
     // Control: a press on the edge part belongs to the root.
@@ -311,7 +311,7 @@ fn a_canvas_control_with_an_empty_root_sense_leaves_the_tool_its_press() {
         );
     let (mut show_frame, log) = scene(vec![canvas]);
     let mut frames = Frames::new();
-    settle(&mut frames, &mut show_frame);
+    frames.idle(2, &mut show_frame);
     log.borrow_mut().clear();
 
     // A drag away from the handle goes to the tool: the control's root senses nothing.
@@ -338,7 +338,7 @@ fn a_member_removed_mid_drag_ends_the_press() {
     let (mut show_with, _) = scene(vec![with_member]);
     let (mut show_without, _) = scene(vec![without]);
     let mut frames = Frames::new();
-    settle(&mut frames, &mut show_with);
+    frames.idle(2, &mut show_with);
     let from = Pos2::new(210.0, 165.0);
     frames.frame(vec![pointer::moved(from)], &mut show_with);
     frames.frame(vec![pointer::press(from)], &mut show_with);
@@ -356,7 +356,7 @@ fn a_layer_over_the_pointer_takes_the_hover_from_the_arena() {
     let canvas = ProbeRoot::new("canvas", area, Sense::empty()).arena().part(ProbePart::new(BACKGROUND, area, Sense::DRAG));
     let (mut show_frame, log) = scene(vec![canvas]);
     let mut frames = Frames::new();
-    settle(&mut frames, &mut show_frame);
+    frames.idle(2, &mut show_frame);
     frames.frame(vec![pointer::moved(Pos2::new(200.0, 200.0))], &mut show_frame);
     frames.idle(1, &mut show_frame);
     assert!(log.borrow().last().root.parts[0].hovered, "control: the pointer hovers the part");
@@ -379,7 +379,7 @@ fn the_shape_record_classifies_presses_by_the_winning_shape() {
         .member(ProbeMember::new("button", rect(200.0, 120.0, 60.0, 60.0), Sense::CLICK));
     let (mut show_frame, _log) = scene(vec![canvas]);
     let mut frames = Frames::new();
-    settle(&mut frames, &mut show_frame);
+    frames.idle(2, &mut show_frame);
     let mut at = |x: f32, y: f32| {
         frames.frame(vec![pointer::moved(Pos2::new(x, y))], &mut show_frame);
         press_focus(&frames.ctx, Pos2::new(x, y))
@@ -401,7 +401,7 @@ fn a_middle_press_pans_a_drag_part_and_never_clicks() {
         let canvas = ProbeRoot::new("canvas", area, Sense::empty()).arena().part(ProbePart::new(BACKGROUND, area, sense));
         let (mut show_frame, log) = scene(vec![canvas]);
         let mut frames = Frames::new();
-        settle(&mut frames, &mut show_frame);
+        frames.idle(2, &mut show_frame);
         log.borrow_mut().clear();
         frames.frame(vec![pointer::moved(from)], &mut show_frame);
         frames.frame(vec![pointer::middle(from, true)], &mut show_frame);

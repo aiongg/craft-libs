@@ -17,6 +17,9 @@ use std::cell::{Cell, RefCell};
 use std::collections::HashSet;
 use std::rc::Rc;
 
+/// The most frames [`Fixture::settle`] runs.
+const SETTLE_FRAMES: usize = 4;
+
 /// A node of the AccessKit tree, as input addresses it.
 #[derive(Clone, Copy, Debug)]
 #[non_exhaustive]
@@ -397,9 +400,26 @@ impl Fixture {
         self
     }
 
-    /// Frames until ids, sizes and the AccessKit tree have settled.
+    /// Frames with no events until the latest one is stable, where an app stops painting: it ran one pass, asked for
+    /// no repaint, and has the shown rect, root id and access node count of the frame before it. The frame before the
+    /// first one counts when the fixture has run one, so a settle after input runs at least one frame and a settle of
+    /// a fresh fixture at least two. A story that never comes to rest (a running animation) gets four frames.
     pub fn settle(&mut self) -> &mut Self {
-        self.idle(4)
+        let mut before = (self.passes > 0).then(|| self.signature());
+        for _ in 0..SETTLE_FRAMES {
+            self.frame(Vec::new());
+            let now = self.signature();
+            if self.passes == 1 && !self.repaint_requested() && before == Some(now) {
+                break;
+            }
+            before = Some(now);
+        }
+        self
+    }
+
+    /// What [`Fixture::settle`] compares between two frames.
+    fn signature(&self) -> (Rect, Option<Id>, usize) {
+        (self.shown, self.root_id(), self.tree.node_count())
     }
 
     /// The AccessKit tree of the latest frame.
