@@ -9,7 +9,6 @@ use craft_browse::places::{FakeDirectories, FolderCache, Place, PlaceGroup, Plac
 use craft_browse::ui::places::PlacesTree;
 use craft_host::{ManualJobs, Wake};
 use craft_ui::contract::Role;
-use craft_ui::testing::access::name;
 use craft_ui::testing::{Fixture, trial};
 use egui::{Key, Modifiers};
 
@@ -67,7 +66,7 @@ fn settle(fixture: &mut Fixture, state: &Rc<RefCell<Rig>>) {
 }
 
 fn rows(fixture: &Fixture) -> Vec<String> {
-    fixture.by_role(Role::TREE_ITEM).iter().filter_map(|row| name(fixture.tree(), row.node).map(str::to_owned)).collect()
+    fixture.by_role(Role::TREE_ITEM).iter().filter_map(|row| fixture.tree().accessible_name(row.node).map(str::to_owned)).collect()
 }
 
 fn click_row(fixture: &mut Fixture, label: &str) {

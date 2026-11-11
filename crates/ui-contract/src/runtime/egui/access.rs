@@ -6,7 +6,6 @@ mod node;
 mod patch;
 mod roles;
 mod text;
-#[cfg(feature = "testing")]
 mod tree;
 
 #[cfg(feature = "testing")]
@@ -22,8 +21,7 @@ pub(crate) use patch::{write_label_patch, write_merge_patch, write_status};
 pub(crate) use text::{
     NodeEnd, RunLink, RunNode, TextNode, fold_widget, is_text_request, requested_selection, requested_value, write_run, write_selection, write_text,
 };
-#[cfg(feature = "testing")]
-pub use tree::{AccessTree, Declared, NodeKey};
+pub use tree::{AccessTree, Declared, NameMatch, NodeKey, Query};
 
 /// The AccessKit role of a node.
 pub(crate) type NodeRole = accesskit::Role;

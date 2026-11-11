@@ -13,7 +13,7 @@ use craft_imaging::layer_style::{
 use craft_imaging::ui::layer_style::{LayerStyleDialog, StylePresets};
 use craft_ui::contract::Role;
 use craft_ui::patterns::presets::PresetRow;
-use craft_ui::testing::access::{NodeKey, name};
+use craft_ui::testing::access::NodeKey;
 use craft_ui::testing::focus::AccessActionKind;
 use craft_ui::testing::{Fixture, Target, trial};
 use egui::{Key, Modifiers, Vec2};
@@ -75,7 +75,8 @@ fn rig_of(host: Host) -> (Fixture, Rc<RefCell<Host>>) {
 
 /// The nodes of `role` named `label`, top to bottom.
 fn named(fixture: &Fixture, role: Role, label: &str) -> Vec<Target> {
-    let mut found: Vec<Target> = fixture.by_role(role).into_iter().filter(|target| name(fixture.tree(), target.node) == Some(label)).collect();
+    let mut found: Vec<Target> =
+        fixture.by_role(role).into_iter().filter(|target| fixture.tree().accessible_name(target.node) == Some(label)).collect();
     found.sort_by(|a, b| a.rect.top().total_cmp(&b.rect.top()));
     found
 }

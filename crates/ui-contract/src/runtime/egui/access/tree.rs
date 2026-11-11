@@ -1,4 +1,4 @@
-//! A finished AccessKit tree update, read by trials without naming AccessKit.
+//! A finished AccessKit tree update, read by trials and automation without naming AccessKit.
 
 use super::{NodeRole, node_key};
 use crate::runtime::access::{GridPlace, Numeric, Politeness, PopupKind, Role};
@@ -6,12 +6,17 @@ use accesskit::{Action, Node, NodeId, TreeUpdate};
 use egui::Id;
 use std::collections::{HashMap, HashSet};
 
+mod query;
+
+pub use query::{NameMatch, Query};
+
 /// A node's number in the tree.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct NodeKey(u64);
 
 impl NodeKey {
     /// The AccessKit node number.
+    #[cfg(feature = "testing")]
     pub(crate) fn raw(self) -> u64 {
         self.0
     }
@@ -74,37 +79,39 @@ impl Declared {
     }
 }
 
-/// Every node that has a hidden node among its ancestors.
-fn nodes_below_hidden(update: &TreeUpdate) -> HashSet<NodeId> {
-    let by_id: HashMap<NodeId, &Node> = update.nodes.iter().map(|(id, node)| (*id, node)).collect();
-    let mut below = HashSet::new();
-    let mut pending: Vec<NodeId> = update.nodes.iter().filter(|(_, node)| node.is_hidden()).map(|(id, _)| *id).collect();
-    while let Some(id) = pending.pop() {
-        let Some(node) = by_id.get(&id) else { continue };
-        for child in node.children() {
-            if below.insert(*child) {
-                pending.push(*child);
-            }
-        }
-    }
-    below
-}
-
-/// The AccessKit tree update of one frame.
+/// The AccessKit tree update of one frame, indexed by node.
 #[non_exhaustive]
 pub struct AccessTree {
     update: TreeUpdate,
+    /// Each node's place in `update.nodes`.
+    index: HashMap<NodeId, usize>,
+    /// Each node's parent, the node that lists it among its children.
+    parents: HashMap<NodeId, NodeId>,
     /// The nodes below a hidden node: assistive technology does not report them, so no lookup finds them.
     below_hidden: HashSet<NodeId>,
 }
 
 impl AccessTree {
+    #[cfg(feature = "testing")]
     pub(crate) fn new(update: TreeUpdate) -> Self {
-        let below_hidden = nodes_below_hidden(&update);
-        AccessTree { update, below_hidden }
+        let index: HashMap<NodeId, usize> = update.nodes.iter().enumerate().map(|(at, (id, _))| (*id, at)).collect();
+        let parents: HashMap<NodeId, NodeId> =
+            update.nodes.iter().flat_map(|(id, node)| node.children().iter().map(move |child| (*child, *id))).collect();
+        let mut below_hidden = HashSet::new();
+        let mut pending: Vec<NodeId> = update.nodes.iter().filter(|(_, node)| node.is_hidden()).map(|(id, _)| *id).collect();
+        while let Some(id) = pending.pop() {
+            let Some(&at) = index.get(&id) else { continue };
+            for child in update.nodes[at].1.children() {
+                if below_hidden.insert(*child) {
+                    pending.push(*child);
+                }
+            }
+        }
+        AccessTree { update, index, parents, below_hidden }
     }
 
     /// The tree of a frame that made none.
+    #[cfg(feature = "testing")]
     pub(crate) fn none() -> Self {
         AccessTree::new(TreeUpdate { nodes: Vec::new(), tree: None, tree_id: accesskit::TreeId::ROOT, focus: NodeId(0) })
     }
@@ -113,11 +120,11 @@ impl AccessTree {
         self.lookup(NodeId(node_key(id)))
     }
 
-    fn lookup(&self, id: NodeId) -> Option<&Node> {
+    pub(super) fn lookup(&self, id: NodeId) -> Option<&Node> {
         if self.below_hidden.contains(&id) {
             return None;
         }
-        self.update.nodes.iter().find(|(node, _)| *node == id).map(|(_, node)| node)
+        self.index.get(&id).map(|at| &self.update.nodes[*at].1)
     }
 
     /// Whether the node of `id` exists.
@@ -282,17 +289,6 @@ impl AccessTree {
         Some((end(selection.anchor), end(selection.focus)))
     }
 
-    /// The nodes of `role` that assistive technology reports: not hidden, and not below a hidden node.
-    pub fn with_role(&self, role: Role) -> Vec<NodeKey> {
-        let Role::Node(role) = role else { return Vec::new() };
-        self.update
-            .nodes
-            .iter()
-            .filter(|(key, node)| node.role() == role && !node.is_hidden() && !self.below_hidden.contains(key))
-            .map(|(key, _)| NodeKey(key.0))
-            .collect()
-    }
-
     /// The name of a node by key.
     pub fn name_of(&self, key: NodeKey) -> Option<&str> {
         self.lookup(NodeId(key.0))?.label()
@@ -342,27 +338,28 @@ impl AccessTree {
     pub fn parent_of_key(&self, key: NodeKey) -> Option<NodeKey> {
         let mut at = NodeId(key.0);
         loop {
-            let (parent, _) = self.update.nodes.iter().find(|(_, node)| node.children().contains(&at))?;
-            if self.lookup(*parent)?.role() != NodeRole::GenericContainer {
+            let parent = *self.parents.get(&at)?;
+            if self.lookup(parent)?.role() != NodeRole::GenericContainer {
                 return Some(NodeKey(parent.0));
             }
-            at = *parent;
+            at = parent;
         }
     }
 }
 
 impl AccessTree {
     /// The root node, when the frame made a tree.
-    pub(crate) fn root_key(&self) -> Option<NodeKey> {
+    pub fn root_key(&self) -> Option<NodeKey> {
         self.update.tree.as_ref().map(|tree| NodeKey(tree.root.0))
     }
 
     /// The node AccessKit reports as focused.
-    pub(crate) fn focused_key(&self) -> NodeKey {
+    pub fn focused_key(&self) -> NodeKey {
         NodeKey(self.update.focus.0)
     }
 
     /// The AccessKit data of a node by key.
+    #[cfg(feature = "testing")]
     pub(crate) fn data_of(&self, key: NodeKey) -> Option<&Node> {
         self.lookup(NodeId(key.0))
     }
@@ -371,20 +368,13 @@ impl AccessTree {
     /// (`Props::ltr_axis`): it or an ancestor declares left-to-right text direction on a node that is not a text run,
     /// which only that declaration does.
     pub fn in_ltr_axis(&self, key: NodeKey) -> bool {
-        let mut at = Some(key);
-        while let Some(node) = at {
-            if self
-                .data_of(node)
+        std::iter::once(key).chain(self.ancestors(key)).any(|node| {
+            self.lookup(NodeId(node.0))
                 .is_some_and(|data| data.role() != accesskit::Role::TextRun && data.text_direction() == Some(accesskit::TextDirection::LeftToRight))
-            {
-                return true;
-            }
-            at = self.parent_of_key(node);
-        }
-        false
+        })
     }
 
-    fn reported(&self) -> impl Iterator<Item = NodeKey> + '_ {
+    pub(super) fn reported(&self) -> impl Iterator<Item = NodeKey> + '_ {
         self.update.nodes.iter().filter(|(key, node)| !node.is_hidden() && !self.below_hidden.contains(key)).map(|(key, _)| NodeKey(key.0))
     }
 

@@ -1,20 +1,8 @@
 //! What the container and collection cases read from the AccessKit tree of a fixture.
 
 use crate::runtime::access::Role;
-use crate::runtime::egui::access::{AccessTree, NodeKey};
+use crate::runtime::egui::access::NodeKey;
 use crate::testing::fixture::{Fixture, Target};
-
-/// `node` and every node below it.
-pub(super) fn subtree(tree: &AccessTree, node: NodeKey) -> Vec<NodeKey> {
-    let mut found = vec![node];
-    let mut at = 0;
-    while at < found.len() {
-        let new: Vec<NodeKey> = tree.children_of(found[at]).into_iter().filter(|child| !found.contains(child)).collect();
-        found.extend(new);
-        at += 1;
-    }
-    found
-}
 
 /// The node of the latest shown component of a story, when the tree has it.
 pub(super) fn root(fixture: &Fixture) -> Option<Target> {
@@ -24,7 +12,7 @@ pub(super) fn root(fixture: &Fixture) -> Option<Target> {
 /// Whether the node AccessKit reports as focused lies in the subtree of `root`.
 pub(super) fn focus_within(fixture: &Fixture, root: NodeKey) -> bool {
     let tree = fixture.tree();
-    subtree(tree, root).contains(&tree.focused_key())
+    tree.subtree(root).contains(&tree.focused_key())
 }
 
 /// The roles of the rows of a collection: list items, list box options, tree items and table rows.
@@ -44,7 +32,7 @@ pub(super) fn is_menu_item_role(role: Role) -> bool {
 /// not a row.
 pub(super) fn rows(fixture: &Fixture, root: NodeKey) -> Vec<Target> {
     let tree = fixture.tree();
-    let inside = subtree(tree, root);
+    let inside = tree.subtree(root);
     let mut rows: Vec<Target> = ROW_ROLES
         .into_iter()
         .flat_map(|role| fixture.by_role(role))
@@ -57,14 +45,8 @@ pub(super) fn rows(fixture: &Fixture, root: NodeKey) -> Vec<Target> {
 /// The row of `rows` that holds the AccessKit focus, with its place among them.
 pub(super) fn focused_row(fixture: &Fixture, rows: &[Target]) -> Option<(usize, NodeKey)> {
     let tree = fixture.tree();
-    let mut at = Some(tree.focused_key());
-    while let Some(key) = at {
-        if let Some(index) = rows.iter().position(|row| row.node == key) {
-            return Some((index, key));
-        }
-        at = tree.parent_of_key(key);
-    }
-    None
+    let focused = tree.focused_key();
+    std::iter::once(focused).chain(tree.ancestors(focused)).find_map(|key| rows.iter().position(|row| row.node == key).map(|index| (index, key)))
 }
 
 /// The zero-based position and the set size a row reports.

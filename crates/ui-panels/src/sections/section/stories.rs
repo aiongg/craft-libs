@@ -5,11 +5,12 @@ use crate::contract::{Bind, Role, Show as _, ShowContainer as _};
 use crate::display::Text;
 use crate::sections::sample::body;
 use crate::sections::{HeaderAction, HeaderStrength};
+use crate::testing::access::Query;
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use egui::Ui;
 
 fn toggle_disclosure(fixture: &mut Fixture) {
-    let lead = fixture.by_role(Role::BUTTON).into_iter().find(|button| fixture.tree().name_of(button.node) == Some("Layers"));
+    let lead = fixture.find(&Query::named("Layers").with_role(Role::BUTTON)).into_iter().next();
     if let Some(lead) = lead {
         fixture.click(&lead);
     }

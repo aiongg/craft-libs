@@ -4,13 +4,14 @@ use super::GroupBox;
 use crate::contract::{Bind, Role, Show as _, ShowContainer as _, Validity};
 use crate::runtime::env::Message;
 use crate::sections::sample::body;
+use crate::testing::access::Query;
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use crate::text::NumberField;
 use craft_behavior::Mixed;
 use egui::Ui;
 
 fn toggle_gate(fixture: &mut Fixture) {
-    let gate = fixture.by_role(Role::CHECK_BOX).into_iter().find(|check| fixture.tree().name_of(check.node) == Some("Enable"));
+    let gate = fixture.find(&Query::named("Enable").with_role(Role::CHECK_BOX)).into_iter().next();
     if let Some(gate) = gate {
         fixture.click(&gate);
     }

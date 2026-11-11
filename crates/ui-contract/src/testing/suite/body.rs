@@ -5,7 +5,7 @@
 
 use super::Subject;
 use super::drive::input_fixture;
-use super::nodes::{focus_within, root, subtree};
+use super::nodes::{focus_within, root};
 use crate::contract::{MOVE_BAND, ShapeKind};
 use crate::runtime::access::Role;
 use crate::runtime::egui::access::NodeKey;
@@ -35,11 +35,11 @@ fn layer_fixture(story: &Story) -> Option<Fixture> {
 /// and named like it or drawn inside it (a spin button and its text input, a scroll bar in a text area). A button beside
 /// the control that is neither is no part of it. The label names the control, so the group needs no name.
 fn is_field_of_one_control(tree: &crate::testing::access::AccessTree, container: crate::testing::access::NodeKey) -> bool {
-    let inside = subtree(tree, container);
+    let inside = tree.subtree(container);
     let interactive: Vec<_> = inside.iter().copied().filter(|key| crate::testing::access::is_interactive(tree, *key)).collect();
     let labelled: Vec<_> = interactive.iter().copied().filter(|key| !tree.labelled_by_key(*key).is_empty()).collect();
     let [control] = labelled.as_slice() else { return false };
-    let parts = subtree(tree, *control);
+    let parts = tree.subtree(*control);
     let bounds = tree.bounds_of(*control);
     let is_part = |key: &NodeKey| {
         parts.contains(key)
@@ -72,7 +72,7 @@ fn title_from(story: &Story, fixture: &Fixture) -> Result<(), String> {
     let role = fixture.tree().role_of(container.node);
     let tree = fixture.tree();
     if (role == Some(Role::DIALOG) || role == Some(Role::GROUP))
-        && crate::testing::access::name(tree, container.node).is_none()
+        && tree.accessible_name(container.node).is_none()
         && !(role == Some(Role::GROUP) && is_field_of_one_control(tree, container.node))
     {
         return Err(format!("{}: the container's node has the role {role:?} and no name", story.name));
@@ -123,7 +123,7 @@ pub(super) fn layer_traps_focus(subject: &Subject) -> Result<(), String> {
             continue;
         }
         let Some(container) = root(&fixture) else { continue };
-        let stops = subtree(fixture.tree(), container.node).into_iter().filter(|key| is_interactive(fixture.tree(), *key)).count();
+        let stops = fixture.tree().subtree(container.node).into_iter().filter(|key| is_interactive(fixture.tree(), *key)).count();
         if stops == 0 {
             continue;
         }
@@ -149,7 +149,7 @@ pub(super) fn layer_leaves_no_dangling_focus(subject: &Subject) -> Result<(), St
     for story in &subject.stories {
         let Some(mut fixture) = layer_fixture(story) else { continue };
         let Some(container) = root(&fixture) else { continue };
-        let was: Vec<NodeKey> = subtree(fixture.tree(), container.node);
+        let was: Vec<NodeKey> = fixture.tree().subtree(container.node);
         fixture.key(Key::Escape, Modifiers::NONE);
         fixture.settle();
         if was.contains(&fixture.tree().focused_key()) {
@@ -186,7 +186,9 @@ pub(super) fn layer_remembers_its_placement(subject: &Subject) -> Result<(), Str
 
 /// How far below the container's bottom edge its lowest node reaches.
 fn overflow(fixture: &Fixture, container: NodeKey, bottom: f32) -> f32 {
-    subtree(fixture.tree(), container)
+    fixture
+        .tree()
+        .subtree(container)
         .into_iter()
         .filter_map(|key| fixture.tree().bounds_of(key))
         .map(|bounds| bounds.max.y - bottom)

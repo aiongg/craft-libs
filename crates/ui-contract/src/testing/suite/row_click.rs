@@ -2,7 +2,6 @@
 //! area (17.5). A row that holds child components (a switch, a select) is pressed where none of them is, so the
 //! press reaches the row and not a child.
 
-use super::nodes::subtree;
 use crate::runtime::egui::access::Declared;
 use crate::testing::fixture::{Fixture, Target};
 use egui::{Pos2, Rect};
@@ -12,7 +11,8 @@ use egui::{Pos2, Rect};
 pub(super) fn point(fixture: &Fixture, row: &Target) -> Pos2 {
     let tree = fixture.tree();
     let centre = row.rect.center();
-    let mut covered: Vec<Rect> = subtree(tree, row.node)
+    let mut covered: Vec<Rect> = tree
+        .subtree(row.node)
         .into_iter()
         .skip(1)
         .filter(|node| tree.declares_key(*node, Declared::Focus) || tree.declares_key(*node, Declared::Click))

@@ -124,17 +124,8 @@ fn read_only_changes_nothing(subject: &Subject) -> Result<(), String> {
 /// Whether the node lies in document space, whose coordinates are data and do not mirror: a node inside a canvas, or
 /// a graphics object (a graph node) with its ports. A canvas's own chrome and the area around it mirror.
 fn in_document_space(tree: &AccessTree, key: NodeKey) -> bool {
-    let mut at = Some(key);
-    let mut inside = false;
-    while let Some(node) = at {
-        let role = tree.role_of(node);
-        if role == Some(Role::GRAPHICS_OBJECT) || (inside && role == Some(Role::CANVAS)) {
-            return true;
-        }
-        inside = true;
-        at = tree.parent_of_key(node);
-    }
-    false
+    tree.role_of(key) == Some(Role::GRAPHICS_OBJECT)
+        || tree.ancestors(key).any(|node| matches!(tree.role_of(node), Some(Role::GRAPHICS_OBJECT | Role::CANVAS)))
 }
 
 /// Under right-to-left the component keeps its own width and every interactive node outside document space lies

@@ -4,7 +4,7 @@ use super::drive::{Plan, for_input, input_fixture, root_target, run, variant_nam
 use super::{ANY, Case, Subject};
 use crate::contract::ShapeKind;
 use crate::runtime::access::Role;
-use crate::runtime::egui::access::{AccessTree, Declared, NodeKey};
+use crate::runtime::egui::access::{AccessTree, Declared, NodeKey, Query};
 use crate::runtime::egui::fixture::AccessActionKind;
 use crate::testing::fixture::Fixture;
 use crate::testing::pointer;
@@ -205,7 +205,7 @@ fn every_intent_has_a_declared_action(subject: &Subject) -> Result<(), String> {
             fixture.settle();
             let clicked = fixture.take_outputs().iter().any(|output| output.clicked);
             let changed = !fixture.data().changed_since(&before).is_empty();
-            let radios = fixture.tree().with_role(Role::RADIO_BUTTON);
+            let radios = fixture.tree().find(&Query::role(Role::RADIO_BUTTON));
             let tree = fixture.tree();
             let roving =
                 step.is_some() && radios.len() > 1 && radios.contains(&tree.focused_key()) && (changed || tree.focused_key() != focus_before);

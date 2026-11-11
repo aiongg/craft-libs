@@ -16,7 +16,7 @@ fn a_repeated_announcement_changes_the_status_text_and_a_discarded_pass_adds_not
             announce(ui.ctx(), "Saved", Politeness::Polite);
         });
         let tree = frames.tree();
-        let status = tree.with_role(UiRole::STATUS);
+        let status = tree.find(&craft_ui::testing::access::Query::role(UiRole::STATUS));
         said.push(tree.name_of(status[0]).map(str::to_owned));
         assert_eq!(craft_ui::runtime::frame::take_output(&frames.ctx).announcements, ["Saved"]);
     }

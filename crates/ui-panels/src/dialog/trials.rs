@@ -5,6 +5,7 @@ use crate::choice::Checkbox;
 use crate::contract::{Bind, Props as _, Show as _, ShowContainer as _};
 use crate::runtime::overlay::CloseReason;
 use crate::sections::{DialogRole, FooterButton};
+use crate::testing::access::Query;
 use crate::testing::input::key_press;
 use crate::testing::{Fixture, Frames, trial};
 use crate::text::TextField;
@@ -86,7 +87,7 @@ fn button_widths(body: &str, names: [&'static str; 3]) -> [f32; 3] {
     frames.idle(30, &mut ui);
     let tree = frames.tree();
     names.map(|name| {
-        let key = tree.keys().into_iter().find(|key| tree.name_of(*key) == Some(name));
+        let key = tree.find(&Query::named(name)).into_iter().next();
         key.and_then(|key| tree.bounds_of(key)).map_or(0.0, |bounds| bounds.width())
     })
 }

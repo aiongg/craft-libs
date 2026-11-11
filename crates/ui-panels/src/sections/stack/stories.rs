@@ -4,6 +4,7 @@ use super::SectionStack;
 use crate::contract::{Bind, Role, ShowContainer as _};
 use crate::sections::Section;
 use crate::sections::sample::body;
+use crate::testing::access::Query;
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use egui::{Key, Modifiers, Ui};
 
@@ -11,7 +12,7 @@ const TITLES: [&str; 3] = ["Layers", "Effects", "Paths"];
 
 /// Focuses the first section's disclosure and moves its section down with Alt+Down.
 fn move_first_down(fixture: &mut Fixture) {
-    let lead = fixture.by_role(Role::BUTTON).into_iter().find(|button| fixture.tree().name_of(button.node) == Some(TITLES[0]));
+    let lead = fixture.find(&Query::named(TITLES[0]).with_role(Role::BUTTON)).into_iter().next();
     if let Some(lead) = lead {
         fixture.click(&lead);
         fixture.key(Key::ArrowDown, Modifiers::ALT);

@@ -6,7 +6,7 @@
 //! case that applies only to a collection with a setting starts the gesture and checks the rest when the collection
 //! answered it: a rename case runs on the stories whose F2 began a rename.
 
-use super::nodes::{focused_row, position_in_set, root, rows, subtree};
+use super::nodes::{focused_row, position_in_set, root, rows};
 use super::{Subject, row_click};
 use crate::contract::ColumnCommands;
 use crate::contract::ShapeKind;
@@ -362,7 +362,7 @@ pub(super) fn scroll_shows_rows_in_the_same_frame(subject: &Subject) -> Result<(
 
 /// The cell sub-nodes and the column header sub-nodes of the collection below `container`.
 fn nodes_of(fixture: &Fixture, container: &Target, role: Role) -> Vec<Target> {
-    let inside = subtree(fixture.tree(), container.node);
+    let inside = fixture.tree().subtree(container.node);
     let mut found: Vec<Target> = fixture.by_role(role).into_iter().filter(|target| inside.contains(&target.node)).collect();
     found.sort_by(|a, b| (a.rect.min.y, a.rect.min.x).partial_cmp(&(b.rect.min.y, b.rect.min.x)).unwrap_or(std::cmp::Ordering::Equal));
     found

@@ -4,7 +4,7 @@ use super::Frames;
 use super::story::{Story, StoryData, StoryOutput};
 use crate::runtime::access::Role;
 use crate::runtime::commands::{CommandInput, CommandRef, CommandState};
-use crate::runtime::egui::access::{AccessTree, NodeKey};
+use crate::runtime::egui::access::{AccessTree, NodeKey, Query};
 use crate::runtime::egui::fixture::{self, AccessActionKind};
 use crate::runtime::egui::injected;
 use crate::runtime::egui::sizing::HELD_UPDATE_RERUN;
@@ -14,7 +14,6 @@ use craft_host::target::Os;
 use craft_theme::{Contrast, Mode, Size, TextSize};
 use egui::{Event, Id, Key, Modifiers, Pos2, Rect, Ui, Vec2};
 use std::cell::{Cell, RefCell};
-use std::collections::HashSet;
 use std::rc::Rc;
 
 /// The most frames [`Fixture::settle`] runs.
@@ -431,40 +430,27 @@ impl Fixture {
         Some(Target { node, rect: self.tree.bounds_of(node)? })
     }
 
-    /// The node named `label`: the interactive node whose name resolves to it (its own, or the node that labels it
-    /// through `labelled_by`), else the first node that carries the text.
+    /// The node named `label`: the first interactive node in tree order whose accessible name is `label`, else the
+    /// first node that carries the text as its own name. Repeated labels resolve to the first on screen.
     pub fn by_label(&self, label: &str) -> Option<Target> {
         let tree = &self.tree;
-        let reported: HashSet<NodeKey> = tree.keys().into_iter().collect();
-        let ordered = self.in_tree_order(&reported);
-        let node = ordered
+        let named = tree.find(&Query::named(label));
+        let node = named
             .iter()
             .copied()
-            .find(|key| {
-                super::access::name(tree, *key) == Some(label) && tree.role_of(*key) != Some(Role::LABEL) && super::access::is_interactive(tree, *key)
-            })
-            .or_else(|| ordered.iter().copied().find(|key| tree.name_of(*key) == Some(label)))?;
+            .find(|key| tree.role_of(*key) != Some(Role::LABEL) && super::access::is_interactive(tree, *key))
+            .or_else(|| named.iter().copied().find(|key| tree.name_of(*key) == Some(label)))?;
         self.target(node)
     }
 
-    /// The nodes of `wanted` in tree order: depth first from the root, children in their declared order. `by_label`
-    /// takes the first match in this order, so repeated labels resolve to the first on screen.
-    fn in_tree_order(&self, wanted: &HashSet<NodeKey>) -> Vec<NodeKey> {
-        let mut ordered = Vec::with_capacity(wanted.len());
-        let mut pending: Vec<NodeKey> = self.tree.root_key().into_iter().collect();
-        while let Some(key) = pending.pop() {
-            if wanted.contains(&key) {
-                ordered.push(key);
-            }
-            pending.extend(self.tree.children_of(key).into_iter().rev());
-        }
-        ordered
+    /// The nodes `query` matches in tree order, with their bounds.
+    pub fn find(&self, query: &Query) -> Vec<Target> {
+        self.tree.find(query).into_iter().filter_map(|node| self.target(node)).collect()
     }
 
     /// The nodes of `role` in tree order.
     pub fn by_role(&self, role: Role) -> Vec<Target> {
-        let wanted: HashSet<NodeKey> = self.tree.with_role(role).into_iter().collect();
-        self.in_tree_order(&wanted).into_iter().filter_map(|node| self.target(node)).collect()
+        self.find(&Query::role(role))
     }
 
     /// The sub-node of `part` below the component `component`.

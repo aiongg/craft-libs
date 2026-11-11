@@ -112,10 +112,7 @@ impl Rig {
         self.fx
             .by_role(role)
             .into_iter()
-            .find(|target| {
-                craft_ui::testing::access::name(self.fx.tree(), target.node)
-                    .is_some_and(|found| found == name || found.starts_with(&format!("{name},")))
-            })
+            .find(|target| self.fx.tree().accessible_name(target.node).is_some_and(|found| found == name || found.starts_with(&format!("{name},"))))
             .unwrap_or_else(|| panic!("no {role:?} named `{name}` on screen"))
     }
 
@@ -123,9 +120,7 @@ impl Rig {
     fn click_notice_action(&mut self, name: &str) {
         let target = [Role::LINK, Role::BUTTON]
             .into_iter()
-            .find_map(|role| {
-                (self.fx.by_role(role).into_iter()).find(|target| craft_ui::testing::access::name(self.fx.tree(), target.node) == Some(name))
-            })
+            .find_map(|role| (self.fx.by_role(role).into_iter()).find(|target| self.fx.tree().accessible_name(target.node) == Some(name)))
             .unwrap_or_else(|| panic!("no notice action `{name}` on screen"));
         self.fx.click(&target);
         self.fx.settle();
