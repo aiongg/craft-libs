@@ -74,7 +74,7 @@ pub(crate) struct FilePlace {
     /// The file may change the style and the interface scale (`style-mutation`).
     pub style_writer: bool,
     /// `test/literal-size` covers test code, so `literal-size/*` skips `#[cfg(test)]` items and, when `test_file` (a file under
-    /// `tests/` or a crate's `src/testing/`), the whole file.
+    /// `tests/` or a `testing` module directory below `src/`), the whole file.
     pub tests_scoped: bool,
     pub test_file: bool,
 }
