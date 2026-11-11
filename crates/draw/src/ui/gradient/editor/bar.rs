@@ -119,6 +119,8 @@ pub struct GradientBarStyle {
 #[derive(Clone, Debug, Default)]
 struct Held {
     drag: Option<Drag>,
+    /// The selection before the press, restored when the press is cancelled.
+    before: Option<StopRef>,
 }
 
 /// The marker a press captured.
@@ -132,8 +134,6 @@ struct Drag {
     grab: f32,
     /// Alt was held at the press: the drag moves a copy of the stop.
     copy: bool,
-    /// The selection before the press, restored when the gesture is cancelled.
-    before: Option<StopRef>,
 }
 
 /// What the bar reports.
@@ -506,6 +506,7 @@ impl<P: Clone + Send + Sync + 'static> GradientBar<'_, P> {
         let press = cx.part(part).press;
         match press.phase {
             PressPhase::Down { .. } if press.went_down => {
+                cx.memory::<Held>().before = self.selected_marker;
                 self.choose(Some(marker));
                 cx.focus_part(part);
                 if press.double_pressed()
@@ -521,7 +522,6 @@ impl<P: Clone + Send + Sync + 'static> GradientBar<'_, P> {
                     press: start.origin,
                     grab: geo.location_of(stops, marker),
                     copy: press.mods.alt && marker.is_stop(),
-                    before: self.selected_marker,
                 };
                 self.choose(Some(marker));
                 cx.begin();
@@ -542,8 +542,11 @@ impl<P: Clone + Send + Sync + 'static> GradientBar<'_, P> {
                 None => {}
             },
             PressPhase::Cancel { .. } => {
-                if let Some(drag) = cx.memory::<Held>().drag.take() {
-                    self.choose(drag.before);
+                let held = cx.memory::<Held>();
+                held.drag = None;
+                let before = held.before;
+                if self.selected_marker != before {
+                    self.choose(before);
                 }
             }
             _ => {}
