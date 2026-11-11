@@ -365,7 +365,7 @@ pub struct PerspectiveWarpOutput {
 impl PerspectiveWarpOutput {
     /// The edits for [`PerspectiveSession::apply`].
     pub fn edits(&self) -> Vec<PerspectiveEdit> {
-        self.planes.event.iter().map(|event| PerspectiveEdit::Planes(event.clone())).collect()
+        self.planes.events.iter().map(|event| PerspectiveEdit::Planes(event.clone())).collect()
     }
 }
 

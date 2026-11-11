@@ -4,7 +4,7 @@ use std::ops::RangeInclusive;
 
 use egui::{Response, Ui};
 
-use craft_behavior::EditEvent;
+use craft_behavior::EditEvents;
 use craft_ui::bars::{Bar, BarKind};
 use craft_ui::choice::Checkbox;
 use craft_ui::contract::{Bind, NoValue, Outcome, Props as _, Show as _, ShowContainer as _, SideLabel, Sizing};
@@ -31,12 +31,12 @@ const PASTE_WIDTH: RangeInclusive<f64> = 1.0..=1000.0;
 pub struct VanishingPointBarOutput {
     /// The bar's response.
     pub response: Response,
-    /// The setting the user changed this pass, with every setting as it is now: a number field's gesture (`Begin`,
+    /// The settings the user changed this pass, in order, each with every setting as it is then: a number field's gesture (`Begin`,
     /// `Update`, `Commit`) or a checkbox's `Set`.
-    pub edit: Option<EditEvent<VanishingPointSettings>>,
+    pub edit: EditEvents<VanishingPointSettings>,
     /// The paste's Width as a fraction of the plane's width, edited this pass: a session change, one undo step when
     /// its gesture commits.
-    pub paste_width: Option<EditEvent<f64>>,
+    pub paste_width: EditEvents<f64>,
 }
 
 impl Outcome for VanishingPointBarOutput {
@@ -83,9 +83,10 @@ impl<'a> VanishingPointBar<'a> {
         let env = Env::of(ui);
         let words = env.words::<VanishingPointWords>();
         let Self { tool, settings, paste, has_clip, has_strokes } = self;
-        let mut edit: Option<EditEvent<VanishingPointSettings>> = None;
-        let mut paste_width = None;
+        let mut edit = EditEvents::<VanishingPointSettings>::new();
+        let mut paste_width = EditEvents::new();
         let shown = Bar::new(words.options.clone(), BarKind::Options).show(ui, |ui, _| {
+            (edit, paste_width) = (EditEvents::new(), EditEvents::new());
             let set = |change: fn(&mut VanishingPointSettings, f64)| {
                 move |value: f64| {
                     let mut next = *settings;
@@ -101,38 +102,28 @@ impl<'a> VanishingPointBar<'a> {
                     ("opacity", &words.opacity, settings.stamp.opacity, PERCENT, UnitKind::Percent, |s, v| s.stamp.opacity = v),
                 ];
                 for (key, caption, value, range, kind, change) in cells {
-                    if let Some(event) = number(ui, key, caption, value, range, kind) {
-                        edit = Some(event.map(set(change)));
-                    }
+                    edit.extend(number(ui, key, caption, value, range, kind).map(set(change)));
                 }
                 let aligned = Checkbox::new(Bind::given(settings.stamp.aligned)).label(words.aligned.clone()).show(ui);
-                if let Some(event) = aligned.event {
-                    edit =
-                        Some(event.map(|on| VanishingPointSettings { stamp: super::StampSettings { aligned: on, ..settings.stamp }, ..*settings }));
-                }
+                edit.extend(
+                    aligned.events.map(|on| VanishingPointSettings { stamp: super::StampSettings { aligned: on, ..settings.stamp }, ..*settings }),
+                );
                 Divider::vertical().show(ui);
             }
-            if let Some(event) = number(ui, "grid-size", &words.grid_size, settings.grid_size, GRID_SIZE, UnitKind::Pixels) {
-                edit = Some(event.map(set(|s, v| s.grid_size = v)));
-            }
+            edit.extend(number(ui, "grid-size", &words.grid_size, settings.grid_size, GRID_SIZE, UnitKind::Pixels).map(set(|s, v| s.grid_size = v)));
             if has_clip {
                 Divider::vertical().show(ui);
                 let pasted = Checkbox::new(Bind::given(settings.paste)).label(words.paste.clone()).show(ui);
-                if let Some(event) = pasted.event {
-                    edit = Some(event.map(|on| VanishingPointSettings { paste: on, ..*settings }));
-                }
+                edit.extend(pasted.events.map(|on| VanishingPointSettings { paste: on, ..*settings }));
                 if settings.paste {
                     let percent = paste.width * 100.0;
-                    paste_width =
-                        number(ui, "paste-width", &words.width, percent, PASTE_WIDTH, UnitKind::Percent).map(|event| event.map(|v| v / 100.0));
+                    paste_width = number(ui, "paste-width", &words.width, percent, PASTE_WIDTH, UnitKind::Percent).map(|v| v / 100.0);
                 }
             }
             if has_clip || has_strokes || tool == VanishingTool::Stamp {
                 Divider::vertical().show(ui);
                 let layer = Checkbox::new(Bind::given(settings.new_layer)).label(words.new_layer.clone()).show(ui);
-                if let Some(event) = layer.event {
-                    edit = Some(event.map(|on| VanishingPointSettings { new_layer: on, ..*settings }));
-                }
+                edit.extend(layer.events.map(|on| VanishingPointSettings { new_layer: on, ..*settings }));
             }
         });
         VanishingPointBarOutput { response: shown.response.clone(), edit, paste_width }
@@ -140,11 +131,11 @@ impl<'a> VanishingPointBar<'a> {
 }
 
 /// One captioned number cell: the edit of `value`, if the user made one this pass.
-fn number(ui: &mut Ui, key: &'static str, caption: &Label, value: f64, range: RangeInclusive<f64>, kind: UnitKind) -> Option<EditEvent<f64>> {
-    let mut edited = None;
+fn number(ui: &mut Ui, key: &'static str, caption: &Label, value: f64, range: RangeInclusive<f64>, kind: UnitKind) -> EditEvents<f64> {
+    let mut edited = EditEvents::new();
     Field::new(caption.clone()).id_salt(key).side(SideLabel::new().scrub(true)).sizing(Sizing::Content).show(ui, |ui, _| {
         let out = NumberField::new(caption.clone(), Bind::given(Some(value))).range(range.clone()).unit_kind(kind).scrub_by_label().show(ui);
-        edited = out.edit.event.map(|event| event.map(|v| v.unwrap_or(value)));
+        edited = out.edit.events.map(|v| v.unwrap_or(value));
     });
     edited
 }

@@ -92,9 +92,8 @@ fn session(text: &str, quotes: Option<QuoteStyle>) -> Session {
             let bounds = Rect::from_min_size(body.rect.min, vec2(200.0, 20.0));
             let editor = TextEditor::new("Text", &mut *host, Bind::bound(&mut *selection));
             let output = if let Some(style) = quotes { editor.smart_quotes(style) } else { editor }.show_at(ui, bounds);
-            if matches!(output.edit.event, Some(craft_behavior::EditEvent::Commit { .. })) {
-                shown_commits.set(shown_commits.get() + 1);
-            }
+            let commits = output.edit.events.iter().filter(|event| matches!(event, craft_behavior::EditEvent::Commit { .. })).count() as u32;
+            shown_commits.set(shown_commits.get() + commits);
         });
     });
     fixture.settle();

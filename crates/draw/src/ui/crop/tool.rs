@@ -412,7 +412,7 @@ impl CropToolPass<'_> {
         if let Some(view) = view {
             self.tool.view = Some(view);
         }
-        if let Some(event) = edit.event {
+        for event in edit.events {
             self.tool.session.mirror(&event);
             self.tool.synced = self.tool.session.frame();
             self.push(CropEvent::Frame(event));

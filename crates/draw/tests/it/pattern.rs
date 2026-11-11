@@ -33,7 +33,7 @@ fn editor(options: PatternFillOptions) -> (Fixture, Rc<RefCell<EditorRig>>) {
         let mut options = rig.options.clone();
         let out = PatternFillEditor::new("Pattern fill", Bind::bound(&mut options), &library).thumbnails(|cx, rect, _| cx.checker(rect)).show(ui);
         rig.options = options;
-        rig.events.extend(out.event);
+        rig.events.extend(out.events);
     });
     fixture.room(vec2(480.0, 640.0));
     fixture.settle();

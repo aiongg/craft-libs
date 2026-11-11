@@ -351,12 +351,10 @@ impl VanishingPointWorkspace {
                 let bar = VanishingPointBar::new(work.editor.tool(), &work.settings, work.session.paste, source.paste().is_some())
                     .has_strokes(!work.session.strokes.is_empty())
                     .show(ui);
-                if let Some(event) = &bar.edit
-                    && let Some(settings) = event.value()
-                {
+                if let Some(settings) = bar.edit.value() {
                     work.settings = *settings;
                 }
-                if let Some(event) = bar.paste_width {
+                for event in bar.paste_width {
                     let at = work.session.paste.at;
                     if let Some(width) = event.value() {
                         work.session.paste.width = *width;

@@ -81,7 +81,7 @@ fn rig_with(curve: Curve, config: Config) -> Rig {
             });
         }
         let out = editor.show(ui);
-        if let Some(event) = &out.edit.event {
+        for event in &out.edit.events {
             k.borrow_mut().push(kind(event));
         }
         s.set(out.selected);

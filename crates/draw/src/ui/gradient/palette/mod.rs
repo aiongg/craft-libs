@@ -81,7 +81,7 @@ impl GradientRef {
 /// let stops = GradientStops::new(vec![ColorStop::new(0.0, Srgba::rgb(0.0, 0.0, 0.0)), ColorStop::new(1.0, Srgba::rgb(1.0, 1.0, 1.0))]);
 /// let groups = [GradientGroup::new("Basics", vec![GradientItem::new("Black, White", stops)])];
 /// let picked = GradientPalette::new("presets", "Gradient presets", &groups).show(ui);
-/// if let Some(pick) = picked.event.as_ref().and_then(|e| e.value()) {
+/// if let Some(pick) = picked.picked {
 ///     // copy the preset's stops into the host's gradient
 ///     let _ = pick;
 /// }

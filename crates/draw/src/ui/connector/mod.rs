@@ -192,7 +192,7 @@ pub enum ConnectorEvent {
     Draw(EditEvent<Box<ConnectorDraft>>),
     /// An end of the selected connector dragged onto another object or onto empty canvas, or moved
     /// to the next object with the arrow keys, from [`ConnectorHandlesOutput::event`]. The gesture's
-    /// phases are in the output's `edit.event`.
+    /// phases are in the output's `edit.events`.
     #[non_exhaustive]
     Reattach {
         /// Which end moved.

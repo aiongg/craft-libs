@@ -2,7 +2,6 @@
 
 use std::cell::Cell;
 
-use craft_behavior::EditEvent;
 use craft_ui::buttons::Button;
 use craft_ui::contract::{Bind, BodyCx, Entry, Show as _, ShowContainer as _, clicked};
 use craft_ui::dialog::{DialogId, DialogResult, DialogStack, StackDialog, dialog_id};
@@ -142,7 +141,7 @@ impl StackDialog for ContourEditorDialog {
                         let picked = Select::new(words.preset.clone(), Bind::bound(&mut name), &entries)
                             .placeholder(words.contour_name(&draft.contour.name).to_owned())
                             .show(ui);
-                        if let Some(preset) = picked.event.as_ref().and_then(EditEvent::value).and_then(|name| Contour::preset(name)) {
+                        if let Some(preset) = picked.value().and_then(|name| Contour::preset(name)) {
                             draft.contour = preset;
                         }
                     });
@@ -179,7 +178,7 @@ impl StackDialog for ContourEditorDialog {
                     editor = editor.sampler(move |points| sampler(points));
                 }
                 let edit = editor.show(ui);
-                if let Some(next) = edit.event.as_ref().and_then(EditEvent::value).and_then(|curve| from_curve(curve, &draft.contour.name)) {
+                if let Some(next) = edit.events.value().and_then(|curve| from_curve(curve, &draft.contour.name)) {
                     draft.contour = next.edited();
                 }
                 true

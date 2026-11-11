@@ -133,7 +133,7 @@ impl<'a, C: Value> DynamicControlRow<'a, C> {
                         .snap_typed(true)
                         .commit_decimals(0)
                         .show(ui);
-                    if let Some(event) = field.edit.event.clone() {
+                    for event in field.edit.events.iter().cloned() {
                         let event = event.map(|value| value.unwrap_or(steps).clamp(FADE_STEPS.0, FADE_STEPS.1));
                         fade_steps.reborrow().write(cx, &event);
                     }
@@ -144,7 +144,7 @@ impl<'a, C: Value> DynamicControlRow<'a, C> {
                         .icon(IconSpec::svg(IconId::new("spline")))
                         .icon_only()
                         .show(ui);
-                    curve_toggled = toggle.event.is_some();
+                    curve_toggled = !toggle.events.is_empty();
                 }
             })
         });

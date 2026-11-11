@@ -190,15 +190,13 @@ fn shown(start: Option<RulerLine>) -> Shown {
         move |ui, body| {
             let mut line = *body_line.borrow();
             let out = RulerOverlay::new("Ruler", Bind::bound(&mut line)).show_at(ui, body.rect);
-            if let Some(event) = &out.event {
-                body_log.borrow_mut().push(match event {
-                    EditEvent::Begin { .. } => "begin",
-                    EditEvent::Update { .. } => "update",
-                    EditEvent::Commit { .. } => "commit",
-                    EditEvent::Set { .. } => "set",
-                    _ => "other",
-                });
-            }
+            body_log.borrow_mut().extend(out.events.iter().map(|event| match event {
+                EditEvent::Begin { .. } => "begin",
+                EditEvent::Update { .. } => "update",
+                EditEvent::Commit { .. } => "commit",
+                EditEvent::Set { .. } => "set",
+                _ => "other",
+            }));
             *body_line.borrow_mut() = line;
         },
     );

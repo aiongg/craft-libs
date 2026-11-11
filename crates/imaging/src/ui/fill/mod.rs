@@ -511,7 +511,7 @@ impl ContentAwareFillWorkspace {
 
     /// What the panel reported: a slider's gesture, a sampling option, a Reset, the colour request.
     fn absorb_panel(&mut self, panel: FillPanelOutput) {
-        match &panel.edit {
+        match panel.edit.last() {
             Some(EditEvent::Begin { .. } | EditEvent::Update { .. }) => self.settings_gesture = true,
             Some(_) => self.settings_gesture = false,
             None => {}

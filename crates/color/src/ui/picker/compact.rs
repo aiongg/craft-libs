@@ -70,7 +70,7 @@ impl<'a> Body<'a> {
                 let entries: Vec<Entry<&'static str>> = self.models.iter().map(|m| Entry::new(m.id(), Label::from(m.name()))).collect();
                 let label = words.color_model.fill(&[("model", model.name())]);
                 let out = Select::new(label, Bind::given(model.id()), &entries).show(ui);
-                if let Some(picked) = out.event.as_ref().and_then(|event| event.value()) {
+                if let Some(picked) = out.value() {
                     got.model_pick = Some(*picked);
                 }
             }

@@ -4,7 +4,7 @@ use std::ops::RangeInclusive;
 
 use egui::{Response, Ui};
 
-use craft_behavior::EditEvent;
+use craft_behavior::EditEvents;
 use craft_ui::buttons::Button;
 use craft_ui::choice::Checkbox;
 use craft_ui::contract::{Bind, Entry, NoValue, Outcome, Pattern, Props as _, SaveKey, Show as _, ShowContainer as _, clicked};
@@ -24,9 +24,9 @@ use super::words::LiquifyWords;
 pub struct LiquifyPanelOutput {
     /// The panel's response.
     pub response: Response,
-    /// The pass's edit of the settings, which already hold the new value: a slider's gesture (`Begin`, `Update`,
-    /// `Commit`) or a one-shot `Set` for a check box or a select.
-    pub edit: Option<EditEvent<LiquifySettings>>,
+    /// The pass's edits of the settings, in order, which already hold the new value: a slider's gesture (`Begin`,
+    /// `Update`, `Commit`) or a one-shot `Set` for a check box or a select.
+    pub edit: EditEvents<LiquifySettings>,
     /// Reconstruct (with the Amount), None, Mask All or Invert All pressed.
     pub global: Option<LiquifyGlobal>,
     /// Restore All pressed.
@@ -60,7 +60,7 @@ pub struct LiquifyPanel<'a> {
 /// What the controls of one pass add up to.
 #[derive(Default)]
 struct Pass {
-    edit: Option<EditEvent<LiquifySettings>>,
+    edit: EditEvents<LiquifySettings>,
     global: Option<LiquifyGlobal>,
     restore_all: bool,
     backdrop_wanted: Option<Option<u64>>,
@@ -71,8 +71,8 @@ type Field<T> = fn(&mut LiquifySettings, T);
 
 /// A control's edit of one field as an edit of the settings: the settings at the start of the pass with that field
 /// replaced.
-fn lift<T: Clone + 'static>(event: EditEvent<T>, base: &LiquifySettings, set: Field<T>) -> EditEvent<LiquifySettings> {
-    event.map(|value| {
+fn lift<T: Clone + 'static>(events: EditEvents<T>, base: &LiquifySettings, set: Field<T>) -> EditEvents<LiquifySettings> {
+    events.map(|value| {
         let mut settings = base.clone();
         set(&mut settings, value);
         settings
@@ -145,7 +145,7 @@ impl<'a> LiquifyPanel<'a> {
             Section::new(words.view_options.clone()).remember(SaveKey::new("craft_imaging.liquify.view")).show(ui, |ui, _| {
                 rows.view_options(ui, &words, layers);
             });
-            if let Some(event) = &rows.pass.edit {
+            for event in &rows.pass.edit {
                 settings.reborrow().write(root, event);
             }
             done = rows.pass;
@@ -204,16 +204,14 @@ impl Rows<'_> {
         if let Some(kind) = unit {
             field = field.unit_kind(kind);
         }
-        if let Some(event) = field.show(ui).event {
-            self.pass.edit = Some(lift(event, self.base, set));
-        }
+        self.pass.edit.extend(lift(field.show(ui).events, self.base, set));
     }
 
     /// A check box over `value`; the new value when the user toggled it, whose edit is the pass's edit.
     fn check(&mut self, ui: &mut Ui, label: &Label, value: bool, set: Field<bool>) -> Option<bool> {
-        let event = Checkbox::new(Bind::given(value)).label(label.clone()).show(ui).event?;
-        let toggled = event.value().copied();
-        self.pass.edit = Some(lift(event, self.base, set));
+        let events = Checkbox::new(Bind::given(value)).label(label.clone()).show(ui).events;
+        let toggled = events.value().copied();
+        self.pass.edit.extend(lift(events, self.base, set));
         toggled
     }
 
@@ -227,9 +225,9 @@ impl Rows<'_> {
         set: Field<T>,
     ) -> Option<T> {
         let entries: Vec<Entry<T>> = options.iter().map(|(value, text)| Entry::new(value.clone(), (*text).clone())).collect();
-        let event = Select::new(label.clone(), Bind::given(current), &entries).show(ui).event?;
-        let picked = event.value().cloned();
-        self.pass.edit = Some(lift(event, self.base, set));
+        let events = Select::new(label.clone(), Bind::given(current), &entries).show(ui).events;
+        let picked = events.value().cloned();
+        self.pass.edit.extend(lift(events, self.base, set));
         picked
     }
 }

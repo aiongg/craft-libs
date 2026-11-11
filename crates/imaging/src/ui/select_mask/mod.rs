@@ -389,7 +389,7 @@ impl SelectMaskWorkspace {
                     let message = work.error.map(|why| why.message(&env));
                     let SelectMaskWorkspace { settings, session, mask_view, .. } = &mut *work;
                     let panel = SelectMaskPanel::new(settings, &mut session.refine, mask_view).error(message.as_deref()).show(ui);
-                    side_panel_open.set(match &panel.edit {
+                    side_panel_open.set(match panel.edit.last() {
                         Some(EditEvent::Begin { .. } | EditEvent::Update { .. }) => Some(true),
                         Some(_) => Some(false),
                         None => None,

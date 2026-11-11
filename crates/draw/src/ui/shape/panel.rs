@@ -5,7 +5,7 @@ use std::ops::RangeInclusive;
 
 use super::{LiveShape, ShapeAppearance, ShapeChange, ShapeWords};
 use crate::ui::stroke::StrokeButton;
-use craft_behavior::{EditEvent, NumberCodec};
+use craft_behavior::{EditEvent, EditEvents, NumberCodec};
 use craft_color::ui::{Paint, PaintChip, PaintChipOutput, ScreenPickGesture};
 use craft_theme::Srgba;
 use craft_ui::contract::{Bind, GlyphLabel, LabelKind, Props as _, Show as _, ShowContainer as _, SideLabel};
@@ -224,9 +224,9 @@ impl NumberCell {
     }
 
     /// The edit of the field shown in `ui`; an emptied field keeps the value.
-    pub fn show(&self, ui: &mut Ui) -> Option<EditEvent<f64>> {
+    pub fn show(&self, ui: &mut Ui) -> EditEvents<f64> {
         let kept = self.value;
-        self.field().scrub_by_label().show(ui).edit.event.map(|event| event.map(|value| value.unwrap_or(kept)))
+        self.field().scrub_by_label().show(ui).edit.events.map(|value| value.unwrap_or(kept))
     }
 }
 
@@ -290,19 +290,21 @@ impl<'p, 'a> Cells<'p, 'a> {
         if let Some(gesture) = out.screen_pick {
             self.screen_pick = Some((which, gesture));
         }
-        let Some(event) = out.edit.event else { return };
-        let paints = match &event {
-            EditEvent::Set { after, .. } => !matches!(after, Paint::None),
-            EditEvent::Begin { .. } => true,
-            _ => false,
-        };
-        // A stroke at width 0 is no stroke: the edit that gives it a paint carries the width that shows it
-        // (PhotoCraft's `enabled_stroke_width`), so the app applies one change.
-        let enabling = (which == ShapePaint::Stroke && self.appearance.stroke_width <= 0.0 && paints).then_some(ShapeChange::ENABLED_STROKE_WIDTH);
-        self.events.push(event.map(|paint| match which {
-            ShapePaint::Fill => ShapeChange::Fill(paint),
-            ShapePaint::Stroke => ShapeChange::Stroke { paint, width: enabling },
-        }));
+        for event in out.edit.events {
+            let paints = match &event {
+                EditEvent::Set { after, .. } => !matches!(after, Paint::None),
+                EditEvent::Begin { .. } => true,
+                _ => false,
+            };
+            // A stroke at width 0 is no stroke: the edit that gives it a paint carries the width that shows it
+            // (PhotoCraft's `enabled_stroke_width`), so the app applies one change.
+            let enabling =
+                (which == ShapePaint::Stroke && self.appearance.stroke_width <= 0.0 && paints).then_some(ShapeChange::ENABLED_STROKE_WIDTH);
+            self.events.push(event.map(|paint| match which {
+                ShapePaint::Fill => ShapeChange::Fill(paint),
+                ShapePaint::Stroke => ShapeChange::Stroke { paint, width: enabling },
+            }));
+        }
     }
 
     /// A labelled paint row of the panel.
@@ -334,19 +336,20 @@ impl<'p, 'a> Cells<'p, 'a> {
     }
 
     /// Takes the stroke width field's event. An arrow step that stays at 0 changes nothing, so it adds no stroke.
-    pub fn take_width(&mut self, event: Option<EditEvent<f64>>) {
-        let Some(event) = event else { return };
-        let unchanged = matches!(&event, EditEvent::Set { after, .. } | EditEvent::Update { value: after, .. } if *after <= 0.0 && self.appearance.stroke_width <= 0.0);
-        if !unchanged {
-            self.events.push(event.map(ShapeChange::StrokeWidth));
+    pub fn take_width(&mut self, events: EditEvents<f64>) {
+        for event in events {
+            let unchanged = matches!(&event, EditEvent::Set { after, .. } | EditEvent::Update { value: after, .. } if *after <= 0.0 && self.appearance.stroke_width <= 0.0);
+            if !unchanged {
+                self.events.push(event.map(ShapeChange::StrokeWidth));
+            }
         }
     }
 
     fn width_row(&mut self, ui: &mut Ui) {
         let cell = self.width_cell();
         let side = SideLabel::new().scrub(true);
-        let event = Field::new(cell.caption.clone()).id_salt(cell.key).side(side).show(ui, |ui, _| cell.show(ui)).inner.flatten();
-        self.take_width(event);
+        let events = Field::new(cell.caption.clone()).id_salt(cell.key).side(side).show(ui, |ui, _| cell.show(ui)).inner.unwrap_or_default();
+        self.take_width(events);
     }
 
     /// The Stroke style button over the appearance's stroke style, when the app gave the popover's open flag. It is
@@ -356,9 +359,10 @@ impl<'p, 'a> Cells<'p, 'a> {
         let Some(open) = self.open.as_mut() else { return };
         let style = Bind::given(self.appearance.stroke_style.clone());
         let button = StrokeButton::new(self.words.stroke_style.clone(), style, open.reborrowed()).corners(corners).stroked(!off).enabled(!off);
-        let Some(event) = button.show(ui).event else { return };
-        let width = (off && matches!(event, EditEvent::Set { .. } | EditEvent::Begin { .. })).then_some(ShapeChange::ENABLED_STROKE_WIDTH);
-        self.events.push(event.map(|style| ShapeChange::StrokeStyle { style, width }));
+        for event in button.show(ui).events {
+            let width = (off && matches!(event, EditEvent::Set { .. } | EditEvent::Begin { .. })).then_some(ShapeChange::ENABLED_STROKE_WIDTH);
+            self.events.push(event.map(|style| ShapeChange::StrokeStyle { style, width }));
+        }
     }
 
     fn style_row(&mut self, ui: &mut Ui, corners: bool) {
@@ -370,8 +374,8 @@ impl<'p, 'a> Cells<'p, 'a> {
     /// A labelled row with `cell`; its edit goes out through `change`.
     fn number_row(&mut self, ui: &mut Ui, cell: NumberCell, change: impl Fn(f64) -> ShapeChange) {
         let side = SideLabel::new().scrub(true);
-        let event = Field::new(cell.caption.clone()).id_salt(cell.key).side(side).show(ui, |ui, _| cell.show(ui)).inner.flatten();
-        self.events.extend(event.map(|event| event.map(&change)));
+        let events = Field::new(cell.caption.clone()).id_salt(cell.key).side(side).show(ui, |ui, _| cell.show(ui)).inner.unwrap_or_default();
+        self.events.extend(events.map(&change));
     }
 
     /// The W and H row of a rect, ellipse or polygon: whole pixels, 1 to 300,000.
@@ -382,16 +386,16 @@ impl<'p, 'a> Cells<'p, 'a> {
             NumberCell::whole_pixels(units, ppi, "height", &words.height_name, height, SIZE_RANGE),
         ];
         let glyphs = [&words.width, &words.height];
-        let mut edits = [None, None];
+        let mut edits = [EditEvents::new(), EditEvents::new()];
         Row::new().show(ui, |ui, _| {
             for ((cell, glyph), edit) in cells.iter().zip(glyphs).zip(edits.iter_mut()) {
                 let side = SideLabel::new().kind(LabelKind::Glyph(GlyphLabel::text(glyph.clone()))).scrub(true);
-                *edit = Field::new(cell.caption.clone()).id_salt(cell.key).side(side).show(ui, |ui, _| cell.show(ui)).inner.flatten();
+                *edit = Field::new(cell.caption.clone()).id_salt(cell.key).side(side).show(ui, |ui, _| cell.show(ui)).inner.unwrap_or_default();
             }
         });
         let [w, h] = edits;
-        self.events.extend(w.map(|event| event.map(|w| ShapeChange::Size { width: w, height })));
-        self.events.extend(h.map(|event| event.map(|h| ShapeChange::Size { width, height: h })));
+        self.events.extend(w.map(|w| ShapeChange::Size { width: w, height }));
+        self.events.extend(h.map(|h| ShapeChange::Size { width, height: h }));
     }
 
     /// The Shape section's rows for `shape`.

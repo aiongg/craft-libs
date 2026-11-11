@@ -110,7 +110,7 @@ fn harness(state: BoxState, setup: impl FnOnce(&mut Config)) -> Harness {
             let mut guide_edits = 0;
             if config.guides {
                 let output = Guides::new("Guides", Bind::bound(&mut guides)).interactive(true).show_at(ui, body.rect);
-                guide_edits = usize::from(output.edit.event.is_some());
+                guide_edits = usize::from(!output.edit.events.is_empty());
             }
             let mut control = TransformBox::new("Free Transform", Bind::given(state), RECT, 0.0)
                 .rules(config.rules)
@@ -130,28 +130,30 @@ fn harness(state: BoxState, setup: impl FnOnce(&mut Config)) -> Harness {
             host.applied += usize::from(output.apply);
             host.discarded += usize::from(output.discard);
             (host.picked, host.hovered) = (output.picked, output.hovered);
-            match &output.edit.event {
-                Some(EditEvent::Begin { .. }) => {
-                    host.events.push(Seen::Begin);
-                    host.before = Some(host.state);
+            for event in &output.edit.events {
+                match event {
+                    EditEvent::Begin { .. } => {
+                        host.events.push(Seen::Begin);
+                        host.before = Some(host.state);
+                    }
+                    EditEvent::Update { value, .. } => {
+                        host.events.push(Seen::Update);
+                        host.state = *value;
+                    }
+                    EditEvent::Commit { after, .. } => {
+                        host.events.push(Seen::Commit);
+                        host.state = *after;
+                    }
+                    EditEvent::Set { after, .. } => {
+                        host.events.push(Seen::Set);
+                        host.state = *after;
+                    }
+                    EditEvent::Cancel { .. } => {
+                        host.events.push(Seen::Cancel);
+                        host.state = host.before.take().unwrap_or(host.state);
+                    }
+                    _ => {}
                 }
-                Some(EditEvent::Update { value, .. }) => {
-                    host.events.push(Seen::Update);
-                    host.state = *value;
-                }
-                Some(EditEvent::Commit { after, .. }) => {
-                    host.events.push(Seen::Commit);
-                    host.state = *after;
-                }
-                Some(EditEvent::Set { after, .. }) => {
-                    host.events.push(Seen::Set);
-                    host.state = *after;
-                }
-                Some(EditEvent::Cancel { .. }) => {
-                    host.events.push(Seen::Cancel);
-                    host.state = host.before.take().unwrap_or(host.state);
-                }
-                _ => {}
             }
         }
     });

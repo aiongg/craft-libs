@@ -429,7 +429,7 @@ impl PinWarpOutput {
     /// The edits for [`PinWarpSession::apply`], in order: the selection, then the pins.
     pub fn edits(&self) -> Vec<PinEdit> {
         let selection = self.select.iter().map(|select| PinEdit::Select(select.clone()));
-        let pins = self.pins.event.iter().map(|event| PinEdit::Pins(event.clone()));
+        let pins = self.pins.events.iter().map(|event| PinEdit::Pins(event.clone()));
         selection.chain(pins).collect()
     }
 }

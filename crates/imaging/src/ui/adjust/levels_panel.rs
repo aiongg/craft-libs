@@ -6,7 +6,7 @@ mod stories;
 
 use std::sync::Arc;
 
-use craft_behavior::{EditEvent, Mixed};
+use craft_behavior::{EditEvent, EditEvents, Mixed};
 use craft_ui::buttons::Button;
 use craft_ui::contract::{Bind, Entry, NoValue, Outcome, Pattern, Props, Remember as _, Show as _, ShowContainer as _, clicked};
 use craft_ui::display::{Shade, Text};
@@ -54,7 +54,7 @@ pub struct LevelsPanelOutput {
     pub response: Response,
     /// The edit of this pass on the per-channel values: the editor's gestures for the shown channel, and Auto as
     /// one `Set`. A binding that writes through has it applied already.
-    pub edit: Option<EditEvent<Vec<Levels>>>,
+    pub edit: EditEvents<Vec<Levels>>,
     /// The channel the edit is for, and the one shown: an index into the panel's [`ToneChannels`] (Red is 1 in
     /// RGB). The panel keeps it between passes.
     pub channel: usize,
@@ -153,7 +153,7 @@ impl<'a> LevelsPanel<'a> {
             self;
         let words = Env::of(ui).words::<AdjustWords>();
         let entries: Vec<Entry<usize>> = channels.as_slice().iter().enumerate().map(|(at, channel)| Entry::new(at, channel.label(&words))).collect();
-        let (mut edit, mut picker, mut clipping) = (None, None, None);
+        let (mut edit, mut picker, mut clipping) = (EditEvents::new(), None, None);
         let mut shown = 0;
         let group = Stack::new().label(label).enabled(enabled).show(ui, |ui, cx| {
             let all: Vec<Levels> = match levels.reborrow().read(cx) {
@@ -191,15 +191,14 @@ impl<'a> LevelsPanel<'a> {
                 }
                 next
             };
-            let mut event = shown_edit.edit.event.map(|event| event.map(mapped));
+            let mut events = shown_edit.edit.events.map(mapped);
             if let (true, Some(counts)) = (auto, counts) {
-                let set = EditEvent::set(Mixed::Same(all.clone()), mapped(value.auto(counts)), Arc::from("Auto"), None);
-                event = Some(set);
+                events = EditEvent::set(Mixed::Same(all.clone()), mapped(value.auto(counts)), Arc::from("Auto"), None).into();
             }
-            if let Some(event) = &event {
+            for event in &events {
                 levels.reborrow().write(cx, event);
             }
-            edit = event;
+            edit = events;
 
             if let Some(armed) = pickers.as_mut() {
                 let mut row = TonePickerRow::new(armed.reborrowed());
@@ -217,7 +216,7 @@ impl<'a> LevelsPanel<'a> {
                 picker = row.show(ui).change;
             }
             // An edit belongs to the channel it was drawn for; a switch shows from the next pass.
-            shown = if picked == channel || edit.is_some() { channel } else { picked };
+            shown = if picked == channel || !edit.is_empty() { channel } else { picked };
             *cx.keep::<usize>() = shown;
         });
         LevelsPanelOutput { response: group.output, edit, channel: shown, picker, clipping }

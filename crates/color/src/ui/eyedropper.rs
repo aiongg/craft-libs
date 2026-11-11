@@ -15,7 +15,7 @@
 use std::f32::consts::{PI, TAU};
 
 use craft_behavior::kurbo::Point;
-use craft_behavior::{CancelReason, Cursor, IconId, PaintedCursor};
+use craft_behavior::{CancelReason, Cursor, EditEvents, IconId, PaintedCursor};
 use craft_host::target::Os;
 use craft_theme::Srgba;
 use craft_ui::canvas::{CanvasTool, ToolAction, ToolContext, ToolPath, ToolPointer};
@@ -231,8 +231,8 @@ impl<'a> EyedropperBar<'a> {
         // A parent's sizing pass places a field without running its body: that run reports no edit.
         let (size_response, source_response) = (size.response().clone(), source.response().clone());
         EyedropperBarOutput {
-            size: size.inner.unwrap_or_else(|| EditResponse::lifted(size_response, None, None)),
-            source: source.inner.unwrap_or_else(|| EditResponse::lifted(source_response, None, None)),
+            size: size.inner.unwrap_or_else(|| EditResponse::lifted(size_response, EditEvents::new(), None)),
+            source: source.inner.unwrap_or_else(|| EditResponse::lifted(source_response, EditEvents::new(), None)),
             ring,
         }
     }

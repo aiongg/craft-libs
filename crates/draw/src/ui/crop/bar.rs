@@ -7,7 +7,7 @@ use super::options::{
     RATIO_DECIMALS, RATIO_MAX, RATIO_STEP, ResolutionUnit,
 };
 use super::session::CropDocument;
-use craft_behavior::{EditEvent, IconId, NumberCodec};
+use craft_behavior::{EditEvent, EditEvents, IconId, NumberCodec};
 use craft_ui::buttons::{Button, IconButton, ToggleButton};
 use craft_ui::contract::{
     Bind, BodyCx, Entry, LabelKind, NoValue, Outcome, Props as _, Remember as _, Show as _, ShowContainer as _, SideLabel, Sizing, clicked,
@@ -267,7 +267,7 @@ fn ratio_field(
 ) {
     let current = shown.get(side).copied().unwrap_or(0.0);
     let salt = if side == 0 { "ratio-width" } else { "ratio-height" };
-    let mut event = None;
+    let mut events = EditEvents::new();
     Field::new(caption.clone()).side(SideLabel::new().kind(LabelKind::Hidden)).id_salt(salt).sizing(Sizing::Content).show(ui, |ui, _| {
         let codec = NumberCodec::new(units.reader(None), RATIO_DECIMALS);
         let field = NumberField::new(caption.clone(), Bind::given((current > 0.0).then_some(current)))
@@ -276,41 +276,44 @@ fn ratio_field(
             .step(RATIO_STEP)
             .automatic(true)
             .show(ui);
-        event = field.edit.event.clone();
+        events = field.edit.events.clone();
     });
-    let mut apply = |settings: &mut CropSettings, value: Option<f64>| {
+    // Returns whether the value changed the settings.
+    let apply = |settings: &mut CropSettings, value: Option<f64>| {
         let new = value.unwrap_or(0.0);
         if (new - current).abs() < 0.5 * 10f64.powi(-(RATIO_DECIMALS as i32)) {
-            return;
+            return false;
         }
         // The other side keeps what the bar shows, so an Original ratio becomes its sides.
         if let Some(other) = settings.ratio_fields.get_mut(1 - side) {
             *other = shown.get(1 - side).copied().unwrap_or(0.0);
         }
         settings.set_ratio_field(side, new);
-        *changed = true;
+        true
     };
-    match event {
-        Some(EditEvent::Begin { .. }) => {
-            cx.memory::<RatioStart>().0 = Some((settings.ratio, settings.ratio_fields));
-            *editing = true;
-        }
-        Some(EditEvent::Update { value, .. }) => {
-            *editing = true;
-            apply(settings, value);
-        }
-        Some(EditEvent::Commit { after: value, .. } | EditEvent::Set { after: value, .. }) => {
-            cx.memory::<RatioStart>().0 = None;
-            apply(settings, value);
-        }
-        Some(EditEvent::Cancel { .. }) => {
-            if let Some((ratio, fields)) = cx.memory::<RatioStart>().0.take() {
-                settings.ratio = ratio;
-                settings.ratio_fields = fields;
-                *changed = true;
+    for event in events {
+        match event {
+            EditEvent::Begin { .. } => {
+                cx.memory::<RatioStart>().0 = Some((settings.ratio, settings.ratio_fields));
+                *editing = true;
             }
+            EditEvent::Update { value, .. } => {
+                *editing = true;
+                *changed |= apply(settings, value);
+            }
+            EditEvent::Commit { after: value, .. } | EditEvent::Set { after: value, .. } => {
+                cx.memory::<RatioStart>().0 = None;
+                *changed |= apply(settings, value);
+            }
+            EditEvent::Cancel { .. } => {
+                if let Some((ratio, fields)) = cx.memory::<RatioStart>().0.take() {
+                    settings.ratio = ratio;
+                    settings.ratio_fields = fields;
+                    *changed = true;
+                }
+            }
+            _ => {}
         }
-        Some(_) | None => {}
     }
 }
 

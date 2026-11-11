@@ -8,7 +8,7 @@ mod stories;
 
 use std::sync::Arc;
 
-use craft_behavior::{EditEvent, IconId, Mixed};
+use craft_behavior::{EditEvent, EditEvents, IconId, Mixed};
 use craft_keymap::{Chord, Key, Mods};
 use craft_theme::Srgba;
 use craft_ui::buttons::{Button, ToggleButton};
@@ -99,7 +99,7 @@ pub struct CurvesPanelOutput {
     pub response: Response,
     /// The edit of this pass on the curves: the editor's gestures for the shown channel, and Smooth as one `Set` of
     /// the smoothed map. A binding that writes through has it applied already.
-    pub edit: Option<EditEvent<ToneCurves>>,
+    pub edit: EditEvents<ToneCurves>,
     /// The channel the edit is for, and the one shown (an index into the panel's [`ToneChannels`]); the panel keeps
     /// it between passes.
     pub channel: usize,
@@ -294,7 +294,7 @@ impl<'a> CurvesPanel<'a> {
         let os = view.shell().os;
         let entries: Vec<Entry<usize>> = channels.as_slice().iter().enumerate().map(|(at, channel)| Entry::new(at, channel.label(&words))).collect();
         let curve_channels: Vec<CurveChannel> = channels.as_slice().iter().map(|c| CurveChannel::new(c.label(&words), c.color())).collect();
-        let (mut edit, mut mode, mut picker) = (None, None, None);
+        let (mut edit, mut mode, mut picker) = (EditEvents::new(), None, None);
         let mut selected = None;
         let mut shown_channel = 0;
         let group = Stack::new().label(label).enabled(enabled).show(ui, |ui, cx| {
@@ -370,14 +370,14 @@ impl<'a> CurvesPanel<'a> {
                 }
                 next
             };
-            let mut event = shown.edit.event.clone().map(|event| event.map(mapped));
+            let mut events = shown.edit.events.clone().map(mapped);
             if let (true, Curve::Map(map)) = (smooth, curve) {
-                event = Some(EditEvent::set(Mixed::Same(value.clone()), mapped(Curve::Map(smoothed(map))), Arc::from("Smooth"), None));
+                events = EditEvent::set(Mixed::Same(value.clone()), mapped(Curve::Map(smoothed(map))), Arc::from("Smooth"), None).into();
             }
-            if let Some(event) = &event {
+            for event in &events {
                 curves.reborrow().write(cx, event);
             }
-            edit = event;
+            edit = events;
 
             if let Some(armed) = pickers.as_mut() {
                 let mut row = TonePickerRow::new(armed.reborrowed());
@@ -394,7 +394,7 @@ impl<'a> CurvesPanel<'a> {
                 picker = row.show(ui).change;
             }
             // An edit belongs to the channel it was drawn for; a switch shows from the next pass, with no selection.
-            shown_channel = if picked == channel || edit.is_some() { channel } else { picked };
+            shown_channel = if picked == channel || !edit.is_empty() { channel } else { picked };
             *cx.keep::<Shown>() = Shown { channel: shown_channel, selected: if shown_channel == channel { selected } else { None } };
         });
         CurvesPanelOutput { response: group.output, edit, channel: shown_channel, mode, picker, selected }

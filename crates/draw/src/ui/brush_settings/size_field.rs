@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use craft_behavior::{EditEvent, IconId, Mixed};
+use craft_behavior::{EditEvent, EditEvents, IconId, Mixed};
 use craft_ui::buttons::IconButton;
 use craft_ui::contract::{Bind, EditResponse, Outcome, Props as _, Show as _, ShowContainer as _, clicked};
 use craft_ui::form::{Field, SliderField, SliderFieldLayout};
@@ -92,7 +92,7 @@ impl<'a> BrushSizeField<'a> {
                 .layout(SliderFieldLayout::Inline)
                 .show(ui);
             if restored.is_some() {
-                edit.event = restored;
+                edit.events = EditEvents::from(restored);
             }
             edit
         });

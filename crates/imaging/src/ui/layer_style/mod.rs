@@ -14,7 +14,7 @@
 //!
 //! let out = LayerStyleDialog::new("Layer Style", &draft, &channels).blend_modes(&modes).show(ui);
 //! out.apply_view(&mut draft); // the page, Preview and Blend If channel are the draft's view state
-//! if let Some(value) = out.edit.as_ref().and_then(|event| event.value()) {
+//! if let Some(value) = out.edit.value() {
 //!     draft.style = value.clone();
 //! }
 //! if let Some(request) = out.pick_color {

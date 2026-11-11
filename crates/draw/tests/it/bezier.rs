@@ -298,12 +298,11 @@ fn harness(paths: Vec<EditPath>) -> Harness {
         }
         let Some(output) = canvas.inner else { return };
         st.id = output.edit.response.id;
-        let event = output.edit.event.as_ref().map(kind);
-        st.seen.extend(event);
+        st.seen.extend(output.edit.events.iter().map(kind));
         st.hover = output.hover;
         st.changes.extend(output.change);
         if let Some(select) = output.select {
-            st.lone_selects += usize::from(event.is_none());
+            st.lone_selects += usize::from(output.edit.events.is_empty());
             st.selection = select;
         }
         if let Some((path, segment, t)) = output.insert {
@@ -553,7 +552,7 @@ fn a_quick_drag_in_one_pass_moves_from_the_press() {
     h.fixture.frame(vec![pointer::moved(a2)]);
     h.fixture.frame_through(vec![pointer::press(a2), pointer::moved(a2 + vec2(10.0, 0.0)), pointer::moved(to), pointer::release(to)]);
     h.fixture.frame(Vec::new());
-    assert_eq!(h.seen(), [Seen::Begin, Seen::Commit], "a drag is one gesture, whatever the passes it spans");
+    assert_eq!(h.seen(), [Seen::Begin, Seen::Update, Seen::Commit], "a drag is one gesture, whatever the passes it spans");
     assert_eq!(moved_by(h.last_change()), Some((vec![kr(1)], Vec2::new(25.0, 5.0))));
 }
 

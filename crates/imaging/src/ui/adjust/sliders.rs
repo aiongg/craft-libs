@@ -11,7 +11,7 @@ mod stories;
 use std::ops::RangeInclusive;
 use std::sync::Arc;
 
-use craft_behavior::{EditEvent, Mixed, Value, decimals_for_step};
+use craft_behavior::{EditEvent, EditEvents, Mixed, Value, decimals_for_step};
 use craft_ui::contract::{Bind, BodyCx, EditResponse, Pattern, Props as _, Remember as _, Show as _, ShowContainer as _};
 use craft_ui::form::{FieldGroup, SliderField};
 use craft_ui::runtime::env::{Env, Label, UnitKind};
@@ -211,7 +211,7 @@ pub(super) fn lifted<V>(edit: Option<EditResponse<V>>, response: Response) -> Ed
             edit.response = response;
             edit
         }
-        None => EditResponse::lifted(response, None, None),
+        None => EditResponse::lifted(response, EditEvents::new(), None),
     }
 }
 
@@ -222,7 +222,7 @@ pub(super) struct Run<'b, 'a, V: Value> {
     context: AdjustContext,
     now: V,
     began: Option<V>,
-    event: Option<EditEvent<V>>,
+    events: EditEvents<V>,
     scaffold: Option<EditResponse<V>>,
     submitted: bool,
     escaped: bool,
@@ -232,7 +232,7 @@ pub(super) struct Run<'b, 'a, V: Value> {
 impl<'b, 'a, V: Value> Run<'b, 'a, V> {
     /// A pass over `now`, with the value a running gesture began with.
     pub(super) fn start(bind: &'b mut Bind<'a, V>, context: AdjustContext, now: V, began: Option<V>) -> Self {
-        Run { bind, context, now, began, event: None, scaffold: None, submitted: false, escaped: false, unparsed: false }
+        Run { bind, context, now, began, events: EditEvents::new(), scaffold: None, submitted: false, escaped: false, unparsed: false }
     }
 
     /// The value a gesture that runs on began with, for the editor's memory.
@@ -246,9 +246,11 @@ impl<'b, 'a, V: Value> Run<'b, 'a, V> {
         self.submitted |= edit.submitted;
         self.escaped |= edit.escaped;
         self.unparsed |= edit.unparsed;
-        if let Some(event) = edit.event.as_ref().and_then(|event| self.lift(event, &make)) {
-            let _ = self.bind.reborrow().write(cx, &event);
-            self.event = Some(event);
+        for event in &edit.events {
+            if let Some(event) = self.lift(event, &make) {
+                let _ = self.bind.reborrow().write(cx, &event);
+                self.events.push(event);
+            }
         }
         if self.scaffold.is_none() {
             let now = self.now.clone();
@@ -263,7 +265,7 @@ impl<'b, 'a, V: Value> Run<'b, 'a, V> {
         }
         let event = EditEvent::set(Mixed::Same(self.now.clone()), after, Arc::from(label.as_str()), None);
         let _ = self.bind.reborrow().write(cx, &event);
-        self.event = Some(event);
+        self.events.push(event);
     }
 
     fn lift<T>(&mut self, event: &EditEvent<T>, make: &impl Fn(&V, &T) -> V) -> Option<EditEvent<V>> {
@@ -296,10 +298,13 @@ impl<'b, 'a, V: Value> Run<'b, 'a, V> {
         let mut edit = field.slider(field.clamp(value), context).id_salt(field.key).show(ui);
         // A drag proposes the slider's own stops and the slider compares what it is shown with what it proposed, so
         // the running gesture carries them as they are; the value that ends the edit is rounded to the field's places.
-        edit.event = edit.event.take().map(|event| match event {
-            EditEvent::Commit { .. } | EditEvent::Set { .. } => event.map(|x| field.round(x)),
-            running => running,
-        });
+        edit.events = std::mem::take(&mut edit.events)
+            .into_iter()
+            .map(|event| match event {
+                EditEvent::Commit { .. } | EditEvent::Set { .. } => event.map(|x| field.round(x)),
+                running => running,
+            })
+            .collect();
         self.push(cx, edit, |now, x| set(now, *x));
     }
 
@@ -307,12 +312,12 @@ impl<'b, 'a, V: Value> Run<'b, 'a, V> {
     /// (`lifted`).
     pub(super) fn finish(self) -> EditResponse<V> {
         let mut edit = self.scaffold.expect("an editor shows at least one part");
-        let shown = match self.event.as_ref().and_then(EditEvent::value) {
+        let shown = match self.events.value() {
             Some(value) => value.clone(),
             None => self.now,
         };
         edit.shown = Some(Mixed::Same(Arc::new(shown)));
-        edit.event = self.event;
+        edit.events = self.events;
         edit.submitted = self.submitted;
         edit.escaped = self.escaped;
         edit.unparsed = self.unparsed;

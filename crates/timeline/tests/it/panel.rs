@@ -45,7 +45,7 @@ fn rig() -> (Fixture, Rc<RefCell<Rig>>) {
             .edit_points(&points)
             .show(ui, |_, _| {})
             .output;
-        if let Some(next) = out.view.event.as_ref().and_then(EditEvent::value) {
+        if let Some(next) = out.view.events.value() {
             rig.view = *next;
         }
         if let Some(EditEvent::Set { after, .. }) = out.playhead {

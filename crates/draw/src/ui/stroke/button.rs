@@ -189,16 +189,18 @@ impl Component for StrokeButton<'_> {
             StrokeEditor::new(words.title.clone(), Bind::given(style.clone())).sections(sections).closed(closed).corners(corners).show(ui)
         });
         let Some(out) = out else { return };
-        match out.event {
-            Some(EditEvent::Set { after, .. }) => cx.set(after),
-            Some(EditEvent::Begin { .. }) => cx.begin(),
-            Some(EditEvent::Update { value, .. }) => cx.propose(value),
-            Some(EditEvent::Commit { after, .. }) => {
-                cx.propose(after);
-                cx.commit();
+        for event in out.events {
+            match event {
+                EditEvent::Set { after, .. } => cx.set(after),
+                EditEvent::Begin { .. } => cx.begin(),
+                EditEvent::Update { value, .. } => cx.propose(value),
+                EditEvent::Commit { after, .. } => {
+                    cx.propose(after);
+                    cx.commit();
+                }
+                EditEvent::Cancel { reason, .. } => cx.cancel(reason),
+                _ => {}
             }
-            Some(EditEvent::Cancel { reason, .. }) => cx.cancel(reason),
-            _ => {}
         }
     }
 

@@ -455,11 +455,11 @@ impl<'a> CharacterControls<'a> {
                         .settings(settings.reborrowed())
                         .filters(filters.reborrowed())
                         .show(ui);
-                    (out.preview, out.edit.event)
+                    (out.preview, out.edit.events)
                 });
-                if let Some((preview, event)) = shown.inner {
+                if let Some((preview, events)) = shown.inner {
                     preview_family = preview;
-                    let kept = event.filter(|event| matches!(event, EditEvent::Commit { .. } | EditEvent::Set { .. }));
+                    let kept = events.into_iter().filter(|event| matches!(event, EditEvent::Commit { .. } | EditEvent::Set { .. }));
                     edits.extend(kept.map(|event| event.map(CharacterChange::Family)));
                 }
                 true
@@ -498,7 +498,7 @@ impl<'a> CharacterControls<'a> {
             });
             Grid::new(&TWO_COLUMNS).fill_width().show(ui, |ui, _| {
                 let event = lengths.kerning(ui, words.kerning.clone(), GlyphLabel::icon(IconId::new("text_cursor")), kerning_shown, &kerning_presets);
-                edits.extend(event.map(|event| event.map(|value| CharacterChange::Kerning(kerning_of(value)))));
+                edits.extend(event.map(|value| CharacterChange::Kerning(kerning_of(value))));
                 let tracking = PlainRow {
                     label: words.tracking.clone(),
                     glyph: GlyphLabel::text("VA"),

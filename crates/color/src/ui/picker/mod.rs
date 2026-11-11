@@ -12,7 +12,7 @@ mod value;
 
 use std::sync::Arc;
 
-use craft_behavior::{EditEvent, GestureId, Mixed, Value};
+use craft_behavior::{EditEvent, EditEvents, GestureId, Mixed, Value};
 use craft_theme::{ColorModel, ModelValues, Srgba, builtin_models};
 use craft_ui::contract::{Bind, BindMut, BodyCx, EditResponse, Outcome, Props as _, Remember as _, ShowContainer};
 use craft_ui::layout_components::Stack;
@@ -98,9 +98,9 @@ pub enum ScreenPickGesture {
 pub struct ColorPickerOutput {
     /// The picker's response.
     pub response: Response,
-    /// The picker's edit of its colour in this pass, folded into one event with the whole colour as its value; `None`
-    /// when nothing was edited. A colour bound by reference has taken it; a given one needs the host to apply it.
-    pub event: Option<EditEvent<PickedColor>>,
+    /// The picker's edits of its colour in this pass, in order, each with the whole colour as its value; empty when
+    /// nothing was edited. A colour bound by reference has taken them; a given one needs the host to apply them.
+    pub events: EditEvents<PickedColor>,
     /// The screen-pick button's press this pass.
     pub screen_pick: Option<ScreenPickGesture>,
 }
@@ -117,7 +117,7 @@ impl Outcome for ColorPickerOutput {
         let mut facts = craft_ui::testing::StoryOutput::default();
         facts.id = Some(self.response.id);
         facts.clicked = craft_ui::contract::clicked(&self.response);
-        facts.edits = self.event.iter().filter_map(craft_ui::testing::EditKind::of).collect();
+        facts.edits = self.events.iter().filter_map(craft_ui::testing::EditKind::of).collect();
         facts
     }
 }
@@ -170,7 +170,7 @@ struct Memo {
 #[derive(Default)]
 struct Collected {
     /// The children's edits as edits of the colour shown, in the order they were made.
-    edits: Vec<EditEvent<PickedColor>>,
+    edits: EditEvents<PickedColor>,
     /// Colours the compare swatch and the warning chips set.
     clicks: Vec<Srgba>,
     screen_pick: Option<ScreenPickGesture>,
@@ -186,23 +186,24 @@ struct Collected {
 impl Collected {
     /// Adopts `edit` of a child as an edit of the picker's colour: `map` applies the child's value to a copy of `shown`,
     /// the colour the pass showed.
-    fn adopt<V: Value>(&mut self, edit: EditResponse<V>, shown: PickedColor, map: impl FnOnce(&V, &mut PickedColor)) {
-        let Some(event) = edit.event.as_ref() else { return };
+    fn adopt<V: Value>(&mut self, edit: EditResponse<V>, shown: PickedColor, map: impl Fn(&V, &mut PickedColor)) {
         let before = if self.empty { Mixed::Mixed } else { Mixed::Same(shown) };
         let made = |value: &V| {
             let mut colour = shown;
             map(value, &mut colour);
             colour
         };
-        let adopted = match event {
-            EditEvent::Begin { id, label, doc_key, .. } => EditEvent::begin(*id, before, label.clone(), *doc_key),
-            EditEvent::Update { id, value, .. } => EditEvent::update(*id, made(value)),
-            EditEvent::Commit { id, after, .. } => EditEvent::commit(*id, before, made(after)),
-            EditEvent::Cancel { id, reason, .. } => EditEvent::cancel(*id, *reason, Some(before)),
-            EditEvent::Set { after, label, doc_key, .. } => EditEvent::set(before, made(after), label.clone(), *doc_key),
-            _ => return,
-        };
-        self.edits.push(adopted);
+        for event in &edit.events {
+            let adopted = match event {
+                EditEvent::Begin { id, label, doc_key, .. } => EditEvent::begin(*id, before, label.clone(), *doc_key),
+                EditEvent::Update { id, value, .. } => EditEvent::update(*id, made(value)),
+                EditEvent::Commit { id, after, .. } => EditEvent::commit(*id, before, made(after)),
+                EditEvent::Cancel { id, reason, .. } => EditEvent::cancel(*id, *reason, Some(before)),
+                EditEvent::Set { after, label, doc_key, .. } => EditEvent::set(before, made(after), label.clone(), *doc_key),
+                _ => continue,
+            };
+            self.edits.push(adopted);
+        }
     }
 }
 
@@ -403,11 +404,11 @@ impl<'a> ColorPicker<'a> {
             parts: &parts,
             latest: PickedColor::rgb(Srgba::BLACK),
             empty: false,
-            events: Vec::new(),
+            events: EditEvents::new(),
         };
         let shown = Stack::new().label(label).show(ui, |ui, body| run.show(ui, body));
-        let (event, screen_pick) = shown.inner.unwrap_or((None, None));
-        ColorPickerOutput { response: shown.output, event, screen_pick }
+        let (events, screen_pick) = shown.inner.unwrap_or_default();
+        ColorPickerOutput { response: shown.output, events, screen_pick }
     }
 }
 
@@ -430,11 +431,11 @@ struct Run<'s, 'a> {
     /// No edit has landed on a colour-less picker yet.
     empty: bool,
     /// The edits landed, in order.
-    events: Vec<EditEvent<PickedColor>>,
+    events: EditEvents<PickedColor>,
 }
 
 impl<'a> Run<'_, 'a> {
-    fn show(&mut self, ui: &mut Ui, body: &mut BodyCx<'_>) -> (Option<EditEvent<PickedColor>>, Option<ScreenPickGesture>) {
+    fn show(&mut self, ui: &mut Ui, body: &mut BodyCx<'_>) -> (EditEvents<PickedColor>, Option<ScreenPickGesture>) {
         let memo = body.memory::<Memo>().clone();
         let held_mode = self.mode.as_ref().and_then(|held| held.read(&mut *body)).and_then(|held| held.same().copied());
         let mut mode = held_mode.unwrap_or(memo.mode);
@@ -501,7 +502,7 @@ impl<'a> Run<'_, 'a> {
         if let Some(model) = got.model_pick {
             body.memory::<Memo>().model = Some(model);
         }
-        (std::mem::take(&mut self.events).into_iter().fold(None, EditEvent::fold), got.screen_pick)
+        (std::mem::take(&mut self.events), got.screen_pick)
     }
 
     /// Lands `event`, an edit of the colour: a gesture's end takes the colour it began from, the binding takes the

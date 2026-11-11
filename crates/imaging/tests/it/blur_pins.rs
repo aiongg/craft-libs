@@ -182,16 +182,16 @@ fn overlay(pins: BlurPins) -> Overlay {
             let mut held = shown_pins.borrow_mut();
             BlurPinsOverlay::new("Blur pins", Bind::bound(&mut *held)).show_at(ui, body.rect)
         });
-        if let Some(output) = shown.inner
-            && let Some(event) = &output.edit.event
-        {
-            shown_seen.borrow_mut().push(match event {
-                EditEvent::Begin { .. } => "begin",
-                EditEvent::Update { .. } => "update",
-                EditEvent::Commit { .. } => "commit",
-                EditEvent::Cancel { .. } => "cancel",
-                _ => "set",
-            });
+        if let Some(output) = shown.inner {
+            for event in &output.edit.events {
+                shown_seen.borrow_mut().push(match event {
+                    EditEvent::Begin { .. } => "begin",
+                    EditEvent::Update { .. } => "update",
+                    EditEvent::Commit { .. } => "commit",
+                    EditEvent::Cancel { .. } => "cancel",
+                    _ => "set",
+                });
+            }
         }
     });
     fixture.settle();
