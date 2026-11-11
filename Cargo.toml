@@ -138,6 +138,12 @@ winit = { git = "https://github.com/storytold/winit.git", rev = "a517b3846ee8457
 [profile.dev.package.symphonia-bundle-flac]
 overflow-checks = false
 
+# Dev and test builds never run LTO: with `lto = false` (cargo's default) rustc runs thin-local LTO across every
+# optimised crate's 256 codegen units on each rebuild, which multiplied the incremental rebuild of the framework
+# crates. Off, a one-line edit re-optimises only the changed units.
+[profile.dev]
+lto = "off"
+
 # Dependencies (egui, rendering, text shaping, syn) run optimised in dev and test builds, so
 # screen tests, design-lint and the debug gallery run at a usable speed. They build once per
 # target dir; the workspace's own crates stay unoptimised and incremental.
@@ -146,21 +152,10 @@ opt-level = 2
 
 # The workspace crates whose code runs in every screen-test frame (the framework runtime, the theme's colour maths
 # and the behaviour cores), and craft-proof, whose tests parse and check whole dictionaries, build at opt-level 1:
-# unoptimised, they made the test binaries several times slower, and opt-level 1 keeps their incremental rebuilds
-# short.
-[profile.dev.package.craft-ui]
-opt-level = 1
+# unoptimised, they made the test binaries several times slower. The crates above the runtime (widgets, panels,
+# canvas, patterns, shell) stay at opt-level 0: their code is a few percent of a frame, and at opt-level 0 a one-line
+# edit rebuilds in seconds instead of the better part of a minute.
 [profile.dev.package.craft-ui-contract]
-opt-level = 1
-[profile.dev.package.craft-ui-widgets]
-opt-level = 1
-[profile.dev.package.craft-ui-panels]
-opt-level = 1
-[profile.dev.package.craft-ui-canvas]
-opt-level = 1
-[profile.dev.package.craft-ui-patterns]
-opt-level = 1
-[profile.dev.package.craft-ui-shell]
 opt-level = 1
 [profile.dev.package.craft-theme]
 opt-level = 1
