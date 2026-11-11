@@ -33,9 +33,16 @@ pub(crate) enum Name {
 pub(crate) struct Module {
     pub(crate) path: Vec<String>,
     pub(crate) file: PathBuf,
-    pub(crate) items: Vec<Item>,
+    /// The inline `mod name { .. }` blocks, outermost first, that hold the module inside `file`; empty for the file's own.
+    inline: Vec<String>,
     pub(crate) names: HashMap<String, Name>,
     globs: Vec<Vec<String>>,
+}
+
+/// A source file of the index: its text and its syntax tree, which every check of the run reads.
+pub(crate) struct Parsed {
+    pub(crate) src: String,
+    pub(crate) file: syn::File,
 }
 
 pub(crate) struct CrateTree {
@@ -68,10 +75,12 @@ enum Step {
 /// state is resolved once per lookup and a state reached again on its own chain resolves to nothing.
 type Lookup = HashMap<(String, Vec<String>, Vec<String>), Step>;
 
-/// The module trees of the crates that have a layer map, keyed by Rust identifier.
+/// The module trees of the crates that have a layer map, keyed by Rust identifier, and their parsed files.
 #[derive(Default)]
 pub(crate) struct Index {
     pub(crate) trees: BTreeMap<String, CrateTree>,
+    /// Each module file, by the path its crate's `lib.rs` path leads to.
+    pub(crate) files: BTreeMap<PathBuf, Parsed>,
 }
 
 fn io_error(path: &Path, message: String) -> Error {
@@ -103,10 +112,15 @@ impl Index {
     pub(crate) fn build(crates: &[(String, PathBuf)]) -> Result<Self, Error> {
         let mut index = Self::default();
         for (name, root_file) in crates {
-            let tree = CrateTree::load(name, root_file)?;
+            let tree = CrateTree::load(name, root_file, &mut index.files)?;
             index.trees.insert(name.replace('-', "_"), tree);
         }
         Ok(index)
+    }
+
+    /// The items of `module` outside test code.
+    pub(crate) fn items(&self, module: &Module) -> Vec<&Item> {
+        module_items(&self.files, module)
     }
 
     fn module(&self, krate: &str, path: &[String]) -> Option<&Module> {
@@ -228,26 +242,34 @@ impl Index {
 }
 
 impl CrateTree {
-    fn load(name: &str, root_file: &Path) -> Result<Self, Error> {
+    fn load(name: &str, root_file: &Path, files: &mut BTreeMap<PathBuf, Parsed>) -> Result<Self, Error> {
         let mut tree = Self { name: name.to_owned(), modules: BTreeMap::new() };
-        let items = parse_items(root_file)?;
+        parse_into(files, root_file)?;
         let dir = root_file.parent().unwrap_or(Path::new("")).to_owned();
-        tree.add(Vec::new(), root_file, items, &dir)?;
+        tree.add(files, Vec::new(), root_file, Vec::new(), &dir)?;
         Ok(tree)
     }
 
-    /// Adds the module at `path` whose items are `items`, and its children; `child_dir` is where `mod x;` files live.
-    fn add(&mut self, path: Vec<String>, file: &Path, items: Vec<Item>, child_dir: &Path) -> Result<(), Error> {
-        let items: Vec<Item> = items.into_iter().filter(|i| !is_test(item_attrs(i))).collect();
+    /// Adds the module at `path`, held in `file` (parsed into `files`) inside the inline modules `inline`, and its
+    /// children; `child_dir` is where `mod x;` files live.
+    fn add(
+        &mut self,
+        files: &mut BTreeMap<PathBuf, Parsed>,
+        path: Vec<String>,
+        file: &Path,
+        inline: Vec<String>,
+        child_dir: &Path,
+    ) -> Result<(), Error> {
         let mut names = HashMap::new();
         let mut globs = Vec::new();
         let mut children = Vec::new();
-        for item in &items {
+        let module = Module { path, file: file.to_owned(), inline, names: HashMap::new(), globs: Vec::new() };
+        for item in module_items(files, &module) {
             match item {
                 Item::Use(u) => collect_use(u, &mut names, &mut globs),
                 Item::Mod(m) => {
                     names.insert(m.ident.to_string(), Name::Module);
-                    children.push(m);
+                    children.push((m.ident.to_string(), m.content.is_some()));
                 }
                 other => {
                     if let Some(ident) = defined_name(other) {
@@ -256,27 +278,48 @@ impl CrateTree {
                 }
             }
         }
-        for m in children {
-            let mut child_path = path.clone();
-            child_path.push(m.ident.to_string());
-            let dir = child_dir.join(m.ident.to_string());
-            match &m.content {
-                Some((_, inner)) => self.add(child_path, file, inner.clone(), &dir)?,
-                None => {
-                    let (child_file, grand_dir) = module_file(child_dir, &m.ident.to_string(), file)?;
-                    let inner = parse_items(&child_file)?;
-                    self.add(child_path, &child_file, inner, &grand_dir)?;
-                }
+        for (name, is_inline) in children {
+            let mut child_path = module.path.clone();
+            child_path.push(name.clone());
+            if is_inline {
+                let mut inner = module.inline.clone();
+                inner.push(name.clone());
+                self.add(files, child_path, file, inner, &child_dir.join(&name))?;
+            } else {
+                let (child_file, grand_dir) = module_file(child_dir, &name, file)?;
+                parse_into(files, &child_file)?;
+                self.add(files, child_path, &child_file, Vec::new(), &grand_dir)?;
             }
         }
-        self.modules.insert(path.clone(), Module { path, file: file.to_owned(), items, names, globs });
+        self.modules.insert(module.path.clone(), Module { names, globs, ..module });
         Ok(())
     }
 }
 
-fn parse_items(file: &Path) -> Result<Vec<Item>, Error> {
+/// The items of `module` outside test code, found in its parsed file.
+fn module_items<'f>(files: &'f BTreeMap<PathBuf, Parsed>, module: &Module) -> Vec<&'f Item> {
+    let Some(parsed) = files.get(&module.file) else { return Vec::new() };
+    let mut items = &parsed.file.items[..];
+    for name in &module.inline {
+        let content = items.iter().find_map(|i| match i {
+            Item::Mod(m) if m.ident == name && !is_test(&m.attrs) => m.content.as_ref(),
+            _ => None,
+        });
+        let Some((_, inner)) = content else { return Vec::new() };
+        items = inner;
+    }
+    items.iter().filter(|i| !is_test(item_attrs(i))).collect()
+}
+
+/// Reads and parses `file` into `files`.
+fn parse_into(files: &mut BTreeMap<PathBuf, Parsed>, file: &Path) -> Result<(), Error> {
+    if files.contains_key(file) {
+        return Ok(());
+    }
     let src = std::fs::read_to_string(file).map_err(|source| Error::Io { path: file.to_owned(), source })?;
-    syn::parse_file(&src).map(|f| f.items).map_err(|e| io_error(file, format!("does not parse: {e}")))
+    let parsed = syn::parse_file(&src).map_err(|e| io_error(file, format!("does not parse: {e}")))?;
+    files.insert(file.to_owned(), Parsed { src, file: parsed });
+    Ok(())
 }
 
 /// `dir/name.rs` or `dir/name/mod.rs`, and the directory its own `mod x;` files live in.
@@ -448,7 +491,7 @@ pub(crate) fn check_imports(index: &Index, maps: &LayerMaps, root: &Path) -> Vec
                 out: Vec::new(),
                 seen: HashSet::new(),
             };
-            for item in &module.items {
+            for item in index.items(module) {
                 judge.visit_item(item);
             }
             out.append(&mut judge.out);
@@ -485,9 +528,11 @@ mod tests {
             .collect();
         let globs: String = (0..6).map(|i| format!("use m{i}::*;")).collect();
         let src = format!("pub mod palette {{ use craft_theme::Hsb; {children} {globs} }}");
+        let lib = Path::new("src/lib.rs");
+        let mut files = BTreeMap::from([(lib.to_owned(), Parsed { file: syn::parse_file(&src).unwrap(), src })]);
         let mut tree = CrateTree { name: "demo".to_owned(), modules: BTreeMap::new() };
-        tree.add(Vec::new(), Path::new("src/lib.rs"), syn::parse_file(&src).unwrap().items, Path::new("src")).unwrap();
-        Index { trees: BTreeMap::from([("demo".to_owned(), tree)]) }
+        tree.add(&mut files, Vec::new(), lib, Vec::new(), Path::new("src")).unwrap();
+        Index { trees: BTreeMap::from([("demo".to_owned(), tree)]), files }
     }
 
     fn path(segs: &[&str]) -> Vec<String> {

@@ -12,7 +12,7 @@ use crate::graph::{Metadata, Package};
 use crate::layers::{LayerMaps, relative};
 use crate::resolve::Index;
 use crate::structure::{LAYERS_DIR, mapped_crates, structure_findings};
-use crate::{Config, Error, Finding, check_with_scope, exempt_sites};
+use crate::{Config, Error, Finding, exempt_sites};
 
 /// Types whose cases or fields are fixed by meaning (spec 24.1, `api/non-exhaustive`).
 const CLOSED: [&str; 9] = ["Mixed", "Politeness", "Numeric", "HitPriority", "ScrollPos", "PartRef", "SetPosition", "States", "StateMix"];
@@ -250,7 +250,7 @@ impl RuleScope for WorkspaceScope {
 }
 
 /// The whole check of a repository: the structure checks of [`crate::check_structure`] and the egui-ban and API
-/// rules of [`check_with_scope`] over the config's paths, with the layer map as the rules' scope. Both read
+/// rules of [`crate::check_with_scope`] over the config's paths, with the layer map as the rules' scope. Both read
 /// one module index.
 ///
 /// Findings are sorted by path and line.
@@ -259,7 +259,7 @@ pub fn check_workspace(root: &Path, config: &Config, meta: &Metadata) -> Result<
     let index = Index::build(&mapped_crates(meta, &maps))?;
     let mut findings = structure_findings(root, meta, &maps, &index, map_findings, &exempt_sites(config))?;
     let scope = WorkspaceScope::with_index(root, meta, maps, &index)?;
-    findings.extend(check_with_scope(config, root, &scope)?.findings);
+    findings.extend(crate::check_with(config, root, Some(&scope), &index.files)?.findings);
     findings.sort_by(|a, b| (&a.path, a.line, a.rule).cmp(&(&b.path, b.line, b.rule)));
     Ok(findings)
 }

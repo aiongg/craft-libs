@@ -14,7 +14,7 @@ use std::process::ExitCode;
 
 use crate::Error;
 use crate::clones::{check_clones, load_families};
-use crate::exceptions::{Exceptions, Origin, Site, scan_sites};
+use crate::exceptions::{Exceptions, Origin, Site, scan_parsed};
 use crate::graph::{Metadata, check_features, check_graph};
 use crate::layers::{LayerMaps, finding, relative};
 use crate::report::{Finding, Severity};
@@ -63,7 +63,7 @@ pub(crate) fn structure_findings(
     findings.extend(check_imports(index, maps, root));
 
     let mut sites = extra_sites.to_vec();
-    sites.extend(source_sites(root, index)?);
+    sites.extend(source_sites(root, index));
     sites.extend(check_graph(meta, maps));
     sites.extend(check_features(meta).into_iter().filter(|s| maps.get(s.subject.split('/').next().unwrap_or_default()).is_some()));
     findings.extend(exceptions.apply(&sites));
@@ -86,7 +86,7 @@ fn unknown_crates(root: &Path, meta: &Metadata, maps: &LayerMaps) -> Vec<Finding
         .collect()
 }
 
-fn source_sites(root: &Path, index: &Index) -> Result<Vec<Site>, Error> {
+fn source_sites(root: &Path, index: &Index) -> Vec<Site> {
     // Source paths come from cargo metadata, which resolves `..` and links; the root must be resolved the same way.
     let root = &std::fs::canonicalize(root).unwrap_or_else(|_| root.to_owned());
     let mut sites = Vec::new();
@@ -95,11 +95,12 @@ fn source_sites(root: &Path, index: &Index) -> Result<Vec<Site>, Error> {
         files.sort();
         files.dedup();
         for file in files {
-            let src = std::fs::read_to_string(file).map_err(|source| Error::Io { path: file.clone(), source })?;
-            sites.extend(scan_sites(&relative(root, file).to_string_lossy(), &src));
+            if let Some(parsed) = index.files.get(file) {
+                sites.extend(scan_parsed(&relative(root, file).to_string_lossy(), &parsed.src, Some(&parsed.file)));
+            }
         }
     }
-    Ok(sites)
+    sites
 }
 
 /// One allowance site per rule of each `[[exempt]]` entry of `config` (`*` for an entry without rules).

@@ -282,10 +282,15 @@ fn uncovered(site: &Site, full: Option<&Entry>) -> Finding {
 /// Allowance sites in one source file: `// design: allow[..]` markers and `allow`/`expect` attributes
 /// that name a `clippy::disallowed_*` lint. `shown` is the path the sites report.
 pub fn scan_sites(shown: &str, src: &str) -> Vec<Site> {
+    scan_parsed(shown, src, syn::parse_file(src).ok().as_ref())
+}
+
+/// [`scan_sites`] with `src` already parsed into `file` (`None` when it does not parse).
+pub(crate) fn scan_parsed(shown: &str, src: &str, file: Option<&syn::File>) -> Vec<Site> {
     let mut sites = marker_sites(shown, src);
-    if let Ok(file) = syn::parse_file(src) {
+    if let Some(file) = file {
         let mut scan = AttrScan { shown, sites: Vec::new() };
-        scan.visit_file(&file);
+        scan.visit_file(file);
         sites.append(&mut scan.sites);
     }
     sites
