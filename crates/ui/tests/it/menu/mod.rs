@@ -9,7 +9,7 @@ mod openers;
 mod pick_focus;
 
 use craft_behavior::IconId;
-use craft_ui::contract::{Props as _, Show as _, ShowContainer as _};
+use craft_ui::contract::{Show as _, ShowContainer as _};
 use craft_ui::layout_components::Stack;
 use craft_ui::menu::{Menu, MenuItem};
 use craft_ui::primitives::IconSpec;

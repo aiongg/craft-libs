@@ -1,7 +1,7 @@
 //! `BreadcrumbBar`: how a path splits into crumbs, which crumbs a room shows, the nodes it reports and how a long
 //! ancestor elides.
 
-use craft_ui::bars::{BreadcrumbBar, path_crumbs};
+use craft_ui::bars::path_crumbs;
 use craft_ui::testing::trial;
 
 fn pairs(path: &str) -> Vec<(String, String)> {

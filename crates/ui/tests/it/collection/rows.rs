@@ -129,18 +129,16 @@ struct Probe<'a> {
     items: CollectionProps,
     selection: Option<Bind<'a, CellSelection<usize>>>,
     auto: bool,
-    log: &'static Log,
 }
 
 impl<'a> Probe<'a> {
-    fn new(select: SelectMode, log: &'static Log) -> Self {
+    fn new(select: SelectMode) -> Self {
         Probe {
             common: Common::new(),
             props: ContainerProps::new().sizing(craft_ui::contract::Sizing::Fill),
             items: CollectionProps::new().select(select),
             selection: None,
             auto: false,
-            log,
         }
     }
 
@@ -273,7 +271,7 @@ fn forward_enters_a_rows_children_and_arrows_and_escape_leave_them() {
     let mut frames = Frames::new();
     let mut show = |ui: &mut Ui| {
         in_region(ui, Rect::from_min_size(ORIGIN, VIEW), |ui| {
-            let list = Probe::new(SelectMode::Single, log).id_salt("list");
+            let list = Probe::new(SelectMode::Single).id_salt("list");
             log.take(list.show_items(ui, &source, &mut |key, _| ProbeRow::new(*key, log).children()));
         });
     };
@@ -344,7 +342,7 @@ fn rows_of_different_measured_heights_place_and_hit_correctly() {
     let mut frames = Frames::new();
     let mut show = |ui: &mut Ui| {
         in_region(ui, Rect::from_min_size(ORIGIN, VIEW), |ui| {
-            let list = Probe::new(SelectMode::Single, log).auto().id_salt("list");
+            let list = Probe::new(SelectMode::Single).auto().id_salt("list");
             log.take(list.show_items(ui, &source, &mut |key, _| ProbeRow::new(*key, log).tall_when(*key == 1)));
         });
     };

@@ -3,7 +3,6 @@
 use craft_behavior::Axis;
 use craft_behavior::dock::{Column, Group, Layout, Node, SplitSize};
 use craft_ui::contract::Role;
-use craft_ui::contract::ShowContainer as _;
 use craft_ui::docking::frame::maximize;
 use craft_ui::docking::tree;
 use craft_ui::docking::{DockColumn, HidePanels, PanelSpec};

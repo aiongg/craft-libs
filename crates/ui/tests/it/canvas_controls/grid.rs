@@ -3,7 +3,6 @@
 
 use craft_ui::canvas::PixelRect;
 use craft_ui::canvas_controls::{GridSegment, PixelGrid};
-use craft_ui::contract::{Show as _, ShowContainer as _};
 use craft_ui::testing::trial;
 use egui::Color32;
 use std::collections::BTreeMap;

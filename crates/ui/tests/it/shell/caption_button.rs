@@ -1,6 +1,6 @@
 //! Caption buttons: untrusted icon files are refused.
 
-use craft_ui::shell::{Caption, CaptionIcon, CaptionIcons};
+use craft_ui::shell::{CaptionIcon, CaptionIcons};
 use craft_ui::testing::trial;
 use std::sync::Arc;
 

@@ -4,7 +4,7 @@ use crate::windows_kit::Windows;
 use craft_behavior::{DropOperation, PartKey, PressPhase};
 use craft_ui::contract::{
     Common, Component, Cx, DragPreview, DropMark, DropTarget, MeasureCx, OsFiles, PartsCx, Pointer as _, Props as _, Role, Show as _,
-    ShowCollection as _, WindowDropTarget,
+    WindowDropTarget,
 };
 use craft_ui::runtime::drag;
 use craft_ui::runtime::env::Label;

@@ -1,8 +1,8 @@
 //! `ThumbRow` rules: the order thumbs keep, split halves, wrapping.
 
-use craft_behavior::{Mixed, MoveMods, NavMove, PartKey};
-use craft_ui::contract::{Bind, Props as _, Show as _};
-use craft_ui::testing::{Fixture, trial};
+use craft_behavior::{Mixed, MoveMods, NavMove};
+use craft_ui::contract::Bind;
+use craft_ui::testing::trial;
 use craft_ui::value_drag::{Anchor, RowOp, Thumb, ThumbOp, ThumbRow};
 
 fn forward(thumb: usize) -> RowOp {
@@ -21,14 +21,4 @@ fn an_anchored_row_keeps_its_span_and_order() {
     assert_eq!(rules.apply(&forward(3), &at), at);
     // A middle thumb stops at the next one.
     assert_eq!(rules.apply(&RowOp::new(1, ThumbOp::Set(70.0)), &at), Mixed::each([340.0, 50.0, 50.0, 80.0]));
-}
-
-fn row(fixture: &Fixture) -> [f64; 2] {
-    let row = *fixture.data().value("row", Mixed::each([f64::NAN; 2]));
-    row.map(|part| *part.same().expect("every thumb has a number"))
-}
-
-fn thumb(fixture: &Fixture, i: u64) -> craft_ui::testing::Target {
-    let id = fixture.root_id().expect("the row is shown");
-    fixture.part(id, PartKey::new("thumb").at(i)).expect("the thumb has a sub-node")
 }

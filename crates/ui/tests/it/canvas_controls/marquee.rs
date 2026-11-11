@@ -1,9 +1,7 @@
 //! The selection outlines (20.6): a press away from every canvas control reaches the tool, a marquee maps its shape
 //! through the view, the hover mask finds its edges, and the range bands tile.
 
-use craft_behavior::kurbo::Rect;
 use craft_ui::canvas_controls::range_bands;
-use craft_ui::contract::{Show as _, ShowContainer as _};
 use craft_ui::testing::trial;
 use egui::Pos2;
 

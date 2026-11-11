@@ -5,8 +5,8 @@ use craft_behavior::kurbo::{Point, Rect};
 use craft_behavior::{Axis, CanvasView, EditEvent};
 use craft_ui::canvas::{Canvas, CropOverlay};
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
-use craft_ui::testing::{Frames, focus, input, layout, pointer, trial};
-use egui::{Event, Key, Modifiers, Pos2, Vec2};
+use craft_ui::testing::{Frames, input, layout, pointer, trial};
+use egui::{Event, Modifiers, Pos2, Vec2};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -153,12 +153,6 @@ impl Rig {
         Rig::new(CropBox::upright(RECT), Setup::new())
     }
 
-    fn with(setup: impl FnOnce(&mut Setup)) -> Self {
-        let mut s = Setup::new();
-        setup(&mut s);
-        Rig::new(CropBox::upright(RECT), s)
-    }
-
     fn frame(&mut self, events: Vec<Event>) {
         let room = egui::Rect::from_min_size(Pos2::ZERO, ROOM);
         let show = &mut self.show;
@@ -209,32 +203,6 @@ impl Rig {
         self.release(to);
         self.frames.hold(Modifiers::NONE);
     }
-
-    fn key(&mut self, key: Key, modifiers: Modifiers) {
-        self.frame(vec![key_event(key, true, modifiers), key_event(key, false, modifiers)]);
-        self.frame(Vec::new());
-    }
-
-    fn hover(&mut self, at: Pos2) {
-        self.move_to(at);
-        self.frame(Vec::new());
-    }
-
-    fn cursor(&self) -> egui::CursorIcon {
-        self.frames.cursor_icon()
-    }
-
-    fn texts(&self) -> Vec<String> {
-        self.frames.texts().iter().map(|text| text.text.clone()).collect()
-    }
-
-    fn painted(&self, needle: &str) -> bool {
-        self.texts().iter().any(|text| text.contains(needle))
-    }
-}
-
-fn key_event(key: Key, pressed: bool, modifiers: Modifiers) -> Event {
-    if pressed { input::key_press(key, modifiers) } else { focus::key_release(key, modifiers) }
 }
 
 fn near(a: &CropBox, b: &CropBox) -> bool {

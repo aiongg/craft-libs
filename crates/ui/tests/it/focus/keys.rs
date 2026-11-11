@@ -5,7 +5,7 @@ use craft_behavior::{AccessRequest, EditCommand, Input, Intent, NavMove, PartKey
 use craft_keymap::Chord;
 use craft_ui::contract::{Role, Show as _};
 use craft_ui::runtime::focus::{EditSet, KeyUse};
-use craft_ui::testing::focus::{claim, intents_of, take_claimed};
+use craft_ui::testing::focus::{intents_of, take_claimed};
 use craft_ui::testing::input::{key_press, key_repeat};
 use craft_ui::testing::{Frames, trial};
 use egui::{Event, Key, Modifiers};

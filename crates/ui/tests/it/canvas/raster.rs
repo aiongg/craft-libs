@@ -2,9 +2,8 @@
 
 use craft_behavior::kurbo::Point;
 use craft_behavior::{CanvasView, PixelSize};
-use craft_ui::canvas::{Canvas, CanvasSpace, DetailPlan, PixelRect, RasterDisplay, RasterSource};
+use craft_ui::canvas::{Canvas, PixelRect, RasterDisplay, RasterSource};
 use craft_ui::contract::{Show as _, ShowContainer as _};
-use craft_ui::primitives::textures::Thumbnails;
 use craft_ui::primitives::{Checker, Revision};
 use craft_ui::testing::{Fixture, trial};
 use egui::{Color32, ColorImage, Pos2, Rect, Vec2};
@@ -63,37 +62,28 @@ impl RasterSource for Document {
     }
 }
 
-/// What a display reported in a pass: the pixels it read and the detail plan it used.
-type Reported = (Option<PixelRect>, Option<DetailPlan>);
-
 /// A display of `document` in a canvas looking at the document's centre at `zoom`.
 struct Rig {
     fixture: Fixture,
     document: Rc<Document>,
     shown: Rc<Cell<bool>>,
-    reported: Rc<RefCell<Option<Reported>>>,
-    space: Rc<RefCell<Option<CanvasSpace>>>,
 }
 
 fn rig(document: Rc<Document>, zoom: f64) -> Rig {
     let center = Point::new(f64::from(document.size.width) / 2.0, f64::from(document.size.height) / 2.0);
     let view = CanvasView::new(Rect::from_min_size(Pos2::ZERO, CANVAS), center, zoom);
     let shown = Rc::new(Cell::new(true));
-    let reported = Rc::new(RefCell::new(None));
-    let space = Rc::new(RefCell::new(None));
-    let (shown_document, shown_now, shown_reported, shown_space) = (Rc::clone(&document), Rc::clone(&shown), Rc::clone(&reported), Rc::clone(&space));
+    let (shown_document, shown_now) = (Rc::clone(&document), Rc::clone(&shown));
     let mut fixture = Fixture::new(move |ui| {
-        let canvas = Canvas::new("Document").view(view).show(ui, |ui, body| {
+        Canvas::new("Document").view(view).show(ui, |ui, body| {
             if shown_now.get() {
-                let output = RasterDisplay::new("Picture", &*shown_document).checkerboard(Checker::new()).show_at(ui, body.rect);
-                *shown_reported.borrow_mut() = Some((output.read, output.detail));
+                RasterDisplay::new("Picture", &*shown_document).checkerboard(Checker::new()).show_at(ui, body.rect);
             }
         });
-        *shown_space.borrow_mut() = canvas.output.space;
     });
     fixture.room(CANVAS);
     fixture.settle();
-    Rig { fixture, document, shown, reported, space }
+    Rig { fixture, document, shown }
 }
 
 impl Rig {

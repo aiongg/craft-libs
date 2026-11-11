@@ -1,6 +1,6 @@
 //! The suite's text-size case lets a scroll region's view cut its rows, and no other part.
 
-use craft_ui::contract::{Props as _, Scroll, Show as _, ShowContainer as _};
+use craft_ui::contract::{Scroll, Show as _, ShowContainer as _};
 use craft_ui::display::Text;
 use craft_ui::layout_components::Stack;
 use craft_ui::testing::story::{Story, StoryData, StoryOutput};

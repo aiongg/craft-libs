@@ -2,9 +2,8 @@
 //! `PointPicker` maps a press to the point on the well and moves one axis per arrow key.
 
 use craft_ui::contract::{Bind, Props as _, Show as _};
-use craft_ui::testing::pointer::press;
 use craft_ui::testing::{Fixture, Story, StoryData, StoryOutput, trial};
-use craft_ui::value_drag::{AngleDial, PointPicker};
+use craft_ui::value_drag::AngleDial;
 use egui::{Key, Modifiers, Ui};
 
 fn at_turn_end(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {

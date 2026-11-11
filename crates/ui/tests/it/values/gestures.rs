@@ -1,7 +1,7 @@
 //! Gestures: Escape restores, an app change or an undo cancels, a cancelled gesture stays cancelled under its press, a
 //! reset is one `Set`, a read-only component refuses edits and a composite adopts its children's edits.
 
-use super::kit::{APP_VALUE, AT, Ev, HELD, PlainStyle, Scrub, ev_of, near};
+use super::kit::{APP_VALUE, AT, HELD, PlainStyle, Scrub, near};
 use craft_behavior::{EditEvent, Mixed, Sense};
 use craft_ui::contract::{Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, PaintUi, Props as _, Role, Show as _};
 use craft_ui::style::StyleCx;
@@ -21,11 +21,6 @@ fn dragging(frames: &mut Frames, show: &mut impl FnMut(&mut Ui)) {
     frames.frame(vec![press(start())], &mut *show);
     frames.frame(vec![moved(start() + Vec2::new(30.0, 0.0))], &mut *show);
     frames.frame(vec![moved(start() + Vec2::new(35.0, 0.0))], &mut *show);
-}
-
-fn scrub(value: &mut f32, seen: &RefCell<Vec<Ev>>, ui: &mut Ui) {
-    let out = Scrub::new(Bind::bound(value)).id_salt("scrub").show_at(ui, AT);
-    seen.borrow_mut().extend(ev_of(&out.events));
 }
 
 /// A composite whose child is a value control: it adopts the child's edit as its own gesture.

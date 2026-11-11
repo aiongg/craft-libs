@@ -84,12 +84,6 @@ impl<'a> Probe<'a> {
         self.sense = Some(sense);
         self
     }
-
-    /// Each activation of the probe injects one from `source` (`Cx::activate`).
-    pub fn injects(mut self, source: FireSource) -> Self {
-        self.injects = Some(source);
-        self
-    }
 }
 
 impl Component for Probe<'_> {
@@ -194,12 +188,6 @@ pub struct Table {
     row_h: f32,
 }
 
-impl Table {
-    pub fn new(row_h: f32) -> Self {
-        Table { common: Common::new(), props: ContainerProps::new(), items: CollectionProps::new(), row_h }
-    }
-}
-
 impl Component for Table {
     const ROLE: Role = Role::LIST;
     type Style = PlainStyle;
@@ -238,12 +226,6 @@ pub struct RowProbe {
     common: Common,
     pub log: &'static std::sync::Mutex<Vec<(usize, Rect)>>,
     key: usize,
-}
-
-impl RowProbe {
-    pub fn new(key: usize, log: &'static std::sync::Mutex<Vec<(usize, Rect)>>) -> Self {
-        RowProbe { common: Common::new(), log, key }
-    }
 }
 
 impl Component for RowProbe {

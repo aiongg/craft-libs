@@ -1,6 +1,6 @@
 //! Roving groups, arena members and part stops: what Tab reaches and what a component reads as focused.
 
-use super::{control, focus, focused, id, tap};
+use super::{control, focused, id, tap};
 use craft_behavior::{Input, Intent, NavShape, Roving};
 use craft_ui::runtime::focus::KeyUse;
 use craft_ui::testing::focus::{Group, Stop, activated_member, intents_of, is_focused, register_group, register_stop, widget};

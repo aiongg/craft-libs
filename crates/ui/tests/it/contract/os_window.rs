@@ -3,7 +3,7 @@
 
 use crate::windows_kit::Windows;
 use craft_host::target::{Caps, ShellInfo};
-use craft_ui::contract::{Bind, Props as _, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::dialog::Dialog;
 use craft_ui::runtime::InstallSpec;
 use craft_ui::runtime::windows::{WindowHit, WindowHost};

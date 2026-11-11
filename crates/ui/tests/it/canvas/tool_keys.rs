@@ -7,7 +7,6 @@
 
 use craft_behavior::CancelReason;
 use craft_ui::canvas::{CanvasTool, ToolAction, ToolClaims, ToolContext, ToolKey, ToolPath, ToolPointer};
-use craft_ui::contract::{Commands as _, Show as _, ShowContainer as _};
 use craft_ui::primitives::Draw;
 use craft_ui::testing::focus::key_release;
 use craft_ui::testing::input::key_press;

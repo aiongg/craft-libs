@@ -1,9 +1,7 @@
 //! A value component for the trials: a track that scrubs an `f32`, written with the derives.
 
 use craft_behavior::{CancelReason, EditEvent, EditEvents, GesturePhase, PartKey, PressPhase, Sense};
-use craft_ui::contract::{
-    Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, MeasureCx, PartsCx, Pointer as _, Role, Styled as _,
-};
+use craft_ui::contract::{Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, PartsCx, Pointer as _, Role, Styled as _};
 use craft_ui::style::{ComponentStyle, Flags, StyleCx};
 use egui::{Pos2, Rect, Vec2};
 use std::cell::Cell;

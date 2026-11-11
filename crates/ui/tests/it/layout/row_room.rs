@@ -3,7 +3,7 @@
 //! the child takes its measured size.
 
 use craft_ui::buttons::Button;
-use craft_ui::contract::{Bind, Props as _, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::form::Field;
 use craft_ui::layout_components::{Row, Stack};
 use craft_ui::testing::{Fixture, trial};

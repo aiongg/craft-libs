@@ -20,11 +20,6 @@ impl Group {
     pub fn new(props: ContainerProps) -> Self {
         Group { common: Common::new(), props }.label("Group")
     }
-
-    /// A group whose labelled rows share one label column.
-    pub fn column() -> Self {
-        Group::new(ContainerProps::new().label_column(true))
-    }
 }
 
 impl Component for Group {

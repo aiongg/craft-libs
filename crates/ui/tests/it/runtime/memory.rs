@@ -1,7 +1,7 @@
 //! Memory lifetimes, eviction by owner and the runtime sub-id derivation.
 
 use craft_ui::runtime::memory::{Remember, SaveKey};
-use craft_ui::testing::memory::{Stage, dispose_evicted, forget, forget_saved, global, sub};
+use craft_ui::testing::memory::{Stage, dispose_evicted, forget, forget_saved, global};
 use craft_ui::testing::{Frames, trial};
 
 const PLACE: SaveKey = SaveKey::new("craft_tests.place");

@@ -5,13 +5,11 @@ use crate::contract::kit::PlainStyle;
 use crate::windows_kit::Windows;
 use craft_behavior::{Cursor, CursorIcon};
 use craft_host::target::{Caps, Os, ShellInfo, WindowChrome, WindowInfo, WindowKind};
-use craft_ui::contract::{
-    Common, Component, Container, ContainerProps, Cx, Mount, Overlay, Pointer as _, Props as _, Role, Show as _, ShowContainer as _,
-};
+use craft_ui::contract::{Common, Component, Container, ContainerProps, Cx, Mount, Overlay, Props as _, Role, Show as _, ShowContainer as _};
 use craft_ui::runtime::InstallSpec;
-use craft_ui::runtime::windows::{WindowLevel, WindowSpec, act};
+use craft_ui::runtime::windows::WindowSpec;
 use craft_ui::style::StyleCx;
-use craft_ui::testing::pointer::{moved, press, release};
+use craft_ui::testing::pointer::{moved, press};
 use craft_ui::testing::trial;
 use craft_ui::testing::windows::NoWindows;
 use egui::{Event, Pos2, Rect, Response, Vec2, ViewportBuilder, ViewportCommand, ViewportEvent, ViewportId, ViewportInfo};

@@ -110,8 +110,6 @@ fn keep_tree(output: &mut FullOutput, viewport: ViewportId) {
 /// What a frame sent out.
 #[non_exhaustive]
 pub struct Out {
-    /// The title each viewport asked for.
-    pub titles: Vec<(ViewportId, String)>,
     /// The window commands of every pass of the frame.
     pub commands: Vec<(ViewportId, ViewportCommand)>,
     /// How each viewport asked to open or change its window.
@@ -159,7 +157,7 @@ impl Windows {
     }
 
     /// One frame: `root` events go to the root viewport, `child` events to the child's next pass. Returns the
-    /// titles and the window commands of the frame.
+    /// window commands of the frame.
     pub fn frame(&self, root: Vec<Event>, child: Vec<Event>, ui: impl FnMut(&mut Ui)) -> Out {
         CHILD_EVENTS.with(|events| *events.borrow_mut() = child);
         TREES.with(|kept| kept.borrow_mut().clear());
@@ -175,10 +173,8 @@ impl Windows {
         output.textures_delta.clear();
         keep_commands(&output);
         keep_tree(&mut output, ViewportId::ROOT);
-        let titles = output.viewport_output.iter().map(|(id, viewport)| (*id, viewport.builder.title.clone().unwrap_or_default())).collect();
         let builders = output.viewport_output.iter().map(|(id, viewport)| (*id, viewport.builder.clone())).collect();
         Out {
-            titles,
             commands: COMMANDS.with(|kept| std::mem::take(&mut *kept.borrow_mut())),
             builders,
             trees: TREES.with(|kept| std::mem::take(&mut *kept.borrow_mut())),

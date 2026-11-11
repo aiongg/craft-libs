@@ -6,7 +6,6 @@ use craft_behavior::kurbo::{Point, Size};
 use craft_ui::canvas::{Canvas, HandTool, NavigationOptions, ToolHost, canvas_space};
 use craft_ui::contract::{Bind, ShowContainer as _};
 use craft_ui::patterns::canvas::NavigatorPanel;
-use craft_ui::testing::pointer::middle;
 use craft_ui::testing::{Fixture, trial};
 use egui::{Pos2, Rect, Vec2};
 use std::cell::{Cell, RefCell};
@@ -28,13 +27,10 @@ struct Options {
 /// A canvas over `DOC` whose app copies the one view the host reports, and what its body saw in every pass.
 struct Document {
     fixture: Fixture,
-    view: Rc<RefCell<CanvasView>>,
     rect: Rc<Cell<Rect>>,
     rulers: Rc<Cell<bool>>,
     /// The body's rect and the view in its `CanvasSpace`, one entry per pass.
     seen: Rc<RefCell<Vec<(Rect, CanvasView)>>>,
-    /// The passes whose output carried a tool press.
-    presses: Rc<Cell<usize>>,
 }
 
 impl Document {
@@ -43,8 +39,7 @@ impl Document {
         let rect = Rc::new(Cell::new(rect));
         let rulers = Rc::new(Cell::new(false));
         let seen: Rc<RefCell<Vec<(Rect, CanvasView)>>> = Rc::default();
-        let presses = Rc::new(Cell::new(0));
-        let (held, at, ruled, saw, pressed) = (Rc::clone(&view), Rc::clone(&rect), Rc::clone(&rulers), Rc::clone(&seen), Rc::clone(&presses));
+        let (held, at, ruled, saw) = (view, Rc::clone(&rect), Rc::clone(&rulers), Rc::clone(&seen));
         let mut navigation = NavigationOptions::default();
         navigation.animated_zoom = options.animated;
         let mut hand = HandTool::new(navigation);
@@ -59,20 +54,13 @@ impl Document {
                         saw.borrow_mut().push((body.rect, space.view));
                     }
                 });
-            if shown.output.press.phase.is_press() {
-                pressed.set(pressed.get() + 1);
-            }
             let next = if options.hand { ToolHost::new().run(ui, &shown.output, &mut hand).view } else { shown.output.view };
             if let Some(next) = next {
                 *held.borrow_mut() = next;
             }
         });
         fixture.room(ROOM);
-        Document { fixture, view, rect, rulers, seen, presses }
-    }
-
-    fn view(&self) -> CanvasView {
-        *self.view.borrow()
+        Document { fixture, rect, rulers, seen }
     }
 
     fn last_seen(&self) -> (Rect, CanvasView) {

@@ -1,6 +1,6 @@
 //! Focus on press (8.3): the kinds of a primary press and the draft that commits in the press pass.
 
-use super::{control, focus, focused, id};
+use super::{focus, focused, id};
 use craft_behavior::Input;
 use craft_behavior::Sense;
 use craft_ui::runtime::focus::{FocusPolicy, KeyUse};

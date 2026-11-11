@@ -5,22 +5,15 @@ mod dials;
 
 mod thumb_row;
 
-use craft_behavior::{EditEvent, GesturePhase};
+use craft_behavior::EditEvent;
 use craft_ui::contract::{Bind, Props as _, Show as _, ShowContainer as _};
-use craft_ui::testing::input::key_press;
 use craft_ui::testing::pointer;
-use craft_ui::testing::{Frames, StoryData, StoryOutput, trial};
-use craft_ui::value_drag::{RangeSlider, Slider};
-use egui::{Key, Modifiers, Pos2, Rect, Ui, Vec2};
+use craft_ui::testing::{Frames, trial};
+use craft_ui::value_drag::Slider;
+use egui::{Pos2, Rect, Ui, Vec2};
 use std::cell::RefCell;
 
 const START: f64 = 50.0;
-
-const STEP: f64 = 5.0;
-
-fn show(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    Slider::new(Bind::bound(data.value("value", START)), 0.0..=100.0).step(STEP).label("Opacity").show(ui).into()
-}
 
 const FIELD: Rect = Rect { min: Pos2::new(20.0, 20.0), max: Pos2::new(220.0, 50.0) };
 
@@ -53,21 +46,6 @@ impl Slide {
     fn value(&self) -> f64 {
         *self.value.borrow()
     }
-
-    fn commits(&self) -> usize {
-        self.events.borrow().iter().filter(|event| event.phase() == Some(GesturePhase::Commit)).count()
-    }
-
-    fn sets(&self) -> usize {
-        self.events.borrow().iter().filter(|event| matches!(event, EditEvent::Set { .. })).count()
-    }
-}
-
-/// Focuses the slider with Tab and lets the passes settle.
-fn focused(frames: &mut Frames, show: &mut impl FnMut(&mut Ui)) {
-    frames.idle(3, &mut *show);
-    frames.frame(vec![key_press(Key::Tab, Modifiers::NONE)], &mut *show);
-    frames.idle(2, &mut *show);
 }
 
 /// Presses at `from`, moves `travel` along the track in four frames with `between` after the second, releases.

@@ -97,9 +97,7 @@ impl ItemSource<usize> for Count {}
 /// What an item reports.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
-pub enum Dismissed {
-    Row,
-}
+pub enum Dismissed {}
 
 /// The output of a row: its response and the item event it raised.
 #[non_exhaustive]
