@@ -1,7 +1,7 @@
 //! How calls may use substitutions and what a flow must send (task u2). Each case feeds an input
 //! that only the named rule refuses.
 
-mod spec_support;
+use super::spec_support;
 
 use serde_json::{Value, json};
 use spec_support::{direct, parse, queue, refused, set};
