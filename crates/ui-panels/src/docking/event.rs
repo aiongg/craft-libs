@@ -16,8 +16,8 @@ pub enum DockEvent<P> {
     },
     /// Auto-Collapse Iconic Panels was chosen in a column menu. The host flips its preference and passes it back.
     ToggleAutoCollapse,
-    /// The area's flyout opened, switched to another panel or closed, whatever changed it. It comes once per
-    /// change, in the pass that shows the change.
+    /// The area opened, switched or closed its flyout: an icon click, Escape, a press outside, or the focus
+    /// leaving it under Auto-Collapse. A host that binds the flyout takes it as the request when its binding is given.
     FlyoutChanged {
         /// The panel now in the flyout; `None` when it closed.
         panel: Option<P>,
@@ -29,14 +29,6 @@ pub enum DockEvent<P> {
         panel: P,
         /// The command.
         command: DockCommands,
-    },
-    /// A dock column was placed: the column that holds `anchor` first took `rect` this pass. Hosts that anchor
-    /// their own surfaces to a column read it.
-    ColumnPlaced {
-        /// A panel of the first group of the column.
-        anchor: P,
-        /// The column's rect in the area's layer space.
-        rect: Rect,
     },
     /// A floating frame holding `panel` was moved or resized to `rect`.
     FloatPlaced {

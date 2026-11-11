@@ -2,7 +2,7 @@
 //! panel menu button, over the body of the active panel.
 
 use super::commands::DockCommands;
-use super::drop::{DragUnit, start_group_drag};
+use super::drop::{self, DragUnit, start_group_drag};
 use super::targets::{DockSizes, DockSpot, DockTargets, ZoneRule};
 use super::words::DockWords;
 use super::{PanelDrag, PanelKey, PanelTitle};
@@ -316,6 +316,7 @@ impl<P: Clone + Hash + Send + Sync + 'static> Container for DockGroup<'_, P> {
         }
         let words = cx.words::<DockWords>();
         let from = PanelKey::of(&self.anchor);
+        let started = drop::started(&cx.env);
         let (panels, active, closable) = (self.panels, self.active, self.closable);
         let menu_rows = self.menu.clone();
         let panel_menu = words.panel_menu.clone();
@@ -340,7 +341,7 @@ impl<P: Clone + Hash + Send + Sync + 'static> Container for DockGroup<'_, P> {
                 .tear_off()
                 .natural_height(true)
                 .accept_from(|_| false)
-                .drag_payload(move |drag: &ListDrag<PanelKey>| Some(PanelDrag { panel: drag.grabbed, from }))
+                .drag_payload(move |drag: &ListDrag<PanelKey>| Some(PanelDrag { panel: drag.grabbed, from, started }))
                 .show_items(ui, &source, &mut |key, _| {
                     let panel = panels.iter().find(|panel| &panel.key == key);
                     let title = panel.map_or_else(Label::default, |panel| panel.title.clone());

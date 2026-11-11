@@ -30,7 +30,9 @@ pub mod cross_window;
 pub mod native;
 
 pub use config::{DockConfig, DockSides};
-pub use drop::{DockDrag, DockDropTarget, DockDropped, DragUnit, cancel_on_replacement, float_drop, resolve_drop, start_group_drag};
+#[doc(hidden)]
+pub use drop::{Arrangement, end_replaced_drags};
+pub use drop::{DockDrag, DockDropTarget, DockDropped, DragUnit, float_drop, resolve_drop, start_group_drag};
 pub use event::{DockEvent, FloatSpace, HidePanels};
 pub use group::{DockGroup, DockGroupOutput, DockGroupStyle, GroupGrip, GroupGripOutput, GroupGripStyle, HeaderHook};
 
@@ -44,7 +46,7 @@ pub use words::DockWords;
 
 pub use commands::{
     ArrangeCommands, ArrangeSpace, Arranged, DockCommands, DockScene, DockTo, WorkspaceAsk, WorkspaceCommands, actions, arrange, arrange_states,
-    dock_states, move_actions, run_workspace, select_workspace, workspace_states,
+    dock_states, move_actions, run_workspace, workspace_states,
 };
 
 mod dock_column;
@@ -126,6 +128,8 @@ pub struct PanelDrag {
     pub panel: PanelKey,
     /// The group the tab was in, named by its anchor panel.
     pub from: PanelKey,
+    /// The arrangement the drag started on, when it started in a dock area.
+    pub(crate) started: Option<drop::Arrangement>,
 }
 
 /// The style of a split area: the docking sizes its frames, handles and keys read.

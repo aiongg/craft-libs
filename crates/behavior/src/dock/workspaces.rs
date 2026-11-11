@@ -114,16 +114,21 @@ impl<P: Clone + Eq + Hash> WorkspaceSet<P> {
         self.edited.get(&self.current).or_else(|| self.current().map(|w| &w.layout))
     }
 
-    /// Switch to `id`; the current workspace's live layout is kept under its id first (Photoshop
-    /// remembers the state of each workspace until Reset).
-    pub fn select(&mut self, id: &str, live: Workspace<P>) -> Result<(), WorkspaceError> {
+    /// Switch to `id` and replace `live` with the layout it shows; the current workspace's live
+    /// layout is kept under its id first (Photoshop remembers the state of each workspace until
+    /// Reset). Selecting the current workspace changes nothing.
+    pub fn select(&mut self, id: &str, live: &mut Workspace<P>) -> Result<(), WorkspaceError> {
         if self.find(id).is_none() {
             return Err(WorkspaceError::UnknownId);
         }
+        if id == self.current {
+            return Ok(());
+        }
         if self.find(&self.current).is_some() {
-            self.edited.insert(self.current.clone(), live);
+            self.edited.insert(self.current.clone(), live.clone());
         }
         self.current = id.to_string();
+        live.replace(self.layout().cloned().unwrap_or_default());
         Ok(())
     }
 
@@ -168,11 +173,13 @@ impl<P: Clone + Eq + Hash> WorkspaceSet<P> {
         Ok(())
     }
 
-    /// Reset the current workspace: drop what it was left with and return its stored layout (a
-    /// built-in's code layout, or the layout it was saved with).
-    pub fn reset(&mut self) -> Option<&Workspace<P>> {
+    /// Reset the current workspace: drop what it was left with and replace `live` with its stored
+    /// layout (a built-in's code layout, or the layout it was saved with).
+    pub fn reset(&mut self, live: &mut Workspace<P>) -> Result<(), WorkspaceError> {
+        let stored = self.current().map(|w| w.layout.clone()).ok_or(WorkspaceError::UnknownId)?;
         self.edited.remove(&self.current);
-        self.current().map(|w| &w.layout)
+        live.replace(stored);
+        Ok(())
     }
 }
 

@@ -374,4 +374,6 @@ pub struct GroupDrag<P> {
     pub unit: DragUnit<P>,
     /// The panel the unit shows, for the drag's preview.
     pub active: PanelKey,
+    /// The arrangement the drag started on, when it started in a dock area.
+    pub(crate) started: Option<super::drop::Arrangement>,
 }

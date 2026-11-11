@@ -7,9 +7,9 @@
 //! [`start_group_drag`].
 
 use super::{DockSpot, DockTargets, FloatSpace, GroupDrag, PanelDrag, PanelKey};
-use crate::contract::{DropMark, DropOperation, DropTarget, Pointer};
+use crate::contract::{Component, Cx, DropMark, DropOperation, DropTarget, Pointer as _};
 use crate::runtime::drag::{self, DragPreview};
-use crate::runtime::env::Label;
+use crate::runtime::env::{AppValues, EnvValue, EnvView, Label};
 use crate::runtime::pointer;
 use craft_behavior::dock::{Action, DockEdge, DockPlacement, Layout, Node, PanelPlace, Permissions, Target};
 use craft_behavior::{CancelReason, DockSide};
@@ -338,30 +338,59 @@ impl<P: Clone + Eq + Hash + Send + 'static> DropTarget<GroupDrag<P>> for DockDro
     }
 }
 
+/// The arrangement a dock drag started on: the dock area and the revision of the workspace it showed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[doc(hidden)]
+pub struct Arrangement {
+    pub dock: Id,
+    pub revision: u64,
+}
+
+/// The env value a dock area puts into its body: the arrangement it shows. `None` outside a dock area.
+#[derive(Clone, Copy, PartialEq)]
+struct InDock(Option<Arrangement>);
+
+impl EnvValue for InDock {
+    fn root() -> Self {
+        InDock(None)
+    }
+}
+
+/// Publishes the arrangement a dock area shows to its body, where every tab and group drag records it.
+pub(crate) fn publish(values: &mut AppValues, shown: Option<Arrangement>) {
+    values.set(InDock(shown));
+}
+
+/// The arrangement of the dock area around the component that reads `env`, which a tab or group drag started there
+/// records.
+pub(crate) fn started(env: &EnvView<'_>) -> Option<Arrangement> {
+    env.get::<InDock>().0
+}
+
 /// Starts the drag of `unit`, whose shown panel is `active`. A group or a column drags a ghost frame; `ghost` gives
 /// its size and label. A window moves itself, so its drag has no ghost and `ghost` is `None`.
-pub fn start_group_drag<P, C>(cx: &mut C, unit: DragUnit<P>, active: PanelKey, ghost: Option<(Vec2, Label)>)
+pub fn start_group_drag<P, C>(cx: &mut Cx<'_, C>, unit: DragUnit<P>, active: PanelKey, ghost: Option<(Vec2, Label)>)
 where
     P: Clone + Send + Sync + 'static,
-    C: Pointer,
+    C: Component,
 {
     let preview = match ghost {
         Some((size, label)) => DragPreview::frame(size, Some(label)),
         None => DragPreview::None,
     };
-    cx.start_drag(GroupDrag { unit, active }, preview);
+    let started = started(&cx.env);
+    cx.start_drag(GroupDrag { unit, active, started }, preview);
 }
 
-/// Ends a running tab or group drag when the layout it was started on is replaced by another arrangement: the
-/// panel or group it names may be gone or elsewhere. Size-only edits keep the drag.
-pub fn cancel_on_replacement<P>(ctx: &Context, before: &Layout<P>, after: &Layout<P>)
-where
-    P: Clone + Eq + Hash + Send + Sync + 'static,
-{
-    if before.same_arrangement(after) {
-        return;
-    }
-    if drag::active::<PanelDrag>(ctx).is_some() || drag::active::<GroupDrag<P>>(ctx).is_some() {
+/// Ends a running tab or group drag that started on `shown`'s dock under another revision: another arrangement
+/// replaced the workspace, and the panel or group the drag names may be gone or elsewhere. The dock's own edits keep
+/// the revision, and so the drag.
+#[doc(hidden)]
+pub fn end_replaced_drags<P: Send + Sync + 'static>(ctx: &Context, shown: Arrangement) {
+    let replaced = |started: Option<Arrangement>| started.is_some_and(|started| started.dock == shown.dock && started != shown);
+    if drag::active::<PanelDrag>(ctx).is_some_and(|drag| replaced(drag.started))
+        || drag::active::<GroupDrag<P>>(ctx).is_some_and(|drag| replaced(drag.started))
+    {
         drag::cancel(ctx, CancelReason::HostChanged);
     }
 }

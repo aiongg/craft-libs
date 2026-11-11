@@ -7,12 +7,12 @@ use crate::contract::{Bind, BindMut, BodyCx, Cx, Entry, NoValue, Outcome, Pointe
 use crate::docking::SplitFramesCx as _;
 use crate::docking::stack::{StackSection, StackSections, section_heights};
 use crate::docking::tree::FrameRules;
+use crate::docking::{Arrangement, cross_window, end_replaced_drags, float_drop, native};
 use crate::docking::{
     DockColumn, DockCommands, DockConfig, DockDropTarget, DockDropped, DockEvent, DockGroup, DockPanels, DockRoot, DockScene, DockSizes, DockSpot,
     DockTargets, DockTo, DockWords, DragUnit, FloatSpace, FloatingGroup, GroupAt, GroupDrag, HidePanels, IconicColumn, PanelDrag, PanelKey,
-    PanelSpec, PanelTitle, SplitArea, actions, cancel_on_replacement, dock_states, fit_widths, frame, move_actions,
+    PanelSpec, PanelTitle, SplitArea, actions, dock_states, fit_widths, frame, move_actions,
 };
-use crate::docking::{cross_window, float_drop, native};
 use crate::menu::{GroupItem, MenuWords, PanelMenu, PanelRow};
 use crate::runtime::commands::{CommandRef, CommandSet as _, Commands as _, focus_within};
 use crate::runtime::env::{Env, Label, RevealEdge, ShellCx, ShellEntry};
@@ -61,6 +61,9 @@ pub struct DockAreaOutput<P> {
     pub edit: EditEvents<Workspace<P>>,
     /// Where commands float a panel, group or column: the area's float bounds and the sizes of what it drew.
     pub float_space: Option<FloatSpace<P>>,
+    /// Where each dock column was placed this pass, named by a panel of its first group, in the area's layer space.
+    /// Hosts that anchor their own surfaces to a column read it.
+    pub columns: Vec<(P, Rect)>,
     /// The area's response.
     pub response: Response,
 }
@@ -85,8 +88,10 @@ impl<P> Outcome for DockAreaOutput<P> {
 ///   what shows; a pruned panel keeps its place for restore.
 /// - Drops: the area is the drop target of tab and group drags. Ctrl or Cmd held at the release floats the drop, and
 ///   so does a release no spot takes, with `DockConfig::float_on_empty_drop`.
-/// - State: the open flyout (unless the host binds it with [`flyout`](DockArea::flyout)) and the previous layout
-///   live in the area's root container.
+/// - State: the open flyout (unless the host binds it with [`flyout`](DockArea::flyout)) lives in the area's root
+///   container.
+/// - Replacement: a tab or group drag records the workspace revision it started under; when another arrangement
+///   replaces the workspace ([`Workspace::replace`]), the drag ends without a drop.
 #[derive(crate::contract::Pattern, crate::contract::Props)]
 #[pattern(probe(DockArea<'static, usize>))]
 pub struct DockArea<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> {
@@ -137,15 +142,10 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
 }
 
 /// What the area keeps in its root container.
+#[derive(Clone)]
 struct AreaMemory<P> {
     /// The open flyout when the host binds none.
     open: Option<P>,
-    /// The flyout as the last pass left it, for `FlyoutChanged`.
-    reported: Option<P>,
-    /// The layout of the previous pass, for cancelling a drag when another arrangement replaces it.
-    previous: Layout<P>,
-    /// Where each column's first panel was placed, for `ColumnPlaced`.
-    columns: Vec<(P, Rect)>,
     /// The running move or resize of a floating window.
     moving: Option<Moving<P>>,
 }
@@ -159,19 +159,7 @@ struct Moving<P> {
 
 impl<P> Default for AreaMemory<P> {
     fn default() -> Self {
-        AreaMemory { open: None, reported: None, previous: Layout::default(), columns: Vec::new(), moving: None }
-    }
-}
-
-impl<P: Clone> Clone for AreaMemory<P> {
-    fn clone(&self) -> Self {
-        AreaMemory {
-            open: self.open.clone(),
-            reported: self.reported.clone(),
-            previous: self.previous.clone(),
-            columns: self.columns.clone(),
-            moving: self.moving.clone(),
-        }
+        AreaMemory { open: None, moving: None }
     }
 }
 
@@ -248,6 +236,7 @@ struct Passed<P> {
     picked: Option<P>,
     edit: EditEvents<Workspace<P>>,
     space: Option<FloatSpace<P>>,
+    columns: Vec<(P, Rect)>,
 }
 
 /// How a group is shown: minimized, and whether it is an accordion section (with its open state).
@@ -315,6 +304,8 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
         let policy = |panel: &P| rights.get(panel).copied().unwrap_or(Permissions::ALL);
         let specs: HashMap<P, PanelSpec> = current.layout.panels().into_iter().map(|panel| (panel.clone(), panels.spec(panel))).collect();
         let drops = Drops { dock: id, layout: &current.layout, permissions: &policy, config: &config, specs: &specs, rtl };
+        let shows = Arrangement { dock: id, revision: current.revision() };
+        end_replaced_drags::<P>(&ctx, shows);
         let dropped: RefCell<Option<Action<P>>> = RefCell::new(None);
         let root = DockRoot::new(|cx| {
             let taken = drops.take(cx);
@@ -322,7 +313,8 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
             taken
         })
         .id(id)
-        .label(label.clone());
+        .label(label.clone())
+        .shows(shows);
         let mut passed = None;
         let shown = root.show(ui, |ui, body| {
             let Some(sizes) = body.style::<DockRoot<'_, DockDropped<P>>>().map(|style| *style.sizes()) else { return };
@@ -351,18 +343,19 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
             }
             passed = Some(result);
         });
-        let Passed { actions, events, focused, picked, edit, space } = passed.unwrap_or_else(|| Passed {
+        let Passed { actions, events, focused, picked, edit, space, columns } = passed.unwrap_or_else(|| Passed {
             actions: Vec::new(),
             events: Vec::new(),
             focused: None,
             picked: None,
             edit: EditEvents::new(),
             space: None,
+            columns: Vec::new(),
         });
         if shown.output.dropped.is_some() {
             cross_window::accept_cross_window(&ctx);
         }
-        DockAreaOutput { actions, events, focused, picked, error, edit, float_space: space, response: shown.output.response }
+        DockAreaOutput { actions, events, focused, picked, error, edit, float_space: space, columns, response: shown.output.response }
     }
 }
 
@@ -443,7 +436,6 @@ fn show_area<P: Clone + Eq + Hash + Debug + Send + Sync + 'static>(
     let Input { id, ctx, current, config, specs, hide, maximized, auto_collapse, sizes, rtl } = *input;
     let shell = body.shell();
     let mut memory = body.memory::<AreaMemory<P>>().clone();
-    cancel_on_replacement(ctx, &memory.previous, &current.layout);
     let keys: HashMap<PanelKey, P> = current.layout.panels().into_iter().map(|panel| (PanelKey::of(panel), panel.clone())).collect();
     let protected = |panel: &P| rights.get(panel).is_some_and(|rights| rights.is_protected());
     let Shown { view, floating } = hide::shown(&current.layout, maximized, hide, shell.as_ref(), &protected);
@@ -497,6 +489,7 @@ fn show_area<P: Clone + Eq + Hash + Debug + Send + Sync + 'static>(
     let label: Arc<str> = Arc::from(body.words::<DockWords>().move_window.as_str());
     edit.extend(moved.and_then(|(anchor, change)| window_edit(ctx, current, rights, &mut memory.moving, &anchor, &change, label)));
 
+    let mut shown = open;
     for event in report.flyout.drain(..) {
         match flyout.as_mut() {
             Some(bind) => {
@@ -508,21 +501,21 @@ fn show_area<P: Clone + Eq + Hash + Debug + Send + Sync + 'static>(
                 }
             }
         }
-    }
-    let now = open_of(&mut flyout, body, &memory);
-    if memory.reported != now {
-        report.events.push(DockEvent::FlyoutChanged { panel: now.clone() });
-        memory.reported = now;
-    }
-    for (anchor, rect) in &report.placed {
-        if !memory.columns.iter().any(|(held, at)| held == anchor && at == rect) {
-            report.events.push(DockEvent::ColumnPlaced { anchor: anchor.clone(), rect: *rect });
+        if let Some(value) = event.value().filter(|value| **value != shown) {
+            report.events.push(DockEvent::FlyoutChanged { panel: value.clone() });
+            shown = value.clone();
         }
     }
-    memory.columns = std::mem::take(&mut report.placed);
-    memory.previous = current.layout.clone();
     *body.memory::<AreaMemory<P>>() = memory;
-    Passed { actions: report.actions, events: report.events, focused: report.focused, picked: report.picked, edit, space: Some(space) }
+    Passed {
+        actions: report.actions,
+        events: report.events,
+        focused: report.focused,
+        picked: report.picked,
+        edit,
+        space: Some(space),
+        columns: report.placed,
+    }
 }
 
 /// Registers the outer-edge bands and the new-dock bands as the dock's drop spots for the next pass, from the leaves

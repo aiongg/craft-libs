@@ -72,7 +72,8 @@ The host handles these `DockEvent`s:
 | `ToggleMaximize` | Sets or clears the panel it passes as `maximized`. |
 | `ToggleAutoCollapse` | Flips its preference and passes it back. |
 | `PanelCommand` | Carries out Move Panel To and Move Group To: asks for a destination and calls `move_actions`. |
-| `FlyoutChanged`, `ColumnPlaced`, `FloatPlaced` | Reports for a host that anchors its own surfaces to the dock. |
+| `FlyoutChanged` | Nothing when the area or a write-through binding holds the flyout; applies the request when the binding is given. |
+| `FloatPlaced` | Reports for a host that anchors its own surfaces to the dock; `DockAreaOutput::columns` gives every column's rect each pass. |
 
 ## DockConfig
 
@@ -94,7 +95,7 @@ The theme's docking sizes (`DockSizes`) set the drop bands and zones. `DockWords
 
 - A tab drag carries a `PanelDrag`; a group or column drag carries a `GroupDrag`. Groups and columns register `DockSpot`s in `DockTargets`, and `resolve_drop` maps the spot under the pointer to an `Action`.
 - Ctrl or Cmd held at the release floats the drop. A release over the dragged unit's own group leaves it where it is.
-- A drag ends without a change when another arrangement replaces the layout it started on (`cancel_on_replacement`). Size-only edits keep it.
+- A drag ends without a change when another arrangement replaces the workspace it started on: it records the workspace's revision, which `Workspace::replace` and the `WorkspaceSet` switch and reset change. The dock's own edits keep the revision, so they keep the drag.
 - Split handles are Tab stops, and the arrow keys move them. A divider drag is one gesture in `DockAreaOutput::edit`.
 - A panel command (`DockCommands`) acts on the shown panel of the group that takes it. A menu row, a key and the command palette run the same code: `actions` turns the command into `Action`s.
 
@@ -103,7 +104,7 @@ The theme's docking sizes (`DockSizes`) set the drop bands and zones. `DockWords
 | Set | Commands | Run with |
 | --- | --- | --- |
 | `DockCommands` | Float, move, close, step, minimize, collapse to icons, maximize | The `DockArea` itself. A host that shows its own dock calls `actions` and `Workspace::apply_all`. |
-| `WorkspaceCommands` | Reset, New, Delete, Lock | `run_workspace`, which returns a `WorkspaceAsk` when the host must ask for a name or a workspace. `select_workspace` switches. |
+| `WorkspaceCommands` | Reset, New, Delete, Lock | `run_workspace`, which returns a `WorkspaceAsk` when the host must ask for a name or a workspace. `WorkspaceSet::select` switches. |
 | `ArrangeCommands` | Arranging document windows | `arrange` over `DocumentWindows`. |
 
 `WorkspaceSwitcher` is a select over the set's names with the workspace commands in its list.

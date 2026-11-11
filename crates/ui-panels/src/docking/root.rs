@@ -6,7 +6,9 @@
 //! context registers a drop target), returns what a drop made for the output.
 
 use super::DockSizes;
+use super::drop::{self, Arrangement};
 use crate::contract::{Common, Component, Container, ContainerProps, Cx, NoValue, Outcome, Pad, Role, Sizing};
+use crate::runtime::env::AppValues;
 use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::{Metrics, Sense};
 use egui::Response;
@@ -65,6 +67,7 @@ pub struct DockRoot<'a, T: 'static> {
     props: ContainerProps,
     take_drop: TakeDrop<'a, T>,
     dropped: Option<T>,
+    shows: Option<Arrangement>,
 }
 
 impl<'a, T: 'static> DockRoot<'a, T> {
@@ -76,7 +79,15 @@ impl<'a, T: 'static> DockRoot<'a, T> {
             props: ContainerProps::new().sizing(Sizing::Fill).pad(Pad::None),
             take_drop: Box::new(take_drop),
             dropped: None,
+            shows: None,
         }
+    }
+
+    /// The arrangement the pattern shows, which the drags started in the body record.
+    #[doc(hidden)]
+    pub fn shows(mut self, arrangement: Arrangement) -> Self {
+        self.shows = Some(arrangement);
+        self
     }
 }
 
@@ -97,6 +108,10 @@ impl<T: 'static> Component for DockRoot<'_, T> {
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         self.dropped = (self.take_drop)(cx);
+    }
+
+    fn content_env(&self, _: &Cx<'_, Self>, values: &mut AppValues) {
+        drop::publish(values, self.shows);
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> DockRootOutput<T> {

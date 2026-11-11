@@ -113,3 +113,30 @@ fn a_workspace_set_with_a_floating_group_round_trips_through_json() {
     loaded.builtin = set.builtin.clone();
     assert_eq!(loaded, set);
 }
+
+/// Switching and resetting replace the live workspace and move it to a new revision; edits and selecting the shown
+/// workspace keep it, and the revision is neither saved nor compared.
+#[test]
+fn only_a_replacement_changes_the_live_revision() {
+    let essentials = Workspace::new(Layout::new(Some(tabs(&[1, 2], 0)), Vec::new()));
+    let painting = Workspace::new(Layout::new(Some(tabs(&[3], 0)), Vec::new()));
+    let mut set = WorkspaceSet::new(vec![
+        NamedWorkspace::new("essentials", "Essentials", essentials.clone()),
+        NamedWorkspace::new("painting", "Painting", painting),
+    ]);
+    let mut live = essentials.clone();
+    let start = live.revision();
+    live.apply(Action::activate(2), false, allow).unwrap();
+    live.set_visible(1, false, None, false, allow).unwrap();
+    set.select("essentials", &mut live).unwrap();
+    assert_eq!(live.revision(), start, "edits and selecting the shown workspace keep the revision");
+    set.select("painting", &mut live).unwrap();
+    let switched = live.revision();
+    assert!(switched != start && live.layout.contains(&3), "a switch replaces the live workspace");
+    set.reset(&mut live).unwrap();
+    assert!(live.revision() != switched, "a reset replaces it again");
+    set.select("essentials", &mut live).unwrap();
+    assert!(!live.layout.contains(&1), "the switch back shows the edited essentials");
+    let loaded: Workspace<u32> = serde_json::from_str(&serde_json::to_string(&live).unwrap()).unwrap();
+    assert_eq!(loaded, live, "the revision is not saved and not part of equality");
+}

@@ -37,9 +37,7 @@ pub enum WorkspaceAsk {
 pub fn run_workspace<P: Clone + Eq + Hash>(set: &mut WorkspaceSet<P>, live: &mut Workspace<P>, command: WorkspaceCommands) -> Option<WorkspaceAsk> {
     match command {
         WorkspaceCommands::Reset => {
-            if let Some(stored) = set.reset() {
-                *live = stored.clone();
-            }
+            let _ = set.reset(live);
             None
         }
         WorkspaceCommands::Lock => {
@@ -49,24 +47,6 @@ pub fn run_workspace<P: Clone + Eq + Hash>(set: &mut WorkspaceSet<P>, live: &mut
         WorkspaceCommands::New => Some(WorkspaceAsk::Name),
         WorkspaceCommands::Delete => Some(WorkspaceAsk::Which),
     }
-}
-
-/// Switches to the workspace `id`: the live layout is kept under the current id first, and the target's layout
-/// becomes the live one.
-///
-/// # Errors
-///
-/// `WorkspaceError::UnknownId` when no workspace has the id.
-pub fn select_workspace<P: Clone + Eq + Hash>(
-    set: &mut WorkspaceSet<P>,
-    live: &mut Workspace<P>,
-    id: &str,
-) -> Result<(), craft_behavior::dock::WorkspaceError> {
-    set.select(id, live.clone())?;
-    if let Some(layout) = set.layout() {
-        *live = layout.clone();
-    }
-    Ok(())
 }
 
 /// The state of each workspace command: Reset when the current workspace has edits, Delete while a saved workspace

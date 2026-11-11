@@ -15,7 +15,12 @@ use super::{
 };
 
 /// A saved arrangement of panels: the [`Layout`] and the closed panels' former places.
-#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+///
+/// Its [`revision`](Self::revision) changes when another arrangement replaces it (switch, reset, load): replace a
+/// shown workspace with [`replace`](Self::replace) or the [`WorkspaceSet`](super::WorkspaceSet) operations, never by
+/// assignment, so a running drag on it ends. Edits ([`apply`](Self::apply), [`set_visible`](Self::set_visible), the
+/// dock's own) keep the revision.
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 #[serde(default, bound(deserialize = "P: serde::Deserialize<'de>"))]
 #[non_exhaustive]
 pub struct Workspace<P> {
@@ -28,6 +33,15 @@ pub struct Workspace<P> {
     /// Closed panels, and panels the application does not register now, with where each one
     /// goes back.
     pub hidden: Vec<(P, Location<P>)>,
+    /// Counts the replacements of this live workspace. Not saved, and not part of equality.
+    #[serde(skip)]
+    revision: u64,
+}
+
+impl<P: PartialEq> PartialEq for Workspace<P> {
+    fn eq(&self, other: &Self) -> bool {
+        self.version == other.version && self.layout == other.layout && self.hidden == other.hidden
+    }
 }
 
 fn first_version() -> u32 {
@@ -50,7 +64,18 @@ impl<P> Workspace<P> {
 
     /// A workspace of `layout`, with no hidden panels.
     pub fn new(layout: Layout<P>) -> Self {
-        Self { version: Self::VERSION, layout, hidden: Vec::new() }
+        Self { version: Self::VERSION, layout, hidden: Vec::new(), revision: 0 }
+    }
+
+    /// The revision of this live workspace: it changes with every [`replace`](Self::replace) and nothing else.
+    pub fn revision(&self) -> u64 {
+        self.revision
+    }
+
+    /// Replaces the arrangement with `with` and moves to the next revision.
+    pub fn replace(&mut self, with: Workspace<P>) {
+        let revision = self.revision.wrapping_add(1);
+        *self = Workspace { revision, ..with };
     }
 }
 
@@ -206,7 +231,7 @@ impl<P: Clone + Eq + Hash> Workspace<P> {
     /// `hidden` keeps at most [`MAX_PANELS`] entries, dropping the oldest unregistered ones first.
     pub fn reconcile(&mut self, registered: impl Fn(&P) -> bool, permissions: impl Fn(&P) -> Permissions, default: &Workspace<P>) {
         if self.validate().is_err() {
-            *self = default.clone();
+            self.replace(default.clone());
         }
         let unknown: Vec<P> = self.layout.panels().into_iter().filter(|p| !registered(p)).cloned().collect();
         let locations = close_locations(&self.layout, &unknown);

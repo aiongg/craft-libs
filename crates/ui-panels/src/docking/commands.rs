@@ -13,4 +13,4 @@ mod workspace;
 
 pub use arrange::{ArrangeCommands, ArrangeSpace, Arranged, arrange, arrange_states};
 pub use dock::{DockCommands, DockScene, DockTo, actions, dock_states, move_actions};
-pub use workspace::{WorkspaceAsk, WorkspaceCommands, run_workspace, select_workspace, workspace_states};
+pub use workspace::{WorkspaceAsk, WorkspaceCommands, run_workspace, workspace_states};

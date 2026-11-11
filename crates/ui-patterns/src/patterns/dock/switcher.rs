@@ -35,7 +35,7 @@ impl Outcome for WorkspaceSwitcherOutput {
 /// The switcher at the end of an options bar: a small select showing the current workspace's name. Its list has the
 /// built-in and saved workspaces, then Reset, New, Delete and Lock Workspace as the `WorkspaceCommands` rows. A row
 /// fires its command, which the host takes with its other app commands and runs with `run_workspace`; the host
-/// switches with `select_workspace`. The switcher edits nothing.
+/// switches with `WorkspaceSet::select`. The switcher edits nothing.
 #[must_use = "show the switcher with `show`"]
 #[derive(crate::contract::Pattern)]
 #[pattern(probe(WorkspaceSwitcher<'static, u32>))]

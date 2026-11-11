@@ -46,7 +46,7 @@ pub type GroupView<'a, P> = Box<dyn FnMut(&Group<P>, Rect, &mut Ui, &mut BodyCx<
 pub struct DockColumnOutput<P> {
     /// The column's response.
     pub response: Response,
-    /// The rect the column took, for `DockEvent::ColumnPlaced`.
+    /// The rect the column took, for `DockAreaOutput::columns`.
     pub placed: Rect,
     /// The user asked to collapse the column to icons (`true`); the host sets `Column::iconic`.
     pub iconic: Option<bool>,

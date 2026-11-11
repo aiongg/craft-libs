@@ -55,7 +55,7 @@ pub struct IconicColumnOutput<P> {
     /// The open flyout's edits: the panel the user opened or switched to (the host makes it its group's active
     /// panel), `None` when it closed. The value is the bound open panel.
     pub edit: EditResponse<Option<P>>,
-    /// The rect the column took, for `DockEvent::ColumnPlaced`.
+    /// The rect the column took, for `DockAreaOutput::columns`.
     pub placed: Rect,
     /// The user asked to expand the column (`false`); the host sets `Column::iconic`.
     pub iconic: Option<bool>,
