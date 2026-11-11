@@ -136,3 +136,14 @@ overflow-checks = false
 # target dir; the workspace's own crates stay unoptimised and incremental.
 [profile.dev.package."*"]
 opt-level = 2
+
+# The gallery on the Mac: optimised like release, but the workspace's crates build in many small
+# units, incrementally, so a change to craft-ui rebuilds in minutes. Dependencies keep release
+# settings and build once in target/gallery. `cargo run --profile gallery -p craft-ui-gallery`.
+[profile.gallery]
+inherits = "release"
+incremental = true
+codegen-units = 256
+
+[profile.gallery.package."*"]
+codegen-units = 16
