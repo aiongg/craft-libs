@@ -20,3 +20,10 @@ pub use read::*;
 pub mod raster;
 #[cfg(feature = "write")]
 pub mod write;
+
+#[cfg(test)]
+extern crate self as craft_pdf;
+
+#[cfg(test)]
+#[path = "../tests/main.rs"]
+mod integration;
