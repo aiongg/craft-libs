@@ -171,6 +171,13 @@ opt-level = 1
 inherits = "release"
 incremental = true
 codegen-units = 256
+opt-level = 1
 
+# The workspace's own crates build at opt-level 1 in the gallery profile: rustc shares generic instantiations across
+# crates at opt-level 0, 1, s and z only, so at 1 a change in a framework crate no longer makes every dependant
+# re-generate its own copies of that crate's generics and inlined functions (a one-line edit rebuilt the gallery in
+# 25 s at opt-level 1 and 69–84 s at 3). `package."*"` matches the dependencies only: they keep release optimisation,
+# so this changes nothing in their settings.
 [profile.gallery.package."*"]
 codegen-units = 16
+opt-level = 3
