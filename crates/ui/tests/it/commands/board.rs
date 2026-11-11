@@ -1,5 +1,5 @@
 use super::kit::{AppCommand, Dock, DockCommand, PaneCommand, Tap};
-use craft_ui::contract::{CommandSet as _, Props as _, Show as _, ShowContainer as _};
+use craft_ui::contract::{Props as _, Show as _, ShowContainer as _};
 use craft_ui::runtime::commands::{
     CommandGate, CommandInput, CommandRef, CommandState, Commands as _, EditCommands, FireSource, Fired, fire, resolve,
 };

@@ -5,7 +5,7 @@ use crate::contract::kit::PlainStyle;
 use crate::windows_kit::Windows;
 use craft_behavior::{Cursor, CursorIcon};
 use craft_host::target::{Caps, Os, ShellInfo, WindowChrome, WindowInfo, WindowKind};
-use craft_ui::contract::{Common, Component, Container, ContainerProps, Cx, Mount, Overlay, Props as _, Role, Show as _, ShowContainer as _};
+use craft_ui::contract::{Common, Component, Container, ContainerProps, Cx, Mount, Overlay, Props as _, Role, ShowContainer as _};
 use craft_ui::runtime::InstallSpec;
 use craft_ui::runtime::windows::WindowSpec;
 use craft_ui::style::StyleCx;

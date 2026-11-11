@@ -5,7 +5,7 @@ use craft_behavior::EditEvent;
 use craft_imaging::ui::ChannelColor;
 use craft_imaging::ui::curve::{Curve, CurveChannel, CurveEditor};
 use craft_theme::{Contrast, Mode};
-use craft_ui::contract::{Bind, Show as _};
+use craft_ui::contract::Bind;
 use craft_ui::testing::pointer::{moved, press, release};
 use craft_ui::testing::{Fixture, style, trial};
 use egui::{Pos2, Vec2, pos2, vec2};

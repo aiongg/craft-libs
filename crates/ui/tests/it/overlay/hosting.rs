@@ -3,7 +3,7 @@
 use super::kit::PlainStyle;
 use craft_behavior::{HitLevel, HitPriority, PartKey, Sense};
 use craft_ui::contract::overlay::{Dismiss, Outside};
-use craft_ui::contract::{Common, Component, Cx, MeasureCx, Overlay, OverlayUi, Overlays as _, PartsCx, Pointer as _, Props as _, Role, Show as _};
+use craft_ui::contract::{Common, Component, Cx, MeasureCx, Overlay, OverlayUi, Overlays as _, PartsCx, Props as _, Role, Show as _};
 use craft_ui::menu::MenuItem;
 use craft_ui::style::StyleCx;
 use craft_ui::testing::pointer::{moved, press, release};

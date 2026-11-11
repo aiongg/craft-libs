@@ -4,7 +4,6 @@
 use craft_behavior::CanvasView;
 use craft_behavior::kurbo::Point;
 use craft_draw::ui::crop::{grid_lines, grid_steps};
-use craft_ui::contract::{Show as _, ShowContainer as _};
 use craft_ui::testing::trial;
 use egui::{Pos2, Vec2};
 

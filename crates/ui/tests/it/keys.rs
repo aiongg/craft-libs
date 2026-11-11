@@ -1,7 +1,7 @@
 //! Which key roles take Delete: a command scope gets Delete from a focused button, while a deletable list and a text
 //! field keep it, and a collection that leaves its arrows to its owner lets the owner's arrow command run.
 
-use craft_ui::contract::{Bind, CommandSet, Commands as _, Props as _, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, CommandSet, Commands as _, Show as _, ShowContainer as _};
 use craft_ui::popover::Popover;
 use craft_ui::runtime::commands::CommandScope;
 use craft_ui::runtime::focus::Initial;

@@ -1,7 +1,7 @@
 //! The menu bar: what the help search finds.
 
 use craft_i18n::Direction;
-use craft_ui::contract::{Show as _, ShowContainer as _};
+use craft_ui::contract::Show as _;
 use craft_ui::menu::MenuItem;
 use craft_ui::menu::bar::{MenuBar, MenuHelp, MenuTitle};
 use craft_ui::menu::search::HelpEntry;

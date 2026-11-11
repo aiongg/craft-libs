@@ -5,7 +5,6 @@ use craft_pages::layout::{Fit, LayoutOptions};
 use craft_pages::ui::fixtures::{DemoPages, PAPER};
 use craft_pages::ui::{PageView, PageViewState};
 
-use craft_ui::contract::Show as _;
 use craft_ui::testing::{Fixture, trial};
 use egui::{Modifiers, pos2, vec2};
 use std::cell::RefCell;

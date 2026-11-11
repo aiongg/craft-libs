@@ -6,7 +6,7 @@ mod dials;
 mod thumb_row;
 
 use craft_behavior::EditEvent;
-use craft_ui::contract::{Bind, Props as _, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, Props as _, Show as _};
 use craft_ui::testing::pointer;
 use craft_ui::testing::{Frames, trial};
 use craft_ui::value_drag::Slider;

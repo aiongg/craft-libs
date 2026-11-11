@@ -4,40 +4,11 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use craft_behavior::Mixed;
-use craft_color::ui::{ColorPicker, ColorReadout};
-use craft_theme::{Channel, ColorModel, DefaultOn, MAX_CHANNELS, ModelValues, Rgba, Srgba};
+use craft_color::ui::ColorReadout;
+use craft_theme::Rgba;
 use craft_ui::contract::Bind;
 use craft_ui::testing::{Fixture, trial};
 use egui::{Key, Modifiers, vec2};
-
-impl ColorModel for NaiveCmyk {
-    fn id(&self) -> &'static str {
-        "test-cmyk"
-    }
-
-    fn name(&self) -> &'static str {
-        "CMYK"
-    }
-
-    fn channels(&self) -> &[Channel] {
-        &CMYK
-    }
-
-    fn from_srgb(&self, c: Srgba) -> ModelValues {
-        let k = 1.0 - c.r.max(c.g).max(c.b);
-        let ink = |v: f32| if k >= 1.0 { 0.0 } else { 100.0 * (1.0 - v - k) / (1.0 - k) };
-        ModelValues::new("test-cmyk", &[ink(c.r), ink(c.g), ink(c.b), 100.0 * k])
-    }
-
-    fn to_srgb(&self, v: &[f32; MAX_CHANNELS]) -> Srgba {
-        let k = 1.0 - v[3] / 100.0;
-        Srgba::rgb((1.0 - v[0] / 100.0) * k, (1.0 - v[1] / 100.0) * k, (1.0 - v[2] / 100.0) * k)
-    }
-
-    fn default_on(&self) -> DefaultOn {
-        DefaultOn { full: true, compact: false }
-    }
-}
 
 fn type_into(fixture: &mut Fixture, label: &str, text: &str) {
     let field = fixture.by_label(label).unwrap_or_else(|| panic!("the picker shows a {label} field"));

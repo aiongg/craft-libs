@@ -5,7 +5,7 @@ use craft_behavior::kurbo::{Point, Rect};
 use craft_behavior::{Axis, CanvasView, EditEvent};
 use craft_ui::canvas::{Canvas, CropOverlay};
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
-use craft_ui::testing::{Frames, input, layout, pointer, trial};
+use craft_ui::testing::{Frames, layout, pointer, trial};
 use egui::{Event, Modifiers, Pos2, Vec2};
 use std::cell::RefCell;
 use std::rc::Rc;

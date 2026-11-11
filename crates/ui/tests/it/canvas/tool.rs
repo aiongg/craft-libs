@@ -4,7 +4,7 @@
 use craft_behavior::{CancelReason, GesturePhase, PointerButton};
 use craft_keymap::Mods;
 use craft_ui::canvas::{CanvasTool, CropOverlay, ToolAction, ToolClaims, ToolContext, ToolHost, ToolKey, ToolPath, ToolPointer};
-use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, Show as _};
 use craft_ui::primitives::Draw;
 use craft_ui::testing::{ToolFixture, trial};
 use egui::{Rect, Vec2};

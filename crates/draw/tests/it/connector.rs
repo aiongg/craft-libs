@@ -3,7 +3,6 @@
 use craft_behavior::CanvasView;
 use craft_behavior::kurbo::{Point, Rect};
 use craft_draw::ui::connector::{ConnectionTarget, ConnectorTool};
-use craft_ui::canvas::CanvasTool as _;
 use craft_ui::testing::{ToolFixture, trial};
 
 const A: Rect = Rect::new(20.0, 100.0, 100.0, 200.0);

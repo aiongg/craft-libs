@@ -1,13 +1,10 @@
 //! Navigation rules (wheel, page keys, flick, autoscroll), the zoom motion and the momentary tool order.
 
-use craft_behavior::kurbo::Point;
-use craft_behavior::{CancelReason, Wheel, WheelPhase, WheelUnit};
+use craft_behavior::{Wheel, WheelPhase, WheelUnit};
 use craft_keymap::Mods;
 use craft_ui::canvas::{
-    CanvasTool, Momentary, MomentaryCommands, MomentaryTool, NavigationOptions, ToolAction, ToolContext, ToolPath, ToolPointer, TouchpadGlide,
+    Momentary, MomentaryCommands, MomentaryTool, NavigationOptions, TouchpadGlide,
 };
-use craft_ui::contract::{Props as _, Show as _, ShowContainer as _};
-use craft_ui::primitives::Draw;
 use craft_ui::runtime::commands::FirePhase;
 use craft_ui::testing::trial;
 use egui::Vec2;
@@ -50,23 +47,3 @@ fn space_is_the_hand_and_cmd_or_alt_added_in_any_order_switch_to_zoom() {
     assert_eq!(momentary.tool(Mods::NONE, false), None);
 }
 
-impl CanvasTool for Brush {
-    fn press(&mut self, _: &ToolPointer, _: &mut ToolContext<'_>) -> ToolAction {
-        self.presses += 1;
-        ToolAction::Claimed
-    }
-
-    fn drag(&mut self, _: &ToolPointer, _: &mut ToolContext<'_>) {}
-
-    fn release(&mut self, _: &ToolPointer, _: &mut ToolContext<'_>) {
-        self.releases += 1;
-    }
-
-    fn cancel(&mut self, _: CancelReason, _: &mut ToolContext<'_>) {}
-
-    fn paint(&self, _: &Draw<'_>, _: &ToolContext<'_>) {}
-
-    fn command_form(&self) -> ToolPath {
-        ToolPath::Command("the Select Area... command")
-    }
-}

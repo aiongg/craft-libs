@@ -5,7 +5,7 @@ use craft_behavior::CanvasView;
 use craft_behavior::geometry::CropBox;
 use craft_behavior::kurbo::{Point, Rect, Size};
 use craft_draw::ui::crop::{CropDocKey, CropDocument, CropEvent, CropInput, CropSession, CropSettings, CropTool};
-use craft_ui::canvas::{Canvas, CanvasTool as _, ToolHost};
+use craft_ui::canvas::{Canvas, ToolHost};
 use craft_ui::contract::ShowContainer as _;
 use craft_ui::runtime::access::Role;
 use craft_ui::runtime::env::{Env, Units};

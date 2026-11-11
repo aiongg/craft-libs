@@ -6,7 +6,6 @@ use std::rc::Rc;
 use craft_timeline::ui::{Timeline, TimelineEdit};
 use craft_timeline::{ClipId, ClipInfo, TimeRange, TimelineModel, TrackId, TrackInfo};
 use craft_timeline::{FrameRate, Tick, TimeFormat, TimeView, TrackKind};
-use craft_ui::contract::ShowContainer as _;
 use craft_ui::testing::{Fixture, Target, trial};
 use egui::{Rect, Vec2};
 

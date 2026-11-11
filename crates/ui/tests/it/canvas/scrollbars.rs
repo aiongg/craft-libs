@@ -3,7 +3,6 @@
 use craft_behavior::CanvasView;
 use craft_behavior::kurbo::{Point, Rect as DocRect};
 use craft_ui::canvas::CanvasScrollbars;
-use craft_ui::contract::{Show as _, ShowContainer as _};
 use craft_ui::testing::trial;
 use egui::{Pos2, Rect};
 
