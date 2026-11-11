@@ -7,7 +7,7 @@ use std::path::Path;
 use craft_design_lint::{Baseline, Config, check};
 
 fn tree(name: &str, files: &[(&str, &str)]) -> std::path::PathBuf {
-    let root = Path::new(env!("CARGO_TARGET_TMPDIR")).join(name);
+    let root = std::env::temp_dir().join("craft-design-lint-baseline").join(name);
     let _ = std::fs::remove_dir_all(&root);
     for (rel, src) in files {
         let path = root.join(rel);

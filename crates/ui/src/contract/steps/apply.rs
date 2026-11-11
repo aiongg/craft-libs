@@ -166,7 +166,7 @@ pub(crate) fn rerun_after_edit<C: Component>(
     let resized = if leaf {
         earlier.samples.iter().any(|sample| {
             let input = MeasureIn { ui: input.ui, env: input.env, proposal: sample.proposal, room: sample.room };
-            measure(comp, &input, cx.style, resolved, cx.shown.as_deref(), Vec2::ZERO) != sample.took
+            measure(comp, &input, cx.style, resolved, cx.shown.as_deref(), Vec2::ZERO).0 != sample.took
         })
     } else {
         earlier.measured

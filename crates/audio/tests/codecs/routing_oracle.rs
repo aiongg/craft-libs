@@ -10,12 +10,9 @@ use std::process::Command;
 /// Five seconds of two tones and a little noise per channel.
 const STEREO: &str =
     "aevalsrc=0.4*sin(2*PI*220*t)+0.15*sin(2*PI*1375*t)+0.05*(random(0)-0.5)|0.35*sin(2*PI*330*t)+0.2*sin(2*PI*2750*t*(1+t/20))+0.05*(random(1)-0.5)";
-const MONO: &str = "aevalsrc=0.4*sin(2*PI*220*t)";
 
 struct Case {
     name: &'static str,
-    surround: bool,
-    mono: bool,
     rate: u32,
     args: &'static [&'static str],
     container: Container,
@@ -32,8 +29,6 @@ struct Case {
 const CASES: &[Case] = &[
     Case {
         name: "flac.flac",
-        surround: false,
-        mono: false,
         rate: 48_000,
         args: &["-c:a", "flac", "-sample_fmt", "s16"],
         container: Container::Flac,
@@ -45,8 +40,6 @@ const CASES: &[Case] = &[
     },
     Case {
         name: "pcm-s24be.mov",
-        surround: false,
-        mono: false,
         rate: 48_000,
         args: &["-c:a", "pcm_s24be"],
         container: Container::QuickTime,
@@ -58,8 +51,6 @@ const CASES: &[Case] = &[
     },
     Case {
         name: "pcm-f32.mkv",
-        surround: false,
-        mono: false,
         rate: 48_000,
         args: &["-c:a", "pcm_f32le"],
         container: Container::Matroska,
@@ -78,12 +69,7 @@ fn run(ff: &Path, args: &[&str]) -> bool {
 /// The fixture for `c`, written by ffmpeg (cached), or `None` when this ffmpeg lacks an encoder.
 fn fixture(ff: &Path, c: &Case) -> Option<PathBuf> {
     let out = super::testkit::fixtures_dir("routing").join(c.name);
-    let source = match (c.mono, c.surround) {
-        (true, _) => MONO.to_string(),
-        (_, true) => format!("{STEREO}{SURROUND_EXTRA}"),
-        _ => STEREO.to_string(),
-    };
-    let input = format!("{source}:s={}", c.rate);
+    let input = format!("{STEREO}:s={}", c.rate);
     super::testkit::fixtures::generate(&out, |tmp| {
         let tmp = tmp.to_string_lossy();
         let mut args = vec!["-f", "lavfi", "-i", &input, "-t", "5"];

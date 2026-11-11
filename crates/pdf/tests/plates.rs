@@ -98,6 +98,8 @@ fn separate(pdf: &[u8]) -> Plates {
     plates(pdf, &inks(&["Gold"]), true, None)
 }
 
+const GOLD: &str = "[/Separation /Gold /DeviceCMYK << /FunctionType 2 /Domain [0 1] /C0 [0 0 0 0] /C1 [0 0.3 1 0] /N 1 >>]";
+
 fn gold_resource() -> String {
     format!("/ColorSpace << /CS0 {GOLD} >>")
 }
