@@ -260,9 +260,9 @@ fn sweep(ctx: &Context) {
 }
 
 /// The result under `id`: submits `start()` once, takes a finished result into the slot and returns it. Without
-/// a host there is no spawner and the result stays loading; a sizing pass keeps nothing, so it starts nothing and
-/// leaves a landed result for the next real pass. A job that ended without delivering is submitted again on the
-/// next pass.
+/// a host there is no spawner and the result stays loading; a sizing pass keeps nothing, so it starts and tracks
+/// nothing and leaves a landed result for the next real pass. A job that ended without delivering is submitted
+/// again on the next pass.
 pub(crate) fn poll<T: Clone + Send + Sync + 'static, E: Clone + Send + Sync + 'static>(
     stage: &mut MemoryStage,
     id: Id,
@@ -271,7 +271,9 @@ pub(crate) fn poll<T: Clone + Send + Sync + 'static, E: Clone + Send + Sync + 's
     let ctx = stage.ctx().clone();
     let sizing = stage.is_peek();
     let host = Env::host_of(&ctx);
-    track::<T, E>(&ctx, id, stage.owner());
+    if !sizing {
+        track::<T, E>(&ctx, id, stage.owner());
+    }
     let slot = stage.shown::<PendingSlot<T, E>>(id);
     if slot.started.is_none()
         && matches!(slot.shown, Pending::Loading { .. })

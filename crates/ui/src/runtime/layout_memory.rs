@@ -912,35 +912,46 @@ pub(crate) mod guard {
         ("runtime::inspect::Log", "inspection log"),
     ];
 
+    /// Raises one of the depths for as long as it lives: a panic that unwinds out of the run lowers it too, so a later
+    /// frame on the same thread (the next trial a test harness runs there) is not counted inside the run.
+    #[cfg(feature = "testing")]
+    struct Raised(&'static std::thread::LocalKey<std::cell::Cell<u32>>);
+
+    #[cfg(feature = "testing")]
+    impl Raised {
+        fn new(depth: &'static std::thread::LocalKey<std::cell::Cell<u32>>) -> Self {
+            depth.with(|depth| depth.set(depth.get() + 1));
+            Raised(depth)
+        }
+    }
+
+    #[cfg(feature = "testing")]
+    impl Drop for Raised {
+        fn drop(&mut self) {
+            self.0.with(|depth| depth.set(depth.get() - 1));
+        }
+    }
+
     /// Runs `f` inside a measuring run (`measure::run`).
     pub(crate) fn measuring<R>(f: impl FnOnce() -> R) -> R {
         #[cfg(feature = "testing")]
-        MEASURING.with(|depth| depth.set(depth.get() + 1));
-        let out = f();
-        #[cfg(feature = "testing")]
-        MEASURING.with(|depth| depth.set(depth.get() - 1));
-        out
+        let _raised = Raised::new(&MEASURING);
+        f()
     }
 
     /// Runs `f` as part of an emit or a replay: what it touches is handed forward through layout memory.
     pub(crate) fn emitting<R>(f: impl FnOnce() -> R) -> R {
         #[cfg(feature = "testing")]
-        EMITTING.with(|depth| depth.set(depth.get() + 1));
-        let out = f();
-        #[cfg(feature = "testing")]
-        EMITTING.with(|depth| depth.set(depth.get() - 1));
-        out
+        let _raised = Raised::new(&EMITTING);
+        f()
     }
 
     /// Runs `f`, a frame a test fixture drives: a touch the guard does not allow panics. Outside it (an app built
     /// with the testing feature, such as the gallery) the guard names each such service once on stderr.
     pub(crate) fn strict<R>(f: impl FnOnce() -> R) -> R {
         #[cfg(feature = "testing")]
-        STRICT.with(|depth| depth.set(depth.get() + 1));
-        let out = f();
-        #[cfg(feature = "testing")]
-        STRICT.with(|depth| depth.set(depth.get() - 1));
-        out
+        let _raised = Raised::new(&STRICT);
+        f()
     }
 
     /// A service of type `S` is touched.

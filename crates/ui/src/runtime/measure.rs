@@ -35,12 +35,17 @@ struct WidestRuns {
 
 /// Runs `f` as a measuring run. Nested calls are fine.
 pub fn run<R>(ctx: &Context, f: impl FnOnce() -> R) -> R {
-    let set = |to: u32| store::put(ctx, depth_id(), to);
+    /// Restores the depth when the run ends, by a panic too: a context used after a caught panic is not measuring.
+    struct Open<'a>(&'a Context, u32);
+    impl Drop for Open<'_> {
+        fn drop(&mut self) {
+            store::put(self.0, depth_id(), self.1);
+        }
+    }
     let before = depth(ctx);
-    set(before + 1);
-    let out = super::layout_memory::guard::measuring(f);
-    set(before);
-    out
+    store::put(ctx, depth_id(), before + 1);
+    let _open = Open(ctx, before);
+    super::layout_memory::guard::measuring(f)
 }
 
 fn depth(ctx: &Context) -> u32 {
