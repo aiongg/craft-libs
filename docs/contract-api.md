@@ -1327,23 +1327,23 @@ Pointer values and the press lifecycle (8.1, 8.2), egui-free: the runtime conver
   - `pub fn button(&self) -> Option<PointerButton>`. The button of the open press.
   - `pub fn dragging(&self) -> bool`. Whether a drag holds the pointer.
   - `pub fn step(&mut self, input: PassInput<'_>, mut pick: impl FnMut(Pos2) -> Option<(T, Sense)>) -> PressStep<T>`. Runs one pass. `pick` chooses the press winner and what it senses at a press position; it returns `None`
-- `craft_behavior::press::PressPhase`: `pub enum PressPhase { Idle, Hover, Down { start: PressStart }, DragStart { start: PressStart, pos: Pos2 }, Drag { start: PressStart, pos: Pos2, delta: Vec2 }, Release { start: PressStart, pos: Pos2, click: bool }, Cancel { start: PressStart, reason: PressCancel } }`. One part's press state in one pass.
+- `craft_behavior::press::PressPhase`: `pub enum PressPhase { Idle, Hover, Down { start: PressStart }, Held { start: PressStart }, DragStart { start: PressStart, pos: Pos2 }, Drag { start: PressStart, pos: Pos2, delta: Vec2 }, Release { start: PressStart, pos: Pos2, click: bool }, Cancel { start: PressStart, reason: PressCancel } }`. One part's press state in one pass.
   - `pub const fn is_press(&self) -> bool`. A press is in progress or just ended: not `Idle` or `Hover`.
   - `pub const fn start(&self) -> Option<PressStart>`. The press the phase belongs to.
+  - `pub const fn button_down(&self) -> bool`. Whether the button is down: `Down`, `Held`, `DragStart` or `Drag`.
   - `pub const fn is_drag(&self) -> bool`. Whether the phase is a drag in progress.
   - `pub const fn is_click(&self) -> bool`. Whether the phase is a click: a release within slop.
   - `pub fn mapped(self, point: impl Fn(Pos2) -> Pos2, delta: impl Fn(Vec2) -> Vec2) -> PressPhase`. The phase with its positions mapped by `point` and its drag delta by `delta`, for a part whose space
 - `craft_behavior::press::PressStart`: `pub struct PressStart { pub origin: Pos2, pub button: PointerButton, pub time: f64, pub clicks: u32 }`. Where and when a press began.
   - `pub const fn new(origin: Pos2, button: PointerButton, time: f64, clicks: u32) -> Self`. A press of `button` at `origin`.
-- `craft_behavior::press::PressState`: `pub struct PressState { pub phase: PressPhase, pub mods: Mods, pub sample: Option<PointerSample>, pub captured: bool, pub went_down: bool }`. A part's phase, the modifiers held, the pen sample and whether it holds the pointer.
+- `craft_behavior::press::PressState`: `pub struct PressState { pub phase: PressPhase, pub mods: Mods, pub sample: Option<PointerSample>, pub captured: bool }`. A part's phase, the modifiers held, the pen sample and whether it holds the pointer.
   - `pub const IDLE: PressState`. A part with no press history.
   - `pub const fn new(phase: PressPhase) -> Self`. A state in `phase` with no modifiers, sample or capture.
   - `pub const fn mods(mut self, mods: Mods) -> Self`. The modifiers held.
   - `pub const fn sample(mut self, sample: Option<PointerSample>) -> Self`. The pen sample of the contact.
   - `pub const fn captured(mut self, captured: bool) -> Self`. Whether a drag holds the pointer.
-  - `pub const fn went_down(mut self, went_down: bool) -> Self`. Whether the button went down in this pass.
-  - `pub const fn double_pressed(&self) -> bool`. Whether the second press of a double click went down in this pass: true once, false while the button is held
-- `craft_behavior::press::PressStep`: `pub struct PressStep<T> { pub target: Option<T>, pub phase: Option<PressPhase>, pub dragging: bool, pub activated: Option<T>, pub went_down: bool }`. What one pass did to the press.
+  - `pub const fn double_pressed(&self) -> bool`. Whether the phase is the `Down` of the second press of a double click: true once, false while the button is
+- `craft_behavior::press::PressStep`: `pub struct PressStep<T> { pub target: Option<T>, pub phase: Option<PressPhase>, pub dragging: bool, pub activated: Option<T> }`. What one pass did to the press.
 - `craft_behavior::press::count_clicks`: `pub fn count_clicks(previous: Option<(Pos2, f64, u32)>, pos: Pos2, time: f64, slop: f32) -> u32`. The click count of a press at `pos` and `time`, given the previous press `(pos, time, clicks)`: one more when
 
 ## `craft_behavior::quantity`
@@ -1614,10 +1614,10 @@ Wheel gesture values, as craft-behavior's copy of egui's types so the wheel spli
 
 The craft UI library: runtime, style, fonts, primitives, the component contract, layout,
 
-- `craft_ui::install`: `pub fn install(ctx: &egui::Context, spec: InstallSpec) -> Result<(), InstallError>`. Adds the runtime to `ctx`: `runtime::install` with the overlay host's ghost-layer painter in the end hook.
 - `craft_ui::testing_registered!`: `macro_rules! testing_registered`. Writes `pub fn registered()` for the invoking package: its library crate's registrations in the running binary.
 - `craft_ui::InstallError`: re-export of `craft_ui::runtime::install::InstallError`.
 - `craft_ui::InstallSpec`: re-export of `craft_ui::runtime::install::InstallSpec`.
+- `craft_ui::install`: re-export of `craft_ui::contract::install`.
 - `craft_ui::words`: re-export of `craft_ui_macros::words` (outside these crates).
 
 ## `craft_ui::contract`
@@ -1728,6 +1728,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
 - `craft_ui::contract::ShowShape`: `pub trait ShowShape: sealed::ShowShape`. Which show trait applies, and the shape's default sense.
   - `const KIND: ShapeKind`. The shape as a value.
   - `const DEFAULT_SENSE: Sense`. Leaf `CLICK | FOCUS`; body empty; items `CLICK | DRAG | FOCUS | WHEEL | TAKE_FOCUS`.
+- `craft_ui::contract::install`: `pub fn install(ctx: &egui::Context, spec: crate::runtime::InstallSpec) -> Result<(), crate::runtime::InstallError>`. Adds the runtime to `ctx`: `runtime::install` with the overlay host's ghost-layer painter in the end hook.
 - `craft_ui::contract::Access`: re-export of `craft_ui::runtime::access::Access`.
 - `craft_ui::contract::Accessible`: `pub trait Accessible`. Live announcements and the enclosing field label (chapter 12).
   - `fn announce(&mut self, text: impl Into<String>, politeness: Politeness)`. Announces transient text; it is flushed at frame end as one status node and returned in `FrameOutput`.
@@ -3674,19 +3675,44 @@ The fixture, the suite runner and the story helpers.
 - `craft_ui::testing::Impure`: re-export of `craft_ui::testing::fixture::Impure`.
 - `craft_ui::testing::Room`: re-export of `craft_ui::testing::fixture::Room`.
 - `craft_ui::testing::Target`: re-export of `craft_ui::testing::fixture::Target`.
-- `craft_ui::testing::ToolFixture`: re-export of `craft_ui::testing::tool_fixture::ToolFixture`.
+- `craft_ui::testing::ToolFixture`: `pub struct ToolFixture<T: CanvasTool + 'static>`. A tool shown on a canvas that fills the fixture's room, with the gesture phases the host reported.
+  - `pub fn new(label: &'static str, tool: T) -> Self`. A canvas named `label` whose active tool is `tool`.
+  - `pub fn with_body(label: &'static str, tool: T, body: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'static) -> Self`. A canvas named `label` whose body `body` fills: canvas controls shown at the body's rect join the canvas's
+  - `pub fn with_view(label: &'static str, tool: T, view: impl Fn(Rect) -> CanvasView + 'static, body: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'static,) -> Self`. [`ToolFixture::with_body`] over a canvas given the view `view` makes of the canvas's room, so the body's
+  - `pub fn fixture(&mut self) -> &mut Fixture`. The fixture underneath, for input the helpers here do not cover.
+  - `pub fn tool(&self) -> Ref<'_, T>`. The tool.
+  - `pub fn tool_mut(&self) -> RefMut<'_, T>`. The tool, to change its options between gestures.
+  - `pub fn canvas(&self) -> Target`. The canvas's node.
+  - `pub fn canvas_id(&self) -> Id`. The canvas's id, which keys the host's state: what [`ToolHost::inject`], [`ToolHost::cancel`] and
+  - `pub fn enabled(&mut self, enabled: bool) -> &mut Self`. Runs the host from the next frame on, or leaves it disabled (the app's tool is busy elsewhere).
+  - `pub fn gestures(&self) -> Vec<GesturePhase>`. The gesture phases the host reported, one per pass that began, moved or ended a gesture, since the last
+  - `pub fn forget(&mut self) -> &mut Self`. Forgets the phases reported so far.
+  - `pub fn press_at(&mut self, at: Pos2) -> &mut Self`. Hover and press at `at` with the primary button, in separate frames.
+  - `pub fn double_press_at(&mut self, at: Pos2) -> &mut Self`. Hover at `at`, then press and release twice there in successive frames: the runtime's click count reads the
+  - `pub fn move_to(&mut self, to: Pos2) -> &mut Self`. Moves to `to` in one frame.
+  - `pub fn release_at(&mut self, at: Pos2) -> &mut Self`. Releases the primary button at `at`, then one idle frame.
+  - `pub fn drag_from(&mut self, from: Pos2, by: Vec2) -> &mut Self`. Presses at `from`, moves by `by` in four steps and releases.
+  - `pub fn drag(&mut self, by: Vec2) -> &mut Self`. [`ToolFixture::drag_from`] from the middle of the canvas.
+  - `pub fn middle_drag_from(&mut self, from: Pos2, by: Vec2) -> &mut Self`. [`ToolFixture::drag_from`] with the middle button, which a canvas keeps for panning.
+  - `pub fn secondary_drag_from(&mut self, from: Pos2, by: Vec2) -> &mut Self`. [`ToolFixture::drag_from`] with the secondary button.
+  - `pub fn drag_and_escape_from(&mut self, from: Pos2, by: Vec2) -> &mut Self`. Presses at `from`, moves halfway by `by`, presses Escape, moves the rest of the way and releases.
+  - `pub fn escape(&mut self) -> &mut Self`. Presses Escape.
+  - `pub fn check(&mut self)`. The checks every tool owes the canvas, on a drag from the middle of the canvas and an Escape drag from a quarter of the way in:
+- `craft_ui::testing::canvas_story`: re-export of the module `craft_ui::canvas::testing::canvas_story`.
 - `craft_ui::testing::forget_measurements`: re-export of `craft_ui::runtime::layout_memory::forget_kept`.
 - `craft_ui::testing::install_spec`: re-export of `craft_ui::testing::windows::install_spec`.
 - `craft_ui::testing::is_measuring`: `pub fn active(ctx: &Context) -> bool`. Whether a measuring run is in progress.
 - `craft_ui::testing::last_pass_measuring_runs`: `pub fn last_pass_body_runs(ctx: &Context) -> Vec<(Id, u32)>`. The bodies whose contents ran in a measuring run in the last pass, and how many runs each; empty when that pass
 - `craft_ui::testing::measuring_run`: `pub fn run<R>(ctx: &Context, f: impl FnOnce() -> R) -> R`. Runs `f` as a measuring run. Nested calls are fine.
 - `craft_ui::testing::measuring_runs`: `pub fn body_runs(ctx: &Context) -> Vec<(Id, u32)>`. The bodies whose contents ran in a measuring run in the last pass that ran one, and how many runs each.
+- `craft_ui::testing::props`: re-export of the module `craft_ui::story_kit::props`.
 - `craft_ui::testing::stage`: `pub fn stage(ui: &mut Ui) -> Rect`. Allocates the stage of a story of a canvas control or a root that fills both axes, and returns its rect: the width
 - `craft_ui::testing::stage_fitting`: `pub fn stage_fitting(ui: &mut Ui, height: impl FnOnce(f32) -> f32) -> Rect`. Allocates a stage as wide as [`stage`]'s and as tall as the story's content at that width, which `height` gives,
 - `craft_ui::testing::story`: re-export of `craft_ui_macros::story` (outside these crates).
-- `craft_ui::testing::story_props`: re-export of `craft_ui::testing::props::story_props`.
+- `craft_ui::testing::story_props`: `pub fn story_props(ui: &mut Ui, data: &mut StoryData) -> Response`. The editable form of `data`'s values, one row each, sorted by name; returns the form's response.
 - `craft_ui::testing::take_effects`: `pub fn take_effects(ctx: &Context) -> Vec<&'static str>`. The effects skipped in measuring runs this frame, in order; empties the log.
-- `craft_ui::testing::tool_story`: `pub fn tool_story(ui: &mut Ui, label: &'static str, tool: &mut dyn CanvasTool) -> StoryOutput`. Shows `tool` on a canvas named `label` over the [`stage`](super::stage) of `ui` and the story document, and runs it as the canvas's active tool. The
+- `craft_ui::testing::tool_fixture`: re-export of the module `craft_ui::canvas::testing::tool_fixture`.
+- `craft_ui::testing::tool_story`: `pub fn tool_story(ui: &mut Ui, label: &'static str, tool: &mut dyn CanvasTool) -> StoryOutput`. Shows `tool` on a canvas named `label` over the [`stage`] of `ui` and the story document, and runs it as the canvas's active tool. The
 - `craft_ui::testing::trial`: re-export of `craft_ui_macros::trial` (outside these crates).
 - `craft_ui::testing::widest_runs`: `pub fn widest_runs(ctx: &Context) -> Vec<(Id, u32)>`. The collections whose widest row was built and measured in the last pass that did so, and how many times each.
 
@@ -3753,25 +3779,6 @@ What the accessibility trials read: the AccessKit tree a frame produced, and the
 Bypass detection (24.2): the pass-end walk that finds what a component made without the runtime.
 
 - `craft_ui::testing::bypass::findings`: `pub fn findings(fixture: &Fixture) -> Vec<String>`. What the latest frame's widgets and nodes show of code that bypassed the runtime; empty when nothing did. The
-
-## `craft_ui::testing::canvas_story`
-
-The canvas the stories of canvas controls show their control on: a canvas over the [`stage`] with a document under
-
-- `craft_ui::testing::canvas_story::FlatPicture`: `pub struct FlatPicture`. A picture of one colour: a flat layer or page that a story shows on its document with [`show_quad`].
-  - `pub const fn new(color: Color32) -> Self`. A picture of `color`.
-- `craft_ui::testing::canvas_story::StoryDocument`: `pub struct StoryDocument`. A document with no pixels: the checkerboard shows over all of it. [`StoryDocument::STANDARD`] is the document of
-  - `pub const STANDARD: StoryDocument`. The story document: 640 by 400 pixels.
-  - `pub const fn new(width: u32, height: u32) -> Self`. A transparent document of `width` by `height` pixels.
-  - `pub fn rect(&self) -> DocRect`. The document's rect, in document units.
-  - `pub fn centre(&self) -> Point`. The document's middle, in document units.
-  - `pub fn view(&self, room: Rect, pixels_per_point: f32, percent: f64) -> CanvasView`. The view of `room` that shows the document at `percent` centred on its middle ([`story_view`]).
-- `craft_ui::testing::canvas_story::on_canvas`: `pub fn on_canvas<R: Into<StoryOutput>>(ui: &mut Ui, control: impl FnMut(&mut Ui, Rect, &CanvasView) -> R) -> StoryOutput`. Shows `control` as the only canvas control of a canvas over the [`stage`] of `ui`, over [`StoryDocument::STANDARD`]
-- `craft_ui::testing::canvas_story::on_canvas_view`: `pub fn on_canvas_view<R: Into<StoryOutput>>(ui: &mut Ui, view: impl FnOnce(Rect, f32) -> CanvasView, document: Option<&dyn RasterSource>, mut control: impl FnMut(&mut Ui, Rect, &CanvasView) -> R,) -> StoryOutput`. The same over the view `view` makes of the room left in `ui` and its pixels per point, and over `document`
-- `craft_ui::testing::canvas_story::on_canvas_with`: `pub fn on_canvas_with<R: Into<StoryOutput>>(ui: &mut Ui, room: Rect, canvas: Canvas<'_>, document: Option<&dyn RasterSource>, mut control: impl FnMut(&mut Ui, Rect) -> R,) -> StoryOutput`. Shows `control` as the only canvas control of `canvas`, which the caller sets up over `room` (from [`stage`]), over
-- `craft_ui::testing::canvas_story::show_document`: `pub fn show_document(ui: &mut Ui, at: Rect, document: &dyn RasterSource)`. Shows `document` over the transparency grid's default checkerboard at the canvas rect `at`, in the body of a canvas
-- `craft_ui::testing::canvas_story::show_quad`: `pub fn show_quad(ui: &mut Ui, at: Rect, label: &'static str, quad: [Point; 4], picture: &FlatPicture)`. Shows `picture`, named `label`, filling the document quad `quad` (its corners clockwise from the top left) at the
-- `craft_ui::testing::canvas_story::story_view`: `pub fn story_view(room: Rect, pixels_per_point: f32, centre: Point, percent: f64) -> CanvasView`. A view of `room` with the document point `centre` at its middle, at `percent` of one device pixel per document
 
 ## `craft_ui::testing::contract`
 
@@ -4012,8 +4019,10 @@ Key events and the egui input options, for trials that drive frames themselves.
 
 ## `craft_ui::testing::internals`
 
-Crate-private logic the trials check without a frame: the geometry of a row, the order of footer buttons, the
+Crate-private logic the trials check without a frame.
 
+- `craft_ui::testing::internals::Gap`: `pub struct Gap { pub insert: usize, pub mark: DropMark }`. The gap a drop would land in.
+- `craft_ui::testing::internals::RowPlacement`: `pub struct RowPlacement { pub label: Rect, pub items: Vec<Option<Rect>>, pub disclosure: Option<Rect>, pub min_label: f32 }`. A row's parts placed by [`placement_under_fixed_sizes`].
 - `craft_ui::testing::internals::footer_order`: `pub fn footer_order(roles: &[DialogRole], windows: bool) -> Vec<usize>`. The indexes of `roles` in display order.
 - `craft_ui::testing::internals::place_row`: `pub fn place_row(row: &ListRow<'_>, width: f32, rtl: bool) -> RowPlacement`. Where the parts of `row` lie in a rect of `width`, under fixed sizes.
 - `craft_ui::testing::internals::pointer_heads_toward`: `pub fn pointer_heads_toward(from: Pos2, now: Pos2, submenu: Rect) -> bool`. Whether the pointer at `now`, having come from `from`, heads for `submenu`.
@@ -4021,8 +4030,6 @@ Crate-private logic the trials check without a frame: the geometry of a row, the
 - `craft_ui::testing::internals::reorder_move_all_to`: `pub fn reorder_move_all_to(places: &[usize], insert: usize) -> usize`. The index the first of `places` ends at when the group moves to the gap before item `insert`.
 - `craft_ui::testing::internals::reorder_move_to`: `pub fn reorder_move_to(from: usize, insert: usize) -> usize`. The index an item ends at when it moves from `from` to the gap before item `insert`.
 - `craft_ui::testing::internals::row_indent_steps`: `pub fn row_indent_steps(row: &ListRow<'_>) -> usize`. The indent steps of `row`.
-- `craft_ui::testing::internals::Gap`: `pub struct Gap { pub insert: usize, pub mark: DropMark }`. The gap a drop would land in.
-- `craft_ui::testing::internals::RowPlacement`: `pub struct RowPlacement { pub label: Rect, pub items: Vec<Option<Rect>>, pub disclosure: Option<Rect>, pub min_label: f32 }`. A row's parts placed by [`placement_under_fixed_sizes`].
 
 ## `craft_ui::testing::layout`
 
@@ -4099,12 +4106,6 @@ Pointer events and gestures for trials that drive frames themselves.
 - `craft_ui::testing::pointer::wheel_lines`: `pub fn wheel_lines(dy: f32) -> Event`. A mouse wheel turning `dy` lines at the pointer.
 - `craft_ui::testing::pointer::window_blurred`: `pub fn window_blurred() -> Event`. The window losing focus.
 - `craft_ui::testing::pointer::zoom_wheel`: `pub fn zoom_wheel(dy: f32) -> Event`. A vertical wheel event of `dy` points with Ctrl or Cmd held, which zooms.
-
-## `craft_ui::testing::props`
-
-The Properties form of a story: one row per value the story keeps, with an editor for the kinds the framework
-
-- `craft_ui::testing::props::story_props`: `pub fn story_props(ui: &mut Ui, data: &mut StoryData) -> Response`. The editable form of `data`'s values, one row each, sorted by name; returns the form's response.
 
 ## `craft_ui::testing::relations`
 
@@ -4262,35 +4263,6 @@ Reading text parts in trials: the widget id, the caret and the text a frame pain
 - `craft_ui::testing::text::ime_preedit`: `pub fn ime_preedit(text: &str) -> Event`. An IME preedit event of `text` with no cursor range.
 - `craft_ui::testing::text::set_value_request`: `pub fn set_value_request(target: egui::Id, text: &str) -> Event`. An AccessKit `SetValue` request carrying `text` for the node of `target`.
 - `craft_ui::testing::text::text_selection_request`: `pub fn text_selection_request(target: egui::Id, anchor:(egui::Id, usize), focus:(egui::Id, usize)) -> Event`. An AccessKit `SetTextSelection` request for the node of `target`, from character `anchor.1` of the run node
-
-## `craft_ui::testing::tool_fixture`
-
-`ToolFixture` (22.4, the tool row): drives a [`CanvasTool`] on a [`Canvas`] through press, drag, release and
-
-- `craft_ui::testing::tool_fixture::DOCUMENT`: `pub const DOCUMENT: Size`. The size of the document the fixture's canvas shows, in document units: what the zoom tools read from the canvas's
-- `craft_ui::testing::tool_fixture::ToolFixture`: `pub struct ToolFixture<T: CanvasTool + 'static>`. A tool shown on a canvas that fills the fixture's room, with the gesture phases the host reported.
-  - `pub fn new(label: &'static str, tool: T) -> Self`. A canvas named `label` whose active tool is `tool`.
-  - `pub fn with_body(label: &'static str, tool: T, body: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'static) -> Self`. A canvas named `label` whose body `body` fills: canvas controls shown at the body's rect join the canvas's
-  - `pub fn with_view(label: &'static str, tool: T, view: impl Fn(Rect) -> CanvasView + 'static, body: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'static,) -> Self`. [`ToolFixture::with_body`] over a canvas given the view `view` makes of the canvas's room, so the body's
-  - `pub fn fixture(&mut self) -> &mut Fixture`. The fixture underneath, for input the helpers here do not cover.
-  - `pub fn tool(&self) -> Ref<'_, T>`. The tool.
-  - `pub fn tool_mut(&self) -> RefMut<'_, T>`. The tool, to change its options between gestures.
-  - `pub fn canvas(&self) -> Target`. The canvas's node.
-  - `pub fn canvas_id(&self) -> Id`. The canvas's id, which keys the host's state: what [`ToolHost::inject`], [`ToolHost::cancel`] and
-  - `pub fn enabled(&mut self, enabled: bool) -> &mut Self`. Runs the host from the next frame on, or leaves it disabled (the app's tool is busy elsewhere).
-  - `pub fn gestures(&self) -> Vec<GesturePhase>`. The gesture phases the host reported, one per pass that began, moved or ended a gesture, since the last
-  - `pub fn forget(&mut self) -> &mut Self`. Forgets the phases reported so far.
-  - `pub fn press_at(&mut self, at: Pos2) -> &mut Self`. Hover and press at `at` with the primary button, in separate frames.
-  - `pub fn double_press_at(&mut self, at: Pos2) -> &mut Self`. Hover at `at`, then press and release twice there in successive frames: the runtime's click count reads the
-  - `pub fn move_to(&mut self, to: Pos2) -> &mut Self`. Moves to `to` in one frame.
-  - `pub fn release_at(&mut self, at: Pos2) -> &mut Self`. Releases the primary button at `at`, then one idle frame.
-  - `pub fn drag_from(&mut self, from: Pos2, by: Vec2) -> &mut Self`. Presses at `from`, moves by `by` in four steps and releases.
-  - `pub fn drag(&mut self, by: Vec2) -> &mut Self`. [`ToolFixture::drag_from`] from the middle of the canvas.
-  - `pub fn middle_drag_from(&mut self, from: Pos2, by: Vec2) -> &mut Self`. [`ToolFixture::drag_from`] with the middle button, which a canvas keeps for panning.
-  - `pub fn secondary_drag_from(&mut self, from: Pos2, by: Vec2) -> &mut Self`. [`ToolFixture::drag_from`] with the secondary button.
-  - `pub fn drag_and_escape_from(&mut self, from: Pos2, by: Vec2) -> &mut Self`. Presses at `from`, moves halfway by `by`, presses Escape, moves the rest of the way and releases.
-  - `pub fn escape(&mut self) -> &mut Self`. Presses Escape.
-  - `pub fn check(&mut self)`. The checks every tool owes the canvas, on a drag from the middle of the canvas and an Escape drag from a quarter of the way in:
 
 ## `craft_ui::testing::wheel`
 
