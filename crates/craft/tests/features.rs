@@ -1,7 +1,7 @@
 //! The facade's `[features]` table is written from the member crates' manifests.
-//! `UPDATE_FACADE=1 cargo test -p craft --test features` rewrites the checked-in table.
+//! `UPDATE_FACADE=1 cargo test -p craft -- integration::features` rewrites the checked-in table.
 
-mod common;
+use super::common;
 
 use common::{Member, members};
 use std::collections::BTreeMap;
@@ -131,7 +131,7 @@ fn features_table_matches_member_manifests() {
     assert!(
         manifest[start..end].trim_end() == want.trim_end(),
         "crates/craft/Cargo.toml [features] differs from the member crates' manifests; \
-         run `UPDATE_FACADE=1 cargo test -p craft --test features` and commit the result"
+         run `UPDATE_FACADE=1 cargo test -p craft -- integration::features` and commit the result"
     );
 }
 

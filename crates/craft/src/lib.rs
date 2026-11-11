@@ -103,3 +103,10 @@ pub mod prelude {
     #[cfg(feature = "ui")]
     pub use craft_ui::{contract::Outcome, dialog::DialogStack};
 }
+
+#[cfg(test)]
+extern crate self as craft;
+
+#[cfg(test)]
+#[path = "../tests/main.rs"]
+mod integration;

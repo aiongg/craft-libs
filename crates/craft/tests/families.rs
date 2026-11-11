@@ -1,6 +1,6 @@
 //! No family crate's `ui` depends on another family crate (Q50: craft-color is the base family).
 
-mod common;
+use super::common;
 
 use common::{Member, members};
 
