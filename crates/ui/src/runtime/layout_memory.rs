@@ -776,6 +776,8 @@ pub(crate) mod guard {
         ("access::scope::Stack", "label and merge scopes: opened and closed by the run; control minimums go through contribute"),
         ("layout::body::FillCounts", "fill counts: opened and closed by the body's own measuring sweep"),
         ("layout::body::Cursors", "grid and spread cursors: opened and closed by the body's own run"),
+        ("layout::body::ShrinkReports", "shrink reports: opened and closed by the row's own first sweep; the widths go through emit_record"),
+        ("runtime::reads::Runs", "measuring runs of the read record: opened and closed by each run; reads go through contribute"),
         ("contract::steps::id::IdPass", "id registration: a measuring run keeps the ids it uses out of the pass (keeping_ids)"),
         // Read in measuring runs; written by real runs, the frame hooks or the host.
         ("runtime::env::ViewportEnvs", "env per viewport: installs the run restores, and reads"),
@@ -828,6 +830,12 @@ pub(crate) mod guard {
         ("runtime::env::host_words::host_dates::System", "host dates: cache"),
         ("fonts::stack::install::State", "installed fonts: cache"),
         ("primitives::textures::Loaded", "textures: cache"),
+        (
+            "primitives::textures::store::Stores",
+            "texture stores: cache; a key's picture at a revision is the same whichever run asks, renders or uploads it",
+        ),
+        ("primitives::textures::loader::Pools", "texture loaders: cache; one per salt, made on first use, and the store's uploads"),
+        ("primitives::textures::thumbnails::Hubs", "thumbnails: cache; one per salt, made on first use, and its per-frame render budget"),
         ("fonts::document::Registry", "document faces: cache; a face loads the same whichever run asks, and its repaint request is harmless"),
         ("runtime::egui::fonts::Steps", "fonts plugin begin-pass steps: cache; a step added twice runs once"),
         // Testing logs.
