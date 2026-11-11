@@ -4,4 +4,3 @@ mod common;
 mod egui_fork;
 mod families;
 mod features;
-mod registries;

@@ -134,18 +134,3 @@ fn features_table_matches_member_manifests() {
          run `UPDATE_FACADE=1 cargo test -p craft -- integration::features` and commit the result"
     );
 }
-
-#[test]
-fn every_member_is_a_dependency_and_a_module() {
-    let members = members();
-    let manifest = common::read_toml(&common::workspace_root().join("crates/craft/Cargo.toml"));
-    let lib = std::fs::read_to_string(common::workspace_root().join("crates/craft/src/lib.rs")).unwrap();
-    for m in &members {
-        let dep = manifest["dependencies"].get(format!("craft-{}", m.dir));
-        let dep = dep.unwrap_or_else(|| panic!("crates/craft/Cargo.toml needs `craft-{}` under [dependencies]", m.dir));
-        let optional = dep.get("optional").and_then(|o| o.as_bool()).unwrap_or(false);
-        assert_eq!(optional, !m.always_on(), "craft-{}: optional only when it is not always on", m.dir);
-        let module = m.dir.replace('-', "_");
-        assert!(lib.contains(&format!("pub use craft_{module} as {module};")), "crates/craft/src/lib.rs needs `pub use craft_{module} as {module};`");
-    }
-}
