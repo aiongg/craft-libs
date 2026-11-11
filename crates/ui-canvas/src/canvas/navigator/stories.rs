@@ -18,6 +18,9 @@ const CANVAS: Rect = Rect::from_min_max(Pos2::new(0.0, 0.0), Pos2::new(800.0, 60
 /// The grey of the picture an app paints, as a channel value.
 const PICTURE_GRAY: u8 = 96;
 
+/// The zoom of the zoomed story's view: 400 %.
+const ZOOMED: f64 = 4.0;
+
 /// The view centre past which the checked story refuses a view, in document units.
 const CAP: f64 = 1200.0;
 
@@ -27,9 +30,18 @@ fn zoom_row(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     NavigatorZoomRow::new(Bind::bound(view), DOCUMENT).show(ui).into()
 }
 
-#[story(Navigator<'static>, covers = [Default], drive = Drive::Step)]
+/// A zoomed view: the proxy is a small rectangle on the picture.
+#[story(Navigator<'static>, covers = [Default], drive = Drive::Step, group = "Document")]
 fn navigator(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let view = data.value("view", CanvasView::new(CANVAS, Point::new(1000.0, 750.0), 1.0));
+    let view = data.value("view", CanvasView::new(CANVAS, Point::new(1000.0, 750.0), ZOOMED));
+    Navigator::new("Navigator", Bind::bound(view), DOCUMENT).show(ui).into()
+}
+
+/// The fit view: the canvas shows the whole document, so the proxy covers the picture.
+#[story(Navigator<'static>, covers = [], drive = Drive::Never, group = "Whole document")]
+fn whole_document(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let fit = (CANVAS.width() as f64 / DOCUMENT.width).min(CANVAS.height() as f64 / DOCUMENT.height);
+    let view = data.value("view", CanvasView::new(CANVAS, Point::new(DOCUMENT.width / 2.0, DOCUMENT.height / 2.0), fit));
     Navigator::new("Navigator", Bind::bound(view), DOCUMENT).show(ui).into()
 }
 
@@ -39,14 +51,14 @@ fn navigator_drag(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     Navigator::new("Navigator", Bind::bound(view), DOCUMENT).show(ui).into()
 }
 
-#[story(Navigator<'static>, covers = [Invalid], drive = Drive::Never)]
+#[story(Navigator<'static>, covers = [Invalid], drive = Drive::Never, group = "States", title = "View refused")]
 fn view_refused(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let refuse_right = |view: &CanvasView| if view.center.x > CAP { Validity::Refuse(Message::new("Too far right")) } else { Validity::Ok };
     let view = data.value("over", CanvasView::new(CANVAS, Point::new(1500.0, 750.0), 1.0));
     Navigator::new("Navigator", Bind::bound(view).check(refuse_right), DOCUMENT).show(ui).into()
 }
 
-#[story(Navigator<'static>, covers = [Mixed], drive = Drive::Never)]
+#[story(Navigator<'static>, covers = [Mixed], drive = Drive::Never, group = "States", title = "Views that differ")]
 fn views_that_differ(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let view = data.value("view", Mixed::<CanvasView>::Mixed);
     Navigator::new("Navigator", Bind::bound_mixed(view), DOCUMENT).show(ui).into()

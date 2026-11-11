@@ -78,7 +78,7 @@ fn on_boxes(ui: &mut Ui, bounds: bool) -> StoryOutput {
     })
 }
 
-#[story(SmartGuides<'static>, covers = [Default])]
+#[story(SmartGuides<'static>, covers = [Default], group = "Move")]
 fn move_a_box(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     on_boxes(ui, false)
 }

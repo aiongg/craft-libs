@@ -15,7 +15,17 @@ fn crop() -> CropBox {
     CropBox::upright(DocRect::new(240.0, 145.0, 400.0, 255.0))
 }
 
-#[story(Canvas, covers = [Default])]
+#[story(Canvas, covers = [Default], group = "Document")]
+fn freehand(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    let room = crate::testing::stage(ui);
+    Canvas::new("Painting")
+        .view(StoryDocument::STANDARD.view(room, ui.pixels_per_point(), 100.0))
+        .show_at(ui, room, |ui, body| show_document(ui, body.rect, &StoryDocument::STANDARD))
+        .output
+        .into()
+}
+
+#[story(Canvas, covers = [Default], group = "Crop overlay", title = "Crop tool")]
 fn crop_tool(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let room = crate::testing::stage(ui);
     let view = StoryDocument::STANDARD.view(room, ui.pixels_per_point(), 100.0);
@@ -26,7 +36,7 @@ fn crop_tool(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     shown.output.into()
 }
 
-#[story(Canvas, covers = [Default])]
+#[story(Canvas, covers = [Default], group = "Crop overlay", title = "Zoomed")]
 fn zoomed(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let room = crate::testing::stage(ui);
     let view = StoryDocument::STANDARD.view(room, ui.pixels_per_point(), ZOOMED);
@@ -35,14 +45,4 @@ fn zoomed(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
         CropOverlay::new("Crop", Bind::given(crop())).show_at(ui, body.rect)
     });
     shown.output.into()
-}
-
-#[story(Canvas, covers = [Default])]
-fn freehand(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    let room = crate::testing::stage(ui);
-    Canvas::new("Painting")
-        .view(StoryDocument::STANDARD.view(room, ui.pixels_per_point(), 100.0))
-        .show_at(ui, room, |ui, body| show_document(ui, body.rect, &StoryDocument::STANDARD))
-        .output
-        .into()
 }

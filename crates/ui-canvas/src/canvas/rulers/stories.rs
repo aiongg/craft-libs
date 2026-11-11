@@ -78,7 +78,7 @@ fn rulers_canvas(room: Rect, pixels_per_point: f32, zero: Point, settings: Setti
     Canvas::new("Document").view(view).show_rulers(true).rulers(text, text, zero)
 }
 
-#[story(Rulers<'static>, covers = [Default], drive = Drive::Custom(drag_corner))]
+#[story(Rulers<'static>, covers = [Default], drive = Drive::Custom(drag_corner), group = "Canvas")]
 fn zero_point(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let settings = settings(data);
     let zero = data.value("zero", Point::ZERO);
@@ -100,7 +100,7 @@ fn units_menu(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     })
 }
 
-#[story(Rulers<'static>, covers = [Mixed], drive = Drive::Custom(drag_corner))]
+#[story(Rulers<'static>, covers = [Mixed], drive = Drive::Custom(drag_corner), group = "Zero point", title = "Zero points that differ")]
 fn zero_points_that_differ(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let settings = settings(data);
     let zero = data.value("zero", Mixed::<Point>::Mixed);
@@ -111,7 +111,7 @@ fn zero_points_that_differ(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     })
 }
 
-#[story(Rulers<'static>, covers = [Invalid], drive = Drive::Custom(drag_corner))]
+#[story(Rulers<'static>, covers = [Invalid], drive = Drive::Custom(drag_corner), group = "Zero point", title = "Zero point left of the document")]
 fn zero_point_left_of_the_document(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let settings = settings(data);
     let zero = data.value("zero", Point::new(LEAST_X - 1.0, 0.0));

@@ -6,7 +6,7 @@ use crate::dialog::stories::{body, close_box};
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
 
-#[story(FullWindowDialog<'static>, covers = [Default], drive = Drive::Custom(close_box))]
+#[story(FullWindowDialog<'static>, covers = [Default], drive = Drive::Custom(close_box), group = "Workspace")]
 fn full_window_dialog(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let mut checks = *data.value("checks", [true, false]);
     let shown: StoryOutput = FullWindowDialog::new("Grid options")

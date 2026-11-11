@@ -44,7 +44,7 @@ impl RasterSource for Flat {
     }
 }
 
-#[story(FullWindowSide, covers = [Default], drive = Drive::Never)]
+#[story(FullWindowSide, covers = [Default], drive = Drive::Never, group = "Frame")]
 fn side(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     FullWindowSide::new("Properties")
         .show(ui, |ui, _| {
@@ -101,7 +101,7 @@ fn status_failed(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     FullWindowStatus::of(&pending).show(ui).into()
 }
 
-#[story(FullWindowCanvas<'static>, covers = [], drive = Drive::Never)]
+#[story(FullWindowCanvas<'static>, covers = [], drive = Drive::Never, group = "Canvas")]
 fn canvas(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     static IMAGE_SOURCE: Flat = Flat { colour: Color32::from_rgb(0x4a, 0x7f, 0xc1), half: true };
     static MASK: Flat = Flat { colour: Color32::from_rgba_premultiplied(0x40, 0x00, 0x00, 0x40), half: false };
