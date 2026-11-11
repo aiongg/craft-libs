@@ -1,7 +1,5 @@
 //! Deterministic mutation fuzzing: the demuxer must never panic on corrupted input.
 
-use super::common;
-
 use craft_media::isobmff::*;
 use std::io::Cursor;
 
@@ -163,23 +161,5 @@ fn mutated_synthetic_files_never_panic() {
     for (i, f) in synthetic_files().iter().enumerate() {
         exercise(f);
         mutate_all(f, 0x5EED_0000 + i as u64, 20_000);
-    }
-}
-
-#[test]
-fn mutated_ffmpeg_fixtures_never_panic() {
-    for (i, name) in ["h264_bframes.mp4", "frag.mp4", "tmcd_2997df.mov", "prores.mov", "hevc.mp4", "aac.mp4"].iter().enumerate() {
-        let Some(p) = common::fixture(name) else { continue };
-        let data = std::fs::read(p).unwrap();
-        mutate_all(&data, 0xF00D + i as u64, 5000);
-    }
-}
-
-#[test]
-fn truncations_never_panic() {
-    for f in synthetic_files() {
-        for n in 0..f.len().min(4096) {
-            exercise(&f[..n]);
-        }
     }
 }

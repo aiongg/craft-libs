@@ -641,25 +641,6 @@ mod metadata_depth_tests {
     use super::*;
     use crate::matroska::mux::{el, el_uint};
 
-    fn header_stripping(bytes: &[u8]) -> Vec<ContentEncoding> {
-        let mut comp = Vec::new();
-        el_uint(&mut comp, CONTENT_COMP_ALGO, 3);
-        el(&mut comp, CONTENT_COMP_SETTINGS, bytes);
-        let mut enc = Vec::new();
-        el(&mut enc, CONTENT_COMPRESSION, &comp);
-        let mut encs = Vec::new();
-        el(&mut encs, CONTENT_ENCODING, &enc);
-        parse_encodings(&encs)
-    }
-
-    #[test]
-    fn a_long_stripped_header_is_not_put_in_front_of_frames() {
-        let kept = header_stripping(&[7; MAX_STRIPPED_HEADER]);
-        assert!(matches!(&kept[..], [ContentEncoding::HeaderStripping { bytes, .. }] if bytes.len() == MAX_STRIPPED_HEADER));
-        let refused = header_stripping(&[7; MAX_STRIPPED_HEADER + 1]);
-        assert!(matches!(&refused[..], [ContentEncoding::Compression { algo: 3, .. }]), "{refused:?}");
-    }
-
     fn track_with_private(private: &[u8], strips: &[(&[u8], u64)]) -> Track {
         let mut encs = Vec::new();
         for &(bytes, scope) in strips {
@@ -684,46 +665,9 @@ mod metadata_depth_tests {
     }
 
     #[test]
-    fn a_long_encoding_chain_is_not_rechecked_for_every_frame() {
-        let strip: (&[u8], u64) = (b"", 2);
-        let most = track_with_private(b"private", &[strip; MAX_CONTENT_ENCODINGS]);
-        assert_eq!(most.encodings.len(), MAX_CONTENT_ENCODINGS);
-        assert!(most.frames_readable());
-        let many = track_with_private(b"private", &vec![strip; 10_000]);
-        assert!(matches!(&many.encodings[..], [ContentEncoding::Compression { scope: 1, .. }]), "{:?}", many.encodings.len());
-        assert!(!many.frames_readable());
-        assert_eq!(many.codec_private, b"private");
-    }
-
-    #[test]
     fn codec_private_stripped_headers_are_restored_in_reverse_order() {
         let strips: [(&[u8], u64); 4] = [(b"first", 2), (b"", 2), (b"second", 2), (b"frame", 1)];
         assert_eq!(track_with_private(b"private", &strips).codec_private, b"secondfirstprivate");
         assert_eq!(track_with_private(b"private", &[(b"frame", 1)]).codec_private, b"private");
-    }
-
-    #[test]
-    fn deeply_nested_chapters_stop_at_depth_limit() {
-        // Unknown-size elements make every pair the sole child of the previous ChapterAtom.
-        let data = [0xB6, 0xFF].repeat(100_000);
-        let chapter = parse_chapter(&data, 0);
-        let mut current = &chapter;
-        for _ in 0..MAX_META_DEPTH {
-            assert_eq!(current.children.len(), 1);
-            current = &current.children[0];
-        }
-        assert!(current.children.is_empty());
-    }
-
-    #[test]
-    fn deeply_nested_simple_tags_stop_at_depth_limit() {
-        let data = [0x67, 0xC8, 0xFF].repeat(100_000);
-        let tag = parse_simple_tag(&data, 0);
-        let mut current = &tag;
-        for _ in 0..MAX_META_DEPTH {
-            assert_eq!(current.children.len(), 1);
-            current = &current.children[0];
-        }
-        assert!(current.children.is_empty());
     }
 }

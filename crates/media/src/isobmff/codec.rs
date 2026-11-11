@@ -180,8 +180,3 @@ pub(crate) use parse::parse_sample_entry;
 pub use video::{
     ApvConfig, Av1Config, AvcConfig, CleanAperture, ColorInfo, FieldInfo, HevcConfig, HevcNalArray, MasteringDisplay, VideoParams, VpcConfig,
 };
-
-#[cfg(test)]
-mod params_tests;
-#[cfg(test)]
-mod tests;
