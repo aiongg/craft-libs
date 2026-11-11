@@ -362,7 +362,7 @@ impl<'a> GlyphsPanel<'a> {
                 .caption(CaptionPlace::None)
                 .select(SelectMode::Single)
                 .activate(ActivateOn::Click)
-                .sizing(craft_ui::contract::Sizing::Content)
+                .sizing(craft_ui::contract::Sizing::FillWidth)
                 .show_items(ui, &Chars(&recent), &mut |key, _| {
                     let c = recent[*key];
                     let name = words.cell.fill(&[("char", &c.to_string()), ("code", &code(c))]);
