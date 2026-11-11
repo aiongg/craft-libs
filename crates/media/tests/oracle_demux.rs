@@ -1,6 +1,6 @@
 //! Oracle tests: compare our demuxer's sample tables and codec parameters with ffprobe.
 
-mod common;
+use super::common;
 
 use common::*;
 use craft_media::isobmff::{CodecConfig, Mp4File, TrackKind, open};

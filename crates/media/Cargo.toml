@@ -1,4 +1,5 @@
 [package]
+autotests = false
 name = "craft-media"
 description = "Bit-level I/O, clean-room ISO BMFF (MP4), QuickTime (MOV) and Matroska (MKV, WebM) demuxers and muxers, and an Ogg demuxer."
 version.workspace = true
@@ -32,26 +33,3 @@ craft-media-testkit = { workspace = true }
 proptest = { workspace = true }
 serde_json = { workspace = true }
 
-[[test]]
-name = "fuzz"
-required-features = ["isobmff"]
-
-[[test]]
-name = "fuzz_matroska"
-required-features = ["matroska"]
-
-[[test]]
-name = "oracle_demux"
-required-features = ["isobmff"]
-
-[[test]]
-name = "oracle_matroska"
-required-features = ["matroska"]
-
-[[test]]
-name = "oracle_mux"
-required-features = ["isobmff"]
-
-[[test]]
-name = "roundtrip"
-required-features = ["isobmff"]

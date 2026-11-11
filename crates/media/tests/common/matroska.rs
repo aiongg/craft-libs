@@ -8,11 +8,11 @@ use std::process::{Command, Stdio};
 
 /// (ffmpeg, ffprobe), or `None` after printing `SKIPPED`.
 pub fn tools() -> Option<(PathBuf, PathBuf)> {
-    Some((crate::common::ffmpeg()?, crate::common::ffprobe()?))
+    Some((crate::integration::common::ffmpeg()?, crate::integration::common::ffprobe()?))
 }
 
 pub fn fixture_dir() -> PathBuf {
-    crate::common::fixture_subdir("matroska")
+    crate::integration::common::fixture_subdir("matroska")
 }
 
 const V: &[&str] = &["-f", "lavfi", "-i", "testsrc2=size=160x120:rate=25"];
@@ -28,7 +28,7 @@ fn write_subs(dir: &Path) {
         if std::fs::read(&path).is_ok_and(|d| d == text.as_bytes()) {
             continue;
         }
-        let tmp = crate::common::temp_path(&path);
+        let tmp = crate::integration::common::temp_path(&path);
         std::fs::write(&tmp, text).unwrap();
         std::fs::rename(&tmp, &path).unwrap();
     }
@@ -102,7 +102,7 @@ pub fn fixture(ffmpeg: &Path, name: &str) -> Option<PathBuf> {
         return Some(out);
     }
     write_subs(&dir);
-    let tmp = crate::common::temp_path(&out);
+    let tmp = crate::integration::common::temp_path(&out);
     let mut c = Command::new(ffmpeg);
     c.current_dir(&dir).args(["-y", "-v", "error"]);
     match spec(name) {
@@ -119,7 +119,7 @@ pub fn fixture(ffmpeg: &Path, name: &str) -> Option<PathBuf> {
         }
     }
     // the rename is atomic: concurrent generators race harmlessly
-    crate::common::run_generator(&mut c, &tmp, &out, crate::common::oracles_required())
+    crate::integration::common::run_generator(&mut c, &tmp, &out, crate::integration::common::oracles_required())
 }
 
 pub fn ffprobe_json(ffprobe: &Path, path: &Path) -> Value {

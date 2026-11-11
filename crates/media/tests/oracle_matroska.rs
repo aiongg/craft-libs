@@ -1,7 +1,7 @@
 //! Oracle tests: compare our demuxer's packets, timestamps, keyframes and track parameters with
 //! ffprobe on ffmpeg-generated fixtures (skipped when ffmpeg/ffprobe are not installed).
 
-mod common;
+use super::common;
 #[path = "common/matroska.rs"]
 mod mkv;
 
