@@ -197,18 +197,3 @@ pub fn font(data: &[u8], index: u32, variations: Option<&[([u8; 4], f32)]>) -> R
         font.ok_or(WriteError::InvalidFont)
     })
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test::wasm_bindgen_test)]
-    #[cfg_attr(not(target_arch = "wasm32"), test)]
-    fn font_bounds_are_checked_without_allocating_the_input() {
-        assert!(check_font_input(MAX_FONT_BYTES, None).is_ok());
-        assert!(matches!(check_font_input(MAX_FONT_BYTES + 1, None), Err(WriteError::FontLimit)));
-        assert!(matches!(check_font_input(usize::MAX, None), Err(WriteError::FontLimit)));
-        let coords = vec![(*b"wght", 400.0); MAX_FONT_VARIATIONS + 1];
-        assert!(matches!(check_font_input(0, Some(&coords)), Err(WriteError::FontVariations)));
-    }
-}

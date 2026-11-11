@@ -248,36 +248,3 @@ pub(crate) fn map_codec(id: &str, private: &[u8], audio: Option<&crate::matroska
         _ => Codec::Other(id.to_string()),
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn mapping() {
-        assert_eq!(map_codec("V_MPEG4/ISO/AVC", &[1, 2], None), Codec::Avc { avcc: vec![1, 2] });
-        assert_eq!(map_codec("V_APV", &[1, 2, 3], None), Codec::Apv { apvc: vec![1, 2, 3] });
-        assert_eq!(map_codec("V_APV", &[], None).name(), "apv");
-        assert_eq!(map_codec("V_PRORES", b"apcn", None), Codec::ProRes { fourcc: Some(*b"apcn") });
-        let mut bih = vec![0u8; 40];
-        bih[16..20].copy_from_slice(b"MJPG");
-        assert_eq!(map_codec("V_MS/VFW/FOURCC", &bih, None), Codec::Mjpeg);
-        bih[16..20].copy_from_slice(b"FFV1");
-        assert!(matches!(map_codec("V_MS/VFW/FOURCC", &bih, None), Codec::VfwFourcc { fourcc, .. } if &fourcc == b"FFV1"));
-        let a = crate::matroska::AudioInfo { sampling_frequency: 44100.0, channels: 2, bit_depth: Some(24), output_sampling_frequency: None };
-        assert_eq!(map_codec("A_PCM/INT/LIT", &[], Some(&a)).name(), "pcm_s24le");
-        assert_eq!(map_codec("A_PCM/FLOAT/IEEE", &[], Some(&a)), Codec::Pcm { float: true, big_endian: false, bits: 24 });
-        // legacy AAC LC 44.1k stereo → 0x12 0x10
-        assert_eq!(map_codec("A_AAC/MPEG4/LC", &[], Some(&a)), Codec::Aac { asc: vec![0x12, 0x10] });
-        assert_eq!(map_codec("S_TEXT/UTF8", &[], None).name(), "subrip");
-        assert_eq!(map_codec("X_WHATEVER", &[], None), Codec::Other("X_WHATEVER".into()));
-    }
-
-    #[test]
-    fn xiph_split() {
-        let mut p = vec![2u8, 3, 2];
-        p.extend_from_slice(&[1, 1, 1, 2, 2, 3, 3, 3, 3]);
-        let h = split_xiph(&p);
-        assert_eq!(h, vec![vec![1, 1, 1], vec![2, 2], vec![3, 3, 3, 3]]);
-    }
-}

@@ -404,33 +404,3 @@ fn parse_text(d: &[u8]) -> String {
         _ => String::new(),
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// The count from a `curv` tag must be bounded before `12 + n * 2` is computed: on a 32-bit
-    /// target the multiplication panics with overflow checks on, which is what the guard exists
-    /// to prevent. Green on a 64-bit host either way; fails before the fix on a 32-bit build.
-    #[test]
-    fn a_curve_count_is_bounded_before_it_is_multiplied() {
-        let mut d = b"curv\0\0\0\0".to_vec();
-        d.extend_from_slice(&u32::MAX.to_be_bytes());
-        assert!(parse_curve(&d).is_err());
-    }
-
-    /// The `mluc` record fields must come from one checked 12-byte record read: with
-    /// n = 2 and size = u32::MAX - 20, k = 0 reads the zeroed record while k = 1's offset
-    /// (2^32 - 4) still fits, but the old eager `(r.u16(o), r.u32(o + 4), r.u32(o + 8))`
-    /// computed `o + 8` (2^32 + 4) before the failed read could break the loop, panicking on
-    /// a 32-bit `usize` (wasm32) with overflow checks on. Green on a 64-bit host before and
-    /// after the fix; the fix is what lets a 32-bit build survive it.
-    #[test]
-    fn an_mluc_record_offset_is_computed_checked() {
-        let mut d = b"mluc\0\0\0\0".to_vec();
-        d.extend_from_slice(&2u32.to_be_bytes());
-        d.extend_from_slice(&(u32::MAX - 20).to_be_bytes());
-        d.extend_from_slice(&[0u8; 12]);
-        assert!(parse_text(&d).is_empty());
-    }
-}

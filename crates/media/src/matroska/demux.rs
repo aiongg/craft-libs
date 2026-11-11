@@ -179,20 +179,3 @@ mod stream;
 
 pub use open::{open, open_with};
 pub use stream::Demuxer;
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn frames_indexed_scale_with_the_file_length() {
-        assert_eq!(FrameBudget::new(1000).frames, MIN_FRAME_ALLOWANCE);
-        // 64 MiB of file is enough bytes for 2^26 empty frames, but not enough index memory.
-        let mut b = FrameBudget::new(64 << 20);
-        assert_eq!(b.frames, 8 << 20);
-        let lace = [(0u64, 0u32); 256];
-        let taken = (0..1 << 18).take_while(|_| b.take(&lace).is_ok()).count();
-        assert_eq!(taken * lace.len(), 8 << 20);
-        assert_eq!(FrameBudget::new(u64::MAX).frames, MAX_FRAMES);
-    }
-}

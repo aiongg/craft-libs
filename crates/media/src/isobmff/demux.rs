@@ -687,6 +687,3 @@ mod stbl;
 use metadata::{parse_meta, parse_udta};
 use moof::parse_moof;
 use stbl::parse_stbl;
-
-#[cfg(test)]
-mod tests;

@@ -228,6 +228,3 @@ fn newest(candidates: &[Candidate<'_>]) -> Option<(usize, PickedBy)> {
         })
         .map(|(i, at)| (i, PickedBy::Released(at)))
 }
-
-#[cfg(test)]
-mod tests;

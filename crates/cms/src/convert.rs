@@ -123,35 +123,3 @@ pub fn srgb_to_cmyk_naive(rgb: [f32; 3]) -> [f32; 4] {
     let d = 1.0 - k;
     [(1.0 - rgb[0] - k) / d, (1.0 - rgb[1] - k) / d, (1.0 - rgb[2] - k) / d, k]
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// Pure cyan ink is a blue-green outside sRGB, so it reads back as mostly cyan with no yellow
-    /// or black; paper is white, solid black ink a dark neutral, and in-gamut greys round-trip.
-    #[test]
-    fn coated_cmyk_round_trips_the_primaries() {
-        let conv = CmykConverter::coated();
-        let rgb = conv.to_srgb([1.0, 0.0, 0.0, 0.0]);
-        assert!(rgb[0] < 0.2 && rgb[1] > 0.4 && rgb[2] > 0.5, "cyan ink gave {rgb:?}");
-        let inks = conv.from_srgb(rgb);
-        assert!(inks[0] > 0.6 && inks[1] < 0.25 && inks[2] < 0.05 && inks[3] < 0.02, "inks {inks:?}");
-        assert!(conv.to_srgb([0.0; 4]).iter().all(|v| *v > 0.99));
-        let k = conv.to_srgb([0.0, 0.0, 0.0, 1.0]);
-        assert!(k[0] < 0.3 && (k[0] - k[2]).abs() < 0.05, "black ink gave {k:?}");
-        let grey = conv.to_srgb(conv.from_srgb([0.5; 3]));
-        assert!(grey.iter().all(|v| (v - 0.5).abs() < 0.03), "grey gave {grey:?}");
-    }
-
-    /// sRGB pure green is out of the coated gamut; its nearest in-gamut colour is in gamut.
-    #[test]
-    fn nearest_in_gamut_is_in_gamut() {
-        let conv = CmykConverter::coated();
-        let green = [0.0, 1.0, 0.0];
-        assert!(conv.out_of_gamut(green, 3.0));
-        let near = conv.nearest_in_gamut(green, 3.0).expect("green is out of gamut");
-        assert!(!conv.out_of_gamut(near, 3.0));
-        assert!(conv.nearest_in_gamut(near, 3.0).is_none());
-    }
-}

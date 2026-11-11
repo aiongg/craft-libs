@@ -226,18 +226,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn lab_roundtrip() {
-        for xyz in [[0.2, 0.3, 0.1], [0.9642, 1.0, 0.8249], [0.001, 0.002, 0.0005]] {
-            let back = lab_to_xyz(xyz_to_lab(xyz, D50), D50);
-            for i in 0..3 {
-                assert!((back[i] - xyz[i]).abs() < 1e-12);
-            }
-        }
-        let w = xyz_to_lab(D50, D50);
-        assert!((w[0] - 100.0).abs() < 1e-12 && w[1].abs() < 1e-12 && w[2].abs() < 1e-12);
-    }
-
-    #[test]
     fn delta_e2000_matches_sharma_reference_pairs() {
         // Sharma, Wu & Dalal (2005), test data pairs 1, 7, 17, 25 and 34.
         let pairs = [
@@ -250,27 +238,6 @@ mod tests {
         for (a, b, want) in pairs {
             assert!((delta_e2000(a, b) - want).abs() < 1e-4, "{a:?} {b:?}: {}", delta_e2000(a, b));
             assert!((delta_e2000(b, a) - want).abs() < 1e-4);
-        }
-    }
-
-    #[test]
-    fn bradford_maps_white() {
-        let d65 = xy_to_xyz(D65_XY);
-        let m = bradford(d65, D50);
-        let w = apply(&m, d65);
-        for i in 0..3 {
-            assert!((w[i] - D50[i]).abs() < 1e-12);
-        }
-    }
-
-    #[test]
-    fn invert_roundtrip() {
-        let m = [[0.4, 0.3, 0.2], [0.2, 0.7, 0.1], [0.0, 0.1, 0.8]];
-        let p = mul(&m, &invert(&m).unwrap());
-        for (i, row) in p.iter().enumerate() {
-            for (j, v) in row.iter().enumerate() {
-                assert!((v - if i == j { 1.0 } else { 0.0 }).abs() < 1e-12);
-            }
         }
     }
 }

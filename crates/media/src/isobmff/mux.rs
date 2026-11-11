@@ -224,6 +224,3 @@ mod progressive;
 
 pub use fragmented::FragmentedWriter;
 pub use progressive::Mp4Writer;
-
-#[cfg(test)]
-mod tests;

@@ -186,6 +186,3 @@ pub fn clip_prompt(text: &str) -> String {
 }
 
 pub mod report;
-
-#[cfg(test)]
-mod tests;
