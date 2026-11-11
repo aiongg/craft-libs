@@ -31,7 +31,7 @@ pub(crate) fn add_key_equivalent(ctx: &Context, viewport: ViewportId, equivalent
 /// now. Nothing happens outside a pass of `viewport`, where the next input hook reads it.
 fn repeat_running_pass(ctx: &Context, viewport: ViewportId, reason: &'static str) {
     if crate::runtime::frame::running(ctx).is_some() && super::pass::current_viewport(ctx) == viewport {
-        super::sizing::request_discard(ctx, reason);
+        super::sizing::request_discard(ctx, super::sizing::Rerun::Input(reason));
     }
 }
 

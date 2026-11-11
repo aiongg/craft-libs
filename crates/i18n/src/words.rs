@@ -100,6 +100,14 @@ pub struct Words {
     lookup: Option<Lookup>,
     plural: Option<Plural>,
     sets: SetCache,
+    /// Unique per translator: equal words have equal generations (`generation`).
+    generation: u64,
+}
+
+/// A generation no `Words` built before has; English (the default) is 0.
+fn next_generation() -> u64 {
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+    NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
 }
 
 /// The word sets built from one `Words`, by type, so that a component asking for its set every frame builds it
@@ -127,13 +135,20 @@ impl Words {
 
     /// Words translated by `lookup`, which returns `None` where it has no text.
     pub fn new(lookup: impl Fn(Word) -> Option<String> + Send + Sync + 'static) -> Words {
-        Words { lookup: Some(Arc::new(lookup)), plural: None, sets: SetCache::default() }
+        Words { lookup: Some(Arc::new(lookup)), plural: None, sets: SetCache::default(), generation: next_generation() }
+    }
+
+    /// Which translator these words are: words with the same generation read every word the same (a clone keeps it),
+    /// and words built anew get a new one.
+    pub fn generation(&self) -> u64 {
+        self.generation
     }
 
     /// Counts written by `plural(id, n, one, other)`, which returns `None` to fall back to the English forms.
     #[must_use]
     pub fn with_plural(mut self, plural: impl Fn(&'static str, u64, &'static str, &'static str) -> Option<String> + Send + Sync + 'static) -> Words {
         self.plural = Some(Arc::new(plural));
+        self.generation = next_generation();
         self
     }
 

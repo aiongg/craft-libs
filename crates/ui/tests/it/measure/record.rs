@@ -1,12 +1,14 @@
-//! A container's sizes come from this pass's measuring run: it measures its contents once per frame, before its real
-//! run, and the containers inside it reuse what that run recorded.
+//! A container's sizes come from a measuring run: in a pass that measures, it measures its contents once, before its
+//! real run, and the containers inside it reuse what that run recorded. A later pass with the same inputs takes the
+//! kept measurement; the trials that count the runs of a measuring pass drop the kept measurements first
+//! (`forget_measurements`).
 
 use craft_ui::contract::{Bind, Props as _, Show as _, ShowContainer as _};
 use craft_ui::display::Text;
 use craft_ui::layout_components::{Row, Stack};
 use craft_ui::sections::Section;
 use craft_ui::testing::layout::Block;
-use craft_ui::testing::{Fixture, Frames, measuring_runs, trial};
+use craft_ui::testing::{Fixture, Frames, forget_measurements, last_pass_measuring_runs, measuring_runs, trial};
 use craft_ui::text::TextField;
 use egui::{Rect, Ui, Vec2};
 use std::cell::{Cell, RefCell};
@@ -14,7 +16,7 @@ use std::rc::Rc;
 
 const SLACK: f32 = 0.5;
 
-/// A section in a content-sized stack takes the width of its text in the frame the text grows, without a second pass.
+/// A section in a content-sized stack takes the width of its text in the frame the text grows.
 #[trial]
 fn a_content_section_takes_its_new_width_in_the_same_pass() {
     let text = RefCell::new("Short");
@@ -38,7 +40,7 @@ fn a_content_section_takes_its_new_width_in_the_same_pass() {
         (section.width() - (long.width() + pad)).abs() <= SLACK,
         "the section is the text's width plus padding {pad}: {section:?}, text {long:?}"
     );
-    assert_eq!(passes, 1, "the new width comes from this pass's measuring run");
+    assert!(passes <= 2, "the real run finds the content changed and the frame measures again: {passes} passes");
 }
 
 /// Six nested content-sized stacks: each one's contents run in exactly one measuring run per frame.
@@ -53,6 +55,7 @@ fn nested_containers_measure_once_per_frame() {
     }
     let mut frames = Frames::new();
     frames.idle(3, |ui| nest(ui, 6));
+    forget_measurements(&frames.ctx);
     let passes = frames.frame(vec![], |ui| nest(ui, 6));
     let runs = measuring_runs(&frames.ctx);
     assert_eq!(passes, 1);
@@ -76,6 +79,7 @@ fn a_filling_root_is_not_run_in_its_parents_measure() {
     };
     let mut frames = Frames::new();
     frames.idle(3, show);
+    forget_measurements(&frames.ctx);
     calls.set(0);
     let passes = frames.frame(vec![], show);
     assert_eq!(passes, 1);
@@ -148,6 +152,7 @@ fn a_six_deep_nest_runs_each_container_once_measuring_and_once_real() {
     let calls = RefCell::new(vec![0; 6]);
     let mut frames = Frames::new();
     frames.idle(3, |ui| nest(ui, 6, &calls));
+    forget_measurements(&frames.ctx);
     calls.borrow_mut().fill(0);
     let passes = frames.frame(vec![], |ui| nest(ui, 6, &calls));
     let runs = measuring_runs(&frames.ctx);
@@ -157,10 +162,12 @@ fn a_six_deep_nest_runs_each_container_once_measuring_and_once_real() {
     assert_eq!(calls.borrow()[..5], [2; 5], "each container's contents run twice: {calls:?}");
 }
 
-/// Runs `show` until it settles, then one more frame: the measuring runs of that frame, by body.
+/// Runs `show` until it settles, then one more frame with the kept measurements dropped: the measuring runs of that
+/// frame, by body.
 fn runs_of_a_settled_frame(mut show: impl FnMut(&mut Ui)) -> Vec<(egui::Id, u32)> {
     let mut frames = Frames::new();
     frames.idle(3, &mut show);
+    forget_measurements(&frames.ctx);
     let passes = frames.frame(vec![], &mut show);
     assert_eq!(passes, 1);
     measuring_runs(&frames.ctx)
@@ -282,4 +289,222 @@ fn a_fill_collection_under_a_content_body_measures_its_widest_row_once() {
     frames.frame(vec![], &mut show);
     let runs = widest_runs(&frames.ctx);
     assert!(!runs.is_empty() && runs.iter().all(|(_, count)| *count == 1), "the widest row is measured once per collection: {runs:?}");
+}
+
+/// A settled frame of nested containers with unchanged inputs runs no measuring run: each takes its kept measurement.
+/// The first frame measured each once.
+#[trial]
+fn a_settled_frame_runs_no_measuring_run() {
+    fn nest(ui: &mut Ui, depth: usize) {
+        if depth == 0 {
+            Text::new("Inside").show(ui);
+            return;
+        }
+        Stack::new().show(ui, |ui, _| nest(ui, depth - 1));
+    }
+    let mut frames = Frames::new();
+    frames.frame(vec![], |ui| nest(ui, 6));
+    assert!(last_pass_measuring_runs(&frames.ctx).len() >= 6, "the first frame measures every stack");
+    frames.idle(3, |ui| nest(ui, 6));
+    let passes = frames.frame(vec![], |ui| nest(ui, 6));
+    assert_eq!(passes, 1);
+    let runs = last_pass_measuring_runs(&frames.ctx);
+    assert!(runs.is_empty(), "no stack measures again: {runs:?}");
+}
+
+/// A room change measures the containers again in that frame, in one pass: the room is an input the kept
+/// measurement was taken under.
+#[trial]
+fn a_room_change_measures_again_in_its_frame() {
+    let width = Cell::new(300.0);
+    let seen = Cell::new((Rect::NOTHING, Rect::NOTHING));
+    let show = |ui: &mut Ui| {
+        let at = Rect::from_min_size(ui.cursor().min, Vec2::new(width.get(), 200.0));
+        Stack::new().fill().show_at(ui, at, |ui, _| {
+            let inner = Stack::new().show(ui, |ui, _| {
+                Text::new("A line of text that wraps when the room is narrow enough").show(ui);
+            });
+            seen.set((at, inner.output.rect));
+        });
+    };
+    let mut frames = Frames::new();
+    frames.idle(4, show);
+    width.set(120.0);
+    let passes = frames.frame(vec![], show);
+    let (at, inner) = seen.get();
+    assert_eq!(passes, 1, "the new room is known before the run");
+    assert!(!last_pass_measuring_runs(&frames.ctx).is_empty(), "the stacks measure at the new room");
+    assert!(inner.width() <= at.width() + SLACK, "the inner stack fits the narrower room: {inner:?} in {at:?}");
+    // A fresh measure under new inputs is not motion: the next frame takes what it found.
+    let passes = frames.frame(vec![], show);
+    assert_eq!(passes, 1, "the frame after");
+    let runs = last_pass_measuring_runs(&frames.ctx);
+    assert!(runs.is_empty(), "the frame after the room change measures nothing again: {runs:?}");
+}
+
+/// The widest label of a label column becomes short: in that frame the controls move to the narrower column. The
+/// column's kept width confirms itself from the labels the real run shows, not from the width it gave them.
+#[trial]
+fn a_label_column_narrows_in_the_frame_its_widest_label_shrinks() {
+    use crate::label::group::Group;
+    use crate::label::kit::{Dial, Field, Seen};
+    use craft_ui::contract::SideLabel;
+    let long = Cell::new("Hue and saturation");
+    let (a_seen, b_seen) = (RefCell::new(Seen::default()), RefCell::new(Seen::default()));
+    let (mut a, mut b) = (1.0, 1.0);
+    let mut show = |ui: &mut Ui| {
+        let at = Rect::from_min_size(ui.cursor().min, Vec2::new(300.0, 150.0));
+        Group::column().id_salt("column").show_at(ui, at, |ui, _| {
+            Field::new("Size", SideLabel::new()).id_salt("short").show(ui, |ui, _| {
+                Dial::new(&mut a, &a_seen).show(ui);
+            });
+            Field::new(long.get(), SideLabel::new()).id_salt("long").show(ui, |ui, _| {
+                Dial::new(&mut b, &b_seen).show(ui);
+            });
+        });
+    };
+    let mut frames = Frames::new();
+    frames.idle(4, &mut show);
+    let wide = a_seen.borrow().rect.min.x;
+    long.set("Hue");
+    frames.frame(vec![], &mut show);
+    let (a_start, b_start) = (a_seen.borrow().rect.min.x, b_seen.borrow().rect.min.x);
+    assert!(a_start < wide - SLACK, "the column narrows in the same frame: {wide} -> {a_start}");
+    assert!((a_start - b_start).abs() <= SLACK, "both controls start in the one column: {a_start}, {b_start}");
+}
+
+/// A value the app changes every frame, with no change of size, runs one pass a frame and no measuring run.
+#[trial]
+fn a_value_change_without_a_size_change_runs_one_pass_and_no_measuring_run() {
+    use craft_ui::value_drag::Slider;
+    let value = Cell::new(0.1_f64);
+    let show = |ui: &mut Ui| {
+        Stack::new().show(ui, |ui, _| {
+            Text::new("Opacity").show(ui);
+            let _ = Slider::new(Bind::given(value.get()), 0.0..=1.0).show(ui);
+        });
+    };
+    let mut frames = Frames::new();
+    frames.idle(4, show);
+    for step in 0..3 {
+        value.set(0.2 + 0.2 * f64::from(step));
+        let passes = frames.frame(vec![], show);
+        assert_eq!(passes, 1, "frame {step}");
+        let runs = last_pass_measuring_runs(&frames.ctx);
+        assert!(runs.is_empty(), "frame {step}: no body measures again: {runs:?}");
+    }
+}
+
+/// The widest cell of a content-sized grid narrows: in that frame the second column moves to the narrower first one.
+/// The check asks each cell at the room its measuring run gave it, not at the track width the kept records give.
+#[trial]
+fn a_grid_narrows_in_the_frame_its_widest_cell_shrinks() {
+    use craft_behavior::ColumnWidth;
+    use craft_ui::layout_components::Grid;
+    static COLUMNS: [ColumnWidth; 2] = [ColumnWidth::Content, ColumnWidth::Content];
+    let first = Cell::new("A much longer first column label");
+    let second = Cell::new(Rect::NOTHING);
+    let show = |ui: &mut Ui| {
+        Stack::new().show(ui, |ui, _| {
+            Grid::new(&COLUMNS).show(ui, |ui, _| {
+                Text::new(first.get()).show(ui);
+                second.set(Text::new("Second").show(ui).rect);
+                Text::new("Short").show(ui);
+                Text::new("Again").show(ui);
+            });
+        });
+    };
+    let mut frames = Frames::new();
+    frames.idle(4, show);
+    let wide = second.get().min.x;
+    first.set("Tiny");
+    frames.frame(vec![], show);
+    let narrow = second.get().min.x;
+    assert!(narrow < wide - SLACK, "the second column moves left in the same frame: {wide} -> {narrow}");
+    frames.idle(3, show);
+    assert!((second.get().min.x - narrow).abs() <= SLACK, "and stays there: {narrow} -> {}", second.get().min.x);
+}
+
+/// A child of a row turns from content-sized to filling: in that frame it takes the room its sibling leaves. The
+/// check holds each child's sizing mode, not only its size.
+#[trial]
+fn a_child_that_starts_to_fill_takes_its_share_in_that_frame() {
+    let fills = Cell::new(false);
+    let seen = Cell::new((Rect::NOTHING, Rect::NOTHING));
+    let show = |ui: &mut Ui| {
+        let at = Rect::from_min_size(ui.cursor().min, Vec2::new(400.0, 40.0));
+        Row::new().fill().show_at(ui, at, |ui, _| {
+            Text::new("Name").show(ui);
+            let stack = if fills.get() { Stack::new().fill_width() } else { Stack::new() };
+            let inner = stack.show(ui, |ui, _| {
+                Text::new("Value").show(ui);
+            });
+            seen.set((at, inner.output.rect));
+        });
+    };
+    let mut frames = Frames::new();
+    frames.idle(4, show);
+    let (_, content) = seen.get();
+    fills.set(true);
+    frames.frame(vec![], show);
+    let (at, filled) = seen.get();
+    assert!(filled.width() > content.width() + SLACK, "the child fills in the same frame: {content:?} -> {filled:?}");
+    assert!((filled.max.x - at.max.x).abs() <= SLACK, "it ends at the row's end: {filled:?} in {at:?}");
+}
+
+/// A section closes: in every frame of the toggle the text below it starts under the section's rect as shown, so
+/// the new height shows in its frame.
+#[trial]
+fn a_collapse_toggle_shows_the_new_height_in_its_frame() {
+    let mut open = true;
+    let seen = Cell::new((Rect::NOTHING, Rect::NOTHING));
+    let show = |ui: &mut Ui, open: &mut bool| {
+        Stack::new().show(ui, |ui, _| {
+            let section = Section::new("Options").open(Bind::bound(open)).id_salt("section").show(ui, |ui, _| {
+                Text::new("First line of the body").show(ui);
+                Text::new("Second line of the body").show(ui);
+            });
+            let below = Text::new("Below").show(ui).rect;
+            seen.set((section.output.response.rect, below));
+        });
+    };
+    let mut frames = Frames::new();
+    frames.idle(4, |ui| show(ui, &mut open));
+    let (tall, _) = seen.get();
+    open = false;
+    for frame in 0..12 {
+        frames.frame(vec![], |ui| show(ui, &mut open));
+        let (section, below) = seen.get();
+        assert!(below.min.y >= section.max.y - SLACK, "frame {frame}: the text starts below the section: {section:?}, {below:?}");
+    }
+    let (closed, _) = seen.get();
+    assert!(closed.height() < tall.height() - SLACK, "the section closed: {tall:?} -> {closed:?}");
+}
+
+/// Fields that share a label column, in a stack measured before it shows (as a gallery card does): a settled frame
+/// runs one pass. The real run's label reports match the measuring run's, which reports a label twice and how far each
+/// row reaches past the column.
+#[trial]
+fn a_settled_shared_label_column_runs_one_pass_per_frame() {
+    use craft_ui::contract::{LabelAlign, SideLabel};
+    use craft_ui::form::{Field, FieldGroup};
+    let rows = |ui: &mut Ui| {
+        FieldGroup::new("Settings").show(ui, |ui, _| {
+            for label in ["Size", "Hue and saturation", "Gap"] {
+                Field::new(label).side(SideLabel::new().align(LabelAlign::Start)).id_salt(label).show(ui, |ui, _| {
+                    craft_ui::text::NumberField::new(label, Bind::given(Some(42.0))).unit("mm").show(ui);
+                });
+            }
+        });
+    };
+    // As a gallery card does: the stack measures its content before it shows it.
+    let show = |ui: &mut Ui| {
+        Stack::new().id_salt("card").measure_in(ui, craft_behavior::Proposal::Ideal, |ui, _| rows(ui));
+        Stack::new().id_salt("card").show(ui, |ui, _| rows(ui));
+    };
+    let mut frames = Frames::new();
+    frames.idle(4, show);
+    for frame in 0..6 {
+        assert_eq!(frames.frame(vec![], show), 1, "settled frame {frame}");
+    }
 }

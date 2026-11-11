@@ -39,6 +39,24 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         crate::contract::steps::ShapeKind::Body
     }
 
+    fn regions(&self, id: Id) -> Vec<(Id, Vec2)> {
+        [
+            ("body", self.body_size),
+            ("header", self.header_size),
+            ("footer", self.footer_size),
+            ("end", self.end_size),
+            ("controls", self.controls_size),
+            ("extent", self.extent),
+        ]
+        .into_iter()
+        .filter_map(|(key, took)| took.map(|took| (sub(id, key), took)))
+        .collect()
+    }
+
+    fn in_flow(&self, comp: &C) -> bool {
+        !matches!(comp.props(Internal::new()).mount, Mount::Layer(_) | Mount::FullWindow | Mount::Viewport { .. })
+    }
+
     fn host(&mut self, comp: &C, at: crate::contract::run::HostCx<'_>) -> Box<dyn crate::contract::run::Host> {
         let mounted = crate::contract::mount::host(comp.props(Internal::new()), &at, self.open, at.label);
         if mounted.exiting {
@@ -307,12 +325,27 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         let pad = Vec2::splat(2.0 * pad_of(at.scx.tokens, props.pad));
         let vertical = scroll_of(&props).is_some_and(|scroll| scroll.vertical_on());
         let tolerance = measure_tolerance(crate::runtime::egui::scale::pixels_per_point(&ctx));
-        let reused = (self.reuse || at.ui.is_sizing_pass()).then(|| self.reusable(&props, &ctx, id, pad, tolerance)).flatten();
+        // A record a run of this pass left serves as before; a kept one serves only while the inputs it was measured
+        // under hold.
+        let key = self.measure_key(&props, at.env, at.width);
+        let reused = (self.reuse || at.ui.is_sizing_pass())
+            .then(|| {
+                let found = layout_memory::run_found(&ctx, id);
+                let serves = found || layout_memory::kept_serves(&ctx, id, &key);
+                serves.then(|| self.reusable(&props, &ctx, id, pad, tolerance)).flatten().map(|took| (took, found))
+            })
+            .flatten();
         let took = match reused {
-            Some(took) => took,
+            Some((took, found)) => {
+                if found {
+                    layout_memory::kept_also_under(&ctx, id, key);
+                }
+                took
+            }
             None => {
                 #[cfg(feature = "testing")]
                 crate::runtime::measure::count_body(&ctx, id);
+                layout_memory::begin_measure(&ctx, id);
                 let available = match at.at {
                     ShowAt::Rect(rect) => rect,
                     // Not the cursor: in a right-to-left layout it extends to -inf along the line.
@@ -342,7 +375,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 comp.content_env(cx, &mut values);
                 self.content(comp, &mut measure_ui, at.env, cx, &values);
                 Env::restore(&ctx, installed);
-                let record = |key: Id, took: Vec2| layout_memory::record_measured(&ctx, key, layout_memory::Measured { room: self.room, took });
+                let record = |key: Id, took: Vec2| layout_memory::emit_record(&ctx, key, layout_memory::Measured::new(self.room, took));
                 record(id, self.body_size.unwrap_or(Vec2::ZERO));
                 for (key, size) in
                     [("header", self.header_size), ("footer", self.footer_size), ("end", self.end_size), ("controls", self.controls_size)]
@@ -351,6 +384,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                         record(sub(id, key), size);
                     }
                 }
+                layout_memory::end_measure(&ctx, id, key);
                 let body = if self.open { self.body_size.unwrap_or(Vec2::ZERO) } else { Vec2::ZERO };
                 let (header, footer, end) =
                     (self.header_size.unwrap_or(Vec2::ZERO), self.footer_size.unwrap_or(Vec2::ZERO), self.end_size.unwrap_or(Vec2::ZERO));
@@ -396,7 +430,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         self.extent(comp, at.ui, at.at, id, at.scx)
     }
 
-    fn sized(&self, comp: &C, ui: &Ui, size: Vec2) -> Vec2 {
+    fn sized(&self, comp: &C, ui: &Ui, id: Id, size: Vec2) -> Vec2 {
         let props = comp.props(Internal::new());
         match self.sizing(props) {
             Sizing::Fill => {
@@ -409,7 +443,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                     if !(room.is_finite() && given) {
                         return measured;
                     }
-                    match crate::layout::main_fill(ui, along) {
+                    match crate::layout::main_fill(ui, id, along) {
                         crate::layout::MainFill::Measuring => 0.0,
                         crate::layout::MainFill::Share(share) => share,
                         crate::layout::MainFill::Room => room,
@@ -427,7 +461,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 let room = if held { room.min(crate::layout::flow_room(ui).x) } else { room };
                 let across = self.given.0 || held;
                 let width = if room.is_finite() && across {
-                    match crate::layout::main_fill(ui, craft_behavior::Axis::X) {
+                    match crate::layout::main_fill(ui, id, craft_behavior::Axis::X) {
                         crate::layout::MainFill::Measuring => 0.0,
                         crate::layout::MainFill::Share(share) => share,
                         crate::layout::MainFill::Room => size.x.max(room),

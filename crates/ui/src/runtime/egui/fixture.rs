@@ -118,7 +118,7 @@ pub(crate) fn run_frame(
     let dropped_files = files.dropped.iter().map(|name| Arc::new(DroppedPath(name.into())) as egui::DroppedFileHandle).collect();
     let viewports = window_focus_facts(ctx, &events, native_pixels_per_point);
     let input = RawInput { screen_rect: Some(screen), time: Some(time), events, hovered_files, dropped_files, viewports, ..RawInput::default() };
-    let mut output = ctx.run_ui(input, ui);
+    let mut output = crate::runtime::layout_memory::guard::strict(|| ctx.run_ui(input, ui));
     let mut flat = Vec::new();
     for clipped in &output.shapes {
         let mut shapes = Vec::new();
@@ -248,7 +248,7 @@ pub(crate) fn reordered_fonts() -> egui::FontDefinitions {
 pub(crate) fn run_frame_shapes(ctx: &Context, time: f64, screen: Vec2, ui: impl FnMut(&mut Ui)) -> Vec<Shape> {
     let screen = Rect::from_min_size(Pos2::ZERO, screen);
     let input = RawInput { screen_rect: Some(screen), time: Some(time), ..RawInput::default() };
-    let mut output = ctx.run_ui(input, ui);
+    let mut output = crate::runtime::layout_memory::guard::strict(|| ctx.run_ui(input, ui));
     output.textures_delta.clear();
     let mut flat = Vec::new();
     for clipped in output.shapes {

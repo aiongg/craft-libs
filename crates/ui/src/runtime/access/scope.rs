@@ -243,11 +243,31 @@ pub(crate) fn in_label(ctx: &Context) -> bool {
 
 /// Records the narrowest width of a control inside the innermost label scope. The first control to report wins.
 pub(crate) fn record_control_min(ctx: &Context, width: f32) {
-    Service::<Stack>::run(ctx, |stack| {
-        if let Some(scope) = stack.0.iter_mut().rev().find(|scope| matches!(scope.kind, Kind::Label(_))) {
-            scope.control_min.get_or_insert(width);
-        }
-    });
+    let container =
+        Service::<Stack>::run(ctx, |stack| stack.0.iter().rev().find(|scope| matches!(scope.kind, Kind::Label(_))).map(|scope| scope.container));
+    if let Some(container) = container {
+        layout_memory::contribute(ctx, std::sync::Arc::new(ControlMin { container, width }));
+    }
+}
+
+/// A control's narrowest width reported to the label scope of `container`, as a measuring run hands it forward.
+struct ControlMin {
+    container: Id,
+    width: f32,
+}
+
+impl layout_memory::Contribution for ControlMin {
+    fn apply(&self, ctx: &Context) {
+        Service::<Stack>::run(ctx, |stack| {
+            if let Some(scope) = stack.0.iter_mut().rev().find(|scope| scope.container == self.container && matches!(scope.kind, Kind::Label(_))) {
+                scope.control_min.get_or_insert(self.width);
+            }
+        });
+    }
+
+    fn report(&self) -> Option<(Id, f32)> {
+        Some((sub(self.container, "control_min"), self.width))
+    }
 }
 
 /// The narrowest width the first control of the open label scope of `container` has reported so far; 0 before any.
@@ -428,7 +448,7 @@ pub(crate) fn discard(ctx: &Context, container: Id) {
     let scope = Service::<Stack>::run(ctx, |stack| stack.0.last().is_some_and(|scope| scope.container == container).then(|| stack.0.pop()).flatten());
     if let Some(scope) = scope {
         let took = Vec2::new(scope.control_min.unwrap_or(0.0), 0.0);
-        layout_memory::record_measured(ctx, sub(container, "control_min"), layout_memory::Measured { room: Vec2::ZERO, took });
+        layout_memory::emit_record(ctx, sub(container, "control_min"), layout_memory::Measured::new(Vec2::ZERO, took));
     }
 }
 
