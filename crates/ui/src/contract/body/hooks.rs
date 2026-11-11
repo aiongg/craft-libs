@@ -5,6 +5,7 @@ use super::open::open_now;
 use super::placement::{Placement, measure_layer, overlay_of, shown_placement};
 use super::regions::{
     RegionFrame, RegionSizes, footer_in_end, gap_of, header_gap_of, label_extra_of, least_of, pad_of, paint_rules, rect_of, shared_labels,
+    shared_line,
 };
 use super::reorder::REORDER_BAND;
 use super::scroll::{Jumps, ScrollState, jump_frame, overflow_inset, scroll_of};
@@ -668,16 +669,18 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         // The body is measured in the line the real run gives it: what the header and the end region leave. The
         // measuring run places it once both have measured, so its end region runs first (its content never depends
         // on the body); the real run places it from what they took and keeps reading order.
-        if !real && is_open {
-            if props.end.is_some() {
-                let mut end_cx = BodyCx::new(body_id, line_env.view(), resolved, regions.end, &mut *cx.core.memory, &mut open, gate.as_mut())
-                    .with_field_message(field_message.clone())
-                    .with_owner(owner);
-                close = close.or(self.end_region(comp, ui, &mut end_cx, &end_frame, &props, regions.end));
-            }
-            let sizes = RegionSizes { header: self.header_size, footer: self.measured_footer, end: self.end_size };
-            regions.body = self.regions(&props, inner, pad, room, rtl, sizes).body;
+        if !real && is_open && props.end.is_some() {
+            let mut end_cx = BodyCx::new(body_id, line_env.view(), resolved, regions.end, &mut *cx.core.memory, &mut open, gate.as_mut())
+                .with_field_message(field_message.clone())
+                .with_owner(owner);
+            close = close.or(self.end_region(comp, ui, &mut end_cx, &end_frame, &props, regions.end));
         }
+        let beside =
+            if real { self.measured_sizes() } else { RegionSizes { header: self.header_size, footer: self.measured_footer, end: self.end_size } };
+        if !real {
+            regions.body = self.regions(&props, inner, pad, room, rtl, beside).body;
+        }
+        let line = shared_line(&props, beside);
         // B2 label: the control gets the rect the label leaves; the label column adds to the container's extent.
         let mut body_rect = regions.body;
         let mut label_input = None;
@@ -782,7 +785,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                     }
                     // A row that places its block itself asks for its children's width, not the room it spans.
                     None => {
-                        let (_, natural) = layout::run_body_measured(&mut body_ui, layout_id, layout, gap, |ui| {
+                        let (_, natural) = layout::run_body_measured(&mut body_ui, layout_id, layout, gap, line, |ui| {
                             shared_labels(ui, id, label_column, room.x, &mut group_extent, |ui| body(ui, bcx))
                         });
                         natural.map(|width| Vec2::new(width, body_ui.min_rect().height()))

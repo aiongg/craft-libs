@@ -23,6 +23,14 @@ pub(super) fn end_full_height(props: &ContainerProps) -> bool {
     props.end.is_some_and(|end| end.full_height) || footer_in_end(props)
 }
 
+/// The line a body shares with an inline header or an end region beside it, from what they took (`sizes`): as high
+/// as the taller of the two. `None` for a body that shares no line.
+pub(super) fn shared_line(props: &ContainerProps, sizes: RegionSizes) -> Option<f32> {
+    let header = props.header.filter(|header| header.inline).and(sizes.header).map(|took| took.y);
+    let end = props.end.filter(|_| !end_full_height(props)).and(sizes.end).map(|took| took.y);
+    header.into_iter().chain(end).reduce(f32::max).filter(|line| *line > 0.0)
+}
+
 pub(crate) fn pad_of(tokens: &UiTokens, pad: Pad) -> f32 {
     let pads = &tokens.tokens().space.pad;
     match pad {

@@ -137,9 +137,10 @@ pub struct Scoped {
     /// The width a `Row` body was offered this pass, before its `End` or `Center` lead narrowed the block: the room
     /// its direct children share. Only the row's own children read it.
     pub(crate) row_room: Option<f32>,
-    /// The line of an unwrapped `Row` body: the height of its tallest child in this pass's measuring run. Its direct
-    /// children placed in flow that are lines sit at the line's vertical centre, blocks and columns at its top. `None`
-    /// while the row is measured.
+    /// The line of an unwrapped `Row` body: the height of its tallest child in this pass's measuring run, or the line
+    /// the body shares with its container's inline header or end region when that is taller. Its direct children
+    /// placed in flow that are lines sit at the line's vertical centre, blocks and columns at its top. `None` while a
+    /// row that shares no line is measured.
     pub(crate) row_line: Option<f32>,
     /// The `Stack` or `Row` body that encloses the scope and the axis it runs along, when a child that fills that
     /// axis shares the room its siblings leave (set only where the body is given the axis).

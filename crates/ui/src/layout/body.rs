@@ -496,6 +496,15 @@ fn row_line(ctx: &egui::Context, sizing: bool, id: Id) -> Option<f32> {
     this_pass(ctx, sizing, sub(id, "line")).map(|took| took.y).filter(|line| *line > 0.0)
 }
 
+/// The line an unwrapped `Row` sets its children on: its own, or the line it shares with its container's regions
+/// when that is taller.
+fn on_line(own: Option<f32>, shared: Option<f32>) -> Option<f32> {
+    match (own, shared) {
+        (Some(own), Some(shared)) => Some(own.max(shared)),
+        (own, shared) => own.or(shared),
+    }
+}
+
 /// Records the line of the unwrapped `Row` body `id` from what its children took in `ui`, the block they ran in; a
 /// real run records nothing. The last sweep of a measuring run gives the line.
 fn record_line(ui: &Ui, sizing: bool, id: Id) {
@@ -517,12 +526,20 @@ fn found(ctx: &egui::Context, sizing: bool, id: Id, room: Vec2, took: Vec2) {
 /// the widest child per column and tallest per row there. Without a measuring run they place as `Start`, spread at
 /// the gap and size columns from the cells as they come.
 pub(crate) fn run_body<R>(ui: &mut Ui, id: Id, layout: &BodyLayout, gap: Vec2, body: impl FnMut(&mut Ui) -> R) -> R {
-    run_body_measured(ui, id, layout, gap, body).0
+    run_body_measured(ui, id, layout, gap, None, body).0
 }
 
 /// `run_body`, with the width the children take at the gap alone for a `Row` that places its block itself (`End`,
-/// `Center`, `SpaceBetween`): the width the body asks for, where the room it is placed in spans wider.
-pub(crate) fn run_body_measured<R>(ui: &mut Ui, id: Id, layout: &BodyLayout, gap: Vec2, mut body: impl FnMut(&mut Ui) -> R) -> (R, Option<f32>) {
+/// `Center`, `SpaceBetween`): the width the body asks for, where the room it is placed in spans wider. `shared` is the
+/// line the body shares with its container's inline header or end region: an unwrapped `Row` sets its children on it.
+pub(crate) fn run_body_measured<R>(
+    ui: &mut Ui,
+    id: Id,
+    layout: &BodyLayout,
+    gap: Vec2,
+    shared: Option<f32>,
+    mut body: impl FnMut(&mut Ui) -> R,
+) -> (R, Option<f32>) {
     let rtl = Env::of(ui).direction.is_rtl();
     let ctx = ui.ctx().clone();
     let sizing = measure::active(&ctx);
@@ -533,7 +550,7 @@ pub(crate) fn run_body_measured<R>(ui: &mut Ui, id: Id, layout: &BodyLayout, gap
                 let flow = Flow::new(ui.available_rect_before_wrap(), rtl);
                 let spread = Spread::new(flow, gap.x, this_pass(&ctx, sizing, id));
                 Service::<Cursors>::run(&ctx, |cursors| cursors.0.insert(id, Cursor::Spread(spread)));
-                let line = row_line(&ctx, sizing, id);
+                let line = on_line(row_line(&ctx, sizing, id), shared);
                 let installed = Env::install_for(
                     ui,
                     Env::of(ui).derive_local(|scoped| {
@@ -557,7 +574,7 @@ pub(crate) fn run_body_measured<R>(ui: &mut Ui, id: Id, layout: &BodyLayout, gap
         }
         BodyLayout::Row { wrap: false, align: RowAlign::Start } => {
             let room = ui.available_rect_before_wrap();
-            let line = row_line(&ctx, sizing, id);
+            let line = on_line(row_line(&ctx, sizing, id), shared);
             let inner = run_sharing(ui, id, Axis::X, child::row_layout(rtl, false), |ui| {
                 let installed = Env::install_for(
                     ui,
@@ -588,7 +605,7 @@ pub(crate) fn run_body_measured<R>(ui: &mut Ui, id: Id, layout: &BodyLayout, gap
                 }
             };
             // A wrapped row has a line per wrap, so its children stay on the top of each.
-            let line = if *wrap { None } else { row_line(&ctx, sizing, id) };
+            let line = if *wrap { None } else { on_line(row_line(&ctx, sizing, id), shared) };
             let (inner, took) = child::block(ui, rect, child::row_layout(rtl, *wrap), |ui| {
                 let installed = Env::install_for(
                     ui,

@@ -132,3 +132,46 @@ fn a_row_body_between_an_inline_header_and_an_end_region_measures_in_the_line_th
         "the text lies between {header:?} and {end:?}: {text:?}"
     );
 }
+
+/// The content of a body on a line it shares with an inline header or an end region sits on that line's centre, as the
+/// end region's does: a title bar's leading text, its title and its trailing text share one centre line with the
+/// caption buttons, and a bulk-edit row's check box and field share one.
+#[trial]
+fn a_body_on_a_line_it_shares_sits_on_the_lines_centre() {
+    use craft_ui::contract::Role;
+    use craft_ui::contract::{Bind, Show as _};
+    use craft_ui::display::Text;
+    use craft_ui::sections::GroupBox;
+    use craft_ui::shell::{Caption, CaptionFamily, Captions, Frame, Title, TitleBar};
+    use craft_ui::testing::Fixture;
+    use craft_ui::text::NumberField;
+    let centre = |fixture: &Fixture, label: &str| fixture.by_label(label).unwrap_or_else(|| panic!("{label} is shown")).rect.center().y;
+    let mut bar = Fixture::new(|ui| {
+        let layout = craft_window::Layout { left: vec![], right: vec![Caption::Minimize, Caption::Maximize, Caption::Close] };
+        let frame = Frame::Integrated(Captions { family: CaptionFamily::Windows, layout });
+        let _ = TitleBar::new().frame(frame).show_titled(
+            ui,
+            Title::new("Landscape.psd"),
+            |ui, _| {
+                Text::new("File  Edit").show(ui);
+            },
+            |ui, _| {
+                Text::new("Share").show(ui);
+            },
+        );
+    });
+    bar.idle(4);
+    let line = bar.by_role(Role::BUTTON).first().expect("the caption buttons are shown").rect.center().y;
+    for label in ["File  Edit", "Landscape.psd", "Share"] {
+        assert!((centre(&bar, label) - line).abs() <= EDGE_SLACK, "{label} is centred on the bar's line");
+    }
+    let mut row = Fixture::new(|ui| {
+        let mut apply = true;
+        GroupBox::apply("Apply", Bind::bound(&mut apply)).show(ui, |ui, _| {
+            NumberField::new("Opacity", Bind::given(Some(80.0))).show(ui);
+        });
+    });
+    row.idle(4);
+    let check = row.by_role(Role::CHECK_BOX).first().expect("the check box is shown").rect.center().y;
+    assert!((centre(&row, "Opacity") - check).abs() <= EDGE_SLACK, "the field and the check box share a centre line");
+}
