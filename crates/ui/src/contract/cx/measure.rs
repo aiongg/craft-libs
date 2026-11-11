@@ -4,6 +4,7 @@ use crate::contract::{Component, Resolved, Show, ValueOf};
 use crate::primitives::{TextEnv, TextLayout, TextRun};
 use crate::runtime::commands::{self, CommandRef, ResolvedCommand};
 use crate::runtime::env::{EnvView, Label};
+use crate::runtime::layout_memory;
 use crate::style::{ComponentStyle as _, Ink, UiTokens};
 use craft_behavior::Proposal;
 use egui::{Id, Ui, Vec2};
@@ -57,7 +58,14 @@ impl<C: Component> MeasureCx<'_, C> {
     /// there fills it), yet such a component takes the size it will show at: a message wider than a capped dialog
     /// takes the lines it will show. `None` when the width is unbounded.
     pub fn column_room(&self) -> Option<f32> {
-        self.room.or_else(|| Some(crate::layout::flow_room(self.ui).x).filter(|width| width.is_finite()))
+        self.room.or_else(|| {
+            // The column is an input of this measure call besides its room (step 5 opens the call), and of the calls
+            // around it that measure it.
+            let ctx = self.ui.ctx();
+            let width = crate::layout::flow_room(self.ui).x;
+            let width = layout_memory::read_input(ctx, layout_memory::calls_from(ctx), self.id.with("column_room"), width);
+            Some(width).filter(|width| width.is_finite())
+        })
     }
 
     /// The label as given.

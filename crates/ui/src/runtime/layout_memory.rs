@@ -89,11 +89,15 @@ enum Item {
     Body(Id, Arc<Transcript>),
 }
 
-/// One measure call a component got in a measuring run, and its answer.
-#[derive(Clone, Copy)]
+/// The inputs outside a measure that it read (`read_input`), by key: the widest value of each.
+pub(crate) type Inputs = HashMap<Id, f32>;
+
+/// One measure call a component got in a measuring run, the inputs besides its room it read, and its answer.
+#[derive(Clone)]
 struct Call {
     proposal: Proposal,
     room: Option<f32>,
+    inputs: Inputs,
     took: Vec2,
 }
 
@@ -145,16 +149,21 @@ impl Scope {
     }
 }
 
-/// A transcript open in a measuring run: a body's, or content whose emits no enclosing transcript takes.
+/// What a measuring run has open: a body's transcript, content whose emits no enclosing transcript takes, or a
+/// component's measure call.
 enum Open {
-    /// `inputs`: the widest value of each input outside the body that its content read (`read_input`).
+    /// `inputs`: what the body's content read outside the body.
     Body {
         id: Id,
         items: Vec<Item>,
         leaves: HashMap<Id, Leaf>,
-        inputs: HashMap<Id, f32>,
+        inputs: Inputs,
     },
     Boundary,
+    /// `inputs`: what the measure read outside its own room.
+    Call {
+        inputs: Inputs,
+    },
 }
 
 /// A content scope of the real run.
@@ -181,6 +190,8 @@ struct Entries {
     served: HashMap<Id, Arc<Transcript>>,
     measuring: Vec<Open>,
     scopes: Vec<Scope>,
+    /// The inputs of the kept calls a real run asks again, innermost last: `read_input` gives what they read.
+    replaying: Vec<Inputs>,
     ask: bool,
     asked: Option<u64>,
 }
@@ -209,14 +220,19 @@ impl Entries {
         self.ask = true;
     }
 
+    /// The innermost open transcript: a body's or a boundary, past the measure calls open inside it.
+    fn transcript(&mut self) -> Option<&mut Open> {
+        self.measuring.iter_mut().rev().find(|open| !matches!(open, Open::Call { .. }))
+    }
+
     fn push(&mut self, item: Item) {
-        if let Some(Open::Body { items, .. }) = self.measuring.last_mut() {
+        if let Some(Open::Body { items, .. }) = self.transcript() {
             items.push(item);
         }
     }
 
     fn leaf(&mut self) -> Option<&mut HashMap<Id, Leaf>> {
-        match self.measuring.last_mut() {
+        match self.transcript() {
             Some(Open::Body { leaves, .. }) => Some(leaves),
             _ => None,
         }
@@ -323,7 +339,7 @@ pub(crate) fn emit_record(ctx: &Context, id: Id, mut measured: Measured) {
             .rev()
             .find_map(|open| match open {
                 Open::Body { inputs, .. } => Some(fingerprint(inputs)),
-                Open::Boundary => None,
+                Open::Boundary | Open::Call { .. } => None,
             })
             .unwrap_or(0);
         let last = memory.measured.insert(id, Found { pass, measured, kept: None });
@@ -343,28 +359,59 @@ pub(crate) fn emit_record(ctx: &Context, id: Id, mut measured: Measured) {
     });
 }
 
-/// How many measuring runs are open: an aggregator opened now hands [`read_input`] this depth, so only the bodies
-/// opened inside it count what they read from it as an input.
+/// How many bodies and measure calls a measuring run has open: an aggregator opened now hands [`read_input`] this
+/// depth, so only the bodies and calls opened inside it count what they read from it as an input.
 pub(crate) fn depth(ctx: &Context) -> usize {
     let moment = Moment::of(ctx);
     with(ctx, &moment, |memory| memory.measuring.len())
 }
 
-/// The content of the measuring runs open from `from` on read `value` from the input `key` outside them (a shared
-/// column's width): the records they emit key on it.
-pub(crate) fn read_input(ctx: &Context, from: usize, key: Id, value: f32) {
+/// Where the measure calls a measuring run has open on top of its innermost transcript start: the column the
+/// innermost call lays out in is outside each of them, since each call measures in the `Ui` of the one around it.
+pub(crate) fn calls_from(ctx: &Context) -> usize {
+    let moment = Moment::of(ctx);
+    with(ctx, &moment, |memory| memory.measuring.iter().rposition(|open| !matches!(open, Open::Call { .. })).map_or(0, |at| at + 1))
+}
+
+/// The bodies and measure calls open from `from` on read `value` from the input `key` outside them (a shared column's
+/// width, the column a component sizes by): the records a body emits key on it, and a call keeps it. Returns the value
+/// to measure with: while a real run asks a kept call again, the value that call read.
+pub(crate) fn read_input(ctx: &Context, from: usize, key: Id, value: f32) -> f32 {
     let moment = Moment::of(ctx);
     with(ctx, &moment, |memory| {
+        if let Some(read) = memory.replaying.iter().rev().find_map(|inputs| inputs.get(&key)) {
+            return *read;
+        }
         for open in memory.measuring.iter_mut().skip(from) {
-            if let Open::Body { inputs, .. } = open {
+            if let Open::Body { inputs, .. } | Open::Call { inputs } = open {
                 let read = inputs.entry(key).or_insert(value);
                 *read = read.max(value);
             }
         }
-    });
+        value
+    })
 }
 
-fn fingerprint(inputs: &HashMap<Id, f32>) -> u64 {
+/// Runs a component's measure `f` as a measure call: in a measuring run, returns with its answer the inputs it read
+/// outside its room, which the call's transcript entry keeps.
+pub(crate) fn measure_call<R>(ctx: &Context, f: impl FnOnce() -> R) -> (R, Inputs) {
+    if !crate::runtime::measure::active(ctx) {
+        return (f(), Inputs::new());
+    }
+    let moment = Moment::of(ctx);
+    with(ctx, &moment, |memory| memory.measuring.push(Open::Call { inputs: Inputs::new() }));
+    let out = f();
+    let inputs = with(ctx, &moment, |memory| {
+        let at = memory.measuring.iter().rposition(|open| matches!(open, Open::Call { .. }))?;
+        match memory.measuring.remove(at) {
+            Open::Call { inputs } => Some(inputs),
+            _ => None,
+        }
+    });
+    (out, inputs.unwrap_or_default())
+}
+
+fn fingerprint(inputs: &Inputs) -> u64 {
     use std::hash::{Hash as _, Hasher as _};
     if inputs.is_empty() {
         return 0;
@@ -416,17 +463,26 @@ pub(crate) fn boundary<R>(ctx: &Context, f: impl FnOnce() -> R) -> R {
     out
 }
 
-/// A measure call component `id` got, with its answer `took`. A measuring run adds it to the innermost body's
-/// transcript. A real run inside a body whose records a kept transcript gave asks the component again (`ask`) at
-/// each call the transcript holds for it, once per pass, and compares; `ask` runs outside the memory's lock.
-pub(crate) fn leaf_call(ctx: &Context, id: Id, proposal: Proposal, room: Option<f32>, took: Vec2, ask: impl FnMut(Proposal, Option<f32>) -> Vec2) {
+/// A measure call component `id` got, with the `inputs` it read (`measure_call`) and its answer `took`. A measuring
+/// run adds it to the innermost body's transcript. A real run inside a body whose records a kept transcript gave asks
+/// the component again (`ask`) at each call the transcript holds for it, under the inputs that call read, once per
+/// pass, and compares; `ask` runs outside the memory's lock.
+pub(crate) fn leaf_call(
+    ctx: &Context,
+    id: Id,
+    proposal: Proposal,
+    room: Option<f32>,
+    inputs: Inputs,
+    took: Vec2,
+    ask: impl FnMut(Proposal, Option<f32>) -> Vec2,
+) {
     let moment = Moment::of(ctx);
     if !real(ctx) {
         with(ctx, &moment, |memory| {
             if let Some(leaves) = memory.leaf() {
                 let calls = &mut leaves.entry(id).or_default().calls;
                 if !calls.iter().any(|call| call.proposal == proposal && call.room == room) {
-                    calls.push(Call { proposal, room, took });
+                    calls.push(Call { proposal, room, inputs, took });
                 }
             }
         });
@@ -446,8 +502,17 @@ fn check(ctx: &Context, moment: &Moment, id: Id, mut ask: impl FnMut(Proposal, O
     });
     let Some(calls) = calls else { return };
     let tolerance = measure_tolerance(crate::runtime::egui::scale::pixels_per_point(ctx));
-    // A component the transcript does not hold was added; one that answers differently changed.
-    let same = calls.is_some_and(|calls| calls.iter().all(|call| (ask(call.proposal, call.room) - call.took).abs().max_elem() <= tolerance));
+    // A component the transcript does not hold was added; one that answers differently under the inputs it read then
+    // changed. An input that changed since (a shared column a later row widened in the measuring run's sweep) is not a
+    // change of this component: the input's own records and reports are checked where they are made.
+    let same = calls.is_some_and(|calls| {
+        calls.iter().all(|call| {
+            with(ctx, moment, |memory| memory.replaying.push(call.inputs.clone()));
+            let now = ask(call.proposal, call.room);
+            with(ctx, moment, |memory| memory.replaying.pop());
+            (now - call.took).abs().max_elem() <= tolerance
+        })
+    });
     if !same {
         mismatch(ctx, moment, id);
     }
@@ -470,7 +535,7 @@ pub(crate) fn leaf_fill(ctx: &Context, id: Id, body: Id, axis: Axis) {
     let measuring = !real(ctx);
     let same = with(ctx, &moment, |memory| {
         if measuring {
-            if let Some(Open::Body { id: open, leaves, .. }) = memory.measuring.last_mut()
+            if let Some(Open::Body { id: open, leaves, .. }) = memory.transcript()
                 && *open == body
             {
                 leaves.entry(id).or_default().fill = Some(axis);
@@ -526,7 +591,7 @@ pub(crate) fn run_found(ctx: &Context, id: Id) -> bool {
 /// Opens the measuring run of `body`: what it hands forward until `end_measure` becomes its transcript.
 pub(crate) fn begin_measure(ctx: &Context, body: Id) {
     let moment = Moment::of(ctx);
-    with(ctx, &moment, |memory| memory.measuring.push(Open::Body { id: body, items: Vec::new(), leaves: HashMap::new(), inputs: HashMap::new() }));
+    with(ctx, &moment, |memory| memory.measuring.push(Open::Body { id: body, items: Vec::new(), leaves: HashMap::new(), inputs: Inputs::new() }));
 }
 
 /// Closes the measuring run of `body` and keeps its transcript under the inputs `key` it ran under.
@@ -743,6 +808,7 @@ pub(crate) fn end_hook(ctx: &Context) {
         memory.served.clear();
         memory.measuring.clear();
         memory.scopes.clear();
+        memory.replaying.clear();
         (wanted, ask)
     });
     if ask {
