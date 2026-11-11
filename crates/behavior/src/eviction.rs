@@ -13,6 +13,3 @@ pub fn owner_due(last_pass: u64, last_at: f64, pass_now: u64, now: f64, viewport
     let passes_out = !viewport_live || pass_now >= last_pass + GRACE_PASSES;
     passes_out && now - last_at >= GRACE_SECS
 }
-
-#[cfg(test)]
-mod tests {}

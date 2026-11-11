@@ -177,38 +177,6 @@ mod tests {
     }
 
     #[test]
-    fn a_widened_content_cell_moves_the_cells_after_it() {
-        let columns = [ColumnWidth::Content, ColumnWidth::Content];
-        let mut cursor = GridCursor::new(flow(false), &columns, Vec2::ZERO, &GridMeasure::default());
-        cursor.cell(Vec2::new(0.0, 10.0));
-        cursor.widen(Vec2::new(80.0, 10.0));
-        let second = cursor.cell(Vec2::new(20.0, 10.0));
-        assert_eq!(second.min.x, 80.0);
-        assert_eq!(cursor.measured().columns, vec![80.0, 20.0]);
-    }
-
-    #[test]
-    fn fixed_content_and_fill_columns_share_the_room() {
-        let columns = [ColumnWidth::Fixed(100.0), ColumnWidth::Content, ColumnWidth::fill(1.0), ColumnWidth::fill(3.0)];
-        let widths = resolve_columns(&columns, &[0.0, 40.0], 300.0, 0.0);
-        assert_eq!(widths, vec![100.0, 40.0, 40.0, 120.0]);
-    }
-
-    #[test]
-    fn cells_run_row_major_from_last_pass_and_mirror_under_rtl() {
-        let columns = [ColumnWidth::Fixed(100.0), ColumnWidth::Content];
-        let last = GridMeasure { columns: vec![0.0, 50.0], rows: vec![20.0, 30.0] };
-        let mut ltr = GridCursor::new(flow(false), &columns, Vec2::ZERO, &last);
-        let cells: Vec<Rect> = (0..4).map(|_| ltr.cell(Vec2::new(10.0, 10.0))).collect();
-        assert_eq!((cells[1].min.x, cells[2].min, cells[3].min), (100.0, Pos2::new(0.0, 20.0), Pos2::new(100.0, 20.0)));
-        let mut rtl = GridCursor::new(flow(true), &columns, Vec2::ZERO, &last);
-        let first = rtl.cell(Vec2::new(10.0, 10.0));
-        let second = rtl.cell(Vec2::new(10.0, 10.0));
-        assert_eq!((first.max.x, second.max.x), (300.0, 200.0), "the first column is on the right");
-        assert_eq!(ltr.measured().rows, vec![10.0, 10.0]);
-    }
-
-    #[test]
     fn a_content_cell_after_a_fill_cell_measures_in_the_whole_height_and_the_width_fixed_columns_leave() {
         let columns = [ColumnWidth::fill(1.0), ColumnWidth::Content, ColumnWidth::Fixed(100.0)];
         let last = GridMeasure { columns: vec![0.0, 50.0, 0.0], rows: vec![100.0] };

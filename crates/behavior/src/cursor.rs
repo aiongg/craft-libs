@@ -241,6 +241,3 @@ pub enum CursorPriority {
 pub fn pick(requests: &[(Cursor, CursorPriority)]) -> Option<&Cursor> {
     requests.iter().enumerate().max_by_key(|(order, (_, priority))| (*priority, *order)).map(|(_, (cursor, _))| cursor)
 }
-
-#[cfg(test)]
-mod tests {}

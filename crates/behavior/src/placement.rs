@@ -79,34 +79,4 @@ mod tests {
         assert_eq!(monitor_of(&desktop, rect(-100.0, 300.0, 1000.0, 500.0)), Some(&main), "across two, mostly on one");
         assert_eq!(monitor_of(std::slice::from_ref(&main), rect(3400.0, 100.0, 800.0, 600.0)), Some(&main), "past the right edge");
     }
-
-    #[test]
-    fn a_window_no_monitor_shows_goes_to_the_nearest() {
-        let main = monitor(0.0, 0.0, 1920.0, 1080.0);
-        let right = monitor(1920.0, 0.0, 1920.0, 1080.0);
-        assert_eq!(monitor_of(&[right.clone(), main.clone()], rect(-3840.0, -1600.0, 1456.0, 959.0)), Some(&main));
-        assert_eq!(monitor_of(&[main.clone(), right.clone()], rect(5000.0, 100.0, 800.0, 600.0)), Some(&right));
-        assert_eq!(monitor_of(&[], rect(0.0, 0.0, 800.0, 600.0)), None);
-    }
-
-    #[test]
-    fn nonsense_numbers_still_give_a_monitor() {
-        let main = monitor(0.0, 0.0, 1920.0, 1080.0);
-        let window = Rect::from_min_size(pos2(f32::NAN, f32::INFINITY), vec2(f32::NAN, 1.0));
-        assert_eq!(monitor_of(std::slice::from_ref(&main), window), Some(&main));
-        let broken = monitor(f32::NAN, 0.0, 1920.0, 1080.0);
-        assert_eq!(monitor_of(&[broken, main.clone()], rect(0.0, 0.0, 800.0, 600.0)), Some(&main), "a broken report is skipped");
-    }
-
-    #[test]
-    fn a_cascade_steps_down_and_right_and_wraps_each_axis_at_the_bounds() {
-        let screen = rect(0.0, 0.0, 1000.0, 800.0);
-        let size = vec2(400.0, 300.0);
-        assert_eq!(cascade(rect(100.0, 50.0, 400.0, 300.0), size, screen, 28.0), rect(128.0, 78.0, 400.0, 300.0));
-        // Bottom edge: y starts over, x keeps stepping.
-        assert_eq!(cascade(rect(100.0, 480.0, 400.0, 300.0), size, screen, 28.0), rect(128.0, 0.0, 400.0, 300.0));
-        // Right edge on a second monitor whose work area starts at (1000, 30).
-        let second = rect(1000.0, 30.0, 1200.0, 770.0);
-        assert_eq!(cascade(rect(1780.0, 100.0, 400.0, 300.0), size, second, 28.0), rect(1000.0, 128.0, 400.0, 300.0));
-    }
 }

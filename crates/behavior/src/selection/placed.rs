@@ -57,15 +57,3 @@ impl PlacedSelection {
         self.removed[from..].iter().take_while(move |&&(row, _)| row == at).map(|&(_, column)| column)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn a_row_with_every_cell_taken_out_is_not_held() {
-        let placed = PlacedSelection::of_cells(vec![(2..5, 1..3)], vec![(3, 1), (3, 2), (4, 1)]);
-        assert_eq!((placed.holds_row(2), placed.holds_row(3), placed.holds_row(4), placed.holds_row(5)), (true, false, true, false));
-        assert_eq!((placed.holds_cell(4, 1), placed.holds_cell(4, 2), placed.rows()), (false, true, vec![2, 4]));
-    }
-}

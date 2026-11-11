@@ -81,6 +81,3 @@ impl EditorInput {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {}

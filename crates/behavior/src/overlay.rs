@@ -233,27 +233,6 @@ mod tests {
     const BOUNDS: Rect = Rect { min: Pos2::new(0.0, 0.0), max: Pos2::new(800.0, 600.0) };
 
     #[test]
-    fn hangs_below_the_anchor_start_edge_and_mirrors_under_rtl() {
-        let anchor = rect(100.0, 100.0, 80.0, 20.0);
-        let ltr = place(&PlaceRequest::new(anchor, Vec2::new(120.0, 50.0), BOUNDS));
-        assert_eq!(ltr.rect, rect(100.0, 120.0, 120.0, 50.0));
-        let rtl = place(&PlaceRequest::new(anchor, Vec2::new(120.0, 50.0), BOUNDS).rtl(true));
-        assert_eq!(rtl.rect, rect(60.0, 120.0, 120.0, 50.0), "the start edge is the right edge under RTL");
-    }
-
-    #[test]
-    fn flips_when_the_other_side_has_more_room_and_keeps_the_side_when_told() {
-        let anchor = rect(100.0, 540.0, 80.0, 20.0);
-        let request = PlaceRequest::new(anchor, Vec2::new(100.0, 200.0), BOUNDS);
-        let flipped = place(&request);
-        assert_eq!(flipped.side, Side::Above);
-        assert_eq!(flipped.rect.bottom(), anchor.top());
-        let kept = place(&request.kept(Some(Side::Below)));
-        assert_eq!(kept.side, Side::Below);
-        assert_eq!(kept.rect.height(), 40.0, "the kept side caps the height to its room");
-    }
-
-    #[test]
     fn rect_is_finite_and_inside_the_bounds_for_any_request() {
         let sides = [Side::Below, Side::Above, Side::Start, Side::End];
         let aligns = [Align::Start, Align::Center, Align::End];

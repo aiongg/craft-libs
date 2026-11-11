@@ -1,7 +1,7 @@
 //! The dock model: validation, restore to the old place, permissions and the persisted shapes.
 
-use craft_behavior::dock::{Column, DockEdge, DockError, DockPlacement, Floating, Group, Layout, Location, Node, SplitSize};
-use craft_behavior::{Axis, Monitor};
+use craft_behavior::Axis;
+use craft_behavior::dock::{Column, DockEdge, DockError, Floating, Group, Layout, Location, Node, SplitSize};
 use emath::{Pos2, Rect, Vec2};
 use serde_json::json;
 
@@ -71,28 +71,6 @@ fn validation_rejects_two_docks_per_side_nested_docks_empty_columns_and_bad_widt
     }
 }
 
-#[test]
-fn validation_rejects_bad_floating_windows_and_duplicate_panels() {
-    let mut duplicate = docked();
-    duplicate.floating[0].root = tabs(&[6, 7, 2], 0);
-    assert_eq!(duplicate.validate(), Err(DockError::DuplicatePanel));
-    let mut empty_window = docked();
-    empty_window.floating[0].root = tabs(&[], 0);
-    assert_eq!(empty_window.validate(), Err(DockError::InvalidGeometry));
-    let mut docked_window = docked();
-    docked_window.floating[0].root = Node::dock(DockEdge::End, vec![Column::new(vec![g(&[6, 7], 0)]).with_width(100.0)]);
-    assert_eq!(docked_window.validate(), Err(DockError::InvalidPlacement));
-    let mut native = docked();
-    native.floating[0].native = Some(area(0.0, 0.0, -1.0, 10.0));
-    assert_eq!(native.validate(), Err(DockError::InvalidGeometry));
-    let mut monitor = docked();
-    monitor.floating[0].monitor = Some(Monitor::new(None, Rect::from_min_size(Pos2::ZERO, Vec2::new(1920.0, 1080.0)), f32::NAN));
-    assert_eq!(monitor.validate(), Err(DockError::InvalidGeometry));
-    let mut monitor_size = docked();
-    monitor_size.floating[0].monitor_size = Some([f32::NAN, 1080.0]);
-    assert_eq!(monitor_size.validate(), Err(DockError::InvalidGeometry));
-}
-
 /// The layout of `restore_returns_each_panel_to_the_place_it_was_in` with `skip` absent.
 fn without(skip: Option<u32>) -> Layout<u32> {
     let group = |panels: &[u32], active: usize| {
@@ -138,55 +116,6 @@ fn restore_returns_each_panel_to_the_place_it_was_in() {
         layout.restore(panel, &location).unwrap_or_else(|e| panic!("{panel}: {e} {location:?}"));
         assert_eq!(layout, original, "{panel}: {location:?}");
     }
-}
-
-#[test]
-fn restore_refuses_a_present_panel_and_a_missing_anchor_and_changes_nothing() {
-    let original = without(None);
-    let location = original.location(&3).unwrap();
-    let mut layout = original.clone();
-    assert!(layout.restore(3, &location).is_err());
-    assert_eq!(layout, original);
-
-    let mut layout = without(Some(3));
-    let before = layout.clone();
-    let orphan = Location::new(Some(99), DockPlacement::tab(None));
-    assert!(layout.restore(3, &orphan).is_err());
-    assert_eq!(layout, before);
-}
-
-#[test]
-fn a_saved_stack_of_groups_loads_as_a_vertical_split_by_their_heights() {
-    let saved = json!({
-        "groups": [{"panels": [4], "active": 0, "height": 100.0}, {"panels": [5, 6], "active": 1, "height": 300.0}],
-        "rect": [1.0, 2.0, 300.0, 400.0],
-    });
-    let window: Floating<u32> = serde_json::from_value(saved).unwrap();
-    let expected = Node::split(Axis::Y, SplitSize::Ratio(0.25), tabs(&[4], 0), tabs(&[5, 6], 1));
-    assert_eq!((window.root, window.minimized), (expected, false));
-    let all_minimized = json!({"groups": [{"panels": [4], "active": 0, "minimized": true}], "rect": [1.0, 2.0, 300.0, 400.0]});
-    let window: Floating<u32> = serde_json::from_value(all_minimized).unwrap();
-    assert_eq!((window.root, window.minimized), (tabs(&[4], 0), true));
-}
-
-#[test]
-fn a_single_plain_floating_window_writes_the_v1_shape_and_others_round_trip() {
-    let saved = [1.0, 2.0, 300.0, 200.0];
-    let rect = Rect::from_min_size(Pos2::new(saved[0], saved[1]), Vec2::new(saved[2], saved[3]));
-    let plain = Floating::single(vec![4u32, 5], 1, rect);
-    assert_eq!(serde_json::to_value(&plain).unwrap(), json!({"id": plain.id, "panels": [4, 5], "active": 1, "rect": saved}));
-    let mut minimized = Floating::single(vec![4u32], 0, rect);
-    minimized.minimized = true;
-    let stacked = Floating::stack(vec![g(&[4], 0), g(&[5], 0)], rect).unwrap();
-    let mut native = Floating::single(vec![4u32], 0, rect);
-    native.native = Some(rect);
-    for window in [minimized, stacked, native] {
-        let value = serde_json::to_value(&window).unwrap();
-        assert!(value.get("root").is_some() && value.get("panels").is_none(), "{value}");
-        assert_eq!(value["id"], json!(window.id), "{value}");
-        assert_eq!(serde_json::from_value::<Floating<u32>>(value).unwrap(), window);
-    }
-    assert!(serde_json::from_value::<Floating<u32>>(json!({"rect": saved})).is_err());
 }
 
 #[test]

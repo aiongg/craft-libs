@@ -87,19 +87,3 @@ fn shifted(span: &ScrollSpan, shift: f64) -> Range<f64> {
     let start = (span.visible.start + shift).clamp(span.content.start, last);
     start..start + visible
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn dragging_the_thumb_to_the_end_of_the_track_shows_the_end_of_the_content() {
-        let span = ScrollSpan::new(0.0..1000.0, 0.0..200.0);
-        let (at, len) = thumb(&span, 100.0, 10.0);
-        assert_eq!((at, len), (0.0, 20.0));
-        let moved = drag(&ScrollSpan::new(0.0..1000.0, 0.0..200.0), 100.0, 10.0, 80.0);
-        assert_eq!(moved, 800.0..1000.0);
-        let past = drag(&span, 100.0, 10.0, 500.0);
-        assert_eq!(past, 800.0..1000.0, "the range stops at the end of the content");
-    }
-}

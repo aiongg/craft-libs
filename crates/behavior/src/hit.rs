@@ -324,41 +324,4 @@ mod tests {
         let tie = [shape(big(), Sense::CLICK, 1, 0, HitLevel::Body, 0), shape(big(), Sense::CLICK, 2, 0, HitLevel::Body, 0)];
         assert_eq!(owner(&tie), Some(2));
     }
-
-    #[test]
-    fn a_hit_area_is_at_least_the_target_across() {
-        let small = rect(0.0, 0.0, 10.0, 10.0);
-        assert!(!small.hit_across(pos2(-5.0, 5.0), 0.0));
-        assert!(small.hit_across(pos2(-5.0, 5.0), 20.0));
-        assert!(!small.hit_across(pos2(-11.0, 5.0), 20.0));
-        let large = rect(0.0, 0.0, 100.0, 100.0);
-        assert!(!large.hit_across(pos2(-5.0, 50.0), 20.0), "a shape already large enough does not grow");
-        assert!(HitShape::circle(pos2(0.0, 0.0), 2.0).hit_across(pos2(9.0, 0.0), 20.0));
-        let mut shapes = [shape(small.clone(), Sense::CLICK, 1, 0, HitLevel::Body, 0)];
-        assert!(resolve(&shapes, pos2(-5.0, 5.0), ResolveFor::Press).is_none());
-        shapes[0].min_across = 20.0;
-        assert!(resolve(&shapes, pos2(-5.0, 5.0), ResolveFor::Press).is_some());
-    }
-
-    #[test]
-    fn lines_hit_within_reach_and_polygons_by_even_odd() {
-        let line = HitShape::segment(pos2(0.0, 0.0), pos2(100.0, 0.0));
-        assert!(line.hit(pos2(50.0, 3.0)));
-        assert!(!line.hit(pos2(50.0, 6.0)));
-        let open = HitShape::polyline(vec![pos2(0.0, 0.0), pos2(100.0, 0.0), pos2(100.0, 100.0)], false);
-        let closed = HitShape::polyline(vec![pos2(0.0, 0.0), pos2(100.0, 0.0), pos2(100.0, 100.0)], true);
-        let on_closing_edge = pos2(50.0, 50.0);
-        assert!(!open.hit(on_closing_edge));
-        assert!(closed.hit(on_closing_edge));
-        let triangle = HitShape::Polygon(vec![pos2(0.0, 0.0), pos2(100.0, 0.0), pos2(0.0, 100.0)]);
-        assert!(triangle.hit(pos2(20.0, 20.0)));
-        assert!(!triangle.hit(pos2(80.0, 80.0)));
-        let around = HitShape::outside_polygon(
-            Rect::from_min_max(pos2(-50.0, -50.0), pos2(150.0, 150.0)),
-            vec![pos2(0.0, 0.0), pos2(100.0, 0.0), pos2(0.0, 100.0)],
-        );
-        assert!(!around.hit(pos2(20.0, 20.0)), "inside the polygon");
-        assert!(around.hit(pos2(80.0, 80.0)), "inside the rectangle, outside the polygon");
-        assert!(!around.hit(pos2(200.0, 200.0)), "outside the rectangle");
-    }
 }

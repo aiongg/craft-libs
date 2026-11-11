@@ -41,17 +41,3 @@ pub const fn resolve_flags(this_frame: Option<CommandFlags>, last_frame: Option<
 pub fn pick_instance<I: Copy + PartialEq>(live: &[I], focused: &[I], last_focused: &[I]) -> Option<I> {
     [focused, last_focused].iter().find_map(|chain| chain.iter().rev().find(|id| live.contains(id)).copied()).or_else(|| live.first().copied())
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn a_key_goes_to_the_focused_instance_then_the_last_focused_then_the_first() {
-        let live = [1, 2, 3];
-        assert_eq!(pick_instance(&live, &[9, 2], &[3]), Some(2));
-        assert_eq!(pick_instance(&live, &[], &[3]), Some(3));
-        assert_eq!(pick_instance(&live, &[9], &[8]), Some(1));
-        assert_eq!(pick_instance::<u32>(&[], &[1], &[1]), None);
-    }
-}

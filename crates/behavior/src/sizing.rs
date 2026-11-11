@@ -103,6 +103,3 @@ impl ControlMetrics {
         Metrics::new().padding(Insets::horizontal(self.pad_x)).min_size(Vec2::new(0.0, self.height)).gap(self.gap)
     }
 }
-
-#[cfg(test)]
-mod tests {}

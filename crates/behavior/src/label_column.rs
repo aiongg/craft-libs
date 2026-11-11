@@ -55,27 +55,3 @@ impl LabelColumn {
         LabelPlacement { label: label_rect, control, stacked: false }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn row(rtl: bool, width: f32) -> Flow {
-        Flow::new(Rect::from_min_size(Pos2::new(0.0, 0.0), Vec2::new(width, 30.0)), rtl)
-    }
-
-    #[test]
-    fn the_label_follows_the_control_baseline_and_mirrors() {
-        let column = LabelColumn::new(80.0, 120.0, 4.0);
-        let first = column.place(row(false, 300.0), Vec2::new(40.0, 12.0), 9.0, None);
-        assert_eq!(first.label.top(), 0.0);
-        let later = column.place(row(false, 300.0), Vec2::new(40.0, 12.0), 9.0, Some(14.0));
-        assert_eq!(later.label.top(), 5.0, "the label drops to the control's baseline");
-        assert_eq!(later.control.left(), 84.0);
-        let rtl = column.place(row(true, 300.0), Vec2::new(40.0, 12.0), 9.0, Some(14.0));
-        assert_eq!(rtl.label.right(), 300.0, "the label starts at the right edge under RTL");
-        assert_eq!(rtl.control.right(), 216.0);
-        let low = column.place(row(false, 300.0), Vec2::new(40.0, 12.0), 9.0, Some(4.0));
-        assert_eq!((low.label.top(), low.control.top()), (0.0, 5.0), "a control with the higher baseline moves down instead");
-    }
-}

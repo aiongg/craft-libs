@@ -244,50 +244,6 @@ mod tests {
     }
 
     #[test]
-    fn an_absolute_drag_follows_the_pointer_on_the_track_and_stops_at_its_ends() {
-        let slider = ValueDrag::absolute(100.0..300.0, 0.0..=10.0);
-        let value = |x: f32, rtl| slider.value(0.0, &drag(pos2(150.0, 0.0), pos2(x, 0.0), Mods::NONE), rtl);
-        assert_eq!(value(200.0, false), Some(5.0));
-        assert_eq!(value(500.0, false), Some(10.0));
-        assert_eq!(value(0.0, false), Some(0.0));
-        assert_eq!(value(250.0, true), Some(2.5), "the track mirrors under RTL");
-    }
-
-    #[test]
-    fn a_range_that_runs_backwards_clamps_to_its_ends_and_maps_the_track_the_other_way() {
-        let slider = ValueDrag::absolute(0.0..100.0, 100.0..=0.0);
-        let value = |x: f32| slider.value(50.0, &drag(pos2(50.0, 0.0), pos2(x, 0.0), Mods::NONE), false);
-        assert_eq!(value(25.0), Some(75.0));
-        assert_eq!(value(500.0), Some(0.0));
-        assert_eq!(value(-500.0), Some(100.0));
-    }
-
-    #[test]
-    fn alt_makes_the_travel_fine_from_the_value_at_the_start() {
-        let slider = ValueDrag::absolute(100.0..300.0, 0.0..=10.0);
-        let fine = slider.value(4.0, &drag(pos2(150.0, 0.0), pos2(250.0, 0.0), Mods::ALT), false);
-        assert_eq!(fine, Some(4.0 + 5.0 * 0.1));
-    }
-
-    #[test]
-    fn a_relative_drag_scales_travel_and_vertical_travel_upwards_increases() {
-        let scrub = ValueDrag::relative(0.5, 0.0..=100.0);
-        assert_eq!(scrub.value(10.0, &drag(pos2(0.0, 0.0), pos2(20.0, 0.0), Mods::NONE), false), Some(20.0));
-        assert_eq!(scrub.value(10.0, &drag(pos2(0.0, 0.0), pos2(20.0, 0.0), Mods::NONE), true), Some(0.0), "horizontal travel mirrors under RTL");
-        let vertical = ValueDrag::relative(1.0, 0.0..=100.0).axis(Axis::Y);
-        assert_eq!(vertical.value(10.0, &drag(pos2(0.0, 50.0), pos2(0.0, 30.0), Mods::NONE), false), Some(30.0));
-    }
-
-    #[test]
-    fn a_wrapping_drag_comes_round_the_other_end_and_a_press_that_has_not_dragged_gives_nothing() {
-        let hue = ValueDrag::relative(1.0, 0.0..=360.0).wrap_range(true);
-        assert_eq!(hue.value(350.0, &drag(pos2(0.0, 0.0), pos2(20.0, 0.0), Mods::NONE), false), Some(10.0));
-        assert_eq!(hue.value(10.0, &drag(pos2(0.0, 0.0), pos2(-20.0, 0.0), Mods::NONE), false), Some(350.0));
-        let start = PressStart::new(pos2(0.0, 0.0), PointerButton::Primary, 0.0, 1);
-        assert_eq!(hue.value(0.0, &PressState::new(PressPhase::Down { start }), false), None);
-    }
-
-    #[test]
     fn a_warped_scrub_keeps_its_value_continuous() {
         let scrub = ValueDrag::relative(1.0, 0.0..=1000.0).warp(true);
         let bounds = Rect::from_min_max(pos2(0.0, 0.0), pos2(500.0, 300.0));

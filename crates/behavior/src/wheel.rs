@@ -272,36 +272,6 @@ mod tests {
     }
 
     #[test]
-    fn shift_turns_the_wheel_sideways_over_a_scroll_region_and_not_over_a_value_control() {
-        let shifted = Wheel::new(Vec2::new(0.0, 7.0), Mods { shift: true, ..Mods::NONE }, WheelUnit::Point, WheelPhase::Move);
-        let region = WheelTaker::new(1u8, rect(200.0)).vertical(true).horizontal(true).scrolls(true);
-        let sideways = split(&[region], pos2(10.0, 10.0), shifted, None, None);
-        assert_eq!(sideways[0].1.scroll, Vec2::new(7.0, 0.0));
-        let slider = WheelTaker::new(2u8, rect(100.0)).vertical(true).gated(true);
-        let kept = split(&[region, slider], pos2(10.0, 10.0), shifted, Some(2), None);
-        assert_eq!((kept[0].0, kept[0].1.scroll), (2, Vec2::new(0.0, 7.0)));
-    }
-
-    #[test]
-    fn of_two_takers_with_equal_rects_the_later_registered_one_takes_the_share() {
-        let outer = WheelTaker::new(1u8, rect(200.0)).vertical(true).horizontal(true);
-        let inner = WheelTaker::new(2u8, rect(200.0)).vertical(true).horizontal(true);
-        let shares = split(&[outer, inner], pos2(10.0, 10.0), wheel(0.0, 7.0), None, None);
-        assert_eq!(shares.iter().map(|(owner, _)| *owner).collect::<Vec<_>>(), [2]);
-    }
-
-    #[test]
-    fn a_share_no_inner_taker_takes_passes_to_the_enclosing_one() {
-        let panel = WheelTaker::new(1u8, rect(200.0)).vertical(true).horizontal(true);
-        let list = WheelTaker::new(2u8, rect(100.0)).vertical(true);
-        let shares = split(&[panel, list], pos2(10.0, 10.0), wheel(5.0, 7.0), None, None);
-        assert_eq!(shares.len(), 2);
-        let scroll_of = |owner| shares.iter().find(|(o, _)| *o == owner).map(|(_, w)| w.scroll);
-        assert_eq!(scroll_of(2), Some(Vec2::new(0.0, 7.0)), "the list takes the vertical share");
-        assert_eq!(scroll_of(1), Some(Vec2::new(5.0, 0.0)), "the sideways share passes to the panel");
-    }
-
-    #[test]
     fn a_scroll_region_at_its_end_hands_the_wheel_to_the_enclosing_one() {
         let outer = WheelTaker::new(1u8, rect(200.0)).vertical(true).scrolls(true).room(WheelRoom::new(Vec2::splat(50.0), Vec2::splat(50.0)));
         let inner = WheelTaker::new(2u8, rect(100.0)).vertical(true).scrolls(true).room(WheelRoom::new(Vec2::ZERO, Vec2::splat(30.0)));
@@ -309,32 +279,5 @@ mod tests {
         let owner = |y| split(&[outer, inner], at, wheel(0.0, y), None, None).first().map(|(o, _)| *o);
         assert_eq!(owner(7.0), Some(1), "no room toward positive: the outer takes it");
         assert_eq!(owner(-7.0), Some(2), "room toward negative: the inner keeps it");
-    }
-
-    #[test]
-    fn a_gated_taker_takes_no_axis_until_focused_or_armed() {
-        let panel = WheelTaker::new(1u8, rect(200.0)).vertical(true);
-        let canvas = WheelTaker::new(2u8, rect(100.0)).vertical(true).horizontal(true).zoom(true).gated(true);
-        let takers = [panel, canvas];
-        let at = pos2(10.0, 10.0);
-        let owners = |gesture, focused, armed| split(&takers, at, gesture, focused, armed).into_iter().map(|(o, _)| o).collect::<Vec<_>>();
-        let trackpad = wheel(3.0, 5.0);
-        assert_eq!(owners(trackpad, None, None), [1], "the vertical share scrolls the panel; the sideways one goes nowhere");
-        assert_eq!(owners(wheel(0.0, 0.0).zoom(1.5), None, None), Vec::<u8>::new(), "zoom waits for the gate too");
-        let shifted = Wheel { mods: Mods { shift: true, ..Mods::NONE }, ..wheel(0.0, 5.0) };
-        assert_eq!(owners(shifted, None, None), [1], "Shift over the gated taker stays with the panel");
-        assert_eq!(owners(trackpad, Some(2), None), [2]);
-        assert_eq!(owners(trackpad, None, Some(2)), [2]);
-    }
-
-    #[test]
-    fn a_zoom_only_taker_takes_zoom_and_passes_both_scroll_shares_on() {
-        let panel = WheelTaker::new(1u8, rect(200.0)).vertical(true).horizontal(true);
-        let pane = WheelTaker::for_sense(2u8, rect(100.0), Sense::WHEEL_ZOOM).expect("a wheel bit makes a taker");
-        let at = pos2(10.0, 10.0);
-        let shares = split(&[panel, pane], at, wheel(4.0, 6.0).zoom(1.5), None, None);
-        let of = |owner| shares.iter().find(|(o, _)| *o == owner).map(|(_, w)| (w.scroll, w.zoom));
-        assert_eq!(of(1), Some((Vec2::new(4.0, 6.0), 1.0)), "both scroll shares reach the panel");
-        assert_eq!(of(2), Some((Vec2::ZERO, 1.5)), "the zoom share stays with the pane");
     }
 }

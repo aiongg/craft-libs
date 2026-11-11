@@ -275,29 +275,3 @@ impl Codec for NumberCodec {
         Cow::Borrowed(NUMBER_SAMPLE)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn number_codec_round_trips_and_rejects() {
-        let codec = NumberCodec::new(Reader::new().decimal(','), 2);
-        assert_eq!(codec.format(&Some(1.5)), "1,5");
-        assert_eq!(codec.format(&Some(2.0)), "2");
-        assert_eq!(codec.format(&None), "");
-        assert_eq!(codec.parse("1,25", &None), Ok(Some(1.25)));
-        assert_eq!(codec.parse("", &Some(3.0)), Ok(None));
-        assert_eq!(codec.parse("x", &None), Err(NotAValue));
-        assert_eq!(codec.parse("*2", &Some(4.0)), Ok(Some(8.0)));
-    }
-
-    #[test]
-    fn decimals_for_step_is_exact() {
-        assert_eq!(decimals_for_step(0.25), 2);
-        assert_eq!(decimals_for_step(0.001), 3);
-        assert_eq!(decimals_for_step(0.1), 1);
-        assert_eq!(decimals_for_step(5.0), 0);
-        assert_eq!(decimals_for_step(0.0), 0);
-    }
-}

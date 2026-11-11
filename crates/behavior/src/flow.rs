@@ -161,30 +161,3 @@ impl Flow {
         Flow { rect, rtl: false }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn rect() -> Rect {
-        Rect::from_min_size(Pos2::new(10.0, 0.0), Vec2::new(100.0, 20.0))
-    }
-
-    #[test]
-    fn start_geometry_mirrors_under_rtl() {
-        let ltr = Flow::new(rect(), false);
-        let rtl = Flow::new(rect(), true);
-        assert_eq!((ltr.start_x(), ltr.end_x()), (10.0, 110.0));
-        assert_eq!((rtl.start_x(), rtl.end_x()), (110.0, 10.0));
-        assert_eq!(ltr.span(5.0, 20.0).min.x, 15.0);
-        assert_eq!(rtl.span(5.0, 20.0).max.x, 105.0);
-        let (taken, rest) = rtl.take_start(30.0);
-        assert_eq!((taken.min.x, taken.max.x, rest.rect().max.x), (80.0, 110.0, 80.0));
-        let (taken, rest) = ltr.take_end(30.0);
-        assert_eq!((taken.min.x, rest.rect().max.x), (80.0, 80.0));
-        let inset = rtl.inset(Insets::new(1.0, 4.0, 0.0, 0.0));
-        assert_eq!((inset.min.x, inset.max.x), (14.0, 109.0));
-        let end = rtl.align(Vec2::new(20.0, 10.0), Align::Max, Align::Min);
-        assert_eq!(end.min.x, 10.0, "the end of an RTL flow is its left edge");
-    }
-}

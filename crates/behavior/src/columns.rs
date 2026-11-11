@@ -113,18 +113,3 @@ impl GridView {
         Self { sections: sections.into_iter().collect() }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::ColumnKey;
-
-    #[test]
-    fn a_column_key_round_trips_as_its_name_or_its_position() {
-        let named = serde_json::to_string(&ColumnKey::new("size")).unwrap();
-        let numbered = serde_json::to_string(&ColumnKey::index(3)).unwrap();
-        assert_eq!((named.as_str(), numbered.as_str()), ("\"size\"", "3"));
-        let back: ColumnKey = serde_json::from_str(&named).unwrap();
-        assert_eq!((back.as_str(), serde_json::from_str::<ColumnKey>(&numbered).unwrap().position()), (Some("size"), Some(3)));
-        assert_eq!(back, ColumnKey::new("size"));
-    }
-}

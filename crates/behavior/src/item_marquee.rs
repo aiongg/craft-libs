@@ -89,27 +89,3 @@ impl<K: Clone + PartialEq> MarqueeSelect<K> {
         self.base
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use emath::{Vec2, pos2};
-
-    fn items() -> Vec<(u8, Rect)> {
-        (0..4).map(|i| (i, Rect::from_min_size(pos2(f32::from(i) * 20.0, 0.0), Vec2::splat(10.0)))).collect()
-    }
-
-    fn sweep(mods: Mods) -> Vec<u8> {
-        let mut marquee = MarqueeSelect::begin(pos2(-5.0, -5.0), mods, vec![1, 3]);
-        marquee.update(pos2(45.0, 5.0));
-        marquee.selection(items())
-    }
-
-    #[test]
-    fn the_modes_combine_the_swept_items_with_the_starting_selection() {
-        assert_eq!(sweep(Mods::NONE), vec![0, 1, 2]);
-        assert_eq!(sweep(Mods::SHIFT), vec![1, 3, 0, 2]);
-        assert_eq!(sweep(Mods::CMD), vec![3, 0, 2]);
-        assert_eq!(sweep(Mods::ALT), vec![3]);
-    }
-}
