@@ -218,11 +218,7 @@ fn run_shrinking<R>(ui: &mut Ui, id: Id, mut body: impl FnMut(&mut Ui) -> R) -> 
         let widths = if room.is_finite() { shrink_widths(&leaves, fixed, room) } else { leaves.iter().map(|leaf| leaf.ideal).collect() };
         let mut again = false;
         for (at, (leaf, width)) in leaves.iter().zip(widths).enumerate() {
-            layout_memory::record_measured(
-                &ctx,
-                sub(id, ("shrink", at)),
-                layout_memory::Measured { room: Vec2::new(room, 0.0), took: Vec2::new(width, 0.0) },
-            );
+            layout_memory::emit_record(&ctx, sub(id, ("shrink", at)), layout_memory::Measured::new(Vec2::new(room, 0.0), Vec2::new(width, 0.0)));
             // Half a point: less than a pixel shows at any scale the box runs.
             again |= (leaf.took - width).abs() >= 0.5;
         }
