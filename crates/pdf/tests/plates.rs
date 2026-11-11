@@ -37,10 +37,6 @@ fn stream(dict: &str, data: &[u8]) -> Vec<u8> {
     out
 }
 
-fn render(pdf: &[u8], settings: &InterpreterSettings) -> Vec<u8> {
-    render_each(pdf, std::slice::from_ref(settings)).remove(0)
-}
-
 /// The page rendered once per settings, sharing one render cache as a separating caller does.
 fn render_each(pdf: &[u8], settings: &[InterpreterSettings]) -> Vec<Vec<u8>> {
     let doc = open_slice(pdf, None).unwrap();

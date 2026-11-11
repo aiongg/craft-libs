@@ -48,14 +48,3 @@ fn no_kinsoku_mode_breaks_inside_a_cluster() {
         assert_eq!(pieces("字\u{3099}\u{FE00}字", &o), ["字\u{3099}\u{FE00}", "字"], "{k:?}");
     }
 }
-
-/// Each model available in this build, for the complex-script tests.
-#[cfg(any(feature = "thai", feature = "lao", feature = "khmer", feature = "burmese"))]
-fn models() -> Vec<(&'static str, complex::Model)> {
-    use icu_segmenter::LineSegmenter;
-    #[allow(unused_mut)]
-    let mut models: Vec<(&str, complex::Model)> = vec![("dictionary", LineSegmenter::new_dictionary)];
-    #[cfg(feature = "lstm")]
-    models.push(("lstm", LineSegmenter::new_lstm));
-    models
-}

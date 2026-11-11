@@ -1,7 +1,6 @@
 //! The notes text model: typing keeps the formatting around it.
 
 use craft_text::ui::notes::{NotesParagraph, NotesRun, NotesText};
-use craft_ui::contract::Show as _;
 use craft_ui::testing::trial;
 
 fn run(text: &str, bold: bool) -> NotesRun {

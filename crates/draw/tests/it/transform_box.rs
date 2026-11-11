@@ -1,9 +1,9 @@
 //! `TransformBox`, `TransformOverlay` and `TransformTool`: the parts the pointer takes, what each drag does, the
 //! keys, the readout and the overlay's edits.
 
-use craft_behavior::geometry::quad::{self, BoxPart, BoxRules, BoxState};
+use craft_behavior::geometry::quad::{BoxPart, BoxRules, BoxState};
 use craft_behavior::kurbo::{Point, Rect};
-use craft_behavior::{CanvasView, EditEvent, PartKey};
+use craft_behavior::{CanvasView, EditEvent};
 use craft_draw::ui::transform::{RotateZone, TransformBox};
 use craft_keymap::Mods;
 use craft_ui::canvas::Canvas;
@@ -17,9 +17,6 @@ use std::rc::Rc;
 
 /// The box before any drag, in document units.
 const RECT: Rect = Rect::new(100.0, 80.0, 300.0, 220.0);
-
-/// The part key the tests address the box's parts by.
-const BOX: PartKey = PartKey::new("box");
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Seen {
@@ -60,7 +57,6 @@ struct Host {
 struct Harness {
     fixture: Fixture,
     host: Rc<RefCell<Host>>,
-    config: Rc<RefCell<Config>>,
 }
 
 fn defaults() -> Config {
@@ -80,7 +76,7 @@ fn defaults() -> Config {
 fn harness(state: BoxState, setup: impl FnOnce(&mut Config)) -> Harness {
     let mut config = defaults();
     setup(&mut config);
-    let config = Rc::new(RefCell::new(config));
+    let shown_config = Rc::new(RefCell::new(config));
     let host = Rc::new(RefCell::new(Host {
         state,
         before: None,
@@ -93,7 +89,7 @@ fn harness(state: BoxState, setup: impl FnOnce(&mut Config)) -> Harness {
         view: CanvasView::new(egui::Rect::NOTHING, Point::ZERO, 1.0),
         guide_events: 0,
     }));
-    let (shown_config, shown_host) = (Rc::clone(&config), Rc::clone(&host));
+    let shown_host = Rc::clone(&host);
     let mut guides = vec![Guide::new(GuideKey::new(1), craft_behavior::Axis::Y, 300.0)];
     let mut fixture = Fixture::new(move |ui| {
         let room = ui.available_rect_before_wrap();
@@ -158,7 +154,7 @@ fn harness(state: BoxState, setup: impl FnOnce(&mut Config)) -> Harness {
         }
     });
     fixture.settle();
-    Harness { fixture, host, config }
+    Harness { fixture, host }
 }
 
 fn upright() -> Harness {
@@ -176,14 +172,6 @@ impl Harness {
 
     fn state(&self) -> BoxState {
         self.host.borrow().state
-    }
-
-    fn count(&self, seen: Seen) -> usize {
-        self.host.borrow().events.iter().filter(|&&event| event == seen).count()
-    }
-
-    fn part(&self, part: BoxPart) -> Option<craft_ui::testing::Target> {
-        self.fixture.part(self.host.borrow().id, BOX.at(part.index()))
     }
 }
 

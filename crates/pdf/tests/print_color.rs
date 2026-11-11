@@ -7,92 +7,18 @@
 
 use std::sync::Arc;
 
-use backend::color::device_n::{self, Colorant, DeviceNSpace};
 use backend::color::{cmyk, luma};
 use backend::geom::{PathBuilder, Rect, Size, Transform};
-use backend::mask::{Mask, MaskType};
 use backend::num::NormalizedF32;
 use backend::page::PageSettings;
 use backend::paint::{Fill, LinearGradient, SpreadMethod, Stop};
 use backend::surface::Surface;
 use backend::{GroupColorSpace, SerializeSettings};
-use craft_pdf::write::print;
-use craft_pdf::write::{Metadata, WriteError, Writer, backend};
+use craft_pdf::write::{Metadata, Writer, backend};
 use hayro_syntax::object::{Array, Dict};
-
-fn rect(surface: &mut Surface<'_>, x: f32, color: cmyk::Color, opacity: f32) {
-    let mut path = PathBuilder::new();
-    path.push_rect(Rect::from_xywh(x, 10.0, 40.0, 40.0).unwrap());
-    surface.set_fill(Some(Fill { paint: color.into(), opacity: NormalizedF32::new(opacity).unwrap(), ..Default::default() }));
-    surface.draw_path(&path.finish().unwrap());
-}
-
-fn k(value: u8) -> cmyk::Color {
-    cmyk::Color::new(0, 0, 0, value)
-}
-
-/// Page 1: opacity group, isolated multiply group, soft mask, fill opacity and (with
-/// `write-pdf`) a placed page. Page 2: opaque. Page 3: only the fill opacity of page 1, whose
-/// graphics state is already written.
-fn sample(settings: SerializeSettings, placed: Option<&[u8]>) -> Result<Vec<u8>, WriteError> {
-    let mut writer = Writer::new(settings, Metadata::default());
-    let page_settings = PageSettings::new(Size::from_wh(300.0, 60.0).unwrap());
-    {
-        let mut page = writer.document_mut().start_page_with(page_settings.clone());
-        let mut surface = page.surface();
-        rect(&mut surface, 0.0, cmyk::Color::new(255, 0, 0, 0), 1.0);
-        surface.push_opacity(NormalizedF32::new(0.5).unwrap());
-        rect(&mut surface, 20.0, k(255), 1.0);
-        surface.pop();
-        surface.push_isolated();
-        surface.push_blend_mode(backend::blend::BlendMode::Multiply);
-        rect(&mut surface, 60.0, cmyk::Color::new(0, 255, 0, 0), 1.0);
-        surface.pop();
-        surface.pop();
-        let mut builder = surface.stream_builder();
-        let mut mask_surface = builder.surface();
-        let mut path = PathBuilder::new();
-        path.push_rect(Rect::from_xywh(110.0, 10.0, 20.0, 40.0).unwrap());
-        mask_surface.set_fill(Some(Fill { paint: luma::Color::white().into(), ..Default::default() }));
-        mask_surface.draw_path(&path.finish().unwrap());
-        mask_surface.finish();
-        let stream = builder.finish();
-        surface.push_mask(Mask::new(stream, MaskType::Luminosity));
-        rect(&mut surface, 100.0, k(255), 1.0);
-        surface.pop();
-        rect(&mut surface, 150.0, k(255), 0.5);
-        #[cfg(feature = "write-pdf")]
-        if let Some(placed) = placed {
-            let pdf = backend::pdf::Pdf::new(Arc::new(placed.to_vec())).unwrap();
-            let doc = backend::pdf::PdfDocument::new(Arc::new(pdf));
-            surface.draw_pdf_page(&doc, Size::from_wh(60.0, 12.0).unwrap(), 0);
-        }
-        #[cfg(not(feature = "write-pdf"))]
-        let _ = placed;
-        surface.finish();
-        page.finish();
-    }
-    for page_index in [2, 3] {
-        let mut page = writer.document_mut().start_page_with(page_settings.clone());
-        let mut surface = page.surface();
-        rect(&mut surface, 150.0, k(255), if page_index == 3 { 0.5 } else { 1.0 });
-        surface.finish();
-        page.finish();
-    }
-    writer.finish()
-}
 
 fn cmyk_settings() -> SerializeSettings {
     SerializeSettings { group_color_space: GroupColorSpace::Cmyk, ..Default::default() }
-}
-
-/// A copy of the sample to place on page 1, written with the same settings.
-fn placed(settings: &SerializeSettings) -> Option<Vec<u8>> {
-    cfg!(feature = "write-pdf").then(|| sample(settings.clone(), None).unwrap())
-}
-
-fn device_n(colorants: Vec<Colorant>, tints: Vec<u8>) -> backend::color::Color {
-    device_n::Color::new(tints, DeviceNSpace::new(colorants).unwrap()).unwrap().into()
 }
 
 /// One page drawn by `draw`, written with CMYK blending.

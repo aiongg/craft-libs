@@ -1,7 +1,6 @@
 //! Portable regressions adapted from PdfCraft 7437bde378f43856eada40af25b983812e615e8a and
 //! a2ec27b4775f53c40cad3456936d9406611e3a8d (MIT OR Apache-2.0).
 #![cfg(feature = "raster")]
-use craft_pdf::interpret::InterpreterSettings;
 use craft_pdf::{
     open_slice,
     raster::{self, Options, RenderCache},
@@ -18,9 +17,6 @@ fn render(bytes: &[u8]) -> Pixels {
         raster::render(&pdf.pages()[0], &RenderCache::new(), &Default::default(), &Options { background: [255; 4], ..Default::default() }).unwrap();
     assert!(raster.diagnostics.is_empty(), "{:?}", raster.diagnostics);
     Pixels { width: raster.width, height: raster.height, rgba: raster.bytes().to_vec() }
-}
-fn hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|b| format!("{b:02X}")).collect()
 }
 
 // These frozen RGB8 values were computed outside the renderer in f64 from the
@@ -339,8 +335,7 @@ mod default_color_spaces {
 /// read first. The profiles are linear sRGB and the same profile with red and blue swapped,
 /// which draws red as blue; they have the same length.
 mod icc_profile_cache {
-    use super::default_color_spaces::{BLUE, RED, assert_near, colors, page_pdf, profile_stream, rgb_profile};
-    use craft_pdf::interpret::InterpreterSettings;
+    use super::default_color_spaces::{BLUE, RED, assert_near, colors, profile_stream, rgb_profile};
 
     /// An `/ICCBased` space whose profile stream is written directly in the space's array, not
     /// as an object of its own: the profile as ASCIIHex digits, each a token of its own, in

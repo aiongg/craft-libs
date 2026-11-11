@@ -2,8 +2,6 @@
 #![cfg(feature = "read")]
 #![allow(clippy::unwrap_used, clippy::panic)]
 
-use craft_pdf::syntax::object::FromBytes;
-
 fn object(bytes: &mut Vec<u8>, number: usize, body: &[u8]) -> usize {
     let offset = bytes.len();
     bytes.extend_from_slice(format!("{number} 0 obj\n").as_bytes());

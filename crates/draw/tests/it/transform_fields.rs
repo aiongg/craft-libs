@@ -7,8 +7,8 @@ use craft_behavior::kurbo::{Point, Rect};
 use craft_draw::ui::transform::{BarGroups, SizeUnit, TransformFields, TransformRow};
 use craft_ui::canvas::RulerText;
 use craft_ui::contract::Bind;
-use craft_ui::testing::{Fixture, Target, pointer, trial};
-use egui::{Key, Modifiers, Pos2};
+use craft_ui::testing::{Fixture, Target, trial};
+use egui::{Key, Modifiers};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -85,11 +85,6 @@ impl Harness {
         self.fixture.type_text(text);
         self.fixture.key(Key::Enter, Modifiers::NONE);
         self.fixture.idle(3);
-    }
-
-    fn release(&mut self) {
-        self.fixture.frame(vec![pointer::release(Pos2::ZERO)]);
-        self.fixture.idle(2);
     }
 }
 

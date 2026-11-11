@@ -4,9 +4,8 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use craft_behavior::{EditEvent, Selection};
-use craft_color::palette::{SwatchColor, SwatchEntry};
-use craft_color::ui::{ColorPanel, ColorPanelMode, ColorPanelState, PanelTarget, PickedColor, SwatchPalette, SwatchTable};
+use craft_behavior::EditEvent;
+use craft_color::ui::{ColorPanel, ColorPanelMode, ColorPanelState, PanelTarget, PickedColor, SwatchPalette};
 use craft_theme::Srgba;
 use craft_ui::contract::{Bind, Show as _};
 use craft_ui::runtime::env::Label;
@@ -26,10 +25,8 @@ type Edits = Rc<RefCell<Vec<(PanelTarget, EditEvent<PickedColor>)>>>;
 /// The Color panel on a state and two colours the test can change, collecting what it reports.
 struct PanelRig {
     fixture: Fixture,
-    state: Rc<RefCell<ColorPanelState>>,
     colors: Rc<Cell<[Srgba; 2]>>,
     edits: Edits,
-    opened: Rc<RefCell<Vec<ColorRequest>>>,
 }
 
 impl PanelRig {
@@ -40,7 +37,7 @@ impl PanelRig {
         let colors = Rc::new(Cell::new([RED, BLUE]));
         type Shared = (Edits, Rc<RefCell<Vec<ColorRequest>>>, Rc<RefCell<Vec<PanelTarget>>>);
         let (edits, opened, added): Shared = Default::default();
-        let (s, c, e, o, a) = (state.clone(), colors.clone(), edits.clone(), opened.clone(), added.clone());
+        let (s, c, e, o, a) = (state, colors.clone(), edits.clone(), opened, added);
         let mut fixture = Fixture::new(move |ui| {
             let mut current = *s.borrow();
             let shown = ColorPanel::new(Bind::bound(&mut current), c.get()).show(ui);
@@ -51,7 +48,7 @@ impl PanelRig {
         });
         fixture.room(COLOR_ROOM);
         fixture.settle();
-        PanelRig { fixture, state, colors, edits, opened }
+        PanelRig { fixture, colors, edits }
     }
 
     fn set_colors(&mut self, colors: [Srgba; 2]) {
@@ -77,37 +74,6 @@ fn dragging_to_the_bottom_right_keeps_the_knob_there() {
     assert!(value.contains("Saturation 100") && value.contains("Brightness 0"), "the knob stays at the corner: {value}");
 }
 
-fn rgb(name: &str, c: [f32; 3]) -> SwatchEntry {
-    SwatchEntry::new(name, SwatchColor::Rgb(c))
-}
-
-/// A table of six entries, indexes 1 and 3 the same colour.
-struct TableRig {
-    fixture: Fixture,
-    selected: Rc<RefCell<Selection<usize>>>,
-    opened: Rc<RefCell<Vec<usize>>>,
-}
-
-impl TableRig {
-    fn new() -> Self {
-        let duplicate = Srgba::rgb(0.2, 0.4, 0.8);
-        let colors =
-            [Srgba::rgb(1.0, 0.0, 0.0), duplicate, Srgba::rgb(0.0, 1.0, 0.0), duplicate, Srgba::rgb(0.0, 0.0, 0.0), Srgba::rgb(1.0, 1.0, 1.0)];
-        let entries: Vec<(Label, Srgba)> = colors.into_iter().enumerate().map(|(i, c)| (Label::from(format!("Index {i}")), c)).collect();
-        let selected = Rc::new(RefCell::new(Selection::default()));
-        let opened: Rc<RefCell<Vec<usize>>> = Rc::default();
-        let (s, o) = (selected.clone(), opened.clone());
-        let mut fixture = Fixture::new(move |ui| {
-            let mut current = s.borrow().clone();
-            let shown = SwatchTable::new("Color Table", &entries).selection(Bind::bound(&mut current)).show_all(ui);
-            *s.borrow_mut() = current;
-            o.borrow_mut().extend(shown.open);
-        });
-        fixture.settle();
-        TableRig { fixture, selected, opened }
-    }
-}
-
 const SWATCHES: [(&str, [f32; 3]); 6] = [
     ("Red", [0.90, 0.28, 0.30]),
     ("Orange", [0.97, 0.42, 0.08]),
@@ -120,16 +86,14 @@ const SWATCHES: [(&str, [f32; 3]); 6] = [
 /// A palette over `SWATCHES` choosing the colour the test sets.
 struct PaletteRig {
     fixture: Fixture,
-    color: Rc<Cell<Srgba>>,
     events: Rc<Cell<usize>>,
 }
 
 impl PaletteRig {
     fn new(start: Srgba, room: Vec2) -> Self {
         let swatches: Vec<(Label, Srgba)> = SWATCHES.iter().map(|(name, [r, g, b])| (Label::from(*name), Srgba::rgb(*r, *g, *b))).collect();
-        let color = Rc::new(Cell::new(start));
         let events = Rc::new(Cell::new(0));
-        let (c, e) = (color.clone(), events.clone());
+        let (c, e) = (Rc::new(Cell::new(start)), events.clone());
         let mut fixture = Fixture::new(move |ui| {
             let mut current = c.get();
             let shown = SwatchPalette::new("Swatches", Bind::bound(&mut current), &swatches).show(ui);
@@ -140,7 +104,7 @@ impl PaletteRig {
         });
         fixture.room(room);
         fixture.settle();
-        PaletteRig { fixture, color, events }
+        PaletteRig { fixture, events }
     }
 
     fn focused(&self) -> Option<String> {

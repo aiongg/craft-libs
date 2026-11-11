@@ -3,59 +3,17 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use craft_behavior::EditEvent;
-use craft_timeline::ui::view::TimelineView;
 use craft_timeline::ui::{Timeline, TimelineEdit};
 use craft_timeline::{ClipId, ClipInfo, TimeRange, TimelineModel, TrackId, TrackInfo};
-use craft_timeline::{FollowMode, FrameRate, Tick, TimeFormat, TimeView, TrackKind};
-use craft_ui::contract::{Bind, ShowContainer as _};
+use craft_timeline::{FrameRate, Tick, TimeFormat, TimeView, TrackKind};
+use craft_ui::contract::ShowContainer as _;
 use craft_ui::testing::{Fixture, Target, trial};
-use egui::{Key, Modifiers, Rect, Vec2};
+use egui::{Rect, Vec2};
 
 const RATE: FrameRate = FrameRate::FPS_29_97;
 
-struct Rig {
-    view: TimeView,
-    playhead: Tick,
-    playing: bool,
-    points: Vec<Tick>,
-    moved: Vec<Tick>,
-}
-
 fn secs(s: f64) -> Tick {
     Tick::from_seconds_f64(s)
-}
-
-fn rig() -> (Fixture, Rc<RefCell<Rig>>) {
-    let state = Rc::new(RefCell::new(Rig {
-        view: TimeView::new(Tick::ZERO, 40.0),
-        playhead: RATE.tick_of(30),
-        playing: false,
-        points: vec![secs(2.0), secs(6.0)],
-        moved: Vec::new(),
-    }));
-    let shown = state.clone();
-    let mut fixture = Fixture::new(move |ui| {
-        let mut rig = shown.borrow_mut();
-        let format = TimeFormat::timecode(RATE);
-        let points = rig.points.clone();
-        let out = TimelineView::new("Time", Bind::given(rig.view), format, secs(30.0))
-            .follow(FollowMode::Page, rig.playing, rig.playhead)
-            .edit_points(&points)
-            .show(ui, |_, _| {})
-            .output;
-        if let Some(next) = out.view.events.value() {
-            rig.view = *next;
-        }
-        if let Some(EditEvent::Set { after, .. }) = out.playhead {
-            rig.playhead = after;
-            rig.moved.push(after);
-        }
-    });
-    fixture.idle(2);
-    fixture.key(Key::Tab, Modifiers::NONE);
-    fixture.idle(2);
-    (fixture, state)
 }
 
 // The Timeline panel over a model of tracks, one clip in V1 and one in A1.
@@ -215,8 +173,6 @@ impl Panel {
             .collect()
     }
 }
-
-impl Panel {}
 
 /// A row resizes from its own height: video rows grow upward, so an edge dragged up adds height, and the top video row
 /// has a top edge.

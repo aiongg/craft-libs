@@ -10,7 +10,7 @@ use craft_ui::canvas::{Canvas, Guide};
 use craft_ui::canvas_controls::Guides;
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::testing::{Fixture, pointer, trial};
-use egui::{Id, Key, Modifiers, Pos2, Vec2 as ScreenVec, vec2};
+use egui::{Id, Pos2, Vec2 as ScreenVec, vec2};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -293,25 +293,8 @@ impl Harness {
         self.state.borrow().view.expect("shown").to_screen(at)
     }
 
-    fn anchor(&self, path: usize, knot: usize) -> Point {
-        self.state.borrow().paths[path].subpaths[0].knots[knot].anchor
-    }
-
-    fn selection(&self) -> PathSelection {
-        self.state.borrow().selection.clone()
-    }
-
-    fn seen(&self) -> Vec<Seen> {
-        self.state.borrow().seen.clone()
-    }
-
     fn last_change(&self) -> Option<PathEdit> {
         self.state.borrow().changes.last().cloned()
-    }
-
-    fn held(&mut self, mods: Modifiers) -> &mut Self {
-        self.fixture.hold(mods);
-        self
     }
 
     fn press_at(&mut self, at: Pos2) {
@@ -334,10 +317,6 @@ impl Harness {
         self.move_to(from + by * 0.5);
         self.move_to(from + by);
         self.release_at(from + by);
-    }
-
-    fn key(&mut self, key: Key, mods: Modifiers) {
-        self.fixture.key(key, mods);
     }
 }
 

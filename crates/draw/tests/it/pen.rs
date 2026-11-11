@@ -3,10 +3,9 @@
 
 use craft_behavior::kurbo::Point;
 use craft_behavior::{CanvasView, EditEvent};
-use craft_draw::ui::pen::{BezierTool, EditSubpath, Knot, PathMode, PathTool, PenEvent, PenMode, PenTool};
-use craft_keymap::Mods;
+use craft_draw::ui::pen::{EditSubpath, Knot, PenEvent, PenTool};
 use craft_ui::testing::{ToolFixture, trial};
-use egui::{Event, Key, Modifiers, PointerButton, Pos2, Rect, vec2};
+use egui::{Event, Modifiers, PointerButton, Pos2, Rect, vec2};
 
 /// The document point drawn at the middle of the canvas: the canvas shows (0, 0) to (400, 300) at zoom 1.
 const MIDDLE: Point = Point::new(200.0, 150.0);
@@ -85,11 +84,6 @@ impl Pen {
         self.move_to(from.lerp(to, 0.5), modifiers);
         self.move_to(to, modifiers);
         self.release(to, modifiers);
-    }
-
-    fn key(&mut self, key: Key, modifiers: Modifiers) {
-        self.fixture.fixture().key(key, modifiers);
-        self.sync();
     }
 
     /// The draft as the host holds it: the last value the pen reported, empty once it finished.
@@ -197,8 +191,3 @@ fn the_pen_is_a_tool_every_canvas_accepts() {
 // ---- Curvature mode ----
 
 // ---- Path modes and Path Options ----
-
-fn resolve(tool: PathTool, mods: Mods, drawing: bool, auto_add_delete: bool) -> (BezierTool, Option<PenMode>, bool) {
-    let resolved = PathMode::resolve(tool, mods, drawing, auto_add_delete);
-    (resolved.bezier, resolved.draft, resolved.draft_senses)
-}

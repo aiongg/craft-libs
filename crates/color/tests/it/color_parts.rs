@@ -1,25 +1,8 @@
 //! The colour area, strip, ramp, disc and wheel: the colour maths and the edits they report.
 
-use std::cell::RefCell;
-use std::rc::Rc;
-
 use craft_color::ui::{WheelGeometry, hue_at, triangle_corners, triangle_point, triangle_sv};
-use craft_theme::ColorModel;
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::testing::trial;
 use egui::{Pos2, Rect, pos2, vec2};
-
-/// The room the parts are shown in.
-const ROOM: egui::Vec2 = egui::Vec2::new(400.0, 300.0);
-
-/// A fixture showing `show` over a shared value.
-fn fixture<T: 'static>(value: T, show: impl Fn(&mut egui::Ui, &mut T) + 'static) -> (Fixture, Rc<RefCell<T>>) {
-    let shared = Rc::new(RefCell::new(value));
-    let held = shared.clone();
-    let mut fixture = Fixture::new(move |ui| show(ui, &mut held.borrow_mut()));
-    fixture.room(ROOM);
-    fixture.settle();
-    (fixture, shared)
-}
 
 fn within(a: f32, b: f32) -> bool {
     (a - b).abs() < 1e-3

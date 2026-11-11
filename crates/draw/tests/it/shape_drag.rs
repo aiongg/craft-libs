@@ -1,7 +1,7 @@
 //! The Shape tools and the Create Shape dialog. The view maps one document unit to one screen point.
 
 use craft_behavior::CanvasView;
-use craft_behavior::kurbo::{Point, Rect};
+use craft_behavior::kurbo::Point;
 use craft_draw::ui::shape_drag::{ShapeDragOptions, ShapeDragTool, ShapeKind};
 use craft_ui::testing::{ToolFixture, trial};
 

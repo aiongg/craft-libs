@@ -3,7 +3,6 @@
 use super::detect::*;
 use super::helper::*;
 #[cfg(unix)]
-use super::relaunch::*;
 use super::*;
 
 /// The helper reads back exactly what the launcher passed it, paths with spaces and
@@ -181,18 +180,4 @@ fn an_installed_copy_in_a_folder_called_target_is_not_a_development_build() {
     let exe = folder.join("artcraft-launcher.exe");
     std::fs::write(&exe, "MZ").unwrap();
     assert!(!is_development_build(&exe, false), "a folder named target is not a build tree");
-}
-
-#[cfg(unix)]
-fn walk(dir: &Path) -> Vec<PathBuf> {
-    let mut out = Vec::new();
-    for e in std::fs::read_dir(dir).unwrap().flatten() {
-        let p = e.path();
-        if p.is_dir() {
-            out.extend(walk(&p));
-        } else {
-            out.push(p);
-        }
-    }
-    out
 }

@@ -26,14 +26,13 @@ fn gradient() -> LineGradient {
 
 struct Shown {
     fixture: Fixture,
-    value: Rc<RefCell<LineGradient>>,
     selected: Rc<RefCell<Option<StopRef>>>,
 }
 
 fn shown() -> Shown {
-    let value = Rc::new(RefCell::new(gradient()));
+    let held = Rc::new(RefCell::new(gradient()));
     let selected = Rc::new(RefCell::new(None));
-    let (held, chosen) = (Rc::clone(&value), Rc::clone(&selected));
+    let chosen = Rc::clone(&selected);
     let mut fixture = Fixture::new(move |ui| {
         let room = ui.available_rect_before_wrap();
         let view = CanvasView::new(room, Point::new(f64::from(room.width()) / 2.0, f64::from(room.height()) / 2.0), 1.0);
@@ -44,7 +43,7 @@ fn shown() -> Shown {
         });
     });
     fixture.settle();
-    Shown { fixture, value, selected }
+    Shown { fixture, selected }
 }
 
 #[trial]

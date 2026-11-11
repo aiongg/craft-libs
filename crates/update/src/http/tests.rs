@@ -17,8 +17,6 @@ pub(crate) enum Reply {
     Ranged,
     /// The right length, wrong bytes.
     Corrupt,
-    /// 404.
-    Missing,
     /// The whole body, already a gzip stream, announced as `Content-Encoding: gzip`.
     Gzipped,
 }
@@ -54,7 +52,6 @@ pub(crate) fn serve(body: Vec<u8>, script: Vec<Reply>) -> (String, Arc<Mutex<Vec
                     .and_then(|()| stream.write_all(&body[..n])),
                 Reply::Corrupt => write!(stream, "HTTP/1.1 200 OK\r\nContent-Length: {len}\r\nConnection: close\r\n\r\n")
                     .and_then(|()| stream.write_all(&vec![b'x'; len])),
-                Reply::Missing => write!(stream, "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"),
                 Reply::Gzipped => write!(stream, "HTTP/1.1 200 OK\r\nContent-Length: {len}\r\nContent-Encoding: gzip\r\nConnection: close\r\n\r\n")
                     .and_then(|()| stream.write_all(&body)),
                 Reply::Ranged => {

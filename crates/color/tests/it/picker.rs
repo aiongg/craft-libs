@@ -4,21 +4,11 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use craft_behavior::Mixed;
-use craft_color::ui::{ColorPicker, ColorPickerLayout, ColorReadout, ColorWarning, PickedColor};
-use craft_theme::{Channel, ColorModel, DefaultOn, HsbModel, MAX_CHANNELS, ModelValues, OklchModel, RgbModel, Rgba, Srgba};
+use craft_color::ui::{ColorPicker, ColorReadout};
+use craft_theme::{Channel, ColorModel, DefaultOn, MAX_CHANNELS, ModelValues, Rgba, Srgba};
 use craft_ui::contract::Bind;
 use craft_ui::testing::{Fixture, trial};
 use egui::{Key, Modifiers, vec2};
-
-/// A naive CMYK in percent, a host's model.
-struct NaiveCmyk;
-
-const CMYK: [Channel; 4] = [
-    Channel { name: "Cyan", qualified: "CMYK cyan", label: "C", min: 0.0, max: 100.0, unit: "%", decimals: 0, step: 1.0, track_stops: 2 },
-    Channel { name: "Magenta", qualified: "CMYK magenta", label: "M", min: 0.0, max: 100.0, unit: "%", decimals: 0, step: 1.0, track_stops: 2 },
-    Channel { name: "Yellow", qualified: "CMYK yellow", label: "Y", min: 0.0, max: 100.0, unit: "%", decimals: 0, step: 1.0, track_stops: 2 },
-    Channel { name: "Black", qualified: "CMYK black", label: "K", min: 0.0, max: 100.0, unit: "%", decimals: 0, step: 1.0, track_stops: 2 },
-];
 
 impl ColorModel for NaiveCmyk {
     fn id(&self) -> &'static str {
@@ -47,62 +37,6 @@ impl ColorModel for NaiveCmyk {
     fn default_on(&self) -> DefaultOn {
         DefaultOn { full: true, compact: false }
     }
-}
-
-static CMYK_MODEL: NaiveCmyk = NaiveCmyk;
-
-/// What the host holds and sees.
-struct Host {
-    value: PickedColor,
-    web: bool,
-    sampled: Option<Srgba>,
-    reported: usize,
-}
-
-/// How a fixture's picker is set up.
-#[derive(Clone, Copy)]
-struct Setup {
-    layout: ColorPickerLayout,
-    cmyk: bool,
-    alpha: bool,
-    focus_on_open: bool,
-    compare: Option<Srgba>,
-    warning: Option<Srgba>,
-}
-
-fn picker(setup: Setup, start: PickedColor) -> (Fixture, Rc<RefCell<Host>>) {
-    let host = Rc::new(RefCell::new(Host { value: start, web: false, sampled: None, reported: 0 }));
-    let shown = host.clone();
-    let mut fixture = Fixture::new(move |ui| {
-        let mut host = shown.borrow_mut();
-        let mut value = host.value;
-        let mut web = host.web;
-        let sampled = host.sampled.take();
-        let models: Vec<&dyn ColorModel> =
-            if setup.cmyk { vec![&HsbModel, &RgbModel, &CMYK_MODEL, &OklchModel] } else { vec![&HsbModel, &RgbModel, &OklchModel] };
-        let mut picker = ColorPicker::new("Foreground color", Bind::bound(&mut value))
-            .layout(setup.layout)
-            .alpha(setup.alpha)
-            .focus_on_open(setup.focus_on_open)
-            .models(models)
-            .web_colors(Bind::bound(&mut web));
-        if let Some(sampled) = sampled {
-            picker = picker.sampled(sampled);
-        }
-        if let Some(current) = setup.compare {
-            picker = picker.compare(current);
-        }
-        if let Some(nearest) = setup.warning {
-            picker = picker.warnings([ColorWarning::new("Out of gamut for printing", nearest)]);
-        }
-        let out = picker.show(ui);
-        host.reported += usize::from(!out.events.is_empty());
-        host.value = value;
-        host.web = web;
-    });
-    fixture.room(vec2(720.0, 640.0));
-    fixture.settle();
-    (fixture, host)
 }
 
 fn type_into(fixture: &mut Fixture, label: &str, text: &str) {

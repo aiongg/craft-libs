@@ -52,17 +52,6 @@ impl Para {
         self.items.push(item);
         self.text.push(text.to_string());
     }
-
-    fn lines(&self, lines: &[Line]) -> Vec<String> {
-        lines
-            .iter()
-            .map(|l| {
-                let s: String = self.text[l.start..l.end.min(self.text.len())].concat();
-                let s = s.trim_end().to_string();
-                if l.flagged { s + "-" } else { s }
-            })
-            .collect()
-    }
 }
 
 fn width_of(s: &str) -> f64 {

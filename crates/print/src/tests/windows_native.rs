@@ -2,8 +2,6 @@
 //! the incremental update that gives them one shape (all platforms), and a job reaching a
 //! paused test printer (Windows).
 
-use super::*;
-
 /// One page of a test PDF: its MediaBox (`None` = inherited from the page tree's root, which is
 /// Letter), CropBox and `/Rotate`.
 #[derive(Clone, Copy)]

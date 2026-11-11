@@ -17,7 +17,6 @@ fn tolerance(depth: BitDepth, dither: bool) -> f32 {
         BitDepth::Int24 => 1.0 / 8_388_608.0,
         BitDepth::Int32 => 1e-7,
         BitDepth::Float32 => 0.0,
-        _ => unreachable!("a bit depth this test does not know"),
     };
     lsb * if dither { 1.6 } else { 0.6 } + 1e-7
 }
@@ -36,7 +35,6 @@ fn expected_sf(d: BitDepth) -> SampleFormat {
         BitDepth::Int24 => SampleFormat::Int24,
         BitDepth::Int32 => SampleFormat::Int32,
         BitDepth::Float32 => SampleFormat::Float32,
-        _ => unreachable!("a bit depth this test does not know"),
     }
 }
 

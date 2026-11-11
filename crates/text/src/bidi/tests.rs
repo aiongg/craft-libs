@@ -4,11 +4,6 @@ fn rev(s: &str) -> String {
     s.chars().rev().collect()
 }
 
-/// Byte offset of char `n` of `s`.
-fn at(s: &str, n: usize) -> usize {
-    s.char_indices().nth(n).map_or(s.len(), |(i, _)| i)
-}
-
 /// The line as displayed, left to right, built from its visual runs.
 fn shown(p: &Paragraph<'_>, line: Range<usize>) -> String {
     p.visual_runs(line).iter().map(|r| if r.is_rtl() { rev(&p.text()[r.range.clone()]) } else { p.text()[r.range.clone()].to_string() }).collect()

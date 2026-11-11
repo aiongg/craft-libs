@@ -2,10 +2,6 @@
 
 use craft_behavior::fit::{TabFit, fit};
 
-fn sane(value: f32) -> f32 {
-    if value.is_finite() { value.clamp(0.0, 1_000_000.0) } else { 0.0 }
-}
-
 fn total(fit: &TabFit) -> f32 {
     fit.shown.iter().map(|&(_, width)| width).sum::<f32>() + fit.overflow_width
 }

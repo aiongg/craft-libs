@@ -2,7 +2,6 @@
 //! behaviour, intents, BPC, interpolation accuracy, real-world profiles and an independent
 //! oracle (moxcms, dev-dependency only).
 
-use craft_cms::math::{self};
 use craft_cms::{Builtin, Intent, Profile, Transform, TransformOptions};
 
 fn lab() -> &'static Profile {

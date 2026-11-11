@@ -4,9 +4,8 @@
 use craft_behavior::CanvasView;
 use craft_behavior::geometry::CropBox;
 use craft_behavior::kurbo::{Point, Rect, Size};
-use craft_draw::ui::crop::{CropDocKey, CropDocument, CropEvent, CropInput, CropSession, CropSettings, CropTool, CropToolPass};
-use craft_keymap::Mods;
-use craft_ui::canvas::{Canvas, CanvasSpace, CanvasTool as _, ToolContext, ToolHost};
+use craft_draw::ui::crop::{CropDocKey, CropDocument, CropEvent, CropInput, CropSession, CropSettings, CropTool};
+use craft_ui::canvas::{Canvas, CanvasTool as _, ToolHost};
 use craft_ui::contract::ShowContainer as _;
 use craft_ui::runtime::access::Role;
 use craft_ui::runtime::env::{Env, Units};
@@ -37,46 +36,6 @@ fn classic() -> CropSettings {
     let mut settings = CropSettings::default();
     settings.shield.classic_mode = true;
     settings
-}
-
-/// A tool with its settings and document, driven pass by pass through a `ToolContext` without a canvas.
-struct Run {
-    tool: CropTool,
-    settings: CropSettings,
-    document: CropDocument,
-    space: Option<CanvasSpace>,
-    pause: Option<f64>,
-    ctx: egui::Context,
-}
-
-impl Run {
-    fn new(settings: CropSettings) -> Self {
-        Run { tool: CropTool::new(), settings, document: document(1), space: None, pause: None, ctx: egui::Context::default() }
-    }
-
-    /// One pass at `time`: `each_pass`, then `act`; returns what `act` returns and the pass's events. `Settings`
-    /// events are stored.
-    fn pass<R>(&mut self, time: f64, mods: Mods, act: impl FnOnce(&mut CropToolPass<'_>, &mut ToolContext<'_>) -> R) -> (R, Vec<CropEvent>) {
-        let mut cx = ToolContext::new(egui::Rect::from_min_size(Pos2::ZERO, egui::vec2(400.0, 300.0)), self.space).time(time).mods(mods);
-        let mut pass = self.tool.pass(CropInput::new(&self.ctx, &self.settings, &self.document).nudge_pause(self.pause));
-        pass.each_pass(&mut cx);
-        let result = act(&mut pass, &mut cx);
-        let events = pass.finish().events;
-        for event in &events {
-            if let CropEvent::Settings(next) = event {
-                self.settings = next.clone();
-            }
-        }
-        (result, events)
-    }
-
-    fn settle(&mut self) {
-        self.pass(0.0, Mods::NONE, |_, _| ());
-    }
-
-    fn frame(&self) -> Option<CropBox> {
-        self.tool.frame()
-    }
 }
 
 // The session cases.

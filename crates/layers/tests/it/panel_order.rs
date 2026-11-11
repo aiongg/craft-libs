@@ -4,7 +4,7 @@ use craft_behavior::EditEvent;
 use craft_layers::ui::filter::{FilterKind, LayerFilter};
 use craft_layers::ui::mock::FakeLayers;
 use craft_layers::ui::panel::{LayerDrop, LayerPosition, LayersEvent, LayersPanel};
-use craft_layers::ui::tree::{LayerInfo, LayerKind, LayerRowKey, LayerTree, SubRowGroup, SubRows};
+use craft_layers::ui::tree::{LayerInfo, LayerKind, LayerRowKey, LayerTree, SubRowGroup};
 use craft_ui::contract::Bind;
 use craft_ui::testing::{Fixture, Target, pointer, trial};
 use egui::{Pos2, Vec2};

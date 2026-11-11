@@ -2,8 +2,8 @@
 
 use craft_behavior::geometry::quad::BoxState;
 use craft_behavior::kurbo::{Point, Rect, Vec2};
-use craft_behavior::{CancelReason, EditEvent, GestureId, Mixed};
-use craft_draw::ui::transform::{TransformEdit, TransformSession, TransformSettings, TransformWarp};
+use craft_behavior::{EditEvent, GestureId, Mixed};
+use craft_draw::ui::transform::{TransformEdit, TransformSession, TransformWarp};
 use craft_ui::testing::trial;
 use std::sync::Arc;
 
@@ -21,16 +21,6 @@ fn commit<T>(id: GestureId, value: T) -> EditEvent<T> {
 
 fn set<T>(value: T) -> EditEvent<T> {
     EditEvent::set(Mixed::Mixed, value, Arc::from(""), None)
-}
-
-fn cancel<T>(id: GestureId) -> EditEvent<T> {
-    EditEvent::cancel(id, CancelReason::Escape, None)
-}
-
-fn settings(change: impl FnOnce(&mut TransformSettings)) -> TransformSettings {
-    let mut settings = TransformSettings::default();
-    change(&mut settings);
-    settings
 }
 
 #[derive(Clone, Debug, PartialEq)]

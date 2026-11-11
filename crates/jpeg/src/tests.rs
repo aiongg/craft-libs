@@ -1,5 +1,4 @@
 use super::arith::*;
-use super::scan::*;
 use super::*;
 
 /// The test image decoded by `zune-jpeg`, as interleaved 8-bit samples, and its size.

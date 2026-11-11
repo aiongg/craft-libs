@@ -118,7 +118,6 @@ impl CanvasTool for Driven {
 
 struct Shown {
     fixture: ToolFixture<Driven>,
-    line: Rc<RefCell<Option<RulerLine>>>,
 }
 
 fn shown(start: Option<RulerLine>) -> Shown {
@@ -144,17 +143,7 @@ fn shown(start: Option<RulerLine>) -> Shown {
             *body_line.borrow_mut() = line;
         },
     );
-    Shown { fixture, line }
-}
-
-impl Shown {
-    fn line(&self) -> RulerLine {
-        self.line.borrow().expect("the app has a line")
-    }
-}
-
-fn line(a: (f64, f64), b: (f64, f64)) -> Option<RulerLine> {
-    Some(RulerLine::new(Point::new(a.0, a.1), Point::new(b.0, b.1)))
+    Shown { fixture }
 }
 
 /// The tool owes the canvas a command form and a clean gesture: one begin, one commit, and Escape cancels.

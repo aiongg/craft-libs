@@ -4,22 +4,17 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
 
+use craft_behavior::CanvasView;
 use craft_behavior::kurbo::Point;
-use craft_behavior::{CanvasView, PointerButton};
 use craft_cms::convert::CmykConverter;
 use craft_color::ui::{
     CaptureSource, ColorPicker, ColorPickerLayout, ColorSamplerTool, ColorSamplers, PickedColor, SamplerCache, SamplerReadouts, ScreenPick,
     StillCapture,
 };
 use craft_theme::Srgba;
-use craft_ui::canvas::ToolPointer;
 use craft_ui::contract::Bind;
 use craft_ui::testing::{Fixture, ToolFixture, trial};
-use egui::{Context, Pos2, Rect, vec2};
-
-fn at(x: f32, y: f32) -> ToolPointer {
-    ToolPointer::new(Pos2::new(x, y), PointerButton::Primary, 0.0)
-}
+use egui::{Context, Rect, vec2};
 
 const SIZE: [u32; 2] = [300, 200];
 
