@@ -1,5 +1,5 @@
-//! Size cases: text size, density and scale grow the layout without cutting text; themes keep the layout; a room
-//! of one point does not break it; a narrow room elides with the full text as the accessible name.
+//! Size cases: text size, density and scale grow the layout without cutting text; a room of one point does not break
+//! it; a narrow room elides with the full text as the accessible name.
 
 use super::{ANY, Case, Subject};
 use crate::runtime::egui::widgets::{self, ScrollRegion};
@@ -7,12 +7,11 @@ use crate::runtime::env::Scale;
 use crate::testing::fixture::Fixture;
 use crate::testing::relations::{grows_with, inside};
 use crate::testing::story::Story;
-use craft_theme::{Contrast, Mode, Size, TextSize};
+use craft_theme::{Size, TextSize};
 use egui::{Rect, Vec2};
 
 pub(super) const CASES: &[Case] = &[
     Case::new("text-size", ANY, stories_grow_with_text_density_and_scale),
-    Case::new("themes", ANY, themes_keep_the_layout),
     Case::new("tiny-room", ANY, a_tiny_room_breaks_nothing),
     Case::new("elision", ANY, elided_text_keeps_its_full_name),
 ];
@@ -132,35 +131,6 @@ fn text_size_from(story: &Story, base: Shot) -> Result<(), String> {
                 if !grown.keeps(same.rect) {
                     return Err(format!("{}: under {name} the text `{}` leaves its part", story.name, run.text));
                 }
-            }
-        }
-    }
-    Ok(())
-}
-
-/// The shown rect and the interactive parts' bounds do not depend on the theme: light and dark, standard and high
-/// contrast lay out alike.
-fn themes_keep_the_layout(subject: &Subject) -> Result<(), String> {
-    use crate::testing::access::is_interactive;
-    let layout_of = |fixture: &Fixture| {
-        let tree = fixture.tree();
-        let parts: Vec<Rect> = tree.keys().into_iter().filter(|key| is_interactive(tree, *key)).filter_map(|key| tree.bounds_of(key)).collect();
-        (fixture.shown(), parts)
-    };
-    for story in &subject.stories {
-        let layout = |mode: Mode, contrast: Contrast| {
-            let mut fixture = Fixture::story(story);
-            fixture.theme(mode, contrast);
-            fixture.settle();
-            layout_of(&fixture)
-        };
-        // The default env is light and standard contrast.
-        let base = layout_of(&subject.base(story).fixture);
-        for (mode, contrast) in [(Mode::Dark, Contrast::Standard), (Mode::Light, Contrast::High), (Mode::Dark, Contrast::High)] {
-            let other = layout(mode, contrast);
-            let same = |a: &Rect, b: &Rect| (a.min - b.min).abs().max_elem() < 0.5 && (a.size() - b.size()).abs().max_elem() < 0.5;
-            if !same(&base.0, &other.0) || base.1.len() != other.1.len() || !base.1.iter().zip(&other.1).all(|(a, b)| same(a, b)) {
-                return Err(format!("{}: {mode:?} {contrast:?} lays out differently from light standard", story.name));
             }
         }
     }

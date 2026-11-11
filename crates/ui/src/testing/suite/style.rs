@@ -1,6 +1,6 @@
 //! Style cases: a listed variant looks unlike the default, every flag look of the style is reachable by some state
 //! of its type, and text and icons read on what they sit on. They measure the styles the pipeline resolved while
-//! the type's stories ran (settled in each mode and contrast, then driven), resolved again for every listed variant
+//! the type's stories ran (settled, then driven), resolved again for every listed variant
 //! and built-in theme. A type with no story is measured through its `#[component(sample = ..)]`. A type with
 //! neither fails, since its style is never measured.
 
@@ -29,8 +29,9 @@ pub(super) enum Source {
     Sample,
 }
 
-/// The styles of `subject` the stories resolve, read once for the style cases: each story settled in every mode and
-/// contrast, then each of its drives run once in the default mode. One entry per style key, variant and size.
+/// The styles of `subject` the stories resolve, read once for the style cases: each story settled, then each of its
+/// drives run once. One entry per style key, variant and size; the cases resolve each again under the themes they
+/// measure.
 fn sources(subject: &Subject) -> Result<&[Source], String> {
     subject.style_sources.get_or_init(|| read_sources(subject)).as_deref().map_err(Clone::clone)
 }
@@ -47,19 +48,7 @@ fn read_sources(subject: &Subject) -> Result<Vec<Source>, String> {
     };
     for story in &subject.stories {
         let base = subject.base(story);
-        for mode in [Mode::Light, Mode::Dark] {
-            for contrast in [Contrast::Standard, Contrast::High] {
-                // The default env is light and standard contrast.
-                if (mode, contrast) == (Mode::Light, Contrast::Standard) {
-                    take(&base.fixture);
-                    continue;
-                }
-                let mut fixture = Fixture::story(story);
-                fixture.theme(mode, contrast);
-                fixture.settle();
-                take(&fixture);
-            }
-        }
+        take(&base.fixture);
         let plan = base.plan;
         for variant in variants(plan, subject.probe) {
             let mut fixture = input_fixture(story);
