@@ -198,3 +198,10 @@ pub enum Error {
     #[error("manifest JSON: {0}")]
     Json(#[from] serde_json::Error),
 }
+
+#[cfg(test)]
+extern crate self as craft_pcraft_format;
+
+#[cfg(test)]
+#[path = "../tests/main.rs"]
+mod integration;
