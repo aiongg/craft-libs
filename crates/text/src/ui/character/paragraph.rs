@@ -209,9 +209,9 @@ impl<'a> ParagraphControls<'a> {
         let mut edits: Vec<EditEvent<ParagraphChange>> = Vec::new();
         let shown = Stack::new().fill_width().label(self.label).show(ui, |ui, _| {
             let out = Segmented::new(words.alignment.clone(), Bind::given(mixed(values.align)), &aligns).show(ui);
-            edits.extend(out.event.map(|event| event.map(ParagraphChange::Align)));
+            edits.extend(out.events.map(ParagraphChange::Align));
             let out = Segmented::new(words.direction.clone(), Bind::given(mixed(values.direction)), &directions).show(ui);
-            edits.extend(out.event.map(|event| event.map(ParagraphChange::Direction)));
+            edits.extend(out.events.map(ParagraphChange::Direction));
 
             Grid::new(&TWO_COLUMNS).fill_width().show(ui, |ui, _| {
                 let start = LengthRow {
@@ -263,7 +263,7 @@ impl<'a> ParagraphControls<'a> {
                 edits.extend(number_change(event, ParagraphChange::SpaceAfter));
             });
             let out = Checkbox::new(Bind::given(mixed(values.hyphenate))).label(words.hyphenate.clone()).show(ui);
-            edits.extend(out.event.map(|event| event.map(ParagraphChange::Hyphenate)));
+            edits.extend(out.events.map(ParagraphChange::Hyphenate));
         });
         ParagraphControlsOutput { response: shown.output, edits }
     }

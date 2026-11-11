@@ -95,12 +95,12 @@ fn dialog() -> (Fixture, Rc<RefCell<App>>) {
                 shown.clear();
                 let snap = Checkbox::new(Bind::given(values.snap)).label("Snap").show(ui);
                 shown.push(snap.shown.clone());
-                if let Some(event) = snap.event {
+                for event in snap.events {
                     host.handle(doc, event, |doc, snap| doc.set(Values { snap, ..doc.values }));
                 }
                 let grid = Checkbox::new(Bind::given(values.grid)).label("Show Grid").show(ui);
                 shown.push(grid.shown.clone());
-                if let Some(event) = grid.event {
+                for event in grid.events {
                     host.handle(doc, event, |doc, grid| doc.set(Values { grid, ..doc.values }));
                 }
             });

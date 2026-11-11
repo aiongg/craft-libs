@@ -154,16 +154,18 @@ impl<'a> GradientMapEditor<'a> {
                 editor = editor.sampler(sampler);
             }
             let bar = editor.show(ui);
-            if let Some(edit) = bar.edit.event.as_ref().and_then(EditEvent::value).cloned() {
+            if let Some(edit) = bar.edit.events.value().cloned() {
                 event = Some(set(GradientMap { stops: edit, ..base.clone() }));
             }
             color_requested = bar.color_requested;
             let mut reverse = base.reverse;
-            if Checkbox::new(Bind::bound(&mut reverse)).label(reverse_label.clone()).show(ui).event.is_some() {
+            let toggled = !Checkbox::new(Bind::bound(&mut reverse)).label(reverse_label.clone()).show(ui).events.is_empty();
+            if toggled {
                 event = Some(set(GradientMap { reverse, ..base.clone() }));
             }
             let mut dither = base.dither;
-            if Checkbox::new(Bind::bound(&mut dither)).label(dither_label.clone()).show(ui).event.is_some() {
+            let toggled = !Checkbox::new(Bind::bound(&mut dither)).label(dither_label.clone()).show(ui).events.is_empty();
+            if toggled {
                 event = Some(set(GradientMap { dither, ..base.clone() }));
             }
         });

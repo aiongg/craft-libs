@@ -4,7 +4,7 @@ use std::ops::RangeInclusive;
 
 use egui::{Response, Ui};
 
-use craft_behavior::EditEvent;
+use craft_behavior::EditEvents;
 use craft_theme::TypeRole;
 use craft_theme::variant::Tone;
 use craft_ui::buttons::{Button, ToggleButton};
@@ -35,11 +35,11 @@ pub const OVERLAY_COLOR_KEY: &str = "selectMask.overlayColor";
 pub struct SelectMaskPanelOutput {
     /// The panel's response.
     pub response: Response,
-    /// The edit lifecycle of the refinement values the user changed this pass, with the values
+    /// The edit lifecycle of the refinement values the user changed this pass, in order, with the values
     /// after it (already written to the refinement passed in): a slider's `Begin`, `Update` and
     /// `Commit`, a check box's or the Output To choice's `Set`. A refinement change is a session
     /// change: the history settles it and a preview is asked for.
-    pub edit: Option<EditEvent<RefineSettings>>,
+    pub edit: EditEvents<RefineSettings>,
     /// The view or a view option changed (no undo step; a preview is asked for).
     pub view_changed: bool,
     /// Clear Selection or Invert pressed.
@@ -86,8 +86,8 @@ type Setter<T> = fn(&mut RefineSettings, T);
 
 /// A control's edit of one refinement field as an edit of the refinement: the refinement at the start of the pass
 /// with that field replaced.
-fn lift<T: Clone + 'static>(event: EditEvent<T>, base: &RefineSettings, set: Setter<T>) -> EditEvent<RefineSettings> {
-    event.map(|value| {
+fn lift<T: Clone + 'static>(events: EditEvents<T>, base: &RefineSettings, set: Setter<T>) -> EditEvents<RefineSettings> {
+    events.map(|value| {
         let mut refine = base.clone();
         set(&mut refine, value);
         refine
@@ -113,22 +113,23 @@ impl<'a> SelectMaskPanel<'a> {
         let Self { settings, refine, view, error } = self;
         let words = Env::of(ui).words::<SelectMaskWords>();
         let base = refine.clone();
-        let mut rows = Rows { base: &base, edit: None };
+        let mut rows = Rows { base: &base, edit: EditEvents::new() };
         let (mut view_changed, mut selection_edit, mut pick_color) = (false, None, None);
         let shown = Stack::new().show(ui, |ui, _| {
+            rows.edit = EditEvents::new();
             let remember = Checkbox::new(Bind::given(settings.remember)).label(words.remember.clone()).show(ui);
-            if let Some(&on) = remember.event.as_ref().and_then(EditEvent::value) {
+            if let Some(&on) = remember.events.value() {
                 settings.remember = on;
             }
 
             Section::new(words.view_mode.clone()).remember(SaveKey::new("craft_imaging.select_mask.view")).show(ui, |ui, _| {
                 view_changed |= MaskViewControls::new(view).show(ui).changed.is_some();
                 let real_time = Checkbox::new(Bind::given(settings.real_time)).label(words.real_time.clone()).show(ui);
-                if let Some(&on) = real_time.event.as_ref().and_then(EditEvent::value) {
+                if let Some(&on) = real_time.events.value() {
                     settings.real_time = on;
                 }
                 let high_quality = Checkbox::new(Bind::given(settings.high_quality)).label(words.high_quality.clone()).show(ui);
-                if let Some(&on) = high_quality.event.as_ref().and_then(EditEvent::value) {
+                if let Some(&on) = high_quality.events.value() {
                     settings.high_quality = on;
                     view_changed = true;
                 }
@@ -142,7 +143,7 @@ impl<'a> SelectMaskPanel<'a> {
                         Entry::new(ColorIndicates::SelectedAreas, words.selected_areas.clone()),
                     ];
                     let indicates = Select::new(words.indicates.clone(), Bind::given(view.overlay_indicates), &entries).show(ui);
-                    if let Some(&picked) = indicates.event.as_ref().and_then(EditEvent::value)
+                    if let Some(&picked) = indicates.events.value()
                         && picked != view.overlay_indicates
                     {
                         view.overlay_indicates = picked;
@@ -205,7 +206,7 @@ impl<'a> SelectMaskPanel<'a> {
             }
         });
         let edit = rows.edit;
-        if let Some(value) = edit.as_ref().and_then(EditEvent::value) {
+        if let Some(value) = edit.value() {
             refine.clone_from(value);
         }
         SelectMaskPanelOutput { response: shown.output, edit, view_changed, selection_edit, pick_color }
@@ -240,7 +241,7 @@ impl<'a> Track<'a> {
 /// The controls of one pass: the refinement they started from and the edit they add up to.
 struct Rows<'p> {
     base: &'p RefineSettings,
-    edit: Option<EditEvent<RefineSettings>>,
+    edit: EditEvents<RefineSettings>,
 }
 
 impl Rows<'_> {
@@ -250,16 +251,13 @@ impl Rows<'_> {
         if let Some(kind) = track.unit {
             field = field.unit_kind(kind);
         }
-        if let Some(event) = field.show(ui).event {
-            self.edit = Some(lift(event, self.base, set));
-        }
+        self.edit.extend(lift(field.show(ui).events, self.base, set));
     }
 
     /// A check box over `value`; its edit is the pass's edit.
     fn check(&mut self, ui: &mut Ui, label: &Label, value: bool, set: Setter<bool>) {
-        if let Some(event) = Checkbox::new(Bind::given(value)).label(label.clone()).show(ui).event {
-            self.edit = Some(lift(event, self.base, set));
-        }
+        let events = Checkbox::new(Bind::given(value)).label(label.clone()).show(ui).events;
+        self.edit.extend(lift(events, self.base, set));
     }
 
     /// A select over `options` named `label`; its edit is the pass's edit.
@@ -272,9 +270,8 @@ impl Rows<'_> {
         set: Setter<T>,
     ) {
         let entries: Vec<Entry<T>> = options.iter().map(|(value, text)| Entry::new(value.clone(), (*text).clone())).collect();
-        if let Some(event) = Select::new(label.clone(), Bind::given(current), &entries).show(ui).event {
-            self.edit = Some(lift(event, self.base, set));
-        }
+        let events = Select::new(label.clone(), Bind::given(current), &entries).show(ui).events;
+        self.edit.extend(lift(events, self.base, set));
     }
 }
 

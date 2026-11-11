@@ -136,10 +136,12 @@ fn body(ui: &mut Ui, session: &PinWarpSession, words: &PinWarpBarWords, notice: 
             .show(ui);
         // A remesh per update would rebuild the mesh while the value is still being typed or scrubbed: only the
         // value that ends the edit goes out.
-        if let Some(EditEvent::Commit { after: Some(expansion), .. } | EditEvent::Set { after: Some(expansion), .. }) = field.event.as_ref()
-            && *expansion != options.expansion
-        {
-            edits.push(PinEdit::Options(PinWarpOptions { expansion: *expansion, ..options }));
+        for event in &field.events {
+            if let EditEvent::Commit { after: Some(expansion), .. } | EditEvent::Set { after: Some(expansion), .. } = event
+                && *expansion != options.expansion
+            {
+                edits.push(PinEdit::Options(PinWarpOptions { expansion: *expansion, ..options }));
+            }
         }
     });
     let shown = Checkbox::new(Bind::given(session.show_mesh())).label(words.show_mesh.clone()).show(ui);
@@ -170,10 +172,8 @@ fn body(ui: &mut Ui, session: &PinWarpSession, words: &PinWarpBarWords, notice: 
         if let Some(angle) = pin.angle {
             captioned(ui, &words.rotation, |ui| {
                 let field = NumberField::new(words.rotation.clone(), Bind::given(Some(angle))).range(ROTATION).unit_kind(UnitKind::Degrees).show(ui);
-                if let Some(event) = field.event.clone() {
-                    let turned = |angle: Option<f64>| with_pin(pins, i, Pin { angle: angle.or(pin.angle), ..pin });
-                    edits.push(PinEdit::Pins(event.map(turned)));
-                }
+                let turned = |angle: Option<f64>| with_pin(pins, i, Pin { angle: angle.or(pin.angle), ..pin });
+                edits.extend(field.events.iter().cloned().map(|event| PinEdit::Pins(event.map(turned))));
             });
         }
         Divider::vertical().show(ui);

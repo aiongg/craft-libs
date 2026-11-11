@@ -15,7 +15,7 @@ use super::words::ScopeWords;
 use super::zones::{ScopeZoneEdit, ToneZone, ToneZones};
 use crate::scopes::{HistogramStatistics, histogram_statistics};
 use crate::ui::histogram::{ChannelColor, Histogram, HistogramData, LevelRange, PlotHeight, StaleMark};
-use craft_behavior::{ColumnWidth, EditEvent, IconId, Proposal};
+use craft_behavior::{ColumnWidth, EditEvents, IconId, Proposal};
 use craft_theme::{ControlSize, Mode};
 use craft_ui::buttons::IconButton;
 use craft_ui::contract::{
@@ -138,7 +138,7 @@ struct Report {
     refresh: bool,
     source_changed: bool,
     channel_changed: bool,
-    zone: Option<EditEvent<ScopeZoneEdit>>,
+    zone: EditEvents<ScopeZoneEdit>,
     hovered_level: Option<f32>,
     clipping_toggled: bool,
 }
@@ -222,7 +222,7 @@ impl Pass<'_> {
         let mut openers = vec![histogram.response.clone()];
         if zoned {
             let edit = ToneZones::new(words.tone_zones.clone(), self.panel.zones, self.panel.zone_values).show_at(ui, rect);
-            self.report.zone = edit.event;
+            self.report.zone = edit.events;
         }
         if let Some(clipping) = frame.clipping {
             self.warnings(ui, rect, clipping);
@@ -330,9 +330,9 @@ impl Pass<'_> {
         let settings = &mut self.panel.state.settings;
         let mut shadows = ClipWarning::new(words.shadow_warning.clone(), Bind::bound(&mut settings.shadow_warning), clipping.shadows);
         let side = shadows.measure_in(ui, Proposal::Ideal);
-        let toggled_shadows = shadows.show_at(ui, Rect::from_min_size(plot.min, side)).event.is_some();
+        let toggled_shadows = !shadows.show_at(ui, Rect::from_min_size(plot.min, side)).events.is_empty();
         let highlights = ClipWarning::new(words.highlight_warning.clone(), Bind::bound(&mut settings.highlight_warning), clipping.highlights);
-        let toggled_highlights = highlights.show_at(ui, Rect::from_min_size(pos2(plot.right() - side.x, plot.top()), side)).event.is_some();
+        let toggled_highlights = !highlights.show_at(ui, Rect::from_min_size(pos2(plot.right() - side.x, plot.top()), side)).events.is_empty();
         if toggled_shadows || toggled_highlights {
             self.report.clipping_toggled = true;
             self.report.settings_changed = true;
@@ -416,8 +416,8 @@ pub struct ScopePanelOutput {
     pub source_changed: bool,
     /// The Channel changed.
     pub channel_changed: bool,
-    /// A tone-zone edit, with its gesture; the host maps it to its control.
-    pub zone: Option<EditEvent<ScopeZoneEdit>>,
+    /// The tone-zone edits, in order, with their gesture; the host maps them to its control.
+    pub zone: EditEvents<ScopeZoneEdit>,
     /// The whole level under the pointer on the main plot.
     pub hovered_level: Option<f32>,
     /// The selected level range after this pass (also in [`ScopePanelState::range`]).

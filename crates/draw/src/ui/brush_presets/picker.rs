@@ -3,7 +3,7 @@
 
 use std::hash::Hash;
 
-use craft_behavior::{EditEvent, IconId, Mixed, Value};
+use craft_behavior::{EditEvent, EditEvents, IconId, Mixed, Value};
 use craft_ui::buttons::IconButton;
 use craft_ui::contract::{Bind, BodyCx, EditResponse, Outcome, Props as _, Show as _, ShowContainer as _, Trigger, clicked};
 use craft_ui::form::SliderField;
@@ -111,9 +111,9 @@ pub struct BrushPresetPickerOutput<K> {
     pub edit: Option<EditResponse<Option<K>>>,
     /// The Size row: the new diameter, whole pixels from 1 to the maximum. A drag is one gesture; a typed value is a
     /// `Set`. The app sends it to its tool options host.
-    pub diameter: Option<EditEvent<f64>>,
+    pub diameter: EditEvents<f64>,
     /// The Hardness slider: the new hardness, 0 to 1 in whole percent.
-    pub hardness: Option<EditEvent<f64>>,
+    pub hardness: EditEvents<f64>,
     /// The picks, in the order they happened.
     pub picks: Vec<BrushPick<K>>,
     /// The persisted view when the user changed it this pass (a part box, the scale): the app saves it.
@@ -202,19 +202,19 @@ impl<'a, K: Value + Eq + Hash> BrushPresetPicker<'a, K> {
             let mut browser = before.browser.clone();
             let mut next_parts = parts;
             let mut head_picks: Vec<BrushPick<K>> = Vec::new();
-            let (mut diameter, mut hardness) = (None, None);
+            let (mut diameter, mut hardness) = (EditEvents::new(), EditEvents::new());
             let head = |ui: &mut Ui, head_cx: &mut BodyCx<'_>| {
                 head_picks.clear();
                 next_parts = parts;
                 let size = BrushSizeField::new(words.size.clone(), Bind::given(values.diameter), max_diameter).show(ui);
-                diameter = size.edit.and_then(|edit| edit.event);
-                hardness = None;
+                diameter = size.edit.map(|edit| edit.events).unwrap_or_default();
+                hardness = EditEvents::new();
                 if let Some(value) = values.hardness {
                     let field = SliderField::new(words.hardness.clone(), Bind::given(value * 100.0), 0.0..=100.0)
                         .step(1.0)
                         .unit_kind(UnitKind::Percent)
                         .show(ui);
-                    hardness = field.event.map(|event| event.map(|percent| (percent / 100.0).clamp(0.0, 1.0)));
+                    hardness = field.events.map(|percent| (percent / 100.0).clamp(0.0, 1.0));
                 }
                 Row::new().show(ui, |ui, _| {
                     let icon = |name: &'static str| IconSpec::svg(IconId::new(name));
@@ -294,7 +294,14 @@ impl<'a, K: Value + Eq + Hash> BrushPresetPicker<'a, K> {
             Some((edit, diameter, hardness, picks, settings)) => {
                 BrushPresetPickerOutput { response: shown.output, edit: Some(edit), diameter, hardness, picks, settings }
             }
-            None => BrushPresetPickerOutput { response: shown.output, edit: None, diameter: None, hardness: None, picks: Vec::new(), settings: None },
+            None => BrushPresetPickerOutput {
+                response: shown.output,
+                edit: None,
+                diameter: EditEvents::new(),
+                hardness: EditEvents::new(),
+                picks: Vec::new(),
+                settings: None,
+            },
         }
     }
 }

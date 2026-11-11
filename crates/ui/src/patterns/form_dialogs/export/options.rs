@@ -424,7 +424,7 @@ fn preset_row(ui: &mut Ui, fields: &mut DialogFields, name: &Label, presets: &[(
     let current = jpeg_quality_preset(quality).quality();
     let entries: Vec<Entry<u8>> = presets.iter().map(|(value, label)| Entry::new(*value, label.clone())).collect();
     let shown = Select::new(name.clone(), Bind::given(current), &entries).show(ui);
-    if let Some(picked) = shown.event.as_ref().and_then(|event| event.value()) {
+    if let Some(picked) = shown.value() {
         fields.set(QUALITY, FieldValue::Int(i64::from(*picked)));
     }
     shown.response

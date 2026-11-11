@@ -3,7 +3,7 @@
 use super::model::{PrefValue, PreferencesModel, RowKind, RowSpec};
 use crate::buttons::Button;
 use crate::choice::Checkbox;
-use crate::contract::{Bind, Entry, FieldLayout, Props as _, Show as _, ShowContainer as _, clicked, landed};
+use crate::contract::{Bind, Entry, FieldLayout, Props as _, Show as _, ShowContainer as _, clicked};
 use crate::form::{Field, Help};
 use crate::layout_components::Stack;
 use crate::pickers::Select;
@@ -113,7 +113,7 @@ pub(super) fn show_row<H: PreferencesModel + ?Sized>(ui: &mut Ui, host: &mut H, 
         Kind::Bool(value) => {
             let mut next = None;
             field().layout(FieldLayout::After).show(ui, |ui, _| {
-                next = Checkbox::new(Bind::given(*value)).show(ui).event.as_ref().and_then(landed).cloned();
+                next = Checkbox::new(Bind::given(*value)).show(ui).events.landed().cloned();
             });
             record(next.map(PrefValue::Bool));
         }
@@ -128,7 +128,7 @@ pub(super) fn show_row<H: PreferencesModel + ?Sized>(ui: &mut Ui, host: &mut H, 
                 None => options,
             };
             field().show(ui, |ui, _| {
-                next = Select::new(label.clone(), Bind::given(value.clone()), options).show(ui).event.as_ref().and_then(landed).cloned();
+                next = Select::new(label.clone(), Bind::given(value.clone()), options).show(ui).events.landed().cloned();
             });
             record(next.map(PrefValue::Choice));
         }
@@ -136,7 +136,7 @@ pub(super) fn show_row<H: PreferencesModel + ?Sized>(ui: &mut Ui, host: &mut H, 
             let mut next = None;
             field().show(ui, |ui, _| {
                 let shown = number(units, label, *value as f64, *unit, 0).range(*range.start() as f64..=*range.end() as f64).step(1.0);
-                next = shown.show(ui).edit.event.as_ref().and_then(landed).cloned().flatten();
+                next = shown.show(ui).edit.events.landed().cloned().flatten();
             });
             record(next.map(|v| PrefValue::Int(v.round() as i64)));
         }
@@ -146,21 +146,21 @@ pub(super) fn show_row<H: PreferencesModel + ?Sized>(ui: &mut Ui, host: &mut H, 
                 let shown = number(units, label, *value, *unit, usize::from(*decimals))
                     .range(range.clone())
                     .step(step.unwrap_or_else(|| step_for(range, *decimals)));
-                next = shown.show(ui).edit.event.as_ref().and_then(landed).cloned().flatten();
+                next = shown.show(ui).edit.events.landed().cloned().flatten();
             });
             record(next.map(PrefValue::Float));
         }
         Kind::Text(value) => {
             let mut next = None;
             field().show(ui, |ui, _| {
-                next = TextField::new(label.clone(), Bind::given(value.clone())).show(ui).event.as_ref().and_then(landed).cloned();
+                next = TextField::new(label.clone(), Bind::given(value.clone())).show(ui).events.landed().cloned();
             });
             record(next.map(PrefValue::Text));
         }
         Kind::Color(color) => {
             let mut next = None;
             field().show(ui, |ui, _| {
-                next = HexField::hex(label.clone(), Bind::given(*color)).show(ui).event.as_ref().and_then(landed).cloned();
+                next = HexField::hex(label.clone(), Bind::given(*color)).show(ui).events.landed().cloned();
             });
             record(next.map(PrefValue::Color));
         }

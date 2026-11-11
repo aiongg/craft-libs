@@ -16,6 +16,7 @@ use crate::runtime::access::{self, Politeness, Role, SetPosition, scope};
 use crate::runtime::env::{AppValues, Env, EnvView};
 use crate::runtime::memory::{MemoryStage, sub};
 use crate::runtime::overlay::CloseReason;
+use crate::runtime::reads::{self, Sample};
 use crate::runtime::{commands, focus, inspect, keys, memory};
 use crate::style::{ComponentStyle as _, Ink, StateSet, StyleCx};
 use craft_behavior::{Flow, Input, ItemSource, KeyRole, NavMove, PartRef, PressState, Proposal, Roving, Sense};
@@ -794,7 +795,9 @@ fn run_in_host<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Opti
     steps::after_update(&mut cx.core);
     // 11 apply
     p.trace.mark(Step::Apply);
-    steps::apply_values(comp, cx);
+    let edit = steps::apply_values(comp, cx);
+    let leaf = p.hooks.shape() == ShapeKind::Leaf;
+    steps::rerun_after_edit(comp, cx, edit, &MeasureIn { ui: &*ui, env: p.env, proposal: Proposal::Ideal, room: p.room }, resolved, leaf);
     p.hooks.apply(comp, cx);
     steps::register_reset(comp, cx);
     // 12 state
@@ -832,7 +835,8 @@ fn run_in_host<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Opti
     // 15 settle
     p.trace.mark(Step::Settle);
     p.hooks.settle(comp, cx);
-    steps::settle(comp, cx);
+    let edit = steps::settle(comp, cx);
+    steps::rerun_after_edit(comp, cx, edit, &MeasureIn { ui: &*ui, env: p.env, proposal: Proposal::Ideal, room: p.room }, resolved, leaf);
     // 16 report, then the tooltip.
     p.trace.mark(Step::Report);
     steps::report(
@@ -944,10 +948,20 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
     trace.mark(Step::Measure);
     // A control in a label scope reports its narrowest width, in a measuring run too: the real run's label step reads
     // it to decide whether the row fits the label beside it.
-    if shape == ShapeKind::Leaf && scope::in_label(&ctx) {
+    let min = (shape == ShapeKind::Leaf && scope::in_label(&ctx)).then(|| {
         let input = MeasureIn { ui: &*ui, env, proposal: Proposal::Min, room: None };
         let min = steps::measure(&mut comp, &input, &style, &resolved, shown.as_deref(), Vec2::ZERO);
         scope::record_control_min(&ctx, min.x);
+        min
+    });
+    // The read record: the binding step 4 read, and the sizes step 5 made from it.
+    if let Some(key) = comp.bind().and_then(|bind| bind.key(id)) {
+        let ideal = Sample { proposal: Proposal::Ideal, room, took: size };
+        let measuring = sizing || crate::runtime::measure::active(&ctx);
+        match min {
+            Some(min) => reads::note(&ctx, key, id, measuring, &[ideal, Sample { proposal: Proposal::Min, room: None, took: min }]),
+            None => reads::note(&ctx, key, id, measuring, &[ideal]),
+        }
     }
     // The row gave the leaf no less than its least, so a leaf whose measure does not follow its room still fits.
     let size = cap.map_or(size, |cap| Vec2::new(size.x.min(cap), size.y));
@@ -1122,7 +1136,8 @@ pub(super) fn measured_extent<C: Component>(
     let response = steps::inert_response(at.ui, at.resolved.id);
     let core = blank_core(at.env.view(), at.resolved, stage, at.ui.ctx().clone(), at.env.ink, response, at.command.clone());
     let mut cx = Cx::<C> { core, style, shown, mixed: at.mixed, events: Vec::new(), applied: 0, validity: Validity::Ok };
-    let extent = steps::measuring(at.ui.ctx(), || hooks.measured_extent(comp, at, &mut cx));
+    let ctx = at.ui.ctx();
+    let extent = reads::measuring(ctx, at.resolved.id, || steps::measuring(ctx, || hooks.measured_extent(comp, at, &mut cx)));
     (extent, cx.shown.take())
 }
 
@@ -1158,7 +1173,11 @@ fn measure_shape<C: Component>(
         measured_extent(comp, hooks, &measuring, &mut stage, &style, shown)
     };
     let input = MeasureIn { ui, env: &env, proposal, room: None };
-    steps::measure(comp, &input, &style, &resolved, shown.as_deref(), extent)
+    let took = steps::measure(comp, &input, &style, &resolved, shown.as_deref(), extent);
+    if let Some(key) = comp.bind().and_then(|bind| bind.key(id)) {
+        reads::note(ui.ctx(), key, id, true, &[Sample { proposal, room: None, took }]);
+    }
+    took
 }
 
 /// The flags a host passes to its faces: the validity of its value. The rest (focus, selection, open) belong to the
@@ -1198,6 +1217,9 @@ pub(crate) fn paint_face<C: Show>(ui: &mut Ui, source: &FaceSource<'_>, part: Pa
     let id = face_id(source.id, part);
     let resolved = steps::resolved(id, &step1, &common);
     let (shown, mixed) = steps::peek_value(&mut face, &ctx, id, step1.command.as_deref());
+    if let Some(key) = face.bind().and_then(|bind| bind.key(id)) {
+        reads::note(&ctx, key, id, crate::runtime::measure::active(&ctx), &[]);
+    }
     // A peek that opens no lifetime stage and is dropped without a write-back; a write through it is a debug assertion.
     let mut stage = MemoryStage::open_peek(&ctx, id);
     stage.face = true;

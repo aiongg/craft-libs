@@ -169,7 +169,7 @@ impl Shown {
             navigation.animated_zoom = animated;
             let mut view = held.borrow_mut();
             let out = Navigator::new("Navigator", Bind::bound(&mut *view), DOC).navigation(navigation).show(ui);
-            kinds.borrow_mut().extend(out.view.event.as_ref().and_then(EditKind::of));
+            kinds.borrow_mut().extend(out.view.events.iter().filter_map(EditKind::of));
         });
         fixture.settle();
         Shown { fixture, view, edits }

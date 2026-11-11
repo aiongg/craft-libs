@@ -29,7 +29,7 @@ fn color_balance_properties(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
         editor = editor.tone(tone);
     }
     let output = editor.show(ui);
-    if output.edit.event.is_some() {
+    if !output.edit.events.is_empty() {
         panel.session.edited();
     }
     if clicked(&Button::new("Reset").show(ui)) {

@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
 use std::time::Instant;
 
-use craft_behavior::{EditEvent, Metrics, Mixed, Proposal, Sense};
+use craft_behavior::{EditEvent, EditEvents, Metrics, Mixed, Proposal, Sense};
 use craft_cms::lutfile::{LutError, LutFile};
 use craft_host::{PickId, PickRequest, Picked};
 use craft_ui::contract::{
@@ -316,21 +316,25 @@ impl Component for LutPicker<'_> {
         let entries = Self::entries(&words, cx.value(), &state.files);
         let shown = cx.value().map_or(Mixed::Mixed, |value| Mixed::Same(Row::Choice(value.clone())));
         let out = ui.child("select", cx.rect, Self::select(&words, shown, &entries));
-        let Some(event) = &out.event else { return };
-        match event.value() {
-            Some(Row::Load) => self.load_asked |= matches!(event, EditEvent::Commit { .. }),
-            Some(Row::Choice(choice)) => {
-                let step = matches!(event, EditEvent::Set { .. });
-                if !step || matches!(choice, LutChoice::None | LutChoice::Builtin(_)) {
-                    cx.adopt(&out, &LutChoice::None, |value, mine| {
-                        if let Row::Choice(choice) = value {
-                            mine.clone_from(choice);
-                        }
-                    });
+        let mut adopted = EditEvents::new();
+        for event in &out.events {
+            match event.value() {
+                Some(Row::Load) => self.load_asked |= matches!(event, EditEvent::Commit { .. }),
+                Some(Row::Choice(choice)) => {
+                    let step = matches!(event, EditEvent::Set { .. });
+                    if !step || matches!(choice, LutChoice::None | LutChoice::Builtin(_)) {
+                        adopted.push(event.clone());
+                    }
                 }
+                None => {}
             }
-            None => {}
         }
+        let adopted = EditResponse::lifted(out.response().clone(), adopted, None);
+        cx.adopt(&adopted, &LutChoice::None, |value, mine| {
+            if let Row::Choice(choice) = value {
+                mine.clone_from(choice);
+            }
+        });
     }
 
     fn finish(self, mut cx: Cx<'_, Self>) -> LutPickerOutput {

@@ -98,8 +98,8 @@ impl<'a> ShapeBar<'a> {
         Row::new().enabled(!appearance.locked).show(ui, |ui, _| {
             pass.begin();
             let fill_on = !matches!(appearance.fill, craft_color::ui::Paint::None);
-            let check = Checkbox::new(Bind::given(fill_on)).label(words.fill.clone()).show(ui).event;
-            pass.events.extend(check.map(|event| event.map(ShapeChange::FillOn)));
+            let check = Checkbox::new(Bind::given(fill_on)).label(words.fill.clone()).show(ui).events;
+            pass.events.extend(check.map(ShapeChange::FillOn));
             let hidden = SideLabel::new().kind(LabelKind::Hidden);
             let fill = Field::new(words.fill_color.clone())
                 .id_salt("fill")
@@ -117,7 +117,7 @@ impl<'a> ShapeBar<'a> {
             let width = pass.width_cell();
             let event =
                 Field::new(width.caption.clone()).id_salt(width.key).side(hidden).sizing(Sizing::Content).show(ui, |ui, _| width.show(ui)).inner;
-            pass.take_width(event.flatten());
+            pass.take_width(event.unwrap_or_default());
             pass.style_button(ui, kind != ShapeKind::Ellipse);
             let cell = match kind {
                 ShapeKind::Rectangle | ShapeKind::RoundedRectangle => Some((
@@ -138,7 +138,7 @@ impl<'a> ShapeBar<'a> {
                 let side = SideLabel::new().scrub(true);
                 let event =
                     Field::new(cell.caption.clone()).id_salt(cell.key).side(side).sizing(Sizing::Content).show(ui, |ui, _| cell.show(ui)).inner;
-                pass.events.extend(event.flatten().map(|event| event.map(change)));
+                pass.events.extend(event.unwrap_or_default().map(change));
             }
         });
         ShapeBarOutput { events: pass.events, screen_pick: pass.screen_pick }

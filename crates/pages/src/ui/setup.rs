@@ -13,7 +13,7 @@ mod stories;
 
 use std::ops::RangeInclusive;
 
-use craft_behavior::{EditEvent, Mixed, NumberCodec};
+use craft_behavior::{EditEvent, NumberCodec};
 use craft_theme::variant::Tone;
 use craft_ui::choice::{Checkbox, Radio, RadioGroup};
 use craft_ui::contract::{Bind, EditResponse, Entry, FieldLayout, Pattern, Props, Remember as _, Show as _, ShowContainer as _, SideLabel, Trigger};
@@ -205,30 +205,26 @@ struct Length {
     first: bool,
 }
 
-/// Runs one event of a number field of the dialog: `write` puts its value into the setup. A `Begin` remembers the setup
-/// and writes the value the field shows in that pass; a `Cancel` puts the remembered setup back.
+/// Runs the events of a number field of the dialog in order: `write` puts their values into the setup. A `Begin`
+/// remembers the setup; a `Cancel` puts the remembered setup back.
 fn apply(form: &mut FormCx<'_, '_>, setup: &mut PageSetup, edit: &EditResponse<Option<f64>>, write: impl Fn(&mut PageSetup, f64)) {
-    let Some(event) = edit.event.as_ref() else { return };
-    match event {
-        EditEvent::Begin { .. } => {
-            form.memory::<Before>().0 = Some(setup.clone());
-            if let Some(Mixed::Same(shown)) = &edit.shown
-                && let Some(value) = **shown
-            {
-                write(setup, value);
+    for event in &edit.events {
+        match event {
+            EditEvent::Begin { .. } => {
+                form.memory::<Before>().0 = Some(setup.clone());
             }
-        }
-        EditEvent::Cancel { .. } => {
-            if let Some(before) = form.memory::<Before>().0.take() {
-                *setup = before;
+            EditEvent::Cancel { .. } => {
+                if let Some(before) = form.memory::<Before>().0.take() {
+                    *setup = before;
+                }
             }
-        }
-        event => {
-            if let Some(value) = event.value().copied().flatten() {
-                write(setup, value);
-            }
-            if matches!(event, EditEvent::Commit { .. } | EditEvent::Set { .. }) {
-                form.memory::<Before>().0 = None;
+            event => {
+                if let Some(value) = event.value().copied().flatten() {
+                    write(setup, value);
+                }
+                if matches!(event, EditEvent::Commit { .. } | EditEvent::Set { .. }) {
+                    form.memory::<Before>().0 = None;
+                }
             }
         }
     }

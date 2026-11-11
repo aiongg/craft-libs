@@ -2,7 +2,7 @@
 
 use super::bar::SIDE;
 use super::{ArtboardBackground, ArtboardItem, ArtboardPreset, ArtboardWords};
-use craft_behavior::EditEvent;
+use craft_behavior::EditEvents;
 use craft_behavior::kurbo::Rect;
 use craft_theme::Srgba;
 use craft_ui::choice::Swatch;
@@ -38,8 +38,8 @@ enum Choice {
 pub struct ArtboardPropertiesOutput {
     /// The section's response.
     pub response: Response,
-    /// The board's new rect from the preset, W, H, X or Y (a `Set`, or a caption scrub's gesture).
-    pub rect: Option<EditEvent<Rect>>,
+    /// The board's new rects, in order, from the preset, W, H, X or Y (a `Set`, or a caption scrub's gesture).
+    pub rect: EditEvents<Rect>,
     /// A background picked from the select (White, Black or Transparent).
     pub background: Option<ArtboardBackground>,
     /// Other… was chosen, or the swatch of the custom colour was clicked: the app opens its colour picker with this
@@ -81,7 +81,7 @@ impl<'a> ArtboardProperties<'a> {
             ArtboardBackground::Custom(color) => Some(color),
             _ => None,
         };
-        let mut rect_event = None;
+        let mut rect_events = EditEvents::new();
         let mut picked = None;
         let mut pick_color = None;
         let request = |color: Option<Srgba>| {
@@ -104,7 +104,7 @@ impl<'a> ArtboardProperties<'a> {
                         && let Some(preset) = self.presets.get(i)
                     {
                         let moved = Rect::new(rect.x0, rect.y0, rect.x0 + preset.size.width, rect.y0 + preset.size.height);
-                        rect_event = pick.event.map(|event| event.map(|_| moved));
+                        rect_events.extend(pick.events.map(|_| moved));
                     }
                 });
                 let field = |ui: &mut Ui,
@@ -119,20 +119,17 @@ impl<'a> ArtboardProperties<'a> {
                                 .unit_kind(UnitKind::Pixels)
                                 .show(ui)
                                 .edit
-                                .event
+                                .events
                         })
                         .inner
-                        .flatten()
+                        .unwrap_or_default()
                 };
                 let resized = |size: (f64, f64)| Rect::new(rect.x0, rect.y0, rect.x0 + size.0, rect.y0 + size.1);
                 let moved = |at: (f64, f64)| Rect::new(at.0, at.1, at.0 + width, at.1 + height);
-                let edits = [
-                    field(ui, &words.width, &words.width_name, width, &SIDE).map(|e| e.map(|v| resized((v.unwrap_or(width), height)))),
-                    field(ui, &words.height, &words.height_name, height, &SIDE).map(|e| e.map(|v| resized((width, v.unwrap_or(height))))),
-                    field(ui, &words.x, &words.x, rect.x0, &OFFSET).map(|e| e.map(|v| moved((v.unwrap_or(rect.x0), rect.y0)))),
-                    field(ui, &words.y, &words.y, rect.y0, &OFFSET).map(|e| e.map(|v| moved((rect.x0, v.unwrap_or(rect.y0))))),
-                ];
-                rect_event = rect_event.take().or_else(|| edits.into_iter().flatten().next());
+                rect_events.extend(field(ui, &words.width, &words.width_name, width, &SIDE).map(|v| resized((v.unwrap_or(width), height))));
+                rect_events.extend(field(ui, &words.height, &words.height_name, height, &SIDE).map(|v| resized((width, v.unwrap_or(height)))));
+                rect_events.extend(field(ui, &words.x, &words.x, rect.x0, &OFFSET).map(|v| moved((v.unwrap_or(rect.x0), rect.y0))));
+                rect_events.extend(field(ui, &words.y, &words.y, rect.y0, &OFFSET).map(|v| moved((rect.x0, v.unwrap_or(rect.y0)))));
                 Field::new(words.background.clone()).show(ui, |ui, _| {
                     Row::new().show(ui, |ui, _| {
                         let now = match background {
@@ -157,6 +154,6 @@ impl<'a> ArtboardProperties<'a> {
                 });
             });
         });
-        ArtboardPropertiesOutput { response: section.response.clone(), rect: rect_event, background: picked, pick_color }
+        ArtboardPropertiesOutput { response: section.response.clone(), rect: rect_events, background: picked, pick_color }
     }
 }

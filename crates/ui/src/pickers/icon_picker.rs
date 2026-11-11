@@ -159,7 +159,7 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> IconPicker<'a, K> {
         let words = env.words::<PickerWords>();
         let grid_id = ui.scope_id().with("icons");
         let search = TextField::search(words.icon_search.clone(), Bind::kept()).drives(grid_id).show(ui);
-        let search_changed = search.event.is_some();
+        let search_changed = !search.events.is_empty();
         let query = match &search.shown {
             Some(Mixed::Same(shown)) => shown.trim().to_owned(),
             _ => String::new(),

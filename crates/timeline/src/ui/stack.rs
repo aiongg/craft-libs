@@ -13,8 +13,8 @@ use crate::clips::ClipEdit;
 use crate::model::{ClipId, TrackId, TrackInfo, TrackKind};
 use crate::time::Tick;
 use craft_behavior::{
-    ColumnKey, ColumnWidth, CursorIcon, DisplayOrder, EditEvent, HitLevel, HitPriority, IconId, ItemSource, MarqueeSelect, Metrics, Mixed, PartKey,
-    PressPhase, Selection, SelectionChange, Sense, SizeHint, SpanLayout,
+    ColumnKey, ColumnWidth, CursorIcon, DisplayOrder, EditEvent, EditEvents, HitLevel, HitPriority, IconId, ItemSource, MarqueeSelect, Metrics,
+    Mixed, PartKey, PressPhase, Selection, SelectionChange, Sense, SizeHint, SpanLayout,
 };
 use craft_ui::contract::{
     Access, Bind, BindMut, Collection, CollectionProps, CollectionResponse, ColumnKind, ColumnSpec, Common, Component, ContainerProps, Cx, Edit as _,
@@ -216,7 +216,7 @@ impl TrackEvent {
 #[non_exhaustive]
 pub struct TrackEvent {
     /// A clip gesture of the lane.
-    pub clip: Option<EditEvent<ClipEdit>>,
+    pub clip: EditEvents<ClipEdit>,
     /// A change of the clip selection.
     pub select: Option<SelectionChange<ClipId>>,
     /// Cmd or Ctrl was held at the pick: the app leaves linked partners out.
@@ -632,7 +632,7 @@ impl Component for TrackRow<'_> {
 
     fn finish(self, cx: Cx<'_, Self>) -> TrackOut {
         let mut event = self.event;
-        event.clip = cx.edit_response().event;
+        event.clip = cx.edit_response().events;
         let event = (!event.is_idle()).then_some(event);
         TrackOut { response: cx.response.clone(), event }
     }

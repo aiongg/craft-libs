@@ -3,7 +3,7 @@
 #[cfg(feature = "screen-testing")]
 mod stories;
 
-use craft_behavior::Mixed;
+use craft_behavior::{EditEvents, Mixed};
 use craft_ui::contract::{Bind, EditResponse, Props as _, Show as _, ShowContainer as _};
 use craft_ui::display::{Shade, Text};
 use craft_ui::layout::RowAlign;
@@ -124,11 +124,11 @@ impl<'a> BlendIfBar<'a> {
                 .show(ui)
                 .edit
                 .map(|row| BlendIfRange::of_row(&row));
-            if let Some(event) = &shown.event {
+            for event in &shown.events {
                 range.reborrow().write(root, event);
             }
             out = Some(shown);
         });
-        out.unwrap_or_else(|| EditResponse::lifted(shown_stack.output, None, None))
+        out.unwrap_or_else(|| EditResponse::lifted(shown_stack.output, EditEvents::new(), None))
     }
 }

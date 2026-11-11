@@ -684,7 +684,7 @@ impl Body<'_> {
             }
             let track = model.track(i, &track_values);
             let row = ChannelRow::new(channel_name(model, i, &[model]), Bind::given(f64::from(current.values[i])), rule).track(track).show(ui);
-            if let Some(event) = row.and_then(|row| row.event) {
+            for event in row.into_iter().flat_map(|row| row.events) {
                 self.channel_event(model, current, i, event);
             }
         }
@@ -704,8 +704,8 @@ impl Body<'_> {
                 (area, strip)
             })
             .inner
-            .map_or((None, None), |(area, strip)| (area.event, strip.event));
-        for event in [area, strip].into_iter().flatten() {
+            .map_or_else(Default::default, |(area, strip)| (area.events, strip.events));
+        for event in area.into_iter().chain(strip) {
             self.model_event(model, event);
         }
     }
@@ -714,7 +714,7 @@ impl Body<'_> {
     fn readout(&mut self, ui: &mut Ui) {
         let color = self.color();
         let edit = ColorReadout::new(self.words.hex_color.clone(), Bind::given(color.to_rgba())).show(ui);
-        if let Some(event) = edit.event {
+        for event in edit.events {
             self.push(self.target, event.map(|rgba| PickedColor { color: Srgba::from(rgba).with_alpha(color.a), model: None }));
         }
     }
@@ -723,7 +723,7 @@ impl Body<'_> {
     fn wheel(&mut self, ui: &mut Ui) {
         let values = self.values(&HsbModel);
         let wheel = ColorWheel::new(self.words.color_wheel.clone(), Bind::given(values)).show(ui);
-        if let Some(event) = wheel.event {
+        for event in wheel.events {
             self.model_event(&HsbModel, event);
         }
         let add = Row::new().align(RowAlign::End).show(ui, |ui, _| {
@@ -752,7 +752,7 @@ impl Body<'_> {
             .web_safe(self.now.web_safe_ramp)
             .show(ui);
         // Alt is on every event of a gesture that has a value; the others go where it went.
-        if let Some(event) = ramp.edit.event {
+        for event in ramp.edit.events {
             if let Some(pick) = event.value() {
                 self.kept.other = pick.other;
             }

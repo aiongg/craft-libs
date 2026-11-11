@@ -23,7 +23,7 @@ mod style;
 mod update;
 mod value;
 
-pub(crate) use apply::apply_values;
+pub(crate) use apply::{apply_values, rerun_after_edit};
 pub(crate) use env::{env, resolved};
 pub(crate) use finish::{before_finish, inert_response, record_size};
 pub(super) use id::measuring;

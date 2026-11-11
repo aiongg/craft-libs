@@ -4,7 +4,7 @@ use std::ops::RangeInclusive;
 
 use egui::{Color32, Response, Ui};
 
-use craft_behavior::{EditEvent, IconId};
+use craft_behavior::{EditEvents, IconId};
 use craft_theme::variant::Tone;
 use craft_theme::{ControlSize, Srgba};
 use craft_ui::buttons::IconButton;
@@ -31,10 +31,10 @@ use super::words::FillWords;
 pub struct FillPanelOutput {
     /// The panel's response.
     pub response: Response,
-    /// The last edit of a setting this pass, with the settings as they stand after it (written to
+    /// The edits of the settings this pass, in order, each with the settings as they stand after it (written to
     /// the settings already): the tint and the preview follow. A slider's drag is
     /// `Begin`, `Update` and `Commit`; a check box or a select is one `Set`.
-    pub edit: Option<EditEvent<FillSettings>>,
+    pub edit: EditEvents<FillSettings>,
     /// A sampling option picked (the session changes: `FillSession::set_sampling`).
     pub sampling: Option<SamplingMode>,
     /// A section's Reset pressed.
@@ -75,7 +75,7 @@ pub struct FillPanel<'a> {
 /// What the controls of one pass add up to.
 #[derive(Default)]
 struct Pass {
-    edit: Option<EditEvent<FillSettings>>,
+    edit: EditEvents<FillSettings>,
     sampling: Option<SamplingMode>,
     reset: Option<FillReset>,
     pick_color: Option<ColorRequest>,
@@ -86,8 +86,8 @@ type Write<T> = fn(&mut FillSettings, T);
 
 /// A control's edit of one field as an edit of the settings: the settings at the start of the pass with that field
 /// replaced.
-fn lift<T: Clone + 'static>(event: EditEvent<T>, base: &FillSettings, set: Write<T>) -> EditEvent<FillSettings> {
-    event.map(|value| {
+fn lift<T: Clone + 'static>(events: EditEvents<T>, base: &FillSettings, set: Write<T>) -> EditEvents<FillSettings> {
+    events.map(|value| {
         let mut settings = base.clone();
         set(&mut settings, value);
         settings
@@ -149,7 +149,7 @@ impl<'a> FillPanel<'a> {
             if let Some(error) = error {
                 Text::new(error.to_owned()).role(TypeRole::Caption).tone(Tone::Bad).show(ui);
             }
-            if let Some(event) = &rows.pass.edit {
+            for event in &rows.pass.edit {
                 let _ = settings.reborrow().write(root, event);
             }
             done = rows.pass;
@@ -193,8 +193,8 @@ impl Rows<'_> {
             Entry::new(SamplingMode::Rectangular, words.rectangular.clone()),
             Entry::new(SamplingMode::Custom, words.custom.clone()),
         ];
-        let picked = Segmented::new(words.sampling_options.clone(), Bind::given(sampling), &modes).show(ui).event;
-        if let Some(mode) = picked.and_then(|event| event.value().copied()).filter(|mode| *mode != sampling) {
+        let picked = Segmented::new(words.sampling_options.clone(), Bind::given(sampling), &modes).show(ui).value().copied();
+        if let Some(mode) = picked.filter(|mode| *mode != sampling) {
             self.pass.sampling = Some(mode);
         }
         let base = self.base;
@@ -227,16 +227,13 @@ impl Rows<'_> {
     /// The Opacity slider (0..=100 %, whole numbers); its edit is the pass's edit.
     fn slider(&mut self, ui: &mut Ui, label: &Label, value: f64, range: RangeInclusive<f64>, set: Write<f64>) {
         let field = SliderField::new(label.clone(), Bind::given(value), range).step(1.0).unit_kind(UnitKind::Percent);
-        if let Some(event) = field.show(ui).event {
-            self.pass.edit = Some(lift(event, self.base, set));
-        }
+        self.pass.edit.extend(lift(field.show(ui).events, self.base, set));
     }
 
     /// A check box over `value`; its edit is the pass's edit.
     fn check(&mut self, ui: &mut Ui, label: &Label, value: bool, set: Write<bool>) {
-        if let Some(event) = Checkbox::new(Bind::given(value)).label(label.clone()).show(ui).event {
-            self.pass.edit = Some(lift(event, self.base, set));
-        }
+        let events = Checkbox::new(Bind::given(value)).label(label.clone()).show(ui).events;
+        self.pass.edit.extend(lift(events, self.base, set));
     }
 
     /// A select over `options` captioned `label`; its edit is the pass's edit.
@@ -250,9 +247,8 @@ impl Rows<'_> {
     ) {
         let entries: Vec<Entry<T>> = options.iter().map(|(value, text)| Entry::new(value.clone(), (*text).clone())).collect();
         Field::new(label.clone()).show(ui, |ui, _| {
-            if let Some(event) = Select::new(label.clone(), Bind::given(current.clone()), &entries).show(ui).event {
-                self.pass.edit = Some(lift(event, self.base, set));
-            }
+            let events = Select::new(label.clone(), Bind::given(current.clone()), &entries).show(ui).events;
+            self.pass.edit.extend(lift(events, self.base, set));
         });
     }
 }

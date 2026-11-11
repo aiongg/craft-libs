@@ -566,19 +566,24 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                         }
                         let gesture = self.renaming.gesture;
                         let before = Mixed::Same(Rename { key: key.clone(), name: name.clone() });
-                        if matches!(editor.event, Some(EditEvent::Commit { .. } | EditEvent::Cancel { .. })) {
+                        // The editor's gesture end, if the pass has one, ends the rename.
+                        let end =
+                            editor.events.iter().rev().find(|event| matches!(event, EditEvent::Commit { .. } | EditEvent::Cancel { .. })).cloned();
+                        let edited = !editor.events.is_empty();
+                        if end.is_some() {
                             self.refocus = focus::is_focused(&ctx, editor.response.id);
                         }
                         // The editor claims Escape for the whole rename, as a text part with a draft does: Escape does not leave the
                         // row. One the editor leaves untaken (it holds no draft yet) cancels the rename.
                         keys::hold_escape(&ctx, editor.response.id);
-                        let escaped = editor.event.is_none() && focus::is_focused(&ctx, editor.response.id) && {
+                        let escaped = !edited && focus::is_focused(&ctx, editor.response.id) && {
                             let mut intents = keys::intents_of(&ctx, Some(editor.response.id), rtl);
                             let left = intents.take(Intent::Cancel);
                             keys::settle(&ctx, Some(editor.response.id), &intents);
                             left
                         };
-                        match editor.event {
+                        match end {
+                            None if edited => {}
                             None if escaped => {
                                 self.events.push(CollectionEvent::Rename(EditEvent::cancel(gesture, CancelReason::Escape, Some(before))));
                                 self.ended_rename = true;

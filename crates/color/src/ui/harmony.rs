@@ -151,14 +151,17 @@ impl<'a> HarmonyWheel<'a> {
         let mut pressed = None;
         let mut edits = Vec::new();
         let shown = Stack::new().show(ui, |ui, _| {
+            edits.clear();
+            pressed = None;
             let mut disc = ColorDisc::new(label.clone(), colors, Bind::kept());
             if let Some(selected) = selected {
                 disc = disc.chosen(selected);
             }
             let disc = disc.brightness(brightness).names(names.clone()).show(ui);
             pressed = disc.pressed;
-            if let Some(event) = disc.edit.event {
-                let marker = event.value().map(|m| m.marker).or(disc.grabbed).or(selected);
+            let grabbed = disc.grabbed;
+            for event in disc.edit.events {
+                let marker = event.value().map(|m| m.marker).or(grabbed).or(selected);
                 if let Some(marker) = marker {
                     edits.push((marker, event.map(|m| [Some(m.hue), Some(m.saturation), None])));
                 }
@@ -168,8 +171,10 @@ impl<'a> HarmonyWheel<'a> {
             let rule = ChannelRule { range: 0.0..=100.0, step: 1.0, decimals: 0 };
             Stack::new().enabled(selected.is_some()).show(ui, |ui, _| {
                 let row = ChannelRow::new(words.brightness.clone(), Bind::given(value), rule.clone()).track(track.clone()).show(ui);
-                if let (Some(i), Some(event)) = (selected, row.and_then(|row| row.event)) {
-                    edits.push((i, event.map(|v| [None, None, Some((v / 100.0) as f32)])));
+                if let (Some(i), Some(row)) = (selected, row) {
+                    for event in row.events {
+                        edits.push((i, event.map(|v| [None, None, Some((v / 100.0) as f32)])));
+                    }
                 }
             });
         });

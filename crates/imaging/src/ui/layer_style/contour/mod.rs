@@ -7,7 +7,7 @@ mod stories;
 
 use std::sync::Arc;
 
-use craft_behavior::{EditEvent, Mixed};
+use craft_behavior::{EditEvents, Mixed};
 use craft_ui::buttons::Button;
 use craft_ui::choice::Checkbox;
 use craft_ui::contract::{Bind, EditResponse, NoValue, Outcome, Pattern, Props as _, Show as _, ShowContainer as _, clicked};
@@ -144,7 +144,7 @@ pub struct ContourFieldOutput {
     /// The contour picked from the presets.
     pub edit: EditResponse<Contour>,
     /// The Anti-aliased check box's edit.
-    pub anti_alias: Option<EditEvent<Option<bool>>>,
+    pub anti_alias: EditEvents<Option<bool>>,
     /// The field asks for the Contour Editor.
     pub edit_contour: Option<ContourRequest>,
     /// The library asks for an action.
@@ -263,7 +263,7 @@ impl<'a> ContourField<'a> {
                 .or_else(|| user.iter().position(|candidate| *candidate == held).map(ContourKey::User));
             let mut action = None;
             let mut edit_contour = None;
-            let mut anti_event = None;
+            let mut anti_events = EditEvents::new();
             let mut picked = None;
             Row::new().show(ui, |ui, root| {
                 let picker = PresetPicker::new(label.clone(), Bind::bound(&mut key), rows, state.reborrowed())
@@ -286,10 +286,9 @@ impl<'a> ContourField<'a> {
                 {
                     let mut value = on;
                     let check = Checkbox::new(Bind::bound(&mut value)).label(words.anti_aliased.clone()).show(ui);
-                    if let Some(event) = check.event {
-                        let event = event.map(Some);
-                        bind.reborrow().write(root, &event);
-                        anti_event = Some(event);
+                    anti_events = check.events.map(Some);
+                    for event in &anti_events {
+                        bind.reborrow().write(root, event);
                     }
                 }
             });
@@ -299,14 +298,14 @@ impl<'a> ContourField<'a> {
                 None => held.clone(),
             };
             let edit = picked.expect("the row shows the picker").map(from_key);
-            if let Some(event) = &edit.event {
+            for event in &edit.events {
                 contour.reborrow().write(root, event);
             }
-            result = Some(ContourFieldOutput { edit, anti_alias: anti_event, edit_contour, action });
+            result = Some(ContourFieldOutput { edit, anti_alias: anti_events, edit_contour, action });
         });
         result.unwrap_or_else(|| ContourFieldOutput {
-            edit: EditResponse::lifted(shown.output, None, None),
-            anti_alias: None,
+            edit: EditResponse::lifted(shown.output, EditEvents::new(), None),
+            anti_alias: EditEvents::new(),
             edit_contour: None,
             action: None,
         })

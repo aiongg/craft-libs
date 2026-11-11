@@ -218,7 +218,7 @@ impl<'a> MetadataTable<'a> {
                 .pad(Pad::Control)
                 .show(ui, |ui, _| TextField::search(words.filter.clone(), text.reborrowed()).placeholder(words.filter.clone()).drives(rows).show(ui));
             if let Some(edit) = edit.inner {
-                filter_changed = edit.event.is_some();
+                filter_changed = !edit.events.is_empty();
                 if let Some(Mixed::Same(shown)) = &edit.shown {
                     query.clone_from(&**shown);
                 }

@@ -1,6 +1,6 @@
 //! [`SwatchPair`]: two overlapping colour wells, foreground over background or fill over stroke.
 
-use craft_behavior::{EditEvent, Flow, HitLevel, HitPriority, IconId, Metrics, Mixed, NavShape, PartKey, PressPhase, Roving, Sense};
+use craft_behavior::{EditEvents, Flow, HitLevel, HitPriority, IconId, Metrics, Mixed, NavShape, PartKey, PressPhase, Roving, Sense};
 use craft_theme::Srgba;
 use craft_ui::buttons::IconButton;
 use craft_ui::choice::{ChoiceWords, Swatch, SwatchMetrics};
@@ -138,9 +138,9 @@ pub struct SwatchPairOutput {
     pub clicked: Option<Well>,
     /// The well double-clicked in this pass.
     pub double_clicked: Option<Well>,
-    /// The edit of the picker in the popup; without an event while no popup is open.
-    pub edit: Option<EditEvent<PickedColor>>,
-    /// The well `edit` belongs to: the one whose popup is open.
+    /// The edits of the picker in the popup, in order; empty while no popup is open.
+    pub events: EditEvents<PickedColor>,
+    /// The well `events` belong to: the one whose popup is open.
     pub well: Well,
     /// The swap button was pressed.
     pub swap: bool,
@@ -213,7 +213,7 @@ pub struct SwatchPair<'a> {
     activated: bool,
     swap: bool,
     defaults: bool,
-    edit: Option<EditEvent<PickedColor>>,
+    edit: EditEvents<PickedColor>,
     edited: Option<Well>,
     screen_pick: Option<ScreenPickGesture>,
 }
@@ -236,7 +236,7 @@ impl<'a> SwatchPair<'a> {
             activated: false,
             swap: false,
             defaults: false,
-            edit: None,
+            edit: EditEvents::new(),
             edited: None,
             screen_pick: None,
         }
@@ -389,7 +389,7 @@ impl Component for SwatchPair<'_> {
             picker.show(ui)
         });
         if let Some(picked) = shown {
-            self.edit = picked.event;
+            self.edit = picked.events;
             self.edited = Some(opened);
             self.screen_pick = picked.screen_pick;
         }
@@ -433,7 +433,7 @@ impl Component for SwatchPair<'_> {
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> SwatchPairOutput {
-        let open = cx.recall::<Opened>().0.map(Well::of).filter(|_| self.edit.is_some() || self.edited.is_some());
+        let open = cx.recall::<Opened>().0.map(Well::of).filter(|_| !self.edit.is_empty() || self.edited.is_some());
         let (response, active) = (cx.response.clone(), cx.value().copied().unwrap_or_default());
         SwatchPairOutput {
             response,
@@ -441,7 +441,7 @@ impl Component for SwatchPair<'_> {
             activated: self.activated,
             clicked: self.clicked,
             double_clicked: self.double_clicked,
-            edit: self.edit,
+            events: self.edit,
             well: self.edited.unwrap_or_default(),
             swap: self.swap,
             defaults: self.defaults,

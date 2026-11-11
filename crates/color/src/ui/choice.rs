@@ -150,7 +150,7 @@ impl<'a> ColorChoice<'a> {
         entries.push(Entry::separator());
         entries.push(Entry::new(Row::SelectCustom, words.select_custom.as_str().to_owned()));
         let shown = Select::new(self.label.clone(), Bind::given(row), &entries).enabled(self.enabled).show(ui);
-        let picked = shown.event.as_ref().and_then(|event| event.value()).cloned();
+        let picked = shown.value().cloned();
         let mut pick_color = None;
         let chosen = match picked {
             Some(Row::Named(id)) => Some(ChosenColor::Named(id)),

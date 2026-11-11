@@ -4,7 +4,7 @@ use egui::{Response, Ui};
 
 use std::sync::Arc;
 
-use craft_behavior::{EditEvent, IconId, Mixed};
+use craft_behavior::{EditEvent, EditEvents, IconId, Mixed};
 use craft_ui::bars::{Bar, BarKind};
 use craft_ui::buttons::{Button, IconButton};
 use craft_ui::choice::Checkbox;
@@ -25,9 +25,9 @@ const HARDNESS_MAX: f64 = 100.0;
 pub struct SelectMaskBarOutput {
     /// The bar's response.
     pub response: Response,
-    /// The edit lifecycle of the option the user changed this pass, with the options after it
+    /// The edit lifecycle of the options the user changed this pass, in order, with the options after it
     /// (already written to the options passed in).
-    pub edit: Option<EditEvent<SelectMaskToolOptions>>,
+    pub edit: EditEvents<SelectMaskToolOptions>,
     /// Sample All Layers changed: the preview is asked for again.
     pub sample_all_layers: bool,
     /// Select Subject pressed: the workspace records `SelectMaskEdit::Subject`.
@@ -64,10 +64,11 @@ impl<'a> SelectMaskBar<'a> {
         // pc: crates/ui-egui/src/dialogs/select_mask_ui.rs:1497 `options_bar`.
         let Self { tool, options } = self;
         let words = Env::of(ui).words::<SelectMaskWords>();
-        let mut edit = None;
+        let mut edit = EditEvents::new();
         let mut sample_all_layers = false;
         let mut select_subject = false;
         let shown = Bar::new(words.name.clone(), BarKind::Options).show(ui, |ui, _| {
+            edit = EditEvents::new();
             if tool.edits() {
                 for (add, icon, name, salt) in [(true, "plus", &words.add, "add"), (false, "minus", &words.subtract, "subtract")] {
                     let button = IconButton::new(IconId::new(icon)).label(name.clone()).id_salt(salt).selected(options.add == add).show(ui);
@@ -75,7 +76,7 @@ impl<'a> SelectMaskBar<'a> {
                         let before = *options;
                         options.add = add;
                         let label: Arc<str> = Arc::from(name.as_str());
-                        edit = Some(EditEvent::set(Mixed::Same(before), *options, label, None));
+                        edit.push(EditEvent::set(Mixed::Same(before), *options, label, None));
                     }
                 }
             }
@@ -84,13 +85,13 @@ impl<'a> SelectMaskBar<'a> {
                 let field = Field::new(words.size.clone()).show(ui, |ui, _| {
                     NumberField::new(words.size.clone(), Bind::given(Some(size))).range(BrushSizes::RANGE).unit_kind(UnitKind::Pixels).show(ui)
                 });
-                if let Some(event) = field.inner.and_then(|number| number.edit.event) {
+                for event in field.inner.into_iter().flat_map(|number| number.edit.events) {
                     if let Some(Some(value)) = event.value()
                         && *value != size
                     {
                         options.sizes.set(tool, *value);
                     }
-                    edit = Some(event.map(|_| *options));
+                    edit.push(event.map(|_| *options));
                 }
             }
             if tool == SelectMaskTool::Brush {
@@ -100,21 +101,21 @@ impl<'a> SelectMaskBar<'a> {
                         .unit_kind(UnitKind::Percent)
                         .show(ui)
                 });
-                if let Some(event) = field.inner.and_then(|number| number.edit.event) {
+                for event in field.inner.into_iter().flat_map(|number| number.edit.events) {
                     if let Some(Some(value)) = event.value() {
                         options.hardness = value.clamp(0.0, HARDNESS_MAX);
                     }
-                    edit = Some(event.map(|_| *options));
+                    edit.push(event.map(|_| *options));
                 }
             }
             if matches!(tool, SelectMaskTool::Quick | SelectMaskTool::RefineEdge | SelectMaskTool::Object) {
                 let check = Checkbox::new(Bind::given(options.sample_all_layers)).label(words.sample_all_layers.clone()).show(ui);
-                if let Some(event) = check.event {
+                for event in check.events {
                     if let Some(&on) = event.value() {
                         options.sample_all_layers = on;
                     }
                     sample_all_layers = true;
-                    edit = Some(event.map(|_| *options));
+                    edit.push(event.map(|_| *options));
                 }
             }
             if tool.edits() {

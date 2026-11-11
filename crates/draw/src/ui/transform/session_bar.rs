@@ -237,9 +237,7 @@ impl<'a, W: TransformWarp> TransformBar<'a, W> {
         unit_picked: &mut Option<UnitKind>,
     ) {
         let shown = fields.show(ui);
-        if let Some(event) = shown.event {
-            edits.push(TransformEdit::Fields(event));
-        }
+        edits.extend(shown.events.into_iter().map(TransformEdit::Fields));
         if let Some(on) = shown.linked {
             settings.aspect_linked = on;
         }

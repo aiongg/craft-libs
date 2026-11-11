@@ -2,7 +2,7 @@
 //! editor, one gesture per slider drag, the Set of a check box, a preset or a button, and the requests the colour wells
 //! file.
 
-use craft_behavior::{EditEvent, Value};
+use craft_behavior::{EditEvent, EditEvents, Value};
 use craft_imaging::ui::adjust::{
     AdjustField, AdjustSession, AdjustSliders, AdjustWords, ChannelMixer, ChannelMixerEditor, ColorBalance, ColorBalanceEditor, ColorBalanceTone,
     HueRangeValue, HueSaturation, HueSaturationEditor, SelectiveColor, SelectiveColorEditor,
@@ -23,7 +23,7 @@ struct Rig<T> {
     events: Rc<RefCell<Vec<EditEvent<T>>>>,
 }
 
-fn rig<T: Value>(start: T, show: impl for<'b> Fn(&mut Ui, Bind<'b, T>) -> Option<EditEvent<T>> + 'static) -> Rig<T> {
+fn rig<T: Value>(start: T, show: impl for<'b> Fn(&mut Ui, Bind<'b, T>) -> EditEvents<T> + 'static) -> Rig<T> {
     let value = Rc::new(RefCell::new(start));
     let events = Rc::new(RefCell::new(Vec::new()));
     let (shared, seen) = (value.clone(), events.clone());
@@ -93,7 +93,7 @@ fn the_color_balance_tone_survives_a_value_change_and_a_reset_zeroes_one_row() {
         if let Some(tone) = host_tone.get() {
             editor = editor.tone(tone);
         }
-        editor.show(ui).edit.event
+        editor.show(ui).edit.events
     });
     let first_field = |rig: &Rig<ColorBalance>| {
         let field = rig.fixture.by_role(Role::SPIN_BUTTON).into_iter().next().expect("the first row's field");
@@ -126,7 +126,7 @@ fn the_color_balance_tone_survives_a_value_change_and_a_reset_zeroes_one_row() {
 #[trial]
 fn colorize_forces_master_and_wraps_the_hue() {
     let mut rig = rig(HueSaturation::new(-90.0, 10.0, 0.0, false, std::array::from_fn(HueRangeValue::neutral)), |ui, bind| {
-        HueSaturationEditor::new("Hue/Saturation", bind).show(ui).edit.event
+        HueSaturationEditor::new("Hue/Saturation", bind).show(ui).edit.events
     });
     rig.click("Colorize");
     let on = rig.value();
@@ -153,7 +153,7 @@ fn rig_with_range(start: HueSaturation, range: Option<usize>, shown: Rc<Cell<Opt
     rig(start, move |ui, bind| {
         let out = HueSaturationEditor::new("Hue/Saturation", bind).range(range).show(ui);
         shown.set(Some(out.shown_range));
-        out.edit.event
+        out.edit.events
     })
 }
 
@@ -184,7 +184,7 @@ fn a_range_thumb_move_canonicalises_the_bounds_first() {
 /// Monochrome seeds the Gray row and the select shows Gray; off removes the row and the select shows Red again.
 #[trial]
 fn monochrome_seeds_the_gray_row_and_off_removes_it() {
-    let mut rig = rig(ChannelMixer::default(), |ui, bind| ChannelMixerEditor::new("Channel Mixer", bind).show(ui).event);
+    let mut rig = rig(ChannelMixer::default(), |ui, bind| ChannelMixerEditor::new("Channel Mixer", bind).show(ui).events);
     let output = |rig: &Rig<ChannelMixer>| {
         let select = rig.fixture.by_role(Role::COMBO_BOX).into_iter().next().expect("the output select");
         rig.text(&select)
@@ -201,7 +201,7 @@ fn monochrome_seeds_the_gray_row_and_off_removes_it() {
 /// Picking Neutrals and stepping Black changes range 7, slot 3 and nothing else.
 #[trial]
 fn selective_color_edits_the_shown_range_only() {
-    let mut rig = rig(SelectiveColor::default(), |ui, bind| SelectiveColorEditor::new("Selective Color", bind).show(ui).edit.event);
+    let mut rig = rig(SelectiveColor::default(), |ui, bind| SelectiveColorEditor::new("Selective Color", bind).show(ui).edit.events);
     let select = rig.fixture.by_role(Role::COMBO_BOX).into_iter().next().expect("the colors select");
     rig.fixture.click(&select);
     rig.fixture.idle(2);
@@ -234,7 +234,7 @@ fn fields_round_to_the_places_of_their_step() {
 fn a_slider_drag_is_one_gesture_of_the_table() {
     let words = AdjustWords::default();
     let fields = AdjustField::exposure(&words);
-    let mut rig = rig(vec![0.0, 0.1, 1.0], move |ui, bind| AdjustSliders::new("Exposure", &fields, bind).show(ui).event);
+    let mut rig = rig(vec![0.0, 0.1, 1.0], move |ui, bind| AdjustSliders::new("Exposure", &fields, bind).show(ui).events);
     let slider = rig.slider(0);
     rig.fixture.drag(&slider, vec2(40.0, 0.0));
     rig.fixture.idle(2);

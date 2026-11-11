@@ -1,16 +1,32 @@
 //! Steps 11 and 15, apply: the events written to the binding.
 
+use super::measure::{MeasureIn, measure};
 use crate::contract::cx::gesture_key;
-use crate::contract::values::{Checked, landed};
+use crate::contract::props::Resolved;
+use crate::contract::values::Checked;
 use crate::contract::{Component, Cx, ValueOf};
-use crate::runtime::egui::repaint;
-use craft_behavior::{CancelReason, EditEvent, Gesture, Mixed};
+use crate::runtime::egui::sizing;
+use crate::runtime::reads::{self, BindKey};
+use craft_behavior::{Applied, CancelReason, EditEvent, Gesture, Mixed};
+use egui::Vec2;
 use std::sync::Arc;
 
+/// What an apply step did to the component's value, for the rerun decision of [`rerun_after_edit`].
+#[derive(Default)]
+pub(crate) struct ValueEdit {
+    /// The binding's key in the read record; none for a given binding.
+    key: Option<BindKey>,
+    /// A given binding's value changed: the app applies it, and the framework cannot see who read it.
+    given: bool,
+    /// The value in the binding's place or kept slot changed.
+    written: bool,
+    /// The component's shown value changed.
+    shown: bool,
+}
+
 /// Steps 11 and 15, apply: the events not yet applied are checked and written to the binding. A read-only component refuses
-/// every one. A given caller gets `Begin` in the pass a gesture began and its first `Update` in the next, because it has
-/// no source to hold the value now.
-pub(crate) fn apply_values<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>) {
+/// every one.
+pub(crate) fn apply_values<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>) -> ValueEdit {
     let from = cx.applied;
     cx.applied = cx.events.len();
     if cx.core.resolved.read_only {
@@ -22,24 +38,14 @@ pub(crate) fn apply_values<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>) {
             keep
         });
         cx.applied = cx.events.len();
-        return;
+        return ValueEdit::default();
     }
-    let Some(mut bind) = comp.bind() else { return };
-    // The folded `Begin`: the updates after a `Begin` of this pass wait for the next pass of a given binding.
-    let mut held = None;
-    if bind.is_given()
-        && let Some(begin) = cx.events[from..].iter().rposition(|event| matches!(event, EditEvent::Begin { .. }))
-    {
-        let after = &cx.events[from + begin + 1..];
-        if !after.is_empty() && after.iter().all(|event| matches!(event, EditEvent::Update { .. })) {
-            held = after.last().and_then(|event| event.value().cloned());
-            cx.events.truncate(from + begin + 1);
-            cx.applied = cx.events.len();
-        }
-    }
+    let shown_before = cx.shown.clone();
+    let Some(mut bind) = comp.bind() else { return ValueEdit::default() };
+    let key = bind.key(cx.core.id);
     let slot = gesture_key(cx.core.id);
     let (mut emitted, mut began, mut landing, mut last_update) = (None, false, None, None);
-    let mut changed = false;
+    let (mut given, mut written) = (false, false);
     let mut at = from;
     while at < cx.events.len() {
         match bind.checked(&mut cx.events[at]) {
@@ -76,11 +82,14 @@ pub(crate) fn apply_values<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>) {
             }
             _ => {}
         }
-        if let EditEvent::Update { value, .. } | EditEvent::Commit { after: value, .. } = event {
-            changed |= bind.get() != Some(Mixed::Same(value.clone()));
+        let carries = matches!(event, EditEvent::Update { .. } | EditEvent::Commit { .. });
+        if bind.is_given()
+            && let EditEvent::Update { value, .. } | EditEvent::Commit { after: value, .. } = event
+        {
+            given |= bind.get() != Some(Mixed::Same(value.clone()));
         }
-        bind.apply(event);
-        if let Some(value) = landed(event) {
+        written |= bind.apply(event) != Applied::Unchanged && carries;
+        if let Some(value) = event.landed() {
             landing = Some(value.clone());
         }
         at += 1;
@@ -94,23 +103,11 @@ pub(crate) fn apply_values<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>) {
     } else {
         None
     };
-    // A pass that changes the value, or holds an update for the next pass, runs again before painting, so a control drawn
-    // above the field shows the edit in the frame it happens. egui gives the rerun no input events and caps a frame at
-    // two passes, so nothing is delivered twice.
-    if held.is_some() {
-        crate::runtime::egui::sizing::request_discard(&cx.core.ctx, crate::runtime::egui::sizing::HELD_UPDATE_RERUN);
-    } else if changed {
-        crate::runtime::egui::sizing::request_discard(&cx.core.ctx, "craft_ui: an edit changed the value");
-    }
-    let repaint_next = held.is_some();
     let gesture = cx.core.memory.shown::<Gesture<ValueOf<C>>>(slot);
     let (running, watched) = (gesture.is_running().then_some(gesture.id), gesture.watched);
     if gesture.is_running() {
-        // The value held for the next pass is already readable from the response's `shown` in this one, so a host write of
-        // it is the gesture's own.
-        gesture.emitted = held.clone().or(emitted).or(gesture.emitted.take());
+        gesture.emitted = emitted.or(gesture.emitted.take());
         gesture.last_given = given_now.or(gesture.last_given.take());
-        gesture.held = held.or(gesture.held.take());
         // A value the check replaced is the gesture's proposal, so the next pass shows it.
         if let Some(value) = last_update {
             gesture.proposal = Some(value);
@@ -126,12 +123,10 @@ pub(crate) fn apply_values<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>) {
             None => watch.disarm(),
         }
     }
-    if repaint_next {
-        repaint::request(&cx.core.ctx);
-    }
     if let Some(value) = landing {
         if bind.is_kept() {
             let id = cx.core.id;
+            written |= cx.shown.as_deref() != Some(&value);
             bind.keep(&mut *cx.core.memory, id, value.clone());
         }
         cx.shown = Some(Arc::new(value));
@@ -139,5 +134,44 @@ pub(crate) fn apply_values<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>) {
     }
     if let Some(value) = cx.shown.as_deref() {
         cx.validity = bind.validity(value);
+    }
+    let shown = cx.shown.as_deref() != shown_before.as_deref();
+    ValueEdit { key, given, written, shown }
+}
+
+/// The rerun an edit asks for, so every value shown is current in the frame it changes: a given value that changed
+/// (the framework cannot see who read it); a written value another component read earlier in the pass, in a real or a
+/// measuring run; or a shown value whose size the earlier measures of this component took from the old value. A leaf
+/// measures itself again at each room and proposal it was measured at and asks only when a size differs; a body,
+/// whose measure runs its content, asks when any measuring run read the value.
+pub(crate) fn rerun_after_edit<C: Component>(
+    comp: &mut C,
+    cx: &Cx<'_, C>,
+    edit: ValueEdit,
+    input: &MeasureIn<'_>,
+    resolved: &Resolved<'_>,
+    leaf: bool,
+) {
+    let ctx = &cx.core.ctx;
+    if edit.given {
+        sizing::request_discard(ctx, "craft_ui: an edit changed a given value");
+        return;
+    }
+    let Some(key) = edit.key.filter(|_| edit.written || edit.shown) else { return };
+    let id = cx.core.id;
+    let earlier = reads::earlier(ctx, key, id);
+    if edit.written && earlier.other {
+        return sizing::request_discard(ctx, "craft_ui: an edit changed a value an earlier run read");
+    }
+    let resized = if leaf {
+        earlier.samples.iter().any(|sample| {
+            let input = MeasureIn { ui: input.ui, env: input.env, proposal: sample.proposal, room: sample.room };
+            measure(comp, &input, cx.style, resolved, cx.shown.as_deref(), Vec2::ZERO) != sample.took
+        })
+    } else {
+        earlier.measured
+    };
+    if resized {
+        sizing::request_discard(ctx, "craft_ui: an edit changed the size of the editing component");
     }
 }

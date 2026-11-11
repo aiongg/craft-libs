@@ -2,7 +2,7 @@
 
 use super::Fixture;
 use crate::contract::{CollectionEvent, Inner, Outcome, TooltipSpec};
-use craft_behavior::{EditEvent, PartKey, PartRef, Value};
+use craft_behavior::{EditEvent, EditEvents, PartKey, PartRef, Value};
 use egui::{Id, Response, Ui, Vec2};
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
@@ -464,8 +464,8 @@ impl StoryOutput {
         StoryOutput { id: Some(response.id), clicked: super::contract::clicked(response), ..StoryOutput::default() }
     }
 
-    pub(crate) fn of_edit<T>(response: &Response, event: Option<&EditEvent<T>>) -> Self {
-        StoryOutput { edits: event.into_iter().filter_map(EditKind::of).collect(), ..Self::from_response(response) }
+    pub(crate) fn of_edit<T>(response: &Response, events: &EditEvents<T>) -> Self {
+        StoryOutput { edits: events.iter().filter_map(EditKind::of).collect(), ..Self::from_response(response) }
     }
 
     pub(crate) fn of_collection<K, E>(response: &Response, events: &[CollectionEvent<K, E>], visible: &Range<usize>) -> Self {

@@ -55,7 +55,7 @@ impl Rig {
             seen.id = out.response.id;
             seen.submitted = out.submitted;
             seen.escaped = out.escaped;
-            if let Some(event) = &out.event {
+            for event in &out.events {
                 seen.events.push(format!("{event:?}").split_whitespace().next().unwrap_or_default().to_owned());
             }
         });

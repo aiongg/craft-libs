@@ -68,7 +68,7 @@ fn stroke_editor_shows_the_error_for_an_invalid_pattern_and_reports_nothing() {
     let mut fixture = Fixture::new(move |ui| {
         let mut style = style.borrow_mut();
         let out = StrokeEditor::new("Stroke", Bind::bound(&mut *style)).show(ui);
-        seen.set(seen.get() || out.event.is_some());
+        seen.set(seen.get() || !out.events.is_empty());
     });
     fixture.settle();
     fixture.idle(3);

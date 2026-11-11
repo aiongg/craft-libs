@@ -97,14 +97,14 @@ fn harness_in(mesh: WarpMesh, rotation: f64, flip: bool) -> Harness {
                 edit.set(output.edit);
             }
             picked.set(output.picked);
-            let phase = output.mesh.event.as_ref().map(|event| match event {
+            let phases = output.mesh.events.iter().map(|event| match event {
                 EditEvent::Begin { .. } => Seen::Begin,
                 EditEvent::Update { .. } => Seen::Update,
                 EditEvent::Commit { .. } => Seen::Commit,
                 EditEvent::Cancel { .. } => Seen::Cancel,
                 _ => Seen::Set,
             });
-            seen.borrow_mut().extend(phase);
+            seen.borrow_mut().extend(phases);
         }
     });
     fixture.settle();

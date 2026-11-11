@@ -71,9 +71,7 @@ impl<'a> FillBar<'a> {
                     Entry::new(true, words.add.clone()).icon(IconSpec::svg(IconId::new("plus"))),
                     Entry::new(false, words.subtract.clone()).icon(IconSpec::svg(IconId::new("minus"))),
                 ];
-                if let Some(add) =
-                    Segmented::new(words.add.clone(), Bind::given(options.brush_add), &modes).show(ui).event.and_then(|e| e.value().copied())
-                {
+                if let Some(add) = Segmented::new(words.add.clone(), Bind::given(options.brush_add), &modes).show(ui).value().copied() {
                     options.brush_add = add;
                 }
                 Divider::vertical().show(ui);
@@ -89,8 +87,8 @@ impl<'a> FillBar<'a> {
                     Entry::new(SelectionOperation::Subtract, words.subtract_from_selection.clone()).icon(icon("minus")),
                     Entry::new(SelectionOperation::Intersect, words.intersect_with_selection.clone()).icon(icon("squares_subtract")),
                 ];
-                let picked = Segmented::new(words.options.clone(), Bind::given(options.lasso), &operations).show(ui).event;
-                if let Some(operation) = picked.and_then(|e| e.value().copied()) {
+                let picked = Segmented::new(words.options.clone(), Bind::given(options.lasso), &operations).show(ui).value().copied();
+                if let Some(operation) = picked {
                     options.lasso = operation;
                 }
                 Divider::vertical().show(ui);
@@ -117,5 +115,5 @@ impl<'a> FillBar<'a> {
 fn number(ui: &mut Ui, label: &craft_ui::runtime::env::Label, value: f64, range: std::ops::RangeInclusive<f64>) -> Option<f64> {
     let (min, max) = (*range.start(), *range.end());
     let field = NumberField::new(label.clone(), Bind::given(Some(value))).range(range).unit_kind(UnitKind::Pixels).commit_decimals(0).show(ui);
-    field.edit.event.and_then(|event| event.value().copied().flatten()).map(|typed| typed.clamp(min, max))
+    field.edit.events.value().copied().flatten().map(|typed| typed.clamp(min, max))
 }

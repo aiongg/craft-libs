@@ -1,6 +1,6 @@
 //! `ColorPopover`: a colour well that opens a Compact colour picker in a popover.
 
-use craft_behavior::EditEvent;
+use craft_behavior::EditEvents;
 use craft_theme::Srgba;
 use craft_ui::choice::Swatch;
 use craft_ui::contract::{Bind, Outcome, Pattern, Remember as _, Show as _, ShowContainer as _};
@@ -51,8 +51,8 @@ pub struct ColorPopover<'a> {
 pub struct ColorPopoverOutput {
     /// The well's response, or the anchor's.
     pub response: Response,
-    /// The edit of the picker in the popover; `None` while the popover is closed.
-    pub edit: Option<EditEvent<PickedColor>>,
+    /// The edits of the picker in the popover, in order; empty while the popover is closed.
+    pub events: EditEvents<PickedColor>,
     /// The picker's screen-pick button was pressed; the app drives its `ScreenPick`.
     pub screen_pick: Option<ScreenPickGesture>,
     /// Whether the popover is open after this pass.
@@ -96,8 +96,8 @@ impl<'a> ColorPopover<'a> {
     pub fn show(self, ui: &mut Ui) -> ColorPopoverOutput {
         let ColorPopover { label, mut value, mut setup, anchor } = self;
         if let Some((opener, mut open)) = anchor {
-            let (edit, screen_pick, shown) = popover(ui, &label, &mut value, &mut setup, &opener, open.reborrowed());
-            return ColorPopoverOutput { response: opener, edit, screen_pick, open: shown };
+            let (events, screen_pick, shown) = popover(ui, &label, &mut value, &mut setup, &opener, open.reborrowed());
+            return ColorPopoverOutput { response: opener, events, screen_pick, open: shown };
         }
         let shown = Stack::new().show(ui, |ui, cx| {
             let color = value.reborrow().read(cx).and_then(|held| held.same().map(|picked| picked.color)).unwrap_or(Srgba::rgb(0.0, 0.0, 0.0));
@@ -106,12 +106,12 @@ impl<'a> ColorPopover<'a> {
             if well.clicked {
                 state.open = !state.open;
             }
-            let (edit, screen_pick, open) = popover(ui, &label, &mut value, &mut setup, &well.response, Bind::bound(&mut state.open));
-            ColorPopoverOutput { response: well.response, edit, screen_pick, open }
+            let (events, screen_pick, open) = popover(ui, &label, &mut value, &mut setup, &well.response, Bind::bound(&mut state.open));
+            ColorPopoverOutput { response: well.response, events, screen_pick, open }
         });
         match shown.inner {
             Some(output) => output,
-            None => ColorPopoverOutput { response: shown.output, edit: None, screen_pick: None, open: false },
+            None => ColorPopoverOutput { response: shown.output, events: EditEvents::new(), screen_pick: None, open: false },
         }
     }
 }
@@ -124,7 +124,7 @@ fn popover(
     setup: &mut Option<Setup<'_>>,
     opener: &Response,
     open: Bind<'_, bool>,
-) -> (Option<EditEvent<PickedColor>>, Option<ScreenPickGesture>, bool) {
+) -> (EditEvents<PickedColor>, Option<ScreenPickGesture>, bool) {
     let shown = Popover::new(label.clone(), open).opened_by(opener).show(ui, |ui, _| {
         let mut picker = compact_picker(label.clone(), value.reborrowed(), None).focus_on_open(true);
         if let Some(setup) = setup.take() {
@@ -134,8 +134,8 @@ fn popover(
     });
     let open = shown.inner.is_some() && shown.output.closed.is_none();
     match shown.inner {
-        Some(ColorPickerOutput { event, screen_pick, .. }) => (event, screen_pick, open),
-        None => (None, None, open),
+        Some(ColorPickerOutput { events, screen_pick, .. }) => (events, screen_pick, open),
+        None => (EditEvents::new(), None, open),
     }
 }
 

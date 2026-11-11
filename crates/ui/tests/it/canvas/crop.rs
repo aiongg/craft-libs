@@ -118,19 +118,18 @@ impl Rig {
                 if let Some(view) = out.view {
                     st.borrow_mut().view = view;
                 }
-                let kind = match &out.edit.event {
-                    Some(EditEvent::Begin { .. }) => Some("begin"),
-                    Some(EditEvent::Update { .. }) => Some("update"),
-                    Some(EditEvent::Commit { .. }) => Some("commit"),
-                    Some(EditEvent::Cancel { .. }) => Some("cancel"),
-                    Some(EditEvent::Set { .. }) => Some("set"),
-                    Some(_) => Some("other"),
-                    None => None,
-                };
-                if let Some(kind) = kind
-                    && seen.events.last() != Some(&kind)
-                {
-                    seen.events.push(kind);
+                for event in &out.edit.events {
+                    let kind = match event {
+                        EditEvent::Begin { .. } => "begin",
+                        EditEvent::Update { .. } => "update",
+                        EditEvent::Commit { .. } => "commit",
+                        EditEvent::Cancel { .. } => "cancel",
+                        EditEvent::Set { .. } => "set",
+                        _ => "other",
+                    };
+                    if seen.events.last() != Some(&kind) {
+                        seen.events.push(kind);
+                    }
                 }
                 seen.applied |= out.apply;
                 seen.discarded |= out.discard;

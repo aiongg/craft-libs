@@ -3,9 +3,11 @@
 
 use crate::runtime::env::Message;
 use crate::runtime::memory::{MemoryStage, Savable, SaveKey, StageAccess};
-use craft_behavior::{Applied, EditEvent, EditPolicy, Mixed, Value};
+use crate::runtime::reads::{self, BindKey};
+use craft_behavior::{Applied, EditEvent, EditEvents, EditPolicy, Mixed, Value};
 use egui::Id;
 use egui::Response;
+use std::any::TypeId;
 use std::sync::Arc;
 
 /// What a check says about a value, with the message type of craft-ui.
@@ -234,6 +236,20 @@ impl<T: Value> BindMut<'_, T> {
         }
     }
 
+    /// The identity of the binding's value in this pass, for the read record: the bound place, or where the kept value
+    /// lives (`id` is the component it is kept under). A given value has none.
+    pub(crate) fn key(&self, id: Id) -> Option<BindKey> {
+        match &self.source {
+            SourceMut::Given(_) => None,
+            SourceMut::Mut(value) => Some(BindKey::Place(std::ptr::from_ref::<T>(value) as usize, TypeId::of::<T>())),
+            SourceMut::MutMixed(value) => Some(BindKey::Place(std::ptr::from_ref::<Mixed<T>>(value) as usize, TypeId::of::<Mixed<T>>())),
+            SourceMut::Kept => Some(match self.save {
+                Some(save) => BindKey::Saved(Id::NULL.with(&save.key)),
+                None => BindKey::Kept(id),
+            }),
+        }
+    }
+
     pub(crate) fn is_kept(&self) -> bool {
         matches!(self.source, SourceMut::Kept)
     }
@@ -297,6 +313,11 @@ impl<T: Value> BindMut<'_, T> {
     /// under the base id of `cx` (the saved tier when the binding has a `SaveKey`). `None` for a kept binding that
     /// holds nothing yet.
     pub fn read(&self, cx: &mut impl StageAccess) -> Option<Mixed<T>> {
+        let id = cx.base();
+        if let Some(key) = self.key(id) {
+            let ctx = cx.stage_mut().ctx().clone();
+            reads::note(&ctx, key, id, crate::runtime::measure::active(&ctx), &[]);
+        }
         match &self.source {
             SourceMut::Kept => {
                 let id = cx.base();
@@ -318,7 +339,7 @@ impl<T: Value> BindMut<'_, T> {
         match self.source {
             SourceMut::Given(_) => false,
             SourceMut::Kept => {
-                let Some(value) = landed(&event) else { return false };
+                let Some(value) = event.landed() else { return false };
                 let id = cx.base();
                 if self.kept(cx.stage_mut(), id, &None).is_some_and(|held| *held == *value) {
                     return false;
@@ -362,8 +383,8 @@ impl<T: Value> BindMut<'_, T> {
 pub struct EditResponse<T> {
     /// The component's response.
     pub response: Response,
-    /// The pass's events folded into one (`EditEvent::fold`); `None` when nothing was edited.
-    pub event: Option<EditEvent<T>>,
+    /// The pass's events in order (`EditEvents`); empty when nothing was edited.
+    pub events: EditEvents<T>,
     /// The value was submitted (Enter in a text part).
     pub submitted: bool,
     /// The modifiers of the Enter that submitted the value (Shift+Enter, Cmd+Enter); none unless `submitted` came
@@ -389,10 +410,10 @@ pub struct EditResponse<T> {
 }
 
 impl<T> EditResponse<T> {
-    pub(crate) fn new(response: Response, event: Option<EditEvent<T>>, validity: Validity<T>) -> Self {
+    pub(crate) fn new(response: Response, events: EditEvents<T>, validity: Validity<T>) -> Self {
         EditResponse {
             response,
-            event,
+            events,
             submitted: false,
             submit_mods: craft_keymap::Mods::NONE,
             left_by_tab: None,
@@ -404,14 +425,14 @@ impl<T> EditResponse<T> {
         }
     }
 
-    /// The response of a composite that edits one value through several child components: `event` is the edit of the
-    /// whole value the composite lifted from its children's events, `shown` the value it showed after the pass, and
+    /// The response of a composite that edits one value through several child components: `events` are the edits of
+    /// the whole value the composite lifted from its children's events, `shown` the value it showed after the pass, and
     /// `response` its own. The flags are clear and the validity is `Ok`; the composite sets the flags it reads from
     /// its children.
-    pub fn lifted(response: Response, event: Option<EditEvent<T>>, shown: Option<Mixed<Arc<T>>>) -> Self {
+    pub fn lifted(response: Response, events: EditEvents<T>, shown: Option<Mixed<Arc<T>>>) -> Self {
         EditResponse {
             response,
-            event,
+            events,
             submitted: false,
             submit_mods: craft_keymap::Mods::NONE,
             left_by_tab: None,
@@ -423,15 +444,15 @@ impl<T> EditResponse<T> {
         }
     }
 
-    /// The value the pass's event carries: a proposal, a commit or a set; `None` when nothing was edited or the event
-    /// carries none (a gesture's begin or cancel).
+    /// The latest value the pass's events carry: a proposal, a commit or a set; `None` when nothing was edited or no
+    /// event carries one (a gesture's begin or cancel).
     pub fn value(&self) -> Option<&T> {
-        self.event.as_ref().and_then(EditEvent::value)
+        self.events.value()
     }
 }
 
 impl<T: Clone> EditResponse<T> {
-    /// The response of a child component's edit as the response of the edit of a value built from it: the event, the
+    /// The response of a child component's edit as the response of the edit of a value built from it: the events, the
     /// shown value and a fix are mapped by `f`; the response and flags are the child's own.
     pub fn map<U>(self, f: impl Fn(T) -> U) -> EditResponse<U> {
         let validity = match self.validity {
@@ -447,7 +468,7 @@ impl<T: Clone> EditResponse<T> {
         });
         EditResponse {
             response: self.response,
-            event: self.event.map(|event| event.map(&f)),
+            events: self.events.map(&f),
             submitted: self.submitted,
             submit_mods: self.submit_mods,
             left_by_tab: self.left_by_tab,
@@ -475,7 +496,7 @@ impl<T: Value> Outcome for EditResponse<T> {
     fn story_facts(&self) -> crate::testing::StoryOutput {
         crate::testing::StoryOutput {
             value_text: self.value_text.clone(),
-            ..crate::testing::StoryOutput::of_edit(&self.response, self.event.as_ref())
+            ..crate::testing::StoryOutput::of_edit(&self.response, &self.events)
         }
     }
 }
@@ -510,12 +531,4 @@ pub(crate) enum Checked {
     Cancel,
     /// A refused one-shot change reaches nothing.
     Drop,
-}
-
-/// The value an event leaves in a value store: a value it carries, or the one a cancel restores.
-pub(crate) fn landed<V: Value>(event: &EditEvent<V>) -> Option<&V> {
-    match event {
-        EditEvent::Cancel { before: Some(Mixed::Same(before)), .. } => Some(before),
-        event => event.value(),
-    }
 }

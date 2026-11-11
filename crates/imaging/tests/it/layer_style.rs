@@ -74,7 +74,7 @@ fn rig_of(host: Host) -> (Fixture, Rc<RefCell<Host>>) {
             .style_presets(presets)
             .show(ui);
         out.apply_view(&mut host.draft);
-        if let Some(event) = out.edit {
+        for event in out.edit {
             if let Some(value) = event.value() {
                 host.draft.style = value.clone();
             }

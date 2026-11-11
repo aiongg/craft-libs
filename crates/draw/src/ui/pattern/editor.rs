@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use super::{PatternColors, PatternFillOptions, PatternSwatch, PatternWords};
-use craft_behavior::{EditEvent, Mixed, NumberCodec};
+use craft_behavior::{EditEvent, EditEvents, Mixed, NumberCodec};
 use craft_color::ui::{ColorPopover, PickedColor};
 use craft_ui::buttons::Button;
 use craft_ui::choice::Checkbox;
@@ -43,9 +43,9 @@ impl SwatchPainter {
 pub struct PatternFillOutput {
     /// The editor's response.
     pub response: Response,
-    /// The edit of the options this pass: a pick, a check box, Snap to Origin and a typed value are `Set`; a scrub or
-    /// a dial drag is a gesture. The binding holds the new value when it writes through.
-    pub event: Option<EditEvent<PatternFillOptions>>,
+    /// The edits of the options this pass, in order: a pick, a check box, Snap to Origin and a typed value are `Set`;
+    /// a scrub or a dial drag is a gesture. The binding holds the new value when it writes through.
+    pub events: EditEvents<PatternFillOptions>,
 }
 
 impl Outcome for PatternFillOutput {
@@ -99,17 +99,13 @@ impl<'a> PatternFillEditor<'a> {
         let units = env.units();
         let name: Arc<str> = label.as_str().into();
         let rows: Vec<PresetRow<String>> = swatches.iter().map(|swatch| tile_row(swatch, thumbnails.as_ref())).collect();
-        let mut event = None;
+        let mut events = EditEvents::new();
         let shown = FieldGroup::new(label).show(ui, |ui, cx| {
-            event = None;
+            events = EditEvents::new();
             let Some(Mixed::Same(current)) = options.reborrow().read(cx) else { return };
             let mut state = cx.keep::<PresetState<String>>().clone();
-            let mut next: Option<EditEvent<PatternFillOptions>> = None;
-            let mut take = |edit: Option<EditEvent<PatternFillOptions>>| {
-                if next.is_none() {
-                    next = edit;
-                }
-            };
+            let mut next: EditEvents<PatternFillOptions> = EditEvents::new();
+            let mut take = |edits: EditEvents<PatternFillOptions>| next.extend(edits);
             if let Some(colors) = current.colors {
                 let browser = Field::new(words.pattern.clone()).id_salt("grid").show(ui, |ui, _| {
                     let thumbs = thumbnails.clone();
@@ -129,7 +125,7 @@ impl<'a> PatternFillEditor<'a> {
                 });
                 for picked in browser.inner.into_iter().flatten().filter_map(selected_key) {
                     if picked != current.pattern {
-                        take(Some(set(&current, &name, |o| o.pattern = picked)));
+                        take(set(&current, &name, |o| o.pattern = picked).into());
                     }
                 }
                 take(colour_row(ui, &words.foreground, "foreground", colors.foreground, &current, |c, color| c.foreground = color));
@@ -161,19 +157,19 @@ impl<'a> PatternFillEditor<'a> {
                         .flatten()
                         .unwrap_or_default();
                     if let Some(pattern) = picked.filter(|pattern| *pattern != current.pattern) {
-                        take(Some(set(&current, &name, |o| o.pattern = pattern)));
+                        take(set(&current, &name, |o| o.pattern = pattern).into());
                     }
                     if snapped {
-                        take(Some(set(&current, &name, |o| o.phase = [0.0, 0.0])));
+                        take(set(&current, &name, |o| o.phase = [0.0, 0.0]).into());
                     }
                 }
                 let angle = Field::new(words.angle.clone())
                     .id_salt("angle")
                     .side(SideLabel::new().scrub(true))
-                    .show(ui, |ui, _| AngleDial::new(Bind::given(current.angle)).range(ANGLE_RANGE).show(ui).event)
+                    .show(ui, |ui, _| AngleDial::new(Bind::given(current.angle)).range(ANGLE_RANGE).show(ui).events)
                     .inner
-                    .flatten();
-                take(angle.map(|event| event.map(|v| edited(&current, |o| o.angle = v.clamp(*ANGLE_RANGE.start(), *ANGLE_RANGE.end())))));
+                    .unwrap_or_default();
+                take(angle.map(|v| edited(&current, |o| o.angle = v.clamp(*ANGLE_RANGE.start(), *ANGLE_RANGE.end()))));
                 let scale = Field::new(words.scale.clone())
                     .id_salt("scale")
                     .side(SideLabel::new().scrub(true))
@@ -184,27 +180,27 @@ impl<'a> PatternFillEditor<'a> {
                             .scrub_by_label()
                             .show(ui)
                             .edit
-                            .event
+                            .events
                     })
                     .inner
-                    .flatten();
-                take(scale.map(|event| event.map(|v| edited(&current, |o| o.scale = v.unwrap_or(current.scale)))));
+                    .unwrap_or_default();
+                take(scale.map(|v| edited(&current, |o| o.scale = v.unwrap_or(current.scale))));
                 let link = Field::new(words.link.clone())
                     .id_salt("link")
                     .layout(FieldLayout::After)
                     .sizing(Sizing::Content)
-                    .show(ui, |ui, _| Checkbox::new(Bind::given(current.link)).show(ui).event)
+                    .show(ui, |ui, _| Checkbox::new(Bind::given(current.link)).show(ui).events)
                     .inner
-                    .flatten();
-                take(link.map(|event| event.map(|v| edited(&current, |o| o.link = v))));
+                    .unwrap_or_default();
+                take(link.map(|v| edited(&current, |o| o.link = v)));
             }
-            if let Some(edit) = next {
-                let _ = options.reborrow().write(cx, &edit);
-                event = Some(edit);
+            for edit in &next {
+                let _ = options.reborrow().write(cx, edit);
             }
+            events = next;
             *cx.keep::<PresetState<String>>() = state;
         });
-        PatternFillOutput { response: shown.output, event }
+        PatternFillOutput { response: shown.output, events }
     }
 }
 
@@ -239,13 +235,13 @@ fn colour_row(
     color: craft_theme::Srgba,
     current: &PatternFillOptions,
     change: impl Fn(&mut PatternColors, craft_theme::Srgba),
-) -> Option<EditEvent<PatternFillOptions>> {
-    let edit = Field::new(caption.clone())
+) -> EditEvents<PatternFillOptions> {
+    let edits = Field::new(caption.clone())
         .id_salt(key)
-        .show(ui, |ui, _| ColorPopover::new(caption.clone(), Bind::given(PickedColor::rgb(color))).show(ui).edit)
+        .show(ui, |ui, _| ColorPopover::new(caption.clone(), Bind::given(PickedColor::rgb(color))).show(ui).events)
         .inner
-        .flatten()?;
-    Some(edit.map(|picked| edited(current, |o| set_colors(o, |c| change(c, picked.color)))))
+        .unwrap_or_default();
+    edits.map(|picked| edited(current, |o| set_colors(o, |c| change(c, picked.color))))
 }
 
 /// A copy of `options` with `change` applied.

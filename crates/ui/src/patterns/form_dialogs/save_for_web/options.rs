@@ -267,7 +267,7 @@ fn size_section(ui: &mut Ui, words: &SaveForWebWords, sizing: &SizingWords, unit
             if let Some(v) = field.edit.value().cloned().flatten() {
                 link.set_width(v);
             }
-            if let Some(unit) = field.unit.as_ref().and_then(|event| event.value().copied()) {
+            if let Some(unit) = field.unit.value().copied() {
                 link.set_unit(unit);
             }
         });
@@ -280,7 +280,7 @@ fn size_section(ui: &mut Ui, words: &SaveForWebWords, sizing: &SizingWords, unit
             if let Some(v) = field.edit.value().cloned().flatten() {
                 link.set_height(v);
             }
-            if let Some(unit) = field.unit.as_ref().and_then(|event| event.value().copied()) {
+            if let Some(unit) = field.unit.value().copied() {
                 link.set_unit(unit);
             }
         });

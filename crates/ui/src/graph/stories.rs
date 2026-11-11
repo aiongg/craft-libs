@@ -4,7 +4,7 @@ use super::{Node, NodeEvent, NodeGraph, NodeId, NodeKind, PortRef, Wire};
 use crate::contract::{Bind, CollectionEvent, MeasureCx, PaintUi, Props as _, Role, Show as _, ShowCollection as _};
 use crate::controls::disclosure::Disclosure;
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
-use craft_behavior::{CanvasTransform, EditEvent, keyed};
+use craft_behavior::{CanvasTransform, EditEvents, keyed};
 use egui::{Pos2, Rect, Ui, Vec2};
 
 /// How far the zoomed story magnifies the graph.
@@ -20,7 +20,7 @@ const PER_ROW: u32 = 2;
 /// The edit type of the stories' graph: what the inline controls of the kinds report.
 #[derive(Clone, Debug, PartialEq)]
 enum CompEdit {
-    Fold(EditEvent<bool>),
+    Fold(EditEvents<bool>),
 }
 
 /// Two inputs on the left and an output on the right.
@@ -75,7 +75,8 @@ impl NodeKind<CompEdit> for Fold {
 
     fn controls(&self, ui: &mut PaintUi<'_>, rect: Rect) -> Option<CompEdit> {
         let side = Rect::from_min_size(rect.min, Vec2::splat(rect.height()));
-        ui.child("fold", side, Disclosure::new(Bind::given(self.open)).label("Details")).event.map(CompEdit::Fold)
+        let events = ui.child("fold", side, Disclosure::new(Bind::given(self.open)).label("Details")).events;
+        (!events.is_empty()).then_some(CompEdit::Fold(events))
     }
 }
 
@@ -106,8 +107,10 @@ fn graph(ui: &mut Ui, data: &mut StoryData, count: u32, wired: &[(u32, u32)], zo
     }
     let response = shown.show_items(ui, &source, &mut |id, _| Node::new(*id, kinds[id.0 as usize]));
     for event in &response.events {
-        if let CollectionEvent::Item(_, NodeEvent::Edit(CompEdit::Fold(edit))) = event {
-            let _ = edit.apply(data.value("open", true));
+        if let CollectionEvent::Item(_, NodeEvent::Edit(CompEdit::Fold(edits))) = event {
+            for edit in edits {
+                let _ = edit.apply(data.value("open", true));
+            }
         }
     }
     response.into()

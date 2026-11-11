@@ -32,14 +32,16 @@ fn scrub(host: impl Fn(f64) -> f64) -> (Vec<CancelReason>, bool) {
         Field::new("Size", SideLabel::new()).id_salt("row").show_at(ui, ROW, |ui, _| {
             let codec = NumberCodec::new(Reader::new(), DECIMALS);
             let out = NumberField::new("Size", Bind::given(doc)).codec(codec).scrub_by_label().id_salt("scrubbed").show(ui);
-            match &out.event {
-                Some(EditEvent::Update { value, .. }) => doc = value.map(&host),
-                Some(EditEvent::Commit { after, .. }) => {
-                    doc = after.map(&host);
-                    *committed.borrow_mut() = true;
+            for event in &out.events {
+                match event {
+                    EditEvent::Update { value, .. } => doc = value.map(&host),
+                    EditEvent::Commit { after, .. } => {
+                        doc = after.map(&host);
+                        *committed.borrow_mut() = true;
+                    }
+                    EditEvent::Cancel { reason, .. } => cancels.borrow_mut().push(*reason),
+                    _ => {}
                 }
-                Some(EditEvent::Cancel { reason, .. }) => cancels.borrow_mut().push(*reason),
-                _ => {}
             }
         });
     };

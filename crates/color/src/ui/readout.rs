@@ -3,7 +3,7 @@
 #[cfg(feature = "screen-testing")]
 mod stories;
 
-use craft_behavior::{ColumnWidth, EditEvent, Mixed};
+use craft_behavior::{ColumnWidth, EditEvent, EditEvents, Mixed};
 use craft_theme::Rgba;
 use craft_ui::contract::{Bind, Outcome, Pattern, Props as _, Show as _, ShowContainer as _};
 use craft_ui::layout_components::{Grid, Stack};
@@ -69,12 +69,12 @@ pub struct ChannelEdit {
 pub struct ColorReadoutOutput {
     /// The readout's response.
     pub response: Response,
-    /// The pass's edits of the whole colour folded into one; `None` when nothing was edited. A channel field edits the
+    /// The pass's edits of the whole colour, in order; empty when nothing was edited. A channel field edits the
     /// whole colour only while the value is the same for every item; the hex field always does.
-    pub event: Option<EditEvent<Rgba>>,
-    /// The pass's edit of one channel while the value is mixed; `None` when no channel field was edited or the
-    /// value is the same for every item.
-    pub channel: Option<ChannelEdit>,
+    pub events: EditEvents<Rgba>,
+    /// The pass's edits of one channel while the value is mixed, in order; empty when no channel field was edited or
+    /// the value is the same for every item.
+    pub channel: Vec<ChannelEdit>,
 }
 
 impl Outcome for ColorReadoutOutput {
@@ -89,7 +89,7 @@ impl Outcome for ColorReadoutOutput {
         let mut facts = craft_ui::testing::StoryOutput::default();
         facts.id = Some(self.response.id);
         facts.edits = self
-            .event
+            .events
             .iter()
             .filter_map(craft_ui::testing::EditKind::of)
             .chain(self.channel.iter().filter_map(|edit| craft_ui::testing::EditKind::of(&edit.event)))
@@ -134,9 +134,11 @@ impl<'a> ColorReadout<'a> {
         let shown = Stack::new().label(label).show(ui, |ui, body| {
             let held: Mixed<Rgba> = value.reborrow().read(&mut *body).unwrap_or(Mixed::Mixed);
             let mut events: Vec<EditEvent<Rgba>> = Vec::new();
-            let mut channel_edit = None;
+            let mut channel_edits = Vec::new();
             Grid::new(FIELDS).show(ui, |ui, _| {
-                events.extend(TextField::hex(words.hex.as_str().to_owned(), Bind::given(held)).show(ui).event);
+                events.clear();
+                channel_edits.clear();
+                events.extend(TextField::hex(words.hex.as_str().to_owned(), Bind::given(held)).show(ui).events);
                 let names = [&words.red, &words.green, &words.blue];
                 for (i, name) in names.into_iter().enumerate() {
                     let field = NumberField::new(
@@ -155,25 +157,26 @@ impl<'a> ColorReadout<'a> {
                     .commit_decimals(0);
                     let byte = |number: Option<f64>| number.map(|number| number.round().clamp(0.0, 255.0) as u8);
                     let out = field.show(ui);
-                    let Some(event) = out.event.as_ref() else { continue };
-                    match held {
-                        Mixed::Same(base) => events.push(event.clone().map(move |number| {
-                            let mut mine = base;
-                            if let Some(byte) = byte(number) {
-                                mine.0[i] = byte;
-                            }
-                            mine
-                        })),
-                        Mixed::Mixed => channel_edit = Some(ChannelEdit { channel: CHANNELS[i], event: event.clone().map(byte) }),
+                    for event in &out.events {
+                        match held {
+                            Mixed::Same(base) => events.push(event.clone().map(move |number| {
+                                let mut mine = base;
+                                if let Some(byte) = byte(number) {
+                                    mine.0[i] = byte;
+                                }
+                                mine
+                            })),
+                            Mixed::Mixed => channel_edits.push(ChannelEdit { channel: CHANNELS[i], event: event.clone().map(byte) }),
+                        }
                     }
                 }
             });
             for event in &events {
                 let _ = value.reborrow().write(&mut *body, event);
             }
-            (events.into_iter().fold(None, EditEvent::fold), channel_edit)
+            (events.into_iter().collect::<EditEvents<_>>(), channel_edits)
         });
-        let (event, channel) = shown.inner.unwrap_or((None, None));
-        ColorReadoutOutput { response: shown.output, event, channel }
+        let (events, channel) = shown.inner.unwrap_or_default();
+        ColorReadoutOutput { response: shown.output, events, channel }
     }
 }

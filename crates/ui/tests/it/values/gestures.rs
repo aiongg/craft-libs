@@ -35,14 +35,14 @@ fn escape_restores_the_value_and_the_press_proposes_nothing_until_release() {
     let seen = RefCell::new(Vec::new());
     let mut show = |ui: &mut Ui| {
         let out = Scrub::new(Bind::bound(&mut value)).id_salt("scrub").show_at(ui, AT);
-        seen.borrow_mut().push(ev_of(&out.event));
+        seen.borrow_mut().extend(ev_of(&out.events));
     };
     dragging(&mut frames, &mut show);
     seen.borrow_mut().clear();
     frames.frame(vec![key_press(Key::Escape, Modifiers::NONE)], &mut show);
     frames.frame(vec![moved(start() + Vec2::new(50.0, 0.0))], &mut show);
     frames.frame(vec![], &mut show);
-    let events: Vec<Ev> = seen.borrow().iter().flatten().cloned().collect();
+    let events: Vec<Ev> = seen.borrow().iter().cloned().collect();
     assert_eq!(events, vec![Ev::Cancel(CancelReason::Escape)], "one cancel, then nothing under the held press");
     frames.frame(vec![release(start() + Vec2::new(50.0, 0.0))], &mut show);
     frames.frame(vec![], &mut show);
@@ -50,7 +50,7 @@ fn escape_restores_the_value_and_the_press_proposes_nothing_until_release() {
     frames.frame(vec![moved(start())], &mut show);
     frames.frame(vec![press(start())], &mut show);
     frames.frame(vec![moved(start() + Vec2::new(30.0, 0.0))], &mut show);
-    assert!(seen.borrow().iter().flatten().any(|event| *event == Ev::Begin), "a new press begins a new gesture: {:?}", seen.borrow());
+    assert!(seen.borrow().iter().any(|event| *event == Ev::Begin), "a new press begins a new gesture: {:?}", seen.borrow());
     drop(show);
     assert!(near(value, FIRST), "the first gesture was undone and the second wrote its own value: {value}");
 }
@@ -64,7 +64,7 @@ fn an_app_change_during_a_drag_cancels_it_and_keeps_the_app_value() {
     let seen = RefCell::new(Vec::new());
     let mut show = |ui: &mut Ui| {
         let out = Scrub::new(Bind::bound(&mut value)).id_salt("scrub").show_at(ui, AT);
-        seen.borrow_mut().push(ev_of(&out.event));
+        seen.borrow_mut().extend(ev_of(&out.events));
     };
     dragging(&mut frames, &mut show);
     seen.borrow_mut().clear();
@@ -72,19 +72,19 @@ fn an_app_change_during_a_drag_cancels_it_and_keeps_the_app_value() {
     value = APP_VALUE;
     let mut show = |ui: &mut Ui| {
         let out = Scrub::new(Bind::bound(&mut value)).id_salt("scrub").show_at(ui, AT);
-        seen.borrow_mut().push(ev_of(&out.event));
+        seen.borrow_mut().extend(ev_of(&out.events));
     };
     frames.frame(vec![moved(start() + Vec2::new(50.0, 0.0))], &mut show);
     frames.frame(vec![moved(start() + Vec2::new(60.0, 0.0))], &mut show);
-    let events: Vec<Ev> = seen.borrow().iter().flatten().cloned().collect();
+    let events: Vec<Ev> = seen.borrow().iter().cloned().collect();
     assert_eq!(events, vec![Ev::Cancel(CancelReason::HostChanged)], "{events:?}");
     drop(show);
     assert_eq!(value, APP_VALUE, "the cancel restored nothing over the app's value");
 }
 
-fn scrub(value: &mut f32, seen: &RefCell<Vec<Option<Ev>>>, ui: &mut Ui) {
+fn scrub(value: &mut f32, seen: &RefCell<Vec<Ev>>, ui: &mut Ui) {
     let out = Scrub::new(Bind::bound(value)).id_salt("scrub").show_at(ui, AT);
-    seen.borrow_mut().push(ev_of(&out.event));
+    seen.borrow_mut().extend(ev_of(&out.events));
 }
 
 /// An undo during a drag ends it with `UndoDuringGesture` and the app's document stands.
@@ -100,7 +100,7 @@ fn an_undo_during_a_drag_cancels_it_until_release() {
     seen.borrow_mut().clear();
     frames.frame(vec![moved(start() + Vec2::new(50.0, 0.0))], |ui| scrub(&mut value, &seen, ui));
     frames.frame(vec![moved(start() + Vec2::new(60.0, 0.0))], |ui| scrub(&mut value, &seen, ui));
-    let events: Vec<Ev> = seen.borrow().iter().flatten().cloned().collect();
+    let events: Vec<Ev> = seen.borrow().iter().cloned().collect();
     assert_eq!(events, vec![Ev::Cancel(CancelReason::UndoDuringGesture)], "{events:?}");
     assert_eq!(value, APP_VALUE, "the drag did not resume over the undone document");
 }
@@ -153,7 +153,7 @@ fn a_composite_adopts_its_childs_gesture_as_its_own() {
     let seen = RefCell::new(Vec::new());
     let mut show = |ui: &mut Ui| {
         let out = Wrapper { common: Common::new(), value: Bind::bound(&mut value) }.id_salt("wrapper").show_at(ui, AT);
-        seen.borrow_mut().extend(ev_of(&out.event));
+        seen.borrow_mut().extend(ev_of(&out.events));
     };
     dragging(&mut frames, &mut show);
     frames.frame(vec![release(start() + Vec2::new(35.0, 0.0))], &mut show);
@@ -173,7 +173,7 @@ fn a_mixed_composite_adopts_its_childs_edit_onto_the_start_value() {
     let seen = RefCell::new(Vec::new());
     let mut show = |ui: &mut Ui| {
         let out = Wrapper { common: Common::new(), value: Bind::bound_mixed(&mut field) }.id_salt("wrapper").show_at(ui, AT);
-        seen.borrow_mut().extend(out.event.clone());
+        seen.borrow_mut().extend(out.events.clone());
     };
     dragging(&mut frames, &mut show);
     frames.frame(vec![release(start() + Vec2::new(35.0, 0.0))], &mut show);
@@ -196,7 +196,7 @@ fn a_mixed_composite_adopts_its_childs_edit_onto_the_start_value() {
 
 fn wrapper_events(value: &mut f32, seen: &RefCell<Vec<EditEvent<f32>>>, escaped: &RefCell<bool>, ui: &mut Ui) {
     let out = Wrapper { common: Common::new(), value: Bind::bound(value) }.id_salt("wrapper").show_at(ui, AT);
-    seen.borrow_mut().extend(out.event.clone());
+    seen.borrow_mut().extend(out.events.clone());
     *escaped.borrow_mut() |= out.escaped;
 }
 
@@ -229,11 +229,11 @@ fn a_gesture_cancelled_while_read_only_still_reaches_the_app() {
     seen.borrow_mut().clear();
     let mut show = |ui: &mut Ui| {
         let out = Scrub::new(Bind::bound(&mut value)).read_only(true).id_salt("scrub").show_at(ui, AT);
-        seen.borrow_mut().push(ev_of(&out.event));
+        seen.borrow_mut().extend(ev_of(&out.events));
     };
     frames.frame(vec![key_press(Key::Escape, Modifiers::NONE)], &mut show);
     drop(show);
-    let events: Vec<Ev> = seen.borrow().iter().flatten().cloned().collect();
+    let events: Vec<Ev> = seen.borrow().iter().cloned().collect();
     assert_eq!(events, vec![Ev::Cancel(CancelReason::Escape)]);
 }
 
@@ -246,7 +246,7 @@ fn a_gesture_whose_component_was_not_drawn_cancels_removed_once() {
     let seen = RefCell::new(Vec::new());
     let mut show = |ui: &mut Ui| {
         let out = Scrub::new(Bind::bound(&mut value)).id_salt("scrub").show_at(ui, AT);
-        seen.borrow_mut().push(ev_of(&out.event));
+        seen.borrow_mut().extend(ev_of(&out.events));
     };
     dragging(&mut frames, &mut show);
     seen.borrow_mut().clear();
@@ -254,7 +254,7 @@ fn a_gesture_whose_component_was_not_drawn_cancels_removed_once() {
     frames.frame(vec![moved(start() + Vec2::new(40.0, 0.0))], &mut show);
     frames.frame(vec![moved(start() + Vec2::new(45.0, 0.0))], &mut show);
     frames.frame(vec![], &mut show);
-    let events: Vec<Ev> = seen.borrow().iter().flatten().cloned().collect();
+    let events: Vec<Ev> = seen.borrow().iter().cloned().collect();
     assert_eq!(events, vec![Ev::Cancel(CancelReason::Removed)], "{events:?}");
     drop(show);
     assert!(near(value, INITIAL), "the value is back where the gesture began: {value}");
@@ -270,7 +270,7 @@ fn a_set_during_a_drag_takes_a_gesture_id_of_its_own() {
     let mut show = |ui: &mut Ui| {
         let out = Scrub::new(Bind::bound(&mut value)).set_by_access().id_salt("scrub").show_at(ui, AT);
         target.set(Some(out.response.id));
-        events.borrow_mut().extend(out.event.clone());
+        events.borrow_mut().extend(out.events.clone());
     };
     dragging(&mut frames, &mut show);
     let drag_id = events.borrow().iter().find(|event| matches!(event, EditEvent::Begin { .. })).map(EditEvent::id).expect("the drag began");

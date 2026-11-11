@@ -9,7 +9,7 @@ use crate::text::NumberField;
 use crate::value_drag::{Slider, SliderScale};
 use craft_behavior::canvas::zoom;
 use craft_behavior::kurbo::Size;
-use craft_behavior::{CanvasView, EditEvent, IconId, Mixed, ZoomLadder};
+use craft_behavior::{CanvasView, EditEvent, EditEvents, IconId, Mixed, ZoomLadder};
 use egui::{Response, Ui};
 
 /// What the zoom row reports.
@@ -18,9 +18,9 @@ use egui::{Response, Ui};
 pub struct NavigatorZoomRowOutput {
     /// The row's response.
     pub response: Response,
-    /// The view change of this pass, for a binding that does not write through: a typed percent or a slider drag as
+    /// The view changes of this pass, for a binding that does not write through: a typed percent or a slider drag as
     /// its gesture.
-    pub view: Option<EditEvent<CanvasView>>,
+    pub view: EditEvents<CanvasView>,
 }
 
 impl Outcome for NavigatorZoomRowOutput {
@@ -68,7 +68,7 @@ impl<'a> NavigatorZoomRow<'a> {
         let pixels_per_point = env.scale.0;
         let zoom_label = words.navigator_zoom.clone();
 
-        let mut event: Option<EditEvent<CanvasView>> = None;
+        let mut events = EditEvents::new();
         let shown = Row::new().show(ui, |ui, cx| {
             let Some(Mixed::Same(current)) = view.reborrow().read(cx) else { return };
             let device = zoom::device(&current, pixels_per_point);
@@ -82,9 +82,7 @@ impl<'a> NavigatorZoomRow<'a> {
                 .range(range.clone())
                 .stepper(ladder)
                 .show(ui);
-            if let Some(typed) = field.edit.event.clone() {
-                edits.push(typed.map(|percent| percent.map_or(current, |percent| at(percent / 100.0))));
-            }
+            edits.extend(field.edit.events.clone().map(|percent| percent.map_or(current, |percent| at(percent / 100.0))));
 
             IconButton::command(IconId::new("minus"), ViewCommands::ZoomOut).show(ui);
 
@@ -95,17 +93,15 @@ impl<'a> NavigatorZoomRow<'a> {
                 .label(zoom_label.clone())
                 .value_text(units.zoom_percent(device * 100.0))
                 .show(ui);
-            if let Some(dragged) = slider.event.clone() {
-                edits.push(dragged.map(at));
-            }
+            edits.extend(slider.events.clone().map(at));
 
             IconButton::command(IconId::new("plus"), ViewCommands::ZoomIn).show(ui);
 
-            for edit in edits {
-                view.reborrow().write(cx, &edit);
-                event = EditEvent::fold(event.take(), edit);
+            for edit in &edits {
+                view.reborrow().write(cx, edit);
             }
+            events = edits.into_iter().collect();
         });
-        NavigatorZoomRowOutput { response: shown.output, view: event }
+        NavigatorZoomRowOutput { response: shown.output, view: events }
     }
 }

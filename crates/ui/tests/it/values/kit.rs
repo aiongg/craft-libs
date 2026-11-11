@@ -1,6 +1,6 @@
 //! A value component for the trials: a track that scrubs an `f32`, written with the derives.
 
-use craft_behavior::{CancelReason, EditEvent, GesturePhase, PartKey, PressPhase, Sense};
+use craft_behavior::{CancelReason, EditEvent, EditEvents, GesturePhase, PartKey, PressPhase, Sense};
 use craft_ui::contract::{
     Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, MeasureCx, PartsCx, Pointer as _, Role, Styled as _,
 };
@@ -56,12 +56,13 @@ pub struct Scrub<'a> {
     value: Bind<'a, f32>,
     one_pass: bool,
     set_by_access: bool,
+    grows: bool,
     seen: Option<&'a Seen>,
 }
 
 impl<'a> Scrub<'a> {
     pub fn new(value: Bind<'a, f32>) -> Self {
-        Scrub { common: Common::new(), value, one_pass: false, set_by_access: false, seen: None }
+        Scrub { common: Common::new(), value, one_pass: false, set_by_access: false, grows: false, seen: None }
     }
 
     /// A click begins, proposes and commits a step in one pass.
@@ -73,6 +74,12 @@ impl<'a> Scrub<'a> {
     /// An AccessKit `SetValue` request sets the value.
     pub fn set_by_access(mut self) -> Self {
         self.set_by_access = true;
+        self
+    }
+
+    /// The scrub is as much wider than `AT` as its value.
+    pub fn grows(mut self) -> Self {
+        self.grows = true;
         self
     }
 
@@ -91,8 +98,11 @@ impl Component for Scrub<'_> {
         PlainStyle::default()
     }
 
-    fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
-        AT.size()
+    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
+        match cx.value() {
+            Some(value) if self.grows => AT.size() + Vec2::new(*value, 0.0),
+            _ => AT.size(),
+        }
     }
 
     fn sense(&self) -> Sense {
@@ -128,7 +138,7 @@ impl Component for Scrub<'_> {
             PressPhase::Release { .. } if cx.gesture().is_some() => cx.commit(),
             _ => {}
         }
-        // After the drag's proposal: the pass's one response event is the later one (10.3).
+        // After the drag's proposal, so the response lists the Set after the drag's events.
         if self.set_by_access
             && let Some(requested) = cx.intents().take_set_value()
         {
@@ -149,7 +159,7 @@ impl Component for Scrub<'_> {
     }
 }
 
-/// What a response's event was, for the gesture trials.
+/// What a response's events were, for the gesture trials.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum Ev {
@@ -160,13 +170,18 @@ pub enum Ev {
     Set(f32),
 }
 
-pub fn ev_of(event: &Option<EditEvent<f32>>) -> Option<Ev> {
-    Some(match event.as_ref()? {
-        EditEvent::Begin { .. } => Ev::Begin,
-        EditEvent::Update { value, .. } => Ev::Update(*value),
-        EditEvent::Commit { after, .. } => Ev::Commit(*after),
-        EditEvent::Cancel { reason, .. } => Ev::Cancel(*reason),
-        EditEvent::Set { after, .. } => Ev::Set(*after),
-        _ => return None,
-    })
+pub fn ev_of(events: &EditEvents<f32>) -> Vec<Ev> {
+    events
+        .iter()
+        .filter_map(|event| {
+            Some(match event {
+                EditEvent::Begin { .. } => Ev::Begin,
+                EditEvent::Update { value, .. } => Ev::Update(*value),
+                EditEvent::Commit { after, .. } => Ev::Commit(*after),
+                EditEvent::Cancel { reason, .. } => Ev::Cancel(*reason),
+                EditEvent::Set { after, .. } => Ev::Set(*after),
+                _ => return None,
+            })
+        })
+        .collect()
 }

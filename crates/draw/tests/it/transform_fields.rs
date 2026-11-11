@@ -61,7 +61,7 @@ fn harness_of(row: TransformRow, config: Config) -> Harness {
             fields = fields.units(units, units);
         }
         let output = fields.show(ui);
-        events.extend(output.event);
+        events.extend(output.events);
     });
     fixture.settle();
     Harness { fixture, host }

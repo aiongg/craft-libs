@@ -21,7 +21,7 @@ use super::labels::LayerStyleWords;
 use super::list::{LayerStyleCommand, ListAction, effect_list};
 use super::page::{PageInput, StyleOp, effect_page, push_edit, set_edit};
 use super::styles::{StylePresets, styles_page};
-use craft_behavior::EditEvent;
+use craft_behavior::EditEvents;
 
 use crate::layer_style::{Contour, EffectId, EffectKind, EffectSpec, LayerStyle, LayerStyleDraft, LayerStylePage, StyleParams, StyleValue};
 
@@ -37,7 +37,7 @@ pub struct LayerStyleOutput {
     /// page switch never reaches the host's history. The host keeps the value and previews it while the draft's
     /// `preview` is on; everything stays inside the dialog's outer gesture, and OK makes the one "Layer Style" history
     /// step.
-    pub edit: Option<EditEvent<LayerStyle>>,
+    pub edit: EditEvents<LayerStyle>,
     /// The page the user chose this pass (a list row, an added or removed instance); the host keeps it in
     /// [`LayerStyleDraft::page`], and the dialog draws it from then on.
     pub page: Option<LayerStylePage>,
@@ -119,7 +119,7 @@ impl LayerStyleOutput {
 /// ```ignore
 /// let out = LayerStyleDialog::new("Layer Style", &draft, &channels).show(ui);
 /// out.apply_view(&mut draft);
-/// if let Some(value) = out.edit.as_ref().and_then(|event| event.value()) {
+/// if let Some(value) = out.edit.value() {
 ///     draft.style = value.clone(); // and re-render the preview when `draft.render_hash()` changed
 /// }
 /// ```
@@ -222,7 +222,7 @@ impl<'a> LayerStyleDialog<'a> {
             }
             None => &base,
         };
-        let mut work = Work { next: draft.clone(), edit: None, extras: Extras::default() };
+        let mut work = Work { next: draft.clone(), edit: EditEvents::new(), extras: Extras::default() };
         let title = page_title(draft.page, draft, &words);
         let name = label.as_str().to_owned();
         let shown = Row::new().label(label.clone()).show(ui, |ui, _| {
@@ -320,7 +320,7 @@ struct Extras {
 /// The pass's working copy of the draft, for the view state the pass changes, and what the pass reported.
 struct Work {
     next: LayerStyleDraft,
-    edit: Option<EditEvent<LayerStyle>>,
+    edit: EditEvents<LayerStyle>,
     extras: Extras,
 }
 

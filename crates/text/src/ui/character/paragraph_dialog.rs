@@ -464,17 +464,18 @@ impl ParagraphDialog {
                     NumberField::new(caption.clone(), Bind::given(shown)).codec(codec).enabled(enabled).show(ui)
                 }
             };
-            (out.edit.event, out.edit.unparsed)
+            (out.edit.events, out.edit.unparsed)
         });
-        let Some((event, unparsed)) = shown_field.inner else { return };
+        let Some((events, unparsed)) = shown_field.inner else { return };
         if unparsed {
             valid.set(false);
         }
-        let Some(event) = event else { return };
-        let event = match count {
-            Count::Length(_) | Count::Lines => event,
-        };
-        self.apply(row, &event.map(|value| value.map(|value| value as f32)));
+        for event in events {
+            let event = match count {
+                Count::Length(_) | Count::Lines => event,
+            };
+            self.apply(row, &event.map(|value| value.map(|value| value as f32)));
+        }
     }
 
     fn body(&mut self, ui: &mut Ui, scope: &Scope<'_>, valid: &Cell<bool>) {

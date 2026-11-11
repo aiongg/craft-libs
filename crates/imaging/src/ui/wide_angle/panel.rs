@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use craft_behavior::{EditEvent, Mixed};
+use craft_behavior::{EditEvent, EditEvents, Mixed};
 use craft_theme::{ControlSize, TypeRole};
 use craft_ui::buttons::Button;
 use craft_ui::choice::Checkbox;
@@ -24,10 +24,10 @@ use super::words::WideAngleWords;
 pub struct WideAnglePanelOutput {
     /// The panel's response.
     pub response: Response,
-    /// The latest edit of the correction values (the lens model and the sliders) this pass. A slider's gesture reports
+    /// The edits of the correction values (the lens model and the sliders) this pass, in order. A slider's gesture reports
     /// `Begin`, `Update`, then `Commit` or `Cancel`; the session in each event is the session with that value
     /// changed. The workspace writes it to its session.
-    pub edit: Option<EditEvent<WideAngleSession>>,
+    pub edit: EditEvents<WideAngleSession>,
     /// A row's Orientation or Delete; the workspace applies it.
     pub constraint: Option<WideAngleConstraintEdit>,
     /// The Add button was pressed: the workspace opens the Add Constraint form.
@@ -74,9 +74,10 @@ impl<'a> WideAnglePanel<'a> {
         let Self { session, mut preview } = self;
         let env = Env::of(ui);
         let words = env.words::<WideAngleWords>();
-        let (mut edit, mut constraint, mut add) = (None, None, false);
+        let (mut edit, mut constraint, mut add) = (EditEvents::new(), None, false);
 
         let shown = Stack::new().label(words.settings.clone()).show(ui, |ui, _| {
+            edit = EditEvents::new();
             Section::fixed(words.correction.clone()).show(ui, |ui, _| {
                 let models = [
                     Entry::new(WideAngleModel::Auto, words.auto.clone()),
@@ -87,7 +88,7 @@ impl<'a> WideAnglePanel<'a> {
                 if let Some(&picked) = Select::new(words.correction.clone(), Bind::given(session.model), &models).show(ui).value() {
                     let mut after = session.clone();
                     after.model = picked;
-                    edit = Some(EditEvent::set(Mixed::Same(session.clone()), after, Arc::from(words.correction.as_str()), None));
+                    edit.push(EditEvent::set(Mixed::Same(session.clone()), after, Arc::from(words.correction.as_str()), None));
                 }
                 let rows = [
                     Slider { name: |w| &w.scale, range: 50.0..=150.0, unit: UnitKind::Percent, step: 1.0, get: |s| s.scale, set: |s, v| s.scale = v },
@@ -113,13 +114,11 @@ impl<'a> WideAnglePanel<'a> {
                         .unit_kind(unit)
                         .step(step)
                         .id_salt(name(&words).as_str());
-                    if let Some(event) = field.show(ui).event {
-                        edit = Some(event.map(|value| {
-                            let mut shown = session.clone();
-                            set(&mut shown, value);
-                            shown
-                        }));
-                    }
+                    edit.extend(field.show(ui).events.map(|value| {
+                        let mut shown = session.clone();
+                        set(&mut shown, value);
+                        shown
+                    }));
                 }
             });
 

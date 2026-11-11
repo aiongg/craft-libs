@@ -16,7 +16,7 @@ use crate::runtime::focus::{self, FocusTarget};
 use crate::runtime::words::CommonWords;
 use crate::style::TypeRole;
 use crate::text::TextField;
-use craft_behavior::{EditEvent, PixelSize};
+use craft_behavior::{EditEvent, EditEvents, PixelSize};
 use craft_theme::Srgba;
 use craft_theme::variant::Tone;
 use egui::Ui;
@@ -52,26 +52,27 @@ impl BackgroundKind {
     }
 }
 
-/// Applies the edit of a width, height or resolution field to the linked fields. A gesture that is cancelled puts back
-/// the fields from before it.
-fn apply_number(session: &mut Session, event: Option<&EditEvent<Option<f64>>>, set: impl FnOnce(&mut LinkedSize, f64)) {
-    let Some(event) = event else { return };
-    match event {
-        EditEvent::Begin { .. } => session.gesture = Some(session.size.clone()),
-        EditEvent::Cancel { .. } => {
-            if let Some(before) = session.gesture.take() {
-                session.size = before;
+/// Applies the edits of a width, height or resolution field to the linked fields, in order. A gesture that is cancelled
+/// puts back the fields from before it.
+fn apply_number(session: &mut Session, events: &EditEvents<Option<f64>>, set: impl Fn(&mut LinkedSize, f64)) {
+    for event in events {
+        match event {
+            EditEvent::Begin { .. } => session.gesture = Some(session.size.clone()),
+            EditEvent::Cancel { .. } => {
+                if let Some(before) = session.gesture.take() {
+                    session.size = before;
+                }
             }
-        }
-        _ => {
-            if session.gesture.is_none() && matches!(event, EditEvent::Update { .. }) {
-                session.gesture = Some(session.size.clone());
-            }
-            if let Some(Some(value)) = event.value() {
-                set(&mut session.size, *value);
-            }
-            if matches!(event, EditEvent::Commit { .. } | EditEvent::Set { .. }) {
-                session.gesture = None;
+            _ => {
+                if session.gesture.is_none() && matches!(event, EditEvent::Update { .. }) {
+                    session.gesture = Some(session.size.clone());
+                }
+                if let Some(Some(value)) = event.value() {
+                    set(&mut session.size, *value);
+                }
+                if matches!(event, EditEvent::Commit { .. } | EditEvent::Set { .. }) {
+                    session.gesture = None;
+                }
             }
         }
     }
@@ -129,11 +130,11 @@ pub(super) fn show(ui: &mut Ui, session: &mut Session, values: &mut DocumentOpti
                     .range(range)
                     .unit_label(side.unit_name(words).clone())
                     .show(ui);
-                apply_number(session, shown.edit.event.as_ref(), |size, value| match side {
+                apply_number(session, &shown.edit.events, |size, value| match side {
                     Side::Width => size.set_width(value),
                     Side::Height => size.set_height(value),
                 });
-                if let Some(kind) = shown.unit.as_ref().and_then(|event| event.value().copied()) {
+                if let Some(kind) = shown.unit.value().copied() {
                     session.size.set_unit(kind);
                 }
             });
@@ -169,8 +170,8 @@ pub(super) fn show(ui: &mut Ui, session: &mut Session, values: &mut DocumentOpti
             .range(session.size.resolution_range())
             .unit_label(words.resolution_unit.clone())
             .show(ui);
-            apply_number(session, shown.edit.event.as_ref(), LinkedSize::set_resolution);
-            if let Some(kind) = shown.unit.as_ref().and_then(|event| event.value().copied()) {
+            apply_number(session, &shown.edit.events, LinkedSize::set_resolution);
+            if let Some(kind) = shown.unit.value().copied() {
                 session.size.set_resolution_unit(kind);
             }
         });
@@ -193,7 +194,7 @@ pub(super) fn show(ui: &mut Ui, session: &mut Session, values: &mut DocumentOpti
         Field::new(words.profile.clone()).id_salt("profile").show(ui, |ui, _| {
             let current = values.profile.clone().filter(|profile| others.contains(&profile));
             let shown = Select::new(words.profile.clone(), Bind::given(current), &profiles).show(ui);
-            if let Some(profile) = shown.event.as_ref().and_then(|event| event.value().cloned()) {
+            if let Some(profile) = shown.value().cloned() {
                 values.profile = profile;
             }
         });

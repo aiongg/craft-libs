@@ -1,7 +1,8 @@
-//! The value core of chapter 10: the bound every value type meets, `Mixed`, edit events and how a pass's events
-//! fold into one.
+//! The value core of chapter 10: the bound every value type meets, `Mixed`, edit events and the list a pass's events
+//! fold into.
 
 use crate::doc_key::DocKey;
+use smallvec::SmallVec;
 use std::sync::Arc;
 
 /// What a bound value must be: cloneable, comparable and shareable across threads.
@@ -153,7 +154,7 @@ pub enum GesturePhase {
     Cancel,
 }
 
-/// One step of an edit. A pass raises several; `fold` reduces them to the one the response carries.
+/// One step of an edit. A pass raises several; [`EditEvents`] holds them in order.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum EditEvent<T> {
@@ -287,6 +288,14 @@ impl<T> EditEvent<T> {
         }
     }
 
+    /// The value the binding holds after the event: the carried value, or the value a cancel restores.
+    pub fn landed(&self) -> Option<&T> {
+        match self {
+            EditEvent::Cancel { before: Some(Mixed::Same(before)), .. } => Some(before),
+            event => event.value(),
+        }
+    }
+
     /// Where the gesture stands after this event; a `Set` is not a gesture.
     pub fn phase(&self) -> Option<GesturePhase> {
         match self {
@@ -334,19 +343,152 @@ impl<T: Value> EditEvent<T> {
             _ => Applied::Unchanged,
         }
     }
+}
 
-    /// Folds the events of one pass into the one the response carries: `Begin`..`Commit` is `Set`, `Begin`..`Cancel`
-    /// is nothing, `Begin`..`Update` stays `Begin` (it carries no value; the source holds it), otherwise the later
-    /// event.
-    pub fn fold(prev: Option<EditEvent<T>>, next: EditEvent<T>) -> Option<EditEvent<T>> {
-        match (prev, next) {
-            (Some(EditEvent::Begin { before, label, doc_key, .. }), EditEvent::Commit { after, .. }) => {
-                Some(EditEvent::Set { before, after, label, doc_key })
-            }
-            (Some(EditEvent::Begin { .. }), EditEvent::Cancel { .. }) => None,
-            (Some(begin @ EditEvent::Begin { .. }), EditEvent::Update { .. }) => Some(begin),
-            (_, next) => Some(next),
+/// The edit events of one pass, in order. `push` folds what loses nothing, within one gesture: a later `Update`,
+/// `Commit` or `Cancel` replaces the `Update` before it (it carries the value on), `Begin` then `Commit` is one `Set`,
+/// and `Begin` then `Cancel` is nothing. Every other event follows the one before, so a pass reports at most
+/// `[Begin, Update]` of one gesture.
+#[derive(Clone, Debug, PartialEq)]
+pub struct EditEvents<T>(SmallVec<[EditEvent<T>; 2]>);
+
+impl<T> Default for EditEvents<T> {
+    fn default() -> Self {
+        EditEvents(SmallVec::new())
+    }
+}
+
+impl<T> EditEvents<T> {
+    /// No events.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Adds the next event of the pass, folding it with the one before when that loses nothing.
+    pub fn push(&mut self, event: EditEvent<T>) {
+        let gesture = event.id();
+        let same = |last: Option<&EditEvent<T>>| gesture.is_some() && last.and_then(EditEvent::id) == gesture;
+        if matches!(event, EditEvent::Update { .. } | EditEvent::Commit { .. } | EditEvent::Cancel { .. })
+            && matches!(self.0.last(), Some(EditEvent::Update { .. }))
+            && same(self.0.last())
+        {
+            self.0.pop();
         }
+        if matches!(event, EditEvent::Commit { .. } | EditEvent::Cancel { .. })
+            && matches!(self.0.last(), Some(EditEvent::Begin { .. }))
+            && same(self.0.last())
+        {
+            let Some(EditEvent::Begin { before, label, doc_key, .. }) = self.0.pop() else { return };
+            if let EditEvent::Commit { after, .. } = event {
+                self.0.push(EditEvent::Set { before, after, label, doc_key });
+            }
+            return;
+        }
+        self.0.push(event);
+    }
+
+    /// No event happened.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    /// The number of events.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// The events in order.
+    pub fn iter(&self) -> std::slice::Iter<'_, EditEvent<T>> {
+        self.0.iter()
+    }
+
+    /// The latest event.
+    pub fn last(&self) -> Option<&EditEvent<T>> {
+        self.0.last()
+    }
+
+    /// The latest value the events carry: a proposal, a commit or a set.
+    pub fn value(&self) -> Option<&T> {
+        self.0.iter().rev().find_map(EditEvent::value)
+    }
+
+    /// The value the binding holds after the events: the latest carried value, or the value a cancel restores.
+    pub fn landed(&self) -> Option<&T> {
+        self.0.iter().rev().find_map(EditEvent::landed)
+    }
+
+    /// A gesture began.
+    pub fn began(&self) -> bool {
+        self.0.iter().any(|event| matches!(event, EditEvent::Begin { .. }))
+    }
+
+    /// The `Commit`, `Cancel` or `Set` that ended an edit in this pass; the latest one.
+    pub fn ended(&self) -> Option<&EditEvent<T>> {
+        self.0.iter().rev().find(|event| matches!(event, EditEvent::Commit { .. } | EditEvent::Cancel { .. } | EditEvent::Set { .. }))
+    }
+
+    /// Why a gesture was cancelled in this pass; the latest cancel.
+    pub fn cancel_reason(&self) -> Option<CancelReason> {
+        self.0.iter().rev().find_map(|event| match event {
+            EditEvent::Cancel { reason, .. } => Some(*reason),
+            _ => None,
+        })
+    }
+
+    /// Maps the carried values of every event.
+    pub fn map<U>(self, f: impl Fn(T) -> U) -> EditEvents<U> {
+        EditEvents(self.0.into_iter().map(|event| event.map(&f)).collect())
+    }
+
+    /// Maps the carried values of every event, dropping the events `f` has no value for.
+    pub fn filter_map<U>(self, f: impl Fn(T) -> Option<U>) -> EditEvents<U> {
+        self.0.into_iter().filter_map(|event| event.filter_map(&f)).collect()
+    }
+}
+
+impl<T> From<EditEvent<T>> for EditEvents<T> {
+    fn from(event: EditEvent<T>) -> Self {
+        EditEvents(smallvec::smallvec![event])
+    }
+}
+
+impl<T> From<Option<EditEvent<T>>> for EditEvents<T> {
+    fn from(event: Option<EditEvent<T>>) -> Self {
+        event.into_iter().collect()
+    }
+}
+
+impl<T> Extend<EditEvent<T>> for EditEvents<T> {
+    fn extend<I: IntoIterator<Item = EditEvent<T>>>(&mut self, events: I) {
+        for event in events {
+            self.push(event);
+        }
+    }
+}
+
+impl<T> FromIterator<EditEvent<T>> for EditEvents<T> {
+    fn from_iter<I: IntoIterator<Item = EditEvent<T>>>(events: I) -> Self {
+        let mut list = EditEvents::new();
+        list.extend(events);
+        list
+    }
+}
+
+impl<T> IntoIterator for EditEvents<T> {
+    type Item = EditEvent<T>;
+    type IntoIter = smallvec::IntoIter<[EditEvent<T>; 2]>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+impl<'a, T> IntoIterator for &'a EditEvents<T> {
+    type Item = &'a EditEvent<T>;
+    type IntoIter = std::slice::Iter<'a, EditEvent<T>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
     }
 }
 
@@ -368,9 +510,9 @@ pub struct Gesture<V> {
     /// given source `Begin`'s start value and then each `Update`.
     #[doc(hidden)]
     pub emitted: Option<V>,
-    /// A given caller's `Update` that fell in the pass of its `Begin`, delivered in the next pass.
+    /// The value of the last `Update` the gesture reported; a proposal equal to it reports nothing.
     #[doc(hidden)]
-    pub held: Option<V>,
+    pub reported: Option<V>,
     /// A gesture was cancelled under the press that carried it: nothing is proposed until the release.
     #[doc(hidden)]
     pub dead: bool,
@@ -390,7 +532,7 @@ impl<V> Default for Gesture<V> {
             proposal: None,
             last_given: None,
             emitted: None,
-            held: None,
+            reported: None,
             dead: false,
             cancel_seen: 0,
             watched: false,
@@ -420,21 +562,24 @@ mod tests {
         EditEvent::Begin { id: ID, before: Mixed::Same(0), label: "Gain".into(), doc_key: None }
     }
 
-    fn fold(events: Vec<EditEvent<i32>>) -> Option<EditEvent<i32>> {
-        events.into_iter().fold(None, EditEvent::fold)
+    fn fold(events: Vec<EditEvent<i32>>) -> Vec<EditEvent<i32>> {
+        events.into_iter().collect::<EditEvents<_>>().into_iter().collect()
     }
 
     #[test]
-    fn a_pass_folds_to_the_event_the_response_carries() {
+    fn a_pass_keeps_every_event_and_folds_what_loses_nothing() {
         let update = |value| EditEvent::Update { id: ID, value };
         let commit = EditEvent::Commit { id: ID, before: Mixed::Same(0), after: 5 };
         let cancel = EditEvent::Cancel { id: ID, reason: CancelReason::Escape, before: Some(Mixed::Same(0)) };
         let set = fold(vec![begin(), update(3), commit.clone()]);
-        assert!(matches!(&set, Some(EditEvent::Set { after: 5, label, .. }) if &**label == "Gain"), "Begin..Commit is one Set: {set:?}");
-        assert_eq!(fold(vec![begin(), update(3), cancel.clone()]), None, "Begin..Cancel is nothing");
-        assert_eq!(fold(vec![begin(), update(3)]), Some(begin()), "Begin..Update stays Begin");
-        assert_eq!(fold(vec![update(3), commit.clone()]), Some(commit), "Update..Commit is Commit");
-        assert_eq!(fold(vec![update(3), cancel.clone()]), Some(cancel), "Update..Cancel is Cancel");
-        assert_eq!(fold(vec![update(3), update(4)]), Some(update(4)), "otherwise the later event");
+        assert!(matches!(&set[..], [EditEvent::Set { after: 5, label, .. }] if &**label == "Gain"), "Begin..Commit is one Set: {set:?}");
+        assert_eq!(fold(vec![begin(), update(3), cancel.clone()]), vec![], "Begin..Cancel is nothing");
+        assert_eq!(fold(vec![begin(), update(3), update(4)]), vec![begin(), update(4)], "Begin then the last Update");
+        assert_eq!(fold(vec![update(3), commit.clone()]), vec![commit.clone()], "Update..Commit is Commit");
+        assert_eq!(fold(vec![update(3), cancel.clone()]), vec![cancel], "Update..Cancel is Cancel");
+        let next = EditEvent::Begin { id: GestureId(2), before: Mixed::Same(5), label: "Gain".into(), doc_key: None };
+        assert_eq!(fold(vec![update(3), commit.clone(), next.clone()]), vec![commit, next], "a new gesture follows the ended one");
+        let other = EditEvent::Update { id: GestureId(2), value: 7 };
+        assert_eq!(fold(vec![update(3), other.clone()]), vec![update(3), other], "updates of two gestures stay apart");
     }
 }

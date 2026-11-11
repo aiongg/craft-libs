@@ -44,7 +44,7 @@ fn frame(ui: &mut Ui, value: &mut bool, gate: bool, out: &RefCell<Out>) {
     let TitleOutput { edit, action, .. } = row.show_at(ui, ROW);
     let mut out = out.borrow_mut();
     out.id = Some(edit.response.id);
-    out.changed |= edit.event.is_some();
+    out.changed |= !edit.events.is_empty();
     out.action = out.action.or(action);
 }
 

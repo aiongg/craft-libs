@@ -18,7 +18,7 @@ fn a_press_moves_and_release_in_one_frame_begin_the_drag_and_commit_it() {
         let mut current = shown.get();
         let out = Scrub::new(Bind::bound(&mut current)).id_salt("scrub").show_at(ui, AT);
         shown.set(current);
-        log.borrow_mut().extend(ev_of(&out.event));
+        log.borrow_mut().extend(ev_of(&out.events));
     });
     let start = Pos2::new(AT.left() + 10.0, AT.center().y);
     let to = start + Vec2::new(FIRST - 10.0, 0.0);

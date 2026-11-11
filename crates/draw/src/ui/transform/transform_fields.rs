@@ -12,7 +12,7 @@ use super::session::Interpolation;
 use super::session_bar::TransformBarWords;
 use craft_behavior::geometry::quad::BoxState;
 use craft_behavior::kurbo::Rect;
-use craft_behavior::{EditEvent, GestureId, Mixed, RulerUnits};
+use craft_behavior::{EditEvent, EditEvents, GestureId, Mixed, RulerUnits};
 use craft_ui::canvas::RulerText;
 use craft_ui::contract::{
     Bind, BodyCx, Entry, GlyphLabel, LabelKind, NoValue, Outcome, Props as _, Show as _, ShowContainer as _, SideLabel, Sizing,
@@ -147,9 +147,9 @@ impl Bases {
 pub struct TransformFieldsOutput {
     /// The strip's or the rows' response.
     pub response: Response,
-    /// The edit of the row: every field's value after the box maths, one gesture per field gesture. A binding that
-    /// writes through has it already; a given one applies it.
-    pub event: Option<EditEvent<TransformRow>>,
+    /// The edits of the row, in order: every field's value after the box maths, one gesture per field gesture. A
+    /// binding that writes through has them already; a given one applies them.
+    pub events: EditEvents<TransformRow>,
     /// The unit picked from the W and H menu this pass; the host keeps it with its settings.
     pub unit_picked: Option<UnitKind>,
     /// The aspect link was toggled to this state.
@@ -292,15 +292,15 @@ impl<'a> TransformFields<'a> {
         } else {
             FieldGroup::new(label).enabled(enabled).show(ui, |ui, cx| cells.rows(ui, cx)).output
         };
-        let Out { event, unit_picked, linked, interpolation } = cells.out;
-        TransformFieldsOutput { response, event, unit_picked, linked, interpolation }
+        let Out { events, unit_picked, linked, interpolation } = cells.out;
+        TransformFieldsOutput { response, events, unit_picked, linked, interpolation }
     }
 }
 
 /// What the cells collected in a pass.
 #[derive(Default)]
 struct Out {
-    event: Option<EditEvent<TransformRow>>,
+    events: EditEvents<TransformRow>,
     unit_picked: Option<UnitKind>,
     linked: Option<bool>,
     interpolation: Option<Interpolation>,
@@ -347,7 +347,7 @@ impl Cells<'_> {
     /// Writes `event` to the row and adds it to the pass's.
     fn report(&mut self, cx: &mut BodyCx<'_>, event: EditEvent<TransformRow>) {
         let _ = self.row.reborrow().write(cx, &event);
-        self.out.event = EditEvent::fold(self.out.event.take(), event);
+        self.out.events.push(event);
     }
 
     fn glyph_and_name(&self, field: TransformField) -> (Label, Label) {
@@ -378,7 +378,7 @@ impl Cells<'_> {
         let percent = kind == UnitKind::Percent;
         let menu = self.size_units.filter(|_| matches!(field, TransformField::W | TransformField::H));
         let side = SideLabel::new().kind(LabelKind::Glyph(GlyphLabel::text(glyph))).scrub(true);
-        let mut event = None;
+        let mut events = EditEvents::new();
         let mut picked = None;
         Field::new(name.clone()).id_salt(field.key()).enabled(self.enabled).side(side).sizing(Sizing::Content).show(ui, |ui, _| {
             let mut number = NumberField::new(name.clone(), Bind::given(Some(current)))
@@ -390,18 +390,19 @@ impl Cells<'_> {
                 number = number.commit_decimals(decimals);
             }
             let shown = number.show(ui);
-            event = shown.edit.event.clone();
+            events = shown.edit.events.clone();
             if let Some(entries) = menu {
                 let entries: Vec<Entry<UnitKind>> = entries.iter().map(|entry| entry.clone().checked(entry.value() == Some(&kind))).collect();
                 picked = Menu::context(name.clone(), &shown.edit.response).values().pick(ui, &entries).picked;
             }
         });
         self.out.unit_picked = self.out.unit_picked.or(picked);
-        let Some(event) = event else { return };
         let places = i32::try_from(decimals).unwrap_or(0);
-        let lifted = lift(&mut pass.bases, &pass.before, conversion, field, event, current, 0.5 * 10f64.powi(-places));
-        if let Some(lifted) = lifted {
-            self.report(cx, lifted);
+        for event in events {
+            let lifted = lift(&mut pass.bases, &pass.before, conversion, field, event, current, 0.5 * 10f64.powi(-places));
+            if let Some(lifted) = lifted {
+                self.report(cx, lifted);
+            }
         }
     }
 

@@ -5,7 +5,7 @@ use crate::contract::{Bind, NoValue, Outcome, Props as _, Show as _, ShowContain
 use crate::layout_components::Stack;
 use crate::runtime::env::Label;
 use craft_behavior::kurbo::Size;
-use craft_behavior::{CanvasView, EditEvent};
+use craft_behavior::{CanvasView, EditEvents};
 use egui::{Response, Ui};
 
 /// What the Navigator panel reports.
@@ -14,9 +14,9 @@ use egui::{Response, Ui};
 pub struct NavigatorPanelOutput {
     /// The panel's response.
     pub response: Response,
-    /// The view change of this pass, from the preview box or the zoom row's field and slider, as one change. A
-    /// preview zoom under Animated Zoom is the change to its target; the canvas eases to it.
-    pub view: Option<EditEvent<CanvasView>>,
+    /// The view changes of this pass, from the preview box or the zoom row's field and slider, in order. A preview
+    /// zoom under Animated Zoom is the change to its target; the canvas eases to it.
+    pub view: EditEvents<CanvasView>,
 }
 
 impl Outcome for NavigatorPanelOutput {
@@ -73,15 +73,13 @@ impl<'a> NavigatorPanel<'a> {
     /// Shows the panel.
     pub fn show(self, ui: &mut Ui) -> NavigatorPanelOutput {
         let NavigatorPanel { label, mut view, document, mut preview, navigation, proxy, enabled } = self;
-        let mut change: Option<EditEvent<CanvasView>> = None;
+        let mut change = EditEvents::new();
         let shown = Stack::new().enabled(enabled).show(ui, |ui, _| {
             // The body runs for the measuring pass and again for the real one, so each run lends the picture.
             let preview =
                 Navigator::new(label.clone(), view.reborrowed(), document).preview(preview.reborrowed()).navigation(navigation).proxy(proxy).show(ui);
             let row = NavigatorZoomRow::new(view.reborrowed(), document).show(ui);
-            for event in [preview.view.event.clone(), row.view].into_iter().flatten() {
-                change = EditEvent::fold(change.take(), event);
-            }
+            change = preview.view.events.clone().into_iter().chain(row.view).collect();
         });
         NavigatorPanelOutput { response: shown.output, view: change }
     }

@@ -3,7 +3,7 @@
 use std::ops::RangeInclusive;
 use std::sync::Arc;
 
-use craft_behavior::{EditEvent, Mixed, Value};
+use craft_behavior::{EditEvent, EditEvents, Mixed, Value};
 use craft_ui::buttons::Button;
 use craft_ui::choice::Checkbox;
 use craft_ui::contract::{Bind, Entry, NoValue, Outcome, Props as _, Remember as _, Show as _, ShowContainer as _, clicked};
@@ -39,9 +39,9 @@ const STRETCH_DECIMALS: usize = 0;
 pub struct PictureFillOutput {
     /// The editor's whole area.
     pub response: Response,
-    /// The change of the fill when a row changed it: a check, a menu pick or a typed value is a `Set`; a scrub or the
-    /// Transparency slider is a gesture. A binding that writes through has it already.
-    pub event: Option<EditEvent<PictureFill>>,
+    /// The changes of the fill when a row changed it, in order: a check, a menu pick or a typed value is a `Set`; a
+    /// scrub or the Transparency slider is a gesture. A binding that writes through has them already.
+    pub events: EditEvents<PictureFill>,
     /// Insert… was pressed: the host opens its file dialog for the path request keyed [`PICTURE_FILL_KEY`].
     pub requests: HostRequests,
 }
@@ -50,7 +50,7 @@ impl PictureFillOutput {
     /// Whether anything changed this pass or the host has a request to answer: a paint chip's Picture tab redraws its
     /// preview.
     pub fn changed(&self) -> bool {
-        self.event.is_some()
+        !self.events.is_empty()
     }
 }
 
@@ -118,10 +118,10 @@ impl<'a> PictureFillEditor<'a> {
         let env = Env::of(ui);
         let words = env.words::<PictureFillWords>();
         let name: Arc<str> = label.as_str().into();
-        let mut found = None;
+        let mut found = EditEvents::new();
         let mut requests = HostRequests::new();
         let shown = Stack::new().label(label).show(ui, |ui, cx| {
-            found = None;
+            found = EditEvents::new();
             requests = HostRequests::new();
             let fill = match value.reborrow().read(cx) {
                 Some(Mixed::Same(held)) => held,
@@ -133,22 +133,22 @@ impl<'a> PictureFillEditor<'a> {
                 PictureMode::Tile { offset, scale, alignment, mirror } => modes.tile = TileValues { offset, scale, alignment, mirror },
             }
             *cx.memory::<Modes>() = modes.clone();
-            let mut pass = Pass { fill: &fill, name: name.clone(), event: None };
+            let mut pass = Pass { fill: &fill, name: name.clone(), events: EditEvents::new() };
             rows(ui, &words, &mut pass, &modes, &mut requests);
-            if let Some(event) = pass.event {
-                let _ = value.reborrow().write(cx, &event);
-                found = Some(event);
+            for event in &pass.events {
+                let _ = value.reborrow().write(cx, event);
             }
+            found = pass.events;
         });
-        PictureFillOutput { response: shown.output, event: found, requests }
+        PictureFillOutput { response: shown.output, events: found, requests }
     }
 }
 
-/// One pass: the fill the rows edit and the first event they raised.
+/// One pass: the fill the rows edit and the events they raised.
 struct Pass<'a> {
     fill: &'a PictureFill,
     name: Arc<str>,
-    event: Option<EditEvent<PictureFill>>,
+    events: EditEvents<PictureFill>,
 }
 
 impl Pass<'_> {
@@ -159,17 +159,15 @@ impl Pass<'_> {
         copy
     }
 
-    /// Keeps the first event of the pass, as the row's event turned into a fill.
-    fn take<T>(&mut self, event: Option<EditEvent<T>>, fill: impl Fn(T) -> PictureFill) {
-        if self.event.is_none() {
-            self.event = event.map(|event| event.map(fill));
-        }
+    /// Keeps the row's events, turned into fills.
+    fn take<T>(&mut self, events: EditEvents<T>, fill: impl Fn(T) -> PictureFill) {
+        self.events.extend(events.map(fill));
     }
 
     /// Keeps a one-step change unless a row already reported.
     fn set(&mut self, next: PictureFill) {
-        if self.event.is_none() {
-            self.event = Some(EditEvent::set(Mixed::Same(self.fill.clone()), next, self.name.clone(), None));
+        if self.events.is_empty() {
+            self.events.push(EditEvent::set(Mixed::Same(self.fill.clone()), next, self.name.clone(), None));
         }
     }
 }
@@ -278,30 +276,22 @@ fn rows(ui: &mut Ui, words: &PictureFillWords, pass: &mut Pass<'_>, modes: &Mode
         let slider = SliderField::new(words.transparency.clone(), Bind::given(fill.transparency * 100.0), TRANSPARENCY)
             .unit_kind(UnitKind::Percent)
             .id_salt("transparency");
-        let event = slider.show(ui).event;
+        let event = slider.show(ui).events;
         let base = fill.clone();
         pass.take(event, move |v| PictureFill { transparency: (v / 100.0).clamp(0.0, 1.0), ..base.clone() });
     });
 }
 
 /// A number row; the event of an edit.
-fn number(
-    ui: &mut Ui,
-    label: &Label,
-    key: &'static str,
-    value: f64,
-    kind: UnitKind,
-    range: RangeInclusive<f64>,
-    decimals: usize,
-) -> Option<EditEvent<f64>> {
-    let mut event = None;
+fn number(ui: &mut Ui, label: &Label, key: &'static str, value: f64, kind: UnitKind, range: RangeInclusive<f64>, decimals: usize) -> EditEvents<f64> {
+    let mut event = EditEvents::new();
     Field::new(label.clone()).id_salt(key).show(ui, |ui, _| {
         let field = NumberField::new(label.clone(), Bind::<Option<f64>>::given(Some(value)))
             .id_salt("field")
             .unit_kind(kind)
             .range(range.clone())
             .commit_decimals(decimals);
-        event = field.show(ui).edit.event.map(|event| event.map(|v| v.unwrap_or(value)));
+        event = field.show(ui).edit.events.map(|v| v.unwrap_or(value));
     });
     event
 }

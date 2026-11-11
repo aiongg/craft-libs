@@ -65,7 +65,10 @@ impl<K> Outcome for PresetFooterOutput<K> {
 
     #[cfg(feature = "testing")]
     fn story_facts(&self) -> crate::testing::StoryOutput {
-        crate::testing::StoryOutput::of_edit(&self.response, self.zoom.as_ref().and_then(|zoom| zoom.event.as_ref()))
+        match &self.zoom {
+            Some(zoom) => crate::testing::StoryOutput::of_edit(&self.response, &zoom.events),
+            None => crate::testing::StoryOutput::of_edit(&self.response, &craft_behavior::EditEvents::<f64>::new()),
+        }
     }
 }
 
