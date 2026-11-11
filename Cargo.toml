@@ -136,3 +136,13 @@ overflow-checks = false
 # target dir; the workspace's own crates stay unoptimised and incremental.
 [profile.dev.package."*"]
 opt-level = 2
+
+# The workspace crates whose code runs in every screen-test frame (the framework runtime, the theme's colour maths
+# and the behaviour cores) build at opt-level 1: unoptimised, they made the test binaries several times slower, and
+# opt-level 1 keeps their incremental rebuilds short.
+[profile.dev.package.craft-ui]
+opt-level = 1
+[profile.dev.package.craft-theme]
+opt-level = 1
+[profile.dev.package.craft-behavior]
+opt-level = 1
