@@ -41,3 +41,10 @@ pub enum Error {
     #[error("tiff: {0}")]
     Tiff(String),
 }
+
+#[cfg(test)]
+extern crate self as craft_plate_test;
+
+#[cfg(test)]
+#[path = "../tests/main.rs"]
+mod integration;
