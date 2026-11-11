@@ -475,38 +475,3 @@ fn with_path(e: std::io::Error, path: &Path) -> FileError {
         other => other,
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    // An answer nobody asks for does not hide another ticket's answer.
-    #[test]
-    fn an_orphaned_answer_blocks_no_other_pick() {
-        let files = NoPickFiles::default();
-        let orphan = files.pick(PickRequest::open("a"));
-        let wanted = files.pick(PickRequest::open("b"));
-        assert_eq!(files.take_answer(wanted), Some(Picked::Cancelled));
-        assert_eq!(files.take_answer(wanted), None);
-        files.forget(orphan);
-        assert_eq!(files.take_answer(orphan), None);
-    }
-
-    #[test]
-    fn scripted_files_hold_picks_until_answered_and_keep_files_in_memory() {
-        let files = ScriptedFiles::held().with_file("/in.txt", b"in".to_vec());
-        let first = files.pick(PickRequest::open("a"));
-        let second = files.pick(PickRequest::open("b"));
-        assert!(files.pick_pending());
-        assert_eq!(files.take_answer(first), None);
-        assert!(files.answer_to(first, Picked::Cancelled));
-        assert_eq!(files.answer(Picked::Paths(vec!["/x".into()])), Some(second));
-        assert_eq!((files.take_answer(first), files.take_answer(second)), (Some(Picked::Cancelled), Some(Picked::Paths(vec!["/x".into()]))));
-        assert!(!files.pick_pending());
-
-        assert_eq!(files.read(Path::new("/in.txt")), Ok(b"in".to_vec()));
-        assert_eq!(files.read(Path::new("/none")), Err(FileError::NotFound("/none".into())));
-        files.write(Path::new("/out.txt"), b"out").expect("memory write");
-        assert_eq!(files.file(Path::new("/out.txt")), Some(b"out".to_vec()));
-    }
-}

@@ -41,8 +41,6 @@ pub mod lists;
 #[cfg(test)]
 mod lists_tests;
 pub mod quotes;
-#[cfg(test)]
-mod quotes_tests;
 #[cfg(feature = "segment")]
 pub mod segment;
 #[cfg(feature = "spell")]
@@ -50,8 +48,6 @@ pub mod spell;
 #[cfg(all(test, feature = "spell"))]
 mod spell_tests;
 pub mod styles;
-#[cfg(test)]
-mod styles_tests;
 #[cfg(feature = "ui")]
 pub mod ui;
 

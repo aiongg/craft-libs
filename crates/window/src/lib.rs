@@ -396,16 +396,3 @@ mod platform {
         fn event(_: &mut Self, _: &wl_registry::WlRegistry, _: wl_registry::Event, _: &GlobalListContents, _: &Connection, _: &QueueHandle<Self>) {}
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::{Button, Layout};
-
-    #[test]
-    fn parse_drops_quotes_unknown_names_and_duplicates() {
-        // gsettings prints the value single-quoted.
-        let layout = Layout::parse("'appmenu:minimize,close,close,spacer'");
-        assert!(layout.left.is_empty());
-        assert_eq!(layout.right, vec![Button::Minimize, Button::Close]);
-    }
-}

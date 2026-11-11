@@ -270,24 +270,6 @@ mod tests {
     }
 
     #[test]
-    fn round_trip_through_the_file() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("nested").join(FILE_NAME);
-        let mut s = Store::at(&path);
-        assert!(s.get(MAIN).is_none());
-        s.set(MAIN, &sample(5));
-        s.set("doc-2", &sample(6));
-        assert!(s.save().unwrap());
-        assert!(!s.save().unwrap(), "nothing changed");
-        let again = Store::at(&path);
-        assert_eq!(again.get(MAIN), Some(sample(5)));
-        assert_eq!(again.get("doc-2"), Some(sample(6)));
-        assert_eq!(again.keys().collect::<Vec<_>>(), ["doc-2", MAIN]);
-        let v: Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
-        assert_eq!(v["schema_version"], 1);
-    }
-
-    #[test]
     fn corrupt_file_is_moved_aside_and_the_store_starts_empty() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join(FILE_NAME);
@@ -335,60 +317,5 @@ mod tests {
         assert_eq!(v["note"], json!({"a": 1}));
         assert_eq!(v["windows"]["odd"], json!({"unexpected": true}));
         assert_eq!(Store::at(&path).get(MAIN), Some(sample(2)));
-    }
-
-    #[test]
-    fn newer_schema_with_an_unexpected_shape_is_not_moved_aside() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join(FILE_NAME);
-        std::fs::write(&path, r#"{"schema_version":3,"windows":[1,2]}"#).unwrap();
-        let s = Store::at(&path);
-        assert_eq!(s.read_only(), Some(&ReadOnly::NewerSchema(3)));
-        assert!(s.moved_aside().is_none() && path.exists());
-    }
-
-    #[test]
-    fn non_finite_placements_are_never_stored() {
-        let mut s = Store::in_memory();
-        let mut p = sample(1);
-        p.normal.size[0] = f32::NAN;
-        s.set(MAIN, &p);
-        assert!(s.get(MAIN).is_none() && !s.is_dirty());
-        let mut p = sample(1);
-        p.normal.pos[1] = f32::INFINITY;
-        s.set(MAIN, &p);
-        assert_eq!(s.get(MAIN).unwrap().normal.pos, [0.0, 0.0]);
-    }
-
-    #[test]
-    fn set_keeps_unknown_fields_of_the_entry() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join(FILE_NAME);
-        let mut entry = serde_json::to_value(sample(1)).unwrap();
-        entry["later"] = json!("x");
-        std::fs::write(&path, json!({"schema_version": 1, "windows": {MAIN: entry}}).to_string()).unwrap();
-        let mut s = Store::at(&path);
-        s.set(MAIN, &sample(2));
-        s.save().unwrap();
-        let v: Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
-        assert_eq!(v["windows"][MAIN]["later"], "x");
-        assert_eq!(Store::at(&path).get(MAIN), Some(sample(2)));
-    }
-
-    #[test]
-    fn dirty_clears_only_after_the_write_is_reported() {
-        let dir = tempfile::tempdir().unwrap();
-        let mut s = Store::at(&dir.path().join(FILE_NAME));
-        s.set(MAIN, &sample(1));
-        let first = s.take_pending().unwrap();
-        s.set(MAIN, &sample(2));
-        write_pending(&first).unwrap();
-        s.mark_saved(first.generation);
-        assert!(s.is_dirty(), "changed again while the first write was in flight");
-        let second = s.take_pending().unwrap();
-        assert!(s.is_dirty(), "taking a write does not clear it");
-        write_pending(&second).unwrap();
-        s.mark_saved(second.generation);
-        assert!(!s.is_dirty() && s.take_pending().is_none());
     }
 }

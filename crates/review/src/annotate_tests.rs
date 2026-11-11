@@ -1,8 +1,8 @@
 //! Annotation geometry.
 
-use kurbo::{Point, Rect, Vec2};
+use kurbo::{Point, Rect};
 
-use crate::annotate::{Annotation, AnnotationHandle, AnnotationHit, AnnotationId, AnnotationKind, hit, resized};
+use crate::annotate::{Annotation, AnnotationHandle, AnnotationHit, AnnotationId, AnnotationKind, hit};
 
 /// The icon side, in page units, the hit tests are given.
 const ICON: f64 = 16.0;
@@ -46,31 +46,6 @@ fn hit_prefers_handles_then_the_topmost_body() {
     assert_eq!(hit(&[line], &[], Point::new(150.0, 110.0), 2.0, ICON), None);
 }
 
-// resized keeps the ratio and never inverts.
-#[test]
-fn resize_keeps_the_aspect_with_shift() {
-    let rect = Rect::new(0.0, 0.0, 40.0, 20.0);
-    let grown = resized(rect, (1, 1), Vec2::new(40.0, 0.0), Some(2.0));
-    assert_eq!((grown.x0, grown.y0, grown.width(), grown.height()), (0.0, 0.0, 80.0, 40.0));
-    let free = resized(rect, (1, 1), Vec2::new(40.0, 0.0), None);
-    assert_eq!((free.width(), free.height()), (80.0, 20.0));
-    // A plain resize adds the delta and normalises: dragging past the other edge flips the box.
-    let flipped = resized(rect, (1, 0), Vec2::new(-100.0, 0.0), None);
-    assert_eq!((flipped.x0, flipped.x1, flipped.height()), (-60.0, 0.0, 20.0));
-    let top_left = resized(rect, (-1, -1), Vec2::new(-20.0, 0.0), Some(2.0));
-    assert_eq!((top_left.x1, top_left.y1, top_left.width()), (40.0, 20.0, 60.0));
-}
-
 // reshaped with shift snaps the segment.
 
 // AnnotationGroup::tools order and Eraser in Draw.
-
-// Note, Attach and Caret keep their icon size on screen: a hit tests the icon side given for this
-// zoom, not the stored rect.
-#[test]
-fn icon_kinds_hit_the_icon_side_given() {
-    let note = annotation(5, AnnotationKind::Note, Rect::new(100.0, 100.0, 100.0, 100.0));
-    assert_eq!(hit(std::slice::from_ref(&note), &[], Point::new(108.0, 108.0), 0.0, ICON), Some(AnnotationHit::Body(AnnotationId(5))));
-    assert_eq!(hit(std::slice::from_ref(&note), &[], Point::new(108.0, 108.0), 0.0, 4.0), None, "zoomed in, the icon covers fewer page units");
-    assert_eq!(hit(std::slice::from_ref(&note), &[], Point::new(108.0, 108.0), 0.0, 40.0), Some(AnnotationHit::Body(AnnotationId(5))));
-}

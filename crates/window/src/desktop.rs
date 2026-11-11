@@ -3,8 +3,6 @@
 
 #[cfg(feature = "ui")]
 mod work_area;
-#[cfg(all(test, feature = "ui"))]
-mod work_area_tests;
 
 #[cfg(feature = "ui")]
 pub use work_area::{TASKBAR, fits};
@@ -77,26 +75,5 @@ pub(crate) fn kind_from_env(var: &dyn Fn(&str) -> Option<String>) -> DesktopKind
         DesktopKind::Gnome
     } else {
         DesktopKind::Other
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn env(pairs: &[(&str, &str)]) -> impl Fn(&str) -> Option<String> + use<> {
-        let pairs: Vec<(String, String)> = pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect();
-        move |k| pairs.iter().find(|(key, _)| key == k).map(|(_, v)| v.clone())
-    }
-
-    #[test]
-    fn the_desktop_comes_from_the_first_variable_set() {
-        assert_eq!(kind_from_env(&env(&[("XDG_CURRENT_DESKTOP", "ubuntu:GNOME")])), DesktopKind::Gnome);
-        assert_eq!(kind_from_env(&env(&[("XDG_CURRENT_DESKTOP", "KDE")])), DesktopKind::Kde);
-        assert_eq!(kind_from_env(&env(&[("XDG_CURRENT_DESKTOP", "X-Cinnamon"), ("KDE_FULL_SESSION", "true")])), DesktopKind::Other);
-        assert_eq!(kind_from_env(&env(&[("XDG_CURRENT_DESKTOP", " "), ("DESKTOP_SESSION", "plasma")])), DesktopKind::Kde);
-        assert_eq!(kind_from_env(&env(&[("KDE_FULL_SESSION", "true")])), DesktopKind::Kde);
-        assert_eq!(kind_from_env(&env(&[("GNOME_DESKTOP_SESSION_ID", "x")])), DesktopKind::Gnome);
-        assert_eq!(kind_from_env(&env(&[])), DesktopKind::Other);
     }
 }

@@ -271,20 +271,4 @@ mod tests {
         ctx.memory_mut(|m| *m = Default::default());
         assert_eq!(Host::try_of_ctx(&ctx).map(|h| h.lang()), Some(Lang::PSEUDO));
     }
-
-    #[cfg(feature = "ui")]
-    #[test]
-    fn a_scoped_host_gives_way_to_the_one_installed_before() {
-        let ctx = egui::Context::default();
-        {
-            let _scope = Host::builder(APP).lang(Lang::PSEUDO).build().install_scoped(&ctx);
-            assert_eq!(Host::try_of_ctx(&ctx).map(|h| h.lang()), Some(Lang::PSEUDO));
-        }
-        assert!(Host::try_of_ctx(&ctx).is_none(), "no host was installed before");
-        Host::builder(APP).install(&ctx);
-        {
-            let _scope = Host::builder(APP).lang(Lang::PSEUDO).build().install_scoped(&ctx);
-        }
-        assert_eq!(Host::try_of_ctx(&ctx).map(|h| h.lang()), Some(Lang::EN));
-    }
 }

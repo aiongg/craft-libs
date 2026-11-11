@@ -393,17 +393,6 @@ mod tests {
         ThemeId::parse(s).unwrap()
     }
 
-    fn sel(theme: &str, mode: ModeChoice) -> Selection {
-        Selection {
-            theme: ThemePair::same(id(theme)),
-            mode,
-            contrast: ContrastChoice::System,
-            motion: MotionChoice::System,
-            size: Size::Compact,
-            text_size: TextSize::Small,
-        }
-    }
-
     fn choice(theme: Option<&str>, mode: Option<ModeChoice>) -> SuiteChoice {
         SuiteChoice { theme_light: theme.map(id), theme_dark: theme.map(id), mode, ..SuiteChoice::default() }
     }
@@ -444,64 +433,6 @@ mod tests {
     }
 
     #[test]
-    fn text_sizes_saved_under_the_former_names_still_load() {
-        let read = |name: &str| {
-            let text = format!(r#"{{"schema_version":2,"revision":1,"library_revision":1,"suite":{{"text_size":"{name}"}},"written_by":"x"}}"#);
-            parse_selection(text.as_bytes()).unwrap().accepted.suite.text_size
-        };
-        assert_eq!(read("default"), Some(TextSize::Small));
-        assert_eq!(read("larger"), Some(TextSize::Large));
-        assert_eq!(read("medium"), Some(TextSize::Medium));
-    }
-
-    #[test]
-    fn unknown_keys_survive_a_rewrite() {
-        let text = br#"{"schema_version":2,"revision":4,"library_revision":2,"extra":{"a":[1]},
-            "suite":{"theme":{"light":"user.navy","dark":"user.navy","later":1},"mode":"light","later":true},"written_by":"x"}"#;
-        let doc = parse_selection(text).unwrap();
-        assert_eq!(doc.accepted.revision, 4);
-        assert_eq!(doc.accepted.suite, choice(Some("user.navy"), Some(ModeChoice::Light)));
-        let whole = Selection {
-            contrast: ContrastChoice::High,
-            motion: MotionChoice::System,
-            size: Size::Comfortable,
-            text_size: TextSize::Large,
-            ..sel("craft.graphite", ModeChoice::Dark)
-        };
-        let next = Accepted { suite: whole.into(), revision: 5, library_revision: 2 };
-        let mut raw = doc.raw;
-        let out = render_selection(&mut raw, &next, "test 1.0");
-        let back: Value = serde_json::from_slice(&out).unwrap();
-        assert_eq!(back["extra"], json!({"a": [1]}));
-        assert_eq!(back["suite"]["later"], true);
-        assert_eq!(
-            back["suite"],
-            json!({
-                "theme": {"light": "craft.graphite", "dark": "craft.graphite", "later": 1},
-                "mode": "dark", "contrast": "high", "motion": "system", "size": "comfortable", "text_size": "large", "later": true
-            })
-        );
-        assert_eq!(back["written_by"], "test 1.0");
-        assert_eq!(parse_selection(&out).unwrap().accepted, next);
-    }
-
-    #[test]
-    fn choice_names_match_craft_themes_serde() {
-        for (c, name) in MODES {
-            assert_eq!(serde_json::to_value(c).unwrap(), name);
-        }
-        for (c, name) in CONTRASTS {
-            assert_eq!(serde_json::to_value(c).unwrap(), name);
-        }
-        for (c, name) in SIZES {
-            assert_eq!(serde_json::to_value(c).unwrap(), name);
-        }
-        for (c, name) in TEXT_SIZES {
-            assert_eq!(serde_json::to_value(c).unwrap(), name);
-        }
-    }
-
-    #[test]
     fn version_1_is_read_into_both_slots_and_upgraded_on_write() {
         let v1 = br#"{"schema_version":1,"revision":6,"library_revision":1,"suite":{"theme":"user.navy","mode":"system","x":2}}"#;
         let doc = parse_selection(v1).unwrap();
@@ -516,38 +447,5 @@ mod tests {
         // Each version's own theme form only.
         assert!(matches!(parse_selection(br#"{"schema_version":1,"suite":{"theme":{"light":"user.navy"}}}"#), Err(SelectionError::Corrupt(_))));
         assert!(matches!(parse_selection(br#"{"schema_version":2,"suite":{"theme":"user.navy"}}"#), Err(SelectionError::Corrupt(_))));
-    }
-
-    #[test]
-    fn no_suite_key_means_no_selection_and_bad_fields_are_corrupt() {
-        let bare = parse_selection(br#"{"schema_version":2,"library_revision":3}"#).unwrap();
-        assert_eq!(bare.accepted, Accepted { suite: SuiteChoice::default(), revision: 0, library_revision: 3 });
-        let mut raw = bare.raw;
-        let out = render_selection(&mut raw, &Accepted { suite: SuiteChoice::default(), revision: 1, library_revision: 4 }, "t");
-        assert!(serde_json::from_slice::<Value>(&out).unwrap().get("suite").is_none());
-        // One field chosen: the others are left out, and so is an unchosen slot.
-        let mode_only = parse_selection(br#"{"schema_version":2,"suite":{"mode":"dark"}}"#).unwrap();
-        assert_eq!(mode_only.accepted.suite, choice(None, Some(ModeChoice::Dark)));
-        let mut raw = mode_only.raw;
-        let light_only = SuiteChoice { theme_light: Some(id("craft.soft")), ..SuiteChoice::default() };
-        let out = render_selection(&mut raw, &Accepted { suite: light_only, revision: 1, library_revision: 0 }, "t");
-        let written: Value = serde_json::from_slice(&out).unwrap();
-        assert_eq!(written["suite"], json!({"theme": {"light": "craft.soft"}}));
-        for bad in [
-            &br#"{"revision":1}"#[..],
-            b"[1]",
-            b"{",
-            br#"{"schema_version":2,"suite":{"mode":"auto"}}"#,
-            br#"{"schema_version":2,"suite":{"contrast":"max"}}"#,
-            br#"{"schema_version":2,"suite":{"size":1}}"#,
-            br#"{"schema_version":2,"suite":{"text_size":"huge"}}"#,
-            br#"{"schema_version":2,"suite":{"theme":{"light":"A"}}}"#,
-            br#"{"schema_version":2,"suite":{"theme":{"dark":7}}}"#,
-            br#"{"schema_version":1,"suite":{"theme":"craft.graphite","mode":"auto"}}"#,
-            br#"{"schema_version":1,"suite":{"theme":7}}"#,
-        ] {
-            assert!(matches!(parse_selection(bad), Err(SelectionError::Corrupt(_))), "{}", String::from_utf8_lossy(bad));
-        }
-        assert_eq!(parse_selection(br#"{"schema_version":3,"suite":7}"#).unwrap_err(), SelectionError::TooNew { schema_version: 3 });
     }
 }

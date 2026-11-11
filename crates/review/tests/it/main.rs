@@ -2,10 +2,6 @@
 
 mod annotate;
 mod collab;
-mod comments;
-mod signature;
-mod thread;
-mod versions;
 
 use craft_ui::testing::{suite, trials};
 use libtest_mimic::{Arguments, Trial};

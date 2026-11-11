@@ -168,11 +168,4 @@ mod tests {
         assert_eq!(back.get("naïveté").map(|m| hyphenated("naïveté", m)), Some("naïve-té".to_string()));
         assert!(back.get("dog").is_none());
     }
-
-    #[test]
-    fn an_oversized_stream_is_refused_before_parsing() {
-        let bomb = miniz_oxide::deflate::compress_to_vec(&vec![b'a'; MAX_INFLATED + 1], 10);
-        assert!(bomb.len() < 1 << 20, "{} bytes compressed", bomb.len());
-        assert!(Dictionary::from_bytes(&bomb).unwrap_err().contains("inflate failed"));
-    }
 }

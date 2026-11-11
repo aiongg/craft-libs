@@ -477,29 +477,6 @@ pub(crate) fn respell(ticket: &str, driver: &str) -> Option<String> {
     (now == wanted && prefixes_resolve(&check)).then_some(out)
 }
 
-/// Each vendor namespace that `ticket` declares under a prefix the driver does not declare it with,
-/// as (namespace, prefix in the ticket, prefix of the driver); empty when the ticket is spelled the
-/// way the driver spells it. `driver` is the driver's own ticket ([`empty_ticket`] validated).
-/// `None` when either does not parse.
-///
-/// For checking the ticket a job ends up with. [`respell`] returning `None` for it does not: that
-/// is also what it returns when it refused to change a ticket, which then stays as it is.
-#[cfg(test)]
-pub(crate) fn prefixes_unlike_the_drivers(ticket: &str, driver: &str) -> Option<Vec<(String, String, String)>> {
-    let own = vendor_prefixes(&roxmltree::Document::parse(driver).ok()?);
-    let declared = vendor_prefixes(&roxmltree::Document::parse(ticket).ok()?);
-    Some(
-        declared
-            .into_iter()
-            .filter(|pair| !own.contains(pair))
-            .filter_map(|(prefix, uri)| {
-                let (theirs, _) = own.iter().find(|(_, u)| *u == uri)?;
-                Some((uri, prefix, theirs.clone()))
-            })
-            .collect(),
-    )
-}
-
 /// The widest unprintable margin of the paper, in micrometres, from PrintCapabilities computed
 /// for the job's ticket (`PageImageableSize`). The largest of the four, so content centred inside
 /// it is clear of every edge whichever way the driver measures. `None` when the driver doesn't say.

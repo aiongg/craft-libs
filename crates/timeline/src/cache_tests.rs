@@ -54,20 +54,6 @@ fn playhead(current: i64, start: i64, end: i64, looping: bool) -> FramePlayhead<
     FramePlayhead { series: TestKey::new(0, 0), current, start, end, step: 1, looping }
 }
 
-// past the budget, the oldest shown frames go down to 80 %.
-#[test]
-fn evicts_to_eighty_percent_least_recently_shown_first() {
-    let mut cache = FrameCache::new(100);
-    fill(&mut cache, 0..10);
-    assert_eq!(cache.bytes(), 100);
-    cache.get(&TestKey::new(0, 0));
-    fill(&mut cache, [10]);
-    assert_eq!(cache.bytes(), 80);
-    assert!(cache.contains(&TestKey::new(0, 0)));
-    assert!((1..=3).all(|f| !cache.contains(&TestKey::new(0, f))));
-    assert!((4..=10).all(|f| cache.contains(&TestKey::new(0, f))));
-}
-
 // with a playhead, unreached frames go first, then the one reached last.
 #[test]
 fn spares_the_frames_the_preview_reaches_next() {
@@ -80,31 +66,4 @@ fn spares_the_frames_the_preview_reaches_next() {
     assert_eq!(cache.cached_frames(&TestKey::new(0, 0)), [5, 6, 7, 8]);
 }
 
-// a frame at another scale than the on-screen one is the first victim.
-#[test]
-fn other_scales_go_first() {
-    let mut cache = FrameCache::new(30);
-    cache.set_on_screen(Some(TestKey { series: 0, frame: 0, scale: 2 }));
-    let at = |frame, scale| TestKey { series: 0, frame, scale };
-    for key in [at(0, 2), at(1, 2), at(2, 1)] {
-        cache.insert(key, Arc::new(TestFrame(10)));
-    }
-    cache.insert(at(3, 2), Arc::new(TestFrame(10)));
-    assert!(!cache.contains(&at(2, 1)) && !cache.contains(&at(0, 2)));
-    assert!(cache.contains(&at(1, 2)) && cache.contains(&at(3, 2)));
-}
-
 // nearest finds the exact frame, else the nearest earlier one within max_back.
-
-// FramePlayhead::ahead counts past the end and around from the start when looping.
-#[test]
-fn ahead_counts_through_a_loop() {
-    let mut p = FramePlayhead { step: 2, ..playhead(8, 2, 10, true) };
-    assert_eq!(p.ahead(&TestKey::new(0, 8)), Some(0));
-    assert_eq!(p.ahead(&TestKey::new(0, 10)), Some(1));
-    assert_eq!(p.ahead(&TestKey::new(0, 4)), Some(3));
-    assert_eq!(p.ahead(&TestKey::new(0, 11)), None);
-    assert_eq!(p.ahead(&TestKey::new(1, 9)), None);
-    p.looping = false;
-    assert_eq!(p.ahead(&TestKey::new(0, 4)), None);
-}

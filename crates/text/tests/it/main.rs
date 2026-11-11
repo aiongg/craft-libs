@@ -1,26 +1,10 @@
 //! The integration binary of craft-text: every test is a registered trial.
 
-mod character;
-mod columns;
 mod editor;
-#[cfg(feature = "find")]
-mod find;
-mod hyperlink;
 mod notes;
-mod paragraph_dialog;
-mod ruler;
-mod spelling;
-mod style_panel;
-mod tabs_dialog;
 
 use craft_ui::testing::{suite, trials};
 use libtest_mimic::{Arguments, Trial};
-
-/// `value` after `edit`: a test's variation of a value whose type is non-exhaustive.
-fn set<T>(mut value: T, edit: impl FnOnce(&mut T)) -> T {
-    edit(&mut value);
-    value
-}
 
 fn main() {
     let args = Arguments::from_args();

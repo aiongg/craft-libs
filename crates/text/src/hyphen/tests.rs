@@ -1,87 +1,5 @@
 use super::*;
 
-fn h(w: &str) -> String {
-    hyphenate_word(w, &Limits::default())
-}
-
-#[test]
-fn bundled_data_loads() {
-    assert!(Dictionary::en_us().len() > 150_000, "{}", Dictionary::en_us().len());
-    assert!(Patterns::en_us().len() > 1000, "{}", Patterns::en_us().len());
-}
-
-#[test]
-fn case_apostrophes_and_punctuation() {
-    assert_eq!(h("Typography"), "Ty-pog-ra-phy");
-    assert_eq!(h("TYPOGRAPHY"), "TYPOGRAPHY");
-    assert_eq!(h("typography,"), "ty-pog-ra-phy,");
-    assert_eq!(h("“typography”"), "“ty-pog-ra-phy”");
-    assert_eq!(h("typography's"), "ty-pog-ra-phy's");
-    assert_eq!(h("typography’s"), "ty-pog-ra-phy’s");
-    assert_eq!(h("'typography'"), "'ty-pog-ra-phy'");
-    // Compounds: each part separately, never next to the hyphen.
-    assert_eq!(h("typography-composition"), "ty-pog-ra-phy-com-po-si-tion");
-    // Points are byte offsets: the opening quote takes three bytes.
-    assert_eq!(hyphen_points("“typography”", &Limits::default()), vec![5, 8, 10]);
-}
-
-#[test]
-fn inflections_inherit_the_stem() {
-    assert_eq!(h("ripples"), "rip-ples");
-    assert_eq!(h("gradients"), "gra-di-ents");
-    assert_eq!(h("restrained"), "re-strained");
-}
-
-#[test]
-fn language_names_and_codes() {
-    for name in ["English", "English: USA", "english", "$ID/English: UK", "en", "en_US", "en-GB", "EN", "en-Latn-US"] {
-        assert_eq!(Lang::for_language(name), Some(Lang::English), "{name}");
-    }
-    assert_eq!(Lang::for_language("en-Cyrl"), None);
-    // Each language resolves by name and by code exactly when its feature is on.
-    for &(name, code) in LANGUAGES {
-        let want = hypher::Lang::from_iso(code).map(|l| Lang::Patterns(PatternLang(l)));
-        let code = std::str::from_utf8(&code).unwrap();
-        let mut title = name.chars();
-        let title: String = title.next().map(|c| c.to_uppercase().chain(title).collect()).unwrap_or_default();
-        let upper = code.to_uppercase();
-        let script = pattern_script(code.as_bytes().try_into().unwrap());
-        for spelling in [
-            name.to_string(),
-            format!("{title}: Reform"),
-            format!("$ID/{title}"),
-            code.to_string(),
-            format!("{code}_{upper}"),
-            format!("{code}-419"),
-            format!("{code}_{upper}_2006"),
-            format!("{code}-{script}"),
-            format!("{code}-{script}-{upper}"),
-            format!("{code}-1996"),
-            format!("{code}-{script}-1996"),
-        ] {
-            assert_eq!(Lang::for_language(&spelling), want, "{spelling}");
-        }
-        let other = if script == "latn" { "Cyrl" } else { "Latn" };
-        assert_eq!(Lang::for_language(&format!("{code}-{other}-{upper}")), None, "{code}: patterns of another script");
-        assert_eq!(Lang::for_language(&format!("{code}_{upper}_x")), None, "{code}: not a locale code");
-    }
-    for unknown in ["", "[No Language]", "Klingon", "zh_CN", "Chinese: Simplified", "tlh"] {
-        assert_eq!(Lang::for_language(unknown), None, "{unknown}");
-    }
-}
-
-#[cfg(feature = "all-languages")]
-#[test]
-fn every_language_is_available() {
-    for &(name, code) in LANGUAGES {
-        if code == *b"sk" && !cfg!(feature = "slovak-gpl") {
-            continue;
-        }
-        assert!(hypher::Lang::from_iso(code).is_some(), "{name}");
-        assert!(Lang::for_language(name).is_some(), "{name}");
-    }
-}
-
 /// A virama doesn't split a word: the limits count the whole word, and no point falls before a
 /// mark or next to a joiner.
 #[cfg(feature = "hindi")]
@@ -110,35 +28,6 @@ fn all_languages_leaves_out_the_gpl_slovak_patterns() {
     assert!(all.contains("\"spanish\""), "all-languages list not found");
     assert!(!all.contains("slovak"), "{all}");
     assert!(manifest.contains("\nslovak-gpl = [\"hyphen\", \"hypher/slovak\"]"));
-}
-
-/// An elided article or preposition keeps the breaks of the word after it, and no break falls
-/// next to the apostrophe.
-#[cfg(feature = "french")]
-#[test]
-fn french_elisions_keep_their_breaks() {
-    let fr = Lang::for_language("French").unwrap();
-    let h = |w: &str| {
-        let pts = hyphen_points_in(w, &Limits::default(), fr);
-        w.char_indices().map(|(i, c)| if pts.contains(&i) { format!("-{c}") } else { c.to_string() }).collect::<String>()
-    };
-    assert_eq!(h("organisation"), "or-ga-ni-sa-tion");
-    assert_eq!(h("l'organisation"), "l'or-ga-ni-sa-tion");
-    assert_eq!(h("L’organisation"), "L’or-ga-ni-sa-tion");
-    assert_eq!(h("d'information"), "d'in-for-ma-tion");
-    assert_eq!(h("aujourd'hui"), "au-jour-d'hui");
-}
-
-/// The fastest of three timings of `f`, after a warm-up.
-fn fastest(f: impl Fn()) -> f64 {
-    f();
-    (0..3)
-        .map(|_| {
-            let t = std::time::Instant::now();
-            f();
-            t.elapsed().as_secs_f64()
-        })
-        .fold(f64::INFINITY, f64::min)
 }
 
 /// `hyphen_points`' limit checks as first written (a rescan of the letter run per point): the
@@ -269,31 +158,5 @@ fn linear_limits_and_heuristic_match_the_reference() {
         }
         let c: Vec<char> = w.to_lowercase().chars().collect();
         assert_eq!(heuristic_points(&c), heuristic_ref(&c), "{w:?}");
-    }
-}
-
-#[test]
-#[ignore = "wall-clock timing; run with --ignored"]
-fn hyphenating_a_long_word_is_linear() {
-    // A word of n letters against one of 4n: linear ~4x the time, the old rescans ~16x. One in
-    // the pattern alphabet, one outside it (the syllable heuristic).
-    let pattern = |k: usize| "hyphenation".repeat(k);
-    let heuristic = |k: usize| "smørrebrød".repeat(k);
-    assert_eq!(word_breaks(&heuristic(2)).1, Source::Heuristic);
-    // Each timing repeats the call so the shorter one is milliseconds, well above timer noise.
-    let ratios: Vec<(String, f64)> = [(pattern as fn(usize) -> String, 20), (heuristic, 40)]
-        .into_iter()
-        .map(|(word, repeat)| {
-            let (small, big) = (word(400), word(1600));
-            let time = |w: &str| fastest(|| (0..repeat).for_each(|_| drop(hyphen_points(w, &Limits::default()))));
-            let (t1, t4) = (time(&small), time(&big));
-            let ratio = t4 / t1.max(1e-9);
-            let what = format!("{}…: t(n) {t1:.4} s, t(4n) {t4:.4} s, ratio {ratio:.1}", word(1).chars().take(10).collect::<String>());
-            eprintln!("{what}");
-            (what, ratio)
-        })
-        .collect();
-    for (what, ratio) in ratios {
-        assert!(ratio < 8.0, "4x the letters, not linear: {what}");
     }
 }

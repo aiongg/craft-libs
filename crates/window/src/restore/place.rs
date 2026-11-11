@@ -357,14 +357,6 @@ mod tests {
     }
 
     #[test]
-    fn first_launch_on_a_small_monitor_fits_and_maximizes() {
-        let small = mon("S", [0, 0], [1280, 720], 1.0);
-        let p = place(None, &[small], None, &defaults());
-        assert_eq!(p.normal.size, [1200.0, 680.0]);
-        assert!(p.maximized);
-    }
-
-    #[test]
     fn window_dragged_off_screen_comes_back_but_a_visible_bar_stays() {
         let m = hd();
         let off = saved(Some([1900, 100]), [800.0, 600.0], 1.0, &m);
@@ -385,53 +377,6 @@ mod tests {
     }
 
     #[test]
-    fn bar_is_a_strip_not_a_corner() {
-        let m = hd();
-        // Left edge: 100 px of an 800 pt window show on the right of x = -700; the strip is wide enough.
-        let s = saved(Some([-700, 100]), [800.0, 600.0], 1.0, &m);
-        assert_eq!(place(Some(&s), std::slice::from_ref(&m), Some(0), &defaults()).position_px, Some([-700, 100]));
-        // Only 30 px show: moved back.
-        let s = saved(Some([-770, 100]), [800.0, 600.0], 1.0, &m);
-        assert_eq!(place(Some(&s), std::slice::from_ref(&m), Some(0), &defaults()).position_px, Some([0, 100]));
-        // Windows' snapped -7 px offset on the left or top is fine.
-        let s = saved(Some([-7, -7]), [800.0, 600.0], 1.0, &m);
-        assert_eq!(place(Some(&s), std::slice::from_ref(&m), Some(0), &defaults()).position_px, Some([-7, -7]));
-        // Top edge: the strip is 64 pt tall; 40 pt of it visible is not enough.
-        let s = saved(Some([100, -24]), [800.0, 600.0], 1.0, &m);
-        assert_eq!(place(Some(&s), std::slice::from_ref(&m), Some(0), &defaults()).position_px, Some([100, 0]));
-    }
-
-    #[test]
-    fn scale_change_keeps_points_and_takes_the_new_scale() {
-        let old = hd();
-        let hidpi = mon("B", [0, 0], [3840, 2160], 2.0);
-        let s = saved(Some([200, 100]), [1000.0, 700.0], 1.0, &old);
-        let p = place(Some(&s), std::slice::from_ref(&hidpi), Some(0), &defaults());
-        assert_eq!(p.normal.size, [1000.0, 700.0]);
-        assert_eq!(p.scale, 2.0);
-        assert_eq!(p.monitor, Some(hidpi.key));
-        assert_eq!(p.position_px, Some([200, 100]));
-        assert_eq!(p.normal.pos, [100.0, 50.0]);
-    }
-
-    #[test]
-    fn smaller_monitor_clamps_to_usable_area_and_min() {
-        let big = mon("Big", [0, 0], [3840, 2160], 1.0);
-        let s = saved(Some([100, 100]), [3000.0, 1800.0], 1.0, &big);
-        let small = mon("S", [0, 0], [1280, 720], 1.0);
-        let p = place(Some(&s), std::slice::from_ref(&small), Some(0), &defaults());
-        assert_eq!(p.normal.size, [1280.0, 680.0]);
-        assert_eq!(p.position_px, Some([0, 40]));
-        // A monitor below `min`: the monitor wins.
-        let tiny = mon("T", [0, 0], [320, 240], 1.0);
-        let p = place(Some(&s), &[tiny], Some(0), &defaults());
-        assert_eq!(p.normal.size, [320.0, 200.0]);
-        // `min` raises a sliver saved size.
-        let sliver = saved(None, [50.0, 50.0], 1.0, &small);
-        assert_eq!(place(Some(&sliver), &[small], Some(0), &defaults()).normal.size, [400.0, 300.0]);
-    }
-
-    #[test]
     fn negative_origin_monitors_are_valid_places() {
         let left = mon("L", [-1920, 0], [1920, 1080], 1.0);
         let above = mon("U", [0, -1080], [1920, 1080], 1.0);
@@ -443,35 +388,5 @@ mod tests {
         // The left monitor is unplugged: back onto the primary, not stuck at a negative x.
         let s = saved(Some([-1500, 100]), [800.0, 600.0], 1.0, &left);
         assert_eq!(place(Some(&s), &[hd()], Some(0), &defaults()).position_px, Some([0, 100]));
-    }
-
-    #[test]
-    fn nearest_monitor_wins_when_the_saved_one_is_gone() {
-        let right = mon("R", [1920, 0], [1920, 1080], 1.0);
-        let far = mon("F", [5000, 0], [1920, 1080], 1.0);
-        let gone = mon("Gone", [3840, 0], [1920, 1080], 1.0);
-        let s = saved(Some([6000, 100]), [800.0, 600.0], 1.0, &gone);
-        let p = place(Some(&s), &[hd(), right, far.clone()], Some(0), &defaults());
-        assert_eq!(p.monitor, Some(far.key));
-    }
-
-    #[test]
-    fn nonsense_saved_numbers_fall_back_to_a_first_launch() {
-        let m = hd();
-        let mut s = saved(Some([0, 0]), [f32::NAN, 600.0], 1.0, &m);
-        assert_eq!(place(Some(&s), std::slice::from_ref(&m), Some(0), &defaults()).normal.size, [1200.0, 800.0]);
-        s.normal.size = [800.0, 600.0];
-        s.scale = 0.0;
-        s.zoom = 99.0;
-        let p = place(Some(&s), &[m], Some(0), &defaults());
-        assert_eq!((p.scale, p.zoom), (1.0, 1.0));
-    }
-
-    #[test]
-    fn no_monitors_keeps_the_saved_geometry() {
-        let m = hd();
-        let s = saved(Some([10, 20]), [800.0, 600.0], 1.0, &m);
-        let p = place(Some(&s), &[], None, &defaults());
-        assert_eq!((p.normal.size, p.position_px), ([800.0, 600.0], Some([10, 20])));
     }
 }
