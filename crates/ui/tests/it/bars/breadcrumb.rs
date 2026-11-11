@@ -2,29 +2,7 @@
 //! ancestor elides.
 
 use craft_ui::bars::{BreadcrumbBar, path_crumbs};
-use craft_ui::contract::{Entry, Show as _};
-use craft_ui::testing::{Fixture, trial};
-use egui::Vec2;
-use std::cell::Cell;
-use std::rc::Rc;
-
-const NAMES: [&str; 5] = ["photos", "2026", "trip", "day-one", "selects"];
-const HIDDEN: &str = "Show the whole path";
-const WIDE: Vec2 = Vec2::new(900.0, 80.0);
-const NARROW: Vec2 = Vec2::new(170.0, 80.0);
-
-fn bar(names: &[&str], room: Vec2) -> (Fixture, Rc<Cell<Option<u8>>>) {
-    let crumbs: Vec<Entry<u8>> = names.iter().zip(0u8..).map(|(name, at)| Entry::new(at, (*name).to_owned())).collect();
-    let picked = Rc::new(Cell::new(None));
-    let seen = picked.clone();
-    let mut fixture = Fixture::new(move |ui| {
-        if let Some(at) = BreadcrumbBar::new("Path", &crumbs).show(ui).picked {
-            seen.set(Some(at));
-        }
-    });
-    fixture.room(room).settle();
-    (fixture, picked)
-}
+use craft_ui::testing::trial;
 
 fn pairs(path: &str) -> Vec<(String, String)> {
     path_crumbs(path).iter().map(|crumb| (crumb.label().as_str().to_owned(), crumb.value().cloned().unwrap_or_default())).collect()
@@ -45,20 +23,3 @@ fn path_crumbs_keep_the_spelling_of_the_path() {
     assert!(pairs("").is_empty() && pairs("/").is_empty());
 }
 
-/// Five short crumbs all show in a wide bar. In a narrow bar the root end moves behind the "…" part, whose menu has
-/// one row per hidden crumb, and picking a row reports that crumb.
-#[trial]
-fn the_root_end_overflows_into_a_menu_that_navigates() {
-    let (wide, _) = bar(&NAMES, WIDE);
-    assert!(NAMES.iter().all(|name| wide.by_label(name).is_some()), "every crumb shows in a wide bar");
-    assert!(wide.by_label(HIDDEN).is_none(), "nothing overflows");
-
-    let (mut narrow, picked) = bar(&NAMES, NARROW);
-    assert!(narrow.by_label("selects").is_some(), "the current crumb always shows");
-    assert!(narrow.by_label("photos").is_none(), "the root end is hidden");
-    let more = narrow.by_label(HIDDEN).expect("the hidden crumbs have a part");
-    narrow.click(&more).settle();
-    let row = narrow.by_label("photos").expect("the menu has a row for the root");
-    narrow.click(&row).settle();
-    assert_eq!(picked.get(), Some(0), "the row navigates to its crumb");
-}

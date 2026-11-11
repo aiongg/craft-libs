@@ -5,7 +5,6 @@ use craft_ui::contract::{CommandSet, Common, Component, Container, ContainerProp
 use craft_ui::runtime::commands::CommandScope;
 use craft_ui::style::{ComponentStyle, StyleCx};
 use egui::{Response, Vec2};
-use std::cell::RefCell;
 
 /// A style with a fixed size.
 #[derive(Clone, Debug, Default, PartialEq, ComponentStyle)]
@@ -28,12 +27,6 @@ pub enum AppCommand {
     Play,
     #[command(label = "Jump", default = "Cmd+Alt+J")]
     Jump,
-    #[command(label = "Show Grid", kind = "toggle")]
-    Grid,
-    #[command(label = "Hold", kind = "momentary", default = "H")]
-    Hold,
-    #[command(label = "Brush", kind = "tool", group = "tools")]
-    Brush,
 }
 
 /// Commands of the `trial.pane` scope.
@@ -54,18 +47,6 @@ pub enum DockCommand {
     Close,
 }
 
-/// Commands of the `trial.workspace` scope, which a full-window dialog declares as its own.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, CommandSet)]
-#[command(prefix = "workspace", scope = "trial.workspace")]
-#[non_exhaustive]
-pub enum WorkspaceCommand {
-    #[command(label = "Brush", modal = "in_dialogs", default = "Cmd+Alt+W")]
-    Brush,
-    #[command(label = "Nudge", default = "N")]
-    Nudge,
-}
-
-pub const WORKSPACE: CommandScope = <WorkspaceCommand as CommandSet>::SCOPE;
 pub const PANE: CommandScope = <PaneCommand as CommandSet>::SCOPE;
 pub const DOCK: CommandScope = <DockCommand as CommandSet>::SCOPE;
 
@@ -74,18 +55,12 @@ pub const DOCK: CommandScope = <DockCommand as CommandSet>::SCOPE;
 pub struct Tap<'a> {
     #[common]
     common: Common,
-    seen: Option<&'a RefCell<(String, bool)>>,
     on: Option<&'a std::cell::Cell<bool>>,
 }
 
 impl<'a> Tap<'a> {
     pub fn new() -> Self {
-        Tap { common: Common::new(), seen: None, on: None }
-    }
-
-    pub fn seen(mut self, seen: &'a RefCell<(String, bool)>) -> Self {
-        self.seen = Some(seen);
-        self
+        Tap { common: Common::new(), on: None }
     }
 }
 
@@ -104,12 +79,6 @@ impl Component for Tap<'_> {
 
     fn sense(&self) -> Sense {
         Sense::CLICK | Sense::FOCUS
-    }
-
-    fn update(&mut self, cx: &mut Cx<'_, Self>) {
-        if let Some(seen) = self.seen {
-            *seen.borrow_mut() = (cx.resolved.label.to_string(), cx.resolved.enabled);
-        }
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> Response {
@@ -183,93 +152,3 @@ impl Component for Dock {
 }
 
 impl Container for Dock {}
-
-/// A focusable leaf that lists every edit command and records the ones it takes and the text it pastes.
-#[derive(Component)]
-pub struct Field<'a> {
-    #[common]
-    common: Common,
-    log: &'a RefCell<Vec<String>>,
-}
-
-impl<'a> Field<'a> {
-    pub fn new(log: &'a RefCell<Vec<String>>) -> Self {
-        Field { common: Common::new(), log }
-    }
-}
-
-impl Component for Field<'_> {
-    const ROLE: Role = Role::BUTTON;
-    const KEYS: craft_ui::runtime::focus::KeyUse = craft_ui::runtime::focus::KeyUse::CANVAS.with_edits(craft_ui::runtime::focus::EditSet::ALL);
-    type Style = FixedStyle;
-    type Output = Response;
-
-    fn style(_: &StyleCx<'_>, _: FieldStyleKey) -> FixedStyle {
-        FixedStyle::default()
-    }
-
-    fn measure(&mut self, _: &craft_ui::contract::MeasureCx<'_, Self>) -> Vec2 {
-        Vec2::new(40.0, 20.0)
-    }
-
-    fn sense(&self) -> Sense {
-        Sense::CLICK | Sense::FOCUS
-    }
-
-    fn update(&mut self, cx: &mut Cx<'_, Self>) {
-        use craft_ui::contract::Focus as _;
-        use craft_ui::runtime::commands::Commands as _;
-        while let Some(command) = cx.intents().take_edit() {
-            self.log.borrow_mut().push(format!("{command:?}"));
-        }
-        if let craft_ui::runtime::pending::Pending::Ready(content) = cx.clipboard().paste() {
-            self.log.borrow_mut().push(format!("text {}", content.text.as_deref().unwrap_or("")));
-        }
-    }
-
-    fn finish(self, cx: Cx<'_, Self>) -> Response {
-        cx.response.clone()
-    }
-}
-
-/// A component whose overlay step reads its own context request.
-#[derive(Component)]
-#[component(overlay)]
-pub struct Opens<'a> {
-    #[common]
-    common: Common,
-    seen: &'a std::cell::Cell<bool>,
-    ctx: egui::Context,
-}
-
-impl<'a> Opens<'a> {
-    pub fn new(seen: &'a std::cell::Cell<bool>, ctx: egui::Context) -> Self {
-        Opens { common: Common::new(), seen, ctx }
-    }
-}
-
-impl Component for Opens<'_> {
-    const ROLE: Role = Role::BUTTON;
-    type Style = FixedStyle;
-    type Output = Response;
-
-    fn style(_: &StyleCx<'_>, _: OpensStyleKey) -> FixedStyle {
-        FixedStyle::default()
-    }
-
-    fn measure(&mut self, _: &craft_ui::contract::MeasureCx<'_, Self>) -> Vec2 {
-        Vec2::new(40.0, 20.0)
-    }
-
-    fn sense(&self) -> Sense {
-        Sense::CLICK | Sense::FOCUS
-    }
-
-    fn overlay(&mut self, _: &mut craft_ui::contract::OverlayUi<'_>, cx: &mut Cx<'_, Self>) {
-        self.seen.set(self.seen.get() || craft_ui::testing::focus::context_request(&self.ctx, cx.id).is_some());
-    }
-
-    fn finish(self, cx: Cx<'_, Self>) -> Response {
-        cx.response.clone()
-    }
-}
