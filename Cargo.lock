@@ -1208,7 +1208,6 @@ dependencies = [
  "craft-pcraft-format",
  "craft-vectorcraft-format",
  "flate2",
- "proptest",
  "ruzstd",
  "serde",
  "serde_json",
