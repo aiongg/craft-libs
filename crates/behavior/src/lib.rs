@@ -110,3 +110,10 @@ pub use typing::{EditRun, Ended, EscapeRule, Escaped, Typed, TypingRun};
 pub use value::{Applied, CancelReason, EditEvent, EditEvents, EditPolicy, Gesture, GestureId, GesturePhase, Mixed, Validity, Value};
 pub use value_drag::{DragWarp, ValueDrag};
 pub use wheel::{Wheel, WheelNotch, WheelPhase, WheelRoom, WheelTaker, WheelUnit};
+
+#[cfg(test)]
+extern crate self as craft_behavior;
+
+#[cfg(test)]
+#[path = "../tests/main.rs"]
+mod integration;
