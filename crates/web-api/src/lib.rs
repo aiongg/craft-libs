@@ -38,3 +38,10 @@ pub mod methods;
 
 #[cfg(target_arch = "wasm32")]
 pub mod page;
+
+#[cfg(test)]
+extern crate self as craft_web_api;
+
+#[cfg(test)]
+#[path = "../tests/main.rs"]
+mod integration;
