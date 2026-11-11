@@ -213,9 +213,15 @@ pub struct TileStyle {
     /// A mark under a start caption.
     #[style(icon)]
     mark: IconLook,
-    /// The pick and reject flags.
+    /// The stars of the badge bar, which the rating face reads as its host ink.
     #[style(icon)]
-    flag: IconLook,
+    stars: IconLook,
+    /// The pick flag.
+    #[style(icon)]
+    picked: IconLook,
+    /// The reject flag.
+    #[style(icon)]
+    rejected: IconLook,
     /// The glyph in the picture area of a folder tile or a tile with an icon face.
     #[style(icon)]
     face: IconLook,
@@ -225,8 +231,8 @@ pub struct TileStyle {
     placeholder: StyleColor,
     dim: StyleColor,
     veil: Stateful<StyleColor>,
-    /// The fill under the badge bar and the check box, which reads in the tile's ink.
-    plate: Stateful<StyleColor>,
+    /// The fill under the badge bar and the check box, over the picture.
+    plate: StyleColor,
     pill: StyleColor,
     band: StyleColor,
     range: StyleColor,
@@ -633,9 +639,8 @@ impl Component for Tile<'_> {
         };
         let fixed = |color: Rgba| Stateful::new(c(color));
         let pill = cx.with_variant(pill_variant(Tone::Neutral)).variant_look();
-        let plate_rest = colors.surface.panel;
-        let plate_on = over(state.selected, plate_rest);
-        let plate = Stateful::new(c(plate_rest)).on(States::new(c(plate_on), c(plate_on), c(plate_on), c(plate_on)));
+        let plate = c(colors.surface.scrim);
+        let on_bar = |ink: StyleColor, side: f32| IconLook::new(side, Stateful::new(ink)).on(Stateful::new(plate));
         let veil = Stateful::new(c(clear)).off(States::new(c(clear), c(clear), c(clear), c(colors.surface.scrim.faded(DISABLED_VEIL))));
         TileStyle {
             surface,
@@ -650,7 +655,9 @@ impl Component for Tile<'_> {
             band_text: TextLook::new(TypeRole::Caption, fixed(text.on_status)).on(fixed(colors.status.bad.solid)),
             band_icon: IconLook::new(sizes.glyph, fixed(text.on_status)).on(fixed(colors.status.bad.solid)),
             mark: IconLook::new(sizes.glyph, ink(c(text.faint))),
-            flag: IconLook::new(sizes.glyph, fixed(text.normal)).on(fixed(colors.surface.sunken)),
+            stars: on_bar(c(text.on_strong), tokens.size.icon.glyph_sm),
+            picked: on_bar(cx.tone(Tone::Good), sizes.glyph),
+            rejected: on_bar(cx.tone(Tone::Bad), sizes.glyph),
             face: IconLook::new(
                 sizes.face,
                 Stateful::new(c(text.muted)).off(States::new(c(text.muted), c(text.muted), c(text.muted), c(text.disabled))),
@@ -815,7 +822,7 @@ impl Component for Tile<'_> {
             ui.face(CORNER, IconButton::command(icon.clone(), command.clone()));
         }
         if let (Some(state), Some((_, plate))) = (self.check, placed.check) {
-            ui.draw().fill(&PaintShape::Rect(plate, style.plate_radius), cx.resolve(&style.plate));
+            ui.draw().fill(&PaintShape::Rect(plate, style.plate_radius), style.plate);
             let value = match state {
                 ToggleState::Mixed => Mixed::Mixed,
                 state => Mixed::Same(state == ToggleState::On),
@@ -905,22 +912,23 @@ impl Tile<'_> {
         draw.text(rest.take_start(style.sizes.inset).1.rect(), &run);
     }
 
-    /// The badge bar: the stars, the flag and the colour dot over a plate that reads in the tile's ink.
+    /// The badge bar: the stars, the flag and the colour dot over a plate laid on the picture's bottom.
     fn paint_bar(&self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>, placed: &Placed) {
         let Some(bar) = placed.bar else { return };
         let style = cx.style;
-        ui.draw().fill(&PaintShape::Rect(bar, CornerRadius::ZERO), cx.resolve(&style.plate));
+        ui.draw().fill(&PaintShape::Rect(bar, CornerRadius::ZERO), style.plate);
         if let (Some(rating), Some(_)) = (self.rating, placed.stars) {
             let words = cx.words::<TileWords>();
-            ui.face(RATING, Rating::new(Bind::given(rating), STARS).compact(true).label(words.rating.fill(&[("name", cx.resolved.label)])));
+            let face = Rating::new(Bind::given(rating), STARS).compact(true).label(words.rating.fill(&[("name", cx.resolved.label)]));
+            ui.face_in(RATING, face, &style.stars.color);
         }
         let draw = ui.draw();
         if let (Some(flag), Some(rect)) = (self.flag, placed.flag) {
-            let id = match flag {
-                TileFlag::Picked => "flag",
-                TileFlag::Rejected => "ban",
+            let (id, look) = match flag {
+                TileFlag::Picked => ("flag", &style.picked),
+                TileFlag::Rejected => ("ban", &style.rejected),
             };
-            draw.icon(rect, &IconSpec::svg(IconId::new(id)).color(cx.resolve(&style.flag.color)));
+            draw.icon(rect, &IconSpec::svg(IconId::new(id)).color(cx.resolve(&look.color)));
         }
         if let (Some(color), Some(rect)) = (self.label_color, placed.dot) {
             let shape = PaintShape::Circle(rect.center(), rect.width() / 2.0);

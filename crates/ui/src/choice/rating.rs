@@ -40,7 +40,7 @@ pub struct RatingStyle {
     surface: Option<SurfaceLook>,
     #[style(focus)]
     focus: FocusLook,
-    /// A star the rating covers.
+    /// A star the rating covers, in the host's ink when the rating is a face.
     #[style(icon)]
     lit: IconLook,
     /// A star past the rating.
@@ -107,15 +107,14 @@ impl Component for Rating<'_> {
         };
         let text = &cx.tokens.color.text;
         let bad = cx.tone(Tone::Bad);
-        let look =
-            |rest| IconLook::new(side, Stateful::new(rest).off(States::new(rest, rest, rest, cx.color(text.disabled))).when(Flags::INVALID, bad));
+        let ink = |rest| Stateful::new(rest).off(States::new(rest, rest, rest, cx.color(text.disabled))).when(Flags::INVALID, bad);
         let tint = Stateful::new(cx.color(Rgba::TRANSPARENT)).when(Flags::INVALID, cx.color(cx.tokens.color.status.bad.bg));
         RatingStyle {
             metrics,
             surface: Some(SurfaceLook::new(tint).radius(cx.surface(SurfaceKind::Well).radius)),
             focus: cx.focus_look(),
-            lit: look(cx.ink(Ink::OnPanel)),
-            unlit: look(cx.color(text.muted)),
+            lit: IconLook::new(side, cx.host_ink(ink(cx.ink(Ink::OnPanel)))),
+            unlit: IconLook::new(side, ink(cx.color(text.muted))),
             cell,
         }
     }
