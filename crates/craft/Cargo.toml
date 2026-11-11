@@ -271,6 +271,7 @@ timeline = ["dep:craft-timeline", "keymap"]
 
 ui-app = ["ui", "craft-ui/app"]
 ui-color_fonts = ["ui", "craft-ui/color_fonts"]
+ui-snapshot = ["ui", "craft-ui/snapshot"]
 ui-system_fonts = ["ui", "craft-ui/system_fonts"]
 ui-testing = ["ui", "craft-ui/testing"]
 
