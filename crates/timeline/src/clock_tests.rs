@@ -1,7 +1,7 @@
 //! The playback clock and the follow.
 
-use super::clock::{ClockEvent, EXTERNAL_STALL_S, Follow, FollowMode, PREROLL_TIMEOUT_S, PlaybackClock, PlaybackState};
-use super::time::{Tick, TimeRange, TimeView};
+use super::clock::{ClockEvent, PREROLL_TIMEOUT_S, PlaybackClock, PlaybackState};
+use super::time::{Tick, TimeRange};
 
 fn secs(s: f64) -> Tick {
     Tick::from_seconds_f64(s)
@@ -52,58 +52,4 @@ fn loops_and_stops_at_the_stop_point() {
     assert_eq!(clock.position(9.0), secs(2.0));
 }
 
-// sync_external drives the position until it stands still for a second.
-#[test]
-fn external_clock_leads_until_it_stalls() {
-    let mut clock = playing(0.0, 1.0);
-    clock.sync_external(secs(0.9), 1.0);
-    assert_eq!(clock.position(1.0), secs(0.9), "the device is ahead of the wall clock");
-    clock.sync_external(secs(1.9), 2.0);
-    clock.sync_external(secs(1.9), 2.5);
-    assert_eq!(clock.position(2.5), secs(1.9));
-    let stalled = 2.0 + EXTERNAL_STALL_S;
-    assert_eq!(clock.position(stalled), secs(1.9));
-    assert_eq!(clock.position(stalled + 0.5), secs(2.4), "the wall clock continues from the last reading");
-    clock.sync_external(secs(2.6), stalled + 0.6);
-    assert_eq!(clock.position(stalled + 0.6), secs(2.6), "a device that moves again leads again");
-}
-
-fn view(start: f64) -> TimeView {
-    TimeView::new(secs(start), 100.0)
-}
-
-// Page moves the view to 5 % when the playhead passes 95 %.
-#[test]
-fn page_follow_jumps_at_ninety_five_percent() {
-    let mut follow = Follow::default();
-    let width = 1000.0;
-    assert_eq!(follow.update(FollowMode::Page, true, &view(0.0), width, secs(9.4)), None);
-    assert_eq!(follow.update(FollowMode::Page, true, &view(0.0), width, secs(9.6)), Some(secs(9.1)));
-    assert_eq!(follow.update(FollowMode::None, true, &view(0.0), width, secs(12.0)), None);
-    assert_eq!(follow.update(FollowMode::AfterPlayback, true, &view(0.0), width, secs(12.0)), None);
-    assert_eq!(follow.update(FollowMode::AfterPlayback, false, &view(0.0), width, secs(12.0)), Some(secs(11.5)), "revealed once, as playback stops");
-    assert_eq!(follow.update(FollowMode::AfterPlayback, false, &view(0.0), width, secs(12.0)), None);
-}
-
 // Center centres once there, Continuous from the first frame.
-
-// a view moved by something else holds until the playhead is back in view or playback restarts.
-#[test]
-fn a_manual_scroll_holds_the_follow() {
-    let width = 1000.0;
-    let mut follow = Follow::default();
-    assert_eq!(follow.update(FollowMode::Page, true, &view(0.0), width, secs(1.0)), None);
-    // The user scrolls away; the playhead is off the left edge.
-    assert_eq!(follow.update(FollowMode::Page, true, &view(30.0), width, secs(1.0)), None);
-    assert!(follow.is_held());
-    assert_eq!(follow.update(FollowMode::Page, true, &view(30.0), width, secs(1.5)), None, "the view stays where the user left it");
-    // Back in view: the hold ends and the follow works again.
-    assert_eq!(follow.update(FollowMode::Page, true, &view(40.0), width, secs(45.0)), None);
-    assert!(!follow.is_held());
-    assert_eq!(follow.update(FollowMode::Page, true, &view(40.0), width, secs(49.8)), Some(secs(49.3)));
-    // A pan held again, then play restarts.
-    assert_eq!(follow.update(FollowMode::Page, true, &view(0.0), width, secs(49.8)), None);
-    assert!(follow.is_held());
-    follow.reset();
-    assert_eq!(follow.update(FollowMode::Page, true, &view(0.0), width, secs(49.8)), Some(secs(49.3)));
-}

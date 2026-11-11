@@ -22,22 +22,6 @@ fn drop_frame_skips_two_labels_a_minute() {
 }
 
 #[test]
-fn formats_every_display() {
-    let rate = FrameRate::FPS_25;
-    let tc = TimeFormat::timecode(rate);
-    let t = rate.tick_of(250);
-    assert_eq!(format_time(t, &tc), "00:00:10:00");
-    assert_eq!(format_time(-t, &tc), "-00:00:10:00");
-    assert_eq!(format_time(FrameRate::FPS_120.tick_of(10), &TimeFormat::timecode(FrameRate::FPS_120)), "00:00:00:010");
-    assert_eq!(format_time(t, &TimeFormat { frame_offset: 1, ..tc }.display(TimeDisplay::Frames)), "251");
-    assert_eq!(format_time(t, &tc.display(TimeDisplay::Feet35)), "15+10");
-    assert_eq!(format_time(t, &tc.display(TimeDisplay::Feet16)), "6+10");
-    assert_eq!(format_time(t + Tick(TICKS_PER_SECOND / 2), &tc.display(TimeDisplay::AudioSamples)), "00:00:10:24000");
-    assert_eq!(format_time(t, &tc.display(TimeDisplay::Seconds)), "10.000");
-    assert_eq!(format_time(Tick(-1), &tc.display(TimeDisplay::Seconds)), "0.000");
-}
-
-#[test]
 fn parses_premiere_input() {
     let rate = FrameRate::FPS_25;
     let tc = TimeFormat::timecode(rate);

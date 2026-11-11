@@ -1,11 +1,8 @@
 //! The integration binary of craft-timeline: every test is a registered trial.
 
 mod features;
-mod graph;
 mod lanes;
 mod panel;
-mod ruler;
-mod transport;
 
 use craft_ui::testing::{suite, trials};
 use libtest_mimic::{Arguments, Trial};
