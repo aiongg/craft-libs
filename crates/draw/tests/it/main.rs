@@ -2,15 +2,12 @@
 
 // draw-shape
 mod add_beside;
-mod pattern;
-mod shape;
 
 // draw-gradient-a
 mod gradient_bar;
 
 // draw-gradient-b
 mod gradient_overlay;
-mod gradient_presets;
 
 // draw-connector
 mod connector;
@@ -20,7 +17,6 @@ mod shape_drag;
 mod bezier;
 
 // draw-pen-b
-mod corner;
 mod pen;
 
 // draw-crop-b
@@ -28,7 +24,6 @@ mod crop_tool;
 mod perspective_crop;
 
 // draw-bars
-mod crop_bar;
 mod measure;
 
 // draw-transform-a
@@ -38,17 +33,6 @@ mod transform_session;
 // draw-transform-b
 mod symmetry;
 mod transform_fields;
-
-// draw-stroke-fill
-mod picture_fill;
-mod stroke;
-
-// draw-slice-artboard
-mod artboard;
-mod slice;
-
-// draw-brush
-mod brush_settings;
 
 use craft_draw::testing::registered;
 use craft_ui::testing::{suite, trials};

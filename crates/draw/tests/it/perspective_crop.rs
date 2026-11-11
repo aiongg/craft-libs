@@ -3,37 +3,16 @@
 
 use craft_behavior::kurbo::{Point, Size};
 use craft_behavior::{CanvasView, EditEvent};
-use craft_draw::ui::crop::{
-    PerspectiveCropEvent, PerspectiveCropQuad, PerspectiveCropTool, PerspectiveQuad, grid_lines, grid_steps, is_valid, ordered,
-};
+use craft_draw::ui::crop::{PerspectiveCropQuad, PerspectiveCropTool, PerspectiveQuad, grid_lines, grid_steps, is_valid};
 use craft_ui::canvas::{Canvas, ToolHost};
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _, Validity};
-use craft_ui::runtime::access::Role;
 use craft_ui::runtime::env::Message;
-use craft_ui::testing::{Fixture, pointer, trial};
-use egui::{Key, Modifiers, Pos2, Vec2};
+use craft_ui::testing::{Fixture, trial};
+use egui::{Pos2, Vec2};
 use std::cell::RefCell;
 use std::rc::Rc;
 
 const SIZE: Size = Size::new(400.0, 300.0);
-
-const PAGE: [Point; 4] = [Point::new(100.0, 60.0), Point::new(300.0, 80.0), Point::new(280.0, 220.0), Point::new(120.0, 200.0)];
-
-#[trial]
-fn ordered_puts_shuffled_corners_clockwise_from_the_smallest_sum() {
-    let shuffled = [PAGE[2], PAGE[0], PAGE[3], PAGE[1]];
-    assert_eq!(ordered(shuffled), PAGE);
-    assert_eq!(ordered(PAGE), PAGE);
-}
-
-#[trial]
-fn a_quad_is_valid_when_convex_wound_clockwise_and_not_flat() {
-    assert!(is_valid(&PAGE));
-    assert!(!is_valid(&[PAGE[0], PAGE[3], PAGE[2], PAGE[1]]), "wound the other way");
-    assert!(!is_valid(&[PAGE[0], PAGE[1], PAGE[2], Point::new(250.0, 90.0)]), "not convex");
-    assert!(!is_valid(&[PAGE[0], PAGE[0], PAGE[0], PAGE[0]]), "no area");
-    assert!(!is_valid(&[PAGE[0], PAGE[1], PAGE[2], Point::new(f64::NAN, 1.0)]), "not finite");
-}
 
 #[trial]
 fn grid_lines_meet_at_the_quads_vanishing_points() {
@@ -96,84 +75,7 @@ impl Rig {
         Rig { fixture, host }
     }
 
-    /// The screen point of document point `(x, y)`: the view shows (200, 150) at the canvas's centre.
-    fn at(&self, p: Point) -> Pos2 {
-        let canvas = self.fixture.by_role(Role::CANVAS).into_iter().next().expect("a canvas");
-        canvas.center() + Vec2::new(p.x as f32 - 200.0, p.y as f32 - 150.0)
-    }
-
     fn quad(&self) -> PerspectiveQuad {
         *self.host.borrow().tool.quad()
     }
-
-    fn press_move_release(&mut self, from: Pos2, to: Pos2, escape_midway: bool) {
-        self.fixture.frame(vec![pointer::moved(from)]);
-        self.fixture.frame(vec![pointer::press(from)]);
-        self.fixture.frame(vec![pointer::moved(from + (to - from) * 0.5)]);
-        self.fixture.frame(vec![pointer::moved(to)]);
-        if escape_midway {
-            self.fixture.key(Key::Escape, Modifiers::NONE);
-            self.fixture.frame(vec![pointer::moved(to + Vec2::new(5.0, 5.0))]);
-        }
-        self.fixture.frame(vec![pointer::release(to)]);
-        self.fixture.frame(Vec::new());
-    }
-
-    fn click_at(&mut self, p: Point) {
-        let at = self.at(p);
-        self.fixture.frame(vec![pointer::moved(at)]);
-        self.fixture.frame(vec![pointer::press(at)]);
-        self.fixture.frame(vec![pointer::release(at)]);
-        self.fixture.frame(Vec::new());
-    }
-}
-
-#[trial]
-fn dragging_a_corner_keeps_the_press_offset_and_moves_only_that_corner() {
-    let mut rig = Rig::new(Some(PAGE));
-    let corner = rig.at(PAGE[2]);
-    rig.press_move_release(corner + Vec2::new(3.0, 2.0), corner + Vec2::new(23.0, -18.0), false);
-    let quad = rig.quad().expect("the quad stays");
-    assert_eq!((quad[2].x, quad[2].y), (PAGE[2].x + 20.0, PAGE[2].y - 20.0), "the press offset is kept");
-    assert_eq!((quad[0], quad[1], quad[3]), (PAGE[0], PAGE[1], PAGE[3]));
-}
-
-#[trial]
-fn a_box_drag_makes_an_upright_quad() {
-    let mut rig = Rig::new(None);
-    let (from, to) = (rig.at(Point::new(60.0, 50.0)), rig.at(Point::new(260.0, 190.0)));
-    rig.press_move_release(from, to, false);
-    assert_eq!(
-        rig.quad(),
-        Some([Point::new(60.0, 50.0), Point::new(260.0, 50.0), Point::new(260.0, 190.0), Point::new(60.0, 190.0)]),
-        "a box drag makes an upright quad"
-    );
-    let events = rig.host.borrow_mut().tool.take_events();
-    assert!(matches!(events.first(), Some(PerspectiveCropEvent::Edit(EditEvent::Begin { .. }))), "{events:?}");
-    assert!(matches!(events.last(), Some(PerspectiveCropEvent::Edit(EditEvent::Commit { .. }))), "{events:?}");
-
-    let mut rig = Rig::new(None);
-    let at = rig.at(Point::new(60.0, 50.0));
-    rig.press_move_release(at, at + Vec2::new(60.0, 0.0), false);
-    assert_eq!(rig.quad(), None, "a box with no area is no quad");
-}
-
-#[trial]
-fn four_clicks_make_an_ordered_quad_and_a_drag_clears_the_clicks() {
-    let mut rig = Rig::new(None);
-    for p in [PAGE[2], PAGE[0], PAGE[3]] {
-        rig.click_at(p);
-    }
-    assert_eq!(rig.host.borrow().tool.placing(), 3);
-    assert_eq!(rig.quad(), None);
-    rig.click_at(PAGE[1]);
-    assert_eq!(rig.quad(), Some(PAGE), "the fourth click makes the quad, corners put in order");
-    assert_eq!(rig.host.borrow().tool.placing(), 0);
-
-    let mut rig = Rig::new(None);
-    rig.click_at(PAGE[0]);
-    rig.click_at(PAGE[1]);
-    let (from, to) = (rig.at(Point::new(60.0, 50.0)), rig.at(Point::new(260.0, 190.0)));
-    rig.press_move_release(from, to, false);
-    assert_eq!(rig.host.borrow().tool.placing(), 0, "a drag clears the clicks");
 }

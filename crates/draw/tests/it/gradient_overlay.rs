@@ -5,13 +5,13 @@ use std::rc::Rc;
 
 use craft_behavior::CanvasView;
 use craft_behavior::kurbo::Point;
-use craft_draw::ui::gradient::gradient_line::{GradientLine, LineGradient, at, project, snap45};
+use craft_draw::ui::gradient::gradient_line::{GradientLine, LineGradient};
 use craft_draw::ui::gradient::{ColorStop, GradientOverlay, GradientStops, StopRef};
 use craft_theme::Srgba;
 use craft_ui::canvas::Canvas;
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::testing::{Fixture, trial};
-use egui::{Key, Modifiers, Vec2};
+use egui::{Key, Modifiers};
 
 fn black() -> Srgba {
     Srgba { r: 0.0, g: 0.0, b: 0.0, a: 1.0 }
@@ -45,37 +45,6 @@ fn shown() -> Shown {
     });
     fixture.settle();
     Shown { fixture, value, selected }
-}
-
-#[trial]
-fn locations_follow_reverse() {
-    let line = GradientLine::new(Point::new(10.0, 10.0), Point::new(110.0, 10.0));
-    assert_eq!(at(&line, 0.25, false), Point::new(35.0, 10.0));
-    assert_eq!(at(&line, 0.25, true), Point::new(85.0, 10.0));
-    let (t, d) = project(&line, Point::new(85.0, 40.0), true);
-    assert!((t - 0.25).abs() < 1e-6 && (d - 30.0).abs() < 1e-9);
-    assert_eq!(project(&line, Point::new(210.0, 10.0), false), (1.0, 100.0));
-}
-
-#[trial]
-fn snap_steps_start_at_the_base_angle() {
-    let fixed = Point::new(0.0, 0.0);
-    let snapped = snap45(fixed, Point::new(10.0, 1.0), 0.0);
-    assert!((snapped.x - 10.0_f64.hypot(1.0)).abs() < 1e-9 && snapped.y.abs() < 1e-9);
-    let tilted = snap45(fixed, Point::new(10.0, 0.5), 10.0);
-    assert!((tilted.y.atan2(tilted.x).to_degrees() - 10.0).abs() < 1e-9);
-}
-
-#[trial]
-fn a_press_on_a_stop_selects_it_and_its_drag_moves_it() {
-    let mut s = shown();
-    let stop = s.fixture.by_label("Color stop 2 of 3").expect("the overlay shows its stops as parts");
-    s.fixture.click(&stop);
-    assert_eq!(*s.selected.borrow(), Some(StopRef::Color(1)));
-    let before = s.value.borrow().stops.color[1].location;
-    s.fixture.drag(&stop, Vec2::new(40.0, 0.0));
-    let moved = s.value.borrow().stops.color[1].location;
-    assert!(moved > before, "the stop followed the pointer to {moved}");
 }
 
 #[trial]

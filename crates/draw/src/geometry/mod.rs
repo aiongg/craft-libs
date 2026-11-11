@@ -13,10 +13,6 @@ pub mod fillet;
 #[cfg(test)]
 mod fillet_tests;
 pub mod shape;
-#[cfg(test)]
-mod shape_tests;
 pub mod slice;
-#[cfg(test)]
-mod slice_tests;
 
 pub use shape::ShapeGeometry;

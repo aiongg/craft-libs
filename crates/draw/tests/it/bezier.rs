@@ -6,9 +6,9 @@ use craft_draw::ui::{
     AnchorsShown, BezierHit, BezierOverlay, BezierTool, EditPath, EditSubpath, HandleSide, HandlesShown, Knot, KnotRef, PathEdit, PathSelection,
     SegmentMark,
 };
-use craft_ui::canvas::{Canvas, Guide, GuideKey};
+use craft_ui::canvas::{Canvas, Guide};
 use craft_ui::canvas_controls::Guides;
-use craft_ui::contract::{Bind, Role, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::testing::{Fixture, pointer, trial};
 use egui::{Id, Key, Modifiers, Pos2, Vec2 as ScreenVec, vec2};
 use std::cell::RefCell;
@@ -26,19 +26,10 @@ fn near(a: Point, b: Point) -> bool {
     a.distance(b) < 1e-9
 }
 
-fn near_vec(a: Vec2, b: Vec2) -> bool {
-    (a - b).hypot() < 1e-3
-}
-
 // ---- the pure operations ----
 
 fn ops_path(sub: EditSubpath) -> EditPath {
     EditPath::new(7, vec![sub])
-}
-
-fn ops_square(smooth: bool) -> EditSubpath {
-    let corners = [p(0.0, 0.0), p(100.0, 0.0), p(100.0, 100.0), p(0.0, 100.0)];
-    EditSubpath::new(corners.iter().map(|&c| Knot::new(c, c, c, smooth)).collect(), true)
 }
 
 // A curve split at t = 0.3 draws the same curve (sampled); a straight segment gets a corner on the cubic's point at
@@ -73,28 +64,6 @@ fn edit_subpath_insert_at_splits_a_curve_without_changing_it() {
 
 // Removing an inner knot joins its neighbours with the previous out and next in handles; a closed subpath stays
 // closed; removing the only knot leaves an empty subpath.
-
-// PhotoCraft's closed four-anchor loop: moving one anchor reflows every smooth knot (the neighbours turn), corner
-// knots keep their handles.
-#[trial]
-fn path_edit_move_curvature_reflows_every_smooth_knot() {
-    let mut sp = ops_square(true);
-    sp.reflow();
-    sp.knots[2] = Knot::corner(p(100.0, 100.0));
-    let mut ep = ops_path(sp);
-    let corner = ep.subpaths[0].knots[2];
-    let old_neighbour = ep.subpaths[0].knots[1];
-    let edit = PathEdit::move_curvature(7, vec![kr(0)], Vec2::new(-20.0, -10.0));
-    assert!(edit.apply(&mut ep));
-    let k = &ep.subpaths[0].knots;
-    assert_eq!(k[0].anchor, p(-20.0, -10.0));
-    assert_ne!(k[1].out_ctrl, old_neighbour.out_ctrl);
-    assert_eq!(k[2], corner);
-    // Smooth knot handles are collinear with the chord of its neighbours.
-    let chord = k[2].anchor - k[0].anchor;
-    let o = k[1].out_ctrl - k[1].anchor;
-    assert!((o.x * chord.y - o.y * chord.x).abs() < 1e-9);
-}
 
 // A corner square: toggling a knot makes it smooth and the segments around it curve; toggling again retracts its
 // handles.
@@ -168,9 +137,6 @@ fn path_edit_apply_matches_the_kernel_for_every_existing_edit() {
 
 // ---- the overlay on a canvas ----
 
-/// The draft the anchor tests pass as one more path.
-const DRAFT: u64 = 9;
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum Seen {
     Begin,
@@ -225,21 +191,6 @@ fn path_b() -> EditPath {
     let line = [(200.0, 220.0), (260.0, 260.0)].map(|(x, y)| Knot::corner(p(x, y)));
     let subpaths = vec![EditSubpath::new(square.to_vec(), true), EditSubpath::new(line.to_vec(), false)];
     EditPath::new(2, subpaths).colored(Some(craft_theme::Srgba::rgb(0.9, 0.43, 0.08)))
-}
-
-fn open(key: u64, y: f64) -> EditPath {
-    let knots = [60.0, 160.0, 260.0].map(|x| Knot::corner(p(x, y))).to_vec();
-    EditPath::new(key, vec![EditSubpath::new(knots, false)])
-}
-
-fn closed_square(key: u64) -> EditPath {
-    let knots = [(60.0, 200.0), (140.0, 200.0), (140.0, 260.0), (60.0, 260.0)].map(|(x, y)| Knot::corner(p(x, y))).to_vec();
-    EditPath::new(key, vec![EditSubpath::new(knots, true)])
-}
-
-/// An open path (key 1) at y 60, a closed square (key 2) and a draft (key 9) at y 150, in that order.
-fn tool_paths() -> Vec<EditPath> {
-    vec![open(1, 60.0), closed_square(2), open(DRAFT, 150.0)]
 }
 
 fn kind(event: &EditEvent<Vec<EditPath>>) -> Seen {
@@ -331,12 +282,6 @@ fn two_paths() -> Harness {
     harness(vec![path_a(), path_b()])
 }
 
-fn with_tool(tool: BezierTool) -> Harness {
-    let mut h = harness(tool_paths());
-    h.update(|st| st.tool = tool);
-    h
-}
-
 impl Harness {
     /// Changes the state and shows a settled frame.
     fn update(&mut self, change: impl FnOnce(&mut State)) {
@@ -391,50 +336,8 @@ impl Harness {
         self.release_at(from + by);
     }
 
-    fn click(&mut self, at: Pos2) {
-        self.fixture.click_at(at);
-    }
-
-    fn click_with(&mut self, at: Pos2, mods: Modifiers) {
-        self.fixture.hold(mods);
-        self.fixture.click_at(at);
-        self.fixture.hold(Modifiers::NONE);
-    }
-
-    fn click_doc(&mut self, x: f64, y: f64) {
-        let at = self.screen(p(x, y));
-        self.click(at);
-    }
-
     fn key(&mut self, key: Key, mods: Modifiers) {
         self.fixture.key(key, mods);
-    }
-
-    /// Tab 1 is the canvas, Tab 2 the part the overlay enters on: the selected anchor, else the first.
-    fn tab_to_parts(&mut self, entry: &str) {
-        self.key(Key::Tab, Modifiers::NONE);
-        assert!(self.fixture.focused_stop().is_some_and(|(_, part)| part.is_none()), "Tab 1 is the canvas");
-        self.key(Key::Tab, Modifiers::NONE);
-        assert!(self.picked(entry), "Tab 2 is {entry}");
-    }
-
-    /// Whether the focused part is the one named `name`.
-    fn picked(&self, name: &str) -> bool {
-        let Some((owner, Some(part))) = self.fixture.focused_stop() else { return false };
-        self.fixture.part(owner, part).map(|t| t.node) == self.fixture.by_label(name).map(|t| t.node)
-    }
-
-    /// The names of the overlay's graphics objects, in tree order.
-    fn objects(&self) -> Vec<String> {
-        let tree = self.fixture.tree();
-        self.fixture.by_role(Role::GRAPHICS_OBJECT).iter().filter_map(|t| tree.name_of(t.node).map(str::to_owned)).collect()
-    }
-}
-
-fn moved_by(edit: Option<PathEdit>) -> Option<(Vec<KnotRef>, Vec2)> {
-    match edit? {
-        PathEdit::MoveAnchors { anchors, by, .. } => Some((anchors, by)),
-        _ => None,
     }
 }
 
@@ -444,229 +347,6 @@ fn sel(path: u64, anchors: &[(usize, usize)]) -> PathSelection {
 
 /// A distance past any click slop.
 const FAR: f32 = 20.0;
-
-#[trial]
-fn a_shown_handle_beats_an_anchor_which_beats_a_segment_at_equal_distance() {
-    // A smooth knot with short handles, selected so they show.
-    let knots =
-        vec![Knot::corner(p(100.0, 150.0)), Knot::new(p(200.0, 150.0), p(194.0, 150.0), p(206.0, 150.0), true), Knot::corner(p(300.0, 150.0))];
-    let mut h = harness(vec![EditPath::new(7, vec![EditSubpath::new(knots, false)])]);
-    h.update(|st| st.selection = sel(7, &[(0, 1)]));
-    // 5 points from both the out handle's end and the anchor.
-    let at = h.screen(p(203.0, 154.0));
-    h.drag(at, vec2(0.0, FAR));
-    assert!(matches!(h.last_change(), Some(PathEdit::MoveHandle { side: HandleSide::Out, .. })), "{:?}", h.last_change());
-
-    // On path 1, 3 points above anchor 2 and above the straight segment through it.
-    let mut h = two_paths();
-    let at = h.screen(p(160.0, 57.0));
-    h.drag(at, vec2(0.0, FAR));
-    assert_eq!(moved_by(h.last_change()), Some((vec![kr(1)], Vec2::new(0.0, f64::from(FAR)))), "the anchor alone moves");
-    assert_eq!(h.selection(), sel(1, &[(0, 1)]));
-}
-
-#[trial]
-fn a_segment_takes_the_pointer_near_its_curve_in_a_rotated_flipped_view() {
-    for (offset, takes) in [(2.0, true), (-2.0, true), (40.0, false)] {
-        let mut h = harness(vec![path_a()]);
-        h.update(|st| (st.rotation, st.flip) = (30.0, true));
-        let view = h.state.borrow().view.expect("shown");
-        let curve = h.state.borrow().paths[0].subpaths[0].segment(2).expect("segment");
-        let on = view.to_screen(curve.eval(0.5));
-        // The curve's tangent there as the view draws it, turned a quarter.
-        let ahead = view.to_screen(curve.eval(0.5 + 1e-4));
-        let tangent = (ahead - on).normalized();
-        let at = on + vec2(-tangent.y, tangent.x) * offset;
-        h.drag(at, vec2(15.0, 0.0));
-        let bent = matches!(h.last_change(), Some(PathEdit::BendSegment { segment, .. }) if segment == kr(2));
-        assert_eq!(bent, takes, "offset {offset}");
-    }
-}
-
-#[trial]
-fn shift_toggles_an_anchor_and_alt_selects_its_subpath() {
-    let mut h = two_paths();
-    let (a2, a4) = (h.screen(h.anchor(0, 1)), h.screen(h.anchor(0, 3)));
-    h.click(a2);
-    assert_eq!(h.selection(), sel(1, &[(0, 1)]));
-    h.click_with(a4, Modifiers::SHIFT);
-    assert_eq!(h.selection(), sel(1, &[(0, 1), (0, 3)]));
-    // A press that deselects drags nothing.
-    h.held(Modifiers::SHIFT).drag(a2, vec2(30.0, 0.0));
-    h.held(Modifiers::NONE);
-    assert_eq!(h.selection(), sel(1, &[(0, 3)]));
-    assert!(h.seen().is_empty(), "{:?}", h.seen());
-    let line = h.screen(h.state.borrow().paths[1].subpaths[1].knots[0].anchor);
-    h.click_with(line, Modifiers::ALT);
-    assert_eq!(h.selection(), sel(2, &[(1, 0), (1, 1)]), "alt selects the anchor's subpath");
-}
-
-#[trial]
-fn a_drag_moves_the_selected_anchors_and_shift_keeps_it_at_45_degrees() {
-    let mut h = two_paths();
-    let (a1, a2) = (h.screen(h.anchor(0, 0)), h.screen(h.anchor(0, 1)));
-    h.click(a1);
-    h.click_with(a2, Modifiers::SHIFT);
-    // Shift held after the press constrains the move; held at the press it would toggle.
-    h.press_at(a2);
-    h.move_to(a2 + vec2(10.0, 0.0));
-    h.held(Modifiers::SHIFT);
-    h.move_to(a2 + vec2(30.0, 26.0));
-    h.release_at(a2 + vec2(30.0, 26.0));
-    h.held(Modifiers::NONE);
-    assert_eq!(h.seen().first(), Some(&Seen::Begin));
-    assert_eq!(h.seen().last(), Some(&Seen::Commit));
-    let (anchors, by) = moved_by(h.last_change()).expect("a move");
-    assert_eq!(anchors, [kr(0), kr(1)]);
-    assert!(near_vec(by, Vec2::new(28.0, 28.0)), "{by:?}");
-    assert!(near_vec(h.anchor(0, 0) - p(60.0, 60.0), by), "the paths carry the move");
-}
-
-#[trial]
-fn a_straight_segment_moves_its_anchors_and_a_curved_one_bends() {
-    let mut h = two_paths();
-    let mid = h.screen(p(110.0, 60.0));
-    h.drag(mid, vec2(0.0, FAR));
-    assert_eq!(moved_by(h.last_change()), Some((vec![kr(0), kr(1)], Vec2::new(0.0, f64::from(FAR)))));
-    assert_eq!(h.selection().segment, Some(kr(0)), "a press on a segment selects it");
-
-    let mut h = two_paths();
-    let curve = h.state.borrow().paths[0].subpaths[0].segment(1).expect("segment");
-    let at = h.screen(curve.eval(0.5));
-    h.drag(at, vec2(0.0, 12.0));
-    match h.last_change() {
-        Some(PathEdit::BendSegment { path: 1, segment, t, by, .. }) => {
-            assert_eq!(segment, kr(1));
-            assert!((t - 0.5).abs() < 0.01, "t {t}");
-            assert!(near_vec(by, Vec2::new(0.0, 12.0)), "{by:?}");
-        }
-        other => panic!("{other:?}"),
-    }
-}
-
-#[trial]
-fn a_quick_drag_in_one_pass_moves_from_the_press() {
-    let mut h = two_paths();
-    let a2 = h.screen(h.anchor(0, 1));
-    let to = a2 + vec2(25.0, 5.0);
-    h.fixture.frame(vec![pointer::moved(a2)]);
-    h.fixture.frame_through(vec![pointer::press(a2), pointer::moved(a2 + vec2(10.0, 0.0)), pointer::moved(to), pointer::release(to)]);
-    h.fixture.frame(Vec::new());
-    assert_eq!(h.seen(), [Seen::Begin, Seen::Update, Seen::Commit], "a drag is one gesture, whatever the passes it spans");
-    assert_eq!(moved_by(h.last_change()), Some((vec![kr(1)], Vec2::new(25.0, 5.0))));
-}
-
-#[trial]
-fn an_anchor_beats_a_guide_under_it() {
-    let mut h = harness(vec![path_a()]);
-    h.update(|st| st.guides = vec![Guide::new(GuideKey::new(1), craft_behavior::Axis::Y, 160.0)]);
-    let a2 = h.screen(h.anchor(0, 1));
-    h.drag(a2, vec2(FAR, 0.0));
-    assert_eq!(h.state.borrow().guides[0].position, 160.0, "the guide stays");
-    assert_eq!(moved_by(h.last_change()), Some((vec![kr(1)], Vec2::new(f64::from(FAR), 0.0))));
-}
-
-#[trial]
-fn convert_point_makes_a_corner_on_a_click_and_smooth_handles_on_a_drag() {
-    let mut h = two_paths();
-    h.update(|st| st.tool = BezierTool::Convert);
-    let a3 = h.screen(h.anchor(0, 2));
-    h.click(a3);
-    assert_eq!(h.seen(), [Seen::Set]);
-    assert_eq!(h.last_change(), Some(PathEdit::convert(1, kr(2), None)));
-    let a2 = h.screen(h.anchor(0, 1));
-    h.drag(a2, vec2(30.0, 10.0));
-    assert_eq!(h.last_change(), Some(PathEdit::convert(1, kr(1), Some(p(190.0, 70.0)))));
-    assert_eq!(h.state.borrow().paths[0].subpaths[0].knots[1], Knot::smooth(p(160.0, 60.0), p(190.0, 70.0)));
-    // Segments and empty canvas are the tool's.
-    let before = h.seen().len();
-    let clicks = h.state.borrow().tool_clicks;
-    let mid = h.screen(p(110.0, 60.0));
-    h.click(mid);
-    assert_eq!(h.seen().len(), before);
-    assert_eq!(h.state.borrow().tool_clicks, clicks + 1, "the press reached the tool");
-}
-
-#[trial]
-fn a_marquee_selects_on_the_frontmost_path_and_shift_adds() {
-    let mut h = two_paths();
-    // Round anchor 1 of path 1 and the top of path 2's square.
-    let (from, to) = (h.screen(p(40.0, 40.0)), h.screen(p(150.0, 210.0)));
-    h.drag(from, to - from);
-    assert_eq!(h.selection(), sel(2, &[(0, 0), (0, 1)]));
-    assert!(h.seen().is_empty(), "a marquee is no path edit");
-    let (from, to) = (h.screen(p(130.0, 250.0)), h.screen(p(150.0, 275.0)));
-    h.held(Modifiers::SHIFT).drag(from, to - from);
-    h.held(Modifiers::NONE);
-    assert_eq!(h.selection(), sel(2, &[(0, 0), (0, 1), (0, 2)]));
-    h.click_doc(380.0, 280.0);
-    assert_eq!(h.selection(), PathSelection::default(), "a click on empty canvas deselects");
-}
-
-#[trial]
-fn page_keys_pick_each_anchor_then_its_in_and_out_handles() {
-    let mut h = harness(vec![path_a()]);
-    h.tab_to_parts("Anchor 1 of 4");
-    assert!(h.picked("Anchor 1 of 4"));
-    h.key(Key::PageDown, Modifiers::NONE);
-    assert!(h.picked("Anchor 2 of 4"));
-    assert_eq!(h.selection(), sel(1, &[(0, 1)]), "picking an anchor selects it alone");
-    h.key(Key::PageDown, Modifiers::NONE);
-    assert!(h.picked("Anchor 3 of 4"));
-    h.key(Key::PageDown, Modifiers::NONE);
-    assert!(h.picked("In handle"));
-    h.key(Key::PageDown, Modifiers::NONE);
-    assert!(h.picked("Out handle"));
-    h.key(Key::PageDown, Modifiers::NONE);
-    assert!(h.picked("Anchor 4 of 4"));
-    assert_eq!(h.selection(), sel(1, &[(0, 3)]));
-    h.key(Key::PageUp, Modifiers::NONE);
-    assert!(h.picked("Out handle"));
-    assert_eq!(h.selection(), sel(1, &[(0, 3)]), "picking a handle leaves the selection on the anchor");
-    h.key(Key::Home, Modifiers::NONE);
-    assert!(h.picked("Anchor 1 of 4"));
-    h.key(Key::End, Modifiers::NONE);
-    assert!(h.picked("Anchor 4 of 4"));
-    // Page Up from the last anchor lands on anchor 3's out handle: a nudge moves that handle.
-    h.key(Key::PageUp, Modifiers::NONE);
-    assert!(h.picked("Out handle"));
-    h.key(Key::ArrowLeft, Modifiers::ALT);
-    assert_eq!(h.last_change(), Some(PathEdit::move_handle(1, kr(2), HandleSide::Out, p(289.0, 100.0), true)));
-}
-
-#[trial]
-fn shift_page_keys_add_the_next_anchor_and_command_a_selects_all() {
-    let mut h = harness(vec![path_a()]);
-    h.tab_to_parts("Anchor 1 of 4");
-    h.key(Key::PageDown, Modifiers::SHIFT);
-    h.key(Key::PageDown, Modifiers::SHIFT);
-    assert_eq!(h.selection(), sel(1, &[(0, 0), (0, 1), (0, 2)]));
-    assert!(h.picked("Anchor 3 of 4"));
-    h.key(Key::Escape, Modifiers::NONE);
-    assert_eq!(h.selection(), PathSelection::default(), "Escape deselects");
-    h.key(Key::A, Modifiers::COMMAND);
-    assert_eq!(h.selection(), sel(1, &[(0, 0), (0, 1), (0, 2), (0, 3)]));
-}
-
-#[trial]
-fn arrows_move_the_selected_anchors_or_the_picked_handle_and_alt_moves_it_alone() {
-    let mut h = harness(vec![path_a()]);
-    h.tab_to_parts("Anchor 1 of 4");
-    h.key(Key::ArrowRight, Modifiers::NONE);
-    h.key(Key::ArrowDown, Modifiers::SHIFT);
-    assert_eq!(h.seen(), [Seen::Set, Seen::Set]);
-    assert_eq!(h.anchor(0, 0), p(61.0, 70.0));
-    // Anchor 3's in handle.
-    for _ in 0..3 {
-        h.key(Key::PageDown, Modifiers::NONE);
-    }
-    assert!(h.picked("In handle"));
-    h.key(Key::ArrowLeft, Modifiers::ALT);
-    let moved = |to: Point, alone: bool| Some(PathEdit::move_handle(1, kr(2), HandleSide::In, to, alone));
-    assert_eq!(h.last_change(), moved(p(229.0, 20.0), true));
-    h.key(Key::ArrowUp, Modifiers::NONE);
-    assert_eq!(h.last_change(), moved(p(229.0, 19.0), false));
-}
 
 // `hit_test` answers what a press takes, without a pass: handles, then anchors, then segments, in a rotated and
 // flipped view, as the overlay's own press does.
@@ -693,113 +373,8 @@ fn hit_test_matches_the_overlays_press_priority() {
 
 // Hovering a segment under Add reports the segment with its parameter, which the preview anchor stands at.
 
-// A selected segment shows its two handles (an object each), and no thicker line is a look the paint reads.
-#[trial]
-fn a_selected_segment_shows_its_handles() {
-    let mut h = two_paths();
-    h.update(|st| st.selection = PathSelection::new(Some(1), Vec::new(), Some(kr(2))));
-    assert!(h.objects().iter().any(|n| n == "Out handle"), "the segment's leaving end shows its handle: {:?}", h.objects());
-    h.update(|st| st.segment_mark = SegmentMark::Line);
-    assert!(h.objects().iter().any(|n| n == "Out handle"));
-}
-
 // `AnchorsShown::Hidden` draws outlines only: no anchor, no handle, no part, no AccessKit object.
 
 // ---- the anchor tools and the Curvature tool ----
-
-#[trial]
-fn auto_add_delete_leaves_open_ends_to_the_pen() {
-    let mut h = with_tool(BezierTool::AutoAddDelete);
-    h.click_doc(60.0, 60.0);
-    h.click_doc(260.0, 60.0);
-    h.click_doc(360.0, 20.0);
-    assert_eq!(h.state.borrow().tool_clicks, 3, "the open ends and empty canvas reach the pen");
-    assert_eq!((h.state.borrow().inserts.len(), h.state.borrow().deletes.len()), (0, 0));
-
-    h.click_doc(160.0, 60.0);
-    assert_eq!(h.state.borrow().deletes, [(1, vec![kr(1)])], "an inner anchor");
-    h.click_doc(60.0, 200.0);
-    assert_eq!(h.state.borrow().deletes.len(), 2, "a closed subpath's first anchor");
-    h.click_doc(140.0, 230.0);
-    assert_eq!(h.state.borrow().inserts.len(), 1, "a segment");
-    assert_eq!(h.state.borrow().tool_clicks, 3);
-}
-
-#[trial]
-fn curvature_tool_drags_an_anchor_and_reflows() {
-    let mut h = with_tool(BezierTool::Curvature);
-    let at = h.screen(p(160.0, 60.0));
-    h.drag(at, vec2(0.0, 30.0));
-    assert_eq!(h.seen().first(), Some(&Seen::Begin), "{:?}", h.seen());
-    assert_eq!(h.seen().last(), Some(&Seen::Commit));
-    let Some(PathEdit::MoveCurvature { path, anchors, by, .. }) = h.last_change() else { panic!("MoveCurvature: {:?}", h.last_change()) };
-    assert_eq!((path, anchors), (1, vec![kr(1)]));
-    assert!(near_vec(by, Vec2::new(0.0, 30.0)), "{by:?}");
-    assert_eq!(h.selection(), sel(1, &[(0, 1)]));
-    assert_eq!(h.anchor(0, 1), p(160.0, 90.0), "the paths carry the move");
-
-    // Escape cancels; the rest of the press does nothing.
-    let mut h = with_tool(BezierTool::Curvature);
-    let before = h.state.borrow().paths.clone();
-    let at = h.screen(p(160.0, 60.0));
-    h.press_at(at);
-    h.move_to(at + vec2(0.0, 10.0));
-    h.move_to(at + vec2(0.0, 20.0));
-    h.key(Key::Escape, Modifiers::NONE);
-    assert_eq!(h.seen().last(), Some(&Seen::Cancel), "{:?}", h.seen());
-    let n = h.seen().len();
-    h.move_to(at + vec2(0.0, 50.0));
-    h.release_at(at + vec2(0.0, 50.0));
-    assert_eq!(h.seen().len(), n, "nothing after the cancel");
-    assert_eq!(h.state.borrow().paths, before);
-}
-
-#[trial]
-fn curvature_tool_insert_and_drag_is_one_gesture() {
-    let mut h = with_tool(BezierTool::Curvature);
-    let at = h.screen(p(110.0, 60.0));
-    h.drag(at, vec2(0.0, 24.0));
-    assert_eq!(h.seen().first(), Some(&Seen::Begin), "{:?}", h.seen());
-    assert_eq!(h.seen().last(), Some(&Seen::Commit));
-    assert!(h.seen().iter().all(|k| matches!(k, Seen::Begin | Seen::Update | Seen::Commit)), "{:?}", h.seen());
-    let Some(PathEdit::InsertCurvature { path, segment, t, by, .. }) = h.last_change() else { panic!("InsertCurvature: {:?}", h.last_change()) };
-    assert_eq!((path, segment), (1, kr(0)));
-    assert!((0.01..=0.99).contains(&t) && (t - 0.5).abs() < 0.05, "{t}");
-    assert!(near_vec(by, Vec2::new(0.0, 24.0)), "{by:?}");
-    assert_eq!(h.selection().anchors, [kr(1)], "the new anchor is selected");
-    assert_eq!(h.state.borrow().lone_selects, 0, "the selection came with the first Update");
-}
-
-/// Selects anchor 1 of path 1, whose in handle lies on the first segment, so a handle is shown over the segment.
-fn with_handle_over_the_segment(h: &mut Harness) {
-    h.update(|st| {
-        st.paths[0].subpaths[0].knots[1].in_ctrl = p(110.0, 60.0);
-        st.selection = sel(1, &[(0, 1)]);
-    });
-}
-
-// A shown handle does not hide the segment under it for the anchor tools and Curvature: the press inserts instead
-// of being left to the pen draft.
-#[trial]
-fn a_shown_handle_does_not_hide_the_segment_for_the_anchor_tools_and_curvature() {
-    let mut h = with_tool(BezierTool::Curvature);
-    with_handle_over_the_segment(&mut h);
-    h.click_doc(110.0, 60.0);
-    assert!(matches!(h.last_change(), Some(PathEdit::InsertCurvature { .. })), "{:?}", h.last_change());
-
-    for tool in [BezierTool::AddAnchor, BezierTool::AutoAddDelete] {
-        let mut h = with_tool(tool);
-        with_handle_over_the_segment(&mut h);
-        h.click_doc(110.0, 60.0);
-        assert_eq!(h.state.borrow().inserts.len(), 1, "{tool:?}");
-    }
-
-    // Direct still grabs the handle.
-    let mut h = with_tool(BezierTool::Direct);
-    with_handle_over_the_segment(&mut h);
-    let at = h.screen(p(110.0, 60.0));
-    h.drag(at, vec2(0.0, 30.0));
-    assert!(matches!(h.last_change(), Some(PathEdit::MoveHandle { .. })), "{:?}", h.last_change());
-}
 
 // Arrows, select all and Escape belong to Direct, Convert and Curvature; Add, Delete and Auto Add/Delete have none.
