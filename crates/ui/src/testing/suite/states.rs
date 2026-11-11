@@ -109,9 +109,8 @@ fn stories_show_and_hold_still(subject: &Subject) -> Result<(), String> {
 
 fn stories_pass_the_access_rules(subject: &Subject) -> Result<(), String> {
     for story in &subject.stories {
-        let mut fixture = Fixture::story(story);
-        fixture.settle();
-        let found = bypass::findings(&fixture);
+        let fixture = &subject.base(story).fixture;
+        let found = bypass::findings(fixture);
         if !found.is_empty() {
             return Err(format!("{}: {found:?}", story.name));
         }
@@ -125,13 +124,13 @@ fn stories_pass_the_access_rules(subject: &Subject) -> Result<(), String> {
 
 fn focusable_stories_are_tab_reachable(subject: &Subject) -> Result<(), String> {
     for story in &subject.stories {
-        let mut fixture = Fixture::story(story);
-        fixture.settle();
-        let focusable =
-            fixture.tree().keys().into_iter().any(|key| fixture.tree().declares_key(key, Declared::Focus) && is_interactive(fixture.tree(), key));
+        let tree = subject.base(story).fixture.tree();
+        let focusable = tree.keys().into_iter().any(|key| tree.declares_key(key, Declared::Focus) && is_interactive(tree, key));
         if !focusable {
             continue;
         }
+        let mut fixture = Fixture::story(story);
+        fixture.settle();
         fixture.key(Key::Tab, Modifiers::NONE);
         if fixture.focused().is_none() {
             return Err(format!("{}: Tab reached nothing", story.name));

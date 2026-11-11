@@ -263,10 +263,9 @@ struct Runs {
     failures: Vec<String>,
 }
 
-/// Runs each way of `story`'s drive in its own fixture: a run that changes the value ends its gesture once, a
+/// Runs each way of `story`'s drive `plan` in its own fixture: a run that changes the value ends its gesture once, a
 /// cancelled run leaves the value as it was, and the runs that are not cancelled agree on changing it.
-fn runs_of(story: &Story, probe: &Probe) -> Runs {
-    let (_, plan) = settled(story, probe);
+fn runs_of(story: &Story, probe: &Probe, plan: Plan) -> Runs {
     let mut runs = Runs { ran: Vec::new(), changed: false, failures: Vec::new() };
     let mut changed_by = Vec::new();
     let mut unchanged_by = Vec::new();
@@ -308,7 +307,8 @@ fn runs_of(story: &Story, probe: &Probe) -> Runs {
 /// fixture. `Ok` names the runs in order (a drag is followed by `"drag with Escape"`); `Err` gives the failures, or
 /// says that no run changed the value.
 pub fn values_case(probe: &Probe, story: &Story) -> Result<Vec<&'static str>, String> {
-    let runs = runs_of(story, probe);
+    let (_, plan) = settled(story, probe);
+    let runs = runs_of(story, probe, plan);
     if !runs.failures.is_empty() {
         return Err(runs.failures.join("; "));
     }
@@ -325,7 +325,7 @@ fn a_drive_ends_each_gesture_once(subject: &Subject) -> Result<(), String> {
     let mut changed_any = false;
     let mut failures = Vec::new();
     for story in &subject.stories {
-        let runs = runs_of(story, subject.probe);
+        let runs = runs_of(story, subject.probe, subject.base(story).plan);
         changed_any |= runs.changed;
         failures.extend(runs.failures);
     }
@@ -342,8 +342,9 @@ fn a_double_click_resets_with_one_set(subject: &Subject) -> Result<(), String> {
         return Ok(());
     }
     for story in &subject.stories {
-        let (mut fixture, plan) = settled(story, subject.probe);
+        let plan = subject.base(story).plan;
         let Plan::Drag(Grip { part, .. }) = plan else { continue };
+        let (mut fixture, _) = settled(story, subject.probe);
         run(&mut fixture, plan, 0);
         let Some(grip) = fixture.root_id().and_then(|id| fixture.part(id, part)) else { continue };
         let before = fixture.data().snapshot();

@@ -24,14 +24,18 @@ pub(super) const CASES: &[Case] = &[
 
 /// A style of the subject that the cases measure: one the pipeline resolved for a story, or the one of the type's
 /// sample.
-enum Source {
+pub(super) enum Source {
     Seen(Arc<StyleSeen>),
     Sample,
 }
 
-/// The styles of `subject` the stories resolve: each story settled in every mode and contrast, then each of its
-/// drives run once in the default mode. One entry per style key, variant and size.
-fn sources(subject: &Subject) -> Result<Vec<Source>, String> {
+/// The styles of `subject` the stories resolve, read once for the style cases: each story settled in every mode and
+/// contrast, then each of its drives run once in the default mode. One entry per style key, variant and size.
+fn sources(subject: &Subject) -> Result<&[Source], String> {
+    subject.style_sources.get_or_init(|| read_sources(subject)).as_deref().map_err(Clone::clone)
+}
+
+fn read_sources(subject: &Subject) -> Result<Vec<Source>, String> {
     let name = subject.probe.type_name();
     let mut seen: Vec<Arc<StyleSeen>> = Vec::new();
     let mut take = |fixture: &Fixture| {
@@ -42,15 +46,21 @@ fn sources(subject: &Subject) -> Result<Vec<Source>, String> {
         }
     };
     for story in &subject.stories {
+        let base = subject.base(story);
         for mode in [Mode::Light, Mode::Dark] {
             for contrast in [Contrast::Standard, Contrast::High] {
+                // The default env is light and standard contrast.
+                if (mode, contrast) == (Mode::Light, Contrast::Standard) {
+                    take(&base.fixture);
+                    continue;
+                }
                 let mut fixture = Fixture::story(story);
                 fixture.theme(mode, contrast);
                 fixture.settle();
                 take(&fixture);
             }
         }
-        let (_, plan) = settled(story, subject.probe);
+        let plan = base.plan;
         for variant in variants(plan, subject.probe) {
             let (mut fixture, _) = settled(story, subject.probe);
             run(&mut fixture, plan, variant);
@@ -66,17 +76,26 @@ fn sources(subject: &Subject) -> Result<Vec<Source>, String> {
     Err(format!("{name} has a style and neither a story that shows it nor a sample, so no measurement reads its style"))
 }
 
+/// The context the style cases resolve looks in, one per type. A style hook that measures text needs the fonts, which
+/// egui installs in its first frame; the style cache keys each look by its key, env, variant and size, so the looks
+/// resolved before stand in for nothing else.
+fn measuring_ctx(subject: &Subject) -> &egui::Context {
+    subject.style_ctx.get_or_init(|| {
+        let ctx = egui::Context::default();
+        drop(crate::runtime::egui::fixture::run_frame_shapes(&ctx, 0.0, egui::vec2(800.0, 600.0), |_| {}));
+        ctx
+    })
+}
+
 /// The resolved looks of `source` under `variant` and `tokens`.
 fn looks_in(subject: &Subject, source: &Source, tokens: &UiTokens, variant: craft_theme::Variant) -> Option<StyleLooks> {
-    let ctx = egui::Context::default();
-    // A style hook that measures text needs the fonts, which egui installs in its first frame.
-    drop(crate::runtime::egui::fixture::run_frame_shapes(&ctx, 0.0, egui::vec2(800.0, 600.0), |_| {}));
+    let ctx = measuring_ctx(subject);
     match source {
-        Source::Seen(seen) => Some(with_cx(&ctx, tokens, variant, seen.size, |cx| seen.resolve_in(cx))),
+        Source::Seen(seen) => Some(with_cx(ctx, tokens, variant, seen.size, |cx| seen.resolve_in(cx))),
         Source::Sample => {
             let make = subject.probe.sample?;
             let instance = make();
-            with_cx(&ctx, tokens, variant, ControlSize::Md, |cx| (subject.probe.looks)(&*instance, cx))
+            with_cx(ctx, tokens, variant, ControlSize::Md, |cx| (subject.probe.looks)(&*instance, cx))
         }
     }
 }
@@ -87,15 +106,15 @@ fn looks_under(subject: &Subject, source: &Source, variant: craft_theme::Variant
 
 fn listed_variants_differ_from_the_default(subject: &Subject) -> Result<(), String> {
     for source in sources(subject)? {
-        let Some(listed) = looks_under(subject, &source, craft_theme::Variant::SECONDARY) else {
+        let Some(listed) = looks_under(subject, source, craft_theme::Variant::SECONDARY) else {
             continue;
         };
         let Some((&default, others)) = listed.variants.split_first() else {
             continue;
         };
-        let base = looks_under(subject, &source, default);
+        let base = looks_under(subject, source, default);
         for &variant in others {
-            if let (Some(base), Some(looks)) = (&base, looks_under(subject, &source, variant))
+            if let (Some(base), Some(looks)) = (&base, looks_under(subject, source, variant))
                 && looks.same_as(base)
             {
                 return Err(format!("the variant {variant:?} resolves to the style of {default:?}"));
@@ -146,7 +165,7 @@ fn unreachable_in(look: &Stateful<StyleColor>, reachable: Flags) -> Option<Strin
 fn every_flag_look_is_reachable(subject: &Subject) -> Result<(), String> {
     let reachable = reachable(subject);
     for source in sources(subject)? {
-        let Some(looks) = looks_under(subject, &source, craft_theme::Variant::SECONDARY) else {
+        let Some(looks) = looks_under(subject, source, craft_theme::Variant::SECONDARY) else {
             continue;
         };
         if let Some(SurfaceLook { fill, border, .. }) = &looks.surface {
@@ -193,7 +212,7 @@ const GROUNDS: [SurfaceKind; 5] = [SurfaceKind::Background, SurfaceKind::Chrome,
 fn text_and_icons_meet_the_text_minimum(subject: &Subject) -> Result<(), String> {
     let reachable = reachable(subject);
     for source in sources(subject)? {
-        measure_contrast(subject, &source, reachable)?;
+        measure_contrast(subject, source, reachable)?;
     }
     Ok(())
 }

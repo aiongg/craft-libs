@@ -3,6 +3,7 @@
 use craft_behavior::EditCommand;
 use craft_keymap::{Binding, BindingError, CommandDef, Platform};
 use std::collections::{HashMap, HashSet};
+use std::sync::{Arc, OnceLock};
 
 /// A command's default binding on one platform: the command id, the platform and the binding.
 type PlatformDefault = (&'static str, Platform, Binding);
@@ -116,6 +117,8 @@ impl std::fmt::Display for CommandDefError {
 
 impl std::error::Error for CommandDefError {}
 
+static LOADED: OnceLock<Arc<Registry>> = OnceLock::new();
+
 /// The loaded definitions, by id.
 #[derive(Default)]
 pub(crate) struct Registry {
@@ -144,6 +147,21 @@ impl Registry {
                 .extend((entry.platform_defaults)()?.into_iter().map(|(id, platform, binding)| (id.to_owned(), platform, binding)));
         }
         Ok(registry)
+    }
+
+    /// The registry of every linked set, loaded once per process: the sets are static, so every context shares one.
+    /// A load that fails is not kept, so each install reports its error.
+    pub(crate) fn shared() -> Result<Arc<Registry>, CommandDefError> {
+        if let Some(loaded) = LOADED.get() {
+            return Ok(loaded.clone());
+        }
+        let registry = Arc::new(Registry::load()?);
+        Ok(LOADED.get_or_init(|| registry).clone())
+    }
+
+    /// Whether `registry` is the one [`Registry::shared`] loaded.
+    pub(crate) fn is_shared(registry: &Arc<Registry>) -> bool {
+        LOADED.get().is_some_and(|loaded| Arc::ptr_eq(loaded, registry))
     }
 
     fn add(&mut self, def: CommandDef) -> Result<(), CommandDefError> {

@@ -257,9 +257,54 @@ fn is_app(scope: &str) -> bool {
 
 /// Loads the linked command sets.
 pub(crate) fn install(ctx: &Context) -> Result<(), registry::CommandDefError> {
-    let registry = registry::Registry::load()?;
-    with(ctx, |board| board.registry = Arc::new(registry));
+    let registry = registry::Registry::shared()?;
+    with(ctx, |board| board.registry = registry);
     Ok(())
+}
+
+/// A keymap and the chords it binds to the edit commands.
+type BuiltKeymap = (Arc<Keymap>, Arc<[(EditCommand, Chord)]>);
+
+/// The keymap of `registry` on `platform` under `overrides`, and the chords it binds to the edit commands.
+fn build_keymap(registry: &registry::Registry, platform: Platform, overrides: Option<&Arc<Overrides>>) -> BuiltKeymap {
+    let mut scopes = Scopes::new();
+    for def in registry.defs() {
+        if !def.scope.is_app() {
+            scopes = scopes.with_panel(def.scope.as_str());
+        }
+    }
+    let mut keymap = Keymap::new(registry.defs_for(platform), scopes, platform);
+    if let Some(overrides) = overrides {
+        keymap.set_overrides((**overrides).clone());
+    }
+    let edit_chords = registry
+        .defs()
+        .iter()
+        .filter_map(|def| registry.edit_of(&def.command.id).map(|edit| (edit, &def.command)))
+        .flat_map(|(edit, command)| {
+            keymap.bindings(command).into_iter().filter(|binding| !binding.trigger.double).map(move |binding| (edit, binding.trigger.chord))
+        })
+        .collect();
+    (Arc::new(keymap), edit_chords)
+}
+
+/// The keymap of the shared registry on each platform with no overrides. It depends on nothing else, so every
+/// context of the process shares it.
+static DEFAULT_KEYMAPS: std::sync::Mutex<Vec<(Platform, BuiltKeymap)>> = std::sync::Mutex::new(Vec::new());
+
+/// The keymap of `registry` on `platform` under `overrides`: built once per platform for the shared registry
+/// with no overrides, else built here.
+fn keymap_for(registry: &Arc<registry::Registry>, platform: Platform, overrides: Option<&Arc<Overrides>>) -> BuiltKeymap {
+    if overrides.is_some() || !registry::Registry::is_shared(registry) {
+        return build_keymap(registry, platform, overrides);
+    }
+    let mut kept = DEFAULT_KEYMAPS.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    if let Some((_, built)) = kept.iter().find(|(on, _)| *on == platform) {
+        return built.clone();
+    }
+    let built = build_keymap(registry, platform, None);
+    kept.push((platform, built.clone()));
+    built
 }
 
 /// Declares that an instance of `child` also receives the commands of `parent`, and that its shortcuts rank inside the
@@ -301,26 +346,8 @@ pub(crate) fn set_input(ctx: &Context, input: &CommandInput) {
                 }
         });
         if stale {
-            let mut scopes = Scopes::new();
-            for def in board.registry.defs() {
-                if !def.scope.is_app() {
-                    scopes = scopes.with_panel(def.scope.as_str());
-                }
-            }
-            let mut keymap = Keymap::new(board.registry.defs_for(platform), scopes, platform);
-            if let Some(overrides) = &input.overrides {
-                keymap.set_overrides((**overrides).clone());
-            }
-            let edit_chords = board
-                .registry
-                .defs()
-                .iter()
-                .filter_map(|def| board.registry.edit_of(&def.command.id).map(|edit| (edit, &def.command)))
-                .flat_map(|(edit, command)| {
-                    keymap.bindings(command).into_iter().filter(|binding| !binding.trigger.double).map(move |binding| (edit, binding.trigger.chord))
-                })
-                .collect();
-            board.keymap = Some(KeymapCache { keymap: Arc::new(keymap), platform, overrides: input.overrides.clone(), edit_chords });
+            let (keymap, edit_chords) = keymap_for(&board.registry, platform, input.overrides.as_ref());
+            board.keymap = Some(KeymapCache { keymap, platform, overrides: input.overrides.clone(), edit_chords });
         }
     });
 }

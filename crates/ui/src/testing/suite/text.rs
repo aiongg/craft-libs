@@ -40,10 +40,10 @@ fn shown_text(fixture: &Fixture) -> String {
 fn typing_fixtures(subject: &Subject) -> Vec<(String, Fixture)> {
     let mut found = Vec::new();
     for story in &subject.stories {
-        let (mut fixture, plan) = settled(story, subject.probe);
-        if !matches!(plan, Plan::Type(..)) {
+        if !matches!(subject.base(story).plan, Plan::Type(..)) {
             continue;
         }
+        let (mut fixture, _) = settled(story, subject.probe);
         let editable = focus_subject(&mut fixture)
             && fixture
                 .tree()

@@ -30,15 +30,67 @@ pub use size::{reflowed, text_size_case};
 pub use states::required_states;
 pub use variants::rtl_case;
 
+use super::fixture::Fixture;
 use super::story::{Story, stories};
 use crate::contract::{PatternProbe, Probe, Registration, ShapeKind};
 use libtest_mimic::{Failed, Trial};
+use std::cell::OnceCell;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
-/// What a case reads: the registered type and the stories written for it.
+/// What a case reads: the registered type, the stories written for it, and what the cases share of them.
 struct Subject {
     probe: &'static Probe,
     stories: Vec<Story>,
+    /// Each story's [`Base`], built when a case first asks for it.
+    bases: Vec<OnceCell<Base>>,
+    /// The style sources the style cases measure, read once for all of them.
+    style_sources: OnceCell<Result<Vec<style::Source>, String>>,
+    /// The context the style cases resolve looks in.
+    style_ctx: OnceCell<egui::Context>,
+}
+
+/// A story shown in the default room and env and settled (`Fixture::story` then `settle`), with no input, and the
+/// drive the runner resolves from it. Cases that only read a settled story, or need only its drive, share it, so a
+/// story settles once per type for them rather than once per case. A case that sends input builds its own fixture.
+struct Base {
+    fixture: Fixture,
+    plan: drive::Plan,
+}
+
+impl Subject {
+    fn new(probe: &'static Probe, stories: Vec<Story>) -> Self {
+        let bases = stories.iter().map(|_| OnceCell::new()).collect();
+        Subject { probe, stories, bases, style_sources: OnceCell::new(), style_ctx: OnceCell::new() }
+    }
+
+    /// The shared [`Base`] of `story`, which is one of `self.stories`.
+    fn base(&self, story: &Story) -> &Base {
+        let index = self.stories.iter().position(|known| std::ptr::eq(known, story));
+        assert!(index.is_some(), "the story `{}` is not one of the subject's", story.name);
+        let index = index.unwrap_or_default();
+        self.bases[index].get_or_init(|| Base::of(story, self.probe))
+    }
+
+    /// Whether the case `name` runs for this type: its shapes take the type and the type is not exempt from it.
+    fn runs(&self, name: &str) -> bool {
+        cases().any(|case| case.name == name && runs_for(case, self.probe))
+    }
+}
+
+impl Base {
+    fn of(story: &Story, probe: &Probe) -> Base {
+        let (fixture, plan) = drive::settled(story, probe);
+        Base { fixture, plan }
+    }
+
+    /// The settled fixture and the drive.
+    fn parts(&self) -> (&Fixture, drive::Plan) {
+        (&self.fixture, self.plan)
+    }
+}
+
+fn runs_for(case: &Case, probe: &Probe) -> bool {
+    case.shapes.contains(&probe.shape) && !probe.exempt.iter().any(|exemption| exemption.case == case.name)
 }
 
 /// One shared case: its name (the name an exemption uses), the shapes it runs on and the check.
@@ -103,7 +155,7 @@ fn panic_text(payload: Box<dyn std::any::Any + Send>) -> String {
 }
 
 fn run_type(probe: &'static Probe, stories: Vec<Story>) -> Result<(), Failed> {
-    let subject = Subject { probe, stories };
+    let subject = Subject::new(probe, stories);
     let mut failures = Vec::new();
     for exemption in probe.exempt {
         if !states::exemption_is_known(exemption.case) {
@@ -111,7 +163,7 @@ fn run_type(probe: &'static Probe, stories: Vec<Story>) -> Result<(), Failed> {
         }
     }
     for case in cases() {
-        if !case.shapes.contains(&probe.shape) || probe.exempt.iter().any(|exemption| exemption.case == case.name) {
+        if !runs_for(case, probe) {
             continue;
         }
         match catch_unwind(AssertUnwindSafe(|| (case.run)(&subject))) {

@@ -58,14 +58,19 @@ pub(super) fn title_names_the_container(subject: &Subject) -> Result<(), String>
     if !is_body(subject) {
         return Ok(());
     }
-    subject.stories.iter().try_for_each(title_case)
+    subject.stories.iter().try_for_each(|story| title_from(story, &subject.base(story).fixture))
 }
 
 /// The title case for one story.
 pub fn title_case(story: &Story) -> Result<(), String> {
     let mut fixture = Fixture::story(story);
     fixture.settle();
-    let Some(container) = root(&fixture) else { return Ok(()) };
+    title_from(story, &fixture)
+}
+
+/// The title case for `story`, settled in `fixture`.
+fn title_from(story: &Story, fixture: &Fixture) -> Result<(), String> {
+    let Some(container) = root(fixture) else { return Ok(()) };
     let role = fixture.tree().role_of(container.node);
     let tree = fixture.tree();
     if (role == Some(Role::DIALOG) || role == Some(Role::GROUP))

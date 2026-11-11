@@ -31,8 +31,8 @@ fn each_activation_clicks_once(subject: &Subject) -> Result<(), String> {
         return Ok(());
     }
     for story in &subject.stories {
-        let (fixture, plan) = settled(story, subject.probe);
-        let root = root_target(&fixture);
+        let (fixture, plan) = subject.base(story).parts();
+        let root = root_target(fixture);
         if !matches!(plan, Plan::Activate) || !fixture.tree().declares_key(root.node, Declared::Click) {
             continue;
         }
@@ -61,7 +61,7 @@ fn each_part_activates_once(subject: &Subject) -> Result<(), String> {
     }
     let keys = [(Key::Enter, subject.probe.keys.activate.enter()), (Key::Space, subject.probe.keys.activate.space())];
     for story in &subject.stories {
-        let (fixture, _) = settled(story, subject.probe);
+        let fixture = &subject.base(story).fixture;
         let Some(id) = fixture.root_id() else { continue };
         let mut parts = crate::runtime::pointer::sensing_parts(fixture.ctx(), id, craft_behavior::Sense::CLICK);
         parts.dedup();
@@ -121,7 +121,7 @@ fn signature(tree: &AccessTree) -> Vec<String> {
 /// Every action a node declares changes something: a click, an edit, a node state or the focus.
 fn declared_actions_are_handled(subject: &Subject) -> Result<(), String> {
     for story in subject.stories.iter().filter(|story| !story.covers.contains(&Required::Invalid)) {
-        let (fixture, _) = settled(story, subject.probe);
+        let fixture = &subject.base(story).fixture;
         let actions = [
             (Declared::Click, AccessActionKind::Click),
             (Declared::Increment, AccessActionKind::Increment),
@@ -263,11 +263,11 @@ fn access_focus_focuses(subject: &Subject) -> Result<(), String> {
 /// Escape and the window losing focus during a press end it without a click or a commit.
 fn escape_and_blur_cancel_a_press(subject: &Subject) -> Result<(), String> {
     for story in &subject.stories {
-        let (fixture, plan) = settled(story, subject.probe);
+        let (fixture, plan) = subject.base(story).parts();
         if !matches!(plan, Plan::Activate | Plan::Drag(_)) {
             continue;
         }
-        let root = root_target(&fixture);
+        let root = root_target(fixture);
         if !fixture.tree().declares_key(root.node, Declared::Click) && !matches!(plan, Plan::Drag(_)) {
             continue;
         }
@@ -298,8 +298,8 @@ fn escape_and_blur_cancel_a_press(subject: &Subject) -> Result<(), String> {
 /// holds no capture afterwards, and the release that follows gives no click, commit or value change.
 fn removal_cancels_a_press(subject: &Subject) -> Result<(), String> {
     for story in &subject.stories {
-        let (fixture, plan) = settled(story, subject.probe);
-        let root = root_target(&fixture);
+        let (fixture, plan) = subject.base(story).parts();
+        let root = root_target(fixture);
         let part = match plan {
             Plan::Activate if fixture.tree().declares_key(root.node, Declared::Click) => None,
             Plan::Drag(grip) => Some(grip.part),

@@ -765,6 +765,8 @@ pub(crate) mod guard {
         static EMITTING: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
         static STRICT: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
         static LOGGED: std::cell::RefCell<std::collections::HashSet<&'static str>> = std::cell::RefCell::default();
+        /// Whether each service type name touched so far is in `CLASSIFIED`, by the address and length of the name.
+        static SEEN: std::cell::RefCell<std::collections::HashMap<(usize, usize), bool>> = std::cell::RefCell::default();
     }
 
     /// The services a measuring run may touch, with why that hands nothing forward around layout memory.
@@ -882,7 +884,11 @@ pub(crate) mod guard {
             return;
         }
         let name = std::any::type_name::<S>();
-        if CLASSIFIED.iter().any(|(ty, _)| name.contains(ty)) {
+        // A measuring run touches its services many times; the substring search over the list runs once per name.
+        let classified = SEEN.with(|seen| {
+            *seen.borrow_mut().entry((name.as_ptr() as usize, name.len())).or_insert_with(|| CLASSIFIED.iter().any(|(ty, _)| name.contains(ty)))
+        });
+        if classified {
             return;
         }
         if STRICT.with(std::cell::Cell::get) == 0 {
