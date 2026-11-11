@@ -67,6 +67,13 @@ craft-theme = { path = "crates/theme" }
 craft-theme-store = { path = "crates/theme-store" }
 craft-timeline = { path = "crates/timeline" }
 craft-ui = { path = "crates/ui" }
+craft-ui-canvas = { path = "crates/ui-canvas" }
+craft-ui-contract = { path = "crates/ui-contract" }
+craft-ui-panels = { path = "crates/ui-panels" }
+craft-ui-patterns = { path = "crates/ui-patterns" }
+craft-ui-shell = { path = "crates/ui-shell" }
+craft-ui-test-kit = { path = "crates/ui-test-kit" }
+craft-ui-widgets = { path = "crates/ui-widgets" }
 craft-ui-macros = { path = "crates/ui-macros" }
 craft-update = { path = "crates/update" }
 craft-vectorcraft-format = { path = "crates/vectorcraft-format" }
@@ -142,6 +149,18 @@ opt-level = 2
 # unoptimised, they made the test binaries several times slower, and opt-level 1 keeps their incremental rebuilds
 # short.
 [profile.dev.package.craft-ui]
+opt-level = 1
+[profile.dev.package.craft-ui-contract]
+opt-level = 1
+[profile.dev.package.craft-ui-widgets]
+opt-level = 1
+[profile.dev.package.craft-ui-panels]
+opt-level = 1
+[profile.dev.package.craft-ui-canvas]
+opt-level = 1
+[profile.dev.package.craft-ui-patterns]
+opt-level = 1
+[profile.dev.package.craft-ui-shell]
 opt-level = 1
 [profile.dev.package.craft-theme]
 opt-level = 1

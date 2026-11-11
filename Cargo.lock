@@ -1694,6 +1694,55 @@ dependencies = [
 name = "craft-ui"
 version = "0.1.0"
 dependencies = [
+ "craft-behavior",
+ "craft-i18n",
+ "craft-ui",
+ "craft-ui-canvas",
+ "craft-ui-contract",
+ "craft-ui-panels",
+ "craft-ui-patterns",
+ "craft-ui-shell",
+ "craft-ui-widgets",
+ "egui",
+ "libtest-mimic",
+ "syn 2.0.119",
+ "toml",
+]
+
+[[package]]
+name = "craft-ui-bench"
+version = "0.1.0"
+dependencies = [
+ "craft-behavior",
+ "craft-host",
+ "craft-ui",
+ "craft-window",
+ "egui",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "craft-ui-canvas"
+version = "0.1.0"
+dependencies = [
+ "craft-behavior",
+ "craft-i18n",
+ "craft-keymap",
+ "craft-theme",
+ "craft-ui-canvas",
+ "craft-ui-macros",
+ "craft-ui-panels",
+ "craft-ui-test-kit",
+ "egui",
+ "libtest-mimic",
+ "serde",
+]
+
+[[package]]
+name = "craft-ui-contract"
+version = "0.1.0"
+dependencies = [
  "accesskit",
  "craft-behavior",
  "craft-font-catalog",
@@ -1701,13 +1750,12 @@ dependencies = [
  "craft-host",
  "craft-i18n",
  "craft-keymap",
- "craft-pdf",
  "craft-quit",
  "craft-theme",
- "craft-ui",
+ "craft-ui-contract",
  "craft-ui-macros",
+ "craft-ui-test-kit",
  "craft-window",
- "eframe",
  "egui",
  "egui_kittest",
  "epaint",
@@ -1725,22 +1773,7 @@ dependencies = [
  "smallvec",
  "syn 2.0.119",
  "toml",
- "toml_edit",
  "web-time",
- "zeroize",
-]
-
-[[package]]
-name = "craft-ui-bench"
-version = "0.1.0"
-dependencies = [
- "craft-behavior",
- "craft-host",
- "craft-ui",
- "craft-window",
- "egui",
- "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -1790,6 +1823,96 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.119",
+]
+
+[[package]]
+name = "craft-ui-panels"
+version = "0.1.0"
+dependencies = [
+ "craft-behavior",
+ "craft-host",
+ "craft-i18n",
+ "craft-keymap",
+ "craft-quit",
+ "craft-theme",
+ "craft-ui-macros",
+ "craft-ui-panels",
+ "craft-ui-widgets",
+ "egui",
+ "libtest-mimic",
+ "serde",
+ "toml",
+]
+
+[[package]]
+name = "craft-ui-patterns"
+version = "0.1.0"
+dependencies = [
+ "craft-behavior",
+ "craft-host",
+ "craft-i18n",
+ "craft-keymap",
+ "craft-pdf",
+ "craft-theme",
+ "craft-ui-macros",
+ "craft-ui-panels",
+ "craft-ui-patterns",
+ "craft-ui-test-kit",
+ "egui",
+ "libtest-mimic",
+ "serde",
+ "toml",
+ "toml_edit",
+ "zeroize",
+]
+
+[[package]]
+name = "craft-ui-shell"
+version = "0.1.0"
+dependencies = [
+ "craft-behavior",
+ "craft-host",
+ "craft-i18n",
+ "craft-theme",
+ "craft-ui-macros",
+ "craft-ui-panels",
+ "craft-ui-shell",
+ "craft-ui-test-kit",
+ "craft-window",
+ "eframe",
+ "egui",
+ "libtest-mimic",
+ "resvg",
+ "web-time",
+]
+
+[[package]]
+name = "craft-ui-test-kit"
+version = "0.1.0"
+dependencies = [
+ "craft-behavior",
+ "craft-host",
+ "craft-ui-contract",
+ "egui",
+]
+
+[[package]]
+name = "craft-ui-widgets"
+version = "0.1.0"
+dependencies = [
+ "craft-behavior",
+ "craft-host",
+ "craft-i18n",
+ "craft-keymap",
+ "craft-theme",
+ "craft-ui-contract",
+ "craft-ui-macros",
+ "craft-ui-test-kit",
+ "craft-ui-widgets",
+ "egui",
+ "libtest-mimic",
+ "serde",
+ "smallvec",
 ]
 
 [[package]]
