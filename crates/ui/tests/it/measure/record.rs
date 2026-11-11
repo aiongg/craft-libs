@@ -3,6 +3,7 @@
 //! kept measurement; the trials that count the runs of a measuring pass drop the kept measurements first
 //! (`forget_measurements`).
 
+use craft_ui::buttons::Button;
 use craft_ui::contract::{Bind, Props as _, Show as _, ShowContainer as _};
 use craft_ui::display::Text;
 use craft_ui::layout_components::{Row, Stack};
@@ -310,6 +311,34 @@ fn a_settled_frame_runs_no_measuring_run() {
     assert_eq!(passes, 1);
     let runs = last_pass_measuring_runs(&frames.ctx);
     assert!(runs.is_empty(), "no stack measures again: {runs:?}");
+}
+
+/// A row that shrinks its children takes its kept measurement in settled frames as any body does, whether its
+/// children fit (one sweep) or shrink (a second sweep at their widths): the real run shows them under the ids the
+/// measuring run gave them, so it finds each in the kept transcript.
+#[trial]
+fn a_settled_row_that_shrinks_its_children_runs_one_pass_and_no_measuring_run() {
+    for width in [900.0, 260.0] {
+        let show = |ui: &mut Ui| {
+            let at = Rect::from_min_size(ui.cursor().min, Vec2::new(width, 200.0));
+            Stack::new().fill().show_at(ui, at, |ui, _| {
+                Row::new().show(ui, |ui, _| {
+                    let mut path = String::from("/home/studio/Documents/brochure-final.pdf");
+                    let _ = TextField::new("Path", Bind::bound(&mut path)).show(ui);
+                    let _ = Button::new("Choose File...").show(ui);
+                    let _ = Button::new("Another").show(ui);
+                });
+            });
+        };
+        let mut frames = Frames::new();
+        frames.idle(3, show);
+        for _ in 0..3 {
+            let passes = frames.frame(vec![], show);
+            assert_eq!(passes, 1, "a settled frame at width {width} runs one pass");
+            let runs = last_pass_measuring_runs(&frames.ctx);
+            assert!(runs.is_empty(), "no body measures again at width {width}: {runs:?}");
+        }
+    }
 }
 
 /// A room change measures the containers again in that frame, in one pass: the room is an input the kept

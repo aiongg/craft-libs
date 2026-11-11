@@ -940,7 +940,7 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
     // A leaf in flow in a row that shrinks its children to fit shows at most the width the row gave it.
     let shrink = env.shrink.filter(|_| shape == ShapeKind::Leaf && matches!(at, ShowAt::Flow) && comp.fills().is_none());
     let cap = match shrink {
-        Some(crate::layout::Shrink::Apply(row)) => crate::layout::shrink_cap(&ctx, row),
+        Some(crate::layout::Shrink::Apply(row)) => crate::layout::shrink_cap(&ctx, row, id),
         _ => None,
     };
     let room = match cap {
@@ -1009,7 +1009,7 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
             steps::measure(&mut comp, &input, &style, &resolved, shown.as_deref(), Vec2::ZERO).x
         };
         let (ideal, least) = (width(Proposal::Ideal), width(Proposal::Min));
-        crate::layout::report_shrink(&ctx, row, size.x, ideal, least);
+        crate::layout::report_shrink(&ctx, row, id, size.x, ideal, least);
     }
     // A component shown at a rect fills it: the rect is its size, and a leaf that measures nothing (a content
     // painter) still shows there.
