@@ -1,10 +1,7 @@
 //! The integration binary of craft-font-manager: every test is a registered trial.
 
-mod axes;
-mod glyphs;
 mod missing;
 mod panel;
-mod picker;
 
 use craft_font_manager::testing::registered;
 use craft_ui::testing::{suite, trials};

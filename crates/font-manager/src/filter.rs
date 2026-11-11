@@ -72,6 +72,3 @@ impl Search {
         &self.scripts_by_name
     }
 }
-
-#[cfg(test)]
-mod tests {}
