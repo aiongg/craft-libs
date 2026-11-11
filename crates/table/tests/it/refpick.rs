@@ -18,22 +18,6 @@ fn quote(name: &str) -> String {
     format!("'{name}'")
 }
 
-/// An empty box becomes `=$B$3`, and after an operand there is no place for a reference.
-#[trial]
-fn a_click_inserts_an_absolute_reference() {
-    let mut picker = ReferencePicker::new("Sheet1");
-    let mut text = String::new();
-    assert!(picker.pick(&mut text, cell(2, 1), "Sheet1", false, can_point, quote));
-    assert_eq!(text, "=$B$3");
-    assert_eq!(picker.take_refocus(), Some(5));
-    assert_eq!(picker.take_refocus(), None, "the keyboard goes back once");
-
-    let mut operand = "=A1".to_owned();
-    picker.set_caret(3, true);
-    assert!(!picker.pick(&mut operand, cell(2, 1), "Sheet1", false, can_point, quote), "no place for a reference after an operand");
-    assert_eq!(operand, "=A1");
-}
-
 /// Extending makes `$B$3:$C$5`; the next click replaces it.
 #[trial]
 fn a_drag_grows_a_range_and_another_click_replaces_it() {

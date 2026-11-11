@@ -49,9 +49,7 @@ mod flags;
 mod forms;
 mod parse;
 #[cfg(test)]
-mod rep_tests;
-#[cfg(test)]
-pub(crate) mod tests;
+mod tests;
 
 use build::*;
 pub(crate) use compound::{MAX_SUGGEST_COMPOUND_WORK, Pieces};

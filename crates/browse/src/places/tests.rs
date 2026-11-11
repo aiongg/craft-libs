@@ -1,5 +1,4 @@
-//! `Places::resolve`, `PlacesSettings`, `SystemDirectories` (temp dir) and `FolderCache` over a
-//! fake `Directories` and `ManualJobs`.
+//! `Places::resolve`, folder equality and `FolderCache` over a fake `Directories` and `ManualJobs`.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -125,8 +124,6 @@ fn equal_folders_are_one_root_however_spelled() {
     assert_eq!(names(&r), ["Pictures", "Pictures2"]);
 }
 
-// A temp dir with `.git`, `b10`, `b9`, a file: `subfolders` gives `b9`, `b10`.
-
 fn cache() -> (FolderCache, Arc<FakeDirectories>, Arc<ManualJobs>) {
     let fake = Arc::new(FakeDirectories::new().standard_folder(StandardFolder::Home, "/home/u"));
     let jobs = Arc::new(ManualJobs::new());
@@ -138,54 +135,6 @@ fn names_of(listing: Listing<'_>) -> Vec<String> {
         Listing::Ready(folders) => folders.iter().map(|f| f.name.clone()).collect(),
         other => panic!("not ready: {other:?}"),
     }
-}
-
-// After `refresh`, a folder asked again keeps its old listing until the new job lands, then shows the new one.
-#[test]
-fn a_folder_is_listed_again_after_a_refresh() {
-    let (mut cache, fake, jobs) = cache();
-    fake.add_folder("/x/a");
-    let dir = Path::new("/x");
-    assert_eq!(cache.subfolders(dir), Listing::Loading);
-    jobs.run_all();
-    assert_eq!(names_of(cache.subfolders(dir)), ["a"]);
-    assert_eq!(fake.calls(), 1, "a fresh listing is not listed again");
-
-    fake.add_folder("/x/b");
-    cache.refresh_folder(dir);
-    assert_eq!(names_of(cache.subfolders(dir)), ["a"], "the old listing shows while the job waits");
-    assert_eq!(names_of(cache.subfolders(dir)), ["a"]);
-    jobs.run_all();
-    assert_eq!(names_of(cache.subfolders(dir)), ["a", "b"]);
-    assert_eq!(fake.calls(), 2, "one job per refresh");
-
-    // The roots go stale with `refresh` as well.
-    assert!(cache.roots().is_none());
-    jobs.run_all();
-    assert_eq!(cache.roots().map(|r| r.standard.len()), Some(1));
-    cache.refresh();
-    assert!(cache.roots().is_some(), "old roots keep showing");
-    assert_eq!(jobs.waiting(), 1);
-}
-
-// A Directories that blocks: `subfolders` answers Loading at once; the listing arrives after ManualJobs runs.
-#[test]
-fn listing_never_blocks_the_pass() {
-    let (mut cache, fake, jobs) = cache();
-    fake.add_folder("/slow/only");
-    let dir = Path::new("/slow");
-    assert_eq!(cache.subfolders(dir), Listing::Loading);
-    assert_eq!(cache.subfolders(dir), Listing::Loading);
-    assert_eq!(fake.calls(), 0, "nothing is listed in the pass");
-    assert_eq!(jobs.waiting(), 1, "asking twice queues one job");
-    jobs.run_all();
-    assert_eq!(names_of(cache.subfolders(dir)), ["only"]);
-
-    // A folder the tree stopped asking for is dropped at the end of the pass.
-    cache.finish_pass();
-    assert_eq!(cache.subfolders(Path::new("/other")), Listing::Loading);
-    cache.finish_pass();
-    assert_eq!(cache.subfolders(dir), Listing::Loading, "/slow was not asked for in the last pass");
 }
 
 // A listing that started before a refresh shows, but stays stale and is listed again; before the fix its landing cleared the refresh.

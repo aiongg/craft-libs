@@ -4,7 +4,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use craft_host::target::Os;
-use craft_keymap::{Binding, CommandDef, CommandKind, CommandRef, ImportOptions, Keymap, Overrides, Platform, ProfileError, Profiles, Scope, Scopes};
+use craft_keymap::{Binding, CommandDef, CommandKind, CommandRef, Keymap, Overrides, Platform, ProfileError, Profiles, Scope, Scopes};
 use craft_menu::shortcuts::{DialogState, Options, Outcome, ShortcutsDialog};
 use craft_ui::contract::Role;
 use craft_ui::testing::{Fixture, Target};
@@ -180,14 +180,6 @@ impl Rig {
         self.fixture.settle();
     }
 
-    /// Types `text` into the Search field.
-    pub(crate) fn search(&mut self, text: &str) {
-        let field = self.control("Search:", Role::TEXT_INPUT);
-        self.fixture.click(&field);
-        self.fixture.type_text(text);
-        self.pass();
-    }
-
     /// The control of `role` in the labelled row `label`: a labelled control carries its label's text as its name.
     pub(crate) fn control(&self, label: &str, role: Role) -> Target {
         let tree = self.fixture.tree();
@@ -223,11 +215,6 @@ impl Rig {
         }
     }
 
-    /// Whether a shortcut is being recorded.
-    pub(crate) fn recording(&self) -> bool {
-        self.shared.borrow().state.is_recording()
-    }
-
     /// Whether the dialog is still open.
     pub(crate) fn is_open(&self) -> bool {
         self.shared.borrow().state.is_open()
@@ -258,17 +245,5 @@ impl Rig {
         self.shared.borrow_mut().jobs.push(job);
         self.fixture.idle(2);
         result.take().unwrap_or_else(|| panic!("the job did not run"))
-    }
-
-    /// Opens the review of `set` in the next pass.
-    pub(crate) fn review_import(&mut self, set: craft_keymap::ForeignSet, options: ImportOptions) {
-        let cell = RefCell::new(Some((set, options)));
-        let job: Job = Box::new(move |dialog, ui, state| {
-            if let Some((set, options)) = cell.take() {
-                dialog.review_import(ui, state, set, options);
-            }
-        });
-        self.shared.borrow_mut().jobs.push(job);
-        self.fixture.settle();
     }
 }

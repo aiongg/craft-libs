@@ -24,7 +24,7 @@ serde_json = { workspace = true }
 screen-testing = ["craft-ui/testing"]
 
 [dev-dependencies]
-# `default_fonts` so that the bar's tests lay out text.
+# `default_fonts` so that the shortcuts dialog and native menu tests lay out text.
 egui = { workspace = true, features = ["default_fonts"] }
 libtest-mimic = "0.8"
 

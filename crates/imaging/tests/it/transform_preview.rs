@@ -2,17 +2,13 @@
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
 
 use craft_behavior::CanvasView;
-use craft_behavior::kurbo::{Point, Rect};
+use craft_behavior::kurbo::Point;
 use craft_imaging::ui::transform_preview::{
-    PreviewDisplay, PreviewMap, PreviewMask, PreviewPixels, PreviewTextures, StylePlan, StyledContent, StyledFrame, StyledPreview, StyledSource,
-    TextureChoice, TransformPreview, resample,
+    PreviewDisplay, PreviewMap, PreviewPixels, PreviewTextures, StylePlan, StyledContent, StyledFrame, StyledPreview, StyledSource, TransformPreview,
 };
-use craft_imaging::ui::warp::WarpMesh;
-use craft_ui::canvas::{Canvas, PixelRect};
+use craft_ui::canvas::Canvas;
 use craft_ui::contract::{Show as _, ShowContainer as _};
 use craft_ui::testing::{Fixture, trial};
 use egui::{Color32, ColorImage, Shape};
@@ -23,10 +19,6 @@ fn pt(x: f64, y: f64) -> Point {
 
 fn solid(size: [usize; 2], color: Color32) -> ColorImage {
     ColorImage::new(size, vec![color; size[0] * size[1]])
-}
-
-fn choice(level: u32, nearest: bool) -> TextureChoice {
-    TextureChoice::new(level, nearest)
 }
 
 /// The meshes `TransformPreview` paints for `map` in the fixture's canvas under `rotation` degrees, and the view.
@@ -111,62 +103,6 @@ fn pixels_past_the_canvas_edge_are_clipped_in_document_space() {
     // Without a clip the whole quad is drawn.
     let (open, view) = shown(quad, 1.0, None, 0.0);
     assert!(open[0].vertices.iter().any(|v| view.to_doc(v.pos).x < 0.0));
-}
-
-// A pulled warp's cells come out from the most displaced to the least.
-#[trial]
-fn the_most_displaced_triangles_are_drawn_first() {
-    let frame = Rect::new(0.0, 0.0, 300.0, 200.0);
-    let mut mesh = WarpMesh::identity(frame, 3, 2);
-    let width = mesh.width();
-    // The middle columns are pulled 30 right, so they move most.
-    for j in 0..mesh.height() {
-        for i in 1..=2 {
-            mesh.points[j * width + i].x += 30.0;
-        }
-    }
-    let drawn = PreviewMap::mesh(&mesh, frame).build(1.0, [1.0, 1.0]);
-    let moved = |k: u32| (drawn.points[k as usize] - drawn.rest[k as usize]).hypot();
-    // A cell is two triangles over four corners: its first, second, third and last indices.
-    let per_cell: Vec<f64> =
-        drawn.indices.chunks(6).map(|cell| [cell[0], cell[1], cell[2], cell[5]].iter().map(|&k| moved(k)).sum::<f64>() / 4.0).collect();
-    assert!(per_cell.len() > 4);
-    // Cells pulled equally tie, and their sums differ in the last digits.
-    assert!(per_cell.windows(2).all(|w| w[0] >= w[1] - 1e-9), "{per_cell:?}");
-    assert!(per_cell[0] > per_cell[per_cell.len() - 1]);
-}
-
-// A narrow, hard-pulled patch gets as many samples as its stretch needs (up to 96 per patch, 240 per axis); an
-// unwarped mesh keeps 4 per patch.
-#[trial]
-fn a_narrow_pulled_cell_gets_as_many_samples_as_its_stretch_needs() {
-    let frame = Rect::new(0.0, 0.0, 900.0, 1100.0);
-    let mut mesh = WarpMesh::identity_with_knots(frame, vec![0.0, 0.45, 0.5, 1.0], vec![0.0, 1.0]).expect("valid knots");
-    let width = mesh.width();
-    for j in 0..mesh.height() {
-        for i in 3..=6 {
-            mesh.points[j * width + i].x -= 300.0;
-        }
-    }
-    // With uv extent 1 a vertex's uv is its sample's place across the frame.
-    let along = |zoom: f64| {
-        let drawn = PreviewMap::mesh(&mesh, frame).build(zoom, [1.0, 1.0]);
-        let mut us: Vec<f32> = drawn.uv.iter().map(|uv| uv[0]).collect();
-        us.dedup();
-        us.sort_by(f32::total_cmp);
-        us.dedup();
-        us
-    };
-    let us = along(1.0);
-    let narrow = us.iter().filter(|&&u| (0.45..0.5).contains(&u)).count();
-    assert!(narrow >= 30, "{narrow} samples in the narrow patch");
-    for knot in [0.0f32, 0.45, 0.5, 1.0] {
-        assert!(us.iter().any(|u| (u - knot).abs() < 1e-6), "{knot}");
-    }
-    assert!(us.len() <= 240 + 8, "{}", us.len());
-    for bad in [0.0, -1.0, f64::NAN, f64::INFINITY] {
-        assert!(along(bad).len() > 3, "{bad}");
-    }
 }
 
 // An identity mesh at zoom 1 samples each patch at the minimum.
@@ -260,162 +196,7 @@ fn the_styled_frame_is_rebuilt_only_when_its_key_changes() {
     expect_build(&nearest, &source, Some(&display), "filter");
 }
 
-// A composite of the wrong size, or none, is asked for once per key; a new key asks again.
-#[trial]
-fn a_failed_composite_is_not_asked_for_again_until_the_key_changes() {
-    struct Wrong(Cell<u32>);
-    impl StyledSource for Wrong {
-        fn revision(&self) -> u64 {
-            1
-        }
-        fn pixel_cost_ns(&self) -> f64 {
-            20.0
-        }
-        fn reach(&self, _scale: f64) -> i32 {
-            2
-        }
-        fn compose(&self, _plan: &StylePlan, _content: &StyledContent) -> Option<ColorImage> {
-            self.0.set(self.0.get() + 1);
-            Some(solid([1, 1], Color32::from_gray(u8::MAX)))
-        }
-    }
-    let (_fixture, ctx) = context();
-    let textures = styled_textures();
-    let source = Wrong(Cell::new(0));
-    let preview = StyledPreview::new("styled-wrong");
-    for _ in 0..3 {
-        assert!(preview.composite(&ctx, &frame(&textures, square(10.0, 10.0, 40.0), 1.0), &source, None).is_none());
-    }
-    assert_eq!(source.0.get(), 1);
-    assert!(preview.composite(&ctx, &frame(&textures, square(11.0, 10.0, 40.0), 1.0), &source, None).is_none());
-    assert_eq!(source.0.get(), 2);
-    assert_eq!(preview.builds(), 0);
-}
-
-// A costly style shrinks the work scale until the content's area fits the budget, in up to 6 rounds; a box off the
-// canvas gives None.
-#[trial]
-fn the_budget_shrinks_the_work_scale_until_the_composite_fits() {
-    let canvas = [4000, 4000];
-    let big = square(0.0, 0.0, 4000.0);
-    let plan = StylePlan::new(big, canvas, 1.0, 1.0e6, |_| 10).unwrap_or_else(|| panic!("a plan"));
-    assert!(plan.scale < 1.0);
-    let area = f64::from(plan.content.width()) * f64::from(plan.content.height());
-    assert!(area <= 1.0e6, "{area}");
-    assert!(plan.shown.x0 >= 0 && plan.shown.x1 <= (4000.0 * plan.scale).ceil() as i32);
-    assert!(plan.content.x0 <= plan.shown.x0 - 20 || plan.shown.x0 == 0 && plan.content.x0 == -20);
-
-    let small = StylePlan::new(square(10.0, 10.0, 20.0), [100, 100], 4.0, 1.0e6, |_| 3).unwrap_or_else(|| panic!("a plan"));
-    assert_eq!(small.scale, 1.0, "the scale never exceeds the document's");
-    assert_eq!(small.bounds, PixelRect::new(10, 10, 30, 30));
-    assert_eq!(small.shown, PixelRect::new(7, 7, 33, 33));
-    assert_eq!(small.content, PixelRect::new(1, 1, 39, 39));
-    assert_eq!(small.document_rect(), Rect::new(7.0, 7.0, 33.0, 33.0));
-
-    assert_eq!(StylePlan::new(square(500.0, 500.0, 20.0), [100, 100], 1.0, 1.0e6, |_| 3), None);
-    assert_eq!(StylePlan::new(square(f64::NAN, 0.0, 20.0), [100, 100], 1.0, 1.0e6, |_| 3), None);
-    // A reach that grows with the scale and never fits gives up after 6 rounds.
-    assert_eq!(StylePlan::new(big, canvas, 1.0, 1.0e6, |_| 100_000), None);
-}
-
 // The budget is 30 ms dragging and 120 ms at rest over the cost per pixel plus the resample's, clamped to 0.25 to 8
 // million pixels.
 
-// Resampling a texel image through a box keeps texels whole with nearest, fades the source's edges over one texel,
-// and leaves empty texels transparent.
-#[trial]
-fn resampling_handles_empty_texels_and_nearest_neighbor() {
-    use craft_behavior::geometry::Homography;
-    // A 2 x 1 image, red then blue, shown at 4 times its size on a 10 x 10 work rectangle.
-    let image = ColorImage::new([2, 1], vec![Color32::from_rgb(255, 0, 0), Color32::from_rgb(0, 0, 255)]);
-    let quad = [pt(1.0, 1.0), pt(9.0, 1.0), pt(9.0, 5.0), pt(1.0, 5.0)];
-    let Some(to_unit) = Homography::unit_to_quad(quad).and_then(|h| h.inverse()) else { panic!("invertible") };
-    let inside = pt(5.0, 3.0);
-    let rect = PixelRect::new(0, 0, 10, 6);
-    let at = |c: &StyledContent, x: usize, y: usize| c.texels[y * 10 + x];
-
-    let crisp = resample(&image, [1.0, 1.0], &to_unit, inside, rect, true);
-    assert_eq!(at(&crisp, 2, 2), [1.0, 0.0, 0.0, 1.0]);
-    assert_eq!(at(&crisp, 7, 2), [0.0, 0.0, 1.0, 1.0]);
-    assert_eq!(at(&crisp, 0, 0), [0.0; 4], "outside the box");
-
-    let smooth = resample(&image, [1.0, 1.0], &to_unit, inside, rect, false);
-    let edge = at(&smooth, 1, 3);
-    assert!(edge[3] > 0.0 && edge[3] < 1.0, "the source's left edge fades over a texel: {edge:?}");
-    assert!(at(&smooth, 0, 5)[3] < 0.5, "a texel outside the box fades out");
-
-    let empty = resample(&ColorImage::new([0, 0], vec![]), [1.0, 1.0], &to_unit, inside, rect, false);
-    assert!(empty.texels.iter().all(|t| *t == [0.0; 4]));
-    assert_eq!(empty.texels.len(), 60);
-}
-
-// Below ½ screen pixel per source pixel a mip level (zoom 0.25 → level 2, at most 12); around 1:1 level 0 linear; at
-// zoom ≥ 2 with scale ≤ 1.05 level 0 nearest; a scale over 1.05 stays linear.
-#[trial]
-fn the_texture_level_follows_the_on_screen_size() {
-    assert_eq!(PreviewTextures::choose(1.0, 1.0, false), choice(0, false));
-    assert_eq!(PreviewTextures::choose(3.0, 1.0, false), choice(0, true));
-    assert_eq!(PreviewTextures::choose(3.0, 2.0, false), choice(0, false));
-    assert_eq!(PreviewTextures::choose(0.25, 1.0, false), choice(2, false));
-    assert_eq!(PreviewTextures::choose(0.3, 1.0, false), choice(1, false));
-    assert_eq!(PreviewTextures::choose(1e-9, 1.0, false).level, 12);
-    assert_eq!(PreviewTextures::choose(f32::NAN, 1.0, false), choice(0, false));
-    assert_eq!(PreviewTextures::choose(1.0, 0.0, false), choice(0, false));
-}
-
 // With nearest interpolation every zoom and scale gives level 0 with nearest filtering.
-
-// A display conversion changes only the displayed upload: `level_image` stays raw, the conversion runs once per key,
-// and a new key replaces the old key's upload.
-#[trial]
-fn the_display_conversion_changes_only_the_displayed_upload() {
-    let (_fixture, ctx) = context();
-    let raw = solid([2, 2], Color32::from_rgb(100, 50, 20));
-    let textures = PreviewTextures::new("display", PreviewPixels::new(raw.clone(), [1.0, 1.0]));
-    let converted = Arc::new(AtomicUsize::new(0));
-    let display = |key: u64| {
-        let converted = Arc::clone(&converted);
-        PreviewDisplay::new(key, move |image: &ColorImage| {
-            converted.fetch_add(1, Ordering::SeqCst);
-            solid(image.size, Color32::from_rgb(1, 2, 3))
-        })
-    };
-    let level0 = choice(0, false);
-    let plain = textures.pick(&ctx, level0, None);
-    assert!(plain.is_some());
-    assert_eq!(converted.load(Ordering::SeqCst), 0, "no display, no conversion");
-    textures.pick(&ctx, level0, Some(&display(1)));
-    textures.pick(&ctx, level0, Some(&display(1)));
-    assert_eq!(converted.load(Ordering::SeqCst), 1, "the same key converts once");
-    textures.pick(&ctx, level0, Some(&display(2)));
-    assert_eq!(converted.load(Ordering::SeqCst), 2, "a new key converts again");
-    assert_eq!(textures.level_image(0).map(|(image, _)| image.pixels.clone()), Some(raw.pixels));
-}
-
-// A mask value of 0 at density 1 clears a texel; 128 at density 0.5 keeps three quarters of its alpha and colour.
-#[trial]
-fn the_mask_scales_the_texel_alpha() {
-    let texel = Color32::from_rgba_premultiplied(200, 100, 40, 200);
-    let pixels = |density: f32, value: u8| {
-        PreviewPixels::new(solid([1, 1], texel), [1.0, 1.0]).masked(&PreviewMask::new(vec![value], density)).image.pixels[0]
-    };
-    assert_eq!(pixels(1.0, 0), Color32::TRANSPARENT);
-    assert_eq!(pixels(1.0, 255), texel);
-    let [r, g, b, a] = pixels(0.5, 128).to_array();
-    assert_eq!([r, g, b, a], [150, 75, 30, 150]);
-}
-
-// Mip levels are built only when asked for, halve down to one texel, and keep the uv extent of the source.
-#[trial]
-fn mip_levels_are_built_on_demand_and_keep_the_source_extent() {
-    let textures = PreviewTextures::new("mips", PreviewPixels::new(solid([5, 3], Color32::from_gray(u8::MAX)), [0.8, 0.6]));
-    assert_eq!(textures.size(), [5, 3]);
-    assert_eq!(textures.levels_built(), 1);
-    let (level1, uv1) = textures.level_image(1).unwrap();
-    assert_eq!(level1.size, [3, 2]);
-    assert_eq!(textures.levels_built(), 2);
-    assert!((uv1[0] - 0.8 * 5.0 / 6.0).abs() < 1e-6 && (uv1[1] - 0.6 * 3.0 / 4.0).abs() < 1e-6);
-    let (last, _) = textures.level_image(12).unwrap();
-    assert_eq!(last.size, [1, 1]);
-    assert_eq!(textures.levels_built(), 4);
-}

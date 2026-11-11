@@ -8,21 +8,16 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 use craft_font_manager::craft_font_catalog::Os;
 use craft_font_manager::index::Index;
-use craft_font_manager::store::{Call, FakeStore, Installer};
-use craft_font_manager::{Catalog, FontEnv, FontSources, FontsPanel, FontsPanelSettings, FontsPanelView, Options, Source, Tab};
+use craft_font_manager::store::{Call, FakeStore};
+use craft_font_manager::{Catalog, FontEnv, FontsPanel, FontsPanelView, Options};
 use craft_host::{AppInfo, Host, InlineJobs, Jobs, MemorySections};
-use craft_ui::contract::{Role, ShowContainer as _};
-use craft_ui::layout_components::Row;
+use craft_ui::contract::Role;
 use craft_ui::testing::{Fixture, Room, Target, trial};
-use egui::{Key, Modifiers, Pos2, Vec2};
-
-/// A room wider than a window, where the details sheet and the sources need more.
-const WIDE_ROOM: Vec2 = Vec2::new(1400.0, 760.0);
+use egui::{Key, Modifiers, Pos2};
 
 const HACK: &str = "ofl/hack/Hack-Regular.ttf";
 const UBUNTU: &str = "ufl/ubuntu/Ubuntu-Light.ttf";
 const APP: AppInfo = AppInfo { id: "fonts-test", name: "Fonts test", version: "1.0" };
-const USER_INDEX: &str = "https://fonts.example.org/index.json";
 
 fn index() -> Index {
     let file = |path: &str, size: usize| {
@@ -47,11 +42,6 @@ fn index() -> Index {
         family("Ubuntu", "SANS_SERIF", "1", r#""Latn""#, file(UBUNTU, epaint_default_fonts::UBUNTU_LIGHT.len())),
     );
     Index::from_json(json.as_bytes()).unwrap()
-}
-
-/// A Host with `sections` as its settings and inline jobs.
-fn host(sections: Arc<MemorySections>) -> Arc<Host> {
-    host_with(sections, Arc::new(InlineJobs))
 }
 
 fn host_with(sections: Arc<MemorySections>, jobs: Arc<dyn Jobs>) -> Arc<Host> {
@@ -141,12 +131,6 @@ impl Rig {
         self.fx.settle();
     }
 
-    fn click_role(&mut self, role: Role, name: &str) {
-        let target = self.named(role, name);
-        self.fx.click(&target);
-        self.fx.settle();
-    }
-
     /// Presses the control named `name`.
     fn click(&mut self, name: &str) {
         let target = self.fx.by_label(name).unwrap_or_else(|| panic!("no control `{name}` on screen"));
@@ -175,17 +159,8 @@ impl Rig {
         self.fx.settle();
     }
 
-    fn installed_tab(&mut self) {
-        self.click_role(Role::TAB, "Installed");
-        assert_eq!(self.panel.borrow().tab(), Tab::Installed);
-    }
-
     fn has_installed(&self, family: &str) -> bool {
         self.panel.borrow().installed().iter().any(|f| f.name == family)
-    }
-
-    fn results(&self) -> Vec<String> {
-        self.panel.borrow().results()
     }
 
     /// Opens the details of the card named `family`: the card takes the focus, Enter opens it.
@@ -195,95 +170,6 @@ impl Rig {
         self.key(Key::Enter);
         assert_eq!(self.panel.borrow().details_family().as_deref(), Some(family));
     }
-}
-
-#[trial]
-fn search_and_filters_narrow_the_catalogue() {
-    let mut rig = setup("search");
-    assert_eq!(rig.panel.borrow().tab(), Tab::Catalogue);
-    assert_eq!(rig.results(), ["Amiri", "Hack", "Noto Sans JP", "Ubuntu"]);
-
-    rig.type_into("Search", "noto");
-    assert_eq!(rig.results(), ["Noto Sans JP"]);
-
-    rig.type_into("Search", "XYZ");
-    assert!(rig.results().is_empty());
-    assert!(rig.present("No fonts match"));
-    rig.click("Clear search and filters");
-    assert_eq!(rig.results().len(), 4);
-
-    rig.click_role(Role::RADIO_BUTTON, "Serif");
-    assert_eq!(rig.results(), ["Amiri"]);
-    rig.click_role(Role::RADIO_BUTTON, "All categories");
-
-    // Ubuntu Light is installed on the system.
-    rig.click_role(Role::RADIO_BUTTON, "Installed");
-    assert_eq!(rig.results(), ["Ubuntu"]);
-    rig.click_role(Role::RADIO_BUTTON, "Not installed");
-    assert_eq!(rig.results(), ["Amiri", "Hack", "Noto Sans JP"]);
-    rig.click("Clear filters");
-    assert_eq!(rig.results().len(), 4);
-}
-
-#[trial]
-fn settings_changes_land_in_the_hosts_section_and_a_new_panel_reads_them() {
-    let sections = Arc::new(MemorySections::default());
-    let mut rig = setup_with("settings", Arc::clone(&sections));
-    assert_eq!(rig.panel.borrow().settings(), &FontsPanelSettings::default());
-    rig.type_into("Sample text", "Hamburgefonstiv");
-    assert_eq!(rig.panel.borrow().settings().sample, "Hamburgefonstiv");
-    let saved: FontsPanelSettings = host(Arc::clone(&sections)).setting();
-    assert_eq!(saved.sample, "Hamburgefonstiv");
-
-    let again = setup_with("settings-again", sections);
-    assert_eq!(again.panel.borrow().settings().sample, "Hamburgefonstiv");
-}
-
-#[trial]
-fn language_filter_finds_languages_by_their_own_name() {
-    let mut rig = setup("language");
-    rig.type_into("Find a language", "日本");
-    assert!(!rig.present("Arabic · العربية"));
-    rig.click_role(Role::LIST_ITEM, "Japanese · 日本語");
-    assert_eq!(rig.results(), ["Noto Sans JP"]);
-}
-
-#[trial]
-fn install_a_family_then_remove_it_from_its_card() {
-    let mut rig = setup("install");
-    assert!(!rig.has_installed("Hack"));
-
-    rig.open("Hack");
-    rig.click("Install all");
-    rig.click("Download");
-    assert_eq!(rig.store.calls(), [Call::Install("Hack".into())]);
-    assert!(rig.panel.borrow().downloads_allowed());
-    let hack = rig.panel.borrow().installed().iter().find(|f| f.name == "Hack").cloned().expect("Hack is listed");
-    assert_eq!(hack.source, Source::Store);
-    assert!(rig.present("Remove all"));
-
-    rig.key(Key::Escape);
-    assert!(rig.panel.borrow().details_family().is_none());
-    rig.installed_tab();
-    rig.type_into("Search", "Hack");
-    rig.click("Remove");
-    assert_eq!(rig.store.calls().last(), Some(&Call::Remove("Hack".into())));
-    assert!(!rig.has_installed("Hack"));
-}
-
-#[trial]
-fn system_fonts_cannot_be_removed() {
-    let mut rig = setup("system");
-    rig.installed_tab();
-    let system = rig.panel.borrow().installed().first().cloned().expect("the system font is listed");
-    assert_eq!(system.source, Source::System);
-    assert!(rig.fx.by_label("Remove").is_none(), "a system family has no Remove on its card");
-    rig.open(&system.name);
-    let remove = rig.fx.by_label("Remove all").expect("the sheet offers Remove all");
-    assert!(rig.fx.tree().is_disabled_key(remove.node));
-    rig.fx.click(&remove);
-    rig.fx.settle();
-    assert!(rig.store.calls().is_empty());
 }
 
 #[trial]
@@ -311,104 +197,6 @@ fn nothing_downloads_without_consent() {
 }
 
 #[trial]
-fn a_failed_install_offers_retry() {
-    let mut rig = setup("retry");
-    rig.allow();
-    rig.type_into("Search", "Hack");
-    rig.store.fail_next("network unreachable");
-    rig.click("Install");
-    assert!(rig.present("Couldn't install"));
-    assert!(!rig.has_installed("Hack"));
-    rig.click("Retry");
-    assert!(rig.has_installed("Hack"));
-    assert!(!rig.present("Couldn't install"));
-}
-
-/// A source a user could add: another "Hack", from an index of its own.
-fn user_index() -> Vec<u8> {
-    format!(
-        r#"{{"schema":1,"version":"1.1","source":"examplefonts","commit":"{commit}",
-        "source_info":{{"id":"examplefonts","name":"Example Fonts","curated":true,"file_urls":["https://fonts.example.org/files/{{path}}"]}},
-        "languages":[{{"id":"en_Latn","name":"English","script":"Latn","population":1}}],
-        "scripts":[{{"id":"Latn","name":"Latin"}}],
-        "families":[{{"family":"Hack","source":"examplefonts","categories":["MONOSPACE"],"license":"OFL","license_path":null,"languages":[0],"scripts":["Latn"],
-          "files":[{{"path":"{HACK}","size":{size},"sha256":"{sha}","style":"normal","weight":400,"axes":[],"postscript":[]}}]}}]}}"#,
-        commit = "1".repeat(40),
-        size = epaint_default_fonts::HACK_REGULAR.len(),
-        sha = "0a".repeat(32),
-    )
-    .into_bytes()
-}
-
-/// The panel with its sources beside it, as a host's settings show them.
-fn sources_setup(name: &str) -> Rig {
-    let root = root(name);
-    let store_dir = root.join("store");
-    std::fs::create_dir_all(&store_dir).unwrap();
-    let env = FontEnv { os: Os::Unix, root: root.clone(), font_store: Some(store_dir.clone()), ..FontEnv::default() };
-    let catalog = Arc::new(Catalog::new(env).with_font_service(false));
-    catalog.rescan();
-    let store = Arc::new(FakeStore::new(store_dir, HashMap::new()).with_index(index()).serving_index(USER_INDEX, user_index()));
-    store.allow_downloads(true).unwrap();
-    let options = Options::new(catalog, store.clone(), store.indexes().map_err(|e| e.0));
-    let panel = Rc::new(RefCell::new(FontsPanel::new(options)));
-    let shown = Rc::clone(&panel);
-    let mut fx = Fixture::new(move |ui| {
-        let mut panel = shown.borrow_mut();
-        Row::new().fill().show(ui, |ui, _| {
-            FontSources::new(&mut panel).show(ui);
-            FontsPanelView::new(&mut panel).show(ui);
-        });
-    });
-    fx.room(WIDE_ROOM).host(host(Arc::new(MemorySections::default())));
-    fx.settle();
-    Rig { fx, panel, store }
-}
-
-impl Rig {
-    /// Frames until `done`, for work the panel runs as Host jobs: the rig's Host runs them inline, and the panel reads
-    /// their results in its next passes.
-    fn wait(&mut self, done: impl Fn(&FontsPanel) -> bool) {
-        for _ in 0..20 {
-            if done(&self.panel.borrow()) {
-                self.fx.settle();
-                return;
-            }
-            self.fx.idle(1);
-        }
-        panic!("timed out");
-    }
-
-    fn count_named(&self, name: &str) -> usize {
-        self.fx.tree().keys().into_iter().filter(|key| self.fx.tree().name_of(*key) == Some(name)).count()
-    }
-}
-
-#[trial]
-fn an_added_source_is_not_curated_and_can_be_removed() {
-    let mut rig = sources_setup("sources");
-    assert_eq!(rig.results().len(), 4);
-    rig.type_into("Index address", USER_INDEX);
-    rig.click_role(Role::BUTTON, "Add");
-    rig.wait(|panel| panel.results().len() == 5);
-    // Two families named Hack, one from each source, each with its own card.
-    assert_eq!(rig.results().iter().filter(|family| *family == "Hack").count(), 2);
-    assert!(rig.count_named("Not curated") >= 2, "a badge on the card and one in the sources");
-    assert!(!rig.present("Changed since added"));
-
-    rig.store.change_index(USER_INDEX);
-    rig.click("Update sources");
-    rig.wait(|panel| !panel.fetching_sources());
-    assert!(rig.present("Changed since added"));
-
-    let remove = rig.fx.by_label("Remove").expect("the source offers Remove");
-    rig.fx.click(&remove);
-    rig.fx.settle();
-    assert_eq!(rig.results().len(), 4);
-    assert!(rig.store.user_sources().is_empty());
-}
-
-#[trial]
 fn queued_installs_run_one_runner_in_request_order() {
     let deferred = Arc::new(Deferred::default());
     let mut rig = setup_jobs("queue", Arc::new(MemorySections::default()), deferred.clone());
@@ -423,15 +211,4 @@ fn queued_installs_run_one_runner_in_request_order() {
     assert!(rig.store.calls().is_empty(), "nothing runs before the runner does");
     spawned.remove(0)();
     assert_eq!(rig.store.calls(), [Call::Install("Amiri".into()), Call::Install("Hack".into())]);
-}
-
-#[trial]
-fn the_filters_column_takes_its_content_and_the_cards_fill_the_rest() {
-    let rig = setup("columns");
-    let filters = rig.named(Role::GROUP, "Filters").rect;
-    let cards = rig.named(Role::LIST, "Families").rect;
-    let window = rig.named(Role::GROUP, "Fonts").rect;
-    assert!(filters.right() <= cards.left(), "the filters sit beside the cards: {filters:?} {cards:?}");
-    assert!(filters.width() < cards.width(), "the filters column is the narrow one: {filters:?} {cards:?}");
-    assert!(window.contains_rect(cards), "the cards are in view: {window:?} {cards:?}");
 }

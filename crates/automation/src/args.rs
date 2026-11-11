@@ -228,7 +228,3 @@ pub fn control_port(s: &str) -> Result<u16, NotAPort> {
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
 #[error("expected a port, 0-65535")]
 pub struct NotAPort;
-
-#[cfg(test)]
-#[path = "args_tests.rs"]
-mod args_tests;

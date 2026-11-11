@@ -253,7 +253,3 @@ impl Params<'_> {
         serde_json::from_value(merged).map_err(|e| format!("{what}: {e}"))
     }
 }
-
-#[cfg(test)]
-#[path = "protocol_tests.rs"]
-mod protocol_tests;

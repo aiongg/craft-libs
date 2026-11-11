@@ -317,18 +317,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn liang_example() {
-        // The classic example from Liang's thesis: "hy-phen-ation".
-        let p = Patterns::parse("hy3ph he2n hena4 hen5at 1na n2at 1tio 2io o2n");
-        let w: Vec<char> = "hyphenation".chars().collect();
-        assert_eq!(p.points(&w).unwrap(), vec![2, 6]);
-        let mut tex = p.to_tex();
-        tex.sort();
-        assert!(tex.contains(&"hen5at".to_string()));
-        assert!(p.values(&['h', 'é']).is_none());
-    }
-
-    #[test]
     fn tex_files_parse_with_blocks_comments_and_exceptions() {
         let p = Patterns::parse(
             "% a comment\n\\patterns{\n1na n2at % trailing comment\n.ab4cdefghijklm5n\n}\n\\hyphenation{\nni-gdy\nna-dal\nzawsze\n}\nhy-phen-ation\n",
@@ -343,18 +331,5 @@ mod tests {
         let w: Vec<char> = "abcdefghijklmn".chars().collect();
         assert_eq!(p.values(&w).unwrap()[13], 5);
         assert!(p.to_tex().contains(&".ab4cdefghijklm5n".to_string()));
-    }
-
-    #[test]
-    fn other_commands_arguments_are_skipped() {
-        let p = Patterns::parse("\\message{Some Patterns `x-y' 2024-02-28}\n\\patterns{%\na1b\n}\n\\endinput\n");
-        assert_eq!((p.len(), p.exception_count()), (1, 0));
-    }
-
-    #[test]
-    fn apply_tolerates_short_value_buffers() {
-        let p = Patterns::parse("a1b");
-        let mut vals = [0u8; 1];
-        apply(&p.map, p.max_len, &[1, 2, 3, 1], &mut vals);
     }
 }

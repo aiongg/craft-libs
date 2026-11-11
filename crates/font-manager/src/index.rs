@@ -59,6 +59,3 @@ pub fn categories(family: &Family) -> impl Iterator<Item = Category> + '_ {
 pub fn script_name<'a>(index: &'a Index, id: &str) -> Option<&'a str> {
     index.scripts().iter().find(|s| s.id == id).map(|s| s.name.as_str())
 }
-
-#[cfg(test)]
-mod tests {}

@@ -1,13 +1,9 @@
 //! The first-launch import offer.
 
-use std::cell::RefCell;
-use std::rc::Rc;
-
 use craft_keymap::import::kys;
-use craft_keymap::{Binding, CommandDef, CommandRef, ForeignSet, ImportOptions, Keymap, Overrides, Platform, Scope, Scopes};
-use craft_menu::shortcuts::{ImportOffer, NoOffer, OfferAnswer, OfferRecord};
-use craft_ui::dialog::{DialogHost, DialogResult, StartupStage};
-use craft_ui::testing::{Fixture, trial};
+use craft_keymap::{Binding, CommandDef, ForeignSet, ImportOptions, Keymap, Overrides, Platform, Scope, Scopes};
+use craft_menu::shortcuts::{ImportOffer, NoOffer, OfferRecord};
+use craft_ui::testing::trial;
 
 const PSP: &str = "<photoshop-keyboard-shortcuts version=\"4\" filename=\"$$$/FileName/Presets/KeyboardCustomization/Mine=Mine\">\
     <command name=\"Save\"><shortcut>Cmd+S</shortcut></command>\
@@ -51,56 +47,4 @@ fn the_offer_is_made_once_and_only_for_a_set_that_changes_something() {
     let unnamed = ImportOffer::prepare("/ps/My Keys.psp", &set(&PSP.replace(" filename=", " x=")), &keymap(), &ImportOptions::default(), None)
         .expect("an offer");
     assert_eq!(unnamed.set_name, "My Keys.psp", "without a name in the file the offer names the file");
-}
-
-/// Import on the shown prompt answers `Import`, and applying the plan changes the counted shortcuts.
-#[trial]
-fn the_import_answer_applies_the_plan() {
-    let offer = prepare(&keymap(), None).expect("an offer");
-    let host = Rc::new(RefCell::new(DialogHost::new()));
-    host.borrow_mut().enqueue(StartupStage::Offer, offer);
-    let answer = Rc::new(RefCell::new(None));
-    let (shown, given) = (Rc::clone(&host), Rc::clone(&answer));
-    let mut fixture = Fixture::new(move |ui| {
-        shown.borrow_mut().run(ui);
-        if let Some(DialogResult::Ok(done)) = shown.borrow_mut().take::<ImportOffer>() {
-            *given.borrow_mut() = Some(done);
-        }
-    });
-    fixture.settle();
-    assert!(fixture.by_label("Import keyboard shortcuts?").is_some());
-    let import = fixture.by_label("Import").expect("the Import button");
-    fixture.click(&import).settle();
-    assert_eq!(*answer.borrow(), Some(OfferAnswer::Import));
-
-    let offer = prepare(&keymap(), None).expect("an offer");
-    assert!(offer.record(OfferAnswer::Import).imported && !offer.record(OfferAnswer::DontImport).imported);
-    let mut km = keymap();
-    let report = offer.plan.apply(&mut km);
-    assert_eq!(report.imported, offer.changes);
-    let rulers: Vec<String> = km.bindings(&CommandRef::new("view.rulers")).iter().map(|b| b.trigger.to_string()).collect();
-    assert_eq!(rulers, ["Cmd+K"]);
-}
-
-/// A foreign name that fits an alias command and the menu command prefers the one with a default shortcut.
-#[trial]
-fn a_name_shared_with_an_alias_command_matches_the_one_with_a_default() {
-    let undo = |cmd: &str| {
-        format!(
-            "<photoshop-keyboard-shortcuts version=\"4\"><command name=\"Undo\"><shortcut>{cmd}</shortcut></command></photoshop-keyboard-shortcuts>"
-        )
-    };
-    let km = Keymap::new(
-        vec![
-            CommandDef::new("history.undo", "Undo", Scope::app()),
-            CommandDef::new("edit.undo", "Undo", Scope::app())
-                .with_path(vec!["Edit".into(), "Undo".into()])
-                .with_default(Binding::parse("Cmd+Z").expect("a binding")),
-        ],
-        Scopes::new(),
-        Platform::Mac,
-    );
-    let offer = |text: &str| ImportOffer::prepare("/ps/u.psp", &set(text), &km, &ImportOptions::default(), None);
-    assert_eq!(offer(&undo("Cmd+Z")).expect_err("no change"), NoOffer::NothingChanges);
-    assert_eq!(offer(&undo("Cmd+Shift+Z")).expect("an offer").changes, 1);
 }

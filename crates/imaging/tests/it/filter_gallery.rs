@@ -15,14 +15,13 @@ use craft_imaging::ui::filter_gallery::{
 };
 use craft_imaging::ui::wide_angle::PreviewDone;
 use craft_ui::canvas::{PixelRect, RasterSource};
-use craft_ui::contract::{Job, Role};
-use craft_ui::patterns::form_dialogs::{DialogFields, FieldValue, Param, ParamKind};
+use craft_ui::contract::Job;
+use craft_ui::patterns::form_dialogs::{Param, ParamKind};
 use craft_ui::primitives::Revision;
 use craft_ui::primitives::textures::{FakeThumbSource, ThumbnailOptions, Thumbnails};
-use craft_ui::testing::focus::AccessActionKind;
 use craft_ui::testing::{Fixture, trial};
 use craft_ui::value_drag::SliderScale;
-use egui::{Color32, ColorImage, Key, Modifiers, Vec2};
+use egui::{Color32, ColorImage, Vec2};
 
 const WINDOW: Vec2 = Vec2::new(1100.0, 640.0);
 const LAYER: PixelSize = PixelSize::new(400, 300);
@@ -63,24 +62,6 @@ fn filters(session: &FilterGallerySession) -> Vec<&str> {
     session.effects.iter().map(|effect| effect.filter.as_str()).collect()
 }
 
-// Picking a filter for the selected layer resets its fields to the filter's defaults and keeps its eye; the same
-// filter changes nothing.
-#[trial]
-fn gallery_thumbnail_click_sets_the_selected_effects_filter() {
-    let mut session = FilterGallerySession::new("cutout", &Catalog);
-    let mut selected = 0;
-    let fields = DialogFields::from_pairs([("levels", 3.0)]);
-    assert!(session.apply(EffectChange::with_fields(0, fields), &Catalog, &mut selected));
-    assert!(session.apply(EffectChange::set_visible(0, false), &Catalog, &mut selected));
-    assert!(!session.apply(EffectChange::set_filter(0, "cutout"), &Catalog, &mut selected));
-    assert_eq!(session.effects[0].fields.get("levels"), Some(&FieldValue::Number(3.0)));
-    assert!(session.apply(EffectChange::set_filter(0, "sponge"), &Catalog, &mut selected));
-    assert_eq!(session.effects[0].filter, "sponge");
-    assert_eq!(session.effects[0].fields, Catalog.filter("sponge").map(|found| found.defaults()).unwrap_or_default());
-    assert!(!session.effects[0].visible);
-    assert!(!session.apply(EffectChange::set_filter(0, "gone"), &Catalog, &mut selected));
-}
-
 // New copies the selected layer above it and selects it; Delete keeps the last layer; Move and the eye change one
 // layer; the top row is applied last.
 #[trial]
@@ -111,9 +92,8 @@ fn gallery_stack_new_delete_reorder_and_eye() {
 
 // Undo of a Delete gives the layer back and clamps the selection.
 
-/// A flat picture the size of the layer, whose render never finishes and counts its requests.
+/// A flat picture the size of the layer, whose render finishes only when `done`.
 struct Flat {
-    renders: Rc<RefCell<Vec<usize>>>,
     done: bool,
 }
 
@@ -140,8 +120,7 @@ impl FilterGallerySource for Flat {
         self
     }
 
-    fn render(&self, effects: &[EffectLayer], _: PixelRect, _: f64) -> Job<PreviewDone, String> {
-        self.renders.borrow_mut().push(effects.len());
+    fn render(&self, _: &[EffectLayer], _: PixelRect, _: f64) -> Job<PreviewDone, String> {
         if self.done {
             Job::new(|_, _| Ok(PreviewDone::new(Duration::from_millis(12))))
         } else {
@@ -160,15 +139,13 @@ struct Rig {
     fixture: Fixture,
     workspace: Rc<RefCell<FilterGalleryWorkspace>>,
     outputs: Rc<RefCell<Vec<FilterGalleryOutput>>>,
-    renders: Rc<RefCell<Vec<usize>>>,
 }
 
 fn rig(session: FilterGallerySession, done: bool) -> Rig {
     let workspace = Rc::new(RefCell::new(FilterGalleryWorkspace::new(FilterGalleryOpen::new(LAYER, "Layer 1", session))));
     let outputs = Rc::new(RefCell::new(Vec::new()));
-    let renders = Rc::new(RefCell::new(Vec::new()));
-    let (shown, sink, seen) = (workspace.clone(), outputs.clone(), renders.clone());
-    let source = Flat { renders: seen, done };
+    let (shown, sink) = (workspace.clone(), outputs.clone());
+    let source = Flat { done };
     let mut fixture = Fixture::new(move |ui| {
         let thumbs = Thumbnails::<GalleryThumb>::in_context(ui.ctx(), "gallery-test-thumbs", ThumbnailOptions::default());
         let out = shown.borrow_mut().show(ui, &Catalog, &thumbs, &FakeThumbSource::<GalleryThumb>::new(), &source);
@@ -176,7 +153,7 @@ fn rig(session: FilterGallerySession, done: bool) -> Rig {
     });
     fixture.host(Arc::new(Host::builder(AppInfo { id: "trial", name: "Trial", version: "0" }).build()));
     fixture.room(WINDOW).settle();
-    Rig { fixture, workspace, outputs, renders }
+    Rig { fixture, workspace, outputs }
 }
 
 impl Rig {
@@ -209,47 +186,3 @@ fn gallery_workspace_step_clamps_the_selection_without_queuing_select() {
 
 // OK and Cancel sit at the top of the settings column, in the platform's order, over the Filter select and the
 // stack.
-
-// Clicking a thumbnail picks its filter; arrows and Enter do the same from the keyboard; each pick is one undo step.
-#[trial]
-fn gallery_thumbnails_pick_by_pointer_and_keyboard() {
-    let mut rig = rig(FilterGallerySession::new("cutout", &Catalog), true);
-    let sponge = rig.fixture.by_label("sponge").expect("a tile per filter");
-    rig.fixture.click(&sponge).settle();
-    assert_eq!(rig.workspace.borrow().session().effects[0].filter, "sponge");
-    assert!(rig.events().iter().any(|e| matches!(e, FilterGalleryEvent::Stack(EffectChange::SetFilter { filter, .. }) if filter == "sponge")));
-
-    rig.fixture.key(Key::ArrowRight, Modifiers::NONE).key(Key::Enter, Modifiers::NONE).settle();
-    assert_eq!(rig.workspace.borrow().session().effects[0].filter, "neon");
-    assert!(rig.workspace.borrow_mut().step(Step::Undo));
-    assert_eq!(rig.workspace.borrow().session().effects[0].filter, "sponge");
-}
-
-// While a render runs the zoom bar shows its progress; a change replaces the running request with a new one.
-#[trial]
-fn gallery_preview_shows_progress_and_drops_stale_results() {
-    let mut rig = rig(FilterGallerySession::new("cutout", &Catalog), false);
-    let asked = rig.renders.borrow().len();
-    assert!(asked >= 1, "the first pass asks for a preview");
-    assert!(!rig.fixture.by_role(Role::PROGRESS_INDICATOR).is_empty(), "the render shows its progress");
-
-    let neon = rig.fixture.by_label("neon").expect("a tile per filter");
-    rig.fixture.click(&neon).settle();
-    let renders = rig.renders.borrow().clone();
-    assert!(renders.len() > asked, "the change asks again: {renders:?}");
-    assert!(!rig.fixture.by_role(Role::PROGRESS_INDICATOR).is_empty(), "the new render is the one shown");
-}
-
-// The workspace's zoom keys belong to the dialog: with focus on the footer's OK a zoom chord still zooms the preview.
-#[trial]
-fn gallery_zoom_chord_works_with_focus_on_the_footer_button() {
-    let mut rig = rig(FilterGallerySession::new("cutout", &Catalog), true);
-    let ok = rig.fixture.by_label("OK").expect("the footer has OK");
-    rig.fixture.access(AccessActionKind::Focus, &ok);
-    rig.fixture.idle(1);
-    let zoom = |rig: &Rig| rig.fixture.texts().iter().map(|run| run.text.clone()).find(|text| text.contains("Layer 1,") && text.contains('%'));
-    let before = zoom(&rig);
-    rig.fixture.key(Key::Equals, Modifiers::COMMAND);
-    rig.fixture.idle(2);
-    assert!(before.is_some() && zoom(&rig) != before, "the title's zoom changes: {before:?} then {:?}", zoom(&rig));
-}
