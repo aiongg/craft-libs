@@ -11,8 +11,8 @@ use crate::contract::RuleScope;
 use crate::graph::{Metadata, Package};
 use crate::layers::{LayerMaps, relative};
 use crate::resolve::Index;
-use crate::structure::LAYERS_DIR;
-use crate::{Config, Error, Finding, check_structure, check_with_scope, exempt_sites};
+use crate::structure::{LAYERS_DIR, mapped_crates, structure_findings};
+use crate::{Config, Error, Finding, exempt_sites};
 
 /// Types whose cases or fields are fixed by meaning (spec 24.1, `api/non-exhaustive`).
 const CLOSED: [&str; 9] = ["Mixed", "Politeness", "Numeric", "HitPriority", "ScrollPos", "PartRef", "SetPosition", "States", "StateMix"];
@@ -167,12 +167,15 @@ fn harness_free_targets(dir: &Path) -> Result<Vec<PathBuf>, Error> {
 impl WorkspaceScope {
     /// Reads the layer maps below `root` and the module trees of the mapped crates.
     pub fn load(root: &Path, meta: &Metadata) -> Result<Self, Error> {
+        let (maps, _) = LayerMaps::load(root, &root.join(LAYERS_DIR))?;
+        let index = Index::build(&mapped_crates(meta, &maps))?;
+        Self::with_index(root, meta, maps, &index)
+    }
+
+    /// The scope from layer maps and the index of their [`mapped_crates`], already loaded.
+    fn with_index(root: &Path, meta: &Metadata, maps: LayerMaps, index: &Index) -> Result<Self, Error> {
         let canonical = std::fs::canonicalize(root).map_err(|source| Error::Io { path: root.to_owned(), source })?;
         let rel = |p: &Path| relative(&canonical, &std::fs::canonicalize(p).unwrap_or_else(|_| p.to_owned()));
-        let (maps, _) = LayerMaps::load(root, &root.join(LAYERS_DIR))?;
-        let mapped: Vec<(String, PathBuf)> =
-            meta.packages.iter().filter(|p| maps.get(&p.name).is_some()).filter_map(|p| p.lib_root.clone().map(|r| (p.name.clone(), r))).collect();
-        let index = Index::build(&mapped)?;
         let linked = egui_linked(meta);
         let mut crates = Vec::new();
         for package in &meta.packages {
@@ -182,10 +185,10 @@ impl WorkspaceScope {
                 dir: rel(dir),
                 egui_linked: linked.contains(&package.name),
                 harness_free: harness_free_targets(dir)?.into_iter().map(|p| rel(dir).join(p)).collect(),
-                modules: module_files(&index, package, &rel),
+                modules: module_files(index, package, &rel),
             });
         }
-        let types = crate::contract::build_facts(&index, &rel);
+        let types = crate::contract::build_facts(index, &rel);
         Ok(Self { maps, crates, types })
     }
 
@@ -246,14 +249,17 @@ impl RuleScope for WorkspaceScope {
     }
 }
 
-/// The whole check of a repository: the structure checks of [`check_structure`] and the egui-ban and API
-/// rules of [`check_with_scope`] over the config's paths, with the layer map as the rules' scope.
+/// The whole check of a repository: the structure checks of [`crate::check_structure`] and the egui-ban and API
+/// rules of [`crate::check_with_scope`] over the config's paths, with the layer map as the rules' scope. Both read
+/// one module index.
 ///
 /// Findings are sorted by path and line.
 pub fn check_workspace(root: &Path, config: &Config, meta: &Metadata) -> Result<Vec<Finding>, Error> {
-    let mut findings = check_structure(root, meta, &exempt_sites(config))?;
-    let scope = WorkspaceScope::load(root, meta)?;
-    findings.extend(check_with_scope(config, root, &scope)?.findings);
+    let (maps, map_findings) = LayerMaps::load(root, &root.join(LAYERS_DIR))?;
+    let index = Index::build(&mapped_crates(meta, &maps))?;
+    let mut findings = structure_findings(root, meta, &maps, &index, map_findings, &exempt_sites(config))?;
+    let scope = WorkspaceScope::with_index(root, meta, maps, &index)?;
+    findings.extend(crate::check_with(config, root, Some(&scope), &index.files)?.findings);
     findings.sort_by(|a, b| (&a.path, a.line, a.rule).cmp(&(&b.path, b.line, b.rule)));
     Ok(findings)
 }

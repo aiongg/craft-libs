@@ -16,7 +16,7 @@ use super::types::{TypeFacts, Types, add_impl, definition, registered_idents, se
 type Key = (String, Vec<String>, String);
 
 fn key_of(index: &Index, krate: &str, module: &Module, name: &str) -> Option<Key> {
-    let resolved = index.resolve(krate, &module.path, &[name.to_owned()], 0).filter(|r| !r.is_module)?;
+    let resolved = index.resolve(krate, &module.path, &[name.to_owned()]).filter(|r| !r.is_module)?;
     Some((resolved.krate, resolved.module, name.to_owned()))
 }
 
@@ -25,14 +25,14 @@ pub(crate) fn build(index: &Index, rel: &dyn Fn(&Path) -> PathBuf) -> BTreeMap<P
     let mut defs: HashMap<Key, TypeFacts> = HashMap::new();
     for (krate, tree) in &index.trees {
         for module in tree.modules.values() {
-            for (name, facts) in module.items.iter().filter_map(definition) {
+            for (name, facts) in index.items(module).into_iter().filter_map(definition) {
                 defs.insert((krate.clone(), module.path.clone(), name), facts);
             }
         }
     }
     for (krate, tree) in &index.trees {
         for module in tree.modules.values() {
-            for item in &module.items {
+            for item in index.items(module) {
                 if let Item::Impl(imp) = item
                     && let Some(name) = self_name(imp)
                     && let Some(facts) = key_of(index, krate, module, &name).and_then(|k| defs.get_mut(&k))
@@ -44,7 +44,7 @@ pub(crate) fn build(index: &Index, rel: &dyn Fn(&Path) -> PathBuf) -> BTreeMap<P
     }
     for (krate, tree) in &index.trees {
         for module in tree.modules.values() {
-            for name in registered_idents(&module.items) {
+            for name in registered_idents(index.items(module)) {
                 if let Some(facts) = key_of(index, krate, module, &name).and_then(|k| defs.get_mut(&k)) {
                     facts.registered = true;
                 }
@@ -55,7 +55,7 @@ pub(crate) fn build(index: &Index, rel: &dyn Fn(&Path) -> PathBuf) -> BTreeMap<P
     for (krate, tree) in &index.trees {
         for module in tree.modules.values() {
             let types = files.entry(rel(&module.file)).or_default();
-            let impl_names = module.items.iter().filter_map(|i| if let Item::Impl(imp) = i { self_name(imp) } else { None });
+            let impl_names = index.items(module).into_iter().filter_map(|i| if let Item::Impl(imp) = i { self_name(imp) } else { None });
             for name in module.names.keys().cloned().chain(impl_names) {
                 if let Some(facts) = key_of(index, krate, module, &name).and_then(|k| defs.get(&k)) {
                     types.insert(name, facts.clone());

@@ -59,13 +59,13 @@ impl Types {
 }
 
 /// Every item of the file, inline modules included; test code is left out.
-pub(crate) fn flat_items(items: &[Item]) -> Vec<&Item> {
+pub(crate) fn flat_items<'a>(items: impl IntoIterator<Item = &'a Item>) -> Vec<&'a Item> {
     let mut out = Vec::new();
     walk(items, &mut out);
     out
 }
 
-fn walk<'a>(items: &'a [Item], out: &mut Vec<&'a Item>) {
+fn walk<'a>(items: impl IntoIterator<Item = &'a Item>, out: &mut Vec<&'a Item>) {
     for item in items {
         if attrs_of(item).iter().any(is_test_attr) {
             continue;
@@ -175,7 +175,7 @@ pub(crate) fn add_impl(facts: &mut TypeFacts, imp: &ItemImpl) {
 }
 
 /// The identifiers inside the `register_contract!(..)` invocations among `items`.
-pub(crate) fn registered_idents(items: &[Item]) -> Vec<String> {
+pub(crate) fn registered_idents<'a>(items: impl IntoIterator<Item = &'a Item>) -> Vec<String> {
     fn idents(tokens: proc_macro2::TokenStream, names: &mut Vec<String>) {
         for token in tokens {
             match token {

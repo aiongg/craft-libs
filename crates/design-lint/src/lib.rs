@@ -35,6 +35,7 @@ pub use workspace::{WorkspaceScope, check_workspace};
 // --- end of structure checks ---
 
 use std::cell::RefCell;
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 pub use baseline::{Baseline, BaselineCheck, Increase};
@@ -44,6 +45,7 @@ pub use contract::{RuleScope, StaticScope, Types, analyze_contract};
 use markers::FilePlace;
 pub use markers::{Marked, analyze_with_markers};
 pub use report::{Finding, Report, Severity};
+use resolve::Parsed;
 pub use rules::{Analysis, RULES, analyze_source};
 
 /// The `disallowed-methods` and `disallowed-types` entries every app's `clippy.toml` carries.
@@ -63,16 +65,18 @@ pub const UNUSED_EXEMPTION: &str = "exemption/unused";
 /// An exemption that matches no checked file or silences nothing is reported as `exemption/unused`
 /// (a warning, an error with `deny_unused`). Each file is parsed once.
 pub fn check(config: &Config, root: &Path) -> Result<Report, Error> {
-    check_with(config, root, None)
+    check_with(config, root, None, &BTreeMap::new())
 }
 
 /// [`check`] plus the egui-ban and API-shape rules (`contract/*`, `test/*`, `api/non-exhaustive`),
 /// with their "allowed in" locations read from `scope`. Markers and exemptions apply to their findings.
 pub fn check_with_scope(config: &Config, root: &Path, scope: &dyn RuleScope) -> Result<Report, Error> {
-    check_with(config, root, Some(scope))
+    check_with(config, root, Some(scope), &BTreeMap::new())
 }
 
-fn check_with(config: &Config, root: &Path, scope: Option<&dyn RuleScope>) -> Result<Report, Error> {
+/// The checks of [`check`], with the scoped rules when `scope` is given. A file in `parsed` (keyed by canonical
+/// path) is read from there; any other file is read and parsed here.
+fn check_with(config: &Config, root: &Path, scope: Option<&dyn RuleScope>, parsed: &BTreeMap<PathBuf, Parsed>) -> Result<Report, Error> {
     let mut report = Report::default();
     let hits = RefCell::new(vec![0_usize; config.exempt.len()]);
     let mut matched_files = vec![0_usize; config.exempt.len()];
@@ -84,7 +88,17 @@ fn check_with(config: &Config, root: &Path, scope: Option<&dyn RuleScope>) -> Re
             if !config.include_tests && is_test_path(file.strip_prefix(root).unwrap_or(&file)) {
                 continue;
             }
-            let src = std::fs::read_to_string(&file).map_err(|source| Error::Io { path: file.clone(), source })?;
+            let known = if parsed.is_empty() { None } else { std::fs::canonicalize(&file).ok().and_then(|c| parsed.get(&c)) };
+            let read;
+            let (src, tree) = match known {
+                Some(p) => (p.src.as_str(), Ok(&p.file)),
+                None => {
+                    let src = std::fs::read_to_string(&file).map_err(|source| Error::Io { path: file.clone(), source })?;
+                    let tree = syn::parse_file(&src);
+                    read = (src, tree);
+                    (read.0.as_str(), read.1.as_ref())
+                }
+            };
             report.files += 1;
             let area = area_of(&base, &file);
             let shown = file.strip_prefix(root).unwrap_or(&file).to_owned();
@@ -110,7 +124,7 @@ fn check_with(config: &Config, root: &Path, scope: Option<&dyn RuleScope>) -> Re
                     is_test_path(relative) || is_testing_module(relative)
                 },
             });
-            let marked = markers::analyze_with_extra(&src, config.include_tests, config.deny_unused, &exempt, &extra, place);
+            let marked = markers::analyze_with_extra(src, tree, config.include_tests, config.deny_unused, &exempt, &extra, place);
             report.markers += marked.markers;
             report.clippy_allows += marked.clippy_allows;
             for mut finding in marked.findings {

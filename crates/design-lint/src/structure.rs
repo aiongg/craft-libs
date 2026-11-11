@@ -14,7 +14,7 @@ use std::process::ExitCode;
 
 use crate::Error;
 use crate::clones::{check_clones, load_families};
-use crate::exceptions::{Exceptions, Origin, Site, scan_sites};
+use crate::exceptions::{Exceptions, Origin, Site, scan_parsed};
 use crate::graph::{Metadata, check_features, check_graph};
 use crate::layers::{LayerMaps, finding, relative};
 use crate::report::{Finding, Severity};
@@ -35,20 +35,36 @@ pub const UNKNOWN_CRATE: &str = "layer/map";
 /// `extra_sites` are allowances found elsewhere (the `[[exempt]]` entries of a `design-lint.toml`, see
 /// [`exempt_sites`]). Findings are sorted by path and line.
 pub fn check_structure(root: &Path, meta: &Metadata, extra_sites: &[Site]) -> Result<Vec<Finding>, Error> {
-    let (maps, mut findings) = LayerMaps::load(root, &root.join(LAYERS_DIR))?;
+    let (maps, findings) = LayerMaps::load(root, &root.join(LAYERS_DIR))?;
+    let index = Index::build(&mapped_crates(meta, &maps))?;
+    structure_findings(root, meta, &maps, &index, findings, extra_sites)
+}
+
+/// The `(package name, lib.rs)` of each workspace crate with a layer map: the crates the module index parses.
+pub(crate) fn mapped_crates(meta: &Metadata, maps: &LayerMaps) -> Vec<(String, PathBuf)> {
+    meta.packages.iter().filter(|p| maps.get(&p.name).is_some()).filter_map(|p| p.lib_root.clone().map(|r| (p.name.clone(), r))).collect()
+}
+
+/// [`check_structure`] with the layer maps and the index of [`mapped_crates`] already loaded; `findings` are the
+/// maps' own.
+pub(crate) fn structure_findings(
+    root: &Path,
+    meta: &Metadata,
+    maps: &LayerMaps,
+    index: &Index,
+    mut findings: Vec<Finding>,
+    extra_sites: &[Site],
+) -> Result<Vec<Finding>, Error> {
     let (exceptions, mut invalid) = Exceptions::load(root, &root.join(EXCEPTIONS_DIR))?;
     findings.append(&mut invalid);
-    findings.extend(unknown_crates(root, meta, &maps));
+    findings.extend(unknown_crates(root, meta, maps));
 
-    let crates: Vec<(String, PathBuf)> =
-        meta.packages.iter().filter(|p| maps.get(&p.name).is_some()).filter_map(|p| p.lib_root.clone().map(|r| (p.name.clone(), r))).collect();
-    let index = Index::build(&crates)?;
-    findings.extend(check_coverage(&index, &maps, root));
-    findings.extend(check_imports(&index, &maps, root));
+    findings.extend(check_coverage(index, maps, root));
+    findings.extend(check_imports(index, maps, root));
 
     let mut sites = extra_sites.to_vec();
-    sites.extend(source_sites(root, &index)?);
-    sites.extend(check_graph(meta, &maps));
+    sites.extend(source_sites(root, index));
+    sites.extend(check_graph(meta, maps));
     sites.extend(check_features(meta).into_iter().filter(|s| maps.get(s.subject.split('/').next().unwrap_or_default()).is_some()));
     findings.extend(exceptions.apply(&sites));
 
@@ -70,7 +86,7 @@ fn unknown_crates(root: &Path, meta: &Metadata, maps: &LayerMaps) -> Vec<Finding
         .collect()
 }
 
-fn source_sites(root: &Path, index: &Index) -> Result<Vec<Site>, Error> {
+fn source_sites(root: &Path, index: &Index) -> Vec<Site> {
     // Source paths come from cargo metadata, which resolves `..` and links; the root must be resolved the same way.
     let root = &std::fs::canonicalize(root).unwrap_or_else(|_| root.to_owned());
     let mut sites = Vec::new();
@@ -79,11 +95,12 @@ fn source_sites(root: &Path, index: &Index) -> Result<Vec<Site>, Error> {
         files.sort();
         files.dedup();
         for file in files {
-            let src = std::fs::read_to_string(file).map_err(|source| Error::Io { path: file.clone(), source })?;
-            sites.extend(scan_sites(&relative(root, file).to_string_lossy(), &src));
+            if let Some(parsed) = index.files.get(file) {
+                sites.extend(scan_parsed(&relative(root, file).to_string_lossy(), &parsed.src, Some(&parsed.file)));
+            }
         }
     }
-    Ok(sites)
+    sites
 }
 
 /// One allowance site per rule of each `[[exempt]]` entry of `config` (`*` for an entry without rules).
