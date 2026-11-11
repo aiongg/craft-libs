@@ -138,7 +138,7 @@ A value a story edits comes from `StoryData::value(name, init)`. The suite fails
 
 Suite rules:
 
-- Drawing code changes no state and sends no request. The suite runs each story's `show` twice per pass (a measuring run first, then the real one) and again on rerun passes, which an edit's no-input rerun adds. It fails `measure-pure` when either changes story values or sends a command, announcement, toast or request. State changes belong in event branches (`if out.clicked()`, `for edit in out.edits`) or before the container.
+- Drawing code changes no state and sends no request. The suite's `measure-pure` case runs each story's `show` twice per pass (a measuring run first, then the real one) and again on rerun passes, which an edit's no-input rerun adds. It fails when either changes story values or sends a command, announcement, toast or request. State changes belong in event branches (`if out.clicked()`, `for edit in out.edits`) or before the container.
 
 A type that cannot meet a shared case lists it, with a reason:
 

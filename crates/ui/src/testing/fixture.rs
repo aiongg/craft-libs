@@ -66,6 +66,42 @@ fn shown(ui: &mut Ui, scope: Option<fn(&mut Overrides)>, show: fn(&mut Ui, &mut 
     }
 }
 
+/// Pass `number` of a story under the purity probe: a measuring run, which must change nothing and send nothing, then
+/// the real run, which must change nothing in a rerun pass unless that pass delivers an update an earlier pass held.
+/// The measuring run's ids differ from the real run's, which draws in `ui` itself.
+fn probed_pass(
+    ui: &mut Ui,
+    number: usize,
+    scope: Option<fn(&mut Overrides)>,
+    show: fn(&mut Ui, &mut StoryData) -> StoryOutput,
+    data: &RefCell<StoryData>,
+    delivers: &Cell<bool>,
+    impure: &RefCell<Vec<Impure>>,
+) -> StoryOutput {
+    let ctx = ui.ctx().clone();
+    let before = data.borrow().snapshot();
+    crate::testing::take_effects(&ctx);
+    crate::testing::measuring_run(&ctx, || {
+        let mut child = crate::runtime::egui::memory::sizing_child(ui, "measuring run");
+        shown(&mut child, scope, show, data);
+    });
+    let (changed, effects) = (data.borrow().changed_values_since(&before), crate::testing::take_effects(&ctx));
+    if !changed.is_empty() || !effects.is_empty() {
+        impure.borrow_mut().push(Impure { pass: number, measuring: true, changed, effects });
+    }
+    let before = data.borrow().snapshot();
+    let output = shown(ui, scope, show, data);
+    // A pass that held an update for the next pass asks for that rerun, which delivers the update.
+    let delivering = delivers.replace(ctx.output(|out| out.request_discard_reasons.iter().any(|cause| cause.reason == HELD_UPDATE_RERUN)));
+    if number >= 2 && !delivering {
+        let changed = data.borrow().changed_values_since(&before);
+        if !changed.is_empty() {
+            impure.borrow_mut().push(Impure { pass: number, measuring: false, changed, effects: Vec::new() });
+        }
+    }
+    output
+}
+
 /// A closure or story shown frame by frame.
 #[non_exhaustive]
 pub struct Fixture {
@@ -83,11 +119,14 @@ pub struct Fixture {
     passes: usize,
     /// The passes of the current frame a story's closure has run.
     pass: Rc<Cell<usize>>,
+    /// Whether the story's passes run under the purity probe ([`Fixture::probe_purity`]).
+    probed: Rc<Cell<bool>>,
     impure: Rc<RefCell<Vec<Impure>>>,
 }
 
-/// A pass in which a story's drawing code changed state it must leave alone: in the measuring run the suite runs
-/// before each real pass, or in a rerun pass (the second and later pass of a frame), where nothing may change.
+/// A pass in which a story's drawing code changed state it must leave alone, as a fixture under
+/// [`Fixture::probe_purity`] sees it: in the measuring run the probe adds before each real pass, or in a rerun pass
+/// (the second and later pass of a frame), where nothing may change.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct Impure {
@@ -117,6 +156,7 @@ impl Fixture {
             root_id: Rc::default(),
             passes: 0,
             pass: Rc::default(),
+            probed: Rc::default(),
             impure: Rc::default(),
         }
     }
@@ -137,41 +177,23 @@ impl Fixture {
         let root_id = Rc::new(Cell::new(None));
         let (shared_data, shared_outputs, shared_root, show) = (data.clone(), outputs.clone(), root_id.clone(), story.show);
         let pass = Rc::new(Cell::new(0));
+        let probed = Rc::new(Cell::new(false));
         let impure = Rc::new(RefCell::new(Vec::new()));
-        let (shared_pass, shared_impure) = (pass.clone(), impure.clone());
+        let (shared_pass, shared_probed, shared_impure) = (pass.clone(), probed.clone(), impure.clone());
         let shared_delivers = Cell::new(false);
         let mut fixture = Fixture::new(move |ui| {
             let number = shared_pass.get() + 1;
             shared_pass.set(number);
-            let ctx = ui.ctx().clone();
-            // The measuring run comes first, as the framework's own sizing passes do: it must change nothing and
-            // send nothing, so the real run sees the same state with or without it. Its ids differ from the real
-            // run's, which draws in `ui` itself.
-            let before = shared_data.borrow().snapshot();
-            crate::testing::take_effects(&ctx);
-            crate::testing::measuring_run(&ctx, || {
-                let mut child = crate::runtime::egui::memory::sizing_child(ui, "measuring run");
-                shown(&mut child, scope, show, &shared_data);
-            });
-            let (changed, effects) = (shared_data.borrow().changed_values_since(&before), crate::testing::take_effects(&ctx));
-            if !changed.is_empty() || !effects.is_empty() {
-                shared_impure.borrow_mut().push(Impure { pass: number, measuring: true, changed, effects });
-            }
-            let before = shared_data.borrow().snapshot();
-            let output = shown(ui, scope, show, &shared_data);
-            // A pass that held an update for the next pass asks for that rerun, which delivers the update.
-            let delivers =
-                shared_delivers.replace(ctx.output(|out| out.request_discard_reasons.iter().any(|cause| cause.reason == HELD_UPDATE_RERUN)));
-            if number >= 2 && !delivers {
-                let changed = shared_data.borrow().changed_values_since(&before);
-                if !changed.is_empty() {
-                    shared_impure.borrow_mut().push(Impure { pass: number, measuring: false, changed, effects: Vec::new() });
-                }
-            }
+            let output = if shared_probed.get() {
+                probed_pass(ui, number, scope, show, &shared_data, &shared_delivers, &shared_impure)
+            } else {
+                shown(ui, scope, show, &shared_data)
+            };
             shared_root.set(output.id);
             shared_outputs.borrow_mut().push(output);
         });
         fixture.pass = pass;
+        fixture.probed = probed;
         fixture.impure = impure;
         fixture.data = data;
         fixture.outputs = outputs;
@@ -179,7 +201,15 @@ impl Fixture {
         fixture
     }
 
-    /// The impure passes the fixture has seen so far; see [`Impure`].
+    /// Runs every following pass of the story under the purity probe: a measuring run of the story before each real
+    /// pass, and a comparison of the story's values around each rerun pass. [`Fixture::impure`] reports what it sees.
+    /// Set before the first frame; a fixture that shows a closure has no story to probe.
+    pub fn probe_purity(&mut self) -> &mut Self {
+        self.probed.set(true);
+        self
+    }
+
+    /// The impure passes the fixture has seen so far under [`Fixture::probe_purity`]; see [`Impure`].
     pub fn impure(&self) -> Vec<Impure> {
         self.impure.borrow().clone()
     }
