@@ -131,3 +131,10 @@ pub(crate) fn invalid_arg(m: impl Into<String>) -> CmsError {
 pub(crate) fn check_len(what: &str, len: usize, n: usize) -> Result<(), CmsError> {
     if len < n { Err(invalid_arg(format!("{what} has {len} values, {n} needed"))) } else { Ok(()) }
 }
+
+#[cfg(test)]
+extern crate self as craft_cms;
+
+#[cfg(test)]
+#[path = "../tests/main.rs"]
+mod integration;
