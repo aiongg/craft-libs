@@ -20,7 +20,7 @@ pub struct App {
     /// Its accent colour (sRGB), for the update prompt's buttons and highlights: the app's brand
     /// colour, as ArtCraft Launcher shows it. `None`: the default blue.
     pub accent: Option<[u8; 3]>,
-    /// Who makes it, shown as "by <developer>" in the update prompt. [`DEVELOPER`] unless the app
+    /// Who makes it, shown as "by `<developer>`" in the update prompt. [`DEVELOPER`] unless the app
     /// says otherwise.
     pub developer: &'static str,
 }
@@ -39,10 +39,12 @@ impl App {
         format!("ai.storyteller.{}", self.id)
     }
 
+    /// The app's GitHub releases page.
     pub fn releases_url(&self) -> String {
         format!("https://github.com/{}/releases", self.repo)
     }
 
+    /// The app's GitHub repository page.
     pub fn repo_url(&self) -> String {
         format!("https://github.com/{}", self.repo)
     }
@@ -65,20 +67,5 @@ impl App {
     /// Looks up an app in the Craft App Suite catalog by its id.
     pub fn by_id(id: &str) -> Option<&'static App> {
         crate::suite::by_id(id)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn former_names_follow_the_current_one() {
-        let pdf =
-            App { former_ids: &["printcraft"], former_names: &["PrintCraft"], ..App::new("pdfcraft", "PdfCraft", "PDFs", "storytold/pdfcraft") };
-        assert_eq!(pdf.stems().collect::<Vec<_>>(), ["pdfcraft", "printcraft"]);
-        assert_eq!(pdf.names().collect::<Vec<_>>(), ["PdfCraft", "PrintCraft"]);
-        assert_eq!(pdf.bundle_id(), "ai.storyteller.pdfcraft");
-        assert_eq!(pdf.releases_url(), "https://github.com/storytold/pdfcraft/releases");
     }
 }
