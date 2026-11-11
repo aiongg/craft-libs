@@ -16,7 +16,7 @@ use super::types::{TypeFacts, Types, add_impl, definition, registered_idents, se
 type Key = (String, Vec<String>, String);
 
 fn key_of(index: &Index, krate: &str, module: &Module, name: &str) -> Option<Key> {
-    let resolved = index.resolve(krate, &module.path, &[name.to_owned()], 0).filter(|r| !r.is_module)?;
+    let resolved = index.resolve(krate, &module.path, &[name.to_owned()]).filter(|r| !r.is_module)?;
     Some((resolved.krate, resolved.module, name.to_owned()))
 }
 

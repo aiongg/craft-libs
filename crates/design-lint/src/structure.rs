@@ -35,20 +35,36 @@ pub const UNKNOWN_CRATE: &str = "layer/map";
 /// `extra_sites` are allowances found elsewhere (the `[[exempt]]` entries of a `design-lint.toml`, see
 /// [`exempt_sites`]). Findings are sorted by path and line.
 pub fn check_structure(root: &Path, meta: &Metadata, extra_sites: &[Site]) -> Result<Vec<Finding>, Error> {
-    let (maps, mut findings) = LayerMaps::load(root, &root.join(LAYERS_DIR))?;
+    let (maps, findings) = LayerMaps::load(root, &root.join(LAYERS_DIR))?;
+    let index = Index::build(&mapped_crates(meta, &maps))?;
+    structure_findings(root, meta, &maps, &index, findings, extra_sites)
+}
+
+/// The `(package name, lib.rs)` of each workspace crate with a layer map: the crates the module index parses.
+pub(crate) fn mapped_crates(meta: &Metadata, maps: &LayerMaps) -> Vec<(String, PathBuf)> {
+    meta.packages.iter().filter(|p| maps.get(&p.name).is_some()).filter_map(|p| p.lib_root.clone().map(|r| (p.name.clone(), r))).collect()
+}
+
+/// [`check_structure`] with the layer maps and the index of [`mapped_crates`] already loaded; `findings` are the
+/// maps' own.
+pub(crate) fn structure_findings(
+    root: &Path,
+    meta: &Metadata,
+    maps: &LayerMaps,
+    index: &Index,
+    mut findings: Vec<Finding>,
+    extra_sites: &[Site],
+) -> Result<Vec<Finding>, Error> {
     let (exceptions, mut invalid) = Exceptions::load(root, &root.join(EXCEPTIONS_DIR))?;
     findings.append(&mut invalid);
-    findings.extend(unknown_crates(root, meta, &maps));
+    findings.extend(unknown_crates(root, meta, maps));
 
-    let crates: Vec<(String, PathBuf)> =
-        meta.packages.iter().filter(|p| maps.get(&p.name).is_some()).filter_map(|p| p.lib_root.clone().map(|r| (p.name.clone(), r))).collect();
-    let index = Index::build(&crates)?;
-    findings.extend(check_coverage(&index, &maps, root));
-    findings.extend(check_imports(&index, &maps, root));
+    findings.extend(check_coverage(index, maps, root));
+    findings.extend(check_imports(index, maps, root));
 
     let mut sites = extra_sites.to_vec();
-    sites.extend(source_sites(root, &index)?);
-    sites.extend(check_graph(meta, &maps));
+    sites.extend(source_sites(root, index)?);
+    sites.extend(check_graph(meta, maps));
     sites.extend(check_features(meta).into_iter().filter(|s| maps.get(s.subject.split('/').next().unwrap_or_default()).is_some()));
     findings.extend(exceptions.apply(&sites));
 

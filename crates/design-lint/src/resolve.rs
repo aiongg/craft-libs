@@ -23,9 +23,6 @@ pub const IMPORT: &str = "layer/import";
 /// A path from layers above an internal module's range into that module.
 pub const INTERNAL: &str = "layer/internal";
 
-/// Longest chain of re-exports and globs followed before a path counts as unresolvable.
-const MAX_DEPTH: u8 = 16;
-
 #[derive(Debug)]
 pub(crate) enum Name {
     Defined,
@@ -59,6 +56,17 @@ impl Resolved {
         std::iter::once(self.krate.as_str()).chain(self.module.iter().map(String::as_str)).collect::<Vec<_>>().join("::")
     }
 }
+
+/// A lookup's progress on one `(crate, module, segments)` state.
+enum Step {
+    /// Being resolved further up the chain: reaching it again is a cycle of re-exports or globs.
+    Open,
+    Done(Option<Resolved>),
+}
+
+/// The states one lookup has entered. Glob imports form cycles (`use child::*` beside the child's `use super::*`), so a
+/// state is resolved once per lookup and a state reached again on its own chain resolves to nothing.
+type Lookup = HashMap<(String, Vec<String>, Vec<String>), Step>;
 
 /// The module trees of the crates that have a layer map, keyed by Rust identifier.
 #[derive(Default)]
@@ -105,12 +113,16 @@ impl Index {
         self.trees.get(krate)?.modules.get(path)
     }
 
-    pub(crate) fn resolve(&self, krate: &str, from: &[String], segs: &[String], depth: u8) -> Option<Resolved> {
-        if depth > MAX_DEPTH || segs.is_empty() {
+    pub(crate) fn resolve(&self, krate: &str, from: &[String], segs: &[String]) -> Option<Resolved> {
+        self.resolve_in(krate, from, segs, &mut Lookup::new())
+    }
+
+    fn resolve_in(&self, krate: &str, from: &[String], segs: &[String], lookup: &mut Lookup) -> Option<Resolved> {
+        if segs.is_empty() {
             return None;
         }
         let (krate, module, rest) = self.start(krate, from, segs)?;
-        self.walk(&krate, &module, rest, depth)
+        self.walk(&krate, &module, rest, lookup)
     }
 
     /// The crate and module a path's first segment leads to, and the segments left.
@@ -143,36 +155,57 @@ impl Index {
         }
     }
 
-    fn walk(&self, krate: &str, module_path: &[String], segs: &[String], depth: u8) -> Option<Resolved> {
-        let resolved = |module: &[String], is_module| Some(Resolved { krate: krate.to_owned(), module: module.to_vec(), is_module });
-        let Some((first, rest)) = segs.split_first() else {
-            return resolved(module_path, true);
-        };
+    fn walk(&self, krate: &str, module_path: &[String], segs: &[String], lookup: &mut Lookup) -> Option<Resolved> {
+        if segs.is_empty() {
+            return Some(Resolved { krate: krate.to_owned(), module: module_path.to_vec(), is_module: true });
+        }
+        let state = (krate.to_owned(), module_path.to_vec(), segs.to_vec());
+        match lookup.get(&state) {
+            Some(Step::Open) => return None,
+            Some(Step::Done(found)) => return found.clone(),
+            None => {}
+        }
+        lookup.insert(state.clone(), Step::Open);
+        let found = self.step(krate, module_path, segs, lookup);
+        lookup.insert(state, Step::Done(found.clone()));
+        found
+    }
+
+    /// [`Self::walk`] past a state it has not entered: the first segment looked up in `module_path`.
+    fn step(&self, krate: &str, module_path: &[String], segs: &[String], lookup: &mut Lookup) -> Option<Resolved> {
+        let (first, rest) = segs.split_first()?;
         let module = self.module(krate, module_path)?;
         match module.names.get(first) {
             Some(Name::Module) => {
                 let mut child = module_path.to_vec();
                 child.push(first.clone());
-                self.walk(krate, &child, rest, depth + 1)
+                self.walk(krate, &child, rest, lookup)
             }
-            Some(Name::Defined) => resolved(module_path, false),
+            Some(Name::Defined) => Some(Resolved { krate: krate.to_owned(), module: module_path.to_vec(), is_module: false }),
             Some(Name::Use(target)) => {
-                let target = self.resolve(krate, module_path, target, depth + 1)?;
-                if rest.is_empty() || !target.is_module { Some(target) } else { self.walk(&target.krate, &target.module, rest, depth + 1) }
+                let target = self.resolve_in(krate, module_path, target, lookup)?;
+                if rest.is_empty() || !target.is_module { Some(target) } else { self.walk(&target.krate, &target.module, rest, lookup) }
             }
             None => module.globs.iter().find_map(|glob| {
-                let target = self.resolve(krate, module_path, glob, depth + 1)?;
-                if target.is_module { self.walk(&target.krate, &target.module, segs, depth + 1) } else { Some(target) }
+                let target = self.resolve_in(krate, module_path, glob, lookup)?;
+                if target.is_module { self.walk(&target.krate, &target.module, segs, lookup) } else { Some(target) }
             }),
         }
     }
 
     /// Every item and module a glob import of `target` brings in, resolved to where it is defined.
-    fn expand(&self, target: &Resolved, depth: u8) -> Vec<Resolved> {
-        let Some(module) = self.module(&target.krate, &target.module).filter(|_| target.is_module && depth <= MAX_DEPTH) else {
-            return Vec::new();
-        };
+    fn expand(&self, target: &Resolved) -> Vec<Resolved> {
         let mut out = Vec::new();
+        self.expand_into(target, &mut HashSet::new(), &mut out);
+        out
+    }
+
+    /// [`Self::expand`] of one module; `expanded` holds the modules already expanded, which glob cycles reach again.
+    fn expand_into(&self, target: &Resolved, expanded: &mut HashSet<(String, Vec<String>)>, out: &mut Vec<Resolved>) {
+        let Some(module) = self.module(&target.krate, &target.module).filter(|_| target.is_module) else { return };
+        if !expanded.insert((target.krate.clone(), target.module.clone())) {
+            return;
+        }
         for (name, kind) in &module.names {
             let resolved = match kind {
                 Name::Defined => Some(Resolved { krate: target.krate.clone(), module: target.module.clone(), is_module: false }),
@@ -181,17 +214,16 @@ impl Index {
                     child.push(name.clone());
                     Some(Resolved { krate: target.krate.clone(), module: child, is_module: true })
                 }
-                Name::Use(path) => self.resolve(&target.krate, &target.module, path, depth + 1),
+                Name::Use(path) => self.resolve(&target.krate, &target.module, path),
             };
             out.extend(resolved);
         }
         for glob in &module.globs {
-            if let Some(inner) = self.resolve(&target.krate, &target.module, glob, depth + 1) {
-                out.extend(self.expand(&inner, depth + 1));
+            if let Some(inner) = self.resolve(&target.krate, &target.module, glob) {
+                self.expand_into(&inner, expanded, out);
                 out.push(inner);
             }
         }
-        out
     }
 }
 
@@ -334,15 +366,15 @@ struct Judge<'a> {
 
 impl Judge<'_> {
     fn judge_path(&mut self, segs: &[String], at: LineColumn) {
-        if let Some(r) = self.index.resolve(self.krate, &self.module.path, segs, 0) {
+        if let Some(r) = self.index.resolve(self.krate, &self.module.path, segs) {
             self.judge(&r, &segs.join("::"), at);
         }
     }
 
     fn judge_glob(&mut self, segs: &[String], at: LineColumn) {
-        let Some(target) = self.index.resolve(self.krate, &self.module.path, segs, 0) else { return };
+        let Some(target) = self.index.resolve(self.krate, &self.module.path, segs) else { return };
         let spelled = format!("{}::*", segs.join("::"));
-        for r in self.index.expand(&target, 0) {
+        for r in self.index.expand(&target) {
             self.judge(&r, &spelled, at);
         }
         self.judge(&target, &spelled, at);
@@ -437,4 +469,40 @@ pub(crate) fn check_coverage(index: &Index, maps: &LayerMaps, root: &Path) -> Ve
         }
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A crate whose `palette` module globs six children that each glob `palette` and a sibling: a dense glob cycle.
+    fn cyclic() -> Index {
+        let children: String = (0..6)
+            .map(|i| {
+                let item = if i == 3 { "pub struct Swatch;" } else { "" };
+                format!("mod m{i} {{ use super::*; use super::m{}::*; {item} }}", (i + 1) % 6)
+            })
+            .collect();
+        let globs: String = (0..6).map(|i| format!("use m{i}::*;")).collect();
+        let src = format!("pub mod palette {{ use craft_theme::Hsb; {children} {globs} }}");
+        let mut tree = CrateTree { name: "demo".to_owned(), modules: BTreeMap::new() };
+        tree.add(Vec::new(), Path::new("src/lib.rs"), syn::parse_file(&src).unwrap().items, Path::new("src")).unwrap();
+        Index { trees: BTreeMap::from([("demo".to_owned(), tree)]) }
+    }
+
+    fn path(segs: &[&str]) -> Vec<String> {
+        segs.iter().map(|&s| s.to_owned()).collect()
+    }
+
+    #[test]
+    fn names_resolve_through_a_glob_cycle_and_misses_end() {
+        let index = cyclic();
+        let swatch = Resolved { krate: "demo".to_owned(), module: path(&["palette", "m3"]), is_module: false };
+        assert_eq!(index.resolve("demo", &path(&["palette"]), &path(&["Swatch"])), Some(swatch.clone()));
+        assert_eq!(index.resolve("demo", &path(&["palette", "m0"]), &path(&["Swatch"])), Some(swatch.clone()));
+        assert_eq!(index.resolve("demo", &path(&["palette", "m1"]), &path(&["Missing"])), None);
+        assert_eq!(index.resolve("demo", &path(&["palette"]), &path(&["craft_theme", "Hsb"])), None);
+        let palette = Resolved { krate: "demo".to_owned(), module: path(&["palette"]), is_module: true };
+        assert!(index.expand(&palette).contains(&swatch));
+    }
 }
