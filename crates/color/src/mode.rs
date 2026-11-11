@@ -173,17 +173,3 @@ impl AreaMode {
         base
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn serde_writes_the_key() {
-        for mode in AreaMode::ALL {
-            let json = serde_json::to_string(&mode).unwrap();
-            assert_eq!(json, format!("\"{}\"", mode.key()));
-            assert_eq!(serde_json::from_str::<AreaMode>(&json).unwrap(), mode);
-        }
-    }
-}

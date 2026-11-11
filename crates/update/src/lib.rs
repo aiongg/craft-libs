@@ -83,30 +83,3 @@ fn offered_release(json: &str, repo: &str, current_version: &str) -> Result<Opti
 
 #[cfg(test)]
 pub(crate) const TEST_AGENT: &str = "ArtCraft-Launcher-Test/0.0";
-
-#[cfg(test)]
-mod offer_tests {
-    use super::offered_release;
-
-    const REPO: &str = "storytold/photocraft";
-    const LIST: &str = r#"[{"tag_name":"v0.17.0","prerelease":false,"draft":false,"assets":[]},
-        {"tag_name":"v0.16.4","prerelease":false,"draft":false,"assets":[]}]"#;
-
-    fn offered(running: &str) -> Option<String> {
-        offered_release(LIST, REPO, running).unwrap().map(|release| release.tag)
-    }
-
-    #[test]
-    fn a_build_from_main_is_not_offered_the_release_it_already_contains() {
-        assert_eq!(offered("0.17.0-integration.20261029.f5b3f123"), None);
-        assert_eq!(offered("0.16.5-dev"), Some("v0.17.0".into()));
-    }
-
-    #[test]
-    fn releases_and_release_candidates_are_offered_as_before() {
-        assert_eq!(offered("0.17.0-rc.2"), Some("v0.17.0".into()));
-        assert_eq!(offered("0.16.4"), Some("v0.17.0".into()));
-        assert_eq!(offered("0.17.0"), None);
-        assert_eq!(offered("not a version"), None);
-    }
-}

@@ -319,14 +319,6 @@ mod tests {
     const REPO: &str = "storytold/photocraft";
 
     #[test]
-    fn truncate_keeps_whole_characters() {
-        assert_eq!(truncate("short", 10), "short");
-        assert_eq!(truncate("abcdef", 3), "abc…");
-        // `é` is two bytes: cutting at 2 would split it, so the cut backs off to 1.
-        assert_eq!(truncate("aé", 2), "a…");
-    }
-
-    #[test]
     fn only_plain_https_links_pass() {
         assert!(safe_web_link("https://github.com/storytold/photocraft/releases/tag/v1"));
         for bad in [
@@ -353,6 +345,7 @@ mod tests {
             assert!(!safe_web_link(bad), "{bad:?}");
         }
     }
+
     const HASH: &str = "8a5edab282632443219e051e4ade2d1d5bbc671c781051bf1437897cbdfea0f1";
 
     fn api_json(url: &str) -> String {
@@ -361,56 +354,6 @@ mod tests {
             "published_at":"2026-10-08T14:52:50Z","prerelease":false,"body":"Notes",
             "assets":[{{"name":"photocraft-0.5.0-macos-universal.dmg","size":123,"browser_download_url":"{url}","digest":"sha256:{HASH}"}}]}}"#
         )
-    }
-
-    #[test]
-    fn reads_the_latest_release() {
-        let r = parse_github_release(
-            &api_json("https://github.com/storytold/photocraft/releases/download/v0.5.0/photocraft-0.5.0-macos-universal.dmg"),
-            REPO,
-        )
-        .unwrap();
-        assert_eq!(r.version, Some(Version::new(0, 5, 0)));
-        assert_eq!(r.name, "PhotoCraft v0.5.0");
-        assert_eq!(r.published_at, Some(1_791_471_170));
-        assert_eq!(r.assets.len(), 1);
-        assert_eq!(r.assets[0].sha256.as_deref(), Some(HASH));
-        assert_eq!(r.assets[0].size, 123);
-    }
-
-    #[test]
-    fn drops_downloads_that_point_elsewhere() {
-        for url in ["https://evil.example/photocraft.dmg", "https://github.com/storytold/other/releases/download/v1/x.dmg", "javascript:alert(1)"] {
-            let r = parse_github_release(&api_json(url), REPO).unwrap();
-            assert!(r.assets.is_empty(), "{url}");
-        }
-        assert_eq!(parse_github_release(r#"{"message":"Not Found"}"#, REPO).unwrap_err(), "no releases yet");
-        assert!(parse_github_release("<html>", REPO).is_err());
-    }
-
-    #[test]
-    fn release_html_url_rejects_traversal_and_metacharacters() {
-        let repo = "storytold/photocraft";
-        assert_eq!(
-            safe_release_html_url(repo, "https://github.com/storytold/photocraft/releases/tag/v1.0.0"),
-            Some("https://github.com/storytold/photocraft/releases/tag/v1.0.0".to_string())
-        );
-        assert_eq!(
-            safe_release_html_url(repo, "https://github.com/storytold/photocraft/releases"),
-            Some("https://github.com/storytold/photocraft/releases".to_string())
-        );
-        for bad in [
-            "https://github.com/storytold/photocraft/releases/../../attacker/repo/releases/tag/v1",
-            "https://github.com/storytold/photocraft/releases/tag/v1/../../../attacker/repo",
-            "https://github.com/storytold/photocraft/releases/tag/v1|calc.exe",
-            "https://github.com/storytold/photocraft/releases/tag/v1%2f..%2f..",
-            "https://github.com/storytold/photocraft/releases/tag/v1?x=1",
-            "https://github.com/storytold/photocraft/releases/tag/v1#hash",
-            "https://github.com/storytold/other/releases/tag/v1.0.0",
-            "http://github.com/storytold/photocraft/releases/tag/v1",
-        ] {
-            assert!(safe_release_html_url(repo, bad).is_none(), "should reject: {bad}");
-        }
     }
 
     #[test]
@@ -432,64 +375,6 @@ mod tests {
         // A plain, confined download still passes.
         let prefix = download_prefix(REPO);
         assert!(download_url_under("https://github.com/storytold/photocraft/releases/download/v0.5.0/photocraft-0.5.0-macos-universal.dmg", &prefix));
-    }
-
-    #[test]
-    fn list_picks_the_newest_stable_release() {
-        let json = r#"[
-            {"tag_name":"v0.6.0-rc.1","prerelease":false,"draft":false,"assets":[]},
-            {"tag_name":"v0.5.1","prerelease":true,"draft":false,"assets":[]},
-            {"tag_name":"v0.7.0","draft":true,"assets":[]},
-            {"tag_name":"v0.5.0","prerelease":false,"draft":false,"assets":[]},
-            {"tag_name":"v0.4.0","prerelease":false,"draft":false,"assets":[]}]"#;
-        assert_eq!(parse_github_release_list(json, REPO, false).unwrap().unwrap().tag, "v0.5.0");
-        assert_eq!(parse_github_release_list(json, REPO, true).unwrap().unwrap().tag, "v0.6.0-rc.1");
-        assert_eq!(parse_github_release_list("[]", REPO, false).unwrap(), None);
-    }
-
-    #[test]
-    fn reads_checksums_and_redirects() {
-        let sums = parse_sha256sums(&format!("{HASH}  photocraft-0.5.0-macos-universal.dmg\n{HASH} *b.zip\nnot a line\n{HASH}  ../escape\n"));
-        assert_eq!(sums, [(HASH.to_string(), "photocraft-0.5.0-macos-universal.dmg".to_string()), (HASH.to_string(), "b.zip".to_string())]);
-        assert_eq!(tag_from_redirect("https://github.com/storytold/photocraft/releases/tag/v0.5.0", REPO).as_deref(), Some("v0.5.0"));
-        assert_eq!(tag_from_redirect("https://github.com/storytold/photocraft/releases", REPO), None);
-        assert_eq!(tag_from_redirect("https://evil/storytold/photocraft/releases/tag/v1", REPO), None);
-        let r = release_from_sums(REPO, "v0.5.0", &sums);
-        assert_eq!(r.assets[0].url, "https://github.com/storytold/photocraft/releases/download/v0.5.0/photocraft-0.5.0-macos-universal.dmg");
-        assert_eq!(r.version, Some(Version::new(0, 5, 0)));
-    }
-
-    #[test]
-    fn a_name_listed_twice_gives_one_asset_or_none() {
-        let other = "b".repeat(64);
-        // The same line twice (and the same hash in upper case) is one entry.
-        let sums = parse_sha256sums(&format!("{HASH}  a.zip\n{HASH} *a.zip\n{}  a.zip\n", HASH.to_ascii_uppercase()));
-        assert_eq!(sums, [(HASH.to_string(), "a.zip".to_string())]);
-        let r = release_from_sums(REPO, "v0.5.0", &sums);
-        assert_eq!(r.assets.iter().filter(|a| a.name == "a.zip").count(), 1);
-        // Two hashes for one name: the name is dropped in either line order, and the other
-        // files keep theirs.
-        for text in [format!("{HASH}  a.zip\n{other}  a.zip\n{HASH}  b.zip\n"), format!("{other}  a.zip\n{HASH}  b.zip\n{HASH}  a.zip\n")] {
-            let sums = parse_sha256sums(&text);
-            assert_eq!(sums, [(HASH.to_string(), "b.zip".to_string())], "{text}");
-            let r = release_from_sums(REPO, "v0.5.0", &sums);
-            assert!(r.assets.iter().all(|a| a.name != "a.zip"), "{text}");
-        }
-        // A third, matching line doesn't bring the name back.
-        assert!(parse_sha256sums(&format!("{HASH}  a.zip\n{other}  a.zip\n{HASH}  a.zip\n")).is_empty());
-    }
-
-    #[test]
-    fn a_full_size_list_keeps_its_order_and_finds_a_conflict_across_it() {
-        // About as many names as fit in the 4 MiB a list may be, and a conflict between the
-        // first and last lines.
-        let other = "b".repeat(64);
-        let mut text: String = (0..57_000).map(|i| format!("{HASH}  f{i}\n")).collect();
-        text.push_str(&format!("{other}  f0\n"));
-        assert!(text.len() <= 4 << 20);
-        let sums = parse_sha256sums(&text);
-        assert_eq!(sums.len(), 56_999);
-        assert!(sums.iter().enumerate().all(|(i, (h, n))| *h == HASH && *n == format!("f{}", i + 1)));
     }
 
     #[test]

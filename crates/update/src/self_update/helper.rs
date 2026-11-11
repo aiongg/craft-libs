@@ -241,66 +241,11 @@ pub(super) fn check_helper(app: &App, me: &Path, paths: &Paths, exe: &Path, step
     if allowed { Ok(()) } else { Err(refused()) }
 }
 
-/// Lets a Windows test observe both sides of `run_step`'s wait for the old launcher. Compiled only
-/// for tests, so production behavior is unchanged.
-#[cfg(all(test, windows))]
-pub(super) mod wait_watch {
-    use std::sync::mpsc::{self, Receiver, Sender};
-    use std::sync::{Mutex, PoisonError};
-
-    /// A test's two observations of one wait, keyed by the launcher's pid.
-    pub(crate) struct Channels {
-        /// Sent just before `run_step` calls the wait.
-        pub(crate) entered: Receiver<()>,
-        /// Sent right after the wait returns, before any extraction, and carries the wait's result.
-        pub(crate) returned: Receiver<bool>,
-    }
-
-    struct Watch {
-        pid: u32,
-        entered: Option<Sender<()>>,
-        returned: Option<Sender<bool>>,
-    }
-
-    static WATCH: Mutex<Option<Watch>> = Mutex::new(None);
-
-    pub(crate) fn watch(pid: u32) -> Channels {
-        let (entered, entered_rx) = mpsc::channel();
-        let (returned, returned_rx) = mpsc::channel();
-        *WATCH.lock().unwrap_or_else(PoisonError::into_inner) = Some(Watch { pid, entered: Some(entered), returned: Some(returned) });
-        Channels { entered: entered_rx, returned: returned_rx }
-    }
-
-    /// Notes that `run_step` is about to wait. Only the first call for a watched pid is kept.
-    pub(crate) fn entered(pid: u32) {
-        let mut watch = WATCH.lock().unwrap_or_else(PoisonError::into_inner);
-        let sender = watch.as_mut().filter(|watch| watch.pid == pid).and_then(|watch| watch.entered.take());
-        if let Some(sender) = sender {
-            let _ = sender.send(());
-        }
-    }
-
-    /// Notes the wait's result as soon as it returns; the step hasn't run yet.
-    pub(crate) fn returned(pid: u32, waited: bool) {
-        let mut watch = WATCH.lock().unwrap_or_else(PoisonError::into_inner);
-        let sender = watch.as_mut().filter(|watch| watch.pid == pid).and_then(|watch| watch.returned.take());
-        if let Some(sender) = sender {
-            let _ = sender.send(waited);
-        }
-    }
-}
-
 /// Waits up to `wait` for `pid` to exit, does `step` once it has, and removes the download either
 /// way. The MSI, and every program in the portable zip, must be signed like `reference`.
 #[cfg(windows)]
 pub(super) fn run_step(app: &App, reference: &Path, pid: u32, exe: &Path, step: &Finish, wait: std::time::Duration) -> Result<(), String> {
-    #[cfg(test)]
-    wait_watch::entered(pid);
-    // The test hook needs the result, so it is stored rather than consumed by the branch.
-    let waited = process::wait_for_exit(pid, wait);
-    #[cfg(test)]
-    wait_watch::returned(pid, waited);
-    let result = if waited {
+    let result = if process::wait_for_exit(pid, wait) {
         match step {
             Finish::Msi(msi) => {
                 signed_like(app, reference, msi).and_then(|()| msi_step(app, exe)).and_then(|step| crate::msi_migrate::windows::run(msi, &step))

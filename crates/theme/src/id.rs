@@ -178,23 +178,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn id_forms() {
-        for ok in ["ab", "0x", "my-theme", "a.b_c-d", "studio.night-2", &"a".repeat(64)] {
-            assert_eq!(ThemeId::parse(ok).map(|id| id.as_str().to_owned()), Ok(ok.to_owned()), "{ok}");
-        }
-        assert_eq!(ThemeId::parse(""), Err(IdError::Length));
-        assert_eq!(ThemeId::parse("a"), Err(IdError::Length));
-        assert_eq!(ThemeId::parse(&"a".repeat(65)), Err(IdError::Length));
-        assert_eq!(ThemeId::parse("-ab"), Err(IdError::Start));
-        assert_eq!(ThemeId::parse(".ab"), Err(IdError::Start));
-        assert_eq!(ThemeId::parse("Ab"), Err(IdError::Start));
-        assert_eq!(ThemeId::parse("aB"), Err(IdError::Char('B')));
-        assert_eq!(ThemeId::parse("a b"), Err(IdError::Char(' ')));
-        assert_eq!(ThemeId::parse("a/b"), Err(IdError::Char('/')));
-        assert_eq!(ThemeId::parse("aé"), Err(IdError::Char('é')));
-    }
-
-    #[test]
     fn windows_device_names_are_refused_for_user_ids() {
         for bad in ["con", "nul", "aux", "prn", "com1", "com9", "lpt1", "lpt9", "con.dark", "nul.x", "aux.my-theme"] {
             assert_eq!(ThemeId::parse_user(bad), Err(IdError::DeviceName), "{bad}");

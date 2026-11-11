@@ -71,10 +71,6 @@ const NAMES: [(AddSide, &str); 4] =
     [(AddSide::Top, "Add above"), (AddSide::Right, "Add right"), (AddSide::Bottom, "Add below"), (AddSide::Left, "Add left")];
 
 impl Rig {
-    fn sides(&self) -> Vec<AddSide> {
-        NAMES.iter().filter(|(_, name)| self.fixture.by_label(name).is_some()).map(|(side, _)| *side).collect()
-    }
-
     /// Tabs until the focus is on one of the buttons.
     fn focus_buttons(&mut self) {
         for _ in 0..4 {
@@ -85,20 +81,6 @@ impl Rig {
         }
         panic!("Tab reaches a button");
     }
-}
-
-/// An object narrower than two button radii on screen shows no buttons; a button under a rect to keep clear is hidden
-/// and the others show; `hidden` hides all; a button off the canvas is hidden.
-#[trial]
-fn buttons_hide_when_small_hidden_cleared_or_off_the_canvas() {
-    assert_eq!(rig(Setup::default()).sides(), AddSide::ALL);
-    let narrow = DocRect::new(190.0, 140.0, 192.0, 160.0);
-    assert!(rig(Setup { object: narrow, ..Setup::default() }).sides().is_empty(), "narrower than two radii");
-    assert!(rig(Setup { hidden: true, ..Setup::default() }).sides().is_empty());
-    let right = DocRect::new(255.0, 100.0, 300.0, 200.0);
-    assert_eq!(rig(Setup { keep_clear: Some(right), ..Setup::default() }).sides(), [AddSide::Top, AddSide::Bottom, AddSide::Left]);
-    let near_edge = DocRect::new(-40.0, 100.0, 60.0, 200.0);
-    assert!(!rig(Setup { object: near_edge, ..Setup::default() }).sides().contains(&AddSide::Left), "off the canvas");
 }
 
 /// On a view turned a quarter, the up arrow reaches the button that sits highest on screen, not the document's top

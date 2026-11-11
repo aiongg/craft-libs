@@ -1149,7 +1149,6 @@ dependencies = [
  "egui_kittest",
  "libtest-mimic",
  "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -1236,7 +1235,6 @@ dependencies = [
  "kurbo 0.13.1",
  "libtest-mimic",
  "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -1656,7 +1654,6 @@ name = "craft-theme"
 version = "0.1.0"
 dependencies = [
  "bitflags 2.13.2",
- "craft-cms",
  "ecolor",
  "log",
  "proptest",

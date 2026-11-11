@@ -33,7 +33,6 @@ serde = { workspace = true }
 
 [dev-dependencies]
 craft-color = { path = ".", features = ["screen-testing"] }
-serde_json = { workspace = true }
 egui = { workspace = true, features = ["default_fonts", "serde"] }
 libtest-mimic = "0.8"
 

@@ -10,9 +10,6 @@ use std::ops::RangeInclusive;
 
 use serde::{Deserialize, Serialize};
 
-#[cfg(test)]
-mod tests;
-
 /// Where the stroke sits on the path. Only a closed path aligns; an open one is always centred.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

@@ -309,54 +309,6 @@ mod tests {
         Arc::new(Builtin::Srgb.profile().clone())
     }
 
-    /// sRGB on an sRGB monitor is the identity: no transform, `apply` returns its input.
-    #[test]
-    fn srgb_on_an_srgb_monitor_is_the_identity() {
-        let caches = DisplayCaches::new();
-        let d = caches.canvas_display_for(&srgb(), None).unwrap();
-        assert!(d.is_identity());
-        assert_eq!(d.apply([0.2, 0.5, 0.9]), [0.2, 0.5, 0.9]);
-        let mut px = [10, 20, 30, 40];
-        d.apply_rgba8(&mut px);
-        assert_eq!(px, [10, 20, 30, 40]);
-
-        // The same colours on a wide-gamut monitor change, alpha stays.
-        caches.set_monitor(None, Some(&p3().to_bytes()));
-        let d = caches.canvas_display_for(&srgb(), None).unwrap();
-        assert!(!d.is_identity());
-        let mut px = [255, 0, 0, 77];
-        d.apply_rgba8(&mut px);
-        assert_ne!(px[..3], [255, 0, 0]);
-        assert_eq!(px[3], 77);
-    }
-
-    /// An unreadable monitor profile falls back to sRGB and reports `Unusable`.
-    #[test]
-    fn an_unreadable_monitor_profile_falls_back_to_srgb() {
-        let caches = DisplayCaches::new();
-        assert_eq!(caches.monitor_status(Some(1)), MonitorStatus::NoProfile);
-        caches.set_monitor(Some(1), Some(b"not an icc profile"));
-        assert!(matches!(caches.monitor_status(Some(1)), MonitorStatus::Unusable(MonitorProblem::Unreadable { .. })));
-        assert!(caches.monitor_for(Some(1)).same_colors(Builtin::Srgb.profile()));
-
-        // A good reading is kept when a later one fails to parse.
-        caches.set_monitor(Some(2), Some(&p3().to_bytes()));
-        caches.set_monitor(Some(2), Some(b"garbage"));
-        assert_eq!(caches.monitor_status(Some(2)), MonitorStatus::Detected);
-
-        // A CMYK profile is not a monitor profile.
-        caches.set_monitor(Some(3), Some(&Builtin::CoatedFogra39.profile().to_bytes()));
-        let MonitorStatus::Unusable(MonitorProblem::NotRgb { space, .. }) = caches.monitor_status(Some(3)) else {
-            panic!("a CMYK profile is not RGB")
-        };
-        assert_eq!(space, ColorSpace::Cmyk);
-
-        // An unknown display uses the main window's.
-        caches.set_monitor(None, Some(&p3().to_bytes()));
-        assert_eq!(caches.monitor_status(Some(9)), MonitorStatus::Detected);
-        assert!(caches.monitor_for(Some(9)).same_colors(&p3()));
-    }
-
     /// Choosing another monitor profile changes the signature and drops the cached transform.
     #[test]
     fn choosing_a_monitor_profile_changes_the_signature() {

@@ -12,6 +12,3 @@ pub fn not_web_safe(color: [f32; 3]) -> Option<[f32; 3]> {
     let hex = |c: [f32; 3]| craft_theme::Srgba::from_rgb_array(c).to_hex();
     (hex(near) != hex(color)).then_some(near)
 }
-
-#[cfg(test)]
-mod tests {}

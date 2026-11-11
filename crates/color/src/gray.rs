@@ -33,6 +33,3 @@ impl ColorModel for GrayModel {
         DefaultOn { full: false, compact: false }
     }
 }
-
-#[cfg(test)]
-mod tests {}

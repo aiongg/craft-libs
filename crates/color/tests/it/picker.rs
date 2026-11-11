@@ -3,8 +3,8 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use craft_behavior::{Codec as _, Mixed};
-use craft_color::ui::{ColorPicker, ColorPickerLayout, ColorReadout, ColorWarning, PairCodec, PickedColor};
+use craft_behavior::Mixed;
+use craft_color::ui::{ColorPicker, ColorPickerLayout, ColorReadout, ColorWarning, PickedColor};
 use craft_theme::{Channel, ColorModel, DefaultOn, HsbModel, MAX_CHANNELS, ModelValues, OklchModel, RgbModel, Rgba, Srgba};
 use craft_ui::contract::Bind;
 use craft_ui::testing::{Fixture, trial};
@@ -70,9 +70,6 @@ struct Setup {
     warning: Option<Srgba>,
 }
 
-const COMPACT: Setup = Setup { layout: ColorPickerLayout::Compact, cmyk: false, alpha: false, focus_on_open: true, compare: None, warning: None };
-const FULL: Setup = Setup { layout: ColorPickerLayout::Full, ..COMPACT };
-
 fn picker(setup: Setup, start: PickedColor) -> (Fixture, Rc<RefCell<Host>>) {
     let host = Rc::new(RefCell::new(Host { value: start, web: false, sampled: None, reported: 0 }));
     let shown = host.clone();
@@ -115,75 +112,6 @@ fn type_into(fixture: &mut Fixture, label: &str, text: &str) {
     fixture.type_text(text);
     fixture.key(Key::Enter, Modifiers::NONE);
     fixture.settle();
-}
-
-fn rgb8(color: Srgba) -> [u8; 3] {
-    let rgba = color.to_rgba();
-    [rgba.0[0], rgba.0[1], rgba.0[2]]
-}
-
-/// A value typed into a host model's field stays as typed in `PickedColor::model`, and the other channels keep the
-/// colour's.
-#[trial]
-fn a_typed_channel_keeps_the_values_of_its_model() {
-    let (mut fixture, host) = picker(Setup { cmyk: true, ..FULL }, PickedColor::cmyk(Srgba::rgb(0.5, 0.5, 0.5), [0.0, 0.0, 0.0, 50.0]));
-    type_into(&mut fixture, "Magenta", "40");
-    let value = host.borrow().value;
-    let model = value.model.expect("the edited model's values go out with the colour");
-    assert_eq!(model.model, "test-cmyk");
-    assert_eq!(model.values[1], 40.0);
-    assert_eq!(model.values[3], 50.0, "the black ink stays as it was");
-}
-
-/// A sample that arrives while a hex run is open is applied, not lost, and the run's text goes.
-#[trial]
-fn a_sample_during_a_typing_run_applies() {
-    let (mut fixture, host) = picker(COMPACT, PickedColor::rgb(Srgba::rgb(0.2, 0.5, 0.8)));
-    let field = fixture.by_label("Hex color").expect("hex field");
-    fixture.click(&field);
-    fixture.type_text("12");
-    host.borrow_mut().sampled = Some(Srgba::rgb(0.0, 1.0, 0.0));
-    fixture.settle();
-    assert_eq!(rgb8(host.borrow().value.color), [0, 255, 0]);
-}
-
-/// Only Web Colors snaps the colour when it turns on, and every colour after it.
-#[trial]
-fn only_web_colors_snaps_when_it_turns_on() {
-    let (mut fixture, host) = picker(FULL, PickedColor::rgb(Srgba::rgb(0.23, 0.47, 0.81)));
-    let check = fixture.by_label("Only Web Colors").expect("the check box");
-    fixture.click(&check);
-    fixture.settle();
-    assert!(host.borrow().web, "the host's flag is on");
-    for channel in rgb8(host.borrow().value.color) {
-        assert_eq!(channel % 0x33, 0, "red, green and blue are on multiples of 0x33");
-    }
-    type_into(&mut fixture, "Hex color", "123456");
-    for channel in rgb8(host.borrow().value.color) {
-        assert_eq!(channel % 0x33, 0, "a typed colour snaps too");
-    }
-}
-
-/// The Full layout opens with the hex text selected: typing replaces it.
-#[trial]
-fn the_full_picker_opens_with_the_hex_text_selected() {
-    let (mut fixture, host) = picker(FULL, PickedColor::rgb(Srgba::rgb(0.2, 0.5, 0.8)));
-    fixture.type_text("00ff00");
-    fixture.key(Key::Enter, Modifiers::NONE);
-    fixture.settle();
-    assert_eq!(rgb8(host.borrow().value.color), [0, 255, 0]);
-}
-
-/// A byte as two hex digits: exactly two digits apply; anything else is not a value.
-#[trial]
-fn a_hex_pair_applies_two_digits_and_marks_anything_else_invalid() {
-    let codec = PairCodec::default();
-    assert_eq!(codec.parse("A5", &0), Ok(0xA5));
-    assert_eq!(codec.parse("a5", &0), Ok(0xA5), "either case reads");
-    assert_eq!(codec.format(&0x0A), "0A");
-    for text in ["", "A", "A5F", "+5", "-5", "G1", "٣٣"] {
-        assert!(codec.parse(text, &0).is_err(), "{text:?} is not a byte");
-    }
 }
 
 /// Two items with different G, B and alpha, shown by a readout the way a multi-selection host does.

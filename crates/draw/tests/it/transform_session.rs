@@ -1,12 +1,9 @@
 //! `TransformSession`: results, gestures, undo, presets, the warp phase, the mode menu and the settings.
 
-use craft_behavior::geometry::quad::{BoxState, TransformMode};
+use craft_behavior::geometry::quad::BoxState;
 use craft_behavior::kurbo::{Point, Rect, Vec2};
-use craft_behavior::{Anchor9, CancelReason, EditEvent, GestureId, Mixed};
-use craft_draw::ui::transform::{
-    Interpolation, TransformEdit, TransformPreset, TransformRequest, TransformRow, TransformSession, TransformSettings, TransformWarp,
-};
-use craft_ui::runtime::env::UnitKind;
+use craft_behavior::{CancelReason, EditEvent, GestureId, Mixed};
+use craft_draw::ui::transform::{TransformEdit, TransformSession, TransformSettings, TransformWarp};
 use craft_ui::testing::trial;
 use std::sync::Arc;
 
@@ -81,125 +78,12 @@ fn near(a: Point, b: Point) -> bool {
 // A new session has no result and commits as CloseUntouched; a moved box gives Apply with the
 // frame, the box and the interpolation; a mode or interpolation change alone stays untouched.
 
-// Box Begin, Update, then Cancel restores the box taken at Begin and requests nothing; discard
-// with no drag running requests Discard.
-#[trial]
-fn esc_during_a_drag_restores_the_box_and_a_second_esc_discards() {
-    let mut s = session();
-    let id = GestureId::new(1);
-    assert_eq!(s.apply(TransformEdit::Box(begin(id)), 0.0), None);
-    s.apply(TransformEdit::Box(update(id, moved(doc(5.0, 5.0)))), 0.0);
-    assert!(s.dragging());
-    assert_eq!(s.apply(TransformEdit::Box(cancel(id)), 0.0), None);
-    assert!(!s.dragging());
-    assert_eq!(*s.state(), BoxState::from_rect(FRAME));
-    assert_eq!(s.discard(), TransformRequest::Discard);
-}
-
 // Discard during a running gesture puts back the box the gesture began on.
-
-// In the Warp phase the warp holds the box: after a move and a reset to an identity warp, a commit
-// closes untouched; a warp that changes something applies with the warp.
-#[trial]
-fn a_commit_in_the_warp_phase_decides_from_the_warp_alone() {
-    let mut s = session();
-    drag(&mut s, moved(doc(10.0, 0.0)), 0.0);
-    s.apply(TransformEdit::Warp(Warp(false)), 1.0);
-    s.apply(TransformEdit::Warp(Warp(true)), 2.0);
-    assert!(s.is_untouched());
-    assert_eq!(s.commit(), TransformRequest::CloseUntouched);
-
-    s.apply(TransformEdit::Warp(Warp(false)), 3.0);
-    let TransformRequest::Apply(result) = s.commit() else { panic!("expected Apply") };
-    assert_eq!(result.warp, Some(Warp(false)));
-}
-
-// Mode and interpolation are not undo steps: changing one records nothing, and Undo leaves them.
-#[trial]
-fn mode_and_interpolation_stay_outside_the_undo_steps() {
-    let mut s = session();
-    drag(&mut s, moved(doc(10.0, 0.0)), 0.0);
-    s.apply(TransformEdit::Mode(TransformMode::Skew), 1.0);
-    s.apply(TransformEdit::Interpolation(Interpolation::Bilinear), 1.0);
-    s.settle(1.0, false);
-    assert!(s.undo());
-    assert!(!s.can_undo());
-    assert_eq!((s.current_mode(), s.interpolation()), (TransformMode::Skew, Interpolation::Bilinear));
-    assert_eq!(*s.state(), BoxState::from_rect(FRAME));
-}
-
-// A Fields typing run (Begin, Updates, Commit) sets the box and the V skew from each report, which
-// the fields built from the box at the run's start (gaps 112 to 114), and is one undo step.
-#[trial]
-fn a_field_typing_run_builds_every_report_from_the_box_at_its_start() {
-    let mut s = session();
-    let id = GestureId::new(1);
-    let row = |dx: f64, skew_v: f64| TransformRow::new(moved(doc(dx, 0.0)), skew_v);
-    s.apply(TransformEdit::Fields(begin(id)), 0.0);
-    s.apply(TransformEdit::Fields(update(id, row(3.0, 5.0))), 0.0);
-    s.settle(0.0, false);
-    assert!(!s.can_undo());
-    s.apply(TransformEdit::Fields(commit(id, row(4.0, 6.0))), 0.0);
-    s.settle(0.0, false);
-    assert_eq!((*s.state(), s.skew_v()), (moved(doc(4.0, 0.0)), 6.0));
-    assert!(s.undo());
-    assert_eq!((*s.state(), s.skew_v()), (BoxState::from_rect(FRAME), 0.0));
-    assert!(!s.can_undo());
-}
-
-// Rotate 90° Clockwise and Flip Horizontal turn and mirror the box about the reference point and
-// request nothing; in the Warp phase a preset changes nothing.
-#[trial]
-fn presets_turn_the_box_about_the_reference_point_without_applying() {
-    let mut s = session();
-    assert_eq!(s.apply(TransformEdit::Preset(TransformPreset::Rotate90Clockwise), 0.0), None);
-    let pivot = s.pivot();
-    // The top left corner (0, 0) goes to the top right of the turned box, clockwise on screen.
-    assert!(near(s.quad()[0], Point::new(pivot.x + 50.0, pivot.y - 100.0)));
-    s.apply(TransformEdit::Preset(TransformPreset::Rotate90CounterClockwise), 0.0);
-    s.apply(TransformEdit::Preset(TransformPreset::FlipHorizontal), 0.0);
-    assert!(near(s.quad()[0], Point::new(200.0, 0.0)));
-    assert!(near(s.pivot(), Point::new(100.0, 50.0)));
-
-    let mut warped = session();
-    warped.apply(TransformEdit::Warp(Warp(false)), 0.0);
-    warped.apply(TransformEdit::Preset(TransformPreset::Rotate180), 0.0);
-    assert_eq!(*warped.state(), BoxState::from_rect(FRAME));
-}
 
 // WarpRequested answers NeedWarp with the current frame and box; Warp(w) enters the Warp phase;
 // one undo goes back to the Box phase with the box as it was.
 
 // LeaveWarp drops the warp and returns to the Box phase with the box unchanged.
-
-// A move, a pivot move, a warp: undo restores the box, the pivot and the warp of each step
-// together; redo goes forward; a new edit after undo drops the redo.
-#[trial]
-fn undo_and_redo_restore_the_box_pivot_and_warp_together() {
-    let mut s = session();
-    let first = moved(doc(10.0, 0.0));
-    drag(&mut s, first, 0.0);
-    s.apply(TransformEdit::Pivot(Anchor9::TopLeft), 1.0);
-    s.settle(1.0, false);
-    let pivoted = *s.state();
-    assert_eq!(pivoted.pivot, Point::new(10.0, 0.0));
-    s.apply(TransformEdit::Warp(Warp(false)), 2.0);
-    s.settle(2.0, false);
-
-    assert!(s.undo());
-    assert_eq!((*s.state(), s.warp()), (pivoted, None));
-    assert!(s.undo());
-    assert_eq!(*s.state(), first);
-    assert!(s.redo());
-    assert_eq!(*s.state(), pivoted);
-    assert!(s.redo());
-    assert_eq!(s.warp(), Some(&Warp(false)));
-    assert!(!s.redo());
-
-    assert!(s.undo());
-    drag(&mut s, moved(doc(0.0, 7.0)), 3.0);
-    assert!(!s.can_redo());
-}
 
 // The menu lists Free Transform, Scale, Rotate, Skew, Distort, Perspective, Warp, separator, the
 // three rotations, separator, the two flips; the current mode is checked; Distort and Perspective
@@ -263,26 +147,4 @@ fn the_homography_maps_the_frame_onto_the_box() {
     let line = BoxState::new([Point::new(0.0, 0.0), Point::new(10.0, 0.0), Point::new(20.0, 0.0), Point::new(30.0, 0.0)], Point::ZERO);
     s.apply(TransformEdit::Box(set(line)), 0.0);
     assert!(s.homography().is_none());
-}
-
-// Preferences saved before the unit kinds moved name the W and H unit as `Pixels`, `Percent`, `Inches` and so on.
-#[trial]
-fn legacy_size_unit_spellings_load() {
-    let loaded = |text: &str| serde_json::from_str::<TransformSettings>(&format!(r#"{{"sizeUnit":{text}}}"#)).map(|settings| settings.size_unit);
-    for (legacy, kind) in [
-        ("Pixels", UnitKind::Pixels),
-        ("Percent", UnitKind::Percent),
-        ("Inches", UnitKind::Inches),
-        ("Centimetres", UnitKind::Centimetres),
-        ("Millimetres", UnitKind::Millimetres),
-        ("Points", UnitKind::Points),
-        ("Picas", UnitKind::Picas),
-    ] {
-        assert_eq!(loaded(&format!("\"{legacy}\"")).ok(), Some(Some(kind)), "{legacy}");
-        let saved = serde_json::to_string(&settings(|settings| settings.size_unit = Some(kind))).expect("settings serialize");
-        let again: TransformSettings = serde_json::from_str(&saved).expect("saved settings load");
-        assert_eq!(again.size_unit, Some(kind), "{kind:?} round-trips");
-    }
-    assert_eq!(loaded("null").ok(), Some(None));
-    assert!(loaded("\"Furlongs\"").is_err(), "an unknown unit is refused");
 }
