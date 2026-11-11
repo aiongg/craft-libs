@@ -144,8 +144,6 @@ pub mod layout;
 mod matcher;
 pub mod mnemonic;
 mod parity;
-#[cfg(test)]
-mod parity_tests;
 pub mod profiles;
 pub mod reserved;
 pub mod scope;

@@ -40,6 +40,3 @@ impl Commands for KeymapCommands {
         self.hints.as_ref()?(id)
     }
 }
-
-#[cfg(test)]
-mod tests {}
