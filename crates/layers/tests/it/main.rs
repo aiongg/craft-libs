@@ -1,9 +1,7 @@
 //! The integration binary of craft-layers: every test is a registered trial.
 
-mod panel;
 mod panel_input;
 mod panel_order;
-mod parts;
 
 use craft_ui::testing::{suite, trials};
 use libtest_mimic::{Arguments, Trial};
