@@ -15,6 +15,8 @@ mod readout;
 mod space;
 #[cfg(feature = "testing")]
 mod stories;
+#[cfg(feature = "testing")]
+pub(crate) mod testing;
 mod words;
 
 mod tool;

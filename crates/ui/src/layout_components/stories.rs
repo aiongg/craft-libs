@@ -2,7 +2,7 @@
 
 use super::{Grid, Row, Stack};
 use crate::contract::{Gap, Pad, ShowContainer as _};
-use crate::testing::sample::{outlined, words};
+use crate::story_kit::sample::{outlined, words};
 use crate::testing::{StoryData, StoryOutput, story};
 use craft_behavior::ColumnWidth;
 use egui::Ui;

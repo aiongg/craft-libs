@@ -1,11 +1,11 @@
 //! The sample content of stories whose subject lays out other components: words to lay out, and a sunken surface
 //! that shows the subject's extent, padding and gaps.
 
-use super::StoryOutput;
 use crate::contract::{Show as _, ShowContainer as _};
 use crate::display::Text;
 use crate::layout_components::Stack;
 use crate::style::SurfaceKind;
+use crate::testing::StoryOutput;
 use egui::Ui;
 use std::ops::Range;
 

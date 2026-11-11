@@ -1,10 +1,10 @@
 //! Stories of `Guides`.
 
 use super::{GUIDE, Guides};
+use crate::canvas::testing::canvas_story::on_canvas;
 use crate::canvas::{Guide, GuideDrag, GuideKey, GuideLine};
 use crate::contract::{Bind, Show as _, Validity};
 use crate::runtime::env::Message;
-use crate::testing::canvas_story::on_canvas;
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use craft_behavior::kurbo::Rect as DocRect;
 use craft_behavior::{Axis, GesturePhase, Mixed};

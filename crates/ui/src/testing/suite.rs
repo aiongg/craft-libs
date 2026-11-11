@@ -123,8 +123,7 @@ fn run_type(probe: &'static Probe, stories: Vec<Story>) -> Result<(), Failed> {
     if failures.is_empty() { Ok(()) } else { Err(Failed::from(failures.join("\n"))) }
 }
 
-/// The trials of one package: a trial per registered type and one per story naming a type that is not linked. The
-/// per-shape cases belong to `craft-ui`'s own package and run once there.
+/// The trials of one package: a trial per registered type and one per story naming a type that is not linked.
 pub fn trials(package: &'static str, registered: &[&'static Registration]) -> Vec<Trial> {
     let library = package.replace('-', "_");
     let own: Vec<_> = stories().into_iter().filter(|entry| entry.crate_name == package && entry.crate_target == library).collect();
@@ -157,6 +156,5 @@ pub fn trials(package: &'static str, registered: &[&'static Registration]) -> Ve
         );
         trials.push(Trial::test(format!("suite::stories::{}", entry.story.name), move || Err(Failed::from(message))));
     }
-    trials.extend(shape::trials(package));
     trials
 }

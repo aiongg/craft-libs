@@ -1,8 +1,8 @@
 //! Stories of the canvas family.
 
 use super::{Canvas, CropOverlay};
+use crate::canvas::testing::canvas_story::{StoryDocument, show_document};
 use crate::contract::{Bind, Show as _, ShowContainer as _};
-use crate::testing::canvas_story::{StoryDocument, show_document};
 use crate::testing::{StoryData, StoryOutput, story};
 use craft_behavior::geometry::CropBox;
 use craft_behavior::kurbo::Rect as DocRect;

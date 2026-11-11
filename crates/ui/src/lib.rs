@@ -35,11 +35,15 @@ pub mod rails;
 pub mod runtime;
 pub mod sections;
 pub mod shell;
+#[cfg(feature = "testing")]
+mod story_kit;
 pub mod style;
 pub mod table;
 pub mod tabs;
 #[cfg(feature = "testing")]
 pub mod testing;
+#[cfg(feature = "testing")]
+mod testing_internals;
 pub mod text;
 pub mod tile_grid;
 pub mod value_drag;

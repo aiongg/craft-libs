@@ -3,10 +3,16 @@
 use super::{DropAction, FooterAction, FooterBar};
 use crate::buttons::IconButton;
 use crate::contract::{PopupKind, Props as _, Show as _, ShowContainer as _};
+use crate::story_kit::sample::words;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use craft_behavior::IconId;
 use craft_theme::variant::Tone;
 use egui::Ui;
+
+#[story(FooterBar, covers = [Default])]
+fn footer_bar(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    FooterBar::body().show(ui, |ui, _| words(ui, 0..1)).into()
+}
 
 #[story(FooterBar, covers = [], drive = Drive::Never)]
 fn footer_actions(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {

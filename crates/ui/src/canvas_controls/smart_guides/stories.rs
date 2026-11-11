@@ -1,8 +1,8 @@
 //! Stories of `SmartGuides`.
 
 use super::{Measure, SmartGuides, SmartLine};
+use crate::canvas::testing::canvas_story::on_canvas;
 use crate::contract::Show as _;
-use crate::testing::canvas_story::on_canvas;
 use crate::testing::{StoryData, StoryOutput, story};
 use craft_behavior::kurbo::{Point, Rect as DocRect};
 use egui::Ui;

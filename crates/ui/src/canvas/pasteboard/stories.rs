@@ -1,9 +1,9 @@
 //! Stories of the pasteboard.
 
 use super::{NAME, PageBorder, PageFrame, Pasteboard, PasteboardColor};
+use crate::canvas::testing::canvas_story::{on_canvas_view, story_view};
 use crate::contract::Show as _;
 use crate::style::DataColor;
-use crate::testing::canvas_story::{on_canvas_view, story_view};
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use craft_behavior::CanvasView;
 use craft_behavior::kurbo::{Point, Rect as DocRect};

@@ -2,10 +2,10 @@
 
 use super::RasterDisplay;
 use super::RasterDisplayOutput;
+use crate::canvas::testing::canvas_story::{on_canvas_view, story_view};
 use crate::canvas::{PixelRect, RasterSource};
 use crate::contract::Show as _;
 use crate::primitives::{Checker, Revision};
-use crate::testing::canvas_story::{on_canvas_view, story_view};
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use craft_behavior::kurbo::Point;
 use craft_behavior::{CanvasView, PixelSize};
