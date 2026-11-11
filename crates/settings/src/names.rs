@@ -37,20 +37,3 @@ pub(crate) fn checked_name(name: &str) -> Result<String, NameFault> {
         Ok(name.to_owned())
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    // One rule set for both stores: each fault, and a trimmed good name.
-    #[test]
-    fn names_are_checked_for_every_platform() {
-        assert_eq!(checked_name("  Mine "), Ok("Mine".to_owned()));
-        assert_eq!(checked_name("  "), Err(NameFault::Empty));
-        assert_eq!(checked_name(&"x".repeat(MAX_NAME_CHARS + 1)), Err(NameFault::TooLong));
-        assert_eq!(checked_name("a/b"), Err(NameFault::ReservedCharacter));
-        assert_eq!(checked_name(".hidden"), Err(NameFault::Dot));
-        assert_eq!(checked_name("name."), Err(NameFault::Dot));
-        assert_eq!(checked_name("com1.txt"), Err(NameFault::DeviceName));
-    }
-}

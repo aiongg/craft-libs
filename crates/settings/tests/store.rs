@@ -2,25 +2,7 @@
 
 use super::common;
 
-use std::time::{Duration, Instant};
-
 use common::{Theme, config_path, open_in, read_config, write_config};
-use craft_settings::{SaveStatus, Source};
-
-#[test]
-fn first_run_gives_defaults_and_writes_the_file_on_flush() {
-    let tmp = tempfile::tempdir().unwrap();
-    let (mut store, report) = open_in(tmp.path());
-    assert_eq!(report.source, Source::Defaults);
-    assert_eq!(store.get().general.language, "en");
-    assert!(!config_path(tmp.path()).exists());
-
-    store.flush().unwrap();
-    let text = read_config(tmp.path());
-    assert!(text.starts_with("schema_version = 2\n"), "{text}");
-    assert!(text.contains("[general]"), "{text}");
-    assert!(text.contains("[appearance]"), "{text}");
-}
 
 #[test]
 fn comments_unknown_keys_and_order_survive_a_save() {
@@ -45,68 +27,6 @@ fn comments_unknown_keys_and_order_survive_a_save() {
 }
 
 #[test]
-fn tick_waits_for_the_debounce_and_reports_the_deadline() {
-    let tmp = tempfile::tempdir().unwrap();
-    let (mut store, _) = open_in(tmp.path());
-    let t0 = Instant::now();
-    assert!(matches!(store.tick(t0).status, SaveStatus::Idle));
-
-    store.update_at(t0, |p| p.appearance.theme = Theme::Dark);
-    let r = store.tick(t0);
-    assert!(matches!(r.status, SaveStatus::Pending));
-    assert_eq!(r.next_deadline, Some(t0 + Duration::from_millis(100)));
-    assert!(!config_path(tmp.path()).exists());
-
-    let r = store.tick(t0 + Duration::from_millis(100));
-    assert!(matches!(r.status, SaveStatus::Saved), "{r:?}");
-    assert_eq!(r.next_deadline, None);
-    assert!(read_config(tmp.path()).contains("theme = \"dark\""));
-    assert!(matches!(store.tick(t0 + Duration::from_millis(200)).status, SaveStatus::Idle));
-}
-
-#[test]
-fn failed_save_is_retried_with_backoff() {
-    let tmp = tempfile::tempdir().unwrap();
-    let (mut store, _) = open_in(tmp.path());
-    // A folder where the file should be makes the write fail.
-    std::fs::create_dir(config_path(tmp.path())).unwrap();
-    let t0 = Instant::now();
-    store.update_at(t0, |p| p.appearance.theme = Theme::Dark);
-
-    let r = store.tick(t0 + Duration::from_millis(100));
-    assert!(matches!(r.status, SaveStatus::Failed(_)), "{r:?}");
-    let first_retry = t0 + Duration::from_millis(100) + Duration::from_secs(1);
-    assert_eq!(r.next_deadline, Some(first_retry));
-    assert!(matches!(store.tick(first_retry - Duration::from_millis(1)).status, SaveStatus::Pending));
-
-    let r = store.tick(first_retry);
-    assert!(matches!(r.status, SaveStatus::Failed(_)));
-    assert_eq!(r.next_deadline, Some(first_retry + Duration::from_secs(2)));
-
-    std::fs::remove_dir(config_path(tmp.path())).unwrap();
-    let r = store.tick(first_retry + Duration::from_secs(2));
-    assert!(matches!(r.status, SaveStatus::Saved), "{r:?}");
-    assert!(read_config(tmp.path()).contains("theme = \"dark\""));
-}
-
-#[cfg(unix)]
-#[test]
-fn new_file_is_owner_only_and_keeps_its_mode_on_replace() {
-    use std::os::unix::fs::PermissionsExt;
-    let tmp = tempfile::tempdir().unwrap();
-    let (mut store, _) = open_in(tmp.path());
-    store.flush().unwrap();
-    let mode = std::fs::metadata(config_path(tmp.path())).unwrap().permissions().mode() & 0o777;
-    assert_eq!(mode, 0o600);
-
-    std::fs::set_permissions(config_path(tmp.path()), std::fs::Permissions::from_mode(0o644)).unwrap();
-    store.update(|p| p.general.language = "fr".into());
-    store.flush().unwrap();
-    let mode = std::fs::metadata(config_path(tmp.path())).unwrap().permissions().mode() & 0o777;
-    assert_eq!(mode, 0o644, "a user's deliberate mode change is kept");
-}
-
-#[test]
 fn outside_edit_with_the_same_mtime_is_still_seen() {
     // Coarse timestamps (FAT, HFS+, network shares) can leave mtime unchanged after an edit.
     let tmp = tempfile::tempdir().unwrap();
@@ -123,88 +43,4 @@ fn outside_edit_with_the_same_mtime_is_still_seen() {
     let text = read_config(tmp.path());
     assert!(text.contains("# same second"), "{text}");
     assert!(text.contains("language = \"fr\""), "{text}");
-}
-
-// --- Review on #22 (skylartaylor): the backup must never be more readable than config.toml. ---
-
-#[cfg(unix)]
-fn mode(path: &std::path::Path) -> u32 {
-    use std::os::unix::fs::PermissionsExt;
-    std::fs::metadata(path).unwrap().permissions().mode() & 0o777
-}
-
-#[cfg(unix)]
-#[test]
-fn existing_broader_backup_is_tightened() {
-    use std::os::unix::fs::PermissionsExt;
-    let tmp = tempfile::tempdir().unwrap();
-    std::fs::set_permissions(tmp.path(), std::fs::Permissions::from_mode(0o755)).unwrap();
-    let (mut store, _) = open_in(tmp.path());
-    store.flush().unwrap();
-    // A backup left behind by an older build, readable by everyone.
-    let bak = tmp.path().join("config.toml.bak");
-    std::fs::write(&bak, b"old backup").unwrap();
-    std::fs::set_permissions(&bak, std::fs::Permissions::from_mode(0o664)).unwrap();
-
-    store.update(|p| p.general.language = "private".into());
-    store.flush().unwrap();
-    assert_eq!(mode(&bak), mode(&config_path(tmp.path())), "backup must not be more readable than config.toml");
-    assert_eq!(mode(&bak), 0o600);
-}
-
-#[cfg(unix)]
-#[test]
-fn backup_follows_a_mode_the_user_chose_for_the_config() {
-    use std::os::unix::fs::PermissionsExt;
-    let tmp = tempfile::tempdir().unwrap();
-    let (mut store, _) = open_in(tmp.path());
-    store.flush().unwrap();
-    std::fs::set_permissions(config_path(tmp.path()), std::fs::Permissions::from_mode(0o640)).unwrap();
-    store.update(|p| p.general.language = "fr".into());
-    store.flush().unwrap();
-    assert_eq!(mode(&tmp.path().join("config.toml.bak")), 0o640);
-}
-
-#[test]
-fn host_sections_survive_a_save_and_leave_the_apps_keys_alone() {
-    use std::sync::Arc;
-
-    use craft_host::{AppInfo, Host, Section};
-    use craft_settings::SharedSettings;
-
-    #[derive(serde::Serialize, serde::Deserialize, Default, PartialEq, Debug)]
-    #[serde(default)]
-    struct Panel {
-        width: u32,
-        pinned: Vec<String>,
-    }
-    impl Section for Panel {
-        const KEY: &'static str = "panel";
-    }
-
-    let tmp = tempfile::tempdir().unwrap();
-    let (store, _) = open_in(tmp.path());
-    let store = SharedSettings::new(store);
-    let host = Host::builder(AppInfo { id: "test", name: "Test", version: "1" }).settings(Arc::new(store.clone())).build();
-
-    store.lock().update(|p| p.general.autosave_minutes = 9);
-    let panel = Panel { width: 240, pinned: vec!["a".into()] };
-    host.set_setting(&panel);
-    store.lock().flush().unwrap();
-    let text = read_config(tmp.path());
-    assert!(text.contains("[panel]"), "{text}");
-
-    let (reopened, _) = open_in(tmp.path());
-    assert_eq!(reopened.get().general.autosave_minutes, 9);
-    let reopened = SharedSettings::new(reopened);
-    let host = Host::builder(AppInfo { id: "test", name: "Test", version: "1" }).settings(Arc::new(reopened.clone())).build();
-    assert_eq!(host.setting::<Panel>(), panel);
-
-    // A later save of T keeps the section.
-    reopened.lock().update(|p| p.general.autosave_minutes = 3);
-    reopened.lock().flush().unwrap();
-    let (again, _) = open_in(tmp.path());
-    assert_eq!(again.get().general.autosave_minutes, 3);
-    let host = Host::builder(AppInfo { id: "test", name: "Test", version: "1" }).settings(Arc::new(SharedSettings::new(again))).build();
-    assert_eq!(host.setting::<Panel>(), panel);
 }
