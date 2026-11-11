@@ -147,22 +147,23 @@ impl PaintUi<'_> {
     /// colour through `StyleCx::host_ink` and its muted colour through `StyleCx::host_muted_ink`. It registers no id, senses nothing, opens no memory stage and
     /// fires nothing.
     pub fn face<C: Show>(&mut self, part: impl Into<PartRef>, face: C) {
-        let part = part.into();
+        self.face_with(part.into(), face, self.text);
+    }
+
+    /// `face`, for a face on a fill the composite draws for that part alone (a plate over a picture): the face reads
+    /// `ink` through `StyleCx::host_ink` instead of the composite's text colour.
+    pub fn face_in<C: Show>(&mut self, part: impl Into<PartRef>, face: C, ink: &Stateful<StyleColor>) {
+        self.face_with(part.into(), face, Some(ink));
+    }
+
+    fn face_with<C: Show>(&mut self, part: PartRef, face: C, ink: Option<&Stateful<StyleColor>>) {
         let Some(result) = self.results.get(&(part.key, part.index)) else {
             debug_assert!(false, "face for a part `parts` did not declare");
             return;
         };
         let focus = self.active.filter(|(active, _)| *active == part).map(|(_, visible)| visible);
-        let source = FaceSource {
-            id: self.id,
-            result,
-            focus,
-            response: self.response,
-            ink: self.text,
-            muted: self.muted,
-            flags: self.flags,
-            enabled: self.enabled,
-        };
+        let source =
+            FaceSource { id: self.id, result, focus, response: self.response, ink, muted: self.muted, flags: self.flags, enabled: self.enabled };
         let record = run::paint_face(self.ui, &source, part, face);
         let mut own = self.record.borrow_mut();
         if let Some(baseline) = record.baseline {
