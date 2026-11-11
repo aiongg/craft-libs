@@ -1,20 +1,14 @@
 //! Collections for the trials, written with the derives and nothing else of the library.
 
 use crate::contract::kit::PlainStyle;
-use craft_behavior::{DisplayOrder, Intent, ItemSource, Selection, SpanLayout};
+use craft_behavior::{DisplayOrder, ItemSource, Selection, SpanLayout};
 use craft_ui::contract::{
-    Bind, BindMut, Collection, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, Edit as _, EditResponse, Focus as _,
-    Input, ItemOutput, Outcome, Pointer as _, Role, SelectMode,
+    Bind, BindMut, Collection, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, ItemOutput, Outcome, Role, SelectMode,
 };
 use craft_ui::style::StyleCx;
 use egui::{Rect, Response, Ui, Vec2};
 use std::borrow::Cow;
 use std::cell::{Cell, RefCell};
-
-/// The payload a list maps its row drag to for other drop targets.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[non_exhaustive]
-pub struct RowKey(pub usize);
 
 /// Row height of every list of the trials.
 pub const ROW_H: f32 = 20.0;
@@ -107,7 +101,7 @@ pub enum Dismissed {
     Row,
 }
 
-/// The output of a row: its response and the event its dismiss part raised.
+/// The output of a row: its response and the item event it raised.
 #[non_exhaustive]
 pub struct RowOut {
     pub response: Response,
@@ -128,26 +122,17 @@ impl ItemOutput<Dismissed> for RowOut {
     }
 }
 
-pub const DISMISS: craft_behavior::PartKey = craft_behavior::PartKey::new("dismiss");
-
-/// A row: it records its rect and, when it has a dismiss part, reports a click on it.
+/// A row that records its rect.
 #[derive(craft_ui::contract::Component)]
 pub struct Row {
     #[common]
     common: Common,
-    dismiss: bool,
     seen: Option<&'static Cell<Rect>>,
-    clicked: bool,
 }
 
 impl Row {
     pub fn new() -> Self {
-        Row { common: Common::new(), dismiss: false, seen: None, clicked: false }
-    }
-
-    pub fn dismissable(mut self) -> Self {
-        self.dismiss = true;
-        self
+        Row { common: Common::new(), seen: None }
     }
 }
 
@@ -160,22 +145,14 @@ impl Component for Row {
         PlainStyle::min(Vec2::new(10.0, 10.0))
     }
 
-    fn parts(&mut self, rect: Rect, cx: &mut craft_ui::contract::PartsCx<'_, Self>) {
-        if self.dismiss {
-            let hit = Rect::from_min_size(rect.min, Vec2::splat(ROW_H));
-            cx.part(DISMISS, hit).sense(craft_behavior::Sense::CLICK).pointer_only("the list's own keys remove the row");
-        }
-    }
-
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
-        self.clicked = self.dismiss && matches!(cx.part(DISMISS).press.phase, craft_behavior::PressPhase::Release { click: true, .. });
         if let Some(seen) = self.seen {
             seen.set(cx.rect);
         }
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> RowOut {
-        RowOut { response: cx.response.clone(), event: self.clicked.then_some(Dismissed::Row) }
+        RowOut { response: cx.response.clone(), event: None }
     }
 }
 
@@ -189,14 +166,8 @@ pub struct List<'a> {
     props: ContainerProps,
     items: CollectionProps,
     selection: Option<Bind<'a, Selection<usize>>>,
-    scroll: Option<Bind<'a, craft_behavior::ScrollPos>>,
     tree: bool,
     on_empty: Option<&'a Cell<Rect>>,
-    text_editor: bool,
-    /// Rows that `can_rename` refuses.
-    locked: &'static [usize],
-    /// Where `parts` records the rect `PartsCx::rect_of` gives for the key.
-    parts_probe: Option<(usize, &'a Cell<Option<Rect>>)>,
 }
 
 impl<'a> List<'a> {
@@ -206,25 +177,9 @@ impl<'a> List<'a> {
             props: ContainerProps::new().sizing(craft_ui::contract::Sizing::Fill),
             items: CollectionProps::new().select(select),
             selection: None,
-            scroll: None,
             tree: false,
             on_empty: None,
-            text_editor: false,
-            locked: &[],
-            parts_probe: None,
         }
-    }
-
-    /// Renames in a library text field, whose open draft owns Escape.
-    pub fn text_editor(mut self) -> Self {
-        self.text_editor = true;
-        self
-    }
-
-    /// The rows that cannot be renamed.
-    pub fn locked(mut self, rows: &'static [usize]) -> Self {
-        self.locked = rows;
-        self
     }
 
     pub fn reorder(mut self) -> Self {
@@ -238,72 +193,8 @@ impl<'a> List<'a> {
         self
     }
 
-    /// A row drag also carries the dragged row's key as a `RowKey`.
-    pub fn row_key_payload(mut self) -> Self {
-        self.items = self.items.drag_payload(|drag: &craft_ui::contract::ListDrag<usize>| Some(RowKey(drag.grabbed)));
-        self
-    }
-
-    /// `parts` records `rect_of(key)` into `seen`.
-    pub fn probe_parts(mut self, key: usize, seen: &'a Cell<Option<Rect>>) -> Self {
-        self.parts_probe = Some((key, seen));
-        self
-    }
-
-    /// A menu's rule: the lead starts on the first row and follows the pointer.
-    pub fn menu(mut self) -> Self {
-        self.items = self.items.lead_on_open(craft_ui::contract::LeadOnOpen::First).lead_follows_hover(true);
-        self
-    }
-
-    /// The list takes the height of its rows, or of its empty state.
-    pub fn content_sized(mut self) -> Self {
-        self.props = self.props.sizing(craft_ui::contract::Sizing::Content);
-        self
-    }
-
-    /// Every primary click on a row activates it.
-    pub fn activate_on_click(mut self) -> Self {
-        self.items = self.items.activate(craft_ui::contract::ActivateOn::Click);
-        self
-    }
-
-    pub fn rename(mut self) -> Self {
-        self.items = self.items.rename(true);
-        self
-    }
-
-    /// Two headerless columns, the first of which a double click renames from.
-    pub fn rename_column(mut self, name: craft_behavior::ColumnKey, other: craft_behavior::ColumnKey) -> Self {
-        use craft_behavior::ColumnWidth;
-        self.items = self.items.rename(true).rename_column(name.clone()).header(false).columns(vec![
-            craft_ui::contract::ColumnSpec::new(name, "Name", ColumnWidth::Fixed(100.0)),
-            craft_ui::contract::ColumnSpec::new(other, "Other", ColumnWidth::Fixed(100.0)),
-        ]);
-        self
-    }
-
-    /// A press picks a row and leaves key focus where it is.
-    pub fn keep_focus(mut self) -> Self {
-        self.items = self.items.focus_on_press(false);
-        self
-    }
-
-    /// The list takes the height of all its rows and leaves the scroll to the page it sits in.
-    pub fn natural_height(mut self) -> Self {
-        self.items = self.items.natural_height(true);
-        self.props = self.props.sizing(craft_ui::contract::Sizing::FillWidth);
-        self
-    }
-
     pub fn selection(mut self, selection: Bind<'a, Selection<usize>>) -> Self {
         self.selection = Some(selection);
-        self
-    }
-
-    /// The app owns the scroll offset.
-    pub fn scroll(mut self, scroll: Bind<'a, craft_behavior::ScrollPos>) -> Self {
-        self.scroll = Some(scroll);
         self
     }
 
@@ -320,16 +211,6 @@ impl Component for List<'_> {
 
     fn style(_: &StyleCx<'_>, _: ListStyleKey) -> PlainStyle {
         PlainStyle::default()
-    }
-
-    fn scroll(&mut self) -> Option<BindMut<'_, craft_behavior::ScrollPos>> {
-        self.scroll.as_mut().map(Bind::reborrow)
-    }
-
-    fn parts(&mut self, _: Rect, cx: &mut craft_ui::contract::PartsCx<'_, Self>) {
-        if let Some((key, seen)) = self.parts_probe {
-            seen.set(cx.rect_of(&key));
-        }
     }
 
     fn finish(self, mut cx: Cx<'_, Self>) -> Self::Output {
@@ -357,18 +238,6 @@ impl Collection for List<'_> {
         if self.tree { layout.tree() } else { layout }
     }
 
-    fn can_rename(&self, key: &usize) -> bool {
-        !self.locked.contains(key)
-    }
-
-    fn rename_editor(&mut self, ui: &mut Ui, draft: Bind<'_, String>, _: Rect, _: &str) -> Option<EditResponse<String>> {
-        if self.text_editor {
-            use craft_ui::contract::Show as _;
-            return Some(craft_ui::text::TextField::new("Name", draft).show(ui));
-        }
-        Some(NameEditor::new(draft).shown(ui))
-    }
-
     fn empty(&mut self, _ui: &mut Ui, cx: &mut craft_ui::contract::BodyCx<'_>) {
         if let Some(seen) = self.on_empty {
             seen.set(cx.rect);
@@ -377,66 +246,5 @@ impl Collection for List<'_> {
 
     fn empty_height(&self, _: f32, _: &Ui, _: &StyleCx<'_>) -> f32 {
         ROW_H
-    }
-}
-
-const TEXT: Input = Input::Text;
-const ESCAPE: craft_keymap::Chord = craft_keymap::Chord::plain(craft_keymap::Key::Escape);
-
-/// A text editor of a name: typed text proposes, Enter commits, Escape cancels.
-#[derive(craft_ui::contract::Component)]
-pub struct NameEditor<'a> {
-    #[common]
-    common: Common,
-    draft: Bind<'a, String>,
-}
-
-impl<'a> NameEditor<'a> {
-    pub fn new(draft: Bind<'a, String>) -> Self {
-        NameEditor { common: Common::new(), draft }
-    }
-
-    fn shown(self, ui: &mut Ui) -> EditResponse<String> {
-        use craft_ui::contract::Show as _;
-        self.show(ui)
-    }
-}
-
-impl Component for NameEditor<'_> {
-    const ROLE: Role = Role::TEXT_INPUT;
-    const INPUT: Input = TEXT;
-    type Style = PlainStyle;
-    type Output = EditResponse<String>;
-
-    fn style(_: &StyleCx<'_>, _: NameEditorStyleKey) -> PlainStyle {
-        PlainStyle::min(Vec2::new(40.0, ROW_H))
-    }
-
-    fn bind(&mut self) -> Option<BindMut<'_, String>> {
-        Some(self.draft.reborrow())
-    }
-
-    fn update(&mut self, cx: &mut Cx<'_, Self>) {
-        while let Some(text) = cx.intents().take_text() {
-            let next = format!("{}{text}", cx.value().cloned().unwrap_or_default());
-            cx.propose(next);
-        }
-        if cx.intents().take(Intent::Submit) {
-            if cx.gesture().is_none() {
-                cx.begin();
-            }
-            cx.commit();
-        }
-        // An edit under way claims Escape from the next frame on, so the row does not take focus back first.
-        if cx.take_claimed(ESCAPE) || (cx.intents().take(Intent::Cancel) && cx.gesture().is_some()) {
-            cx.cancel(craft_behavior::CancelReason::Escape);
-        }
-        if cx.gesture().is_some() {
-            cx.claim(ESCAPE);
-        }
-    }
-
-    fn finish(self, cx: Cx<'_, Self>) -> EditResponse<String> {
-        cx.edit_response()
     }
 }

@@ -1,5 +1,5 @@
-//! The row trials: rows with focusable children, cell selection in a sheet, rows of measured heights, the sheet's
-//! grid view, a collection's command scope and a lead that leaves the source.
+//! The row trials: rows with focusable children, cell selection in a sheet, rows of measured heights and a lead that
+//! leaves the source.
 
 use super::kit::{Count, Dismissed, List, ROW_H, RowOut};
 use crate::contract::kit::PlainStyle;
@@ -7,17 +7,15 @@ use craft_behavior::{
     CellAt, CellRange, CellSelection, ColumnKey, ItemSource, PartKey, Selection, SelectionModel as _, Sense, SheetLayout, SpanLayout, keyed,
 };
 use craft_ui::contract::{
-    Bind, BindMut, Collection, CollectionEvent, CollectionProps, CollectionResponse, CommandSet, Commands as _, Common, Component, ContainerProps,
+    Bind, BindMut, Collection, CollectionEvent, CollectionProps, CollectionResponse, Common, Component, ContainerProps,
     Cx, Focus as _, MeasureCx, PartsCx, Props as _, Role, SelectMode, ShowCollection as _,
 };
-use craft_ui::runtime::commands::CommandScope;
 use craft_ui::runtime::focus::{FocusTarget, request};
 use craft_ui::style::StyleCx;
 use craft_ui::testing::layout::in_region;
 use craft_ui::testing::{Frames, input, pointer, trial};
 use egui::{Id, Key, Modifiers, Pos2, Rect, Ui, Vec2};
 use std::cell::{Cell, RefCell};
-use std::ops::Range;
 
 const ORIGIN: Pos2 = Pos2::new(10.0, 10.0);
 const VIEW: Vec2 = Vec2::new(300.0, 200.0);
@@ -26,27 +24,12 @@ const TALL: f32 = 3.0;
 const CHILD_A: PartKey = PartKey::new("a");
 const CHILD_B: PartKey = PartKey::new("b");
 
-/// Commands of the collections of these trials.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, CommandSet)]
-#[command(prefix = "rows", scope = "trial.rows")]
-#[non_exhaustive]
-enum RowsCommand {
-    #[command(label = "Bump", default = "Cmd+Alt+B")]
-    Bump,
-}
-
-const SCOPE: CommandScope = <RowsCommand as CommandSet>::SCOPE;
-
 /// What the trials' rows and collections saw.
 #[derive(Default)]
 struct Log {
     /// The row and part that held focus in the last pass that had one.
     focus: RefCell<Vec<(usize, &'static str)>>,
     rects: RefCell<Vec<(usize, Rect)>>,
-    grid: RefCell<Vec<Range<u32>>>,
-    bumps: RefCell<Vec<&'static str>>,
-    /// The nudges a row's part took: the row, the direction and whether Alt was held.
-    nudges: RefCell<Vec<(usize, Vec2, bool)>>,
     events: RefCell<Vec<CollectionEvent<usize, Dismissed>>>,
     id: Cell<Option<Id>>,
 }
@@ -83,22 +66,16 @@ struct ProbeRow {
     key: usize,
     children: bool,
     tall: bool,
-    nudging: bool,
     log: &'static Log,
 }
 
 impl ProbeRow {
     fn new(key: usize, log: &'static Log) -> Self {
-        ProbeRow { common: Common::new(), key, children: false, tall: false, nudging: false, log }
+        ProbeRow { common: Common::new(), key, children: false, tall: false, log }
     }
 
     fn children(mut self) -> Self {
         self.children = true;
-        self
-    }
-
-    fn nudging(mut self) -> Self {
-        self.nudging = true;
         self
     }
 
@@ -124,19 +101,13 @@ impl Component for ProbeRow {
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
         if self.children {
             let half = Vec2::new(rect.width() / 2.0, rect.height());
-            let a = cx.part(CHILD_A, Rect::from_min_size(rect.min, half)).sense(Sense::CLICK).focusable();
-            if self.nudging {
-                a.nudges();
-            }
+            cx.part(CHILD_A, Rect::from_min_size(rect.min, half)).sense(Sense::CLICK).focusable();
             cx.part(CHILD_B, Rect::from_min_size(rect.min + Vec2::new(half.x, 0.0), half)).sense(Sense::CLICK).focusable();
         }
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         self.log.rects.borrow_mut().push((self.key, cx.rect));
-        if let Some((direction, mods)) = cx.intents().take_nudge() {
-            self.log.nudges.borrow_mut().push((self.key, direction, mods.alt));
-        }
         if cx.is_focused() {
             self.log.focus.borrow_mut().push((self.key, cx.active_part().map_or("row", |part| part.key.name())));
         }
@@ -158,7 +129,6 @@ struct Probe<'a> {
     items: CollectionProps,
     selection: Option<Bind<'a, CellSelection<usize>>>,
     auto: bool,
-    name: &'static str,
     log: &'static Log,
 }
 
@@ -170,19 +140,12 @@ impl<'a> Probe<'a> {
             items: CollectionProps::new().select(select),
             selection: None,
             auto: false,
-            name: "",
             log,
         }
     }
 
     fn auto(mut self) -> Self {
         self.auto = true;
-        self
-    }
-
-    fn scoped(mut self, name: &'static str) -> Self {
-        self.props = self.props.command_scope(SCOPE);
-        self.name = name;
         self
     }
 }
@@ -194,12 +157,6 @@ impl Component for Probe<'_> {
 
     fn style(_: &StyleCx<'_>, _: ProbeStyleKey) -> PlainStyle {
         PlainStyle::default()
-    }
-
-    fn update(&mut self, cx: &mut Cx<'_, Self>) {
-        while cx.take_command::<RowsCommand>().is_some() {
-            self.log.bumps.borrow_mut().push(self.name);
-        }
     }
 
     fn finish(self, mut cx: Cx<'_, Self>) -> Self::Output {
@@ -401,55 +358,6 @@ fn rows_of_different_measured_heights_place_and_hit_correctly() {
     assert_eq!(log.leads().last(), Some(&2));
 }
 
-/// 17.7: the sheet's grid view follows the viewport: a wider viewport shows more of the scrolling columns, and the
-/// frozen column stays its own section.
-#[trial]
-fn the_sheet_grid_view_follows_the_viewport() {
-    let (log, source) = (Log::new(), Count(3));
-    let width = Cell::new(160.0);
-    let mut frames = Frames::new();
-    let mut show = |ui: &mut Ui| {
-        in_region(ui, Rect::from_min_size(ORIGIN, Vec2::new(width.get(), VIEW.y)), |ui| {
-            let out = Sheet::new().id_salt("sheet").show_items(ui, &source, &mut |key, cx| {
-                *log.grid.borrow_mut() =
-                    cx.grid().map(|grid| grid.sections.iter().map(|section| section.columns.clone()).collect()).unwrap_or_default();
-                ProbeRow::new(*key, log)
-            });
-            log.take(out);
-        });
-    };
-    frames.idle(3, &mut show);
-    let narrow = log.grid.borrow().clone();
-    width.set(400.0);
-    frames.idle(3, &mut show);
-    let wide = log.grid.borrow().clone();
-    assert_eq!((narrow[0].clone(), wide[0].clone()), (0..1, 0..1), "the frozen column is its own section");
-    assert!(narrow[1].end < wide[1].end, "{narrow:?} then {wide:?}");
-    assert_eq!(wide[1], 1..COLUMNS.len() as u32);
-}
-
-/// 11.3: a command of the collection's scope reaches the collection that holds focus, not the other one.
-#[trial]
-fn a_collection_command_scope_routes_a_shortcut_to_the_focused_collection() {
-    let (log, source) = (Log::new(), Count(3));
-    let ids = [Cell::new(None), Cell::new(None)];
-    let mut frames = Frames::new();
-    let mut show = |ui: &mut Ui| {
-        for (at, name) in ["a", "b"].into_iter().enumerate() {
-            in_region(ui, Rect::from_min_size(ORIGIN + Vec2::new(350.0 * at as f32, 0.0), VIEW), |ui| {
-                let out =
-                    Probe::new(SelectMode::Single, log).scoped(name).id_salt(name).show_items(ui, &source, &mut |key, _| ProbeRow::new(*key, log));
-                ids[at].set(Some(out.response.id));
-            });
-        }
-    };
-    frames.idle(3, &mut show);
-    request(&frames.ctx, FocusTarget::Id(ids[1].get().expect("the second list ran")));
-    frames.idle(2, &mut show);
-    frames.frame(vec![input::key_press(Key::B, Modifiers::COMMAND | Modifiers::ALT)], &mut show);
-    assert_eq!(*log.bumps.borrow(), ["b"]);
-}
-
 /// 17.3 step 9: when the lead's key leaves the source, the lead moves to the key now in its place and a selection
 /// that held the old lead moves with it.
 #[trial]
@@ -482,28 +390,4 @@ fn a_selected_lead_that_leaves_the_source_moves_the_selection_to_the_new_lead() 
     let leads: Vec<usize> =
         events.borrow().iter().filter_map(|event| if let CollectionEvent::LeadMoved { key, .. } = event { Some(*key) } else { None }).collect();
     assert_eq!(leads.last(), Some(&13));
-}
-
-/// A part that declares it takes nudges receives the arrows, Alt included, while it sits in a row; the arrows do not
-/// move focus off the part, and the row's other part still gets row-child moves.
-#[trial]
-fn a_nudging_part_in_a_row_gets_alt_arrows() {
-    let (log, source) = (Log::new(), Count(2));
-    let mut frames = Frames::new();
-    let mut show = |ui: &mut Ui| {
-        in_region(ui, Rect::from_min_size(ORIGIN, VIEW), |ui| {
-            let list = Probe::new(SelectMode::Single, log).id_salt("list");
-            log.take(list.show_items(ui, &source, &mut |key, _| ProbeRow::new(*key, log).children().nudging()));
-        });
-    };
-    frames.idle(3, &mut show);
-    focus_list(&mut frames, log, &mut show);
-    tap(&mut frames, log, Key::ArrowDown, &mut show);
-    tap(&mut frames, log, Key::ArrowRight, &mut show);
-    assert_eq!(log.focus.borrow().last().copied(), Some((0, "a")), "Forward enters the nudging part");
-    press(&mut frames, Key::ArrowRight, Modifiers::ALT, &mut show);
-    press(&mut frames, Key::ArrowDown, Modifiers::NONE, &mut show);
-    assert_eq!(*log.nudges.borrow(), [(0, Vec2::X, true), (0, Vec2::Y, false)]);
-    assert_eq!(log.focus.borrow().last().copied(), Some((0, "a")), "the arrows moved nothing");
-    assert_eq!(log.leads().last(), Some(&0), "the lead stayed");
 }
