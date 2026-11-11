@@ -35,5 +35,5 @@ egui = { workspace = true, optional = true }
 
 [dev-dependencies]
 craft-ui = { workspace = true, features = ["testing"] }
-egui = { workspace = true, features = ["default_fonts"] }
+egui = { workspace = true }
 craft-i18n = { workspace = true }

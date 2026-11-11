@@ -30,7 +30,7 @@ egui = { workspace = true }
 serde = { workspace = true }
 
 [dev-dependencies]
-egui = { workspace = true, features = ["default_fonts", "serde"] }
+egui = { workspace = true }
 serde_json = { workspace = true }
 
 [[test]]

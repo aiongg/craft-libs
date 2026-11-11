@@ -45,4 +45,4 @@ thiserror = { workspace = true }
 
 [dev-dependencies]
 craft-ui = { workspace = true, features = ["testing"] }
-egui = { workspace = true, features = ["default_fonts"] }
+egui = { workspace = true }

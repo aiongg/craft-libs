@@ -22,7 +22,7 @@ craft-host = { workspace = true }
 
 [dev-dependencies]
 # `serde` for setting `RawInput` fields only the suite's egui fork has.
-egui = { workspace = true, features = ["serde", "default_fonts"] }
+egui = { workspace = true }
 craft-settings = { workspace = true }
 tempfile = "3"
 

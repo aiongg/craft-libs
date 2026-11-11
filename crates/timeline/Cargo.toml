@@ -34,4 +34,4 @@ web-time = "1.1"
 
 [dev-dependencies]
 craft-ui = { workspace = true, features = ["testing"] }
-egui = { workspace = true, features = ["default_fonts", "serde"] }
+egui = { workspace = true }

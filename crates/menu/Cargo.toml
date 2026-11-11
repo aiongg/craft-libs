@@ -29,7 +29,7 @@ screen-testing = ["craft-ui/testing"]
 
 [dev-dependencies]
 # `default_fonts` so that the shortcuts dialog and native menu tests lay out text.
-egui = { workspace = true, features = ["default_fonts"] }
+egui = { workspace = true }
 
 [[test]]
 name = "it"

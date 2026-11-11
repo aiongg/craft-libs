@@ -36,7 +36,8 @@ egui = { workspace = true }
 libtest-mimic = { version = "0.8", optional = true }
 craft-host = { workspace = true }
 # `WindowSystem` and `restore::Store`, which viewport mounts place windows through.
-craft-window = { workspace = true }
+# `ui`: the window crate's egui side builds once, the same for the runtime, the shell's `app` and the apps.
+craft-window = { workspace = true, features = ["ui"] }
 # `quit`, which `runtime::windows::logic` routes a root close through.
 craft-quit = { workspace = true }
 craft-i18n = { workspace = true, features = ["collate"] }

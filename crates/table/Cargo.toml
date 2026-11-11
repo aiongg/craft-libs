@@ -30,7 +30,7 @@ egui = { workspace = true, optional = true }
 
 [dev-dependencies]
 craft-table = { path = ".", features = ["screen-testing"] }
-egui = { workspace = true, features = ["default_fonts", "serde"] }
+egui = { workspace = true }
 
 [[test]]
 name = "it"
