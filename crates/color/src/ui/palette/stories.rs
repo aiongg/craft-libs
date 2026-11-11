@@ -28,12 +28,11 @@ fn named(entries: impl IntoIterator<Item = (String, Srgba)>) -> Vec<(Label, Srgb
     entries.into_iter().map(|(name, color)| (Label::from(name), color)).collect()
 }
 
-/// Three rows of a colour table whose entries repeat colours: index 3 and 7 share one. Every cell is a shown
-/// item in every frame of every suite case, so the stories keep the table short.
+/// A 256-entry table whose entries repeat colours: index 3 and 7 share one.
 fn table_entries() -> Vec<(Label, Srgba)> {
-    named((0..48usize).map(|i| {
+    named((0..256usize).map(|i| {
         let shade = if i == 7 { 3 } else { i };
-        (format!("Index {i}"), Srgba::rgb(shade as f32 / 47.0, (shade % 16) as f32 / 15.0, 0.5))
+        (format!("Index {i}"), Srgba::rgb(shade as f32 / 255.0, (shade % 16) as f32 / 15.0, 0.5))
     }))
 }
 
