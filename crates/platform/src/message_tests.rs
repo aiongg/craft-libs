@@ -10,7 +10,7 @@ fn every_message_is_in_the_registry_once() {
         ("temp", include_str!("temp.rs"), crate::temp::TEXTS.len()),
         ("default_app", include_str!("default_app.rs"), crate::default_app::TEXTS.len()),
         #[cfg(feature = "clipboard")]
-        ("clipboard", include_str!("clipboard.rs"), crate::clipboard::TEXTS.len()),
+        ("clipboard", include_str!("clipboard/types.rs"), crate::clipboard::TEXTS.len()),
     ];
     for (module, source, listed) in sources {
         let declared = source.lines().filter(|l| l.starts_with("pub const ") && l.contains(": PlatformText") && !l.contains("TEXTS")).count();
