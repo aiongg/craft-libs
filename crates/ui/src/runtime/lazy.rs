@@ -32,7 +32,7 @@ fn margin(view: Vec2) -> Vec2 {
 
 /// The reach of a view of size `view` scrolled to `offset`: the view widened by the margin on each side, clipped at
 /// the content's start, as the offset and size an item layout's range query takes. A collection builds its rows
-/// there; `Lazy` children run in the same reach.
+/// there, except rows with no stops and a known extent, which run only in view; `Lazy` children run in the same reach.
 pub(crate) fn reach(offset: ScrollPos, view: Vec2) -> (ScrollPos, Vec2) {
     let margin = margin(view);
     let from = ScrollPos { x: (offset.x - f64::from(margin.x)).max(0.0), y: (offset.y - f64::from(margin.y)).max(0.0) };
