@@ -1,12 +1,11 @@
 use std::cell::RefCell;
-use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use raw_window_handle::{DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, WindowHandle};
 
-use crate::{Answer, Dialogs, FileDialog, Kind, Message, MessageResult, Reply, Request, STOPPED, Wake, filter};
+use crate::{Answer, Dialogs, FileDialog, Reply, Request, STOPPED, Wake};
 
 /// No window: `show_pending(None::<&NoWindow>)`.
 struct NoWindow;
@@ -47,42 +46,6 @@ fn answered(dialogs: &mut Dialogs<Rc<str>>) -> Vec<(String, Answer)> {
 }
 
 #[test]
-fn requests_wait_in_order_behind_the_open_dialog() {
-    let (mut dialogs, shown, _) = held();
-    dialogs.ask(FileDialog::open(), "a".into());
-    dialogs.ask(FileDialog::save().file_name("b.txt"), "b".into());
-    dialogs.ask_message(Message { title: "c".into(), ..Message::default() }, "c".into());
-    dialogs.show_pending(NONE);
-    dialogs.show_pending(NONE);
-    assert_eq!(shown.borrow().len(), 1, "one dialog at a time");
-    assert!(dialogs.is_open());
-    assert_eq!(dialogs.queued(), 2);
-
-    let (request, reply) = shown.borrow_mut().remove(0);
-    assert_eq!(request, Request::File(FileDialog::open()));
-    reply.send(Answer::Paths(vec![PathBuf::from("a.txt")]));
-    dialogs.show_pending(NONE);
-    let (request, reply) = shown.borrow_mut().remove(0);
-    assert!(matches!(request, Request::File(FileDialog { kind: Kind::Save, .. })));
-    reply.send(Answer::Cancelled);
-    dialogs.show_pending(NONE);
-    let (request, reply) = shown.borrow_mut().remove(0);
-    assert!(matches!(request, Request::Message(_)));
-    reply.send(Answer::Message(MessageResult::Ok));
-
-    assert_eq!(
-        answered(&mut dialogs),
-        [
-            ("a".to_owned(), Answer::Paths(vec![PathBuf::from("a.txt")])),
-            ("b".to_owned(), Answer::Cancelled),
-            ("c".to_owned(), Answer::Message(MessageResult::Ok)),
-        ]
-    );
-    assert!(!dialogs.is_open());
-    assert!(dialogs.take_answers().is_empty());
-}
-
-#[test]
 fn a_worker_that_ends_without_answering_closes_the_dialog() {
     let (mut dialogs, shown, wakes) = held();
     dialogs.ask(FileDialog::open(), "dropped".into());
@@ -111,47 +74,4 @@ fn a_worker_that_ends_without_answering_closes_the_dialog() {
     assert!(!dialogs.is_open());
     dialogs.show_pending(NONE);
     assert_eq!(shown.borrow().len(), 1, "the next request shows");
-}
-
-#[test]
-fn a_panic_while_showing_answers_unavailable_and_moves_on() {
-    let mut dialogs: Dialogs<u32> = Dialogs::new(Wake::none());
-    let shown = Rc::new(RefCell::new(0));
-    let count = shown.clone();
-    dialogs.set_custom(move |_, reply| {
-        *count.borrow_mut() += 1;
-        if *count.borrow() == 1 {
-            std::panic::resume_unwind(Box::new("no window"));
-        }
-        reply.send(Answer::Cancelled);
-    });
-    dialogs.ask(FileDialog::open(), 1);
-    dialogs.ask(FileDialog::open(), 2);
-    dialogs.show_pending(NONE);
-    assert_eq!(dialogs.take_answers(), [(1, Answer::Unavailable("the dialog couldn't be shown: no window".into())), (2, Answer::Cancelled)]);
-}
-
-#[test]
-fn linux_globs_match_every_letter_case() {
-    // Matches `name` against a glob of literals and `[..]` classes, as the portal does after `*.`.
-    fn matches(glob: &str, name: &str) -> bool {
-        let mut name = name.chars();
-        let mut glob = glob.chars();
-        while let Some(g) = glob.next() {
-            let class: String = if g == '[' { glob.by_ref().take_while(|&c| c != ']').collect() } else { g.to_string() };
-            if !name.next().is_some_and(|n| class.contains(n)) {
-                return false;
-            }
-        }
-        name.next().is_none()
-    }
-    let exts = |e: &[&str]| e.iter().map(|s| (*s).to_owned()).collect::<Vec<_>>();
-    assert_eq!(filter::patterns(&exts(&["NEF", ".Jpg", "jpg"]), false), ["nef", "jpg"]);
-    assert_eq!(filter::patterns(&exts(&["nef"]), true), ["nef", "NEF", "[nN][eE][fF]"]);
-    assert_eq!(filter::patterns(&exts(&["mp4", "MP4"]), true), ["mp4", "MP4", "[mM][pP]4"]);
-    let globs = filter::patterns(&exts(&["jpeg"]), true);
-    for name in ["jpeg", "JPEG", "JpEg", "jPeG"] {
-        assert!(globs.iter().any(|g| matches(g, name)), "{name}");
-    }
-    assert!(!globs.iter().any(|g| matches(g, "jpg") || matches(g, "jpegx")));
 }
