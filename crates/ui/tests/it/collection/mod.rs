@@ -1,22 +1,13 @@
 //! The item step: scrolling, the lead and selection, rename, the empty state, trees and large sources, over
 //! collections written on the contract only.
 
-mod clicks_and_rename;
-mod content_columns;
-mod context_key;
 mod drag;
 mod keys;
 pub(crate) mod kit;
 mod list;
-mod part_focus;
 mod reorder_groups;
 mod review;
-mod row_children;
 mod rows;
-mod section_node;
-mod strip;
 mod sweep_apply;
-mod tab_rename;
 pub(crate) mod table;
 mod table_trials;
-mod unbounded_room;
