@@ -7,6 +7,31 @@ use super::injected;
 pub(crate) use super::injected::{key_press, key_release, key_repeat, modifiers_changed, pointer_moved, text_event};
 use super::memory::Service;
 
+thread_local! {
+    /// How many frames a test fixture drives are open on this thread.
+    static DRIVING: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+}
+
+/// Whether the running frame is one a test fixture drives. The records only trials read (the step log, findings, the
+/// style record and the measuring-run guard) are kept in these frames only, so an app built with the testing
+/// feature, such as the gallery, does not pay for them.
+pub(crate) fn driving() -> bool {
+    DRIVING.with(std::cell::Cell::get) > 0
+}
+
+/// Runs `f`, a frame a test fixture drives.
+fn drive<R>(f: impl FnOnce() -> R) -> R {
+    struct Driving;
+    impl Drop for Driving {
+        fn drop(&mut self) {
+            DRIVING.with(|depth| depth.set(depth.get() - 1));
+        }
+    }
+    DRIVING.with(|depth| depth.set(depth.get() + 1));
+    let _driving = Driving;
+    f()
+}
+
 /// What a frame sent out that trials read.
 pub(crate) struct FrameResult {
     /// The frame sent a close command.
@@ -118,7 +143,7 @@ pub(crate) fn run_frame(
     let dropped_files = files.dropped.iter().map(|name| Arc::new(DroppedPath(name.into())) as egui::DroppedFileHandle).collect();
     let viewports = window_focus_facts(ctx, &events, native_pixels_per_point);
     let input = RawInput { screen_rect: Some(screen), time: Some(time), events, hovered_files, dropped_files, viewports, ..RawInput::default() };
-    let mut output = crate::runtime::layout_memory::guard::strict(|| ctx.run_ui(input, ui));
+    let mut output = drive(|| ctx.run_ui(input, ui));
     let mut flat = Vec::new();
     for clipped in &output.shapes {
         let mut shapes = Vec::new();
@@ -248,7 +273,7 @@ pub(crate) fn reordered_fonts() -> egui::FontDefinitions {
 pub(crate) fn run_frame_shapes(ctx: &Context, time: f64, screen: Vec2, ui: impl FnMut(&mut Ui)) -> Vec<Shape> {
     let screen = Rect::from_min_size(Pos2::ZERO, screen);
     let input = RawInput { screen_rect: Some(screen), time: Some(time), ..RawInput::default() };
-    let mut output = crate::runtime::layout_memory::guard::strict(|| ctx.run_ui(input, ui));
+    let mut output = drive(|| ctx.run_ui(input, ui));
     output.textures_delta.clear();
     let mut flat = Vec::new();
     for clipped in output.shapes {

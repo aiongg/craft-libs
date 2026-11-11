@@ -1,5 +1,5 @@
-//! Decision records and findings: what each pipeline step did, kept in test builds and while `FrameInput.inspect`
-//! is on.
+//! Decision records and findings: what each pipeline step did, kept in frames a test fixture drives and while
+//! `FrameInput.inspect` is on.
 
 use crate::runtime::egui::memory::Service;
 use crate::runtime::frame;
@@ -26,9 +26,17 @@ struct Log {
     canvas_controls: Vec<&'static str>,
 }
 
-/// Whether records are kept: in test builds, and in any build while the debug inspector is on.
+/// Whether records are kept: in frames a test fixture drives, and in any build while the debug inspector is on.
 pub(crate) fn recording(ctx: &Context) -> bool {
-    cfg!(feature = "testing") || frame::inspecting(ctx)
+    fixture_frame() || frame::inspecting(ctx)
+}
+
+#[cfg(feature = "testing")]
+use crate::runtime::egui::fixture::driving as fixture_frame;
+
+#[cfg(not(feature = "testing"))]
+fn fixture_frame() -> bool {
+    false
 }
 
 /// Starts the step record of `id` for a new show.

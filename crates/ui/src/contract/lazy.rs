@@ -10,11 +10,12 @@ use crate::runtime::memory::sub;
 use egui::{Pos2, Rect, Ui, UiBuilder, Vec2};
 use std::hash::Hash;
 
-/// A child of a scroll area that runs only while it is in view. Out of view it takes the extent it had in the last
-/// pass that showed it, at any room, and its content does not run. It runs when it was never shown, when it meets the view widened by the view's size on each side, while one of the stops of its last run holds keyboard
-/// focus or is the target of a focus request, and when `keep` asks. Content that was never shown has no stops to
-/// find: a child an app focuses or scrolls to before it was ever in reach needs `keep`. Outside a scroll area it
-/// always runs.
+/// A child of a scroll area that runs only while it is in view. Out of view its content does not run: it takes the
+/// extent it had in the last pass that showed it, at any room, and its stops from that pass keep their place in Tab
+/// order. It runs when it was never shown, when it meets the view, while one of the stops of its last run holds
+/// keyboard focus or is the target of a focus request, and when `keep` asks. Content that was never shown has no
+/// stops to find: a child an app focuses or scrolls to before it was ever in view needs `keep`. Outside a scroll
+/// area it always runs.
 ///
 /// It is a child in flow of its body. In a `Grid` or spread `Row` body it holds one cell: its content is the one child
 /// in flow that takes the cell, and out of view it takes the cell at its remembered extent, so the cell's row counts
@@ -67,11 +68,12 @@ impl Lazy {
                 take_in_flow(ui, size);
                 if real {
                     layout_memory::backstop(&ctx, id, size);
+                    lazy::replay(&ctx, id);
                 }
                 return None;
             }
         }
-        let from = focus::stop_count(&ctx);
+        let mark = focus::mark(&ctx);
         let layout = *ui.layout();
         let mut child = alloc::child(ui, UiBuilder::new().max_rect(available).layout(layout).scope_id(id));
         let out = layout_memory::boundary(&ctx, || add(&mut child));
@@ -81,7 +83,7 @@ impl Lazy {
         }
         alloc::advance_past(ui, rect);
         if view.is_some() {
-            lazy::shown(&ctx, id, rect.size(), sizing, (!sizing).then(|| focus::stops_since(&ctx, from)));
+            lazy::shown(&ctx, id, rect.size(), sizing, real.then(|| focus::transcript(&ctx, mark)));
         }
         Some(out)
     }

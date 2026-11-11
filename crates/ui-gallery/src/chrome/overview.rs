@@ -74,11 +74,7 @@ pub(super) struct Reported {
 /// The index in `catalog` of the story the component registered as `type_name` shows: the one picked for it, else its
 /// first.
 pub(super) fn target_story(p: &Panels<'_>, type_name: &'static str) -> Option<usize> {
-    let entries = &p.catalog.entries;
-    let mut stories = (0..entries.len()).filter(|&at| entries[at].type_name == type_name);
-    let first = stories.clone().next();
-    let picked = p.story_of.get(type_name).copied();
-    picked.and_then(|name| stories.find(|&at| entries[at].registration.story.name == name)).or(first)
+    p.catalog.pick(type_name, p.story_of.get(type_name).copied())
 }
 
 /// The selected component's registered name.

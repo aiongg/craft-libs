@@ -91,7 +91,7 @@ fn jobs(only: Option<&[String]>) -> Vec<Job> {
             continue;
         }
         let Some(entry) = entry_of(component.type_name) else { continue };
-        let stories = catalog.entries.iter().filter(|story| story.type_name == component.type_name);
+        let stories = catalog.stories_of(component.type_name).iter().map(|&at| &catalog.entries[at]);
         for (at, story) in stories.enumerate() {
             jobs.push(Job {
                 name: component.name.clone(),

@@ -178,6 +178,8 @@ pub struct Catalog {
     pub components: Vec<ComponentInfo>,
     /// The registration of each type.
     pub declared: HashMap<&'static str, Declared>,
+    /// Each component's place in `components` and the catalog indices of its stories, in the order of its `stories`.
+    by_type: HashMap<&'static str, (usize, Vec<usize>)>,
 }
 
 impl Catalog {
@@ -186,22 +188,42 @@ impl Catalog {
         let entries = entries();
         let declared = declared();
         let components = components(&entries);
-        Catalog { entries, components, declared }
+        Catalog::new(entries, components, declared)
     }
 
     /// A catalog of `components` with no stories to show.
     pub fn listing(components: Vec<ComponentInfo>) -> Self {
-        Catalog { entries: Vec::new(), components, declared: HashMap::new() }
+        Catalog::new(Vec::new(), components, HashMap::new())
+    }
+
+    fn new(entries: Vec<Entry>, components: Vec<ComponentInfo>, declared: HashMap<&'static str, Declared>) -> Self {
+        let mut by_type: HashMap<&'static str, (usize, Vec<usize>)> =
+            components.iter().enumerate().map(|(at, component)| (component.type_name, (at, Vec::new()))).collect();
+        for (at, entry) in entries.iter().enumerate() {
+            if let Some((_, stories)) = by_type.get_mut(entry.type_name) {
+                stories.push(at);
+            }
+        }
+        Catalog { entries, components, declared, by_type }
     }
 
     /// The component registered as `type_name`.
     pub fn component(&self, type_name: &str) -> Option<&ComponentInfo> {
-        self.components.iter().find(|component| component.type_name == type_name)
+        self.by_type.get(type_name).map(|(at, _)| &self.components[*at])
     }
 
     /// The catalog indices of the stories of the component registered as `type_name`, in the order of its `stories`.
-    pub fn stories_of(&self, type_name: &str) -> Vec<usize> {
-        (0..self.entries.len()).filter(|&at| self.entries[at].type_name == type_name).collect()
+    pub fn stories_of(&self, type_name: &str) -> &[usize] {
+        self.by_type.get(type_name).map_or(&[], |(_, stories)| stories.as_slice())
+    }
+
+    /// The catalog index of the story of the component registered as `type_name` that a view shows: the one named
+    /// `picked`, else the component's first.
+    pub fn pick(&self, type_name: &str, picked: Option<&str>) -> Option<usize> {
+        let stories = self.stories_of(type_name);
+        picked
+            .and_then(|name| stories.iter().copied().find(|&at| self.entries[at].registration.story.name == name))
+            .or_else(|| stories.first().copied())
     }
 
     /// The catalog indices of the stories of group `group` of the component registered as `type_name`.

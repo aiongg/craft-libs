@@ -204,16 +204,13 @@ impl Panels<'_> {
 
     /// The index of the story the component registered as `type_name` shows: the one picked for it, else its first.
     fn target(&self, type_name: &'static str) -> Option<usize> {
-        let mut stories = (0..self.catalog.entries.len()).filter(|&at| self.catalog.entries[at].type_name == type_name);
-        let picked = self.story_of.get(type_name).copied();
-        let first = stories.clone().next();
-        picked.and_then(|name| stories.find(|&at| self.catalog.entries[at].registration.story.name == name)).or(first)
+        self.catalog.pick(type_name, self.story_of.get(type_name).copied())
     }
 
     /// The display title of the story at catalog index `at` of `component`.
     fn title(&self, component: &ComponentInfo, at: usize) -> String {
-        let place = self.catalog.entries[..at].iter().filter(|entry| entry.type_name == component.type_name).count();
-        component.titles.get(place).cloned().unwrap_or_default()
+        let place = self.catalog.stories_of(component.type_name).iter().position(|&story| story == at);
+        place.and_then(|place| component.titles.get(place)).cloned().unwrap_or_default()
     }
 
     fn properties(&mut self, ui: &mut Ui) {

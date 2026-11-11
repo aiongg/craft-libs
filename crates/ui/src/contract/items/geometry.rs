@@ -1,7 +1,7 @@
 //! Where rows sit: the rows' rect and scroll range, which rows a pass builds, and rows on the screen.
 
 use super::ItemsHooks;
-use crate::contract::{Collection, Component, Cx};
+use crate::contract::{Collection, Cx};
 use craft_behavior::{Flow, ItemLayout, ScrollPos, SelectionModel};
 use egui::{Pos2, Rect};
 
@@ -31,35 +31,21 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
 }
 
 impl<C: Collection> ItemsHooks<'_, '_, C> {
-    /// The rows in view, the positions the pass builds, and the kept rows. It builds the rows in view and those in
-    /// the view's reach (`runtime::lazy::reach`, the rule out-of-view content follows everywhere) that must run
-    /// before they scroll in, then the rows kept alive while scrolled further out (the lead, the anchor, the renaming
-    /// row and the grabbed row).
-    pub(super) fn built(&self, layout: &C::ItemLayout, view: Rect, offset: ScrollPos) -> (Vec<usize>, Vec<usize>, Vec<usize>) {
+    /// The rows in view and the positions the pass builds: the rows in view (out-of-view content runs nowhere,
+    /// `runtime::lazy`), then the rows kept alive while scrolled out (the lead, the anchor, the renaming row and the
+    /// grabbed row).
+    pub(super) fn built(&self, layout: &C::ItemLayout, view: Rect, offset: ScrollPos) -> (Vec<usize>, Vec<usize>) {
         let mut shown = Vec::new();
         layout.visible(offset, view.size(), &mut shown);
-        let (from, size) = crate::runtime::lazy::reach(offset, view.size());
-        let mut order = Vec::new();
-        layout.visible(from, size, &mut order);
-        // A row out of view runs ahead of scrolling in so that its stops hold their place and its measured extent is
-        // current when it shows. A row of an item type with no stops whose extent the layout knows (not `is_auto`)
-        // needs neither: it runs only in view.
-        if !<C::Item<'static> as Component>::STOPS {
-            order.retain(|&at| layout.is_auto(at));
-        }
-        order.extend(shown.iter().copied());
-        order.sort_unstable();
-        order.dedup();
-        let mut kept = Vec::new();
+        let mut order = shown.clone();
         let keep = [self.lead.key.as_ref(), self.selection.anchor(), self.renaming.key.as_ref(), self.drags.grabbed.as_ref()];
         // An item of a closed group has no rect: it is never built.
         for at in keep.into_iter().flatten().filter_map(|key| self.index_of(key)).filter(|&at| layout.shown(at)) {
-            kept.push(at);
             if !order.contains(&at) {
                 order.push(at);
             }
         }
-        (shown, order, kept)
+        (shown, order)
     }
 
     /// The rows since the last section row up to and including `at` (0 for a section row), continuing from `last`, the

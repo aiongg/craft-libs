@@ -8,7 +8,7 @@ use craft_ui::contract::{
 };
 use craft_ui::runtime::env::{AppValues, EnvValue};
 use craft_ui::style::StyleCx;
-use craft_ui::testing::contract::findings;
+use craft_ui::testing::contract::{findings, steps};
 use craft_ui::testing::focus::named_id;
 use craft_ui::testing::memory::scoped;
 use craft_ui::testing::{Frames, is_measuring, trial};
@@ -214,4 +214,26 @@ fn a_style_value_set_in_content_env_changes_a_body_childs_style() {
         body.show(ui, |ui, _| inside = Chip { common: Common::new() }.id_salt("inside").show(ui).rect.width());
     });
     assert!(inside > outside, "the body's child read the body's value: {outside} -> {inside}");
+}
+
+/// The step log, a record only trials and the debug inspector read, is kept in frames a test fixture drives; a frame
+/// an app drives itself, such as the gallery's, keeps none.
+#[trial]
+fn the_step_log_is_kept_in_fixture_frames_only() {
+    let mut fixture = Frames::new();
+    let seen = RefCell::new(Seen::default());
+    fixture.frame(Vec::new(), |ui| {
+        Probe::new(&seen).show(ui);
+    });
+    let id = seen.borrow().id.expect("the probe ran");
+    assert!(!steps(&fixture.ctx, id).is_empty(), "a fixture frame records the probe's steps");
+
+    let app = Frames::new();
+    let seen = RefCell::new(Seen::default());
+    let mut output = app.ctx.run_ui(egui::RawInput::default(), |ui| {
+        Probe::new(&seen).show(ui);
+    });
+    output.textures_delta.clear();
+    let id = seen.borrow().id.expect("the probe ran");
+    assert!(steps(&app.ctx, id).is_empty(), "an app frame records no steps");
 }

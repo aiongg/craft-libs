@@ -829,8 +829,6 @@ pub(crate) mod guard {
     thread_local! {
         static MEASURING: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
         static EMITTING: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
-        static STRICT: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
-        static LOGGED: std::cell::RefCell<std::collections::HashSet<&'static str>> = std::cell::RefCell::default();
         /// Whether each service type name touched so far is in `CLASSIFIED`, by the address and length of the name.
         static SEEN: std::cell::RefCell<std::collections::HashMap<(usize, usize), bool>> = std::cell::RefCell::default();
     }
@@ -946,18 +944,10 @@ pub(crate) mod guard {
         f()
     }
 
-    /// Runs `f`, a frame a test fixture drives: a touch the guard does not allow panics. Outside it (an app built
-    /// with the testing feature, such as the gallery) the guard names each such service once on stderr.
-    pub(crate) fn strict<R>(f: impl FnOnce() -> R) -> R {
-        #[cfg(feature = "testing")]
-        let _raised = Raised::new(&STRICT);
-        f()
-    }
-
     /// A service of type `S` is touched.
     #[cfg(feature = "testing")]
     pub(crate) fn touch<S>() {
-        if MEASURING.with(std::cell::Cell::get) == 0 || EMITTING.with(std::cell::Cell::get) > 0 {
+        if !crate::runtime::egui::fixture::driving() || MEASURING.with(std::cell::Cell::get) == 0 || EMITTING.with(std::cell::Cell::get) > 0 {
             return;
         }
         let name = std::any::type_name::<S>();
@@ -966,12 +956,6 @@ pub(crate) mod guard {
             *seen.borrow_mut().entry((name.as_ptr() as usize, name.len())).or_insert_with(|| CLASSIFIED.iter().any(|(ty, _)| name.contains(ty)))
         });
         if classified {
-            return;
-        }
-        if STRICT.with(std::cell::Cell::get) == 0 {
-            if LOGGED.with(|logged| logged.borrow_mut().insert(name)) {
-                eprintln!("craft-ui guard: a measuring run touched the service {name}");
-            }
             return;
         }
         if std::env::var_os("CRAFT_UI_GUARD_LOG").is_some() {
