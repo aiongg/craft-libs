@@ -8,9 +8,9 @@
 //! and collection is a retry, at most [`MAX_RETRIES`]), and a monotonic clock. A request that
 //! arrives before the first UI pass recorded the geometry waits instead of failing.
 //!
-//! Phases: [`Captures::issue`] runs in the UI pass (settling counts real layout passes; a
-//! discarded pass is skipped); [`Captures::note_geometry`] and [`Captures::drain`] run in the
-//! logic phase. The image is encoded and written on the UI thread by
+//! Phases: [`Captures::issue`] runs in the UI pass and issues a request once the frame before it
+//! was at rest ([`craft_ui::runtime::settle`]); [`Captures::note_geometry`] and [`Captures::drain`]
+//! run in the logic phase. The image is encoded and written on the UI thread by
 //! [`ControlChannel::finish_captures`](crate::control::ControlChannel::finish_captures), never
 //! inside the callback.
 
@@ -19,8 +19,9 @@ use std::sync::mpsc::Sender;
 use std::time::{Duration, Instant};
 
 use base64::Engine as _;
+use craft_ui::runtime::settle;
 use craft_ui::runtime::windows::{ScreenshotFacts, ScreenshotSlot, WindowHost};
-use egui::{ColorImage, ViewportId};
+use egui::{ColorImage, Context, ViewportId};
 
 use crate::control::ControlResponse;
 
@@ -32,12 +33,8 @@ pub const MAX_IMAGE_BYTES: usize = 128 * 1024 * 1024;
 pub const MAX_TOTAL_BYTES: usize = 256 * 1024 * 1024;
 /// A request expires after this long, including retries and settling.
 pub const DEADLINE: Duration = Duration::from_secs(8);
-/// UI passes a request waits before it is issued, on top of the animation delay.
-pub const SETTLE_PASSES: u32 = 3;
 /// Retries after the geometry changed while a capture was in flight.
 pub const MAX_RETRIES: u8 = 2;
-/// The base delay that lets popup open and close animations finish.
-const BASE_SETTLE_MS: f64 = 60.0;
 
 /// The document a screenshot belongs to, fixed at admission. `generation` must be the app's
 /// active-document generation: it changes on every switch of the active document, including a
@@ -142,8 +139,6 @@ pub struct PendingCapture {
     path: Option<String>,
     reply: Option<Sender<ControlResponse>>,
     deadline: Instant,
-    ready_at: Instant,
-    settle_passes: u32,
     geometry: CaptureGeometry,
     epoch: u64,
     issued_epoch: Option<u64>,
@@ -191,7 +186,6 @@ struct WaitingAdmit {
     path: Option<String>,
     reply: Sender<ControlResponse>,
     deadline: Instant,
-    settle_ms: f64,
     document: Option<DocumentId>,
 }
 
@@ -253,7 +247,6 @@ impl Captures {
         path: Option<String>,
         reply: Sender<ControlResponse>,
         document: Option<DocumentId>,
-        settle_ms: f64,
         now: Instant,
     ) -> Result<(), (Sender<ControlResponse>, String)> {
         if self.records.iter().any(|r| r.token == token) || self.waiting.iter().any(|w| w.token == token) {
@@ -263,10 +256,10 @@ impl Captures {
             return Err((reply, format!("too many screenshots pending (at most {MAX_PENDING})")));
         }
         if self.geometry.is_none() {
-            self.waiting.push(WaitingAdmit { token, path, reply, deadline: now + DEADLINE, settle_ms, document });
+            self.waiting.push(WaitingAdmit { token, path, reply, deadline: now + DEADLINE, document });
             return Ok(());
         }
-        self.admit_with_geometry(token, path, reply, document, settle_ms, now)
+        self.admit_with_geometry(token, path, reply, document, now)
     }
 
     fn admit_with_geometry(
@@ -275,7 +268,6 @@ impl Captures {
         path: Option<String>,
         reply: Sender<ControlResponse>,
         document: Option<DocumentId>,
-        settle_ms: f64,
         now: Instant,
     ) -> Result<(), (Sender<ControlResponse>, String)> {
         if self.records.iter().any(|r| r.token == token) {
@@ -294,15 +286,11 @@ impl Captures {
         if let Err(e) = aggregate_budget(self.reserved_bytes(), expected) {
             return Err((reply, e));
         }
-        // `Duration::from_secs_f64` panics on NaN, infinity and negatives.
-        let settle = if settle_ms.is_finite() { settle_ms.clamp(0.0, 2000.0) } else { BASE_SETTLE_MS };
         self.records.push(PendingCapture {
             token,
             path,
             reply: Some(reply),
             deadline: now + DEADLINE,
-            ready_at: now + Duration::from_secs_f64(settle / 1000.0),
-            settle_passes: 0,
             geometry,
             epoch: self.epoch,
             issued_epoch: None,
@@ -332,25 +320,21 @@ impl Captures {
             }
             // The request's clock started when it arrived.
             let arrived = w.deadline - DEADLINE;
-            if let Err((reply, e)) = self.admit_with_geometry(w.token, w.path, w.reply, w.document, w.settle_ms, arrived) {
+            if let Err((reply, e)) = self.admit_with_geometry(w.token, w.path, w.reply, w.document, arrived) {
                 let _ = reply.send(serde_json::json!({"ok": false, "error": e}));
             }
         }
         self.waiting = still_waiting;
     }
 
-    /// One real UI pass happened (settling).
-    pub fn note_pass(&mut self) {
-        for r in &mut self.records {
-            r.settle_passes = r.settle_passes.saturating_add(1);
-        }
-    }
-
-    /// UI phase: issue due requests through `host` (a fresh slot each), return the ones that
-    /// expired meanwhile.
-    pub fn issue(&mut self, host: &WindowHost, now: Instant, document: Option<DocumentId>) -> Vec<Finished> {
+    /// UI phase: issue the requests through `ctx`'s window host (a fresh slot each) when the
+    /// frame before this pass left the app at rest, so this pass draws a settled screen; return
+    /// the requests that expired meanwhile.
+    pub fn issue(&mut self, ctx: &Context, now: Instant, document: Option<DocumentId>) -> Vec<Finished> {
         let mut finished = Vec::new();
         let Some(current) = self.geometry else { return finished };
+        let at_rest = settle::state(ctx).at_rest();
+        let host = WindowHost::of(ctx);
         // A document switch inside the pass means neither the drawn frame nor the pass's
         // document identity is trustworthy.
         let pass_changed = !same_activation(current.document, document);
@@ -375,11 +359,11 @@ impl Captures {
                 finished.push(finish(&mut self.records[i], Err(format!("screenshot {token} failed: the window is minimized"))));
                 continue;
             }
-            if self.records[i].settle_passes < SETTLE_PASSES || now < self.records[i].ready_at {
+            if !at_rest {
                 continue;
             }
             // No pixels exist yet: finalise the geometry at issue, re-checking the budget, and
-            // let the new layout settle for another pass.
+            // issue at the new layout in a later pass.
             if self.records[i].epoch != self.epoch || !current.same_layout(&self.records[i].geometry) {
                 let others: usize = self.records.iter().enumerate().filter(|(j, _)| *j != i).map(|(_, r)| r.reserved_bytes).sum();
                 let epoch = self.epoch;
@@ -443,9 +427,8 @@ impl Captures {
                 self.records[i].retries = self.records[i].retries.saturating_add(1);
                 let others: usize = self.records.iter().enumerate().filter(|(j, _)| *j != i).map(|(_, r)| r.reserved_bytes).sum();
                 let epoch = self.epoch;
-                match revalidate_reservation(&mut self.records[i], others, current, epoch) {
-                    Ok(()) => self.records[i].ready_at = now,
-                    Err(e) => finished.push(finish(&mut self.records[i], Err(e))),
+                if let Err(e) = revalidate_reservation(&mut self.records[i], others, current, epoch) {
+                    finished.push(finish(&mut self.records[i], Err(e)));
                 }
                 continue;
             }
@@ -511,7 +494,7 @@ fn aggregate_budget(others: usize, expected: usize) -> Result<(), String> {
 }
 
 /// Finalise a request at a new geometry: recheck the per-image and aggregate limits (excluding
-/// its old reservation), take the new reservation and restart settling.
+/// its old reservation) and take the new reservation; the request is issued again in a later pass.
 fn revalidate_reservation(r: &mut PendingCapture, others: usize, geometry: CaptureGeometry, epoch: u64) -> Result<(), String> {
     let expected = image_budget(&geometry)?;
     aggregate_budget(others, expected)?;
@@ -519,7 +502,6 @@ fn revalidate_reservation(r: &mut PendingCapture, others: usize, geometry: Captu
     r.geometry = geometry;
     r.epoch = epoch;
     r.issued_epoch = None;
-    r.settle_passes = 0;
     Ok(())
 }
 
@@ -578,12 +560,6 @@ fn timeout_error(token: u64) -> String {
 
 fn document_changed_error(token: u64) -> String {
     format!("screenshot {token} failed: the document changed while the capture was queued")
-}
-
-/// The settle delay for `animation_time`: a base that lets popup animations end plus the
-/// animation time itself.
-pub fn settle_ms(animation_time: f32) -> f64 {
-    f64::from(animation_time) * 2000.0 + BASE_SETTLE_MS
 }
 
 /// Encode unmultiplied RGBA pixels as an 8-bit RGBA PNG (the `png` crate, default

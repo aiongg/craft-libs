@@ -581,6 +581,7 @@ pub(crate) fn end_pass(ui: &mut Ui) {
     memory::evict(&ctx);
     layout_memory::end_hook(&ctx);
     motion::end_pass(&ctx);
+    crate::runtime::egui::sizing::end_pass(&ctx);
     windows::end(&ctx);
     ime::end_pass(&ctx);
     let live = pass::live_viewports(&ctx);

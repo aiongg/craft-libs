@@ -99,6 +99,7 @@ pub fn install(ctx: &Context, spec: InstallSpec) -> Result<(), InstallError> {
     windows::install(ctx, spec.shell_info, spec.window_system, spec.placement, spec.frame);
     frame::set_frame_layers(ctx, spec.frame_layers);
     frame::seed_hooked_passes(ctx);
+    crate::runtime::egui::repaint::observe(ctx);
     plugin::register(ctx);
     Ok(())
 }

@@ -144,7 +144,7 @@ impl Reply {
 
 /// The requests waiting for the app, and the replies waiting on input, jobs and screenshots.
 ///
-/// Per frame: `while let Some(req) = channel.next_request() { let outcome = app.handle(&req); channel.settle(ctx, req, outcome, document); }`
+/// Per frame: `while let Some(req) = channel.next_request() { let outcome = app.handle(&req); channel.settle(req, outcome, document); }`
 /// in the logic phase; [`Self::input_processed`] after the pass that consumed the injected
 /// input; [`Self::job_finished`] when a job ends; [`Self::captures`] driven by the app's UI and
 /// logic phases as `screenshot` documents.
@@ -177,10 +177,9 @@ impl ControlChannel {
         None
     }
 
-    /// Reply now, or park the reply on input, a job or a screenshot. `settle_ms` is the
-    /// screenshot settle delay ([`crate::screenshot::settle_ms`] of the animation time);
-    /// `document` the identity a screenshot is attributed to.
-    pub fn settle(&mut self, req: ControlRequest, outcome: Reply, document: Option<DocumentId>, settle_ms: f64) {
+    /// Reply now, or park the reply on input, a job or a screenshot. `document` is the identity a
+    /// screenshot is attributed to.
+    pub fn settle(&mut self, req: ControlRequest, outcome: Reply, document: Option<DocumentId>) {
         let reply = req.reply;
         match outcome {
             Reply::Done(v) => {
@@ -189,7 +188,7 @@ impl ControlChannel {
             Reply::AfterInput => self.input_waiters.push(reply),
             Reply::AfterJob(job) => self.job_waiters.push((job, reply)),
             Reply::Screenshot { token, path } => {
-                if let Err((reply, e)) = self.captures.admit(token, path, reply, document, settle_ms, motion::now()) {
+                if let Err((reply, e)) = self.captures.admit(token, path, reply, document, motion::now()) {
                     let _ = reply.send(json!({"ok": false, "error": e}));
                 }
             }

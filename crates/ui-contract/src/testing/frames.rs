@@ -203,6 +203,14 @@ impl Frames {
         self.time += seconds;
     }
 
+    /// Frames with no events until the app is at rest ([`settle`]).
+    pub fn settle(&mut self, mut ui: impl FnMut(&mut Ui)) {
+        let ctx = self.ctx.clone();
+        settle(&ctx, || {
+            self.frame(Vec::new(), &mut ui);
+        });
+    }
+
     /// `n` frames with no events.
     pub fn idle(&mut self, n: usize, mut ui: impl FnMut(&mut Ui)) {
         for _ in 0..n {
@@ -297,4 +305,20 @@ pub fn show_area<R>(ctx: &Context, name: &'static str, body: impl FnOnce(&mut Ui
 /// The width of the widest layer above the background, 0 when there is none.
 pub fn widest_layer(ctx: &Context) -> f32 {
     areas::widest_layer(ctx)
+}
+
+/// The most frames a settle runs: past the slowest tween at the frames' 60 Hz.
+const SETTLE_FRAMES: usize = 30;
+
+/// Runs `frame` until `ctx` is at rest ([`crate::runtime::settle::SettleState::at_rest`]): no tween moving and no
+/// rerun, background result, font load, repaint or injected input left. Looping motion and one-shot wakes don't hold
+/// it, and the clock never jumps to a wake. At least one frame, at most [`SETTLE_FRAMES`]: a story that never comes to
+/// rest gets them all.
+pub(crate) fn settle(ctx: &egui::Context, mut frame: impl FnMut()) {
+    for _ in 0..SETTLE_FRAMES {
+        frame();
+        if crate::runtime::settle::state(ctx).at_rest() {
+            break;
+        }
+    }
 }

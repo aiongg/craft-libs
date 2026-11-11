@@ -125,22 +125,12 @@ fn root_env() -> RootEnv {
     env
 }
 
-/// The story shown in a card's body at the screen's top left until it settles: the frames, then a second past every
-/// fade, then the frames again.
+/// The story shown in a card's body at the screen's top left until it is at rest.
 fn settle(frames: &mut Frames, body: &StoryBody, width: f32, state: &mut CardState, shown: &mut BodyShown) {
     let region = Rect::from_min_size(Pos2::ZERO, Vec2::new(width, Vec2::from(WINDOW).y));
-    let mut frame = |frames: &mut Frames| {
-        frames.frame(Vec::new(), |ui| {
-            *shown = craft_ui::testing::layout::in_region(ui, region, |ui| body.show(ui, state));
-        });
-    };
-    for _ in 0..4 {
-        frame(frames);
-    }
-    frames.advance(1.0);
-    for _ in 0..4 {
-        frame(frames);
-    }
+    frames.settle(|ui| {
+        *shown = craft_ui::testing::layout::in_region(ui, region, |ui| body.show(ui, state));
+    });
 }
 
 /// The story rendered: its image cropped to the story's surface and the layers it opened, in pixels.

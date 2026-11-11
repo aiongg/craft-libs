@@ -127,18 +127,21 @@ pub struct OnDemandFonts {
     adding: bool,
     /// The candidates were asked to wake the UI when their running lookup ends.
     waiting: bool,
+    /// The last scan left work for a later pass: it asked for one, or waits for the candidates' lookup.
+    busy: bool,
 }
 
 impl OnDemandFonts {
     /// A loader over `candidates`, with the Han preference of the effective locale.
     pub fn new(candidates: Arc<dyn FontCandidates>, han: Option<Han>) -> Self {
-        OnDemandFonts { candidates, han, reads: Vec::new(), registered: Vec::new(), skip_pass: false, adding: false, waiting: false }
+        OnDemandFonts { candidates, han, reads: Vec::new(), registered: Vec::new(), skip_pass: false, adding: false, waiting: false, busy: false }
     }
 
     /// Installs the loader on `ctx`, replacing an earlier one: `set_fonts` drops the registered faces, so an earlier
     /// loader's state is replaced rather than kept.
     pub fn install(mut self, ctx: &Context) {
         self.skip_pass = true;
+        self.busy = true;
         memory::with::<Loader, _>(ctx, |loader| loader.0 = Some(self));
         egui_fonts::ensure_plugin(ctx);
     }
@@ -266,18 +269,23 @@ impl OnDemandFonts {
 impl OnDemandFonts {
     /// What a pass leaves to do: registers one face for the first drawn character without a glyph.
     fn scan(&mut self, ctx: &Context, shapes: &[egui::epaint::ClippedShape]) {
+        self.busy = self.scan_busy(ctx, shapes);
+    }
+
+    /// [`scan`](Self::scan), answering whether it left work for a later pass.
+    fn scan_busy(&mut self, ctx: &Context, shapes: &[egui::epaint::ClippedShape]) -> bool {
         if std::mem::take(&mut self.skip_pass) {
             egui_fonts::wake(ctx);
-            return;
+            return true;
         }
         if self.faces_dropped(ctx) {
             *self = OnDemandFonts::new(self.candidates.clone(), self.han);
             egui_fonts::wake(ctx);
-            return;
+            return true;
         }
         self.adding = false;
-        let Some(c) = self.missing_char(ctx, shapes) else { return };
-        let Some(script) = face_script(c) else { return };
+        let Some(c) = self.missing_char(ctx, shapes) else { return false };
+        let Some(script) = face_script(c) else { return false };
         let pending = is_cjk(script) && self.candidates.pending();
         match self.next_face(ctx, c, script) {
             Some((name, data)) => {
@@ -290,6 +298,7 @@ impl OnDemandFonts {
             // The script ran out of candidates for this character; another script may still load.
             None => egui_fonts::wake(ctx),
         }
+        true
     }
 }
 
@@ -307,6 +316,12 @@ pub(crate) fn after_pass(ctx: &Context, shapes: &[egui::epaint::ClippedShape]) {
             slot.0 = Some(loader);
         }
     });
+}
+
+/// Whether the context's loader left work for a later pass: a face to add, a pass to skip after an install, a
+/// script to try next, or a running lookup to wait for.
+pub(crate) fn loading(ctx: &Context) -> bool {
+    memory::with::<Loader, _>(ctx, |loader| loader.0.as_ref().is_some_and(|loader| loader.busy))
 }
 
 /// The faces the context's loader registered so far (font name, file, face index), for the font list in

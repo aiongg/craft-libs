@@ -27,6 +27,7 @@ pub mod pointer;
 pub(crate) mod reads;
 pub mod requests;
 pub mod sampler;
+pub mod settle;
 pub mod toast;
 pub mod wheel;
 pub mod windows;

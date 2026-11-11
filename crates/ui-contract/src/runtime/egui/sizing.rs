@@ -79,6 +79,23 @@ pub(crate) fn discardable(ctx: &Context) -> bool {
     ctx.current_pass_index() + 1 < ctx.options(|options| options.max_passes.get())
 }
 
+fn rerun_left_id(viewport: egui::ViewportId) -> egui::Id {
+    egui::Id::NULL.with(("craft_ui::rerun_left", viewport))
+}
+
+/// The end hook: records whether the running pass asked for a discard egui will not honour, so the next frame runs it
+/// again. A pass egui does rerun overwrites the record. Only the settle query reads it.
+pub(crate) fn end_pass(ctx: &Context) {
+    let left = ctx.output(|output| output.requested_discard()) && !discardable(ctx);
+    let id = rerun_left_id(super::pass::current_viewport(ctx));
+    super::memory::locked(ctx, |data| data.insert_temp(id, left));
+}
+
+/// Whether the last finished pass of `viewport` asked for a rerun that its frame did not run.
+pub(crate) fn rerun_left(ctx: &Context, viewport: egui::ViewportId) -> bool {
+    super::memory::peek_clone::<bool>(ctx, rerun_left_id(viewport)).unwrap_or(false)
+}
+
 /// Runs `f` in an invisible sizing pass `width` wide, from the parent's cursor, and returns what it took.
 /// The parent allocates nothing.
 pub(crate) fn run_sized<R>(ui: &mut Ui, width: f32, layout: Layout, f: impl FnOnce(&mut Ui) -> R) -> (R, Vec2) {

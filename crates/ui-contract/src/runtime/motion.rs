@@ -213,8 +213,35 @@ pub struct Presence {
 /// What a viewport's animations asked for in the running pass.
 #[derive(Default)]
 struct Wanted {
+    /// A tween is not at its end value.
     unsettled: bool,
+    /// Motion that never ends while it shows.
+    looping: Option<Looping>,
+    /// The earliest wake of any kind.
     wake: Option<f64>,
+    /// The earliest one-shot wake a component asked for (`Animate::wake_at`).
+    one_shot: Option<f64>,
+}
+
+/// Motion that never ends while it shows.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Looping {
+    /// Wakes on a period: a stepped loop, a blinking caret.
+    Periodic,
+    /// Asks for a pass every pass: an unstepped loop.
+    Loop,
+}
+
+/// What a viewport's last finished pass left for its motion, for `runtime::settle`. Only the settle query reads it;
+/// no pass's logic does.
+#[derive(Clone, Copy, Default)]
+pub(crate) struct Outcome {
+    /// A tween is not at its end value.
+    pub(crate) animating: bool,
+    /// Motion that never ends while it shows.
+    pub(crate) looping: Option<Looping>,
+    /// Seconds from the pass to the earliest one-shot wake.
+    pub(crate) wake_in: Option<f64>,
 }
 
 /// The wall clock's reading, for a host that drives a store on real time (`ShellApp::tick`). It is the one place
@@ -228,16 +255,30 @@ fn note_unsettled(ctx: &Context) {
     PerViewport::<Wanted>::with(ctx, pass::current_viewport(ctx), |wanted| wanted.unsettled = true);
 }
 
-/// The end hook: one repaint request for the running viewport, now when an animation is unsettled, else at the
-/// earliest wake.
+/// Marks the running viewport as showing motion that never ends.
+fn note_looping(ctx: &Context, looping: Looping) {
+    PerViewport::<Wanted>::with(ctx, pass::current_viewport(ctx), |wanted| wanted.looping = wanted.looping.max(Some(looping)));
+}
+
+/// The end hook: one repaint request for the running viewport, now when an animation is unsettled or a loop runs,
+/// else at the earliest wake. The pass's outcome is kept for the settle query.
 pub(crate) fn end_pass(ctx: &Context) {
     let viewport = pass::current_viewport(ctx);
     let wanted = PerViewport::<Wanted>::with(ctx, viewport, std::mem::take);
-    if wanted.unsettled {
+    let now = frame::clock(ctx);
+    PerViewport::<Outcome>::with(ctx, viewport, |outcome| {
+        *outcome = Outcome { animating: wanted.unsettled, looping: wanted.looping, wake_in: wanted.one_shot.map(|at| (at - now).max(0.0)) };
+    });
+    if wanted.unsettled || wanted.looping == Some(Looping::Loop) {
         repaint::request_of(ctx, viewport);
     } else if let Some(at) = wanted.wake {
-        repaint::request_after(ctx, viewport, at - frame::clock(ctx));
+        repaint::request_after(ctx, viewport, at - now);
     }
+}
+
+/// What the last finished pass of `viewport` left for its motion.
+pub(crate) fn outcome(ctx: &Context, viewport: egui::ViewportId) -> Outcome {
+    PerViewport::<Outcome>::with(ctx, viewport, |outcome| *outcome)
 }
 
 /// Whether the open tween of the layer `base` still shows it: it opens, shows, or fades out. Reads without driving.
@@ -399,7 +440,7 @@ impl Driver<'_> {
         let now = frame::clock(self.stage.ctx());
         let since = (now - restart).max(0.0);
         let step = (since / BLINK_HALF_PERIOD).floor();
-        self.wake_at(restart + (step + 1.0) * BLINK_HALF_PERIOD);
+        periodic_wake(self.stage.ctx(), restart + (step + 1.0) * BLINK_HALF_PERIOD);
         step % 2.0 == 0.0
     }
 
@@ -408,12 +449,17 @@ impl Driver<'_> {
     }
 
     pub(crate) fn wake_at(&self, at: f64) {
-        wake_at(self.stage.ctx(), at);
+        let earliest = |old: Option<f64>| Some(old.map_or(at, |old| old.min(at)));
+        PerViewport::<Wanted>::with(self.stage.ctx(), pass::current_viewport(self.stage.ctx()), |wanted| {
+            wanted.wake = earliest(wanted.wake);
+            wanted.one_shot = earliest(wanted.one_shot);
+        });
     }
 }
 
-/// Asks for a pass of the running viewport at `at`; the earliest request wins.
-fn wake_at(ctx: &Context, at: f64) {
+/// Asks for a pass of the running viewport at `at` for motion that wakes on a period; the earliest request wins.
+fn periodic_wake(ctx: &Context, at: f64) {
+    note_looping(ctx, Looping::Periodic);
     PerViewport::<Wanted>::with(ctx, pass::current_viewport(ctx), |wanted| wanted.wake = Some(wanted.wake.map_or(at, |old| old.min(at))));
 }
 
@@ -430,11 +476,11 @@ pub fn loop_phase(ctx: &Context, policy: MotionPolicy, period: f64, tick: Option
     match tick.filter(|tick| *tick > 0.0) {
         Some(tick) => {
             let step = (now / tick).floor();
-            wake_at(ctx, (step + 1.0) * tick);
+            periodic_wake(ctx, (step + 1.0) * tick);
             Some((((step * tick) % period) / period) as f32)
         }
         None => {
-            note_unsettled(ctx);
+            note_looping(ctx, Looping::Loop);
             Some(((now % period) / period) as f32)
         }
     }

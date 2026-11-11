@@ -5,9 +5,8 @@ use std::sync::mpsc::{Receiver, channel};
 use std::time::Instant;
 
 use craft_automation::control::ControlResponse;
-use craft_automation::screenshot::{CaptureGeometry, Captures, MAX_RETRIES, SETTLE_PASSES};
+use craft_automation::screenshot::{CaptureGeometry, Captures, MAX_RETRIES};
 use craft_ui::runtime::motion;
-use craft_ui::runtime::windows::WindowHost;
 use craft_ui::testing::trial;
 use egui::{Color32, ColorImage, Context, ScreenshotCallback, ViewportCommand, ViewportId};
 
@@ -17,7 +16,7 @@ fn geometry(width: f32, height: f32) -> CaptureGeometry {
 
 fn admit(captures: &mut Captures, token: u64, now: Instant) -> Result<Receiver<ControlResponse>, String> {
     let (tx, rx) = channel();
-    captures.admit(token, None, tx, None, 0.0, now).map(|()| rx).map_err(|(_, e)| e)
+    captures.admit(token, None, tx, None, now).map(|()| rx).map_err(|(_, e)| e)
 }
 
 fn image(geometry: &CaptureGeometry) -> Arc<ColorImage> {
@@ -25,13 +24,10 @@ fn image(geometry: &CaptureGeometry) -> Arc<ColorImage> {
     Arc::new(ColorImage::filled([w, h], Color32::from_rgb(240, 240, 240)))
 }
 
-/// Settles and issues the one request through the context's window host, and returns the callback of
-/// the screenshot command the host sent.
+/// Issues the one request through the context's window host, and returns the callback of the
+/// screenshot command the host sent.
 fn issue_one(captures: &mut Captures, ctx: &Context, now: Instant) -> ScreenshotCallback {
-    for _ in 0..SETTLE_PASSES {
-        captures.note_pass();
-    }
-    let finished = captures.issue(&WindowHost::of(ctx), now, None);
+    let finished = captures.issue(ctx, now, None);
     assert!(finished.is_empty());
     let mut output = ctx.run_ui(Default::default(), |_| {});
     output.textures_delta.clear();

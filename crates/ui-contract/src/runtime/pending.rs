@@ -214,6 +214,14 @@ fn queue_of(ctx: &Context, jobs: &Arc<dyn Jobs>) -> Arc<JobQueue<Id, ()>> {
     })
 }
 
+/// The context's background results not yet shown: jobs waiting or running, and finished ones whose result no pass
+/// has taken yet (the end sweep of the pass that took them clears their markers).
+pub(crate) fn in_flight(ctx: &Context) -> usize {
+    let Some(queue) = Service::<PendingState>::run(ctx, |state| state.queue.as_ref().map(|(_, queue)| queue.clone())) else { return 0 };
+    let counts = queue.counts();
+    counts.queued + counts.running + counts.finished
+}
+
 /// Notes that `id` was asked for in this pass of the running viewport.
 fn track<T: Clone + Send + Sync + 'static, E: Clone + Send + Sync + 'static>(ctx: &Context, id: Id, owner: Id) {
     let viewport = pass::current_viewport(ctx);
