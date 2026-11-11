@@ -403,3 +403,10 @@ mod tests {
         assert_eq!(s.0.as_deref(), Some("VectorCraft 0.1.0"));
     }
 }
+
+#[cfg(test)]
+extern crate self as craft_doc;
+
+#[cfg(test)]
+#[path = "../tests/main.rs"]
+mod integration;
