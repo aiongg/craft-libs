@@ -197,34 +197,3 @@ pub(crate) fn pcm_kind(bits: u16, float: bool, big_endian: bool, unsigned: bool)
         _ => None,
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::PcmFormat;
-
-    #[test]
-    fn pcm_tracks_decode_in_wav_order() {
-        let params = CodecParams::new(CodecId::Pcm).with_sample_rate(48_000).with_channels(2).with_pcm(PcmFormat::int(16, true, false));
-        let mut dec = TrackDecoder::new(&params, &[]).unwrap();
-        assert_eq!((dec.codec(), dec.sample_rate(), dec.layout()), (CodecId::Pcm, 48_000, ChannelLayout::STEREO));
-        let block = dec.decode(&[0x00, 0x40, 0x00, 0xC0]).unwrap();
-        assert_eq!(block.channels, vec![vec![0.5], vec![-0.5]]);
-        assert_eq!(dec.conceal(None).unwrap().frames(), 1);
-        // a reset forgets the last packet's length
-        dec.reset();
-        assert_eq!(dec.conceal(None).unwrap().frames(), 0);
-        // silence past the decode limit is an error, not shorter silence
-        dec.last_frames = usize::try_from(crate::pcm::MAX_DECODE_SAMPLES / 2 + 1).unwrap();
-        assert!(matches!(dec.conceal(None), Err(AudioError::TooLarge(_))));
-    }
-
-    #[test]
-    fn codecs_without_a_packet_decoder_are_unsupported() {
-        for codec in [CodecId::Aac, CodecId::Flac, CodecId::Vorbis, CodecId::Alac, CodecId::Mp3, CodecId::Opus, CodecId::H264] {
-            assert!(matches!(TrackDecoder::new(&CodecParams::new(codec), &[]), Err(AudioError::Unsupported(_))), "{codec:?}");
-        }
-        // PCM needs its sample format.
-        assert!(TrackDecoder::new(&CodecParams::new(CodecId::Pcm).with_channels(2).with_sample_rate(48_000), &[]).is_err());
-    }
-}

@@ -68,6 +68,7 @@ pub fn tool(name: &str) -> Option<PathBuf> {
     }
 }
 
+/// Whether the environment demands the external oracle tools (ffmpeg and the like); true when `CRAFT_MEDIA_REQUIRE_ORACLES` holds `1`, `true`, `yes` or `on`, in any case.
 pub fn oracles_required() -> bool {
     std::env::var(REQUIRE_ENV).is_ok_and(|v| matches!(v.trim().to_ascii_lowercase().as_str(), "1" | "true" | "yes" | "on"))
 }

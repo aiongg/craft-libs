@@ -8,15 +8,20 @@ use std::sync::Arc;
 /// Maximum input accepted by the default open operation (512 MiB).
 pub const MAX_INPUT_BYTES: usize = 512 * 1024 * 1024;
 
+/// Why a PDF could not be opened.
 #[derive(Debug, thiserror::Error)]
 pub enum OpenError {
     #[error("PDF exceeds the {limit}-byte input limit")]
+    #[allow(missing_docs)]
     InputLimit { limit: usize },
     #[error("PDF input could not be allocated")]
+    #[allow(missing_docs)]
     Allocation,
     #[error("PDF parser rejected the document: {0:?}")]
+    #[allow(missing_docs)]
     Load(syntax::LoadPdfError),
     #[error("PDF parser failed internally")]
+    #[allow(missing_docs)]
     BackendPanic,
 }
 
@@ -98,8 +103,10 @@ pub fn interpret_page<'a>(
     catch_unwind(AssertUnwindSafe(|| interpret::interpret_page(page, context, device))).map_err(|_| ExecutionError::BackendPanic)
 }
 
+/// Why interpreting a page failed.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum ExecutionError {
     #[error("PDF page interpretation failed internally")]
+    #[allow(missing_docs)]
     BackendPanic,
 }

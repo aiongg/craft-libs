@@ -8,7 +8,7 @@
 //! its own copy of the code that exposes this to the page as `window.<app>`, in a different shape.
 //! This crate is the one shared shape.
 //!
-//! - [`page`] (wasm32 only) installs `window.<app>` — `request(method, params)`,
+//! - `page` (wasm32 only) installs `window.<app>` — `request(method, params)`,
 //!   `execute(command, params)`, `commands()`, `docInspect(params)`, `uiInspect(params)` and
 //!   `screenshot(params)`; each function other than `request` is installed only when the app's
 //!   [`methods::Methods`] table provides its control method.
@@ -38,3 +38,10 @@ pub mod methods;
 
 #[cfg(target_arch = "wasm32")]
 pub mod page;
+
+#[cfg(test)]
+extern crate self as craft_web_api;
+
+#[cfg(test)]
+#[path = "../tests/main.rs"]
+mod integration;
