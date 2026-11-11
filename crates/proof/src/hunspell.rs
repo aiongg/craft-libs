@@ -20,17 +20,11 @@ use crate::affix::AffixDict;
 
 pub use decode::decode;
 pub(crate) use decode::dic_entry_end;
-#[cfg(test)]
-use decode::{CP1251_HIGH, ISO_8859_2_HIGH, ISO_8859_7_HIGH, ISO_8859_15_HIGH, KOI8_R_HIGH, comment_field, decode_high};
 pub(crate) use search::ordered;
 pub use search::{
     candidates, candidates_exact, candidates_in, clear_load_error, find, find_in, load_error, note_load, search_dirs, set_dictionary_dir,
     user_candidates, user_dirs,
 };
-#[cfg(test)]
-use search::{lo_drive_bases, lo_drive_dirs, lo_ext_dirs, xdg_data_home};
-#[cfg(test)]
-use std::path::PathBuf;
 
 /// Largest `.aff` or `.dic` file read (real ones are a few MB).
 pub(crate) const MAX_FILE: u64 = 64 << 20;

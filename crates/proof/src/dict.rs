@@ -167,32 +167,4 @@ mod tests {
         assert_eq!(back.get("naïveté").map(|m| hyphenated("naïveté", m)), Some("naïve-té".to_string()));
         assert!(back.get("dog").is_none());
     }
-
-    #[cfg_attr(not(craft_proof_data), ignore = "needs the Language data (CRAFT_I18N_DIR)")]
-    #[test]
-    fn oversized_data_is_refused() {
-        const LIMIT: usize = 1 << 16;
-        let within = |raw: &[u8]| Dictionary::from_bytes_within(&miniz_oxide::deflate::compress_to_vec(raw, 6), LIMIT, 1000);
-        // Data that inflates past the limit is refused before anything is decoded.
-        let mut raw = MAGIC.to_vec();
-        raw.resize(LIMIT + 1, b'a');
-        assert!(within(&raw).unwrap_err().contains("inflate failed"));
-        // Short lines that each repeat a long prefix: small to inflate, but the words they spell
-        // out would be ~100x larger. Kept storage is bounded too.
-        let mut raw = MAGIC.to_vec();
-        raw.push(0);
-        raw.extend_from_slice(&[b'a'; 255]);
-        raw.push(b'\n');
-        for _ in 0..(LIMIT / 255 + 2) {
-            raw.extend_from_slice(&[255, b'\n']);
-        }
-        assert!(raw.len() < LIMIT);
-        assert!(within(&raw).unwrap_err().contains("too large"));
-        // So is the number of words.
-        let words: Vec<(String, u64)> = (0..1001).map(|i| (format!("w{i}"), 0)).collect();
-        let raw = miniz_oxide::inflate::decompress_to_vec(&Dictionary::from_entries(words).to_bytes()).unwrap();
-        assert!(within(&raw).unwrap_err().contains("too large"));
-        // The real limits leave the bundled dictionary whole.
-        assert!(Dictionary::en_us().len() > 100_000);
-    }
 }

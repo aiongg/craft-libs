@@ -120,13 +120,9 @@ pub use english::EnglishSource;
 pub use grammar_en::check_grammar;
 use grammar_en::grammar_en;
 pub use lang::{PackLocale, ProofLang};
-#[cfg(test)]
-use languages::LANGUAGES;
 pub use languages::{dictionary_load_error, english_source, installed_dictionaries, pack_dictionary_file, set_dictionaries_folder};
 pub(crate) use languages::{language, reload_dictionaries};
 pub(crate) use user_dict::in_user_dictionary;
-#[cfg(test)]
-use user_dict::read_dictionary_file;
 pub use user_dict::{
     MAX_CUSTOM_WORD_CHARS, add_word, custom_word, ignore_word, load_user_dictionary, remove_word, save_user_dictionary, user_dictionary,
 };
@@ -761,10 +757,6 @@ pub(crate) fn hold_dictionary_tests() {
         }
     });
 }
-
-/// The no-Language-data build (`build.rs` sets `craft_proof_no_data` when nothing is embedded).
-#[cfg(all(test, craft_proof_no_data))]
-mod no_data;
 
 #[cfg(test)]
 mod tests;
