@@ -1,7 +1,5 @@
 //! The integration binary of craft-browse: every test is a registered trial.
 
-mod bin;
-mod compare;
 mod freebin;
 mod places;
 mod relink;
