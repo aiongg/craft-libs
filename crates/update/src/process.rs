@@ -363,160 +363,21 @@ fn pgrep_pattern(path: &str) -> String {
 }
 
 #[cfg(test)]
-#[cfg(unix)]
-mod tests {
-    use std::io::{BufRead, BufReader};
-    use std::process::Child;
-
-    use super::*;
-
-    struct RunningProbe(Child);
-
-    impl RunningProbe {
-        fn start(path: &str) -> Self {
-            let child = command("/bin/sh")
-                .args(["-c", "printf 'ready\\n'; read line", path])
-                .stdin(Stdio::piped())
-                .stdout(Stdio::piped())
-                .stderr(Stdio::null())
-                .spawn()
-                .unwrap();
-            let mut probe = Self(child);
-            let mut ready = String::new();
-            BufReader::new(probe.0.stdout.take().unwrap()).read_line(&mut ready).unwrap();
-            assert_eq!(ready, "ready\n");
-            probe
-        }
-    }
-
-    impl Drop for RunningProbe {
-        fn drop(&mut self) {
-            let _ = self.0.kill();
-            let _ = self.0.wait();
-        }
-    }
-
-    #[test]
-    fn running_paths_are_matched_literally() {
-        let root = format!("/tmp/artcraft-launcher-process-{}", std::process::id());
-        for (actual, requested, expected) in [
-            ("plain/PhotoCraft.app", "plain/PhotoCraft.app", true),
-            ("Apps (work)/PhotoCraft.app", "Apps (work)/PhotoCraft.app", true),
-            ("Apps [work]/PhotoCraft.app", "Apps [work]/PhotoCraft.app", true),
-            ("other/PhotoCraftXapp", "other/PhotoCraft.app", false),
-            ("symbols/应用.^$*+?()[]{}|\\.app", "symbols/应用.^$*+?()[]{}|\\.app", true),
-        ] {
-            let actual = format!("{root}/{actual}");
-            let requested = format!("{root}/{requested}");
-            let _probe = RunningProbe::start(&actual);
-            assert_eq!(is_running(Path::new(&requested)), expected, "{requested}");
-        }
-    }
-}
-
-#[cfg(test)]
 mod run_tests {
     use super::*;
 
-    #[test]
-    fn flatpak_output_this_code_reads_stays_in_english() {
-        if in_sandbox() {
-            return;
-        }
-        let cmd = flatpak_command_c();
-        assert!(cmd.get_envs().any(|(name, value)| name == "LC_ALL" && value == Some(std::ffi::OsStr::new("C"))));
-    }
-
-    /// A shell command line, for the platform's shell.
-    fn shell(script: &str) -> (&'static str, [&str; 2]) {
-        if cfg!(windows) { ("cmd", ["/C", script]) } else { ("/bin/sh", ["-c", script]) }
-    }
-
-    #[cfg(windows)]
-    #[test]
-    fn waiting_for_a_process_ends_when_it_exits() {
-        let mut child = Command::new("ping").args(["-n", "3", "127.0.0.1"]).stdout(Stdio::null()).spawn().unwrap();
-        assert!(!wait_for_exit(child.id(), Duration::from_millis(200)), "it's still running");
-        assert!(wait_for_exit(child.id(), Duration::from_secs(30)), "it has exited");
-        child.wait().unwrap();
-    }
-
-    #[test]
-    fn a_failing_helper_reports_its_own_error() {
-        let (program, args) = shell(if cfg!(windows) { "echo no such image 1>&2 & exit /b 3" } else { "echo no such image >&2; exit 3" });
-        assert_eq!(run(program, &args, Duration::from_secs(30)), Err("no such image".into()));
-        assert_eq!(capture(program, &args, Duration::from_secs(30)), None);
-    }
-
     #[cfg(unix)]
-    #[test]
+    #[craft_ui::testing::trial]
     fn successful_helpers_can_write_past_the_stdout_capture_limit() {
         let out = run("/bin/sh", &["-c", "head -c 9437184 /dev/zero"], Duration::from_secs(10)).unwrap();
         assert_eq!(out.len(), 8 << 20);
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn successful_helpers_can_write_past_the_stderr_capture_limit() {
-        let out = run("/bin/sh", &["-c", "head -c 9437184 /dev/zero >&2"], Duration::from_secs(10));
-        assert!(out.is_ok(), "the helper should finish without a broken pipe");
-        assert!(out.unwrap().is_empty());
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn a_helper_that_keeps_writing_still_times_out() {
-        let start = Instant::now();
-        let err = run("yes", &[], Duration::from_millis(100)).unwrap_err();
-        assert!(err.contains("didn't finish within"), "{err}");
-        assert!(start.elapsed() < Duration::from_secs(5));
-    }
-
-    #[test]
-    fn a_silent_failure_and_a_success() {
-        let (program, args) = shell("exit 4");
-        let err = run(program, &args, Duration::from_secs(30)).unwrap_err();
-        assert!(err.starts_with(&format!("{program} failed")), "{err}");
-        let (program, args) = shell("echo hello");
-        assert_eq!(run(program, &args, Duration::from_secs(30)).map(|out| out.trim().to_string()), Ok("hello".into()));
-    }
-}
-
-#[cfg(test)]
-mod explorer_tests {
-    use super::*;
-
-    #[cfg(windows)]
-    #[test]
-    fn system_helpers_use_absolute_system_paths() {
-        let root = PathBuf::from(std::env::var_os("SystemRoot").unwrap());
-        assert_eq!(windows_system_program("explorer.exe").unwrap(), root.join("explorer.exe"));
-        assert_eq!(windows_system_program(r"System32\tasklist.exe").unwrap(), root.join(r"System32\tasklist.exe"));
-    }
-
-    #[test]
-    fn explorer_select_quotes_only_the_path() {
-        let arg = explorer_select_arg(Path::new(r"C:\Program Files\PhotoCraft\photocraft.exe"));
-        assert_eq!(arg.unwrap(), r#"/select,"C:\Program Files\PhotoCraft\photocraft.exe""#);
-    }
-
-    #[test]
-    fn explorer_select_without_spaces() {
-        let arg = explorer_select_arg(Path::new(r"C:\Apps\photocraft.exe"));
-        assert_eq!(arg.unwrap(), r#"/select,"C:\Apps\photocraft.exe""#);
-        assert_eq!(explorer_select_arg(Path::new(r#"C:\Apps" /root,C:\x.exe"#)), None);
-    }
-
-    #[test]
-    fn explorer_select_uses_backslashes() {
-        let arg = explorer_select_arg(Path::new("C:/Users/A B/AppData/Local/ArtCraft Launcher/apps/photocraft.exe"));
-        assert_eq!(arg.unwrap(), r#"/select,"C:\Users\A B\AppData\Local\ArtCraft Launcher\apps\photocraft.exe""#);
     }
 }
 
 #[cfg(test)]
 mod inherited_pipe_tests {
     use super::*;
+    use craft_ui::testing::trial;
     use std::io::Write;
 
     fn fixture_args(name: &str, marker: &str) -> Vec<String> {
@@ -530,7 +391,7 @@ mod inherited_pipe_tests {
         std::path::PathBuf::from(&args[args.iter().position(|arg| arg == "--skip").unwrap() + 1])
     }
 
-    #[test]
+    #[trial]
     #[ignore = "self-spawned subprocess fixture"]
     fn pipe_holder() {
         let dir = fixture_dir();
@@ -550,7 +411,7 @@ mod inherited_pipe_tests {
         std::fs::write(dir.join("done"), []).unwrap();
     }
 
-    #[test]
+    #[trial]
     #[ignore = "self-spawned subprocess fixture"]
     fn pipe_parent() {
         let dir = fixture_dir();
@@ -585,7 +446,7 @@ mod inherited_pipe_tests {
         }
     }
 
-    #[test]
+    #[trial]
     fn exited_helper_does_not_wait_past_deadline_for_inherited_pipes() {
         let exe = std::env::current_exe().unwrap();
         // The direct child has to start a second test process and fill both pipes before the

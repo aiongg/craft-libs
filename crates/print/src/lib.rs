@@ -26,9 +26,20 @@ pub mod rgb {
     pub use craft_winprint_gdi::*;
 }
 
+/// Printer selection and job settings for egui (`ui` feature).
+#[cfg(feature = "ui")]
+pub mod ui;
+
+/// The registrations of this crate's UI types, for its integration binary.
+#[cfg(feature = "screen-testing")]
+pub mod testing {
+    craft_ui::testing_registered!();
+}
+
 /// A system spooler failure. Document permissions belong to the caller.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Error {
+    /// The spooler failed or refused; the text is its message.
     Spool(String),
 }
 impl std::fmt::Display for Error {
@@ -40,6 +51,7 @@ impl std::fmt::Display for Error {
 }
 impl std::error::Error for Error {}
 
+/// A printer the system knows.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Printer {
     /// The destination `lp -d` and the spooler know the printer by.
@@ -48,19 +60,25 @@ pub struct Printer {
     /// queue name can't hold dots or spaces, so a printer added as `192.0.2.15` is the queue
     /// `_192_0_2_15` described as `192.0.2.15`. Windows names are already human: empty there.
     pub description: String,
+    /// Whether this is the system default printer.
     pub default: bool,
     /// Whether the Windows driver reports duplex support; None when unknown (CUPS).
     pub two_sided: Option<bool>,
 }
 
+/// Two-sided printing.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum Duplex {
+    /// One side of each sheet.
     #[default]
     Off,
+    /// Both sides, flipping on the long edge (books, portrait pages).
     LongEdge,
+    /// Both sides, flipping on the short edge (calendars, landscape pages).
     ShortEdge,
 }
 
+/// How sheets are fitted to the paper.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum Scaling {
     /// Preserve the PDF's physical sheet size, even when hardware margins clip it.
@@ -72,16 +90,22 @@ pub enum Scaling {
     ShrinkToFit,
 }
 
+/// The settings of one print job.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Job {
     /// `None` = the system default printer.
     pub printer: Option<String>,
+    /// Number of copies; clamped to 1..=999 when sent.
     pub copies: u32,
+    /// Whether copies of a multi-page document come out as complete sets.
     pub collate: bool,
     /// `None` preserves the printer's duplex default; `Some(Off)` forces simplex.
     pub duplex: Option<Duplex>,
+    /// How sheets are fitted to the paper.
     pub scaling: Scaling,
+    /// Whether to print in monochrome.
     pub grayscale: bool,
+    /// The job's name in the print queue.
     pub title: String,
     /// The printer driver's own job options (a PPD keyword and the chosen value), such as the
     /// paper tray or paper type; see [`printer_options`]. CUPS only.
@@ -444,7 +468,7 @@ pub fn printers_parsed(queues: &str, available: Option<&str>) -> Vec<Printer> {
 /// The Print dialog's printers from the Windows spooler's queues (name, and whether the driver
 /// takes two-sided settings when that is known): sorted by name, each once, the default marked
 /// when it is one of them.
-#[cfg(any(test, windows))]
+#[cfg(windows)]
 pub(crate) fn printer_list(queues: impl IntoIterator<Item = (String, Option<bool>)>, default: Option<&str>) -> Vec<Printer> {
     let mut queues: Vec<(String, Option<bool>)> = queues.into_iter().filter(|(n, _)| !n.trim().is_empty()).collect();
     queues.sort_by(|a, b| a.0.cmp(&b.0));
@@ -610,10 +634,13 @@ fn windows_preview(job: &Job) -> Vec<String> {
 /// The platform backend. No backend is available in the browser.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Backend {
+    /// CUPS, through `lp` and `lpstat` (Linux, macOS, BSDs).
     Cups,
+    /// The Windows print spooler, given the PDF.
     WindowsPdf,
 }
 
+/// The backend of this platform, or `None` where printing is unavailable.
 pub const fn backend() -> Option<Backend> {
     if cfg!(windows) {
         Some(Backend::WindowsPdf)
@@ -634,4 +661,15 @@ pub fn command_preview(job: &Job) -> Result<Vec<String>, Error> {
         Some(Backend::WindowsPdf) => Ok(windows_preview(job)),
         None => Err(Error::Spool("printing to a printer isn't available on this platform yet; save the print-ready PDF instead".into())),
     }
+}
+
+#[cfg(all(test, feature = "screen-testing"))]
+extern crate self as craft_print;
+#[cfg(all(test, feature = "screen-testing"))]
+#[path = "../tests/it/main.rs"]
+mod integration;
+
+#[cfg(test)]
+fn main() {
+    craft_ui::testing::run(module_path!(), env!("CARGO_PKG_NAME"), &craft_ui::testing::registered_in(env!("CARGO_PKG_NAME")));
 }
