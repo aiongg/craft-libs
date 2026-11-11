@@ -7,6 +7,7 @@
 #[cfg(feature = "interpret")]
 pub use hayro_interpret as interpret;
 mod link;
+pub mod settings;
 #[cfg(feature = "read")]
 pub use hayro_syntax as syntax;
 pub use link::safe_url;
@@ -19,3 +20,10 @@ pub use read::*;
 pub mod raster;
 #[cfg(feature = "write")]
 pub mod write;
+
+#[cfg(test)]
+extern crate self as craft_pdf;
+
+#[cfg(test)]
+#[path = "../tests/main.rs"]
+mod integration;

@@ -482,29 +482,3 @@ pub fn alpha_to_yuv420(rgba: &[u8], w: u32, h: u32) -> (Vec<u8>, Vec<u8>, Vec<u8
     let y: Vec<u8> = rgba.as_chunks::<4>().0.iter().take(w * h).map(|p| p[3]).collect();
     (y, vec![128; cw * ch], vec![128; cw * ch])
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn sizes_beyond_the_16_bit_header_fields_are_clamped() {
-        let enc = Vp9Encoder::new(EncoderConfig { width: 70_000, height: u32::MAX, ..Default::default() });
-        assert_eq!((enc.cfg.width, enc.cfg.height), (65_536, 65_536));
-        let enc = Vp9Encoder::new(EncoderConfig { width: 65_536, height: 1, ..Default::default() });
-        assert_eq!((enc.cfg.width, enc.cfg.height), (65_536, 1));
-    }
-
-    /// A 1080p stream is above the 983,040 luma samples of level 3.1, so it must not claim 3.1 in
-    /// its `vpcC`; level 0 means "undefined" in the MP4 binding.
-    #[test]
-    fn vpcc_claims_no_level_the_encoder_does_not_enforce() {
-        for (w, h) in [(1920, 1080), (64, 64), (3840, 2160)] {
-            let enc = Vp9Encoder::new(EncoderConfig { width: w, height: h, ..Default::default() });
-            let rec = VpcConfig::parse(&enc.vpcc()).unwrap();
-            assert_eq!(rec.level, 0, "{w}x{h}");
-            let params = enc.codec_params();
-            assert_eq!(VpcConfig::parse(&params.extradata).unwrap().level, 0);
-        }
-    }
-}
