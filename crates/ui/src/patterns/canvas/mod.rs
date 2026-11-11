@@ -1,7 +1,4 @@
 //! Canvas panel patterns: `NavigatorPanel`.
 
-mod navigator_panel;
-#[cfg(feature = "testing")]
-mod stories;
-
-pub use navigator_panel::{NavigatorPanel, NavigatorPanelOutput};
+// split: re-exported from craft-ui-canvas after step 7
+pub use crate::canvas::navigator_panel::{NavigatorPanel, NavigatorPanelOutput};

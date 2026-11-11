@@ -2,6 +2,7 @@
 
 use super::divider::{self, Divider, Drag};
 use super::dock_column::{BarRecord, column_grip, register_edges, show_bar};
+use super::flyout;
 use super::{DockSizes, DockSpot, DockTargets, DockWords, DragUnit, Flyout, GroupAt, PanelKey, PanelSpec, Splitter, start_group_drag};
 use crate::buttons::IconButton;
 use crate::contract::{
@@ -428,7 +429,7 @@ impl<P: Value + Hash + 'static> Component for IconicColumn<'_, P> {
             let anchor = ui.anchor_part(CELL.at(at as u64));
             Flyout::new(edge, Vec2::new(width, height), auto_collapse)
                 .show(ui, popup.at(at), anchor, |ui, body, place| view(&group, place, ui, body));
-            dismissed |= ui.dismissed(popup.at(at));
+            dismissed |= flyout::dismissed(ui, popup.at(at));
         }
         if dismissed {
             cx.set(None);

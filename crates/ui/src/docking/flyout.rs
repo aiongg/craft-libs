@@ -70,9 +70,7 @@ impl Flyout {
     }
 }
 
-impl OverlayUi<'_> {
-    /// Whether the layer of `popup` was dismissed in this pass (Escape, a press outside, the focus leaving it).
-    pub(crate) fn dismissed(&self, popup: PopupHandle) -> bool {
-        self.closed.iter().any(|(id, _)| *id == popup.id())
-    }
+/// Whether the layer of `popup` was dismissed in this pass of `ui` (Escape, a press outside, the focus leaving it).
+pub(super) fn dismissed(ui: &OverlayUi<'_>, popup: PopupHandle) -> bool {
+    ui.closed.iter().any(|(id, _)| *id == popup.id())
 }

@@ -67,7 +67,7 @@ pub(crate) use label::colon_of;
 pub use label::{CellWidth, FieldLabelRole, FieldLayout, GlyphLabel, LabelAlign, LabelKind, Scrub, SideLabel};
 pub use lazy::Lazy;
 #[cfg(feature = "testing")]
-pub(crate) use level::KIT_MODULES;
+pub(crate) use level::kit_module;
 #[doc(hidden)]
 #[cfg(feature = "testing")]
 pub use level::{Catalog, CatalogEntry, Level, StoryLayout, Surface, catalog, story_title};
@@ -79,9 +79,7 @@ pub use props::{Common, Props, Resolved, Tooltip, TooltipAt, TooltipSpec, Toolti
 #[cfg(feature = "testing")]
 pub use registry::registrations;
 #[doc(hidden)]
-pub use registry::{
-    CollectionEntry, ContainerEntry, DialogPattern, Exemption, LeafEntry, PatternKind, PatternProbe, Probe, Registration, ShowEntry, ToolPattern,
-};
+pub use registry::{CollectionEntry, ContainerEntry, Exemption, LeafEntry, PatternKind, PatternProbe, Probe, Registration, ShowEntry};
 pub use sampler::Sampler;
 pub use settle::SettleCx;
 pub use values::{Bind, BindMut, EditResponse, ItemOutput, NoValue, Outcome, Validity, ValueOf, clicked};
@@ -106,6 +104,11 @@ pub(crate) use steps::keeping_ids;
 #[cfg(feature = "testing")]
 pub(crate) use steps::queue_reveal;
 pub(crate) use steps::{peek_reveal, take_reveal};
+
+/// Adds the runtime to `ctx`: `runtime::install` with the overlay host's ghost-layer painter in the end hook.
+pub fn install(ctx: &egui::Context, spec: crate::runtime::InstallSpec) -> Result<(), crate::runtime::InstallError> {
+    crate::runtime::install(ctx, spec.frame_layers(Some(overlay::paint_frame_layers)))
+}
 
 /// Where an element's id comes from.
 #[derive(Clone, Copy, Debug, Default)]

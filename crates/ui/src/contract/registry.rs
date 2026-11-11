@@ -247,15 +247,6 @@ fn carries_value<T: Component + 'static>() -> bool {
     TypeId::of::<ValueOf<T>>() != TypeId::of::<super::NoValue>()
 }
 
-/// A pattern that is a canvas tool. The canvas module implements it for every `CanvasTool` pattern, so the registry
-/// names the kind without importing the tool.
-#[doc(hidden)]
-pub trait ToolPattern: Pattern {}
-
-/// A pattern that is a stack dialog. The dialog module implements it for every `StackDialog` pattern.
-#[doc(hidden)]
-pub trait DialogPattern: Pattern {}
-
 /// What a registered pattern type is. The suite shows the stories of every kind the same way; the kind names the
 /// host the type's stories show it through, so the components index and the gallery list a tool or a stack dialog
 /// beside the components.
@@ -306,24 +297,16 @@ impl PatternProbe {
         PatternProbe { crate_name, crate_target, module, purpose, kind: PatternKind::Composition, name: std::any::type_name::<T> }
     }
 
-    /// The probe of the canvas tool `T`.
-    pub const fn tool<T: ToolPattern + 'static>(
+    /// The probe of the pattern `T` of kind `kind`. The module that owns a kind's trait wraps it in the constructor
+    /// `#[pattern(..)]` names, bounded by that trait: `canvas::tool_probe`, `dialog::dialog_probe`.
+    pub const fn kinded<T: Pattern + 'static>(
+        kind: PatternKind,
         crate_name: &'static str,
         crate_target: &'static str,
         module: &'static str,
         purpose: &'static str,
     ) -> Self {
-        PatternProbe { kind: PatternKind::Tool, ..Self::of::<T>(crate_name, crate_target, module, purpose) }
-    }
-
-    /// The probe of the stack dialog `T`.
-    pub const fn dialog<T: DialogPattern + 'static>(
-        crate_name: &'static str,
-        crate_target: &'static str,
-        module: &'static str,
-        purpose: &'static str,
-    ) -> Self {
-        PatternProbe { kind: PatternKind::Dialog, ..Self::of::<T>(crate_name, crate_target, module, purpose) }
+        PatternProbe { kind, ..Self::of::<T>(crate_name, crate_target, module, purpose) }
     }
 
     /// The type's name, with its type arguments.
@@ -447,19 +430,19 @@ macro_rules! __register_probe {
     };
 }
 
-/// Registers the pattern type `$ty` with the `$purpose` line of its doc comment. `$probe` names the `PatternProbe`
-/// constructor of its kind (`of`, `tool` or `dialog`).
+/// Registers the pattern type `$ty` with the `$purpose` line of its doc comment. `$probe` is the path of the
+/// `PatternProbe` constructor of its kind: `PatternProbe::of`, `canvas::tool_probe` or `dialog::dialog_probe`.
 #[doc(hidden)]
 #[macro_export]
 #[cfg(feature = "testing")]
 macro_rules! __register_pattern {
     ($ty:ty, $purpose:expr) => {
-        $crate::__register_pattern!($ty, $purpose, of);
+        $crate::__register_pattern!($ty, $purpose, $crate::contract::PatternProbe::of);
     };
-    ($ty:ty, $purpose:expr, $probe:ident) => {
+    ($ty:ty, $purpose:expr, $($probe:tt)+) => {
         $crate::__private::inventory::submit! {
             $crate::contract::Registration::pattern(
-                $crate::contract::PatternProbe::$probe::<$ty>(env!("CARGO_PKG_NAME"), env!("CARGO_CRATE_NAME"), module_path!(), $purpose),
+                $($probe)+::<$ty>(env!("CARGO_PKG_NAME"), env!("CARGO_CRATE_NAME"), module_path!(), $purpose),
             )
         }
     };
@@ -470,7 +453,7 @@ macro_rules! __register_pattern {
 #[macro_export]
 #[cfg(not(feature = "testing"))]
 macro_rules! __register_pattern {
-    ($ty:ty, $purpose:expr $(, $probe:ident)?) => {};
+    ($ty:ty, $purpose:expr $(, $($probe:tt)+)?) => {};
 }
 
 /// Registers the component type `$ty`; without the `testing` feature there is nothing to register.

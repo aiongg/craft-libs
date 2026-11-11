@@ -1,9 +1,9 @@
 //! `FullWindowCanvas`: the canvas region of a full-window dialog, and `RasterOverlay`, a further image drawn over it.
 
-use super::super::words::DialogWords;
 use super::view::FullWindowView;
 use crate::canvas::{Canvas, CanvasTool, HandTool, Momentary, NavigationOptions, PixelRect, RasterDisplay, RasterSource, ToolHost, ToolHostResponse};
 use crate::contract::{Bind, NoValue, Outcome, Props as _, Show as _, ShowContainer as _};
+use crate::dialog::DialogWords;
 use crate::layout_components::Stack;
 use crate::primitives::{Checker, Revision};
 use crate::runtime::env::{Env, Label};

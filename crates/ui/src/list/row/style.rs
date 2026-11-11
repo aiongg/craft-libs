@@ -143,32 +143,45 @@ fn flag_rules(command: bool) -> Vec<FlagRule> {
     ]
 }
 
-impl StyleCx<'_> {
+/// The row looks of the collection items, on a `StyleCx`: lists, menus and popup lists share them.
+pub trait RowStyleCx {
     /// The fill of a row of a list, a menu or any collection item: the one surface, the active (lead) row included.
-    pub fn row_surface(&self) -> Stateful<StyleColor> {
-        fill_of(self, FillKey { striped: false, layer: false, command: false })
-    }
+    fn row_surface(&self) -> Stateful<StyleColor>;
 
     /// The fill of a row of a menu or popup list: the active (lead) row is a command highlight in `accent.solid`, and a
     /// row with an open submenu (emphasized) keeps the hover tint.
-    pub fn command_row_surface(&self) -> Stateful<StyleColor> {
-        fill_of(self, FillKey { striped: false, layer: false, command: true })
-    }
+    fn command_row_surface(&self) -> Stateful<StyleColor>;
 
     /// The surface of a face of a menu: the command highlight on square corners, as the old menu rows and bar titles
     /// drew it. A face selects it with `SurfaceLook`'s fill from here and `command_row_ink` for its text and icons.
-    pub fn command_row_look(&self) -> SurfaceLook {
-        SurfaceLook::new(self.command_row_surface()).radius(egui::CornerRadius::ZERO)
-    }
+    fn command_row_look(&self) -> SurfaceLook;
 
     /// The ink of a collection item's text or icon: `base`, and the theme's paired `text.on_selected` on the
     /// selection fills.
-    pub fn row_ink(&self, base: Rgba) -> Stateful<StyleColor> {
+    fn row_ink(&self, base: Rgba) -> Stateful<StyleColor>;
+
+    /// The ink of a menu or popup list row: `base`, and `text.on_accent` on the active row.
+    fn command_row_ink(&self, base: Rgba) -> Stateful<StyleColor>;
+}
+
+impl RowStyleCx for StyleCx<'_> {
+    fn row_surface(&self) -> Stateful<StyleColor> {
+        fill_of(self, FillKey { striped: false, layer: false, command: false })
+    }
+
+    fn command_row_surface(&self) -> Stateful<StyleColor> {
+        fill_of(self, FillKey { striped: false, layer: false, command: true })
+    }
+
+    fn command_row_look(&self) -> SurfaceLook {
+        SurfaceLook::new(self.command_row_surface()).radius(egui::CornerRadius::ZERO)
+    }
+
+    fn row_ink(&self, base: Rgba) -> Stateful<StyleColor> {
         row_ink_of(self, self.color(base), false)
     }
 
-    /// The ink of a menu or popup list row: `base`, and `text.on_accent` on the active row.
-    pub fn command_row_ink(&self, base: Rgba) -> Stateful<StyleColor> {
+    fn command_row_ink(&self, base: Rgba) -> Stateful<StyleColor> {
         row_ink_of(self, self.color(base), true)
     }
 }

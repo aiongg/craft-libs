@@ -74,19 +74,19 @@ impl<'b> FooterCx<'_, 'b> {
 }
 
 /// The footer closure of a dialog shell.
-pub(super) type FooterFn<'a> = Box<dyn FnMut(&mut Ui, &mut FooterCx<'_, '_>) + 'a>;
+pub(crate) type FooterFn<'a> = Box<dyn FnMut(&mut Ui, &mut FooterCx<'_, '_>) + 'a>;
 
 /// The host's answer to a picked button: given the button and the dialog's body context, whether the dialog may
 /// close.
-pub(super) type CloseGuard<'a> = Box<dyn FnMut(&FooterButton, &mut BodyCx<'_>) -> bool + 'a>;
+pub(crate) type CloseGuard<'a> = Box<dyn FnMut(&FooterButton, &mut BodyCx<'_>) -> bool + 'a>;
 
 /// The host's rule for the enabled state of the buttons: given the dialog's body context and the buttons, it runs
 /// when the footer is shown, after the body, so it reads what the body wrote in the same pass.
-pub(super) type ButtonState<'a> = Box<dyn FnMut(&mut BodyCx<'_>, &mut [FooterButton]) + 'a>;
+pub(crate) type ButtonState<'a> = Box<dyn FnMut(&mut BodyCx<'_>, &mut [FooterButton]) + 'a>;
 
 /// What the host of a dialog shell does when a footer button is picked, given the button and the dialog's body
 /// context. It acts on the pick (a Reset restores the values) and never decides the close.
-pub(super) type PickHook<'a> = Box<dyn FnMut(&FooterButton, &mut BodyCx<'_>) + 'a>;
+pub(crate) type PickHook<'a> = Box<dyn FnMut(&FooterButton, &mut BodyCx<'_>) + 'a>;
 
 /// The footer hooks every dialog shell with buttons takes: the buttons themselves, the rule for their state, the
 /// action on a pick and the close guard. `Dialog` and `FullWindowDialog` implement it, so a footer pattern such as
@@ -112,15 +112,15 @@ pub trait FooterHooks<'a>: Sized {
 }
 
 /// What the host of a dialog shell decides about its footer buttons, and where the pick goes.
-pub(super) struct FooterHost<'s, 'a> {
-    pub(super) picked: &'s mut Option<usize>,
-    pub(super) guard: &'s mut Option<CloseGuard<'a>>,
-    pub(super) on_pick: &'s mut Option<PickHook<'a>>,
-    pub(super) settle: &'s mut Option<ButtonState<'a>>,
+pub(crate) struct FooterHost<'s, 'a> {
+    pub(crate) picked: &'s mut Option<usize>,
+    pub(crate) guard: &'s mut Option<CloseGuard<'a>>,
+    pub(crate) on_pick: &'s mut Option<PickHook<'a>>,
+    pub(crate) settle: &'s mut Option<ButtonState<'a>>,
 }
 
 /// Fills the header region: the title and, for a closable shell, the close action.
-pub(super) fn header(ui: &mut Ui, cx: &mut BodyCx<'_>, actions: &[HeaderAction]) {
+pub(crate) fn header(ui: &mut Ui, cx: &mut BodyCx<'_>, actions: &[HeaderAction]) {
     let shown = TitleRow::new(cx.label()).strength(HeaderStrength::Strong).level(TITLE_LEVEL).actions(actions.iter().copied()).show(ui);
     if shown.action == Some(HeaderAction::Close) {
         cx.request_close();
@@ -132,7 +132,7 @@ pub(super) fn header(ui: &mut Ui, cx: &mut BodyCx<'_>, actions: &[HeaderAction])
 /// button that stays open never closes; `on_pick` acts on every picked button first; `guard` runs for every picked
 /// button but Cancel and can refuse the close of one that closes. `settle` may change the buttons' state first. With `enter`, an
 /// Enter the focused part left untaken picks the default button, so it takes the way of a click on it, guard included.
-pub(super) fn footer(
+pub(crate) fn footer(
     ui: &mut Ui,
     cx: &mut BodyCx<'_>,
     content: &mut Option<FooterFn<'_>>,
@@ -176,18 +176,18 @@ pub(super) fn footer(
 }
 
 /// The header actions of a shell: the close action when it has one.
-pub(super) fn close_action(closable: bool) -> &'static [HeaderAction] {
+pub(crate) fn close_action(closable: bool) -> &'static [HeaderAction] {
     if closable { &[HeaderAction::Close] } else { &[] }
 }
 
 /// The props every dialog shell starts from: the dialog surface and a header with a rule under it. A layer scrolls its
 /// body vertically unless the body is a collection; a frame in a parent's flow asks for the scroll itself.
-pub(super) fn chrome_props() -> ContainerProps {
+pub(crate) fn chrome_props() -> ContainerProps {
     ContainerProps::new().surface(SurfaceKind::Dialog).pad(Pad::Regular).header(HeaderRegion::new().rule(true))
 }
 
 /// The footer region of a shell that has footer content.
-pub(super) const FOOTER: FooterRegion = FooterRegion::new().rule(true);
+pub(crate) const FOOTER: FooterRegion = FooterRegion::new().rule(true);
 
 /// The style of a dialog frame: the surface and padding come from the container.
 #[derive(Clone, Debug, Default, PartialEq, ComponentStyle)]

@@ -9,7 +9,9 @@
 
 mod crop;
 mod frame_step;
-mod guide;
+// The full-window dialog family; `dialog` re-exports it.
+pub(crate) mod full_window;
+pub(crate) mod full_window_parts;
 mod march;
 mod readout;
 mod space;
@@ -25,12 +27,15 @@ mod tool_host;
 
 pub use crop::{CropOverlay, CropOverlayOutput, CropShield, CropStyle, ShieldColor};
 pub use frame_step::{FRAME_STEP_MAX, frame_step};
-pub use guide::{Guide, GuideDrag, GuideKey, GuideLine};
+// split: re-exported from craft-ui-panels after step 6
+pub use crate::canvas_data::{Guide, GuideColor, GuideDrag, GuideKey, GuideLine, NavigatorOptions, NavigatorSettings, ProxyColor};
 pub(crate) use march::{MARCH_SECONDS, MARCH_TICK, march_shift};
 pub use readout::readout;
 pub use space::{CanvasSpace, RulerText, canvas_space};
 pub use words::CanvasWords;
 
+#[doc(hidden)]
+pub use tool::tool_probe;
 pub use tool::{CanvasTool, NoTool, ToolAccess, ToolAction, ToolAnchor, ToolClaims, ToolContext, ToolKey, ToolPointer, ViewEase};
 pub use tool_groups::{PickStep, tool_pick};
 pub use tool_host::{ToolHost, ToolHostResponse, ToolInput, ToolReadout};
@@ -49,7 +54,6 @@ pub use raster::{DetailPlan, RasterDisplay, RasterDisplayOutput, RasterStyle, sn
 
 // l4d-space
 mod snap;
-pub use guide::GuideColor;
 pub(crate) use rulers::LABEL_STEP_MIN;
 pub use rulers::{NUDGE, NUDGE_FAR};
 pub use snap::{Snap, canvas_snap};
@@ -78,13 +82,15 @@ pub use scrollbars::{CanvasScrollbars, CanvasScrollbarsOutput};
 // canvas-navigator-a
 mod navigator;
 pub use navigator::{
-    Navigator, NavigatorCommands, NavigatorOptions, NavigatorOutput, NavigatorPaint, NavigatorPreview, NavigatorSettings, NavigatorZoomRow,
-    NavigatorZoomRowOutput, ProxyColor, preview_rect, proxy_quad, view_center_for, zoom_to_document_rect,
+    Navigator, NavigatorCommands, NavigatorOutput, NavigatorPaint, NavigatorPreview, NavigatorZoomRow, NavigatorZoomRowOutput, preview_rect,
+    proxy_quad, view_center_for, zoom_to_document_rect,
 };
 // End of canvas-navigator-a.
 // l4e-navprev
 pub use navigator::NavigatorStyle;
 // End of l4e-navprev.
+// The Navigator panel pattern; `patterns::canvas` re-exports it.
+pub(crate) mod navigator_panel;
 
 use crate::contract::{
     Bind, Common, Component, Container, ContainerProps, Cx, Focus as _, NoValue, Outcome, PartsCx, Pointer as _, Props as _, Role, Sizing,

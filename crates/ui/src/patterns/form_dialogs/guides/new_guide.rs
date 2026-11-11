@@ -4,7 +4,7 @@ use super::layout::{GuideLength, GuideUnits};
 use crate::runtime::requests::HostAnswer;
 
 use super::{FormDialog, GUIDE_LIMIT, GuideDialogWords, HostRequests, NEW_GUIDE_COLOR_KEY, apply_color_answers, color_row};
-use crate::canvas::{Guide, GuideColor, GuideKey};
+use crate::canvas_data::{Guide, GuideColor, GuideKey};
 
 use crate::choice::Segmented;
 use crate::contract::{Bind, Entry, NoValue, Outcome, Show as _, ShowContainer as _};

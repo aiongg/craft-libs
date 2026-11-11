@@ -6,7 +6,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::contract::KIT_MODULES;
+use crate::contract::kit_module;
 
 /// The first sentence of the first paragraph of `lines`, without its final full stop, safe inside a table cell.
 fn purpose(lines: &[&str]) -> String {
@@ -41,7 +41,7 @@ fn registered_rows() -> Vec<(String, String, String, String)> {
     let components = registered
         .iter()
         .filter_map(|registration| registration.probe())
-        .filter(|probe| !KIT_MODULES.contains(&probe.module))
+        .filter(|probe| !kit_module(probe.module))
         .map(|probe| (probe.module.to_owned(), shown(probe.type_name()), format!("{:?}", probe.shape), probe.purpose.replace('|', "\\|")));
     let patterns = registered
         .iter()

@@ -10,6 +10,7 @@ use std::fmt;
 use egui::{Context, Ui};
 
 use super::stack::{DialogId, DialogStack};
+use crate::contract::{Pattern, PatternKind, PatternProbe};
 
 /// How a dialog on the [`DialogHost`] finished. `T` is the dialog's own answer type: a struct of
 /// values for a form, an enum for a prompt with three buttons.
@@ -83,7 +84,17 @@ pub trait StackDialog: Any + Send {
     fn cancelled(&mut self, _ctx: &Context) {}
 }
 
-impl<T: StackDialog + crate::contract::Pattern> crate::contract::DialogPattern for T {}
+/// The suite's probe of the stack dialog `T`: `#[pattern(dialog)]` registers through it, so only a `StackDialog`
+/// takes the attribute.
+#[doc(hidden)]
+pub const fn dialog_probe<T: StackDialog + Pattern + 'static>(
+    crate_name: &'static str,
+    crate_target: &'static str,
+    module: &'static str,
+    purpose: &'static str,
+) -> PatternProbe {
+    PatternProbe::kinded::<T>(PatternKind::Dialog, crate_name, crate_target, module, purpose)
+}
 
 /// Where a startup modal goes in the queue when several apply at launch (spec question 5).
 /// Lower shows first.

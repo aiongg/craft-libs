@@ -19,7 +19,7 @@ use craft_ui::patterns::form_dialogs::{
 use craft_ui::rails::ToolRail;
 use craft_ui::runtime::commands::{CommandRef, Commands as _, EditCommands};
 use craft_ui::runtime::env::{Label, WindowKey};
-use craft_ui::shell::{AppShell, AppShellOutput, Title, TitleBar};
+use craft_ui::shell::{AppShell, AppShellOutput, ShellDialogsCx as _, Title, TitleBar};
 use egui::Ui;
 
 /// The parameters of Gaussian Blur.

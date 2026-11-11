@@ -12,6 +12,7 @@ pub mod bars;
 pub mod buttons;
 pub mod canvas;
 pub mod canvas_controls;
+pub(crate) mod canvas_data;
 pub mod choice;
 pub mod contract;
 pub mod controls;
@@ -48,12 +49,9 @@ pub mod text;
 pub mod tile_grid;
 pub mod value_drag;
 
+// split: every crate root re-exports these from craft-ui-contract
+pub use contract::install;
 pub use runtime::{InstallError, InstallSpec};
-
-/// Adds the runtime to `ctx`: `runtime::install` with the overlay host's ghost-layer painter in the end hook.
-pub fn install(ctx: &egui::Context, spec: InstallSpec) -> Result<(), InstallError> {
-    runtime::install(ctx, spec.frame_layers(Some(contract::overlay::paint_frame_layers)))
-}
 
 #[doc(hidden)]
 pub mod __private {

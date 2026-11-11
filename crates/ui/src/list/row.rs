@@ -32,7 +32,7 @@ pub use placement::RowPlacement;
 use placement::halign;
 #[cfg(feature = "testing")]
 pub(crate) use placement::{indent_steps, placement_under_fixed_sizes};
-pub use style::ListRowStyle;
+pub use style::{ListRowStyle, RowStyleCx};
 pub(crate) use thumb::RowThumb;
 pub(super) use thumb::Thumb;
 use thumb::ThumbPayload;

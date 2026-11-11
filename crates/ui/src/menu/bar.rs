@@ -28,6 +28,7 @@ use crate::contract::{
 };
 use crate::display::{Divider, Text};
 use crate::layout_components::Stack;
+use crate::list::RowStyleCx as _;
 use crate::primitives::{PaintShape, StrokeWidth, TextRun};
 use crate::runtime::commands::CommandRef;
 use crate::runtime::env::{EnvView, Label};

@@ -1,7 +1,7 @@
 //! `FullWindowTitle`: the text of a full-window dialog's title strip.
 
-use super::super::words::DialogWords;
 use crate::contract::{NoValue, Outcome, Show as _};
+use crate::dialog::DialogWords;
 use crate::display::{Elide, Text};
 use crate::runtime::env::{Env, Label};
 use egui::{Response, Ui};

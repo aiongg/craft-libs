@@ -5,6 +5,7 @@
 //! them to document units with the canvas's view ([`ToolContext::space`]), so it holds no copy of the view.
 
 use super::{CanvasSpace, MARCH_SECONDS, MARCH_TICK, Snap, ToolPath, march_shift};
+use crate::contract::{Pattern, PatternKind, PatternProbe};
 use crate::primitives::{ContentPainterCx, Draw};
 use crate::runtime::env::{Direction, Env, Label, MotionPolicy, PointSize, UnitWords, Units, WordSet, Words};
 use crate::runtime::motion::loop_phase;
@@ -605,7 +606,17 @@ pub trait CanvasTool {
     fn command_form(&self) -> ToolPath;
 }
 
-impl<T: CanvasTool + crate::contract::Pattern> crate::contract::ToolPattern for T {}
+/// The suite's probe of the canvas tool `T`: `#[pattern(tool)]` registers through it, so only a `CanvasTool` takes
+/// the attribute.
+#[doc(hidden)]
+pub const fn tool_probe<T: CanvasTool + Pattern + 'static>(
+    crate_name: &'static str,
+    crate_target: &'static str,
+    module: &'static str,
+    purpose: &'static str,
+) -> PatternProbe {
+    PatternProbe::kinded::<T>(PatternKind::Tool, crate_name, crate_target, module, purpose)
+}
 
 /// The tool of a canvas that has none: it takes no press and paints nothing, and its keyboard path is freehand.
 #[derive(Clone, Copy, Debug, Default)]
