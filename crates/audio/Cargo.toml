@@ -1,4 +1,5 @@
 [package]
+autotests = false
 name = "craft-audio"
 description = "Audio file I/O and codecs: WAV/AIFF read and write, FLAC encoder."
 version.workspace = true
@@ -45,14 +46,6 @@ symphonia = { version = "0.6.1", optional = true, default-features = false, feat
 craft-media-testkit = { workspace = true }
 proptest = { workspace = true }
 serde_json = { workspace = true }
-
-[[test]]
-name = "audio"
-required-features = ["decode", "lossless-encode", "peaks"]
-
-[[test]]
-name = "codecs"
-required-features = ["decode", "encode"]
 
 [[example]]
 name = "info"

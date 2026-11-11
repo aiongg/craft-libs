@@ -78,14 +78,14 @@ fn run(ff: &Path, args: &[&str]) -> bool {
 
 /// The fixture for `c`, written by ffmpeg (cached), or `None` when this ffmpeg lacks an encoder.
 fn fixture(ff: &Path, c: &Case) -> Option<PathBuf> {
-    let out = crate::testkit::fixtures_dir("routing").join(c.name);
+    let out = super::testkit::fixtures_dir("routing").join(c.name);
     let source = match (c.mono, c.surround) {
         (true, _) => MONO.to_string(),
         (_, true) => format!("{STEREO}{SURROUND_EXTRA}"),
         _ => STEREO.to_string(),
     };
     let input = format!("{source}:s={}", c.rate);
-    crate::testkit::fixtures::generate(&out, |tmp| {
+    super::testkit::fixtures::generate(&out, |tmp| {
         let tmp = tmp.to_string_lossy();
         let mut args = vec!["-f", "lavfi", "-i", &input, "-t", "5"];
         args.extend_from_slice(c.args);
@@ -258,8 +258,8 @@ fn track_choice_and_the_sample_limit() {
     use craft_audio::{AudioError, DecodeOptions, decode_with, tracks};
     let ff = require_ffmpeg!();
     for ext in ["mkv", "mov"] {
-        let out = crate::testkit::fixtures_dir("routing").join(format!("two-tracks-pcm.{ext}"));
-        let Some(path) = crate::testkit::fixtures::generate(&out, |tmp| {
+        let out = super::testkit::fixtures_dir("routing").join(format!("two-tracks-pcm.{ext}"));
+        let Some(path) = super::testkit::fixtures::generate(&out, |tmp| {
             let tmp = tmp.to_string_lossy();
             run(
                 &ff,
