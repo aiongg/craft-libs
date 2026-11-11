@@ -86,7 +86,7 @@ impl GridCursor {
     /// The cell of the next child, whose measured size is `size`.
     pub fn cell(&mut self, size: Vec2) -> Rect {
         let count = self.columns.len().max(1);
-        let (column, row) = (self.next % count, self.next / count);
+        let (column, row, start, top) = self.next_place();
         self.next += 1;
         self.measured.columns.resize(count, 0.0);
         self.measured.columns[column] = self.measured.columns[column].max(size.x);
@@ -94,8 +94,6 @@ impl GridCursor {
             self.measured.rows.resize(row + 1, 0.0);
         }
         self.measured.rows[row] = self.measured.rows[row].max(size.y);
-        let start: f32 = self.widths.iter().take(column).map(|width| width + self.gap.x).sum();
-        let top: f32 = self.last_rows.iter().take(row).map(|height| height + self.gap.y).sum();
         // A `Content` column is at least as wide as the cell placed in it, so a column no pass has measured yet takes its
         // first cell's width and the cells after it are placed past it.
         if let (Some(ColumnWidth::Content), Some(width)) = (self.columns.get(column), self.widths.get_mut(column)) {
@@ -112,7 +110,7 @@ impl GridCursor {
     /// it, as they would shorten the rest of a top-down flow.
     pub fn room(&self) -> Vec2 {
         let count = self.columns.len().max(1);
-        let (column, row) = (self.next % count, self.next / count);
+        let (column, _, _, top) = self.next_place();
         let width = match self.columns.get(column) {
             Some(ColumnWidth::Content) => {
                 let kept: f32 = (self.fills.iter().zip(&self.widths).enumerate())
@@ -124,8 +122,26 @@ impl GridCursor {
             }
             _ => self.widths.get(column).copied().unwrap_or(0.0),
         };
-        let top: f32 = self.last_rows.iter().take(row).map(|height| height + self.gap.y).sum();
         Vec2::new(width, (self.flow.rect().height() - top).max(0.0))
+    }
+
+    /// The rect the next child measures and is placed in: from its column's start edge and its row's top, as large
+    /// as `room()`.
+    pub fn region(&self) -> Rect {
+        let (_, _, start, top) = self.next_place();
+        let room = self.room();
+        let span = self.flow.span(start, room.x);
+        Rect::from_min_size(Pos2::new(span.min.x, self.flow.rect().top() + top), room)
+    }
+
+    /// The column and row of the next cell, how far its column starts from the start edge and how far its row
+    /// starts below the grid's top.
+    fn next_place(&self) -> (usize, usize, f32, f32) {
+        let count = self.columns.len().max(1);
+        let (column, row) = (self.next % count, self.next / count);
+        let start: f32 = self.widths.iter().take(column).map(|width| width + self.gap.x).sum();
+        let top: f32 = self.last_rows.iter().take(row).map(|height| height + self.gap.y).sum();
+        (column, row, start, top)
     }
 
     /// The room the next child fills when it fills its width: its column's width, which for a `Content` column is the

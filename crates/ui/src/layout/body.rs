@@ -311,6 +311,13 @@ impl Cursor {
         }
     }
 
+    fn region(&self) -> Rect {
+        match self {
+            Cursor::Grid(grid) => grid.region(),
+            Cursor::Spread(row) => row.region(),
+        }
+    }
+
     fn fill_room(&self) -> Vec2 {
         match self {
             Cursor::Grid(grid) => grid.fill_room(),
@@ -365,6 +372,10 @@ impl Spread {
         Vec2::new((rect.width() - self.start()).max(0.0), rect.height())
     }
 
+    fn region(&self) -> Rect {
+        self.flow.span(self.start(), self.room().x)
+    }
+
     /// What `new` spreads by next pass.
     fn measured(&self) -> Vec2 {
         Vec2::new(self.natural, self.count as f32)
@@ -399,20 +410,38 @@ pub(crate) fn place_in_flow(ui: &mut Ui, size: Vec2) -> Rect {
 pub(crate) fn place_in_cell(ui: &mut Ui, size: Vec2, child: InFlow) -> Rect {
     let env = Env::of(ui);
     let slot = Vec2::new(size.x, env.row_line.map_or(size.y, |line| line.max(size.y)));
-    let cell = env.grid.and_then(|body| Service::<Cursors>::of(ui.ctx()).with(|cursors| cursors.0.get_mut(&body).map(|cursor| cursor.cell(slot))));
-    let rect = match cell {
-        Some(cell) => {
-            alloc::advance_past(ui, cell);
-            cell
-        }
-        None => alloc::space(ui, slot),
-    };
-    if child.fill && cell.is_some() {
+    let (rect, in_cell) = take_in(ui, env.grid, slot);
+    if child.fill && in_cell {
         return rect;
     }
     let spare = (rect.height() - size.y).max(0.0);
     let (above, below) = if env.row_line.is_some() && !child.line { (0.0, spare) } else { (spare / 2.0, spare / 2.0) };
     Rect::from_min_max(egui::pos2(rect.min.x, rect.min.y + above), egui::pos2(rect.max.x, rect.max.y - below))
+}
+
+/// Takes `size` in flow in `ui`: the next cell of the `Grid` or spread `Row` body that encloses it directly, else the
+/// next allocation of `ui`'s layout. Returns the rect taken and whether it is a cell.
+pub(crate) fn take_in_flow(ui: &mut Ui, size: Vec2) -> (Rect, bool) {
+    take_in(ui, Env::of(ui).grid, size)
+}
+
+/// `take_in_flow`, with `grid` the body of `ui`'s env that places its children itself.
+fn take_in(ui: &mut Ui, grid: Option<Id>, size: Vec2) -> (Rect, bool) {
+    let cell = grid.and_then(|body| Service::<Cursors>::of(ui.ctx()).with(|cursors| cursors.0.get_mut(&body).map(|cursor| cursor.cell(size))));
+    match cell {
+        Some(cell) => {
+            alloc::advance_past(ui, cell);
+            (cell, true)
+        }
+        None => (alloc::space(ui, size), false),
+    }
+}
+
+/// The region the next child shown in flow in `ui` measures and is placed in: that of the next cell of the `Grid` or
+/// spread `Row` body that encloses `ui` directly, else the rest of `ui`'s layout.
+pub(crate) fn flow_region(ui: &Ui) -> Rect {
+    let cell = Env::of(ui).grid.and_then(|body| Service::<Cursors>::of(ui.ctx()).with(|cursors| cursors.0.get(&body).map(Cursor::region)));
+    cell.unwrap_or_else(|| ui.available_rect_before_wrap())
 }
 
 /// The room a child shown in flow in `ui` measures and sizes in: the room of the next cell of the `Grid` or spread

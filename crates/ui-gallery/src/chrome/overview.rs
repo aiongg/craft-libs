@@ -99,7 +99,7 @@ pub(super) fn on_background(ui: &mut Ui, key: &str, mut add: impl FnMut(&mut Ui,
         .show(ui, &mut ());
 }
 
-/// The cards in one or two columns, scrolling vertically; each row is as tall as its tallest card. A row out of view
+/// The cards in one or two columns, scrolling vertically; each row is as tall as its tallest card. A card out of view
 /// does not run (`Lazy`), except the one the selection scrolls to. The cards report into `reported`.
 pub(super) fn grid(
     ui: &mut Ui,
@@ -116,11 +116,12 @@ pub(super) fn grid(
     Stack::new().fill().scroll(Scroll::vertical()).gap(Gap::CardRow).id_salt(scroll_id).show(ui, |ui, _| {
         reported.clear();
         for (row, chunk) in cards.chunks(columns).enumerate() {
-            let target = chunk.iter().any(|spec| *p.scroll_to == Some(spec.type_name));
-            let key = (generation, columns, chunk[0].key.as_str());
-            Lazy::new(key).keep(target).show(ui, |ui| {
-                Grid::new(if columns == 1 { ONE } else { TWO }).gap(Gap::CardColumn).fill_width().show(ui, |ui, _| {
-                    for (at, spec) in chunk.iter().enumerate() {
+            Grid::new(if columns == 1 { ONE } else { TWO }).gap(Gap::CardColumn).fill_width().show(ui, |ui, _| {
+                for (at, spec) in chunk.iter().enumerate() {
+                    let target = *p.scroll_to == Some(spec.type_name);
+                    // Keyed by the card alone: a change of the column count regroups the rows, and the cards out of
+                    // view keep their extents.
+                    Lazy::new((generation, spec.key.as_str())).keep(target).show(ui, |ui| {
                         let stories: Vec<CardStory<'_>> =
                             spec.stories.iter().map(|story| CardStory::new(story.index, story.story, &story.caption)).collect();
                         // Each card is its own id scope: a story's `id_salt` and auto ids must not meet another card's.
@@ -140,8 +141,8 @@ pub(super) fn grid(
                         };
                         let events = card.show(ui, p.cells);
                         reported.push(Reported { spec: row * columns + at, events });
-                    }
-                });
+                    });
+                }
             });
         }
     });

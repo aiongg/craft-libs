@@ -1,5 +1,6 @@
 //! `Lazy`: a child of a scroll area that runs only while it is in view (`runtime::lazy`).
 
+use crate::layout::{flow_region, take_in_flow};
 use crate::runtime::egui::alloc;
 use crate::runtime::env::Env;
 use crate::runtime::focus;
@@ -15,8 +16,12 @@ use std::hash::Hash;
 /// find: a child an app focuses or scrolls to before it was ever in reach needs `keep`. Outside a scroll area it
 /// always runs.
 ///
+/// It is a child in flow of its body. In a `Grid` or spread `Row` body it holds one cell: its content is the one child
+/// in flow that takes the cell, and out of view it takes the cell at its remembered extent, so the cell's row counts
+/// it.
+///
 /// The key names the child among every `Lazy` of its scroll area, nested containers included. The idiom is
-/// `Lazy::new(key).show(ui, |ui| ..)` around each large child (a card, a row of cards) in the scroll body.
+/// `Lazy::new(key).show(ui, |ui| ..)` around each large child (a card, a section of a panel) in the scroll body.
 #[must_use]
 pub struct Lazy {
     key: u64,
@@ -38,7 +43,7 @@ impl Lazy {
         self
     }
 
-    /// Runs `add` in a child `Ui` that flows in `ui`'s layout, or takes the remembered extent; `None` when it did not
+    /// Runs `add` in a child `Ui` placed in flow in `ui`, or takes the remembered extent there; `None` when it did not
     /// run.
     pub fn show<R>(self, ui: &mut Ui, add: impl FnOnce(&mut Ui) -> R) -> Option<R> {
         let ctx = ui.ctx().clone();
@@ -47,7 +52,7 @@ impl Lazy {
             Some(view) => sub(view.owner, ("lazy", self.key)),
             None => sub(ui.scope_id(), ("lazy", self.key)),
         };
-        let available = ui.available_rect_before_wrap();
+        let available = flow_region(ui);
         let rtl = ui.layout().prefer_right_to_left();
         let sizing = ui.is_sizing_pass();
         // The child is not part of its body's transcript: in a real run it counts there by its extent, whether it
@@ -59,7 +64,7 @@ impl Lazy {
                 Rect::from_min_size(Pos2::new(x, available.min.y), size)
             };
             if let Decision::Skip(size) = lazy::decide(&ctx, id, &view, at, sizing, self.keep) {
-                alloc::space(ui, size);
+                take_in_flow(ui, size);
                 if real {
                     layout_memory::backstop(&ctx, id, size);
                 }
