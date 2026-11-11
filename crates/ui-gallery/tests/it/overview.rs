@@ -3,7 +3,7 @@
 use craft_settings::{Location, OpenOptions, SettingsStore};
 use craft_ui::runtime::access::Role;
 use craft_ui::shell::app::ShellApp;
-use craft_ui::testing::{Fixture, pointer, trial};
+use craft_ui::testing::{Fixture, last_pass_measuring_runs, pointer, trial};
 use craft_ui_gallery::chrome::{Gallery, Persisted};
 use craft_ui_gallery::viewer::{Catalog, GallerySettings, by_level};
 use egui::Vec2;
@@ -39,6 +39,31 @@ fn each_level_of_the_overview_first_runs_the_cards_in_view() {
         if level == "Controls" {
             assert!(opens.len() < listed, "{level} ran fewer cards than it lists: {} of {listed}", opens.len());
         }
+    }
+}
+
+/// A settled Overview pass runs each story once, in its card's shell: no card or story runs a measuring run while its
+/// inputs hold.
+#[trial]
+fn a_settled_overview_pass_runs_no_measuring_run() {
+    let mut gallery = gallery_at("Composites");
+    let mut fixture = Fixture::new(move |ui| gallery.ui(ui));
+    fixture.room(Vec2::new(1400.0, 900.0)).settle().idle(1);
+    let runs = last_pass_measuring_runs(fixture.ctx());
+    assert!(runs.is_empty(), "a settled pass measured {} bodies: {runs:?}", runs.len());
+}
+
+/// A card in form rows shows each story's value text beside it, as the story's run found it: a settled frame of the
+/// Slider card, whose bodies take their kept measurements in place of running the stories, runs one pass.
+#[trial]
+fn a_settled_form_rows_card_runs_one_pass_per_frame() {
+    let mut gallery = gallery_filtered("Controls", "Slider");
+    let mut fixture = Fixture::new(move |ui| gallery.ui(ui));
+    fixture.room(Vec2::new(1400.0, 900.0)).settle();
+    for frame in 0..4 {
+        fixture.idle(1);
+        assert_eq!(fixture.passes(), 1, "settled frame {frame} ran {} passes", fixture.passes());
+        assert!(painted(&fixture, "100.0"), "settled frame {frame} shows the Maximum story's value text");
     }
 }
 
