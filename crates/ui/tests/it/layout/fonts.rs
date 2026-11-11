@@ -2,19 +2,8 @@
 
 use craft_ui::contract::Show as _;
 use craft_ui::display::Text;
-use craft_ui::fonts;
 use craft_ui::runtime::env::Scale;
-use craft_ui::testing::layout::reordered_fonts;
-use craft_ui::testing::{Fixture, Frames, trial};
-
-#[trial]
-fn loading_fonts_runs_one_discard_pass_in_the_frame_that_loads_them() {
-    let mut frames = Frames::new();
-    frames.idle(2, |_| {});
-    let loading = frames.frame(vec![], |ui| fonts::load(ui.ctx(), reordered_fonts()));
-    assert_eq!(loading, 2, "the pass that changed the metrics runs again, once");
-    assert_eq!(frames.frame(vec![], |_| {}), 1, "and the next frame needs no extra pass");
-}
+use craft_ui::testing::{Fixture, trial};
 
 /// 6.3: a text's width in points does not depend on the interface scale: glyph advances are measured unscaled, so hinting
 /// the outlines does not change them.

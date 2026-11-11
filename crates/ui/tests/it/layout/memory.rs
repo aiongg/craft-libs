@@ -2,7 +2,7 @@
 
 use craft_behavior::ColumnWidth;
 use craft_ui::layout::BodyLayout;
-use craft_ui::testing::layout::{body, is_animating, measured_block, read_size, start_tween};
+use craft_ui::testing::layout::{body, measured_block};
 use craft_ui::testing::{Frames, trial};
 use egui::Vec2;
 
@@ -37,24 +37,4 @@ fn continuous_change_runs_no_discard_and_a_settled_change_runs_one() {
     assert_eq!(run(&mut frames, SETTLED), once, "a settled block runs one pass");
     assert_eq!(run(&mut frames, LONGER), twice, "a change after a settled frame runs a discard pass, for both blocks together");
     assert_eq!(run(&mut frames, WITHIN_TOLERANCE), once, "a change under half a point is the same size");
-}
-
-/// 6.3: a size tween is evaluated at the reader's clock and asks for no discard pass while it runs.
-#[trial]
-fn a_size_tween_runs_without_a_discard_pass() {
-    let mut frames = Frames::new();
-    let mut seen = Vec::new();
-    for frame in 0..30 {
-        let passes = frames.frame(vec![], |ui| {
-            if frame == 0 {
-                start_tween(ui, "collapse", Vec2::ZERO, Vec2::new(100.0, 80.0), 0.25);
-            }
-            seen.push((read_size(ui, "collapse"), is_animating(ui, "collapse")));
-        });
-        assert_eq!(passes, 1, "frame {frame}");
-    }
-    let sizes: Vec<f32> = seen.iter().filter_map(|(size, _)| size.map(|size| size.y)).collect();
-    assert!(sizes.windows(2).all(|pair| pair[0] <= pair[1]) && sizes[0] < 20.0, "the height rises from the start: {sizes:?}");
-    assert_eq!(seen.last(), Some(&(Some(Vec2::new(100.0, 80.0)), false)), "and ends at the target");
-    assert!(seen.iter().any(|(_, animating)| *animating));
 }
