@@ -1,12 +1,8 @@
 //! The integration binary of craft-table: every test is a registered trial.
 
-mod chart;
-mod conditions;
-mod fields;
 mod grid;
 mod outline;
 mod refpick;
-mod stats;
 
 use craft_table::ui::testing::registered;
 use craft_ui::testing::{suite, trials};

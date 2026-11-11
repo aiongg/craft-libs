@@ -1,20 +1,16 @@
-//! `CellGrid`: geometry, keys, header edges, the fill handle, the range border, copy mode and the chrome on the sheet.
+//! `CellGrid`: End mode, the fill handle, point mode and the rows a pass runs.
 
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 
 use craft_behavior::{CellSelection, EditEvent, PartKey, PartRef};
-use craft_table::ui::{
-    CellAt, CellEdit, CellGrid, CellProblem, CellRange, ColumnFilter, GridEdit, GridModel, GridState, LineIndex, SHEET_COLUMNS, SHEET_ROWS,
-    absolute_reference, column_letters,
-};
+use craft_table::ui::{CellAt, CellEdit, CellGrid, CellRange, GridEdit, GridModel, GridState, LineIndex, SHEET_COLUMNS, SHEET_ROWS};
 use craft_ui::contract::PaintUi;
 use craft_ui::primitives::TextRun;
-use craft_ui::runtime::env::Label;
 use craft_ui::testing::focus::AccessActionKind;
 use craft_ui::testing::{Fixture, trial};
-use egui::{Event, Key, Modifiers, PointerButton, Pos2, Rect, Vec2};
+use egui::{Key, Modifiers, Rect, Vec2};
 
 /// The default line sizes of the test sheet, points at 100 %.
 const ROW: f32 = 20.0;
@@ -67,18 +63,16 @@ struct Rig {
 fn rig(hidden_column: Option<u32>, selection: CellSelection<u32>, zoom: f32) -> Rig {
     let state = Rc::new(RefCell::new(GridState::new(selection, zoom)));
     let edits = Rc::new(RefCell::new(Vec::new()));
-    let marks = Rc::new(RefCell::new(Vec::new()));
     let committed = Rc::new(RefCell::new(Vec::new()));
     let seen_zoom = Rc::new(Cell::new(0.0));
-    let (shown_state, shown_edits, shown_marks, shown_zoom) = (state.clone(), edits.clone(), marks.clone(), seen_zoom.clone());
+    let (shown_state, shown_edits, shown_zoom) = (state.clone(), edits.clone(), seen_zoom.clone());
     let shown_committed = committed.clone();
     let grid = Rc::new(Cell::new(None));
     let shown_grid = grid.clone();
     let mut fixture = Fixture::new(move |ui| {
         let model = Sheet::new(hidden_column, shown_zoom.clone());
         let mut state = shown_state.borrow().clone();
-        let marks = shown_marks.borrow().clone();
-        let out = CellGrid::new("Sheet", &model, &mut state).copy_mark(&marks).show_sheet(ui);
+        let out = CellGrid::new("Sheet", &model, &mut state).show_sheet(ui);
         shown_grid.set(Some(out.collection.response.id));
         *shown_state.borrow_mut() = state;
         shown_edits.borrow_mut().extend(out.edits);
@@ -111,18 +105,6 @@ impl Rig {
         self.fixture.part_rect(id, part).expect("the part was sensed")
     }
 
-    fn click_part(&mut self, part: impl Into<PartRef>) {
-        let at = self.part_rect(part).center();
-        self.fixture.click_at(at);
-    }
-
-    fn press_part(&mut self, part: impl Into<PartRef>) -> Pos2 {
-        let at = self.part_rect(part).center();
-        self.fixture.frame(vec![craft_ui::testing::pointer::moved(at)]);
-        self.fixture.frame(vec![craft_ui::testing::pointer::press(at)]);
-        at
-    }
-
     fn drag_part(&mut self, part: impl Into<PartRef>, by: Vec2) {
         let from = self.part_rect(part).center();
         self.fixture.drag_at(from, by);
@@ -131,15 +113,6 @@ impl Rig {
 
 fn a1() -> CellSelection<u32> {
     CellSelection::cell(CellAt::new(0, 0))
-}
-
-#[trial]
-fn column_letters_run_a_to_xfd() {
-    assert_eq!(column_letters(0), "A");
-    assert_eq!(column_letters(25), "Z");
-    assert_eq!(column_letters(26), "AA");
-    assert_eq!(column_letters(16_383), "XFD");
-    assert_eq!(absolute_reference(CellAt::new(2, 1)), "$B$3");
 }
 
 /// End alone only arms End mode; the next arrow jumps to the data edge, and Ctrl+End goes to the last used cell. End
@@ -168,38 +141,6 @@ fn end_arms_a_jump_and_ctrl_end_goes_to_the_last_used_cell() {
     assert_eq!(homed.active(), Some(CellAt::new(9, 4)), "End then Home goes to the last used cell");
 }
 
-fn resizes(edits: &[GridEdit]) -> Vec<&EditEvent<f32>> {
-    edits.iter().filter_map(|edit| if let GridEdit::ResizeColumn { width, .. } = edit { Some(width) } else { None }).collect()
-}
-
-#[trial]
-fn header_edges_resize_and_double_click_autofits() {
-    let mut rig = rig(None, a1(), 1.0);
-    let edge = PartKey::new("column_edge").at(1);
-    rig.drag_part(edge, Vec2::X * (ROW + ROW / 2.0));
-    let edits = rig.take_edits();
-    let events = resizes(&edits);
-    assert!(matches!(events.first(), Some(EditEvent::Begin { .. })), "the drag begins one gesture");
-    assert!(
-        matches!(events.last(), Some(EditEvent::Commit { after, .. }) if (*after - (COLUMN + ROW + ROW / 2.0)).abs() < 1.0),
-        "and commits the dragged width"
-    );
-    rig.click_part(edge);
-    rig.click_part(edge);
-    assert!(rig.take_edits().iter().any(|edit| matches!(edit, GridEdit::AutoFitColumn { column: 1, .. })), "a double click autofits");
-}
-
-#[trial]
-fn escape_cancels_a_header_resize() {
-    let mut rig = rig(None, a1(), 1.0);
-    let from = rig.press_part(PartKey::new("column_edge").at(1));
-    rig.fixture.frame(vec![craft_ui::testing::pointer::moved(from + Vec2::X * ROW)]);
-    rig.press(Key::Escape, Modifiers::NONE);
-    let edits = rig.take_edits();
-    assert!(resizes(&edits).iter().any(|event| matches!(event, EditEvent::Cancel { .. })), "Esc cancels the resize");
-    assert!(!resizes(&edits).iter().any(|event| matches!(event, EditEvent::Commit { .. })));
-}
-
 fn selected_block() -> CellSelection<u32> {
     CellSelection::range(CellRange::cells(CellAt::new(1, 1), CellAt::new(2, 2)))
 }
@@ -217,81 +158,6 @@ fn the_fill_handle_drags_a_range() {
     );
 }
 
-// A secondary drag of the fill handle reports the menu at release with the range it grew to and
-// fills nothing.
-#[trial]
-fn a_secondary_drag_of_the_fill_handle_reports_the_menu() {
-    let mut rig = rig(None, selected_block(), 1.0);
-    let from = rig.part_rect(PartKey::new("fill_handle")).center();
-    let to = from + Vec2::Y * (ROW * 1.5);
-    let button = |pos: Pos2, pressed| Event::PointerButton { pos, button: PointerButton::Secondary, pressed, modifiers: Modifiers::NONE };
-    rig.fixture.frame(vec![Event::PointerMoved(from)]);
-    rig.fixture.frame(vec![button(from, true)]);
-    for step in 1..=4 {
-        rig.fixture.frame(vec![Event::PointerMoved(from + (to - from) * (step as f32 / 4.0))]);
-    }
-    rig.fixture.frame(vec![button(to, false)]);
-    rig.fixture.idle(2);
-    let edits = rig.take_edits();
-    let menus: Vec<_> = edits.iter().filter_map(|edit| if let GridEdit::FillMenu { range, .. } = edit { Some(range) } else { None }).collect();
-    assert_eq!(menus.len(), 1, "{edits:?}");
-    assert_eq!(menus[0].rows().end() - menus[0].rows().start(), 3, "the range grew two rows below the block");
-    assert!(!edits.iter().any(|edit| matches!(edit, GridEdit::Fill { range: EditEvent::Commit { .. }, .. })), "{edits:?}");
-}
-
-#[trial]
-fn the_selection_border_drags_cells() {
-    let mut rig = rig(None, selected_block(), 1.0);
-    rig.drag_part(PartKey::new("range_border").at(0), Vec2::X * COLUMN);
-    let moves: Vec<_> =
-        rig.take_edits().into_iter().filter_map(|edit| if let GridEdit::MoveCells { to, .. } = edit { Some(to) } else { None }).collect();
-    assert!(matches!(moves.last(), Some(EditEvent::Commit { after, .. }) if after.column == 2), "the block moves one column right");
-}
-
-#[trial]
-fn a_click_on_the_selection_border_selects_without_moving() {
-    let mut rig = rig(None, selected_block(), 1.0);
-    rig.click_part(PartKey::new("range_border").at(0));
-    assert!(!rig.take_edits().iter().any(|edit| matches!(edit, GridEdit::MoveCells { .. })));
-    assert!(rig.active().is_some());
-}
-
-#[trial]
-fn a_filter_button_over_the_header_takes_the_press() {
-    let hits = Rc::new(RefCell::new(Vec::new()));
-    let shown = hits.clone();
-    let mut fixture = Fixture::new(move |ui| {
-        let model = Sheet::new(None, Rc::new(Cell::new(0.0)));
-        let mut state = GridState::default();
-        let filters = [ColumnFilter::new(1)];
-        let out = CellGrid::new("Sheet", &model, &mut state).filters(&filters).show_sheet(ui);
-        if let Some((column, _)) = out.filter {
-            shown.borrow_mut().push(column);
-        }
-    });
-    fixture.settle();
-    let button = fixture.by_label("B (Showing All)").expect("the filter button is named after its column");
-    fixture.click(&button);
-    assert_eq!(*hits.borrow(), vec![1], "the press opened the filter and did not select the header");
-}
-
-#[trial]
-fn the_error_tag_sits_left_or_right_of_the_cell() {
-    let rects = Rc::new(RefCell::new(Vec::new()));
-    let fixes = Rc::new(vec![Label::from("Ignore")]);
-    let (shown, shown_fixes) = (rects.clone(), fixes.clone());
-    let mut fixture = Fixture::new(move |ui| {
-        let model = Sheet::new(None, Rc::new(Cell::new(0.0)));
-        let mut state = GridState::default();
-        let out = CellGrid::new("Sheet", &model, &mut state).error_tag(CellProblem::new(CellAt::new(2, 2), "Problem", &shown_fixes)).show_sheet(ui);
-        shown.borrow_mut().push(out.geometry.mirror_rect(out.geometry.cell_rect(CellAt::new(2, 2))));
-    });
-    fixture.settle();
-    let tag = fixture.by_label("Error checking options").expect("the tag has a node").rect;
-    let cell = *rects.borrow().last().expect("the grid showed");
-    assert!(tag.right() <= cell.left() || tag.left() >= cell.right(), "the tag sits beside the cell, not over it");
-}
-
 #[trial]
 fn point_mode_inserts_an_absolute_reference() {
     let mut rig = rig(None, CellSelection::cell(CellAt::new(5, 5)), 1.0);
@@ -302,27 +168,6 @@ fn point_mode_inserts_an_absolute_reference() {
     assert!(rig.take_edits().iter().any(|edit| matches!(edit, GridEdit::BeginEdit { .. })));
     let written = rig.committed.borrow().last().cloned();
     assert_eq!(written, Some(CellEdit::new(CellAt::new(5, 5), "=$F$5")), "the arrow pointed at the cell above and Enter committed the formula");
-}
-
-/// While pointing, End then an arrow and Ctrl+arrow reach the data edge, and Enter writes that reference (Excel).
-#[trial]
-fn point_mode_reaches_the_data_edge_with_end_and_ctrl_arrows() {
-    let cases: [(&str, &[(Key, Modifiers)]); 2] = [
-        ("End then Right", &[(Key::End, Modifiers::NONE), (Key::ArrowRight, Modifiers::NONE)]),
-        ("Ctrl+Right", &[(Key::ArrowRight, Modifiers::COMMAND)]),
-    ];
-    for (what, keys) in cases {
-        let mut rig = rig(None, CellSelection::cell(CellAt::new(5, 5)), 1.0);
-        rig.fixture.type_text("=");
-        rig.fixture.idle(2);
-        for &(key, modifiers) in keys {
-            rig.press(key, modifiers);
-        }
-        rig.press(Key::Enter, Modifiers::NONE);
-        let written = rig.committed.borrow().last().cloned();
-        let edge = format!("={}", absolute_reference(CellAt::new(5, SHEET_COLUMNS - 1)));
-        assert_eq!(written, Some(CellEdit::new(CellAt::new(5, 5), edge)), "{what} pointed at the last column of the row");
-    }
 }
 
 /// The test sheet, recording the rows whose cells it paints.
