@@ -7,6 +7,10 @@ license.workspace = true
 rust-version.workspace = true
 repository.workspace = true
 
+[lib]
+# Every test lives in the `it` integration binary, so `cargo test` builds the library once.
+test = false
+
 [lints]
 workspace = true
 
@@ -27,7 +31,6 @@ serde = { workspace = true }
 
 [dev-dependencies]
 egui = { workspace = true, features = ["default_fonts", "serde"] }
-libtest-mimic = "0.8"
 serde_json = { workspace = true }
 
 [[test]]

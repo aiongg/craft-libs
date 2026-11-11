@@ -7,6 +7,10 @@ license.workspace = true
 rust-version.workspace = true
 repository.workspace = true
 
+[lib]
+# Every test lives in the `it` integration binary, so `cargo test` builds the library once.
+test = false
+
 [dependencies]
 craft-behavior = { workspace = true }
 craft-host = { workspace = true }
@@ -26,7 +30,6 @@ screen-testing = ["craft-ui/testing"]
 [dev-dependencies]
 # `default_fonts` so that the shortcuts dialog and native menu tests lay out text.
 egui = { workspace = true, features = ["default_fonts"] }
-libtest-mimic = "0.8"
 
 [[test]]
 name = "it"

@@ -12,10 +12,22 @@ default-run = "craft-ui-gallery"
 
 [lib]
 path = "src/lib.rs"
+# Every test lives in the `it` integration binary.
+test = false
 
 [[bin]]
 name = "craft-ui-gallery"
 path = "src/main.rs"
+test = false
+
+[[bin]]
+name = "components-index"
+path = "src/bin/components-index.rs"
+test = false
+
+[[bin]]
+name = "contract-api"
+path = "src/bin/contract-api.rs"
 test = false
 
 # The component sheet's renderer: every story to a PNG, offscreen (desktop only).
@@ -82,4 +94,3 @@ image = { version = "0.25", default-features = false, features = ["png"], option
 wasm-bindgen-futures = "0.4"
 
 [dev-dependencies]
-libtest-mimic = "0.8"

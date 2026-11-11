@@ -110,16 +110,21 @@ pub fn words(input: TokenStream) -> TokenStream {
     expanded(words::expand_words(input.into()))
 }
 
-/// Registers a function as a trial of craft-ui's integration binary.
+/// Registers a function as a trial of its crate's test executable.
 ///
 /// The function takes no arguments and returns `()`; it fails by panicking. The registration lists it in
-/// `craft_ui::testing::trials()`, so the runner finds it without a hand-kept list.
+/// `craft_ui::testing::trials()`, so the runner finds it without a hand-kept list. An `#[ignore]` on the function
+/// makes it run only under `--ignored`.
 #[proc_macro_attribute]
 pub fn trial(attr: TokenStream, item: TokenStream) -> TokenStream {
     if !attr.is_empty() {
         return syn::Error::new(proc_macro2::Span::call_site(), "`trial` takes no arguments").to_compile_error().into();
     }
-    let func = parse_macro_input!(item as ItemFn);
+    let mut func = parse_macro_input!(item as ItemFn);
+    // `#[ignore]` marks a fixture another trial runs as a subprocess; it means nothing on a plain fn.
+    let attrs = func.attrs.len();
+    func.attrs.retain(|attr| !attr.path().is_ident("ignore"));
+    let register = if func.attrs.len() == attrs { quote!(new) } else { quote!(ignored) };
     let sig = &func.sig;
     let well_formed = sig.inputs.is_empty() && sig.asyncness.is_none() && sig.generics.params.is_empty() && matches!(sig.output, ReturnType::Default);
     if !well_formed {
@@ -131,7 +136,7 @@ pub fn trial(attr: TokenStream, item: TokenStream) -> TokenStream {
         #func
 
         ::craft_ui::testing::__private::inventory::submit! {
-            ::craft_ui::testing::Trial::new(module_path!(), #name, #ident)
+            ::craft_ui::testing::Trial::#register(module_path!(), #name, #ident)
         }
     }
     .into()
