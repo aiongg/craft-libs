@@ -1,4 +1,5 @@
 [package]
+autotests = false
 name = "craft-crw"
 description = "Clean-room Canon CRW (CIFF) raw decoder: the heap container, the derived entropy coding, sensor levels and as-shot white balance."
 version.workspace = true

@@ -782,3 +782,10 @@ impl Chains {
         }
     }
 }
+
+#[cfg(test)]
+extern crate self as craft_crw;
+
+#[cfg(test)]
+#[path = "../tests/main.rs"]
+mod integration;
