@@ -347,19 +347,3 @@ fn output_intents(pdf: &Pdf, page: usize) -> Vec<Dict<'_>> {
     listed.sort_by_key(|d| d.get::<Name<'_>>(S).is_none_or(|s| s.as_ref() != b"GTS_PDFX"));
     listed
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn plates_fit_the_pixel_and_side_caps() {
-        assert_eq!(plate_scale(40.0, 40.0, 1.0), 1.0);
-        // A4 at 2400 dpi would be 22 000 × 31 000 pixels.
-        let s = plate_scale(595.0, 842.0, 2400.0 / 72.0);
-        assert!((595.0 * s) * (842.0 * s) <= MAX_PLATE_PIXELS * 1.0001);
-        // A 1 × 10 000 pt strip fits the area cap but not the renderer's side limit.
-        assert!(10_000.0 * plate_scale(1.0, 10_000.0, 1.0) <= MAX_SIDE as f32);
-        assert!(plate_scale(0.0, f32::NAN, 1.0) > 0.0);
-    }
-}

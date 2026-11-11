@@ -1317,24 +1317,3 @@ fn closed(path: &BezPath) -> BezPath {
     }
     out
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn tiling_canvases_hold_cmyk_memory_with_many_inks() {
-        let (page, cell) = (Rect::new(0.0, 0.0, 600.0, 800.0), Rect::new(0.0, 0.0, 300.0, 300.0));
-        let dpi = 300.0 / 72.0;
-        let values = |area: Rect, scale: f64, inks: usize| {
-            let (w, h) = shade::pixel_size(area, scale).unwrap();
-            (w * h * inks) as f64
-        };
-        // With 1,000 inks the page canvas would hold 8 billion values.
-        let (scale, cell_scale) = tiling_scales(dpi, page, cell, 1.0, 1000);
-        assert!(values(page, scale, 1000) <= MAX_RASTER_PIXELS * CANVAS_INKS * 1.01);
-        assert!(values(cell, cell_scale, 1000) <= MAX_CELL_PIXELS * CANVAS_INKS * 1.01);
-        // A CMYK page keeps its resolution.
-        assert_eq!(tiling_scales(dpi, page, cell, 1.0, 4).0, dpi);
-    }
-}

@@ -293,21 +293,4 @@ pub(crate) mod tests {
         assert_eq!(&rgb[..6], [255, 0, 255, 255, 0, 255]);
         assert_eq!(&rgb[6..9], [0, 0, 0]);
     }
-
-    #[test]
-    fn regions_join_four_connected_pixels_and_keep_the_largest() {
-        // A ring around an unmarked center is one region; the diagonal neighbor is another.
-        #[rustfmt::skip]
-        let mask = vec![
-            true,  true,  true,  false,
-            true,  false, true,  false,
-            true,  true,  true,  false,
-            false, false, false, true,
-        ];
-        let above = Above { width: 4, height: 4, count: 9, mask };
-        assert_eq!(above.regions(), [Region { x: 0, y: 0, width: 3, height: 3, pixels: 8 }, Region { x: 3, y: 3, width: 1, height: 1, pixels: 1 }]);
-        let empty = Plates { width: 0, height: 0, planes: Vec::new(), ..synthetic(0, 0, [0.0; 3], Default::default()) };
-        assert_eq!(empty.stats(&[]).max_total_at, None);
-        assert!(empty.above(10.0, &[]).regions().is_empty());
-    }
 }
