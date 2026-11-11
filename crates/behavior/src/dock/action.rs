@@ -2,7 +2,7 @@
 
 use emath::Rect;
 
-use crate::monitor::Monitor;
+use crate::placement::Placement;
 
 use super::{
     DockSide,
@@ -75,7 +75,7 @@ pub enum DockPlacement<P> {
 #[non_exhaustive]
 pub struct Location<P> {
     /// The window rect when the panel was floating. Saved as `[x, y, width, height]`.
-    #[serde(with = "crate::monitor::rect_serde::option", default)]
+    #[serde(with = "crate::dock::rect_serde::option", default)]
     pub floating: Option<Rect>,
     /// The panel the placement is relative to.
     pub anchor: Option<P>,
@@ -115,7 +115,7 @@ pub enum Action<P> {
         /// The panel the action applies to.
         panel: P,
         /// The window rect in logical points. Saved as `[x, y, width, height]`.
-        #[serde(with = "crate::monitor::rect_serde")]
+        #[serde(with = "crate::dock::rect_serde")]
         rect: Rect,
     },
     /// Close a panel.
@@ -159,7 +159,7 @@ pub enum Action<P> {
         /// The panel the action applies to.
         panel: P,
         /// The window rect in logical points. Saved as `[x, y, width, height]`.
-        #[serde(with = "crate::monitor::rect_serde")]
+        #[serde(with = "crate::dock::rect_serde")]
         rect: Rect,
     },
     /// Path from the root: false is the first child, true the second.
@@ -293,25 +293,14 @@ pub enum Action<P> {
         /// Width in points.
         width: Option<f32>,
     },
-    /// Put the floating window in its own OS window at `rect`, or back in the app window.
+    /// Put the floating window in its own OS window at `placement`, or back in the app window.
     #[non_exhaustive]
     SetNative {
         /// The panel the action applies to.
         panel: P,
-        /// The window rect in logical points. Saved as `[x, y, width, height]`.
-        #[serde(with = "crate::monitor::rect_serde::option", default)]
-        rect: Option<Rect>,
-    },
-    /// Record the monitor of the native window holding `panel`: from the application's
-    /// monitor list, or else only the size egui reported.
-    #[non_exhaustive]
-    SetMonitor {
-        /// The panel the action applies to.
-        panel: P,
-        /// The monitor holding the window.
-        monitor: Option<Monitor>,
-        /// Size of the monitor holding the window, when no monitor is known.
-        monitor_size: Option<[f32; 2]>,
+        /// Where the OS window is on the desktop.
+        #[serde(default)]
+        placement: Option<Placement>,
     },
     /// Move one panel, without the rest of its group. `Target::At` is [`Action::Move`];
     /// `NewDock` and `Float` give the panel a group of its own.
@@ -448,13 +437,8 @@ impl<P> Action<P> {
     }
 
     /// Builds [`Action::SetNative`].
-    pub fn set_native(panel: P, rect: Option<Rect>) -> Self {
-        Self::SetNative { panel, rect }
-    }
-
-    /// Builds [`Action::SetMonitor`].
-    pub fn set_monitor(panel: P, monitor: Option<Monitor>, monitor_size: Option<[f32; 2]>) -> Self {
-        Self::SetMonitor { panel, monitor, monitor_size }
+    pub fn set_native(panel: P, placement: Option<Placement>) -> Self {
+        Self::SetNative { panel, placement }
     }
 
     /// Builds [`Action::MovePanel`].

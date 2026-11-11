@@ -1,9 +1,8 @@
 //! Size limits and value checks for a dock layout.
 
-use emath::{Pos2, Rect, Vec2};
+use emath::Rect;
 
 use super::split::SplitSize;
-use crate::monitor::Monitor;
 
 /// Limits are checked before cloning or recursively modifying an application layout.
 pub const MAX_DEPTH: usize = 64;
@@ -15,12 +14,6 @@ const MAX_EXTENT: f32 = 1_000_000.0;
 pub(super) fn valid_rect(rect: Rect) -> bool {
     let (position, size) = (rect.min, rect.size());
     [position.x, position.y, size.x, size.y].iter().all(|v| v.is_finite() && v.abs() <= MAX_EXTENT) && size.x > 0.0 && size.y > 0.0
-}
-
-/// A floating window's saved monitor and monitor size, each where given.
-pub(super) fn valid_monitor(monitor: Option<&Monitor>, monitor_size: Option<[f32; 2]>) -> bool {
-    monitor.is_none_or(|m| valid_rect(m.rect) && m.scale.is_finite() && m.scale > 0.0)
-        && monitor_size.is_none_or(|[w, h]| valid_rect(Rect::from_min_size(Pos2::ZERO, Vec2::new(w, h))))
 }
 
 pub(super) fn valid_width(width: f32) -> bool {

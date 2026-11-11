@@ -6,10 +6,11 @@
 use crate::runtime::InstallSpec;
 use crate::runtime::frame::{FrameInput, FrameOutput, request_repaint_after, set_input, take_output};
 use crate::runtime::windows::{self, WindowAction, WindowHost};
+use craft_behavior::placement::Defaults;
 use craft_host::target::{Os, ShellInfo, WindowState};
 use craft_window::desktop::fits;
 use craft_window::policy::Decision;
-use craft_window::restore::{Defaults, Store};
+use craft_window::restore::Store;
 use craft_window::system::{NoWindows, WindowSystem};
 use egui::{Context, Ui, ViewportId};
 use std::sync::{Arc, Mutex};
@@ -179,8 +180,9 @@ impl<A: ShellApp> eframe::App for Driver<A> {
 /// The native options for the root window: its saved placement, else the defaults.
 #[cfg(not(target_arch = "wasm32"))]
 pub fn native_options(spec: &AppSpec) -> eframe::NativeOptions {
+    use craft_behavior::placement::place;
     use craft_window::policy::apply;
-    use craft_window::restore::{MAIN, place};
+    use craft_window::restore::MAIN;
     use egui::{Pos2, ViewportBuilder};
     let saved = spec.placement.lock().unwrap_or_else(std::sync::PoisonError::into_inner).get(MAIN);
     // The monitors are not known before the window exists, so the saved geometry is kept as it is.

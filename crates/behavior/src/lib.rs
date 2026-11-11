@@ -86,7 +86,7 @@ pub use item_source::{DisplayOrder, ItemSource, Keyed, Outline, SizeHint, keyed}
 pub use keys::{DropOperation, KeyRole};
 pub use label_column::{LabelColumn, LabelPlacement};
 pub use layout_memory::SizeTween;
-pub use monitor::Monitor;
+pub use monitor::{Monitor, MonitorKey};
 pub use motion::{MotionKind, MotionMode, Playback};
 pub use nav::{Arrows, Letters, NavOutline, NavShape, NavState, NavStep, Roving, TypeAhead, wheel_step};
 pub use part::{PartKey, PartRef};

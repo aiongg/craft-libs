@@ -98,7 +98,7 @@ impl<P: Clone + Eq + Hash> Layout<P> {
                     return Err(DockError::NotAllowed);
                 }
             }
-            Action::SetNative { panel, rect: Some(_) } if self.members(panel, Unit::Window)?.iter().any(|p| !permissions(p).floatable) => {
+            Action::SetNative { panel, placement: Some(_) } if self.members(panel, Unit::Window)?.iter().any(|p| !permissions(p).floatable) => {
                 return Err(DockError::NotAllowed);
             }
             _ => {}

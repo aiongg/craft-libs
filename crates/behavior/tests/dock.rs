@@ -2,6 +2,7 @@
 
 use craft_behavior::Axis;
 use craft_behavior::dock::{Column, DockEdge, DockError, Floating, Group, Layout, Location, Node, SplitSize};
+use craft_behavior::placement::Placement;
 use emath::{Pos2, Rect, Vec2};
 use serde_json::json;
 
@@ -144,4 +145,28 @@ fn a_layout_saved_with_the_physical_names_loads_and_writes_back_in_reading_order
     let mut renamed: serde_json::Value = serde_json::from_str(saved).unwrap();
     renamed["root"]["Split"]["axis"] = json!("X");
     assert_eq!(written, renamed);
+}
+
+#[test]
+fn a_saved_native_window_that_no_longer_parses_loads_with_default_placement() {
+    let saved = r#"{
+        "root": {"Tabs": {"panels": [1], "active": 0}},
+        "floating": [
+            {"id": 5, "root": {"Tabs": {"panels": [4], "active": 0}}, "rect": [1.0, 2.0, 300.0, 200.0],
+             "native": [10.0, 20.0, 300.0, 200.0], "monitor": {"name": "DP-1", "rect": [0.0, 0.0, 1920.0, 1080.0], "scale": 1.0},
+             "monitor_size": [1920.0, 1080.0]},
+            {"id": 6, "root": {"Tabs": {"panels": [7], "active": 0}}, "rect": [1.0, 2.0, 300.0, 200.0],
+             "native": {"normal": {"pos": [0.0, 0.0], "size": [0.0, 200.0]}}}
+        ]
+    }"#;
+    let layout: Layout<u32> = serde_json::from_str(saved).unwrap();
+    layout.validate().unwrap();
+    assert_eq!(layout.floating.len(), 2);
+    assert!(layout.floating.iter().all(|window| window.native.is_none()), "an old rect and a size that is no size give no placement");
+    assert_eq!(layout.floating[0].rect, area(1.0, 2.0, 300.0, 200.0), "the rest of the window loads");
+
+    let mut placed = layout.clone();
+    placed.floating[0].native = Some(Placement::new([300.0, 200.0], 2.0));
+    let back: Layout<u32> = serde_json::from_str(&serde_json::to_string(&placed).unwrap()).unwrap();
+    assert_eq!(back, placed);
 }

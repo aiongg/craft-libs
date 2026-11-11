@@ -17,6 +17,7 @@ appkit = ["dep:objc2", "dep:objc2-app-kit", "dep:objc2-foundation", "dep:muda"]
 [dependencies]
 egui = { workspace = true, optional = true }
 craft-atomic = { workspace = true }
+craft-behavior = { workspace = true }
 craft-host = { workspace = true }
 craft-settings = { workspace = true }
 serde = { workspace = true }

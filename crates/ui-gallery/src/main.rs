@@ -1,9 +1,9 @@
 //! The craft-ui story viewer: the registered stories of the linked crates, shown under a chosen appearance.
 
+use craft_behavior::placement::Defaults;
 use craft_ui::shell::app::AppSpec;
 use craft_ui_gallery::WINDOW;
 use craft_ui_gallery::chrome::Gallery;
-use craft_window::restore::Defaults;
 
 const TITLE: &str = "craft-ui stories";
 const WINDOW_MIN: [f32; 2] = [640.0, 480.0];

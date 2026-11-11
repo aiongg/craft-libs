@@ -12,7 +12,7 @@ use super::{
     inner::{
         check_group, check_leaf, group_location, node_location, restore_around_subtree, restore_parent_size, restore_stack_kind, stack_entry_mut,
     },
-    limits::{MAX_DEPTH, MAX_NODES, MAX_PANELS, valid_height, valid_monitor, valid_rect, valid_size, valid_width},
+    limits::{MAX_DEPTH, MAX_NODES, MAX_PANELS, valid_height, valid_rect, valid_size, valid_width},
     node::{Floating, Node},
     policy::{DockError, Permissions},
     split::SplitSize,
@@ -98,10 +98,7 @@ impl<P: Clone + Eq + Hash> Layout<P> {
             }
         }
         for floating in &self.floating {
-            if !valid_rect(floating.rect)
-                || floating.native.is_some_and(|r| !valid_rect(r))
-                || !valid_monitor(floating.monitor.as_ref(), floating.monitor_size)
-            {
+            if !valid_rect(floating.rect) {
                 return Err(DockError::InvalidGeometry);
             }
             let mut visit = vec![(&floating.root, 1usize)];

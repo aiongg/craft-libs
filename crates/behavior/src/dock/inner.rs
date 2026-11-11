@@ -11,7 +11,7 @@ use super::{
     edit::{node_at, split_frame, split_frame_sized},
     groups::{Column, DockEdge, Group, Moving, PanelPlace, Target, Unit},
     layout::Layout,
-    limits::{MAX_DEPTH, MAX_PANELS, valid_active, valid_height, valid_monitor, valid_rect, valid_size, valid_width},
+    limits::{MAX_DEPTH, MAX_PANELS, valid_active, valid_height, valid_rect, valid_size, valid_width},
     node::{Floating, Node, StackEntry},
     policy::{DockError, Permissions},
     split::SplitSize,
@@ -211,25 +211,13 @@ impl<P: Clone + Eq + Hash> Layout<P> {
                 self.column_of(&panel)?.iconic_width = width;
                 Ok(())
             }
-            Action::SetNative { panel, rect } => {
-                if rect.is_some_and(|r| !valid_rect(r)) {
-                    return Err(DockError::InvalidGeometry);
-                }
+            Action::SetNative { panel, placement } => {
+                let placement = match placement {
+                    Some(placement) => Some(placement.repaired().ok_or(DockError::InvalidGeometry)?),
+                    None => None,
+                };
                 let window = self.floating.iter_mut().find(|g| g.contains(&panel)).ok_or(DockError::InvalidPlacement)?;
-                window.native = rect;
-                if rect.is_none() {
-                    window.monitor = None;
-                    window.monitor_size = None;
-                }
-                Ok(())
-            }
-            Action::SetMonitor { panel, monitor, monitor_size } => {
-                if !valid_monitor(monitor.as_ref(), monitor_size) {
-                    return Err(DockError::InvalidGeometry);
-                }
-                let window = self.floating.iter_mut().find(|g| g.contains(&panel)).ok_or(DockError::InvalidPlacement)?;
-                window.monitor = monitor;
-                window.monitor_size = monitor_size;
+                window.native = placement;
                 Ok(())
             }
         }

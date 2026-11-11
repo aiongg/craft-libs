@@ -1,4 +1,4 @@
-//! `window.json`: the saved [`Placement`] of each window, beside the app's `config.toml`.
+//! `window.json`: the saved [`Placement`](craft_behavior::placement::Placement) of each window, beside the app's `config.toml`.
 //!
 //! ```json
 //! { "schema_version": 1, "windows": { "main": { ... }, "<key>": { ... } } }
@@ -23,7 +23,7 @@ use craft_settings::paths::{self, Location, Portable, Probe};
 use craft_settings::recovery;
 use serde_json::{Map, Value, json};
 
-use super::place::{Placement, sane};
+use craft_behavior::placement::Placement;
 
 /// The file name beside `config.toml`.
 pub const FILE_NAME: &str = "window.json";
@@ -132,7 +132,7 @@ impl Store {
     /// stay. A placement with a non-finite size is ignored. Nothing is written until
     /// [`save`](Self::save) or [`take_pending`](Self::take_pending).
     pub fn set(&mut self, key: &str, placement: &Placement) {
-        let Some(placement) = sane(placement) else { return };
+        let Some(placement) = placement.repaired() else { return };
         let Ok(Value::Object(new)) = serde_json::to_value(&placement) else { return };
         let merged = match self.windows.get(key) {
             Some(Value::Object(old)) => {
@@ -254,11 +254,12 @@ impl Store {
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
-    use crate::restore::{Monitor, MonitorKey};
+    use craft_behavior::placement::{Defaults, place};
+    use craft_behavior::{Monitor, MonitorKey};
 
     fn sample(x: i32) -> Placement {
         let m = Monitor::new(MonitorKey::new("DP-1", [1920, 1080]), [0, 0], [1920, 1080], 1.0);
-        let mut p = crate::restore::place(None, &[m], Some(0), &crate::restore::Defaults::new([800.0, 600.0], [300.0, 200.0]));
+        let mut p = place(None, &[m], Some(0), &Defaults::new([800.0, 600.0], [300.0, 200.0]));
         p.position_px = Some([x, 10]);
         p
     }

@@ -1,10 +1,10 @@
-//! Dock transactions, workspaces and native placement.
+//! Dock transactions and workspaces.
 
+use craft_behavior::Axis;
 use craft_behavior::dock::{
     Action, Column, DockEdge, DockError, DockPlacement, Floating, Group, Layout, NamedWorkspace, Node, PanelPlace, Permissions, SplitSize, Workspace,
-    WorkspaceChrome, WorkspaceSet, kept_reachable, node_at,
+    WorkspaceChrome, WorkspaceSet, node_at,
 };
-use craft_behavior::{Axis, Monitor};
 use emath::{Rect, pos2, vec2};
 
 fn rect(x: f32, y: f32, w: f32, h: f32) -> Rect {
@@ -112,32 +112,4 @@ fn a_workspace_set_with_a_floating_group_round_trips_through_json() {
     assert!(loaded.builtin.is_empty(), "built-ins are code, not stored");
     loaded.builtin = set.builtin.clone();
     assert_eq!(loaded, set);
-}
-
-const BAR: f32 = 18.0;
-
-fn monitor(name: &str, area: Rect, scale: f32) -> Monitor {
-    Monitor::new(Some(name.into()), area, scale)
-}
-
-fn left() -> Rect {
-    rect(0.0, 0.0, 1920.0, 1080.0)
-}
-
-fn right() -> Rect {
-    rect(1920.0, 0.0, 2560.0, 1440.0)
-}
-
-#[test]
-fn a_window_is_kept_where_its_bar_can_be_grabbed() {
-    let monitors = [monitor("left", left(), 1.0), monitor("right", right(), 2.0)];
-    for across in [rect(1800.0, 100.0, 400.0, 300.0), rect(-360.0, 1071.0, 400.0, 300.0)] {
-        assert_eq!(kept_reachable(across, &monitors, BAR), across);
-    }
-    assert_eq!(kept_reachable(rect(-370.0, 100.0, 400.0, 300.0), &monitors, BAR), rect(0.0, 100.0, 400.0, 300.0));
-    assert_eq!(kept_reachable(rect(500.0, 1075.0, 400.0, 300.0), &monitors, BAR), rect(500.0, 780.0, 400.0, 300.0));
-    assert_eq!(kept_reachable(rect(9000.0, 100.0, 400.0, 300.0), &monitors, BAR), rect(4080.0, 100.0, 400.0, 300.0));
-    // No monitor list: only made safe. A non-finite edge leaves that extent unknown, so it falls
-    // back.
-    assert_eq!(kept_reachable(rect(9000.0, f32::NAN, 400.0, 300.0), &[], BAR), rect(9000.0, 0.0, 400.0, 320.0));
 }

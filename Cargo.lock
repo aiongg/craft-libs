@@ -1863,6 +1863,7 @@ name = "craft-window"
 version = "0.1.0"
 dependencies = [
  "craft-atomic",
+ "craft-behavior",
  "craft-host",
  "craft-settings",
  "craft-win32",

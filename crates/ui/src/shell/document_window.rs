@@ -144,10 +144,12 @@ impl<'a> DocumentWindow<'a> {
 
     /// Where a window of `size` opens when it follows the window at `previous`: one cascade `step` down and across
     /// on the monitor showing most of `previous`; an axis on which that would leave the monitor starts again at the
-    /// monitor's edge. Without `monitors` the step is not bounded.
-    pub fn cascade_in(previous: Rect, size: Vec2, monitors: &[Monitor], step: f32) -> Rect {
-        match monitor_of(monitors, previous) {
-            Some(monitor) => cascade(previous, size, monitor.rect, step),
+    /// monitor's edge. `previous`, `size` and `step` are points of a window whose scale is `scale`. Without
+    /// `monitors` the step is not bounded.
+    pub fn cascade_in(previous: Rect, size: Vec2, monitors: &[Monitor], scale: f32, step: f32) -> Rect {
+        let previous_px = Rect::from_min_max(previous.min * scale, previous.max * scale);
+        match monitor_of(monitors, previous_px) {
+            Some(monitor) => cascade(previous, size, monitor.points_at(scale), step),
             None => Rect::from_min_size(previous.min + Vec2::splat(step), size),
         }
     }
@@ -157,8 +159,8 @@ impl<'a> DocumentWindow<'a> {
     pub fn cascaded(ui: &Ui, previous: Rect, size: Vec2, step: f32) -> Rect {
         let host = WindowHost::of(ui.ctx());
         let scale = host.viewport_at(previous.center()).and_then(|viewport| host.facts(viewport)).and_then(|facts| facts.scale);
-        let monitors = scale.map(|scale| host.monitors(scale)).unwrap_or_default();
-        Self::cascade_in(previous, size, &monitors, step)
+        let monitors = if scale.is_some() { host.monitors() } else { Vec::new() };
+        Self::cascade_in(previous, size, &monitors, scale.unwrap_or(1.0), step)
     }
 }
 

@@ -118,7 +118,7 @@ pub enum Target<P> {
     Float {
         /// Window rect in logical points, which the caller takes from its `FloatSpace`. Saved as
         /// `[x, y, width, height]`.
-        #[serde(with = "crate::monitor::rect_serde")]
+        #[serde(with = "crate::dock::rect_serde")]
         rect: Rect,
     },
 }

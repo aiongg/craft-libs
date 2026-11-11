@@ -4,19 +4,20 @@
 //! work: its title row moves the window, its grips resize it, its limits are the window's, and a close is a
 //! `close_requested` report. What is left is policy, in these functions: whether a window of the dock model gets an
 //! OS window, what kind of window it is, where it opens on the connected monitors, and what the dock model records
-//! when the OS moves or resizes it. `DockArea` and `FloatingGroup` call them; rects are desktop logical points.
+//! when the OS moves or resizes it. `DockArea` and `FloatingGroup` call them. A native window keeps the
+//! [`Placement`](craft_behavior::placement::Placement) app windows keep, and opens where [`place`] puts it.
 
 use super::{DockConfig, FloatingGroupOutput, PanelSpec};
 use crate::runtime::drag;
 use crate::runtime::windows::{WindowAction, WindowHost, WindowSpec};
-use craft_behavior::dock::{Action, Floating, NativeSpace, restore_rect};
-use craft_behavior::placement::monitor_of;
-use craft_behavior::{GesturePhase, Monitor};
+use craft_behavior::GesturePhase;
+use craft_behavior::dock::{Action, Floating};
+use craft_behavior::placement::{Defaults, monitor_of, place};
 use craft_host::target::WindowKind;
-use egui::{Context, Rect, Vec2, ViewportId};
+use egui::{Context, Pos2, Rect, Vec2, ViewportId};
 
-/// How far the OS-reported rect of a window may differ from the one the dock model keeps before the difference is a
-/// move or resize: the OS rounds to pixels, and a model that records its own rounding would re-send it for ever.
+/// How far the OS-reported size of a window may differ from the one the dock model keeps before the difference is a
+/// resize: the OS rounds to pixels, and a model that records its own rounding would re-send it for ever.
 const SETTLED: f32 = 0.5;
 
 /// How a floating window of the dock model shows.
@@ -41,53 +42,48 @@ pub fn spec_for(specs: &[PanelSpec]) -> WindowSpec {
     if specs.iter().any(|spec| spec.window_kind == WindowKind::Document) { WindowSpec::document() } else { WindowSpec::tool() }
 }
 
-/// Where the saved native rect of `window` opens against `space`: its saved monitor when it is connected, else the
-/// main window's monitor at the same offset; a window whose bar cannot be grabbed is moved onto the nearest monitor.
-/// `None` for a window that is not native.
-pub fn restore<P>(window: &Floating<P>, space: NativeSpace<'_>) -> Option<Rect> {
-    window.native.map(|saved| restore_rect(saved, window.monitor.as_ref(), space))
-}
-
-/// The space a native window is placed against: `monitors` (in the points of the root window, see
-/// [`monitors`](super::desktop::monitors)), the main window's desktop rect, and for a platform that lists no monitors
-/// the monitor size the window recorded. `bar` is the height of the group's title row, which must stay reachable.
-pub fn space_of<'a, P>(ctx: &Context, window: &Floating<P>, monitors: &'a [Monitor], bar: f32) -> NativeSpace<'a> {
-    let mut space = NativeSpace::new(monitors, bar);
-    space.main = WindowHost::of(ctx).facts(ViewportId::ROOT).map(|facts| facts.outer.unwrap_or(facts.inner));
-    space.monitor_size = window.monitor_size.map(Vec2::from);
-    space
+/// Where the saved placement of `window` opens on the desktop, in desktop points: [`place`] against the connected
+/// monitors, with the main window's monitor as the home of a window whose position is unknown. A window with no
+/// position opens where its group sits in the main window. `None` for a window that is not native.
+pub fn restore<P>(ctx: &Context, window: &Floating<P>) -> Option<Rect> {
+    let saved = window.native.as_ref()?;
+    let host = WindowHost::of(ctx);
+    let monitors = host.monitors();
+    let main = host.facts(ViewportId::ROOT);
+    let home = main.and_then(|facts| {
+        let (scale, outer) = (facts.scale?, facts.outer.unwrap_or(facts.inner));
+        let on = monitor_of(&monitors, Rect::from_min_max(outer.min * scale, outer.max * scale))?;
+        monitors.iter().position(|monitor| monitor == on)
+    });
+    let placed = place(Some(saved), &monitors, home, &Defaults::new(window.rect.size().into(), [1.0; 2]));
+    let at = placed.position().map(Pos2::from).or_else(|| main.map(|facts| facts.inner.min + window.rect.min.to_vec2()));
+    Some(Rect::from_min_size(at.unwrap_or(window.rect.min), Vec2::from(placed.normal.size)))
 }
 
 /// How `window` shows: in an OS window at its restored rect when it is native and `config`, the platform and its
 /// panels allow one, else in the app window at its own rect. `specs` are its panels' specs.
-pub(crate) fn opening<P>(ctx: &Context, config: &DockConfig, window: &Floating<P>, specs: &[PanelSpec], bar: f32) -> Opening {
-    if allowed(ctx, config, specs) {
-        let monitors = super::desktop::monitors(ctx);
-        if let Some(rect) = restore(window, space_of(ctx, window, &monitors, bar)) {
-            return Opening { rect, spec: Some(spec_for(specs)) };
-        }
+pub(crate) fn opening<P>(ctx: &Context, config: &DockConfig, window: &Floating<P>, specs: &[PanelSpec]) -> Opening {
+    if allowed(ctx, config, specs)
+        && let Some(rect) = restore(ctx, window)
+    {
+        return Opening { rect, spec: Some(spec_for(specs)) };
     }
     Opening { rect: window.rect, spec: None }
 }
 
-/// The actions that record where the OS put the native window `window`, at the desktop rect `rect` (a window's
-/// `WindowFacts::outer`, else its `inner`): that rect and the monitor holding it. Empty while the model already
-/// holds what the OS reports, so a window at rest costs no action.
-pub(crate) fn reported<P: Clone>(window: &Floating<P>, rect: Rect, monitors: &[Monitor]) -> Vec<Action<P>> {
-    let Some(panel) = window.panels().next() else { return Vec::new() };
-    let mut actions = Vec::new();
-    if window.native.is_none_or(|saved| !same(saved, rect)) {
-        actions.push(Action::set_native(panel.clone(), Some(rect)));
-    }
-    let on = monitor_of(monitors, rect).cloned();
-    if on.is_some() && window.monitor != on {
-        actions.push(Action::set_monitor(panel.clone(), on, None));
-    }
-    actions
-}
-
-fn same(a: Rect, b: Rect) -> bool {
-    a.min.distance(b.min) <= SETTLED && a.max.distance(b.max) <= SETTLED
+/// The action that records where the OS put the native window `window`, shown in `viewport`: its placement, as an
+/// app window's is recorded. `None` while the model already holds what the OS reports, so a window at rest costs no
+/// action.
+pub(crate) fn reported<P: Clone>(ctx: &Context, window: &Floating<P>, viewport: ViewportId) -> Option<Action<P>> {
+    let panel = window.panels().next()?;
+    let next = WindowHost::of(ctx).placement(viewport, window.native.clone())?;
+    let settled = window.native.as_ref().is_some_and(|saved| {
+        let near = (0..2).all(|i| (saved.normal.size[i] - next.normal.size[i]).abs() <= SETTLED);
+        let mut next = next.clone();
+        next.normal = saved.normal;
+        near && next == *saved
+    });
+    (!settled).then(|| Action::set_native(panel.clone(), Some(next)))
 }
 
 /// Raises the window of the native group that `output` reports on when the user began moving or resizing it this

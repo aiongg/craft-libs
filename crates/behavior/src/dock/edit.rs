@@ -360,11 +360,7 @@ impl<P: Clone + Eq + Hash> Layout<P> {
         }
         Layout {
             root: self.root.as_ref().map(node),
-            floating: self
-                .floating
-                .iter()
-                .map(|w| Floating { root: node(&w.root), rect: Rect::ZERO, native: None, monitor: None, monitor_size: None, ..w.clone() })
-                .collect(),
+            floating: self.floating.iter().map(|w| Floating { root: node(&w.root), rect: Rect::ZERO, native: None, ..w.clone() }).collect(),
         }
     }
 

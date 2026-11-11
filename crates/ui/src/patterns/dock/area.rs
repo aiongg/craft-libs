@@ -12,7 +12,7 @@ use crate::docking::{
     DockTargets, DockTo, DockWords, DragUnit, FloatSpace, FloatingGroup, GroupAt, GroupDrag, HidePanels, IconicColumn, PanelDrag, PanelKey,
     PanelSpec, PanelTitle, SplitArea, actions, cancel_on_replacement, dock_states, fit_widths, frame, move_actions,
 };
-use crate::docking::{cross_window, desktop, float_drop, native};
+use crate::docking::{cross_window, float_drop, native};
 use crate::menu::{GroupItem, MenuWords, PanelMenu, PanelRow};
 use crate::runtime::commands::{CommandRef, CommandSet as _, Commands as _, focus_within};
 use crate::runtime::env::{Env, Label, RevealEdge, ShellCx, ShellEntry};
@@ -820,7 +820,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
             };
             let specs: Vec<PanelSpec> = window.panels().map(|panel| scene.spec(panel)).collect();
             let rights: Vec<Permissions> = window.panels().map(|panel| scene.permissions(panel)).collect();
-            let opening = native::opening(&ctx, scene.config, window, &specs, scene.space.title_row);
+            let opening = native::opening(&ctx, scene.config, window, &specs);
             let mut actions = vec![HeaderAction::Menu];
             if rights.iter().all(|rights| rights.movable) {
                 actions.push(HeaderAction::Float);
@@ -894,10 +894,8 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
                 self.report.actions.push(dropped.action);
             }
             if opening.spec.is_some() {
-                let host = WindowHost::of(&ctx);
-                if let Some(facts) = host.viewport_of(output.response.id).and_then(|viewport| host.facts(viewport)) {
-                    let monitors = desktop::monitors(&ctx);
-                    self.report.actions.extend(native::reported(window, facts.outer.unwrap_or(facts.inner), &monitors));
+                if let Some(viewport) = WindowHost::of(&ctx).viewport_of(output.response.id) {
+                    self.report.actions.extend(native::reported(&ctx, window, viewport));
                 }
             } else if let Some(change) = output.placed {
                 if change.phase == GesturePhase::Commit {

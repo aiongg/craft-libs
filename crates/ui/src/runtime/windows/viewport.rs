@@ -1,7 +1,7 @@
 //! Viewport mounts: opening a mount's OS viewport and its close requests.
 
 use super::native::route_hit_test;
-use super::placement::{record_placement, saved_placement, saved_position};
+use super::placement::{record_placement, saved_placement};
 use super::shell::{os_of, refresh};
 use super::spec::{WindowSpec, frame_of_spec};
 use super::{Record, refuse_close_under_modal, shared};
@@ -36,7 +36,7 @@ pub(crate) fn show_viewport(ctx: &Context, open: &ViewportOpen<'_>, mut body: im
     let viewport = viewports::viewport_id(open.id);
     let saved = open.save.and_then(|key| saved_placement(ctx, key));
     let (size, pos) = match &saved {
-        Some(placement) => (Some(Vec2::from(placement.normal.size)), saved_position(placement)),
+        Some(placement) => (Some(Vec2::from(placement.normal.size)), placement.position().map(Pos2::from)),
         None => (open.size, None),
     };
     let spec = open.spec;

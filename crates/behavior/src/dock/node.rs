@@ -2,7 +2,7 @@
 
 use emath::Rect;
 
-use crate::{flow::Axis, monitor::Monitor};
+use crate::{flow::Axis, placement::Placement};
 
 use super::{
     edit::{stack_tree, tree_groups, tree_panels},
@@ -85,24 +85,16 @@ pub struct Floating<P> {
     pub root: Node<P>,
     /// The window's area in logical points, in the application's viewport. Saved as `[x, y, width, height]`.
     pub rect: Rect,
-    /// Desktop rect while the window is in its own OS window.
-    pub native: Option<Rect>,
-    /// The monitor holding the center of `native`, from the application's monitor list.
-    pub monitor: Option<Monitor>,
-    /// Without a monitor list: the size of the monitor reported for the native window.
-    pub monitor_size: Option<[f32; 2]>,
+    /// Where the window is on the desktop while it is in its own OS window: the record app windows keep too, placed
+    /// with [`place`](crate::placement::place).
+    pub native: Option<Placement>,
     /// Only the title bar shows.
     pub minimized: bool,
 }
 
 impl<P: PartialEq> PartialEq for Floating<P> {
     fn eq(&self, other: &Self) -> bool {
-        self.root == other.root
-            && self.rect == other.rect
-            && self.native == other.native
-            && self.monitor == other.monitor
-            && self.monitor_size == other.monitor_size
-            && self.minimized == other.minimized
+        self.root == other.root && self.rect == other.rect && self.native == other.native && self.minimized == other.minimized
     }
 }
 
@@ -143,7 +135,7 @@ impl<P> Floating<P> {
     /// a layout once and keep it, or give its windows ids with [`Self::with_id`]. A layout
     /// built anew each frame without them opens new OS windows each frame.
     pub fn new(root: Node<P>, rect: Rect) -> Self {
-        Self { id: fresh_window_id(), root, rect, native: None, monitor: None, monitor_size: None, minimized: false }
+        Self { id: fresh_window_id(), root, rect, native: None, minimized: false }
     }
 
     /// A window with one group. Each call makes a new window, as [`Self::new`] does.
@@ -190,14 +182,13 @@ impl<P> Floating<P> {
 }
 
 pub(super) mod floating_serde {
+    use serde::de::IgnoredAny;
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
     use super::{Floating, Group, Node, fresh_window_id};
     use crate::dock::edit::stack_tree;
-    use crate::monitor::{
-        Monitor,
-        rect_serde::{from_array, to_array},
-    };
+    use crate::dock::rect_serde::{from_array, to_array};
+    use crate::placement::Placement;
 
     #[derive(Serialize)]
     struct V1<'a, P> {
@@ -213,11 +204,7 @@ pub(super) mod floating_serde {
         root: &'a Node<P>,
         rect: [f32; 4],
         #[serde(skip_serializing_if = "Option::is_none")]
-        native: Option<[f32; 4]>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        monitor: Option<&'a Monitor>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        monitor_size: Option<[f32; 2]>,
+        native: Option<&'a Placement>,
         #[serde(skip_serializing_if = "std::ops::Not::not")]
         minimized: bool,
     }
@@ -228,24 +215,16 @@ pub(super) mod floating_serde {
                 Node::Tabs { panels, active } if !self.minimized && self.native.is_none() => {
                     V1 { id: self.id, panels, active: *active, rect: to_array(self.rect) }.serialize(serializer)
                 }
-                root => Tree {
-                    id: self.id,
-                    root,
-                    rect: to_array(self.rect),
-                    native: self.native.map(to_array),
-                    monitor: self.monitor.as_ref(),
-                    monitor_size: self.monitor_size,
-                    minimized: self.minimized,
-                }
-                .serialize(serializer),
+                root => Tree { id: self.id, root, rect: to_array(self.rect), native: self.native.as_ref(), minimized: self.minimized }
+                    .serialize(serializer),
             }
         }
     }
 
     /// The fields of a saved window, whichever of the three shapes it was written in. A key is
     /// read as [`Serialize`] writes it: `id`, `root`, `groups`, `panels` and `rect` plain, and the
-    /// optional `native`, `monitor` and `monitor_size` as options, which RON marks with `Some`
-    /// and JSON writes bare.
+    /// optional `native` as an option, which RON marks with `Some` and JSON writes bare. A
+    /// `native` that does not parse is no placement, and keys it does not know are skipped.
     struct Repr<P> {
         id: Option<u64>,
         root: Option<Node<P>>,
@@ -253,18 +232,33 @@ pub(super) mod floating_serde {
         panels: Option<Vec<P>>,
         active: usize,
         rect: Option<[f32; 4]>,
-        native: Option<[f32; 4]>,
-        monitor: Option<Monitor>,
-        monitor_size: Option<[f32; 2]>,
+        native: Option<Placement>,
         minimized: bool,
+    }
+
+    /// A saved value, or nothing in its place when it does not parse.
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Parsed<T> {
+        Value(T),
+        Unparsed(IgnoredAny),
+    }
+
+    impl<T> Parsed<T> {
+        fn value(self) -> Option<T> {
+            match self {
+                Parsed::Value(value) => Some(value),
+                Parsed::Unparsed(_) => None,
+            }
+        }
     }
 
     impl<'de, P: Deserialize<'de>> Deserialize<'de> for Repr<P> {
         fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-            use serde::de::{Error, MapAccess, Visitor};
+            use serde::de::{MapAccess, Visitor};
             use std::marker::PhantomData;
 
-            const FIELDS: &[&str] = &["id", "root", "groups", "panels", "active", "rect", "native", "monitor", "monitor_size", "minimized"];
+            const FIELDS: &[&str] = &["id", "root", "groups", "panels", "active", "rect", "native", "minimized"];
             struct V<P>(PhantomData<P>);
 
             impl<'de, P: Deserialize<'de>> Visitor<'de> for V<P> {
@@ -275,18 +269,7 @@ pub(super) mod floating_serde {
                 }
 
                 fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Repr<P>, A::Error> {
-                    let mut repr = Repr {
-                        id: None,
-                        root: None,
-                        groups: None,
-                        panels: None,
-                        active: 0,
-                        rect: None,
-                        native: None,
-                        monitor: None,
-                        monitor_size: None,
-                        minimized: false,
-                    };
+                    let mut repr = Repr { id: None, root: None, groups: None, panels: None, active: 0, rect: None, native: None, minimized: false };
                     while let Some(key) = map.next_key::<String>()? {
                         match key.as_str() {
                             "id" => repr.id = Some(map.next_value()?),
@@ -295,11 +278,11 @@ pub(super) mod floating_serde {
                             "panels" => repr.panels = Some(map.next_value()?),
                             "active" => repr.active = map.next_value()?,
                             "rect" => repr.rect = Some(map.next_value()?),
-                            "native" => repr.native = map.next_value()?,
-                            "monitor" => repr.monitor = map.next_value()?,
-                            "monitor_size" => repr.monitor_size = map.next_value()?,
+                            "native" => repr.native = map.next_value::<Option<Parsed<Placement>>>()?.and_then(Parsed::value),
                             "minimized" => repr.minimized = map.next_value()?,
-                            other => return Err(Error::unknown_field(other, FIELDS)),
+                            _ => {
+                                map.next_value::<IgnoredAny>()?;
+                            }
                         }
                     }
                     Ok(repr)
@@ -340,9 +323,7 @@ pub(super) mod floating_serde {
                 id: repr.id.unwrap_or_else(fresh_window_id),
                 root,
                 rect: from_array(repr.rect.ok_or_else(|| serde::de::Error::missing_field("rect"))?),
-                native: repr.native.map(from_array),
-                monitor: repr.monitor,
-                monitor_size: repr.monitor_size,
+                native: repr.native.and_then(|native| native.repaired()),
                 minimized,
             })
         }

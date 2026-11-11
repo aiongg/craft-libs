@@ -1,62 +1,71 @@
-//! The monitor type of persisted layouts.
+//! The connected monitors, as every window placement reads them.
 
-use emath::Rect;
+use emath::{Pos2, Rect, vec2};
+use serde::{Deserialize, Serialize};
 
-/// A display in desktop logical points, the one monitor type of saved data. Applications on an egui with monitor
-/// reports fill their monitor list with these; a native floating window stores the one it is on.
-#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+/// Identifies a monitor across launches: the name the platform reports and its size in pixels.
+///
+/// The size is part of the key because names repeat (`"Built-in Display"`) or change (`DP-1`
+/// after a re-plug), and a monitor switched to another resolution is a different place to put a
+/// window. A key that no longer matches falls back to the nearest connected monitor.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct MonitorKey {
+    /// The monitor name the platform reports.
+    pub name: String,
+    /// The monitor size in pixels, width then height.
+    pub size_px: [u32; 2],
+}
+
+impl MonitorKey {
+    /// A key for the monitor called `name` with size `size_px`.
+    pub fn new(name: impl Into<String>, size_px: [u32; 2]) -> Self {
+        Self { name: name.into(), size_px }
+    }
+}
+
+/// A connected monitor, in physical pixels of the desktop's coordinate space (negative for a monitor left of or
+/// above the primary). Points differ per monitor on a mixed-DPI desktop, so pixels are the one space every monitor
+/// shares; [`points_at`](Self::points_at) gives the area in the points of one window.
+#[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct Monitor {
-    /// Display name from the OS, when it reports one.
-    pub name: Option<String>,
-    /// The display's area on the desktop. Saved as `[x, y, width, height]`.
-    #[serde(with = "rect_serde")]
-    pub rect: Rect,
-    /// Physical pixels per logical point.
+    /// The monitor's identity.
+    pub key: MonitorKey,
+    /// Top-left corner in the desktop's pixel space.
+    pub pos_px: [i32; 2],
+    /// Width and height in pixels.
+    pub size_px: [u32; 2],
+    /// Physical pixels per point.
     pub scale: f32,
+    /// The part not taken by the taskbar, Dock or menu bar: top-left corner and size in pixels.
+    /// When set, it replaces [`Defaults::screen_room`](crate::placement::Defaults::screen_room) for this monitor.
+    pub work_px: Option<([i32; 2], [u32; 2])>,
 }
 
 impl Monitor {
-    /// A display at `rect` with `scale` physical pixels per logical point.
-    pub fn new(name: Option<String>, rect: Rect, scale: f32) -> Self {
-        Self { name, rect, scale }
-    }
-}
-
-/// Saved rects are `[x, y, width, height]`: the shape older files hold. `#[serde(with = "..")]` adapters and the
-/// two conversions for readers that build the array themselves.
-pub(crate) mod rect_serde {
-    use emath::{Pos2, Rect, Vec2};
-    use serde::{Deserialize, Deserializer, Serialize, Serializer};
-
-    /// `[x, y, width, height]` of `rect`.
-    pub(crate) fn to_array(rect: Rect) -> [f32; 4] {
-        [rect.min.x, rect.min.y, rect.width(), rect.height()]
+    /// A monitor at `pos_px` of `size_px` pixels with `scale`, usable in full.
+    pub fn new(key: MonitorKey, pos_px: [i32; 2], size_px: [u32; 2], scale: f32) -> Self {
+        Self { key, pos_px, size_px, scale, work_px: None }
     }
 
-    /// The rect at `[x, y, width, height]`.
-    pub(crate) fn from_array([x, y, width, height]: [f32; 4]) -> Rect {
-        Rect::from_min_size(Pos2::new(x, y), Vec2::new(width, height))
+    /// Sets the usable area (see [`work_px`](Self::work_px)).
+    pub fn with_work_px(mut self, pos_px: [i32; 2], size_px: [u32; 2]) -> Self {
+        self.work_px = Some((pos_px, size_px));
+        self
     }
 
-    pub(crate) fn serialize<S: Serializer>(rect: &Rect, serializer: S) -> Result<S::Ok, S::Error> {
-        to_array(*rect).serialize(serializer)
+    /// The monitor's area in pixels.
+    pub fn rect_px(&self) -> Rect {
+        let [x, y] = self.pos_px;
+        let [width, height] = self.size_px;
+        Rect::from_min_size(Pos2::new(x as f32, y as f32), vec2(width as f32, height as f32))
     }
 
-    pub(crate) fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Rect, D::Error> {
-        <[f32; 4]>::deserialize(deserializer).map(from_array)
-    }
-
-    /// The adapter for `Option<Rect>` fields. A field using it also needs `#[serde(default)]`.
-    pub(crate) mod option {
-        use super::{Deserialize, Deserializer, Rect, Serialize, Serializer, from_array, to_array};
-
-        pub(crate) fn serialize<S: Serializer>(rect: &Option<Rect>, serializer: S) -> Result<S::Ok, S::Error> {
-            rect.map(to_array).serialize(serializer)
-        }
-
-        pub(crate) fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<Rect>, D::Error> {
-            Option::<[f32; 4]>::deserialize(deserializer).map(|rect| rect.map(from_array))
-        }
+    /// The monitor's area in points of a window whose scale is `window_scale`. Monitors that touch in pixels touch
+    /// in these points, with no gap or overlap.
+    pub fn points_at(&self, window_scale: f32) -> Rect {
+        let scale = window_scale.max(f32::EPSILON);
+        let px = self.rect_px();
+        Rect::from_min_max(px.min / scale, px.max / scale)
     }
 }

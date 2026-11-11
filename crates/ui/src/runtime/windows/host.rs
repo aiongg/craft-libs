@@ -2,6 +2,7 @@
 
 use super::hit::{CaptionRegions, HitSink, with_exclusive};
 use super::native::{WindowAction, act};
+use super::placement::placement_of;
 use super::shell::{base_shell, shell_of, window_info};
 use super::spec::frame_of;
 use super::{Record, shared};
@@ -9,7 +10,8 @@ use crate::runtime::egui::input_filter;
 use crate::runtime::egui::screenshot::{ScreenshotFacts, ScreenshotSlot};
 use crate::runtime::egui::{injected, pass, screenshot, viewports};
 use crate::runtime::frame::PerViewport;
-use craft_behavior::PointerButton;
+use craft_behavior::placement::Placement;
+use craft_behavior::{Monitor, PointerButton};
 use craft_host::target::{Caps, ShellInfo, WindowState};
 use craft_keymap::{Chord, Key, Mods};
 use craft_window::policy::Frame;
@@ -30,35 +32,6 @@ pub struct WindowFacts {
     pub state: WindowState,
     /// Whether the window has OS focus.
     pub focused: bool,
-}
-
-/// A connected monitor, in physical pixels of the desktop.
-///
-/// Window facts are in points of the scale of the monitor their window is on, so the points of two windows on
-/// monitors of different scales are different spaces and a monitor has no single rect in points. The window host
-/// converts at the call, with the `scale` of the window the caller compares with ([`WindowHost::monitors`]).
-#[derive(Clone, Debug, PartialEq)]
-struct MonitorInfo {
-    /// The name the platform reports.
-    name: String,
-    /// The monitor's area in physical pixels.
-    pixels: Rect,
-    /// Physical pixels per point of this monitor.
-    scale: f32,
-}
-
-impl MonitorInfo {
-    /// The monitor's area in points of a window whose scale is `window_scale` ([`WindowFacts::scale`]). Monitors
-    /// that touch in pixels touch in these points, with no gap or overlap.
-    fn points_at(&self, window_scale: f32) -> Rect {
-        let scale = window_scale.max(f32::EPSILON);
-        Rect::from_min_max(self.pixels.min / scale, self.pixels.max / scale)
-    }
-
-    /// The monitor as the placement owner's type, in the points of a window whose scale is `window_scale`.
-    fn placed_at(&self, window_scale: f32) -> craft_behavior::Monitor {
-        craft_behavior::Monitor::new(Some(self.name.clone()), self.points_at(window_scale), self.scale)
-    }
 }
 
 /// A key equivalent the platform's menu took from the window.
@@ -216,11 +189,17 @@ impl WindowHost {
         Some(WindowFacts { inner: facts.inner?, outer: facts.outer, scale: scale_of(&self.ctx, &facts), state: info.state, focused: facts.focused })
     }
 
-    /// The connected monitors in the points of a window whose scale is `window_scale` ([`WindowFacts::scale`]), as
-    /// the placement owner's type; none where the platform does not list them. Monitors that touch in pixels
-    /// touch in these points, with no gap or overlap.
-    pub fn monitors(&self, window_scale: f32) -> Vec<craft_behavior::Monitor> {
-        monitor_infos(&self.ctx).iter().map(|monitor| monitor.placed_at(window_scale)).collect()
+    /// `previous` (or a new record) updated to where `viewport`'s window is now, recorded as an app window's saved
+    /// placement is. `None` before the window has reported its rect and scale.
+    pub(crate) fn placement(&self, viewport: ViewportId, previous: Option<Placement>) -> Option<Placement> {
+        let facts = PerViewport::<Record>::with(&self.ctx, viewport, |record| record.facts)?;
+        placement_of(&self.ctx, &facts, previous)
+    }
+
+    /// The connected monitors, in desktop pixels; none where the platform does not list them.
+    /// [`Monitor::points_at`] gives one in the points of a window ([`WindowFacts::scale`]).
+    pub fn monitors(&self) -> Vec<Monitor> {
+        monitors(&self.ctx)
     }
 
     /// Places `viewport`'s outer rect at `outer`: its position, and the inner size that leaves the window's
@@ -296,9 +275,9 @@ impl WindowHost {
 }
 
 /// The connected monitors in physical pixels; none where the platform does not list them.
-fn monitor_infos(ctx: &Context) -> Vec<MonitorInfo> {
+pub(super) fn monitors(ctx: &Context) -> Vec<Monitor> {
     let system = shared(ctx, |shared| shared.system.clone());
-    system.map(|system| system.monitors()).unwrap_or_default().into_iter().map(monitor_info).collect()
+    system.map(|system| system.monitors()).unwrap_or_default()
 }
 
 /// The scale of a window with `facts`: the platform's report, else the scale of the monitor the window's top-left
@@ -306,15 +285,8 @@ fn monitor_infos(ctx: &Context) -> Vec<MonitorInfo> {
 pub(super) fn scale_of(ctx: &Context, facts: &viewports::Facts) -> Option<f32> {
     facts.native_scale.or_else(|| {
         let corner = facts.outer.or(facts.inner)?.min;
-        monitor_infos(ctx).iter().find(|monitor| monitor.pixels.contains(corner * monitor.scale)).map(|monitor| monitor.scale)
+        monitors(ctx).iter().find(|monitor| monitor.rect_px().contains(corner * monitor.scale)).map(|monitor| monitor.scale)
     })
-}
-
-/// A monitor of the window system, in physical pixels.
-fn monitor_info(monitor: craft_window::restore::Monitor) -> MonitorInfo {
-    let min = Pos2::new(monitor.pos_px[0] as f32, monitor.pos_px[1] as f32);
-    let size = Vec2::new(monitor.size_px[0] as f32, monitor.size_px[1] as f32);
-    MonitorInfo { name: monitor.key.name, pixels: Rect::from_min_size(min, size), scale: monitor.scale }
 }
 
 /// Records the pointer of the viewport a drag runs in, `local` in that viewport's coordinates, as a desktop

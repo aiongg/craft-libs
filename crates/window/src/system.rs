@@ -1,7 +1,7 @@
 //! `WindowSystem`: the OS calls the window host makes outside egui (desktop pointer, pointer warp, monitors).
 //! egui-free. `FakeSystem` is the scripted implementation for tests.
 
-use crate::restore::Monitor;
+use craft_behavior::Monitor;
 use std::sync::Mutex;
 
 /// OS services the multi-window driver reads. Every method runs in the UI's `set_input`, outside every egui lock.

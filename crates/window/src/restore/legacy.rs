@@ -6,14 +6,14 @@
 //! used (a flat struct, and one with a nested `normal_geometry`). Nothing is written back; old
 //! builds keep working from the old file.
 //!
-//! An old layout has no scale factor, so imports assume 1; [`place`](super::place) takes the
+//! An old layout has no scale factor, so imports assume 1; [`place`](craft_behavior::placement::place) takes the
 //! real one from the monitor the window lands on.
 
 use std::path::Path;
 
 use serde_json::Value;
 
-use super::place::{NormalRect, Placement};
+use craft_behavior::placement::Placement;
 
 /// The placement in an eframe `app.ron` text: its `"window"` entry, with the size converted to
 /// points at zoom 1 using the `"egui"` entry's `zoom_factor` (1 when absent).
@@ -42,15 +42,13 @@ pub fn eframe_window_settings(ron: &str, zoom: f32) -> Option<Placement> {
     let size = size.map(|v| v * zoom);
     // Windows parks a minimized window near (-32000, -32000).
     let pos = pos.filter(|p| p.iter().all(|v| *v > -30000.0));
-    Some(Placement {
-        normal: NormalRect { pos: pos.map_or([0.0; 2], |p| p.map(|v| v / scale)), size },
-        position_px: pos.map(|p| p.map(|v| v.round() as i32)),
-        scale,
-        zoom,
-        maximized: field(ron, "maximized").is_some_and(truth),
-        fullscreen: field(ron, "fullscreen").is_some_and(truth),
-        monitor: None,
-    })
+    let mut placement = Placement::new(size, scale);
+    placement.normal.pos = pos.map_or([0.0; 2], |p| p.map(|v| v / scale));
+    placement.position_px = pos.map(|p| p.map(|v| v.round() as i32));
+    placement.zoom = zoom;
+    placement.maximized = field(ron, "maximized").is_some_and(truth);
+    placement.fullscreen = field(ron, "fullscreen").is_some_and(truth);
+    Some(placement)
 }
 
 /// The value at `path` of a JSON object (`json_at(&v, &["window", "size"])`).
