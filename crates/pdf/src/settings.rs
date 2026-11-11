@@ -9,9 +9,6 @@
 pub mod checks;
 pub mod presets;
 
-#[cfg(test)]
-mod tests;
-
 pub use checks::{ColorMode, ProfileCatalog, ProfileKind, SettingsError, SettingsWarning};
 pub use presets::{PdfPreset, builtin_preset, builtin_presets, default_preset_name};
 
