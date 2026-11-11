@@ -71,6 +71,3 @@ impl ColorModel for CmykModel {
         DefaultOn { full: false, compact: false }
     }
 }
-
-#[cfg(test)]
-mod tests {}

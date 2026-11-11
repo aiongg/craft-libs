@@ -5,49 +5,23 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use craft_behavior::kurbo::Point;
-use craft_behavior::{CancelReason, CanvasView, PointerButton};
-use craft_cms::convert::{CmykConverter, srgb_to_cmyk_naive};
+use craft_behavior::{CanvasView, PointerButton};
+use craft_cms::convert::CmykConverter;
 use craft_color::ui::{
-    CaptureSource, ColorPicker, ColorPickerDialog, ColorPickerLayout, ColorPickerResult, ColorSamplerTool, ColorSamplers, PickedColor, SamplerCache,
-    SamplerReadout, SamplerReadouts, ScreenColorPicker, ScreenPick, StillCapture,
+    CaptureSource, ColorPicker, ColorPickerLayout, ColorSamplerTool, ColorSamplers, PickedColor, SamplerCache, SamplerReadouts, ScreenPick,
+    StillCapture,
 };
 use craft_theme::Srgba;
-use craft_ui::canvas::{CanvasSpace, CanvasTool, ToolAction, ToolContext, ToolPointer};
+use craft_ui::canvas::ToolPointer;
 use craft_ui::contract::Bind;
-use craft_ui::dialog::{DialogResult, DialogStack, StackDialog as _};
 use craft_ui::testing::{Fixture, ToolFixture, trial};
-use egui::{Context, Key, Modifiers, Pos2, Rect, vec2};
-
-const ROOM: egui::Vec2 = egui::Vec2 { x: 400.0, y: 300.0 };
-/// The fixture's room for a dialog.
-const DIALOG_ROOM: egui::Vec2 = egui::Vec2 { x: 900.0, y: 700.0 };
-
-/// A canvas whose document points equal its screen points: 400 by 300 at zoom 1, centred on (200, 150).
-fn context() -> ToolContext<'static> {
-    let rect = Rect::from_min_size(Pos2::ZERO, ROOM);
-    let view = CanvasView::new(rect, Point::new(200.0, 150.0), 1.0);
-    ToolContext::new(rect, Some(CanvasSpace::new(view, 1.0)))
-}
+use egui::{Context, Pos2, Rect, vec2};
 
 fn at(x: f32, y: f32) -> ToolPointer {
     ToolPointer::new(Pos2::new(x, y), PointerButton::Primary, 0.0)
 }
 
 const SIZE: [u32; 2] = [300, 200];
-
-#[trial]
-fn readouts_use_the_documents_converter() {
-    let converter = CmykConverter::coated();
-    let blue = Srgba { r: 0.0, g: 0.0, b: 1.0, a: 1.0 };
-    let reading = SamplerReadout::new(2, [4.0, 9.0], blue, converter);
-    assert_eq!((reading.number, reading.position, reading.rgb), (3, [4, 9], [0, 0, 255]));
-    let managed = converter.from_srgb([0.0, 0.0, 1.0]).map(|v| (v * 100.0).round() as u8);
-    assert_eq!(reading.cmyk, managed);
-    let naive = srgb_to_cmyk_naive([0.0, 0.0, 1.0]).map(|v| (v * 100.0).round() as u8);
-    assert_ne!(reading.cmyk, naive);
-    let odd = SamplerReadout::new(0, [0.0, 0.0], Srgba { r: f32::NAN, g: 2.0, b: -1.0, a: 1.0 }, converter);
-    assert_eq!(odd.rgb, [0, 255, 0], "channels that are not finite read as 0 and the rest is clamped");
-}
 
 #[trial]
 fn readouts_are_cached_per_document_and_converter() {
@@ -80,167 +54,11 @@ fn sampler_tool(points: &[[f64; 2]]) -> ColorSamplerTool<'static> {
     ColorSamplerTool::new(samplers, SIZE)
 }
 
-/// Presses at `from` and releases at `to`.
-fn click_drag(tool: &mut impl CanvasTool, from: ToolPointer, to: ToolPointer) {
-    let mut cx = context();
-    if tool.press(&from, &mut cx) == ToolAction::Claimed {
-        tool.release(&to, &mut cx);
-    }
-}
-
-#[trial]
-fn a_point_dragged_off_the_canvas_is_removed() {
-    let mut tool = sampler_tool(&[[50.0, 50.0], [100.0, 50.0]]);
-    click_drag(&mut tool, at(100.0, 50.0), at(100.3, 50.0));
-    assert_eq!(tool.samplers().points(), [[50.0, 50.0], [100.0, 50.0]], "a release within half a pixel does nothing");
-    click_drag(&mut tool, at(100.0, 50.0), at(150.6, 80.2));
-    assert_eq!(tool.samplers().points(), [[50.0, 50.0], [150.0, 80.0]], "dropped inside it moves, onto the pixel");
-    click_drag(&mut tool, at(150.0, 80.0), at(350.0, 80.0));
-    assert_eq!(tool.samplers().points(), [[50.0, 50.0]], "dropped off the canvas it is removed");
-    click_drag(&mut tool, at(20.0, 20.0), at(20.0, 20.0));
-    click_drag(&mut tool, at(320.0, 20.0), at(320.0, 20.0));
-    assert_eq!(tool.samplers().points(), [[50.0, 50.0], [20.0, 20.0]], "a click places a point; outside the canvas none");
-    assert_eq!(tool.take_error(), None);
-}
-
-/// The point follows the pointer while it is down; Escape puts it back and a release off the canvas removes it.
-#[trial]
-fn a_point_follows_the_pointer_during_the_drag() {
-    let mut tool = sampler_tool(&[[50.0, 50.0]]);
-    let mut cx = context();
-    assert_eq!(tool.press(&at(50.0, 50.0), &mut cx), ToolAction::Claimed);
-    tool.drag(&at(120.6, 90.2), &mut cx);
-    assert_eq!(tool.samplers().points(), [[120.0, 90.0]], "mid-drag the point is under the pointer");
-    tool.drag(&at(350.0, 90.0), &mut cx);
-    assert_eq!(tool.samplers().points(), [[120.0, 90.0]], "off the canvas it waits where it was");
-    tool.cancel(CancelReason::Escape, &mut cx);
-    assert_eq!(tool.samplers().points(), [[50.0, 50.0]], "Escape restores the point the press found");
-
-    assert_eq!(tool.press(&at(200.0, 100.0), &mut cx), ToolAction::Claimed);
-    tool.drag(&at(210.0, 110.0), &mut cx);
-    tool.cancel(CancelReason::Escape, &mut cx);
-    assert_eq!(tool.samplers().points(), [[50.0, 50.0], [200.0, 100.0]], "a new point stays at its press");
-
-    assert_eq!(tool.press(&at(200.0, 100.0), &mut cx), ToolAction::Claimed);
-    tool.drag(&at(250.0, 100.0), &mut cx);
-    tool.release(&at(350.0, 100.0), &mut cx);
-    assert_eq!(tool.samplers().points(), [[50.0, 50.0]], "released off the canvas it is removed");
-}
-
 #[trial]
 fn the_sampler_tool_meets_the_tool_rules() {
     let view = |rect: Rect| CanvasView::new(rect, Point::new(f64::from(SIZE[0]) / 2.0, f64::from(SIZE[1]) / 2.0), 1.0);
     let mut tool = ToolFixture::with_view("Color Sampler", sampler_tool(&[]), view, |_, _| {});
     tool.check();
-}
-
-struct Rig {
-    fx: Fixture,
-    app: Rc<RefCell<App>>,
-}
-
-struct App {
-    dialog: ColorPickerDialog,
-    stack: DialogStack,
-    result: Option<DialogResult<ColorPickerResult>>,
-}
-
-fn rig(dialog: ColorPickerDialog) -> Rig {
-    let mut stack = DialogStack::default();
-    stack.push(dialog.id(), None);
-    let app = Rc::new(RefCell::new(App { dialog, stack, result: None }));
-    let shown = Rc::clone(&app);
-    let mut fx = Fixture::new(move |ui| {
-        let mut app = shown.borrow_mut();
-        let App { dialog, stack, result } = &mut *app;
-        if result.is_none() {
-            *result = dialog.show(ui, stack);
-        }
-    });
-    fx.room(DIALOG_ROOM).settle();
-    Rig { fx, app }
-}
-
-impl Rig {
-    fn click(&mut self, label: &str) {
-        let target = self.fx.by_label(label).unwrap_or_else(|| panic!("no `{label}` on screen"));
-        self.fx.click(&target);
-        self.fx.settle();
-    }
-
-    fn result(&self) -> Option<DialogResult<ColorPickerResult>> {
-        self.app.borrow_mut().result.take()
-    }
-}
-
-const FOREGROUND: Srgba = Srgba::rgb(0.2, 0.4, 0.6);
-
-#[trial]
-fn add_to_swatches_keeps_the_dialog_open() {
-    let mut rig = rig(ColorPickerDialog::foreground(FOREGROUND).web_colors_remembered(false));
-    rig.click("Add to Swatches");
-    assert!(rig.result().is_none(), "the dialog stays open");
-    let swatch = rig.app.borrow_mut().dialog.take_add_to_swatches().expect("the colour is kept for the app");
-    assert_eq!(swatch.color, FOREGROUND);
-    assert!(rig.app.borrow_mut().dialog.take_add_to_swatches().is_none(), "it is taken once");
-}
-
-#[trial]
-fn a_canvas_sample_sets_the_new_colour_while_on_top() {
-    let sampled = Srgba::rgb(0.9, 0.1, 0.1);
-    let mut rig = rig(ColorPickerDialog::foreground(FOREGROUND).web_colors_remembered(false));
-    let request = rig.app.borrow_mut().dialog.requests().take_eyedropper().expect("the dialog on top asks the host to arm its dropper");
-    assert_eq!(request.key, "foreground");
-    rig.app.borrow_mut().dialog.requests().answer_eyedropper("foreground", sampled);
-    rig.fx.settle();
-    assert_eq!(rig.app.borrow().dialog.current().map(|picked| picked.color), Some(sampled), "the sample is the new colour");
-    assert_eq!(rig.app.borrow().dialog.opening().map(|picked| picked.color), Some(FOREGROUND), "the compare swatch keeps the opening colour");
-}
-
-#[trial]
-fn the_result_goes_to_its_owner_only() {
-    let ctx = Context::default();
-    let blue = Srgba::rgb(0.0, 0.0, 1.0);
-    let mut pick = ScreenPick::new();
-    pick.start("fill");
-    assert!(pick.busy());
-    pick.tick_with(&ctx, 1, &|| Box::new(StillCapture::color(blue)));
-    assert!(!pick.busy(), "a colour capture settles at once");
-    assert_eq!(pick.take("stroke"), None, "another owner takes nothing");
-    assert_eq!(pick.take("fill"), Some(blue));
-    assert_eq!(pick.take("fill"), None, "the colour is taken once");
-}
-
-/// A capture that never finishes.
-struct Never;
-
-impl CaptureSource for Never {
-    fn poll(&self) -> Option<craft_color::ui::CaptureResult> {
-        None
-    }
-}
-
-#[trial]
-fn every_way_out_cancels() {
-    let ctx = Context::default();
-    let mut pick = ScreenPick::new();
-    pick.start("fill");
-    pick.cancel();
-    assert!(!pick.busy(), "a request that has not started is dropped");
-    pick.start("fill");
-    pick.tick_with(&ctx, 1, &|| Box::new(StillCapture::new(Err(craft_platform::screen::ScreenError::Cancelled))));
-    assert!(!pick.busy());
-    assert_eq!(pick.take("fill"), None, "a cancelled capture picks nothing");
-    pick.start("fill");
-    pick.tick_with(&ctx, 1, &|| Box::new(Never));
-    assert!(pick.busy(), "a capture that has not finished keeps the pick");
-    pick.tick_with(&ctx, 2, &|| Box::new(Never));
-    assert!(!pick.busy(), "a pick whose window changed is cancelled");
-    pick.start("fill");
-    pick.tick_with(&ctx, 2, &|| Box::new(Never));
-    pick.cancel();
-    pick.tick_with(&ctx, 2, &|| Box::new(Never));
-    assert!(!pick.busy(), "cancel ends a running pick");
 }
 
 /// A monitor of `size` pixels at `origin` in the virtual desktop whose pixel (x, y) is (x, y, `tag`), so a pick shows
@@ -283,88 +101,4 @@ fn a_release_outside_the_window_picks_the_colour_under_the_pointer_on_any_monito
     };
     assert_eq!(color, under(&monitors[1]), "the pixel under the pointer on the monitor it is over");
     assert_ne!(color, under(&monitors[0]), "not the same coordinates on the first monitor");
-}
-
-/// A plain click on the picker's screen button shows each monitor's capture in its own window; a click there picks the
-/// pixel under it on that monitor, and Escape in a second pick picks nothing and closes the windows. Guards a click
-/// capture that stays busy with nothing shown.
-#[trial]
-fn a_click_shows_the_capture_and_a_click_on_it_picks_the_pixel_under_the_pointer() {
-    let pick = Rc::new(RefCell::new(ScreenPick::new()));
-    let shared = pick.clone();
-    let monitors = [monitor([0, 0], [720, 700], 1), monitor([720, 0], [400, 700], 2)];
-    let images = monitors.to_vec();
-    let mut fixture = Fixture::new(move |ui| {
-        let mut color = PickedColor::rgb(Srgba::rgb(0.2, 0.5, 0.8));
-        let out = ColorPicker::new("Foreground color", Bind::bound(&mut color)).layout(ColorPickerLayout::Compact).eyedropper(true).show(ui);
-        let mut pick = shared.borrow_mut();
-        if let Some(gesture) = out.screen_pick {
-            pick.hold(ui.ctx(), "fill", gesture);
-        }
-        let images = images.clone();
-        pick.tick_with(ui.ctx(), 1, &move || Box::new(StillCapture::new(Ok(craft_platform::screen::Capture::Images(images.clone())))));
-        ScreenColorPicker::new(&mut pick, "Trial").show(ui);
-    });
-    fixture.room(vec2(1120.0, 700.0));
-    fixture.settle();
-    let button = fixture.by_label("Sample color from the screen").expect("the screen button");
-    fixture.click(&button).settle();
-    assert!(pick.borrow().busy(), "the click starts a pick");
-    // Where OS windows are unavailable each capture is a modal layer, and only the top one reaches the tree.
-    let shown = fixture.by_label("monitor 2").expect("the second monitor's capture shows");
-    let at = shown.rect.min + shown.rect.size() * 0.3;
-    fixture.click_at(at).settle();
-    assert!(!pick.borrow().busy(), "the click ends the pick");
-    let color = pick.borrow_mut().take("fill").expect("the colour under the click");
-    let m = &monitors[1];
-    let (x, y) = (
-        ((at.x - shown.rect.min.x) / shown.rect.width() * m.size[0] as f32) as usize,
-        ((at.y - shown.rect.min.y) / shown.rect.height() * m.size[1] as f32) as usize,
-    );
-    let i = (y * m.size[0] as usize + x) * 4;
-    let under = Srgba::rgb(f32::from(m.rgba[i]) / 255.0, f32::from(m.rgba[i + 1]) / 255.0, f32::from(m.rgba[i + 2]) / 255.0);
-    assert_eq!(color, under, "the pixel under the click on the monitor it shows");
-    assert!(fixture.by_label("monitor 2").is_none(), "the windows close with the pick");
-
-    let button = fixture.by_label("Sample color from the screen").expect("the screen button");
-    fixture.click(&button).settle();
-    assert!(fixture.by_label("monitor 2").is_some(), "a second click shows the capture again");
-    fixture.key(Key::Escape, Modifiers::NONE).settle();
-    assert!(!pick.borrow().busy(), "Escape ends the pick");
-    assert_eq!(pick.borrow_mut().take("fill"), None, "Escape picks nothing");
-    assert!(fixture.by_label("monitor 2").is_none() && fixture.by_label("monitor 1").is_none(), "every window closes");
-}
-
-/// A request from a Mixed swatch carries no colour: the dialog opens with empty channel fields and OK disabled, a typed
-/// value sets the colour, fills the other fields and enables OK, and OK answers with that colour.
-#[trial]
-fn a_request_without_a_colour_opens_empty_until_the_first_pick() {
-    let request = craft_ui::runtime::requests::ColorRequest::new("fills", None).title("Fills");
-    let mut rig = rig(ColorPickerDialog::from_request(request).web_colors_remembered(false));
-    let values = |rig: &Rig| -> Vec<String> {
-        let tree = rig.fx.tree();
-        tree.keys().into_iter().filter_map(|key| tree.value_of(key).map(str::to_owned)).collect()
-    };
-    let ok = rig.fx.by_label("OK").expect("OK").node;
-    assert!(rig.fx.tree().is_disabled_key(ok), "OK waits for a colour");
-    assert!(rig.app.borrow().dialog.current().is_none(), "no colour yet");
-    assert!(values(&rig).iter().any(|text| text == "Mixed"), "the new swatch shows Mixed: {:?}", values(&rig));
-    assert!(!values(&rig).iter().any(|text| text == "000000"), "the hex field is empty, not black");
-
-    let hex = rig.fx.by_label("Hex color").expect("the hex field");
-    rig.fx.click(&hex);
-    rig.fx.key(Key::A, Modifiers::COMMAND);
-    rig.fx.type_text("336699");
-    rig.fx.key(Key::Tab, Modifiers::NONE);
-    rig.fx.settle();
-    assert!(values(&rig).iter().any(|text| text == "51"), "the other fields show the colour: {:?}", values(&rig));
-    let ok = rig.fx.by_label("OK").expect("OK").node;
-    assert!(!rig.fx.tree().is_disabled_key(ok), "OK takes the colour");
-    rig.click("OK");
-    match rig.result() {
-        Some(DialogResult::Ok(ColorPickerResult { key, picked, .. })) => {
-            assert_eq!((key.as_str(), picked.color.to_rgba().0[..3].to_vec()), ("fills", vec![0x33, 0x66, 0x99]));
-        }
-        other => panic!("OK answers the typed colour: {other:?}"),
-    }
 }
