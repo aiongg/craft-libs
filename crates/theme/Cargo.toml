@@ -21,7 +21,3 @@ proptest = { workspace = true }
 
 [lints]
 workspace = true
-
-[[test]]
-name = "check_cli"
-path = "tests/check_cli.rs"
