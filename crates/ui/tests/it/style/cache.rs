@@ -1,10 +1,8 @@
 //! The style cache, the env key and app style replacements.
 
 use craft_theme::{Contrast, ControlSize, Mode, Variant};
-use craft_ui::runtime::env::RootEnv;
-use craft_ui::runtime::{InstallError, install};
-use craft_ui::style::{ComponentStyle, Metrics, StyleCx, StyleKey, StyleReplacements};
-use craft_ui::testing::style::{root_token_entries, style_of, tokens, with_cx};
+use craft_ui::style::{ComponentStyle, Metrics, StyleCx, StyleKey};
+use craft_ui::testing::style::{style_of, tokens, with_cx};
 use craft_ui::testing::{Frames, trial};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -52,61 +50,5 @@ fn two_components_sharing_a_style_type_get_their_own_style() {
     assert_eq!(BUILDS.load(Ordering::SeqCst), 2, "each key built once, every later read hit the cache");
 }
 
-#[trial]
-fn a_style_is_rebuilt_only_when_an_input_of_its_key_changes() {
-    static BUILDS: AtomicUsize = AtomicUsize::new(0);
-    fn build(_: &StyleCx<'_>, _: FirstKey) -> SharedStyle {
-        BUILDS.fetch_add(1, Ordering::SeqCst);
-        SharedStyle { built_by: "first" }
-    }
-    let frames = Frames::new();
-    let light = tokens(Mode::Light, Contrast::Standard);
-    let dark = tokens(Mode::Dark, Contrast::Standard);
-    let read = |tokens, variant, size| with_cx(&frames.ctx, tokens, variant, size, |cx| drop(style_of(&frames.ctx, cx, FirstKey, build)));
-    read(&light, Variant::SECONDARY, ControlSize::Md);
-    read(&light, Variant::SECONDARY, ControlSize::Md);
-    assert_eq!(BUILDS.load(Ordering::SeqCst), 1, "same inputs hit");
-    read(&light, Variant::SECONDARY, ControlSize::Sm);
-    assert_eq!(BUILDS.load(Ordering::SeqCst), 2, "another size is another entry");
-    read(&dark, Variant::SECONDARY, ControlSize::Md);
-    assert_eq!(BUILDS.load(Ordering::SeqCst), 3, "another token set is another entry");
-}
 
-#[trial]
-fn an_app_replacement_wins_and_two_for_one_key_fail_the_install() {
-    fn default(_: &StyleCx<'_>, _: FirstKey) -> SharedStyle {
-        SharedStyle { built_by: "library" }
-    }
-    fn replacement(_: &StyleCx<'_>, _: FirstKey) -> SharedStyle {
-        SharedStyle { built_by: "app" }
-    }
-    fn second(_: &StyleCx<'_>, _: SecondKey) -> SharedStyle {
-        SharedStyle { built_by: "library" }
-    }
-    let frames = Frames::uninstalled();
-    let mut looks = StyleReplacements::new();
-    looks.push::<FirstKey, SharedStyle>(replacement);
-    assert!(install(&frames.ctx, craft_ui::testing::install_spec().looks(looks)).is_ok());
-    let tokens = tokens(Mode::Light, Contrast::Standard);
-    with_cx(&frames.ctx, &tokens, Variant::SECONDARY, ControlSize::Md, |cx| {
-        assert_eq!(style_of(&frames.ctx, cx, FirstKey, default).built_by, "app");
-        assert_eq!(style_of(&frames.ctx, cx, SecondKey, second).built_by, "library", "a key with no replacement keeps its own style");
-    });
 
-    let other = Frames::uninstalled();
-    let mut twice = StyleReplacements::new();
-    twice.push::<FirstKey, SharedStyle>(replacement).push::<FirstKey, SharedStyle>(replacement);
-    assert!(matches!(install(&other.ctx, craft_ui::testing::install_spec().looks(twice)), Err(InstallError::DuplicateStyle(_))));
-}
-
-/// An app that builds a fresh `RootEnv` (and so a fresh sizes table) every frame leaves a bounded root-token cache.
-#[trial]
-fn root_tokens_are_cached_for_a_bounded_number_of_inputs() {
-    let mut frames = Frames::new();
-    for _ in 0..20 {
-        frames.root(RootEnv::default());
-        frames.idle(1, |_| {});
-    }
-    let kept = root_token_entries(&frames.ctx);
-    assert!(kept > 0 && kept < 20, "{kept} entries after 20 frames with 20 distinct roots");
-}

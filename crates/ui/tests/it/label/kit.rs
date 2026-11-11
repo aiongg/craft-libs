@@ -1,5 +1,5 @@
-//! Components for the label-step trials: a scrubbing value control, a field container and a leaf that labels the
-//! control it paints.
+//! Components for the label-step trials: a scrubbing value control, a field container and a control that fills its
+//! row.
 
 use craft_behavior::{Metrics, Sense, ValueDrag};
 use craft_ui::contract::{
@@ -141,49 +141,6 @@ impl Component for Field {
 }
 
 impl Container for Field {}
-
-/// A leaf that shows a labelled dial in its own rect with `PaintUi::labelled`.
-#[derive(Component)]
-pub struct LabelledDial<'a> {
-    #[common]
-    common: Common,
-    value: &'a mut f64,
-    label: &'static str,
-    side: SideLabel,
-    seen: &'a RefCell<Seen>,
-}
-
-impl<'a> LabelledDial<'a> {
-    pub fn new(label: &'static str, side: SideLabel, value: &'a mut f64, seen: &'a RefCell<Seen>) -> Self {
-        LabelledDial { common: Common::new(), value, label, side, seen }
-    }
-}
-
-impl Component for LabelledDial<'_> {
-    const ROLE: Role = Role::GROUP;
-    type Style = PlainStyle;
-    type Output = Response;
-
-    fn style(_: &StyleCx<'_>, _: LabelledDialStyleKey) -> PlainStyle {
-        PlainStyle::default()
-    }
-
-    fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
-        Vec2::new(300.0, 30.0)
-    }
-
-    fn sense(&self) -> Sense {
-        Sense::empty()
-    }
-
-    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
-        ui.labelled("dial", cx.rect, self.label.into(), self.side.clone(), Dial::new(&mut *self.value, self.seen));
-    }
-
-    fn finish(self, cx: Cx<'_, Self>) -> Response {
-        cx.response.clone()
-    }
-}
 
 /// A control that fills the width it is offered and can shrink to `WIDE_MIN`.
 #[derive(Component)]

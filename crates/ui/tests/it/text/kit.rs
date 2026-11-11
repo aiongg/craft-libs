@@ -1,8 +1,7 @@
 //! A text field driven frame by frame.
 
-use craft_behavior::{MotionMode, PartKey};
+use craft_behavior::PartKey;
 use craft_ui::contract::{Bind, Props as _, Show as _};
-use craft_ui::runtime::env::RootEnv;
 use craft_ui::testing::Frames;
 use craft_ui::testing::pointer::click;
 use craft_ui::testing::text::widget_id;
@@ -40,11 +39,6 @@ impl Rig {
         let mut rig = Rig { frames: Frames::new(), text: text.to_owned(), seen: Seen::default() };
         rig.idle(3);
         rig
-    }
-
-    pub fn with_motion(mut self, mode: MotionMode) -> Rig {
-        self.frames.root(RootEnv::default().motion(mode));
-        self
     }
 
     fn show(frames: &mut Frames, events: Vec<Event>, text: &mut String, seen: &mut Seen, build: &dyn Fn(&mut String) -> Bind<'_, String>) {

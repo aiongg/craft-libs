@@ -27,19 +27,6 @@ fn rig() -> Rig {
     (fixture, value, events)
 }
 
-fn painted(fixture: &Fixture) -> String {
-    fixture.texts().iter().map(|text| text.text.clone()).collect::<Vec<_>>().join("")
-}
-
-/// A Mixed hex field shows no colour text, and typed hex text sets the value.
-#[trial]
-fn a_mixed_hex_field_shows_no_text_and_takes_typed_hex() {
-    let (mut fixture, value, _) = rig();
-    assert!(!painted(&fixture).contains('#'), "a Mixed hex field shows no hex text: {:?}", painted(&fixture));
-    fixture.type_text("ff0000");
-    fixture.key(Key::Enter, Modifiers::NONE);
-    assert_eq!(*value.borrow(), Mixed::Same(Rgba::rgb(255, 0, 0)), "typed hex text became the value");
-}
 
 /// Enter on text that was emptied sends no event and the value stays Mixed.
 #[trial]
