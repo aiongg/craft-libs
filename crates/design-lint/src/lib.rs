@@ -149,10 +149,12 @@ fn is_test_path(relative: &Path) -> bool {
     in_test_dir || name == "tests.rs" || name.ends_with("_test.rs") || name.ends_with("_tests.rs")
 }
 
-/// A crate's `src/testing/` module: the test kit behind feature `testing`, which literal sizes may fill like `tests/`.
+/// A file of a `testing` module directory below `src/` (`src/testing/`, `src/canvas/testing/`): the test kit behind
+/// feature `testing`, which literal sizes may fill like `tests/`.
 fn is_testing_module(relative: &Path) -> bool {
     let parts: Vec<_> = relative.components().filter_map(|c| c.as_os_str().to_str()).collect();
-    parts.windows(2).any(|pair| pair == ["src", "testing"])
+    let dirs = &parts[..parts.len().saturating_sub(1)];
+    dirs.iter().position(|part| *part == "src").is_some_and(|src| dirs[src + 1..].contains(&"testing"))
 }
 
 fn area_of(base: &Path, file: &Path) -> String {

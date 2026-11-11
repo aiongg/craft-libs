@@ -2,4 +2,4 @@ config_version = 1
 
 [[module]]
 path = "story_kit"
-layer = 5
+outside = true

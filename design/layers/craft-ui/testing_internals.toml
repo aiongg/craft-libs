@@ -2,4 +2,4 @@ config_version = 1
 
 [[module]]
 path = "testing_internals"
-layer = 5
+outside = true
