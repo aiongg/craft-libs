@@ -213,6 +213,30 @@ impl<'b> BodyHooks<'b> {
         bcx.close_requested()
     }
 
+    /// The end region: its content runs in reading order, so its roving order is its order on the line; the region
+    /// is as wide as it measured, so the last child sits at the end edge. On the line it is centred; a full-height
+    /// region starts at its top. Records the region's size and returns the close it asked for.
+    pub(super) fn end_region<C: Container>(
+        &mut self,
+        comp: &mut C,
+        ui: &mut Ui,
+        bcx: &mut BodyCx<'_>,
+        frame: &RegionFrame<'_>,
+        props: &ContainerProps,
+        end: Rect,
+    ) -> Option<CloseReason> {
+        let cross = if end_full_height(props) { Align::Min } else { Align::Center };
+        let layout = if frame.rtl { Layout::right_to_left(cross) } else { Layout::left_to_right(cross) };
+        let builder = UiBuilder::new().max_rect(end).layout(layout).scope_id(sub(frame.id, "end"));
+        let builder = if frame.node { access::with_parent(builder, frame.id) } else { builder };
+        let mut end_ui = alloc::child(ui, builder);
+        let installed = Env::install_for(&end_ui, frame.env.clone());
+        comp.end(&mut end_ui, bcx);
+        Env::restore(ui.ctx(), installed);
+        self.end_size = Some(self.region_size(&end_ui));
+        bcx.close_requested()
+    }
+
     /// The space under a stacked header `header_h` high: `HeaderRegion::gap` while the body shows, scaled by its presence.
     pub(super) fn header_space(&self, header_h: f32) -> f32 {
         if header_h > 0.0 { self.header_gap * self.presence.t } else { 0.0 }
