@@ -614,3 +614,10 @@ fn is_cross_device(e: &io::Error) -> bool {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+extern crate self as craft_atomic;
+
+#[cfg(test)]
+#[path = "../tests/main.rs"]
+mod integration;

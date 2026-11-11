@@ -1,6 +1,6 @@
 //! Integration tests of craft-settings: migrate.
 
-mod common;
+use super::common;
 
 use std::time::Duration;
 

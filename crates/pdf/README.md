@@ -250,7 +250,7 @@ one directory using the listed names, then run:
 ```sh
 CRAFT_PDF_TEST_FONT_DIR=/absolute/path/to/licensed-fonts \
 RUSTFLAGS="--cfg craft_pdf_unicode_fixtures" \
-cargo test -p craft-pdf --all-features --test unicode_writing
+cargo test -p craft-pdf --all-features -- integration::unicode_writing
 ```
 
 Repeat with `--target wasm32-unknown-unknown` and the matching test runner for

@@ -657,3 +657,10 @@ fn join_native(doc: &Path, comps: &[String]) -> Result<PathBuf, Refused> {
     root.extend(names);
     Ok(root)
 }
+
+#[cfg(test)]
+extern crate self as craft_docpath;
+
+#[cfg(test)]
+#[path = "../tests/main.rs"]
+mod integration;

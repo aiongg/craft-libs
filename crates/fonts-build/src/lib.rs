@@ -180,3 +180,10 @@ impl std::fmt::Debug for EmbeddedFace {
             .finish()
     }
 }
+
+#[cfg(test)]
+extern crate self as craft_fonts_build;
+
+#[cfg(test)]
+#[path = "../tests/main.rs"]
+mod integration;

@@ -1,4 +1,5 @@
 [package]
+autotests = false
 name = "craft-design-lint"
 description = "Design-system lint for Craft apps: the clippy.toml template that blocks stock egui widgets and raw colour constructors, and the check that an app's clippy.toml carries it."
 version.workspace = true
@@ -19,3 +20,11 @@ toml_edit = "0.25"
 
 [lints]
 workspace = true
+
+[[test]]
+name = "cli"
+path = "tests/cli.rs"
+
+[[test]]
+name = "workspace"
+path = "tests/workspace.rs"

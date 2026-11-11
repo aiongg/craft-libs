@@ -102,7 +102,7 @@ end-of-block code.
 ### Performance
 
 About 60 ms for a 6.5 MP EOS file and 70 ms for the 7.4 MP G6 in release mode on a 2024 laptop
-(`cargo test -p craft-crw --release --test samples -- --nocapture` prints the times).
+(`cargo test -p craft-crw --release -- integration::samples --nocapture` prints the times).
 
 ## Tests
 
@@ -117,7 +117,7 @@ About 60 ms for a 6.5 MP EOS file and 70 ms for the 7.4 MP G6 in release mode on
 
   ```sh
   python scripts/fetch-crw-samples.py ~/crw-samples        # downloads and verifies by SHA-256
-  CRAFT_CRW_SAMPLES=~/crw-samples cargo test -p craft-crw --release --test samples -- --nocapture
+  CRAFT_CRW_SAMPLES=~/crw-samples cargo test -p craft-crw --release -- integration::samples --nocapture
   ```
 
   Unset, the test prints that it skipped; CI sets `CRAFT_CRW_REQUIRE_SAMPLES=1` and runs it on

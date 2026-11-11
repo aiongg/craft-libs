@@ -441,3 +441,10 @@ impl Image {
         }
     }
 }
+
+#[cfg(test)]
+extern crate self as craft_vectorcraft_format;
+
+#[cfg(test)]
+#[path = "../tests/main.rs"]
+mod integration;

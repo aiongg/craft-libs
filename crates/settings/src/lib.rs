@@ -105,3 +105,10 @@ pub trait Settings: Serialize + DeserializeOwned + Default + Clone + PartialEq {
         Ok(())
     }
 }
+
+#[cfg(test)]
+extern crate self as craft_settings;
+
+#[cfg(test)]
+#[path = "../tests/main.rs"]
+mod integration;

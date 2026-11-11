@@ -1,7 +1,7 @@
 //! Rules a declarative spec must keep (task u2). Each case feeds an input that only the named rule
 //! refuses, and checks where the error points and what it says.
 
-mod spec_support;
+use super::spec_support;
 
 use craft_ai_core::spec::{MAX_SPEC_BYTES, Spec};
 use serde_json::{Value, json};

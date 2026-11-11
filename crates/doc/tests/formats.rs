@@ -1,7 +1,7 @@
 //! Each format's documents, built from scratch: what `sniff`, `info`, `renditions` and `outline`
 //! return for them.
 
-mod common;
+use super::common;
 
 use common::*;
 use craft_doc::{Error, Kind, Limits, RenditionKind, info, outline, renditions, sniff};

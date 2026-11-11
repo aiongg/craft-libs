@@ -1,4 +1,5 @@
 [package]
+autotests = false
 name = "craft"
 description = "The craft libraries in one dependency: one feature per crate, `ui` for their egui side"
 version.workspace = true

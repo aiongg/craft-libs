@@ -1,7 +1,7 @@
 //! Documents whose envelope is written with the format crates' own types read through craft-doc,
 //! and envelopes those crates refuse are refused here too.
 
-mod common;
+use super::common;
 
 use std::collections::BTreeMap;
 

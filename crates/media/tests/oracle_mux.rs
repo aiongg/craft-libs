@@ -1,6 +1,6 @@
 //! Muxer oracle tests: remux ffmpeg-made files with our writers and validate with ffmpeg/ffprobe.
 
-mod common;
+use super::common;
 
 use common::*;
 use craft_media::isobmff::*;

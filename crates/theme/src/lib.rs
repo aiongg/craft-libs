@@ -107,3 +107,10 @@ pub use tokens::{
 };
 pub use values::ColorSource;
 pub use variant::{CustomVariant, Emphasis, RadiusStep, Variant, VariantLook};
+
+#[cfg(test)]
+extern crate self as craft_theme;
+
+#[cfg(test)]
+#[path = "../tests/main.rs"]
+mod integration;

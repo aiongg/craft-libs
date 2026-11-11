@@ -5,7 +5,7 @@
 //! keeps its own rule in three places, and the tests below assert the library's rule there: an
 //! empty `PHOTOCRAFT_CONFIG_DIR` isolates the store, the macOS marker sits beside the `.app`, and
 //! without a user folder the store uses `./photocraft`.
-mod common;
+use super::common;
 
 use std::ffi::OsString;
 use std::path::Path;

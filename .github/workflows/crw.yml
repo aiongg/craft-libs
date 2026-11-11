@@ -78,7 +78,7 @@ jobs:
           key: crw-samples-${{ hashFiles('crates/crw/tests/samples.json') }}
       - name: Fetch the pinned CC0 sample files (raw.pixls.us)
         run: python scripts/fetch-crw-samples.py "$RUNNER_TEMP/crw-samples"
-      - run: cargo test -p craft-crw --release --locked --test samples -- --nocapture
+      - run: cargo test -p craft-crw --release --locked --lib -- integration::samples --nocapture
         env:
           CRAFT_CRW_SAMPLES: ${{ runner.temp }}/crw-samples
           CRAFT_CRW_REQUIRE_SAMPLES: "1"

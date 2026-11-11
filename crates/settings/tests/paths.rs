@@ -1,6 +1,6 @@
 //! Integration tests of craft-settings: paths.
 
-mod common;
+use super::common;
 
 use std::path::PathBuf;
 

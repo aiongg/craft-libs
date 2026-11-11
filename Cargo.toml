@@ -149,3 +149,14 @@ opt-level = 1
 opt-level = 1
 [profile.dev.package.craft-proof]
 opt-level = 1
+
+# The gallery on the Mac: optimised like release, but the workspace's crates build in many small
+# units, incrementally, so a change to craft-ui rebuilds in minutes. Dependencies keep release
+# settings and build once in target/gallery. `cargo run --profile gallery -p craft-ui-gallery`.
+[profile.gallery]
+inherits = "release"
+incremental = true
+codegen-units = 256
+
+[profile.gallery.package."*"]
+codegen-units = 16

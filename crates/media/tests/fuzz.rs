@@ -1,6 +1,6 @@
 //! Deterministic mutation fuzzing: the demuxer must never panic on corrupted input.
 
-mod common;
+use super::common;
 
 use craft_media::isobmff::*;
 use std::io::Cursor;

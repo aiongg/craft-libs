@@ -1,7 +1,7 @@
 //! Truncated, oversized and hostile input: the reader returns an error within its `Limits` and
 //! never panics.
 
-mod common;
+use super::common;
 
 use common::*;
 use craft_doc::{Error, Limits, info, outline, renditions, sniff};

@@ -1,5 +1,5 @@
 //! `document::merge_changes` and two stores on one file (gap 31).
-mod common;
+use super::common;
 
 use std::collections::HashMap;
 use std::io;

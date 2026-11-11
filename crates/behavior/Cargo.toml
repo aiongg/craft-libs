@@ -1,4 +1,5 @@
 [package]
+autotests = false
 name = "craft-behavior"
 version.workspace = true
 edition.workspace = true

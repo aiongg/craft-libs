@@ -327,3 +327,10 @@ impl Default for EncodeOptions {
         Self::new(EncodeFormat::Wav)
     }
 }
+
+#[cfg(test)]
+extern crate self as craft_audio;
+
+#[cfg(test)]
+#[path = "../tests/main.rs"]
+mod integration;

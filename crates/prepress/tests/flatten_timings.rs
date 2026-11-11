@@ -1,6 +1,6 @@
 //! Times the flattener in stages on every plate-test scene and on a synthetic heavy page, at
 //! 300 dpi. A report, not a benchmark: run it in release with
-//! `cargo test --release -p craft-prepress --features flatten --test flatten_timings -- --ignored --nocapture`.
+//! `cargo test --release -p craft-prepress --features flatten -- integration::flatten_timings --ignored --nocapture`.
 #![cfg(feature = "flatten")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

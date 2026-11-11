@@ -242,3 +242,10 @@ impl std::error::Error for Error {
         }
     }
 }
+
+#[cfg(test)]
+extern crate self as craft_design_lint;
+
+#[cfg(test)]
+#[path = "../tests/main.rs"]
+mod integration;

@@ -2,7 +2,7 @@
 //! compressed with `ruzstd`, each stored under the BLAKE3 hash of its samples.
 #![cfg(feature = "pcraft-pixels")]
 
-mod common;
+use super::common;
 
 use common::{store, zip};
 use craft_doc::{Error, LayerPixels, Limits, Samples, pcraft_layer_rgba};
