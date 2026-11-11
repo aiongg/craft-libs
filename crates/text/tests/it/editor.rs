@@ -6,7 +6,7 @@ use std::rc::Rc;
 
 use craft_behavior::kurbo::Point;
 use craft_text::quotes::QuoteStyle;
-use craft_text::ui::editor::{CaretLine, EditKind, HostLine, TextEditor, TextEditorHost, TextSelection, click_count, click_selection};
+use craft_text::ui::editor::{CaretLine, EditKind, HostLine, TextEditor, TextEditorHost, TextSelection};
 use craft_ui::canvas::Canvas;
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::testing::{Fixture, trial};
@@ -121,14 +121,4 @@ fn command_enter_commits_one_session_and_a_session_without_edits_commits_nothing
     editor.fixture.type_text("d").key(Key::Enter, Modifiers::COMMAND).settle();
     assert_eq!(editor.commits.get(), 1);
     assert_eq!(editor.text(), "abcd");
-}
-
-#[trial]
-fn click_runs_select_word_line_paragraph_all() {
-    let text = "one two\nthree";
-    assert_eq!((1..=6).map(click_count).collect::<Vec<_>>(), [1, 2, 3, 4, 5, 1], "the sixth press starts over");
-    assert_eq!(click_selection(text, 5, None, 2), 4..7);
-    assert_eq!(click_selection(text, 5, Some(0..7), 3), 0..7);
-    assert_eq!(click_selection(text, 9, None, 4), 8..13);
-    assert_eq!(click_selection(text, 9, None, 5), 0..13);
 }

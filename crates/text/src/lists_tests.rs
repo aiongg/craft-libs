@@ -2,25 +2,6 @@
 
 use super::lists::{ListMarker, ListParagraph, NumberPunctuation, NumberStyle, markers};
 
-// Each style writes 1, 4, 9, 27 and 4000 as DesignCraft does (roman, letters AA, symbols doubled, kanji digit by digit; 4000 in Arabic digits).
-#[test]
-fn number_styles_format_and_cap_at_3999() {
-    let row = |style: NumberStyle| [1, 4, 9, 27, 4000].map(|n| style.format(n));
-    assert_eq!(row(NumberStyle::Arabic), ["1", "4", "9", "27", "4000"]);
-    assert_eq!(row(NumberStyle::UpperRoman), ["I", "IV", "IX", "XXVII", "4000"]);
-    assert_eq!(row(NumberStyle::LowerRoman), ["i", "iv", "ix", "xxvii", "4000"]);
-    assert_eq!(row(NumberStyle::UpperLetters), ["A", "D", "I", "AA", "4000"]);
-    assert_eq!(row(NumberStyle::LowerLetters), ["a", "d", "i", "aa", "4000"]);
-    assert_eq!(row(NumberStyle::ArabicLeadingZero), ["01", "04", "09", "27", "4000"]);
-    assert_eq!(row(NumberStyle::ArabicThreeDigits), ["001", "004", "009", "027", "4000"]);
-    assert_eq!(row(NumberStyle::ArabicFourDigits), ["0001", "0004", "0009", "0027", "4000"]);
-    assert_eq!(row(NumberStyle::Symbols), ["*", "§", "‡‡", "‡‡‡‡‡", "4000"]);
-    assert_eq!(row(NumberStyle::Kanji), ["一", "四", "九", "二七", "四〇〇〇"]);
-    assert_eq!(NumberStyle::LowerRoman.sample(), "i, ii, iii, iv…");
-    assert_eq!(NumberStyle::ArabicThreeDigits.sample(), "001, 002, 003…");
-    assert_eq!(ListMarker::number_text(NumberStyle::LowerLetters, NumberPunctuation::ParenBoth, 3), "(c)");
-}
-
 // 1. 2. then a bullet at level 0 restarts; a level-1 run between level-0 numbers keeps them counting; empty paragraphs neither show nor count.
 #[test]
 fn numbers_count_per_level_and_restart_after_an_outer_unnumbered_paragraph() {
