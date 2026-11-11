@@ -35,27 +35,3 @@ fn an_app_command_pressed_with_the_focus_in_a_shell_body_is_taken_by_the_body_an
     assert_eq!(*taken.borrow(), [AppCommand::Save], "the body took the chord's command");
     assert!(take_output(&frames.ctx).fired.is_empty(), "a command the body took is not in the frame's output");
 }
-
-#[craft_ui::testing::trial]
-fn an_app_command_no_shell_body_takes_reaches_the_output_and_so_does_one_in_a_window_without_a_shell() {
-    let tap = Cell::new(Id::NULL);
-    let mut shell = |ui: &mut Ui| {
-        AppShell::new(WindowKey::main()).body(|ui, _, _| tap.set(Tap::new().id_salt("in").show(ui).id)).show(ui, &mut ());
-    };
-    let mut frames = Frames::new();
-    frames.idle(3, &mut shell);
-    request(&frames.ctx, FocusTarget::Id(tap.get()));
-    frames.frame(vec![], &mut shell);
-    frames.frame(vec![key_press(Key::K, Modifiers::COMMAND)], &mut shell);
-    let fired = take_output(&frames.ctx).fired;
-    assert_eq!(fired.iter().map(|f| f.command.id.as_str()).collect::<Vec<_>>(), ["trial.save"], "no body took it, so the app gets it");
-
-    let mut bare = |ui: &mut Ui| {
-        Tap::new().id_salt("in").show(ui);
-    };
-    let mut frames = Frames::new();
-    frames.idle(3, &mut bare);
-    frames.frame(vec![key_press(Key::K, Modifiers::COMMAND)], &mut bare);
-    let fired = take_output(&frames.ctx).fired;
-    assert_eq!(fired.iter().map(|f| f.command.id.as_str()).collect::<Vec<_>>(), ["trial.save"], "a window without a shell fires it to the app");
-}

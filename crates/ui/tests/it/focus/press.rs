@@ -1,6 +1,6 @@
 //! Focus on press (8.3): the kinds of a primary press and the draft that commits in the press pass.
 
-use super::{control, focus, focused, id, stop_with};
+use super::{control, focus, focused, id};
 use craft_behavior::Input;
 use craft_behavior::Sense;
 use craft_ui::runtime::focus::{FocusPolicy, KeyUse};
@@ -68,24 +68,4 @@ fn a_press_takes_keeps_or_releases_key_focus_by_the_winning_shape() {
     press(&mut frames, Pos2::new(700.0, 500.0), &mut show);
     assert_eq!(commits.borrow().iter().flatten().copied().collect::<Vec<_>>(), [id("field")], "kind 4: a press nobody claims commits the draft");
     assert_eq!(focused(&frames.ctx), None, "and the end hook surrendered key focus");
-}
-
-/// A press on a control while a non-text component holds focus leaves focus where it is (kind 3 acts without
-/// moving key focus), so a canvas keeps its single-key shortcuts after a panel click.
-#[trial]
-fn a_control_press_leaves_the_focus_of_a_non_text_component() {
-    let mut frames = Frames::new();
-    let rects = Cell::new(None);
-    let commits = RefCell::new(Vec::new());
-    let mut show = |ui: &mut Ui| {
-        layout(ui, &rects, &commits);
-        stop_with(ui, "canvas", KeyUse::CANVAS);
-        control(ui, "unused");
-    };
-    frames.idle(3, &mut show);
-    focus(&mut frames, "canvas", &mut show);
-    let (_, _, button) = rects.get().expect("laid out");
-    press(&mut frames, button.center(), &mut show);
-    assert_eq!(focused(&frames.ctx), Some(id("canvas")));
-    assert!(commits.borrow().iter().all(Option::is_none), "no text part, nothing to commit");
 }

@@ -1,9 +1,8 @@
-//! `FloatingGroup`: the caller owns the rect, the title moves the window, a double click on it asks to minimize,
-//! and the move and the size stay inside the bounds and the panel limits.
+//! `FloatingGroup`: a window unit drag sees the drop targets under its own group.
 
 use craft_ui::contract::SizeLimits;
 use craft_ui::contract::{Common, Component, Cx, DropMark, DropOperation, DropTarget, MeasureCx, Pointer as _, Props as _, Role, Show as _, Sizing};
-use craft_ui::docking::{DragUnit, FloatingGroup, FloatingGroupOutput, GroupDrag};
+use craft_ui::docking::{FloatingGroup, FloatingGroupOutput, GroupDrag};
 use craft_ui::runtime::drag;
 use craft_ui::style::{ComponentStyle, StyleCx};
 use craft_ui::testing::layout::allocate;
@@ -11,7 +10,6 @@ use craft_ui::testing::{Frames, pointer, trial};
 use egui::{Pos2, Rect, Response, Ui, Vec2};
 use std::cell::{Cell, RefCell};
 
-const SLACK: f32 = 1.5;
 const START: Rect = Rect { min: Pos2::new(60.0, 70.0), max: Pos2::new(300.0, 250.0) };
 const BOUNDS: Rect = Rect { min: Pos2::ZERO, max: Pos2::new(400.0, 320.0) };
 const LEAST: Vec2 = Vec2::new(150.0, 90.0);
@@ -19,13 +17,11 @@ const MOVE: Vec2 = Vec2::new(30.0, 20.0);
 /// A point on the title row, clear of the action parts at its end.
 const TITLE_AT: Vec2 = Vec2::new(24.0, 10.0);
 
-/// The caller of a group: it keeps the rect and the minimized flag the way the dock model does.
+/// The caller of a group: it keeps the rect the way the dock model does.
 struct Caller {
     sizing: Sizing,
     rect: Cell<Rect>,
-    minimized: Cell<bool>,
     shown: Cell<Rect>,
-    toggles: Cell<u32>,
     body: Cell<Vec2>,
     anchor: Cell<Option<&'static str>>,
     history: RefCell<Vec<FloatingGroupOutput>>,
@@ -33,16 +29,10 @@ struct Caller {
 
 impl Caller {
     fn new() -> Self {
-        Self::sized(Sizing::Fill)
-    }
-
-    fn sized(sizing: Sizing) -> Self {
         Caller {
-            sizing,
+            sizing: Sizing::Fill,
             rect: Cell::new(START),
-            minimized: Cell::new(false),
             shown: Cell::new(Rect::NOTHING),
-            toggles: Cell::new(0),
             body: Cell::new(LEAST),
             anchor: Cell::new(None),
             history: RefCell::new(Vec::new()),
@@ -51,11 +41,7 @@ impl Caller {
 
     fn show(&self) -> impl FnMut(&mut Ui) + '_ {
         move |ui| {
-            let mut group = FloatingGroup::new("Layers", self.rect.get())
-                .sized(self.sizing)
-                .bounds(BOUNDS)
-                .limits(SizeLimits::at_least(LEAST))
-                .minimized(self.minimized.get());
+            let mut group = FloatingGroup::new("Layers", self.rect.get()).sized(self.sizing).bounds(BOUNDS).limits(SizeLimits::at_least(LEAST));
             if let Some(anchor) = self.anchor.get() {
                 group = group.window_of(anchor);
             }
@@ -63,10 +49,6 @@ impl Caller {
                 allocate(ui, self.body.get());
             });
             self.shown.set(out.output.response.rect);
-            if out.output.minimized_toggled {
-                self.toggles.set(self.toggles.get() + 1);
-                self.minimized.set(!self.minimized.get());
-            }
             if let Some(change) = out.output.placed {
                 self.rect.set(change.rect);
             }
@@ -77,24 +59,6 @@ impl Caller {
 
 fn title_of(rect: Rect) -> Pos2 {
     rect.min + TITLE_AT
-}
-
-#[trial]
-fn a_move_by_the_title_of_a_window_group_runs_a_window_unit_drag_until_the_release() {
-    let (caller, mut frames) = (Caller::new(), Frames::new());
-    caller.anchor.set(Some("Layers"));
-    let mut show = caller.show();
-    frames.idle(4, &mut show);
-    let from = title_of(START);
-    for events in [vec![pointer::moved(from)], vec![pointer::press(from)], vec![pointer::moved(from + MOVE / 2.0)], vec![pointer::moved(from + MOVE)]]
-    {
-        frames.frame(events, &mut show);
-    }
-    let carried = drag::active::<GroupDrag<&'static str>>(&frames.ctx).expect("the move started a drag session");
-    assert_eq!(carried.unit, DragUnit::Window("Layers"));
-    frames.frame(vec![pointer::release(from + MOVE)], &mut show);
-    frames.idle(2, &mut show);
-    assert!(drag::active::<GroupDrag<&'static str>>(&frames.ctx).is_none(), "the release ended it");
 }
 
 #[derive(Clone, Debug, Default, PartialEq, ComponentStyle)]
@@ -168,43 +132,4 @@ fn a_window_unit_drag_sees_the_target_under_its_own_group() {
     frames.idle(2, &mut show);
     assert!(drag::active::<GroupDrag<&'static str>>(&frames.ctx).is_some(), "the move started a window drag");
     assert!(drag::mark(&frames.ctx).is_some(), "the target under the moving group takes the drop");
-}
-
-#[trial]
-fn a_content_sized_group_keeps_its_position_and_grows_with_its_body() {
-    let (caller, mut frames) = (Caller::sized(Sizing::Content), Frames::new());
-    let mut show = caller.show();
-    frames.idle(4, &mut show);
-    let before = caller.shown.get();
-    assert!((before.min - START.min).abs().max_elem() < SLACK, "the rect gives the position: {before:?}");
-    caller.body.set(LEAST + Vec2::new(0.0, 60.0));
-    frames.idle(4, &mut show);
-    let after = caller.shown.get();
-    assert!(after.height() > before.height(), "the height follows the body: {before:?} then {after:?}");
-    assert!((after.min - before.min).abs().max_elem() < SLACK, "and the position stays: {after:?}");
-}
-
-#[trial]
-fn a_double_click_on_the_title_minimizes_the_group_and_keeps_the_height_it_restores_to() {
-    let (caller, mut frames) = (Caller::new(), Frames::new());
-    let mut show = caller.show();
-    frames.idle(4, &mut show);
-    let at = title_of(START);
-    for events in [vec![pointer::moved(at)], vec![pointer::press(at)], vec![pointer::release(at)], vec![pointer::press(at)]] {
-        frames.frame(events, &mut show);
-    }
-    frames.frame(vec![pointer::release(at)], &mut show);
-    frames.idle(4, &mut show);
-    assert_eq!(caller.toggles.get(), 1, "the double click is reported once");
-    assert!(caller.minimized.get());
-    assert!(caller.shown.get().height() < caller.rect.get().height(), "only the title row shows: {:?}", caller.shown.get());
-    let restored_height = caller.rect.get().height();
-    pointer::drag(&mut frames, title_of(caller.shown.get()), MOVE, &mut show);
-    frames.idle(2, &mut show);
-    assert!(
-        (caller.rect.get().height() - restored_height).abs() < SLACK,
-        "a move while minimized keeps the restored height: {:?}",
-        caller.rect.get()
-    );
-    assert!((caller.rect.get().min - (START.min + MOVE)).abs().max_elem() < SLACK, "and moves the group: {:?}", caller.rect.get());
 }

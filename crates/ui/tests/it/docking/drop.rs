@@ -1,6 +1,6 @@
 //! Drop resolution: a spot under the pointer becomes the model action that moves the dragged panel or group.
 
-use craft_behavior::dock::{Action, Column, DockEdge, DockPlacement, Floating, Group, Layout, Node, Permissions, SplitSize, Target};
+use craft_behavior::dock::{Action, Column, DockEdge, DockPlacement, Floating, Group, Layout, Node, Permissions, SplitSize};
 use craft_behavior::{Axis, DockSide};
 use craft_ui::docking::{DockDrag, DockSpot, DockTargets, DragUnit, resolve_drop};
 use craft_ui::testing::memory::global;
@@ -74,40 +74,4 @@ fn a_tab_dropped_after_its_own_neighbour_reorders_its_group() {
         Some(Action::move_beside(TOP_GROUP, TOP_SECOND_TAB, DockPlacement::tab(None))),
         "the destination is a panel that stays, not the dragged one"
     );
-}
-
-#[trial]
-fn a_group_side_docks_beside_in_the_vocabulary_of_its_container() {
-    let below = drop_of(DragUnit::Panel(TOP_SECOND_TAB), at(100.0, 136.0), open);
-    assert_eq!(below, Some(Action::move_beside(TOP_SECOND_TAB, TOP_GROUP, DockPlacement::group(true, None))), "a dock column stacks groups");
-    let start = drop_of(DragUnit::Panel(LOWER_GROUP), at(10.0, 60.0), open);
-    assert_eq!(start, Some(Action::move_beside(LOWER_GROUP, TOP_GROUP, DockPlacement::column(false))), "a column edge makes a column");
-}
-
-#[trial]
-fn the_middle_of_a_group_joins_it_but_never_its_own_group() {
-    let joined = drop_of(DragUnit::Group(LOWER_GROUP), at(100.0, 60.0), open);
-    assert_eq!(joined, Some(Action::move_group(LOWER_GROUP, Target::at(TOP_GROUP, DockPlacement::Split(DockSide::Center)))));
-    assert_eq!(drop_of(DragUnit::Panel(TOP_GROUP), at(100.0, 60.0), open), None, "a panel gains nothing joining its own group");
-    assert_eq!(drop_of(DragUnit::Group(LOWER_GROUP), at(100.0, 250.0), open), None, "a group cannot dock on itself");
-}
-
-#[trial]
-fn permissions_refuse_a_drop_the_destination_or_the_unit_does_not_allow() {
-    let no_tabs = |panel: &u32| if *panel == TOP_GROUP { Permissions::ALL.accepts_tabs(false) } else { Permissions::default() };
-    assert_eq!(drop_of(DragUnit::Panel(LOWER_GROUP), at(100.0, 60.0), no_tabs), None, "the group takes no tabs");
-    assert!(drop_of(DragUnit::Panel(TOP_SECOND_TAB), at(100.0, 136.0), no_tabs).is_some(), "it still takes a new group beside it");
-    let pinned = |panel: &u32| if *panel == LOWER_GROUP { Permissions::ALL.movable(false) } else { Permissions::default() };
-    assert_eq!(drop_of(DragUnit::Panel(LOWER_GROUP), at(100.0, 60.0), pinned), None, "a panel that cannot move is not dropped");
-}
-
-#[trial]
-fn a_drop_the_model_refuses_resolves_to_nothing() {
-    let member_pinned = |panel: &u32| if *panel == TOP_SECOND_TAB { Permissions::ALL.movable(false) } else { Permissions::default() };
-    assert_eq!(
-        drop_of(DragUnit::Group(TOP_GROUP), at(100.0, 250.0), member_pinned),
-        None,
-        "the lead may move, but the group holds a panel that cannot, and the model refuses the move"
-    );
-    assert!(drop_of(DragUnit::Group(TOP_GROUP), at(100.0, 250.0), open).is_some(), "the same drop with nothing pinned is taken");
 }

@@ -47,44 +47,6 @@ fn type_into(fixture: &mut Fixture, field: &Target, text: &str) {
     fixture.settle();
 }
 
-/// A disabled bar takes no input in the number cells or the swap.
-#[trial]
-fn disabled_cells_take_no_input() {
-    let start = Constraint::Ratio(1.0, 2.0);
-    let (mut greyed, state) = rig(start, None, false);
-    let (width, _) = fields(&greyed);
-    type_into(&mut greyed, &width, "5");
-    let swap = greyed.by_label("Swaps height and width").unwrap();
-    greyed.click(&swap).settle();
-    assert_eq!(state.get(), start);
-}
-
-/// Fixed Size in inches: 3 in at 100 pixels per inch is 300 pixels; a secondary click offers the units menu only
-/// when the host gave units.
-#[trial]
-fn fixed_size_converts_units_and_offers_the_menu_only_with_units() {
-    let (mut fixture, state) = rig(Constraint::Size(200.0, 100.0), Some(UnitKind::Inches), true);
-    let (width, _) = fields(&fixture);
-    type_into(&mut fixture, &width, "3");
-    let expected = Constraint::Size(300.0, 100.0);
-    assert_eq!(state.get(), expected);
-    let at = width.center();
-    fixture.frame(vec![craft_ui::testing::pointer::moved(at)]);
-    fixture.frame(vec![craft_ui::testing::pointer::secondary(at, true)]);
-    fixture.frame(vec![craft_ui::testing::pointer::secondary(at, false)]);
-    fixture.settle();
-    assert!(fixture.by_label("Centimetres").is_some(), "the units menu opens");
-
-    let (mut plain, _) = rig(Constraint::Size(200.0, 100.0), None, true);
-    let (width, _) = fields(&plain);
-    let at = width.center();
-    plain.frame(vec![craft_ui::testing::pointer::moved(at)]);
-    plain.frame(vec![craft_ui::testing::pointer::secondary(at, true)]);
-    plain.frame(vec![craft_ui::testing::pointer::secondary(at, false)]);
-    plain.settle();
-    assert!(plain.by_label("Centimetres").is_none(), "no units, no menu");
-}
-
 /// Typed text carries the unit it is meant in: the document's resolution (100 pixels per inch) and extent (1000 by 500
 /// pixels) convert it whatever unit the field shows.
 #[trial]

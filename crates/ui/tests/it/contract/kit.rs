@@ -1,8 +1,8 @@
 //! Components for the contract trials, written with the derives: a leaf, a container and a collection.
 
-use craft_behavior::{DisplayOrder, Intent, ItemSource, Metrics, PartKey, PartRef, PressPhase, Selection, Sense, SpanLayout};
+use craft_behavior::{Intent, ItemSource, Metrics, PartRef, PressPhase, Selection, Sense, SpanLayout};
 use craft_ui::contract::{
-    Collection, CollectionProps, Common, Component, Container, ContainerProps, Cx, Focus as _, MeasureCx, PartsCx, Pointer as _, Props as _, Role,
+    Collection, CollectionProps, Common, Component, Container, ContainerProps, Cx, Focus as _, MeasureCx, Pointer as _, Props as _, Role,
 };
 use craft_ui::runtime::commands::FireSource;
 use craft_ui::style::{ComponentStyle, StyleCx};
@@ -24,16 +24,6 @@ impl PlainStyle {
     }
 }
 
-/// A part a probe declares: its rect relative to the probe's own, what it senses and whether Tab reaches it.
-#[derive(Clone, Copy)]
-#[non_exhaustive]
-pub struct PartSpec {
-    pub key: PartKey,
-    pub at: Rect,
-    pub sense: Sense,
-    pub focusable: bool,
-}
-
 /// What a probe saw while it ran.
 #[non_exhaustive]
 pub struct Seen {
@@ -41,7 +31,6 @@ pub struct Seen {
     pub id: Option<Id>,
     /// The press phases of the probe's own shapes, one per pass that had a press.
     pub press: Vec<PressPhase>,
-    pub parts: Vec<(PartKey, PressPhase)>,
     pub activations: u32,
     pub cancels: u32,
     pub active: Option<PartRef>,
@@ -49,7 +38,7 @@ pub struct Seen {
 }
 
 /// Records what the pipeline gave the component in `update`.
-fn record<C: Component>(seen: &RefCell<Seen>, parts: &[PartSpec], takes_cancel: bool, cx: &mut Cx<'_, C>) {
+fn record<C: Component>(seen: &RefCell<Seen>, takes_cancel: bool, cx: &mut Cx<'_, C>) {
     let mut seen = seen.borrow_mut();
     seen.updates += 1;
     seen.rect = cx.rect;
@@ -58,12 +47,6 @@ fn record<C: Component>(seen: &RefCell<Seen>, parts: &[PartSpec], takes_cancel: 
     if phase.is_press() {
         seen.press.push(phase);
     }
-    for spec in parts {
-        let phase = cx.part(spec.key).press.phase;
-        if phase.is_press() {
-            seen.parts.push((spec.key, phase));
-        }
-    }
     seen.activations += u32::from(cx.activation().is_some());
     seen.cancels += u32::from(takes_cancel && cx.intents().take(Intent::Cancel));
     seen.active = cx.active_part();
@@ -71,7 +54,7 @@ fn record<C: Component>(seen: &RefCell<Seen>, parts: &[PartSpec], takes_cancel: 
 
 impl Default for Seen {
     fn default() -> Self {
-        Seen { rect: Rect::NOTHING, id: None, press: Vec::new(), parts: Vec::new(), activations: 0, cancels: 0, active: None, updates: 0 }
+        Seen { rect: Rect::NOTHING, id: None, press: Vec::new(), activations: 0, cancels: 0, active: None, updates: 0 }
     }
 }
 
@@ -82,7 +65,6 @@ pub struct Probe<'a> {
     common: Common,
     size: Vec2,
     sense: Option<Sense>,
-    parts: &'a [PartSpec],
     takes_cancel: bool,
     injects: Option<FireSource>,
     seen: &'a RefCell<Seen>,
@@ -90,7 +72,7 @@ pub struct Probe<'a> {
 
 impl<'a> Probe<'a> {
     pub fn new(seen: &'a RefCell<Seen>) -> Self {
-        Probe { common: Common::new(), size: Vec2::new(40.0, 20.0), sense: None, parts: &[], takes_cancel: true, injects: None, seen }.label("Probe")
+        Probe { common: Common::new(), size: Vec2::new(40.0, 20.0), sense: None, takes_cancel: true, injects: None, seen }.label("Probe")
     }
 
     pub fn size(mut self, size: Vec2) -> Self {
@@ -100,17 +82,6 @@ impl<'a> Probe<'a> {
 
     pub fn sense(mut self, sense: Sense) -> Self {
         self.sense = Some(sense);
-        self
-    }
-
-    pub fn parts(mut self, parts: &'a [PartSpec]) -> Self {
-        self.parts = parts;
-        self
-    }
-
-    /// The probe leaves Escape untaken, so the scope around it applies its cancel rule.
-    pub fn leaves_cancel(mut self) -> Self {
-        self.takes_cancel = false;
         self
     }
 
@@ -138,18 +109,8 @@ impl Component for Probe<'_> {
         self.sense.unwrap_or(Sense::CLICK | Sense::FOCUS)
     }
 
-    fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
-        for spec in self.parts {
-            let at = spec.at.translate(rect.min.to_vec2());
-            let part = cx.part(spec.key, at).sense(spec.sense);
-            if spec.focusable {
-                part.focusable();
-            }
-        }
-    }
-
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
-        record(self.seen, self.parts, self.takes_cancel, cx);
+        record(self.seen, self.takes_cancel, cx);
         if let Some(source) = self.injects
             && cx.activation().is_some()
         {
@@ -220,22 +181,6 @@ impl Component for Panel<'_> {
 }
 
 impl Container for Panel<'_> {}
-
-/// A list of `rows` rows of fixed height.
-#[non_exhaustive]
-pub struct Rows(pub usize);
-
-impl DisplayOrder<usize> for Rows {
-    fn len(&self) -> usize {
-        self.0
-    }
-
-    fn key(&self, at: usize) -> usize {
-        at
-    }
-}
-
-impl ItemSource<usize> for Rows {}
 
 /// A collection of rows of fixed height.
 #[derive(Component)]

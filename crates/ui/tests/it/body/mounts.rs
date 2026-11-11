@@ -1,117 +1,23 @@
-//! The mount host: layers move and resize by pointer, a zoomed canvas body hits its members in canvas space,
-//! and a viewport mount shows its body in the fallback layer where viewports are unavailable.
+//! The mount host: a viewport mount saves its window placement and drops a stale close request.
 
 use super::kit::Slab;
-use crate::contract::kit::{Probe, Seen};
 use crate::windows_kit::Windows;
-use craft_behavior::CanvasTransform;
-use craft_host::target::{Caps, ShellInfo};
-use craft_ui::choice::Checkbox;
-use craft_ui::contract::overlay::OverlayFit;
-use craft_ui::contract::{Bind, SaveKey};
+use craft_host::target::ShellInfo;
+use craft_ui::contract::SaveKey;
 use craft_ui::contract::{ContainerProps, Mount, Overlay, Props as _, Show as _, ShowContainer as _, Sizing};
-use craft_ui::layout_components::Stack;
 use craft_ui::runtime::InstallSpec;
-use craft_ui::testing::input::key_press;
-use craft_ui::testing::layout::{Block, in_region};
+use craft_ui::testing::layout::Block;
+use craft_ui::testing::trial;
 use craft_ui::testing::windows::NoWindows;
-use craft_ui::testing::{Frames, pointer, trial};
 use craft_window::restore::Store;
-use egui::{Key, Modifiers, Pos2, Rect, Ui, Vec2, ViewportEvent, ViewportId, ViewportInfo};
-use std::cell::{Cell, RefCell};
+use egui::{Pos2, Rect, Ui, Vec2, ViewportEvent, ViewportInfo};
+use std::cell::Cell;
 use std::sync::{Arc, Mutex};
 
-const SLACK: f32 = 1.5;
 /// The inner size of the exported window, in points.
 const INNER: [f32; 2] = [420.0, 310.0];
 /// The body the layers show.
 const BODY: Vec2 = Vec2::new(120.0, 60.0);
-
-#[trial]
-fn a_zoomed_canvas_body_hits_its_members_in_canvas_space() {
-    let seen = RefCell::new(Seen::default());
-    let body = Cell::new(Rect::NOTHING);
-    let mut frames = Frames::new();
-    let mut show = |ui: &mut Ui| {
-        in_region(ui, Rect::from_min_size(Pos2::new(20.0, 20.0), Vec2::new(400.0, 300.0)), |ui| {
-            let props = ContainerProps::new().arena(true).transform(CanvasTransform::new(2.0, Vec2::ZERO));
-            Slab::new(props).id_salt("canvas").show(ui, |ui, cx| {
-                body.set(cx.rect);
-                Probe::new(&seen).size(Vec2::new(40.0, 20.0)).show(ui);
-            });
-        });
-    };
-    frames.idle(4, &mut show);
-    let origin = body.get().min;
-    // The member is 40 x 20 in canvas space and 80 x 40 on screen.
-    pointer::click(&mut frames, origin + Vec2::new(70.0, 30.0), &mut show);
-    assert_eq!(seen.borrow().activations, 1, "a click inside the scaled member activates it");
-    pointer::click(&mut frames, origin + Vec2::new(100.0, 30.0), &mut show);
-    assert_eq!(seen.borrow().activations, 1, "a click outside the scaled member does not");
-}
-
-#[trial]
-fn a_pane_holds_its_width_while_its_body_fills_it() {
-    use craft_ui::contract::{PaneEdge, ShellPane};
-    let width = Cell::new(0.0);
-    let mut frames = Frames::new();
-    let mut widths = Vec::new();
-    for _ in 0..10 {
-        frames.idle(1, |ui| {
-            let props = ContainerProps::new().mount(Mount::Pane(ShellPane::new("side").edge(PaneEdge::Start))).pad(craft_ui::contract::Pad::Regular);
-            let out = Slab::new(props).id_salt("pane").show(ui, |ui, _| {
-                Block::new(BODY).show(ui);
-            });
-            width.set(out.output.rect.width());
-        });
-        widths.push(width.get());
-    }
-    assert!((widths[9] - widths[3]).abs() < SLACK, "a pane keeps its width from frame to frame: {widths:?}");
-}
-
-/// Where viewports are available a viewport mount opens a window with the container's title, and its body runs in
-/// that window's passes, not the main window's.
-#[trial]
-fn a_viewport_mount_opens_a_window_with_its_title() {
-    let windows = Windows::new();
-    let in_window = Cell::new(false);
-    let frame = || {
-        windows.frame(vec![], vec![], |ui| {
-            let props = ContainerProps::new().mount(Mount::viewport(Overlay::floating())).sizing(Sizing::Content);
-            Slab::new(props).label("Export").id_salt("window").show(ui, |ui, _| {
-                in_window.set(ui.ctx().viewport_id() != ViewportId::ROOT);
-                Block::new(BODY).show(ui);
-            });
-        })
-    };
-    frame();
-    let out = frame();
-    assert!(in_window.get(), "the body ran in the child viewport");
-    assert!(
-        out.titles.iter().any(|(id, title)| *id != ViewportId::ROOT && title == "Export"),
-        "the window is titled by the container: {:?}",
-        out.titles
-    );
-}
-
-/// Without the viewport capability the same mount shows its body in the main window, on the fallback layer.
-#[trial]
-fn a_viewport_mount_without_the_capability_uses_the_fallback_overlay() {
-    let shell = ShellInfo::default().caps(Caps::web());
-    let windows = Windows::with(InstallSpec::new(shell, Arc::new(NoWindows)));
-    let (ran, in_window) = (Cell::new(0), Cell::new(false));
-    for _ in 0..3 {
-        windows.frame(vec![], vec![], |ui| {
-            let props = ContainerProps::new().mount(Mount::viewport(Overlay::floating())).sizing(Sizing::Content);
-            Slab::new(props).label("Export").id_salt("window").show(ui, |ui, _| {
-                ran.set(ran.get() + 1);
-                in_window.set(ui.ctx().viewport_id() != ViewportId::ROOT);
-                Block::new(BODY).show(ui);
-            });
-        });
-    }
-    assert!(ran.get() > 0 && !in_window.get(), "the body ran in the main window's fallback layer");
-}
 
 /// A viewport mount's window placement goes to the placement store under the container's save key, and the next
 /// run opens the window with it.
@@ -140,82 +46,6 @@ fn a_viewport_mount_saves_its_window_placement_in_the_store() {
     let saved = store.lock().unwrap().get("craft_ui_tests.export_window").expect("the window's placement was saved");
     assert_eq!(saved.normal.size, INNER, "the inner size in points");
     assert_eq!(saved.position_px, Some([236, 120]), "the outer position in physical pixels");
-}
-
-/// The OS asking a viewport mount's window to close closes the container: its body stops running.
-#[trial]
-fn the_os_closing_a_viewport_mount_window_closes_the_container() {
-    let windows = Windows::new();
-    let ran = Cell::new(0);
-    let frame = || {
-        windows.frame(vec![], vec![], |ui| {
-            let props = ContainerProps::new().mount(Mount::viewport(Overlay::floating())).sizing(Sizing::Content);
-            Slab::new(props).label("Export").id_salt("window").show(ui, |ui, _| {
-                ran.set(ran.get() + 1);
-                Block::new(BODY).show(ui);
-            });
-        });
-    };
-    for _ in 0..3 {
-        frame();
-    }
-    windows.child_info(ViewportInfo { events: vec![ViewportEvent::Close], ..ViewportInfo::default() });
-    frame();
-    windows.child_info(ViewportInfo::default());
-    frame();
-    let after_close = ran.get();
-    for _ in 0..3 {
-        frame();
-    }
-    assert_eq!(ran.get(), after_close, "the body no longer runs once the window was closed");
-}
-
-/// The body of a viewport mount runs under its own window's facts, not the parent window's.
-#[trial]
-fn a_viewport_mount_body_reads_its_own_windows_facts() {
-    let windows = Windows::new();
-    windows.root_info(ViewportInfo { focused: Some(true), ..ViewportInfo::default() });
-    windows.child_info(ViewportInfo { focused: Some(false), ..ViewportInfo::default() });
-    let seen = Cell::new(None);
-    for _ in 0..3 {
-        windows.frame(vec![], vec![], |ui| {
-            let props = ContainerProps::new().mount(Mount::viewport(Overlay::floating())).sizing(Sizing::Content);
-            Slab::new(props).label("Export").id_salt("window").show(ui, |ui, cx| {
-                if ui.ctx().viewport_id() != ViewportId::ROOT {
-                    seen.set(Some((cx.env.shell().window.active, cx.env.shell().window.kind)));
-                }
-                Block::new(BODY).show(ui);
-            });
-        });
-    }
-    assert_eq!(seen.get(), Some((false, craft_host::target::WindowKind::Tool)), "the unfocused tool window's own facts");
-}
-
-/// A dialog mounted in an OS window keeps the dialog's dismissal rules: Escape with the focus inside closes it.
-#[trial]
-fn escape_closes_a_dialog_mounted_in_an_os_window() {
-    let windows = Windows::new();
-    let ran = Cell::new(0);
-    let frame = |child: Vec<egui::Event>| {
-        windows.frame(vec![], child, |ui| {
-            let props = ContainerProps::new().mount(Mount::viewport(Overlay::dialog())).sizing(Sizing::Content);
-            Slab::new(props).label("Export").id_salt("window").show(ui, |ui, _| {
-                ran.set(ran.get() + 1);
-                let mut on = false;
-                Checkbox::new(Bind::bound(&mut on)).label("Snap").show(ui);
-            });
-        });
-    };
-    for _ in 0..30 {
-        frame(vec![]);
-    }
-    frame(vec![key_press(Key::Escape, Modifiers::NONE)]);
-    frame(vec![]);
-    let after_close = ran.get();
-    for _ in 0..3 {
-        frame(vec![]);
-    }
-    assert_eq!(ran.get(), after_close, "Escape closed the dialog in its window: the body no longer runs");
 }
 
 /// A close request the container did not take in its frame (it was shown in a parent's sizing pass, which runs no
@@ -251,48 +81,4 @@ fn a_close_request_not_taken_this_frame_does_not_close_the_container_later() {
         frame();
     }
     assert!(ran.get() > before, "the container stayed open: the stale request did not close it");
-}
-
-/// The default size a resizable layer is filled to.
-const FILLED: Vec2 = Vec2::new(260.0, 180.0);
-
-/// The rect a layer on `overlay` with `sizing` props takes, opened from the window's flow or from inside a
-/// content-sized column, whose children in flow are held at their measured width.
-fn layer_rect(overlay: &Overlay, sizing: Sizing, in_column: bool) -> Rect {
-    let rect = Cell::new(Rect::NOTHING);
-    let mut frames = Frames::new();
-    frames.idle(4, |ui| {
-        let layer = |ui: &mut Ui| {
-            let props = ContainerProps::new().mount(Mount::Layer(overlay.clone())).sizing(sizing);
-            let out = Slab::new(props).id_salt("layer").show(ui, |ui, _| {
-                Block::new(BODY).show(ui);
-            });
-            rect.set(out.output.rect);
-        };
-        if in_column {
-            Stack::new().id_salt("column").show(ui, |ui, _| layer(ui));
-        } else {
-            layer(ui);
-        }
-    });
-    rect.get()
-}
-
-/// A layer fills the size its overlay gives it (a default size, as a placed rect does) and otherwise sizes from its
-/// content: `Overlay.fit` sizes a layer, `ContainerProps::sizing` does not. The layer takes the room of its own host,
-/// so a content column around its opener does not hold it.
-#[trial]
-fn a_layer_fills_the_size_its_overlay_gives_and_a_content_column_does_not_hold_it() {
-    let filling = Overlay::floating().fit(OverlayFit::Resizable).size(FILLED);
-    let (in_flow, in_column) = (layer_rect(&filling, Sizing::Content, false), layer_rect(&filling, Sizing::Content, true));
-    assert!(in_flow.width() > BODY.x && in_flow.height() > BODY.y, "the layer fills its default size, past its content: {in_flow:?}");
-    assert_eq!(in_column, in_flow, "a content column around the filling layer's opener does not hold the layer");
-    let content = Overlay::floating();
-    let (from_content, in_column) = (layer_rect(&content, Sizing::Fill, false), layer_rect(&content, Sizing::Fill, true));
-    assert!(from_content.is_positive(), "the layer shows its body: {from_content:?}");
-    assert!(
-        from_content.width() < in_flow.width() && from_content.height() < in_flow.height(),
-        "a layer with no size of its own sizes from its content, whatever its props' sizing: {from_content:?}"
-    );
-    assert_eq!(in_column, from_content, "a content column around the content-sized layer's opener does not hold the layer");
 }

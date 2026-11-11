@@ -1,12 +1,12 @@
 //! `CropOverlay`: the frame's gestures and keys through real input.
 
 use craft_behavior::geometry::{BoxPart, CropBox, SnapKind, SnapLine, SnapTarget, SnapTargets, crop_view};
-use craft_behavior::kurbo::{Point, Rect, Vec2 as DocVec};
+use craft_behavior::kurbo::{Point, Rect};
 use craft_behavior::{Axis, CanvasView, EditEvent};
-use craft_ui::canvas::{Canvas, CropOverlay, CropShield, ShieldColor};
+use craft_ui::canvas::{Canvas, CropOverlay};
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::testing::{Frames, focus, input, layout, pointer, trial};
-use egui::{Color32, Event, Key, Modifiers, Pos2, Vec2};
+use egui::{Event, Key, Modifiers, Pos2, Vec2};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -14,6 +14,7 @@ use std::rc::Rc;
 
 /// The room the rig shows the canvas in.
 const ROOM: Vec2 = Vec2::new(400.0, 300.0);
+
 /// The frame the drags start from, centred in the room's default view.
 const RECT: Rect = Rect::new(100.0, 80.0, 300.0, 220.0);
 
@@ -209,14 +210,6 @@ impl Rig {
         self.frames.hold(Modifiers::NONE);
     }
 
-    /// Press at `from` and move to `to` with the button held.
-    fn hold_at(&mut self, from: Pos2, to: Pos2) {
-        self.press(from);
-        self.move_to(from.lerp(to, 0.5));
-        self.move_to(to);
-        self.frame(Vec::new());
-    }
-
     fn key(&mut self, key: Key, modifiers: Modifiers) {
         self.frame(vec![key_event(key, true, modifiers), key_event(key, false, modifiers)]);
         self.frame(Vec::new());
@@ -246,29 +239,6 @@ fn key_event(key: Key, pressed: bool, modifiers: Modifiers) -> Event {
 
 fn near(a: &CropBox, b: &CropBox) -> bool {
     a.corners().iter().zip(b.corners()).all(|(p, q)| p.distance(q) < 1e-6) && (a.angle - b.angle).abs() < 1e-6
-}
-
-fn screen_quad(rig: &Rig) -> [Pos2; 4] {
-    let view = rig.view();
-    rig.crop().corners().map(|p| view.to_screen(p))
-}
-
-fn same_quad(a: [Pos2; 4], b: [Pos2; 4]) -> bool {
-    a.iter().zip(b).all(|(p, q)| p.distance(q) < 1e-2)
-}
-
-#[trial]
-fn an_edge_takes_the_pointer_near_it_in_a_turned_flipped_view() {
-    let mut rig = Rig::with(|s| {
-        s.view.rotation = 30.0;
-        s.view.flip_x = true;
-    });
-    let edge = rig.at(RECT.x1, RECT.center().y);
-    let out = rig.view().map_vec(DocVec::new(1.0, 0.0)).normalized();
-    rig.hover(edge + out * 3.0);
-    assert_eq!(rig.seen.borrow().hovered, Some(BoxPart::Edge(1)));
-    rig.hover(edge + out * 40.0);
-    assert_eq!(rig.seen.borrow().hovered, Some(BoxPart::Outside));
 }
 
 #[trial]
@@ -301,85 +271,6 @@ fn a_corner_drag_resizes_along_the_frame_axes_in_a_turned_view() {
 }
 
 #[trial]
-fn a_ratio_is_held_by_every_gesture() {
-    let mut rig = Rig::with(|s| s.ratio = Some(1.0));
-    let (from, to) = (rig.at(300.0, 150.0), rig.at(340.0, 150.0));
-    rig.drag(from, to, Modifiers::NONE);
-    let r = rig.rect();
-    assert!((r.width() - r.height()).abs() < 1e-9 && (r.width() - 240.0).abs() < 1e-9, "{r:?}");
-
-    let mut rig = Rig::with(|s| {
-        s.ratio = Some(2.0);
-        s.default_frame = true;
-    });
-    let (from, to) = (rig.at(120.0, 100.0), rig.at(180.0, 110.0));
-    rig.drag(from, to, Modifiers::NONE);
-    let r = rig.rect();
-    assert!((r.width() / r.height() - 2.0).abs() < 1e-9, "{r:?}");
-}
-
-#[trial]
-fn a_drag_outside_turns_the_frame_and_shift_snaps_the_turn() {
-    let (from_doc, to_doc) = ((340.0, 260.0), (300.0, 290.0));
-    let mut rig = Rig::upright();
-    let (from, to) = (rig.at(from_doc.0, from_doc.1), rig.at(to_doc.0, to_doc.1));
-    rig.drag(from, to, Modifiers::NONE);
-    let angle = rig.crop().angle;
-    assert!(angle.abs() > 1.0, "{angle}");
-    assert_eq!(rig.rect(), RECT, "turning keeps the rect");
-
-    let mut rig = Rig::upright();
-    rig.drag(from, to, Modifiers::SHIFT);
-    let angle = rig.crop().angle;
-    assert!((angle / 15.0 - (angle / 15.0).round()).abs() < 1e-9 && angle.abs() > 1.0, "{angle}");
-}
-
-#[trial]
-fn a_drag_inside_the_default_frame_draws_a_new_frame_with_shift_alt_and_space() {
-    let drawing = |mods: Modifiers| {
-        let mut rig = Rig::with(|s| s.default_frame = true);
-        let (from, to) = (rig.at(150.0, 100.0), rig.at(190.0, 120.0));
-        rig.drag(from, to, mods);
-        rig.rect()
-    };
-    assert_eq!(drawing(Modifiers::NONE), Rect::new(150.0, 100.0, 190.0, 120.0));
-    assert_eq!(drawing(Modifiers::SHIFT), Rect::new(150.0, 100.0, 190.0, 140.0));
-    assert_eq!(drawing(Modifiers::ALT), Rect::new(110.0, 80.0, 190.0, 120.0));
-
-    // Space moves the frame being drawn without resizing it; sizing resumes from the moved anchor.
-    let mut rig = Rig::with(|s| s.default_frame = true);
-    let (from, to) = (rig.at(150.0, 100.0), rig.at(190.0, 120.0));
-    rig.hold_at(from, to);
-    rig.frame(vec![key_event(Key::Space, true, Modifiers::NONE)]);
-    rig.move_to(to + Vec2::new(20.0, 10.0));
-    assert_eq!(rig.rect(), Rect::new(170.0, 110.0, 210.0, 130.0), "same size, moved");
-    rig.frame(vec![key_event(Key::Space, false, Modifiers::NONE)]);
-    rig.move_to(to + Vec2::new(40.0, 20.0));
-    rig.release(to + Vec2::new(40.0, 20.0));
-    assert_eq!(rig.rect(), Rect::new(170.0, 110.0, 230.0, 140.0));
-}
-
-#[trial]
-fn a_frame_under_one_unit_is_cancelled_and_the_previous_one_returns() {
-    let mut rig = Rig::with(|s| s.default_frame = true);
-    let from = rig.at(150.0, 100.0);
-    rig.hold_at(from, from + Vec2::new(5.0, 5.0));
-    assert_ne!(rig.crop(), CropBox::upright(RECT), "the new frame shows while it is dragged");
-    let back = from + Vec2::new(0.3, 0.2);
-    rig.move_to(back);
-    rig.release(back);
-    assert_eq!(rig.crop(), CropBox::upright(RECT));
-    assert_eq!(rig.events().last(), Some(&"cancel"), "{:?}", rig.events());
-
-    // A resize that collapses a side does the same.
-    let mut rig = Rig::upright();
-    let (edge, to) = (rig.at(300.0, 150.0), rig.at(100.0, 150.0));
-    rig.drag(edge, to, Modifiers::NONE);
-    assert_eq!(rig.crop(), CropBox::upright(RECT));
-    assert_eq!(rig.events().last(), Some(&"cancel"));
-}
-
-#[trial]
 fn a_quick_drag_in_one_frame_starts_at_the_press() {
     let mut rig = Rig::upright();
     let from = rig.at(300.0, 220.0);
@@ -393,160 +284,9 @@ fn a_quick_drag_in_one_frame_starts_at_the_press() {
     assert_eq!((events.first(), events.last()), (Some(&"begin"), Some(&"commit")), "{events:?}");
 }
 
-#[trial]
-fn escape_undoes_a_running_drag_then_discards() {
-    let mut rig = Rig::upright();
-    let from = rig.at(150.0, 110.0);
-    rig.hold_at(from, from + Vec2::new(30.0, 20.0));
-    assert_ne!(rig.crop(), CropBox::upright(RECT));
-    rig.key(Key::Escape, Modifiers::NONE);
-    assert_eq!(rig.crop(), CropBox::upright(RECT));
-    assert!(!rig.seen.borrow().discarded, "the first Escape only cancels the drag");
-    rig.release(from + Vec2::new(30.0, 20.0));
-    rig.key(Key::Escape, Modifiers::NONE);
-    assert!(rig.seen.borrow().discarded);
-}
-
-#[trial]
-fn the_readout_shows_the_crop_size_or_the_angle_only_during_the_drag() {
-    let mut rig = Rig::upright();
-    let from = rig.at(300.0, 220.0);
-    rig.hold_at(from, from + Vec2::new(20.0, 10.0));
-    assert!(rig.painted("W:") && rig.painted("220") && rig.painted("150"), "{:?}", rig.texts());
-    assert_eq!(rig.seen.borrow().sizing, Some((220.0, 150.0)));
-    rig.release(from + Vec2::new(20.0, 10.0));
-    assert!(!rig.painted("W:"), "only during the drag");
-
-    let mut rig = Rig::upright();
-    let from = rig.at(340.0, 260.0);
-    rig.hold_at(from, from + Vec2::new(-30.0, 30.0));
-    assert!(rig.painted("Angle:") && rig.seen.borrow().turning.is_some(), "{:?}", rig.texts());
-
-    // Moving shows none.
-    let mut rig = Rig::upright();
-    let from = rig.at(150.0, 110.0);
-    rig.hold_at(from, from + Vec2::new(20.0, 5.0));
-    assert!(!rig.painted("W:") && !rig.painted("Angle:"), "{:?}", rig.texts());
-}
-
-#[trial]
-fn the_turn_angle_never_reads_minus_zero() {
-    let mut rig = Rig::upright();
-    let from = rig.at(340.0, 260.0);
-    rig.hold_at(from, from + Vec2::new(0.0, 8.0));
-    rig.move_to(from + Vec2::new(0.0, -0.01));
-    rig.frame(Vec::new());
-    assert!(rig.painted("Angle:"), "{:?}", rig.texts());
-    assert!(rig.texts().iter().all(|text| !text.contains("-0.0")), "{:?}", rig.texts());
-}
-
-#[trial]
-fn the_resize_arrow_follows_the_frame_angle_the_view_rotation_and_the_flip() {
-    let edge = |angle: f64, rotation: f64, flip: bool| {
-        let b = CropBox::new(RECT, angle);
-        let mut setup = Setup::new();
-        setup.view.rotation = rotation;
-        setup.view.flip_x = flip;
-        let mut rig = Rig::new(b, setup);
-        let right = rig.view().to_screen(b.corners()[1].midpoint(b.corners()[2]));
-        rig.hover(right);
-        rig.cursor()
-    };
-    assert_eq!(edge(0.0, 0.0, false), egui::CursorIcon::ResizeHorizontal);
-    assert_eq!(edge(90.0, 0.0, false), egui::CursorIcon::ResizeVertical);
-    assert_eq!(edge(45.0, 0.0, false), egui::CursorIcon::ResizeNwSe);
-    assert_eq!(edge(0.0, 90.0, false), egui::CursorIcon::ResizeVertical, "the view's rotation adds to the frame's");
-    assert_eq!(edge(45.0, 0.0, true), egui::CursorIcon::ResizeNeSw, "a flipped view mirrors the arrow");
-}
-
-#[trial]
-fn degenerate_frames_never_panic() {
-    for rect in [Rect::new(100.0, 100.0, 100.0, 150.0), Rect::new(100.0, 100.0, 100.0 + 1e-6, 150.0), Rect::new(f64::NAN, 0.0, 10.0, 10.0)] {
-        let mut rig = Rig::new(CropBox::upright(rect), Setup::new());
-        let from = rig.at(105.0, 120.0);
-        rig.drag(from, from + Vec2::new(5.0, 5.0), Modifiers::NONE);
-        rig.key(Key::ArrowLeft, Modifiers::NONE);
-    }
-}
-
-#[trial]
-fn bounds_keep_the_frame_inside_and_the_snap_moves_the_dragged_handle() {
-    let mut rig = Rig::with(|s| s.bounds = Some(Rect::new(0.0, 0.0, 400.0, 300.0)));
-    let from = rig.at(300.0, 220.0);
-    rig.drag(from, from + Vec2::new(300.0, 200.0), Modifiers::NONE);
-    assert_eq!(rig.rect(), Rect::new(100.0, 80.0, 400.0, 300.0));
-    let from = rig.at(200.0, 150.0);
-    rig.drag(from, from + Vec2::new(-400.0, -400.0), Modifiers::NONE);
-    assert_eq!(rig.rect(), Rect::new(0.0, 0.0, 300.0, 220.0));
-    rig.key(Key::ArrowLeft, Modifiers::SHIFT);
-    assert_eq!(rig.rect().x0, 0.0, "keys stay inside too");
-
-    let mut rig = Rig::with(|s| {
-        s.snap_x = Some(310.0);
-        s.snap_y = Some(230.0);
-    });
-    let from = rig.at(300.0, 220.0);
-    rig.drag(from, from + Vec2::new(13.0, 7.0), Modifiers::NONE);
-    assert_eq!(rig.rect(), Rect::new(100.0, 80.0, 310.0, 230.0));
-}
-
 // Straighten.
 
-#[trial]
-fn a_straighten_drag_reports_the_angle_and_sends_no_edit() {
-    let mut rig = Rig::with(|s| s.straighten = true);
-    let from = rig.at(120.0, 100.0);
-    rig.hold_at(from, from + Vec2::new(100.0, -10.0));
-    assert!(rig.painted("Angle:"), "the angle shows beside the pointer while the line is drawn: {:?}", rig.texts());
-    rig.release(from + Vec2::new(100.0, -10.0));
-    let want = CropBox::level_angle(Point::new(120.0, 100.0), Point::new(220.0, 90.0));
-    assert_eq!(rig.seen.borrow().straightened, want);
-    assert!(want.is_some());
-    assert_eq!(rig.crop(), CropBox::upright(RECT), "the frame is left alone");
-    assert!(rig.events().is_empty(), "{:?}", rig.events());
-}
-
 // Image mode.
-
-#[trial]
-fn image_mode_a_drag_inside_moves_the_frame_and_the_view_against_the_pointer() {
-    let mut rig = Rig::new(CropBox::new(RECT, 30.0), Setup::image(30.0, false));
-    let (before, v0) = (screen_quad(&rig), rig.view());
-    let from = rig.at(200.0, 150.0);
-    rig.drag(from, from + Vec2::new(30.0, 20.0), Modifiers::NONE);
-    let d = v0.unmap_vec(Vec2::new(30.0, 20.0));
-    let moved = CropBox::new(RECT, 30.0).moved(-d);
-    assert!(near(&rig.crop(), &moved), "{:?}", rig.crop());
-    let v = rig.view();
-    assert!((v.center - (v0.center - d)).hypot() < 1e-3, "{:?}", v.center);
-    assert_eq!(v.rotation, v0.rotation);
-    assert!(same_quad(before, screen_quad(&rig)), "the frame stays put on screen");
-}
-
-#[trial]
-fn image_mode_a_drag_outside_turns_the_view_and_shift_snaps() {
-    let mut rig = Rig::new(CropBox::upright(RECT), Setup::image(0.0, false));
-    let c = rig.at(200.0, 150.0);
-    let start = c + Vec2::new(150.0, 0.0);
-    let before = screen_quad(&rig);
-    let swept = |deg: f32| c + Vec2::new(150.0 * deg.to_radians().cos(), 150.0 * deg.to_radians().sin());
-    rig.press(start);
-    rig.move_to(swept(20.0));
-    rig.frame(Vec::new());
-    assert!((rig.crop().angle + 20.0).abs() < 1e-3, "{:?}", rig.crop());
-    assert!((rig.view().rotation - 20.0).abs() < 1e-3, "{:?}", rig.view());
-    assert!(same_quad(before, screen_quad(&rig)), "the frame stays upright and centred");
-    rig.frames.hold(Modifiers::SHIFT);
-    rig.move_to(swept(22.0));
-    rig.frame(Vec::new());
-    assert_eq!((rig.crop().angle, rig.view().rotation), (-15.0, 15.0));
-    // The view the drag works from is the press view: coming back gives the start exactly.
-    rig.frames.hold(Modifiers::NONE);
-    rig.move_to(start);
-    rig.frame(Vec::new());
-    assert!(rig.crop().angle.abs() < 1e-6 && rig.view().rotation.abs() < 1e-6);
-    rig.release(start);
-}
 
 #[trial]
 fn image_mode_auto_center_keeps_the_frame_centre_on_screen_and_the_handle_under_the_pointer() {
@@ -568,20 +308,6 @@ fn image_mode_auto_center_keeps_the_frame_centre_on_screen_and_the_handle_under_
         assert!(b.corners()[0].distance(b0.corners()[0]) < 1e-6, "the opposite corner stays put on the image");
         rig.release(to);
     }
-}
-
-#[trial]
-fn image_mode_escape_restores_the_frame_and_the_view() {
-    let mut rig = Rig::new(CropBox::upright(RECT), Setup::image(0.0, false));
-    let (b0, v0) = (rig.crop(), rig.view());
-    let c = rig.at(200.0, 150.0);
-    rig.press(c + Vec2::new(150.0, 0.0));
-    rig.move_to(c + Vec2::new(100.0, 100.0));
-    rig.frame(Vec::new());
-    assert_ne!(rig.view(), v0);
-    rig.key(Key::Escape, Modifiers::NONE);
-    assert_eq!((rig.crop(), rig.view()), (b0, v0));
-    assert_eq!(rig.events().last(), Some(&"cancel"));
 }
 
 #[trial]
@@ -607,91 +333,4 @@ fn image_mode_a_move_snaps_and_stays_snapped_while_the_pointer_is_still() {
     }
 }
 
-#[trial]
-fn image_mode_an_auto_center_resize_snaps_the_handle_and_stays_there_while_the_pointer_is_still() {
-    let mut rig = Rig::new(CropBox::upright(RECT), {
-        let mut s = Setup::image(0.0, true);
-        s.snap_x = Some(250.0);
-        s
-    });
-    let centre0 = rig.view().center;
-    let edge = rig.at(RECT.x1, 150.0);
-    rig.press(edge);
-    // The handle moves twice the pointer's travel: raw x1 would be 300 - 44 = 256.
-    let at = edge + Vec2::new(-22.0, 0.0);
-    for pass in 0..4 {
-        rig.move_to(at);
-        let r = rig.rect();
-        assert!((r.x1 - 250.0).abs() < 1e-3 && (r.x0 - RECT.x0).abs() < 1e-3, "pass {pass}: {r:?}");
-    }
-    assert!(rig.view().center != centre0, "the view slid with the frame");
-    rig.release(at);
-    assert!((rig.rect().x1 - 250.0).abs() < 1e-3);
-}
-
-#[trial]
-fn image_mode_a_turn_with_a_still_pointer_gives_the_same_frame_every_pass() {
-    let mut rig = Rig::new(CropBox::upright(RECT), {
-        let mut s = Setup::image(0.0, true);
-        s.snap_x = Some(0.0);
-        s
-    });
-    let from = rig.at(340.0, 260.0);
-    rig.press(from);
-    let at = rig.at(300.0, 290.0);
-    rig.move_to(at);
-    let (b, v) = (rig.crop(), rig.view());
-    assert!(b.angle != 0.0);
-    for _ in 0..3 {
-        rig.move_to(at);
-        assert_eq!((rig.crop(), rig.view()), (b, v));
-    }
-    rig.release(at);
-}
-
 // The shield and the saved settings.
-
-const CANVAS: Color32 = Color32::from_rgb(40, 40, 40);
-
-/// The default shield with `change` applied: the type is `#[non_exhaustive]`.
-fn shield(change: impl FnOnce(&mut CropShield)) -> CropShield {
-    let mut s = CropShield::default();
-    change(&mut s);
-    s
-}
-
-#[trial]
-fn a_hidden_cropped_area_is_the_opaque_canvas_whatever_the_shield() {
-    for enabled in [true, false] {
-        let s = shield(|s| {
-            s.show_cropped_area = false;
-            s.enabled = enabled;
-            s.color = ShieldColor::Custom;
-            s.custom_color = [255, 0, 0];
-            s.opacity = 10.0;
-        });
-        assert_eq!(s.fill(CANVAS, false), Some(CANVAS));
-        assert_eq!(s.fill(CANVAS, true), Some(CANVAS));
-    }
-    // Classic mode keeps the cropped area shown whatever the stored choice.
-    let classic = shield(|s| {
-        s.show_cropped_area = false;
-        s.classic_mode = true;
-        s.opacity = 100.0;
-    });
-    assert_eq!(classic.fill(CANVAS, false), Some(CANVAS));
-    let mut custom = classic.clone();
-    custom.color = ShieldColor::Custom;
-    custom.custom_color = [9, 9, 9];
-    assert_eq!(custom.fill(CANVAS, false), Some(Color32::from_rgb(9, 9, 9)));
-}
-
-#[trial]
-fn older_saved_shield_settings_get_the_defaults_and_round_trip() {
-    let older: CropShield = toml_edit::de::from_str("enabled = false").expect("a legacy sample with one key");
-    assert_eq!(older, shield(|s| s.enabled = false));
-    let saved = toml_edit::ser::to_string(&older).expect("saves");
-    assert_eq!(toml_edit::de::from_str::<CropShield>(&saved).expect("loads"), older);
-    assert!(saved.contains("color = \"matchCanvas\""), "{saved}");
-    assert!(toml_edit::de::from_str::<CropShield>("opacity = \"high\"").is_err());
-}

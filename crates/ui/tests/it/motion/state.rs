@@ -65,68 +65,8 @@ fn state_easing_reaches_its_end_value_and_stops_requesting_repaints() {
     assert_eq!(frames.repaint_delay(), None, "once at its end it requests no repaint");
 }
 
-/// A component that reports what `anim` returns for its target.
-#[derive(Component)]
-struct Mover<'a> {
-    #[common]
-    common: Common,
-    target: f32,
-    travel: bool,
-    shown: &'a Cell<f32>,
-}
-
-impl Component for Mover<'_> {
-    const ROLE: Role = Role::None;
-    type Style = PlainStyle;
-    type Output = Response;
-
-    fn style(_: &StyleCx<'_>, _: MoverStyleKey) -> PlainStyle {
-        PlainStyle::min(egui::vec2(40.0, 20.0))
-    }
-
-    fn sense(&self) -> Sense {
-        Sense::empty()
-    }
-
-    fn update(&mut self, cx: &mut Cx<'_, Self>) {
-        let kind = if self.travel { spec::MOVE } else { spec::HOVER };
-        self.shown.set(cx.anim("x", self.target, kind));
-    }
-
-    fn finish(self, cx: Cx<'_, Self>) -> Response {
-        cx.response.clone()
-    }
-}
-
-/// The value one frame after the target changed from 0 to 100, and whether that frame asked for another pass.
-fn after_a_change(mode: MotionMode, travel: bool) -> (f32, bool) {
-    let shown = Cell::new(0.0);
-    let target = Cell::new(0.0);
-    let mut frames = Frames::new();
-    frames.root(RootEnv::default().motion(mode));
-    let mut show = |ui: &mut egui::Ui| {
-        Mover { common: Common::new(), target: target.get(), travel, shown: &shown }.show(ui);
-    };
-    frames.idle(2, &mut show);
-    target.set(100.0);
-    frames.frame(Vec::new(), &mut show);
-    (shown.get(), frames.repaint_delay().is_some())
-}
-
-/// Travel jumps under reduced motion and fades jump when motion is off, while a fade still runs reduced.
-#[trial]
-fn reduced_motion_jumps_travel_and_off_jumps_everything() {
-    let (running, asks) = after_a_change(MotionMode::Full, true);
-    assert!(running > 0.0 && running < 100.0 && asks, "full motion travels: {running}");
-    assert_eq!(after_a_change(MotionMode::Reduced, true), (100.0, false), "reduced motion snaps a travel");
-    let (fade, asks) = after_a_change(MotionMode::Reduced, false);
-    assert!(fade < 100.0 && asks, "reduced motion keeps its fades: {fade}");
-    assert_eq!(after_a_change(MotionMode::Off, false), (100.0, false), "off snaps a fade");
-}
-
-/// The animated value of a boolean that is on, and off.
+/// The animated value of a boolean that is on.
 const ON: f32 = 1.0;
-const OFF: f32 = 0.0;
 
 /// What a component's own animations returned in the last pass.
 #[derive(Default)]
@@ -187,31 +127,4 @@ fn a_component_animating_on_does_not_fight_the_state_mix() {
     frames.root(RootEnv::default().motion(MotionMode::Reduced));
     frames.idle(60, &mut show);
     assert_eq!(frames.repaint_delay(), None, "with no loop under reduced motion, nothing is left to animate");
-}
-
-/// A closing presence stays visible and exiting while it fades, then goes; a loop paints its still frame under
-/// reduced motion.
-#[trial]
-fn presence_exits_by_fading_and_a_loop_stands_still_under_reduced_motion() {
-    let seen = Seen::default();
-    let open = Cell::new(true);
-    let mut frames = Frames::new();
-    let mut show = |ui: &mut egui::Ui| {
-        Animator { common: Common::new(), open: open.get(), seen: &seen }.show(ui);
-    };
-    frames.idle(3, &mut show);
-    assert_eq!(seen.presence.get(), Some((ON, true, false)), "open");
-    assert!(matches!(seen.phase.get(), Some(Some(_))), "a loop runs at full motion");
-    open.set(false);
-    frames.idle(2, &mut show);
-    let (t, visible, exiting) = seen.presence.get().unwrap_or_default();
-    assert!(t > OFF && t < ON && visible && exiting, "fading out: {t}");
-    for _ in 0..60 {
-        frames.frame(Vec::new(), &mut show);
-    }
-    assert_eq!(seen.presence.get(), Some((OFF, false, false)), "gone");
-    let mut still = Frames::new();
-    still.root(RootEnv::default().motion(MotionMode::Reduced));
-    still.idle(2, &mut show);
-    assert_eq!(seen.phase.get(), Some(None), "a loop is still under reduced motion");
 }

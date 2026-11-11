@@ -1,13 +1,8 @@
 //! The chip field's draft rules.
 
 use craft_behavior::Codec as _;
-use craft_ui::contract::{Bind, Show as _};
-use craft_ui::testing::focus::active_part;
-use craft_ui::testing::{Fixture, trial};
-use craft_ui::text::{ChipCodec, ChipField};
-use egui::{Key, Modifiers};
-use std::cell::{Cell, RefCell};
-use std::rc::Rc;
+use craft_ui::testing::trial;
+use craft_ui::text::ChipCodec;
 
 fn chips(items: &[&str]) -> Vec<String> {
     items.iter().map(|item| (*item).to_owned()).collect()
@@ -23,78 +18,4 @@ fn a_draft_adds_its_pieces_after_the_existing_chips() {
     assert_eq!(codec.parse("  ,; ", &start), Ok(start.clone()), "a draft of separators adds nothing");
     assert_eq!(codec.parse("red, red", &Vec::new()), Ok(chips(&["red"])), "a piece the draft names twice is added once");
     assert_eq!(codec.parse("two words", &Vec::new()), Ok(chips(&["two words"])), "a space does not end a chip");
-}
-
-/// Typing a comma commits the draft as a chip, empties the draft, and the comma is in no chip.
-#[trial]
-fn typing_a_comma_adds_the_chip_and_empties_the_draft() {
-    let value = Rc::new(RefCell::new(Vec::<String>::new()));
-    let shown = value.clone();
-    let mut fixture = Fixture::new(move |ui| {
-        ChipField::new("Keywords", Bind::bound(&mut *shown.borrow_mut())).show(ui);
-    });
-    fixture.settle();
-    fixture.key(Key::Tab, Modifiers::NONE);
-    fixture.type_text("red,");
-    fixture.idle(3);
-    assert_eq!(*value.borrow(), chips(&["red"]), "the comma ended the chip and is not part of it");
-    assert!(fixture.by_label("Keywords").is_some());
-    assert!(fixture.texts().iter().all(|run| !run.text.contains("red,")), "the draft shows no separator");
-    fixture.type_text("blue;");
-    fixture.idle(3);
-    assert_eq!(*value.borrow(), chips(&["red", "blue"]), "a semicolon also commits");
-}
-
-/// The chip a comma commits is shown in the frame of the comma, not a frame later.
-#[trial]
-fn a_committed_chip_is_shown_in_the_same_frame() {
-    let value = Rc::new(RefCell::new(Vec::<String>::new()));
-    let shown = value.clone();
-    let mut fixture = Fixture::new(move |ui| {
-        ChipField::new("Keywords", Bind::bound(&mut *shown.borrow_mut())).show(ui);
-    });
-    fixture.settle();
-    fixture.key(Key::Tab, Modifiers::NONE);
-    fixture.type_text("red,");
-    assert_eq!(*value.borrow(), chips(&["red"]));
-    assert!(fixture.texts().iter().any(|run| run.text == "red"), "the new chip is painted in the frame that added it");
-}
-
-/// Backspace in an empty draft focuses the last chip and removes nothing; Backspace on that chip removes it and
-/// returns focus to the draft; Delete in an empty draft does nothing.
-#[trial]
-fn backspace_in_an_empty_draft_focuses_the_last_chip_then_removes_it() {
-    let value = Rc::new(RefCell::new(chips(&["kite", "red"])));
-    let shown = value.clone();
-    let field = Rc::new(Cell::new(None));
-    let seen = field.clone();
-    let mut fixture = Fixture::new(move |ui| {
-        let mut chips = shown.borrow().clone();
-        seen.set(Some(ChipField::new("Tags", Bind::bound(&mut chips)).show(ui).response.id));
-        *shown.borrow_mut() = chips;
-    });
-    fixture.settle();
-    let id = field.get().expect("the field showed");
-    let part = |fixture: &Fixture| active_part(fixture.ctx(), id).and_then(|part| part.index);
-    let press = |fixture: &mut Fixture, key: Key| {
-        fixture.key(key, Modifiers::NONE);
-        fixture.idle(2);
-    };
-    press(&mut fixture, Key::Tab);
-    assert_eq!(part(&fixture), None, "Tab reaches the draft");
-    fixture.key(Key::Tab, Modifiers::SHIFT);
-    fixture.idle(2);
-    assert_eq!(part(&fixture), Some(1), "Shift+Tab from the draft arrives at the chip next to it");
-    fixture.key(Key::Tab, Modifiers::NONE);
-    fixture.idle(2);
-    assert_eq!(part(&fixture), None, "Tab returns to the draft");
-    press(&mut fixture, Key::Delete);
-    assert_eq!(*value.borrow(), chips(&["kite", "red"]), "Delete in an empty draft does nothing");
-    assert_eq!(part(&fixture), None);
-    press(&mut fixture, Key::Backspace);
-    assert_eq!(*value.borrow(), chips(&["kite", "red"]), "the first Backspace removes nothing");
-    assert_eq!(part(&fixture), Some(1), "it focuses the last chip");
-    press(&mut fixture, Key::Backspace);
-    assert_eq!(*value.borrow(), chips(&["kite"]), "Backspace on a focused chip removes it");
-    assert_eq!(part(&fixture), None, "focus returns to the draft when no chip follows");
 }

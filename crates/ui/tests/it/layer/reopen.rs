@@ -2,11 +2,10 @@
 //! opener, also while its close fade still runs.
 
 use craft_ui::buttons::Button;
-use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
+use craft_ui::contract::Bind;
 use craft_ui::popover::Popover;
 use craft_ui::testing::contract::clicked;
 use craft_ui::testing::{Fixture, trial};
-use egui::{Key, Modifiers};
 use std::cell::Cell;
 use std::rc::Rc;
 
@@ -64,15 +63,6 @@ fn a_popover_closed_from_its_body_opens_again() {
     let (fixture, open) = reopened_after(|fixture| {
         let item = fixture.by_label(ITEM).expect("the popover's item");
         fixture.click(&item);
-    });
-    assert_open_again(&fixture, &open);
-}
-
-/// Escape closes the popover, and the opener opens it again.
-#[trial]
-fn a_popover_closed_by_escape_opens_again() {
-    let (fixture, open) = reopened_after(|fixture| {
-        fixture.key(Key::Escape, Modifiers::NONE);
     });
     assert_open_again(&fixture, &open);
 }

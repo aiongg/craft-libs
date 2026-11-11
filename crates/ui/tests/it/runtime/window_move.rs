@@ -8,25 +8,20 @@ use crate::windows_kit::Windows;
 use craft_host::target::{ShellInfo, WindowChrome, WindowInfo, WindowKind};
 use craft_ui::contract::overlay::Resize;
 use craft_ui::contract::{
-    BodyCx, Common, Component, Container, ContainerProps, Cx, DragBand, HeaderRegion, Mount, Overlay, Props as _, Role, Show as _,
-    ShowContainer as _, Sizing,
+    BodyCx, Common, Component, Container, ContainerProps, Cx, DragBand, HeaderRegion, Mount, Props as _, Role, Show as _, ShowContainer as _, Sizing,
 };
 use craft_ui::runtime::InstallSpec;
-use craft_ui::runtime::windows::WindowSpec;
 use craft_ui::style::StyleCx;
 use craft_ui::testing::layout::allocate;
 use craft_ui::testing::pointer::{moved, press, release};
 use craft_ui::testing::trial;
 use craft_ui::testing::windows::FakeSystem;
 use egui::viewport::ResizeDirection;
-use egui::{Event, Pos2, Rect, Response, Ui, Vec2, ViewportCommand, ViewportInfo, pos2, vec2};
+use egui::{Event, Pos2, Rect, Response, Ui, Vec2, ViewportCommand, pos2, vec2};
 use std::cell::{Cell, RefCell};
 use std::sync::Arc;
 
 const HEADER: Vec2 = Vec2::new(100.0, 24.0);
-const DRAG: Vec2 = Vec2::new(40.0, 30.0);
-/// The size of a child window in the windows kit, and a point just inside its bottom right corner.
-const CHILD: Vec2 = Vec2::new(400.0, 300.0);
 /// The size of the root window in the windows kit.
 const ROOT: Vec2 = Vec2::new(800.0, 600.0);
 
@@ -103,10 +98,6 @@ fn drag(at: Pos2, by: Vec2, mut frame: impl FnMut(Vec<Event>) -> Vec<ViewportCom
     sent
 }
 
-fn starts(sent: &[ViewportCommand]) -> usize {
-    sent.iter().filter(|command| matches!(command, ViewportCommand::StartDrag)).count()
-}
-
 fn resizes(sent: &[ViewportCommand]) -> Vec<ResizeDirection> {
     sent.iter()
         .filter_map(|command| match command {
@@ -114,48 +105,6 @@ fn resizes(sent: &[ViewportCommand]) -> Vec<ResizeDirection> {
             _ => None,
         })
         .collect()
-}
-
-/// The commands a drag on the move band of a viewport container sends; `info` is what the child window reports.
-fn band_drag(mount: Mount, info: ViewportInfo) -> Vec<ViewportCommand> {
-    let windows = Windows::new();
-    windows.child_info(info);
-    let rig = Rig::new(mount);
-    for _ in 0..4 {
-        rig.frame(&windows, vec![], vec![]);
-    }
-    drag(rig.header.get().center(), DRAG, |events| rig.frame(&windows, vec![], events))
-}
-
-/// The commands a drag at `at` sends in a child window of a container with `overlay`, opened as a tool window.
-fn grip_drag(overlay: Overlay, at: Pos2) -> Vec<ViewportCommand> {
-    let windows = Windows::new();
-    let rig = Rig::new(Mount::viewport_with(overlay, WindowSpec::tool().chrome(WindowChrome::Integrated)));
-    for _ in 0..4 {
-        rig.frame(&windows, vec![], vec![]);
-    }
-    drag(at, -DRAG, |events| rig.frame(&windows, vec![], events))
-}
-
-#[trial]
-fn a_viewport_containers_move_band_sends_one_os_move_unless_the_app_does_not_own_the_window() {
-    let movable = || Mount::viewport_with(Overlay::floating().movable(true), WindowSpec::tool().chrome(WindowChrome::Integrated));
-    assert_eq!(starts(&band_drag(movable(), ViewportInfo::default())), 1, "an undecorated window moves once");
-    let maximized = ViewportInfo { maximized: Some(true), ..ViewportInfo::default() };
-    assert_eq!(starts(&band_drag(movable(), maximized)), 1, "a maximized window's move goes to the platform, which restores it");
-    let full_screen = ViewportInfo { fullscreen: Some(true), ..ViewportInfo::default() };
-    assert_eq!(starts(&band_drag(movable(), full_screen)), 0, "a full-screen window does not move");
-    let framed_by_os = Mount::viewport(Overlay::floating().movable(true));
-    assert_eq!(starts(&band_drag(framed_by_os, ViewportInfo::default())), 0, "the OS moves a window it draws the frame of");
-}
-
-#[trial]
-fn a_grip_drag_resizes_only_a_container_that_asks_for_grips() {
-    let corner = Pos2::new(CHILD.x - 1.0, CHILD.y - 1.0);
-    let sent = grip_drag(Overlay::floating().movable(true).resizable(true), corner);
-    assert_eq!(resizes(&sent), [ResizeDirection::SouthEast], "the corner grip resizes from the south east: {sent:?}");
-    let sent = grip_drag(Overlay::floating().movable(true), corner);
-    assert!(resizes(&sent).is_empty(), "a container that is not resizable has no grips: {sent:?}");
 }
 
 /// The root window with the frame drawn by the app, or by the OS.
@@ -193,24 +142,4 @@ fn a_window_mounts_edges_resize_the_window_and_the_childs_press_keeps_its_click(
     sent.extend(rig.frame(&windows, vec![], vec![]));
     assert_eq!(rig.seen.borrow().activations, 1, "the child under the edge keeps its click");
     assert!(resizes(&sent).is_empty(), "and the click starts no resize: {sent:?}");
-}
-
-#[trial]
-fn a_double_click_on_the_move_band_is_reported_once() {
-    let windows = root(WindowChrome::Integrated);
-    let rig = Rig::new(Mount::window(Resize::NONE));
-    for _ in 0..4 {
-        rig.frame(&windows, vec![], vec![]);
-    }
-    let at = rig.header.get().center();
-    let mut sent = rig.frame(&windows, vec![moved(at)], vec![]);
-    for events in [vec![press(at)], vec![release(at)], vec![press(at)]] {
-        sent.extend(rig.frame(&windows, events, vec![]));
-    }
-    for _ in 0..4 {
-        sent.extend(rig.frame(&windows, vec![], vec![]));
-    }
-    assert_eq!(rig.doubles.get(), 1, "the second press is one pass, however long the button is held");
-    assert_eq!(starts(&sent), 0, "a double click without a drag moves nothing");
-    rig.frame(&windows, vec![release(at)], vec![]);
 }

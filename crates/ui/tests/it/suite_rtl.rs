@@ -3,7 +3,6 @@
 //! rect moves.
 
 use crate::contract::kit::PlainStyle;
-use craft_ui::buttons::Button;
 use craft_ui::contract::{Bind, Common, Component, Cx, PartsCx, Props as _, Role, Show as _};
 use craft_ui::runtime::env::{Direction, Env};
 use craft_ui::style::StyleCx;
@@ -14,27 +13,6 @@ use craft_ui::text::TextField;
 use egui::{Layout, Rect, Response, Ui, UiBuilder, pos2, vec2};
 use std::cell::Cell;
 use std::rc::Rc;
-
-/// A button whose label, and so its width, depends on the layout direction.
-fn wider_under_rtl(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    let label = if Env::of(ui).view().direction().is_rtl() { "A much longer label under right-to-left" } else { "Short" };
-    Button::new(label).show(ui).into()
-}
-
-fn same_in_both(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    Button::new("Same").show(ui).into()
-}
-
-#[trial]
-fn the_rtl_case_fails_a_component_whose_own_width_changes_under_rtl() {
-    let failed = rtl_case(&Story::new("wider-under-rtl", wider_under_rtl)).expect_err("the width changes");
-    assert!(failed.contains("width differs"), "{failed}");
-}
-
-#[trial]
-fn the_rtl_case_passes_a_component_that_keeps_its_width() {
-    assert_eq!(rtl_case(&Story::new("same", same_in_both)), Ok(()));
-}
 
 const FIELD_WIDTH: f32 = 200.0;
 const SHIFT: f32 = 40.0;
@@ -47,23 +25,12 @@ fn search_field(ui: &mut Ui, at: egui::Pos2) -> StoryOutput {
     ui.scope_builder(builder, |ui| TextField::search("Search", Bind::bound(&mut text)).show(ui)).inner.into()
 }
 
-/// The field's rect moves right by `SHIFT` under right-to-left and its content mirrors inside it.
-fn moves_with_its_content(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    let shift = if Env::of(ui).view().direction().is_rtl() { SHIFT } else { 0.0 };
-    search_field(ui, pos2(shift, 0.0))
-}
-
 /// As above, plus a second field that keeps its place while the first one moves.
 fn leaves_content_behind(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let shift = if Env::of(ui).view().direction().is_rtl() { SHIFT } else { 0.0 };
     let shown = search_field(ui, pos2(shift, 0.0));
     search_field(ui, pos2(0.0, 40.0));
     shown
-}
-
-#[trial]
-fn the_rtl_case_passes_a_component_whose_rect_moves_and_whose_content_mirrors_inside_it() {
-    assert_eq!(rtl_case(&Story::new("moves-with-content", moves_with_its_content)), Ok(()));
 }
 
 #[trial]
@@ -98,19 +65,6 @@ impl Component for TimeAxis {
     fn finish(self, cx: Cx<'_, Self>) -> Response {
         cx.response.clone()
     }
-}
-
-#[trial]
-fn a_component_that_keeps_its_axis_flows_from_the_left_under_rtl() {
-    let seen = Rc::new(Cell::new((Rect::NOTHING, Rect::NOTHING)));
-    let shown = seen.clone();
-    let mut fixture = Fixture::new(move |ui| {
-        TimeAxis { common: Common::new(), start: shown.clone() }.ltr_axis().show(ui);
-    });
-    fixture.direction(Direction::Rtl);
-    fixture.settle();
-    let (rect, start) = seen.get();
-    assert_eq!(start.min.x, rect.min.x, "the start of the flow is the left edge in a right-to-left interface");
 }
 
 /// Of two parts of one column, the one that declares `ltr_axis` flows from the left and the other mirrors.

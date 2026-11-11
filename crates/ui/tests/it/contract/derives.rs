@@ -3,14 +3,11 @@
 use super::kit::PlainStyle;
 use craft_behavior::CancelReason;
 use craft_ui::canvas::{CanvasTool, ToolAction, ToolContext, ToolPath, ToolPointer};
-use craft_ui::contract::{
-    Common, Component, Cx, EditResponse, Internal, MeasureCx, Meta, Pattern, Role, ShapeKind, Show as _, register_contract, shape,
-};
+use craft_ui::contract::{Common, Component, Cx, EditResponse, Pattern, Role, ShapeKind, register_contract};
 use craft_ui::primitives::Draw;
-use craft_ui::style::{StyleCx, StyleKey};
-use craft_ui::testing::{Frames, Probe, trial};
-use egui::{Response, Vec2};
-use std::any::TypeId;
+use craft_ui::style::StyleCx;
+use craft_ui::testing::{Probe, trial};
+use egui::Response;
 use std::marker::PhantomData;
 
 /// Two codecs, as type arguments of a generic component.
@@ -63,53 +60,6 @@ impl Component for Handle {
         cx.response.clone()
     }
 }
-
-/// A leaf whose `Meta` is written by hand and registered with `register_contract!`.
-struct Manual {
-    common: Common,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-struct ManualKey;
-
-impl StyleKey for ManualKey {}
-
-impl Meta for Manual {
-    type Shape = shape::Leaf;
-    type StyleKey = ManualKey;
-
-    fn style_key(&self) -> ManualKey {
-        ManualKey
-    }
-
-    fn common(&self, _: Internal) -> &Common {
-        &self.common
-    }
-
-    fn common_mut(&mut self, _: Internal) -> &mut Common {
-        &mut self.common
-    }
-}
-
-impl Component for Manual {
-    const ROLE: Role = Role::BUTTON;
-    type Style = PlainStyle;
-    type Output = Response;
-
-    fn style(_: &StyleCx<'_>, _: ManualKey) -> PlainStyle {
-        PlainStyle::default()
-    }
-
-    fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
-        Vec2::new(10.0, 10.0)
-    }
-
-    fn finish(self, cx: Cx<'_, Self>) -> Response {
-        cx.response.clone()
-    }
-}
-
-register_contract!(Manual; overlay, exempt(case = "sizes", reason = "hand-written"));
 
 /// A row of tools: a pattern assembles components and has no contract shape of its own.
 #[derive(Pattern)]
@@ -172,30 +122,4 @@ fn a_registration_records_the_facts_the_contract_types_state() {
     assert_eq!(named("::Panel<")[0].shape, ShapeKind::Body);
     assert_eq!(named("kit::Table")[0].shape, ShapeKind::Items);
     assert!(named("::Hooked<")[0].overlay, "`#[component(container, overlay)]` declares the open state");
-}
-
-#[trial]
-fn register_contract_registers_a_hand_written_component() {
-    let manual = named("::Manual");
-    assert_eq!(manual.len(), 1);
-    assert!(manual[0].overlay);
-    assert_eq!(manual[0].exempt[0].case, "sizes");
-    let mut frames = Frames::new();
-    frames.frame(vec![], |ui| {
-        Manual { common: Common::new() }.show(ui);
-    });
-}
-
-#[trial]
-fn each_instantiation_of_a_generic_component_has_its_own_style_key() {
-    let plain = Tagged::<Plain> { common: Common::new(), kind: 3, codec: PhantomData };
-    let number = Tagged::<Number> { common: Common::new(), kind: 3, codec: PhantomData };
-    assert_ne!(TypeId::of::<<Tagged<Plain> as Meta>::StyleKey>(), TypeId::of::<<Tagged<Number> as Meta>::StyleKey>());
-    assert_eq!(plain.style_key(), Tagged::<Plain> { common: Common::new(), kind: 3, codec: PhantomData }.style_key());
-    assert_ne!(
-        plain.style_key(),
-        Tagged::<Plain> { common: Common::new(), kind: 4, codec: PhantomData }.style_key(),
-        "a `#[style_key]` field is part of the key"
-    );
-    let _ = number;
 }

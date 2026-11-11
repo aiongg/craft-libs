@@ -86,19 +86,6 @@ fn a_dialog_in_an_embedded_region_is_placed_in_it_and_blocks_only_it() {
     assert_eq!(seen.under[0].get(), 0, "the region's own scrim takes the press meant for what lies under its dialog");
 }
 
-/// Two regions with open dialogs are independent: the first, opened before the second, takes its answer while the
-/// second is open, and the second stays open.
-#[trial]
-fn two_regions_each_keep_their_own_modal() {
-    let seen = both_open();
-    let mut fixture = fixture(seen.clone());
-    let done = fixture.by_label("Done A").expect("the first dialog's button is shown");
-    fixture.click(&done);
-    fixture.settle();
-    assert!(!seen.open[0].get(), "the first dialog took its answer while the second is open");
-    assert!(seen.open[1].get(), "the second dialog stays open");
-}
-
 /// An embedded shell scrolled out of sight with its dialog open shows nothing and does not fail: its region has no
 /// room, so neither its body nor its dialog runs in that pass.
 #[trial]

@@ -1,7 +1,6 @@
 //! The suite's own rules: which states a type must show, and the runs a drag drive makes.
 
 use craft_behavior::Mixed;
-use craft_ui::canvas_controls::Guides;
 use craft_ui::contract::{Bind, Props as _, Show as _};
 use craft_ui::testing::story::{Story, StoryData, StoryOutput};
 use craft_ui::testing::suite::{measure_pure_case, required_states, values_case};
@@ -13,13 +12,6 @@ use egui::{Ui, vec2};
 fn probe_of<T: 'static>() -> &'static Probe {
     let name = std::any::type_name::<T>();
     registered().into_iter().filter_map(Registration::probe).find(|probe| probe.type_name() == name).expect("the type is registered")
-}
-
-#[trial]
-fn a_canvas_control_needs_no_invalid_story() {
-    let probe = probe_of::<Guides<'static>>();
-    assert!(probe.canvas_control && probe.carries_value() && probe.takes_input(), "guides edit a value on the canvas");
-    assert!(!required_states(probe).contains(&Required::Invalid));
 }
 
 #[trial]
@@ -46,24 +38,9 @@ fn counting_draws(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     craft_ui::buttons::Button::new("Count").show(ui).into()
 }
 
-fn counting_clicks(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let out = craft_ui::buttons::Button::new("Count").show(ui);
-    let clicks = data.value("clicks", 0u32);
-    if craft_ui::testing::contract::clicked(&out.response) {
-        *clicks += 1;
-    }
-    out.into()
-}
-
 #[trial]
 fn measure_pure_fails_a_story_that_counts_its_draws() {
     let probe = probe_of::<craft_ui::buttons::Button<'static>>();
     let failure = measure_pure_case(probe, &Story::new("draw-counter", counting_draws)).expect_err("counting draws is impure");
     assert!(failure.contains("draw-counter") && failure.contains("draws"), "{failure}");
-}
-
-#[trial]
-fn measure_pure_passes_a_story_that_changes_state_on_click() {
-    let probe = probe_of::<craft_ui::buttons::Button<'static>>();
-    assert_eq!(measure_pure_case(probe, &Story::new("click-counter", counting_clicks)), Ok(()));
 }

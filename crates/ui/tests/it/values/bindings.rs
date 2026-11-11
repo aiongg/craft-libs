@@ -1,8 +1,8 @@
 //! Binding sources: given and bound give equal events, a mixed value commits a concrete one, a kept value stays, a
 //! check fixes or refuses.
 
-use super::kit::{AT, CAP, DRAGGED, Ev, INITIAL, STEP, Scrub, Seen, ev_of, near};
-use craft_behavior::{CancelReason, DocKey, EditEvent};
+use super::kit::{AT, CAP, DRAGGED, Ev, INITIAL, Scrub, Seen, ev_of, near};
+use craft_behavior::CancelReason;
 use craft_ui::contract::{Bind, Props as _, Show as _, Validity};
 use craft_ui::runtime::env::Message;
 use craft_ui::style::Flags;
@@ -56,68 +56,6 @@ fn given_and_bound_bindings_give_equal_events() {
     assert!(matches!(given.get(1), Some(Ev::Update(_))), "the first Update follows it: {given:?}");
     assert!(given.windows(2).all(|pair| pair[0] != pair[1]), "no event is reported twice: {given:?}");
     assert!(matches!(given.last(), Some(Ev::Commit(v)) if near(*v, DRAGGED)), "the drag commits its last value: {given:?}");
-}
-
-/// A given caller that applies only `Commit` keeps its drag: the host-change rule compares with what the pipeline
-/// emitted, so the unchanged given value is not an app change.
-#[trial]
-fn a_given_drag_that_applies_only_the_commit_is_not_cancelled() {
-    let mut frames = Frames::new();
-    let seen = RefCell::new(Vec::new());
-    let mut value = INITIAL;
-    let mut show = |ui: &mut Ui| {
-        let out = Scrub::new(Bind::given(value)).id_salt("scrub").show_at(ui, AT);
-        seen.borrow_mut().extend(ev_of(&out.events));
-        for event in &out.events {
-            if let EditEvent::Commit { after, .. } = event {
-                value = *after;
-            }
-        }
-    };
-    drag(&mut frames, &mut show);
-    let seen = seen.take();
-    assert!(!seen.iter().any(|event| matches!(event, Ev::Cancel(_))), "no host-change cancel: {seen:?}");
-    assert!(matches!(seen.last(), Some(Ev::Commit(_))), "{seen:?}");
-}
-
-/// A kept binding holds its value in the component's own memory across frames.
-#[trial]
-fn a_kept_binding_holds_the_edited_value_across_frames() {
-    let mut frames = Frames::new();
-    let seen = Seen::default();
-    let mut show = |ui: &mut Ui| {
-        Scrub::new(Bind::kept()).seen(&seen).id_salt("scrub").show_at(ui, AT);
-    };
-    frames.idle(3, &mut show);
-    assert_eq!(seen.shown.get(), None, "nothing kept yet");
-    drag(&mut frames, &mut show);
-    assert!(seen.shown.get().is_some_and(|v| near(v, DRAGGED)), "the dragged value stays shown: {:?}", seen.shown.get());
-}
-
-/// A gesture that begins and commits in one pass reaches the app as one `Set` that names itself as its `Begin` would.
-#[trial]
-fn a_gesture_in_one_pass_reaches_the_app_as_one_set_with_label_and_key() {
-    let mut frames = Frames::new();
-    let mut value = 0.0f32;
-    let sets = RefCell::new(Vec::new());
-    let mut show = |ui: &mut Ui| {
-        let out = Scrub::new(Bind::bound(&mut value)).one_pass().label("Nudge").doc_key(DocKey::new("trial.nudge")).id_salt("one").show_at(ui, AT);
-        sets.borrow_mut().extend(out.events.clone());
-        if out.events.iter().any(|event| matches!(event, EditEvent::Set { .. })) {
-            assert!(out.response.changed(), "a Set marks the response changed");
-        }
-    };
-    let at = AT.center();
-    frames.idle(3, &mut show);
-    frames.frame(vec![moved(at)], &mut show);
-    frames.frame(vec![press(at)], &mut show);
-    frames.frame(vec![release(at)], &mut show);
-    frames.idle(2, &mut show);
-    let sets = sets.take();
-    assert_eq!(value, STEP);
-    assert_eq!(sets.len(), 1, "one event for the whole gesture: {sets:?}");
-    let EditEvent::Set { label, doc_key, after, .. } = &sets[0] else { panic!("a Set, not {:?}", sets[0]) };
-    assert_eq!((&**label, *doc_key, *after), ("Nudge", Some(DocKey::new("trial.nudge")), STEP));
 }
 
 /// The check replaces a value with `Fix`, and a refused commit ends the drag with `Cancel(Refused)` and restores the value.

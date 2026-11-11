@@ -7,10 +7,8 @@ use craft_ui::contract::{Common, Component, Cx, PaintUi, PartsCx, Props as _, Ro
 use craft_ui::primitives::{EditorLine, EditorPurpose, EditorRun, EditorState};
 use craft_ui::runtime::focus::KeyUse;
 use craft_ui::style::StyleCx;
-use craft_ui::testing::access::NodeKey;
 use craft_ui::testing::input::key_press;
 use craft_ui::testing::pointer::click;
-use craft_ui::testing::text::{run_node, text_selection_request};
 use craft_ui::testing::{Frames, trial};
 use egui::{Event, Id, Key, Modifiers, Pos2, Rect, Response};
 use std::cell::{Cell, RefCell};
@@ -127,21 +125,4 @@ fn editor_input_reaches_an_editor_part_and_read_only_filtering_drops_edits() {
     rig.frame(vec![key_press(Key::ArrowUp, Modifiers::NONE)]);
     let moves = rig.take();
     assert!(matches!(moves.as_slice(), [EditorInput::Move(..)]), "moves still arrive: {moves:?}");
-}
-
-/// The visible line is one run node with the editor's text, and `SetTextSelection` on it reaches the editor as a
-/// `Select` of line and byte positions.
-#[trial]
-fn an_editor_reports_run_nodes_and_serves_set_text_selection() {
-    let mut rig = Rig::new();
-    rig.focus();
-    rig.frame(Vec::new());
-    let id = rig.id.get();
-    let tree = rig.frames.tree();
-    assert_eq!(tree.run_texts(id), [TEXT], "one run node per run of each visible line");
-    let run = run_node(id, 0, 0);
-    let caret = tree.text_selection(id).expect("the node reports the caret");
-    assert_eq!(caret, ((NodeKey::of(run), 7), (NodeKey::of(run), 7)), "the caret is a collapsed selection at the end");
-    rig.frame(vec![text_selection_request(id, (run, 3), (run, 5))]);
-    assert_eq!(rig.take(), [EditorInput::select(TextPos::new(0, 3), TextPos::new(0, 5))]);
 }

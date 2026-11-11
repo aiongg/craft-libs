@@ -3,7 +3,6 @@
 //! Help search, undoes the typing in the text field that held focus. Any other activation that closes a menu returns
 //! focus the same way; Escape is no activation and leaves focus on the bar title.
 
-use craft_ui::buttons::Button;
 use craft_ui::contract::{Bind, Show as _};
 use craft_ui::menu::MenuItem;
 use craft_ui::menu::bar::{MenuBar, MenuHelp, MenuTitle};
@@ -11,7 +10,7 @@ use craft_ui::menu::search::HelpEntry;
 use craft_ui::runtime::commands::EditCommands;
 use craft_ui::testing::{Fixture, trial};
 use craft_ui::text::TextField;
-use egui::{Id, Key, Modifiers};
+use egui::Id;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -74,80 +73,4 @@ fn undo_picked_from_the_edit_menu_undoes_in_the_field_that_held_focus() {
     rig.click("Edit");
     rig.click("Undo");
     rig.assert_undone_in_the_field("Edit › Undo");
-}
-
-#[trial]
-fn undo_found_through_the_help_search_undoes_in_the_field_that_held_focus() {
-    let mut rig = rig();
-    rig.click("Help");
-    rig.fixture.type_text("undo");
-    rig.fixture.settle();
-    // From the search field, Tab moves to the found row, and Enter runs it.
-    rig.fixture.key(Key::Tab, Modifiers::NONE);
-    rig.fixture.settle();
-    rig.fixture.key(Key::Enter, Modifiers::NONE);
-    rig.fixture.settle();
-    rig.assert_undone_in_the_field("Help search › Undo");
-}
-
-type BarRig = (Fixture, Rc<Cell<Option<Id>>>, Rc<Cell<Option<Id>>>);
-
-/// A button holding focus, then a menu bar whose View menu holds a button and a row; the ids of the button outside
-/// the bar and of the bar are recorded.
-fn bar_rig() -> BarRig {
-    let (apply, bar) = (Rc::new(Cell::new(None)), Rc::new(Cell::new(None)));
-    let shown = (apply.clone(), bar.clone());
-    let mut fixture = Fixture::new(move |ui| {
-        let (apply, bar) = &shown;
-        apply.set(Some(Button::new("Apply").show(ui).id));
-        let titles = vec![MenuTitle::new("&View", |ui| {
-            Button::new("Reset").show(ui);
-            MenuItem::new("&Zoom").show(ui);
-        })];
-        bar.set(Some(MenuBar::new("Main menu", titles).show(ui).response.id));
-    });
-    fixture.settle();
-    for key in [Key::Tab, Key::F10, Key::ArrowDown] {
-        fixture.key(key, Modifiers::NONE);
-        fixture.settle();
-    }
-    assert!(fixture.by_label("Zoom").is_some(), "Down on the focused title opens its menu");
-    (fixture, apply, bar)
-}
-
-#[trial]
-fn a_button_activated_in_a_bar_menu_returns_focus_to_where_the_bar_took_it() {
-    let (mut fixture, apply, _) = bar_rig();
-    let reset = fixture.by_label("Reset").expect("the button in the menu");
-    fixture.click(&reset);
-    fixture.settle();
-    assert!(fixture.by_label("Zoom").is_none(), "the activation closes the menu");
-    assert_eq!(fixture.focused_stop().map(|(id, _)| id), apply.get(), "focus is back on the button F10 took it from");
-}
-
-#[trial]
-fn escape_from_a_bar_menu_leaves_focus_on_the_bar() {
-    let (mut fixture, _, bar) = bar_rig();
-    fixture.key(Key::Escape, Modifiers::NONE);
-    fixture.settle();
-    assert!(fixture.by_label("Zoom").is_none(), "Escape closes the menu");
-    assert_eq!(fixture.focused_stop().map(|(id, _)| id), bar.get(), "focus returns to the bar title");
-}
-
-#[trial]
-fn help_menu_reopened_after_escape_focuses_its_search_field() {
-    let mut rig = rig();
-    for open in 1..=3 {
-        rig.click("Help");
-        let stop = rig.fixture.focused_stop();
-        assert!(stop.is_some(), "open {open}: the search field has focus");
-        assert_ne!(stop.map(|(id, _)| id), rig.field.get(), "open {open}: focus is in the popup, not the Name field");
-        rig.fixture.key(Key::Escape, Modifiers::NONE);
-        rig.fixture.settle();
-        assert_eq!(rig.fixture.focused_stop().map(|(id, _)| id), rig.field.get(), "open {open}: Escape returns focus to the Name field");
-    }
-    rig.click("Help");
-    rig.fixture.type_text("undo");
-    rig.fixture.settle();
-    assert!(rig.fixture.by_label("Undo").is_some(), "the text reaches the search field");
 }

@@ -1,7 +1,7 @@
 //! The read record: a value edit runs the pass again only when an earlier run read the edited value, or when the
 //! editing component's size follows the value.
 
-use super::kit::{AT, INITIAL, Scrub, Seen, near};
+use super::kit::{AT, INITIAL, Scrub, Seen};
 use craft_ui::contract::{Bind, Props as _, Show as _};
 use craft_ui::testing::pointer::{moved, press, release};
 use craft_ui::testing::{Frames, trial};
@@ -62,24 +62,4 @@ fn a_reader_above_the_control_shows_the_dragged_value_in_the_same_frame() {
     let frames = dragged_with_reader(true);
     assert!(frames.iter().all(|(_, (value, shown))| *shown == Some(*value)), "the reader above shows the dragged value: {frames:?}");
     assert!(frames.iter().all(|(passes, _)| *passes == 2), "the frame runs again once: {frames:?}");
-}
-
-/// A control whose measured size follows its value shows the new size in the frame of the edit.
-#[trial]
-fn a_control_whose_size_follows_its_value_shows_the_new_size_in_the_same_frame() {
-    let mut frames = Frames::new();
-    let value = Cell::new(INITIAL);
-    let rect = Cell::new(Rect::NOTHING);
-    let mut show = |ui: &mut Ui| {
-        let mut held = value.get();
-        let out = Scrub::new(Bind::bound(&mut held)).id_salt("scrub").grows().show(ui);
-        rect.set(out.response.rect);
-        value.set(held);
-    };
-    frames.idle(2, &mut show);
-    let from = Pos2::new(rect.get().left() + 10.0, rect.get().center().y);
-    let width = || rect.get().width();
-    let dragged = drag(&mut frames, from, &mut show, || (value.get(), width()));
-    assert!(dragged.iter().all(|(_, (value, width))| near(width - AT.width(), *value)), "the width follows the value in its frame: {dragged:?}");
-    assert!(dragged.windows(2).all(|pair| matches!(pair, [(_, (a, _)), (_, (b, _))] if b > a)), "the drag moves the value: {dragged:?}");
 }

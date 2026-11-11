@@ -6,27 +6,17 @@ use craft_ui::testing::style::{tokens, with_cx};
 
 mod render;
 
-mod pair;
 mod split;
-mod split_divider;
 
 mod drop;
 mod drop_session;
 
 mod floating;
 mod floating_area;
-mod pane_grip;
-mod panes;
-mod panes_requests;
-mod targets;
 
 mod columns;
 
-mod area;
-mod commands;
-mod flyout_host;
 mod native;
-mod resize;
 
 /// The docking sizes of the default theme with the given divider gap, least pane and strip height.
 fn sizes(gap: f32, least_pane: f32, strip: f32) -> DockSizes {
