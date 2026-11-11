@@ -14,10 +14,60 @@ use crate::resolve::Index;
 use crate::structure::{LAYERS_DIR, mapped_crates, structure_findings};
 use crate::{Config, Error, Finding, exempt_sites};
 
-/// Types whose cases or fields are fixed by meaning (spec 24.1, `api/non-exhaustive`).
-const CLOSED: [&str; 9] = ["Mixed", "Politeness", "Numeric", "HitPriority", "ScrollPos", "PartRef", "SetPosition", "States", "StateMix"];
+/// Types whose cases or fields are fixed (spec 24.1, `api/non-exhaustive`): by meaning, or because a higher crate
+/// of the library builds them with a struct expression or matches them exhaustively.
+const CLOSED: &[&str] = &[
+    // Fixed by meaning.
+    "Mixed",
+    "Politeness",
+    "Numeric",
+    "HitPriority",
+    "ScrollPos",
+    "PartRef",
+    "SetPosition",
+    "States",
+    "StateMix",
+    "CollectionEvent", // built or matched in craft-ui-patterns
+    "ColumnAlign",     // built or matched in craft-ui-widgets
+    "ColumnEvent",     // built or matched in craft-ui-widgets
+    "DialogOutput",    // built or matched in craft-ui-canvas
+    "DocText",         // built or matched in craft-ui-widgets
+    "DockEvent",       // built or matched in craft-ui-patterns
+    "Drag",            // built or matched in craft-ui-canvas
+    "Drive",           // built or matched in craft-ui-widgets
+    "FirePhase",       // built or matched in craft-ui-canvas
+    "FocusPolicy",     // built or matched in craft-ui-canvas
+    "GridEvent",       // built or matched in craft-ui-patterns
+    "GroupAt",         // built or matched in craft-ui-patterns
+    "GroupItem",       // built or matched in craft-ui-patterns
+    "Guide",           // built or matched in craft-ui-canvas
+    "GuideColor",      // built or matched in craft-ui-patterns
+    "GuideLine",       // built or matched in craft-ui-canvas
+    "HAlign",          // built or matched in craft-ui-widgets
+    "HostAnswer",      // built or matched in craft-ui-patterns
+    "IconSpec",        // built or matched in craft-ui-widgets
+    "Inner",           // built or matched in craft-ui-panels
+    "MenuKey",         // built or matched in craft-ui-widgets
+    "Mount",           // built or matched in craft-ui-panels
+    "OpenChange",      // built or matched in craft-ui-patterns
+    "OuterEdit",       // built or matched in craft-ui-widgets
+    "Pending",         // built or matched in craft-ui-canvas
+    "ProxyColor",      // built or matched in craft-ui-patterns
+    "ReorderMove",     // built or matched in craft-ui-patterns
+    "RowState",        // built or matched in craft-ui-widgets
+    "RuleLook",        // built or matched in craft-ui-canvas
+    "ShellRegions",    // built or matched in craft-ui-shell
+    "SizeLimits",      // built or matched in craft-ui-panels
+    "StoryOutput",     // built or matched in craft-ui-widgets
+    "SurfaceStyle",    // built or matched in craft-ui-widgets
+    "Target",          // built or matched in craft-ui-canvas
+    "TextOptions",     // built or matched in craft-ui-widgets
+    "ToastEnd",        // built or matched in craft-ui-widgets
+    "TrackLook",       // built or matched in craft-ui-widgets
+    "VariantParts",    // built or matched in craft-ui-widgets
+];
 
-/// Permission keys whose only allowed location is craft-ui's `runtime::egui`.
+/// Permission keys whose only allowed location is craft-ui-contract's `runtime::egui`.
 const EGUI_KEYS: [&str; 9] = [
     "contract/egui-import",
     "contract/allocate",
@@ -43,18 +93,26 @@ const fn place(krate: &'static str, module: &'static [&'static str]) -> Place {
 /// The locations that may use what `key` forbids. A key not listed here is allowed nowhere.
 fn places(key: &str) -> Vec<Place> {
     match key {
-        k if EGUI_KEYS.contains(&k) => vec![place("craft-ui", &["runtime", "egui"])],
-        "style-mutation" => vec![place("craft-ui", &["runtime", "egui", "style"]), place("craft-ui", &["runtime", "egui", "scale"])],
-        "contract/text-edit" => {
-            vec![place("craft-ui", &["runtime", "egui"]), place("craft-ui", &["primitives", "text_adapter"]), place("craft-ui", &["testing"])]
+        k if EGUI_KEYS.contains(&k) => vec![place("craft-ui-contract", &["runtime", "egui"])],
+        "style-mutation" => {
+            vec![place("craft-ui-contract", &["runtime", "egui", "style"]), place("craft-ui-contract", &["runtime", "egui", "scale"])]
         }
-        "contract/memory" => vec![place("craft-ui", &["runtime", "egui", "memory"])],
-        "contract/layers" => vec![place("craft-ui", &["runtime", "egui", "areas"])],
-        "contract/motion:clock" => vec![place("craft-ui", &["runtime", "motion"])],
+        "contract/text-edit" => {
+            vec![
+                place("craft-ui-contract", &["runtime", "egui"]),
+                place("craft-ui-contract", &["primitives", "text_adapter"]),
+                place("craft-ui-contract", &["testing"]),
+            ]
+        }
+        "contract/memory" => vec![place("craft-ui-contract", &["runtime", "egui", "memory"])],
+        "contract/layers" => vec![place("craft-ui-contract", &["runtime", "egui", "areas"])],
+        "contract/motion:clock" => vec![place("craft-ui-contract", &["runtime", "motion"])],
         "contract/platform:target" => vec![place("craft-platform", &[]), place("craft-host", &["target"])],
-        "behavior/pipeline-only" => vec![place("craft-ui", &["contract"]), place("craft-ui", &["primitives"]), place("craft-ui", &["edit"])],
-        k if k.starts_with("style/") => vec![place("craft-ui", &["style"])],
-        "test/kit" => vec![place("craft-ui", &["testing"])],
+        "behavior/pipeline-only" => {
+            vec![place("craft-ui-contract", &["contract"]), place("craft-ui-contract", &["primitives"]), place("craft-ui-widgets", &["edit"])]
+        }
+        k if k.starts_with("style/") => vec![place("craft-ui-contract", &["style"])],
+        "test/kit" => vec![place("craft-ui-contract", &["testing"])],
         _ => Vec::new(),
     }
 }
