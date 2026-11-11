@@ -85,23 +85,6 @@ impl Offer {
     }
 }
 
-/// How an installation ends in [`Updater::finish_install_for_tests`].
-#[cfg(feature = "screen-testing")]
-#[derive(Clone, Debug, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum TestInstall {
-    /// The installer succeeds.
-    Done,
-    /// The installer fails with this message.
-    Failed(String),
-    /// The worker panics.
-    Panicked,
-    /// The worker goes away without an answer.
-    Dropped,
-    /// The installation keeps running.
-    Running,
-}
-
 /// Why an installation failed: the installer's own words, shown as they are, or the updater's,
 /// shown in the interface language.
 #[derive(Debug)]
@@ -559,11 +542,6 @@ fn prompt_id() -> craft_ui::dialog::DialogId {
 
 #[cfg(feature = "screen-testing")]
 impl Updater {
-    /// The version the updater treats as running: the one it was given, or the app's pretend version.
-    pub fn version(&self) -> &str {
-        &self.version
-    }
-
     /// Ticks until the running check has reported (tests).
     pub fn settle_for_tests(&mut self, ctx: &egui::Context) {
         use std::time::Duration;
@@ -574,21 +552,6 @@ impl Updater {
             self.tick(ctx);
             std::thread::sleep(Duration::from_millis(5));
         }
-    }
-
-    /// Makes `release` the installation in progress, ended as `outcome` says by the next [`Updater::tick`] (tests).
-    pub fn finish_install_for_tests(&mut self, release: Release, outcome: TestInstall) {
-        let (tx, rx) = channel();
-        match outcome {
-            TestInstall::Done => drop(tx.send(Ok(()))),
-            TestInstall::Failed(message) => drop(tx.send(Err(Failure::Installer(message)))),
-            TestInstall::Panicked => drop(tx.send(Err(Failure::panicked()))),
-            TestInstall::Dropped => drop(tx),
-            TestInstall::Running => {
-                let _ = Box::leak(Box::new(tx));
-            }
-        }
-        self.install = Some((rx, release));
     }
 }
 

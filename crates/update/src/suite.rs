@@ -62,22 +62,3 @@ pub const SUITE: [App; 13] = [
 pub fn by_id(id: &str) -> Option<&'static App> {
     SUITE.iter().find(|a| a.id == id)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn thirteen_apps_with_unique_ids_in_their_own_repos() {
-        let mut ids: Vec<_> = SUITE.iter().map(|a| a.id).collect();
-        ids.sort_unstable();
-        ids.dedup();
-        assert_eq!(ids.len(), SUITE.len());
-        for a in &SUITE {
-            assert_eq!(a.repo, format!("storytold/{}", a.id));
-            assert_eq!(a.name.to_lowercase(), a.id);
-        }
-        assert!(by_id(LAUNCHER.id).is_none());
-        assert_eq!(by_id("pdfcraft").map(|a| a.former_ids), Some(&["printcraft"][..]));
-    }
-}

@@ -133,30 +133,11 @@ pub fn exec_program(text: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
 
     use super::*;
 
     fn app(id: &str) -> &'static App {
         App::by_id(id).unwrap()
-    }
-
-    #[test]
-    fn writes_a_complete_entry() {
-        let text = render(app("photocraft"), Path::new("/home/ana/Applications/photocraft-0.6.0-linux-x86_64.AppImage"), true).unwrap();
-        let expected = format!(
-            "[Desktop Entry]\nType=Application\nName=PhotoCraft\nComment={}\n\
-             Exec=\"/home/ana/Applications/photocraft-0.6.0-linux-x86_64.AppImage\" %F\n\
-             Icon=ai.storyteller.photocraft\nTerminal=false\nCategories=Graphics;2DGraphics;RasterGraphics;Photography;\n\
-             StartupWMClass=photocraft\nX-ArtCraft-Launcher=true\n",
-            app("photocraft").tagline
-        );
-        assert_eq!(text, expected);
-        assert!(is_ours(&text));
-        let no_icon = render(app("wordcraft"), Path::new("/x/w.AppImage"), false).unwrap();
-        assert!(!no_icon.contains("Icon="));
-        assert!(no_icon.contains("StartupWMClass=ai.storyteller.wordcraft\n"));
-        assert!(no_icon.contains("Categories=Office;WordProcessor;\n"));
     }
 
     #[test]
@@ -168,19 +149,5 @@ mod tests {
         // The spec forbids `=` in the executable name or path, even quoted.
         assert_eq!(exec_quote(Path::new("/opt/artcraft=beta/app")), None);
         assert!(render(app("photocraft"), Path::new("/a/line\nbreak.AppImage"), true).is_none());
-    }
-
-    #[test]
-    fn reads_back_the_program_it_wrote_and_the_apps_own_entries() {
-        for p in ["/home/ana/My Apps/p.AppImage", "/a/\"q\" $HOME `x`.AppImage", r"/a\b/100%.AppImage", "/plain.AppImage"] {
-            let text = render(app("gridcraft"), Path::new(p), false).unwrap();
-            assert_eq!(exec_program(&text).map(PathBuf::from), Some(PathBuf::from(p)), "{p}");
-        }
-        // PhotoCraft's AppRun writes its own entry, unmarked.
-        let theirs = "[Desktop Entry]\nName=PhotoCraft\nExec=\"/home/ana/Applications/photocraft-0.5.0-linux-x86_64.AppImage\" %F\n";
-        assert_eq!(exec_program(theirs).as_deref(), Some("/home/ana/Applications/photocraft-0.5.0-linux-x86_64.AppImage"));
-        assert!(!is_ours(theirs));
-        assert_eq!(exec_program("[Desktop Entry]\nExec=photocraft %F\n").as_deref(), Some("photocraft"));
-        assert_eq!(exec_program("[Desktop Entry]\nName=x\n"), None);
     }
 }

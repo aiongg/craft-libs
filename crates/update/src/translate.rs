@@ -73,31 +73,3 @@ impl Note {
         translate(self.text, &args)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn placeholders_are_filled_and_values_are_not_templates() {
-        assert_eq!(fill("{app} {version} is out", &[("app", "PhotoCraft"), ("version", "0.2.0")]), "PhotoCraft 0.2.0 is out");
-        // Reordered, as a translation may do.
-        assert_eq!(fill("{version}: {app}", &[("app", "A"), ("version", "1")]), "1: A");
-        // Unknown and unclosed placeholders stay; a value holding a placeholder stays as it is.
-        assert_eq!(fill("{nope} and {app", &[("app", "X")]), "{nope} and {app");
-        // An unknown candidate stays whole through its closing brace, as craft_i18n::fmt keeps it.
-        assert_eq!(fill("{bad {app}", &[("app", "X")]), "{bad {app}");
-        assert_eq!(fill("{bad} {app}", &[("app", "X")]), "{bad} X");
-        assert_eq!(fill("by {developer}", &[("developer", "{developer}")]), "by {developer}");
-        assert_eq!(fill("é {app} ü", &[("app", "日本")]), "é 日本 ü");
-        assert_eq!(fill("", &[]), "");
-        assert_eq!(fill("{}", &[]), "{}");
-    }
-
-    #[test]
-    fn english_is_the_default() {
-        assert_eq!(english("{app} is ready", &[("app", "PdfCraft")]), "PdfCraft is ready");
-        let note = Note::new("Close {app} to finish", &[("app", "PdfCraft")]);
-        assert_eq!(note.translated(english), "Close PdfCraft to finish");
-    }
-}

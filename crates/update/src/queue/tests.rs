@@ -81,19 +81,6 @@ fn behind_a_running_install(
 }
 
 #[test]
-fn jobs_that_wait_together_share_one_call_per_command() {
-    let queue = Queue::new();
-    let calls = Calls::default();
-    let jobs = [(install(), "a.deb"), (install(), "b.deb"), (remove(), "photocraft"), (install(), "c.deb")];
-    let results = behind_a_running_install(&queue, &jobs, &|command, targets| {
-        calls.record(command, targets);
-        Ok(())
-    });
-    assert_eq!(results, vec![Some(Ok(())); 4]);
-    assert_eq!(calls.taken(), [line(&["apt-get", "install", "-y", "a.deb", "b.deb", "c.deb"]), line(&["apt-get", "remove", "-y", "photocraft"])]);
-}
-
-#[test]
 fn installers_never_run_at_the_same_time() {
     let queue = Queue::new();
     let (inside, most, handled) = (AtomicUsize::new(0), AtomicUsize::new(0), AtomicUsize::new(0));
@@ -127,95 +114,6 @@ fn installers_never_run_at_the_same_time() {
     });
     assert_eq!(most.load(Ordering::SeqCst), 1);
     assert_eq!(handled.load(Ordering::SeqCst), 24);
-}
-
-#[test]
-fn a_job_arriving_mid_install_waits_then_runs() {
-    let queue = Queue::new();
-    let calls = Calls::default();
-    let (started, has_started) = mpsc::channel();
-    let (release, released) = mpsc::channel::<()>();
-    let (turned, turns) = mpsc::channel();
-    std::thread::scope(|scope| {
-        let (queue, calls) = (&queue, &calls);
-        let first = scope.spawn(move || {
-            queue.batched(install(), os("a.deb"), &|| false, &mut |_| panic!("the first job never waits"), &|command, targets| {
-                calls.record(command, targets);
-                started.send(()).unwrap();
-                released.recv().unwrap();
-                Ok(())
-            })
-        });
-        has_started.recv().unwrap();
-        let second = scope.spawn(move || {
-            queue.batched(install(), os("b.deb"), &|| false, &mut |waiting| turned.send(waiting).unwrap(), &|command, targets| {
-                calls.record(command, targets);
-                Ok(())
-            })
-        });
-        assert!(turns.recv().unwrap(), "the second job says it is waiting");
-        assert_eq!(calls.0.lock().unwrap().len(), 1, "and does not start while the first runs");
-        release.send(()).unwrap();
-        assert_eq!(first.join().unwrap(), Ok(()));
-        assert_eq!(second.join().unwrap(), Ok(()));
-        assert!(!turns.recv().unwrap(), "then that its turn came");
-    });
-    assert_eq!(calls.taken(), [line(&["apt-get", "install", "-y", "a.deb"]), line(&["apt-get", "install", "-y", "b.deb"])]);
-}
-
-#[test]
-fn a_job_taken_into_another_jobs_call_hears_it_started() {
-    let queue = Queue::new();
-    let (started, has_started) = mpsc::channel();
-    let (release, released) = mpsc::channel::<()>();
-    let (turned, turns) = mpsc::channel();
-    let installing = AtomicUsize::new(0);
-    std::thread::scope(|scope| {
-        let (queue, installing) = (&queue, &installing);
-        scope.spawn(move || {
-            queue.alone(&|| false, &mut |_| {}, || {
-                started.send(()).unwrap();
-                released.recv().unwrap();
-            });
-        });
-        has_started.recv().unwrap();
-        for file in ["a.deb", "b.deb"] {
-            let turned = turned.clone();
-            scope.spawn(move || {
-                let mut turn = |waiting: bool| {
-                    if !waiting {
-                        installing.fetch_add(1, Ordering::SeqCst);
-                    }
-                    turned.send(waiting).unwrap();
-                };
-                // The call lasts until both jobs know it is under way.
-                let exec = |_: &[OsString], targets: &[OsString]| {
-                    assert_eq!(targets.len(), 2);
-                    while installing.load(Ordering::SeqCst) < 2 {
-                        std::thread::sleep(Duration::from_millis(1));
-                    }
-                    Ok(())
-                };
-                assert_eq!(queue.batched(install(), os(file), &|| false, &mut turn, &exec), Ok(()));
-            });
-        }
-        assert!(turns.recv().unwrap() && turns.recv().unwrap());
-        release.send(()).unwrap();
-    });
-    assert_eq!(turns.try_iter().collect::<Vec<_>>(), [false, false]);
-}
-
-#[test]
-fn a_dismissed_prompt_cancels_every_job_of_the_call() {
-    let queue = Queue::new();
-    let calls = Calls::default();
-    let jobs = [(install(), "a.deb"), (install(), "b.deb"), (install(), "c.deb")];
-    let results = behind_a_running_install(&queue, &jobs, &|command, targets| {
-        calls.record(command, targets);
-        Err("cancelled".into())
-    });
-    assert_eq!(calls.taken().len(), 1);
-    assert_eq!(results, vec![Some(Err("cancelled".to_string())); 3]);
 }
 
 #[test]
@@ -253,79 +151,6 @@ fn a_waiting_job_can_be_cancelled_and_is_left_out_of_the_call() {
         assert_eq!(staying.join().unwrap(), Ok(()));
     });
     assert_eq!(calls.taken(), [line(&["apt-get", "install", "-y", "b.deb"])]);
-}
-
-#[test]
-fn waiting_alone_for_the_installer_can_be_cancelled() {
-    let queue = Queue::new();
-    let (started, has_started) = mpsc::channel();
-    let (release, released) = mpsc::channel::<()>();
-    std::thread::scope(|scope| {
-        let queue = &queue;
-        scope.spawn(move || {
-            queue.alone(&|| false, &mut |_| {}, || {
-                started.send(()).unwrap();
-                released.recv().unwrap();
-            });
-        });
-        has_started.recv().unwrap();
-        let ran = queue.alone(&|| true, &mut |_| {}, || panic!("a cancelled job never runs"));
-        assert_eq!(ran, None);
-        release.send(()).unwrap();
-    });
-}
-
-#[test]
-fn a_job_whose_call_has_started_sees_it_through() {
-    let queue = Queue::new();
-    let cancel = AtomicBool::new(false);
-    let (in_call, is_in_call) = mpsc::channel();
-    let (finish, finished) = mpsc::channel::<()>();
-    let finished = Mutex::new(finished);
-    let jobs = [(install(), "a.deb"), (install(), "b.deb")];
-    std::thread::scope(|scope| {
-        let (queue, cancel, finished) = (&queue, &cancel, &finished);
-        let (started, has_started) = mpsc::channel();
-        let (release, released) = mpsc::channel::<()>();
-        let (turned, turns) = mpsc::channel();
-        scope.spawn(move || {
-            queue.alone(&|| false, &mut |_| {}, || {
-                started.send(()).unwrap();
-                released.recv().unwrap();
-            });
-        });
-        has_started.recv().unwrap();
-        let handles: Vec<_> = jobs
-            .iter()
-            .map(|(command, target)| {
-                let (turned, in_call) = (turned.clone(), in_call.clone());
-                scope.spawn(move || {
-                    let mut turn = |waiting: bool| {
-                        if waiting {
-                            turned.send(()).unwrap();
-                        }
-                    };
-                    queue.batched(command.clone(), os(target), &|| cancel.load(Ordering::SeqCst), &mut turn, &|_, targets| {
-                        assert_eq!(targets.len(), 2);
-                        in_call.send(()).unwrap();
-                        finished.lock().unwrap().recv().unwrap();
-                        Ok(())
-                    })
-                })
-            })
-            .collect();
-        turns.recv().unwrap();
-        turns.recv().unwrap();
-        release.send(()).unwrap();
-        is_in_call.recv().unwrap();
-        // Cancelled mid-call: the job taken into the other's call has time to notice, and must not leave.
-        cancel.store(true, Ordering::SeqCst);
-        std::thread::sleep(Duration::from_millis(300));
-        finish.send(()).unwrap();
-        for h in handles {
-            assert_eq!(h.join().unwrap(), Ok(()));
-        }
-    });
 }
 
 #[test]

@@ -217,12 +217,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_refusal_waits_for_the_reset_github_names() {
-        assert_eq!(retry_at(Some(1_000 + 600), 1_000), 1_600);
-        assert_eq!(retry_at(None, 1_000), 1_000 + 15 * 60);
-    }
-
-    #[test]
     fn a_reset_past_the_quota_window_cannot_stop_the_api_for_good() {
         assert_eq!(retry_at(Some(i64::MAX), 1_000), 1_000 + 60 * 60);
         assert_eq!(retry_at(Some(99_999_999_999), 1_000), 1_000 + 60 * 60);

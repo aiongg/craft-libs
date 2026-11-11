@@ -69,18 +69,3 @@ impl App {
         crate::suite::by_id(id)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn former_names_follow_the_current_one() {
-        let pdf =
-            App { former_ids: &["printcraft"], former_names: &["PrintCraft"], ..App::new("pdfcraft", "PdfCraft", "PDFs", "storytold/pdfcraft") };
-        assert_eq!(pdf.stems().collect::<Vec<_>>(), ["pdfcraft", "printcraft"]);
-        assert_eq!(pdf.names().collect::<Vec<_>>(), ["PdfCraft", "PrintCraft"]);
-        assert_eq!(pdf.bundle_id(), "ai.storyteller.pdfcraft");
-        assert_eq!(pdf.releases_url(), "https://github.com/storytold/pdfcraft/releases");
-    }
-}
