@@ -55,19 +55,19 @@ fn app_tabs_switch_and_report_changes() {
 
     let menus = fixture.by_label("Menus").unwrap_or_else(|| panic!("the Menus tab"));
     fixture.click(&menus);
-    fixture.idle(3);
+    fixture.settle();
     assert!(fixture.by_label("Menu colours").is_some());
     assert_eq!(tab(&host), Some("menus".to_string()));
 
     fixture.key(Key::Tab, Modifiers::CTRL);
-    fixture.idle(3);
+    fixture.settle();
     assert!(fixture.by_label("Menu colours").is_none(), "Ctrl+Tab wraps to Keyboard Shortcuts");
     fixture.key(Key::Tab, Modifiers::CTRL | Modifiers::SHIFT);
-    fixture.idle(3);
+    fixture.settle();
     assert!(fixture.by_label("Menu colours").is_some(), "Ctrl+Shift+Tab goes back");
 
     let change = fixture.by_label("Change colour").unwrap_or_else(|| panic!("the tab's button"));
     fixture.click(&change);
-    fixture.idle(3);
+    fixture.settle();
     assert!(host.borrow().outcomes.iter().any(|o| matches!(o, Outcome::Changed)));
 }
