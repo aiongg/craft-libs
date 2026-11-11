@@ -30,6 +30,12 @@ use crate::source::{is_source_url, safe_dir, safe_file_name, slug};
 use crate::sources::{MAX_SOURCES_BYTES, SourceEntry, SourcesFile};
 use crate::verify::{VerifyError, is_font, sha256_hex, verify_font};
 
+mod sources;
+mod transaction;
+
+pub(crate) use transaction::Stage;
+use transaction::{Commit, merge_entry};
+
 const SETTINGS: &str = "settings.json";
 const MANIFEST: &str = "manifest.json";
 pub(crate) const INDEX_CACHE: &str = "indexes";
@@ -211,7 +217,7 @@ pub struct Problem {
 
 /// The suite's font store.
 ///
-/// Nothing here touches the network on its own: only [`FontStore::fetch_index`] and the installs
+/// Nothing here touches the network on its own: only [`FontStore::fetch_indexes`] and the installs
 /// do, and only while the user has turned the network on.
 pub struct FontStore {
     dir: PathBuf,
@@ -264,197 +270,6 @@ impl FontStore {
     /// Who drives this store.
     pub fn caller(&self) -> Caller {
         self.caller
-    }
-
-    // ----- consent
-
-    /// The user's setting; [`Network::Off`] when it was never set or can't be read.
-    pub fn network(&self) -> Network {
-        self.settings().network
-    }
-
-    fn settings(&self) -> Settings {
-        read_limited(&self.dir.join(SETTINGS), MAX_SETTINGS_BYTES).and_then(|b| serde_json::from_slice::<Settings>(&b).ok()).unwrap_or_default()
-    }
-
-    /// Turns downloading on: call it only from the user's own action (a setting, an Install
-    /// click). [`Error::NotAllowed`] for an agent.
-    pub fn enable_network(&self) -> Result<(), Error> {
-        if self.caller != Caller::User {
-            return Err(Error::NotAllowed);
-        }
-        self.change_settings(|s| s.network = Network::On)
-    }
-
-    /// Turns downloading off. Anyone may.
-    pub fn disable_network(&self) -> Result<(), Error> {
-        self.change_settings(|s| s.network = Network::Off)
-    }
-
-    fn change_settings(&self, change: impl FnOnce(&mut Settings)) -> Result<(), Error> {
-        let _lock = self.lock()?;
-        let mut settings = self.settings();
-        change(&mut settings);
-        let bytes = serde_json::to_vec_pretty(&settings).map_err(|e| io("saving the setting")(std::io::Error::other(e)))?;
-        self.write_file(SETTINGS, &bytes)
-    }
-
-    // ----- sources the user added
-
-    /// The sources the user added, in the order added.
-    pub fn user_sources(&self) -> Vec<UserSource> {
-        self.settings().user_sources
-    }
-
-    /// Adds an index file at `url` as a source, from the user's own action; the next
-    /// [`FontStore::fetch_indexes`] downloads it. Its families are never curated.
-    /// [`Error::NotAllowed`] for an agent.
-    pub fn add_user_source(&self, url: &str) -> Result<(), Error> {
-        if self.caller != Caller::User {
-            return Err(Error::NotAllowed);
-        }
-        let url = url.trim();
-        if !is_source_url(url) {
-            return Err(Error::BadUrl(url.chars().take(200).collect()));
-        }
-        let added_at = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).map_or(0, |d| d.as_secs());
-        self.change_settings(|s| {
-            if !s.user_sources.iter().any(|u| u.url == url) && s.user_sources.len() < MAX_USER_SOURCES {
-                s.user_sources.push(UserSource { url: url.to_string(), added_at, last_sha256: None });
-            }
-        })
-    }
-
-    /// Removes a source the user added, and its cached index. Families installed from it stay
-    /// installed.
-    pub fn remove_user_source(&self, url: &str) -> Result<(), Error> {
-        self.change_settings(|s| s.user_sources.retain(|u| u.url != url))?;
-        let _ = std::fs::remove_file(self.user_cache(url));
-        Ok(())
-    }
-
-    fn user_cache(&self, url: &str) -> PathBuf {
-        let key: String = sha256_hex(url.as_bytes()).chars().take(16).collect();
-        self.dir.join(INDEX_CACHE).join(format!("user-{key}"))
-    }
-
-    pub(crate) fn require_network(&self) -> Result<(), Error> {
-        if self.network() == Network::On { Ok(()) } else { Err(Error::NetworkOff) }
-    }
-
-    // ----- index
-
-    /// The indexes saved by the last [`FontStore::fetch_indexes`], when its `sources.json` is
-    /// `pin`'s and every built-in index matches it, with the sources the user added.
-    pub fn cached_indexes(&self, pin: &IndexPin) -> Option<Index> {
-        let cache = self.dir.join(INDEX_CACHE);
-        let bytes = read_limited(&cache.join(SOURCES_CACHE), MAX_SOURCES_BYTES as u64)?;
-        if sha256_hex(&bytes) != pin.sha256 {
-            return None;
-        }
-        let sources = SourcesFile::from_json(&bytes).ok()?;
-        let mut parts = Vec::new();
-        for entry in &sources.indexes {
-            let bytes = read_limited(&cache.join(builtin_cache_name(entry)), MAX_INDEX_BYTES as u64)?;
-            parts.push(entry.read(&bytes, entry.gz().is_some()).ok()?);
-        }
-        let (users, problems) = self.cached_user_indexes();
-        Some(Index::merge(parts.into_iter().chain(users)).with_problems(problems))
-    }
-
-    /// The indexes without a request: the built-in ones compiled in, with the sources the user
-    /// added as last fetched.
-    #[cfg(feature = "bundled-index")]
-    pub fn offline_indexes(&self) -> Index {
-        let (users, mut problems) = self.cached_user_indexes();
-        let builtin = Index::bundled().unwrap_or_else(|e| {
-            problems.insert(0, SourceProblem { source: "sources.json".into(), name: "Built-in sources".into(), error: e.to_string() });
-            Index::default()
-        });
-        Index::merge(std::iter::once(builtin).chain(users)).with_problems(problems)
-    }
-
-    fn cached_user_indexes(&self) -> (Vec<Index>, Vec<SourceProblem>) {
-        let mut indexes = Vec::new();
-        let mut problems = Vec::new();
-        for user in self.user_sources() {
-            let problem = |error: String| SourceProblem { source: user.url.clone(), name: user.url.clone(), error };
-            let Some(bytes) = read_limited(&self.user_cache(&user.url), MAX_INDEX_BYTES as u64) else {
-                problems.push(problem("not downloaded yet".into()));
-                continue;
-            };
-            match user_index(&bytes, &user) {
-                Ok(index) => indexes.push(index),
-                Err(e) => problems.push(problem(e.to_string())),
-            }
-        }
-        (indexes, problems)
-    }
-
-    /// Downloads `sources.json` as `pin` names it, every index it lists and every source the user
-    /// added, checks them and saves them for [`FontStore::cached_indexes`]. Needs the network on.
-    ///
-    /// An index that fails leaves the others usable: it is reported in [`Index::problems`]. Only
-    /// a `sources.json` that can't be had fails the whole call.
-    pub fn fetch_indexes(&self, pin: &IndexPin, cancel: &Cancel) -> Result<Index, Error> {
-        self.require_network()?;
-        let check = |bytes: &[u8]| if sha256_hex(bytes) == pin.sha256 { Ok(()) } else { Err(VerifyError::Sha256) };
-        let bytes = self.fetch(&pin.urls(), MAX_SOURCES_BYTES as u64, "sources.json", cancel, &mut |_| {}, &check)?;
-        let sources = SourcesFile::from_json(&bytes)?;
-        let cache = self.dir.join(INDEX_CACHE);
-        std::fs::create_dir_all(&cache).map_err(io("creating the index folder"))?;
-        let mut parts = Vec::new();
-        let mut problems = Vec::new();
-        for entry in &sources.indexes {
-            match self.fetch_builtin(pin, entry, cancel) {
-                Ok(index) => parts.push(index),
-                Err(Error::Cancelled) => return Err(Error::Cancelled),
-                Err(e) => problems.push(SourceProblem { source: entry.source.clone(), name: entry.name.clone(), error: e.to_string() }),
-            }
-        }
-        self.write_file(&format!("{INDEX_CACHE}/{SOURCES_CACHE}"), &bytes)?;
-        for user in self.user_sources() {
-            match self.fetch_user(&user, cancel) {
-                Ok(index) => parts.push(index),
-                Err(Error::Cancelled) => return Err(Error::Cancelled),
-                Err(e) => problems.push(SourceProblem { source: user.url.clone(), name: user.url.clone(), error: e.to_string() }),
-            }
-        }
-        Ok(Index::merge(parts).with_problems(problems))
-    }
-
-    fn fetch_builtin(&self, pin: &IndexPin, entry: &SourceEntry, cancel: &Cancel) -> Result<Index, Error> {
-        let (path, size, sha256) = entry.gz().unwrap_or((&entry.path, entry.size, &entry.sha256));
-        let check = |bytes: &[u8]| {
-            if bytes.len() as u64 != size {
-                Err(VerifyError::Size { expected: size, actual: bytes.len() as u64 })
-            } else if sha256_hex(bytes) != sha256 {
-                Err(VerifyError::Sha256)
-            } else {
-                Ok(())
-            }
-        };
-        let bytes = self.fetch(&pin.file_urls(path), size, &entry.name, cancel, &mut |_| {}, &check)?;
-        let index = entry.read(&bytes, entry.gz().is_some())?;
-        self.write_file(&format!("{INDEX_CACHE}/{}", builtin_cache_name(entry)), &bytes)?;
-        Ok(index)
-    }
-
-    fn fetch_user(&self, user: &UserSource, cancel: &Cancel) -> Result<Index, Error> {
-        let bytes = self.fetch(std::slice::from_ref(&user.url), MAX_INDEX_BYTES as u64, &user.url, cancel, &mut |_| {}, &|_| Ok(()))?;
-        let index = user_index(&bytes, user)?;
-        if let Some(name) = self.user_cache(&user.url).file_name().and_then(|n| n.to_str()) {
-            self.write_file(&format!("{INDEX_CACHE}/{name}"), &bytes)?;
-        }
-        if user.last_sha256.is_none() {
-            let sha = sha256_hex(&bytes);
-            self.change_settings(|s| {
-                if let Some(u) = s.user_sources.iter_mut().find(|u| u.url == user.url && u.last_sha256.is_none()) {
-                    u.last_sha256 = Some(sha);
-                }
-            })?;
-        }
-        Ok(index)
     }
 
     // ----- install
@@ -705,95 +520,6 @@ impl FontStore {
         }
         problems
     }
-
-    // ----- folder
-
-    fn rescan(&self) {
-        if let Some(catalog) = &self.catalog {
-            catalog.rescan();
-        }
-    }
-
-    pub(crate) fn lock(&self) -> Result<File, Error> {
-        std::fs::create_dir_all(&self.dir).map_err(io("creating the font store folder"))?;
-        let file = File::options().create(true).truncate(false).write(true).open(self.dir.join(LOCK)).map_err(io("locking the font store"))?;
-        file.lock().map_err(io("locking the font store"))?;
-        Ok(file)
-    }
-
-    /// The manifest, without entries that aren't safe to act on. A manifest that can't be read
-    /// is kept aside as `manifest.json.bad` and counts as empty.
-    fn read_manifest(&self) -> Manifest {
-        let path = self.dir.join(MANIFEST);
-        let Some(bytes) = read_limited(&path, MAX_MANIFEST_BYTES) else { return Manifest::default() };
-        let Ok(mut manifest) = serde_json::from_slice::<Manifest>(&bytes) else {
-            let _ = std::fs::rename(&path, self.dir.join("manifest.json.bad"));
-            return Manifest::default();
-        };
-        manifest
-            .families
-            .retain(|f| safe_dir(&f.dir) && f.files.iter().all(|x| safe_file_name(&x.name)) && f.license_file.as_deref().is_none_or(safe_file_name));
-        manifest
-    }
-
-    fn write_manifest(&self, manifest: &Manifest) -> Result<(), Error> {
-        let manifest = Manifest { version: 1, families: manifest.families.clone() };
-        let bytes = serde_json::to_vec_pretty(&manifest).map_err(|e| io("saving the manifest")(std::io::Error::other(e)))?;
-        self.write_file(MANIFEST, &bytes)
-    }
-
-    pub(crate) fn write_file(&self, name: &str, bytes: &[u8]) -> Result<(), Error> {
-        std::fs::create_dir_all(&self.dir).map_err(io("creating the font store folder"))?;
-        craft_atomic::atomic_write(&self.dir.join(name), bytes).map_err(io(format!("saving {name}")))
-    }
-
-    pub(crate) fn sweep_staging(&self) {
-        for e in std::fs::read_dir(self.dir.join(STAGING)).into_iter().flatten().flatten() {
-            let old = e.metadata().and_then(|m| m.modified()).is_ok_and(|t| SystemTime::now().duration_since(t).is_ok_and(|d| d > STALE));
-            if old {
-                let _ = std::fs::remove_dir_all(e.path());
-            }
-        }
-    }
-}
-
-/// The family's manifest entry after installing `files`, merged into `manifest`.
-fn merge_entry(manifest: &mut Manifest, index: &Index, family: &Family, files: &[&FontFile]) -> InstalledFamily {
-    let pos = match manifest.families.iter().position(|f| f.is(&family.source, &family.family)) {
-        Some(p) => p,
-        None => {
-            manifest.families.push(InstalledFamily {
-                family: family.family.clone(),
-                source: family.source.clone(),
-                dir: family.dir().to_string(),
-                license: family.license.clone(),
-                license_file: None,
-                files: Vec::new(),
-            });
-            manifest.families.len() - 1
-        }
-    };
-    let Some(entry) = manifest.families.get_mut(pos) else { return InstalledFamily::empty() };
-    entry.license.clone_from(&family.license);
-    let commit = index.source_of(family).map(|s| s.commit.clone()).unwrap_or_default();
-    if let Some(name) = family.license_file_name() {
-        entry.license_file = Some(name.to_string());
-    }
-    for f in files {
-        entry.files.retain(|x| x.name != f.file_name());
-        entry.files.push(InstalledFile {
-            name: f.file_name().to_string(),
-            path: f.path.clone(),
-            size: f.size,
-            sha256: f.sha256.clone(),
-            commit: commit.clone(),
-            postscript: f.postscript.clone(),
-        });
-    }
-    entry.files.sort_by(|a, b| a.name.cmp(&b.name));
-    let entry = entry.clone();
-    manifest.families.sort_by_key(|f| (f.family.to_lowercase(), f.source.clone()));
-    entry
 }
 
 impl InstalledFamily {
@@ -807,19 +533,6 @@ impl InstalledFamily {
     }
 }
 
-fn builtin_cache_name(entry: &SourceEntry) -> String {
-    format!("{}{}", slug(&entry.source), if entry.gz().is_some() { ".json.gz" } else { ".json" })
-}
-
-/// A user-added source's index from the bytes fetched from it.
-fn user_index(bytes: &[u8], user: &UserSource) -> Result<Index, IndexError> {
-    let mut index = Index::from_user_bytes(bytes, &user.url)?;
-    if user.last_sha256.as_ref().is_some_and(|h| *h != sha256_hex(bytes)) {
-        index.mark_changed();
-    }
-    Ok(index)
-}
-
 pub(crate) fn read_limited(path: &Path, max: u64) -> Option<Vec<u8>> {
     if std::fs::metadata(path).ok()?.len() > max {
         return None;
@@ -829,106 +542,4 @@ pub(crate) fn read_limited(path: &Path, max: u64) -> Option<Vec<u8>> {
 
 fn host(url: &str) -> &str {
     url.split("://").nth(1).and_then(|r| r.split('/').next()).unwrap_or(url)
-}
-
-/// A folder of downloads under `.staging`, deleted when dropped.
-pub(crate) struct Stage {
-    pub(crate) dir: PathBuf,
-}
-
-impl Stage {
-    pub(crate) fn new(store: &Path) -> Result<Self, Error> {
-        static N: AtomicU64 = AtomicU64::new(0);
-        let staging = store.join(STAGING);
-        std::fs::create_dir_all(&staging).map_err(io("creating a download folder"))?;
-        // A folder of that name may be another process's (PID namespaces in Flatpak or
-        // containers repeat ids) or a stale one: never touched here, the next name is taken
-        // (stale ones go in `sweep_staging`).
-        let mut last = None;
-        for _ in 0..1000 {
-            let dir = staging.join(format!("{}-{}", std::process::id(), N.fetch_add(1, Ordering::Relaxed)));
-            match std::fs::create_dir(&dir) {
-                Ok(()) => return Ok(Self { dir }),
-                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => last = Some(e),
-                Err(e) => return Err(io("creating a download folder")(e)),
-            }
-        }
-        Err(io("creating a download folder")(last.unwrap_or_else(|| std::io::Error::other("no free name"))))
-    }
-
-    /// Writes a verified download as `<name>.part`, which no font scan picks up.
-    fn write(&self, name: &str, bytes: &[u8]) -> Result<PathBuf, Error> {
-        let path = self.dir.join(format!("{name}.part"));
-        let write = || -> std::io::Result<()> {
-            let mut f = File::options().write(true).create_new(true).open(&path)?;
-            f.write_all(bytes)?;
-            f.sync_all()
-        };
-        write().map_err(io(format!("saving {name}")))?;
-        Ok(path)
-    }
-}
-
-impl Drop for Stage {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.dir);
-    }
-}
-
-/// Staged files moved into a family folder, undone unless kept.
-struct Commit {
-    folder: PathBuf,
-    created_folder: bool,
-    /// Each file moved in, and where the file it replaced went.
-    moved: Vec<(PathBuf, Option<PathBuf>)>,
-    kept: bool,
-}
-
-impl Commit {
-    fn apply(folder: &Path, stage: &Path, staged: &[(String, PathBuf)]) -> Result<Self, Error> {
-        let created_folder = !folder.is_dir();
-        let mut commit = Self { folder: folder.to_path_buf(), created_folder, moved: Vec::new(), kept: false };
-        std::fs::create_dir_all(folder).map_err(io("creating the family folder"))?;
-        for (name, from) in staged {
-            let dest = folder.join(name);
-            let backup = if dest.exists() {
-                let b = stage.join(format!("{name}.old"));
-                std::fs::rename(&dest, &b).map_err(io(format!("replacing {name}")))?;
-                Some(b)
-            } else {
-                None
-            };
-            if let Err(e) = std::fs::rename(from, &dest) {
-                if let Some(b) = &backup {
-                    let _ = std::fs::rename(b, &dest);
-                }
-                return Err(io(format!("installing {name}"))(e));
-            }
-            commit.moved.push((dest, backup));
-        }
-        Ok(commit)
-    }
-
-    fn keep(mut self) {
-        self.kept = true;
-    }
-
-    fn undo(self) {}
-}
-
-impl Drop for Commit {
-    fn drop(&mut self) {
-        if self.kept {
-            return;
-        }
-        for (dest, backup) in self.moved.iter().rev() {
-            let _ = std::fs::remove_file(dest);
-            if let Some(b) = backup {
-                let _ = std::fs::rename(b, dest);
-            }
-        }
-        if self.created_folder {
-            let _ = std::fs::remove_dir(&self.folder);
-        }
-    }
 }
