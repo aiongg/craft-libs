@@ -8,7 +8,7 @@ reference for theme authors and for app developers adopting the suite theme.
 |---|---|
 | [`craft-theme`](../crates/theme/README.md) | Token model, derivation, contrast rules, theme file format, built-ins, selection and its resolution. No egui, no I/O; builds for wasm. |
 | [`craft-theme-store`](../crates/theme-store/README.md) | The suite folder: user themes, `selection.json`, the lock/revision protocol and the change watcher. |
-| [`craft_ui::theme`](../crates/ui/README.md#theme-mechanisms) | The bridge to egui. |
+| [`craft_ui::style`](craft-framework.md#42-ownership) | The bridge to egui: `UiTokens`, `StyleCx` and the component styles that read them. |
 
 ## Tokens
 
@@ -19,8 +19,9 @@ derived.
    duration, easing, elevation).
 2. **Semantic tokens**: `surface.*`, `text.*`, `line.*`, `state.*`, `accent.*`, status, overlay,
    data and caption colours, plus shape, size, space, motion and type tokens.
-3. **Component tokens**: one struct per component family, such as `button.primary.fill.rest`.
-   Only curated fields can be overridden.
+3. **Component tokens**: the slider thumb's width and height (`slider.thumb_width`,
+   `slider.thumb_height`). Every other component computes its look from the semantic tokens, in
+   its style in `craft-ui`.
 
 `resolve(theme, appearance, app)` builds the tokens for one appearance: mode (light, dark),
 contrast (standard, high), size (compact, comfortable), text size (small, default, large and
@@ -42,7 +43,7 @@ the app's pins (`apps.<id>`), then the theme's high-contrast pins, then the app'
   "light": { "surface.panel": "#F0F0F0" },
   "dark":  { "surface.panel": "#535353" },
   "high_contrast": { "light": {}, "dark": {} },
-  "components": { "button.radius": 4 },
+  "components": { "slider.thumb_width": 12 },
   "apps": { "photocraft": { "light": {}, "dark": { "surface.canvas": "#282828" }, "high_contrast": {}, "components": {} } }
 }
 ```
@@ -59,12 +60,12 @@ the app's pins (`apps.<id>`), then the theme's high-contrast pins, then the app'
 | `shape` | no | `null`, or `{ "radius": { control, popup, window, panel, button, pill? }, "radius_offset": { control?, popup?, window? }, "edge": "flat" or {"bevel": {"width": 1}} }`; a radius is a number or `"full"`; `radius` needs the first five keys when present and fixes the radii at every Size; `radius_offset` (numbers, negative allowed, missing keys 0) is added to the control, popup and window radii in force, so the theme keeps its own shape at every Size (Soft: control +1, popup +2, window +2, which makes 7/10/14 at Comfortable and 4/6/8 at Compact); a "full" radius and `panel`, `button` and `pill` are not offset, and a sum below 0 is 0; `pill` (switch, slider, progress and badge shapes, clamped to half the part's height) defaults to `"full"`, and Classic sets it to 0 |
 | `light`, `dark` | no | colour pins: dotted token path to `#RRGGBB`, `#RRGGBBAA` or a reference `"{token.path}"` (see References); surfaces (`surface.*` except `surface.scrim`) must be opaque. A `seeds` key holds that mode's seed overrides: `neutral`, `accent` and `status.good/warn/bad/info`, each optional; a field it names replaces the theme's `seeds` value in that mode and the rest fall through |
 | `high_contrast` | no | `{ "light": {...}, "dark": {...} }`, pins used only in high contrast; no `seeds` key (it is an error there and in `apps`) |
-| `components` | no | non-colour component overrides: a length (number or `"full"`) or `{ "level": 0-3 }` |
+| `components` | no | component token lengths by path (`slider.thumb_width`, `slider.thumb_height`): a number or `"full"` |
 | `apps` | no | per-app `{ light, dark, high_contrast, components }`, applied over the theme's values for that app; its `high_contrast` pins apply after the theme's |
 
 - JSON, at most 256 KiB. `schema_version` is the format; `version` is the author's revision.
-- Paths are flat dotted strings (`"button.radius"`), never nested objects.
-- References: a pin value `"{accent.solid}"` takes the final value of that colour token or component colour field (after derivation and the contrast pass) for the theme, mode, contrast and size being resolved, so it follows the accent when the theme's accent changes. A target the theme pins reads the pinned value, a reference may name another reference, and a derived target reads the value derived from the other references' final values (the theme resolves again with every reference applied until no reference's value changes). References that never settle, such as `"state.selected": "{state.selected_hover}"` where the hover state derives from the selected one, are an error naming the key. It works in `light`, `dark`, `high_contrast` and `apps` maps. A name that is no colour token or field, and a cycle of references, are errors naming the key and the reference. Only colour pins take references; `components` values and `seeds` do not.
+- Paths are flat dotted strings (`"surface.panel"`), never nested objects.
+- References: a pin value `"{accent.solid}"` takes the final value of that colour token (after derivation and the contrast pass) for the theme, mode, contrast and size being resolved, so it follows the accent when the theme's accent changes. A target the theme pins reads the pinned value, a reference may name another reference, and a derived target reads the value derived from the other references' final values (the theme resolves again with every reference applied until no reference's value changes). References that never settle, such as `"state.selected": "{state.selected_hover}"` where the hover state derives from the selected one, are an error naming the key. It works in `light`, `dark`, `high_contrast` and `apps` maps. A name that is no colour token, and a cycle of references, are errors naming the key and the reference. Only colour pins take references; `components` values and `seeds` do not.
 - A pin map or `seeds` override for a mode the theme lacks is an error when it is not empty.
 - Two-variant themes whose modes need different seeds (Pro, Soft) put the differing fields in `light.seeds` or `dark.seeds` instead of pinning the derived colours.
 - `write` refuses a theme that would not parse back (`ThemeDef::validate`: pins for a missing
@@ -94,15 +95,14 @@ High contrast meets every minimum below: it moves pinned values that miss one. S
 |---|---|---|
 | `text.normal`, `text.muted`, `text.faint` on surfaces (background, panel, chrome, raised, sunken), `state.hover` and `state.pressed` | 4.5 | 7 |
 | `text.on_selected` on `state.selected` and `state.selected_hover` | 4.5 | 7 |
-| `accent.text`, status text, `text.on_accent`, `text.on_status`, button text on its fill, the active and chosen row of a popup list or menu (`listbox.active.text` on `listbox.active.fill`, `listbox.chosen.text` on `listbox.chosen.fill`, `menu.active.text` on `menu.active.fill`) | 4.5 | 7 |
-| `text.on_strong` on `accent.strong`, `accent.strong_hover` and `accent.strong_pressed` (solid accent badges) | 4.5 | 7 |
-| Control boundaries: the rest and hover borders of a field (`field.border.*`) and of a secondary button (`button.secondary.border.*`, or its fill) on `surface.panel` and `surface.raised`; the slider track (`slider.track`) on the same two, and the slider fill on the track; the chosen row of a popup list (`listbox.chosen.fill`), the line of its active row (`listbox.active.border`) and the active row of a menu (`menu.active.fill`) on `popup.fill` | 0 (listed, never warned; the active row 1.12) | 3 |
+| `accent.text` on `surface.panel`, `surface.raised` and `surface.sunken`; `accent.on_soft` on `accent.soft` | 4.5 | 7 |
+| Status text (`status.good.fg` ...) on `surface.panel`, `surface.raised` and its own `status.*.bg` | 4.5 | 7 |
+| `text.on_accent` on `accent.solid`, `accent.hover` and `accent.pressed`; `text.on_strong` on `accent.strong`, `accent.strong_hover` and `accent.strong_pressed`; `text.on_status` on the status solids and their hover and pressed steps | 4.5 | 7 |
+| `line.focus` on the surfaces; `accent.solid` on the control surfaces (panel, raised, sunken: checked and selected marks); `line.mark` (slider marks and ticks, the badge ring) on the control surfaces, `state.hover` and `state.pressed`; `overlay.stroke` on `overlay.halo` over black and over white | 3 | 4.5 |
+| State cues: `accent.border` (the outline of a selected or on control) on the control surfaces; `overlay.handle_stroke` on `overlay.handle_fill` (a selected anchor against a hollow one); the data channel colours (`data.red` ... `data.yellow`) on `surface.sunken` (a curve editor's plot) | 0 (listed, never warned) | 4.5 |
 | The thumb of a canvas scroll bar (`text.faint`, `text.muted`) on its track (`surface.chrome`) | 0 (listed, never warned) | 3 |
-| `line.focus` on control backgrounds; `line.mark` (slider marks and ticks, the badge ring) on the control surfaces, `state.hover` and `state.pressed`; `accent.solid` on `surface.panel` (checked and selected marks); `overlay.stroke` and `overlay.marquee` on their halo; `overlay.handle_stroke` on `overlay.handle_fill` (a selected anchor against a hollow one) | 3 | 4.5 |
 
-The hover fill of a list or tree row (`list.hover`; the mouse cue must always show) is at least 1.12:1 from the rest surface (`surface.panel`) and from the selected fill. Its default is `state.hover` at half opacity (a translucent `state.hover` as it is), moved along OKLCH lightness to the nearest step that satisfies this and keeps `text.normal` readable; a pinned value is measured and reported. The active row of a menu (`menu.active.fill`) is `accent.solid`, 1.12:1 from the popup card (`popup.fill`, `surface.panel`). The active row of a popup list (`listbox.active.fill`) is PhotoCraft's stock hover: `state.hover` moved as a list row's hover fill is, with `text.normal` and a 1 pt `line.control_edge` inside (Classic: the bevel's dark edge). The chosen row of a popup list (`listbox.chosen.fill`) is `accent.solid` too, except in the themes whose PhotoCraft kind draws it as the soft accent (Studio, Adwaita, Breeze, Soft, Solarized), which pin `accent.soft` with `text.normal`; a list row shows the active fill only while the keyboard holds it or the pointer is on it. List rows have the control radius (`listbox.radius`), menu rows none (`menu.radius`). With high contrast a pinned chosen fill is moved until it shows on the popup card.
-
-In high contrast a selected or on state is identifiable (WCAG 1.4.11): one of its indicator parts, the fill or the edge, reaches 4.5 on what it sits on. Standard contrast keeps the theme's own selected fills with `text.on_selected` and has no minimum for the cue. The selected pill of a segmented control is measured on `surface.panel` and `surface.raised`, by the fill or the outline (`segmented.selected.border`); a toggled icon button (`icon_button.selected.*`) and a toggle button that is on (`toggle_button.on.*`), by the fill or the edge (`accent.soft` inside a 1 pt `accent.border` outline), a selected list row (rest and hovered) and the current dock icon on `surface.panel`, the first two also on `surface.raised`; check boxes, radio buttons and switches are measured on `surface.panel` and `surface.raised`, on or off, by the fill or the outline (`check.on.*`, `check.off.*`). The derived selected fills (`list.selected`, `list.selected.hover`, `dock.icon.selected`) start as `state.selected`; the selected pill's fill (`segmented.selected.fill.*`) starts as `state.hover`; the fills of a toggled icon button and a toggle button that is on (`icon_button.selected.fill`, `toggle_button.on.fill`) start as `accent.soft`. A theme whose selected list row is `accent.soft` (PhotoCraft's transparent `row_selected`) pins `list.selected` to it, and the row under the pointer is then the hover fill laid over it. `accent.border` is `accent.solid` unless a theme pins it (PhotoCraft's `accent_border` is a translucent accent in its non-Pro kinds); in high contrast it is drawn opaque and moved to 4.5 on the control surfaces. The layer form of a list row (`ListRow::layer`: layers, channels) has its own hover (`list.layer.hover`: `list.hover` with `accent.solid` at 12%), selected fill (`list.layer.selected`, with a 1 pt `list.layer.outline` and `list.layer.text.selected` in the themes whose PhotoCraft kind is not a Pro kind: `state.hover`, `line.control_edge`, `text.normal`) and thumbnail frame radius (`list.thumb.radius`). In high contrast these fills move along OKLCH lightness to the nearest step that satisfies this while their text reads on it (the text moves too); the semantic `state.selected` itself does not move. A list row that has a distinct hover step on a selected row keeps one. The off outline of a check box (`check.off.border.rest`) starts as `text.faint`; where neither it nor the fill shows, the outline moves and `text.faint` stays; a pinned value is measured and reported. The selected tab is not covered: its fill is `surface.panel` beside the strip.
+Component styles in `craft-ui` derive their state fills from these tokens. In high contrast a selected or on state is identifiable (WCAG 1.4.11): a fill, an edge or a mark reaches 4.5 on what it sits on. Where a fill carries the state alone, it moves along OKLCH lightness to the nearest step that does, with its text still readable on it (`craft_theme::Identify`, `identifiable_outline`). The hover fill of a list row stays at least 1.12:1 from the rest surface and from the selected fill (`visible_hover`), so the mouse cue always shows. Standard contrast keeps the theme's own fills and has no minimum for these cues.
 
 Hover, pressed, dividers and disabled text have no rule, and control edges have none in Standard, so they take their derived
 or pinned values in Standard contrast (and in High contrast, for hover, pressed, dividers and disabled text), as do the guide colours and `overlay.line`, the bare accent
@@ -127,9 +127,7 @@ misses, as on the other solid fills, and pinned text that misses is reported.
 | Pinned text on solid fills that misses | kept; the unpinned fills under it move | fixed, pins included |
 | State fill under text that cannot reach 7 | n/a | the fill moves away from the text, as far as needed |
 
-In standard contrast a component pair (`button.secondary.text.rest` on its fill) is reported only
-when one of its colours is a component pin; a failing semantic colour is reported once, as the
-semantic pair.
+A failing pair is reported once, as the semantic pair.
 
 A theme with `contrast_intent: standard` should resolve with no warnings; built-ins do in both
 contrasts, except the soft themes in standard contrast.
@@ -168,8 +166,7 @@ never reaches the others.
 - `SuiteChoice::with_defaults(&AppDefaults)` fills the unset fields from the app's
   `AppDefaults { theme: ThemePair, mode, size, sizes: AppSizes }`. `sizes` is the app's own size
   overrides, read from its `sizes.json` with `AppSizes::parse`: base values (`size.control.md`,
-  `space.gap.row`, `radius.button`, `typography.body.size`) that derived sizes follow, and component
-  pins by path (`toolbar.button`). `all`, `compact` and `comfortable` hold the paths; a size set's
+  `space.gap.row`, `radius.button`, `typography.body.size`) that derived sizes follow. `all`, `compact` and `comfortable` hold the paths; a size set's
   own map wins over `all`. Themes don't set sizes.
 - Each app keeps an `AppChoice { theme, mode, size }` in its own preferences for "use a
   different theme / mode / size in this app"; `apply` lays it over the suite's selection. It has no `Default`:

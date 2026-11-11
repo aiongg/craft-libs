@@ -36,7 +36,7 @@ The Craft framework is the shared layer under every Craft app: the design system
     - [5.7 Appearance and contrast](#57-appearance-and-contrast)
 - [6. Components](#6-components)
     - [6.1 What every component provides](#61-what-every-component-provides)
-    - [6.2 Index by layer](#62-index-by-layer)
+    - [6.2 Index](#62-index)
     - [6.3 Family components](#63-family-components)
 - [7. Accessibility and translation](#7-accessibility-and-translation)
     - [7.1 Required for every component](#71-required-for-every-component)
@@ -64,7 +64,6 @@ The Craft framework is the shared layer under every Craft app: the design system
     - [Docking details](#docking-details)
     - [Radius roles](#radius-roles)
     - [Size roles](#size-roles)
-    - [Raw values to convert](#raw-values-to-convert)
 - [Appendix B. Crate and module layout](#appendix-b-crate-and-module-layout)
     - [Facade features](#facade-features)
     - [Host service rules](#host-service-rules)
@@ -188,7 +187,7 @@ fn setup(ctx: &egui::Context, app: &App) {
 | Rule | Detail |
 | --- | --- |
 | Services in | Identity, language, settings sections, commands, files and jobs. Each is a trait the app or a library crate implements. |
-| Document data in | Each feature defines one small trait (`TimelineModel`, `ColorTarget`, `LayerTree`) that the app implements on its document view. Features own no document state |
+| Document data in | Each feature defines one small trait (`TimelineModel`, `LayerTree`) that the app implements on its document view. Features own no document state |
 | Edits out | Features return edit events (`Begin`, `Update`, `Commit`, `Cancel`, `Set`). The app applies them to its own undo stack |
 | Dialogs | A feature dialog is a value the app opens on the kernel's `DialogHost`. Its result is a `DialogResult<T>` (`Ok(T)` or `Cancel`) the app takes on a later pass. No feature opens its own window |
 
@@ -200,13 +199,17 @@ The remaining service rules (settings keys, words, commands, files) are in [refe
 match event {
     EditEvent::Begin { id, .. } => self.mark = Some(doc.undo_mark(id)),
     EditEvent::Update { value, .. } => doc.preview(FILL, value),
-    EditEvent::Commit { value, changed, .. } => if changed { doc.apply(Edit::set(FILL, value)) },
-    EditEvent::Cancel { .. } => if let Some(m) = self.mark.take() { doc.restore(m) },
-    EditEvent::Set { value, .. } => doc.apply(Edit::set(FILL, value)),
+    EditEvent::Commit { after, .. } => doc.apply(Edit::set(FILL, after)),
+    EditEvent::Cancel { reason, .. } => match self.mark.take() {
+        Some(m) if !reason.document_moved() => doc.restore(m),
+        _ => {}
+    },
+    EditEvent::Set { after, .. } => doc.apply(Edit::set(FILL, after)),
+    _ => {}
 }
 ```
 
-**Interrupted gesture.** Besides Esc, other events end a gesture with `Cancel`; the `CancelReason` says which: `FocusLost`, `Dismissed`, `DocumentSwitched`, `UndoDuringGesture`, `Removed`, `Disabled`, `External`. The handler above covers all of them. After `External`, the control shows the host's value and the outside change stays.
+**Interrupted gesture.** Besides Esc, other events end a gesture with `Cancel`; the `CancelReason` says which: `Refused`, `Dismissed`, `Escape`, `Blur`, `Removed`, `HostChanged`, `UndoDuringGesture`. For `HostChanged` and `UndoDuringGesture`, `reason.document_moved()` is true: the document changed under the gesture, so the app keeps it as it is, because a restore would also take back that change. The handler above covers all of them.
 
 **Error.** A failing service call returns a typed error, and the feature shows it in its own UI without an edit. File calls return `Result<_, FileError>`. A dismissed picker answers `Picked::Cancelled`, not an error; a picker that cannot open answers `Picked::Unavailable(cause)`.
 
@@ -265,8 +268,8 @@ Tokens       scales, ramps, seeds, contrast, size presets, component tokens, the
 | --- | --- | --- |
 | Token model, themes, resolution, validation | `craft-theme` | The design language as data, with no egui |
 | Theme files, machine-local library, suite selection | `craft-theme-store` | `selection.json`, lock and revision protocol, watcher, client |
-| Tokens to egui styles | `craft_ui::theme` | The one place data becomes egui styling, stock widgets included |
-| Behaviour | `craft_ui::behavior`, `craft_ui::edit` | Focus, keys, typing, list navigation, the edit lifecycle |
+| Tokens to egui styles | `craft_ui::style` | The one place data becomes egui styling, stock widgets included |
+| Behaviour | `craft-behavior`, `craft_ui::runtime::{focus, keys}`, `craft_ui::edit` | Press, drag, navigation and edit events with no egui; focus and keys per pass; undo adapters |
 | Generic components and shells | `craft-ui` | Reusable UI |
 | Domain components | Family crates | Feature UI on the kernel |
 | Gallery, lint, conformance | `craft-ui-gallery`, `craft-design-lint`, `craft-plate-test` | Inspect and enforce the system ([8](#8-tests-and-gates)) |
@@ -375,7 +378,7 @@ Sizes are runtime tokens. The rule runs from the general to the specific:
 2. **Semantic role tokens** pick from the scale by meaning: control height, icon size, gap, padding, radius, bar height.
 3. **Component tokens** name a semantic token.
 
-This is the design: components name semantic tokens and never a pixel value or shape of their own. The code still holds some raw component values, listed in [reference/component-tokens.md](#raw-values-to-convert), which also says which component takes which role. Only drawing details (stroke widths, chevron geometry, dash lengths) stay constants.
+Components name semantic tokens and never a pixel value or shape of their own. [Appendix A](#appendix-a-component-tokens) says which component takes which role. Only drawing details (stroke widths, chevron geometry, dash lengths) stay constants.
 
 **Semantic role tokens (pt).**
 
@@ -441,7 +444,7 @@ Standard contrast follows each theme's design. Derived colours reach the minimum
 
 ## 6. Components
 
-This section indexes the components by layer. Examples and every state of each component are in the gallery ([2.1](#21-run-the-component-gallery)). Which tokens a component reads is in [reference/component-tokens.md](#appendix-a-component-tokens).
+This section points to the component index. Examples and every state of each component are in the gallery ([2.1](#21-run-the-component-gallery)). Which tokens a component reads is in [reference/component-tokens.md](#appendix-a-component-tokens).
 
 ### 6.1 What every component provides
 
@@ -453,27 +456,17 @@ This section indexes the components by layer. Examples and every state of each c
 
 A content-sized column (a `Stack::new()`, a menu or popover body) holds the children that fill: they never set the column's width, and they are shown across the width it settles on. A leaf declares that it fills with `fills()`; a container declares it with `Sizing`. A host that shows arbitrary components (the gallery, a dialog body) offers them fill width with `fill_width()`, and a story that fills both axes takes its room from `testing::stage`, and a canvas story as tall as its content (a text being edited) from `testing::stage_fitting`.
 
-### 6.2 Index by layer
+### 6.2 Index
 
-| Layer | Components |
-| --- | --- |
-| Foundations | Colours, edit lifecycle, stock egui |
-| Specimens | Icons |
-| Primitives | Surface, State layer, Focus ring, Divider, Stack, Row, Interactive, Text, Icon, Handle. Canvas overlays: canvas, grid, guides, marquee, readout, reference point, rulers, smart guides |
-| Controls | Button, IconButton, ToggleButton, SplitButton, Segmented, Link. Checkbox, Radio, Switch. TextField, SearchField, NumberField, Autocomplete, Linked and Mixed fields, PointPicker. Slider, RangeSlider, AngleDial. Select, ComboBox, TreePicker, Chips, Date. Swatch, Badge, Kbd, Spinner, Progress, Rating, Breadcrumb, Tooltip, ThumbRow |
-| Composites | Field, FormGrid, GroupBox, PropertyRow, SliderRow, SectionHeader, SectionLabel, PanelHeader, PanelFooter. Menu, ContextMenu, PressMenu, MenuBar. List, ListRow, TreeRow, Table. Tab, TabStrip. Toast, Notice, NoticeCentre, EmptyState. CurveEditor, CurvePreview, Histogram. PresetBrowser |
-| Patterns | Panel, Popover, Dialog, FullWindowDialog, PreferencesWindow, CommandPalette, Inspector, DockArea, ViewportWindow, PanelRail, ToolRail, Toolbar, ToolbarDrawer, OptionsBar, OptionsCell, StatusBar, StatusReadout, TitleBar, FlyoutButton, AlignBar, Tour |
-| Shells | AppShell with the Canvas preset (`CanvasShell`), start screen |
-
-The gallery lists every component.
+[components-index.md](components-index.md) lists every registered component and pattern of `craft-ui` with its shape, module and purpose. It is generated from the component registry.
 
 ### 6.3 Family components
 
 | Crate | Components |
 | --- | --- |
-| `craft-color` | ColorPicker, ColorArea, ColorWheel, ColorDisc, ColorRamp, ColorPopover, HexField, SwatchPair, SwatchPalette |
+| `craft-color` | ColorPicker, ColorArea, ColorWheel, ColorDisc, ColorRamp, ColorPopover, SwatchPair, SwatchPalette |
 | `craft-draw` | GradientSwatch, GradientEditor, GradientPalette, gradient line, TransformFields, transform box, bezier paths, crop frame, perspective crop quad, pen draft |
-| `craft-imaging` | LevelsEditor, warp grid |
+| `craft-imaging` | LevelsEditor, CurveEditor, Histogram, warp grid |
 | `craft-layers` | Layers panel, rows, filter bar, thumbnails |
 | `craft-browse` | Tile grid, media bin, places, thumbnails, relink |
 
@@ -647,7 +640,7 @@ Size: about 185 library tasks, plus about 28 PhotoCraft tasks and about 20 Vecto
 
 **Step 2: dialog framework.** A feature dialog is one value an app pushes and one result it reads.
 
-- Delivers: `DialogHost` with typed `DialogResult`, `ParamDialog`, command forms, image and canvas size dialogs, confirmation prompts, `UnsavedChangesGuard`, properties and report dialogs, `PointPicker`, `Remembered<T>`, `craft-update`'s dialogs on the stack.
+- Delivers: `DialogHost` with typed `DialogResult`, `ParamDialog`, command forms, image and canvas size dialogs, confirmation prompts, `UnsavedChangesDialog`, properties and report dialogs, `PointPicker`, `Remembered<T>`, `craft-update`'s dialogs on the stack.
 - PhotoCraft adopts: the stack for every dialog, parameter dialogs for filters, size dialogs, prompts, the unsaved guard, remembered options.
 - PhotoCraft deletes: its dialog host and routing, parameter-dialog builder, field map, size-dialog code and prompt helpers.
 
@@ -775,7 +768,7 @@ Each PR that removes or renames a public item keeps the old name as a deprecated
 
 ## Appendix A. Component tokens
 
-Maintainer reference. The rule is in [5.4 Dimensions](#54-dimensions): components name semantic tokens, and semantic tokens pick from the scale. This page lists which role each component takes, and which components still hold raw values.
+Maintainer reference. The rule is in [5.4 Dimensions](#54-dimensions): components name semantic tokens, and semantic tokens pick from the scale. This page lists which role each component takes.
 
 ### Semantic colour tokens
 
@@ -831,12 +824,11 @@ Ten themes, 17 mode variants. The suite default is ArtCraft.
 | --- | --- | --- |
 | Button, Slider, List, Tab strip | `craft-ui` | General inputs |
 | Menu | `craft-ui` (`menu`) | Takes rows and shortcuts; the app supplies the commands |
-| Curve editor, histogram | `craft-ui` (composites) | Take points and bin counts; channel names are app words |
-| Preset browser | `craft-ui` (`presets`) | Works on a generic preset library model |
-| Canvas overlays: grid, guides, marquee, rulers, readout, reference point | `craft-ui` (`canvas`) | Draw over any canvas; no document type |
+| Preset browser | `craft-ui` (`patterns::presets`) | Works on a generic preset library model |
+| Canvas overlays: grid, guides, smart guides, marquee, rulers | `craft-ui` (`canvas`, `canvas_controls`) | Draw over any canvas; no document type |
 | Crop frame, gradient overlay, transform box, bezier paths | `craft-draw` | Need shape and gradient types |
 | Colour picker, wheel, swatch palette | `craft-color` | Need colour models |
-| Levels editor, warp grid | `craft-imaging` | Need image-adjustment types |
+| Levels editor, curve editor, histogram, warp grid | `craft-imaging` | Need image-adjustment types |
 | Layers panel | `craft-layers` | Needs the `LayerTree` trait |
 
 ### Docking details
@@ -876,152 +868,13 @@ A theme with its own shape replaces the radii or adds an offset to control, surf
 | `size.meter` | Bar that shows a quantity as a filled share of a bordered groove |
 | `size.marker.width`, `size.marker.height` | Triangular pointer mark on the edge of a value track |
 | `size.thumb_row` | The least height of a list row that shows a thumbnail (layers, channels, links, thumbnail lists) |
-| `size.rail.width`, `size.rail.button`, `size.rail.panel_width`, `size.rail.panel_button` | Tool rail and panel rail |
+| `size.rail.width`, `size.rail.button` | Tool rail and panel rail |
 | `size.length.field`, `size.length.track`, `size.length.short`, `size.length.number` | Text or value field, value track, short field, number field over a slider |
-| `size.list.*`, `size.tab.*`, `size.preset.*` | Lists, tab strips, preset browsers |
 | `size.canvas.stage_height`, `size.canvas.stage_width_min`, `size.canvas.stage_width_max` | The stage a story of a canvas control draws its canvas on: its height and the range of its width |
 | `size.thumb.card` | The picture side of a tile card at zoom 1 (tile grids, preset browsers, the start screen) |
 | `space.gap.*`, `space.pad.*` | Gaps between and padding inside components |
 
-Component values that differ by size set are in the `components` section of `sizes/compact.json` and `sizes/comfortable.json`: `options_bar.button`, `progress.width`, `button.height.sm`, `button.height.md`, `button.pad_x`, `dock.body_gap`, `status_bar.field_width`, `command_palette.row_height`, `inspector.header_height`, `inspector.icon`, `toolbar.*`, `toast.pad`, `toast.inset`, `channels.thumb`, `tile.*`. NumberField defaults to a width of three control heights. Apps set other widths per field.
-
-### Raw values to convert
-
-`crates/theme/src/values.rs` holds 943 component constants that are raw values: sizes, widths, gaps, paddings and radii written as pixel values, plus some fixed colours and opacities; many set for the Compact size and scaled by control height. Each one becomes a semantic token or a component token that names one. Stroke widths, chevron geometry and dash lengths stay constants.
-
-The table groups the constants by the component prefix of their names.
-
-| Component | Constants | Of which radii |
-| --- | --- | --- |
-| Check | 9 | 2 |
-| Panel | 4 |  |
-| Button | 3 |  |
-| Segmented | 1 |  |
-| Segment | 1 |  |
-| Field | 1 |  |
-| Number | 1 |  |
-| Property | 6 |  |
-| Inspector | 1 |  |
-| Toolbar | 1 |  |
-| Options | 11 |  |
-| Preferences | 8 |  |
-| Preset | 5 |  |
-| Form | 7 |  |
-| Histogram | 7 |  |
-| Listbox | 2 |  |
-| Menu | 7 |  |
-| Section | 5 |  |
-| Dock | 19 | 1 |
-| Float | 9 | 1 |
-| Color | 50 | 2 |
-| Swatch | 6 | 1 |
-| Gradient | 29 |  |
-| Curve | 11 |  |
-| Levels | 9 |  |
-| List | 15 |  |
-| Angle | 7 |  |
-| Tab | 9 |  |
-| Title | 11 |  |
-| Slider | 12 | 1 |
-| Range | 3 | 1 |
-| Handle | 4 |  |
-| Cursor | 17 |  |
-| Guide | 15 | 1 |
-| Transform | 23 | 2 |
-| Bezier | 14 |  |
-| Canvas | 2 |  |
-| Font | 5 |  |
-| Text | 6 |  |
-| Glyphs | 9 |  |
-| Split | 4 |  |
-| Pasteboard | 2 |  |
-| Ref | 3 |  |
-| Marquee | 7 |  |
-| Scroll | 6 |  |
-| Ruler | 7 |  |
-| Status | 4 |  |
-| Command | 5 |  |
-| Readout | 5 |  |
-| Radio | 1 |  |
-| Icon | 6 |  |
-| Switch | 2 |  |
-| Badge | 1 |  |
-| Kbd | 2 | 1 |
-| Progress | 1 |  |
-| Tooltip | 2 |  |
-| Toast | 3 |  |
-| Empty | 8 |  |
-| Rail | 9 | 1 |
-| Dialog | 25 | 1 |
-| Popover | 3 |  |
-| Crop | 25 |  |
-| Grid | 5 |  |
-| App | 2 |  |
-| Eyedropper | 3 | 1 |
-| Sampler | 3 | 1 |
-| Screen | 5 |  |
-| Paint | 4 |  |
-| Harmony | 4 |  |
-| Start | 2 |  |
-| Tour | 4 |  |
-| Selection | 16 |  |
-| New | 12 |  |
-| Export | 9 |  |
-| Theme | 10 | 4 |
-| Findings | 1 |  |
-| File | 2 |  |
-| Table | 6 |  |
-| Chip | 6 |  |
-| Breadcrumb | 3 |  |
-| Date | 4 |  |
-| Reset | 2 | 1 |
-| Drag | 4 |  |
-| Drop | 9 | 2 |
-| Event | 2 |  |
-| Autocomplete | 2 |  |
-| Metadata | 4 |  |
-| Rating | 4 |  |
-| Motion | 4 |  |
-| About | 5 |  |
-| Password | 1 |  |
-| Align | 1 |  |
-| Tree | 2 |  |
-| Alt | 2 |  |
-| Thumbnail | 1 |  |
-| Channels | 1 |  |
-| History | 2 |  |
-| Layers | 16 |  |
-| Tile | 19 | 1 |
-| Link | 7 |  |
-| Navigator | 9 | 1 |
-| Scopes | 12 |  |
-| Actions | 6 | 1 |
-| Select | 10 | 1 |
-| Hover | 5 |  |
-| Outline | 2 |  |
-| Grip | 5 |  |
-| Constrain | 2 |  |
-| Line | 2 |  |
-| Before | 6 |  |
-| Brush | 54 | 3 |
-| Full | 10 |  |
-| Corner | 7 |  |
-| Stroke | 16 |  |
-| Measure | 3 |  |
-| Symmetry | 3 |  |
-| Adjust | 14 | 1 |
-| Layer | 8 |  |
-| Blend | 7 |  |
-| Add | 5 | 1 |
-| Shape | 3 |  |
-| Slice | 12 | 1 |
-| Artboard | 2 |  |
-| Connector | 17 |  |
-| Vanishing | 12 |  |
-| Wide | 5 |  |
-| Blur | 16 |  |
-| Liquify | 2 |  |
-| Filter | 3 |  |
+Both size sets (`crates/theme/sizes/compact.json` and `comfortable.json`) hold every role above. NumberField is at least `size.length.number` wide; apps set other widths per field.
 
 ## Appendix B. Crate and module layout
 
@@ -1651,66 +1504,61 @@ Time, clips, keyframes, markers, frame cache, playback clock, and timeline UI. N
 
 #### craft-ui
 
-The kernel. Roughly 100 features after the family crates take theirs.
+The UI library: runtime, style, fonts, primitives, the component contract, layout, components, patterns and the shell. The `testing` feature adds `testing`; `app` adds `shell::app`.
 
 | Module | Holds | State |
 | --- | --- | --- |
-| `behavior` | Shared keyboard, focus, selection, typing and reorder rules | exists |
-| `buttons` | Icon buttons with app-supplied colours | exists, deprecated (kept until the last app moves) |
-| `canvas` | Overlays and the canvas foundation: guides, rulers, marquee, readout, grid, view, scrollbars, hit testing | exists |
-| `capture` | Screenshot completion slots | exists |
-| `combo` | Combo boxes and drop-downs | exists, deprecated |
-| `composites` | Field rows, form grid, group box, property rows, headers, curve editor, histogram, empty state, notice, toast | exists |
-| `conformance` | An app's real appearance setup against the reference | exists |
-| `controls` | Button, checkbox, radio, switch, fields, sliders, select, combo box, swatch, badge, tooltip, thumb row | exists |
-| `dialog` | Frame, footer, alert, prompt, full-window dialog, preview, local history, size, id-only stack | exists |
-| `direction` | Right-to-left interface direction | exists |
-| `docking` | Panel docking, floating groups, iconic column, workspaces | exists |
-| `edit` | The edit lifecycle | exists |
-| `focus` | Window focus as pointer gestures read it | exists |
-| `fonts` | The UI font stack every app installs | exists |
-| `icons` | Icons by meaning, rasterised per size, tinted when drawn | exists |
-| `ime` | Input methods for text typed onto canvases | exists |
-| `inspect` | Debug recorder for layout boxes and the AccessKit tree | exists |
-| `interface_scale` | Device pixels per point | exists |
-| `layout` | Pane geometry and resize handles | exists |
-| `list` | Rows for panels that list things; tree; drag; rename | exists |
-| `localized` | Region-aware number widgets; the word tables | exists |
-| `menu` | Menu, context menu, menu bar, press menu | exists |
-| `motion` | Animated caret and selection outline; reduced motion | exists |
-| `panes` | Task panes and rail | exists |
-| `patterns` | Panel, inspector, command palette, options bar, status bar, rail, toolbar | exists |
-| `popover`, `popup_list` | Anchored popups; the list popup under a field | exists |
-| `preferences` | Preferences window model, search, body | exists |
-| `presets` | Preset browser: model, view, menu, toolbar | exists |
-| `primitives` | Surface, state layer, focus ring, divider, stack, interactive, text, icon, handle | exists |
-| `shell` | `AppShell`, `CanvasShell`, `ScreenMode` | exists; office-style preset planned, step 8 |
-| `story` | Stories and the registry macro | exists |
-| `tab_strip`, `tabs` | Document and panel tab strips; tab fitting | exists |
-| `testing` | Accessibility, style dump, screens, symbols | exists |
-| `text` | Shaped text in a reading area | exists |
-| `theme` | Tokens bridge to egui styles | exists |
-| `title_bar` | App-drawn title bar, caption buttons, resize zones | exists |
-| `viewport` | Windows in their own OS viewport | exists |
+| `bars` | `Bar` and `BarItems`: the bar container and its strip of command items; `AlignBar`, `BreadcrumbBar`, `ConstraintFields`, the status readout | exists |
+| `buttons` | `Button`, `IconButton`, `ToggleButton`, `SplitButton`, `Link` | exists |
+| `canvas` | The `Canvas` container: tool host, pasteboard, split views, rulers, navigator, cursors, raster display | exists |
+| `canvas_controls` | Leaves a `Canvas` body shows: brush cursor, grid, pixel grid, guides, smart guides, marquee, outline, line preview | exists |
+| `choice` | `Checkbox`, `Switch`, `RadioGroup`, `Segmented`, `Rating` | exists |
+| `contract` | The component traits, context types, `PaintUi`, `Looks`, the pipeline and its steps, the mount and overlay hosts | exists |
+| `controls` | `Disclosure` | exists |
+| `dialog` | `Dialog`, `DialogFrame`, `FullWindowDialog`, `BlockingOverlay`, `Prompt` and its configurations, `DialogStack`, `DialogHost` ([ui-dialogs.md](ui-dialogs.md)) | exists |
+| `display` | `Badge`, `Kbd`, `Progress`, `Spinner`, `Text`, `Icon`, `Picture`, `Divider` | exists |
+| `docking` | `SplitArea`, `Splitter`, `DockGroup`, floating groups and the dock column ([ui-docking.md](ui-docking.md)) | exists |
+| `edit` | Undo adapters over `EditHistory`, panel events and `DialogValue` | exists |
+| `fonts` | Font definitions and the script coverage policy | exists |
+| `form` | `Field`, `FieldGroup`, `SliderField` | exists |
+| `graph` | `NodeGraph`, `Node`, `NodeKind` | exists |
+| `layout` | Layout services: `LabelColumn`, `ColumnGroup`, the `Grid` cursor, `arrange` | exists |
+| `layout_components` | `Stack`, `Row`, `Grid` | exists |
+| `list` | `List` and its rows: `ListRow`, `FindingsList`, `EventList`, `UndoList` | exists |
+| `menu` | Menu presets with `MenuItem` rows, menu-bar keys and mnemonics | exists |
+| `notices` | `Notice`, the settings notices and the notice center | exists |
+| `patterns` | `Inspector`, `CommandPalette`, `PreferencesWindow`, `DockArea`, `DockPanels`, `PanelSpec`, `NavigatorPanel`, form dialogs, presets | exists |
+| `pickers` | `Select`, `ComboBox`, `TreePicker`, `Autocomplete`, `DatePicker`, `IconPicker` | exists |
+| `popover` | `Popover`, `PopupList`, `Tooltip`, `DragBadge`, `DropVeil` | exists |
+| `primitives` | Painters, `Draw`, the sensing core, the text adapter, `ImeSurface` | exists |
+| `rails` | `PanelRail`, `ToolRail`, `FlyoutButton`, `ToolbarDrawer` | exists |
+| `runtime` | Per-pass and per-frame services (focus, keys, layout memory, lazy content, overlays, windows) and the one egui adapter | exists |
+| `sections` | `TitleRow`, `FooterBar`, `Section`, `GroupBox`, `Panel` | exists |
+| `shell` | `AppShell` and its presets, `TitleBar`, captions, `ScreenMode`, `ToastHost`, `app::run` | exists; office-style preset planned, step 8 |
+| `style` | The state set and its resolver, style parts, `ComponentStyle`, `UiTokens`, `StyleCx`, the style cache | exists |
+| `table` | `Table` and `MetadataTable` | exists |
+| `tabs` | `TabStrip`, `Tab`, `DocumentTabs` | exists |
+| `testing` | The fixture, the suite runner and the story helpers | exists |
+| `text` | `TextField<C>` and `NumberField` on the text part | exists |
+| `tile_grid` | `Tile` and `ThumbnailSlider` | exists |
+| `value_drag` | `Slider`, `RangeSlider`, `AngleDial`, `PointPicker`, `ThumbRow`, on `ValueDrag` | exists |
 
 #### craft-ui-gallery
 
-The gallery app (desktop and web). Not published. Depends on every `ui` crate. New on the branch.
+The story viewer (desktop and web) over the registered stories of every `ui` crate. Not published.
 
 | Module | Holds | State |
 | --- | --- | --- |
-| `appearance` | The appearance bar and More popover | exists |
-| `browser`, `inspector`, `usage` | Token browser, inspector overlay, used-by | exists |
-| `capture` | Contact-sheet capture | exists |
-| `faces` | Face specimens | exists |
-| `fields`, `layout`, `gallery` | Gallery chrome and workspaces | exists |
-| `persist` | Settings kept between runs | exists |
-| `preview` | Mock app preview | exists |
-| `probe`, `problems` | Probing and reporting layout problems | exists |
+| `chrome` | The options bar, the dock of panels and the window that holds them | exists |
+| `viewer` | The viewer's state and the data its chrome shows | exists |
+| `theme` | The theme workspace: panels that explain a theme and its appearance | exists |
+| `mock` | The mock editor window: shell, title bar, rails, dock, document tabs, canvas and dialogs | exists |
+| `bin/components-index`, `bin/contract-api` | Write [components-index.md](components-index.md) and [contract-api.md](contract-api.md) | exists |
+| `bin/component-sheet` | Renders every story of every registered component to a PNG, offscreen | exists |
 
 #### craft-ui-macros
 
-Derive macros for story arguments. New on the branch.
+The derives and macros of `craft-ui`: `Component`, `Props`, `ComponentStyle`, `Pattern`, `CommandSet`, `EnvValue`, `TokenGroup`, words, stories and trials. Apps use them through `craft-ui`.
 
 #### craft-update
 
