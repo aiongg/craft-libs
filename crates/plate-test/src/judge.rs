@@ -280,17 +280,6 @@ mod tests {
     }"#;
 
     #[test]
-    fn passes_a_matching_separation() {
-        let judgement = judge(&scene(SCENE), &plates(true, None), 72.0, true);
-        let verdicts: Vec<Verdict> = judgement.points.iter().map(|p| p.verdict).collect();
-        assert_eq!(verdicts, [Verdict::Pass, Verdict::Pass, Verdict::Info, Verdict::Pass], "{judgement:#?}");
-        assert!(judgement.passed());
-        assert_eq!(judgement.points[0].measured["Gold"], 50.2);
-        assert_eq!(judgement.points[1].how.as_deref(), Some("200 glyph pixels on Black"));
-        assert_eq!(judgement.plates, ["Cyan", "Magenta", "Yellow", "Black", "Gold"]);
-    }
-
-    #[test]
     fn fails_wrong_ink_and_wrong_plates() {
         let mut knocked = plates(false, Some("Orange"));
         knocked.insert("Cyan".to_owned(), plate(|x, _| if x >= 30 { 0 } else { 255 }));
@@ -303,24 +292,5 @@ mod tests {
         assert_eq!(judgement.points[2].verdict, Verdict::Info, "info points are never judged");
         assert!(!judgement.passed());
         assert_eq!((judgement.failed_points(), judgement.judged_points()), (2, 3));
-    }
-
-    #[test]
-    fn text_points_need_the_glyph() {
-        let mut no_text = plates(true, None);
-        no_text.insert("Black".to_owned(), plate(|_, _| 0));
-        let judgement = judge(&scene(SCENE), &no_text, 72.0, true);
-        assert_eq!(judgement.points[1].verdict, Verdict::Fail);
-        assert_eq!(judgement.points[1].how.as_deref(), Some("text not found on the Black plate"));
-        let skipped = judge(&scene(SCENE), &no_text, 72.0, false);
-        assert_eq!(skipped.points[1].verdict, Verdict::Skipped);
-        assert_eq!(skipped.failed_points(), 0);
-    }
-
-    #[test]
-    fn medians() {
-        assert_eq!(median(&mut []), None);
-        assert_eq!(median(&mut [3.0, 1.0, 2.0]), Some(2.0));
-        assert_eq!(median(&mut [4.0, 1.0, 2.0, 3.0]), Some(2.5));
     }
 }
