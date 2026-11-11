@@ -21,6 +21,8 @@ pub(super) struct Held {
     base: LineGradient,
     /// An Alt-drag of a stop: the drag moves a copy of it.
     copy: bool,
+    /// The selection before the press, restored when the press is cancelled.
+    before: Option<StopRef>,
 }
 
 /// What a pointer position makes of the held press.
@@ -60,8 +62,7 @@ impl GradientOverlay<'_> {
             let (mods, view) = (press.mods, &space.view);
             match press.phase {
                 PressPhase::Down { start, .. } if start.button == PointerButton::Primary && !mods.cmd => {
-                    *cx.press_slot::<Held>() =
-                        Some(Held { part, base: value.clone(), copy: mods.alt && self.alt_copies && matches!(part, LinePart::Stop(_)) });
+                    *cx.press_slot::<Held>() = Some(self.held(cx, part, value, mods));
                     if let Some(selected) = selection_of(part) {
                         self.select(cx, Some(selected));
                     }
@@ -73,8 +74,7 @@ impl GradientOverlay<'_> {
                     if start.button == PointerButton::Primary && !mods.cmd =>
                 {
                     if cx.press_slot::<Held>().is_none() {
-                        *cx.press_slot::<Held>() =
-                            Some(Held { part, base: value.clone(), copy: mods.alt && self.alt_copies && matches!(part, LinePart::Stop(_)) });
+                        *cx.press_slot::<Held>() = Some(self.held(cx, part, value, mods));
                     }
                     if matches!(press.phase, PressPhase::DragStart { .. }) {
                         cx.begin();
@@ -98,6 +98,11 @@ impl GradientOverlay<'_> {
                         self.follow(cx, dragged.selected);
                     }
                 }
+                PressPhase::Cancel { start, .. } if start.button == PointerButton::Primary => {
+                    if let Some(held) = cx.press_slot::<Held>().take() {
+                        self.select(cx, held.before);
+                    }
+                }
                 _ => {}
             }
             if context_click(&press).is_some() {
@@ -107,6 +112,11 @@ impl GradientOverlay<'_> {
                 }
             }
         }
+    }
+
+    /// The press on `part` of `value`, taken now: the gradient and the selection it starts from.
+    fn held(&mut self, cx: &mut Cx<'_, Self>, part: LinePart, value: &LineGradient, mods: Mods) -> Held {
+        Held { part, base: value.clone(), copy: mods.alt && self.alt_copies && matches!(part, LinePart::Stop(_)), before: self.selection(cx) }
     }
 
     /// The selection a drag makes, and the focus following the stop it moves.
