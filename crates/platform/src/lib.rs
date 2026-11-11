@@ -49,3 +49,10 @@ pub mod watch;
 mod watch_tests;
 
 pub use message::{PlatformText, texts};
+
+#[cfg(test)]
+extern crate self as craft_platform;
+
+#[cfg(test)]
+#[path = "../tests/main.rs"]
+mod integration;

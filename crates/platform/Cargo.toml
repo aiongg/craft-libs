@@ -1,4 +1,5 @@
 [package]
+autotests = false
 name = "craft-platform"
 version.workspace = true
 edition.workspace = true
