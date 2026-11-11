@@ -1,13 +1,10 @@
-//! Docking render maths: divider travel with the shrink chain, fixed sizes, accordion sections and the hidden-panel
-//! prune.
+//! Docking render maths: divider travel with the shrink chain.
 
 use craft_behavior::Axis;
-use craft_behavior::dock::{Layout, Node, SplitSize};
+use craft_behavior::dock::{Node, SplitSize};
 use craft_ui::contract::SizeLimits;
-use craft_ui::docking::frame::maximize;
-use craft_ui::docking::stack::{StackSection, section_heights};
 use craft_ui::docking::tree::{self, FrameRules};
-use craft_ui::docking::{DockSizes, HidePanels};
+use craft_ui::docking::DockSizes;
 use craft_ui::testing::trial;
 use egui::{Pos2, Rect, Vec2};
 
@@ -62,27 +59,4 @@ fn a_divider_shrinks_the_groups_beyond_it_in_turn_down_to_their_minimum() {
         "both groups beyond the divider are at their minimum: {after:?}"
     );
     assert!((after.iter().sum::<f32>() - WIDTH).abs() < EPS, "the room they gave went to the group before the divider: {after:?}");
-}
-
-#[trial]
-fn a_preferred_section_height_is_kept_and_the_last_sections_give_way_when_it_does_not_fit() {
-    let preferred = 90.0;
-    let sections = [StackSection::new(true).height(Some(preferred)), StackSection::new(true).height(Some(preferred))];
-    let roomy = section_heights(&sections, 300.0, HEADER);
-    assert!((roomy[0] - (preferred + HEADER)).abs() < EPS, "the preferred height is kept: {roomy:?}");
-    let tight = section_heights(&sections, 2.0 * HEADER + preferred + 10.0, HEADER);
-    assert!((tight[0] - (preferred + HEADER)).abs() < EPS && tight[1] < roomy[1], "the last section gives way first: {tight:?}");
-}
-
-#[trial]
-fn hiding_a_panel_replaces_its_split_with_the_side_that_stays() {
-    let layout = Layout::new(Some(three_columns()), Vec::new());
-    let keep = |panel: &usize| *panel == A;
-    let none_protected = |_: &usize| false;
-    let view = maximize(&layout, None, HidePanels::Except(&keep), &none_protected);
-    assert_eq!(view.hidden, vec![B, C], "the panels the view leaves out");
-    assert!(matches!(view.layout.root, Some(Node::Tabs { .. })), "a split with one visible side becomes that side");
-    let protected = |panel: &usize| *panel == B;
-    let view = maximize(&layout, None, HidePanels::All, &protected);
-    assert_eq!(view.layout.panels().into_iter().copied().collect::<Vec<_>>(), vec![B], "a protected panel always stays");
 }

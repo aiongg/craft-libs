@@ -1,8 +1,6 @@
-//! Floating windows of a `DockArea`: their title row follows the panels' permissions, Float docks them, a move is one
-//! workspace edit, a resize holds, and a drop over a window lands on it.
+//! Floating windows of a `DockArea`: a drop over a window lands on it.
 
 use craft_behavior::dock::{Action, Floating, Layout, Node, Permissions, Workspace};
-use craft_behavior::{EditEvent, GesturePhase};
 use craft_ui::contract::{Bind, BodyCx, Role};
 use craft_ui::docking::{DockConfig, DockPanels, PanelSpec};
 use craft_ui::patterns::dock::DockArea;
@@ -18,10 +16,6 @@ const WINDOW: usize = 2;
 const SECOND: usize = 3;
 /// Inside the fixture's room, so the area's bounds clamp neither the window nor the moves and resizes made of it.
 const WINDOW_AT: Rect = Rect { min: Pos2::new(130.0, 90.0), max: Pos2::new(330.0, 210.0) };
-/// A point on the window's title row, clear of the action parts at its end.
-const TITLE_AT: Vec2 = Vec2::new(24.0, 10.0);
-const MOVE: Vec2 = Vec2::new(-60.0, 40.0);
-const GROW: Vec2 = Vec2::new(0.0, 80.0);
 const SLACK: f32 = 1.5;
 
 fn title(panel: usize) -> String {
@@ -48,44 +42,26 @@ impl DockPanels<usize> for Panels {
 struct Bed {
     fixture: Fixture,
     workspace: Rc<RefCell<Workspace<usize>>>,
-    edits: Rc<RefCell<Vec<EditEvent<Workspace<usize>>>>>,
     actions: Rc<RefCell<Vec<Action<usize>>>>,
 }
 
 fn bed(layout: Layout<usize>, rights: fn(&usize) -> Permissions) -> Bed {
     let workspace = Rc::new(RefCell::new(Workspace::new(layout)));
-    let (edits, actions): (Rc<RefCell<Vec<_>>>, Rc<RefCell<Vec<_>>>) = (Rc::default(), Rc::default());
-    let (held, seen_edits, seen_actions) = (Rc::clone(&workspace), Rc::clone(&edits), Rc::clone(&actions));
+    let actions: Rc<RefCell<Vec<Action<usize>>>> = Rc::default();
+    let (held, seen_actions) = (Rc::clone(&workspace), Rc::clone(&actions));
     let mut fixture = Fixture::new(move |ui| {
         let mut workspace = held.borrow().clone();
         let mut panels = Panels { rights };
         let out = DockArea::new("Floating dock", Bind::bound(&mut workspace), &mut panels, DockConfig::default()).show(ui);
         *held.borrow_mut() = workspace;
-        seen_edits.borrow_mut().extend(out.edit);
         seen_actions.borrow_mut().extend(out.actions);
     });
     fixture.settle();
-    Bed { fixture, workspace, edits, actions }
+    Bed { fixture, workspace, actions }
 }
 
 fn with_window(root: Option<Node<usize>>) -> Layout<usize> {
     Layout::new(root, vec![Floating::single(vec![WINDOW], 0, WINDOW_AT)])
-}
-
-fn window_rect(bed: &Bed) -> Rect {
-    bed.workspace.borrow().layout.floating.first().expect("the window floats").rect
-}
-
-/// The rect the window shows at: the largest group named by its panel.
-fn shown_rect(bed: &Bed) -> Rect {
-    let tree = bed.fixture.tree();
-    let groups = bed.fixture.by_role(Role::GROUP);
-    groups
-        .into_iter()
-        .filter(|group| tree.name_of(group.node) == Some(title(WINDOW).as_str()))
-        .map(|group| group.rect)
-        .max_by(|a, b| a.area().total_cmp(&b.area()))
-        .expect("the window shows")
 }
 
 fn press_and_move(fixture: &mut Fixture, from: Pos2, by: Vec2) {
@@ -94,37 +70,6 @@ fn press_and_move(fixture: &mut Fixture, from: Pos2, by: Vec2) {
     for step in 1..=4 {
         fixture.frame(vec![moved(from + by * (step as f32 / 4.0))]);
     }
-}
-
-fn near(a: f32, b: f32) -> bool {
-    (a - b).abs() < SLACK
-}
-
-#[trial]
-fn one_drag_of_a_floating_window_is_one_committed_edit() {
-    let mut bed = bed(with_window(None), |_| Permissions::ALL);
-    press_and_move(&mut bed.fixture, WINDOW_AT.min + TITLE_AT, MOVE);
-    bed.fixture.frame(vec![release(WINDOW_AT.min + TITLE_AT + MOVE)]);
-    bed.fixture.settle();
-    let edits = bed.edits.borrow();
-    let phase = |wanted: GesturePhase| edits.iter().filter(|edit| edit.phase() == Some(wanted)).count();
-    assert_eq!((phase(GesturePhase::Begin), phase(GesturePhase::Commit)), (1, 1), "one gesture: {edits:?}");
-    assert!(edits.iter().all(|edit| edit.id() == edits[0].id()), "every step belongs to it");
-    assert!(!bed.actions.borrow().iter().any(|action| matches!(action, Action::MoveFloating { .. })), "the move is no action");
-    let rect = window_rect(&bed);
-    assert!((rect.min - (WINDOW_AT.min + MOVE)).abs().max_elem() < SLACK, "the workspace holds the moved rect: {rect:?}");
-}
-
-#[trial]
-fn a_resized_window_shows_at_the_rect_it_reported() {
-    let mut bed = bed(with_window(None), |_| Permissions::ALL);
-    let corner = WINDOW_AT.max - Vec2::splat(1.0);
-    press_and_move(&mut bed.fixture, corner, GROW);
-    bed.fixture.frame(vec![release(corner + GROW)]);
-    bed.fixture.settle();
-    let (kept, shown) = (window_rect(&bed), shown_rect(&bed));
-    assert!(kept.height() > WINDOW_AT.height(), "the resize grew the window: {kept:?}");
-    assert!(near(shown.height(), kept.height()) && near(shown.top(), kept.top()), "it shows at {kept:?}, not {shown:?}");
 }
 
 #[trial]

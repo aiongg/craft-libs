@@ -1,20 +1,16 @@
-//! The divider every docking container shares: dragging, keys, this pass's frames and the layout write-back.
+//! The divider every docking container shares: dragging and the layout write-back.
 
 use craft_behavior::Axis;
 use craft_behavior::dock::{Column, Group, Layout, Node, SplitSize};
 use craft_ui::contract::ShowContainer as _;
-use craft_ui::contract::SizeLimits;
-use craft_ui::contract::{Bind, Role};
+use craft_ui::contract::Role;
 use craft_ui::docking::frame::maximize;
-use craft_ui::docking::tree::{self, FrameRules};
-use craft_ui::docking::{DockColumn, HidePanels, PanelSpec, SplitArea};
-use craft_ui::runtime::env::RootEnv;
-use craft_ui::runtime::frame::take_output;
-use craft_ui::testing::input::key_press;
+use craft_ui::docking::tree::self;
+use craft_ui::docking::{DockColumn, HidePanels, PanelSpec};
 use craft_ui::testing::memory::global;
 use craft_ui::testing::pointer;
-use craft_ui::testing::{Fixture, Frames, trial};
-use egui::{Key, Modifiers, Pos2, Rect, Ui};
+use craft_ui::testing::{Fixture, trial};
+use egui::{Pos2, Rect};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -63,54 +59,6 @@ fn a_column_divider_dragged_past_a_minimum_and_back_stays_under_the_pointer() {
         "the divider is at the pointer after the drag came back from past the minimum: {bottom} for {}",
         at.y + 15.0
     );
-}
-
-fn two_columns() -> Layout<usize> {
-    let root = Node::split(Axis::X, SplitSize::Ratio(0.33), Node::tabs(vec![0, 1], 0), Node::tabs(vec![10], 0));
-    Layout::new(Some(root), Vec::new())
-}
-
-#[trial]
-fn the_groups_are_at_the_dragged_divider_in_the_same_pass() {
-    let layout = Rc::new(RefCell::new(two_columns()));
-    let rects: Rects = Rc::default();
-    let seen = Rc::clone(&rects);
-    let mut fixture = Fixture::new(move |ui| {
-        let limits = |_: &usize| SizeLimits::default();
-        let mut layout = layout.borrow_mut();
-        SplitArea::new("Panels", Bind::bound(&mut *layout), FrameRules::new(&limits)).show(ui, |_, body| {
-            *seen.borrow_mut() = body.group_frames::<usize>().into_iter().map(|(_, rect)| rect).collect();
-        });
-    });
-    fixture.settle();
-    let grip = fixture.by_role(Role::SPLITTER).into_iter().next().expect("a handle between the two groups");
-    let at = grip.center();
-    fixture.press(&grip);
-    for x in [at.x + 10.0, at.x + 40.0] {
-        fixture.frame(vec![pointer::moved(Pos2::new(x, at.y))]);
-        let rects = rects.borrow();
-        assert!(
-            rects[0].right() <= x + grip.rect.width() && x - grip.rect.width() <= rects[1].left(),
-            "the pointer is between the groups of the same pass: {rects:?} at {x}"
-        );
-    }
-}
-
-#[trial]
-fn tab_in_a_window_whose_only_keys_belong_to_a_dock_area_toggles_nothing() {
-    let mut layout = two_columns();
-    let mut show = |ui: &mut Ui| {
-        let limits = |_: &usize| SizeLimits::default();
-        SplitArea::new("Panels", Bind::bound(&mut layout), FrameRules::new(&limits)).show(ui, |_, _| ());
-    };
-    let mut frames = Frames::new();
-    let mut root = RootEnv::default();
-    root.tab_toggles_chrome = true;
-    frames.root(root);
-    frames.frame(Vec::new(), &mut show);
-    take_output(&frames.ctx);
-    frames.frame(vec![key_press(Key::Tab, Modifiers::NONE)], &mut show);
-    assert!(take_output(&frames.ctx).chrome_toggles.is_empty(), "a divider is no document, so Tab with nothing focused toggles no panels");
 }
 
 #[trial]

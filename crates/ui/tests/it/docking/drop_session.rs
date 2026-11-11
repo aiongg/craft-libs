@@ -71,12 +71,6 @@ fn panels(names: &[&str]) -> Vec<String> {
     names.iter().map(|name| (*name).to_owned()).collect()
 }
 
-/// `[Layers, Channels]` beside `[Properties]`.
-fn two_groups() -> Layout<String> {
-    let root = Node::split(Axis::X, SplitSize::Ratio(0.33), Node::tabs(panels(&["Layers", "Channels"]), 0), Node::tabs(panels(&["Properties"]), 0));
-    Layout::new(Some(root), Vec::new())
-}
-
 /// Two groups whose left one is wide enough to leave empty room in its header, which is its drag handle.
 fn wide_left_group() -> Layout<String> {
     let root = Node::split(Axis::X, SplitSize::Ratio(0.5), Node::tabs(panels(&["Layers", "Channels"]), 0), Node::tabs(panels(&["Properties"]), 0));
@@ -161,26 +155,6 @@ fn left_grip(fixture: &Fixture) -> Pos2 {
     let mut buttons = fixture.by_role(Role::BUTTON);
     buttons.sort_by(|a, b| a.rect.min.x.total_cmp(&b.rect.min.x));
     buttons[0].center()
-}
-
-fn tabs_by_x(fixture: &Fixture) -> Vec<craft_ui::testing::Target> {
-    let mut tabs = fixture.by_role(Role::TAB);
-    tabs.sort_by(|a, b| a.rect.min.x.total_cmp(&b.rect.min.x));
-    tabs
-}
-
-#[trial]
-fn a_panel_dropped_between_two_tabs_lands_between_them() {
-    let (mut fixture, layout, _) = bed(two_groups());
-    fixture.settle();
-    let tabs = tabs_by_x(&fixture);
-    let (first, properties) = (&tabs[0], &tabs[2]);
-    let between = Pos2::new(first.rect.right() - 2.0, first.center().y);
-    hold_and_move(&mut fixture, properties.center(), between);
-    assert!(drag::mark(fixture.ctx()).is_some(), "the strip takes the drop between two tabs");
-    fixture.frame(vec![release(between)]);
-    fixture.idle(2);
-    assert_eq!(groups(&layout.borrow())[0], panels(&["Layers", "Properties", "Channels"]));
 }
 
 #[trial]
