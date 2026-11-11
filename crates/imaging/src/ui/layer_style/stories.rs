@@ -88,7 +88,7 @@ fn host(ui: &mut Ui, data: &mut StoryData, start: impl FnOnce() -> LayerStyleDra
     let presets = StylePresets::new(&rows, |cx, rect, _| cx.checker(rect));
     let out = LayerStyleDialog::new("Layer Style", draft, &names).blend_modes(&modes).patterns(&patterns).style_presets(presets).show(ui);
     out.apply_view(draft);
-    if let Some(value) = out.edit.as_ref().and_then(|event| event.value()) {
+    if let Some(value) = out.edit.value() {
         draft.style = value.clone();
     }
     out.into()

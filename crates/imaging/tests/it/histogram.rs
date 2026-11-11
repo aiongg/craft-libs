@@ -171,7 +171,7 @@ fn show_selection(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let data_ptr = bins();
     let range = data.value("range", start_range());
     let out = Histogram::new("Histogram", &data_ptr).selection(Bind::bound(range)).show(ui);
-    let cleared = matches!(out.selection.event.as_ref().and_then(|event| event.value()), Some(None));
+    let cleared = matches!(out.selection.events.value(), Some(None));
     *data.value("clears", 0u32) += u32::from(cleared);
     *data.value("hovered", None::<f32>) = out.hovered_level;
     out.selection.into()

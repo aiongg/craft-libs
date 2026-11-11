@@ -87,7 +87,7 @@ impl Rig {
                 host.apply |= out.apply;
                 host.discard |= out.discard;
                 host.picked = out.picked;
-                host.edits.extend(out.edit.event);
+                host.edits.extend(out.edit.events);
             });
             let mut host = shown.borrow_mut();
             let _ = ToolHost::new().run(ui, &canvas.output, &mut host.tool);

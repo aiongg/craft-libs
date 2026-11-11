@@ -298,8 +298,7 @@ fn harness(paths: Vec<EditPath>) -> Harness {
         }
         let Some(output) = canvas.inner else { return };
         st.id = output.edit.response.id;
-        let event = output.edit.event.as_ref().map(kind);
-        st.seen.extend(event);
+        st.seen.extend(output.edit.events.iter().map(kind));
         st.hover = output.hover;
         st.changes.extend(output.change);
         if let Some(select) = output.select {

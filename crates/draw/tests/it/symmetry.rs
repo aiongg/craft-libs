@@ -77,7 +77,7 @@ fn harness() -> Harness {
         if let Some(output) = canvas.inner {
             let mut host = shown.borrow_mut();
             host.id = output.edit.response.id;
-            if let Some(event) = output.edit.event {
+            for event in output.edit.events {
                 host.session.apply(&event);
                 host.events.push(event);
             }

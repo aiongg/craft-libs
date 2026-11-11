@@ -74,10 +74,10 @@ impl RulerPass<'_> {
         }
         let mut shown = Some(line);
         let edit = RulerOverlay::new(words.group.clone(), Bind::bound(&mut shown)).show_at(ui, rect);
-        if let Some(event) = edit.event {
+        if !edit.events.is_empty() {
             self.line = shown;
-            self.tool.events.push(event);
         }
+        self.tool.events.extend(edit.events);
     }
 
     fn label(cx: &ToolContext<'_>) -> Arc<str> {

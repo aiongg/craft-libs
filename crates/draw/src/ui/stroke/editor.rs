@@ -3,7 +3,7 @@
 use std::borrow::Cow;
 use std::ops::RangeInclusive;
 
-use craft_behavior::{Axis, CancelReason, DisplayOrder, EditEvent, IconId, Input, ItemSource, Metrics, Mixed, Selection, Sense, Value};
+use craft_behavior::{Axis, CancelReason, DisplayOrder, EditEvent, EditEvents, IconId, Input, ItemSource, Metrics, Mixed, Selection, Sense, Value};
 use craft_theme::variant::Tone;
 use craft_ui::buttons::Button;
 use craft_ui::choice::{Checkbox, Segmented};
@@ -43,11 +43,12 @@ const PRESETS: [LineStyle; 3] = [LineStyle::Solid, LineStyle::Dashed, LineStyle:
 pub struct StrokeEditorOutput {
     /// The editor's whole area.
     pub response: Response,
-    /// A valid change, the value the whole new style: a preset row, a select, a segmented button, the check, Add pair
-    /// and Remove pair are `Set`s; a number field's typed value is a `Set` and its scrub a gesture (Escape cancels). A
-    /// style that fails [`StrokeStyle::validate`] is never reported. A binding that writes through has it already.
-    pub event: Option<EditEvent<StrokeStyle>>,
-    /// The control the event came from, so the host coalesces one field's edits into one undo step.
+    /// The valid changes, in order, each the whole new style: a preset row, a select, a segmented button, the check,
+    /// Add pair and Remove pair are `Set`s; a number field's typed value is a `Set` and its scrub a gesture (Escape
+    /// cancels). A style that fails [`StrokeStyle::validate`] is never reported. A binding that writes through has
+    /// them already.
+    pub events: EditEvents<StrokeStyle>,
+    /// The control the events came from, so the host coalesces one field's edits into one undo step.
     pub field: Option<StrokeField>,
     /// A pick in a [`StrokeChoiceRow`]: the row's id and the choice's id.
     pub choice: Option<(String, String)>,
@@ -162,14 +163,16 @@ impl<'a> StrokeEditor<'a> {
             };
             let body = Body { words: &words, style: &style, sections, closed, corners, mixed, rows, name: name.clone() };
             body.show(ui, &mut found);
-            if let Some(event) = found.event.clone() {
-                let _ = value.reborrow().write(cx, &event);
+            if !found.events.is_empty() {
+                for event in &found.events {
+                    let _ = value.reborrow().write(cx, event);
+                }
                 *cx.memory::<Pending>() = Pending(None);
             } else if let Some(draft) = found.invalid.take() {
                 *cx.memory::<Pending>() = Pending(Some((held, draft)));
             }
         });
-        StrokeEditorOutput { response: shown.output, event: found.event, field: found.field, choice: found.choice }
+        StrokeEditorOutput { response: shown.output, events: found.events, field: found.field, choice: found.choice }
     }
 }
 
@@ -178,28 +181,31 @@ impl<'a> StrokeEditor<'a> {
 #[derive(Clone, Debug, Default, PartialEq)]
 struct Pending(Option<(StrokeStyle, StrokeStyle)>);
 
-/// What one pass found: the first event, the field it came from, a choice pick and the last invalid edit.
+/// What one pass found: the events of the first control that reported, the field they came from, a choice pick and the
+/// last invalid edit.
 #[derive(Default)]
 struct Found {
-    event: Option<EditEvent<StrokeStyle>>,
+    events: EditEvents<StrokeStyle>,
     field: Option<StrokeField>,
     choice: Option<(String, String)>,
     invalid: Option<StrokeStyle>,
 }
 
 impl Found {
-    /// Takes the first event of the pass; a field's gesture is the only thing that reports twice.
-    fn push(&mut self, field: StrokeField, event: Option<EditEvent<StrokeStyle>>) {
-        let Some(event) = event else { return };
-        if self.event.is_some() {
-            return;
-        }
-        if let Some(style) = event.value().filter(|style| style.validate().is_err()) {
-            self.invalid = Some(style.clone());
-        }
-        if let Some(event) = checked(event) {
-            self.event = Some(event);
-            self.field = Some(field);
+    /// Takes the events of the first control that reports in the pass; a field's gesture is the only thing that
+    /// reports more than once.
+    fn push(&mut self, field: StrokeField, events: impl Into<EditEvents<StrokeStyle>>) {
+        for event in events.into() {
+            if self.field.is_some_and(|first| first != field) {
+                return;
+            }
+            if let Some(style) = event.value().filter(|style| style.validate().is_err()) {
+                self.invalid = Some(style.clone());
+            }
+            if let Some(event) = checked(event) {
+                self.events.push(event);
+                self.field = Some(field);
+            }
         }
     }
 }
@@ -253,7 +259,7 @@ impl Body<'_> {
     /// Reports the one-step change to `next`.
     fn set(&self, found: &mut Found, field: StrokeField, next: StrokeStyle) {
         let event = EditEvent::set(Mixed::Same(self.style.clone()), next, self.name.clone(), None);
-        found.push(field, Some(event));
+        found.push(field, event);
     }
 
     fn show(&self, ui: &mut Ui, found: &mut Found) {
@@ -338,11 +344,11 @@ impl Body<'_> {
                 (LineJoin::Bevel, "stroke_join_bevel", &words.bevel),
             ];
             let event = choice(ui, &words.alignment, "align", held(mixed.align, style.align), &align, self.closed, icons);
-            found.push(StrokeField::Align, event.map(|event| event.map(|align| StrokeStyle { align, ..style.clone() })));
+            found.push(StrokeField::Align, event.map(|align| StrokeStyle { align, ..style.clone() }));
             let event = choice(ui, &words.caps, "cap", held(mixed.cap, style.cap), &cap, !solid_closed, icons);
-            found.push(StrokeField::Cap, event.map(|event| event.map(|cap| StrokeStyle { cap, ..style.clone() })));
+            found.push(StrokeField::Cap, event.map(|cap| StrokeStyle { cap, ..style.clone() }));
             let event = choice(ui, &words.corners, "join", held(mixed.join, style.join), &join, self.corners, icons);
-            found.push(StrokeField::Join, event.map(|event| event.map(|join| StrokeStyle { join, ..style.clone() })));
+            found.push(StrokeField::Join, event.map(|join| StrokeStyle { join, ..style.clone() }));
             self.app_rows(ui, found);
             let miter = self.corners && (mixed.join || style.join == LineJoin::Miter);
             let event = number(
@@ -355,11 +361,11 @@ impl Body<'_> {
                 UnitKind::Times,
                 miter,
             );
-            found.push(StrokeField::MiterLimit, event.map(|event| event.map(|v| StrokeStyle { miter_limit: v as f32, ..style.clone() })));
+            found.push(StrokeField::MiterLimit, event.map(|v| StrokeStyle { miter_limit: v as f32, ..style.clone() }));
             if self.sections.contains(StrokeSections::OPACITY) {
                 let event =
                     number(ui, &words.opacity, "opacity", f64::from(style.opacity) * 100.0, mixed.opacity, 0.0..=100.0, UnitKind::Percent, true);
-                found.push(StrokeField::Opacity, event.map(|event| event.map(|v| StrokeStyle { opacity: v as f32 / 100.0, ..style.clone() })));
+                found.push(StrokeField::Opacity, event.map(|v| StrokeStyle { opacity: v as f32 / 100.0, ..style.clone() }));
             }
         });
     }
@@ -430,7 +436,7 @@ impl Body<'_> {
                         next.dashes[index] = v.map_or(length, |v| v as f32);
                         next
                     };
-                    found.push(StrokeField::Dash(index), out.edit.event.map(|event| event.map(with)));
+                    found.push(StrokeField::Dash(index), out.edit.events.map(with));
                 }
             });
         }
@@ -456,7 +462,7 @@ impl Body<'_> {
             let range = -f64::from(StrokeStyle::DASH_OFFSET_MAX)..=f64::from(StrokeStyle::DASH_OFFSET_MAX);
             let event =
                 number(ui, &words.dash_offset, "dash-offset", f64::from(style.dash_offset), self.mixed.dash_offset, range, self.dash_unit(), true);
-            found.push(StrokeField::DashOffset, event.map(|event| event.map(|v| StrokeStyle { dash_offset: v as f32, ..style.clone() })));
+            found.push(StrokeField::DashOffset, event.map(|v| StrokeStyle { dash_offset: v as f32, ..style.clone() }));
         });
     }
 }
@@ -479,7 +485,7 @@ fn choice<T: Value + 'static>(
     items: &[(T, &'static str, &Label)],
     enabled: bool,
     icons: bool,
-) -> Option<EditEvent<T>> {
+) -> EditEvents<T> {
     let entries: Vec<Entry<T>> = items
         .iter()
         .map(|(item, icon, name)| {
@@ -487,13 +493,13 @@ fn choice<T: Value + 'static>(
             if icons { entry.icon(IconSpec::svg(IconId::new(icon))) } else { entry }
         })
         .collect();
-    let mut event = None;
+    let mut event = EditEvents::new();
     Field::new(label.clone()).id_salt(salt).enabled(enabled).show(ui, |ui, _| {
         let bind = Bind::given(current.clone());
         event = if icons {
-            Segmented::new(label.clone(), bind, &entries).show(ui).event
+            Segmented::new(label.clone(), bind, &entries).show(ui).events
         } else {
-            Select::new(label.clone(), bind, &entries).show(ui).event
+            Select::new(label.clone(), bind, &entries).show(ui).events
         };
     });
     event
@@ -510,12 +516,12 @@ fn number(
     range: RangeInclusive<f64>,
     kind: UnitKind,
     enabled: bool,
-) -> Option<EditEvent<f64>> {
-    let mut event = None;
+) -> EditEvents<f64> {
+    let mut event = EditEvents::new();
     Field::new(label.clone()).id_salt(salt).enabled(enabled).show(ui, |ui, _| {
         let bind = if mixed { Bind::<Option<f64>>::given(Mixed::Mixed) } else { Bind::<Option<f64>>::given(Some(value)) };
         let out = NumberField::new(label.clone(), bind).id_salt("field").range(range.clone()).unit_kind(kind).show(ui);
-        event = out.edit.event.map(|event| event.map(|v| v.unwrap_or(value)));
+        event = out.edit.events.map(|v| v.unwrap_or(value));
     });
     event
 }

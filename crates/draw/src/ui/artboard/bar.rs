@@ -2,7 +2,7 @@
 
 use super::{ArtboardItem, ArtboardPreset, ArtboardWords};
 use craft_behavior::kurbo::Size;
-use craft_behavior::{EditEvent, Mixed};
+use craft_behavior::{EditEvent, EditEvents, Mixed};
 use craft_ui::bars::{BarItem, BarItems, ItemDisplay};
 use craft_ui::buttons::Button;
 use craft_ui::contract::{Bind, Entry, NoValue, Outcome, Props as _, Show as _, ShowContainer as _, clicked};
@@ -35,7 +35,7 @@ pub struct ArtboardBarOutput {
     pub response: Response,
     /// The selected board's new size: a preset pick, Make Portrait or Make Landscape, or a typed W or H is a `Set`; a
     /// scrub of a caption is a gesture. The app resizes the board (contents stay).
-    pub size: Option<EditEvent<Size>>,
+    pub size: EditEvents<Size>,
 }
 
 impl Outcome for ArtboardBarOutput {
@@ -69,7 +69,7 @@ impl<'a> ArtboardBar<'a> {
         let size = self.selected.map(|board| Size::new(board.rect.width().abs(), board.rect.height().abs()));
         let shown = size.unwrap_or(Size::ZERO);
         let on = size.is_some();
-        let mut out = None;
+        let mut out = EditEvents::new();
         // The preset the board's size matches, else Custom.
         let mut entries = vec![Entry::new(None, words.custom.clone())];
         entries.extend(self.presets.iter().enumerate().map(|(i, preset)| Entry::new(Some(i), preset.name.clone())));
@@ -79,7 +79,7 @@ impl<'a> ArtboardBar<'a> {
             if let Some(Some(i)) = pick.value().copied()
                 && let Some(preset) = self.presets.get(i)
             {
-                out = pick.event.map(|event| event.map(|_| preset.size));
+                out = pick.events.map(|_| preset.size);
             }
         });
         let side = |ui: &mut Ui, caption: &craft_ui::runtime::env::Label, name: &craft_ui::runtime::env::Label, value: f64, width: bool| {
@@ -87,31 +87,31 @@ impl<'a> ArtboardBar<'a> {
                 .enabled(on)
                 .show(ui, |ui, _| {
                     let field = NumberField::new(name.clone(), Bind::given(Some(value))).range(SIDE).unit_kind(UnitKind::Pixels).enabled(on).show(ui);
-                    field.edit.event.map(|event| {
-                        event.map(|v| {
-                            if width { Size::new(v.unwrap_or(shown.width), shown.height) } else { Size::new(shown.width, v.unwrap_or(shown.height)) }
-                        })
+                    field.edit.events.map(|v| {
+                        if width { Size::new(v.unwrap_or(shown.width), shown.height) } else { Size::new(shown.width, v.unwrap_or(shown.height)) }
                     })
                 })
                 .inner
-                .flatten()
+                .unwrap_or_default()
         };
         let width = side(ui, &words.width, &words.width_name, shown.width, true);
         let height = side(ui, &words.height, &words.height_name, shown.height, false);
-        let mut size_event = out.or(width).or(height);
+        let mut size_events = out;
+        size_events.extend(width);
+        size_events.extend(height);
         // Make Portrait is for a board wider than tall, Make Landscape for one taller than wide.
         let swapped = Size::new(shown.height, shown.width);
         let swap = |ui: &mut Ui, label: &craft_ui::runtime::env::Label| {
             clicked(&Button::new(label.clone()).show(ui)).then(|| EditEvent::set(Mixed::Same(shown), swapped, label.as_str().into(), None))
         };
         if shown.width > shown.height {
-            size_event = swap(ui, &words.make_portrait).or(size_event);
+            size_events.extend(swap(ui, &words.make_portrait));
         }
         if shown.height > shown.width {
-            size_event = swap(ui, &words.make_landscape).or(size_event);
+            size_events.extend(swap(ui, &words.make_landscape));
         }
         Divider::vertical().show(ui);
         let response = BarItems::new(vec![BarItem::new(ArtboardCommand::AddNew).display(ItemDisplay::Text)]).label(words.commands.clone()).show(ui);
-        ArtboardBarOutput { response, size: size_event }
+        ArtboardBarOutput { response, size: size_events }
     }
 }

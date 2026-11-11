@@ -2,7 +2,7 @@
 
 use std::cell::RefCell;
 
-use craft_behavior::EditEvent;
+use craft_behavior::EditEvents;
 use craft_ui::choice::Checkbox;
 use craft_ui::contract::{Bind, Entry, Props as _, Show as _, ShowContainer as _};
 use craft_ui::form::{Field, FieldGroup, SliderField};
@@ -33,8 +33,8 @@ pub(super) struct BlendingInput<'a> {
 /// What the Blending Options page reports in one pass.
 #[derive(Default)]
 pub(super) struct BlendingOutput {
-    /// The edit of the style a control made.
-    pub edit: Option<EditEvent<LayerStyle>>,
+    /// The edits of the style the controls made, in order.
+    pub edit: EditEvents<LayerStyle>,
     /// The Blend If select picked another entry (view state).
     pub blend_if_channel: Option<usize>,
 }
@@ -101,7 +101,7 @@ impl BlendingOp {
 /// - Blend If (hidden with no entries): the "Blend If:" select ([`blend_if_entry_label`] names the entries), then
 ///   for This Layer and Underlying Layer a [`BlendIfBar`] with its readout.
 ///
-/// Every control shows the style's value and reports its edit; the page maps the first edit of the pass to an edit of
+/// Every control shows the style's value and reports its edit; the page maps the edits of the pass to edits of
 /// the style ([`style_edit`]) in `BlendingOutput::edit`.
 pub(super) fn blending_page(ui: &mut Ui, input: &BlendingInput<'_>) -> BlendingOutput {
     let env = Env::of(ui);
@@ -109,12 +109,7 @@ pub(super) fn blending_page(ui: &mut Ui, input: &BlendingInput<'_>) -> BlendingO
     let style = input.style;
     let b = &style.blending;
     let out = RefCell::new(BlendingOutput::default());
-    let push = |event: Option<EditEvent<LayerStyle>>| {
-        let mut out = out.borrow_mut();
-        if out.edit.is_none() {
-            out.edit = event;
-        }
-    };
+    let push = |events: EditEvents<LayerStyle>| out.borrow_mut().edit.extend(events);
 
     Stack::new().show(ui, |ui, _| {
         Section::fixed(words.general_blending.clone()).strength(HeaderStrength::Caption).show(ui, |ui, _| {
@@ -173,7 +168,7 @@ pub(super) fn blending_page(ui: &mut Ui, input: &BlendingInput<'_>) -> BlendingO
                     (0..entries).map(|i| Entry::new(i, blend_if_entry_label(i, entries, input.channel_names, &words))).collect();
                 Field::new(words.blend_if.clone()).show(ui, |ui, _| {
                     let edit = Select::new(words.blend_if.clone(), Bind::given(shown), &names).show(ui);
-                    if let Some(&index) = edit.event.as_ref().and_then(EditEvent::value) {
+                    if let Some(&index) = edit.value() {
                         out.borrow_mut().blend_if_channel = Some(index);
                     }
                 });

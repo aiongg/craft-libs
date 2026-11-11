@@ -291,7 +291,7 @@ impl WideAngleWorkspace {
                 FullWindowSide::new(words.settings.clone()).show(ui, |ui, _| {
                     let panel = WideAnglePanel::new(&snapshot, Bind::bound(&mut preview)).show(ui);
                     let mut queued = actions.borrow_mut();
-                    queued.extend(panel.edit.map(Action::Panel));
+                    queued.extend(panel.edit.into_iter().map(Action::Panel));
                     queued.extend(panel.constraint.map(Action::Constraint));
                     if panel.add {
                         add.set(true);

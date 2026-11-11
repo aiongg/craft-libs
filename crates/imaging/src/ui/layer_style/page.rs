@@ -1,6 +1,6 @@
 //! The effect page: one field per entry of the effect's [`EffectSpec`], drawn by kind.
 
-use craft_behavior::{EditEvent, Mixed, NumberCodec};
+use craft_behavior::{EditEvent, EditEvents, Mixed, NumberCodec};
 use craft_theme::variant::Tone;
 use craft_theme::{Srgba, TypeRole};
 use craft_ui::buttons::Button;
@@ -61,11 +61,10 @@ pub(super) fn apply_op(op: &StyleOp, style: &LayerStyle) -> Option<LayerStyle> {
     (draft.style != *style).then_some(draft.style)
 }
 
-/// The style edit of a child's edit: its event with every value replaced by `style` after `op` of that value, so a
+/// The style edits of a child's edits: its events with every value replaced by `style` after `op` of that value, so a
 /// slider drag stays one gesture of the whole style.
-pub(super) fn style_edit<T: Clone>(edit: &EditResponse<T>, style: &LayerStyle, op: impl Fn(&T) -> StyleOp) -> Option<EditEvent<LayerStyle>> {
-    let event = edit.event.clone()?;
-    Some(event.map(|value| apply_op(&op(&value), style).unwrap_or_else(|| style.clone())))
+pub(super) fn style_edit<T: Clone>(edit: &EditResponse<T>, style: &LayerStyle, op: impl Fn(&T) -> StyleOp) -> EditEvents<LayerStyle> {
+    edit.events.clone().map(|value| apply_op(&op(&value), style).unwrap_or_else(|| style.clone()))
 }
 
 /// A one-step edit of the style by `op`, labelled `label`.
@@ -74,11 +73,9 @@ pub(super) fn set_edit(style: &LayerStyle, op: &StyleOp, label: &str) -> Option<
     Some(EditEvent::set(Mixed::Same(style.clone()), after, label.into(), None))
 }
 
-/// Adds `next` to the pass's edit: a gesture's `Begin` and `Commit` fold into a `Set`, otherwise the later event wins.
-pub(super) fn push_edit(edit: &mut Option<EditEvent<LayerStyle>>, next: Option<EditEvent<LayerStyle>>) {
-    if let Some(next) = next {
-        *edit = EditEvent::fold(edit.take(), next);
-    }
+/// Adds `next` to the pass's edits, in order.
+pub(super) fn push_edit(edit: &mut EditEvents<LayerStyle>, next: impl Into<EditEvents<LayerStyle>>) {
+    edit.extend(next.into());
 }
 
 /// What an effect page reads besides the instance.
@@ -98,8 +95,8 @@ pub(super) struct PageInput<'a> {
 /// What an effect page reports in one pass.
 #[derive(Default)]
 pub(super) struct PageOutput {
-    /// The pass's style edit.
-    pub edit: Option<EditEvent<LayerStyle>>,
+    /// The pass's style edits, in order.
+    pub edit: EditEvents<LayerStyle>,
     /// A colour swatch was clicked: key `"{instance id}/{parameter key}"` (`"fx2/color"`), titled
     /// [`LayerStyleWords::color_picker_title`].
     pub pick_color: Option<ColorRequest>,
@@ -283,7 +280,7 @@ fn field_row(ui: &mut Ui, input: &PageInput<'_>, field: &EffectField, shown: &St
                 .show(ui, |ui, _| PresetPicker::new(label.clone(), Bind::given(current.clone()), input.patterns, Bind::kept()).show(ui))
                 .inner;
             if let Some(picker) = picker {
-                if picker.edit.event.is_none() && stored.is_none() && first.is_some() {
+                if picker.edit.events.is_empty() && stored.is_none() && first.is_some() {
                     out.fill_default = current.map(|text| (key.to_owned(), StyleValue::Text(text)));
                 }
                 let edit = picker.edit.map(Option::unwrap_or_default);

@@ -142,7 +142,7 @@ fn zone_rig() -> (Fixture, Rc<RefCell<Vec<EditEvent<ScopeZoneEdit>>>>) {
         let texts: Vec<Label> = ["0", "1", "2", "3", "4"].map(Label::from).to_vec();
         let rect = ui.max_rect();
         let out = ToneZones::new("Tone zones", &zones, &texts).show_at(ui, rect);
-        seen.borrow_mut().extend(out.event);
+        seen.borrow_mut().extend(out.events);
     });
     fixture.settle();
     (fixture, edits)

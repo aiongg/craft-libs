@@ -167,7 +167,7 @@ fn number(
         .show(ui)
         .edit
     });
-    shown.inner.unwrap_or_else(|| craft_ui::contract::EditResponse::lifted(shown.output, None, None))
+    shown.inner.unwrap_or_else(|| craft_ui::contract::EditResponse::lifted(shown.output, craft_behavior::EditEvents::new(), None))
 }
 
 impl Row<'_, '_> {
@@ -259,30 +259,31 @@ impl Row<'_, '_> {
         let (range, decimals) = self.range(field);
         let id = (field != Number::Location && !(row == StopRow::Color && field == Number::Opacity)).then(|| cx.key(FIRST_FIELD));
         let shown = number(ui, id, name, field_value(field, now, row, i), range, decimals, self.enabled);
-        let Some(event) = shown.event else { return };
         let rules = self.rules.clone();
-        if field != Number::Location {
-            report.events.push(event.map(|v| v.and_then(|v| set_field(field, now, row, i, v, &rules)).map_or_else(|| now.clone(), |(s, _)| s)));
-            return;
+        for event in shown.events {
+            if field != Number::Location {
+                report.events.push(event.map(|v| v.and_then(|v| set_field(field, now, row, i, v, &rules)).map_or_else(|| now.clone(), |(s, _)| s)));
+                continue;
+            }
+            // Each value of a run moves the stop from where the run began; the selection follows it past a neighbour.
+            let run = cx.memory::<LocationRun>();
+            let id = event.id();
+            if run.run.map(|(id, ..)| id) != Some(id) {
+                *run = LocationRun { run: Some((id, row, i)), base: now.clone() };
+            }
+            let (base, from) = (run.base.clone(), run.run.map_or(i, |(_, _, from)| from));
+            if let Some(v) = event.value().copied().flatten()
+                && let Some((_, j)) = stops::move_to(&base, row, from, (v / 100.0) as f32, &rules)
+            {
+                report.select = Some(Some(StopRef::stop(row, j)));
+            }
+            if event.phase().is_none_or(|phase| matches!(phase, craft_behavior::GesturePhase::Commit | craft_behavior::GesturePhase::Cancel)) {
+                *cx.memory::<LocationRun>() = LocationRun::default();
+            }
+            report.events.push(
+                event.map(|v| v.and_then(|v| stops::move_to(&base, row, from, (v / 100.0) as f32, &rules)).map_or_else(|| now.clone(), |(s, _)| s)),
+            );
         }
-        // Each value of a run moves the stop from where the run began; the selection follows it past a neighbour.
-        let run = cx.memory::<LocationRun>();
-        let id = event.id();
-        if run.run.map(|(id, ..)| id) != Some(id) {
-            *run = LocationRun { run: Some((id, row, i)), base: now.clone() };
-        }
-        let (base, from) = (run.base.clone(), run.run.map_or(i, |(_, _, from)| from));
-        if let Some(v) = event.value().copied().flatten()
-            && let Some((_, j)) = stops::move_to(&base, row, from, (v / 100.0) as f32, &rules)
-        {
-            report.select = Some(Some(StopRef::stop(row, j)));
-        }
-        if event.phase().is_none_or(|phase| matches!(phase, craft_behavior::GesturePhase::Commit | craft_behavior::GesturePhase::Cancel)) {
-            *cx.memory::<LocationRun>() = LocationRun::default();
-        }
-        report.events.push(
-            event.map(|v| v.and_then(|v| stops::move_to(&base, row, from, (v / 100.0) as f32, &rules)).map_or_else(|| now.clone(), |(s, _)| s)),
-        );
     }
 
     /// The Delete button, disabled at the row's minimum.
@@ -320,7 +321,7 @@ impl Row<'_, '_> {
             .show(ui);
         cx.memory::<PopoverOpen>().0 = open && shown.open;
         report.screen_pick = shown.screen_pick;
-        if let Some(event) = shown.edit {
+        for event in shown.events {
             report.events.push(event.map(|picked| with_color(now, rows, i, picked.color)));
         }
     }

@@ -130,7 +130,7 @@ fn rig(start: GradientStops, rules: StopRules, fields: bool) -> Rig {
         let mut stops = shared.borrow_mut();
         let out = GradientEditor::new("Gradient", Bind::bound(&mut stops)).rules(rules.clone()).fields(fields).drop_target::<u32>().show(ui);
         let mut seen = report.borrow_mut();
-        seen.events.extend(out.edit.event.iter().map(kind));
+        seen.events.extend(out.edit.events.iter().map(kind));
         seen.requested.extend(out.color_requested.iter().map(|c| c.index));
         seen.dropped.extend(out.dropped.iter().map(|(place, _)| *place));
         seen.selected = out.selected;

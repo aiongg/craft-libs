@@ -3,7 +3,7 @@
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use craft_behavior::{EditEvent, Mixed};
+use craft_behavior::{EditEvent, EditEvents, Mixed};
 use craft_color::ui::{ColorPicker, ScreenPickGesture};
 use craft_theme::Srgba;
 use craft_ui::contract::{Bind, EditResponse, Outcome, Pattern, Props as _, Remember as _, Show as _, ShowContainer as _};
@@ -313,7 +313,7 @@ impl<'a, P: Clone + Send + Sync + 'static> GradientEditor<'a, P> {
                 }
                 for event in report.events {
                     stops.reborrow().write(cx, &event);
-                    edit.event = EditEvent::fold(edit.event.take(), event);
+                    edit.events.push(event);
                 }
                 color_requested = color_requested.filter(|i| *i < now.color.len());
                 if let Some(i) = color_requested {
@@ -335,7 +335,7 @@ impl<'a, P: Clone + Send + Sync + 'static> GradientEditor<'a, P> {
         match shown.inner {
             Some((edit, dropped, screen_pick, selected)) => GradientEditorOutput { edit, color_requested: output, dropped, screen_pick, selected },
             None => GradientEditorOutput {
-                edit: EditResponse::lifted(shown.output, None, None),
+                edit: EditResponse::lifted(shown.output, EditEvents::new(), None),
                 color_requested: None,
                 dropped: None,
                 screen_pick: None,

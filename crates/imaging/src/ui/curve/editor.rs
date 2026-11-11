@@ -5,7 +5,7 @@ use super::graph::{CurveChannel, CurveGraph, CurveGraphOutput, CurveSampler};
 use super::model::{Curve, CurveRules};
 use super::words::CurveWords;
 use crate::ui::histogram::HistogramData;
-use craft_behavior::{EditEvent, Mixed};
+use craft_behavior::{EditEvent, EditEvents, Mixed};
 use craft_ui::choice::Checkbox;
 use craft_ui::contract::{Bind, BodyCx, EditResponse, Outcome, Pattern, Props, Remember as _, Show as _, ShowContainer as _, Sizing};
 use craft_ui::display::{Shade, Text};
@@ -251,8 +251,8 @@ impl<'a> CurveEditor<'a> {
                 let at = selected.filter(|&i| now.points().is_some_and(|points| i < points.len()));
                 let row = FieldsRow { words: &words, rules, now: &now, at, percent, corners };
                 let lifted = row.show(ui, root, &mut curve);
-                if edit.event.is_none() {
-                    edit.event = lifted;
+                if edit.events.is_empty() {
+                    edit.events = lifted;
                 }
             }
             root.memory::<Memory>().selected = selected;
@@ -262,7 +262,7 @@ impl<'a> CurveEditor<'a> {
             out = Some((edit, selected));
         });
         // A parent's measuring run reuses what it measured and does not run the body.
-        let (edit, selected) = out.unwrap_or_else(|| (EditResponse::lifted(shown.output, None, None), None));
+        let (edit, selected) = out.unwrap_or_else(|| (EditResponse::lifted(shown.output, EditEvents::new(), None), None));
         CurveEditorOutput { edit, selected }
     }
 }
@@ -309,7 +309,7 @@ impl FieldsRow<'_> {
 
     /// Shows the fields and the check box, and writes what the user did with them into `curve` as the edits of the
     /// one curve. Returns the edit this pass made.
-    fn show(&self, ui: &mut Ui, root: &mut BodyCx<'_>, curve: &mut Bind<'_, Curve>) -> Option<EditEvent<Curve>> {
+    fn show(&self, ui: &mut Ui, root: &mut BodyCx<'_>, curve: &mut Bind<'_, Curve>) -> EditEvents<Curve> {
         let points = self.now.points().unwrap_or_default();
         let mut reports: Vec<(usize, EditResponse<Option<f64>>)> = Vec::new();
         Row::new().show(ui, |ui, _| {
@@ -330,28 +330,31 @@ impl FieldsRow<'_> {
                 }
             }
         });
-        let mut lifted = None;
+        let mut lifted = EditEvents::new();
         for (axis, report) in reports {
-            let Some(event) = report.event.as_ref() else { continue };
             let make = |base: &Curve, i: usize, value: f64| {
                 let mut to = *base.points()?.get(i)?;
                 to[axis] = self.to_level(value);
                 self.rules.moved(base, i, to)
             };
-            if let Some(event) = lift(event, self.now, root.memory::<Memory>(), self.at, make) {
-                curve.reborrow().write(root, &event);
-                lifted = Some(event);
+            for event in &report.events {
+                if let Some(event) = lift(event, self.now, root.memory::<Memory>(), self.at, make) {
+                    curve.reborrow().write(root, &event);
+                    lifted.push(event);
+                }
             }
         }
         if self.corners {
             let mut on = self.at.is_some_and(|i| self.now.is_corner(i));
             let check = Checkbox::new(Bind::bound(&mut on)).label(self.words.corner.clone()).enabled(self.at.is_some()).show(ui);
-            if let (Some(EditEvent::Set { label, doc_key, .. }), Some(i)) = (check.event.as_ref(), self.at)
-                && let Some(after) = CurveRules::cornered(self.now, i, on)
-            {
-                let event = EditEvent::set(Mixed::Same(self.now.clone()), after, label.clone(), *doc_key);
-                curve.reborrow().write(root, &event);
-                lifted = Some(event);
+            for event in &check.events {
+                if let (EditEvent::Set { label, doc_key, .. }, Some(i)) = (event, self.at)
+                    && let Some(after) = CurveRules::cornered(self.now, i, on)
+                {
+                    let event = EditEvent::set(Mixed::Same(self.now.clone()), after, label.clone(), *doc_key);
+                    curve.reborrow().write(root, &event);
+                    lifted.push(event);
+                }
             }
         }
         lifted

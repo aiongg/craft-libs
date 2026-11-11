@@ -1,6 +1,6 @@
 //! [`BlurPinsPanel`]: the selected pin's rows in the Blur Gallery dialog.
 
-use craft_behavior::EditEvent;
+use craft_behavior::EditEvents;
 use craft_ui::contract::{Bind, Outcome as _, Props as _, Show as _, ShowContainer as _};
 use craft_ui::display::{Shade, Text};
 use craft_ui::form::SliderField;
@@ -19,7 +19,7 @@ pub struct BlurPinsPanelOutput {
     /// The panel's response.
     pub response: Response,
     /// The amount slider's gesture, with the pins after it.
-    pub edit: Option<EditEvent<BlurPins>>,
+    pub edit: EditEvents<BlurPins>,
 }
 
 /// The rows the Blur Gallery's filter dialog shows for its pins (in the dialog's body, above its Preview check
@@ -43,17 +43,18 @@ impl<'a> BlurPinsPanel<'a> {
         let Self { pins } = self;
         let words = Env::of(ui).words::<BlurPinsWords>();
         let kind = pins.kind;
-        let mut edit = None;
+        let mut edit = EditEvents::new();
         let group = Stack::new().label(words.pins.clone()).show(ui, |ui, _| {
+            edit = EditEvents::new();
             match pins.selected.and_then(|index| pins.pins.get(index).map(|pin| (index, pin.amount))) {
                 Some((index, amount)) => {
                     let (label, unit) = if kind == BlurKind::Spin { (&words.blur_angle, UnitKind::Degrees) } else { (&words.blur, UnitKind::Pixels) };
                     let row = SliderField::new(label.clone(), Bind::given(amount), 0.0..=kind.max()).step(1.0).unit_kind(unit).show(ui);
-                    if let Some(event) = row.event {
+                    for event in row.events {
                         if let Some(&value) = event.value() {
                             pins.pins[index].amount = value.clamp(0.0, kind.max());
                         }
-                        edit = Some(event.map(|_| pins.clone()));
+                        edit.push(event.map(|_| pins.clone()));
                     }
                 }
                 None => {
