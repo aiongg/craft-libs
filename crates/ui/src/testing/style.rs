@@ -17,8 +17,24 @@ pub fn tokens(mode: Mode, contrast: Contrast) -> UiTokens {
     tokens_named("artcraft", mode, contrast)
 }
 
-/// The built-in theme `craft.<name>` resolved for `mode` and `contrast`.
+/// The built-in theme `craft.<name>` resolved for `mode` and `contrast`. The built-ins are static, so each set is
+/// resolved once per thread and cloned after.
 pub fn tokens_named(name: &str, mode: Mode, contrast: Contrast) -> UiTokens {
+    type Kept = Vec<((String, Mode, Contrast), UiTokens)>;
+    thread_local! {
+        static RESOLVED: RefCell<Kept> = const { RefCell::new(Vec::new()) };
+    }
+    let found =
+        RESOLVED.with(|kept| kept.borrow().iter().find(|((n, m, c), _)| n == name && *m == mode && *c == contrast).map(|(_, tokens)| tokens.clone()));
+    if let Some(tokens) = found {
+        return tokens;
+    }
+    let tokens = resolve_named(name, mode, contrast);
+    RESOLVED.with(|kept| kept.borrow_mut().push(((name.to_owned(), mode, contrast), tokens.clone())));
+    tokens
+}
+
+fn resolve_named(name: &str, mode: Mode, contrast: Contrast) -> UiTokens {
     let id = format!("craft.{name}");
     let index = builtins().iter().position(|theme| theme.id.as_str() == id);
     assert!(index.is_some(), "no built-in theme {id}");
@@ -28,8 +44,23 @@ pub fn tokens_named(name: &str, mode: Mode, contrast: Contrast) -> UiTokens {
     UiTokens::new(Arc::new(resolved.tokens), contrast, Size::Compact)
 }
 
-/// Every built-in theme in each mode it has, at `contrast`, as (`<theme>.<mode>`, tokens).
+/// Every built-in theme in each mode it has, at `contrast`, as (`<theme>.<mode>`, tokens). Built once per thread and
+/// contrast.
 pub fn themes_at(contrast: Contrast) -> Vec<(String, UiTokens)> {
+    type Kept = Vec<(Contrast, Vec<(String, UiTokens)>)>;
+    thread_local! {
+        static BUILT: RefCell<Kept> = const { RefCell::new(Vec::new()) };
+    }
+    let found = BUILT.with(|kept| kept.borrow().iter().find(|(c, _)| *c == contrast).map(|(_, themes)| themes.clone()));
+    if let Some(themes) = found {
+        return themes;
+    }
+    let themes = build_themes_at(contrast);
+    BUILT.with(|kept| kept.borrow_mut().push((contrast, themes.clone())));
+    themes
+}
+
+fn build_themes_at(contrast: Contrast) -> Vec<(String, UiTokens)> {
     let mut out = Vec::new();
     for theme in builtins() {
         let modes = match theme.variants {
