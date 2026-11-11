@@ -88,6 +88,7 @@ pub(crate) struct BeginIn {
 
 /// The row groups of one collection's visible rows in a pass: every one is a flat roving group of the same owner
 /// and direction, so the collection registers them as one record.
+#[derive(Clone)]
 pub(crate) struct RowGroups {
     owner: Id,
     rtl: bool,
@@ -176,9 +177,84 @@ pub(crate) fn stop_count(ctx: &Context) -> usize {
     with(ctx, |state| state.stops.len())
 }
 
-/// The components of the stops registered since `from` (a `stop_count`).
-pub(crate) fn stops_since(ctx: &Context, from: usize) -> Vec<Id> {
-    with(ctx, |state| state.stops.get(from..).map_or_else(Vec::new, |stops| stops.iter().map(|rec| rec.stop.id).collect()))
+/// Where the running pass's registrations stand, for a [`Transcript`] of what a run registers after it.
+#[derive(Clone, Copy)]
+pub(crate) struct Mark {
+    stops: usize,
+    scopes: usize,
+    row_sets: usize,
+    /// The innermost open scope.
+    outer: Option<Id>,
+}
+
+/// What one run of a child registered with the focus service: its stops, the scopes it pushed, the roving groups
+/// its stops belong to and its collections' row groups. A child out of view registers it again without running
+/// (`runtime::lazy`), so its stops keep their place in Tab and F6 order.
+#[derive(Clone, Default)]
+pub(crate) struct Transcript {
+    stops: Vec<StopRec>,
+    scopes: Vec<(Id, ScopeRec)>,
+    groups: Vec<Group>,
+    row_sets: Vec<RowGroups>,
+    /// The scope that was open around the run: a record under it goes under the scope open around the replay.
+    outer: Option<Id>,
+}
+
+impl Transcript {
+    /// The components of the stops.
+    pub(crate) fn stop_ids(&self) -> impl Iterator<Item = Id> + '_ {
+        self.stops.iter().map(|rec| rec.stop.id)
+    }
+}
+
+/// Where the running pass's registrations stand.
+pub(crate) fn mark(ctx: &Context) -> Mark {
+    with(ctx, |state| Mark {
+        stops: state.stops.len(),
+        scopes: state.scope_order.len(),
+        row_sets: state.row_sets.len(),
+        outer: state.open.last().map(|(id, _)| *id),
+    })
+}
+
+/// What the running pass registered since `mark`, which a run that closed every scope it opened left.
+pub(crate) fn transcript(ctx: &Context, mark: Mark) -> Transcript {
+    with(ctx, |state| {
+        let stops = state.stops.get(mark.stops..).unwrap_or_default().to_vec();
+        let scopes = state.scope_order.get(mark.scopes..).unwrap_or_default();
+        let scopes = scopes.iter().filter_map(|id| Some((*id, state.scopes.get(id)?.clone()))).collect();
+        let mut groups: Vec<Group> = Vec::new();
+        for group in stops.iter().filter_map(|rec| state.groups.get(&rec.stop.group?)) {
+            if !groups.iter().any(|known| known.id == group.id) {
+                groups.push(*group);
+            }
+        }
+        let row_sets = state.row_sets.get(mark.row_sets..).unwrap_or_default().to_vec();
+        Transcript { stops, scopes, groups, row_sets, outer: mark.outer }
+    })
+}
+
+/// Registers `transcript` again in the running pass, in place of the run that left it: in the innermost open scope,
+/// as the run would have. A replayed scope is no new scope: it moves no focus when it shows again.
+pub(crate) fn replay(ctx: &Context, transcript: &Transcript) {
+    let frame = crate::runtime::egui::pass::frame_nr(ctx, viewport(ctx));
+    with(ctx, |state| {
+        let outer = state.open.last().map(|(id, _)| *id);
+        let place = |scope: Option<Id>| if scope == transcript.outer { outer } else { scope };
+        for (id, scope) in &transcript.scopes {
+            let parent = place(scope.parent);
+            state.scopes.insert(*id, ScopeRec { parent, entering: scope.entering.map(|_| false), ..scope.clone() });
+            state.scope_order.push(*id);
+            if scope.entering.is_none() {
+                state.seen.insert(*id, frame);
+            }
+        }
+        state.stops.extend(transcript.stops.iter().map(|rec| StopRec { stop: rec.stop.clone(), scope: place(rec.scope) }));
+        for group in &transcript.groups {
+            state.groups.insert(group.id, *group);
+        }
+        state.row_sets.extend(transcript.row_sets.iter().cloned());
+    });
 }
 
 /// The component of the stop that holds focus and the component a request or Tab move asked its scroll owner to

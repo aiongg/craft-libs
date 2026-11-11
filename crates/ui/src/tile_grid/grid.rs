@@ -258,9 +258,6 @@ pub struct TileGrid<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     placed: Vec<Placed>,
     /// The tail rows this pass shows, in the grid's layer space: the row's index and its rect.
     placed_tail: Vec<(usize, Rect)>,
-    /// The headers and tail rows in the view's reach but out of view (`runtime::lazy::reach`), in the grid's layer
-    /// space: the group or tail row and its rect. They declare parts that sense nothing and report their nodes.
-    beyond: Vec<(Slot, Rect)>,
     /// The tail rows clicked this pass, in order.
     tail_clicked: Vec<K>,
     events: Vec<GridEvent<K>>,
@@ -305,7 +302,6 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> TileGrid<'a, K> {
             laid: RefCell::new(None),
             placed: Vec::new(),
             placed_tail: Vec::new(),
-            beyond: Vec::new(),
             tail_clicked: Vec::new(),
             events: Vec::new(),
         }
@@ -453,19 +449,15 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for TileGrid<'_, K>
     }
 
     /// One pointer part per header in view, over the tiles, and a disclosure part in it when headers collapse; one
-    /// pointer part per tail row in view. A header or tail row out of view but in the view's reach declares a part that
-    /// senses nothing: its node is the grid's, as out-of-view content in the reach reports its nodes.
+    /// pointer part per tail row in view.
     fn parts(&mut self, area: Rect, cx: &mut PartsCx<'_, Self>) {
         self.placed.clear();
         self.placed_tail.clear();
-        self.beyond.clear();
         let Some(arrangement) = self.laid.borrow().as_ref().and_then(|layout| layout.arrangement().cloned()) else { return };
         let (view, offset, rtl) = (cx.content_rect, cx.offset(), cx.flow.is_rtl());
         let pinned = arrangement.pinned(offset.y as f32);
         let shift = view.min.to_vec2() - vec2(offset.x as f32, offset.y as f32);
         let clip = area;
-        let (from, size) = crate::runtime::lazy::reach(offset, view.size());
-        let reach = Rect::from_min_size(pos2(from.x as f32, from.y as f32), size).translate(shift);
         for (group, header) in arrangement.headers.iter().enumerate() {
             let (rect, held) = match pinned {
                 Some((at, lifted)) if at == group => (lifted, true),
@@ -474,10 +466,6 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for TileGrid<'_, K>
             let rect = Self::group_rect(rect.translate(shift), view, rtl);
             let Some(declared) = self.groups.get(group) else { continue };
             if !rect.intersects(clip) {
-                if rect.intersects(reach) {
-                    self.beyond.push((Slot::Header(group), rect));
-                    cx.part(section_part(&declared.key), rect).sense(Sense::empty());
-                }
                 continue;
             }
             self.placed.push(Placed { group, rect, pinned: held });
@@ -492,10 +480,6 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for TileGrid<'_, K>
         for (at, (row, rect)) in self.tail.iter().zip(&arrangement.tails).enumerate() {
             let rect = Self::group_rect(rect.translate(shift), view, rtl);
             if !rect.intersects(clip) {
-                if rect.intersects(reach) {
-                    self.beyond.push((Slot::Tail(at), rect));
-                    cx.part(section_part(&row.key), rect).sense(Sense::empty());
-                }
                 continue;
             }
             self.placed_tail.push((at, rect));
@@ -556,15 +540,10 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for TileGrid<'_, K>
                     craft_behavior::AccessAction::Collapse => false,
                     _ => continue,
                 };
-                let beyond = self.beyond.iter().filter_map(|(slot, _)| match slot {
-                    Slot::Header(group) => Some(*group),
-                    _ => None,
-                });
                 let owner = self
                     .placed
                     .iter()
                     .map(|placed| placed.group)
-                    .chain(beyond)
                     .find(|group| section_part(&self.groups[*group].key) == target || TOGGLE.at(*group as u64) == target);
                 if let Some(group) = owner {
                     self.events.push(GridEvent::GroupOpen { group, open: wanted });
@@ -573,11 +552,11 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for TileGrid<'_, K>
         }
     }
 
-    /// A heading node per header and a list item node per tail row, in view or in the view's reach.
+    /// A heading node per header and a list item node per tail row in view.
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
         let headers = self.placed.iter().map(|placed| Slot::Header(placed.group));
         let tails = self.placed_tail.iter().map(|&(at, _)| Slot::Tail(at));
-        for slot in headers.chain(tails).chain(self.beyond.iter().map(|(slot, _)| *slot)) {
+        for slot in headers.chain(tails) {
             match slot {
                 Slot::Header(group) => {
                     let Some(group) = self.groups.get(group) else { continue };

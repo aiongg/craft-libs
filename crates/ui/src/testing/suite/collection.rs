@@ -301,9 +301,9 @@ pub(super) fn empty_collection_shows_no_rows(subject: &Subject) -> Result<(), St
     Ok(())
 }
 
-/// A collection whose rows reach past the reach (`runtime::lazy::reach`: the room and one room below it, at the top)
-/// builds fewer rows than it has.
-pub(super) fn long_collection_builds_rows_within_the_reach_only(subject: &Subject) -> Result<(), String> {
+/// A collection whose rows reach past its room builds fewer rows than it has: out-of-view rows run nowhere
+/// (`runtime::lazy`).
+pub(super) fn long_collection_builds_rows_within_the_room_only(subject: &Subject) -> Result<(), String> {
     if !is_items(subject) {
         return Ok(());
     }
@@ -316,13 +316,13 @@ pub(super) fn long_collection_builds_rows_within_the_reach_only(subject: &Subjec
         }
         // Items that wrap fill a row of their own: the set takes as many rows of the room as it has rows of items.
         let across = shown.iter().filter(|other| (other.rect.min.y - shown[0].rect.min.y).abs() < row / 2.0).count().max(1);
-        let (_, reach) = crate::runtime::lazy::reach(Default::default(), container.rect.size());
-        // A row that starts inside the reach is built, so the last one is out of it only when it starts below.
-        if ((size.div_ceil(across) - 1) as f32) * row <= reach.y {
+        let room = container.rect.size();
+        // A row that starts inside the room is built, so the last one is out of it only when it starts below.
+        if ((size.div_ceil(across) - 1) as f32) * row <= room.y {
             continue;
         }
         if shown.len() >= size {
-            return Err(format!("{}: all {size} rows are built though the reach holds about {}", story.name, (reach.y / row) as usize + 1));
+            return Err(format!("{}: all {size} rows are built though the room holds about {}", story.name, (room.y / row) as usize + 1));
         }
     }
     Ok(())

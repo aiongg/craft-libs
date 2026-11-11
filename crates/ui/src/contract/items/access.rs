@@ -75,7 +75,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
     /// section, as a press does; Expand and Collapse open and close a row that has children.
     pub(super) fn node_by_access(&mut self, comp: &C, cx: &mut Cx<'_, C>, layout: &C::ItemLayout, place: Placement) {
         use craft_behavior::AccessAction;
-        let (_, built, _) = self.built(layout, place.rect, place.offset);
+        let (_, built) = self.built(layout, place.rect, place.offset);
         let rows: Vec<(u64, usize)> = built
             .into_iter()
             .filter(|&at| !self.source.section_stop(at) || cx.part_if_declared(section_part(&self.source.key(at))).is_none())
@@ -127,7 +127,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         };
         while let Some(request) = cx.core.intents.take_access_where(wanted) {
             let Some(part) = request.target else { continue };
-            let (_, built, _) = self.built(layout, place.rect, place.offset);
+            let (_, built) = self.built(layout, place.rect, place.offset);
             let found = built.into_iter().find_map(|at| {
                 let key = self.source.key(at);
                 self.header

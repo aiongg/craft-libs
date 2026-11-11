@@ -152,11 +152,55 @@ fn a_focus_request_into_an_out_of_view_child_runs_it_and_scrolls_it_in() {
     assert!(view.get().contains_rect(rect), "the body scrolled the control into view: {rect:?} in {:?}", view.get());
 }
 
+/// A child out of view runs nowhere, yet its stops keep their place in Tab order: a settled frame runs only the
+/// child in view, and Tab from its control moves focus to the control of the next child, which then runs and scrolls
+/// into view. Guards that a skipped `Lazy` registers the focus records of its last run in its place.
+#[trial]
+fn tab_reaches_the_control_of_a_child_out_of_view() {
+    const CHILDREN: usize = 6;
+    let runs: Vec<Cell<usize>> = (0..CHILDREN).map(|_| Cell::new(0)).collect();
+    let buttons: Vec<Cell<(Id, Rect)>> = (0..CHILDREN).map(|_| Cell::new((Id::NULL, Rect::NOTHING))).collect();
+    let view = Cell::new(Rect::NOTHING);
+    let mut show = |ui: &mut Ui| {
+        in_region(ui, Rect::from_min_size(ORIGIN, VIEW), |ui| {
+            Slab::new(ContainerProps::new().scroll(Scroll::vertical())).id_salt("panel").show(ui, |ui, cx| {
+                view.set(cx.rect);
+                for (at, (count, button)) in runs.iter().zip(&buttons).enumerate() {
+                    craft_ui::contract::Lazy::new(at).show(ui, |ui| {
+                        count.set(count.get() + 1);
+                        let out = Button::new(format!("Child {at}")).show(ui);
+                        if !ui.is_sizing_pass() {
+                            button.set((out.id, out.rect));
+                        }
+                        // Each child is taller than the view, so the next one starts out of view.
+                        Block::new(Vec2::new(LINE.x, VIEW.y)).show(ui);
+                    });
+                }
+            });
+        });
+    };
+    let mut frames = Frames::new();
+    frames.idle(3, &mut show);
+    request(&frames.ctx, FocusTarget::Id(buttons[0].get().0));
+    frames.idle(3, &mut show);
+    runs.iter().for_each(|count| count.set(0));
+    frames.frame(vec![], &mut show);
+    assert!(runs[0].get() > 0, "the child in view runs");
+    assert!(runs[1..].iter().all(|count| count.get() == 0), "no child out of view runs: {:?}", runs.iter().map(Cell::get).collect::<Vec<_>>());
+    let next = buttons[1].get().0;
+    frames.frame(vec![craft_ui::testing::input::key_press(egui::Key::Tab, egui::Modifiers::NONE)], &mut show);
+    frames.frame(vec![craft_ui::testing::focus::key_release(egui::Key::Tab, egui::Modifiers::NONE)], &mut show);
+    frames.idle(2, &mut show);
+    assert_eq!(frames.ctx.memory(|memory| memory.focused()), Some(next), "Tab moved focus to the next child's control");
+    let (_, rect) = buttons[1].get();
+    assert!(view.get().contains_rect(rect), "the body scrolled the control into view: {rect:?} in {:?}", view.get());
+}
+
 /// Lazy cards in the rows of a grid, each keyed by itself: a change of the column count regroups the rows and runs
-/// only the cards in reach, the cards out of reach keeping their extents; the rows in reach are as tall as their
+/// only the cards in view, the cards out of view keeping their extents; the rows in view are as tall as their
 /// tallest card. Guards that a `Lazy` in a `Grid` holds its cell, run or skipped.
 #[trial]
-fn a_column_change_of_lazy_grid_cells_runs_only_the_cells_in_reach() {
+fn a_column_change_of_lazy_grid_cells_runs_only_the_cells_in_view() {
     const CHILDREN: usize = 30;
     const ONE: &[ColumnWidth] = &[ColumnWidth::fill(1.0)];
     const TWO: &[ColumnWidth] = &[ColumnWidth::fill(1.0); 2];
@@ -196,7 +240,7 @@ fn a_column_change_of_lazy_grid_cells_runs_only_the_cells_in_reach() {
         let ran = runs.iter().filter(|runs| runs.get() > 0).count();
         assert!(runs[0].get() > 0, "at {count} columns the card in view runs");
         assert_eq!(runs[CHILDREN - 1].get(), 0, "at {count} columns the card far below the view does not run");
-        assert!(ran < CHILDREN / 2, "at {count} columns only the cards in reach run: {ran} of {CHILDREN}");
+        assert!(ran < CHILDREN / 2, "at {count} columns only the cards in view run: {ran} of {CHILDREN}");
         let shown = shown.borrow();
         for (i, a) in shown.iter().enumerate() {
             for b in &shown[i + 1..] {

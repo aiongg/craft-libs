@@ -44,7 +44,7 @@ pub(super) fn measured_id<K: std::hash::Hash>(collection: Id, key: &K) -> Id {
 }
 
 /// Runs `f` with a reader of the heights auto rows had in the last pass that built them: the rows the pass does not
-/// build, out of the view's reach, are placed by them (`runtime::lazy`).
+/// build, out of view, are placed by them (`runtime::lazy`).
 pub(super) fn measured_heights<R>(ctx: &Context, f: impl FnOnce(&dyn Fn(Id) -> Option<f32>) -> R) -> R {
     lazy::reading(ctx, |read| f(&|id| read(id).map(|size| size.y)))
 }
