@@ -215,7 +215,7 @@ impl Component for SymmetryHandles<'_> {
             Some(format!("{}, {}", across_x.format_value(&units, shown.center.x, zero_x), across_y.format_value(&units, shown.center.y, zero_y)));
         let handle = access.node(SYMMETRY.at(HANDLE), Role::SLIDER);
         handle.name = Name::Text(words.rotation_handle.as_str().to_owned());
-        handle.numeric = Some(Numeric::new(shown.rotation, 0.0..=360.0).step(1.0).text(units.degrees(shown.rotation)));
+        handle.numeric = Some(Numeric::new(shown.rotation, 0.0..=360.0).step(1.0).wraps(true).text(units.degrees(shown.rotation)));
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> SymmetryHandlesOutput {

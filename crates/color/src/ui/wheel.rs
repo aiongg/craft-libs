@@ -385,7 +385,7 @@ impl Component for ColorWheel<'_> {
         let [hue, saturation, brightness] = [0, 1, 2].map(|channel| finite(values.values[channel]));
         let ring = access.node(RING, Role::SLIDER);
         ring.name = Name::Text(words.hue.as_str().to_owned());
-        ring.numeric = Some(Numeric::new(f64::from(hue.rem_euclid(360.0)), 0.0..=360.0).step(1.0));
+        ring.numeric = Some(Numeric::new(f64::from(hue.rem_euclid(360.0)), 0.0..=360.0).step(1.0).wraps(true));
         let model = &HsbModel as &dyn ColorModel;
         let text =
             format!("{}, {}", spoken(words.saturation.as_str(), model, 1, saturation), spoken(words.brightness.as_str(), model, 2, brightness));

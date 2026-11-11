@@ -97,8 +97,11 @@ pub struct Numeric {
     pub value: Option<f64>,
     /// The range; a slider needs a finite one.
     pub range: RangeInclusive<f64>,
-    /// The step of an increment or decrement; it declares both actions.
+    /// The step of an increment or decrement; it declares each action that can move the value: Increment below the
+    /// range's end and Decrement above its start, or both when the value wraps or is mixed.
     pub step: Option<f64>,
+    /// Whether a step past one end of the range continues from the other.
+    pub wraps: bool,
     /// The value as the component words it ("40.0", "50 %"); assistive technology reads it in place of the number.
     pub text: Option<String>,
 }
@@ -106,18 +109,25 @@ pub struct Numeric {
 impl Numeric {
     /// A value in a range.
     pub fn new(value: f64, range: RangeInclusive<f64>) -> Self {
-        Numeric { value: Some(value), range, step: None, text: None }
+        Numeric { value: Some(value), range, step: None, wraps: false, text: None }
     }
 
     /// A range with no value.
     pub fn empty(range: RangeInclusive<f64>) -> Self {
-        Numeric { value: None, range, step: None, text: None }
+        Numeric { value: None, range, step: None, wraps: false, text: None }
     }
 
     /// The step of an increment or decrement.
     #[must_use]
     pub fn step(mut self, step: f64) -> Self {
         self.step = Some(step);
+        self
+    }
+
+    /// Whether a step past one end of the range continues from the other.
+    #[must_use]
+    pub fn wraps(mut self, wraps: bool) -> Self {
+        self.wraps = wraps;
         self
     }
 

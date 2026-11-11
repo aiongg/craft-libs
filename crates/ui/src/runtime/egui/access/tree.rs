@@ -166,7 +166,7 @@ impl AccessTree {
     pub fn numeric(&self, id: Id) -> Option<Numeric> {
         let node = self.node(id)?;
         let range = node.min_numeric_value()?..=node.max_numeric_value()?;
-        Some(Numeric { value: node.numeric_value(), range, step: node.numeric_value_step(), text: node.value().map(str::to_owned) })
+        Some(Numeric { value: node.numeric_value(), range, step: node.numeric_value_step(), wraps: false, text: node.value().map(str::to_owned) })
     }
 
     /// Whether the node of `id` is reported as disabled.
