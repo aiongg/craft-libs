@@ -221,9 +221,13 @@ struct StyleRecord {
     seen: Vec<std::sync::Arc<StyleSeen>>,
 }
 
-/// Records the style step 2 resolved for `C`, once per style key, env, variant and size.
+/// Records the style step 2 resolved for `C`, once per style key, env, variant and size, in frames a test fixture
+/// drives.
 pub(crate) fn record<C: crate::contract::Component>(ctx: &Context, scx: &crate::style::StyleCx<'_>, key: C::StyleKey, style: &C::Style) {
     use std::hash::{Hash, Hasher};
+    if !crate::runtime::egui::fixture::driving() {
+        return;
+    }
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     key.hash(&mut hasher);
     let inputs = hasher.finish();
