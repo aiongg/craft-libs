@@ -194,7 +194,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                     && let Some(row) = layout.hit(local(pos), offset).filter(|&row| self.source.enabled(row) && layout.shown(row))
                 {
                     let request = self.menu_request(layout, Placement { rect, offset, rtl }, row, local(pos));
-                    self.events.push(CollectionEvent::ContextMenu(request));
+                    self.ask_menu(request);
                 }
                 match self.drags.slow.as_mut() {
                     Some(slow) if click && slow.on_label => slow.released = Some(frame::clock(&ctx)),
@@ -255,7 +255,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             }
             self.move_lead(at, LeadSource::Pointer);
             let request = self.menu_request(layout, Placement { rect, offset, rtl }, at, local(pos));
-            self.events.push(CollectionEvent::ContextMenu(request));
+            self.ask_menu(request);
         }
         self.slow_click_due(comp, cx);
     }
@@ -294,6 +294,13 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         layout.cells(row, offset, &mut cells);
         let column = cells.into_iter().find(|(_, cell)| cell.contains(point)).map(|(column, _)| column);
         ContextMenuRequest { key: self.source.key(row), at: place, column }
+    }
+
+    /// Reports a request for the menu of a row; the row keeps its menu button shown while a menu hung from the
+    /// collection is open (`RowState::menu_open`).
+    pub(super) fn ask_menu(&mut self, request: ContextMenuRequest<C::Key>) {
+        self.drags.menu = Some(request.key.clone());
+        self.events.push(CollectionEvent::ContextMenu(request));
     }
 
     /// The response of each part an item asked to open a menu from (`ItemCx::part_opener`): the part's click this pass
