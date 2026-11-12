@@ -38,6 +38,8 @@ pub struct PartResult {
     pub hover_pos: Option<Pos2>,
     /// The value flags the component set on the part.
     pub flags: Flags,
+    /// What the part senses, as declared.
+    pub sense: Sense,
     /// The component declared the part inactive: it paints with the Disabled state and `PaintUi::draw_part` draws data
     /// colours with the disabled fill, and it keeps sensing.
     pub inactive: bool,
@@ -45,8 +47,15 @@ pub struct PartResult {
 
 impl PartResult {
     /// What a read returns for a part with no press history: face mode, or a part first registered this pass.
-    pub const IDLE: PartResult =
-        PartResult { rect: Rect::NOTHING, press: PressState::IDLE, hovered: false, hover_pos: None, flags: Flags::empty(), inactive: false };
+    pub const IDLE: PartResult = PartResult {
+        rect: Rect::NOTHING,
+        press: PressState::IDLE,
+        hovered: false,
+        hover_pos: None,
+        flags: Flags::empty(),
+        sense: Sense::empty(),
+        inactive: false,
+    };
 }
 
 /// A text part's result this pass.
@@ -830,6 +839,7 @@ fn part_results_in(
                     hovered,
                     hover_pos: read.hover_pos,
                     flags: decl.flags,
+                    sense: decl.sense,
                     inactive: decl.inactive,
                 },
             )

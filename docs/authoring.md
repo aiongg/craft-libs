@@ -113,7 +113,7 @@ A component is shown through a parent's `show`, never by allocating a rect itsel
 
 ### Values
 
-A value component's `Output` is `EditResponse<T>`. It binds with `Bind<T>` and reports through `cx.propose`, `cx.commit` and `cx.adopt`; each gesture ends in one `EditEvent::Commit`. Components with `Input::Editor` own their caret through `ImeSurface`.
+A value component's `Output` is `EditResponse<T>`. It binds with `Bind<T>` and reports through `cx.propose`, `cx.commit` and `cx.adopt`; each gesture ends in one `EditEvent::Commit`. A part whose press sets the value under the pointer (a colour field, a point on a well) senses `Sense::SETS_ON_PRESS` and runs its gesture with `cx.follow_press`. Components with `Input::Editor` own their caret through `ImeSurface`.
 
 ## Looks
 
