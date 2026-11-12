@@ -16,6 +16,7 @@ mod layout;
 mod link;
 mod list;
 mod menu;
+mod notices;
 mod overlay;
 
 mod pickers;
