@@ -15,7 +15,7 @@ use craft_ui::runtime::words::CommonWords;
 use craft_ui::sections::{DialogRole, FooterButton};
 use egui::Ui;
 
-use crate::display::MonitorProblem;
+use craft_display::MonitorProblem;
 
 #[cfg(feature = "screen-testing")]
 mod stories;
@@ -78,21 +78,19 @@ impl ProfileMode {
     }
 }
 
-impl MonitorProblem {
-    /// The reason a monitor profile was not used, in the words.
-    pub fn label(&self, words: &ProfileWords) -> String {
-        match self {
-            MonitorProblem::NotRgb { description, space } => {
-                let space = match space {
-                    ColorSpace::Cmyk => words.cmyk.as_str().to_owned(),
-                    ColorSpace::Gray => words.gray.as_str().to_owned(),
-                    other => format!("{other:?}").to_uppercase(),
-                };
-                words.monitor_not_rgb.fill(&[("profile", description), ("space", &space)])
-            }
-            MonitorProblem::CannotLink { description, reason } => words.monitor_cannot_link.fill(&[("profile", description), ("reason", reason)]),
-            MonitorProblem::Unreadable { reason } => words.monitor_unreadable.fill(&[("reason", reason)]),
+/// The reason a monitor profile was not used (`craft_display::MonitorProblem`), in the words.
+pub fn monitor_problem_label(problem: &MonitorProblem, words: &ProfileWords) -> String {
+    match problem {
+        MonitorProblem::NotRgb { description, space } => {
+            let space = match space {
+                ColorSpace::Cmyk => words.cmyk.as_str().to_owned(),
+                ColorSpace::Gray => words.gray.as_str().to_owned(),
+                other => format!("{other:?}").to_uppercase(),
+            };
+            words.monitor_not_rgb.fill(&[("profile", description), ("space", &space)])
         }
+        MonitorProblem::CannotLink { description, reason } => words.monitor_cannot_link.fill(&[("profile", description), ("reason", reason)]),
+        MonitorProblem::Unreadable { reason } => words.monitor_unreadable.fill(&[("reason", reason)]),
     }
 }
 

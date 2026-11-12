@@ -19,13 +19,14 @@ workspace = true
 [features]
 default = []
 # The colour widgets (`craft_color::ui`).
-ui = ["dep:craft-behavior", "dep:craft-keymap", "dep:craft-ui", "dep:egui", "dep:craft-settings", "dep:craft-window", "craft-platform/screen"]
+ui = ["dep:craft-behavior", "dep:craft-display", "dep:craft-keymap", "dep:craft-ui", "dep:egui", "dep:craft-settings", "dep:craft-window", "craft-platform/screen"]
 # Screenshot and input tests of the widgets with egui_kittest (desktop only).
 screen-testing = ["ui", "craft-ui/testing"]
 
 [dependencies]
 craft-behavior = { workspace = true, optional = true }
 craft-cms = { workspace = true }
+craft-display = { workspace = true, optional = true }
 craft-host = { workspace = true }
 craft-i18n = { workspace = true }
 craft-keymap = { workspace = true, optional = true }

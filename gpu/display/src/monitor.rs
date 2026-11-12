@@ -75,9 +75,8 @@ pub enum MonitorStatus {
 }
 
 /// Why a monitor profile can't be used. The UI words it (craft-color's
-/// `ui::monitor_problem_label`).
+/// `ui::monitor_problem_label`), so a new reason is a change to that wording too.
 #[derive(Clone, Debug, PartialEq, Eq)]
-#[non_exhaustive]
 pub enum MonitorProblem {
     /// The profile describes another colour space than RGB.
     NotRgb {
