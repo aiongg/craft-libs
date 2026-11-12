@@ -9,7 +9,7 @@ use crate::curve::Curve;
 use crate::math;
 use crate::pipeline::{Pipeline, Stage};
 use crate::profile::{ColorSpace, Pcs, Profile, ProfileClass};
-use crate::{CmsError, Intent, check_len, invalid_arg};
+use crate::{CmsError, GpuMatrixShaper, Intent, check_len, invalid_arg};
 
 mod link;
 mod par;
@@ -51,9 +51,9 @@ impl Default for TransformOptions {
 pub const GRID_3D: usize = 33;
 /// Grid points per axis of 4-input tables (grid of 17⁴ nodes).
 pub const GRID_4D: usize = 17;
-const TABLE_1D: usize = 4096;
+const TABLE_1D: usize = GpuMatrixShaper::INPUT_INTERVALS;
 /// Resolution of output shaper tables (indexed by `x^(1/4)`).
-const OUT_TABLE: usize = 4096;
+const OUT_TABLE: usize = GpuMatrixShaper::OUTPUT_ENTRIES;
 
 /// ICC v4 perceptual reference medium black (ICC.1:2010 §6.3.4.4), XYZ.
 const PERCEPTUAL_BLACK: [f64; 3] = [0.00336, 0.0034731, 0.00287];
@@ -293,6 +293,30 @@ impl Transform {
     /// The exact evaluation pipeline.
     pub fn pipeline(&self) -> &Pipeline {
         &self.pipeline
+    }
+
+    /// A separable RGB transform for accurate GPU display conversion, when available.
+    ///
+    /// Reuses the input/matrix/output tables of the integer conversion path instead of
+    /// interpolating final encoded RGB over a coarse 3D grid. `None` for other channel counts,
+    /// CLUTs, proofing stages, or invalid table data: callers then take a [`crate::Lut3d`]. An SDR
+    /// representation; see [`GpuMatrixShaper`] for the sampling and clamping contract.
+    pub fn gpu_matrix_shaper(&self) -> Option<GpuMatrixShaper> {
+        if self.inputs != 3 || self.outputs != 3 {
+            return None;
+        }
+        let Core::Shaper { curves, matrix, .. } = &self.core else { return None };
+        let mut rows = [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0]];
+        if let Some((nr, nc, coefficients, offsets)) = matrix {
+            if *nr != 3 || *nc != 3 || coefficients.len() != 9 || offsets.len() != 3 {
+                return None;
+            }
+            for (row, (coefficients, offset)) in rows.iter_mut().zip(coefficients.as_chunks::<3>().0.iter().zip(offsets)) {
+                let [r, g, b] = coefficients;
+                *row = [*r, *g, *b, *offset];
+            }
+        }
+        GpuMatrixShaper::from_parts(rows, curves, self.post.as_ref().map(|p| p.tables.as_slice()))
     }
 
     /// Exact evaluation of one colour: `input` holds at least `inputs` normalised values, `out`

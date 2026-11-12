@@ -3,6 +3,7 @@
 mod bench;
 mod cms;
 mod fogra39;
+mod gpu_matrix_shaper;
 mod named;
 mod profile_id;
 mod regen;
