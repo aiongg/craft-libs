@@ -1048,6 +1048,7 @@ dependencies = [
  "craft-atomic",
  "craft-audio",
  "craft-automation",
+ "craft-behavior",
  "craft-browse",
  "craft-cms",
  "craft-color",
