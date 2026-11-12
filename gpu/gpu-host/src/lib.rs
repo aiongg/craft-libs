@@ -13,6 +13,8 @@
 //! - [`software_rasterizer`]: whether an adapter runs on the CPU.
 //! - [`memory`]: a card's own and free memory, and physical memory (native only).
 //! - [`env`]: the one set of environment variables that steers the GPU.
+//! - [`start`]: the window's graphics start, the ladder of ways to start it and what follows when
+//!   one fails, with the start-up record (native only).
 
 pub mod access;
 #[cfg(not(target_arch = "wasm32"))]
@@ -24,6 +26,8 @@ pub mod limits;
 pub mod memory;
 pub mod scope;
 pub mod software;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod start;
 
 pub use access::GpuAccess;
 pub use health::{DeviceHealth, Fault, HealthEvent, OUT_OF_MEMORY, Subscription, WaitOutcome};
@@ -32,3 +36,5 @@ pub use limits::{DeviceRequest, LimitsTier, device_descriptor, device_limits};
 pub use scope::scoped;
 pub use scope::{Checked, ScopeError, ScopeKind, checked};
 pub use software::software_rasterizer;
+#[cfg(not(target_arch = "wasm32"))]
+pub use start::{Attempt, Choice, Failure, GraphicsStart, Keep, Next, RestartState, Rung};

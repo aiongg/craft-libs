@@ -17,6 +17,8 @@ log = "0.4"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 pollster = { workspace = true }
+# The start-up record, the restart argument and the test start's lines.
+serde_json = { workspace = true }
 # Physical memory for `memory::physical_memory`.
 craft-platform = { workspace = true, features = ["usage"] }
 
@@ -24,9 +26,11 @@ craft-platform = { workspace = true, features = ["usage"] }
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen-futures = "0.4"
 
-# DXGI's dedicated video memory (`memory::video_memory`); a safe API, so no `unsafe` here.
+# DXGI's dedicated video memory (`memory::video_memory`), ending a hung process
+# (`start::watch_first_frame`) and the display drivers in the registry (`probe`); a safe API, so
+# no `unsafe` here.
 [target.'cfg(windows)'.dependencies]
-winsafe = { version = "0.0.29", default-features = false, features = ["dxgi"] }
+winsafe = { version = "0.0.29", default-features = false, features = ["dxgi", "kernel", "advapi"] }
 
 # The GPU target: real devices, skipped when no adapter is present.
 [[test]]

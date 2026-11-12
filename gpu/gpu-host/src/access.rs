@@ -38,8 +38,14 @@ impl GpuAccess {
     /// natively any backend). The instance honours wgpu's variables ([`env`]); [`env::ADAPTER_NAME`]
     /// picks the adapter by name, else [`env::POWER_PREF`] does, high performance by default.
     /// `Err` says why there is none.
+    ///
+    /// With a start-up record folder set ([`crate::start::Record::set_folder`]), the device is
+    /// created inside a record scope: a process that dies in the driver here is reported by the
+    /// next launch ([`crate::start::Record::take_crashed_scope`]).
     pub async fn request(req: &DeviceRequest) -> Result<Self, String> {
-        let instance = wgpu::Instance::new(instance_descriptor());
+        #[cfg(not(target_arch = "wasm32"))]
+        let _scope = crate::start::Record::enter("device creation");
+        let instance = wgpu::Instance::new(instance_descriptor(default_backends()));
         let (adapter, by_name) = match adapter_by_name(&instance).await {
             Some(found) => (found?, true),
             None => {
@@ -58,8 +64,8 @@ impl GpuAccess {
         Ok(Self::adopt(adapter, device, queue))
     }
 
-    /// [`Self::request`], blocking (command-line tools, tests, benchmarks, export). `None`, with
-    /// the reason in the log, when no adapter qualifies.
+    /// [`Self::request`], blocking (command-line tools, tests, benchmarks, export), in the same
+    /// record scope. `None`, with the reason in the log, when no adapter qualifies.
     #[cfg(not(target_arch = "wasm32"))]
     pub fn headless(req: &DeviceRequest) -> Option<Self> {
         pollster::block_on(Self::request(req)).map_err(|e| log::info!("gpu: {e}")).ok()
@@ -106,22 +112,34 @@ impl GpuAccess {
     }
 }
 
-/// The instance for a device of its own: the native backends (Vulkan, Metal, DX12), and OpenGL
-/// except on Windows, unless [`env::BACKEND`] names others; wgpu's variables, without the
-/// indirect-call validation ([`env::instance_flags`]); on Windows, the DirectX 12 compiler of
-/// [`env::dx12_compiler`]. WebGPU only in the browser.
+/// The backends of a device of its own: the native ones (Vulkan, Metal, DX12), and OpenGL except
+/// on Windows. WebGPU only in the browser.
 ///
 /// OpenGL stays out on Windows because it starts a WGL context thread inside the vendor driver
 /// (NVIDIA's `nvoglv64` is both its GL driver and its Vulkan ICD), and instances created and
 /// devices dropped on several threads at once then deadlocked in that driver (FilmCraft #3418).
-fn instance_descriptor() -> wgpu::InstanceDescriptor {
+fn default_backends() -> wgpu::Backends {
+    if cfg!(target_arch = "wasm32") {
+        wgpu::Backends::BROWSER_WEBGPU
+    } else if cfg!(windows) {
+        wgpu::Backends::PRIMARY
+    } else {
+        wgpu::Backends::PRIMARY | wgpu::Backends::GL
+    }
+}
+
+/// An instance descriptor with `backends`, unless [`env::BACKEND`] names others; wgpu's variables,
+/// without the indirect-call validation ([`env::instance_flags`]); on Windows, the DirectX 12
+/// compiler of [`env::dx12_compiler`]. Every instance in the crate starts here: devices of their
+/// own and each rung of the window's start (`start::Attempt::instance_descriptor`).
+pub(crate) fn instance_descriptor(backends: wgpu::Backends) -> wgpu::InstanceDescriptor {
     #[allow(unused_mut)]
     let mut desc = wgpu::InstanceDescriptor::new_without_display_handle();
     #[cfg(not(target_arch = "wasm32"))]
     {
         // `with_env` reads WGPU_BACKEND, WGPU_DX12_COMPILER, WGPU_VALIDATION and WGPU_DEBUG.
         desc = desc.with_env();
-        desc.backends = env::backends().unwrap_or(if cfg!(windows) { wgpu::Backends::PRIMARY } else { wgpu::Backends::PRIMARY | wgpu::Backends::GL });
+        desc.backends = env::backends().unwrap_or(backends);
         desc.flags = env::instance_flags(desc.flags);
         if cfg!(windows) && std::env::var_os(env::DX12_COMPILER).is_none() {
             let exe = std::env::current_exe().ok();
@@ -130,7 +148,7 @@ fn instance_descriptor() -> wgpu::InstanceDescriptor {
     }
     #[cfg(target_arch = "wasm32")]
     {
-        desc.backends = wgpu::Backends::BROWSER_WEBGPU;
+        desc.backends = backends;
     }
     desc
 }
