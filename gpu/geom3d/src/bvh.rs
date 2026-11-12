@@ -152,7 +152,13 @@ fn best_split(node_order: &[u32], tris: &[[Vec3; 3]], bin_of: &impl Fn(u32, usiz
 /// Reorder a node's triangles `node_order` into its two children and return the left count:
 /// by the SAH split (axis, bin) when it helps, else by count at the median of the widest
 /// centroid axis (this also splits tied centroids).
-fn partition(node_order: &mut [u32], centroids: &[Vec3], centroid_extent: Vec3, bin_of: &impl Fn(u32, usize) -> usize, sah: Option<(usize, usize)>) -> usize {
+fn partition(
+    node_order: &mut [u32],
+    centroids: &[Vec3],
+    centroid_extent: Vec3,
+    bin_of: &impl Fn(u32, usize) -> usize,
+    sah: Option<(usize, usize)>,
+) -> usize {
     let Some((best_axis, best_split)) = sah else {
         let axis = if centroid_extent.x >= centroid_extent.y && centroid_extent.x >= centroid_extent.z {
             0
@@ -568,132 +574,64 @@ mod tests {
         assert!(empty.closest(Vec3::ZERO, Vec3::X, 1.0).is_none());
     }
 
-    #[test]
-    fn large_coplanar_plate_does_not_degrade_leaf_sizes() {
-        let mut positions = Vec::new();
-        let mut indices = Vec::new();
-        let w = 200.0f32;
-        let h = 100.0f32;
-
-        // Large plate at z = 0
-        let b = positions.len() as u32;
-        positions.extend_from_slice(&[Vec3::new(0.0, 0.0, 0.0), Vec3::new(w, 0.0, 0.0), Vec3::new(w, h, 0.0), Vec3::new(0.0, h, 0.0)]);
-        indices.extend_from_slice(&[b, b + 1, b + 2, b, b + 2, b + 3]);
-
-        // 500 small triangles sitting at z = 0.5
-        for i in 0..500 {
-            let x = 20.0 + (i % 160) as f32;
-            let y = 10.0 + ((i / 160) % 80) as f32;
-            let idx = positions.len() as u32;
-            positions.push(Vec3::new(x, y, 0.5));
-            positions.push(Vec3::new(x + 0.5, y, 0.5));
-            positions.push(Vec3::new(x, y + 0.5, 0.6));
-            indices.extend_from_slice(&[idx, idx + 1, idx + 2]);
-        }
-
-        let mesh = Mesh {
-            positions,
-            normals: Vec::new(),
-            uvs: Vec::new(),
-            indices,
-            tangents: Vec::new(),
-            colors: Vec::new(),
-            submeshes: Vec::new(),
-            materials: Vec::new(),
-            diagonals: Vec::new(),
-        };
-
-        let bvh = Bvh::new(&mesh);
-
-        for (_, _, _, count) in bvh.nodes() {
-            if count > 0 {
-                assert!(count <= LEAF as u32, "leaf has too many triangles: {count}");
-            }
-        }
-
-        // The foreground triangle is the closest hit
-        let hit = bvh.closest(Vec3::new(20.1, 10.1, 10.0), Vec3::NEG_Z, 100.0).unwrap();
-        assert!((hit.t - 9.5).abs() < 0.1, "hit t: {}", hit.t);
-    }
-
-    #[test]
-    fn clustered_coplanar_fallback_partitions_nodes() {
-        let mut positions = Vec::new();
-        let mut indices = Vec::new();
-        let w = 200.0f32;
-        let h = 100.0f32;
-
-        let b = positions.len() as u32;
-        positions.extend_from_slice(&[Vec3::new(0.0, 0.0, 0.0), Vec3::new(w, 0.0, 0.0), Vec3::new(w, h, 0.0), Vec3::new(0.0, h, 0.0)]);
-        indices.extend_from_slice(&[b, b + 1, b + 2, b, b + 2, b + 3]);
-
-        // Shared bins keep every SAH split as costly as an unsplit leaf
-        for i in 0..500 {
-            let x = 130.0 + (i % 10) as f32 * 0.1;
-            let y = 64.0 + (i / 10) as f32 * 0.02;
-            let idx = positions.len() as u32;
-            positions.push(Vec3::new(x, y, 0.0));
-            positions.push(Vec3::new(x + 0.01, y, 0.0));
-            positions.push(Vec3::new(x, y + 0.01, 0.0));
-            indices.extend_from_slice(&[idx, idx + 1, idx + 2]);
-        }
-
-        let mesh = Mesh {
-            positions,
-            normals: Vec::new(),
-            uvs: Vec::new(),
-            indices,
-            tangents: Vec::new(),
-            colors: Vec::new(),
-            submeshes: Vec::new(),
-            materials: Vec::new(),
-            diagonals: Vec::new(),
-        };
-
-        let bvh = Bvh::new(&mesh);
-
-        for (_, _, _, count) in bvh.nodes() {
-            if count > 0 {
-                assert!(count <= LEAF as u32, "leaf has too many triangles: {count}");
-            }
-        }
-    }
-
-    #[test]
-    fn coincident_centroids_still_partition_large_and_small_triangles() {
+    /// A mesh of `triangles`, each given by its three corners.
+    fn soup(triangles: impl IntoIterator<Item = [Vec3; 3]>) -> Mesh {
         let mut mesh = Mesh::default();
-
-        // Different triangle sizes share an exact centroid
-        for i in 0..=500 {
-            let size = if i == 0 { 100.0 } else { 0.01 + i as f32 * 0.0001 };
+        for corners in triangles {
             let first = mesh.positions.len() as u32;
-            mesh.positions.extend([Vec3::new(-size, -size, 0.0), Vec3::new(size, -size, 0.0), Vec3::new(0.0, 2.0 * size, 0.0)]);
+            mesh.positions.extend(corners);
             mesh.indices.extend([first, first + 1, first + 2]);
         }
+        mesh
+    }
 
-        mesh.normals.resize(mesh.positions.len(), Vec3::Z);
-        mesh.uvs.resize(mesh.positions.len(), glam::Vec2::ZERO);
-        mesh.tangents.resize(mesh.positions.len(), glam::Vec4::new(1.0, 0.0, 0.0, 1.0));
-        mesh.validate().unwrap();
+    /// The two triangles of a 200 × 100 plate at z = 0.
+    fn plate() -> [[Vec3; 3]; 2] {
+        let (w, h) = (200.0, 100.0);
+        let [a, b, c, d] = [Vec3::ZERO, Vec3::new(w, 0.0, 0.0), Vec3::new(w, h, 0.0), Vec3::new(0.0, h, 0.0)];
+        [[a, b, c], [a, c, d]]
+    }
 
-        let bvh = Bvh::new(&mesh);
+    /// Splits SAH cannot price (a huge plate over small triangles, clusters that share bins,
+    /// tied centroids) fall back to the median, so leaves stay small and keep their triangle ids.
+    #[test]
+    fn degenerate_splits_fall_back_to_the_median() {
+        // Small triangles at z = 0.5 over the plate
+        let floating = soup(plate().into_iter().chain((0..500).map(|i| {
+            let (x, y) = (20.0 + (i % 160) as f32, 10.0 + ((i / 160) % 80) as f32);
+            [Vec3::new(x, y, 0.5), Vec3::new(x + 0.5, y, 0.5), Vec3::new(x, y + 0.5, 0.6)]
+        })));
+        // A dense cluster on the plate: every SAH split costs as much as the unsplit leaf
+        let clustered = soup(plate().into_iter().chain((0..500).map(|i| {
+            let (x, y) = (130.0 + (i % 10) as f32 * 0.1, 64.0 + (i / 10) as f32 * 0.02);
+            [Vec3::new(x, y, 0.0), Vec3::new(x + 0.01, y, 0.0), Vec3::new(x, y + 0.01, 0.0)]
+        })));
+        // One large and 500 small triangles with the same centroid
+        let tied = soup((0..=500).map(|i| {
+            let size = if i == 0 { 100.0 } else { 0.01 + i as f32 * 0.0001 };
+            [Vec3::new(-size, -size, 0.0), Vec3::new(size, -size, 0.0), Vec3::new(0.0, 2.0 * size, 0.0)]
+        }));
 
-        for (_, _, _, count) in bvh.nodes() {
-            assert!(count <= LEAF as u32, "leaf has too many triangles: {count}");
+        let bvhs = [&floating, &clustered, &tied].map(Bvh::new);
+        for bvh in &bvhs {
+            for (_, _, _, count) in bvh.nodes() {
+                assert!(count <= LEAF as u32, "leaf has too many triangles: {count}");
+            }
         }
 
-        // The outer ray only hits the large triangle
+        // The floating triangle is the closest hit
+        let hit = bvhs[0].closest(Vec3::new(20.1, 10.1, 10.0), Vec3::NEG_Z, 100.0).unwrap();
+        assert!((hit.t - 9.5).abs() < 0.1, "hit t: {}", hit.t);
+
+        // Outside the small ones, a ray hits only the large triangle
         let origin = Vec3::new(50.0, 0.0, 10.0);
-        let hit = bvh.closest(origin, Vec3::NEG_Z, 100.0).unwrap();
-        assert_eq!(hit.tri, 0);
-        assert_eq!(hit.t, 10.0);
+        let hit = bvhs[2].closest(origin, Vec3::NEG_Z, 100.0).unwrap();
+        assert_eq!((hit.tri, hit.t), (0, 10.0));
+        assert!(bvhs[2].occluded(origin, Vec3::NEG_Z, 100.0));
+        assert!(!bvhs[2].occluded(origin, Vec3::NEG_Z, 5.0));
 
-        assert!(bvh.occluded(origin, Vec3::NEG_Z, 100.0));
-        assert!(!bvh.occluded(origin, Vec3::NEG_Z, 5.0));
-
-        // Median partitions preserve original triangle IDs
-        let hit = bvh.closest_filtered(Vec3::new(0.0, 0.0, 10.0), Vec3::NEG_Z, 100.0, &|t| t == 500).unwrap();
-        assert_eq!(hit.tri, 500);
-        assert_eq!(hit.t, 10.0);
+        // Median partitions preserve original triangle ids
+        let hit = bvhs[2].closest_filtered(Vec3::new(0.0, 0.0, 10.0), Vec3::NEG_Z, 100.0, &|t| t == 500).unwrap();
+        assert_eq!((hit.tri, hit.t), (500, 10.0));
     }
 }

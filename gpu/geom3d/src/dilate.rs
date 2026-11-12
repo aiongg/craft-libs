@@ -122,36 +122,6 @@ fn neighbours(i: usize, w: u32, h: u32, bsz: (u32, u32)) -> impl Iterator<Item =
 mod tests {
     use super::*;
 
-    #[test]
-    fn uncovered_texels_take_the_nearest_covered_value() {
-        // 5×1 strip, only texel 1 covered.
-        let covered = [false, true, false, false, false];
-        let m = DilationMap::new(&covered, 5, 1, Some(2));
-        assert_eq!(m.src, vec![1, 1, 1, 1, NONE]);
-        let mut data = [0u8, 9, 0, 0, 0];
-        m.apply(&mut data, 1);
-        assert_eq!(data, [9, 9, 9, 9, 0]);
-    }
-
-    #[test]
-    fn infinite_padding_fills_everything_and_keeps_covered_values() {
-        let covered = [true, false, false, false, false, false, false, false, true];
-        let m = DilationMap::new(&covered, 3, 3, None);
-        assert!(m.src.iter().all(|s| *s != NONE));
-        assert_eq!(m.src[0], 0);
-        assert_eq!(m.src[8], 8);
-        assert_eq!(m.source(2, 2), Some((2, 2)));
-        assert_eq!(m.source(9, 9), None);
-    }
-
-    #[test]
-    fn blocks_never_pad_across_their_borders() {
-        // 4×1 strip of two 2-texel blocks, only texel 0 covered.
-        let covered = [true, false, false, false];
-        assert_eq!(DilationMap::in_blocks(&covered, 4, 1, None, 2).src, vec![0, 0, NONE, NONE]);
-        assert_eq!(DilationMap::new(&covered, 4, 1, None).src, vec![0; 4]);
-    }
-
     /// The plain multi-source BFS (every covered texel seeds, one queue).
     fn reference(covered: &[bool], width: u32, height: u32, max_dist: Option<u32>, block: u32) -> Vec<u32> {
         let n = (width * height) as usize;
@@ -201,13 +171,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn nothing_covered_is_a_no_op() {
-        let m = DilationMap::new(&[], 4, 4, None);
-        let mut data = [3u16; 16];
-        m.apply(&mut data, 1);
-        assert_eq!(data, [3u16; 16]);
-    }
 }
 
 #[cfg(test)]

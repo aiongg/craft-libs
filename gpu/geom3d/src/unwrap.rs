@@ -79,41 +79,68 @@ pub fn auto_unwrap(mesh: &mut Mesh, padding_texels: f32, resolution: u32) -> Res
     if mesh.normals.len() != mesh.positions.len() {
         mesh.compute_normals();
     }
-    let n = mesh.triangle_count();
-    let weld = weld_ids(&mesh.positions);
-    let pos = |v: usize| mesh.positions.get(v).copied().unwrap_or_default();
-    let wid = |v: usize| weld.get(v).copied().unwrap_or(u32::MAX);
+    let faces = Faces::of(mesh);
+    let edges = edge_adjacency(mesh, &faces.weld);
+    let (mut charts, chart_of) = grow_charts(mesh, &faces, &edges);
+    frame_charts(mesh, &mut charts, &chart_of);
+    let pad = padding_texels.max(1.0);
+    let scale = pack_charts(&mut charts, resolution, pad)?;
+    rebuild_vertices(mesh, &charts, &chart_of, &scale, pad);
+    mesh.compute_tangents();
+    mesh.validate()?;
+    Ok(charts.len())
+}
 
-    // Face normals (None for degenerate faces) and materials.
-    let mut normal: Vec<Option<Vec3>> = Vec::with_capacity(n);
-    let mut area = Vec::with_capacity(n);
-    for t in 0..n {
-        let [a, b, c] = mesh.tri(t).unwrap_or([0; 3]);
-        let cr = (pos(b) - pos(a)).cross(pos(c) - pos(a));
-        area.push(cr.length() * 0.5);
-        normal.push(cr.try_normalize());
-    }
-    let mut material = vec![0usize; n];
-    for s in &mesh.submeshes {
-        for t in (s.start / 3) as usize..((s.start as usize + s.count as usize) / 3) {
-            if let Some(m) = material.get_mut(t) {
-                *m = s.material;
+/// Per face: unit normal (None for degenerate faces), area and material; per vertex: welded id.
+struct Faces {
+    normal: Vec<Option<Vec3>>,
+    area: Vec<f32>,
+    material: Vec<usize>,
+    weld: Vec<u32>,
+}
+
+impl Faces {
+    fn of(mesh: &Mesh) -> Faces {
+        let n = mesh.triangle_count();
+        let pos = |v: usize| mesh.positions.get(v).copied().unwrap_or_default();
+
+        let mut normal: Vec<Option<Vec3>> = Vec::with_capacity(n);
+        let mut area = Vec::with_capacity(n);
+        for t in 0..n {
+            let [a, b, c] = mesh.tri(t).unwrap_or([0; 3]);
+            let cr = (pos(b) - pos(a)).cross(pos(c) - pos(a));
+            area.push(cr.length() * 0.5);
+            normal.push(cr.try_normalize());
+        }
+        let mut material = vec![0usize; n];
+        for s in &mesh.submeshes {
+            for t in (s.start / 3) as usize..((s.start as usize + s.count as usize) / 3) {
+                if let Some(m) = material.get_mut(t) {
+                    *m = s.material;
+                }
             }
         }
+        Faces { normal, area, material, weld: weld_ids(&mesh.positions) }
     }
+}
 
-    // Manifold edge adjacency over welded vertices: edge → (face, face, count).
-    let mut edges: HashMap<(u32, u32), (u32, u32, u8)> = HashMap::with_capacity(n * 2);
-    let tri_edges = |t: usize| -> [(u32, u32); 3] {
-        let [a, b, c] = mesh.tri(t).unwrap_or([0; 3]);
-        let key = |x: usize, y: usize| {
-            let (p, q) = (wid(x), wid(y));
-            (p.min(q), p.max(q))
-        };
-        [key(a, b), key(b, c), key(c, a)]
+/// The three edges of triangle `t` as welded vertex pairs, smaller id first.
+fn tri_edges(mesh: &Mesh, weld: &[u32], t: usize) -> [(u32, u32); 3] {
+    let wid = |v: usize| weld.get(v).copied().unwrap_or(u32::MAX);
+    let [a, b, c] = mesh.tri(t).unwrap_or([0; 3]);
+    let key = |x: usize, y: usize| {
+        let (p, q) = (wid(x), wid(y));
+        (p.min(q), p.max(q))
     };
+    [key(a, b), key(b, c), key(c, a)]
+}
+
+/// Manifold edge adjacency over welded vertices: edge → (face, face, count).
+fn edge_adjacency(mesh: &Mesh, weld: &[u32]) -> HashMap<(u32, u32), (u32, u32, u8)> {
+    let n = mesh.triangle_count();
+    let mut edges: HashMap<(u32, u32), (u32, u32, u8)> = HashMap::with_capacity(n * 2);
     for t in 0..n {
-        for e in tri_edges(t) {
+        for e in tri_edges(mesh, weld, t) {
             if e.0 == e.1 {
                 continue;
             }
@@ -124,8 +151,14 @@ pub fn auto_unwrap(mesh: &mut Mesh, padding_texels: f32, resolution: u32) -> Res
             slot.2 = slot.2.saturating_add(1);
         }
     }
+    edges
+}
 
-    // Grow charts from the largest unassigned faces.
+/// Grow charts from the largest unassigned faces across manifold edges, within [`CHART_COS`] of
+/// the seed normal and within one material. Returns the charts and each face's chart.
+fn grow_charts(mesh: &Mesh, faces: &Faces, edges: &HashMap<(u32, u32), (u32, u32, u8)>) -> (Vec<Chart>, Vec<u32>) {
+    let Faces { normal, area, material, weld } = faces;
+    let n = mesh.triangle_count();
     let mut order: Vec<usize> = (0..n).collect();
     order.sort_by(|a, b| area[*b].total_cmp(&area[*a]));
     let mut chart_of = vec![u32::MAX; n];
@@ -142,7 +175,7 @@ pub fn auto_unwrap(mesh: &mut Mesh, padding_texels: f32, resolution: u32) -> Res
         chart_of[seed] = id;
         queue.push_back(seed);
         while let Some(f) = queue.pop_front() {
-            for e in tri_edges(f) {
+            for e in tri_edges(mesh, weld, f) {
                 let Some(&(f0, f1, 2)) = edges.get(&e) else { continue };
                 let g = if f0 as usize == f { f1 } else { f0 } as usize;
                 let ok = normal.get(g).is_some_and(|nn| nn.is_none_or(|nn| nn.dot(sn) >= CHART_COS));
@@ -153,8 +186,12 @@ pub fn auto_unwrap(mesh: &mut Mesh, padding_texels: f32, resolution: u32) -> Res
             }
         }
     }
+    (charts, chart_of)
+}
 
-    // Principal axes and bounds of every chart.
+/// Principal axes and bounds of every chart, turned so each is wider than tall.
+fn frame_charts(mesh: &Mesh, charts: &mut [Chart], chart_of: &[u32]) {
+    let pos = |v: usize| mesh.positions.get(v).copied().unwrap_or_default();
     let mut cov = vec![(Vec2::ZERO, [0.0f64; 3], 0usize); charts.len()];
     for (t, &c) in chart_of.iter().enumerate() {
         let c = c as usize;
@@ -189,7 +226,7 @@ pub fn auto_unwrap(mesh: &mut Mesh, padding_texels: f32, resolution: u32) -> Res
             }
         }
     }
-    for ch in &mut charts {
+    for ch in charts {
         if ch.size().y > ch.size().x {
             // Quarter turn (x, y) → (y, −x) so shelves stay low.
             ch.rot = Vec2::new(ch.rot.y, -ch.rot.x);
@@ -198,9 +235,11 @@ pub fn auto_unwrap(mesh: &mut Mesh, padding_texels: f32, resolution: u32) -> Res
             ch.hi = Vec2::new(hi.y, -lo.x);
         }
     }
+}
 
-    // Pack each material's charts into its own 0..1 square.
-    let pad = padding_texels.max(1.0);
+/// Pack each material's charts into its own 0..1 square: sets each chart's offset and returns
+/// per material (texels per world unit, resolution).
+fn pack_charts(charts: &mut [Chart], resolution: u32, pad: f32) -> Result<HashMap<usize, (f32, f32)>> {
     let mut scale = HashMap::new();
     let mats: std::collections::BTreeSet<usize> = charts.iter().map(|c| c.material).collect();
     for m in mats {
@@ -212,8 +251,12 @@ pub fn auto_unwrap(mesh: &mut Mesh, padding_texels: f32, resolution: u32) -> Res
         }
         scale.insert(m, (s, res));
     }
+    Ok(scale)
+}
 
-    // Rebuild vertices: one per (vertex, chart).
+/// Rebuild the vertices of `mesh` with the packed UVs: one vertex per (vertex, chart).
+fn rebuild_vertices(mesh: &mut Mesh, charts: &[Chart], chart_of: &[u32], scale: &HashMap<usize, (f32, f32)>, pad: f32) {
+    let pos = |v: usize| mesh.positions.get(v).copied().unwrap_or_default();
     let mut remap: HashMap<(u32, u32), u32> = HashMap::with_capacity(mesh.positions.len() * 2);
     let (mut positions, mut normals, mut uvs, mut colors) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
     let mut indices = Vec::with_capacity(mesh.indices.len());
@@ -241,9 +284,6 @@ pub fn auto_unwrap(mesh: &mut Mesh, padding_texels: f32, resolution: u32) -> Res
     mesh.uvs = uvs;
     mesh.colors = colors;
     mesh.indices = indices;
-    mesh.compute_tangents();
-    mesh.validate()?;
-    Ok(charts.len())
 }
 
 /// Shelf-pack rectangles of world `sizes` (each grown by `pad` texels per side) into a square of
@@ -331,19 +371,13 @@ mod tests {
         assert!((g.overlaps as f32) < covered * 0.005, "overlaps {} of {covered}", g.overlaps);
     }
 
+    /// Closed, open and two-material meshes unwrap into 0..1 with good coverage and no overlaps.
     #[test]
-    fn sphere_unwraps_without_overlaps() {
-        check(primitives::sphere(1.0, 48, 24), 0.3);
-    }
-
-    #[test]
-    fn cube_unwraps_without_overlaps() {
-        check(primitives::cube(2.0), 0.3);
-    }
-
-    #[test]
-    fn torus_and_material_ball_unwrap() {
-        check(primitives::torus(1.0, 0.3, 48, 24), 0.2);
+    fn primitives_unwrap_without_overlaps() {
+        for (mesh, min_coverage) in [(primitives::sphere(1.0, 48, 24), 0.3), (primitives::cube(2.0), 0.3), (primitives::torus(1.0, 0.3, 48, 24), 0.2)]
+        {
+            check(mesh, min_coverage);
+        }
         let mut ball = primitives::material_ball();
         ball.uvs.clear();
         auto_unwrap(&mut ball, 2.0, 1024).unwrap();

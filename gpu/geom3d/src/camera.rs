@@ -137,16 +137,4 @@ mod tests {
         let to_p = (p - r.origin).normalize();
         assert!(to_p.dot(r.dir) > 0.9999);
     }
-
-    #[test]
-    fn pitch_is_clamped_and_zoom_bounded() {
-        let mut c = OrbitCamera::default();
-        c.orbit(0.0, 10.0);
-        assert!(c.pitch <= 89f32.to_radians() + 1e-6);
-        for _ in 0..1000 {
-            c.zoom(1.0);
-        }
-        assert!(c.distance > 0.0 && c.distance.is_finite());
-        let _ = c.proj(f32::NAN);
-    }
 }

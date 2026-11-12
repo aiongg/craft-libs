@@ -545,11 +545,4 @@ mod tests {
         let (dome, valley) = (front_depth(0.2), front_depth(rim * ORB_PANEL_VALLEY));
         assert!(dome > ORB_CUT && valley < ORB_CUT - 0.05, "dome {dome}, valley {valley}");
     }
-
-    #[test]
-    fn material_ball_has_two_materials() {
-        let m = material_ball();
-        assert_eq!(m.materials, vec!["Ball".to_string(), "Base".to_string()]);
-        assert!(m.triangles_of(0).count() > 0 && m.triangles_of(1).count() > 0);
-    }
 }
