@@ -1,0 +1,23 @@
+[package]
+name = "craft-wgsl"
+description = "The shared WGSL prelude (numeric guards, sRGB, HSL, PQ and HLG) with a Rust twin of each function, and the one way shader sources are assembled."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+naga = { workspace = true }
+craft-gpu-testkit = { workspace = true }
+
+[[test]]
+name = "it"
+path = "tests/it/main.rs"
+
+[[test]]
+name = "gpu"
+path = "tests/gpu/main.rs"

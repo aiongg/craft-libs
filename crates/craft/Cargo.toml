@@ -57,6 +57,7 @@ craft-update = { workspace = true, optional = true }
 craft-vectorcraft-format = { workspace = true, optional = true }
 craft-web-api = { workspace = true, optional = true }
 craft-web-host = { workspace = true, optional = true }
+craft-wgsl = { workspace = true, optional = true }
 craft-window = { workspace = true, optional = true }
 craft-ui = { workspace = true, optional = true }
 
@@ -282,6 +283,8 @@ vectorcraft-format = ["dep:craft-vectorcraft-format"]
 web-api = ["dep:craft-web-api"]
 
 web-host = ["dep:craft-web-host"]
+
+wgsl = ["dep:craft-wgsl"]
 
 window = ["dep:craft-window"]
 window-appkit = ["window", "craft-window/appkit"]

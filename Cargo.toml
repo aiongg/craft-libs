@@ -45,6 +45,8 @@ craft-font-manager = { path = "crates/font-manager" }
 craft-font-store = { path = "crates/font-store" }
 craft-gcode = { path = "crates/gcode" }
 craft-mesh = { path = "crates/mesh" }
+craft-wgsl = { path = "gpu/wgsl" }
+craft-gpu-testkit = { path = "gpu/testkit" }
 craft-heif = { path = "crates/heif" }
 craft-fonts-build = { path = "crates/fonts-build" }
 craft-host = { path = "crates/host" }
@@ -102,6 +104,10 @@ smallvec = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 proptest = "1"
+# GPU engine crates (gpu/): the version egui-wgpu builds, so there is one wgpu.
+wgpu = "30"
+naga = { version = "30", features = ["wgsl-in"] }
+pollster = "0.4"
 # Character sets of the WHATWG Encoding Standard (craft-mime). (Apache-2.0 OR MIT) AND BSD-3-Clause.
 encoding_rs = "0.8"
 # All date/time conversion goes through chrono (no hand-rolled calendar code beyond the 400-year range extension; AGENTS.md).

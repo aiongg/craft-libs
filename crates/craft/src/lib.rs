@@ -90,6 +90,8 @@ pub use craft_vectorcraft_format as vectorcraft_format;
 pub use craft_web_api as web_api;
 #[cfg(feature = "web-host")]
 pub use craft_web_host as web_host;
+#[cfg(feature = "wgsl")]
+pub use craft_wgsl as wgsl;
 #[cfg(feature = "window")]
 pub use craft_window as window;
 #[cfg(feature = "ui")]

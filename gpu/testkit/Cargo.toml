@@ -1,0 +1,16 @@
+[package]
+name = "craft-gpu-testkit"
+description = "GPU test support for the gpu/ engine crates: a headless device (or a skip when there is none) and compute probes over f32 buffers. Test support only."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+wgpu = { workspace = true }
+pollster = { workspace = true }
