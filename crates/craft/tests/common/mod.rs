@@ -4,7 +4,7 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-/// Crates the facade leaves out, by directory, with the reason. Everything else under `crates/` is a member.
+/// Crates the facade leaves out, by directory, with the reason. Everything else under `crates/` and `crates/gpu/` is a member.
 pub const NOT_IN_FACADE: &[(&str, &str)] = &[
     ("behavior", "layer 1: pure behaviours with no egui, below craft-ui"),
     ("design-lint", "a lint template and checker for apps' clippy.toml, run from xtask"),
@@ -42,24 +42,25 @@ pub fn read_toml(path: &Path) -> toml::Table {
     text.parse().unwrap_or_else(|e| panic!("{}: {e}", path.display()))
 }
 
-/// Every facade member except the facade itself, sorted by directory name.
+/// Every facade member except the facade itself, sorted by directory name: the crates under
+/// `crates/` and the engine crates under `crates/gpu/`.
 pub fn members() -> Vec<Member> {
-    let crates = workspace_root().join("crates");
-    let mut dirs: Vec<String> = std::fs::read_dir(&crates)
-        .unwrap()
-        .map(|e| e.unwrap())
+    let root = workspace_root();
+    let mut dirs: Vec<(String, PathBuf)> = ["crates", "crates/gpu"]
+        .iter()
+        // `crates/gpu` may not exist yet.
+        .flat_map(|parent| std::fs::read_dir(root.join(parent)).into_iter().flatten().map(|e| e.unwrap()))
         .filter(|e| e.path().join("Cargo.toml").is_file())
-        .map(|e| e.file_name().into_string().unwrap())
-        .filter(|d| d != "craft" && !NOT_IN_FACADE.iter().any(|(n, _)| n == d))
+        .map(|e| (e.file_name().into_string().unwrap(), e.path()))
+        .filter(|(d, _)| d != "craft" && !NOT_IN_FACADE.iter().any(|(n, _)| n == d))
         .collect();
     dirs.sort();
     dirs.into_iter()
-        .map(|folder| {
-            let manifest = read_toml(&crates.join(&folder).join("Cargo.toml"));
-            let dir = folder.clone();
+        .map(|(dir, path)| {
+            let manifest = read_toml(&path.join("Cargo.toml"));
             let name = manifest["package"]["name"].as_str().unwrap();
             let expected = format!("craft-{dir}");
-            assert_eq!(name, expected, "crates/{folder} is not named {expected}");
+            assert_eq!(name, expected, "{} is not named {expected}", path.display());
             let features = manifest
                 .get("features")
                 .and_then(|f| f.as_table())

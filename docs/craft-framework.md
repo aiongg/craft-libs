@@ -166,6 +166,15 @@ Rules:
 - A family keeps core types at the crate root and egui UI in `ui` behind the `ui` feature, and may be UI-only.
 - No family's `ui` depends on another family's `ui`, except on `craft-color`, the base family any family may use (`crates/craft/tests/families.rs` checks it). A widget two other families share moves down to the UI library.
 
+#### Engine crates
+
+Engine crates hold GPU and geometry engines: compositing, blending, 3D, effects, and the CPU code they share.
+
+- They live under `crates/gpu/<name>` and are tier 0. The workspace members and the facade's member list (`crates/craft/tests/common/mod.rs`) read `crates/gpu/*` beside `crates/*`.
+- They have no craft-ui-* dependency, and no craft-ui-* crate depends on them. Only `craft-ui-gpu` and the apps join them to the UI library.
+- GPU tests and golden tests are separate test targets (`tests/gpu`, `tests/golden`), never features. GPU targets skip when no adapter is present.
+- Opt level is set per engine crate, in the workspace's `[profile.dev.package.<crate>]` entries.
+
 ### 3.2 The UI library crates
 
 The UI library is six crates along the design-system layers ([4.1](#41-component-layers)), plus the `craft-ui` facade. An arrow points from a crate to a crate it depends on.
