@@ -19,8 +19,10 @@ browser = ["dep:wasm-bindgen", "dep:js-sys", "dep:web-sys"]
 pointer = ["dep:core-graphics"]
 # `usage`: the process's memory use.
 usage = ["dep:sysinfo"]
+# The monitors and their ICC profiles (`craft_platform::monitors`): X11 RandR and colord.
+monitors = ["dep:zbus", "zbus?/blocking-api", "dep:x11rb"]
 # Screen capture for the screen colour picker (`craft_platform::screen`).
-screen = ["dep:zbus", "zbus?/blocking-api", "dep:futures-lite", "dep:async-io", "dep:x11rb", "dep:core-graphics2", "dep:xcap"]
+screen = ["monitors", "dep:futures-lite", "dep:async-io", "dep:core-graphics2", "dep:xcap"]
 # `clipboard`: the system clipboard with size limits, the synthetic-input fence and the paste probe.
 # The presence check asks the system which formats the clipboard offers (no content is read): Windows, macOS, Wayland and X11.
 clipboard = ["dep:arboard", "dep:clipboard-win", "dep:objc2-app-kit", "dep:objc2-foundation", "dep:wl-clipboard-rs", "dep:x11rb"]

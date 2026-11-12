@@ -20,6 +20,8 @@ pub mod dialog_outcome;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod dialogs;
 pub mod logs;
+#[cfg(feature = "monitors")]
+pub mod monitors;
 mod message;
 #[cfg(test)]
 mod message_tests;

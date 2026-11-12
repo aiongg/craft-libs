@@ -1,7 +1,8 @@
 //! Screen capture for the screen colour picker (F04.01): every monitor's pixels and ICC profile,
 //! taken once when the picker opens. The UI side is `craft_color::ui::screen_picker`.
 //!
-//! Backends: X11 (`GetImage` per RandR monitor, `_ICC_PROFILE` properties), Wayland (the
+//! Backends: X11 (`GetImage` per RandR monitor, each monitor's profile from
+//! [`crate::monitors`]), Wayland (the
 //! Screenshot portal's `PickColor`, where the compositor's own picker returns one colour), macOS (CoreGraphics window-list image per display, the
 //! image's colour space), Windows (`xcap` per monitor, no profile). Web and sessions without a
 //! display have no capture: [`capture`] returns [`ScreenError::Unsupported`].
@@ -213,17 +214,12 @@ fn unpack_rgba(
 mod backend {
     use super::{Arc, AtomicBool, Capture, MAX_MONITORS, Ordering, ScreenError, ScreenImage, add_to_budget, picked_color, pixel_count, usable_scale};
 
-    const MAX_ICC_PROFILE_BYTES: usize = 1024 * 1024;
-    /// Length limit of the property reads, in 32-bit units.
-    const ICC_PROPERTY_LONG_LENGTH: u32 = 256 * 1024;
     const PORTAL_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(120);
 
     /// X11 sessions use `GetImage`; Wayland sessions (also when XWayland is present, which
     /// shows only black for other clients) go through the portal's `PickColor`.
     pub fn capture(stop: &AtomicBool, scale: f32) -> Result<Capture, ScreenError> {
-        let wayland =
-            std::env::var_os("WAYLAND_DISPLAY").is_some_and(|v| !v.is_empty()) || std::env::var("XDG_SESSION_TYPE").is_ok_and(|v| v == "wayland");
-        if wayland {
+        if crate::monitors::linux::wayland_session() {
             pick_color(stop)
         } else if std::env::var_os("DISPLAY").is_some_and(|v| !v.is_empty()) {
             x11(stop, scale).map(Capture::Images)
@@ -236,41 +232,6 @@ mod backend {
         ScreenError::Failed(e.to_string())
     }
 
-    /// The profile bytes when they are a plausible RGB ICC profile: size field matching, the
-    /// `acsp` signature and an `RGB ` data colour space.
-    fn icc_profile(bytes: Vec<u8>) -> Option<Vec<u8>> {
-        let header_ok = bytes.len() >= 128
-            && bytes.len() <= MAX_ICC_PROFILE_BYTES
-            && u32::from_be_bytes(bytes[0..4].try_into().ok()?) as usize == bytes.len()
-            && &bytes[36..40] == b"acsp"
-            && &bytes[16..20] == b"RGB ";
-        header_ok.then_some(bytes)
-    }
-
-    fn atom<C: x11rb::connection::RequestConnection>(conn: &C, name: &str) -> Option<u32> {
-        use x11rb::protocol::xproto::ConnectionExt as _;
-        let atom = conn.intern_atom(true, name.as_bytes()).ok()?.reply().ok()?.atom;
-        (atom != 0).then_some(atom)
-    }
-
-    fn output_profile<C: x11rb::connection::RequestConnection>(conn: &C, output: u32, atom: u32) -> Option<Vec<u8>> {
-        use x11rb::protocol::{randr::ConnectionExt as _, xproto::AtomEnum};
-        let reply = conn.randr_get_output_property(output, atom, AtomEnum::CARDINAL, 0, ICC_PROPERTY_LONG_LENGTH, false, false).ok()?.reply().ok()?;
-        if reply.type_ != u32::from(AtomEnum::CARDINAL) || reply.format != 8 || reply.bytes_after != 0 {
-            return None;
-        }
-        icc_profile(reply.data)
-    }
-
-    fn root_profile<C: x11rb::connection::RequestConnection>(conn: &C, root: u32, atom: u32) -> Option<Vec<u8>> {
-        use x11rb::protocol::xproto::{AtomEnum, ConnectionExt as _};
-        let reply = conn.get_property(false, root, atom, AtomEnum::ANY, 0, ICC_PROPERTY_LONG_LENGTH).ok()?.reply().ok()?;
-        if reply.format != 8 || reply.bytes_after != 0 {
-            return None;
-        }
-        icc_profile(reply.value)
-    }
-
     struct Region {
         x: i16,
         y: i16,
@@ -278,42 +239,39 @@ mod backend {
         height: u16,
         primary: bool,
         name: String,
-        outputs: Vec<u32>,
+        icc: Option<Arc<Vec<u8>>>,
     }
 
     fn x11(stop: &AtomicBool, scale: f32) -> Result<Vec<ScreenImage>, ScreenError> {
         use x11rb::{
             connection::Connection,
             image::{Image, PixelLayout},
-            protocol::{
-                randr::ConnectionExt as _,
-                xproto::{ConnectionExt as _, VisualClass},
-            },
+            protocol::xproto::VisualClass,
         };
         let (conn, index) = x11rb::connect(None).map_err(failed)?;
         let screen = conn.setup().roots.get(index).ok_or_else(|| failed("the X11 screen is missing"))?;
         let (root_w, root_h) = (screen.width_in_pixels, screen.height_in_pixels);
         pixel_count(usize::from(root_w), usize::from(root_h))?;
 
-        let monitors = conn.randr_get_monitors(screen.root, true).ok().and_then(|c| c.reply().ok()).map(|r| r.monitors).unwrap_or_default();
-        let mut regions = Vec::new();
-        for m in monitors {
-            let name = conn
-                .get_atom_name(m.name)
-                .ok()
-                .and_then(|c| c.reply().ok())
-                .map(|r| String::from_utf8_lossy(&r.name).into_owned())
-                .unwrap_or_default();
-            regions.push(Region { x: m.x, y: m.y, width: m.width, height: m.height, primary: m.primary, name, outputs: m.outputs });
-        }
+        // The monitors and their profiles, as the colour-managed canvas reads them.
+        let mut regions: Vec<Region> = crate::monitors::linux::x11(&conn, screen.root)
+            .into_iter()
+            .map(|m| Region {
+                x: m.frame[0] as i16,
+                y: m.frame[1] as i16,
+                width: m.frame[2] as u16,
+                height: m.frame[3] as u16,
+                primary: m.primary,
+                name: m.name,
+                icc: m.icc,
+            })
+            .collect();
         if regions.is_empty() {
-            regions.push(Region { x: 0, y: 0, width: root_w, height: root_h, primary: true, name: "Screen".into(), outputs: Vec::new() });
+            regions.push(Region { x: 0, y: 0, width: root_w, height: root_h, primary: true, name: "Screen".into(), icc: None });
         }
         if regions.len() > MAX_MONITORS {
             return Err(failed("too many monitors for the screen picker"));
         }
-        regions.sort_by_key(|r| !r.primary);
-        regions[0].primary = true;
         let mut total = 0usize;
         for r in &regions {
             let inside = r.x >= 0
@@ -326,7 +284,6 @@ mod backend {
             total = add_to_budget(total, usize::from(r.width), usize::from(r.height))?;
         }
 
-        let profile_atom = atom(&conn, "_ICC_PROFILE");
         let byte = |v: u16| ((u32::from(v) + 128) / 257) as u8;
         let mut images = Vec::new();
         for r in regions {
@@ -352,15 +309,12 @@ mod backend {
                     rgba.extend_from_slice(&[byte(red), byte(green), byte(blue), 255]);
                 }
             }
-            let profile = profile_atom
-                .and_then(|a| r.outputs.iter().find_map(|&o| output_profile(&conn, o, a)))
-                .or_else(|| if r.primary { profile_atom.and_then(|a| root_profile(&conn, screen.root, a)) } else { None });
             images.push(ScreenImage {
                 origin: [i32::from(r.x), i32::from(r.y)],
                 size: [u32::from(r.width), u32::from(r.height)],
                 scale: usable_scale(scale),
                 rgba: Arc::new(rgba),
-                icc_profile: profile.map(Arc::new),
+                icc_profile: r.icc,
                 name: r.name,
             });
         }
