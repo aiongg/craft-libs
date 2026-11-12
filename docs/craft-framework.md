@@ -961,7 +961,7 @@ Both size sets (`crates/theme/sizes/compact.json` and `comfortable.json`) hold e
 
 ## Appendix B. Crate and module layout
 
-Maintainer reference. The concepts are in [3. Architecture](#3-architecture). Crates are alphabetical, and modules are alphabetical inside each crate. The State column says whether a module exists in the repository, is planned, or is next, and in which migration step (see [Migration and landing](#9-migration-and-landing)). Crates without an entry (the file-format envelopes, `craft-doc`, `craft-proof`, `craft-web-api`, `craft-web-host`, `craft-media-testkit`) are described in their README.
+Maintainer reference. The concepts are in [3. Architecture](#3-architecture). Crates are alphabetical, and modules are alphabetical inside each crate. The State column says whether a module exists in the repository, is planned, or is next, and in which migration step (see [Migration and landing](#9-migration-and-landing)). Crates without an entry (the file-format envelopes, `craft-doc`, `craft-proof`, `craft-web-api`, `craft-web-host`, `craft-media-testkit`, `craft-gpu-testkit`) are described in their README.
 
 Conventions:
 
@@ -1075,6 +1075,20 @@ Control channel, screenshot queue, profiler and recorded actions for tests and s
 #### craft-behavior
 
 The behaviour cores of the UI library (layer 1), with no egui and no `Context`: press lifecycle, `ValueDrag`, navigation, item layouts, edit events, overlay placement, fitting and the dock model ([ui-docking.md](ui-docking.md)). Public modules, with the main types at the crate root: `anchor`, `arrangement`, `canvas`, `codec`, `columns`, `command`, `cursor`, `divider`, `doc_key`, `dock`, `edit_history`, `editor`, `eviction`, `fit`, `flow`, `focus`, `geometry`, `grid`, `hit`, `input`, `intent`, `item_layout`, `item_marquee`, `item_source`, `keys`, `label_column`, `layout_memory`, `monitor`, `motion`, `nav`, `one_press`, `overlay`, `part`, `pixel_size`, `placement`, `press`, `quantity`, `role_rule`, `scroll`, `selection`, `sense`, `sizing`, `typing`, `value`, `value_drag`, `wheel`. Every public item is listed in [contract-api.md](contract-api.md).
+
+#### craft-blend
+
+Engine crate (`gpu/blend`). Every blend mode once, for the CPU and in WGSL. `Variant` picks whose formula a shared mode follows (Standard, Photoshop, After Effects, Substance); `Range` says whether values above 1 are light. No egui.
+
+| Module | Holds | State |
+| --- | --- | --- |
+| `cmyk` | CMYK blending as complemented additive planes | exists |
+| `composite` | `Blend::composite` (straight or premultiplied, blend and mix spaces), atop, the vectorised Normal span | exists |
+| `fill` | Photoshop's Fill on the special eight | exists |
+| `formula` | `Blend`: `B(Cb, Cs)` per mode, variant and range; ClipColor, SetLum, SetSat; the f64 overflow replay | exists |
+| `mode` | `BlendMode` with stable shader ids, `Variant`, `Range` | exists |
+| `space` | `Space`, `Linear`, `Srgb`, `TextGamma` | exists |
+| `wgsl` | One `craft_wgsl::Module` per variant; `BLEND_<MODE>` ids generated from the enum | exists |
 
 #### craft-browse
 
@@ -1725,6 +1739,16 @@ Release checking, downloading, installing and self-updating for the app suite an
 | `http`, `proxy`, `release`, `source`, `time` | Network access and release lookup | exists |
 | `protocol` | Vocabulary jobs and results report in | exists |
 | `self_update`, `updater` | Launcher self-update; the update flow of an egui app | exists |
+
+#### craft-wgsl
+
+Engine crate (`gpu/wgsl`). The shared WGSL prelude, each function beside a Rust twin that runs the same operations, and `assemble`, the one way shader sources are put together (each module once, dependencies first). Nothing in it reads a binding. No dependencies.
+
+| Module | Holds | State |
+| --- | --- | --- |
+| `MATH` | `imod`, `asin_p`, `acos_p`, `sincos_p`, `unit_div`, `hash_noise`, `powz`, `round_away`, `fract_euclid`: the CPU's f32 results on every backend | exists |
+| `COLOR` | `luminance` (Rec. 709), the sRGB curve, HSL | exists |
+| `TRANSFER` | PQ, HLG and the `Curve` switch | exists |
 
 #### craft-win32
 
