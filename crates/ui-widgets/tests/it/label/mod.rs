@@ -4,6 +4,7 @@ mod align;
 pub mod group;
 mod hit;
 pub mod kit;
+mod short;
 mod tooltip;
 
 use self::kit::{Dial, Field, Seen, Wide};
