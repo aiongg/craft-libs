@@ -1,4 +1,5 @@
-//! The process's memory use, for a status readout ("Scratch: 1.2G/8.0G") and the Efficiency item.
+//! The process's memory use, for a status readout ("Scratch: 1.2G/8.0G") and the Efficiency item,
+//! and the machine's physical memory, for memory budgets (GPU residency, image caches).
 
 /// One sample of memory use, in bytes.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -46,5 +47,44 @@ fn kibibytes(text: &str, key: &str) -> Option<u64> {
     match parts.next() {
         Some("kB") => n.checked_mul(1024),
         _ => None,
+    }
+}
+
+/// The variable that overrides [`physical_memory`], in MiB, to simulate a smaller machine.
+pub const RAM_MB: &str = "CRAFT_RAM_MB";
+
+/// Physical memory of this machine in bytes, if known; [`RAM_MB`] overrides it. Read once per
+/// process. `None` where nothing reports it (the web, other platforms).
+pub fn physical_memory() -> Option<u64> {
+    static RAM: std::sync::OnceLock<Option<u64>> = std::sync::OnceLock::new();
+    *RAM.get_or_init(|| {
+        if let Some(mb) = std::env::var(RAM_MB).ok().and_then(|v| v.trim().parse::<u64>().ok()) {
+            return mb.checked_mul(1 << 20);
+        }
+        detect_physical_memory()
+    })
+}
+
+/// Physical memory as the operating system reports it: `MemTotal` of `/proc/meminfo` on Linux,
+/// `sysinfo` on macOS and Windows, `hw.physmem` on FreeBSD.
+fn detect_physical_memory() -> Option<u64> {
+    #[cfg(target_os = "linux")]
+    {
+        kibibytes(&std::fs::read_to_string("/proc/meminfo").ok()?, "MemTotal:")
+    }
+    #[cfg(any(target_os = "macos", windows))]
+    {
+        use sysinfo::{MemoryRefreshKind, RefreshKind, System};
+        let system = System::new_with_specifics(RefreshKind::nothing().with_memory(MemoryRefreshKind::nothing().with_ram()));
+        Some(system.total_memory()).filter(|b| *b > 0)
+    }
+    #[cfg(target_os = "freebsd")]
+    {
+        let out = std::process::Command::new("/sbin/sysctl").args(["-n", "hw.physmem"]).output().ok()?;
+        String::from_utf8(out.stdout).ok()?.trim().parse().ok()
+    }
+    #[cfg(not(any(target_os = "linux", target_os = "macos", windows, target_os = "freebsd")))]
+    {
+        None
     }
 }
