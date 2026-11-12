@@ -43,8 +43,9 @@ pub enum IconSource<'a> {
     Svg(IconId),
     /// A value glyph.
     Glyph(&'a dyn Glyph),
-    /// A colour from data, painted as a swatch (a guide colour, a matte colour).
-    Swatch(Srgba),
+    /// A colour from data, painted as a swatch (a guide colour, a matte colour); `None` paints the empty swatch of a
+    /// colour the theme decides.
+    Swatch(Option<Srgba>),
     /// A filled circle as wide as the icon's square, in the spec's colour or ink (`IconSpec::data_color` for a colour
     /// from data).
     Disc,
@@ -100,9 +101,15 @@ impl<'a> IconSpec<'a> {
         IconSpec { source: IconSource::Glyph(glyph), ink: Ink::OnPanel, color: None, mirror: Mirror::Auto, set: IconSet::default() }
     }
 
-    /// A swatch of `color`, painted by [`Draw::data_fill`](super::Draw::data_fill).
+    /// A swatch of `color`, painted as [`Draw::swatch_well`](super::Draw::swatch_well) paints a well.
     pub fn swatch(color: Srgba) -> Self {
-        IconSpec { source: IconSource::Swatch(color), ink: Ink::OnPanel, color: None, mirror: Mirror::Never, set: IconSet::default() }
+        IconSpec { source: IconSource::Swatch(Some(color)), ink: Ink::OnPanel, color: None, mirror: Mirror::Never, set: IconSet::default() }
+    }
+
+    /// The empty swatch of a colour the theme decides (a "Default" pasteboard colour): it keeps a swatch's place, so
+    /// the labels after a column of swatches line up.
+    pub fn empty_swatch() -> Self {
+        IconSpec { source: IconSource::Swatch(None), ..IconSpec::swatch(Srgba::rgb(0.0, 0.0, 0.0)) }
     }
 
     /// A filled circle in the panel ink, or in the colour [`color`](Self::color) or [`data_color`](Self::data_color)
