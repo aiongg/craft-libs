@@ -27,7 +27,7 @@ use crate::runtime::overlay::{OpenFilter, any_open};
 use crate::runtime::pointer;
 use crate::shell::Slot;
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind, UiTokens};
-use craft_behavior::{Metrics, Sense};
+use craft_behavior::{EditEvent, Metrics, Mixed, Sense};
 use egui::{Rect, Response, Ui};
 use std::sync::Arc;
 
@@ -241,7 +241,7 @@ impl Outcome for AppShellOutput {
 ///   (F and Shift+F cycle) change it, and a change to or from full screen is carried out through `WindowHost::act`.
 ///   In `FullScreen` no slot shows but those built with [`Slot::reveal`], during a reveal.
 /// - **Reveal.** In body-only mode Tab (or the `window.toggle_panels` command) shows the revealing slots until the next
-///   Tab; the pointer at the top, start or end edge shows that edge's slots, unless a button is held or a popup is
+///   Tab, through the `revealed` binding; the pointer at the top, start or end edge shows that edge's slots, unless a button is held or a popup is
 ///   open or `edge_reveal` is off. Revealed slots cover the body and leave its rect as it is. A screen-mode change ends
 ///   a reveal. The shell takes its own window's Tab toggles from the frame state in the pass that records them: in
 ///   normal mode Tab hides every slot and panel and shows them again.
@@ -269,6 +269,11 @@ pub struct AppShell<'a, S> {
     /// The screen mode. Without a binding the shell keeps it, starting at `Standard`.
     #[prop]
     screen_mode: Bind<'a, ScreenMode>,
+    /// The Tab reveal of body-only mode: while on, the slots built with [`Slot::reveal`] show over the body. Tab and
+    /// the `window.toggle_panels` command turn it on and off through the binding, and a screen-mode change turns it
+    /// off. Without a binding the shell keeps it, starting off.
+    #[prop]
+    revealed: Bind<'a, bool>,
     /// Whether the Tab reveal and the edge reveal work in body-only mode. Off for a presentation.
     #[prop]
     allow_reveal: bool,
@@ -297,6 +302,7 @@ impl<'a, S> AppShell<'a, S> {
             embedded: false,
             content_room: None,
             screen_mode: Bind::kept(),
+            revealed: Bind::kept(),
             allow_reveal: true,
             edge_reveal: true,
             document_tabs: true,
@@ -411,6 +417,7 @@ impl<'a, S> AppShell<'a, S> {
             embedded,
             content_room,
             mut screen_mode,
+            revealed: mut tab_reveal,
             allow_reveal,
             edge_reveal,
             document_tabs,
@@ -436,6 +443,8 @@ impl<'a, S> AppShell<'a, S> {
             let ctx = ui.ctx().clone();
             let viewport = pass::current_viewport(&ctx);
             let mut kept = cx.keep::<ShellState>().clone();
+            let held = matches!(tab_reveal.reborrow().read(cx), Some(Mixed::Same(true)));
+            kept.reveal.set_tab(held);
 
             let name: Arc<str> = words.screen_mode.as_str().into();
             let (mode, changed) = kept.screen.follow(&ctx, cx, screen_mode.reborrow(), name, !embedded);
@@ -453,6 +462,10 @@ impl<'a, S> AppShell<'a, S> {
             let frozen = !pointer.buttons.is_empty() || any_open(&ctx, OpenFilter::Keys);
             let rtl = cx.env.direction().is_rtl();
             kept.reveal.track(Tracking::new(only, allow_reveal, edge_reveal), Aim::new(pointer.pos, frozen, cx.rect, rtl));
+            if kept.reveal.tab() != held {
+                let event = EditEvent::set(Mixed::Same(held), kept.reveal.tab(), words.tab_reveal.as_str().into(), None);
+                let _ = tab_reveal.reborrow().write(cx, &event);
+            }
 
             // Every shown slot's rect and the body's, before any slot runs. Slots that a reveal shows in body-only mode
             // cover the body.

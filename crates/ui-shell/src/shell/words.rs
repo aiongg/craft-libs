@@ -12,6 +12,7 @@ craft_ui::words! {
         tools: "appShell.tools" = "Tools";
         status: "appShell.status" = "Status";
         screen_mode: "appShell.screenMode" = "Screen Mode";
+        tab_reveal: "appShell.tabReveal" = "Show Hidden Bars";
 
         new: "startScreen.new" = "New…";
         open: "startScreen.open" = "Open…";

@@ -129,6 +129,14 @@ impl Reveal {
         self.tab
     }
 
+    /// Sets the Tab reveal from the shell's binding at the start of a pass; a Tab reveal ends the edge reveal.
+    pub(crate) fn set_tab(&mut self, on: bool) {
+        self.tab = on;
+        if on {
+            self.edges = [false; 3];
+        }
+    }
+
     /// Whether the edge reveal of `edge` is on.
     pub(crate) fn edge(&self, edge: RevealEdge) -> bool {
         self.edges[at(edge)]

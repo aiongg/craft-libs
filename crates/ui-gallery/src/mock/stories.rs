@@ -52,6 +52,18 @@ fn editor_window_full_screen(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     shown.into()
 }
 
+/// The window in full screen with the Tab reveal on: the bars show over the body. Tab hides them and shows them again.
+#[story(EditorMock<'static>, covers = [], drive = Drive::Never)]
+fn editor_window_revealed(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let mut mode = *data.value("mode", ScreenMode::FullScreen);
+    let mut revealed = *data.value("revealed", true);
+    let state = data.value("mock", MockState::default());
+    let shown = EditorMock::new("Editor", state).screen_mode(Bind::bound(&mut mode)).revealed(Bind::bound(&mut revealed)).show(ui);
+    *data.value("mode", ScreenMode::FullScreen) = mode;
+    *data.value("revealed", true) = revealed;
+    shown.into()
+}
+
 #[story(MoveTool<'static>, covers = [], drive = Drive::Never)]
 fn move_tool(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let directions = *data.choice("directions", Directions::Four, &[("Layers", Directions::Four), ("Pixels", Directions::Eight)]);

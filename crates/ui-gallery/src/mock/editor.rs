@@ -44,18 +44,19 @@ const BLUR_MEMORY: SaveKey = SaveKey::new("craft_ui_gallery.gaussianBlur");
 /// - Dialogs: Layer, Delete, Layer and Filter, Gaussian Blur open on the window's dialog host; Image, Image Size
 ///   shows its dialog over the document's size.
 /// - Screen modes: the shell's own commands (F) and the reveal keys act inside the window's region; the
-///   [`screen_mode`](Self::screen_mode) binding holds the mode.
+///   [`screen_mode`](Self::screen_mode) binding holds the mode and [`revealed`](Self::revealed) the Tab reveal.
 #[derive(craft_ui::contract::Pattern)]
 pub struct EditorMock<'a> {
     label: Label,
     state: &'a mut MockState,
     screen_mode: Bind<'a, ScreenMode>,
+    revealed: Bind<'a, bool>,
 }
 
 impl<'a> EditorMock<'a> {
     /// A mock editor named `label` over `state`.
     pub fn new(label: impl Into<Label>, state: &'a mut MockState) -> Self {
-        EditorMock { label: label.into(), state, screen_mode: Bind::kept() }
+        EditorMock { label: label.into(), state, screen_mode: Bind::kept(), revealed: Bind::kept() }
     }
 
     /// The window's screen mode; without a binding the window keeps it, starting at `Standard`.
@@ -64,12 +65,19 @@ impl<'a> EditorMock<'a> {
         self
     }
 
+    /// The Tab reveal of full screen: the bars show over the body. Without a binding the window keeps it.
+    pub fn revealed(mut self, revealed: Bind<'a, bool>) -> Self {
+        self.revealed = revealed;
+        self
+    }
+
     /// Shows the window in the room offered. Each instance keeps its screen mode, Tab toggle and dialogs apart.
     pub fn show(self, ui: &mut Ui) -> AppShellOutput {
-        let EditorMock { label, state, screen_mode } = self;
+        let EditorMock { label, state, screen_mode, revealed } = self;
         let window = WindowKey::new(format!("mock-{:x}-{}", ui.scope_id().value(), label.as_str()));
         AppShell::embedded(window)
             .screen_mode(screen_mode)
+            .revealed(revealed)
             .title_bar_if(true, |ui, _, state: &mut MockState| title_bar(ui, state))
             .options_bar(true, |ui, _, state: &mut MockState| options_bar(ui, state))
             .tools(true, |ui, _, state: &mut MockState| tool_rail(ui, state))
