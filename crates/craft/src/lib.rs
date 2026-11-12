@@ -13,6 +13,8 @@ pub use craft_atomic as atomic;
 pub use craft_audio as audio;
 #[cfg(feature = "automation")]
 pub use craft_automation as automation;
+#[cfg(feature = "blend")]
+pub use craft_blend as blend;
 #[cfg(feature = "browse")]
 pub use craft_browse as browse;
 #[cfg(feature = "cms")]

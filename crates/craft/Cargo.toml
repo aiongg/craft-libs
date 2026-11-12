@@ -21,6 +21,7 @@ craft-ai-core = { workspace = true, optional = true }
 craft-atomic = { workspace = true, optional = true }
 craft-audio = { workspace = true, optional = true }
 craft-automation = { workspace = true, optional = true }
+craft-blend = { workspace = true, optional = true }
 craft-browse = { workspace = true, optional = true }
 craft-cms = { workspace = true, optional = true }
 craft-color = { workspace = true, optional = true }
@@ -121,6 +122,8 @@ audio-serde = ["audio", "craft-audio/serde"]
 audio-symphonia = ["audio", "craft-audio/symphonia"]
 
 automation = ["dep:craft-automation", "keymap"]
+
+blend = ["dep:craft-blend"]
 
 browse = ["dep:craft-browse"]
 

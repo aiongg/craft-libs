@@ -1,0 +1,23 @@
+[package]
+name = "craft-blend"
+description = "Every blend mode once, for the CPU and in WGSL: Photoshop, After Effects, Premiere (Standard) and Substance variants, straight and premultiplied compositing, Photoshop's Fill and text gamma."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+craft-wgsl = { workspace = true }
+serde = { workspace = true }
+
+[dev-dependencies]
+naga = { workspace = true }
+craft-gpu-testkit = { workspace = true }
+
+[[test]]
+name = "gpu"
+path = "tests/gpu/main.rs"
