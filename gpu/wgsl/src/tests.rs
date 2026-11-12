@@ -1,6 +1,6 @@
 //! Prelude checks that need no GPU.
 
-use craft_wgsl::{COLOR, MATH, Module, TRANSFER, assemble};
+use crate::{COLOR, MATH, Module, TRANSFER, assemble};
 
 /// A WGSL edit that doesn't parse or validate. CI has no GPU, so the GPU target skips there and
 /// only this check sees it.

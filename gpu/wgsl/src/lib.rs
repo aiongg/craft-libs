@@ -155,18 +155,18 @@ pub fn powz(x: f32, y: f32) -> f32 {
     x.powf(y)
 }
 
-const PQ_M1: f32 = 0.159_301_757_812_5;
-const PQ_M2: f32 = 78.843_75;
-const PQ_C1: f32 = 0.835_937_5;
-const PQ_C2: f32 = 18.851_562_5;
-const PQ_C3: f32 = 18.6875;
+const PQ_M1: f32 = 2610.0 / 16384.0;
+const PQ_M2: f32 = 2523.0 / 4096.0 * 128.0;
+const PQ_C1: f32 = 3424.0 / 4096.0;
+const PQ_C2: f32 = 2413.0 / 4096.0 * 32.0;
+const PQ_C3: f32 = 2392.0 / 4096.0 * 32.0;
 /// Linear 1.0 as a fraction of PQ's 10 000 cd/m²: the BT.2408 reference white of 203 cd/m².
 const PQ_WHITE: f32 = 0.0203;
 const HLG_A: f32 = 0.178_832_77;
 const HLG_B: f32 = 0.284_668_92;
-const HLG_C: f32 = 0.559_910_73;
+const HLG_C: f32 = 0.559_910_7;
 /// Scene light of linear 1.0: the BT.2408 reference white at a 75% HLG signal.
-const HLG_REF: f32 = 0.264_962_56;
+const HLG_REF: f32 = 0.264_962_55;
 
 /// SMPTE ST 2084 signal → linear (1.0 = reference white). Twin of the WGSL `pq_decode`.
 pub fn pq_decode(e: f32) -> f32 {
@@ -232,3 +232,6 @@ pub fn curve_encode(curve: Curve, v: f32) -> f32 {
     };
     if v < 0.0 { -e } else { e }
 }
+
+#[cfg(test)]
+mod tests;

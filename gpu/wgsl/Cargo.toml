@@ -15,9 +15,5 @@ naga = { workspace = true }
 craft-gpu-testkit = { workspace = true }
 
 [[test]]
-name = "it"
-path = "tests/it/main.rs"
-
-[[test]]
 name = "gpu"
 path = "tests/gpu/main.rs"
