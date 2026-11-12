@@ -15,6 +15,8 @@
 //! - [`env`]: the one set of environment variables that steers the GPU.
 //! - [`start`]: the window's graphics start, the ladder of ways to start it and what follows when
 //!   one fails, with the start-up record (native only).
+//! - [`probe`]: a test start in a child process, for drivers that hang before the window exists
+//!   (native; it runs on Windows).
 
 pub mod access;
 #[cfg(not(target_arch = "wasm32"))]
@@ -24,6 +26,8 @@ pub mod health;
 pub mod limits;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod memory;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod probe;
 pub mod scope;
 pub mod software;
 #[cfg(not(target_arch = "wasm32"))]

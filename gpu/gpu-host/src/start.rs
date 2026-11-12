@@ -23,7 +23,7 @@
 //! | `--graphics <rung>`, `--safe-gpu` | [`Keep::Saved`], [`Keep::ThisLaunch`] |
 //!
 //! One crash moves on: the lock and the death window already tell a crash from a second copy of
-//! the app starting or a start that hangs. On Windows, `probe::choose` first tests the
+//! the app starting or a start that hangs. On Windows, [`crate::probe::choose`] first tests the
 //! rung in a child process, for drivers that hang before the window exists.
 
 mod ladder;
