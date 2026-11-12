@@ -25,15 +25,24 @@ pub const MAX_ELEMENTS: usize = 64;
 /// Most properties one element may have.
 pub const MAX_PROPERTIES: usize = 256;
 
+/// The type of one PLY value.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Scalar {
+    /// Signed 8-bit integer.
     I8,
+    /// Unsigned 8-bit integer.
     U8,
+    /// Signed 16-bit integer.
     I16,
+    /// Unsigned 16-bit integer.
     U16,
+    /// Signed 32-bit integer.
     I32,
+    /// Unsigned 32-bit integer.
     U32,
+    /// 32-bit float.
     F32,
+    /// 64-bit float.
     F64,
 }
 
@@ -62,6 +71,7 @@ impl Scalar {
         }
     }
 
+    /// Whether the type is an integer type rather than a float.
     pub fn is_integer(self) -> bool {
         !matches!(self, Scalar::F32 | Scalar::F64)
     }
@@ -99,24 +109,32 @@ impl Scalar {
     }
 }
 
+/// The shape of one property.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Kind {
+    /// One value of the given type.
     Scalar(Scalar),
     /// The count's type and the items' type.
     List(Scalar, Scalar),
 }
 
+/// One column of an element's rows.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Property {
+    /// The property's name.
     pub name: String,
+    /// Whether it is a scalar or a list, and its types.
     pub kind: Kind,
 }
 
+/// A table of rows the header declares, such as `vertex` or `face`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Element {
+    /// The element's name.
     pub name: String,
     /// Rows the header declares; not yet checked against the file.
     pub count: u64,
+    /// The columns of each row, in file order.
     pub properties: Vec<Property>,
 }
 
@@ -140,17 +158,23 @@ impl Element {
     }
 }
 
+/// How the file stores its rows.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Encoding {
+    /// Text, whitespace-separated.
     Ascii,
+    /// Binary, little-endian.
     Little,
+    /// Binary, big-endian.
     Big,
 }
 
 /// What the header says, and where the rows start.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Header {
+    /// How the rows are stored.
     pub encoding: Encoding,
+    /// The elements, in file order.
     pub elements: Vec<Element>,
     /// Offset of the first row.
     pub body: usize,
@@ -262,11 +286,26 @@ fn space(b: &u8) -> bool {
 
 /// The values of the rows, read one after another in the header's order.
 pub enum Rows<'a> {
-    Binary { b: &'a [u8], pos: usize, big: bool },
-    Ascii { tokens: std::slice::Split<'a, u8, fn(&u8) -> bool>, left: usize },
+    /// Binary rows.
+    Binary {
+        /// The bytes from the first row on.
+        b: &'a [u8],
+        /// Offset of the next value in `b`.
+        pos: usize,
+        /// Whether values are big-endian.
+        big: bool,
+    },
+    /// Text rows.
+    Ascii {
+        /// The whitespace-separated tokens still to read.
+        tokens: std::slice::Split<'a, u8, fn(&u8) -> bool>,
+        /// Bytes of the body not yet consumed.
+        left: usize,
+    },
 }
 
 impl<'a> Rows<'a> {
+    /// Starts reading the rows of `bytes` after the header `h`.
     pub fn new(h: &Header, bytes: &'a [u8]) -> Rows<'a> {
         let b = bytes.get(h.body..).unwrap_or_default();
         match h.encoding {

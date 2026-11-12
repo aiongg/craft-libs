@@ -66,6 +66,7 @@ impl fmt::Display for Error {
 
 impl std::error::Error for Error {}
 
+/// This crate's result type.
 pub type Result<T> = std::result::Result<T, Error>;
 
 pub(crate) fn malformed(kind: &str, m: impl fmt::Display) -> Error {
@@ -135,8 +136,11 @@ pub const NONE: u32 = u32::MAX;
 /// ([`NONE`] when the corner has no normal or no UV).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Corner {
+    /// Index into [`Mesh::positions`].
     pub position: u32,
+    /// Index into [`Mesh::normals`], or [`NONE`].
     pub normal: u32,
+    /// Index into every UV set of [`Mesh`], or [`NONE`].
     pub uv: u32,
 }
 
@@ -211,8 +215,11 @@ impl Part {
 /// One object: attribute pools and the parts whose corners index them.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Mesh {
+    /// The object's name; may be empty.
     pub name: String,
+    /// Positions in model space.
     pub positions: Vec<[f64; 3]>,
+    /// Normals, unit length, indexed by [`Corner::normal`].
     pub normals: Vec<[f64; 3]>,
     /// UV sets; every set has the same length and is indexed by [`Corner::uv`].
     pub uv_sets: Vec<Vec<[f32; 2]>>,
@@ -221,13 +228,16 @@ pub struct Mesh {
     /// Skinning (glTF): up to four joints (indices into the skin's joint list) and weights per
     /// position; both the length of `positions`, or empty.
     pub joints: Vec<[u16; 4]>,
+    /// Skinning weights per position, matching [`Mesh::joints`].
     pub weights: Vec<[f32; 4]>,
+    /// The faces, grouped by material.
     pub parts: Vec<Part>,
 }
 
 /// A triangle list with one index per vertex, as [`Mesh::unified`] builds it.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Unified {
+    /// Positions in model space, one per vertex.
     pub positions: Vec<[f64; 3]>,
     /// One per vertex when every corner has a normal, else empty.
     pub normals: Vec<[f64; 3]>,
@@ -247,6 +257,7 @@ pub struct Unified {
 }
 
 impl Mesh {
+    /// Triangles over all parts.
     pub fn triangle_count(&self) -> usize {
         self.parts.iter().map(Part::triangle_count).sum()
     }
@@ -339,19 +350,24 @@ impl Mesh {
 /// How a material's alpha is used (glTF `alphaMode`).
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub enum AlphaMode {
+    /// The alpha channel is ignored.
     #[default]
     Opaque,
     /// Visible where alpha is at least the cutoff.
     Mask(f32),
+    /// Alpha blends with what is behind.
     Blend,
 }
 
 /// How a texture continues outside 0..1.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum Wrap {
+    /// The texture tiles.
     #[default]
     Repeat,
+    /// The edge texel continues.
     Clamp,
+    /// The texture tiles, flipped on every other repeat.
     Mirror,
 }
 
@@ -360,30 +376,44 @@ pub enum Wrap {
 pub struct TextureRef {
     /// Index into [`Scene::images`].
     pub image: usize,
+    /// Which of the mesh's UV sets to read.
     pub uv_set: u32,
+    /// Wrap mode along u and v.
     pub wrap: [Wrap; 2],
 }
 
 /// A metallic-roughness material: the simple parameters every format here can carry.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Material {
+    /// The material's name; may be empty.
     pub name: String,
     /// Linear RGBA.
     pub base_color: [f32; 4],
+    /// Metalness, 0 (dielectric) to 1 (metal).
     pub metallic: f32,
+    /// Roughness, 0 (smooth) to 1 (rough).
     pub roughness: f32,
     /// Linear RGB.
     pub emissive: [f32; 3],
+    /// How alpha is used.
     pub alpha_mode: AlphaMode,
+    /// Whether back faces are drawn too.
     pub double_sided: bool,
     /// Shown as it is, without lighting (glTF `KHR_materials_unlit`).
     pub unlit: bool,
+    /// Multiplies the base colour.
     pub base_color_texture: Option<TextureRef>,
+    /// Roughness in green, metalness in blue.
     pub metallic_roughness_texture: Option<TextureRef>,
+    /// Tangent-space normal map.
     pub normal_texture: Option<TextureRef>,
+    /// Scale of the normal map's x and y.
     pub normal_scale: f32,
+    /// Occlusion in the red channel.
     pub occlusion_texture: Option<TextureRef>,
+    /// How strongly occlusion applies, 0 to 1.
     pub occlusion_strength: f32,
+    /// Multiplies the emissive colour.
     pub emissive_texture: Option<TextureRef>,
 }
 
@@ -420,9 +450,11 @@ impl Material {
 /// bytes are the encoded image (PNG, JPEG, …); decoding is the caller's.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Image {
+    /// The image's name; may be empty.
     pub name: String,
     /// The reference as the file writes it, when the image is another file.
     pub uri: Option<String>,
+    /// The media type, when the file gives one.
     pub mime_type: Option<String>,
     /// The encoded bytes, when the file embeds them or the resolver supplied them.
     pub data: Option<Vec<u8>>,
@@ -431,6 +463,7 @@ pub struct Image {
 /// A 4×4 transform, column-major (as glTF writes it): a point is `M · [x, y, z, 1]`.
 pub type Mat4 = [f64; 16];
 
+/// The identity transform.
 pub const IDENTITY: Mat4 = [1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0];
 
 /// `a · b`: `b` applies first.
@@ -476,8 +509,11 @@ pub fn transform_normal(m: &Mat4, n: [f64; 3]) -> [f64; 3] {
 /// A placement as translation, rotation (a unit quaternion `x, y, z, w`) and scale.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Trs {
+    /// Translation along x, y, z.
     pub translation: [f64; 3],
+    /// Rotation as a unit quaternion `x, y, z, w`.
     pub rotation: [f64; 4],
+    /// Scale along x, y, z.
     pub scale: [f64; 3],
 }
 
@@ -506,6 +542,7 @@ impl Trs {
 /// A node of the scene's hierarchy.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Node {
+    /// The node's name; may be empty.
     pub name: String,
     /// Placement relative to the parent.
     pub transform: Mat4,
@@ -532,6 +569,7 @@ impl Default for Node {
 /// A skin (glTF): the joint nodes and their inverse bind matrices.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Skin {
+    /// The skin's name; may be empty.
     pub name: String,
     /// Indices into [`Scene::nodes`].
     pub joints: Vec<usize>,
@@ -539,28 +577,54 @@ pub struct Skin {
     pub inverse_bind: Vec<Mat4>,
 }
 
+/// How a camera projects.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Projection {
     /// Vertical field of view in radians; the aspect ratio when the file fixes one.
-    Perspective { yfov: f64, aspect: Option<f64>, znear: f64, zfar: Option<f64> },
+    Perspective {
+        /// Vertical field of view in radians.
+        yfov: f64,
+        /// Width over height, when the file fixes one.
+        aspect: Option<f64>,
+        /// Distance to the near plane.
+        znear: f64,
+        /// Distance to the far plane; none means infinite.
+        zfar: Option<f64>,
+    },
     /// Half the view's width and height.
-    Orthographic { xmag: f64, ymag: f64, znear: f64, zfar: f64 },
+    Orthographic {
+        /// Half the view's width.
+        xmag: f64,
+        /// Half the view's height.
+        ymag: f64,
+        /// Distance to the near plane.
+        znear: f64,
+        /// Distance to the far plane.
+        zfar: f64,
+    },
 }
 
 /// A camera, looking along its node's −Z with +Y up.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Camera {
+    /// The camera's name; may be empty.
     pub name: String,
+    /// The projection.
     pub projection: Projection,
 }
 
+/// The kind of a light.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum LightKind {
+    /// Light from infinitely far away, along the node's −Z.
     Directional,
+    /// Light radiating from the node's position.
     Point,
     /// Cone angles in radians from the axis.
     Spot {
+        /// Angle inside which the light is at full strength.
         inner: f64,
+        /// Angle at which the light has faded to nothing.
         outer: f64,
     },
 }
@@ -568,25 +632,35 @@ pub enum LightKind {
 /// A punctual light, shining along its node's −Z.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Light {
+    /// The light's name; may be empty.
     pub name: String,
+    /// The kind of light.
     pub kind: LightKind,
     /// Linear RGB.
     pub color: [f64; 3],
     /// Candela for point and spot lights, lux for directional ones.
     pub intensity: f64,
+    /// Distance at which the light stops reaching, when the file limits it.
     pub range: Option<f64>,
 }
 
+/// The part of a node's placement a channel animates.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ChannelPath {
+    /// The node's translation.
     Translation,
+    /// The node's rotation.
     Rotation,
+    /// The node's scale.
     Scale,
 }
 
+/// How values between keys are found.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Interpolation {
+    /// Hold the earlier key's value.
     Step,
+    /// Blend linearly between keys.
     Linear,
     /// Three values per key: in-tangent, value, out-tangent.
     CubicSpline,
@@ -597,7 +671,9 @@ pub enum Interpolation {
 pub struct Channel {
     /// Index into [`Scene::nodes`].
     pub node: usize,
+    /// The part of the placement the keys set.
     pub path: ChannelPath,
+    /// How values between keys are found.
     pub interpolation: Interpolation,
     /// Key times in seconds.
     pub times: Vec<f32>,
@@ -606,25 +682,35 @@ pub struct Channel {
     pub values: Vec<f32>,
 }
 
+/// A named set of channels that play together.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Animation {
+    /// The animation's name; may be empty.
     pub name: String,
+    /// The channels.
     pub channels: Vec<Channel>,
 }
 
 /// What a file holds.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Scene {
+    /// The objects.
     pub meshes: Vec<Mesh>,
+    /// The materials parts refer to.
     pub materials: Vec<Material>,
+    /// The images materials refer to.
     pub images: Vec<Image>,
     /// Every format fills this: a format without a hierarchy gets one root node per mesh.
     pub nodes: Vec<Node>,
     /// The top-level nodes.
     pub roots: Vec<usize>,
+    /// The skins nodes refer to.
     pub skins: Vec<Skin>,
+    /// The animations.
     pub animations: Vec<Animation>,
+    /// The cameras nodes refer to.
     pub cameras: Vec<Camera>,
+    /// The lights nodes refer to.
     pub lights: Vec<Light>,
     /// Every other file this one names, as written, whether or not the resolver supplied it.
     pub external: Vec<String>,
