@@ -1024,6 +1024,7 @@ dependencies = [
  "craft-font-catalog",
  "craft-font-manager",
  "craft-font-store",
+ "craft-gpu-host",
  "craft-host",
  "craft-i18n",
  "craft-imaging",
@@ -1346,6 +1347,18 @@ name = "craft-gcode"
 version = "0.1.0"
 dependencies = [
  "thiserror 2.0.21",
+]
+
+[[package]]
+name = "craft-gpu-host"
+version = "0.1.0"
+dependencies = [
+ "craft-platform",
+ "log",
+ "pollster 1.0.1",
+ "wasm-bindgen-futures",
+ "wgpu",
+ "winsafe",
 ]
 
 [[package]]

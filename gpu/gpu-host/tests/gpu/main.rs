@@ -76,7 +76,7 @@ fn a_watched_validation_error_faults_health() {
     health.caught(device, &error);
     assert!(health.fault().is_some_and(|f| !f.is_lost()), "a caught error retires the device: {:?}", health.fault());
 
-    let Some(other) = device() else { return };
+    let Some(other) = crate::device() else { return };
     let _ = other.device().create_buffer(&wgpu::BufferDescriptor {
         label: Some("synthetic_invalid_buffer"),
         size: other.device().limits().max_buffer_size + 1,
