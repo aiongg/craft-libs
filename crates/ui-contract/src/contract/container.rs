@@ -384,12 +384,20 @@ pub struct EndRegion {
     /// Whether the region takes the full height under the header, down to the container's bottom, beside the body and
     /// the footer, instead of the line's height. Its content then starts at the top, else it is centred on the line.
     pub full_height: bool,
+    /// Whether a rule separates the end region from the body, along the region's edge that faces it.
+    pub rule: bool,
 }
 
 impl EndRegion {
-    /// An end region as high as the line.
+    /// An end region as high as the line, with no rule.
     pub const fn new() -> Self {
-        EndRegion { full_height: false }
+        EndRegion { full_height: false, rule: false }
+    }
+
+    /// Whether a rule separates the end region from the body.
+    pub const fn rule(mut self, on: bool) -> Self {
+        self.rule = on;
+        self
     }
 
     /// Whether the region takes the full height under the header.

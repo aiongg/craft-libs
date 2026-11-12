@@ -175,3 +175,28 @@ fn a_body_on_a_line_it_shares_sits_on_the_lines_centre() {
     let check = row.by_role(Role::CHECK_BOX).first().expect("the check box is shown").rect.center().y;
     assert!((centre(&row, "Opacity") - check).abs() <= EDGE_SLACK, "the field and the check box share a centre line");
 }
+
+/// An end region with a rule is set off from the body by a line along its edge toward the body, the full region's
+/// height; without one nothing marks that edge.
+#[trial]
+fn an_end_region_with_a_rule_has_a_line_along_its_edge_toward_the_body() {
+    use craft_ui::contract::EndRegion;
+    let edge_lines = |rule: bool| {
+        let props = ContainerProps::new().sizing(Sizing::Fill).end(EndRegion::new().full_height(true).rule(rule));
+        let took = RefCell::new(Took::default());
+        let mut frames = Frames::new();
+        let mut show = |ui: &mut Ui| {
+            Regioned { common: Common::new(), props: props.clone(), header: None, end: Vec2::new(80.0, 40.0), footer: Vec2::ZERO, took: &took }
+                .show_at(ui, AREA, |_, _| ());
+        };
+        frames.idle(2, &mut show);
+        let shapes = frames.frame_shapes(&mut show);
+        let end = took.borrow().end.expect("the end region took its block");
+        shapes
+            .iter()
+            .map(egui::Shape::visual_bounding_rect)
+            .filter(|line| line.is_finite() && line.width() <= 2.0 && line.height() >= AREA.height() / 2.0 && line.center().x <= end.min.x + 2.0)
+            .count()
+    };
+    assert!(edge_lines(true) > edge_lines(false), "the rule draws a line along the end region's edge toward the body");
+}
