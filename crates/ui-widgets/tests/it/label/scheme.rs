@@ -1,6 +1,7 @@
 //! The label scheme a container sets: a form's rows and an inspector's rows, and the captions of a bar.
 
 use craft_ui::bars::{Bar, BarKind};
+use craft_ui::choice::Checkbox;
 use craft_ui::contract::{Bind, GlyphLabel, LabelKind, LabelScheme, Show as _, ShowContainer as _, SideLabel};
 use craft_ui::form::{Field, FieldGroup};
 use craft_ui::testing::{Fixture, trial};
@@ -80,4 +81,35 @@ fn a_glyph_caption_takes_a_colon_in_a_bar_only() {
     let mut plain = Fixture::new(glyph_field);
     plain.settle();
     assert_eq!(colons(&plain), 0, "a glyph caption outside a bar takes no colon");
+}
+
+/// A check box row of a form starts its box in the control column, where the rows labelled beside it start their
+/// controls. In an inspector, and in a form with no labelled row, it stays at the row's start.
+#[trial]
+fn a_forms_check_box_row_starts_in_the_control_column() {
+    let check = |scheme: LabelScheme, labelled: bool| {
+        let mut fixture = Fixture::new(move |ui| {
+            FieldGroup::new("Export").labels(scheme).show(ui, |ui, _| {
+                if labelled {
+                    Field::new(LONG).show(ui, |ui, _| {
+                        NumberField::new(LONG, Bind::given(Some(8.0))).show(ui);
+                    });
+                }
+                Checkbox::new(Bind::given(true)).label("Embed Color Profile").show(ui);
+            });
+        });
+        fixture.settle();
+        let boxed = fixture.by_label("Embed Color Profile").expect("the check box").rect;
+        let start = fixture.texts().iter().find(|run| run.text == "Embed Color Profile").map(|run| run.rect).expect("the label is painted");
+        let field = labelled.then(|| fixture.by_label(LONG).expect("the field").rect);
+        (boxed, start, field)
+    };
+    let (form, text, field) = check(LabelScheme::Form, true);
+    let field = field.expect("the labelled row");
+    assert!((form.min.x - field.min.x).abs() <= SLACK, "a form's check box starts at the control edge: {form:?} {field:?}");
+    assert!(text.min.x > form.min.x, "its label follows the box: {text:?}");
+    let (inspector, _, field) = check(LabelScheme::Inspector, true);
+    assert!(inspector.min.x < field.expect("the labelled row").min.x - SLACK, "an inspector's check box stays at the row's start");
+    let (alone, _, _) = check(LabelScheme::Form, false);
+    assert!((alone.min.x - inspector.min.x).abs() <= SLACK, "with no labelled row the box stays at the row's start: {alone:?}");
 }
