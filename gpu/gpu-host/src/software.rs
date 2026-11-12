@@ -10,9 +10,11 @@ pub fn software_rasterizer(info: &wgpu::AdapterInfo) -> Option<String> {
 }
 
 fn rasterizer_reason(name: &str, device_type: wgpu::DeviceType) -> Option<String> {
+    is_software(name, device_type).then(|| format!("software rasterizer ({name}, {device_type:?})"))
+}
+
+/// Whether an adapter of this name and type is a software rasterizer ([`software_rasterizer`]).
+pub(crate) fn is_software(name: &str, device_type: wgpu::DeviceType) -> bool {
     let lower = name.to_ascii_lowercase();
-    if device_type == wgpu::DeviceType::Cpu || ["llvmpipe", "swiftshader", "softpipe"].iter().any(|s| lower.contains(s)) {
-        return Some(format!("software rasterizer ({name}, {device_type:?})"));
-    }
-    None
+    device_type == wgpu::DeviceType::Cpu || ["llvmpipe", "swiftshader", "softpipe"].iter().any(|s| lower.contains(s))
 }

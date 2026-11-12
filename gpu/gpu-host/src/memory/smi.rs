@@ -5,6 +5,8 @@ use std::path::Path;
 use std::process::Command;
 use std::time::{Duration, Instant};
 
+use crate::adapter::read_sysfs_id;
+
 /// PCI vendor id of NVIDIA.
 pub(super) const NVIDIA: u32 = 0x10de;
 /// PCI vendor id of AMD.
@@ -128,7 +130,6 @@ pub(super) struct DrmCard {
 /// the same device): ids from the hex files of `<entry>/device`, the PCI address from the name of
 /// that directory, and amdgpu's `mem_info_vram_total` and `mem_info_vram_used` (bytes).
 pub(super) fn drm_cards(drm: &Path, vendor: u32) -> Vec<DrmCard> {
-    let read_hex = |p: &Path| -> Option<u32> { u32::from_str_radix(std::fs::read_to_string(p).ok()?.trim().trim_start_matches("0x"), 16).ok() };
     let read_u64 = |p: &Path| -> Option<u64> { std::fs::read_to_string(p).ok()?.trim().parse().ok() };
     let mut cards = Vec::new();
     let mut seen = Vec::new();
@@ -136,11 +137,11 @@ pub(super) fn drm_cards(drm: &Path, vendor: u32) -> Vec<DrmCard> {
     // A machine has a handful of entries; the cap only bounds a pathological sysfs.
     for entry in entries.flatten().take(256) {
         let Ok(dev) = std::fs::canonicalize(entry.path().join("device")) else { continue };
-        if seen.contains(&dev) || read_hex(&dev.join("vendor")) != Some(vendor) {
+        if seen.contains(&dev) || read_sysfs_id(&dev.join("vendor")) != Some(vendor) {
             continue;
         }
         seen.push(dev.clone());
-        let Some(device) = read_hex(&dev.join("device")) else { continue };
+        let Some(device) = read_sysfs_id(&dev.join("device")) else { continue };
         let bus = dev.file_name().and_then(|n| pci_address(&n.to_string_lossy()));
         cards.push(DrmCard { bus, device, total: read_u64(&dev.join("mem_info_vram_total")), used: read_u64(&dev.join("mem_info_vram_used")) });
     }

@@ -1357,6 +1357,8 @@ dependencies = [
  "log",
  "pollster 1.0.1",
  "wasm-bindgen-futures",
+ "wayland-client",
+ "wayland-protocols",
  "wgpu",
  "winsafe",
 ]
