@@ -47,6 +47,7 @@ craft-gcode = { path = "crates/gcode" }
 craft-mesh = { path = "crates/mesh" }
 craft-wgsl = { path = "gpu/wgsl" }
 craft-blend = { path = "gpu/blend" }
+craft-display = { path = "gpu/display" }
 craft-gpu-testkit = { path = "gpu/testkit" }
 craft-heif = { path = "crates/heif" }
 craft-fonts-build = { path = "crates/fonts-build" }
