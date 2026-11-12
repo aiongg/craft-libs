@@ -25,6 +25,8 @@ pub use craft_color as color;
 pub use craft_crw as crw;
 #[cfg(feature = "dialogs")]
 pub use craft_dialogs as dialogs;
+#[cfg(feature = "display")]
+pub use craft_display as display;
 #[cfg(feature = "doc")]
 pub use craft_doc as doc;
 #[cfg(feature = "docpath")]

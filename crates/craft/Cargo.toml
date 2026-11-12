@@ -27,6 +27,7 @@ craft-cms = { workspace = true, optional = true }
 craft-color = { workspace = true, optional = true }
 craft-crw = { workspace = true, optional = true }
 craft-dialogs = { workspace = true, optional = true }
+craft-display = { workspace = true, optional = true }
 craft-doc = { workspace = true, optional = true }
 craft-docpath = { workspace = true, optional = true }
 craft-draw = { workspace = true, optional = true }
@@ -134,6 +135,8 @@ color = ["dep:craft-color", "keymap", "settings", "window", "platform"]
 crw = ["dep:craft-crw"]
 
 dialogs = ["dep:craft-dialogs"] # native only: rfd's folder picker and file paths
+
+display = ["dep:craft-display"]
 
 doc = ["dep:craft-doc"]
 doc-pcraft-pixels = ["doc", "craft-doc/pcraft-pixels"]

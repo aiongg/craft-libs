@@ -1114,6 +1114,7 @@ Colour management: ICC v2 and v4 profiles, transforms, rendering intents. No egu
 | `clut`, `curve`, `lut3d`, `lutfile` | Lookup tables, tone curves, display LUTs, creative LUT files | exists |
 | `convert` | CMYK models and gamut conversions the colour dialogs need | exists |
 | `gamut` | Gamut checks against a proof profile | exists |
+| `gpu_matrix_shaper` | `GpuMatrixShaper`: a matrix/TRC display transform as tables for the GPU, exact near black | exists |
 | `math` | Matrices, XYZ and Lab, chromatic adaptation | exists |
 | `pipeline`, `transform` | Evaluation pipelines; transforms with intents and black point compensation | exists |
 | `profile`, `write` | ICC profile model and reader; v4.3 writer | exists |
@@ -1133,7 +1134,6 @@ Colour for apps: picker, wells, swatch tables, ramps, hex field. New on the bran
 
 | Module | Holds | State |
 | --- | --- | --- |
-| `display` | Display transform on `craft-cms` | exists |
 | `gray` | Grey level of a colour | exists |
 | `harmony` | Colour harmony and saved themes | exists |
 | `hex` | Hex text for colours | exists |
@@ -1186,6 +1186,18 @@ Native file and message dialogs that never block the event loop.
 | `save` | Save and Save As flow with guards | exists |
 | `service` | File dialog service behind the host's files | exists |
 | `ui::file_list`, `ui::path_field` | File list picker; path field with Browse | exists |
+
+#### craft-display
+
+Engine crate (`gpu/display`). Display colour: each monitor's profile and why, the display transform, and the display pass on the CPU and in WGSL. SDR. No egui, no wgpu: the view that runs the pass (craft-ui-gpu) creates its textures and pipeline.
+
+| Module | Holds | State |
+| --- | --- | --- |
+| `monitor` | `Monitor` (from craft-platform), `display_at`, `MonitorStatus`, `MonitorProblem`, `MonitorReport`, `Detection` | exists |
+| `transform` | `DisplayTransform`: composite profile to monitor profile, identity check, keys, sRGB-encoded textures for linear composites; `rgb_view` | exists |
+| `DisplayCaches` | The monitor list, the profile per display and the transform per composite and display, shared by an app's windows | exists |
+| `pass` | `DisplayPass`: Show Channel, exposure, a pending HDR step, preview gamma, the display colour (`PassColor`: shaper tables or a LUT with the Gamut Warning); `pixel` and `apply_rgba8`, the CPU display path | exists |
+| `gpu` | `DISPLAY` (a `craft_wgsl::Module` with `display_pixel`), the uniform bytes, the table and LUT texels, `texture_access` | exists |
 
 #### craft-docpath
 
@@ -1456,6 +1468,7 @@ Small platform lifecycle services, one cargo feature per service. No craft-ui.
 | `dialog_outcome`, `dialogs` | Dialog results with evidence; picker creation on the UI thread | exists |
 | `job` | Background jobs and preview jobs | planned, step 4 |
 | `logs` | Crash and command logs | exists |
+| `monitors` | The monitors and each one's ICC profile (X11 RandR and `_ICC_PROFILE`, colord) | exists |
 | `open` | OS open requests, drops, open and reveal | exists |
 | `pacing` | Frame pacing and work budgeting | exists |
 | `pen` | Pen input: pressure, tilt, eraser end | planned, step 3 |
