@@ -84,11 +84,8 @@ impl Blend {
             return backdrop;
         }
         let b = self.rgb(mode, rgb(backdrop), rgb(source));
-        let mut out = backdrop;
-        for i in 0..3 {
-            out[i] = (1.0 - as_) * backdrop[i] + as_ * b[i];
-        }
-        out
+        let c = |i: usize| (1.0 - as_) * backdrop[i] + as_ * b[i];
+        [c(0), c(1), c(2), backdrop[3]]
     }
 
     /// `B(Cb, Cs)` in the blend space, with Photoshop's Fill.
