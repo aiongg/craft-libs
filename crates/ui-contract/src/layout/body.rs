@@ -863,19 +863,24 @@ pub(crate) fn run_body_measured<R>(
         }
         BodyLayout::Row { wrap: false, align: RowAlign::SpaceBetween } => {
             let (inner, _) = child::block(ui, None, child::row_layout(rtl, false), |ui| {
-                let flow = Flow::new(ui.available_rect_before_wrap(), rtl);
-                let spread = Spread::new(flow, gap.x, this_pass(&ctx, sizing, id));
-                pass_state::with::<Cursors, _>(&ctx, |cursors| cursors.0.insert(id, Cursor::Spread(spread)));
                 let line = on_line(row_line(&ctx, sizing, id), shared);
-                let installed = Env::install_for(
-                    ui,
-                    env.derive_local(|scoped| {
-                        scoped.grid = Some(id);
-                        scoped.row_line = line;
-                    }),
-                );
-                let inner = body(ui);
-                Env::restore(&ctx, installed);
+                // The children narrow to fit as in any row; each sweep spreads them anew, and the last one's
+                // natural width is what the real run spreads by.
+                let inner = run_shrinking(ui, id, |ui| {
+                    let flow = Flow::new(ui.available_rect_before_wrap(), rtl);
+                    let spread = Spread::new(flow, gap.x, this_pass(&ctx, sizing, id));
+                    pass_state::with::<Cursors, _>(&ctx, |cursors| cursors.0.insert(id, Cursor::Spread(spread)));
+                    let installed = Env::install_for(
+                        ui,
+                        Env::of(ui).derive_local(|scoped| {
+                            scoped.grid = Some(id);
+                            scoped.row_line = line;
+                        }),
+                    );
+                    let inner = body(ui);
+                    Env::restore(&ctx, installed);
+                    inner
+                });
                 record_line(ui, sizing, id);
                 inner
             });
