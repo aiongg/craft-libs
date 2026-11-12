@@ -157,10 +157,10 @@ where
         request_rename(ui.ctx(), id, &key);
     }
     let accepts = |_: &ListDrag<K>, _: Option<&K>, _: usize| user_order;
-    // A drag from elsewhere drops into a bin, or into the bin shown when the view is empty.
+    // A drag from elsewhere drops into the bin under it, or anywhere else in the view into the bin shown.
     let into_bin = |drag: &ListDrag<K>, at: &DropAt<K>| match at {
         DropAt::Onto(bin) => model.is_bin(bin) && !inside_any(model, bin, &drag.keys),
-        DropAt::Gap { key, .. } => key.is_none(),
+        DropAt::Whole => true,
         _ => false,
     };
     let facts = TileFacts { model, thumbnails, hover_scrub, scrub: scrub.as_ref() };
@@ -180,7 +180,7 @@ where
         .reorder(ReorderRule::new())
         .accepts(accepts)
         .takes_drop(DropKind::new(DropPlace::Onto, into_bin))
-        .takes_drop(DropKind::new(DropPlace::Between, into_bin));
+        .takes_drop(DropKind::new(DropPlace::Whole, into_bin));
     let out = grid.show_items(ui, &cards, &mut |key, _| tile_of(&facts, key));
 
     let mut events: Vec<BinEvent<K>> = Vec::new();

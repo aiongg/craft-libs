@@ -502,6 +502,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                 let row = self.screen(layout, rect, over, offset, rtl);
                 Some((DropAt::Onto(self.source.key(over)), DropMark::Into(self.on_screen_rect(row))))
             }
+            DropPlace::Whole => rect.contains(at).then(|| (DropAt::Whole, DropMark::Into(self.on_screen_rect(rect)))),
         }
     }
 

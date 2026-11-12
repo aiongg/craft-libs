@@ -112,10 +112,10 @@ where
         // Over an empty bin the drop goes into the bin shown.
         user_order || over.is_none_or(|over| model.is_bin(over) && !inside_any(model, over, &drag.keys))
     };
-    // A drag from elsewhere drops into a bin, or into the bin shown when the view is empty.
+    // A drag from elsewhere drops into the bin under it, or anywhere else in the view into the bin shown.
     let into_bin = |drag: &ListDrag<K>, at: &DropAt<K>| match at {
         DropAt::Onto(bin) => model.is_bin(bin) && !inside_any(model, bin, &drag.keys),
-        DropAt::Gap { key, .. } => key.is_none(),
+        DropAt::Whole => true,
         _ => false,
     };
     let stamp = stamp_of(state.shown.as_ref(), &state.search, sort.as_ref());
@@ -134,7 +134,7 @@ where
         .reorder(ReorderRule::new().into_groups())
         .accepts(accepts)
         .takes_drop(DropKind::new(DropPlace::Onto, into_bin))
-        .takes_drop(DropKind::new(DropPlace::Between, into_bin));
+        .takes_drop(DropKind::new(DropPlace::Whole, into_bin));
     let out = table.show_items(ui, &rows, &mut |key, icx| {
         let row = &rows.0[icx.at];
         let item = item_of(model, key);

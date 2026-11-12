@@ -14,6 +14,10 @@ pub enum DropPlace {
     Between,
     /// Onto the item under the pointer, which shows the `Into` mark and `RowState::drop_target`.
     Onto,
+    /// Anywhere over the collection: the drop belongs to the collection and to no item, and the `Into` mark outlines
+    /// the whole collection. A kind given after an `Onto` kind takes what that kind refuses (a folder view's background
+    /// beside its folder rows).
+    Whole,
 }
 
 /// The place of one drop.
@@ -30,6 +34,8 @@ pub enum DropAt<K> {
     },
     /// Onto the item.
     Onto(K),
+    /// Onto the collection as a whole.
+    Whole,
 }
 
 impl<K> DropAt<K> {
@@ -38,11 +44,12 @@ impl<K> DropAt<K> {
         DropAt::Gap { key, insert }
     }
 
-    /// The item under the pointer.
+    /// The item under the pointer; `None` in an empty collection and for a drop on the whole collection.
     pub fn key(&self) -> Option<&K> {
         match self {
             DropAt::Gap { key, .. } => key.as_ref(),
             DropAt::Onto(key) => Some(key),
+            DropAt::Whole => None,
         }
     }
 }

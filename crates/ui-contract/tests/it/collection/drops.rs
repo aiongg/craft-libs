@@ -135,3 +135,31 @@ fn rows_from_another_list_drop_into_a_gap_only_where_a_kind_takes_them() {
         target.drops::<ListDrag<usize>>().into_iter().map(|(at, drag)| (at, drag.map(|drag| drag.keys))).collect();
     assert_eq!(keys, vec![(DropAt::gap(Some(2), 2), Some(vec![0]))]);
 }
+
+/// With an `Onto` kind before a `Whole` kind, a drop on a row the first takes lands on the row, and a drop on a row it
+/// refuses lands on the collection as a whole, outlined over all of it.
+#[trial]
+fn a_whole_kind_takes_what_an_onto_kind_before_it_refuses() {
+    let words = Words::flat(&["a", "b", "c", "d"]);
+    let (source, target) = (Run::default(), Run::default());
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| {
+        let from = List::new(SelectMode::Single).drag_payload(|drag: &ListDrag<usize>| Some(Photo(drag.grabbed)));
+        show(ui, from, "source", Pos2::new(10.0, 10.0), &words, &source);
+        let onto = DropKind::new(DropPlace::Onto, |_: &Photo, at: &DropAt<usize>| *at == DropAt::Onto(2));
+        let whole = DropKind::new(DropPlace::Whole, |_: &Photo, _: &DropAt<usize>| true);
+        show(ui, List::new(SelectMode::Single).takes_drop(onto).takes_drop(whole), "target", Pos2::new(200.0, 10.0), &words, &target);
+    };
+    frames.idle(3, &mut show);
+    let (taken, refused) = (target.row(2), target.row(1));
+    drag_to(&mut frames, source.row(0).center(), taken.center(), &mut show);
+    assert_eq!(*target.pending.borrow(), Some(PendingDrop::Drop(DropAt::Onto(2))), "the row kind wins on its row");
+    hold_at(&mut frames, refused.center(), &mut show);
+    assert_eq!(*target.pending.borrow(), Some(PendingDrop::Drop(DropAt::Whole)), "the whole kind takes the refused row");
+    assert!(
+        matches!(drag::mark(&frames.ctx), Some(DropMark::Into(rect)) if rect.contains(refused.center()) && rect.contains(taken.center())),
+        "the mark outlines the whole collection"
+    );
+    release_at(&mut frames, refused.center(), &mut show);
+    assert_eq!(target.drops::<Photo>(), vec![(DropAt::Whole, Some(Photo(0)))]);
+}
