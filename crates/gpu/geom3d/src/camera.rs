@@ -1,15 +1,19 @@
-//! Orbit camera (texture painting navigation) and picking rays.
+//! Orbit camera (3D view navigation) and picking rays.
 
 use glam::{Mat4, Vec2, Vec3, Vec4};
 use serde::{Deserialize, Serialize};
 
+/// A camera circling a target point, +Y up. Its serde form is saved in project files: keep the
+/// field names.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct OrbitCamera {
+    /// The point the camera looks at and orbits.
     pub target: Vec3,
     /// Radians around Y.
     pub yaw: f32,
     /// Radians above the horizon, clamped to ±89°.
     pub pitch: f32,
+    /// Distance from the target to the eye.
     pub distance: f32,
     /// Vertical field of view, degrees.
     pub fov: f32,
@@ -29,25 +33,31 @@ impl Default for OrbitCamera {
 /// A ray in world space.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Ray {
+    /// Start point.
     pub origin: Vec3,
+    /// Unit direction.
     pub dir: Vec3,
 }
 
 impl OrbitCamera {
+    /// The eye position.
     pub fn eye(&self) -> Vec3 {
         let (sy, cy) = self.yaw.sin_cos();
         let (sp, cp) = self.pitch.sin_cos();
         self.target + Vec3::new(cp * sy, sp, cp * cy) * self.distance
     }
 
+    /// Unit view direction, eye to target.
     pub fn forward(&self) -> Vec3 {
         (self.target - self.eye()).try_normalize().unwrap_or(Vec3::NEG_Z)
     }
 
+    /// World-to-view matrix (right-handed).
     pub fn view(&self) -> Mat4 {
         Mat4::look_at_rh(self.eye(), self.target, Vec3::Y)
     }
 
+    /// Projection matrix for viewport `aspect` (width / height), clip planes from the scene radius.
     pub fn proj(&self, aspect: f32) -> Mat4 {
         let r = self.scene_radius.max(1e-3);
         let near = (self.distance - r * 4.0).max(r * 0.01).max(1e-4);
@@ -61,6 +71,7 @@ impl OrbitCamera {
         }
     }
 
+    /// Projection times view.
     pub fn view_proj(&self, aspect: f32) -> Mat4 {
         self.proj(aspect) * self.view()
     }
@@ -73,6 +84,7 @@ impl OrbitCamera {
         self.distance = r / (self.fov.clamp(5.0, 150.0).to_radians() * 0.5).sin() * 1.1;
     }
 
+    /// Turn around the target by `dx` radians of yaw and `dy` of pitch (pitch stays within ±89°).
     pub fn orbit(&mut self, dx: f32, dy: f32) {
         self.yaw -= dx;
         self.pitch = (self.pitch + dy).clamp(-89f32.to_radians(), 89f32.to_radians());

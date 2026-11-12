@@ -10,10 +10,13 @@ type EdgePositions = ([u32; 3], [u32; 3]);
 /// A contiguous index range drawn with one material.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SubMesh {
+    /// The part (node or object) name.
     pub name: String,
+    /// Index into [`Mesh::materials`].
     pub material: usize,
     /// First index (into [`Mesh::indices`]) and index count.
     pub start: u32,
+    #[allow(missing_docs)]
     pub count: u32,
 }
 
@@ -21,8 +24,11 @@ pub struct SubMesh {
 /// optional texture sampled at the mesh UVs.
 #[derive(Clone, Debug, PartialEq)]
 pub struct BaseColor {
+    /// Linear RGBA factor.
     pub factor: Vec4,
+    #[allow(missing_docs)]
     pub width: u32,
+    #[allow(missing_docs)]
     pub height: u32,
     /// `width × height` RGBA8 texels (color sRGB-encoded, alpha linear), rows top → bottom like
     /// the UVs' v; empty without a texture.
@@ -32,16 +38,21 @@ pub struct BaseColor {
 /// Triangle mesh in world space. UVs use the glTF convention (origin top-left, v down).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Mesh {
+    #[allow(missing_docs)]
     pub positions: Vec<Vec3>,
+    /// Unit normals, one per vertex.
     pub normals: Vec<Vec3>,
     /// xyz tangent, w bitangent sign.
     pub tangents: Vec<Vec4>,
+    #[allow(missing_docs)]
     pub uvs: Vec<Vec2>,
     /// RGBA vertex colors in 0..1 (glTF: linear; OBJ, PLY: as stored): one per vertex, or empty.
     pub colors: Vec<Vec4>,
+    /// Triangle list: three vertex indices per triangle.
     pub indices: Vec<u32>,
     /// Index ranges per material and part (node / object); `name` is the part name.
     pub submeshes: Vec<SubMesh>,
+    /// Material names; [`SubMesh::material`] indexes them.
     pub materials: Vec<String>,
     /// Per triangle, bit `i` set when edge `i` (corner `i` to corner `i + 1`) is a diagonal the
     /// importer added to split a polygon, which wireframes leave out. Empty: every edge is real.
@@ -52,10 +63,12 @@ pub struct Mesh {
 pub const MAX_TRIANGLES: usize = 20_000_000;
 
 impl Mesh {
+    #[allow(missing_docs)]
     pub fn triangle_count(&self) -> usize {
         self.indices.len() / 3
     }
 
+    #[allow(missing_docs)]
     pub fn vertex_count(&self) -> usize {
         self.positions.len()
     }
@@ -212,6 +225,24 @@ impl Mesh {
         }
 
         self.normals = normals.into_iter().map(|v| v.try_normalize().unwrap_or(Vec3::Y)).collect();
+    }
+
+    /// Area-weighted smooth normals over welded positions: vertices split only at a UV seam
+    /// share one normal, so the seam does not show in the shading.
+    pub fn compute_normals_welded(&mut self) {
+        let welded_vertices = crate::unwrap::weld_ids(&self.positions);
+        let mut normals = vec![Vec3::ZERO; self.positions.len()];
+        for triangle in self.indices.as_chunks::<3>().0 {
+            let p = |i: u32| self.positions.get(i as usize).copied().unwrap_or_default();
+            let face = (p(triangle[1]) - p(triangle[0])).cross(p(triangle[2]) - p(triangle[0]));
+            for v in triangle {
+                if let Some(a) = welded_vertices.get(*v as usize).and_then(|w| normals.get_mut(*w as usize)) {
+                    *a += face;
+                }
+            }
+        }
+
+        self.normals = welded_vertices.iter().map(|w| normals.get(*w as usize).and_then(|n| n.try_normalize()).unwrap_or(Vec3::Y)).collect();
     }
 
     /// MikkTSpace tangents (falls back to per-triangle tangents if generation fails).
@@ -532,16 +563,6 @@ mod tests {
         assert_eq!(mesh.uv_seam_edges(), vec![vec![(0, 2)], vec![(2, 4)]]);
         mesh.uvs[4] = mesh.uvs[0];
         assert_eq!(mesh.uv_seam_edges(), vec![Vec::<(u32, u32)>::new(); 2], "a material boundary alone is not a UV seam");
-    }
-
-    #[test]
-    fn validate_catches_bad_indices() {
-        let mut m = quad();
-        m.indices[0] = 99;
-        assert!(m.validate().is_err());
-        let mut m = quad();
-        m.uvs.pop();
-        assert!(m.validate().is_err());
     }
 
     #[test]

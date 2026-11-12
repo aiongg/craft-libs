@@ -18,12 +18,18 @@ struct Node {
 /// A ray hit: distance, triangle and barycentrics (weights of vertices 1 and 2).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Hit {
+    /// Distance along the ray (for [`Bvh::nearest`], to the query point).
     pub t: f32,
+    /// Original triangle index.
     pub tri: u32,
+    /// Weight of vertex 1.
     pub u: f32,
+    /// Weight of vertex 2.
     pub v: f32,
 }
 
+/// Bounding volume hierarchy over a mesh's triangles (binned SAH build), for ray casts,
+/// nearest-point and box queries.
 #[derive(Clone, Debug)]
 pub struct Bvh {
     nodes: Vec<Node>,
@@ -79,7 +85,102 @@ fn area(lo: Vec3, hi: Vec3) -> f32 {
     d.x * d.y + d.y * d.z + d.z * d.x
 }
 
+/// The cheapest binned SAH split of a node's triangles `node_order` over all three axes:
+/// (axis, split bin, cost). Split 0 when no split leaves both sides non-empty.
+fn best_split(node_order: &[u32], tris: &[[Vec3; 3]], bin_of: &impl Fn(u32, usize) -> usize, centroid_extent: Vec3) -> (usize, usize, f32) {
+    // Reuse each triangle's bounds across all three axes
+    let mut axis_bins = [[(0u32, Vec3::splat(f32::MAX), Vec3::splat(f32::MIN)); BINS]; 3];
+
+    for &triangle in node_order {
+        let [a, b, c] = tris[triangle as usize];
+        let (triangle_min, triangle_max) = (a.min(b).min(c), a.max(b).max(c));
+
+        for axis in 0..3 {
+            if centroid_extent[axis] <= 1e-12 {
+                continue;
+            }
+
+            let bin = &mut axis_bins[axis][bin_of(triangle, axis)];
+            bin.0 += 1;
+            bin.1 = bin.1.min(triangle_min);
+            bin.2 = bin.2.max(triangle_max);
+        }
+    }
+
+    let mut best_axis = 0;
+    let mut best_split = 0;
+    let mut best_cost = f32::MAX;
+
+    for axis in 0..3 {
+        if centroid_extent[axis] <= 1e-12 {
+            continue;
+        }
+
+        let bins = axis_bins[axis];
+
+        // Cache right bounds once and advance the left bounds per split
+        let mut suffix = bins;
+        for i in (0..BINS - 1).rev() {
+            suffix[i] = (suffix[i].0 + suffix[i + 1].0, suffix[i].1.min(suffix[i + 1].1), suffix[i].2.max(suffix[i + 1].2));
+        }
+
+        let (mut left_count, mut left_min, mut left_max) = (0u32, Vec3::splat(f32::MAX), Vec3::splat(f32::MIN));
+
+        for split in 1..BINS {
+            let bin = bins[split - 1];
+            left_count += bin.0;
+            left_min = left_min.min(bin.1);
+            left_max = left_max.max(bin.2);
+
+            let (right_count, right_min, right_max) = suffix[split];
+            if left_count == 0 || right_count == 0 {
+                continue;
+            }
+
+            let cost = left_count as f32 * area(left_min, left_max) + right_count as f32 * area(right_min, right_max);
+            if cost < best_cost {
+                best_cost = cost;
+                best_axis = axis;
+                best_split = split;
+            }
+        }
+    }
+
+    (best_axis, best_split, best_cost)
+}
+
+/// Reorder a node's triangles `node_order` into its two children and return the left count:
+/// by the SAH split (axis, bin) when it helps, else by count at the median of the widest
+/// centroid axis (this also splits tied centroids).
+fn partition(node_order: &mut [u32], centroids: &[Vec3], centroid_extent: Vec3, bin_of: &impl Fn(u32, usize) -> usize, sah: Option<(usize, usize)>) -> usize {
+    let Some((best_axis, best_split)) = sah else {
+        let axis = if centroid_extent.x >= centroid_extent.y && centroid_extent.x >= centroid_extent.z {
+            0
+        } else if centroid_extent.y >= centroid_extent.z {
+            1
+        } else {
+            2
+        };
+
+        let mid = node_order.len() / 2;
+        node_order.select_nth_unstable_by(mid, |&a, &b| centroids[a as usize][axis].total_cmp(&centroids[b as usize][axis]));
+        return mid;
+    };
+
+    let mut left_count = 0;
+
+    for i in 0..node_order.len() {
+        if bin_of(node_order[i], best_axis) < best_split {
+            node_order.swap(left_count, i);
+            left_count += 1;
+        }
+    }
+
+    left_count
+}
+
 impl Bvh {
+    /// Build over every triangle of `mesh`.
     pub fn new(mesh: &Mesh) -> Bvh {
         let triangle_count = mesh.triangle_count();
         let mut tris = Vec::with_capacity(triangle_count);
@@ -122,90 +223,9 @@ impl Bvh {
                 ((offset / centroid_extent[axis] * BINS as f32) as usize).min(BINS - 1)
             };
 
-            // Reuse each triangle's bounds across all three axes
-            let mut axis_bins = [[(0u32, Vec3::splat(f32::MAX), Vec3::splat(f32::MIN)); BINS]; 3];
-
-            for &triangle in &order[start..start + count] {
-                let [a, b, c] = tris[triangle as usize];
-                let (triangle_min, triangle_max) = (a.min(b).min(c), a.max(b).max(c));
-
-                for axis in 0..3 {
-                    if centroid_extent[axis] <= 1e-12 {
-                        continue;
-                    }
-
-                    let bin = &mut axis_bins[axis][bin_of(triangle, axis)];
-                    bin.0 += 1;
-                    bin.1 = bin.1.min(triangle_min);
-                    bin.2 = bin.2.max(triangle_max);
-                }
-            }
-
-            let mut best_axis = 0;
-            let mut best_split = 0;
-            let mut best_cost = f32::MAX;
-
-            for axis in 0..3 {
-                if centroid_extent[axis] <= 1e-12 {
-                    continue;
-                }
-
-                let bins = axis_bins[axis];
-
-                // Cache right bounds once and advance the left bounds per split
-                let mut suffix = bins;
-                for i in (0..BINS - 1).rev() {
-                    suffix[i] = (suffix[i].0 + suffix[i + 1].0, suffix[i].1.min(suffix[i + 1].1), suffix[i].2.max(suffix[i + 1].2));
-                }
-
-                let (mut left_count, mut left_min, mut left_max) = (0u32, Vec3::splat(f32::MAX), Vec3::splat(f32::MIN));
-
-                for split in 1..BINS {
-                    let bin = bins[split - 1];
-                    left_count += bin.0;
-                    left_min = left_min.min(bin.1);
-                    left_max = left_max.max(bin.2);
-
-                    let (right_count, right_min, right_max) = suffix[split];
-                    if left_count == 0 || right_count == 0 {
-                        continue;
-                    }
-
-                    let cost = left_count as f32 * area(left_min, left_max) + right_count as f32 * area(right_min, right_max);
-                    if cost < best_cost {
-                        best_cost = cost;
-                        best_axis = axis;
-                        best_split = split;
-                    }
-                }
-            }
-
-            let node_order = &mut order[start..start + count];
-            let left_count = if best_split == 0 || best_cost >= count as f32 * area(bounds_min, bounds_max) {
-                // Split by count when SAH cannot help, including tied centroids
-                let axis = if centroid_extent.x >= centroid_extent.y && centroid_extent.x >= centroid_extent.z {
-                    0
-                } else if centroid_extent.y >= centroid_extent.z {
-                    1
-                } else {
-                    2
-                };
-
-                let mid = count / 2;
-                node_order.select_nth_unstable_by(mid, |&a, &b| centroids[a as usize][axis].total_cmp(&centroids[b as usize][axis]));
-                mid
-            } else {
-                let mut left_count = 0;
-
-                for i in 0..node_order.len() {
-                    if bin_of(node_order[i], best_axis) < best_split {
-                        node_order.swap(left_count, i);
-                        left_count += 1;
-                    }
-                }
-
-                left_count
-            };
+            let (axis, split, cost) = best_split(&order[start..start + count], &tris, &bin_of, centroid_extent);
+            let sah_helps = split != 0 && cost < count as f32 * area(bounds_min, bounds_max);
+            let left_count = partition(&mut order[start..start + count], &centroids, centroid_extent, &bin_of, sah_helps.then_some((axis, split)));
 
             if left_count == 0 || left_count == count {
                 continue;
@@ -226,6 +246,7 @@ impl Bvh {
         Bvh { nodes, tris, order }
     }
 
+    /// No triangles.
     pub fn is_empty(&self) -> bool {
         self.tris.is_empty()
     }

@@ -12,9 +12,13 @@ pub const NO_TRI: u32 = u32::MAX;
 
 const BAND: u32 = 32;
 
+/// One material's UV space rasterised: for each texel, the triangle and barycentrics under its
+/// centre.
 #[derive(Clone, Debug, PartialEq)]
 pub struct UvGBuffer {
+    #[allow(missing_docs)]
     pub width: u32,
+    #[allow(missing_docs)]
     pub height: u32,
     /// Triangle under each texel center, [`NO_TRI`] when uncovered.
     pub tri: Vec<u32>,
@@ -27,13 +31,17 @@ pub struct UvGBuffer {
 /// Interpolated surface attributes at a texel.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Surface {
+    /// World position.
     pub pos: Vec3,
     /// Interpolated shading normal (normalized).
     pub nrm: Vec3,
     /// Flat triangle normal (for ray offsets).
     pub geo_nrm: Vec3,
+    /// Interpolated tangent, w the bitangent sign.
     pub tangent: Vec4,
+    #[allow(missing_docs)]
     pub uv: Vec2,
+    /// The triangle.
     pub tri: u32,
 }
 
@@ -111,14 +119,17 @@ impl UvGBuffer {
         UvGBuffer { width: w, height: h, tri, bary, overlaps }
     }
 
+    /// Whether texel `i` lies under a triangle.
     pub fn covered(&self, i: usize) -> bool {
         self.tri.get(i).is_some_and(|t| *t != NO_TRI)
     }
 
+    /// [`UvGBuffer::covered`] for every texel.
     pub fn coverage_mask(&self) -> Vec<bool> {
         self.tri.iter().map(|t| *t != NO_TRI).collect()
     }
 
+    /// How many texels lie under a triangle.
     pub fn covered_count(&self) -> usize {
         self.tri.iter().filter(|t| **t != NO_TRI).count()
     }

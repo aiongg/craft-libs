@@ -8,8 +8,11 @@ pub const NONE: u32 = u32::MAX;
 /// dilation of that texture set.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DilationMap {
+    #[allow(missing_docs)]
     pub width: u32,
+    #[allow(missing_docs)]
     pub height: u32,
+    /// Per texel, the texel whose value it takes.
     pub src: Vec<u32>,
 }
 
@@ -26,6 +29,8 @@ impl DilationMap {
         Self::in_rectangular_blocks(covered, width, height, max_dist, (block, block))
     }
 
+    /// [`DilationMap::in_blocks`] with `block.0 × block.1` rectangles; 0 on an axis means one
+    /// block along it.
     pub fn in_rectangular_blocks(covered: &[bool], width: u32, height: u32, max_dist: Option<u32>, block: (u32, u32)) -> DilationMap {
         let n = (width as usize).saturating_mul(height as usize);
         let mut src = vec![NONE; n];
