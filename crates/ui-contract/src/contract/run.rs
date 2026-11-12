@@ -397,6 +397,7 @@ pub(crate) struct TypeFacts {
     pub stops: bool,
     pub canvas_control: bool,
     pub labelled_after: bool,
+    pub binds_view: bool,
     /// The style key's type, which `Auto` ids are counted per.
     pub style_key: TypeId,
 }
@@ -413,6 +414,7 @@ impl TypeFacts {
             stops: C::STOPS,
             canvas_control: C::CANVAS_CONTROL,
             labelled_after: C::LABELLED_AFTER,
+            binds_view: C::BINDS_VIEW,
             style_key: TypeId::of::<C::StyleKey>(),
         }
     }
@@ -841,7 +843,7 @@ fn run_in_host(p: &mut Pass<'_, '_, '_>, ui: &mut Ui, host_at: Option<ShowAt>, h
     // A body's wheel share is its scroll taker (body step, step 7); the gate value does not take the wheel. A body root that
     // senses the wheel itself (a canvas) registers like any other component.
     if !inert && (e.shape() != ShapeKind::Body || own.intersects(Sense::WHEEL | Sense::WHEEL_X)) {
-        steps::register_wheel(&ctx, id, rect, own, e.bound().0, env.wheel);
+        steps::register_wheel(&ctx, id, rect, own, e.bound().0 && !facts.binds_view, env.wheel);
     }
     // 8 sense
     p.trace.mark(Step::Sense);
