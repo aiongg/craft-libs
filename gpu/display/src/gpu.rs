@@ -41,7 +41,7 @@ pub fn params(pass: &DisplayPass) -> [u8; PARAMS_BYTES] {
     for v in [pass.channel_id(), pass.colorized as u32, curve.id(), pass.hdr_id(), form, quantize as u32, second.is_some() as u32, lut_size] {
         b.extend(v.to_le_bytes());
     }
-    for v in [pass.gain, curve.decode_param(), curve.encode_param(), 1.0 / pass.gamma] {
+    for v in [pass.gain, curve.decode_param(), curve.encode_param(), pass.inverse_gamma()] {
         b.extend(v.to_le_bytes());
     }
     for v in gamut.into_iter().chain(m1.into_iter().flatten()).chain(m2.into_iter().flatten()) {

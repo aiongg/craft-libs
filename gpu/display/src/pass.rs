@@ -392,7 +392,7 @@ impl DisplayPass {
     }
 
     /// The exponent of the preview gamma, as the shader gets it.
-    fn inverse_gamma(&self) -> f32 {
+    pub(crate) fn inverse_gamma(&self) -> f32 {
         1.0 / self.gamma
     }
 

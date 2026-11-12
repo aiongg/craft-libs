@@ -48,7 +48,7 @@ impl GpuMatrixShaper {
     /// curves and primaries matrix) rather than as an ICC transform. `None` when a size is wrong or
     /// a value is not finite or would overflow the shader's arithmetic.
     pub fn from_tables(matrix: [[f32; 4]; 3], input: &[Vec<f32>; 3], output: &[Vec<f32>; 3]) -> Option<Self> {
-        Self::from_parts(matrix, input, Some(output))
+        Self::from_parts(matrix, input, Some(output.as_slice()))
     }
 
     pub(crate) fn from_parts(matrix: [[f32; 4]; 3], input: &[Vec<f32>], output: Option<&[Vec<f32>]>) -> Option<Self> {
