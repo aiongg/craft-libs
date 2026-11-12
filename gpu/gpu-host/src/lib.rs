@@ -12,9 +12,12 @@
 //! - [`limits`]: what a device asks its adapter for.
 //! - [`software_rasterizer`]: whether an adapter runs on the CPU.
 //! - [`memory`]: a card's own and free memory, and physical memory (native only).
+//! - [`adapter`]: which adapter a window or device draws with (native only).
 //! - [`env`]: the one set of environment variables that steers the GPU.
 
 pub mod access;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod adapter;
 pub mod env;
 pub mod health;
 pub mod limits;

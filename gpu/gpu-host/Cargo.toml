@@ -24,9 +24,16 @@ craft-platform = { workspace = true, features = ["usage"] }
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen-futures = "0.4"
 
-# DXGI's dedicated video memory (`memory::video_memory`); a safe API, so no `unsafe` here.
+# DXGI's dedicated video memory (`memory::video_memory`) and the display devices that tell which
+# GPU drives a monitor (`adapter::display_gpus`); a safe API, so no `unsafe` here.
 [target.'cfg(windows)'.dependencies]
-winsafe = { version = "0.0.29", default-features = false, features = ["dxgi"] }
+winsafe = { version = "0.0.29", default-features = false, features = ["dxgi", "user"] }
+
+# Asks the Wayland compositor which GPU it draws with (linux-dmabuf feedback,
+# `adapter::compositor_gpu`). Both are already in the build through winit.
+[target.'cfg(target_os = "linux")'.dependencies]
+wayland-client = "0.31"
+wayland-protocols = { version = "0.32", features = ["client"] }
 
 # The GPU target: real devices, skipped when no adapter is present.
 [[test]]
