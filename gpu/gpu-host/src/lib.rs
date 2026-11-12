@@ -15,6 +15,8 @@
 //! - [`env`]: the one set of environment variables that steers the GPU.
 
 pub mod access;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod adapter;
 pub mod env;
 pub mod health;
 pub mod limits;
