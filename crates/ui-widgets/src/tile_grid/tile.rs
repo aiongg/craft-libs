@@ -229,6 +229,14 @@ pub struct TileStyle {
     placeholder: StyleColor,
     dim: StyleColor,
     veil: Stateful<StyleColor>,
+    /// The ring outside the picture: the accent when selected or current, the muted ink under the pointer.
+    ring: Stateful<StyleColor>,
+    /// The ring's width: thick when selected or current, thin under the pointer, none at rest.
+    ring_width: Stateful<f32>,
+    /// The halo outside a selected ring, so it reads on any background.
+    halo: StyleColor,
+    /// The halo's width: thin when selected or current, none otherwise.
+    halo_width: Stateful<f32>,
     /// The fill under the badge bar and the check box, over the picture.
     plate: StyleColor,
     pill: StyleColor,
@@ -610,34 +618,30 @@ impl Component for Tile<'_> {
         let clear = Rgba::TRANSPARENT;
         let c = |rgba: Rgba| cx.color(rgba);
         let sizes = Sizes::of(cx, key.card);
-        let (rest, hover, pressed) = if key.card {
+        // Selection and hover are rings around the picture; only a card has a fill of its own.
+        let fill = if key.card {
             let raised = colors.surface.raised;
-            (c(raised), c(over(state.hover, raised)), c(over(state.pressed, raised)))
+            let (rest, hover, pressed) = (c(raised), c(over(state.hover, raised)), c(over(state.pressed, raised)));
+            Stateful::new(rest).off(States::new(rest, hover, pressed, rest)).on(States::new(rest, hover, pressed, rest))
         } else {
-            (c(clear), c(state.hover), c(state.pressed))
+            Stateful::new(c(clear))
         };
-        let fill = Stateful::new(rest).off(States::new(rest, hover, pressed, rest)).on(States::new(
-            c(state.selected),
-            c(state.selected_hover),
-            c(state.selected_hover),
-            c(state.selected),
-        ));
-        let line = c(clear);
-        let edge = Stateful::new(line)
+        let (line, accent) = (c(clear), c(colors.accent.solid));
+        let ring = Stateful::new(line)
             .off(States::new(line, c(text.muted), c(text.muted), line))
-            .on(States::new(c(colors.accent.solid), c(colors.accent.solid), c(colors.accent.solid), c(colors.accent.solid)))
-            .when(Flags::CURRENT, c(colors.accent.solid));
+            .on(States::new(accent, accent, accent, accent))
+            .when(Flags::CURRENT, accent);
+        let (thin, thick) = (tokens.stroke.thin, tokens.stroke.thick);
+        let ring_width =
+            Stateful::new(0.0).off(States::new(0.0, thin, thin, 0.0)).on(States::new(thick, thick, thick, thick)).when(Flags::CURRENT, thick);
+        let halo_width = Stateful::new(0.0).on(States::new(thin, thin, thin, thin)).when(Flags::CURRENT, thin);
         let radius = UiTokens::corner(tokens.shape.radius.control);
-        let surface = SurfaceLook::new(fill).radius(radius).border(edge, tokens.stroke.thick);
+        let surface = SurfaceLook::new(fill).radius(radius);
         let surface = if key.card { surface.kind(SurfaceKind::Raised) } else { surface };
-        let on_selected = c(text.on_selected);
+        // A selected tile's name reads in the normal ink: the selection is the ring, not a fill under the name.
+        let normal = c(text.normal);
         let ink = |base: StyleColor| {
-            Stateful::new(base).off(States::new(base, base, base, c(text.disabled))).on(States::new(
-                on_selected,
-                on_selected,
-                on_selected,
-                on_selected,
-            ))
+            Stateful::new(base).off(States::new(base, base, base, c(text.disabled))).on(States::new(normal, normal, normal, normal))
         };
         let fixed = |color: Rgba| Stateful::new(c(color));
         let pill = cx.with_variant(pill_variant(Tone::Neutral)).variant_look();
@@ -671,6 +675,10 @@ impl Component for Tile<'_> {
             placeholder: c(colors.surface.sunken),
             dim: c(colors.surface.scrim.faded(DIM_VEIL)),
             veil,
+            ring,
+            ring_width,
+            halo: c(colors.overlay.halo),
+            halo_width,
             plate,
             pill: pill.fill.off.rest,
             band: c(colors.status.bad.solid),
@@ -802,6 +810,17 @@ impl Component for Tile<'_> {
         let style = cx.style;
         let picture = placed.picture;
         let flat = CornerRadius::ZERO;
+        {
+            // Filled from the outside in, under the picture, so the rings sit outside its edge.
+            let (ring, halo) = (cx.resolve(&style.ring_width), cx.resolve(&style.halo_width));
+            let draw = ui.draw();
+            if halo > 0.0 {
+                draw.fill(&PaintShape::Rect(picture.expand(ring + halo), flat), style.halo);
+            }
+            if ring > 0.0 {
+                draw.fill(&PaintShape::Rect(picture.expand(ring), flat), cx.resolve(&style.ring));
+            }
+        }
         if style.sizes.card {
             ui.draw().surface(picture, SurfaceKind::Sunken, Corners::All);
         } else {
