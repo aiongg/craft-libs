@@ -4,7 +4,7 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-/// Crates the facade leaves out, by directory, with the reason. Everything else under `crates/` and `crates/gpu/` is a member.
+/// Crates the facade leaves out, by directory, with the reason. Everything else under `crates/` and `gpu/` is a member.
 pub const NOT_IN_FACADE: &[(&str, &str)] = &[
     ("behavior", "layer 1: pure behaviours with no egui, below craft-ui"),
     ("design-lint", "a lint template and checker for apps' clippy.toml, run from xtask"),
@@ -43,12 +43,12 @@ pub fn read_toml(path: &Path) -> toml::Table {
 }
 
 /// Every facade member except the facade itself, sorted by directory name: the crates under
-/// `crates/` and the engine crates under `crates/gpu/`.
+/// `crates/` and the engine crates under `gpu/`.
 pub fn members() -> Vec<Member> {
     let root = workspace_root();
-    let mut dirs: Vec<(String, PathBuf)> = ["crates", "crates/gpu"]
+    let mut dirs: Vec<(String, PathBuf)> = ["crates", "gpu"]
         .iter()
-        // `crates/gpu` may not exist yet.
+        // `gpu` may not exist yet.
         .flat_map(|parent| std::fs::read_dir(root.join(parent)).into_iter().flatten().map(|e| e.unwrap()))
         .filter(|e| e.path().join("Cargo.toml").is_file())
         .map(|e| (e.file_name().into_string().unwrap(), e.path()))

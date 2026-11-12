@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/*", "crates/gpu/*"]
+members = ["crates/*", "gpu/*"]
 exclude = ["vendor/krilla", "vendor/hayro", "vendor/hayro-interpret", "vendor/hayro-syntax", "vendor/hayro-jbig2", "vendor/hayro-cmap", "vendor/hayro-postscript", "vendor/linesweeper"]
 
 [workspace.package]

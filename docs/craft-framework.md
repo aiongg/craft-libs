@@ -170,7 +170,7 @@ Rules:
 
 Engine crates hold GPU and geometry engines: compositing, blending, 3D, effects, and the CPU code they share.
 
-- They live under `crates/gpu/<name>` and are tier 0. The workspace members and the facade's member list (`crates/craft/tests/common/mod.rs`) read `crates/gpu/*` beside `crates/*`.
+- They live under `gpu/<name>` at the workspace root and are tier 0. The workspace members and the facade's member list (`crates/craft/tests/common/mod.rs`) read `gpu/*` beside `crates/*`.
 - They have no craft-ui-* dependency, and no craft-ui-* crate depends on them. Only `craft-ui-gpu` and the apps join them to the UI library.
 - GPU tests and golden tests are separate test targets (`tests/gpu`, `tests/golden`), never features. GPU targets skip when no adapter is present.
 - Opt level is set per engine crate, in the workspace's `[profile.dev.package.<crate>]` entries.
