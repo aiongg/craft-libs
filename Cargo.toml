@@ -45,7 +45,7 @@ craft-font-manager = { path = "crates/font-manager" }
 craft-font-store = { path = "crates/font-store" }
 craft-gcode = { path = "crates/gcode" }
 craft-mesh = { path = "crates/mesh" }
-craft-geom3d = { path = "crates/gpu/geom3d" }
+craft-geom3d = { path = "gpu/geom3d" }
 craft-heif = { path = "crates/heif" }
 craft-fonts-build = { path = "crates/fonts-build" }
 craft-host = { path = "crates/host" }
