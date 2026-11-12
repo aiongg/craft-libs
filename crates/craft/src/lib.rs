@@ -37,6 +37,8 @@ pub use craft_font_catalog as font_catalog;
 pub use craft_font_manager as font_manager;
 #[cfg(feature = "font-store")]
 pub use craft_font_store as font_store;
+#[cfg(feature = "geom3d")]
+pub use craft_geom3d as geom3d;
 pub use craft_host as host;
 pub use craft_i18n as i18n;
 #[cfg(feature = "imaging")]

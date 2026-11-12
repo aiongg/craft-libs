@@ -1,0 +1,19 @@
+[package]
+name = "craft-geom3d"
+description = "3D geometry on the CPU: triangle meshes with MikkTSpace tangents, BVH ray casts, orbit camera, UV G-buffer, automatic unwrap, primitives, subdivision, UV padding, and meshes from craft-mesh scenes"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+craft-mesh = { workspace = true }
+glam = { workspace = true }
+mikktspace = { workspace = true }
+rayon = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
