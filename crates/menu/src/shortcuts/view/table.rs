@@ -9,9 +9,10 @@ use craft_keymap::keymap::{Binding, MAX_BINDINGS};
 use craft_ui::buttons::{Button, IconButton};
 use craft_ui::contract::{
     Bind, BindMut, Collection, CollectionEvent, CollectionProps, CollectionResponse, ColumnSpec, Common, Component, ContainerProps, Cx, ItemOutput,
-    MeasureCx, Outcome, PaintUi, Props as _, Role, SelectMode, ShowCollection as _, Sizing, Styled as _, clicked,
+    MeasureCx, OpenChange, Outcome, PaintUi, Props as _, Role, SelectMode, ShowCollection as _, Sizing, Styled as _, clicked,
 };
 use craft_ui::display::{Elide, Icon, Shade, Text};
+use craft_ui::list::ListRow;
 use craft_ui::primitives::{IconSpec, Span, TextRun};
 use craft_ui::style::{ComponentStyle, Ink, Stateful, StyleCx, TextLook, TypeRole};
 use egui::{Pos2, Rect, Response, Ui, Vec2};
@@ -191,6 +192,8 @@ pub(crate) struct RowOut {
     pub response: Response,
     /// What the row's children reported.
     pub act: Option<RowAct>,
+    /// A group header's disclosure was clicked: the state it asks for.
+    pub open: Option<OpenChange<()>>,
 }
 
 impl Outcome for RowOut {
@@ -204,6 +207,10 @@ impl Outcome for RowOut {
 impl ItemOutput<RowAct> for RowOut {
     fn into_event(self) -> Option<RowAct> {
         self.act
+    }
+
+    fn open_request(&self) -> Option<OpenChange<()>> {
+        self.open.clone()
     }
 }
 
@@ -230,6 +237,7 @@ pub(crate) struct CommandRow<'r> {
     /// cannot lay out).
     widths: std::collections::BTreeMap<(Shown, String), f32>,
     act: Option<RowAct>,
+    open: Option<OpenChange<()>>,
 }
 
 /// What the shortcut cell shows a text as.
@@ -261,7 +269,8 @@ impl<'r> CommandRow<'r> {
             Line::Header { name, .. } => name.clone(),
         };
         let conflict = matches!(line, Line::Row(row) if row.conflict);
-        let row = CommandRow { common: Common::new(), line, env, cells: cells.to_vec(), widths: std::collections::BTreeMap::new(), act: None };
+        let row =
+            CommandRow { common: Common::new(), line, env, cells: cells.to_vec(), widths: std::collections::BTreeMap::new(), act: None, open: None };
         if conflict { row.description(words.shares_a_shortcut.as_str().to_owned()).label(name) } else { row.label(name) }
     }
 
@@ -328,12 +337,16 @@ impl Component for CommandRow<'_> {
                 self.paint_shortcuts(ui, cx, rtl, line);
             }
             Line::Fixed(fixed) => self.paint_fixed(ui, cx, rtl, command, fixed),
-            Line::Header { .. } => {}
+            // A group header is the shared group heading: the disclosure and the group's name.
+            Line::Header { name, collapsed } => {
+                let heading = ListRow::new(name.clone()).heading().group(!*collapsed).node(false);
+                self.open = ui.child("heading", cx.rect, heading).open;
+            }
         }
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> RowOut {
-        RowOut { response: cx.response.clone(), act: self.act }
+        RowOut { response: cx.response.clone(), act: self.act, open: self.open }
     }
 }
 
@@ -397,6 +410,10 @@ impl CommandRow<'_> {
             _ => None,
         });
         let reset_at = (cell.width() - height).max(0.0);
+        let adding = matches!(&recording, Some((None, _)));
+        let adds = editable && line.chips.len() < MAX_BINDINGS && !adding;
+        // The add button keeps its place after the chips: they take the room before it and the reset button.
+        let chips_end = if adds { (reset_at - height - gap).max(0.0) } else { reset_at };
         let mut at = 0.0;
         let mut act = None;
         let mut cells: Vec<(Option<&Chip>, bool)> =
@@ -410,7 +427,7 @@ impl CommandRow<'_> {
                 _ => chip.map_or_else(String::new, |chip| chip.text.clone()),
             };
             let kind = if *recording_here { Shown::Recording } else { Shown::Chip };
-            let width = width_of(kind, &shown).min((reset_at - at).max(0.0));
+            let width = width_of(kind, &shown).min((chips_end - at).max(0.0));
             let rect = band(&flow, cell, at, width);
             at += width + gap;
             if *recording_here {
@@ -428,31 +445,30 @@ impl CommandRow<'_> {
             }
             let Some(chip) = chip else { continue };
             let name = words.label_chord.fill(&[("label", &line.label), ("chord", &chip.text)]);
-            let button = Button::new(chip.text.clone()).id_salt(("chip", line.key.as_str(), n)).label(name).enabled(editable);
+            let button = Button::new(name).painted(chip.text.clone()).id_salt(("chip", line.key.as_str(), n)).enabled(editable);
             if clicked(&ui.child(("chip", line.key.as_str(), n), rect, button)) {
                 act = Some(RowAct::Record(Some(n)));
             }
         }
         if cells.is_empty() {
-            let rect = band(&flow, cell, 0.0, reset_at.max(height));
+            let rect = band(&flow, cell, 0.0, chips_end.max(height));
             let none = words.none.as_str();
             let name = words.label_chord.fill(&[("label", &line.label), ("chord", none)]);
-            let button = Button::new(none.to_owned()).id_salt(("chip", line.key.as_str(), 0)).label(name).enabled(editable);
+            let button = Button::new(name).painted(none.to_owned()).id_salt(("chip", line.key.as_str(), 0)).enabled(editable);
             if clicked(&ui.child(("chip", line.key.as_str(), 0), rect, button)) {
                 act = Some(RowAct::Record(None));
             }
-            at = reset_at;
+            at = chips_end.max(height) + gap;
         }
         for (n, text) in line.unparsed.iter().enumerate() {
-            let width = width_of(Shown::Unparsed, text).min((reset_at - at).max(0.0));
+            let width = width_of(Shown::Unparsed, text).min((chips_end - at).max(0.0));
             let rect = band(&flow, cell, at, width);
             at += width + gap;
             let name = words.label_chord.fill(&[("label", &line.label), ("chord", text)]);
             let note = unparsed_note(text, name).tooltip(words.this_saved_text_is_not_a.as_str().to_owned());
             ui.child(("unparsed", line.key.as_str(), n), rect, note);
         }
-        let adding = matches!(&recording, Some((None, _)));
-        if editable && line.chips.len() < MAX_BINDINGS && !adding && at + height <= reset_at {
+        if adds && at + height <= reset_at {
             let rect = band(&flow, cell, at, height);
             let name = words.add_a_shortcut_to_label.fill(&[("label", &line.label)]);
             let add = IconButton::new(IconSpec::svg(craft_behavior::IconId::new("plus")))
@@ -466,7 +482,7 @@ impl CommandRow<'_> {
         if editable {
             let rect = band(&flow, cell, reset_at, height);
             let name = words.restore_the_default_for_label.fill(&[("label", &line.label)]);
-            let reset = IconButton::new(IconSpec::svg(craft_behavior::IconId::new("undo")))
+            let reset = IconButton::new(IconSpec::svg(craft_behavior::IconId::new("reset")))
                 .id_salt(("reset", line.key.as_str()))
                 .label(name.clone())
                 .tooltip(name)
