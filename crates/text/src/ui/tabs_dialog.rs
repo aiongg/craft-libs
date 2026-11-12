@@ -324,7 +324,7 @@ impl TabStopsDialog {
                     .cells(icx.cells())
                     .columns(&columns)
                     .cell(ALIGNMENT, align_text(words, stop.align))
-                    .cell(LEADER, leader_text(words, stop.leader))
+                    .cell(LEADER, leader_face(words, stop.leader))
             });
         for event in out.events {
             if let CollectionEvent::Selection(change) = event {
@@ -342,7 +342,11 @@ impl TabStopsDialog {
         let Some((at, stop)) = self.selected.and_then(|at| self.stops.get(at).map(|stop| (at, *stop))) else { return };
         let unit = self.unit;
         let aligns: Vec<Entry<TabAlign>> = TabAlign::ALL.into_iter().map(|align| Entry::new(align, align_text(words, align))).collect();
-        let leaders: Vec<Entry<TabLeader>> = TabLeader::ALL.into_iter().map(|leader| Entry::new(leader, leader_text(words, leader))).collect();
+        // The closed box shows the fill alone, as Word's does; the list reads "1 ……".
+        let leaders: Vec<Entry<TabLeader>> = TabLeader::ALL
+            .into_iter()
+            .map(|leader| Entry::new(leader, leader_text(words, leader)).closed_label(leader_face(words, leader)))
+            .collect();
         let mut edits = Vec::new();
         let to_edit = &mut self.to_edit;
         Row::new().show(ui, |ui, _| {
@@ -420,6 +424,11 @@ fn align_text(words: &TabStopsWords, align: TabAlign) -> String {
         TabAlign::Bar => words.bar.as_str(),
     }
     .to_owned()
+}
+
+/// A leader's text in a closed box and in the table's Leader cell: "None", or the fill alone.
+pub fn leader_face(words: &TabStopsWords, kind: TabLeader) -> String {
+    if kind == TabLeader::None { words.leader_none.as_str().to_owned() } else { kind.sample().to_owned() }
 }
 
 /// A leader option's text as Word's list reads: "None", or the fill after its number.
