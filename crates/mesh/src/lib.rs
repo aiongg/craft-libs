@@ -184,10 +184,19 @@ impl Part {
 
     /// The faces as triangles: a polygon becomes a fan from its first corner.
     pub fn triangles(&self) -> impl Iterator<Item = [Corner; 3]> + '_ {
+        self.fan().map(|(t, _)| t)
+    }
+
+    /// [`Part::triangles`] with each triangle's diagonal bits: bit `i` is set when edge `i`
+    /// (corner `i` to corner `i + 1`) is a diagonal the fan added inside a polygon.
+    fn fan(&self) -> impl Iterator<Item = ([Corner; 3], u8)> + '_ {
         self.faces().flat_map(|f| {
             let first = f.first().copied();
-            f.get(1..).unwrap_or_default().windows(2).filter_map(move |w| match (first, w) {
-                (Some(a), [b, c]) => Some([a, *b, *c]),
+            // Fan triangle k is (0, k + 1, k + 2): edge 0 is a diagonal past the first
+            // triangle, edge 2 before the last.
+            let last = f.len().saturating_sub(3);
+            f.get(1..).unwrap_or_default().windows(2).enumerate().filter_map(move |(k, w)| match (first, w) {
+                (Some(a), [b, c]) => Some(([a, *b, *c], u8::from(k > 0) | (u8::from(k < last) << 2))),
                 _ => None,
             })
         })
@@ -231,6 +240,10 @@ pub struct Unified {
     pub corners: Vec<Corner>,
     /// Triangles per part, in the order of [`Mesh::parts`].
     pub parts: Vec<Vec<[u32; 3]>>,
+    /// Per part, one entry per triangle of [`Unified::parts`]: bit `i` is set when edge `i`
+    /// (corner `i` to corner `i + 1`) is a diagonal the fan triangulation added inside a polygon,
+    /// which wireframes leave out.
+    pub diagonals: Vec<Vec<u8>>,
 }
 
 impl Mesh {
@@ -283,7 +296,8 @@ impl Mesh {
         let mut ids: HashMap<Corner, u32> = HashMap::new();
         for part in &self.parts {
             let mut tris = Vec::with_capacity(part.triangle_count());
-            'tri: for t in part.triangles() {
+            let mut diagonals = Vec::with_capacity(part.triangle_count());
+            'tri: for (t, bits) in part.fan() {
                 let mut tri = [0u32; 3];
                 for (slot, c) in tri.iter_mut().zip(t) {
                     let key = Corner {
@@ -313,8 +327,10 @@ impl Mesh {
                     *slot = id;
                 }
                 tris.push(tri);
+                diagonals.push(bits);
             }
             out.parts.push(tris);
+            out.diagonals.push(diagonals);
         }
         out
     }

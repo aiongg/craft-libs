@@ -89,6 +89,15 @@ fn unified_gives_one_vertex_per_distinct_corner() {
     let mut bad = tri_mesh();
     bad.parts[0].corners[4].position = 99;
     assert_eq!(bad.unified().parts, [vec![[0, 1, 2]]]);
+    // A pentagon fans into three triangles; the two inner edges are marked on both sides.
+    let pentagon = Mesh {
+        positions: vec![[0.0; 3]; 5],
+        parts: vec![Part { face_sizes: vec![5], corners: (0..5).map(Corner::at).collect(), ..Part::default() }],
+        ..Mesh::default()
+    };
+    let u = pentagon.unified();
+    assert_eq!(u.parts, [vec![[0, 1, 2], [0, 2, 3], [0, 3, 4]]]);
+    assert_eq!(u.diagonals, [vec![0b100, 0b101, 0b001]]);
 }
 
 #[test]
