@@ -167,10 +167,13 @@ mod tests {
             })
             .collect();
         for (max_dist, block) in [(None, 0), (Some(3), 0), (Some(2), 8), (None, 16), (Some(1), 5)] {
-            assert_eq!(DilationMap::in_blocks(&covered, w, h, max_dist, block).src, reference(&covered, w, h, max_dist, block), "{max_dist:?} {block}");
+            assert_eq!(
+                DilationMap::in_blocks(&covered, w, h, max_dist, block).src,
+                reference(&covered, w, h, max_dist, block),
+                "{max_dist:?} {block}"
+            );
         }
     }
-
 }
 
 #[cfg(test)]

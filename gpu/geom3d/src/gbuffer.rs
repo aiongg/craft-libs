@@ -169,9 +169,14 @@ mod tests {
     #[test]
     fn half_triangle_covers_texels_with_centers_inside() {
         // One triangle covering the lower-left half of UV space (v down: y = v·H).
-        let m =
-            Mesh::from_parts(vec![Vec3::ZERO, Vec3::X, Vec3::Y], None, vec![Vec2::new(0.0, 0.0), Vec2::new(0.0, 1.0), Vec2::new(1.0, 1.0)], vec![0, 1, 2], "m")
-                .unwrap();
+        let m = Mesh::from_parts(
+            vec![Vec3::ZERO, Vec3::X, Vec3::Y],
+            None,
+            vec![Vec2::new(0.0, 0.0), Vec2::new(0.0, 1.0), Vec2::new(1.0, 1.0)],
+            vec![0, 1, 2],
+            "m",
+        )
+        .unwrap();
         let g = UvGBuffer::new(&m, 0, 8, 8);
         for y in 0..8u32 {
             for x in 0..8u32 {

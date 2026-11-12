@@ -135,7 +135,9 @@ impl Mesh {
                 let Some(corners) = self.indices.get(triangle * 3..triangle * 3 + 3) else { continue };
 
                 for (from, to) in [(corners[0], corners[1]), (corners[1], corners[2]), (corners[2], corners[0])] {
-                    let (Some(from_position), Some(to_position)) = (self.positions.get(from as usize), self.positions.get(to as usize)) else { continue };
+                    let (Some(from_position), Some(to_position)) = (self.positions.get(from as usize), self.positions.get(to as usize)) else {
+                        continue;
+                    };
 
                     let (from_bits, to_bits) = (bits(*from_position), bits(*to_position));
                     let (edge, pair) = if from_bits <= to_bits { ((from_bits, to_bits), (from, to)) } else { ((to_bits, from_bits), (to, from)) };
@@ -334,8 +336,11 @@ impl Mesh {
         let mut duplicates = std::collections::HashMap::new();
         for k in material_triangles.iter().flat_map(|t| t * 3..t * 3 + 3) {
             let Some(&v) = self.indices.get(k) else { continue };
-            let v =
-                if shared.get(v as usize).copied().unwrap_or(false) { *duplicates.entry(v).or_insert_with(|| self.duplicate_vertex(v as usize)) } else { v };
+            let v = if shared.get(v as usize).copied().unwrap_or(false) {
+                *duplicates.entry(v).or_insert_with(|| self.duplicate_vertex(v as usize))
+            } else {
+                v
+            };
             if let Some(i) = self.indices.get_mut(k) {
                 *i = v;
             }
@@ -592,7 +597,8 @@ mod tests {
         // quad(): two triangles sharing an edge; put the second in its own material.
         let mut m = quad();
         m.materials = vec!["a".into(), "b".into()];
-        m.submeshes = vec![SubMesh { name: "a".into(), material: 0, start: 0, count: 3 }, SubMesh { name: "b".into(), material: 1, start: 3, count: 3 }];
+        m.submeshes =
+            vec![SubMesh { name: "a".into(), material: 0, start: 0, count: 3 }, SubMesh { name: "b".into(), material: 1, start: 3, count: 3 }];
         let before = m.clone();
         m.map_material_uvs(1, |uv| uv + Vec2::X);
         m.validate().unwrap();

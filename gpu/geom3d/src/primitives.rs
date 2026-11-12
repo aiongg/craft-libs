@@ -314,7 +314,8 @@ fn preview_orb_radius(d: Vec3) -> f32 {
     }
 
     // Slot around the middle, stopping at the left panel
-    let in_left_panel = if d.x < 0.0 { 1.0 - smooth(left_rim * (1.0 - SLOT_FADE), left_rim * (1.0 + SLOT_FADE), face_rho(-d.x, d.y, d.z)) } else { 0.0 };
+    let in_left_panel =
+        if d.x < 0.0 { 1.0 - smooth(left_rim * (1.0 - SLOT_FADE), left_rim * (1.0 + SLOT_FADE), face_rho(-d.x, d.y, d.z)) } else { 0.0 };
     let slot_band = 1.0 - smooth(SLOT_HALF_WIDTH - SLOT_ROUNDING, SLOT_HALF_WIDTH + SLOT_ROUNDING, (d.y - SLOT_Y).abs());
     relief -= SLOT_DEPTH * slot_band * (1.0 - in_left_panel);
 
