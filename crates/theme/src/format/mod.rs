@@ -38,7 +38,6 @@ pub const MAX_THEME_BYTES: usize = 256 * 1024;
 const LENGTH: &str = "a length: a number of 0 or more, or \"full\"";
 /// The expected form of an edge, in [`ErrorKind::BadValue`].
 const OFFSET: &str = "a number";
-const ROWS: &str = "\"divided\" or \"rounded\"";
 const KNOB: &str = "\"round\" or \"tab\"";
 const EDGE: &str = "\"flat\" or {\"bevel\": {\"width\": n}} with n above 0";
 

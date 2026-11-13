@@ -24,8 +24,7 @@
       "panel": 5.0,
       "surface": 5.0,
       "window": 5.0
-    },
-    "rows": "rounded"
+    }
   },
   "light": {
     "accent.border": "#3aace8aa",

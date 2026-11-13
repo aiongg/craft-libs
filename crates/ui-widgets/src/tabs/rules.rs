@@ -99,8 +99,8 @@ impl TabKind {
         self == Self::Document
     }
 
-    /// Whether the strip draws a divider at each tab's trailing edge in a theme that divides rows.
-    pub fn compact_dividers(self) -> bool {
+    /// Whether the strip draws a divider at each tab's trailing edge.
+    pub fn trailing_divider(self) -> bool {
         self == Self::Document
     }
 }

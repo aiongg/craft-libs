@@ -24,8 +24,7 @@
       "panel": 9.0,
       "surface": 9.0,
       "window": 12.0
-    },
-    "rows": "rounded"
+    }
   },
   "light": {
     "accent.border": "#3584e482",

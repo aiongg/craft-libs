@@ -22,8 +22,7 @@
       "control": 1.0,
       "surface": 2.0,
       "window": 2.0
-    },
-    "rows": "rounded"
+    }
   },
   "light": {
     "accent.border": "#6e80d8aa",
