@@ -2566,6 +2566,7 @@ dependencies = [
  "craft-host",
  "craft-i18n",
  "craft-keymap",
+ "craft-platform",
  "craft-quit",
  "craft-theme",
  "craft-ui-contract",
