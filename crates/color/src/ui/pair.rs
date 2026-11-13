@@ -203,8 +203,9 @@ impl Outcome for SwatchPairOutput {
 ///   are icons in a row over the wells, the default one at the start and the swap one at the end, as Photoshop's.
 /// - [`lineup`](SwatchPair::lineup), as a tool rail's colour chips: where the theme's wells are round
 ///   (`shape.wells`), they stand along the host's axis, the swap button, a curve, centred under them. Down a
-///   one-column rail ([`Axis::Y`]) the default button is on the top well's shoulder at the end; across a two-column
-///   one ([`Axis::X`]) it is at the start of the row under the wells. Square wells keep the diagonal.
+///   one-column rail ([`Axis::Y`]) they are centred in the width the host gives (`Sizing::FillWidth` takes its
+///   column's), the default button at the end edge over the top well's shoulder; across a two-column one
+///   ([`Axis::X`]) the default button is at the start of the row under the wells. Square wells keep the diagonal.
 /// - The wells are one roving group: Tab arrives at the active well; Left and Up go to the primary one, Right and
 ///   Down to the secondary one (mirrored right to left).
 #[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
@@ -312,16 +313,16 @@ impl<'a> SwatchPair<'a> {
     fn rects(&self, style: &SwatchPairStyle, size: Vec2) -> ([Rect; 2], [Rect; 2]) {
         match self.lined(style) {
             Some(axis) => {
-                let lined = self.lined_up(style, axis);
+                let lined = self.lined_up(style, axis, size.x);
                 (lined.wells, lined.buttons)
             }
             None => (self.well_rects(style, size), self.button_rects(style)),
         }
     }
 
-    /// The pair with its round wells lined up along `axis`, the second one `step` further along, the front one's
-    /// halo covering the other where they overlap.
-    fn lined_up(&self, style: &SwatchPairStyle, axis: Axis) -> LinedUp {
+    /// The pair with its round wells lined up along `axis` in a rect `width` wide (at least the pair's own), the second
+    /// one `step` further along, the front one's halo covering the other where they overlap.
+    fn lined_up(&self, style: &SwatchPairStyle, axis: Axis, width: f32) -> LinedUp {
         let (step, side) = (style.step, style.buttons);
         let (default, swap) = (self.default_button.is_some(), self.swap_button.is_some());
         let edge = self.edge(style);
@@ -348,18 +349,22 @@ impl<'a> SwatchPair<'a> {
                 }
             }
             _ => {
-                // The default button sits on the top well's shoulder: its corner nearest the well on the well's edge
-                // at 45 degrees, the rest of it further out, so it stays clear of the circle.
-                let shoulder = radius * std::f32::consts::FRAC_1_SQRT_2;
-                let width = if default { (2.0 * radius).max(radius + shoulder + side) } else { 2.0 * radius };
-                let top = if default { (shoulder + side - radius).max(0.0) } else { 0.0 };
-                let centre = pos2(radius, top + radius);
+                // The wells are centred in the width the host gives (a rail's column), at least their own. The default
+                // button stands at the end edge, just high enough that its bottom corner nearest the wells clears the
+                // top well's edge where it stands; the room over the wells is what the narrowest width needs.
+                let width = width.max(2.0 * radius);
+                let clear = |end: f32| {
+                    let reach = (end - side - end / 2.0).max(0.0);
+                    if reach < radius { (radius * radius - reach * reach).sqrt() } else { 0.0 }
+                };
+                let top = if default { (clear(2.0 * radius) + side - radius).max(0.0) } else { 0.0 };
+                let centre = pos2(width / 2.0, top + radius);
                 let primary = Rect::from_center_size(centre, square);
                 let under = top + 2.0 * radius + step;
                 LinedUp {
                     size: vec2(width, under + if swap { side } else { 0.0 }),
                     wells: [primary, primary.translate(vec2(0.0, step))],
-                    buttons: [button(centre + vec2(shoulder, -shoulder - side)), button(pos2(centre.x - side / 2.0, under))],
+                    buttons: [button(pos2(width - side, centre.y - clear(width) - side)), button(pos2(centre.x - side / 2.0, under))],
                 }
             }
         }
@@ -413,7 +418,7 @@ impl Component for SwatchPair<'_> {
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
         let style = cx.style;
         if let Some(axis) = self.lined(style) {
-            return self.lined_up(style, axis).size;
+            return self.lined_up(style, axis, 0.0).size;
         }
         let wells = self.wells(style);
         if self.has_buttons() { vec2(wells.x, wells.y + style.buttons) } else { wells }

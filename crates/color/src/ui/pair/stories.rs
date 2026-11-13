@@ -3,10 +3,10 @@
 use super::{PairWell, SwatchPair, Well};
 use craft_behavior::{Axis, Mixed};
 use craft_theme::Srgba;
-use craft_ui::contract::{Bind, Show as _, Validity};
-use craft_ui::runtime::env::Message;
+use craft_ui::contract::{Bind, Props as _, Show as _, Sizing, Validity};
+use craft_ui::runtime::env::{Env, Message};
 use craft_ui::testing::{Drive, Fixture, StoryData, StoryOutput, story};
-use egui::{Key, Modifiers, Ui};
+use egui::{Key, Modifiers, Ui, vec2};
 
 /// Tab arrives at the active well; the arrow moves to the other well and makes it active.
 fn next_well(fixture: &mut Fixture) {
@@ -79,25 +79,25 @@ fn swatch_pair_mixed(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 
 /// A tool rail's colour chips, as PhotoCraft's: host-picker mode with both buttons, the wells lined up along `axis`
 /// where the theme's wells are round.
-fn rail(ui: &mut Ui, data: &mut StoryData, axis: Axis) -> StoryOutput {
+fn rail<'a>(data: &'a mut StoryData, axis: Axis) -> SwatchPair<'a> {
     SwatchPair::new("Colours", wells(false), Bind::bound(data.value("active", Well::Primary)))
         .popover(false)
         .click_activates(false)
         .swap_button("Swap colours")
         .default_button("Default colours")
         .lineup(axis)
-        .show(ui)
-        .into()
 }
 
+/// In a one-column rail's slot column (`size.rail.button`), whose width the pair takes.
 #[story(SwatchPair<'static>, covers = [], drive = Drive::Never)]
 fn swatch_pair_rail_column(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    rail(ui, data, Axis::Y)
+    let column = Env::of(ui).tokens.size.rail.button;
+    ui.allocate_ui(vec2(column, ui.available_height()), |ui| rail(data, Axis::Y).sizing(Sizing::FillWidth).show(ui)).inner.into()
 }
 
 #[story(SwatchPair<'static>, covers = [], drive = Drive::Never)]
 fn swatch_pair_rail_row(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    rail(ui, data, Axis::X)
+    rail(data, Axis::X).show(ui).into()
 }
 
 /// Opens the picker of the focused well with Enter.

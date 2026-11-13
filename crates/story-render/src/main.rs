@@ -20,8 +20,8 @@
 //! renders the story (with `--card`, the group) of that name only; `--threads N` (default: the cores, at most 8);
 //! `--width W` and `--room H` set the card's story width (with `--card`, the card's width) and the height a filling
 //! story gets, in points; `--scale S` the images' pixels per point (1 matches the old gallery's shots, so a canvas
-//! document shows at the same size on both sides); `--theme ID` and `--mode light|dark` the theme and mode (ArtCraft
-//! Dark without them). `stories.tsv` lists the scale of every image.
+//! document shows at the same size on both sides); `--theme ID`, `--mode light|dark` and `--density compact|comfortable` the
+//! theme, mode and density (ArtCraft Dark at the gallery's density without them). `stories.tsv` lists the scale of every image.
 
 use craft_behavior::ColumnWidth;
 use craft_ui::contract::{Pad, Scroll, ShowContainer as _, Surface};
@@ -66,9 +66,10 @@ struct Options {
     scale: f32,
     /// Whole Overview cards, one per story group, instead of story bodies.
     card: bool,
-    /// The theme id and the mode the stories are shown in.
+    /// The theme id, the mode and the density the stories are shown in.
     theme: String,
     mode: String,
+    density: String,
 }
 
 fn options() -> Result<Options, String> {
@@ -85,6 +86,7 @@ fn options() -> Result<Options, String> {
         card: false,
         theme: String::new(),
         mode: "dark".to_owned(),
+        density: String::new(),
     };
     while let Some(arg) = args.next() {
         let mut value = || args.next().ok_or_else(|| format!("{arg} needs a value"));
@@ -99,6 +101,7 @@ fn options() -> Result<Options, String> {
             "--card" => options.card = true,
             "--theme" => options.theme = value()?,
             "--mode" => options.mode = value()?,
+            "--density" => options.density = value()?,
             _ => return Err(format!("unknown argument {arg}")),
         }
     }
@@ -196,6 +199,9 @@ fn root_env(options: &Options) -> RootEnv {
         settings.theme.clone_from(&options.theme);
     }
     settings.mode.clone_from(&options.mode);
+    if !options.density.is_empty() {
+        settings.density.clone_from(&options.density);
+    }
     settings.restore_env(&mut env);
     env
 }
