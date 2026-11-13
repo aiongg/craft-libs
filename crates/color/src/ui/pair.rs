@@ -1,6 +1,6 @@
 //! [`SwatchPair`]: two overlapping colour wells, foreground over background or fill over stroke.
 
-use craft_behavior::{EditEvents, Flow, HitLevel, HitPriority, HitShape, Metrics, Mixed, NavShape, PartKey, PressPhase, Roving, Sense};
+use craft_behavior::{Axis, EditEvents, Flow, HitLevel, HitPriority, HitShape, Metrics, Mixed, NavShape, PartKey, PressPhase, Roving, Sense};
 use craft_theme::{Srgba, WellShape};
 use craft_ui::buttons::IconButton;
 use craft_ui::choice::{ChoiceWords, Swatch, SwatchMetrics, SwatchStyle};
@@ -120,6 +120,13 @@ pub struct SwatchPairStyle {
     swatch: SwatchStyle,
 }
 
+/// A pair with its wells lined up: its size and, in logical coordinates, the wells' and the buttons' rects.
+struct LinedUp {
+    size: Vec2,
+    wells: [Rect; 2],
+    buttons: [Rect; 2],
+}
+
 /// A closure that sets up the picker of the popup.
 pub struct PickerSetup<'a>(Box<dyn Fn(ColorPicker<'a>) -> ColorPicker<'a> + 'a>);
 
@@ -194,6 +201,10 @@ impl Outcome for SwatchPairOutput {
 ///   arrow keys then move the focus between the wells without changing it.
 /// - The optional buttons ([`swap_button`](SwatchPair::swap_button), [`default_button`](SwatchPair::default_button))
 ///   are icons in a row over the wells, the default one at the start and the swap one at the end, as Photoshop's.
+/// - [`lineup`](SwatchPair::lineup), as a tool rail's colour chips: where the theme's wells are round
+///   (`shape.wells`), they stand along the host's axis, the swap button, a curve, centred under them. Down a
+///   one-column rail ([`Axis::Y`]) the default button is beside the top well at the end edge; across a two-column
+///   one ([`Axis::X`]) it is at the start of the row under the wells. Square wells keep the diagonal.
 /// - The wells are one roving group: Tab arrives at the active well; Left and Up go to the primary one, Right and
 ///   Down to the secondary one (mirrored right to left).
 #[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
@@ -219,6 +230,10 @@ pub struct SwatchPair<'a> {
     /// in front.
     #[prop]
     frame_active: bool,
+    /// The axis the host's room gives the wells (a tool rail's: [`Axis::Y`] with one column, [`Axis::X`] with two);
+    /// round wells line up along it.
+    #[prop]
+    lineup: Option<Axis>,
     /// The host's answer to the picker's screen eyedropper.
     #[prop]
     sampled: Option<Srgba>,
@@ -247,6 +262,7 @@ impl<'a> SwatchPair<'a> {
             popover: true,
             click_activates: true,
             frame_active: false,
+            lineup: None,
             sampled: None,
             picker: None,
             clicked: None,
@@ -285,6 +301,69 @@ impl<'a> SwatchPair<'a> {
     /// The well drawn in front, which takes the pointer where the wells overlap.
     fn front(&self, active: Well) -> Well {
         if self.frame_active { Well::Primary } else { active }
+    }
+
+    /// The axis the wells line up along: the host's, where the theme's wells are round.
+    fn lined(&self, style: &SwatchPairStyle) -> Option<Axis> {
+        self.lineup.filter(|_| style.round)
+    }
+
+    /// The wells' and the buttons' rects in logical coordinates from the pair's start edge in a rect of `size`.
+    fn rects(&self, style: &SwatchPairStyle, size: Vec2) -> ([Rect; 2], [Rect; 2]) {
+        match self.lined(style) {
+            Some(axis) => {
+                let lined = self.lined_up(style, axis);
+                (lined.wells, lined.buttons)
+            }
+            None => (self.well_rects(style, size), self.button_rects(style)),
+        }
+    }
+
+    /// The pair with its round wells lined up along `axis`, the second one `step` further along, the front one's
+    /// halo covering the other where they overlap.
+    fn lined_up(&self, style: &SwatchPairStyle, axis: Axis) -> LinedUp {
+        let (step, side) = (style.step, style.buttons);
+        let (default, swap) = (self.default_button.is_some(), self.swap_button.is_some());
+        let edge = self.edge(style);
+        // A well's outer radius, its outline (or frame) included.
+        let radius = style.well / 2.0 + edge;
+        let square = Vec2::splat(style.well);
+        let button = |at: Pos2| Rect::from_min_size(at, Vec2::splat(side));
+        match axis {
+            Axis::X => {
+                // The row under the wells holds the default button at the start and the swap one centred, apart.
+                let row = match (default, swap) {
+                    (true, true) => 3.0 * side,
+                    (false, false) => 0.0,
+                    _ => side,
+                };
+                let pair = 2.0 * radius + step;
+                let width = pair.max(row);
+                let primary = Rect::from_min_size(pos2((width - pair) / 2.0 + edge, edge), square);
+                let under = 2.0 * radius;
+                LinedUp {
+                    size: vec2(width, under + if default || swap { side } else { 0.0 }),
+                    wells: [primary, primary.translate(vec2(step, 0.0))],
+                    buttons: [button(pos2(0.0, under)), button(pos2((width - side) / 2.0, under))],
+                }
+            }
+            _ => {
+                // The default button stands at the end edge beside the top well's upper end, just high enough that its
+                // bottom corner nearest the well clears the well's edge.
+                let width = 2.0 * radius + if default { side } else { 0.0 };
+                let reach = (radius - side / 2.0).max(0.0);
+                let clear = (radius * radius - reach * reach).max(0.0).sqrt();
+                let top = if default { (clear + side - radius).max(0.0) } else { 0.0 };
+                let centre = pos2(width / 2.0, top + radius);
+                let primary = Rect::from_center_size(centre, square);
+                let under = top + 2.0 * radius + step;
+                LinedUp {
+                    size: vec2(width, under + if swap { side } else { 0.0 }),
+                    wells: [primary, primary.translate(vec2(0.0, step))],
+                    buttons: [button(pos2(width - side, centre.y - clear - side)), button(pos2(centre.x - side / 2.0, under))],
+                }
+            }
+        }
     }
 
     /// The wells' rects in logical coordinates from the pair's start edge, primary first, inside their outlines.
@@ -334,6 +413,9 @@ impl Component for SwatchPair<'_> {
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
         let style = cx.style;
+        if let Some(axis) = self.lined(style) {
+            return self.lined_up(style, axis).size;
+        }
         let wells = self.wells(style);
         if self.has_buttons() { vec2(wells.x, wells.y + style.buttons) } else { wells }
     }
@@ -344,7 +426,7 @@ impl Component for SwatchPair<'_> {
 
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
         let flow = Flow::new(rect, cx.flow.is_rtl());
-        let rects = self.well_rects(cx.style, rect.size());
+        let (rects, buttons) = self.rects(cx.style, rect.size());
         let active = cx.value().copied().unwrap_or_default();
         let on_top = self.front(active);
         for (i, logical) in rects.into_iter().enumerate() {
@@ -365,7 +447,6 @@ impl Component for SwatchPair<'_> {
                 part.pointer_only("Enter opens the picker");
             }
         }
-        let buttons = self.button_rects(cx.style);
         for (key, button, shown) in [(DEFAULT, buttons[0], self.default_button.is_some()), (SWAP, buttons[1], self.swap_button.is_some())] {
             if shown {
                 let at = flow.to_physical(button.translate(rect.min.to_vec2()));
@@ -456,7 +537,7 @@ impl Component for SwatchPair<'_> {
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let style = cx.style;
         let flow = Flow::new(cx.rect, cx.flow.is_rtl());
-        let rects = self.well_rects(style, cx.rect.size());
+        let (rects, _) = self.rects(style, cx.rect.size());
         let active = cx.value().copied().unwrap_or_default();
         let place = |logical: Rect| flow.to_physical(logical.translate(cx.rect.min.to_vec2()));
         // The back well first, then the front one with a gap round it: being in front, or the frame, shows the active well.
@@ -496,7 +577,8 @@ impl Component for SwatchPair<'_> {
             ui.face(DEFAULT, IconButton::new(IconSpec::glyph(&PairGlyph::Defaults)).label(name).glyphs(GlyphRole::Control));
         }
         if let Some(name) = self.swap_button.clone() {
-            ui.face(SWAP, IconButton::new(IconSpec::glyph(&PairGlyph::Swap)).label(name).glyphs(GlyphRole::Control));
+            let glyph = if self.lined(style).is_some() { &PairGlyph::Arc } else { &PairGlyph::Swap };
+            ui.face(SWAP, IconButton::new(IconSpec::glyph(glyph)).label(name).glyphs(GlyphRole::Control));
         }
     }
 
@@ -555,6 +637,9 @@ enum PairGlyph {
     Defaults,
     /// Swap colours: a shaft curving from the primary well's place to the secondary one's, with a head at each end.
     Swap,
+    /// Swap colours under lined-up wells: a shallow curve hugging the wells from below, with a head at each end
+    /// pointing up at them.
+    Arc,
 }
 
 /// The side of a pair glyph's grid, in units.
@@ -570,6 +655,14 @@ const HEAD_LENGTH: f32 = 3.0;
 const HEAD_HALF: f32 = 2.8;
 /// The points the swap shaft is drawn through.
 const SHAFT_STEPS: usize = 10;
+/// Arc: the centre and radius of its circle, above the grid so the curve spans it and the heads' points reach its top
+/// edge, next to the wells; the angle each end stops short of the circle's sides (radians below them); how far each
+/// head's point runs past its end, and its half width.
+const ARC_CENTRE: (f32, f32) = (6.5, -2.1);
+const ARC_RADIUS: f32 = 6.6;
+const ARC_INSET: f32 = 0.55;
+const ARC_AHEAD: f32 = 1.5;
+const ARC_HEAD_HALF: f32 = 1.9;
 
 impl Glyph for PairGlyph {
     fn directional(&self) -> bool {
@@ -581,6 +674,16 @@ impl Glyph for PairGlyph {
         let rect = Rect::from_min_size(rect.min.round_to_pixels(painter.pixels_per_point()), rect.size());
         let unit = rect.width() / GRID;
         let at = |x: f32, y: f32| rect.min + vec2(if mirrored { GRID - x } else { x }, y) * unit;
+        // An arrow head on the base line through `base`, its point `HEAD_LENGTH` along `out`.
+        let head = |base: Pos2, out: Vec2, half: f32| {
+            let side = vec2(-out.y, out.x);
+            let points = [base + out * HEAD_LENGTH, base + side * half, base - side * half];
+            let mut points: Vec<Pos2> = points.iter().map(|p| at(p.x, p.y)).collect();
+            if mirrored {
+                points.reverse();
+            }
+            Shape::convex_polygon(points, color, Stroke::NONE)
+        };
         match self {
             PairGlyph::Defaults => {
                 let square = |from: f32, to: f32| Rect::from_two_pos(at(from, from), at(to, to));
@@ -611,13 +714,24 @@ impl Glyph for PairGlyph {
                     .collect();
                 painter.add(Shape::line(shaft, Stroke::new(tokens.stroke.medium, color)));
                 for (tip, out) in [(start, -(control - start).normalized()), (end, (end - control).normalized())] {
-                    let side = vec2(-out.y, out.x);
-                    let head = [tip + out * HEAD_LENGTH, tip + side * HEAD_HALF, tip - side * HEAD_HALF];
-                    let mut head: Vec<Pos2> = head.iter().map(|p| at(p.x, p.y)).collect();
-                    if mirrored {
-                        head.reverse();
-                    }
-                    painter.add(Shape::convex_polygon(head, color, Stroke::NONE));
+                    painter.add(head(tip, out, HEAD_HALF));
+                }
+            }
+            PairGlyph::Arc => {
+                let centre = pos2(ARC_CENTRE.0, ARC_CENTRE.1);
+                let (from, to) = (ARC_INSET, std::f32::consts::PI - ARC_INSET);
+                let along = |a: f32| centre + vec2(a.cos(), a.sin()) * ARC_RADIUS;
+                let shaft: Vec<Pos2> = (0..=SHAFT_STEPS)
+                    .map(|i| {
+                        let p = along(from + (to - from) * i as f32 / SHAFT_STEPS as f32);
+                        at(p.x, p.y)
+                    })
+                    .collect();
+                painter.add(Shape::line(shaft, Stroke::new(tokens.stroke.medium, color)));
+                // Each head points along the curve, away from its middle, its point past the curve's end.
+                for (a, sign) in [(from, -1.0), (to, 1.0)] {
+                    let out = vec2(-a.sin(), a.cos()) * sign;
+                    painter.add(head(along(a) + out * (ARC_AHEAD - HEAD_LENGTH), out, ARC_HEAD_HALF));
                 }
             }
         }

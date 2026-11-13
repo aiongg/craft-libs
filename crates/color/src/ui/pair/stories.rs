@@ -1,7 +1,7 @@
 //! Stories of the swatch pair.
 
 use super::{PairWell, SwatchPair, Well};
-use craft_behavior::Mixed;
+use craft_behavior::{Axis, Mixed};
 use craft_theme::Srgba;
 use craft_ui::contract::{Bind, Show as _, Validity};
 use craft_ui::runtime::env::Message;
@@ -75,6 +75,29 @@ fn swatch_pair_host_picker(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 fn swatch_pair_mixed(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let wells = [PairWell::new("Fill", Mixed::<Srgba>::Mixed), PairWell::new("Stroke", Srgba::rgb(0.1, 0.3, 0.8)).ring(true)];
     SwatchPair::new("Fill and stroke", wells, Bind::bound(data.value("active", Well::Primary))).show(ui).into()
+}
+
+/// A tool rail's colour chips, as PhotoCraft's: host-picker mode with both buttons, the wells lined up along `axis`
+/// where the theme's wells are round.
+fn rail(ui: &mut Ui, data: &mut StoryData, axis: Axis) -> StoryOutput {
+    SwatchPair::new("Colours", wells(false), Bind::bound(data.value("active", Well::Primary)))
+        .popover(false)
+        .click_activates(false)
+        .swap_button("Swap colours")
+        .default_button("Default colours")
+        .lineup(axis)
+        .show(ui)
+        .into()
+}
+
+#[story(SwatchPair<'static>, covers = [], drive = Drive::Never)]
+fn swatch_pair_rail_column(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    rail(ui, data, Axis::Y)
+}
+
+#[story(SwatchPair<'static>, covers = [], drive = Drive::Never)]
+fn swatch_pair_rail_row(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    rail(ui, data, Axis::X)
 }
 
 /// Opens the picker of the focused well with Enter.
