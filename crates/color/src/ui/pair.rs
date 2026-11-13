@@ -203,7 +203,7 @@ impl Outcome for SwatchPairOutput {
 ///   are icons in a row over the wells, the default one at the start and the swap one at the end, as Photoshop's.
 /// - [`lineup`](SwatchPair::lineup), as a tool rail's colour chips: where the theme's wells are round
 ///   (`shape.wells`), they stand along the host's axis, the swap button, a curve, centred under them. Down a
-///   one-column rail ([`Axis::Y`]) the default button is beside the top well at the end edge; across a two-column
+///   one-column rail ([`Axis::Y`]) the default button is on the top well's shoulder at the end; across a two-column
 ///   one ([`Axis::X`]) it is at the start of the row under the wells. Square wells keep the diagonal.
 /// - The wells are one roving group: Tab arrives at the active well; Left and Up go to the primary one, Right and
 ///   Down to the secondary one (mirrored right to left).
@@ -348,19 +348,18 @@ impl<'a> SwatchPair<'a> {
                 }
             }
             _ => {
-                // The default button stands at the end edge beside the top well's upper end, just high enough that its
-                // bottom corner nearest the well clears the well's edge.
-                let width = 2.0 * radius + if default { side } else { 0.0 };
-                let reach = (radius - side / 2.0).max(0.0);
-                let clear = (radius * radius - reach * reach).max(0.0).sqrt();
-                let top = if default { (clear + side - radius).max(0.0) } else { 0.0 };
-                let centre = pos2(width / 2.0, top + radius);
+                // The default button sits on the top well's shoulder: its corner nearest the well on the well's edge
+                // at 45 degrees, the rest of it further out, so it stays clear of the circle.
+                let shoulder = radius * std::f32::consts::FRAC_1_SQRT_2;
+                let width = if default { (2.0 * radius).max(radius + shoulder + side) } else { 2.0 * radius };
+                let top = if default { (shoulder + side - radius).max(0.0) } else { 0.0 };
+                let centre = pos2(radius, top + radius);
                 let primary = Rect::from_center_size(centre, square);
                 let under = top + 2.0 * radius + step;
                 LinedUp {
                     size: vec2(width, under + if swap { side } else { 0.0 }),
                     wells: [primary, primary.translate(vec2(0.0, step))],
-                    buttons: [button(pos2(width - side, centre.y - clear - side)), button(pos2(centre.x - side / 2.0, under))],
+                    buttons: [button(centre + vec2(shoulder, -shoulder - side)), button(pos2(centre.x - side / 2.0, under))],
                 }
             }
         }

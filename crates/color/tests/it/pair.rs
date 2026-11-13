@@ -72,7 +72,7 @@ fn rail(theme: &str, axis: Axis, direction: Direction) -> Placed {
     Placed { pair, wells: [part(well.at(0)), part(well.at(1))], buttons: [part(PartKey::new("default").into()), part(PartKey::new("swap").into())] }
 }
 
-/// Whether `button` keeps clear of the round well `well`: no point of it inside the circle.
+/// Whether `button` keeps clear of the round well `well`: no point of it inside the circle (its square may cross).
 fn clear_of(button: Rect, well: Rect) -> bool {
     let centre = well.center();
     let nearest = pos2(centre.x.clamp(button.left(), button.right()), centre.y.clamp(button.top(), button.bottom()));
@@ -81,7 +81,7 @@ fn clear_of(button: Rect, well: Rect) -> bool {
 
 /// Round wells (Adwaita) line up along the host's axis: stacked down a one-column rail, side by side across a
 /// two-column one, which is the shorter; square wells (Pro) keep the diagonal. The buttons stay inside the pair, clear
-/// of the wells and of each other.
+/// of the wells' circles and of each other; the default button sits on the top well's shoulder.
 #[trial]
 fn round_wells_line_up_along_the_hosts_axis() {
     let column = rail("craft.adwaita", Axis::Y, Direction::Ltr);
@@ -89,6 +89,7 @@ fn round_wells_line_up_along_the_hosts_axis() {
     assert!((top.center().x - under.center().x).abs() < 0.5 && under.top() > top.top(), "stacked: {top:?} {under:?}");
     let [default, swap] = column.buttons;
     assert!(default.right() > top.right() && default.top() < top.center().y, "default beside the top well's upper end: {default:?}");
+    assert!(default.left() < top.right() && default.bottom() > top.top(), "default on the top well's shoulder, not above it: {default:?}");
     assert!(swap.top() >= under.bottom() - 0.5, "swap under the wells: {swap:?}");
 
     let row = rail("craft.adwaita", Axis::X, Direction::Ltr);
