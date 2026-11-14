@@ -3,7 +3,9 @@
 //! [`scopes`], [`selection`], [`trace`] and [`layer_style`] work without egui and build on every target. The widgets are behind the `ui` feature.
 #![warn(missing_docs)]
 
+pub mod fold_order;
 pub mod layer_style;
+pub mod raw;
 pub mod scopes;
 pub mod selection;
 pub mod trace;

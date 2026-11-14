@@ -58,12 +58,30 @@ pub struct WarpStyleEntry {
     pub preset: bool,
     /// The Custom style (the mesh edited by hand): hidden over a type layer.
     pub custom: bool,
+    /// The style is offered over a type layer.
+    pub over_type: bool,
+    /// The style enables Split and Grid.
+    pub splits: bool,
 }
 
 impl WarpStyleEntry {
     /// A style `key` shown as `label`, neither a preset nor Custom.
     pub fn new(key: impl Into<String>, label: impl Into<String>) -> Self {
-        Self { key: key.into(), label: label.into(), preset: false, custom: false }
+        Self { key: key.into(), label: label.into(), preset: false, custom: false, over_type: false, splits: false }
+    }
+
+    /// Whether the style is offered over a type layer.
+    #[must_use]
+    pub fn over_type(mut self, on: bool) -> Self {
+        self.over_type = on;
+        self
+    }
+
+    /// Whether the style enables Split and Grid.
+    #[must_use]
+    pub fn splits(mut self, on: bool) -> Self {
+        self.splits = on;
+        self
     }
 
     /// Whether the orientation and Bend, H and V act on the style.

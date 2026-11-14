@@ -27,6 +27,7 @@ pub mod adjust;
 pub mod blend_keys;
 pub mod blur_pins;
 pub mod channels;
+pub mod color_range;
 pub mod curve;
 pub mod fill;
 pub mod filter_gallery;
@@ -35,6 +36,7 @@ pub mod layer_style;
 pub mod liquify;
 pub mod live_preview;
 pub mod mask_view;
+pub mod raw_develop;
 #[cfg(feature = "screen-testing")]
 pub(crate) mod mock_image;
 pub mod scopes;

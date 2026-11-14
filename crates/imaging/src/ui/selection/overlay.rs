@@ -63,16 +63,28 @@ impl<'a, M: MaskSource> From<&'a M> for OutlineSource<'a> {
 }
 
 /// A point to point map in document pixels: where a Free Transform puts the selection, or the app's warp.
-pub struct PointMap<'a>(Box<dyn Fn(Point) -> Point + 'a>);
+pub struct PointMap<'a> {
+    map: Box<dyn Fn(Point) -> Option<Point> + 'a>,
+    bends: bool,
+}
 
 impl<'a> PointMap<'a> {
-    /// The map that runs `map`.
-    pub fn new(map: impl Fn(Point) -> Point + 'a) -> Self {
-        PointMap(Box::new(map))
+    /// The map that runs `map`; it may drop a point (past a Distort's horizon). Without [`bends`](Self::bends), a segment
+    /// with an unmapped end is left out.
+    pub fn new(map: impl Fn(Point) -> Option<Point> + 'a) -> Self {
+        PointMap { map: Box::new(map), bends: false }
+    }
+
+    /// Marks the map as bending: the ants are cut into pieces of at most 8 pt and the pieces past the horizon dropped.
+    #[must_use]
+    pub fn bends(mut self) -> Self {
+        self.bends = true;
+        self
     }
 
     fn apply(&self, point: Point) -> Point {
-        (self.0)(point)
+        let _ = self.bends; // P3(tools-w?): tl.T14 — unmapped points and bending maps
+        (self.map)(point).unwrap_or(point)
     }
 }
 
@@ -127,7 +139,7 @@ pub struct SelectionOverlay<'a> {
     #[prop(quantity = "reduction")]
     reduction: u32,
     /// Draws the outline through this map, document point to document point.
-    #[prop(func = "Fn(Point) -> Point")]
+    #[prop(func = "Fn(Point) -> Option<Point>")]
     mapped: Option<PointMap<'a>>,
     /// The Selection Preview mode (Color Range's modes, or Quick Mask).
     #[prop]

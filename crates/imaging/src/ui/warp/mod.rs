@@ -5,6 +5,7 @@
 //! Perspective Warp ([`perspective`]) and the one painter of a deformed mesh's lines
 //! ([`MeshLines`]).
 
+mod cylinder;
 mod fields;
 mod grid;
 mod mesh;
@@ -14,6 +15,7 @@ pub mod pin;
 #[cfg(feature = "screen-testing")]
 mod stories;
 
+pub use cylinder::{CylinderHandle, CylinderValues, CylinderWarp, CylinderWarpOutput, CylinderWarpStyle};
 pub use fields::{WarpFieldValues, WarpFields, WarpFieldsEdit, WarpFieldsOutput, WarpFieldsWords, WarpGridChoice, WarpStyleEntry};
 pub use grid::{POINT, SURFACE, WarpGrid, WarpGridOutput, WarpGridStyle, WarpRule, WarpSurface, WarpWords};
 pub(crate) use mesh::MeshLines;
