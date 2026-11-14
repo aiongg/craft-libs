@@ -113,6 +113,15 @@ impl SliceOptionsDialog {
 impl StackDialog for SliceOptionsDialog {
     type Result = SliceOptions;
 
+    fn json_fields(&self) -> Option<serde_json::Value> {
+        todo!("tl.T57")
+    }
+
+    fn set_json_field(&mut self, ctx: &egui::Context, field: &str, value: serde_json::Value) -> Result<(), String> {
+        let _ = (ctx, field, value);
+        todo!("tl.T57")
+    }
+
     fn id(&self) -> DialogId {
         self.id
     }
@@ -327,6 +336,15 @@ fn axis_rows(ui: &mut Ui, axis: &mut AxisState, caption: &craft_ui::runtime::env
 
 impl StackDialog for DivideSlicesDialog {
     type Result = DivideSlices;
+
+    fn json_fields(&self) -> Option<serde_json::Value> {
+        todo!("tl.T57")
+    }
+
+    fn set_json_field(&mut self, ctx: &egui::Context, field: &str, value: serde_json::Value) -> Result<(), String> {
+        let _ = (ctx, field, value);
+        todo!("tl.T57")
+    }
 
     fn id(&self) -> DialogId {
         self.id

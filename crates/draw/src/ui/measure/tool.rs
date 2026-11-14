@@ -145,7 +145,8 @@ impl CanvasTool for RulerPass<'_> {
         if let Some(at) = Self::doc(pointer, cx) {
             line = moved(line, RulerPart::End, at, pointer.mods.shift);
         }
-        let value = (line.start.distance(line.end) >= MIN_LINE).then_some(line);
+        // A release under `MIN_LINE` keeps the line from before the press.
+        let value = if line.start.distance(line.end) >= MIN_LINE { Some(line) } else { drag.before };
         self.report(value, EditEvent::commit(drag.id, Mixed::Same(drag.before), value));
     }
 

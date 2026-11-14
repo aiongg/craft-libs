@@ -1,6 +1,6 @@
 //! The W × H × Resolution cells both crop bars share, and the rules on [`CropSizeFields`].
 
-use super::{CropDocument, CropSizeFields, CropBarWords};
+use super::{CropBarWords, CropDocument, CropSizeFields};
 use craft_ui::runtime::env::Units;
 use egui::Ui;
 
@@ -32,7 +32,14 @@ impl SizeLimits {
 
 /// One W × H × Resolution cell group.
 #[allow(dead_code)] // P3(tools-w14): tl.T47
-pub(super) fn show(ui: &mut Ui, size: &mut CropSizeFields, limits: SizeLimits, document: &CropDocument, units: &Units, words: &CropBarWords) -> SizeCells {
+pub(super) fn show(
+    ui: &mut Ui,
+    size: &mut CropSizeFields,
+    limits: SizeLimits,
+    document: &CropDocument,
+    units: &Units,
+    words: &CropBarWords,
+) -> SizeCells {
     let _ = (ui, size, limits, document, units, words);
     todo!("tl.T47")
 }

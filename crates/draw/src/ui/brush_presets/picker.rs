@@ -321,7 +321,20 @@ impl<'a, K: Value + Eq + Hash> BrushPresetPicker<'a, K> {
 
     /// Shows the picker and returns this pass's edits and picks, in order.
     pub fn show(self, ui: &mut Ui) -> BrushPresetPickerOutput<K> {
-        let BrushPresetPicker { label, mut current, rows, mut state, values, max_diameter, import, mut gear_rows, resizable, mut opened_at, compact, app_rows } = self;
+        let BrushPresetPicker {
+            label,
+            mut current,
+            rows,
+            mut state,
+            values,
+            max_diameter,
+            import,
+            mut gear_rows,
+            resizable,
+            mut opened_at,
+            compact,
+            app_rows,
+        } = self;
         let _ = (compact, app_rows); // P3(panels-w12): pn.C60 the compact form.
         let env = Env::of(ui);
         let words = env.words::<BrushPresetWords>();

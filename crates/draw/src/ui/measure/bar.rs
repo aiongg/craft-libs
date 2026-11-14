@@ -61,17 +61,21 @@ pub struct RulerBar<'a> {
     /// it cannot read them itself. Default: document pixels.
     #[prop]
     rulers: CanvasRulers,
+    /// Whether Straighten Layer is enabled (a line is drawn and the document has a layer to turn).
+    #[prop]
+    can_straighten: bool,
 }
 
 impl<'a> RulerBar<'a> {
     /// The bar for `line`, with the Use Measurement Scale check box editing `use_scale`.
     pub fn new(line: Option<RulerLine>, use_scale: Bind<'a, bool>) -> Self {
-        Self { line, use_scale, factor: 1.0, rulers: CanvasRulers::default() }
+        Self { line, use_scale, factor: 1.0, rulers: CanvasRulers::default(), can_straighten: true }
     }
 
     /// Shows the bar's children.
     pub fn show(self, ui: &mut Ui) -> RulerBarOutput {
-        let Self { line, mut use_scale, factor, rulers } = self;
+        let Self { line, mut use_scale, factor, rulers, can_straighten } = self;
+        let _ = can_straighten; // P3(tools-w19): tl.T59
         let env = Env::of(ui);
         let words = env.words::<RulerWords>();
         let units = env.units();

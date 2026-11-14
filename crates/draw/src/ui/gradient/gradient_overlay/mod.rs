@@ -130,6 +130,9 @@ pub struct GradientOverlay<'a> {
     /// The shape the gradient's style adds round the line; decoration only.
     #[prop]
     extent: GradientExtent,
+    /// The gradient's style, which draws its shape round the line (SG-66).
+    #[prop]
+    style: super::GradientStyle,
     /// Whether an Alt-drag on a stop drags a copy of it; off, Alt is the tool's.
     #[prop(flag)]
     alt_copies: bool,
@@ -168,6 +171,7 @@ impl<'a> GradientOverlay<'a> {
             midpoints: true,
             reverse: false,
             extent: GradientExtent::None,
+            style: super::GradientStyle::Linear, // P3(tools-w11): tl.T36 replaces `extent`.
             alt_copies: false,
             location_decimals: 0,
             shared_selection: None,

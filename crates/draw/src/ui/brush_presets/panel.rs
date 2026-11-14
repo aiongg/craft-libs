@@ -15,12 +15,8 @@ use super::settings::BrushPickerSettings;
 
 /// The thumbnail zoom range of the brush lists.
 #[allow(dead_code)] // P3(panels-w12): pn.C49 the picker takes its range from here.
-pub(super) const BRUSH_THUMBS: TileZoom = TileZoom::bounded(
-    *BrushPickerSettings::SCALE_RANGE.start() as f64,
-    *BrushPickerSettings::SCALE_RANGE.end() as f64,
-    0.05,
-    1.0,
-);
+pub(super) const BRUSH_THUMBS: TileZoom =
+    TileZoom::bounded(*BrushPickerSettings::SCALE_RANGE.start() as f64, *BrushPickerSettings::SCALE_RANGE.end() as f64, 0.05, 1.0);
 
 /// The Brushes panel: a Size field over a [`PresetBrowser`](craft_ui::patterns::presets::PresetBrowser)
 /// of the brush presets, with Import as the footer's one action.

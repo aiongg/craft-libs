@@ -12,6 +12,8 @@
 
 // draw-gradient-a: the stop bar, its stops, ramp and swatch.
 mod editor;
+mod fill;
+mod fill_editor;
 pub mod gradient_line;
 pub mod gradient_overlay;
 pub mod map;
@@ -33,5 +35,7 @@ pub use words::GradientWords;
 
 pub use map::{GradientMap, GradientMapEditor, GradientMapOutput};
 
+pub use fill::{GradientFill, GradientStyle};
+pub use fill_editor::{GradientFillEditor, GradientFillEditorOutput, GradientFillWords};
 pub use gradient_line::{GradientExtent, GradientLine, LineGradient, LinePart};
 pub use gradient_overlay::{GradientLineWords, GradientOverlay, GradientOverlayOutput, GradientOverlayStyle};

@@ -10,6 +10,7 @@ mod bar;
 mod bar_words;
 mod menus;
 mod options;
+mod perspective_bar;
 mod perspective_crop;
 mod perspective_tool;
 mod preset_list;
@@ -25,12 +26,13 @@ pub use options::{
     CROP_RATIOS, CROP_SIZES, CropFill, CropLength, CropPresetChoice, CropRatio, CropSettings, CropSizeFields, CropSizePreset, CropTarget,
     CropUserPreset, FIELD_MAX, LENGTH_MIN, RATIO_DECIMALS, RATIO_MAX, RATIO_STEP, ResolutionUnit,
 };
+pub use perspective_bar::{PerspectiveCropBar, PerspectiveCropBarOutput};
 pub use perspective_crop::{
     PerspectiveCropOutput, PerspectiveCropQuad, PerspectiveCropStyle, PerspectiveQuad, grid_lines, grid_steps, is_valid, ordered,
 };
-pub use preset_list::{CropPresetList, CropPresetListOutput};
-pub use size_cells::CropSizeTarget;
 pub use perspective_tool::{PerspectiveCropEvent, PerspectiveCropTool, perspective_to_form};
+pub use preset_list::{CropPresetList, CropPresetListOutput};
 pub use session::{CropDocKey, CropDocument, CropKept, CropSession, CropStep, LeaveFrame, StraightenState};
+pub use size_cells::CropSizeTarget;
 pub use tool::{CropCommit, CropEvent, CropInput, CropOutput, CropTool, CropToolPass, crop_to_form};
 pub use words::CropWords;

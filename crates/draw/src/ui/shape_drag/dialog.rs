@@ -424,6 +424,20 @@ fn body(
 impl StackDialog for CreateShapeDialog {
     type Result = CreatedShape;
 
+    fn json_fields(&self) -> Option<serde_json::Value> {
+        todo!("dl.K36")
+    }
+
+    fn set_json_field(&mut self, ctx: &egui::Context, field: &str, value: serde_json::Value) -> Result<(), String> {
+        let _ = (ctx, field, value);
+        todo!("dl.K36")
+    }
+
+    fn confirm(&mut self, ctx: &egui::Context) -> Option<Self::Result> {
+        let _ = ctx;
+        todo!("dl.K36")
+    }
+
     fn id(&self) -> DialogId {
         self.id
     }

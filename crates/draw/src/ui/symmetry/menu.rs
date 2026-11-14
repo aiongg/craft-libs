@@ -108,6 +108,13 @@ impl<'a> SymmetryMenu<'a> {
         Self { label: label.into(), current, paths: &[], can_transform: false }
     }
 
+    /// Whether Off, the mode rows and the path rows are enabled: false with no document or while an
+    /// engine job runs. The app decides.
+    pub fn can_set(self, can: bool) -> Self {
+        let _ = can; // P3(tools-w19): tl.T58
+        self
+    }
+
     /// The paths a symmetry can come from.
     pub fn paths(mut self, rows: &'a [SymmetryPathRow]) -> Self {
         self.paths = rows;
