@@ -318,11 +318,12 @@ impl<C: Component> ShapeHooks<C> for LeafHooks {
                 return measured;
             }
             match crate::layout::main_fill(ui, id, along) {
+                // P3(framework-01-w8): fx.F40
                 crate::layout::MainFill::Measuring => 0.0,
                 // In a body that scrolls along the axis its share never cuts its content: what is past the view scrolls.
-                crate::layout::MainFill::Share(share) if scrolls(along) => measured.max(share),
-                crate::layout::MainFill::Share(share) => share,
-                crate::layout::MainFill::Room => measured.max(offered),
+                crate::layout::MainFill::Share(share, _) if scrolls(along) => measured.max(share),
+                crate::layout::MainFill::Share(share, _) => share,
+                crate::layout::MainFill::Room(_) => measured.max(offered),
             }
         };
         // The control beside an inspector's label fills the cell the label leaves, unless its caller sized it to its
@@ -407,6 +408,7 @@ fn blank_core<'a>(
         selections: Vec::new(),
         faded: false,
         unfaded: None,
+        fade: None,
         surface_slot: None,
         editor: None,
         editor_inputs: Vec::new(),
@@ -612,6 +614,7 @@ pub(super) fn paint_ui<'a>(ui: &'a mut Ui, env: &'a Env, core: &'a CxCore<'_>, s
         size: core.resolved.size,
         selections: &core.selections,
         unfaded: core.unfaded,
+        fade: core.fade,
         kids: None,
     }
 }
@@ -1099,8 +1102,8 @@ fn run_in_host(p: &mut Pass<'_, '_, '_>, ui: &mut Ui, host_at: Option<ShowAt>, h
     p.trace.mark(Step::Paint);
     let mut values = AppValues::default();
     e.content_env(&mut values);
-    let unfaded = steps::fade(ui, e.core());
-    let rule_from = line.filter(|_| facts.rule && !cut).map(|line| (line, next_shape(ui)));
+    let unfaded = steps::fade_opacity(ui, e.core());
+    let rule_from = line.filter(|_| facts.rule && !cut).map(|line| (line, steps::next_shape(ui)));
     steps::paint_surface(ui, env, e.core_ref(), style);
     steps::paint_part_layers(ui, env, e.core_ref());
     // Paint and content stay inside the rect (grown by the type's declared outset), however small the room is.
@@ -1142,7 +1145,7 @@ fn run_in_host(p: &mut Pass<'_, '_, '_>, ui: &mut Ui, host_at: Option<ShowAt>, h
     ui.set_clip_rect(outer_clip);
     sensing::place_over_widgets(ui, id, member, decls);
     ui.set_clip_rect(inside);
-    steps::fade(ui, e.core());
+    steps::fade_opacity(ui, e.core());
     e.paint_over(ui, env);
     ui.set_opacity(unfaded);
     ui.set_clip_rect(outer_clip);
@@ -1219,14 +1222,9 @@ struct HeldRule {
     pass: u64,
 }
 
-/// The index the next shape `ui` paints gets in its layer's paint list.
-fn next_shape(ui: &Ui) -> usize {
-    ui.ctx().graphics(|layers| layers.get(ui.layer_id()).map_or(0, |list| list.next_idx().0))
-}
-
 /// Holds the shapes a rule of `line` painted since `from` until the member after it settles them.
 fn hold_rule(ui: &Ui, line: Id, from: usize) {
-    let rule = HeldRule { layer: ui.layer_id(), shapes: from..next_shape(ui), pass: ui.ctx().cumulative_pass_nr() };
+    let rule = HeldRule { layer: ui.layer_id(), shapes: from..steps::next_shape(ui), pass: ui.ctx().cumulative_pass_nr() };
     crate::runtime::pass_state::with::<BarRules, _>(ui.ctx(), |rules| rules.0.entry(line).or_default().push(rule));
 }
 

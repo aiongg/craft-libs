@@ -109,15 +109,50 @@ pub enum OverlayFit {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct Resize {
-    /// Edge and corner grips resize the layer.
-    pub grips: bool,
+    /// The edges whose grips resize the layer; a corner grip needs both its edges. A placement that holds an edge
+    /// still keeps its grip away.
+    pub edges: ResizeEdges,
 }
 
 impl Resize {
     /// The layer keeps its size.
-    pub const NONE: Resize = Resize { grips: false };
-    /// Grips on every edge and corner.
-    pub const GRIPS: Resize = Resize { grips: true };
+    pub const NONE: Resize = Resize { edges: ResizeEdges::NONE };
+    /// Grips on every free edge and corner.
+    pub const GRIPS: Resize = Resize { edges: ResizeEdges::ALL };
+
+    /// Grips on the given edges only.
+    pub fn edges(edges: ResizeEdges) -> Resize {
+        Resize { edges }
+    }
+}
+
+/// A set of layer edges.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ResizeEdges(u8);
+
+impl ResizeEdges {
+    /// The left edge.
+    pub const LEFT: ResizeEdges = ResizeEdges(1);
+    /// The right edge.
+    pub const RIGHT: ResizeEdges = ResizeEdges(2);
+    /// The top edge.
+    pub const TOP: ResizeEdges = ResizeEdges(4);
+    /// The bottom edge.
+    pub const BOTTOM: ResizeEdges = ResizeEdges(8);
+    /// Every edge.
+    pub const ALL: ResizeEdges = ResizeEdges(15);
+    /// No edge.
+    pub const NONE: ResizeEdges = ResizeEdges(0);
+
+    /// Whether every edge of `other` is in this set.
+    pub const fn contains(self, other: ResizeEdges) -> bool {
+        self.0 & other.0 == other.0
+    }
+
+    /// The edges of both sets.
+    pub const fn union(self, other: ResizeEdges) -> ResizeEdges {
+        ResizeEdges(self.0 | other.0)
+    }
 }
 
 /// Size limits, in points: the smallest size and, where there is one, the largest. A layer's (`Overlay::size_limits`)

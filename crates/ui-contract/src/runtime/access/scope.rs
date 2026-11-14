@@ -171,12 +171,14 @@ pub(crate) struct ScopeNode {
 }
 
 /// What a control tells its label scope about its reset (10.2).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ResetFact {
     /// The control that takes `Intent::Reset`.
     pub control: Id,
     /// The value differs from the reset value.
     pub differs: bool,
+    /// The reset value as the control words it (`Component::word_value`); `None` names no default.
+    pub default: Option<String>,
 }
 
 #[derive(Default)]
@@ -365,7 +367,8 @@ pub(crate) fn measured_control_min(ctx: &Context, container: Id) -> f32 {
 pub(crate) fn register_reset(ctx: &Context, control: Id, differs: bool) {
     pass_state::with::<Stack, _>(ctx, |stack| {
         if let Some(scope) = stack.0.iter_mut().rev().find(|scope| matches!(scope.kind, Kind::Label(_))) {
-            scope.reset.get_or_insert(ResetFact { control, differs });
+            // P3(framework-01-w5): fx.F28: the default is set from `word_value`.
+            scope.reset.get_or_insert(ResetFact { control, differs, default: None });
         }
     });
 }

@@ -9,7 +9,7 @@ use craft_behavior::{ItemLayout, MarqueeSelect, PointerButton, PressPhase, Scrol
 use egui::{Pos2, Rect, Ui, Vec2};
 
 /// Rows per second the view scrolls at when the pointer is a full edge band beyond the view's edge.
-const EDGE_ROWS_PER_SECOND: f32 = 4.0;
+pub(super) const EDGE_ROWS_PER_SECOND: f32 = 4.0;
 
 /// A marquee in progress. Its corners are in the layout's logical content coordinates, so a scroll during the drag
 /// moves the rectangle with the rows.
@@ -96,28 +96,6 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             marquee.last = keys.clone();
             self.report_selection(keys);
         }
-    }
-
-    /// Scrolls the rows while the pointer, `y` below the rows' top edge, is within a row of an edge of the `view`,
-    /// faster the further past it: the rate of a row drag near the edge of a scroll region.
-    fn edge_scroll(&mut self, cx: &Cx<'_, C>, layout: &C::ItemLayout, view: f32, y: f32) {
-        if !self.scrolls || self.source.is_empty() {
-            return;
-        }
-        let row = layout.rect(0, ScrollPos::default()).height();
-        let band = row.min(view / 2.0);
-        if band <= 0.0 {
-            return;
-        }
-        let depth = if y < band { (band - y) / band } else { (y - (view - band)) / band };
-        let direction = if y < band { -1.0 } else { 1.0 };
-        if depth <= 0.0 {
-            return;
-        }
-        let dt = cx.core.ctx.input(|input| input.stable_dt);
-        let step = depth.min(1.0) * EDGE_ROWS_PER_SECOND * row * dt;
-        self.offset = (self.offset + f64::from(direction * step)).clamp(0.0, self.max_offset(view));
-        cx.core.ctx.request_repaint();
     }
 
     /// Paints the marquee rectangle over the rows with the overlay marquee look.

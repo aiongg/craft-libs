@@ -1,7 +1,7 @@
 //! The `Overlay` data, its presets and builders, its dismissal rules and the placement changes it reports.
 
 use super::opener::{Opener, Trigger};
-use super::place::{Anchor, FloatPlace, OverlayFit, Place, Resize, SizeLimits, ViewportShare};
+use super::place::{Anchor, FloatPlace, OverlayFit, Place, Resize, ResizeEdges, SizeLimits, ViewportShare};
 use crate::runtime::access::PopupKind;
 use crate::runtime::focus::{FocusPolicy, Initial};
 use crate::runtime::motion::{MotionSpec, spec};
@@ -134,6 +134,8 @@ pub struct Overlay {
     /// Whether the layer's move band moves the OS window the layer is shown in, in place of the layer: the chrome a
     /// modal puts over the part of a title bar it covers. The layer stays where it is placed.
     pub moves_window: bool,
+    /// Set only by [`Overlay::full_window`].
+    full_window: bool,
 }
 
 /// The share of the viewport a dropdown list may take. Half the width leaves room for the list to hang from the end
@@ -169,6 +171,7 @@ impl Overlay {
             opacity: 1.0,
             body_scroll: true,
             moves_window: false,
+            full_window: false,
         }
     }
 
@@ -232,6 +235,19 @@ impl Overlay {
         overlay
     }
 
+    /// A modal over the whole window: a modal rank with no backdrop, from its content, with `focus` as its scope.
+    pub fn full_window(focus: FocusPolicy) -> Overlay {
+        let mut overlay = Overlay::modal().fit(OverlayFit::Content).focus(focus);
+        overlay.rank = Rank::modal(Backdrop::None);
+        overlay.full_window = true;
+        overlay
+    }
+
+    /// Whether the layer was made by [`Overlay::full_window`]; the rank and backdrop are not read.
+    pub fn is_full_window(&self) -> bool {
+        self.full_window
+    }
+
     /// A modal: centred, content capped.
     pub fn modal() -> Overlay {
         let mut overlay = Overlay::dialog();
@@ -273,6 +289,12 @@ impl Overlay {
     /// Whether edge grips resize the layer.
     pub fn resizable(mut self, on: bool) -> Overlay {
         self.resize = if on { Resize::GRIPS } else { Resize::NONE };
+        self
+    }
+
+    /// Grips on the given edges only; a placement that holds an edge keeps its grip away.
+    pub fn resize_edges(mut self, edges: ResizeEdges) -> Overlay {
+        self.resize = Resize::edges(edges);
         self
     }
 

@@ -10,6 +10,8 @@ craft_ui::words! {
         dont_show_again: "common.dontShowAgain" = "Don't show again";
         /// The tooltip of a label's reset dot.
         reset_to_default: "common.resetToDefault" = "Reset to default";
+        /// The tooltip of a label's reset dot when the default is named; `{value}` is the default as the control words it.
+        reset_to_value: template "common.resetToValue" = "Reset to default: {value}";
         /// A caption beside its control; a catalog writes its language's punctuation (French " :").
         caption: template "common.caption" = "{caption}:";
         /// Between the steps of a path (a menu path, a tree picker's selection); a catalog changes it for a

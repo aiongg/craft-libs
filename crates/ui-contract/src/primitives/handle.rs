@@ -1,5 +1,6 @@
 //! `Handle`: canvas handle shapes with state.
 
+use super::Draw;
 use crate::style::{HandleLook, StateSet};
 use egui::{Pos2, Rect, Shape, Stroke, vec2};
 
@@ -20,6 +21,13 @@ pub enum HandleShape {
 pub struct Handle;
 
 impl Handle {
+    /// The overflow mark: two strokes through `center`, each half `0.27 * side` long, `look.stroke_width` wide in
+    /// `look.stroke`.
+    pub fn plus(draw: &Draw<'_>, look: &HandleLook, center: Pos2, side: f32) {
+        let _ = (draw, look, center, side);
+        todo!("tl.T10")
+    }
+
     /// The shapes of a handle of `shape` centred on `center`, filled for `state`.
     pub fn shapes(look: &HandleLook, shape: HandleShape, center: Pos2, state: &StateSet) -> Vec<Shape> {
         let fill = state.resolve(&look.fill).egui();

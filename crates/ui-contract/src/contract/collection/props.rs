@@ -237,6 +237,9 @@ pub struct CollectionProps {
     /// The key of the current item (the page a document shows, the slide on screen). It is not the lead or the
     /// selection: the item shows the current mark and its access node reports itself as the current one of its set.
     pub current: Option<Arc<dyn Any + Send + Sync>>,
+    /// While a drag whose payload is neither the collection's own nor one of its drop kinds rests over an item that is
+    /// not selected, the item becomes the lead and the selection in that pass.
+    pub select_under_drag: bool,
 }
 
 type Payload = Arc<dyn Any + Send + Sync>;
@@ -319,7 +322,15 @@ impl CollectionProps {
             overflow: Axis::Y,
             pages: false,
             current: None,
+            select_under_drag: false,
         }
+    }
+
+    /// Whether a foreign drag resting over an unselected item selects it (`select_under_drag`).
+    #[must_use]
+    pub const fn select_under_drag(mut self, on: bool) -> Self {
+        self.select_under_drag = on;
+        self
     }
 
     /// What can be selected.

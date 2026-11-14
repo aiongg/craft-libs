@@ -5,7 +5,7 @@ use crate::contract::cx::CxCore;
 use crate::primitives::{FocusKind, FocusRing, PaintShape, StateLayer, StateLayerKind, surface_look_shapes};
 use crate::runtime::env::Env;
 use crate::style::{Ink, StateSet, StyleView};
-use egui::Ui;
+use egui::{Color32, LayerId, Ui};
 
 /// The ink the surface reads in: the surface kind of the state, else `inherited`.
 pub(crate) fn surface_ink(look: Option<&crate::style::SurfaceLook>, state: &StateSet, inherited: Ink) -> Ink {
@@ -15,13 +15,44 @@ pub(crate) fn surface_ink(look: Option<&crate::style::SurfaceLook>, state: &Stat
 /// Step 13 for a component that is `faded` (`DisabledLook::Faded`, not enabled): multiplies `ui`'s opacity by
 /// `Opacity::DISABLED` until the caller sets it back. Returns the opacity before, which the focus ring, step 14 and the
 /// children `PaintUi` shows paint at. egui fades a shape as it is added, so a run record keeps the faded shapes.
-pub(crate) fn fade(ui: &mut Ui, core: &mut CxCore<'_>) -> f32 {
+// P3(framework-01-w5): fx.F29: the opacity form, replaced by `fade` and `unfade` with their callers.
+pub(crate) fn fade_opacity(ui: &mut Ui, core: &mut CxCore<'_>) -> f32 {
     let before = core.unfaded.unwrap_or_else(|| ui.opacity());
     if core.faded {
         ui.set_opacity(before * craft_theme::Opacity::DISABLED);
         core.unfaded = Some(before);
     }
     before
+}
+
+/// Where a faded component's shapes start in its layer's paint list, and the ground they fade toward.
+#[derive(Clone, Copy)]
+#[allow(dead_code)] // P3(framework-01-w5): fx.F29
+pub(crate) struct Fade {
+    layer: LayerId,
+    from: usize,
+    ground: Color32,
+}
+
+/// Step 13 for a component that is `faded`: notes where its shapes start in its layer's paint list and the ground
+/// colour, and stores the fade in `core.fade` for `PaintUi`.
+#[allow(dead_code)] // P3(framework-01-w5): fx.F29
+pub(crate) fn fade(ui: &Ui, core: &mut CxCore<'_>) -> Option<Fade> {
+    let _ = (ui, core);
+    todo!("fx.F29")
+}
+
+/// Mixes the colour of every shape added since `fade` toward its ground by `Opacity::DISABLED`; textured meshes and
+/// brushed rects fade by alpha, callbacks and placeholder colours are left.
+#[allow(dead_code)] // P3(framework-01-w5): fx.F29
+pub(crate) fn unfade(ui: &Ui, core: &mut CxCore<'_>, fade: Option<Fade>) {
+    let _ = (ui, core, fade);
+    todo!("fx.F29")
+}
+
+/// The index the next shape `ui` paints gets in its layer's paint list.
+pub(crate) fn next_shape(ui: &Ui) -> usize {
+    ui.ctx().graphics(|layers| layers.get(ui.layer_id()).map_or(0, |list| list.next_idx().0))
 }
 
 /// Step 13, paint, the pipeline's part before `C::paint`: the root surface and the state fill.

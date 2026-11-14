@@ -279,6 +279,28 @@ fn cancel_reason(cancel: PressCancel) -> CancelReason {
 }
 
 impl<C: Collection> ItemsHooks<'_, '_, C> {
+    /// Scrolls the rows while the pointer, `y` below the rows' top edge, is within a row of an edge of the `view`,
+    /// faster the further past it: the rate of a row drag near the edge of a scroll region.
+    pub(super) fn edge_scroll(&mut self, cx: &Cx<'_, C>, layout: &C::ItemLayout, view: f32, y: f32) {
+        if !self.scrolls || self.source.is_empty() {
+            return;
+        }
+        let row = layout.rect(0, ScrollPos::default()).height();
+        let band = row.min(view / 2.0);
+        if band <= 0.0 {
+            return;
+        }
+        let depth = if y < band { (band - y) / band } else { (y - (view - band)) / band };
+        let direction = if y < band { -1.0 } else { 1.0 };
+        if depth <= 0.0 {
+            return;
+        }
+        let dt = cx.core.ctx.input(|input| input.stable_dt);
+        let step = depth.min(1.0) * super::marquee::EDGE_ROWS_PER_SECOND * row * dt;
+        self.offset = (self.offset + f64::from(direction * step)).clamp(0.0, self.max_offset(view));
+        cx.core.ctx.request_repaint();
+    }
+
     /// `at` in the layout's logical coordinates, relative to the rows' rect.
     pub(super) fn logical(layout: &C::ItemLayout, rect: Rect, rtl: bool, at: Pos2) -> Pos2 {
         let at = at - rect.min.to_vec2();

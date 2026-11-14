@@ -3,7 +3,7 @@
 
 use super::body::shown_placement;
 use super::container::PaneEdge;
-use super::overlay::{self, FloatPlace, Layer, Outside, Overlay, Place};
+use super::overlay::{self, FloatPlace, Layer, Outside, Overlay, Place, ResizeEdges};
 use super::run::{Host, HostCx, HostPass, Inline, ShowAt};
 use super::{ContainerProps, Mount, ShellPane};
 use crate::runtime::egui::areas;
@@ -13,7 +13,7 @@ use crate::runtime::focus::FocusPolicy;
 use crate::runtime::layout_memory;
 use crate::runtime::memory::{MemoryStage, SaveKey, sub};
 use crate::runtime::motion::{self, Presence};
-use crate::runtime::overlay::{Backdrop, CloseReason, Rank};
+use crate::runtime::overlay::CloseReason;
 use crate::runtime::windows::{self, ViewportOpen, WindowHost, WindowSpec};
 use craft_behavior::ScopeKind;
 use egui::{Id, Pos2, Rect, Ui, Vec2};
@@ -260,9 +260,7 @@ impl Host for LayerHost {
 /// container's focus policy as its scope, so the layer stack gives it the key class, blocking and dismissal rules
 /// of a modal.
 pub(super) fn full_window_overlay(focus: FocusPolicy) -> Overlay {
-    let mut overlay = Overlay::modal().fit(overlay::OverlayFit::Content).focus(focus);
-    overlay.rank = Rank::modal(Backdrop::None);
-    overlay
+    Overlay::full_window(focus) // P3(dialogs-w11): dl.K15
 }
 
 /// Over the whole window, on a layer of its own.
@@ -340,7 +338,7 @@ impl Host for ViewportHost {
             spec: &spec,
             limits: (Some(self.overlay.size_limits.min), self.overlay.size_limits.max),
             position: placed.map(|rect| rect.min),
-            resizable: self.overlay.resize.grips,
+            resizable: self.overlay.resize.edges != ResizeEdges::NONE,
         };
         let dismissed = &mut self.dismissed;
         windows::show_viewport(&ctx, &open, |ui| {

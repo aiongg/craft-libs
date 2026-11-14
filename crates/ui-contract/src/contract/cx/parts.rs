@@ -233,6 +233,12 @@ impl PartBuilder<'_> {
         self
     }
 
+    /// The part's area keeps a focused text draft unapplied on a press. A press holds when any part under its point on
+    /// the press's layer declares it, sensing or not, whatever part wins the press.
+    pub fn holds_drafts(self) -> Self {
+        todo!("cw.C58")
+    }
+
     /// The part opens and closes the component's popup `popup` (the name given to `cx.popup`): a press on it toggles
     /// the popup, so press, drag and release over a row picks it, and a click leaves it open (`on_click` acts on the
     /// release instead), AccessKit Expand and Collapse on its sub-node open and close it, Alt+Down from the part (or from

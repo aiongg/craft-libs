@@ -459,6 +459,7 @@ impl CollectionKind {
             CollectionEvent::Selection(_) => CollectionKind::Selection,
             CollectionEvent::LeadMoved { .. } => CollectionKind::LeadMoved,
             CollectionEvent::Activate(_) => CollectionKind::Activate,
+            CollectionEvent::Rested(_) => todo!("fx.F71"), // P3(framework-01-w7): fx.F71
             CollectionEvent::EmptyActivated => CollectionKind::EmptyActivated,
             CollectionEvent::EmptyContextMenu { .. } => CollectionKind::EmptyContextMenu,
             CollectionEvent::EdgePressed { .. } => CollectionKind::EdgePressed,

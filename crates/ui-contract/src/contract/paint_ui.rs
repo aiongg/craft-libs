@@ -51,6 +51,9 @@ pub struct PaintUi<'a> {
     pub(crate) selections: &'a [PartRef],
     /// The opacity before step 13 faded the component (`DisabledLook::Faded`): its children paint at it.
     pub(crate) unfaded: Option<f32>,
+    /// The fade `steps::fade` began, closed before a child and opened again after it.
+    #[allow(dead_code)] // P3(framework-01-w5): fx.F29
+    pub(crate) fade: Option<super::steps::Fade>,
     /// The children's `Ui`, built on the first child under `sub(id, "children")`.
     pub(crate) kids: Option<Ui>,
 }

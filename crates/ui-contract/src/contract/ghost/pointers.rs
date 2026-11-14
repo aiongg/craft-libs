@@ -230,6 +230,36 @@ pub(super) fn tool(pen: &Pen, icon: Option<SvgIcon>, hotspot: Vec2, badge: Optio
     }
 }
 
+/// The type tool's pointer: an I-beam, over a path when `path`.
+pub(super) fn type_on(pen: &Pen, path: bool) {
+    let _ = (pen, path);
+    todo!("cw.C34")
+}
+
+/// A locator mark.
+pub(super) fn locator(pen: &Pen) {
+    let _ = pen;
+    todo!("cw.C34")
+}
+
+/// An arrow with its tip on the pointer: solid, or hollow when `hollow`.
+pub(super) fn arrow(pen: &Pen, hollow: bool) {
+    let _ = (pen, hollow);
+    todo!("cw.C34")
+}
+
+/// An I-beam across a path with a filled triangle toward each grabbable end.
+pub(super) fn path_text(pen: &Pen, start: bool, end: bool) {
+    let _ = (pen, start, end);
+    todo!("cw.C34")
+}
+
+/// A crosshair with the tool's `icon` of `side` points below and right of it.
+pub(super) fn crosshair_tool(pen: &Pen, icon: SvgIcon, side: f32) {
+    let _ = (pen, icon, side);
+    todo!("cw.C34")
+}
+
 /// A badge centred `center` from the pointer.
 pub(super) fn badge(pen: &Pen, center: Vec2, badge: CursorBadge) {
     let h = BADGE_HALF;
@@ -264,6 +294,9 @@ pub(super) fn badge(pen: &Pen, center: Vec2, badge: CursorBadge) {
             ]
         }
         CursorBadge::Close => vec![Line::Circle(center, h * CLOSE_RADIUS)],
+        CursorBadge::Move | CursorBadge::Arrow | CursorBadge::Target | CursorBadge::Continue | CursorBadge::Count(_) | CursorBadge::Corner => {
+            todo!("cw.C34")
+        }
         _ => Vec::new(),
     };
     pen.marks(&marks);

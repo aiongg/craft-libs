@@ -98,6 +98,17 @@ fn pointer_art(env: &Env, cursor: &craft_behavior::PaintedCursor, closed: bool, 
         PaintedCursor::Turn { toward, .. } => pointers::turn(&pen, *toward),
         PaintedCursor::Distort { dir, .. } => pointers::distort(&pen, *dir),
         PaintedCursor::Skew { dir, .. } => pointers::skew(&pen, *dir),
+        PaintedCursor::TypeOn { path, .. } => pointers::type_on(&pen, *path),
+        PaintedCursor::Locator => pointers::locator(&pen),
+        PaintedCursor::Arrow { hollow, .. } => pointers::arrow(&pen, *hollow),
+        PaintedCursor::PathText { start, end, .. } => pointers::path_text(&pen, *start, *end),
+        PaintedCursor::CrosshairTool { icon, .. } => {
+            let side = env.tokens.size.icon.md;
+            let icon = SvgIcon::of(&env.tokens, env.direction, side, icon, IconSet::default(), Mirror::Auto);
+            if let Some(icon) = icon {
+                pointers::crosshair_tool(&pen, icon, side);
+            }
+        }
         // `Hidden` has no marks.
         _ => {}
     }

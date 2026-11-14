@@ -168,7 +168,8 @@ fn resolver<K: Codec + Clone + 'static>(codec: K, options: &TextOptions, rect: R
             && let Some(draft) = state.draft.clone()
         {
             let start = run.start.clone();
-            if let Typed::Apply(applied) = typing.edit(&mut run, &start, &draft) {
+            if let (Typed::Apply(applied), _) = typing.edit(&mut run, &start, &draft) {
+                // P3(canvas-widgets-w11): cw.N2: the dropped-character flag is read by cw.N4
                 events.push(TextEvent::Propose(applied));
             }
         }
@@ -203,7 +204,7 @@ fn resolver<K: Codec + Clone + 'static>(codec: K, options: &TextOptions, rect: R
             }
             Some(end @ (End::Submit | End::Separator)) => match typing.commit_tagged(&mut run) {
                 (Ended::Commit(committed), tag) => {
-                    committed_tag = tag;
+                    committed_tag = tag.unit; // P3(canvas-widgets-w11): cw.N1
                     state.normalised = Some(typing.codec().normalise(&draft_text, &committed));
                     events.push(TextEvent::Commit(committed));
                     submitted = end == End::Submit;
@@ -214,7 +215,7 @@ fn resolver<K: Codec + Clone + 'static>(codec: K, options: &TextOptions, rect: R
             },
             Some(End::Blur) => match typing.commit_tagged(&mut run) {
                 (Ended::Commit(committed), tag) => {
-                    committed_tag = tag;
+                    committed_tag = tag.unit; // P3(canvas-widgets-w11): cw.N1
                     state.normalised = Some(typing.codec().normalise(&draft_text, &committed));
                     events.push(TextEvent::Commit(committed));
                 }

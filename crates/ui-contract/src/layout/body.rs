@@ -153,28 +153,39 @@ fn report_first_line(ctx: &egui::Context, target: Id, at: Option<f32>) {
 }
 
 /// How a child that fills the main axis of the body it sits in sizes along it.
+#[allow(dead_code)] // P3(framework-01-w8): fx.F40: the least is read by `fill_size`
 pub(crate) enum MainFill {
     /// The body is being measured: the child takes no room along the axis and is counted.
     Measuring,
-    /// The room it takes along the axis.
-    Share(f32),
-    /// Not a child that shares: it takes the room as before.
-    Room,
+    /// The room it takes along the axis, and the child's least along it.
+    Share(f32, f32),
+    /// Not a child that shares: it takes the room as before; the child's least along the axis.
+    Room(f32),
+}
+
+/// The size the child `id` of `ui`'s body takes along `axis`: one fill rule for leaves, containers and the
+/// collection's fill width. On a bounded axis `Room(least)` gives `least.max(offered)` and `Share(s, least)` gives
+/// `least.max(s)`; on an axis the body scrolls or sizes from its content it is `measured` (`measured.max(share)` in a
+/// scrolled share); a fill child along y in a content-height row line takes `measured.max(line)`.
+#[allow(dead_code)] // P3(framework-01-w8): fx.F40
+pub(crate) fn fill_size(ui: &Ui, id: Id, axis: Axis, measured: f32, offered: f32) -> f32 {
+    let _ = (ui, id, axis, measured, offered);
+    todo!("fx.F40")
 }
 
 /// What the child `id` of `ui`'s body that fills along `axis` takes there. Called once per such child and run.
 pub(crate) fn main_fill(ui: &Ui, id: Id, axis: Axis) -> MainFill {
     let env = Env::of(ui);
-    let Some((body, _)) = env.fill_body.filter(|(_, along)| *along == axis) else { return MainFill::Room };
+    let Some((body, _)) = env.fill_body.filter(|(_, along)| *along == axis) else { return MainFill::Room(0.0) }; // P3(framework-01-w8): fx.F40: the least
     layout_memory::leaf_fill(ui.ctx(), id, body, axis);
     if let Some(share) = env.fill_share {
-        return MainFill::Share(share);
+        return MainFill::Share(share, 0.0); // P3(framework-01-w8): fx.F40: the least
     }
     if measure::active(ui.ctx()) {
         pass_state::with::<FillCounts, _>(ui.ctx(), |counts| *counts.0.entry(body).or_insert(0) += 1);
         return MainFill::Measuring;
     }
-    MainFill::Room
+    MainFill::Room(0.0) // P3(framework-01-w8): fx.F40: the least
 }
 
 /// The share a child of `ui`'s body that fills along `axis` takes there, once its body knows it: the room the child

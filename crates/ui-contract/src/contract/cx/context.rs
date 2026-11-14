@@ -173,6 +173,8 @@ pub struct CxCore<'a> {
     pub(crate) faded: bool,
     /// The opacity of the component's `Ui` before step 13 faded it, which its children paint at.
     pub(crate) unfaded: Option<f32>,
+    /// Where the faded component's shapes start and the ground they fade toward (`steps::fade`).
+    pub(crate) fade: Option<crate::contract::steps::Fade>,
     /// Where the text part reserved the surface in the painter, so the field's surface paints beneath its text.
     pub(crate) surface_slot: Option<egui::layers::ShapeIdx>,
     /// The editor part as step 8b set it up.

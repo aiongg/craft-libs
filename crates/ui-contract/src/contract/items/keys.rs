@@ -269,7 +269,8 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             }
             cx.core.memory.session::<Typing>(sub(id, "typing")).0 = typing;
             let source = self.source;
-            if let Some(to) = TypeAhead::pick(&prefix, lead_at, len, |at| source.text(at).unwrap_or_default()) {
+            if let Some(to) = TypeAhead::pick(&prefix, lead_at, len, |at| source.text(at).unwrap_or_default(), str::to_lowercase) {
+                // P3(canvas-widgets-w12): cw.C64
                 self.move_lead(to, LeadSource::Keys);
                 self.pick(comp, to, false, false);
                 self.reveal_with(layout, to);

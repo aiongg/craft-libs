@@ -51,10 +51,10 @@ pub use body::pad_of;
 #[doc(hidden)]
 pub use body::{STRIP_BACK, STRIP_FORWARD};
 pub use collection::{
-    ActivateOn, CollectionEvent, CollectionProps, CollectionResponse, ColumnAlign, ColumnEvent, ColumnKind, ColumnRequest, ColumnSort, ColumnSpec,
-    ContextMenuRequest, DragPayload, DropAt, DropKind, DropPayload, DropPlace, EdgePress, HeaderMenuRequest, ItemKeys, LeadOnOpen, LeadSource,
-    ListDrag, OpenChange, PendingDrop, Rename, ReorderMove, ReorderRule, RowHeight, RowPressed, RowState, SelectMode, ShownRow, SpaceAction,
-    ToggleColumn, ToggleEdit,
+    ActivateOn, CollectionEvent, CollectionProps, CollectionResponse, ColumnAlign, ColumnEvent, ColumnKind, ColumnLayout, ColumnRequest, ColumnSort,
+    ColumnSpec, ContextMenuRequest, DragPayload, DropAt, DropKind, DropPayload, DropPlace, EdgePress, HeaderMenuRequest, ItemKeys, LeadOnOpen,
+    LeadSource, ListDrag, OpenChange, PendingDrop, Rename, ReorderMove, ReorderRule, RowHeight, RowPressed, RowState, SelectMode, ShownRow,
+    SpaceAction, ToggleColumn, ToggleEdit,
 };
 #[doc(hidden)]
 pub use container::InBar;
@@ -479,6 +479,13 @@ pub trait Component: Meta + Sized {
         None
     }
 
+    /// Words `value` as the control shows it ("40.0", "20 to 60"); `None` for a component that words no value. The
+    /// reset dot's tooltip names the default with it, and `value_text` of a slider or dial calls it with the shown
+    /// value.
+    fn word_value(&self, _value: &ValueOf<Self>, _cx: &Cx<'_, Self>) -> Option<String> {
+        None
+    }
+
     /// Builds the output from the finished context.
     fn finish(self, cx: Cx<'_, Self>) -> Self::Output;
 }
@@ -552,6 +559,12 @@ pub trait Collection: Component + HasProps + Meta<Shape = shape::Items> {
 
     /// The selection binding; `None` keeps it in session memory.
     fn selection(&mut self) -> Option<BindMut<'_, Self::Selection>> {
+        None
+    }
+
+    /// The column arrangement binding; `None` keeps it in the header's own memory. The header starts each pass from
+    /// the bound layout and writes each change into it.
+    fn column_layout(&mut self) -> Option<BindMut<'_, ColumnLayout>> {
         None
     }
 

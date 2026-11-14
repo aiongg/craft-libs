@@ -88,6 +88,14 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         }
     }
 
+    /// The row under `pos` (screen space) in the rows' placement `at`: the pointer-to-row mapping of `hover_lead`,
+    /// which `hover_lead` and the drag-select step both call.
+    #[allow(dead_code)] // P3(framework-01-w7): cw.C43
+    pub(super) fn row_under(&self, layout: &C::ItemLayout, at: Placement, pos: Pos2) -> Option<usize> {
+        let _ = (layout, at, pos);
+        todo!("cw.C43")
+    }
+
     /// The lead follows a moving pointer over the rows, and the selection follows the lead the way it does for the
     /// arrow keys.
     pub(super) fn hover_lead(&mut self, comp: &C, cx: &Cx<'_, C>, layout: &C::ItemLayout, at: Placement) {

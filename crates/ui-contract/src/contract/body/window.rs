@@ -3,7 +3,7 @@
 use super::BodyHooks;
 use super::placement::{Placement, PlacementSlot, overlay_of};
 use super::regions::Regions;
-use crate::contract::overlay::{PlacementChange, PlacementKind};
+use crate::contract::overlay::{PlacementChange, PlacementKind, ResizeEdges};
 use crate::contract::{Container, ContainerProps, Cx, Mount, PartsCx};
 use crate::runtime::commands::{self, CommandSet as _, WindowCommand};
 use crate::runtime::egui::pass;
@@ -78,7 +78,8 @@ fn window_min(props: &ContainerProps, style_min: Vec2) -> Vec2 {
 /// scope its own commands use: the container's id when it publishes the window scope itself, else a sub-id.
 pub(super) fn window_instance(props: &ContainerProps, id: Id) -> Option<Id> {
     let overlay = overlay_of(props)?;
-    (overlay.movable || overlay.resize.grips).then(|| if props.command_scope == Some(WindowCommand::SCOPE) { id } else { sub(id, "window") })
+    (overlay.movable || overlay.resize.edges != ResizeEdges::NONE)
+        .then(|| if props.command_scope == Some(WindowCommand::SCOPE) { id } else { sub(id, "window") })
 }
 
 /// The keyboard mode of a floating container (16.3): arrows move or resize it until Enter or Escape.
@@ -194,14 +195,14 @@ const MODE_ARROWS: [(Key, [i8; 2]); 4] = [(Key::Left, [-1, 0]), (Key::Right, [1,
 
 /// The eight edge and corner grips of a resizable layer, in the order of `GRIPS`: which edges each moves.
 const GRIPS: [(i8, i8, CursorIcon); 8] = [
-    (-1, 0, CursorIcon::ResizeHorizontal),
-    (1, 0, CursorIcon::ResizeHorizontal),
-    (0, -1, CursorIcon::ResizeVertical),
-    (0, 1, CursorIcon::ResizeVertical),
-    (-1, -1, CursorIcon::ResizeNwSe),
-    (1, 1, CursorIcon::ResizeNwSe),
-    (1, -1, CursorIcon::ResizeNeSw),
-    (-1, 1, CursorIcon::ResizeNeSw),
+    (-1, 0, CursorIcon::ResizeWest),
+    (1, 0, CursorIcon::ResizeEast),
+    (0, -1, CursorIcon::ResizeNorth),
+    (0, 1, CursorIcon::ResizeSouth),
+    (-1, -1, CursorIcon::ResizeNorthWest),
+    (1, 1, CursorIcon::ResizeSouthEast),
+    (1, -1, CursorIcon::ResizeNorthEast),
+    (-1, 1, CursorIcon::ResizeSouthWest),
 ];
 
 /// The edges of a layer its placement holds in place, by screen side (`-1` left or top, `1` right or bottom). A layer
@@ -559,8 +560,8 @@ impl BodyHooks<'_> {
         // The grips of a layer straddle its edge; those of a window lie inside it, where the window has pixels. They
         // stack above the body (`over`), so a root in the body never covers their inner half (8.3).
         let (grips, inset) = match &props.mount {
-            Mount::Layer(overlay) | Mount::Viewport { fallback: overlay, .. } => (overlay.resize.grips, 0.0),
-            Mount::Window { resize } => (resize.grips, handle / 2.0),
+            Mount::Layer(overlay) | Mount::Viewport { fallback: overlay, .. } => (overlay.resize.edges != ResizeEdges::NONE, 0.0),
+            Mount::Window { resize } => (resize.edges != ResizeEdges::NONE, handle / 2.0),
             _ => (false, 0.0),
         };
         if !grips || !stands.grips {

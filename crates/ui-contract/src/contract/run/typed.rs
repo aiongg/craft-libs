@@ -672,6 +672,7 @@ pub(crate) fn paint_face<C: Show>(ui: &mut Ui, env: &Env, source: &super::FaceSo
             size: step1.size,
             selections: &[],
             unfaded: None,
+            fade: None,
             kids: None,
         };
         face.paint(&mut pui, &cx);
@@ -813,7 +814,7 @@ pub(crate) fn member_show<C: Show>(
     cx.core.stated = true;
     cx.core.ink = steps::surface_ink(StyleView::surface(&*style), &state, env.ink);
     item.update(&mut cx);
-    let unfaded = steps::fade(ui, &mut cx.core);
+    let unfaded = steps::fade_opacity(ui, &mut cx.core);
     steps::paint_surface(ui, env, &cx.core, &*style);
     steps::paint_part_layers(ui, env, &cx.core);
     item.paint(&mut super::paint_ui(ui, env, &cx.core, &*style), &cx);

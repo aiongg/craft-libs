@@ -103,6 +103,13 @@ impl<'a> IconSpec<'a> {
         IconSpec { source: IconSource::Svg(id), ink: Ink::OnPanel, color: None, mirror: Mirror::Auto, set: IconSet::default(), badge: None }
     }
 
+    /// An icon whose glyph is the mark of the cursor `badge` (the plus or minus drawn at the cursor), painted by the
+    /// one cursor-badge painter.
+    pub fn mark(badge: craft_behavior::CursorBadge) -> IconSpec<'a> {
+        let _ = badge;
+        todo!("cw.C75")
+    }
+
     /// An icon of `glyph` in the panel ink.
     pub fn glyph(glyph: &'a dyn Glyph) -> Self {
         IconSpec { source: IconSource::Glyph(glyph), ink: Ink::OnPanel, color: None, mirror: Mirror::Auto, set: IconSet::default(), badge: None }

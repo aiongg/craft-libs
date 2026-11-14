@@ -8,7 +8,7 @@ use crate::runtime::frame::PerViewport;
 use crate::runtime::pointer;
 use crate::runtime::sampler;
 use craft_behavior::wheel::split;
-use craft_behavior::{PointerButton, PointerEvent, Wheel, WheelFocus, WheelPhase, WheelTaker, WheelUnit};
+use craft_behavior::{PointerButton, PointerEvent, Wheel, WheelFocus, WheelGesture, WheelPhase, WheelTaker, WheelUnit};
 use egui::{Context, Id, Pos2, Rect, Vec2};
 
 #[derive(Default)]
@@ -91,7 +91,7 @@ pub(crate) fn begin(ctx: &Context) {
         }
         let share = Wheel::new(scroll, mods, unit, phase).zoom(frame.zoom).at(at);
         // The device's lines and pages become points of each taker: the notch is the scroll owner's to choose.
-        let shares = split(&state.last, at, share, WheelFocus::new(focused).app_field(app_field), state.armed);
+        let shares = split(&state.last, at, share, WheelFocus::new(focused).app_field(app_field), state.armed, &mut WheelGesture::default(), 0.0); // P3(canvas-widgets-w4): fx.F18
         state.shares = shares
             .into_iter()
             .map(|(owner, mut share)| {

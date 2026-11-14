@@ -496,11 +496,12 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                         return measured;
                     }
                     match crate::layout::main_fill(ui, id, along) {
+                        // P3(framework-01-w8): fx.F40
                         crate::layout::MainFill::Measuring => 0.0,
-                        crate::layout::MainFill::Share(share) if scrolled => measured.max(share),
-                        crate::layout::MainFill::Share(share) => share,
-                        crate::layout::MainFill::Room if scrolled => measured,
-                        crate::layout::MainFill::Room => room,
+                        crate::layout::MainFill::Share(share, _) if scrolled => measured.max(share),
+                        crate::layout::MainFill::Share(share, _) => share,
+                        crate::layout::MainFill::Room(_) if scrolled => measured,
+                        crate::layout::MainFill::Room(_) => room,
                     }
                 };
                 Vec2::new(axis(room.x, self.given.0, craft_behavior::Axis::X, size.x), axis(room.y, self.given.1, craft_behavior::Axis::Y, size.y))
@@ -516,9 +517,10 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 let across = self.given.0 || held;
                 let width = if room.is_finite() && across {
                     match crate::layout::main_fill(ui, id, craft_behavior::Axis::X) {
+                        // P3(framework-01-w8): fx.F40
                         crate::layout::MainFill::Measuring => 0.0,
-                        crate::layout::MainFill::Share(share) => share,
-                        crate::layout::MainFill::Room => size.x.max(room),
+                        crate::layout::MainFill::Share(share, _) => share,
+                        crate::layout::MainFill::Room(_) => size.x.max(room),
                     }
                 } else {
                     size.x
