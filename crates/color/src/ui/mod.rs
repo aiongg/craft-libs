@@ -19,6 +19,8 @@ mod eyedropper;
 pub mod gradient;
 mod harmony;
 mod hex;
+mod hud;
+mod info;
 mod lut_picker;
 mod paint_chip;
 mod pair;
@@ -53,7 +55,9 @@ pub use harmony::{
     HarmonyCommand, HarmonyMenu, HarmonyMenuAction, HarmonyPanel, HarmonyPanelOutput, HarmonyPanelState, HarmonyPicked, HarmonyWheel,
     HarmonyWheelOutput, HarmonyWords,
 };
+pub use hud::{ColorHud, ColorHudOutput};
 pub use hex::{HexPair, HexPairField, PairCodec};
+pub use info::{InfoColor, InfoPanel, InfoReadings, InfoWords};
 pub use lut_picker::{LutChoice, LutPicker, LutPickerOutput, LutWords};
 pub use paint_chip::{
     FillKind, GradientPreview, ImagePreview, Paint, PaintChip, PaintChipOutput, PaintEditor, PaintLink, PaintLinkKind, PaintList, PaintListEvent,

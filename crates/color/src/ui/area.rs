@@ -73,6 +73,14 @@ impl<'a> ColorArea<'a> {
         self.quantize.map(|levels| levels.max(2))
     }
 
+    /// The values the pointer at `at` picks in `rect`: the picker's own point-to-value mapping, then the settle and
+    /// quantise steps. `ColorHud` drives it with the host's pointer.
+    #[allow(dead_code)] // P3(panels-w7): pn.C32
+    pub(crate) fn value_at(&self, rect: Rect, values: &ModelValues, at: egui::Pos2) -> ModelValues {
+        let _ = (rect, values, at);
+        todo!("pn.C32")
+    }
+
     /// The picker over `shown`, whose backdrop paints the field of `base`.
     fn picker<'c>(&self, shown: Option<&ModelValues>, field: bool) -> PointPicker<'c> {
         let model = self.mode.model();

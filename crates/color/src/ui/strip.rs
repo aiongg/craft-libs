@@ -255,3 +255,11 @@ impl Component for ColorStrip<'_> {
         cx.edit_response()
     }
 }
+
+/// The values the pointer at `at` picks in the strip's `rect` for `mode`: the `ValueDrag` mapping of `update`, which
+/// `ColorHud` drives with the host's pointer.
+#[allow(dead_code)] // P3(panels-w7): pn.C32
+pub(crate) fn value_at(rect: Rect, mode: AreaMode, values: &ModelValues, at: Pos2) -> ModelValues {
+    let _ = (rect, mode, values, at);
+    todo!("pn.C32")
+}

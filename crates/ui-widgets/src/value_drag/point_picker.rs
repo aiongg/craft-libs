@@ -135,6 +135,13 @@ pub struct PointPicker<'a> {
 }
 
 impl<'a> PointPicker<'a> {
+    /// The value pair at `pos` in `rect`: the plot, the two `ValueDrag`s and `point_at` in one function, which the drag
+    /// then calls, so the picker and the colour HUD share one mapping. `None` when the picker has no area.
+    pub fn value_at(&self, rect: Rect, pos: Pos2) -> Option<[f64; 2]> {
+        let _ = (rect, pos);
+        todo!("pn.C32")
+    }
+
     /// The well: a press on it moves the point there, and a drag from it follows the pointer.
     pub const WELL: PartKey = PartKey::new("well");
 

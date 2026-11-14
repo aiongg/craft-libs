@@ -451,6 +451,12 @@ pub struct SamplerReadout {
 }
 
 impl SamplerReadout {
+    /// The readout of point number `number` at `position` with the given 8-bit `rgb` and CMYK percent: how a host whose
+    /// colours come from its own engine fills the rows.
+    pub fn from_values(number: usize, position: [i64; 2], rgb: [u8; 3], cmyk: [u8; 4]) -> SamplerReadout {
+        SamplerReadout { number, position, rgb, cmyk }
+    }
+
     /// The readout of point `index` at `position` with `color`, CMYK through `cmyk`. A channel that is not finite
     /// reads as 0 and the rest is clamped.
     pub fn new(index: usize, position: [f64; 2], color: Srgba, cmyk: &CmykConverter) -> SamplerReadout {
