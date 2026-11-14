@@ -19,6 +19,7 @@ mod context;
 mod curves_panel;
 mod hosted;
 mod hue_saturation;
+mod kinds;
 mod labels;
 mod levels_editor;
 mod levels_panel;
@@ -36,6 +37,7 @@ pub use context::{AdjustContext, ToneChannel, ToneChannelCommands, ToneChannels,
 pub use curves_panel::{CurvesMode, CurvesPanel, CurvesPanelOutput, ToneCurves};
 pub use hosted::{AdjustDialogCx, EditPhase, HostedAdjustDialog};
 pub use hue_saturation::{HueRangeValue, HueSaturation, HueSaturationEditor, HueSaturationOutput};
+pub use kinds::{AdjustmentKind, AdjustmentsPanel, AdjustmentsPanelOutput};
 pub use labels::AdjustWords;
 pub use levels_editor::{Levels, LevelsClip, LevelsEditor, LevelsEditorOutput, LevelsWords};
 pub use levels_panel::{LevelsPanel, LevelsPanelOutput};

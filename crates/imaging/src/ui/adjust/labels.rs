@@ -145,5 +145,15 @@ craft_ui::words! {
         absolute: "adjust.absolute" = "Absolute";
         /// The Relative and Absolute radios' group name (AccessKit).
         relative_absolute: "adjust.relativeAbsolute" = "Relative / Absolute";
+
+        // The Adjustments panel's titles the editors above lack.
+        brightness_contrast: "adjust.brightnessContrast" = "Brightness/Contrast";
+        color_balance: "adjust.colorBalance" = "Color Balance";
+        photo_filter: "adjust.photoFilter" = "Photo Filter";
+        invert: "adjust.invert" = "Invert";
+        posterize: "adjust.posterize" = "Posterize";
+        threshold: "adjust.threshold" = "Threshold";
+        gradient_map: "adjust.gradientMap" = "Gradient Map";
+        color_lookup: "adjust.colorLookup" = "Color Lookup";
     }
 }
