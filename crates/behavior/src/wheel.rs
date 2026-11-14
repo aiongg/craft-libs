@@ -52,12 +52,18 @@ pub struct Wheel {
     /// The vertical scroll came from over a zoom zone (`Sense::WHEEL_ZOOMS_VIEW`): the taker zooms its view by it,
     /// about `at`, instead of scrolling.
     pub zooms: bool,
+    /// Zoom factor of a two-finger touch; 1 for none. `zoom` is the trackpad pinch only.
+    pub touch_zoom: f32,
+    /// Rotation in radians, clockwise on screen (egui's `Event::Rotate`).
+    pub rotation: f32,
+    /// Rotation of a two-finger touch, in radians.
+    pub touch_rotation: f32,
 }
 
 impl Wheel {
     /// A scroll of `scroll` points with no zoom.
     pub const fn new(scroll: Vec2, mods: Mods, unit: WheelUnit, phase: WheelPhase) -> Self {
-        Wheel { scroll, zoom: 1.0, mods, unit, phase, at: None, zooms: false }
+        Wheel { scroll, zoom: 1.0, mods, unit, phase, at: None, zooms: false, touch_zoom: 1.0, rotation: 0.0, touch_rotation: 0.0 }
     }
 
     /// The same gesture with zoom factor `zoom`.
@@ -66,10 +72,57 @@ impl Wheel {
         self
     }
 
+    /// The same gesture with the two-finger touch zoom factor `zoom`.
+    pub const fn touch_zoom(mut self, zoom: f32) -> Self {
+        self.touch_zoom = zoom;
+        self
+    }
+
+    /// The same gesture with rotation `radians`, clockwise on screen.
+    pub const fn rotation(mut self, radians: f32) -> Self {
+        self.rotation = radians;
+        self
+    }
+
+    /// The same gesture with the two-finger touch rotation `radians`.
+    pub const fn touch_rotation(mut self, radians: f32) -> Self {
+        self.touch_rotation = radians;
+        self
+    }
+
     /// The same gesture with the pointer at `at`.
     pub const fn at(mut self, at: Pos2) -> Self {
         self.at = Some(at);
         self
+    }
+}
+
+/// The seconds between wheel events that still belong to one gesture.
+pub const GESTURE_GAP: f64 = 0.3;
+
+/// A wheel gesture: events closer than [`GESTURE_GAP`] seconds, or inside one device phase. `owner` is `None` while
+/// no taker took it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct WheelGesture<O> {
+    /// The taker the gesture started on.
+    pub owner: Option<O>,
+    /// The time of the gesture's last event, in seconds.
+    pub last: f64,
+}
+
+impl<O> Default for WheelGesture<O> {
+    fn default() -> Self {
+        WheelGesture { owner: None, last: f64::NEG_INFINITY }
+    }
+}
+
+impl<O: Copy> WheelGesture<O> {
+    /// Closes the gesture once `now - last` reaches [`GESTURE_GAP`], or at once after a device end, and returns the
+    /// owner it had.
+    pub fn end(&mut self, now: f64) -> Option<O> {
+        let _ = now;
+        todo!("fx.F17")
     }
 }
 
@@ -292,7 +345,16 @@ fn for_field(wheel: &Wheel) -> bool {
 /// `armed`. Shift turns a vertical wheel sideways when its vertical owner is a scroll region. When the innermost open
 /// taker under `at` for the vertical share is a zoom zone, the share goes to the innermost open zoom taker enclosing it,
 /// with `Wheel::zooms` set; without one the zone is passed over. Shares of one owner merge.
-pub fn split<O: Copy + PartialEq>(takers: &[WheelTaker<O>], at: Pos2, wheel: Wheel, focus: WheelFocus<O>, armed: Option<O>) -> Vec<(O, Wheel)> {
+pub fn split<O: Copy + PartialEq>(
+    takers: &[WheelTaker<O>],
+    at: Pos2,
+    wheel: Wheel,
+    focus: WheelFocus<O>,
+    armed: Option<O>,
+    gesture: &mut WheelGesture<O>,
+    now: f64,
+) -> Vec<(O, Wheel)> {
+    let _ = (&gesture, now); // P3(canvas-widgets-w4): fx.F18
     let field = focus.taker.filter(|focused| takers.iter().any(|taker| taker.field && taker.owner == *focused));
     if (field.is_some() || focus.app_field) && wheel.scroll != Vec2::ZERO && for_field(&wheel) {
         let mut shares = if wheel.zoom == 1.0 { Vec::new() } else { split_at(takers, at, Wheel { scroll: Vec2::ZERO, ..wheel }, focus.taker, armed) };
@@ -371,7 +433,8 @@ mod tests {
         let outer = WheelTaker::new(1u8, rect(200.0)).vertical(true).scrolls(true).room(WheelRoom::new(Vec2::splat(50.0), Vec2::splat(50.0)));
         let inner = WheelTaker::new(2u8, rect(100.0)).vertical(true).scrolls(true).room(WheelRoom::new(Vec2::ZERO, Vec2::splat(30.0)));
         let at = pos2(10.0, 10.0);
-        let owner = |y| split(&[outer, inner], at, wheel(0.0, y), WheelFocus::new(None), None).first().map(|(o, _)| *o);
+        let owner =
+            |y| split(&[outer, inner], at, wheel(0.0, y), WheelFocus::new(None), None, &mut WheelGesture::default(), 0.0).first().map(|(o, _)| *o);
         assert_eq!(owner(7.0), Some(1), "no room toward positive: the outer takes it");
         assert_eq!(owner(-7.0), Some(2), "room toward negative: the inner keeps it");
     }
@@ -381,8 +444,9 @@ mod tests {
         let canvas = WheelTaker::new(1u8, rect(300.0)).horizontal(true).vertical(true).zoom(true);
         let field = WheelTaker::new(2u8, Rect::from_min_size(pos2(400.0, 0.0), Vec2::splat(20.0))).vertical(true).gated(true).field(true);
         let at = pos2(10.0, 10.0);
-        let owners =
-            |wheel: Wheel, focus: WheelFocus<u8>| split(&[canvas, field], at, wheel, focus, None).iter().map(|(o, _)| *o).collect::<Vec<_>>();
+        let owners = |wheel: Wheel, focus: WheelFocus<u8>| {
+            split(&[canvas, field], at, wheel, focus, None, &mut WheelGesture::default(), 0.0).iter().map(|(o, _)| *o).collect::<Vec<_>>()
+        };
         let focused = WheelFocus::new(Some(2));
         assert_eq!(owners(wheel(0.0, 5.0), WheelFocus::new(None)), [1], "no focus: the canvas under the pointer");
         assert_eq!(owners(wheel(0.0, 5.0), focused), [2], "the focused field, away from the pointer");
@@ -401,12 +465,12 @@ mod tests {
         let view = WheelTaker::new(2u8, rect(200.0)).horizontal(true).zoom(true);
         let zone = WheelTaker::new(3u8, rect(100.0)).zooms_view(true);
         let at = pos2(10.0, 10.0);
-        let shares = split(&[region, view, zone], at, wheel(0.0, 5.0), WheelFocus::new(None), None);
+        let shares = split(&[region, view, zone], at, wheel(0.0, 5.0), WheelFocus::new(None), None, &mut WheelGesture::default(), 0.0);
         assert_eq!(shares.len(), 1);
         assert_eq!((shares[0].0, shares[0].1.scroll.y, shares[0].1.zooms), (2, 5.0, true), "the view zooms by the vertical share");
-        let shares = split(&[region, zone], at, wheel(0.0, 5.0), WheelFocus::new(None), None);
+        let shares = split(&[region, zone], at, wheel(0.0, 5.0), WheelFocus::new(None), None, &mut WheelGesture::default(), 0.0);
         assert_eq!(shares.iter().map(|(o, w)| (*o, w.zooms)).collect::<Vec<_>>(), [(1, false)], "no zoom taker: the zone is passed over");
-        let shares = split(&[region, view, zone], at, wheel(4.0, 0.0), WheelFocus::new(None), None);
+        let shares = split(&[region, view, zone], at, wheel(4.0, 0.0), WheelFocus::new(None), None, &mut WheelGesture::default(), 0.0);
         assert_eq!(shares.iter().map(|(o, w)| (*o, w.zooms)).collect::<Vec<_>>(), [(2, false)], "the horizontal share passes the zone");
     }
 }

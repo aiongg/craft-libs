@@ -115,9 +115,15 @@ fn run(stop: &AtomicBool, scale: f32) -> Result<Capture, ScreenError> {
     backend::capture(stop, scale)
 }
 
-#[cfg(not(all(unix, not(target_os = "macos"), not(target_arch = "wasm32"))))]
+#[cfg(not(any(all(unix, not(target_os = "macos"), not(target_arch = "wasm32")), target_arch = "wasm32")))]
 fn run(stop: &AtomicBool, _scale: f32) -> Result<Capture, ScreenError> {
     backend::capture(stop).map(Capture::Images)
+}
+
+/// The browser's EyeDropper: the one colour the user picks, as [`Capture::Color`].
+#[cfg(target_arch = "wasm32")]
+fn run(_stop: &AtomicBool, _scale: f32) -> Result<Capture, ScreenError> {
+    todo!("dl.K78")
 }
 
 /// The scale a monitor image gets: the app's native pixels per point, or 1 when it has none.
@@ -545,7 +551,7 @@ mod backend {
     }
 }
 
-#[cfg(not(any(all(unix, not(target_os = "macos"), not(target_arch = "wasm32")), target_os = "macos", windows)))]
+#[cfg(not(any(all(unix, not(target_os = "macos"), not(target_arch = "wasm32")), target_os = "macos", windows, target_arch = "wasm32")))]
 mod backend {
     use super::{AtomicBool, ScreenError, ScreenImage};
 

@@ -97,6 +97,9 @@ pub enum ScaleRule {
     /// PhotoCraft's Use Legacy Free Transform, DesignCraft and VectorCraft: corners stretch freely
     /// and ⇧ keeps the proportions; edges stretch their one axis.
     Free,
+    /// A shape or path bounds box: a corner scales by the projection of the drag on the anchor-corner diagonal,
+    /// keeping the proportions; an edge stretches its one axis.
+    Shape,
 }
 
 /// What the box's content allows. PhotoCraft: editable type refuses distort and perspective
@@ -185,11 +188,20 @@ pub struct BoxRules {
     /// The angle ⇧ snaps a rotation to, in degrees (PhotoCraft 15; DesignCraft and VectorCraft
     /// 45).
     pub rotate_step: f64,
+    /// The smallest side a scale drag leaves, in document units.
+    pub min_side: f64,
 }
 
 impl Default for BoxRules {
     fn default() -> Self {
-        BoxRules { mode: TransformMode::Free, scale: ScaleRule::Proportional, aspect_linked: true, allow: BoxAllow::default(), rotate_step: 15.0 }
+        BoxRules {
+            mode: TransformMode::Free,
+            scale: ScaleRule::Proportional,
+            aspect_linked: true,
+            allow: BoxAllow::default(),
+            rotate_step: 15.0,
+            min_side: 0.0,
+        }
     }
 }
 
@@ -216,6 +228,12 @@ impl BoxRules {
     pub fn with_allow(mut self, allow: BoxAllow) -> BoxRules {
         self.allow = allow;
         self
+    }
+
+    /// The rules with `side` as the minimum side of a scaled box, in document units.
+    pub fn with_min_side(self, side: f64) -> BoxRules {
+        let _ = side;
+        todo!("tl.T2")
     }
 
     /// The mode drags follow: a mode the content refuses scales as Free Transform does.
@@ -613,6 +631,12 @@ fn unturn(c: Vec2, angle: f64) -> Vec2 {
 }
 
 impl BoxState {
+    /// The pivot through the inverse homography, in `rect`'s coordinates; least squares for a flat box.
+    pub fn origin_of_pivot(&self, rect: Rect) -> Point {
+        let _ = rect;
+        todo!("tl.T3")
+    }
+
     /// A box with the corners `quad`, clockwise from the top left, and the reference point `pivot`.
     pub const fn new(quad: [Point; 4], pivot: Point) -> Self {
         BoxState { quad, pivot }
@@ -822,6 +846,13 @@ impl BoxState {
 pub struct Homography([f64; 9]);
 
 impl Homography {
+    /// [`Homography::apply`] for a point on the front side of the horizon, the side most of `within`'s corners lie
+    /// on; `None` for a point behind it.
+    pub fn apply_in_front(&self, p: Point, within: Rect) -> Option<Point> {
+        let _ = (p, within);
+        todo!("tl.T4")
+    }
+
     /// The map with these rows of (x, y, w) coefficients, applied to (x, y, 1).
     pub fn from_rows(rows: [[f64; 3]; 3]) -> Homography {
         let [[a, b, c], [d, e, f], [g, h, i]] = rows;

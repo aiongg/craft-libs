@@ -10,7 +10,7 @@
 //! [`ZoomLadder::clamp`], so no control can pull the zoom into a narrower range of its own.
 
 use super::view::CanvasView;
-use emath::Pos2;
+use emath::{Pos2, Rect as ScreenRect, Vec2 as ScreenVec};
 use kurbo::{Point, Rect, Size, Vec2};
 use std::ops::RangeInclusive;
 
@@ -158,6 +158,13 @@ fn fit_rect_up_to(view: &mut CanvasView, rect: Rect, size: Size, pixels_per_poin
     let device = ZoomLadder::clamp((scale * f64::from(pixels_per_point)).min(max_device), size);
     view.zoom = CanvasView::points_per_unit(device, pixels_per_point);
     view.center = rect.center();
+}
+
+/// The window-canvas size at which the zoomed document fits: the canvas size less the view's
+/// rect size plus the screen extent of the whole document.
+pub fn wrapped_canvas(view: &CanvasView, document: Size, canvas: ScreenRect) -> ScreenVec {
+    let _ = (view, document, canvas);
+    todo!("cw.C72")
 }
 
 /// Fill Screen: centre the document and zoom until it covers `view.rect`; one axis may extend

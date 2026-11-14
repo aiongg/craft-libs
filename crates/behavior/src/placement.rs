@@ -192,6 +192,12 @@ fn fit(size: [f32; 2], room: [f32; 2], min: [f32; 2]) -> [f32; 2] {
     std::array::from_fn(|i| size[i].min(room[i]).max(min[i].min(room[i])).max(1.0))
 }
 
+/// `size` at least `min` and at most the monitor's usable area less `frame`; the cap wins over the minimum.
+pub fn capped(size: Vec2, monitor: &Monitor, frame: Vec2, min: Vec2) -> Vec2 {
+    let _ = (size, monitor, frame, min);
+    todo!("cw.C54")
+}
+
 fn in_points(v: f32) -> bool {
     v.is_finite() && (1.0..=MAX_POINTS).contains(&v)
 }

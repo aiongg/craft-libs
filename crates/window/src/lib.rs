@@ -102,6 +102,16 @@ impl Prefix {
     pub fn var_name(self) -> String {
         format!("{}_TITLEBAR", self.0)
     }
+
+    /// The environment variable that picks the caption style: `<PREFIX>_CAPTION_STYLE`.
+    pub fn caption_style_var(self) -> String {
+        format!("{}_CAPTION_STYLE", self.0)
+    }
+
+    /// The environment variable that picks the caption layout: `<PREFIX>_CAPTION_LAYOUT`.
+    pub fn caption_layout_var(self) -> String {
+        format!("{}_CAPTION_LAYOUT", self.0)
+    }
 }
 
 /// Who draws the window frame. Superseded by [`policy::Frame`]; kept for apps that have not moved.

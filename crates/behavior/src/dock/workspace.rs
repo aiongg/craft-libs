@@ -33,6 +33,10 @@ pub struct Workspace<P> {
     /// Closed panels, and panels the application does not register now, with where each one
     /// goes back.
     pub hidden: Vec<(P, Location<P>)>,
+    /// Floating panels with the docked location each one left, so Dock Panel can return it. Saved with the
+    /// workspace.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub floated: Vec<(P, Location<P>)>,
     /// Counts the replacements of this live workspace. Not saved, and not part of equality.
     #[serde(skip)]
     revision: u64,
@@ -40,7 +44,7 @@ pub struct Workspace<P> {
 
 impl<P: PartialEq> PartialEq for Workspace<P> {
     fn eq(&self, other: &Self) -> bool {
-        self.version == other.version && self.layout == other.layout && self.hidden == other.hidden
+        self.version == other.version && self.layout == other.layout && self.hidden == other.hidden && self.floated == other.floated
     }
 }
 
@@ -64,7 +68,7 @@ impl<P> Workspace<P> {
 
     /// A workspace of `layout`, with no hidden panels.
     pub fn new(layout: Layout<P>) -> Self {
-        Self { version: Self::VERSION, layout, hidden: Vec::new(), revision: 0 }
+        Self { version: Self::VERSION, layout, hidden: Vec::new(), floated: Vec::new(), revision: 0 }
     }
 
     /// The revision of this live workspace: it changes with every [`replace`](Self::replace) and nothing else.

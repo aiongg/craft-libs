@@ -11,6 +11,18 @@ use std::sync::Arc;
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct NotAValue;
 
+/// What a parse learned beside the value.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[non_exhaustive]
+pub struct ParseNote {
+    /// The tag of the unit the text named.
+    pub unit: Option<u32>,
+    /// The number read before the codec held it to its range.
+    pub held: Option<f64>,
+    /// The text held more than the codec reads; the value is what came before the cut.
+    pub cut: bool,
+}
+
 /// Where the caret goes when the part takes focus.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
@@ -35,9 +47,9 @@ pub trait Codec {
     /// The value of `text`; `start` is the value when editing began, for relative input.
     fn parse(&self, text: &str, start: &Self::Value) -> Result<Self::Value, NotAValue>;
 
-    /// The value of `text` and the tag of the unit it named (`Reader::read_tagged`); the default names none.
-    fn parse_tagged(&self, text: &str, start: &Self::Value) -> Result<(Self::Value, Option<u32>), NotAValue> {
-        self.parse(text, start).map(|value| (value, None))
+    /// The value of `text` and what the parse learned beside it (`Reader::read_tagged`); the default notes nothing.
+    fn parse_tagged(&self, text: &str, start: &Self::Value) -> Result<(Self::Value, ParseNote), NotAValue> {
+        self.parse(text, start).map(|value| (value, ParseNote::default()))
     }
 
     /// Whether `text` applies as soon as it is typed rather than on commit.
@@ -79,7 +91,7 @@ impl<C: Codec + ?Sized> Codec for &C {
         (**self).parse(text, start)
     }
 
-    fn parse_tagged(&self, text: &str, start: &Self::Value) -> Result<(Self::Value, Option<u32>), NotAValue> {
+    fn parse_tagged(&self, text: &str, start: &Self::Value) -> Result<(Self::Value, ParseNote), NotAValue> {
         (**self).parse_tagged(text, start)
     }
 
@@ -144,6 +156,8 @@ pub struct NumberCodec {
     /// Every decimal place is written, trailing zeros included.
     fixed: bool,
     custom: Option<Custom>,
+    /// Typing rules of a zoom field ([`NumberCodec::zoom_typing`]).
+    zoom: bool,
 }
 
 impl fmt::Debug for NumberCodec {
@@ -152,6 +166,7 @@ impl fmt::Debug for NumberCodec {
             .field("reader", &self.reader)
             .field("decimals", &self.decimals)
             .field("fixed", &self.fixed)
+            .field("zoom", &self.zoom)
             .field("custom", &self.custom.is_some())
             .finish()
     }
@@ -164,7 +179,7 @@ impl PartialEq for NumberCodec {
             (Some(a), Some(b)) => Arc::ptr_eq(a, b),
             _ => false,
         };
-        self.reader == other.reader && self.decimals == other.decimals && self.fixed == other.fixed && same_custom
+        self.reader == other.reader && self.decimals == other.decimals && self.fixed == other.fixed && self.zoom == other.zoom && same_custom
     }
 }
 
@@ -198,7 +213,7 @@ const NUMBER_SAMPLE: &str = "0000.00";
 impl NumberCodec {
     /// A codec reading with `reader` and writing at most `decimals` decimal places.
     pub fn new(reader: Reader, decimals: usize) -> Self {
-        NumberCodec { reader, decimals, fixed: false, custom: None }
+        NumberCodec { reader, decimals, fixed: false, custom: None, zoom: false }
     }
 
     /// The same codec writing every decimal place, trailing zeros included ("1.00"), as a field of a quantity shown
@@ -206,6 +221,13 @@ impl NumberCodec {
     pub fn fixed(mut self) -> Self {
         self.fixed = true;
         self
+    }
+
+    /// The same codec with the typing rules of a zoom field: digits, `/` and the decimal separator, `a/b` as the
+    /// percentage `a ÷ b × 100`, and a second separator cutting the text.
+    pub fn zoom_typing(self) -> Self {
+        let _ = self;
+        todo!("cw.C55")
     }
 
     /// The same codec writing at most `decimals` decimal places.
@@ -274,13 +296,15 @@ impl Codec for NumberCodec {
     }
 
     /// The tag is that of the unit the text named; `None` when it named no tagged unit or a custom parser read it.
-    fn parse_tagged(&self, text: &str, start: &Option<f64>) -> Result<(Option<f64>, Option<u32>), NotAValue> {
+    fn parse_tagged(&self, text: &str, start: &Option<f64>) -> Result<(Option<f64>, ParseNote), NotAValue> {
         if text.trim().is_empty() {
-            return Ok((None, None));
+            return Ok((None, ParseNote::default()));
         }
         match self.reader.read_tagged(text, *start) {
-            Ok((number, tag)) => Ok((Some(number), tag)),
-            Err(rejected) => self.custom.as_ref().and_then(|parse| parse(text.trim())).map(|number| (Some(number), None)).ok_or(rejected),
+            Ok((number, tag)) => Ok((Some(number), ParseNote { unit: tag, ..ParseNote::default() })), // P3(canvas-widgets-w11): cw.N1
+            Err(rejected) => {
+                self.custom.as_ref().and_then(|parse| parse(text.trim())).map(|number| (Some(number), ParseNote::default())).ok_or(rejected)
+            }
         }
     }
 

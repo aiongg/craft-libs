@@ -38,6 +38,13 @@ pub enum SnapKind {
     Selection,
 }
 
+impl SnapKind {
+    /// Whether the target's lines draw in the smart-guide colour: `LayerEdge`, `LayerCenter` and `Center`.
+    pub const fn is_smart(self) -> bool {
+        matches!(self, SnapKind::LayerEdge | SnapKind::LayerCenter | SnapKind::Center)
+    }
+}
+
 impl SnapGesture {
     /// A moving rectangle that was `at_press` when the gesture began.
     pub const fn rect(at_press: Rect) -> Self {

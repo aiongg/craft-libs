@@ -1,6 +1,6 @@
 //! `TypingRun<C>`: the draft, rejected text, commit, cancel, escape rule and limits of a text part (18.2).
 
-use crate::codec::{Codec, NotAValue};
+use crate::codec::{Codec, NotAValue, ParseNote};
 use crate::value::GestureId;
 
 /// The state a [`TypingRun`] keeps per text part.
@@ -135,8 +135,9 @@ impl<C: Codec> TypingRun<C> {
         }
     }
 
-    /// The draft is now `text`: characters the codec refuses and characters past the limit drop out.
-    pub fn edit(&self, run: &mut EditRun<C::Value>, start: &C::Value, text: &str) -> Typed<C::Value> {
+    /// The draft is now `text`: characters the codec refuses and characters past the limit drop out. The `bool`
+    /// is whether the codec's `filter` dropped a character of this edit; characters past the limit do not set it.
+    pub fn edit(&self, run: &mut EditRun<C::Value>, start: &C::Value, text: &str) -> (Typed<C::Value>, bool) {
         if !run.is_open() {
             run.start = start.clone();
         }
@@ -155,7 +156,13 @@ impl<C: Codec> TypingRun<C> {
             _ => Typed::Draft,
         };
         run.draft = Some(draft);
-        typed
+        (typed, false) // P3(canvas-widgets-w11): cw.N2
+    }
+
+    /// Replaces the draft with the codec's normal form of the value it reads; whether it read one.
+    pub fn rewrite(&self, run: &mut EditRun<C::Value>) -> bool {
+        let _ = run;
+        todo!("cw.N2")
     }
 
     /// Commits the draft: a value closes the run, a draft that is no value keeps it open.
@@ -163,19 +170,20 @@ impl<C: Codec> TypingRun<C> {
         self.commit_tagged(run).0
     }
 
-    /// [`commit`](Self::commit), with the tag of the unit the committed text named (`Codec::parse_tagged`).
-    pub fn commit_tagged(&self, run: &mut EditRun<C::Value>) -> (Ended<C::Value>, Option<u32>) {
-        let Some(draft) = run.draft.as_deref() else { return (Ended::Idle, None) };
+    /// [`commit`](Self::commit), with the note of the committed text (`Codec::parse_tagged`); the default note for a
+    /// rejected or idle run.
+    pub fn commit_tagged(&self, run: &mut EditRun<C::Value>) -> (Ended<C::Value>, ParseNote) {
+        let Some(draft) = run.draft.as_deref() else { return (Ended::Idle, ParseNote::default()) };
         match self.codec.parse_tagged(draft, &run.start) {
-            Ok((value, tag)) => {
+            Ok((value, note)) => {
                 run.draft = None;
                 run.error = None;
-                (Ended::Commit(value), tag)
+                (Ended::Commit(value), note)
             }
             Err(error) => {
                 run.error = Some(error);
                 run.rejected = Some((draft.to_owned(), run.start.clone()));
-                (Ended::Rejected, None)
+                (Ended::Rejected, ParseNote::default())
             }
         }
     }
@@ -213,11 +221,11 @@ mod tests {
     fn a_number_run_applies_on_commit_rejects_bad_text_and_restores_on_escape() {
         let typing = TypingRun::new(NumberCodec::default());
         let mut run = EditRun::new(Some(1.0));
-        assert_eq!(typing.edit(&mut run, &Some(1.0), "2+x"), Typed::Draft);
+        assert_eq!(typing.edit(&mut run, &Some(1.0), "2+x").0, Typed::Draft);
         assert_eq!(run.error, Some(NotAValue));
         assert_eq!(typing.commit(&mut run), Ended::Rejected, "the run stays open on a refused commit");
         assert!(run.is_open() && run.rejected.is_some());
-        assert_eq!(typing.edit(&mut run, &Some(1.0), "2+3"), Typed::Draft, "a number applies on commit");
+        assert_eq!(typing.edit(&mut run, &Some(1.0), "2+3").0, Typed::Draft, "a number applies on commit");
         assert_eq!(typing.commit(&mut run), Ended::Commit(Some(5.0)));
         assert_eq!(typing.commit(&mut run), Ended::Idle);
         typing.edit(&mut run, &Some(5.0), "9");

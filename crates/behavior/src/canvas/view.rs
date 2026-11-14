@@ -140,6 +140,13 @@ impl CanvasView {
         self.zoom * self.sx()
     }
 
+    /// The screen size of the box that holds document rect `r` at the view's zoom, rotation,
+    /// aspect and flip: the bounding box of [`CanvasView::quad`].
+    pub fn extent(&self, r: Rect) -> ScreenVec {
+        let _ = r;
+        todo!("cw.C51")
+    }
+
     /// The screen corners of document rect `r`, in order round it: (x0, y0), (x1, y0), (x1, y1),
     /// (x0, y1).
     pub fn quad(&self, r: Rect) -> [Pos2; 4] {

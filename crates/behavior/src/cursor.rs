@@ -85,6 +85,30 @@ pub enum CursorBadge {
     Scissors,
     /// A circle: the pen's point that closes a path.
     Close,
+    /// An arrow: a move mark.
+    Move,
+    /// An arrowhead mark.
+    Arrow,
+    /// The colour-sampler ring with four ticks.
+    Target,
+    /// A continue mark.
+    Continue,
+    /// A count mark: add, move or delete.
+    Count(CountMark),
+    /// The corner-radius mark.
+    Corner,
+}
+
+/// The kind of a [`CursorBadge::Count`] mark.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum CountMark {
+    /// A point is added.
+    Add,
+    /// A point is moved.
+    Move,
+    /// A point is deleted.
+    Delete,
 }
 
 /// A cursor the overlay host paints. Geometry is in screen points around the pointer (a tool scales its brush
@@ -159,6 +183,34 @@ pub enum PaintedCursor {
         /// The screen direction of the edge the arrows run along.
         dir: Vec2,
     },
+    /// The type tool's pointer: an I-beam, over a path when `path`.
+    #[non_exhaustive]
+    TypeOn {
+        /// The text goes on a path.
+        path: bool,
+    },
+    /// A locator mark.
+    Locator,
+    /// An arrow with its tip on the hotspot: solid, or hollow when `hollow`.
+    #[non_exhaustive]
+    Arrow {
+        /// The arrow is drawn hollow.
+        hollow: bool,
+    },
+    /// An I-beam across a path with a filled triangle toward each grabbable side.
+    #[non_exhaustive]
+    PathText {
+        /// The start of the path can be grabbed.
+        start: bool,
+        /// The end of the path can be grabbed.
+        end: bool,
+    },
+    /// A crosshair with the tool's icon below and right of it.
+    #[non_exhaustive]
+    CrosshairTool {
+        /// The icon.
+        icon: IconId,
+    },
     /// No cursor at all.
     Hidden,
 }
@@ -211,6 +263,26 @@ impl PaintedCursor {
     /// The skew pointer along screen direction `dir`.
     pub const fn skew(dir: Vec2) -> Self {
         PaintedCursor::Skew { dir }
+    }
+
+    /// The type tool's pointer, over a path when `path`.
+    pub const fn type_on(path: bool) -> Self {
+        PaintedCursor::TypeOn { path }
+    }
+
+    /// An arrow with its tip on the hotspot, hollow when `hollow`.
+    pub const fn arrow(hollow: bool) -> Self {
+        PaintedCursor::Arrow { hollow }
+    }
+
+    /// An I-beam across the path with a triangle toward each grabbable side.
+    pub const fn path_text(start: bool, end: bool) -> Self {
+        PaintedCursor::PathText { start, end }
+    }
+
+    /// A crosshair with the tool's icon at (+10, +10).
+    pub const fn crosshair_tool(icon: IconId) -> Self {
+        PaintedCursor::CrosshairTool { icon }
     }
 
     /// A system cursor with a mark.

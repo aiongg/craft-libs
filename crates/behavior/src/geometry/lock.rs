@@ -36,6 +36,14 @@ pub fn round_to_direction(angle: f64, directions: Directions) -> f64 {
     (angle / step).round() * step
 }
 
+/// Shift's polygon vertex: `point` moved to the nearest of eight directions from `from`; an axis keeps the
+/// segment's length, a diagonal keeps the shorter offset on both axes. `point` itself for a zero-length or
+/// non-finite offset.
+pub fn polygon_step(from: Point, point: Point) -> Point {
+    let _ = (from, point);
+    todo!("cw.C23")
+}
+
 /// `point` turned about `from` to the nearest multiple of 45°, keeping its distance: the one ⇧ rule for a line, a
 /// handle or a segment drawn from a fixed point. `point` itself when it is on `from` or not finite.
 pub fn turn_to_45(from: Point, point: Point) -> Point {

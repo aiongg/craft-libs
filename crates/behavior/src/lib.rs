@@ -68,7 +68,7 @@ pub use canvas::{CanvasView, RulerUnits, Ticks, ViewHistory, ViewPlace, ZoomLadd
 /// The f64 geometry crate the canvas view and its callers share.
 pub use kurbo;
 
-pub use codec::{Caret, Codec, NotAValue, NumberCodec, PlainText, decimals_for_step};
+pub use codec::{Caret, Codec, NotAValue, NumberCodec, ParseNote, PlainText, decimals_for_step};
 pub use columns::{ColumnKey, ColumnWidth, GridSection, GridView, sub_row_cells};
 pub use command::{CommandFlags, pick_instance, resolve_flags};
 pub use cursor::{Cursor, CursorBadge, CursorIcon, CursorPriority, IconId, PaintedCursor};
@@ -112,7 +112,7 @@ pub use sizing::{ControlMetrics, Metrics, Proposal};
 pub use typing::{EditRun, Ended, EscapeRule, Escaped, Typed, TypingRun};
 pub use value::{Applied, CancelReason, EditEvent, EditEvents, EditPolicy, Gesture, GestureId, GesturePhase, Mixed, Validity, Value};
 pub use value_drag::{DragWarp, ValueDrag, wrap_value};
-pub use wheel::{Wheel, WheelFocus, WheelNotch, WheelPhase, WheelRoom, WheelTaker, WheelUnit};
+pub use wheel::{GESTURE_GAP, Wheel, WheelFocus, WheelGesture, WheelNotch, WheelPhase, WheelRoom, WheelTaker, WheelUnit};
 
 #[cfg(test)]
 extern crate self as craft_behavior;

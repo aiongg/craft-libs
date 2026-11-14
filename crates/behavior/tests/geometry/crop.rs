@@ -1,12 +1,14 @@
 //! The crop frame's geometry: resizing and fitting into the canvas.
 
-use craft_behavior::geometry::{BoxPart, CropBox};
+use craft_behavior::geometry::{AspectHold, BoxPart, CropBox};
 use kurbo::{Point, Rect, Size, Vec2};
 
 #[test]
 fn handles_resize_with_shift_alt_and_a_ratio() {
     let d = Vec2::new;
-    let resize = |r: Rect, part: BoxPart, by: Vec2, ratio: Option<f64>, alt: bool| CropBox::upright(r).resized(part, by, ratio, alt).rect;
+    let resize = |r: Rect, part: BoxPart, by: Vec2, ratio: Option<f64>, alt: bool| {
+        CropBox::upright(r).resized(part, by, ratio.map_or(AspectHold::Free, AspectHold::Ratio), alt).rect
+    }; // P3(tools-w15): tl.T41
     let r = Rect::new(20.0, 20.0, 100.0, 60.0);
     assert_eq!(resize(r, BoxPart::Edge(1), d(20.0, 10.0), None, false), Rect::new(20.0, 20.0, 120.0, 60.0));
     assert_eq!(resize(r, BoxPart::Corner(2), d(40.0, 10.0), None, false), Rect::new(20.0, 20.0, 140.0, 70.0));

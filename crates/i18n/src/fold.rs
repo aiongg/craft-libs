@@ -45,6 +45,11 @@ impl Folder {
         Folder { accents: true, ..self }
     }
 
+    /// Whether the locale is Turkic (`tr`, `az`): `I` folds to `ı` and `İ` to `i`.
+    pub fn turkic(&self) -> bool {
+        self.turkic
+    }
+
     /// `s` folded, with the map back to `s`.
     pub fn fold(&self, s: &str) -> Folded {
         let nfkd = DecomposingNormalizerBorrowed::new_nfkd();

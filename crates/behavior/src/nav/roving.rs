@@ -198,8 +198,16 @@ impl TypeAhead {
     }
 
     /// The entry a prefix picks: the first match from the position after `from` (from `from` itself when the
-    /// prefix is one repeated letter, so repeating a letter cycles), wrapping at the end.
-    pub fn pick<'a>(prefix: &str, from: Option<usize>, len: usize, label: impl Fn(usize) -> std::borrow::Cow<'a, str>) -> Option<usize> {
+    /// prefix is one repeated letter, so repeating a letter cycles), wrapping at the end. `fold` folds the prefix and
+    /// each label before they are compared.
+    pub fn pick<'a>(
+        prefix: &str,
+        from: Option<usize>,
+        len: usize,
+        label: impl Fn(usize) -> std::borrow::Cow<'a, str>,
+        fold: impl Fn(&str) -> String,
+    ) -> Option<usize> {
+        let _ = &fold; // P3(canvas-widgets-w12): cw.C64
         if len == 0 || prefix.is_empty() {
             return None;
         }

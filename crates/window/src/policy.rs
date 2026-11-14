@@ -135,7 +135,7 @@ pub struct Decision {
 /// the desktop's own. A browser draws no frame code ([`Frame::Native`]). A tool window's frame is
 /// [`tool_frame`], whatever `pref` and `env` say.
 pub fn decide(os: Os, runtime: Runtime, backend: Backend, desktop: &Desktop, kind: WindowKind, pref: TitleBarPref, env: Option<&str>) -> Decision {
-    decide_with(&Inputs { os, runtime, backend, desktop, kind, pref, env }, &layout::default_layout)
+    decide_with(&Inputs { os, runtime, backend, desktop, kind, pref, env, caption_style: None, caption_layout: None }, &layout::default_layout)
 }
 
 /// What a decision reads.
@@ -147,12 +147,17 @@ struct Inputs<'a> {
     kind: WindowKind,
     pref: TitleBarPref,
     env: Option<&'a str>,
+    /// The caption family override (`<PREFIX>_CAPTION_STYLE`).
+    caption_style: Option<&'a str>,
+    /// The caption layout override (`<PREFIX>_CAPTION_LAYOUT`).
+    caption_layout: Option<&'a str>,
 }
 
 /// `layout` supplies the caption layout for a desktop kind; it is called only when the frame comes
 /// out integrated.
 fn decide_with(inputs: &Inputs<'_>, layout: &dyn Fn(DesktopKind) -> Layout) -> Decision {
-    let Inputs { os, runtime, backend, desktop, kind, pref, env } = *inputs;
+    let Inputs { os, runtime, backend, desktop, kind, pref, env, caption_style, caption_layout } = *inputs;
+    let _ = (caption_style, caption_layout); // P3(panels-w2): pn.C11
     let overridden = crate::parse_override(env);
     if kind == WindowKind::Tool {
         return Decision { frame: tool_frame(os, runtime), overridden, desktop: desktop.clone() };
@@ -233,7 +238,7 @@ pub fn decide_for_kind(prefix: Prefix, backend: Backend, kind: WindowKind, pref:
     let env = std::env::var(prefix.var_name()).or_else(|_| std::env::var(Prefix::default().var_name())).ok();
     let desktop =
         if os == Os::Linux { Desktop::detect(backend) } else { Desktop { kind: DesktopKind::Other, ssd: None, gtk_theme: None, icon_theme: None } };
-    let inputs = Inputs { os, runtime, backend, desktop: &desktop, kind, pref, env: env.as_deref() };
+    let inputs = Inputs { os, runtime, backend, desktop: &desktop, kind, pref, env: env.as_deref(), caption_style: None, caption_layout: None }; // P3(panels-w2): pn.C11
     decide_with(&inputs, &|kind| desktop_layout(os, kind))
 }
 

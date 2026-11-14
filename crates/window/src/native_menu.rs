@@ -33,11 +33,20 @@ use other as imp;
 
 pub use imp::{hide_app, hide_other_apps, install_app_menu, system_title};
 
-/// Called when an item is chosen: the item's `id` and, when a key-down chose it, the modifiers
-/// held. The platform calls it between frames from the event that chose the item, on the main
+/// Called when an item is chosen: the item's `id` and how it was chosen ([`Chosen`]). The platform calls it between frames from the event that chose the item, on the main
 /// thread. An id the app does not know belongs to a platform item (Services, Zoom, …), which the
 /// platform already handled.
-pub type Handler = Arc<dyn Fn(&str, Option<Held>) + Send + Sync>;
+pub type Handler = Arc<dyn Fn(&str, Chosen) + Send + Sync>;
+
+/// How a menu item was chosen: by a key equivalent or a click, and the modifiers held then.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Chosen {
+    /// A key-down chose the item.
+    pub key_down: bool,
+    /// The modifiers held when it was chosen.
+    pub held: Held,
+}
 
 /// The modifier keys held with a key-down.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

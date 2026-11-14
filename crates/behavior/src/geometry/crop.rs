@@ -24,6 +24,27 @@ pub struct CropBox {
     pub angle: f64,
 }
 
+/// What a resize holds about the frame's proportions.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum AspectHold {
+    /// No proportion held.
+    Free,
+    /// The set ratio, width over height.
+    Ratio(f64),
+    /// The box's own ratio, the corner following the diagonal (Shift on a corner with no set ratio).
+    Diagonal,
+}
+
+impl AspectHold {
+    /// The ratio the current resize reads; `Diagonal` holds none until tl.T41 is written.
+    fn ratio(self) -> Option<f64> {
+        match self {
+            AspectHold::Ratio(r) => Some(r),
+            AspectHold::Free | AspectHold::Diagonal => None,
+        }
+    }
+}
+
 impl CropBox {
     /// The frame `rect` turned `angle` degrees about its centre.
     pub const fn new(rect: Rect, angle: f64) -> Self {
@@ -137,7 +158,8 @@ impl CropBox {
     /// the page (or the centre with `alt`), `ratio` (width over height) held. A part that is not a corner or an
     /// edge leaves the frame as it is.
     #[must_use]
-    pub fn resized(&self, part: BoxPart, by: Vec2, ratio: Option<f64>, alt: bool) -> Self {
+    pub fn resized(&self, part: BoxPart, by: Vec2, hold: AspectHold, alt: bool) -> Self {
+        let ratio = hold.ratio(); // P3(tools-w15): tl.T41
         match part_handle(part) {
             Some((hx, hy)) => resized_turned(self, hx, hy, by, ratio, alt),
             None => *self,
@@ -148,7 +170,8 @@ impl CropBox {
     /// frame about its centre, so the handle stays under the pointer while the frame stays centred on screen. The
     /// opposite edge stays put on the image (the centre with `alt`), so the frame's centre moves by the difference
     /// and the view follows it. `None` when the result is not finite or `part` is not a corner or an edge.
-    pub fn resized_centred(&self, part: BoxPart, by: Vec2, ratio: Option<f64>, alt: bool) -> Option<Self> {
+    pub fn resized_centred(&self, part: BoxPart, by: Vec2, hold: AspectHold, alt: bool) -> Option<Self> {
+        let ratio = hold.ratio(); // P3(tools-w15): tl.T41
         let (hx, hy) = part_handle(part)?;
         let r = self.rect.abs();
         let (w0, h0) = (r.width(), r.height());

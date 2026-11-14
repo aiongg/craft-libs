@@ -29,7 +29,7 @@ use objc2::{MainThreadMarker, sel};
 use objc2_app_kit::{NSApplication, NSEventModifierFlags, NSEventType};
 use objc2_foundation::{NSBundle, NSLocale, NSObjectProtocol, NSString};
 
-use super::{Bar, Handler, Held, Item, Menu, MenuKind, Node, Options, Platform, Shortcut};
+use super::{Bar, Chosen, Handler, Held, Item, Menu, MenuKind, Node, Options, Platform, Shortcut};
 
 /// Set by [`Installed::install`]: there is one full menu bar per process.
 static INSTALLED: AtomicBool = AtomicBool::new(false);
@@ -70,7 +70,10 @@ fn handle_event(e: MenuEvent) {
     // A copy, so nothing is locked while the app's handler runs.
     let handler = lock(&ROUTE).clone();
     if let Some(handler) = handler {
-        handler(e.id.as_ref(), held);
+        let mut chosen = Chosen::default(); // P3(top-w1): tp.T6
+        chosen.key_down = held.is_some();
+        chosen.held = held.unwrap_or_default();
+        handler(e.id.as_ref(), chosen);
     }
 }
 

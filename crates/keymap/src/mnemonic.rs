@@ -2,17 +2,20 @@
 //!
 //! A label's `&` marker, written in its words row (`&File`), names the letter. Without one the letter is the
 //! label's first letter not yet used in the level, so a translated label needs no extra work. Letters are ASCII
-//! letters and digits, the keys the keyboard reports as such, and upper case.
+//! letters and digits, the keys the keyboard reports as such, and upper case in the folder's language.
+
+use craft_i18n::Folder;
 
 /// The label without its `&` marker, and the letter the first marker names. `&&` is a literal ampersand, a
 /// marker before something other than an ASCII letter or digit names no letter, and later markers are dropped.
-pub fn marked(label: &str) -> (String, Option<char>) {
-    let (text, mark) = marked_at(label);
+pub fn marked(label: &str, folder: &Folder) -> (String, Option<char>) {
+    let (text, mark) = marked_at(label, folder);
     (text, mark.map(|(letter, _)| letter))
 }
 
 /// [`marked`] with the character index of the marked letter in the returned text.
-pub fn marked_at(label: &str) -> (String, Option<(char, usize)>) {
+pub fn marked_at(label: &str, folder: &Folder) -> (String, Option<(char, usize)>) {
+    let _ = folder; // P3(top-w2): tp.T9
     let mut text = String::with_capacity(label.len());
     let mut mark = None;
     let mut at = 0;
@@ -37,8 +40,8 @@ pub fn marked_at(label: &str) -> (String, Option<(char, usize)>) {
 /// without its markers. A `&` marker wins; a label whose marked letter an earlier label holds, and a label without a
 /// marker, takes the first letter or digit of its text not yet used, trying the first character of each word before
 /// the others.
-pub fn assign(labels: &[&str]) -> Vec<Option<(char, usize)>> {
-    let parsed: Vec<(String, Option<(char, usize)>)> = labels.iter().map(|label| marked_at(label)).collect();
+pub fn assign(labels: &[&str], folder: &Folder) -> Vec<Option<(char, usize)>> {
+    let parsed: Vec<(String, Option<(char, usize)>)> = labels.iter().map(|label| marked_at(label, folder)).collect();
     let mut used: Vec<char> = Vec::new();
     let mut out: Vec<Option<(char, usize)>> = Vec::with_capacity(parsed.len());
     for (_, mark) in &parsed {

@@ -5,7 +5,7 @@
 mod work_area;
 
 #[cfg(feature = "ui")]
-pub use work_area::{TASKBAR, fits};
+pub use work_area::{TASKBAR, WindowState, fits, visible_part};
 
 pub use craft_host::target::{Backend, DesktopKind};
 
