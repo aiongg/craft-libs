@@ -284,7 +284,7 @@ pub struct AppShell<'a, S> {
     /// The window's title: the shell sends `WindowAction::SetTitle` when it differs from the title the viewport
     /// reports. Not in an embedded shell.
     #[prop(into)]
-    #[allow(dead_code)] // P3(panels-w10): pn.C10
+    #[allow(dead_code)] // P3(panels-w2): pn.C10
     window_title: Option<String>,
     /// The name of the body region; the translated "Document" without it.
     #[prop(into)]
@@ -423,7 +423,7 @@ impl<'a, S> AppShell<'a, S> {
             allow_reveal,
             edge_reveal,
             document_tabs,
-            window_title: _, // P3(panels-w10): pn.C10
+            window_title: _, // P3(panels-w2): pn.C10
             body_label,
             title,
             slots,

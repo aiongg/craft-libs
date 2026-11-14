@@ -9,7 +9,7 @@ use egui::{Response, Ui};
 #[must_use = "show the button with `show`"]
 #[derive(crate::contract::Pattern)]
 pub struct ScreenModeButton {
-    #[allow(dead_code)] // P3(panels-w10): pn.C16
+    #[allow(dead_code)] // P3(panels-w2): pn.C16
     mode: ScreenMode,
 }
 
