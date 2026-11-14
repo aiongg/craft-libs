@@ -21,6 +21,9 @@ pub enum PreviewLane {
     Dialog,
     /// A Properties-panel drag on an adjustment layer: tag `1 << 58`, session 18 bits (40..58).
     Properties,
+    /// A canvas tool's preview while dragged or held (Content-Aware Move, Patch): tag `1 << 57`, session 17 bits
+    /// (40..57).
+    Tool,
 }
 
 impl PreviewLane {
@@ -32,6 +35,7 @@ impl PreviewLane {
         match self {
             PreviewLane::Dialog => (59, 19),
             PreviewLane::Properties => (58, 18),
+            PreviewLane::Tool => (57, 17),
         }
     }
 }
@@ -47,6 +51,13 @@ impl PreviewLane {
 pub struct PreviewKey(u64);
 
 impl PreviewKey {
+    /// The display key of progressive stage `n` (1..=7) of a result of the same settings: bit 0 cleared and `n` in bits
+    /// 1..=3, so it never equals a settings key.
+    #[must_use]
+    pub fn stage(self, n: u8) -> PreviewKey {
+        PreviewKey((self.0 & !0xF) | (u64::from(n & 7) << 1))
+    }
+
     /// The bits from 40 up: the lane's tag and the session's low bits. Equal for the keys of one
     /// session and lane.
     pub(super) const SESSION_SHIFT: u32 = 40;

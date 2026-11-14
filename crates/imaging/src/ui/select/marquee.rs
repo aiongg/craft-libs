@@ -255,7 +255,7 @@ impl CanvasTool for SelectToolPass<'_, MarqueeTool> {
         {
             let id = tool.report.gesture();
             let label = cx.words::<SelectWords>().move_selection.as_str().into();
-            let (drag, event) = InsideDrag::begin(&ConstrainStyle::new(f64::from(cx.slop), f64::from(cx.slop)), kind, at, pointer.mods, id, label);
+            let (drag, event) = InsideDrag::begin(&ConstrainStyle::new(f64::from(cx.slop), f64::from(cx.slop)), kind, at, pointer.mods, id, label, None);
             tool.inside = Some(drag);
             tool.report.push(event);
             return ToolAction::Claimed;
@@ -287,7 +287,7 @@ impl CanvasTool for SelectToolPass<'_, MarqueeTool> {
         let tool = &mut *self.tool;
         let Some(place) = Place::of(cx) else { return };
         if let Some(inside) = tool.inside.as_mut() {
-            if let Some(event) = inside.drag(cx.snap(place.doc(pointer.pos)), pointer.mods, place.zoom()) {
+            if let Some(event) = inside.drag(cx.snap(place.doc(pointer.pos)), pointer.mods, place.zoom(), &mut |_| kurbo::Vec2::ZERO) {
                 tool.report.push(event);
             }
             return;
@@ -307,7 +307,7 @@ impl CanvasTool for SelectToolPass<'_, MarqueeTool> {
         let Some(place) = Place::of(cx) else { return };
         let at = cx.snap(place.doc(pointer.pos));
         if let Some(inside) = tool.inside.take() {
-            tool.report.push(inside.end(at, pointer.mods, place.zoom()));
+            tool.report.push(inside.end(at, pointer.mods, place.zoom(), &mut |_| kurbo::Vec2::ZERO));
             return;
         }
         tool.follow(pointer, at, cx.held(Key::Space));

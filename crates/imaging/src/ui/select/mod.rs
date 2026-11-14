@@ -52,8 +52,9 @@ mod polygon;
 #[cfg(feature = "screen-testing")]
 pub(crate) mod stories;
 
+pub mod operations;
 pub use drag::{InsideDrag, PressRule, cursor_over, drag_kind};
-pub use lasso::LassoTool;
+pub use lasso::{LassoTool, paint_outline};
 pub use magnetic::{EdgeSearch, EdgeTracer, MagneticLassoTool, MagneticSettings};
 pub use marquee::{MarqueeKind, MarqueeTool};
 pub use polygon::PolygonLassoTool;
@@ -209,6 +210,12 @@ pub trait SelectionProbe {
 
     /// Whether document point `at` is inside the selection (coverage above 0).
     fn inside_selection(&self, at: Point) -> bool;
+
+    /// The selection's content bounds in document units, for snapping a dragged selection's box; the default leaves a
+    /// drag unsnapped.
+    fn bounds(&self) -> Option<kurbo::Rect> {
+        None
+    }
 
     /// Whether a floating piece (pixels lifted by a selection drag, not yet dropped) is on the canvas. Default: none.
     fn floating(&self) -> bool {

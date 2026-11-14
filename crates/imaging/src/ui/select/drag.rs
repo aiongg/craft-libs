@@ -99,7 +99,16 @@ pub struct InsideDrag {
 impl InsideDrag {
     /// Starts a `kind` drag named `id` at `at` (document units): the gesture and the `Begin` event, which names the
     /// undo step `label`.
-    pub fn begin(style: &ConstrainStyle, kind: DragKind, at: Point, mods: Mods, id: GestureId, label: Arc<str>) -> (InsideDrag, SelectEvent) {
+    pub fn begin(
+        style: &ConstrainStyle,
+        kind: DragKind,
+        at: Point,
+        mods: Mods,
+        id: GestureId,
+        label: Arc<str>,
+        bounds: Option<kurbo::Rect>,
+    ) -> (InsideDrag, SelectEvent) {
+        let _ = bounds; // P3(canvas-widgets-w10): cw.C20
         let gesture = MoveGesture::press(style, at, mods, Directions::Eight);
         let event = SelectEvent::DragSelection(EditEvent::begin(id, Mixed::Same(SelectionDrag { kind, delta: [0, 0] }), label, None));
         (InsideDrag { kind, id, gesture, last: [0, 0] }, event)
@@ -113,7 +122,8 @@ impl InsideDrag {
     /// The pointer moved to `at` at `zoom` screen points per document unit: an `Update` when the whole-pixel delta
     /// changed. The delta is the gesture's offset rounded per axis and clamped to 10^7; the gesture's own Alt copy is
     /// ignored (the copy is latched in `kind`).
-    pub fn drag(&mut self, at: Point, mods: Mods, zoom: f64) -> Option<SelectEvent> {
+    pub fn drag(&mut self, at: Point, mods: Mods, zoom: f64, snap: &mut dyn FnMut(kurbo::Rect) -> Vec2) -> Option<SelectEvent> {
+        let _ = snap; // P3(canvas-widgets-w10): cw.C20
         let delta = whole_pixels(self.gesture.follow(at, mods, zoom)?.delta);
         if delta == self.last {
             return None;
@@ -123,7 +133,8 @@ impl InsideDrag {
     }
 
     /// The release: the `Commit`. A delta of 0 means nothing moved.
-    pub fn end(self, at: Point, mods: Mods, zoom: f64) -> SelectEvent {
+    pub fn end(self, at: Point, mods: Mods, zoom: f64, snap: &mut dyn FnMut(kurbo::Rect) -> Vec2) -> SelectEvent {
+        let _ = snap; // P3(canvas-widgets-w10): cw.C20
         let after = SelectionDrag { kind: self.kind, delta: whole_pixels(self.gesture.release(at, mods, zoom).delta) };
         let before = SelectionDrag { kind: self.kind, delta: [0, 0] };
         SelectEvent::DragSelection(EditEvent::commit(self.id, Mixed::Same(before), after))

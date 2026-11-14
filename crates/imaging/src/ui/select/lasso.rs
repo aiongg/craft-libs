@@ -75,7 +75,7 @@ pub(super) fn cursor(shown: &LassoCursor<'_>, probe: &dyn SelectionProbe, cx: &T
 }
 
 /// The outline as marching ants and, between straight segments, the rubber band.
-pub(super) fn paint_outline(draft: &OutlineDraft, draw: &Draw<'_>, cx: &ToolContext<'_>) {
+pub fn paint_outline(draft: &OutlineDraft, draw: &Draw<'_>, cx: &ToolContext<'_>) {
     let Some(place) = Place::of(cx) else { return };
     let points: Vec<Pos2> = draft.points().iter().map(|&at| place.screen(at)).collect();
     if points.len() >= 2 {
@@ -112,7 +112,7 @@ pub(super) fn begin_inside(
     let id = report.gesture();
     let label = cx.words::<SelectWords>().move_selection.as_str().into();
     let style = ConstrainStyle::new(f64::from(cx.slop), f64::from(cx.slop));
-    let (drag, event) = InsideDrag::begin(&style, kind, place.doc(pointer.pos), pointer.mods, id, label);
+    let (drag, event) = InsideDrag::begin(&style, kind, place.doc(pointer.pos), pointer.mods, id, label, None);
     *inside = Some(drag);
     report.push(event);
 }
@@ -311,7 +311,7 @@ impl CanvasTool for SelectToolPass<'_, LassoTool> {
         let (tool, probe) = (&mut *self.tool, self.probe);
         let Some(place) = Place::of(cx) else { return };
         if let Some(inside) = tool.inside.as_mut() {
-            if let Some(event) = inside.drag(place.doc(pointer.pos), pointer.mods, place.zoom()) {
+            if let Some(event) = inside.drag(place.doc(pointer.pos), pointer.mods, place.zoom(), &mut |_| kurbo::Vec2::ZERO) {
                 tool.report.push(event);
             }
             return;
@@ -326,7 +326,7 @@ impl CanvasTool for SelectToolPass<'_, LassoTool> {
         let (tool, probe) = (&mut *self.tool, self.probe);
         let Some(place) = Place::of(cx) else { return };
         if let Some(inside) = tool.inside.take() {
-            tool.report.push(inside.end(place.doc(pointer.pos), pointer.mods, place.zoom()));
+            tool.report.push(inside.end(place.doc(pointer.pos), pointer.mods, place.zoom(), &mut |_| kurbo::Vec2::ZERO));
             return;
         }
         let event = tool.draft.release(sample(pointer, &place));

@@ -161,7 +161,7 @@ impl CanvasTool for SelectToolPass<'_, PolygonLassoTool> {
         let (tool, probe) = (&mut *self.tool, self.probe);
         let Some(place) = Place::of(cx) else { return };
         if let Some(inside) = tool.inside.as_mut() {
-            if let Some(event) = inside.drag(place.doc(pointer.pos), pointer.mods, place.zoom()) {
+            if let Some(event) = inside.drag(place.doc(pointer.pos), pointer.mods, place.zoom(), &mut |_| kurbo::Vec2::ZERO) {
                 tool.report.push(event);
             }
             return;
@@ -175,7 +175,7 @@ impl CanvasTool for SelectToolPass<'_, PolygonLassoTool> {
         let (tool, probe) = (&mut *self.tool, self.probe);
         let Some(place) = Place::of(cx) else { return };
         if let Some(inside) = tool.inside.take() {
-            tool.report.push(inside.end(place.doc(pointer.pos), pointer.mods, place.zoom()));
+            tool.report.push(inside.end(place.doc(pointer.pos), pointer.mods, place.zoom(), &mut |_| kurbo::Vec2::ZERO));
             return;
         }
         let event = tool.draft.release(sample(pointer, &place));

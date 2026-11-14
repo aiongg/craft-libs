@@ -51,6 +51,7 @@ pub struct HistogramSet<'a> {
     pub(crate) colors: Option<ChannelOverlay>,
     pub(crate) stale: bool,
     pub(crate) cache_level: u32,
+    pub(crate) pixels: Option<u64>,
 }
 
 impl<'a> ScopeChannel<'a> {
@@ -73,7 +74,14 @@ impl<'a> HistogramSet<'a> {
     /// Luminosity; Lightness, a, b, Luminosity; Gray).
     // pc: crates/ui-egui/src/panels/histogram_panel.rs:123 `channel_options`.
     pub fn new(channels: &'a [ScopeChannel<'a>]) -> Self {
-        Self { channels, original: None, colors: None, stale: false, cache_level: 1 }
+        Self { channels, original: None, colors: None, stale: false, cache_level: 1, pixels: None }
+    }
+
+    /// The Pixels row shows the host's `total` (transparent pixels included); the other statistics stay on the bins.
+    #[must_use]
+    pub fn pixels(mut self, total: u64) -> Self {
+        self.pixels = Some(total);
+        self
     }
 
     /// The histograms before the adjustment that previews now: each channel's original is outlined
