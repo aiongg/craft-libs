@@ -3,7 +3,7 @@
 
 use std::ops::RangeInclusive;
 
-use super::{LiveShape, ShapeAppearance, ShapeChange, ShapeWords};
+use super::{RADIUS_RANGE, LiveShape, ShapeAppearance, ShapeChange, ShapeWords};
 use crate::ui::stroke::StrokeButton;
 use craft_behavior::{EditEvent, EditEvents, NumberCodec};
 use craft_color::ui::{Paint, PaintChip, PaintChipOutput, ScreenPickGesture};
@@ -11,6 +11,7 @@ use craft_theme::Srgba;
 use craft_ui::contract::{Bind, GlyphLabel, LabelKind, LabelScheme, Props as _, Show as _, ShowContainer as _, SideLabel};
 use craft_ui::form::{Field, FieldGroup};
 use craft_ui::layout_components::Row;
+use craft_ui::runtime::requests::ColorRequest;
 use craft_ui::runtime::env::{Env, Label, LengthUnits, UnitKind, Units, with_env};
 use craft_ui::sections::Section;
 use craft_ui::text::NumberField;
@@ -46,6 +47,8 @@ pub struct ShapePanelOutput {
     /// A chip's screen eyedropper was pressed: the host samples the screen and answers with
     /// [`ShapePanel::sampled`].
     pub screen_pick: Option<(ShapePaint, ScreenPickGesture)>,
+    /// A chip asked for the app's full colour picker, with the chip it is for.
+    pub pick_color: Option<(ShapePaint, ColorRequest)>,
 }
 
 /// A shape layer's Properties sections, as PhotoCraft's `shape_properties`.
@@ -73,6 +76,7 @@ pub struct ShapePanel<'a> {
     sections: (bool, bool),
     sampled: Option<(ShapePaint, Srgba)>,
     pixels_per_inch: f64,
+    arrow_default: Option<Bind<'a, bool>>,
 }
 
 impl<'a> ShapePanel<'a> {
@@ -89,7 +93,14 @@ impl<'a> ShapePanel<'a> {
             sections: (true, true),
             sampled: None,
             pixels_per_inch,
+            arrow_default: None,
         }
+    }
+
+    /// The link that makes the Arrowheads defaults follow the panel's edits.
+    pub fn arrow_default(mut self, linked: Bind<'a, bool>) -> Self {
+        self.arrow_default = Some(linked);
+        self
     }
 
     /// The Stroke style popover's open flag, kept by the app between passes. Without it the button is not shown.
@@ -125,7 +136,8 @@ impl<'a> ShapePanel<'a> {
 
     /// Adds the sections to `ui` and reports the changed fields.
     pub fn show(self, ui: &mut Ui) -> ShapePanelOutput {
-        let ShapePanel { label, shape, appearance, stroke_open, chips, fallbacks, sections, sampled, pixels_per_inch } = self;
+        let ShapePanel { label, shape, appearance, stroke_open, chips, fallbacks, sections, sampled, pixels_per_inch, arrow_default } = self;
+        let _ = arrow_default; // P3(tools-w8): tl.T28
         let env = Env::of(ui);
         let (words, units) = (env.words::<ShapeWords>(), env.units());
         let mut pass = Cells::new(&words, &units, pixels_per_inch, appearance, fallbacks, sampled, chips);
@@ -151,7 +163,7 @@ impl<'a> ShapePanel<'a> {
         } else {
             body(ui);
         }
-        ShapePanelOutput { events: pass.events, screen_pick: pass.screen_pick }
+        ShapePanelOutput { events: pass.events, screen_pick: pass.screen_pick, pick_color: None }
     }
 }
 
@@ -433,8 +445,8 @@ impl<'p, 'a> Cells<'p, 'a> {
                 let ratio = NumberCell::percent(units, "star-ratio", &words.star_ratio, star_ratio * 100.0, RATIO_PERCENT);
                 self.number_row(ui, ratio, |percent| ShapeChange::StarRatio(percent / 100.0));
             }
-            LiveShape::Line { weight } => {
-                let cell = NumberCell::pixels(units, ppi, "weight", &words.weight, *weight, 1.0..=10_000.0);
+            LiveShape::Line { weight, .. } => {
+                let cell = NumberCell::pixels(units, ppi, "weight", &words.weight, *weight, super::LINE_WEIGHT_RANGE);
                 self.number_row(ui, cell, ShapeChange::Weight);
             }
         }
@@ -451,7 +463,8 @@ const STROKE_WIDTH_MAX: f64 = 288.0;
 /// The range of a shape's width and height in whole pixels.
 const SIZE_RANGE: RangeInclusive<f64> = 1.0..=300_000.0;
 /// The range of a corner radius in pixels.
-const RADIUS_RANGE: RangeInclusive<f64> = 0.0..=100_000.0;
+#[allow(dead_code)] // P3(tools-w8): tl.T27
+const RADIUS_RANGE_OLD: RangeInclusive<f64> = 0.0..=100_000.0;
 /// The number of sides of a polygon or points of a star.
 pub(super) const SIDES_RANGE: RangeInclusive<f64> = 3.0..=100.0;
 /// The star ratio in percent.

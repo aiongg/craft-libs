@@ -38,7 +38,7 @@ impl PenTool {
             draft.reflow();
             self.change(draft);
             self.commit();
-            self.finish();
+            self.finish(super::tool::PenEnd::Closed); // P3(tools-w9): tl.T31
             return ToolAction::Done;
         }
         let index = match under {

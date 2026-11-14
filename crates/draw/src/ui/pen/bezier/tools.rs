@@ -3,7 +3,7 @@
 
 use craft_keymap::Mods;
 
-use super::{BezierHit, BezierTool, Report};
+use super::{AnchorDelete, BezierHit, BezierTool, Report};
 
 impl BezierTool {
     /// The tool a press acts as: [`BezierTool::AddAnchor`] and [`BezierTool::DeleteAnchor`] swap while ⌥ is held;
@@ -70,7 +70,7 @@ pub(super) fn anchor_click(tool: BezierTool, hit: BezierHit, mods: Mods, report:
     // pc: crates/ui-egui/src/tools/anchor_tools.rs:88-114 `pointer`, `click`; :130-150 `apply`.
     match (hit, tool.acting(mods)) {
         (BezierHit::Segment { path, segment, t }, BezierTool::AddAnchor | BezierTool::AutoAddDelete) => report.insert = Some((path, segment, t)),
-        (BezierHit::Anchor { path, knot }, BezierTool::DeleteAnchor | BezierTool::AutoAddDelete) => report.delete = Some((path, vec![knot])),
+        (BezierHit::Anchor { path, knot }, BezierTool::DeleteAnchor | BezierTool::AutoAddDelete) => report.delete = Some(AnchorDelete::new(path, vec![knot], false)), // P3(tools-w9): tl.T32
         _ => {}
     }
 }

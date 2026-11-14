@@ -37,7 +37,7 @@ use hit_test::{Shown, nearest_on_screen, shown_handles};
 pub(crate) use mark::paint_mark;
 pub use mark::{AnchorsShown, HitMark, SegmentMark};
 use mark::{Fill, paint_handle, segment_path, stroke};
-pub use model::{EditPath, EditSubpath, HandleSide, Knot, KnotRef, PathEdit, PathSelection};
+pub use model::{AnchorDelete, EditPath, EditSubpath, HandleSide, Knot, KnotRef, PathEdit, PathSelection};
 pub use style::BezierStyle;
 pub use words::BezierWords;
 
@@ -167,7 +167,7 @@ struct Report {
     change: Option<PathEdit>,
     select: Option<PathSelection>,
     insert: Option<(u64, KnotRef, f64)>,
-    delete: Option<(u64, Vec<KnotRef>)>,
+    delete: Option<AnchorDelete>,
     context: Option<(BezierHit, Pos2)>,
     hover: Option<BezierHit>,
 }
@@ -859,7 +859,7 @@ impl<'a> BezierOverlay<'a> {
             && let Some(path) = self.selection.path
             && !self.selection.anchors.is_empty()
         {
-            self.report.delete = Some((path, self.selection.anchors.clone()));
+            self.report.delete = Some(AnchorDelete::new(path, self.selection.anchors.clone(), false)); // P3(tools-w9): tl.T32
         }
         if keyed && cx.gesture().is_none() && cx.intents().take(Intent::Cancel) && *self.selection != PathSelection::default() {
             self.report.select = Some(PathSelection::default());
@@ -938,7 +938,10 @@ pub struct BezierOutput {
     /// anchor tool on a segment, or Insert on a picked anchor (`t` 0.5).
     pub insert: Option<(u64, KnotRef, f64)>,
     /// Delete or Backspace: remove these anchors of a path (Delete Anchor Point).
-    pub delete: Option<(u64, Vec<KnotRef>)>,
+    /// Delete or Backspace: remove these anchors of a path (Delete Anchor Point).
+    pub delete: Option<AnchorDelete>,
+    /// A press landed on empty canvas, outside every path.
+    pub pressed_empty: bool,
     /// A secondary click on a part of a path, with its screen position, for the host's path menu.
     pub context: Option<(BezierHit, Pos2)>,
     /// The part under the pointer.
@@ -965,6 +968,7 @@ impl Component for BezierOverlay<'_> {
         .with_moves()
         .with_deletes()
         .with_submits()
+        .with_session()
         .with_chrome_key(false)
         .with_edits(EditSet::NONE.with(EditCommand::SelectAll))
         .with_claims(&[INSERT]);
@@ -1147,6 +1151,6 @@ impl Component for BezierOverlay<'_> {
 
     fn finish(self, cx: Cx<'_, Self>) -> BezierOutput {
         let Report { change, select, insert, delete, context, hover } = self.report;
-        BezierOutput { edit: cx.edit_response(), change, select, insert, delete, context, hover }
+        BezierOutput { edit: cx.edit_response(), change, select, insert, delete, pressed_empty: false, context, hover } // P3(tools-w9): tl.T32
     }
 }

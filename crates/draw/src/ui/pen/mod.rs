@@ -13,10 +13,10 @@ mod tool;
 mod words;
 
 pub use bezier::{
-    AnchorsShown, BezierHit, BezierOutput, BezierOverlay, BezierStyle, BezierTool, BezierWords, EditPath, EditSubpath, HandleSide, HandlesShown,
+    AnchorDelete, AnchorsShown, BezierHit, BezierOutput, BezierOverlay, BezierStyle, BezierTool, BezierWords, EditPath, EditSubpath, HandleSide, HandlesShown,
     HitMark, Knot, KnotRef, MAX_ANCHORS, PathEdit, PathSelection, SegmentMark,
 };
 pub use mode::{PathMode, PathTool, PenMode};
 pub use options::{PATH_OPTIONS_COLOR_KEY, PathOptionsOutput, PathOptionsPopover, PathOptionsSettings, PathOptionsWords};
-pub use tool::{PenEvent, PenStyle, PenTool};
+pub use tool::{PenEnd, PenEvent, PenStyle, PenTool};
 pub use words::PenWords;

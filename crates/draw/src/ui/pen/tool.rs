@@ -20,6 +20,24 @@ use egui::{CornerRadius, Pos2, Rect, Vec2};
 /// The side of the box a tool icon is drawn on; an icon's hotspot is in these units.
 const ICON_BOX: f32 = 24.0;
 
+/// Why a draft ended.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum PenEnd {
+    /// Enter or a tool switch committed it.
+    Submit,
+    /// Escape ended it.
+    Escape,
+    /// The path was closed.
+    Closed,
+    /// Its only anchor was removed.
+    Removed,
+    /// Something else interrupted it (focus loss, a command).
+    Interrupted,
+    /// The draft was discarded back to the run's start.
+    Discarded,
+}
+
 /// What the pen reports to the host, drained with [`PenTool::take_events`].
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
@@ -33,7 +51,7 @@ pub enum PenEvent {
     Edit(EditEvent<EditSubpath>),
     /// The pen ended the draft (Enter, Escape, closing it, removing its only anchor, an interruption): the host
     /// stops handing it in. It follows the draft's `Commit` or `Cancel`.
-    Finished,
+    Finished(PenEnd),
     /// A press on the end point of an open path while no draft is open: the host makes that path's subpath the draft
     /// with the knot of that end last (reversing it for its first knot).
     Resumed(u64, KnotRef),
@@ -193,6 +211,24 @@ impl PenTool {
         self
     }
 
+    /// Ends the run with `Edit(Cancel)` back to the run's start, then `Finished(Discarded)`; false when no run is
+    /// open.
+    pub fn discard(&mut self) -> bool {
+        todo!("tl.T31")
+    }
+
+    /// The number of leading anchors of the draft that are kept when the draft is rebuilt.
+    pub fn kept(&mut self, kept: usize) -> &mut Self {
+        let _ = kept;
+        todo!("tl.T31")
+    }
+
+    /// Replaces the draft with `draft` while a run is open; false when none is.
+    pub fn replace(&mut self, draft: &EditSubpath) -> bool {
+        let _ = draft;
+        todo!("tl.T31")
+    }
+
     /// The Pen or the Curvature Pen; [`PenMode::Pen`] by default.
     pub fn mode(&mut self, mode: PenMode) -> &mut Self {
         self.mode = mode;
@@ -278,7 +314,7 @@ impl PenTool {
     /// Ends a draft too short to be a path. The gesture's start is what the host holds of the draft: when that is
     /// empty a cancel leaves nothing behind; when it holds anchors (a resumed path) the empty draft is committed, so
     /// the host removes them.
-    fn discard(&mut self, reason: CancelReason) {
+    fn discard_short(&mut self, reason: CancelReason) {
         let Some(run) = self.run.take() else { return };
         if run.before.knots.is_empty() {
             self.events.push(PenEvent::Edit(EditEvent::cancel(run.id, reason, Some(Mixed::Same(run.before)))));
@@ -290,8 +326,8 @@ impl PenTool {
     }
 
     /// The draft is over: reports `Finished` and starts clean.
-    pub(super) fn finish(&mut self) {
-        self.events.push(PenEvent::Finished);
+    pub(super) fn finish(&mut self, end: PenEnd) {
+        self.events.push(PenEvent::Finished(end));
         self.shown = EditSubpath::default();
         self.run = None;
         self.drag = None;
@@ -301,17 +337,18 @@ impl PenTool {
     /// Ends the draft open: a path of two anchors or more is kept, a shorter one discarded.
     fn end(&mut self, reason: CancelReason) {
         if self.shown.knots.len() < 2 {
-            self.discard(reason);
+            self.discard_short(reason);
         } else {
             self.commit();
         }
-        self.finish();
+        // P3(tools-w9): tl.T31
+        self.finish(if reason == CancelReason::Escape { PenEnd::Escape } else { PenEnd::Interrupted });
     }
 
     fn remove_last_anchor(&mut self, reason: CancelReason) {
         if self.shown.knots.len() <= 1 {
-            self.discard(reason);
-            self.finish();
+            self.discard_short(reason);
+            self.finish(PenEnd::Removed);
             return;
         }
         let mut draft = self.shown.clone();
@@ -491,7 +528,7 @@ impl CanvasTool for PenTool {
             draft.closed = true;
             self.change(draft);
             self.commit();
-            self.finish();
+            self.finish(PenEnd::Closed); // P3(tools-w9): tl.T31
         }
     }
 

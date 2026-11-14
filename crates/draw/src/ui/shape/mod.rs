@@ -1,6 +1,8 @@
 //! The shape layer's Properties sections ([`ShapePanel`]) and the Shape tools' options bar
 //! ([`ShapeBar`]), each field a gesture-aware [`EditEvent<ShapeChange>`](craft_behavior::EditEvent).
 
+use std::ops::RangeInclusive;
+
 use craft_color::ui::Paint;
 use serde::{Deserialize, Serialize};
 
@@ -8,15 +10,76 @@ use crate::stroke::StrokeStyle;
 
 use super::shape_drag::{ShapeDragOptions, ShapeKind};
 
+mod arrowheads;
 mod bar;
+mod mode_select;
 mod panel;
+mod stroke_cells;
 #[cfg(feature = "screen-testing")]
 pub(crate) mod stories;
 mod words;
 
+pub use arrowheads::{ArrowheadsOutput, ArrowheadsPopover};
+pub use mode_select::VectorModeSelect;
+pub use stroke_cells::StrokeCells;
 pub use bar::{ShapeBar, ShapeBarOutput};
 pub use panel::{ChipSetup, ShapePaint, ShapePanel, ShapePanelOutput};
 pub use words::ShapeWords;
+
+/// The drawing mode of the vector tools.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub enum VectorMode {
+    /// Draws a shape layer.
+    #[default]
+    Shape,
+    /// Draws a path.
+    Path,
+    /// Draws filled pixels.
+    Pixels,
+}
+
+/// A line's arrowheads: which ends carry one and its size.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct Arrowheads {
+    /// An arrowhead at the start.
+    pub start: bool,
+    /// An arrowhead at the end.
+    pub end: bool,
+    /// The head's width as a percentage of the line weight.
+    pub width: f64,
+    /// The head's length as a percentage of the line weight.
+    pub length: f64,
+    /// The head's concavity in percent.
+    pub concavity: f64,
+}
+
+impl Arrowheads {
+    /// The range of the width and length fields, in percent.
+    pub const ARROW_SIZE: RangeInclusive<f64> = 10.0..=1000.0;
+    /// The range of the concavity field, in percent.
+    pub const ARROW_CONCAVITY: RangeInclusive<f64> = -50.0..=50.0;
+
+    /// No arrowheads at the default size.
+    pub const fn new() -> Self {
+        Arrowheads { start: false, end: false, width: 5.0, length: 10.0, concavity: 0.0 }
+    }
+}
+
+impl Default for Arrowheads {
+    /// No arrowheads; width 5, length 10, concavity 0.
+    fn default() -> Self {
+        Arrowheads::new()
+    }
+}
+
+/// The range of a radius field, in document pixels.
+pub const RADIUS_RANGE: RangeInclusive<f64> = 0.0..=150_000.0;
+/// The range of a line weight field, in document pixels.
+pub const LINE_WEIGHT_RANGE: RangeInclusive<f64> = 1.0..=10_000.0;
 
 /// The selected shape layer's live shape, as the Shape section shows it: plain data the app
 /// converts to and from its document. Sizes in document pixels.
@@ -60,6 +123,8 @@ pub enum LiveShape {
     Line {
         /// The line's weight in document pixels.
         weight: f64,
+        /// The line's arrowheads, or `None` for a plain line.
+        arrows: Option<Arrowheads>,
     },
 }
 
@@ -82,7 +147,12 @@ impl LiveShape {
 
     /// A line of `weight`.
     pub fn line(weight: f64) -> Self {
-        LiveShape::Line { weight }
+        LiveShape::Line { weight, arrows: None }
+    }
+
+    /// A line of `weight` with `arrows`.
+    pub fn arrow_line(weight: f64, arrows: Arrowheads) -> Self {
+        LiveShape::Line { weight, arrows: Some(arrows) }
     }
 }
 
@@ -172,6 +242,8 @@ pub enum ShapeChange {
     StarRatio(f64),
     /// A line's weight.
     Weight(f64),
+    /// A line's arrowheads.
+    Arrowheads(Arrowheads),
 }
 
 impl ShapeChange {
@@ -198,13 +270,15 @@ pub struct ShapeToolSettings {
     pub line_weight: f64,
     /// Stroke width of new shapes, in pixels; 0 is no stroke.
     pub stroke_width: f64,
+    /// The Line's arrowheads.
+    pub arrowheads: Arrowheads,
 }
 
 impl Default for ShapeToolSettings {
     /// Fill on, square corners, 5 sides, a plain polygon, weight 3, no stroke (PhotoCraft's
     /// `ToolOptions::default`, `state/tool_options.rs:405-412`).
     fn default() -> Self {
-        ShapeToolSettings { fill_on: true, corner_radius: 0.0, sides: 5, star_ratio: 1.0, line_weight: 3.0, stroke_width: 0.0 }
+        ShapeToolSettings { fill_on: true, corner_radius: 0.0, sides: 5, star_ratio: 1.0, line_weight: 3.0, stroke_width: 0.0, arrowheads: Arrowheads::default() }
     }
 }
 

@@ -97,6 +97,13 @@ impl EditSubpath {
     /// anchors, with the corner knots (`!smooth`) as corners and `closed` as it is. Corner knots
     /// keep their own handles.
     pub fn reflow(&mut self) {
+        self.reflow_kept(0);
+    }
+
+    /// The reflow with the first `kept` knots left as they are.
+    pub fn reflow_kept(&mut self, kept: usize) {
+        let _ = kept;
+        // P3(tools-w9): tl.T32
         let anchors: Vec<Point> = self.knots.iter().map(|k| k.anchor).collect();
         let corners: Vec<bool> = self.knots.iter().map(|k| !k.smooth).collect();
         let fresh = curvature_handles(&anchors, &corners, self.closed);
@@ -183,6 +190,7 @@ impl PathEdit {
                     keep_smooth(&mut sp.knots[b], HandleSide::In);
                 }
             }
+            PathEdit::InsertAnchor { .. } => todo!("tl.T32"),
             PathEdit::Convert { knot, out, .. } => {
                 if !knot_ok(path, *knot) {
                     return false;

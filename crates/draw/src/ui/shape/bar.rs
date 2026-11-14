@@ -12,6 +12,8 @@ use craft_ui::display::Divider;
 use craft_ui::form::Field;
 use craft_ui::layout_components::Row;
 use craft_ui::runtime::env::Env;
+use craft_ui::runtime::requests::ColorRequest;
+use craft_ui::text::RangeAlert;
 use egui::Ui;
 
 /// What [`ShapeBar::show`] reports.
@@ -24,6 +26,10 @@ pub struct ShapeBarOutput {
     pub events: Vec<EditEvent<ShapeChange>>,
     /// A chip's screen eyedropper was pressed, as [`ShapePanelOutput::screen_pick`](super::ShapePanelOutput::screen_pick).
     pub screen_pick: Option<(ShapePaint, ScreenPickGesture)>,
+    /// A chip asked for the app's full colour picker, with the chip it is for.
+    pub pick_color: Option<(ShapePaint, ColorRequest)>,
+    /// The kind cell's (Radius, Sides, Weight) value was typed out of range.
+    pub out_of_range: Option<RangeAlert>,
 }
 
 /// The cells a Shape tool adds to the options bar, in PhotoCraft's order: the "Fill" check box and chip, the
@@ -47,6 +53,7 @@ pub struct ShapeBar<'a> {
     fallbacks: (Srgba, Srgba),
     sampled: Option<(ShapePaint, Srgba)>,
     pixels_per_inch: f64,
+    paint: bool,
 }
 
 impl<'a> ShapeBar<'a> {
@@ -62,7 +69,14 @@ impl<'a> ShapeBar<'a> {
             fallbacks: (Srgba::BLACK, Srgba::WHITE),
             sampled: None,
             pixels_per_inch,
+            paint: true,
         }
+    }
+
+    /// Whether the bar shows the paint cells (the Fill check, both chips and the stroke cells); off in Path mode.
+    pub fn paint(mut self, on: bool) -> Self {
+        self.paint = on;
+        self
     }
 
     /// The Stroke style popover's open flag; without it the button is not shown.
@@ -91,7 +105,8 @@ impl<'a> ShapeBar<'a> {
 
     /// Adds the cells to the bar's row `ui`.
     pub fn show(self, ui: &mut Ui) -> ShapeBarOutput {
-        let ShapeBar { kind, settings, appearance, stroke_open, chips, fallbacks, sampled, pixels_per_inch } = self;
+        let ShapeBar { kind, settings, appearance, stroke_open, chips, fallbacks, sampled, pixels_per_inch, paint } = self;
+        let _ = paint; // P3(tools-w8): tl.T28
         let env = Env::of(ui);
         let (words, units) = (env.words::<ShapeWords>(), env.units());
         let mut pass = Cells::new(&words, &units, pixels_per_inch, appearance, fallbacks, sampled, chips);
@@ -122,7 +137,7 @@ impl<'a> ShapeBar<'a> {
             pass.style_button(ui, kind != ShapeKind::Ellipse);
             let cell = match kind {
                 ShapeKind::Rectangle | ShapeKind::RoundedRectangle => Some((
-                    NumberCell::pixels(&units, pixels_per_inch, "radius", &words.radius, settings.corner_radius, 0.0..=RADIUS_MAX),
+                    NumberCell::pixels(&units, pixels_per_inch, "radius", &words.radius, settings.corner_radius, super::RADIUS_RANGE),
                     ShapeChange::CornerRadius as fn(f64) -> ShapeChange,
                 )),
                 ShapeKind::Polygon | ShapeKind::Star => Some((
@@ -130,7 +145,7 @@ impl<'a> ShapeBar<'a> {
                     sides_change as fn(f64) -> ShapeChange,
                 )),
                 ShapeKind::Line => Some((
-                    NumberCell::pixels(&units, pixels_per_inch, "weight", &words.weight, settings.line_weight, 1.0..=LINE_WEIGHT_MAX),
+                    NumberCell::pixels(&units, pixels_per_inch, "weight", &words.weight, settings.line_weight, super::LINE_WEIGHT_RANGE),
                     ShapeChange::Weight as fn(f64) -> ShapeChange,
                 )),
                 _ => None,
@@ -143,11 +158,13 @@ impl<'a> ShapeBar<'a> {
                 pass.events.extend(event.unwrap_or_default().map(change));
             }
         });
-        ShapeBarOutput { events: pass.events, screen_pick: pass.screen_pick }
+        ShapeBarOutput { events: pass.events, screen_pick: pass.screen_pick, pick_color: None, out_of_range: None }
     }
 }
 
 /// The largest corner radius of the bar's Radius cell, in pixels.
+#[allow(dead_code)] // P3(tools-w8): tl.T27
 const RADIUS_MAX: f64 = 10_000.0;
 /// The largest weight of the bar's Line cell, in pixels.
+#[allow(dead_code)] // P3(tools-w8): tl.T27
 const LINE_WEIGHT_MAX: f64 = 1_000.0;

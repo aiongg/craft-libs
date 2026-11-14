@@ -282,7 +282,8 @@ fn harness_with(paths: Vec<EditPath>, pans: bool) -> Harness {
                 sub.insert_at(segment.knot, t);
             }
         }
-        if let Some((path, mut knots)) = output.delete {
+        if let Some(delete) = output.delete {
+            let (path, mut knots) = (delete.path, delete.anchors); // P3(tools-w9): tl.T32
             st.deletes.push((path, knots.clone()));
             knots.sort_by(|a, b| b.cmp(a));
             if let Some(entry) = st.paths.iter_mut().find(|e| e.key == path) {

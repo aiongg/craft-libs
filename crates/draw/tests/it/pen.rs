@@ -93,7 +93,7 @@ impl Pen {
             match event {
                 PenEvent::Edit(EditEvent::Update { value, .. }) => now = value.clone(),
                 PenEvent::Edit(EditEvent::Commit { after, .. }) => now = after.clone(),
-                PenEvent::Finished => now = EditSubpath::default(),
+                PenEvent::Finished(_) => now = EditSubpath::default(),
                 _ => {}
             }
         }
@@ -117,7 +117,7 @@ impl Pen {
                 PenEvent::Edit(EditEvent::Commit { .. }) => "commit",
                 PenEvent::Edit(EditEvent::Cancel { .. }) => "cancel",
                 PenEvent::Edit(_) => "other",
-                PenEvent::Finished => "finished",
+                PenEvent::Finished(_) => "finished",
                 PenEvent::Resumed(..) => "resumed",
             })
             .collect()
