@@ -237,4 +237,17 @@ impl<T: Serialize + DeserializeOwned + Default + Clone + PartialEq, C: CustomSet
     pub fn take_applied(&mut self) -> Option<T> {
         self.applied.take()
     }
+
+    /// The settings Apply or OK changed, once, as `(key, value)` pairs in the file's table: a `None` value removes the
+    /// key. The app writes just these edits into the settings file, so another instance's edits to other keys stay.
+    pub fn take_applied_edits(&mut self) -> Option<Vec<(String, Option<toml::Value>)>> {
+        todo!("tp.T18")
+    }
+
+    /// Takes `saved` as the new base the draft is compared with, as `reload` does, but keeps the edits the user has made
+    /// in the window on top of it. `Err` leaves the document as it was.
+    pub fn rebase(&mut self, saved: T) -> Result<(), toml::ser::Error> {
+        let _ = saved;
+        todo!("tp.T19")
+    }
 }

@@ -6,7 +6,7 @@ use crate::contract::{Bind, Props as _, Show as _, ShowContainer as _};
 use crate::dialog::{DialogId, DialogResult, DialogStack, StackDialog, dialog_id};
 use crate::form::Field;
 use crate::pickers::Select;
-use crate::runtime::env::UnitKind;
+use crate::runtime::env::{ColumnSize, UnitKind};
 use craft_behavior::PixelSize;
 use egui::Ui;
 
@@ -26,6 +26,8 @@ pub struct ImageSizeResult {
     pub resample: Option<Resample>,
     /// Whether layer effects scale with the image.
     pub scale_styles: bool,
+    /// Whether the resolution was edited, so the app resamples at the new resolution.
+    pub resolution_changed: bool,
 }
 
 /// What Image Size reports: its response, how it closed and the [`ImageSizeResult`] at OK.
@@ -41,6 +43,13 @@ pub struct ImageSizeValues {
 }
 
 impl ImageSizeValues {
+    /// Sets the width of the column of the rows' fields, so the dialog lines up with its siblings.
+    #[must_use]
+    pub fn column_size(mut self, size: ColumnSize) -> Self {
+        let _ = (&mut self, size);
+        todo!("dl.K37")
+    }
+
     /// The values for a document of `size` pixels, at 72 pixels per inch, in pixels, resampling automatically with
     /// Scale Styles on.
     pub fn new(size: PixelSize) -> Self {
@@ -198,6 +207,7 @@ impl<'a> ImageSize<'a> {
                 resolution_unit: state.size.resolution_unit(),
                 resample: state.size.is_resampling().then_some(state.method),
                 scale_styles: state.scale_styles,
+                resolution_changed: false, // P3(dialogs-w13): dl.K36
             },
         )
     }
@@ -248,6 +258,20 @@ const KEY: &str = "sizing.imageSize";
 
 impl StackDialog for HostedImageSize {
     type Result = ImageSizeResult;
+
+    fn confirm(&mut self, ctx: &egui::Context) -> Option<Self::Result> {
+        let _ = ctx;
+        todo!("dl.K36")
+    }
+
+    fn json_fields(&self) -> Option<serde_json::Value> {
+        todo!("dl.K36")
+    }
+
+    fn set_json_field(&mut self, ctx: &egui::Context, field: &str, value: serde_json::Value) -> Result<(), String> {
+        let _ = (ctx, field, value);
+        todo!("dl.K36")
+    }
 
     fn id(&self) -> DialogId {
         self.id

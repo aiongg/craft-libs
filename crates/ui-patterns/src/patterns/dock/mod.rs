@@ -16,4 +16,7 @@ pub use panes::{
 };
 pub use switcher::{WorkspaceSwitcher, WorkspaceSwitcherOutput};
 pub use words::WorkspaceDialogWords;
-pub use workspace_dialogs::{DeleteWorkspaceDialog, DeleteWorkspaceDialogOutput, NewWorkspace, NewWorkspaceDialog, NewWorkspaceDialogOutput};
+pub use workspace_dialogs::{
+    DeleteWorkspaceDialog, DeleteWorkspaceDialogOutput, HostedDeleteWorkspace, HostedNewWorkspace, NewWorkspace, NewWorkspaceDialog,
+    NewWorkspaceDialogOutput,
+};

@@ -15,7 +15,7 @@ use crate::dialog::{DialogId, DialogResult, DialogStack, StackDialog, dialog_id}
 
 use crate::layout_components::{Grid, Stack};
 
-use crate::patterns::presets::{GroupPath, PresetLibrary, PresetWords as LibraryWords};
+use crate::patterns::presets::{GroupPath, NamedPresetEvent, PresetId, PresetLibrary, PresetWords as LibraryWords};
 
 use crate::runtime::env::{Env, Label, UnitKind, Units};
 use crate::runtime::memory::{MemoryStage, unique};
@@ -23,7 +23,7 @@ use crate::runtime::overlay::CloseReason;
 use craft_behavior::{ColumnWidth, PixelSize};
 
 use craft_theme::Srgba;
-use egui::{Response, Ui};
+use egui::{Context, Response, Ui};
 
 use cards::{Left, TabId};
 
@@ -285,9 +285,9 @@ impl NewDocumentResult {
     /// Stores the recent list of a dialog built with [`NewDocumentDialog::remember_recent`], with these settings first,
     /// for the next open. The app calls it after its create command succeeds, so a failed command leaves the list as
     /// it was; without a key it does nothing.
-    pub fn remember(&self, ui: &Ui) {
+    pub fn remember(&self, ctx: &Context) {
         if let Some((key, list)) = &self.remember {
-            let mut stage = MemoryStage::open(ui.ctx(), unique(("craft_ui::new_document_recent", key.as_str())));
+            let mut stage = MemoryStage::open(ctx, unique(("craft_ui::new_document_recent", key.as_str())));
             *stage.saved::<Vec<DocumentOptions>>(key) = list.clone();
             stage.write_back();
         }
@@ -309,6 +309,8 @@ pub struct NewDocumentOutput {
     /// chosen or the colour button pressed), keyed `BACKGROUND_COLOR_KEY`. The app answers with
     /// [`NewDocumentDialog::answers`].
     pub requests: HostRequests,
+    /// The saved-preset edits the user made this pass (add, rename, delete), for the app to store.
+    pub presets: Vec<NamedPresetEvent<PresetId>>,
 }
 
 impl Outcome for NewDocumentOutput {
@@ -452,6 +454,15 @@ pub struct NewDocumentDialog<'a> {
     /// The colour profiles each mode offers.
     #[prop]
     profiles: Vec<ColorProfiles>,
+    /// Binds the saved presets of the Saved tab to `saved`.
+    #[prop]
+    saved: Option<Bind<'a, PresetLibrary<DocumentOptions>>>,
+    /// Binds the recent documents of the Recent tab to `recent`.
+    #[prop]
+    recent: Option<Bind<'a, Vec<DocumentOptions>>>,
+    /// Binds the shown tab's id (`recent`, `saved` or a category's id) to `tab`.
+    #[prop]
+    tab: Option<Bind<'a, String>>,
     /// The application's name, for the "Default {app} Size" card.
     #[prop(into)]
     app_name: Option<Label>,
@@ -478,6 +489,9 @@ impl<'a> NewDocumentDialog<'a> {
             print_resolution: 300.0,
             screen_resolution: 72.0,
             profiles: Vec::new(),
+            saved: None,
+            recent: None,
+            tab: None,
             app_name: None,
             remember: None,
             answers: Vec::new(),
@@ -497,10 +511,14 @@ impl<'a> NewDocumentDialog<'a> {
             print_resolution,
             screen_resolution,
             profiles,
+            saved,
+            recent: recent_bound,
+            tab,
             app_name,
             remember,
             answers,
         } = self;
+        let _ = (&saved, &recent_bound, &tab); // P3(dialogs-w14): dl.K39
         let recent: Vec<DocumentOptions> = remember_recent.as_ref().map_or_else(Vec::new, |key| MemoryStage::peek_saved(ui.ctx(), key));
         let env = Env::of(ui);
         let words = env.words::<NewDocumentWords>();
@@ -549,6 +567,7 @@ impl<'a> NewDocumentDialog<'a> {
                 NewDocumentResult { options, remember }
             }),
             requests: shown.requests,
+            presets: Vec::new(), // P3(dialogs-w14): dl.K39
         }
     }
 }
@@ -571,13 +590,16 @@ pub struct HostedNewDocument {
     options: DocumentOptions,
     build: Box<Build>,
     requests: HostRequests,
+    /// Whether the dialog is open: bound to the dialog's `opened` prop.
+    #[allow(dead_code)] // P3(dialogs-w14): dl.K39
+    open: bool,
 }
 
 impl HostedNewDocument {
     /// A hosted dialog opening on `options`; `build` makes the dialog over them (the clipboard, the profiles, the
     /// app's name).
     pub fn new(options: DocumentOptions, build: impl for<'b> Fn(&'b mut DocumentOptions) -> NewDocumentDialog<'b> + Send + 'static) -> Self {
-        HostedNewDocument { id: dialog_id("new-document"), options, build: Box::new(build), requests: HostRequests::new() }
+        HostedNewDocument { id: dialog_id("new-document"), options, build: Box::new(build), requests: HostRequests::new(), open: true }
     }
 
     /// The settings the details column shows.
@@ -596,6 +618,30 @@ impl HostedNewDocument {
         self.requests.answer_color(key, color);
     }
 
+    /// Opens with `library` as the saved presets.
+    #[must_use]
+    pub fn saved(mut self, library: PresetLibrary<DocumentOptions>) -> Self {
+        let _ = (&mut self, library);
+        todo!("dl.K39")
+    }
+
+    /// Opens with `list` as the recent documents.
+    #[must_use]
+    pub fn recent(mut self, list: Vec<DocumentOptions>) -> Self {
+        let _ = (&mut self, list);
+        todo!("dl.K39")
+    }
+
+    /// The saved presets as the user left them.
+    pub fn saved_presets(&self) -> &PresetLibrary<DocumentOptions> {
+        todo!("dl.K39")
+    }
+
+    /// The saved-preset edits since the last call, for the app to store.
+    pub fn take_preset_events(&mut self) -> Vec<NamedPresetEvent<PresetId>> {
+        todo!("dl.K39")
+    }
+
     /// The picker was cancelled: the request is dropped and Background Contents stays as it was.
     pub fn cancel_color(&mut self) {
         self.requests.cancel_color();
@@ -604,6 +650,20 @@ impl HostedNewDocument {
 
 impl StackDialog for HostedNewDocument {
     type Result = NewDocumentResult;
+
+    fn confirm(&mut self, ctx: &egui::Context) -> Option<Self::Result> {
+        let _ = ctx;
+        todo!("dl.K39")
+    }
+
+    fn json_fields(&self) -> Option<serde_json::Value> {
+        todo!("dl.K39")
+    }
+
+    fn set_json_field(&mut self, ctx: &egui::Context, field: &str, value: serde_json::Value) -> Result<(), String> {
+        let _ = (ctx, field, value);
+        todo!("dl.K39")
+    }
 
     fn id(&self) -> DialogId {
         self.id

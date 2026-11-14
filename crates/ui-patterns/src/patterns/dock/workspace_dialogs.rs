@@ -7,6 +7,7 @@ mod stories;
 use super::words::WorkspaceDialogWords;
 use crate::choice::Checkbox;
 use crate::contract::{Bind, Entry, NoValue, Outcome, Props as _, Show as _, ShowContainer as _};
+use crate::dialog::{DialogId, DialogResult, DialogStack, StackDialog};
 use crate::display::{Shade, Text};
 use crate::form::{Field, Help};
 use crate::patterns::form_dialogs::FormDialog;
@@ -70,17 +71,21 @@ pub struct NewWorkspaceDialog<'a, P> {
     /// Binds the open state to `open`.
     #[prop(name = "opened")]
     open: Option<Bind<'a, bool>>,
+    /// Binds the name and captures to `value`.
+    #[prop(name = "value")]
+    bound: Option<Bind<'a, NewWorkspace>>,
 }
 
 impl<'a, P: Clone + Eq + Hash> NewWorkspaceDialog<'a, P> {
     /// New Workspace over `set`, whose names it checks.
     pub fn new(set: &'a WorkspaceSet<P>) -> Self {
-        NewWorkspaceDialog { set, offered: WorkspaceKeeps::ALL, open: None }
+        NewWorkspaceDialog { set, offered: WorkspaceKeeps::ALL, open: None, bound: None }
     }
 
     /// Shows the dialog.
     pub fn show(self, ui: &mut Ui) -> NewWorkspaceDialogOutput {
-        let NewWorkspaceDialog { set, offered, open } = self;
+        let NewWorkspaceDialog { set, offered, open, bound } = self;
+        let _ = &bound; // P3(top-w3): tp.T20
         let words = Env::of(ui).words::<WorkspaceDialogWords>();
         let mut form = FormDialog::<NewWorkspace>::own(words.new_title.clone());
         if let Some(open) = open {
@@ -157,17 +162,21 @@ pub struct DeleteWorkspaceDialog<'a, P> {
     /// Binds the open state to `open`.
     #[prop(name = "opened")]
     open: Option<Bind<'a, bool>>,
+    /// Binds the picked workspace's id to `value`.
+    #[prop(name = "value")]
+    bound: Option<Bind<'a, String>>,
 }
 
 impl<'a, P: Clone + Eq + Hash> DeleteWorkspaceDialog<'a, P> {
     /// Delete Workspace over the saved workspaces of `set`.
     pub fn new(set: &'a WorkspaceSet<P>) -> Self {
-        DeleteWorkspaceDialog { set, open: None }
+        DeleteWorkspaceDialog { set, open: None, bound: None }
     }
 
     /// Shows the dialog.
     pub fn show(self, ui: &mut Ui) -> DeleteWorkspaceDialogOutput {
-        let DeleteWorkspaceDialog { set, open } = self;
+        let DeleteWorkspaceDialog { set, open, bound } = self;
+        let _ = &bound; // P3(top-w3): tp.T21
         let words = Env::of(ui).words::<WorkspaceDialogWords>();
         let deletable = |id: &str| id != set.current;
         let entries: Vec<Entry<String>> = set
@@ -197,5 +206,109 @@ impl<'a, P: Clone + Eq + Hash> DeleteWorkspaceDialog<'a, P> {
             set.saved.iter().any(|w| w.id == *value && deletable(&w.id))
         });
         DeleteWorkspaceDialogOutput { response: shown.response, closed: shown.closed, accepted: shown.accepted }
+    }
+}
+
+/// A [`NewWorkspaceDialog`] the [`DialogHost`](crate::dialog::DialogHost) owns, over a copy of the workspace set. It
+/// answers with the [`NewWorkspace`] at OK.
+pub struct HostedNewWorkspace<P> {
+    id: DialogId,
+    set: WorkspaceSet<P>,
+    offered: WorkspaceKeeps,
+    value: NewWorkspace,
+    open: bool,
+}
+
+impl<P: Clone> HostedNewWorkspace<P> {
+    /// New Workspace over a copy of `set`, whose names it checks.
+    pub fn new(set: &WorkspaceSet<P>) -> Self {
+        let _ = set;
+        todo!("tp.T20")
+    }
+
+    /// The Capture boxes the dialog shows; the default shows all three.
+    #[must_use]
+    pub fn offered(mut self, keeps: WorkspaceKeeps) -> Self {
+        let _ = (&mut self, keeps);
+        todo!("tp.T20")
+    }
+}
+
+impl<P: Clone + Eq + Hash + Send + 'static> StackDialog for HostedNewWorkspace<P> {
+    type Result = NewWorkspace;
+
+    fn id(&self) -> DialogId {
+        self.id
+    }
+
+    fn show(&mut self, ui: &mut Ui, stack: &DialogStack) -> Option<DialogResult<NewWorkspace>> {
+        let _ = (ui, stack, &self.set, &self.offered, &self.value, &self.open);
+        todo!("tp.T20")
+    }
+
+    fn key(&self) -> Option<&str> {
+        Some("workspace.new")
+    }
+
+    fn confirm(&mut self, ctx: &egui::Context) -> Option<Self::Result> {
+        let _ = ctx;
+        todo!("tp.T20")
+    }
+
+    fn json_fields(&self) -> Option<serde_json::Value> {
+        todo!("tp.T20")
+    }
+
+    fn set_json_field(&mut self, ctx: &egui::Context, field: &str, value: serde_json::Value) -> Result<(), String> {
+        let _ = (ctx, field, value);
+        todo!("tp.T20")
+    }
+}
+
+/// A [`DeleteWorkspaceDialog`] the [`DialogHost`](crate::dialog::DialogHost) owns, over a copy of the workspace set. It
+/// answers with the id of the picked workspace at OK.
+pub struct HostedDeleteWorkspace<P> {
+    id: DialogId,
+    set: WorkspaceSet<P>,
+    value: String,
+    open: bool,
+}
+
+impl<P: Clone> HostedDeleteWorkspace<P> {
+    /// Delete Workspace over a copy of the saved workspaces of `set`.
+    pub fn new(set: &WorkspaceSet<P>) -> Self {
+        let _ = set;
+        todo!("tp.T21")
+    }
+}
+
+impl<P: Clone + Eq + Hash + Send + 'static> StackDialog for HostedDeleteWorkspace<P> {
+    type Result = String;
+
+    fn id(&self) -> DialogId {
+        self.id
+    }
+
+    fn show(&mut self, ui: &mut Ui, stack: &DialogStack) -> Option<DialogResult<String>> {
+        let _ = (ui, stack, &self.set, &self.value, &self.open);
+        todo!("tp.T21")
+    }
+
+    fn key(&self) -> Option<&str> {
+        Some("workspace.delete")
+    }
+
+    fn confirm(&mut self, ctx: &egui::Context) -> Option<Self::Result> {
+        let _ = ctx;
+        todo!("tp.T21")
+    }
+
+    fn json_fields(&self) -> Option<serde_json::Value> {
+        todo!("tp.T21")
+    }
+
+    fn set_json_field(&mut self, ctx: &egui::Context, field: &str, value: serde_json::Value) -> Result<(), String> {
+        let _ = (ctx, field, value);
+        todo!("tp.T21")
     }
 }

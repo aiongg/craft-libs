@@ -70,6 +70,10 @@ macro_rules! layout_component {
             indent: u8,
             /// Whether the root senses the pointer over it.
             hover: bool,
+            /// Whether the container senses a press on its own surface, where no child or part takes it
+            /// (`Sense::SURFACE`).
+            #[prop(flag)]
+            senses_surface: bool,
             $($($field: $ty,)*)?
         }
 
@@ -161,7 +165,9 @@ macro_rules! layout_component {
             }
 
             fn sense(&self) -> Sense {
-                if self.hover { Sense::HOVER } else { Sense::empty() }
+                let mut sense = if self.hover { Sense::HOVER } else { Sense::empty() };
+                sense.set(Sense::SURFACE, self.senses_surface);
+                sense
             }
 
             /// A labelled body is a group named by its label, so a named region of a panel reaches assistive tech. A
@@ -211,6 +217,7 @@ impl<'a> Stack<'a> {
             props: ContainerProps::new().sizing(Sizing::Content).layout(BodyLayout::stack()),
             indent: 0,
             hover: false,
+            senses_surface: false,
             header: None,
             footer: None,
         }
@@ -274,7 +281,13 @@ impl Default for Stack<'_> {
 impl Row {
     /// A row that takes the size of its children.
     pub fn new() -> Self {
-        Row { common: Common::new(), props: ContainerProps::new().sizing(Sizing::Content).layout(BodyLayout::row()), indent: 0, hover: false }
+        Row {
+            common: Common::new(),
+            props: ContainerProps::new().sizing(Sizing::Content).layout(BodyLayout::row()),
+            indent: 0,
+            hover: false,
+            senses_surface: false,
+        }
     }
 
     /// Whether children continue on a new line.
@@ -304,6 +317,7 @@ impl Grid {
             props: ContainerProps::new().sizing(Sizing::Content).layout(BodyLayout::grid(columns)),
             indent: 0,
             hover: false,
+            senses_surface: false,
         }
     }
 }

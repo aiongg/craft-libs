@@ -508,12 +508,22 @@ pub struct HostedGuideLayoutDialog {
     build: Box<Build>,
     preview: Option<Vec<Guide>>,
     requests: HostRequests,
+    /// Whether the dialog is open: bound to the dialog's `opened` prop.
+    #[allow(dead_code)] // P3(dialogs-w13): dl.K36
+    open: bool,
 }
 
 impl HostedGuideLayoutDialog {
     /// A dialog opening with `values`; `build` makes it over the values.
     pub fn new(values: GuideLayoutValues, build: impl for<'b> Fn(Bind<'b, GuideLayoutValues>) -> GuideLayoutDialog<'b> + Send + 'static) -> Self {
-        HostedGuideLayoutDialog { id: dialog_id("guides.layout"), values, build: Box::new(build), preview: None, requests: HostRequests::new() }
+        HostedGuideLayoutDialog {
+            id: dialog_id("guides.layout"),
+            values,
+            build: Box::new(build),
+            preview: None,
+            requests: HostRequests::new(),
+            open: true,
+        }
     }
 
     /// The values the dialog shows.
@@ -534,6 +544,20 @@ impl HostedGuideLayoutDialog {
 
 impl StackDialog for HostedGuideLayoutDialog {
     type Result = GuideLayoutResult;
+
+    fn confirm(&mut self, ctx: &egui::Context) -> Option<Self::Result> {
+        let _ = ctx;
+        todo!("dl.K36")
+    }
+
+    fn json_fields(&self) -> Option<serde_json::Value> {
+        todo!("dl.K36")
+    }
+
+    fn set_json_field(&mut self, ctx: &egui::Context, field: &str, value: serde_json::Value) -> Result<(), String> {
+        let _ = (ctx, field, value);
+        todo!("dl.K36")
+    }
 
     fn id(&self) -> DialogId {
         self.id

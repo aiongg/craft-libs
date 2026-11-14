@@ -206,6 +206,9 @@ pub struct PreviewOutput {
     /// texture's size is its pixel size) from its top-left corner; `None` when there was no click or it missed the
     /// picture. It is reported whether or not the click centres the view: an eyedropper or a locator reads it.
     pub clicked: Option<Pos2>,
+    /// The point of the picture a press landed on this pass, in the same units as `clicked`; unlike `clicked` it is
+    /// reported when the press begins, not when it ends as a click.
+    pub pressed: Option<Pos2>,
 }
 
 impl Outcome for PreviewOutput {
@@ -561,7 +564,14 @@ impl Component for PreviewPane<'_> {
 
     fn finish(self, cx: Cx<'_, Self>) -> PreviewOutput {
         let shown = PreviewView { transform: self.shown(cx.rect.size()), ..self.view.clone() };
-        PreviewOutput { response: cx.response.clone(), view: self.moved, shown, double_clicked: self.double_clicked, clicked: self.clicked }
+        PreviewOutput {
+            response: cx.response.clone(),
+            view: self.moved,
+            shown,
+            double_clicked: self.double_clicked,
+            clicked: self.clicked,
+            pressed: None, // P3(dialogs-w9): dl.K75
+        }
     }
 }
 

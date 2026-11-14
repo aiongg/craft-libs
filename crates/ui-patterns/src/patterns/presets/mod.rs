@@ -14,6 +14,7 @@ mod panel_menu;
 mod state;
 
 // The picker and the named row.
+mod manager;
 mod named;
 mod picker;
 
@@ -21,6 +22,7 @@ pub use browser::{BrowserTools, PresetBrowser, PresetItemCommands, PresetReorder
 pub use event::{PresetEvent, PresetOutput};
 pub use files::{PresetExport, PresetFileEvent, PresetFileFailure, PresetFileRequest, PresetFiles};
 pub use footer::{PresetFooter, PresetFooterEvent, PresetFooterOptions, PresetFooterOutput};
+pub use manager::{HostedPresetManager, PresetManager, PresetManagerOutput, PresetManagerTaken};
 pub use model::{
     CellShape, GroupPath, PresetChange, PresetError, PresetGroup, PresetId, PresetItem, PresetKey, PresetKind, PresetLibrary, PresetRow, Preview,
     PreviewPaint, ThumbInfo, children_end, has_captions, nest_allowed,

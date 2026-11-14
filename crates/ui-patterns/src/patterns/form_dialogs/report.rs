@@ -88,6 +88,13 @@ impl<'a> ReportDialog<'a> {
         ReportDialog { title: title.into(), summary: summary.into(), notes, open: None }
     }
 
+    /// Plain `lines` shown as the notes, in place of ones built with [`ReportNote`].
+    #[must_use]
+    pub fn lines(mut self, lines: Vec<Label>) -> Self {
+        let _ = (&mut self, lines);
+        todo!("dl.K12")
+    }
+
     /// The notes as the Copy button hands them back, one per line with the tone's word first.
     pub fn as_text(&self, env: &Env) -> String {
         let words = env.words::<ReportWords>();
@@ -138,6 +145,50 @@ impl<'a> ReportDialog<'a> {
         });
         let DialogOutput { response, closed, picked } = shown.output;
         ReportOutput { response, closed, copied: (picked == Some(COPY)).then_some(text) }
+    }
+}
+
+/// A [`ReportDialog`] the [`DialogHost`](crate::dialog::DialogHost) owns: a title, a summary and plain lines. The text
+/// of the Copy button waits in [`take_copied`](HostedReport::take_copied) until the app puts it on the clipboard.
+pub struct HostedReport {
+    id: crate::dialog::DialogId,
+    title: Label,
+    summary: Label,
+    lines: Vec<String>,
+    copied: Option<String>,
+}
+
+impl HostedReport {
+    /// A report titled `title` with one `summary` line and the `lines`.
+    pub fn new(title: impl Into<Label>, summary: impl Into<Label>, lines: Vec<String>) -> Self {
+        HostedReport { id: crate::dialog::dialog_id("report"), title: title.into(), summary: summary.into(), lines, copied: None }
+    }
+
+    /// The text the Copy button copied since the last call, once. The app puts it on the clipboard.
+    pub fn take_copied(&mut self) -> Option<String> {
+        self.copied.take()
+    }
+}
+
+impl crate::dialog::StackDialog for HostedReport {
+    type Result = ();
+
+    fn id(&self) -> crate::dialog::DialogId {
+        self.id
+    }
+
+    fn show(&mut self, ui: &mut Ui, stack: &crate::dialog::DialogStack) -> Option<crate::dialog::DialogResult<()>> {
+        let _ = (ui, stack, &self.title, &self.summary, &self.lines);
+        todo!("dl.K12")
+    }
+
+    fn confirm(&mut self, ctx: &egui::Context) -> Option<Self::Result> {
+        let _ = ctx;
+        todo!("dl.K12")
+    }
+
+    fn json_fields(&self) -> Option<serde_json::Value> {
+        todo!("dl.K12")
     }
 }
 

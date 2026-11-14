@@ -32,6 +32,9 @@ pub enum FieldValue {
     /// three numbers reads back as `Grid`, `Point` or `Color`, which [`DialogFields::list`] turns
     /// back into the list.
     List(Vec<FieldValue>),
+    /// Any JSON value: what a [`ParamKind::Custom`](super::ParamKind::Custom) row keeps under its key. Last so an
+    /// untagged read keeps the fixed-shape variants above.
+    Json(serde_json::Value),
 }
 
 impl From<bool> for FieldValue {

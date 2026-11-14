@@ -1,6 +1,6 @@
 //! About's Contributors tab: the grab bag of name links and the Table view.
 
-use craft_ui::contract::Role;
+use craft_ui::contract::{Bind, Role};
 use craft_ui::patterns::form_dialogs::{AboutDialog, AboutInfo, AboutTab, Contributor, Credits};
 use craft_ui::testing::{Fixture, trial};
 use egui::Vec2;
@@ -25,7 +25,7 @@ fn a_click_on_a_name_in_the_grab_bag_reports_its_profile() {
     let links = Rc::new(RefCell::new(Vec::new()));
     let seen = Rc::clone(&links);
     let mut fixture = Fixture::new(move |ui| {
-        let shown = AboutDialog::new(&INFO, &CREDITS).tab(AboutTab::Contributors).show(ui);
+        let shown = AboutDialog::new(&INFO, &CREDITS).tab(Bind::given(AboutTab::Contributors)).show(ui); // P3(dialogs-w4): dl.K11
         seen.borrow_mut().extend(shown.link);
     });
     fixture.room(Vec2::new(1400.0, 1000.0)).idle(30);

@@ -6,7 +6,7 @@ use crate::contract::{Bind, Props as _, Show as _, ShowContainer as _};
 use crate::dialog::{DialogId, DialogResult, DialogStack, StackDialog, dialog_id};
 use crate::form::Field;
 use crate::pickers::{Anchor9, ReferencePoint, Select};
-use crate::runtime::env::UnitKind;
+use crate::runtime::env::{ColumnSize, UnitKind};
 use craft_behavior::PixelSize;
 use egui::Ui;
 
@@ -40,6 +40,13 @@ pub struct CanvasSizeValues {
 }
 
 impl CanvasSizeValues {
+    /// Sets the width of the column of the rows' fields, so the dialog lines up with its siblings.
+    #[must_use]
+    pub fn column_size(mut self, size: ColumnSize) -> Self {
+        let _ = (&mut self, size);
+        todo!("dl.K37")
+    }
+
     /// The values for a canvas of `size` pixels, at 72 pixels per inch, in pixels, anchored at the centre and filling
     /// with the background colour.
     pub fn new(size: PixelSize) -> Self {
@@ -244,6 +251,20 @@ const KEY: &str = "sizing.canvasSize";
 
 impl StackDialog for HostedCanvasSize {
     type Result = CanvasSizeResult;
+
+    fn confirm(&mut self, ctx: &egui::Context) -> Option<Self::Result> {
+        let _ = ctx;
+        todo!("dl.K36")
+    }
+
+    fn json_fields(&self) -> Option<serde_json::Value> {
+        todo!("dl.K36")
+    }
+
+    fn set_json_field(&mut self, ctx: &egui::Context, field: &str, value: serde_json::Value) -> Result<(), String> {
+        let _ = (ctx, field, value);
+        todo!("dl.K36")
+    }
 
     fn id(&self) -> DialogId {
         self.id

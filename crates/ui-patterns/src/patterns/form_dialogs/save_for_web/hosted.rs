@@ -38,9 +38,19 @@ pub struct HostedSaveForWeb {
     frame: u32,
     requests: HostRequests,
     saving: bool,
+    /// Whether the dialog is open: bound to the dialog's `opened` prop.
+    #[allow(dead_code)] // P3(dialogs-w15): dl.K43
+    open: bool,
 }
 
 impl HostedSaveForWeb {
+    /// The document's slices, for the Slices choice.
+    #[must_use]
+    pub fn slices(mut self, slices: Vec<super::WebSlice>) -> Self {
+        let _ = (&mut self, slices);
+        todo!("dl.K43")
+    }
+
     /// A hosted dialog for the document `name` of `size` pixels showing `original` in the Original pane.
     pub fn new(name: impl Into<String>, size: PixelSize, original: SizedTexture) -> Self {
         HostedSaveForWeb {
@@ -57,6 +67,7 @@ impl HostedSaveForWeb {
             frame: 0,
             requests: HostRequests::new(),
             saving: false,
+            open: true,
         }
     }
 
@@ -137,6 +148,20 @@ impl HostedSaveForWeb {
 
 impl StackDialog for HostedSaveForWeb {
     type Result = SaveForWebResult;
+
+    fn confirm(&mut self, ctx: &egui::Context) -> Option<Self::Result> {
+        let _ = ctx;
+        todo!("dl.K43")
+    }
+
+    fn json_fields(&self) -> Option<serde_json::Value> {
+        todo!("dl.K43")
+    }
+
+    fn set_json_field(&mut self, ctx: &egui::Context, field: &str, value: serde_json::Value) -> Result<(), String> {
+        let _ = (ctx, field, value);
+        todo!("dl.K43")
+    }
 
     fn id(&self) -> DialogId {
         self.id

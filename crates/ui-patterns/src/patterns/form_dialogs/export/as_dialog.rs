@@ -7,10 +7,11 @@ use super::{
     SizeEstimate, export_file_name, size_error_label,
 };
 use crate::dialog::{DialogId, DialogResult, DialogStack, StackDialog, dialog_id};
+use crate::patterns::presets::{NamedPresetEvent, PresetId, PresetLibrary};
 use crate::runtime::requests::{HostAnswer, PathFilter, PathRequest};
 
 use crate::choice::Checkbox;
-use crate::contract::{Bind, Entry, NoValue, Outcome, Props as _, Remember as _, Show as _, ShowContainer as _};
+use crate::contract::{Bind, Entry, NoValue, Outcome, Props as _, Remember as _, SaveKey, Show as _, ShowContainer as _};
 
 use crate::display::{Shade, Text};
 
@@ -108,6 +109,8 @@ pub struct ExportAsOutput {
     /// app opens its file dialog for it, then answers with [`ExportAsDialog::answers`]. A cancelled pick leaves the
     /// dialog open.
     pub requests: HostRequests,
+    /// The saved-preset edits the user made this pass (add, rename, delete), for the app to store.
+    pub presets: Vec<NamedPresetEvent<PresetId>>,
 }
 
 impl Outcome for ExportAsOutput {
@@ -154,6 +157,12 @@ pub struct ExportAsDialog<'a> {
     /// The app's save dialog is open: Export waits.
     #[prop]
     saving: bool,
+    /// Binds the saved presets of the settings to `presets`.
+    #[prop]
+    presets: Option<Bind<'a, PresetLibrary<ExportOptions>>>,
+    /// Saves the settings under `key` when the app calls [`ExportAsResult::remember`], and opens with them.
+    #[prop]
+    remember: Option<SaveKey>,
 }
 
 impl<'a> ExportAsDialog<'a> {
@@ -169,12 +178,15 @@ impl<'a> ExportAsDialog<'a> {
             preview: None,
             answers: Vec::new(),
             saving: false,
+            presets: None,
+            remember: None,
         }
     }
 
     /// Shows the dialog.
     pub fn show(self, ui: &mut Ui) -> ExportAsOutput {
-        let ExportAsDialog { file_name, source, bound, formats, open, defaults, preview, answers, saving } = self;
+        let ExportAsDialog { file_name, source, bound, formats, open, defaults, preview, answers, saving, presets, remember } = self;
+        let _ = (&presets, &remember); // P3(dialogs-w14): dl.K41
         let env = Env::of(ui);
         let words = env.words::<ExportWords>();
         let pass = Pass { formats: &formats, source, words: &words, sizing: env.words::<SizingWords>(), units: env.units(), defaults };
@@ -225,8 +237,13 @@ impl<'a> ExportAsDialog<'a> {
             let filters = format.map(|format| PathFilter::new(format.name, &[format.extension]));
             requests.request_path(PathRequest::save(SAVE_KEY, name, filters));
         }
-        let result = accepted.zip(answered.into_inner()).map(|(options, path)| ExportAsResult { size: options.output_size(source), options, path });
-        ExportAsOutput { response, closed, result, wanted_preview: wanted.into_inner(), requests }
+        let result = accepted.zip(answered.into_inner()).map(|(options, path)| ExportAsResult {
+            size: options.output_size(source),
+            options,
+            path,
+            remember: None,
+        });
+        ExportAsOutput { response, closed, result, wanted_preview: wanted.into_inner(), requests, presets: Vec::new() }
     }
 }
 
@@ -256,6 +273,30 @@ pub struct HostedExportAs {
 }
 
 impl HostedExportAs {
+    /// Opens with `library` as the saved presets.
+    #[must_use]
+    pub fn presets(mut self, library: PresetLibrary<ExportOptions>) -> Self {
+        let _ = (&mut self, library);
+        todo!("dl.K41")
+    }
+
+    /// Saves the settings under `key` when the app calls [`ExportAsResult::remember`], and opens with them.
+    #[must_use]
+    pub fn remember(mut self, key: SaveKey) -> Self {
+        let _ = (&mut self, key);
+        todo!("dl.K41")
+    }
+
+    /// The saved presets as the user left them.
+    pub fn saved_presets(&self) -> &PresetLibrary<ExportOptions> {
+        todo!("dl.K41")
+    }
+
+    /// The saved-preset edits since the last call, for the app to store.
+    pub fn take_preset_events(&mut self) -> Vec<NamedPresetEvent<PresetId>> {
+        todo!("dl.K41")
+    }
+
     /// A hosted dialog for the document named `file_name` (no extension) of size `source`, opening with `options`.
     pub fn new(file_name: impl Into<String>, source: PixelSize, options: ExportOptions) -> Self {
         HostedExportAs {
@@ -328,6 +369,20 @@ const EXPORT_KEY: &str = "file.exportAs";
 
 impl StackDialog for HostedExportAs {
     type Result = ExportAsResult;
+
+    fn confirm(&mut self, ctx: &egui::Context) -> Option<Self::Result> {
+        let _ = ctx;
+        todo!("dl.K41")
+    }
+
+    fn json_fields(&self) -> Option<serde_json::Value> {
+        todo!("dl.K41")
+    }
+
+    fn set_json_field(&mut self, ctx: &egui::Context, field: &str, value: serde_json::Value) -> Result<(), String> {
+        let _ = (ctx, field, value);
+        todo!("dl.K41")
+    }
 
     fn id(&self) -> DialogId {
         self.id

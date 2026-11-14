@@ -44,11 +44,15 @@ mod model;
 
 pub use hosted::HostedSaveForWeb;
 pub use model::{
-    Animation, ColorTable, Dither, SaveForWebOptions, SaveForWebResult, WantedVariant, WebFormat, WebMetadata, WebPreset, WebVariant, WebView,
+    Animation, ColorTable, Dither, SaveForWebOptions, SaveForWebResult, WantedVariant, WebFormat, WebMetadata, WebPreset, WebSlice, WebSlices,
+    WebVariant, WebView,
 };
 
 /// The key of the matte colour request the dialog files.
 pub const MATTE_COLOR_KEY: &str = "web.matte";
+
+/// The key of the colour request the dialog files for an edited palette entry.
+pub const PALETTE_COLOR_KEY: &str = "web.palette";
 
 /// The key of the path request Save… files.
 pub const SAVE_PATH_KEY: &str = "web.save";
@@ -324,6 +328,9 @@ pub struct SaveForWebDialog<'a> {
     /// The host's answers to earlier requests: the matte colour and the path of the file to write.
     #[prop]
     answers: Vec<HostAnswer>,
+    /// The document's slices, for the Slices choice.
+    #[prop]
+    slices: &'a [WebSlice],
 }
 
 impl<'a> SaveForWebDialog<'a> {
@@ -340,12 +347,14 @@ impl<'a> SaveForWebDialog<'a> {
             remember: None,
             saving: false,
             answers: Vec::new(),
+            slices: &[],
         }
     }
 
     /// Shows the dialog.
     pub fn show(self, ui: &mut Ui) -> SaveForWebOutput {
-        let SaveForWebDialog { name, size, pictures, options, open, presets, animation, remember, saving, answers } = self;
+        let SaveForWebDialog { name, size, pictures, options, open, presets, animation, remember, saving, answers, slices } = self;
+        let _ = slices; // P3(dialogs-w15): dl.K43
         let env = Env::of(ui);
         let words = env.words::<SaveForWebWords>();
         let sizing = env.words::<SizingWords>();

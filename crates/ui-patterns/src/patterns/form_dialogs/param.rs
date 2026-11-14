@@ -5,12 +5,15 @@
 mod parse;
 
 use super::fields::{DialogFields, FieldValue};
+use crate::patterns::blend_keys::BlendKeyEntry;
 use crate::runtime::env::{Label, UnitKind};
-use crate::runtime::requests::{ColorRequest, PathKind};
+use crate::runtime::requests::{ColorRequest, EyedropperRequest, PathKind};
 use crate::value_drag::SliderScale;
+use craft_host::PickRequest;
 use craft_theme::Srgba;
 use egui::{Response, Ui};
 use std::fmt;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 /// What a parameter is and which control edits it. Defaults are the values a form opens with when nothing is
@@ -144,6 +147,30 @@ pub enum ParamKind {
     },
     /// A row the host draws: see [`Param::custom`]. It has no value of its own.
     Custom(CustomRow),
+    /// A select of blend modes, each with the Shift+Alt key that picks it.
+    #[non_exhaustive]
+    Blend {
+        /// The modes: their key entries (id and shortcut) and labels.
+        modes: Vec<(BlendKeyEntry<String>, Label)>,
+        /// The id of the mode shown when nothing is remembered; the first mode when `None`.
+        default: Option<String>,
+    },
+    /// A pattern chosen from the dialog's pattern list (`ParamDialog::patterns`); its value is the pattern's id.
+    #[non_exhaustive]
+    Pattern {
+        /// The id of the pattern shown when nothing is remembered.
+        default: Option<String>,
+    },
+    /// A list of files or one folder (a `FileListPicker`); its value is a `{files, folder, useFolder}` object.
+    #[non_exhaustive]
+    Files {
+        /// Whether the list picks a folder.
+        folder_mode: bool,
+        /// The file dialog request Browse makes.
+        request: PickRequest,
+        /// The paths of the documents already open, which the list offers to add.
+        open_files: Vec<PathBuf>,
+    },
     /// A section heading over the rows that follow it: see [`Param::section`]. It has no value.
     Section,
 }
@@ -214,6 +241,18 @@ impl ParamKind {
         ParamKind::OptionalNumber { min, max, default, initial, decimals }
     }
 
+    /// A select of blend `modes` with their keys; `default` is the id of the mode shown at first.
+    pub fn blend(modes: Vec<(BlendKeyEntry<String>, Label)>, default: Option<String>) -> Self {
+        let _ = (modes, default);
+        todo!("dl.K27")
+    }
+
+    /// A pattern chosen from the dialog's pattern list; `default` is the id shown at first.
+    pub fn pattern(default: Option<String>) -> Self {
+        let _ = default;
+        todo!("dl.K28")
+    }
+
     /// Fields per row of a [`ParamKind::Grid`] of `cells`: `round(sqrt(cells))`, at least 1.
     pub fn grid_side(cells: usize) -> usize {
         ((cells as f32).sqrt().round() as usize).max(1)
@@ -245,6 +284,9 @@ impl ParamKind {
             ParamKind::Channel { default, .. } => FieldValue::Int(i64::try_from(*default).unwrap_or(0)),
             ParamKind::Text { default } => FieldValue::Text(default.clone()),
             ParamKind::OptionalNumber { default, .. } => FieldValue::Number((*default)?),
+            ParamKind::Blend { .. } => todo!("dl.K27"),
+            ParamKind::Pattern { .. } => todo!("dl.K28"),
+            ParamKind::Files { .. } => todo!("dl.K29"),
             ParamKind::ReadOnlyText { .. } | ParamKind::Custom(_) | ParamKind::Section => return None,
         })
     }
@@ -273,6 +315,10 @@ impl ParamKind {
             (ParamKind::Channel { names, .. }, FieldValue::Int(i)) => usize::try_from(*i).is_ok_and(|i| i < names.len()),
             (ParamKind::Text { .. }, FieldValue::Text(_)) => true,
             (ParamKind::OptionalNumber { min, max, .. }, v) => number(v).is_some_and(|n| n.is_finite() && n >= *min && n <= *max),
+            (ParamKind::Custom(_), FieldValue::Json(_)) => true,
+            (ParamKind::Blend { .. }, _) => todo!("dl.K27"),
+            (ParamKind::Pattern { .. }, _) => todo!("dl.K28"),
+            (ParamKind::Files { .. }, _) => todo!("dl.K29"),
             _ => false,
         }
     }
@@ -316,12 +362,31 @@ pub struct CustomContext {
     title: Label,
     colors: DialogFields,
     request: Option<ColorRequest>,
+    canvas: Option<egui::Id>,
 }
 
 impl CustomContext {
     /// The context of a row labelled `title` over `colors`, the values at the start of the pass.
-    pub(crate) fn new(title: Label, colors: DialogFields) -> Self {
-        CustomContext { title, colors, request: None }
+    pub(crate) fn new(title: Label, colors: DialogFields, canvas: Option<egui::Id>) -> Self {
+        CustomContext { title, colors, request: None, canvas }
+    }
+
+    /// Arms the host's eyedropper for the colour under `request.key`, as a colour row's dropper toggle does.
+    pub fn arm_eyedropper(&mut self, request: EyedropperRequest) {
+        let _ = request;
+        todo!("dl.K30")
+    }
+
+    /// Whether the row's dropper samples now: `true` while the row wants canvas presses to pick colours.
+    pub fn sampling(&mut self, on: bool) {
+        let _ = on;
+        todo!("dl.K30")
+    }
+
+    /// The canvas the dialog's rows work on (`ParamDialog::canvas`), when it has one.
+    pub fn canvas(&self) -> Option<egui::Id> {
+        let _ = &self.canvas;
+        todo!("dl.K30")
     }
 
     /// Asks the host for its colour picker for the value under `key`, which needs no row of its own. The picker opens
@@ -373,6 +438,10 @@ pub(crate) struct RowOptions {
     /// The lines a multi-line text row shows.
     lines: Option<usize>,
     units: Option<UnitChoices>,
+    /// The ids of the options a choice row shows disabled.
+    disabled_options: Vec<String>,
+    /// The row's select has a search field.
+    searchable: bool,
 }
 
 /// The units of a number row ([`Param::number_with_units`]).
@@ -430,6 +499,54 @@ impl Param {
             texts: None,
             options: None,
         }
+    }
+
+    /// A row of files or one folder: a [`ParamKind::Files`] list the user fills with Browse.
+    pub fn files(key: impl Into<String>, label: impl Into<Label>) -> Param {
+        let _ = (key.into(), label.into());
+        todo!("dl.K29")
+    }
+
+    /// Whether a [`Param::files`] row picks one folder instead of files.
+    #[must_use]
+    pub fn folder_mode(self, on: bool) -> Self {
+        let _ = on;
+        todo!("dl.K29")
+    }
+
+    /// The paths of the documents already open, which a [`Param::files`] row offers to add.
+    #[must_use]
+    pub fn open_files(self, paths: Vec<PathBuf>) -> Self {
+        let _ = paths;
+        todo!("dl.K29")
+    }
+
+    /// Shows the options `ids` of a choice row disabled.
+    #[must_use]
+    pub fn disabled_options(mut self, ids: impl IntoIterator<Item = impl Into<String>>) -> Self {
+        let _ = ids.into_iter().map(Into::into).collect::<Vec<String>>();
+        let _ = &mut self;
+        todo!("cw.C39")
+    }
+
+    /// Whether the option `id` of a choice row takes a pick.
+    pub fn option_enabled(&self, id: &str) -> bool {
+        let _ = id;
+        todo!("cw.C39")
+    }
+
+    /// Gives a choice row's select a search field.
+    #[must_use]
+    pub fn searchable(mut self) -> Self {
+        let _ = &mut self;
+        todo!("pn.C51")
+    }
+
+    /// The row takes input only while `fields[key]` equals one of `values`; otherwise it is shown disabled.
+    #[must_use]
+    pub fn enabled_when_in(self, key: impl Into<String>, values: impl IntoIterator<Item = impl Into<FieldValue>>) -> Self {
+        let _ = (key.into(), values.into_iter().map(Into::into).collect::<Vec<FieldValue>>());
+        todo!("dl.K79")
     }
 
     /// A bare number row: a [`ParamKind::Number`] open on both sides. Bound it with [`Param::bounds`].

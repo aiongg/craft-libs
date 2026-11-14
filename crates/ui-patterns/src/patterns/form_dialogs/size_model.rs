@@ -2,7 +2,7 @@
 //! Canvas Size, and the two size rules of the export dialogs. It reads no egui and draws nothing; the dialogs show
 //! `LinkedSize` through `UnitSelect` rows, one per field.
 
-use crate::runtime::env::UnitKind;
+use crate::runtime::env::{ColumnSize, UnitKind};
 use craft_behavior::PixelSize;
 use std::ops::RangeInclusive;
 
@@ -138,6 +138,24 @@ pub struct LinkedSize {
 }
 
 impl LinkedSize {
+    /// Sets the width of the column of the rows' fields.
+    #[must_use]
+    pub fn column_size(mut self, size: ColumnSize) -> Self {
+        let _ = (&mut self, size);
+        todo!("dl.K37")
+    }
+
+    /// The unit the width is shown in.
+    pub fn width_unit(&self) -> UnitKind {
+        todo!("dl.K37")
+    }
+
+    /// Shows the width in `unit`; `false` when the size has no such unit.
+    pub fn set_width_unit(&mut self, unit: UnitKind) -> bool {
+        let _ = unit;
+        todo!("dl.K37")
+    }
+
     /// Fields for a document of size `original` at 72 ppi, in pixels and pixels per inch, locked, resampling and
     /// absolute, with the chain drawn.
     pub fn new(original: PixelSize) -> Self {

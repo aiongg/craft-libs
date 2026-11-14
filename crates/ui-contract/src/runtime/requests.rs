@@ -127,6 +127,24 @@ impl EyedropperRequest {
     }
 }
 
+/// A request for the files of a folder, which the host lists and answers with `HostAnswer::Listing`. A dialog row that
+/// shows a folder's files asks for them this way, since the framework holds no file system access of its own.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ListingRequest {
+    /// The key of the row the listing fills.
+    pub key: String,
+    /// The folder to list.
+    pub folder: PathBuf,
+}
+
+impl ListingRequest {
+    /// A request for the files of `folder`, answered under `key`.
+    pub fn new(key: impl Into<String>, folder: impl Into<PathBuf>) -> Self {
+        Self { key: key.into(), folder: folder.into() }
+    }
+}
+
 /// What the host answered to a request, kept until the dialog applies it to its values in its next pass.
 #[derive(Clone, Debug, PartialEq)]
 pub enum HostAnswer {
@@ -150,5 +168,12 @@ pub enum HostAnswer {
         key: String,
         /// The sampled colour.
         color: Srgba,
+    },
+    /// The files the host listed for the listing request `key`.
+    Listing {
+        /// The request's key.
+        key: String,
+        /// The files of the folder.
+        files: Vec<PathBuf>,
     },
 }

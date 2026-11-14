@@ -210,9 +210,9 @@ pub struct AboutDialog<'a> {
     /// Binds the open state to `open`.
     #[prop(name = "opened")]
     open: Option<Bind<'a, bool>>,
-    /// The tab the dialog opens on.
+    /// Binds the shown tab to `tab`; the dialog opens on it.
     #[prop]
-    tab: Option<AboutTab>,
+    tab: Option<Bind<'a, AboutTab>>,
 }
 
 impl<'a> AboutDialog<'a> {
@@ -232,6 +232,7 @@ impl<'a> AboutDialog<'a> {
         let title = Label::from(words.title.fill(&[("app", info.app_name.as_str())]));
         let shown = Shown { words: &words, writer: &writer, info, credits };
 
+        let _ = &tab; // P3(dialogs-w4): dl.K11, the bound tab
         let view = RefCell::new(View::default());
         let link = RefCell::new(None);
         let mut dialog =
@@ -240,7 +241,7 @@ impl<'a> AboutDialog<'a> {
             dialog = dialog.opened(open);
         }
         let shown_dialog = dialog.show(ui, |ui, cx| {
-            *view.borrow_mut() = if cx.appeared() { View { tab: tab.unwrap_or_default(), ..View::default() } } else { cx.memory::<View>().clone() };
+            *view.borrow_mut() = if cx.appeared() { View { tab: AboutTab::default(), ..View::default() } } else { cx.memory::<View>().clone() };
             Stack::new().header(|ui, _| shown.tabs(ui, &title, &view)).show(ui, |ui, _| {
                 let tab = view.borrow().tab;
                 match tab {
@@ -466,7 +467,7 @@ pub struct HostedAbout {
     id: DialogId,
     info: AboutInfo,
     credits: Credits,
-    tab: Option<AboutTab>,
+    tab: AboutTab,
     link: Option<String>,
     open: bool,
     #[cfg(feature = "testing")]
@@ -480,7 +481,7 @@ impl HostedAbout {
             id: dialog_id(ABOUT_KEY),
             info,
             credits,
-            tab: None,
+            tab: AboutTab::default(),
             link: None,
             open: true,
             #[cfg(feature = "testing")]
@@ -491,7 +492,7 @@ impl HostedAbout {
     /// The tab the dialog opens on.
     #[must_use]
     pub fn tab(mut self, tab: AboutTab) -> Self {
-        self.tab = Some(tab);
+        self.tab = tab;
         self
     }
 
@@ -507,12 +508,28 @@ const ABOUT_KEY: &str = "help.about";
 impl StackDialog for HostedAbout {
     type Result = ();
 
+    fn confirm(&mut self, ctx: &egui::Context) -> Option<Self::Result> {
+        let _ = ctx;
+        todo!("dl.K11")
+    }
+
+    fn json_fields(&self) -> Option<serde_json::Value> {
+        todo!("dl.K11")
+    }
+
+    fn set_json_field(&mut self, ctx: &egui::Context, field: &str, value: serde_json::Value) -> Result<(), String> {
+        let _ = (ctx, field, value);
+        todo!("dl.K11")
+    }
+
     fn id(&self) -> DialogId {
         self.id
     }
 
     fn show(&mut self, ui: &mut Ui, _: &DialogStack) -> Option<DialogResult<()>> {
-        let shown = AboutDialog { info: &self.info, credits: &self.credits, open: Some(Bind::bound(&mut self.open)), tab: self.tab }.show(ui);
+        let shown =
+            AboutDialog { info: &self.info, credits: &self.credits, open: Some(Bind::bound(&mut self.open)), tab: Some(Bind::bound(&mut self.tab)) }
+                .show(ui);
         #[cfg(feature = "testing")]
         {
             self.facts = crate::contract::Outcome::story_facts(&shown);

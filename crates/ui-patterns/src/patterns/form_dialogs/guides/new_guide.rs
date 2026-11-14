@@ -7,7 +7,7 @@ use super::{FormDialog, GUIDE_LIMIT, GuideDialogWords, HostRequests, NEW_GUIDE_C
 use crate::canvas_data::{Guide, GuideColor, GuideKey};
 
 use crate::choice::Segmented;
-use crate::contract::{Bind, Entry, NoValue, Outcome, Show as _, ShowContainer as _};
+use crate::contract::{Bind, Entry, NoValue, Outcome, SaveKey, Show as _, ShowContainer as _};
 
 use crate::dialog::{DialogId, DialogResult, DialogStack, StackDialog, dialog_id};
 
@@ -112,12 +112,15 @@ pub struct NewGuideDialog<'a> {
     /// Binds the open state to `open`.
     #[prop(name = "opened")]
     open: Option<Bind<'a, bool>>,
+    /// Saves the values under `key` for the next open.
+    #[prop]
+    remember: Option<SaveKey>,
 }
 
 impl<'a> NewGuideDialog<'a> {
     /// New Guide over `values`, for a document measured in `units`.
     pub fn new(units: GuideUnits, values: Bind<'a, NewGuideValues>) -> Self {
-        NewGuideDialog { units, values, edit: None, key: GuideKey::new(0), error: None, answers: Vec::new(), open: None }
+        NewGuideDialog { units, values, edit: None, key: GuideKey::new(0), error: None, answers: Vec::new(), open: None, remember: None }
     }
 
     /// Edit Selected Guides for `guide`, which is drawn in `preference` when it has no colour of its own: the
@@ -128,7 +131,8 @@ impl<'a> NewGuideDialog<'a> {
 
     /// Shows the dialog.
     pub fn show(self, ui: &mut Ui) -> NewGuideOutput {
-        let NewGuideDialog { units, values, edit, key, error, answers, open } = self;
+        let NewGuideDialog { units, values, edit, key, error, answers, open, remember } = self;
+        let _ = &remember; // P3(dialogs-w13): dl.K36
         let env = Env::of(ui);
         let words = env.words::<GuideDialogWords>();
         let number_units = env.units();
@@ -221,17 +225,26 @@ pub struct HostedNewGuideDialog {
     values: NewGuideValues,
     build: Box<Build>,
     requests: HostRequests,
+    /// Whether the dialog is open: bound to the dialog's `opened` prop.
+    #[allow(dead_code)] // P3(dialogs-w13): dl.K36
+    open: bool,
 }
 
 impl HostedNewGuideDialog {
     /// A dialog opening with `values`; `build` makes it over the values (`NewGuideDialog::new` or `edit`).
     pub fn new(values: NewGuideValues, build: impl for<'b> Fn(Bind<'b, NewGuideValues>) -> NewGuideDialog<'b> + Send + 'static) -> Self {
-        HostedNewGuideDialog { id: dialog_id("guides.newGuide"), values, build: Box::new(build), requests: HostRequests::new() }
+        HostedNewGuideDialog { id: dialog_id("guides.newGuide"), values, build: Box::new(build), requests: HostRequests::new(), open: true }
     }
 
     /// The values the dialog shows.
     pub fn values(&self) -> &NewGuideValues {
         &self.values
+    }
+
+    /// Shows `error` above the fields: the app's message when it refused the position.
+    pub fn set_error(&mut self, error: Option<Label>) {
+        let _ = error;
+        todo!("dl.K36")
     }
 
     /// What the dialog asked of the host and the host's answers: take the colour request, answer it.
@@ -242,6 +255,20 @@ impl HostedNewGuideDialog {
 
 impl StackDialog for HostedNewGuideDialog {
     type Result = Guide;
+
+    fn confirm(&mut self, ctx: &egui::Context) -> Option<Self::Result> {
+        let _ = ctx;
+        todo!("dl.K36")
+    }
+
+    fn json_fields(&self) -> Option<serde_json::Value> {
+        todo!("dl.K36")
+    }
+
+    fn set_json_field(&mut self, ctx: &egui::Context, field: &str, value: serde_json::Value) -> Result<(), String> {
+        let _ = (ctx, field, value);
+        todo!("dl.K36")
+    }
 
     fn id(&self) -> DialogId {
         self.id

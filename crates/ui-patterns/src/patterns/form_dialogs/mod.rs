@@ -19,6 +19,7 @@ mod preview;
 
 pub use dialog::{
     BelowRows, FooterExtra, HostedParamDialog, ParamDialog, ParamDialogOutput, ParamDialogWords, ParamLayout, ParamResult, ResetFooter, ResetPick,
+    set_param_field,
 };
 pub use form::{FormCx, FormDialog, FormDialogWords, FormOutput};
 pub use host_requests::{HostRequests, PreviewRequest};
@@ -37,7 +38,11 @@ mod report;
 
 pub use list_manager::{ActionEnabled, ListManager, ListManagerAction, ListManagerChoice, ListManagerEntry, ListManagerOutput, ListManagerWords};
 pub use password::{PasswordAnswer, PasswordDialog, PasswordOutput, PasswordPurpose, PasswordStrength, PasswordWords, Secret};
-pub use report::{ReportDialog, ReportNote, ReportOutput, ReportWords};
+pub use report::{HostedReport, ReportDialog, ReportNote, ReportOutput, ReportWords};
+
+mod file_list;
+
+pub use file_list::{FileList, FileListMode, FileListPicker, FileListPickerOutput, FileListWords};
 
 mod sizing;
 
@@ -83,7 +88,7 @@ pub use export::{
     DdsCompression, DdsOptions, ExportAsDialog, ExportAsOutput, ExportAsResult, ExportFormat, ExportFormatDefaults, ExportMetadata, ExportOptions,
     ExportOptionsKind, ExportPreview, ExportProfile, ExportSize, ExportWords, FormatOptions, FormatOptionsDialog, FormatOptionsOutput,
     FormatOptionsWords, HostedExportAs, HostedFormatOptions, JpegFormat, JpegOptions, JpegPreset, OutputPathOutput, OutputPathRow, OutputPathWords,
-    SizeEstimate, TargaOptions, TiffOptions, jpeg_quality_percent,
+    SizeEstimate, TargaOptions, TiffCompression, TiffOptions, jpeg_quality_percent,
 };
 
 // Save PDF.
@@ -95,7 +100,8 @@ mod save_for_web;
 mod watermark;
 
 pub use save_for_web::{
-    Animation, ColorTable, Dither, HostedSaveForWeb, MATTE_COLOR_KEY, SAVE_PATH_KEY, SaveForWebDialog, SaveForWebOptions, SaveForWebOutput,
-    SaveForWebResult, SaveForWebWords, WantedVariant, WebFormat, WebMetadata, WebPane, WebPictures, WebPreset, WebVariant, WebView,
+    Animation, ColorTable, Dither, HostedSaveForWeb, MATTE_COLOR_KEY, PALETTE_COLOR_KEY, SAVE_PATH_KEY, SaveForWebDialog, SaveForWebOptions,
+    SaveForWebOutput, SaveForWebResult, SaveForWebWords, WantedVariant, WebFormat, WebMetadata, WebPane, WebPictures, WebPreset, WebSlice, WebSlices,
+    WebVariant, WebView,
 };
 pub use watermark::{ROTATIONS, WATERMARK_IMAGE_KEY, Watermark, WatermarkOutput, WatermarkSettings, WatermarkStyle, WatermarkWords};

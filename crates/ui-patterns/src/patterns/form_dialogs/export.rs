@@ -11,6 +11,7 @@ mod path_row;
 #[cfg(feature = "testing")]
 mod stories;
 
+use crate::contract::SaveKey;
 use crate::runtime::env::Label;
 use craft_behavior::PixelSize;
 use serde::{Deserialize, Serialize};
@@ -19,7 +20,7 @@ use std::path::PathBuf;
 pub use as_dialog::{ExportAsDialog, ExportAsOutput, HostedExportAs};
 pub use options::{
     DdsCompression, DdsOptions, ExportOptionsKind, FormatOptions, FormatOptionsDialog, FormatOptionsOutput, FormatOptionsWords, HostedFormatOptions,
-    JpegFormat, JpegOptions, JpegPreset, TargaOptions, TiffOptions, jpeg_quality_percent,
+    JpegFormat, JpegOptions, JpegPreset, TargaOptions, TiffCompression, TiffOptions, jpeg_quality_percent,
 };
 pub use path_row::{OutputPathOutput, OutputPathRow, OutputPathWords};
 
@@ -325,6 +326,16 @@ pub struct ExportAsResult {
     pub path: PathBuf,
     /// The output size in pixels.
     pub size: PixelSize,
+    remember: Option<(SaveKey, ExportOptions)>,
+}
+
+impl ExportAsResult {
+    /// Stores the settings of a dialog built with [`ExportAsDialog::remember`] for the next open. The app calls it
+    /// after its export succeeds, so a failed export leaves the previous settings; without a key it does nothing.
+    pub fn remember(&self, ctx: &egui::Context) {
+        let _ = (ctx, &self.remember);
+        todo!("dl.K41")
+    }
 }
 
 /// A file name safe on every platform: at most 80 characters, control characters and `< > : " / \ | ? *` replaced by

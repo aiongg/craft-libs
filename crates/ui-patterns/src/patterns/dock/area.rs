@@ -65,6 +65,8 @@ pub struct DockAreaOutput<P> {
     /// Where each dock column was placed this pass, named by a panel of its first group, in the area's layer space.
     /// Hosts that anchor their own surfaces to a column read it.
     pub columns: Vec<(P, Rect)>,
+    /// The files dropped on the area's windows this pass, for the host to open.
+    pub window_files: Vec<drag::OsFile>,
     /// The area's response.
     pub response: Response,
 }
@@ -356,7 +358,18 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
         if shown.output.dropped.is_some() {
             cross_window::accept_cross_window(&ctx);
         }
-        DockAreaOutput { actions, events, focused, picked, error, edit, float_space: space, columns, response: shown.output.response }
+        DockAreaOutput {
+            actions,
+            events,
+            focused,
+            picked,
+            error,
+            edit,
+            float_space: space,
+            columns,
+            window_files: Vec::new(),
+            response: shown.output.response,
+        } // P3(panels-w1): pn.C7
     }
 }
 

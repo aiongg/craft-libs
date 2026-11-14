@@ -91,6 +91,9 @@ pub struct ShellRegion {
     #[container]
     props: ContainerProps,
     shell: Option<ShellCx>,
+    /// Whether the region senses a press on its own surface, where no child or part takes it (`Sense::SURFACE`).
+    #[prop(flag)]
+    senses_surface: bool,
 }
 
 impl ShellRegion {
@@ -99,7 +102,7 @@ impl ShellRegion {
     /// window's clear colour.
     pub fn window() -> Self {
         let props = ContainerProps::new().mount(Mount::window(Resize::GRIPS)).command_scope(ScreenModeCommands::SCOPE);
-        ShellRegion { common: Common::new(), props, shell: None }
+        ShellRegion { common: Common::new(), props, shell: None, senses_surface: false }
     }
 
     /// The content of a shell shown inside a region of another window: it fills its room, answers the screen-mode
@@ -107,19 +110,19 @@ impl ShellRegion {
     pub fn embedded() -> Self {
         let props =
             ContainerProps::new().sizing(crate::contract::Sizing::Fill).surface(SurfaceKind::Background).command_scope(ScreenModeCommands::SCOPE);
-        ShellRegion { common: Common::new(), props, shell: None }
+        ShellRegion { common: Common::new(), props, shell: None, senses_surface: false }
     }
 
     /// An inline region that fills its room and sets `shell` for everything inside it.
     pub fn scope(shell: ShellCx) -> Self {
         let props = ContainerProps::new().sizing(crate::contract::Sizing::Fill).command_scope(crate::runtime::commands::CommandScope::APP);
-        ShellRegion { common: Common::new(), props, shell: Some(shell) }
+        ShellRegion { common: Common::new(), props, shell: Some(shell), senses_surface: false }
     }
 
     /// A pane of the window; it fills the room its edge gives it.
     pub fn pane(pane: ShellPane) -> Self {
         let props = ContainerProps::new().mount(Mount::Pane(pane)).focus(FocusPolicy::PANE);
-        ShellRegion { common: Common::new(), props, shell: None }
+        ShellRegion { common: Common::new(), props, shell: None, senses_surface: false }
     }
 }
 
@@ -136,7 +139,7 @@ impl Component for ShellRegion {
     }
 
     fn sense(&self) -> Sense {
-        Sense::empty()
+        if self.senses_surface { Sense::SURFACE } else { Sense::empty() }
     }
 
     fn content_env(&self, _: &Cx<'_, Self>, values: &mut AppValues) {

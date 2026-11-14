@@ -1,7 +1,8 @@
 //! `ParamRows`: a form with one `Field` per visible parameter of a [`Param`] list, over a [`DialogFields`] value.
 
 use super::fields::{DialogFields, FieldValue};
-use crate::runtime::requests::{ColorRequest, EyedropperRequest, PathRequest};
+use crate::patterns::presets::PresetRow;
+use crate::runtime::requests::{ColorRequest, EyedropperRequest, ListingRequest, PathRequest};
 
 use super::param::{CustomContext, Param, ParamKind, fill_defaults, rounded};
 use super::path_row::PathRow;
@@ -66,6 +67,8 @@ pub struct ParamRowsOutput {
     /// The eyedropper toggle turned on this pass: the host answers with the colour the sampler picks for the request's
     /// key. While a toggle is on the rows arm the sampler for `ParamRows::canvas`; turning it off files nothing.
     pub eyedropper: Option<EyedropperRequest>,
+    /// The folder a files row asked the host to list this pass; the host answers with `HostAnswer::Listing`.
+    pub listing: Option<ListingRequest>,
 }
 
 impl Outcome for ParamRowsOutput {
@@ -119,6 +122,12 @@ impl<'a> ParamRows<'a> {
         self
     }
 
+    /// The patterns a [`ParamKind::Pattern`] row offers, by id.
+    pub fn patterns(mut self, rows: &'a [PresetRow<String>]) -> Self {
+        let _ = (&mut self, rows);
+        todo!("dl.K31")
+    }
+
     /// Whether the rows only show their values.
     pub fn read_only(mut self, on: bool) -> Self {
         self.read_only = on;
@@ -167,7 +176,7 @@ impl<'a> ParamRows<'a> {
         };
         let shown = if read_only { with_env(ui, |scope| scope.read_only = Some(true), group) } else { group(ui) };
         let (pick_color, path, eyedropper) = if read_only { Default::default() } else { (pass.color, pass.path, pass.eyedropper) };
-        ParamRowsOutput { response: shown.output, changed, values, pick_color, path, eyedropper }
+        ParamRowsOutput { response: shown.output, changed, values, pick_color, path, eyedropper, listing: None }
     }
 }
 
@@ -301,6 +310,7 @@ impl<'p> Pass<'p> {
             ParamKind::OptionalNumber { min, max, initial, decimals, .. } => self.optional(ui, &line, *min..=*max, *initial, *decimals),
             ParamKind::ReadOnlyText { text } => read_only_text(ui, &line, text),
             ParamKind::Custom(_) => self.custom(ui, &line),
+            ParamKind::Blend { .. } | ParamKind::Pattern { .. } | ParamKind::Files { .. } => todo!("dl.K31"),
             ParamKind::Section => {}
         }
     }
@@ -615,7 +625,7 @@ impl<'p> Pass<'p> {
 
     fn custom(&mut self, ui: &mut Ui, line: &Line<'_>) {
         let ParamKind::Custom(row) = &line.param.kind else { return };
-        let mut context = CustomContext::new(line.name.clone(), self.work.clone());
+        let mut context = CustomContext::new(line.name.clone(), self.work.clone(), None); // P3(dialogs-w2): dl.K30, the rows' canvas
         line.show_body(ui, |ui| {
             let _ = row.draw(ui, &mut self.work, &mut context);
         });

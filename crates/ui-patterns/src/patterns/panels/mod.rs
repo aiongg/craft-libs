@@ -7,6 +7,13 @@ mod inspector;
 
 pub use inspector::Inspector;
 
+// History and modifier keys.
+mod history;
+mod modifier_keys;
+
+pub use history::{HistoryEvent, HistoryFooter, HistoryKey, HistoryPanel, HistoryPanelOutput, HistoryRow};
+pub use modifier_keys::ModifierKeysPanel;
+
 // CommandPalette and Tour.
 mod palette;
 mod tour;

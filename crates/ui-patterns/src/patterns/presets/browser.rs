@@ -258,6 +258,9 @@ pub struct PresetBrowser<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     /// this many tiles. 0 asks for none.
     #[prop]
     columns: u16,
+    /// What the browser shows when `rows` is empty, in place of the default words.
+    #[prop(into)]
+    empty: Option<Label>,
 }
 
 impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'a, K> {
@@ -290,6 +293,7 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'a, K> {
             max_rows: None,
             room_height: None,
             columns: 0,
+            empty: None,
         }
     }
 
@@ -570,7 +574,9 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'_, K> {
             max_rows,
             room_height,
             columns,
+            empty: empty_text,
         } = self;
+        let _ = &empty_text; // P3(panels-w12): pn.C50
         let env = Env::of(ui);
         let words = env.words::<PresetWords>();
         let list_id = rows_id(browser_id.unwrap_or_else(|| ui.scope_id()));

@@ -2,7 +2,8 @@
 //! owned by a `DialogHost`. A command form is a `ParamDialog` without a preview.
 
 use super::fields::{DialogFields, FieldValue};
-use crate::runtime::requests::{ColorRequest, HostAnswer, PathRequest};
+use crate::patterns::presets::PresetRow;
+use crate::runtime::requests::{ColorRequest, EyedropperRequest, HostAnswer, ListingRequest, PathRequest};
 
 use super::form::{FormDialog, FormDialogWords};
 use super::host_requests::HostRequests;
@@ -66,9 +67,9 @@ pub struct ParamResult {
 impl ParamResult {
     /// Stores the values of a dialog built with [`ParamDialog::remember`] for the next open. The app calls it after
     /// its command succeeds, so a failed command leaves the previous values; without a remember key it does nothing.
-    pub fn remember(&self, ui: &Ui) {
+    pub fn remember(&self, ctx: &Context) {
         if let Some((key, values)) = &self.remember {
-            let mut stage = MemoryStage::open(ui.ctx(), unique(("craft_ui::param_result", key.as_str())));
+            let mut stage = MemoryStage::open(ctx, unique(("craft_ui::param_result", key.as_str())));
             *stage.saved::<Option<DialogFields>>(key) = Some(values.clone());
             stage.write_back();
         }
@@ -105,6 +106,8 @@ pub struct ParamDialogOutput {
     /// The point of the preview picture a click landed on this pass (`PreviewOutput::clicked`): an eyedropper on the
     /// preview samples there.
     pub preview_click: Option<Pos2>,
+    /// The id of the extra footer button pressed this pass (`ParamDialog::extra_buttons`).
+    pub footer_action: Option<String>,
 }
 
 impl Outcome for ParamDialogOutput {
@@ -183,6 +186,15 @@ pub struct ParamDialog<'a> {
     /// preview clicks pick a colour turns it off. The default is true.
     #[prop]
     click_centres: bool,
+    /// The canvas the rows' droppers sample (`ParamRows::canvas`).
+    #[prop]
+    canvas: Option<egui::Id>,
+    /// Extra footer buttons, each an id and a label; a press comes back as `ParamDialogOutput::footer_action`.
+    #[prop]
+    extra_buttons: Vec<(String, Label)>,
+    /// The patterns the dialog's [`ParamKind::Pattern`] rows offer.
+    #[prop]
+    patterns: Cow<'a, [PresetRow<String>]>,
     /// Controls before the buttons in the footer (Color Table's Load and Save).
     #[prop(func = "FnMut(&mut Ui)")]
     footer_extra: Option<FooterExtra<'a>>,
@@ -245,6 +257,9 @@ impl<'a> ParamDialog<'a> {
             closable: true,
             preview: None,
             click_centres: true,
+            canvas: None,
+            extra_buttons: Vec::new(),
+            patterns: Cow::Borrowed(&[]),
             footer_extra: None,
             below: None,
             shaped: None,
@@ -335,12 +350,16 @@ impl<'a> ParamDialog<'a> {
             closable,
             preview,
             click_centres,
+            canvas,
+            extra_buttons,
+            patterns,
             footer_extra,
             below,
             shaped,
             answers,
             values_opened,
         } = self;
+        let _ = (&canvas, &extra_buttons, &patterns); // P3(dialogs-w1): dl.K21, dl.K22, dl.K28
         let preview_label = Env::of(ui).words::<FormDialogWords>().preview.clone();
 
         let mut form = match bound {
@@ -396,6 +415,7 @@ impl<'a> ParamDialog<'a> {
                 match answer {
                     HostAnswer::Color { key, color } | HostAnswer::Eyedropper { key, color } => set_color_field(&params, values, &key, color),
                     HostAnswer::Path { key, path } => values.set(&key, FieldValue::Text(path.to_string_lossy().into_owned())),
+                    HostAnswer::Listing { .. } => {} // P3(dialogs-w1): dl.K26
                 }
             }
             live = cx.memory::<Live>().clone();
@@ -434,7 +454,15 @@ impl<'a> ParamDialog<'a> {
             preview_on: shown.preview_on,
             comparing: shown.comparing,
             preview_click,
+            footer_action: None, // P3(dialogs-w1): dl.K22, from `FormOutput::picked`
         }
+    }
+
+    /// A note in the footer, left of the buttons (a file size estimate, say).
+    #[allow(dead_code)] // P3(dialogs-w1): dl.K23
+    pub fn footer_note(mut self, note: impl Into<Label>) -> Self {
+        let _ = (&mut self, note.into());
+        todo!("dl.K23")
     }
 }
 
@@ -596,6 +624,32 @@ pub struct HostedParamDialog {
     opened: bool,
     build: Box<Build>,
     requests: HostRequests,
+    /// Whether the dialog is open: bound to the dialog's `opened` prop.
+    #[allow(dead_code)] // P3(dialogs-w1): dl.K17
+    open: bool,
+    /// The preview picture the host last gave (`set_preview`).
+    #[allow(dead_code)] // P3(dialogs-w1): dl.K17
+    preview: Option<SizedTexture>,
+    /// What the dialog showed in its last pass.
+    #[allow(dead_code)] // P3(dialogs-w1): dl.K17
+    shown: ShownState,
+    /// An OK the host holds back until it answers `answer_ok` ([`held_ok`](HostedParamDialog::held_ok)).
+    #[allow(dead_code)] // P3(dialogs-w1): dl.K17
+    held: Option<Held>,
+}
+
+/// What a [`HostedParamDialog`] showed in its last pass: whether the preview is on and held for comparing.
+#[derive(Clone, Copy, Debug, Default)]
+#[allow(dead_code)] // P3(dialogs-w1): dl.K17
+struct ShownState {
+    previewing: bool,
+    comparing: bool,
+}
+
+/// An OK a [`HostedParamDialog`] holds back until the host answers it.
+#[allow(dead_code)] // P3(dialogs-w1): dl.K17
+struct Held {
+    result: ParamResult,
 }
 
 impl HostedParamDialog {
@@ -614,6 +668,10 @@ impl HostedParamDialog {
             opened: false,
             build: Box::new(build),
             requests: HostRequests::new(),
+            open: false,
+            preview: None,
+            shown: ShownState::default(),
+            held: None,
         }
     }
 
@@ -670,6 +728,84 @@ impl HostedParamDialog {
         self.requests.answer_eyedropper(key, color);
     }
 
+    /// Sets the picture the preview pane shows; `None` shows none.
+    pub fn set_preview(&mut self, picture: Option<SizedTexture>) {
+        let _ = picture;
+        todo!("dl.K18")
+    }
+
+    /// Whether the Preview check box is on: the host renders the preview while it is.
+    pub fn is_previewing(&self) -> bool {
+        todo!("dl.K18")
+    }
+
+    /// Whether the Preview check box is held down to compare with the unfiltered picture.
+    pub fn is_comparing(&self) -> bool {
+        todo!("dl.K18")
+    }
+
+    /// The eyedropper toggle that was pressed, once.
+    pub fn take_eyedropper(&mut self) -> Option<EyedropperRequest> {
+        todo!("dl.K19")
+    }
+
+    /// Makes OK file its answer for the host to take instead of closing: the host checks it and answers with
+    /// [`answer_ok`](HostedParamDialog::answer_ok).
+    #[must_use]
+    pub fn held_ok(self) -> Self {
+        todo!("dl.K20")
+    }
+
+    /// The OK filed by a held dialog, once.
+    pub fn take_ok(&mut self) -> Option<ParamResult> {
+        todo!("dl.K20")
+    }
+
+    /// The host's answer to the held OK: `Ok` closes the dialog with it, `Err` shows the label as the dialog's error.
+    pub fn answer_ok(&mut self, answer: Result<(), Label>) {
+        let _ = answer;
+        todo!("dl.K20")
+    }
+
+    /// The footer button id that was pressed, once (`ParamDialog::extra_buttons`).
+    pub fn take_footer_action(&mut self) -> Option<String> {
+        todo!("dl.K22")
+    }
+
+    /// The folder listing a files row asked for, once.
+    pub fn take_listing(&mut self) -> Option<ListingRequest> {
+        todo!("dl.K25")
+    }
+
+    /// Answers the listing request `key` with the `files` of its folder.
+    pub fn answer_listing(&mut self, key: impl Into<String>, files: Vec<std::path::PathBuf>) {
+        let _ = (key.into(), files);
+        todo!("dl.K25")
+    }
+
+    /// Sets the value under `key` as an edit would; the dialog shows it in its next pass.
+    pub fn set_field(&mut self, key: impl Into<String>, value: FieldValue) {
+        let _ = (key.into(), value);
+        todo!("dl.K70")
+    }
+
+    /// Centres the preview pane on `point` of the picture.
+    pub fn centre_preview(&mut self, point: Pos2) {
+        let _ = point;
+        todo!("dl.K71")
+    }
+
+    /// The point of the picture the preview pane is centred on, once it has been shown.
+    pub fn preview_centre(&self) -> Option<Pos2> {
+        todo!("dl.K80")
+    }
+
+    /// Shows `color` as the live preview of the colour row `key`; `None` ends it.
+    pub fn preview_color(&mut self, key: &str, color: Option<craft_theme::Srgba>) {
+        let _ = (key, color);
+        todo!("dl.K77")
+    }
+
     /// The host cancelled its picker, file dialog or dropper: the requests not taken yet are dropped.
     pub fn cancel_requests(&mut self) {
         self.requests.cancel();
@@ -687,6 +823,14 @@ impl HostedParamDialog {
     }
 }
 
+/// Checks `value` against the row `field` of `params` and sets it in `fields`, as the user editing the row would; `Err`
+/// says why the row refused.
+#[allow(dead_code)] // P3(dialogs-w1): dl.K69
+pub fn set_param_field(params: &[Param], fields: &mut DialogFields, field: &str, value: Value) -> Result<(), String> {
+    let _ = (params, fields, field, value);
+    todo!("dl.K69")
+}
+
 /// `value` read as the value a row of `kind` keeps; `None` when it isn't one, or the row keeps none.
 fn read_value(kind: &ParamKind, value: Value) -> Option<FieldValue> {
     Some(match kind {
@@ -699,7 +843,10 @@ fn read_value(kind: &ParamKind, value: Value) -> Option<FieldValue> {
         ParamKind::Color { .. } => FieldValue::Color(serde_json::from_value(value).ok()?),
         ParamKind::Point { .. } => FieldValue::Point(serde_json::from_value(value).ok()?),
         ParamKind::Grid { .. } => FieldValue::Grid(serde_json::from_value(value).ok()?),
-        ParamKind::ReadOnlyText { .. } | ParamKind::Custom(_) | ParamKind::Section => return None,
+        ParamKind::Blend { .. } | ParamKind::Pattern { .. } => FieldValue::Text(value.as_str()?.to_owned()),
+        ParamKind::Files { .. } => todo!("dl.K26"),
+        ParamKind::Custom(_) => FieldValue::Json(value),
+        ParamKind::ReadOnlyText { .. } | ParamKind::Section => return None,
     })
 }
 

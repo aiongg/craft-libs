@@ -1,7 +1,7 @@
 //! `HostRequests`: what a hosted dialog's rows ask of the host, kept until the host takes it.
 
 use super::rows::ParamRowsOutput;
-use crate::runtime::requests::{ColorRequest, EyedropperRequest, HostAnswer, PathRequest};
+use crate::runtime::requests::{ColorRequest, EyedropperRequest, HostAnswer, ListingRequest, PathRequest};
 use craft_theme::Srgba;
 use egui::Pos2;
 use std::path::PathBuf;
@@ -125,6 +125,46 @@ impl HostRequests {
         self.eyedropper = eyedropper.or(self.eyedropper.take());
         self.preview_click = preview_click.or(self.preview_click.take());
         self.answers.extend(answers);
+    }
+
+    /// Files a footer button's id the user pressed; it replaces one not taken yet.
+    #[allow(dead_code)] // P3(dialogs-w1): dl.K24
+    pub fn request_footer_action(&mut self, id: String) {
+        let _ = id;
+        todo!("dl.K24")
+    }
+
+    /// The footer button id that was pressed, once.
+    #[allow(dead_code)] // P3(dialogs-w1): dl.K24
+    pub fn take_footer_action(&mut self) -> Option<String> {
+        todo!("dl.K24")
+    }
+
+    /// Files a request for the files of a folder; it replaces one not taken yet.
+    #[allow(dead_code)] // P3(dialogs-w1): dl.K24
+    pub fn request_listing(&mut self, request: ListingRequest) {
+        let _ = request;
+        todo!("dl.K24")
+    }
+
+    /// The folder listing that was requested, once.
+    #[allow(dead_code)] // P3(dialogs-w1): dl.K24
+    pub fn take_listing(&mut self) -> Option<ListingRequest> {
+        todo!("dl.K24")
+    }
+
+    /// Answers the listing request `key` with the `files` of its folder: the dialog applies them in its next pass.
+    #[allow(dead_code)] // P3(dialogs-w1): dl.K24
+    pub fn answer_listing(&mut self, key: impl Into<String>, files: Vec<PathBuf>) {
+        let _ = (key.into(), files);
+        todo!("dl.K24")
+    }
+
+    /// Shows `color` as the live preview of the colour row `key` while it is picked; `None` ends the preview.
+    #[allow(dead_code)] // P3(dialogs-w1): dl.K77
+    pub fn preview_color(&mut self, key: impl Into<String>, color: Option<Srgba>) {
+        let _ = (key.into(), color);
+        todo!("dl.K77")
     }
 
     /// Drops the colour request not taken yet (the picker was cancelled).

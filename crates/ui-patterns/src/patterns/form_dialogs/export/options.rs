@@ -2,11 +2,12 @@
 //! JPEG, layered TIFF, Targa and DDS are one form over four parameter lists; OK and Cancel, Enter and Escape come from
 //! `ParamDialog`, and Cancel abandons the save.
 
+use super::SizeEstimate;
 use crate::contract::{Bind, Entry, NoValue, Outcome, Props as _, Show as _, ShowContainer as _};
 use crate::dialog::{DialogId, DialogResult, DialogStack, StackDialog, dialog_id};
 use crate::form::Field;
 use crate::layout_components::{Row, Stack};
-use crate::patterns::form_dialogs::{DialogFields, FieldValue, Param, ParamDialog, ParamKind, ParamResult};
+use crate::patterns::form_dialogs::{DialogFields, FieldValue, Param, ParamDialog, ParamKind, ParamResult, PreviewRequest};
 use crate::pickers::Select;
 use crate::runtime::env::{Env, Label};
 use crate::runtime::overlay::CloseReason;
@@ -171,6 +172,25 @@ pub struct TiffOptions {
     pub discard_layers: bool,
     /// Don't ask again: the app clears its "ask before saving layered TIFF" preference.
     pub dont_show_again: bool,
+    /// How the pixel data is compressed.
+    pub compression: TiffCompression,
+    /// Save the reduced-resolution levels of a pyramidal TIFF.
+    pub pyramid: bool,
+    /// Keep the transparency as an alpha channel.
+    pub transparency: bool,
+}
+
+/// How a TIFF's pixel data is compressed.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum TiffCompression {
+    /// No compression.
+    #[default]
+    None,
+    /// LZW.
+    Lzw,
+    /// ZIP (Deflate).
+    Zip,
 }
 
 /// What Targa Options answers with.
@@ -274,8 +294,8 @@ const DEFAULT_QUALITY: u8 = 8;
 
 const QUALITY: &str = "quality";
 const FORMAT: &str = "format";
-const DISCARD: &str = "discard";
-const DONT_SHOW: &str = "dontShow";
+const DISCARD: &str = "discardLayers";
+const DONT_SHOW: &str = "dontShowAgain";
 const BITS: &str = "bits";
 const COMPRESSION: &str = "compression";
 const MIPMAPS: &str = "mipmaps";
@@ -318,17 +338,30 @@ pub struct FormatOptionsDialog<'a> {
     /// The options the dialog opens with.
     #[prop]
     initial: Option<FormatOptions>,
+    /// The estimated size of the saved file, shown in the footer: `None` is unknown (not asked yet), `Some(None)` is
+    /// being worked out.
+    #[prop]
+    estimate: Option<Option<SizeEstimate>>,
 }
 
 impl<'a> FormatOptionsDialog<'a> {
     /// The dialog for the options of `kind`.
     pub fn new(kind: ExportOptionsKind) -> Self {
-        FormatOptionsDialog { kind, open: None, initial: None }
+        FormatOptionsDialog { kind, open: None, initial: None, estimate: None }
+    }
+
+    /// Offers the TIFF rows of a document: Discard Layers when it has `layered`, Transparency when it is `transparent`,
+    /// and the note about the layers when `layer_note` is set.
+    #[must_use]
+    pub fn tiff_document(mut self, layered: bool, transparent: bool, layer_note: bool) -> Self {
+        let _ = (&mut self, layered, transparent, layer_note);
+        todo!("dl.K42")
     }
 
     /// Shows the dialog.
     pub fn show(self, ui: &mut Ui) -> FormatOptionsOutput {
-        let FormatOptionsDialog { kind, open, initial } = self;
+        let FormatOptionsDialog { kind, open, initial, estimate } = self;
+        let _ = &estimate; // P3(dialogs-w14): dl.K42
         let words = Env::of(ui).words::<FormatOptionsWords>();
         let start = initial.filter(|options| options.kind() == kind).unwrap_or_else(|| FormatOptions::default_for(kind));
         let title = match kind {
@@ -377,6 +410,17 @@ pub struct HostedFormatOptions {
 }
 
 impl HostedFormatOptions {
+    /// The settings the app should estimate the file size for, once, when they changed since the last call.
+    pub fn wanted_estimate(&mut self) -> Option<PreviewRequest<FormatOptions>> {
+        todo!("dl.K42")
+    }
+
+    /// The app's estimate for the settings of `revision`; an answer for an older revision is dropped.
+    pub fn set_estimate(&mut self, revision: u64, estimate: Option<SizeEstimate>) {
+        let _ = (revision, estimate);
+        todo!("dl.K42")
+    }
+
     /// The options dialog of `kind`.
     pub fn new(kind: ExportOptionsKind) -> Self {
         HostedFormatOptions {
@@ -405,12 +449,26 @@ impl HostedFormatOptions {
 impl StackDialog for HostedFormatOptions {
     type Result = FormatOptions;
 
+    fn confirm(&mut self, ctx: &egui::Context) -> Option<Self::Result> {
+        let _ = ctx;
+        todo!("dl.K42")
+    }
+
+    fn json_fields(&self) -> Option<serde_json::Value> {
+        todo!("dl.K42")
+    }
+
+    fn set_json_field(&mut self, ctx: &egui::Context, field: &str, value: serde_json::Value) -> Result<(), String> {
+        let _ = (ctx, field, value);
+        todo!("dl.K42")
+    }
+
     fn id(&self) -> DialogId {
         self.id
     }
 
     fn show(&mut self, ui: &mut Ui, _: &DialogStack) -> Option<DialogResult<FormatOptions>> {
-        let shown = FormatOptionsDialog { kind: self.kind, open: Some(Bind::bound(&mut self.open)), initial: self.initial }.show(ui);
+        let shown = FormatOptionsDialog { kind: self.kind, open: Some(Bind::bound(&mut self.open)), initial: self.initial, estimate: None }.show(ui);
         #[cfg(feature = "testing")]
         {
             self.facts = crate::contract::Outcome::story_facts(&shown);
@@ -548,6 +606,9 @@ fn answer(start: FormatOptions, result: &ParamResult) -> FormatOptions {
         ExportOptionsKind::Tiff => FormatOptions::Tiff(TiffOptions {
             discard_layers: fields.bool(DISCARD).unwrap_or_default(),
             dont_show_again: fields.bool(DONT_SHOW).unwrap_or_default(),
+            compression: TiffCompression::default(), // P3(dialogs-w14): dl.K42
+            pyramid: false,
+            transparency: false,
         }),
         ExportOptionsKind::Targa => {
             FormatOptions::Targa(TargaOptions::new(fields.text(BITS).and_then(|bits| bits.parse().ok()).unwrap_or(TARGA_BITS)))
