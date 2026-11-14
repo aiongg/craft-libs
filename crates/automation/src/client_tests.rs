@@ -1,8 +1,11 @@
 //! Behaviour tests of `client`.
+// Unwrapping, expecting and panicking on failure is fine in tests, unlike in shipped code.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use craft_ui::testing::trial;
 use serde_json::json;
 
+#[allow(clippy::wildcard_imports, reason = "tests use most of the module under test and its helpers")]
 use super::*;
 
 const TOKEN: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";

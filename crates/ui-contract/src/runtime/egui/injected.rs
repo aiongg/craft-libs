@@ -1,11 +1,11 @@
 //! Injected input: pointer moves, clicks, keys and text an automation client asks for, and the event builders
 //! injected input and the trials' fixture share.
 //!
-//! A request appends frames of events to its viewport's queue. Each pass's input hook ([`input_hook`]) appends
+//! A request appends frames of events to its viewport's queue. Each pass's input hook (`input_hook`) appends
 //! the next frame, so a move, a press, a release and a key's down and up land on separate passes as real input
 //! does, and pass through the same input stages. A step stays in flight until a pass of its viewport has run. A
 //! step whose pass has not run is withdrawn when the focus changed since it was injected, and when the application
-//! withdraws the viewport's input because its document changed ([`withdraw`]). Screen points are egui points.
+//! withdraws the viewport's input because its document changed (`withdraw`). Screen points are egui points.
 
 use std::collections::{HashMap, VecDeque};
 
@@ -57,17 +57,20 @@ pub(crate) fn text_event(text: &str) -> Event {
 }
 
 /// The announcement of `modifiers`, none when no modifier is held.
+#[cfg(feature = "testing")]
 fn announced(modifiers: Modifiers) -> Option<Event> {
     (modifiers != Modifiers::NONE).then(|| modifiers_changed(modifiers))
 }
 
 /// The frame that clears `modifiers`, none when none was held.
+#[cfg(feature = "testing")]
 fn cleared(modifiers: Modifiers) -> Option<Frame> {
     announced(modifiers).map(|_| vec![modifiers_changed(Modifiers::NONE)])
 }
 
 /// A move to `pos` (with `modifiers` announced first), then `count` times a press and a release of `button`, one
 /// frame each; `modifiers` are cleared in a last frame when they were set.
+#[cfg(feature = "testing")]
 pub(crate) fn click_frames(pos: Pos2, pressed_button: egui::PointerButton, count: u32, modifiers: Modifiers) -> Vec<Frame> {
     let mut frames = vec![announced(modifiers).into_iter().chain([pointer_moved(pos)]).collect()];
     for _ in 0..count {

@@ -139,7 +139,7 @@ pub enum ParagraphChange {
 pub struct ParagraphControlsOutput {
     /// The controls' response.
     pub response: Response,
-    /// As [`CharacterControlsOutput::edits`].
+    /// As `CharacterControlsOutput::edits`.
     pub edits: Vec<EditEvent<ParagraphChange>>,
 }
 
