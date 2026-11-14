@@ -261,20 +261,25 @@ fn shortcuts_the_layout_assigns_come_back_as_clicks() {
 
     let cmd_q = chord("Cmd+Q");
     let cmd_held = held([true, false, false, false]);
-    assert_eq!(dispatch.chosen(&cmd("file.exit"), Some(&cmd_q), true, cmd_held), Event::Click("file.exit".into()));
-    assert_eq!(dispatch.chosen(&cmd("file.quit"), Some(&cmd_q), false, cmd_held), Event::Key(cmd_q));
+    assert_eq!(chosen_held(&dispatch, &cmd("file.exit"), Some(&cmd_q), true, cmd_held), Event::Click("file.exit".into()));
+    assert_eq!(chosen_held(&dispatch, &cmd("file.quit"), Some(&cmd_q), false, cmd_held), Event::Key(cmd_q));
     // ⇧ held on a ⌘R item: the key press that was made.
     assert_eq!(
-        dispatch.chosen(&cmd("view.reload"), Some(&chord("Cmd+R")), false, held([true, false, false, true])),
+        chosen_held(&dispatch, &cmd("view.reload"), Some(&chord("Cmd+R")), false, held([true, false, false, true])),
         Event::Key(chord("Cmd+Shift+R"))
     );
-    assert_eq!(dispatch.chosen(&cmd("file.quit"), Some(&cmd_q), false, None), Event::Click("file.quit".into()), "a mouse click");
+    assert_eq!(chosen_held(&dispatch, &cmd("file.quit"), Some(&cmd_q), false, None), Event::Click("file.quit".into()), "a mouse click");
     assert_eq!(
-        dispatch.chosen(&Builtin::Minimize.command(), Some(&chord("Ctrl+Cmd+M")), false, held([true, true, false, false])),
+        chosen_held(&dispatch, &Builtin::Minimize.command(), Some(&chord("Ctrl+Cmd+M")), false, held([true, true, false, false])),
         Event::Click(Builtin::Minimize.command())
     );
     // ↩ inside the open menu: on a ⌘ item without ⌘ held, and on a bare tool key.
     let enter = held([false; 4]);
-    assert_eq!(dispatch.chosen(&cmd("file.quit"), Some(&cmd_q), false, enter), Event::Click("file.quit".into()));
-    assert_eq!(dispatch.chosen(&cmd("tool.brush"), Some(&chord("B")), false, enter), Event::Click("tool.brush".into()));
+    assert_eq!(chosen_held(&dispatch, &cmd("file.quit"), Some(&cmd_q), false, enter), Event::Click("file.quit".into()));
+    assert_eq!(chosen_held(&dispatch, &cmd("tool.brush"), Some(&chord("B")), false, enter), Event::Click("tool.brush".into()));
+}
+
+// P3(top-w1): tp.T5 — the tests still speak the old `held` argument; phase 3 rewrites them for `key_down`, `mods` and `alternate`.
+fn chosen_held(dispatch: &craft_menu::Dispatch, command: &CommandRef, chord: Option<&craft_menu::Chord>, layout_shortcut: bool, held: Option<craft_keymap::Mods>) -> Event {
+    dispatch.chosen(command, chord, layout_shortcut, held.is_some(), held.unwrap_or_default(), None)
 }

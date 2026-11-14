@@ -63,7 +63,7 @@ impl<'a> Rows<'a> {
     ) -> Vec<String> {
         let english: Vec<String> = siblings.iter().map(|sibling| english(sibling).unwrap_or_default()).collect();
         let english_refs: Vec<&str> = english.iter().map(String::as_str).collect();
-        let letters = mnemonic::assign(&english_refs);
+        let letters = mnemonic::assign(&english_refs, &craft_i18n::Folder::new("en")); // P3(top-w1): tp.T4, tp.T9
         siblings
             .iter()
             .zip(letters)

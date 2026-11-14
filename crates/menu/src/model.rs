@@ -4,7 +4,7 @@
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::ops::BitOr;
 
-use craft_keymap::{Chord, CommandRef};
+use craft_keymap::{Chord, CommandRef, Mods};
 use craft_theme::Srgba;
 
 /// The app's menus, in order, and its open documents.
@@ -192,6 +192,26 @@ pub struct Item {
     /// accessible description; the native macOS menu ignores it (muda has no handle on the
     /// `NSMenuItem`'s tool tip).
     pub tooltip: Option<String>,
+    /// The command the item runs instead while its modifiers are held as it is chosen.
+    pub alternate: Option<Alternate>,
+}
+
+/// The command a row runs while `mods` are held as it is chosen (Alt on Merge Visible runs Stamp
+/// Visible).
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct Alternate {
+    /// The modifiers that select the alternate.
+    pub mods: Mods,
+    /// The command a pick runs while they are held.
+    pub command: CommandRef,
+}
+
+impl Alternate {
+    /// The alternate that runs `command` while `mods` are held.
+    pub fn new(mods: Mods, command: impl Into<CommandRef>) -> Alternate {
+        Alternate { mods, command: command.into() }
+    }
 }
 
 /// A plain item, or one with a checked state.
@@ -334,7 +354,14 @@ impl Item {
             layout_shortcut: false,
             tint: None,
             tooltip: None,
+            alternate: None,
         }
+    }
+
+    /// Set the command that runs instead while the alternate's modifiers are held as the item is chosen.
+    pub fn alternate(mut self, alternate: Alternate) -> Item {
+        self.alternate = Some(alternate);
+        self
     }
 
     /// Set the shortcut.
@@ -551,6 +578,12 @@ pub struct Row {
     pub enabled: bool,
     /// Plain, check or radio.
     pub kind: ItemKind,
+    /// A label colour for the row.
+    pub tint: Option<Srgba>,
+    /// A hover tooltip.
+    pub tooltip: Option<String>,
+    /// The command the row runs while the alternate's modifiers are held as it is chosen.
+    pub alternate: Option<Alternate>,
 }
 
 impl Row {
@@ -563,7 +596,40 @@ impl Row {
             shortcut: None,
             enabled: true,
             kind: ItemKind::Plain,
+            tint: None,
+            tooltip: None,
+            alternate: None,
         }
+    }
+
+    /// Whether the row can be chosen.
+    pub fn enabled(mut self, on: bool) -> Row {
+        self.enabled = on;
+        self
+    }
+
+    /// Plain, check or radio.
+    pub fn kind(mut self, kind: ItemKind) -> Row {
+        self.kind = kind;
+        self
+    }
+
+    /// The row's label colour.
+    pub fn tint(mut self, color: impl Into<Srgba>) -> Row {
+        self.tint = Some(color.into());
+        self
+    }
+
+    /// The row's hover tooltip.
+    pub fn tooltip(mut self, text: impl Into<String>) -> Row {
+        self.tooltip = Some(text.into());
+        self
+    }
+
+    /// The command the row runs while the alternate's modifiers are held as it is chosen.
+    pub fn alternate(mut self, alternate: Alternate) -> Row {
+        self.alternate = Some(alternate);
+        self
     }
 
     /// A separator in the menu at `path`.
@@ -594,6 +660,9 @@ pub fn from_items(tops: &[&str], rows: &[Row]) -> MenuBar {
                         shortcut: it.shortcut,
                         enabled: it.enabled,
                         kind: it.kind,
+                        tint: it.tint,
+                        tooltip: it.tooltip.clone(),
+                        alternate: it.alternate.clone(),
                         ..Item::new(it.command.clone(), it.label.clone())
                     }));
                 }

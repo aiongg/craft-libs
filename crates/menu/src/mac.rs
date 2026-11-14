@@ -97,7 +97,7 @@ pub fn install_with(ctx: &egui::Context, bar: &MenuBar, options: MacOptions) -> 
 /// ⌘Q quits without asking.
 pub fn install_app_menu(ctx: &egui::Context, app_name: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let ctx = ctx.clone();
-    let handler = Arc::new(move |id: &str, _: Option<native::Held>| {
+    let handler = Arc::new(move |id: &str, _: native::Chosen| {
         craft_quit::on_menu_event(&ctx, id);
         // Choosing an item is not window input, so nothing else wakes egui.
         ctx.request_repaint();
@@ -253,12 +253,14 @@ impl Backend for Native {
 
     fn attach(&mut self, dispatch: Dispatch) {
         let (ctx, targets, tx) = (self.ctx.clone(), self.targets.clone(), self.tx.clone());
-        self.bar.set_handler(Arc::new(move |id: &str, held: Option<native::Held>| {
+        self.bar.set_handler(Arc::new(move |id: &str, chosen: native::Chosen| {
             let target = lock(&targets).get(id).cloned();
             // Ids that aren't ours are AppKit's own items (Services, Zoom, …), already handled.
             if let Some(t) = target {
-                let held = held.map(|h| Mods { cmd: h.command, ctrl: h.control, alt: h.option, shift: h.shift });
-                let event = dispatch.chosen(&t.command, t.chord.as_ref(), t.layout_shortcut, held);
+                // P3(top-w1): tp.T7 — passes `Chosen` through; the target's `alternate` is not kept yet.
+                let h = chosen.held;
+                let mods = Mods { cmd: h.command, ctrl: h.control, alt: h.option, shift: h.shift };
+                let event = dispatch.chosen(&t.command, t.chord.as_ref(), t.layout_shortcut, chosen.key_down, mods, None);
                 // The receiver goes away only with the app.
                 let _ = tx.send(event);
             }

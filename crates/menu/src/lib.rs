@@ -86,6 +86,7 @@
 
 pub mod bar;
 pub mod context;
+mod customize;
 mod documents;
 mod driver;
 mod help;
@@ -102,6 +103,7 @@ pub mod shortcuts;
 
 pub use bar::{EnglishHook, Labeled, MenuBarOutput, MenuBarUi};
 pub use craft_keymap::{Chord, CommandRef};
+pub use customize::Customization;
 pub use documents::DOCUMENT_COMMAND_PREFIX;
 pub use driver::{Backend, ClipboardKeys, CommandHook, Dispatch, Event, Gate, NativeMenu, had_input};
 pub use help::{HelpCommand, HelpLabels, HelpLink, HelpMenu};
@@ -110,7 +112,7 @@ pub use language::{LANGUAGE_COMMAND, LanguageChoice, LanguageLabels, LanguageMen
 pub use layout::{Clash, Layout, LayoutOptions, Target, desktop_layout, layout, mac_layout, web_layout};
 pub use modal::{ModalRules, NAVIGATION_COMMANDS, PendingRule};
 pub use model::{
-    Builtin, Document, Item, ItemKind, ItemRole, Menu, MenuBar, MenuRole, Node, Platforms, Row, Standard, from_items, structure_key, tidy, window_key,
+    Alternate, Builtin, Document, Item, ItemKind, ItemRole, Menu, MenuBar, MenuRole, Node, Platforms, Row, Standard, from_items, structure_key, tidy, window_key,
 };
 
 #[cfg(feature = "screen-testing")]

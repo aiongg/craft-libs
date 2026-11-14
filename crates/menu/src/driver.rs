@@ -9,7 +9,7 @@ use craft_ui::runtime::windows::{KeyEquivalent, WindowAction, WindowHost};
 
 use crate::layout::{Clash, Layout};
 use crate::modal::ModalRules;
-use crate::model::{Builtin, Item, ItemKind, MenuBar, Node};
+use crate::model::{Alternate, Builtin, Item, ItemKind, MenuBar, Node};
 
 /// What the native menu reports.
 #[derive(Clone, Debug, PartialEq)]
@@ -141,7 +141,10 @@ impl Dispatch {
     /// `None` for a mouse click, under the current gate. A click the gate allows on an app command
     /// (not a [`Builtin`]) also goes to the app's [`NativeMenu::on_command`] hook, before this
     /// returns; when the hook ran it, the event is [`Event::Handled`].
-    pub fn chosen(&self, command: &CommandRef, shortcut: Option<&Chord>, layout_shortcut: bool, held: Option<Mods>) -> Event {
+    pub fn chosen(&self, command: &CommandRef, shortcut: Option<&Chord>, layout_shortcut: bool, key_down: bool, mods: Mods, alternate: Option<&Alternate>) -> Event {
+        let _ = alternate; // P3(top-w1): tp.T5
+        // P3(top-w1): tp.T5 — the old `held` argument: `Some` for a key-down, `None` for a click.
+        let held = key_down.then_some(mods);
         let (gate, rules, hook) = {
             let shared = self.lock();
             (shared.gate, shared.rules.clone(), shared.hook.clone())

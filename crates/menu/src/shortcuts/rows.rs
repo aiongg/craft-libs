@@ -3,6 +3,7 @@
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 
+use craft_i18n::Folder;
 use craft_keymap::chord::{Platform, Trigger};
 use craft_keymap::command::CommandRef;
 use craft_keymap::keymap::{Binding, CommandDef, CommandKind, ConflictKind, Keymap, Overrides};
@@ -139,6 +140,7 @@ pub(crate) struct View<'a> {
 #[derive(Clone, Debug, PartialEq)]
 struct Key {
     query: String,
+    folder: Folder,
     area: AreaId,
     filter: Filter,
     collapsed: BTreeSet<String>,
@@ -157,6 +159,7 @@ impl RowCache {
     pub(crate) fn get(&mut self, keymap: &Keymap, options: &Options, text: &Say, view: &View) -> &Built {
         let fresh = self.key.as_ref().is_some_and(|k| {
             k.query == view.query
+                && k.folder == text.folder()
                 && k.area == *view.area
                 && k.filter == view.filter
                 && k.collapsed == *view.collapsed
@@ -167,6 +170,7 @@ impl RowCache {
             self.built = build(keymap, options, text, view);
             self.key = Some(Key {
                 query: view.query.to_string(),
+                folder: text.folder(),
                 area: view.area.clone(),
                 filter: view.filter,
                 collapsed: view.collapsed.clone(),
@@ -279,28 +283,28 @@ pub(crate) fn group(area: &AreaId, b: &CommandDef, submenus: bool, text: &Say) -
     }
 }
 
-/// What a query asks for: lowercase text, and the trigger it spells, if any.
+/// What a query asks for: the text folded by the env's `Folder`, and the trigger it spells, if any.
 struct Query {
-    text: String,
+    matcher: craft_i18n::matcher::Matcher,
     trigger: Option<Trigger>,
 }
 
 impl Query {
-    fn new(q: &str, platform: Platform) -> Query {
-        let text = q.trim().to_lowercase();
+    fn new(q: &str, platform: Platform, folder: &Folder) -> Query {
+        let matcher = craft_i18n::matcher::Matcher::new(folder, q.trim());
         let trigger = Trigger::parse(q.trim()).ok().map(|t| t.effective(platform));
-        Query { text, trigger }
+        Query { matcher, trigger }
     }
 
     fn hit(&self, s: &str) -> bool {
-        s.to_lowercase().contains(&self.text)
+        self.matcher.score(s).is_some()
     }
 
     /// Label, aliases, path parts and id, as written and translated; then the bindings: the same
     /// effective trigger when the query spells one, else their canonical or display text. A query
     /// that spells a chord (`cmd+s`, `⌘S`) does not also match longer chords containing its text.
     fn matches(&self, b: &CommandDef, bindings: &[Binding], text: &Say, platform: Platform) -> bool {
-        if self.text.is_empty() {
+        if self.matcher.is_empty() {
             return true;
         }
         let named = self.hit(&b.label)
@@ -334,7 +338,7 @@ fn build(keymap: &Keymap, options: &Options, text: &Say, view: &View) -> Built {
             _ => {}
         }
     }
-    let query = Query::new(view.query, platform);
+    let query = Query::new(view.query, platform, &text.folder());
     if *view.area == AreaId::Fixed {
         build_fixed(keymap, options, text, view, &query, &mut built);
         return built;
@@ -427,7 +431,7 @@ fn build_fixed(keymap: &Keymap, options: &Options, text: &Say, view: &View, quer
     let platform = keymap.platform();
     let mut groups: Vec<(&str, Vec<FixedLine>)> = Vec::new();
     for f in &options.fixed {
-        if !query.text.is_empty()
+        if !query.matcher.is_empty()
             && !(query.hit(&f.label)
                 || query.hit(&f.keys)
                 || query.hit(&f.group)

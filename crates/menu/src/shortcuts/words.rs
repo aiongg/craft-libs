@@ -210,6 +210,7 @@ use std::borrow::Cow;
 use std::sync::Arc;
 
 use craft_host::Host;
+use craft_i18n::Folder;
 use craft_keymap::import::kys::KysError;
 use craft_keymap::{CommandDef, Key, Platform, Trigger};
 use craft_ui::display::{ChordWrite, DisplayWords, Kbd};
@@ -221,6 +222,7 @@ pub(crate) struct Say {
     keys: Arc<DisplayWords>,
     host: Option<Arc<Host>>,
     rtl: bool,
+    folder: Folder,
 }
 
 impl Say {
@@ -228,7 +230,12 @@ impl Say {
     pub(crate) fn of(ui: &egui::Ui) -> Say {
         let env = Env::of(ui);
         let view = env.view();
-        Say { words: view.words(), keys: view.words(), host: view.host().cloned(), rtl: view.direction().is_rtl() }
+        Say { words: view.words(), keys: view.words(), host: view.host().cloned(), rtl: view.direction().is_rtl(), folder: env.folder() }
+    }
+
+    /// The folder that folds search text in the dialog's language.
+    pub(crate) fn folder(&self) -> Folder {
+        self.folder
     }
 
     /// The dialog's own words.

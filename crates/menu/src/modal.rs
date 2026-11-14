@@ -48,6 +48,9 @@ pub struct ModalRules {
     /// A pending operation is open (an uncommitted crop): only the commands this returns true for
     /// run. `None`: no pending operation.
     pub pending: Option<PendingRule>,
+    /// The caller's count of rule changes. A rule holds a closure and cannot be compared, so the
+    /// caller says when the rules changed; the menu skips the resync while it stays the same.
+    pub revision: u64,
 }
 
 // `NativeMenu` keeps the rules in its shared dispatch state, which the platform's menu handler
@@ -70,6 +73,12 @@ impl ModalRules {
         self
     }
 
+    /// Sets [`Self::revision`].
+    pub fn with_revision(mut self, revision: u64) -> Self {
+        self.revision = revision;
+        self
+    }
+
     /// Sets [`Self::pending`].
     pub fn pending(mut self, rule: Option<PendingRule>) -> Self {
         self.pending = rule;
@@ -84,6 +93,7 @@ impl fmt::Debug for ModalRules {
             .field("in_dialogs", &self.in_dialogs)
             .field("workspace", &self.workspace)
             .field("pending", &self.pending.is_some())
+            .field("revision", &self.revision)
             .finish()
     }
 }
