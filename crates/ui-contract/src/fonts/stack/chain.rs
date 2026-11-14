@@ -24,7 +24,7 @@ const DEFAULT_PREFER: &[(&str, &str)] = &[("Jpan", "BIZ UDPGothic")];
 
 /// A served face as the stack orders it, without bytes.
 pub(super) fn without_bytes(face: &ServedFace) -> EmbeddedFace {
-    EmbeddedFace { family: face.family, style: face.style, scripts: face.scripts, index: face.index, bytes: &[] }
+    EmbeddedFace { family: face.family, style: face.style, scripts: face.scripts, index: face.index, bytes: &[], role: None } // P3(framework-01-w5): fx.F32
 }
 
 /// Whether a face tagged `tags` draws `script`; the union tags cover their parts.

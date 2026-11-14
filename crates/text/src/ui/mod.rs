@@ -32,9 +32,12 @@ pub mod find;
 pub mod hyperlink;
 mod length;
 pub mod notes;
+pub mod path_text;
 pub mod ruler;
 pub mod spelling;
 pub mod style_panel;
 pub mod tabs_dialog;
+pub mod type_bar;
+pub mod type_options;
 
 pub use length::DocUnit;

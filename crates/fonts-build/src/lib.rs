@@ -62,7 +62,7 @@ mod sha256;
 mod tests;
 
 pub use embed::{Embed, Error, target_is_wasm};
-pub use manifest::{CJK_SCRIPTS, ManifestEntry, ParseError, UI_ROLE, parse_manifest};
+pub use manifest::{CJK_SCRIPTS, MONO_ROLE, ManifestEntry, ParseError, UI_ROLE, parse_manifest};
 
 /// A craft-fonts face embedded by [`Embed`]: one line of `fonts/manifest.txt`.
 ///
@@ -80,6 +80,9 @@ pub struct EmbeddedFace {
     pub index: u32,
     /// The font file's bytes, from `include_bytes!`.
     pub bytes: &'static [u8],
+    /// The manifest line's `role`: `Some("ui")` for an interface face ([`UI_ROLE`]), `Some("mono")` for the
+    /// monospace face ([`MONO_ROLE`]), `None` for a line without one.
+    pub role: Option<&'static str>,
 }
 
 impl EmbeddedFace {
@@ -175,6 +178,7 @@ impl std::fmt::Debug for EmbeddedFace {
             .field("style", &self.style)
             .field("scripts", &self.scripts)
             .field("index", &self.index)
+            .field("role", &self.role)
             .field("bytes", &format_args!("[{} bytes]", self.bytes.len()))
             .finish()
     }

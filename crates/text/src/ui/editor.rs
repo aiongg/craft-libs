@@ -282,6 +282,8 @@ pub struct TextEditorOutput {
     /// `Cancel` is Esc when it doesn't commit: the app ends the session and undoes it. A session with no text
     /// change gives no `Commit` or `Cancel`.
     pub edit: EditResponse<TextSelection>,
+    /// The Character panel command was pressed: the host shows or hides the panel. Set for the one pass.
+    pub character_panel: bool,
 }
 
 impl Outcome for TextEditorOutput {
@@ -668,7 +670,13 @@ impl Component for TextEditor<'_> {
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> TextEditorOutput {
-        TextEditorOutput { response: cx.response.clone(), changed: self.changed, selection_changed: self.selection_changed, edit: cx.edit_response() }
+        TextEditorOutput {
+            response: cx.response.clone(),
+            changed: self.changed,
+            selection_changed: self.selection_changed,
+            edit: cx.edit_response(),
+            character_panel: false,
+        }
     }
 }
 

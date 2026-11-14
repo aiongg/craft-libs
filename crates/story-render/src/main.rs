@@ -33,7 +33,7 @@ use craft_ui::testing::snapshot::{Renderer, RgbaImage, layer_rects, modal_open};
 use craft_ui::testing::{Frames, StoryRegistration};
 use craft_ui_gallery::WINDOW;
 use craft_ui_gallery::chrome::{Spec, StoryBody, overview_card};
-use craft_ui_gallery::viewer::{CardState, Catalog, Cells, GallerySettings, entry_of};
+use craft_ui_gallery::viewer::{CONTRASTS, CardState, Catalog, Cells, DENSITIES, GallerySettings, MODES, entry_of, theme_named};
 use egui::{Pos2, Rect, Ui, Vec2};
 use std::cell::RefCell;
 use std::fmt::Write as _;
@@ -69,6 +69,10 @@ struct Options {
     /// The theme id and the mode the stories are shown in.
     theme: String,
     mode: String,
+    /// The density preset, `compact` or `comfortable`; empty keeps the gallery's default.
+    density: String,
+    /// The contrast, `standard` or `high`; empty keeps the gallery's default.
+    contrast: String,
 }
 
 fn options() -> Result<Options, String> {
@@ -85,6 +89,8 @@ fn options() -> Result<Options, String> {
         card: false,
         theme: String::new(),
         mode: "dark".to_owned(),
+        density: String::new(),
+        contrast: String::new(),
     };
     while let Some(arg) = args.next() {
         let mut value = || args.next().ok_or_else(|| format!("{arg} needs a value"));
@@ -99,11 +105,27 @@ fn options() -> Result<Options, String> {
             "--card" => options.card = true,
             "--theme" => options.theme = value()?,
             "--mode" => options.mode = value()?,
+            "--density" => options.density = value()?,
+            "--contrast" => options.contrast = value()?,
             _ => return Err(format!("unknown argument {arg}")),
         }
     }
     if options.out.as_os_str().is_empty() {
         return Err("--out <dir> is required".to_owned());
+    }
+    // `restore_env` falls back to its defaults without a word, so each value is checked here. A render does not follow
+    // the OS: `system` is refused for the mode and the contrast.
+    if !options.theme.is_empty() && theme_named(&options.theme).is_none() {
+        return Err(format!("--theme {} is not a theme id", options.theme));
+    }
+    if options.mode == "system" || MODES.parse(&options.mode).is_none() {
+        return Err("--mode takes light or dark".to_owned());
+    }
+    if !options.density.is_empty() && DENSITIES.parse(&options.density).is_none() {
+        return Err("--density takes compact or comfortable".to_owned());
+    }
+    if !options.contrast.is_empty() && (options.contrast == "system" || CONTRASTS.parse(&options.contrast).is_none()) {
+        return Err("--contrast takes standard or high".to_owned());
     }
     Ok(options)
 }
@@ -196,6 +218,12 @@ fn root_env(options: &Options) -> RootEnv {
         settings.theme.clone_from(&options.theme);
     }
     settings.mode.clone_from(&options.mode);
+    if !options.density.is_empty() {
+        settings.density.clone_from(&options.density);
+    }
+    if !options.contrast.is_empty() {
+        settings.contrast.clone_from(&options.contrast);
+    }
     settings.restore_env(&mut env);
     env
 }

@@ -43,6 +43,7 @@ fn single_values(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
         strikethrough: Some(false),
         opentype: vec!["liga", "frac"],
         language: Some("en-US".to_owned()),
+        axes: None, // P3(panels-w13): tl.R6
     };
     let (families, styles, languages) = (families(), styles(), languages());
     CharacterControls::new("Character", &values, &families, &styles).superscript(true).languages(&languages).show(ui).into()

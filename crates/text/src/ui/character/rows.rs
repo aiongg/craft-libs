@@ -22,11 +22,10 @@ pub(super) struct Lengths<'u> {
     pub(super) unit: DocUnit,
 }
 
-/// A length field of a row: its label, mark, the mark's hint, value in points and range in points.
+/// A length field of a row: its label, side label, the mark's hint, value in points and range in points.
 pub(super) struct LengthRow<'p> {
     pub(super) label: Label,
-    pub(super) glyph: GlyphLabel,
-    pub(super) hint: Option<Label>,
+    pub(super) side: SideLabel,
     pub(super) value: Option<f32>,
     pub(super) range: RangeInclusive<f64>,
     pub(super) presets: &'p [Entry<NumberPick>],
@@ -35,8 +34,7 @@ pub(super) struct LengthRow<'p> {
 /// A plain number field of a row: a count, a percentage, or a value in thousandths.
 pub(super) struct PlainRow<'p> {
     pub(super) label: Label,
-    pub(super) glyph: GlyphLabel,
-    pub(super) hint: Option<Label>,
+    pub(super) side: SideLabel,
     pub(super) value: Mixed<Option<f64>>,
     pub(super) range: RangeInclusive<f64>,
     pub(super) percent: bool,
@@ -46,9 +44,9 @@ pub(super) struct PlainRow<'p> {
 impl Lengths<'_> {
     /// A field over a length in points, shown in the unit: its event in points and the preset row picked.
     pub(super) fn row(&self, ui: &mut Ui, spec: LengthRow<'_>) -> (EditEvents<Option<f64>>, Option<NumberPick>) {
-        let LengthRow { label, glyph, hint, value, range, presets } = spec;
+        let LengthRow { label, side, value, range, presets } = spec;
         let points = value.map_or(Mixed::Mixed, |value| Mixed::Same(Some(f64::from(value))));
-        let field = Field::new(label.clone()).side(mark(glyph, hint, FieldLayout::Inside)).show(ui, |ui, _| {
+        let field = Field::new(label.clone()).side(side).show(ui, |ui, _| {
             let out = length_field(self.unit, label.clone(), points, range.clone()).presets(presets).scrub_by_label().show(ui);
             (out.edit.events, out.preset)
         });
@@ -75,9 +73,9 @@ impl Lengths<'_> {
 
     /// A field over a number that is not a length: its event and the preset row picked.
     pub(super) fn plain(&self, ui: &mut Ui, spec: PlainRow<'_>) -> (EditEvents<Option<f64>>, Option<NumberPick>) {
-        let PlainRow { label, glyph, hint, value, range, percent, presets } = spec;
+        let PlainRow { label, side, value, range, percent, presets } = spec;
         let units = self.units;
-        let shown = Field::new(label.clone()).side(mark(glyph, hint, FieldLayout::Inside)).show(ui, |ui, _| {
+        let shown = Field::new(label.clone()).side(side).show(ui, |ui, _| {
             let field = NumberField::new(label.clone(), Bind::given(value)).range(range.clone()).presets(presets).scrub_by_label();
             let field = if percent {
                 field.unit_kind(UnitKind::Percent).step(UnitKind::Percent.step())
@@ -99,6 +97,11 @@ pub(super) fn mark(glyph: GlyphLabel, hint: Option<Label>, layout: FieldLayout) 
         Some(hint) => side.tooltip(hint),
         None => side,
     }
+}
+
+/// The side label of a row that shows none (a select).
+pub(super) fn hidden_side() -> SideLabel {
+    SideLabel::new().kind(LabelKind::Hidden)
 }
 
 /// `value` as a field's value: a missing one is mixed.
@@ -146,11 +149,11 @@ pub(super) fn string_entries(pairs: impl Iterator<Item = (String, String)>) -> V
 pub(super) fn select_row<C>(
     ui: &mut Ui,
     label: &Label,
+    side: SideLabel,
     value: Mixed<String>,
     entries: &[Entry<String>],
     change: impl Fn(String) -> C,
 ) -> EditEvents<C> {
-    let side = SideLabel::new().kind(LabelKind::Hidden);
     let shown = Field::new(label.clone())
         .side(side)
         .show(ui, |ui, _| Select::new(label.clone(), Bind::given(value.clone()), entries).placeholder("—").show(ui).events);

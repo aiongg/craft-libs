@@ -250,6 +250,8 @@ pub struct TextStylesPanel<'a> {
     /// Several rows select together: the footer's Duplicate and Delete act on all of them.
     #[prop]
     highlighting: bool,
+    #[allow(dead_code)] // P3(panels-w13): pn.C55
+    empty: Option<Label>,
 }
 
 impl TextStylesPanel<'_> {
@@ -285,7 +287,14 @@ impl<'a> TextStylesPanel<'a> {
             target: false,
             text_selected: true,
             highlighting: false,
+            empty: None,
         }
+    }
+
+    /// The list's text with no rows, passed to the collection's `empty` prop.
+    pub fn empty(mut self, text: impl Into<Label>) -> Self {
+        self.empty = Some(text.into());
+        self
     }
 
     /// The style at the type target (the selection's start, or the edited layer) and whether the text overrides it.
@@ -297,7 +306,7 @@ impl<'a> TextStylesPanel<'a> {
 
     /// Shows the panel and returns what the user asked for.
     pub fn show(self, ui: &mut Ui) -> TextStylesPanelOutput {
-        let TextStylesPanel { label, kind, rows, mut selection, current, overridden, target, text_selected, highlighting } = self;
+        let TextStylesPanel { label, kind, rows, mut selection, current, overridden, target, text_selected, highlighting, empty: _ } = self;
         let words = Env::of(ui).words::<TextStylesWords>();
         let paragraph = kind == TextStyleKind::Paragraph;
         let action = Cell::new(None::<TextStyleAction>);

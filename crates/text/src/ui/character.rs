@@ -19,7 +19,7 @@ use craft_theme::{Rgba, Srgba};
 use craft_ui::choice::Swatch;
 #[cfg(feature = "font-picker")]
 use craft_ui::contract::Bind;
-use craft_ui::contract::{Entry, GlyphLabel, LabelKind, NoValue, Outcome, Props as _, Show as _, ShowContainer as _, SideLabel, Sizing};
+use craft_ui::contract::{Entry, FieldLayout, GlyphLabel, LabelKind, NoValue, Outcome, Props as _, Show as _, ShowContainer as _, SideLabel, Sizing};
 use craft_ui::form::Field;
 use craft_ui::layout_components::{Grid, Stack};
 use craft_ui::patterns::form_dialogs::HostRequests;
@@ -29,16 +29,23 @@ use egui::{Response, Ui};
 
 mod paragraph;
 mod paragraph_dialog;
-mod rows;
+pub(crate) mod rows;
 #[cfg(feature = "screen-testing")]
 mod stories;
+mod style_options;
 
 pub use paragraph::{ParagraphChange, ParagraphControls, ParagraphControlsOutput, ParagraphDirection, ParagraphValues, ParagraphWords, TextAlign};
 pub use paragraph_dialog::{
     LineSpacing, ParagraphAlign, ParagraphAnswer, ParagraphDialog, ParagraphDialogWords, ParagraphFormat, ParagraphPreview, ParagraphPreviewStyle,
     SpacingKind, SpecialIndent,
 };
-use rows::{LengthRow, Lengths, PlainRow, Toggle, mixed, number_change, number_presets, picked_event, plain, select_row, string_entries, toggle_row};
+use rows::{
+    LengthRow, Lengths, PlainRow, Toggle, hidden_side, mark, mixed, number_change, number_presets, picked_event, plain, select_row, string_entries,
+    toggle_row,
+};
+pub use style_options::{
+    STYLE_COLOR_KEY, StyleAttribute, StyleOptionValues, StyleOptionsChange, TextStyleOptions, TextStyleOptionsOutput, TextStyleOptionsWords,
+};
 
 craft_ui::words! {
     /// The Character controls' words, English by default (PhotoCraft's tooltips). A control whose label is an icon or a
@@ -65,6 +72,7 @@ craft_ui::words! {
         text_color: "character.textColor" = "Text color";
         faux_bold: "character.fauxBold" = "Faux Bold";
         faux_italic: "character.fauxItalic" = "Faux Italic";
+        axes: "character.axes" = "Variable font axes";
         all_caps: "character.allCaps" = "All Caps";
         small_caps: "character.smallCaps" = "Small Caps";
         superscript: "character.superscript" = "Superscript";
@@ -126,6 +134,77 @@ const TRACKING_RANGE: RangeInclusive<f64> = -1000.0..=10000.0;
 const SCALE_RANGE: RangeInclusive<f64> = 0.0..=1000.0;
 /// Two columns of the same share, for the rows of two fields.
 static TWO_COLUMNS: [ColumnWidth; 2] = [ColumnWidth::fill(1.0), ColumnWidth::fill(1.0)];
+
+/// The variable-font axes of the current face: what the axis sliders under the style row show.
+#[cfg(feature = "font-picker")]
+#[derive(Clone, Copy, Debug)]
+#[non_exhaustive]
+pub struct FaceAxes<'a> {
+    /// The face's axes.
+    pub axes: &'a [craft_font_manager::axes::FontAxis],
+    /// The face's named instances.
+    pub instances: &'a [craft_font_manager::axes::NamedInstance],
+    /// The weight of the selection, when it has one.
+    pub weight: Option<f32>,
+    /// The selection is italic.
+    pub italic: bool,
+}
+
+#[cfg(feature = "font-picker")]
+impl<'a> FaceAxes<'a> {
+    /// The axes and named instances of a face; no weight, upright.
+    pub fn new(axes: &'a [craft_font_manager::axes::FontAxis], instances: &'a [craft_font_manager::axes::NamedInstance]) -> Self {
+        FaceAxes { axes, instances, weight: None, italic: false }
+    }
+
+    /// The weight of the selection.
+    pub fn weight(mut self, weight: Option<f32>) -> Self {
+        self.weight = weight;
+        self
+    }
+
+    /// The selection is italic.
+    pub fn italic(mut self, italic: bool) -> Self {
+        self.italic = italic;
+        self
+    }
+}
+
+/// What the family field's font picker takes: the catalog, the app's stars, recents and filters, and the preview.
+#[cfg(feature = "font-picker")]
+#[non_exhaustive]
+pub struct FontPickerSource<'a> {
+    /// The catalog the picker lists.
+    pub catalog: &'a Arc<Catalog>,
+    /// The picker's settings (stars, recents).
+    pub settings: Bind<'a, FontPickerSettings>,
+    /// The picker's filters.
+    pub filters: Bind<'a, FontFilters>,
+    /// The text the previews show; the family's name when `None`.
+    pub preview_text: Option<&'a str>,
+    /// The families the app serves.
+    pub served: &'a [String],
+}
+
+#[cfg(feature = "font-picker")]
+impl<'a> FontPickerSource<'a> {
+    /// A source over `catalog` with the app's `settings` and `filters`.
+    pub fn new(catalog: &'a Arc<Catalog>, settings: Bind<'a, FontPickerSettings>, filters: Bind<'a, FontFilters>) -> Self {
+        FontPickerSource { catalog, settings, filters, preview_text: None, served: &[] }
+    }
+
+    /// The text the previews show.
+    pub fn preview_text(mut self, text: &'a str) -> Self {
+        self.preview_text = Some(text);
+        self
+    }
+
+    /// The families the app serves.
+    pub fn served(mut self, served: &'a [String]) -> Self {
+        self.served = served;
+        self
+    }
+}
 
 /// Leading: automatic (the font size × the paragraph's auto-leading, 120 % by default) or set.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -257,6 +336,8 @@ pub struct CharacterValues {
     pub opentype: Vec<&'static str>,
     /// BCP 47 tag of the text's language (hyphenation, spelling, smart quotes).
     pub language: Option<String>,
+    /// The variable-font axis values of the selection, by axis tag; `None` while the selection mixes them or has none.
+    pub axes: Option<Vec<([u8; 4], f32)>>,
 }
 
 /// One change from the Character controls.
@@ -303,6 +384,8 @@ pub enum CharacterChange {
     },
     /// Language.
     Language(String),
+    /// The variable-font axis values, by axis tag.
+    Axes(Vec<([u8; 4], f32)>),
 }
 
 /// What the Character controls did this pass.
@@ -318,6 +401,8 @@ pub struct CharacterControlsOutput {
     /// The family under the pointer in the open font list, for a live preview of the selected text (only with
     /// `font-picker`).
     pub preview_family: Option<String>,
+    /// The family the pointer rested on in the open font list long enough for the app to load its preview.
+    pub rested_family: Option<String>,
     /// The colour swatch was clicked: the app opens its colour picker for this request (key [`COLOR_KEY`]) and sets
     /// the colour. Set for the one pass of the click.
     pub requests: HostRequests,
@@ -371,6 +456,9 @@ pub struct CharacterControls<'a> {
     languages: Option<&'a [(String, String)]>,
     #[cfg(feature = "font-picker")]
     picker: Option<(&'a Arc<Catalog>, Bind<'a, FontPickerSettings>, Bind<'a, FontFilters>)>,
+    #[cfg(feature = "font-picker")]
+    #[allow(dead_code)] // P3(panels-w13): tl.R6
+    axes: Option<FaceAxes<'a>>,
 }
 
 impl<'a> CharacterControls<'a> {
@@ -386,14 +474,24 @@ impl<'a> CharacterControls<'a> {
             languages: None,
             #[cfg(feature = "font-picker")]
             picker: None,
+            #[cfg(feature = "font-picker")]
+            axes: None,
         }
     }
 
     /// The family field is craft-font-manager's font picker over `catalog`, with the app's stars, recents and
     /// filters.
     #[cfg(feature = "font-picker")]
-    pub fn font_picker(mut self, catalog: &'a Arc<Catalog>, settings: Bind<'a, FontPickerSettings>, filters: Bind<'a, FontFilters>) -> Self {
-        self.picker = Some((catalog, settings, filters));
+    pub fn font_picker(mut self, source: FontPickerSource<'a>) -> Self {
+        // P3(panels-w13): tl.R6 (preview_text and served are unread)
+        self.picker = Some((source.catalog, source.settings, source.filters));
+        self
+    }
+
+    /// Shows the variable-font axis sliders of `axes` under the style row.
+    #[cfg(feature = "font-picker")]
+    pub fn axes(mut self, axes: FaceAxes<'a>) -> Self {
+        self.axes = Some(axes);
         self
     }
 
@@ -473,15 +571,14 @@ impl<'a> CharacterControls<'a> {
             #[cfg(not(feature = "font-picker"))]
             let by_picker = false;
             if !by_picker {
-                edits.extend(select_row(ui, &words.family, mixed(values.family.clone()), &family_entries, CharacterChange::Family));
+                edits.extend(select_row(ui, &words.family, hidden_side(), mixed(values.family.clone()), &family_entries, CharacterChange::Family));
             }
-            edits.extend(select_row(ui, &words.style, mixed(values.style.clone()), &style_entries, CharacterChange::Style));
+            edits.extend(select_row(ui, &words.style, hidden_side(), mixed(values.style.clone()), &style_entries, CharacterChange::Style));
 
             Grid::new(&TWO_COLUMNS).fill_width().show(ui, |ui, _| {
                 let size = LengthRow {
                     label: words.size.clone(),
-                    glyph: GlyphLabel::text("tT"),
-                    hint: None,
+                    side: mark(GlyphLabel::text("tT"), None, FieldLayout::Inside),
                     value: values.size,
                     range: SIZE_RANGE,
                     presets: &size_presets,
@@ -490,8 +587,7 @@ impl<'a> CharacterControls<'a> {
                 edits.extend(number_change(event, CharacterChange::Size));
                 let leading = LengthRow {
                     label: words.leading.clone(),
-                    glyph: GlyphLabel::text("A↕"),
-                    hint: Some(words.leading_hint.clone()),
+                    side: mark(GlyphLabel::text("A↕"), Some(words.leading_hint.clone()), FieldLayout::Inside),
                     value: leading_value,
                     range: LEADING_RANGE,
                     presets: &leading_presets,
@@ -514,8 +610,7 @@ impl<'a> CharacterControls<'a> {
                 edits.extend(event.map(|value| CharacterChange::Kerning(kerning_of(value))));
                 let tracking = PlainRow {
                     label: words.tracking.clone(),
-                    glyph: GlyphLabel::text("VA"),
-                    hint: Some(words.tracking_hint.clone()),
+                    side: mark(GlyphLabel::text("VA"), Some(words.tracking_hint.clone()), FieldLayout::Inside),
                     value: plain(values.tracking),
                     range: TRACKING_RANGE,
                     percent: false,
@@ -527,8 +622,7 @@ impl<'a> CharacterControls<'a> {
             Grid::new(&TWO_COLUMNS).fill_width().show(ui, |ui, _| {
                 let vertical = PlainRow {
                     label: words.vertical_scale.clone(),
-                    glyph: GlyphLabel::text("↕T"),
-                    hint: None,
+                    side: mark(GlyphLabel::text("↕T"), None, FieldLayout::Inside),
                     value: plain(values.vertical_scale),
                     range: SCALE_RANGE,
                     percent: true,
@@ -538,8 +632,7 @@ impl<'a> CharacterControls<'a> {
                 edits.extend(number_change(event, CharacterChange::VerticalScale));
                 let horizontal = PlainRow {
                     label: words.horizontal_scale.clone(),
-                    glyph: GlyphLabel::text("↔T"),
-                    hint: None,
+                    side: mark(GlyphLabel::text("↔T"), None, FieldLayout::Inside),
                     value: plain(values.horizontal_scale),
                     range: SCALE_RANGE,
                     percent: true,
@@ -551,8 +644,7 @@ impl<'a> CharacterControls<'a> {
             Grid::new(&TWO_COLUMNS).fill_width().show(ui, |ui, _| {
                 let shift = LengthRow {
                     label: words.baseline_shift.clone(),
-                    glyph: GlyphLabel::text("Aª"),
-                    hint: None,
+                    side: mark(GlyphLabel::text("Aª"), None, FieldLayout::Inside),
                     value: values.baseline_shift,
                     range: SHIFT_RANGE,
                     presets: &[],
@@ -626,10 +718,10 @@ impl<'a> CharacterControls<'a> {
             edits.extend(toggle_row(ui, None, &features));
 
             if let Some(entries) = &language_entries {
-                edits.extend(select_row(ui, &words.language, mixed(values.language.clone()), entries, CharacterChange::Language));
+                edits.extend(select_row(ui, &words.language, hidden_side(), mixed(values.language.clone()), entries, CharacterChange::Language));
             }
         });
-        CharacterControlsOutput { response: shown.output, edits, preview_family, requests }
+        CharacterControlsOutput { response: shown.output, edits, preview_family, rested_family: None, requests }
     }
 }
 

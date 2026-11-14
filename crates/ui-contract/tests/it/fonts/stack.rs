@@ -14,7 +14,7 @@ const CJK: &[u8] = include_bytes!("../../fonts/NotoSansCJKsc-test.otf");
 const OFFERED: &[&str] = &["en", "ar", "ja", "zh-CN", "zh-TW", "zh-HK", "ko", "th", "ka", "ru"];
 
 const fn face(family: &'static str, style: &'static str, scripts: &'static [&'static str]) -> EmbeddedFace {
-    EmbeddedFace { family, style, scripts, bytes: &[], index: 0 }
+    EmbeddedFace { family, style, scripts, bytes: &[], index: 0, role: None } // P3(framework-01-w5): fx.F32
 }
 
 /// craft-fonts' manifest today, plus the regional CJK faces and Georgian it is planned to have.
@@ -78,8 +78,8 @@ fn test_fonts(ui_language: &str) -> UiFonts<'static> {
     UiFonts::new(&I18nScripts)
         .app_face("ui", egui_face("Ubuntu-Light"), &[FontRef::proportional()])
         .craft_faces(&[
-            EmbeddedFace { family: "Noto Sans Arabic", style: "Regular", scripts: &["Arab"], bytes: ARABIC, index: 0 },
-            EmbeddedFace { family: "Noto Sans CJK SC", style: "Regular", scripts: &["Hans", "Latn"], bytes: CJK, index: 0 },
+            EmbeddedFace { family: "Noto Sans Arabic", style: "Regular", scripts: &["Arab"], bytes: ARABIC, index: 0, role: None },
+            EmbeddedFace { family: "Noto Sans CJK SC", style: "Regular", scripts: &["Hans", "Latn"], bytes: CJK, index: 0, role: None },
         ])
         .languages(&["en", "ar", "ja", "ka"])
         .ui_language(ui_language)

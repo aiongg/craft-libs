@@ -538,12 +538,13 @@ fn table(faces: &[Face]) -> Result<String, Error> {
         let scripts: Vec<String> = entry.scripts.iter().map(|s| format!("{s:?}")).collect();
         let _ = writeln!(
             src,
-            "    EmbeddedFace {{ family: {:?}, style: {:?}, scripts: &[{}], index: {}, bytes: include_bytes!({:?}) }},",
+            "    EmbeddedFace {{ family: {:?}, style: {:?}, scripts: &[{}], index: {}, bytes: include_bytes!({:?}), role: {:?} }},",
             entry.family,
             entry.style,
             scripts.join(", "),
             index,
             file,
+            entry.role.as_deref(),
         );
     }
     src.push_str("]\n");

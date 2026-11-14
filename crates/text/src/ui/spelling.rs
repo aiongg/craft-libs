@@ -37,7 +37,7 @@ use craft_ui::runtime::overlay::CloseReason;
 use craft_ui::sections::{DialogRole, FooterButton};
 use craft_ui::style::SurfaceKind;
 use craft_ui::text::TextField;
-use egui::{Response, Ui};
+use egui::{Context, Response, Ui};
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "screen-testing")]
@@ -116,11 +116,12 @@ pub enum SpellingAction {
         /// The replacement text.
         to: String,
     },
-    /// Replace every occurrence of `word` with `to`, in every text object when `all_layers`.
+    /// Replace the listed `item`'s word with `to`: in that occurrence's text object, or in every text object when
+    /// `all_layers`.
     #[non_exhaustive]
     ChangeAll {
-        /// The misspelled word.
-        word: String,
+        /// The listed misspelling the button was pressed on.
+        item: SpellingItem,
         /// The replacement text.
         to: String,
         /// Whether to change it in every text object, not only the current one.
@@ -181,6 +182,11 @@ pub struct CheckSpellingDialog {
 }
 
 impl CheckSpellingDialog {
+    /// The misspellings the dialog lists.
+    pub fn items(&self) -> &[SpellingItem] {
+        &self.items
+    }
+
     /// Over `items` from a first search (the current layer: Check All Layers off).
     pub fn new(items: Vec<SpellingItem>) -> Self {
         let change_to = items.first().and_then(|i| i.suggestions.first()).cloned().unwrap_or_default();
@@ -302,7 +308,7 @@ impl CheckSpellingDialog {
             }
             Some(Press::ChangeAll) => {
                 if let Some(item) = item {
-                    self.action = Some(SpellingAction::ChangeAll { word: item.word, to: self.change_to.clone(), all_layers: self.all_layers });
+                    self.action = Some(SpellingAction::ChangeAll { item, to: self.change_to.clone(), all_layers: self.all_layers });
                 }
             }
             Some(Press::Add) => {
@@ -330,5 +336,17 @@ impl StackDialog for CheckSpellingDialog {
     fn show(&mut self, ui: &mut Ui, _: &DialogStack) -> Option<DialogResult<()>> {
         let shown = CheckSpellingDialog::show(self, ui);
         shown.closed.map(|_| DialogResult::Ok(()))
+    }
+
+    fn json_fields(&self) -> Option<serde_json::Value> {
+        todo!("pn.C54")
+    }
+
+    fn set_json_field(&mut self, _: &Context, _field: &str, _value: serde_json::Value) -> Result<(), String> {
+        todo!("pn.C54")
+    }
+
+    fn confirm(&mut self, _: &Context) -> Option<()> {
+        todo!("pn.C54")
     }
 }

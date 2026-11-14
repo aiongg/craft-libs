@@ -5,13 +5,13 @@ use std::ops::RangeInclusive;
 use crate::ui::length::DocUnit;
 use craft_behavior::EditEvent;
 use craft_ui::choice::Checkbox;
-use craft_ui::contract::{Bind, GlyphLabel, NoValue, Outcome, Props as _, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, FieldLayout, GlyphLabel, NoValue, Outcome, Props as _, Show as _, ShowContainer as _};
 use craft_ui::layout_components::{Grid, Stack};
 use craft_ui::runtime::env::{Env, Label};
 use egui::{Response, Ui};
 
 use super::TWO_COLUMNS;
-use super::rows::{LengthRow, Lengths, Toggle, mixed, number_change, toggle_row};
+use super::rows::{LengthRow, Lengths, Toggle, mark, mixed, number_change, toggle_row};
 
 craft_ui::words! {
     /// The Paragraph controls' words, English by default (PhotoCraft's tooltips).
@@ -37,6 +37,9 @@ craft_ui::words! {
         space_before: "paragraph.spaceBefore" = "Add space before paragraph";
         space_after: "paragraph.spaceAfter" = "Add space after paragraph";
         hyphenate: "paragraph.hyphenate" = "Hyphenate";
+        top: "paragraph.top" = "Align text to the top";
+        middle: "paragraph.middle" = "Center text vertically";
+        bottom: "paragraph.bottom" = "Align text to the bottom";
     }
 }
 
@@ -165,18 +168,26 @@ pub struct ParagraphControls<'a> {
     /// Any of the formatted text is point text (no box): the justify buttons are disabled.
     #[prop]
     point_text: bool,
+    /// Vertical text: Left, Center and Right show the top, middle and bottom glyphs and words.
+    #[prop]
+    vertical: bool,
+    /// Shows the Hyphenate check box. Default true.
+    #[prop]
+    hyphenate: bool,
 }
 
 impl<'a> ParagraphControls<'a> {
     /// Controls named `label` for the paragraph attributes `values`.
     pub fn new(label: impl Into<Label>, values: &'a ParagraphValues) -> Self {
-        ParagraphControls { label: label.into(), values, unit: DocUnit::points(), point_text: false }
+        ParagraphControls { label: label.into(), values, unit: DocUnit::points(), point_text: false, vertical: false, hyphenate: true }
     }
 
     /// Shows the controls and returns the changes the user made.
     pub fn show(self, ui: &mut Ui) -> ParagraphControlsOutput {
         let values = self.values;
         let point_text = self.point_text;
+        let _ = self.vertical; // P3(panels-w13): tl.R6
+        let show_hyphenate = self.hyphenate;
         let env = Env::of(ui);
         let words = env.words::<ParagraphWords>();
         let units = env.units();
@@ -216,8 +227,7 @@ impl<'a> ParagraphControls<'a> {
             Grid::new(&TWO_COLUMNS).fill_width().show(ui, |ui, _| {
                 let start = LengthRow {
                     label: words.start_indent.clone(),
-                    glyph: GlyphLabel::text("→|"),
-                    hint: None,
+                    side: mark(GlyphLabel::text("→|"), None, FieldLayout::Inside),
                     value: values.start_indent,
                     range: INDENT_RANGE,
                     presets: &[],
@@ -226,8 +236,7 @@ impl<'a> ParagraphControls<'a> {
                 edits.extend(number_change(event, ParagraphChange::StartIndent));
                 let end = LengthRow {
                     label: words.end_indent.clone(),
-                    glyph: GlyphLabel::text("|←"),
-                    hint: None,
+                    side: mark(GlyphLabel::text("|←"), None, FieldLayout::Inside),
                     value: values.end_indent,
                     range: INDENT_RANGE,
                     presets: &[],
@@ -236,8 +245,7 @@ impl<'a> ParagraphControls<'a> {
                 edits.extend(number_change(event, ParagraphChange::EndIndent));
                 let first = LengthRow {
                     label: words.first_line_indent.clone(),
-                    glyph: GlyphLabel::text("¶→"),
-                    hint: None,
+                    side: mark(GlyphLabel::text("¶→"), None, FieldLayout::Inside),
                     value: values.first_line_indent,
                     range: INDENT_RANGE,
                     presets: &[],
@@ -248,8 +256,7 @@ impl<'a> ParagraphControls<'a> {
             Grid::new(&TWO_COLUMNS).fill_width().show(ui, |ui, _| {
                 let before = LengthRow {
                     label: words.space_before.clone(),
-                    glyph: GlyphLabel::text("↑¶"),
-                    hint: None,
+                    side: mark(GlyphLabel::text("↑¶"), None, FieldLayout::Inside),
                     value: values.space_before,
                     range: SPACE_RANGE,
                     presets: &[],
@@ -258,8 +265,7 @@ impl<'a> ParagraphControls<'a> {
                 edits.extend(number_change(event, ParagraphChange::SpaceBefore));
                 let after = LengthRow {
                     label: words.space_after.clone(),
-                    glyph: GlyphLabel::text("¶↓"),
-                    hint: None,
+                    side: mark(GlyphLabel::text("¶↓"), None, FieldLayout::Inside),
                     value: values.space_after,
                     range: SPACE_RANGE,
                     presets: &[],
@@ -267,8 +273,10 @@ impl<'a> ParagraphControls<'a> {
                 let (event, _) = lengths.row(ui, after);
                 edits.extend(number_change(event, ParagraphChange::SpaceAfter));
             });
-            let out = Checkbox::new(Bind::given(mixed(values.hyphenate))).label(words.hyphenate.clone()).show(ui);
-            edits.extend(out.events.map(ParagraphChange::Hyphenate));
+            if show_hyphenate {
+                let out = Checkbox::new(Bind::given(mixed(values.hyphenate))).label(words.hyphenate.clone()).show(ui);
+                edits.extend(out.events.map(ParagraphChange::Hyphenate));
+            }
         });
         ParagraphControlsOutput { response: shown.output, edits }
     }

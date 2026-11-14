@@ -75,6 +75,12 @@ pub enum TextEditorCommand {
     /// Loosen the tracking or kerning in large steps.
     #[command(label = "Loosen Tracking More", default = "Cmd+Alt+Right")]
     TrackingMoreFar,
+    /// End the session without its edits, whatever `esc_commits` says; nothing while an IME composition is open.
+    #[command(label = "Cancel Text", default = "Cmd+.")]
+    Cancel,
+    /// Show or hide the Character panel (the host reads `TextEditorOutput::character_panel`).
+    #[command(label = "Character Panel", default = "Cmd+T")]
+    CharacterPanel,
 }
 
 impl TextEditorCommand {
@@ -84,6 +90,7 @@ impl TextEditorCommand {
         let tracking = |by: f32| if selection_is_empty { StyleKey::Kern(by) } else { StyleKey::Tracking(by) };
         Some(match self {
             C::Commit => return None,
+            C::Cancel | C::CharacterPanel => return None, // P3(tools-w6): tl.T21
             C::AllCaps => StyleKey::Toggle(CharToggle::AllCaps),
             C::Underline => StyleKey::Toggle(CharToggle::Underline),
             C::FauxBold => StyleKey::Toggle(CharToggle::FauxBold),

@@ -38,6 +38,8 @@ regex = { version = "1.13", optional = true }
 regex-syntax = { version = "0.8", optional = true }
 # `font-picker`: the character controls open craft-font-manager's picker instead of a plain list.
 craft-font-manager = { workspace = true, optional = true }
+# `ui`: the spelling dialog's automation fields are JSON (craft-ui does not re-export serde_json).
+serde_json = { workspace = true, optional = true }
 
 [dev-dependencies]
 unicode-segmentation = "1.13"
@@ -61,7 +63,7 @@ find = ["dep:regex", "dep:regex-syntax"]
 spell = ["dep:miniz_oxide"]
 # The egui parts: `ui::editor` (canvas text editor on craft-ui's IME composer), `ui::style_panel`,
 # `ui::character` and `ui::spelling`.
-ui = ["dep:egui", "dep:craft-behavior", "dep:craft-ui", "dep:craft-theme", "dep:craft-host", "spell"]
+ui = ["dep:egui", "dep:craft-behavior", "dep:craft-ui", "dep:craft-theme", "dep:craft-host", "dep:serde_json", "spell"]
 # `ui::character` shows craft-font-manager's font picker (stars, recents, previews, filters)
 # instead of a plain family list. Pulls the bundled font indexes; apps that only want the panels
 # leave it off.
