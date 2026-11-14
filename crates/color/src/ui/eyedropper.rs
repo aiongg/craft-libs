@@ -81,6 +81,11 @@ impl SampleSize {
     pub const ALL: [SampleSize; 7] =
         [SampleSize::Point, SampleSize::Avg3, SampleSize::Avg5, SampleSize::Avg11, SampleSize::Avg31, SampleSize::Avg51, SampleSize::Avg101];
 
+    /// The size whose square has side `px`, searched in [`ALL`](Self::ALL).
+    pub fn from_pixels(px: u32) -> Option<SampleSize> {
+        SampleSize::ALL.into_iter().find(|size| size.pixels() == px)
+    }
+
     /// The side of the sampled square in pixels.
     pub fn pixels(self) -> u32 {
         match self {
@@ -130,6 +135,11 @@ impl SampleSource {
         SampleSource::AllNoAdjustments,
         SampleSource::CurrentAndBelowNoAdjustments,
     ];
+
+    /// The source whose [`id`](Self::id) is `id`, searched in [`ALL`](Self::ALL).
+    pub fn from_id(id: &str) -> Option<SampleSource> {
+        SampleSource::ALL.into_iter().find(|source| source.id() == id)
+    }
 
     /// The stable id of the source, for settings and scripts.
     pub fn id(self) -> &'static str {

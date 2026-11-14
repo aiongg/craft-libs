@@ -361,6 +361,15 @@ impl StackDialog for ColorPickerDialog {
         self.accept(ctx)
     }
 
+    fn json_fields(&self) -> Option<serde_json::Value> {
+        todo!("dl.K50")
+    }
+
+    fn set_json_field(&mut self, ctx: &Context, field: &str, value: serde_json::Value) -> Result<(), String> {
+        let _ = (ctx, field, value);
+        todo!("dl.K50")
+    }
+
     /// The host closed the dialog from outside: its dropper ends with it.
     fn cancelled(&mut self, _: &Context) {
         self.requests.cancel();

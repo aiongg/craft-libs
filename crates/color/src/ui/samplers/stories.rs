@@ -78,7 +78,7 @@ fn sample_points(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 
 #[story(SamplerOptions, covers = [], drive = Drive::Never)]
 fn options(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    let shown = Bar::new("Color sampler options", BarKind::Options).show(ui, |ui, _| SamplerOptions::new(3).show(ui));
+    let shown = Bar::new("Color sampler options", BarKind::Options).show(ui, |ui, _| SamplerOptions::new(3, craft_ui::contract::Bind::given(crate::ui::SampleSize::Point)).show(ui));
     match shown.inner {
         Some(output) => StoryOutput::from(output),
         None => StoryOutput::from(shown.output),

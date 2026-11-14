@@ -1,9 +1,9 @@
 //! Colour samplers (F04.04): up to ten numbered points on the document whose colours a panel reads. `ColorSamplers` is
-//! the data, `ColorSamplerMarks` paints the points on the canvas, `ColorSamplerTool` places, moves and removes them,
+//! the data, `ColorSamplerMarks` paints the points on the canvas, `ColorSamplerTool` and its pass place, move and removes them,
 //! `SamplerOptions` is the options bar's member and `SamplerReadouts` reads the colours under the points.
 //!
 //! ```ignore
-//! Canvas::new("Document", ColorSamplerTool::new(&mut samplers, size).command_form()).show(ui, |ui, body| {
+//! Canvas::new("Document", ColorSamplerPass::new(&mut samplers, size).command_form()).show(ui, |ui, body| {
 //!     ColorSamplerMarks::new("Color samplers", &samplers).show_at(ui, body.rect);
 //! });
 //! let readouts = SamplerReadouts::new(&samplers, |at| composite_color(at)).revision(document.revision()).get(&mut cache);
@@ -19,11 +19,13 @@ use craft_theme::variant::Tone;
 use craft_theme::{Srgba, TypeRole};
 use craft_ui::buttons::Button;
 use craft_ui::canvas::{CanvasTool, ToolAction, ToolContext, ToolPath, ToolPointer, canvas_space};
-use craft_ui::contract::{Access, CommandSet, Common, Component, Cx, MeasureCx, NoValue, Outcome, PaintUi, Props as _, Role, Show as _};
+use craft_ui::contract::{Access, Bind, CommandSet, Common, Component, Cx, MeasureCx, NoValue, Outcome, PaintUi, Props as _, Role, Show as _};
 use craft_ui::display::{Elide, Shade, Text};
 use craft_ui::primitives::{PaintShape, StrokeWidth, TextRun};
 use craft_ui::runtime::env::{Env, Label};
 use craft_ui::runtime::toast::Toast;
+
+use super::SampleSize;
 use craft_ui::style::{ComponentStyle, StyleColor, StyleCx};
 use egui::{Pos2, Response, Ui, Vec2, vec2};
 
@@ -182,18 +184,21 @@ pub struct ColorSamplerMarksStyle {
 }
 
 /// The numbered reticles of the points on a canvas. Paint only: a press never lands on it.
-#[derive(craft_ui::contract::Component)]
+#[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
 #[component(canvas_control)]
 pub struct ColorSamplerMarks<'a> {
     #[common]
     common: Common,
     samplers: &'a ColorSamplers,
+    /// The point the tool carries: it draws at the pointer, or with no index the next number draws there.
+    #[prop]
+    carried: Option<SamplerCarry>,
 }
 
 impl<'a> ColorSamplerMarks<'a> {
     /// The marks of `samplers`, named `label`.
     pub fn new(label: impl Into<Label>, samplers: &'a ColorSamplers) -> Self {
-        ColorSamplerMarks { common: Common::new(), samplers }.label(label)
+        ColorSamplerMarks { common: Common::new(), samplers, carried: None }.label(label)
     }
 }
 
@@ -261,7 +266,7 @@ impl Component for ColorSamplerMarks<'_> {
 /// The Color Sampler tool: a press on empty canvas places a point and the drag that follows carries it until the
 /// release (the eleventh reports [`SamplerError::Full`] as a toast through [`take_error`](Self::take_error)), a drag
 /// on a point moves it, a point dropped off the canvas is removed, and Alt-click removes a point and renumbers the rest.
-pub struct ColorSamplerTool<'a> {
+pub struct ColorSamplerPass<'a> {
     samplers: &'a mut ColorSamplers,
     size: [u32; 2],
     /// The point being carried: its index, the press position and where the press found the point.
@@ -269,10 +274,10 @@ pub struct ColorSamplerTool<'a> {
     full: Option<Toast>,
 }
 
-impl<'a> ColorSamplerTool<'a> {
-    /// A tool over `samplers` on a document of `size` pixels.
+impl<'a> ColorSamplerPass<'a> {
+    /// A pass over `samplers` on a document of `size` pixels.
     pub fn new(samplers: &'a mut ColorSamplers, size: [u32; 2]) -> Self {
-        ColorSamplerTool { samplers, size, moving: None, full: None }
+        ColorSamplerPass { samplers, size, moving: None, full: None }
     }
 
     /// The points the tool edits.
@@ -291,7 +296,7 @@ impl<'a> ColorSamplerTool<'a> {
     }
 }
 
-impl CanvasTool for ColorSamplerTool<'_> {
+impl CanvasTool for ColorSamplerPass<'_> {
     fn press(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) -> ToolAction {
         let (Some(at), Some(space)) = (Self::doc_at(cx, pointer.pos), cx.space()) else { return ToolAction::Ignored };
         let tolerance = space.view.doc_len(cx.reach());
@@ -361,6 +366,76 @@ impl CanvasTool for ColorSamplerTool<'_> {
     }
 }
 
+/// What the Color Sampler tool asks the host to do with its points.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub enum SamplerEvent {
+    /// A point was placed at `at`.
+    Add {
+        /// Where, in document pixels.
+        at: [f64; 2],
+    },
+    /// Point `index` was moved to `to`.
+    Move {
+        /// The point's index.
+        index: usize,
+        /// Where it went, in document pixels.
+        to: [f64; 2],
+    },
+    /// Point `index` was removed.
+    Remove {
+        /// The point's index.
+        index: usize,
+    },
+}
+
+/// A point the tool carries: point `index` draws at `at`, or with `index: None` the next number draws at `at` while
+/// below [`MAX_SAMPLERS`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SamplerCarry {
+    /// The point carried; `None` for a new one.
+    pub index: Option<usize>,
+    /// Where it draws, in document pixels.
+    pub at: [f64; 2],
+}
+
+/// The Color Sampler tool, owned by the host across passes: it places, moves and removes points as events instead of
+/// editing the points in place.
+#[derive(Debug, Default)]
+pub struct ColorSamplerTool {
+    events: Vec<SamplerEvent>,
+    carried: Option<SamplerCarry>,
+    full: Option<Toast>,
+}
+
+impl ColorSamplerTool {
+    /// A tool with no gesture running.
+    pub fn new() -> Self {
+        ColorSamplerTool::default()
+    }
+
+    /// The tool for one pass over `samplers` on a document of `size` pixels.
+    pub fn pass<'a>(&'a mut self, samplers: &'a ColorSamplers, size: [u32; 2]) -> ColorSamplerPass<'a> {
+        let _ = (samplers, size);
+        todo!("tl.T39")
+    }
+
+    /// The events since the last call.
+    pub fn take_events(&mut self) -> Vec<SamplerEvent> {
+        std::mem::take(&mut self.events)
+    }
+
+    /// The notice of a press that was refused, once.
+    pub fn take_error(&mut self) -> Option<Toast> {
+        self.full.take()
+    }
+
+    /// The point being carried, for the marks.
+    pub fn carried(&self) -> Option<SamplerCarry> {
+        self.carried
+    }
+}
+
 /// The colour under a point, as a panel shows it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
@@ -393,8 +468,9 @@ impl SamplerReadout {
 /// The options bar's members: the count, Clear All and the hint.
 #[must_use = "show the options with `show`"]
 #[derive(craft_ui::contract::Pattern)]
-pub struct SamplerOptions {
+pub struct SamplerOptions<'a> {
     count: usize,
+    size: Bind<'a, SampleSize>,
 }
 
 /// What [`SamplerOptions::show`] reports.
@@ -405,6 +481,8 @@ pub struct SamplerOptionsOutput {
     pub response: Response,
     /// Clear All was pressed.
     pub clear_all: bool,
+    /// The Sample Size picked this pass.
+    pub size: Option<SampleSize>,
 }
 
 impl Outcome for SamplerOptionsOutput {
@@ -415,10 +493,10 @@ impl Outcome for SamplerOptionsOutput {
     }
 }
 
-impl SamplerOptions {
-    /// The members for a document with `count` points.
-    pub fn new(count: usize) -> Self {
-        SamplerOptions { count }
+impl<'a> SamplerOptions<'a> {
+    /// The members for a document with `count` points and the Sample Size `size`.
+    pub fn new(count: usize, size: Bind<'a, SampleSize>) -> Self {
+        SamplerOptions { count, size }
     }
 
     /// Shows the members inside the options `Bar`.
@@ -428,7 +506,8 @@ impl SamplerOptions {
         Text::new(Label::from(counted)).show(ui);
         let clear = Button::new(words.clear_all.clone()).enabled(self.count > 0).show(ui);
         Text::new(words.hint.clone()).shade(Shade::Faint).elide(Elide::End).show(ui);
-        SamplerOptionsOutput { clear_all: craft_ui::contract::clicked(&clear), response: clear.response }
+        let _ = self.size; // P3(tools-w12): tl.T39 — the Sample Size select
+        SamplerOptionsOutput { clear_all: craft_ui::contract::clicked(&clear), response: clear.response, size: None }
     }
 }
 

@@ -30,6 +30,7 @@ mod popover;
 mod profile_prompts;
 mod ramp;
 mod readout;
+mod sample_size;
 mod samplers;
 mod screen_picker;
 mod strip;
@@ -73,9 +74,10 @@ pub use profile_prompts::{ProfileAction, ProfileAnswer, ProfileMismatchDialog, P
 pub use ramp::{ColorRamp, ColorRampOutput, ColorRampStyle, ColorRampWords, Gamut, RampKind, RampPick};
 pub use readout::{ChannelEdit, ColorReadout, ColorReadoutOutput, ColorReadoutWords, ReadoutChannel};
 pub use samplers::{
-    ColorSamplerCommand, ColorSamplerMarks, ColorSamplerTool, ColorSamplers, MAX_SAMPLERS, SamplerCache, SamplerError, SamplerOptions,
-    SamplerOptionsOutput, SamplerReadout, SamplerReadouts, SamplerWords,
+    ColorSamplerCommand, ColorSamplerMarks, ColorSamplerPass, ColorSamplerTool, ColorSamplers, MAX_SAMPLERS, SamplerCache, SamplerCarry, SamplerError,
+    SamplerEvent, SamplerOptions, SamplerOptionsOutput, SamplerReadout, SamplerReadouts, SamplerWords,
 };
+pub use sample_size::SampleSizeSelect;
 pub use screen_picker::{CaptureResult, CaptureSource, LOUPE_PIXELS, LOUPE_ZOOM, ScreenColorPicker, ScreenPick, ScreenPickerWords, StillCapture};
 pub use strip::{ColorStrip, ColorStripStyle};
 pub use swatches::{

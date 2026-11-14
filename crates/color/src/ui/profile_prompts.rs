@@ -13,7 +13,7 @@ use craft_ui::dialog::{DialogId, DialogResult, DialogStack, Prompt, StackDialog,
 use craft_ui::runtime::env::{Env, Label};
 use craft_ui::runtime::words::CommonWords;
 use craft_ui::sections::{DialogRole, FooterButton};
-use egui::Ui;
+use egui::{Context, Ui};
 
 use crate::display::MonitorProblem;
 
@@ -257,6 +257,20 @@ impl StackDialog for ProfileMismatchDialog {
 
     fn id(&self) -> DialogId {
         self.id
+    }
+
+    fn confirm(&mut self, ctx: &Context) -> Option<ProfileAnswer> {
+        let _ = ctx;
+        todo!("dl.K10")
+    }
+
+    fn json_fields(&self) -> Option<serde_json::Value> {
+        todo!("dl.K10")
+    }
+
+    fn set_json_field(&mut self, ctx: &Context, field: &str, value: serde_json::Value) -> Result<(), String> {
+        let _ = (ctx, field, value);
+        todo!("dl.K10")
     }
 
     fn show(&mut self, ui: &mut Ui, _: &DialogStack) -> Option<DialogResult<ProfileAnswer>> {

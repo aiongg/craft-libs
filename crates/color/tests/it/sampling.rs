@@ -8,7 +8,7 @@ use craft_behavior::CanvasView;
 use craft_behavior::kurbo::Point;
 use craft_cms::convert::CmykConverter;
 use craft_color::ui::{
-    CaptureSource, ColorPicker, ColorPickerLayout, ColorSamplerTool, ColorSamplers, PickedColor, SamplerCache, SamplerReadouts, ScreenPick,
+    CaptureSource, ColorPicker, ColorPickerLayout, ColorSamplerPass, ColorSamplers, PickedColor, SamplerCache, SamplerReadouts, ScreenPick,
     StillCapture,
 };
 use craft_theme::Srgba;
@@ -41,12 +41,12 @@ fn readouts_are_cached_per_document_and_converter() {
     assert_ne!(other[0].cmyk, first[0].cmyk);
 }
 
-fn sampler_tool(points: &[[f64; 2]]) -> ColorSamplerTool<'static> {
+fn sampler_tool(points: &[[f64; 2]]) -> ColorSamplerPass<'static> {
     let samplers: &'static mut ColorSamplers = Box::leak(Box::new(ColorSamplers::new()));
     for p in points {
         samplers.add(*p, SIZE).unwrap();
     }
-    ColorSamplerTool::new(samplers, SIZE)
+    ColorSamplerPass::new(samplers, SIZE)
 }
 
 #[trial]
