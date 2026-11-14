@@ -15,14 +15,17 @@ use craft_ui::contract::{
     Access, Activation, Bind, Common, Component, Cx, DisabledLook, Edit as _, EditResponse, Entry, Outcome, Overlay, OverlayUi, Overlays as _,
     PaintUi, PartsCx, Pointer as _, PopupKind, Props as _, Remember as _, Role, Show as _, WordSetCx as _,
 };
+use craft_ui::patterns::presets::PresetState;
 use craft_ui::primitives::textures::CachedTexture;
 use craft_ui::primitives::{ContentPainterCx, PaintShape, StrokeWidth};
 use craft_ui::runtime::env::Label;
+use craft_ui::runtime::requests::ColorRequest;
 use craft_ui::style::{ComponentStyle, DataColor, FocusLook, StyleColor, StyleCx};
 use egui::{Color32, Pos2, Rect, Response, Ui, pos2, vec2};
 
 use super::popover::compact_picker;
-use super::{PickedColor, ScreenPickGesture};
+use super::{PickedColor, ScreenPickGesture, SwatchKey};
+use crate::palette::SwatchGroup;
 
 mod paint_list;
 #[cfg(feature = "screen-testing")]
@@ -210,6 +213,9 @@ pub struct PaintChipOutput {
     pub edit: EditResponse<Paint>,
     /// The screen eyedropper's press: the host runs the screen pick and answers through [`PaintChip::sampled`].
     pub screen_pick: Option<ScreenPickGesture>,
+    /// The Color Picker… button was pressed: the popover closed and the host opens the full picker with this request
+    /// for that pass.
+    pub pick_color: Option<ColorRequest>,
 }
 
 impl Outcome for PaintChipOutput {
@@ -255,6 +261,11 @@ pub struct PaintChip<'a> {
     #[prop]
     sampled: Option<Srgba>,
     screen_pick: Option<ScreenPickGesture>,
+    recent: &'a [Srgba],
+    swatches: Option<(&'a [SwatchGroup], Bind<'a, PresetState<SwatchKey>>)>,
+    /// A Color Picker… button at the end of the kind row opens the full picker.
+    #[prop]
+    full_picker: bool,
 }
 
 impl<'a> PaintChip<'a> {
@@ -271,8 +282,26 @@ impl<'a> PaintChip<'a> {
             picture: None,
             sampled: None,
             screen_pick: None,
+            recent: &[],
+            swatches: None,
+            full_picker: false,
         }
         .label(label)
+    }
+
+    /// The recent colours the popover shows beside the picker.
+    #[must_use]
+    pub fn recent(mut self, colors: &'a [Srgba]) -> Self {
+        self.recent = colors;
+        self
+    }
+
+    /// The swatches the popover lists (rows from `swatch_rows`) beside the picker: the groups the Swatches panel takes,
+    /// so a host builds no library copy each pass.
+    #[must_use]
+    pub fn swatches(mut self, groups: &'a [SwatchGroup], state: Bind<'a, PresetState<SwatchKey>>) -> Self {
+        self.swatches = Some((groups, state));
+        self
     }
 
     /// The Gradient tab: `default_gradient` is what a switch to Gradient sets, `editor` draws the host's editor.
@@ -505,7 +534,7 @@ impl Component for PaintChip<'_> {
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> PaintChipOutput {
-        PaintChipOutput { edit: cx.edit_response(), screen_pick: self.screen_pick }
+        PaintChipOutput { edit: cx.edit_response(), screen_pick: self.screen_pick, pick_color: None }
     }
 }
 

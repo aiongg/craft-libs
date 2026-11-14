@@ -30,7 +30,7 @@ impl Outcome for RawDevelopPanelOutput {
 /// row shows `Bind::given(f64::from(value))` and writes its edit back as `f32`.
 #[must_use = "show the panel with `show`"]
 #[derive(Pattern, Props)]
-#[allow(dead_code)] // P3(dialogs-w9): dl.K67
+#[allow(dead_code)] // P3(dialogs-w18): dl.K67
 pub struct RawDevelopPanel<'a> {
     settings: Bind<'a, RawDevelopSettings>,
     /// The demosaic select shows while a raw is being opened.

@@ -280,6 +280,12 @@ fn shortcuts_the_layout_assigns_come_back_as_clicks() {
 }
 
 // P3(top-w1): tp.T5 — the tests still speak the old `held` argument; phase 3 rewrites them for `key_down`, `mods` and `alternate`.
-fn chosen_held(dispatch: &craft_menu::Dispatch, command: &CommandRef, chord: Option<&craft_menu::Chord>, layout_shortcut: bool, held: Option<craft_keymap::Mods>) -> Event {
+fn chosen_held(
+    dispatch: &craft_menu::Dispatch,
+    command: &CommandRef,
+    chord: Option<&craft_menu::Chord>,
+    layout_shortcut: bool,
+    held: Option<craft_keymap::Mods>,
+) -> Event {
     dispatch.chosen(command, chord, layout_shortcut, held.is_some(), held.unwrap_or_default(), None)
 }

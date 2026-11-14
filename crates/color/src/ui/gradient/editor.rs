@@ -3,8 +3,8 @@
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use craft_behavior::{EditEvent, EditEvents, Mixed};
 use crate::ui::{ColorPicker, ScreenPickGesture};
+use craft_behavior::{EditEvent, EditEvents, Mixed};
 use craft_theme::Srgba;
 use craft_ui::contract::{Bind, EditResponse, Outcome, Pattern, Props as _, Remember as _, Show as _, ShowContainer as _};
 use craft_ui::layout_components::Stack;

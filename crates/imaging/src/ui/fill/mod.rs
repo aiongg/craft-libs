@@ -807,7 +807,7 @@ impl ContentAwareFillWorkspace {
     }
 }
 
-// P3(dialogs-w1): dl.K64 — the workspace's trait surface; `show` and the automation fields are written in phase 3.
+// P3(dialogs-w10): dl.K64 — the workspace's trait surface; `show` and the automation fields are written in phase 3.
 impl craft_ui::dialog::FullWindowWorkspace for ContentAwareFillWorkspace {
     type Source = dyn FillSource;
     type Event = FillEvent;

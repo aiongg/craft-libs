@@ -28,7 +28,7 @@ impl Outcome for ColorRangeOutput {
 /// The Color Range body: the select, the sliders, the selection preview and the sampling tools.
 #[must_use = "show the dialog body with `show`"]
 #[derive(Pattern, Props)]
-#[allow(dead_code)] // P3(dialogs-w7): dl.K54
+#[allow(dead_code)] // P3(dialogs-w9): dl.K54
 pub struct ColorRangeDialog<'a> {
     label: Label,
     value: Bind<'a, ColorRangeValue>,

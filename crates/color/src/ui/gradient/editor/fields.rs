@@ -4,8 +4,8 @@
 use std::ops::RangeInclusive;
 use std::sync::Arc;
 
-use craft_behavior::{EditEvent, GestureId, IconId, Mixed};
 use crate::ui::{ColorPicker, ColorPopover, PickedColor, ScreenPickGesture};
+use craft_behavior::{EditEvent, GestureId, IconId, Mixed};
 use craft_theme::Srgba;
 use craft_ui::buttons::IconButton;
 use craft_ui::choice::Swatch;

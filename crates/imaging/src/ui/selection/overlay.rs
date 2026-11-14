@@ -83,7 +83,7 @@ impl<'a> PointMap<'a> {
     }
 
     fn apply(&self, point: Point) -> Point {
-        let _ = self.bends; // P3(tools-w?): tl.T14 — unmapped points and bending maps
+        let _ = self.bends; // P3(tools-w3): tl.T14 — unmapped points and bending maps
         (self.map)(point).unwrap_or(point)
     }
 }

@@ -728,7 +728,7 @@ impl SelectMaskWorkspace {
 /// The name the history gives its steps.
 const HISTORY_NAME: &str = "Select and Mask";
 
-// P3(dialogs-w11): dl.K65 — the workspace's trait surface; `show` and the automation fields are written in phase 3.
+// P3(dialogs-w10): dl.K65 — the workspace's trait surface; `show` and the automation fields are written in phase 3.
 impl craft_ui::dialog::FullWindowWorkspace for SelectMaskWorkspace {
     type Source = dyn SelectMaskSource;
     type Event = SelectMaskEvent;

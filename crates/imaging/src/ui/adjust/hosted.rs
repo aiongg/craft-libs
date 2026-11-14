@@ -1,14 +1,14 @@
 //! [`HostedAdjustDialog`]: an Image › Adjustments dialog on the dialog host, around any adjustment editor.
 
 use craft_behavior::{GestureId, Value};
-use serde::Serialize;
-use serde::de::DeserializeOwned;
 use craft_ui::contract::Bind;
 use craft_ui::dialog::{DialogId, DialogResult, DialogStack, StackDialog, dialog_id};
 use craft_ui::patterns::form_dialogs::FormDialog;
 use craft_ui::runtime::env::Label;
 use craft_ui::runtime::memory::SaveKey;
 use egui::{Context, Ui};
+use serde::Serialize;
+use serde::de::DeserializeOwned;
 
 use super::{AdjustContext, LevelsClip, TonePicker};
 
@@ -225,7 +225,24 @@ impl<V: Value + Default + Serialize + DeserializeOwned, E: Send + 'static> Stack
     }
 
     fn show(&mut self, ui: &mut Ui, _: &DialogStack) -> Option<DialogResult<V>> {
-        let HostedAdjustDialog { title, open, value, preview, comparing, context, resizable, remember, editor, asks, canvas, picker, channel, clipping, select_point, .. } = self;
+        let HostedAdjustDialog {
+            title,
+            open,
+            value,
+            preview,
+            comparing,
+            context,
+            resizable,
+            remember,
+            editor,
+            asks,
+            canvas,
+            picker,
+            channel,
+            clipping,
+            select_point,
+            ..
+        } = self;
         let (canvas, select_point) = (*canvas, select_point.take());
         let (context, resizable, remember) = (*context, *resizable, remember.clone());
         let shown = FormDialog::new(title.clone(), Bind::bound(value))

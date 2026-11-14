@@ -374,7 +374,7 @@ impl Pass<'_> {
     }
 }
 
-// P3(dialogs-w12): dl.K59 — the workspace's trait surface; `show` and the automation fields are written in phase 3.
+// P3(dialogs-w11): dl.K59 — the workspace's trait surface; `show` and the automation fields are written in phase 3.
 impl craft_ui::dialog::FullWindowWorkspace for FilterGalleryWorkspace {
     type Source = dyn FilterGallerySource;
     type Event = FilterGalleryEvent;

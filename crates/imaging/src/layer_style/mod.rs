@@ -34,8 +34,8 @@ mod tests;
 
 pub use contour::{Contour, ContourPoint};
 pub use draft::LayerStyleDraft;
+pub use drag::{GradientOffsetDrag, ShadowDrag};
 pub use model::{
     BlendIf, BlendIfRange, Blending, EffectId, EffectInstance, EffectKind, Knockout, LayerStyle, LayerStylePage, StyleParams, StyleValue,
 };
-pub use drag::{GradientOffsetDrag, ShadowDrag};
 pub use spec::{ChoiceOption, EffectField, EffectSpec, FieldKind, FieldUnit};

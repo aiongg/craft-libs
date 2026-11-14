@@ -36,9 +36,9 @@ pub mod layer_style;
 pub mod liquify;
 pub mod live_preview;
 pub mod mask_view;
-pub mod raw_develop;
 #[cfg(feature = "screen-testing")]
 pub(crate) mod mock_image;
+pub mod raw_develop;
 pub mod scopes;
 pub mod select;
 pub mod select_mask;

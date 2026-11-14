@@ -153,8 +153,20 @@ impl<'a> LevelsPanel<'a> {
         // pc: crates/ui-egui/src/dialogs/adjust_editors/levels.rs:63-85 (Channel select, Auto at the
         // row's end, Auto from the shown channel's histogram), crates/ui-egui/src/dialogs/adjust_dialog.rs:186-216
         // (the picker row in the dialog).
-        let Self { label, mut levels, channels, histograms, stale, mut pickers, canvas, channel: _, picker_enabled, pickers_unavailable, context, enabled } =
-            self;
+        let Self {
+            label,
+            mut levels,
+            channels,
+            histograms,
+            stale,
+            mut pickers,
+            canvas,
+            channel: _,
+            picker_enabled,
+            pickers_unavailable,
+            context,
+            enabled,
+        } = self;
         let words = Env::of(ui).words::<AdjustWords>();
         let entries: Vec<Entry<usize>> = channels.as_slice().iter().enumerate().map(|(at, channel)| Entry::new(at, channel.label(&words))).collect();
         let (mut edit, mut picker, mut clipping) = (EditEvents::new(), None, None);

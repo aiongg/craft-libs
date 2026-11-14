@@ -9,7 +9,7 @@ use crate::ui::scopes::{ScopeFrame, ScopePanelOutput, ScopePanelState};
 /// context menu and a Float action in the section header.
 #[must_use = "show the strip with `show`"]
 #[derive(Pattern, Props)]
-#[allow(dead_code)] // P3(dialogs-w9): dl.K67
+#[allow(dead_code)] // P3(dialogs-w18): dl.K67
 pub struct RawScopeStrip<'a> {
     state: &'a mut ScopePanelState,
     frame: Option<&'a ScopeFrame<'a>>,
@@ -36,7 +36,7 @@ impl<'a> RawScopeStrip<'a> {
 /// `floating`.
 #[must_use = "show the scope with `show`"]
 #[derive(Pattern)]
-#[allow(dead_code)] // P3(dialogs-w9): dl.K67
+#[allow(dead_code)] // P3(dialogs-w18): dl.K67
 pub struct RawFloatingScope<'a> {
     state: &'a mut ScopePanelState,
     frame: Option<&'a ScopeFrame<'a>>,

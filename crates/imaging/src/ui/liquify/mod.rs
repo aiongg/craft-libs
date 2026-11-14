@@ -650,7 +650,7 @@ impl Edit {
 /// The name the history gives its steps.
 const HISTORY_NAME: &str = "Liquify";
 
-// P3(dialogs-w9): dl.K63 — the workspace's trait surface; `show` and the automation fields are written in phase 3.
+// P3(dialogs-w10): dl.K63 — the workspace's trait surface; `show` and the automation fields are written in phase 3.
 impl craft_ui::dialog::FullWindowWorkspace for LiquifyWorkspace {
     type Source = dyn LiquifySource;
     type Event = LiquifyEvent;

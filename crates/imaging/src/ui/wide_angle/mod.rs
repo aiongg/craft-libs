@@ -95,7 +95,7 @@ impl PreviewDone {
 /// What the app gives the workspace to show each pass.
 pub trait WideAngleSource: Send + Sync {
     /// The lens model the constraints curve by.
-    // P3(dialogs-w10): dl.K60 — default body until the app's sources implement it.
+    // P3(dialogs-w12): dl.K60 — default body until the app's sources implement it.
     fn geometry(&self) -> &dyn WideAngleGeometry {
         todo!("dl.K60")
     }
@@ -531,7 +531,7 @@ fn add_constraint_params(words: &WideAngleWords) -> Vec<Param> {
     ]
 }
 
-// P3(dialogs-w10): dl.K60 — the workspace's trait surface; `show` and the automation fields are written in phase 3.
+// P3(dialogs-w12): dl.K60 — the workspace's trait surface; `show` and the automation fields are written in phase 3.
 impl craft_ui::dialog::FullWindowWorkspace for WideAngleWorkspace {
     type Source = dyn WideAngleSource;
     type Event = WideAngleEvent;

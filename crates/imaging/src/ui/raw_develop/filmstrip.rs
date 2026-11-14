@@ -18,7 +18,7 @@ pub struct RawFilmItem {
 /// A one-column grid of tiles at the start edge, shown for more than one raw: the edited dot and the current frame.
 #[must_use = "show the filmstrip with `show`"]
 #[derive(Pattern)]
-#[allow(dead_code)] // P3(dialogs-w9): dl.K66
+#[allow(dead_code)] // P3(dialogs-w17): dl.K66
 pub struct RawFilmstrip<'a> {
     items: &'a [RawFilmItem],
     current: Bind<'a, usize>,

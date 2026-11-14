@@ -111,7 +111,7 @@ impl GalleryThumb {
 /// zoom change, and a newer request replaces the one running.
 pub trait FilterGallerySource: Send + Sync {
     /// The catalog the gallery lists and the effects name their filters in.
-    // P3(dialogs-w12): dl.K59 — default body until the app's sources implement it.
+    // P3(dialogs-w11): dl.K59 — default body until the app's sources implement it.
     fn catalog(&self) -> &dyn FilterCatalog {
         todo!("dl.K59")
     }
@@ -123,7 +123,7 @@ pub trait FilterGallerySource: Send + Sync {
     fn render(&self, effects: &[EffectLayer], visible: PixelRect, zoom: f64) -> Job<PreviewDone, String>;
 
     /// The thumbnails the filter tree shows.
-    // P3(dialogs-w12): dl.K59 — default body until the app's sources implement it.
+    // P3(dialogs-w11): dl.K59 — default body until the app's sources implement it.
     fn thumb_source(&self) -> &dyn craft_ui::primitives::textures::ThumbSource<GalleryThumb> {
         todo!("dl.K59")
     }

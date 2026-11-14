@@ -20,10 +20,10 @@ use craft_ui::runtime::focus::{ActivateKeys, FocusShape, KeyUse};
 use craft_ui::style::{ComponentStyle, DataColor, Flags, FocusLook, StyleColor, StyleCx};
 use egui::{Color32, CornerRadius, Pos2, Rect, Response, Vec2, pos2, vec2};
 
-use crate::ui::gradient::ramp::GradientRamp;
 use crate::gradient::stops::{self, STOP_STEP, STOP_STEP_FAR, Sampler, StopRules, default_sampler, location, locations, midpoint, midpoint_at};
 use crate::gradient::{GradientStops, StopRow, StopRows};
 use crate::ui::gradient::StopRef;
+use crate::ui::gradient::ramp::GradientRamp;
 use crate::ui::gradient::words::GradientWords;
 use craft_ui::runtime::env::UnitKind;
 

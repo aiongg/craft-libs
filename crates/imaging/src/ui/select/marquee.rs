@@ -255,7 +255,8 @@ impl CanvasTool for SelectToolPass<'_, MarqueeTool> {
         {
             let id = tool.report.gesture();
             let label = cx.words::<SelectWords>().move_selection.as_str().into();
-            let (drag, event) = InsideDrag::begin(&ConstrainStyle::new(f64::from(cx.slop), f64::from(cx.slop)), kind, at, pointer.mods, id, label, None);
+            let (drag, event) =
+                InsideDrag::begin(&ConstrainStyle::new(f64::from(cx.slop), f64::from(cx.slop)), kind, at, pointer.mods, id, label, None);
             tool.inside = Some(drag);
             tool.report.push(event);
             return ToolAction::Claimed;

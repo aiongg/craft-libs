@@ -1,8 +1,8 @@
 //! The Layer Style dialog's draft: the style being edited plus the dialog's own view state, and
 //! the rules every edit follows.
 
-use super::model::{EffectId, EffectInstance, EffectKind, LayerStyle, LayerStylePage, StyleParams, StyleValue};
 use super::drag::{GradientOffsetDrag, ShadowDrag};
+use super::model::{EffectId, EffectInstance, EffectKind, LayerStyle, LayerStylePage, StyleParams, StyleValue};
 use super::spec::EffectSpec;
 
 /// What the Layer Style dialog edits: the [`LayerStyle`] and the dialog's view state (the page,

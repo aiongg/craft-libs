@@ -518,7 +518,7 @@ impl VanishingPointWorkspace {
                 VanishingPointEvent::Planes(event) => self.record_event(event),
                 VanishingPointEvent::Paste(event) => self.record_event(event),
                 VanishingPointEvent::Stamp(event) => self.record_event(event),
-                // P3(dialogs-w13): dl.K61 — settings and refusals are not history steps.
+                // P3(dialogs-w12): dl.K61 — settings and refusals are not history steps.
                 VanishingPointEvent::Settings(_) | VanishingPointEvent::Refused(_) => {}
             }
         }
@@ -552,7 +552,7 @@ impl VanishingPointWorkspace {
     }
 }
 
-// P3(dialogs-w13): dl.K61 — the workspace's trait surface; `show` and the automation fields are written in phase 3.
+// P3(dialogs-w12): dl.K61 — the workspace's trait surface; `show` and the automation fields are written in phase 3.
 impl craft_ui::dialog::FullWindowWorkspace for VanishingPointWorkspace {
     type Source = dyn VanishingPointSource;
     type Event = VanishingPointEvent;
