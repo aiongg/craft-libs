@@ -239,6 +239,7 @@ pub struct LiquifySettings {
     /// The selected tool.
     pub tool: LiquifyTool,
     /// The brush options.
+    #[serde(flatten)]
     pub brush: LiquifyBrush,
     /// Brush Reconstruct Options › Amount, 0..=100.
     pub reconstruct_amount: f64,

@@ -21,6 +21,7 @@
 //! [`EditHistory`]: craft_behavior::EditHistory
 
 mod bar;
+mod command;
 mod commands;
 mod draw;
 mod editor;
@@ -63,6 +64,8 @@ use craft_ui::sections::{DialogRole, FooterButton};
 use commands::Pick;
 use editor::PASTE_CELLS;
 
+pub use command::VanishingPointCommand;
+
 use crate::ui::wide_angle::PreviewDone;
 
 /// The paste's tint: white at the legacy alpha, so the image shows as it is, a little transparent over the picture.
@@ -70,7 +73,7 @@ use crate::ui::wide_angle::PreviewDone;
 const PASTE_TINT: Color32 = Color32::from_rgba_premultiplied(230, 230, 230, 230);
 
 /// What the app gives the editor to show each pass.
-pub trait VanishingPointSource {
+pub trait VanishingPointSource: Send + Sync {
     /// The layer as it is.
     fn image(&self) -> &dyn RasterSource;
 
@@ -168,6 +171,10 @@ pub enum VanishingPointEvent {
     Paste(EditEvent<PasteImage>),
     /// A clone stroke: the app paints its preview from the points as they come.
     Stamp(EditEvent<StampStroke>),
+    /// A bar setting changed.
+    Settings(VanishingPointSettings),
+    /// A press was refused; the message is worded for the app's status bar.
+    Refused(StatusMessage),
 }
 
 /// What [`VanishingPointWorkspace::show`] reports.
@@ -439,6 +446,13 @@ impl VanishingPointWorkspace {
         &self.editor
     }
 
+    /// The engine command OK answers: the session's planes, paste and strokes with the bar's options. The paste is
+    /// left out when `has_paste` is false.
+    pub fn command(&self, has_paste: bool) -> VanishingPointCommand {
+        let _ = has_paste;
+        todo!("dl.K61")
+    }
+
     /// The options bar's current values.
     pub fn settings(&self) -> &VanishingPointSettings {
         &self.settings
@@ -504,6 +518,8 @@ impl VanishingPointWorkspace {
                 VanishingPointEvent::Planes(event) => self.record_event(event),
                 VanishingPointEvent::Paste(event) => self.record_event(event),
                 VanishingPointEvent::Stamp(event) => self.record_event(event),
+                // P3(dialogs-w13): dl.K61 — settings and refusals are not history steps.
+                VanishingPointEvent::Settings(_) | VanishingPointEvent::Refused(_) => {}
             }
         }
         if !self.history.is_open() {
@@ -533,5 +549,37 @@ impl VanishingPointWorkspace {
             }
             _ => {}
         }
+    }
+}
+
+// P3(dialogs-w13): dl.K61 — the workspace's trait surface; `show` and the automation fields are written in phase 3.
+impl craft_ui::dialog::FullWindowWorkspace for VanishingPointWorkspace {
+    type Source = dyn VanishingPointSource;
+    type Event = VanishingPointEvent;
+    type Result = VanishingPointCommand;
+
+    const KEY: &'static str = "filter.vanishingPoint";
+
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        cx: craft_ui::dialog::WorkspaceCx<'_, Self::Source>,
+    ) -> craft_ui::dialog::WorkspacePass<Self::Event, Self::Result> {
+        let _ = (ui, cx);
+        todo!("dl.K61")
+    }
+
+    fn json_fields(&self) -> Option<serde_json::Value> {
+        todo!("dl.K61")
+    }
+
+    fn set_json_field(&mut self, ctx: &egui::Context, source: &Self::Source, field: &str, value: serde_json::Value) -> Result<(), String> {
+        let _ = (ctx, source, field, value);
+        todo!("dl.K61")
+    }
+
+    fn confirm(&mut self, ctx: &egui::Context, source: &Self::Source) -> Option<Self::Result> {
+        let _ = (ctx, source);
+        todo!("dl.K61")
     }
 }

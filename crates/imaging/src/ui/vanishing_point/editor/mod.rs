@@ -42,7 +42,7 @@ impl StampLimits {
 }
 
 /// The editor's tools: Edit Plane (V), Create Plane (C), Stamp (S). The workspace's strip adds Hand and Zoom.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum VanishingTool {
     /// Drag corner and edge nodes, select a plane.

@@ -5,12 +5,13 @@ use craft_ui::patterns::form_dialogs::DialogFields;
 use super::catalog::FilterCatalog;
 
 /// One effect layer: a filter, its fields (the catalog's parameters) and its eye.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[non_exhaustive]
 pub struct EffectLayer {
     /// The filter's key in the catalog.
     pub filter: String,
     /// The filter's parameter values.
+    #[serde(rename = "params")]
     pub fields: DialogFields,
     /// Whether the layer's eye is on.
     pub visible: bool,
@@ -44,6 +45,12 @@ pub enum EffectChange {
         index: usize,
         /// The new parameter values.
         fields: DialogFields,
+    },
+    /// The whole stack replaced by `effects`.
+    #[non_exhaustive]
+    Replace {
+        /// The effect layers, bottom first.
+        effects: Vec<EffectLayer>,
     },
     /// New effect layer: a copy of the selected one, above it, selected.
     Add,

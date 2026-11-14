@@ -245,6 +245,7 @@ fn phase(event: &VanishingPointEvent) -> &'static str {
         VanishingPointEvent::Planes(e) => of("planes", e),
         VanishingPointEvent::Paste(e) => of("paste", e),
         VanishingPointEvent::Stamp(e) => of("stamp", e),
+        VanishingPointEvent::Settings(_) | VanishingPointEvent::Refused(_) => "other", // P3(dialogs-w13): dl.K61
     }
 }
 

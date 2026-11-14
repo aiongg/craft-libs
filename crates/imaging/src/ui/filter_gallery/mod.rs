@@ -105,6 +105,8 @@ pub enum FilterGalleryEvent {
     Stack(EffectChange),
     /// Another effect layer selected.
     Select(usize),
+    /// A colour parameter's swatch was pressed: the app opens its picker and answers with `set_color`.
+    PickColor(ColorRequest),
 }
 
 /// What [`FilterGalleryWorkspace::show`] reports.
@@ -369,5 +371,37 @@ impl Pass<'_> {
             workspace.record(before, name);
             self.events.push(FilterGalleryEvent::Stack(change));
         }
+    }
+}
+
+// P3(dialogs-w12): dl.K59 — the workspace's trait surface; `show` and the automation fields are written in phase 3.
+impl craft_ui::dialog::FullWindowWorkspace for FilterGalleryWorkspace {
+    type Source = dyn FilterGallerySource;
+    type Event = FilterGalleryEvent;
+    type Result = FilterGallerySession;
+
+    const KEY: &'static str = "filter.filterGallery";
+
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        cx: craft_ui::dialog::WorkspaceCx<'_, Self::Source>,
+    ) -> craft_ui::dialog::WorkspacePass<Self::Event, Self::Result> {
+        let _ = (ui, cx);
+        todo!("dl.K59")
+    }
+
+    fn json_fields(&self) -> Option<serde_json::Value> {
+        todo!("dl.K59")
+    }
+
+    fn set_json_field(&mut self, ctx: &egui::Context, source: &Self::Source, field: &str, value: serde_json::Value) -> Result<(), String> {
+        let _ = (ctx, source, field, value);
+        todo!("dl.K59")
+    }
+
+    fn confirm(&mut self, ctx: &egui::Context, source: &Self::Source) -> Option<Self::Result> {
+        let _ = (ctx, source);
+        todo!("dl.K59")
     }
 }

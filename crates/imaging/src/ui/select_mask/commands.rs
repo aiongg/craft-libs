@@ -68,6 +68,9 @@ pub enum SelectMaskCommands {
     /// Makes the current brush tool's brush larger.
     #[command(modal = "in_dialogs", label = "Larger Brush", default = "]")]
     Larger,
+    /// Flips Add and Subtract while the current tool edits.
+    #[command(modal = "in_dialogs", label = "Add or Subtract", default = "E")]
+    ToggleMode,
 }
 
 impl SelectMaskCommands {
@@ -96,7 +99,7 @@ impl SelectMaskCommands {
             SelectMaskCommands::PolygonalLasso => SelectMaskTool::PolygonalLasso,
             SelectMaskCommands::Hand => SelectMaskTool::Hand,
             SelectMaskCommands::Zoom => SelectMaskTool::Zoom,
-            SelectMaskCommands::Smaller | SelectMaskCommands::Larger => return None,
+            SelectMaskCommands::Smaller | SelectMaskCommands::Larger | SelectMaskCommands::ToggleMode => return None,
         })
     }
 }

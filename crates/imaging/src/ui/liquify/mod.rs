@@ -89,7 +89,7 @@ const FREEZE_MASK_TINT: Color32 = Color32::from_rgba_premultiplied(0x80, 0x00, 0
 
 /// What the app gives the workspace to show each pass: images and names only. The field, the
 /// proxy and the backdrop render stay the app's (PhotoCraft's `photocraft_algo::liquify`).
-pub trait LiquifySource {
+pub trait LiquifySource: Send + Sync {
     /// The liquified layer as the field shows it now (the app's proxy, or its full-resolution crop
     /// above 100 %), in document pixels.
     fn picture(&self) -> &dyn RasterSource;
@@ -195,6 +195,18 @@ pub enum LiquifyEvent {
     /// Show Backdrop turned on, or its Use changed: the app loads that backdrop (`None`: All
     /// Layers) and shows it through [`LiquifySource::backdrop`].
     BackdropWanted(Option<u64>),
+    /// The settings differ from the last ones reported.
+    SettingsChanged(LiquifySettings),
+}
+
+/// What OK answers: the recorded steps and the settings.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct LiquifyDone {
+    /// The steps recorded in the session.
+    pub steps: Vec<LiquifyStep>,
+    /// The settings as they were at OK.
+    pub settings: LiquifySettings,
 }
 
 /// What [`LiquifyWorkspace::show`] reports.
@@ -299,6 +311,42 @@ impl LiquifyWorkspace {
             timing: None,
             cursor: None,
         }
+    }
+
+    /// The cursor the canvas tool asked for in the last pass.
+    pub fn cursor(&self) -> Option<&Cursor> {
+        self.cursor.as_ref()
+    }
+
+    /// The timing of the latest stroke, as of the last pass.
+    pub fn timing(&self) -> Option<LiquifyTiming> {
+        self.timing
+    }
+
+    /// The settings, for the control requests that change them.
+    pub fn settings_mut(&mut self) -> &mut LiquifySettings {
+        &mut self.edit.settings
+    }
+
+    /// Records `step` in the session and queues its events for the next pass.
+    pub fn perform(&mut self, step: LiquifyStep) {
+        let _ = step;
+        todo!("dl.K63")
+    }
+
+    /// Undoes the last step; its events come out of the next pass.
+    pub fn undo(&mut self) {
+        todo!("dl.K63")
+    }
+
+    /// Redoes the last undone step; its events come out of the next pass.
+    pub fn redo(&mut self) {
+        todo!("dl.K63")
+    }
+
+    /// Restores every step; its events come out of the next pass.
+    pub fn restore_all(&mut self) {
+        todo!("dl.K63")
     }
 
     /// The user's navigation options (wheel, flick, animated zoom); Photoshop's by default.
@@ -601,3 +649,35 @@ impl Edit {
 
 /// The name the history gives its steps.
 const HISTORY_NAME: &str = "Liquify";
+
+// P3(dialogs-w9): dl.K63 — the workspace's trait surface; `show` and the automation fields are written in phase 3.
+impl craft_ui::dialog::FullWindowWorkspace for LiquifyWorkspace {
+    type Source = dyn LiquifySource;
+    type Event = LiquifyEvent;
+    type Result = LiquifyDone;
+
+    const KEY: &'static str = "filter.liquify";
+
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        cx: craft_ui::dialog::WorkspaceCx<'_, Self::Source>,
+    ) -> craft_ui::dialog::WorkspacePass<Self::Event, Self::Result> {
+        let _ = (ui, cx);
+        todo!("dl.K63")
+    }
+
+    fn json_fields(&self) -> Option<serde_json::Value> {
+        todo!("dl.K63")
+    }
+
+    fn set_json_field(&mut self, ctx: &egui::Context, source: &Self::Source, field: &str, value: serde_json::Value) -> Result<(), String> {
+        let _ = (ctx, source, field, value);
+        todo!("dl.K63")
+    }
+
+    fn confirm(&mut self, ctx: &egui::Context, source: &Self::Source) -> Option<Self::Result> {
+        let _ = (ctx, source);
+        todo!("dl.K63")
+    }
+}

@@ -86,7 +86,7 @@ const PICK_APPLY: usize = 1;
 const PICK_CANCEL: usize = 2;
 
 /// What the app gives the workspace to show each pass.
-pub trait FillSource {
+pub trait FillSource: Send + Sync {
     /// The document as the canvas shows it (the visible layers, so an Apply to a new layer shows).
     fn image(&self) -> &dyn RasterSource;
 
@@ -164,6 +164,28 @@ pub enum FillEvent {
     /// A stroke or edit the limits refused, with the limit (worded under the panel,
     /// [`FillLimit::message`]).
     Refused(FillLimit),
+    /// The Apply button was pressed (the workspace stays open): the app fills with the command and answers with
+    /// [`ContentAwareFillWorkspace::answer_apply`].
+    Apply(FillCommand),
+    /// The Color swatch was pressed: the app opens its colour picker and answers with
+    /// [`ContentAwareFillWorkspace::set_color`].
+    PickColor(ColorRequest),
+    /// A fill setting changed.
+    SettingsChanged(FillSettings),
+}
+
+/// An edit the control requests make of the workspace through [`ContentAwareFillWorkspace::perform`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum FillOp {
+    /// A Sampling Brush stroke.
+    Stroke,
+    /// A lasso edit of the fill area.
+    FillArea,
+    /// A Reset.
+    Reset,
+    /// A change of the sampling options.
+    Sampling,
 }
 
 /// What [`ContentAwareFillWorkspace::show`] reports.
@@ -424,6 +446,45 @@ impl ContentAwareFillWorkspace {
     /// The current fill settings.
     pub fn settings(&self) -> &FillSettings {
         &self.settings
+    }
+
+    /// Answers the Apply: `Ok` clears the history, `Err` shows the message.
+    pub fn answer_apply(&mut self, answer: Result<(), String>) {
+        let _ = answer;
+        todo!("dl.K64")
+    }
+
+    /// The fill settings, for the control requests that change them.
+    pub fn settings_mut(&mut self) -> &mut FillSettings {
+        todo!("dl.K64")
+    }
+
+    /// Runs `op` as the user would; its events come out of the next pass. `Err` when a limit refuses it.
+    pub fn perform(&mut self, op: FillOp) -> Result<(), FillLimit> {
+        let _ = op;
+        todo!("dl.K64")
+    }
+
+    /// Undoes the last edit; its events come out of the next pass.
+    pub fn undo(&mut self) {
+        todo!("dl.K64")
+    }
+
+    /// Redoes the last undone edit; its events come out of the next pass.
+    pub fn redo(&mut self) {
+        todo!("dl.K64")
+    }
+
+    /// Picks the canvas tool.
+    pub fn set_tool(&mut self, tool: FillTool) {
+        let _ = tool;
+        todo!("dl.K64")
+    }
+
+    /// Sets the Sampling Brush size.
+    pub fn set_brush(&mut self, size: f64) {
+        let _ = size;
+        todo!("dl.K64")
     }
 
     /// Apply's and OK's parameters.
@@ -743,5 +804,37 @@ impl ContentAwareFillWorkspace {
             self.canvas.abandon(reason);
         }
         self.absorb_canvas_events();
+    }
+}
+
+// P3(dialogs-w1): dl.K64 — the workspace's trait surface; `show` and the automation fields are written in phase 3.
+impl craft_ui::dialog::FullWindowWorkspace for ContentAwareFillWorkspace {
+    type Source = dyn FillSource;
+    type Event = FillEvent;
+    type Result = FillCommand;
+
+    const KEY: &'static str = "edit.contentAwareFill";
+
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        cx: craft_ui::dialog::WorkspaceCx<'_, Self::Source>,
+    ) -> craft_ui::dialog::WorkspacePass<Self::Event, Self::Result> {
+        let _ = (ui, cx);
+        todo!("dl.K64")
+    }
+
+    fn json_fields(&self) -> Option<serde_json::Value> {
+        todo!("dl.K64")
+    }
+
+    fn set_json_field(&mut self, ctx: &egui::Context, source: &Self::Source, field: &str, value: serde_json::Value) -> Result<(), String> {
+        let _ = (ctx, source, field, value);
+        todo!("dl.K64")
+    }
+
+    fn confirm(&mut self, ctx: &egui::Context, source: &Self::Source) -> Option<Self::Result> {
+        let _ = (ctx, source);
+        todo!("dl.K64")
     }
 }

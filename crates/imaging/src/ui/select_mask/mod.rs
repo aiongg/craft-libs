@@ -79,7 +79,7 @@ use crate::ui::selection::{OutlineSource, SelectionOverlay};
 use crate::ui::wide_angle::PreviewDone;
 
 /// What the app gives the workspace to show each pass.
-pub trait SelectMaskSource {
+pub trait SelectMaskSource: Send + Sync {
     /// The view as the engine composited it for the last ready preview (the recipe of
     /// [`SelectMaskWorkspace::recipe`]), in document pixels.
     fn view(&self) -> &dyn RasterSource;
@@ -198,6 +198,29 @@ pub enum SelectMaskEvent {
     Edit(EditPhase<SelectMaskEdit>),
     /// A Refine Edge Brush stroke, the same way.
     Refine(EditPhase<RefineStroke>),
+    /// The Overlay colour swatch was pressed: the app opens its colour picker and answers with
+    /// [`SelectMaskWorkspace::set_color`].
+    PickColor(ColorRequest),
+}
+
+/// What OK answers: the selection command and the settings.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct SelectMaskDone {
+    /// The session's edits as the command the app runs.
+    pub command: SelectMaskCommand,
+    /// The settings as they were at OK.
+    pub settings: SelectMaskSettings,
+}
+
+/// An edit the control requests make of the workspace through [`SelectMaskWorkspace::perform`].
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub enum SelectMaskOp {
+    /// A tool edit.
+    Edit(SelectMaskEdit),
+    /// A Refine Edge Brush stroke.
+    Refine(RefineStroke),
 }
 
 /// What [`SelectMaskWorkspace::show`] reports.
@@ -318,6 +341,56 @@ impl SelectMaskWorkspace {
     /// The user's Preferences › Cursors, which shape the brush outline.
     pub fn cursor_options(&mut self, cursor_options: BrushCursorOptions) {
         self.canvas.cursor_options(cursor_options);
+    }
+
+    /// The settings, for the control requests that change them.
+    pub fn settings_mut(&mut self) -> &mut SelectMaskSettings {
+        todo!("dl.K65")
+    }
+
+    /// Runs `op` as the user would; its events come out of the next pass. `Err` when a limit refuses it.
+    pub fn perform(&mut self, op: SelectMaskOp) -> Result<(), LimitRefused> {
+        let _ = op;
+        todo!("dl.K65")
+    }
+
+    /// Undoes the last edit; its events come out of the next pass.
+    pub fn undo(&mut self) {
+        todo!("dl.K65")
+    }
+
+    /// Redoes the last undone edit; its events come out of the next pass.
+    pub fn redo(&mut self) {
+        todo!("dl.K65")
+    }
+
+    /// Resets the session; its events come out of the next pass.
+    pub fn reset(&mut self) {
+        todo!("dl.K65")
+    }
+
+    /// Picks the canvas tool.
+    pub fn set_tool(&mut self, tool: SelectMaskTool) {
+        let _ = tool;
+        todo!("dl.K65")
+    }
+
+    /// Sets Add or Subtract.
+    pub fn set_mode(&mut self, mode: EditMode) {
+        let _ = mode;
+        todo!("dl.K65")
+    }
+
+    /// Sets Sample All Layers.
+    pub fn set_sample_all_layers(&mut self, on: bool) {
+        let _ = on;
+        todo!("dl.K65")
+    }
+
+    /// Sets Hide View.
+    pub fn set_hide_view(&mut self, on: bool) {
+        let _ = on;
+        todo!("dl.K65")
     }
 
     /// The app's colour picker answered a [`SelectMaskOutput::pick_color`] request. A key this
@@ -654,3 +727,35 @@ impl SelectMaskWorkspace {
 
 /// The name the history gives its steps.
 const HISTORY_NAME: &str = "Select and Mask";
+
+// P3(dialogs-w11): dl.K65 — the workspace's trait surface; `show` and the automation fields are written in phase 3.
+impl craft_ui::dialog::FullWindowWorkspace for SelectMaskWorkspace {
+    type Source = dyn SelectMaskSource;
+    type Event = SelectMaskEvent;
+    type Result = SelectMaskDone;
+
+    const KEY: &'static str = "select.selectAndMask";
+
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        cx: craft_ui::dialog::WorkspaceCx<'_, Self::Source>,
+    ) -> craft_ui::dialog::WorkspacePass<Self::Event, Self::Result> {
+        let _ = (ui, cx);
+        todo!("dl.K65")
+    }
+
+    fn json_fields(&self) -> Option<serde_json::Value> {
+        todo!("dl.K65")
+    }
+
+    fn set_json_field(&mut self, ctx: &egui::Context, source: &Self::Source, field: &str, value: serde_json::Value) -> Result<(), String> {
+        let _ = (ctx, source, field, value);
+        todo!("dl.K65")
+    }
+
+    fn confirm(&mut self, ctx: &egui::Context, source: &Self::Source) -> Option<Self::Result> {
+        let _ = (ctx, source);
+        todo!("dl.K65")
+    }
+}
