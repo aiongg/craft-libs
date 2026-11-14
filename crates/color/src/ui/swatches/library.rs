@@ -3,7 +3,7 @@
 use std::collections::HashSet;
 
 use craft_ui::contract::ReorderMove;
-use craft_ui::patterns::presets::PresetState;
+use craft_ui::patterns::presets::{PresetRow, PresetState};
 
 use super::{MAX_GROUPS, MAX_SWATCHES, SwatchesWords};
 use crate::palette::{SwatchColor, SwatchEntry, SwatchGroup, SwatchReport};
@@ -339,4 +339,89 @@ pub(super) fn value_text(color: &SwatchColor, book: &str) -> String {
         SwatchColor::Gray(k) => format!("K {}%", pct(k)),
         SwatchColor::Book { .. } => book.to_owned(),
     }
+}
+
+/// One resolved edit of the swatch library for the host to run.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub enum SwatchEdit {
+    /// Adds `color` named `name` to `group`, or the first group.
+    Add {
+        /// The group's name, `None` for the first group.
+        group: Option<String>,
+        /// The new swatch's name.
+        name: String,
+        /// The new swatch's colour.
+        color: SwatchColor,
+    },
+    /// Adds an empty group.
+    NewGroup {
+        /// The new group's name.
+        name: String,
+    },
+    /// Renames a swatch.
+    Rename {
+        /// The swatch's current name.
+        swatch: String,
+        /// Its new name.
+        name: String,
+    },
+    /// Renames a group.
+    RenameGroup {
+        /// The group's current name.
+        group: String,
+        /// Its new name.
+        name: String,
+    },
+    /// Deletes a swatch.
+    Delete {
+        /// The swatch's name.
+        swatch: String,
+    },
+    /// Deletes a group with its swatches.
+    DeleteGroup {
+        /// The group's name.
+        group: String,
+    },
+    /// Moves a swatch.
+    MoveTo {
+        /// The swatch's name.
+        swatch: String,
+        /// The group it goes to.
+        group: String,
+        /// Its index in `group` once it is taken out: the group's length for a drop on its header.
+        at: usize,
+    },
+    /// Moves a group.
+    MoveGroup {
+        /// The group's name.
+        group: String,
+        /// The group's new index.
+        to: usize,
+    },
+    /// Puts the default swatches back.
+    Reset,
+    /// Imports `groups`, replacing the library when `replace`.
+    Import {
+        /// The groups the file holds.
+        groups: Vec<SwatchGroup>,
+        /// Whether they replace the library.
+        replace: bool,
+    },
+}
+
+impl SwatchLibrary {
+    /// Runs `edit` on the library: the in-memory host's path (stories, tests). False when the edit names nothing in the
+    /// library.
+    pub fn apply(&mut self, edit: &SwatchEdit) -> bool {
+        let _ = edit;
+        todo!("pn.C26")
+    }
+}
+
+/// The rows of the swatch list: each group at depth 0 with its count, each swatch at depth 1 with "name, value" as its
+/// tooltip and accessible name. `SwatchesPanel` and `PaintChip`'s swatches list build their rows with it.
+pub fn swatch_rows(groups: &[SwatchGroup], words: &SwatchesWords) -> Vec<PresetRow<SwatchKey>> {
+    let _ = (groups, words);
+    todo!("tl.T38")
 }

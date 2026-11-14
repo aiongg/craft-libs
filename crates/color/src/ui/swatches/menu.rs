@@ -10,8 +10,8 @@ use craft_ui::menu::PanelRow;
 use craft_ui::patterns::presets::{PresetCommands, PresetEvent, PresetExport, PresetFileRequest, PresetFiles, PresetFooterEvent};
 use craft_ui::runtime::commands::{CommandRef, CommandState};
 
-use super::{SwatchAt, SwatchKey, SwatchLibrary, SwatchesState, SwatchesWords};
-use crate::palette::{SwatchColor, SwatchFormat, SwatchReport};
+use super::{SwatchAt, SwatchEdit, SwatchKey, SwatchLibrary, SwatchesState, SwatchesWords};
+use crate::palette::{SwatchColor, SwatchFormat, SwatchGroup, SwatchReport};
 
 /// The purpose of the swatch file pickers: their folder is remembered under it.
 const PICK_PURPOSE: &str = "swatches";
@@ -23,6 +23,8 @@ const PICK_PURPOSE: &str = "swatches";
 pub struct SwatchesFileOutput {
     /// The library changed: the app saves it.
     pub changed: bool,
+    /// The edit the app runs: a read of a file imports its groups.
+    pub edit: Option<SwatchEdit>,
     /// The notes of the swatch file that was read or written, once the panel has handled it.
     pub report: Option<SwatchReport>,
     /// The status message for the notes that lost something or for a failure.
@@ -77,6 +79,9 @@ impl SwatchesCommand {
 pub struct SwatchesMenuOutput {
     /// The library changed: the app saves it.
     pub changed: bool,
+    /// The edit a command makes, for the host to run (New Swatch: `Add` with the foreground and the next numbered name in
+    /// the selected swatch's group).
+    pub edit: Option<SwatchEdit>,
     /// The file dialog the command asks the host for; the host answers with [`SwatchesPanel::apply_file`].
     pub file: Option<PresetFileRequest>,
     /// The status message for a command that failed before it asked for a file.
@@ -105,9 +110,9 @@ impl SwatchesMenu {
         ]
     }
 
-    /// The state of each command: both exports are disabled while the library has no swatch.
-    pub fn states(library: &SwatchLibrary) -> Vec<(SwatchesCommand, CommandState)> {
-        let exports = library.total() > 0;
+    /// The state of each command: both exports are disabled while the groups hold no swatch.
+    pub fn states(groups: &[SwatchGroup]) -> Vec<(SwatchesCommand, CommandState)> {
+        let exports = groups.iter().any(|group| !group.entries.is_empty());
         SwatchesCommand::ALL
             .into_iter()
             .map(|command| {
@@ -121,13 +126,27 @@ impl SwatchesMenu {
     /// footer's New does, and the panel selects it and opens its name for editing in its next pass; New Swatch Group
     /// and Reset Swatches act on `library`. Import, Replace and the two exports give the file request for the host.
     pub fn run_command(
+        groups: &[SwatchGroup],
+        state: &mut SwatchesState,
+        command: SwatchesCommand,
+        foreground: Srgba,
+        words: &SwatchesWords,
+    ) -> SwatchesMenuOutput {
+        let _ = (groups, state, command, foreground, words);
+        todo!("pn.C28")
+    }
+
+    /// [`run_command`](Self::run_command) over a library it writes.
+    // P3(panels-w6): pn.C28 — the old `run_command(&mut SwatchLibrary, ..)`; phase 3 removes it with its readers.
+    #[allow(dead_code)]
+    pub(crate) fn run_command_on_library(
         library: &mut SwatchLibrary,
         state: &mut SwatchesState,
         command: SwatchesCommand,
         foreground: Srgba,
         words: &SwatchesWords,
     ) -> SwatchesMenuOutput {
-        let mut output = SwatchesMenuOutput { changed: false, file: None, status: None };
+        let mut output = SwatchesMenuOutput { changed: false, edit: None, file: None, status: None };
         let readable: Vec<&str> = SwatchFormat::ALL.iter().filter(|f| f.can_read()).map(|f| f.extension()).collect();
         let import = || PresetFiles::<SwatchKey>::new(PICK_PURPOSE, words.file.as_str(), &readable).replace(true);
         match command {

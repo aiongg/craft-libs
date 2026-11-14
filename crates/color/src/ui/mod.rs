@@ -79,8 +79,8 @@ pub use samplers::{
 pub use screen_picker::{CaptureResult, CaptureSource, LOUPE_PIXELS, LOUPE_ZOOM, ScreenColorPicker, ScreenPick, ScreenPickerWords, StillCapture};
 pub use strip::{ColorStrip, ColorStripStyle};
 pub use swatches::{
-    MAX_GROUPS, MAX_SWATCHES, SwatchAt, SwatchKey, SwatchLibrary, SwatchesCommand, SwatchesFileOutput, SwatchesMenu, SwatchesMenuOutput,
-    SwatchesPanel, SwatchesPanelOutput, SwatchesState, SwatchesWords,
+    MAX_GROUPS, MAX_SWATCHES, SwatchAt, SwatchEdit, SwatchKey, SwatchLibrary, SwatchesCommand, SwatchesFileOutput, SwatchesMenu, SwatchesMenuOutput,
+    SwatchesPanel, SwatchesPanelOutput, SwatchesState, SwatchesWords, swatch_rows,
 };
 pub use wheel::{
     ColorWheel, ColorWheelStyle, ColorWheelWords, WheelGeometry, WheelPart, hue_at, hue_direction, triangle_corners, triangle_point, triangle_sv,

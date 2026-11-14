@@ -215,6 +215,9 @@ pub enum SwatchNote {
     Truncated(usize),
     /// Names were cut to what the format holds (`.ase`: 1024 UTF-16 units).
     NamesCut(usize),
+    /// An `.act` read whose trailer names a transparent index: the 1-based colour number, so a read reports what it
+    /// could not keep.
+    TransparentKept(usize),
 }
 
 /// Why a swatch file could not be read or written.

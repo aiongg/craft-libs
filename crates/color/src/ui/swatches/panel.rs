@@ -17,8 +17,8 @@ use egui::{Rect, Response, Ui};
 
 use super::library::value_text;
 use super::menu::Actions;
-use super::{SwatchAt, SwatchKey, SwatchLibrary, SwatchesFileOutput, SwatchesState, SwatchesWords};
-use crate::palette::{SwatchColor, SwatchNote, SwatchReport};
+use super::{SwatchAt, SwatchEdit, SwatchKey, SwatchLibrary, SwatchesFileOutput, SwatchesState, SwatchesWords};
+use crate::palette::{SwatchColor, SwatchGroup, SwatchNote, SwatchReport};
 
 /// What [`SwatchesPanel::show`] reports.
 #[derive(Debug)]
@@ -32,6 +32,8 @@ pub struct SwatchesPanelOutput {
     pub used: Option<(SwatchAt, Srgba, bool)>,
     /// The library changed (new, rename, delete, move, group edits): the app saves it.
     pub changed: bool,
+    /// The edits the user made this pass, in pass order, for the host to run; the panel never writes the library.
+    pub edits: Vec<SwatchEdit>,
 }
 
 impl Outcome for SwatchesPanelOutput {
@@ -74,8 +76,9 @@ struct Settled {
 
 impl<'a> SwatchesPanel<'a> {
     /// The panel over `library` and the host-owned `state`; `foreground` is what New Swatch adds.
-    pub fn new(library: Bind<'a, SwatchLibrary>, state: Bind<'a, SwatchesState>, foreground: Srgba) -> Self {
-        SwatchesPanel { library, state, cmyk: None, foreground }
+    pub fn new(groups: &'a [SwatchGroup], state: Bind<'a, SwatchesState>, foreground: Srgba) -> Self {
+        // P3(panels-w6): pn.C27 — the groups are copied into a library the body still edits.
+        SwatchesPanel { library: Bind::given(SwatchLibrary::new(groups.to_vec())), state, cmyk: None, foreground }
     }
 
     /// The document's CMYK converter, which draws CMYK swatches and gives their colours when used; without it they
@@ -162,13 +165,27 @@ impl<'a> SwatchesPanel<'a> {
             })
             .flatten()
             .unwrap_or_default();
-        SwatchesPanelOutput { response: shown.output, used, changed }
+        SwatchesPanelOutput { response: shown.output, used, changed, edits: Vec::new() }
     }
 
     /// Carries out the host's answer to a file request of the panel menu: Import and Replace read the file into
     /// `library`, a finished export reports the notes it kept, and a failure says why. Returns what changed and the
     /// status message the host shows, if any.
     pub fn apply_file(
+        state: &mut SwatchesState,
+        event: &PresetFileEvent,
+        words: &SwatchesWords,
+        presets: &PresetWords,
+        format: &Format,
+    ) -> SwatchesFileOutput {
+        let _ = (state, event, words, presets, format);
+        todo!("pn.C27")
+    }
+
+    /// [`apply_file`](Self::apply_file) over a library it writes.
+    // P3(panels-w6): pn.C27 — the old `apply_file(&mut SwatchLibrary, ..)`; phase 3 removes it with its readers.
+    #[allow(dead_code)]
+    pub(crate) fn apply_file_to_library(
         library: &mut SwatchLibrary,
         state: &mut SwatchesState,
         event: &PresetFileEvent,
@@ -176,7 +193,7 @@ impl<'a> SwatchesPanel<'a> {
         presets: &PresetWords,
         format: &Format,
     ) -> SwatchesFileOutput {
-        let mut output = SwatchesFileOutput { changed: false, report: None, status: None };
+        let mut output = SwatchesFileOutput { changed: false, edit: None, report: None, status: None };
         match event {
             PresetFileEvent::Loaded { file_name, bytes, replace, .. } => match crate::palette::read_swatches(bytes, file_name) {
                 Ok((groups, report)) => {
@@ -220,6 +237,7 @@ impl<'a> SwatchesPanel<'a> {
                 SwatchNote::KindsDropped(n) => count(&words.kinds_dropped, n),
                 SwatchNote::Truncated(n) => count(&words.truncated, n),
                 SwatchNote::NamesCut(n) => count(&words.names_cut, n),
+                SwatchNote::TransparentKept(_) => todo!("pn.C59"), // P3(panels-w31): pn.C59
             })
             .collect()
     }

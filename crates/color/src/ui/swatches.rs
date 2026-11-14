@@ -7,7 +7,7 @@ mod panel;
 #[cfg(feature = "screen-testing")]
 mod stories;
 
-pub use library::{SwatchAt, SwatchKey, SwatchLibrary, SwatchesState};
+pub use library::{SwatchAt, SwatchEdit, SwatchKey, SwatchLibrary, SwatchesState, swatch_rows};
 pub use menu::{SwatchesCommand, SwatchesFileOutput, SwatchesMenu, SwatchesMenuOutput};
 pub use panel::{SwatchesPanel, SwatchesPanelOutput};
 
