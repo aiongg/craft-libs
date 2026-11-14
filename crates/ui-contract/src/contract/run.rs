@@ -685,12 +685,11 @@ fn own_sense(e: &dyn ErasedPass<'_>, resolved: &Resolved, inert: bool) -> Sense 
 }
 
 /// The widget that holds the component's text or editor and the keys it keeps, when it has either.
-fn text_holder(id: Id, parts: &PartsStep, base: focus::KeyUse) -> (Option<Id>, Option<focus::KeyUse>) {
-    let text = parts
-        .text
-        .decl
-        .as_ref()
-        .map(|decl| (crate::primitives::text_adapter::text_id(id, decl.key), crate::primitives::text_adapter::keys_of(base, &decl.options)));
+fn text_holder(ctx: &Context, id: Id, parts: &PartsStep, base: focus::KeyUse) -> (Option<Id>, Option<focus::KeyUse>) {
+    let text = parts.text.decl.as_ref().map(|decl| {
+        let widget = crate::primitives::text_adapter::text_id(id, decl.key);
+        (widget, crate::primitives::text_adapter::keys_of(ctx, widget, base, &decl.options))
+    });
     let editor =
         parts.text.editor.as_ref().map(|decl| (crate::primitives::ImeSurface::of(id, decl.key).widget(), super::editor::keys_of(base, decl.purpose)));
     match (text, editor) {
@@ -899,7 +898,7 @@ fn run_in_host(p: &mut Pass<'_, '_, '_>, ui: &mut Ui, host_at: Option<ShowAt>, h
     }
     debug_assert!(declares_parts || steps::declares_none(&parts), "`{}` sets `PARTS = false` and declares a part", facts.name);
     steps::check_parts(&ctx, facts.name, &parts);
-    let (holder_widget, text_keys) = text_holder(id, &parts, e.keys());
+    let (holder_widget, text_keys) = text_holder(&ctx, id, &parts, e.keys());
     let own = own_sense(e, resolved, inert);
     // An item never senses the whole row for a press: the collection's root takes the click and the focus (17.2). It
     // does sense the pointer over it, so `PartsCx::hovered` and the state step read the row's hover from the same

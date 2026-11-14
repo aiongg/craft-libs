@@ -9,6 +9,7 @@ mod paint;
 mod replacements;
 mod state;
 mod surface;
+mod surround;
 pub(crate) mod text_measure;
 mod tokens;
 
@@ -30,6 +31,7 @@ pub(crate) use paint::{min_thumb, scroll_bar_look};
 pub use replacements::{DuplicateStyle, StyleReplacements};
 pub use state::StateSet;
 pub use surface::{SurfaceEdge, SurfaceStyle};
+pub use surround::{SurroundLook, paint_surround};
 pub use tokens::UiTokens;
 
 #[doc(hidden)]

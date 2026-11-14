@@ -216,6 +216,8 @@ pub(crate) struct PointerRead {
     pub stirred: bool,
     /// The zoom factor of the pass: pinch and Ctrl or Cmd with the wheel.
     pub zoom: f32,
+    /// The pass's summed `Event::Rotate` radians.
+    pub rotation: f32,
     /// The two-finger gesture: translation, zoom, rotation and centre.
     pub multi_touch: Option<(Vec2, f32, f32, Pos2)>,
 }
@@ -311,6 +313,7 @@ pub(crate) fn pointer_read(ctx: &Context) -> PointerRead {
             focus_lost,
             stirred,
             zoom: input.zoom_delta(),
+            rotation: 0.0, // P3(canvas-widgets-w4): cw.C26
             multi_touch,
         }
     })
@@ -442,4 +445,24 @@ pub(crate) fn take_separator(ctx: &Context, commit_on: &[char]) -> bool {
         }
         true
     })
+}
+
+/// The most characters one text, paste or IME event carries into a component.
+pub const INPUT_TEXT_LIMIT: usize = 1 << 20;
+
+/// Cuts every `Event::Text`, `Event::Paste`, IME commit and preedit at `INPUT_TEXT_LIMIT` characters, at a character
+/// boundary, before any component sees it; a preedit range past the cut is dropped.
+#[allow(dead_code)] // P3(canvas-widgets-w4): cw.C31
+pub(crate) fn cap_text(events: &mut [Event]) {
+    let _ = events;
+    todo!("cw.C31")
+}
+
+/// Windows and Linux: turns a fractional Ctrl+wheel (or a Wayland point-unit one) into `Event::Zoom` at egui's Ctrl-scroll
+/// speed; a whole notch stays a wheel event unless within 0.25 s of a pinch step. An input that carries `Event::Zoom`
+/// already is left alone.
+#[allow(dead_code)] // P3(canvas-widgets-w4): cw.C27
+pub(crate) fn fold_legacy_pinch(ctx: &Context, input: &mut RawInput) {
+    let _ = (ctx, input);
+    todo!("cw.C27")
 }

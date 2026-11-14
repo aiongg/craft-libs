@@ -3,6 +3,7 @@
 use super::app_values::AppValues;
 use super::values::Scale;
 use crate::runtime::egui::memory::Service;
+use crate::runtime::focus::TabReach;
 use craft_behavior::MotionMode;
 use craft_i18n::CalendarDate;
 use craft_i18n::Direction;
@@ -36,6 +37,10 @@ pub struct RootEnv {
     pub tab_all_controls: bool,
     /// Whether a bare Tab toggles the window's chrome in place of moving focus where the key stage's gate allows it.
     pub tab_toggles_chrome: bool,
+    /// Which Tab stops a dialog's Tab order visits.
+    pub dialog_tab: TabReach,
+    /// Whether the canvas surround shows the theme's pattern.
+    pub canvas_pattern: bool,
     /// The theme the tokens resolve from; an id no built-in theme has resolves to the suite default.
     /// Private with `theme_def`, so the two change together.
     pub(super) theme: ThemeId,
@@ -61,6 +66,8 @@ impl Default for RootEnv {
             scale: Scale::default(),
             tab_all_controls: true,
             tab_toggles_chrome: false,
+            dialog_tab: TabReach::Root,
+            canvas_pattern: true,
             theme: ThemeId::suite_default(),
             theme_def: None,
             values: AppValues::default(),

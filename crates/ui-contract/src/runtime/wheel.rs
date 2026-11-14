@@ -18,6 +18,8 @@ pub(crate) struct State {
     /// The last-pressed gated control while the pointer has stayed inside it since.
     armed: Option<Id>,
     shares: Vec<(Id, Wheel)>,
+    /// The wheel gesture the split tracks across passes.
+    gesture: WheelGesture<Id>,
 }
 
 /// Registers a taker for next pass's split.
@@ -91,7 +93,7 @@ pub(crate) fn begin(ctx: &Context) {
         }
         let share = Wheel::new(scroll, mods, unit, phase).zoom(frame.zoom).at(at);
         // The device's lines and pages become points of each taker: the notch is the scroll owner's to choose.
-        let shares = split(&state.last, at, share, WheelFocus::new(focused).app_field(app_field), state.armed, &mut WheelGesture::default(), 0.0); // P3(canvas-widgets-w4): fx.F18
+        let shares = split(&state.last, at, share, WheelFocus::new(focused).app_field(app_field), state.armed, &mut state.gesture, 0.0); // P3(canvas-widgets-w4): fx.F19
         state.shares = shares
             .into_iter()
             .map(|(owner, mut share)| {

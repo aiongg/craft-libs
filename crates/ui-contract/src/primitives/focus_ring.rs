@@ -26,6 +26,14 @@ impl FocusRing {
         flags.contains(Flags::FOCUSED | Flags::FOCUS_VISIBLE)
     }
 
+    /// The shape the ring is drawn around for a part declared with `shape` and laid out in `rect`: the rect, the circle
+    /// inside it, or the polygon's points.
+    #[allow(dead_code)] // P3(framework-01-w6): fx.F33
+    pub(crate) fn outline(shape: &crate::runtime::focus::FocusShape, rect: egui::Rect) -> PaintShape {
+        let _ = (shape, rect);
+        todo!("fx.F33")
+    }
+
     /// The shapes of the ring around `shape`, grown by `look.offset`. A halo adds a stroke twice as wide at a
     /// third of the opacity beneath the ring.
     pub fn shapes(look: &FocusLook, kind: FocusKind, shape: &PaintShape, pixels_per_point: f32) -> Vec<Shape> {

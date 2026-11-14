@@ -11,6 +11,8 @@ mod press;
 pub mod registration;
 
 pub(crate) use nav::{enter_row, leave_row, roving_move, row_has_stops};
+#[allow(unused_imports)] // P3(canvas-widgets-w11): cw.C57
+pub(crate) use press::{held_draft, note_holds_drafts};
 pub(crate) use registration::{Group, Stop};
 
 use crate::runtime::egui::focus as egui_focus;
@@ -23,16 +25,18 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 pub use crate::runtime::keys::Intents;
 pub use craft_behavior::{Letters, Roving};
-pub use policy::{ActivateKeys, EditSet, EndKey, EnterRule, FocusPolicy, FocusTarget, Initial, KeepKeys, KeyUse};
+pub use policy::{ActivateKeys, EditSet, EndKey, EnterRule, FocusPolicy, FocusTarget, Initial, KeepKeys, KeyUse, TabReach};
 
 /// The shape the focus ring takes around a part.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum FocusShape {
     /// The part's rect.
     Rect,
     /// The circle inside the part's rect.
     Circle,
+    /// A closed polygon, its points in screen points.
+    Polygon(Vec<egui::Pos2>),
 }
 
 /// A focus stop: a component, or one of its parts.
@@ -671,7 +675,8 @@ pub(crate) fn take_reveal(ctx: &Context) -> Option<StopKey> {
 }
 
 /// The begin hook: applies a pending request and this pass's Tab and F6 moves, then classifies the press.
-pub(crate) fn begin(ctx: &Context, tab_all_controls: bool) {
+pub(crate) fn begin(ctx: &Context, tab_all_controls: bool, dialog_tab: TabReach) {
+    let _ = dialog_tab; // P3(canvas-widgets-w12): cw.C63
     let input = BeginIn {
         focused: egui_focus::focused(ctx),
         press: press::press_at(ctx),

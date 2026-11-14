@@ -501,6 +501,12 @@ pub(crate) fn cancel(ctx: &Context) -> bool {
     })
 }
 
+/// Ends the injection session of the context.
+pub(crate) fn end(ctx: &Context) {
+    let _ = ctx;
+    todo!("fx.F21")
+}
+
 /// Whether nothing is queued and no step awaits its pass or its rest: the application may answer its waiters.
 pub(crate) fn idle(ctx: &Context) -> bool {
     let viewports: Vec<ViewportId> = Service::<Injected>::run(ctx, |injected| injected.lanes.keys().copied().collect());

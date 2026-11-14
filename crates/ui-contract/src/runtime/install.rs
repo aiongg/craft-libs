@@ -31,6 +31,25 @@ pub struct InstallSpec {
     /// Where the root's `System` choices read the OS's appearance. `new` gives a reader with no desktop watcher,
     /// which answers only the colour scheme egui's integration reports; a host passes one it started.
     pub system: SystemReader,
+    /// The modifiers the wheel zooms and scrolls sideways with, written to egui's input options at install.
+    pub wheel: WheelModifiers,
+    /// The app id every OS window carries (dock icon, Wayland compositor rules); empty carries none.
+    pub app_id: String,
+}
+
+/// The modifiers the mouse wheel zooms and scrolls sideways with.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WheelModifiers {
+    /// Held with the wheel, the wheel zooms.
+    pub zoom: egui::Modifiers,
+    /// Held with the wheel, a vertical wheel scrolls sideways.
+    pub sideways: egui::Modifiers,
+}
+
+impl Default for WheelModifiers {
+    fn default() -> Self {
+        WheelModifiers { zoom: egui::Modifiers::COMMAND, sideways: egui::Modifiers::SHIFT }
+    }
 }
 
 impl InstallSpec {
@@ -44,6 +63,8 @@ impl InstallSpec {
             looks: StyleReplacements::new(),
             frame: None,
             system: SystemReader::unwatched(),
+            wheel: WheelModifiers::default(),
+            app_id: String::new(),
         }
     }
 
@@ -62,6 +83,12 @@ impl InstallSpec {
     /// Sets the reader of the OS's appearance; the host starts it (`SystemReader::start`) with a wake that repaints.
     pub fn system(mut self, reader: SystemReader) -> Self {
         self.system = reader;
+        self
+    }
+
+    /// Sets the modifiers the wheel zooms and scrolls sideways with.
+    pub fn wheel(mut self, modifiers: WheelModifiers) -> Self {
+        self.wheel = modifiers;
         self
     }
 
@@ -88,6 +115,8 @@ pub enum InstallError {
     DuplicateStyle(DuplicateStyle),
     /// A command set's definitions are unusable, or two commands share an id.
     Commands(commands::CommandDefError),
+    /// `install` ran inside a pass: install the runtime before the first pass.
+    DuringPass,
 }
 
 impl std::fmt::Display for InstallError {
@@ -96,6 +125,7 @@ impl std::fmt::Display for InstallError {
             InstallError::AlreadyInstalled => f.write_str("the runtime is already installed on this context"),
             InstallError::DuplicateStyle(DuplicateStyle(key)) => write!(f, "two style replacements for the style key {key}"),
             InstallError::Commands(error) => write!(f, "command registry: {error}"),
+            InstallError::DuringPass => f.write_str("install the runtime before the first pass"),
         }
     }
 }

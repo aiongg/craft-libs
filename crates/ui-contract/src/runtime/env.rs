@@ -9,7 +9,7 @@ pub use label::{Label, Message, Word};
 #[doc(hidden)]
 pub use shell::ShellEntry;
 pub use shell::{BodyMode, RevealEdge, ShellCx, ShellRegions, SlotKey, WindowKey};
-pub use units::{LengthUnits, PointSize, UnitKind, UnitWords, Units};
+pub use units::{ColumnSize, LengthUnits, PointSize, UnitKind, UnitWords, Units};
 
 use crate::runtime::commands::CommandChain;
 use crate::runtime::egui::memory::FastMap;
@@ -202,6 +202,9 @@ pub struct Inherited {
     pub(crate) today: Option<CalendarDate>,
     /// `RootEnv::tab_toggles_chrome`.
     pub(crate) tab_toggles_chrome: bool,
+    /// `RootEnv::canvas_pattern`: the canvas surround shows the theme's pattern.
+    #[doc(hidden)]
+    pub canvas_pattern: bool,
     /// The line height per point of text of the leading face of the interface stack, as the frame began: control
     /// heights depend on it, so the key covers it.
     #[doc(hidden)]
@@ -439,6 +442,7 @@ impl Env {
                     dates: host_dates(ctx, host.as_ref()),
                     today: root.today,
                     tab_toggles_chrome: root.tab_toggles_chrome,
+                    canvas_pattern: root.canvas_pattern,
                     host,
                     values: root.values.clone(),
                 }),

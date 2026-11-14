@@ -2,8 +2,8 @@
 //! dispatcher that turns the key stage's shortcut events into fired commands (spec 11.3).
 
 use super::{
-    CommandChain, CommandGate, CommandInput, CommandScope, CommandSet, CommandState, EditCommands, FirePhase, FireSource, Fired, ResolvedCommand,
-    WindowShortcut, registry,
+    AppCatalog, CommandChain, CommandGate, CommandInput, CommandScope, CommandSet, CommandState, EditCommands, FirePhase, FireSource, Fired,
+    ResolvedCommand, WindowShortcut, registry,
 };
 use crate::runtime::egui::sizing::{Rerun, request_discard};
 use crate::runtime::egui::{pass, repaint};
@@ -365,7 +365,8 @@ fn keymap_of(defs: Vec<CommandDef>, scopes: Scopes, platform: Platform, override
 ///
 /// A window shortcut's default chord that another command also binds is that command's: the window shortcut loses it, so the
 /// app's binding beats the framework's default. A window shortcut the overrides name keeps what they give it.
-fn build_keymap(registry: &registry::Registry, platform: Platform, overrides: Option<&Arc<Overrides>>) -> BuiltKeymap {
+fn build_keymap(registry: &registry::Registry, app: Option<&AppCatalog>, platform: Platform, overrides: Option<&Arc<Overrides>>) -> BuiltKeymap {
+    let _ = app; // P3(top-w7): tp.T37
     let mut scopes = Scopes::new();
     for def in registry.defs() {
         if !def.scope.is_app() {
@@ -416,15 +417,15 @@ static DEFAULT_KEYMAPS: std::sync::Mutex<Vec<(Platform, BuiltKeymap)>> = std::sy
 
 /// The keymap of `registry` on `platform` under `overrides`: built once per platform for the shared registry
 /// with no overrides, else built here.
-fn keymap_for(registry: &Arc<registry::Registry>, platform: Platform, overrides: Option<&Arc<Overrides>>) -> BuiltKeymap {
-    if overrides.is_some() || !registry::Registry::is_shared(registry) {
-        return build_keymap(registry, platform, overrides);
+fn keymap_for(registry: &Arc<registry::Registry>, app: Option<&AppCatalog>, platform: Platform, overrides: Option<&Arc<Overrides>>) -> BuiltKeymap {
+    if app.is_some() || overrides.is_some() || !registry::Registry::is_shared(registry) {
+        return build_keymap(registry, app, platform, overrides);
     }
     let mut kept = DEFAULT_KEYMAPS.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     if let Some((_, built)) = kept.iter().find(|(on, _)| *on == platform) {
         return built.clone();
     }
-    let built = build_keymap(registry, platform, None);
+    let built = build_keymap(registry, None, platform, None);
     kept.push((platform, built.clone()));
     built
 }
@@ -481,7 +482,8 @@ pub(crate) fn set_input(ctx: &Context, input: &CommandInput) {
                 }
         });
         if stale {
-            let BuiltKeymap { keymap, edit_chords, window_shortcuts } = keymap_for(&board.registry, platform, input.overrides.as_ref());
+            let BuiltKeymap { keymap, edit_chords, window_shortcuts } =
+                keymap_for(&board.registry, input.catalog.as_ref(), platform, input.overrides.as_ref());
             board.keymap = Some(KeymapCache { keymap, platform, overrides: input.overrides.clone(), edit_chords, window_shortcuts });
         }
         board.changed = (frame, InputChanges { states: changed.into_iter().collect(), keymap: stale });

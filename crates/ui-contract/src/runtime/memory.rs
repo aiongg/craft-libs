@@ -205,6 +205,19 @@ pub(crate) fn forget(ctx: &Context, id: Id) {
     forget_tier(ctx, id, SESSION);
 }
 
+/// The saved value under `key`, outside a dialog: an app reads one SAVED value through the same store the dialogs'
+/// remembered fields use.
+pub fn saved_value<T: Savable>(ctx: &Context, key: &SaveKey) -> T {
+    let _ = (ctx, key);
+    todo!("dl.K13")
+}
+
+/// Writes `value` as the saved value under `key`, outside a dialog.
+pub fn set_saved_value<T: Savable>(ctx: &Context, key: &SaveKey, value: T) {
+    let _ = (ctx, key, value);
+    todo!("dl.K13")
+}
+
 /// Removes the saved slots of `key`. The only way a saved slot goes.
 #[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the commands (F3)"))]
 pub(crate) fn forget_saved(ctx: &Context, key: &SaveKey) {
@@ -375,7 +388,7 @@ impl MemoryStage {
 
     /// Read-only access to a saved slot, as `peek` does for a shown one.
     #[doc(hidden)]
-    pub fn peek_saved<T: Slot>(ctx: &Context, key: &SaveKey) -> T {
+    pub fn peek_saved<T: Savable>(ctx: &Context, key: &SaveKey) -> T {
         store::peek_clone::<Wrapped<SAVED, T>>(ctx, key.id()).map(|wrapped| wrapped.0).unwrap_or_default()
     }
 
@@ -444,7 +457,7 @@ impl MemoryStage {
     }
 
     #[doc(hidden)]
-    pub fn saved<T: Slot>(&mut self, key: &SaveKey) -> &mut T {
+    pub fn saved<T: Savable>(&mut self, key: &SaveKey) -> &mut T {
         self.slot::<SAVED, T>(key.id())
     }
 

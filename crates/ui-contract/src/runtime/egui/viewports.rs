@@ -32,6 +32,8 @@ pub(crate) struct Spec<'a> {
     pub taskbar: bool,
     /// Whether the window opens hidden; [`show`] reveals it.
     pub hidden: bool,
+    /// The app id the OS window carries (dock icon, Wayland compositor rules); empty carries none.
+    pub app_id: &'a str,
 }
 
 /// Opens (or keeps) the OS viewport `id` and runs `body` once for each pass the viewport gets in this call.
@@ -40,6 +42,9 @@ pub(crate) fn show_immediate<T>(ctx: &Context, id: ViewportId, spec: &Spec<'_>, 
         ViewportBuilder::default().with_title(spec.title).with_resizable(spec.resizable).with_taskbar(spec.taskbar).with_window_level(spec.level);
     if spec.hidden {
         builder = builder.with_visible(false);
+    }
+    if !spec.app_id.is_empty() {
+        builder = builder.with_app_id(spec.app_id);
     }
     builder = match spec.chrome {
         WindowChrome::Integrated => builder.with_decorations(false),

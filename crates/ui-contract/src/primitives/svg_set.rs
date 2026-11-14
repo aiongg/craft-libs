@@ -7,6 +7,32 @@ use super::svg_tree;
 
 include!(concat!(env!("OUT_DIR"), "/icons.rs"));
 
+/// An app's own icon set: SVG documents drawn beside the built-in catalog in every `IconSet`.
+#[derive(Clone, Copy, Debug)]
+pub struct AppIcons {
+    /// The set's name, for the log line that refuses a clashing registration.
+    pub name: &'static str,
+    /// The documents' own stroke width, `None` when they are drawn as drawn.
+    pub stroke_width: Option<f32>,
+    /// Each icon's name and SVG document.
+    pub icons: &'static [(&'static str, &'static [u8])],
+}
+
+/// Registers `set` in the process-wide list beside the built-in catalog; runs before the first pass.
+///
+/// Registering the same set again is a no-op; a name the built-in catalog or an earlier app set has is refused with a
+/// log line.
+pub fn register_app_icons(set: &'static AppIcons) {
+    let _ = set;
+    todo!("tp.T51")
+}
+
+/// The names of the registered app icons.
+#[allow(dead_code)] // P3(top-w10): tp.T51
+pub(crate) fn app_names() -> Vec<&'static str> {
+    todo!("tp.T51")
+}
+
 /// The position of the icon called `name` in the catalog.
 pub(crate) fn find(name: &str) -> Option<usize> {
     NAMES.binary_search(&name).ok()

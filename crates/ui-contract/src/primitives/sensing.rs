@@ -82,8 +82,8 @@ pub struct TextOutcome<V> {
     pub caret_visible: bool,
     /// The draft is not a value of the codec.
     pub invalid: bool,
-    /// The tag of the unit the text named in the pass it committed (`Codec::parse_tagged`).
-    pub committed_tag: Option<u32>,
+    /// What the parse learned in the pass the draft committed through Enter, a separator or blur; `None` otherwise.
+    pub committed: Option<craft_behavior::ParseNote>,
     /// An IME composition is under way.
     pub composing: bool,
     /// The completion candidates the list shows; empty while it is closed.
@@ -100,7 +100,7 @@ impl<V> TextOutcome<V> {
             layout: None,
             caret_visible: true,
             invalid: false,
-            committed_tag: None,
+            committed: None,
             composing: false,
             completions: Vec::new(),
         }

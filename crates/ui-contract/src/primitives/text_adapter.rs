@@ -85,8 +85,9 @@ pub(crate) fn text_id(id: Id, key: PartKey) -> Id {
     crate::runtime::memory::sub(id, ("text", key))
 }
 
-/// The keys the text part keeps, from its options.
-pub(crate) fn keys_of(base: KeyUse, options: &TextOptions) -> KeyUse {
+/// The keys the text part keeps, from its options; with no selection the edit set leaves out Cut, Copy and Delete.
+pub(crate) fn keys_of(ctx: &Context, widget: Id, base: KeyUse, options: &TextOptions) -> KeyUse {
+    let _ = (ctx, widget); // P3(canvas-widgets-w11): fx.F34
     let keys = if options.tab_inserts {
         base.with_keep(KeepKeys::Tab)
     } else if options.multiline() {

@@ -5,6 +5,7 @@ pub mod alloc;
 pub mod areas;
 pub mod child;
 pub mod clipboard;
+pub(crate) mod control_click;
 pub mod editor;
 pub mod files;
 #[cfg(feature = "testing")]

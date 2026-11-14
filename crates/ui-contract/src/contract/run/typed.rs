@@ -685,7 +685,18 @@ pub(crate) fn paint_face<C: Show>(ui: &mut Ui, env: &Env, source: &super::FaceSo
     // The face's own `access` adds its facts; the composite's step 16 fills the part's sub-node from the record.
     let mut access = Access::default();
     face.access(&mut access, &cx);
-    FaceRecord { part, name, flags, role: C::ROLE, numeric: access.numeric, expanded: access.expanded, enabled: step1.enabled, baseline }
+    FaceRecord {
+        part,
+        name,
+        flags,
+        role: C::ROLE,
+        numeric: access.numeric,
+        expanded: access.expanded,
+        enabled: step1.enabled,
+        baseline,
+        value: access.value,
+        color: access.color,
+    }
 }
 
 /// A member of a collection's run (`Collection::MEMBERS`) after steps 1, 2, 4 (read only) and 7: what the batch join

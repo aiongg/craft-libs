@@ -84,6 +84,8 @@ pub struct FaceFacts<'a> {
     pub flags: Flags,
     pub numeric: Option<&'a Numeric>,
     pub expanded: Option<bool>,
+    pub value: Option<&'a str>,
+    pub color: Option<craft_theme::Srgba>,
 }
 
 /// The id of the sub-node of `part` below the component `id`.

@@ -24,6 +24,13 @@ pub(crate) use text::{
 #[cfg(feature = "testing")]
 pub use tree::{AccessTree, Declared, NodeKey};
 
+/// The rect `id`'s response had in the last finished pass, converted as the node's bounds are; `None` when absent,
+/// without area, or behind the open modal. The ids it answers are component and item widget ids; parts have none.
+pub fn bounds(ctx: &Context, id: Id) -> Option<egui::Rect> {
+    let _ = (ctx, id);
+    todo!("cw.C67")
+}
+
 /// The AccessKit role of a node.
 pub(crate) type NodeRole = accesskit::Role;
 

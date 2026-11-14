@@ -35,6 +35,24 @@ use egui::{Context, Id, ViewportId};
 use std::borrow::Cow;
 use std::sync::Arc;
 
+/// Commands an app defines at run time, all in the app scope.
+#[derive(Clone)]
+pub struct AppCatalog {
+    #[allow(dead_code)] // P3(top-w7): tp.T35
+    defs: Arc<[CommandDef]>,
+    #[allow(dead_code)] // P3(top-w7): tp.T35
+    generation: u64,
+}
+
+impl AppCatalog {
+    /// A catalog of `defs`; `generation` changes when the app's rows do. Refuses two defs with one id (`Duplicate`) and a
+    /// def in another scope (`NotApp`).
+    pub fn new(defs: Vec<CommandDef>, generation: u64) -> Result<Self, CommandDefError> {
+        let _ = (defs, generation);
+        todo!("tp.T35")
+    }
+}
+
 /// A typed set of commands, written by `#[derive(CommandSet)]`.
 pub trait CommandSet: Copy + Send + Sync + 'static {
     /// The scope the set's commands belong to.
@@ -228,6 +246,8 @@ pub struct CommandInput {
     pub(crate) states: Vec<(CommandRef, CommandState)>,
     pub(crate) overrides: Option<Arc<Overrides>>,
     pub(crate) gate: Option<CommandGate>,
+    #[allow(dead_code)] // P3(top-w7): tp.T36
+    pub(crate) catalog: Option<AppCatalog>,
 }
 
 impl CommandInput {
@@ -247,6 +267,13 @@ impl CommandInput {
     #[must_use]
     pub fn overrides(mut self, overrides: Arc<Overrides>) -> Self {
         self.overrides = Some(overrides);
+        self
+    }
+
+    /// The frame's app catalog; the keymap is rebuilt when the platform, the overrides or the catalog's generation change.
+    #[must_use]
+    pub fn catalog(mut self, catalog: AppCatalog) -> Self {
+        self.catalog = Some(catalog);
         self
     }
 

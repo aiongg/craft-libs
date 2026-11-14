@@ -99,9 +99,9 @@ impl WindowHost {
         screenshot::issue(&self.ctx, viewport, max_image_bytes)
     }
 
-    /// What a screenshot of the running viewport measures this pass.
-    pub fn screenshot_facts(&self) -> ScreenshotFacts {
-        screenshot::facts(&self.ctx)
+    /// What a screenshot of `viewport` measures this pass; `None` when the viewport is not running.
+    pub fn screenshot_facts(&self, viewport: ViewportId) -> Option<ScreenshotFacts> {
+        screenshot::facts(&self.ctx, viewport)
     }
 
     /// Queues a pointer move to `at` in `viewport` with `mods` held, delivered on a pass of its own; the modifiers
@@ -181,6 +181,11 @@ impl WindowHost {
     /// Drops every injected queue and step in flight; true when anything was pending.
     pub fn cancel_injected(&self) -> bool {
         injected::cancel(&self.ctx)
+    }
+
+    /// Ends the injection session: the automation connection that fed it is gone.
+    pub fn end_injection(&self) {
+        injected::end(&self.ctx);
     }
 
     /// Whether no injected step is queued or awaits its pass: the application may answer its waiters.

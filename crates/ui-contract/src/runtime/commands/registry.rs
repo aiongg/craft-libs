@@ -91,6 +91,12 @@ pub enum CommandDefError {
         /// The id.
         command: String,
     },
+    /// An app command is defined in a scope other than the app's.
+    #[non_exhaustive]
+    NotApp {
+        /// The command's id.
+        command: String,
+    },
 }
 
 impl CommandDefError {
@@ -111,6 +117,7 @@ impl std::fmt::Display for CommandDefError {
             CommandDefError::Binding { command, error } => write!(f, "the default binding of {command}: {error}"),
             CommandDefError::Scope { command } => write!(f, "the scope of {command} is not a valid scope name"),
             CommandDefError::Duplicate { command } => write!(f, "two commands have the id {command}"),
+            CommandDefError::NotApp { command } => write!(f, "the command {command} is not in the app scope"),
         }
     }
 }

@@ -45,6 +45,8 @@ pub enum ToastEnd {
     Dismissed,
     /// The timer ran out.
     Expired,
+    /// The queue was over its card limit and dropped the card.
+    Dropped,
 }
 
 /// A message the user sees for a while.
@@ -264,6 +266,12 @@ pub fn cards(ctx: &Context, window: &WindowKey) -> Vec<Card> {
         let cards = queue.windows.iter().find(|(key, _)| key == window);
         cards.map_or_else(Vec::new, |(_, live)| live.iter().map(|live| live.card.clone()).collect())
     })
+}
+
+/// Every live viewport's cards with their windows, oldest first, for `ui.inspect`; `cards` is the running viewport's.
+pub fn snapshot(ctx: &Context) -> Vec<(WindowKey, Card)> {
+    let _ = ctx;
+    todo!("tp.T25")
 }
 
 /// The host shows `id` in this pass; `held` says the pointer or focus is on it. The first show announces it.

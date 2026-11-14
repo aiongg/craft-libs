@@ -175,7 +175,7 @@ fn resolver<K: Codec + Clone + 'static>(codec: K, options: &TextOptions, rect: R
         }
         let draft_text = run.draft.clone().unwrap_or_default();
         let (mut submitted, mut escaped) = (false, false);
-        let mut committed_tag = None;
+        let mut committed_note = None;
         let submit_mods = std::mem::take(&mut state.submit_mods);
         let end = match state.end.take() {
             None if commit_now && run.is_open() => Some(End::Blur),
@@ -204,7 +204,7 @@ fn resolver<K: Codec + Clone + 'static>(codec: K, options: &TextOptions, rect: R
             }
             Some(end @ (End::Submit | End::Separator)) => match typing.commit_tagged(&mut run) {
                 (Ended::Commit(committed), tag) => {
-                    committed_tag = tag.unit; // P3(canvas-widgets-w11): cw.N1
+                    committed_note = Some(tag); // P3(canvas-widgets-w11): cw.N3
                     state.normalised = Some(typing.codec().normalise(&draft_text, &committed));
                     events.push(TextEvent::Commit(committed));
                     submitted = end == End::Submit;
@@ -215,7 +215,7 @@ fn resolver<K: Codec + Clone + 'static>(codec: K, options: &TextOptions, rect: R
             },
             Some(End::Blur) => match typing.commit_tagged(&mut run) {
                 (Ended::Commit(committed), tag) => {
-                    committed_tag = tag.unit; // P3(canvas-widgets-w11): cw.N1
+                    committed_note = Some(tag); // P3(canvas-widgets-w11): cw.N3
                     state.normalised = Some(typing.codec().normalise(&draft_text, &committed));
                     events.push(TextEvent::Commit(committed));
                 }
@@ -233,7 +233,7 @@ fn resolver<K: Codec + Clone + 'static>(codec: K, options: &TextOptions, rect: R
         let mut outcome = TextOutcome::new(rect);
         outcome.draft = run.draft.clone();
         outcome.invalid = state.invalid;
-        outcome.committed_tag = committed_tag;
+        outcome.committed = committed_note;
         Resolved { events, outcome, submitted, submit_mods: if submitted { submit_mods } else { Mods::NONE }, escaped }
     })
 }

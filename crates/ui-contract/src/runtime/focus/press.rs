@@ -19,6 +19,20 @@ pub(crate) struct PressAt {
     target: Option<Id>,
 }
 
+/// Records that the part `part` of `owner` is declared `holds_drafts`, for the press classification of the next pass.
+#[allow(dead_code)] // P3(canvas-widgets-w11): cw.C57
+pub(crate) fn note_holds_drafts(ctx: &Context, owner: Id, part: PartRef) {
+    let _ = (ctx, owner, part);
+    todo!("cw.C57")
+}
+
+/// The text stop whose draft the press of this pass left unapplied, when one is.
+#[allow(dead_code)] // P3(canvas-widgets-w11): cw.C57
+pub(crate) fn held_draft(ctx: &Context) -> Option<Id> {
+    let _ = ctx;
+    todo!("cw.C57")
+}
+
 pub(crate) fn press_at(ctx: &Context) -> Option<PressAt> {
     // A press the modal's canvas took moves no key focus: the dialog keeps it.
     egui_focus::primary_press_origin(ctx).filter(|pos| !sampler::admitted_press(ctx, *pos)).map(|pos| {

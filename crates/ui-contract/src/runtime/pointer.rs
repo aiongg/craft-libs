@@ -51,6 +51,8 @@ pub struct PointerFrame {
     pub scroll: Vec2,
     /// Pinch and Ctrl or Cmd with the wheel, folded into one factor.
     pub zoom: f32,
+    /// The pass's summed `Event::Rotate` radians.
+    pub rotation: f32,
     /// The movement that turns a press into a drag.
     pub slop: f32,
     /// The least hit size across for this pointer kind.
@@ -109,7 +111,8 @@ pub(crate) struct Shapes {
 }
 
 /// The begin hook (H5): converts the pass's pointer input.
-pub(crate) fn begin(ctx: &Context, hit: HitSizes) {
+pub(crate) fn begin(ctx: &Context, hit: HitSizes, latched: craft_keymap::Mods) {
+    let _ = latched; // P3(canvas-widgets-w12): tp.T15
     let viewport = pass::current_viewport(ctx);
     let pass_nr = pass::pass_nr(ctx, viewport);
     let mut read = input::pointer_read(ctx);
@@ -153,6 +156,7 @@ pub(crate) fn begin(ctx: &Context, hit: HitSizes) {
         multi_touch: read.multi_touch.map(|(translation, zoom, rotation, center)| MultiTouch::new(translation, zoom, rotation, center)),
         scroll,
         zoom: wheel_zoom,
+        rotation: read.rotation,
         slop: hit.slop,
         target: hit.target,
     };
@@ -219,6 +223,7 @@ pub fn frame(ctx: &Context) -> PointerFrame {
         multi_touch: None,
         scroll: Vec2::ZERO,
         zoom: 1.0,
+        rotation: 0.0,
         slop: 0.0,
         target: 0.0,
     })

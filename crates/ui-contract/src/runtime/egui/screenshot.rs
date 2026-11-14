@@ -129,15 +129,16 @@ pub(crate) fn issue(ctx: &Context, viewport: ViewportId, max_image_bytes: usize)
     slot
 }
 
-/// What a screenshot of the running viewport measures this pass.
-pub(crate) fn facts(ctx: &Context) -> ScreenshotFacts {
+/// What a screenshot of `viewport` measures this pass; `None` when the viewport is not running.
+pub(crate) fn facts(ctx: &Context, viewport: ViewportId) -> Option<ScreenshotFacts> {
+    let _ = viewport; // P3(canvas-widgets-w13): cw.C66
     let window = viewports::current(ctx);
     let size_points = ctx.input(|input| window.inner.map_or_else(|| input.viewport_rect().size(), |inner| inner.size()));
     let max_texture_side = ctx.input(|input| input.max_texture_side);
     let zoom = ctx.zoom_factor();
     let pixels_per_point =
         window.native_scale.filter(|scale| scale.is_finite() && *scale > 0.0).map_or_else(|| ctx.pixels_per_point(), |scale| scale * zoom);
-    ScreenshotFacts { size_points, pixels_per_point, zoom, max_texture_side, minimized: window.minimized }
+    Some(ScreenshotFacts { size_points, pixels_per_point, zoom, max_texture_side, minimized: window.minimized })
 }
 
 impl ScreenshotSlot {

@@ -83,6 +83,7 @@ pub(crate) fn show_viewport(ctx: &Context, open: &ViewportOpen<'_>, mut body: im
         resizable: open.resizable,
         taskbar: spec.taskbar,
         hidden: PerViewport::<Record>::with(ctx, viewport, |record| record.awaiting_first_paint),
+        app_id: "", // P3(dialogs-w11): dl.K76, `shell::app_id(ctx)`
     };
     viewports::show_immediate(ctx, viewport, &opens, |ui| {
         let ctx = ui.ctx().clone();

@@ -231,7 +231,14 @@ fn report_sub(core: &CxCore<'_>, decls: &Decls, node: &SubNode, face: Option<&Fa
         focusable: takes_focus(core.resolved) && declared.is_some_and(|(_, extras)| extras.focusable),
         clickable: core.resolved.enabled && declared.is_some_and(|(decl, extras)| decl.sense.contains(Sense::CLICK) && !extras.no_access_click),
         active: core.active == Some(node.part),
-        face: face.map(|face| FaceFacts { name: &face.name, flags: face.flags, numeric: face.numeric.as_ref(), expanded: face.expanded }),
+        face: face.map(|face| FaceFacts {
+            name: &face.name,
+            flags: face.flags,
+            numeric: face.numeric.as_ref(),
+            expanded: face.expanded,
+            value: face.value.as_deref(),
+            color: face.color,
+        }),
         label: core.resolved.label,
         parent: node.under.map_or(parent, |under| access::sub_node_id(core.id, under)),
     };

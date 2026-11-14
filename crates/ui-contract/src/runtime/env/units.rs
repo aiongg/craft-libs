@@ -25,6 +25,7 @@ craft_ui::words! {
         pixels_per_inch: unit "units.pixelsPerInch" = "{n} ppi";
         pixels_per_centimetre: unit "units.pixelsPerCentimetre" = "{n} ppcm";
         minutes: unit "units.minutes" = "{n} min";
+        columns: unit "units.columns" = "{n} col";
     }
 }
 
@@ -89,6 +90,8 @@ pub enum UnitKind {
     PixelsPerCentimetre,
     /// `{n} min`.
     Minutes,
+    /// `{n} col`: a width in columns of a column size (`ColumnSize`), an affine rule no unit factor expresses.
+    Columns,
 }
 
 impl UnitKind {
@@ -101,7 +104,7 @@ impl UnitKind {
         Self::ALL.get(tag as usize).copied()
     }
 
-    const ALL: [UnitKind; 12] = [
+    const ALL: [UnitKind; 13] = [
         UnitKind::Pixels,
         UnitKind::Percent,
         UnitKind::Degrees,
@@ -114,6 +117,7 @@ impl UnitKind {
         UnitKind::PixelsPerInch,
         UnitKind::PixelsPerCentimetre,
         UnitKind::Minutes,
+        UnitKind::Columns,
     ];
 
     /// The digits after the decimal mark a number of this kind shows by default, at most.
@@ -127,7 +131,7 @@ impl UnitKind {
             | UnitKind::Picas
             | UnitKind::PixelsPerInch
             | UnitKind::PixelsPerCentimetre => 0..=2,
-            UnitKind::Inches => 0..=3,
+            UnitKind::Inches | UnitKind::Columns => 0..=3,
         }
     }
 
@@ -184,6 +188,29 @@ impl UnitKind {
             UnitKind::Percent => value * extent / PERCENT,
             _ => value / self.per_inch(points_per_inch)? * resolution,
         })
+    }
+}
+
+/// The column size of a document: `n` columns are `n·(width + gutter) − gutter` points.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ColumnSize {
+    /// The width of one column, in points; a value that is not a finite number above 0 counts as 180.
+    pub width: f64,
+    /// The gutter between columns, in points; a value that is not finite counts as 12, a negative one as 0.
+    pub gutter: f64,
+}
+
+impl ColumnSize {
+    /// `columns` columns as points; a `relative` change converts the span of `|columns|` with its sign, and 0 stays 0.
+    pub fn points(self, columns: f64, relative: bool) -> f64 {
+        let _ = (columns, relative);
+        todo!("dl.K14")
+    }
+
+    /// `points` as columns; the inverse of [`points`](Self::points).
+    pub fn columns(self, points: f64, relative: bool) -> f64 {
+        let _ = (points, relative);
+        todo!("dl.K14")
     }
 }
 
@@ -265,6 +292,7 @@ impl Units {
             UnitKind::PixelsPerInch => words.pixels_per_inch.as_str(),
             UnitKind::PixelsPerCentimetre => words.pixels_per_centimetre.as_str(),
             UnitKind::Minutes => words.minutes.as_str(),
+            UnitKind::Columns => words.columns.as_str(),
         }
     }
 

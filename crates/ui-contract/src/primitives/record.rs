@@ -61,6 +61,10 @@ pub struct FaceRecord {
     pub enabled: bool,
     /// The screen y of the face's first text baseline, which the composite's record takes when it has none yet.
     pub baseline: Option<f32>,
+    /// The face's value text, from its `access`; step 16 gives it to the part's sub-node.
+    pub value: Option<String>,
+    /// The face's colour, from its `access`; step 16 gives it to the part's sub-node.
+    pub color: Option<craft_theme::Srgba>,
 }
 
 /// The base id of the face painted for `part` of the composite `id`: owned by the composite, so the face's hover

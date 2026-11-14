@@ -2,6 +2,7 @@
 
 use super::Fixture;
 use crate::contract::{CollectionEvent, Inner, Outcome, TooltipSpec};
+use crate::runtime::commands::CommandInput;
 use craft_behavior::{EditEvent, EditEvents, PartKey, PartRef, Value};
 use egui::{Id, Response, Ui, Vec2};
 use std::any::{Any, TypeId};
@@ -101,6 +102,9 @@ pub struct Story {
     pub drive: Drive,
     /// The reason a disabled control shows (`disabled_text` of its tooltip), when the story gives its control one.
     pub disabled_text: Option<&'static str>,
+    /// Adds this story's app-scope command states to the frame's command input; runners fold the shown stories'
+    /// functions over `CommandInput::new()` before the first frame.
+    pub commands: Option<fn(CommandInput) -> CommandInput>,
     /// The caption a viewer shows over the story; `None` for the title made of its name (`contract::story_title`).
     pub title: Option<&'static str>,
     /// The group a viewer shows the story in, with the other stories of the type that name it, as the cases of one
@@ -111,7 +115,13 @@ pub struct Story {
 impl Story {
     /// A story that shows with `show`.
     pub const fn new(name: &'static str, show: fn(&mut Ui, &mut StoryData) -> StoryOutput) -> Self {
-        Story { name, covers: &[], show, drive: Drive::Auto, disabled_text: None, title: None, group: None }
+        Story { name, covers: &[], show, drive: Drive::Auto, disabled_text: None, commands: None, title: None, group: None }
+    }
+
+    /// Sets the function that adds the story's command states to the frame's command input.
+    pub const fn commands(mut self, add: fn(CommandInput) -> CommandInput) -> Self {
+        self.commands = Some(add);
+        self
     }
 
     /// The caption a viewer shows over the story.

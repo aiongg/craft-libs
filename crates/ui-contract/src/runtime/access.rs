@@ -18,6 +18,7 @@ use craft_theme::{Flags, Srgba, variant::Tone};
 use egui::Id;
 use std::ops::RangeInclusive;
 
+pub use crate::runtime::egui::access::bounds;
 #[doc(hidden)]
 pub use emit::SubDecl;
 #[doc(hidden)]

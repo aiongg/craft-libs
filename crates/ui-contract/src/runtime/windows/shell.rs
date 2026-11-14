@@ -15,6 +15,13 @@ pub(crate) fn base_shell(ctx: &Context) -> ShellInfo {
     shared(ctx, |shared| shared.shell.clone()).unwrap_or_default()
 }
 
+/// The app id the app installed, which every OS window carries; empty when it set none.
+#[allow(dead_code)] // P3(dialogs-w11): dl.K76
+pub(crate) fn app_id(ctx: &Context) -> String {
+    let _ = ctx;
+    todo!("dl.K76")
+}
+
 /// The operating system of the shell: the one source of the key table, the chords shown, the drop operation and
 /// the chrome. It does not differ between viewports.
 #[doc(hidden)]
