@@ -12,6 +12,6 @@ pub(crate) mod stories;
 
 pub use footer::ChannelsFooterButton;
 pub use labels::ChannelsWords;
-pub use menu::{ChannelsCommands, panel_rows};
+pub use menu::{ChannelsCommands, panel_rows, states};
 pub use model::{ChannelKind, ChannelRow, ChannelsEvent, ChannelsOutput, ColorIndicates, OVERLAY_OPACITIES, OverlayPreset, targeted_row};
 pub use panel::ChannelsPanel;

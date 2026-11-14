@@ -37,6 +37,14 @@ impl<'a> BlurPinsPanel<'a> {
         Self { pins }
     }
 
+    /// Inside a modal body, declares the canvas gesture each pass, so the pins on the canvas keep their presses while
+    /// the Blur Gallery dialog is modal.
+    #[must_use]
+    pub fn canvas(self, canvas: egui::Id) -> Self {
+        let _ = canvas;
+        todo!("dl.K62")
+    }
+
     /// Draws the rows and returns the response and any amount edit.
     pub fn show(self, ui: &mut Ui) -> BlurPinsPanelOutput {
         // pc: crates/ui-egui/src/dialogs/blur_pins.rs:398 `body` (the slider, the hints).

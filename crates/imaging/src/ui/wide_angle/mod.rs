@@ -74,17 +74,32 @@ pub enum WideAngleTool {
 pub struct PreviewDone {
     /// How long the solve and warp took.
     pub timing: Duration,
+    /// What rendered it ("GPU", "CPU"), shown with the time.
+    pub backend: Option<Label>,
 }
 
 impl PreviewDone {
+    /// Names what rendered the preview.
+    #[must_use]
+    pub fn backend(mut self, label: impl Into<Label>) -> Self {
+        self.backend = Some(label.into());
+        self
+    }
+
     /// A finished preview that took `timing`.
     pub fn new(timing: Duration) -> Self {
-        Self { timing }
+        Self { timing, backend: None }
     }
 }
 
 /// What the app gives the workspace to show each pass.
-pub trait WideAngleSource {
+pub trait WideAngleSource: Send + Sync {
+    /// The lens model the constraints curve by.
+    // P3(dialogs-w10): dl.K60 — default body until the app's sources implement it.
+    fn geometry(&self) -> &dyn WideAngleGeometry {
+        todo!("dl.K60")
+    }
+
     /// The layer as it is (a proxy of at most 800 px in PhotoCraft).
     fn source(&self) -> &dyn RasterSource;
 
@@ -514,4 +529,36 @@ fn add_constraint_params(words: &WideAngleWords) -> Vec<Param> {
             ),
         ),
     ]
+}
+
+// P3(dialogs-w10): dl.K60 — the workspace's trait surface; `show` and the automation fields are written in phase 3.
+impl craft_ui::dialog::FullWindowWorkspace for WideAngleWorkspace {
+    type Source = dyn WideAngleSource;
+    type Event = WideAngleEvent;
+    type Result = WideAngleSession;
+
+    const KEY: &'static str = "filter.adaptiveWideAngle";
+
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        cx: craft_ui::dialog::WorkspaceCx<'_, Self::Source>,
+    ) -> craft_ui::dialog::WorkspacePass<Self::Event, Self::Result> {
+        let _ = (ui, cx);
+        todo!("dl.K60")
+    }
+
+    fn json_fields(&self) -> Option<serde_json::Value> {
+        todo!("dl.K60")
+    }
+
+    fn set_json_field(&mut self, ctx: &egui::Context, source: &Self::Source, field: &str, value: serde_json::Value) -> Result<(), String> {
+        let _ = (ctx, source, field, value);
+        todo!("dl.K60")
+    }
+
+    fn confirm(&mut self, ctx: &egui::Context, source: &Self::Source) -> Option<Self::Result> {
+        let _ = (ctx, source);
+        todo!("dl.K60")
+    }
 }

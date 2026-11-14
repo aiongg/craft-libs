@@ -323,8 +323,22 @@ fn plan(kind: Option<ChannelKind>) -> Vec<Plan> {
     lines
 }
 
+/// Photoshop's fixed panel menu list: New Channel…, Duplicate Channel, Delete Channel, New Spot Channel…, Merge Spot
+/// Channel, Channel Options…, Split Channels, Merge Channels…, with separators between the groups.
+pub fn panel_rows() -> Vec<PanelRow> {
+    todo!("pn.C30")
+}
+
+/// Each command greyed by the targeted row's kind, the one rule the panel's publish loop and the dock's panel menu share.
+pub fn states<K>(rows: &[ChannelRow<K>]) -> Vec<(ChannelsCommands, craft_ui::runtime::commands::CommandState)> {
+    let _ = rows;
+    todo!("pn.C30")
+}
+
 /// The rows the panel adds to its panel menu, for the targeted row of `rows`: the commands of its row menu.
-pub fn panel_rows<K>(rows: &[ChannelRow<K>], words: &ChannelsWords) -> Vec<PanelRow> {
+// P3(panels-w6): pn.C30 — the old `panel_rows(rows, words)`; phase 3 removes it with its readers.
+#[allow(dead_code)]
+pub(super) fn panel_rows_for<K>(rows: &[ChannelRow<K>], words: &ChannelsWords) -> Vec<PanelRow> {
     let command = |c: ChannelsCommands| PanelRow::Command(CommandRef::from(c));
     let kind = targeted_row(rows).map(|row| row.kind);
     let mut out = Vec::new();
