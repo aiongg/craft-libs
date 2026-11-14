@@ -38,6 +38,12 @@ pub struct WheelInput {
     pub notch: f32,
     /// The OS, which decides where the Control key is among the modifiers.
     pub os: Platform,
+    /// The pinch factor of a two-finger touch; 1 for none.
+    pub touch_zoom: f32,
+    /// The trackpad's rotation, in radians.
+    pub rotation: f32,
+    /// The twist of a two-finger touch, in radians.
+    pub touch_rotation: f32,
 }
 
 impl WheelInput {
@@ -46,7 +52,16 @@ impl WheelInput {
     /// line.
     pub fn of(wheel: &Wheel, line: f32, os: Platform) -> Self {
         let notch = if wheel.unit == WheelUnit::Line { line } else { WheelNotch::DEFAULT.points(0.0) };
-        WheelInput { scroll: wheel.scroll, zoom: wheel.zoom, mods: wheel.mods, notch, os }
+        WheelInput {
+            scroll: wheel.scroll,
+            zoom: wheel.zoom,
+            mods: wheel.mods,
+            notch,
+            os,
+            touch_zoom: wheel.touch_zoom,
+            rotation: wheel.rotation,
+            touch_rotation: wheel.touch_rotation,
+        }
     }
 
     /// The scroll along the wheel's axis whichever one the device reported it on (some systems send a modified wheel
@@ -85,6 +100,13 @@ impl WheelNavigation {
     /// any.
     pub fn read(&mut self, wheel: &Wheel, line: f32, os: Platform, options: &NavigationOptions) -> Option<WheelAction> {
         self.classify(WheelInput::of(wheel, line, os), options)
+    }
+
+    /// The degrees `input` adds to the view's rotation: the trackpad's with `trackpad_rotate`, the fingers' twist with
+    /// `touch_gestures`; `None` for none.
+    pub fn rotation(input: &WheelInput, options: &NavigationOptions) -> Option<f64> {
+        let _ = (input, options);
+        todo!("cw.C30")
     }
 
     /// Whether `mods` make the Alt zoom gesture on `os`: Alt, with the Control key allowed, which is `ctrl` on macOS

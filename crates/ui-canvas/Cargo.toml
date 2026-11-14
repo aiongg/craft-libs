@@ -28,6 +28,7 @@ craft-ui-macros = { workspace = true }
 egui = { workspace = true }
 craft-i18n = { workspace = true, features = ["collate"] }
 serde = { workspace = true }
+serde_json = { workspace = true }
 
 [dev-dependencies]
 craft-ui-canvas = { path = ".", features = ["testing"] }

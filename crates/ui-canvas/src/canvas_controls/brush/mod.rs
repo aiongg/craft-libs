@@ -22,11 +22,15 @@
 mod cursor;
 mod falloff;
 mod resize;
+mod source_marker;
 #[cfg(feature = "testing")]
 mod stories;
 mod tip;
+mod trail;
 
 pub use cursor::{BrushCursor, BrushCursorOptions, PaintingCursor, TipCell, TipCellStyle};
 pub use falloff::{FalloffPreview, FalloffPreviewStyle, TipFalloff};
 pub use resize::{BrushDimensions, BrushLevel, BrushResize, BrushResizeOptions, RESIZE_TRAVEL, ResizeStep};
+pub use source_marker::SourceMarker;
 pub use tip::{BrushTip, BrushTipOutline, TipPose, TipRings};
+pub use trail::{CoverageMask, StrokeTrail, TrailTone};

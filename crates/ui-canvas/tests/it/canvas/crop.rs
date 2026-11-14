@@ -221,7 +221,7 @@ fn a_corner_drag_resizes_along_the_frame_axes_in_a_turned_view() {
     let view = rig.view();
     let corner = view.to_screen(b.corners()[2]);
     let to = corner + Vec2::new(14.0, -9.0);
-    let want = b.resized(BoxPart::Corner(2), view.to_doc(to) - view.to_doc(corner), None, false);
+    let want = b.resized(BoxPart::Corner(2), view.to_doc(to) - view.to_doc(corner), craft_behavior::geometry::AspectHold::Free, false); // P3(tools-w15): tl.T41
     rig.drag(corner, to, Modifiers::NONE);
     assert!(near(&rig.crop(), &want), "{:?} vs {want:?}", rig.crop());
     assert_eq!(rig.seen.borrow().picked, Some(BoxPart::Corner(2)));

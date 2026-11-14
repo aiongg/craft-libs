@@ -19,12 +19,16 @@ pub use regions::{Slot, SlotSize};
 // App shell, canvas panel, screen modes and reveal.
 mod app_shell;
 mod canvas_shell;
+mod opening;
 mod reveal;
 mod screen_mode;
+mod screen_mode_button;
 
 pub use app_shell::{AppShell, AppShellOutput, ShellDialogsCx, ShellRegion, ShellRegionOutput, WindowDialogs};
 pub use canvas_shell::{CanvasPanel, CanvasPanelOutput, slots};
+pub use opening::{OpeningCard, OpeningCardOutput};
 pub use screen_mode::{ScreenMode, ScreenModeCommands};
+pub use screen_mode_button::{ScreenModeButton, ScreenModeButtonOutput};
 pub use words::ShellWords;
 
 // Start screen and app windows.
@@ -33,7 +37,7 @@ mod start;
 mod viewport_window;
 
 pub use recent::{RecentFile, RecentSort, RecentView, Template, ThumbKey, sort_recent};
-pub use start::{StartAction, StartOutput, StartPinnedCommands, StartRecentCommands, StartScreen};
+pub use start::{StartAction, StartLink, StartLinkTarget, StartOutput, StartPinnedCommands, StartRecentCommands, StartScreen};
 pub use viewport_window::{ViewportWindow, ViewportWindowOutput};
 
 // Caption buttons: the four families' button, its slot layout and the icon-theme glyphs.
@@ -47,7 +51,7 @@ pub use craft_window::policy::{CaptionFamily, Captions, Frame, MacInset};
 // A document's window: a container in its own OS viewport.
 mod document_window;
 
-pub use document_window::{DocumentWindow, DocumentWindowOutput, DocumentWindowStyle};
+pub use document_window::{DocumentWindow, DocumentWindowOutput, DocumentWindowStyle, Wrapped};
 
 // The title bar: the bar, its title and its output.
 pub use title_bar::{Title, TitleBar, TitleBarOutput, TitleBarStyle};

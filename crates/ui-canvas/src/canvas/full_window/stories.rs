@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use super::{FullWindowDialog, FullWindowWorkspace, HostedWorkspace, WorkspacePass};
+use super::{FullWindowDialog, FullWindowWorkspace, HostedWorkspace, WorkspaceCx, WorkspacePass};
 use crate::canvas::{PixelRect, RasterSource};
 use crate::contract::{Bind, Show as _, ShowContainer as _};
 use crate::dialog::stories::hosted;
@@ -92,7 +92,8 @@ impl FullWindowWorkspace for BrushWorkspace {
 
     const KEY: &'static str = "story.brushWorkspace";
 
-    fn show(&mut self, ui: &mut Ui, source: &Self::Source, open: Bind<'_, bool>) -> WorkspacePass<BrushChanged, f64> {
+    fn show(&mut self, ui: &mut Ui, cx: WorkspaceCx<'_, Self::Source>) -> WorkspacePass<BrushChanged, f64> {
+        let WorkspaceCx { source, open, .. } = cx; // P3(dialogs-w11): dl.K57
         let common = Env::of(ui).words::<CommonWords>();
         let before = self.brush;
         let (view, brush) = (&mut self.view, &mut self.brush);

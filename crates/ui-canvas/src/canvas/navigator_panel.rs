@@ -20,6 +20,8 @@ pub struct NavigatorPanelOutput {
     /// The view changes of this pass, from the preview box or the zoom row's field and slider, in order. A preview
     /// zoom under Animated Zoom is the change to its target; the canvas eases to it.
     pub view: EditEvents<CanvasView>,
+    /// The zoom field's refused entry of this pass, for the app's alert; `None` when the field took its input.
+    pub invalid_zoom: Option<crate::text::InvalidZoom>,
 }
 
 impl Outcome for NavigatorPanelOutput {
@@ -84,6 +86,6 @@ impl<'a> NavigatorPanel<'a> {
             let row = NavigatorZoomRow::new(view.reborrowed(), document).show(ui);
             change = preview.view.events.clone().into_iter().chain(row.view).collect();
         });
-        NavigatorPanelOutput { response: shown.output, view: change }
+        NavigatorPanelOutput { response: shown.output, view: change, invalid_zoom: None } // P3(canvas-widgets-w11): cw.C60
     }
 }

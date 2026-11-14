@@ -261,6 +261,9 @@ pub struct RasterDisplay<'a> {
     /// How far the picture reaches past the document's edge.
     #[prop]
     extent: Extent,
+    /// The display paints in the canvas's picture slot, under every canvas control of the body.
+    #[prop(flag, name = "picture")]
+    under_controls: bool,
     read: PixelRect,
     shown: Option<Shown>,
     mapping: Option<Mapping>,
@@ -324,6 +327,7 @@ impl<'a> RasterDisplay<'a> {
             checkerboard: None,
             outlined: false,
             extent: Extent::Document,
+            under_controls: false,
             read: PixelRect::default(),
             shown: None,
             mapping: None,

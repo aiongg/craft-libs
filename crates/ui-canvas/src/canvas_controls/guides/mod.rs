@@ -2,6 +2,7 @@
 //! arena, so a press on a guide stays with the guides and one elsewhere reaches the tool.
 
 mod place;
+pub mod reading;
 #[cfg(feature = "testing")]
 mod stories;
 
@@ -102,7 +103,7 @@ struct Report {
     select: Option<Option<GuideKey>>,
     clicked: Option<(GuideKey, Mods, Point)>,
     double_clicked: Option<GuideKey>,
-    context: Option<GuideKey>,
+    context: Option<(GuideKey, Pos2)>,
 }
 
 /// The key of the guide a ruler drag is creating, kept for the length of the drag.
@@ -142,6 +143,10 @@ pub struct Guides<'a> {
     /// draw.
     #[prop]
     interactive: bool,
+    /// With `interactive` off, a press on an unlocked guide with the platform command key held takes the guide.
+    #[prop]
+    #[allow(dead_code)] // P3(canvas-widgets-w2): cw.C22
+    moves_with_command: bool,
     /// Where guides may live, in document units; a guide released outside is removed. Without bounds, the canvas.
     #[prop]
     bounds: Option<DocRect>,
@@ -165,6 +170,7 @@ impl<'a> Guides<'a> {
             guides,
             selected: None,
             interactive: false,
+            moves_with_command: false,
             bounds: None,
             step: NUDGE,
             big_step: NUDGE_FAR,
@@ -309,8 +315,8 @@ impl<'a> Guides<'a> {
             }
         }
         for guide in guides.iter().filter(|guide| !guide.locked) {
-            if context_menu(cx, guide.key.part(GUIDE)).is_some() {
-                self.report.context = Some(guide.key);
+            if let Some(at) = context_menu(cx, guide.key.part(GUIDE)) {
+                self.report.context = Some((guide.key, at));
             }
         }
     }
@@ -389,8 +395,8 @@ pub struct GuidesOutput {
     pub clicked: Option<(GuideKey, Mods, Point)>,
     /// A guide pressed twice, for the guide dialog.
     pub double_clicked: Option<GuideKey>,
-    /// A guide clicked with the secondary button, for the app's guide menu.
-    pub context: Option<GuideKey>,
+    /// A guide clicked with the secondary button, for the app's guide menu, and where it was asked for the menu.
+    pub context: Option<(GuideKey, Pos2)>,
 }
 
 impl Outcome for GuidesOutput {

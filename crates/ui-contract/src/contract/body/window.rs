@@ -477,8 +477,11 @@ impl BodyHooks<'_> {
         } else {
             // A pointer move of this pass is relative to where the window was when the system sent it, which is where
             // the window reports itself now; a position from an earlier pass was measured against an older place.
-            let moved =
-                pointer::pass_pointer(&ctx).events.iter().rev().find_map(|event| if let PointerEvent::Moved(at) = event { Some(*at) } else { None });
+            let moved = pointer::pass_pointer(&ctx)
+                .events
+                .iter()
+                .rev()
+                .find_map(|event| if let PointerEvent::Moved { at, .. } = event { Some(*at) } else { None });
             moved.map(|at| facts.inner.min + (at.to_vec2() - moving.grab) - inset)
         };
         let Some(to) = to.filter(|to| *to != moving.at.min) else { return };

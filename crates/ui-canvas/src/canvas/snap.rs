@@ -1,36 +1,78 @@
 //! `Snap`: a canvas's snapping of a coordinate the pointer sets.
 
 use crate::runtime::env::{AppValues, EnvValue, EnvView};
-use craft_behavior::geometry::SNAP_PX;
+use craft_behavior::geometry::{SNAP_PX, SnapLine, SnapOptions, SnapTargets};
+use craft_behavior::kurbo::{Point, Vec2};
 use craft_behavior::{Axis, CanvasView};
 use craft_keymap::{Mods, Platform};
 use std::sync::Arc;
 
-/// A canvas's snapping of a coordinate the pointer sets (View > Snap To): the axis a guide at the coordinate would
-/// run along (an x coordinate is across `Axis::Y`), the document coordinate under the pointer and the modifiers held,
-/// to the coordinate to use. The app gives it to the canvas once ([`Canvas::snap`](super::Canvas::snap)); the canvas
-/// publishes it to its body, where the rulers snap the zero point and the guides snap a guide
-/// ([`canvas_snap`]), and hands it to the tool host through [`CanvasOutput`](super::CanvasOutput), which gives it to
-/// the tool ([`ToolContext::snap`](super::ToolContext::snap)). Clones share one function; two snaps are equal when
-/// they are clones of each other.
+/// A canvas's snapping of a coordinate the pointer sets (View > Snap To), as data over the document's [`SnapTargets`]:
+/// the axis a guide at the coordinate would run along (an x coordinate is across `Axis::Y`), the document coordinate
+/// under the pointer and the modifiers held, to the coordinate to use. The app gives it to the canvas once
+/// ([`Canvas::snap`](super::Canvas::snap)); the canvas publishes it to its body, where the rulers snap the zero point
+/// and the guides snap a guide ([`canvas_snap`]), and hands it to the tool host through
+/// [`CanvasOutput`](super::CanvasOutput), which gives it to the tool ([`ToolContext::snap`](super::ToolContext::snap)).
+/// Two snaps are equal when they share their targets and have equal options, tolerance and OS.
 #[derive(Clone)]
-pub struct Snap(Arc<dyn Fn(Axis, f64, Mods) -> f64 + Send + Sync>);
+pub struct Snap {
+    targets: Arc<SnapTargets>,
+    options: SnapOptions,
+    tolerance: Option<f64>,
+    os: Platform,
+}
+
+/// The gesture's snap options in one argument: whether the gesture reads Control itself.
+// P3(canvas-widgets-w3): cw.C16 `kinds: SnapKinds` is defined by no item (plan error, open).
+#[derive(Clone, Copy, Debug, Default)]
+pub struct GestureSnap {
+    /// Whether the gesture reads the Control key itself, so Control does not suspend snapping.
+    pub reads_control: bool,
+}
 
 impl Snap {
-    /// The snapping that runs `snap`.
-    pub fn new(snap: impl Fn(Axis, f64, Mods) -> f64 + Send + Sync + 'static) -> Self {
-        Snap(Arc::new(snap))
+    /// The snapping over `targets` with `options`; the tolerance is set by the canvas each pass.
+    pub fn new(targets: Arc<SnapTargets>, options: SnapOptions) -> Self {
+        Snap { targets, options, tolerance: None, os: Platform::current() }
     }
 
     /// `position` across a guide running `along`, snapped.
     pub fn apply(&self, along: Axis, position: f64, mods: Mods) -> f64 {
-        (self.0)(along, position, mods)
+        let Some(tolerance) = self.tolerance.filter(|_| self.options.on && !snap_suspended(mods, self.os, false)) else {
+            return position;
+        };
+        self.targets.nearest(along, position, tolerance).map_or(position, |target| target.position)
+    }
+
+    /// `point` snapped on both axes, with the lines to draw; the input and no lines when snapping is off.
+    pub fn point(&self, point: Point, mods: Mods, gesture: GestureSnap) -> (Point, Vec<SnapLine>) {
+        let _ = (point, mods, gesture);
+        todo!("cw.C16")
+    }
+
+    /// The offset that moves `rect` onto a snap target, with the lines to draw; zero when snapping is off.
+    pub fn rect(&self, rect: craft_behavior::kurbo::Rect, mods: Mods) -> (Vec2, Vec<SnapLine>) {
+        let _ = (rect, mods);
+        todo!("cw.C16")
+    }
+
+    /// The View > Snap To options this snap was built with.
+    pub fn options(&self) -> SnapOptions {
+        self.options
+    }
+
+    /// This snap with its tolerance for `view` and the OS set.
+    #[allow(dead_code)] // P3(canvas-widgets-w3): cw.C16
+    pub(super) fn at(mut self, view: &CanvasView, os: Platform) -> Self {
+        self.tolerance = Some(view.doc_len(SNAP_PX as f32));
+        self.os = os;
+        self
     }
 }
 
 impl PartialEq for Snap {
     fn eq(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.0, &other.0)
+        Arc::ptr_eq(&self.targets, &other.targets) && self.options == other.options && self.tolerance == other.tolerance && self.os == other.os
     }
 }
 

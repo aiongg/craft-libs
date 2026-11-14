@@ -272,7 +272,7 @@ pub(crate) fn pointer_read(ctx: &Context) -> PointerRead {
                 }
                 Event::PointerMoved(pos) => {
                     stirred = true;
-                    events.push(PointerEvent::Moved(*pos));
+                    events.push(PointerEvent::Moved { at: *pos, sample: None }); // P3(canvas-widgets-w4): cw.C73
                 }
                 Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: true, .. } => {
                     events.push(PointerEvent::pressed(*pos, input.time, 1));

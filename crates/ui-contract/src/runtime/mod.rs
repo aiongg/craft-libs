@@ -23,6 +23,7 @@ pub mod memory;
 pub mod motion;
 pub mod overlay;
 pub(crate) mod pass_state;
+pub mod pen;
 pub mod pending;
 pub mod pointer;
 pub(crate) mod reads;

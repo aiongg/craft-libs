@@ -21,6 +21,8 @@ pub struct NavigatorZoomRowOutput {
     /// The view changes of this pass, for a binding that does not write through: a typed percent or a slider drag as
     /// its gesture.
     pub view: EditEvents<CanvasView>,
+    /// The zoom field's refused entry of this pass, for the app's alert; `None` when the field took its input.
+    pub invalid_zoom: Option<crate::text::InvalidZoom>,
 }
 
 impl Outcome for NavigatorZoomRowOutput {
@@ -93,6 +95,6 @@ impl<'a> NavigatorZoomRow<'a> {
             }
             events = edits.into_iter().collect();
         });
-        NavigatorZoomRowOutput { response: shown.output, view: events }
+        NavigatorZoomRowOutput { response: shown.output, view: events, invalid_zoom: None } // P3(canvas-widgets-w11): cw.C60
     }
 }

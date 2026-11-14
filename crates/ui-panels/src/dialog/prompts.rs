@@ -195,6 +195,11 @@ pub struct StandardPrompt {
 type Content = (Label, Label, Vec<(PromptChoice, Reply)>);
 
 impl StandardPrompt {
+    /// The tag attached with the `tag` builder, when it is a `T`: tells which family's prompt is open.
+    pub fn tag_as<T: Any>(&self) -> Option<&T> {
+        self.tag.as_deref()?.downcast_ref()
+    }
+
     /// A prompt asking `kind`, with no tag and no "Don't show again" box.
     pub fn new(kind: PromptKind) -> Self {
         Self {

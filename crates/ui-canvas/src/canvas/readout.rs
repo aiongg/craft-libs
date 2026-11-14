@@ -2,12 +2,23 @@
 
 use crate::contract::ghost;
 use crate::primitives::{Draw, DrawEnv, PaintRecord, Span, TextRun};
-use crate::runtime::env::{Env, Label};
+use crate::runtime::env::{Env, EnvValue, Label};
 use crate::runtime::memory::StageAccess;
 use crate::style::{Corners, Ink, SurfaceKind};
 use craft_i18n::Direction;
 use egui::{Context, Pos2, Rect, Vec2, vec2};
 use std::cell::RefCell;
+
+/// The one Show Transformation Values gate: while it holds `false` in the root env, [`readout`] and the tool host's
+/// paint of a tool's readout rows paint nothing. [`hud`] is never gated.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ShowReadouts(pub bool);
+
+impl EnvValue for ShowReadouts {
+    fn root() -> Self {
+        ShowReadouts(true)
+    }
+}
 
 /// Paints rows of a label and a value beside the pointer at `at`, on the ghost layer above every popup, for this
 /// pass only: a gesture calls it each pass it runs. The readout takes no input. It sits toward the lower end side
@@ -16,6 +27,11 @@ use std::cell::RefCell;
 /// label and the widest value a section gap apart. Labels are in the muted ink and values in the normal one. No rows
 /// paint nothing.
 pub fn readout(cx: &impl StageAccess, at: Pos2, rows: &[(Label, String)]) {
+    paint_readout(cx.stage().ctx(), at, rows);
+}
+
+/// [`readout`] that the Show Transformation Values gate ([`ShowReadouts`]) never silences: brush size readouts.
+pub fn hud(cx: &impl StageAccess, at: Pos2, rows: &[(Label, String)]) {
     paint_readout(cx.stage().ctx(), at, rows);
 }
 

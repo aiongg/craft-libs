@@ -8,7 +8,7 @@ use super::style::TitleBarStyle;
 use super::title::{Title, centre_line};
 use crate::contract::{
     Access, BodyCx, BodyLayout, Common, Component, Container, ContainerProps, Cx, DragBand, EndRegion, Gap, HeaderRegion, NoValue, Outcome, Pad,
-    PaintUi, Role, ShowContainer as _, Sizing, WordSetCx as _,
+    PaintUi, PartsCx, Role, ShowContainer as _, Sizing, WordSetCx as _,
 };
 use crate::layout::{Placed, arrange};
 use crate::primitives::{RectSide, RuleKind};
@@ -19,9 +19,9 @@ use crate::runtime::windows::{self, WindowAction, WindowHost};
 use crate::shell::app_shell::RegionBody;
 use crate::shell::{Caption, CaptionButton, CaptionIcons, Frame, ShellWords, SlotSize};
 use crate::style::{StyleCx, SurfaceKind};
-use craft_behavior::Sense;
+use craft_behavior::{PartKey, Sense};
 use craft_host::target::{DoubleClick, WindowState};
-use egui::{Response, Ui};
+use egui::{Rect, Response, Ui};
 
 /// What a title bar reports: the caption clicked and whether the window was asked to close.
 #[derive(Debug)]
@@ -213,7 +213,7 @@ impl Default for TitleBar<'_> {
 
 impl Component for TitleBar<'_> {
     const ROLE: Role = Role::GROUP;
-    const PARTS: bool = false;
+    const PARTS: bool = true;
     const STOPS: bool = false;
     const OVERLAYS: bool = false;
     type Style = TitleBarStyle;
@@ -225,6 +225,13 @@ impl Component for TitleBar<'_> {
 
     fn sense(&self) -> Sense {
         Sense::empty()
+    }
+
+    /// One inert part over the bar's rect. A press anywhere on the bar keeps a focused draft (the zoom field)
+    /// unapplied.
+    fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
+        // P3(canvas-widgets-w11): cw.C65 adds `.holds_drafts()` (cw.C58) once it has a body.
+        cx.part(PartKey::new("title_bar"), rect).sense(Sense::empty());
     }
 
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {

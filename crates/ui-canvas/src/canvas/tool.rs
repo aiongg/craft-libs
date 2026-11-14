@@ -10,7 +10,8 @@ use crate::primitives::{ContentPainterCx, Draw};
 use crate::runtime::env::{Direction, Env, Label, MotionPolicy, PointSize, UnitWords, Units, WordSet, Words};
 use crate::runtime::motion::loop_phase;
 use crate::style::StyleCx;
-use craft_behavior::kurbo::Point;
+use craft_behavior::geometry::SnapLine;
+use craft_behavior::kurbo::{self, Point};
 use craft_behavior::{Axis, CancelReason, CanvasView, Cursor, CursorIcon, GestureId, PointerButton, PointerSample};
 use craft_i18n::{Digits, Format, Region};
 use craft_keymap::{Chord, Key, Mods, Platform};
@@ -215,6 +216,8 @@ pub(crate) struct ToolRequests {
     pub(crate) repaint: bool,
     pub(crate) view: Option<CanvasView>,
     pub(crate) ease: Option<ViewEase>,
+    pub(crate) snapped: Vec<SnapLine>,
+    pub(crate) autoscroll_at: Option<Pos2>,
 }
 
 /// What a tool sees and may ask for during a call.
@@ -234,6 +237,7 @@ pub struct ToolContext<'a> {
     /// Whether Caps Lock is on now (a brush shows its precise cursor): the platform's toggle state, read once per
     /// pass, not a count of key presses.
     pub caps_lock: bool,
+    precise_cursors: bool,
     space: Option<CanvasSpace>,
     gesture: Option<GestureId>,
     down: &'a [Key],
@@ -266,6 +270,7 @@ impl<'a> ToolContext<'a> {
             gesture: None,
             down: &[],
             caps_lock: false,
+            precise_cursors: false,
             painter: None,
             style: None,
             env: None,
@@ -315,6 +320,18 @@ impl<'a> ToolContext<'a> {
     pub fn caps_lock(mut self, on: bool) -> Self {
         self.caps_lock = on;
         self
+    }
+
+    /// Whether Preferences > Cursors > Other Cursors is Precise.
+    #[must_use]
+    pub fn precise_cursors(mut self, on: bool) -> Self {
+        self.precise_cursors = on;
+        self
+    }
+
+    /// Whether the tool shows its precise cursor now: `precise_cursors` differs from Caps Lock.
+    pub fn precise(&self) -> bool {
+        self.precise_cursors != self.caps_lock
     }
 
     /// The press arena's slop.
@@ -403,6 +420,30 @@ impl<'a> ToolContext<'a> {
         }
     }
 
+    /// The offset that moves `rect` (document units) onto a View > Snap To target with the modifiers held now; zero
+    /// when Control suspends snapping or the canvas has no snap.
+    pub fn snap_rect(&mut self, rect: kurbo::Rect) -> kurbo::Vec2 {
+        let _ = rect;
+        todo!("cw.C8")
+    }
+
+    /// Adds the snap lines a canvas control the tool shows snapped this pass, handed to the host in the same pass.
+    pub fn add_snapped(&mut self, lines: impl IntoIterator<Item = SnapLine>) {
+        self.requests.snapped.extend(lines);
+    }
+
+    /// Sets the view for a pan (as [`set_view`](Self::set_view)); the host reports it as [`ViewPan`].
+    pub fn pan_view(&mut self, view: CanvasView, scroll_all: bool) {
+        let _ = (view, scroll_all);
+        todo!("cw.C10")
+    }
+
+    /// A canvas control the tool shows asks the app to scroll: the host reports `past_edge` for `pointer` through the
+    /// tool's drag rule.
+    pub fn autoscroll_at(&mut self, pointer: Pos2) {
+        self.requests.autoscroll_at = Some(pointer);
+    }
+
     /// The OS the pass runs on: the env's; the build's for a context built without an env.
     fn os(&self) -> Platform {
         self.env.map_or_else(Platform::current, |env| env.os)
@@ -479,6 +520,13 @@ impl<'a> ToolContext<'a> {
         self.requests.readout = Some(rows);
     }
 
+    /// Labelled values to show beside the pointer this pass, never gated by Show Transformation Values (brush size
+    /// readouts). The last request of a pass wins.
+    pub fn hud(&mut self, rows: Vec<(Label, String)>) {
+        let _ = rows;
+        todo!("cw.C2")
+    }
+
     /// Asks for another pass (an animation, a held key that repeats).
     pub fn request_repaint(&mut self) {
         self.requests.repaint = true;
@@ -513,11 +561,20 @@ pub struct ToolClaims {
     /// Decrement on the tool's node and turns them into [`ToolKey::Nudge`], so a tool that claims the nudges
     /// describes what they move in [`CanvasTool::access`]. The arrows reach [`CanvasTool::key`] either way.
     pub nudges: bool,
+    /// Single chords the tool takes while the rest of the keyboard stays the app's, delivered as [`ToolKey::Kept`].
+    pub keys: &'static [Chord],
 }
 
 impl ToolClaims {
     /// No keys: every key stays the app's.
-    pub const NONE: ToolClaims = ToolClaims { keyboard: false, deletes: false, nudges: false };
+    pub const NONE: ToolClaims = ToolClaims { keyboard: false, deletes: false, nudges: false, keys: &[] };
+
+    /// The same claims with the single chords `keys`.
+    #[must_use]
+    pub const fn keys(mut self, keys: &'static [Chord]) -> Self {
+        self.keys = keys;
+        self
+    }
 
     /// The same claims with the canvas's plain keys.
     #[must_use]
@@ -608,6 +665,18 @@ pub trait CanvasTool {
     /// follows the pointer). While it does, the host calls `hover` in every pass the pointer stays in the edge band,
     /// since the view scrolls under it. Default: `false`.
     fn autoscrolls_on_hover(&self) -> bool {
+        false
+    }
+
+    /// Whether the tool changes only the view: its primary gestures pass under a modal that keeps the canvas.
+    /// Default: `false`.
+    fn view_only(&self) -> bool {
+        false
+    }
+
+    /// Whether the host calls `drag` once per pointer move of a pass (the freehand family) instead of once at the
+    /// latest position. Default: `false`.
+    fn takes_every_move(&self) -> bool {
         false
     }
 

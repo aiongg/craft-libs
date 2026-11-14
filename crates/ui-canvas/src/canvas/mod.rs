@@ -26,10 +26,10 @@ mod tool_groups;
 mod tool_host;
 
 pub use crate::canvas_data::{Guide, GuideColor, GuideDrag, GuideKey, GuideLine, NavigatorOptions, NavigatorSettings, ProxyColor};
-pub use crop::{CropOverlay, CropOverlayOutput, CropShield, CropStyle, ShieldColor};
+pub use crop::{CropOverlay, CropOverlayOutput, CropShield, CropStyle, ShieldColor, paint_outside};
 pub use frame_step::{FRAME_STEP_MAX, frame_step};
 pub(crate) use march::{MARCH_SECONDS, MARCH_TICK, march_shift};
-pub use readout::readout;
+pub use readout::{ShowReadouts, hud, readout};
 pub use space::{CanvasSpace, RulerText, canvas_space, pixel_aligned};
 pub use words::CanvasWords;
 
@@ -37,7 +37,7 @@ pub use words::CanvasWords;
 pub use tool::tool_probe;
 pub use tool::{CanvasTool, NoTool, ToolAccess, ToolAction, ToolAnchor, ToolClaims, ToolContext, ToolKey, ToolPointer, ViewEase};
 pub use tool_groups::{PickStep, tool_pick};
-pub use tool_host::{ToolHost, ToolHostResponse, ToolInput, ToolReadout};
+pub use tool_host::{ContextRequest, StandInKey, ToolHost, ToolHostResponse, ToolInput, ToolReadout, ViewPan};
 
 mod raster_source;
 pub use raster_source::{PixelRect, RasterSource};
@@ -59,7 +59,7 @@ mod snap;
 pub use opacity_keys::OpacityDigit;
 pub(crate) use rulers::LABEL_STEP_MIN;
 pub use rulers::{NUDGE, NUDGE_FAR};
-pub use snap::{Snap, canvas_snap, snap_suspended, snap_tolerance};
+pub use snap::{GestureSnap, Snap, canvas_snap, snap_suspended, snap_tolerance};
 pub(crate) use space::context_menu;
 pub use space::{BackgroundPress, BodyKeys, CanvasRulers, context_click};
 // End of l4d-space.
@@ -181,6 +181,9 @@ pub struct Canvas<'a> {
     /// ([`ToolContext::snap`]). Without it nothing snaps.
     #[prop]
     snap: Option<Snap>,
+    /// The pasteboard colour, set once here; the pasteboard and the crop shield read it from the space.
+    #[prop]
+    pasteboard: PasteboardColor,
     /// The view of this pass, after the canvas folded in its input.
     settled: Option<Settled>,
     /// The Menu key or Shift+F10 reached the focused canvas this pass.
@@ -218,6 +221,7 @@ impl<'a> Canvas<'a> {
             navigation: NavigationOptions::default(),
             show_rulers: false,
             keys_to_body: false,
+            pasteboard: PasteboardColor::Default,
             rulers: None,
             snap: None,
             settled: None,
@@ -428,7 +432,15 @@ impl<'a> Canvas<'a> {
         if easing {
             space.ease_through(shown);
         }
-        Some(space.with_keys(keys).with_document(self.document_size()).with_rulers(self.rulers).with_background(background).with_canvas(id))
+        Some(
+            space
+                .with_keys(keys)
+                .with_document(self.document_size())
+                .with_rulers(self.rulers)
+                .with_pasteboard(self.pasteboard)
+                .with_background(background)
+                .with_canvas(id),
+        )
     }
 
     /// The press on the background part as the canvas reports it, and the pan of a middle-button drag: a middle press

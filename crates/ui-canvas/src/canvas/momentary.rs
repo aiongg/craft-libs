@@ -73,12 +73,21 @@ pub struct Momentary {
     latched: Option<MomentaryTool>,
     hand: HandTool,
     zoom: ZoomTool,
+    /// The selected tool is the Hand: Cmd and Alt at a press then give Zoom In and Zoom Out.
+    #[allow(dead_code)] // P3(canvas-widgets-w2): cw.C15
+    hand_selected: bool,
 }
 
 impl Momentary {
     /// The momentary tools under `options`. The Zoom tool reads the document's size from the canvas's space.
     pub fn new(options: NavigationOptions) -> Self {
-        Momentary { held: None, latched: None, hand: HandTool::new(options), zoom: ZoomTool::new(options) }
+        Momentary { held: None, latched: None, hand: HandTool::new(options).lent(), zoom: ZoomTool::new(options), hand_selected: false }
+    }
+
+    /// Tells the set whether the selected tool is the Hand: with the Hand selected and no Space held, Cmd and Alt at a
+    /// press give Zoom In and Zoom Out with the same latch.
+    pub fn hand_selected(&mut self, selected: bool) {
+        self.hand_selected = selected;
     }
 
     /// Follows a change of the navigation options.

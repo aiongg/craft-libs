@@ -5,6 +5,7 @@
 //! control reads it with [`canvas_space`]; the canvas's tool reads it with `ToolContext::space`, handed over by
 //! `CanvasOutput::space`.
 
+use super::PasteboardColor;
 use crate::contract::{Component, Cx, Focus as _, Pointer as _};
 use crate::runtime::env::{AppValues, EnvValue, EnvView, UnitKind, Units};
 use craft_behavior::canvas::zoom;
@@ -33,6 +34,7 @@ pub struct CanvasSpace {
     background: BackgroundPress,
     /// The canvas's id, under which its controls claim keys on the focused canvas.
     canvas: Option<egui::Id>,
+    pasteboard: PasteboardColor,
 }
 
 impl CanvasSpace {
@@ -50,6 +52,7 @@ impl CanvasSpace {
             rulers: None,
             background: BackgroundPress::default(),
             canvas: None,
+            pasteboard: PasteboardColor::Default,
         }
     }
 
@@ -108,6 +111,25 @@ impl CanvasSpace {
     pub fn with_background(mut self, background: BackgroundPress) -> Self {
         self.background = background;
         self
+    }
+
+    /// This space with the pasteboard colour the canvas was given.
+    #[must_use]
+    pub fn with_pasteboard(mut self, color: PasteboardColor) -> Self {
+        self.pasteboard = color;
+        self
+    }
+
+    /// The pasteboard colour set once on the canvas: the pasteboard and the crop shield read it from the space.
+    pub fn pasteboard(&self) -> PasteboardColor {
+        self.pasteboard
+    }
+
+    /// Appends `shapes` to the canvas's picture slot, so they paint under every canvas control of the body, in show
+    /// order with the displays that use [`RasterDisplay::picture`](super::RasterDisplay::picture).
+    pub fn paint_picture(&self, shapes: Vec<egui::Shape>) {
+        let _ = shapes;
+        todo!("cw.C70")
     }
 
     /// This space published by the canvas `id`.

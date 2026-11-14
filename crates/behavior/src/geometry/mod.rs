@@ -15,7 +15,7 @@ pub mod quad;
 pub mod selection_op;
 pub mod snap;
 
-pub use crop::{AspectHold, CropBox, CropGuide, GuideShow, crop_view, crop_view_about, hit_rect, screen_step};
+pub use crop::{AspectHold, CropBox, CropGuide, GuideShow, crop_view, crop_view_about, hit_rect, screen_step, turn_grid};
 pub use draft::{DraftEvent, DraftKind, DraftPoint, DraftReach, OutlineDraft};
 pub use lock::{Directions, LOCK_HYSTERESIS_DEGREES, lock_direction, polygon_step, round_to_direction, turn_to_45};
 pub use marquee::{Constraint, MarqueeGesture, MarqueeRect, fixed_size_pixels, marquee_pixels, square_pixels};

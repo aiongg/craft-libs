@@ -6,11 +6,12 @@ mod stories;
 
 use crate::canvas::{CanvasRulers, canvas_space};
 use crate::contract::{Common, Component, Cx, MeasureCx, PaintUi, Role};
-use crate::primitives::{Dashes, PaintShape, Rule, StrokeWidth, TextRun};
+use crate::primitives::{ContentPainterCx, Dashes, PaintShape, Rule, StrokeWidth, TextRun};
 use crate::runtime::env::Units;
 use crate::style::{ComponentStyle, DataColor, RuleLook, RuleWidth, StyleColor, StyleCx, TypeRole, UiTokens};
+use craft_behavior::geometry::SnapLine;
 use craft_behavior::kurbo::{Point, Rect as DocRect};
-use craft_behavior::{Metrics, Sense};
+use craft_behavior::{CanvasView, Metrics, Sense};
 use craft_theme::{Rgba, contrast_ratio};
 use egui::emath::GuiRounding as _;
 use egui::{Color32, CornerRadius, Pos2, Response, Vec2};
@@ -31,6 +32,12 @@ impl SmartLine {
     /// A solid line from `a` to `b`.
     pub const fn new(a: Point, b: Point) -> Self {
         Self { a, b, extension: false }
+    }
+
+    /// The line of `line` the host draws for a snap: a line with no span runs across `visible`.
+    pub fn of(line: &SnapLine, visible: DocRect) -> SmartLine {
+        let _ = (line, visible);
+        todo!("cw.C18")
     }
 
     /// The same line as a dashed extension.
@@ -130,6 +137,28 @@ impl<'a> SmartGuides<'a> {
     }
 }
 
+/// The line loop of [`SmartGuides`]'s paint: a rule per line, an extension dashed. The tool host paints the snapped
+/// lines through it outside a canvas body, where `SmartGuides` paints nothing.
+pub(crate) fn paint_lines(
+    painter: &ContentPainterCx<'_>,
+    view: &CanvasView,
+    lines: &[SmartLine],
+    style: &SmartGuidesStyle,
+    color: Option<DataColor>,
+) {
+    let fill = color.map_or(style.smart.egui(), |color| color.0);
+    let ppp = painter.pixels_per_point();
+    let line = RuleLook { color: fill, width: RuleWidth::Points(style.width) };
+    for smart in lines {
+        let (a, b) = (view.to_screen(smart.a), view.to_screen(smart.b));
+        if smart.extension {
+            painter.dashed(&[a, b], Dashes::even(style.dash), StrokeWidth::Thin, fill);
+        } else {
+            painter.painter.extend(Rule::shapes(&line, a, b, ppp));
+        }
+    }
+}
+
 fn contrast(fill: Color32, ink: StyleColor) -> f64 {
     let rgba = |color: Color32| Rgba(color.to_array());
     contrast_ratio(rgba(ink.egui()), rgba(fill))
@@ -181,14 +210,7 @@ impl Component for SmartGuides<'_> {
             let corners = view.quad(bounds).to_vec();
             ui.draw().stroke(&PaintShape::Polygon(corners), StrokeWidth::Thin, style.bounds);
         }
-        for smart in self.lines {
-            let (a, b) = (view.to_screen(smart.a), view.to_screen(smart.b));
-            if smart.extension {
-                painter.dashed(&[a, b], Dashes::even(style.dash), StrokeWidth::Thin, fill);
-            } else {
-                painter.painter.extend(Rule::shapes(&line, a, b, ppp));
-            }
-        }
+        paint_lines(&painter, view, self.lines, style, self.color);
         let ink = if contrast(fill, style.ink_dark) >= contrast(fill, style.ink_light) { style.ink_dark } else { style.ink_light };
         let draw = ui.draw();
         let (rulers, numbers) = (space.rulers(), cx.env.units());

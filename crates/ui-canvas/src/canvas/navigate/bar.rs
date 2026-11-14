@@ -23,6 +23,8 @@ pub struct NavigateBarOutput {
     pub response: Response,
     /// The view changes of this pass from the Zoom and Angle fields, for a binding that does not write through.
     pub view: EditEvents<CanvasView>,
+    /// The zoom field's refused entry of this pass, for the app's alert; `None` when the field took its input.
+    pub invalid_zoom: Option<crate::text::InvalidZoom>,
 }
 
 impl Outcome for NavigateBarOutput {
@@ -127,7 +129,7 @@ impl<'a> NavigateBar<'a> {
                 view_buttons(ui, &words);
             }),
         };
-        NavigateBarOutput { response: shown.output, view: events }
+        NavigateBarOutput { response: shown.output, view: events, invalid_zoom: None } // P3(canvas-widgets-w11): cw.C60
     }
 }
 

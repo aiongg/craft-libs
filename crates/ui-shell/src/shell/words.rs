@@ -30,6 +30,12 @@ craft_ui::words! {
         templates: "startScreen.templates" = "Templates";
         recent_menu: "startScreen.recentMenu" = "Recent file";
         pinned_menu: "startScreen.pinnedMenu" = "Pinned folder";
+        /// The accessible name of the start screen's rail of links.
+        start_links: "startScreen.links" = "Links";
+        /// The title line of the opening card.
+        opening: template "openingCard.title" = "Opening {name}…";
+        /// The accessible name of a recent row's revealed remove part.
+        remove_recent: template "startScreen.removeRecent" = "Remove {name} from Recent";
 
         /// The minimize button.
         minimize: "captionButton.minimize" = "Minimize";

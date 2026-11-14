@@ -45,6 +45,19 @@ pub struct DocumentWindowOutput {
     pub cascade: f32,
     /// The window gained OS focus in this pass.
     pub focus_gained: bool,
+    /// Whether the window took the size a zoom edit asked for in this pass (`Fits`: the host centres the document) or
+    /// the work area capped it (`Capped`: the zoomed spot stays); `None` when nothing was asked or sent.
+    pub wrapped: Option<Wrapped>,
+}
+
+/// How a window answered the size a zoom edit asked for ([`DocumentWindow::wrap_in`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum Wrapped {
+    /// The window took the wanted size.
+    Fits,
+    /// The monitor's work area capped the size.
+    Capped,
 }
 
 impl Outcome for DocumentWindowOutput {
@@ -89,6 +102,13 @@ pub struct DocumentWindow<'a> {
 }
 
 impl<'a> DocumentWindow<'a> {
+    /// Files the zoom edit's size request from the window's body: the window sizes itself so its `canvas` rect becomes
+    /// `wanted`, in the pass `finish` reads it, keeping its centre and staying inside the monitor's work area.
+    pub fn wrap_in(cx: &mut BodyCx<'_>, canvas: Rect, wanted: Vec2) {
+        let _ = (cx, canvas, wanted);
+        todo!("cw.C53")
+    }
+
     /// A window titled `title`, resizable, with the installed decision's frame.
     pub fn new(title: impl Into<Label>) -> Self {
         let fallback = Overlay::floating().resizable(true).fit(OverlayFit::Resizable);
@@ -197,7 +217,14 @@ impl Component for DocumentWindow<'_> {
         if focus_gained && let Some(activate) = self.activate.as_mut() {
             activate();
         }
-        DocumentWindowOutput { response: cx.response.clone(), close_requested: self.closed, focused, cascade: cx.style.cascade, focus_gained }
+        DocumentWindowOutput {
+            response: cx.response.clone(),
+            close_requested: self.closed,
+            focused,
+            cascade: cx.style.cascade,
+            focus_gained,
+            wrapped: None,
+        } // P3(canvas-widgets-w9): cw.C53
     }
 }
 

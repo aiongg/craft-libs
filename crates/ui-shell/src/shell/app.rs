@@ -167,7 +167,7 @@ fn create<A: ShellApp + 'static>(
     move |cc| {
         let ctx = cc.egui_ctx.clone();
         let system = crate::runtime::env::SystemReader::start(move || ctx.request_repaint());
-        let mut install = InstallSpec::new(spec.shell_info, spec.window_system).placement(spec.placement).system(system);
+        let mut install = InstallSpec::new(spec.shell_info, spec.window_system).placement(spec.placement).system(system).app_id(spec.app_id.clone());
         if let Some(decision) = spec.frame {
             install = install.frame(decision);
         }

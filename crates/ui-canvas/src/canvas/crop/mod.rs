@@ -27,7 +27,7 @@ use craft_keymap::{Chord, Key, Mods, Platform};
 use egui::{Pos2, Rect, Response, Vec2};
 use gesture::{Drag, Kind, Rules};
 
-pub use shield::{CropShield, ShieldColor};
+pub use shield::{CropShield, ShieldColor, paint_outside};
 
 /// A part of the frame: `FRAME.at(part.index())` with the whole frame at 0, the corners at 1 to 4 and the edges at 5
 /// to 8, so the keyboard order is the whole frame and then the corners and the edges clockwise.
@@ -154,6 +154,9 @@ pub struct CropOverlay<'a> {
     /// middle of the canvas.
     #[prop(flag)]
     auto_center: bool,
+    /// Nothing is painted and a press anywhere on the canvas draws a new frame.
+    #[prop(flag)]
+    hidden: bool,
     /// The snap targets a dragged part snaps to.
     #[prop]
     snap: Option<&'a SnapTargets>,
@@ -176,6 +179,7 @@ impl<'a> CropOverlay<'a> {
             bounds: None,
             image_mode: false,
             auto_center: false,
+            hidden: false,
             snap: None,
             report: Report::default(),
         }
@@ -417,6 +421,11 @@ pub struct CropOverlayOutput {
     pub turning: Option<f64>,
     /// The size Enter would crop to while the frame is drawn or resized.
     pub sizing: Option<(f64, f64)>,
+    /// The pointer of a draw, a classic move or a resize that is not live-centred: the crop tool hands it to
+    /// `ToolContext::autoscroll_at`; `None` for a turn, an image-mode move and a Straighten line.
+    pub scrolls_at: Option<Pos2>,
+    /// True in the pass a Straighten press is released or cancelled, whatever its length.
+    pub straighten_ended: bool,
 }
 
 impl Outcome for CropOverlayOutput {
@@ -643,6 +652,8 @@ impl Component for CropOverlay<'_> {
             nudged,
             turning,
             sizing,
+            scrolls_at: None,        // P3(tools-w15): tl.T43
+            straighten_ended: false, // P3(tools-w15): tl.T43
         }
     }
 }

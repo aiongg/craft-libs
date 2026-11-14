@@ -17,7 +17,8 @@ use crate::list::{List, ListRow, ThumbAspect};
 use crate::menu::{Menu, MenuItem};
 use crate::notices::{Notice, NoticeLayout};
 use crate::pickers::Select;
-use crate::primitives::{CachedTexture, ContentPainterCx, IconSpec, Revision, TextureState, TextureStore};
+use crate::primitives::{CachedTexture, ContentPainterCx, IconSpec, Revision, TextureState, TextureStore, ThumbSource, Thumbnails};
+use crate::runtime::commands::CommandRef;
 use crate::runtime::commands::{CommandSet as _, Commands as _};
 use crate::runtime::env::{AgeStyle, Env, Label};
 use crate::sections::Section;
@@ -155,14 +156,85 @@ pub struct StartScreen<'a> {
     #[prop]
     now: Option<i64>,
     /// The store that holds the thumbnails and previews, which the app fills.
-    #[prop]
     thumbnails: Option<TextureStore<ThumbKey>>,
+    /// The thumbnails and the source of each key's revision: cards, rows and templates ask `Thumbnails::state`.
+    #[allow(dead_code)] // P3(top-w5): tp.T29
+    shown: Option<(&'a Thumbnails<ThumbKey>, &'a dyn ThumbSource<ThumbKey>)>,
+    /// The links beside the page: New and Open at the rail's top, then these.
+    #[prop]
+    links: &'a [StartLink],
+    /// With no recent files, the Recent body is a drop card with this hint, and a double click on the page's own room
+    /// reports `StartAction::Open`.
+    #[prop(into)]
+    #[allow(dead_code)] // P3(canvas-widgets-w9): cw.C45
+    drop_hint: Option<Label>,
+}
+
+/// A link on the start screen's rail.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct StartLink {
+    /// The link's text.
+    pub label: Label,
+    /// The link's icon, a catalogue name (`home`, `globe`).
+    pub icon: Option<IconId>,
+    /// What the link does.
+    pub target: StartLinkTarget,
+}
+
+/// What a [`StartLink`] does.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub enum StartLinkTarget {
+    /// Opens the URL itself.
+    Url(String),
+    /// Fires the command.
+    Command(CommandRef),
+}
+
+impl StartLink {
+    /// A link that opens `url`, shown as its tooltip.
+    pub fn url(label: impl Into<Label>, icon: Option<IconId>, url: impl Into<String>) -> Self {
+        StartLink { label: label.into(), icon, target: StartLinkTarget::Url(url.into()) }
+    }
+
+    /// A link that fires `command`.
+    pub fn command(label: impl Into<Label>, icon: Option<IconId>, command: impl Into<CommandRef>) -> Self {
+        StartLink { label: label.into(), icon, target: StartLinkTarget::Command(command.into()) }
+    }
 }
 
 impl<'a> StartScreen<'a> {
     /// A start screen of `recent` files, shown in `view` and ordered by `sort`; names sort in the env's language.
     pub fn new(view: Bind<'a, RecentView>, sort: Bind<'a, RecentSort>, recent: &'a [RecentFile]) -> Self {
-        StartScreen { view, sort, recent, pinned: None, templates: &[], max_recent: RECENT_SHOWN, now: None, thumbnails: None }
+        StartScreen {
+            view,
+            sort,
+            recent,
+            pinned: None,
+            templates: &[],
+            max_recent: RECENT_SHOWN,
+            now: None,
+            thumbnails: None,
+            shown: None,
+            links: &[],
+            drop_hint: None,
+        }
+    }
+
+    /// Cards, rows and templates ask `thumbnails.state(..)` for what they show; `source` gives each key's revision.
+    #[must_use]
+    pub fn thumbnails(mut self, thumbnails: &'a Thumbnails<ThumbKey>, source: &'a dyn ThumbSource<ThumbKey>) -> Self {
+        self.shown = Some((thumbnails, source));
+        self
+    }
+
+    /// The store of thumbnails the page reads today.
+    #[must_use]
+    pub(crate) fn texture_store(mut self, store: TextureStore<ThumbKey>) -> Self {
+        // P3(top-w5): tp.T29
+        self.thumbnails = Some(store);
+        self
     }
 }
 
@@ -290,7 +362,7 @@ fn read_events<K: Clone, E>(events: Vec<CollectionEvent<K, E>>, lead: &mut Optio
 impl StartScreen<'_> {
     /// Shows the page across the available room and reports what the user did.
     pub fn show(self, ui: &mut Ui) -> StartOutput {
-        let StartScreen { view, sort, recent, pinned, templates, max_recent, now, thumbnails } = self;
+        let StartScreen { view, sort, recent, pinned, templates, max_recent, now, thumbnails, .. } = self; // P3(top-w5): tp.T29
         let env = Env::of(ui);
         let collator = env.collator();
         let words = env.words::<ShellWords>();

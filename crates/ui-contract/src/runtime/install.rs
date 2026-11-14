@@ -2,6 +2,7 @@
 
 use crate::runtime::egui::{input, plugin};
 use crate::runtime::env::{SystemReader, system};
+use crate::runtime::pen::PenSource;
 use crate::runtime::{commands, frame, windows};
 use crate::style::{DuplicateStyle, StyleReplacements};
 use craft_host::target::ShellInfo;
@@ -9,6 +10,7 @@ use craft_window::policy::Decision;
 use craft_window::restore::Store;
 use craft_window::system::WindowSystem;
 use egui::Context;
+
 use std::sync::{Arc, Mutex};
 
 /// What `install` takes.
@@ -35,6 +37,8 @@ pub struct InstallSpec {
     pub wheel: WheelModifiers,
     /// The app id every OS window carries (dock icon, Wayland compositor rules); empty carries none.
     pub app_id: String,
+    /// The tablet readings the pointer feed pairs with each pointer move; none reports no pen.
+    pub pen: Option<PenSource>,
 }
 
 /// The modifiers the mouse wheel zooms and scrolls sideways with.
@@ -65,6 +69,7 @@ impl InstallSpec {
             system: SystemReader::unwatched(),
             wheel: WheelModifiers::default(),
             app_id: String::new(),
+            pen: None,
         }
     }
 
@@ -95,6 +100,18 @@ impl InstallSpec {
     /// Sets the root window's decided frame (`craft_window::policy::decide_for`).
     pub fn frame(mut self, decision: Decision) -> Self {
         self.frame = Some(decision);
+        self
+    }
+
+    /// Sets the app id every OS window carries (dock icon, Wayland compositor rules).
+    pub fn app_id(mut self, id: impl Into<String>) -> Self {
+        self.app_id = id.into();
+        self
+    }
+
+    /// Sets the tablet source the pointer feed reads.
+    pub fn pen(mut self, source: PenSource) -> Self {
+        self.pen = Some(source);
         self
     }
 

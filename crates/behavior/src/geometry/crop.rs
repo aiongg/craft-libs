@@ -500,6 +500,14 @@ pub enum CropGuide {
     GoldenSpiral,
 }
 
+/// The lines of the grid a default-mode turn shows over a `w` by `h` frame: `step` apart counted from the frame's
+/// centre, none on the outline, only inside `visible`; empty for a frame under one point or non-finite input.
+#[allow(dead_code)] // P3(tools-w15): tl.T43
+pub fn turn_grid(w: f64, h: f64, step: f64, visible: kurbo::Rect) -> Vec<Vec<Point>> {
+    let _ = (w, h, step, visible);
+    todo!("tl.T43")
+}
+
 impl CropGuide {
     /// Every guide, in the order `next` cycles through.
     pub const ALL: [CropGuide; 6] = [Self::Thirds, Self::Grid, Self::Diagonal, Self::Triangle, Self::GoldenRatio, Self::GoldenSpiral];

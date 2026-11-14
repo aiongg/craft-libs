@@ -55,7 +55,7 @@
 //! ```
 
 use super::frame_step;
-use super::momentary::{Momentary, MomentaryCommands};
+use super::momentary::{Momentary, MomentaryCommands, MomentaryTool};
 use super::navigate::Autoscroll;
 use super::readout::paint_readout;
 use super::tool::{CanvasTool, March, ToolAccess, ToolAction, ToolClaims, ToolContext, ToolKey, ToolPointer, ToolRequests};
@@ -70,7 +70,8 @@ use crate::runtime::env::{Env, Label};
 use crate::runtime::memory::{global, with_session};
 use crate::runtime::pointer::{self, PointerFrame};
 use crate::runtime::{cursor, frame, keys, lock_keys, measure};
-use crate::style::StyleCx;
+use crate::style::{DataColor, StyleCx};
+use craft_behavior::geometry::SnapLine;
 use craft_behavior::kurbo;
 use craft_behavior::{
     AccessAction, AccessRequest, CancelReason, CanvasView, Cursor, CursorPriority, GestureId, GesturePhase, Intent, PartKey, PartRef, PointerButton,
@@ -193,6 +194,52 @@ pub struct ToolHostResponse {
     /// off), else the canvas's own ([`CanvasOutput::view`]): the one view the app copies into its own. A view that
     /// eases is its target; the canvas shows the way there.
     pub view: Option<CanvasView>,
+    /// The snap lines of this pass from `snap_rect` and `add_snapped`.
+    pub snapped: Vec<SnapLine>,
+    /// Where the app opens its canvas menu: a secondary press on the background the running tool did not take, or the
+    /// Menu key or Shift+F10.
+    pub context: Option<ContextRequest>,
+    /// The document distance the view centre moved this pass from a `pan_view`, after the Overscroll clamp.
+    pub pan: Option<ViewPan>,
+}
+
+/// Where and how the app opens its canvas menu, from [`ToolHostResponse::context`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct ContextRequest {
+    /// The pointer on screen, or the view centre for a key.
+    pub at: Pos2,
+    /// The modifiers held when the secondary button went down, or those held at the key.
+    pub mods: Mods,
+    /// The momentary tool in effect at the press (a Space-held Hand).
+    pub momentary: Option<MomentaryTool>,
+}
+
+/// A pan of the view, from [`ToolHostResponse::pan`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct ViewPan {
+    /// The document distance the view centre moved.
+    pub delta: kurbo::Vec2,
+    /// The press's scroll-all-windows choice.
+    pub scroll_all: bool,
+}
+
+impl ViewPan {
+    /// A pan of `delta` document units with the press's `scroll_all` choice.
+    pub const fn new(delta: kurbo::Vec2, scroll_all: bool) -> Self {
+        ViewPan { delta, scroll_all }
+    }
+}
+
+/// A key whose hold at a press makes the host run a stand-in tool, from [`ToolHost::stand_in`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum StandInKey {
+    /// The platform command key.
+    Command,
+    /// The Alt key.
+    Alt,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -234,6 +281,14 @@ fn state_id(canvas: Id) -> Id {
 pub struct ToolHost<'m> {
     disabled: bool,
     momentary: Option<&'m mut Momentary>,
+    #[allow(dead_code)] // P3(canvas-widgets-w2): cw.C1
+    command_stand_in: Option<&'m mut (dyn CanvasTool + 'm)>,
+    #[allow(dead_code)] // P3(canvas-widgets-w2): cw.C1
+    alt_stand_in: Option<&'m mut (dyn CanvasTool + 'm)>,
+    #[allow(dead_code)] // P3(canvas-widgets-w2): cw.C3
+    smart_guide_color: Option<DataColor>,
+    #[allow(dead_code)] // P3(canvas-widgets-w2): cw.C4
+    precise_cursors: bool,
 }
 
 impl<'m> ToolHost<'m> {
@@ -261,10 +316,35 @@ impl<'m> ToolHost<'m> {
         self
     }
 
+    /// The tool a press runs when `key` is held at the press and the selected tool does not take it, latched for the
+    /// gesture. Order: `Momentary` first, then Command, then Alt.
+    #[must_use]
+    pub fn stand_in(mut self, key: StandInKey, tool: &'m mut (dyn CanvasTool + 'm)) -> Self {
+        match key {
+            StandInKey::Command => self.command_stand_in = Some(tool),
+            StandInKey::Alt => self.alt_stand_in = Some(tool),
+        }
+        self
+    }
+
+    /// The user's Smart Guide colour; `None` is the guides' own `data.magenta`.
+    #[must_use]
+    pub fn smart_guide_color(mut self, color: Option<DataColor>) -> Self {
+        self.smart_guide_color = color;
+        self
+    }
+
+    /// Preferences > Cursors > Other Cursors (Precise); reaches [`ToolContext::precise`].
+    #[must_use]
+    pub fn precise_cursors(mut self, on: bool) -> Self {
+        self.precise_cursors = on;
+        self
+    }
+
     /// Delivers the pass's pointer and key events to `tool`, paints it over the canvas, and paints the readout it
     /// asked for beside the pointer.
     pub fn run(self, ui: &Ui, canvas: &CanvasOutput, tool: &mut dyn CanvasTool) -> ToolHostResponse {
-        let ToolHost { disabled, momentary } = self;
+        let ToolHost { disabled, momentary, .. } = self; // P3(canvas-widgets-w2): cw.C1, cw.C3, cw.C4
         let ctx = ui.ctx().clone();
         let env = Env::of(ui);
         let key = state_id(canvas.response.id);

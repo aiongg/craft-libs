@@ -3,7 +3,7 @@
 use super::full_window_parts::SideFooter;
 use crate::canvas::ViewCommands;
 use crate::contract::{
-    Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, EndRegion, FooterPlace, FooterRegion, HeaderRegion, Mount, Pad,
+    Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, EndRegion, FooterPlace, FooterRegion, HeaderRegion, Mount, Overlay, Pad,
     Props as _, Role, SaveKey,
 };
 use crate::dialog::frame::{self, DialogOutput, FOOTER, FooterCx, FooterFn, FooterHooks};
@@ -12,12 +12,13 @@ use crate::runtime::commands::{self, CommandScope, CommandSet as _};
 use crate::runtime::env::Label;
 use crate::runtime::focus::{EnterRule, FocusPolicy, Initial};
 use crate::runtime::overlay::CloseReason;
+use crate::runtime::windows::WindowSpec;
 use crate::sections::FooterButton;
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
 use craft_behavior::{Metrics, Sense};
 use egui::Ui;
 
-pub use hosted::{FullWindowWorkspace, HostedWorkspace, WorkspacePass};
+pub use hosted::{FullWindowWorkspace, HostedWorkspace, WorkspaceCx, WorkspacePass};
 
 mod hosted;
 #[cfg(feature = "testing")]
@@ -118,6 +119,15 @@ impl<'a> FullWindowDialog<'a> {
             body_shown: false,
         }
         .label(title)
+    }
+
+    /// Shows the dialog in its own OS window described by `spec`, resizable, opening at the saved placement; where
+    /// viewports are unavailable it fills the main window. The dialog's focus policy moves into the fallback overlay.
+    #[must_use]
+    pub fn own_window(mut self, spec: WindowSpec) -> Self {
+        self.props.mount = Mount::viewport_with(Overlay::full_window(self.props.focus), spec);
+        self.props.focus = FocusPolicy::NONE;
+        self
     }
 
     /// Who gets Enter: the dialog's submit, or the body.

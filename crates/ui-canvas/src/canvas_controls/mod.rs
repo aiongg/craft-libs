@@ -6,7 +6,7 @@ mod words;
 mod guides;
 mod smart_guides;
 
-pub use guides::{GuideCommands, GuideStyle, Guides, GuidesOutput};
+pub use guides::{GuideCommands, GuideStyle, Guides, GuidesOutput, reading};
 pub use smart_guides::{Measure, SmartGuides, SmartGuidesStyle, SmartLine};
 pub use words::CanvasControlWords;
 
@@ -17,6 +17,7 @@ mod line_preview;
 mod marquee;
 mod outline;
 mod pixel_grid;
+mod task_bar;
 
 pub use bands::{range_bands, rect_around};
 pub use grid::{CanvasGrid, GridAxis, GridLine, GridLines, GridStyle, MAX_LINES};
@@ -24,6 +25,7 @@ pub use line_preview::{LineGuideStyle, StraightLinePreview};
 pub use marquee::{Marquee, MarqueeLook, MarqueeShape, MarqueeStyle, Run};
 pub use outline::{HoverMask, HoverOutline, HoverShape, OutlineStyle, SelectionOutline, SelectionOutlineLook, path_runs};
 pub use pixel_grid::{GridSegment, PixelGrid, PixelGridStyle};
+pub use task_bar::{TaskBar, TaskBarCx, TaskBarOutput, TaskBarPlace};
 // End of canvas-controls-b.
 
 // Brush overlays.

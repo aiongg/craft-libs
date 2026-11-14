@@ -27,19 +27,23 @@ pub struct LineGuideStyle {
 
 /// The Shift-click line from `from` (the end of the last stroke) to `to` (the pointer), both in document units. A
 /// non-finite end draws nothing. The brush tip at the pointer is the cursor's, not this line's.
-#[derive(crate::contract::Component)]
+#[derive(crate::contract::Component, crate::contract::Props)]
 #[component(canvas_control)]
 pub struct StraightLinePreview {
     #[common]
     common: Common,
     from: Point,
     to: Point,
+    /// A filled disc in the line colour at `from`, twice the thick stroke wide: the brush end of the smoothing string.
+    #[prop(flag)]
+    #[allow(dead_code)] // P3(tools-w17): cw.C36
+    dot: bool,
 }
 
 impl StraightLinePreview {
     /// A line named `label` from `from` to `to` (document units).
     pub fn new(label: impl Into<Label>, from: Point, to: Point) -> Self {
-        StraightLinePreview { common: Common::new(), from, to }.label(label)
+        StraightLinePreview { common: Common::new(), from, to, dot: false }.label(label)
     }
 }
 

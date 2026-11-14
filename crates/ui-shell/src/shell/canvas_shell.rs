@@ -53,6 +53,8 @@ pub struct CanvasPanelOutput {
     pub tabs: Option<Rect>,
     /// The document area.
     pub document: Rect,
+    /// The second press of a double click on the document pane's own surface, where no document control took it.
+    pub empty_double: bool,
 }
 
 impl Outcome for CanvasPanelOutput {
@@ -124,7 +126,7 @@ impl<'a> CanvasPanel<'a> {
             tabs_rect = Some(out.response.rect);
         }
         let out = ShellRegion::pane(ShellPane::new("document")).id_salt("document").label(words.document.clone()).show(ui, |ui, cx| document(ui, cx));
-        CanvasPanelOutput { document: out.response.rect, response: out.output.response, rail: rail_rect, tabs: tabs_rect }
+        CanvasPanelOutput { document: out.response.rect, response: out.output.response, rail: rail_rect, tabs: tabs_rect, empty_double: false } // P3(canvas-widgets-w9): cw.C46
     }
 }
 

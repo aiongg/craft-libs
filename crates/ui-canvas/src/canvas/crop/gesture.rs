@@ -81,10 +81,12 @@ impl Rules<'_> {
                 let keep = (r.width() > 0.0 && r.height() > 0.0).then(|| r.width() / r.height());
                 let ratio = self.ratio.or(if mods.shift { keep } else { None });
                 let by = to - drag.from;
+                // P3(tools-w15): tl.T41
+                let hold = ratio.map_or(craft_behavior::geometry::AspectHold::Free, craft_behavior::geometry::AspectHold::Ratio);
                 let next = if self.image && self.auto_center {
-                    at.resized_centred(*part, by, ratio, mods.alt)?
+                    at.resized_centred(*part, by, hold, mods.alt)?
                 } else {
-                    at.resized(*part, by, ratio, mods.alt)
+                    at.resized(*part, by, hold, mods.alt)
                 };
                 (next, true, ratio.is_some())
             }

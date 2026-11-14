@@ -13,9 +13,13 @@ use craft_behavior::{Cursor, CursorPriority, PartRef, PressState};
 #[derive(Clone, Default)]
 struct BandDouble(bool);
 
-/// Whether the primary press of this pass went down on the container's own surface (`Sense::SURFACE`).
+/// Whether the primary press of this pass went down on the container's own surface (`Sense::SURFACE`), and whether it
+/// is the second of a double click.
 #[derive(Clone, Default)]
-struct SurfacePress(bool);
+struct SurfacePress {
+    pressed: bool,
+    double: bool,
+}
 
 impl BodyCx<'_> {
     /// Whether the second press of a double click went down on the container's move band in this pass. The body step
@@ -38,7 +42,13 @@ impl BodyCx<'_> {
     /// container decides what it means (a dock group focuses its panel, as Photoshop does); it is no click and moves
     /// no focus by itself.
     pub fn surface_pressed(&self) -> bool {
-        self.memory.recall::<SurfacePress>(sub(self.id, "surface_press")).0
+        self.memory.recall::<SurfacePress>(sub(self.id, "surface_press")).pressed
+    }
+
+    /// Whether the press of [`surface_pressed`](Self::surface_pressed) is the second press of a double click: no child
+    /// or part takes it and its click count is two or more. One own-surface signal for every container.
+    pub fn surface_double_pressed(&self) -> bool {
+        self.memory.recall::<SurfacePress>(sub(self.id, "surface_press")).double
     }
 
     /// Requests `cursor` at `priority` for this pass, in the cursor service the parts' and components' requests go
@@ -70,7 +80,9 @@ impl BodyHooks<'_> {
                 },
             )
         };
-        cx.core.memory.shown::<SurfacePress>(sub(sub(cx.core.id, "body"), "surface_press")).0 = pressed;
+        let shown = cx.core.memory.shown::<SurfacePress>(sub(sub(cx.core.id, "body"), "surface_press"));
+        shown.pressed = pressed;
+        shown.double = false; // P3(canvas-widgets-w9): cw.C46
     }
 
     /// Records for the container's header hooks whether the second press of a double click went down on the move

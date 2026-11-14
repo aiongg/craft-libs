@@ -2,10 +2,11 @@
 
 use std::sync::Arc;
 
-use egui::{Response, Ui};
+use egui::{Context, Response, Ui};
 
 use crate::contract::Bind;
-use crate::dialog::{DialogId, DialogResult, DialogStack, StackDialog, dialog_id};
+use crate::dialog::{DialogId, DialogResult, DialogStack, FieldRefusal, StackDialog, dialog_id};
+use crate::runtime::env::Label;
 
 /// A full-window workspace (Liquify, Filter Gallery, Select and Mask) that a [`HostedWorkspace`] shows on the app's
 /// [`DialogHost`](crate::dialog::DialogHost). The workspace keeps its session and view; the app's side of it (the
@@ -27,7 +28,45 @@ pub trait FullWindowWorkspace: Send + 'static {
 
     /// Shows one pass of the workspace's [`FullWindowDialog`](crate::dialog::FullWindowDialog), whose open state
     /// it binds to `open` ([`opened`](crate::dialog::FullWindowDialog::opened)).
-    fn show(&mut self, ui: &mut Ui, source: &Self::Source, open: Bind<'_, bool>) -> WorkspacePass<Self::Event, Self::Result>;
+    fn show(&mut self, ui: &mut Ui, cx: WorkspaceCx<'_, Self::Source>) -> WorkspacePass<Self::Event, Self::Result>;
+
+    /// The workspace's fields as JSON for the automation surface; `None` when it has none.
+    fn json_fields(&self) -> Option<serde_json::Value> {
+        None
+    }
+
+    /// Sets one field of the workspace; each key applies or is refused on its own. Refuses every key by default.
+    fn set_json_field(&mut self, ctx: &Context, source: &Self::Source, field: &str, value: serde_json::Value) -> Result<(), String> {
+        let _ = (ctx, source, value);
+        Err(FieldRefusal::NoFields.message(field))
+    }
+
+    /// Answers OK for the automation surface; `None` when the workspace has no answer to give.
+    fn confirm(&mut self, ctx: &Context, source: &Self::Source) -> Option<Self::Result> {
+        let _ = (ctx, source);
+        None
+    }
+
+    /// The app refused the OK the workspace held: `reason` is shown. Does nothing by default.
+    fn ok_failed(&mut self, reason: Label) {
+        let _ = reason;
+    }
+}
+
+/// What the host hands a [`FullWindowWorkspace`] each pass.
+#[non_exhaustive]
+pub struct WorkspaceCx<'a, S: ?Sized> {
+    /// What the workspace reads from the app.
+    pub source: &'a S,
+    /// Counts the source changes under an open workspace; the workspace adds it to its pending key, so a document edit
+    /// previews again and a late preview of the old pixels is dropped.
+    pub revision: u64,
+    /// The workspace dialog's open state.
+    pub open: Bind<'a, bool>,
+    /// OK is held: the workspace waits for the app's answer before it closes.
+    pub hold_ok: bool,
+    /// The app's answer to OK is pending.
+    pub ok_waits: bool,
 }
 
 /// What one pass of a [`FullWindowWorkspace`] reports.
@@ -76,6 +115,9 @@ pub struct HostedWorkspace<W: FullWindowWorkspace> {
     source: Arc<W::Source>,
     events: Vec<W::Event>,
     open: bool,
+    revision: u64,
+    hold_ok: bool,
+    ok_waits: bool,
     #[cfg(feature = "testing")]
     facts: crate::testing::StoryOutput,
 }
@@ -89,6 +131,9 @@ impl<W: FullWindowWorkspace> HostedWorkspace<W> {
             source,
             events: Vec::new(),
             open: true,
+            revision: 0,
+            hold_ok: false,
+            ok_waits: false,
             #[cfg(feature = "testing")]
             facts: crate::testing::StoryOutput::default(),
         }
@@ -107,6 +152,26 @@ impl<W: FullWindowWorkspace> HostedWorkspace<W> {
     /// The source the next pass reads.
     pub fn set_source(&mut self, source: Arc<W::Source>) {
         self.source = source;
+        self.revision += 1;
+    }
+
+    /// OK waits for the app's answer ([`answer_ok`](Self::answer_ok)) instead of closing the workspace at once.
+    #[must_use]
+    pub fn held_ok(mut self) -> Self {
+        self.hold_ok = true;
+        self
+    }
+
+    /// The OK the workspace is holding for the app to act on, once; `None` when none is held.
+    pub fn take_ok(&mut self) -> Option<W::Result> {
+        todo!("dl.K57")
+    }
+
+    /// The app's answer to a held OK: `Ok` closes the workspace with it, `Err(reason)` keeps it open and shows
+    /// `reason`.
+    pub fn answer_ok(&mut self, answer: Result<(), Label>) {
+        let _ = answer;
+        todo!("dl.K57")
     }
 
     /// The events of the passes since the last call, in order.
@@ -123,7 +188,14 @@ impl<W: FullWindowWorkspace> StackDialog for HostedWorkspace<W> {
     }
 
     fn show(&mut self, ui: &mut Ui, _: &DialogStack) -> Option<DialogResult<W::Result>> {
-        let pass = self.workspace.show(ui, &self.source, Bind::bound(&mut self.open));
+        let cx = WorkspaceCx {
+            source: &*self.source,
+            revision: self.revision,
+            open: Bind::bound(&mut self.open),
+            hold_ok: self.hold_ok,
+            ok_waits: self.ok_waits,
+        };
+        let pass = self.workspace.show(ui, cx);
         #[cfg(feature = "testing")]
         {
             self.facts = crate::contract::Outcome::story_facts(&pass.response);
@@ -134,6 +206,18 @@ impl<W: FullWindowWorkspace> StackDialog for HostedWorkspace<W> {
 
     fn key(&self) -> Option<&str> {
         Some(W::KEY)
+    }
+
+    fn confirm(&mut self, ctx: &Context) -> Option<W::Result> {
+        self.workspace.confirm(ctx, &*self.source)
+    }
+
+    fn json_fields(&self) -> Option<serde_json::Value> {
+        self.workspace.json_fields()
+    }
+
+    fn set_json_field(&mut self, ctx: &Context, field: &str, value: serde_json::Value) -> Result<(), String> {
+        self.workspace.set_json_field(ctx, &*self.source, field, value)
     }
 
     #[cfg(feature = "testing")]

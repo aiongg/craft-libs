@@ -278,6 +278,11 @@ pub struct AppShell<'a, S> {
     /// The host's flag for the document tabs, read back through `ShellCx::tabs_visible`.
     #[prop]
     document_tabs: bool,
+    /// The window's title: the shell sends `WindowAction::SetTitle` when it differs from the title the viewport
+    /// reports. Not in an embedded shell.
+    #[prop(into)]
+    #[allow(dead_code)] // P3(panels-w10): pn.C10
+    window_title: Option<String>,
     /// The name of the body region; the translated "Document" without it.
     #[prop(into)]
     body_label: Option<Label>,
@@ -300,6 +305,7 @@ impl<'a, S> AppShell<'a, S> {
             allow_reveal: true,
             edge_reveal: true,
             document_tabs: true,
+            window_title: None,
             body_label: None,
             title: None,
             slots: Vec::new(),
@@ -414,6 +420,7 @@ impl<'a, S> AppShell<'a, S> {
             allow_reveal,
             edge_reveal,
             document_tabs,
+            window_title: _, // P3(panels-w10): pn.C10
             body_label,
             title,
             slots,

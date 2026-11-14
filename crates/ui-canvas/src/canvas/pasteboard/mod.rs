@@ -170,6 +170,9 @@ pub struct Pasteboard<'a> {
     /// The border round each page; a drop shadow by default.
     #[prop]
     border: PageBorder,
+    /// Document rects the pasteboard does not cover, subtracted like the pages.
+    #[prop]
+    uncovered: &'a [DocRect],
     /// The size of each page's name, measured in `parts`; zero for a page without one.
     name_sizes: Vec<Vec2>,
     name_clicked: Option<usize>,
@@ -184,6 +187,7 @@ impl<'a> Pasteboard<'a> {
             pages,
             color: PasteboardColor::Default,
             border: PageBorder::DropShadow,
+            uncovered: &[],
             name_sizes: Vec::new(),
             name_clicked: None,
             context_at: None,
@@ -193,7 +197,8 @@ impl<'a> Pasteboard<'a> {
 
     /// The pasteboard as screen quads: the canvas minus the pages, each piece as its four corners (a turned view needs
     /// quads, not rects). For an app that draws the pasteboard itself.
-    pub fn quads(view: &CanvasView, pages: &[PageFrame]) -> Vec<[Pos2; 4]> {
+    pub fn quads(view: &CanvasView, pages: &[PageFrame], uncovered: &[DocRect]) -> Vec<[Pos2; 4]> {
+        let _ = uncovered; // P3(canvas-widgets-w9): cw.C48
         let canvas = view.visible();
         if !(canvas.x1 > canvas.x0 && canvas.y1 > canvas.y0 && canvas.area().is_finite()) {
             return Vec::new();
@@ -333,7 +338,7 @@ impl Component for Pasteboard<'_> {
         let (view, style) = (space.view, cx.style);
         let draw = ui.draw();
         let polygon = |quad: &[Pos2; 4]| PaintShape::Polygon(quad.to_vec());
-        for quad in Self::quads(&view, self.pages).iter().filter(|quad| bounds(quad).intersects(view.rect)) {
+        for quad in Self::quads(&view, self.pages, self.uncovered).iter().filter(|quad| bounds(quad).intersects(view.rect)) {
             match self.color.fill() {
                 Some(color) => draw.data_fill(&polygon(quad), color),
                 None => draw.fill(&polygon(quad), style.fill),

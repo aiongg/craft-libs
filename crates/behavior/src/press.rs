@@ -106,6 +106,13 @@ impl PointerSample {
     pub const fn new(pressure: f32) -> Self {
         PointerSample { pressure, tilt: [0.0, 0.0], rotation: 0.0, eraser: false }
     }
+
+    /// The sample with every field in range: pressure within 0 to 1, tilt and rotation finite radians, a stray value
+    /// replaced by its neutral one.
+    #[must_use]
+    pub fn sanitized(self) -> Self {
+        todo!("cw.C73")
+    }
 }
 
 /// A two-finger gesture.
@@ -329,8 +336,13 @@ pub fn count_clicks(previous: Option<(Pos2, f64, u32, Mods)>, pos: Pos2, time: f
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum PointerEvent {
-    /// The pointer moved.
-    Moved(Pos2),
+    /// The pointer moved, with the pen's reading for the move when the runtime has one.
+    Moved {
+        /// Where the pointer is.
+        at: Pos2,
+        /// The pen's reading paired with this move, interpolated from the tablet's samples.
+        sample: Option<PointerSample>,
+    },
     /// A button went down.
     #[non_exhaustive]
     Pressed {
@@ -522,7 +534,7 @@ impl<T: Copy> PressMachine<T> {
         }
         for event in input.events {
             match *event {
-                PointerEvent::Moved(at) => {
+                PointerEvent::Moved { at, .. } => {
                     pos = at;
                     if let Some(open) = &mut self.open
                         && open.released_at.is_none()
@@ -690,7 +702,7 @@ mod tests {
         let second = press(0.0, 1.1);
         assert_eq!(phases(&[&[press(0.0, 1.0)], &[up, second], &[up], &[]], Sense::CLICK), "D R! D R!");
         // The second press's drag starts in the pass that owes its Down, and the button goes up there too.
-        let far = PointerEvent::Moved(pos2(40.0, 0.0));
+        let far = PointerEvent::Moved { at: pos2(40.0, 0.0), sample: None };
         let passes: [&[PointerEvent]; 5] = [&[press(0.0, 1.0)], &[up, second], &[far, up], &[], &[]];
         assert_eq!(phases(&passes, Sense::CLICK | Sense::DRAG), "D R! D S R");
     }

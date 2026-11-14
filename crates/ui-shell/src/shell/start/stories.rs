@@ -97,7 +97,7 @@ fn screen(ui: &mut Ui, data: &mut StoryData, choice: Choice, files: &[RecentFile
         .pinned(pinned)
         .templates(templates)
         .now(NOW)
-        .thumbnails(store)
+        .texture_store(store) // P3(top-w5): tp.T29
         .show(ui)
         .into();
     *data.value("choice", Choice::default()) = choice;

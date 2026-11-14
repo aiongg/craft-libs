@@ -21,5 +21,11 @@ craft_ui::words! {
         hardness: "brushResize.hardness" = "Hardness:";
         opacity: "brushResize.opacity" = "Opacity:";
         density: "brushResize.density" = "Density:";
+
+        task_bar_move: "taskBar.move" = "Move bar";
+        task_bar_more: "taskBar.more" = "More options";
+        task_bar_hide: "taskBar.hide" = "Hide bar";
+        task_bar_reset: "taskBar.reset" = "Reset bar position";
+        task_bar_pin: "taskBar.pin" = "Pin bar position";
     }
 }
