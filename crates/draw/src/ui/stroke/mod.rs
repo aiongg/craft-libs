@@ -19,7 +19,7 @@ use craft_ui::primitives::ContentPainterCx;
 use craft_ui::runtime::env::Label;
 use egui::Rect;
 
-pub use crate::stroke::{DashUnit, LineCap, LineJoin, LineStyle, StrokeAlign, StrokeError, StrokeStyle};
+pub use crate::stroke::{DashAlign, DashUnit, LineCap, LineJoin, LineStyle, StrokeAlign, StrokeError, StrokeStyle};
 pub use button::StrokeButton;
 pub use editor::{StrokeEditor, StrokeEditorOutput};
 pub use preview::StrokePreview;

@@ -39,6 +39,16 @@ pub struct SliceTool {
     events: Vec<SliceEvent>,
     drag: Option<Drag>,
     ids: GestureId,
+    #[allow(dead_code)] // P3(tools-w19): tl.T57
+    color: Option<craft_theme::Srgba>,
+}
+
+impl SliceTool {
+    /// The colour the slice lines draw in; `None` is the theme's.
+    pub fn color(&mut self, color: Option<craft_theme::Srgba>) -> &mut Self {
+        self.color = color;
+        self
+    }
 }
 
 /// A new slice between presses.

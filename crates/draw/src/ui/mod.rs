@@ -40,19 +40,21 @@ pub mod pattern;
 pub mod pen;
 pub mod picture_fill;
 pub mod shape;
-pub mod shape_presets;
 pub mod shape_drag;
+pub mod shape_presets;
 pub mod slice;
 pub mod stroke;
 pub mod symmetry;
 pub mod transform;
 
 pub use add_beside::{AddBesideHandles, AddBesideOutput, AddBesideWords, AddSide, add_beside_places};
+pub use artboard::ArtboardBarTarget;
 pub use artboard::{
     ArtboardBackground, ArtboardBar, ArtboardBarOutput, ArtboardEvent, ArtboardItem, ArtboardPreset, ArtboardProperties, ArtboardPropertiesOutput,
     ArtboardRules, ArtboardTool,
 };
 pub use brush_presets::{BrushPick, BrushPickerSettings, BrushPickerState, BrushPickerValues, BrushPresetPicker, BrushPresetPickerOutput};
+pub use brush_presets::{BrushesPanel, BrushesPanelOutput};
 pub use brush_settings::{
     BrushPanelAction, BrushSection, BrushSectionEvent, BrushSectionKind, BrushSectionList, BrushSettingsPanel, BrushSettingsPanelOutput,
     BrushSizeField, BrushStrokeStrip, DynamicControl, TipEllipse,
@@ -67,34 +69,45 @@ pub use crop::{
     CropOverlayMenu, CropPresetChoice, CropRatio, CropRatioChange, CropSession, CropSettings, CropSizePreset, CropTarget, CropTool, CropToolPass,
     CropUserPreset, CropWords, PerspectiveCropOutput, PerspectiveCropTool, ResolutionUnit,
 };
+pub use crop::{
+    CropPresetList, CropPresetListOutput, CropSizeTarget, PerspectiveCropBar, PerspectiveCropBarOutput, PerspectiveCropPass, PerspectiveInput,
+};
 pub use crop::{PerspectiveCropQuad, PerspectiveQuad};
 pub use gradient::{
     ColorStop, GradientEditor, GradientExtent, GradientGroup, GradientItem, GradientLine, GradientMap, GradientMapEditor, GradientMapOutput,
     GradientOverlay, GradientPalette, GradientRamp, GradientRef, GradientStops, GradientSwatch, LineGradient, LinePart, OpacityStop,
     Sampler as StopSampler, StopDrop, StopRef, StopRow, StopRows, StopRules, default_sampler,
 };
+pub use gradient::{GradientFill, GradientFillEditor, GradientFillEditorOutput, GradientFillWords, GradientStyle};
 pub use measure::{MIN_LINE, RulerBar, RulerBarOutput, RulerLine, RulerOverlay, RulerPass, RulerTool, RulerWords, box_distances, ruler_line_form};
+pub use paint_bar::{
+    EraserMode, MIXER_COMBINATIONS, MIXER_GROUP_STARTS, MixerValues, PaintBar, PaintBarOutput, PaintBarWords, PaintTool, PaintValues, Smoothing,
+};
+pub use paths::{PathKind, PathRow, PathsCommands, PathsEvent, PathsFooterButton, PathsOutput, PathsPanel, PathsWords};
 pub use pattern::{
     PatternColors, PatternFillDialog, PatternFillEditor, PatternFillOptions, PatternFillOutput, PatternSwatch, PatternWords, SwatchPainter,
 };
+pub use pen::{AnchorDelete, PenEnd};
 pub use pen::{AnchorsShown, HitMark, PATH_OPTIONS_COLOR_KEY, PathMode, PathOptionsPopover, PathOptionsSettings, PathTool, PenMode, SegmentMark};
 pub use pen::{
     BezierHit, BezierOverlay, BezierStyle, BezierTool, EditPath, EditSubpath, HandleSide, HandlesShown, Knot, KnotRef, MAX_ANCHORS, PathEdit,
     PathSelection, PenStyle,
 };
 pub use picture_fill::{PictureFill, PictureFillEditor, PictureFillOutput, PictureMode};
+pub use shape::{Arrowheads, ArrowheadsOutput, ArrowheadsPopover, LINE_WEIGHT_RANGE, RADIUS_RANGE, StrokeCells, VectorMode, VectorModeSelect};
 pub use shape::{
     ChipSetup, LiveShape, ShapeAppearance, ShapeBar, ShapeBarOutput, ShapeChange, ShapePaint, ShapePanel, ShapePanelOutput, ShapeToolSettings,
     ShapeWords,
 };
 pub use shape_drag::{CreateShapeDialog, CreateShapeOptions, CreatedShape, ShapeDragEvent, ShapeDragOptions, ShapeDragTool, ShapeKind};
+pub use shape_presets::{ShapeMenu, ShapePresetWords};
 pub use slice::{
     DivideBy, DivideSlices, DivideSlicesDialog, SliceBar, SliceBarOutput, SliceCommand, SliceEvent, SliceItem, SliceKind, SliceMode, SliceOptions,
     SliceOptionsDialog, SliceOverlay, SliceTool, SliceToolSettings,
 };
-pub use stroke::{DashUnit, LineCap, LineJoin, LineStyle, StrokeAlign, StrokeButton, StrokeEditor, StrokePreview, StrokeStyle};
+pub use stroke::{DashAlign, DashUnit, LineCap, LineJoin, LineStyle, StrokeAlign, StrokeButton, StrokeEditor, StrokePreview, StrokeStyle};
 pub use symmetry::{Symmetry, SymmetryChoice, SymmetryCommand, SymmetryEvent, SymmetryMenu, SymmetryMode, SymmetryOverlay, SymmetryTransform};
-pub use transform::{BarGroups, RotateZone, SizeUnit, TransformBox, TransformField, TransformFields, TransformRow};
+pub use transform::{ApplyBy, RotateZone, SizeUnit, TransformBox, TransformField, TransformFields, TransformGroups, TransformRow};
 pub use transform::{
     Interpolation, TransformBar, TransformBarOutput, TransformChoice, TransformEdit, TransformOverlay, TransformPhase, TransformPreset,
     TransformRequest, TransformResult, TransformSession, TransformSettings, TransformWarp,

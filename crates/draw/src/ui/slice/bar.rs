@@ -53,12 +53,19 @@ pub struct SliceBar<'a> {
     mode: SliceMode,
     settings: &'a mut SliceToolSettings,
     size_units: Option<SizeUnits<'a>>,
+    locked: bool,
 }
 
 impl<'a> SliceBar<'a> {
     /// The members of `mode` over `settings`, which the Style, Width, Height and Hide Auto Slices write through.
     pub fn new(mode: SliceMode, settings: &'a mut SliceToolSettings) -> Self {
-        SliceBar { mode, settings, size_units: None }
+        SliceBar { mode, settings, size_units: None, locked: false }
+    }
+
+    /// Shows the muted "slices are locked" notice after the members in both modes.
+    pub fn locked(mut self, on: bool) -> Self {
+        self.locked = on;
+        self
     }
 
     /// Shows Fixed Size in `unit`, with `units` in the units menu (the app's ruler units), converting through the
@@ -70,7 +77,8 @@ impl<'a> SliceBar<'a> {
 
     /// Adds the members to the bar's row.
     pub fn show(self, ui: &mut Ui) -> SliceBarOutput {
-        let SliceBar { mode, settings, size_units } = self;
+        let SliceBar { mode, settings, size_units, locked } = self;
+        let _ = locked; // P3(tools-w19): tl.T57
         let words = Env::of(ui).words::<SliceWords>();
         let text = |commands: &[SliceCommand]| {
             BarItems::new(commands.iter().map(|&command| BarItem::new(command).display(ItemDisplay::Text)).collect()).label(words.commands.clone())

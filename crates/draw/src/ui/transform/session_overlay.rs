@@ -9,14 +9,16 @@ use craft_behavior::geometry::SnapTargets;
 use craft_behavior::geometry::quad::{BoxPart, BoxRules};
 use craft_keymap::Mods;
 use craft_ui::canvas::{CanvasTool, ToolAction, ToolContext, ToolKey, ToolPath, ToolPointer};
-use craft_ui::contract::Bind;
 use craft_ui::contract::Show as _;
+use craft_ui::contract::{Bind, Entry};
 use craft_ui::menu::Menu;
 use craft_ui::primitives::Draw;
 use craft_ui::runtime::env::{Env, Label};
 use egui::{Rect, Ui};
 
-use super::{TransformBox, TransformChoice, TransformEdit, TransformMenuWords, TransformPhase, TransformSession, TransformSettings, TransformWarp};
+use super::{
+    ApplyBy, TransformBox, TransformChoice, TransformEdit, TransformMenuWords, TransformPhase, TransformSession, TransformSettings, TransformWarp,
+};
 
 /// What the overlay reported this pass.
 #[derive(Debug)]
@@ -25,11 +27,15 @@ pub struct TransformOverlayOutput<W> {
     /// The edits in the order they happened; the app applies each with [`TransformSession::apply`].
     pub edits: Vec<TransformEdit<W>>,
     /// Enter, a click outside or a double click inside: the app calls [`TransformSession::commit`] after the edits.
-    pub apply: bool,
+    pub apply: Option<ApplyBy>,
     /// Escape with no drag running: the app calls [`TransformSession::discard`] after the edits.
     pub discard: bool,
     /// The keyboard's picked part while the box has focus.
     pub picked: Option<BoxPart>,
+    /// The snap lines of the point being dragged, from the box.
+    pub snapped: Vec<craft_behavior::geometry::SnapLine>,
+    /// The value of the app's menu row that was picked.
+    pub menu_row: Option<String>,
 }
 
 /// The open [`TransformSession`]'s box on the canvas.
@@ -55,12 +61,28 @@ pub struct TransformOverlay<'a, W> {
     pixel_grid: bool,
     snap: Option<&'a SnapTargets>,
     mods: Option<Mods>,
+    #[allow(dead_code)] // P3(tools-w2): cw.C38
+    menu_rows: &'a [Entry<String>],
+    #[allow(dead_code)] // P3(tools-w2): tl.T62
+    move_reach: f32,
 }
 
 impl<'a, W: TransformWarp> TransformOverlay<'a, W> {
     /// The overlay of `session` named `label`, with the box rules `settings` give.
     pub fn new(label: impl Into<Label>, session: &'a TransformSession<W>, settings: &'a TransformSettings) -> Self {
-        Self { label: label.into(), session, settings, rules: None, pixel_grid: false, snap: None, mods: None }
+        Self { label: label.into(), session, settings, rules: None, pixel_grid: false, snap: None, mods: None, menu_rows: &[], move_reach: 0.0 }
+    }
+
+    /// The app's rows after Warp in the box menu; a pick is reported as [`TransformOverlayOutput::menu_row`].
+    pub fn menu_rows(mut self, rows: &'a [Entry<String>]) -> Self {
+        self.menu_rows = rows;
+        self
+    }
+
+    /// While a session is open, a plain press within `points` screen points outside the frame moves the box (0: off).
+    pub fn move_reach(mut self, points: f32) -> Self {
+        self.move_reach = points;
+        self
     }
 
     /// The app's own box rules in place of [`TransformSession::box_rules`]: a 45° rotate step, a Move tool's rules.
@@ -96,7 +118,7 @@ impl<'a, W: TransformWarp> TransformOverlay<'a, W> {
     /// Shows the box at `rect`, the canvas body's rect (Box phase); in the Warp phase returns an empty output.
     pub fn show_at(self, ui: &mut Ui, rect: Rect) -> TransformOverlayOutput<W> {
         let session = self.session;
-        let mut out = TransformOverlayOutput { edits: Vec::new(), apply: false, discard: false, picked: None };
+        let mut out = TransformOverlayOutput { edits: Vec::new(), apply: None, discard: false, picked: None, snapped: Vec::new(), menu_row: None };
         if session.phase() == TransformPhase::Warp {
             return out;
         }
@@ -126,6 +148,7 @@ impl<'a, W: TransformWarp> TransformOverlay<'a, W> {
                 TransformChoice::Mode(mode) => TransformEdit::Mode(mode),
                 TransformChoice::Warp => TransformEdit::WarpRequested,
                 TransformChoice::Preset(preset) => TransformEdit::Preset(preset),
+                TransformChoice::Row(_) => todo!("cw.C38"),
             });
         }
         out

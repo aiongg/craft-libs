@@ -33,6 +33,8 @@ craft_ui::words! {
     pub struct TransformFieldWords {
         x_glyph: "transform.xGlyph" = "X";
         x_name: "transform.xName" = "X position";
+        /// The relative-position toggle between X and Y.
+        relative: "transform.relativePosition" = "Use relative positioning for reference point";
         y_glyph: "transform.yGlyph" = "Y";
         y_name: "transform.yName" = "Y position";
         w_glyph: "transform.wGlyph" = "W";
@@ -49,10 +51,10 @@ craft_ui::words! {
     }
 }
 
-/// The groups of cells the options-bar form shows; [`BarGroups::ALL`] is all of them.
+/// The groups of cells the options-bar form shows; [`TransformGroups::ALL`] is all of them.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
-pub struct BarGroups {
+pub struct TransformGroups {
     /// The reference point picker.
     pub reference: bool,
     /// X and Y.
@@ -67,12 +69,14 @@ pub struct BarGroups {
     pub interpolation: bool,
 }
 
-impl BarGroups {
+impl TransformGroups {
     /// Every group shown.
     pub const ALL: Self = Self { reference: true, position: true, size: true, angle: true, skew: true, interpolation: true };
+    /// No group shown; a host starts from it and sets fields.
+    pub const NONE: Self = Self { reference: false, position: false, size: false, angle: false, skew: false, interpolation: false };
 }
 
-impl Default for BarGroups {
+impl Default for TransformGroups {
     fn default() -> Self {
         Self::ALL
     }
@@ -155,6 +159,8 @@ pub struct TransformFieldsOutput {
     pub linked: Option<bool>,
     /// The interpolation picked this pass.
     pub interpolation: Option<Interpolation>,
+    /// The relative-position toggle was set to this state.
+    pub relative: Option<bool>,
 }
 
 impl Outcome for TransformFieldsOutput {
@@ -198,10 +204,12 @@ pub struct TransformFields<'a> {
     x: RulerText,
     y: RulerText,
     bar: bool,
-    groups: BarGroups,
+    groups: TransformGroups,
     interpolation: Option<Bind<'a, Interpolation>>,
     size_units: Option<&'a [Entry<UnitKind>]>,
     enabled: bool,
+    relative: Option<Bind<'a, bool>>,
+    document: Option<craft_behavior::kurbo::Size>,
 }
 
 impl<'a> TransformFields<'a> {
@@ -217,10 +225,12 @@ impl<'a> TransformFields<'a> {
             x: pixels,
             y: pixels,
             bar: false,
-            groups: BarGroups::ALL,
+            groups: TransformGroups::ALL,
             interpolation: None,
             size_units: None,
             enabled: true,
+            relative: None,
+            document: None,
         }
     }
 
@@ -244,8 +254,20 @@ impl<'a> TransformFields<'a> {
     }
 
     /// The groups the bar form shows (all by default).
-    pub fn groups(mut self, groups: BarGroups) -> Self {
+    pub fn groups(mut self, groups: TransformGroups) -> Self {
         self.groups = groups;
+        self
+    }
+
+    /// The Δ toggle between X and Y: X and Y show and move the reference point's offset while it is on.
+    pub fn relative(mut self, on: Bind<'a, bool>) -> Self {
+        self.relative = Some(on);
+        self
+    }
+
+    /// The document's size: X and Y read a typed percentage against its sides.
+    pub fn document(mut self, size: craft_behavior::kurbo::Size) -> Self {
+        self.document = Some(size);
         self
     }
 
@@ -269,7 +291,9 @@ impl<'a> TransformFields<'a> {
 
     /// Shows the fields.
     pub fn show(self, ui: &mut Ui) -> TransformFieldsOutput {
-        let TransformFields { label, row, start, linked, size_unit, x, y, bar, groups, interpolation, size_units, enabled } = self;
+        let TransformFields { label, row, start, linked, size_unit, x, y, bar, groups, interpolation, size_units, enabled, relative, document } =
+            self;
+        let _ = (relative, document); // P3(panels-w12): tl.R5, pn.C48
         let env = Env::of(ui);
         let mut cells = Cells {
             words: env.words::<TransformFieldWords>(),
@@ -294,7 +318,7 @@ impl<'a> TransformFields<'a> {
             FieldGroup::new(label).enabled(enabled).show(ui, |ui, cx| cells.rows(ui, cx)).output
         };
         let Out { events, unit_picked, linked, interpolation } = cells.out;
-        TransformFieldsOutput { response, events, unit_picked, linked, interpolation }
+        TransformFieldsOutput { response, events, unit_picked, linked, interpolation, relative: None }
     }
 }
 
@@ -321,7 +345,7 @@ struct Cells<'a> {
     size_unit: SizeUnit,
     x: RulerText,
     y: RulerText,
-    groups: BarGroups,
+    groups: TransformGroups,
     enabled: bool,
     out: Out,
 }

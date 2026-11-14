@@ -4,7 +4,7 @@
 mod stories;
 
 use super::session::{TransformEdit, TransformPhase, TransformSession, TransformSettings, TransformWarp};
-use super::transform_fields::{BarGroups, TransformFields, TransformRow, size_unit_of};
+use super::transform_fields::{TransformFields, TransformGroups, TransformRow, size_unit_of};
 use craft_behavior::{EditEvent, IconId, Mixed, RulerUnits};
 use craft_ui::bars::{Bar, BarKind};
 use craft_ui::buttons::IconButton;
@@ -95,7 +95,7 @@ pub struct TransformBar<'a, W> {
     label: Label,
     session: &'a TransformSession<W>,
     settings: Bind<'a, TransformSettings>,
-    groups: BarGroups,
+    groups: TransformGroups,
     mode_switch: bool,
     warp_fields: Option<BarSlot<'a>>,
     extra: Option<BarSlot<'a>>,
@@ -111,7 +111,7 @@ impl<'a, W: TransformWarp> TransformBar<'a, W> {
             label: label.into(),
             session,
             settings,
-            groups: BarGroups::ALL,
+            groups: TransformGroups::ALL,
             mode_switch: true,
             warp_fields: None,
             extra: None,
@@ -121,7 +121,7 @@ impl<'a, W: TransformWarp> TransformBar<'a, W> {
     }
 
     /// Which groups of the fields show; all by default.
-    pub fn groups(mut self, groups: BarGroups) -> Self {
+    pub fn groups(mut self, groups: TransformGroups) -> Self {
         self.groups = groups;
         self
     }
@@ -249,7 +249,7 @@ impl<'a, W: TransformWarp> TransformBar<'a, W> {
         }
         if let Some(choice) = shown.interpolation {
             edits.push(TransformEdit::Interpolation(choice));
-            settings.interpolation = choice;
+            settings.interpolation = Some(choice);
         }
         if let Some(unit) = shown.unit_picked {
             settings.size_unit = Some(unit);

@@ -1,9 +1,9 @@
 //! The shape menu: the preset glyphs, their words and [`ShapeMenu`].
 
 use crate::geometry::presets::ShapePreset;
-use craft_ui::style::UiTokens;
 use craft_ui::primitives::Glyph;
 use craft_ui::runtime::env::Label;
+use craft_ui::style::UiTokens;
 use egui::{Color32, Painter, Rect, Ui};
 
 craft_ui::words! {

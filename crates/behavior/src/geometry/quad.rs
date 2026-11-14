@@ -114,18 +114,26 @@ pub struct BoxAllow {
     pub skew: bool,
     /// Distorting and perspective are allowed.
     pub distort: bool,
+    /// Warping is allowed.
+    pub warp: bool,
 }
 
 impl BoxAllow {
     /// What the content allows: turning, skewing and distorting.
     pub const fn new(rotate: bool, skew: bool, distort: bool) -> Self {
-        BoxAllow { rotate, skew, distort }
+        BoxAllow { rotate, skew, distort, warp: true }
+    }
+
+    /// Whether the content allows warping.
+    pub const fn with_warp(mut self, warp: bool) -> Self {
+        self.warp = warp;
+        self
     }
 }
 
 impl Default for BoxAllow {
     fn default() -> Self {
-        BoxAllow { rotate: true, skew: true, distort: true }
+        BoxAllow { rotate: true, skew: true, distort: true, warp: true }
     }
 }
 

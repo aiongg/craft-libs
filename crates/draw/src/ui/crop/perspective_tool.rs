@@ -104,6 +104,71 @@ fn boxed(anchor: Point, to: Point) -> PerspectiveQuad {
     (x1 > x0 && y1 > y0).then_some([Point::new(x0, y0), Point::new(x1, y0), Point::new(x1, y1), Point::new(x0, y1)])
 }
 
+/// What the host hands the perspective crop pass each frame.
+#[derive(Clone, Copy, Debug, Default)]
+#[non_exhaustive]
+pub struct PerspectiveInput<'a> {
+    /// Whether the quad's grid shows.
+    pub show_grid: bool,
+    /// Ties the input to the pass's lifetime until the shield (tl.T44, not in this checkout) joins it.
+    pub marker: std::marker::PhantomData<&'a ()>,
+}
+
+/// This pass's perspective crop tool for the host, borrowing its input; it is the canvas tool while the pass lives.
+pub struct PerspectiveCropPass<'a> {
+    tool: &'a mut PerspectiveCropTool,
+    input: PerspectiveInput<'a>,
+}
+
+impl PerspectiveCropTool {
+    /// This pass's tool for the host, borrowing `input`'s data.
+    pub fn pass<'a>(&'a mut self, input: PerspectiveInput<'a>) -> PerspectiveCropPass<'a> {
+        PerspectiveCropPass { tool: self, input }
+    }
+}
+
+impl PerspectiveCropPass<'_> {
+    /// Shows the quad over the canvas at `canvas_rect` and reports its edits.
+    pub fn show_quad(&mut self, ui: &mut egui::Ui, canvas_rect: egui::Rect) -> super::PerspectiveCropOutput {
+        let _ = (&self.tool, &self.input, ui, canvas_rect);
+        todo!("tl.T48")
+    }
+}
+
+impl CanvasTool for PerspectiveCropPass<'_> {
+    fn press(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) -> ToolAction {
+        self.tool.press(pointer, cx)
+    }
+
+    fn drag(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
+        self.tool.drag(pointer, cx);
+    }
+
+    fn release(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
+        self.tool.release(pointer, cx);
+    }
+
+    fn cancel(&mut self, reason: CancelReason, cx: &mut ToolContext<'_>) {
+        self.tool.cancel(reason, cx);
+    }
+
+    fn key(&mut self, key: &ToolKey, cx: &mut ToolContext<'_>) -> bool {
+        self.tool.key(key, cx)
+    }
+
+    fn paint(&self, draw: &Draw<'_>, cx: &ToolContext<'_>) {
+        self.tool.paint(draw, cx);
+    }
+
+    fn cursor(&self, cx: &ToolContext<'_>) -> Cursor {
+        self.tool.cursor(cx)
+    }
+
+    fn command_form(&self) -> ToolPath {
+        self.tool.command_form()
+    }
+}
+
 impl CanvasTool for PerspectiveCropTool {
     fn press(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) -> ToolAction {
         let Some(space) = cx.space() else { return ToolAction::Ignored };

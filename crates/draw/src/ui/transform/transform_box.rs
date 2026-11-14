@@ -115,10 +115,25 @@ pub struct TransformBoxStyle {
     pivot_arm: f32,
 }
 
+/// Why the box asks to apply.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub enum ApplyBy {
+    /// Enter.
+    Key,
+    /// A double click inside the box.
+    DoubleClick,
+    /// A click outside the box, at `at` in document units.
+    ClickOutside {
+        /// Where the click landed.
+        at: Point,
+    },
+}
+
 /// What the box reports beyond its edit.
 #[derive(Clone, Copy, Debug, Default)]
 struct Report {
-    apply: bool,
+    apply: Option<ApplyBy>,
     discard: bool,
     hovered: Option<BoxPart>,
     picked: Option<BoxPart>,
@@ -193,6 +208,9 @@ pub struct TransformBox<'a> {
     /// The host's snapping of a dragged point.
     #[prop]
     snap: Option<&'a SnapTargets>,
+    /// Enlarges corner 2 with the overflow plus (a text frame whose text does not fit).
+    #[prop]
+    overflow: bool,
     report: Report,
 }
 
@@ -212,9 +230,15 @@ impl<'a> TransformBox<'a> {
             pixel_grid: false,
             mods: None,
             snap: None,
+            overflow: false,
             report: Report::default(),
         }
         .label(label)
+    }
+
+    /// A resize-only box for a text frame: sides of at least 4 units, no reference point, no inside move.
+    pub fn text_frame(label: impl Into<Label>, state: Bind<'a, BoxState>, start: DocRect) -> Self {
+        Self::new(label, state, start, 0.0).rules(BoxRules::default().with_min_side(4.0)).reference_point(false).inside_moves(false)
     }
 
     /// The parts the keyboard walks, in order.
@@ -363,13 +387,13 @@ impl<'a> TransformBox<'a> {
                 PressPhase::Release { start, click, .. } => {
                     // A double click inside applies, whether or not the first press of the release was seen.
                     if click && start.clicks >= 2 && start.button == PointerButton::Primary && part == BoxPart::Inside {
-                        self.report.apply = true;
+                        self.report.apply = Some(ApplyBy::DoubleClick);
                     }
                     let Some(grip) = held.take() else { continue };
                     if grip.began {
                         cx.commit();
                     } else if grip.part == BoxPart::Outside && click && start.clicks <= 1 {
-                        self.report.apply = true;
+                        self.report.apply = Some(ApplyBy::ClickOutside { at: space.view.to_doc(start.origin) });
                     } else if grip.moves_pivot && click {
                         cx.set(grip.start);
                     }
@@ -399,7 +423,9 @@ impl<'a> TransformBox<'a> {
                 }
             }
         }
-        self.report.apply |= cx.intents().take(Intent::Submit);
+        if cx.intents().take(Intent::Submit) {
+            self.report.apply = Some(ApplyBy::Key);
+        }
         if !pressing && cx.intents().take(Intent::Cancel) {
             self.report.discard = true;
         }
@@ -552,7 +578,7 @@ impl Component for TransformBox<'_> {
 
     fn finish(self, cx: Cx<'_, Self>) -> TransformBoxOutput {
         let Report { apply, discard, hovered, picked } = self.report;
-        TransformBoxOutput { edit: cx.edit_response(), apply, discard, picked, hovered }
+        TransformBoxOutput { edit: cx.edit_response(), apply, discard, picked, hovered, snapped: Vec::new() } // P3(tools-w2): tl.N21
     }
 }
 
@@ -563,14 +589,16 @@ pub struct TransformBoxOutput {
     /// A drag (`Begin` on the first move, `Update`, `Commit` on the release; Escape cancels it) or an arrow key's
     /// `Set`.
     pub edit: EditResponse<BoxState>,
-    /// Apply the box: Enter, a click outside it, a double click inside it.
-    pub apply: bool,
+    /// Apply the box, and why: Enter, a click outside it, a double click inside it.
+    pub apply: Option<ApplyBy>,
     /// Close the box without applying it: Escape while no drag is on.
     pub discard: bool,
     /// The part the keys act on, while the box has the keyboard.
     pub picked: Option<BoxPart>,
     /// The part a press at the pointer would take; `None` where it is the tool's.
     pub hovered: Option<BoxPart>,
+    /// The snap lines of the point being dragged, for the host's one drawing site.
+    pub snapped: Vec<craft_behavior::geometry::SnapLine>,
 }
 
 impl Outcome for TransformBoxOutput {

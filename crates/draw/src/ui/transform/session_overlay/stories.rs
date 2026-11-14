@@ -1,7 +1,7 @@
 //! Stories of the transform overlay: the open session's box, run live under its options bar.
 
 use super::{TransformOverlay, TransformTool};
-use crate::ui::transform::{TransformBar, TransformEdit, TransformPhase, TransformRequest, TransformSession, TransformSettings};
+use crate::ui::transform::{Interpolation, TransformBar, TransformEdit, TransformPhase, TransformRequest, TransformSession, TransformSettings};
 use craft_behavior::CanvasView;
 use craft_behavior::geometry::quad::BoxState;
 use craft_behavior::kurbo::{Line, Rect as DocRect};
@@ -63,7 +63,7 @@ fn sample_settings() -> TransformSettings {
 
 /// A session on the layer, its box at `state`.
 fn open(state: BoxState, settings: &TransformSettings) -> TransformSession<()> {
-    TransformSession::with_state(FRAME, state).settings(settings)
+    TransformSession::with_state(FRAME, state).settings(settings, Interpolation::default())
 }
 
 /// Free Transform live over the layer, under its options bar: the box and the bar's fields edit the session; Enter, a
@@ -104,7 +104,7 @@ fn transform_phase(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
             let _ = run.host.run(&mut tool);
             let (key_apply, key_discard) = tool.take_keys();
             let (edits, apply, discard) = match run.shown {
-                Some(shown) => (shown.edits, shown.apply, shown.discard),
+                Some(shown) => (shown.edits, shown.apply.is_some(), shown.discard),
                 None => (Vec::new(), false, false),
             };
             let edits: Vec<TransformEdit<()>> = edits.into_iter().chain(bar.edits).collect();

@@ -94,11 +94,13 @@ pub enum TransformChoice {
     Warp,
     /// Apply as [`TransformEdit::Preset`].
     Preset(TransformPreset),
+    /// The app's menu row at this index in [`TransformOverlay::menu_rows`](super::super::TransformOverlay::menu_rows).
+    Row(usize),
 }
 
 /// Free Transform's persisted section: the app keeps it with its preferences. Unknown fields are
 /// ignored, missing ones take their defaults.
-#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct TransformSettings {
@@ -111,12 +113,29 @@ pub struct TransformSettings {
     /// Show Reference Point: off by default (Photoshop CC 2019 and later, LC2). Hidden, the point
     /// is not drawn, hit or picked; its stored position still pivots ⌥ scaling and rotating.
     pub show_reference_point: bool,
-    /// The interpolation a new session starts with.
-    pub interpolation: Interpolation,
+    /// The interpolation a new session starts with; `None` follows the General preference until one is picked.
+    pub interpolation: Option<Interpolation>,
     /// The W and H fields' unit; percent when unset. Saved preferences may spell it as the legacy names
     /// (`"Pixels"`, `"Percent"`, `"Inches"`, `"Centimetres"`, `"Millimetres"`, `"Points"`, `"Picas"`).
     #[serde(deserialize_with = "unit_or_legacy")]
     pub size_unit: Option<UnitKind>,
+    /// X and Y show and move the reference point's offset from where it started.
+    pub relative_position: bool,
+}
+
+impl Default for TransformSettings {
+    /// Free Transform's defaults: proportions linked, no legacy scaling, the reference point hidden, interpolation
+    /// from the General preference.
+    fn default() -> Self {
+        TransformSettings {
+            legacy: false,
+            aspect_linked: true,
+            show_reference_point: false,
+            interpolation: None,
+            size_unit: None,
+            relative_position: false,
+        }
+    }
 }
 
 /// Reads a unit by the spelling `UnitKind` serializes to or by the legacy spelling, whatever the case.

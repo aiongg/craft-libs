@@ -30,7 +30,7 @@ pub use perspective_bar::{PerspectiveCropBar, PerspectiveCropBarOutput};
 pub use perspective_crop::{
     PerspectiveCropOutput, PerspectiveCropQuad, PerspectiveCropStyle, PerspectiveQuad, grid_lines, grid_steps, is_valid, ordered,
 };
-pub use perspective_tool::{PerspectiveCropEvent, PerspectiveCropTool, perspective_to_form};
+pub use perspective_tool::{PerspectiveCropEvent, PerspectiveCropPass, PerspectiveCropTool, PerspectiveInput, perspective_to_form};
 pub use preset_list::{CropPresetList, CropPresetListOutput};
 pub use session::{CropDocKey, CropDocument, CropKept, CropSession, CropStep, LeaveFrame, StraightenState};
 pub use size_cells::CropSizeTarget;

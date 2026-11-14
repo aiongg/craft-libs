@@ -238,8 +238,8 @@ impl<W: TransformWarp> TransformSession<W> {
 
     /// The persisted section the session opens with: its interpolation and whether the reference
     /// point shows.
-    pub fn settings(mut self, settings: &TransformSettings) -> Self {
-        self.interpolation = settings.interpolation;
+    pub fn settings(mut self, settings: &TransformSettings, default_interpolation: Interpolation) -> Self {
+        self.interpolation = settings.interpolation.unwrap_or(default_interpolation);
         self.reference_point = settings.show_reference_point;
         self
     }

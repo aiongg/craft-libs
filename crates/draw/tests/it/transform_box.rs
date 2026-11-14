@@ -133,7 +133,7 @@ fn harness(state: BoxState, setup: impl FnOnce(&mut Config)) -> Harness {
             let mut host = shown_host.borrow_mut();
             host.guide_events += guide_edits;
             host.id = output.edit.response.id;
-            host.applied += usize::from(output.apply);
+            host.applied += usize::from(output.apply.is_some());
             host.discarded += usize::from(output.discard);
             (host.picked, host.hovered) = (output.picked, output.hovered);
             for event in &output.edit.events {

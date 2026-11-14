@@ -3,7 +3,7 @@
 
 use std::ops::RangeInclusive;
 
-use super::{RADIUS_RANGE, LiveShape, ShapeAppearance, ShapeChange, ShapeWords};
+use super::{LiveShape, RADIUS_RANGE, ShapeAppearance, ShapeChange, ShapeWords};
 use crate::ui::stroke::StrokeButton;
 use craft_behavior::{EditEvent, EditEvents, NumberCodec};
 use craft_color::ui::{Paint, PaintChip, PaintChipOutput, ScreenPickGesture};
@@ -11,8 +11,8 @@ use craft_theme::Srgba;
 use craft_ui::contract::{Bind, GlyphLabel, LabelKind, LabelScheme, Props as _, Show as _, ShowContainer as _, SideLabel};
 use craft_ui::form::{Field, FieldGroup};
 use craft_ui::layout_components::Row;
-use craft_ui::runtime::requests::ColorRequest;
 use craft_ui::runtime::env::{Env, Label, LengthUnits, UnitKind, Units, with_env};
+use craft_ui::runtime::requests::ColorRequest;
 use craft_ui::sections::Section;
 use craft_ui::text::NumberField;
 use egui::Ui;

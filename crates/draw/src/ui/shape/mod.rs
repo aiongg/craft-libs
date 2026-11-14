@@ -14,16 +14,16 @@ mod arrowheads;
 mod bar;
 mod mode_select;
 mod panel;
-mod stroke_cells;
 #[cfg(feature = "screen-testing")]
 pub(crate) mod stories;
+mod stroke_cells;
 mod words;
 
 pub use arrowheads::{ArrowheadsOutput, ArrowheadsPopover};
-pub use mode_select::VectorModeSelect;
-pub use stroke_cells::StrokeCells;
 pub use bar::{ShapeBar, ShapeBarOutput};
+pub use mode_select::VectorModeSelect;
 pub use panel::{ChipSetup, ShapePaint, ShapePanel, ShapePanelOutput};
+pub use stroke_cells::StrokeCells;
 pub use words::ShapeWords;
 
 /// The drawing mode of the vector tools.
@@ -278,7 +278,15 @@ impl Default for ShapeToolSettings {
     /// Fill on, square corners, 5 sides, a plain polygon, weight 3, no stroke (PhotoCraft's
     /// `ToolOptions::default`, `state/tool_options.rs:405-412`).
     fn default() -> Self {
-        ShapeToolSettings { fill_on: true, corner_radius: 0.0, sides: 5, star_ratio: 1.0, line_weight: 3.0, stroke_width: 0.0, arrowheads: Arrowheads::default() }
+        ShapeToolSettings {
+            fill_on: true,
+            corner_radius: 0.0,
+            sides: 5,
+            star_ratio: 1.0,
+            line_weight: 3.0,
+            stroke_width: 0.0,
+            arrowheads: Arrowheads::default(),
+        }
     }
 }
 

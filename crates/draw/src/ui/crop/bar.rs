@@ -121,13 +121,13 @@ impl<'a> CropBar<'a> {
     /// Shows the bar's children.
     pub fn show(self, ui: &mut Ui) -> CropBarOutput {
         let Self { settings, document, user_presets, straighten, angle, help, can_reset } = self;
-        let _ = (help, can_reset); // P3(tools-w14): pn.C20, pn.C21 the Reset and help buttons.
         let env = Env::of(ui);
         let words = env.words::<CropBarWords>();
         let units = env.units();
         let has_document = document.size.width > 0.0 && document.size.height > 0.0;
         let before = settings.clone();
         let mut report = Report::default();
+        let (mut help_pressed, mut reset_pressed) = (false, false);
         // The options are the bar's members, spaced as the bar spaces them.
         let shown = Row::new().gap(Gap::Item).show(ui, |ui, cx| {
             preset_list(ui, settings, &words, document, has_document, user_presets, &units, &mut report);
@@ -162,6 +162,10 @@ impl<'a> CropBar<'a> {
                     settings.fill = fill;
                 }
             });
+            if let Some(label) = help.clone() {
+                help_pressed = clicked(&IconButton::new(IconId::new("info")).label(label).show(ui));
+            }
+            reset_pressed = clicked(&IconButton::new(IconId::new("undo_2")).label(words.reset_tip.clone()).enabled(can_reset).show(ui));
         });
         let changed = *settings != before;
         CropBarOutput {
@@ -173,8 +177,8 @@ impl<'a> CropBar<'a> {
             delete_preset: report.delete_preset,
             pick_color: report.pick_color,
             settings_changed: changed,
-            help: false,
-            reset: false,
+            help: help_pressed,
+            reset: reset_pressed,
             selection: false,
         }
     }

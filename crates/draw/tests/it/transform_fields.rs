@@ -4,7 +4,7 @@
 use craft_behavior::EditEvent;
 use craft_behavior::geometry::quad::BoxState;
 use craft_behavior::kurbo::{Point, Rect};
-use craft_draw::ui::transform::{BarGroups, SizeUnit, TransformFields, TransformRow};
+use craft_draw::ui::transform::{SizeUnit, TransformFields, TransformGroups, TransformRow};
 use craft_ui::canvas::RulerText;
 use craft_ui::contract::Bind;
 use craft_ui::testing::{Fixture, Target, trial};
@@ -26,7 +26,7 @@ struct Config {
     bar: bool,
     size_unit: SizeUnit,
     units: Option<RulerText>,
-    groups: BarGroups,
+    groups: TransformGroups,
 }
 
 struct Harness {
@@ -35,7 +35,7 @@ struct Harness {
 }
 
 fn plain() -> Config {
-    Config { bar: false, size_unit: SizeUnit::default(), units: None, groups: BarGroups::ALL }
+    Config { bar: false, size_unit: SizeUnit::default(), units: None, groups: TransformGroups::ALL }
 }
 
 fn harness_of(row: TransformRow, config: Config) -> Harness {
