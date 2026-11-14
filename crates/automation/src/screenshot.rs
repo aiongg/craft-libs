@@ -136,9 +136,13 @@ impl CaptureGeometry {
     }
 }
 
+/// The error a request for a closed window finishes with, after `screenshot {token} failed: `.
+pub const WINDOW_CLOSED: &str = "its window is not open";
+
 /// One outstanding request; holds the strong slot.
 pub struct PendingCapture {
     token: u64,
+    viewport: ViewportId,
     path: Option<String>,
     reply: Option<Sender<ControlResponse>>,
     deadline: Instant,
@@ -188,6 +192,7 @@ impl Finished {
 /// A request admitted before any geometry was recorded.
 struct WaitingAdmit {
     token: u64,
+    viewport: ViewportId,
     path: Option<String>,
     reply: Sender<ControlResponse>,
     deadline: Instant,
@@ -225,19 +230,31 @@ impl Captures {
         !self.waiting.is_empty() || self.records.iter().any(|r| !r.issued())
     }
 
-    /// The geometry recorded by the last [`Self::note_geometry`], if any.
-    pub fn last_geometry(&self) -> Option<CaptureGeometry> {
+    /// The geometry recorded by the last [`Self::note_geometry`] for `viewport`, if any.
+    pub fn last_geometry(&self, viewport: ViewportId) -> Option<CaptureGeometry> {
+        let _ = viewport; // P3(canvas-widgets-w13): cw.C69 geometry per viewport.
         self.geometry
     }
 
-    /// Record this pass's geometry; advances and returns the epoch when it changed.
-    pub fn note_geometry(&mut self, geometry: CaptureGeometry) -> u64 {
+    /// Record this pass's geometry of `viewport`; advances and returns that viewport's epoch when
+    /// it changed.
+    pub fn note_geometry(&mut self, viewport: ViewportId, geometry: CaptureGeometry) -> u64 {
+        let _ = viewport; // P3(canvas-widgets-w13): cw.C69 geometry per viewport.
         let changed = self.geometry.is_none_or(|old| !old.same_layout(&geometry));
         if changed {
             self.epoch = self.epoch.wrapping_add(1);
         }
         self.geometry = Some(geometry);
         self.epoch
+    }
+
+    /// The app's one call per pass: for the root and each viewport a pending or waiting request
+    /// names, records `CaptureGeometry::from_facts` of `host.screenshot_facts(viewport)`, or marks
+    /// the viewport closed when that is `None`.
+    #[allow(dead_code)] // P3(canvas-widgets-w13): cw.C69
+    pub fn note_windows(&mut self, host: &WindowHost, document: Option<DocumentId>) {
+        let _ = (host, document);
+        todo!("cw.C69")
     }
 
     /// Admit a request against the budget. `Err` returns the reply sender with the error text:
@@ -251,6 +268,7 @@ impl Captures {
         &mut self,
         token: u64,
         path: Option<String>,
+        viewport: ViewportId,
         reply: Sender<ControlResponse>,
         document: Option<DocumentId>,
         settle_ms: f64,
@@ -263,16 +281,17 @@ impl Captures {
             return Err((reply, format!("too many screenshots pending (at most {MAX_PENDING})")));
         }
         if self.geometry.is_none() {
-            self.waiting.push(WaitingAdmit { token, path, reply, deadline: now + DEADLINE, settle_ms, document });
+            self.waiting.push(WaitingAdmit { token, viewport, path, reply, deadline: now + DEADLINE, settle_ms, document });
             return Ok(());
         }
-        self.admit_with_geometry(token, path, reply, document, settle_ms, now)
+        self.admit_with_geometry(token, path, viewport, reply, document, settle_ms, now)
     }
 
     fn admit_with_geometry(
         &mut self,
         token: u64,
         path: Option<String>,
+        viewport: ViewportId,
         reply: Sender<ControlResponse>,
         document: Option<DocumentId>,
         settle_ms: f64,
@@ -298,6 +317,7 @@ impl Captures {
         let settle = if settle_ms.is_finite() { settle_ms.clamp(0.0, 2000.0) } else { BASE_SETTLE_MS };
         self.records.push(PendingCapture {
             token,
+            viewport,
             path,
             reply: Some(reply),
             deadline: now + DEADLINE,
@@ -332,7 +352,7 @@ impl Captures {
             }
             // The request's clock started when it arrived.
             let arrived = w.deadline - DEADLINE;
-            if let Err((reply, e)) = self.admit_with_geometry(w.token, w.path, w.reply, w.document, w.settle_ms, arrived) {
+            if let Err((reply, e)) = self.admit_with_geometry(w.token, w.path, w.viewport, w.reply, w.document, w.settle_ms, arrived) {
                 let _ = reply.send(serde_json::json!({"ok": false, "error": e}));
             }
         }
@@ -388,7 +408,7 @@ impl Captures {
                 }
                 continue;
             }
-            let slot = host.screenshot(ViewportId::ROOT, MAX_IMAGE_BYTES);
+            let slot = host.screenshot(self.records[i].viewport, MAX_IMAGE_BYTES);
             let r = &mut self.records[i];
             r.slot = Some(slot);
             r.issued_epoch = Some(self.epoch);
@@ -398,7 +418,8 @@ impl Captures {
     }
 
     /// Logic phase: collect completed images (retrying after an epoch advance), expire the late.
-    pub fn drain(&mut self, now: Instant, current: Option<CaptureGeometry>, document: Option<DocumentId>) -> Vec<Finished> {
+    pub fn drain(&mut self, now: Instant, document: Option<DocumentId>) -> Vec<Finished> {
+        let current = self.geometry; // P3(canvas-widgets-w13): cw.C69 per-viewport geometry.
         // Requests that arrived before the first UI pass start here, once its geometry is known.
         self.admit_waiting(now);
         let mut finished = Vec::new();

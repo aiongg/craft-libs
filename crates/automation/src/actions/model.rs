@@ -158,6 +158,9 @@ pub struct Action {
     /// The Button Mode colour.
     #[serde(default, skip_serializing_if = "is_no_color")]
     pub color: ActionColor,
+    /// Written by an automation client: playback keeps that client's gate.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub automation: bool,
 }
 
 fn is_no_color(color: &ActionColor) -> bool {

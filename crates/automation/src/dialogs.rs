@@ -42,7 +42,7 @@ pub fn inspect_stack(host: &DialogHost, mut beside: impl FnMut(DialogId) -> Opti
 /// Whether `params.dialog` names an open dialog of `host`, so an app that lists dialogs of its own beside the host's
 /// knows which of them a `ui.dialog.*` request is for.
 pub fn names_open_dialog(host: &DialogHost, params: &Value) -> bool {
-    dialog(host, Params(params)).is_ok()
+    dialog_id(host, params).is_ok()
 }
 
 /// Runs a `ui.dialog.*` method on `host`; `None` when `method` is not one of them.
@@ -64,7 +64,7 @@ pub fn dialog_method(host: &mut DialogHost, ctx: &Context, method: &str, params:
 fn run(host: &mut DialogHost, ctx: &Context, method: &str, params: &Value, fields: &[&str]) -> Result<Value, String> {
     let params = Params(params).only(None, fields)?;
     let read = Params(&params);
-    let id = dialog(host, read)?;
+    let id = dialog_id(host, &params)?;
     match method {
         "ui.dialog.set" => {
             let field = read.str_field("field")?.ok_or("missing `field`")?;
@@ -87,10 +87,14 @@ fn run(host: &mut DialogHost, ctx: &Context, method: &str, params: &Value, field
     Ok(Value::Null)
 }
 
-/// The open dialog `params.dialog` names: the id `inspect` lists, as a string or a number. A dialog the app shows
-/// beside the host is on the stack but not the host's, so it is no dialog here.
-fn dialog(host: &DialogHost, params: Params<'_>) -> Result<DialogId, String> {
+/// The open dialog `params.dialog` names: the id `inspect` lists, as a decimal string or a number, or `"top"` for the
+/// top hosted dialog. A dialog the app shows beside the host is on the stack but not the host's, so it is no dialog here.
+pub fn dialog_id(host: &DialogHost, params: &Value) -> Result<DialogId, String> {
+    let params = Params(params);
     let value = match params.0.get("dialog") {
+        Some(Value::String(id)) if id == "top" => {
+            return host.stack().ids().filter(|id| host.get_dyn(*id).is_some()).last().ok_or_else(|| "no hosted dialog is open".to_owned());
+        }
         Some(Value::String(id)) => id.parse().map_err(|_| format!("`dialog` {id:?} is not an id `ui.inspect` lists"))?,
         _ => params.uint_field("dialog")?.ok_or("missing `dialog`")?,
     };

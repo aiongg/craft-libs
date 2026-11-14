@@ -223,6 +223,28 @@ pub enum ActionsEvent {
         /// The set; `None` for every action.
         set: Option<String>,
     },
+    /// Duplicate this row ([`ActionList::duplicate_action`], [`ActionList::duplicate_step`],
+    /// [`ActionList::duplicate_set`]): from the menu row or a row dropped on New Action.
+    Duplicate(ActionSelection),
+    /// Record Again: replace step `step` of `action` with a new recording
+    /// ([`ActionList::replace_step`]).
+    #[non_exhaustive]
+    RecordAgain {
+        /// The action.
+        action: usize,
+        /// The step.
+        step: usize,
+    },
+    /// Insert Menu Item… after the selection (the app's dialog).
+    InsertMenuItem,
+    /// Insert Path after the selection.
+    InsertPath,
+    /// Playback Options… (the app's dialog).
+    PlaybackOptions,
+    /// Allow Tool Recording was switched to this value.
+    ToolRecording(bool),
+    /// Play every action of the set in order (a selected set; an empty set plays nothing).
+    PlaySet(String),
 }
 
 impl ActionsEvent {

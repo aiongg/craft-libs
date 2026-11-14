@@ -301,6 +301,7 @@ pub fn input_method(method: &str, params: &Value, host: &WindowHost, viewport: V
         "ui.key" => KeyPress::from_params(params).map(|key| key.inject(host, viewport)),
         "ui.release" => Release::from_params(params).and_then(|release| release.inject(host, viewport, map)),
         "ui.type" => text(params).map(|text| host.inject_text(viewport, &text)),
+        "ui.ime" => todo!("tl.T23"),
         "ui.capsLock" => caps_lock_from_params(params).map(|on| host.set_caps_lock(on)),
         _ => return None,
     })

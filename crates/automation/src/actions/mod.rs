@@ -22,8 +22,8 @@ mod recording;
 #[cfg(test)]
 mod tests;
 
-pub use file::ActionsFile;
-pub use list::{ActionList, ActionListError, moved_index};
+pub use file::{ActionsFile, ActionsFileError};
+pub use list::{ActionList, ActionListError, MergedFile, moved_index};
 pub use model::{Action, ActionColor, ActionInclude, ActionStep};
 pub use player::{
     ActionPlayer, ActionRunner, MAX_PLAYBACK_DEPTH, MAX_PLAYBACK_STEPS, PlaybackBudget, PlaybackRefusal, PlaybackReport, StepFailure, StepOutcome,

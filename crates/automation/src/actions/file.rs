@@ -17,14 +17,53 @@ pub struct ActionsFile {
     pub sets: Vec<String>,
 }
 
+/// Why an actions file did not load.
+#[derive(Debug)]
+#[non_exhaustive]
+pub enum ActionsFileError {
+    /// The file's version is not [`ActionsFile::VERSION`]; a newer file is refused so it is never
+    /// loaded and then overwritten.
+    Version(u32),
+    /// The text is not a valid actions file.
+    Json(serde_json::Error),
+}
+
+impl std::fmt::Display for ActionsFileError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ActionsFileError::Version(version) => write!(f, "unsupported actions file version {version}"),
+            ActionsFileError::Json(error) => write!(f, "{error}"),
+        }
+    }
+}
+
+impl std::error::Error for ActionsFileError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            ActionsFileError::Version(_) => None,
+            ActionsFileError::Json(error) => Some(error),
+        }
+    }
+}
+
+impl From<serde_json::Error> for ActionsFileError {
+    fn from(error: serde_json::Error) -> Self {
+        ActionsFileError::Json(error)
+    }
+}
+
 impl ActionsFile {
     /// The version this crate writes (PhotoCraft's).
     // pc: crates/engine/src/preset_store.rs:1112.
     pub const VERSION: u32 = 1;
 
     /// Reads a file's JSON text.
-    pub fn from_json(text: &str) -> Result<ActionsFile, serde_json::Error> {
-        serde_json::from_str(text)
+    pub fn from_json(text: &str) -> Result<ActionsFile, ActionsFileError> {
+        let file: ActionsFile = serde_json::from_str(text)?;
+        if file.version != Self::VERSION {
+            return Err(ActionsFileError::Version(file.version));
+        }
+        Ok(file)
     }
 
     /// The file as pretty JSON text.

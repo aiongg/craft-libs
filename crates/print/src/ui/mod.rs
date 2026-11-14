@@ -1,10 +1,12 @@
 //! Printer selection and asynchronous job feedback, independent of any spooler or document.
 //! Hosts provide workers; applications own PDF generation, commands and translated wording.
 
+mod dialog;
 mod panel;
 #[cfg(feature = "screen-testing")]
 mod stories;
 
+pub use dialog::{HostedPrint, PrintAnswer, PrintDialog, PrintDialogOutput, PrintDialogWords, PrintFinish, PrintMarks, PrintSection, PrintSheet};
 pub use panel::{PrintPanel, PrintPanelOutput, PrintWords};
 
 use craft_ui::contract::Bind;
@@ -203,7 +205,16 @@ impl State {
         if self.discovering() || self.busy() {
             return false;
         }
-        self.discovery = Some(discover());
+        self.listen(discover())
+    }
+
+    /// Takes the receiver of a printer discovery the caller started. False means another discovery
+    /// or job is active; the receiver is dropped.
+    pub fn listen(&mut self, printers: Receiver<Vec<Printer>>) -> bool {
+        if self.discovering() || self.busy() {
+            return false;
+        }
+        self.discovery = Some(printers);
         self.loaded = true;
         self.message = Some(Feedback::FindingPrinters);
         true

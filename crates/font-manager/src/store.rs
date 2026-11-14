@@ -12,6 +12,7 @@ use std::sync::{Condvar, Mutex};
 
 use craft_font_catalog::Catalog;
 pub use craft_font_store::UserSource;
+#[cfg(not(target_arch = "wasm32"))]
 use craft_font_store::{Cancel, Client, Face, FontStore, Network, PINNED_INDEX, verify_font};
 
 use crate::index::{Family, Index};
@@ -148,12 +149,14 @@ pub trait Installer: Send + Sync {
 
 const NO_FOLDER: &str = "there is no folder for the font store";
 
+#[cfg(not(target_arch = "wasm32"))]
 /// craft-font-store's store, in the user's font store folder.
 pub struct SuiteStore {
     store: FontStore,
     client: Client,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl SuiteStore {
     /// The store the catalog's environment names, rescanning `catalog` after each change.
     pub fn for_user(catalog: Arc<Catalog>) -> Option<SuiteStore> {
@@ -175,6 +178,7 @@ impl SuiteStore {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl Installer for SuiteStore {
     fn downloads_allowed(&self) -> bool {
         self.store.network() == Network::On

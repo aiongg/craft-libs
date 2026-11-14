@@ -119,6 +119,8 @@ pub enum Reply {
         token: u64,
         /// File to write the PNG to, or `None` to inline it.
         path: Option<String>,
+        /// The viewport to capture.
+        viewport: egui::ViewportId,
     },
     /// Synthetic input was queued: reply once the app has processed all of it.
     AfterInput,
@@ -128,9 +130,10 @@ pub enum Reply {
 }
 
 impl Reply {
-    /// A `ui.screenshot` reply for `token`, writing the PNG to `path` or inlining it when `None`.
-    pub fn screenshot(token: u64, path: Option<String>) -> Self {
-        Self::Screenshot { token, path }
+    /// A `ui.screenshot` reply for `token` of `viewport`, writing the PNG to `path` or inlining it
+    /// when `None`.
+    pub fn screenshot(token: u64, path: Option<String>, viewport: egui::ViewportId) -> Self {
+        Self::Screenshot { token, path, viewport }
     }
 
     /// `Done` with the [`result_reply`] of a method's result.
@@ -194,8 +197,8 @@ impl ControlChannel {
             }
             Reply::AfterInput => self.input_waiters.push(reply),
             Reply::AfterJob(job) => self.job_waiters.push((job, reply)),
-            Reply::Screenshot { token, path } => {
-                if let Err((reply, e)) = self.captures.admit(token, path, reply, document, settle_ms, motion::now()) {
+            Reply::Screenshot { token, path, viewport } => {
+                if let Err((reply, e)) = self.captures.admit(token, path, viewport, reply, document, settle_ms, motion::now()) {
                     let _ = reply.send(json!({"ok": false, "error": e}));
                 }
             }

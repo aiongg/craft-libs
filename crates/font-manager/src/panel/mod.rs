@@ -4,7 +4,7 @@
 mod i18n;
 
 mod app;
-mod browse;
+pub(crate) mod browse;
 mod details;
 pub(crate) mod faces;
 #[cfg(feature = "screen-testing")]

@@ -148,7 +148,7 @@ pub(super) fn map_events<T: LayerTree>(
                     events.push(LayersEvent::MaskLink { layer: row.layer().clone(), part, linked });
                 }
             }
-            CollectionEvent::Item(row, RowEvent::Trailing { part, mods, clicks, .. }) => {
+            CollectionEvent::Item(row, RowEvent::Trailing { part, mods, clicks, source, .. }) => {
                 let layer = row.layer().clone();
                 match part {
                     part if part == craft_ui::list::TrailingPart::new(LOCK_PART) => {
@@ -158,8 +158,10 @@ pub(super) fn map_events<T: LayerTree>(
                     part if part == craft_ui::list::TrailingPart::new(FX_PART) => {
                         events.push(LayersEvent::FxOpen { open: !tree.effects_open(&layer), layer, all: mods.alt });
                     }
-                    // The Blending Options open on a double click, as Photoshop's do.
-                    part if part == craft_ui::list::TrailingPart::new(OPTIONS_PART) && clicks == 2 => {
+                    // The Blending Options open on a double click, as Photoshop's do, or on any non-pointer activation.
+                    part if part == craft_ui::list::TrailingPart::new(OPTIONS_PART)
+                        && (clicks == 2 || source != craft_ui::runtime::commands::FireSource::Pointer) =>
+                    {
                         events.push(LayersEvent::Activate { row, on: ActivateOn::Options });
                     }
                     _ => {}

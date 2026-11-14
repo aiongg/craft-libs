@@ -296,6 +296,14 @@ pub struct ConnectionPermit {
     live: std::sync::Arc<std::sync::atomic::AtomicUsize>,
 }
 
+impl ConnectionPermit {
+    /// Frees the slot once, atomically, without `Drop` freeing it again; answers whether this was
+    /// the last live connection.
+    pub fn release(self) -> bool {
+        todo!("fx.F21")
+    }
+}
+
 impl Drop for ConnectionPermit {
     fn drop(&mut self) {
         self.live.fetch_sub(1, Ordering::AcqRel);

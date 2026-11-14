@@ -13,6 +13,51 @@ use super::footer::{play_target, selected_action};
 use super::panel::{ActionSelection, ActionsEvent, ActionsHost, ActionsPanelState, Session, ShortcutChoice};
 use crate::actions::{ActionColor, ActionList};
 
+/// What the app knows that the menu's states depend on.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ActionsMenuFacts {
+    /// An action is recording.
+    pub recording: bool,
+    /// A path is selected in the document.
+    pub path_selected: bool,
+    /// Playback is waiting (Step by Step, Pause For).
+    pub waiting: bool,
+    /// Allow Tool Recording is on.
+    pub tool_recording: bool,
+}
+
+impl ActionsMenuFacts {
+    /// No fact set.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// An action is recording.
+    pub fn recording(mut self, recording: bool) -> Self {
+        self.recording = recording;
+        self
+    }
+
+    /// A path is selected in the document.
+    pub fn path_selected(mut self, path_selected: bool) -> Self {
+        self.path_selected = path_selected;
+        self
+    }
+
+    /// Playback is waiting.
+    pub fn waiting(mut self, waiting: bool) -> Self {
+        self.waiting = waiting;
+        self
+    }
+
+    /// Allow Tool Recording is on.
+    pub fn tool_recording(mut self, tool_recording: bool) -> Self {
+        self.tool_recording = tool_recording;
+        self
+    }
+}
+
 /// The commands of the Actions panel: its panel-menu rows. They are the app's commands: the app
 /// gives each its state with [`state`](ActionsPanelCommands::state) and runs the chosen one with
 /// [`run`](ActionsPanelCommands::run).
@@ -56,6 +101,24 @@ pub enum ActionsPanelCommands {
     /// Show each action as a button.
     #[command(label = "Button Mode")]
     ButtonMode,
+    /// Duplicate the selected action, step or set.
+    #[command(label = "Duplicate")]
+    Duplicate,
+    /// Replace the selected step with a new recording.
+    #[command(label = "Record Again")]
+    RecordAgain,
+    /// Insert a menu item as a step after the selection.
+    #[command(label = "Insert Menu Item…")]
+    InsertMenuItem,
+    /// Insert a path as a step after the selection.
+    #[command(label = "Insert Path")]
+    InsertPath,
+    /// The playback options.
+    #[command(label = "Playback Options…")]
+    PlaybackOptions,
+    /// Whether tools are recorded as steps.
+    #[command(label = "Allow Tool Recording", kind = "toggle")]
+    ToolRecording,
 }
 
 /// What a panel-menu command asks of the app, from [`ActionsPanelCommands::run`].
@@ -82,7 +145,8 @@ impl ActionsPanelCommands {
     /// the footer's Delete, Insert Stop… needs a selected action or step, Save needs an action,
     /// Start Recording is off while recording and Stop Recording only on while it runs, and Button
     /// Mode is checked with the state's setting and off while recording.
-    pub fn state(self, panel: &ActionsPanelState, list: &ActionList, recording: bool) -> CommandState {
+    pub fn state(self, panel: &ActionsPanelState, list: &ActionList, facts: ActionsMenuFacts) -> CommandState {
+        let recording = facts.recording;
         let any = !list.actions().is_empty();
         let on_row = matches!(panel.selected, Some(ActionSelection::Action(_) | ActionSelection::Step(..)));
         let state = CommandState::new();
@@ -98,6 +162,13 @@ impl ActionsPanelCommands {
             ActionsPanelCommands::Batch | ActionsPanelCommands::Save => state.enabled(any),
             ActionsPanelCommands::Load => state,
             ActionsPanelCommands::ButtonMode => state.enabled(!recording).checked(panel.settings.button_mode),
+            // P3(panels-w9): pn.C41 the enabling rules.
+            ActionsPanelCommands::Duplicate
+            | ActionsPanelCommands::RecordAgain
+            | ActionsPanelCommands::InsertMenuItem
+            | ActionsPanelCommands::InsertPath
+            | ActionsPanelCommands::PlaybackOptions => state,
+            ActionsPanelCommands::ToolRecording => state.checked(facts.tool_recording),
         }
     }
 
@@ -106,7 +177,8 @@ impl ActionsPanelCommands {
     /// is [`ActionsEvent::NewAction`]; Play plays the selection as the footer's Play does; Delete
     /// is refused during a recording as the footer's is). `None` when the command has nothing to
     /// do in this state. `recording` is what [`state`](Self::state) was given.
-    pub fn run(self, panel: &mut ActionsPanelState, list: &ActionList, recording: bool) -> Option<ActionsMenuAction> {
+    pub fn run(self, panel: &mut ActionsPanelState, list: &ActionList, facts: ActionsMenuFacts) -> Option<ActionsMenuAction> {
+        let recording = facts.recording;
         let selected = panel.selected.as_ref();
         let event = match self {
             ActionsPanelCommands::NewAction => ActionsEvent::NewAction,
@@ -127,6 +199,12 @@ impl ActionsPanelCommands {
                 panel.settings.button_mode = !panel.settings.button_mode;
                 return Some(ActionsMenuAction::SettingsChanged);
             }
+            ActionsPanelCommands::Duplicate
+            | ActionsPanelCommands::RecordAgain
+            | ActionsPanelCommands::InsertMenuItem
+            | ActionsPanelCommands::InsertPath
+            | ActionsPanelCommands::PlaybackOptions
+            | ActionsPanelCommands::ToolRecording => todo!("pn.C41"),
         };
         Some(ActionsMenuAction::Event(event))
     }
@@ -135,7 +213,9 @@ impl ActionsPanelCommands {
 /// The rows of the Actions panel's menu, for the dock's `PanelMenu`: New Action…, New Set…, Set
 /// Options…, Play, Start Recording (Stop Recording while `recording`), Delete, Insert Stop…, Batch…,
 /// Load and Save Actions… and Button Mode, in groups.
-pub fn panel_rows(recording: bool) -> Vec<PanelRow> {
+pub fn panel_rows(facts: ActionsMenuFacts, offered: &dyn Fn(ActionsPanelCommands) -> bool) -> Vec<PanelRow> {
+    let _ = offered; // P3(panels-w9): pn.C42 leave out the rows `offered` refuses, and the separators they empty.
+    let recording = facts.recording;
     let command = |command: ActionsPanelCommands| PanelRow::Command(CommandRef::from(command));
     vec![
         command(ActionsPanelCommands::NewAction),

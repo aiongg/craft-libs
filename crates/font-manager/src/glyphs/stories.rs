@@ -32,7 +32,7 @@ fn show_panel(ui: &mut Ui, data: &mut StoryData, editing: bool) -> StoryOutput {
     let styles = [if family == "Hack" { "Regular" } else { "Light" }.to_owned()];
     style.clone_from(&styles[0]);
     GlyphsPanel::new("Glyphs", &FaceGlyphs, Bind::bound(family), Bind::bound(style), Bind::bound(settings))
-        .editing(editing)
+        .can_insert(editing)
         .families(&families)
         .styles(&styles)
         .show(ui)

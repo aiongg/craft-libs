@@ -28,7 +28,7 @@ fn geometry_of(width: f32, height: f32, document: Option<DocumentId>) -> Capture
 
 fn admit_for(captures: &mut Captures, token: u64, document: Option<DocumentId>, now: Instant) -> Result<Receiver<ControlResponse>, String> {
     let (tx, rx) = channel();
-    captures.admit(token, None, tx, document, 0.0, now).map(|()| rx).map_err(|(_, e)| e)
+    captures.admit(token, None, egui::ViewportId::ROOT, tx, document, 0.0, now).map(|()| rx).map_err(|(_, e)| e)
 }
 
 fn admit(captures: &mut Captures, token: u64, now: Instant) -> Result<Receiver<ControlResponse>, String> {
@@ -85,7 +85,7 @@ fn admission_holds_the_count_and_byte_budgets() {
     let now = motion::now();
     let mut captures = Captures::default();
     // 16 MiB each: the count limit binds before the aggregate.
-    captures.note_geometry(geometry(2000.0, 2000.0));
+    captures.note_geometry(egui::ViewportId::ROOT, geometry(2000.0, 2000.0));
     for token in 0..MAX_PENDING as u64 {
         admit(&mut captures, token, now).expect("within the count");
     }
@@ -93,12 +93,12 @@ fn admission_holds_the_count_and_byte_budgets() {
     assert!(e.contains("too many"), "{e}");
     captures.cancel_all("test");
 
-    captures.note_geometry(geometry(8000.0, 5000.0));
+    captures.note_geometry(egui::ViewportId::ROOT, geometry(8000.0, 5000.0));
     let e = admit(&mut captures, 100, now).expect_err("over the per-image limit");
     assert!(e.contains("per-image"), "{e}");
 
     // 4 × 64 MiB is exactly the aggregate limit.
-    captures.note_geometry(geometry(4096.0, 4096.0));
+    captures.note_geometry(egui::ViewportId::ROOT, geometry(4096.0, 4096.0));
     for token in 200..204 {
         admit(&mut captures, token, now).expect("within the aggregate");
     }
@@ -120,8 +120,8 @@ fn a_request_before_the_first_geometry_waits() {
     assert!(rx.try_recv().is_err());
 
     let g = geometry(800.0, 600.0);
-    captures.note_geometry(g);
-    assert!(captures.drain(now, Some(g), None).is_empty());
+    captures.note_geometry(egui::ViewportId::ROOT, g);
+    assert!(captures.drain(now, None).is_empty());
     assert_eq!(captures.reserved_bytes(), 800 * 600 * 4, "admitted with a reservation");
     let e = admit(&mut captures, 1, now).expect_err("the token is pending");
     assert!(e.contains("already pending"), "{e}");
@@ -130,7 +130,7 @@ fn a_request_before_the_first_geometry_waits() {
 
     let mut parked = Captures::default();
     let rx = admit(&mut parked, 3, now).expect("waits");
-    assert!(parked.drain(now + DEADLINE, None, None).is_empty(), "the waiting request answers itself");
+    assert!(parked.drain(now + DEADLINE, None).is_empty(), "the waiting request answers itself");
     let reply = rx.try_recv().expect("exactly one answer");
     assert_eq!(reply["ok"], false);
     assert!(reply["error"].as_str().is_some_and(|e| e.contains("timed out")), "{reply}");
@@ -144,9 +144,9 @@ fn a_grown_layout_is_revalidated_before_issue() {
     let ctx = Context::default();
     let now = motion::now();
     let mut captures = Captures::default();
-    captures.note_geometry(geometry(800.0, 600.0));
+    captures.note_geometry(egui::ViewportId::ROOT, geometry(800.0, 600.0));
     admit(&mut captures, 61, now).expect("admitted");
-    captures.note_geometry(geometry(8000.0, 5000.0));
+    captures.note_geometry(egui::ViewportId::ROOT, geometry(8000.0, 5000.0));
     let (finished, callbacks) = settle_and_issue(&mut captures, &ctx, now, None);
     assert!(callbacks.is_empty(), "nothing is captured under the stale reservation");
     assert_eq!(finished.len(), 1);
@@ -154,11 +154,11 @@ fn a_grown_layout_is_revalidated_before_issue() {
     assert_eq!((captures.pending(), captures.reserved_bytes()), (0, 0));
 
     // 3 × 64 MiB fit; 3 × 100 MiB do not.
-    captures.note_geometry(geometry(4096.0, 4096.0));
+    captures.note_geometry(egui::ViewportId::ROOT, geometry(4096.0, 4096.0));
     for token in 70..73 {
         admit(&mut captures, token, now).expect("admitted");
     }
-    captures.note_geometry(geometry(5000.0, 5000.0));
+    captures.note_geometry(egui::ViewportId::ROOT, geometry(5000.0, 5000.0));
     let (finished, callbacks) = settle_and_issue(&mut captures, &ctx, now, None);
     assert!(callbacks.is_empty(), "the grown layout settles before any capture");
     assert!(!finished.is_empty(), "a request no longer fits the aggregate");
@@ -174,7 +174,7 @@ fn settling_counts_passes_and_issues_once() {
     let now = motion::now();
     let host = WindowHost::of(&ctx);
     let mut captures = Captures::default();
-    captures.note_geometry(geometry(800.0, 600.0));
+    captures.note_geometry(egui::ViewportId::ROOT, geometry(800.0, 600.0));
     admit(&mut captures, 7, now).expect("admitted");
     let mut issued = 0;
     for pass in 1..=SETTLE_PASSES + 2 {
@@ -194,11 +194,11 @@ fn a_completed_image_is_handed_back_by_drain() {
     let now = motion::now();
     let mut captures = Captures::default();
     let g = geometry(800.0, 600.0);
-    captures.note_geometry(g);
+    captures.note_geometry(egui::ViewportId::ROOT, g);
     let rx = admit(&mut captures, 1, now).expect("admitted");
     issue_one(&mut captures, &ctx, now).complete(image(&g));
     assert!(rx.try_recv().is_err(), "no reply from the callback");
-    let finished = captures.drain(now, Some(g), None);
+    let finished = captures.drain(now, None);
     assert_eq!(finished.len(), 1);
     assert!(finished[0].result.is_ok());
     assert!(finished[0].reply.is_some());
@@ -215,12 +215,12 @@ fn a_request_past_its_deadline_times_out() {
     let g = geometry(800.0, 600.0);
     for issued in [false, true] {
         let mut captures = Captures::default();
-        captures.note_geometry(g);
+        captures.note_geometry(egui::ViewportId::ROOT, g);
         admit(&mut captures, 2, now).expect("admitted");
         if issued {
             issue_one(&mut captures, &ctx, now).complete(image(&g));
         }
-        let finished = captures.drain(late, Some(g), None);
+        let finished = captures.drain(late, None);
         assert_eq!(finished.len(), 1, "issued: {issued}");
         assert!(error(&finished[0]).contains("timed out"), "{}", error(&finished[0]));
         assert!(finished[0].reply.is_some());
@@ -235,7 +235,7 @@ fn cancellation_releases_the_budget_and_drops_a_late_image() {
     let now = motion::now();
     let mut captures = Captures::default();
     let g = geometry(800.0, 600.0);
-    captures.note_geometry(g);
+    captures.note_geometry(egui::ViewportId::ROOT, g);
     admit(&mut captures, 3, now).expect("admitted");
     let callback = issue_one(&mut captures, &ctx, now);
     let finished = captures.cancel_all("test");
@@ -243,7 +243,7 @@ fn cancellation_releases_the_budget_and_drops_a_late_image() {
     assert!(error(&finished[0]).contains("cancelled"));
     assert_eq!((captures.pending(), captures.reserved_bytes()), (0, 0));
     callback.complete(image(&g));
-    assert!(captures.drain(now, Some(g), None).is_empty());
+    assert!(captures.drain(now, None).is_empty());
 }
 
 /// Images completed in reverse order stay with their own tokens.
@@ -253,14 +253,14 @@ fn out_of_order_completions_keep_their_tokens() {
     let now = motion::now();
     let mut captures = Captures::default();
     let g = geometry(800.0, 600.0);
-    captures.note_geometry(g);
+    captures.note_geometry(egui::ViewportId::ROOT, g);
     admit(&mut captures, 11, now).expect("admitted");
     admit(&mut captures, 12, now).expect("admitted");
     let (_, callbacks) = settle_and_issue(&mut captures, &ctx, now, None);
     let [first, second] = <[ScreenshotCallback; 2]>::try_from(callbacks).ok().expect("two captures");
     second.complete(filled([800, 600], Color32::RED));
     first.complete(filled([800, 600], Color32::BLUE));
-    let mut finished = captures.drain(now, Some(g), None);
+    let mut finished = captures.drain(now, None);
     finished.sort_by_key(|f| f.token);
     let colors: Vec<_> = finished.iter().map(|f| (f.token, f.result.as_ref().expect("captured").pixels[0])).collect();
     assert_eq!(colors, [(11, Color32::BLUE), (12, Color32::RED)]);
@@ -277,13 +277,13 @@ fn a_capture_follows_the_document_generation() {
     let g = geometry_of(800.0, 600.0, DOC);
     for (after, captured) in [(other, false), (edited, true)] {
         let mut captures = Captures::default();
-        captures.note_geometry(g);
+        captures.note_geometry(egui::ViewportId::ROOT, g);
         admit_for(&mut captures, 21, DOC, now).expect("admitted");
         let (_, mut callbacks) = settle_and_issue(&mut captures, &ctx, now, DOC);
         callbacks.pop().expect("one capture").complete(image(&g));
         let current = geometry_of(800.0, 600.0, after);
-        captures.note_geometry(current);
-        let finished = captures.drain(now, Some(current), after);
+        captures.note_geometry(egui::ViewportId::ROOT, current);
+        let finished = captures.drain(now, after);
         assert_eq!(finished.len(), 1);
         assert_eq!(finished[0].result.is_ok(), captured, "{after:?}");
         if !captured {
@@ -293,7 +293,7 @@ fn a_capture_follows_the_document_generation() {
 
     // The pass began in generation 1 and ended in 2: no capture of a mixed frame.
     let mut captures = Captures::default();
-    captures.note_geometry(g);
+    captures.note_geometry(egui::ViewportId::ROOT, g);
     admit_for(&mut captures, 23, DOC, now).expect("admitted");
     let (finished, callbacks) = settle_and_issue(&mut captures, &ctx, now, other);
     assert!(callbacks.is_empty());
@@ -308,14 +308,14 @@ fn geometry_change_in_flight_retries() {
     let ctx = Context::default();
     let now = motion::now();
     let mut captures = Captures::default();
-    captures.note_geometry(geometry(100.0, 80.0));
+    captures.note_geometry(egui::ViewportId::ROOT, geometry(100.0, 80.0));
     let rx = admit(&mut captures, 7, now).expect("admitted");
 
     for attempt in 0..=MAX_RETRIES {
         let callback = issue_one(&mut captures, &ctx, now);
-        captures.note_geometry(geometry(100.0 + f32::from(attempt) + 1.0, 80.0));
+        captures.note_geometry(egui::ViewportId::ROOT, geometry(100.0 + f32::from(attempt) + 1.0, 80.0));
         callback.complete(image(&geometry(100.0 + f32::from(attempt), 80.0)));
-        let finished = captures.drain(now, captures.last_geometry(), None);
+        let finished = captures.drain(now, None);
         if attempt < MAX_RETRIES {
             assert!(finished.is_empty(), "attempt {attempt} retries");
             assert_eq!(captures.pending(), 1);
@@ -336,15 +336,15 @@ fn a_resize_and_back_retries_then_accepts() {
     let now = motion::now();
     let mut captures = Captures::default();
     let g = geometry(800.0, 600.0);
-    captures.note_geometry(g);
+    captures.note_geometry(egui::ViewportId::ROOT, g);
     admit(&mut captures, 32, now).expect("admitted");
     issue_one(&mut captures, &ctx, now).complete(image(&g));
-    captures.note_geometry(geometry(900.0, 700.0));
-    captures.note_geometry(g);
-    assert!(captures.drain(now, Some(g), None).is_empty(), "the epoch advanced: retry");
+    captures.note_geometry(egui::ViewportId::ROOT, geometry(900.0, 700.0));
+    captures.note_geometry(egui::ViewportId::ROOT, g);
+    assert!(captures.drain(now, None).is_empty(), "the epoch advanced: retry");
     assert_eq!(captures.pending(), 1);
     issue_one(&mut captures, &ctx, now).complete(image(&g));
-    let finished = captures.drain(now, Some(g), None);
+    let finished = captures.drain(now, None);
     assert_eq!(finished.len(), 1);
     assert!(finished[0].result.is_ok());
 }
@@ -365,10 +365,10 @@ fn the_image_must_match_the_issued_viewport() {
     ];
     for (g, size, expected) in cases {
         let mut captures = Captures::default();
-        captures.note_geometry(g);
+        captures.note_geometry(egui::ViewportId::ROOT, g);
         admit(&mut captures, 41, now).expect("admitted");
         issue_one(&mut captures, &ctx, now).complete(filled(size, Color32::BLACK));
-        let finished = captures.drain(now, Some(g), None);
+        let finished = captures.drain(now, None);
         assert_eq!(finished.len(), 1);
         match expected {
             Ok(()) => assert!(finished[0].result.is_ok(), "{size:?}"),
@@ -385,7 +385,7 @@ fn a_minimized_window_is_refused_before_issue() {
     let mut captures = Captures::default();
     let mut g = geometry(800.0, 600.0);
     g.minimized = true;
-    captures.note_geometry(g);
+    captures.note_geometry(egui::ViewportId::ROOT, g);
     admit(&mut captures, 52, now).expect("admitted");
     let (finished, callbacks) = settle_and_issue(&mut captures, &ctx, now, None);
     assert!(callbacks.is_empty());

@@ -276,7 +276,8 @@ pub(super) fn list(catalog: &Arc<Catalog>, infos: &Infos, listing: &Listing<'_>,
                 family: family.clone(),
                 starred: settings.is_some_and(|s| s.favorites.iter().any(|f| f == family)),
                 class: infos.known_class(family),
-                variable: info.variable,
+                format: info.variable.then_some(super::FontFormat::Variable), // P3(tools-w7): tl.T25 the format from the outlines.
+                styles: 0,
                 recent: false,
                 shown,
             };
@@ -289,7 +290,7 @@ pub(super) fn list(catalog: &Arc<Catalog>, infos: &Infos, listing: &Listing<'_>,
         rows.retain(|r| r.starred);
     }
     if filters.variable {
-        rows.retain(|r| r.variable);
+        rows.retain(|r| r.format == Some(super::FontFormat::Variable));
     }
     if let Some(class) = filters.class {
         rows.retain_mut(|r| {

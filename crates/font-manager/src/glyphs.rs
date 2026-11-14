@@ -38,6 +38,7 @@ craft_ui::words! {
         style: "glyphs.style" = "Style";
         zoom: "glyphs.zoom" = "Zoom";
         no_text: "glyphs.noText" = "Edit text to insert glyphs";
+        loading: "glyphs.loading" = "Loading fonts…";
         font: "glyphs.font" = "Font";
         category: "glyphs.category" = "Category";
         grid: "glyphs.grid" = "Glyphs";
@@ -116,6 +117,15 @@ pub trait GlyphSource: Send + Sync {
     fn glyph(&self, family: &str, style: &str, c: char, px: u32) -> Option<ColorImage>;
     /// Whether `c` is in `category` (one of [`CATEGORIES`]).
     fn in_category(&self, c: char, category: &str) -> bool;
+    /// Whether the fonts are read. Not ready, the panel shows a spinner and muted text and no grid, and asks for a
+    /// repaint after the poll interval.
+    fn ready(&self) -> bool {
+        true
+    }
+    /// Changes when the source's faces change, so the pictures and the character lists are read again.
+    fn revision(&self) -> u64 {
+        0
+    }
 }
 
 /// The panel's remembered state (`[glyphs_panel]`): category, zoom and the recent glyphs.
@@ -178,7 +188,7 @@ struct GlyphPictures<'a>(&'a dyn GlyphSource);
 
 impl ThumbSource<GlyphKey> for GlyphPictures<'_> {
     fn revision(&self, _: &GlyphKey, _: &ThumbRequest) -> Revision {
-        Revision::new(0)
+        Revision::new(self.0.revision())
     }
 
     fn render(&self, key: &GlyphKey, request: &ThumbRequest) -> ThumbRender {
@@ -193,6 +203,7 @@ impl ThumbSource<GlyphKey> for GlyphPictures<'_> {
 #[derive(Clone, Default)]
 struct CharsCache {
     key: (String, String, String),
+    revision: u64,
     chars: Arc<Vec<char>>,
 }
 
@@ -216,10 +227,11 @@ fn category_chars(cache: &mut CharsCache, source: &dyn GlyphSource, family: &str
         return Arc::new(seen);
     }
     let key = (family.to_owned(), style.to_owned(), category.to_owned());
-    if cache.key != key {
+    let revision = source.revision();
+    if cache.key != key || cache.revision != revision {
         let charmap = source.charmap(family, style);
         let chars = if category == CATEGORIES[0] { charmap } else { charmap.into_iter().filter(|c| source.in_category(*c, category)).collect() };
-        *cache = CharsCache { key, chars: Arc::new(chars) };
+        *cache = CharsCache { key, revision, chars: Arc::new(chars) };
     }
     Arc::clone(&cache.chars)
 }
@@ -267,9 +279,9 @@ pub struct GlyphsPanel<'a> {
     /// The styles of the family, for the style list.
     #[prop]
     styles: &'a [String],
-    /// Whether text is being edited (inserting is possible).
+    /// Whether the app has a place to insert a glyph: a double click or Enter inserts.
     #[prop]
-    editing: bool,
+    can_insert: bool,
 }
 
 impl<'a> GlyphsPanel<'a> {
@@ -281,12 +293,12 @@ impl<'a> GlyphsPanel<'a> {
         style: Bind<'a, String>,
         settings: Bind<'a, GlyphsPanelSettings>,
     ) -> Self {
-        GlyphsPanel { label: label.into(), source, family, style, settings, families: &[], styles: &[], editing: false }
+        GlyphsPanel { label: label.into(), source, family, style, settings, families: &[], styles: &[], can_insert: false }
     }
 
     /// Shows the panel.
     pub fn show(self, ui: &mut Ui) -> GlyphsPanelOutput {
-        let GlyphsPanel { label, source, mut family, mut style, mut settings, families, styles, editing } = self;
+        let GlyphsPanel { label, source, mut family, mut style, mut settings, families, styles, can_insert } = self;
         let env = Env::of(ui);
         let words = env.words::<GlyphsWords>();
         let thumbs = Thumbnails::<GlyphKey>::in_context(ui.ctx(), "craft-font-manager-glyphs", ThumbnailOptions::new());
@@ -414,13 +426,13 @@ impl<'a> GlyphsPanel<'a> {
                 Text::new(info.clone()).show(ui);
                 ThumbnailSlider::new(words.zoom.clone(), Bind::bound(&mut zoom_value), ZOOM).show(ui);
             });
-            if !editing {
+            if !can_insert {
                 Text::new(words.no_text.clone()).show(ui);
             }
 
             state.zoom = zoom_value as f32;
             if let Some(glyph) = activated
-                && editing
+                && can_insert
             {
                 state.recent.retain(|g| *g != glyph);
                 state.recent.insert(0, glyph.clone());

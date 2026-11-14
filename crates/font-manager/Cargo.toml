@@ -13,19 +13,18 @@ test = false
 
 [features]
 default = []
-# `FontsPanel`: the whole interface as one egui panel, with the picker, the Glyphs panel, the axis sliders and the
+# `FontsPanel`: the whole interface as one egui panel (it builds for the web too), with the picker, the Glyphs panel, the axis sliders and the
 # Missing Fonts dialog.
 ui = ["dep:craft-behavior", "dep:craft-theme", "dep:egui", "dep:craft-ui", "dep:craft-host", "dep:serde", "dep:log", "dep:skrifa"]
 # The widgets' stories and trials (`tests/it`).
-screen-testing = ["ui", "craft-ui/testing", "dep:epaint_default_fonts"]
+screen-testing = ["ui", "craft-ui/testing", "dep:epaint_default_fonts", "egui/default_fonts"]
 
 [dependencies]
 craft-font-catalog = { workspace = true }
 craft-i18n = { workspace = true }
 # The pinned built-in indexes compiled in, for browsing offline.
 craft-font-store = { workspace = true, features = ["bundled-index"] }
-# egui's default faces lead the interface font stack.
-egui = { workspace = true, features = ["default_fonts"], optional = true }
+egui = { workspace = true, optional = true }
 # The story's installed faces.
 epaint_default_fonts = { version = "0.37", optional = true }
 # A host that wants installed fonts for characters its interface faces lack (language names in

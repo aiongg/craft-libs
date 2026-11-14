@@ -47,7 +47,7 @@ const LANGUAGE_MATCHES: usize = 8;
 /// The most source problems the panel spells out.
 const SOURCE_NOTICES: usize = 4;
 /// How often a pass is asked for while the installed fonts are being read.
-const SCAN_POLL_SECONDS: f64 = 0.1;
+pub(crate) const SCAN_POLL_SECONDS: f64 = 0.1;
 
 pub use cards::{CardData, CardEvent, CardKeys, CardState, FamilyCard, FamilyCards};
 

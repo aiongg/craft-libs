@@ -41,6 +41,16 @@ impl std::fmt::Display for ActionListError {
 
 impl std::error::Error for ActionListError {}
 
+/// What [`ActionList::merge_file`] added.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct MergedFile {
+    /// The indices of the actions added.
+    pub added: Vec<usize>,
+    /// The (name in the file, name given) pair of each action renamed to stay unique.
+    pub renames: Vec<(String, String)>,
+}
+
 /// The recorded actions: one flat list (PhotoCraft's engine, journal and file are flat), each
 /// action with an optional set name, plus the names of sets that hold no action yet, so New Set
 /// works before anything is recorded into it (VectorCraft's nested sets map onto
@@ -350,6 +360,60 @@ impl ActionList {
         self.actions.get_mut(index).ok_or(ActionListError::NoSuchAction(index))?.color = color;
         self.touch();
         Ok(())
+    }
+
+    /// Appends a whole action and returns its index; an empty or taken name is refused.
+    pub fn push(&mut self, action: Action) -> Result<usize, ActionListError> {
+        let _ = action;
+        todo!("pn.C37")
+    }
+
+    /// Inserts `step` at `at` in action `action`.
+    pub fn insert_step(&mut self, action: usize, at: usize, step: ActionStep) -> Result<(), ActionListError> {
+        let _ = (action, at, step);
+        todo!("pn.C37")
+    }
+
+    /// Inserts a copy of action `index` below itself under a unique name and returns its index;
+    /// `shift(step, at, count)` sees every step of every action so the app moves its calls by
+    /// index.
+    pub fn duplicate_action(&mut self, index: usize, shift: impl FnMut(&mut ActionStep, usize, usize)) -> Result<usize, ActionListError> {
+        let _ = (index, shift);
+        todo!("pn.C37")
+    }
+
+    /// Inserts a copy of step `step` of action `action` after itself, with its include and dialog
+    /// flags.
+    pub fn duplicate_step(&mut self, action: usize, step: usize) -> Result<(), ActionListError> {
+        let _ = (action, step);
+        todo!("pn.C37")
+    }
+
+    /// Duplicates the set `set` under a unique name and returns that name; `shift` is as for
+    /// [`duplicate_action`](Self::duplicate_action).
+    pub fn duplicate_set(&mut self, set: &str, shift: impl FnMut(&mut ActionStep, usize, usize)) -> Result<String, ActionListError> {
+        let _ = (set, shift);
+        todo!("pn.C37")
+    }
+
+    /// Replaces step `step` of action `action` with `with` and returns the step it replaced.
+    pub fn replace_step(&mut self, action: usize, step: usize, with: ActionStep) -> Result<ActionStep, ActionListError> {
+        let _ = (action, step, with);
+        todo!("pn.C37")
+    }
+
+    /// Marks action `index` as written (or not) by an automation client.
+    pub fn set_automation(&mut self, index: usize, on: bool) -> Result<(), ActionListError> {
+        let _ = (index, on);
+        todo!("pn.C37")
+    }
+
+    /// Adds the actions of `file`, each under a unique name; with `replace`, the actions of every
+    /// set the file names are dropped first. `calls(step, &renames)` runs once on every step of
+    /// every action just added, after all renames are known.
+    pub fn merge_file(&mut self, file: ActionsFile, replace: bool, calls: impl FnMut(&mut ActionStep, &[(String, String)])) -> MergedFile {
+        let _ = (file, replace, calls);
+        todo!("pn.C37")
     }
 
     /// The list a file holds (its empty sets included).

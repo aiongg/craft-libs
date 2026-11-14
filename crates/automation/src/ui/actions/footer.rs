@@ -50,7 +50,9 @@ pub(super) fn show_footer(ui: &mut Ui, body: &Body<'_>, state: &mut ActionsPanel
         FooterAction::new(icon("trash"), words.delete.clone()).enabled(delete.is_some()).takes_drops_disabled(true).accepts_drops(
             move |drag: &ListDrag<ActionSelection>| !playing && drag.list == list_id && delete_event(&drag.grabbed, recording.is_some()).is_some(),
         ),
-        FooterAction::new(icon("plus"), words.new_action.clone()).enabled(hosted && idle),
+        FooterAction::new(icon("plus"), words.new_action.clone())
+            .enabled(hosted && idle)
+            .accepts_drops(move |drag: &ListDrag<ActionSelection>| !playing && recording.is_none() && drag.list == list_id),
         FooterAction::new(icon("new_folder"), words.new_set.clone()).enabled(idle),
         FooterAction::new(icon("play"), words.play.clone()).enabled(hosted && idle && target.is_some()),
         record,
@@ -83,6 +85,12 @@ pub(super) fn show_footer(ui: &mut Ui, body: &Body<'_>, state: &mut ActionsPanel
         && let Some(drag) = dropped.payload::<ListDrag<ActionSelection>>()
     {
         events.extend(delete_event(&drag.grabbed, recording.is_some()));
+    }
+    if let Some(dropped) = &out.dropped
+        && dropped.index == NEW_ACTION
+        && let Some(drag) = dropped.payload::<ListDrag<ActionSelection>>()
+    {
+        events.push(ActionsEvent::Duplicate(drag.grabbed.clone()));
     }
     events
 }
