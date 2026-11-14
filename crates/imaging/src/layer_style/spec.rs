@@ -52,6 +52,8 @@ pub enum FieldKind {
     /// Gradient Overlay's Method: Smooth, Perceptual, Linear, Classic, and Custom first while the
     /// stored value names none of them (an imported curve kept until the user picks).
     GradientMethod,
+    /// A gradient: a preset select over the stop bar (`craft_color::ui::gradient::GradientEditor`).
+    Gradient,
     #[allow(missing_docs)]
     Check,
     /// An angle dial and field, −180..=180°. With the effect's `useGlobalLight` on, it edits the

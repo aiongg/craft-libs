@@ -27,7 +27,8 @@ const COLOR_KEY: &str = "photoFilter.color";
 const DENSITY_DEFAULT: f64 = 25.0;
 
 /// Photo Filter's presets, in Photoshop's menu order, with their colours.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub enum PhotoFilterPreset {
     /// Warming Filter (85): (236, 138, 0), the default.
@@ -158,7 +159,8 @@ impl PhotoFilterPreset {
 }
 
 /// A Photo Filter value.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct PhotoFilter {
     /// The filter colour (a preset's or the user's).

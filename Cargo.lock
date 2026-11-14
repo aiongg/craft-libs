@@ -2148,6 +2148,7 @@ name = "craft-imaging"
 version = "0.1.0"
 dependencies = [
  "craft-behavior",
+ "craft-color",
  "craft-host",
  "craft-i18n",
  "craft-keymap",
@@ -2157,6 +2158,7 @@ dependencies = [
  "egui_kittest",
  "kurbo 0.13.1",
  "serde",
+ "serde_json",
 ]
 
 [[package]]

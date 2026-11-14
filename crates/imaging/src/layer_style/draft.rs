@@ -2,7 +2,7 @@
 //! the rules every edit follows.
 
 use super::model::{EffectId, EffectInstance, EffectKind, LayerStyle, LayerStylePage, StyleParams, StyleValue};
-use super::shadow::ShadowDrag;
+use super::drag::{GradientOffsetDrag, ShadowDrag};
 use super::spec::EffectSpec;
 
 /// What the Layer Style dialog edits: the [`LayerStyle`] and the dialog's view state (the page,
@@ -28,6 +28,8 @@ pub struct LayerStyleDraft {
     pub preview: bool,
     /// The shadow drag in progress, from its press to its release.
     pub shadow_drag: Option<ShadowDrag>,
+    /// The Gradient Overlay offset drag in progress, from its press to its release.
+    pub gradient_drag: Option<GradientOffsetDrag>,
 }
 
 impl Default for LayerStyleDraft {
@@ -43,7 +45,25 @@ impl LayerStyleDraft {
     // first instance).
     pub fn new(style: LayerStyle) -> LayerStyleDraft {
         let page = style.effects.first().map_or(LayerStylePage::Blending, |e| LayerStylePage::Effect(e.id));
-        LayerStyleDraft { style, page, blend_if_channel: 0, preview: true, shadow_drag: None }
+        LayerStyleDraft { style, page, blend_if_channel: 0, preview: true, shadow_drag: None, gradient_drag: None }
+    }
+
+    /// Whether a Gradient Overlay offset drag is in progress.
+    pub fn drags_gradient(&self) -> bool {
+        self.gradient_drag.is_some()
+    }
+
+    /// A drag on the image moves the selected Gradient Overlay's hidden `offset` by the pointer's travel over the layer
+    /// size. `start` is the press; `total` the movement since it. Whether the offset changed.
+    pub fn drag_gradient(&mut self, start: bool, total: [f64; 2], layer_size: [f64; 2]) -> bool {
+        let _ = (start, total, layer_size);
+        todo!("dl.K52")
+    }
+
+    /// The host's release: clears the shadow and gradient drags.
+    pub fn end_drag(&mut self) {
+        self.shadow_drag = None;
+        self.gradient_drag = None;
     }
 
     /// Opens on `kind`'s page (Layer › Layer Style › Drop Shadow…): its first instance, turned on,

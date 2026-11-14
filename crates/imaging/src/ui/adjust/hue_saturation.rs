@@ -39,7 +39,8 @@ const MAX_SPAN: f64 = 359.0;
 const RANGE_SPANS: [ThumbSpan; 2] = [ThumbSpan::new(0, 3, SpanInk::Faint), ThumbSpan::new(1, 2, SpanInk::Muted)];
 
 /// One of Hue/Saturation's six colour ranges (Reds, Yellows, Greens, Cyans, Blues, Magentas).
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct HueRangeValue {
     /// Hue shift −180..=180°, whole degrees.
@@ -106,7 +107,8 @@ impl HueRangeValue {
 }
 
 /// A Hue/Saturation value.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct HueSaturation {
     /// Master hue: −180..=180°, or 0..=360° with Colorize.

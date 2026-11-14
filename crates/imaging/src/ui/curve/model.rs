@@ -2,7 +2,8 @@
 //! the camera point curve and the contour editor).
 
 /// A tone curve in levels (`0..=levels`, 255 for 8-bit tones): input across, output up.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub enum Curve {
     /// Control points `[input, output]`, sorted by input, whole levels, the first and last the

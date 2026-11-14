@@ -17,7 +17,8 @@ use crate::ui::adjust::{AdjustContext, AdjustField, AdjustTrack};
 const TINT_KEY: &str = "blackWhite.tint";
 
 /// A Black & White value.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct BlackWhite {
     /// Reds, Yellows, Greens, Cyans, Blues, Magentas, −200..=300 %.

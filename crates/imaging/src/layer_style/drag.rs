@@ -1,4 +1,6 @@
-//! The shadow drag: moving a Drop Shadow or Inner Shadow by dragging on the image (#5701).
+//! The drags on the image: moving a Drop Shadow or Inner Shadow (#5701), and a Gradient Overlay's offset.
+
+use super::model::EffectId;
 
 /// A shadow drag in progress: the shadow's angle and distance when the press came. The offset of
 /// a shadow is (−cos angle, sin angle) × distance (the light sits opposite the shadow; y down).
@@ -30,5 +32,34 @@ impl ShadowDrag {
         }
         let angle = if d >= 0.5 { oy.atan2(-ox).to_degrees().round() } else { self.start_angle };
         Some((angle, d.round().clamp(0.0, 30000.0)))
+    }
+}
+
+/// A Gradient Overlay offset drag in progress: the effect instance, the pointer's origin and the
+/// offset it started from.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct GradientOffsetDrag {
+    instance: EffectId,
+    origin: [f64; 2],
+    base: [f64; 2],
+}
+
+impl GradientOffsetDrag {
+    /// A drag on `instance` that starts at `origin` from the hidden `offset` `base`.
+    pub fn begin(instance: EffectId, origin: [f64; 2], base: [f64; 2]) -> Self {
+        let _ = (instance, origin, base);
+        todo!("dl.K52")
+    }
+
+    /// The offset after the pointer travelled `total` over a layer of `layer_size`, clamped to
+    /// plus or minus 4 and rounded to 0.001.
+    pub fn moved(&self, total: [f64; 2], layer_size: [f64; 2]) -> [f64; 2] {
+        let _ = (total, layer_size);
+        todo!("dl.K52")
+    }
+
+    /// The effect instance the drag moves.
+    pub fn instance(&self) -> EffectId {
+        self.instance
     }
 }

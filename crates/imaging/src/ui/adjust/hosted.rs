@@ -1,17 +1,52 @@
 //! [`HostedAdjustDialog`]: an Image › Adjustments dialog on the dialog host, around any adjustment editor.
 
-use craft_behavior::Value;
+use craft_behavior::{GestureId, Value};
+use serde::Serialize;
+use serde::de::DeserializeOwned;
 use craft_ui::contract::Bind;
 use craft_ui::dialog::{DialogId, DialogResult, DialogStack, StackDialog, dialog_id};
 use craft_ui::patterns::form_dialogs::FormDialog;
 use craft_ui::runtime::env::Label;
 use craft_ui::runtime::memory::SaveKey;
-use egui::Ui;
+use egui::{Context, Ui};
 
-use super::AdjustContext;
+use super::{AdjustContext, LevelsClip, TonePicker};
+
+/// The phase of the editor's edit this pass, mirroring [`craft_behavior::EditEvent`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum EditPhase {
+    /// A gesture began.
+    Begin,
+    /// A proposed value of the running gesture.
+    Update,
+    /// The gesture ended with its value.
+    Commit,
+    /// The gesture was abandoned.
+    Cancel,
+}
+
+/// What an adjustment editor shares with its dialog for one pass: the context, the canvas, the dialog's own picker,
+/// channel and clipping state, and the editor's edit phase.
+pub struct AdjustDialogCx<'a> {
+    /// Where the editor is shown.
+    pub context: AdjustContext,
+    /// The canvas the dialog's pickers work on.
+    pub canvas: Option<egui::Id>,
+    /// The tone picker armed, owned by the dialog for its life.
+    pub picker: &'a mut Option<TonePicker>,
+    /// The Channel select's shown entry, the one store of Curves and Levels.
+    pub channel: &'a mut usize,
+    /// The curve point to select.
+    pub select_point: Option<usize>,
+    /// The Levels clipping display.
+    pub clipping: &'a mut Option<LevelsClip>,
+    /// The editor's edit phase and its gesture this pass.
+    pub edit: Option<(EditPhase, GestureId)>,
+}
 
 /// Shows the editor over the dialog's value for one pass; `Some` carries what the editor asks of the app this pass.
-type Editor<V, E> = dyn for<'b> Fn(&mut Ui, Bind<'b, V>, AdjustContext) -> Option<E> + Send;
+type Editor<V, E> = dyn for<'b> Fn(&mut Ui, &mut V, &mut AdjustDialogCx<'b>) -> Option<E> + Send;
 
 /// An Image › Adjustments dialog the [`DialogHost`](craft_ui::dialog::DialogHost) owns: an adjustment editor over a
 /// value `V` the host keeps, in a form dialog with OK and Cancel beside the editor (Alt turns Cancel into Reset, which
@@ -37,13 +72,19 @@ pub struct HostedAdjustDialog<V, E = ()> {
     context: AdjustContext,
     resizable: bool,
     remember: Option<SaveKey>,
+    canvas: Option<egui::Id>,
+    reset_with: Option<Box<dyn Fn(&V, &V) -> V + Send>>,
+    picker: Option<TonePicker>,
+    channel: usize,
+    clipping: Option<LevelsClip>,
+    select_point: Option<usize>,
     editor: Box<Editor<V, E>>,
     asks: Vec<E>,
     #[cfg(feature = "screen-testing")]
     facts: craft_ui::testing::StoryOutput,
 }
 
-impl<V: Value + Default, E: Send + 'static> HostedAdjustDialog<V, E> {
+impl<V: Value + Default + Serialize + DeserializeOwned, E: Send + 'static> HostedAdjustDialog<V, E> {
     /// The dialog of the adjustment command `key`, titled `title`, opening with `value`; `editor` shows the
     /// adjustment's editor over the value in the given context. Preview starts on; the editor's colour sliders show
     /// their colour tracks.
@@ -51,7 +92,7 @@ impl<V: Value + Default, E: Send + 'static> HostedAdjustDialog<V, E> {
         key: impl Into<String>,
         title: impl Into<Label>,
         value: V,
-        editor: impl for<'b> Fn(&mut Ui, Bind<'b, V>, AdjustContext) -> Option<E> + Send + 'static,
+        editor: impl for<'b> Fn(&mut Ui, &mut V, &mut AdjustDialogCx<'b>) -> Option<E> + Send + 'static,
     ) -> Self {
         let key = key.into();
         HostedAdjustDialog {
@@ -65,6 +106,12 @@ impl<V: Value + Default, E: Send + 'static> HostedAdjustDialog<V, E> {
             context: AdjustContext::dialog(true),
             resizable: false,
             remember: None,
+            canvas: None,
+            reset_with: None,
+            picker: None,
+            channel: 0,
+            clipping: None,
+            select_point: None,
             editor: Box::new(editor),
             asks: Vec::new(),
             #[cfg(feature = "screen-testing")]
@@ -91,6 +138,50 @@ impl<V: Value + Default, E: Send + 'static> HostedAdjustDialog<V, E> {
     pub fn remember(mut self, key: SaveKey) -> Self {
         self.remember = Some(key);
         self
+    }
+
+    /// The canvas the dialog's pickers work on.
+    #[must_use]
+    pub fn canvas(mut self, canvas: egui::Id) -> Self {
+        self.canvas = Some(canvas);
+        self
+    }
+
+    /// Alt turns Cancel into Reset to `target(opening value, current value)`; without it Reset restores the opening value.
+    #[must_use]
+    pub fn reset_with(mut self, target: impl Fn(&V, &V) -> V + Send + 'static) -> Self {
+        self.reset_with = Some(Box::new(target));
+        self
+    }
+
+    /// The tone picker armed.
+    pub fn picker(&self) -> Option<TonePicker> {
+        self.picker
+    }
+
+    /// Arms or disarms a tone picker.
+    pub fn set_picker(&mut self, picker: Option<TonePicker>) {
+        self.picker = picker;
+    }
+
+    /// The Channel select's shown entry.
+    pub fn channel(&self) -> usize {
+        self.channel
+    }
+
+    /// The Levels clipping display.
+    pub fn clipping(&self) -> Option<LevelsClip> {
+        self.clipping
+    }
+
+    /// Sets the Levels clipping display.
+    pub fn set_clipping(&mut self, clip: Option<LevelsClip>) {
+        self.clipping = clip;
+    }
+
+    /// Selects curve point `index` in the next pass.
+    pub fn select_point(&mut self, index: usize) {
+        self.select_point = Some(index);
     }
 
     /// Whether Preview starts on.
@@ -126,7 +217,7 @@ impl<V: Value + Default, E: Send + 'static> HostedAdjustDialog<V, E> {
     }
 }
 
-impl<V: Value + Default, E: Send + 'static> StackDialog for HostedAdjustDialog<V, E> {
+impl<V: Value + Default + Serialize + DeserializeOwned, E: Send + 'static> StackDialog for HostedAdjustDialog<V, E> {
     type Result = V;
 
     fn id(&self) -> DialogId {
@@ -134,7 +225,8 @@ impl<V: Value + Default, E: Send + 'static> StackDialog for HostedAdjustDialog<V
     }
 
     fn show(&mut self, ui: &mut Ui, _: &DialogStack) -> Option<DialogResult<V>> {
-        let HostedAdjustDialog { title, open, value, preview, comparing, context, resizable, remember, editor, asks, .. } = self;
+        let HostedAdjustDialog { title, open, value, preview, comparing, context, resizable, remember, editor, asks, canvas, picker, channel, clipping, select_point, .. } = self;
+        let (canvas, select_point) = (*canvas, select_point.take());
         let (context, resizable, remember) = (*context, *resizable, remember.clone());
         let shown = FormDialog::new(title.clone(), Bind::bound(value))
             .opened(Bind::bound(open))
@@ -147,7 +239,8 @@ impl<V: Value + Default, E: Send + 'static> StackDialog for HostedAdjustDialog<V
                 }
             })
             .show(ui, |ui, _, value| {
-                asks.extend(editor(ui, Bind::bound(value), context));
+                let mut cx = AdjustDialogCx { context, canvas, picker, channel, select_point, clipping, edit: None };
+                asks.extend(editor(ui, value, &mut cx));
                 true
             });
         *comparing = shown.comparing;
@@ -161,6 +254,25 @@ impl<V: Value + Default, E: Send + 'static> StackDialog for HostedAdjustDialog<V
 
     fn key(&self) -> Option<&str> {
         Some(&self.key)
+    }
+
+    fn confirm(&mut self, ctx: &Context) -> Option<V> {
+        let _ = ctx;
+        todo!("dl.K46")
+    }
+
+    fn json_fields(&self) -> Option<serde_json::Value> {
+        todo!("dl.K46")
+    }
+
+    fn set_json_field(&mut self, ctx: &Context, field: &str, value: serde_json::Value) -> Result<(), String> {
+        let _ = (ctx, field, value);
+        todo!("dl.K46")
+    }
+
+    fn cancelled(&mut self, ctx: &Context) {
+        let _ = ctx;
+        todo!("dl.K46")
     }
 
     #[cfg(feature = "screen-testing")]

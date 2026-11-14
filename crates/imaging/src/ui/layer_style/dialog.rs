@@ -130,6 +130,7 @@ pub struct LayerStyleDialog<'a> {
     user_contours: &'a [Contour],
     sampler: Option<SharedSampler>,
     style_presets: Option<StylePresets<'a>>,
+    gradient_presets: &'a [(String, craft_color::gradient::GradientStops)],
 }
 
 impl<'a> LayerStyleDialog<'a> {
@@ -147,7 +148,14 @@ impl<'a> LayerStyleDialog<'a> {
             user_contours: &[],
             sampler: None,
             style_presets: None,
+            gradient_presets: &[],
         }
+    }
+
+    /// The gradient presets a Gradient field's select offers, by name.
+    pub fn gradient_presets(mut self, presets: &'a [(String, craft_color::gradient::GradientStops)]) -> Self {
+        self.gradient_presets = presets;
+        self
     }
 
     /// The effect tables in list order; Photoshop's ten ([`EffectSpec::photoshop`] for each of [`EffectKind::ALL`]) by
@@ -205,7 +213,7 @@ impl<'a> LayerStyleDialog<'a> {
     /// Draws the list and the page and reports this pass's change. List actions and field edits become the style edit;
     /// the page and Blend If channel are reported beside it.
     pub fn show(self, ui: &mut Ui) -> LayerStyleOutput {
-        let LayerStyleDialog { label, draft, channel_names, specs, blend_keys, blend_modes, patterns, user_contours, sampler, style_presets } = self;
+        let LayerStyleDialog { label, draft, channel_names, specs, blend_keys, blend_modes, patterns, user_contours, sampler, style_presets, gradient_presets: _ } = self; // P3(dialogs-w7): dl.K53
         let env = Env::of(ui);
         let words = env.words::<LayerStyleWords>();
         let contour_words = env.words::<ContourWords>();

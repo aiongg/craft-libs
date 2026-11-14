@@ -108,6 +108,9 @@ pub struct LevelsPanel<'a> {
     /// The document canvas the armed picker samples.
     #[prop]
     canvas: Option<Id>,
+    /// The shown channel, kept by the host dialog; without it the panel keeps its own.
+    #[prop]
+    channel: Option<Bind<'a, usize>>,
     picker_enabled: [bool; 3],
     /// The document's mode has no point pickers: all disabled, with the note.
     #[prop(flag)]
@@ -131,6 +134,7 @@ impl<'a> LevelsPanel<'a> {
             stale: false,
             pickers: None,
             canvas: None,
+            channel: None,
             picker_enabled: [true; 3],
             pickers_unavailable: false,
             context: AdjustContext::dialog(true),
@@ -149,7 +153,7 @@ impl<'a> LevelsPanel<'a> {
         // pc: crates/ui-egui/src/dialogs/adjust_editors/levels.rs:63-85 (Channel select, Auto at the
         // row's end, Auto from the shown channel's histogram), crates/ui-egui/src/dialogs/adjust_dialog.rs:186-216
         // (the picker row in the dialog).
-        let Self { label, mut levels, channels, histograms, stale, mut pickers, canvas, picker_enabled, pickers_unavailable, context, enabled } =
+        let Self { label, mut levels, channels, histograms, stale, mut pickers, canvas, channel: _, picker_enabled, pickers_unavailable, context, enabled } =
             self;
         let words = Env::of(ui).words::<AdjustWords>();
         let entries: Vec<Entry<usize>> = channels.as_slice().iter().enumerate().map(|(at, channel)| Entry::new(at, channel.label(&words))).collect();

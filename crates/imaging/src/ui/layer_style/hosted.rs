@@ -2,6 +2,7 @@
 
 use std::collections::HashMap;
 
+use craft_color::gradient::GradientStops;
 use craft_theme::Srgba;
 use craft_ui::contract::{Bind, Entry};
 use craft_ui::dialog::{DialogId, DialogResult, DialogStack, StackDialog, dialog_id};
@@ -10,7 +11,7 @@ use craft_ui::patterns::presets::{PresetRow, ThumbInfo};
 use craft_ui::primitives::ContentPainterCx;
 use craft_ui::runtime::env::Label;
 use craft_ui::runtime::requests::ColorRequest;
-use egui::{Rect, Ui};
+use egui::{Context, Rect, Ui};
 
 use super::contour::SharedSampler;
 use super::{ContourAction, ContourRequest, LayerStyleDialog, LayerStyleOutput, StylePresets};
@@ -169,6 +170,20 @@ impl HostedLayerStyle {
         self
     }
 
+    /// The canvas the dialog's offset drag works on: while the dialog is modal its pointer presses keep their canvas.
+    #[must_use]
+    pub fn canvas(self, canvas: egui::Id) -> Self {
+        let _ = canvas;
+        todo!("dl.K53")
+    }
+
+    /// [`LayerStyleDialog::gradient_presets`].
+    #[must_use]
+    pub fn gradient_presets(self, presets: Vec<(String, GradientStops)>) -> Self {
+        let _ = presets;
+        todo!("dl.K53")
+    }
+
     /// The draft the dialog shows: the app previews from it.
     pub fn draft(&self) -> &LayerStyleDraft {
         &self.draft
@@ -275,6 +290,25 @@ impl StackDialog for HostedLayerStyle {
 
     fn key(&self) -> Option<&str> {
         Some(KEY)
+    }
+
+    fn confirm(&mut self, ctx: &Context) -> Option<LayerStyle> {
+        let _ = ctx;
+        todo!("dl.K53")
+    }
+
+    fn json_fields(&self) -> Option<serde_json::Value> {
+        todo!("dl.K53")
+    }
+
+    fn set_json_field(&mut self, ctx: &Context, field: &str, value: serde_json::Value) -> Result<(), String> {
+        let _ = (ctx, field, value);
+        todo!("dl.K53")
+    }
+
+    fn cancelled(&mut self, ctx: &Context) {
+        let _ = ctx;
+        todo!("dl.K53")
     }
 
     #[cfg(feature = "screen-testing")]

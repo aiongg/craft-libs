@@ -32,9 +32,9 @@ pub use basic::{
     BrightnessContrast, BrightnessContrastEditor, ColorBalance, ColorBalanceEditor, ColorBalanceOutput, ColorBalanceTone, PhotoFilter,
     PhotoFilterEditor, PhotoFilterOutput, PhotoFilterPreset, ThresholdEditor,
 };
-pub use context::{AdjustContext, ToneChannel, ToneChannels, ToneSpace};
+pub use context::{AdjustContext, ToneChannel, ToneChannelCommands, ToneChannels, ToneSpace};
 pub use curves_panel::{CurvesMode, CurvesPanel, CurvesPanelOutput, ToneCurves};
-pub use hosted::HostedAdjustDialog;
+pub use hosted::{AdjustDialogCx, EditPhase, HostedAdjustDialog};
 pub use hue_saturation::{HueRangeValue, HueSaturation, HueSaturationEditor, HueSaturationOutput};
 pub use labels::AdjustWords;
 pub use levels_editor::{Levels, LevelsClip, LevelsEditor, LevelsEditorOutput, LevelsWords};

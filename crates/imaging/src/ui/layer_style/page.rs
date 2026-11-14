@@ -257,6 +257,8 @@ fn field_row(ui: &mut Ui, input: &PageInput<'_>, field: &EffectField, shown: &St
                 push_edit(&mut out.edit, style_edit(&response, input.style, |v| param(StyleValue::Text(v.clone()))));
             }
         }
+        // P3(dialogs-w7): dl.K53 — the preset select over the stop bar.
+        FieldKind::Gradient => todo!("dl.K53"),
         FieldKind::GradientMethod => {
             const METHODS: [&str; 4] = ["smooth", "perceptual", "linear", "classic"];
             let stored = text_of(shown.get(key)).unwrap_or("custom");
@@ -343,6 +345,7 @@ fn first_invalid<'s>(spec: &'s EffectSpec, params: &StyleParams) -> Option<&'s E
         FieldKind::Slider { .. } | FieldKind::Angle => wrong(&field.key, |v| matches!(v, StyleValue::Number(_))),
         FieldKind::Check => wrong(&field.key, |v| matches!(v, StyleValue::Bool(_))),
         FieldKind::Color => wrong(&field.key, |v| matches!(v, StyleValue::Color(_))),
+        FieldKind::Gradient => wrong(&field.key, |v| matches!(v, StyleValue::Gradient(_))), // P3(dialogs-w7): dl.K53
         FieldKind::Blend | FieldKind::Choice(_) | FieldKind::GradientMethod | FieldKind::Pattern => {
             wrong(&field.key, |v| matches!(v, StyleValue::Text(_)))
         }

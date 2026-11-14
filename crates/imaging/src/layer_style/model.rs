@@ -121,6 +121,10 @@ pub enum StyleValue {
     Color(Srgba),
     /// A contour value.
     Contour(Contour),
+    /// A gradient: its colour and opacity stops.
+    Gradient(craft_color::gradient::GradientStops),
+    /// A point such as a Gradient Overlay's hidden `offset`.
+    Point([f64; 2]),
     /// Data the library never reads, in the app's own encoding (an imported multi-stop gradient,
     /// PSD descriptor data). It survives every edit unchanged.
     Other(String),
@@ -456,6 +460,28 @@ impl Fnv {
                     self.f32(p.output);
                     self.byte(u8::from(p.corner));
                 }
+            }
+            StyleValue::Gradient(g) => {
+                self.byte(6);
+                self.count(g.color.len());
+                for stop in &g.color {
+                    self.f32(stop.location);
+                    self.f32(stop.midpoint);
+                    for x in [stop.color.r, stop.color.g, stop.color.b, stop.color.a] {
+                        self.f32(x);
+                    }
+                }
+                self.count(g.opacity.len());
+                for stop in &g.opacity {
+                    self.f32(stop.location);
+                    self.f32(stop.midpoint);
+                    self.f32(stop.opacity);
+                }
+            }
+            StyleValue::Point(p) => {
+                self.byte(7);
+                self.f64(p[0]);
+                self.f64(p[1]);
             }
             StyleValue::Other(s) => {
                 self.byte(5);

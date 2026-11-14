@@ -2,6 +2,7 @@
 //! Levels and Curves ([`ToneSpace`], [`ToneChannel`], [`ToneChannels`]).
 
 use craft_theme::Srgba;
+use craft_ui::contract::CommandSet;
 use craft_ui::runtime::env::Label;
 
 use super::AdjustWords;
@@ -238,5 +239,42 @@ impl ToneChannels {
     /// other channels' curves.
     pub fn is_composite(&self, index: usize) -> bool {
         matches!(self.channels.get(index), Some(ToneChannel::Composite(_)))
+    }
+}
+
+/// Alt+2 to Alt+6 in an adjustment dialog's Curves or Levels panel: picks the Channel select's entry by position. A
+/// position within the panel's [`ToneChannels`] becomes the shown channel; one past the list is consumed and changes
+/// nothing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, CommandSet)]
+#[command(prefix = "adjustChannel", scope = "adjustChannel")]
+#[non_exhaustive]
+pub enum ToneChannelCommands {
+    /// The first entry.
+    #[command(modal = "in_dialogs", label = "Channel 1", default = "Alt+2")]
+    Channel1,
+    /// The second entry.
+    #[command(modal = "in_dialogs", label = "Channel 2", default = "Alt+3")]
+    Channel2,
+    /// The third entry.
+    #[command(modal = "in_dialogs", label = "Channel 3", default = "Alt+4")]
+    Channel3,
+    /// The fourth entry.
+    #[command(modal = "in_dialogs", label = "Channel 4", default = "Alt+5")]
+    Channel4,
+    /// The fifth entry.
+    #[command(modal = "in_dialogs", label = "Channel 5", default = "Alt+6")]
+    Channel5,
+}
+
+impl ToneChannelCommands {
+    /// The entry's position, 0 to 4.
+    pub const fn index(self) -> usize {
+        match self {
+            ToneChannelCommands::Channel1 => 0,
+            ToneChannelCommands::Channel2 => 1,
+            ToneChannelCommands::Channel3 => 2,
+            ToneChannelCommands::Channel4 => 3,
+            ToneChannelCommands::Channel5 => 4,
+        }
     }
 }

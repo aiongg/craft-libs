@@ -55,7 +55,7 @@ type Adjust = HostedAdjustDialog<BrightnessContrast, &'static str>;
 fn brightness_contrast() -> Adjust {
     let value = BrightnessContrast { brightness: 20.0, contrast: -10.0, legacy: false };
     HostedAdjustDialog::new("image.adjustments.brightnessContrast", "Brightness/Contrast", value, |ui, value, cx| {
-        BrightnessContrastEditor::new("Brightness/Contrast", value).context(cx).show(ui);
+        BrightnessContrastEditor::new("Brightness/Contrast", craft_ui::contract::Bind::bound(value)).context(cx.context).show(ui); // P3(dialogs-w6): dl.K45
         Some("shown")
     })
 }

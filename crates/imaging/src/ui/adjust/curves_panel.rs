@@ -61,7 +61,8 @@ fn modifier_words(os: craft_host::target::Os, mods: Mods) -> String {
 }
 
 /// How the shown curve is edited: Photoshop's two buttons above the graph.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub enum CurvesMode {
     /// Edit points to modify the curve; every channel is a [`Curve::Points`].
@@ -73,7 +74,8 @@ pub enum CurvesMode {
 
 /// A Curves value: one curve per channel of the panel's [`ToneChannels`] (same index), all in
 /// one [`CurvesMode`].
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct ToneCurves {
     /// The curves, one per channel.
@@ -170,6 +172,9 @@ pub struct CurvesPanel<'a> {
     /// The document canvas the ⌘/Ctrl-click and the eyedroppers reach under the dialog.
     #[prop]
     canvas: Option<Id>,
+    /// The shown channel, kept by the host dialog; without it the panel keeps its own.
+    #[prop]
+    channel: Option<Bind<'a, usize>>,
     picker_enabled: [bool; 3],
     /// The document's mode has no point pickers: all disabled, with the note.
     #[prop(flag)]
@@ -196,6 +201,7 @@ impl<'a> CurvesPanel<'a> {
             sampler: None,
             pickers: None,
             canvas: None,
+            channel: None,
             picker_enabled: [true; 3],
             pickers_unavailable: false,
             context: AdjustContext::dialog(true),
@@ -285,6 +291,7 @@ impl<'a> CurvesPanel<'a> {
             sampler,
             mut pickers,
             canvas,
+            channel: _, // P3(dialogs-w6): dl.K45
             picker_enabled,
             pickers_unavailable,
             context,
