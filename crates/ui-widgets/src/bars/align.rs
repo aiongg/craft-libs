@@ -74,6 +74,13 @@ impl AlignAction {
         AlignAction::AlignBottomEdges,
     ];
 
+    /// The bar's two sections of four buttons: align left, centre, right edges and distribute vertically; align top,
+    /// centre, bottom edges and distribute horizontally.
+    pub const BAR: [[AlignAction; 4]; 2] = [
+        [AlignAction::AlignLeftEdges, AlignAction::AlignHorizontalCenters, AlignAction::AlignRightEdges, AlignAction::DistributeVertically],
+        [AlignAction::AlignTopEdges, AlignAction::AlignVerticalCenters, AlignAction::AlignBottomEdges, AlignAction::DistributeHorizontally],
+    ];
+
     /// The eight distribute commands, in the order of their buttons and menu rows.
     pub const DISTRIBUTE: [AlignAction; 8] = [
         AlignAction::DistributeTopEdges,

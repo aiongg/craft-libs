@@ -51,6 +51,8 @@ pub enum NoticeEnd {
     Closed(ToastId),
     /// The timeout passed.
     Expired(ToastId),
+    /// The notice left without the user seeing it end: the toast host dropped it.
+    Dropped(ToastId),
     /// "Don't Show Again": the app stores `key` as silenced.
     #[non_exhaustive]
     Silenced {
@@ -156,6 +158,7 @@ impl NoticeCenter {
                     (ToastEnd::Action(_), Some(key)) => NoticeEnd::Silenced { id: *id, key: key.clone() },
                     (ToastEnd::Action(_) | ToastEnd::Dismissed, _) => NoticeEnd::Closed(*id),
                     (ToastEnd::Expired, _) => NoticeEnd::Expired(*id),
+                    (ToastEnd::Dropped, _) => NoticeEnd::Dropped(*id), // P3(top-w4): tp.T26
                 });
                 false
             });

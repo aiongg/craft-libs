@@ -84,7 +84,7 @@ pub struct PassPointer {
 
 #[derive(Default)]
 pub(crate) struct Memory {
-    last_press: Option<(Pos2, f64, u32)>,
+    last_press: Option<(Pos2, f64, u32, craft_keymap::Mods)>,
     press_targets: PressTargets,
     /// A cancel a service requested for the running pass.
     requested: Option<(u64, PressCancel)>,
@@ -128,8 +128,8 @@ pub(crate) fn begin(ctx: &Context, hit: HitSizes, latched: craft_keymap::Mods) {
         let mut events = read.events.clone();
         for event in &mut events {
             if let PointerEvent::Pressed { button: PointerButton::Primary, pos, time, clicks, .. } = event {
-                *clicks = count_clicks(memory.last_press, *pos, *time, hit.slop);
-                memory.last_press = Some((*pos, *time, *clicks));
+                *clicks = count_clicks(memory.last_press, *pos, *time, latched, hit.slop); // P3(top-w2): pn.C14
+                memory.last_press = Some((*pos, *time, *clicks, latched));
             }
         }
         if read.primary_pressed || other_pressed {

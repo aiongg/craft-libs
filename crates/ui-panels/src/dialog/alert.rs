@@ -9,7 +9,8 @@ use crate::runtime::overlay::CloseReason;
 use crate::runtime::words::CommonWords;
 use crate::sections::DialogRole;
 use craft_theme::variant::Tone;
-use egui::{Response, Ui};
+use egui::{Context, Response, Ui};
+use serde_json::Value;
 
 /// What an alert reports: its response and how it closed in this pass.
 #[derive(Debug)]
@@ -67,6 +68,13 @@ impl<'a> Alert<'a> {
     pub fn details(mut self, label: impl Into<Label>, text: impl Into<Label>) -> Self {
         self.details = Some((label.into(), text.into()));
         self
+    }
+
+    /// The alert that reports a typed value clamped to its range, worded by the text family's range sentences: the
+    /// whole-number one when `alert.whole`, the value one when it has a unit, else the number one.
+    pub fn range(title: impl Into<Label>, alert: &crate::text::RangeAlert, env: &Env) -> Alert<'static> {
+        let _ = (title.into(), alert, env);
+        todo!("dl.N1")
     }
 
     /// Shows the alert.
@@ -154,6 +162,14 @@ impl StackDialog for HostedAlert {
             self.facts = crate::contract::Outcome::story_facts(&shown);
         }
         shown.closed.map(|_| DialogResult::Ok(()))
+    }
+
+    fn confirm(&mut self, _: &Context) -> Option<()> {
+        todo!("dl.K5")
+    }
+
+    fn json_fields(&self) -> Option<Value> {
+        todo!("dl.K5")
     }
 
     fn key(&self) -> Option<&str> {

@@ -404,6 +404,8 @@ pub struct FooterButton {
     label: Label,
     role: DialogRole,
     letter: Option<char>,
+    #[allow(dead_code)] // P3(dialogs-w4): dl.K6
+    chord: Option<Chord>,
     enabled: bool,
     disabled_reason: Option<Label>,
     tooltip: Option<Label>,
@@ -423,7 +425,7 @@ impl FooterButton {
 
     /// A button named `label` with the meaning `role`.
     pub fn new(label: impl Into<Label>, role: DialogRole) -> Self {
-        FooterButton { label: label.into(), role, letter: None, enabled: true, disabled_reason: None, tooltip: None, stays_open: false }
+        FooterButton { label: label.into(), role, letter: None, chord: None, enabled: true, disabled_reason: None, tooltip: None, stays_open: false }
     }
 
     /// The letter that activates the button while its dialog holds focus and no text part owns the keys. The
@@ -431,6 +433,14 @@ impl FooterButton {
     #[must_use]
     pub const fn letter(mut self, letter: char) -> Self {
         self.letter = Some(letter);
+        self
+    }
+
+    /// A modified chord that presses the button while its dialog is the top modal, whether or not a text part owns
+    /// plain keys.
+    #[must_use]
+    pub fn chord(mut self, chord: Chord) -> Self {
+        self.chord = Some(chord);
         self
     }
 

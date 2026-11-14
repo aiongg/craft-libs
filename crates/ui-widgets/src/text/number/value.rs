@@ -1,10 +1,10 @@
 //! The values a number field holds and reports: NumberValue, NamedOr, NumberPick and NumberOutput.
 
 use crate::contract::{EditResponse, Outcome};
-use crate::runtime::env::UnitKind;
+use crate::runtime::env::{Label, UnitKind};
 use craft_behavior::Value;
 use egui::Response;
-use std::ops::Deref;
+use std::ops::{Deref, RangeInclusive};
 
 /// What a presets row picks: a number the field takes, or a choice that is not a number (Auto, Metrics) and
 /// leaves the value alone.
@@ -31,6 +31,28 @@ pub trait NumberValue: Value {
     fn named(&self) -> Option<u32>;
     /// The value that is the name behind a `NumberPick::Choice` row; `None` when this type holds no names.
     fn from_name(id: u32) -> Option<Self>;
+}
+
+impl NumberValue for f32 {
+    fn number(&self) -> Option<f64> {
+        Some(f64::from(*self))
+    }
+
+    fn of_number(number: f64) -> Self {
+        number as f32
+    }
+
+    fn blank() -> Option<Self> {
+        None
+    }
+
+    fn named(&self) -> Option<u32> {
+        None
+    }
+
+    fn from_name(_: u32) -> Option<Self> {
+        None
+    }
 }
 
 impl NumberValue for Option<f64> {
@@ -112,6 +134,27 @@ pub struct NumberOutput<V: NumberValue = Option<f64>> {
     /// text that named no unit, and in every other pass. The value still holds the number in the field's stored
     /// unit.
     pub typed_unit: Option<UnitKind>,
+    /// A typed value committed outside the range and was clamped, in the pass it committed (Enter, Tab, focus loss);
+    /// never for arrow, wheel, scrub or accessibility steps.
+    pub out_of_range: Option<RangeAlert>,
+    /// The committed text held more than the codec reads, in the pass it committed.
+    pub cut: bool,
+}
+
+/// A typed value the field clamped to its range, in shown units.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct RangeAlert {
+    /// The number typed.
+    pub typed: f64,
+    /// The value kept.
+    pub kept: f64,
+    /// The range the field holds values to.
+    pub range: RangeInclusive<f64>,
+    /// The field commits whole numbers.
+    pub whole: bool,
+    /// The unit the field shows after its number.
+    pub unit: Option<Label>,
 }
 
 impl<V: NumberValue> Deref for NumberOutput<V> {

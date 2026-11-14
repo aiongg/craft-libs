@@ -99,6 +99,16 @@ impl TabKind {
         self == Self::Document
     }
 
+    /// Whether a drag resting over an unselected tab selects it.
+    pub const fn selects_under_drag(self) -> bool {
+        matches!(self, Self::Document)
+    }
+
+    /// Whether tabs draw a divider at their trailing edge, in every theme and density.
+    pub fn trailing_divider(self) -> bool {
+        self == Self::Document
+    }
+
     /// Whether the strip draws a divider at each tab's trailing edge in a theme that divides rows.
     pub fn compact_dividers(self) -> bool {
         self == Self::Document

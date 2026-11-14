@@ -6,6 +6,7 @@ use super::RowDragSpot;
 use super::thumb::ThumbTarget;
 use super::trailing::TrailingPart;
 use crate::contract::{ItemOutput, NoValue, OpenChange, Outcome};
+use crate::runtime::commands::FireSource;
 use craft_keymap::Mods;
 use egui::{Rect, Response};
 
@@ -47,6 +48,8 @@ pub enum RowEvent {
         /// The row held the collection's lead when the press began (a press on a part moves the lead to its row);
         /// true for a key activation.
         was_lead: bool,
+        /// What activated the part: the pointer, a key or an accessibility action.
+        source: FireSource,
     },
     /// A click landed on the leading text ([`ListRow::lead_text`]); an unmodified click also picked the row.
     #[non_exhaustive]

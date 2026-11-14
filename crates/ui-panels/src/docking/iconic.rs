@@ -80,6 +80,22 @@ pub struct IconicColumnOutput<P> {
     pub picked: Option<GroupItem>,
     /// The width the user gave the iconic column on its inner edge this pass.
     pub width: Option<f32>,
+    /// The size the user gave the open flyout, with the top edge's offset from the icons when it moved.
+    pub flyout: Option<FlyoutResize<P>>,
+}
+
+/// The size the user gave an open flyout.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct FlyoutResize<P> {
+    /// The panel whose flyout was resized.
+    pub panel: P,
+    /// The new width.
+    pub width: f32,
+    /// The new height.
+    pub height: f32,
+    /// The top edge's offset from the icons' top, when the top edge moved.
+    pub offset: Option<f32>,
 }
 
 impl<P: Value + Hash + 'static> Outcome for IconicColumnOutput<P> {
@@ -508,7 +524,7 @@ impl<P: Value + Hash + 'static> Component for IconicColumn<'_, P> {
 
     fn finish(self, cx: Cx<'_, Self>) -> IconicColumnOutput<P> {
         let iconic = self.record.iconic.or(self.expand.then_some(false));
-        IconicColumnOutput { edit: cx.edit_response(), placed: cx.rect, iconic, picked: self.record.picked, width: self.width }
+        IconicColumnOutput { edit: cx.edit_response(), placed: cx.rect, iconic, picked: self.record.picked, width: self.width, flyout: None } // P3(framework-01-w9): fx.F51
     }
 }
 

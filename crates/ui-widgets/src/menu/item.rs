@@ -370,7 +370,7 @@ impl Component for MenuItem<'_> {
         }
         let columns = self.columns(cx, &level);
         let detail = self.detail_size(cx);
-        let text = mnemonic::marked(cx.resolved.label).0;
+        let text = mnemonic::marked(cx.resolved.label, &cx.env.folder()).0; // P3(top-w2): tp.T11
         let run = TextRun::new(text.as_str()).role(self.label_look(cx.style).role);
         let label = if text.is_empty() { Vec2::ZERO } else { cx.layout_at(&run, f32::INFINITY).size() };
         let gap = cx.gap();
@@ -513,7 +513,7 @@ impl Component for MenuItem<'_> {
         let level = cx.env.get::<MenuLevel>();
         let command = cx.command.as_deref();
         let (mark_column, icon_column) = self.lead_columns(&cx.core.ctx, side, gap, command, &level);
-        let text = mnemonic::marked(cx.resolved.label).0;
+        let text = mnemonic::marked(cx.resolved.label, &cx.env.folder()).0; // P3(top-w2): tp.T11
         let mark = self.mark(command, &level);
         let draw = ui.draw();
         let detail = self.detail.as_ref().map(|detail| cx.env.resolve(detail));
@@ -568,7 +568,7 @@ impl Component for MenuItem<'_> {
 
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
         let level = cx.env.get::<MenuLevel>();
-        access.name(Name::Text(mnemonic::marked(cx.resolved.label).0));
+        access.name(Name::Text(mnemonic::marked(cx.resolved.label, &cx.env.folder()).0)); // P3(top-w2): tp.T11
         if self.heading {
             access.role(Role::HEADING);
             return;

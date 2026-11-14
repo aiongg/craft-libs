@@ -271,7 +271,7 @@ impl<'a> Draw<'a> {
 
     /// Where `layout` of `run` starts in `rect`'s width: the free room shared out by the run's alignment, the reading
     /// start being the right edge in a right-to-left paragraph.
-    fn text_x(&self, rect: Rect, run: &TextRun<'_>, layout: &TextLayout) -> f32 {
+    pub fn text_x(&self, rect: Rect, run: &TextRun<'_>, layout: &TextLayout) -> f32 {
         let rtl = self.text_direction == Direction::Rtl && !run.ltr;
         rect.left() + (rect.width() - layout.size().x).max(0.0) * super::text::free_room_before(run.align, rtl)
     }

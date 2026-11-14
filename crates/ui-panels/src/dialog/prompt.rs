@@ -10,7 +10,7 @@ use crate::runtime::env::{Env, Label};
 use crate::runtime::focus::Initial;
 use crate::runtime::overlay::CloseReason;
 use crate::sections::{DialogRole, FooterButton, Section};
-use craft_keymap::mnemonic;
+use craft_keymap::{Chord, mnemonic};
 use craft_theme::variant::Tone;
 use egui::{Response, Ui};
 
@@ -23,6 +23,7 @@ pub(super) struct Reply {
     label: Label,
     role: DialogRole,
     lettered: bool,
+    chord: Option<Chord>,
     enabled: bool,
     reason: Option<Label>,
 }
@@ -30,12 +31,19 @@ pub(super) struct Reply {
 impl Reply {
     /// An answer with a letter.
     pub(super) fn new(label: impl Into<Label>, role: DialogRole) -> Self {
-        Reply { label: label.into(), role, lettered: true, enabled: true, reason: None }
+        Reply { label: label.into(), role, lettered: true, chord: None, enabled: true, reason: None }
     }
 
     /// An answer without a letter.
     pub(super) fn plain(label: impl Into<Label>, role: DialogRole) -> Self {
         Reply { lettered: false, ..Reply::new(label, role) }
+    }
+
+    /// The chord that answers the prompt.
+    #[allow(dead_code)] // P3(dialogs-w4): dl.K7
+    pub(super) fn chord(mut self, chord: Chord) -> Self {
+        self.chord = Some(chord);
+        self
     }
 
     /// Whether the answer is available; `reason` is what the disabled button tells.
@@ -52,7 +60,7 @@ pub(super) fn buttons(env: &Env, replies: Vec<Reply>) -> Vec<FooterButton> {
     let view = env.view();
     let labels: Vec<Label> = replies.iter().map(|reply| view.resolve(&reply.label)).collect();
     let lettered: Vec<&str> = replies.iter().zip(&labels).filter(|(reply, _)| reply.lettered).map(|(_, label)| label.as_str()).collect();
-    let mut letters = mnemonic::assign(&lettered).into_iter();
+    let mut letters = mnemonic::assign(&lettered, &env.folder()).into_iter(); // P3(dialogs-w4): tp.T11
     replies
         .into_iter()
         .zip(labels)
@@ -60,6 +68,9 @@ pub(super) fn buttons(env: &Env, replies: Vec<Reply>) -> Vec<FooterButton> {
             let mut button = FooterButton::new(label, reply.role).enabled(reply.enabled);
             if let Some(reason) = reply.reason {
                 button = button.disabled_reason(reason);
+            }
+            if let Some(chord) = reply.chord {
+                button = button.chord(chord);
             }
             match reply.lettered.then(|| letters.next().flatten()).flatten() {
                 Some((letter, _)) => button.letter(letter),

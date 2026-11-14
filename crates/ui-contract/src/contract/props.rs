@@ -233,7 +233,7 @@ pub struct Resolved<'p> {
     /// The padding the shape's props add on every side, over the style's: a collection's `ContainerProps::pad`.
     pub(crate) pad: f32,
     /// `Common.description`.
-    pub(crate) description: Option<&'p str>,
+    pub description: Option<&'p str>,
     /// `Common.tooltip`.
     #[doc(hidden)]
     pub tooltip: Option<&'p Tooltip>,

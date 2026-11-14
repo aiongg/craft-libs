@@ -33,7 +33,7 @@ mod value;
 
 pub use rule::NumberStepper;
 use rule::{Rule, Ruled, key_scale, round_to};
-pub use value::{NamedOr, NumberName, NumberOutput, NumberPick, NumberValue};
+pub use value::{NamedOr, NumberName, NumberOutput, NumberPick, NumberValue, RangeAlert};
 
 /// The step of an arrow press, the wheel and a scrub when the field sets none.
 const DEFAULT_STEP: f64 = 1.0;
@@ -208,6 +208,12 @@ impl<'a, V: NumberValue + 'static> NumberField<'a, V> {
     pub fn own_context_menu(mut self) -> Self {
         self.options.own_menu = true;
         self
+    }
+
+    /// Zoom typing: a Tab rewrites the draft and a press on the field's other parts keeps it unapplied.
+    #[allow(dead_code)] // P3(panels-w4): cw.C59
+    pub(super) fn zoom_typing(self) -> Self {
+        todo!("cw.C59")
     }
 
     /// A drag on the field's side label scrubs the value too, with or without the focus in the field.
@@ -575,7 +581,9 @@ impl<V: NumberValue + 'static> Component for NumberField<'_, V> {
         NumberOutput {
             edit: cx.edit_response(),
             preset: self.picked,
-            typed_unit: cx.text(&text_part::<V>()).and_then(|outcome| outcome.committed_tag).and_then(UnitKind::from_tag),
+            typed_unit: cx.text(&text_part::<V>()).and_then(|outcome| outcome.committed).and_then(|note| note.unit).and_then(UnitKind::from_tag), // P3(panels-w4): pn.N1
+            out_of_range: None, // P3(panels-w4): pn.C22
+            cut: false,         // P3(panels-w4): cw.C59
         }
     }
 }

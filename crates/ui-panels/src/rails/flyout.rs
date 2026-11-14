@@ -8,7 +8,7 @@ use crate::contract::{
     PopupKind, Props as _, Remember as _, Role, Show as _, ShowContainer as _, Trigger,
 };
 use crate::menu::{self, Menu, MenuItem};
-use crate::runtime::commands::{FireSource, ResolvedCommand};
+use crate::runtime::commands::{CommandRef, FireSource, ResolvedCommand};
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, GlyphRole, StyleCx};
 use craft_behavior::overlay::{Align, Side};
@@ -96,7 +96,7 @@ struct Laid {
 
 /// One rail button that may stand for a group of tools. The face shows the tool `shown` with a mark at the corner
 /// when there is a flyout. A click, Enter or Space selects the shown tool and runs its command; holding the press,
-/// dragging it away from the button, a right click or Alt+Down opens the flyout; a press on the corner mark opens it
+/// dragging it away from the button, a right click or the Menu key opens the flyout; a press on the corner mark opens it
 /// at once; after a press that opened it, releasing over a row picks it. Rows are the tools' commands, the shown tool with the radio mark. A hold selects the shown tool
 /// unless `hold_selects` is off, as for a command button.
 #[derive(crate::contract::Component, crate::contract::Props)]
@@ -115,6 +115,11 @@ pub struct FlyoutButton<'a, T: Value + 'static> {
     /// The button is dragged and takes drops: the toolbar is being edited, and it has no flyout.
     #[prop(into)]
     edit: Option<SlotEdit>,
+    /// A click, Enter or Space fires this command in place of selecting the shown tool; the flyout opens by a hold, a
+    /// drag away, a right click or the Menu key.
+    #[prop(into)]
+    #[allow(dead_code)] // P3(panels-w2): pn.N2
+    click: Option<CommandRef>,
     laid: Option<Laid>,
     picked: Option<T>,
     open: bool,
@@ -132,6 +137,7 @@ impl<'a, T: Value + 'static> FlyoutButton<'a, T> {
             hold_selects: true,
             opens: Side::End,
             edit: None,
+            click: None,
             laid: None,
             picked: None,
             open: false,
@@ -213,7 +219,7 @@ impl<T: Value + 'static> Component for FlyoutButton<'_, T> {
             cx.part(MARK, mark)
                 .sense(Sense::CLICK)
                 .priority(HitPriority::new(HitLevel::Handle, 0))
-                .pointer_only("Alt+Down, the Menu key and a right click open the flyout")
+                .pointer_only("the Menu key and a right click open the flyout")
                 .toggles("menu");
         }
         self.laid = Some(laid);

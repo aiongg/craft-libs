@@ -14,6 +14,7 @@ use crate::contract::{
     Bind, BindMut, Common, Component, Container, ContainerProps, Cx, DragBand, HeaderRegion, Inner, Mount, NoValue, Outcome, Overlay, Pad,
     Pointer as _, Props as _, Role, Show as _, ShowContainer as _, Sizing, WordSetCx as _,
 };
+use crate::runtime::drag::OsFile;
 use crate::runtime::env::{Env, Label};
 use crate::runtime::overlay::CloseReason;
 use crate::runtime::windows::WindowSpec;
@@ -52,6 +53,8 @@ pub struct FloatingGroupOutput {
     pub action: Option<HeaderAction>,
     /// Whether a double click on the title band asks to minimize the group, or restore it when it is minimized.
     pub minimized_toggled: bool,
+    /// The files dropped on the group's window that no target there took.
+    pub files: Vec<OsFile>,
 }
 
 impl Outcome for FloatingGroupOutput {
@@ -265,7 +268,13 @@ impl Component for FloatingGroup<'_> {
         if let Some(opener) = self.menu_opener {
             Popup::toggle(opener, &mut cx);
         }
-        let output = FloatingGroupOutput { response: cx.response.clone(), placed: self.placed, action: self.taken, minimized_toggled: self.toggled };
+        let output = FloatingGroupOutput {
+            response: cx.response.clone(),
+            placed: self.placed,
+            action: self.taken,
+            minimized_toggled: self.toggled,
+            files: Vec::new(),
+        }; // P3(panels-w1): pn.C8
         native::raise(&cx.core.ctx, &output);
         native::fade(&cx.core.ctx, &output);
         output

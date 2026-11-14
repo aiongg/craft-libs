@@ -4,6 +4,7 @@ use super::popup::MenuStep;
 use crate::contract::{Component, Cx, Remember as _};
 use crate::runtime::env::{AppValues, EnvValue};
 use craft_behavior::NavMove;
+use craft_i18n::Folder;
 use craft_keymap::mnemonic;
 use egui::{Id, Pos2, Rect, pos2};
 use std::sync::{Arc, Mutex, PoisonError};
@@ -47,7 +48,8 @@ struct LevelState {
     pass: u64,
     /// The letters of the rows as the user last saw them, for a typed letter that arrives before this pass's rows.
     shown: Vec<Assigned>,
-    lettered: bool,
+    /// The interface language's folder when rows get access letters; `None` on a Mac menu.
+    lettered: Option<Folder>,
     keyboard: bool,
     /// A value menu: every row is a radio item.
     values: bool,
@@ -115,8 +117,8 @@ impl MenuLevel {
 
     /// Starts a body run over the level. The rows of this pass register in the measuring run and again in the real
     /// run; the first row a pass registers drops the rows of the passes before.
-    /// Rows get no mnemonic when `lettered` is false: a Mac menu has no access letters.
-    fn begin(&self, submenu: bool, values: bool, keyboard: bool, lettered: bool, pointer: Option<Pos2>, pad: f32) {
+    /// Rows get no mnemonic when `lettered` is `None`: a Mac menu has no access letters.
+    fn begin(&self, submenu: bool, values: bool, keyboard: bool, lettered: Option<Folder>, pointer: Option<Pos2>, pad: f32) {
         self.with(|state| {
             state.pad = pad;
             state.keyboard = keyboard;
@@ -158,9 +160,9 @@ impl MenuLevel {
                 state.pass = pass;
                 state.now.clear();
             }
-            let letters = if state.lettered {
+            let letters = if let Some(folder) = state.lettered {
                 let labels: Vec<&str> = state.now.iter().map(|row| row.text.as_str()).collect();
-                mnemonic::assign(&labels)
+                mnemonic::assign(&labels, &folder) // P3(top-w2): tp.T11
             } else {
                 vec![None; state.now.len()]
             };
@@ -183,12 +185,10 @@ impl MenuLevel {
 
     pub(super) fn mnemonic_of(&self, id: Id) -> Option<(char, usize)> {
         self.with(|state| {
-            if !state.lettered {
-                return None;
-            }
+            let folder = state.lettered?; // P3(top-w2): tp.T11
             let at = state.now.iter().position(|row| row.id == id)?;
             let labels: Vec<&str> = state.now.iter().map(|row| row.text.as_str()).collect();
-            mnemonic::assign(&labels)[at]
+            mnemonic::assign(&labels, &folder)[at] // P3(top-w2): tp.T11
         })
     }
 
@@ -348,6 +348,6 @@ pub(crate) fn level_env<C: Component>(cx: &Cx<'_, C>, values: &mut AppValues, su
     let level = MenuLevel::of(&cx.recall::<LevelMemory>());
     let pointer = cx.core.ctx.input(|input| input.pointer.latest_pos());
     let keyboard = crate::runtime::focus::keyboard_in_menu(&cx.core.ctx);
-    level.begin(submenu, valued, keyboard, !cx.env.shell().os.is_mac(), pointer, pad);
+    level.begin(submenu, valued, keyboard, (!cx.env.shell().os.is_mac()).then(|| cx.env.folder()), pointer, pad);
     values.set(level);
 }

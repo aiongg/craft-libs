@@ -103,6 +103,28 @@ pub trait StackDialog: Any + Send {
     fn cancelled(&mut self, _ctx: &Context) {}
 }
 
+/// Why a dialog refused `ui.dialog.set`; each has one wording.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub enum FieldRefusal<'a> {
+    /// The dialog has no fields.
+    NoFields,
+    /// The dialog has no field of that name.
+    Unknown,
+    /// The field's row is hidden or disabled.
+    Inactive,
+    /// The field cannot hold this value.
+    Rejects(&'a serde_json::Value),
+}
+
+impl FieldRefusal<'_> {
+    /// The refusal's wording for `field`.
+    pub fn message(&self, field: &str) -> String {
+        let _ = field;
+        todo!("dl.K1")
+    }
+}
+
 /// The suite's probe of the stack dialog `T`: `#[pattern(dialog)]` registers through it, so only a `StackDialog`
 /// takes the attribute.
 #[doc(hidden)]

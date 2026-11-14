@@ -269,7 +269,6 @@ pub struct TabStrip<'a, K: Clone + Eq + Hash + Send + Sync + std::fmt::Debug + '
     #[collection]
     items: CollectionProps,
     /// The kind of strip: its fit rule and overflow menu, and the kind its tabs take.
-    #[prop]
     kind: TabKind,
     /// The strip's taller form with the body type.
     #[prop(flag)]
@@ -307,12 +306,26 @@ pub struct TabStrip<'a, K: Clone + Eq + Hash + Send + Sync + std::fmt::Debug + '
 }
 
 impl<'a, K: Clone + Eq + Hash + Send + Sync + std::fmt::Debug + 'static> TabStrip<'a, K> {
+    /// Sets the kind of strip: its fit rule and overflow menu, and the kind its tabs take. A strip of another kind than
+    /// `Document` does not select the tab a drag rests over.
+    #[must_use]
+    pub fn kind(mut self, kind: TabKind) -> Self {
+        self.kind = kind;
+        self.items = self.items.select_under_drag(kind.selects_under_drag());
+        self
+    }
+
     /// A strip named `label` of document tabs.
     pub fn new(label: impl Into<Label>) -> Self {
         TabStrip {
             common: Common::new(),
             props: ContainerProps::new().sizing(Sizing::FillWidth),
-            items: CollectionProps::new().select(SelectMode::Single).pages(true).arrows_select(false).overflow(craft_behavior::Axis::X),
+            items: CollectionProps::new()
+                .select(SelectMode::Single)
+                .pages(true)
+                .arrows_select(false)
+                .overflow(craft_behavior::Axis::X)
+                .select_under_drag(true),
             kind: TabKind::Document,
             large: false,
             shown: None,

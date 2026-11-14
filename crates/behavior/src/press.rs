@@ -314,11 +314,12 @@ impl Default for PressState {
 /// The longest gap between presses that still count as one multi-click, in seconds.
 pub const MULTI_CLICK_TIME: f64 = 0.3;
 
-/// The click count of a press at `pos` and `time`, given the previous press `(pos, time, clicks)`: one more when
-/// it follows within [`MULTI_CLICK_TIME`] and `slop` of the previous one, else 1.
-pub fn count_clicks(previous: Option<(Pos2, f64, u32)>, pos: Pos2, time: f64, slop: f32) -> u32 {
+/// The click count of a press at `pos` and `time` with `mods` held, given the previous press `(pos, time, clicks,
+/// mods)`: one more when it follows within [`MULTI_CLICK_TIME`] and `slop` of the previous one with the same
+/// modifiers, else 1.
+pub fn count_clicks(previous: Option<(Pos2, f64, u32, Mods)>, pos: Pos2, time: f64, mods: Mods, slop: f32) -> u32 {
     match previous {
-        Some((place, when, count)) if time - when <= MULTI_CLICK_TIME && place.distance(pos) <= slop => count + 1,
+        Some((place, when, count, held)) if held == mods && time - when <= MULTI_CLICK_TIME && place.distance(pos) <= slop => count + 1,
         _ => 1,
     }
 }

@@ -10,15 +10,17 @@ mod number;
 mod selectable_text;
 mod text_field;
 mod words;
+mod zoom_field;
 
 pub use adorn::{Adornment, Placed, place, reserve};
 pub use alt_text::{AltText, AltTextField, AltTextFieldStyle, AltTextWords};
 pub use chips::{ChipCodec, ChipField, ChipFieldOutput, ChipFieldStyle, ChipWords, PartialChips};
 pub use hex::{HexCodec, HexField};
 pub use linked::{LinkMode, LinkedFields, LinkedFieldsStyle, LinkedLayout, LinkedOutput, LinkedWords, follow_equal, follow_ratio, link_toggle};
-pub use number::{NamedOr, NumberField, NumberName, NumberOutput, NumberPick, NumberStepper, NumberStyle, NumberValue};
+pub use number::{NamedOr, NumberField, NumberName, NumberOutput, NumberPick, NumberStepper, NumberStyle, NumberValue, RangeAlert};
 pub use selectable_text::{SelectableStyle, SelectableText};
 pub use text_field::TextField;
+pub use zoom_field::{InvalidZoom, ZoomField, ZoomFieldOutput};
 
 use crate::contract::{Bind, EditResponse};
 use crate::primitives::TextKey;

@@ -13,6 +13,7 @@ mod group;
 
 mod floating;
 mod panels;
+mod rail;
 mod root;
 mod spec;
 mod splitter;
@@ -56,8 +57,9 @@ mod iconic;
 pub use dock_column::{
     DockColumn, DockColumnOutput, DockColumnStyle, GroupSize, GroupView, fit_widths, group_heights, scale_widths, stacked, width_bounds,
 };
-pub use flyout::{Flyout, GroupAt};
-pub use iconic::{IconicColumn, IconicColumnOutput, IconicColumnStyle, IconicSizes};
+pub use flyout::{Flyout, FlyoutShown, GroupAt};
+pub use iconic::{FlyoutResize, IconicColumn, IconicColumnOutput, IconicColumnStyle, IconicSizes};
+pub use rail::{rail_actions, rail_lit};
 pub use window_menu::{WindowMenuRows, WindowMenuRowsOutput};
 
 use crate::contract::{

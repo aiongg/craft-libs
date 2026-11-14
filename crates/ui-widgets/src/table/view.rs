@@ -5,9 +5,9 @@
 use super::words::TableWords;
 use crate::contract::overlay::Anchor;
 use crate::contract::{
-    Bind, BindMut, Collection, CollectionProps, CollectionResponse, ColumnCommands, ColumnRequest, ColumnSpec, Common, Component, ContainerProps, Cx,
-    DropKind, EditResponse, ListDrag, OverlayUi, Overlays as _, Props as _, Role, RowState, SelectMode, Show as _, ShowContainer as _, Sizing,
-    WordSetCx as _,
+    Bind, BindMut, Collection, CollectionProps, CollectionResponse, ColumnCommands, ColumnLayout, ColumnRequest, ColumnSpec, Common, Component,
+    ContainerProps, Cx, DropKind, EditResponse, ListDrag, OverlayUi, Overlays as _, Props as _, Role, RowState, SelectMode, Show as _,
+    ShowContainer as _, Sizing, WordSetCx as _,
 };
 use crate::display::Divider;
 use crate::list::{DropTest, ListRow, RowEvent, RowTest, RowText};
@@ -53,6 +53,9 @@ pub struct Table<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     /// The selection the caller owns.
     #[prop]
     selection: Option<Bind<'a, Selection<K>>>,
+    /// The column arrangement the caller owns: the header starts each pass from it and writes each change into it.
+    #[prop]
+    column_layout: Option<Bind<'a, ColumnLayout>>,
     /// Scrolls the row of `key` into view once.
     #[prop]
     reveal: Option<K>,
@@ -85,6 +88,7 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> Table<'a, K> {
             props: ContainerProps::new().sizing(Sizing::Fill),
             items: CollectionProps::new().select(SelectMode::Multi).columns(columns),
             selection: None,
+            column_layout: None,
             reveal: None,
             tree: false,
             can_rename: None,
@@ -187,6 +191,10 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Collection for Table<'_, K> {
 
     fn selection(&mut self) -> Option<BindMut<'_, Selection<K>>> {
         self.selection.as_mut().map(Bind::reborrow)
+    }
+
+    fn column_layout(&mut self) -> Option<BindMut<'_, ColumnLayout>> {
+        self.column_layout.as_mut().map(Bind::reborrow)
     }
 
     fn reveal(&self) -> Option<&K> {

@@ -375,7 +375,7 @@ impl Component for ListRow<'_> {
                         (FireSource::Pointer, _) => false,
                         _ => true,
                     };
-                    self.event = Some(RowEvent::Trailing { part: *part, mods: part_mods(cx, key, source), clicks, was_lead });
+                    self.event = Some(RowEvent::Trailing { part: *part, mods: part_mods(cx, key, source), clicks, was_lead, source });
                 }
             }
         }

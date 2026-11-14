@@ -12,7 +12,7 @@ use super::words::PickerWords;
 use crate::buttons::IconButton;
 use crate::contract::overlay::{Popup, Trigger};
 use crate::contract::{
-    Access, Bind, BindMut, BodyCx, CollectionEvent, Common, Component, Cx, Edit as _, EditResponse, Entry, Focus as _, InBar, LeadOnOpen, LeadSource,
+    Access, Bind, BindMut, BodyCx, CollectionEvent, Common, Component, Cx, Edit as _, EditResponse, Entry, Focus as _, LeadOnOpen, LeadSource,
     MeasureCx, Numeric, Overlay, OverlayUi, Overlays as _, PaintUi, PartsCx, Pointer as _, PopupKind, Props as _, Role, Show as _,
     ShowCollection as _, ShowContainer as _, Sizing, WordSetCx as _, step_stop, step_stops,
 };
@@ -151,10 +151,9 @@ impl<'a, T: Value + 'static> Select<'a, T> {
     }
 }
 
-/// Whether a select's faces fit their text: a select sized to its content, or one in a bar, whose members take their
-/// content's width.
-fn fits(sizing: Option<Sizing>, in_bar: bool) -> bool {
-    sizing == Some(Sizing::Content) || in_bar
+/// Whether a select's faces fit their text: only a select sized to its content.
+fn fits(sizing: Option<Sizing>) -> bool {
+    sizing == Some(Sizing::Content)
 }
 
 /// The stop a move over the closed field reaches: `stops` are the positions of the stepped entries and `from` the
@@ -192,7 +191,7 @@ impl<T: Value + 'static> Component for Select<'_, T> {
         let mixed = cx.words::<PickerWords>().mixed.clone();
         let entries = self.entries.iter().filter(|entry| entry.is_item()).map(|entry| (entry.face_label(), true));
         let texts = entries.chain(self.placeholder.iter().map(|text| (text, false))).chain(std::iter::once((&mixed, false)));
-        let fit = fits(cx.resolved.sizing(), cx.env.get::<InBar>().0);
+        let fit = fits(cx.resolved.sizing());
         texts.map(|(text, picture)| cx.face(self.sized_face(cx.env.resolve(text), picture, fit))).fold(Vec2::ZERO, Vec2::max)
     }
 
@@ -227,7 +226,10 @@ impl<T: Value + 'static> Component for Select<'_, T> {
             let labels: Vec<Label> =
                 self.entries.iter().map(|entry| if entry.is_item() { cx.env.resolve(entry.label()) } else { Label::Empty }).collect();
             let typed = text.to_lowercase();
-            let found = TypeAhead::pick(&typed, held, labels.len(), |at| Cow::Borrowed(labels[at].as_str()));
+            let folder = cx.env.folder();
+            // P3(canvas-widgets-w12): cw.C64
+            let found =
+                TypeAhead::pick(&typed, held, labels.len(), |at| Cow::Borrowed(labels[at].as_str()), |text| folder.fold(text).as_str().to_owned());
             if let Some(value) = found.filter(|&at| self.entries[at].is_enabled()).and_then(|at| self.entries[at].value()) {
                 cx.propose(value.clone());
                 list.open(cx);
@@ -345,7 +347,7 @@ impl<T: Value + 'static> Component for Select<'_, T> {
             None if cx.value().is_none() => (cx.env.resolve(&cx.words::<PickerWords>().mixed.clone()), true),
             None => (self.placeholder.as_ref().map_or(Label::Empty, |text| cx.env.resolve(text)), true),
         };
-        let mut face = SelectFace::new(text).fit(fits(cx.resolved.sizing(), cx.env.get::<InBar>().0));
+        let mut face = SelectFace::new(text).fit(fits(cx.resolved.sizing()));
         if let Some(icon) = held.and_then(|at| self.entries[at].icon_spec()) {
             face = face.leading(icon.clone());
         }

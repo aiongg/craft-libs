@@ -3,7 +3,9 @@
 use super::context::{Cx, CxCore};
 use crate::contract::{Component, EditResponse, Pointer as _, Validity, ValueOf};
 use crate::primitives::Adopted;
-use craft_behavior::{CancelReason, EditEvent, Gesture, GesturePhase, Mixed, PartRef, PointerButton, PressCancel, PressPhase, Sense, Value};
+use craft_behavior::{
+    CancelReason, EditEvent, Gesture, GesturePhase, Mixed, PartRef, PointerButton, PressCancel, PressPhase, Sense, Value, WheelPhase,
+};
 use egui::{Id, Pos2};
 use std::sync::Arc;
 
@@ -332,5 +334,21 @@ impl<C: Component> Cx<'_, C> {
             }
             _ => {}
         }
+    }
+}
+
+impl<C: Component> Cx<'_, C> {
+    /// Advances the component's wheel run, one edit gesture through the gesture slot: a `WheelPhase::End` share commits
+    /// a running run, any other notch with `Some(next)` proposes it.
+    #[allow(dead_code)] // P3(panels-w4): pn.C23
+    pub fn wheel_run(&mut self, phase: WheelPhase, next: Option<ValueOf<C>>) {
+        let _ = (phase, next);
+        todo!("pn.C23")
+    }
+
+    /// Whether the running gesture is a wheel run.
+    #[allow(dead_code)] // P3(panels-w4): pn.C23
+    pub fn in_wheel_run(&self) -> bool {
+        todo!("pn.C23")
     }
 }

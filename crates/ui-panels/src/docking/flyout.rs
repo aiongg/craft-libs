@@ -1,6 +1,6 @@
 //! `Flyout`: the panel an icon of an iconic column opens beside the column.
 
-use crate::contract::overlay::{Anchor, Dismiss, Place};
+use crate::contract::overlay::{Anchor, Dismiss, Place, PlacementChange};
 use crate::contract::{BodyCx, Overlay, OverlayUi, PopupHandle};
 use craft_behavior::dock::DockEdge;
 use craft_behavior::overlay::{Align, Side};
@@ -49,7 +49,7 @@ impl Flyout {
             .body_scroll(false)
     }
 
-    /// Shows the flyout of `popup` while it is open, hung from `anchor`, and returns the rect its body showed in;
+    /// Shows the flyout of `popup` while it is open, hung from `anchor`, and returns what it showed;
     /// `None` while it is closed. `body` returns the height it measures for `GroupAt::Measure`, or `None` to take
     /// the flyout's own height.
     pub fn show(
@@ -58,15 +58,29 @@ impl Flyout {
         popup: PopupHandle,
         anchor: Anchor,
         mut body: impl FnMut(&mut Ui, &mut BodyCx<'_>, GroupAt) -> Option<f32>,
-    ) -> Option<Rect> {
+    ) -> Option<FlyoutShown> {
         let size = self.size;
-        ui.show(popup, self.overlay(anchor), |ui, cx| {
+        let rect = ui.show(popup, self.overlay(anchor), |ui, cx| {
             let measured = body(ui, cx, GroupAt::Measure(size.x)).map_or(size.y, |height| height.min(ui.available_height()));
             let rect = crate::layout::place_in_flow(ui, Vec2::new(size.x, size.y.max(measured)));
             body(ui, cx, GroupAt::Show(rect));
             rect
-        })
+        });
+        // P3(framework-01-w9): fx.F50 reports the user's placement change and mounts the flyout as a layer of its own.
+        rect.map(|rect| FlyoutShown { rect, placed: None, dismissed: dismissed(ui, popup) })
     }
+}
+
+/// What a shown flyout reports.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct FlyoutShown {
+    /// The rect the flyout's body showed in.
+    pub rect: Rect,
+    /// The placement the user changed this pass: the flyout's size or top edge.
+    pub placed: Option<PlacementChange>,
+    /// The layer closed in this pass.
+    pub dismissed: bool,
 }
 
 /// Whether the layer of `popup` was dismissed in this pass of `ui` (Escape, a press outside, the focus leaving it).

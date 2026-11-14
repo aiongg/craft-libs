@@ -6,8 +6,8 @@
 use super::predicate::{DropTest, RowTest, RowText};
 use super::{ListRow, RowEvent};
 use crate::contract::{
-    Access, ActivateOn, Bind, BindMut, Collection, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, DropKind, EdgePress,
-    EditResponse, LeadOnOpen, ListDrag, Props as _, Role, RowState, SelectMode, Sizing,
+    Access, ActivateOn, Bind, BindMut, Collection, CollectionProps, CollectionResponse, ColumnLayout, Common, Component, ContainerProps, Cx,
+    DropKind, EdgePress, EditResponse, LeadOnOpen, ListDrag, Props as _, Role, RowState, SelectMode, Sizing,
 };
 use crate::runtime::env::{Env, Label};
 use crate::style::{ComponentStyle, StyleCx};
@@ -44,6 +44,9 @@ pub struct List<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     /// The selection the caller owns.
     #[prop]
     selection: Option<Bind<'a, Selection<K>>>,
+    /// The column arrangement the caller owns: the header starts each pass from it and writes each change into it.
+    #[prop]
+    column_layout: Option<Bind<'a, ColumnLayout>>,
     /// Scrolls the row of `key` into view once.
     #[prop]
     reveal: Option<K>,
@@ -90,6 +93,7 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> List<'a, K> {
             props: ContainerProps::new().sizing(Sizing::Fill),
             items: CollectionProps::new().select(SelectMode::Multi),
             selection: None,
+            column_layout: None,
             reveal: None,
             tree: false,
             can_rename: None,
@@ -214,6 +218,10 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Collection for List<'_, K> {
 
     fn selection(&mut self) -> Option<BindMut<'_, Selection<K>>> {
         self.selection.as_mut().map(Bind::reborrow)
+    }
+
+    fn column_layout(&mut self) -> Option<BindMut<'_, ColumnLayout>> {
+        self.column_layout.as_mut().map(Bind::reborrow)
     }
 
     fn reveal(&self) -> Option<&K> {

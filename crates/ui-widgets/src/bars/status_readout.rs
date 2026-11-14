@@ -150,6 +150,8 @@ pub struct StatusReadoutOutput {
     pub view: EditEvents<CanvasView>,
     /// The item chosen in the menu this pass; the host stores it.
     pub item: Option<StatusItem>,
+    /// A typed zoom outside the zoom range was clamped, in the pass it committed.
+    pub invalid_zoom: Option<crate::text::InvalidZoom>,
 }
 
 impl Outcome for StatusReadoutOutput {
@@ -242,6 +244,6 @@ impl<'a> StatusReadout<'a> {
             (field.inner.map(|zoom| zoom.edit.response), menu.picked)
         });
         let (zoom, item) = shown.inner.unzip();
-        StatusReadoutOutput { response: shown.output, zoom: zoom.flatten(), view: events, item: item.flatten() }
+        StatusReadoutOutput { response: shown.output, zoom: zoom.flatten(), view: events, item: item.flatten(), invalid_zoom: None } // P3(canvas-widgets-w11): cw.C60
     }
 }

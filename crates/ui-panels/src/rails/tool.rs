@@ -64,6 +64,8 @@ pub struct ToolRailOutput<T> {
     pub double_clicked: Option<T>,
     /// The column toggle was clicked; the host flips its column count.
     pub toggle_columns: bool,
+    /// The side toggle was clicked; the host moves the rail to the other edge.
+    pub toggle_side: bool,
     /// The Edit Toolbar button's response while the rail shows it: a click on it opens the drawer, and the drawer
     /// takes it as its opener ([`ToolbarDrawer::opened_by`](crate::rails::ToolbarDrawer::opened_by)).
     pub edit_toolbar: Option<Response>,
@@ -127,6 +129,11 @@ pub struct ToolRail<'a, T: Value + 'static> {
     /// Shows the column toggle at the top, named by the label.
     #[prop(into)]
     column_toggle: Option<Label>,
+    /// Shows a button beside the column toggle, named by the label, that asks the host to move the rail to the other
+    /// edge.
+    #[prop(into)]
+    #[allow(dead_code)] // P3(panels-w2): pn.C15
+    side_toggle: Option<Label>,
     /// Shows the Edit Toolbar button after the last slot, named by the label.
     #[prop(into)]
     edit_toolbar: Option<Label>,
@@ -163,6 +170,7 @@ impl<'a, T: Value + 'static> ToolRail<'a, T> {
             columns: NonZeroU8::MIN,
             edge: PaneEdge::Start,
             column_toggle: None,
+            side_toggle: None,
             edit_toolbar: None,
             editing: false,
             hidden: &[],
@@ -294,6 +302,7 @@ impl<T: Value + 'static> Component for ToolRail<'_, T> {
             select: None,
             double_clicked: None,
             toggle_columns: self.toggled,
+            toggle_side: false, // P3(panels-w2): pn.C15
             edit_toolbar: None,
             flyout: None,
             dropped: None,

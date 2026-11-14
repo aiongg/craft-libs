@@ -165,6 +165,9 @@ pub struct StandardPrompt {
     /// `PromptAnswer::tag` or `PromptAnswer::take_tag`.
     #[prop(boxed)]
     tag: Option<Box<dyn Any + Send>>,
+    /// What Escape and the close action answer.
+    #[allow(dead_code)] // P3(top-w4): tp.T27
+    escape: PromptChoice,
     /// The counted noun of the delete question, as a count word with `{n}` (one and other forms); the default is
     /// "{n} item" and "{n} items".
     #[prop]
@@ -202,6 +205,7 @@ impl StandardPrompt {
             open: true,
             chosen: PromptChoice::Proceed,
             tag: None,
+            escape: PromptChoice::Cancel,
             noun: None,
             title: None,
             message: None,
@@ -301,6 +305,19 @@ impl StandardPrompt {
     pub fn dont_show_again(mut self) -> Self {
         self.skip_box = true;
         self
+    }
+
+    /// Escape and the close action answer `choice` in place of Cancel.
+    #[must_use]
+    pub fn escape(mut self, choice: PromptChoice) -> Self {
+        self.escape = choice;
+        self
+    }
+
+    /// The framework's damaged-file prompt for the file `name`.
+    pub fn damaged_file(name: impl Into<String>) -> Self {
+        let _ = name.into();
+        todo!("dl.K74")
     }
 
     /// The question this prompt asks.

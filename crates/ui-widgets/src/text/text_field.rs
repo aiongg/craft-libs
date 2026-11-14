@@ -143,10 +143,10 @@ impl<'a, C: Codec + Clone + 'static> TextField<'a, C> {
         self
     }
 
-    /// The most characters the text holds.
+    /// The most characters the text holds; `None` clears the limit.
     #[must_use]
-    pub fn limit(mut self, limit: usize) -> Self {
-        self.options.limit = Some(limit);
+    pub fn limit(mut self, limit: impl Into<Option<usize>>) -> Self {
+        self.options.limit = limit.into(); // P3(canvas-widgets-w11): cw.C61 adds the single-line default of 1024
         self
     }
 

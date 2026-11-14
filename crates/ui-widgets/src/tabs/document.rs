@@ -10,6 +10,7 @@ use crate::contract::{
     CollectionEvent, ContextMenuRequest, DropAt, DropKind, DropPlace, ListDrag, ReorderRule, ShowCollection as _, ShowContainer as _,
 };
 use crate::layout_components::Row;
+use crate::runtime::drag::OsFile;
 use crate::runtime::env::Label;
 use craft_behavior::{EditEvent, SelectionChange, keyed};
 use egui::{Pos2, Response, Ui};
@@ -28,12 +29,18 @@ pub struct DocumentTab<D> {
     pub modified: bool,
     /// The tab shows a close button.
     pub closable: bool,
+    /// How far the document has opened, between 0 and 1; `None` for a document that is open.
+    pub progress: Option<f32>,
+    /// A second line of text the tab shows, such as the opening step.
+    pub detail: Option<Label>,
+    /// The accessible name of the close button, for a tab whose close cancels the opening.
+    pub close_label: Option<Label>,
 }
 
 impl<D> DocumentTab<D> {
     /// A closable, unmodified tab for document `id` named `label`.
     pub fn new(id: D, label: impl Into<Label>) -> Self {
-        DocumentTab { id, label: label.into(), modified: false, closable: true }
+        DocumentTab { id, label: label.into(), modified: false, closable: true, progress: None, detail: None, close_label: None }
     }
 
     /// Unsaved changes.
@@ -49,13 +56,34 @@ impl<D> DocumentTab<D> {
         self.closable = on;
         self
     }
+
+    /// How far the document has opened; a tab with progress is a document still opening, and its close cancels.
+    #[must_use]
+    pub fn progress(mut self, fraction: Option<f32>) -> Self {
+        self.progress = fraction;
+        self
+    }
+
+    /// A second line of text the tab shows.
+    #[must_use]
+    pub fn detail(mut self, text: impl Into<Label>) -> Self {
+        self.detail = Some(text.into());
+        self
+    }
+
+    /// The accessible name of the close button.
+    #[must_use]
+    pub fn close_label(mut self, label: impl Into<Label>) -> Self {
+        self.close_label = Some(label.into());
+        self
+    }
 }
 
 /// What the tabs of a group did this pass, in the order they happened.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum DocumentTabsEvent<D> {
-    /// The tab was selected: a click or an arrow key.
+    /// The tab was selected: a click, an arrow key or a drag resting over it.
     Selected(D),
     /// The tab was activated: Enter, or a double click.
     Activated(D),
@@ -89,6 +117,14 @@ pub enum DocumentTabsEvent<D> {
     },
     /// The tab's context menu is asked for.
     ContextMenu(ContextMenuRequest<D>),
+    /// Files dropped from the operating system on the strip, before the tab `before` (last when `None`).
+    #[non_exhaustive]
+    FilesDropped {
+        /// The dropped files.
+        files: Vec<OsFile>,
+        /// The tab they go before.
+        before: Option<D>,
+    },
     /// The strip's empty room after the tabs was double-clicked: the host opens a new document there.
     EmptyDoubleClick,
 }
@@ -117,6 +153,8 @@ pub struct DocumentTabs<'a, D: Clone + Eq + Hash + Send + Sync + std::fmt::Debug
     selected: Option<D>,
     reorderable: bool,
     tear_off: bool,
+    large: bool,
+    takes_files: bool,
     leading: Option<Area<'a>>,
     trailing: Option<Area<'a>>,
 }
@@ -124,7 +162,17 @@ pub struct DocumentTabs<'a, D: Clone + Eq + Hash + Send + Sync + std::fmt::Debug
 impl<'a, D: Clone + Eq + Hash + Send + Sync + std::fmt::Debug + 'static> DocumentTabs<'a, D> {
     /// The tabs of a group named `label`, in the host's order.
     pub fn new(label: impl Into<Label>, tabs: &'a [DocumentTab<D>]) -> Self {
-        DocumentTabs { label: label.into(), tabs, selected: None, reorderable: false, tear_off: false, leading: None, trailing: None }
+        DocumentTabs {
+            label: label.into(),
+            tabs,
+            selected: None,
+            reorderable: false,
+            tear_off: false,
+            large: false,
+            takes_files: false,
+            leading: None,
+            trailing: None,
+        }
     }
 
     /// The document the group shows.
@@ -145,6 +193,20 @@ impl<'a, D: Clone + Eq + Hash + Send + Sync + std::fmt::Debug + 'static> Documen
         self
     }
 
+    /// Every tab takes the strip's taller form.
+    #[must_use]
+    pub fn large(mut self, on: bool) -> Self {
+        self.large = on;
+        self
+    }
+
+    /// The strip takes files dragged from the operating system and reports them as `FilesDropped`.
+    #[must_use]
+    pub fn takes_files(mut self, on: bool) -> Self {
+        self.takes_files = on;
+        self
+    }
+
     /// Host content before the tabs, at the reading start, as wide as it measures.
     pub fn leading(mut self, area: impl FnOnce(&mut Ui) + 'a) -> Self {
         self.leading = Some(Box::new(area));
@@ -159,7 +221,7 @@ impl<'a, D: Clone + Eq + Hash + Send + Sync + std::fmt::Debug + 'static> Documen
 
     /// Shows the group's strip.
     pub fn show(self, ui: &mut Ui) -> DocumentTabsOutput<D> {
-        let DocumentTabs { label, tabs, selected, reorderable, tear_off, leading, trailing } = self;
+        let DocumentTabs { label, tabs, selected, reorderable, tear_off, leading, trailing, large: _, takes_files: _ } = self; // P3(canvas-widgets-w8): cw.C42
         let source = keyed(tabs, |tab: &DocumentTab<D>| tab.id.clone()).with_text(|tab| Cow::Borrowed(tab.label.as_str()));
         let mut strip = TabStrip::new(label).takes_drop(DropKind::new(DropPlace::Between, |_: &ListDrag<D>, _| true));
         if tear_off {

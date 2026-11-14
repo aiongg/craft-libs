@@ -82,6 +82,8 @@ pub struct DockConfig {
     /// they are on the desktop (not on Wayland) and its panels allow it (`PanelSpec::allow_native`). Elsewhere, and
     /// with this off, it shows in the app window.
     pub native_windows: bool,
+    /// Docked groups' menus get Minimize and Move Group Up and Down.
+    pub group_order_items: bool,
 }
 
 impl Default for DockConfig {
@@ -99,11 +101,19 @@ impl Default for DockConfig {
             tab_close_buttons: false,
             wheel_selects_tabs: false,
             native_windows: true,
+            group_order_items: false,
         }
     }
 }
 
 impl DockConfig {
+    /// The Minimize and Move Group Up and Down items of docked groups' menus on or off.
+    #[must_use]
+    pub fn group_order_items(mut self, on: bool) -> Self {
+        self.group_order_items = on;
+        self
+    }
+
     /// The picture-frame profile on or off.
     #[must_use]
     pub fn side_edge_zones(mut self, on: bool) -> Self {
