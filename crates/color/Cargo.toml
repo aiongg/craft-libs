@@ -19,7 +19,7 @@ workspace = true
 [features]
 default = []
 # The colour widgets (`craft_color::ui`).
-ui = ["dep:craft-behavior", "dep:craft-keymap", "dep:craft-ui", "dep:egui", "dep:craft-settings", "dep:craft-window", "craft-platform/screen"]
+ui = ["dep:craft-behavior", "dep:craft-keymap", "dep:craft-ui", "dep:egui", "dep:craft-settings", "dep:craft-window", "craft-platform/screen", "dep:serde_json"]
 # Screenshot and input tests of the widgets with egui_kittest (desktop only).
 screen-testing = ["ui", "craft-ui/testing"]
 
@@ -36,6 +36,7 @@ craft-ui = { workspace = true, optional = true }
 craft-window = { workspace = true, optional = true }
 egui = { workspace = true, optional = true }
 serde = { workspace = true }
+serde_json = { workspace = true, optional = true }
 
 [dev-dependencies]
 craft-ui = { workspace = true, features = ["testing"] }

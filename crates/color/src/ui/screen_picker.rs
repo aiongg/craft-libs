@@ -440,7 +440,11 @@ impl ScreenPick {
             }
         };
         let windows = WindowHost::of(ctx);
-        let size = windows.screenshot_facts();
+        // P3(canvas-widgets-w13): cw.C66 — `screenshot_facts` takes the viewport and gives `None` when it is not running.
+        let Some(size) = windows.screenshot_facts(windows.current()) else {
+            self.hold = None;
+            return None;
+        };
         let inside = at.x >= 0.0 && at.y >= 0.0 && at.x < size.size_points.x && at.y < size.size_points.y;
         let back = self.monitor.as_ref().and_then(|(_, back)| back.clone());
         let hold = self.hold.get_or_insert_with(|| Hold { owner: key, slot: None, frame: None });

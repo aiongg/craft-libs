@@ -16,6 +16,7 @@ mod choice;
 mod disc;
 mod droppers;
 mod eyedropper;
+pub mod gradient;
 mod harmony;
 mod hex;
 mod lut_picker;

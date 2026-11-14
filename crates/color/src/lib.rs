@@ -3,12 +3,13 @@
 //! The widgets are behind the `ui` feature; the colour model and conversions are in `craft-theme`.
 //! Without `ui`, the crate has the helpers that need no egui: [`AreaMode`], [`GrayModel`],
 //! [`CmykModel`], web-safe colours ([`web_safe`], [`not_web_safe`]), swatch files ([`palette`]), the display transform ([`display`]) and colour
-//! harmonies ([`harmony`]).
+//! harmonies ([`harmony`]) and gradient stops ([`gradient`]).
 //! [`AreaMode`] (and `ui::RampKind`) serialize as their [`key`](AreaMode::key); the swatch and harmony settings types serialize too.
 #![warn(missing_docs)]
 
 mod cmyk;
 pub mod display;
+pub mod gradient;
 mod gray;
 pub mod harmony;
 mod mode;
