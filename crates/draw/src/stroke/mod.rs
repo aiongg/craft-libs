@@ -109,6 +109,19 @@ impl fmt::Display for StrokeError {
 
 impl std::error::Error for StrokeError {}
 
+/// How dashes sit along a path.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub enum DashAlign {
+    /// The dash and gap lengths as given, from the dash offset.
+    #[default]
+    Exact,
+    /// Illustrator's "align dashes to corners and path ends": every run between corners and path
+    /// ends holds a whole number of periods, and a dash is centred on each corner and end.
+    Corners,
+}
+
 /// How a path is stroked, except its paint: width, alignment, caps, corners, dashes and opacity.
 /// The default is PhotoCraft's `ShapeStroke::default()` without the paint: width 3, centred, butt
 /// caps, miter corners with limit 100, solid, opacity 1, dashes in widths.
@@ -134,6 +147,9 @@ pub struct StrokeStyle {
     pub dash_offset: f32,
     /// What a dash or gap length counts in.
     pub dash_unit: DashUnit,
+    /// How dashes sit along the path. [`DashAlign::Corners`] needs the caller to stroke
+    /// [`dashed`](Self::dashed)'s path solid: [`to_kurbo`](Self::to_kurbo) keeps the `Exact` pattern.
+    pub dash_align: DashAlign,
     /// 0..=1.
     pub opacity: f32,
 }
@@ -150,6 +166,7 @@ impl Default for StrokeStyle {
             dashes: Vec::new(),
             dash_offset: 0.0,
             dash_unit: DashUnit::Widths,
+            dash_align: DashAlign::Exact,
             opacity: 1.0,
         }
     }
@@ -280,6 +297,14 @@ impl StrokeStyle {
             }
         }
         out
+    }
+
+    /// The path cut into its dashes, lengths in document units as [`to_kurbo`](Self::to_kurbo)
+    /// scales them times `length_scale` (1 for a document; a preview passes its sample-to-style
+    /// width ratio). A solid style returns the path.
+    pub fn dashed(&self, path: &kurbo::BezPath, length_scale: f64) -> kurbo::BezPath {
+        let _ = (path, length_scale);
+        todo!("fx.F59")
     }
 
     /// The style as a kurbo stroke, for an engine and the editor's line samples: width, join,

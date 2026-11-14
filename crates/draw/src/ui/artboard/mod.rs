@@ -15,6 +15,7 @@ use craft_keymap::Mods;
 use craft_theme::Srgba;
 use std::sync::Arc;
 
+mod background;
 mod bar;
 mod overlay;
 mod properties;
@@ -23,7 +24,7 @@ mod stories;
 mod tool;
 mod words;
 
-pub use bar::{ArtboardBar, ArtboardBarOutput, ArtboardCommand};
+pub use bar::{ArtboardBar, ArtboardBarOutput, ArtboardBarTarget, ArtboardCommand};
 pub use overlay::{ArtboardOverlay, ArtboardOverlayOutput};
 pub use properties::{ArtboardProperties, ArtboardPropertiesOutput};
 pub use tool::ArtboardTool;
@@ -146,6 +147,13 @@ impl Default for ArtboardRules {
 pub enum ArtboardEvent {
     /// A new board: `Begin` past the click slop, `Update`, `Commit` with its pixel rect, `Cancel`.
     Draw(EditEvent<Rect>),
+    /// A release inside the click slop on the pasteboard while placing: a board of the placing size at
+    /// the click, rounded to whole pixels.
+    #[non_exhaustive]
+    Place {
+        /// The board's pixel rect.
+        rect: Rect,
+    },
     /// The selected boards moving by an offset in whole pixels (with their contents); `copy` for an Alt-drag.
     #[non_exhaustive]
     Move {

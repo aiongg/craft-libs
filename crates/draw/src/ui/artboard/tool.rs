@@ -70,6 +70,13 @@ impl ArtboardTool {
         self
     }
 
+    /// While `size` is `Some`, a click on the pasteboard places a board of that size (reports
+    /// [`ArtboardEvent::Place`]); a drag still draws.
+    pub fn placing(&mut self, size: Option<craft_behavior::kurbo::Size>) -> &mut Self {
+        let _ = size; // P3(tools-w18): tl.T56
+        self
+    }
+
     /// A "+" button answered: reports `AddBeside` on the active board; `copy` (Alt) with its contents.
     pub fn add_beside(&mut self, side: AddSide, copy: bool) -> &mut Self {
         if let Some(index) = self.active() {

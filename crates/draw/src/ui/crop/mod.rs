@@ -12,7 +12,9 @@ mod menus;
 mod options;
 mod perspective_crop;
 mod perspective_tool;
+mod preset_list;
 mod session;
+mod size_cells;
 mod tool;
 mod words;
 
@@ -26,6 +28,8 @@ pub use options::{
 pub use perspective_crop::{
     PerspectiveCropOutput, PerspectiveCropQuad, PerspectiveCropStyle, PerspectiveQuad, grid_lines, grid_steps, is_valid, ordered,
 };
+pub use preset_list::{CropPresetList, CropPresetListOutput};
+pub use size_cells::CropSizeTarget;
 pub use perspective_tool::{PerspectiveCropEvent, PerspectiveCropTool, perspective_to_form};
 pub use session::{CropDocKey, CropDocument, CropKept, CropSession, CropStep, LeaveFrame, StraightenState};
 pub use tool::{CropCommit, CropEvent, CropInput, CropOutput, CropTool, CropToolPass, crop_to_form};

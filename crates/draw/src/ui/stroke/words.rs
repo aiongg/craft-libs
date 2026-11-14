@@ -62,6 +62,9 @@ craft_ui::words! {
         gap_number: template "strokeEditor.gapNumber" = "Gap {n}";
         /// The Dash offset row.
         dash_offset: "strokeEditor.dashOffset" = "Dash offset";
+        dash_align: "strokeEditor.dashAlign" = "Align dashes";
+        dash_exact: "strokeEditor.dashExact" = "Exact dash and gap lengths";
+        dash_corners: "strokeEditor.dashCorners" = "Align dashes to corners and path ends";
         /// Under the dash rows while the style fails `StrokeStyle::validate`.
         invalid: "strokeEditor.invalid" = "Use finite lengths and a positive pattern total";
     }

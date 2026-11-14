@@ -239,7 +239,8 @@ impl CropSession {
     /// selection's bounds clipped to the canvas when they are not empty, else the canvas; an empty
     /// canvas gets none. A default frame made for another size is replaced. A new default frame
     /// starts a new box history, upright. Returns true when it made one.
-    pub fn ensure_frame(&mut self, document: &CropDocument, dragging: bool) -> bool {
+    pub fn ensure_frame(&mut self, document: &CropDocument, dragging: bool, ratio: Option<f64>) -> bool {
+        let _ = ratio; // P3(tools-w13): tl.T45 the default frame follows the ratio.
         let made_for = Some((document.key, document.size));
         if self.default_frame && self.frame_for != made_for && !dragging {
             self.frame = None;

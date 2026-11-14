@@ -48,7 +48,7 @@ fn sized(key: u64, width: f64, height: f64) -> CropDocument {
 fn box_undo_redo_steps_committed_gestures_only() {
     let mut session = CropSession::new();
     let ctx = egui::Context::default();
-    session.ensure_frame(&sized(1, 200.0, 100.0), false);
+    session.ensure_frame(&sized(1, 200.0, 100.0), false, None);
     let start = session.frame();
     assert!(!session.can_undo());
 

@@ -44,6 +44,10 @@ craft_ui::words! {
         other: "artboard.other" = "Other…";
         /// The colour picker's title for Other….
         background_color: "artboard.backgroundColor" = "Artboard Background Color";
+        /// The Align menu button.
+        align: "artboard.align" = "Align";
+        distribute_widths: "artboard.distributeWidths" = "Distribute Widths";
+        distribute_heights: "artboard.distributeHeights" = "Distribute Heights";
         /// The name of the bar's command strip.
         commands: "artboard.commands" = "Artboard commands";
     }

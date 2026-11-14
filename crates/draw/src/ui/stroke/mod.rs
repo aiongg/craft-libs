@@ -45,6 +45,10 @@ impl StrokeSections {
     /// Alignment, Caps and Corners as rows of icon toggle buttons (`Segmented` with icons) in
     /// place of selects (VectorCraft's panel).
     pub const ICONS: Self = Self(1 << 3);
+    /// The "Align dashes" row (Illustrator's dash alignment). In neither preset: an app turns it
+    /// on only when its renderer dashes through [`StrokeStyle::dashed`], so no app shows a
+    /// control its renderer ignores.
+    pub const DASH_ALIGN: Self = Self(1 << 4);
     /// PhotoCraft's popover: presets, opacity and dashes, choices as selects.
     pub const POPOVER: Self = Self(Self::PRESETS.0 | Self::OPACITY.0 | Self::DASHES.0);
     /// A docked panel: dashes, choices as icon buttons.
@@ -89,6 +93,8 @@ pub struct StrokeMixed {
     pub dashes: bool,
     /// The dash offset differs.
     pub dash_offset: bool,
+    /// The dash alignment differs.
+    pub dash_align: bool,
     /// The opacity differs.
     pub opacity: bool,
 }
@@ -107,6 +113,7 @@ impl StrokeMixed {
             mixed.miter_limit |= other.miter_limit != first.miter_limit;
             mixed.dashes |= other.dashes != first.dashes;
             mixed.dash_offset |= other.dash_offset != first.dash_offset;
+            mixed.dash_align |= other.dash_align != first.dash_align;
             mixed.opacity |= other.opacity != first.opacity;
         }
         Some((first.clone(), mixed))
@@ -136,6 +143,8 @@ pub enum StrokeField {
     Dash(usize),
     /// The dash offset.
     DashOffset,
+    /// The dash alignment.
+    DashAlign,
 }
 
 /// One choice of a [`StrokeChoiceRow`]: the app's id and the name the select shows.

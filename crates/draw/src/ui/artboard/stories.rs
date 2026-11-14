@@ -85,7 +85,7 @@ fn bar_for_a_landscape_board(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let board = ArtboardItem::new("Artboard 1", Rect::from_origin_size(Point::ORIGIN, *size));
     let presets = presets();
     let mut members = None;
-    let bar = Bar::new("Options", BarKind::Options).show(ui, |ui, _| members = Some(ArtboardBar::new(Some(&board), &presets).show(ui)));
+    let bar = Bar::new("Options", BarKind::Options).show(ui, |ui, _| members = Some(ArtboardBar::new(super::ArtboardBarTarget::Board(&board), &presets).show(ui)));
     let mut output = StoryOutput::from(bar.output);
     if let Some(members) = members {
         output.edits = members.size.iter().filter_map(EditKind::of).collect();
@@ -156,6 +156,8 @@ impl Boards {
         let added = |name: String| craft_i18n::fmt(words.added.as_str(), &[("name", name.as_str())]);
         match event {
             ArtboardEvent::Draw(event) => return done(&event).map(|rect| added(self.push(rect.abs(), words))),
+            // P3(tools-w18): tl.T56 the story places the board.
+            ArtboardEvent::Place { rect, .. } => return Some(added(self.push(rect, words))),
             ArtboardEvent::Move { indices, event, copy, .. } => {
                 let by = done(&event)?;
                 let mut note = None;

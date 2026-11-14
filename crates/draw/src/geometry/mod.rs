@@ -12,6 +12,7 @@ mod curvature_tests;
 pub mod fillet;
 #[cfg(test)]
 mod fillet_tests;
+pub mod presets;
 pub mod shape;
 pub mod slice;
 

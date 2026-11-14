@@ -524,7 +524,7 @@ impl CanvasTool for CropToolPass<'_> {
         }
         self.tool.session.straighten_mut().set_held(cx.mods.cmd);
         let dragging = self.tool.dragging;
-        if self.tool.session.ensure_frame(document, dragging) {
+        if self.tool.session.ensure_frame(document, dragging, None) {
             self.tool.synced = None;
         }
         if let Some(view) = self.tool.view.take() {

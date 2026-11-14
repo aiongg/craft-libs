@@ -189,6 +189,8 @@ pub enum CropPresetChoice {
     User(usize),
     /// "Front Image": W, H and the resolution from the document, at once (never kept as a mode).
     FrontImage,
+    /// "From Selection": the frame from the document's selection.
+    Selection,
     /// "New Crop Preset…": the app opens its dialog.
     NewPreset,
     /// "Delete Crop Preset…": the app opens its dialog.
@@ -377,6 +379,7 @@ impl CropSettings {
             }
             CropPresetChoice::FrontImage => self.front_image(document),
             CropPresetChoice::NewPreset | CropPresetChoice::DeletePreset => {}
+            CropPresetChoice::Selection => {} // P3(tools-w13): tl.T45 the frame from the selection.
         }
         *self != before
     }

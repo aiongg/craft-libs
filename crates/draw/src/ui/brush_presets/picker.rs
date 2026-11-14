@@ -269,6 +269,8 @@ pub struct BrushPresetPicker<'a, K: Value + Eq + Hash> {
     #[prop]
     resizable: Option<SaveKey>,
     opened_at: Option<(Pos2, Bind<'a, bool>)>,
+    compact: bool,
+    app_rows: Option<Box<dyn FnOnce(&mut Ui) + 'a>>,
 }
 
 impl<'a, K: Value + Eq + Hash> BrushPresetPicker<'a, K> {
@@ -292,7 +294,22 @@ impl<'a, K: Value + Eq + Hash> BrushPresetPicker<'a, K> {
             gear_rows: None,
             resizable: None,
             opened_at: None,
+            compact: false,
+            app_rows: None,
         }
+    }
+
+    /// The compact form: hides the search row, the gear and the browser and keeps the head (Size,
+    /// Hardness for round tips, the tip widget, the revert and the chip).
+    pub fn compact(mut self, on: bool) -> Self {
+        self.compact = on;
+        self
+    }
+
+    /// App rows drawn under the head.
+    pub fn rows(mut self, rows: impl FnOnce(&mut Ui) + 'a) -> Self {
+        self.app_rows = Some(Box::new(rows));
+        self
     }
 
     /// Opens the popover at `at`, a point in the parent's layer space, while `open` is true, and shows no field: the
@@ -304,7 +321,8 @@ impl<'a, K: Value + Eq + Hash> BrushPresetPicker<'a, K> {
 
     /// Shows the picker and returns this pass's edits and picks, in order.
     pub fn show(self, ui: &mut Ui) -> BrushPresetPickerOutput<K> {
-        let BrushPresetPicker { label, mut current, rows, mut state, values, max_diameter, import, mut gear_rows, resizable, mut opened_at } = self;
+        let BrushPresetPicker { label, mut current, rows, mut state, values, max_diameter, import, mut gear_rows, resizable, mut opened_at, compact, app_rows } = self;
+        let _ = (compact, app_rows); // P3(panels-w12): pn.C60 the compact form.
         let env = Env::of(ui);
         let words = env.words::<BrushPresetWords>();
         let name: std::sync::Arc<str> = std::sync::Arc::from(label.as_str());

@@ -13,6 +13,16 @@ use kurbo::Point;
 // pc: crates/ui-egui/src/tools/direct_select.rs:418 (`t.clamp(0.01, 0.99)`).
 pub const CURVATURE_T_RANGE: RangeInclusive<f64> = 0.01..=0.99;
 
+/// [`curvature_handles`] over all anchors, carrying kept knots over when the draft extends the
+/// kept run of an open path: the tail from the last kept knot is recomputed as an open run, kept
+/// knots keep their anchors and handles except the last kept knot's out handle and, when closed,
+/// knot 0's in handle (put in line with its kept out handle, else with the next kept knot's in
+/// handle, else its anchor). One entry per anchor.
+pub fn carried_handles(anchors: &[Point], corners: &[bool], closed: bool, kept: &[(Point, Point)]) -> Vec<(Point, Point)> {
+    let _ = (anchors, corners, closed, kept);
+    todo!("tl.T33")
+}
+
 /// The Curvature Pen's handles for `anchors`: for each anchor its (in, out) handle points, so the
 /// curve passes smoothly through every anchor (Catmull-Rom style, PhotoCraft's chordal rule).
 ///

@@ -58,6 +58,12 @@ pub struct CropBarOutput {
     pub pick_color: Option<ColorRequest>,
     /// Any option of the settings changed this pass: the app persists them.
     pub settings_changed: bool,
+    /// The help button was pressed this pass: the host opens a `HostedAlert`.
+    pub help: bool,
+    /// Reset was pressed this pass.
+    pub reset: bool,
+    /// From Selection was picked in the preset list.
+    pub selection: bool,
 }
 
 impl Outcome for CropBarOutput {
@@ -98,17 +104,24 @@ pub struct CropBar<'a> {
     /// The frame's angle in degrees, for the Angle field; without a frame the field is disabled.
     #[prop(quantity = "angle in degrees")]
     angle: Option<f64>,
+    /// The help button after Fill; `Some` shows it, named by the label.
+    #[prop(into)]
+    help: Option<craft_ui::runtime::env::Label>,
+    /// Whether Reset is enabled (`CropTool::modified`).
+    #[prop]
+    can_reset: bool,
 }
 
 impl<'a> CropBar<'a> {
     /// The bar editing `settings`, over `document` (Original Ratio's numbers and Front Image).
     pub fn new(settings: &'a mut CropSettings, document: &'a CropDocument) -> Self {
-        Self { settings, document, user_presets: &[], straighten: false, angle: None }
+        Self { settings, document, user_presets: &[], straighten: false, angle: None, help: None, can_reset: false }
     }
 
     /// Shows the bar's children.
     pub fn show(self, ui: &mut Ui) -> CropBarOutput {
-        let Self { settings, document, user_presets, straighten, angle } = self;
+        let Self { settings, document, user_presets, straighten, angle, help, can_reset } = self;
+        let _ = (help, can_reset); // P3(tools-w14): pn.C20, pn.C21 the Reset and help buttons.
         let env = Env::of(ui);
         let words = env.words::<CropBarWords>();
         let units = env.units();
@@ -160,6 +173,9 @@ impl<'a> CropBar<'a> {
             delete_preset: report.delete_preset,
             pick_color: report.pick_color,
             settings_changed: changed,
+            help: false,
+            reset: false,
+            selection: false,
         }
     }
 }

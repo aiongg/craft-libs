@@ -1,6 +1,6 @@
 //! [`ArtboardBar`]: the members the Artboard tool adds to the app's options `Bar`.
 
-use super::{ArtboardItem, ArtboardPreset, ArtboardWords};
+use super::{ArtboardBackground, ArtboardItem, ArtboardPreset, ArtboardWords};
 use craft_behavior::kurbo::Size;
 use craft_behavior::{EditEvent, EditEvents, Mixed};
 use craft_ui::bars::{BarItem, BarItems, ItemDisplay};
@@ -10,6 +10,7 @@ use craft_ui::display::Divider;
 use craft_ui::form::Field;
 use craft_ui::pickers::Select;
 use craft_ui::runtime::env::{Env, UnitKind};
+use craft_ui::runtime::requests::ColorRequest;
 use craft_ui::text::NumberField;
 use egui::{Response, Ui};
 use std::ops::RangeInclusive;
@@ -36,6 +37,10 @@ pub struct ArtboardBarOutput {
     /// The selected board's new size: a preset pick, Make Portrait or Make Landscape, or a typed W or H is a `Set`; a
     /// scrub of a caption is a gesture. The app resizes the board (contents stay).
     pub size: EditEvents<Size>,
+    /// The background picked.
+    pub background: Option<ArtboardBackground>,
+    /// The request for the app's colour picker.
+    pub pick_color: Option<ColorRequest>,
 }
 
 impl Outcome for ArtboardBarOutput {
@@ -57,9 +62,29 @@ pub struct ArtboardBar<'a> {
     presets: &'a [ArtboardPreset],
 }
 
+/// What the bar edits: a selected board, or the next board to place.
+#[derive(Clone, Copy, Debug)]
+#[non_exhaustive]
+pub enum ArtboardBarTarget<'a> {
+    /// The selected board.
+    Board(&'a ArtboardItem),
+    /// No board is selected: the size and background the next board gets.
+    Next {
+        /// The size of the next board.
+        size: Size,
+        /// Its background.
+        background: ArtboardBackground,
+    },
+}
+
 impl<'a> ArtboardBar<'a> {
-    /// The members for the `selected` board with the app's `presets`.
-    pub fn new(selected: Option<&'a ArtboardItem>, presets: &'a [ArtboardPreset]) -> Self {
+    /// The members for `target` with the app's `presets`.
+    pub fn new(target: ArtboardBarTarget<'a>, presets: &'a [ArtboardPreset]) -> Self {
+        // P3(tools-w18): tl.T56 the `Next` target edits the next board's size and background.
+        let selected = match target {
+            ArtboardBarTarget::Board(board) => Some(board),
+            ArtboardBarTarget::Next { .. } => None,
+        };
         ArtboardBar { selected, presets }
     }
 
@@ -112,6 +137,6 @@ impl<'a> ArtboardBar<'a> {
         }
         Divider::vertical().show(ui);
         let response = BarItems::new(vec![BarItem::new(ArtboardCommand::AddNew).display(ItemDisplay::Text)]).label(words.commands.clone()).show(ui);
-        ArtboardBarOutput { response, size: size_events }
+        ArtboardBarOutput { response, size: size_events, background: None, pick_color: None }
     }
 }
