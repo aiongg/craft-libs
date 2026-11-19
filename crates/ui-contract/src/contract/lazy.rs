@@ -159,8 +159,11 @@ impl Lazy {
         if real && memo {
             crate::runtime::memory::claim_id(&ctx, id, "two memoized views share an id in one pass");
         }
-        if self.settles
-            && let Some((size, ran_at)) = lazy::settled(&ctx, owner, id, sizing.then_some(available), real.then_some(place), view, key)
+        let settled = if self.settles { lazy::settled(&ctx, owner, id, sizing.then_some(available), real.then_some(place), view, key) } else { None };
+        // The replay audit runs a child that would replay for real in place of the replay, and compares the two.
+        let audited = settled.is_some() && audits(&ctx, real);
+        if let Some((size, ran_at)) = settled
+            && !audited
         {
             let took = if memo {
                 // A real replay is at the place its run was, so the kept rect is where the run's content went.
@@ -184,11 +187,16 @@ impl Lazy {
             return Shown::Replayed(kept);
         }
         let mark = focus::mark(&ctx);
-        let mut run = Run { recording: self.settles && real, output: None };
+        let mut run = Run {
+            recording: self.settles && real,
+            output: None,
+            #[cfg(feature = "testing")]
+            same_output: None,
+        };
         let edits = if run.recording { lazy::edits(&ctx) } else { 0 };
         let seen = if run.recording && matches!(key, Key::Memo(_)) { crate::runtime::inputs::seen(&ctx) } else { Default::default() };
         if run.recording {
-            replay::open(&ctx);
+            open_record(&ctx, audited);
         }
         let mut child = alloc::child(ui, UiBuilder::new().max_rect(available).layout(layout).scope_id(id));
         // Its extent in the body around it comes from its content's measure, so a change inside reaches that body.
@@ -197,6 +205,15 @@ impl Lazy {
         // The child `Ui` writes its widget rect when it drops: the record holds it as written.
         drop(child);
         let record = run.recording.then(|| replay::close(&ctx, place.layer));
+        if audited {
+            return place_audit_run(ui, Audited { name, id, view, rect, record: record.as_ref(), memo }, out, &run);
+        }
+        #[cfg(feature = "testing")]
+        if let Some(record) = &record
+            && crate::runtime::audit::on(&ctx)
+        {
+            crate::runtime::audit::name_callback(&ctx, name, record);
+        }
         if real {
             layout_memory::backstop(&ctx, id, rect.size());
         }
@@ -227,6 +244,63 @@ impl Lazy {
         let _ = name;
         Shown::Ran(out)
     }
+}
+
+/// Places the audit run of a child that would have replayed, as a replay places it, and compares the run with the
+/// kept run (`runtime::audit`). It keeps the kept run: every later pass compares with what a replay adds.
+fn place_audit_run<R>(ui: &mut Ui, audited: Audited<'_>, out: R, run: &Run) -> Shown<R> {
+    let Audited { name, id, view, rect, record, memo } = audited;
+    let ctx = ui.ctx().clone();
+    layout_memory::backstop(&ctx, id, rect.size());
+    if memo {
+        place_view(ui, rect);
+    } else {
+        alloc::advance_past(ui, rect);
+    }
+    if let Some(view) = view {
+        lazy::place(&ctx, &view, id, rect);
+    }
+    #[cfg(feature = "testing")]
+    {
+        if let Some(record) = record {
+            lazy::audit(&ctx, name, id, crate::runtime::audit::Shown { record, rect, output: run.output.as_ref() }, run.same_output);
+        }
+        count_memo_run(&ctx, name, id, MemoRun::Replayed, true);
+    }
+    let _ = (name, record, run);
+    Shown::Ran(out)
+}
+
+/// What the runner hands its audit step.
+struct Audited<'a> {
+    name: &'static str,
+    id: egui::Id,
+    view: Option<lazy::View>,
+    rect: Rect,
+    record: Option<&'a replay::Record>,
+    memo: bool,
+}
+
+/// Whether the replay audit runs a child that would replay in a pass whose runs are `real` (test builds only).
+fn audits(ctx: &egui::Context, real: bool) -> bool {
+    #[cfg(feature = "testing")]
+    return real && crate::runtime::audit::runs(ctx);
+    #[cfg(not(feature = "testing"))]
+    {
+        let _ = (ctx, real);
+        false
+    }
+}
+
+/// Opens the record around a recording run, an audit run's when `audited`.
+fn open_record(ctx: &egui::Context, audited: bool) {
+    #[cfg(feature = "testing")]
+    if audited {
+        replay::open_audit(ctx);
+        return;
+    }
+    let _ = audited;
+    replay::open(ctx);
 }
 
 /// Where content of `size` starts in `region`: at its start edge, the right one in a right-to-left layout.
@@ -260,4 +334,7 @@ pub(super) struct Run {
     recording: bool,
     /// What a memoized view's run returned, which its replays return.
     pub(super) output: Option<lazy::Output>,
+    /// Whether two outputs of a memoized view are equal, for the replay audit.
+    #[cfg(feature = "testing")]
+    pub(super) same_output: Option<fn(&lazy::Output, &lazy::Output) -> bool>,
 }

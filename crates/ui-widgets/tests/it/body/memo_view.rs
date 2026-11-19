@@ -8,6 +8,7 @@ use craft_ui::display::Text;
 use craft_ui::layout_components::Stack;
 use craft_ui::runtime::inspect;
 use craft_ui::runtime::memory::{SaveKey, set_saved_value};
+use craft_ui::testing::in_audit_run;
 use craft_ui::testing::input::key_press;
 use craft_ui::testing::layout::{in_region, measured_block};
 use craft_ui::testing::pointer::{moved, press, release};
@@ -48,7 +49,10 @@ struct Title {
 }
 
 fn title(props: &mut Title, ui: &mut Ui) -> Vec2 {
-    TITLE_RUNS.with(|runs| runs.set(runs.get() + 1));
+    // An audit run is the replay audit's, not the pass's: the trials count none.
+    if !in_audit_run(ui.ctx()) {
+        TITLE_RUNS.with(|runs| runs.set(runs.get() + 1));
+    }
     Button::new(props.title.clone()).show(ui).response.rect.size()
 }
 
@@ -430,7 +434,10 @@ struct Pointer {
 const POINTED: &str = "memo-view-pointed";
 
 fn pointer(props: &mut Pointer, ui: &mut Ui) -> Option<usize> {
-    TITLE_RUNS.with(|runs| runs.set(runs.get() + 1));
+    // An audit run is the replay audit's, not the pass's: the trials count none.
+    if !in_audit_run(ui.ctx()) {
+        TITLE_RUNS.with(|runs| runs.set(runs.get() + 1));
+    }
     Button::new(props.label.clone()).show(ui);
     inspect::pointed(ui.ctx(), Id::NULL.with(POINTED))
 }
