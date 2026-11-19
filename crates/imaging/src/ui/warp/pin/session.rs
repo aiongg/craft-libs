@@ -11,7 +11,7 @@ use craft_behavior::{EditEvent, EditHistory, Mixed};
 
 /// One pin: where it attaches on the rest mesh and where it holds that point now, in document
 /// units (PhotoCraft `PuppetPin { src, dst, rotate, depth }`, VectorCraft `rest`, `at`, `angle`).
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct Pin {
     /// The pin's attachment point on the rest mesh.

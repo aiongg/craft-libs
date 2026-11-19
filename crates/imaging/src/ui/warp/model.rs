@@ -15,7 +15,7 @@ use kurbo::{BezPath, Point, Rect, Vec2};
 /// A point on a row and a column that are both multiples of 3 is an anchor, where patches meet.
 /// The other points on those rows and columns are the anchors' handles; the points inside a patch
 /// shape its inside and are neither drawn nor dragged.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct WarpMesh {
     /// Column patch boundaries in the mesh's parameter space, increasing from 0 to 1.
@@ -513,7 +513,7 @@ pub(crate) fn cubic(p: [Point; 4], t: f64) -> Point {
 }
 
 /// Which lines a split puts through a point of a warp mesh ([`WarpMesh::split`]).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub enum WarpSplit {
     /// Both lines through the point: a column and a row of anchors.

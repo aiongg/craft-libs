@@ -50,7 +50,7 @@ impl FillTool {
 }
 
 /// The tools' options: the bar's values, outside the history and not persisted.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct FillToolOptions {
     /// The bar's + (true) or −; the sampling option sets it (Custom adds) and Alt reverses it.

@@ -87,7 +87,7 @@ craft_ui::words! {
 
 /// The selection a tool made, in document units. Anti-alias and Feather are the app's options and ride with its
 /// command, not with the shape.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub enum SelectionShape {
     /// A rectangle on whole pixels: the Rectangular Marquee, and the Single Row and Single Column Marquees' one-pixel

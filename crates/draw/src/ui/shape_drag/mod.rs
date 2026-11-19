@@ -62,7 +62,7 @@ pub enum ShapeFrame {
 }
 
 /// What the Rectangle tool's gear keeps a box drag to ([`BoxConstraints::constraint`]).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub enum BoxConstraint {
@@ -79,7 +79,7 @@ pub enum BoxConstraint {
 
 /// The Rectangle tool's gear: a constraint, its sizes, and From Center. A Fixed Size or Proportional pair with an
 /// empty field (`None`) or a 0 draws as Unconstrained.
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, craft_ui::contract::MemoProps)]
 #[serde(default, rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct BoxConstraints {

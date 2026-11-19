@@ -184,7 +184,7 @@ impl<'a> HarmonyWheel<'a> {
 }
 
 /// The Color Guide panel's settings, kept across runs.
-#[derive(Clone, Copy, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 #[serde(default, rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct HarmonyPanelState {
@@ -207,7 +207,7 @@ pub enum HarmonyMenuAction {
 
 /// The cells of the variation grid chosen for Save Colors as Swatches. The host owns it and hands it to the panel and
 /// to the panel menu; the cells belong to the guide they were picked from.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, craft_ui::contract::MemoProps)]
 pub struct HarmonyPicked {
     selection: Selection<usize>,
     guide: u64,

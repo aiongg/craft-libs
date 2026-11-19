@@ -56,7 +56,7 @@ const ESCAPE: Chord = Chord::plain(Key::Escape);
 
 /// The selection: `anchor` stays where it started, `caret` moves. Equal: a caret with nothing selected. Char
 /// offsets.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct TextSelection {
     /// Char offset of the caret, the end that moves.

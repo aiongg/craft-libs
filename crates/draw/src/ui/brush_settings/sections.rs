@@ -25,7 +25,7 @@ const NAME: ColumnKey = ColumnKey::new("name");
 const LOCK: ColumnKey = ColumnKey::new("lock");
 
 /// What a section row does.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub enum BrushSectionKind {
     /// A section with a pane of controls (Brush Tip Shape, Shape Dynamics, …, Brush Pose): a click
@@ -38,7 +38,7 @@ pub enum BrushSectionKind {
 }
 
 /// One row of the section list, built by the app each pass from its brush settings.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct BrushSection<K> {
     /// The key events name the section by.

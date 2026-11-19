@@ -72,7 +72,7 @@ fn sections(on: bool) -> Vec<BrushSection<u8>> {
 }
 
 /// The dynamics controls, in menu order.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, craft_ui::contract::MemoProps)]
 enum Control {
     Off,
     Fade,
@@ -90,7 +90,7 @@ fn controls() -> [DynamicControl<Control>; 4] {
 }
 
 /// One control row's settings: its control, its Fade steps and whether the app shows the curve editor.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, craft_ui::contract::MemoProps)]
 struct ControlRow {
     control: Control,
     steps: f64,
@@ -117,7 +117,7 @@ impl ControlRow {
 }
 
 /// The brush settings the panel stories edit: the sections, the shown pane and the two panes' control rows.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 struct Brush {
     sections: Vec<BrushSection<u8>>,
     shown: u8,

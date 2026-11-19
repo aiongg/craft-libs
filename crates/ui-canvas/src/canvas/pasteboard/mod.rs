@@ -58,7 +58,7 @@ impl PasteboardColor {
 }
 
 /// The border around each page.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum PageBorder {
     /// The floating surface's soft shadow, offset down; a plain offset copy of the page while the view is turned.
@@ -71,7 +71,7 @@ pub enum PageBorder {
 }
 
 /// One page or artboard on the pasteboard, in document units.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct PageFrame {
     /// The page's rectangle in document space.

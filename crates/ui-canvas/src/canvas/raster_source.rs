@@ -6,7 +6,7 @@ use craft_behavior::PixelSize;
 use egui::ColorImage;
 
 /// A rectangle of whole document pixels, `x0..x1` by `y0..y1` (exclusive ends).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct PixelRect {
     /// First column, inclusive.

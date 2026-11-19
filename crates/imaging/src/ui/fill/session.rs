@@ -12,7 +12,7 @@ use crate::ui::select_mask::EditMode;
 
 /// Sampling Area Options: how the sampling area starts before the brush strokes. Auto and
 /// Rectangular start full (the brush subtracts), Custom starts empty (the brush adds).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub enum SamplingMode {
@@ -36,7 +36,7 @@ impl SamplingMode {
 }
 
 /// Fill Settings › Color Adaptation.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub enum ColorAdaptation {
@@ -52,7 +52,7 @@ pub enum ColorAdaptation {
 }
 
 /// Fill Settings › Rotation Adaptation.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub enum RotationAdaptation {
@@ -70,7 +70,7 @@ pub enum RotationAdaptation {
 }
 
 /// Output Settings › Output To. Photoshop opens on New Layer.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub enum FillOutputTo {
@@ -286,7 +286,7 @@ impl FillSession {
 /// tint reads as Photoshop's (171, 204, 153)), Indicates Sampling Area, Auto, Sample All Layers
 /// off, Color Adaptation Default, Rotation Adaptation None, Scale and Mirror off, Output To New
 /// Layer.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase", default)]
 #[non_exhaustive]
 pub struct FillSettings {

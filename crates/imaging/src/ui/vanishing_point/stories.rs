@@ -249,3 +249,11 @@ fn bar_for_stamp(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 fn bar_with_a_clipboard_image(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     bar(ui, VanishingTool::CreatePlane, true)
 }
+
+/// A handle to state the story shares with its card and writes from its own runs: the key cannot follow it, so a view
+/// that holds it runs in every pass.
+impl craft_ui::contract::MemoProps for Demo {
+    fn key(&self, key: &mut craft_ui::contract::MemoKey) {
+        key.changes_every_pass();
+    }
+}

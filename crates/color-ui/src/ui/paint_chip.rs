@@ -86,7 +86,7 @@ craft_ui::words! {
 
 /// A gradient as the chip draws it: stops at 0–1 along a start-to-end ramp. The gradient itself
 /// (angle, style, midpoints) is the host's; it gives this preview with the paint.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct GradientPreview {
     /// Stops as (position 0–1, colour), ascending by position.
@@ -112,7 +112,7 @@ impl GradientPreview {
 /// A pattern or picture as the chip draws it: the host's texture of the image (a pattern's tile,
 /// tiled across the chip at 1:1; a picture, stretched to it) and its name for a screen reader. The
 /// pattern or picture itself is the host's.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct ImagePreview {
     /// "Bubbles", "photo.png".
@@ -130,7 +130,7 @@ impl ImagePreview {
 
 /// A paint: none, a solid colour, a gradient, a pattern or a picture. More kinds may come: a
 /// `match` on it outside craft-color-ui needs a `_` arm.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub enum Paint {
     /// No paint.

@@ -83,7 +83,7 @@ fn curves() -> Vec<GraphCurve> {
 }
 
 /// The state of a graph story: its time view, curves and selection.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 struct Demo {
     view: TimeView,
     curves: Vec<GraphCurve>,

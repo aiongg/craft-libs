@@ -5,7 +5,7 @@ use craft_i18n::Folder;
 
 use crate::annotate::AnnotationKind;
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 #[serde(transparent)]
 /// Identifies a comment thread.
 pub struct ThreadId(pub u64);
@@ -65,7 +65,7 @@ impl CommentAnchor {
 }
 
 /// Acrobat's review statuses, set as a status reply.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 pub enum ReviewStatus {
     #[default]
     /// No status set.
@@ -145,7 +145,7 @@ impl CommentThread {
 
 /// What the panel hides (PdfCraft's Filter comments menu): a thread shows unless its type,
 /// author, status, colour or checkmark is listed.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, craft_ui::contract::MemoProps)]
 pub struct CommentFilter {
     /// Kinds to hide; `None` is a plain comment.
     pub hidden_types: Vec<Option<AnnotationKind>>,
@@ -182,7 +182,7 @@ impl CommentFilter {
 }
 
 /// How the panel orders threads (Acrobat's Sort by).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 pub enum CommentSort {
     #[default]
     /// By page, then position on the page.

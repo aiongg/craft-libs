@@ -26,7 +26,7 @@ const JOIN_EPS: f64 = 1e-6;
 const MAX_OUTPUT_DASHES: usize = 200_000;
 
 /// Where the stroke sits on the path. Only a closed path aligns; an open one is always centred.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 pub enum StrokeAlign {
     /// The stroke lies inside the path.
@@ -39,7 +39,7 @@ pub enum StrokeAlign {
 }
 
 /// The shape at the ends of an open path and of each dash.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 pub enum LineCap {
     /// Butt / Flat: the stroke ends at the end point.
@@ -52,7 +52,7 @@ pub enum LineCap {
 }
 
 /// The shape of the stroke where two segments meet at a corner.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 pub enum LineJoin {
     /// A sharp point, cut off past [`StrokeStyle::miter_limit`].
@@ -79,7 +79,7 @@ pub enum LineStyle {
 
 /// The unit of the dash lengths and the dash offset. It changes what the numbers mean, never the
 /// stored numbers: the stroke editor shows it as the fields' suffix.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 pub enum DashUnit {
     /// Multiples of the stroke width (PhotoCraft, Photoshop).
@@ -125,7 +125,7 @@ impl fmt::Display for StrokeError {
 impl std::error::Error for StrokeError {}
 
 /// How dashes sit along a path.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub enum DashAlign {
@@ -143,7 +143,7 @@ pub enum DashAlign {
 ///
 /// Serialised in camelCase with every field optional (missing fields take the default), so an
 /// app keeps it in its settings and documents.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, craft_ui::contract::MemoProps)]
 #[serde(default, rename_all = "camelCase")]
 pub struct StrokeStyle {
     /// The width in document units.

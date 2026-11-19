@@ -86,7 +86,7 @@ impl Numbers<'_> {
 }
 
 /// Which page the calendar shows, and the cell that has the keyboard (its day, month number or year, by the page).
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct CalendarView {
     /// What the page lists: days, months or years.

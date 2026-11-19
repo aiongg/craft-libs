@@ -74,7 +74,7 @@ fn styles() -> Vec<WarpStyleEntry> {
 }
 
 /// What the app keeps of a warp that the group shows: its values and the armed split.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 struct Warp {
     values: WarpFieldValues,
     split: Option<WarpSplit>,

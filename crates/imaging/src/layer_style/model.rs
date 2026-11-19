@@ -203,7 +203,7 @@ pub enum Knockout {
 /// A Blend If slider's four handles in levels 0..=255: `[black low, black high, white low,
 /// white high]`, always ordered black low ≤ black high ≤ white low ≤ white high. A handle pair
 /// with equal halves shows as one handle; Alt-drag splits it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, craft_ui::contract::MemoProps)]
 pub struct BlendIfRange(pub [u8; 4]);
 
 impl Default for BlendIfRange {

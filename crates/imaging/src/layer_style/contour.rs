@@ -1,7 +1,7 @@
 //! Contours: the curves that shape a glow, a shadow, a bevel's gloss and Satin.
 
 /// A contour point, input and output in 0..=1.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, craft_ui::contract::MemoProps)]
 pub struct ContourPoint {
     /// Input value, 0..=1 (the horizontal axis).
     pub input: f32,
@@ -14,7 +14,7 @@ pub struct ContourPoint {
 /// A named contour: at least two points sorted by input, at most [`Contour::MAX_POINTS`].
 /// Built-in presets carry their preset name; an edited preset is named "Custom"; imported
 /// contours keep their own name and points.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 pub struct Contour {
     #[allow(missing_docs)]
     pub name: String,

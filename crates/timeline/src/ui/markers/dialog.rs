@@ -23,7 +23,7 @@ const COMMENT_ROWS: usize = 3;
 const LABELS: u8 = 16;
 
 /// The marker as the dialog edits it.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct MarkerDraft {
     /// The marker's name.
@@ -67,7 +67,7 @@ pub enum MarkerDialogAction {
 /// Marker Color (the label swatches, one radio group), Delete, Previous and Next, and OK / Cancel. Enter in a
 /// single-line field is OK; Escape is Cancel; Tab walks the fields in the order they show. Result: a
 /// [`MarkerDialogResult`].
-#[derive(Clone, PartialEq, craft_ui::contract::Pattern)]
+#[derive(Clone, PartialEq, craft_ui::contract::Pattern, craft_ui::contract::MemoProps)]
 pub struct MarkerDialog {
     id: MarkerId,
     draft: MarkerDraft,

@@ -38,7 +38,7 @@ const SIDE_IN_CONTROLS: f32 = 1.75;
 const DEAD_ZONE_IN_CONTROLS: f32 = 0.1;
 
 /// Where the dial's zero is and which way the value grows.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum AngleOrientation {
     /// 0 at 3 o'clock, counter-clockwise: a mathematician's angle with y up.

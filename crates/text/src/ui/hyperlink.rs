@@ -45,7 +45,7 @@ craft_ui::words! {
 }
 
 /// Where a link goes.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub enum LinkTarget {
     /// A web address or file (`https://…`).
@@ -72,7 +72,7 @@ impl LinkTarget {
 }
 
 /// The link the dialog edits.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct Hyperlink {
     /// Where the link goes.
@@ -98,7 +98,7 @@ impl Hyperlink {
 }
 
 /// What the selection holds, which decides what OK does.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub enum CurrentLink {
     /// Nothing linked: OK sets a new link (a caret at a word boundary inserts the display text).
@@ -158,7 +158,7 @@ impl Outcome for HyperlinkOutput {
 }
 
 /// Which kind of target the dialog edits.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, craft_ui::contract::MemoProps)]
 enum Mode {
     Url,
     Email,
@@ -166,7 +166,7 @@ enum Mode {
 }
 
 /// A row of the places list.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, craft_ui::contract::MemoProps)]
 enum Spot {
     Top,
     /// An index into the dialog's places.
@@ -174,7 +174,7 @@ enum Spot {
 }
 
 /// The dialog's fields.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 struct Form {
     mode: Mode,
     url: String,
@@ -234,7 +234,7 @@ impl Form {
 }
 
 /// What the app gave the dialog and the fields it started from.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 struct Given {
     current: CurrentLink,
     text: Option<String>,
@@ -303,7 +303,7 @@ const REMOVE: usize = 2;
 /// - With [`CurrentLink::Mixed`] or [`CurrentLink::Other`] the fields start empty and OK answers
 ///   [`HyperlinkAnswer::Keep`] until a target differs from the seed.
 /// - Keys: Enter is OK unless a field owns it, Escape is Cancel. Remove Link shows while a link is edited.
-#[derive(Clone, Debug, PartialEq, craft_ui::contract::Pattern)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::Pattern, craft_ui::contract::MemoProps)]
 pub struct HyperlinkDialog {
     given: Given,
     form: Form,

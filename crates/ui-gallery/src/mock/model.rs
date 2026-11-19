@@ -30,7 +30,7 @@ const TOOLS_DOCK_WIDTH: f32 = 120.0;
 
 /// The tools of the rail. Each is a command of the `tools` group; a tool alone in its slot carries its letter, and the
 /// letter of a slot with several is the pick command of [`ToolKey`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, CommandSet)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, CommandSet, craft_ui::contract::MemoProps)]
 #[command(prefix = "mockTool")]
 #[non_exhaustive]
 pub enum Tool {
@@ -118,7 +118,7 @@ impl Tool {
 }
 
 /// The foreground and background colours, as 24-bit RGB values.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct ColorPair {
     /// The foreground colour.
@@ -146,7 +146,7 @@ impl ColorPair {
 }
 
 /// The panels of the dock.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub enum Panel {
     /// The toolbar: a stepped column of tool buttons that docks and floats by dragging.
@@ -170,11 +170,11 @@ impl Panel {
 }
 
 /// The stable identity of a layer: it survives reordering, deleting and adding other layers.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, craft_ui::contract::MemoProps)]
 pub struct LayerId(u64);
 
 /// One layer of the document: a named fill of one rectangle of the page.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct Layer {
     /// The layer's identity within its document.
@@ -197,7 +197,7 @@ impl Layer {
 }
 
 /// A rectangle being dragged out with the Marquee: where the press began and where the pointer is now.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct MarqueeDrag {
     /// The document point of the press.
@@ -214,7 +214,7 @@ impl MarqueeDrag {
 }
 
 /// A layer being moved with the Move tool: the layer, its bounds at the press, and the drag.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct LayerMove {
     /// The moved layer.
@@ -226,7 +226,7 @@ pub struct LayerMove {
 }
 
 /// The open document.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct Document {
     /// The title of the window and the tab.
@@ -398,7 +398,7 @@ impl Document {
 }
 
 /// Everything the mock edits.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct MockState {
     /// The dock's panels and where they sit.

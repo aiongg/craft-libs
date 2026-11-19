@@ -28,7 +28,7 @@ impl<'a> ThemeSubject<'a> {
 
 /// A row the user picked in the browser, the Problems view or the detail: a colour token, or a size by its
 /// path.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub enum Pick {
     /// A colour token.

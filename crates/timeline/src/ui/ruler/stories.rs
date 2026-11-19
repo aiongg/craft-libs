@@ -42,7 +42,7 @@ fn format() -> TimeFormat {
 }
 
 /// The state of a ruler story: its view, playhead, In and Out, work area and render bar.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 struct Demo {
     view: TimeView,
     playhead: Tick,

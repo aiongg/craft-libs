@@ -8,7 +8,7 @@ use std::collections::HashSet;
 use std::hash::Hash;
 
 /// How the presets are shown.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, crate::contract::MemoProps)]
 #[serde(rename_all = "lowercase")]
 #[non_exhaustive]
 pub enum PresetView {
@@ -49,6 +49,16 @@ pub struct PresetState<K> {
     pub toggled: HashSet<K>,
     /// The search text; the browser shows presets whose name matches it.
     pub filter: String,
+}
+
+impl<K: crate::contract::MemoProps> crate::contract::MemoProps for PresetState<K> {
+    fn key(&self, key: &mut crate::contract::MemoKey) {
+        let PresetState { view, zoom, toggled, filter } = self;
+        view.key(key);
+        zoom.key(key);
+        toggled.key(key);
+        filter.key(key);
+    }
 }
 
 impl<K> Default for PresetState<K> {

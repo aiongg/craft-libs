@@ -19,7 +19,7 @@ pub const PLANE_MINIMUM: f64 = 4.0;
 
 /// One plane: its corners in Layout (`source`) and in Warp (`target`), clockwise from the top
 /// left, in document units (PhotoCraft `Plane { src, dst }`).
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct Plane {
     /// The corners in Layout, clockwise from the top left.

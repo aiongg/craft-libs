@@ -130,7 +130,7 @@ pub trait GlyphSource: Send + Sync {
 }
 
 /// The panel's remembered state (`[glyphs_panel]`): category, zoom and the recent glyphs.
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, craft_ui::contract::MemoProps)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct GlyphsPanelSettings {

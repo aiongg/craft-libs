@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use super::fill_editor::GradientFillWords;
 
 /// How a gradient runs from its line.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub enum GradientStyle {
     /// Along the line.
@@ -53,7 +53,7 @@ impl GradientStyle {
 }
 
 /// The gradient fill value of shapes and Gradient Fill layers.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct GradientFill {
     /// The colour and opacity stops.

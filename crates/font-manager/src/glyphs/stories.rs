@@ -14,7 +14,7 @@ const UBUNTU: &[u8] = epaint_default_fonts::UBUNTU_LIGHT;
 const HACK: &[u8] = epaint_default_fonts::HACK_REGULAR;
 
 /// What a story keeps between passes.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 struct Demo {
     family: String,
     style: String,

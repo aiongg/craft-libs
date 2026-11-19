@@ -77,7 +77,7 @@ impl BitOr for StrokeSections {
 /// The fields whose values differ across the host's selection: such a field shows the mixed
 /// placeholder and lights no button; the first edit sets the field for every item. Default:
 /// nothing mixed.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct StrokeMixed {
     /// The alignment differs.

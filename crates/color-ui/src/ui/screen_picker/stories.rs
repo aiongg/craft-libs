@@ -75,3 +75,11 @@ fn capture_view(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let hints = [Label::from("Click to pick"), Label::from("Scroll to zoom")];
     StoryOutput::from(CaptureView::new("monitor 1", &image, 1, LOUPE_ZOOM.1, hints).show(ui))
 }
+
+/// A handle to state the story shares with its card and writes from its own runs: the key cannot follow it, so a view
+/// that holds it runs in every pass.
+impl craft_ui::contract::MemoProps for SharedPick {
+    fn key(&self, key: &mut craft_ui::contract::MemoKey) {
+        key.changes_every_pass();
+    }
+}

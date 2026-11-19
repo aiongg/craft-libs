@@ -83,7 +83,7 @@ craft_ui::words! {
 }
 
 /// Which graph shows.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub enum GraphMode {
     #[default]
@@ -94,7 +94,7 @@ pub enum GraphMode {
 }
 
 /// A key on a curve, with its Bezier handles in graph units (time, value) when it has them.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct GraphKey {
     /// The keyframe's identity.
@@ -127,7 +127,7 @@ impl GraphKey {
 }
 
 /// One curve: a property's dimension, sampled by the app (the app evaluates its own interpolation and expressions).
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct GraphCurve {
     /// The property and dimension, the app's.
@@ -157,7 +157,7 @@ impl GraphCurve {
 }
 
 /// The graph's value range and options; the app keeps it per panel.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct GraphRange {
     /// The lowest value shown at the bottom of the plot.

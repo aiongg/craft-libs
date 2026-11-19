@@ -51,3 +51,9 @@ impl<K: Hash + Eq + Clone> OpenSet<K> {
         }
     }
 }
+
+impl<K: Hash + Eq + crate::contract::MemoProps> crate::contract::MemoProps for OpenSet<K> {
+    fn key(&self, key: &mut crate::contract::MemoKey) {
+        crate::contract::MemoProps::key(&self.open, key);
+    }
+}

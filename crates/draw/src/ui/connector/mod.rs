@@ -92,7 +92,7 @@ impl ConnectionTarget {
 }
 
 /// One end of a connector.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub enum ConnectorEnd {
     /// Not glued: a point in the document.
@@ -139,7 +139,7 @@ pub enum ConnectorEndKind {
 }
 
 /// A connector as the handles and the app see it: the value `ConnectorHandles` edits.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct ConnectorItem {
     /// The app's id for the connector.

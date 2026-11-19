@@ -49,7 +49,7 @@ impl<T> ToolSlot<T> {
 }
 
 /// The tool each slot showed last. Plain data the host keeps with its workspace.
-#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, crate::contract::MemoProps)]
 pub struct LastUsed<T> {
     tools: Vec<(SlotId, T)>,
 }

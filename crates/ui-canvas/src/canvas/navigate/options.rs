@@ -2,7 +2,7 @@
 //! rows), which the app owns and hands to the navigation pieces and the view tools.
 
 /// The navigation choices, with Photoshop's defaults.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct NavigationOptions {
     /// General, Zoom with Scroll Wheel: the wheel zooms and Alt + wheel scrolls. Off.

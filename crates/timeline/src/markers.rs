@@ -3,7 +3,7 @@
 
 use crate::time::{Tick, TimeRange};
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 #[serde(transparent)]
 /// Identifies a marker within its owner (sequence, clip or layer).
 pub struct MarkerId(pub u64);
@@ -12,7 +12,7 @@ pub struct MarkerId(pub u64);
 /// Caribbean, Lavender, Cerulean, Forest, Rose, Mango, Purple, Blue, Teal, Magenta, Tan, Green,
 /// Brown, Yellow), which the user can rename and recolour (FilmCraft `crates/project/src/label.rs:5`).
 /// Tracks and clips use the same labels.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 #[serde(transparent)]
 pub struct MarkerColor(pub u8);
 

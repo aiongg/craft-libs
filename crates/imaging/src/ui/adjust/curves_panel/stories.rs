@@ -11,7 +11,7 @@ use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
 
 /// The host's values of the panel story.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 struct Rig {
     curves: ToneCurves,
     armed: Option<TonePicker>,

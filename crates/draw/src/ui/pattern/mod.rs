@@ -35,7 +35,7 @@ impl PatternSwatch {
 
 /// A preset pattern's two colours (PowerPoint's Foreground and Background): present means the
 /// editor is in preset mode.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct PatternColors {
     /// The pattern's foreground colour.
@@ -45,7 +45,7 @@ pub struct PatternColors {
 }
 
 /// A pattern fill's values.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct PatternFillOptions {
     /// The pattern's id ([`PatternSwatch::id`]).

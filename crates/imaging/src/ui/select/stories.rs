@@ -96,7 +96,7 @@ enum Last {
 
 /// The story selection: shapes combined in order by their operations, then moved by `offset`. It is the tools'
 /// [`SelectionProbe`] and the overlay's [`MaskSource`].
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 struct Selection {
     size: [u32; 2],
     parts: Vec<(SelectionOperation, SelectionShape)>,
@@ -429,7 +429,7 @@ fn marquee(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 }
 
 /// What the marquee story's Play does.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, craft_ui::contract::MemoProps)]
 enum MarqueePlay {
     Draw,
     DragInside,

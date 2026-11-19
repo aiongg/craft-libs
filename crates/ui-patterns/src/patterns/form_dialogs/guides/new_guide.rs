@@ -31,7 +31,7 @@ use craft_theme::variant::Tone;
 use egui::{Response, Ui};
 
 /// The values of New Guide.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct NewGuideValues {
     /// The axis the guide runs along: `Axis::X` for a horizontal guide.

@@ -118,7 +118,7 @@ impl TransformField {
 }
 
 /// What the row edits and reports: the box and the V skew it reads with.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct TransformRow {
     /// The box.

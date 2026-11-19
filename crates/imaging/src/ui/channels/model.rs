@@ -12,7 +12,7 @@ use super::footer::ChannelsFooterButton;
 use super::menu::ChannelsCommands;
 
 /// What a channel row is.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub enum ChannelKind {
     /// The composite (RGB, CMYK, Lab): targeting it targets every colour channel.
@@ -100,7 +100,7 @@ pub const OVERLAY_OPACITIES: [u8; 4] = [25, 50, 75, 100];
 
 /// One row of the Channels panel, built by the app once per pass in display order: Composite,
 /// the colour channels, the layer mask, the alpha and spot channels, Quick Mask (PhotoCraft's).
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct ChannelRow<K> {
     /// The app's key of the channel: the key of the row, its thumbnail and its events.

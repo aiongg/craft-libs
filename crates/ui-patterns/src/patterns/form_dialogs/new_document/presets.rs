@@ -167,6 +167,12 @@ pub struct DocumentOptions {
     pub pixel_aspect: String,
 }
 
+impl crate::contract::MemoProps for DocumentOptions {
+    fn key(&self, key: &mut crate::contract::MemoKey) {
+        key.feed_serialized(self);
+    }
+}
+
 impl Default for DocumentOptions {
     /// 2100 x 1500 px at 300 ppi (7 x 5 in), RGB, 8 bit, white.
     fn default() -> Self {

@@ -43,7 +43,7 @@ impl NamedColor {
 }
 
 /// What a [`ColorChoice`] holds: one of the named colours by id, or the custom colour.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub enum ChosenColor {
     /// The named colour with this id.

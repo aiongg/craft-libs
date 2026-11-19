@@ -29,7 +29,7 @@ pub use stroke_cells::{StrokeCells, StrokeCellsOutput};
 pub use words::ShapeWords;
 
 /// The drawing mode of the vector tools.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub enum VectorMode {
@@ -43,7 +43,7 @@ pub enum VectorMode {
 }
 
 /// A line's arrowheads: which ends carry one and its size.
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, craft_ui::contract::MemoProps)]
 #[serde(default, rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct Arrowheads {
@@ -86,7 +86,7 @@ pub const LINE_WEIGHT_RANGE: RangeInclusive<f64> = 1.0..=10_000.0;
 
 /// The selected shape layer's live shape, as the Shape section shows it: plain data the app
 /// converts to and from its document. Sizes in document pixels.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub enum LiveShape {
     /// A rectangle: radii top-left, top-right, bottom-right, bottom-left.
@@ -176,7 +176,7 @@ impl LiveShape {
 
 /// A shape's fill and stroke as the Appearance section and the bar show them: the selected
 /// layer's, or the tool defaults when no shape layer is selected (the app passes the right one).
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct ShapeAppearance {
     /// The fill paint.
@@ -272,7 +272,7 @@ impl ShapeChange {
 
 /// The Shape tools' persisted options-bar values (Fill on, radius, sides, star ratio, weight,
 /// stroke width, the Rectangle's gear); the paints are the app's foreground and background.
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, craft_ui::contract::MemoProps)]
 #[serde(default, rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct ShapeToolSettings {

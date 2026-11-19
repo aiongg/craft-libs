@@ -72,3 +72,11 @@ impl SharedPanel {
         self.0.lock().unwrap_or_else(PoisonError::into_inner)
     }
 }
+
+/// A handle to state the story shares with its card and writes from its own runs: the key cannot follow it, so a view
+/// that holds it runs in every pass.
+impl craft_ui::contract::MemoProps for SharedPanel {
+    fn key(&self, key: &mut craft_ui::contract::MemoKey) {
+        key.changes_every_pass();
+    }
+}

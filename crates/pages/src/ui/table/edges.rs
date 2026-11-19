@@ -71,7 +71,7 @@ impl EdgeKey {
 }
 
 /// Which edges are chosen.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, craft_ui::contract::MemoProps)]
 pub struct BorderEdges([bool; 6]);
 
 impl BorderEdges {

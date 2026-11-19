@@ -17,7 +17,7 @@ pub const MAX_PINS: usize = 64;
 pub const DEFAULT_AMOUNT: f64 = 15.0;
 
 /// The four Blur Gallery filters with pins.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub enum BlurKind {
@@ -40,7 +40,7 @@ impl BlurKind {
 }
 
 /// An Iris or Spin pin's shape.
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct IrisShape {
@@ -97,7 +97,7 @@ impl IrisShape {
 }
 
 /// Tilt-Shift's band.
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct TiltBand {
@@ -147,7 +147,7 @@ impl TiltBand {
 
 /// One pin: its position as fractions of the bounds, its amount (blur in pixels, Spin's blur angle
 /// in degrees), and an Iris or Spin pin's shape or the Tilt-Shift band.
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct BlurPin {
@@ -177,7 +177,7 @@ impl BlurPin {
 /// document pixels `[x0, y0, x1, y1]`, the pins, and the selected pin. The dialog's fields keep
 /// the remembered amount and shape; the app maps `BlurPins` to the filter's `pins` parameters
 /// (Tilt-Shift: `centerX`, `centerY`, `angle`, `focus`, `transition`, `blur`).
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct BlurPins {
     /// The filter these pins belong to.

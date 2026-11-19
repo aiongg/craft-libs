@@ -74,7 +74,7 @@ impl SelectionStats {
 }
 
 /// Which statistics show; one settings section (Excel's status bar menu is app-wide).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct StatsShown {
     /// Show the average.

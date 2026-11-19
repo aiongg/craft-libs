@@ -56,7 +56,7 @@ impl Template {
 }
 
 /// How the recent files show. Saved as `"grid"` or `"list"`.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, crate::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub enum RecentView {
@@ -68,7 +68,7 @@ pub enum RecentView {
 }
 
 /// The recent files' order. Saved as `"opened"`, `"name"` or `"created"`.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, crate::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub enum RecentSort {

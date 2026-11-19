@@ -9,7 +9,7 @@ pub const MIN_LINE: f64 = 0.5;
 /// The Ruler line in document units: from `start` to `end`, and with a protractor a second arm
 /// from `start` (the vertex) to `protractor`.
 /// Serialises camelCase, points as kurbo's: the app stores the line in its document.
-#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct RulerLine {

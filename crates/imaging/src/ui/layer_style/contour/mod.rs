@@ -85,7 +85,7 @@ pub(crate) type SharedSampler = Arc<dyn Fn(&[[f32; 2]]) -> Vec<f32> + Send + Syn
 const LEVELS: f32 = 255.0;
 
 /// A contour a picker lists: one of the built-in contours or one of the user's.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub enum ContourKey {
     /// The built-in contour at this place of [`Contour::presets`].

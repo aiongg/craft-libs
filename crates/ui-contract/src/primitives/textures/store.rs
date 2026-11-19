@@ -135,7 +135,7 @@ impl Default for TextureStoreOptions {
 }
 
 /// A stored picture as a painter draws it: `painter.image(texture.id, rect, uv, tint)`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct CachedTexture {
     /// The egui texture to paint.

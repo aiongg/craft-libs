@@ -24,7 +24,7 @@ fn wells(ring: bool) -> [PairWell; 2] {
 }
 
 /// The host's side of a pair: the active well and the two colours.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 struct Colors {
     active: Well,
     colors: [Srgba; 2],

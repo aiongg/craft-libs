@@ -25,7 +25,7 @@ pub enum StopRows {
 
 /// One of the two rows of a [`StopRows::Split`] bar. [`StopRows::Combined`] and
 /// [`StopRows::ColorOnly`] have only `Color`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub enum StopRow {
     /// Colour stops.
@@ -35,7 +35,7 @@ pub enum StopRow {
 }
 
 /// A colour stop.
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct ColorStop {
@@ -55,7 +55,7 @@ pub struct ColorStop {
 }
 
 /// An opacity stop of a [`StopRows::Split`] gradient.
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct OpacityStop {
@@ -119,7 +119,7 @@ impl OpacityStop {
 }
 
 /// A gradient's stops, each list sorted by location.
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct GradientStops {

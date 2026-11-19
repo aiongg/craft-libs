@@ -92,7 +92,7 @@ impl Section for SpellingSettings {
 }
 
 /// One misspelling in the app's text.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct SpellingItem {
     /// The text object holding it (the layer id, for example).
@@ -106,7 +106,7 @@ pub struct SpellingItem {
 }
 
 /// A button the app acts on. Ignore is the dialog's own (it moves to the next item).
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub enum SpellingAction {
     /// Replace this one occurrence with `to`.
@@ -172,7 +172,7 @@ impl Outcome for SpellingOutput {
 /// - Result: `()`; every close from inside (Done, Escape, the close action, automation's confirm) is
 ///   [`DialogResult::Ok`], and a close from outside is `Cancel`.
 /// - Automation fields: `word` and `count` (read only), `changeTo` and `allLayers`.
-#[derive(Clone, Debug, PartialEq, craft_ui::contract::Pattern)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::Pattern, craft_ui::contract::MemoProps)]
 pub struct CheckSpellingDialog {
     items: Vec<SpellingItem>,
     index: usize,

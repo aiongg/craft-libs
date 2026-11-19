@@ -21,7 +21,7 @@ use super::tree::LayerPart;
 
 /// What a layer's thumbnail frames (Panel Options › Thumbnail Contents; the panel menu's Clip
 /// Thumbnails to Layer Bounds is the same setting).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub enum ThumbContents {
     /// The layer's content bounds, clipped to the canvas.

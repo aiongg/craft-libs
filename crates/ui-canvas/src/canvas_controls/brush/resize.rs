@@ -30,7 +30,7 @@ pub enum BrushLevel {
 }
 
 /// The two values a resize sets: the diameter in document units and the level (0 to 1) its [`BrushLevel`] names.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct BrushDimensions {
     /// The new diameter, in document units.

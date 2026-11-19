@@ -49,7 +49,7 @@ pub enum LimitRefused {
 }
 
 /// Output Settings › Output To.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub enum OutputTo {
@@ -90,7 +90,7 @@ impl OutputTo {
 /// The refinement values of the Properties panel (Edge Detection, Global Refinements, Output
 /// Settings). Part of the session (a slider drag is one undo step) and of the remembered settings.
 /// Defaults: everything 0 and off, Amount 100, Output To Selection.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase", default)]
 #[non_exhaustive]
 pub struct RefineSettings {
@@ -243,7 +243,7 @@ impl SelectMaskSession {
 /// Onion Skin, the views' default opacities, edge and original off, Real-Time Refinement on, High
 /// Quality off, overlay red (255, 0, 0) indicating masked areas, [`RefineSettings::default`],
 /// Remember off.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase", default)]
 #[non_exhaustive]
 pub struct SelectMaskSettings {

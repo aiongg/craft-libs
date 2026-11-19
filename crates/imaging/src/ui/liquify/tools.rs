@@ -11,7 +11,7 @@ use super::session::{LiquifyStroke, StrokeEvent};
 /// The tools of Liquify's strip, in strip order, with Photoshop's letters. Serialised with the
 /// engine's names (`forwardWarp`, `twirlCw`, `lassoMask`, …) so a [`LiquifyStroke`] passes to
 /// PhotoCraft's engine unchanged.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub enum LiquifyTool {
@@ -104,7 +104,7 @@ impl LiquifyTool {
 }
 
 /// The brush of the painting tools. Serialised in [`LiquifySettings`](super::LiquifySettings).
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase", default)]
 #[non_exhaustive]
 pub struct LiquifyBrush {

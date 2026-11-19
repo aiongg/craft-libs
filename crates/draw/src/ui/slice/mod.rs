@@ -50,7 +50,7 @@ pub use tool::SliceTool;
 pub use words::{SliceToolWords, SliceWords};
 
 /// Slice draws new slices; Select picks, moves and resizes them.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub enum SliceMode {
     /// Draws new slices.
@@ -61,7 +61,7 @@ pub enum SliceMode {
 }
 
 /// Where a slice comes from.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub enum SliceOrigin {
     /// Drawn by the user (or promoted): moves and resizes.
@@ -83,7 +83,7 @@ impl SliceOrigin {
 }
 
 /// One slice as the control and the tool see it this pass: a read-only snapshot of the app's resolved slices.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct SliceItem {
     /// The slice's display number (1, 2, …), how events and the badge name it.
@@ -105,7 +105,7 @@ impl SliceItem {
 }
 
 /// Which product's rules the control and the tool follow.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct SliceRules {
     /// Shift makes a new slice square and Alt draws it from the centre.
@@ -232,7 +232,7 @@ impl SliceEvent {
 
 /// The Slice tool's persisted options: its Style, Width and Height (a marquee's [`Constraint`], pixels for Fixed
 /// Size) and Hide Auto Slices.
-#[derive(Clone, Copy, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 #[serde(default, rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct SliceToolSettings {

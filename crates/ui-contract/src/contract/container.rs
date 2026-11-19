@@ -123,7 +123,7 @@ impl ShellPane {
 }
 
 /// The padding tier of a body.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum Pad {
     /// No padding.
@@ -660,7 +660,7 @@ impl Default for Collapse {
 }
 
 /// The spacing between the children of a body.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum Gap {
     /// No gap: rows touch, as in native menus.

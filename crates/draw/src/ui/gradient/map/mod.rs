@@ -26,7 +26,7 @@ const MAX_STOPS: usize = 64;
 const MIN_STOPS: usize = 2;
 
 /// The Gradient Map adjustment's value: the gradient the image's luminance maps through, and its two options.
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct GradientMap {

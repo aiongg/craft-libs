@@ -39,7 +39,7 @@ impl Default for LayersSettings {
 }
 
 /// Layers Panel Options: what the dialog edits and returns. Every field has a serde default.
-#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct LayersOptions {

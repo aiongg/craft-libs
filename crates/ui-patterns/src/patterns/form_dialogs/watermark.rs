@@ -106,6 +106,12 @@ pub struct WatermarkSettings {
     pub shadow: bool,
 }
 
+impl crate::contract::MemoProps for WatermarkSettings {
+    fn key(&self, key: &mut crate::contract::MemoKey) {
+        key.feed_serialized(self);
+    }
+}
+
 impl Default for WatermarkSettings {
     /// Size 3.5 %, opacity 70 %, inset 2.5 % on both axes, bottom right, shadow on.
     fn default() -> Self {

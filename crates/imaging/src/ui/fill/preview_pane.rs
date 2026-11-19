@@ -16,10 +16,10 @@ use crate::ui::wide_angle::PreviewDone;
 
 /// The window the preview was last framed on, and the zoom and centre that framing gave: the pane frames again
 /// when the window moves, but never over the user's own zoom or pan.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, craft_ui::contract::MemoProps)]
 pub struct PreviewFraming(Option<Framed>);
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, craft_ui::contract::MemoProps)]
 struct Framed {
     frame: Rect,
     zoom: f64,

@@ -9,7 +9,7 @@ use craft_theme::Rgba;
 use egui::{Context, Ui};
 
 /// The settings the stories edit.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, crate::contract::MemoProps)]
 struct Values {
     snap: bool,
     language: String,
@@ -26,7 +26,7 @@ impl Default for Values {
 }
 
 /// A host model over a saved copy and a draft of the settings.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, crate::contract::MemoProps)]
 struct Demo {
     saved: Values,
     draft: Values,

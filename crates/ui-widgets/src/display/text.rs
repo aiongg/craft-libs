@@ -12,7 +12,7 @@ use egui::{Response, Vec2};
 mod stories;
 
 /// How strongly the text reads against its surface.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum Shade {
     /// The normal text colour.
@@ -25,7 +25,7 @@ pub enum Shade {
 }
 
 /// Where text that does not fit is cut.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum Elide {
     /// The text wraps at the room's width.

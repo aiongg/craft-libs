@@ -22,7 +22,7 @@ mod stories;
 const MISSING: &str = "\u{2014}";
 
 /// The item the readout shows, chosen in its menu.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum StatusItem {
     /// The flattened size and the size with layers.

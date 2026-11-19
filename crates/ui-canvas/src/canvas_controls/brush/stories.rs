@@ -110,7 +110,7 @@ craft_ui::words! {
 }
 
 /// The tips the live brush story offers.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, crate::contract::MemoProps)]
 enum StoryTip {
     Round,
     Star,

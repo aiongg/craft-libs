@@ -67,7 +67,7 @@ pub const MAX_PAGE_SIDE: f64 = 1584.0;
 pub const MIN_TEXT_ROOM: f64 = 36.0;
 
 /// Which way the page's long side runs.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 pub enum Orientation {
     #[allow(missing_docs)]
@@ -90,7 +90,7 @@ impl Orientation {
 
 /// Page margins, points. With mirrored margins (facing pages) `left` is the inside and `right`
 /// the outside; labels say Inside/Outside then.
-#[derive(Clone, Copy, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 pub struct Margins {
     /// Top margin in points.
     pub top: f64,
@@ -165,7 +165,7 @@ impl MarginPreset {
 }
 
 /// Word's Page Setup › Layout › Vertical alignment.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 pub enum PageVerticalAlign {
     #[allow(missing_docs)]
@@ -181,7 +181,7 @@ pub enum PageVerticalAlign {
 
 /// What a page setup dialog edits. Sizes are portrait-agnostic: `width` × `height` as the page
 /// shows in its orientation.
-#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 #[serde(default)]
 pub struct PageSetup {
     /// Page width in points, as shown in the current orientation.

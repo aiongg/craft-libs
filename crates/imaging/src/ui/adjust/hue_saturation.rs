@@ -39,7 +39,7 @@ const MAX_SPAN: f64 = 359.0;
 const RANGE_SPANS: [ThumbSpan; 2] = [ThumbSpan::new(0, 3, SpanInk::Faint), ThumbSpan::new(1, 2, SpanInk::Muted)];
 
 /// One of Hue/Saturation's six colour ranges (Reds, Yellows, Greens, Cyans, Blues, Magentas).
-#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct HueRangeValue {
@@ -107,7 +107,7 @@ impl HueRangeValue {
 }
 
 /// A Hue/Saturation value.
-#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct HueSaturation {

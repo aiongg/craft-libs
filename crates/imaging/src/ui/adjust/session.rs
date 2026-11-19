@@ -16,7 +16,7 @@ mod stories;
 /// - [`reset`](Self::reset) on the panel's Reset: if edited, the start settings; else the kind's
 ///   defaults from `defaults`. Either way `edited` clears, so a second Reset gives the defaults.
 ///   The app applies the result as part of the layer's edit step (its `coalesce` key).
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, craft_ui::contract::MemoProps)]
 pub struct AdjustSession<T> {
     /// The target (layer and document, hashed by the app), the last pass it was tracked in, and
     /// the settings found.

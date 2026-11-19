@@ -14,7 +14,7 @@ use craft_theme::{Hsb, Srgba};
 
 /// A harmony rule: a group of colours built from a base colour, base first. VectorCraft's 21
 /// rules, in its menu order ([`Harmony::ALL`]).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 pub enum Harmony {
     #[default]
@@ -255,7 +255,7 @@ pub fn move_on_wheel(colors: &mut [Srgba], i: usize, target: [f32; 3], linked: b
 }
 
 /// What the variation grid varies.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 pub enum Variation {
     /// Towards black (left) and white (right): Show Tints/Shades.
@@ -283,7 +283,7 @@ impl Variation {
 }
 
 /// The variation grid's options: what it varies, steps on each side and how far they reach.
-#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 #[serde(default, rename_all = "camelCase")]
 pub struct GuideOptions {
     /// Which axis the grid varies along.

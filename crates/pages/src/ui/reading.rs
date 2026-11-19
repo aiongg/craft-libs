@@ -152,7 +152,7 @@ pub fn swipe_turn(start: Pos2, end: Pos2, column: f32, forward: f32) -> i32 {
 }
 
 /// The reading view's state, kept by the app.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct ReadingState {
     /// The column at the leading edge.

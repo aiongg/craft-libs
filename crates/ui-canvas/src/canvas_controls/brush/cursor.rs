@@ -21,7 +21,7 @@ const NO_LENGTH: f32 = 0.0;
 const BRUSH_ICON: IconId = IconId::new("brush");
 
 /// Preferences › Cursors › Painting Cursors.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum PaintingCursor {
     /// The tool's icon.

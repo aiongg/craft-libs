@@ -53,7 +53,7 @@ fn sane_extent(v: f64) -> f64 {
 }
 
 /// How pages are placed across the view.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "kebab-case")]
 pub enum PageDisplay {
     /// One page across (Acrobat's Single Page, Word's One Page and Page Width).
@@ -74,7 +74,7 @@ impl PageDisplay {
 
 /// The fit modes. A fit recomputes the zoom whenever the viewport or the pages change; a zoom the
 /// user sets is [`Fit::None`].
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "kebab-case")]
 pub enum Fit {
     /// Fit Width (Word's Page Width): the widest page, or the widest spread, fills the width.

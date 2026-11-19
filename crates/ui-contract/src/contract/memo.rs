@@ -326,6 +326,33 @@ impl MemoKey {
         }
     }
 
+    /// Feeds the saved form of `value`: for a plain data type that already writes itself out (a settings record, a
+    /// layout), whose saved form holds every field a view could read.
+    pub fn feed_serialized<T: serde::Serialize + ?Sized>(&mut self, value: &T) {
+        match serde_json::to_vec(value) {
+            Ok(bytes) => self.write(&bytes),
+            Err(_) => self.changes_every_pass(),
+        }
+    }
+
+    /// Feeds `items` as a set: each item's own key, sorted, so the order a hash container yields them in does not move
+    /// the key.
+    pub fn feed_unordered<'a, T: MemoProps + 'a>(&mut self, items: impl IntoIterator<Item = &'a T>) {
+        let mut each: Vec<u128> = items
+            .into_iter()
+            .map(|item| {
+                let mut one = self.child();
+                item.key(&mut one);
+                one.finish()
+            })
+            .collect();
+        each.sort_unstable();
+        self.write_u32(each.len() as u32);
+        for one in each {
+            self.write(&one.to_le_bytes());
+        }
+    }
+
     /// Feeds `bytes`.
     pub fn write(&mut self, bytes: &[u8]) {
         self.hasher.write(bytes);
@@ -355,7 +382,7 @@ impl MemoKey {
         value.hash(&mut Feed(self));
     }
 
-    fn write_len(&mut self, len: usize) {
+    pub(crate) fn write_len(&mut self, len: usize) {
         self.write(&(len as u64).to_le_bytes());
     }
 }
@@ -590,6 +617,19 @@ impl<T: MemoProps, const N: usize> MemoProps for [T; N] {
 impl<T: MemoProps> MemoProps for Vec<T> {
     fn key(&self, key: &mut MemoKey) {
         self.as_slice().key(key);
+    }
+}
+
+impl<T: MemoProps, S> MemoProps for std::collections::HashSet<T, S> {
+    fn key(&self, key: &mut MemoKey) {
+        key.feed_unordered(self);
+    }
+}
+
+impl<K: MemoProps, V: MemoProps, S> MemoProps for std::collections::HashMap<K, V, S> {
+    fn key(&self, key: &mut MemoKey) {
+        let pairs: Vec<(&K, &V)> = self.iter().collect();
+        key.feed_unordered(pairs.iter());
     }
 }
 
@@ -859,6 +899,192 @@ impl MemoProps for craft_theme::Srgba {
 impl MemoProps for craft_theme::variant::Tone {
     fn key(&self, key: &mut MemoKey) {
         key.feed_hash(self);
+    }
+}
+
+/// Derived `Hash`.
+macro_rules! hashed_foreign {
+    ($($t:ty),+ $(,)?) => {
+        $(impl MemoProps for $t {
+            fn key(&self, key: &mut MemoKey) {
+                key.feed_hash(self);
+            }
+        })+
+    };
+}
+
+hashed_foreign!(
+    craft_theme::ControlSize,
+    craft_theme::Rgba,
+    craft_theme::Variant,
+    craft_theme::TypeRole,
+    craft_behavior::ColumnKey,
+    craft_behavior::Anchor9,
+    craft_behavior::Axis,
+    craft_theme::ThemeId,
+    craft_theme::ModeChoice,
+    craft_theme::ContrastChoice,
+    craft_theme::MotionChoice,
+    craft_theme::TextSize,
+    craft_theme::Size,
+    craft_theme::LabelColor,
+    craft_behavior::PixelSize,
+    egui::TextureId,
+    craft_behavior::geometry::CropGuide,
+    craft_behavior::geometry::Directions,
+    craft_behavior::geometry::GuideShow,
+    craft_behavior::geometry::SelectionOperation,
+    craft_time::TimeDisplay,
+    craft_theme::ColorToken,
+    craft_time::Tick,
+    craft_time::FrameRate,
+    craft_time::TimeRange,
+);
+
+impl<K: MemoProps> MemoProps for craft_behavior::Selection<K> {
+    fn key(&self, key: &mut MemoKey) {
+        let craft_behavior::Selection { items, lead, anchor, .. } = self;
+        items.key(key);
+        lead.key(key);
+        anchor.key(key);
+    }
+}
+
+/// The marquee's constraint: the variant, then its numbers.
+impl MemoProps for craft_behavior::geometry::marquee::Constraint {
+    fn key(&self, key: &mut MemoKey) {
+        use craft_behavior::geometry::marquee::Constraint;
+        match self {
+            Constraint::Free => 0u8.key(key),
+            Constraint::Ratio(w, h) => (1u8, *w, *h).key(key),
+            Constraint::Size(w, h) => (2u8, *w, *h).key(key),
+            _ => 3u8.key(key),
+        }
+    }
+}
+
+/// A dock layout keys by its saved form: the tree of groups, the sizes and the floating windows, as the layout file
+/// writes them.
+impl<P: serde::Serialize> MemoProps for craft_behavior::dock::Layout<P> {
+    fn key(&self, key: &mut MemoKey) {
+        key.feed_serialized(self);
+    }
+}
+
+impl<P: serde::Serialize> MemoProps for craft_behavior::dock::Workspace<P> {
+    fn key(&self, key: &mut MemoKey) {
+        key.feed_serialized(self);
+    }
+}
+
+impl<P: serde::Serialize> MemoProps for craft_behavior::dock::WorkspaceSet<P> {
+    fn key(&self, key: &mut MemoKey) {
+        key.feed_serialized(self);
+    }
+}
+
+impl MemoProps for craft_behavior::PointerButton {
+    fn key(&self, key: &mut MemoKey) {
+        key.feed_hash(self);
+    }
+}
+
+impl MemoProps for craft_behavior::kurbo::Point {
+    fn key(&self, key: &mut MemoKey) {
+        self.x.key(key);
+        self.y.key(key);
+    }
+}
+
+/// The frame's corners and its angle.
+impl MemoProps for craft_behavior::geometry::CropBox {
+    fn key(&self, key: &mut MemoKey) {
+        for value in [self.rect.x0, self.rect.y0, self.rect.x1, self.rect.y1, self.angle] {
+            value.key(key);
+        }
+    }
+}
+
+impl MemoProps for craft_behavior::kurbo::Rect {
+    fn key(&self, key: &mut MemoKey) {
+        for value in [self.x0, self.y0, self.x1, self.y1] {
+            value.key(key);
+        }
+    }
+}
+
+impl MemoProps for craft_behavior::CanvasTransform {
+    fn key(&self, key: &mut MemoKey) {
+        for value in [self.scale, self.offset.x, self.offset.y] {
+            value.key(key);
+        }
+    }
+}
+
+impl MemoProps for craft_behavior::ScrollPos {
+    fn key(&self, key: &mut MemoKey) {
+        self.x.key(key);
+        self.y.key(key);
+    }
+}
+
+/// The selection's fields are private and its saved form needs `K: Serialize`; its derived `Debug` writes every field.
+impl<K: std::fmt::Debug> MemoProps for craft_behavior::CellSelection<K> {
+    fn key(&self, key: &mut MemoKey) {
+        format!("{self:?}").key(key);
+    }
+}
+
+/// The overrides' JSON, and the text-size steps (which are not part of the JSON) by their derived `Debug`.
+impl MemoProps for craft_theme::AppSizes {
+    fn key(&self, key: &mut MemoKey) {
+        self.to_json().key(key);
+        format!("{:?}", self.text_steps).key(key);
+    }
+}
+
+impl MemoProps for craft_theme::ModelValues {
+    fn key(&self, key: &mut MemoKey) {
+        self.model.key(key);
+        self.values.key(key);
+    }
+}
+
+impl MemoProps for craft_behavior::kurbo::Vec2 {
+    fn key(&self, key: &mut MemoKey) {
+        self.x.key(key);
+        self.y.key(key);
+    }
+}
+
+impl MemoProps for craft_behavior::geometry::BoxState {
+    fn key(&self, key: &mut MemoKey) {
+        self.quad.key(key);
+        self.pivot.key(key);
+    }
+}
+
+/// Each element's kind and points.
+impl MemoProps for craft_behavior::kurbo::BezPath {
+    fn key(&self, key: &mut MemoKey) {
+        use craft_behavior::kurbo::PathEl;
+        key.write_len(self.elements().len());
+        for element in self.elements() {
+            match *element {
+                PathEl::MoveTo(a) => (0u8, a).key(key),
+                PathEl::LineTo(a) => (1u8, a).key(key),
+                PathEl::QuadTo(a, b) => (2u8, a, b).key(key),
+                PathEl::CurveTo(a, b, c) => (3u8, a, b, c).key(key),
+                PathEl::ClosePath => 4u8.key(key),
+            }
+        }
+    }
+}
+
+/// The gesture's fields are private; its derived `Debug` writes every one of them (numbers, points and enums).
+impl MemoProps for craft_behavior::geometry::MoveGesture {
+    fn key(&self, key: &mut MemoKey) {
+        format!("{self:?}").key(key);
     }
 }
 

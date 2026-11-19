@@ -61,7 +61,7 @@ craft_ui::words! {
 }
 
 /// The cylinder's values: the box, the depths of its top and bottom edges and the wrap.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct CylinderValues {
     /// The left edge of the box.

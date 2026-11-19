@@ -123,3 +123,11 @@ fn tool_drawing_a_rectangle(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     });
     StoryOutput::default()
 }
+
+/// A handle to state the story shares with its card and writes from its own runs: the key cannot follow it, so a view
+/// that holds it runs in every pass.
+impl craft_ui::contract::MemoProps for Shared {
+    fn key(&self, key: &mut craft_ui::contract::MemoKey) {
+        key.changes_every_pass();
+    }
+}

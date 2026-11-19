@@ -7,7 +7,7 @@ use egui::Color32;
 use crate::lists::{ListMarker, ListParagraph, markers};
 
 /// A run of notes text with its formatting.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct NotesRun {
     /// The run's text.
@@ -68,7 +68,7 @@ impl NotesRun {
 
 /// One paragraph: its runs, list level and marker, and its margins (points; `None` takes
 /// [`crate::lists::LEVEL_INDENT`] per level).
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct NotesParagraph {
     /// The runs of the paragraph, in order.
@@ -107,7 +107,7 @@ impl NotesParagraph {
 }
 
 /// The notes as the editor sees them.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct NotesText {
     /// The paragraphs, in order.

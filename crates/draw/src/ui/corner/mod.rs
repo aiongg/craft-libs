@@ -20,7 +20,7 @@ pub use widgets::{CornerWidgets, CornerWidgetsOutput};
 pub use words::CornerWords;
 
 /// How a corner is cut. Only shown and cycled with [`CornerWidgets::kinds`] (VectorCraft).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub enum CornerKind {
     /// A circular arc tangent to both edges.
@@ -46,7 +46,7 @@ impl CornerKind {
 
 /// One corner of a target, in document units: its vertex, its neighbours along the outline (the
 /// sharp polygon's, not the rounded one's), its radius now and its kind.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct CornerPoint {
     /// The corner's vertex.
@@ -64,7 +64,7 @@ pub struct CornerPoint {
 /// A shape whose corners the widgets round: the host's key, its corners in outline order, and
 /// whether each corner takes its own radius (`individual`: rectangles, so ⌥ changes one corner)
 /// or every corner shares one (polygons, stars: ⌥ is ignored).
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct CornerTarget {
     /// The app's id for the object.

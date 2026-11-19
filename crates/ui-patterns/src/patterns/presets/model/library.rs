@@ -7,7 +7,7 @@ use super::PresetRow;
 /// A group or folder by its names from the top group down: `["Brushes", "Dry Media"]`. The empty
 /// path is the library's root, which holds the ungrouped presets and the top groups. Names are
 /// unique among siblings, so a path names one group.
-#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, crate::contract::MemoProps)]
 #[serde(transparent)]
 pub struct GroupPath(Vec<String>);
 
@@ -55,7 +55,7 @@ impl GroupPath {
 /// key never collide (PhotoCraft's `"group:{name}"` strings, the private key of
 /// `SwatchesPanel`). `I` is the preset's id: [`PresetId`] in a [`PresetLibrary`]; PhotoCraft's
 /// engine library uses the preset's name (`PresetKey<String>`).
-#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum PresetKey<I> {
     /// A group or folder.
@@ -229,6 +229,12 @@ pub struct PresetLibrary<T> {
     pub(super) nesting: usize,
     /// The number of the next id; never goes down.
     pub(super) next_id: u64,
+}
+
+impl<T: serde::Serialize> crate::contract::MemoProps for PresetLibrary<T> {
+    fn key(&self, key: &mut crate::contract::MemoKey) {
+        key.feed_serialized(self);
+    }
 }
 
 impl<T> Default for PresetLibrary<T> {

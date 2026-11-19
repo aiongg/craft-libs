@@ -106,7 +106,7 @@ pub fn ruler_ticks(axis: &TimeAxis, width: f32, ladder: StepLadder) -> Vec<TimeT
 }
 
 /// What a stretch of the render bar says about its frames.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub enum RenderBarState {
     /// A rendered preview (Premiere's green; After Effects' RAM cache).
@@ -120,7 +120,7 @@ pub enum RenderBarState {
 }
 
 /// One stretch of the render bar along the ruler's bottom edge.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct RenderSpan {
     /// The stretch of time.

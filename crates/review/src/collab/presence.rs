@@ -2,7 +2,7 @@
 
 use super::chat::CursorChat;
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, craft_ui::contract::MemoProps)]
 /// Identifies a person within a session.
 pub struct ParticipantId(pub u64);
 

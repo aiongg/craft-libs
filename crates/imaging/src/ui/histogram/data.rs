@@ -8,7 +8,7 @@ use egui::Color32;
 ///
 /// The colours are data colours, not style colours: the ribbons of a histogram are composed from their channel
 /// values (sums and products), which needs the colour itself.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub enum ChannelColor {
     /// The composite, CMYK Black and Lab Lightness: `data.luma` (`text.muted` in a histogram).
@@ -97,7 +97,7 @@ impl ChannelColor {
 }
 
 /// How tall the bins are drawn.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub enum HistogramScale {
     /// The tallest bin (the tallest interior bin of an RGB plot, whose edge bins are clipped pixels) at 1/1.1 of the
@@ -207,7 +207,7 @@ impl HistogramData {
 }
 
 /// A range of whole levels (bin positions) a plot has selected, both ends included.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct LevelRange {
     /// The first level.

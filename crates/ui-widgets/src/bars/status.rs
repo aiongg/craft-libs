@@ -13,7 +13,7 @@ use egui::{Response, Ui};
 
 /// A message for the status bar and its tone. A component with something to say in the status bar reports this in
 /// its output; the host keeps the newest one and shows it as the last member of its status bar's body.
-#[derive(Clone, Debug, PartialEq, crate::contract::Pattern)]
+#[derive(Clone, Debug, PartialEq, crate::contract::Pattern, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct StatusMessage {
     /// The message.

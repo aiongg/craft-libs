@@ -177,7 +177,7 @@ impl LiquifySession {
 
 /// Show Mesh's Mesh Size. PhotoCraft's mesh has 64, 40 or 24 cells across the document's longer
 /// side (`liquify_ui.rs:1250`); the app builds [`LiquifyMesh`](super::LiquifyMesh) for it.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub enum MeshSize {
@@ -198,7 +198,7 @@ impl MeshSize {
 /// Show Backdrop › Mode, as Photoshop draws it (measured on its Liquify): In Front lays the
 /// backdrop over the image at the Opacity, Behind lays the image over the backdrop at the Opacity,
 /// Blend fades the image to 100 − Opacity under the backdrop at the Opacity.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub enum BackdropMode {
@@ -217,7 +217,7 @@ impl BackdropMode {
 }
 
 /// Show Backdrop › Use.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub enum BackdropUse {
@@ -232,7 +232,7 @@ pub enum BackdropUse {
 /// Persisted by the app (serde, every field defaulted, so an old or partial record loads); never in
 /// the session's history. Defaults: Forward Warp; size 100, density 50, pressure 100, rate 80;
 /// amount 100; mesh off at Medium; mask shown; backdrop off, All Layers, In Front, opacity 50.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase", default)]
 #[non_exhaustive]
 pub struct LiquifySettings {

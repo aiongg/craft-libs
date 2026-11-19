@@ -76,7 +76,7 @@ impl RenderStatus {
 }
 
 /// A queue item's id, the app's.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, craft_ui::contract::MemoProps)]
 pub struct RenderItemId(u64);
 
 impl RenderItemId {

@@ -44,7 +44,7 @@ craft_ui::words! {
 }
 
 /// The chosen LUT.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub enum LutChoice {
     /// No LUT.

@@ -12,7 +12,7 @@ use crate::ui::adjust::sliders::{Run, editor_group, lifted, read, words};
 use crate::ui::adjust::{AdjustContext, AdjustField};
 
 /// Selective Color's method.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub enum SelectiveMethod {
@@ -25,7 +25,7 @@ pub enum SelectiveMethod {
 
 /// A Selective Color value: per range (Reds, Yellows, Greens, Cyans, Blues, Magentas, Whites, Neutrals, Blacks) the
 /// Cyan, Magenta, Yellow and Black shifts, −100..=100 %, whole numbers.
-#[derive(Clone, Copy, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct SelectiveColor {

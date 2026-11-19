@@ -26,7 +26,7 @@ use super::tree::{LayerInfo, LayerKind, LayerPart, LayerTree};
 
 /// What the Layers panel filters by: the filter bar's type select, Photoshop's types in its order
 /// (Selected waits for the feature that needs it).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub enum FilterBy {
@@ -73,7 +73,7 @@ impl FilterBy {
 }
 
 /// A layer kind the Kind filter toggles.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub enum FilterKind {
@@ -125,7 +125,7 @@ impl LayerKind {
 
 /// A layer effect kind, as the Effect filter picks it and [`LayerInfo::effect_kinds`] reports it,
 /// in Photoshop's order. `Overlay` stands for Color, Gradient and Pattern Overlay.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub enum EffectKind {
@@ -177,7 +177,7 @@ impl EffectKind {
 
 /// A layer attribute the Attribute filter picks, or its opposite: Photoshop's nine attributes,
 /// then their opposites. Each opposite lists the layers (and groups) its attribute doesn't.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub enum LayerAttribute {
@@ -313,7 +313,7 @@ pub enum SmartSource {
 }
 
 /// A kind of smart object the Smart Object filter toggles.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub enum SmartKind {
@@ -335,7 +335,7 @@ impl SmartKind {
 /// document) and passes it to [`LayersPanel::filter`](super::panel::LayersPanel::filter); every
 /// field has a serde default. Each type reads its own field; the others keep their values while
 /// another type is picked.
-#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct LayerFilter {

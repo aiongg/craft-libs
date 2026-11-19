@@ -1,7 +1,7 @@
 //! Stories: named ways to show one registered type, and the data and output the runner reads from them.
 
 use super::Fixture;
-use crate::contract::{CollectionEvent, Inner, Outcome, TooltipSpec};
+use crate::contract::{CollectionEvent, Inner, MemoKey, MemoProps, Outcome, TooltipSpec};
 use crate::runtime::commands::CommandInput;
 use craft_behavior::{EditEvent, EditEvents, PartKey, PartRef, Value};
 use egui::{Id, Response, Ui, Vec2};
@@ -258,9 +258,11 @@ pub trait Shown {
     fn same(&self, other: &dyn Shown) -> bool;
     fn any(&self) -> &dyn Any;
     fn any_mut(&mut self) -> &mut dyn Any;
+    /// Feeds the value into `key`, as the value's own `MemoProps` does.
+    fn key(&self, key: &mut MemoKey);
 }
 
-impl<T: Value> Shown for T {
+impl<T: Value + MemoProps> Shown for T {
     fn copy(&self) -> Box<dyn Shown> {
         Box::new(self.clone())
     }
@@ -282,6 +284,32 @@ impl<T: Value> Shown for T {
     fn any_mut(&mut self) -> &mut dyn Any {
         self
     }
+
+    fn key(&self, key: &mut MemoKey) {
+        MemoProps::key(self, key);
+    }
+}
+
+/// A story's data keys by its values, each through its own `MemoProps`, in name order: an edit by the story or by the
+/// Properties editor moves the key of a view that shows it. What the story keeps in notes is not an input: it changes
+/// only inside a run, which reports it.
+impl MemoProps for &mut StoryData {
+    fn key(&self, key: &mut MemoKey) {
+        MemoProps::key(&**self, key);
+    }
+}
+
+impl MemoProps for StoryData {
+    fn key(&self, key: &mut MemoKey) {
+        let mut held: Vec<_> = self.values.iter().collect();
+        held.sort_unstable_by_key(|((name, id), _)| (*name, *id));
+        key.write_u32(held.len() as u32);
+        for ((name, id), value) in held {
+            key.feed_hash(name);
+            key.feed_hash(id);
+            value.key(key);
+        }
+    }
 }
 
 impl StoryData {
@@ -302,7 +330,7 @@ impl StoryData {
     /// The value named `name` of type `T`, created from `init` on first use. A name used with two types names two
     /// values.
     #[allow(clippy::unreachable, reason = "the slot key holds the type, so the downcast cannot fail")]
-    pub fn value<T: Value>(&mut self, name: &'static str, init: T) -> &mut T {
+    pub fn value<T: Value + MemoProps>(&mut self, name: &'static str, init: T) -> &mut T {
         let slot = self.values.entry((name, TypeId::of::<T>())).or_insert_with(|| Box::new(init));
         match slot.any_mut().downcast_mut::<T>() {
             Some(value) => value,
@@ -335,13 +363,13 @@ impl StoryData {
     }
 
     /// Like [`StoryData::value`] for a number the Properties editor keeps inside `range`.
-    pub fn ranged<T: Value>(&mut self, name: &'static str, init: T, range: RangeInclusive<f64>) -> &mut T {
+    pub fn ranged<T: Value + MemoProps>(&mut self, name: &'static str, init: T, range: RangeInclusive<f64>) -> &mut T {
         self.how.entry((name, TypeId::of::<T>())).or_insert(Edit::Range(range));
         self.value(name, init)
     }
 
     /// Like [`StoryData::value`] for a value that is one of `options`, which the Properties editor offers by label.
-    pub fn choice<T: Value>(&mut self, name: &'static str, init: T, options: &[(&'static str, T)]) -> &mut T {
+    pub fn choice<T: Value + MemoProps>(&mut self, name: &'static str, init: T, options: &[(&'static str, T)]) -> &mut T {
         let list = || Edit::Choice(options.iter().map(|(label, value)| (*label, Box::new(value.clone()) as Box<dyn Shown>)).collect());
         self.how.entry((name, TypeId::of::<T>())).or_insert_with(list);
         self.value(name, init)

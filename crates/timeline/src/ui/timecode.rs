@@ -305,7 +305,7 @@ impl Component for TimecodeField<'_> {
 }
 
 /// What a Timecode panel row shows.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub enum TimecodeRowKind {
     /// The playhead time.
@@ -322,7 +322,7 @@ pub enum TimecodeRowKind {
 }
 
 /// Which monitor a row reads.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub enum TimecodeSource {
     /// The Source monitor when it has the focus and an item, else the Program.
@@ -335,7 +335,7 @@ pub enum TimecodeSource {
 }
 
 /// One row of the Timecode panel.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct TimecodeRow {
     /// What the row shows.
@@ -368,7 +368,7 @@ impl TimecodeRow {
 }
 
 /// The Timecode panel's rows, saved by the app with its panel state.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct TimecodePanelSettings {
     /// The rows, the first one emphasised.

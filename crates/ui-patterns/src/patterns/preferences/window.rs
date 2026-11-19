@@ -28,7 +28,7 @@ pub const DEFAULT_SIZE: Vec2 = vec2(1040.0, 800.0); // design: allow[literal-siz
 pub const MIN_SIZE: Vec2 = vec2(560.0, 400.0); // design: allow[literal-size/vec2](the window's own least size in points)
 
 /// What the window keeps between passes; the host owns it and binds it with [`PreferencesWindow::new`].
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct PreferencesState {
     /// The id of the page the user picked. While a search hides it another page shows, and this one returns when the

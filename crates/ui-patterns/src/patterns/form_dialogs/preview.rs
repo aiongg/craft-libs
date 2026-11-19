@@ -85,7 +85,7 @@ pub enum PreviewState {
 /// `transform` is a `CanvasTransform` whose canvas origin is the centre of the picture and whose layer origin is the
 /// centre of the well: `scale` is the zoom (1 is the picture's own size) and `offset` is how far the picture's centre
 /// lies from the well's centre.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct PreviewView {
     /// The pan and zoom. While `fit` is set the pane shows the fit view instead, and a pass that reports a fit view

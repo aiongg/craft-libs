@@ -33,6 +33,7 @@ craft-behavior = { workspace = true }
 accesskit = "0.25"
 craft-keymap = { workspace = true, features = ["egui"] }
 craft-theme = { workspace = true }
+craft-time = { workspace = true }
 craft-ui-macros = { workspace = true }
 # `Tracked`: app models whose revision keys memoized views and write-through bindings.
 craft-tracked = { workspace = true }

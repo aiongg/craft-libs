@@ -31,7 +31,7 @@ impl ThumbAspect {
 }
 
 /// The thumbnail setting of a list, which the host stores.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum ThumbSize {
     /// No thumbnail: rows are one control high.
@@ -71,7 +71,7 @@ impl ThumbSize {
 }
 
 /// One of a row's thumbnails.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum ThumbTarget {
     /// The first thumbnail ([`ListRow::thumb`]).

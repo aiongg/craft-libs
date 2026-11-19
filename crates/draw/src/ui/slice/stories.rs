@@ -123,7 +123,7 @@ fn sample_slices() -> Vec<SliceItem> {
 }
 
 /// The slices and the selection the Slice tool story keeps as its document.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 struct Slices {
     items: Vec<SliceItem>,
     selected: Option<usize>,

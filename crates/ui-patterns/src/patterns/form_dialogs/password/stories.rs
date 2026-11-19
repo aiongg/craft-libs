@@ -5,7 +5,7 @@ use crate::contract::Bind;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, crate::contract::MemoProps)]
 enum Asks {
     Open,
     Permissions,

@@ -28,7 +28,7 @@ use crate::time::{TICKS_PER_SECOND, Tick, TimeRange};
 use crate::timecode::format_time;
 
 /// A keyframe's id, the app's.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, craft_ui::contract::MemoProps)]
 pub struct KeyframeId(u64);
 
 impl KeyframeId {
@@ -45,7 +45,7 @@ impl KeyframeId {
 
 /// How the segment leaving a keyframe interpolates (Premiere's temporal set; After Effects' Linear, Bezier and Hold
 /// are a subset). Also picks the glyph.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub enum KeyframeInterpolation {
     #[default]

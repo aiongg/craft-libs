@@ -15,7 +15,7 @@ use crate::ui::adjust::style::{mix, tones};
 use crate::ui::adjust::{AdjustContext, AdjustField, AdjustTrack, AdjustWords};
 
 /// A Channel Mixer value: per output channel the Red, Green, Blue and Constant percentages.
-#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct ChannelMixer {

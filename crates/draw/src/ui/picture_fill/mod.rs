@@ -16,7 +16,7 @@ pub use editor::{PICTURE_FILL_KEY, PictureFillEditor, PictureFillOutput};
 pub use words::PictureFillWords;
 
 /// Where a tiled picture's first tile sits in the shape.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub enum TileAlignment {
     /// Top left.
@@ -41,7 +41,7 @@ pub enum TileAlignment {
 }
 
 /// How tiles flip from one to the next.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub enum TileMirror {
     /// No mirroring.
@@ -56,7 +56,7 @@ pub enum TileMirror {
 }
 
 /// How the picture fills the shape.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub enum PictureMode {
     /// Stretched to the shape, inset by `offsets` (left, top, right, bottom) in percent of the
@@ -105,7 +105,7 @@ impl Default for PictureMode {
 }
 
 /// A picture fill's values; the picture itself is the app's.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct PictureFill {
     /// The picture's name as the source row shows it; `None` before one is picked.

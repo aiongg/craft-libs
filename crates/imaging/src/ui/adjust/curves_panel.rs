@@ -63,7 +63,7 @@ fn modifier_words(os: craft_host::target::Os, mods: Mods) -> String {
 }
 
 /// How the shown curve is edited: Photoshop's two buttons above the graph.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub enum CurvesMode {
@@ -76,7 +76,7 @@ pub enum CurvesMode {
 
 /// A Curves value: one curve per channel of the panel's [`ToneChannels`] (same index), all in
 /// one [`CurvesMode`].
-#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct ToneCurves {

@@ -79,7 +79,7 @@ craft_ui::words! {
 }
 
 /// Photoshop's font classes, in its filter menu order (the class glyph at the row's right).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum FontClass {
@@ -123,7 +123,7 @@ impl FontClass {
 
 /// Photoshop's Font Preview Size (Type › Font Preview Size): how large the sample in each row is,
 /// or none.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum FontPreviewSize {
@@ -156,7 +156,7 @@ impl FontPreviewSize {
 }
 
 /// What narrows the list. Every filter off shows every installed family.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct FontFilters {
     /// Only families of this class (`None`: All Classes).
@@ -186,7 +186,7 @@ pub const SIMILAR_COUNT: usize = 30;
 
 /// The picker's remembered state: starred families and the most recent picks, one settings
 /// section shared by every picker of the app (`[font_picker]`).
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, craft_ui::contract::MemoProps)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct FontPickerSettings {

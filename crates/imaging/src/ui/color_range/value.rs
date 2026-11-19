@@ -5,7 +5,7 @@ use craft_keymap::Mods;
 use serde::{Deserialize, Serialize};
 
 /// What the Select menu's Color Range picks colours by: a sampled colour, a colour family or a tonal range.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub enum ColorRangeSelect {
@@ -76,7 +76,7 @@ impl SampleTool {
 }
 
 /// Whether a sample adds to the range or subtracts from it. Serialises as the engine's `"+"` and `"-"`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub enum SampleSign {
     /// An added sample.
@@ -88,7 +88,7 @@ pub enum SampleSign {
 }
 
 /// The points the user sampled, in document pixels, and the order they were made in.
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct ColorSamples {
     /// The added samples.
@@ -145,7 +145,7 @@ impl ColorSamples {
 }
 
 /// The Color Range dialog's value: the command's parameters.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct ColorRangeValue {

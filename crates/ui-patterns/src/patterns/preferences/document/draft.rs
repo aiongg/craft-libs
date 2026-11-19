@@ -12,6 +12,12 @@ pub struct SettingsDraft {
     pub(super) table: toml::Table,
 }
 
+impl crate::contract::MemoProps for SettingsDraft {
+    fn key(&self, key: &mut crate::contract::MemoKey) {
+        key.feed_serialized(&self.table);
+    }
+}
+
 impl SettingsDraft {
     /// The value at `key` (`"tools.pressureCurve"`), when it is there and fits `V`. A part of the key may name a list
     /// entry: `"performance.scratchDisks[1].path"`.

@@ -59,7 +59,7 @@ const NAME: ColumnKey = ColumnKey::new("name");
 
 /// The rows of the layers list story: names, eyes, the selection (the first row to begin with) and the line under
 /// the list.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, crate::contract::MemoProps)]
 struct LayerRows {
     names: Vec<String>,
     visible: Vec<bool>,
@@ -156,7 +156,7 @@ fn list_many(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 const LOCK: ColumnKey = ColumnKey::new("lock");
 
 /// A layer of the layers story.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, crate::contract::MemoProps)]
 struct Layer {
     name: String,
     visible: bool,

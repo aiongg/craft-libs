@@ -98,7 +98,7 @@ pub fn shown_names(printers: &[Printer]) -> Vec<String> {
     shown
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 /// Two-sided printing mode.
 pub enum Duplex {
@@ -110,7 +110,7 @@ pub enum Duplex {
     ShortEdge,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 /// What the user chose for one print job.
 pub struct Settings {

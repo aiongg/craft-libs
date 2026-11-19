@@ -11,7 +11,7 @@ use crate::ui::PickedColor;
 
 /// What the browser names its rows by. Swatch names are unique across the library and group names among groups, so
 /// both survive reordering.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub enum SwatchKey {
     /// A group, by name.
@@ -22,7 +22,7 @@ pub enum SwatchKey {
 
 /// What the Swatches panel keeps between passes, owned by the host: the browser's view, the selected row, the row to
 /// rename in place next, and the notes of an export in flight.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct SwatchesState {
     /// The browser's view settings: thumbnail size, open groups.
@@ -43,7 +43,7 @@ impl Default for SwatchesState {
 
 /// The app's swatches: groups of named swatches, names unique across the library. Kept by the
 /// app (a settings section or its presets store).
-#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct SwatchLibrary {

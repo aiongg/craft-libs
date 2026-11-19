@@ -36,6 +36,12 @@ pub struct TaskBarPlace {
     pub at: Option<[f32; 2]>,
 }
 
+impl crate::contract::MemoProps for TaskBarPlace {
+    fn key(&self, key: &mut crate::contract::MemoKey) {
+        key.feed_serialized(self);
+    }
+}
+
 impl TaskBarPlace {
     /// A place that is pinned or follows the anchor, with the top left corner `at` once moved.
     pub const fn new(pinned: bool, at: Option<[f32; 2]>) -> Self {

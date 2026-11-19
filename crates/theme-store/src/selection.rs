@@ -34,7 +34,7 @@ impl Accepted {
 
 /// The fields of the suite choice the user changed. Only these are written; the fields it leaves
 /// out keep what `selection.json` holds, chosen or not.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, craft_ui::contract::MemoProps)]
 pub struct SelectionChange {
     /// The light-mode theme.
     pub theme_light: Option<ThemeId>,

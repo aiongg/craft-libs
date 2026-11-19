@@ -206,7 +206,7 @@ impl Measure<'_> {
 }
 
 /// The values of New Guide Layout.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct GuideLayoutValues {
     /// The layout's settings.

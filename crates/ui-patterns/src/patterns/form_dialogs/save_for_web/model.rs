@@ -192,6 +192,12 @@ pub struct SaveForWebOptions {
     pub html: bool,
 }
 
+impl crate::contract::MemoProps for SaveForWebOptions {
+    fn key(&self, key: &mut crate::contract::MemoKey) {
+        key.feed_serialized(self);
+    }
+}
+
 /// The serde default of [`SaveForWebOptions::html`]: on.
 fn html_default() -> bool {
     true

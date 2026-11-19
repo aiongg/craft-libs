@@ -7,7 +7,7 @@ use craft_theme::{ColorModel, HsbModel, LabModel, OklchModel, RgbModel};
 /// What the area and the strip show: the strip's component and the area's two, across (growing to
 /// the right) and down (growing upwards). The nine modes of PhotoCraft's Color Picker, with
 /// Photoshop's axes, and three for OKLCH laid out as the HSB ones.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 pub enum AreaMode {
     /// Hue in the strip; saturation across, brightness down (HSB).
     #[default]

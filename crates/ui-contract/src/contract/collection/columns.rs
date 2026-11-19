@@ -211,7 +211,7 @@ impl ColumnSpec {
 }
 
 /// The column the rows are sorted by and the direction: the app's value, which it changes on `ColumnEvent::Sort`.
-#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct ColumnSort {
     /// The sorted column.

@@ -73,7 +73,7 @@ fn bar_over_canvas(ui: &mut Ui, view: &mut CanvasView, mut bar: impl FnMut(&mut 
 }
 
 /// What a navigate bar story keeps between passes.
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, crate::contract::MemoProps)]
 struct Navigation {
     view: CanvasView,
     options: NavigationOptions,

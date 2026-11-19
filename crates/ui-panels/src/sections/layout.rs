@@ -117,8 +117,14 @@ impl SectionEvent {
 /// `collapsed`) and `pinned`; a flag that is not a bool is off; the first entry for an id counts; an entry without an
 /// id is dropped; anything that is not a list is an empty arrangement. A file always opens. Reading cannot know the
 /// registered sections, so the host calls [`reconcile`](Self::reconcile) after reading.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct SectionLayout(Vec<SectionState>);
+
+impl crate::contract::MemoProps for SectionLayout {
+    fn key(&self, key: &mut crate::contract::MemoKey) {
+        key.feed_hash(self);
+    }
+}
 
 impl SectionLayout {
     /// The usual arrangement of `registered`: in that order, every section shown, open and not pinned.

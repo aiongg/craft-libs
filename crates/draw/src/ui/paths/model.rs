@@ -5,7 +5,7 @@ use craft_ui::contract::{NoValue, Outcome};
 use egui::Response;
 
 /// What a path row is.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub enum PathKind {
     /// A saved path.
@@ -37,7 +37,7 @@ impl PathKind {
 }
 
 /// One row of the panel.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct PathRow<K> {
     /// The row's key.

@@ -26,7 +26,7 @@ use value::Rules;
 
 /// What a [`ColorPicker`] reports: the colour, and the values of the model the user edited it in while they still
 /// give it, so a host can keep a CMYK colour CMYK.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct PickedColor {
     /// Encoded sRGB with straight alpha, after the host's [`constrain`](ColorPicker::constrain).

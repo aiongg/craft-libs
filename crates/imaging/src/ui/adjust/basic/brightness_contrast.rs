@@ -13,7 +13,7 @@ const CONTRAST_MIN: f64 = -50.0;
 const LEGACY_CONTRAST_MIN: f64 = -100.0;
 
 /// A Brightness/Contrast value.
-#[derive(Clone, Copy, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct BrightnessContrast {

@@ -199,7 +199,7 @@ fn board_picture(
 }
 
 /// The connectors the Connector tool story keeps as its document, and the one selected.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 struct Connectors {
     items: Vec<ConnectorItem>,
     selected: Option<usize>,

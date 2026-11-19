@@ -117,7 +117,7 @@ pub trait BinModel<K> {
 }
 
 /// The bin's view.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub enum BinView {
     /// A table.
@@ -143,7 +143,7 @@ pub enum OpenHow {
 }
 
 /// The bin's saved look: a `craft_host::Section` the host stores per bin panel.
-#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 #[serde(default)]
 pub struct BinSettings {
@@ -173,7 +173,7 @@ impl craft_host::Section for BinSettings {
 
 /// The bin's state between passes, kept by the host (one per panel or tab): what is shown, the
 /// search, the open bins and the settings.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct BinState<K: Eq + Hash> {
     /// The bin shown; `None` is the root.

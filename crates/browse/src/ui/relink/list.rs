@@ -25,7 +25,7 @@ use egui::{Response, Ui};
 use super::StatusBadge;
 
 /// Which links the list shows.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub enum LinkFilter {
     /// Every link.
@@ -40,7 +40,7 @@ pub enum LinkFilter {
 }
 
 /// The list's order.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub enum LinkSort {
     /// By name, digits by value.
@@ -53,7 +53,7 @@ pub enum LinkSort {
 }
 
 /// The list's saved choices; the host stores them.
-#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct LinkListSettings {
@@ -69,7 +69,7 @@ pub struct LinkListSettings {
 
 /// What the app keeps for a [`LinkList`]: the selection (session state the app reads) and the
 /// saved [`LinkListSettings`].
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct LinkListState<K> {
     /// The selected links.

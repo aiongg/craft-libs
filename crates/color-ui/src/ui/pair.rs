@@ -32,7 +32,7 @@ const RING_SHARE: f32 = 0.3;
 
 /// One of a [`SwatchPair`]'s wells. The primary one is at the start, top, the secondary one is
 /// offset towards the end and down: foreground and background, or fill and stroke.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub enum Well {
     #[default]

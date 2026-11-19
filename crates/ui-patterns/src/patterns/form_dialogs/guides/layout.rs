@@ -49,7 +49,7 @@ impl GuideRect {
 }
 
 /// Where New Guide Layout puts its guides.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum GuideTarget {
     /// The whole document.
@@ -60,7 +60,7 @@ pub enum GuideTarget {
 }
 
 /// The Preset list.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum GuideLayoutPreset {
     /// No preset: the fields keep the user's values.
@@ -107,7 +107,7 @@ impl GuideLayoutPreset {
 }
 
 /// A length in a unit; a percentage is of the target's width or height.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct GuideLength {
     /// The number of units.
@@ -180,7 +180,7 @@ impl GuideUnits {
 }
 
 /// Columns or rows of a layout.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct GuideGroup {
     /// The group's check box.
@@ -201,7 +201,7 @@ impl GuideGroup {
 }
 
 /// New Guide Layout's values: what it opens with, what it answers, and the calculation ([`lines`](Self::lines)).
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct GuideLayoutOptions {
     /// The Preset list's choice.

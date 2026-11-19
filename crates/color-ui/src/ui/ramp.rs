@@ -78,7 +78,7 @@ pub enum RampKind {
 }
 
 /// A colour the ramp picked.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct RampPick {
     /// The picked colour.

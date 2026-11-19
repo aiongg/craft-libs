@@ -5,7 +5,7 @@ use crate::contract::Bind;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, crate::contract::MemoProps)]
 enum Kind {
     Text,
     Graphic,

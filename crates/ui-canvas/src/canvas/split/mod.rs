@@ -46,6 +46,12 @@ pub struct SplitAt {
     pub rows: Vec<f32>,
 }
 
+impl crate::contract::MemoProps for SplitAt {
+    fn key(&self, key: &mut crate::contract::MemoKey) {
+        key.feed_serialized(self);
+    }
+}
+
 impl SplitAt {
     /// One column line at `x` and one row line at `y`: the dividers of two side by side views and of four views.
     pub fn new(x: f32, y: f32) -> Self {

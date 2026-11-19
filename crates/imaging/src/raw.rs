@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 /// One colour grading wheel.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize, craft_ui::contract::MemoProps)]
 #[serde(default)]
 pub struct GradeWheel {
     /// Degrees 0..360.
@@ -15,7 +15,7 @@ pub struct GradeWheel {
 }
 
 /// What the vignette protects.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 pub enum VignetteStyle {
     /// Colour priority.
@@ -46,7 +46,7 @@ pub enum Demosaic {
 
 /// The settings the RAW Develop workspace edits and the develop reads: the field set and serde names of PhotoCraft's
 /// `CameraRaw`, without its three develop inputs (`seed`, `pixel_scale`, `encoding_gamma`).
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase", default)]
 #[non_exhaustive]
 pub struct RawDevelopSettings {

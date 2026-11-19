@@ -149,7 +149,7 @@ impl SelectMaskTool {
 
 /// The diameters the three brush tools remember apart (1..=5000; 30 each when the workspace
 /// opens). Not in the history, not persisted.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct BrushSizes {
     /// The Quick Selection diameter.
@@ -206,7 +206,7 @@ impl BrushSizes {
 }
 
 /// The tools' options: the bar's values, outside the history and not persisted.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct SelectMaskToolOptions {
     /// + (true) or − in the bar.

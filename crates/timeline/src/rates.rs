@@ -19,7 +19,7 @@ pub fn frame_rate_label(rate: FrameRate, numbers: &craft_ui::runtime::env::Units
 }
 
 /// An audio sample rate in hertz.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 #[serde(transparent)]
 pub struct SampleRate(u32);
 

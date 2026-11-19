@@ -147,7 +147,7 @@ fn paint_profile(cx: &ContentPainterCx, rect: Rect, id: &str) {
 }
 
 /// What the choice-row story keeps: the picks of the three rows.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 struct Picks {
     style: StrokeStyle,
     start: String,

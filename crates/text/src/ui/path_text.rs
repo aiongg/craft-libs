@@ -75,7 +75,7 @@ pub trait PathTrack {
 }
 
 /// The part of the path the text fills: arc lengths of its start and end, and whether it runs against the path.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct PathRange {
     /// The arc length of the text's start.

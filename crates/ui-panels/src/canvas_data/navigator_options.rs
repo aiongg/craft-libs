@@ -83,6 +83,12 @@ pub struct NavigatorOptions {
     pub proxy_color: ProxyColor,
 }
 
+impl crate::contract::MemoProps for NavigatorOptions {
+    fn key(&self, key: &mut crate::contract::MemoKey) {
+        key.feed_serialized(self);
+    }
+}
+
 impl NavigatorOptions {
     /// Options with the proxy drawn in `proxy_color`.
     pub fn new(proxy_color: ProxyColor) -> Self {

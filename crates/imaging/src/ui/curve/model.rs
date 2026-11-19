@@ -2,7 +2,7 @@
 //! the camera point curve and the contour editor).
 
 /// A tone curve in levels (`0..=levels`, 255 for 8-bit tones): input across, output up.
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub enum Curve {

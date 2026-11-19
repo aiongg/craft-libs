@@ -23,7 +23,7 @@ use crate::ui::histogram::{ChannelColor, Histogram, HistogramData, PlotHeight, S
 
 /// One channel's levels: the input black and white points with the gamma between them, and the
 /// output black and white points.
-#[derive(Clone, Copy, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct Levels {

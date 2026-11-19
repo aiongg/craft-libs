@@ -10,7 +10,7 @@ use egui::Ui;
 const TARGET: u64 = 1;
 
 /// What the story's panel keeps: the layer's settings, the session around them and the pass count.
-#[derive(Clone, Default, PartialEq)]
+#[derive(Clone, Default, PartialEq, craft_ui::contract::MemoProps)]
 struct Panel {
     value: ColorBalance,
     session: AdjustSession<ColorBalance>,

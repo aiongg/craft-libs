@@ -17,7 +17,7 @@ use crate::ui::adjust::{AdjustContext, AdjustField, AdjustTrack};
 const TINT_KEY: &str = "blackWhite.tint";
 
 /// A Black & White value.
-#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct BlackWhite {

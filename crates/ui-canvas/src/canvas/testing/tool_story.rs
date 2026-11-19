@@ -3,7 +3,7 @@
 
 use crate::buttons::Button;
 use crate::canvas::{Canvas, CanvasTool, RasterSource, ToolHost, ToolHostResponse, ToolInput, ToolPass, tool_pass};
-use crate::contract::{BodyCx, Gap, Props as _, Show as _, ShowContainer as _, clicked};
+use crate::contract::{BodyCx, Gap, MemoProps, Props as _, Show as _, ShowContainer as _, clicked};
 use crate::layout_components::{Row, Stack};
 use crate::runtime::{frame, pointer};
 use crate::testing::{StoryData, StoryOutput, stage};
@@ -255,7 +255,7 @@ pub fn story_tool<T: 'static>(data: &mut StoryData, tool: impl FnOnce() -> T) ->
 /// After the canvas, `run` applies what the tool and the story buttons reported to the document, as the app does,
 /// returning the story's output with its readout. The story's buttons show in a row under the canvas: with
 /// [`ToolStory::play`] first a Play button, which sends the script's steps as they fall due, one run at a time.
-pub fn tool_story<T: 'static, D: Value, R>(
+pub fn tool_story<T: 'static, D: Value + MemoProps, R>(
     ui: &mut Ui,
     data: &mut StoryData,
     story: ToolStory<'_>,

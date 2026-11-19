@@ -53,7 +53,7 @@ craft_ui::words! {
 }
 
 /// How a tab stop aligns the text after it.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub enum TabAlign {
@@ -84,7 +84,7 @@ impl TabAlign {
 }
 
 /// What fills the space before a stop.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub enum TabLeader {
@@ -121,7 +121,7 @@ impl TabLeader {
 /// A tab stop: its position from the paragraph's start edge (points; the right edge in a
 /// right-to-left paragraph), alignment and leader. InDesign's leader is any text; the app maps
 /// it to the nearest [`TabLeader`] or keeps its own in a field the ruler ignores.
-#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct TabStop {
     /// Position in points from the paragraph's start edge.
@@ -155,7 +155,7 @@ pub const SAME_POSITION: f32 = 0.5;
 pub const MAX_POSITION: f32 = 1584.0;
 
 /// What the ruler shows and edits for the caret's paragraph.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct RulerValues {
     /// Sorted by position.

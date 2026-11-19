@@ -113,7 +113,7 @@ impl ZoneScale {
 }
 
 /// The values of the controls the tone zones edit, one per zone in the zones' order, each in its control's units.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct ZoneValues(pub Vec<f32>);
 

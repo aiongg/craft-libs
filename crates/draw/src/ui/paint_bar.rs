@@ -44,7 +44,7 @@ pub enum PaintTool {
 }
 
 /// The bar's values.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct PaintValues<M> {
     /// The brush size.
@@ -95,7 +95,7 @@ impl<M> PaintValues<M> {
 }
 
 /// The stroke smoothing options.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct Smoothing {
     /// The amount, 0 to 1.
@@ -118,7 +118,7 @@ impl Default for Smoothing {
 }
 
 /// The Mixer Brush's values.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct MixerValues {
     /// Load the brush after each stroke.
@@ -162,7 +162,7 @@ impl Default for MixerValues {
 }
 
 /// What the Eraser tool erases with.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub enum EraserMode {
     /// A brush.

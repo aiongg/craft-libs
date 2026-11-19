@@ -11,7 +11,7 @@ pub use craft_time::{TimeDisplay, format_timecode_frames};
 
 /// Everything a time display needs: the rate, drop-frame, the display, the sample rate (for
 /// [`TimeDisplay::AudioSamples`]) and the first frame's number.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 pub struct TimeFormat {
     /// The frame rate the display counts in.
     pub rate: FrameRate,

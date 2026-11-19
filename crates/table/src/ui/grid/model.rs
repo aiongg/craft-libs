@@ -67,7 +67,7 @@ pub trait GridModel {
 }
 
 /// What the grid keeps between passes; the app keeps one per sheet view and saves it with the view.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct GridState {
     /// The selected cells.

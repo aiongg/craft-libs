@@ -65,7 +65,7 @@ pub trait PageSource: ThumbSource<usize> {
 }
 
 /// The view's state, kept by the app per document view (one per tab).
-#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct PageViewState {

@@ -24,7 +24,7 @@ fn catalog() -> Arc<Catalog> {
 const LONG_FAMILY: &str = "Source Sans Pro Semibold Condensed Display Extra Wide Italic Old Style Alternate Numerals";
 
 /// What a story keeps between passes.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 struct Demo {
     family: String,
     settings: FontPickerSettings,

@@ -15,7 +15,7 @@ fn byte(v: f32) -> u8 {
 }
 
 /// Channel Options › Color Indicates.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 pub enum ColorIndicates {
     /// The overlay colour shows the masked areas (Photoshop's default).

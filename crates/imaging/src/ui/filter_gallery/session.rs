@@ -6,7 +6,7 @@ use super::catalog::FilterCatalog;
 
 /// One effect layer: a filter, its fields (the catalog's parameters) and its eye. It serialises as
 /// `{filter, params, visible}`, with a choice by its option's name, as the engine's effects do.
-#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct EffectLayer {
@@ -101,7 +101,7 @@ impl EffectChange {
 /// What OK applies and the history snapshots: the effect layers, bottom first (the top row of the
 /// stack is applied last). The selected layer is view state outside the history; undo
 /// clamps it.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct FilterGallerySession {
     /// The effect layers, bottom first.

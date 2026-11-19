@@ -92,7 +92,7 @@ impl WarpStyleEntry {
 
 /// The Grid menu's reading of a mesh (PhotoCraft `warp_grid_id`): Default is one patch, the
 /// numbered entries uniform n × n patches, anything split by hand Custom.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub enum WarpGridChoice {
     /// A mesh split by hand.
@@ -145,7 +145,7 @@ impl WarpGridChoice {
 }
 
 /// What the group shows: the app's warp as the fields read it.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct WarpFieldValues {
     /// The current style's [`WarpStyleEntry::key`].

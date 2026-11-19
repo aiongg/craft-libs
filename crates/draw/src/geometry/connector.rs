@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 pub const ROOM: f64 = 24.0;
 
 /// How a connector runs between its ends.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 pub enum Routing {
     /// A direct line between the ends.
@@ -28,7 +28,7 @@ pub enum Routing {
 }
 
 /// The side of an object a connector end leaves by.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 pub enum ConnectionSide {
     /// The side facing the other end.
@@ -105,7 +105,7 @@ pub enum RouteEnd {
 
 /// A connector's path as reshaped by hand, measured from the middle of its two ends so the shape
 /// travels with what it joins.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 pub enum ConnectorPath {
     /// An elbow's straight runs, each at right angles to the one before: whether the first runs

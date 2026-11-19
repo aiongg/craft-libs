@@ -52,7 +52,7 @@ craft_ui::words! {
 
 /// A transport button. The app's own buttons (Toggle Proxies, a camera angle) are `Custom` with an icon and a label
 /// in the app's words.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub enum TransportButton {
     /// Add a marker at the playhead.
@@ -177,7 +177,7 @@ impl TransportButton {
 
 /// The buttons a monitor's row leaves out, chosen in its button editor; the app saves one per monitor (Premiere keeps
 /// the Program and Source rows apart).
-#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct TransportBarSettings {
     /// The buttons left out of the row.

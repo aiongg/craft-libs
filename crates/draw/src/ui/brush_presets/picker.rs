@@ -117,7 +117,7 @@ impl<'a> GearRows<'a> {
 
 /// The picker's state, kept by the host while the app runs: the browser's view (search, open groups, scale), the
 /// parts the presets show and whether the search field shows. [`settings`](Self::settings) is what persists.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct BrushPickerState<K> {
     /// The browser's view settings; its zoom is the thumbnail scale.

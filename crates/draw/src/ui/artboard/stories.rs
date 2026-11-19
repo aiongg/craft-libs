@@ -131,7 +131,7 @@ fn properties_with_a_custom_background(ui: &mut Ui, _: &mut StoryData) -> StoryO
 }
 
 /// The boards and the selection the Artboard tool story keeps as its document.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 struct Boards {
     items: Vec<ArtboardItem>,
     selected: Vec<usize>,

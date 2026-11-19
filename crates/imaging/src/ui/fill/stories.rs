@@ -188,7 +188,7 @@ fn bar_of_the_lasso(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 }
 
 /// The pane's view and framing, which a story keeps between passes.
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, craft_ui::contract::MemoProps)]
 struct PaneState {
     view: FullWindowView,
     framing: PreviewFraming,

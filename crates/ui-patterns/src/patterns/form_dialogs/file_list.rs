@@ -42,7 +42,7 @@ craft_ui::words! {
 }
 
 /// Files picked one by one, or one folder whose files the app lists.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum FileListMode {
     /// Individual files, listed in the user's order.
@@ -53,7 +53,7 @@ pub enum FileListMode {
 }
 
 /// The picker's value; the dialog keeps it.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct FileList {
     /// Whether files or a folder are picked.

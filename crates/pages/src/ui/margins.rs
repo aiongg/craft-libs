@@ -113,7 +113,7 @@ impl MarginChange {
 }
 
 /// The distances the handles edit: the four margins and the header and footer distances, points.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct PageEdges {
     /// The page's margins.

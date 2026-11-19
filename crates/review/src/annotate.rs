@@ -11,7 +11,7 @@ use kurbo::{Point, Rect, Vec2};
 pub struct AnnotationId(pub u64);
 
 /// What an annotation is (PDF annotation subtypes as Acrobat names them).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 pub enum AnnotationKind {
     /// A sticky note.
     #[default]

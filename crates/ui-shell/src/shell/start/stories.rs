@@ -16,7 +16,7 @@ const HOUR: i64 = 3_600;
 const DAY: i64 = 86_400;
 
 /// The view and sort the stories edit.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, crate::contract::MemoProps)]
 struct Choice {
     view: RecentView,
     sort: RecentSort,

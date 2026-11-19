@@ -60,7 +60,7 @@ fn paint_gradient_moved(painter: &ContentPainterCx<'_>, view: CanvasView, moved:
 }
 
 /// The checkerboard cell sizes the stories offer.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, crate::contract::MemoProps)]
 enum CheckerSize {
     None,
     Small,

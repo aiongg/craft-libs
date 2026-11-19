@@ -86,6 +86,12 @@ pub struct DialogFields {
     opening: BTreeMap<String, FieldValue>,
 }
 
+impl crate::contract::MemoProps for DialogFields {
+    fn key(&self, key: &mut crate::contract::MemoKey) {
+        key.feed_serialized(self);
+    }
+}
+
 /// Equal when the values are; the opening snapshot is bookkeeping, not content.
 impl PartialEq for DialogFields {
     fn eq(&self, other: &Self) -> bool {

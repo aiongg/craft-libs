@@ -51,7 +51,7 @@ craft_ui::words! {
 }
 
 /// How a parameter dialog arranges its rows, its preview pane and its buttons.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum ParamLayout {
     /// The preview pane to the right of the rows, under the zoom row. A dialog that previews has its buttons in a

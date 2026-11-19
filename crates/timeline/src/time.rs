@@ -19,7 +19,7 @@ pub const VIEW_EXTENT_PAST_END: Tick = Tick(600 * TICKS_PER_SECOND);
 ///
 /// Screen x is `left + (t − start) × points_per_second`, where `left` is the x of the time
 /// area's left edge (right of the track headers).
-#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 pub struct TimeView {
     /// The time at the left edge of the time area.
     pub start: Tick,

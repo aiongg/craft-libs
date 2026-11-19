@@ -31,7 +31,7 @@ pub use tool::ArtboardTool;
 pub use words::{ArtboardToolWords, ArtboardWords};
 
 /// An artboard's background.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub enum ArtboardBackground {
     /// An opaque white board.
@@ -46,7 +46,7 @@ pub enum ArtboardBackground {
 }
 
 /// One artboard as the control and the tool see it this pass: a read-only snapshot.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct ArtboardItem {
     /// The board's name, as shown on its label.
@@ -84,7 +84,7 @@ impl ArtboardPreset {
 }
 
 /// Which product's rules the control and the tool follow.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct ArtboardRules {
     /// The "+" buttons beside the selected board.

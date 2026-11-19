@@ -7,7 +7,7 @@ use kurbo::{BezPath, CubicBez, Point, Vec2};
 
 /// One point of a path: its anchor and its two direction handles, in document units. A handle at
 /// its anchor is retracted.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct Knot {
     /// The anchor point.
@@ -55,7 +55,7 @@ impl Knot {
 }
 
 /// One subpath: its knots in order, open or closed.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct EditSubpath {
     /// The knots in path order.
@@ -115,7 +115,7 @@ impl EditSubpath {
 }
 
 /// A path the overlays show: the host's key for it, its subpaths, its colour and what it allows.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct EditPath {
     /// The host's key, stable across frames.

@@ -9,7 +9,7 @@ use crate::selection::ColorIndicates;
 use craft_ui::runtime::commands::FirePhase;
 
 /// One of Select and Mask's seven views, in menu order (the order F cycles).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub enum MaskViewMode {
@@ -114,7 +114,7 @@ impl MaskViewMode {
 
 /// The view state of the Select and Mask dialog (PhotoCraft's `__view`, `__opacity`,
 /// `__showEdge`, `__showOriginal`, `__hideView` fields). View state, not undoable.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct MaskViewState {
     /// The view shown.

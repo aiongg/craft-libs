@@ -94,7 +94,7 @@ craft_ui::words! {
 }
 
 /// The dialog's tabs.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum AboutTab {
     /// The application's name, blurb and links.

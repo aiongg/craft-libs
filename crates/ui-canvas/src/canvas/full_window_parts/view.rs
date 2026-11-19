@@ -25,7 +25,7 @@ const FIT_MAX: f64 = 4.0;
 /// - A zoom (wheel, pinch, commands, the Zoom tool, the zoom bar) or a pan (Space, the middle button, the Hand tool)
 ///   by the user ends the fit; [`ViewCommands::FitOnScreen`] returns to it.
 /// - Zooms stay inside `ZoomLadder`'s range for the image's size.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, crate::contract::MemoProps)]
 pub struct FullWindowView {
     fit: bool,
     view: CanvasView,

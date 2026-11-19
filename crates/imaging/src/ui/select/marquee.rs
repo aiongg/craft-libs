@@ -18,7 +18,7 @@ use super::{Place, Report, SelectEvent, SelectPhase, SelectToolPass, SelectWords
 const ELLIPSE_SEGMENTS: usize = 96;
 
 /// Which marquee.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub enum MarqueeKind {
     /// A rectangle on whole pixels.

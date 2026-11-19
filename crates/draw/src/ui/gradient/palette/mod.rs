@@ -51,7 +51,7 @@ impl GradientItem {
 
 /// The preset a pick names: a recent gradient by its place in the list the host passed, or an
 /// item of a group.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub enum GradientRef {
     /// Place in the Recent list.

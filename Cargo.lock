@@ -4201,6 +4201,7 @@ dependencies = [
  "craft-settings",
  "craft-svg",
  "craft-theme",
+ "craft-time",
  "craft-tracked",
  "craft-ui-contract",
  "craft-ui-macros",

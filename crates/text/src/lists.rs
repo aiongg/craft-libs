@@ -33,7 +33,7 @@ pub const LEVEL_INDENT: f64 = 36.0;
 
 /// How a number is written. The same styles serve list numbers and page numbers
 /// (`craft_pages::numbering`).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 pub enum NumberStyle {
     /// 1, 2, 3
@@ -124,7 +124,7 @@ impl NumberStyle {
 
 /// What follows (or surrounds) a list number: PowerPoint's autonumber schemes `arabicPeriod`,
 /// `arabicParenR`, `arabicParenBoth`, `arabicPlain` and their roman and letter forms.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 pub enum NumberPunctuation {
     /// "1."
@@ -139,7 +139,7 @@ pub enum NumberPunctuation {
 }
 
 /// The marker a paragraph of a list starts with.
-#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize, craft_ui::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 pub enum ListMarker {
     /// A bullet: the character (or short text) as the app resolved it from its bullet font; a

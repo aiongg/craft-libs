@@ -101,7 +101,7 @@ craft_ui::words! {
 }
 
 /// What the panel keeps between passes; the app keeps one per document window.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct CommentsPanelState {
     /// The search box text; threads match through [`matches`](fn@matches).

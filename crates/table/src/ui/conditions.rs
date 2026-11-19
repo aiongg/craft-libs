@@ -45,7 +45,7 @@ craft_ui::words! {
 }
 
 /// How a group's rules combine.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub enum Match {
     #[default]
@@ -74,7 +74,7 @@ pub enum ConditionKind {
 }
 
 /// A rule's value.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub enum ConditionValue {
     #[default]
@@ -112,7 +112,7 @@ impl ConditionValue {
 }
 
 /// One rule.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct Condition {
     /// The field's id, as `ConditionFields::fields` lists it.
@@ -131,7 +131,7 @@ impl Condition {
 }
 
 /// A group of rules and nested groups.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct ConditionGroup {
     /// How the items combine.
@@ -148,7 +148,7 @@ impl ConditionGroup {
 }
 
 /// One entry of a group: a rule or a nested group.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub enum ConditionItem {
     /// A single rule.

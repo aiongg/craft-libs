@@ -15,7 +15,7 @@ use craft_color_ui::ui::gradient::{GradientStops, StopRef, StopRow};
 pub const MIN_MIDPOINT_GAP: f32 = 0.001;
 
 /// A gradient's line between its start and end handles, in document units.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct GradientLine {
     /// The start handle.
@@ -32,7 +32,7 @@ impl GradientLine {
 }
 
 /// What [`GradientOverlay`](crate::ui::gradient::GradientOverlay) edits: the line and the stops on it.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct LineGradient {
     /// The line between the handles.

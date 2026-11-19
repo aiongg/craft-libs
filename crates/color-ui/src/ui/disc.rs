@@ -46,7 +46,7 @@ craft_ui::words! {
 }
 
 /// A marker's place on the disc: what a drag or a key changes.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct DiscMove {
     /// Index of the marker, in the order of the colours the disc was given.
