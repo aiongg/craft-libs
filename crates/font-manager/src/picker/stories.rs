@@ -151,11 +151,12 @@ fn font_picker_mixed(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 #[story(FontPicker<'static>, covers = [Invalid], drive = Drive::Never)]
 fn font_picker_invalid(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let catalog = catalog();
-    let known = catalog.clone();
-    let check = move |family: &String| {
-        if known.styles(family).is_empty() { Validity::Refuse(Message::new("No such font is installed")) } else { Validity::Ok }
+    // The check reads the catalog's families, which are its input.
+    let known: Vec<String> = catalog.families().iter().filter(|family| !catalog.styles(family).is_empty()).cloned().collect();
+    let check = |known: &Vec<String>, family: &String| {
+        if known.contains(family) { Validity::Ok } else { Validity::Refuse(Message::new("No such font is installed")) }
     };
-    FontPicker::new("Font family", Bind::bound(data.value("family", "Gotham".to_owned())).check(check), &catalog).show(ui).into()
+    FontPicker::new("Font family", Bind::bound(data.value("family", "Gotham".to_owned())).check_with(known, check), &catalog).show(ui).into()
 }
 
 /// A family name far longer than the field.
