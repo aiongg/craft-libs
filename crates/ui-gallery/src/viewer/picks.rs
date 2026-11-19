@@ -1,6 +1,7 @@
 //! What the centre tabs keep and derive: each shown story's state, and the components of the catalog by level.
 
 use super::catalog::{Catalog, ComponentInfo, fold_filter};
+use craft_ui::contract::MemoProps as _;
 use craft_ui::contract::{Catalog as Levels, CatalogEntry, Level};
 use craft_ui::testing::{StoryData, StorySnapshot};
 
@@ -29,8 +30,30 @@ pub struct CardState {
     pub start: Option<StorySnapshot>,
     /// Where the story's dialog is: a story that opens one is shown closed, behind a "Show dialog" button.
     pub dialog: DialogState,
+    /// What the story's last run reported: its readout and value text, which a replayed run does not report again.
+    pub output: Option<craft_ui::testing::StoryOutput>,
     /// Counts the resets of this story; the card's id scope carries it, so a reset mounts the story anew.
     pub resets: u32,
+}
+
+/// A state keys by what a card shows from it: the story's values, whether they differ from the start (Reset shows),
+/// the dialog's flags and the reset count. The last output is what the story's run reported, which the run that
+/// reported it drew.
+impl craft_ui::contract::MemoProps for CardState {
+    fn key(&self, key: &mut craft_ui::contract::MemoKey) {
+        self.data.key(key);
+        self.start.is_some().key(key);
+        self.changed().key(key);
+        let DialogState { known, hidden, shown, painted } = self.dialog;
+        (known, hidden, shown, painted).key(key);
+        self.resets.key(key);
+    }
+}
+
+impl craft_ui::contract::MemoProps for &mut CardState {
+    fn key(&self, key: &mut craft_ui::contract::MemoKey) {
+        craft_ui::contract::MemoProps::key(&**self, key);
+    }
 }
 
 impl CardState {

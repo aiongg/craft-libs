@@ -3,7 +3,7 @@
 use craft_settings::{Location, OpenOptions, SettingsStore};
 use craft_ui::runtime::access::Role;
 use craft_ui::shell::app::ShellApp;
-use craft_ui::testing::{Fixture, last_pass_measuring_runs, last_pass_runs, pointer, trial};
+use craft_ui::testing::{Fixture, MemoRun, last_frame_memo_runs, last_pass_measuring_runs, last_pass_runs, pointer, trial};
 use craft_ui_gallery::chrome::{Gallery, Persisted};
 use craft_ui_gallery::viewer::{Catalog, GallerySettings, by_level};
 use egui::Vec2;
@@ -327,4 +327,68 @@ fn a_card_of_a_filling_story_is_as_tall_as_its_content() {
     let (short, tall) = (card_height("LayersPanel", 900.0), card_height("LayersPanel", 1400.0));
     assert!(short < 900.0, "the card fits the window: {short}");
     assert!((tall - short).abs() < 1.0, "the card keeps its content's height in a taller window: {short} -> {tall}");
+}
+
+/// The story views of the last frame by id, with how each took part: ran, replayed or out of view. Sizing and
+/// measuring calls count.
+fn story_runs(fixture: &Fixture) -> Vec<(egui::Id, MemoRun)> {
+    last_frame_memo_runs(fixture.ctx()).into_iter().filter(|(ty, _, _)| ty.contains("::StoryProps")).map(|(_, id, run)| (id, run)).collect()
+}
+
+fn ran(runs: &[(egui::Id, MemoRun)]) -> Vec<egui::Id> {
+    runs.iter().filter(|(_, run)| *run == MemoRun::Ran).map(|(id, _)| *id).collect()
+}
+
+/// An idle Overview runs no story: every card replays its story's last run. The Button card's Variants story animates
+/// a loading button, which runs every frame by itself, so the Controls level shows its Slider cards only.
+#[trial]
+fn an_idle_overview_runs_no_card_story() {
+    for (level, filter) in [("Primitives", ""), ("Composites", ""), ("Patterns", ""), ("Shells", ""), ("Controls", "Slider")] {
+        let mut gallery = gallery_filtered(level, filter);
+        let mut fixture = Fixture::new(move |ui| gallery.ui(ui));
+        fixture.room(Vec2::new(1400.0, 900.0)).settle().idle(3);
+        let runs = story_runs(&fixture);
+        eprintln!("LEVEL {level} {} stories, {} ran", runs.len(), ran(&runs).len());
+        assert!(!runs.is_empty(), "{level}: the cards in view show stories");
+        assert!(ran(&runs).is_empty(), "{level}: an idle frame ran {} of {} stories: {:?}", ran(&runs).len(), runs.len(), ran(&runs));
+    }
+}
+
+/// An edit of one story's data runs that story alone: the click that flips a checkbox of one card.
+#[trial]
+fn a_story_data_edit_runs_one_card_story() {
+    let mut gallery = gallery_filtered("Controls", "Checkbox");
+    let mut fixture = Fixture::new(move |ui| gallery.ui(ui));
+    fixture.room(Vec2::new(1400.0, 900.0)).settle().idle(2);
+    let target = *fixture.by_role(Role::CHECK_BOX).first().expect("a checkbox");
+    let mut counts = Vec::new();
+    fixture.frame(vec![pointer::moved(target.center())]);
+    fixture.frame(vec![pointer::press(target.center())]);
+    counts.push(ran(&story_runs(&fixture)).len());
+    fixture.frame(vec![pointer::release(target.center())]);
+    counts.push(ran(&story_runs(&fixture)).len());
+    fixture.frame(vec![pointer::moved(egui::pos2(1.0, 1.0))]);
+    fixture.settle().idle(1);
+    assert!(counts.iter().all(|&n| n <= 1), "an edit of one story ran {counts:?} stories per frame");
+    assert!(counts.iter().sum::<usize>() >= 1, "the edit ran its story: {counts:?}");
+}
+
+/// Scrolling runs only the stories the scroll newly shows; the stories still in view replay.
+#[trial]
+fn scrolling_runs_only_the_newly_shown_card_stories() {
+    let mut gallery = gallery_at("Controls");
+    let mut fixture = Fixture::new(move |ui| gallery.ui(ui));
+    fixture.room(Vec2::new(1400.0, 900.0)).settle().idle(2);
+    fixture.idle(1);
+    let seen: Vec<_> = story_runs(&fixture).into_iter().filter(|(_, run)| *run != MemoRun::OutOfView).map(|(id, _)| id).collect();
+    assert!(!seen.is_empty());
+    let header = fixture.by_label("Open").expect("a card header").center();
+    fixture.frame(vec![pointer::moved(header)]).settle();
+    let mut newly = Vec::new();
+    for _ in 0..4 {
+        fixture.frame(vec![pointer::wheel(-120.0)]);
+        newly.extend(ran(&story_runs(&fixture)));
+    }
+    assert!(!newly.is_empty(), "the scroll showed new stories");
+    assert!(newly.iter().all(|id| !seen.contains(id)), "a story in view before the scroll ran again: {newly:?}");
 }

@@ -923,6 +923,8 @@ hashed_foreign!(
     craft_behavior::Axis,
     craft_theme::ThemeId,
     craft_theme::ModeChoice,
+    craft_theme::Mode,
+    craft_i18n::Direction,
     craft_theme::ContrastChoice,
     craft_theme::MotionChoice,
     craft_theme::TextSize,
