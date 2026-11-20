@@ -393,15 +393,16 @@ impl Scoped {
     /// The key of everything a memoized view shown in this scope inherits beyond `key` (the style inputs, which its
     /// place compares): the scope's state (enabled, read-only, size, glyphs, ink, surface, wheel, directions), the
     /// containers around it (arena, roving group, transform, collection item and row, inside label, footer slot, line
-    /// length, scroll owner and axes), the command chain, motion, the host's formats and date, and every app value. The
-    /// flow fields of the enclosing body are not in it: a memoized view's content starts a layout room of its own
-    /// (`start_room`). Computed once per scope, on the first view that asks; the bytes it fed are counted then.
+    /// length, scroll owner and axes), the command chain, motion, the host's formats and date, and every app value. Of
+    /// the flow fields of the enclosing body only the axes it sizes from its content are in it: a memoized view's
+    /// content starts a layout room of its own (`start_room`) that keeps those axes. Computed once per scope, on the
+    /// first view that asks; the bytes it fed are counted then.
     pub(crate) fn scope_key(&self) -> u128 {
         *self.scope_key.get_or_init(|| {
             use crate::contract::{MemoKey, MemoProps as _};
             let mut key = MemoKey::of_view(&self.ctx);
             key.feed_hash(&(self.enabled, self.read_only, self.size, self.glyphs, self.ink, self.surface, self.wheel));
-            key.feed_hash(&(self.direction, self.text_direction, self.ids_stable, self.cell_fills, self.least, self.unbounded));
+            key.feed_hash(&(self.direction, self.text_direction, self.ids_stable, self.cell_fills, self.least, self.unbounded, self.content));
             key.feed_hash(&(self.arena, self.roving, self.item, self.row, self.scroll_owner.map(|owner| (owner.id, owner.view))));
             self.transform.map(|transform| (transform.scale, transform.offset)).key(&mut key);
             self.footer_slot.map(|slot| (slot.owner, slot.size)).key(&mut key);
