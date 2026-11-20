@@ -14,6 +14,8 @@ mod pick_focus;
 
 mod rows;
 
+mod runs_per_row;
+
 mod submenus;
 
 use craft_behavior::IconId;
