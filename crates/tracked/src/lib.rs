@@ -326,6 +326,38 @@ impl<T: PlainData + Clone> Clone for Tracked<T> {
     }
 }
 
+/// `value`, as a new source at count 0 ([`Tracked::new`]).
+impl<T: PlainData> From<T> for Tracked<T> {
+    fn from(value: T) -> Tracked<T> {
+        Tracked::new(value)
+    }
+}
+
+/// Equal values compare equal, whatever their revisions.
+impl<T: PlainData + PartialEq> PartialEq for Tracked<T> {
+    fn eq(&self, other: &Tracked<T>) -> bool {
+        self.value == other.value
+    }
+}
+
+impl<T: PlainData + Eq> Eq for Tracked<T> {}
+
+/// Saved as its value.
+#[cfg(feature = "serde")]
+impl<T: PlainData + serde::Serialize> serde::Serialize for Tracked<T> {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.value.serialize(serializer)
+    }
+}
+
+/// Loaded as a new source.
+#[cfg(feature = "serde")]
+impl<'de, T: PlainData + serde::Deserialize<'de>> serde::Deserialize<'de> for Tracked<T> {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Tracked<T>, D::Error> {
+        T::deserialize(deserializer).map(Tracked::new)
+    }
+}
+
 impl<T: PlainData> Deref for Tracked<T> {
     type Target = T;
 
