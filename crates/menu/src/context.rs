@@ -15,7 +15,7 @@ use craft_ui::runtime::pointer;
 use craft_ui::runtime::windows::{WindowAction, WindowHost};
 use egui::{Ui, ViewportId};
 
-use crate::bar::{EnglishHook, Labeled, keymap_platform};
+use crate::bar::keymap_platform;
 use crate::layout::Target;
 use crate::model::{Builtin, Item, ItemKind, Node};
 
@@ -29,22 +29,16 @@ pub fn rows(ui: &mut Ui, nodes: &[Node]) {
     Rows::new(Target::of_shell(Env::of(ui).view().shell())).show(ui, nodes);
 }
 
-/// How the rows of a menu are written: the target that names the shortcuts, the app's English labels and its
-/// preferred mnemonic letters.
+/// How the rows of a menu are written: the target that names the shortcuts and the app's preferred mnemonic
+/// letters.
 pub(crate) struct Rows<'a> {
     target: Target,
-    english: Option<&'a EnglishHook<'a>>,
     preferred: &'a [(&'a str, char)],
 }
 
 impl<'a> Rows<'a> {
     pub(crate) fn new(target: Target) -> Self {
-        Rows { target, english: None, preferred: &[] }
-    }
-
-    pub(crate) fn english(mut self, english: Option<&'a EnglishHook<'a>>) -> Self {
-        self.english = english;
-        self
+        Rows { target, preferred: &[] }
     }
 
     pub(crate) fn preferred(mut self, preferred: &'a [(&'a str, char)]) -> Self {
@@ -87,10 +81,6 @@ impl<'a> Rows<'a> {
         self.preferred.iter().find(|(k, _)| *k == key).map(|(_, c)| *c)
     }
 
-    pub(crate) fn english_of(&self, labeled: Labeled<'_>) -> Option<String> {
-        self.english.and_then(|hook| hook(labeled))
-    }
-
     /// The label a node shows as the menu's sibling, for the preferred letters and the English labels.
     pub(crate) fn node_labels(&self, nodes: &[Node]) -> Vec<String> {
         let shown: Vec<&Node> = nodes.iter().filter(|node| !matches!(node, Node::Separator | Node::Standard { .. })).collect();
@@ -108,8 +98,8 @@ impl<'a> Rows<'a> {
                     _ => "",
                 },
                 |node| match node {
-                    Node::Item(item) => self.english_of(Labeled::Command(&item.command)),
-                    Node::Submenu { label, .. } => self.english_of(Labeled::Title(label)),
+                    Node::Item(item) => item.english.clone(),
+                    Node::Submenu { english, .. } => english.clone(),
                     _ => None,
                 },
             )

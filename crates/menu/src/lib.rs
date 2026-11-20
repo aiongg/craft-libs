@@ -112,7 +112,7 @@ pub mod mac;
 
 pub mod shortcuts;
 
-pub use bar::{EnglishHook, Labeled, MenuBarOutput, MenuBarUi};
+pub use bar::{MenuBarOutput, MenuBarUi};
 pub use craft_keymap::{Chord, CommandRef};
 pub use customize::Customization;
 pub use documents::DOCUMENT_COMMAND_PREFIX;
