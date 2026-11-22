@@ -62,7 +62,7 @@ extern "system" fn procedure(window: w::HWND, message: co::WM, wparam: usize, lp
     let handler = handlers(|handlers| handlers.get(&key).copied());
     let diag = diag_on();
     if diag {
-        diag_line(&window, message, lparam, None);
+        diag_line(&window, message, wparam, lparam, None);
     }
     if let Some(answer) = handler.and_then(|handler| handler(&window, message, wparam, lparam)) {
         return answer;
@@ -72,7 +72,7 @@ extern "system" fn procedure(window: w::HWND, message: co::WM, wparam: usize, lp
     let started = std::time::Instant::now();
     let result = unsafe { window.DefSubclassProc(msg::Wm::new(message, wparam, lparam)) };
     if diag && message == co::WM::PAINT {
-        diag_line(&window, message, lparam, Some(started.elapsed().as_secs_f64() * 1000.0));
+        diag_line(&window, message, wparam, lparam, Some(started.elapsed().as_secs_f64() * 1000.0));
     }
     if message == co::WM::NCDESTROY {
         handlers(|handlers| handlers.remove(&key));
@@ -90,10 +90,11 @@ fn diag_on() -> bool {
 
 /// One `DIAG w32` line for a message of the sizing loop, with the cursor and the window rectangle. `paint_ms` is the
 /// time the next procedure took for `WM_PAINT`, whose line is written after it returns.
-fn diag_line(window: &w::HWND, message: co::WM, lparam: isize, paint_ms: Option<f64>) {
+fn diag_line(window: &w::HWND, message: co::WM, wparam: usize, lparam: isize, paint_ms: Option<f64>) {
     static FIRST: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
     let extra = match message {
-        co::WM::NCLBUTTONDOWN => String::new(),
+        // The hit-test code the press landed on (`HTBOTTOMRIGHT` = 17, `HTCAPTION` = 2).
+        co::WM::NCLBUTTONDOWN => format!("ht={wparam}"),
         co::WM::ENTERSIZEMOVE => String::new(),
         co::WM::SIZING => {
             // SAFETY: for `WM_SIZING`, `lparam` points to the `RECT` the system owns for the duration of the message.
