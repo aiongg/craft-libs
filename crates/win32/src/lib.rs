@@ -60,16 +60,76 @@ fn handlers<R>(f: impl FnOnce(&mut HashMap<isize, Handler>) -> R) -> R {
 extern "system" fn procedure(window: w::HWND, message: co::WM, wparam: usize, lparam: isize, _id: usize, _data: usize) -> isize {
     let key = raw(&window);
     let handler = handlers(|handlers| handlers.get(&key).copied());
+    let diag = diag_on();
+    if diag {
+        diag_line(&window, message, lparam, None);
+    }
     if let Some(answer) = handler.and_then(|handler| handler(&window, message, wparam, lparam)) {
         return answer;
     }
     // SAFETY: the message and its parameters are the ones the system delivered to this procedure, passed on
     // unchanged to the next procedure of the chain.
+    let started = std::time::Instant::now();
     let result = unsafe { window.DefSubclassProc(msg::Wm::new(message, wparam, lparam)) };
+    if diag && message == co::WM::PAINT {
+        diag_line(&window, message, lparam, Some(started.elapsed().as_secs_f64() * 1000.0));
+    }
     if message == co::WM::NCDESTROY {
         handlers(|handlers| handlers.remove(&key));
         // The window ends with this message, so a failed removal leaves nothing to clean up.
         let _ = window.RemoveWindowSubclass(procedure, SUBCLASS_ID);
     }
     result
+}
+
+/// Whether `PHOTOCRAFT_DIAG` is set (read once): the sizing-loop messages are then logged to stderr.
+fn diag_on() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| std::env::var_os("PHOTOCRAFT_DIAG").is_some())
+}
+
+/// One `DIAG w32` line for a message of the sizing loop, with the cursor and the window rectangle. `paint_ms` is the
+/// time the next procedure took for `WM_PAINT`, whose line is written after it returns.
+fn diag_line(window: &w::HWND, message: co::WM, lparam: isize, paint_ms: Option<f64>) {
+    static FIRST: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+    let extra = match message {
+        co::WM::NCLBUTTONDOWN => String::new(),
+        co::WM::ENTERSIZEMOVE => String::new(),
+        co::WM::SIZING => {
+            // SAFETY: for `WM_SIZING`, `lparam` points to the `RECT` the system owns for the duration of the message.
+            let r = unsafe { &*(lparam as *const w::RECT) };
+            format!("sizing=({},{},{},{})", r.left, r.top, r.right, r.bottom)
+        }
+        co::WM::WINDOWPOSCHANGING | co::WM::WINDOWPOSCHANGED => {
+            // SAFETY: for these messages, `lparam` points to the `WINDOWPOS` the system owns for the duration of the
+            // message.
+            let p = unsafe { &*(lparam as *const w::WINDOWPOS) };
+            format!("pos=({},{},{},{}) flags={:#x}", p.x, p.y, p.cx, p.cy, p.flags.raw())
+        }
+        co::WM::SIZE => format!("size=({},{})", lparam as i16 as i32 & 0xffff, (lparam >> 16) as i16 as i32 & 0xffff),
+        co::WM::PAINT => match paint_ms {
+            Some(ms) => format!("proc_ms={ms:.2}"),
+            None => return,
+        },
+        co::WM::CAPTURECHANGED | co::WM::CANCELMODE | co::WM::LBUTTONUP | co::WM::NCLBUTTONUP | co::WM::EXITSIZEMOVE => String::new(),
+        _ => return,
+    };
+    let name = match message {
+        co::WM::NCLBUTTONDOWN => "NCLBUTTONDOWN",
+        co::WM::ENTERSIZEMOVE => "ENTERSIZEMOVE",
+        co::WM::SIZING => "SIZING",
+        co::WM::WINDOWPOSCHANGING => "WINDOWPOSCHANGING",
+        co::WM::WINDOWPOSCHANGED => "WINDOWPOSCHANGED",
+        co::WM::SIZE => "SIZE",
+        co::WM::PAINT => "PAINT",
+        co::WM::CAPTURECHANGED => "CAPTURECHANGED",
+        co::WM::CANCELMODE => "CANCELMODE",
+        co::WM::LBUTTONUP => "LBUTTONUP",
+        co::WM::NCLBUTTONUP => "NCLBUTTONUP",
+        _ => "EXITSIZEMOVE",
+    };
+    let ms = FIRST.get_or_init(std::time::Instant::now).elapsed().as_secs_f64() * 1000.0;
+    let cursor = w::GetCursorPos().map(|p| (p.x, p.y)).unwrap_or((-1, -1));
+    let rect = window.GetWindowRect().map(|r| (r.left, r.top, r.right, r.bottom)).unwrap_or((-1, -1, -1, -1));
+    eprintln!("DIAG w32 {ms:.2} {name} cursor=({},{}) rect=({},{},{},{}) {extra}", cursor.0, cursor.1, rect.0, rect.1, rect.2, rect.3);
 }
