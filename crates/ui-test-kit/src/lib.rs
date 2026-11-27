@@ -7,6 +7,7 @@ extern crate craft_ui_contract as craft_ui;
 
 pub mod body;
 pub mod contract;
+pub mod rt;
 pub mod windows;
 
 /// Registrations of the shared test components.

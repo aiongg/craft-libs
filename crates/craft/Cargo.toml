@@ -66,6 +66,7 @@ craft-window = { workspace = true, optional = true }
 craft-ui = { workspace = true, optional = true }
 craft-ui-rt = { workspace = true, optional = true }
 craft-ui-platform-winit = { workspace = true, optional = true }
+craft-ui-platform-headless = { workspace = true, optional = true }
 craft-aaf = { workspace = true, optional = true }
 craft-aep = { workspace = true, optional = true }
 craft-affinity = { workspace = true, optional = true }
@@ -964,6 +965,7 @@ ui-testing = ["ui", "craft-ui/testing"]
 
 ui-rt = ["dep:craft-ui-rt"]
 ui-platform-winit = ["dep:craft-ui-platform-winit"]
+ui-platform-headless = ["dep:craft-ui-platform-headless"]
 
 update = ["dep:craft-update"] # native only: downloads and installs through getrandom without wasm support
 update-local-mirror = ["update", "craft-update/local-mirror"]
