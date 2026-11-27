@@ -167,13 +167,14 @@ pub(crate) fn request_focus(cx: &mut BuildCx<'_>, target: FocusTarget) -> bool {
         FocusTarget::Id(id) | FocusTarget::Part(id, _) => id,
         _ => return false,
     };
-    match node_of(cx, id) {
-        Some(node) => {
-            cx.focus_node(node);
-            true
-        }
-        None => false,
+    let Some(node) = node_of(cx, id) else { return false };
+    if cx.is_focusable(node) {
+        cx.focus_node(node);
+    } else {
+        // A node that is no stop (a collection row holding stops) gives focus to its first stop.
+        cx.focus_into_node(node, false);
     }
+    true
 }
 
 /// The component node `owner` names and its kept facts, when it is one.

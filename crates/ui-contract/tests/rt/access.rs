@@ -371,3 +371,99 @@ fn rows_out_of_view_are_not_in_the_tree_and_scrolling_sends_only_those_that_ente
     assert!(scrolled.frame.access_nodes as usize <= after.len() + 3, "only entering rows and their parent are sent: {scrolled:?}");
     assert_eq!(scrolled.frame.runs, 0, "no hook ran: the rows were built whole and moved by a transform");
 }
+
+/// A control shown with `PaintUi::inner` folds into its owner's node: with the tree off no fold is asked for, and
+/// turning the tree on runs the owner again, so the owner's node carries the control's value text.
+mod fold {
+    use craft_ui_contract::contract::{Common, Component, Cx, MeasureCx, PaintUi, Props as _, Response, Role, Show as _};
+    use craft_ui_contract::runtime::windows::window_root;
+    use craft_ui_contract::style::StyleCx;
+    use craft_ui_rt::record::RecordingRenderer;
+    use craft_ui_rt::{Rect, Vec2};
+    use craft_ui_test_kit::contract::PlainStyle;
+    use craft_ui_test_kit::rt::Rig;
+
+    #[derive(Component)]
+    struct Value {
+        #[common]
+        common: Common,
+    }
+
+    impl Component for Value {
+        const ROLE: Role = Role::SPIN_BUTTON;
+        type Style = PlainStyle;
+        type Output = Response;
+
+        fn style(_: &StyleCx<'_>, _: ValueStyleKey) -> PlainStyle {
+            PlainStyle::default()
+        }
+
+        fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
+            Vec2::new(40.0, 20.0)
+        }
+
+        fn value_text(&self, _: &Cx<'_, Self>) -> Option<String> {
+            Some("42".into())
+        }
+
+        fn finish(self, cx: Cx<'_, Self>) -> Response {
+            cx.response.clone()
+        }
+    }
+
+    #[derive(Component)]
+    struct Owner {
+        #[common]
+        common: Common,
+    }
+
+    impl Component for Owner {
+        const ROLE: Role = Role::GROUP;
+        type Style = PlainStyle;
+        type Output = Response;
+
+        fn style(_: &StyleCx<'_>, _: OwnerStyleKey) -> PlainStyle {
+            PlainStyle::default()
+        }
+
+        fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
+            Vec2::new(120.0, 20.0)
+        }
+
+        fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+            let rect = Rect::from_min_size(cx.rect.min, Vec2::new(40.0, 20.0));
+            let _ = ui.inner("value", rect, Value { common: Common::new() });
+        }
+
+        fn finish(self, cx: Cx<'_, Self>) -> Response {
+            cx.response.clone()
+        }
+    }
+
+    fn step(rig: &mut Rig<RecordingRenderer>) -> bool {
+        rig.step_with(&mut |_, cx| {
+            window_root(cx, |ui| {
+                let _ = Owner { common: Common::new() }.label("Size").show(ui);
+            })
+        })
+        .ran
+    }
+
+    #[test]
+    fn a_folded_control_asks_nothing_with_the_tree_off_and_folds_once_it_is_on() {
+        let mut rig = Rig::inline(Vec2::new(300.0, 200.0), 1.0, RecordingRenderer::default());
+        for _ in 0..4 {
+            step(&mut rig);
+        }
+        let main = rig.main;
+        assert!(rig.driver.runtime.access_snapshot(main).is_empty(), "no access node with the tree off");
+        rig.driver.runtime.set_access_enabled(main, true);
+        for _ in 0..4 {
+            step(&mut rig);
+        }
+        let snapshot = rig.driver.runtime.access_snapshot(main);
+        let owner = snapshot.iter().find(|e| e.node.label() == Some("Size")).expect("the owner's node");
+        assert_eq!(owner.node.value(), Some("42"), "the owner carries its folded control's value");
+        assert!(!snapshot.iter().any(|e| e.node.role() == accesskit::Role::SpinButton), "the folded control keeps no node of its own");
+    }
+}

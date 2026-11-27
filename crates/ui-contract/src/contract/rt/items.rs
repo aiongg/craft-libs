@@ -342,6 +342,8 @@ pub(crate) struct MemberLooks {
     /// The ui-rt part id of the row's `(ROW, row)` part.
     pub(crate) part: u64,
     pub(crate) looks: smallvec::SmallVec<[(Pointer, DisplayList); 1]>,
+    /// The member's parts, kept as the collection node's hit shapes (`run::member_part` ids).
+    pub(crate) parts: Vec<super::node::KeptPart>,
 }
 
 impl MemberLooks {
@@ -357,8 +359,8 @@ impl MemberLooks {
 pub(crate) fn member_lists(rows: &[MemberLooks], hovered: Option<u64>, pressed: bool) -> impl Iterator<Item = &DisplayList> {
     rows.iter().filter_map(move |row| {
         let look = match hovered {
-            Some(part) if part == row.part && pressed => Pointer::Press,
-            Some(part) if part == row.part => Pointer::Hover,
+            Some(part) if super::run::member_part_of(row.part, part) && pressed => Pointer::Press,
+            Some(part) if super::run::member_part_of(row.part, part) => Pointer::Hover,
             _ => Pointer::Rest,
         };
         row.list(look)

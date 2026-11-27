@@ -55,7 +55,7 @@ impl<'r, C: Collection> ItemsHooks<'_, 'r, C> {
             let on = enabled && item.common_mut(Internal::new()).enabled.unwrap_or(true);
             let part = ITEM_NODE.at(key_hash(&key));
             let run = MemberRun { owner: id, id: member_id, part, rect: row, clip, position, flags, enabled: on };
-            let ran = crate::contract::rt::run::run_member(&item, ui, &run);
+            let ran = crate::contract::rt::run::run_member(item, ui, &run, cx.core.input());
             self.member_looks.push(ran.looks);
             if ran.tip.is_some() {
                 cx.core.member_tip = ran.tip;

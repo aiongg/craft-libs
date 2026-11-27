@@ -749,7 +749,7 @@ impl<'a> Draw<'a> {
     pub fn swatch_polygon_well(&self, corners: &[Pos2], fill: impl Into<WellFill>) {
         let bounds = Rect::from_points(corners);
         self.well_of(&PaintShape::Polygon(corners.to_vec()), bounds, fill.into(), |draw| {
-            data_polygon_checker(draw.canvas, draw.env.tokens, draw.data, &super::Checker::new(), corners, bounds.min);
+            data_polygon_checker(&draw.canvas, draw.env.tokens, draw.data, &super::Checker::new(), corners, bounds.min);
         });
     }
 
