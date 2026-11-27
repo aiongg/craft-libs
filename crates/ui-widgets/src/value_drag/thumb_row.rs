@@ -884,7 +884,6 @@ pub struct ThumbRow<'a, const N: usize> {
     /// Paints a groove above the thumbs with `face`, a component shown as the look of the track (a colour gradient);
     /// the thumbs point up at it.
     #[prop]
-    #[key(skip)]
     track_face: Option<TrackFace<'a>>,
 }
 

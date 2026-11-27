@@ -1289,7 +1289,7 @@ fn show_thumbnail_preview(
         }
         // `ParamDialog::show` leaves no overlay in a measuring run, which paints nothing.
         if let Some(overlay) = extras.overlay.take() {
-            pane = pane.overlay(overlay.into_paint());
+            pane = pane.overlay_with(overlay);
         }
         let pane = pane.show(ui);
         let mut step = None;
@@ -1326,7 +1326,7 @@ fn show_preview(
     }
     // `ParamDialog::show` leaves no overlay in a measuring run, which paints nothing.
     if let Some(overlay) = extras.overlay.take() {
-        pane = pane.overlay(overlay.into_paint());
+        pane = pane.overlay_with(overlay);
     }
     let pane = pane.show(ui);
     // Under the pane the row is there before the picture is: a dialog sized from its first pass keeps room for it.

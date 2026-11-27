@@ -334,6 +334,7 @@ use std::ops::{Range, RangeInclusive};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering as AtomicOrdering};
 use std::time::Duration;
 
 use craft_tracked::{PlainData, Revision, Tracked};
@@ -431,6 +432,25 @@ impl MemoKey {
         if let Some(ctx) = &self.context {
             let pass = ctx.cumulative_pass_nr();
             self.write(&pass.to_le_bytes());
+        }
+    }
+
+    /// Feeds a value no earlier key held: a node whose key holds it reruns at every build, on every runtime (unlike
+    /// [`changes_every_pass`](Self::changes_every_pass), which needs a view's context).
+    pub fn fresh(&mut self) {
+        static NEXT: AtomicU64 = AtomicU64::new(1);
+        self.write(&NEXT.fetch_add(1, AtomicOrdering::Relaxed).to_le_bytes());
+    }
+
+    /// Feeds the version of the data a content closure reads: `Some(v)` keys by `v`, `None` feeds a fresh value
+    /// ([`fresh`](Self::fresh)), so the component reruns at every build.
+    pub fn revision(&mut self, revision: Option<u64>) {
+        match revision {
+            Some(revision) => {
+                self.write(&[1]);
+                self.write(&revision.to_le_bytes());
+            }
+            None => self.fresh(),
         }
     }
 
@@ -806,6 +826,65 @@ impl<F> std::fmt::Debug for Stateless<F> {
 impl<F: 'static> MemoProps for Stateless<F> {
     fn key(&self, key: &mut MemoKey) {
         key.feed_hash(&TypeId::of::<F>());
+    }
+}
+
+/// A closure that produces content (paints, builds rows or cells, supplies a view) with the version of the data it
+/// reads. The key feeds the version, so a kept component reruns exactly when the host says the data changed. Without a
+/// version the key feeds a fresh value at every build and the component always reruns: content is never stale.
+///
+/// The version is the host's: a revision of the model the closure reads (`Tracked::revision`'s count, a list's items
+/// version). Two closures of one type with the same version must produce the same content.
+#[derive(Clone, Copy, Default)]
+pub struct Versioned<T> {
+    /// The version of the data `value` reads; `None` reruns the component at every build.
+    pub revision: Option<u64>,
+    /// The closure.
+    pub value: T,
+}
+
+impl<T> Versioned<T> {
+    /// `value` with no version: the component reruns at every build.
+    pub fn new(value: T) -> Versioned<T> {
+        Versioned { revision: None, value }
+    }
+
+    /// `value` that reads data of version `revision`.
+    pub fn versioned(revision: u64, value: T) -> Versioned<T> {
+        Versioned { revision: Some(revision), value }
+    }
+
+    /// Declares the version of the data the closure reads.
+    #[must_use]
+    pub fn revision(mut self, revision: u64) -> Versioned<T> {
+        self.revision = Some(revision);
+        self
+    }
+}
+
+impl<T> std::ops::Deref for Versioned<T> {
+    type Target = T;
+
+    fn deref(&self) -> &T {
+        &self.value
+    }
+}
+
+impl<T> std::ops::DerefMut for Versioned<T> {
+    fn deref_mut(&mut self) -> &mut T {
+        &mut self.value
+    }
+}
+
+impl<T> std::fmt::Debug for Versioned<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Versioned").field("revision", &self.revision).finish_non_exhaustive()
+    }
+}
+
+impl<T> MemoProps for Versioned<T> {
+    fn key(&self, key: &mut MemoKey) {
+        key.revision(self.revision);
     }
 }
 

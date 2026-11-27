@@ -94,7 +94,6 @@ pub struct ComboBox<'a> {
     placeholder: Option<Label>,
     /// Adds the host's content to each option's row.
     #[prop(func = "Fn(&String, ListRow<'a>) -> ListRow<'a>")]
-    #[key(skip)]
     decorate: Option<RowDress<'a, String>>,
     empty: String,
     /// What this pass did to the preview, reported in [`ComboBoxOutput::preview`].
@@ -107,6 +106,14 @@ pub struct ComboBox<'a> {
 }
 
 impl<'a> ComboBox<'a> {
+    /// Declares the version of the data the `decorate` closure reads: the combo box reruns when it changes. Without
+    /// it a decoration reruns the combo box at every build, so call it after `decorate`.
+    #[must_use]
+    pub fn content_revision(mut self, revision: u64) -> Self {
+        self.decorate.iter_mut().for_each(|dress| dress.set_revision(revision));
+        self
+    }
+
     /// A combo box named `label` over the text `value`, offering `options`; an option's value is the text it puts in
     /// the field.
     pub fn new(label: impl Into<Label>, value: Bind<'a, String>, options: &'a [Entry<String>]) -> Self {

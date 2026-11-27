@@ -93,7 +93,6 @@ pub struct TitleBar<'a> {
     title_when_native: bool,
     /// The content at the end of the bar, before the caption buttons.
     #[prop(func = "FnMut(&mut Ui, &mut crate::contract::BodyCx<'_>)")]
-    #[key(skip)]
     trailing: Option<RegionBody<'a>>,
     title: Option<Title>,
     #[key(skip)]
@@ -204,6 +203,14 @@ pub(super) fn show_end(ui: &mut Ui, cx: &BodyCx<'_>, end: &End, window: &Window)
 }
 
 impl<'a> TitleBar<'a> {
+    /// Declares the version of the data the `trailing` content reads: the bar reruns when it changes. Without it the
+    /// content reruns the bar at every build, so call it after setting it.
+    #[must_use]
+    pub fn trailing_revision(mut self, revision: u64) -> Self {
+        self.trailing.iter_mut().for_each(|trailing| trailing.0.revision = Some(revision));
+        self
+    }
+
     /// A title bar.
     pub fn new() -> Self {
         let props = ContainerProps::new()
@@ -340,7 +347,7 @@ impl Container for TitleBar<'_> {
     /// The end end: the trailing content, then the room for the lights or the captions at the end edge.
     fn end(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
         if let Some(RegionBody(trailing)) = self.trailing.as_mut() {
-            trailing(ui, cx);
+            (trailing.value)(ui, cx);
         }
         let window = window(cx, self.frame.clone(), self.maximized);
         self.end_of(ui, cx, &window.ends.end, &window);

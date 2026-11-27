@@ -225,8 +225,7 @@ pub struct Menu<'a> {
     #[key(skip)]
     step: Option<MenuStep>,
     /// The bar shown above the menu in its own modeless layer.
-    #[key(skip)]
-    companion: Option<&'a mut dyn FnMut(&mut Ui)>,
+    companion: Option<crate::contract::Versioned<&'a mut dyn FnMut(&mut Ui)>>,
 }
 
 impl<'a> Menu<'a> {
@@ -234,8 +233,16 @@ impl<'a> Menu<'a> {
     /// layer first. The bar runs in the menu's end region, which the layer leaves empty in flow, so it takes no room.
     #[must_use]
     pub fn companion(mut self, bar: &'a mut dyn FnMut(&mut Ui)) -> Self {
-        self.companion = Some(bar);
+        self.companion = Some(crate::contract::Versioned::new(bar));
         self.props = self.props.end(EndRegion::new());
+        self
+    }
+
+    /// Declares the version of the data the companion bar reads: the menu reruns when it changes. Without it the
+    /// bar reruns the menu at every build.
+    #[must_use]
+    pub fn companion_revision(mut self, revision: u64) -> Self {
+        self.companion.iter_mut().for_each(|bar| bar.revision = Some(revision));
         self
     }
 
@@ -497,7 +504,7 @@ impl Container for Menu<'_> {
             return;
         }
         let label = Env::of(ui).words::<MenuWords>().bar_companion.clone();
-        let _ = CompanionLayer::new(label).show(ui, |ui, _| bar(ui));
+        let _ = CompanionLayer::new(label).show(ui, |ui, _| (bar.value)(ui));
     }
 }
 

@@ -75,7 +75,6 @@ pub struct Table<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     /// The text a row's rename field opens with, `None` for the row's text: an empty draft when several rows are picked
     /// takes a name for all of them.
     #[prop(func = "Fn(&K) -> Option<String>")]
-    #[key(skip)]
     rename_draft: Option<RowText<'a, K>>,
     /// Which rows may be dragged.
     #[prop(func = "Fn(&K) -> bool")]
@@ -90,12 +89,11 @@ pub struct Table<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     #[key(skip)]
     accepts: Option<DropTest<'a, K>>,
     /// The components hosted in header cells, by column; each is shown once, in the pass that draws its cell.
-    #[key(skip)]
     header_fields: Vec<(ColumnKey, Option<HeaderField<'a, K>>)>,
 }
 
 /// A component and its output taker, hosted in a header cell.
-type HeaderField<'a, K> = Box<dyn for<'r> Hosted<Table<'r, K>> + 'a>;
+type HeaderField<'a, K> = crate::contract::Versioned<Box<dyn for<'r> Hosted<Table<'r, K>> + 'a>>;
 
 impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> Table<'a, K> {
     /// A table named `label` over `columns`, with multiple selection.
@@ -124,7 +122,18 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> Table<'a, K> {
     #[must_use]
     pub fn header_field<C: crate::contract::Show + 'a>(mut self, column: ColumnKey, field: C, output: impl FnOnce(C::Output) + 'a) -> Self {
         self.header_fields.retain(|(held, _)| *held != column);
-        self.header_fields.push((column, Some(Box::new(Hosting::new(field, output)))));
+        self.header_fields.push((column, Some(crate::contract::Versioned::new(Box::new(Hosting::new(field, output))))));
+        self
+    }
+
+    /// Declares the version of the data the `rename_draft` closure and the header fields read: the table reruns when
+    /// it changes. Without it each reruns the table at every build, so call it after setting them.
+    #[must_use]
+    pub fn content_revision(mut self, revision: u64) -> Self {
+        self.rename_draft.iter_mut().for_each(|draft| draft.set_revision(revision));
+        for (_, field) in &mut self.header_fields {
+            field.iter_mut().for_each(|field| field.revision = Some(revision));
+        }
         self
     }
 
@@ -270,7 +279,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Collection for Table<'_, K> {
     fn header_cell(&mut self, ui: &mut PaintUi<'_>, column: &ColumnKey, key: HostedKey, rect: Rect) {
         let field = self.header_fields.iter_mut().find(|(held, _)| held == column).and_then(|(_, field)| field.take());
         if let Some(field) = field {
-            Hosted::show(field, ui, key, rect);
+            Hosted::show(field.value, ui, key, rect);
         }
     }
 }

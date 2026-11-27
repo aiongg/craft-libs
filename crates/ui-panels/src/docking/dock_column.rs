@@ -186,6 +186,8 @@ pub struct DockColumn<'a, P: Value + Hash + 'static> {
     props: ContainerProps,
     dock: Id,
     column: &'a Column<P>,
+    /// The version of the data `spec` reads.
+    spec_version: crate::contract::Versioned<()>,
     #[key(skip)]
     spec: &'a dyn Fn(&P) -> PanelSpec,
     /// Whether Auto-Collapse Iconic Panels is on, which the column menu shows as checked.
@@ -222,6 +224,14 @@ pub struct DockColumn<'a, P: Value + Hash + 'static> {
 }
 
 impl<'a, P: Value + Hash + Debug + 'static> DockColumn<'a, P> {
+    /// Declares the version of the data `spec` reads: the column reruns when it changes. Without it the column reruns
+    /// at every build.
+    #[must_use]
+    pub fn spec_revision(mut self, revision: u64) -> Self {
+        self.spec_version.revision = Some(revision);
+        self
+    }
+
     /// A column named `label` of the dock `dock`, over `column`; `spec` reads each panel's limits and heights.
     pub fn new(label: impl Into<Label>, dock: Id, column: &'a Column<P>, spec: &'a dyn Fn(&P) -> PanelSpec) -> Self {
         let props = ContainerProps::new().sizing(Sizing::Fill).pad(Pad::None);
@@ -230,6 +240,7 @@ impl<'a, P: Value + Hash + Debug + 'static> DockColumn<'a, P> {
             props,
             dock,
             column,
+            spec_version: crate::contract::Versioned::new(()),
             spec,
             auto_collapse: false,
             edge: DockEdge::Start,

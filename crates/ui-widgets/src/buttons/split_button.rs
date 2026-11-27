@@ -84,7 +84,25 @@ pub enum SplitMenu<'a, T> {
 }
 
 /// The caller's drawing of a split button's menu.
-pub type MenuBody<'a> = Box<dyn FnMut(&mut Ui, &mut BodyCx<'_>) + 'a>;
+///
+/// A [`Versioned`](crate::contract::Versioned) closure: `MenuBody::versioned(v, f)` names the version of the data the
+/// body reads, and a body without one reruns the button at every build.
+pub type MenuBody<'a> = crate::contract::Versioned<Box<dyn FnMut(&mut Ui, &mut BodyCx<'_>) + 'a>>;
+
+impl<T: crate::contract::MemoProps> crate::contract::MemoProps for SplitMenu<'_, T> {
+    fn key(&self, key: &mut crate::contract::MemoKey) {
+        match self {
+            SplitMenu::Entries(entries) => {
+                key.write(&[0]);
+                crate::contract::MemoProps::key(entries, key);
+            }
+            SplitMenu::Body(body) => {
+                key.write(&[1]);
+                crate::contract::MemoProps::key(body, key);
+            }
+        }
+    }
+}
 
 /// A button whose end opens a menu. A press on the arrow part opens the menu below the button; a press on the main
 /// part runs the action and never opens it. The button is one Tab stop: Space and Enter run the action, Alt+Down and
@@ -94,7 +112,6 @@ pub type MenuBody<'a> = Box<dyn FnMut(&mut Ui, &mut BodyCx<'_>) + 'a>;
 pub struct SplitButton<'a, T: Value + 'static> {
     #[common]
     common: Common,
-    #[key(skip)]
     menu: SplitMenu<'a, T>,
     /// The arrow's accessible name and tooltip ("Tracing Presets"); the label alone names it without one.
     #[prop(into)]
@@ -119,7 +136,7 @@ impl<'a, T: Value + 'static> SplitButton<'a, T> {
     /// A split button showing `label` whose arrow opens a menu with `body` as its content. A body reports no
     /// `chosen` entry: its rows run their own commands.
     pub fn body(label: impl Into<Label>, body: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'a) -> Self {
-        SplitButton::with_menu(SplitMenu::Body(Box::new(body))).label(label)
+        SplitButton::with_menu(SplitMenu::Body(MenuBody::new(Box::new(body)))).label(label)
     }
 
     /// A split button bound to `command`: its label, enabled state and main part follow the command, which a click
@@ -265,7 +282,7 @@ impl<T: Value + 'static> Component for SplitButton<'_, T> {
                 // open around an empty body. Its focus scope ignores Escape, so the binding takes no Escape from the
                 // layer's own rule.
                 let closed = ui.show(popup, menu::layer(false), |ui, _| {
-                    Menu::inline(name.clone()).open(Bind::given(true)).show(ui, |ui, cx| body(ui, cx)).output.closed
+                    Menu::inline(name.clone()).open(Bind::given(true)).show(ui, |ui, cx| (body.value)(ui, cx)).output.closed
                 });
                 if closed.flatten().is_some() {
                     popup.close(cx);

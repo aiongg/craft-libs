@@ -28,7 +28,7 @@ impl TrailingPart {
 }
 
 /// How a trailing part looks.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum TrailingFace {
     /// An icon button face.
@@ -75,12 +75,23 @@ pub(in crate::list) struct HostedSize {
 }
 
 /// A hosted item: the component until it is shown, and its size once measured in this pass.
+///
+/// `revision` is the version of the data the component reads, as for [`Versioned`](crate::contract::Versioned): the
+/// key feeds it, and `None` reruns the row at every build. The size is the run's output and is not keyed.
 pub(in crate::list) struct Hosted<'a> {
     pub item: Option<Box<dyn for<'r> HostedLeaf<ListRow<'r>> + 'a>>,
     pub size: Option<HostedSize>,
+    pub revision: Option<u64>,
+}
+
+impl crate::contract::MemoProps for Hosted<'_> {
+    fn key(&self, key: &mut crate::contract::MemoKey) {
+        key.revision(self.revision);
+    }
 }
 
 /// What a trailing item is.
+#[derive(crate::contract::MemoProps)]
 pub(in crate::list) enum TrailingItem<'a> {
     /// A caption-role text as wide as it measures, semibold when `strong`; a short mark carries the `name` it stands
     /// for, its tooltip.
@@ -96,6 +107,7 @@ pub(in crate::list) enum TrailingItem<'a> {
 }
 
 /// A trailing item and whether it drops out for room.
+#[derive(crate::contract::MemoProps)]
 pub(in crate::list) struct Trailing<'a> {
     pub item: TrailingItem<'a>,
     pub optional: bool,

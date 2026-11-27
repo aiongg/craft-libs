@@ -104,7 +104,7 @@ impl<'a> CanvasPanel<'a> {
         let tabs_shown = shell.as_ref().is_none_or(|shell| shell.tabs_visible()) || (opening && normal);
 
         let mut tabs_rect = None;
-        if let (Some(mut add), true) = (tabs.map(|RegionBody(add)| add), tabs_shown) {
+        if let (Some(mut add), true) = (tabs.map(|RegionBody(add)| add.value), tabs_shown) {
             // The document tabs sit on the window's background, as tab strips do, as high as their tabs.
             let bar = &env.tokens.size.bar;
             let height = if large_tabs { bar.tab_large } else { bar.tab };

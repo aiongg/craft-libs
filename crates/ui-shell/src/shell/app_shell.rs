@@ -41,12 +41,18 @@ use std::sync::Arc;
 pub(super) type RegionFn<'a> = Box<dyn FnMut(&mut Ui, &mut BodyCx<'_>) + 'a>;
 
 /// The closure that fills a region, as a `func` prop.
-pub(super) struct RegionBody<'a>(pub(super) RegionFn<'a>);
+pub(super) struct RegionBody<'a>(pub(super) crate::contract::Versioned<RegionFn<'a>>);
+
+impl crate::contract::MemoProps for RegionBody<'_> {
+    fn key(&self, key: &mut crate::contract::MemoKey) {
+        key.revision(self.0.revision);
+    }
+}
 
 impl<'a> RegionBody<'a> {
     /// The body that runs `body`.
     pub(super) fn new(body: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'a) -> Self {
-        RegionBody(Box::new(body))
+        RegionBody(crate::contract::Versioned::new(Box::new(body)))
     }
 }
 

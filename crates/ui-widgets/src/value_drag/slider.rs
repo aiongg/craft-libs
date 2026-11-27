@@ -97,7 +97,6 @@ pub struct Slider<'a> {
     /// Paints the groove with `face`, a component shown as the look of the track (a colour gradient). The fill is not
     /// drawn over it.
     #[prop]
-    #[key(skip)]
     track_face: Option<TrackFace<'a>>,
     /// The kept part of the range, its ends drawn across the track ([`Slider::trim`]).
     trim: Option<(f64, f64)>,

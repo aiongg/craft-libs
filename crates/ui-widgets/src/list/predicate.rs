@@ -22,21 +22,39 @@ impl<K> RowTest<'_, K> {
 }
 
 /// A text for the row of a key, or none: `List::rename_draft`.
-pub struct RowText<'a, K>(RowTextFn<'a, K>);
+pub struct RowText<'a, K>(crate::contract::Versioned<RowTextFn<'a, K>>);
 
 type RowTextFn<'a, K> = Box<dyn Fn(&K) -> Option<String> + 'a>;
 
 impl<'a, K> RowText<'a, K> {
     /// The text `text` gives.
     pub fn new(text: impl Fn(&K) -> Option<String> + 'a) -> Self {
-        RowText(Box::new(text))
+        RowText(crate::contract::Versioned::new(Box::new(text)))
+    }
+
+    /// Declares the version of the data the text reads: the collection reruns when it changes. Without it the
+    /// collection reruns at every build.
+    #[must_use]
+    pub fn revision(mut self, revision: u64) -> Self {
+        self.0.revision = Some(revision);
+        self
+    }
+
+    pub(crate) fn set_revision(&mut self, revision: u64) {
+        self.0.revision = Some(revision);
+    }
+}
+
+impl<K> crate::contract::MemoProps for RowText<'_, K> {
+    fn key(&self, key: &mut crate::contract::MemoKey) {
+        key.revision(self.0.revision);
     }
 }
 
 impl<K> RowText<'_, K> {
     #[doc(hidden)]
     pub fn text(&self, key: &K) -> Option<String> {
-        (self.0)(key)
+        (self.0.value)(key)
     }
 }
 

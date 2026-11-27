@@ -55,7 +55,7 @@ impl Outcome for PanelOutput {
 }
 
 /// The closure that fills the footer bar.
-type FooterFn<'a> = Box<dyn FnMut(&mut Ui, &mut BodyCx<'_>) + 'a>;
+type FooterFn<'a> = crate::contract::Versioned<Box<dyn FnMut(&mut Ui, &mut BodyCx<'_>) + 'a>>;
 
 /// A panel of a workspace: scrolling body, optional footer, optional title row.
 ///
@@ -90,11 +90,9 @@ pub struct Panel<'a> {
     icon: Option<IconSpec<'a>>,
     /// The rows of the menu the Menu action opens.
     #[prop(func = "FnMut(&mut Ui, &mut BodyCx<'_>)")]
-    #[key(skip)]
     menu: Option<MenuRows<'a>>,
     actions: Vec<HeaderAction>,
     commands: Vec<HeaderCommand>,
-    #[key(skip)]
     footer: Option<FooterFn<'a>>,
     #[key(skip)]
     taken: Option<HeaderAction>,
@@ -216,7 +214,16 @@ impl<'a> Panel<'a> {
     #[must_use]
     pub fn footer(mut self, content: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'a) -> Self {
         self.props = self.props.footer(FooterRegion::new());
-        self.footer = Some(Box::new(content));
+        self.footer = Some(crate::contract::Versioned::new(Box::new(content)));
+        self
+    }
+
+    /// Declares the version of the data the `menu` rows and the footer read: the panel reruns when it changes.
+    /// Without it each reruns the panel at every build, so call it after setting them.
+    #[must_use]
+    pub fn content_revision(mut self, revision: u64) -> Self {
+        self.menu.iter_mut().for_each(|menu| menu.set_revision(revision));
+        self.footer.iter_mut().for_each(|footer| footer.revision = Some(revision));
         self
     }
 }
@@ -286,7 +293,7 @@ impl Container for Panel<'_> {
 
     fn footer(&mut self, ui: &mut Ui, _: &mut BodyCx<'_>) {
         if let Some(content) = self.footer.as_mut() {
-            FooterBar::body().show(ui, |ui, bar| content(ui, bar));
+            FooterBar::body().show(ui, |ui, bar| (content.value)(ui, bar));
         }
     }
 

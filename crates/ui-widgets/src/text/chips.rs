@@ -112,12 +112,26 @@ pub struct ChipFieldStyle {
 }
 
 /// Names the chips only some of the selection carries, by their text.
-pub struct PartialChips<'a>(Box<dyn Fn(&str) -> bool + 'a>);
+pub struct PartialChips<'a>(crate::contract::Versioned<Box<dyn Fn(&str) -> bool + 'a>>);
 
 impl<'a> PartialChips<'a> {
     /// The chips `partial` holds true for are partial.
     pub fn new(partial: impl Fn(&str) -> bool + 'a) -> Self {
-        PartialChips(Box::new(partial))
+        PartialChips(crate::contract::Versioned::new(Box::new(partial)))
+    }
+
+    /// Declares the version of the data the test reads: the field reruns when it changes. Without it the field
+    /// reruns at every build.
+    #[must_use]
+    pub fn revision(mut self, revision: u64) -> Self {
+        self.0.revision = Some(revision);
+        self
+    }
+}
+
+impl crate::contract::MemoProps for PartialChips<'_> {
+    fn key(&self, key: &mut crate::contract::MemoKey) {
+        key.revision(self.0.revision);
     }
 }
 
@@ -140,7 +154,6 @@ pub struct ChipField<'a> {
     placeholder: Option<Label>,
     /// The chips only some of the selection carries: drawn muted with an asterisk after the text.
     #[prop(func = "Fn(&str) -> bool")]
-    #[key(skip)]
     partial: Option<PartialChips<'a>>,
     /// At most this many lines, the draft's included; the chips that don't fit go behind a "+N more" button at the
     /// end of the last line, whose menu lists them, and choosing one there removes it.
@@ -174,7 +187,7 @@ impl<'a> ChipField<'a> {
     }
 
     fn is_partial(&self, chip: &str) -> bool {
-        self.partial.as_ref().is_some_and(|partial| (partial.0)(chip))
+        self.partial.as_ref().is_some_and(|partial| (partial.0.value)(chip))
     }
 
     /// The face of chip `chip`: its text, with an asterisk after a partial one's and muted then, on a pill whose end

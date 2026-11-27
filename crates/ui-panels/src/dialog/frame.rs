@@ -88,7 +88,7 @@ impl<'b, 'c> FooterCx<'_, 'b, 'c> {
 
 /// The footer closure of a dialog shell.
 #[doc(hidden)]
-pub type FooterFn<'a> = Box<dyn FnMut(&mut Ui, &mut FooterCx<'_, '_, '_>) + 'a>;
+pub type FooterFn<'a> = crate::contract::Versioned<Box<dyn FnMut(&mut Ui, &mut FooterCx<'_, '_, '_>) + 'a>>;
 
 /// The host's answer to a picked button: given the button and the dialog's body context, whether the dialog may
 /// close.
@@ -298,7 +298,6 @@ pub struct DialogFrame<'a> {
     common: Common,
     #[container]
     props: ContainerProps,
-    #[key(skip)]
     footer: Option<FooterFn<'a>>,
     /// Whether the title row has a close action; the container closes itself when it is taken.
     #[prop]
@@ -322,7 +321,15 @@ impl<'a> DialogFrame<'a> {
     #[must_use]
     pub fn footer(mut self, content: impl FnMut(&mut Ui, &mut FooterCx<'_, '_, '_>) + 'a) -> Self {
         self.props = self.props.footer(FOOTER);
-        self.footer = Some(Box::new(content));
+        self.footer = Some(crate::contract::Versioned::new(Box::new(content)));
+        self
+    }
+
+    /// Declares the version of the data the footer closure reads: the dialog reruns when it changes. Without it the
+    /// footer reruns the dialog at every build.
+    #[must_use]
+    pub fn footer_revision(mut self, revision: u64) -> Self {
+        self.footer.iter_mut().for_each(|footer| footer.revision = Some(revision));
         self
     }
 }

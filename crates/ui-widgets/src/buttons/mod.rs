@@ -19,7 +19,7 @@ pub use command_search::{CommandSearch, CommandSearchStyle};
 pub use face::Arrangement;
 pub use icon_button::{IconButton, IconButtonStyle, PopupMark, PressFocus};
 pub use link::{Link, LinkStyle};
-pub use split_button::{SplitButton, SplitButtonStyle, SplitMenu, SplitOutput};
+pub use split_button::{MenuBody, SplitButton, SplitButtonStyle, SplitMenu, SplitOutput};
 pub use toggle_button::{ToggleButton, ToggleButtonStyle};
 
 /// How much of a ribbon group's content is shown. A group sets it for its content through `Overrides::values`, and

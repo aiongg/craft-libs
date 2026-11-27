@@ -85,14 +85,28 @@ impl<'a> SamePoint<'a> {
 }
 
 /// Paints the image under the point into the plot rect through the content painter: `PointPicker::backdrop`.
-pub struct Backdrop<'a>(BackdropFn<'a>);
+pub struct Backdrop<'a>(crate::contract::Versioned<BackdropFn<'a>>);
 
 type BackdropFn<'a> = Box<dyn FnOnce(&ContentPainterCx, Rect) + 'a>;
 
 impl<'a> Backdrop<'a> {
     /// The backdrop that runs `paint`.
     pub fn new(paint: impl FnOnce(&ContentPainterCx, Rect) + 'a) -> Self {
-        Backdrop(Box::new(paint))
+        Backdrop(crate::contract::Versioned::new(Box::new(paint)))
+    }
+
+    /// Declares the version of the data the image reads: the component reruns when it changes. Without it the component
+    /// reruns at every build.
+    #[must_use]
+    pub fn revision(mut self, revision: u64) -> Self {
+        self.0.revision = Some(revision);
+        self
+    }
+}
+
+impl crate::contract::MemoProps for Backdrop<'_> {
+    fn key(&self, key: &mut crate::contract::MemoKey) {
+        self.0.key(key);
     }
 }
 
@@ -122,7 +136,6 @@ pub struct PointPicker<'a> {
     aspect: Option<f32>,
     /// Paints the image under the point; without one the well shows a checkerboard.
     #[prop(func = "FnOnce(&ContentPainterCx, Rect)")]
-    #[key(skip)]
     backdrop: Option<Backdrop<'a>>,
     /// Whether two points are the same value to the caller (two points of a quantised colour field that give the same
     /// colour). A relative move (an arrow, Page Up or Down, a wheel notch, an assistive step) that lands on a point
@@ -137,6 +150,16 @@ pub struct PointPicker<'a> {
 }
 
 impl<'a> PointPicker<'a> {
+    /// Declares the version of the data the backdrop paints: the picker reruns when it changes. Without it a
+    /// backdrop reruns the picker at every build.
+    #[must_use]
+    pub fn backdrop_revision(mut self, revision: u64) -> Self {
+        if let Some(backdrop) = &mut self.backdrop {
+            backdrop.0.revision = Some(revision);
+        }
+        self
+    }
+
     /// The value pair at `pos` in `rect`, on the step grid: the plot, the two `ValueDrag`s and the settle in one
     /// function, which the drag calls, so the picker and a host that maps its own pointer (the colour HUD) share one
     /// mapping. Modifiers change nothing: the point is where the pointer is. `None` when the picker has no area.
@@ -457,7 +480,7 @@ impl Component for PointPicker<'_> {
         let inside = painter.plot_frame(cx.rect);
         let plot = self.plot(cx.rect);
         match self.backdrop.take() {
-            Some(Backdrop(paint)) => paint(&painter, plot),
+            Some(Backdrop(paint)) => (paint.value)(&painter, plot),
             None => painter.checker(plot.intersect(inside)),
         }
         if let Some(value) = cx.value() {

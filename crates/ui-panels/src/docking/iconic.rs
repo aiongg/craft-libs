@@ -229,6 +229,8 @@ pub struct IconicColumn<'a, P: Value + Hash + 'static> {
     props: ContainerProps,
     dock: Id,
     column: &'a Column<P>,
+    /// The version of the data `spec` reads.
+    spec_version: crate::contract::Versioned<()>,
     #[key(skip)]
     spec: &'a dyn Fn(&P) -> PanelSpec,
     /// The edge the column keeps to: a dock's window edge, or the edge of the float area a floating window keeps to.
@@ -267,11 +269,10 @@ pub struct IconicColumn<'a, P: Value + Hash + 'static> {
     #[prop]
     framed: bool,
     open: Bind<'a, Option<P>>,
-    /// The host's version of what `view` shows in the flyouts: the view is a closure the key cannot read, so the flyouts
-    /// run again when this moves ([`views`](IconicColumn::views)).
-    #[prop]
-    views: u64,
-    #[key(by = self.views)]
+    /// The host's version of what `view` shows in the flyouts, carried by the view's wrapper: the flyouts run again when
+    /// it moves ([`views`](IconicColumn::views)); `None` runs them at every build.
+    #[key(skip)]
+    views: Option<u64>,
     view: Option<FlyoutView<'a, P>>,
     /// The bar's rect this pass.
     bar_rect: Rect,
@@ -319,6 +320,22 @@ struct Plan {
 }
 
 impl<'a, P: Value + Hash + Debug + 'static> IconicColumn<'a, P> {
+    /// The host's version of what `view` shows in the flyouts: the flyouts run again when it moves. Without it they run
+    /// at every build.
+    #[must_use]
+    pub fn views(mut self, revision: u64) -> Self {
+        self.views = Some(revision);
+        self
+    }
+
+    /// Declares the version of the data `spec` reads: the column reruns when it changes. Without it the column reruns
+    /// at every build.
+    #[must_use]
+    pub fn spec_revision(mut self, revision: u64) -> Self {
+        self.spec_version.revision = Some(revision);
+        self
+    }
+
     /// A column named `label` of the dock `dock`, over `column`, whose open flyout is the panel in `open`; `spec`
     /// reads each panel's label, icon and limits.
     pub fn new(label: impl Into<Label>, dock: Id, column: &'a Column<P>, open: Bind<'a, Option<P>>, spec: &'a dyn Fn(&P) -> PanelSpec) -> Self {
@@ -328,6 +345,7 @@ impl<'a, P: Value + Hash + Debug + 'static> IconicColumn<'a, P> {
             props,
             dock,
             column,
+            spec_version: crate::contract::Versioned::new(()),
             spec,
             edge: DockEdge::Start,
             opens: Side::End,
@@ -338,7 +356,7 @@ impl<'a, P: Value + Hash + Debug + 'static> IconicColumn<'a, P> {
             card: None,
             tab_look: PanelTabLook::Plain,
             framed: false,
-            views: 0,
+            views: None,
             open,
             view: None,
             bar_rect: Rect::NOTHING,
@@ -386,19 +404,22 @@ impl<'a, P: Value + Hash + Debug + 'static> IconicColumn<'a, P> {
         show: impl FnOnce(Self, &mut Ui) -> IconicColumnOutput<P>,
     ) -> IconicColumnOutput<P> {
         if self.tab_look != PanelTabLook::Block {
-            self.view = Some(Box::new(view));
+            self.view = Some(crate::contract::Versioned { revision: self.views, value: Box::new(view) });
             return show(self, ui);
         }
         let outer = Env::of(ui).get::<ActiveLook>();
-        self.view = Some(Box::new(move |group, at, ui, body| {
-            with_env(
-                ui,
-                |overrides| {
-                    overrides.values.set(outer);
-                },
-                |ui| view(group, at, ui, body),
-            )
-        }));
+        self.view = Some(crate::contract::Versioned {
+            revision: self.views,
+            value: Box::new(move |group, at, ui, body| {
+                with_env(
+                    ui,
+                    |overrides| {
+                        overrides.values.set(outer);
+                    },
+                    |ui| view(group, at, ui, body),
+                )
+            }),
+        });
         with_env(
             ui,
             |overrides| {
@@ -543,7 +564,7 @@ impl<'a, P: Value + Hash + Debug + 'static> IconicColumn<'a, P> {
 }
 
 /// What measures and shows the group of an open flyout.
-type FlyoutView<'a, P> = Box<dyn FnMut(&Group<P>, GroupAt, &mut Ui, &mut BodyCx<'_>) -> Option<f32> + 'a>;
+type FlyoutView<'a, P> = crate::contract::Versioned<Box<dyn FnMut(&Group<P>, GroupAt, &mut Ui, &mut BodyCx<'_>) -> Option<f32> + 'a>>;
 
 impl<P: Value + Hash + Debug + 'static> Component for IconicColumn<'_, P> {
     const ROLE: Role = Role::GROUP;
@@ -817,7 +838,7 @@ impl<P: Value + Hash + Debug + 'static> Component for IconicColumn<'_, P> {
                 |ui, body, place| match place {
                     // A height the user gave the group is the flyout's: its body's measure leaves it.
                     GroupAt::Measure(_) if fixed => None,
-                    _ => view(&group, place, ui, body),
+                    _ => (view.value)(&group, place, ui, body),
                 },
             );
             let Some(shown) = shown else { continue };

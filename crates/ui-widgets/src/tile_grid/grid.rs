@@ -263,15 +263,8 @@ pub struct TileGrid<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     /// Where every tile's hover actions sit.
     #[prop]
     action_place: TileActionPlace,
-    /// Insert gaps between tiles, keyed by display position; `label` names the gap before a position. None show
-    /// while a drag is held. A press on one reports [`GridEvent::Insert`].
-    ///
-    /// The gap before position `at` sits on the reading-start edge of tile `at`, between tiles `at - 1` and `at`; the
-    /// gap `at` = the tile count sits on the end edge of the last tile. A gap shows while its tile is in view, so the
-    /// end gap shows only with the last tile in view.
-    #[prop]
-    #[key(skip)]
-    insert_gaps: Option<&'a dyn Fn(usize) -> Label>,
+    /// The insert gaps' label, with the version of the data it reads ([`TileGrid::insert_gaps`]).
+    insert_gaps: Option<crate::contract::Versioned<&'a dyn Fn(usize) -> Label>>,
     /// The thumbnail size the zoom is a factor of; `None` is the card thumbnail.
     #[prop]
     thumb_size: Option<ThumbSize>,
@@ -372,6 +365,26 @@ struct Placed {
 }
 
 impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> TileGrid<'a, K> {
+    /// Insert gaps between tiles, keyed by display position; `label` names the gap before a position. None show
+    /// while a drag is held. A press on one reports [`GridEvent::Insert`].
+    ///
+    /// The gap before position `at` sits on the reading-start edge of tile `at`, between tiles `at - 1` and `at`; the
+    /// gap `at` = the tile count sits on the end edge of the last tile. A gap shows while its tile is in view, so the
+    /// end gap shows only with the last tile in view.
+    #[must_use]
+    pub fn insert_gaps(mut self, label: &'a dyn Fn(usize) -> Label) -> Self {
+        self.insert_gaps = Some(crate::contract::Versioned::new(label));
+        self
+    }
+
+    /// Declares the version of the data the insert gaps' label reads: the grid reruns when it changes. Without it the
+    /// label reruns the grid at every build.
+    #[must_use]
+    pub fn insert_gaps_revision(mut self, revision: u64) -> Self {
+        self.insert_gaps.iter_mut().for_each(|label| label.revision = Some(revision));
+        self
+    }
+
     /// A grid named `label`, with multiple selection and equal square cards of the card thumbnail. Space picks the lead and
     /// no key rates or zooms; Bridge's keys are `rating_keys(RatingKeys::CommandDigits)`, `space(SpaceAction::Preview)`
     /// and a `GridZoom::Bound` zoom.
@@ -838,9 +851,9 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for TileGrid<'_, K>
 
     /// A heading node per header, a list item node per tail row and a button per insert gap in view.
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
-        if let Some(label) = self.insert_gaps {
+        if let Some(label) = &self.insert_gaps {
             for &(at, _) in &self.placed_gaps {
-                access.node(GAP.at(at as u64), Role::BUTTON).name = Name::Text(cx.env.resolve(&label(at)).as_str().to_owned());
+                access.node(GAP.at(at as u64), Role::BUTTON).name = Name::Text(cx.env.resolve(&(label.value)(at)).as_str().to_owned());
             }
         }
         let headers = self.placed.iter().map(|placed| Slot::Header(placed.group));

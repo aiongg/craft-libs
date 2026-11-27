@@ -72,17 +72,31 @@ pub enum SwatchSpacing {
 }
 
 /// The marks of the cell of a key: `SwatchTable::marks`.
-pub struct RowMarks<'a, K>(Box<dyn Fn(&K) -> CellMarks + 'a>);
+pub struct RowMarks<'a, K>(crate::contract::Versioned<Box<dyn Fn(&K) -> CellMarks + 'a>>);
 
 impl<'a, K> RowMarks<'a, K> {
     /// The marks `marks` gives.
     pub fn new(marks: impl Fn(&K) -> CellMarks + 'a) -> Self {
-        RowMarks(Box::new(marks))
+        RowMarks(crate::contract::Versioned::new(Box::new(marks)))
+    }
+
+    /// Declares the version of the data the closure reads: the component reruns when it changes. Without it the
+    /// component reruns at every build.
+    #[must_use]
+    pub fn revision(mut self, revision: u64) -> Self {
+        self.0.revision = Some(revision);
+        self
     }
 
     /// The marks of the cell of `key`.
     pub fn of(&self, key: &K) -> CellMarks {
-        (self.0)(key)
+        (self.0.value)(key)
+    }
+}
+
+impl<K> crate::contract::MemoProps for RowMarks<'_, K> {
+    fn key(&self, key: &mut crate::contract::MemoKey) {
+        key.revision(self.0.revision);
     }
 }
 
@@ -435,7 +449,6 @@ pub struct SwatchTable<'a> {
     spacing: SwatchSpacing,
     /// The marks of each cell, by index, given to the cell's `Swatch::marks`.
     #[prop(func = "Fn(&usize) -> CellMarks")]
-    #[key(skip)]
     marks: Option<RowMarks<'a, usize>>,
     /// Only the cells of the first `n` rows at the laid-out column count are items; the rest are not shown.
     #[prop]

@@ -16,7 +16,7 @@ use craft_theme::Variant;
 use egui::Ui;
 
 /// What an end item does when pressed.
-#[derive(Clone)]
+#[derive(Clone, crate::contract::MemoProps)]
 enum EndAction<'a> {
     Command(CommandRef),
     Menu(&'a [Entry<CommandRef>]),
@@ -24,7 +24,7 @@ enum EndAction<'a> {
 
 /// An item at the reading end of a `TabStrip`: a button that runs a command or opens a menu. It drops its label before
 /// the tabs overflow.
-#[derive(Clone)]
+#[derive(Clone, crate::contract::MemoProps)]
 pub struct StripEnd<'a> {
     label: Label,
     icon: IconSpec<'a>,

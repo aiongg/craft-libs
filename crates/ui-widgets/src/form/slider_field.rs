@@ -93,7 +93,6 @@ pub struct SliderField<'a> {
     fill: bool,
     /// The look of the track in place of the groove and the fill (a colour gradient).
     #[prop]
-    #[key(skip)]
     track_face: Option<TrackFace<'a>>,
     /// The shape of the slider's thumb: a knob, or the pointer under the track of a colour channel.
     #[prop]

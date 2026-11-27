@@ -495,19 +495,33 @@ struct Fading {
 }
 
 /// The role of the tab of a key: `TabStrip::roles`.
-pub struct TabRoles<'a, K>(Box<dyn Fn(&K) -> TabRole + 'a>);
+pub struct TabRoles<'a, K>(crate::contract::Versioned<Box<dyn Fn(&K) -> TabRole + 'a>>);
 
 impl<'a, K> TabRoles<'a, K> {
     /// The roles `roles` gives.
     pub fn new(roles: impl Fn(&K) -> TabRole + 'a) -> Self {
-        TabRoles(Box::new(roles))
+        TabRoles(crate::contract::Versioned::new(Box::new(roles)))
+    }
+
+    /// Declares the version of the data the roles read: the strip reruns when it changes. Without it the strip
+    /// reruns at every build.
+    #[must_use]
+    pub fn revision(mut self, revision: u64) -> Self {
+        self.0.revision = Some(revision);
+        self
+    }
+}
+
+impl<K> crate::contract::MemoProps for TabRoles<'_, K> {
+    fn key(&self, key: &mut crate::contract::MemoKey) {
+        key.revision(self.0.revision);
     }
 }
 
 impl<K> TabRoles<'_, K> {
     #[doc(hidden)]
     pub fn role(&self, key: &K) -> TabRole {
-        (self.0)(key)
+        (self.0.value)(key)
     }
 }
 
@@ -559,7 +573,6 @@ pub struct TabStrip<'a, K: Clone + Eq + Hash + Send + Sync + std::fmt::Debug + '
     can_close: Option<RowTest<'a, K>>,
     /// The role of each tab, an input of the fit: contextual tabs are kept ahead of plain tabs.
     #[prop(func = "Fn(&K) -> TabRole")]
-    #[key(skip)]
     roles: Option<TabRoles<'a, K>>,
     /// What the strip takes from drags that did not start in it, in order.
     #[key(skip)]
@@ -573,7 +586,6 @@ pub struct TabStrip<'a, K: Clone + Eq + Hash + Send + Sync + std::fmt::Debug + '
     /// the room runs short they drop their labels, the last item first, before any tab overflows; they keep their
     /// icons whatever the room.
     #[prop]
-    #[key(skip)]
     trailing: &'a [StripEnd<'a>],
     /// The contextual tabs fading out this pass, each as opaque as its presence.
     ghosts: Vec<Fading>,

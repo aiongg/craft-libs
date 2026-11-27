@@ -70,7 +70,8 @@ pub struct InspectOverlayStyle {
 pub struct InspectOverlay {
     #[common]
     common: Common,
-    #[key(skip)]
+    /// A record has no version: the overlay reruns at every build.
+    #[key(by = crate::contract::Versioned::new(()))]
     recorded: Arc<Recorded>,
     /// The layers shown.
     #[prop]

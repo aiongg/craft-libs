@@ -121,7 +121,7 @@ enum RailEvent<T> {
     EditToolbar(Response),
 }
 
-type FooterFn<'a> = Box<dyn FnMut(&mut Ui, RailFooter) + 'a>;
+type FooterFn<'a> = crate::contract::Versioned<Box<dyn FnMut(&mut Ui, RailFooter) + 'a>>;
 
 /// The rail of tool slots, laid out in a grid of columns: one `FlyoutButton` per visible slot showing the slot's shown
 /// tool, the slot with the current tool toggled on. A click selects the shown tool, a row of the flyout selects that
@@ -181,17 +181,16 @@ pub struct ToolRail<'a, T: Value + MemoProps + PlainData + 'static> {
     #[prop]
     reveal: Option<&'a T>,
     /// The tips the tools' buttons and flyout rows show in place of the command tooltip, where a tool has one.
-    #[prop]
-    #[key(skip)]
-    tips: Option<&'a dyn ToolTips<T>>,
+    tips: Option<crate::contract::Versioned<&'a dyn ToolTips<T>>>,
     /// How tightly the rail packs its buttons; its columns follow the rail grid at that density.
     #[prop]
     density: RailDensity,
     /// How the button of the current tool shows it is on.
     #[prop]
     active_look: ActiveLook,
-    #[key(skip)]
     footer: Option<FooterFn<'a>>,
+    /// The version of the data the footer closure given to `show_rail` reads.
+    footer_revision: Option<u64>,
     /// The columns the rail lays out in this pass.
     columns: usize,
     /// The host's index and rect of each button the grid showed in this pass.
@@ -231,10 +230,34 @@ impl<'a, T: Value + MemoProps + PlainData + 'static> ToolRail<'a, T> {
             density: RailDensity::Regular,
             active_look: ActiveLook::Accent,
             footer: None,
+            footer_revision: None,
             columns: 1,
             shown: Rc::default(),
         }
         .label(label)
+    }
+
+    /// The tips the tools' buttons and flyout rows show in place of the command tooltip, where a tool has one.
+    #[must_use]
+    pub fn tips(mut self, tips: &'a dyn ToolTips<T>) -> Self {
+        self.tips = Some(crate::contract::Versioned::new(tips));
+        self
+    }
+
+    /// Declares the version of the data the tips read: the rail reruns when it changes. Without it set tips rerun the
+    /// rail at every build.
+    #[must_use]
+    pub fn tips_revision(mut self, revision: u64) -> Self {
+        self.tips.iter_mut().for_each(|tips| tips.revision = Some(revision));
+        self
+    }
+
+    /// Declares the version of the data the footer closure given to `show_rail` or `show_column` reads: the rail reruns
+    /// when it changes. Without it the footer reruns the rail at every build.
+    #[must_use]
+    pub fn footer_revision(mut self, revision: u64) -> Self {
+        self.footer_revision = Some(revision);
+        self
     }
 
     /// The rail, what it shows and the flyouts it opens resolve their tokens through `scope` (a compact rail's
@@ -277,7 +300,7 @@ impl<'a, T: Value + MemoProps + PlainData + 'static> ToolRail<'a, T> {
     fn prepare(&mut self, ui: &Ui, width: f32, footer: impl FnMut(&mut Ui, RailFooter) + 'a) -> Draw<'a, T> {
         self.columns = usize::from(self.grid(ui, self.cells()).steps_within(width));
         self.props = std::mem::take(&mut self.props).roving(Roving::new(NavShape::wrapped_grid(self.columns)));
-        self.footer = Some(Box::new(footer));
+        self.footer = Some(crate::contract::Versioned { revision: self.footer_revision, value: Box::new(footer) });
         Draw {
             slots: self.slots,
             current: self.current,
@@ -323,10 +346,14 @@ struct GridProps<'a, T: PlainData> {
     sent: Outbox<'a, RailEvent<T>>,
 }
 
-/// The host's tool tips, which the grid reads through a trait object: while the host sets them the grid runs every pass.
-#[derive(MemoProps)]
-#[memo_props(every_pass = "the host's tips are a trait object, whose answers no key can follow")]
-struct HostTips<'a, T>(&'a dyn ToolTips<T>);
+/// The host's tool tips, which the grid reads through a trait object; the key follows the version the host gives them.
+struct HostTips<'a, T>(crate::contract::Versioned<&'a dyn ToolTips<T>>);
+
+impl<T> MemoProps for HostTips<'_, T> {
+    fn key(&self, key: &mut crate::contract::MemoKey) {
+        key.revision(self.0.revision);
+    }
+}
 
 /// What the body of one pass draws from.
 struct Draw<'a, T: PlainData> {
@@ -341,7 +368,7 @@ struct Draw<'a, T: PlainData> {
     columns: usize,
     captions: bool,
     tear_off: bool,
-    tips: Option<&'a dyn ToolTips<T>>,
+    tips: Option<crate::contract::Versioned<&'a dyn ToolTips<T>>>,
     mark: Option<&'a T>,
     reveal: Option<&'a T>,
 }
@@ -377,7 +404,7 @@ impl<T: Value + MemoProps + PlainData> Draw<'_, T> {
 /// each slot button, around which the rail takes drops.
 fn grid<T: Value + MemoProps + PlainData>(props: &mut GridProps<'_, T>, ui: &mut Ui) -> (Option<Id>, Vec<(usize, Rect)>) {
     let GridProps { slots, current, last_used, hidden, editing, columns, opens, captions, tear_off, tips, mark, reveal, .. } = *props;
-    let tips = tips.map(|tips| tips.0);
+    let tips = tips.map(|tips| tips.0.value);
     let visible = visible_slots(slots, hidden_in(hidden));
     let cells = visible.len() + usize::from(props.edit_label.is_some());
     let resolve = resolver_in(ui);
@@ -606,7 +633,7 @@ impl<T: Value + MemoProps + PlainData + 'static> Container for ToolRail<'_, T> {
     fn footer(&mut self, ui: &mut Ui, _: &mut BodyCx<'_>) {
         let columns = self.columns;
         if let Some(footer) = &mut self.footer {
-            footer(ui, RailFooter { columns });
+            (footer.value)(ui, RailFooter { columns });
         }
     }
 }
