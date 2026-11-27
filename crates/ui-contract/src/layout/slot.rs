@@ -1,13 +1,15 @@
-//! `measure_slot`: a closure measured in an invisible sizing pass.
+//! `measure_slot`: a closure measured in a measuring run.
 
-use crate::runtime::egui::{child, sizing};
-use crate::runtime::env::Env;
-use egui::{Ui, Vec2};
+use crate::contract::Ui;
+use craft_ui_rt::Vec2;
 
-/// Runs `body` in an invisible sizing pass `width` wide and returns the size it took. Nothing is allocated in
-/// `ui` and nothing is painted; the closure sees the env of `ui`.
+/// Runs `body` as a measuring run in a column `width` wide and returns the size it took. Nothing is placed in `ui`
+/// and no node is reached: kept children answer from their size cache. The closure sees the env of `ui`.
 pub fn measure_slot(ui: &mut Ui, width: f32, body: impl FnOnce(&mut Ui)) -> Vec2 {
-    let env = Env::of(ui);
-    let rtl = env.direction.is_rtl();
-    sizing::run_sized(ui, width, child::column_layout(rtl), |ui| Env::run_in(ui, env, body)).1
+    let mut body = Some(body);
+    ui.measure_column(width, &mut |ui| {
+        if let Some(body) = body.take() {
+            body(ui);
+        }
+    })
 }

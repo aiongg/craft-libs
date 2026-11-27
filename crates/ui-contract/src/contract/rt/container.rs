@@ -317,6 +317,19 @@ impl Flow {
 }
 
 impl Ui<'_, '_> {
+    /// Runs `body` as a measuring run in a column `width` wide at the next place and returns what it took; kept
+    /// children under this build's node answer from their size cache.
+    pub(crate) fn measure_column(&mut self, width: f32, body: &mut dyn FnMut(&mut Ui<'_, '_>)) -> Vec2 {
+        let start = self.flow.next_min();
+        let tokens = self.flow.tokens.clone();
+        let under = self.flow.measuring.unwrap_or_else(|| Some(self.cx.node()));
+        let region = Rect::from_min_size(start, Vec2::new(width, f32::INFINITY));
+        let flow = Flow::new(self.flow.id.with("slot"), self.flow.origin, region, tokens.space.gap.stack, tokens).measuring(under);
+        let mut inner = Ui::new(&mut *self.cx, flow);
+        body(&mut inner);
+        inner.flow.content_size()
+    }
+
     /// Runs `show` in a flow of its own at the next place, a column under the unit's id (a levelled unit's content),
     /// and returns what it took. A measuring unit takes no room (the caller allocates); one that `places` is
     /// allocated in this flow, and its children are placed with this flow's.
