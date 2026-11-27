@@ -410,7 +410,8 @@ impl BuildCx<'_> {
     }
 
     /// `node` builds in a later build round of this frame: a request addressed to it by id (a
-    /// collection asked to start a rename) reached this build.
+    /// collection asked to start a rename) or a runtime-wide edit (a cancel of every running gesture)
+    /// reached this build.
     pub fn request_build_of(&mut self, node: NodeId) {
         self.rt.tree.mark_build(node);
     }
@@ -419,12 +420,6 @@ impl BuildCx<'_> {
     /// from turned out stale (a reused measurement its content no longer matches).
     pub fn rebuild(&mut self) {
         let node = self.node;
-        self.rt.tree.mark_build(node);
-    }
-
-    /// `node` builds again, as a write to a cell it read would make it: a runtime-wide edit (a cancel of
-    /// every running gesture) reaches the nodes it names.
-    pub fn request_build_of(&mut self, node: NodeId) {
         self.rt.tree.mark_build(node);
     }
 
