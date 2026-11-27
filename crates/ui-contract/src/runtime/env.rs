@@ -861,7 +861,19 @@ impl Env {
             Some(env) => env,
             None => Env::root(cx, ctx, &values),
         };
-        let mut env = env.on_cells(&values);
+        env.on_node(cx, &values)
+    }
+
+    /// This env for the body of a layer child built on `cx`'s node: on the env cells the layer node provides (the
+    /// popup's frame) and in its layer child, as a cursor of that node starts.
+    pub(crate) fn in_layer(self, cx: &mut BuildCx<'_>, ctx: &Context) -> Env {
+        let values = CellValues::peek(cx, ctx);
+        self.on_node(cx, &values)
+    }
+
+    /// This env on `values` and in the layer child `cx`'s node is in.
+    fn on_node(self, cx: &BuildCx<'_>, values: &CellValues) -> Env {
+        let mut env = self.on_cells(values);
         let layer_child = cx.provided::<crate::contract::rt::layers::LayerChildOf>().map(|of| of.0);
         if env.layer_child != layer_child {
             env.local_mut().inherited_mut().layer_child = layer_child;

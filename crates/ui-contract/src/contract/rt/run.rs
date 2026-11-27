@@ -400,7 +400,7 @@ fn settled_core<'a>(
     begun_env: &'a Env,
     resolved: &'a Resolved<'a>,
     memory: &'a mut MemoryStage,
-    popups: &'a mut PopupStates,
+    popups: &'a PopupStates,
     response: Response,
     begun: &steps::EnvStep,
     run: RunIo<'a>,
@@ -421,7 +421,7 @@ pub(crate) fn settle<C: Component>(
     let node = cx.node();
     let response = Response::new(kept.id, rect, Some(node), cx.interaction(node), kept.dragging, InputFacts::default());
     let resolved = begun.resolved(kept.id);
-    let mut core = settled_core(&begun.env, &resolved, &mut kept.memory, &mut kept.popups, response, &begun.step1, RunIo::settled(context));
+    let mut core = settled_core(&begun.env, &resolved, &mut kept.memory, &kept.popups, response, &begun.step1, RunIo::settled(context));
     place_core(&mut core, &component, &begun.style, rect, &resolved, begun.env.direction.is_rtl());
     let out = finish_with(component, &mut core, &begun.style, value);
     // A request the body made while the node was kept: the node runs in this frame to take it.
@@ -442,8 +442,8 @@ pub(crate) fn finish_measured<C: Component>(
     let response = Response::new(id, rect, None, Default::default(), false, InputFacts::default());
     let resolved = begun.resolved(id);
     let mut stage = MemoryStage::open_peek(&context, id);
-    let mut popups = PopupStates::default();
-    let mut core = settled_core(&begun.env, &resolved, &mut stage, &mut popups, response, &begun.step1, RunIo::measuring(context));
+    let popups = PopupStates::default();
+    let mut core = settled_core(&begun.env, &resolved, &mut stage, &popups, response, &begun.step1, RunIo::measuring(context));
     core.rect = rect;
     core.content_rect = rect;
     core.visible = rect;
@@ -526,7 +526,7 @@ pub(crate) fn run_shaped<C: Component>(
         &begun.env,
         &resolved,
         &mut kept.memory,
-        &mut kept.popups,
+        &kept.popups,
         response,
         begun.step1.command.clone(),
         RunIo {
@@ -894,9 +894,8 @@ pub(crate) fn run_member<I: Component>(
     in_facts.disabled = !run.enabled;
     let response = Response::new(id, run.rect, None, now, dragging, in_facts);
     let mut memory = MemoryStage::open(&context, id);
-    let mut popups = PopupStates::default();
-    let mut core =
-        core_for(&begun.env, &resolved, &mut memory, &mut popups, response, begun.step1.command.clone(), RunIo::new(&local, context.clone()));
+    let popups = PopupStates::default();
+    let mut core = core_for(&begun.env, &resolved, &mut memory, &popups, response, begun.step1.command.clone(), RunIo::new(&local, context.clone()));
     place_core(&mut core, &item, style, run.rect, &resolved, begun.env.direction.is_rtl());
     core.visible = run.rect.intersect(run.clip);
     core.row = Some(Arc::new(crate::runtime::env::ItemFacts {
@@ -1098,7 +1097,7 @@ fn settle_shaped<C: Component>(
     let response = Response::new(kept.id, rect, Some(node), cx.interaction(node), kept.dragging, InputFacts::default());
     let resolved = begun.resolved(kept.id);
     let room = kept.place.room;
-    let mut core = settled_core(&begun.env, &resolved, &mut kept.memory, &mut kept.popups, response, &begun.step1, RunIo::settled(context.clone()));
+    let mut core = settled_core(&begun.env, &resolved, &mut kept.memory, &kept.popups, response, &begun.step1, RunIo::settled(context.clone()));
     place_core(&mut core, &component, &begun.style, rect, &resolved, begun.env.direction.is_rtl());
     let mut cxx =
         Cx { core: &mut core, style: &*begun.style, shown: value.value, mixed: value.mixed, events: Vec::new(), applied: 0, validity: Validity::Ok };
@@ -1236,8 +1235,7 @@ pub(crate) fn reach_layers<C: Component>(
         let node = cx.node();
         let response = Response::new(id, rect, Some(node), cx.interaction(node), kept.dragging, InputFacts::default());
         let resolved = begun.resolved(id);
-        let mut core =
-            settled_core(&begun.env, &resolved, &mut kept.memory, &mut kept.popups, response, &begun.step1, RunIo::settled(context.clone()));
+        let mut core = settled_core(&begun.env, &resolved, &mut kept.memory, &kept.popups, response, &begun.step1, RunIo::settled(context.clone()));
         place_core(&mut core, component, &begun.style, rect, &resolved, begun.env.direction.is_rtl());
         core.popups.begin_run(cx);
         let mut cxx = Cx { core: &mut core, style: &*begun.style, shown: None, mixed: false, events: Vec::new(), applied: 0, validity: Validity::Ok };
