@@ -35,6 +35,7 @@ egui = { workspace = true }
 serde = { workspace = true }
 
 [dev-dependencies]
+accesskit = "0.25"
 craft-ui-platform-headless = { workspace = true }
 egui = { workspace = true }
 serde_json = { workspace = true }

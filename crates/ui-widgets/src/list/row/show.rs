@@ -213,7 +213,7 @@ impl Component for ListRow<'_> {
         self.measure_hosted(cx);
         let widths = self.widths(&cx.style.sizes, &|run| cx.layout_at(run, f32::INFINITY).size().x);
         let placed = self.place(&cx.style.sizes, &widths, rect, cx.flow.is_rtl());
-        self.record_cell_bounds(&placed);
+        self.record_cell_bounds(&placed, rect.min);
         self.toggle_parts(&placed, cx);
         for (at, position, _) in &placed.texts {
             if self.cell_selects(*at) {
@@ -772,12 +772,19 @@ impl ListRow<'_> {
     }
 
     /// Keeps the placed rect of each cell node for the access step: the label cell's is the label band, which spans
-    /// the label column and the empty toggle columns beside it.
-    fn record_cell_bounds(&mut self, placed: &Placed) {
+    /// the label column and the empty toggle columns beside it. Parts are placed in window space and a sub node's
+    /// bounds are the row's own space, so each rect is kept relative to the row's `origin`.
+    fn record_cell_bounds(&mut self, placed: &Placed, origin: Pos2) {
         let toggles = placed.toggles.iter().map(|(at, cell)| (TOGGLE_CELL.at(*at as u64), *cell));
         let texts = placed.texts.iter().map(|(_, position, cell)| (TEXT_CELL.at(*position as u64), *cell));
         let statuses = placed.statuses.iter().map(|(_, position, cell)| (STATUS.at(*position as u64), *cell));
-        self.cell_bounds = std::iter::once((LABEL_CELL.into(), placed.band)).chain(toggles).chain(texts).chain(statuses).collect();
+        let to_row = origin.to_vec2();
+        self.cell_bounds = std::iter::once((LABEL_CELL.into(), placed.band))
+            .chain(toggles)
+            .chain(texts)
+            .chain(statuses)
+            .map(|(part, rect)| (part, rect.translate(-to_row)))
+            .collect();
     }
 
     /// The placed rect of the cell node `part`, which `parts` recorded.

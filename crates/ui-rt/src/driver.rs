@@ -230,11 +230,18 @@ impl<P: Platform, R: Renderer> Driver<P, R> {
         }
         self.open_queued_windows();
         let attached = !self.attached.is_empty();
-        let busy = self.runtime.needs_frame() || self.runtime.wants_time() || self.runtime.wants_input_tick();
+        // A wake at or before this frame's time is due in the next frame (a build that waits one frame for its
+        // picture to enter the image store): that is a frame request, not a timer.
+        let wake = self.runtime.next_wake();
+        let due = wake.is_some_and(|at| at <= self.runtime.time);
+        let busy = due || self.runtime.needs_frame() || self.runtime.wants_time() || self.runtime.wants_input_tick();
         if attached && busy {
             self.platform.request_frame();
         }
-        if attached && let Some(at) = self.runtime.next_wake() {
+        if attached
+            && !due
+            && let Some(at) = wake
+        {
             self.platform.request_frame_at(at);
         }
         report

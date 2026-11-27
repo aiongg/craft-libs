@@ -18,7 +18,7 @@ use craft_ui_panels::list::ThumbSize;
 use craft_ui_panels::primitives::IconSpec;
 use craft_ui_panels::primitives::textures::{Revision, ThumbRender, ThumbRequest, ThumbSource, ThumbnailOptions, Thumbnails};
 use craft_ui_panels::sections::{FooterAction, FooterBar};
-use craft_ui_panels::testing::{FRAME, Harness};
+use craft_ui_panels::testing::{FRAME, Harness, Target};
 use craft_ui_rt::{RgbaImage, SizeU, StepReport, Vec2};
 
 /// The panel's size in the experiment (fixture::PANEL_WIDTH x PANEL_HEIGHT).
@@ -112,14 +112,18 @@ fn panel(n: usize) -> Harness<App> {
     h
 }
 
+/// The row named `label`: its cells carry the row's name too, as a grid's cells do.
+fn row(h: &Harness<App>, label: &str) -> Target {
+    h.get_by_role_and_label(accesskit::Role::TreeItem, label)
+}
+
 fn hover(h: &mut Harness<App>, label: &str) -> StepReport {
-    let row = h.get_by_label(label);
+    let row = row(h, label);
     h.hover(&row);
     h.last_report()
 }
 
-fn click(h: &mut Harness<App>, label: &str) -> StepReport {
-    let target = h.get_by_label(label);
+fn click(h: &mut Harness<App>, target: Target) -> StepReport {
     h.click(&target);
     h.last_report()
 }
@@ -140,9 +144,11 @@ fn a_select_runs_the_same_nodes_at_any_length_and_one_row_more_when_it_moves() {
     let mut first = Vec::new();
     for n in [20, 600] {
         let mut h = panel(n);
-        let selects = click(&mut h, "Layer 3");
+        let target = row(&h, "Layer 3");
+        let selects = click(&mut h, target);
         assert_eq!(h.state().tree.selection.active, Some(3), "N={n}: the click selects Layer 3");
-        let moves = click(&mut h, "Layer 5");
+        let target = row(&h, "Layer 5");
+        let moves = click(&mut h, target);
         assert_eq!(h.state().tree.selection.active, Some(5), "N={n}: the click moves the selection to Layer 5");
         assert_eq!(
             moves.frame.runs,
@@ -159,7 +165,8 @@ fn a_footer_click_adds_one_layer_at_the_same_cost_at_any_length() {
     let mut runs = Vec::new();
     for n in [20, 600] {
         let mut h = panel(n);
-        let added = click(&mut h, "New Layer");
+        let target = h.get_by_label("New Layer");
+        let added = click(&mut h, target);
         assert_eq!(h.state().tree.layers.len(), n + 1, "N={n}: New Layer adds one layer");
         runs.push(added.frame.runs);
     }

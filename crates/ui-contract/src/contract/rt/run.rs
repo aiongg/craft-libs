@@ -1237,7 +1237,8 @@ fn report<C: Component>(
     flags.set(craft_theme::Flags::SELECTED, resolved.selected.unwrap_or(flags.contains(craft_theme::Flags::SELECTED)));
     let pressable: SmallVec<[PartRef; 4]> = parts.iter().filter(|p| p.sense.takes_press()).map(|p| p.part).collect();
     let facts = super::access::NodeFacts {
-        label: if component.shows_label() { resolved.label } else { "" },
+        // The label names the node whether or not the face paints it: an icon button's label is its only name.
+        label: resolved.label,
         flags,
         enabled: resolved.enabled,
         pressable: &pressable,

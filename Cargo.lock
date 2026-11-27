@@ -3463,6 +3463,7 @@ dependencies = [
 name = "craft-layers"
 version = "0.1.0"
 dependencies = [
+ "accesskit",
  "craft-behavior",
  "craft-i18n",
  "craft-keymap",
