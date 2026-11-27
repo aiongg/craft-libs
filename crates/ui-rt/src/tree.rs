@@ -68,6 +68,8 @@ pub(crate) struct Node {
     /// It gets [`crate::Event::Hover`] when the pointer enters or leaves it
     /// ([`crate::BuildCx::hover_events`]).
     pub(crate) hover_events: bool,
+    /// Its inline build is running: a node it owns is being built inside it ([`crate::BuildCx::is_building`]).
+    pub(crate) building: bool,
     /// Taken out while the node's own build, layout or paint runs.
     pub(crate) element: Option<Box<dyn AnyElement>>,
     pub(crate) props_key: u64,
@@ -121,6 +123,7 @@ impl Node {
             layered: Vec::new(),
             inline: false,
             hover_events: false,
+            building: false,
             element,
             props_key,
             dirty: Dirty::default(),

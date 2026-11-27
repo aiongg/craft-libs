@@ -309,6 +309,15 @@ pub(crate) struct RunIo<'a> {
     /// The payload types the run asked for (`Pointer::drop_target`; `true` for `window_drop_target`); the driver
     /// keeps them, and the node takes their drags in ui-rt's routing.
     pub(crate) drop_types: RefCell<smallvec::SmallVec<[(std::any::TypeId, bool); 1]>>,
+    /// The run read the context requests of the nodes under it (`Cx::context_requests`); kept as
+    /// `Kept::context_watch`, so its watch takes them from its next build on.
+    pub(crate) context_watch: Cell<bool>,
+    /// Context requests the run made at a rect of its own (`CxCore::request_context`), in order, that its context
+    /// step has not taken yet: the driver passes those made after it (by item content) on.
+    pub(crate) context_asks: RefCell<Vec<Rect>>,
+    /// Where the context request the run's context step made opens (a secondary click, an untaken Menu key, an
+    /// earlier ask); the driver queues it on the watches above.
+    pub(crate) context_made: Cell<Option<Rect>>,
 }
 
 impl<'a> RunIo<'a> {
@@ -342,6 +351,9 @@ impl<'a> RunIo<'a> {
             hover_point: None,
             drag_over: None,
             drop_types: RefCell::new(smallvec::SmallVec::new()),
+            context_watch: Cell::new(false),
+            context_asks: RefCell::new(Vec::new()),
+            context_made: Cell::new(None),
         }
     }
 
@@ -456,7 +468,23 @@ impl CxCore<'_> {
                 .find(|declared| crate::contract::rt::node::part_id(*declared) == part);
             return Some(declared);
         }
-        self.intents.untaken(&craft_behavior::Intent::ContextMenu).then_some(self.active)
+        if self.intents.untaken(&craft_behavior::Intent::ContextMenu) {
+            return Some(self.active);
+        }
+        // A request the run made at a rect of its own, or one its last run's item content made after its context step.
+        let asked = !self.run.context_asks.borrow().is_empty()
+            || self.run.input.iter().any(|input| matches!(input, NodeInput::ContextRequest { id, .. } if *id == self.id));
+        asked.then_some(None)
+    }
+
+    /// Makes a context request at `rect` (window coordinates) for the component itself: a collection's Menu key at its
+    /// lead row, an item's menu button. The component's `Trigger::Context` opener reads it, and the region around
+    /// it gets it through `Cx::context_requests`. Made after the context step (from item content), the component
+    /// runs again in this frame and makes it its own then.
+    pub(crate) fn request_context(&self, rect: Rect) {
+        if !self.run.settled {
+            self.run.context_asks.borrow_mut().push(rect);
+        }
     }
 }
 
@@ -543,12 +571,26 @@ impl<C: Component> Cx<'_, C> {
         self.core.context_request().is_some()
     }
 
-    /// The context requests made in this pass so far, in order: each component asked and the rect its menu opens at
-    /// (its part's, when it was made at one). A container reads in `finish` those its body's components made, which
-    /// ran before it finished: a secondary click or the Menu key on a child reaches the region around it this way,
-    /// whatever the child does with its own request.
+    /// The context requests the components under this one made, in order, then this component's own: each component
+    /// asked and the rect its menu opens at (its part's, when it was made at one). A secondary click or the Menu key
+    /// on a child reaches the region around it this way, whatever the child does with its own request. Reading them
+    /// makes the component watch the nodes under it: a request one of them makes runs it in the same frame, and a
+    /// frame without requests runs nothing more.
     pub fn context_requests(&self) -> Vec<(Id, Rect)> {
-        todo!("context requests bubbled to the region around the requester (a NodeInput the child's request queues on its container), INT-1c")
+        self.core.run.context_watch.set(true);
+        let own = self.core.id;
+        let mut requests: Vec<(Id, Rect)> = self
+            .core
+            .run
+            .input
+            .iter()
+            .filter_map(|input| match input {
+                NodeInput::ContextRequest { id, rect } if *id != own => Some((*id, *rect)),
+                _ => None,
+            })
+            .collect();
+        requests.extend(self.core.run.context_made.get().map(|rect| (own, rect)));
+        requests
     }
 
     /// Names the member of this container's roving group (`ContainerProps.roving`) that Tab arrives at; the

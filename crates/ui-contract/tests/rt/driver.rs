@@ -792,3 +792,215 @@ mod focus_into {
         assert!(!app.second);
     }
 }
+
+/// Context requests reach the region around the requester (`Cx::context_requests`) through the descendant watch.
+mod context_requests {
+    use std::cell::{Cell, RefCell};
+
+    use craft_behavior::{DisplayOrder, ItemSource, SpanLayout};
+    use craft_ui_contract::contract::{
+        Collection, CollectionProps, CollectionResponse, Common, Component, Container, ContainerProps, Cx, Id, ItemOutput, NoValue, Outcome,
+        Response, Role, ShowCollection as _, ShowContainer,
+    };
+    use craft_ui_contract::runtime::windows::window_root;
+    use craft_ui_contract::style::StyleCx;
+    use craft_ui_platform_headless::{Contact, Input};
+    use craft_ui_rt::record::RecordingRenderer;
+    use craft_ui_rt::{PointerButton, PointerPhase, Pos2, Rect, Sense, StepReport, Vec2};
+    use craft_ui_test_kit::contract::PlainStyle;
+    use craft_ui_test_kit::rt::Rig;
+
+    const ROW_H: f32 = 20.0;
+
+    thread_local! {
+        /// Runs of the region (its `update`).
+        static REGION_RUNS: Cell<u32> = const { Cell::new(0) };
+        /// The requests the region's last `finish` read.
+        static SEEN: RefCell<Vec<(Id, Rect)>> = const { RefCell::new(Vec::new()) };
+        static LIST_RECT: Cell<Rect> = const { Cell::new(Rect::NOTHING) };
+    }
+
+    struct Count(usize);
+
+    impl DisplayOrder<usize> for Count {
+        fn len(&self) -> usize {
+            self.0
+        }
+
+        fn key(&self, at: usize) -> usize {
+            at
+        }
+
+        fn index_of(&self, key: &usize) -> Option<usize> {
+            (*key < self.0).then_some(*key)
+        }
+    }
+
+    impl ItemSource<usize> for Count {}
+
+    #[derive(Clone, Debug, PartialEq)]
+    enum Never {}
+
+    struct RowOut {
+        response: Response,
+    }
+
+    impl Outcome for RowOut {
+        type Value = NoValue;
+
+        fn response(&self) -> &Response {
+            &self.response
+        }
+    }
+
+    impl ItemOutput<Never> for RowOut {
+        fn into_event(self) -> Option<Never> {
+            None
+        }
+    }
+
+    /// A row that takes clicks, so a secondary click on it is its own context request.
+    #[derive(Component)]
+    struct Row {
+        #[common]
+        common: Common,
+    }
+
+    impl Component for Row {
+        const ROLE: Role = Role::LIST_ITEM;
+        type Style = PlainStyle;
+        type Output = RowOut;
+
+        fn style(_: &StyleCx<'_>, _: RowStyleKey) -> PlainStyle {
+            PlainStyle::min(Vec2::new(10.0, ROW_H))
+        }
+
+        fn sense(&self) -> Sense {
+            Sense::click()
+        }
+
+        fn finish(self, cx: Cx<'_, Self>) -> RowOut {
+            RowOut { response: cx.response.clone() }
+        }
+    }
+
+    #[derive(Component)]
+    #[component(collection)]
+    struct List {
+        #[common]
+        common: Common,
+        #[container]
+        props: ContainerProps,
+        items: CollectionProps,
+    }
+
+    impl Component for List {
+        const ROLE: Role = Role::LIST;
+        type Style = PlainStyle;
+        type Output = CollectionResponse<usize, Never>;
+
+        fn style(_: &StyleCx<'_>, _: ListStyleKey) -> PlainStyle {
+            PlainStyle::default()
+        }
+
+        fn finish(self, mut cx: Cx<'_, Self>) -> Self::Output {
+            cx.collection_response()
+        }
+    }
+
+    impl Collection for List {
+        type Key = usize;
+        type ItemLayout = SpanLayout;
+        type Selection = craft_behavior::Selection<usize>;
+        type Item<'r> = Row;
+        type ItemEvent = Never;
+
+        fn items(&self) -> &CollectionProps {
+            &self.items
+        }
+
+        fn item_layout(&self, source: &dyn ItemSource<usize>, width: f32, _: &StyleCx<'_>) -> SpanLayout {
+            SpanLayout::new(source, width, ROW_H)
+        }
+    }
+
+    /// The region around the list: it reads the context requests made under it, as a ribbon's region does.
+    #[derive(Component)]
+    #[component(container, unregistered)]
+    struct Region {
+        #[common]
+        common: Common,
+        #[container]
+        props: ContainerProps,
+    }
+
+    impl Component for Region {
+        const ROLE: Role = Role::GROUP;
+        type Style = PlainStyle;
+        type Output = Response;
+
+        fn style(_: &StyleCx<'_>, _: RegionStyleKey) -> PlainStyle {
+            PlainStyle::default()
+        }
+
+        fn update(&mut self, _: &mut Cx<'_, Self>) {
+            REGION_RUNS.with(|runs| runs.set(runs.get() + 1));
+        }
+
+        fn finish(self, cx: Cx<'_, Self>) -> Response {
+            let requests = cx.context_requests();
+            SEEN.with(|seen| *seen.borrow_mut() = requests);
+            cx.response.clone()
+        }
+    }
+
+    impl Container for Region {}
+
+    fn step(rig: &mut Rig<RecordingRenderer>) -> StepReport {
+        rig.step_with(&mut |_, cx| {
+            window_root(cx, |ui| {
+                let region = Region { common: Common::new(), props: ContainerProps::new() };
+                let _ = ShowContainer::show(region, ui, |ui, _| {
+                    let list = List { common: Common::new(), props: ContainerProps::new(), items: CollectionProps::new() };
+                    let out = list.show_items(ui, &Count(4), &mut |_, _| Row { common: Common::new() });
+                    LIST_RECT.with(|rect| rect.set(out.response.rect));
+                });
+            })
+        })
+    }
+
+    fn input(rig: &mut Rig<RecordingRenderer>, input: Input) -> StepReport {
+        let main = rig.main;
+        rig.inject(main, input);
+        step(rig)
+    }
+
+    fn secondary(phase: PointerPhase, pos: Pos2) -> Input {
+        Input::pointer(Contact { button: PointerButton::Secondary, ..Contact::MOUSE }, phase, pos)
+    }
+
+    #[test]
+    fn a_context_request_on_a_row_reaches_the_region_around_the_collection_with_one_run_of_it() {
+        let mut rig = Rig::inline(Vec2::new(300.0, 300.0), 1.0, RecordingRenderer::default());
+        let settled = (0..5).any(|_| !step(&mut rig).ran);
+        assert!(settled, "the rig did not settle");
+        // A second build reads the requests from then on: the first run made the region watch.
+        let list = LIST_RECT.with(Cell::get);
+        let row = Pos2::new(list.center().x, list.min.y + ROW_H * 1.5);
+        input(&mut rig, Input::mouse_move(row));
+        assert!(SEEN.with(|seen| seen.borrow().is_empty()), "no request without a click");
+
+        let before = REGION_RUNS.with(Cell::get);
+        input(&mut rig, secondary(PointerPhase::Down, row));
+        assert_eq!(REGION_RUNS.with(Cell::get), before, "a secondary press makes no request and runs no region");
+        input(&mut rig, secondary(PointerPhase::Up, row));
+        assert_eq!(REGION_RUNS.with(Cell::get), before + 1, "the request runs the region once");
+        let seen = SEEN.with(|seen| seen.borrow().clone());
+        assert_eq!(seen.len(), 1, "the region reads the row's request: {seen:?}");
+        assert!(seen[0].1.contains(row), "at the row's rect: {seen:?}");
+
+        let before = REGION_RUNS.with(Cell::get);
+        input(&mut rig, Input::mouse_move(row + Vec2::new(4.0, 0.0)));
+        assert_eq!(REGION_RUNS.with(Cell::get), before, "a frame without requests runs no region");
+    }
+}

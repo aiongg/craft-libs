@@ -116,7 +116,7 @@ pub enum NodeInput {
     /// A reveal a child of a container that owns its body's scroll asked for, in window coordinates (`Focus::take_reveal`).
     Reveal(craft_ui_rt::Rect),
     /// A press phase a node under a collection took (a band row's node, or a part one of its children declares),
-    /// queued on the collection through its [`PressWatch`]. Every phase but the moves of a drag.
+    /// queued on the collection through its [`DescendantWatch`]. Every phase but the moves of a drag.
     DescendantPress {
         /// The node that took the press.
         owner: Id,
@@ -128,6 +128,15 @@ pub enum NodeInput {
         pos: Pos2,
         /// The sense of the pressed part (or of `owner`'s own shape).
         sense: Sense,
+    },
+    /// A context request a node under this one made (a secondary click, the Menu key, an item's menu request),
+    /// queued through its [`DescendantWatch`] for `Cx::context_requests`. A collection also queues a request its
+    /// item content made after its own context step under its own id, so its next run makes it its own request.
+    ContextRequest {
+        /// The node that asked.
+        id: Id,
+        /// Where its menu opens, in window coordinates.
+        rect: Rect,
     },
 }
 
@@ -216,26 +225,60 @@ impl MenuBar {
     }
 }
 
-/// The presses taken under a collection's node, for its next run ([`NodeInput::DescendantPress`]). The collection
-/// provides it to the nodes it shows; the node that owns a press queues its phases here and marks the collection, so a
-/// press a row's part wins still moves the collection's lead.
+/// What the nodes under a node do that it watches, for its next run: the presses its rows and their parts take (a
+/// collection, [`NodeInput::DescendantPress`]) and the context requests they make (a node whose run reads
+/// `Cx::context_requests`, [`NodeInput::ContextRequest`]). The node provides it to what it shows; a node under it
+/// queues what the watch takes and marks it, so a press a row's part wins still moves the collection's lead, and a
+/// secondary click on a control reaches the region around it.
 #[derive(Clone)]
-pub(crate) struct PressWatch {
+pub(crate) struct DescendantWatch {
     node: NodeId,
-    queue: std::rc::Rc<std::cell::RefCell<Vec<NodeInput>>>,
+    shared: std::rc::Rc<WatchShared>,
 }
 
-impl PressWatch {
-    /// The collection's watch, created at its first build and provided to what it shows in every build.
-    pub(crate) fn provide(kept: &mut Kept, cx: &mut craft_ui_rt::BuildCx<'_>) {
+#[derive(Default)]
+struct WatchShared {
+    /// The watch takes presses (a collection).
+    presses: std::cell::Cell<bool>,
+    /// The watch takes context requests (the last run read `Cx::context_requests`).
+    context: std::cell::Cell<bool>,
+    queue: std::cell::RefCell<Vec<NodeInput>>,
+}
+
+impl DescendantWatch {
+    /// Provides the node's watch to what it shows in this build, when it watches anything: `presses` for a collection,
+    /// context requests when its last run read them (`Kept::context_watch`). A container provides it before its body
+    /// builds, a collection before its item content.
+    pub(crate) fn provide(kept: &mut Kept, cx: &mut craft_ui_rt::BuildCx<'_>, presses: bool) {
+        let context = kept.context_watch;
+        if let Some(watch) = &kept.watch {
+            // A provided watch that takes nothing any more is passed over by the nodes under it.
+            watch.shared.presses.set(presses);
+            watch.shared.context.set(context);
+        }
+        if !(presses || context) {
+            return;
+        }
         let node = cx.node();
-        let watch = kept.press_watch.get_or_insert_with(|| PressWatch { node, queue: Default::default() }).clone();
+        let watch = kept.watch.get_or_insert_with(|| DescendantWatch { node, shared: Default::default() });
+        watch.shared.presses.set(presses);
+        watch.shared.context.set(context);
+        let watch = watch.clone();
         cx.provide(watch);
     }
 
-    /// The presses queued since the collection's last run, oldest first.
+    /// What was queued since the node's last run, oldest first.
     pub(crate) fn take(kept: &Kept) -> Vec<NodeInput> {
-        kept.press_watch.as_ref().map(|watch| std::mem::take(&mut *watch.queue.borrow_mut())).unwrap_or_default()
+        kept.watch.as_ref().map(|watch| std::mem::take(&mut *watch.shared.queue.borrow_mut())).unwrap_or_default()
+    }
+
+    /// After a build of the watching node that left something queued (a request a node in its body or item content
+    /// made while it built, which marking would not have built again): the node builds again in this frame and takes
+    /// it as input. Nothing is queued in a frame without requests.
+    pub(crate) fn after_build(kept: &Kept, cx: &mut craft_ui_rt::BuildCx<'_>) {
+        if kept.watch.as_ref().is_some_and(|watch| !watch.shared.queue.borrow().is_empty()) {
+            cx.rebuild();
+        }
     }
 
     /// Queues a press phase the node `cx` handles on every collection above it, nearest first, so a press inside a
@@ -249,23 +292,46 @@ impl PressWatch {
         let pressed = kept.parts.iter().find(|kp| part != 0 && kp.id == part).map(|kp| kp.part);
         let sense = kept.sense_of(part);
         if pressed.is_some()
-            && let Some(own) = &kept.press_watch
+            && let Some(own) = kept.watch.as_ref().filter(|own| own.shared.presses.get())
         {
-            own.queue(cx, kept.id, pressed, p, sense);
+            own.queue_press(cx, kept.id, pressed, p, sense);
         }
         let mut from = cx.node();
-        while let Some(watch) = cx.provided_above::<PressWatch>(from) {
-            watch.queue(cx, kept.id, pressed, p, sense);
+        while let Some(watch) = cx.provided_above::<DescendantWatch>(from) {
+            if watch.shared.presses.get() {
+                watch.queue_press(cx, kept.id, pressed, p, sense);
+            }
             from = watch.node;
         }
     }
 
     /// Queues one press phase `owner` took on this watch's collection and marks it to build.
-    fn queue(&self, cx: &mut EventCx<'_>, owner: Id, part: Option<PartRef>, p: &PointerInput, sense: Sense) {
+    fn queue_press(&self, cx: &mut EventCx<'_>, owner: Id, part: Option<PartRef>, p: &PointerInput, sense: Sense) {
         let Some(origin) = cx.window_rect(self.node).map(|rect| rect.min) else { return };
         let input = NodeInput::DescendantPress { owner, part, gesture: p.gesture, pos: Pos2::ZERO + (p.pos - origin), sense };
-        self.queue.borrow_mut().push(input);
+        self.shared.queue.borrow_mut().push(input);
         cx.request_build_of(self.node);
+    }
+
+    /// Queues the context requests the node `cx` builds made in its run on every watch above it that takes them,
+    /// nearest first. A watcher whose build is under way (the request came from its body) takes them in that run or,
+    /// when the run is past its input, in the build [`Self::after_build`] asks for; any other is marked.
+    pub(crate) fn note_context(cx: &mut craft_ui_rt::BuildCx<'_>, requests: &[(Id, Rect)]) {
+        if requests.is_empty() {
+            return;
+        }
+        let mut from = cx.node();
+        while let Some(watch) = cx.provided_above::<DescendantWatch>(from) {
+            if watch.shared.context.get() {
+                let mut queue = watch.shared.queue.borrow_mut();
+                queue.extend(requests.iter().map(|&(id, rect)| NodeInput::ContextRequest { id, rect }));
+                drop(queue);
+                if !cx.is_building(watch.node) {
+                    cx.request_build_of(watch.node);
+                }
+            }
+            from = watch.node;
+        }
     }
 }
 
@@ -415,8 +481,11 @@ pub(crate) struct Kept {
     /// The node's last run took its page and end moves (`Focus::take_scroll_moves`): the page and end keys a focused
     /// descendant leaves bubble to it and queue as moves for its next run.
     pub(crate) scroll_owner: bool,
-    /// A collection's watch over the presses its rows and their parts take ([`PressWatch`]).
-    pub(crate) press_watch: Option<PressWatch>,
+    /// The node's watch over the presses and context requests of the nodes under it ([`DescendantWatch`]).
+    pub(crate) watch: Option<DescendantWatch>,
+    /// The node's last run read the context requests of the nodes under it (`Cx::context_requests`): its watch takes
+    /// them from its next build on.
+    pub(crate) context_watch: bool,
     /// The node's control folds into its owner's access node: its entries leave the window's folds with the node.
     pub(crate) fold: Option<crate::runtime::access::fold::FoldEntry>,
 }
@@ -469,7 +538,8 @@ impl Kept {
             ime: Default::default(),
             members: Vec::new(),
             column_reports: Vec::new(),
-            press_watch: None,
+            watch: None,
+            context_watch: false,
             fold: None,
             scroll_owner: false,
             drop_types: smallvec::SmallVec::new(),
@@ -809,7 +879,7 @@ impl ComponentNode {
             Gesture::Drag { .. } if kept.drag_session => return,
             _ => {}
         }
-        PressWatch::note(kept, cx, p, part);
+        DescendantWatch::note(kept, cx, p, part);
         if super::sweep::on_pointer(self.tag, kept, cx, p) {
             return;
         }

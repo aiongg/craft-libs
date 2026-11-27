@@ -859,6 +859,7 @@ fn show_plain<C: Container, R>(
             // The kept stage runs in this window for this node; its session and saved slots go back to the runtime's
             // store when the run ends.
             kept.memory = std::mem::take(&mut kept.memory).within(&ctx, id).appearing(state.new);
+            super::node::DescendantWatch::provide(kept, cx, false);
             let value = steps::value(&mut component, &mut kept.memory, id, command.as_deref());
             (frame.gate, frame.gate_mixed) = gate_of(props.gates, &value);
             frame.gate_at_read = frame.gate;

@@ -370,13 +370,13 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
     }
 
     /// Reports what the shown item `key` asked for: opening or closing its children, its menu, and its event.
-    pub(super) fn report_item_output(&mut self, ctx: &Context, id: Id, key: &C::Key, output: impl ItemOutput<C::ItemEvent>) {
+    pub(super) fn report_item_output(&mut self, core: &crate::contract::CxCore<'_>, id: Id, key: &C::Key, output: impl ItemOutput<C::ItemEvent>) {
         if let Some(ask) = output.open_request() {
             self.events.push(CollectionEvent::Open(OpenChange { key: key.clone(), open: ask.open, all: ask.all }));
         }
         if let Some(rect) = output.menu_request() {
-            let _ = (ctx, id);
-            todo!("context request at an item's menu rect, read by the region around the collection (Cx::context_requests), INT-1f");
+            let _ = id;
+            core.request_context(rect);
             self.ask_menu(ContextMenuRequest { key: key.clone(), at: self.on_screen(rect.left_bottom()), column: None, part: None });
         }
         if let Some(event) = output.into_event() {

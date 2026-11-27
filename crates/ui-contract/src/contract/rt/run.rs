@@ -402,7 +402,10 @@ pub(crate) fn settle<C: Component>(
     let resolved = begun.resolved(kept.id);
     let mut core = settled_core(&begun.env, &resolved, &mut kept.memory, &mut kept.popups, response, &begun.step1, RunIo::settled(context));
     place_core(&mut core, &component, &begun.style, rect, &resolved, begun.env.direction.is_rtl());
-    finish_with(component, &mut core, &begun.style, value)
+    let out = finish_with(component, &mut core, &begun.style, value);
+    // A request the body made while the node was kept: the node runs in this frame to take it.
+    super::node::DescendantWatch::after_build(kept, cx);
+    out
 }
 
 /// The output of a component a measuring run reached: `finish` on a settled `Cx` with no node
@@ -470,14 +473,12 @@ pub(crate) fn run_shaped<C: Component>(
     // shows the node, which reads its output.
     let reads = response::begin_reads(false);
 
-    // 8 sense, from the queue the node's retained half filled since its last run, and for a collection the
-    // presses the nodes under it took.
+    // 8 sense, from the queue the node's retained half filled since its last run, and what its watch took from the
+    // nodes under it (a collection's presses, the context requests a reader of `Cx::context_requests` gets).
     let mut input = std::mem::take(&mut kept.queue);
     input.extend(super::node::MenuBar::take(cx));
-    if hooks.watches_presses() {
-        input.extend(super::node::PressWatch::take(kept));
-        super::node::PressWatch::provide(kept, cx);
-    }
+    input.extend(super::node::DescendantWatch::take(kept));
+    super::node::DescendantWatch::provide(kept, cx, hooks.watches_presses());
     let (mut in_facts, dragging) = input_facts(&input, rect.min, kept.dragging);
     in_facts.disabled = !resolved.enabled;
     kept.dragging = dragging;
@@ -739,6 +740,17 @@ pub(crate) fn run_shaped<C: Component>(
     for target in focus_moves {
         super::ids::request_focus(cx, target);
     }
+    // Context requests: asks made after the context step (item content) come back as this node's own input in a
+    // build of this frame; the run's requests go to the watches above; a read of the requests below keeps the watch.
+    let late = core.run.context_asks.take();
+    kept.queue.extend(late.iter().map(|&rect| NodeInput::ContextRequest { id, rect }));
+    if !late.is_empty() {
+        cx.rebuild();
+    }
+    let requests: Vec<(Id, Rect)> = core.run.context_made.get().into_iter().chain(late).map(|rect| (id, rect)).collect();
+    super::node::DescendantWatch::note_context(cx, &requests);
+    kept.context_watch = core.run.context_watch.get();
+    super::node::DescendantWatch::after_build(kept, cx);
     if let Some(rect) = reveal
         && flow_reveal.is_none()
     {
@@ -970,9 +982,7 @@ fn settle_shaped<C: Component>(
     hooks: &mut dyn ShapeHooks<C>,
 ) -> C::Output {
     reach_layers(&mut component, kept, cx, rect, begun, tokens, context.clone());
-    if hooks.watches_presses() {
-        super::node::PressWatch::provide(kept, cx);
-    }
+    super::node::DescendantWatch::provide(kept, cx, hooks.watches_presses());
     let node = cx.node();
     let response = Response::new(kept.id, rect, Some(node), cx.interaction(node), kept.dragging, InputFacts::default());
     let resolved = begun.resolved(kept.id);
@@ -991,6 +1001,8 @@ fn settle_shaped<C: Component>(
     let placed = host.into_flow().placed;
     let out = component.finish(cxx);
     kept.placed = placed;
+    // A request the item content made while the node was kept: the node runs in this frame to take it.
+    super::node::DescendantWatch::after_build(kept, cx);
     out
 }
 

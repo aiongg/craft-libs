@@ -492,7 +492,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                 if let Some(shown) = shown_rows.last_mut() {
                     shown.openers = self.item_openers(ui, cx.core.input(), cx.core.resolved.enabled, openers);
                 }
-                self.report_item_output(&ctx, id, &key, out);
+                self.report_item_output(cx.core, id, &key, out);
                 if state.renaming {
                     self.rename_row(comp, ui, (&ctx, id, &cx.core), (at, &key), label);
                 }

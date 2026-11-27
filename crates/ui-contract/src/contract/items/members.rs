@@ -64,7 +64,7 @@ impl<'r, C: Collection> ItemsHooks<'_, 'r, C> {
                 shown.openers = self.item_openers(ui, cx.core.input(), enabled, openers);
             }
             let label = ran.output.label_rect().unwrap_or(row);
-            self.report_item_output(ctx, id, &key, ran.output);
+            self.report_item_output(cx.core, id, &key, ran.output);
             if renaming {
                 self.rename_row(comp, ui, (ctx, id, &cx.core), (at, &key), label);
             }

@@ -225,6 +225,19 @@ impl BuildCx<'_> {
         self.rt.tree.provided::<T>(self.node)
     }
 
+    /// The nearest value of type `T` a node above `node` provides, passing over what `node` provides
+    /// itself: a request a node makes walks up through every watcher above it.
+    pub fn provided_above<T: Clone + 'static>(&self, node: NodeId) -> Option<T> {
+        self.rt.tree.provided_above::<T>(node)
+    }
+
+    /// Whether `node`'s inline build is running: this build happens inside it. A request for a
+    /// node that is building reaches it in the run that is under way; marking it would build it
+    /// again.
+    pub fn is_building(&self, node: NodeId) -> bool {
+        self.rt.tree.nodes.get(&node).is_some_and(|n| n.building)
+    }
+
     /// Children created inside `f` are named by `key`, so they keep their nodes when siblings are
     /// inserted, removed or reordered.
     pub fn keyed<R>(&mut self, key: impl Hash, f: impl FnOnce(&mut Self) -> R) -> R {
@@ -374,10 +387,12 @@ impl BuildCx<'_> {
             Some(local) => local,
             None => slot.local.insert(slot.el.init(&mut cx)),
         };
+        cx.rt.tree.nodes.get_mut(&id).expect("the node was just reconciled").building = true;
         let out = f(local, state, &mut cx);
         let BuildCx { children, layered, keep, .. } = cx;
         finish_children(self.rt, id, old, old_layered, children, layered, keep);
         if let Some(node) = self.rt.tree.nodes.get_mut(&id) {
+            node.building = false;
             node.element = Some(boxed);
         }
         out
