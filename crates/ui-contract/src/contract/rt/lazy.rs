@@ -83,7 +83,7 @@ impl Lazy {
                     return None;
                 }
                 cx.count_scope();
-                let mut inner = Ui::new(cx, Flow::new(id, start, region, gap, flow.tokens.clone()).in_view(flow.view));
+                let mut inner = Ui::new(cx, Flow::new(id, start, region, gap, flow.tokens.clone()).in_view(flow.view).with_sweep(flow.sweep));
                 let out = add(&mut inner);
                 let Ui { cx, flow: inner } = inner;
                 let size = inner.content_size();

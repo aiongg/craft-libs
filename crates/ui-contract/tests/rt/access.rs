@@ -7,7 +7,7 @@ use std::rc::Rc;
 
 use craft_ui_contract::contract::rt::access::{Access, AccessAction, Numeric, Politeness};
 use craft_ui_contract::contract::rt::{
-    Component, ComponentKey, Container, Cx, MeasureCx, MemoView, NodeInput, Paint, Ui, show_container, show_leaf, window_root,
+    Component, ComponentKey, Container, Cx, MeasureCx, MemoView, NodeInput, Paint, Response, Ui, show_container, show_leaf, window_root,
 };
 use craft_ui_contract::contract::{ContainerProps, Gap, IdSource, MemoKey, Scroll, Sizing};
 use craft_ui_contract::primitives::PaintShape;
@@ -26,12 +26,6 @@ struct Item {
     seen: Rc<std::cell::RefCell<Vec<AccessAction>>>,
 }
 
-#[derive(Clone, Copy)]
-struct ItemOut {
-    rect: Rect,
-    clicked: bool,
-}
-
 impl ComponentKey for Item {
     fn key(&self, key: &mut MemoKey) {
         key.feed_hash(&(self.label.as_str(), self.number.map(f64::to_bits)));
@@ -40,7 +34,7 @@ impl ComponentKey for Item {
 
 impl Component for Item {
     const ROLE: accesskit::Role = accesskit::Role::Button;
-    type Output = ItemOut;
+    type Output = Response;
 
     fn id_source(&self) -> IdSource {
         IdSource::Auto
@@ -54,7 +48,7 @@ impl Component for Item {
         Sense::HOVER | Sense::CLICK
     }
 
-    fn update(&mut self, cx: &mut Cx<'_>) {
+    fn update(&mut self, cx: &mut Cx<'_, Self>) {
         self.runs.set(self.runs.get() + 1);
         for i in cx.input() {
             if let NodeInput::Access(a) = i {
@@ -63,7 +57,7 @@ impl Component for Item {
         }
     }
 
-    fn paint(&mut self, paint: &Paint<'_>, _: &Cx<'_>) {
+    fn paint(&mut self, paint: &Paint<'_>, _: &Cx<'_, Self>) {
         let bounds = paint.bounds();
         let ink = paint.tokens.color.text.faint;
         match paint.pointer() {
@@ -72,7 +66,7 @@ impl Component for Item {
         }
     }
 
-    fn access(&self, access: &mut Access, _: &Cx<'_>) {
+    fn access(&self, access: &mut Access, _: &Cx<'_, Self>) {
         self.accessed.set(self.accessed.get() + 1);
         access.label(self.label.as_str());
         if let Some(v) = self.number {
@@ -81,8 +75,8 @@ impl Component for Item {
         access.custom_action(7, "Reset");
     }
 
-    fn finish(self, cx: &Cx<'_>) -> ItemOut {
-        ItemOut { rect: cx.rect, clicked: cx.clicked() }
+    fn finish(self, cx: &Cx<'_, Self>) -> Response {
+        cx.response.clone()
     }
 }
 
@@ -119,7 +113,7 @@ impl App {
     }
 }
 
-fn item(ui: &mut Ui<'_, '_>, app: &App, label: &str, number: Option<f64>) -> ItemOut {
+fn item(ui: &mut Ui<'_, '_>, app: &App, label: &str, number: Option<f64>) -> Response {
     show_leaf(Item { label: label.into(), number, runs: app.runs.clone(), accessed: app.accessed.clone(), seen: app.seen.clone() }, ui)
 }
 
@@ -127,7 +121,7 @@ fn app_ui(ui: &mut Ui<'_, '_>, app: &mut App) {
     let other_label = app.other_label.clone();
     let o = item(ui, app, &other_label, None);
     app.other = o.rect;
-    if o.clicked {
+    if o.clicked() {
         app.clicks += 1;
         if let Some(text) = app.announce.clone() {
             ui.announce(text, Politeness::Polite);
@@ -306,9 +300,11 @@ impl ComponentKey for Pane {
 
 impl Component for Pane {
     const ROLE: accesskit::Role = accesskit::Role::List;
-    type Output = ();
+    type Output = Response;
 
-    fn finish(self, _: &Cx<'_>) {}
+    fn finish(self, cx: &Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
 }
 
 impl Container for Pane {

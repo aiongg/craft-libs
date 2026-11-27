@@ -7,11 +7,12 @@
 use std::sync::Arc;
 
 use craft_theme::Tokens;
-use craft_ui_rt::{BuildCx, NodeId, Pos2, Rect, Vec2, WindowId};
+use craft_ui_rt::{BuildCx, NodeId, Pos2, Rect, State, Vec2, WindowId};
 use egui::Id;
 
 use super::key::Ordinals;
 use super::node::Placed;
+use super::sweep::Sweep;
 use crate::contract::IdSource;
 use crate::layout::CellAlign;
 
@@ -80,6 +81,8 @@ pub(crate) struct Flow {
     planned: Vec<Vec2>,
     /// Fill children met so far.
     pub(crate) fills: usize,
+    /// The window's toggle sweep record, handed down from the window root.
+    pub(crate) sweep: Option<State<Sweep>>,
 }
 
 impl Flow {
@@ -106,6 +109,7 @@ impl Flow {
             rooms: Vec::new(),
             planned: Vec::new(),
             fills: 0,
+            sweep: None,
         }
     }
 
@@ -123,6 +127,12 @@ impl Flow {
     pub(crate) fn with_plan(mut self, shares: Vec<f32>, rooms: Vec<Vec2>) -> Flow {
         self.shares = shares;
         self.planned = rooms;
+        self
+    }
+
+    /// The window's toggle sweep record, handed down from the window root.
+    pub(crate) fn with_sweep(mut self, sweep: Option<State<Sweep>>) -> Flow {
+        self.sweep = sweep;
         self
     }
 
