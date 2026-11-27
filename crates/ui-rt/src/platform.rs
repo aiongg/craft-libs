@@ -372,6 +372,9 @@ pub struct WindowSpec {
     /// The app's name for the window (the key its placement is saved under); the runtime keeps it
     /// for the host ([`crate::Runtime::window_key`]).
     pub key: Option<String>,
+    /// The application's id, which the desktop groups its windows by and finds its launcher entry
+    /// with (the Wayland app id, the X11 class name). Platforms without the notion ignore it.
+    pub app_id: Option<String>,
     pub level: WindowLevel,
     /// Whether the window has a taskbar entry. Honoured on Windows and X11; elsewhere the system
     /// decides.

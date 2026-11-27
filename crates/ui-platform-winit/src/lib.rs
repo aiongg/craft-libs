@@ -219,6 +219,8 @@ impl Platform for WinitPlatform {
             scale: 1.0,
             surface_live: false,
             mods: Default::default(),
+            caps_lock: false,
+            num_lock: false,
             cursor: Pos2::ZERO,
             reported_state: None,
             reported_inset: None,

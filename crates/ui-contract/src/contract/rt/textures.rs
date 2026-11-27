@@ -6,6 +6,13 @@
 //! again, and nothing polls per frame. A job that makes a picture runs on the [`JobBoard`] at a
 //! priority; the board wakes the loop once when it finishes.
 //!
+//! A picture is `Ready` once it is in the image store: while it waits for the frame's upload budget
+//! the key reads as loading (with its stand-in, if any) and the reading node builds again in the next
+//! frame, so nothing shows a blank where the picture will be. When the last node that reads a loading
+//! key leaves the tree, the key's job is cancelled and the entry waits for the next request (the
+//! store's `on_unread` signal, no polling). The cache holds its board weakly, and dropping the last
+//! clone frees its cells and pictures.
+//!
 //! The cache keeps a byte and an entry budget over what it holds and removes the least recently
 //! read pictures from the image store when one is exceeded, never one read in this frame or the
 //! last (it is on screen). The per-frame upload budget is the image store's
@@ -16,10 +23,36 @@ use std::hash::Hash;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use craft_behavior::PixelSize;
-use craft_ui_rt::{BuildCx, ImageKey, ImageOptions, ImageStore, RgbaImage, SizeU, State, Store, Writes, hash_key};
+use craft_ui_rt::{BuildCx, ImageKey, ImageOptions, ImageStore, Reads, RgbaImage, SizeU, State, Store, Writes, hash_key};
 
-use super::pending::{Cancel, Delivery, JobBoard, JobHandle, Priority};
+use super::pending::{Cancel, Delivery, JobBoard, JobHandle, Priority, WeakBoard};
 use crate::primitives::textures::{CachedTexture, LoadFailure, MAX_TEXTURE, Revision, TextureBudget, TextureKey, TextureStatistics, fit_image};
+
+/// What a texture read needs of the build that makes it: a tracked cell read, the stores and the
+/// frame time. A node's `BuildCx` is one; a component hook's read (`CxCore`) is another, over the run's
+/// read log, so a leaf reads its own thumbnail without a prop.
+pub trait TextureReads: Reads + Writes {
+    /// The frame time, read without recording a read.
+    fn now(&self) -> f64;
+    /// The images renderers upload.
+    fn images(&mut self) -> &mut ImageStore;
+    /// The reading node builds again at frame time `at`.
+    fn request_build_at(&mut self, at: Option<f64>);
+}
+
+impl TextureReads for BuildCx<'_> {
+    fn now(&self) -> f64 {
+        BuildCx::now(self)
+    }
+
+    fn images(&mut self) -> &mut ImageStore {
+        BuildCx::images(self)
+    }
+
+    fn request_build_at(&mut self, at: Option<f64>) {
+        BuildCx::request_build_at(self, at);
+    }
+}
 
 /// What a key shows for a revision, from [`TextureCache::look`] and [`TextureCache::read`].
 #[derive(Clone, Debug, PartialEq)]
@@ -50,6 +83,8 @@ enum Made {
     Ready(CachedTexture),
     Empty,
     Failed(LoadFailure),
+    /// Its job was cancelled because no node reads the key any more; the next request starts a new one.
+    Cancelled,
 }
 
 struct Entry {
@@ -63,9 +98,30 @@ struct Entry {
     seen: Option<f64>,
     /// The cell the nodes that read this key subscribe to; written when a job answers.
     cell: Option<State<u64>>,
+    /// The request this entry waits for: an answer of an older one is dropped.
+    ticket: u64,
+    /// The store watches `cell` for its last reader leaving.
+    watching: bool,
 }
 
 impl Entry {
+    fn new(revision: Revision, used: u64) -> Entry {
+        Entry { revision, made: Made::Loading { job: None, asked: None }, stand_in: None, used, seen: None, cell: None, ticket: 0, watching: false }
+    }
+
+    fn loading(&self) -> bool {
+        matches!(self.made, Made::Loading { .. })
+    }
+
+    /// The pictures this entry holds in the image store.
+    fn image_keys(&self) -> impl Iterator<Item = ImageKey> {
+        let ready = match &self.made {
+            Made::Ready(texture) => Some(texture.key),
+            _ => None,
+        };
+        ready.into_iter().chain(self.stand_in.map(|t| t.key))
+    }
+
     fn bytes(&self) -> usize {
         let ready = match &self.made {
             Made::Ready(texture) => byte_size(texture.size),
@@ -88,6 +144,36 @@ struct Entries<K> {
     evicted: usize,
     /// The frame times of the last two frames that read from the cache.
     frames: [f64; 2],
+    /// The last request's number.
+    tickets: u64,
+    /// Where the cells and pictures are freed when the last clone of the cache goes.
+    board: WeakBoard,
+}
+
+impl<K> Drop for Entries<K> {
+    fn drop(&mut self) {
+        let mut cells = Vec::new();
+        let mut images = Vec::new();
+        for entry in self.map.values() {
+            entry.cancel();
+            cells.extend(entry.cell);
+            images.extend(entry.image_keys());
+        }
+        if cells.is_empty() && images.is_empty() {
+            return;
+        }
+        // With the board gone the runtime is gone, and its cells and images with it.
+        if let Some(board) = self.board.upgrade() {
+            board.post(move |d| {
+                for cell in cells {
+                    d.store.remove(cell);
+                }
+                for key in images {
+                    d.images.remove(key);
+                }
+            });
+        }
+    }
 }
 
 /// Image store and cell work a cache change leaves for the caller, which holds the stores.
@@ -113,9 +199,11 @@ impl Effects {
 
     fn cells(self, store: &mut Store) {
         for cell in self.touch {
+            store.forget_unread(cell);
             cell.update(store, |v| *v += 1);
         }
         for cell in self.dead {
+            store.forget_unread(cell);
             cell.update(store, |v| *v += 1);
             store.remove(cell);
         }
@@ -138,7 +226,7 @@ pub struct TextureCache<K: TextureKey> {
     salt: u64,
     budget: TextureBudget,
     options: ImageOptions,
-    board: JobBoard,
+    board: WeakBoard,
     entries: Arc<Mutex<Entries<K>>>,
 }
 
@@ -152,7 +240,9 @@ impl<K: TextureKey> TextureCache<K> {
     /// A cache named `salt` (two caches never share image keys) within `budget`, making pictures on
     /// `board`.
     pub fn new(salt: impl Hash, budget: TextureBudget, board: JobBoard) -> Self {
-        let entries = Entries { map: HashMap::new(), clock: 0, bytes: 0, evicted: 0, frames: [f64::NEG_INFINITY; 2] };
+        let board = board.downgrade();
+        let entries =
+            Entries { map: HashMap::new(), clock: 0, bytes: 0, evicted: 0, frames: [f64::NEG_INFINITY; 2], tickets: 0, board: board.clone() };
         TextureCache { salt: hash_key(&salt), budget, options: ImageOptions::default(), board, entries: Arc::new(Mutex::new(entries)) }
     }
 
@@ -173,8 +263,8 @@ impl<K: TextureKey> TextureCache<K> {
         ImageKey(hash_key(&(self.salt, key, revision.get())))
     }
 
-    /// The state of `key` at `revision`, marking it as just used. Records no read: a build that
-    /// shows the picture uses [`TextureCache::read`].
+    /// The state of `key` at `revision`, marking it as just used. Records no read and does not wait
+    /// for the image store: a build that shows the picture uses [`TextureCache::read`].
     pub fn look(&self, key: &K, revision: Revision) -> TextureLook {
         let mut entries = self.lock();
         entries.clock += 1;
@@ -187,10 +277,20 @@ impl<K: TextureKey> TextureCache<K> {
     /// [`TextureCache::look`] for the node building now, which runs again when a job answers for
     /// `key`: the one signal of a delivered picture. A key that was never asked for subscribes
     /// nothing; read it again after [`TextureCache::request`].
-    pub fn read(&self, cx: &mut BuildCx<'_>, key: &K, revision: Revision) -> TextureLook {
+    ///
+    /// A picture reads `Ready` once it is in the image store; until then the key reads as loading
+    /// and the node builds again in the next frame. While the key loads, the cache cancels its job
+    /// when the last node that reads it leaves the tree.
+    pub fn read(&self, cx: &mut impl TextureReads, key: &K, revision: Revision) -> TextureLook {
         let now = cx.now();
-        let (look, cell) = {
-            let mut entries = self.lock();
+        let ready = self.lock().map.get(key).and_then(|e| match &e.made {
+            Made::Ready(texture) => Some(texture.key),
+            _ => None,
+        });
+        let landed = ready.map(|image| cx.images().contains(image));
+        let (look, cell, stale, arm) = {
+            let mut guard = self.lock();
+            let entries = &mut *guard;
             if entries.frames[1] != now {
                 entries.frames = [entries.frames[1], now];
             }
@@ -203,9 +303,53 @@ impl<K: TextureKey> TextureCache<K> {
                 asked.get_or_insert(now);
             }
             let cell = *entry.cell.get_or_insert_with(|| cx.store_mut().create(0u64));
-            (look_of(entry, revision), cell)
+            let mut look = look_of(entry, revision);
+            let mut stale = None;
+            match landed {
+                Some(false) => {
+                    if matches!(look, TextureLook::Ready(_)) {
+                        look = TextureLook::Loading { stand_in: entry.stand_in };
+                    }
+                }
+                // The new picture is on screen: the stand-in's goes.
+                Some(true) => {
+                    if let Some(old) = entry.stand_in.take() {
+                        stale = Some(old);
+                    }
+                }
+                None => {}
+            }
+            let arm = (entry.loading() && !entry.watching).then(|| {
+                entry.watching = true;
+                entry.ticket
+            });
+            if let Some(old) = stale {
+                entries.bytes -= byte_size(old.size);
+            }
+            (look, cell, stale, arm)
         };
+        if let Some(old) = stale {
+            cx.images().remove(old.key);
+        }
         cell.get(cx);
+        if landed == Some(false) {
+            cx.request_build_at(Some(now));
+        }
+        if let Some(ticket) = arm {
+            let entries = Arc::downgrade(&self.entries);
+            let key = key.clone();
+            cx.store_mut().on_unread(cell, move || {
+                let Some(entries) = entries.upgrade() else { return };
+                let mut entries = entries.lock().unwrap_or_else(PoisonError::into_inner);
+                if let Some(entry) = entries.map.get_mut(&key) {
+                    entry.watching = false;
+                    if entry.ticket == ticket && entry.loading() {
+                        entry.cancel();
+                        entry.made = Made::Cancelled;
+                    }
+                }
+            });
+        }
         look
     }
 
@@ -218,9 +362,10 @@ impl<K: TextureKey> TextureCache<K> {
         }
     }
 
-    /// Whether `key` at `revision` has been asked for (loading or answered).
+    /// Whether `key` at `revision` has been asked for (loading or answered); false for a request
+    /// cancelled because nothing showed it.
     pub fn requested(&self, key: &K, revision: Revision) -> bool {
-        self.lock().map.get(key).is_some_and(|e| e.revision == revision)
+        self.lock().map.get(key).is_some_and(|e| e.revision == revision && !matches!(e.made, Made::Cancelled))
     }
 
     /// Moves the waiting job of `key` at `revision` to `priority`.
@@ -246,45 +391,42 @@ impl<K: TextureKey> TextureCache<K> {
         priority: Priority,
         make: impl FnOnce(&Cancel) -> Result<Option<RgbaImage>, LoadFailure> + Send + 'static,
     ) {
-        {
-            let mut guard = self.lock();
-            if guard.map.get(&key).is_some_and(|e| e.revision == revision) {
-                drop(guard);
-                self.prioritize(&key, revision, priority);
-                return;
-            }
-            let entries = &mut *guard;
-            let clock = entries.clock;
-            match entries.map.get_mut(&key) {
-                Some(entry) => {
-                    entry.cancel();
-                    // A settled entry holds no stand-in: its picture becomes the stand-in, and a
-                    // loading one keeps its own.
-                    if let Made::Ready(texture) = std::mem::replace(&mut entry.made, Made::Loading { job: None, asked: None }) {
-                        entry.stand_in = Some(texture);
-                    }
-                    entry.revision = revision;
-                    entry.used = clock;
-                }
-                None => {
-                    entries.map.insert(
-                        key.clone(),
-                        Entry { revision, made: Made::Loading { job: None, asked: None }, stand_in: None, used: clock, seen: None, cell: None },
-                    );
-                }
-            }
+        // With the board gone the runtime is gone: nothing can run or be shown.
+        let Some(board) = self.board.upgrade() else { return };
+        if self.requested(&key, revision) {
+            self.prioritize(&key, revision, priority);
+            return;
         }
+        let ticket = {
+            let mut guard = self.lock();
+            let entries = &mut *guard;
+            entries.tickets += 1;
+            let ticket = entries.tickets;
+            let clock = entries.clock;
+            let entry = entries.map.entry(key.clone()).or_insert_with(|| Entry::new(revision, clock));
+            entry.cancel();
+            // A settled entry holds no stand-in: its picture becomes the stand-in, and a loading
+            // one keeps its own.
+            if let Made::Ready(texture) = std::mem::replace(&mut entry.made, Made::Loading { job: None, asked: None }) {
+                entry.stand_in = Some(texture);
+            }
+            entry.revision = revision;
+            entry.used = clock;
+            entry.ticket = ticket;
+            entry.watching = false;
+            ticket
+        };
         let cache = self.clone();
         let job_key = key.clone();
-        let job = self.board.spawn_with(
+        let job = board.spawn_with(
             priority,
             move |cancel| make(cancel),
             move |result, d| {
                 let result = result.unwrap_or(Err(LoadFailure::Panicked));
-                cache.answer(d, &job_key, revision, result);
+                cache.answer(d, &job_key, ticket, result);
             },
         );
-        if let Some(entry) = self.lock().map.get_mut(&key).filter(|e| e.revision == revision)
+        if let Some(entry) = self.lock().map.get_mut(&key).filter(|e| e.ticket == ticket)
             && let Made::Loading { job: slot, .. } = &mut entry.made
             && slot.is_none()
         {
@@ -292,12 +434,13 @@ impl<K: TextureKey> TextureCache<K> {
         }
     }
 
-    /// A job's answer for `key` at `revision`, on the UI thread: the readers of the key run again.
-    /// An answer for a revision the entry no longer wants, or for an entry that left, is dropped.
-    fn answer(&self, d: &mut Delivery<'_>, key: &K, revision: Revision, result: Result<Option<RgbaImage>, LoadFailure>) {
-        if !self.requested(key, revision) {
+    /// A job's answer for `key`, on the UI thread: the readers of the key run again. An answer of
+    /// a request the entry no longer waits for (another revision, cancelled, settled by a `put`, or
+    /// an entry that left) is dropped.
+    fn answer(&self, d: &mut Delivery<'_>, key: &K, ticket: u64, result: Result<Option<RgbaImage>, LoadFailure>) {
+        let Some(revision) = self.lock().map.get(key).filter(|e| e.ticket == ticket && e.loading()).map(|e| e.revision) else {
             return;
-        }
+        };
         let mut fx = match result {
             Ok(Some(image)) => self.store(key, revision, image),
             Ok(None) => self.settle(key, revision, Made::Empty),
@@ -353,14 +496,7 @@ impl<K: TextureKey> TextureCache<K> {
         let entries = &mut *guard;
         entries.clock += 1;
         let clock = entries.clock;
-        let entry = entries.map.entry(key.clone()).or_insert(Entry {
-            revision,
-            made: Made::Loading { job: None, asked: None },
-            stand_in: None,
-            used: clock,
-            seen: None,
-            cell: None,
-        });
+        let entry = entries.map.entry(key.clone()).or_insert_with(|| Entry::new(revision, clock));
         // A job still making this key (for this revision or another) is no longer wanted.
         entry.cancel();
         entry.revision = revision;
@@ -368,7 +504,11 @@ impl<K: TextureKey> TextureCache<K> {
         if let Made::Ready(old) = &entry.made {
             fx.remove.push(old.key);
         }
-        fx.remove.extend(entry.stand_in.take().map(|t| t.key));
+        // A picture that replaces another keeps it as the stand-in until it is in the image store
+        // ([`TextureCache::read`] frees it then).
+        if !matches!(made, Made::Ready(_)) {
+            fx.remove.extend(entry.stand_in.take().map(|t| t.key));
+        }
         entry.made = made;
         entry.used = clock;
         if let Made::Ready(texture) = &entry.made {
@@ -435,9 +575,9 @@ impl<K: TextureKey> TextureCache<K> {
         self.retain(cx, |_| false);
     }
 
-    /// The board the cache makes its pictures on.
-    pub fn board(&self) -> &JobBoard {
-        &self.board
+    /// The board the cache makes its pictures on, unless its runtime is gone.
+    pub fn board(&self) -> Option<JobBoard> {
+        self.board.upgrade()
     }
 
     /// The bytes of pixels the cache holds.
@@ -473,6 +613,7 @@ fn look_of(entry: &Entry, revision: Revision) -> TextureLook {
         Made::Ready(texture) => TextureLook::Ready(*texture),
         Made::Empty => TextureLook::Empty,
         Made::Failed(failure) => TextureLook::Failed(failure.clone()),
+        Made::Cancelled => TextureLook::Missing,
     }
 }
 

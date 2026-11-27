@@ -6,7 +6,7 @@ mod loader;
 mod store;
 mod words;
 
-pub use crate::contract::rt::textures::{TextureCache, TextureLook};
+pub use crate::contract::rt::textures::{TextureCache, TextureLook, TextureReads};
 pub use limits::{MAX_TEXTURE, fit_image, reduce_image, texture_factor};
 pub use loader::{Cancel, LoadFailure, LoadResult, LoadedPicture, LoaderOptions, Priority, TextureLoader};
 pub use store::{CachedTexture, Revision, Serials, TextureBudget, TextureKey, TextureState, TextureStatistics, TextureStore, TextureStoreOptions};

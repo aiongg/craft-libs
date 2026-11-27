@@ -738,6 +738,9 @@ impl Runtime {
             place_layers(self, text);
             report.layout_ms += ms(t);
         }
+        for run in self.store.take_unread(|node| self.tree.nodes.contains_key(&node)) {
+            run();
+        }
         let windows: Vec<WindowId> = self.windows.keys().copied().collect();
         for &w in &windows {
             self.repair_focus(w);
@@ -908,6 +911,7 @@ impl Runtime {
                 p.children.retain(|&c| c != id);
             }
             self.forget_node(node.window, id);
+            self.store.note_gone();
             self.build_wakes.retain(|&(n, _)| n != id);
             for (media, _) in &node.media {
                 if let Some(users) = self.media.get_mut(media) {
