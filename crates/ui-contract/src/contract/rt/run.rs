@@ -612,7 +612,7 @@ pub(crate) fn run_shaped<C: Component>(
     // wheel ease paying out, a popup's dwell), the drag it started and the press it cancelled.
     kept.menu_bar = cxx.core.run.menu_bar.get();
     kept.notch = component.wheel_notch();
-    super::ime::after_run(kept, &cxx.core.run, rect.min, cx);
+    super::ime::after_run(&mut kept.ime, &cxx.core.run, rect.min, cx);
     let wake = cxx.core.run.wake.get().then(|| cx.now());
     if let Some(at) = [wake, cxx.core.run.build_at.get()].into_iter().flatten().reduce(f64::min) {
         cx.request_build_at(Some(at));

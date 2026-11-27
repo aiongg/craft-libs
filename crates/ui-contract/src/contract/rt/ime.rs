@@ -205,21 +205,21 @@ pub(crate) fn pressed(kept: &mut Kept, cx: &mut EventCx<'_>) {
 /// After a run: the editor's report is kept, and a refused input method edit, or a composition the
 /// editor ended itself, ends the platform's composition. `origin` is the node's top left in window
 /// coordinates.
-pub(crate) fn after_run(kept: &mut Kept, run: &RunIo<'_>, origin: Pos2, cx: &mut BuildCx<'_>) {
-    kept.ime.caret = run.ime_cursor.get().map(|caret| caret.translate(Pos2::ZERO - origin));
+pub(crate) fn after_run(ime: &mut ImeKept, run: &RunIo<'_>, origin: Pos2, cx: &mut BuildCx<'_>) {
+    ime.caret = run.ime_cursor.get().map(|caret| caret.translate(Pos2::ZERO - origin));
     let mut interrupt = run.ime_refused.get();
     if let Some(facts) = run.editor_facts.borrow_mut().take() {
-        interrupt |= kept.ime.note(facts, run.ime_app_change.get());
+        interrupt |= ime.note(facts, run.ime_app_change.get());
     }
     if let Some(body) = run.ime_body.borrow_mut().take() {
-        kept.ime.body = Some(body);
+        ime.body = Some(body);
     }
-    let body = kept.ime.body.as_ref().and_then(|b| b.lock().ok().and_then(|mut b| b.facts.take().map(|f| (f, std::mem::take(&mut b.app_change)))));
+    let body = ime.body.as_ref().and_then(|b| b.lock().ok().and_then(|mut b| b.facts.take().map(|f| (f, std::mem::take(&mut b.app_change)))));
     if let Some((facts, app_change)) = body {
-        interrupt |= kept.ime.note(facts, app_change);
+        interrupt |= ime.note(facts, app_change);
     }
     if interrupt {
-        kept.ime.preedit = None;
+        ime.preedit = None;
         let node = cx.node();
         cx.interrupt_ime(node);
     }
