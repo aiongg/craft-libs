@@ -124,6 +124,15 @@ impl BodyLayout {
     }
 }
 
+/// What makes a child of a content-sized `Stack` column a held child: it measures at its own width in the column's
+/// first measuring sweep, while the column settles its width from the others, and shows at the column's width.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum HeldKind {
+    /// A picture whose height follows from its width that took its least for want of room
+    /// (`MeasureCx::picture_size`).
+    Picture,
+}
+
 /// The widths of a unit of a row that shrinks to fit: the width it asks for and the least it narrows to.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]

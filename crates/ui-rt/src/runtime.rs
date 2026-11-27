@@ -92,6 +92,27 @@ pub(crate) struct WindowOpen {
     pub(crate) requester: NodeId,
 }
 
+/// Where a window a node hosts stands ([`crate::BuildCx::hosted_window`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HostedWindow {
+    /// Asked for; the driver opens it after this step and the node builds again.
+    Opening,
+    /// Open: the node builds its content with [`crate::BuildCx::window_content`].
+    Open(WindowId),
+    /// The platform closed it (the user closed the window) while the node still asks for it; it opens again only
+    /// after a build of the node leaves it out.
+    Closed,
+}
+
+/// A window whose content a node builds inside its own build: `key` names it among that node's hosted windows.
+/// `asked` is set by each build of the node that asks for it; a build that does not ask closes it.
+pub(crate) struct Hosted {
+    pub(crate) requester: NodeId,
+    pub(crate) key: u64,
+    pub(crate) state: HostedWindow,
+    pub(crate) asked: bool,
+}
+
 /// The retained runtime of every window of one app.
 pub struct Runtime {
     pub(crate) tree: Tree,
@@ -124,6 +145,8 @@ pub struct Runtime {
     pub(crate) media: HashMap<Media, SmallVec<[NodeId; 2]>>,
     pub(crate) window_commands: Vec<(WindowId, WindowCommand)>,
     pub(crate) window_opens: Vec<WindowOpen>,
+    /// The windows nodes host (`BuildCx::hosted_window`); few, so a list.
+    pub(crate) hosted: Vec<Hosted>,
     /// Open windows, bottom of the stack first: the last focused is on top, with the windows it
     /// owns above it.
     pub(crate) z_order: Vec<WindowId>,
@@ -181,6 +204,7 @@ impl Runtime {
             media: HashMap::new(),
             window_commands: Vec::new(),
             window_opens: Vec::new(),
+            hosted: Vec::new(),
             z_order: Vec::new(),
             drag: None,
             cursor_requests: Vec::new(),
@@ -241,6 +265,59 @@ impl Runtime {
 
     pub(crate) fn queue_inline_window(&mut self, requester: NodeId, spec: WindowSpec) {
         self.window_opens.push(WindowOpen { spec, root: Box::new(|rt: &mut Runtime, window| rt.set_inline_root(window)), requester });
+    }
+
+    /// Queues the hosted window `key` of `requester`: once the driver opens it, it has an inline root that only the
+    /// requester's build fills, and the requester builds again.
+    pub(crate) fn queue_hosted_window(&mut self, requester: NodeId, key: u64, spec: WindowSpec) {
+        let root: SetRoot = Box::new(move |rt: &mut Runtime, window| {
+            rt.set_inline_root(window);
+            match rt.hosted.iter_mut().find(|h| h.requester == requester && h.key == key) {
+                Some(hosted) => {
+                    hosted.state = HostedWindow::Open(window);
+                    rt.tree.mark_build(requester);
+                }
+                // The requester stopped asking before the window opened.
+                None => rt.window_command(window, WindowCommand::Close),
+            }
+        });
+        self.window_opens.push(WindowOpen { spec, root, requester });
+    }
+
+    /// The requester of the hosted window `window`, when a node hosts it.
+    pub(crate) fn host_of(&self, window: WindowId) -> Option<NodeId> {
+        self.hosted.iter().find(|h| h.state == HostedWindow::Open(window)).map(|h| h.requester)
+    }
+
+    /// After a build of `node`: each hosted window of `node` that build did not ask for closes, unless the build kept
+    /// its children (`keep`).
+    pub(crate) fn settle_hosted(&mut self, node: NodeId, keep: bool) {
+        let mut closing = Vec::new();
+        self.hosted.retain_mut(|hosted| {
+            if hosted.requester != node {
+                return true;
+            }
+            if std::mem::take(&mut hosted.asked) || keep {
+                return true;
+            }
+            if let HostedWindow::Open(window) = hosted.state {
+                closing.push(window);
+            }
+            false
+        });
+        for window in closing {
+            self.window_command(window, WindowCommand::Close);
+        }
+    }
+
+    /// `node` left the tree: every window it hosts closes.
+    fn end_hosted(&mut self, node: NodeId) {
+        for hosted in &mut self.hosted {
+            if hosted.requester == node {
+                hosted.asked = false;
+            }
+        }
+        self.settle_hosted(node, false);
     }
 
     pub(crate) fn take_window_opens(&mut self) -> Vec<WindowOpen> {
@@ -315,6 +392,11 @@ impl Runtime {
         }
         self.remove_subtree(root);
         self.windows.remove(&window);
+        if let Some(hosted) = self.hosted.iter_mut().find(|h| h.state == HostedWindow::Open(window)) {
+            hosted.state = HostedWindow::Closed;
+            let requester = hosted.requester;
+            self.tree.mark_build(requester);
+        }
         self.z_order.retain(|&w| w != window);
         self.wakes.retain(|&(n, _)| self.tree.nodes.contains_key(&n));
         self.layout_wakes.retain(|&(n, _)| self.tree.nodes.contains_key(&n));
@@ -891,6 +973,11 @@ impl Runtime {
             let Some(n) = self.tree.nodes.get(&id) else { continue };
             if n.inline {
                 if n.owner.is_none() && (n.dirty.has(Dirty::BUILD) || n.dirty.has(Dirty::PATH)) {
+                    // A hosted window's root is filled by its requester's build, never by `roots`.
+                    if let Some(requester) = self.host_of(n.window) {
+                        self.tree.mark_build(requester);
+                        continue;
+                    }
                     match roots {
                         Some(roots) => build_inline_root(self, id, &mut **roots, &mut *text),
                         None => held.push(id),
@@ -961,6 +1048,9 @@ impl Runtime {
                 p.children.retain(|&c| c != id);
             }
             self.forget_node(node.window, id);
+            if !self.hosted.is_empty() {
+                self.end_hosted(id);
+            }
             self.store.note_gone();
             self.build_wakes.retain(|&(n, _)| n != id);
             for (media, _) in &node.media {

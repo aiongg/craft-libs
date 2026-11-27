@@ -71,7 +71,7 @@ pub use platform::{
     PointerEvent, PointerPhase, SurfaceHandle, SurfaceHost, SystemTheme, Waker, WindowCommand, WindowEvent, WindowHandles, WindowLevel, WindowSpec,
 };
 pub use render::{ReadBack, ReadBackId, RenderStats, Renderer};
-pub use runtime::{FrameReport, Runtime};
+pub use runtime::{FrameReport, HostedWindow, Runtime};
 pub use state::{Access, DeriveCx, Derived, Phase, Reads, State, Store, Writes};
 pub use text::{
     FaceInstall, FaceSource, FaceTweak, FallbackAsk, FontBytes, FontFace, FontSpec, FontStack, GlyphPlace, Overflow, RichText, StackFace, TextEngine,

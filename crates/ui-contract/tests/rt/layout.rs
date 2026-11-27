@@ -14,6 +14,7 @@ use craft_ui::contract::{
     MemoView, Mount, Overlay, Response, RowAlign, Scroll, Show as _, ShowContainer as _, Sizing, Ui,
 };
 use craft_ui::layout::{BodyLayout, ColumnGroup};
+use craft_ui::runtime::edit::OuterEdit;
 use craft_ui::runtime::windows::{WindowEnv, window_root_with};
 use craft_ui::style::StyleCx;
 use craft_ui_platform_headless::Input;
@@ -680,4 +681,211 @@ fn a_layer_mount_shows_its_body_on_its_layer_and_takes_no_room_in_its_flow() {
     let (with, without) = (run(true), run(false));
     assert!(with.inside.width() > 0.0, "the dialog's body ran on its layer: {:?}", with.inside);
     assert_eq!(with.after, without.after, "After stands where it stands with no dialog: the layer mount took no room");
+}
+
+/// A chip and, while `open`, a container mounted in a window of its own (`Mount::viewport`) whose body counts its runs.
+struct Viewported {
+    open: bool,
+    inside: Option<Rect>,
+    body_runs: u32,
+    /// The windows the host's `roots` closure was asked to build.
+    roots: Vec<craft_ui_rt::WindowId>,
+    measures: Rc<Cell<u32>>,
+}
+
+fn viewport_ui(ui: &mut Ui, viewported: &mut Viewported) {
+    let measures = viewported.measures.clone();
+    chip(ui, "Before", ROW, &measures);
+    if viewported.open {
+        let props = props(|p| p.mount(Mount::viewport(Overlay::dialog())));
+        let (inside, runs) = (&mut viewported.inside, &mut viewported.body_runs);
+        let _ = Boxed::new(props, &measures).show(ui, |ui, _| {
+            *runs += 1;
+            *inside = Some(chip(ui, "Inside", ROW, &measures).rect);
+        });
+    }
+}
+
+#[test]
+fn a_viewport_mount_opens_a_window_built_in_the_showing_build_and_closes_it_with_the_container() {
+    let mut viewported = Viewported { open: true, inside: None, body_runs: 0, roots: Vec::new(), measures: Rc::default() };
+    let mut rig = rig();
+    let main = rig.main;
+    let mut step = |rig: &mut Rig<RecordingRenderer>, viewported: &mut Viewported| {
+        rig.step_with(&mut |window, cx| {
+            viewported.roots.push(window);
+            if window == main {
+                root(cx, |ui| viewport_ui(ui, viewported));
+            }
+        })
+    };
+    settle(&mut rig, &mut |rig| step(rig, &mut viewported));
+    let windows: Vec<_> = rig.driver.runtime.windows().collect();
+    assert_eq!(windows.len(), 2, "the viewport opened one window");
+    assert!(viewported.roots.iter().all(|window| *window == main), "the host never builds the hosted window: {:?}", viewported.roots);
+    assert!(viewported.inside.is_some_and(|rect| rect.width() > 0.0), "the body ran in the window, inside the showing build");
+    let runs = viewported.body_runs;
+    let idle = step(&mut rig, &mut viewported);
+    assert!(!idle.ran && viewported.body_runs == runs, "an open viewport settles: {idle:?}");
+
+    // A click on the body's chip in the hosted window reaches it through the showing node's build.
+    let hosted = windows.into_iter().find(|window| *window != main).expect("the hosted window");
+    let at = viewported.inside.expect("shown").center();
+    rig.inject(hosted, Input::mouse_move(at));
+    step(&mut rig, &mut viewported);
+    rig.inject(hosted, Input::mouse_down(at));
+    step(&mut rig, &mut viewported);
+    assert!(viewported.roots.iter().all(|window| *window == main), "input in the hosted window builds the showing node, not a root of its own");
+
+    // The container closes: the next build leaves the window out and it closes.
+    viewported.open = false;
+    rig.driver.runtime.mark_root(main);
+    settle(&mut rig, &mut |rig| step(rig, &mut viewported));
+    assert_eq!(rig.driver.runtime.windows().count(), 1, "the hosted window closed with its container");
+}
+
+/// A shell that notes a step of its outer gesture in the build where its open state changes, as the dialog shells do.
+struct OuterShell {
+    open: bool,
+    noted: bool,
+    gesture: Option<craft_behavior::GestureId>,
+    ctx: Option<craft_ui::contract::Context>,
+}
+
+fn outer_ui(ui: &mut Ui, shell: &mut OuterShell) {
+    shell.ctx = Some(ui.ctx().clone());
+    if shell.open != shell.noted {
+        shell.noted = shell.open;
+        let edit = match shell.gesture.take() {
+            None => {
+                let id = ui.next_gesture_id();
+                shell.gesture = Some(id);
+                OuterEdit::Begin { id, label: "Image Size".into(), doc_key: None }
+            }
+            Some(id) => OuterEdit::Commit { id },
+        };
+        ui.ctx().note_outer_edit(edit);
+    }
+    chip(ui, "Field", ROW, &Rc::default());
+}
+
+#[test]
+fn an_outer_edit_reaches_the_host_once_per_step() {
+    let mut shell = OuterShell { open: false, noted: false, gesture: None, ctx: None };
+    let mut rig = rig();
+    let main = rig.main;
+    let mut step = |rig: &mut Rig<RecordingRenderer>, shell: &mut OuterShell| {
+        rig.driver.runtime.mark_root(main);
+        let report = rig.step_with(&mut |_, cx| root(cx, |ui| outer_ui(ui, shell)));
+        let taken = shell.ctx.as_ref().expect("built").take_outer_edits();
+        (report, taken)
+    };
+    let (_, taken) = step(&mut rig, &mut shell);
+    assert!(taken.is_empty());
+
+    shell.open = true;
+    let (_, taken) = step(&mut rig, &mut shell);
+    assert!(matches!(taken[..], [OuterEdit::Begin { .. }]), "the open notes one Begin: {taken:?}");
+    // A build that keeps the open state notes nothing; what the host took is gone.
+    let (_, taken) = step(&mut rig, &mut shell);
+    assert!(taken.is_empty(), "{taken:?}");
+
+    shell.open = false;
+    let (_, taken) = step(&mut rig, &mut shell);
+    assert!(matches!(taken[..], [OuterEdit::Commit { .. }]), "the close notes one Commit: {taken:?}");
+}
+
+/// A leaf `w` wide and `w / 4` high.
+#[derive(craft_ui::contract::Component)]
+#[component(unregistered)]
+struct Wide {
+    #[common]
+    common: Common,
+    w: u32,
+}
+
+impl Component for Wide {
+    const ROLE: craft_ui::contract::Role = craft_ui::contract::Role::GROUP;
+    type Style = PlainStyle;
+    type Output = Response;
+
+    fn style(_: &StyleCx<'_>, _: WideStyleKey) -> PlainStyle {
+        PlainStyle::min(Vec2::ZERO)
+    }
+
+    fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
+        Vec2::new(self.w as f32, self.w as f32 / 4.0)
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
+}
+
+/// A square picture: as wide as the room it is offered, from 20 to 400 points, and as high as it is wide.
+#[derive(craft_ui::contract::Component)]
+#[component(unregistered)]
+struct Square {
+    #[common]
+    common: Common,
+}
+
+impl Component for Square {
+    const ROLE: craft_ui::contract::Role = craft_ui::contract::Role::GROUP;
+    type Style = PlainStyle;
+    type Output = Response;
+
+    fn style(_: &StyleCx<'_>, _: SquareStyleKey) -> PlainStyle {
+        PlainStyle::min(Vec2::ZERO)
+    }
+
+    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
+        cx.picture_size(20.0, 400.0, |width| width)
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
+}
+
+/// A row whose unit is a content-sized column holding a `Wide` leaf and a `Square` under it.
+struct Held {
+    wide: u32,
+    column: Rect,
+    square: Rect,
+}
+
+fn held_ui(ui: &mut Ui, held: &mut Held) {
+    let measures = Rc::new(Cell::new(0));
+    let (wide, column, square) = (held.wide, &mut held.column, &mut held.square);
+    let _ = Boxed::new(props(|p| p.layout(BodyLayout::row())), &measures).show(ui, |ui, _| {
+        *column = Boxed::new(props(|p| p), &measures)
+            .show(ui, |ui, _| {
+                Wide { common: Common::new(), w: wide }.show(ui);
+                *square = Square { common: Common::new() }.show(ui).rect;
+            })
+            .output
+            .rect;
+    });
+}
+
+#[test]
+fn a_held_picture_shows_at_its_columns_width_and_never_holds_it_across_a_shrink() {
+    let mut held = Held { wide: 120, column: Rect::NOTHING, square: Rect::NOTHING };
+    let mut rig = rig();
+    let main = rig.main;
+    let mut step = |rig: &mut Rig<RecordingRenderer>, held: &mut Held| rig.step_with(&mut |_, cx| root(cx, |ui| held_ui(ui, held)));
+    settle(&mut rig, &mut |rig| step(rig, &mut held));
+    // The column takes its width from the wide leaf; the picture, which needs no width of its own, shows across it
+    // and the column is as tall as the picture shows.
+    assert_eq!(held.column.width(), 120.0, "the picture does not set the column's width: {:?}", held.column);
+    assert_eq!(held.square.width(), 120.0, "the picture shows at the column's width: {:?}", held.square);
+    assert!(held.column.height() >= 30.0 + 120.0 - 0.5, "the column measured the picture as tall as it shows: {:?}", held.column);
+
+    // The wide leaf narrows: the column follows it, and the picture's earlier width holds nothing.
+    held.wide = 80;
+    rig.driver.runtime.mark_root(main);
+    settle(&mut rig, &mut |rig| step(rig, &mut held));
+    assert_eq!(held.column.width(), 80.0, "{:?}", held.column);
+    assert_eq!(held.square.width(), 80.0, "{:?}", held.square);
 }

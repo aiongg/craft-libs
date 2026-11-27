@@ -1,5 +1,6 @@
 //! Edit gestures across the runtime: the table of running gestures, which `Ui::cancel_edits` reaches and which notes
-//! a gesture whose node left the tree, and the removal watch that keeps a gesture in it.
+//! a gesture whose node left the tree, the removal watch that keeps a gesture in it, and the steps of outer gestures
+//! the edit host takes after each step.
 
 use crate::contract::Context;
 use crate::primitives::Id;
@@ -13,11 +14,13 @@ pub(crate) fn gesture_key(id: Id) -> Id {
 }
 
 /// The running gestures of the runtime, each with the node that runs it once that node's build has named it, and the
-/// gestures that ended because their node left the tree since the host last took them.
+/// gestures that ended because their node left the tree since the host last took them, and the outer-gesture steps
+/// since the host last took them, in order.
 #[derive(Default)]
 struct Table {
     running: Vec<(GestureId, Option<NodeId>)>,
     removed: Vec<GestureId>,
+    outer: Vec<OuterEdit>,
 }
 
 /// The runtime's table of running gestures, held by the runtime memory store and by each armed [`RemovalWatch`]
@@ -134,7 +137,48 @@ pub(crate) fn cancel_edits(cx: &mut BuildCx<'_>, ctx: &Context, reason: CancelRe
     }
 }
 
+/// A step of the outer gesture of a container whose `ContainerProps::outer_edit` is on: one undo step over the edits of
+/// its body's fields, from open to close. It carries no value; the fields' own events carry theirs, and a
+/// `GestureHost` folds every gesture it handles while the outer one is open into it.
+#[derive(Clone, Debug, PartialEq)]
+pub enum OuterEdit {
+    /// The container opened: the step begins, named by the container's label and document key.
+    Begin {
+        /// The outer gesture.
+        id: GestureId,
+        /// The resolved label of the container ("Image Size" for "Undo Image Size").
+        label: Arc<str>,
+        /// The container's document key.
+        doc_key: Option<craft_behavior::DocKey>,
+    },
+    /// The container closed as an OK: the edits since `Begin` stay, as one undo step.
+    Commit {
+        /// The outer gesture.
+        id: GestureId,
+    },
+    /// The container closed any other way (Cancel, Escape, the close action, the app closing it): the edits since
+    /// `Begin` are taken back.
+    Cancel {
+        /// The outer gesture.
+        id: GestureId,
+    },
+}
+
 impl Context {
+    /// Queues a step of an outer gesture for the edit host. The container's shell notes each step once, where its open
+    /// state changes (a build that keeps the open state notes nothing); a measuring run notes nothing.
+    pub fn note_outer_edit(&self, edit: OuterEdit) {
+        let live = self.memory().with(|memory| memory.gestures.clone());
+        live.with(|table| table.outer.push(edit));
+    }
+
+    /// The outer-gesture steps noted since the last call, in order. An edit host (`GestureHost`) takes them after each
+    /// step, before [`Context::take_removed_gestures`].
+    pub fn take_outer_edits(&self) -> Vec<OuterEdit> {
+        let live = self.memory().with(|memory| memory.gestures.clone());
+        live.with(|table| std::mem::take(&mut table.outer))
+    }
+
     /// The gestures that ended because the component running them left the tree since the last call: each ended with
     /// `CancelReason::Removed`. An edit host (`GestureHost`) takes them after each step and drops their open steps.
     pub fn take_removed_gestures(&self) -> Vec<GestureId> {

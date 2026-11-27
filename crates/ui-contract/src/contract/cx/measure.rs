@@ -119,10 +119,15 @@ impl<C: Component> MeasureCx<'_, C> {
     }
 
     /// The size of a picture whose height follows from its width (a square graph, a wheel, an image at its aspect):
-    /// [`picture_width`](Self::picture_width)'s width, and `height` of it. Where a content column's measuring run
-    /// offers it no room, the width it reports is its placed width, which the place step gives (`run::place_root`).
+    /// [`picture_width`](Self::picture_width)'s width, and `height` of it. Where a content column's first measuring
+    /// sweep offers it no room, it is a held child of the column (`layout::HeldKind::Picture`): when the column settles
+    /// wider than the picture, the column sweeps again offering that width, so the picture measures as tall as it
+    /// shows.
     pub fn picture_size(&self, least: f32, most: f32, height: impl FnOnce(f32) -> f32) -> Vec2 {
         let width = self.picture_width(least, most);
+        if self.room.is_none() && self.proposal != Proposal::Min {
+            self.with_ui(|ui| crate::layout::report_held(ui.ctx(), crate::layout::HeldKind::Picture, width));
+        }
         Vec2::new(width, height(width))
     }
 

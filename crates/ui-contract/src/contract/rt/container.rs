@@ -40,7 +40,7 @@ use crate::contract::{
     QuietHeader, Response, Scroll, SectionRhythm, Sizing, TipFn, ValueOf, steps,
 };
 use crate::layout::{BodyLayout, ColumnGroup, GridFit, RowAlign};
-use crate::runtime::env::{Env, EnvScope, InBar, PaneEdge};
+use crate::runtime::env::{Env, EnvScope, InBar, PaneEdge, ThemeScope};
 use crate::runtime::memory::{MemoryStage, sub};
 use crate::runtime::motion::{Driver, spec};
 
@@ -168,6 +168,10 @@ struct Shape {
     heads: bool,
     /// The labelled rows of the body share the widest label as one column (`ContainerProps::label_column`).
     label_column: bool,
+    /// The body is a content column: a content-sized `Stack` whose width comes from its content, not from the flow it
+    /// stands in (a row's or a grid's unit, or a column inside another content column). A content-sized container in
+    /// a `Stack` given its width passes that width on and is none.
+    content_column: bool,
     /// The edge of an edge pane that faces the window's centre, where `ContainerProps::edge_rule` draws its divider.
     edge_rule: Option<PaneEdge>,
     /// The colour of the band behind the header (`HeaderRegion::fill`).
@@ -205,6 +209,9 @@ impl Shape {
             share: 1.0,
             heads: props.header.is_some_and(|h| h.heads && !h.rule) && env.get::<QuietHeader>() == QuietHeader::Heads,
             label_column: props.label_column,
+            content_column: matches!(props.layout, BodyLayout::Stack)
+                && matches!(props.sizing, Sizing::Content | Sizing::FillHeight)
+                && (!parent.is_stack() || env.content_column),
             edge_rule: match props.mount {
                 Mount::Pane(pane) if props.edge_rule => match pane.edge {
                     PaneEdge::Start => Some(PaneEdge::End),
@@ -573,14 +580,16 @@ impl<'f> Frame<'f> {
         self.run(ui, env, rect, Hook::Header, f)
     }
 
-    /// Runs the body at `rect` under the body's env: disabled while the gate is off.
-    fn with_body<T>(&mut self, ui: &mut Ui<'_, '_>, rect: Rect, f: impl FnOnce(&mut Ui<'_, '_>, &mut BodyCx<'_>) -> T) -> T {
+    /// Runs the body at `rect` under the body's env: disabled while the gate is off. `column`: the first measuring sweep
+    /// of a content-sized column, which offers the children no room.
+    fn with_body<T>(&mut self, ui: &mut Ui<'_, '_>, rect: Rect, column: bool, f: impl FnOnce(&mut Ui<'_, '_>, &mut BodyCx<'_>) -> T) -> T {
         let mut env = self.body_env.clone().unwrap_or_else(|| self.env.clone());
         let (gated, after_rule) = (self.gate == Some(false), self.after_rule);
-        if gated || after_rule {
+        if gated || after_rule || column {
             env = env.derive(|scoped| {
                 scoped.enabled &= !gated;
                 scoped.after_rule = after_rule;
+                scoped.content_column |= column;
             });
         }
         self.run(ui, env, rect, Hook::Body, f)
@@ -661,11 +670,11 @@ fn regions_env(props: &ContainerProps, place: &Env, enabled: bool, takes_width: 
 /// run, under its kept node, and reports its size. `place` is the env the container's children are
 /// placed under.
 ///
-/// A container mounted on a layer (`Mount::Layer`, `FullWindow`, and `Viewport` on its fallback layer)
-/// is shown as the content of a layer child of the node that shows it, unless it is that content already (the layer provides its `LayerHost` and the
-/// container is shown in the layer body's flow): then it fills the layer's region and its close goes
-/// to the layer. A container with a theme (`ContainerProps::theme`) is shown inside a scope that
-/// gives it and everything under it that theme.
+/// A container mounted on a layer (`Mount::Layer`, `FullWindow`) is shown as the content of a layer child of the node
+/// that shows it, unless it is that content already (the layer provides its `LayerHost` and the container is shown in
+/// the layer body's flow): then it fills the layer's region and its close goes to the layer. A `Viewport` mount is the
+/// content of a window the showing node hosts (`show_in_window`). A container with a theme (`ContainerProps::theme`)
+/// is shown inside a scope that gives it and everything under it that theme.
 pub(crate) fn show_container<C: Container, R>(
     slot: &mut Option<C>,
     ui: &mut Ui<'_, '_>,
@@ -674,18 +683,26 @@ pub(crate) fn show_container<C: Container, R>(
     tip: Option<TipFn<'_>>,
 ) -> Inner<C::Output, R> {
     let props = slot.as_ref().expect("a container is shown once").props(Internal::new());
-    // A full-window mount is a layer over the whole window with the props' focus scope; a viewport mount shows on its
-    // fallback layer.
+    // A full-window mount is a layer over the whole window with the props' focus scope.
     let layer = match &props.mount {
         Mount::Layer(overlay) => Some(overlay.clone()),
         Mount::FullWindow => Some(Overlay::full_window(props.focus)),
-        Mount::Viewport { fallback, .. } => Some(fallback.clone()),
         _ => None,
     };
     let (layer_like, theme) = (matches!(props.mount, Mount::FullWindow | Mount::Viewport { .. }), props.theme.clone());
     let hosted = hosted_by(ui);
     if layer_like && let Some(output) = unshown(slot, ui) {
         return Inner { output, inner: None, settle: None };
+    }
+    if let Mount::Viewport { fallback, spec } = &props.mount
+        && hosted.is_none()
+    {
+        if ui.flow.measuring.is_none() {
+            return show_in_window(slot, ui, fallback, spec.as_ref(), body);
+        }
+        // Like a layer mount, it takes no room in the flow that shows it.
+        let rect = Rect::from_min_size(ui.flow.next_min(), ui.flow.room());
+        return show_plain(slot, ui, (ShowAt::Rect(rect), place), body, tip, None);
     }
     if let Some(overlay) = layer
         && hosted.is_none()
@@ -697,6 +714,19 @@ pub(crate) fn show_container<C: Container, R>(
         let rect = Rect::from_min_size(ui.flow.next_min(), ui.flow.room());
         return show_plain(slot, ui, (ShowAt::Rect(rect), place), body, tip, None);
     }
+    show_themed(slot, ui, (at, place), body, tip, hosted, theme)
+}
+
+/// `show_plain` inside a scope that gives the container and everything under it `theme`, when it has one.
+fn show_themed<C: Container, R>(
+    slot: &mut Option<C>,
+    ui: &mut Ui<'_, '_>,
+    (at, place): (ShowAt, Env),
+    body: &mut dyn FnMut(&mut Ui<'_, '_>, &mut BodyCx<'_>) -> R,
+    tip: Option<TipFn<'_>>,
+    hosted: Option<LayerHost>,
+    theme: Option<ThemeScope>,
+) -> Inner<C::Output, R> {
     let Some(theme) = theme else { return show_plain(slot, ui, (at, place), body, tip, hosted) };
     // The scope always runs its content: the container's body runs whenever its scope's build reaches it.
     let scope = EnvScope::new().theme(theme);
@@ -753,6 +783,82 @@ fn show_on_layer<C: Container, R>(
     let mut content = LayerContent { slot, body, escape: super::dialog::scope_escape(overlay), shown: None };
     show_layer_with(cx, id, id.value(), show, true, &mut content);
     content.shown.expect("a layer mount runs its content in every build that shows it")
+}
+
+/// Shows a `Viewport`-mounted container as the whole content of a window the node `ui` builds hosts
+/// (`BuildCx::hosted_window`), built inside that node's build, so the borrowed body runs there. The window opens with
+/// the container's first open build (a dialog window for a modal `fallback`, a tool window otherwise, unless `spec`
+/// says how), at the container's ideal size, owned by the showing window; it closes when a build stops showing the
+/// container (closed, or no longer shown). A window the user closes closes the container (`Container::closed`,
+/// `Requested`). The container keeps the id it has in the showing flow and shares the showing window's env cells,
+/// job board and command board.
+fn show_in_window<C: Container, R>(
+    slot: &mut Option<C>,
+    ui: &mut Ui<'_, '_>,
+    fallback: &Overlay,
+    spec: Option<&crate::runtime::windows::WindowSpec>,
+    body: &mut dyn FnMut(&mut Ui<'_, '_>, &mut BodyCx<'_>) -> R,
+) -> Inner<C::Output, R> {
+    if let Some(output) = unshown(slot, ui) {
+        return Inner { output, inner: None, settle: None };
+    }
+    let component = slot.as_mut().expect("a container is shown once");
+    let source = component.common_mut(Internal::new()).id.clone();
+    let (id, _) = ui.flow.child(type_key::<C>(), source);
+    let key = ("craft-viewport", id.value());
+    // The spec is made once, when the window is first asked for: the ideal size needs a measuring run.
+    let spec = match ui.cx.hosted_state(key) {
+        Some(_) => None,
+        None => {
+            let size = measure_container(component, ui, craft_behavior::Proposal::Ideal, &mut *body);
+            let title = component.common(Internal::new()).label.as_str().to_owned();
+            let base = spec.cloned().unwrap_or_else(|| {
+                use crate::runtime::windows::WindowSpec;
+                if fallback.rank.is_modal() { WindowSpec::dialog() } else { WindowSpec::tool() }
+            });
+            let frame_of = |_: craft_host::target::WindowKind| None;
+            let mut rt = super::windows::rt_spec(&base, &title, None, &frame_of);
+            rt.size = Some(size);
+            rt.owner = Some(ui.cx.window());
+            Some(rt)
+        }
+    };
+    let window = match ui.cx.hosted_window(key, || spec.expect("made when first asked")) {
+        craft_ui_rt::HostedWindow::Open(window) => window,
+        craft_ui_rt::HostedWindow::Opening => {
+            let output = C::Output::unshown(Response::inert(id, Rect::NOTHING));
+            if let Some(output) = output {
+                return Inner { output, inner: None, settle: None };
+            }
+            // A container with no unshown form shows once more in the showing flow until its window opens.
+            return show_plain(slot, ui, (ShowAt::Rect(Rect::from_min_size(ui.flow.next_min(), Vec2::ZERO)), Env::of(ui)), body, None, None);
+        }
+        craft_ui_rt::HostedWindow::Closed => {
+            component.closed(crate::runtime::overlay::CloseReason::Requested);
+            let output = C::Output::unshown(Response::inert(id, Rect::NOTHING));
+            if let Some(output) = output {
+                return Inner { output, inner: None, settle: None };
+            }
+            return show_plain(slot, ui, (ShowAt::Rect(Rect::from_min_size(ui.flow.next_min(), Vec2::ZERO)), Env::of(ui)), body, None, None);
+        }
+    };
+    let env = super::scope::WindowEnv {
+        cells: super::EnvCells::of(ui.cx),
+        jobs: ui.cx.provided::<super::pending::JobBoard>(),
+        commands: ui.cx.provided::<super::commands::CommandBoard>(),
+    };
+    let escape = super::dialog::scope_escape(fallback);
+    let host = LayerHost { id, closed: BodyClose::default() };
+    let theme = component.props(Internal::new()).theme.clone();
+    let shown = ui.cx.window_content(window, |cx| {
+        super::scope::window_root_with(cx, env, |ui| {
+            ui.cx.provide(escape);
+            let rect = ui.flow.region;
+            let place = Env::of(ui);
+            show_themed(slot, ui, (ShowAt::Rect(rect), place), body, None, Some(host), theme)
+        })
+    });
+    shown.expect("an open hosted window builds in its requester's build")
 }
 
 /// A container shown as the content of its own layer child (`show_on_layer`).
@@ -1514,14 +1620,16 @@ fn run_body(
 ) -> (Flow, bool) {
     let columns = shape.columns().len();
     let room = region.size();
-    let fresh = |dir: Dir, given: Vec<usize>| {
+    let fresh_in = |region: Rect, dir: Dir, given: Vec<usize>| {
         let mut flow = Flow::new(id, origin, region, shape.gap, tokens.clone()).with_dir(dir).in_view(view).with_sweep(at.sweep);
         flow.body = shape.body_flow(given);
         flow
     };
+    let fresh = |dir: Dir, given: Vec<usize>| fresh_in(region, dir, given);
     // A grid's cells share a label column per grid column; the rows of a `label_column` body share one.
-    let mut call = |ui: &mut Ui<'_, '_>| {
-        let mut run = |ui: &mut Ui<'_, '_>| frame.with_body(ui, region, |ui, bcx| body(ui, bcx));
+    // `column`: the first measuring sweep of a content-sized column (`Scoped::content_column`).
+    let mut call = |ui: &mut Ui<'_, '_>, column: bool| {
+        let mut run = |ui: &mut Ui<'_, '_>| frame.with_body(ui, region, column, |ui, bcx| body(ui, bcx));
         if columns > 0 {
             ColumnGroup::grid(ui, sub(id, "grid"), columns, run);
         } else if shape.label_column {
@@ -1531,8 +1639,23 @@ fn run_body(
         }
     };
     let Some(kept) = kept else {
-        let mut ui = Ui::new(cx, fresh(shape.base_dir(columns), Vec::new()).measuring(at.node));
-        call(&mut ui);
+        // A content-sized `Stack` column settles its width from its children: its first sweep offers them no room
+        // (`Scoped::content_column`), so a picture measures at its least and never sets the width. A held child that
+        // measured narrower than the settled width shows at that width in the real run, so the children sweep again
+        // offered it, and the column measures as tall as it shows; the others answer from their size cache.
+        let content_column = shape.content_column;
+        let mut ui = Ui::new(&mut *cx, fresh(shape.base_dir(columns), Vec::new()).measuring(at.node));
+        let ctx = ui.ctx().clone();
+        let ((), narrowest) = crate::layout::held_sweep(&ctx, id, content_column, || call(&mut ui, content_column));
+        let flow = ui.flow;
+        let width = flow.content_size().x;
+        // Half a point: less than a pixel shows at any scale the box runs.
+        if narrowest >= width - 0.5 {
+            return (flow, false);
+        }
+        let settled = Rect::from_min_size(region.min, Vec2::new(width, region.height()));
+        let mut ui = Ui::new(cx, fresh_in(settled, shape.base_dir(columns), Vec::new()).measuring(at.node));
+        call(&mut ui, false);
         return (ui.flow, false);
     };
     let had_fills = kept.body_fills.unwrap_or(true);
@@ -1541,7 +1664,7 @@ fn run_body(
         Some(plan) => (Some(plan), false),
         None if shape.needs_plan(had_fills, kept.body.levelled) => {
             let mut ui = Ui::new(cx, fresh(shape.base_dir(columns), Vec::new()).measuring(at.node));
-            call(&mut ui);
+            call(&mut ui, false);
             let sizes = std::mem::take(&mut ui.flow.sizes);
             let rooms = std::mem::take(&mut ui.flow.rooms);
             let units = std::mem::take(&mut ui.flow.body.units);
@@ -1555,7 +1678,7 @@ fn run_body(
         None => fresh(shape.base_dir(columns), Vec::new()),
     };
     let mut ui = Ui::new(cx, flow);
-    call(&mut ui);
+    call(&mut ui, false);
     let Ui { cx, flow, .. } = ui;
     let stale = match &plan {
         Some(plan) => !same_sizes(&plan.sizes, &flow.sizes),
