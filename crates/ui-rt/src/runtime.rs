@@ -306,6 +306,15 @@ impl Runtime {
                 }
             }
             WindowEvent::Closed => {}
+            // Routing of drops, pinch, window position and the system theme belongs to the tasks
+            // that give them a consumer (drag and drop, canvas gestures, docking, env cells).
+            WindowEvent::PasteImage(_)
+            | WindowEvent::FileHovered(_)
+            | WindowEvent::FileHoverCancelled
+            | WindowEvent::FileDropped(_)
+            | WindowEvent::Pinch { .. }
+            | WindowEvent::Moved(_)
+            | WindowEvent::Theme(_) => {}
             WindowEvent::Pointer(_)
             | WindowEvent::Wheel { .. }
             | WindowEvent::Key { .. }

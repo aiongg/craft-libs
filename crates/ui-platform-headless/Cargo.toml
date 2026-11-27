@@ -1,0 +1,16 @@
+[package]
+name = "craft-ui-platform-headless"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "A windowless Platform for craft-ui-rt: several windows, a deterministic clock, input injection (pointer, pen, touch, wheel, keys, text, IME, file drop, access actions) and offscreen surfaces, for tests and the bench"
+
+[lints]
+workspace = true
+
+# Renderers attach to its offscreen surfaces; no GPU or window crate here.
+[dependencies]
+craft-ui-rt = { workspace = true }
+accesskit = "0.25"

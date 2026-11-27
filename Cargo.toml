@@ -244,6 +244,8 @@ craft-ui = { path = "crates/ui" }
 craft-ui-canvas = { path = "crates/ui-canvas" }
 craft-ui-contract = { path = "crates/ui-contract" }
 craft-ui-rt = { path = "crates/ui-rt" }
+craft-ui-platform-winit = { path = "crates/ui-platform-winit" }
+craft-ui-platform-headless = { path = "crates/ui-platform-headless" }
 craft-ui-panels = { path = "crates/ui-panels" }
 craft-ui-patterns = { path = "crates/ui-patterns" }
 craft-ui-shell = { path = "crates/ui-shell" }
