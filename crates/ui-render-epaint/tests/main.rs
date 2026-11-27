@@ -3,6 +3,7 @@
 
 #![allow(clippy::chunks_exact_to_as_chunks)]
 
+mod blit;
 mod boundary;
 mod common;
 mod fills;

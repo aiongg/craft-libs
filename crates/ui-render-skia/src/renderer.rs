@@ -2,8 +2,8 @@ use std::collections::{HashMap, HashSet};
 
 use craft_theme::Rgba;
 use craft_ui_rt::{
-    Clip, FrameTree, ImageStore, Media, NodeId, Part, ReadBack, ReadBackId, RectU, RenderStats, Renderer, SizeU, SurfaceHandle, SurfaceKey, WindowId,
-    damage_pixels,
+    Clip, FrameTree, ImageStore, Media, NativeWindow, NodeId, Part, ReadBack, ReadBackId, RectU, RenderStats, Renderer, SizeU, SurfaceHandle,
+    SurfaceKey, WindowId, damage_pixels,
 };
 use emath::{Rect, Vec2};
 use skia_safe::{AlphaType, ClipOp, Color4f, ColorType, IRect, ImageInfo, Matrix, Picture, RRect, Region, Surface, Vector, surfaces};
@@ -12,7 +12,9 @@ use crate::images::Images;
 use crate::picture::{Recorded, record};
 use crate::surface::{Ingested, SurfaceProducer, SurfaceSpec, Surfaces};
 use crate::text::SkiaText;
-use crate::window::{NativeWindow, SoftPresenter};
+use crate::window::SoftPresenter;
+#[cfg(feature = "gpu")]
+use crate::window::window_ref;
 
 #[derive(Clone, Debug)]
 pub struct SkiaOptions {
@@ -78,7 +80,7 @@ impl Presenter {
             #[cfg(feature = "gpu")]
             Presenter::Gpu(_, w) => w,
         };
-        std::ptr::addr_eq(std::sync::Arc::as_ptr(&mine.0), std::sync::Arc::as_ptr(&native.0))
+        mine.same(native)
     }
 }
 
@@ -119,9 +121,9 @@ impl SkiaRenderer {
     #[cfg(feature = "gpu")]
     pub fn new_gpu(options: SkiaOptions, first: Option<&SurfaceHandle>) -> Result<SkiaRenderer, String> {
         let window = match first {
-            Some(SurfaceHandle::Native(any)) => {
-                let native = any.downcast_ref::<NativeWindow>().ok_or("the native surface is not a NativeWindow")?;
-                Some(native.window_ref().ok_or("the window has no raw handles")?)
+            Some(SurfaceHandle::Native(_)) => {
+                let native = first.and_then(SurfaceHandle::native).ok_or("the native surface is not a NativeWindow")?;
+                Some(window_ref(native).ok_or("the window has no raw handles")?)
             }
             _ => None,
         };
@@ -203,7 +205,7 @@ impl SkiaRenderer {
             None => match &mut self.engine {
                 Engine::Cpu => Presenter::Soft(SoftPresenter::new(native.clone())?),
                 #[cfg(feature = "gpu")]
-                Engine::Gpu(gpu) => Presenter::Gpu(gpu.presenter(native.window_ref()?)?, native.clone()),
+                Engine::Gpu(gpu) => Presenter::Gpu(gpu.presenter(window_ref(native)?)?, native.clone()),
             },
         };
         match &mut p {
@@ -292,7 +294,7 @@ impl Renderer for SkiaRenderer {
         };
         let presenter = match &target {
             SurfaceHandle::Offscreen => None,
-            SurfaceHandle::Native(any) => match any.downcast_ref::<NativeWindow>() {
+            SurfaceHandle::Native(_) => match target.native() {
                 Some(native) => self.presenter(window, native, size_px),
                 None => {
                     log::error!("the native surface is not a NativeWindow");

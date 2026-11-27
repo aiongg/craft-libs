@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use std::rc::Rc;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use craft_theme::{Appearance, Contrast, Mode, TextSize, builtins, resolve};
 use craft_ui_render_epaint::{EpaintOptions, EpaintRenderer, FontDefinitions};
@@ -34,8 +34,21 @@ pub fn fonts() -> FontDefinitions {
     d
 }
 
-pub fn renderer() -> EpaintRenderer {
-    EpaintRenderer::create_blocking(EpaintOptions::predictable(), fonts(), None).expect("a wgpu adapter (lavapipe will do)")
+/// Held for a whole test that drives a wgpu device: lavapipe crashes when several threads drive
+/// devices at once, and the test binary runs tests in parallel.
+pub struct Gpu(#[allow(dead_code)] MutexGuard<'static, ()>);
+
+pub fn gpu() -> Gpu {
+    static GPU: Mutex<()> = Mutex::new(());
+    Gpu(GPU.lock().unwrap_or_else(PoisonError::into_inner))
+}
+
+pub fn renderer(gpu: &Gpu) -> EpaintRenderer {
+    renderer_with(gpu, EpaintOptions::predictable())
+}
+
+pub fn renderer_with(_: &Gpu, options: EpaintOptions) -> EpaintRenderer {
+    EpaintRenderer::create_blocking(options, fonts(), None).expect("a wgpu adapter (lavapipe will do)")
 }
 
 type PaintFn = Rc<dyn Fn(&mut PaintCx<'_>)>;

@@ -14,7 +14,7 @@
 //!
 //! One wgpu device, queue and font atlas serve all windows; the device is the one an app-drawn
 //! surface ([`SurfaceHook`]) draws on. Windows come from the platform as raw window handles
-//! ([`NativeSurface`]); this crate links no window system.
+//! (craft-ui-rt's [`NativeWindow`]); this crate links no window system.
 //!
 //! The device, the queue, the font atlas and the images survive `lose_target`.
 
@@ -29,19 +29,17 @@ mod text;
 mod timer;
 
 use std::collections::{HashMap, HashSet};
-use std::rc::Rc;
 use std::sync::Arc;
 
 use craft_theme::Rgba;
 use craft_ui_rt::{
-    FrameTree, ImageChange, ImageKey, ImageOptions, ImageStore, Part, ReadBack, ReadBackId, RectU, RenderStats, Renderer, RgbaImage, SizeU,
-    SurfaceHandle, WindowId, damage_pixels,
+    FrameTree, ImageChange, ImageKey, ImageOptions, ImageStore, NativeWindow, Part, ReadBack, ReadBackId, RectU, RenderStats, Renderer, RgbaImage,
+    SizeU, SurfaceHandle, WindowId, damage_pixels,
 };
 use egui_wgpu::{RenderState, RendererOptions, ScreenDescriptor, WgpuConfiguration, WgpuSetup};
 use emath::{Rect as ERect, Vec2};
 use epaint::textures::{TextureFilter, TextureOptions};
 use epaint::{ClippedPrimitive, ColorImage, ImageDelta, PaintCallback, Primitive, TessellationOptions, Tessellator};
-use raw_window_handle::{DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, WindowHandle};
 
 use crate::paint::{Env, Piece, Prim, mask_texture};
 use crate::readback::PendingRead;
@@ -53,46 +51,6 @@ pub use surface::{SurfaceHook, SurfaceInfo, SurfacePrepare};
 pub use text::{CONDENSED_FAMILY, EpaintText, SEMIBOLD_FAMILY};
 
 pub type Error = Box<dyn std::error::Error>;
-
-/// A window the platform can hand to the renderer: anything with raw window and display handles.
-pub trait WindowSource: HasWindowHandle + HasDisplayHandle + wgpu::WasmNotSendSync + 'static {}
-
-impl<T> WindowSource for T where T: HasWindowHandle + HasDisplayHandle + wgpu::WasmNotSendSync + 'static {}
-
-/// What a platform puts in `SurfaceHandle::Native` for this renderer: the window as raw handles.
-/// A winit window (`Arc<Window>`), a web canvas wrapper or an Android native window all qualify.
-#[derive(Clone)]
-pub struct NativeSurface(Arc<dyn WindowSource>);
-
-impl NativeSurface {
-    pub fn new(window: Arc<impl WindowSource>) -> NativeSurface {
-        NativeSurface(window)
-    }
-
-    /// The handle for `Platform`'s `SurfaceHost::surface`.
-    pub fn handle(&self) -> SurfaceHandle {
-        SurfaceHandle::Native(Rc::new(self.clone()))
-    }
-
-    fn same(&self, other: &NativeSurface) -> bool {
-        std::ptr::addr_eq(Arc::as_ptr(&self.0), Arc::as_ptr(&other.0))
-    }
-}
-
-/// The wrapper wgpu takes its surface target from.
-struct WindowRef(Arc<dyn WindowSource>);
-
-impl HasWindowHandle for WindowRef {
-    fn window_handle(&self) -> Result<WindowHandle<'_>, HandleError> {
-        self.0.window_handle()
-    }
-}
-
-impl HasDisplayHandle for WindowRef {
-    fn display_handle(&self) -> Result<DisplayHandle<'_>, HandleError> {
-        self.0.display_handle()
-    }
-}
 
 #[derive(Clone)]
 pub struct EpaintOptions {
@@ -153,7 +111,7 @@ pub struct SyncReport {
 /// Where a window's canvas goes after a frame.
 enum Kind {
     Offscreen,
-    Window { native: NativeSurface, surface: wgpu::Surface<'static>, config: wgpu::SurfaceConfiguration, blitter: wgpu::util::TextureBlitter },
+    Window { native: NativeWindow, surface: wgpu::Surface<'static>, config: wgpu::SurfaceConfiguration, blitter: wgpu::util::TextureBlitter },
 }
 
 /// A kept piece list with the version and shift it was made for.
@@ -182,7 +140,7 @@ pub struct EpaintRenderer {
     text: EpaintText,
     windows: HashMap<WindowId, WindowState>,
     /// The surface made while choosing the adapter, until its window's `set_target` takes it.
-    first_surface: Option<(NativeSurface, wgpu::Surface<'static>)>,
+    first_surface: Option<(NativeWindow, wgpu::Surface<'static>)>,
     /// Image keys with a texture, to tell a changed rect of an uploaded image from a new image.
     uploaded: HashSet<ImageKey>,
     /// Image keys that also have an alpha-only texture ([`craft_ui_rt::Item::ImageMask`]).
@@ -201,7 +159,7 @@ impl EpaintRenderer {
     /// Creates the device. `fonts` are the app's faces (craft's font stack flattened). `first`
     /// is a window the adapter must be able to draw to; `None` picks any adapter, for headless
     /// runs.
-    pub async fn create(options: EpaintOptions, fonts: FontDefinitions, first: Option<&NativeSurface>) -> Result<Self, Error> {
+    pub async fn create(options: EpaintOptions, fonts: FontDefinitions, first: Option<&NativeWindow>) -> Result<Self, Error> {
         let mut config = options.config.clone();
         if options.gpu_timing
             && let WgpuSetup::CreateNew(setup) = &mut config.wgpu_setup
@@ -217,7 +175,7 @@ impl EpaintRenderer {
         }
         let instance = config.wgpu_setup.new_instance().await;
         let first_surface = match first {
-            Some(native) => Some((native.clone(), instance.create_surface(WindowRef(native.0.clone()))?)),
+            Some(native) => Some((native.clone(), instance.create_surface(native.clone())?)),
             None => None,
         };
         let gpu = RenderState::create(&config, &instance, first_surface.as_ref().map(|(_, s)| s), options.renderer).await?;
@@ -241,7 +199,7 @@ impl EpaintRenderer {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn create_blocking(options: EpaintOptions, fonts: FontDefinitions, first: Option<&NativeSurface>) -> Result<Self, Error> {
+    pub fn create_blocking(options: EpaintOptions, fonts: FontDefinitions, first: Option<&NativeWindow>) -> Result<Self, Error> {
         pollster::block_on(Self::create(options, fonts, first))
     }
 
@@ -307,10 +265,10 @@ impl EpaintRenderer {
         })
     }
 
-    fn window_kind(&mut self, native: &NativeSurface, size_px: SizeU) -> Option<Kind> {
+    fn window_kind(&mut self, native: &NativeWindow, size_px: SizeU) -> Option<Kind> {
         let surface = match self.first_surface.take() {
             Some((n, s)) if n.same(native) => s,
-            _ => match self.gpu.instance.create_surface(WindowRef(native.0.clone())) {
+            _ => match self.gpu.instance.create_surface(native.clone()) {
                 Ok(s) => s,
                 Err(e) => {
                     log::error!("surface creation failed: {e}");
@@ -323,7 +281,12 @@ impl EpaintRenderer {
             return None;
         };
         let surface_options = self.options.config.surface;
-        config.format = self.gpu.target_format;
+        let offered = surface.get_capabilities(&self.gpu.adapter).formats;
+        let Some(format) = swapchain_format(self.gpu.target_format, &offered) else {
+            log::error!("the surface offers none of the canvas format's twins: {offered:?}");
+            return None;
+        };
+        config.format = format;
         config.present_mode = surface_options.present_mode;
         config.desired_maximum_frame_latency = surface_options.desired_maximum_frame_latency.unwrap_or(2);
         let blitter = wgpu::util::TextureBlitter::new(&self.gpu.device, config.format);
@@ -578,6 +541,20 @@ fn texture_options(options: ImageOptions) -> TextureOptions {
 
 /// The sRGB straight-alpha `rgba` as epaint's premultiplied image; for a mask, white with the
 /// alpha kept.
+/// The swapchain format for canvases in `canvas`: the same, or the same channels in the other byte
+/// order (X11 surfaces offer only BGRA). The blit onto the swapchain image converts.
+fn swapchain_format(canvas: wgpu::TextureFormat, offered: &[wgpu::TextureFormat]) -> Option<wgpu::TextureFormat> {
+    use wgpu::TextureFormat as F;
+    let twin = match canvas {
+        F::Rgba8Unorm => F::Bgra8Unorm,
+        F::Bgra8Unorm => F::Rgba8Unorm,
+        F::Rgba8UnormSrgb => F::Bgra8UnormSrgb,
+        F::Bgra8UnormSrgb => F::Rgba8UnormSrgb,
+        other => other,
+    };
+    [canvas, twin].into_iter().find(|f| offered.contains(f))
+}
+
 fn color_image(size: [usize; 2], rgba: &[u8], mask: bool) -> ColorImage {
     if mask {
         let white: Vec<u8> = rgba.chunks_exact(4).flat_map(|p| [255, 255, 255, p[3]]).collect();
@@ -601,9 +578,9 @@ impl Renderer for EpaintRenderer {
         }
         let kind = match target {
             SurfaceHandle::Offscreen => Kind::Offscreen,
-            SurfaceHandle::Native(any) => {
-                let Some(native) = any.downcast_ref::<NativeSurface>() else {
-                    log::error!("the native surface is not a craft_ui_render_epaint::NativeSurface");
+            SurfaceHandle::Native(_) => {
+                let Some(native) = target.native() else {
+                    log::error!("the native surface is not a craft_ui_rt::NativeWindow");
                     return;
                 };
                 match old.as_ref().map(|o| &o.kind) {

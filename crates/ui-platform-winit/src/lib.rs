@@ -23,8 +23,8 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use craft_ui_rt::{
-    Clipboard, Cursor, ImageKey, ImePurpose, ImeRequest, Platform, PlatformEvent, Pos2, RgbaImage, SizeU, SurfaceHandle, SurfaceHost, Vec2, Waker,
-    WindowCommand, WindowEvent, WindowId, WindowSpec,
+    Clipboard, Cursor, ImageKey, ImePurpose, ImeRequest, NativeWindow, Platform, PlatformEvent, Pos2, RgbaImage, SizeU, SurfaceHandle, SurfaceHost,
+    Vec2, Waker, WindowCommand, WindowEvent, WindowId, WindowSpec,
 };
 use winit::dpi::{LogicalPosition, LogicalSize};
 use winit::event_loop::EventLoopProxy;
@@ -59,8 +59,7 @@ impl SurfaceHost for Host {
         let s = self.0.borrow();
         let e = s.entry(window)?;
         let native = e.window.clone().filter(|_| e.surface_live)?;
-        // The renderer downcasts to `Arc<winit::window::Window>`.
-        Some(SurfaceHandle::Native(std::rc::Rc::new(native)))
+        Some(NativeWindow::new(native).handle())
     }
 
     fn size_px(&self, window: WindowId) -> SizeU {

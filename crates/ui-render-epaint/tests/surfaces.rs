@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use craft_ui_render_epaint::{SurfaceHook, SurfaceInfo, SurfacePrepare, wgpu};
 use craft_ui_rt::{Rect, SizeU, SurfaceKey, Vec2, pos2, vec2};
 
-use crate::common::{Painted, Scene, Stage, paint, renderer};
+use crate::common::{Painted, Scene, Stage, gpu, paint, renderer};
 
 const KEY: SurfaceKey = SurfaceKey(5);
 
@@ -30,7 +30,8 @@ impl SurfaceHook for Counting {
 #[test]
 fn a_surface_item_calls_the_apps_hook_inside_the_frame() {
     let hook = Arc::new(Counting::default());
-    let mut s = Scene::new(renderer(), SizeU::new(80, 60), 1.0, |_, _| Stage {
+    let gpu = gpu();
+    let mut s = Scene::new(renderer(&gpu), SizeU::new(80, 60), 1.0, |_, _| Stage {
         kids: vec![(
             Vec2::ZERO,
             Painted { id: 1, size: vec2(80.0, 60.0), paint: paint(|cx| cx.surface(KEY, Rect::from_min_size(pos2(20.0, 10.0), vec2(40.0, 30.0)))) },

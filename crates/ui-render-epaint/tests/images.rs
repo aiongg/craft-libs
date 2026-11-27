@@ -2,12 +2,12 @@ use std::sync::Arc;
 
 use craft_ui_rt::{ImageKey, Rect, RectU, RgbaImage, SizeU, Vec2, pos2, vec2};
 
-use crate::common::{Painted, Scene, Stage, paint, px, renderer, rgba};
+use crate::common::{Gpu, Painted, Scene, Stage, gpu, paint, px, renderer, rgba};
 
 const KEY: ImageKey = ImageKey(3);
 
-fn scene() -> Scene {
-    Scene::new(renderer(), SizeU::new(80, 60), 1.0, |rt, _| {
+fn scene(gpu: &Gpu) -> Scene {
+    Scene::new(renderer(gpu), SizeU::new(80, 60), 1.0, |rt, _| {
         let mut image = RgbaImage::new(SizeU::new(32, 32));
         for y in 0..32 {
             for x in 0..32 {
@@ -30,7 +30,8 @@ fn scene() -> Scene {
 
 #[test]
 fn a_sub_rect_image_update_uploads_only_that_rect() {
-    let mut s = scene();
+    let gpu = gpu();
+    let mut s = scene(&gpu);
     s.frame();
     assert_eq!((s.r.last_sync().full, s.r.last_sync().partial, s.r.last_sync().texels), (1, 0, 32 * 32));
     assert_eq!(px(&s.pixels(), 16, 16), [0, 0, 255, 255]);

@@ -15,7 +15,7 @@
 //!   `craft-ui-render-skia-gpu`). The window gets the canvas copied onto its drawable or swapchain
 //!   image.
 //!
-//! Windows are handed over as [`NativeWindow`] inside `SurfaceHandle::Native`.
+//! Windows are handed over as craft-ui-rt's `NativeWindow` inside `SurfaceHandle::Native`.
 //!
 //! App-drawn surfaces ([`craft_ui_rt::SurfaceKey`]) are CPU tiles: the app registers a
 //! [`SurfaceProducer`] and tells the renderer which part changed ([`SkiaRenderer::invalidate_surface`]).
@@ -46,4 +46,4 @@ pub use surface::{Ingested, SurfaceProducer, SurfaceSpec};
 #[cfg(not(target_arch = "wasm32"))]
 pub use text::{FontFace, SkiaText};
 #[cfg(not(target_arch = "wasm32"))]
-pub use window::{NativeWindow, WindowHandles, to_xrgb};
+pub use window::to_xrgb;

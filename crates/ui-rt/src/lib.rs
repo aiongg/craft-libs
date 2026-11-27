@@ -66,8 +66,8 @@ pub use layer::{DismissReason, Layer, LayerSpec, OutsidePress, Placement, Side};
 pub use layout::{LayoutCx, virtual_band};
 pub use paint::PaintCx;
 pub use platform::{
-    Clipboard, Cursor, FileDrag, ImePurpose, ImeRequest, OsFile, OsFiles, Platform, PlatformEvent, PointerEvent, PointerPhase, SurfaceHandle,
-    SurfaceHost, SystemTheme, Waker, WindowCommand, WindowEvent, WindowSpec,
+    Clipboard, Cursor, FileDrag, ImePurpose, ImeRequest, NativeWindow, OsFile, OsFiles, Platform, PlatformEvent, PointerEvent, PointerPhase,
+    SurfaceHandle, SurfaceHost, SystemTheme, Waker, WindowCommand, WindowEvent, WindowHandles, WindowSpec,
 };
 pub use render::{ReadBack, ReadBackId, RenderStats, Renderer};
 pub use runtime::{FrameReport, Runtime};
