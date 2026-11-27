@@ -42,7 +42,7 @@ type RefusalFn<'a> = Box<dyn FnMut() -> Option<Label> + 'a>;
 
 /// Where a dialog's buttons stand. Wherever they stand, the dialog shows them: their roles, the platform's order,
 /// Enter and Escape, access keys, the close guard and `on_pick` are the dialog's.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum ButtonPlace {
     /// Across the dialog's foot, in a row at the end edge.
@@ -80,20 +80,24 @@ pub struct Dialog<'a> {
     /// Binds the open state to `open`.
     #[prop(name = "opened")]
     open: Option<Bind<'a, bool>>,
+    #[key(skip)]
     footer: Option<FooterFn<'a>>,
     /// Lets the host refuse the close of a picked button: `allows` gets every picked button but `Cancel`
     /// and the dialog's body context, so a host reads its kept state, and returns whether a button that closes the
     /// dialog may. It is not the place to act on a pick (see `on_pick`). On `false` the dialog stays open, with `DialogOutput::picked` still reporting the pick; the host shows why. A button marked `stays_open` never closes, whatever it returns.
     #[prop(boxed = "FnMut(&FooterButton, &mut BodyCx<'_>) -> bool + 'a", name = "close_guard")]
+    #[key(skip)]
     guard: Option<GuardFn<'a>>,
     /// Sets the buttons' state each pass: `settle` gets the dialog's body context and the buttons when the footer is
     /// shown, after the body ran, so a button's `enabled` can follow what the body wrote in the same pass (through
     /// `BodyCx::memory`, say). Enter's routing is decided from the buttons given to `buttons`.
     #[prop(boxed = "FnMut(&mut BodyCx<'_>, &mut [FooterButton]) + 'a", name = "settle_buttons")]
+    #[key(skip)]
     settle: Option<SettleFn<'a>>,
     /// Acts on a picked footer button in the footer step, before the close is decided: `act` gets the button and the
     /// dialog's body context. `ResetFooter::install` sets it.
     #[prop(boxed = "FnMut(&FooterButton, &mut BodyCx<'_>) + 'a", name = "on_pick")]
+    #[key(skip)]
     on_pick: Option<OnPickFn<'a>>,
     buttons: Vec<FooterButton>,
     /// Whether Enter closes the dialog as its OK.
@@ -122,6 +126,7 @@ pub struct Dialog<'a> {
     /// display of a held answer's refusal. The closure is called in that hook in every run that shows it, after the
     /// body ran, so a notice never trails an edit by a pass; `None` shows no notice.
     #[prop(boxed = "FnMut() -> Option<Label> + 'a")]
+    #[key(skip)]
     refusal: Option<RefusalFn<'a>>,
 }
 

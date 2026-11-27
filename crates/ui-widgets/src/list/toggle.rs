@@ -10,7 +10,7 @@ use crate::style::DataColor;
 use craft_behavior::{ColumnKey, IconId};
 
 /// The state a toggle cell shows.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum ToggleState {
     /// Off.
@@ -30,7 +30,7 @@ impl ToggleState {
 }
 
 /// How a toggle cell draws its state.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum ToggleFace {
     /// An icon while on; the off icon shows under the pointer, or always with `always_visible`.
@@ -53,7 +53,7 @@ impl ToggleFace {
 }
 
 /// Where a cell's accessible name comes from.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, crate::contract::MemoProps)]
 enum CellName {
     /// The name the cell's caller gave.
     Given(Label),
@@ -64,7 +64,7 @@ enum CellName {
 }
 
 /// One toggle cell of a row, in the column `column`.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct ToggleCell {
     /// The column the cell belongs to.

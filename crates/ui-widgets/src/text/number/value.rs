@@ -8,7 +8,7 @@ use std::ops::{Deref, RangeInclusive};
 
 /// What a presets row picks: a number the field takes, or a choice that is not a number (Auto, Metrics) and
 /// leaves the value alone.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum NumberPick {
     /// A pick sets the field to this number. The row is checked while the field holds it.
@@ -144,7 +144,7 @@ pub struct NumberOutput<V: NumberValue = Option<f64>> {
 }
 
 /// A typed value the field clamped to its range, in shown units.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct RangeAlert {
     /// The number typed.

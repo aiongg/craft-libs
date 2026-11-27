@@ -39,7 +39,7 @@ impl ToggleColumn {
 
 /// The user's column arrangement: the order of the columns, the widths the user set and the hidden columns. Bound and
 /// unbound headers store the same type.
-#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize, crate::contract::MemoProps)]
 pub struct ColumnLayout {
     /// The columns in the order shown.
     pub order: Vec<ColumnKey>,

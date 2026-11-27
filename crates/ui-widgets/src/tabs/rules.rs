@@ -53,7 +53,7 @@ pub enum PanelTabLook {
 }
 
 /// The kind of a strip. It sets the defaults below; the host picks one per strip.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum TabKind {
     /// Document tabs: whole titles, a close button on every closable tab, every document in the overflow menu. An app

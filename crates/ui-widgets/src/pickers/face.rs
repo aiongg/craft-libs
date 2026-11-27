@@ -39,7 +39,7 @@ pub struct SelectFaceStyle {
 }
 
 /// How a select face is sized.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum FaceKind {
     /// A field: the field's height and padding, a thumbnail at `size.thumb.sm`.
@@ -64,6 +64,7 @@ pub struct SelectFace<'a> {
     /// The text is a placeholder, not a pick: it shows in the faint ink.
     #[prop(flag)]
     placeholder: bool,
+    #[key(skip)]
     thumb: Option<(ThumbAspect, ThumbPaint<'a>)>,
     /// The picked entry's icon, drawn before the text in the chevron's ink.
     #[prop]

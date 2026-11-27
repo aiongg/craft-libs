@@ -36,7 +36,7 @@ const STARS: u8 = 5;
 const DIM_VEIL: f32 = 0.45;
 
 /// What a tile's own parts report, besides what the collection reads from the pointer.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum TilePartEvent {
     /// A click on the stars: the rating to set, 0 clears (a click on the star of the current rating).
@@ -55,7 +55,7 @@ pub enum TilePartEvent {
 
 /// Where a tile's hover actions sit.
 #[non_exhaustive]
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 pub enum TileActionPlace {
     /// In the picture's end-top corner.
     #[default]
@@ -66,7 +66,7 @@ pub enum TileActionPlace {
 
 /// How a stacked tile shows its stack.
 #[non_exhaustive]
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
 pub enum StackLook {
     /// The ×N badge in the end-top corner.
     #[default]
@@ -465,6 +465,7 @@ pub struct Tile<'a> {
     #[prop]
     hue: Option<DataColor>,
     aspect: ThumbAspect,
+    #[key(skip)]
     first: Option<ThumbPaint<'a>>,
     /// A picture component shown as the tile's picture, for a face that is more than a painter.
     picture: Option<Picture<'a>>,
@@ -474,7 +475,9 @@ pub struct Tile<'a> {
     pills: Vec<TileBadge>,
     /// The hover actions: icon, command and the name that tells the action apart from the other tiles' (`action_named`).
     actions: Vec<(IconId, CommandRef, Option<Label>)>,
+    #[key(skip)]
     placed: Option<Placed>,
+    #[key(skip)]
     event: Option<TilePartEvent>,
     caption_rect: Option<Rect>,
 }

@@ -55,7 +55,7 @@ fn offered(precisions: &[DatePrecision]) -> &[DatePrecision] {
 /// ones, say). A picker offering Month or Year as well picks stored values, which are Gregorian partial dates, so its
 /// Month and Year pages hold Gregorian months and years (shifted by the year offset where the calendar's months are
 /// the Gregorian ones, as in the Buddhist calendar).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum DatePrecision {
     /// A whole year.
@@ -73,7 +73,7 @@ impl DatePrecision {
 
 /// A year, a month of it or a day of that month: `2026`, `2026-08`, `2026-08-14`. A value keeps its precision: `2026`
 /// means the whole year. A day-precision value is one calendar date.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct PickedDate {
     /// The year, 0 to 9999.

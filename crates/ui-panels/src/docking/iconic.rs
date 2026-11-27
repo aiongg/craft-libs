@@ -90,7 +90,7 @@ impl IconicSizes {
 }
 
 /// What the icons of an iconic column open.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum IconicMode {
     /// A click on an icon opens its panel in a flyout beside the collapsed column.
@@ -221,7 +221,7 @@ pub struct IconicColumnStyle {
 /// selected and the bar's chevron collapses the column; a click on an icon reports
 /// [`IconicColumnOutput::front`] and [`IconicColumnOutput::iconic`].
 #[derive(crate::contract::Component, crate::contract::Props)]
-#[component(container, overlay, probe(IconicColumn<'static, u8>))]
+#[component(container, overlay, unkeyed, probe(IconicColumn<'static, u8>))]
 pub struct IconicColumn<'a, P: Value + Hash + 'static> {
     #[common]
     common: Common,
@@ -229,6 +229,7 @@ pub struct IconicColumn<'a, P: Value + Hash + 'static> {
     props: ContainerProps,
     dock: Id,
     column: &'a Column<P>,
+    #[key(skip)]
     spec: &'a dyn Fn(&P) -> PanelSpec,
     /// The edge the column keeps to: a dock's window edge, or the edge of the float area a floating window keeps to.
     /// The bar's double arrow sits at that end and the inner edge, which sets the column's width, faces away from it.
@@ -266,17 +267,21 @@ pub struct IconicColumn<'a, P: Value + Hash + 'static> {
     #[prop]
     framed: bool,
     open: Bind<'a, Option<P>>,
+    #[key(skip)]
     view: Option<FlyoutView<'a, P>>,
     /// The bar's rect this pass.
     bar_rect: Rect,
+    #[key(skip)]
     record: BarRecord,
     shown: Option<usize>,
     width: Option<f32>,
     /// The plan `parts` laid out this pass, which update and access read.
+    #[key(skip)]
     laid: Option<Plan>,
     /// The bar's chevron was clicked this pass: the column expands.
     expand: bool,
     /// The size the user gave the open flyout this pass.
+    #[key(skip)]
     flyout: Option<FlyoutResize<P>>,
     /// In rail mode, what a click on an icon asked for this pass: the column collapsed (`true`) or expanded.
     rail_iconic: Option<bool>,

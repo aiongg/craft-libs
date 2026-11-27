@@ -59,7 +59,7 @@ pub struct FloatingGroupStyle {
 /// A column whose content fixes its height ([`held`](Self::held)) shows at that height whatever the rect's, and the
 /// rect keeps its own height for when the content no longer fixes it: a column collapsed to icons, and one whose
 /// every group is minimized.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct WindowColumn {
     /// The edge of the float area, in reading order, that the window keeps to: the dock model's `Floating::edge`,
@@ -269,6 +269,7 @@ pub struct FloatingGroup<'a> {
     native: Option<WindowSpec>,
     /// The rows of the menu a context request on the title row, or the Menu action, opens.
     #[prop(func = "FnMut(&mut Ui, &mut BodyCx<'_>)")]
+    #[key(skip)]
     menu: Option<MenuRows<'a>>,
     actions: Vec<HeaderAction>,
     /// The title row is a bare grip (a small handle that moves the window), with no menu, float or close action, no
@@ -281,6 +282,7 @@ pub struct FloatingGroup<'a> {
     rounded_body: bool,
     /// Always open: the caller shows the group while its window exists, and a close comes out as the Close action.
     open: Bind<'a, bool>,
+    #[key(skip)]
     taken: Option<HeaderAction>,
     menu_opener: Option<Id>,
     toggled: bool,
@@ -292,6 +294,7 @@ pub struct FloatingGroup<'a> {
     header: f32,
     chrome: f32,
     rtl: bool,
+    #[key(skip)]
     placed: Option<PlacementChange>,
     /// The width a resize gave the collapsed column this pass.
     collapsed_width: Option<f32>,
@@ -300,8 +303,10 @@ pub struct FloatingGroup<'a> {
     #[prop(quantity = "display scale, pixels per point")]
     scale: Option<f32>,
     /// Starts the window-unit drag; set by `window_of`.
+    #[key(skip)]
     start_drag: Option<StartDrag<'a>>,
     /// Takes the drops released on the group, on the group's own layer.
+    #[key(skip)]
     take_drop: Option<TakeDrop<'a>>,
     /// A move of the window began this pass.
     moving: bool,
@@ -321,6 +326,7 @@ pub struct FloatingGroup<'a> {
     #[prop(flag)]
     raise: bool,
     /// The files dropped on the group's OS window that no target there took.
+    #[key(skip)]
     files: Vec<OsFile>,
     /// Where they were dropped.
     files_at: Option<Pos2>,

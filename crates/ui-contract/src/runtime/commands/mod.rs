@@ -274,7 +274,7 @@ pub enum FirePhase {
 }
 
 /// What the app or an instance says about a command this frame.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct CommandState {
     flags: CommandFlags,

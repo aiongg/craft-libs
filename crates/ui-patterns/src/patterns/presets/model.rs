@@ -76,12 +76,13 @@ impl<'a, K> ThumbInfo<'a, K> {
 }
 
 /// A second band of a list row, in list view only: the brush's stroke preview.
-#[derive(Clone)]
+#[derive(Clone, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct Preview {
     /// Width over height of the band.
     pub aspect: ThumbAspect,
     /// Paints the band into the rect, clipped to it.
+    #[memo_props(skip = "a painting callback, run by the show, not read by the key")]
     pub paint: FacePaint,
 }
 
@@ -92,7 +93,7 @@ impl fmt::Debug for Preview {
 }
 
 /// Whether a row is a group (or a folder inside one) or a preset.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum PresetKind {
     /// A group or folder: a header row with children.
@@ -103,7 +104,7 @@ pub enum PresetKind {
 
 /// One entry of the host's flat display list: a group (or folder) or a preset. `K` is one type for both, so a
 /// canvas that takes drops matches the variant it wants.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct PresetRow<K> {
     /// The key events name the row by.

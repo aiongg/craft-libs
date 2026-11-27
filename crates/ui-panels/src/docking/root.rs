@@ -65,6 +65,7 @@ pub struct DockRoot<'a, T: 'static> {
     common: Common,
     #[container]
     props: ContainerProps,
+    #[key(skip)]
     take_drop: TakeDrop<'a, T>,
     dropped: Option<T>,
     /// The arrangement the pattern shows, which the drags started in the body record.

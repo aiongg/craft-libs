@@ -47,7 +47,7 @@ impl From<Color32> for DataColor {
 
 /// How a text field looks where it sits: one value picks its fill, its edge and its placeholder together, so they
 /// cannot come apart.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum FieldLook {
     /// The field's own fill and edge, and the faint placeholder.

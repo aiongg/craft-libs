@@ -111,7 +111,7 @@ pub enum ColumnAlign {
 }
 
 /// Where the collection holds a primary press on a row, within slop, or the press a part of the row holds.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum RowPressed {
     /// On the row's own area.

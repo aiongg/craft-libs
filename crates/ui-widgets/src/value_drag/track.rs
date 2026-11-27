@@ -108,7 +108,7 @@ impl<'a> TrackFace<'a> {
 
 /// The room marks keep: the gap below a tick before its label and between two labels side by side, and how near a
 /// mark a drag snaps to it.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, crate::contract::MemoProps)]
 pub(crate) struct MarkSpace {
     pub label_gap: f32,
     pub snap: f32,
@@ -121,7 +121,7 @@ impl MarkSpace {
 }
 
 /// Marks and ticks along a track.
-#[derive(Clone, Default)]
+#[derive(Clone, Default, crate::contract::MemoProps)]
 pub(crate) struct Marks {
     space: MarkSpace,
     /// The values with a mark, which a drag snaps to.
@@ -320,7 +320,7 @@ pub(crate) fn paint(draw: &Draw<'_>, look: &TrackLook, along: Along, groove: Sty
 }
 
 /// How positions along a slider's track map to values.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum SliderScale {
     /// Equal distances are equal changes.
@@ -337,7 +337,7 @@ pub enum SliderScale {
 const STEPLESS_DECIMALS: usize = 1;
 
 /// A range with an optional step and the scale that spreads it over a track.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, crate::contract::MemoProps)]
 pub(crate) struct Scale {
     pub min: f64,
     pub max: f64,

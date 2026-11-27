@@ -75,7 +75,7 @@ pub(super) fn ink(cx: &StyleCx<'_>) -> (TextLook, IconLook) {
 }
 
 /// How a button lays out its icon and label.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum Arrangement {
     /// The icon beside the label; no label where the `GroupLevel` is `Compact`.

@@ -41,7 +41,7 @@ const EDGE: PartKey = PartKey::new("edge");
 
 /// Where a column's bar is. A dock column and a floating window are both one column; the window's title row is the
 /// bar of the column it holds.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum ColumnBar {
     /// The column shows its own bar (the double arrow and the band that moves the column and opens its menu), the
@@ -178,7 +178,7 @@ pub struct DockColumnStyle {
 /// In a floating window ([`ColumnBar::Window`]) the window's title row is the column's bar and the window's edges
 /// size it: the column shows its groups and their dividers only, and registers its seams.
 #[derive(crate::contract::Component, crate::contract::Props)]
-#[component(container, probe(DockColumn<'static, u8>))]
+#[component(container, unkeyed, probe(DockColumn<'static, u8>))]
 pub struct DockColumn<'a, P: Value + Hash + 'static> {
     #[common]
     common: Common,
@@ -186,6 +186,7 @@ pub struct DockColumn<'a, P: Value + Hash + 'static> {
     props: ContainerProps,
     dock: Id,
     column: &'a Column<P>,
+    #[key(skip)]
     spec: &'a dyn Fn(&P) -> PanelSpec,
     /// Whether Auto-Collapse Iconic Panels is on, which the column menu shows as checked.
     #[prop]
@@ -212,6 +213,7 @@ pub struct DockColumn<'a, P: Value + Hash + 'static> {
     #[prop]
     tab_look: PanelTabLook,
     /// The plan `parts` laid out this pass, which update, paint and access read.
+    #[key(skip)]
     laid: Option<Plan>,
     resized: Vec<(P, f32)>,
     width: Option<f32>,

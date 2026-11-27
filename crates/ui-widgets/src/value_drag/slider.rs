@@ -97,6 +97,7 @@ pub struct Slider<'a> {
     /// Paints the groove with `face`, a component shown as the look of the track (a colour gradient). The fill is not
     /// drawn over it.
     #[prop]
+    #[key(skip)]
     track_face: Option<TrackFace<'a>>,
     /// The kept part of the range, its ends drawn across the track ([`Slider::trim`]).
     trim: Option<(f64, f64)>,
@@ -108,7 +109,7 @@ pub struct Slider<'a> {
 }
 
 /// When a press on a slider's track sets the value.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum TrackPress {
     /// The value jumps to the press when it ends as a click, or follows the pointer once the press starts a drag; a
@@ -121,7 +122,7 @@ pub enum TrackPress {
 }
 
 /// The shape of a slider's thumb.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum SliderThumb {
     /// A knob on the track.

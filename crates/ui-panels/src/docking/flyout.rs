@@ -78,6 +78,7 @@ pub struct Flyout {
     least: Vec2,
     /// The flyout stands as a docked column does: [`docked`](Flyout::docked).
     docked: bool,
+    #[key(skip)]
     placed: Option<PlacementChange>,
 }
 

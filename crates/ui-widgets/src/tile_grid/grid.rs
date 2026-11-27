@@ -49,7 +49,7 @@ const TAIL_KEYS: &str = "Down from the last line of tiles moves to the row; Ente
 const CHECKS: ColumnKey = ColumnKey::new("check");
 
 /// Which keys rate the selected tiles.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum RatingKeys {
     /// No key rates.
@@ -63,6 +63,7 @@ pub enum RatingKeys {
 
 /// The size of a grid's tiles.
 #[non_exhaustive]
+#[derive(crate::contract::MemoProps)]
 pub enum GridZoom<'a> {
     /// A picture side factor the host holds; the grid takes no zoom keys or wheel.
     Fixed(f64),
@@ -269,6 +270,7 @@ pub struct TileGrid<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     /// gap `at` = the tile count sits on the end edge of the last tile. A gap shows while its tile is in view, so the
     /// end gap shows only with the last tile in view.
     #[prop]
+    #[key(skip)]
     insert_gaps: Option<&'a dyn Fn(usize) -> Label>,
     /// The thumbnail size the zoom is a factor of; `None` is the card thumbnail.
     #[prop]
@@ -313,23 +315,29 @@ pub struct TileGrid<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     checks: bool,
     /// Which tiles may be renamed; a rename request on another tile does nothing.
     #[prop(func = "Fn(&K) -> bool")]
+    #[key(skip)]
     can_rename: Option<RowTest<'a, K>>,
     /// Which tiles may be dragged.
     #[prop(func = "Fn(&K) -> bool")]
+    #[key(skip)]
     can_drag: Option<RowTest<'a, K>>,
     /// What the grid takes from drags that did not start in it, in order.
+    #[key(skip)]
     drops: Vec<DropKind<'a, K>>,
     /// Where the grid's own drag may land: the test gets the drag, the tile under the pointer and the position before which the
     /// dragged tiles would go.
     #[prop(func = "Fn(&ListDrag<K>, Option<&K>, usize) -> bool")]
+    #[key(skip)]
     accepts: Option<DropTest<'a, K>>,
     /// How the groups are set apart: `Rule` starts every group after the first below a full-width divider row in place
     /// of its titled head.
     #[prop]
     group_heads: GroupHeads,
     /// The layout of this pass, kept for the headers' parts and paint.
+    #[key(skip)]
     laid: RefCell<Option<GridLayout>>,
     /// The headers this pass shows, in the grid's layer space: the group, its rect and whether it is pinned.
+    #[key(skip)]
     placed: Vec<Placed>,
     /// The tail rows this pass shows, in the grid's layer space: the row's index and its rect.
     placed_tail: Vec<(usize, Rect)>,
@@ -337,6 +345,7 @@ pub struct TileGrid<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     placed_gaps: Vec<(usize, Rect)>,
     /// The tail rows clicked this pass, in order.
     tail_clicked: Vec<K>,
+    #[key(skip)]
     events: Vec<GridEvent<K>>,
 }
 

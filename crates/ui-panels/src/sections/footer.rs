@@ -83,7 +83,7 @@ struct DropShown {
 type DropShow = dyn Fn(&mut Ui, &FooterAction) -> DropShown + Send + Sync;
 
 /// An icon action of a panel footer: an `IconButton` named by its label.
-#[derive(Clone)]
+#[derive(Clone, crate::contract::MemoProps)]
 pub struct FooterAction {
     icon: IconSpec<'static>,
     label: Label,
@@ -94,6 +94,7 @@ pub struct FooterAction {
     expanded: Option<bool>,
     takes_drops_disabled: bool,
     drop_hint: Option<Label>,
+    #[memo_props(skip = "a callback that shows the drop slot; called while the footer lays out, not read by the key")]
     drops: Option<Arc<DropShow>>,
 }
 
@@ -265,6 +266,7 @@ pub struct DropAction<P: Clone + Send + Sync + 'static> {
     common: Common,
     #[container]
     props: ContainerProps,
+    #[key(skip)]
     accepts: Arc<dyn Fn(&P) -> bool + Send + Sync>,
     over: bool,
     dropped: Option<P>,
@@ -398,7 +400,7 @@ pub enum DialogButtonLook {
 }
 
 /// What a dialog button means; it decides the button's look and its place in the row.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum DialogRole {
     /// The default outcome: the primary look, last in the row (first on Windows).
@@ -440,7 +442,7 @@ impl DialogRole {
 }
 
 /// A button of a dialog footer.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, crate::contract::MemoProps)]
 pub struct FooterButton {
     label: Label,
     role: DialogRole,
@@ -593,7 +595,7 @@ struct Arming {
     dialog: Option<Id>,
 }
 
-#[derive(Default)]
+#[derive(Default, crate::contract::MemoProps)]
 enum Content {
     #[default]
     Body,

@@ -32,7 +32,7 @@ pub struct MenuStyle {
 
 /// The neighbouring menu a top-level menu asks its bar for when Left or Right reaches it unhandled. The directions
 /// are the keys', not reading order: `Prev` is the Left key, which a right-to-left bar reads as the next title.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum MenuStep {
     /// The Left key.
@@ -213,6 +213,7 @@ pub struct Menu<'a> {
     /// The caller's binding takes the open state over from the menu's slot.
     #[prop]
     open: Option<Bind<'a, bool>>,
+    #[key(skip)]
     closed: Option<CloseReason>,
     submenu: bool,
     values: bool,
@@ -221,8 +222,10 @@ pub struct Menu<'a> {
     /// A row of a submenu level took Back.
     back: bool,
     /// The Left or Right key a top-level level left unhandled.
+    #[key(skip)]
     step: Option<MenuStep>,
     /// The bar shown above the menu in its own modeless layer.
+    #[key(skip)]
     companion: Option<&'a mut dyn FnMut(&mut Ui)>,
 }
 

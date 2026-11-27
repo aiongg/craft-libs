@@ -30,7 +30,7 @@ craft_ui::words! {
 }
 
 /// What the link keeps.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum LinkMode {
     /// A value typed into one field scales the others by the same factor: width and height.
@@ -51,7 +51,7 @@ impl LinkMode {
 }
 
 /// How the fields and the link are placed in the room offered.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum LinkedLayout {
     /// The fields in one row, the link after the first.
@@ -145,6 +145,7 @@ pub struct LinkedFields<'a, const N: usize> {
     values: Bind<'a, Parts<N>>,
     link: Bind<'a, bool>,
     /// The link child's event of this pass and the state it showed, kept from `paint` to `finish`.
+    #[key(skip)]
     link_event: EditEvents<bool>,
     link_shown: Option<bool>,
     /// The field whose caption link was clicked, kept from `paint` to `finish`.

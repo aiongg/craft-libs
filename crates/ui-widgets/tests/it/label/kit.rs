@@ -46,6 +46,7 @@ pub struct Dial<'a> {
     #[common]
     common: Common,
     value: Bind<'a, f64>,
+    #[key(skip)]
     seen: &'a RefCell<Seen>,
     warping: bool,
 }

@@ -89,10 +89,14 @@ struct DialogOpener<'a> {
     open: bool,
     close: bool,
     close_dropdown: bool,
+    #[key(skip)]
     dialog: &'a Opened,
+    #[key(skip)]
     dropdown: &'a Opened,
+    #[key(skip)]
     option: &'a RefCell<Seen>,
     /// The dropdown opener inside the modal, as it showed last.
+    #[key(skip)]
     field: &'a Cell<Id>,
 }
 

@@ -44,7 +44,7 @@ impl SeparatorRule {
 }
 
 /// Which way the line runs.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, crate::contract::MemoProps)]
 enum Axis {
     Horizontal,
     Vertical,

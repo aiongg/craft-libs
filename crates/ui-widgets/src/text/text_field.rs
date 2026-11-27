@@ -25,7 +25,7 @@ const CLEAR: PartKey = PartKey::new("clear");
 const SINGLE_LINE_LIMIT: usize = 1024;
 
 /// The character limit a caller set.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
 enum Limit {
     /// [`SINGLE_LINE_LIMIT`] on a single-line field, none on a multi-line one.
     #[default]

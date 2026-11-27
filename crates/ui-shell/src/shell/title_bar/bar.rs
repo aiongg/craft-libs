@@ -83,6 +83,7 @@ pub struct TitleBar<'a> {
     props: ContainerProps,
     /// The frame to draw, in place of the running window's: a story or a preview.
     #[prop]
+    #[key(by = format!("{:?}", self.frame).as_str())]
     frame: Option<Frame>,
     /// Whether the window shows as maximized, in place of the running window's state.
     #[prop]
@@ -92,8 +93,10 @@ pub struct TitleBar<'a> {
     title_when_native: bool,
     /// The content at the end of the bar, before the caption buttons.
     #[prop(func = "FnMut(&mut Ui, &mut crate::contract::BodyCx<'_>)")]
+    #[key(skip)]
     trailing: Option<RegionBody<'a>>,
     title: Option<Title>,
+    #[key(skip)]
     clicked: Option<Caption>,
     close: bool,
 }

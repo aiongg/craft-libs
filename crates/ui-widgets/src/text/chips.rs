@@ -140,6 +140,7 @@ pub struct ChipField<'a> {
     placeholder: Option<Label>,
     /// The chips only some of the selection carries: drawn muted with an asterisk after the text.
     #[prop(func = "Fn(&str) -> bool")]
+    #[key(skip)]
     partial: Option<PartialChips<'a>>,
     /// At most this many lines, the draft's included; the chips that don't fit go behind a "+N more" button at the
     /// end of the last line, whose menu lists them, and choosing one there removes it.

@@ -18,7 +18,7 @@ use std::sync::Arc;
 /// it differs from the key of every tile. Positions in the grid's events (`CollectionEvent::Reorder`,
 /// `Dropped`, the `accepts` test) count the headers as rows: the header of a group sits just before its first
 /// tile.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct TileGroup<K> {
     /// The key of the header row.
@@ -90,7 +90,7 @@ impl<K> TileGroup<K> {
 /// of tiles reaches it, and a click, Enter or AccessKit's default action reports `CollectionEvent::Activate` with its
 /// `key`. It is never selected, dragged, renamed or reached by type-ahead, and no drop lands on or after it. Its `key`
 /// differs from the key of every tile and header. Positions count it after every tile and header.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct TailRow<K> {
     /// The key of the row.

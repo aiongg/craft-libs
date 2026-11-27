@@ -2,7 +2,7 @@
 //! of a scope receives a command fired by a key, the menu bar, the palette or automation.
 
 /// A command's enabled and checked state.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct CommandFlags {
     /// Whether the command can fire.

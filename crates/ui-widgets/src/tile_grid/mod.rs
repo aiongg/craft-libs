@@ -23,7 +23,7 @@ pub use tile::{StackLook, Tile, TileActionPlace, TileOutput, TilePartEvent, Tile
 pub use words::TileWords;
 
 /// Where a tile's caption goes.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum CaptionPlace {
     /// Under the picture.
@@ -37,7 +37,7 @@ pub enum CaptionPlace {
 }
 
 /// How a framed card (`TileGrid::card`) sets its name and detail.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum CardText {
     /// For cards of files (the start screen's recent documents): a strong name and the detail under it, both at the
@@ -74,7 +74,7 @@ impl CardText {
 }
 
 /// A pick or reject flag.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum TileFlag {
     /// Picked.
@@ -84,7 +84,7 @@ pub enum TileFlag {
 }
 
 /// What a corner badge shows.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum BadgeKind {
     /// A glyph on a neutral pill.
@@ -94,7 +94,7 @@ pub enum BadgeKind {
 }
 
 /// A corner of the picture, logical: Start and End swap in a right-to-left interface.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum BadgeSlot {
     /// The reading start's top corner.
@@ -108,7 +108,7 @@ pub enum BadgeSlot {
 }
 
 /// A corner badge. Badges of one slot stack toward the middle of the picture and never lie over the check box.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct TileBadge {
     /// The corner.
@@ -129,7 +129,7 @@ impl TileBadge {
 }
 
 /// A glyph under a caption at the reading start (an animation star on a slide).
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct TileMark {
     /// The glyph.
@@ -146,7 +146,7 @@ impl TileMark {
 }
 
 /// A tile's file status.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum TileStatus {
     /// Nothing to say.
@@ -162,7 +162,7 @@ pub enum TileStatus {
 }
 
 /// When the badge bar (rating, flag, colour dot) shows.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum BadgeVisibility {
     /// While the pointer is over the tile, while it is selected, or when a rating, flag or label is set.

@@ -101,6 +101,7 @@ pub struct DocumentWindow<'a> {
     /// The open state the pipeline reads: always open, so a close request never ends the window.
     open: Bind<'a, bool>,
     /// Makes the window the active one of the app's window list.
+    #[key(skip)]
     activate: Option<Box<dyn FnMut() + 'a>>,
     /// Raises the window and gives it OS focus in this pass.
     #[prop(flag)]

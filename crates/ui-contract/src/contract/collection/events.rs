@@ -109,7 +109,7 @@ pub struct ToggleEdit<K> {
 }
 
 /// A tree row opened or closed.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, crate::contract::MemoProps)]
 pub struct OpenChange<K> {
     /// The row.
     pub key: K,

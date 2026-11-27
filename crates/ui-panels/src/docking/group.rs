@@ -406,6 +406,7 @@ pub struct DockGroup<'a, P: Clone + Hash + Send + Sync + 'static> {
     /// The rows of the group menu, read while it is open: the panel menu button and a context request on a tab open
     /// it.
     #[prop(func = "FnMut() -> Vec<PanelRow>")]
+    #[key(skip)]
     menu: Option<MenuRows<'a>>,
     /// Whether the panel menu button shows beside the tabs; a context request on a tab opens the menu either way.
     #[prop]
@@ -418,11 +419,14 @@ pub struct DockGroup<'a, P: Clone + Hash + Send + Sync + 'static> {
     command_states: Vec<(DockCommands, CommandState)>,
     /// The host's items before the tab strip.
     #[prop(func = "FnMut(&mut egui::Ui, &mut BodyCx<'_>)")]
+    #[key(skip)]
     extra: Option<HeaderHook<'a>>,
     /// The shown panel's footer, pinned under the body: [`footer`](DockGroup::footer).
+    #[key(skip)]
     footer: Option<HeaderHookFn<'a>>,
     /// The size of the group this pass, where its drag starts.
     size: Vec2,
+    #[key(skip)]
     reported: Reported,
 }
 

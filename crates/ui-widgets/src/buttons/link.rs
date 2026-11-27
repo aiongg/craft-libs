@@ -84,6 +84,7 @@ pub struct Link {
     on_inverse: bool,
     /// The text before and after the link when it sits in a sentence.
     sentence: Option<(Label, Label)>,
+    #[key(skip)]
     laid: Laid,
 }
 

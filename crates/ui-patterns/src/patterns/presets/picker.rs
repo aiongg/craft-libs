@@ -57,7 +57,7 @@ impl<'a> PickerHead<'a> {
 }
 
 /// What the closed field shows of the current preset.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum PickerField {
     /// The thumbnail alone; the name when the preset has no thumbnail, and an empty thumbnail

@@ -24,7 +24,7 @@ pub enum ZoomStep {
 }
 
 /// How a tile size changes.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum TileZoom {
     /// Factors on [`TileZoom::LADDER`], default 1.0 (card grids).
@@ -128,6 +128,7 @@ pub struct ThumbnailSlider<'a> {
     common: Common,
     value: Bind<'a, f64>,
     zoom: TileZoom,
+    #[key(skip)]
     placed: Option<Placed>,
 }
 

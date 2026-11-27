@@ -10,7 +10,7 @@ use std::hash::Hash;
 
 /// The commands of a docked or floating panel. A panel command acts on one panel or on its tab group: the shown
 /// panel of the dock group whose scope instance takes it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, craft_ui_macros::CommandSet)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, craft_ui_macros::CommandSet, crate::contract::MemoProps)]
 #[command(prefix = "dock", scope = "dockGroup")]
 #[non_exhaustive]
 pub enum DockCommands {

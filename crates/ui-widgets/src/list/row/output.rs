@@ -12,7 +12,7 @@ use craft_keymap::Mods;
 use egui::{Rect, Response};
 
 /// What a row reports besides what the collection reads from its pointer input.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum RowEvent {
     /// The link glyph before an extra thumbnail was clicked: `linked` is the state it asks for.

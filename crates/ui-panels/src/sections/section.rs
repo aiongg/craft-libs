@@ -68,11 +68,15 @@ pub struct Section<'a> {
     strength: HeaderStrength,
     /// The rows of the menu the header's Menu action, a right click, the Menu key and Shift+F10 open.
     #[prop(func = "FnMut(&mut Ui, &mut BodyCx<'_>)")]
+    #[key(skip)]
     menu: Option<MenuRows<'a>>,
     actions: Vec<HeaderAction>,
+    #[key(skip)]
     controls: Option<Controls<'a>>,
+    #[key(skip)]
     taken: Option<HeaderAction>,
     menu_opener: Option<Id>,
+    #[key(skip)]
     nudged: Option<reorder::ItemMove>,
 }
 

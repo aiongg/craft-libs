@@ -1056,7 +1056,7 @@ pub(crate) fn holds_anchored_layer(ctx: &Context, owner: Id) -> bool {
 }
 
 /// What moved the key focus.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum FocusMove {
     /// Keyboard navigation: Tab, Shift+Tab or F6.

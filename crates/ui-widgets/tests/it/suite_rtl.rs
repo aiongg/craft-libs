@@ -45,6 +45,7 @@ fn the_rtl_case_fails_content_that_keeps_its_ltr_offsets_while_the_rect_moves() 
 struct TimeAxis {
     #[common]
     common: Common,
+    #[key(skip)]
     start: Rc<Cell<(Rect, Rect)>>,
 }
 

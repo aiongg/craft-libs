@@ -12,7 +12,7 @@ use craft_theme::variant::Tone;
 use egui::{Response, Ui};
 
 /// The text under a field's control.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum Help {
     /// Muted text: a hint or a unit.

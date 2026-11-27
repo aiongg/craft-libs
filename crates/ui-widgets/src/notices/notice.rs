@@ -18,7 +18,7 @@ use craft_theme::{Rgba, Stateful, States, Variant, variant::Tone};
 use egui::{Align, Pos2, Rect, Response, Vec2};
 
 /// Where a notice sits and how much room it takes.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum NoticeLayout {
     /// The icon at the reading start and the text beside it, across the width offered, with no surface.
@@ -43,7 +43,7 @@ pub enum NoticeLayout {
 const EMPTY_ICON_IN_LARGE: f32 = 1.5;
 
 /// The icon of a notice.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum NoticeIcon<'a> {
     /// The tone's icon; the neutral tone has none.
@@ -56,7 +56,7 @@ pub enum NoticeIcon<'a> {
 }
 
 /// An action of a notice: a label, or a command that supplies it and runs when the action is taken.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct NoticeAction {
     label: Label,
@@ -219,8 +219,10 @@ pub struct Notice<'a> {
     lines: Vec<Label>,
     /// The host's leaves: under the actions of a centred notice, between the bullet lines and the actions of an inline
     /// or card notice; and their sizes in this pass.
+    #[key(skip)]
     content: Vec<Box<dyn for<'r> Hosted<Notice<'r>> + 'a>>,
     content_sizes: Vec<Vec2>,
+    #[key(skip)]
     placed: Option<Placed>,
     taken: Option<usize>,
     dismissed: bool,

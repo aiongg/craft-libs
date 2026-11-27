@@ -94,6 +94,7 @@ pub type MenuBody<'a> = Box<dyn FnMut(&mut Ui, &mut BodyCx<'_>) + 'a>;
 pub struct SplitButton<'a, T: Value + 'static> {
     #[common]
     common: Common,
+    #[key(skip)]
     menu: SplitMenu<'a, T>,
     /// The arrow's accessible name and tooltip ("Tracing Presets"); the label alone names it without one.
     #[prop(into)]

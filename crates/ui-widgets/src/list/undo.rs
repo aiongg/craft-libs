@@ -14,7 +14,7 @@ use craft_i18n::Format;
 use std::borrow::Cow;
 
 /// The marked actions of an undo list: the row at `marked` and every newer one (a smaller position).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
 pub struct UndoMark {
     marked: Option<usize>,
 }

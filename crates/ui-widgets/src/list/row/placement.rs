@@ -615,7 +615,7 @@ pub fn tree_steps(depth: usize, group: bool) -> usize {
 }
 
 /// How a tree lines up its leaves with its groups.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum TreeLeaves {
     /// A leaf at the top level starts where a group's disclosure does: the Layers panel, whose top-level layers keep

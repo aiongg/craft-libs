@@ -1119,6 +1119,14 @@ impl MemoProps for egui::Vec2 {
     }
 }
 
+/// A texture by its id and size: a replaced texture has a new id.
+impl MemoProps for egui::load::SizedTexture {
+    fn key(&self, key: &mut MemoKey) {
+        key.feed_hash(&self.id);
+        self.size.key(key);
+    }
+}
+
 impl MemoProps for egui::Pos2 {
     fn key(&self, key: &mut MemoKey) {
         let egui::Pos2 { x, y } = *self;
@@ -1151,6 +1159,15 @@ macro_rules! derived_hash {
 }
 
 derived_hash!(
+    craft_window::Button,
+    craft_behavior::CommandFlags,
+    craft_behavior::CursorIcon,
+    craft_behavior::dock::DockEdge,
+    craft_behavior::PartKey,
+    crate::fonts::FontRef,
+    craft_behavior::Anchor9,
+    craft_behavior::PartRef,
+    craft_i18n::Weekday,
     craft_theme::ControlSize,
     craft_theme::Variant,
     craft_behavior::DocKey,

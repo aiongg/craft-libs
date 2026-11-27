@@ -49,6 +49,7 @@ pub struct PopupList<'a> {
     #[container]
     props: ContainerProps,
     open: Bind<'a, bool>,
+    #[key(skip)]
     closed: Option<CloseReason>,
 }
 

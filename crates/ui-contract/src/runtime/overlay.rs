@@ -87,7 +87,7 @@ impl Rank {
 }
 
 /// Why a layer closes.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum CloseReason {
     /// Code asked for it.

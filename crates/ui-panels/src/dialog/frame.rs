@@ -298,6 +298,7 @@ pub struct DialogFrame<'a> {
     common: Common,
     #[container]
     props: ContainerProps,
+    #[key(skip)]
     footer: Option<FooterFn<'a>>,
     /// Whether the title row has a close action; the container closes itself when it is taken.
     #[prop]

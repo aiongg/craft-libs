@@ -60,7 +60,7 @@ const ADWAITA_CLOSE: [(f32, f32); 2] = [(4.5, 4.5), (11.5, 11.5)];
 
 /// Which end of the window a button is outermost at. Caption layouts are the user's desktop setting and physical, so
 /// this is a physical side, not a reading direction.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum CaptionEnd {
     /// The left edge.
@@ -184,7 +184,7 @@ impl CaptionPlan {
 }
 
 /// The family as a style key: the foreign type has no `Hash`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 enum Face {
     Windows,
     Adwaita,

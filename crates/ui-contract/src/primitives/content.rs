@@ -177,7 +177,7 @@ impl<'a> DocText<'a> {
 }
 
 /// One run of document text.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct DocRun<'a> {
     /// The text.

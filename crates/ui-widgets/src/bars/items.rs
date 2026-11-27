@@ -232,6 +232,7 @@ pub struct BarItems {
     /// What the "More" menu lists.
     #[prop]
     more: MoreMenu,
+    #[key(skip)]
     laid: Option<Laid>,
 }
 

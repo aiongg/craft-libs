@@ -15,7 +15,7 @@ use egui::{Rect, Ui, Vec2, vec2};
 /// The title is centred on the window's centre line when it fits between the leading content and the trailing end,
 /// slides toward the nearer end when the centre line would put it over one, and is cut with an ellipsis when it does
 /// not fit at all (the cut title shows whole in a tooltip).
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct Title {
     text: String,

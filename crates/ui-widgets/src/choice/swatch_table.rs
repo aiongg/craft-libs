@@ -61,7 +61,7 @@ impl DisplayOrder<usize> for SwatchRows<'_> {
 impl ItemSource<usize> for SwatchRows<'_> {}
 
 /// How the cells of a [`SwatchTable`] sit.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum SwatchSpacing {
     /// The cells touch.
@@ -133,7 +133,7 @@ impl Outcome for SwatchTableOutput {
 }
 
 /// How a [`SwatchTable`] lays out its cells.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum SwatchArrangement {
     /// Square cells in rows and columns.
@@ -435,6 +435,7 @@ pub struct SwatchTable<'a> {
     spacing: SwatchSpacing,
     /// The marks of each cell, by index, given to the cell's `Swatch::marks`.
     #[prop(func = "Fn(&usize) -> CellMarks")]
+    #[key(skip)]
     marks: Option<RowMarks<'a, usize>>,
     /// Only the cells of the first `n` rows at the laid-out column count are items; the rest are not shown.
     #[prop]

@@ -84,6 +84,7 @@ pub struct BreadcrumbBar<'a, K: Value + 'static> {
     common: Common,
     crumbs: &'a [Entry<K>],
     picked: Option<K>,
+    #[key(skip)]
     laid: Laid,
     whole: Label,
 }

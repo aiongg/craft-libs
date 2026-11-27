@@ -78,6 +78,7 @@ pub struct Popover<'a> {
     #[container]
     props: ContainerProps,
     open: Bind<'a, bool>,
+    #[key(skip)]
     closed: Option<CloseReason>,
 }
 

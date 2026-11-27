@@ -90,7 +90,7 @@ impl From<Label> for Cow<'static, str> {
 
 /// The text of a `Validity`: a label and an optional tone override. `Warn` defaults to `Tone::Warn`, `Refuse` to
 /// `Tone::Bad`; `effective_tone` is the one place that default is decided.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct Message {
     /// The text.

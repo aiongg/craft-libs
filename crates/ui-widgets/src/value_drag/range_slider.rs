@@ -106,6 +106,7 @@ pub struct RangeSlider<'a> {
     marks: Marks,
     /// Paints the groove with `face`, a component shown as the look of the track. The fill is not drawn over it.
     #[prop]
+    #[key(skip)]
     track_face: Option<TrackFace<'a>>,
 }
 
