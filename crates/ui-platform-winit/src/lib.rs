@@ -306,4 +306,12 @@ impl Platform for WinitPlatform {
             }
         })
     }
+
+    /// Through the system's handler on native targets (which picks the browser window or tab), and in a new tab on
+    /// the web.
+    fn open_url(&mut self, url: &str, _new_tab: bool) {
+        if let Err(error) = craft_platform::open::open_external(url) {
+            log::warn!("could not open {url}: {error}");
+        }
+    }
 }
