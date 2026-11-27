@@ -83,6 +83,14 @@ pub struct StyleCx<'a> {
     /// The memory stage of the node whose motions `exiting` reads, the component id its slots hang under, and the
     /// motion policy it runs under; set by the collection hook for the layout it asks of the component.
     owner: Option<(&'a MemoryStage, Id, MotionPolicy)>,
+    /// The build a collection hook lends to the layout it asks of the component, so `StyleCx::face` measures in it.
+    measuring: Option<&'a (dyn MeasuringHost + 'a)>,
+}
+
+/// A build lent to a style context for measuring (`StyleCx::face`): the run's `Ui`, reached as `PaintUi` reaches it.
+pub(crate) trait MeasuringHost {
+    /// Runs `f` on the lent `Ui`. `f` must not reach the host again.
+    fn with_ui(&self, f: &mut dyn FnMut(&mut crate::contract::Ui<'_, '_>));
 }
 
 /// A variant's look as style parts.
@@ -175,6 +183,7 @@ impl<'a> StyleCx<'a> {
             caches: None,
             services: None,
             owner: None,
+            measuring: None,
         }
     }
 
@@ -188,6 +197,17 @@ impl<'a> StyleCx<'a> {
     #[must_use]
     pub(crate) fn with_services(self, services: &'a dyn Services) -> StyleCx<'a> {
         StyleCx { services: Some(services), ..self }
+    }
+
+    /// The same context lending `host` to `StyleCx::face`, for the layout a collection hook asks of its component.
+    #[must_use]
+    pub(crate) fn with_measuring(self, host: &'a (dyn MeasuringHost + 'a)) -> StyleCx<'a> {
+        StyleCx { measuring: Some(host), ..self }
+    }
+
+    /// The build lent for measuring, if a collection hook lent one.
+    pub(crate) fn measuring_host(&self) -> Option<&'a (dyn MeasuringHost + 'a)> {
+        self.measuring
     }
 
     /// The window's style caches this context resolves through, if any.
