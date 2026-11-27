@@ -112,7 +112,8 @@ fn run_selections(core: &mut CxCore<'_>, selections: &[SelectDecl]) -> Option<Ke
     let origin = core.rect.min.to_vec2();
     let os = core.context().os();
     let queue: Vec<NodeInput> = core.input().to_vec();
-    let mut focused = core.focus.part.filter(|_| core.focus.focused).filter(|part| selections.iter().any(|decl| decl.part == *part));
+    let node_focused = core.read_focused();
+    let mut focused = core.focus.part.filter(|_| node_focused).filter(|part| selections.iter().any(|decl| decl.part == *part));
     let mut shown = Vec::with_capacity(selections.len());
     for decl in selections {
         let key = selection_id(core.id, decl.part);
@@ -540,7 +541,7 @@ struct PreparedText {
 /// Runs the text adapter and adjusts focus before the component's typed resolver handles its value.
 fn prepare(core: &mut CxCore<'_>, decl: &TextPart, state: &mut TextState, text_in: &TextIn<'_>, commit_now: bool) -> PreparedText {
     let id = core.id;
-    let node_focused = core.focus.focused;
+    let node_focused = core.read_focused();
     let mut focused = node_focused;
     let was_focused = state.focused;
     let enabled = core.resolved.enabled && decl.options.enabled;

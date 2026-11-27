@@ -391,7 +391,7 @@ pub(crate) fn measure_under<C: Component>(
     if proposal == Proposal::Ideal
         && let (Some(id), Some(Some(node))) = (id, ui.flow.measuring)
         && let Some(kept) = ui.cx.peek::<crate::contract::rt::node::ComponentNode>(node, id.value())
-        && crate::contract::rt::run::holds(kept.local, crate::contract::rt::key::component_key(comp), kept.state)
+        && crate::contract::rt::run::holds(kept.local, crate::contract::rt::key::component_key(comp, &common), kept.state)
         && let Some(size) = kept.local.cached(room)
     {
         *comp.common_mut(Internal::new()) = common;

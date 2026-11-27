@@ -1070,7 +1070,7 @@ fn show_plain<C: Container, R>(
         None => common.id.clone(),
     };
     let (id, child) = ui.flow.child(type_key::<C>(), source);
-    let key = component_key(&component);
+    let key = component_key(&component, &common);
     let props = component.props(Internal::new()).clone();
     let mut shape = Shape::of(&props, &place, &ui.flow.tokens, &ui.flow).in_bar(&props, &place).in_popup(&props, hosted.is_some()).in_pane(&props);
     // A window mount is the whole content of its window.
@@ -1313,7 +1313,7 @@ fn measure_in<C: Container, R>(
     };
     let begun = super::run::begin(component, ui);
     let (id, child) = ui.flow.peek_child(type_key::<C>(), begun.common.id.clone());
-    let key = component_key(component);
+    let key = component_key(component, &begun.common);
     let under = ui.flow.measuring.unwrap_or_else(|| Some(ui.cx.node()));
     let peeked = under.and_then(|u| ui.cx.peek::<ComponentNode>(u, child)).map(|p| {
         let cached = holds(p.local, key, p.state).then(|| p.local.cached(room)).flatten();

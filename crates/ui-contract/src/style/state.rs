@@ -36,6 +36,9 @@ impl StateSet {
         if reads.hover || reads.press {
             note_pointer_read(reads.hover, reads.press);
         }
+        if look.flag_dependence(self.state, Flags::FOCUSED | Flags::FOCUS_VISIBLE) {
+            note_focus_read();
+        }
         look.resolve(self.state, self.flags, self.t)
     }
 }
@@ -46,11 +49,13 @@ impl Default for StateSet {
     }
 }
 
-/// The pointer facts a paint look's recording read (`Hovered`, `Pressed`).
+/// The interaction facts a paint look's recording read: `Hovered`, `Pressed`, and the focus facts a look with a
+/// focus entry varies by (`Focused`, `FocusVisible`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct PointerReads {
     pub hover: bool,
     pub press: bool,
+    pub focus: bool,
 }
 
 thread_local! {
@@ -73,6 +78,16 @@ pub(crate) fn note_pointer_read(hover: bool, press: bool) {
         if let Some(mut read) = reads.get() {
             read.hover |= hover;
             read.press |= press;
+            reads.set(Some(read));
+        }
+    });
+}
+
+/// Notes a read of the focus facts by the look being recorded. Outside a recording it does nothing.
+fn note_focus_read() {
+    POINTER_READS.with(|reads| {
+        if let Some(mut read) = reads.get() {
+            read.focus = true;
             reads.set(Some(read));
         }
     });

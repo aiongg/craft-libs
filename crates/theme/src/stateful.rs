@@ -187,6 +187,11 @@ pub struct PointerDependence {
 }
 
 impl<T: Mix> Stateful<T> {
+    /// Whether the value in `state` depends on one of the flags in `of`: a `when` look names one. Never when disabled.
+    pub fn flag_dependence(&self, state: State, of: Flags) -> bool {
+        state != State::Disabled && self.when.iter().any(|(mask, _)| mask.0.intersects(of))
+    }
+
     /// The pointer facts the value in `state` with `flags` depends on: none when disabled or when a flag look wins,
     /// else hover when a hover look differs from its rest look, and press when a pressed look differs from its rest or
     /// hover look (on and off alike).

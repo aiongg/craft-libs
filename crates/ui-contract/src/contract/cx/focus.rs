@@ -6,7 +6,26 @@ use crate::runtime::focus;
 use crate::runtime::keys::{Intents, MenuKey};
 use craft_behavior::{MoveMods, NavMove, PartRef};
 use craft_keymap::Chord;
-use craft_ui_rt::{Rect, Vec2};
+use craft_ui_rt::{InteractFact, Rect, Vec2};
+
+impl CxCore<'_> {
+    /// Whether the component holds key focus, logged as a read of `Focused`: the node runs again when it flips. The
+    /// run takes the fact without a read, so only a run that uses it reruns on a focus move.
+    pub(crate) fn read_focused(&self) -> bool {
+        if let Some(node) = self.response.node() {
+            crate::contract::rt::response::log_read(node, InteractFact::Focused);
+        }
+        self.focus.focused
+    }
+
+    /// Whether the component holds key focus and shows it, logged as reads of `Focused` and `FocusVisible`.
+    pub(crate) fn read_focus_visible(&self) -> bool {
+        if let Some(node) = self.response.node() {
+            crate::contract::rt::response::log_read(node, InteractFact::FocusVisible);
+        }
+        self.read_focused() && self.focus.visible
+    }
+}
 
 /// Focus and keys (chapter 9).
 pub trait Focus {
@@ -84,11 +103,11 @@ impl Focus for CxCore<'_> {
     }
 
     fn is_focused(&self) -> bool {
-        self.focus.focused
+        self.read_focused()
     }
 
     fn focus_visible(&self) -> bool {
-        self.focus.visible
+        self.read_focus_visible()
     }
 
     fn reveal(&mut self, rect: Rect) {

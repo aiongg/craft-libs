@@ -465,7 +465,13 @@ mod fold {
 
     #[test]
     fn a_folded_control_asks_nothing_with_the_tree_off_and_folds_once_it_is_on() {
-        let mut rig = Rig::inline(Vec2::new(300.0, 200.0), 1.0, RecordingRenderer::default());
+        // The headless platform reports an assistive technology in windows made while it is active.
+        let mut platform = craft_ui_platform_headless::HeadlessPlatform::new();
+        platform.set_access_active(false);
+        let main = craft_ui_rt::Platform::create_window(&mut platform, &craft_ui_rt::WindowSpec { size: Some(Vec2::new(300.0, 200.0)), ..craft_ui_rt::WindowSpec::new("main") });
+        let mut runtime = craft_ui_rt::Runtime::new(craft_ui_test_kit::rt::rig::test_tokens());
+        runtime.set_inline_root(main);
+        let mut rig = Rig::from_parts(runtime, platform, RecordingRenderer::default());
         for _ in 0..4 {
             step(&mut rig);
         }
