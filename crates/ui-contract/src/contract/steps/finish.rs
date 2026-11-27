@@ -18,8 +18,8 @@ pub(crate) fn before_finish(
     let by_key = activated && core.activation.is_some_and(|activation| activation.by_key);
     core.response.note_activation(by_key || core.part_clicked);
     let (Some(command), Some(board)) = (core.command.as_deref().filter(|_| activated), board) else { return };
-    let source = injected.unwrap_or(FireSource::Component);
+    let source = injected.unwrap_or_else(|| crate::contract::rt::run::activation_source(core.activation));
     let mods = core.activation.map_or(craft_keymap::Mods::NONE, |activation| activation.mods);
-    let fired = Fired::new(command.command.clone(), source, FirePhase::Press, cx.now()).mods(mods);
+    let fired = Fired::new(crate::runtime::commands::CommandRef::clone(&command.command), source, FirePhase::Press, cx.now()).mods(mods);
     board.run_from(cx, &fired);
 }

@@ -234,6 +234,9 @@ pub struct CxCore<'a> {
     /// The facts the collection gave this row (`rt::items::row_facts`, a tracked read); `None` outside a collection's
     /// rows.
     pub(crate) row: Option<Arc<crate::runtime::env::ItemFacts>>,
+    /// The component's popups and whether each is open, taken from its node for the run (`Kept::popups`) and kept
+    /// with it after: `PopupHandle` reads and changes them, the overlay pass shows the open ones.
+    pub(crate) popups: crate::contract::rt::overlay::PopupStates,
 }
 
 /// The node side of one run (or of a kept node's settled `Cx`): the input queued since the last run, and the outputs
@@ -277,6 +280,9 @@ pub(crate) struct RunIo<'a> {
     /// The drag the run started (`Pointer::start_drag`); the driver starts ui-rt's payload session from the node's
     /// press with it.
     pub(crate) drag_start: RefCell<Option<crate::contract::rt::drag::DragSource>>,
+    /// The earliest frame time the run asked to build again at (`CxCore::wake_at`); the driver asks the node's build
+    /// for it after the run.
+    pub(crate) build_at: Cell<Option<f64>>,
 }
 
 impl<'a> RunIo<'a> {
@@ -299,6 +305,7 @@ impl<'a> RunIo<'a> {
             wake: Cell::new(false),
             wheel_taken: Cell::new(false),
             drag_start: RefCell::new(None),
+            build_at: Cell::new(None),
         }
     }
 

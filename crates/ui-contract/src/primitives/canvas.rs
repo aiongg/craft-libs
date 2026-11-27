@@ -260,6 +260,12 @@ impl<'a> Canvas<'a> {
         CanvasMark { over, at }
     }
 
+    /// Whether anything was recorded at `mark`'s level since it.
+    pub(crate) fn painted_since(&self, mark: CanvasMark) -> bool {
+        let list = if mark.over { &self.overlay } else { &self.content };
+        list.borrow().items.len() > mark.at
+    }
+
     /// Takes out the items recorded since `mark`, in window coordinates and the fade already applied: recording them
     /// again with [`extend`](Self::extend) puts them back at the end, as drawn.
     pub fn take_since(&self, mark: CanvasMark) -> Vec<Item> {

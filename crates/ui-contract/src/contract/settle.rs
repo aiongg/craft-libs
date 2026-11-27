@@ -2,19 +2,32 @@
 
 use crate::contract::{Context, Id};
 use crate::runtime::memory::{MemoryStage, StageAccess, sealed};
+use std::cell::RefCell;
 
-/// Where a real run left the body's memory. Set only when a real run called the body.
-#[derive(Debug)]
+/// The body's memory as a real run left it. Set only when a real run called the body.
 #[doc(hidden)]
 pub struct SettleAt {
+    pub(crate) stage: RefCell<Option<MemoryStage>>,
     pub(crate) ctx: Context,
     pub(crate) body: Id,
-    pub(crate) owner: Id,
+}
+
+impl std::fmt::Debug for SettleAt {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SettleAt").field("body", &self.body).finish_non_exhaustive()
+    }
 }
 
 impl SettleAt {
+    /// The settle of the body `body` whose run left `stage`.
+    pub(crate) fn new(stage: MemoryStage, body: Id) -> SettleAt {
+        SettleAt { ctx: stage.ctx().clone(), stage: RefCell::new(Some(stage)), body }
+    }
+
+    /// Runs `f` once on the body's memory; a second call finds none and gets a stage with nothing in it.
     pub(crate) fn run<T>(&self, f: impl FnOnce(&mut SettleCx<'_>) -> T) -> T {
-        let mut stage = MemoryStage::open_after(&self.ctx, self.body, self.owner);
+        let taken = self.stage.borrow_mut().take();
+        let mut stage = taken.unwrap_or_else(|| MemoryStage::open(&self.ctx, self.body));
         let value = f(&mut SettleCx { stage: &mut stage, id: self.body });
         stage.write_back();
         value

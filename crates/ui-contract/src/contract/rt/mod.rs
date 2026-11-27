@@ -64,7 +64,6 @@ pub(crate) use key::ComponentKey;
 pub(crate) use motion::{Interpolate, MotionSpec, Tween, loop_phase, spec};
 pub(crate) use node::KeptPart;
 pub(crate) use node::{NodeInput, Pointer};
-pub(crate) use overlay::{OverlayUi, PopupHandle};
 pub(crate) use pending::{Delivery, JobBoard, Pending};
 pub(crate) use run::{kept_part_id, show_leaf};
 pub(crate) use scope::{WindowEnv, window_root, window_root_with};

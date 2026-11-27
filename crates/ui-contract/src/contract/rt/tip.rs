@@ -168,8 +168,12 @@ impl Component for TipText<'_> {
 
     /// The shaped text, wrapped at the room: the size the layer child is placed by.
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        let text = cx.layout_at(&TextRun::new(self.text), cx.room.x).size();
-        Vec2::new(text.x.min(cx.room.x), text.y)
+        let run = TextRun::new(self.text);
+        let text = match cx.room {
+            Some(width) => cx.layout_at(&run, width).size(),
+            None => cx.layout(&run).size(),
+        };
+        Vec2::new(text.x.min(cx.room.unwrap_or(f32::INFINITY)), text.y)
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
@@ -177,7 +181,7 @@ impl Component for TipText<'_> {
     }
 
     fn access(&self, access: &mut Access, _: &Cx<'_, Self>) {
-        access.label(self.text);
+        access.name(crate::runtime::access::Name::Text(self.text.to_owned()));
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> Response {

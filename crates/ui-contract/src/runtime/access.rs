@@ -1,13 +1,11 @@
 //! `Role`, the access facts of a component and the AccessKit emitter (chapter 12).
 //!
-//! This module decides what every node says (name, description, actions, rule checks, scope registration) and is
-//! the only one that calls `runtime::egui::access`, which writes nodes and makes the parent and focus calls. One
-//! `report` per node kind fills a node; `runtime::access::{item, text}` add theirs beside `report` and `report_sub`.
+//! The facts a component's `access` hook fills ([`Access`], [`SubNode`]); the run writes them into its AccessKit node
+//! and sub-nodes (`contract::rt::access`).
 
 use crate::primitives::Id;
-use crate::runtime::egui::access::NodeRole;
-pub use crate::runtime::egui::access::bounds;
 use crate::runtime::env::Label;
+use accesskit::Role as NodeRole;
 use craft_behavior::PartRef;
 use craft_theme::{Flags, Srgba};
 pub(crate) use emit::PopupShown;

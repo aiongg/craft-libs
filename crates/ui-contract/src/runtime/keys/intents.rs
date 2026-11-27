@@ -1,11 +1,10 @@
 //! The intents routed to a component and what it leaves untaken: Submit, Cancel, Escape and context requests.
 
-use super::route::push;
 use super::{Nudge, Source};
 use crate::primitives::Id;
 use crate::runtime::focus;
-use craft_behavior::{EditCommand, EditorInput, Intent, NavMove, PartRef};
-use craft_keymap::{Chord, Mods};
+use craft_behavior::{AccessRequest, EditCommand, EditorInput, Intent, MoveMods, NavMove, PartRef};
+use craft_keymap::{Chord, Key, Mods};
 use craft_ui_rt::Vec2;
 use std::sync::Arc;
 
@@ -27,6 +26,16 @@ impl Intents {
     /// Queues an intent for this pass, as the key stage does for its own.
     pub(crate) fn push(&mut self, intent: Intent) {
         self.items.push((intent, false));
+    }
+
+    /// Takes the next typed digit.
+    pub fn take_digit(&mut self) -> Option<u8> {
+        let at = self.items.iter().position(|(item, taken)| !taken && matches!(item, Intent::Digit(_)))?;
+        self.items[at].1 = true;
+        match self.items[at].0 {
+            Intent::Digit(digit) => Some(digit),
+            _ => None,
+        }
     }
 
     /// Whether an AccessKit click names some part of the component; reads without taking.
@@ -60,6 +69,79 @@ impl Intents {
         }
     }
 
+    /// Leaves an intent this pass's taker took to the enclosing scope, in the same pass: the next taker gets it. No
+    /// input is queued or copied.
+    pub(crate) fn pass_on(&mut self, intent: Intent) {
+        if let Some((_, taken)) = self.items.iter_mut().find(|(item, taken)| *taken && item.same_kind(&intent)) {
+            *taken = false;
+        }
+    }
+
+    /// Takes an intent equal to `intent` in every field, once per pass: `Intent::delete(false, Granularity::Grapheme)`
+    /// takes Backspace and leaves Delete, which `take` would also take.
+    pub fn take_exact(&mut self, intent: &Intent) -> bool {
+        match self.items.iter().position(|(item, taken)| !taken && item == intent) {
+            Some(at) => {
+                self.items[at].1 = true;
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// Takes the next move, whichever it is: for a component that acts on every move. A move taken is the component's,
+    /// so the Page Up, Page Down, Home and End it takes never reach the scroll owner around it (a page view under a
+    /// focused page part); a component that acts on some moves takes those with [`take_move_where`](Self::take_move_where)
+    /// and leaves the rest.
+    pub fn take_move(&mut self) -> Option<(NavMove, MoveMods)> {
+        self.take_move_where(|_, _| true)
+    }
+
+    /// Takes the next move that `wanted` accepts; the others stay for a later taker, or for the scroll owner around a
+    /// focused component when they scroll (9.2 rule 5).
+    pub fn take_move_where(&mut self, wanted: impl Fn(NavMove, MoveMods) -> bool) -> Option<(NavMove, MoveMods)> {
+        let at = self.items.iter().position(|(item, taken)| !taken && matches!(item, Intent::Move(mv, mods) if wanted(*mv, *mods)))?;
+        self.items[at].1 = true;
+        match self.items[at].0 {
+            Intent::Move(mv, mods) => {
+                if matches!(mv, NavMove::Back | NavMove::Forward | NavMove::Up | NavMove::Down) {
+                    self.took_arrows.push(mv);
+                }
+                Some((mv, mods))
+            }
+            _ => None,
+        }
+    }
+
+    /// The arrow moves `take_move` took this pass: the run step checks that the component holds those keys.
+    pub(crate) fn taken_arrow_moves(&self) -> &[NavMove] {
+        &self.took_arrows
+    }
+
+    /// Takes the next AccessKit request that asks a scroll region to scroll, or with `into_view` to show its target.
+    /// A component that scrolls reads its own requests through it.
+    pub fn take_scroll_access(&mut self, into_view: bool) -> Option<AccessRequest> {
+        use craft_behavior::AccessAction as Action;
+        let at = self.items.iter().position(|(item, taken)| {
+            !taken
+                && matches!(
+                    item,
+                    Intent::Access(request)
+                        if request.target.is_none()
+                            && (request.action == Action::ScrollIntoView) == into_view
+                            && matches!(
+                                request.action,
+                                Action::ScrollUp | Action::ScrollDown | Action::ScrollLeft | Action::ScrollRight | Action::ScrollIntoView | Action::SetScrollOffset
+                            )
+                )
+        })?;
+        self.items[at].1 = true;
+        match &self.items[at].0 {
+            Intent::Access(request) => Some(request.clone()),
+            _ => None,
+        }
+    }
+
     /// Takes the next edit command.
     pub fn take_edit(&mut self) -> Option<EditCommand> {
         let at = self.items.iter().position(|(item, taken)| !taken && matches!(item, Intent::Edit(_)))?;
@@ -70,9 +152,32 @@ impl Intents {
         }
     }
 
+    /// Takes the next typed text.
+    pub fn take_text(&mut self) -> Option<Arc<str>> {
+        let at = self.items.iter().position(|(item, taken)| !taken && matches!(item, Intent::Text(_)))?;
+        self.items[at].1 = true;
+        match &self.items[at].0 {
+            Intent::Text(text) => Some(Arc::clone(text)),
+            _ => None,
+        }
+    }
+
     /// Takes the physical arrow nudge for canvas content: a unit direction and the modifiers.
     pub fn take_nudge(&mut self) -> Option<(Vec2, Mods)> {
         self.nudge.take().map(|nudge| (nudge.direction, nudge.mods))
+    }
+
+    /// The keys that were down when the arrow of the nudge not yet taken went down, the arrow not among them; empty
+    /// without one. Unlike `keys::held`, which is the state after the frame's input, it keeps the order of the frame's
+    /// events: a key let go after the arrow in the same frame was held with it, and one pressed after it was not.
+    pub fn nudge_held(&self) -> &[Key] {
+        self.nudge.as_ref().map_or(&[], |nudge| &nudge.held)
+    }
+
+    /// Takes the chords this pass's presses spell, for a component whose key use is `KeyUse::RECORDER`; empty for any
+    /// other component. A recorder gets no other key intents, and no command runs on its presses.
+    pub fn take_chords(&mut self) -> Vec<Chord> {
+        std::mem::take(&mut self.chords)
     }
 
     /// Takes the earliest queued chord among `wanted` (a claim's chords, `KeyUse::claims`), so a caller applies the
@@ -82,9 +187,68 @@ impl Intents {
         Some(self.chords.remove(at))
     }
 
+    /// Takes the AccessKit `SetValue` request aimed at the component's own node.
+    pub fn take_set_value(&mut self) -> Option<f64> {
+        self.take_set_value_of(None)
+    }
+
+    /// Takes the AccessKit `SetValue` request aimed at the sub-node of `part`.
+    pub fn take_set_value_at(&mut self, part: impl Into<PartRef>) -> Option<f64> {
+        self.take_set_value_of(Some(part.into()))
+    }
+
+    fn take_set_value_of(&mut self, part: Option<PartRef>) -> Option<f64> {
+        match self.set_value {
+            Some((target, value)) if target == part => {
+                self.set_value = None;
+                Some(value)
+            }
+            _ => None,
+        }
+    }
+
     /// Whether an intent of the kind of `intent` is routed and not taken.
     pub fn untaken(&self, intent: &Intent) -> bool {
         self.items.iter().any(|(item, taken)| !taken && item.same_kind(intent))
+    }
+
+    /// Takes the next intent an editor reads as input: typed text, a move, a delete, an edit command, Enter as a
+    /// newline with its Shift, Tab and Shift+Tab, and Escape as a cancel. An arrow move the editor's `keep` does not
+    /// keep stays for the component's navigation (18.4), and with `KeepKeys::None` so do Home, End and the page keys:
+    /// the editor is a part of a grid that navigates until a cell opens. With it, the place among the frame's events of
+    /// the press or text it came from, `None` for an intent of no one event.
+    pub(crate) fn take_editor_input(&mut self, keep: focus::KeepKeys) -> Option<(EditorInput, Option<usize>)> {
+        let kept = |item: &Intent| match item {
+            Intent::Move(NavMove::Up | NavMove::Down, _) => matches!(keep, focus::KeepKeys::BlockArrows | focus::KeepKeys::Tab),
+            Intent::Move(NavMove::Back | NavMove::Forward, _) => keep != focus::KeepKeys::None,
+            Intent::Move(NavMove::Start | NavMove::End | NavMove::PageUp | NavMove::PageDown, _) => keep != focus::KeepKeys::None,
+            _ => true,
+        };
+        let at = self.items.iter().position(|(item, taken)| !taken && kept(item) && editor_input_of(item, false).is_some())?;
+        self.items[at].1 = true;
+        let source = self.sources.get(at).copied().flatten();
+        editor_input_of(&self.items[at].0, source.is_some_and(|source| source.shift)).map(|input| (input, source.map(|source| source.place)))
+    }
+
+    /// Takes the next `Intent::Access` request that `wanted` accepts.
+    #[doc(hidden)]
+    pub fn take_access_where(&mut self, wanted: impl Fn(&AccessRequest) -> bool) -> Option<AccessRequest> {
+        let at = self.items.iter().position(|(item, taken)| !taken && matches!(item, Intent::Access(request) if wanted(request)))?;
+        self.items[at].1 = true;
+        match &self.items[at].0 {
+            Intent::Access(request) => Some(request.clone()),
+            _ => None,
+        }
+    }
+
+    /// Takes the next `Intent::Access` request.
+    pub fn take_access(&mut self) -> Option<AccessRequest> {
+        let at = self.items.iter().position(|(item, taken)| !taken && matches!(item, Intent::Access(_)))?;
+        self.items[at].1 = true;
+        match &self.items[at].0 {
+            Intent::Access(request) => Some(request.clone()),
+            _ => None,
+        }
     }
 }
 
@@ -115,6 +279,12 @@ impl Intents {
             set_value: None,
             whole_reset: false,
         }
+    }
+
+    /// An AccessKit SetValue with a number on `part`'s sub-node (`None`: the component's own node), for
+    /// `take_set_value` and `take_set_value_at`.
+    pub(crate) fn note_set_value(&mut self, part: Option<PartRef>, value: f64) {
+        self.set_value = Some((part, value));
     }
 
     /// Takes the intent at the queue place `place` as editor input when it is one the editor keeps (the rule of

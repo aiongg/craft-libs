@@ -65,7 +65,7 @@ pub(crate) fn kept_parts(parts: &PartsStep, origin: Pos2) -> Vec<KeptPart> {
                 id: kept_part_id(part),
                 shape: HitShape::Rect(decl.shape.bounds().translate(Pos2::ZERO - origin)),
                 sense: decl.sense,
-                cursor: decl.cursor.map(Into::into),
+                cursor: decl.cursor.as_ref().map(crate::contract::rt::cursor::platform),
                 exclusive: extras.exclusive,
             }
         })

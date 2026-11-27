@@ -523,20 +523,6 @@ impl TextLayout {
         Self::from_shaped(shaped, elided, full)
     }
 
-    /// The layout of a galley the egui runtime laid out (a selectable text's widget); `full` is the full text.
-    pub(crate) fn from_galley(galley: Arc<egui::Galley>, elided: bool, full: String) -> TextLayout {
-        let layout = crate::runtime::egui::text_layout::rt_layout(galley);
-        let metrics = Arc::new(crate::runtime::egui::text_layout::rt_metrics(&layout));
-        let full = (*metrics.text != *full).then(|| Arc::<str>::from(full));
-        let elided = elided || metrics.elided;
-        Self::from_shaped(Shaped { layout, metrics }, elided, full)
-    }
-
-    /// The galley of a layout the egui runtime laid out; `None` for one a renderer's engine shaped.
-    pub(crate) fn egui_galley(&self) -> Option<Arc<egui::Galley>> {
-        self.layout.handle.downcast_ref::<crate::runtime::egui::text_layout::EguiShaped>().map(|shaped| shaped.galley.clone())
-    }
-
     /// The engine's layout, which a display list draws.
     pub fn rt(&self) -> &craft_ui_rt::TextLayout {
         &self.layout

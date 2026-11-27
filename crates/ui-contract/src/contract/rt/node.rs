@@ -201,6 +201,11 @@ pub(crate) struct Kept {
     pub(crate) commands: Option<super::commands::CommandBoard>,
     /// The cursor over the node's own shape, from `Component::cursor`.
     pub(crate) cursor: Option<Cursor>,
+    /// The distance of one wheel line over the node (`Component::wheel_notch`).
+    pub(crate) notch: craft_behavior::WheelNotch,
+    /// The node registered as its window's menu bar (`Focus::register_menu_bar`), `Some(true)` when it claims a
+    /// lone Alt: the window root routes F10, Alt and Alt mnemonics to it as `NodeInput::Menu`.
+    pub(crate) menu_bar: Option<bool>,
     /// Paint-time state: the fade between pointer looks.
     pub(crate) fade: super::motion::FadeCell,
     /// The opacity a run aimed at and its tween, evaluated at paint time.
@@ -252,6 +257,8 @@ impl Kept {
             window_root: false,
             commands: None,
             cursor: None,
+            notch: craft_behavior::WheelNotch::DEFAULT,
+            menu_bar: None,
             fade: Default::default(),
             level: Default::default(),
             focus: FocusKept::default(),
@@ -294,6 +301,12 @@ impl Kept {
 
     fn takes_press(&self) -> bool {
         self.sense.takes_press() || self.parts.iter().any(|p| p.sense.takes_press())
+    }
+
+    /// The node or one of its parts takes a wheel axis.
+    fn takes_wheel(&self) -> bool {
+        let wheel = Sense::WHEEL | Sense::WHEEL_X | Sense::WHEEL_Y | Sense::WHEEL_ZOOM;
+        !self.sense.intersection(wheel).is_empty() || self.parts.iter().any(|p| !p.sense.intersection(wheel).is_empty())
     }
 }
 
@@ -450,6 +463,11 @@ impl Element for ComponentNode {
                     _ => Handled::Yes,
                 }
             }
+            Event::Wheel(w) if kept.takes_wheel() => {
+                kept.queue.push(NodeInput::Wheel(wheel_of(w, kept.notch, kept.size)));
+                cx.request_build();
+                Handled::Yes
+            }
             Event::Pointer(p) if kept.takes_press() => {
                 self.pointer(kept, cx, p);
                 Handled::Yes
@@ -591,4 +609,26 @@ impl Element for ScopeNode {
             _ => Handled::No,
         }
     }
+}
+
+/// A wheel step as the node's run reads it (`Pointer::take_wheel`): line steps in points of the
+/// node's notch, a two-finger gesture as touch pan, zoom and rotation.
+fn wheel_of(w: &craft_ui_rt::WheelInput, notch: craft_behavior::WheelNotch, extent: Vec2) -> craft_behavior::Wheel {
+    let (scroll, lines) = match w.unit {
+        craft_behavior::WheelUnit::Line => (Vec2::new(w.delta.x * notch.points(extent.x), w.delta.y * notch.points(extent.y)), w.delta),
+        _ => (w.delta, Vec2::ZERO),
+    };
+    let mut wheel = craft_behavior::Wheel::new(if w.touch { Vec2::ZERO } else { scroll }, w.mods, w.unit, w.phase);
+    wheel.lines = lines;
+    wheel.source = w.source;
+    wheel.at = Some(w.pos);
+    if w.touch {
+        wheel.touch_pan = w.delta;
+        wheel.touch_zoom = w.zoom;
+        wheel.touch_rotation = w.rotation;
+    } else {
+        wheel.zoom = w.zoom;
+        wheel.rotation = w.rotation;
+    }
+    wheel
 }

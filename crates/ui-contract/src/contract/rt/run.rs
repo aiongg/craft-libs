@@ -21,7 +21,6 @@ use super::access::Access;
 use super::focus::RingShape;
 use super::key::{component_key, fold, type_key};
 use super::node::{ComponentNode, Kept, KeptPart, NodeInput, Place, Pointer, Variant, part_id};
-use super::overlay::OverlayUi;
 use super::response::{self, InputFacts};
 use super::sweep;
 use super::tip;
@@ -29,6 +28,7 @@ use super::ui::{Flow, Ui};
 use crate::contract::Context;
 use crate::contract::Response;
 use crate::contract::cx::RunIo;
+use crate::contract::overlay::{drive_toggles, note_activation, run_overlay};
 use crate::contract::paint_ui::UiHost;
 use crate::contract::run::{Measuring, NoShape, ShapeHooks, ShowAt, TypeFacts, core_for, paint_ui};
 use crate::contract::steps::{self, MeasureIn, ValueStep};
@@ -68,7 +68,8 @@ pub(crate) fn begin<C: Component>(component: &mut C, ui: &mut Ui<'_, '_>) -> Beg
 pub(crate) fn begin_in<C: Component>(component: &mut C, ui: &mut Ui<'_, '_>, env: Env) -> Begun<C> {
     let common = std::mem::take(component.common_mut(Internal::new()));
     let step1 = steps::env(&env, &common, steps::variants::<C>(common.variant, &env), &mut |command| ui.resolve_command(command.clone()));
-    let style = steps::style::<C>(ui.build_cx(), &steps::style_cx(&env, &step1), component.style_key());
+    let ctx = ui.ctx.clone();
+    let style = steps::style::<C>(ui.build_cx(), &ctx, &steps::style_cx(&env, &step1), component.style_key());
     Begun { env, common, step1, style, facts: TypeFacts::of::<C>() }
 }
 
@@ -241,7 +242,7 @@ pub(crate) fn show_shaped<C: Component>(
                 }
                 if state.path {
                     // A node in one of its layer children is marked: reach them.
-                    reach_layers(&mut component, kept, cx, rect, &begun, &flow.tokens, flow.sweep, context.clone());
+                    reach_layers(&mut component, kept, cx, rect, &begun, &flow.tokens, context.clone());
                 } else {
                     cx.keep_children();
                 }
@@ -428,7 +429,7 @@ pub(crate) fn run_shaped<C: Component>(
     let facts = begun.facts;
     let style = &*begun.style;
     let rtl = begun.env.direction.is_rtl() && !resolved.ltr_axis;
-    let board = cx.provided::<CommandBoard>().cloned();
+    let board = cx.provided::<CommandBoard>();
     // Interaction reads of the hooks below (a `Response` read in `update`, `parts` or `access`) are
     // build reads of this node (contract-rt 15.6 rule 2). `finish`'s reads belong to the scope that
     // shows the node, which reads its output.
@@ -453,6 +454,9 @@ pub(crate) fn run_shaped<C: Component>(
     };
     let mut core = core_for(&begun.env, &resolved, &mut kept.memory, response, begun.step1.command.clone(), RunIo::new(&input, context.clone()));
     place_core(&mut core, &component, style, rect, &resolved, begun.env.direction.is_rtl());
+    // The popups live on the node; `PopupHandle` reads and changes them through the run's core.
+    core.popups = std::mem::take(&mut kept.popups);
+    core.popups.begin_run(cx);
     core.run.inbox = inbox;
     core.run.swept = swept;
     core.row = row.clone();
@@ -460,7 +464,7 @@ pub(crate) fn run_shaped<C: Component>(
     core.node = true;
     core.faded = facts.faded && !resolved.enabled;
     core.focus = super::focus::facts(&kept.focus, focused, interact.focus_visible);
-    core.intents = super::intents::of_queue(core.run.input, || rtl);
+    core.intents = super::intents::of_queue(core.run.input, |sub| kept.parts.iter().find(|p| p.id == sub).map(|p| p.part), || rtl);
     let mut cxx = Cx {
         core: &mut core,
         style,
@@ -491,7 +495,7 @@ pub(crate) fn run_shaped<C: Component>(
     kept.sense = sense;
     kept.sweep = sweep;
     kept.toggle = component.sweep_value();
-    kept.cursor = component.cursor().map(Into::into);
+    kept.cursor = component.cursor().as_ref().map(super::cursor::platform);
     let results = part_results(&kept.parts, &parts, own, cxx.core.run.input, rect, interact.hovered);
     cxx.core.results = results.1;
     cxx.core.press = results.0.press;
@@ -507,13 +511,14 @@ pub(crate) fn run_shaped<C: Component>(
     // 9 update, then the stops it decides (a member that joins its body's roving group).
     steps::gesture_gate(&component, &mut cxx);
     steps::update_inputs(cxx.core);
+    drive_toggles(cxx.core, facts.overlays, std::any::type_name::<C>());
     steps::edit_intents(&mut component, &mut cxx);
     steps::scrub_by_label(&component, &mut cxx);
     component.update(&mut cxx);
     hooks.updated(&mut component, &mut cxx);
     steps::record_context(cxx.core);
     if let Some(cursor) = crate::contract::cx::run_cursor(cxx.core) {
-        kept.cursor = Some(cursor.into());
+        kept.cursor = Some(super::cursor::platform(&cursor));
     }
     kept.focus.ring = stop.then(|| craft_ui_rt::Stroke::new(tokens.stroke.focus, tokens.color.line.focus));
     kept.focus.stop = stop.then(|| component.keys());
@@ -526,8 +531,10 @@ pub(crate) fn run_shaped<C: Component>(
 
     // 10 overlay: the popups show their content as layer children of this node.
     if facts.overlays {
-        let mut overlays = OverlayUi::new(cx, id, rect, &mut kept.popups, true, tokens.clone(), sweep);
-        component.overlay(&mut overlays, &mut cxx);
+        let toggling = toggle_rects(cxx.core);
+        let host = RunHost::new(cx, run_flow(id, rect.min, place.room, tokens.clone(), None), context.clone(), begun.env.clone());
+        let mut lent: &RunHost<'_, '_> = &host;
+        run_overlay(&mut component, &mut cxx, &mut lent, &begun.env, toggling, true);
     }
 
     // 11 apply: the run's edits reach the binding, and the shown value follows.
@@ -537,7 +544,7 @@ pub(crate) fn run_shaped<C: Component>(
 
     // 12 state and 13 paint, once per pointer look the paint read (section 8, 15.6); then the
     // shape's content (a collection's rows), whose children join the ones the paint showed.
-    let open = facts.overlays && kept.popups.any_open();
+    let open = facts.overlays && cxx.core.popups.any_open();
     let host = RunHost::new(cx, run_flow(id, rect.min, place.room, tokens.clone(), None), context.clone(), begun.env.clone());
     let (variants, values) = record_variants(&mut component, &mut cxx, &host, begun, own, &kept.parts, open);
     kept.variants = variants;
@@ -577,6 +584,21 @@ pub(crate) fn run_shaped<C: Component>(
     }
     response::end_reads(reads, cx);
 
+    // What the run asked of its node, applied after it: the menu-bar registration, a build wake (a
+    // wheel ease paying out, a popup's dwell), the drag it started and the press it cancelled.
+    kept.menu_bar = cxx.core.run.menu_bar.get();
+    kept.notch = component.wheel_notch();
+    let wake = cxx.core.run.wake.get().then(|| cx.now());
+    if let Some(at) = [wake, cxx.core.run.build_at.get()].into_iter().flatten().reduce(f64::min) {
+        cx.request_build_at(Some(at));
+    }
+    if let Some(source) = cxx.core.run.drag_start.borrow_mut().take() {
+        kept.drag_session = cx.start_drag(source.start(tokens));
+    }
+    if let Some(reason) = cxx.core.press_cancel.take().filter(|_| kept.press.is_some()) {
+        cx.cancel_press(reason);
+    }
+
     // Focus: the ring's shape for the part that holds focus (or the node's own), then the moves the
     // run asked for, applied after the run.
     let focus_moves = std::mem::take(&mut *cxx.core.run.focus_requests.borrow_mut());
@@ -594,7 +616,12 @@ pub(crate) fn run_shaped<C: Component>(
     // 17 finish: the activation fires the bound command once, at event time on the board's handler.
     let activated = component.activated(&cxx) && resolved.enabled;
     let injected = cxx.core.injected.take().filter(|_| resolved.enabled);
-    steps::before_finish(cxx.core, activated || injected.is_some(), injected, board.as_ref(), cx);
+    let fired = activated || injected.is_some();
+    steps::before_finish(cxx.core, fired, injected, board.as_ref(), cx);
+    if fired {
+        // The layers the activation happened in close, unless it keeps them open.
+        note_activation(cx, cxx.core.keep_open);
+    }
     let wants = std::mem::take(&mut cxx.core.run.inbox.wants);
     let fires = std::mem::take(&mut cxx.core.run.fires);
     kept.id = id;
@@ -606,6 +633,7 @@ pub(crate) fn run_shaped<C: Component>(
     kept.sizes.clear();
     kept.sizes.push((place.room, size));
     let out = component.finish(cxx);
+    kept.popups = std::mem::take(&mut core.popups);
     for target in focus_moves {
         super::ids::request_focus(cx, target);
     }
@@ -648,6 +676,11 @@ fn ring_shape<C: Component>(cx: &Cx<'_, C>, focus: &super::focus::FocusKept, rec
     RingShape::of(core.focus_shape.as_ref(), rect, radii, rect.min)
 }
 
+/// The window rects of the parts that toggle a popup, which `OverlayUi::anchor_part` anchors to.
+fn toggle_rects(core: &CxCore<'_>) -> Vec<(PartRef, Rect)> {
+    core.toggles.iter().filter_map(|t| core.results.get(&(t.part.key, t.part.index)).map(|r| (t.part, r.rect))).collect()
+}
+
 /// The output of a kept shaped node (a collection): its content runs on the settled `Cx` (the
 /// collection's rows reconcile, each keeping its node when its key and facts hold), and its layer
 /// children are reached; its own hooks stay kept.
@@ -663,8 +696,7 @@ fn settle_shaped<C: Component>(
     tokens: &Arc<Tokens>,
     hooks: &mut dyn ShapeHooks<C>,
 ) -> C::Output {
-    let sweep = kept.sweep;
-    reach_layers(&mut component, kept, cx, rect, begun, tokens, sweep, context.clone());
+    reach_layers(&mut component, kept, cx, rect, begun, tokens, context.clone());
     let node = cx.node();
     let response = Response::new(kept.id, rect, Some(node), cx.interaction(node), kept.dragging, InputFacts::default());
     let resolved = begun.resolved(kept.id);
@@ -716,8 +748,9 @@ fn activation_of(resolved: &Resolved<'_>, input: &[NodeInput], sense: Sense) -> 
     })
 }
 
-/// Step 16's access node: the label, description, value words and enabled and selected facts from
-/// the resolved props, then the component's own `access`. Built once per run.
+/// Step 16's access node: the description, value words and access key from the resolved props,
+/// then the component's own `access`, then the side label of its label scope; the label, the
+/// state flags and the actions its sense and popups give. Built once per run.
 fn report<C: Component>(
     component: &C,
     cx: &Cx<'_, C>,
@@ -732,9 +765,6 @@ fn report<C: Component>(
     if let Some(row) = row {
         access.position(row.position);
     }
-    if component.shows_label() && !resolved.label.is_empty() {
-        access.label(resolved.label);
-    }
     if let Some(description) = resolved.description {
         access.description(description);
     }
@@ -744,12 +774,19 @@ fn report<C: Component>(
     if let Some(key) = resolved.access_key {
         access.access_key(key);
     }
-    access.disabled(!resolved.enabled);
-    if let Some(selected) = resolved.selected {
-        access.selected(selected);
-    }
     component.access(&mut access, cx);
-    access.finish(role, sense)
+    crate::contract::cx::apply_field_label(cx.core, &mut access);
+    let mut flags = cx.core.state.flags;
+    flags.set(craft_theme::Flags::SELECTED, resolved.selected.unwrap_or(flags.contains(craft_theme::Flags::SELECTED)));
+    let facts = super::access::NodeFacts {
+        label: if component.shows_label() { resolved.label } else { "" },
+        flags,
+        enabled: resolved.enabled,
+        clickable: sense.takes_press(),
+        focusable: !sense.intersection(Sense::FOCUS).is_empty(),
+        context_menu: cx.core.popups.offers_context_menu(),
+    };
+    super::access::finish(access, role, &facts)
 }
 
 /// Runs the overlay and tooltip passes of a node that keeps its own outputs while a build reaches
@@ -763,7 +800,6 @@ pub(crate) fn reach_layers<C: Component>(
     rect: Rect,
     begun: &Begun<C>,
     tokens: &Arc<Tokens>,
-    sweep: Option<craft_ui_rt::State<sweep::Sweep>>,
     context: Context,
 ) {
     let id = kept.id;
@@ -771,12 +807,20 @@ pub(crate) fn reach_layers<C: Component>(
         let node = cx.node();
         let response = Response::new(id, rect, Some(node), cx.interaction(node), kept.dragging, InputFacts::default());
         let resolved = begun.resolved(id);
-        let mut core = settled_core(&begun.env, &resolved, &mut kept.memory, response, &begun.step1, RunIo::settled(context));
+        let mut core = settled_core(&begun.env, &resolved, &mut kept.memory, response, &begun.step1, RunIo::settled(context.clone()));
         place_core(&mut core, component, &begun.style, rect, &resolved, begun.env.direction.is_rtl());
+        core.popups = std::mem::take(&mut kept.popups);
+        core.popups.begin_run(cx);
         let mut cxx = Cx { core: &mut core, style: &*begun.style, shown: None, mixed: false, events: Vec::new(), applied: 0, validity: Validity::Ok };
-        let mut overlays = OverlayUi::new(cx, id, rect, &mut kept.popups, false, tokens.clone(), sweep);
-        component.overlay(&mut overlays, &mut cxx);
-        if overlays.changed {
+        let host = RunHost::new(cx, run_flow(id, rect.min, kept.place.room, tokens.clone(), None), context, begun.env.clone());
+        let changed = {
+            let mut lent: &RunHost<'_, '_> = &host;
+            run_overlay(component, &mut cxx, &mut lent, &begun.env, Vec::new(), false)
+        };
+        drop(host);
+        drop(cxx);
+        kept.popups = std::mem::take(&mut core.popups);
+        if changed {
             cx.rebuild();
         }
     }
@@ -1005,6 +1049,6 @@ pub(crate) fn fire(board: &CommandBoard, cx: &mut BuildCx<'_>, fired: &crate::ru
 pub(crate) fn activation_source(activation: Option<Activation>) -> FireSource {
     match activation {
         Some(Activation { by_key: true, .. }) => FireSource::Key,
-        _ => FireSource::Component,
+        _ => FireSource::Pointer,
     }
 }
