@@ -15,14 +15,14 @@ const DOT: [((usize, usize), u8); 4] = [((10, 10), 255), ((11, 10), 110), ((10, 
 
 /// Paints the surround `look` over `area`: the fill, and with a pattern one textured shape of the dot tile over it.
 /// The tile is laid in screen space from the origin, so the dots hold still while the view scrolls or turns. A rect takes its corners; a quad (a piece of a turned pasteboard) is filled as `Draw` fills a polygon.
-pub fn paint_surround(painter: &egui::Painter, area: CheckerArea, look: &SurroundLook) {
+pub fn paint_surround(painter: &super::Canvas<'_>, area: CheckerArea, look: &SurroundLook) {
     match area {
         CheckerArea::Rect(rect, radius) => {
             painter.add(Shape::Rect(RectShape::filled(rect, radius, look.fill)));
         }
         CheckerArea::Quad(corners) => {
-            let feather = painter.ctx().tessellation_options(|options| {
-                if options.feathering { options.feathering_size_in_pixels / painter.pixels_per_point() } else { 0.0 }
+            let feather = painter.egui().map_or(0.0, |ctx| {
+                ctx.tessellation_options(|options| if options.feathering { options.feathering_size_in_pixels / painter.pixels_per_point() } else { 0.0 })
             });
             let mesh = fill_polygon(&corners, look.fill, feather);
             if !mesh.is_empty() {
@@ -31,7 +31,9 @@ pub fn paint_surround(painter: &egui::Painter, area: CheckerArea, look: &Surroun
         }
     }
     let Some(pattern) = look.pattern else { return };
-    let texture = dot_texture(painter.ctx(), pattern);
+    // The tile repeats by texture wrap, which the display list has no image option for yet: the pattern shows on the egui runtime.
+    let Some(ctx) = painter.egui() else { return };
+    let texture = dot_texture(ctx, pattern);
     let uv = |p: Pos2| (p.to_vec2() / TILE).to_pos2();
     let shape = match area {
         CheckerArea::Rect(rect, radius) => {

@@ -120,7 +120,7 @@ impl<'a> CanvasPanel<'a> {
             ShellRegion::pane(ShellPane::new("document")).id_salt("document").label(words.document.clone()).senses_surface().show(ui, |ui, cx| {
                 // Painted first, so a document the closure shows covers it.
                 let look = SurroundLook::of(&env.tokens).shown(cx.env.canvas_pattern());
-                paint_surround(ui.painter(), CheckerArea::Rect(cx.rect, CornerRadius::ZERO), &look);
+                crate::runtime::egui::text_layout::on_painter(ui.painter(), |canvas| paint_surround(canvas, CheckerArea::Rect(cx.rect, CornerRadius::ZERO), &look));
                 empty_double |= cx.surface_double_pressed();
                 document(ui, cx);
             });

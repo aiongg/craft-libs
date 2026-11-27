@@ -36,7 +36,7 @@ pub mod textures;
 mod tool;
 
 pub use auto_scroll_mark::AutoScrollMark;
-pub use canvas::{Canvas, FaceJob, FrameServices, Services, image_key, rgba_image};
+pub use canvas::{Canvas, FaceJob, FrameServices, Services, image_key, rgba_image, texture_key};
 pub use content::{ContentPainterCx, DocRun, DocText, FaceRun};
 pub use draw::{Dashes, DataStrokeWidth, DataWidth, Draw, PaintShape, StrokeColor, StrokePlace, StrokeWidth, WellFill};
 pub use face::FacePaint;

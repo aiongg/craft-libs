@@ -12,7 +12,7 @@ use crate::contract::{
     Access, Bind, Common, Component, Cx, MeasureCx, Name, NoValue, Outcome, Overlay, OverlayUi, Overlays as _, PaintUi, PartsCx, Pointer as _,
     Props as _, Rename, Role, Show as _,
 };
-use crate::primitives::{Checker, CheckerArea, PaintShape, PaintSlot, Rule, StrokeColor, StrokeWidth, TextRun, paint_surround};
+use crate::primitives::{Checker, CheckerArea, PaintShape, Rule, StrokeColor, StrokeWidth, TextRun, paint_surround};
 use crate::runtime::env::Label;
 use crate::runtime::focus::{FocusPolicy, Initial};
 use crate::runtime::memory::Remember as _;
@@ -480,7 +480,7 @@ impl Component for Pasteboard<'_> {
         // surround between artboards paints over the pictures and hides the document there, except where `uncovered`
         // leaves it open. The page edges and names, which mark the pages, paint in place over the pictures. Outside a
         // canvas, or in a space with no slot, everything paints in place.
-        let under = space.picture_slot().map(|_| PaintSlot::reserve(&edges.painter));
+        let under = space.picture_slot().map(|_| ui.slot_here());
         let artboards = self.pages.iter().any(|page| page.active.is_some()) && !self.shows_outside;
         let polygon = |quad: &[Pos2; 4]| PaintShape::Polygon(quad.to_vec());
         // A colour the canvas sets is a plain data fill, with no pattern, as in production.
@@ -490,7 +490,7 @@ impl Component for Pasteboard<'_> {
             for quad in Self::quads(&view, self.pages, self.uncovered).iter().filter(|quad| bounds(quad).intersects(view.rect)) {
                 match fill {
                     Some(color) => draw.data_fill(&polygon(quad), color),
-                    None => paint_surround(&edges.painter, CheckerArea::Quad(*quad), &look),
+                    None => paint_surround(edges.painter, CheckerArea::Quad(*quad), &look),
                 }
             }
         };
@@ -524,16 +524,14 @@ impl Component for Pasteboard<'_> {
             match page.fill {
                 Some(PageFill::Color(color)) => draw.data_fill(&polygon(&quad), color),
                 Some(PageFill::Checker(checker)) => {
-                    let grid = checker.shape(edges.painter.ctx(), &ui.env.tokens, CheckerArea::Quad(quad), page_corner(&view, page));
+                    let grid = checker.shape(edges.painter, &ui.env.tokens, CheckerArea::Quad(quad), page_corner(&view, page));
                     edges.painter.add(grid);
                 }
                 None => {}
             }
         }
         if let Some(under) = under {
-            let ctx = edges.painter.ctx().clone();
-            let shapes = under.take_after(&ctx);
-            space.paint_picture(&ctx, shapes);
+            space.paint_picture(&cx.ctx, ui.take_after(under));
         }
         if artboards {
             surround();

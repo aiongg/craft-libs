@@ -515,7 +515,7 @@ fn a_tools_own_icon_paints_its_button_and_its_flyout_row() {
     #[derive(crate::contract::MemoProps)]
     struct Artwork;
     impl Glyph for Artwork {
-        fn paint(&self, painter: &egui::Painter, _: &UiTokens, rect: Rect, color: egui::Color32, _: bool) {
+        fn paint(&self, painter: &crate::primitives::Canvas<'_>, _: &UiTokens, rect: Rect, color: egui::Color32, _: bool) {
             painter.add(egui::Shape::ellipse_filled(rect.center(), rect.size() / 2.0, color));
         }
     }

@@ -436,7 +436,7 @@ impl<'a> ToolContext<'a> {
     /// only while some are painted; where motion is off they stand still.
     pub fn marching_ants(&self, points: &[Pos2], closed: bool) {
         let (Some(painter), Some(march)) = (self.painter, self.march) else { return };
-        let turn = loop_phase(painter.painter.ctx(), march.policy, MARCH_SECONDS, Some(MARCH_TICK));
+        let turn = loop_phase(painter.egui_ctx(), march.policy, MARCH_SECONDS, Some(MARCH_TICK));
         painter.marching_ants(points, closed, march_shift(turn, march.dash));
     }
 

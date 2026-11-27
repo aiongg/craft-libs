@@ -289,7 +289,8 @@ impl Drop for FlushOnDrop<'_, '_> {
 }
 
 /// Runs `paint` on a canvas over `painter`'s context and clip, then paints what it recorded on `painter`.
-pub(crate) fn on_painter<R>(painter: &egui::Painter, paint: impl FnOnce(&crate::primitives::Canvas<'_>) -> R) -> R {
+#[doc(hidden)]
+pub fn on_painter<R>(painter: &egui::Painter, paint: impl FnOnce(&crate::primitives::Canvas<'_>) -> R) -> R {
     let canvas = crate::primitives::Canvas::owned(painter.ctx().clone(), egui::Pos2::ZERO, painter.clip_rect());
     let out = paint(&canvas);
     let (content, overlay) = canvas.finish();

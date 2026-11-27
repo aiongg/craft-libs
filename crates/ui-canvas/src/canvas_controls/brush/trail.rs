@@ -258,7 +258,7 @@ impl Component for StrokeTrail<'_> {
             return;
         }
         let painter = ui.content_painter(cx);
-        let ctx = painter.painter.ctx();
+        let ctx = painter.egui_ctx();
         let store = TextureStore::<(egui::Id, u64)>::in_context(ctx, STORE_SALT, TextureStoreOptions::frames());
         let (key, revision) = ((cx.id, self.mask.id), Revision::new(self.mask.revision));
         // A second paint of the pass finds the entry at this revision and nothing dirty.

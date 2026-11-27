@@ -63,7 +63,7 @@ impl<'a> ContentPainterCx<'a> {
     /// The egui context the style cache lives on; see [`style_cx`](Self::style_cx).
     #[doc(hidden)]
     pub fn egui_ctx(&self) -> &egui::Context {
-        self.painter.services().egui().expect("a content painter resolves styles on the egui runtime until the rt style cache exists")
+        self.painter.egui().expect("a content painter resolves styles on the egui runtime until the rt style cache exists")
     }
 
     /// Runs `paint` with a `Draw` over this painter, in the scope's tokens and direction.

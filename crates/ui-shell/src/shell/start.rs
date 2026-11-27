@@ -664,7 +664,7 @@ pub(super) fn paint_thumb(
     paper: Option<DataColor>,
 ) {
     let request = ThumbRequest::for_cell(rect.width().max(rect.height()), cx.pixels_per_point());
-    let state = thumbnails.state(cx.painter.ctx(), source, key, &request, Priority::VISIBLE);
+    let state = thumbnails.state(cx.egui_ctx(), source, key, &request, Priority::VISIBLE);
     let paint = match paper {
         Some(paper) => ThumbPaint::default().checker(false).paper(paper),
         None => ThumbPaint::default(),
@@ -770,7 +770,8 @@ impl StartScreen<'_> {
         if layout == StartLayout::Column {
             ui.painter().rect_filled(room, CornerRadius::ZERO, rgba_color(env.tokens.color.surface.page));
         } else {
-            paint_surround(ui.painter(), CheckerArea::Rect(room, CornerRadius::ZERO), &SurroundLook::of(&env.tokens).shown(env.canvas_pattern));
+            let look = SurroundLook::of(&env.tokens).shown(env.canvas_pattern);
+            crate::runtime::egui::text_layout::on_painter(ui.painter(), |canvas| paint_surround(canvas, CheckerArea::Rect(room, CornerRadius::ZERO), &look));
         }
 
         let rail_stack = || Stack::new().gap(Gap::Tight).pad(Pad::Regular).label(words.start_links.clone());

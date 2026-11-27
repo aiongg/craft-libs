@@ -290,13 +290,34 @@ impl PaintUi<'_> {
     }
 }
 
-/// While the egui runtime runs the pipeline, what `draw` recorded is painted on the component's egui painter when the
-/// paint view goes.
-impl Drop for PaintUi<'_> {
-    fn drop(&mut self) {
+impl PaintUi<'_> {
+    /// Paints what the component recorded so far on its egui painter, so a slot reserved or read next stands in the
+    /// layer's paint order. Painting continues on the emptied canvas.
+    fn flush(&self) {
         let (content, overlay) = self.canvas.take();
         let painter = self.ui.painter();
         crate::runtime::egui::text_layout::paint_items(painter, &content.items);
         crate::runtime::egui::text_layout::paint_items(painter, &overlay.items);
+    }
+
+    /// Reserves an empty shape at the current end of the component's paint order, clipped like its painter, for
+    /// shapes added later (`PaintSlot::extend`) or the shapes painted after it taken out ([`take_after`](Self::take_after)).
+    pub fn slot_here(&self) -> PaintSlot {
+        self.flush();
+        PaintSlot::reserve(self.ui.painter())
+    }
+
+    /// The shapes painted after `slot` in the component's layer, taken out in paint order.
+    pub fn take_after(&self, slot: PaintSlot) -> Vec<egui::Shape> {
+        self.flush();
+        slot.take_after(self.ui.ctx())
+    }
+}
+
+/// While the egui runtime runs the pipeline, what `draw` recorded is painted on the component's egui painter when the
+/// paint view goes.
+impl Drop for PaintUi<'_> {
+    fn drop(&mut self) {
+        self.flush();
     }
 }
