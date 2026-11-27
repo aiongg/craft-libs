@@ -32,6 +32,7 @@ mod drag;
 mod env;
 mod focus;
 pub mod harness;
+pub(crate) mod items;
 mod ime;
 mod intents;
 mod key;

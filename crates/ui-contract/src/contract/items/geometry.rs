@@ -3,7 +3,7 @@
 use super::{ItemsHooks, ROW};
 use crate::contract::{Collection, Cx, PartsCx};
 use craft_behavior::{Flow, HitLevel, HitPriority, ItemLayout, ScrollPos, SelectionModel};
-use egui::{Context, Id, Pos2, Rect};
+use craft_ui_rt::{Pos2, Rect};
 
 impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
     /// The rect of the rows: the content rect below the header row.
@@ -15,18 +15,16 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
         self.below_header(cx.core.content_rect)
     }
 
-    /// Declares each item row's `ROW` part over its rect in the rows' view: hover only, above the collection's
-    /// background and below its other parts and every row's own shapes.
+    /// Declares each member row's `ROW` part over its rect in the rows' view, with the member's sense: the
+    /// collection's paint records one sub-list per row and look, and ui-rt shows the hovered row's sub-list from the
+    /// kept lists (docs/contract-rt.md 15.5). Band rows are nodes of their own and declare no part here.
     pub(super) fn row_parts(&self, pcx: &mut PartsCx<'_, C>) {
+        if !C::MEMBERS {
+            return;
+        }
         for &(hash, _, rect) in &self.row_parts {
             pcx.part(ROW.at(hash), rect).exact_hit().priority(HitPriority::new(HitLevel::Background, 1));
         }
-    }
-
-    /// The item row whose `ROW` part, of the collection `id`, contains the pointer this pass, on top or not.
-    pub(super) fn row_under_pointer(&self, ctx: &Context, id: Id) -> Option<usize> {
-        let part = crate::runtime::pointer::parts_under(ctx, id).into_iter().find(|part| part.key == ROW)?;
-        self.row_parts.iter().find(|(hash, ..)| part.index == Some(*hash)).map(|&(_, at, _)| at)
     }
 
     /// Whether the scroll bar shows over the rows' rect `view`: the rows scroll and run past its height.
@@ -63,12 +61,9 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
 }
 
 impl<C: Collection> ItemsHooks<'_, '_, C> {
-    /// The rows in view and the positions the pass builds: the rows in view (out-of-view content runs nowhere,
-    /// `runtime::lazy`), then the rows kept alive while scrolled out (the lead, the anchor, the renaming row and the
-    /// grabbed row).
-    pub(super) fn built(&self, layout: &C::ItemLayout, view: Rect, offset: ScrollPos) -> (Vec<usize>, Vec<usize>) {
-        let mut shown = Vec::new();
-        layout.visible(offset, view.size(), &mut shown);
+    /// The rows the build covers: the band's rows `shown`, then the rows a gesture holds while out of the band (the
+    /// lead, the anchor, the renaming row and the grabbed row).
+    pub(super) fn held_rows(&self, layout: &C::ItemLayout, shown: Vec<usize>) -> (Vec<usize>, Vec<usize>) {
         let mut order = shown.clone();
         let keep = [self.lead.key.as_ref(), self.selection.anchor(), self.renaming.key.as_ref(), self.drags.grabbed.as_ref()];
         // An item of a closed group has no rect: it is never built.

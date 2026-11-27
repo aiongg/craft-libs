@@ -125,14 +125,6 @@ pub fn section_part<K: std::hash::Hash>(key: &K) -> craft_behavior::PartRef {
     SECTION.at(key_hash(key))
 }
 
-#[derive(Clone, Default)]
-struct Scrolled {
-    y: f64,
-    x: f64,
-    /// The same position named by content: the offset follows it while the heights of rows before its row change.
-    anchor: Option<crate::runtime::lazy::Anchor>,
-}
-
 #[derive(Clone)]
 struct Lead<K> {
     key: Option<K>,
@@ -252,9 +244,8 @@ pub(super) struct ItemsHooks<'s, 'r, C: Collection> {
     offset_at_read: f64,
     offset_x: f64,
     offset_x_at_read: f64,
-    /// The scroll position named by content, kept with an offset the framework holds (`Scrolled`).
-    anchor: Option<crate::runtime::lazy::Anchor>,
-    anchor_at_read: Option<crate::runtime::lazy::Anchor>,
+    /// The app holds the offset (`Component::scroll`); otherwise the rows view does (`rt/items.rs`).
+    scroll_bound: bool,
     /// The bound column layout as the read step found it; `None` while the header keeps its own memory.
     column_layout_at_read: Option<ColumnLayout>,
     lead: Lead<C::Key>,
@@ -329,8 +320,7 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
             offset_at_read: 0.0,
             offset_x: 0.0,
             offset_x_at_read: 0.0,
-            anchor: None,
-            anchor_at_read: None,
+            scroll_bound: false,
             column_layout_at_read: None,
             lead: Lead::default(),
             renaming: Renaming::default(),
