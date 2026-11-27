@@ -556,6 +556,8 @@ pub(crate) fn run_shaped<C: Component>(
     // 16 report: the access node, once per run and only while the window's access tree is on, then
     // the tooltip and the kept retained facts.
     kept.close_guard = component.close_guard();
+    kept.type_name = std::any::type_name::<C>();
+    kept.command = begun.step1.command.as_ref().map(|command| command.command.clone());
     kept.drag = component.drag_source();
     kept.drop = component.drop_target();
     let built = cx.access_enabled().then(|| report::<C>(&component, &cxx, &resolved, own, row.as_deref(), cx)).flatten();

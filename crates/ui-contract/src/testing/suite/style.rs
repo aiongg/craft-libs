@@ -131,10 +131,14 @@ fn reachable(subject: &Subject) -> Flags {
     if probe.overlay {
         flags |= Flags::OPEN;
     }
-    if matches!(probe.shape, crate::contract::ShapeKind::Items) || super::nodes::is_row_role(probe.role) {
+    let role = match probe.role {
+        crate::runtime::access::Role::Node(role) => Some(role),
+        _ => None,
+    };
+    if matches!(probe.shape, crate::contract::ShapeKind::Items) || role.is_some_and(super::nodes::is_row_role) {
         flags |= Flags::LEAD | Flags::DRAGGING | Flags::DROP_TARGET | Flags::CURRENT;
     }
-    if super::nodes::is_menu_item_role(probe.role) {
+    if role.is_some_and(super::nodes::is_menu_item_role) {
         flags |= Flags::LEAD;
     }
     if !matches!(probe.shape, crate::contract::ShapeKind::Leaf) {

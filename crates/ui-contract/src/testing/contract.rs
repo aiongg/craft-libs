@@ -1,23 +1,4 @@
-//! What the contract trials read: the decision records and findings of the pipeline.
-
-use crate::contract::{Context, Id};
-use crate::runtime::inspect::{self, Finding};
-
-/// The steps the latest inspected show of `id` ran, in order. Wrap the show in
-/// [`crate::runtime::inspect::record`] to collect its steps.
-pub fn steps(ctx: &Context, id: Id) -> Vec<&'static str> {
-    inspect::steps_of(ctx, id)
-}
-
-/// Every finding reported on `ctx`.
-pub fn findings(ctx: &Context) -> Vec<Finding> {
-    inspect::findings(ctx)
-}
-
-/// The canvas-control types that have shown on `ctx`.
-pub fn canvas_controls(ctx: &Context) -> Vec<&'static str> {
-    inspect::canvas_controls(ctx)
-}
+//! Helpers the contract trials use: responses, a raw allocation and the parts-declaration check.
 
 /// An edit response with no events, for a trial component that has no `cx.edit_response()` to call.
 pub fn edit_response<T>(response: crate::contract::Response) -> crate::contract::EditResponse<T> {

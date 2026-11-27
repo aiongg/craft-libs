@@ -29,7 +29,7 @@ const ROUNDING: f32 = 0.5;
 fn painted_areas(fixture: &StoryHarness, outset: f32) -> Vec<Rect> {
     let mut areas = vec![fixture.shown().unwrap_or(Rect::NOTHING).expand(outset)];
     for layer in fixture.layers() {
-        areas.push(layer.bounds);
+        areas.push(layer.rect);
         if layer.policy.trap {
             areas.push(fixture.ctx().content_rect());
         }
@@ -52,7 +52,7 @@ fn small_rooms_paint_inside_the_shown_rect(subject: &Subject) -> Result<(), Stri
             let areas = painted_areas(&fixture, outset);
             let shapes = fixture.shape_bounds().iter().zip(fixture.shape_overshoot());
             if let Some((outside, _)) =
-                shapes.into_iter().find(|(bounds, overshoot)| !areas.iter().any(|area| area.expand(ROUNDING + **overshoot).contains_rect(**bounds)))
+                shapes.into_iter().find(|(bounds, overshoot)| !areas.iter().any(|area| area.expand(ROUNDING + *overshoot).contains_rect(**bounds)))
             {
                 return Err(format!("{}: in a room of {room:?} a shape paints at {outside:?}, outside {:?}", story.name, fixture.shown()));
             }

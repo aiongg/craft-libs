@@ -201,6 +201,9 @@ pub(crate) struct Kept {
     pub(crate) commands: Option<super::commands::CommandBoard>,
     /// The cursor over the node's own shape, from `Component::cursor`.
     pub(crate) cursor: Option<Cursor>,
+    /// The component's type name and bound command, from its last run (`runtime::inspect` records them).
+    pub(crate) type_name: &'static str,
+    pub(crate) command: Option<craft_keymap::CommandRef>,
     /// Paint-time state: the fade between pointer looks.
     pub(crate) fade: super::motion::FadeCell,
     /// The opacity a run aimed at and its tween, evaluated at paint time.
@@ -230,6 +233,8 @@ impl Kept {
             parts: Vec::new(),
             access: None,
             access_subs: Vec::new(),
+            type_name: "",
+            command: None,
             queue: Vec::new(),
             placed: Vec::new(),
             value: None,

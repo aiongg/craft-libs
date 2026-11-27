@@ -201,17 +201,17 @@ fn every_intent_has_a_declared_action(subject: &Subject) -> Result<(), String> {
     let keys = [
         (Key::Enter, probe.keys.activate.enter(), None),
         (Key::Space, probe.keys.activate.space(), None),
-        (Key::ArrowRight, true, Some(Action::Increment)),
-        (Key::ArrowUp, true, Some(Action::Increment)),
-        (Key::ArrowLeft, true, Some(Action::Decrement)),
-        (Key::ArrowDown, true, Some(Action::Decrement)),
+        (Key::Right, true, Some(Action::Increment)),
+        (Key::Up, true, Some(Action::Increment)),
+        (Key::Left, true, Some(Action::Decrement)),
+        (Key::Down, true, Some(Action::Decrement)),
     ];
     // The scroll action each arrow is, and the pair of its axis.
     let scroll_of = |key: Key| match key {
-        Key::ArrowRight => Some((Action::ScrollRight, [Action::ScrollLeft, Action::ScrollRight])),
-        Key::ArrowLeft => Some((Action::ScrollLeft, [Action::ScrollLeft, Action::ScrollRight])),
-        Key::ArrowDown => Some((Action::ScrollDown, [Action::ScrollUp, Action::ScrollDown])),
-        Key::ArrowUp => Some((Action::ScrollUp, [Action::ScrollUp, Action::ScrollDown])),
+        Key::Right => Some((Action::ScrollRight, [Action::ScrollLeft, Action::ScrollRight])),
+        Key::Left => Some((Action::ScrollLeft, [Action::ScrollLeft, Action::ScrollRight])),
+        Key::Down => Some((Action::ScrollDown, [Action::ScrollUp, Action::ScrollDown])),
+        Key::Up => Some((Action::ScrollUp, [Action::ScrollUp, Action::ScrollDown])),
         _ => None,
     };
     for story in subject.stories.iter().filter(|story| !story.covers.contains(&Required::Invalid)) {

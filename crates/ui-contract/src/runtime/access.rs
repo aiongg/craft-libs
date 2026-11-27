@@ -14,6 +14,12 @@ pub(crate) use emit::PopupShown;
 #[doc(hidden)]
 pub use emit::SubDecl;
 pub use scope::FieldLabel;
+
+/// The id of the access sub-node of `part` below the component `id`.
+#[doc(hidden)]
+pub fn sub_node_id(id: Id, part: PartRef) -> Id {
+    crate::runtime::memory::sub(id, ("node", part))
+}
 use std::ops::RangeInclusive;
 
 mod emit;

@@ -17,8 +17,7 @@ fn is_text(subject: &Subject) -> bool {
     matches!(subject.probe.input, Input::Text | Input::Editor)
 }
 
-/// The text the focused component shows. Its text runs and value are on the component's node, and egui's focus is
-/// on the text part's widget below it, whose own node holds the value only for a text field.
+/// The text the focused component shows: the focused node's text runs or value, else the component's own node's.
 fn shown_text(fixture: &StoryHarness) -> String {
     let Some(focus) = fixture.focused() else { return String::new() };
     let tree = &fixture.tree();
@@ -29,9 +28,9 @@ fn shown_text(fixture: &StoryHarness) -> String {
             _ => runs,
         }
     };
-    let text = from(focus);
-    match fixture.root_id() {
-        Some(root) if text.is_empty() => from(root),
+    let text = from(focus.id);
+    match fixture.root_id().and_then(|root| fixture.node_of(root)) {
+        Some(root) if text.is_empty() => from(root.id),
         _ => text,
     }
 }

@@ -38,7 +38,7 @@ pub(super) fn plan(story: &Story, probe: &Probe, fixture: &StoryHarness) -> Plan
         Drive::Auto if probe.carries_value() && !probe.takes_input() => Plan::Never,
         Drive::Auto if matches!(probe.input, Input::Text | Input::Editor) => Plan::Type("sample", story.name),
         Drive::Auto if probe.overlay => Plan::Pick(1),
-        Drive::Auto if probe.carries_value() => match fixture.drag_part() {
+        Drive::Auto if probe.carries_value() => match fixture.root_id().and_then(|id| fixture.drag_part(id)) {
             Some(part) => Plan::Drag(Grip::part(part)),
             None if probe.keys.activate != crate::runtime::focus::ActivateKeys::Neither => Plan::Activate,
             None => Plan::Step,
@@ -121,7 +121,7 @@ pub(super) fn root_target(fixture: &StoryHarness) -> Target {
 
 /// The node a click or an AccessKit `Click` activates: the first clickable part, or the component itself.
 fn activation_target(fixture: &StoryHarness) -> Target {
-    let part = fixture.click_part().zip(fixture.root_id()).and_then(|(part, id)| fixture.part(id, part));
+    let part = fixture.root_id().and_then(|id| fixture.click_part(id).map(|part| (part, id))).and_then(|(part, id)| fixture.part(id, part));
     part.unwrap_or_else(|| root_target(fixture))
 }
 
@@ -154,7 +154,7 @@ fn step(fixture: &mut StoryHarness, variant: usize, target: &Target) {
         fixture.settle();
     } else {
         fixture.key(Key::Tab, Mods::NONE);
-        fixture.key(Key::ArrowRight, Mods::NONE);
+        fixture.key(Key::Right, Mods::NONE);
         fixture.settle();
     }
 }
@@ -191,7 +191,7 @@ fn pick(fixture: &mut StoryHarness, row: usize, by_click: bool) {
         }
     } else {
         for _ in 0..row {
-            fixture.key(Key::ArrowDown, none);
+            fixture.key(Key::Down, none);
         }
         fixture.key(Key::Enter, none);
     }
@@ -254,7 +254,7 @@ pub(super) fn run(fixture: &mut StoryHarness, plan: Plan, variant: usize) {
             // Enter inserts a line in multi-line text, which Cmd/Ctrl+Enter commits; the node declares which it is.
             let tree = &fixture.tree();
             let multiline = tree.role_of(tree.focused_key()) == Some(Role::MultilineTextInput);
-            fixture.key(Key::Enter, if multiline { Mods::COMMAND } else { Mods::NONE });
+            fixture.key(Key::Enter, if multiline { Mods::CMD } else { Mods::NONE });
             fixture.settle();
         }
         Plan::Pick(row) => pick(fixture, row, variant == 1),

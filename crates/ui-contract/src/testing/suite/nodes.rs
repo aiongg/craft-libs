@@ -73,7 +73,8 @@ pub(super) fn focused_row(fixture: &StoryHarness, rows: &[Target]) -> Option<(us
 
 /// The zero-based position and the set size a row reports.
 pub(super) fn position_in_set(fixture: &StoryHarness, row: accesskit::NodeId) -> Option<(usize, usize)> {
-    let node = fixture.tree().data_of(row)?;
+    let tree = fixture.tree();
+    let node = tree.data_of(row)?;
     Some((node.position_in_set()?, node.size_of_set()?))
 }
 

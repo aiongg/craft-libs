@@ -3,14 +3,13 @@
 //! the macro's body depends on craft-ui's own `testing` feature, so a derive carries no `cfg`.
 
 use super::{
-    BodyCx, Collection, Component, Container, ItemFn, Meta, Outcome, Pattern, ShapeKind, Show as _, ShowCollection as _, ShowContainer as _,
-    ShowShape, ValueOf, shape,
+    BodyCx, Collection, Component, Container, ItemFn, Meta, Outcome, Pattern, Response, ShapeKind, Show as _, ShowCollection as _,
+    ShowContainer as _, ShowShape, Ui, ValueOf, shape,
 };
 use crate::runtime::access::Role;
 use crate::runtime::focus::KeyUse;
 use craft_behavior::{Input, ItemSource};
 use craft_ui_rt::Rect;
-use egui::{Response, Ui};
 use std::any::{Any, TypeId};
 
 /// Shows a leaf at a rect: the component, boxed. `None` when the box holds another type.
@@ -221,8 +220,10 @@ impl Probe {
         if ideal.x > 0.0 && ideal.y > 0.0 {
             return sample.show(ui).response().clone().into();
         }
-        let cell = Rect::from_min_size(ui.cursor().min, ui.spacing().interact_size);
-        crate::runtime::egui::alloc::advance_past(ui, cell);
+        let env = crate::runtime::env::Env::of(ui);
+        let height = env.control(env.size).height;
+        let cell = Rect::from_min_size(ui.cursor().min, craft_ui_rt::vec2(height, height));
+        ui.advance_cursor_after_rect(cell);
         sample.show_at(ui, cell).response().clone().into()
     }
 
@@ -389,7 +390,7 @@ macro_rules! __register_contract {
             fn make_sample() -> ::std::boxed::Box<dyn ::std::any::Any> {
                 ::std::boxed::Box::new($sample())
             }
-            fn show_sample(ui: &mut $crate::__private::egui::Ui, _: &mut $crate::testing::StoryData) -> $crate::testing::StoryOutput {
+            fn show_sample(ui: &mut $crate::contract::Ui<'_, '_>, _: &mut $crate::testing::StoryData) -> $crate::testing::StoryOutput {
                 $crate::contract::Probe::show_sample::<$ty>(ui, $sample())
             }
             fn sample_story() -> $crate::testing::Story {
