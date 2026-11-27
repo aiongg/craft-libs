@@ -1,16 +1,25 @@
 //! `TextEngine` on epaint's `Fonts`: the faces are the ones the app installs (craft's font stack
-//! flattened to `FontDefinitions`), so glyphs, metrics and the atlas come out as in the egui
-//! build, and a galley measured in layout is the galley the renderer draws.
+//! flattened to `FontDefinitions`, its sources adapted to epaint's font providers), so glyphs,
+//! metrics and the atlas come out as in the egui build, and a galley measured in layout is the
+//! galley the renderer draws.
+//!
+//! The faces installed one family at a time (`install_face`: the document faces) reach epaint
+//! through one provider that is always last. epaint asks a provider for a family's faces the first
+//! time text is laid out in it, so installing a face drops nothing epaint has parsed, laid out or put
+//! in its atlas, as adding it to the definitions would.
 
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::{Arc, PoisonError, RwLock};
 
 use craft_theme::FontSlot;
 use craft_ui_rt::{
-    FaceInstall, FontFace, FontStack, GlyphPlace, Overflow, RichText, StackFace, TextEngine, TextHandle, TextLayout, TextMetrics, TextRow, TextSpec,
-    overflow_text,
+    FaceInstall, FaceSource, FallbackAsk, FontFace, FontStack, GlyphPlace, Overflow, RichText, StackFace, TextEngine, TextHandle, TextLayout,
+    TextMetrics, TextRow, TextSpec, overflow_text,
 };
 use emath::{Pos2, Rect, Vec2};
-use epaint::text::{FontDefinitions, FontFamily, FontId, Fonts, Galley, LayoutJob, TextFormat, TextOptions, TextWrapping};
+use epaint::text::{
+    FallbackRequest, FontDefinitions, FontFamily, FontId, FontInsert, FontProvider, Fonts, Galley, LayoutJob, TextFormat, TextOptions, TextWrapping,
+};
 use epaint::{Color32, ImageDelta};
 
 /// The family name craft's font stack registers for the semibold face.
@@ -59,8 +68,92 @@ pub struct EpaintText {
     /// The stack `set_stack` gave last, and how many it gave.
     stack: Option<FontStack>,
     stack_generation: u64,
-    /// The faces `install_face` added, added again over every new stack.
-    installed: Vec<FaceInstall>,
+    /// The stack's sources as epaint providers, asked after the definitions.
+    providers: Vec<Arc<dyn FontProvider>>,
+    /// The faces `install_face` added, served by the provider asked last; kept over every stack.
+    installed: Arc<Installed>,
+    /// A face was taken out: the fonts are made again before the next layout, which frees what
+    /// epaint parsed of it. Several taken out together cost one remake.
+    remake_asked: bool,
+}
+
+/// The faces `install_face` added, by family, and the definitions their fallbacks name.
+#[derive(Default)]
+struct Installed {
+    faces: RwLock<HashMap<String, FaceInstall>>,
+    definitions: RwLock<Arc<FontDefinitions>>,
+}
+
+impl Installed {
+    fn read(&self) -> std::sync::RwLockReadGuard<'_, HashMap<String, FaceInstall>> {
+        self.faces.read().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn write(&self) -> std::sync::RwLockWriteGuard<'_, HashMap<String, FaceInstall>> {
+        self.faces.write().unwrap_or_else(PoisonError::into_inner)
+    }
+}
+
+impl FontProvider for Installed {
+    /// The installed face, then its fallbacks in order: another installed family's face (a sibling
+    /// subset of the same font) or a stack family's faces (the interface family under document text).
+    fn fonts_for_family(&self, family: &FontFamily) -> Vec<FontInsert> {
+        let FontFamily::Name(name) = family else { return Vec::new() };
+        let faces = self.read();
+        let Some(face) = faces.get(&**name) else { return Vec::new() };
+        let mut out = vec![FontInsert::new(name, installed_data(face), Vec::new())];
+        let definitions = Arc::clone(&self.definitions.read().unwrap_or_else(PoisonError::into_inner));
+        for fallback in &face.fallback {
+            let inserts = match fallback {
+                FontFace::Family(link) if faces.contains_key(&**link) => {
+                    faces.get(&**link).map(|linked| vec![FontInsert::new(link, installed_data(linked), Vec::new())]).unwrap_or_default()
+                }
+                other => definitions.fonts_for_family(&family_of(other, &definitions)),
+            };
+            for insert in inserts {
+                if !out.iter().any(|known| known.name == insert.name) {
+                    out.push(insert);
+                }
+            }
+        }
+        out
+    }
+}
+
+fn installed_data(face: &FaceInstall) -> epaint::text::FontData {
+    let blob: epaint::text::Blob = Arc::new(Arc::clone(&face.bytes));
+    let tweak = epaint::text::FontTweak { coords: epaint::text::VariationCoords::new(face.coords.iter().copied()), ..Default::default() };
+    epaint::text::FontData::from_blob(blob, face.index).tweak(tweak)
+}
+
+/// A stack's [`FaceSource`] as an epaint provider: epaint asks it once per family for faces up front
+/// and once per family and character it has no face for.
+struct SourceProvider(Arc<dyn FaceSource>);
+
+impl FontProvider for SourceProvider {
+    fn fonts_for_family(&self, family: &FontFamily) -> Vec<FontInsert> {
+        self.0.faces_for(&face_of(family)).iter().map(insert_of).collect()
+    }
+
+    fn font_for(&self, request: &FallbackRequest<'_>) -> Option<FontInsert> {
+        let family = face_of(request.family);
+        self.0.face_for(&FallbackAsk { family: &family, cluster: request.cluster }).as_ref().map(insert_of)
+    }
+}
+
+fn insert_of(face: &StackFace) -> FontInsert {
+    FontInsert::new(&face.name, font_data(face), Vec::new())
+}
+
+/// The stack family an epaint family stands for: the inverse of [`stack_family`].
+fn face_of(family: &FontFamily) -> FontFace {
+    match family {
+        FontFamily::Proportional => FontFace::Slot(FontSlot::Ui),
+        FontFamily::Monospace => FontFace::Slot(FontSlot::Mono),
+        FontFamily::Name(name) if &**name == SEMIBOLD_FAMILY => FontFace::Slot(FontSlot::UiSemibold),
+        FontFamily::Name(name) if &**name == CONDENSED_FAMILY => FontFace::Slot(FontSlot::UiCondensed),
+        FontFamily::Name(name) => FontFace::Family(name.as_ref().into()),
+    }
 }
 
 impl EpaintText {
@@ -69,47 +162,43 @@ impl EpaintText {
     /// present.
     pub fn new(definitions: FontDefinitions, options: TextOptions) -> EpaintText {
         let (semibold, condensed) = slot_families(&definitions);
+        let installed: Arc<Installed> = Arc::default();
+        *installed.definitions.write().unwrap_or_else(PoisonError::into_inner) = Arc::new(definitions.clone());
+        let fonts = Fonts::new(options, definitions).with_font_providers(vec![Arc::clone(&installed) as Arc<dyn FontProvider>]);
         EpaintText {
-            fonts: Fonts::new(options, definitions),
+            fonts,
             semibold,
             condensed,
             generation_base: 0,
             stack: None,
             stack_generation: 0,
-            installed: Vec::new(),
+            providers: Vec::new(),
+            installed,
+            remake_asked: false,
         }
     }
 
-    /// Makes the fonts again from `definitions`. Layouts shaped before carry an older atlas
-    /// generation and are shaped again when drawn.
+    /// Makes the fonts again from `definitions`, asking the stack's sources and then the installed
+    /// faces after them. epaint forgets the characters the sources had no face for, so they are
+    /// asked again. Layouts shaped before carry an older atlas generation and are shaped again when
+    /// drawn.
     fn remake(&mut self, definitions: FontDefinitions) {
         (self.semibold, self.condensed) = slot_families(&definitions);
+        *self.installed.definitions.write().unwrap_or_else(PoisonError::into_inner) = Arc::new(definitions.clone());
         let options = *self.fonts.options();
         self.generation_base += self.fonts.atlas_generation() + 1;
-        self.fonts = Fonts::new(options, definitions);
+        let mut providers = self.providers.clone();
+        providers.push(Arc::clone(&self.installed) as Arc<dyn FontProvider>);
+        self.fonts = Fonts::new(options, definitions).with_font_providers(providers);
+        self.remake_asked = false;
     }
 
-    /// `definitions` with `face` added as its own family, followed by its fallback families'
-    /// faces; false when the face's file does not read.
-    fn add_installed(&self, definitions: &mut FontDefinitions, face: &FaceInstall) -> bool {
-        if skrifa::FontRef::from_index(&face.bytes, face.index).is_err() {
-            return false;
+    /// Makes the fonts again when a face was taken out since the last layout.
+    fn remake_if_asked(&mut self) {
+        if self.remake_asked {
+            let definitions = self.fonts.definitions().clone();
+            self.remake(definitions);
         }
-        let name = face.family.to_string();
-        let blob: epaint::text::Blob = Arc::new(Arc::clone(&face.bytes));
-        let tweak = epaint::text::FontTweak { coords: epaint::text::VariationCoords::new(face.coords.iter().copied()), ..Default::default() };
-        definitions.font_data.insert(name.clone(), Arc::new(epaint::text::FontData::from_blob(blob, face.index).tweak(tweak)));
-        let mut list = vec![name.clone()];
-        for fallback in &face.fallback {
-            let family = family_of(fallback, definitions);
-            for font in definitions.families.get(&family).into_iter().flatten() {
-                if !list.contains(font) {
-                    list.push(font.clone());
-                }
-            }
-        }
-        definitions.families.insert(FontFamily::Name(name.into()), list);
-        true
     }
 
     fn family(&self, slot: FontSlot) -> FontFamily {
@@ -150,6 +239,7 @@ impl EpaintText {
     }
 
     fn shape(&mut self, spec: &TextSpec, scale: f32) -> Shaped {
+        self.remake_if_asked();
         let [r, g, b, a] = spec.color.0;
         let mut format = TextFormat::simple(FontId::new(spec.font.size, self.family(spec.font.slot)), Color32::from_rgba_unmultiplied(r, g, b, a));
         let wraps = spec.overflow == Overflow::Wrap;
@@ -179,6 +269,7 @@ impl EpaintText {
     /// The job craft's text runs lay out: one section per format, rows at the left edge (then
     /// placed by `row_align`), the paragraph direction for bidi.
     fn shape_rich(&mut self, rich: &RichText, scale: f32) -> Shaped {
+        self.remake_if_asked();
         let generation = self.atlas_generation();
         let sections: Vec<(std::ops::Range<usize>, f32, TextFormat)> = rich
             .sections
@@ -282,7 +373,7 @@ fn family_of(face: &FontFace, definitions: &FontDefinitions) -> FontFamily {
 }
 
 fn font_data(face: &StackFace) -> epaint::text::FontData {
-    let blob: epaint::text::Blob = Arc::new(Arc::clone(&face.bytes));
+    let blob: epaint::text::Blob = Arc::clone(&face.bytes);
     let mut tweak = epaint::text::FontTweak {
         scale: face.tweak.scale,
         y_offset_factor: face.tweak.y_offset_factor,
@@ -364,31 +455,40 @@ impl TextEngine for EpaintText {
         layout_of(self.shape_rich(text, scale))
     }
 
-    /// Makes the fonts again with the face added: epaint takes faces only through its
-    /// definitions. Layouts shaped before carry an older atlas generation and are shaped again
-    /// when drawn.
+    /// Serves the face through the installed faces' provider, which epaint asks the first time
+    /// text is laid out in its family: nothing epaint parsed or laid out is dropped. A face that
+    /// installed families already name as a fallback (a sibling subset landing after the face that
+    /// chains it) has the fonts made again, since epaint asked those families for their faces once.
     fn install_face(&mut self, face: FaceInstall) -> bool {
-        let mut definitions = self.fonts.definitions().clone();
-        if !self.add_installed(&mut definitions, &face) {
+        if skrifa::FontRef::from_index(&face.bytes, face.index).is_err() {
             return false;
         }
-        self.installed.retain(|kept| kept.family != face.family);
-        self.installed.push(face);
-        self.remake(definitions);
+        let mut faces = self.installed.write();
+        let late = faces.values().any(|kept| kept.fallback.iter().any(|link| matches!(link, FontFace::Family(name) if *name == face.family)));
+        let replaced = faces.insert(face.family.to_string(), face).is_some();
+        drop(faces);
+        self.remake_asked |= late || replaced;
         true
     }
 
+    fn has_face(&self, family: &str) -> bool {
+        self.installed.read().contains_key(family)
+    }
+
+    /// Stops serving the family; epaint keeps what it parsed of it until the fonts are made again,
+    /// before the next layout.
+    fn remove_face(&mut self, family: &str) -> bool {
+        let removed = self.installed.write().remove(family).is_some();
+        self.remake_asked |= removed;
+        removed
+    }
+
     /// Flattens `stack` into epaint's definitions (the slots to epaint's families, the semibold
-    /// and condensed slots to [`SEMIBOLD_FAMILY`] and [`CONDENSED_FAMILY`]) and adds the
-    /// installed faces again over it.
+    /// and condensed slots to [`SEMIBOLD_FAMILY`] and [`CONDENSED_FAMILY`]) and adapts its sources
+    /// to providers asked after them; the installed faces stay, asked last.
     fn set_stack(&mut self, stack: &FontStack) {
-        let mut definitions = definitions_of(stack);
-        let installed = std::mem::take(&mut self.installed);
-        for face in &installed {
-            self.add_installed(&mut definitions, face);
-        }
-        self.installed = installed;
-        self.remake(definitions);
+        self.providers = stack.fallback.iter().map(|source| Arc::new(SourceProvider(Arc::clone(source))) as Arc<dyn FontProvider>).collect();
+        self.remake(definitions_of(stack));
         self.stack = Some(stack.clone());
         self.stack_generation += 1;
     }
@@ -399,10 +499,6 @@ impl TextEngine for EpaintText {
 
     fn stack(&self) -> Option<&FontStack> {
         self.stack.as_ref()
-    }
-
-    fn has_face(&self, family: &str) -> bool {
-        self.fonts.definitions().families.contains_key(&FontFamily::Name(family.into()))
     }
 
     fn metrics(&mut self, layout: &TextLayout) -> TextMetrics {
@@ -439,11 +535,17 @@ impl TextEngine for EpaintText {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use craft_ui_rt::FaceTweak;
+    use std::sync::Mutex;
 
     fn face(name: &str, bytes: &'static [u8]) -> StackFace {
-        StackFace { name: name.into(), bytes: Arc::from(bytes), index: 0, coords: Vec::new(), tweak: FaceTweak::default() }
+        StackFace::from_static(name, bytes, 0)
     }
+
+    fn ui() -> FontId {
+        FontId::new(20.0, FontFamily::Proportional)
+    }
+
+    const SMILE: char = '\u{1F600}';
 
     /// A stack that adds a face for characters the interface face lacks sets them in it, and each
     /// stack moves the generation once.
@@ -451,18 +553,98 @@ mod tests {
     fn a_stack_with_an_added_face_sets_its_characters_in_it() {
         let latin = face("ubuntu", epaint_default_fonts::UBUNTU_LIGHT);
         let emoji = face("emoji", epaint_default_fonts::NOTO_EMOJI_REGULAR);
-        let ui = FontId::new(20.0, FontFamily::Proportional);
         let mut stack = FontStack::default();
         stack.set_family(FontFace::Slot(FontSlot::Ui), vec![latin.clone()]);
         let mut text = EpaintText::new(FontDefinitions::empty(), TextOptions::default());
         assert_eq!(text.stack_generation(), 0);
         text.set_stack(&stack);
         assert_eq!(text.stack_generation(), 1);
-        assert!(!text.fonts.has_glyph(&ui, '\u{1F600}'), "the interface face has no emoji");
+        assert!(!text.fonts.has_glyph(&ui(), SMILE), "the interface face has no emoji");
         stack.set_family(FontFace::Slot(FontSlot::Ui), vec![latin, emoji]);
         text.set_stack(&stack);
         assert_eq!(text.stack_generation(), 2, "one set_stack moves the generation once");
-        assert!(text.fonts.has_glyph(&ui, '\u{1F600}'), "the added face sets the emoji");
+        assert!(text.fonts.has_glyph(&ui(), SMILE), "the added face sets the emoji");
         assert!(text.stack().and_then(|s| s.family(&FontFace::Slot(FontSlot::Ui))).is_some_and(|faces| faces.len() == 2));
+    }
+
+    /// A source that answers once its face has "arrived", counting what it is asked.
+    #[derive(Default)]
+    struct Emoji {
+        arrived: Mutex<bool>,
+        asks: Mutex<Vec<(FontFace, char)>>,
+    }
+
+    impl FaceSource for Emoji {
+        fn face_for(&self, ask: &FallbackAsk<'_>) -> Option<StackFace> {
+            let c = ask.cluster.chars().next()?;
+            self.asks.lock().unwrap().push((ask.family.clone(), c));
+            (*self.arrived.lock().unwrap()).then(|| face("emoji", epaint_default_fonts::NOTO_EMOJI_REGULAR))
+        }
+    }
+
+    fn rich(text: &str) -> RichText {
+        let format = craft_ui_rt::TextFormat::new(FontFace::Slot(FontSlot::Ui), 20.0, craft_theme::Rgba([0, 0, 0, 255]));
+        RichText {
+            text: text.into(),
+            sections: vec![craft_ui_rt::TextSection { bytes: 0..text.len(), format, indent: 0.0 }],
+            wrap: craft_ui_rt::TextWrap::default(),
+            rtl: false,
+            row_align: 0.0,
+        }
+    }
+
+    /// A character no stack face has is set in a source's face in the same layout; the source is
+    /// asked once per family and character, however often the text is laid out. A source that finds
+    /// its face later (a fetch arriving) has the stack set again: the generation moves once, the
+    /// engine forgets the miss, and the character is set in the face.
+    #[test]
+    fn a_source_sets_a_missing_character_and_is_asked_once_per_character() {
+        let source = Arc::new(Emoji::default());
+        let mut stack = FontStack::default();
+        stack.set_family(FontFace::Slot(FontSlot::Ui), vec![face("ubuntu", epaint_default_fonts::UBUNTU_LIGHT)]);
+        stack.fallback.push(Arc::clone(&source) as Arc<dyn FaceSource>);
+        let mut text = EpaintText::new(FontDefinitions::empty(), TextOptions::default());
+        text.set_stack(&stack);
+        for _ in 0..3 {
+            text.layout_rich(&rich("a\u{1F600}a\u{1F600}"), 1.0);
+        }
+        assert!(!text.fonts.has_glyph(&ui(), SMILE), "nothing arrived yet");
+        assert_eq!(source.asks.lock().unwrap().len(), 1, "one ask per family and character");
+        *source.arrived.lock().unwrap() = true;
+        let before = text.stack_generation();
+        text.set_stack(&stack);
+        assert_eq!(text.stack_generation(), before + 1, "an arrival moves the generation once");
+        text.layout_rich(&rich("a\u{1F600}"), 1.0);
+        assert!(text.fonts.has_glyph(&ui(), SMILE), "the arrived face sets the character");
+        assert_eq!(source.asks.lock().unwrap().len(), 2, "the new stack asks again, once");
+    }
+
+    /// An installed family serves its face without remaking the fonts; taking it out leaves the
+    /// next layout in the family to fall back, and moves no stack generation.
+    #[test]
+    fn remove_face_takes_an_installed_family_out() {
+        let mut text = EpaintText::new(FontDefinitions::empty(), TextOptions::default());
+        let mut stack = FontStack::default();
+        stack.set_family(FontFace::Slot(FontSlot::Ui), vec![face("ubuntu", epaint_default_fonts::UBUNTU_LIGHT)]);
+        text.set_stack(&stack);
+        let atlas = text.atlas_generation();
+        let doc = FaceInstall {
+            family: "face:emoji".into(),
+            bytes: Arc::from(epaint_default_fonts::NOTO_EMOJI_REGULAR),
+            index: 0,
+            coords: Vec::new(),
+            fallback: vec![FontFace::Slot(FontSlot::Ui)],
+        };
+        assert!(text.install_face(doc));
+        let family = FontId::new(20.0, FontFamily::Name("face:emoji".into()));
+        assert!(text.fonts.has_glyph(&family, SMILE), "the installed face sets its family");
+        assert!(text.fonts.has_glyph(&family, 'a'), "its fallback, the interface family, sets the rest");
+        assert_eq!(text.atlas_generation(), atlas, "an install remakes nothing");
+        let generation = text.stack_generation();
+        assert!(text.remove_face("face:emoji"));
+        assert!(!text.has_face("face:emoji"));
+        text.layout_rich(&rich("a"), 1.0);
+        assert!(!text.fonts.has_glyph(&family, SMILE), "the next layout falls back");
+        assert_eq!(text.stack_generation(), generation, "taking a face out moves no stack generation");
     }
 }
