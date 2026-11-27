@@ -2,7 +2,6 @@
 //! frame cost table, and the panel in a window.
 
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 
 use craft_host::target::Os;
 use craft_ui_platform_headless::HeadlessPlatform;

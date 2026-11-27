@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use craft_host::target::Os;
 use craft_rt_layers::{DocCell, LayersPanel, thumb_side};
-use craft_ui_rt::{BuildCx, Constraints, Element, LayoutCx, Runtime, SizeU, Vec2, WindowId};
+use craft_ui_rt::{BuildCx, Constraints, Element, LayoutCx, Runtime, SizeU, Vec2, WindowId, Writes};
 use craft_ui_rt::RgbaImage;
 
 use crate::fixture::{thumb_key, thumbnail};

@@ -55,7 +55,8 @@ fn a_pick_repaints_only_the_rows_it_changes() {
         .collect();
     let [press, release] = painted[..] else { panic!("a click is a press frame and a release frame, got {painted:?}") };
     // Rows 2 to 5 change (the range and the active layer), each a row and its two toggle cells;
-    // the other 16 rows and the list keep their paint although the list's press state flips.
-    assert!((1..=4 * 3).contains(&press), "the press repaints the rows it selects, painted {press}");
+    // the other 16 rows and the list keep their paint although the list's press state flips. The runner's host
+    // root applies the edit in this frame and repaints with it.
+    assert!((1..=4 * 3 + 1).contains(&press), "the press repaints the rows it selects, painted {press}");
     assert_eq!(release, 0, "the release over a selected row changes no look");
 }

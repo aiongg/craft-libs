@@ -107,7 +107,7 @@ pub fn observe(runtime: &Runtime, window: WindowId, doc: DocCell) -> Observation
         });
     }
     let focus = nodes.iter().find(|n| n.focused).map(|n| n.name.clone()).filter(|n| !n.is_empty());
-    Observation { doc: runtime.store().peek(doc).snapshot(), focus, scroll: scroll.round() as i32, access: nodes }
+    Observation { doc: doc.peek(runtime.store()).snapshot(), focus, scroll: scroll.round() as i32, access: nodes }
 }
 
 /// [`observe`] on a rig's first window.
