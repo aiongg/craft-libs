@@ -35,7 +35,7 @@ impl Component for Field {
     }
 
     fn sense(&self) -> Sense {
-        Sense::HOVER | Sense::CLICK
+        Sense::HOVER | Sense::CLICK | Sense::FOCUS | Sense::TAKE_FOCUS
     }
 
     fn finish(self, cx: craft_ui_contract::contract::Cx<'_, Self>) -> Response {
@@ -55,7 +55,7 @@ fn window(overrides: Option<Overrides>) -> (Harness<()>, Rc<Cell<usize>>) {
     let seen = Rc::clone(&runs);
     board.on_app(move |_, _| seen.set(seen.get() + 1));
     let mut h = Harness::builder().with_commands(board).build_ui(|ui: &mut Ui<'_, '_>| {
-        IconButton::new(IconId::new("go"), "Go").show(ui);
+        IconButton::new(IconId::new("go"), "Go").focusable().show(ui);
         drop(Show::show(Field { common: Common::new() }, ui));
     });
     h.run();
@@ -162,7 +162,11 @@ mod window {
         }
 
         fn sense(&self) -> Sense {
-            if self.drag { Sense::HOVER | Sense::CLICK | Sense::DRAG | Sense::KEEP_FOCUS } else { Sense::HOVER | Sense::CLICK }
+            if self.drag {
+                Sense::HOVER | Sense::CLICK | Sense::DRAG | Sense::FOCUS | Sense::KEEP_FOCUS
+            } else {
+                Sense::HOVER | Sense::CLICK | Sense::FOCUS
+            }
         }
 
         fn drag_source(&self) -> Option<DragSource> {

@@ -27,12 +27,20 @@ pub struct IconButton {
     #[common]
     common: Common,
     icon: IconId,
+    /// A Tab stop that a press focuses, as the real icon button by default.
+    focusable: bool,
 }
 
 impl IconButton {
     /// A button showing `icon`, named `label`.
     pub fn new(icon: IconId, label: &str) -> IconButton {
-        IconButton { common: Common::new(), icon }.label(label.to_owned())
+        IconButton { common: Common::new(), icon, focusable: false }.label(label.to_owned())
+    }
+
+    /// The button is a Tab stop that a press focuses.
+    pub fn focusable(mut self) -> Self {
+        self.focusable = true;
+        self
     }
 
     /// Shows the button.
@@ -55,7 +63,7 @@ impl Component for IconButton {
     }
 
     fn sense(&self) -> Sense {
-        Sense::HOVER | Sense::CLICK | Sense::FOCUS
+        if self.focusable { Sense::HOVER | Sense::CLICK | Sense::FOCUS } else { Sense::HOVER | Sense::CLICK }
     }
 
     /// The look follows the pointer through the state step: a hover and a press fill.

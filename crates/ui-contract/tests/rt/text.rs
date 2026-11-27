@@ -101,7 +101,7 @@ fn other_view(runs: &mut Runs<'_>, _: &mut Ui) {
 }
 
 fn app_ui(ui: &mut Ui<'_, '_>, app: &mut App) {
-    app.a = IconButton::new(IconId::new("icon"), "A").show(ui).rect;
+    app.a = IconButton::new(IconId::new("icon"), "A").focusable().show(ui).rect;
     let props = FieldView { text: &mut app.text, runs: &mut app.view_runs };
     app.field = MemoView::new("field", props, field_view).show(ui).expect("in view").value;
     if app.commands {
@@ -365,7 +365,7 @@ impl Component for Words {
 fn words() -> (Harness<()>, Rc<Cell<Rect>>) {
     let rect = Rc::new(Cell::new(Rect::NOTHING));
     let r = Rc::clone(&rect);
-    let mut h = Harness::builder().build_ui(move |ui: &mut Ui<'_, '_>| r.set(Words { common: Common::new() }.show(ui).rect));
+    let mut h = crate::text_field::edit_harness(move |ui: &mut Ui<'_, '_>| r.set(Words { common: Common::new() }.show(ui).rect));
     h.run();
     (h, rect)
 }

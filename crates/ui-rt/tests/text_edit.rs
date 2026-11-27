@@ -103,7 +103,6 @@ fn a_drag_past_the_edge_selects_and_scrolls() {
             scrolled += 1;
         }
     }
-    edit.release();
     assert_eq!(scrolled, 3, "every drag frame past the edge scrolls");
     assert!(edit.scroll().x > 0.0, "the text scrolled toward the pointer");
     assert_eq!(edit.selection().start, 0, "the selection keeps the press's end");
@@ -112,6 +111,7 @@ fn a_drag_past_the_edge_selects_and_scrolls() {
     for _ in 0..20 {
         edit.drag(&text, &geometry(&layout, view, &edit), Pos2::new(70.0, 5.0), &config);
     }
+    edit.release();
     assert_eq!(edit.scroll().x, max, "the scroll stops at the text's end");
 }
 

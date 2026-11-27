@@ -604,6 +604,7 @@ pub(crate) fn run_shaped<C: Component>(
         crate::contract::text::run(&mut cxx, &mut parts.text, text_in)
     };
     kept.ime.edit = cxx.core.edit_paint.take();
+    crate::contract::text::yield_pointer(cxx.core, &mut kept.parts);
 
     // 9 update, then the stops it decides (a member that joins its body's roving group).
     steps::gesture_gate(&component, &mut cxx);

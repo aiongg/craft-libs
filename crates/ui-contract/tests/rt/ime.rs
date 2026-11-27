@@ -5,10 +5,10 @@
 
 use crate::skeleton::IconButton;
 use craft_behavior::{EditCommand, EditorInput, IconId, PartKey, TextPos};
-use craft_keymap::{Keymap, Platform, Scopes};
+use craft_keymap::Platform;
 use craft_ui_contract::contract::{Common, Component, Cx, Input as InputKind, MeasureCx, PartsCx, Response, Role, Show, Ui};
 use craft_ui_contract::primitives::{EditorPurpose, EditorState, EditorSurrounding};
-use craft_ui_contract::runtime::commands::{CommandBoard, EditCommands};
+use craft_ui_contract::runtime::commands::{CommandBoard, EditCommands, linked_keymap};
 use craft_ui_contract::style::StyleCx;
 use craft_ui_contract::testing::Harness;
 use craft_ui_platform_headless::Input;
@@ -54,7 +54,7 @@ impl Component for Editor {
     }
 
     fn sense(&self) -> Sense {
-        Sense::HOVER | Sense::CLICK
+        Sense::HOVER | Sense::CLICK | Sense::FOCUS | Sense::TAKE_FOCUS
     }
 
     fn text_input(&self) -> Option<ImePurpose> {
@@ -105,7 +105,7 @@ impl Component for Editor {
 
 /// A window with the editor first, then a button; the board counts the app's Undo.
 fn window() -> (Harness<()>, Rc<RefCell<Doc>>, Rc<Cell<usize>>) {
-    let board = CommandBoard::new(Keymap::new(Vec::new(), Scopes::new(), Platform::Linux));
+    let board = CommandBoard::new(linked_keymap(false, Platform::Linux).expect("the linked command sets are valid")).with_edits::<EditCommands>();
     let undos = Rc::new(Cell::new(0));
     let seen = Rc::clone(&undos);
     board.on(EditCommands::Undo, move |_, _| seen.set(seen.get() + 1));
@@ -113,8 +113,10 @@ fn window() -> (Harness<()>, Rc<RefCell<Doc>>, Rc<Cell<usize>>) {
     let shown = Rc::clone(&doc);
     let mut h = Harness::builder().with_commands(board).build_ui(move |ui: &mut Ui<'_, '_>| {
         drop(Show::show(Editor { common: Common::new(), doc: Rc::clone(&shown) }, ui));
-        IconButton::new(IconId::new("go"), "Go").show(ui);
+        IconButton::new(IconId::new("go"), "Go").focusable().show(ui);
     });
+    // The chords are Linux's, as the keymap's.
+    h.os(craft_host::target::Os::Linux);
     h.run();
     h.key_press(Key::Tab);
     (h, doc, undos)
