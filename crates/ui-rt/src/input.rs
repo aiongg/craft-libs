@@ -439,7 +439,8 @@ impl Runtime {
     fn dismiss_on_focus_left(&mut self, window: WindowId, old: Option<NodeId>, new: Option<NodeId>) {
         let Some(old) = old else { return };
         let Some(w) = self.windows.get(&window) else { return };
-        let watching: Vec<(NodeId, Option<NodeId>)> = w.layered.iter().filter(|(_, s)| s.focus_left).map(|(id, s)| (*id, s.anchor_node())).collect();
+        let watching: Vec<(NodeId, Option<NodeId>)> =
+            w.layered.iter().filter(|(_, s)| s.focus_left && !s.inert).map(|(id, s)| (*id, s.anchor_node())).collect();
         if watching.is_empty() {
             return;
         }
@@ -486,6 +487,10 @@ impl Runtime {
             let Some(n) = self.tree.nodes.get(&id) else {
                 continue;
             };
+            // A leaving layer child and what it holds take no focus.
+            if w.layered.contains_key(&id) && w.inert(&self.tree, id) {
+                continue;
+            }
             if n.element.as_ref().is_some_and(|e| e.focusable()) {
                 out.push(id);
             }
@@ -781,7 +786,9 @@ impl Runtime {
         }
         let watching: Vec<(NodeId, OutsidePress, Option<NodeId>)> = layered
             .iter()
-            .filter_map(|id| w.layered.get(id).filter(|s| s.outside_press != OutsidePress::Ignore).map(|s| (*id, s.outside_press, s.anchor_node())))
+            .filter_map(|id| {
+                w.layered.get(id).filter(|s| s.outside_press != OutsidePress::Ignore && !s.inert).map(|s| (*id, s.outside_press, s.anchor_node()))
+            })
             .collect();
         if watching.is_empty() {
             return false;
@@ -813,7 +820,7 @@ impl Runtime {
             .windows
             .iter()
             .filter(|(id, _)| Some(**id) != pressed)
-            .flat_map(|(_, w)| w.layered.iter().filter(|(_, spec)| spec.away).map(|(id, _)| *id))
+            .flat_map(|(_, w)| w.layered.iter().filter(|(_, spec)| spec.away && !spec.inert).map(|(id, _)| *id))
             .collect();
         for id in away {
             self.deliver(id, id, &Event::Dismiss(DismissReason::Away));
@@ -827,7 +834,8 @@ impl Runtime {
     pub fn dismiss_on_command(&mut self, window: WindowId, from: Option<NodeId>) {
         let Some(w) = self.windows.get(&window) else { return };
         let chain = from.map(|n| self.tree.owner_chain(n)).unwrap_or_default();
-        let closing: Vec<NodeId> = w.layered.iter().filter(|(id, spec)| spec.commands && !chain.contains(id)).map(|(id, _)| *id).collect();
+        let closing: Vec<NodeId> =
+            w.layered.iter().filter(|(id, spec)| spec.commands && !spec.inert && !chain.contains(id)).map(|(id, _)| *id).collect();
         for id in closing {
             self.deliver(id, id, &Event::Dismiss(DismissReason::Command));
         }
@@ -836,7 +844,8 @@ impl Runtime {
     /// What the topmost child of `window`'s modal layer lets through to the content below it.
     pub(crate) fn modal_reach(&self, window: WindowId) -> Option<crate::layer::ModalReach> {
         let w = self.windows.get(&window)?;
-        let top = *self.tree.nodes.get(&w.layer(Layer::Modal))?.children.last()?;
+        let modal = self.tree.nodes.get(&w.layer(Layer::Modal))?;
+        let top = *modal.children.iter().rev().find(|&&c| !w.inert(&self.tree, c))?;
         w.layered.get(&top)?.reach
     }
 
@@ -999,7 +1008,7 @@ impl Runtime {
     /// Sends [`DismissReason::Escape`] to the topmost layer child of `window` that asks for it.
     fn dismiss_on_escape(&mut self, window: WindowId) {
         let Some(w) = self.windows.get(&window) else { return };
-        let top = self.layered_top_first(window).into_iter().find(|id| w.layered.get(id).is_some_and(|s| s.escape));
+        let top = self.layered_top_first(window).into_iter().find(|id| w.layered.get(id).is_some_and(|s| s.escape && !s.inert));
         if let Some(id) = top {
             self.deliver(id, id, &Event::Dismiss(DismissReason::Escape));
         }
@@ -1012,7 +1021,7 @@ impl Runtime {
     pub fn blocked_by(&self, window: WindowId) -> Option<WindowId> {
         self.windows.iter().filter(|(id, _)| **id != window).find_map(|(id, w)| {
             let modal = self.tree.nodes.get(&w.layer(Layer::Modal))?;
-            modal.children.iter().any(|c| w.layered.get(c).is_some_and(|s| s.app_modal)).then_some(*id)
+            modal.children.iter().any(|c| w.layered.get(c).is_some_and(|s| s.app_modal && !s.inert)).then_some(*id)
         })
     }
 
@@ -1157,7 +1166,9 @@ impl Runtime {
     }
 
     fn fall_back_focus(&mut self, window: WindowId) {
-        let gone = self.focused(window).filter(|f| !self.tree.nodes.contains_key(f));
+        // Focus inside a leaving layer child (`LayerSpec::inert`) moves on as if the child were gone.
+        let leaving = |id: &NodeId| self.windows.get(&window).is_some_and(|w| w.inert(&self.tree, *id));
+        let gone = self.focused(window).filter(|f| !self.tree.nodes.contains_key(f) || leaving(f));
         if gone.is_none() {
             self.forget_focus_returns(window);
             return;
@@ -1168,7 +1179,7 @@ impl Runtime {
             .windows
             .get(&window)
             .and_then(|w| chain_now.iter().find_map(|gone| w.focus_returns.get(gone).copied()).filter(|to| self.tree.nodes.contains_key(to)));
-        let fallback = returned.or_else(|| chain_now.iter().copied().find(|id| self.is_focusable(*id)));
+        let fallback = returned.or_else(|| chain_now.iter().copied().find(|id| self.is_focusable(*id) && !leaving(id)));
         if let Some(input) = self.input_mut(window) {
             input.focused = None;
             input.focus_moved = true;

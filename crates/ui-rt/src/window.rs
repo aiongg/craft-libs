@@ -182,6 +182,12 @@ impl Window {
     pub(crate) fn layer(&self, layer: Layer) -> NodeId {
         self.layers[layer.index() as usize]
     }
+
+    /// Whether the layer child `id`, or a layer child it was opened from, is leaving ([`LayerSpec::inert`]): it takes
+    /// no input and blocks nothing. A submenu of a fading menu leaves with it.
+    pub(crate) fn inert(&self, tree: &crate::tree::Tree, id: NodeId) -> bool {
+        self.layered.get(&id).is_some_and(|s| s.inert) || tree.owner_chain(id).iter().skip(1).any(|n| self.layered.get(n).is_some_and(|s| s.inert))
+    }
 }
 
 pub(crate) type Windows = BTreeMap<WindowId, Window>;

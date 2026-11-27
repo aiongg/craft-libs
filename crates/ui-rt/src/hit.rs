@@ -120,15 +120,17 @@ fn hit_records_through(
 ) -> Option<(Hit, HitRecord)> {
     let viewport = Rect::from_min_size(Pos2::ZERO, window.viewport);
     let mut blocked = false;
+    // A leaving layer child (`LayerSpec::inert`) paints but takes no hit and blocks nothing.
+    let leaving = |child: NodeId| window.layered.contains_key(&child) && window.inert(tree, child);
     for layer in Layer::ALL.into_iter().rev() {
         let id = window.layer(layer);
-        if let Some(hit) = visit(tree, id, Vec2::ZERO, viewport, pos, accept) {
+        if let Some(hit) = visit(tree, id, Vec2::ZERO, viewport, pos, accept, &leaving) {
             return match through {
                 Some(node) if blocked => tree.owner_chain(hit.0.node).contains(&node).then_some(hit),
                 _ => Some(hit),
             };
         }
-        if layer == Layer::Modal && tree.nodes.get(&id).is_some_and(|n| !n.children.is_empty()) {
+        if layer == Layer::Modal && tree.nodes.get(&id).is_some_and(|n| n.children.iter().any(|&c| !leaving(c))) {
             if through.is_none() {
                 return None;
             }
@@ -145,6 +147,7 @@ fn visit(
     parent_clip: Rect,
     pos: Pos2,
     accept: &dyn Fn(&HitRecord) -> bool,
+    skip: &dyn Fn(NodeId) -> bool,
 ) -> Option<(Hit, HitRecord)> {
     let node = tree.nodes.get(&id)?;
     let origin = parent_origin + node.frame.offset;
@@ -167,8 +170,8 @@ fn visit(
     if let Some(hit) = own(Part::Overlay) {
         return Some(hit);
     }
-    for &child in node.children.iter().rev() {
-        if let Some(hit) = visit(tree, child, origin, clip, pos, accept) {
+    for &child in node.children.iter().rev().filter(|&&c| !skip(c)) {
+        if let Some(hit) = visit(tree, child, origin, clip, pos, accept, &|_| false) {
             return Some(hit);
         }
     }

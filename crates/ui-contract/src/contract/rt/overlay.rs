@@ -1,8 +1,9 @@
 //! Overlays on craft-ui-rt layers (docs/contract-rt.md sections 2.3 and 10): popups, menus,
 //! dialogs, tooltips and toasts are inline layer children of the node whose build shows them
-//! ([`BuildCx::inline_layer`]). A closed overlay is not reached, so its node goes and it costs
-//! nothing. An open one is a scope: its body runs when it opens, when its owner ran, or when a
-//! node under it is marked; otherwise it keeps its subtree and returns its kept value.
+//! ([`BuildCx::inline_layer`]). An open one is a scope: its body runs when it opens, when its owner
+//! ran, or when a node under it is marked; otherwise it keeps its subtree and returns its kept value.
+//! A popup or toast stack that closed stays shown while it fades out, inert and kept, and its owner
+//! builds when the fade ends, which drops it ([`show_leaving`]); then it costs nothing.
 //!
 //! The body is laid out in the build, at the place ui-rt gives it after layout (anchor, flip,
 //! clamp to the window, [`LayerSpec::place`]), so the rects its children return are this frame's
@@ -21,6 +22,7 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::Arc;
 
+use craft_behavior::Playback;
 use craft_behavior::overlay::{Align, MinWidth, Side};
 use craft_i18n::Direction;
 use craft_theme::Tokens;
@@ -62,8 +64,10 @@ struct PopupEntry {
     watch_hover: bool,
     /// The pointer is over its layer, as of the start of the run.
     hovered: bool,
-    /// The ui-rt layer it showed on last.
+    /// The ui-rt layer it showed on last, while its layer child is there (open, or fading out after it closed).
     layer: Option<Layer>,
+    /// Its layer child showed open in this run.
+    shown: bool,
     /// The frame time it last opened at (`Popup::opening`).
     opened_at: Option<f64>,
 }
@@ -95,6 +99,7 @@ impl PopupStates {
             entry.began = entry.open;
             entry.closed = None;
             entry.hovered = entry.watch_hover && entry.open && entry.layer.is_some_and(|layer| layer_hovered(cx, layer, entry.id.value()));
+            entry.shown = false;
         }
         self.context_menu = false;
         self.now = cx.now();
@@ -122,6 +127,7 @@ impl PopupStates {
                     watch_hover: false,
                     hovered: false,
                     layer: None,
+                    shown: false,
                     opened_at: None,
                 });
                 self.entries.last_mut().expect("just pushed")
@@ -197,7 +203,26 @@ impl PopupStates {
 
     /// `popup` showed on `layer` in this run.
     pub(crate) fn shown_on(&mut self, popup: Id, layer: Layer) {
-        self.entry(popup).layer = Some(layer);
+        let entry = self.entry(popup);
+        entry.layer = Some(layer);
+        entry.shown = true;
+    }
+
+    /// The closed popups whose layer child is still there, not shown open in this run: each fades out
+    /// ([`show_leaving`]).
+    pub(crate) fn leaving(&self) -> SmallVec<[(Id, Layer); 1]> {
+        self.entries.iter().filter(|e| !e.open && !e.shown).filter_map(|e| e.layer.map(|layer| (e.id, layer))).collect()
+    }
+
+    /// `popup`'s layer child went (its fade ended).
+    pub(crate) fn left(&mut self, popup: Id) {
+        self.entry(popup).layer = None;
+    }
+
+    /// A popup showed open in this run and closed after (a close its body or an activation inside decided): the
+    /// owner builds again in this frame, which starts its fade.
+    pub(crate) fn closed_after_shown(&self) -> bool {
+        self.entries.iter().any(|e| e.shown && !e.open)
     }
 
     /// A `Trigger::Context` opener ran: the access node offers `ShowContextMenu`.
@@ -295,6 +320,12 @@ pub(crate) struct LayerKept {
     pub(crate) reach: Option<ModalReach>,
     /// Its entry in its window's layer stack, for the layer queries.
     pub(crate) entry: Option<OpenEntry>,
+    /// The spec it was last shown open with: a leaving child shows on with it, inert ([`show_leaving`]).
+    spec: Option<LayerSpec>,
+    /// It reports hover (its element's flag), kept for the same reason.
+    hover: bool,
+    /// It closed and fades out: the frame time the fade ends, when its owner stops showing it.
+    pub(crate) leaving: Option<f64>,
 }
 
 /// A layer child: a popup, menu, dialog, tooltip, toast stack.
@@ -328,6 +359,9 @@ impl Element for LayerScope {
             since: None,
             reach: None,
             entry: None,
+            spec: None,
+            hover: self.hover,
+            leaving: None,
         }
     }
 
@@ -596,6 +630,54 @@ pub(crate) fn opened_at(cx: &BuildCx<'_>, layer: Layer, key: u64) -> Option<f64>
     cx.peek_layer::<LayerScope>(layer, key).and_then(|p| p.local.since)
 }
 
+/// Keeps the layer child `key` on `layer` of the node `cx` builds shown while it fades out after it closed: inert
+/// (no hits, keys, focus or dismissals: `LayerSpec::inert`), its content kept and painted at a falling level, its
+/// entry exiting for the layer queries. Returns the frame time the fade ends, when the owner must build again and
+/// stop showing it; `None` when nothing fades (no such child, its fade over, motion that does not run), and the child
+/// goes with this build.
+pub(crate) fn show_leaving(cx: &mut BuildCx<'_>, layer: Layer, key: u64) -> Option<f64> {
+    let now = cx.now();
+    let (spec, surface, hover, leaving) = {
+        let peek = cx.peek_layer::<LayerScope>(layer, key)?;
+        (peek.local.spec?, peek.local.surface, peek.local.hover, peek.local.leaving)
+    };
+    let ends = match leaving {
+        Some(ends) => ends,
+        None => fade_end(cx, now)?,
+    };
+    if now >= ends {
+        return None;
+    }
+    cx.inline_layer(layer, key, spec.inert(), LayerScope { key, surface, hover }, |lk, _, cx| {
+        cx.keep_children();
+        if lk.leaving.is_none() {
+            lk.leaving = Some(ends);
+            let level = lk.kept.level.get_mut();
+            if level.is_none() {
+                Level::aim(level, 1.0, motion::OPEN_FADE);
+            }
+            Level::aim(level, 0.0, motion::OPEN_FADE);
+            if let Some(entry) = lk.entry.as_mut() {
+                entry.exiting = true;
+                super::layers::note_changed(cx);
+            }
+            cx.mark_changed();
+        }
+    });
+    Some(ends)
+}
+
+/// When a fade out starting at `now` ends, under the window's motion mode and open motion; `None` when it does not
+/// run (motion off or reduced to a snap, a zero duration).
+fn fade_end(cx: &BuildCx<'_>, now: f64) -> Option<f64> {
+    let cells = EnvCells::of(cx)?;
+    let tokens = cx.peek_state(cells.tokens).clone();
+    let mode = *cx.peek_state(cells.motion);
+    let fade = motion::OPEN_FADE;
+    let millis = fade.motion_of(&tokens).millis;
+    (mode.playback(fade.kind()) == Playback::Run && millis > 0).then(|| now + f64::from(millis) / 1000.0)
+}
+
 /// The content of a layer child: measured before a new layer is placed, then shown at its place.
 /// What it keeps lives with its owner (a popup's body memory on the owner's node, a container's
 /// own node), not with the layer child, so it outlasts a close.
@@ -655,8 +737,16 @@ pub(crate) fn show_layer_with<R: Clone + 'static>(
     let element = LayerScope { key, surface, hover };
     cx.inline_layer(layer, key, spec, element, |lk, state, cx| {
         lk.kept.focus.scope = focus;
+        lk.spec = Some(spec);
+        // A leaving child shown open again comes back: it rises to full level and its body runs, so its entry is
+        // current again.
+        let revived = lk.leaving.take().is_some();
+        if revived {
+            Level::aim(lk.kept.level.get_mut(), 1.0, motion::OPEN_FADE);
+            cx.mark_changed();
+        }
         let kept_value = lk.kept.value.as_ref().and_then(|v| v.downcast_ref::<R>()).cloned();
-        if let Some(value) = kept_value.filter(|_| !rerun && !state.must_run() && !state.path) {
+        if let Some(value) = kept_value.filter(|_| !rerun && !revived && !state.must_run() && !state.path) {
             cx.keep_children();
             return value;
         }

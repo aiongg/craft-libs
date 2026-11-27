@@ -117,6 +117,10 @@ pub struct LayerSpec {
     /// The child is one the window's layer queries list (a popup, dialog or floating window, not a tooltip): when it
     /// goes, the window's [`Env::layers`](crate::Env::layers) cell moves.
     pub listed: bool,
+    /// The child is leaving (a popup or toast stack fading out after it closed): it still paints, but takes no
+    /// pointer or key input, holds no focus, blocks nothing below it and is never dismissed. Its owner stops showing
+    /// it when the fade ends.
+    pub inert: bool,
 }
 
 /// The one exception to "a modal layer blocks the input below it": a dialog that samples a canvas
@@ -171,7 +175,14 @@ impl LayerSpec {
             bounds: None,
             commands: false,
             listed: false,
+            inert: false,
         }
+    }
+
+    /// The child is leaving ([`LayerSpec::inert`]).
+    pub const fn inert(mut self) -> LayerSpec {
+        self.inert = true;
+        self
     }
 
     pub const fn listed(mut self) -> LayerSpec {
