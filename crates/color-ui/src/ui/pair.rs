@@ -33,6 +33,7 @@ const SWAP: PartKey = PartKey::new("swap");
 /// offset towards the end and down: foreground and background, or fill and stroke.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[non_exhaustive]
+#[derive(craft_ui::contract::MemoProps)]
 pub enum Well {
     #[default]
     /// The primary well: at the start, top.
@@ -65,6 +66,7 @@ impl Well {
 /// What a [`SwatchPair`] shows for one well.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
+#[derive(craft_ui::contract::MemoProps)]
 pub struct PairWell {
     label: Label,
     paint: Mixed<Paint>,
@@ -806,5 +808,3 @@ impl Glyph for PairGlyph {
         }
     }
 }
-
-debug_key!(PairWell, Well);

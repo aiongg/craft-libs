@@ -91,6 +91,7 @@ craft_ui::words! {
 /// (angle, style, midpoints) is the host's; it gives this preview with the paint.
 #[derive(Clone, Debug, Default, PartialEq)]
 #[non_exhaustive]
+#[derive(craft_ui::contract::MemoProps)]
 pub struct GradientPreview {
     /// Stops as (position 0–1, colour), ascending by position.
     pub stops: Vec<(f32, Srgba)>,
@@ -127,6 +128,7 @@ impl GradientPreview {
 /// pattern or picture itself is the host's.
 #[derive(Clone, Debug, Default, PartialEq)]
 #[non_exhaustive]
+#[derive(craft_ui::contract::MemoProps)]
 pub struct ImagePreview {
     /// "Bubbles", "photo.png".
     pub name: String,
@@ -145,6 +147,7 @@ impl ImagePreview {
 /// `match` on it outside craft-color-ui needs a `_` arm.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
+#[derive(craft_ui::contract::MemoProps)]
 pub enum Paint {
     /// No paint.
     None,
@@ -208,6 +211,7 @@ impl<T> PaintEditor<'_, T> {
 /// How large a [`PaintChip`] is; every size paints the same well.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[non_exhaustive]
+#[derive(craft_ui::contract::MemoProps)]
 pub enum PaintChipSize {
     /// A control high and 1.5 times as wide: a panel's or an options bar's chip.
     #[default]
@@ -402,11 +406,11 @@ pub struct PaintChip<'a> {
     /// No Color is offered; on by default (a stroke can be none, a text colour cannot).
     #[prop]
     none_allowed: bool,
-    #[key(by = self.gradient.as_ref().map(|(preview, _)| format!("{preview:?}")))] // the editor closures are only called
+    #[key(by = self.gradient.as_ref().map(|(preview, _)| preview))] // the editor closures are only called
     gradient: Option<(GradientPreview, PaintEditor<'a, GradientPreview>)>,
-    #[key(by = self.pattern.as_ref().map(|(preview, _)| format!("{preview:?}")))]
+    #[key(by = self.pattern.as_ref().map(|(preview, _)| preview))] // the editor closures are only called
     pattern: Option<(ImagePreview, PaintEditor<'a, ImagePreview>)>,
-    #[key(by = self.picture.as_ref().map(|(preview, _)| format!("{preview:?}")))]
+    #[key(by = self.picture.as_ref().map(|(preview, _)| preview))] // the editor closures are only called
     picture: Option<(ImagePreview, PaintEditor<'a, ImagePreview>)>,
     /// The host's answer to the screen eyedropper: a `Set` of the sampled colour that keeps the alpha.
     #[prop]
@@ -421,7 +425,7 @@ pub struct PaintChip<'a> {
     /// The document's CMYK converter, which draws CMYK swatches and gives their colours when picked; without it they
     /// use the built-in coated CMYK, as in the Swatches panel.
     #[prop]
-    #[key(by = self.cmyk.is_some())] // the converter is a loaded profile
+    #[key(by = self.cmyk.map(|converter| converter.profile_id() as u64))] // an immutable converter: another profile is another converter
     cmyk: Option<&'a CmykConverter>,
     /// A Color Picker… button at the end of the kind row opens the full picker.
     #[prop]
@@ -858,5 +862,3 @@ pub(super) fn paint_image(painter: &ContentPainterCx<'_>, well: Rect, texture: C
         }
     }
 }
-
-debug_key!(Paint, PaintChipSize);

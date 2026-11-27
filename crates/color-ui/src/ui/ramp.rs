@@ -66,6 +66,7 @@ pub struct ColorRampStyle {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
+#[derive(craft_ui::contract::MemoProps)]
 pub enum RampKind {
     /// Hue across; white at the top through the full colour in the middle to black at the bottom.
     #[default]
@@ -82,6 +83,7 @@ pub enum RampKind {
 /// A colour the ramp picked.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
+#[derive(craft_ui::contract::MemoProps)]
 pub struct RampPick {
     /// The picked colour.
     pub color: Srgba,
@@ -577,5 +579,3 @@ fn ramp_mesh(bar: Rect, colors: &[Color32], flat: bool) -> Mesh {
     }
     mesh
 }
-
-debug_key!(RampKind, RampPick);

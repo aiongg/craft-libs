@@ -9,6 +9,10 @@ use egui::{Pos2, Rect};
 /// The workbook sheet the grid shows; the app implements it on its sheet. Read only: the grid reports what the user
 /// asks for as [`GridEdit`]s and moves the selection in [`GridState`].
 pub trait GridModel {
+    /// A number that changes whenever anything the model shows changes: a cell, a size, a merge, a freeze. The grid
+    /// keeps what it showed while this number and its other inputs are the same, so the app bumps it on every edit.
+    fn revision(&self) -> u64;
+
     /// Row heights (points at 100 %), with hidden rows at 0.
     fn rows(&self) -> &LineIndex;
 
@@ -237,6 +241,7 @@ pub enum GridMenuTarget {
 /// in that column, as a spreadsheet's filter arrows sit on the table, not on the column letters.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
+#[derive(craft_ui::contract::MemoProps)]
 pub struct ColumnFilter {
     /// The header cell; the filter applies to its column.
     pub cell: CellAt<u32>,
@@ -270,6 +275,7 @@ impl ColumnFilter {
 /// A problem in a cell, shown as an error tag beside it with its fixes in a menu.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
+#[derive(craft_ui::contract::MemoProps)]
 pub struct CellProblem<'a> {
     /// The cell.
     pub cell: CellAt<u32>,

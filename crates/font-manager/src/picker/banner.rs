@@ -41,13 +41,13 @@ pub(crate) struct FontPreviewBannerStyle {
 /// the caption role and under it `text` in the family's face, one line cut at the end. Until the face is ready the band
 /// stays empty. The label names it for a screen reader.
 #[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
-#[component(content_painter)]
+// Unkeyed: the sample face is a catalogue face with no version of its load state.
+#[component(content_painter, unkeyed)]
 pub(crate) struct FontPreviewBanner<'a> {
     #[common]
     common: Common,
     name: &'a str,
     text: &'a str,
-    #[key(by = format!("{:?}", self.face))]
     face: SampleFace<'a>,
     /// The sample in black on a white paper over its band, in every theme (`FontPickerSettings::samples_on_white`).
     #[prop]

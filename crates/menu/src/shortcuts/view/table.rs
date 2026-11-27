@@ -148,7 +148,6 @@ pub(crate) struct ShortcutTable<'a> {
     #[prop]
     reveal: Option<usize>,
     /// The lines the rows show, for the group headers the table paints.
-    #[key(by = format!("{:?}", self.lines))]
     lines: &'a [Line],
     /// The group headers in view this pass.
     #[key(skip)] // the run's output
@@ -318,7 +317,6 @@ pub(crate) struct RowEnv<'r> {
 pub(crate) struct CommandRow<'r> {
     #[common]
     common: Common,
-    #[key(by = format!("{:?}", self.line))]
     line: &'r Line,
     #[key(by = (self.env.editable, self.env.holds, self.env.start, self.env.recording.as_ref().map(|(_, text)| text)))]
     // the dialog state the row shows

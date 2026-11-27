@@ -1127,6 +1127,22 @@ impl MemoProps for egui::load::SizedTexture {
     }
 }
 
+/// A stored picture by its texture id (a replaced picture has a new id) and its place on the page.
+impl MemoProps for crate::primitives::textures::CachedTexture {
+    fn key(&self, key: &mut MemoKey) {
+        key.feed_hash(&self.id);
+        self.size.key(key);
+        self.origin.key(key);
+        self.page.key(key);
+    }
+}
+
+impl MemoProps for craft_behavior::LineIndex {
+    fn key(&self, key: &mut MemoKey) {
+        key.feed_hash(self);
+    }
+}
+
 impl MemoProps for egui::Pos2 {
     fn key(&self, key: &mut MemoKey) {
         let egui::Pos2 { x, y } = *self;
@@ -1160,6 +1176,7 @@ macro_rules! derived_hash {
 
 derived_hash!(
     craft_behavior::PointerButton,
+    craft_keymap::Binding,
     craft_behavior::NavMove,
     craft_behavior::geometry::Homography,
     craft_behavior::geometry::CropGuide,
@@ -1211,6 +1228,24 @@ macro_rules! dock_tree {
 }
 
 dock_tree!(Column, Group, Node, Layout, Floating, StackEntry);
+
+impl<T: std::hash::Hash + Sync> MemoProps for craft_behavior::CellRange<T> {
+    fn key(&self, key: &mut MemoKey) {
+        key.feed_hash(self);
+    }
+}
+
+impl<T: std::hash::Hash + Sync> MemoProps for craft_behavior::CellSelection<T> {
+    fn key(&self, key: &mut MemoKey) {
+        key.feed_hash(self);
+    }
+}
+
+impl<T: std::hash::Hash + Sync> MemoProps for craft_behavior::CellAt<T> {
+    fn key(&self, key: &mut MemoKey) {
+        key.feed_hash(self);
+    }
+}
 
 /// Plain value types with no `Hash`, by their `Debug` text.
 macro_rules! debug_key {

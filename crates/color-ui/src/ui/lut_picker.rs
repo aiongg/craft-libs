@@ -46,6 +46,7 @@ craft_ui::words! {
 /// The chosen LUT.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
+#[derive(craft_ui::contract::MemoProps)]
 pub enum LutChoice {
     /// No LUT.
     None,
@@ -375,5 +376,3 @@ fn builtin_name(words: &LutWords, id: &str) -> Label {
 fn file_name(path: &Path) -> String {
     path.file_name().map_or_else(String::new, |n| n.to_string_lossy().into_owned())
 }
-
-debug_key!(LutChoice);

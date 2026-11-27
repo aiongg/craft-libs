@@ -35,7 +35,7 @@ const KEY: PartKey = PartKey::new("key");
 const MODIFIER: PartKey = PartKey::new("modifier");
 
 /// A modifier the pane toggles.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, craft_ui::contract::MemoProps)]
 pub(crate) enum Mod {
     Cmd,
     Ctrl,
@@ -343,7 +343,6 @@ struct KeyCaps {
     // what each cap shows
     caps: Vec<CapView>,
     key: Option<Key>,
-    #[key(by = format!("{:?}", self.toggled))]
     toggled: Option<Mod>,
 }
 

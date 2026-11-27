@@ -28,6 +28,7 @@ pub enum StopRows {
 /// [`StopRows::ColorOnly`] have only `Color`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
+#[cfg_attr(feature = "ui", derive(craft_ui::contract::MemoProps))]
 pub enum StopRow {
     /// Colour stops.
     Color,

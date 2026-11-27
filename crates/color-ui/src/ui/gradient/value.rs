@@ -10,6 +10,7 @@ use crate::gradient::StopRow;
 /// the opacity row).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
+#[derive(craft_ui::contract::MemoProps)]
 pub enum StopRef {
     /// Colour stop `i`.
     Color(usize),

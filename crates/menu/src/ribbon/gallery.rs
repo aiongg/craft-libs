@@ -58,11 +58,12 @@ craft_ui::words! {
 ///   set), and with `CaptionPlace::Below` the tile names its item under the picture (a style gallery's 'Normal').
 #[must_use = "show the gallery with `show`"]
 #[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
-#[component(overlay, probe(Gallery<'static, usize>))]
+// Unkeyed: a tile face can be a painter closure (`GalleryFace::Paint`) that carries no version, so the gallery runs at
+// every build of its scope until the faces carry one.
+#[component(overlay, unkeyed, probe(Gallery<'static, usize>))]
 pub struct Gallery<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     #[common]
     common: Common,
-    #[key(by = self.items.iter().map(|item| (item_hash(&item.key), &item.label)).collect::<Vec<_>>())]
     // tiles by key and name; a face repaint needs a changed key
     items: &'a [GalleryItem<'a, K>],
     current: Option<&'a K>,
@@ -752,12 +753,4 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for Gallery<'_, K> 
         });
         GalleryOutput { picked: self.picked, menu, response: cx.response.clone() }
     }
-}
-
-/// A tile's key as a number, for the gallery's component key.
-fn item_hash<K: Hash>(key: &K) -> u64 {
-    use std::hash::Hasher as _;
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    key.hash(&mut hasher);
-    hasher.finish()
 }

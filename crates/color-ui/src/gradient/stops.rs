@@ -19,6 +19,7 @@ pub type Sampler = dyn Fn(&GradientStops, f32) -> Srgba;
 /// What an Alt-drag of a colour stop does when it is held over another colour stop.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
+#[cfg_attr(feature = "ui", derive(craft_ui::contract::MemoProps))]
 pub enum AltDrop {
     /// The drag copies the stop (the default).
     #[default]
@@ -30,6 +31,7 @@ pub enum AltDrop {
 /// What a host allows of the stops of one row.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
+#[cfg_attr(feature = "ui", derive(craft_ui::contract::MemoProps))]
 pub struct StopRules {
     /// The row layout.
     pub rows: StopRows,

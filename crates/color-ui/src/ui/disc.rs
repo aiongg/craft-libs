@@ -57,6 +57,7 @@ craft_ui::words! {
 /// A marker's place on the disc: what a drag or a key changes.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
+#[derive(craft_ui::contract::MemoProps)]
 pub struct DiscMove {
     /// Index of the marker, in the order of the colours the disc was given.
     pub marker: usize,
@@ -97,6 +98,7 @@ impl DiscHit {
 /// How a [`ColorDisc`] draws its colours.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[non_exhaustive]
+#[derive(craft_ui::contract::MemoProps)]
 pub enum DiscLook {
     /// A smooth blend of hue around and the radial channel outwards.
     #[default]
@@ -108,6 +110,7 @@ pub enum DiscLook {
 /// The channel the radius of a [`ColorDisc`] shows.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[non_exhaustive]
+#[derive(craft_ui::contract::MemoProps)]
 pub enum DiscRadius {
     /// Saturation outwards.
     #[default]
@@ -678,5 +681,3 @@ fn disc_mesh(center: Pos2, radius: f32, level: f32, kind: DiscRadius) -> Mesh {
 fn marker_size(base: bool) -> MarkerSize {
     if base { MarkerSize::Large } else { MarkerSize::Regular }
 }
-
-debug_key!(DiscMove, DiscLook, DiscRadius);

@@ -144,7 +144,6 @@ pub struct Keytips<'a> {
     /// The controls of the shown tab that get a badge, in the order they are shown: their badges come from their
     /// labels and fixed letters ([`assign_keytips`]).
     #[prop]
-    #[key(by = format!("{:?}", self.controls))]
     controls: &'a [KeytipControl<'a>],
     /// Fixed letter sequences typed after Alt, each with the command it fires. They show no badge, start only on a
     /// letter they lead with, and wait for their next letter until they are complete or Escape ends them.
@@ -478,7 +477,7 @@ impl Component for Keytips<'_> {
 }
 
 /// A control that gets a keytip.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, craft_ui::contract::MemoProps)]
 #[non_exhaustive]
 pub struct KeytipControl<'a> {
     /// The control's command: its badge shows on the element of the records bound to it.

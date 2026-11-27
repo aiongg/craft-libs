@@ -83,7 +83,7 @@ pub enum ColorSamplerCommand {
 }
 
 /// The sample points of a document, in document pixels, at most [`MAX_SAMPLERS`], numbered by their order.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, craft_ui::contract::MemoProps)]
 pub struct ColorSamplers {
     points: Vec<[f64; 2]>,
 }
@@ -624,5 +624,3 @@ impl<'a, F: Fn([f64; 2]) -> Srgba> SamplerReadouts<'a, F> {
         readouts
     }
 }
-
-debug_key!(ColorSamplers);

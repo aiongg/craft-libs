@@ -4,5 +4,4 @@
 #![warn(missing_docs)]
 
 #[cfg(feature = "ui")]
-mod memo;
 pub mod ui;

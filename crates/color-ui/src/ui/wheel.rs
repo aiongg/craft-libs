@@ -73,6 +73,7 @@ pub enum WheelPart {
 /// What a [`ColorWheel`] shows inside its ring.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[non_exhaustive]
+#[derive(craft_ui::contract::MemoProps)]
 pub enum WheelInner {
     /// The saturation and brightness triangle.
     #[default]
@@ -653,5 +654,3 @@ fn triangle_mesh(corners: [Pos2; 3], hue: f32) -> Mesh {
     }
     mesh
 }
-
-debug_key!(WheelInner);

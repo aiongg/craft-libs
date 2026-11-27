@@ -125,6 +125,11 @@ impl StorySheet {
 }
 
 impl GridModel for StorySheet {
+    /// A story sheet is built once and never edited.
+    fn revision(&self) -> u64 {
+        0
+    }
+
     fn rows(&self) -> &LineIndex {
         &self.rows
     }

@@ -144,6 +144,16 @@ pub struct LineIndex {
     lines: Vec<(u32, f64, f64)>,
 }
 
+impl std::hash::Hash for LineIndex {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.default.to_bits().hash(state);
+        self.count.hash(state);
+        for (line, start, size) in &self.lines {
+            (line, start.to_bits(), size.to_bits()).hash(state);
+        }
+    }
+}
+
 impl LineIndex {
     /// `count` lines of `size` each (negative or NaN sizes count as `0.0`).
     pub fn uniform(size: f32, count: u32) -> Self {

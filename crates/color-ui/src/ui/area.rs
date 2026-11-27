@@ -80,6 +80,7 @@ pub struct ColorArea<'a> {
 /// The size of a [`ColorArea`] that does not fill its room.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[non_exhaustive]
+#[derive(craft_ui::contract::MemoProps)]
 pub enum AreaShape {
     /// `size.plot.width` wide and `size.plot.height` tall: the field of the Color panel's popover and the compact
     /// pickers, wider than tall.
@@ -353,5 +354,3 @@ fn flat_cells(mesh: &mut Mesh, plot: Rect, at: &dyn Fn(f32, f32) -> Srgba, level
         }
     }
 }
-
-debug_key!(AreaShape, crate::mode::AreaMode);

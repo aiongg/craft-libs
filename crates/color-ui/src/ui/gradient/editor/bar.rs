@@ -897,5 +897,3 @@ impl<P: Clone + Send + Sync + 'static> Component for GradientBar<'_, P> {
         }
     }
 }
-
-debug_key!(StopRules, StopRef);

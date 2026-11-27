@@ -55,6 +55,7 @@ impl SheetMetrics {
 /// What a grid's geometry is made from, per frame.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
+#[derive(craft_ui::contract::MemoProps)]
 pub struct GridLayout {
     /// The grid's rectangle on screen, in points.
     pub rect: Rect,
@@ -148,7 +149,7 @@ impl GridLayout {
 /// The geometry of a grid for one frame: where each cell is on screen, and which cell is at a point. Logical
 /// coordinates run left to right; a right-to-left sheet is mirrored across the rect's centre line on screen
 /// ([`mirror_x`](Self::mirror_x)), so layout and hit tests are one code path.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, craft_ui::contract::MemoProps)]
 pub struct SheetGeometry {
     layout: GridLayout,
     cells: Rect,

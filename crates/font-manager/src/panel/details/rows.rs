@@ -183,10 +183,11 @@ impl ItemOutput<Pressed> for RowOut {
 
 /// One style: its name, its action and its sample.
 #[derive(craft_ui::contract::Component)]
+// Unkeyed: its style line holds a `HeldFace` with no version.
+#[component(unkeyed)]
 pub(super) struct StyleRow<'r> {
     #[common]
     common: Common,
-    #[key(by = (&self.line.label, format!("{:?}", self.line.coords), self.line.sliders, self.line.face.is_some(), format!("{:?}", self.line.action)))]
     // what the style shows
     line: &'r StyleLine,
     family: &'r str,

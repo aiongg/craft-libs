@@ -117,12 +117,12 @@ impl HeldFace {
 /// an ellipsis where the room does not fit it (`faces::sample_text`, the layout `paint` draws). Without a ready face
 /// it reserves the most that layout can take, the room's width, so the face arriving never widens it.
 #[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
-#[component(content_painter)]
+// Unkeyed: the sample face is a catalogue face with no version of its load state.
+#[component(content_painter, unkeyed)]
 pub(crate) struct FontSample<'a> {
     #[common]
     common: Common,
     text: Cow<'a, str>,
-    #[key(by = format!("{:?}", self.face))]
     face: SampleFace<'a>,
     points: f32,
     /// Black type on a white paper over the whole rect, in every theme (`FontPickerSettings::samples_on_white`).

@@ -150,7 +150,7 @@ impl Outcome for CaptureViewOutput {
 pub(super) struct CaptureView<'a> {
     #[common]
     common: Common,
-    #[key(by = std::ptr::from_ref(self.snapshot) as usize as u64)] // the captured snapshot by identity
+    #[key(skip)] // the capture is stored under `key` with a fixed revision: `key` names its content
     snapshot: &'a Snapshot,
     /// The capture's key in the texture store.
     key: u64,
