@@ -138,6 +138,9 @@ pub(crate) struct InputState {
     /// The open press holds the focused node's draft (`Event::PressKept`): it went down on a
     /// [`HitKind::Hold`](crate::hit::HitKind::Hold) shape or in a layer child above the focus.
     press_holds: bool,
+    /// A secondary press no shape sensing [`Sense::CONTEXT_CLICK`] took, by pointer, and where it
+    /// went down: its release within the slop is an [`Event::ContextClick`].
+    context_press: Option<(u64, Pos2)>,
     /// The modifiers of the window's last modifier change (`WindowEvent::Modifiers`).
     mods: Mods,
     /// Alt went down alone and nothing has happened since: its release is a lone Alt.
@@ -749,9 +752,7 @@ impl Runtime {
     pub(crate) fn refresh_hover(&mut self, window: WindowId) {
         let Some(input) = self.input(window) else { return };
         let hit = match input.hover_pos {
-            Some(pos) if !input.machine.dragging() => {
-                self.hit(window, pos, &|s| s.intersects(Sense::HOVER | Sense::PRESS)).map(|h| (h, self.shape_cursor(h, pos)))
-            }
+            Some(pos) if !input.machine.dragging() => self.hover_hit(window, pos).map(|h| (h, self.shape_cursor(h, pos))),
             _ => None,
         };
         let now = hit.map(|(h, _)| chain(&self.tree, h.node)).unwrap_or_default();
@@ -840,6 +841,12 @@ impl Runtime {
                 if let Some(delta) = delta {
                     self.step_press(window, &[PressEvent::moved(p.pos, p.sample)], p, delta, None);
                 }
+                let slop = self.slop(p.kind);
+                if let Some(input) = self.input_mut(window)
+                    && input.context_press.is_some_and(|(id, at)| id == p.id && p.pos.distance(at) > slop)
+                {
+                    input.context_press = None;
+                }
                 if self.drag_follows(window, p.id) || self.file_drag_in(window) {
                     self.drag_moved(p.pos, p.mods);
                 }
@@ -876,12 +883,29 @@ impl Runtime {
                     Some(Press { pointer: p.id, kind: p.kind, button: p.button, mods: p.mods, owner: None, pos: p.pos, long_pressed: false });
                 let ev = PressEvent::pressed_by(p.button, p.pos, time, clicks);
                 self.step_press(window, &[ev], p, Vec2::ZERO, None);
-                if p.button == PointerButton::Primary && self.input(window).is_some_and(|i| i.press_hit.is_none()) {
-                    self.unclaimed_press(window, focused);
+                if self.input(window).is_some_and(|i| i.press_hit.is_none()) {
+                    match p.button {
+                        PointerButton::Primary => self.unclaimed_press(window, focused),
+                        PointerButton::Secondary => {
+                            let under = self.hover_hit(window, p.pos).map(|h| h.node);
+                            self.secondary_press(window, focused, under);
+                            if let Some(input) = self.input_mut(window) {
+                                input.context_press = Some((p.id, p.pos));
+                            }
+                        }
+                        _ => {}
+                    }
                 }
                 self.refresh_hover(window);
             }
             PointerPhase::Up => {
+                let context = self.input_mut(window).and_then(|i| i.context_press.take_if(|(id, _)| *id == p.id));
+                if let Some((_, at)) = context
+                    && p.button == PointerButton::Secondary
+                    && p.pos.distance(at) <= self.slop(p.kind)
+                {
+                    self.context_click(window, p);
+                }
                 let Some(press) = self.input(window).and_then(|i| i.press).filter(|q| q.pointer == p.id) else {
                     return;
                 };
@@ -1072,7 +1096,11 @@ impl Runtime {
             let holds = self.input_mut(window).is_some_and(|i| std::mem::take(&mut i.press_holds));
             let held = holds && before.is_some_and(|f| self.tree.nodes.get(&f).and_then(|n| n.element.as_ref()).is_some_and(|e| e.holds_drafts()));
             let mut commits = false;
-            if !hit.sense.contains(Sense::KEEP_FOCUS) && !held {
+            if !primary {
+                if !hit.sense.contains(Sense::KEEP_FOCUS) {
+                    self.secondary_press(window, before, Some(hit.node));
+                }
+            } else if !hit.sense.contains(Sense::KEEP_FOCUS) && !held {
                 match self.nearest_focusable(hit.node) {
                     Some(stop) => {
                         self.set_focus(window, Some(stop), FocusCause::Pointer);
@@ -1106,6 +1134,33 @@ impl Runtime {
             self.set_pressed(window, path);
         } else if let Some(owner) = self.input(window).and_then(|i| i.press).and_then(|q| q.owner) {
             self.deliver(owner, hit.node, &ev);
+        }
+    }
+
+    /// A secondary press never moves the focus to the pressed node: focus comes from a primary press
+    /// (production gains it only from a primary click). One away from the focused node, under
+    /// `under` (the pressed node, or the node under a press no shape took), gives the focus up as a
+    /// primary press on a shape that takes none does: only a node that releases its focus on such a
+    /// press, and not under a node that keeps it.
+    fn secondary_press(&mut self, window: WindowId, focused: Option<NodeId>, under: Option<NodeId>) {
+        let Some(node) = focused.filter(|f| self.releases_focus(*f)) else { return };
+        if under.is_some_and(|n| chain(&self.tree, n).contains(&node)) || self.keeps_focus_under(node) {
+            return;
+        }
+        self.release_focus(window, node);
+    }
+
+    /// The shape under `pos` in `window` that a pointer there hovers: the topmost one that senses
+    /// hover or presses.
+    fn hover_hit(&self, window: WindowId, pos: Pos2) -> Option<Hit> {
+        self.hit(window, pos, &|s| s.intersects(Sense::HOVER | Sense::PRESS))
+    }
+
+    /// The release of a secondary press no shape took ([`Event::ContextClick`]): to the hover
+    /// target, bubbling.
+    fn context_click(&mut self, window: WindowId, p: PointerEvent) {
+        if let Some(hit) = self.hover_hit(window, p.pos) {
+            self.dispatch(hit.node, &Event::ContextClick { pos: p.pos, mods: p.mods, hit }, true);
         }
     }
 

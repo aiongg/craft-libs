@@ -1477,3 +1477,120 @@ mod modal_files_and_taps {
         assert_eq!(TAPS.with(|t| t.borrow().clone()), vec![("plain", 2)], "one tap of two fingers, on the pad under them");
     }
 }
+
+/// A confined painted pointer (a brush tip on its canvas) draws in the canvas's place in the layer stack: a popup
+/// opened over the canvas paints over it.
+mod confined_pointer {
+    use std::cell::Cell;
+
+    use craft_behavior::{Cursor, PaintedCursor};
+    use craft_ui_contract::contract::overlay::{Overlay, OverlayUi, Overlays as _};
+    use craft_ui_contract::contract::{Common, Component, Cx, MeasureCx, Response, Role, Show as _};
+    use craft_ui_contract::style::StyleCx;
+    use craft_ui_contract::testing::Harness;
+    use craft_ui_platform_headless::Input;
+    use craft_ui_rt::{Pos2, Rect, Sense, Vec2};
+    use craft_ui_test_kit::contract::PlainStyle;
+
+    use crate::skeleton::Chip;
+
+    thread_local! {
+        static CANVAS: Cell<Rect> = const { Cell::new(Rect::NOTHING) };
+        static ROW: Cell<Rect> = const { Cell::new(Rect::NOTHING) };
+    }
+
+    /// A canvas naming a brush tip, which ui-rt confines to it.
+    #[derive(craft_ui_contract::contract::Component)]
+    #[component(unregistered)]
+    struct Canvas {
+        #[common]
+        common: Common,
+    }
+
+    impl Component for Canvas {
+        const ROLE: Role = Role::GROUP;
+        const STOPS: bool = false;
+        type Style = PlainStyle;
+        type Output = Response;
+
+        fn style(_: &StyleCx<'_>, _: CanvasStyleKey) -> PlainStyle {
+            PlainStyle::default()
+        }
+
+        fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
+            Vec2::new(300.0, 300.0)
+        }
+
+        fn sense(&self) -> Sense {
+            Sense::HOVER
+        }
+
+        fn cursor(&self) -> Option<Cursor> {
+            Some(Cursor::Painted(PaintedCursor::circle(20.0)))
+        }
+
+        fn finish(self, cx: Cx<'_, Self>) -> Response {
+            cx.response.clone()
+        }
+    }
+
+    /// A strip above the canvas whose popup is open, hanging over the canvas.
+    #[derive(craft_ui_contract::contract::Component)]
+    #[component(unregistered)]
+    struct Opener {
+        #[common]
+        common: Common,
+    }
+
+    impl Component for Opener {
+        const ROLE: Role = Role::GROUP;
+        const STOPS: bool = false;
+        type Style = PlainStyle;
+        type Output = Response;
+
+        fn style(_: &StyleCx<'_>, _: OpenerStyleKey) -> PlainStyle {
+            PlainStyle::default()
+        }
+
+        fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
+            Vec2::new(300.0, 20.0)
+        }
+
+        fn sense(&self) -> Sense {
+            Sense::HOVER
+        }
+
+        fn update(&mut self, cx: &mut Cx<'_, Self>) {
+            cx.popup("over").open(cx);
+        }
+
+        fn overlay(&mut self, ui: &mut OverlayUi<'_>, cx: &mut Cx<'_, Self>) {
+            ui.show(cx.popup("over"), Overlay::dropdown(), |ui, _| ROW.with(|row| row.set(Chip::new("Over the canvas").show(ui).rect)));
+        }
+
+        fn finish(self, cx: Cx<'_, Self>) -> Response {
+            cx.response.clone()
+        }
+    }
+
+    #[test]
+    fn a_confined_pointer_draws_under_a_popup_opened_over_its_canvas() {
+        let mut h = Harness::builder().with_size(Vec2::new(400.0, 400.0)).build_ui(|ui| {
+            let _ = Opener { common: Common::new() }.show(ui);
+            CANVAS.with(|canvas| canvas.set(Canvas { common: Common::new() }.show(ui).rect));
+        });
+        h.run();
+        let (canvas, row) = (CANVAS.with(Cell::get), ROW.with(Cell::get));
+        assert!(row.is_positive() && canvas.intersects(row), "the popup hangs over the canvas: {row:?} over {canvas:?}");
+        let before: Vec<_> = h.driver.renderer.last().expect("a frame").draws.iter().map(|d| d.node).collect();
+        let at = Pos2::new(canvas.center().x, canvas.max.y - 40.0);
+        h.send(Input::mouse_move(at)).run();
+        let frame = h.driver.renderer.last().expect("a frame");
+        let pointer = frame.draws.iter().position(|d| !before.contains(&d.node)).expect("the brush tip draws once the pointer is over the canvas");
+        let over = frame.draws.iter().position(|d| (d.origin - row.min.to_vec2()).length() < 0.5).expect("the popup's row draws");
+        assert!(pointer < over, "the popup paints over the confined pointer");
+        let moved = h.send(Input::mouse_move(at + Vec2::new(-30.0, 0.0))).last_report();
+        assert_eq!((moved.frame.runs, moved.frame.scopes), (0, 0), "a move with a painted pointer runs nothing: {moved:?}");
+        assert!(moved.frame.built <= 1 && moved.frame.painted <= 1, "only the tip's own node builds and repaints, for its clip: {moved:?}");
+    }
+}
