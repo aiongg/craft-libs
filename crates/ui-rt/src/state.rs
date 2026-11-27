@@ -3,12 +3,14 @@
 //! re-register when they run again, so a write clears the set.
 
 use std::any::Any;
+use std::collections::HashSet;
+use std::hash::BuildHasherDefault;
 use std::marker::PhantomData;
 use std::rc::Rc;
 
 use smallvec::SmallVec;
 
-use crate::id::NodeId;
+use crate::id::{NodeId, StableHasher};
 
 /// The phase a read happened in, which is the phase a write reruns.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -18,11 +20,53 @@ pub enum Phase {
     Paint,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum Reader {
     Node(NodeId, Phase),
     /// A derived cell by slot index and generation.
     Derived(u32, u32),
+}
+
+/// The readers of one cell, each once, in the order they first read. A cell every node reads
+/// (the scale, the tokens) has thousands, so past a few the membership test is a hash lookup.
+#[derive(Default)]
+struct Readers {
+    list: SmallVec<[Reader; 4]>,
+    /// Every reader in `list`, kept once `list` outgrows a linear scan.
+    set: HashSet<Reader, BuildHasherDefault<StableHasher>>,
+}
+
+impl Readers {
+    const SCAN: usize = 8;
+
+    fn insert(&mut self, reader: Reader) {
+        if self.list.len() < Self::SCAN {
+            if !self.list.contains(&reader) {
+                self.list.push(reader);
+            }
+            return;
+        }
+        if self.set.is_empty() {
+            self.set.extend(self.list.iter().copied());
+        }
+        if self.set.insert(reader) {
+            self.list.push(reader);
+        }
+    }
+
+    fn is_empty(&self) -> bool {
+        self.list.is_empty()
+    }
+
+    fn clear(&mut self) {
+        self.list.clear();
+        self.set.clear();
+    }
+
+    fn take(&mut self) -> SmallVec<[Reader; 4]> {
+        self.set.clear();
+        std::mem::take(&mut self.list)
+    }
 }
 
 type Compute = Rc<dyn Fn(&mut DeriveCx<'_>) -> Box<dyn Any>>;
@@ -38,7 +82,7 @@ struct Slot {
     generation: u32,
     version: u64,
     value: Option<Box<dyn Any>>,
-    readers: SmallVec<[Reader; 4]>,
+    readers: Readers,
     derive: Option<DeriveInfo>,
 }
 
@@ -176,7 +220,7 @@ impl Store {
             (index, slot.generation)
         } else {
             let index = u32::try_from(self.slots.len()).unwrap_or(u32::MAX);
-            self.slots.push(Slot { generation: 0, version: 0, value, readers: SmallVec::new(), derive });
+            self.slots.push(Slot { generation: 0, version: 0, value, readers: Readers::default(), derive });
             (index, 0)
         }
     }
@@ -221,9 +265,7 @@ impl Store {
         let version = self.slot_mut(index, generation).version;
         let Some(reader) = reader else { return };
         let slot = self.slot_mut(index, generation);
-        if !slot.readers.contains(&reader) {
-            slot.readers.push(reader);
-        }
+        slot.readers.insert(reader);
         if let Reader::Derived(d, g) = reader
             && let Some(info) = self.slots.get_mut(d as usize).filter(|s| s.generation == g).and_then(|s| s.derive.as_mut())
         {
@@ -279,7 +321,7 @@ impl Store {
     }
 
     fn invalidate(&mut self, index: u32) {
-        let readers = std::mem::take(&mut self.slots[index as usize].readers);
+        let readers = self.slots[index as usize].readers.take();
         for r in readers {
             match r {
                 Reader::Node(node, phase) => self.pending.push((node, phase)),
@@ -358,5 +400,26 @@ impl<T: 'static> Derived<T> {
 
     pub fn remove(self, store: &mut Store) {
         store.remove(self.0);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn readers_keep_first_read_order_and_each_reader_once() {
+        let mut readers = Readers::default();
+        let reader = |i: u64| Reader::Node(NodeId(i), Phase::Paint);
+        for round in 0..3 {
+            for i in 0..100 {
+                readers.insert(reader(i));
+            }
+            assert_eq!(readers.list.len(), 100, "round {round}");
+        }
+        assert!(readers.list.iter().enumerate().all(|(i, r)| *r == reader(i as u64)));
+        assert_eq!(readers.take().len(), 100);
+        readers.insert(reader(7));
+        assert_eq!(readers.list.len(), 1);
     }
 }

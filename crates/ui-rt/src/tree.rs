@@ -11,6 +11,7 @@ use crate::geom::Constraints;
 use crate::hit::HitRecord;
 use crate::id::{IdMap, NodeId, WindowId};
 use crate::state::Phase;
+use crate::text::{TextLayout, TextSpec};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Dirty(u8);
@@ -76,6 +77,9 @@ pub(crate) struct Node {
     pub(crate) constraints: Option<Constraints>,
     /// A relayout inside this node stops here.
     pub(crate) boundary: bool,
+    /// The texts its last layout shaped, in call order, with the scale: a layout that asks for the
+    /// same text again gets the shaped one back.
+    pub(crate) texts: SmallVec<[(TextSpec, f32, TextLayout); 2]>,
     pub(crate) frame: FrameNode,
     /// Window-space ink of both display lists at the last frame that changed this node, for
     /// damage.
@@ -115,6 +119,7 @@ impl Node {
             props_key,
             dirty: Dirty::default(),
             constraints: None,
+            texts: SmallVec::new(),
             boundary: parent.is_none(),
             frame: FrameNode::empty(),
             abs: None,

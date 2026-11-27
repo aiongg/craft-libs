@@ -7,6 +7,7 @@ use std::sync::Arc;
 
 use craft_theme::Tokens;
 use emath::Vec2;
+use smallvec::SmallVec;
 
 use crate::geom::Constraints;
 use crate::id::{NodeId, WindowId};
@@ -21,6 +22,9 @@ pub struct LayoutCx<'a> {
     rt: &'a mut Runtime,
     text: &'a mut dyn TextEngine,
     node: NodeId,
+    /// The texts the node's previous layout shaped, and those this one has asked for so far.
+    last: SmallVec<[(TextSpec, f32, TextLayout); 2]>,
+    shaped: SmallVec<[(TextSpec, f32, TextLayout); 2]>,
 }
 
 impl Reads for LayoutCx<'_> {
@@ -88,10 +92,16 @@ impl LayoutCx<'_> {
     }
 
     /// Shapes text at the current scale. Reading the scale records the read, so a scale change
-    /// lays this node out again.
+    /// lays this node out again. The node's previous layout shaped the same text at the same
+    /// scale in the same place of its call order: that shaping is reused.
     pub fn text_layout(&mut self, spec: &TextSpec) -> TextLayout {
         let scale = self.scale();
-        self.text.layout(spec, scale)
+        let layout = match self.last.get(self.shaped.len()) {
+            Some((last, at, layout)) if *at == scale && last == spec => layout.clone(),
+            _ => self.text.layout(spec, scale),
+        };
+        self.shaped.push((spec.clone(), scale, layout.clone()));
+        layout
     }
 
     pub fn text_engine(&mut self) -> &mut dyn TextEngine {
@@ -122,7 +132,10 @@ pub(crate) fn layout_node(rt: &mut Runtime, text: &mut dyn TextEngine, id: NodeI
     node.constraints = Some(c);
     let window = node.window;
     rt.layout_wakes.retain(|&(n, _)| n != id);
-    let size = c.constrain(el.layout(&mut LayoutCx { rt: &mut *rt, text, node: id }, c));
+    let last = rt.tree.nodes.get_mut(&id).map(|n| std::mem::take(&mut n.texts)).unwrap_or_default();
+    let mut cx = LayoutCx { rt: &mut *rt, text, node: id, last, shaped: SmallVec::new() };
+    let size = c.constrain(el.layout(&mut cx, c));
+    let shaped = cx.shaped;
     let boundary = c.is_tight() || el.relayout_boundary();
     rt.counters.laid_out += 1;
     if let Some(w) = rt.windows.get_mut(&window) {
@@ -133,6 +146,7 @@ pub(crate) fn layout_node(rt: &mut Runtime, text: &mut dyn TextEngine, id: NodeI
         return size;
     };
     node.element = Some(el);
+    node.texts = shaped;
     node.dirty.remove(Dirty::LAYOUT);
     node.boundary = boundary || fixed_parent;
     if node.frame.size != size {
