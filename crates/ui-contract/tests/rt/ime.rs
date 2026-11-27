@@ -35,6 +35,7 @@ struct Doc {
 struct Editor {
     #[common]
     common: Common,
+    #[key(skip)]
     doc: Rc<RefCell<Doc>>,
 }
 

@@ -6,11 +6,11 @@
 
 use std::ops::RangeInclusive;
 
-use craft_behavior::{IconId, PartKey, PressPhase, ValueDrag};
+use craft_behavior::{IconId, Metrics, PartKey, PressPhase, ValueDrag};
 use craft_ui_contract::contract::*;
-use craft_ui_contract::primitives::PaintShape;
-use craft_ui_contract::runtime::focus::{FocusPolicy, Roving};
-use craft_ui_contract::style::{StyleColor, StyleCx, UiTokens, rgba_color};
+use craft_ui_contract::primitives::{PaintShape, TextRun};
+use craft_ui_contract::runtime::focus::{ActivateKeys, FocusPolicy, KeepKeys, KeyUse, Roving};
+use craft_ui_contract::style::{ComponentStyle, Stateful, States, StyleColor, StyleCx, SurfaceKind, SurfaceLook, UiTokens, rgba_color};
 use craft_ui_rt::{ImageKey, Pos2, Rect, Sense, Vec2, hash_key};
 use craft_ui_test_kit::contract::PlainStyle;
 
@@ -18,7 +18,7 @@ use craft_ui_test_kit::contract::PlainStyle;
 const CONTROL: f32 = 24.0;
 
 fn theme(ui: &PaintUi<'_>) -> craft_theme::Tokens {
-    ui.env.tokens.theme().clone()
+    ui.env.tokens.tokens().as_ref().clone()
 }
 
 /// A square button showing one icon, named by its label for assistive technologies.
@@ -119,7 +119,7 @@ impl Stack {
 
     /// Shows `text` as the side label of the stack's controls.
     pub fn labelled(mut self, text: &str) -> Stack {
-        self.common.label = text.into();
+        self.common.label = text.to_owned().into();
         self.props = self.props.label(SideLabel::default());
         self
     }
@@ -241,7 +241,12 @@ fn phase_pos(phase: PressPhase) -> Option<Pos2> {
 
 impl Component for Slider<'_> {
     const ROLE: Role = Role::SLIDER;
-    const INPUT: Input = Input::Slider;
+    /// The key use of a slider: the arrows stay with it, and Enter and Space activate nothing.
+    const KEYS: KeyUse = {
+        let mut keys = KeyUse::of(Input::Pointer).with_keep(KeepKeys::BlockArrows);
+        keys.activate = ActivateKeys::Neither;
+        keys
+    };
     type Style = PlainStyle;
     type Output = EditResponse<f64>;
 
@@ -362,6 +367,15 @@ impl Component for Toggle<'_> {
     }
 }
 
+/// The chip's look: a raised surface whose fill differs at rest, under the pointer and while pressed.
+#[derive(Clone, Debug, PartialEq, ComponentStyle)]
+pub struct ChipStyle {
+    #[style(surface)]
+    surface: SurfaceLook,
+    #[style(metrics)]
+    metrics: Metrics,
+}
+
 /// A leaf with every real step a look reads: a label, a face on a part, a surface with a state fill
 /// and the veil of `DisabledLook::Faded` while disabled. The count trial for the real leaf pipeline
 /// shows it.
@@ -389,15 +403,20 @@ impl Chip {
 impl Component for Chip {
     const ROLE: Role = Role::BUTTON;
     const DISABLED: DisabledLook = DisabledLook::Faded;
-    type Style = PlainStyle;
+    type Style = ChipStyle;
     type Output = Response;
 
-    fn style(_: &StyleCx<'_>, _: ChipStyleKey) -> PlainStyle {
-        PlainStyle::surfaced()
+    fn style(cx: &StyleCx<'_>, _: ChipStyleKey) -> ChipStyle {
+        let raised = cx.surface(SurfaceKind::Raised);
+        let state = &cx.tokens.color.state;
+        let rest = StyleColor(raised.fill);
+        let fill = States::new(rest, cx.color(state.hover), cx.color(state.pressed), cx.color(state.disabled_fill));
+        let surface = SurfaceLook::new(Stateful::new(rest).off(fill)).kind(SurfaceKind::Raised).radius(raised.radius);
+        ChipStyle { surface, metrics: Metrics::new() }
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        Vec2::new(4.0 * CONTROL, CONTROL).max(cx.field_text(&cx.label().run()))
+        Vec2::new(4.0 * CONTROL, CONTROL).max(cx.field_text(&TextRun::new(cx.label().as_str())))
     }
 
     fn sense(&self) -> Sense {
@@ -411,7 +430,8 @@ impl Component for Chip {
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         ui.face(Self::MARK, IconButton::new(IconId::new("chip"), ""));
-        ui.draw().label(cx.content_rect, &cx.label());
+        let label = cx.label();
+        ui.draw().text(cx.content_rect, &TextRun::new(label.as_str()));
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> Response {

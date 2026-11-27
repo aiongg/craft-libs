@@ -99,7 +99,7 @@ impl Component for Fader {
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
-        let ink = ui.env.tokens.theme().color.text.normal;
+        let ink = ui.env.tokens.color.text.normal;
         ui.draw().fill(&PaintShape::Rect(cx.rect, UiTokens::corner(0.0)), StyleColor(rgba_color(ink)));
     }
 

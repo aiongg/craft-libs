@@ -69,7 +69,7 @@ impl Component for Knob {
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let at = cx.anim_bool("on", self.on, spec::CHECK);
-        let fill = ui.env.tokens.theme().color.state.hover;
+        let fill = ui.env.tokens.color.state.hover;
         let rect = Rect::from_min_size(cx.rect.min + Vec2::new(at * SIZE, 0.0), Vec2::splat(SIZE));
         ui.draw().fill(&PaintShape::Rect(rect, UiTokens::corner(SIZE / 4.0)), StyleColor(rgba_color(fill)));
     }

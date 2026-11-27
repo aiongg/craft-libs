@@ -562,7 +562,8 @@ mod window {
         let pastes = count(&board, EditCommands::Paste.id());
         let seen = Log::default();
         let shown = Rc::clone(&seen);
-        let pasting = KeyUse { edits: EditSet::NONE.with(EditCommand::Paste), ..KeyUse::CANVAS };
+        let mut pasting = KeyUse::CANVAS;
+        pasting.edits = EditSet::NONE.with(EditCommand::Paste);
         let mut h = harness(board, false, move |ui| {
             Stop::new("canvas", KeyUse::CANVAS, &shown).show(ui);
             Stop::new("pasting canvas", pasting, &shown).show(ui);

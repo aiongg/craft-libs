@@ -9,9 +9,9 @@ use craft_ui::contract::{
     Bind, BindMut, Collection, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, HoverLead, ItemOutput, NoValue, Outcome,
     PaintUi, Response, Role, SelectMode, ShowCollection as _, Sizing, Ui,
 };
-use craft_ui::primitives::{CornerRadius, PaintShape};
+use craft_ui::primitives::PaintShape;
 use craft_ui::runtime::windows::{WindowEnv, window_root_with};
-use craft_ui::style::StyleCx;
+use craft_ui::style::{StyleCx, UiTokens};
 use craft_ui_rt::record::RecordingRenderer;
 use craft_ui_rt::{Pos2, Rect, StepReport, Vec2};
 use craft_ui_test_kit::contract::PlainStyle;
@@ -79,7 +79,7 @@ impl Component for Row {
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         if cx.response.hovered() {
             let draw = ui.draw();
-            draw.fill(&PaintShape::Rect(cx.rect, CornerRadius::ZERO), draw.role(|colors| colors.text.faint));
+            draw.fill(&PaintShape::Rect(cx.rect, UiTokens::corner(0.0)), draw.role(|colors| colors.text.faint));
         }
     }
 
@@ -232,7 +232,8 @@ fn six_hundred_rows_build_only_the_band() {
 fn hover_over_a_row_paints_one_row_and_runs_nothing() {
     let mut app = app(600);
     let mut rig = rig(&mut app);
-    let entered = input(&mut rig, &mut app, craft_ui_platform_headless::Input::mouse_move(row_center(&app, 3)));
+    let at = row_center(&app, 3);
+    let entered = input(&mut rig, &mut app, craft_ui_platform_headless::Input::mouse_move(at));
     assert_eq!(entered.frame.painted, 1, "only the hovered row repaints: {entered:?}");
     assert_eq!((entered.frame.runs, entered.frame.scopes, entered.frame.built), (0, 0, 0), "a hover is a kept variant: {entered:?}");
 }
@@ -245,13 +246,13 @@ fn select_runs_the_list_and_the_rows_whose_facts_moved() {
     input(&mut rig, &mut app, craft_ui_platform_headless::Input::mouse_move(at));
     input(&mut rig, &mut app, craft_ui_platform_headless::Input::mouse_down(at));
     let up = input(&mut rig, &mut app, craft_ui_platform_headless::Input::mouse_up(at));
-    assert_eq!(app.selection.lead(), Some(&3), "the click selects row 3");
+    assert_eq!(app.selection.lead, Some(3), "the click selects row 3");
     assert_eq!(up.frame.runs, 2, "the list and row 3 run; the other band rows are kept: {up:?}");
     let other = row_center(&app, 5);
     input(&mut rig, &mut app, craft_ui_platform_headless::Input::mouse_move(other));
     input(&mut rig, &mut app, craft_ui_platform_headless::Input::mouse_down(other));
     let moved = input(&mut rig, &mut app, craft_ui_platform_headless::Input::mouse_up(other));
-    assert_eq!(app.selection.lead(), Some(&5));
+    assert_eq!(app.selection.lead, Some(5));
     assert_eq!(moved.frame.runs, 3, "the list, row 3 (deselected) and row 5 (selected) run: {moved:?}");
 }
 
@@ -279,7 +280,7 @@ fn a_select_keeps_the_largest_row_measure() {
     input(&mut rig, &mut app, craft_ui_platform_headless::Input::mouse_down(at));
     let _ = craft_ui::contract::take_row_builds();
     let up = input(&mut rig, &mut app, craft_ui_platform_headless::Input::mouse_up(at));
-    assert_eq!(app.selection.lead(), Some(&3), "the click selects row 3");
+    assert_eq!(app.selection.lead, Some(3), "the click selects row 3");
     assert!(up.frame.runs >= 1, "the list runs on the select: {up:?}");
     assert!(craft_ui::contract::take_widest_runs().is_empty(), "the rows, room and stamp hold: the kept measure serves");
     assert!(craft_ui::contract::take_row_builds().is_empty(), "no row is built to be measured again");
@@ -289,14 +290,17 @@ fn a_select_keeps_the_largest_row_measure() {
 fn hover_lead_follows_the_pointer_with_one_list_run_per_move() {
     let mut app = App { hover: HoverLead::LeadAndSelection, ..app(600) };
     let mut rig = rig(&mut app);
-    let entered = input(&mut rig, &mut app, craft_ui_platform_headless::Input::mouse_move(row_center(&app, 3)));
-    assert_eq!(app.selection.lead(), Some(&3), "the lead and the pick follow the pointer onto row 3");
+    let at = row_center(&app, 3);
+    let entered = input(&mut rig, &mut app, craft_ui_platform_headless::Input::mouse_move(at));
+    assert_eq!(app.selection.lead, Some(3), "the lead and the pick follow the pointer onto row 3");
     assert_eq!(entered.frame.runs, 2, "the list runs once and row 3 takes its new facts: {entered:?}");
-    let inside = input(&mut rig, &mut app, craft_ui_platform_headless::Input::mouse_move(row_center(&app, 3) + Vec2::new(4.0, 2.0)));
-    assert_eq!(app.selection.lead(), Some(&3), "a move inside the lead row keeps the lead");
+    let at = row_center(&app, 3) + Vec2::new(4.0, 2.0);
+    let inside = input(&mut rig, &mut app, craft_ui_platform_headless::Input::mouse_move(at));
+    assert_eq!(app.selection.lead, Some(3), "a move inside the lead row keeps the lead");
     assert_eq!(inside.frame.runs, 1, "the hover point moved: the list alone runs, no row: {inside:?}");
-    let next = input(&mut rig, &mut app, craft_ui_platform_headless::Input::mouse_move(row_center(&app, 4)));
-    assert_eq!(app.selection.lead(), Some(&4), "the lead follows onto row 4");
+    let at = row_center(&app, 4);
+    let next = input(&mut rig, &mut app, craft_ui_platform_headless::Input::mouse_move(at));
+    assert_eq!(app.selection.lead, Some(4), "the lead follows onto row 4");
     assert_eq!(next.frame.runs, 3, "the list once, row 3 and row 4 whose facts moved: {next:?}");
 }
 
@@ -304,8 +308,10 @@ fn hover_lead_follows_the_pointer_with_one_list_run_per_move() {
 fn a_list_without_hover_lead_runs_nothing_on_a_move() {
     let mut app = app(600);
     let mut rig = rig(&mut app);
-    input(&mut rig, &mut app, craft_ui_platform_headless::Input::mouse_move(row_center(&app, 3)));
-    let moved = input(&mut rig, &mut app, craft_ui_platform_headless::Input::mouse_move(row_center(&app, 3) + Vec2::new(4.0, 2.0)));
+    let at = row_center(&app, 3);
+    input(&mut rig, &mut app, craft_ui_platform_headless::Input::mouse_move(at));
+    let at = row_center(&app, 3) + Vec2::new(4.0, 2.0);
+    let moved = input(&mut rig, &mut app, craft_ui_platform_headless::Input::mouse_move(at));
     assert_eq!(moved.frame.runs, 0, "only a list with hover lead reads the hover point: {moved:?}");
 }
 
@@ -366,7 +372,7 @@ mod glide {
         assert!(app.auto_scrolling, "a middle click on the rows latches the auto-scroll");
         // Below the anchor past the dead zone: the rows view glides toward the end.
         input(&mut rig, &mut app, Input::mouse_move(anchor + Vec2::new(0.0, 80.0)));
-        let quiet: Vec<(usize, bool)> = (0..6)
+        let quiet: Vec<(u32, bool)> = (0..6)
             .map(|_| {
                 let report = frame(&mut rig, &mut app);
                 (report.frame.runs, app.calls.get() > 0)

@@ -5,7 +5,7 @@ use crate::skeleton::{IconButton, Stack};
 use craft_behavior::{IconId, NavShape};
 use craft_ui::contract::overlay::{Overlay, show_dialog};
 use craft_ui::contract::{
-    BodyCx, Common, Component, Cx, MeasureCx, MemoView, NoValue, Outbox, Outcome, OverlayUi, PopupHandle, Response, Role, Show as _, Ui,
+    BodyCx, Common, Component, Cx, MeasureCx, MemoView, NoValue, Outbox, Outcome, OverlayUi, Overlays as _, Response, Role, Show as _, Ui,
 };
 use craft_ui::runtime::focus::Roving;
 use craft_ui::runtime::windows::{WindowEnv, window_root_with};
@@ -18,10 +18,6 @@ use craft_ui_test_kit::rt::Rig;
 
 /// Past the theme's hover fade, which paint reads from the clock.
 const FADE_END: f64 = 0.25;
-
-fn menu() -> PopupHandle {
-    PopupHandle::new("menu")
-}
 
 /// A button, a Tab stop, that toggles a popover of two rows when activated.
 #[derive(craft_ui::contract::Component)]
@@ -68,16 +64,18 @@ impl Component for MenuButton {
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         if cx.response.clicked() {
-            if menu().is_open(cx) {
-                menu().close(cx);
+            let menu = cx.popup("menu");
+            if menu.is_open(cx) {
+                menu.close(cx);
             } else {
-                menu().open(cx);
+                menu.open(cx);
             }
         }
     }
 
     fn overlay(&mut self, ui: &mut OverlayUi<'_>, cx: &mut Cx<'_, Self>) {
-        let shown = ui.show(menu(), Overlay::popover(), |ui: &mut Ui, _: &mut BodyCx<'_>| {
+        let menu = cx.popup("menu");
+        let shown = ui.show(menu, Overlay::popover(), |ui: &mut Ui, _: &mut BodyCx<'_>| {
             let cut = IconButton::new(IconId::new("cut"), "Cut").show(ui);
             let copy = IconButton::new(IconId::new("copy"), "Copy").show(ui);
             (vec![cut.rect, copy.rect], cut.clicked() || copy.clicked())
@@ -85,10 +83,10 @@ impl Component for MenuButton {
         if let Some((rows, picked)) = shown {
             self.rows = Some(rows);
             if picked {
-                menu().close(cx);
+                menu.close(cx);
             }
         }
-        self.open = Some(menu().is_open(cx));
+        self.open = Some(menu.is_open(cx));
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> MenuOut {

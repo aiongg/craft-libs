@@ -6,8 +6,8 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 use craft_keymap::{Binding, Chord, CommandDef, Keymap, Scope, Scopes};
-use craft_ui_contract::contract::{Commands as _, Common, Component, Cx, MeasureCx, Props as _, Response, Role, Show as _, Ui};
-use craft_ui_contract::runtime::commands::{CommandBoard, CommandSet};
+use craft_ui_contract::contract::{CommandSet, Commands as _, Common, Component, Cx, MeasureCx, Props as _, Response, Role, Show as _, Ui};
+use craft_ui_contract::runtime::commands::CommandBoard;
 use craft_ui_contract::runtime::windows::{WindowEnv, window_root_with};
 use craft_ui_contract::style::StyleCx;
 use craft_ui_platform_headless::Input;
@@ -58,10 +58,12 @@ fn a_real_step_leaf_keeps_its_outputs_on_hover_and_runs_once_on_a_click() {
     let main = rig.main;
     rig.driver.runtime.set_access_enabled(main, true);
     settle(&mut rig, &mut app, chips_step);
-    let hover = chips_step(&mut rig, &mut app, Some(Input::mouse_move(app.on.center())));
+    let at = app.on.center();
+    let hover = chips_step(&mut rig, &mut app, Some(Input::mouse_move(at)));
     assert_eq!((hover.frame.runs, hover.frame.scopes), (0, 0), "a hover runs no hook and no scope: {hover:?}");
     assert_eq!(hover.frame.painted, 1, "the chip swaps to its kept hover look: {hover:?}");
-    let faded = chips_step(&mut rig, &mut app, Some(Input::mouse_move(app.off.center())));
+    let at = app.off.center();
+    let faded = chips_step(&mut rig, &mut app, Some(Input::mouse_move(at)));
     assert_eq!(faded.frame.runs, 0, "{faded:?}");
     assert_eq!(faded.frame.painted, 1, "only the enabled chip leaves its hover look; the faded one keeps one look: {faded:?}");
     let at = app.on.center();
