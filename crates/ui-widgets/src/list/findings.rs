@@ -14,7 +14,8 @@ use crate::style::{ComponentStyle, IconLook, Stateful, StyleCx, SurfaceKind, Tex
 use craft_behavior::{DisplayOrder, Flow, IconId, Insets, ItemSource, Metrics, Selection, Sense, SpanLayout};
 use craft_i18n::Format;
 use craft_theme::variant::Tone;
-use egui::{Response, Vec2};
+use craft_ui::Response;
+use craft_ui::geom::Vec2;
 use std::borrow::Cow;
 
 /// How serious a finding is. The glyph's shape differs per severity as well as its colour.

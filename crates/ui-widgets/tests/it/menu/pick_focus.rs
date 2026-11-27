@@ -4,24 +4,24 @@
 //! focus the same way; Escape is no activation and leaves focus on the bar title.
 
 use craft_host::target::Os;
+use craft_ui::Id;
 use craft_ui::contract::{Bind, Show as _};
 use craft_ui::menu::MenuItem;
 use craft_ui::menu::bar::{MenuBar, MenuHelp, MenuTitle};
 use craft_ui::menu::search::HelpEntry;
 use craft_ui::runtime::commands::EditCommands;
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::testing::{Harness, trial};
 use craft_ui::text::TextField;
-use egui::Id;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 /// The fixture with the counter and the focused id the scoped trial reads back.
-type ScopedRig = (Fixture, Rc<Cell<u32>>, Rc<Cell<Option<Id>>>);
+type ScopedRig = (Harness, Rc<Cell<u32>>, Rc<Cell<Option<Id>>>);
 
 /// A menu bar with Edit (Undo, Redo) and Help (the search over Undo), then a text field holding "hello" that has
 /// focus and the typed run "abc".
 struct Rig {
-    fixture: Fixture,
+    fixture: Harness,
     text: Rc<RefCell<String>>,
     field: Rc<Cell<Option<Id>>>,
 }
@@ -30,7 +30,7 @@ fn rig() -> Rig {
     let text = Rc::new(RefCell::new("hello".to_owned()));
     let field = Rc::new(Cell::new(None));
     let shown = (text.clone(), field.clone());
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let (text, field) = &shown;
         let titles = vec![
             MenuTitle::new("&Edit", |ui| {
@@ -99,7 +99,7 @@ fn a_shortcut_pressed_on_the_focused_bar_runs_once_where_focus_was_and_gives_foc
     let count = Rc::new(Cell::new(0));
     let target = Rc::new(Cell::new(None));
     let (seen, stop) = (count.clone(), target.clone());
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let titles = vec![MenuTitle::new("&Edit", |ui| {
             MenuItem::command(EditCommands::Undo).show(ui);
         })];
@@ -115,10 +115,10 @@ fn a_shortcut_pressed_on_the_focused_bar_runs_once_where_focus_was_and_gives_foc
     fixture.settle();
     craft_ui::runtime::focus::request(fixture.ctx(), craft_ui::runtime::focus::FocusTarget::Id(target.get().expect("the button ran")));
     fixture.settle();
-    fixture.key(egui::Key::F10, egui::Modifiers::NONE);
+    fixture.key(craft_ui::input::Key::F10, craft_ui::input::Mods::NONE);
     fixture.settle();
     assert_ne!(fixture.focused_stop().map(|(id, _)| id), target.get(), "F10 takes the focus to the bar");
-    fixture.key(egui::Key::P, egui::Modifiers::COMMAND | egui::Modifiers::ALT);
+    fixture.key(craft_ui::input::Key::P, craft_ui::input::Mods::COMMAND | craft_ui::input::Mods::ALT);
     fixture.settle();
     assert_eq!(count.get(), 1, "the shortcut runs once, in the scope of the stop the bar took the focus from");
     assert_eq!(fixture.focused_stop().map(|(id, _)| id), target.get(), "and the focus is back on that stop");
@@ -145,7 +145,7 @@ fn a_plain_letter_on_the_focused_bar_opens_its_title_and_runs_no_shortcut() {
     let ran = Rc::new(RefCell::new(Vec::new()));
     let target = Rc::new(Cell::new(None));
     let (seen, stop) = (ran.clone(), target.clone());
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let titles = vec![
             MenuTitle::new("&Edit", |ui| {
                 MenuItem::command(EditCommands::Undo).show(ui);
@@ -166,14 +166,14 @@ fn a_plain_letter_on_the_focused_bar_opens_its_title_and_runs_no_shortcut() {
     fixture.settle();
     let button = target.get().expect("the button ran");
     for alt in [true, false] {
-        for (key, text) in [(egui::Key::B, "b"), (egui::Key::Q, "q")] {
+        for (key, text) in [(craft_ui::input::Key::B, "b"), (craft_ui::input::Key::Q, "q")] {
             craft_ui::runtime::focus::request(fixture.ctx(), craft_ui::runtime::focus::FocusTarget::Id(button));
             fixture.settle();
             if alt {
-                fixture.hold(egui::Modifiers::ALT).settle();
-                fixture.hold(egui::Modifiers::NONE).settle();
+                fixture.hold(craft_ui::input::Mods::ALT).settle();
+                fixture.hold(craft_ui::input::Mods::NONE).settle();
             } else {
-                fixture.key(egui::Key::F10, egui::Modifiers::NONE);
+                fixture.key(craft_ui::input::Key::F10, craft_ui::input::Mods::NONE);
                 fixture.settle();
             }
             let bar = fixture.focused_stop().map(|(id, _)| id);
@@ -181,14 +181,14 @@ fn a_plain_letter_on_the_focused_bar_opens_its_title_and_runs_no_shortcut() {
             fixture.type_key(key, text);
             fixture.settle();
             assert!(ran.borrow().is_empty(), "{text:?} on the bar runs no shortcut (alt {alt}): {:?}", ran.borrow());
-            if key == egui::Key::B {
+            if key == craft_ui::input::Key::B {
                 assert!(fixture.by_label("Round").is_some(), "b opens Brushes, whose access key it is (alt {alt})");
-                fixture.key(egui::Key::Escape, egui::Modifiers::NONE);
-                fixture.key(egui::Key::Escape, egui::Modifiers::NONE);
+                fixture.key(craft_ui::input::Key::Escape, craft_ui::input::Mods::NONE);
+                fixture.key(craft_ui::input::Key::Escape, craft_ui::input::Mods::NONE);
             } else {
                 assert!(fixture.by_label("Round").is_none() && fixture.by_label("Undo").is_none(), "q opens no menu (alt {alt})");
                 assert_eq!(fixture.focused_stop().map(|(id, _)| id), bar, "and the bar keeps the keyboard (alt {alt})");
-                fixture.key(egui::Key::Escape, egui::Modifiers::NONE);
+                fixture.key(craft_ui::input::Key::Escape, craft_ui::input::Mods::NONE);
             }
             fixture.settle();
         }
@@ -196,7 +196,7 @@ fn a_plain_letter_on_the_focused_bar_opens_its_title_and_runs_no_shortcut() {
     // Off the bar the letters are the shortcuts they are bound to.
     craft_ui::runtime::focus::request(fixture.ctx(), craft_ui::runtime::focus::FocusTarget::Id(button));
     fixture.settle();
-    fixture.type_key(egui::Key::Q, "q");
+    fixture.type_key(craft_ui::input::Key::Q, "q");
     fixture.settle();
     assert_eq!(*ran.borrow(), [BarAccessCommand::Quick], "q off the bar runs its shortcut");
 }
@@ -212,7 +212,7 @@ fn a_command_shortcut_closes_an_open_menu_and_runs() {
     let tools = Rc::new(Cell::new(0));
     let target = Rc::new(Cell::new(None));
     let (seen, seen_tools, stop) = (count.clone(), tools.clone(), target.clone());
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let titles = vec![MenuTitle::new("&Edit", |ui| {
             MenuItem::command(EditCommands::Undo).show(ui);
             MenuItem::new("&Zoom").show(ui);
@@ -230,7 +230,7 @@ fn a_command_shortcut_closes_an_open_menu_and_runs() {
     fixture.settle();
     craft_ui::runtime::focus::request(fixture.ctx(), craft_ui::runtime::focus::FocusTarget::Id(target.get().expect("the button ran")));
     fixture.settle();
-    let open_edit = |fixture: &mut Fixture| {
+    let open_edit = |fixture: &mut Harness| {
         let edit = fixture.by_label("Edit").expect("the Edit title");
         fixture.click(&edit);
         fixture.settle();
@@ -238,21 +238,21 @@ fn a_command_shortcut_closes_an_open_menu_and_runs() {
     };
 
     open_edit(&mut fixture);
-    fixture.key(egui::Key::P, egui::Modifiers::COMMAND | egui::Modifiers::ALT);
+    fixture.key(craft_ui::input::Key::P, craft_ui::input::Mods::COMMAND | craft_ui::input::Mods::ALT);
     fixture.settle();
     assert_eq!(count.get(), 1, "the shortcut runs once with the menu open, in the scope focus came from");
     assert!(fixture.by_label("Zoom").is_none(), "and closes the menu");
     assert_eq!(fixture.focused_stop().map(|(id, _)| id), target.get(), "focus is back on the stop that held it");
 
     open_edit(&mut fixture);
-    fixture.type_key(egui::Key::Z, "z");
+    fixture.type_key(craft_ui::input::Key::Z, "z");
     fixture.settle();
     assert!(fixture.by_label("Zoom").is_none(), "a plain letter still picks the row it marks, which closes the menu");
     assert_eq!((count.get(), tools.get()), (1, 0), "and runs no shortcut");
     assert_eq!(fixture.focused_stop().map(|(id, _)| id), target.get());
 
     open_edit(&mut fixture);
-    fixture.type_key(egui::Key::B, "b");
+    fixture.type_key(craft_ui::input::Key::B, "b");
     fixture.settle();
     assert_eq!(tools.get(), 1, "a letter no row names runs its shortcut under the open menu");
 }
@@ -268,8 +268,8 @@ fn undo_and_copy_stay_with_the_help_search_field() {
     rig.fixture.settle();
     let search = rig.fixture.focused_stop().map(|(id, _)| id);
     assert!(search.is_some() && search != rig.field.get(), "Help opens with its search field focused");
-    for key in [egui::Key::Z, egui::Key::C] {
-        rig.fixture.key(key, egui::Modifiers::COMMAND);
+    for key in [craft_ui::input::Key::Z, craft_ui::input::Key::C] {
+        rig.fixture.key(key, craft_ui::input::Mods::COMMAND);
         rig.fixture.settle();
         assert!(rig.fixture.by_label("About").is_some(), "⌘{key:?} keeps Help open");
         assert_eq!(rig.fixture.focused_stop().map(|(id, _)| id), search, "⌘{key:?} keeps the focus in the search field");
@@ -285,7 +285,7 @@ fn scoped_rig() -> ScopedRig {
     let count = Rc::new(Cell::new(0));
     let target = Rc::new(Cell::new(None));
     let (seen, stop) = (count.clone(), target.clone());
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let titles = vec![MenuTitle::new("&Help", |ui| {
             MenuItem::new("&About").show(ui);
         })];
@@ -314,9 +314,9 @@ fn opening_help_focuses_its_search_and_down_then_enter_runs_the_first_match() {
     fixture.type_text("tog");
     fixture.settle();
     assert!(fixture.by_label("Toggle").is_some(), "the typed text lands in the search field and finds Toggle");
-    fixture.key(egui::Key::ArrowDown, egui::Modifiers::NONE);
+    fixture.key(craft_ui::input::Key::ArrowDown, craft_ui::input::Mods::NONE);
     fixture.settle();
-    fixture.key(egui::Key::Enter, egui::Modifiers::NONE);
+    fixture.key(craft_ui::input::Key::Enter, craft_ui::input::Mods::NONE);
     fixture.settle();
     assert_eq!(count.get(), 1, "Down then Enter runs the first match once");
     assert!(fixture.by_label("About").is_none(), "and the menu closes");
@@ -333,11 +333,11 @@ fn the_help_search_takes_its_editing_keys() {
     fixture.settle();
     fixture.type_text("tog");
     fixture.settle();
-    let field_reads = |fixture: &Fixture, text: &str| fixture.texts().iter().any(|run| run.text == text);
-    fixture.key(egui::Key::Backspace, egui::Modifiers::NONE);
+    let field_reads = |fixture: &Harness, text: &str| fixture.texts().iter().any(|run| run.text == text);
+    fixture.key(craft_ui::input::Key::Backspace, craft_ui::input::Mods::NONE);
     fixture.settle();
     assert!(field_reads(&fixture, "to"), "Backspace removes the last letter");
-    fixture.key(egui::Key::ArrowLeft, egui::Modifiers::NONE);
+    fixture.key(craft_ui::input::Key::ArrowLeft, craft_ui::input::Mods::NONE);
     fixture.settle();
     fixture.type_text("x");
     fixture.settle();
@@ -353,7 +353,7 @@ fn a_command_shortcut_after_moving_in_an_open_menu_runs_where_focus_was() {
     let count = Rc::new(Cell::new(0));
     let target = Rc::new(Cell::new(None));
     let (seen, stop) = (count.clone(), target.clone());
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let titles = vec![MenuTitle::new("&View", |ui| {
             MenuItem::new("&One").show(ui);
             MenuItem::new("&Two").show(ui);
@@ -371,16 +371,16 @@ fn a_command_shortcut_after_moving_in_an_open_menu_runs_where_focus_was() {
     fixture.settle();
     craft_ui::runtime::focus::request(fixture.ctx(), craft_ui::runtime::focus::FocusTarget::Id(target.get().expect("the button ran")));
     fixture.settle();
-    let press = |fixture: &mut Fixture, key: egui::Key, modifiers: egui::Modifiers| {
+    let press = |fixture: &mut Harness, key: craft_ui::input::Key, modifiers: craft_ui::input::Mods| {
         fixture.key(key, modifiers);
         fixture.settle();
     };
-    let down_twice_then_chord = |fixture: &mut Fixture, how: &str| {
+    let down_twice_then_chord = |fixture: &mut Harness, how: &str| {
         assert!(fixture.by_label("Two").is_some(), "{how}: View is open");
-        press(fixture, egui::Key::ArrowDown, egui::Modifiers::NONE);
-        press(fixture, egui::Key::ArrowDown, egui::Modifiers::NONE);
+        press(fixture, craft_ui::input::Key::ArrowDown, craft_ui::input::Mods::NONE);
+        press(fixture, craft_ui::input::Key::ArrowDown, craft_ui::input::Mods::NONE);
         assert_ne!(fixture.focused_stop().map(|(id, _)| id), target.get(), "{how}: the focus is on a row of the menu");
-        press(fixture, egui::Key::P, egui::Modifiers::COMMAND | egui::Modifiers::ALT);
+        press(fixture, craft_ui::input::Key::P, craft_ui::input::Mods::COMMAND | craft_ui::input::Mods::ALT);
         assert!(fixture.by_label("Two").is_none(), "{how}: the chord closes the menu");
         assert_eq!(fixture.focused_stop().map(|(id, _)| id), target.get(), "{how}: the focus is back on the stop that held it");
     };
@@ -391,8 +391,8 @@ fn a_command_shortcut_after_moving_in_an_open_menu_runs_where_focus_was() {
     down_twice_then_chord(&mut fixture, "opened by a click");
     assert_eq!(count.get(), 1, "opened by a click: the chord runs once, in the scope focus came from");
 
-    press(&mut fixture, egui::Key::F10, egui::Modifiers::NONE);
-    press(&mut fixture, egui::Key::ArrowDown, egui::Modifiers::NONE);
+    press(&mut fixture, craft_ui::input::Key::F10, craft_ui::input::Mods::NONE);
+    press(&mut fixture, craft_ui::input::Key::ArrowDown, craft_ui::input::Mods::NONE);
     down_twice_then_chord(&mut fixture, "opened by F10 and Down");
     assert_eq!(count.get(), 2, "opened by F10 and Down: the chord runs once, in the scope focus came from");
 }
@@ -405,7 +405,7 @@ fn cut_from_the_help_search_fields_edit_menu_cuts_the_search_text() {
     let mut rig = rig();
     rig.click("Help");
     rig.fixture.type_text("und");
-    rig.fixture.key(egui::Key::A, egui::Modifiers::COMMAND);
+    rig.fixture.key(craft_ui::input::Key::A, craft_ui::input::Mods::COMMAND);
     rig.fixture.settle();
     let held = rig.fixture.focused_stop().map(|(id, _)| id);
     // Well after the title click: egui counts presses of any button into one click run.
@@ -437,7 +437,7 @@ fn an_open_menu_takes_letters_and_arrows_from_a_focused_text_field() {
     let text = Rc::new(RefCell::new("100%".to_owned()));
     let (field, zoomed) = (Rc::new(Cell::new(None)), Rc::new(Cell::new(0_u32)));
     let shown = (text.clone(), field.clone(), zoomed.clone());
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let (text, field, zoomed) = &shown;
         let titles = vec![MenuTitle::new("&Edit", |ui| {
             if MenuItem::new("&Zoom").show(ui).ran {
@@ -460,13 +460,13 @@ fn an_open_menu_takes_letters_and_arrows_from_a_focused_text_field() {
     fixture.click(&edit);
     fixture.settle();
     assert!(fixture.by_label("Undo").is_some(), "Edit is open");
-    fixture.key(egui::Key::ArrowDown, egui::Modifiers::NONE);
+    fixture.key(craft_ui::input::Key::ArrowDown, craft_ui::input::Mods::NONE);
     fixture.settle();
     assert!(fixture.by_label("Undo").is_some(), "Down keeps the menu open");
     assert_ne!(fixture.focused_stop().map(|(id, _)| id), field.get(), "Down moves in the menu, not in the field");
     assert_eq!(*text.borrow(), "100%", "the field's text stays");
 
-    fixture.type_key(egui::Key::Z, "z");
+    fixture.type_key(craft_ui::input::Key::Z, "z");
     fixture.settle();
     assert_eq!(zoomed.get(), 1, "the letter picks the row it marks");
     assert!(fixture.by_label("Undo").is_none(), "and closes the menu");

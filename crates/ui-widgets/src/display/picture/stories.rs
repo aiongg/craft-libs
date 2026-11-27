@@ -5,7 +5,8 @@ use crate::contract::Show as _;
 use crate::list::{ThumbAspect, ThumbSize};
 use crate::primitives::textures::{FakeThumbSource, ThumbnailOptions, Thumbnails};
 use crate::testing::{Drive, StoryData, StoryOutput, story};
-use egui::{Color32, ColorImage, Ui};
+use craft_ui::{Color32, Ui};
+use egui::ColorImage;
 
 /// A diagonal gradient, so a fitted or stretched picture shows.
 fn gradient() -> ColorImage {

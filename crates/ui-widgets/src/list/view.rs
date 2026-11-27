@@ -16,7 +16,8 @@ use crate::style::{ComponentStyle, StyleCx};
 use crate::tile_grid::GroupHeads;
 use craft_behavior::{ColumnKey, DisplayOrder, ItemSource, Metrics, Selection, SizeHint, SpanLayout};
 use craft_i18n::matcher::{Matcher, Rank};
-use egui::{Rect, Ui};
+use craft_ui::Ui;
+use craft_ui::geom::Rect;
 use std::borrow::Cow;
 use std::hash::{DefaultHasher, Hash, Hasher};
 

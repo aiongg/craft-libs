@@ -3,12 +3,14 @@
 
 use super::kit::{APP_VALUE, AT, HELD, PlainStyle, Scrub, near};
 use craft_behavior::{EditEvent, Mixed, Sense};
+use craft_ui::Ui;
 use craft_ui::buttons::ToggleButton;
 use craft_ui::contract::{Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, PaintUi, Props as _, Role, Show as _};
+use craft_ui::geom::{Pos2, Vec2};
+use craft_ui::input::Mods;
 use craft_ui::style::StyleCx;
 use craft_ui::testing::pointer::{moved, press, release};
 use craft_ui::testing::{Frames, trial};
-use egui::{Modifiers, Pos2, Ui, Vec2};
 use std::cell::RefCell;
 
 fn start() -> Pos2 {
@@ -25,7 +27,7 @@ fn dragging(frames: &mut Frames, show: &mut impl FnMut(&mut Ui)) {
 }
 
 /// The passes of a click on a toggle with `held` down: each pass's event count and whether it reports Alt.
-fn click_toggle(held: Modifiers) -> Vec<(usize, bool)> {
+fn click_toggle(held: Mods) -> Vec<(usize, bool)> {
     let mut frames = Frames::new();
     let mut on = false;
     let seen = RefCell::new(Vec::new());
@@ -47,10 +49,10 @@ fn click_toggle(held: Modifiers) -> Vec<(usize, bool)> {
 /// An Alt click reports Alt in the pass that applies the value, and nothing in idle passes or a plain click.
 #[trial]
 fn an_alt_click_on_a_toggle_reports_alt_in_activation_mods() {
-    let alt = click_toggle(Modifiers::ALT);
+    let alt = click_toggle(Mods::ALT);
     assert!(alt.iter().any(|&(events, alt)| events > 0 && alt), "{alt:?}");
     assert!(alt.iter().filter(|&&(events, _)| events == 0).all(|&(_, alt)| !alt), "{alt:?}");
-    let plain = click_toggle(Modifiers::NONE);
+    let plain = click_toggle(Mods::NONE);
     assert!(plain.iter().any(|&(events, _)| events > 0), "{plain:?}");
     assert!(plain.iter().all(|&(_, alt)| !alt), "{plain:?}");
 }

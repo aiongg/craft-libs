@@ -3,9 +3,10 @@
 
 use super::kit::{Dial, Field, Seen};
 use super::{ROW_A, START};
+use craft_ui::Ui;
 use craft_ui::contract::{LinkLabelUnderline, Props as _, Show as _, ShowContainer as _, SideLabel};
-use craft_ui::testing::{Fixture, trial};
-use egui::{Pos2, Rect, Ui, Vec2, pos2};
+use craft_ui::geom::{Pos2, Rect, Vec2, pos2};
+use craft_ui::testing::{Harness, trial};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -45,7 +46,7 @@ impl Row {
 fn a_link_label_reports_its_click_to_the_host_and_still_scrubs() {
     let (link, plain) = (Row::new(), Row::new());
     let shown = (link.clone(), plain.clone());
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         shown.0.show(ui, "link", SideLabel::new().link().scrub(true), ROW_A);
         shown.1.show(ui, "plain", SideLabel::new().scrub(true), ROW_B);
     });
@@ -73,7 +74,7 @@ fn a_link_label_reports_its_click_to_the_host_and_still_scrubs() {
 fn by_label_gives_the_control_a_link_label_names() {
     let row = Row::new();
     let shown = row.clone();
-    let mut fixture = Fixture::new(move |ui| shown.show(ui, "link", SideLabel::new().link(), ROW_A));
+    let mut fixture = Harness::new_ui(move |ui| shown.show(ui, "link", SideLabel::new().link(), ROW_A));
     fixture.settle();
     let dial = row.seen.borrow().id.expect("the dial ran");
     let control = fixture.node_of(dial).expect("the dial is in the access tree").node;
@@ -87,7 +88,7 @@ fn by_label_gives_the_control_a_link_label_names() {
 fn an_inside_underline_is_painted_under_the_name_inside_the_clip() {
     let row = Row::new();
     let shown = row.clone();
-    let mut fixture = Fixture::new(move |ui| shown.show(ui, "link", SideLabel::new().link(), ROW_A));
+    let mut fixture = Harness::new_ui(move |ui| shown.show(ui, "link", SideLabel::new().link(), ROW_A));
     fixture.root_value(LinkLabelUnderline::Inside).settle();
     let shapes = fixture.frame_clipped_shapes();
     let (clip, name) = shapes

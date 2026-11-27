@@ -5,7 +5,7 @@ use crate::contract::Show as _;
 use crate::list::ThumbAspect;
 use crate::testing::pictures::StoryPictures;
 use crate::testing::{StoryData, StoryOutput, story};
-use egui::Ui;
+use craft_ui::Ui;
 
 #[story(SelectFace<'static>, covers = [Default])]
 fn face_with_thumbnail_and_name(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {

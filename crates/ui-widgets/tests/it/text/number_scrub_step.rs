@@ -2,19 +2,20 @@
 
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _, SideLabel};
 use craft_ui::form::Field;
+use craft_ui::geom::vec2;
+use craft_ui::input::{Key, Mods};
 use craft_ui::testing::pointer::{moved, wheel_lines};
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::testing::{Harness, trial};
 use craft_ui::text::NumberField;
-use egui::{Key, Modifiers, vec2};
 use std::cell::Cell;
 use std::rc::Rc;
 
 const START: f64 = 30.0;
 
-fn angle_field(scrub_step: Option<f64>) -> (Fixture, Rc<Cell<Option<f64>>>) {
+fn angle_field(scrub_step: Option<f64>) -> (Harness, Rc<Cell<Option<f64>>>) {
     let value = Rc::new(Cell::new(Some(START)));
     let shown = Rc::clone(&value);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         Field::new("Angle").side(SideLabel::new().scrub(true)).show(ui, |ui, _| {
             let mut current = shown.get();
             let field = NumberField::new("Angle", Bind::bound(&mut current)).step(0.01).fixed_decimals(2).range(-359.99..=359.99).scrub_by_label();
@@ -30,7 +31,7 @@ fn angle_field(scrub_step: Option<f64>) -> (Fixture, Rc<Cell<Option<f64>>>) {
     (fixture, value)
 }
 
-fn scrub_caption(fixture: &mut Fixture) {
+fn scrub_caption(fixture: &mut Harness) {
     let field = fixture.by_label("Angle").expect("the Angle number field");
     let caption = fixture.texts().iter().find(|text| text.text == "Angle").expect("the visible scrub caption").rect;
     assert!(!field.rect.intersects(caption), "the caption is a separate handle");
@@ -43,10 +44,10 @@ fn a_separate_scrub_rate_keeps_fine_key_and_wheel_steps() {
     scrub_caption(&mut fixture);
     assert_eq!(value.get(), Some(80.0), "50 points of caption drag add 50 degrees");
     let field = fixture.by_label("Angle").expect("the Angle number field");
-    fixture.click(&field).key(Key::ArrowUp, Modifiers::NONE).settle();
+    fixture.click(&field).key(Key::ArrowUp, Mods::NONE).settle();
     assert_eq!(value.get(), Some(80.01), "an arrow still adds one hundredth");
-    fixture.frame(vec![moved(field.center())]);
-    fixture.frame(vec![wheel_lines(1.0)]).settle();
+    fixture.send(moved(field.center()));
+    fixture.send(wheel_lines(1.0)).settle();
     assert_eq!(value.get(), Some(80.02), "one wheel notch still adds one hundredth");
 }
 

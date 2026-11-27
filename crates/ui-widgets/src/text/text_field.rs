@@ -13,7 +13,8 @@ use crate::primitives::{Completer, IconSpec, SubmitKey, TabKey, TextOptions, Tex
 use crate::runtime::env::{Label, Message};
 use crate::style::{FieldLook, Span};
 use craft_behavior::{Codec, EditEvent, IconId, Mixed, PartKey, PlainText, Proposal, Sense};
-use egui::{Id, Rect, Vec2};
+use craft_ui::Id;
+use craft_ui::geom::{Rect, Vec2};
 use smallvec::SmallVec;
 use std::borrow::Cow;
 use std::sync::Arc;

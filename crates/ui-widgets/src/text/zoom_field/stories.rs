@@ -6,7 +6,8 @@ use crate::form::Field;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use craft_behavior::kurbo::{Point, Size};
 use craft_behavior::{CanvasView, IconId};
-use egui::{Pos2, Rect, Ui};
+use craft_ui::Ui;
+use craft_ui::geom::{Pos2, Rect};
 
 /// The document the field zooms, in document units.
 const DOCUMENT: Size = Size::new(2000.0, 1500.0);

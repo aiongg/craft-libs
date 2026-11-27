@@ -1,14 +1,17 @@
 //! The number field's own logic: stepping, the range on typed values, presets and the label scrub across a pointer warp.
 
 use craft_host::{AppInfo, Host};
+use craft_ui::Ui;
 use craft_ui::contract::{Bind, Entry, FieldLayout, GlyphLabel, InsideLabel, LabelKind, Props as _, Show as _, ShowContainer as _, SideLabel};
 use craft_ui::form::Field;
+use craft_ui::geom::{Pos2, Rect, Vec2};
+use craft_ui::input::{Key, Mods};
 use craft_ui::runtime::env::UnitKind;
 use craft_ui::testing::input::key_press;
 use craft_ui::testing::pointer::{click, drag};
 use craft_ui::testing::{Frames, trial};
 use craft_ui::text::{NumberField, NumberPick};
-use egui::{Event, Key, Modifiers, Pos2, Rect, Ui, Vec2};
+use egui::Event;
 use std::cell::{Cell, RefCell};
 use std::ops::RangeInclusive;
 use std::sync::Arc;
@@ -67,7 +70,7 @@ impl Rig {
         self.idle(2);
     }
 
-    fn key(&mut self, key: Key, modifiers: Modifiers) {
+    fn key(&mut self, key: Key, modifiers: Mods) {
         self.frame(vec![key_press(key, modifiers)]);
         self.idle(3);
     }
@@ -111,7 +114,7 @@ fn show(
 fn a_window_blur_mid_typing_keeps_the_typed_draft() {
     let mut rig = Rig::new(5.0, None);
     rig.focus();
-    rig.key(Key::A, Modifiers::COMMAND);
+    rig.key(Key::A, Mods::COMMAND);
     rig.frame(vec![Event::Text("1+1".into())]);
     rig.idle(1);
     rig.frame(vec![Event::WindowFocused(false)]);
@@ -121,7 +124,7 @@ fn a_window_blur_mid_typing_keeps_the_typed_draft() {
     rig.frame(vec![Event::WindowFocused(true)]);
     rig.idle(1);
     rig.frame(vec![Event::Text("0".into())]);
-    rig.key(Key::Enter, Modifiers::NONE);
+    rig.key(Key::Enter, Mods::NONE);
     assert_eq!(rig.value(), Some(11.0), "typing went on from the draft");
 }
 
@@ -130,14 +133,14 @@ fn a_window_blur_mid_typing_keeps_the_typed_draft() {
 fn arrows_step_to_the_next_multiple_and_stay_in_range() {
     let mut rig = Rig::new(5.1, Some(0.0..=7.0));
     rig.focus();
-    rig.key(Key::ArrowDown, Modifiers::NONE);
+    rig.key(Key::ArrowDown, Mods::NONE);
     assert_eq!(rig.value(), Some(5.0), "down from 5.1 goes to 5");
-    rig.key(Key::ArrowUp, Modifiers::NONE);
-    rig.key(Key::ArrowUp, Modifiers::NONE);
+    rig.key(Key::ArrowUp, Mods::NONE);
+    rig.key(Key::ArrowUp, Mods::NONE);
     assert_eq!(rig.value(), Some(7.0), "up reaches the end of the range");
-    rig.key(Key::ArrowUp, Modifiers::NONE);
+    rig.key(Key::ArrowUp, Mods::NONE);
     assert_eq!(rig.value(), Some(7.0), "up at the end stays there");
-    rig.key(Key::ArrowDown, Modifiers::SHIFT);
+    rig.key(Key::ArrowDown, Mods::SHIFT);
     assert_eq!(rig.value(), Some(0.0), "Shift moves ten steps and stops at the start of the range");
 }
 
@@ -158,12 +161,12 @@ fn a_drag_scrubs_a_field_not_in_edit_and_is_the_text_s_in_edit() {
 fn a_fine_step_moves_only_as_far_as_the_decimals_show() {
     let mut rig = Rig::new(5.0, None);
     rig.focus();
-    rig.key(Key::ArrowUp, Modifiers::ALT);
+    rig.key(Key::ArrowUp, Mods::ALT);
     let fine = rig.value().unwrap_or_default() - 5.0;
     let mut whole = Rig::new(5.0, None);
     whole.whole = true;
     whole.focus();
-    whole.key(Key::ArrowUp, Modifiers::ALT);
+    whole.key(Key::ArrowUp, Mods::ALT);
     let plain = whole.value().unwrap_or_default() - 5.0;
     assert!(fine > 0.0 && fine < 1.0, "Alt moves a share of the step on a field with decimals");
     assert_eq!(plain, 1.0, "a whole-number field takes the plain step");
@@ -219,7 +222,7 @@ fn with_slider(ui: &mut Ui, data: &mut craft_ui::testing::StoryData) -> craft_ui
 #[trial]
 fn a_drag_from_the_slider_chevron_moves_the_value_and_its_release_closes_the_slider() {
     use craft_ui::contract::Role;
-    let mut fixture = craft_ui::testing::Fixture::story(&craft_ui::testing::Story::new("number_slider", with_slider));
+    let mut fixture = craft_ui::testing::Harness::story(&craft_ui::testing::Story::new("number_slider", with_slider));
     fixture.settle();
     let chevron = fixture.by_role(Role::BUTTON).first().expect("the chevron").center();
     fixture.drag_hold_at(chevron, Vec2::new(30.0, 0.0));
@@ -238,7 +241,7 @@ fn an_inside_glyph_label_scrubs_the_field_in_edit_too() {
     let value = std::rc::Rc::new(Cell::new(Some(START)));
     let id = std::rc::Rc::new(Cell::new(None));
     let (shown, seen) = (value.clone(), id.clone());
-    let mut fixture = craft_ui::testing::Fixture::new(move |ui| {
+    let mut fixture = craft_ui::testing::Harness::new_ui(move |ui| {
         let side = SideLabel::new().kind(LabelKind::Glyph(GlyphLabel::text("W"))).layout(FieldLayout::Inside).scrub(true);
         Field::new("Width").side(side).show(ui, |ui, _| {
             let mut now = shown.get();
@@ -285,10 +288,10 @@ const METRICS_ROW: u32 = 7;
 fn a_named_value_shows_its_row_label_and_the_typed_name_commits_it() {
     use craft_ui::text::NamedOr;
     let value = std::rc::Rc::new(RefCell::new(NamedOr::Named(Metrics)));
-    let (held, id) = (value.clone(), std::rc::Rc::new(Cell::new(egui::Id::NULL)));
+    let (held, id) = (value.clone(), std::rc::Rc::new(Cell::new(craft_ui::Id::NULL)));
     let shown_id = id.clone();
     let presets = vec![Entry::new(NumberPick::Choice(METRICS_ROW), "Metrics"), Entry::new(NumberPick::Number(25.0), "25")];
-    let mut fixture = craft_ui::testing::Fixture::new(move |ui| {
+    let mut fixture = craft_ui::testing::Harness::new_ui(move |ui| {
         let mut guard = held.borrow_mut();
         let field = NumberField::named("Kerning", Bind::bound(&mut *guard)).id_salt("kerning").presets(&presets);
         shown_id.set(field.show(ui).response.id);
@@ -299,7 +302,7 @@ fn a_named_value_shows_its_row_label_and_the_typed_name_commits_it() {
     fixture.settle();
     let field = fixture.by_label("Kerning").expect("the field");
     fixture.click(&field).settle();
-    fixture.key(Key::A, Modifiers::COMMAND).type_text("metrics").key(Key::Enter, Modifiers::NONE).settle();
+    fixture.key(Key::A, Mods::COMMAND).type_text("metrics").key(Key::Enter, Mods::NONE).settle();
     assert_eq!(*value.borrow(), NamedOr::Named(Metrics), "the typed name commits the name");
 }
 
@@ -312,9 +315,9 @@ fn a_value_the_check_calls_an_error_commits_and_shows_invalid_with_its_message()
     use craft_ui::runtime::env::Message;
     const TOO_MANY: &str = "Enter a number from 1 to 10";
     let value = std::rc::Rc::new(RefCell::new(Some(START)));
-    let (held, id) = (value.clone(), std::rc::Rc::new(Cell::new(egui::Id::NULL)));
+    let (held, id) = (value.clone(), std::rc::Rc::new(Cell::new(craft_ui::Id::NULL)));
     let shown_id = id.clone();
-    let mut fixture = craft_ui::testing::Fixture::new(move |ui| {
+    let mut fixture = craft_ui::testing::Harness::new_ui(move |ui| {
         let check = |count: &Option<f64>| match count {
             Some(n) if *n > 10.0 => Validity::Error(Message::new(TOO_MANY)),
             _ => Validity::Ok,
@@ -332,7 +335,7 @@ fn a_value_the_check_calls_an_error_commits_and_shows_invalid_with_its_message()
     assert!(!fixture.tree().invalid(id.get()), "a value in range reads valid");
     let field = fixture.by_label("Number").expect("the field");
     fixture.click(&field).settle();
-    fixture.key(Key::A, Modifiers::COMMAND).type_text("12").key(Key::Enter, Modifiers::NONE).settle();
+    fixture.key(Key::A, Mods::COMMAND).type_text("12").key(Key::Enter, Mods::NONE).settle();
     assert_eq!(*value.borrow(), Some(12.0), "the commit went through");
     assert!(fixture.tree().invalid(id.get()), "the field reads invalid");
     assert!(fixture.texts().iter().any(|text| text.text == TOO_MANY), "the row shows the message");
@@ -343,10 +346,10 @@ fn a_value_the_check_calls_an_error_commits_and_shows_invalid_with_its_message()
 /// of fields lines its units up. Guards against the unit following the number's end.
 #[trial]
 fn the_unit_keeps_its_place_at_the_end_of_the_field() {
-    use craft_ui::testing::Fixture;
+    use craft_ui::testing::Harness;
     let boxes: std::rc::Rc<RefCell<Vec<Rect>>> = std::rc::Rc::default();
     let b = boxes.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let mut v = b.borrow_mut();
         v.clear();
         for (at, value) in [5.0, 100.0].into_iter().enumerate() {
@@ -380,10 +383,10 @@ fn the_unit_keeps_its_place_at_the_end_of_the_field() {
 #[trial]
 fn the_digits_sit_on_the_field_centre_line() {
     use craft_theme::ControlSize;
-    use craft_ui::testing::Fixture;
+    use craft_ui::testing::Harness;
     let boxes: std::rc::Rc<RefCell<Vec<Rect>>> = std::rc::Rc::default();
     let b = boxes.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let mut v = b.borrow_mut();
         v.clear();
         for (at, size) in [ControlSize::Sm, ControlSize::Md].into_iter().enumerate() {
@@ -404,14 +407,14 @@ fn the_digits_sit_on_the_field_centre_line() {
 /// loss to another control's press; arrows, the wheel and a scrub that run into the end never report it.
 #[trial]
 fn a_typed_value_past_the_range_commits_the_end_and_reports_it_once() {
-    use craft_ui::testing::Fixture;
+    use craft_ui::testing::Harness;
     use craft_ui::testing::pointer::{moved, wheel_lines};
     use craft_ui::text::RangeAlert;
     use std::rc::Rc;
     let value = Rc::new(Cell::new(Some(50.0)));
     let alerts: Rc<RefCell<Vec<RangeAlert>>> = Rc::default();
     let (held, seen) = (value.clone(), alerts.clone());
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let mut now = held.get();
         let out = NumberField::new("Amount", Bind::bound(&mut now))
             .id_salt("amount")
@@ -426,13 +429,13 @@ fn a_typed_value_past_the_range_commits_the_end_and_reports_it_once() {
     fixture.settle();
     let amount = fixture.by_label("Amount").expect("the field");
     let other = fixture.by_label("Other").expect("the other field");
-    let type_over = |fixture: &mut Fixture, text: &str| {
+    let type_over = |fixture: &mut Harness, text: &str| {
         fixture.click(&amount).settle();
-        fixture.key(Key::A, Modifiers::COMMAND).type_text(text);
+        fixture.key(Key::A, Mods::COMMAND).type_text(text);
     };
 
     type_over(&mut fixture, "250");
-    fixture.key(Key::Enter, Modifiers::NONE).settle();
+    fixture.key(Key::Enter, Mods::NONE).settle();
     assert_eq!(value.get(), Some(100.0), "a typed value past the end commits the end");
     {
         let alerts = alerts.borrow();
@@ -445,7 +448,7 @@ fn a_typed_value_past_the_range_commits_the_end_and_reports_it_once() {
     }
 
     type_over(&mut fixture, "-5");
-    fixture.key(Key::Tab, Modifiers::NONE).settle();
+    fixture.key(Key::Tab, Mods::NONE).settle();
     assert_eq!(value.get(), Some(0.0), "Tab commits the start");
     assert_eq!(alerts.borrow().len(), 2, "Tab reports it");
     assert_eq!(alerts.borrow()[1].typed, -5.0);
@@ -456,12 +459,12 @@ fn a_typed_value_past_the_range_commits_the_end_and_reports_it_once() {
     assert_eq!(alerts.borrow().len(), 3, "the focus loss reports it");
 
     type_over(&mut fixture, "95");
-    fixture.key(Key::Enter, Modifiers::NONE).settle();
-    fixture.key(Key::PageUp, Modifiers::NONE).key(Key::PageUp, Modifiers::NONE).settle();
+    fixture.key(Key::Enter, Mods::NONE).settle();
+    fixture.key(Key::PageUp, Mods::NONE).key(Key::PageUp, Mods::NONE).settle();
     assert_eq!(value.get(), Some(100.0), "Page Up runs into the end");
-    fixture.frame(vec![moved(amount.rect.center())]);
+    fixture.send(moved(amount.rect.center()));
     for _ in 0..3 {
-        fixture.frame(vec![wheel_lines(1.0)]);
+        fixture.send(wheel_lines(1.0));
     }
     fixture.settle();
     fixture.click(&other).settle();
@@ -475,20 +478,20 @@ fn a_typed_value_past_the_range_commits_the_end_and_reports_it_once() {
 /// every case the field holds a value in its range.
 #[trial]
 fn a_draft_that_is_no_number_owes_no_range_alert() {
-    use craft_ui::testing::Fixture;
+    use craft_ui::testing::Harness;
     use craft_ui::testing::input::text;
     use craft_ui::text::RangeAlert;
     use std::rc::Rc;
 
     /// A step run after the typing: it gets the fixture and a way to type text.
-    type Step<'a> = &'a dyn Fn(&mut Fixture, &dyn Fn(&mut Fixture, &str));
+    type Step<'a> = &'a dyn Fn(&mut Harness, &dyn Fn(&mut Harness, &str));
 
     /// Types "150" over the field without leaving it, then runs `then`; returns the alerts and the value after.
     fn after_150(then: Step<'_>) -> (usize, Option<f64>) {
         let value = Rc::new(Cell::new(Some(50.0)));
         let alerts: Rc<RefCell<Vec<RangeAlert>>> = Rc::default();
         let (held, seen) = (value.clone(), alerts.clone());
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             let mut now = held.get();
             let out = NumberField::new("Amount", Bind::bound(&mut now)).id_salt("amount").range(0.0..=100.0).commit_decimals(0).show(ui);
             held.set(now);
@@ -498,9 +501,9 @@ fn a_draft_that_is_no_number_owes_no_range_alert() {
         });
         fixture.settle();
         let amount = fixture.by_label("Amount").expect("the field");
-        let type_over = |fixture: &mut Fixture, typed: &str| {
+        let type_over = |fixture: &mut Harness, typed: &str| {
             fixture.click(&amount).settle();
-            fixture.key(Key::A, Modifiers::COMMAND).type_text(typed);
+            fixture.key(Key::A, Mods::COMMAND).type_text(typed);
         };
         type_over(&mut fixture, "150");
         then(&mut fixture, &type_over);
@@ -509,13 +512,13 @@ fn a_draft_that_is_no_number_owes_no_range_alert() {
         (count, value.get())
     }
 
-    let tab = |fixture: &mut Fixture| {
-        fixture.key(Key::Tab, Modifiers::NONE);
+    let tab = |fixture: &mut Harness| {
+        fixture.key(Key::Tab, Mods::NONE);
     };
     let cases: [(&str, Step<'_>, usize); 4] = [
         (
             "text typed over it, then Tab",
-            &|fixture: &mut Fixture, type_over: &dyn Fn(&mut Fixture, &str)| {
+            &|fixture: &mut Harness, type_over: &dyn Fn(&mut Harness, &str)| {
                 type_over(fixture, "abc");
                 tab(fixture);
             },
@@ -523,7 +526,7 @@ fn a_draft_that_is_no_number_owes_no_range_alert() {
         ),
         (
             "text, then the number again, then Tab",
-            &|fixture: &mut Fixture, type_over: &dyn Fn(&mut Fixture, &str)| {
+            &|fixture: &mut Harness, type_over: &dyn Fn(&mut Harness, &str)| {
                 type_over(fixture, "abc");
                 type_over(fixture, "150");
                 tab(fixture);
@@ -532,14 +535,14 @@ fn a_draft_that_is_no_number_owes_no_range_alert() {
         ),
         (
             "Select All, text and Enter in one pass",
-            &|fixture: &mut Fixture, _: &dyn Fn(&mut Fixture, &str)| {
+            &|fixture: &mut Harness, _: &dyn Fn(&mut Harness, &str)| {
                 fixture.frame(vec![key_press(Key::A, Modifiers::COMMAND), text("abc"), key_press(Key::Enter, Modifiers::NONE)]);
             },
             0,
         ),
         (
             "Select All, text and Tab in one pass",
-            &|fixture: &mut Fixture, _: &dyn Fn(&mut Fixture, &str)| {
+            &|fixture: &mut Harness, _: &dyn Fn(&mut Harness, &str)| {
                 fixture.frame(vec![key_press(Key::A, Modifiers::COMMAND), text("abc"), key_press(Key::Tab, Modifiers::NONE)]);
             },
             0,
@@ -571,13 +574,13 @@ fn step_name<V>(event: &craft_behavior::EditEvent<V>) -> &'static str {
 #[trial]
 fn a_wheel_run_on_a_field_is_one_edit_gesture() {
     use craft_behavior::GESTURE_GAP;
-    use craft_ui::testing::Fixture;
+    use craft_ui::testing::Harness;
     use craft_ui::testing::pointer::{moved, wheel_lines};
     use std::rc::Rc;
     let value = Rc::new(RefCell::new(Some(START)));
     let steps: Rc<RefCell<Vec<&'static str>>> = Rc::default();
     let (held, seen) = (value.clone(), steps.clone());
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let mut guard = held.borrow_mut();
         let out = NumberField::new("Size", Bind::bound(&mut *guard)).id_salt("size").range(0.0..=100.0).show(ui);
         for event in &out.edit.events {
@@ -587,10 +590,10 @@ fn a_wheel_run_on_a_field_is_one_edit_gesture() {
     fixture.settle();
     let field = fixture.by_label("Size").expect("the field");
     fixture.click(&field).settle();
-    fixture.frame(vec![moved(field.rect.center())]);
+    fixture.send(moved(field.rect.center()));
     steps.borrow_mut().clear();
     for _ in 0..3 {
-        fixture.frame(vec![wheel_lines(1.0)]);
+        fixture.send(wheel_lines(1.0));
     }
     assert_ne!(*value.borrow(), Some(START), "the notches moved the value");
     {
@@ -609,7 +612,7 @@ fn a_wheel_run_on_a_field_is_one_edit_gesture() {
 
     steps.borrow_mut().clear();
     for _ in 0..2 {
-        fixture.frame(vec![wheel_lines(1.0)]);
+        fixture.send(wheel_lines(1.0));
     }
     *value.borrow_mut() = Some(77.0);
     fixture.idle(2);
@@ -622,7 +625,7 @@ fn a_wheel_run_on_a_field_is_one_edit_gesture() {
     // the second.
     steps.borrow_mut().clear();
     for _ in 0..2 {
-        fixture.frame(vec![wheel_lines(1.0)]);
+        fixture.send(wheel_lines(1.0));
     }
     fixture.advance(GESTURE_GAP * 2.0).frame(vec![wheel_lines(1.0)]);
     fixture.advance(GESTURE_GAP * 2.0).idle(3);
@@ -633,12 +636,12 @@ fn a_wheel_run_on_a_field_is_one_edit_gesture() {
 /// An arrow over a typed sum applies the sum first and steps from it, and the field keeps focus.
 #[trial]
 fn arrow_keys_step_from_a_typed_sum() {
-    use craft_ui::testing::Fixture;
+    use craft_ui::testing::Harness;
     use std::rc::Rc;
     let value = Rc::new(Cell::new(Some(100.0)));
-    let id = Rc::new(Cell::new(egui::Id::NULL));
+    let id = Rc::new(Cell::new(craft_ui::Id::NULL));
     let (held, seen) = (value.clone(), id.clone());
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let mut now = held.get();
         let out = NumberField::new("Size", Bind::bound(&mut now)).id_salt("size").range(0.0..=1000.0).show(ui);
         held.set(now);
@@ -647,10 +650,10 @@ fn arrow_keys_step_from_a_typed_sum() {
     fixture.settle();
     let field = fixture.by_label("Size").expect("the field");
     fixture.click(&field).settle();
-    fixture.key(Key::A, Modifiers::COMMAND).type_text("5+5").settle();
-    fixture.key(Key::ArrowUp, Modifiers::NONE).settle();
+    fixture.key(Key::A, Mods::COMMAND).type_text("5+5").settle();
+    fixture.key(Key::ArrowUp, Mods::NONE).settle();
     assert_eq!(value.get(), Some(11.0), "Arrow Up applies 5+5 and steps from 10");
-    fixture.key(Key::ArrowDown, Modifiers::NONE).settle();
+    fixture.key(Key::ArrowDown, Mods::NONE).settle();
     assert_eq!(value.get(), Some(10.0), "Arrow Down steps back");
     assert!(fixture.focused_stop().is_some_and(|(stop, _)| stop == id.get()), "the field keeps focus");
 }
@@ -663,7 +666,7 @@ fn a_popup_slider_drag_on_a_given_value_runs_one_pass_a_frame() {
     use craft_ui::testing::pointer::moved;
     let model = std::rc::Rc::new(Cell::new(50.0));
     let host = model.clone();
-    let mut fixture = craft_ui::testing::Fixture::new(move |ui| {
+    let mut fixture = craft_ui::testing::Harness::new_ui(move |ui| {
         let out = NumberField::new("Opacity", Bind::given(Some(host.get()))).range(0.0..=100.0).popup_slider(0.0..=100.0).show(ui);
         if let Some(value) = out.edit.events.value().copied().flatten() {
             host.set(value);
@@ -676,7 +679,7 @@ fn a_popup_slider_drag_on_a_given_value_runs_one_pass_a_frame() {
     let before = model.get();
     let mut passes = Vec::new();
     for step in 1..=6 {
-        fixture.frame(vec![moved(chevron + Vec2::new(10.0 + 5.0 * step as f32, 0.0))]);
+        fixture.send(moved(chevron + Vec2::new(10.0 + 5.0 * step as f32, 0.0)));
         passes.push(fixture.passes());
     }
     assert!(model.get() > before, "the drag moved the app's value");
@@ -688,12 +691,12 @@ fn a_popup_slider_drag_on_a_given_value_runs_one_pass_a_frame() {
 #[trial]
 fn the_wheel_over_an_open_presets_list_scrolls_the_list_while_the_field_keeps_focus() {
     use craft_ui::contract::Role;
-    use craft_ui::testing::Fixture;
+    use craft_ui::testing::Harness;
     use craft_ui::testing::pointer::{moved, wheel_lines};
     let value = std::rc::Rc::new(Cell::new(Some(START)));
     let held = value.clone();
     let presets: Vec<Entry<NumberPick>> = (1..=60).map(|n| Entry::new(NumberPick::Number(f64::from(n)), format!("{n} px"))).collect();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let mut now = held.get();
         NumberField::new("Size", Bind::bound(&mut now)).id_salt("size").presets(&presets).show(ui);
         held.set(now);
@@ -701,18 +704,18 @@ fn the_wheel_over_an_open_presets_list_scrolls_the_list_while_the_field_keeps_fo
     fixture.settle();
     let field = fixture.by_label("Size").expect("the field");
     fixture.click(&field).settle();
-    fixture.key(Key::A, Modifiers::COMMAND).type_text("500").key(Key::Enter, Modifiers::NONE).settle();
+    fixture.key(Key::A, Mods::COMMAND).type_text("500").key(Key::Enter, Mods::NONE).settle();
     let focus = fixture.focused_stop();
     assert!(focus.is_some(), "the field keeps focus after Enter");
     let chevron = fixture.by_role(Role::BUTTON).first().expect("the presets chevron").center();
     fixture.click_at(chevron).settle();
     assert_eq!(fixture.focused_stop(), focus, "opening the list leaves focus on the field");
-    let first_row = |fixture: &Fixture| fixture.by_label("1 px").map(|row| row.rect);
+    let first_row = |fixture: &Harness| fixture.by_label("1 px").map(|row| row.rect);
     let before = first_row(&fixture).expect("the list is open");
     let committed = value.get();
-    fixture.frame(vec![moved(before.center())]);
+    fixture.send(moved(before.center()));
     for _ in 0..3 {
-        fixture.frame(vec![wheel_lines(-1.0)]);
+        fixture.send(wheel_lines(-1.0));
     }
     fixture.settle();
     assert!(first_row(&fixture).is_none_or(|row| row.top() < before.top()), "the list scrolled");
@@ -723,14 +726,14 @@ fn the_wheel_over_an_open_presets_list_scrolls_the_list_while_the_field_keeps_fo
 /// and Escape closes the list again with the draft and the focus left as they were.
 #[trial]
 fn alt_down_opens_the_presets_enter_picks_without_the_dialog_and_escape_returns() {
-    use craft_ui::testing::Fixture;
+    use craft_ui::testing::Harness;
     use std::rc::Rc;
     let value = Rc::new(Cell::new(Some(START)));
     let picked: Rc<Cell<Option<NumberPick>>> = Rc::default();
-    let id = Rc::new(Cell::new(egui::Id::NULL));
+    let id = Rc::new(Cell::new(craft_ui::Id::NULL));
     let (held, pick, seen) = (value.clone(), picked.clone(), id.clone());
     let presets = vec![Entry::new(NumberPick::Number(12.0), "12 px"), Entry::new(NumberPick::Number(24.0), "24 px")];
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let mut now = held.get();
         let out = NumberField::new("Size", Bind::bound(&mut now)).id_salt("size").presets(&presets).show(ui);
         held.set(now);
@@ -740,21 +743,21 @@ fn alt_down_opens_the_presets_enter_picks_without_the_dialog_and_escape_returns(
         }
     });
     fixture.settle();
-    fixture.key(Key::Tab, Modifiers::NONE).settle();
+    fixture.key(Key::Tab, Mods::NONE).settle();
     let focus = fixture.focused_stop();
     assert!(focus.is_some(), "Tab puts the field in focus");
 
-    fixture.key(Key::ArrowDown, Modifiers::ALT).settle();
+    fixture.key(Key::ArrowDown, Mods::ALT).settle();
     assert!(fixture.by_label("12 px").is_some(), "Alt+Down opens the presets");
-    fixture.key(Key::Enter, Modifiers::NONE).settle();
+    fixture.key(Key::Enter, Mods::NONE).settle();
     assert!(matches!(picked.take(), Some(NumberPick::Number(n)) if n == 12.0), "Enter picks the first preset, the lead of an unchosen list");
     assert!(fixture.by_label("12 px").is_none(), "and closes the list");
     assert_eq!(fixture.focused_stop(), focus, "the field has the focus again");
 
-    fixture.key(Key::A, Modifiers::COMMAND).type_text("5").settle();
-    fixture.key(Key::ArrowDown, Modifiers::ALT).settle();
+    fixture.key(Key::A, Mods::COMMAND).type_text("5").settle();
+    fixture.key(Key::ArrowDown, Mods::ALT).settle();
     assert!(fixture.by_label("12 px").is_some(), "Alt+Down opens the presets over a draft");
-    fixture.key(Key::Escape, Modifiers::NONE).settle();
+    fixture.key(Key::Escape, Mods::NONE).settle();
     assert!(fixture.by_label("12 px").is_none(), "Escape closes the list");
     assert!(picked.take().is_none(), "and picks nothing");
     assert_eq!(fixture.tree().value(id.get()), Some("5"), "the draft stays in the field");
@@ -765,7 +768,7 @@ fn alt_down_opens_the_presets_enter_picks_without_the_dialog_and_escape_returns(
 /// the field.
 #[trial]
 fn a_percent_field_reads_one_decimal_then_the_sign() {
-    let mut fixture = craft_ui::testing::Fixture::new(|ui| {
+    let mut fixture = craft_ui::testing::Harness::new_ui(|ui| {
         NumberField::new("Scale", Bind::bound(&mut Some(100.0f64))).unit_kind(UnitKind::Percent).range(1.0..=1000.0).show(ui);
     });
     fixture.settle();
@@ -782,7 +785,7 @@ fn a_percent_field_reads_one_decimal_then_the_sign() {
 fn a_percent_field_shows_the_decimals_its_caller_commits() {
     let shown = |commit: Option<usize>| {
         let mut value = Some(10.0f64);
-        let mut fixture = craft_ui::testing::Fixture::new(move |ui| {
+        let mut fixture = craft_ui::testing::Harness::new_ui(move |ui| {
             let field = NumberField::new("Opacity", Bind::bound(&mut value)).unit_kind(UnitKind::Percent).range(0.0..=100.0);
             let _ = match commit {
                 Some(decimals) => field.commit_decimals(decimals).show(ui),

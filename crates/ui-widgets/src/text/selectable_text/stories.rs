@@ -4,7 +4,7 @@ use super::SelectableText;
 use crate::contract::Show as _;
 use crate::primitives::Span;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
-use egui::Ui;
+use craft_ui::Ui;
 
 const LONG: &str = "A name that runs on well past the end of the field, so the field scrolls its text under the caret";
 

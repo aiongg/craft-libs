@@ -6,7 +6,8 @@ use crate::contract::{Bind, NoValue, Outcome, Props as _, Show as _};
 use crate::runtime::env::{Env, Label, UnitKind};
 use craft_behavior::kurbo::Size;
 use craft_behavior::{CanvasView, EditEvents, ZoomScheme};
-use egui::{Rect, Response, Ui};
+use craft_ui::geom::Rect;
+use craft_ui::{Response, Ui};
 
 #[cfg(feature = "suite")]
 pub(crate) mod stories;

@@ -5,7 +5,7 @@ use crate::contract::{Bind, Props as _, Show as _, Validity};
 use crate::runtime::env::Message;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use craft_behavior::Mixed;
-use egui::Ui;
+use craft_ui::Ui;
 
 #[story(Disclosure<'static>, covers = [Default])]
 fn disclosure(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {

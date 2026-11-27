@@ -15,7 +15,7 @@ use crate::text::{HexField, NumberField};
 use craft_behavior::IconId;
 use craft_theme::Srgba;
 use craft_theme::variant::Tone;
-use egui::Ui;
+use craft_ui::Ui;
 
 const SIZE: f64 = 12.0;
 

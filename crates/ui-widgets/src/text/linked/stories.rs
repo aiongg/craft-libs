@@ -6,7 +6,7 @@ use crate::runtime::env::{Message, UnitKind};
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use craft_behavior::Mixed;
 use craft_theme::ControlSize;
-use egui::Ui;
+use craft_ui::Ui;
 
 #[story(LinkedFields<'static, 2>, covers = [Default], drive = Drive::Type("120"))]
 fn linked_fields(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {

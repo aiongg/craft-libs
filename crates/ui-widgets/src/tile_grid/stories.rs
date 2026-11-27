@@ -9,11 +9,11 @@ use crate::list::{ThumbAspect, ToggleState};
 use crate::runtime::env::Message;
 use crate::style::DataColor;
 use crate::testing::pictures::StoryPictures;
-use crate::testing::{Drive, Fixture, StoryData, StoryOutput, pointer, story};
+use crate::testing::{Drive, Harness, StoryData, StoryOutput, pointer, story};
 use craft_behavior::{IconId, Mixed};
 use craft_theme::Srgba;
 use craft_theme::variant::Tone;
-use egui::{Color32, Ui};
+use craft_ui::{Color32, Ui};
 
 const CAP: f64 = 4.0;
 const ZOOM_RANGE: TileZoom = TileZoom::bounded(0.5, 4.0, 0.25, 1.0);
@@ -74,9 +74,9 @@ fn tile_stack_sheets(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 }
 
 /// Hovers the tile, so its actions show, and clicks the first.
-fn click_action(fixture: &mut Fixture) {
+fn click_action(fixture: &mut Harness) {
     let Some(tile) = fixture.by_label("IMG_0005.jpg") else { return };
-    fixture.frame(vec![pointer::moved(tile.center())]).idle(1);
+    fixture.send(pointer::moved(tile.center())).idle(1);
     if let Some(action) = fixture.by_label(&format!("{:?}", ACTIONS[0])) {
         fixture.click(&action);
     }
@@ -120,7 +120,7 @@ fn tile_summary_card(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     Tile::new("Arrange pages").icon(IconId::new("layout_grid")).detail("Move · Rotate · Delete").summary_action("Use now").card().show(ui).into()
 }
 
-fn click_check(fixture: &mut Fixture) {
+fn click_check(fixture: &mut Harness) {
     if let Some(check) = fixture.by_label("Select IMG_0003.jpg") {
         fixture.click(&check);
     }
@@ -183,7 +183,7 @@ fn tile_with_reason(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     Tile::new("IMG_0004.jpg").tooltip(tooltip).show(ui).into()
 }
 
-fn larger(fixture: &mut Fixture) {
+fn larger(fixture: &mut Harness) {
     if let Some(button) = fixture.by_label("Larger Thumbnails") {
         fixture.click(&button);
     }

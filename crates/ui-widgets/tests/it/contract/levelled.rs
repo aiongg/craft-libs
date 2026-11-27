@@ -4,13 +4,14 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
+use craft_ui::Id;
 use craft_ui::buttons::Button;
 use craft_ui::contract::{Show as _, ShowContainer as _};
 use craft_ui::display::{Elide, Text};
 use craft_ui::layout::levelled_unit;
 use craft_ui::layout_components::Row;
-use craft_ui::testing::{Fixture, is_measuring, trial};
-use egui::{Id, Shape};
+use craft_ui::testing::{Harness, is_measuring, trial};
+use egui::Shape;
 
 /// The continuous unit's text: an elided line that cuts from its end.
 const LINE: &str = "Quarterly report of the northern region, second draft";
@@ -22,18 +23,18 @@ const LEVELS: [&str; 3] = ["A wide label for the widest level", "Middle level", 
 fn shown(width: f32) -> (usize, String) {
     let level = Rc::new(Cell::new(usize::MAX));
     let seen = level.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         Row::new().fill_width().show(ui, |ui, _| {
             Text::new(LINE).elide(Elide::End).show(ui);
             levelled_unit(ui, Id::unique("levelled"), LEVELS.len(), |ui, at| {
-                if !is_measuring(ui.ctx()) && !ui.is_sizing_pass() {
+                if !is_measuring(ui.ctx()) && !ui.is_measuring() {
                     seen.set(at);
                 }
                 Button::new(LEVELS[at]).show(ui);
             });
         });
     });
-    fixture.room(egui::vec2(width, 60.0)).settle();
+    fixture.room(craft_ui::geom::vec2(width, 60.0)).settle();
     let text = fixture
         .frame_shapes()
         .iter()

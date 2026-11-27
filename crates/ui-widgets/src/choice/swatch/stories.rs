@@ -9,7 +9,7 @@ use crate::testing::pictures::sample_picture;
 use crate::testing::{Drive, StoryData, StoryOutput, show_as_only_item, story};
 use craft_behavior::Mixed;
 use craft_theme::Srgba;
-use egui::Ui;
+use craft_ui::Ui;
 
 const BLUE: Srgba = Srgba::rgb(0.24, 0.39, 0.87);
 
@@ -94,7 +94,7 @@ fn swatch_table_cells(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 #[story(Swatch<u8>, covers = [], drive = Drive::Never)]
 fn swatch_face(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let face = FacePaint::new(1, |cx, rect| {
-        cx.painter.rect_filled(rect, 0.0, egui::Color32::from_rgb(0x2f, 0x6f, 0xd9));
+        cx.painter.rect_filled(rect, 0.0, craft_ui::Color32::from_rgb(0x2f, 0x6f, 0xd9));
     });
     Swatch::new("Face", BLUE).face(face).show(ui).into()
 }

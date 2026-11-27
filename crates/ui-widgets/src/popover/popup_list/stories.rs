@@ -10,7 +10,7 @@ use crate::list::{DocumentRows, List, ListRow};
 use crate::primitives::HAlign;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use craft_behavior::{DisplayOrder, ItemSource};
-use egui::Ui;
+use craft_ui::Ui;
 
 /// A list of names keyed by position.
 struct Names<'a>(&'a [&'a str]);

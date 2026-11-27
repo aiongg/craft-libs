@@ -14,7 +14,8 @@ use crate::testing::{Drive, StoryData, StoryOutput, story};
 use craft_behavior::{Axis, IconId};
 use craft_keymap::Mods;
 use craft_theme::ControlSize;
-use egui::{Color32, CornerRadius, Ui, pos2};
+use craft_ui::geom::pos2;
+use craft_ui::{Color32, CornerRadius, Ui};
 
 /// A sample that paints a colour ramp from `from` to `to` across its cell, as a style or colour preset row previews
 /// its look.

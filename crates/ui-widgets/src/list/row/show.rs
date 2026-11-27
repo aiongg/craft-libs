@@ -24,7 +24,8 @@ use craft_behavior::{ColumnKey, Metrics, NavShape, PartKey, PartRef, PointerButt
 use craft_keymap::Mods;
 use craft_theme::variant::Tone;
 use craft_theme::{Rgba, Stateful, TypeRole, over};
-use egui::{CornerRadius, Pos2, Rect, Vec2};
+use craft_ui::CornerRadius;
+use craft_ui::geom::{Pos2, Rect, Vec2};
 
 pub(super) const TOGGLE: PartKey = PartKey::new("toggle");
 pub(super) const TEXT_CELL: PartKey = PartKey::new("text-cell");
@@ -158,7 +159,7 @@ impl Component for ListRow<'_> {
             sizes.gap + cx.layout_at(&run, band).size().y
         });
         // A document label is laid out as it paints, at the document's size; its colour does not change its size.
-        let document = self.document_run(cx.resolved.label, egui::Color32::PLACEHOLDER).map(|run| {
+        let document = self.document_run(cx.resolved.label, craft_ui::Color32::PLACEHOLDER).map(|run| {
             let runs = [run];
             DocText::new(&runs).layout(cx.ui.ctx(), cx.tokens, cx.env.text_direction()).size()
         });
@@ -370,7 +371,7 @@ impl Component for ListRow<'_> {
                 && start.button == PointerButton::Primary
             {
                 let preview = DragPreview::frame(self.thumb_size(&cx.style.sizes), None);
-                crate::runtime::drag::start(&cx.ctx, cx.id, &cx.env, payload.clone(), Vec::new(), preview);
+                crate::runtime::drag::start(cx.context(), cx.id, &cx.env, payload.clone(), Vec::new(), preview);
                 self.event = Some(RowEvent::PartDrag(RowDragSpot::Thumb(target)));
             } else if let Some(source) = cx.part_activated(target.part()) {
                 let clicks = part_clicks(source, phase);
@@ -397,7 +398,7 @@ impl Component for ListRow<'_> {
                     && matches!(result.press.phase, PressPhase::DragStart { start, .. } if start.button == PointerButton::Primary)
                 {
                     let preview = DragPreview::frame(result.rect.size(), None);
-                    crate::runtime::drag::start(&cx.ctx, cx.id, &cx.env, payload.clone(), Vec::new(), preview);
+                    crate::runtime::drag::start(cx.context(), cx.id, &cx.env, payload.clone(), Vec::new(), preview);
                     self.event = Some(RowEvent::PartDrag(RowDragSpot::Trailing(*part)));
                 }
                 continue;
@@ -594,9 +595,9 @@ impl Component for ListRow<'_> {
         let ink = cx.resolve(&style.text.color);
         self.paint_marks(&ui.draw(), cx, &placed, ink);
         let (label_hue, icon_hue) = (self.hued(ui, cx, HueTarget::Label), self.hued(ui, cx, HueTarget::Icon));
-        let document = self.document_run(cx.resolved.label, egui::Color32::PLACEHOLDER).map(|run| {
+        let document = self.document_run(cx.resolved.label, craft_ui::Color32::PLACEHOLDER).map(|run| {
             let runs = [run];
-            ui.with_style(cx.resolved.variant, |scx| DocText::new(&runs).layout(&cx.ctx, scx.tokens, cx.env.text_direction()).size().y)
+            ui.with_style(cx.resolved.variant, |scx| DocText::new(&runs).layout(cx.context(), scx.tokens, cx.env.text_direction()).size().y)
         });
         if let (Some(slot), Some((text, _))) = (placed.icon, &self.lead_text) {
             let draw = ui.draw();
@@ -726,7 +727,7 @@ impl ListRow<'_> {
     }
 
     /// The label as one run of document text in `ink`, for a row of `document_rows`; `None` for a row of UI text.
-    pub(super) fn document_run<'s>(&self, label: &'s str, ink: egui::Color32) -> Option<DocRun<'s>> {
+    pub(super) fn document_run<'s>(&self, label: &'s str, ink: craft_ui::Color32) -> Option<DocRun<'s>> {
         let rows = self.document.as_ref()?;
         let run = DocRun::new(label, rows.font.clone(), rows.size, DataColor::new(ink));
         Some(if self.italic { run.italic() } else { run })
@@ -810,7 +811,7 @@ impl ListRow<'_> {
                         Some(tip) => cx.env.resolve(tip).as_str().to_owned(),
                         None => named(toggle.name_pattern(&cx.words::<ListWords>()), cx.resolved.label),
                     };
-                    Some(Label::from(crate::contract::tooltip::with_chord(&base, &chord, crate::runtime::windows::os_of(cx.ui.ctx()))))
+                    Some(Label::from(crate::contract::tooltip::with_chord(&base, &chord, cx.ui.ctx().os())))
                 }
                 (None, None) => None,
             };

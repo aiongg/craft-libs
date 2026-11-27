@@ -12,7 +12,7 @@ use crate::runtime::env::{Env, Label, UnitKind};
 use crate::text::NumberField;
 use craft_behavior::geometry::Constraint;
 use craft_behavior::{EditEvent, IconId, Mixed, NumberCodec, PixelSize};
-use egui::{Response, Ui};
+use craft_ui::{Response, Ui};
 use std::ops::RangeInclusive;
 use std::sync::Arc;
 

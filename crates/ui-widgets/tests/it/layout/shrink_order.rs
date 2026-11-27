@@ -6,19 +6,19 @@ use craft_ui::buttons::{Button, Link};
 use craft_ui::contract::{Bind, Entry, Show as _, ShowContainer as _};
 use craft_ui::display::{Elide, Text};
 use craft_ui::form::Field;
+use craft_ui::geom::{Rect, Vec2};
 use craft_ui::layout_components::Row;
 use craft_ui::pickers::Select;
 use craft_ui::primitives::Wrap;
-use craft_ui::testing::{Fixture, last_pass_measuring_runs, trial};
+use craft_ui::testing::{Harness, last_pass_measuring_runs, trial};
 use craft_ui::text::TextField;
-use egui::{Rect, Vec2};
 
 const ROOM: Vec2 = Vec2::new(800.0, 600.0);
 const SLACK: f32 = 0.5;
 
 /// The rect of the widget labelled `label` in a row of `children`, in a room `width` wide.
-fn rect_in_row(width: f32, label: &'static str, children: impl Fn(&mut egui::Ui) + 'static) -> Rect {
-    let mut fixture = Fixture::new(move |ui| {
+fn rect_in_row(width: f32, label: &'static str, children: impl Fn(&mut craft_ui::Ui) + 'static) -> Rect {
+    let mut fixture = Harness::new_ui(move |ui| {
         Row::new().show(ui, |ui, _| children(ui));
     });
     fixture.room(Vec2::new(width, ROOM.y)).settle();
@@ -52,7 +52,7 @@ fn a_wrapping_text_in_a_short_row_is_never_narrower_than_its_widest_word() {
 /// whether the select's label was cut.
 fn select_and_path(width: f32) -> (Rect, Rect, bool) {
     const PATH: &str = "[Comp Name].[fileExtension]";
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         Field::new("Output To").show(ui, |ui, _| {
             Row::new().show(ui, |ui, _| {
                 let entries = [Entry::new(0, "Comp name"), Entry::new(1, "Comp name and frame")];
@@ -85,7 +85,7 @@ fn a_path_that_elides_gives_way_before_a_select_beside_it() {
 /// measuring run.
 fn field_and_count(width: f32) -> (Rect, Rect, bool) {
     const COUNT: &str = "1 of 3";
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         Row::new().show(ui, |ui, _| {
             TextField::search("Find", Bind::given(String::from("craft"))).show(ui);
             Text::new(COUNT).show(ui);
@@ -116,7 +116,7 @@ const COUNT: &str = "1,234 presets";
 /// The rects of the New and Edit buttons around a count that elides, in a row `width` wide, and the count's painted
 /// rect, if it was painted.
 fn count_row(width: f32) -> (Rect, Rect, Option<Rect>) {
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         Row::new().show(ui, |ui, _| {
             Button::new("New").show(ui);
             Text::new(COUNT).elide(Elide::End).show(ui);

@@ -4,10 +4,12 @@ use craft_behavior::{Metrics, PartKey, Sense};
 use craft_theme::TypeRole;
 use craft_ui::choice::Rating;
 use craft_ui::contract::{Bind, Common, Component, Cx, PaintUi, PartsCx, Props as _, Role, Show as _, Styled as _};
+use craft_ui::geom::{Rect, pos2, vec2};
 use craft_ui::style::{ComponentStyle, Stateful, StyleColor, StyleCx, TextLook};
 use craft_ui::testing::layout::in_region;
 use craft_ui::testing::{Frames, trial};
-use egui::{Color32, Rect, Response, Shape, pos2, vec2};
+use craft_ui::{Color32, Response};
+use egui::Shape;
 use std::cell::Cell;
 
 const HOSTED: PartKey = PartKey::new("hosted");

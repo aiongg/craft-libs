@@ -4,9 +4,9 @@
 use craft_behavior::ColumnWidth;
 use craft_ui::buttons::Button;
 use craft_ui::contract::{Show as _, ShowContainer as _};
+use craft_ui::geom::{Rect, Vec2};
 use craft_ui::layout_components::{Grid, Stack};
-use craft_ui::testing::{Fixture, trial};
-use egui::{Rect, Vec2};
+use craft_ui::testing::{Harness, trial};
 use std::cell::Cell;
 use std::rc::Rc;
 
@@ -18,7 +18,7 @@ fn a_fill_child_leaves_room_for_later_siblings() {
     const ROOM: Vec2 = Vec2::new(400.0, 400.0);
     let seen = Rc::new(Cell::new((Rect::NOTHING, Rect::NOTHING, Rect::NOTHING)));
     let out = Rc::clone(&seen);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let stack = Stack::new().fill().show(ui, |ui, _| {
             let grid = Grid::new(&PANES).fill().show(ui, |ui, _| {
                 Stack::new().fill().show(ui, |ui, _| {

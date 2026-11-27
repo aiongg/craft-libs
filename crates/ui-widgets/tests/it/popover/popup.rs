@@ -2,17 +2,19 @@
 
 use crate::overlay::kit::{Leaf, Opened, Opener, Seen};
 use craft_behavior::{DisplayOrder, ItemSource};
+use craft_ui::Ui;
 use craft_ui::buttons::Button;
 use craft_ui::contract::{
     Bind, CollectionEvent, Overlay, Props as _, Role, Scroll, Show as _, ShowCollection as _, ShowContainer as _, Trigger, clicked,
 };
+use craft_ui::geom::{Pos2, Rect, Vec2};
+use craft_ui::input::{Key, Mods};
 use craft_ui::layout_components::Stack;
 use craft_ui::list::{List, ListRow};
 use craft_ui::popover::{Popover, PopupList, PopupListKind};
 use craft_ui::testing::pointer::{self, click, moved, press, release};
-use craft_ui::testing::{Fixture, Frames, trial};
+use craft_ui::testing::{Frames, Harness, trial};
 use craft_ui::text::NumberField;
-use egui::{Key, Modifiers, Pos2, Rect, Ui, Vec2};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -84,7 +86,7 @@ fn a_click_on_the_opener_closes_its_open_menu() {
 fn a_number_draft_in_a_popover_commits_when_an_outside_press_closes_it() {
     let (open, value) = (Rc::new(Cell::new(true)), Rc::new(Cell::new(Some(10.0f64))));
     let (shown_open, shown_value) = (open.clone(), value.clone());
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let opener = craft_ui::buttons::Button::new("Stroke").show(ui);
         let mut is_open = shown_open.get();
         Popover::new("Stroke options", Bind::bound(&mut is_open)).opened_by(&opener).show(ui, |ui, _| {
@@ -97,7 +99,7 @@ fn a_number_draft_in_a_popover_commits_when_an_outside_press_closes_it() {
     fixture.settle();
     let field = fixture.by_label("Weight").expect("the field shows in the popover");
     fixture.click(&field);
-    fixture.key(Key::A, Modifiers::COMMAND);
+    fixture.key(Key::A, Mods::COMMAND);
     // An expression applies on commit only, so it stays a draft until the popover closes.
     fixture.type_text("3+4");
     fixture.idle(2);
@@ -141,7 +143,7 @@ impl ItemSource<usize> for Rows {}
 fn a_popup_list_with_short_rows_fits_its_wide_opener() {
     let mut open = true;
     let anchor = Rect::from_min_size(Pos2::new(100.0, 100.0), Vec2::new(240.0, 30.0));
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let opener = Button::new("Open").show_at(ui, anchor).response;
         PopupList::new("Popup", Bind::bound(&mut open)).opened_by(&opener).show(ui, |ui, _| {
             List::<usize>::options("Choices").show_items(ui, &Rows, &mut |at, _| ListRow::new(row(*at)).option());
@@ -161,7 +163,7 @@ fn a_popup_list_with_short_rows_fits_its_wide_opener() {
 fn a_document_popup_list_aligns_its_rows_with_the_opener() {
     let mut open = true;
     let anchor = Rect::from_min_size(Pos2::new(100.0, 100.0), Vec2::new(240.0, 30.0));
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let opener = Button::new("Open").show_at(ui, anchor).response;
         PopupList::new("Popup", Bind::bound(&mut open)).kind(PopupListKind::Document).opened_by(&opener).show(ui, |ui, _| {
             List::<usize>::options("Choices").show_items(ui, &Rows, &mut |at, _| ListRow::new(row(*at)).option());
@@ -175,8 +177,8 @@ fn a_document_popup_list_aligns_its_rows_with_the_opener() {
 
 /// A scrolling page taller than the window: an "Open" button that opens a popup list of `ROWS` rows while `open`, then
 /// `PAGE` buttons. The rows the list activates go to `activated`.
-fn page(open: Rc<Cell<bool>>, activated: Rc<RefCell<Vec<usize>>>) -> Fixture {
-    let mut fixture = Fixture::new(move |ui| {
+fn page(open: Rc<Cell<bool>>, activated: Rc<RefCell<Vec<usize>>>) -> Harness {
+    let mut fixture = Harness::new_ui(move |ui| {
         Stack::new().fill().scroll(Scroll::vertical()).show(ui, |ui, _| {
             let opener = Button::new("Open").show(ui);
             if clicked(&opener) {
@@ -211,9 +213,9 @@ fn the_wheel_over_an_open_popup_list_scrolls_the_list_and_not_the_surface_below(
     let opener = fixture.by_label("Open").expect("the opener shows").rect;
     let first = fixture.by_label(&row(0)).expect("the list shows its first row").rect;
     let over = fixture.by_label(&row(2)).expect("the list shows its third row").rect.center();
-    fixture.frame(vec![pointer::moved(over)]);
+    fixture.send(pointer::moved(over));
     for _ in 0..3 {
-        fixture.frame(vec![pointer::wheel(-60.0)]);
+        fixture.send(pointer::wheel(-60.0));
     }
     fixture.settle();
     assert!(open.get(), "the wheel leaves the list open");
@@ -227,8 +229,8 @@ fn the_wheel_over_an_open_popup_list_scrolls_the_list_and_not_the_surface_below(
         "DIAG popover::popup::the_wheel_over_an_open_popup_list_scrolls_the_list_and_not_the_surface_below: after the close still animating {}",
         fixture.repaint_requested()
     );
-    fixture.frame(vec![pointer::moved(on_page)]);
-    fixture.frame(vec![pointer::wheel(-60.0)]);
+    fixture.send(pointer::moved(on_page));
+    fixture.send(pointer::wheel(-60.0));
     eprintln!(
         "DIAG popover::popup::the_wheel_over_an_open_popup_list_scrolls_the_list_and_not_the_surface_below: after the wheel Open {:?} (was {:?}) Page 4 {:?} (was {on_page:?})",
         fixture.by_label("Open").map(|shown| shown.rect.min.y),
@@ -252,8 +254,8 @@ fn a_resting_pointer_leaves_the_lead_where_the_keys_moved_it() {
     let open = Rc::new(Cell::new(false));
     let activated = Rc::new(RefCell::new(Vec::new()));
     let mut fixture = page(Rc::clone(&open), Rc::clone(&activated));
-    fixture.key(Key::Tab, Modifiers::NONE).settle();
-    fixture.key(Key::Space, Modifiers::NONE).settle();
+    fixture.key(Key::Tab, Mods::NONE).settle();
+    fixture.key(Key::Space, Mods::NONE).settle();
     assert!(open.get(), "Space on the focused opener opens the list");
     eprintln!(
         "DIAG popover::popup::a_resting_pointer_leaves_the_lead_where_the_keys_moved_it: after Space focused {:?} stop {:?} opener {:?}",
@@ -262,8 +264,8 @@ fn a_resting_pointer_leaves_the_lead_where_the_keys_moved_it() {
         fixture.by_label("Open").map(|shown| shown.node)
     );
     let rest = fixture.by_label(&row(3)).expect("the list shows its fourth row").rect.center();
-    fixture.frame(vec![pointer::moved(rest)]).settle();
-    fixture.key(Key::End, Modifiers::NONE).settle();
+    fixture.send(pointer::moved(rest)).settle();
+    fixture.key(Key::End, Mods::NONE).settle();
     eprintln!(
         "DIAG popover::popup::a_resting_pointer_leaves_the_lead_where_the_keys_moved_it: after End focused {:?} stop {:?} last row shown {} first row shown {}",
         fixture.focused(),
@@ -271,7 +273,7 @@ fn a_resting_pointer_leaves_the_lead_where_the_keys_moved_it() {
         fixture.by_label(&row(ROWS - 1)).is_some(),
         fixture.by_label(&row(0)).is_some()
     );
-    fixture.key(Key::Enter, Modifiers::NONE).settle();
+    fixture.key(Key::Enter, Mods::NONE).settle();
     eprintln!(
         "DIAG popover::popup::a_resting_pointer_leaves_the_lead_where_the_keys_moved_it: after Enter open {} activated {:?}",
         open.get(),

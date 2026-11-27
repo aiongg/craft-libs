@@ -3,17 +3,18 @@
 use craft_behavior::IconId;
 use craft_ui::buttons::{Button, IconButton, PopupMark};
 use craft_ui::contract::{Bind, PopupKind, Props as _, Role, Show as _, ShowContainer as _, Trigger};
+use craft_ui::geom::{Rect, pos2};
 use craft_ui::menu::{Menu, MenuItem};
 use craft_ui::popover::Popover;
 use craft_ui::runtime::commands::{self, CommandSet as _, EditCommands, FireSource};
 use craft_ui::runtime::env::Direction;
 use craft_ui::runtime::frame::take_output;
-use craft_ui::testing::{Fixture, pointer, trial};
-use egui::{Rect, Shape, pos2};
+use craft_ui::testing::{Harness, pointer, trial};
+use egui::Shape;
 use std::cell::Cell;
 use std::rc::Rc;
 
-fn menu_rect(fixture: &Fixture) -> Option<egui::Rect> {
+fn menu_rect(fixture: &Harness) -> Option<craft_ui::geom::Rect> {
     fixture.by_role(Role::MENU).first().map(|menu| menu.rect)
 }
 
@@ -23,7 +24,7 @@ fn menu_rect(fixture: &Fixture) -> Option<egui::Rect> {
 fn a_menu_opened_from_a_popover_takes_a_click_on_its_row() {
     let ran = Rc::new(Cell::new(false));
     let seen = ran.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let opener = Button::new("Brush").show(ui);
         let mut open = true;
         Popover::new("Brush options", Bind::bound(&mut open)).opened_by(&opener).show(ui, |ui, _| {
@@ -39,9 +40,9 @@ fn a_menu_opened_from_a_popover_takes_a_click_on_its_row() {
     });
     fixture.settle();
     let at = fixture.by_label("Target").expect("the target has a node").center();
-    fixture.frame(vec![pointer::moved(at)]);
-    fixture.frame(vec![pointer::secondary(at, true)]);
-    fixture.frame(vec![pointer::secondary(at, false)]);
+    fixture.send(pointer::moved(at));
+    fixture.send(pointer::secondary(at, true));
+    fixture.send(pointer::secondary(at, false));
     fixture.settle();
     let delete = fixture.by_label("Delete").expect("a secondary click on the target opens the menu");
     let popover = fixture.by_role(Role::DIALOG).first().map(|popover| popover.rect).expect("the popover is open");
@@ -57,16 +58,16 @@ fn a_menu_opened_from_a_popover_takes_a_click_on_its_row() {
 }
 
 /// Right-clicks at `at`: move, secondary press, secondary release.
-fn right_click(fixture: &mut Fixture, at: egui::Pos2) {
-    fixture.frame(vec![pointer::moved(at)]);
-    fixture.frame(vec![pointer::secondary(at, true)]);
-    fixture.frame(vec![pointer::secondary(at, false)]);
+fn right_click(fixture: &mut Harness, at: craft_ui::geom::Pos2) {
+    fixture.send(pointer::moved(at));
+    fixture.send(pointer::secondary(at, true));
+    fixture.send(pointer::secondary(at, false));
     fixture.settle();
 }
 
 #[trial]
 fn a_context_menu_beneath_a_popover_does_not_open_from_its_click() {
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         let background = Button::new("Background").show_at(ui, Rect::from_min_max(pos2(0.0, 0.0), pos2(500.0, 500.0)));
         Menu::context("Background menu", &background).show(ui, |ui, _| {
             MenuItem::new("Background action").show(ui);
@@ -90,7 +91,7 @@ fn a_context_menu_beneath_a_popover_does_not_open_from_its_click() {
 /// A secondary click on a press menu's button opens its menu, as a primary press does.
 #[trial]
 fn a_secondary_click_on_a_press_menu_button_opens_its_menu() {
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         let opener = Button::new("Layers").show(ui);
         Menu::new("Layers menu").opened_by(&opener, Trigger::Press).show(ui, |ui, _| {
             MenuItem::new("New layer").show(ui);
@@ -108,7 +109,7 @@ fn a_secondary_click_on_a_press_menu_button_opens_its_menu() {
 /// A right-click elsewhere on the widget while its context menu is open moves the menu to the new point.
 #[trial]
 fn a_new_right_click_moves_an_open_context_menu_to_the_pointer() {
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         let target = Button::new("A wide target to right-click at either end").show(ui);
         Menu::context("Target menu", &target).show(ui, |ui, _| {
             MenuItem::new("Copy").show(ui);
@@ -117,7 +118,7 @@ fn a_new_right_click_moves_an_open_context_menu_to_the_pointer() {
     });
     fixture.settle();
     let target = fixture.by_label("A wide target to right-click at either end").expect("the target").rect;
-    let (first, second) = (target.left_center() + egui::vec2(8.0, 0.0), target.right_center() - egui::vec2(8.0, 0.0));
+    let (first, second) = (target.left_center() + craft_ui::geom::vec2(8.0, 0.0), target.right_center() - craft_ui::geom::vec2(8.0, 0.0));
     right_click(&mut fixture, first);
     let before = menu_rect(&fixture).expect("the first right-click opens the menu");
     assert!((before.min.x - first.x).abs() < 8.0, "the menu opens at the pointer");
@@ -129,7 +130,7 @@ fn a_new_right_click_moves_an_open_context_menu_to_the_pointer() {
 /// A menu request retains its point until an image arrives from the clipboard in a later frame.
 #[trial]
 fn context_menu_paste_delivers_image_at_the_requested_point() {
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         let target = Button::new("Target").show(ui);
         let mut paste = false;
         Menu::context("Target menu", &target).show(ui, |ui, _| {
@@ -138,7 +139,7 @@ fn context_menu_paste_delivers_image_at_the_requested_point() {
             }
         });
         if paste {
-            commands::request_paste_at(ui.ctx(), egui::pos2(120.0, 180.0));
+            commands::request_paste_at(ui.ctx(), craft_ui::geom::pos2(120.0, 180.0));
         }
     });
     fixture.settle();
@@ -146,7 +147,7 @@ fn context_menu_paste_delivers_image_at_the_requested_point() {
     right_click(&mut fixture, at);
     let paste = fixture.by_label("Paste").expect("paste menu item");
     fixture.click(&paste);
-    fixture.frame(vec![egui::Event::PasteImage(std::sync::Arc::new(egui::ColorImage::filled([2, 2], egui::Color32::RED)))]).settle();
+    fixture.send(egui::Event::PasteImage(std::sync::Arc::new(egui::ColorImage::filled([2, 2], craft_ui::Color32::RED)))).settle();
     let fired = take_output(fixture.ctx()).fired;
     assert!(
         fired
@@ -161,7 +162,7 @@ fn context_menu_paste_delivers_image_at_the_requested_point() {
 /// key's command does, and runs.
 #[trial]
 fn a_paste_behind_a_context_menu_runs_nothing_and_a_native_edit_paste_closes_it() {
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         let target = Button::new("Target").show(ui);
         Menu::context("Target menu", &target).show(ui, |ui, _| {
             MenuItem::new("Copy").show(ui);
@@ -171,9 +172,9 @@ fn a_paste_behind_a_context_menu_runs_nothing_and_a_native_edit_paste_closes_it(
     let at = fixture.by_label("Target").expect("the target").center();
     right_click(&mut fixture, at);
     assert!(menu_rect(&fixture).is_some(), "the context menu is open");
-    let fired = |fixture: &Fixture| take_output(fixture.ctx()).fired.into_iter().map(|fired| fired.command.id).collect::<Vec<_>>();
+    let fired = |fixture: &Harness| take_output(fixture.ctx()).fired.into_iter().map(|fired| fired.command.id).collect::<Vec<_>>();
     fired(&fixture);
-    fixture.frame(vec![egui::Event::Paste("clipboard text".to_owned())]).settle();
+    fixture.send(egui::Event::Paste("clipboard text".to_owned())).settle();
     assert!(fired(&fixture).is_empty(), "the paste behind the menu ran nothing");
     assert!(menu_rect(&fixture).is_some(), "the menu stays open");
     commands::fire(fixture.ctx(), EditCommands::Paste, FireSource::Menu);
@@ -190,7 +191,7 @@ fn a_menu_button_hangs_its_arrow_under_the_end_of_its_glyph() {
     for direction in [Direction::Ltr, Direction::Rtl] {
         let at_end = |x: f32| if direction == Direction::Rtl { x < BUTTON.center().x } else { x > BUTTON.center().x };
         for mark in [PopupMark::Menu, PopupMark::ToolGroup] {
-            let mut fixture = Fixture::new(move |ui| {
+            let mut fixture = Harness::new_ui(move |ui| {
                 IconButton::new(IconId::new("plus")).label("Add").popup(PopupKind::Menu).popup_mark(mark).show_at(ui, BUTTON);
             });
             fixture.direction(direction).settle();
@@ -234,19 +235,19 @@ fn a_menu_button_hangs_its_arrow_under_the_end_of_its_glyph() {
 #[trial]
 fn a_menu_opener_accepts_accessibility_activation() {
     for trigger in [Trigger::Click, Trigger::Press] {
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             let opener = IconButton::new(IconId::new("settings")).label("Options").popup(PopupKind::Menu).show(ui);
             Menu::new("Options menu").opened_by(&opener.response, trigger).show(ui, |ui, _| {
                 MenuItem::new("An option").show(ui);
             });
         });
         fixture.settle();
-        fixture.key(egui::Key::Escape, egui::Modifiers::NONE).settle();
+        fixture.key(craft_ui::input::Key::Escape, craft_ui::input::Mods::NONE).settle();
         let opener = fixture.by_label("Options").expect("the opener");
         fixture.access(craft_ui::testing::focus::AccessActionKind::Click, &opener).settle();
         assert!(fixture.by_label("An option").is_some(), "{trigger:?} opens through accessibility");
         assert!(!craft_ui::runtime::focus::keyboard_in_menu(fixture.ctx()), "an accessibility activation does not inherit an earlier key");
-        fixture.key(egui::Key::ArrowDown, egui::Modifiers::NONE).settle();
+        fixture.key(craft_ui::input::Key::ArrowDown, craft_ui::input::Mods::NONE).settle();
         assert!(craft_ui::runtime::focus::keyboard_in_menu(fixture.ctx()), "a later key drives the menu");
     }
 }
@@ -255,8 +256,8 @@ fn a_menu_opener_accepts_accessibility_activation() {
 /// window (it hangs below the pointer, not clipped above it).
 #[trial]
 fn a_context_menu_near_the_top_stays_inside_the_window() {
-    let mut fixture = Fixture::new(|ui| {
-        let (rect, _) = ui.allocate_exact_size(egui::vec2(400.0, 300.0), egui::Sense::click());
+    let mut fixture = Harness::new_ui(|ui| {
+        let (rect, _) = ui.allocate_exact_size(craft_ui::geom::vec2(400.0, 300.0), egui::Sense::click());
         let target = ui.interact(rect, ui.scope_id().with("area"), egui::Sense::click());
         Menu::context("Page menu", &target).show(ui, |ui, _| {
             for name in ["Copy", "Paste", "Select All", "Rotate", "Delete", "Insert", "Extract", "Print", "Properties", "More"] {
@@ -264,11 +265,11 @@ fn a_context_menu_near_the_top_stays_inside_the_window() {
             }
         });
     });
-    fixture.room(egui::vec2(400.0, 300.0));
+    fixture.room(craft_ui::geom::vec2(400.0, 300.0));
     fixture.settle();
     right_click(&mut fixture, pos2(150.0, 2.0));
     let menu = menu_rect(&fixture).expect("the menu opened");
-    let window = Rect::from_min_size(pos2(0.0, 0.0), egui::vec2(400.0, 300.0));
+    let window = Rect::from_min_size(pos2(0.0, 0.0), craft_ui::geom::vec2(400.0, 300.0));
     assert!(menu.min.y >= window.min.y - 0.5 && menu.max.y <= window.max.y + 0.5, "the menu lies inside the window: {menu:?}");
 }
 
@@ -278,7 +279,7 @@ fn a_context_menu_near_the_top_stays_inside_the_window() {
 #[trial]
 fn a_menu_paste_reads_the_clipboard_when_the_app_asks() {
     for reads in [false, true] {
-        let mut fixture = Fixture::new(|ui| {
+        let mut fixture = Harness::new_ui(|ui| {
             Button::new("Target").show(ui);
         });
         fixture.commands(commands::CommandInput::new().paste_reads_clipboard(reads)).settle();
@@ -291,7 +292,7 @@ fn a_menu_paste_reads_the_clipboard_when_the_app_asks() {
             continue;
         }
         assert!(now.is_empty(), "the paste waits for the platform's clipboard: {now:?}");
-        fixture.frame(vec![egui::Event::Paste("clipboard text".to_owned())]).settle();
+        fixture.send(egui::Event::Paste("clipboard text".to_owned())).settle();
         let later = take_output(fixture.ctx()).fired;
         assert!(
             later.iter().any(|fired| fired.command.id == EditCommands::Paste.id()
@@ -305,15 +306,15 @@ fn a_menu_paste_reads_the_clipboard_when_the_app_asks() {
 /// Space on a focused icon button that opens a menu opens the menu, as a click does.
 #[trial]
 fn space_on_a_focused_menu_opener_opens_its_menu() {
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         let opener = IconButton::new(IconId::new("menu")).popup(PopupKind::Menu).label("Panel menu").show(ui);
         Menu::new("Panel menu").opened_by(&opener, Trigger::Click).show(ui, |ui, _| {
             MenuItem::new("Clear All").show(ui);
         });
     });
     fixture.settle();
-    fixture.key(egui::Key::Tab, egui::Modifiers::NONE).settle();
-    fixture.key(egui::Key::Space, egui::Modifiers::NONE).settle();
+    fixture.key(craft_ui::input::Key::Tab, craft_ui::input::Mods::NONE).settle();
+    fixture.key(craft_ui::input::Key::Space, craft_ui::input::Mods::NONE).settle();
     assert!(fixture.by_label("Clear All").is_some(), "Space on the focused opener opens the menu");
 }
 
@@ -323,7 +324,7 @@ fn space_on_a_focused_menu_opener_opens_its_menu() {
 fn return_in_a_menu_opened_by_space_runs_its_first_row() {
     let ran = Rc::new(Cell::new(None::<&'static str>));
     let seen = ran.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let opener = IconButton::new(IconId::new("menu")).popup(PopupKind::Menu).label("Panel menu").show(ui);
         Menu::new("Panel menu").opened_by(&opener, Trigger::Click).show(ui, |ui, _| {
             for row in ["Clear All", "Reset"] {
@@ -334,10 +335,10 @@ fn return_in_a_menu_opened_by_space_runs_its_first_row() {
         });
     });
     fixture.settle();
-    fixture.key(egui::Key::Tab, egui::Modifiers::NONE).settle();
-    fixture.key(egui::Key::Space, egui::Modifiers::NONE).settle();
+    fixture.key(craft_ui::input::Key::Tab, craft_ui::input::Mods::NONE).settle();
+    fixture.key(craft_ui::input::Key::Space, craft_ui::input::Mods::NONE).settle();
     assert!(fixture.by_label("Clear All").is_some(), "Space on the focused opener opens the menu");
-    fixture.key(egui::Key::Enter, egui::Modifiers::NONE).settle();
+    fixture.key(craft_ui::input::Key::Enter, craft_ui::input::Mods::NONE).settle();
     assert_eq!(ran.get(), Some("Clear All"), "Return runs the menu's first row");
     assert!(menu_rect(&fixture).is_none(), "running the row closes the menu");
 }
@@ -348,7 +349,7 @@ fn return_in_a_menu_opened_by_space_runs_its_first_row() {
 fn return_in_a_pointer_opened_menu_whose_first_row_opens_a_submenu() {
     let ran = Rc::new(Cell::new(None::<&'static str>));
     let seen = ran.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let opener = Button::new("Open").show(ui);
         Menu::new("Main").opened_by(&opener, Trigger::Click).show(ui, |ui, _| {
             Menu::submenu_row(ui, "Recent", |ui, _| {
@@ -362,20 +363,20 @@ fn return_in_a_pointer_opened_menu_whose_first_row_opens_a_submenu() {
         });
     });
     fixture.settle();
-    let open = |fixture: &mut Fixture| {
+    let open = |fixture: &mut Harness| {
         let opener = fixture.by_label("Open").expect("the opener");
         fixture.advance(1.0).click(&opener).settle();
         assert!(fixture.by_label("Clear All").is_some(), "a click on the opener opens the menu");
     };
     open(&mut fixture);
-    fixture.key(egui::Key::Enter, egui::Modifiers::NONE).settle();
+    fixture.key(craft_ui::input::Key::Enter, craft_ui::input::Mods::NONE).settle();
     assert!(fixture.by_label("Clear All").is_none(), "Return with no row lit closes the menu");
     assert!(fixture.by_label("Report.txt").is_none(), "and opens no submenu");
     assert_eq!(ran.get(), None, "and runs no row");
     open(&mut fixture);
     let reset = fixture.by_label("Reset").expect("the Reset row").center();
-    fixture.frame(vec![pointer::moved(reset)]).settle();
-    fixture.key(egui::Key::Enter, egui::Modifiers::NONE).settle();
+    fixture.send(pointer::moved(reset)).settle();
+    fixture.key(craft_ui::input::Key::Enter, craft_ui::input::Mods::NONE).settle();
     assert_eq!(ran.get(), Some("Reset"), "Return runs the row the pointer lit");
     assert!(fixture.by_label("Clear All").is_none(), "and the run closes the menu");
 }

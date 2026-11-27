@@ -1,15 +1,16 @@
 //! Inspected regions: a region records its own components, hit areas and focus stops, names a node by its label, a
 //! reader shown before it gets the record of the same pass, and the inspector numbers every stop.
 
+use craft_ui::Id;
 use craft_ui::buttons::Button;
 use craft_ui::choice::{Checkbox, Radio, RadioGroup};
 use craft_ui::contract::{Bind, CommandSet, Props as _, Show as _, ShowContainer as _};
 use craft_ui::display::InspectOverlay;
+use craft_ui::geom::Rect;
 use craft_ui::layout_components::Stack;
 use craft_ui::runtime::commands::CommandRef;
 use craft_ui::runtime::inspect::{self, Recorded};
-use craft_ui::testing::{Fixture, trial};
-use egui::{Id, Rect};
+use craft_ui::testing::{Harness, trial};
 use std::cell::RefCell;
 use std::collections::HashSet;
 use std::rc::Rc;
@@ -29,8 +30,8 @@ fn a_region_records_its_own_elements_and_numbers_every_stop() {
     let seen = Rc::new(RefCell::new(Seen { early: None, recorded: None, region: Rect::NOTHING, other: Rect::NOTHING }));
     let out = Rc::clone(&seen);
     let (mut snap, mut size) = (true, 1u8);
-    let mut fixture = Fixture::new(move |ui| {
-        let early = inspect::recorded(ui.ctx(), key);
+    let mut fixture = Harness::new_ui(move |ui| {
+        let early = ui.inspect_recorded(key);
         let (shown, recorded) = inspect::record(ui, key, |ui| {
             Stack::new().show(ui, |ui, _| {
                 Button::new("Apply").show(ui);
@@ -55,7 +56,7 @@ fn a_region_records_its_own_elements_and_numbers_every_stop() {
     // AccessKit off, as in an app no screen reader reads: the record does not depend on it.
     fixture.ctx().disable_accesskit();
     // One frame: the reader shown before the region finds its record within it.
-    fixture.frame(Vec::new());
+    fixture.step();
     let seen = seen.borrow();
     let recorded = seen.recorded.as_deref().expect("the region ran");
     assert_eq!(seen.early.as_deref(), Some(recorded), "a reader shown before the region gets this pass's record");
@@ -95,15 +96,16 @@ type Drawn = (Rect, Arc<Recorded>);
 /// moves in until it fits, and on an axis where it already fits it stays on its stop's leading top corner.
 #[trial]
 fn every_badge_shows_whole_inside_the_region() {
+    use craft_ui::geom::vec2;
     use craft_ui::runtime::env::Direction;
-    use egui::{Shape, vec2};
+    use egui::Shape;
 
     for direction in [Direction::Ltr, Direction::Rtl] {
         let key = Id::NULL.with("trial.inspect.badges");
         let seen: Rc<RefCell<Option<Drawn>>> = Rc::new(RefCell::new(None));
         let out = Rc::clone(&seen);
         let mut snap = true;
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             let (shown, recorded) = inspect::record(ui, key, |ui| {
                 Stack::new().show(ui, |ui, _| {
                     Button::new("Apply").show(ui);
@@ -169,7 +171,7 @@ fn an_element_records_the_command_it_is_bound_to_with_accesskit_off() {
     let key = Id::NULL.with("trial.inspect.command");
     let seen: Rc<RefCell<Option<Arc<Recorded>>>> = Rc::new(RefCell::new(None));
     let out = Rc::clone(&seen);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let (_, recorded) = inspect::record(ui, key, |ui| {
             Stack::new().show(ui, |ui, _| {
                 Button::command(Bound::Apply).show(ui);
@@ -183,7 +185,7 @@ fn an_element_records_the_command_it_is_bound_to_with_accesskit_off() {
     });
     // AccessKit off: no node is built, and the record still carries each control's command.
     fixture.ctx().disable_accesskit();
-    fixture.frame(Vec::new());
+    fixture.step();
     let seen = seen.borrow();
     let recorded = seen.as_deref().expect("the region ran");
     let buttons: Vec<&inspect::Element> =

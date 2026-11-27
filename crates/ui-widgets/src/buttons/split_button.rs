@@ -15,7 +15,8 @@ use craft_theme::{
     States, Variant,
     variant::{Emphasis, Tone},
 };
-use egui::{CornerRadius, Pos2, Rect, Response, Ui, Vec2};
+use craft_ui::geom::{Pos2, Rect, Vec2};
+use craft_ui::{CornerRadius, Response, Ui};
 
 const ARROW: PartKey = PartKey::new("arrow");
 
@@ -233,7 +234,7 @@ impl<T: Value + 'static> Component for SplitButton<'_, T> {
                 let chevron = chevron(&cx.style.face);
                 let (look, side) = (&cx.style.face, cx.style.face.arrow.unwrap_or(cx.style.icon.side));
                 let y = face::stacked_divide(cx, &self.spec(cx.resolved.label, &chevron), look, side, cx.content_rect);
-                Rect::from_min_max(egui::pos2(rect.left(), y.clamp(rect.top(), rect.bottom())), rect.max)
+                Rect::from_min_max(craft_ui::geom::pos2(rect.left(), y.clamp(rect.top(), rect.bottom())), rect.max)
             }
             _ => Flow::new(rect, cx.flow.is_rtl()).take_end(cx.style.face.arrow.unwrap_or(cx.style.icon.side)).0,
         };

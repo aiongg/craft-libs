@@ -2,11 +2,12 @@
 
 use crate::label::kit::Field;
 use craft_behavior::{CancelReason, EditEvent, NumberCodec, Reader};
+use craft_ui::Ui;
 use craft_ui::contract::{Bind, Props as _, Show as _, ShowContainer as _, SideLabel};
+use craft_ui::geom::{Pos2, Rect, Vec2};
 use craft_ui::testing::pointer::{moved, press, release};
 use craft_ui::testing::{Frames, trial};
 use craft_ui::text::NumberField;
-use egui::{Pos2, Rect, Ui, Vec2};
 use std::cell::RefCell;
 
 const ROW: Rect = Rect { min: Pos2::new(10.0, 10.0), max: Pos2::new(310.0, 40.0) };
@@ -76,12 +77,12 @@ fn a_write_back_at_the_codecs_precision_is_the_gestures_own() {
 fn a_slider_fields_drag_survives_a_float32_write_back() {
     use craft_ui::form::SliderField;
     use craft_ui::runtime::access::Role;
-    use craft_ui::testing::Fixture;
+    use craft_ui::testing::Harness;
     use std::rc::Rc;
     let doc = Rc::new(RefCell::new(0.5_f32));
     let events = Rc::new(RefCell::new(Vec::new()));
     let (held, seen) = (Rc::clone(&doc), Rc::clone(&events));
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let given = f64::from(*held.borrow()) * 100.0;
         let out = SliderField::new("Density", Bind::given(given), 0.0..=100.0).show(ui);
         for event in &out.events {
@@ -104,13 +105,13 @@ fn a_slider_fields_drag_survives_a_float32_write_back() {
 #[trial]
 fn typed_slider_value_keeps_precision_independent_of_step() {
     use craft_ui::form::SliderField;
-    use craft_ui::testing::Fixture;
-    use egui::{Key, Modifiers};
+    use craft_ui::input::{Key, Mods};
+    use craft_ui::testing::Harness;
     use std::cell::Cell;
     use std::rc::Rc;
     let value = Rc::new(Cell::new(20.0));
     let held = Rc::clone(&value);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let mut now = held.get();
         SliderField::new("Size", Bind::bound(&mut now), 0.0..=100.0).step(1.0).typed_decimals(4).show(ui);
         held.set(now);
@@ -118,7 +119,7 @@ fn typed_slider_value_keeps_precision_independent_of_step() {
     fixture.settle();
     let field = fixture.by_label("Size").expect("the field");
     fixture.click(&field).settle();
-    fixture.key(Key::A, Modifiers::COMMAND).type_text("36.1231");
-    fixture.key(Key::Enter, Modifiers::NONE).settle();
+    fixture.key(Key::A, Mods::COMMAND).type_text("36.1231");
+    fixture.key(Key::Enter, Mods::NONE).settle();
     assert!((value.get() - 36.1231_f64).abs() < 0.00001, "typed value: {}", value.get());
 }

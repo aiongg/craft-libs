@@ -3,7 +3,7 @@
 use crate::contract::{EditResponse, Outcome};
 use crate::runtime::env::{Label, UnitKind};
 use craft_behavior::Value;
-use egui::Response;
+use craft_ui::Response;
 use std::ops::{Deref, RangeInclusive};
 
 /// What a presets row picks: a number the field takes, or a choice that is not a number (Auto, Metrics) and

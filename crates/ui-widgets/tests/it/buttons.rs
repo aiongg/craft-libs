@@ -12,6 +12,8 @@ use craft_ui::buttons::{
 use craft_ui::contract::tooltip::DELAY;
 use craft_ui::contract::{Bind, CommandSet, Entry, Hover, PopupKind, Props as _, Role, Show as _, ShowContainer as _, Trigger};
 use craft_ui::display::Picture;
+use craft_ui::geom::{Pos2, Rect, pos2, vec2};
+use craft_ui::input::{Key, Mods};
 use craft_ui::list::ThumbAspect;
 use craft_ui::menu::{Menu, MenuItem};
 use craft_ui::pickers::ComboBox;
@@ -22,8 +24,9 @@ use craft_ui::testing::input::key_press;
 use craft_ui::testing::layout::in_region;
 use craft_ui::testing::pictures::sample_picture;
 use craft_ui::testing::pointer::{moved, press, release, window_blurred};
-use craft_ui::testing::{Fixture, Frames, trial};
-use egui::{Event, Id, Key, Modifiers, Pos2, Rect, Response, Ui, pos2, vec2};
+use craft_ui::testing::{Frames, Harness, trial};
+use craft_ui::{Id, Response, Ui};
+use egui::Event;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -40,7 +43,7 @@ enum Kind {
 fn stacked(kind: Kind, label: &'static str, size: ControlSize) -> (Rect, Vec<Rect>) {
     let at = Rc::new(Cell::new(Id::NULL));
     let seen = Rc::clone(&at);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let icon = IconId::new("copy");
         let id = match kind {
             Kind::Button => Button::new(label).icon(icon).arrangement(Arrangement::Stacked).size(size).show(ui).response.id,
@@ -118,7 +121,7 @@ fn a_stacked_label_breaks_at_its_own_line_break() {
 fn a_ribbons_stacked_buttons_share_one_height_and_one_first_line() {
     let ids = Rc::new(RefCell::new(Vec::<Id>::new()));
     let seen = Rc::clone(&ids);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         in_ribbon(ui, |ui| {
             let one = Button::new("Pictures").icon(IconId::new("copy")).arrangement(Arrangement::Stacked).show(ui).response.id;
             let two = Button::new("Page\nNumber").icon(IconId::new("copy")).arrangement(Arrangement::Stacked).show(ui).response.id;
@@ -137,7 +140,7 @@ fn a_ribbons_stacked_buttons_share_one_height_and_one_first_line() {
 /// A fixture showing one toggle, the hover reports of each pass of a frame, and a switch that reruns the next
 /// frame's pass.
 struct HoverTrial {
-    fixture: Fixture,
+    fixture: Harness,
     reports: Rc<RefCell<Vec<Hover>>>,
     rerun: Rc<Cell<bool>>,
 }
@@ -148,7 +151,7 @@ impl HoverTrial {
         let rerun = Rc::new(Cell::new(false));
         let on = Rc::new(Cell::new(false));
         let (seen, again) = (Rc::clone(&reports), Rc::clone(&rerun));
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             let mut value = on.get();
             let shown = ToggleButton::new("Snap to grid", Bind::bound(&mut value)).icon(IconId::new("eye")).show(ui);
             on.set(value);
@@ -253,7 +256,7 @@ struct Shown {
 fn shown(name: &str, show: fn(&mut Ui) -> Response, compact: bool) -> Shown {
     let at = Rc::new(Cell::new(Id::NULL));
     let seen = Rc::clone(&at);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let response = if compact { at_level(ui, GroupLevel::Compact, show) } else { show(ui) };
         seen.set(response.id);
     });
@@ -265,7 +268,7 @@ fn shown(name: &str, show: fn(&mut Ui) -> Response, compact: bool) -> Shown {
     let rect = fixture.node_of(at.get()).expect("the control is in the access tree").rect;
     let before: Vec<String> = fixture.texts().iter().map(|run| run.text.clone()).collect();
     // The main part is at the start, the arrow at the end.
-    fixture.frame(vec![moved(Pos2::new(rect.min.x + rect.width() * 0.25, rect.center().y))]);
+    fixture.send(moved(Pos2::new(rect.min.x + rect.width() * 0.25, rect.center().y)));
     fixture.advance(DELAY);
     fixture.settle();
     let added = fixture.texts().iter().map(|run| run.text.clone()).filter(|text| !before.contains(text));
@@ -296,7 +299,7 @@ fn an_inline_button_drops_its_label_under_a_compact_group_and_names_itself_by_to
     let switch = Rc::new(Cell::new(false));
     let widths = Rc::new(RefCell::new(Vec::new()));
     let (level, flip, seen) = (Rc::clone(&compact), Rc::clone(&switch), Rc::clone(&widths));
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let at = if level.get() { GroupLevel::Compact } else { GroupLevel::Full };
         seen.borrow_mut().push(at_level(ui, at, save).rect.width());
         if flip.get() && ui.ctx().current_pass_index() == 0 {
@@ -308,7 +311,7 @@ fn an_inline_button_drops_its_label_under_a_compact_group_and_names_itself_by_to
     fixture.settle();
     widths.borrow_mut().clear();
     switch.set(true);
-    fixture.frame(Vec::new());
+    fixture.step();
     assert_eq!(fixture.passes(), 2, "the frame ran a second pass");
     let passes = widths.borrow().clone();
     let settled = shown("Save", save, true).width;
@@ -320,7 +323,7 @@ fn an_inline_button_drops_its_label_under_a_compact_group_and_names_itself_by_to
 fn a_button_with_room_for_its_widest_text_keeps_one_width_whatever_its_label() {
     let widths = Rc::new(RefCell::new(Vec::new()));
     let seen = Rc::clone(&widths);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let mut shown = Vec::new();
         for label in ["1%", "500%"] {
             shown.push(Button::new(label).room_for("500%").id_salt(label).show(ui).response.rect.width());
@@ -340,7 +343,7 @@ fn a_click_on_a_buttons_picture_activates_the_button_which_stays_one_access_node
     let at = Rc::new(Cell::new(Id::NULL));
     let clicks = Rc::new(Cell::new(0));
     let (seen, counted) = (Rc::clone(&at), Rc::clone(&clicks));
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let image = || sample_picture(3, [96, 48]);
         let shown = Button::new("Equation")
             .picture(ThumbAspect::new(2, 1), Picture::new("Rendered equation", 3, &image))
@@ -372,7 +375,7 @@ fn a_click_on_a_buttons_picture_activates_the_button_which_stays_one_access_node
 /// The surface of the first style of `type_name` resolved when `show` runs alone, and the width of the control
 /// named `name`.
 fn seen(type_name: &str, name: &str, show: impl Fn(&mut Ui) + 'static) -> (Option<craft_ui::style::SurfaceLook>, f32) {
-    let mut fixture = Fixture::new(move |ui| show(ui));
+    let mut fixture = Harness::new_ui(move |ui| show(ui));
     fixture.settle();
     let style = fixture.styles_of(type_name).into_iter().next().expect("the control resolved its style");
     (style.looks.surface.clone(), fixture.by_label(name).expect("the control").rect.width())
@@ -537,7 +540,7 @@ fn an_apps_filled_look_fills_its_default_push_buttons() {
 #[trial]
 fn a_ribbons_combo_box_is_as_wide_as_its_options() {
     let width = |ribbon: bool| {
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             let options = [Entry::new("8".to_owned(), "8"), Entry::new("72".to_owned(), "72")];
             let mut size = "11".to_owned();
             let mut show = |ui: &mut Ui| {
@@ -570,7 +573,7 @@ fn a_bars_combo_box_is_as_wide_as_its_options() {
     }
 
     let width = |kind: Placement| {
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             let options = [Entry::new("8".to_owned(), "8"), Entry::new("72".to_owned(), "72")];
             let mut size = "11".to_owned();
             let mut show = |ui: &mut Ui| {
@@ -615,7 +618,7 @@ fn a_nested_in_room_inside_a_bar_does_not_reuse_the_bars_compact_style() {
     use craft_ui::bars::{Bar, BarKind};
     use craft_ui::style::SurfaceKind;
 
-    let mut standard_fixture = Fixture::new(|ui| {
+    let mut standard_fixture = Harness::new_ui(|ui| {
         let options = [Entry::new("8".to_owned(), "8"), Entry::new("72".to_owned(), "72")];
         let mut size = "11".to_owned();
         let _ = ComboBox::new("Standard Size", Bind::bound(&mut size), &options).show(ui);
@@ -628,7 +631,7 @@ fn a_nested_in_room_inside_a_bar_does_not_reuse_the_bars_compact_style() {
     let keys_out = Rc::clone(&seen_keys);
     let in_bar_out = Rc::clone(&seen_in_bar);
 
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let options = [Entry::new("8".to_owned(), "8"), Entry::new("72".to_owned(), "72")];
         let mut bar_size = "11".to_owned();
         let mut room_size = "11".to_owned();
@@ -666,7 +669,7 @@ fn a_nested_in_room_inside_a_bar_does_not_reuse_the_bars_compact_style() {
 #[trial]
 fn a_side_menus_buttons_are_taller_rows_with_the_large_body_label() {
     let rect = |side: bool, arrangement: Arrangement| {
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             let show = |ui: &mut Ui| {
                 let _ = Button::new("Print").icon(IconId::new("print")).variant(Variant::GHOST).arrangement(arrangement).show(ui);
             };
@@ -727,7 +730,7 @@ fn a_side_menus_selected_row_shows_a_band_over_the_brand() {
 #[trial]
 fn a_side_menus_row_shows_the_standard_icon() {
     let icon_side = |side: bool| {
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             let show = |ui: &mut Ui| {
                 let _ = Button::new("Print").icon(IconId::new("print")).variant(Variant::GHOST).show(ui);
             };
@@ -756,7 +759,7 @@ fn a_side_menus_row_shows_the_standard_icon() {
 #[trial]
 fn a_side_menus_icon_button_reads_in_the_menus_ink() {
     let rest = |side: bool, icon_only: bool| {
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             let show = |ui: &mut Ui| {
                 if icon_only {
                     let _ = IconButton::new(IconId::new("print")).label("Back").show(ui);
@@ -800,7 +803,7 @@ enum SplitCommand {
 fn a_split_buttons_arrow_never_runs_its_action() {
     let ran = Rc::new(Cell::new(0));
     let count = Rc::clone(&ran);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let entries = [Entry::new(0u8, "For all apps")];
         if SplitButton::new("Install", &entries).arrow_label("Install options").show(ui).activated {
             count.set(count.get() + 1);
@@ -811,7 +814,7 @@ fn a_split_buttons_arrow_never_runs_its_action() {
     fixture.click(&arrow).settle();
     assert!(!fixture.by_role(Role::MENU).is_empty(), "the arrow opened the menu");
     assert_eq!(ran.get(), 0, "the arrow's click is not the action's");
-    fixture.key(Key::Escape, Modifiers::NONE);
+    fixture.key(Key::Escape, Mods::NONE);
     fixture.settle();
     let main = fixture.by_label("Install").expect("the split button");
     fixture.click_at(Pos2::new(main.rect.left() + 4.0, main.rect.center().y)).settle();
@@ -819,7 +822,7 @@ fn a_split_buttons_arrow_never_runs_its_action() {
 
     let fired = Rc::new(Cell::new(0));
     let count = Rc::clone(&fired);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         craft_ui::layout_components::Stack::new().command_scope(SplitCommand::SCOPE).show(ui, |ui, scope| {
             while scope.take_command::<SplitCommand>().is_some() {
                 count.set(count.get() + 1);
@@ -834,7 +837,7 @@ fn a_split_buttons_arrow_never_runs_its_action() {
     fixture.click(&arrow).settle();
     assert!(!fixture.by_role(Role::MENU).is_empty(), "the arrow opened the menu");
     assert_eq!(fired.get(), 0, "the arrow's click does not fire the command");
-    fixture.key(Key::Escape, Modifiers::NONE);
+    fixture.key(Key::Escape, Mods::NONE);
     fixture.settle();
     let main = fixture.by_label("Trace").expect("the split button");
     fixture.click_at(Pos2::new(main.rect.left() + 4.0, main.rect.center().y)).settle();
@@ -848,7 +851,7 @@ fn a_split_buttons_arrow_never_runs_its_action() {
 fn a_split_bodys_request_close_closes_the_menu_layer_and_it_opens_again_with_its_body() {
     let picked = Rc::new(Cell::new(0));
     let count = Rc::clone(&picked);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let count = Rc::clone(&count);
         let _ = SplitButton::<u8>::body("Shading", move |ui, cx| {
             if craft_ui::contract::clicked(&Button::new("Red").show(ui).response) {
@@ -860,7 +863,7 @@ fn a_split_bodys_request_close_closes_the_menu_layer_and_it_opens_again_with_its
         .show(ui);
     });
     fixture.settle();
-    let open_menu = |fixture: &mut Fixture| {
+    let open_menu = |fixture: &mut Harness| {
         let arrow = fixture.by_label("Shading colours").expect("the arrow part");
         fixture.click(&arrow).settle();
         assert!(!fixture.by_role(Role::MENU).is_empty(), "the arrow opened the menu");
@@ -888,15 +891,15 @@ static ACCENT_ICONS: craft_ui::primitives::AppIcons = craft_ui::primitives::AppI
 );
 
 /// The tints of the textured quads a button with the accent icon paints, in paint order, inside a stack of `surface`.
-fn accent_icon_tints(surface: craft_ui::style::SurfaceKind) -> Vec<egui::Color32> {
+fn accent_icon_tints(surface: craft_ui::style::SurfaceKind) -> Vec<craft_ui::Color32> {
     accent_icon_tints_in(None, surface)
 }
 
 /// As `accent_icon_tints`, with the stack of `surface` nested inside a stack of `outer`.
-fn accent_icon_tints_in(outer: Option<craft_ui::style::SurfaceKind>, surface: craft_ui::style::SurfaceKind) -> Vec<egui::Color32> {
+fn accent_icon_tints_in(outer: Option<craft_ui::style::SurfaceKind>, surface: craft_ui::style::SurfaceKind) -> Vec<craft_ui::Color32> {
     craft_ui::primitives::register_app_icons(&ACCENT_ICONS);
-    let mut fixture = Fixture::new(move |ui| {
-        let inner = |ui: &mut egui::Ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
+        let inner = |ui: &mut craft_ui::Ui| {
             let _ = craft_ui::layout_components::Stack::new().surface(surface).show(ui, |ui, _| {
                 let _ = Button::new("Pen").icon(IconId::new(ACCENT_ICON_NAME)).variant(Variant::GHOST).show(ui);
             });
@@ -1045,7 +1048,7 @@ fn a_toggle_button_reports_pressed_on_and_off() {
     for on in [true, false] {
         let ids = Rc::new(Cell::new((Id::NULL, Id::NULL, Id::NULL)));
         let seen = ids.clone();
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             let mut value = on;
             let toggle = ToggleButton::new("Snap to grid", Bind::bound(&mut value)).show(ui).response.id;
             let shared = ToggleButton::new("Unite", Bind::given(Mixed::Same(on))).show(ui).response.id;
@@ -1064,7 +1067,7 @@ fn a_toggle_button_reports_pressed_on_and_off() {
 /// check box in an `egui::Grid`, keeps the name its own label gives it.
 #[trial]
 fn an_icon_only_toggle_in_a_field_without_label_text_keeps_its_name() {
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         craft_ui::form::Field::new("").show(ui, |ui, _| {
             egui::Grid::new("inks").num_columns(2).show(ui, |ui| {
                 let mut print = true;
@@ -1083,7 +1086,7 @@ fn an_icon_only_toggle_in_a_field_without_label_text_keeps_its_name() {
 /// menu button without one stays a button with no value.
 #[trial]
 fn a_menu_button_with_a_choice_reads_as_a_combo_box_valued_by_it() {
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         let align = IconButton::new(IconId::new("align_edge_left")).label("Align To").popup(PopupKind::Menu).choice("Align to Artboard").show(ui);
         Menu::new("Align To").opened_by(&align.response, Trigger::Press).show(ui, |ui, _| {
             MenuItem::new("Align to Artboard").check(true).show(ui);

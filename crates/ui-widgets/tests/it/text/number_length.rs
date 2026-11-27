@@ -1,13 +1,16 @@
 //! A length field keeps the document's unit and shows the user's.
 
 use craft_behavior::NumberCodec;
+use craft_ui::Ui;
 use craft_ui::contract::{Bind, Props as _, Show as _};
+use craft_ui::geom::Pos2;
+use craft_ui::input::{Key, Mods};
 use craft_ui::runtime::env::{Env, LengthUnits, UnitKind};
 use craft_ui::testing::input::key_press;
 use craft_ui::testing::pointer::click;
 use craft_ui::testing::{Frames, trial};
 use craft_ui::text::NumberField;
-use egui::{Event, Key, Modifiers, Pos2, Ui};
+use egui::Event;
 use std::cell::{Cell, RefCell};
 
 /// A length the field starts from, in the document's points.

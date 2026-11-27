@@ -4,7 +4,7 @@ use super::{Tab, TabKind, TabRole};
 use crate::contract::{Props as _, SetPosition, Show as _};
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use craft_behavior::IconId;
-use egui::Ui;
+use craft_ui::Ui;
 
 #[story(Tab<'static>, covers = [Default], drive = Drive::Activate)]
 fn tab(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {

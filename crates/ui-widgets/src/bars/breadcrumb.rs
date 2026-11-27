@@ -15,7 +15,8 @@ use crate::runtime::focus::{ActivateKeys, KeyUse};
 use crate::style::{ComponentStyle, FocusLook, IconLook, Stateful, StyleCx, TypeRole};
 use craft_behavior::fit::{FitItem, FitKeep, fit_items};
 use craft_behavior::{Axis, CursorIcon, Flow, IconId, Metrics, NavShape, PartKey, PartRef, Roving, Sense, Value};
-use egui::{Rect, Response, Vec2};
+use craft_ui::Response;
+use craft_ui::geom::{Rect, Vec2};
 
 #[cfg(feature = "suite")]
 pub(crate) mod stories;

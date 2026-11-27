@@ -1,11 +1,12 @@
 //! Notices: the live region of an announced notice, a card's bullet lines and a centred notice's hosted content.
 
 use craft_theme::variant::Tone;
+use craft_ui::Id;
 use craft_ui::buttons::Button;
 use craft_ui::contract::{Politeness, Props as _, Show as _};
+use craft_ui::geom::{Rect, Vec2};
 use craft_ui::notices::{Notice, NoticeAction, NoticeLayout};
-use craft_ui::testing::{Fixture, trial};
-use egui::{Id, Rect, Vec2};
+use craft_ui::testing::{Harness, trial};
 use std::cell::Cell;
 use std::rc::Rc;
 
@@ -16,7 +17,7 @@ fn an_announced_notice_is_a_live_region_that_follows_its_message() {
     let message = Rc::new(Cell::new("No matching commands"));
     let id = Rc::new(Cell::new(Id::NULL));
     let (shown, seen) = (message.clone(), id.clone());
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         seen.set(Notice::new(Tone::Neutral, shown.get()).announce(Politeness::Polite).id_salt("status").show(ui).response.id);
     });
     fixture.settle();
@@ -31,7 +32,7 @@ fn an_announced_notice_is_a_live_region_that_follows_its_message() {
 /// A card with ten bullet lines shows the first eight, then one line that counts the two left out.
 #[trial]
 fn a_card_shows_eight_bullet_lines_and_counts_the_rest() {
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let lines: Vec<String> = (1..=10).map(|n| format!("Warning {n}")).collect();
         let _ = Notice::new(Tone::Warn, "").title("Opened with 10 warnings").layout(NoticeLayout::Card).lines(lines).show(ui);
     });
@@ -49,7 +50,7 @@ fn a_card_shows_eight_bullet_lines_and_counts_the_rest() {
 fn a_notice_reports_its_action_and_dismissal_in_a_frame_that_runs_twice() {
     let taken = Rc::new(Cell::new((0_usize, 0_usize)));
     let seen = taken.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let out = Notice::new(Tone::Info, "This document is secured.").dismiss().action(NoticeAction::new("Security settings")).show(ui);
         let (actions, dismissals) = seen.get();
         seen.set((actions + usize::from(out.action == Some(0)), dismissals + usize::from(out.dismissed)));
@@ -72,7 +73,7 @@ fn escape_on_a_notice_action_reaches_the_window() {
     let dismissed = Rc::new(Cell::new(false));
     let cancelled = Rc::new(Cell::new(false));
     let (seen, window) = (dismissed.clone(), cancelled.clone());
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let out = Notice::new(Tone::Info, "Document repaired").dismiss().action(NoticeAction::new("Details")).show(ui);
         seen.set(seen.get() || out.dismissed);
         craft_ui::runtime::keys::with_window_intents(ui.ctx(), false, |intents| {
@@ -82,8 +83,8 @@ fn escape_on_a_notice_action_reaches_the_window() {
         });
     });
     fixture.settle();
-    fixture.key(egui::Key::Tab, egui::Modifiers::NONE);
-    fixture.key(egui::Key::Escape, egui::Modifiers::NONE);
+    fixture.key(craft_ui::input::Key::Tab, craft_ui::input::Mods::NONE);
+    fixture.key(craft_ui::input::Key::Escape, craft_ui::input::Mods::NONE);
     assert!(cancelled.get(), "Escape the notice action leaves reaches the window");
     assert!(!dismissed.get(), "Escape does not press the notice's dismiss button");
 }
@@ -94,7 +95,7 @@ fn escape_on_a_notice_action_reaches_the_window() {
 fn a_centred_notice_hosts_content_under_its_actions() {
     let clicked = Rc::new(Cell::new(false));
     let seen = clicked.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let seen = seen.clone();
         let _ = Notice::new(Tone::Neutral, "Create a new document or open an existing file.")
             .layout(NoticeLayout::Centred)
@@ -122,7 +123,7 @@ fn a_row_notice_wraps_actions_onto_further_rows_inside_its_bounds() {
         let bounds = Rc::new(Cell::new(Rect::NOTHING));
         let (seen, rect) = (taken.clone(), bounds.clone());
         let labels = ["Show details", "Open preferences", "Restore defaults", "Don't show again"];
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             let mut notice = Notice::new(Tone::Info, "Some changes are restricted by this document's settings.").layout(layout).dismiss();
             for label in labels {
                 notice = notice.action(NoticeAction::new(label));
@@ -157,7 +158,7 @@ fn a_row_notice_wraps_actions_onto_further_rows_inside_its_bounds() {
 #[trial]
 fn a_wide_notice_wraps_its_message_beside_its_actions() {
     let message = "A long message about the document and the restrictions that apply to its content and editing features.";
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         Notice::new(Tone::Info, message).dismiss().action(NoticeAction::new("Security settings")).action(NoticeAction::new("Unlock")).show(ui);
     });
     fixture.room(Vec2::new(500.0, 200.0)).settle();
@@ -174,7 +175,7 @@ fn a_card_is_as_wide_as_its_text_up_to_the_card_width() {
     let width = |message: String| {
         let seen = Rc::new(Cell::new(0.0_f32));
         let out = seen.clone();
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             out.set(Notice::new(Tone::Neutral, message.clone()).layout(NoticeLayout::Card).show(ui).response.rect.width());
         });
         fixture.settle();
@@ -185,11 +186,11 @@ fn a_card_is_as_wide_as_its_text_up_to_the_card_width() {
     assert!(long < 400.0, "a long card wraps at the card width: {long}");
 }
 
-fn luminance(color: egui::Color32) -> f32 {
+fn luminance(color: craft_ui::Color32) -> f32 {
     f32::from(color.r()) * 0.2126 + f32::from(color.g()) * 0.7152 + f32::from(color.b()) * 0.0722
 }
 
-fn rect_fills(shapes: &[egui::Shape], out: &mut Vec<(Rect, egui::Color32)>) {
+fn rect_fills(shapes: &[egui::Shape], out: &mut Vec<(Rect, craft_ui::Color32)>) {
     for shape in shapes {
         match shape {
             egui::Shape::Vec(inner) => rect_fills(inner, out),
@@ -204,7 +205,7 @@ fn rect_fills(shapes: &[egui::Shape], out: &mut Vec<(Rect, egui::Color32)>) {
 fn a_toast_is_light_on_a_dark_theme_and_dark_on_a_light_one() {
     use craft_theme::{Contrast, Mode};
     for (mode, light_card) in [(Mode::Dark, true), (Mode::Light, false)] {
-        let mut fixture = Fixture::new(|ui| {
+        let mut fixture = Harness::new_ui(|ui| {
             Notice::new(Tone::Neutral, "No recent files").layout(NoticeLayout::Toast).show(ui);
         });
         fixture.theme(mode, Contrast::Standard).settle();
@@ -222,7 +223,7 @@ fn a_toast_is_light_on_a_dark_theme_and_dark_on_a_light_one() {
 }
 
 /// The color the first vertex of the text run `label` is painted in.
-fn text_color(shapes: &[egui::Shape], label: &str) -> Option<egui::Color32> {
+fn text_color(shapes: &[egui::Shape], label: &str) -> Option<craft_ui::Color32> {
     shapes.iter().find_map(|shape| match shape {
         egui::Shape::Vec(inner) => text_color(inner, label),
         egui::Shape::Text(text) if text.galley.job.text == label => {
@@ -239,7 +240,7 @@ fn a_toast_action_link_reads_on_the_card() {
     use craft_theme::{Contrast, Mode, Rgba, contrast_ratio};
     for mode in [Mode::Dark, Mode::Light] {
         for contrast in [Contrast::Standard, Contrast::High] {
-            let mut fixture = Fixture::new(|ui| {
+            let mut fixture = Harness::new_ui(|ui| {
                 Notice::new(Tone::Neutral, "Pasted").layout(NoticeLayout::Toast).action(NoticeAction::new("Undo paste")).show(ui);
             });
             fixture.room(Vec2::new(600.0, 200.0));
@@ -264,7 +265,7 @@ fn a_toast_action_link_reads_on_the_card() {
 /// icon's height below the top of the notice.
 #[trial]
 fn a_centred_notice_draws_a_large_icon_above_its_message() {
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         let _ = Notice::new(Tone::Neutral, "This document has no bookmarks.")
             .layout(NoticeLayout::Centred)
             .icon(craft_ui::notices::NoticeIcon::Custom(craft_ui::primitives::IconSpec::svg(craft_behavior::IconId::new("bookmark"))))

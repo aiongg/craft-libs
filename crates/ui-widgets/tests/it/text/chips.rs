@@ -21,11 +21,12 @@ fn a_draft_adds_its_pieces_after_the_existing_chips() {
 }
 
 pub(crate) mod field {
+    use craft_ui::Ui;
     use craft_ui::contract::{Role, Show as _};
+    use craft_ui::input::{Key, Mods};
     use craft_ui::testing::access::name;
-    use craft_ui::testing::{Fixture, Story, StoryData, StoryOutput, pointer, trial};
+    use craft_ui::testing::{Harness, Story, StoryData, StoryOutput, pointer, trial};
     use craft_ui::text::ChipField;
-    use egui::{Key, Modifiers, Ui};
 
     fn keywords() -> Vec<String> {
         ["kite", "red", "beach", "sky", "sand", "dune", "wave", "tide"].map(String::from).to_vec()
@@ -43,18 +44,18 @@ pub(crate) mod field {
         out.edit.into()
     }
 
-    fn fixture() -> Fixture {
-        let mut fixture = Fixture::story(&Story::new("chip_field", field));
-        fixture.room(egui::vec2(480.0, 400.0));
+    fn fixture() -> Harness {
+        let mut fixture = Harness::story(&Story::new("chip_field", field));
+        fixture.room(craft_ui::geom::vec2(480.0, 400.0));
         fixture.settle();
         fixture
     }
 
-    fn chips(fixture: &mut Fixture) -> Vec<String> {
+    fn chips(fixture: &mut Harness) -> Vec<String> {
         fixture.data().value("chips", keywords()).clone()
     }
 
-    fn button(fixture: &Fixture, starts: &str) -> craft_ui::testing::Target {
+    fn button(fixture: &Harness, starts: &str) -> craft_ui::testing::Target {
         let tree = fixture.tree();
         let found = fixture.by_role(Role::BUTTON).into_iter().find(|node| name(tree, node.node).is_some_and(|name| name.starts_with(starts)));
         found.unwrap_or_else(|| panic!("a button named {starts}…"))
@@ -102,16 +103,16 @@ pub(crate) mod field {
         fixture.settle();
         assert_eq!(*fixture.data().value("activated", None::<usize>), Some(0), "a click on a chip reports it");
         let at = items[1].center();
-        fixture.frame(vec![pointer::moved(at)]);
-        fixture.frame(vec![pointer::secondary(at, true)]);
-        fixture.frame(vec![pointer::secondary(at, false)]);
+        fixture.send(pointer::moved(at));
+        fixture.send(pointer::secondary(at, true));
+        fixture.send(pointer::secondary(at, false));
         fixture.settle();
         assert_eq!(*fixture.data().value("menu", None::<usize>), Some(1), "a secondary click asks for the menu of the chip under the pointer");
         *fixture.data().value("menu", None::<usize>) = None;
         // Tab reaches the draft, and Backspace in the empty draft focuses the last shown chip.
-        fixture.key(Key::Tab, Modifiers::NONE);
-        fixture.key(Key::Backspace, Modifiers::NONE);
-        fixture.key(Key::F10, Modifiers::SHIFT);
+        fixture.key(Key::Tab, Mods::NONE);
+        fixture.key(Key::Backspace, Mods::NONE);
+        fixture.key(Key::F10, Mods::SHIFT);
         fixture.settle();
         let last = items.len() - 1;
         assert_eq!(*fixture.data().value("menu", None::<usize>), Some(last), "Shift+F10 asks for the focused chip's menu");

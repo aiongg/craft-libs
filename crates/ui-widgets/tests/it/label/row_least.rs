@@ -5,18 +5,18 @@ use craft_theme::Size;
 use craft_ui::buttons::Button;
 use craft_ui::contract::{Bind, Props as _, Show as _, ShowContainer as _, Sizing};
 use craft_ui::form::Field;
+use craft_ui::geom::{Rect, Vec2};
 use craft_ui::layout_components::Row;
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::testing::{Harness, trial};
 use craft_ui::text::TextField;
-use egui::{Rect, Vec2};
 
 /// How far two edges may differ and still line up, in points.
 const SLACK: f32 = 0.5;
 const BROWSE: &str = "Browse…";
 
 /// A field labelled `label` over a fill-width path field and a Browse button, in a room `width` wide.
-fn path_field(label: &'static str, width: f32) -> Fixture {
-    let mut fixture = Fixture::new(move |ui| {
+fn path_field(label: &'static str, width: f32) -> Harness {
+    let mut fixture = Harness::new_ui(move |ui| {
         Field::new(label).show(ui, |ui, _| {
             Row::new().show(ui, |ui, _| {
                 TextField::new(label, Bind::given(String::from("/photos/agents"))).limit(None).sizing(Sizing::FillWidth).show(ui);
@@ -29,7 +29,7 @@ fn path_field(label: &'static str, width: f32) -> Fixture {
     fixture
 }
 
-fn caption(fixture: &Fixture, text: &str) -> Rect {
+fn caption(fixture: &Harness, text: &str) -> Rect {
     fixture.texts().iter().find(|run| run.text == text).map(|run| run.rect).unwrap_or_else(|| panic!("{text:?} is painted"))
 }
 

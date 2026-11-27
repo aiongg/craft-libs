@@ -10,7 +10,8 @@ use craft_behavior::{Insets, Metrics, Sense};
 use craft_host::target::Os;
 use craft_keymap::{Chord, Layout, ReturnGlyph, Trigger};
 use craft_theme::Stateful;
-use egui::{Rect, Response, Vec2, pos2};
+use craft_ui::Response;
+use craft_ui::geom::{Rect, Vec2, pos2};
 
 #[cfg(feature = "suite")]
 pub(crate) mod stories;

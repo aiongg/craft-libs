@@ -1,27 +1,27 @@
 //! A side label beside a row of controls of different heights lines up with the text of the control it names.
 
+use craft_ui::Ui;
 use craft_ui::choice::Checkbox;
 use craft_ui::contract::{Bind, Props as _, Show as _, ShowContainer as _};
 use craft_ui::form::{Field, FieldGroup};
 use craft_ui::layout_components::Row;
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::testing::{Harness, trial};
 use craft_ui::text::NumberField;
 use craft_ui::value_drag::AngleDial;
-use egui::Ui;
 
 /// How far two baselines may differ and still line up, in points.
 const SLACK: f32 = 1.0;
 
 /// The painted baseline of the run whose text is `text`.
-fn baseline_of(fixture: &Fixture, text: &str) -> f32 {
+fn baseline_of(fixture: &Harness, text: &str) -> f32 {
     let texts = fixture.texts();
     let run = texts.iter().find(|run| run.text.trim() == text).unwrap_or_else(|| panic!("{text:?} is painted: {texts:?}"));
     run.baseline
 }
 
 /// The rows of a parameter form: a field whose control is a row of `body`, in a field group.
-fn settled(name: &'static str, mut body: impl FnMut(&mut Ui) + 'static) -> Fixture {
-    let mut fixture = Fixture::new(move |ui| {
+fn settled(name: &'static str, mut body: impl FnMut(&mut Ui) + 'static) -> Harness {
+    let mut fixture = Harness::new_ui(move |ui| {
         FieldGroup::new("Parameters").show(ui, |ui, _| {
             Field::new(name).show(ui, |ui, _| {
                 Row::new().show(ui, |ui, _| body(ui));
@@ -77,8 +77,8 @@ fn a_side_label_stays_on_the_first_line_of_its_control() {
 }
 
 /// `body` in a field group, settled.
-fn settled_in(mut body: impl FnMut(&mut Ui) + 'static) -> Fixture {
-    let mut fixture = Fixture::new(move |ui| {
+fn settled_in(mut body: impl FnMut(&mut Ui) + 'static) -> Harness {
+    let mut fixture = Harness::new_ui(move |ui| {
         FieldGroup::new("Appearance").show(ui, |ui, _| body(ui));
     });
     fixture.settle();
@@ -93,7 +93,7 @@ fn a_check_box_label_shares_the_line_of_a_face_beside_it() {
     use craft_ui::bars::{Bar, BarKind};
     use craft_ui::contract::Entry;
     use craft_ui::pickers::Select;
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         Bar::new("Options", BarKind::Options).show(ui, |ui, _| {
             Checkbox::new(Bind::given(true)).label("Anti-alias").id_salt("smooth").show(ui);
             let entries = [Entry::new(0u8, "Layer"), Entry::new(1, "Group")];
@@ -114,7 +114,7 @@ fn a_bar_number_field_sets_its_digits_and_unit_on_the_line_of_a_select() {
     use craft_ui::contract::Entry;
     use craft_ui::pickers::Select;
     use craft_ui::runtime::env::UnitKind;
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         Bar::new("Options", BarKind::Options).show(ui, |ui, _| {
             let entries = [Entry::new(0u8, "Normal"), Entry::new(1, "Multiply")];
             Select::new("Mode", Bind::given(0u8), &entries).show(ui);

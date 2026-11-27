@@ -10,11 +10,13 @@ pub(crate) mod dials;
 pub(crate) mod thumb_row;
 
 use craft_behavior::{EditEvent, MotionMode};
+use craft_ui::Ui;
 use craft_ui::contract::{Bind, Props as _, Show as _};
+use craft_ui::geom::{Pos2, Rect, Vec2};
+use craft_ui::input::{Key, Mods};
 use craft_ui::testing::pointer;
-use craft_ui::testing::{Fixture, Frames, trial};
+use craft_ui::testing::{Frames, Harness, trial};
 use craft_ui::value_drag::{Slider, SliderScale};
-use egui::{Key, Modifiers, Pos2, Rect, Ui, Vec2};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -164,7 +166,7 @@ fn a_leaf_at_a_degenerate_rect_neither_panics_nor_changes_its_value() {
         let inert = index < 4;
         let value = Rc::new(RefCell::new(START));
         let shown = value.clone();
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             let mut value = shown.borrow_mut();
             Slider::new(Bind::bound(&mut *value), 0.0..=100.0).label("Opacity").show_at(ui, rect);
         });
@@ -173,12 +175,12 @@ fn a_leaf_at_a_degenerate_rect_neither_panics_nor_changes_its_value() {
             continue;
         }
         for at in [Pos2::ZERO, Pos2::new(5.5, 5.5), Pos2::new(0.5, 0.5)] {
-            fixture.frame(vec![pointer::moved(at)]);
-            fixture.frame(vec![pointer::press(at)]);
-            fixture.frame(vec![pointer::release(at)]);
+            fixture.send(pointer::moved(at));
+            fixture.send(pointer::press(at));
+            fixture.send(pointer::release(at));
         }
-        fixture.key(Key::Tab, Modifiers::NONE);
-        fixture.key(Key::ArrowRight, Modifiers::NONE);
+        fixture.key(Key::Tab, Mods::NONE);
+        fixture.key(Key::ArrowRight, Mods::NONE);
         fixture.settle();
         assert_eq!(*value.borrow(), START, "a slider shown at {rect:?} changed its value");
     }
@@ -430,15 +432,15 @@ fn the_thumbs_a_press_would_move_wear_the_ring_and_a_click_on_the_span_focuses_t
     use craft_ui::value_drag::RangeSlider;
     let range = Rc::new(RefCell::new((Mixed::Same(20.0), Mixed::Same(80.0))));
     let shown = range.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         RangeSlider::new(Bind::bound(&mut *shown.borrow_mut()), 0.0..=100.0).label("Hue").show_at(ui, FIELD);
     });
     fixture.motion(MotionMode::Off).settle();
     let rest = rings(&fixture.frame_shapes(), FIELD);
     // The thumbs' centres run between half a thumb in from each end: 20 and 80 lie a fifth and four fifths along.
     let x_at = |share: f32| FIELD.left() + FIELD.width() * share;
-    let on = |fixture: &mut Fixture, x: f32| {
-        fixture.frame(vec![pointer::moved(Pos2::new(x, FIELD.center().y))]);
+    let on = |fixture: &mut Harness, x: f32| {
+        fixture.send(pointer::moved(Pos2::new(x, FIELD.center().y)));
         rings(&fixture.frame_shapes(), FIELD) - rest
     };
     assert_eq!(on(&mut fixture, x_at(0.45)), 2, "over the span both thumbs wear the ring");
@@ -450,10 +452,10 @@ fn the_thumbs_a_press_would_move_wear_the_ring_and_a_click_on_the_span_focuses_t
 
     let slide = Rc::new(Slide::new(START));
     let showing = slide.clone();
-    let mut fixture = Fixture::new(move |ui| showing.show(ui));
+    let mut fixture = Harness::new_ui(move |ui| showing.show(ui));
     fixture.motion(MotionMode::Off).settle();
     let rest = rings(&fixture.frame_shapes(), FIELD);
-    fixture.frame(vec![pointer::moved(Pos2::new(FIELD.left() + 12.0, FIELD.center().y))]);
+    fixture.send(pointer::moved(Pos2::new(FIELD.left() + 12.0, FIELD.center().y)));
     assert_eq!(rings(&fixture.frame_shapes(), FIELD) - rest, 1, "over the bare track the slider's thumb wears the ring");
 }
 
@@ -466,7 +468,7 @@ fn fills(shapes: &[egui::Shape], within: Rect) -> usize {
 #[trial]
 fn a_slider_draws_the_ticks_it_is_asked_for() {
     let painted = |ticks: usize| {
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             let mut value = START;
             Slider::new(Bind::bound(&mut value), 0.0..=100.0).ticks(ticks).label("Opacity").show_at(ui, FIELD);
         });
@@ -482,18 +484,18 @@ fn a_slider_drag_on_a_given_value_runs_one_pass_a_frame() {
     use craft_ui::contract::Role;
     let model = Rc::new(std::cell::Cell::new(50.0));
     let host = model.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         if let Some(value) = Slider::new(Bind::given(host.get()), 0.0..=100.0).label("Opacity").show(ui).value() {
             host.set(*value);
         }
     });
     fixture.settle();
     let thumb = fixture.by_role(Role::SLIDER).first().expect("the slider").center();
-    fixture.frame(vec![pointer::moved(thumb)]);
-    fixture.frame(vec![pointer::press(thumb)]);
+    fixture.send(pointer::moved(thumb));
+    fixture.send(pointer::press(thumb));
     let mut passes = Vec::new();
     for step in 1..=6 {
-        fixture.frame(vec![pointer::moved(thumb + Vec2::new(5.0 * step as f32, 0.0))]);
+        fixture.send(pointer::moved(thumb + Vec2::new(5.0 * step as f32, 0.0)));
         passes.push(fixture.passes());
     }
     assert!(model.get() > 50.0, "the drag moved the app's value");

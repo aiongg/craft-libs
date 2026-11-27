@@ -4,7 +4,7 @@ use craft_theme::ControlSize;
 use craft_ui::buttons::Button;
 use craft_ui::contract::{Bind, Entry, Props as _, Show as _};
 use craft_ui::pickers::Select;
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::testing::{Harness, trial};
 use craft_ui::text::{NumberField, TextField};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -15,12 +15,12 @@ use std::rc::Rc;
 /// egui theme sets it taller than a small field, and the text then sat low.
 #[trial]
 fn a_single_line_is_centred_in_its_control() {
-    let boxes: Rc<RefCell<Vec<(&'static str, egui::Rect)>>> = Rc::default();
+    let boxes: Rc<RefCell<Vec<(&'static str, craft_ui::geom::Rect)>>> = Rc::default();
     let b = boxes.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let mut v = b.borrow_mut();
         v.clear();
-        ui.spacing_mut().interact_size = egui::vec2(24.0, 32.0);
+        ui.spacing_mut().interact_size = craft_ui::geom::vec2(24.0, 32.0);
         v.push(("button", Button::new("Hamburg").show(ui).rect));
         let entries = [Entry::new(0u8, "Hamburg"), Entry::new(1, "Multiply")];
         let mut mode = 0u8;

@@ -3,10 +3,12 @@
 //! its edges.
 
 use craft_behavior::Mixed;
+use craft_ui::Ui;
 use craft_ui::contract::{Props as _, Show as _};
-use craft_ui::testing::{EditKind, Fixture, Story, StoryData, StoryOutput, trial};
+use craft_ui::geom::Vec2;
+use craft_ui::input::{Key, Mods};
+use craft_ui::testing::{EditKind, Harness, Story, StoryData, StoryOutput, trial};
 use craft_ui::value_drag::{AngleDial, PointPicker};
-use egui::{Key, Modifiers, Ui, Vec2};
 
 fn at_turn_end(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     AngleDial::new(data.bind("angle", 180.0)).label("Angle").show(ui).into()
@@ -20,39 +22,39 @@ fn quarter_end_wrapping(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     AngleDial::new(data.bind("angle", 90.0)).range(0.0..=90.0).wrap(true).label("Angle").show(ui).into()
 }
 
-fn shown(show: fn(&mut Ui, &mut StoryData) -> StoryOutput) -> Fixture {
-    let mut fixture = Fixture::story(&Story::new("dials", show));
+fn shown(show: fn(&mut Ui, &mut StoryData) -> StoryOutput) -> Harness {
+    let mut fixture = Harness::story(&Story::new("dials", show));
     fixture.settle();
     fixture
 }
 
-fn angle(fixture: &Fixture) -> f64 {
+fn angle(fixture: &Harness) -> f64 {
     *fixture.data().value("angle", f64::NAN)
 }
 
-fn key(fixture: &mut Fixture, key: Key, modifiers: Modifiers) {
+fn key(fixture: &mut Harness, key: Key, modifiers: Mods) {
     fixture.key(key, modifiers);
     fixture.idle(2);
 }
 
-fn focused(show: fn(&mut Ui, &mut StoryData) -> StoryOutput) -> Fixture {
+fn focused(show: fn(&mut Ui, &mut StoryData) -> StoryOutput) -> Harness {
     let mut fixture = shown(show);
-    key(&mut fixture, Key::Tab, Modifiers::NONE);
+    key(&mut fixture, Key::Tab, Mods::NONE);
     fixture
 }
 
 #[trial]
 fn a_dial_wraps_round_a_turn_and_stops_at_the_ends_of_a_narrower_range() {
     let mut turn = focused(at_turn_end);
-    key(&mut turn, Key::ArrowRight, Modifiers::NONE);
+    key(&mut turn, Key::ArrowRight, Mods::NONE);
     assert_eq!(angle(&turn), -179.0, "one step past 180 continues from -180 by the overshoot");
 
     let mut stops = focused(quarter_end);
-    key(&mut stops, Key::ArrowRight, Modifiers::NONE);
+    key(&mut stops, Key::ArrowRight, Mods::NONE);
     assert_eq!(angle(&stops), 90.0);
 
     let mut wraps = focused(quarter_end_wrapping);
-    key(&mut wraps, Key::ArrowRight, Modifiers::NONE);
+    key(&mut wraps, Key::ArrowRight, Mods::NONE);
     assert_eq!(angle(&wraps), 1.0, "a range that wraps by choice continues from its start");
 }
 
@@ -61,7 +63,7 @@ fn point(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     PointPicker::new(data.bind("point", start), 0.0..=100.0, 0.0..=100.0).step(1.0).label("Point").show(ui).into()
 }
 
-fn edits(fixture: &mut Fixture) -> Vec<EditKind> {
+fn edits(fixture: &mut Harness) -> Vec<EditKind> {
     fixture.take_outputs().into_iter().flat_map(|output| output.edits).collect()
 }
 
@@ -82,7 +84,7 @@ fn a_press_on_the_well_sets_the_point_before_any_drag_and_the_release_commits_it
     assert_eq!(*fixture.data().value("point", [Mixed::Mixed; 2]), [Mixed::Same(25.0), Mixed::Same(25.0)]);
 
     fixture.drag_hold_at(well.max - well.size() * 0.25, Vec2::ZERO);
-    fixture.key(Key::Escape, Modifiers::NONE);
+    fixture.key(Key::Escape, Mods::NONE);
     fixture.release_at(well.max - well.size() * 0.25);
     assert_eq!(*fixture.data().value("point", [Mixed::Mixed; 2]), [Mixed::Same(25.0), Mixed::Same(25.0)], "Escape restores the start");
 }
@@ -92,14 +94,14 @@ fn a_press_on_the_well_sets_the_point_before_any_drag_and_the_release_commits_it
 #[trial]
 fn page_keys_move_the_point_a_tenth_up_and_down_and_home_and_end_reach_the_side_edges() {
     let mut fixture = focused(point);
-    let at = |fixture: &Fixture| *fixture.data().value("point", [Mixed::Mixed; 2]);
+    let at = |fixture: &Harness| *fixture.data().value("point", [Mixed::Mixed; 2]);
     let start = at(&fixture);
-    key(&mut fixture, Key::PageUp, Modifiers::NONE);
+    key(&mut fixture, Key::PageUp, Mods::NONE);
     assert_eq!(at(&fixture), [start[0], Mixed::Same(40.0)], "y grows downwards, so up is a tenth of 100 less");
-    key(&mut fixture, Key::PageDown, Modifiers::NONE);
+    key(&mut fixture, Key::PageDown, Mods::NONE);
     assert_eq!(at(&fixture), start);
-    key(&mut fixture, Key::End, Modifiers::NONE);
+    key(&mut fixture, Key::End, Mods::NONE);
     assert_eq!(at(&fixture), [Mixed::Same(100.0), start[1]]);
-    key(&mut fixture, Key::Home, Modifiers::NONE);
+    key(&mut fixture, Key::Home, Mods::NONE);
     assert_eq!(at(&fixture), [Mixed::Same(0.0), start[1]]);
 }

@@ -1,12 +1,13 @@
 //! The label scheme a container sets: a form's rows and an inspector's rows, and the captions of a bar.
 
+use craft_ui::Ui;
 use craft_ui::bars::{Bar, BarKind};
 use craft_ui::choice::{Checkbox, Radio, RadioGroup};
 use craft_ui::contract::{Bind, FieldLayout, GlyphColon, GlyphLabel, LabelKind, LabelScheme, Props as _, Show as _, ShowContainer as _, SideLabel};
 use craft_ui::form::{Field, FieldGroup};
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::geom::Rect;
+use craft_ui::testing::{Harness, trial};
 use craft_ui::text::{HexField, NumberField};
-use egui::{Rect, Ui};
 
 const SHORT: &str = "Size";
 const LONG: &str = "Corner radius";
@@ -14,8 +15,8 @@ const LONG: &str = "Corner radius";
 const SLACK: f32 = 0.5;
 
 /// Two fields of different caption lengths in a group under `scheme`.
-fn rows(scheme: LabelScheme) -> Fixture {
-    let mut fixture = Fixture::new(move |ui| {
+fn rows(scheme: LabelScheme) -> Harness {
+    let mut fixture = Harness::new_ui(move |ui| {
         FieldGroup::new("Shape").labels(scheme).show(ui, |ui, _| {
             for name in [SHORT, LONG] {
                 Field::new(name).show(ui, |ui, _| {
@@ -28,15 +29,15 @@ fn rows(scheme: LabelScheme) -> Fixture {
     fixture
 }
 
-fn colons(fixture: &Fixture) -> usize {
+fn colons(fixture: &Harness) -> usize {
     fixture.texts().iter().filter(|run| run.text.trim() == ":").count()
 }
 
-fn caption(fixture: &Fixture, text: &str) -> Rect {
+fn caption(fixture: &Harness, text: &str) -> Rect {
     fixture.texts().iter().find(|run| run.text == text).map(|run| run.rect).unwrap_or_else(|| panic!("{text:?} is painted"))
 }
 
-fn control(fixture: &Fixture, name: &str) -> Rect {
+fn control(fixture: &Harness, name: &str) -> Rect {
     fixture.by_label(name).unwrap_or_else(|| panic!("{name:?} names its control")).rect
 }
 
@@ -80,7 +81,7 @@ fn glyph_field(ui: &mut Ui) {
 /// In a bar every caption ends with a colon, a glyph's as well ("X:"); elsewhere a glyph takes none.
 #[trial]
 fn a_glyph_caption_takes_a_colon_in_a_bar_only() {
-    let mut bar = Fixture::new(|ui| {
+    let mut bar = Harness::new_ui(|ui| {
         Bar::new("Options", BarKind::Options).show(ui, |ui, _| glyph_field(ui));
     });
     bar.settle();
@@ -91,7 +92,7 @@ fn a_glyph_caption_takes_a_colon_in_a_bar_only() {
         colon.min.x >= caption(&bar, "X").max.x - SLACK && colon.max.x <= field.min.x + SLACK,
         "the colon follows the glyph, clear of the control: {colon:?} {field:?}"
     );
-    let mut plain = Fixture::new(glyph_field);
+    let mut plain = Harness::new_ui(glyph_field);
     plain.settle();
     assert_eq!(colons(&plain), 0, "a glyph caption outside a bar takes no colon");
 }
@@ -101,7 +102,7 @@ fn a_glyph_caption_takes_a_colon_in_a_bar_only() {
 #[trial]
 fn a_glyph_caption_takes_a_forms_colon_under_the_form_rule_and_the_hex_hash_does_not() {
     let form = |rule: Option<GlyphColon>| {
-        let mut fixture = Fixture::new(|ui| {
+        let mut fixture = Harness::new_ui(|ui| {
             FieldGroup::new("Transform").labels(LabelScheme::Form).show(ui, |ui, _| {
                 Field::new("Horizontal position").side(SideLabel::new().kind(LabelKind::Glyph(GlyphLabel::caption("X")))).show(ui, |ui, _| {
                     NumberField::new("Horizontal position", Bind::given(Some(10.0))).show(ui);
@@ -134,7 +135,7 @@ fn a_glyph_caption_takes_a_forms_colon_under_the_form_rule_and_the_hex_hash_does
 #[trial]
 fn a_forms_check_box_row_starts_in_the_control_column() {
     let check = |scheme: LabelScheme, labelled: bool| {
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             FieldGroup::new("Export").labels(scheme).show(ui, |ui, _| {
                 if labelled {
                     Field::new(LONG).show(ui, |ui, _| {

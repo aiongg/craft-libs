@@ -14,7 +14,7 @@ use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, GlyphRole, StyleCx, SurfaceKind};
 use craft_behavior::{IconId, Metrics, NavShape, Roving, Sense};
 use craft_theme::ControlSize;
-use egui::{Response, Ui};
+use craft_ui::{Response, Ui};
 use std::num::NonZeroU8;
 
 /// The trailing group's content.

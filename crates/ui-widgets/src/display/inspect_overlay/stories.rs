@@ -7,7 +7,7 @@ use crate::contract::{Props as _, Show as _, ShowContainer as _};
 use crate::layout_components::Stack;
 use crate::runtime::inspect;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
-use egui::{Id, Ui};
+use craft_ui::{Id, Ui};
 
 #[story(InspectOverlay, covers = [Default], drive = Drive::Never)]
 fn inspect_overlay(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {

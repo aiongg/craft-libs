@@ -12,7 +12,7 @@ use crate::runtime::env::{Env, Label, Units};
 use crate::text::{InvalidZoom, ZoomField};
 use craft_behavior::kurbo::Size;
 use craft_behavior::{EditEvents, IconId, Mixed, PixelSize};
-use egui::{Response, Ui};
+use craft_ui::{Response, Ui};
 use std::time::Duration;
 
 #[cfg(feature = "suite")]
@@ -102,7 +102,7 @@ impl StatusItem {
     }
 
     /// The item's text for `values`, a dash when the value is missing.
-    fn text(self, values: &StatusValues, words: &BarWords, env: &Env, ctx: &egui::Context) -> String {
+    fn text(self, values: &StatusValues, words: &BarWords, env: &Env, ctx: &craft_ui::Context) -> String {
         let units: Units = env.units();
         let given = |value: &Option<String>| value.clone().unwrap_or_else(|| MISSING.to_owned());
         match self {

@@ -8,6 +8,8 @@ use craft_ui::contract::{
     Bind, CanvasGesture, Common, Component, Cx, MeasureCx, Overlay, OverlayUi, Overlays as _, Pointer as _, Props as _, Role, Sampler as _,
     Show as _, Trigger,
 };
+use craft_ui::geom::{Pos2, Rect, Vec2};
+use craft_ui::input::{Key, Mods};
 use craft_ui::runtime::focus::Initial;
 use craft_ui::runtime::sampler;
 use craft_ui::style::StyleCx;
@@ -16,7 +18,8 @@ use craft_ui::testing::input::key_press;
 use craft_ui::testing::pointer::{middle, moved, wheel, zoom_wheel};
 use craft_ui::testing::{Frames, trial};
 use craft_ui::text::NumberField;
-use egui::{Event, Id, Key, Modifiers, Pos2, Rect, Response, Ui, Vec2};
+use craft_ui::{Id, Response, Ui};
+use egui::Event;
 use std::cell::{Cell, RefCell};
 
 const OPENER: Rect = Rect { min: Pos2::new(600.0, 100.0), max: Pos2::new(680.0, 120.0) };
@@ -199,7 +202,7 @@ impl Scene {
         let shown = Surface { common: Common::new(), took: &self.canvas, outside: self.outside.get() }.id_salt("canvas").show_at(ui, CANVAS);
         // The host's entry for its running tool, as `ToolHost::run` calls it each pass.
         if let Some(gesture) = self.tool.get() {
-            sampler::pass_tool_gesture(ui.ctx(), shown.id, gesture);
+            ui.pass_tool_gesture(shown.id, gesture);
         }
         Dialog { common: Common::new(), scene: self, canvas }.id_salt("dialog").show_at(ui, OPENER);
     }
@@ -237,7 +240,7 @@ impl Scene {
     }
 
     /// A press of `button` at `at` with `modifiers` held, a move by `by` and the release.
-    fn drag_with(&self, frames: &mut Frames, button: egui::PointerButton, modifiers: Modifiers, at: Pos2, by: Vec2) {
+    fn drag_with(&self, frames: &mut Frames, button: craft_ui::input::PointerButton, modifiers: Mods, at: Pos2, by: Vec2) {
         let event = |pos, pressed| Event::PointerButton { pos, button, pressed, modifiers };
         self.frame(frames, vec![moved(at)]);
         self.frame(frames, vec![event(at, true)]);
@@ -249,7 +252,7 @@ impl Scene {
 
     /// A primary press at `at`, a move by `by` and the release.
     fn drag(&self, frames: &mut Frames, at: Pos2, by: Vec2) {
-        self.drag_with(frames, egui::PointerButton::Primary, Modifiers::NONE, at, by);
+        self.drag_with(frames, craft_ui::input::PointerButton::Primary, Mods::NONE, at, by);
     }
 
     /// The dialog is open and keeps key focus.
@@ -294,7 +297,7 @@ fn a_kept_view_passes_the_wheel_and_the_middle_pan_and_blocks_the_primary_press(
     scene.settle(&mut frames, 2);
     assert!(scene.canvas.borrow().wheels > scene.canvas.borrow().zooms, "the scroll reached the canvas");
     assert!(scene.canvas.borrow().zooms > 0, "the zoom reached the canvas");
-    scene.drag_with(&mut frames, egui::PointerButton::Middle, Modifiers::NONE, CANVAS.center(), Vec2::new(40.0, 10.0));
+    scene.drag_with(&mut frames, craft_ui::input::PointerButton::Middle, Mods::NONE, CANVAS.center(), Vec2::new(40.0, 10.0));
     assert!(scene.took(PointerButton::Middle) && scene.dragged_canvas(), "the middle-button pan reached the canvas");
     scene.forget_canvas();
     scene.drag(&mut frames, CANVAS.center(), Vec2::new(40.0, 10.0));
@@ -343,9 +346,9 @@ fn a_gesture_with_a_modifier_passes_only_with_the_modifier_held() {
     scene.open_dialog(&mut frames);
     scene.drag(&mut frames, CANVAS.center(), Vec2::new(40.0, 10.0));
     assert!(!scene.took(PointerButton::Primary), "a plain press stayed blocked");
-    scene.drag_with(&mut frames, egui::PointerButton::Primary, Modifiers::SHIFT, CANVAS.center(), Vec2::new(40.0, 10.0));
+    scene.drag_with(&mut frames, craft_ui::input::PointerButton::Primary, Mods::SHIFT, CANVAS.center(), Vec2::new(40.0, 10.0));
     assert!(!scene.took(PointerButton::Primary), "a press with another modifier stayed blocked");
-    scene.drag_with(&mut frames, egui::PointerButton::Primary, Modifiers::COMMAND, CANVAS.center(), Vec2::new(40.0, 10.0));
+    scene.drag_with(&mut frames, craft_ui::input::PointerButton::Primary, Mods::COMMAND, CANVAS.center(), Vec2::new(40.0, 10.0));
     assert!(scene.took(PointerButton::Primary) && scene.dragged_canvas(), "the ⌘-press and its drag reached the canvas");
     scene.assert_dialog_holds(&frames);
 }
@@ -414,7 +417,7 @@ fn a_press_under_a_modal_starts_nothing_on_the_canvas() {
         scene.open.set(false);
     }
     let at = CANVAS.center();
-    let press = |pos, pressed| Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    let press = |pos, pressed| Event::PointerButton { pos, button: craft_ui::input::PointerButton::Primary, pressed, modifiers: Mods::NONE };
     scene.frame(&mut frames, vec![moved(at), press(at, true)]);
     scene.frame(&mut frames, vec![moved(at + Vec2::new(20.0, 5.0))]);
     scene.frame(&mut frames, vec![moved(at + Vec2::new(40.0, 10.0))]);
@@ -437,7 +440,7 @@ fn a_press_the_kept_canvas_takes_does_not_nudge_the_dialog() {
     scene.open_dialog(&mut frames);
     let rest = layer_rects(&frames.ctx);
     assert_eq!(rest.len(), 1, "the dialog's layer shows: {rest:?}");
-    let press = |pos, pressed| Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    let press = |pos, pressed| Event::PointerButton { pos, button: craft_ui::input::PointerButton::Primary, pressed, modifiers: Mods::NONE };
     // A press and release at `at`, then a few frames; whether the dialog's layer moved from its rest meanwhile.
     let moved_by_press = |frames: &mut Frames, at: Pos2| {
         let mut moved_away = false;

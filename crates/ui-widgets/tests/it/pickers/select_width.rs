@@ -2,7 +2,7 @@
 
 use craft_ui::contract::{Bind, Entry, Props as _, Show as _, Sizing};
 use craft_ui::pickers::{Select, SelectLook};
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::testing::{Harness, trial};
 use std::cell::Cell;
 use std::rc::Rc;
 
@@ -10,9 +10,9 @@ use std::rc::Rc;
 /// widest entry whole.
 #[trial]
 fn a_content_sized_select_fits_its_widest_entry() {
-    let rects = Rc::new(Cell::new([egui::Rect::NOTHING; 2]));
+    let rects = Rc::new(Cell::new([craft_ui::geom::Rect::NOTHING; 2]));
     let seen = rects.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let entries = [Entry::new(0u8, "One"), Entry::new(1u8, "Twelve")];
         let plain = Select::new("Plain", Bind::given(1u8), &entries).show(ui).response.rect;
         let fitted = Select::new("Fitted", Bind::given(1u8), &entries).sizing(Sizing::Content).show(ui).response.rect;
@@ -29,7 +29,7 @@ fn a_content_sized_select_fits_its_widest_entry() {
 fn quiet_width(held: u8) -> f32 {
     let width = Rc::new(Cell::new(0.0));
     let seen = width.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let entries = [Entry::new(0u8, "Essentials"), Entry::new(1u8, "Print production and prepress")];
         seen.set(Select::new("Workspace", Bind::given(held), &entries).look(SelectLook::Quiet).show(ui).response.rect.width());
     });
@@ -49,15 +49,15 @@ fn a_quiet_select_fits_the_entry_it_shows() {
 #[trial]
 fn a_filled_select_lies_on_the_control_surface_at_a_fields_width() {
     let shown = |look: SelectLook, held: u8| {
-        let rect = Rc::new(Cell::new(egui::Rect::NOTHING));
+        let rect = Rc::new(Cell::new(craft_ui::geom::Rect::NOTHING));
         let seen = rect.clone();
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             let entries = [Entry::new(0u8, "Essentials"), Entry::new(1u8, "Print production and prepress")];
             seen.set(Select::new("Workspace", Bind::given(held), &entries).look(look).show(ui).response.rect);
         });
         fixture.settle();
         let control = craft_ui::style::StyleCx::with_root(fixture.ctx(), |cx| cx.tokens.color.surface.control).0;
-        let control = egui::Color32::from_rgba_unmultiplied(control[0], control[1], control[2], control[3]);
+        let control = craft_ui::Color32::from_rgba_unmultiplied(control[0], control[1], control[2], control[3]);
         let box_rect = rect.get();
         let filled = fixture.frame_shapes().iter().any(|shape| {
             matches!(shape, egui::Shape::Rect(fill) if fill.fill == control && fill.rect.expand(0.5).contains_rect(box_rect) && box_rect.expand(0.5).contains_rect(fill.rect))

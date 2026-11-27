@@ -2,10 +2,11 @@
 
 use super::kit::{Leaf, PlainStyle, Seen};
 use craft_behavior::Sense;
+use craft_ui::Response;
 use craft_ui::contract::{Common, Component, Cx, MeasureCx, Overlay, OverlayUi, Overlays as _, Pages, Props as _, Role, Show as _, Sizing};
+use craft_ui::geom::Vec2;
 use craft_ui::style::StyleCx;
-use craft_ui::testing::{Fixture, Room, trial};
-use egui::{Response, Vec2};
+use craft_ui::testing::{Harness, Room, trial};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -82,9 +83,9 @@ impl Component for PagedOpener<'_> {
     }
 }
 
-fn fixture(paged: &Rc<Paged>) -> Fixture {
+fn fixture(paged: &Rc<Paged>) -> Harness {
     let shown = paged.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         PagedOpener { common: Common::new(), paged: &shown }.label("Paint").show(ui);
     });
     fixture.in_room(Room::Window);

@@ -6,7 +6,7 @@ use crate::display::Text;
 use crate::layout_components::Grid;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use craft_behavior::ColumnWidth;
-use egui::Ui;
+use craft_ui::Ui;
 
 /// The name and the spinner of each size, in two columns that fit their content.
 const COLUMNS: [ColumnWidth; 2] = [ColumnWidth::Content, ColumnWidth::Content];

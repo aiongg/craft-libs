@@ -11,7 +11,7 @@ use craft_theme::{
     Stateful, States, Variant,
     variant::{Emphasis, Tone},
 };
-use egui::{Rect, Vec2, pos2};
+use craft_ui::geom::{Rect, Vec2, pos2};
 
 /// The parts of a button's look that the face paints besides its text and icon looks.
 #[derive(Clone, Debug, PartialEq)]

@@ -2,21 +2,22 @@
 //! value differs, and the dot's tooltip names the default as the field words it.
 
 use craft_behavior::PartKey;
+use craft_ui::Id;
 use craft_ui::contract::tooltip::DELAY;
 use craft_ui::contract::{Bind, Props as _, Show as _, ShowContainer as _, SideLabel};
 use craft_ui::form::Field;
+use craft_ui::geom::Pos2;
 use craft_ui::runtime::memory::sub;
 use craft_ui::testing::pointer::moved;
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::testing::{Harness, trial};
 use craft_ui::text::NumberField;
-use egui::{Id, Pos2};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 /// The label leaf's reset dot.
 const DOT: PartKey = PartKey::new("reset");
 
-fn texts(fixture: &Fixture) -> Vec<String> {
+fn texts(fixture: &Harness) -> Vec<String> {
     fixture.texts().iter().map(|run| run.text.clone()).collect()
 }
 
@@ -25,7 +26,7 @@ fn a_text_field_with_a_reset_value_shows_the_dot_and_its_tooltip_names_the_defau
     let value = Rc::new(RefCell::new(Some(40.0_f64)));
     let field = Rc::new(Cell::new(Id::NULL));
     let (bound, seen) = (Rc::clone(&value), Rc::clone(&field));
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let mut value = bound.borrow_mut();
         let shown = Field::new("Opacity").side(SideLabel::new().reset_dot(true)).id_salt("reset").show(ui, |ui, _| {
             NumberField::new("Opacity", Bind::bound(&mut *value).reset(Some(25.0))).show(ui);
@@ -36,11 +37,11 @@ fn a_text_field_with_a_reset_value_shows_the_dot_and_its_tooltip_names_the_defau
     let label = sub(field.get(), "label");
     let dot = fixture.part_rect(label, DOT).unwrap_or_else(|| panic!("a value away from its reset value shows the dot"));
     let before = texts(&fixture);
-    fixture.frame(vec![moved(dot.center())]);
+    fixture.send(moved(dot.center()));
     fixture.advance(DELAY);
     fixture.settle();
     let tips: Vec<String> = texts(&fixture).into_iter().filter(|text| !before.contains(text)).collect();
-    fixture.frame(vec![moved(Pos2::ZERO)]);
+    fixture.send(moved(Pos2::ZERO));
     fixture.settle();
     fixture.click_at(dot.center());
     fixture.settle();

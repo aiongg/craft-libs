@@ -13,7 +13,7 @@ use crate::runtime::toast;
 use crate::testing::{Drive, StoryData, StoryOutput, stage, story};
 use craft_behavior::IconId;
 use craft_theme::variant::Tone;
-use egui::Ui;
+use craft_ui::Ui;
 
 #[story(Notice<'static>, covers = [Default])]
 fn notice(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {

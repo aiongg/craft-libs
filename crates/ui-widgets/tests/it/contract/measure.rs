@@ -1,11 +1,12 @@
 //! A container's measure: its body's children measured under its layout, plus its pad, from this pass's content.
 
 use craft_behavior::Proposal;
+use craft_ui::Ui;
 use craft_ui::contract::{Gap, Pad, Props as _, Show, ShowContainer};
+use craft_ui::geom::{Rect, Vec2};
 use craft_ui::layout_components::Stack;
 use craft_ui::testing::layout::Block;
 use craft_ui::testing::{Frames, trial};
-use egui::{Rect, Ui, Vec2};
 use std::cell::Cell;
 
 const BLOCK: Vec2 = Vec2::new(40.0, 20.0);

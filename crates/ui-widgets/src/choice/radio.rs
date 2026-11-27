@@ -11,7 +11,8 @@ use crate::runtime::env::EnvValue;
 use crate::style::{ComponentStyle, Flags, FocusLook, StyleColor, StyleCx, SurfaceLook};
 use craft_behavior::{Metrics, NavShape, Roving, Value};
 use craft_theme::Stateful;
-use egui::{CornerRadius, Rect, Vec2};
+use craft_ui::CornerRadius;
+use craft_ui::geom::{Rect, Vec2};
 use std::marker::PhantomData;
 use std::sync::{Arc, Mutex};
 
@@ -179,7 +180,7 @@ impl<T: Value + 'static> Component for Radio<T> {
     const PARTS: bool = false;
     const OVERLAYS: bool = false;
     type Style = RadioStyle;
-    type Output = egui::Response;
+    type Output = craft_ui::Response;
 
     fn style(cx: &StyleCx<'_>, _: RadioStyleKey<T>) -> RadioStyle {
         let control = cx.control();
@@ -226,7 +227,7 @@ impl<T: Value + 'static> Component for Radio<T> {
         }
     }
 
-    fn finish(self, cx: Cx<'_, Self>) -> egui::Response {
+    fn finish(self, cx: Cx<'_, Self>) -> craft_ui::Response {
         cx.response.clone()
     }
 }

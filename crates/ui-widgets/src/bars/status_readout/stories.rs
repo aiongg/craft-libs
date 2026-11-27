@@ -5,7 +5,7 @@ use crate::bars::{Bar, BarKind};
 use crate::contract::ShowContainer as _;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use craft_behavior::kurbo::Size;
-use egui::Ui;
+use craft_ui::Ui;
 use std::time::Duration;
 
 /// The document the readout zooms, in document units.

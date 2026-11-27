@@ -7,9 +7,9 @@ use craft_ui::buttons::Button;
 use craft_ui::choice::{Radio, RadioGroup};
 use craft_ui::contract::{Bind, FieldLayout, Gap, LeastWidth, Pad, Props as _, Scroll, Show as _, ShowContainer as _, SideLabel, Sizing, WrapWidth};
 use craft_ui::display::Text;
+use craft_ui::geom::{Rect, Vec2};
 use craft_ui::layout_components::{Row, Stack};
-use craft_ui::testing::{Fixture, trial};
-use egui::{Rect, Vec2};
+use craft_ui::testing::{Harness, trial};
 use std::cell::Cell;
 use std::rc::Rc;
 
@@ -21,13 +21,13 @@ const LONG: &str = "Save a copy in another format. Printing goes through a PDF y
 fn shown(stack: fn() -> Stack<'static>, long: bool) -> (Rect, Rect) {
     let seen = Rc::new(Cell::new((Rect::NOTHING, Rect::NOTHING)));
     let out = Rc::clone(&seen);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let child = Cell::new(Rect::NOTHING);
         let shown = stack().show(ui, |ui, _| {
             let rect = if long { Text::new(LONG).show(ui).rect } else { Button::new("Home").show(ui).rect };
             child.set(rect);
         });
-        if !ui.is_sizing_pass() {
+        if !ui.is_measuring() {
             out.set((shown.output.rect, child.get()));
         }
     });
@@ -51,7 +51,7 @@ fn a_side_menu_in_a_row_keeps_its_least_width() {
     let shown = |least: bool| {
         let seen = Rc::new(Cell::new((Rect::NOTHING, Rect::NOTHING)));
         let out = Rc::clone(&seen);
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             let (menu, page) = (Cell::new(Rect::NOTHING), Cell::new(Rect::NOTHING));
             let _ = Row::new().fill().show(ui, |ui, _| {
                 let mut stack = Stack::new().sizing(Sizing::FillHeight).gap(Gap::None).scroll(Scroll::vertical()).footer(|ui, _| {
@@ -78,7 +78,7 @@ fn a_side_menu_in_a_row_keeps_its_least_width() {
                         .rect,
                 );
             });
-            if !ui.is_sizing_pass() {
+            if !ui.is_measuring() {
                 out.set((menu.get(), page.get()));
             }
         });
@@ -99,10 +99,10 @@ fn a_pages_padding_is_two_and_a_half_roomy_pads() {
     let inset = |pad: Pad| {
         let seen = Rc::new(Cell::new(Vec2::ZERO));
         let out = Rc::clone(&seen);
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             let child = Cell::new(Rect::NOTHING);
             let shown = Stack::new().pad(pad).show(ui, |ui, _| child.set(Button::new("Home").show(ui).rect));
-            if !ui.is_sizing_pass() {
+            if !ui.is_measuring() {
                 out.set(child.get().min - shown.output.rect.min);
             }
         });
@@ -133,7 +133,7 @@ fn a_wrapping_row_breaks_at_the_stacks_wrap_width() {
     let shown = |wrap: Option<WrapWidth>| {
         let seen = Rc::new(Cell::new((Rect::NOTHING, Rect::NOTHING, Rect::NOTHING)));
         let out = Rc::clone(&seen);
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             let (first, last) = (Cell::new(Rect::NOTHING), Cell::new(Rect::NOTHING));
             let stack = match wrap {
                 Some(wrap) => Stack::new().wrap_width(wrap),
@@ -150,7 +150,7 @@ fn a_wrapping_row_breaks_at_the_stacks_wrap_width() {
                     }
                 });
             });
-            if !ui.is_sizing_pass() {
+            if !ui.is_measuring() {
                 out.set((shown.output.rect, first.get(), last.get()));
             }
         });
@@ -171,7 +171,7 @@ fn a_wrapping_row_breaks_at_the_stacks_wrap_width() {
 /// sliver left at the end (Page Setup's "Text snaps to characters").
 #[trial]
 fn labelled_radios_in_a_wrapping_row_break_onto_a_new_line() {
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let _ = Stack::new().wrap_width(WrapWidth::Column).show(ui, |ui, _| {
             let after = SideLabel::new().layout(FieldLayout::After);
             let _ = RadioGroup::new("Grid", Bind::given(0u8)).show(ui, |ui, cx| {
@@ -197,14 +197,14 @@ fn labelled_radios_in_a_wrapping_row_break_onto_a_new_line() {
 fn a_fill_width_child_of_a_scrolling_stack_leaves_the_bars_lane() {
     let seen = Rc::new(Cell::new((Rect::NOTHING, Rect::NOTHING)));
     let out = Rc::clone(&seen);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let child = Cell::new(Rect::NOTHING);
         let shown = Stack::new().sizing(Sizing::FillHeight).least_width(LeastWidth::Dialog).scroll(Scroll::vertical()).show(ui, |ui, _| {
             for _ in 0..30 {
                 child.set(Button::new("Save these pages as PDF…").sizing(Sizing::FillWidth).show(ui).rect);
             }
         });
-        if !ui.is_sizing_pass() {
+        if !ui.is_measuring() {
             out.set((shown.output.rect, child.get()));
         }
     });

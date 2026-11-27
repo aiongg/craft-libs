@@ -6,7 +6,7 @@ use crate::runtime::env::{Message, UnitKind};
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use crate::value_drag::{SliderScale, TrackPress};
 use craft_behavior::Mixed;
-use egui::Ui;
+use craft_ui::Ui;
 
 const PERCENT: std::ops::RangeInclusive<f64> = 0.0..=100.0;
 const CAP: f64 = 80.0;

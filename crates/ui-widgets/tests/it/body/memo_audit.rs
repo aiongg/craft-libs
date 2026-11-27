@@ -4,6 +4,7 @@
 
 use craft_ui::buttons::Button;
 use craft_ui::contract::{ContainerProps, Lazy, MemoProps, MemoView, Props as _, Scroll, Show as _, ShowCollection as _, ShowContainer as _};
+use craft_ui::geom::{Pos2, Rect, Vec2};
 use craft_ui::list::{List, ListRow};
 use craft_ui::runtime::lock_keys;
 use craft_ui::style::SurfaceKind;
@@ -12,8 +13,8 @@ use craft_ui::testing::pointer::{moved, wheel};
 use craft_ui::testing::{
     Frames, MemoRun, audit_replays, in_audit_run, last_frame_memo_runs, last_pass_memo_runs, last_pass_runs, last_pass_text_layouts, trial,
 };
+use craft_ui::{Color32, Ui};
 use craft_ui_test_kit::body::Slab;
-use egui::{Color32, Pos2, Rect, Ui, Vec2};
 use std::cell::Cell;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
@@ -79,7 +80,7 @@ struct Swatch {
 fn swatch(props: &mut Swatch, ui: &mut Ui) {
     let (rect, _) = ui.allocate_exact_size(Vec2::splat(props.size), egui::Sense::hover());
     let shade = u8::try_from(HIDDEN.get() % 256).unwrap_or(0);
-    ui.painter().rect_filled(rect, 0.0, Color32::from_gray(shade));
+    ui.draw().rect_filled(rect, 0.0, Color32::from_gray(shade));
 }
 
 /// A view whose paint alone went stale fails the audit, naming the view and the paint difference only.
@@ -148,7 +149,7 @@ struct InputReader {
 
 fn input_reader(props: &mut InputReader, ui: &mut Ui) {
     if HIDDEN.get() % 2 == 1 {
-        let _ = lock_keys::caps_lock(ui.ctx());
+        let _ = ui.ctx().caps_lock();
     }
     ui.allocate_exact_size(Vec2::splat(props.size), egui::Sense::hover());
 }
@@ -230,7 +231,7 @@ fn honest_scene(on: bool) -> (Vec<Counted>, usize) {
             in_region(ui, region(1), |ui| MemoView::new("outer", Outer { title: "Outer".to_owned(), inner: "Inner".to_owned() }, outer).show(ui));
         });
         let ctx = &frames.ctx;
-        let runs = |all: Vec<(&'static str, egui::Id, MemoRun)>| all.into_iter().map(|(name, _, run)| (name, run)).collect::<Vec<_>>();
+        let runs = |all: Vec<(&'static str, craft_ui::Id, MemoRun)>| all.into_iter().map(|(name, _, run)| (name, run)).collect::<Vec<_>>();
         let components = last_pass_runs(ctx).iter().map(|(_, runs)| runs).sum();
         counted.push((runs(last_pass_memo_runs(ctx)), runs(last_frame_memo_runs(ctx)), components, last_pass_text_layouts(ctx), passes));
     }
@@ -258,7 +259,7 @@ struct Gpu {
 
 fn gpu(props: &mut Gpu, ui: &mut Ui) {
     let (rect, _) = ui.allocate_exact_size(Vec2::splat(props.size), egui::Sense::hover());
-    ui.painter().add(egui::PaintCallback { rect, callback: Arc::new(()) });
+    ui.draw().add(egui::PaintCallback { rect, callback: Arc::new(()) });
 }
 
 /// A view that paints a paint callback runs every pass: a replay could not repeat what the callback paints, nor could

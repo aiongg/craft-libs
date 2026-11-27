@@ -18,7 +18,8 @@ use craft_theme::{
     Rgba, Stateful, Variant,
     variant::{Emphasis, Tone},
 };
-use egui::{Color32, Rect, Response, Vec2};
+use craft_ui::geom::{Rect, Vec2};
+use craft_ui::{Color32, Response};
 use std::ops::Deref;
 use std::sync::Arc;
 

@@ -30,7 +30,8 @@ use craft_behavior::{
     PressPhase, Roving, Selection, Sense,
 };
 use craft_keymap::{Chord, Key, Mods};
-use egui::{CornerRadius, Pos2, Rect, Response, Ui, Vec2, pos2, vec2};
+use craft_ui::geom::{Pos2, Rect, Vec2, pos2, vec2};
+use craft_ui::{CornerRadius, Response, Ui};
 use std::borrow::Cow;
 use std::cell::RefCell;
 use std::hash::Hash;
@@ -209,7 +210,7 @@ impl GridSizes {
     }
 
     /// An equal card: a picture `side` wide with the aspect `aspect`, and what the tile adds around it.
-    fn card(&self, side: f32, aspect: f32, around: Around) -> egui::Vec2 {
+    fn card(&self, side: f32, aspect: f32, around: Around) -> craft_ui::geom::Vec2 {
         vec2(side, side / aspect) + around.size()
     }
 }

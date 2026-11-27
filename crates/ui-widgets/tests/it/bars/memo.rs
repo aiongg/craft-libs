@@ -3,17 +3,19 @@
 //! idle frames replay them, a change to what one holds runs only that one, and an event leaves through an `Outbox`.
 
 use craft_behavior::IconId;
+use craft_ui::Ui;
 use craft_ui::bars::{Bar, BarHome, BarItem, BarItems, BarKind, StatusMessage, StatusProgress};
 use craft_ui::buttons::IconButton;
 use craft_ui::contract::{Bind, CommandSet, Entry, MemoProps, MemoView, Outbox, Props as _, Show as _, ShowContainer as _};
 use craft_ui::display::{Divider, Text};
+use craft_ui::geom::{Pos2, Rect, Vec2};
 use craft_ui::layout_components::{Row, Stack};
 use craft_ui::pickers::Select;
 use craft_ui::runtime::commands::CommandScope;
 use craft_ui::runtime::env::Label;
 use craft_ui::testing::layout::in_region;
-use craft_ui::testing::{Fixture, Frames, MemoRun, audit_replays, last_frame_memo_runs, trial};
-use egui::{Pos2, Rect, Shape, Ui, Vec2};
+use craft_ui::testing::{Frames, Harness, MemoRun, audit_replays, last_frame_memo_runs, trial};
+use egui::Shape;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -96,7 +98,7 @@ struct Scene {
 const TOOLBAR_AT: Rect = Rect { min: Pos2::new(10.0, 10.0), max: Pos2::new(410.0, 50.0) };
 const STATUS_AT: Rect = Rect { min: Pos2::new(10.0, 70.0), max: Pos2::new(410.0, 110.0) };
 
-fn scene() -> (Fixture, Rc<RefCell<Scene>>) {
+fn scene() -> (Harness, Rc<RefCell<Scene>>) {
     let state = Rc::new(RefCell::new(Scene {
         items: vec![BarItem::new(ToolCommand::Pick).display(craft_ui::bars::ItemDisplay::Text)],
         current: 0,
@@ -107,7 +109,7 @@ fn scene() -> (Fixture, Rc<RefCell<Scene>>) {
         cancelled: 0,
     }));
     let shared = Rc::clone(&state);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let mut scene = shared.borrow_mut();
         let (mut tool_events, mut status_events) = (Vec::new(), Vec::new());
         {
@@ -133,11 +135,11 @@ fn scene() -> (Fixture, Rc<RefCell<Scene>>) {
 }
 
 /// How many times the views whose props type is named `name` ran, in the last frame.
-fn ran(fixture: &Fixture, name: &str) -> usize {
+fn ran(fixture: &Harness, name: &str) -> usize {
     last_frame_memo_runs(fixture.ctx()).iter().filter(|(of, _, run)| of.contains(name) && *run == MemoRun::Ran).count()
 }
 
-fn replayed(fixture: &Fixture, name: &str) -> usize {
+fn replayed(fixture: &Harness, name: &str) -> usize {
     last_frame_memo_runs(fixture.ctx()).iter().filter(|(of, _, run)| of.contains(name) && *run == MemoRun::Replayed).count()
 }
 
@@ -145,7 +147,7 @@ fn replayed(fixture: &Fixture, name: &str) -> usize {
 fn an_idle_toolbar_and_status_bar_run_nothing() {
     let (mut fixture, _) = scene();
     for _ in 0..3 {
-        fixture.frame(vec![]);
+        fixture.step();
         assert_eq!((ran(&fixture, "ToolbarProps"), ran(&fixture, "StatusProps")), (0, 0), "an idle frame runs neither bar");
         assert_eq!((replayed(&fixture, "ToolbarProps"), replayed(&fixture, "StatusProps")), (1, 1));
     }
@@ -155,7 +157,7 @@ fn an_idle_toolbar_and_status_bar_run_nothing() {
 fn a_tool_change_runs_only_the_toolbar() {
     let (mut fixture, state) = scene();
     state.borrow_mut().current = 1;
-    fixture.frame(vec![]);
+    fixture.step();
     assert_eq!(
         (ran(&fixture, "ToolbarProps"), ran(&fixture, "StatusProps")),
         (1, 0),
@@ -165,7 +167,7 @@ fn a_tool_change_runs_only_the_toolbar() {
     // The selected look fades in, which keeps the view running until it has settled.
     fixture.settle();
     for _ in 0..3 {
-        fixture.frame(vec![]);
+        fixture.step();
     }
     assert_eq!(ran(&fixture, "ToolbarProps"), 0, "then it replays");
 }
@@ -175,9 +177,9 @@ fn a_tool_change_runs_only_the_toolbar() {
 fn a_change_that_resizes_the_toolbar_runs_it_in_the_discard_pass_too() {
     let (mut fixture, state) = scene();
     state.borrow_mut().width = "a much longer caption".to_owned();
-    fixture.frame(vec![]);
+    fixture.step();
     assert_eq!((ran(&fixture, "ToolbarProps"), ran(&fixture, "StatusProps")), (2, 0), "{:?}", last_frame_memo_runs(fixture.ctx()));
-    fixture.frame(vec![]);
+    fixture.step();
     assert_eq!(ran(&fixture, "ToolbarProps"), 0, "then it replays");
 }
 
@@ -185,10 +187,10 @@ fn a_change_that_resizes_the_toolbar_runs_it_in_the_discard_pass_too() {
 fn a_status_progress_change_runs_only_the_status_bar() {
     let (mut fixture, state) = scene();
     state.borrow_mut().fraction = Some(0.5);
-    fixture.frame(vec![]);
+    fixture.step();
     assert_eq!((ran(&fixture, "ToolbarProps"), ran(&fixture, "StatusProps")), (0, 1), "the progress change runs only the status bar");
     state.borrow_mut().message = StatusMessage::new("Saved");
-    fixture.frame(vec![]);
+    fixture.step();
     assert_eq!((ran(&fixture, "ToolbarProps"), ran(&fixture, "StatusProps")), (0, 1), "so does a new message");
 }
 
@@ -284,7 +286,7 @@ const GROUP_TOOLS: usize = 8;
 /// In the bar of `GROUP_TOOLS` tools shown plainly `width` wide at x 0: the select's rect, the last tool's right edge
 /// and the bar's padding before its members (where the lead starts).
 fn plain_group(width: f32) -> (Rect, f32, f32) {
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         in_region(ui, Rect::from_min_size(Pos2::ZERO, Vec2::new(width, 60.0)), |ui| group_bar(&mut GroupProps { tools: GROUP_TOOLS }, ui));
     });
     fixture.room(Vec2::new(width.max(400.0), 80.0)).settle();
@@ -307,7 +309,7 @@ fn a_bar_whose_members_change_lays_out_in_its_own_view() {
     assert!(narrowed.width() < wide.width() - 5.0, "the plain bar narrows its select: {narrowed:?} against {wide:?}");
     let tools = Rc::new(Cell::new(1));
     let shown = Rc::clone(&tools);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         in_region(ui, Rect::from_min_size(Pos2::ZERO, Vec2::new(width, 60.0)), |ui| {
             Row::new().fill_width().show(ui, |ui, _| MemoView::new("options", GroupProps { tools: shown.get() }, group_bar).show(ui));
         });
@@ -315,7 +317,7 @@ fn a_bar_whose_members_change_lays_out_in_its_own_view() {
     fixture.room(Vec2::new(width, 80.0)).settle();
     audit_replays(fixture.ctx(), true);
     tools.set(GROUP_TOOLS);
-    fixture.frame(vec![]).idle(4);
+    fixture.step().idle(4);
     let select = fixture.by_label("Mode").expect("the select").rect;
     let last = fixture.by_label(&format!("Tool {}", GROUP_TOOLS - 1)).expect("the last tool").rect;
     assert!((select.width() - narrowed.width()).abs() <= 0.5, "the select is {select:?}, the plain bar's {narrowed:?}");
@@ -363,7 +365,7 @@ fn a_memoized_lead_ending_in_a_rule_shows_it_only_before_a_member() {
     for after in [false, true] {
         let tick = Rc::new(Cell::new(0));
         let shown = Rc::clone(&tick);
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             in_region(ui, Rect::from_min_size(Pos2::ZERO, Vec2::new(400.0, 60.0)), |ui| {
                 MemoView::new("bar", LeadBar { after, tick: shown.get() }, lead_bar).show(ui);
             });

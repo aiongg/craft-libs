@@ -3,7 +3,8 @@ use crate::contract::{Common, Component, Cx, InBar, InMenu, MeasureCx, PaintUi, 
 use crate::primitives::RuleKind;
 use crate::style::{ComponentStyle, RuleWidth, StyleCx};
 use craft_behavior::{Metrics, Sense};
-use egui::{Response, Vec2};
+use craft_ui::Response;
+use craft_ui::geom::Vec2;
 
 #[cfg(feature = "suite")]
 pub(crate) mod stories;

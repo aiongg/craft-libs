@@ -5,7 +5,7 @@ use craft_ui::buttons::Button;
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::popover::Popover;
 use craft_ui::testing::contract::clicked;
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::testing::{Harness, trial};
 use std::cell::Cell;
 use std::rc::Rc;
 
@@ -13,10 +13,10 @@ const OPENER: &str = "Brush";
 const ITEM: &str = "Reset";
 
 /// A popover the button `OPENER` toggles; a click on its item `ITEM` closes it from inside.
-fn rig() -> (Fixture, Rc<Cell<bool>>) {
+fn rig() -> (Harness, Rc<Cell<bool>>) {
     let open = Rc::new(Cell::new(false));
     let shown = open.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let opener = Button::new(OPENER).show(ui);
         let mut is_open = shown.get();
         if clicked(&opener) {
@@ -34,14 +34,14 @@ fn rig() -> (Fixture, Rc<Cell<bool>>) {
 }
 
 /// A click on the opener, then the frames the focus takes to move into the popover.
-fn open(fixture: &mut Fixture) {
+fn open(fixture: &mut Harness) {
     let opener = fixture.by_label(OPENER).expect("the opener");
     fixture.click(&opener);
     fixture.idle(3);
 }
 
 /// Opens the popover, closes it with `close`, and clicks the opener again at once, while the close fade runs.
-fn reopened_after(close: impl FnOnce(&mut Fixture)) -> (Fixture, Rc<Cell<bool>>) {
+fn reopened_after(close: impl FnOnce(&mut Harness)) -> (Harness, Rc<Cell<bool>>) {
     let (mut fixture, open_flag) = rig();
     open(&mut fixture);
     assert!(fixture.by_label(ITEM).is_some(), "the popover opened");
@@ -52,7 +52,7 @@ fn reopened_after(close: impl FnOnce(&mut Fixture)) -> (Fixture, Rc<Cell<bool>>)
     (fixture, open_flag)
 }
 
-fn assert_open_again(fixture: &Fixture, open: &Cell<bool>) {
+fn assert_open_again(fixture: &Harness, open: &Cell<bool>) {
     assert!(open.get(), "the opener's click opened the popover again");
     assert!(fixture.by_label(ITEM).is_some(), "the popover shows its body again");
 }

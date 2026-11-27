@@ -6,7 +6,7 @@ use crate::contract::{Bind, Show as _, ShowContainer as _};
 use crate::popover::Popover;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use craft_behavior::IconId;
-use egui::Ui;
+use craft_ui::Ui;
 
 fn groups() -> Vec<IconPickerGroup<u8>> {
     vec![

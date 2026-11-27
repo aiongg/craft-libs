@@ -2,11 +2,13 @@
 //! back what was typed. The option under the pointer is previewed without changing the field.
 
 use craft_behavior::Preview;
+use craft_ui::Ui;
 use craft_ui::contract::{Entry, Role, Show as _};
+use craft_ui::geom::Pos2;
+use craft_ui::input::{Key, Mods};
 use craft_ui::pickers::ComboBox;
 use craft_ui::testing::pointer::moved;
-use craft_ui::testing::{Fixture, Story, StoryData, StoryOutput, trial};
-use egui::{Key, Modifiers, Pos2, Ui};
+use craft_ui::testing::{Harness, Story, StoryData, StoryOutput, trial};
 
 const FAMILIES: [&str; 3] = ["Garamond", "Georgia", "Arial"];
 
@@ -30,25 +32,25 @@ fn previewing(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     shown.edit.into()
 }
 
-fn preview(fixture: &mut Fixture) -> Preview<String> {
+fn preview(fixture: &mut Harness) -> Preview<String> {
     fixture.data().value("preview", Preview::<String>::Unchanged).clone()
 }
 
-fn reports(fixture: &mut Fixture) -> u32 {
+fn reports(fixture: &mut Harness) -> u32 {
     *fixture.data().value("reports", 0_u32)
 }
 
 #[trial]
 fn the_hovered_option_is_previewed_until_the_pointer_leaves_the_list() {
-    let mut fixture = Fixture::story(&Story::new("combo_preview", previewing));
+    let mut fixture = Harness::story(&Story::new("combo_preview", previewing));
     fixture.settle();
-    fixture.key(Key::Tab, Modifiers::NONE);
-    fixture.key(Key::ArrowDown, Modifiers::ALT);
+    fixture.key(Key::Tab, Mods::NONE);
+    fixture.key(Key::ArrowDown, Mods::ALT);
     fixture.settle();
     assert!(list_open(&mut fixture), "Alt+Down opens the list");
 
     let garamond = fixture.by_label("Garamond").expect("the Garamond row").center();
-    fixture.frame(vec![moved(garamond)]);
+    fixture.send(moved(garamond));
     fixture.settle();
     assert_eq!(preview(&mut fixture), Preview::Shows("Garamond".to_owned()), "the row under the pointer is previewed");
     assert_eq!(font(&mut fixture), "Arial", "and the field's value stays");
@@ -57,7 +59,7 @@ fn the_hovered_option_is_previewed_until_the_pointer_leaves_the_list() {
     *fixture.data().value("twice", false) = true;
     let before = reports(&mut fixture);
     let georgia = fixture.by_label("Georgia").expect("the Georgia row").center();
-    fixture.frame(vec![moved(georgia)]);
+    fixture.send(moved(georgia));
     assert!(fixture.passes() > 1, "the frame ran twice");
     fixture.settle();
     assert_eq!(preview(&mut fixture), Preview::Shows("Georgia".to_owned()), "another row previews its text");
@@ -65,7 +67,7 @@ fn the_hovered_option_is_previewed_until_the_pointer_leaves_the_list() {
     *fixture.data().value("twice", false) = false;
 
     let list = fixture.by_role(Role::LIST_BOX).first().copied().expect("the open list").rect;
-    fixture.frame(vec![moved(Pos2::new(list.center().x, list.max.y + 40.0))]);
+    fixture.send(moved(Pos2::new(list.center().x, list.max.y + 40.0)));
     fixture.settle();
     assert!(list_open(&mut fixture), "leaving the rows keeps the list open");
     assert_eq!(preview(&mut fixture), Preview::Ended, "and ends the preview");
@@ -78,30 +80,30 @@ fn the_hovered_option_is_previewed_until_the_pointer_leaves_the_list() {
     assert_eq!(preview(&mut fixture), Preview::Ended, "and the pick ends the preview the hover started");
 }
 
-fn font(fixture: &mut Fixture) -> String {
+fn font(fixture: &mut Harness) -> String {
     fixture.data().value("font", String::new()).clone()
 }
 
-fn list_open(fixture: &mut Fixture) -> bool {
+fn list_open(fixture: &mut Harness) -> bool {
     !fixture.by_role(Role::LIST_BOX).is_empty()
 }
 
 #[trial]
 fn keys_in_the_open_list_put_the_option_in_and_escape_puts_the_typed_text_back() {
-    let mut fixture = Fixture::story(&Story::new("combo_list", combo));
+    let mut fixture = Harness::story(&Story::new("combo_list", combo));
     fixture.settle();
-    fixture.key(Key::Tab, Modifiers::NONE);
-    fixture.key(Key::A, Modifiers::COMMAND);
+    fixture.key(Key::Tab, Mods::NONE);
+    fixture.key(Key::A, Mods::COMMAND);
     fixture.type_text("G");
     fixture.settle();
     assert!(list_open(&mut fixture), "typing opens the list on the matches");
     assert_eq!(font(&mut fixture), "G", "the typed text is the value");
-    fixture.key(Key::ArrowDown, Modifiers::NONE);
+    fixture.key(Key::ArrowDown, Mods::NONE);
     fixture.settle();
     let keyed = font(&mut fixture);
     assert!(FAMILIES.contains(&keyed.as_str()) && keyed.starts_with('G'), "Down puts a matching option's text in at once: {keyed:?}");
     assert!(list_open(&mut fixture), "and the list stays open on the typed text's matches");
-    fixture.key(Key::Escape, Modifiers::NONE);
+    fixture.key(Key::Escape, Mods::NONE);
     fixture.settle();
     assert!(!list_open(&mut fixture), "Escape closes the list");
     assert_eq!(font(&mut fixture), "G", "and puts back the typed text");

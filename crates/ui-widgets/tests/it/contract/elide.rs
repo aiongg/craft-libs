@@ -3,16 +3,16 @@
 use craft_i18n::Direction;
 use craft_ui::contract::Show as _;
 use craft_ui::display::{Elide, Text};
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::testing::{Harness, trial};
 use egui::Shape;
 
 /// The text `elide` shows of `text` in a room `width` wide in `direction`, and the width it takes.
 fn shown(text: &str, elide: Elide, width: f32, direction: Direction) -> (String, f32) {
     let owned = text.to_owned();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         Text::new(owned.clone()).elide(elide).show(ui);
     });
-    fixture.direction(direction).room(egui::vec2(width, 40.0)).settle();
+    fixture.direction(direction).room(craft_ui::geom::vec2(width, 40.0)).settle();
     let galley = fixture
         .frame_shapes()
         .iter()

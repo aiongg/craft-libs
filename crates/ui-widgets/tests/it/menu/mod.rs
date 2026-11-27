@@ -33,14 +33,14 @@ use craft_ui::contract::{Show as _, ShowContainer as _};
 use craft_ui::layout_components::Stack;
 use craft_ui::menu::{Menu, MenuItem};
 use craft_ui::primitives::IconSpec;
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::testing::{Harness, trial};
 
 /// Regression: an inline menu inside a content-sized container shows by the record its container's measuring run
 /// left, so its own body runs only for real; the rows before the first iconed or checked row still take the columns,
 /// in every frame (a tab strip's overflow menu checks only the shown tab).
 #[trial]
 fn rows_of_an_inline_menu_shown_from_its_container_record_take_the_columns_of_later_rows() {
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         Stack::new().show(ui, |ui, _| {
             Menu::inline("Tabs").show(ui, |ui, _| {
                 MenuItem::new("Layers").show(ui);
@@ -49,17 +49,17 @@ fn rows_of_an_inline_menu_shown_from_its_container_record_take_the_columns_of_la
             });
         });
     });
-    let at = |fixture: &Fixture, label: &str| fixture.texts().iter().find(|text| text.text.replace('&', "") == label).map(|text| text.rect.left());
+    let at = |fixture: &Harness, label: &str| fixture.texts().iter().find(|text| text.text.replace('&', "") == label).map(|text| text.rect.left());
     let mut frames = 0;
     while at(&fixture, "Swatches").is_none() && frames < 8 {
-        fixture.frame(vec![]);
+        fixture.step();
         frames += 1;
     }
-    let x = |fixture: &Fixture, label: &str| at(fixture, label).expect("the row is shown");
+    let x = |fixture: &Harness, label: &str| at(fixture, label).expect("the row is shown");
     for frame in 0..3 {
         assert_eq!(x(&fixture, "Layers"), x(&fixture, "Swatches"), "frame {frame}: a plain row takes the mark and icon columns");
         assert_eq!(x(&fixture, "History"), x(&fixture, "Swatches"), "frame {frame}: an iconed row takes the mark column");
-        fixture.frame(vec![]);
+        fixture.step();
     }
 }
 
@@ -68,7 +68,7 @@ fn rows_of_an_inline_menu_shown_from_its_container_record_take_the_columns_of_la
 #[trial]
 fn a_row_with_no_icon_takes_no_icon_column() {
     let redo_left = |with_icon: bool| {
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             Stack::new().show(ui, |ui, _| {
                 Menu::inline("Edit").show(ui, |ui, _| {
                     let undo = MenuItem::new("Undo");
@@ -91,7 +91,7 @@ fn a_row_with_no_icon_takes_no_icon_column() {
 #[trial]
 fn a_compact_row_is_shorter_than_a_control_row() {
     let pitch = |compact: bool| {
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             Stack::new().show(ui, |ui, _| {
                 Menu::inline("Edit").show(ui, |ui, _| {
                     MenuItem::new("Undo").compact(compact).show(ui);

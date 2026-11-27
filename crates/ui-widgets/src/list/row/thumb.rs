@@ -8,7 +8,8 @@ use crate::primitives::ContentPainterCx;
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::{Metrics, Sense};
-use egui::{Rect, Response};
+use craft_ui::Response;
+use craft_ui::geom::Rect;
 use std::any::Any;
 use std::sync::Arc;
 

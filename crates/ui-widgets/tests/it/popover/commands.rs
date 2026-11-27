@@ -1,13 +1,14 @@
 //! A key command closes the open popovers, except the one whose content declares the command's scope.
 
+use craft_ui::Id;
 use craft_ui::buttons::Button;
 use craft_ui::contract::{Bind, CommandSet, Show as _, ShowContainer as _};
+use craft_ui::input::{Key, Mods};
 use craft_ui::layout_components::Stack;
 use craft_ui::popover::Popover;
 use craft_ui::runtime::commands::Commands as _;
 use craft_ui::runtime::focus::{FocusTarget, request};
-use craft_ui::testing::{Fixture, trial};
-use egui::{Id, Key, Modifiers};
+use craft_ui::testing::{Harness, trial};
 use std::cell::Cell;
 use std::rc::Rc;
 
@@ -38,10 +39,10 @@ struct Seen {
 }
 
 /// A stack with the around scope holding an open popover whose content has the inside scope and a focused button.
-fn fixture() -> (Fixture, Rc<Seen>) {
+fn fixture() -> (Harness, Rc<Seen>) {
     let seen = Rc::new(Seen { open: Cell::new(true), ..Seen::default() });
     let shown = seen.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         Stack::new().command_scope(<AroundCommand as CommandSet>::SCOPE).show(ui, |ui, cx| {
             while cx.take_command::<AroundCommand>().is_some() {
                 shown.around.set(shown.around.get() + 1);
@@ -69,11 +70,11 @@ fn fixture() -> (Fixture, Rc<Seen>) {
 #[trial]
 fn a_command_of_the_popovers_own_content_keeps_it_open_and_one_around_it_closes_it() {
     let (mut fixture, seen) = fixture();
-    fixture.key(Key::Num1, Modifiers::COMMAND);
+    fixture.key(Key::Num1, Mods::COMMAND);
     fixture.idle(4);
     assert_eq!(seen.inside.get(), 1, "the content's command runs");
     assert!(seen.open.get(), "and the popover stays open");
-    fixture.key(Key::Num2, Modifiers::COMMAND);
+    fixture.key(Key::Num2, Mods::COMMAND);
     fixture.idle(4);
     assert_eq!(seen.around.get(), 1, "the command around the popover runs");
     assert!(!seen.open.get(), "and closes it");

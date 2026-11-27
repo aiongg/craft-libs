@@ -2,9 +2,9 @@
 
 use craft_ui::contract::{Gap, Show as _, ShowContainer as _};
 use craft_ui::display::Text;
+use craft_ui::geom::Rect;
 use craft_ui::layout_components::Stack;
-use craft_ui::testing::{Fixture, trial};
-use egui::Rect;
+use craft_ui::testing::{Harness, trial};
 
 /// Half a pixel at the scales the box runs.
 const ROUNDING: f32 = 0.5;
@@ -12,7 +12,7 @@ const ROUNDING: f32 = 0.5;
 /// The gaps in a stack with a two-line header, a body line and a footer line: between the header's lines, header to
 /// body, body to footer. `gap` is set after the header and footer.
 fn gaps(gap: Option<Gap>) -> [f32; 3] {
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let mut stack = Stack::new()
             .header(|ui, _| {
                 Text::new("Head one").show(ui);

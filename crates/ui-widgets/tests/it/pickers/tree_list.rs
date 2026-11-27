@@ -1,10 +1,11 @@
 //! The search of a TreePicker's popup lists the items whose path holds every typed word, across closed folders.
 
+use craft_ui::Ui;
 use craft_ui::contract::{Role, Show as _};
+use craft_ui::input::{Key, Mods};
 use craft_ui::pickers::{TreeEntry, TreePicker};
 use craft_ui::testing::access::name;
-use craft_ui::testing::{Fixture, Story, StoryData, StoryOutput, trial};
-use egui::{Key, Modifiers, Ui};
+use craft_ui::testing::{Harness, Story, StoryData, StoryOutput, trial};
 
 /// A picker over two folders in Archive, with nothing picked.
 fn picker(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
@@ -20,7 +21,7 @@ fn picker(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 }
 
 /// The names of the listed items; a row reads as its name, then its detail line.
-fn options(fixture: &Fixture) -> Vec<String> {
+fn options(fixture: &Harness) -> Vec<String> {
     let tree = fixture.tree();
     let rows = fixture.by_role(Role::LIST_BOX_OPTION);
     rows.iter().filter_map(|row| name(tree, row.node)).map(|read| read.split(", ").next().unwrap_or(read).to_owned()).collect()
@@ -28,10 +29,10 @@ fn options(fixture: &Fixture) -> Vec<String> {
 
 #[trial]
 fn typing_in_the_popup_lists_the_items_whose_path_holds_every_word_and_enter_picks_the_first() {
-    let mut fixture = Fixture::story(&Story::new("tree_list", picker));
+    let mut fixture = Harness::story(&Story::new("tree_list", picker));
     fixture.settle();
-    fixture.key(Key::Tab, Modifiers::NONE);
-    fixture.key(Key::ArrowDown, Modifiers::ALT);
+    fixture.key(Key::Tab, Mods::NONE);
+    fixture.key(Key::ArrowDown, Mods::ALT);
     fixture.settle();
     fixture.type_text("beach");
     fixture.settle();
@@ -43,7 +44,7 @@ fn typing_in_the_popup_lists_the_items_whose_path_holds_every_word_and_enter_pic
     fixture.type_text(" rock");
     fixture.settle();
     assert_eq!(options(&fixture), ["Rocks"], "every typed word must be in the path");
-    fixture.key(Key::Enter, Modifiers::NONE);
+    fixture.key(Key::Enter, Mods::NONE);
     fixture.settle();
     assert_eq!(*fixture.data().value("album", None::<u32>), Some(4), "Enter picks the first item found");
     assert!(fixture.by_role(Role::LIST_BOX).is_empty(), "and the pick closes the popup");

@@ -3,9 +3,9 @@
 
 use craft_behavior::HoldRepeat;
 use craft_ui::contract::{Bind, Props as _, Show as _};
-use craft_ui::testing::{Fixture, pointer, trial};
+use craft_ui::geom::Pos2;
+use craft_ui::testing::{Harness, pointer, trial};
 use craft_ui::text::{NumberField, StepArrows};
-use egui::Pos2;
 use std::cell::Cell;
 use std::rc::Rc;
 
@@ -16,10 +16,10 @@ const START: f64 = 50.0;
 const LABEL: &str = "Size";
 
 /// A field with leading step arrows, `enabled` and `read_only` as given, and the number it reports.
-fn field(enabled: bool, read_only: bool) -> (Fixture, Rc<Cell<f64>>) {
+fn field(enabled: bool, read_only: bool) -> (Harness, Rc<Cell<f64>>) {
     let value = Rc::new(Cell::new(START));
     let shown = value.clone();
-    let mut fixture = Fixture::hosted(move |ui| {
+    let mut fixture = Harness::hosted(move |ui| {
         let out =
             NumberField::new(LABEL, Bind::given(Some(shown.get()))).step_arrows(StepArrows::Leading).enabled(enabled).read_only(read_only).show(ui);
         if let Some(Some(next)) = out.edit.events.landed().copied() {
@@ -33,16 +33,16 @@ fn field(enabled: bool, read_only: bool) -> (Fixture, Rc<Cell<f64>>) {
 }
 
 /// The middle of the up half.
-fn up(fixture: &Fixture) -> Pos2 {
+fn up(fixture: &Harness) -> Pos2 {
     let root = fixture.root_id().expect("the field is shown");
     fixture.part_rect(root, NumberField::STEP_UP).expect("the field declares its up half").center()
 }
 
 /// Presses the up half and leaves the button down.
-fn press_up(fixture: &mut Fixture) {
+fn press_up(fixture: &mut Harness) {
     let at = up(fixture);
-    fixture.frame(vec![pointer::moved(at)]);
-    fixture.frame(vec![pointer::press(at)]);
+    fixture.send(pointer::moved(at));
+    fixture.send(pointer::press(at));
 }
 
 /// A press on the up half steps once; held past the delay it steps again, then once per interval of the pass time

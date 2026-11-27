@@ -9,7 +9,7 @@ use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, StyleCx, TypeRole};
 use craft_behavior::{Metrics, Sense};
 use craft_theme::variant::Tone;
-use egui::{Response, Ui};
+use craft_ui::{Response, Ui};
 
 /// The text under a field's control.
 #[derive(Clone, Debug, PartialEq, crate::contract::MemoProps)]

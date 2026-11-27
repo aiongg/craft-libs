@@ -12,7 +12,8 @@ use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, Flags, FocusLook, StyleColor, StyleCx, TextLook, TypeRole, UiTokens};
 use craft_behavior::{Flow, Metrics, NavShape, PartKey, PartRef, Proposal, Roving, Sense, Value};
 use craft_theme::{Rgba, Stateful, States};
-use egui::{CornerRadius, Rect, Response, Vec2, pos2, vec2};
+use craft_ui::geom::{Rect, Vec2, pos2, vec2};
+use craft_ui::{CornerRadius, Response};
 use std::ops::Deref;
 
 /// A word of the run: its text on its fill.

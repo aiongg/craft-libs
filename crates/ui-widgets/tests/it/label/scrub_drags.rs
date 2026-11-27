@@ -3,17 +3,17 @@
 use super::START;
 use craft_ui::contract::{Bind, Role, Show as _, ShowContainer as _, SideLabel};
 use craft_ui::form::Field;
+use craft_ui::geom::{Pos2, Vec2};
 use craft_ui::runtime::env::ScrubDrags;
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::testing::{Harness, trial};
 use craft_ui::text::NumberField;
-use egui::{Pos2, Vec2};
 use std::cell::Cell;
 use std::rc::Rc;
 
 const DRAG: f32 = 40.0;
 
 /// Whether a drag from `from` changed the value.
-fn dragged(fixture: &mut Fixture, value: &Cell<Option<f64>>, from: Pos2) -> bool {
+fn dragged(fixture: &mut Harness, value: &Cell<Option<f64>>, from: Pos2) -> bool {
     let before = value.get();
     fixture.drag_at(from, Vec2::new(DRAG, 0.0));
     value.get() != before
@@ -24,7 +24,7 @@ fn dragged(fixture: &mut Fixture, value: &Cell<Option<f64>>, from: Pos2) -> bool
 fn scrubs(drags: Option<ScrubDrags>) -> (bool, bool) {
     let value = Rc::new(Cell::new(Some(START)));
     let shown = Rc::clone(&value);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let mut number = shown.get();
         Field::new("Opacity").side(SideLabel::new().scrub(true)).show(ui, |ui, _| {
             NumberField::new("Opacity", Bind::bound(&mut number)).scrub_by_label().show(ui);

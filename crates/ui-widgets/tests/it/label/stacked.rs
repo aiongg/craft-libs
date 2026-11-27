@@ -4,9 +4,9 @@
 use craft_theme::Size;
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::form::{Field, FieldGroup};
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::geom::{Rect, Vec2};
+use craft_ui::testing::{Harness, trial};
 use craft_ui::text::NumberField;
-use egui::{Rect, Vec2};
 
 /// How far two edges may differ and still line up, in points.
 const SLACK: f32 = 0.5;
@@ -14,11 +14,11 @@ const SLACK: f32 = 0.5;
 /// The rows of the group, with the widest label last, and the value each field shows.
 const ROWS: [(&str, f64); 3] = [("Width", 11.0), ("Corner radius", 22.0), ("Maximum number of layers", 33.0)];
 
-fn control(fixture: &Fixture, name: &str) -> Rect {
+fn control(fixture: &Harness, name: &str) -> Rect {
     fixture.by_label(name).unwrap_or_else(|| panic!("{name:?} names its control")).rect
 }
 
-fn caption(fixture: &Fixture, text: &str) -> Rect {
+fn caption(fixture: &Harness, text: &str) -> Rect {
     fixture.texts().iter().find(|run| run.text == text).map(|run| run.rect).unwrap_or_else(|| panic!("{text:?} is painted"))
 }
 
@@ -27,7 +27,7 @@ fn caption(fixture: &Fixture, text: &str) -> Rect {
 /// beside a narrower column.
 #[trial]
 fn every_row_of_a_group_that_stacks_takes_the_stacked_height() {
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         FieldGroup::new("Shape").show(ui, |ui, _| {
             for (name, value) in ROWS {
                 Field::new(name).show(ui, |ui, _| NumberField::new(name, Bind::given(Some(value))).show(ui));

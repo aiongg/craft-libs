@@ -6,7 +6,7 @@ use crate::display::Text;
 use crate::layout_components::Stack;
 use crate::style::SurfaceKind;
 use crate::testing::StoryOutput;
-use egui::Ui;
+use craft_ui::Ui;
 use std::ops::Range;
 
 /// The words a story lays out, in order.

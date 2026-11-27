@@ -13,7 +13,8 @@ use crate::runtime::focus::{ActivateKeys, KeyUse};
 use crate::style::{ComponentStyle, Flags, FocusLook, Stateful, States, StyleColor, StyleCx, SurfaceKind, SurfaceLook, UiTokens};
 use craft_behavior::{Anchor9, Metrics, NavShape, PartKey, PartRef, Roving, Sense};
 use craft_theme::Rgba;
-use egui::{CornerRadius, Pos2, Rect, Vec2, vec2};
+use craft_ui::CornerRadius;
+use craft_ui::geom::{Pos2, Rect, Vec2, vec2};
 
 #[cfg(feature = "suite")]
 pub(crate) mod stories;
@@ -62,7 +63,7 @@ pub struct ReferencePointStyle {
     /// The side of the picked point's dot.
     picked_dot: f32,
     /// The dots' corner radius.
-    dot_radius: egui::CornerRadius,
+    dot_radius: craft_ui::CornerRadius,
     /// The picked point's dot or square: `accent.text`, `text.normal` in the `Squares` look.
     ink: Stateful<StyleColor>,
     /// The side of the square one growth arrow fits in.
@@ -82,7 +83,7 @@ pub struct ReferencePointStyle {
     /// The fill of the picked alignment cell.
     picked_fill: Stateful<StyleColor>,
     /// The corner radius of the picked alignment cell's fill.
-    fill_radius: egui::CornerRadius,
+    fill_radius: craft_ui::CornerRadius,
     /// The ink of an alignment cell's text bars.
     bar_ink: Stateful<StyleColor>,
 }

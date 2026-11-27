@@ -16,7 +16,7 @@ use craft_behavior::{
     AccessAction, Axis, CursorIcon, HitLevel, HitPriority, Metrics, Mixed, MoveMods, NavMove, PartKey, Sense, ValueDrag, Wheel, decimals_for_step,
     wheel_step,
 };
-use egui::{Pos2, Rect, Vec2, pos2};
+use craft_ui::geom::{Pos2, Rect, Vec2, pos2};
 use std::ops::RangeInclusive;
 
 #[cfg(feature = "suite")]

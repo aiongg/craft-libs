@@ -26,7 +26,7 @@ use crate::runtime::env::Label;
 use crate::text::{Adornment, FieldStyle, place, reserve};
 use craft_behavior::{CancelReason, GesturePhase, HitLevel, HitPriority, IconId, Mixed, PartKey, Sense};
 use craft_i18n::{CalendarDate, DateFormat, Weekday};
-use egui::{Rect, Vec2};
+use craft_ui::geom::{Rect, Vec2};
 use popover::{CalendarAt, calendar_body};
 use std::sync::Arc;
 

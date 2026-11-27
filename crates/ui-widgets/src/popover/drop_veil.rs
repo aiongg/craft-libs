@@ -10,7 +10,8 @@ use crate::runtime::drag;
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, Corners, Insets, Stateful, StyleCx, SurfaceKind, SurfaceLook, TypeRole, UiTokens};
 use craft_behavior::{Metrics, Proposal, Sense};
-use egui::{Rect, Response, Ui};
+use craft_ui::geom::Rect;
+use craft_ui::{Response, Ui};
 use std::sync::{Arc, Mutex, PoisonError};
 
 #[cfg(feature = "suite")]
@@ -69,7 +70,7 @@ impl Component for VeilCard {
         VeilCardStyle { surface, metrics: Metrics::new().padding(Insets::uniform(cx.tokens.space.pad.roomy)) }
     }
 
-    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> egui::Vec2 {
+    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> craft_ui::geom::Vec2 {
         let padding = cx.style.metrics().padding;
         let proposal = match cx.proposal {
             Proposal::Width(width) => Proposal::Width((width - padding.start - padding.end).max(0.0)),
@@ -225,13 +226,13 @@ impl Component for DropVeil {
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
-        let held = drag::active::<OsFiles>(&cx.ctx).is_some_and(|files| !files.files.is_empty());
+        let held = drag::active::<OsFiles>(cx.context()).is_some_and(|files| !files.files.is_empty());
         let target = WholeWindow::new(cx.rect);
         let target = if self.positional { target.positional() } else { target };
-        let (id, ordinal) = (cx.id, drag::next_ordinal(&cx.ctx, cx.id));
+        let (id, ordinal) = (cx.id, drag::next_ordinal(cx.context(), cx.id));
         let dropped = cx.window_drop_target::<OsFiles, _>(&target);
         // The veil shows only while it is the target that would take the drop.
-        self.hovering = held && dropped.is_none() && drag::winning(&cx.ctx, id, ordinal);
+        self.hovering = held && dropped.is_none() && drag::winning(cx.context(), id, ordinal);
         *self.dropped.lock().unwrap_or_else(PoisonError::into_inner) = dropped;
         let announced = cx.memory::<Announced>();
         let first = self.hovering && !announced.0;

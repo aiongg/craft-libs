@@ -4,9 +4,9 @@
 
 use craft_ui::buttons::Button;
 use craft_ui::contract::{Props as _, Show as _, ShowContainer as _, Sizing};
+use craft_ui::geom::{Rect, Vec2};
 use craft_ui::layout_components::{Row, Stack};
-use craft_ui::testing::{Fixture, trial};
-use egui::{Rect, Vec2};
+use craft_ui::testing::{Harness, trial};
 use std::cell::Cell;
 use std::rc::Rc;
 
@@ -17,7 +17,7 @@ fn a_fill_height_menu_takes_its_content_width_and_the_rows_height() {
     // The row, the menu, the menu's footer button, its widest item and the page, from the last real run.
     let seen = Rc::new(Cell::new([Rect::NOTHING; 5]));
     let out = Rc::clone(&seen);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let out = Rc::clone(&out);
         let parts = Cell::new([Rect::NOTHING; 4]);
         let row = Row::new().fill().show(ui, |ui, _| {
@@ -32,7 +32,7 @@ fn a_fill_height_menu_takes_its_content_width_and_the_rows_height() {
             });
             parts.set([menu.output.rect, footer.get(), widest.get(), page.output.rect]);
         });
-        if !ui.is_sizing_pass() {
+        if !ui.is_measuring() {
             let [menu, footer, widest, page] = parts.get();
             out.set([row.output.rect, menu, footer, widest, page]);
         }

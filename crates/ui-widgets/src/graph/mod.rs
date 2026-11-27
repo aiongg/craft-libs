@@ -19,7 +19,7 @@ use crate::contract::{
 use crate::primitives::{PaintShape, StrokeWidth};
 use crate::style::{ComponentStyle, Stateful, States, StyleColor, StyleCx, SurfaceKind};
 use craft_behavior::{CanvasTransform, FreeLayout, HitLevel, HitPriority, HitShape, ItemSource, Metrics, PartKey, Selection};
-use egui::{Pos2, Rect, Vec2};
+use craft_ui::geom::{Pos2, Rect, Vec2};
 use node::port_center;
 
 const WIRE: PartKey = PartKey::new("wire");

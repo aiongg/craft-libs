@@ -9,7 +9,8 @@ use crate::runtime::env::{Label, UnitKind, Units};
 use crate::style::{ComponentStyle, StyleCx};
 use crate::text::{NumberField, RangeAlert};
 use craft_behavior::{EditEvents, Flow, Metrics, Mixed, NumberCodec, Proposal, Sense};
-use egui::{Rect, Response, Vec2, pos2};
+use craft_ui::Response;
+use craft_ui::geom::{Rect, Vec2, pos2};
 use std::ops::{Deref, RangeInclusive};
 
 #[cfg(feature = "suite")]

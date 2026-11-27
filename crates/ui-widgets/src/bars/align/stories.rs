@@ -4,7 +4,7 @@ use super::AlignBar;
 use crate::bars::{Bar, BarKind};
 use crate::contract::ShowContainer as _;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
-use egui::Ui;
+use craft_ui::Ui;
 
 #[story(AlignBar, covers = [], drive = Drive::Never)]
 fn align_bar(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {

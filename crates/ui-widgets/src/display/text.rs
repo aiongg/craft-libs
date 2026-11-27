@@ -9,7 +9,8 @@ use std::borrow::Cow;
 use crate::style::{ComponentStyle, StyleCx, TextLook, TypeRole};
 use craft_behavior::{Metrics, Proposal, Sense};
 use craft_theme::{Stateful, States, variant::Tone};
-use egui::{Response, Vec2};
+use craft_ui::Response;
+use craft_ui::geom::Vec2;
 
 #[cfg(feature = "suite")]
 pub(crate) mod stories;

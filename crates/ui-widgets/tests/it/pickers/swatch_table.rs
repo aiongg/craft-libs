@@ -7,19 +7,20 @@ use std::rc::Rc;
 use craft_behavior::Preview;
 use craft_theme::Srgba;
 use craft_ui::choice::{SwatchArrangement, SwatchTable};
+use craft_ui::geom::{Pos2, Rect, vec2};
+use craft_ui::input::{Key, Mods};
 use craft_ui::runtime::env::Label;
 use craft_ui::testing::pointer::moved;
-use craft_ui::testing::{Fixture, trial};
-use egui::{Key, Modifiers, Pos2, Rect, vec2};
+use craft_ui::testing::{Harness, trial};
 
 /// Fifteen cells: the hexagon of side 3 (19 cells) cut short, rows of 3, 4, 5 and a short last row of 3 where the full
 /// row has 4.
 const CELLS: usize = 15;
 
-fn honeycomb(picked: Rc<Cell<Option<usize>>>) -> Fixture {
+fn honeycomb(picked: Rc<Cell<Option<usize>>>) -> Harness {
     let entries: Vec<(Label, Srgba)> =
         (0..CELLS).map(|i| (Label::from(format!("Cell {i}")), Srgba::rgb(i as f32 / CELLS as f32, 0.4, 0.6))).collect();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let out = SwatchTable::new("Colors", &entries).arrangement(SwatchArrangement::Honeycomb).show_all(ui);
         if let Some(at) = out.selected {
             picked.set(Some(at));
@@ -30,16 +31,16 @@ fn honeycomb(picked: Rc<Cell<Option<usize>>>) -> Fixture {
     fixture
 }
 
-fn rects(fixture: &Fixture) -> Vec<Rect> {
+fn rects(fixture: &Harness) -> Vec<Rect> {
     (0..CELLS).map(|i| fixture.by_label(&format!("Cell {i}")).expect("every entry is a cell").rect).collect()
 }
 
 /// The entry Space selects after `key`, from the lead the last move left.
-fn after(fixture: &mut Fixture, picked: &Cell<Option<usize>>, key: Key) -> Option<usize> {
-    fixture.key(key, Modifiers::NONE);
+fn after(fixture: &mut Harness, picked: &Cell<Option<usize>>, key: Key) -> Option<usize> {
+    fixture.key(key, Mods::NONE);
     fixture.settle();
     picked.set(None);
-    fixture.key(Key::Space, Modifiers::NONE);
+    fixture.key(Key::Space, Mods::NONE);
     fixture.settle();
     picked.get()
 }
@@ -97,7 +98,7 @@ fn reported(log: &RefCell<Vec<Preview<usize>>>) -> Vec<Preview<usize>> {
 fn the_cell_under_the_pointer_is_previewed_once_until_the_pointer_leaves() {
     let log = Rc::new(RefCell::new(Vec::new()));
     let entries: Vec<(Label, Srgba)> = (0..8).map(|i| (Label::from(format!("Cell {i}")), Srgba::rgb(i as f32 / 8.0, 0.4, 0.6))).collect();
-    let mut fixture = Fixture::new({
+    let mut fixture = Harness::new_ui({
         let log = Rc::clone(&log);
         move |ui| {
             let out = SwatchTable::new("Colors", &entries).per_row(4).show_all(ui);
@@ -109,17 +110,17 @@ fn the_cell_under_the_pointer_is_previewed_once_until_the_pointer_leaves() {
     log.borrow_mut().clear();
 
     let cell = fixture.by_label("Cell 2").expect("a cell").rect;
-    fixture.frame(vec![moved(cell.center())]);
+    fixture.send(moved(cell.center()));
     fixture.settle();
     assert_eq!(reported(&log), vec![Preview::Shows(2)], "moving onto a cell previews it, in one pass");
 
-    fixture.frame(Vec::new());
+    fixture.step();
     fixture.settle();
     assert!(!log.borrow().is_empty(), "the resting frames ran passes");
     assert_eq!(reported(&log), Vec::new(), "a pointer resting on the cell reports nothing more");
 
     let last = fixture.by_label("Cell 7").expect("a cell").rect;
-    fixture.frame(vec![moved(Pos2::new(cell.center().x, last.max.y + 40.0))]);
+    fixture.send(moved(Pos2::new(cell.center().x, last.max.y + 40.0)));
     fixture.settle();
     assert_eq!(reported(&log), vec![Preview::Ended], "leaving the cells ends the preview, once");
 }

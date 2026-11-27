@@ -2,12 +2,13 @@
 //! `show_at` (LightCraft's slider rows), leaves the body around it settled: a settled frame runs one pass.
 
 use craft_behavior::Proposal;
+use craft_ui::Ui;
 use craft_ui::contract::{Bind, Props as _, Show as _, ShowContainer as _};
 use craft_ui::form::SliderField;
+use craft_ui::geom::vec2;
 use craft_ui::layout_components::Stack;
 use craft_ui::runtime::measure;
 use craft_ui::testing::{Frames, trial};
-use egui::{Ui, vec2};
 
 fn rows(ui: &mut Ui) {
     let _ = Stack::new().id_salt("rows").show(ui, |ui, _| {
@@ -16,7 +17,7 @@ fn rows(ui: &mut Ui) {
             let width = ui.available_width().max(1.0);
             let ctx = ui.ctx().clone();
             let size = measure::run(&ctx, || field.measure_in(ui, Proposal::Width(width)));
-            let (_, room) = ui.allocate_space(vec2(width, size.y));
+            let (_, room) = ui.allocate(vec2(width, size.y));
             field.show_at(ui, room);
         }
     });

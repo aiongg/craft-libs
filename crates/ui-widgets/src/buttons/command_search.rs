@@ -11,7 +11,7 @@ use crate::style::{ComponentStyle, FocusLook, IconLook, StyleCx, SurfaceLook, Te
 use crate::text::FieldStyle;
 use craft_behavior::{Flow, IconId, Metrics, PartKey, Sense};
 use craft_theme::{Stateful, States};
-use egui::{Rect, Vec2};
+use craft_ui::geom::{Rect, Vec2};
 
 /// The part the opener shows its command's chord in.
 const CHORD: PartKey = PartKey::new("chord");

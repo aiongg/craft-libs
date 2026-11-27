@@ -12,7 +12,7 @@ use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, Flags, FocusLook, IconLook, StyleCx, SurfaceKind, SurfaceLook, TextLook, TypeRole, UiTokens};
 use craft_behavior::{Flow, Metrics, NavShape, PartKey, PartRef, Roving, Sense, Value};
 use craft_theme::{Rgba, Stateful, States};
-use egui::{Rect, Vec2};
+use craft_ui::geom::{Rect, Vec2};
 
 const SEGMENT: PartKey = PartKey::new("segment");
 
@@ -206,7 +206,7 @@ impl Component for Segment {
     const PARTS: bool = false;
     const OVERLAYS: bool = false;
     type Style = SegmentStyle;
-    type Output = egui::Response;
+    type Output = craft_ui::Response;
 
     fn shows_label(&self) -> bool {
         self.icon.is_none()
@@ -255,7 +255,7 @@ impl Component for Segment {
         face::paint(ui, cx, (&cx.style.text, &cx.style.icon), &cx.style.face, &self.spec(cx.resolved.label), cx.content_rect);
     }
 
-    fn finish(self, cx: Cx<'_, Self>) -> egui::Response {
+    fn finish(self, cx: Cx<'_, Self>) -> craft_ui::Response {
         cx.response.clone()
     }
 }

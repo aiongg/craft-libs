@@ -9,7 +9,9 @@ use craft_behavior::intent::{MoveMods, NavMove};
 use craft_behavior::nav::{LARGE_STEPS, STEP_SHARE, StepResult, ValueAxes, ValueSteps, snap_to_step, step_value};
 use craft_behavior::{Flow, PartKey, PartRef, PressPhase, PressState, ValueDrag, Wheel, wheel_step};
 use craft_theme::{KnobShape, Rgba, Stateful, States};
-use egui::{CornerRadius, Pos2, Rangef, Rect, Stroke, Vec2};
+use craft_ui::CornerRadius;
+use craft_ui::geom::{Pos2, Rangef, Rect, Vec2};
+use egui::Stroke;
 use std::ops::{Range, RangeInclusive};
 
 /// The part a track face paints as: the groove across the middle of the control.

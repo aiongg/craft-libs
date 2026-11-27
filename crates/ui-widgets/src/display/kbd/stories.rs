@@ -3,7 +3,7 @@
 use super::Kbd;
 use crate::contract::Show as _;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
-use egui::Ui;
+use craft_ui::Ui;
 
 #[story(Kbd, covers = [Default], drive = Drive::Never)]
 fn kbd(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {

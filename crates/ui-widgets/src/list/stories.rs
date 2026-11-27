@@ -9,7 +9,8 @@ use crate::style::{Corners, DataColor, SurfaceKind};
 use crate::testing::{Drive, StoryData, StoryOutput, show_as_only_item, show_as_only_item_across, story};
 use craft_behavior::{ColumnKey, IconId};
 use craft_theme::variant::Tone;
-use egui::{Color32, Pos2, Rangef, Rect, Ui};
+use craft_ui::geom::{Pos2, Rangef, Rect};
+use craft_ui::{Color32, Ui};
 
 #[story(ListRow<'static>, covers = [Default], drive = Drive::Activate)]
 fn list_row(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
@@ -184,7 +185,7 @@ fn list_row_tight_thumb_rows(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 }
 
 /// A colour from the document's data: a bookmark's or a tag's own colour.
-const DATA_RED: DataColor = DataColor::new(egui::Color32::from_rgb(0xd0, 0x30, 0x30));
+const DATA_RED: DataColor = DataColor::new(craft_ui::Color32::from_rgb(0xd0, 0x30, 0x30));
 
 #[story(ListRow<'static>, covers = [], drive = Drive::Never)]
 fn list_row_icon_hue(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {

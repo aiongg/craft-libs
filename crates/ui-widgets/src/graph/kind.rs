@@ -4,7 +4,7 @@ use super::Node;
 use crate::contract::{DropOperation, MeasureCx, PaintUi};
 use crate::primitives::Draw;
 use crate::style::StyleCx;
-use egui::{Rect, Vec2};
+use craft_ui::geom::{Rect, Vec2};
 
 /// The key of a node.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, crate::contract::MemoProps)]

@@ -11,14 +11,14 @@ use craft_ui::choice::Checkbox;
 use craft_ui::contract::{Bind, Entry, Props as _, Show as _, ShowContainer as _, Sizing};
 use craft_ui::display::Text;
 use craft_ui::form::Field;
+use craft_ui::geom::{Rect, Vec2};
 use craft_ui::layout_components::{Row, Stack};
 use craft_ui::pickers::Select;
 use craft_ui::style::GlyphRole;
 use craft_ui::testing::focus::AccessActionKind;
 use craft_ui::testing::layout::Block;
-use craft_ui::testing::{Fixture, shrink_least_runs, trial};
+use craft_ui::testing::{Harness, shrink_least_runs, trial};
 use craft_ui::text::TextField;
-use egui::{Rect, Vec2};
 use std::cell::Cell;
 use std::rc::Rc;
 
@@ -28,7 +28,7 @@ const SLACK: f32 = 0.5;
 fn bar(width: f32, buttons: usize) -> (Rect, Rect) {
     let seen = Rc::new(Cell::new((Rect::NOTHING, Rect::NOTHING)));
     let out = Rc::clone(&seen);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let entries = [Entry::new(0u8, "Current and Below, No Adjustments"), Entry::new(1, "All Layers")];
         Bar::new("Options", BarKind::Options).show(ui, |ui, _| {
             let select = Select::new("Sample", Bind::given(1u8), &entries).sizing(Sizing::Content).show(ui).response.rect;
@@ -68,7 +68,7 @@ struct Captioned {
 fn captioned(width: f32, buttons: usize) -> Captioned {
     let seen = Rc::new(Cell::new((Rect::NOTHING, Rect::NOTHING)));
     let out = Rc::clone(&seen);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let entries = [Entry::new(0u8, "Current and Below, No Adjustments"), Entry::new(1, "All Layers")];
         Bar::new("Options", BarKind::Options).show(ui, |ui, _| {
             let select = Field::new("Sample").show(ui, |ui, _| Select::new("Sample", Bind::given(0u8), &entries).show(ui).response.rect);
@@ -107,7 +107,7 @@ fn a_captioned_select_in_a_narrow_bar_narrows_with_its_caption_beside_it_before_
 fn header(width: f32) -> Vec<Rect> {
     let seen = Rc::new(std::cell::RefCell::new(Vec::new()));
     let out = Rc::clone(&seen);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let crumbs = path_crumbs("Project");
         let mut search = String::new();
         Bar::new("Header", BarKind::Tool).show(ui, |ui, _| {
@@ -137,7 +137,7 @@ fn the_members_of_a_tool_bar_never_overlap_as_it_narrows() {
 fn select_in(width: f32) -> (Rect, bool) {
     let seen = Rc::new(Cell::new(Rect::NOTHING));
     let out = Rc::clone(&seen);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let entries = [Entry::new(0u8, "Point Sample"), Entry::new(1, "5 by 5 Average")];
         Bar::new("Options", BarKind::Options).show(ui, |ui, _| {
             out.set(Select::new("Sample Size", Bind::given(0u8), &entries).sizing(Sizing::Content).show(ui).response.rect);
@@ -175,8 +175,8 @@ impl Default for Status {
     }
 }
 
-fn status_fixture(message: &'static str, seen: Rc<Cell<Status>>) -> Fixture {
-    Fixture::new(move |ui| {
+fn status_fixture(message: &'static str, seen: Rc<Cell<Status>>) -> Harness {
+    Harness::new_ui(move |ui| {
         let (mut progress, mut link) = (Rect::NOTHING, Rect::NOTHING);
         let shown = Bar::new("Status", BarKind::Status)
             .trailing(|ui, _| {
@@ -231,7 +231,7 @@ fn filling_bar(room: f32, column: f32, fields: Sizing, pages: usize) -> Filling 
     let empty = Filling { bar: Rect::NOTHING, fields: [Rect::NOTHING; 2], button: Rect::NOTHING };
     let seen = Rc::new(Cell::new(empty));
     let out = Rc::clone(&seen);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let (mut name, mut kind) = (String::new(), String::new());
         Stack::new().show(ui, |ui, _| {
             Block::new(Vec2::new(column, 20.0)).show(ui);
@@ -295,7 +295,7 @@ fn filling_bar_members_keep_their_natural_width_and_the_bar_scrolls() {
 fn tools(width: f32, wrap: bool, count: usize) -> Vec<Rect> {
     let seen = Rc::new(std::cell::RefCell::new(Vec::new()));
     let out = Rc::clone(&seen);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let bar = Bar::new("Tools", BarKind::Tool);
         let bar = if wrap { bar.wrap() } else { bar };
         bar.show(ui, |ui, _| {
@@ -310,7 +310,7 @@ fn tools(width: f32, wrap: bool, count: usize) -> Vec<Rect> {
 fn wide_member(width: f32) -> Rect {
     let seen = Rc::new(Cell::new(Rect::NOTHING));
     let out = Rc::clone(&seen);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let entries = [Entry::new(0u8, "Current and Below, No Adjustments"), Entry::new(1, "All Layers")];
         Bar::new("Tools", BarKind::Tool).wrap().show(ui, |ui, _| {
             out.set(Select::new("Sample", Bind::given(0u8), &entries).sizing(Sizing::Content).show(ui).response.rect);
@@ -345,7 +345,7 @@ fn a_wrapping_bar_continues_on_a_new_line() {
 
 /// What a bar of three rows, ranked 1 and 2 and unranked, `width` wide shows: whether each of their buttons is there.
 fn ranked(width: f32) -> [bool; 3] {
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         Bar::new("Tools", BarKind::Tool).show(ui, |ui, _| {
             Row::new().fit_rank(1).show(ui, |ui, _| {
                 Button::new("Low").show(ui);
@@ -378,7 +378,7 @@ fn ranked_rows_leave_a_narrow_bar_by_rank_and_take_their_rule() {
 /// The texts a status bar `width` wide paints, each with whether it was cut: the readout of the document sizes, a long
 /// message and the render-path link in its trailing group.
 fn readout_texts(width: f32) -> Vec<(String, bool)> {
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         let mut values = StatusValues::default();
         values.document_sizes = Some((26_100_000, 31_400_000));
         Bar::new("Status", BarKind::Status)
@@ -404,8 +404,8 @@ fn a_narrow_bar_gives_way_from_its_end_so_the_message_elides_before_the_readout(
     assert!(!cut(&narrow, "Doc"), "the readout's text was cut while the message after it could still give way");
 }
 
-fn status_zoom(zoom: f64, comma: bool) -> Fixture {
-    let mut fixture = Fixture::new(move |ui| {
+fn status_zoom(zoom: f64, comma: bool) -> Harness {
+    let mut fixture = Harness::new_ui(move |ui| {
         let size = Size::new(2000.0, 1500.0);
         let scale = craft_ui::runtime::env::Env::of(ui).scale.0;
         let zoom = zoom / f64::from(scale);
@@ -444,7 +444,7 @@ fn the_status_zoom_shows_the_complete_dash_without_a_view() {
     use craft_behavior::Mixed;
     use craft_ui::runtime::env::Scale;
 
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         let mut values = StatusValues::default();
         values.document_sizes = Some((1024, 4096));
         Bar::new("Status", BarKind::Status).show(ui, |ui, _| {
@@ -466,13 +466,14 @@ fn the_status_zoom_shows_the_complete_dash_without_a_view() {
 
 #[trial]
 fn the_status_zoom_still_scrubs_and_applies_edited_text() {
-    use egui::{Event, Key, Modifiers};
+    use craft_ui::input::{Key, Mods};
+    use egui::Event;
 
     let held = Rc::new(Cell::new(1.0_f64));
     let shown = held.clone();
     let committed = Rc::new(Cell::new(None));
     let seen = committed.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let mut value = shown.get();
         Bar::new("Status", BarKind::Status).show(ui, |ui, _| {
             let output =
@@ -490,16 +491,16 @@ fn the_status_zoom_still_scrubs_and_applies_edited_text() {
     assert!(scrubbed > 1.0, "the status bar still scrubs the zoom to the right");
 
     fixture.click(&zoom).settle();
-    fixture.key(Key::A, Modifiers::COMMAND);
-    fixture.frame(vec![Event::Paste("079.69%".to_owned())]).settle();
+    fixture.key(Key::A, Mods::COMMAND);
+    fixture.send(Event::Paste("079.69%".to_owned())).settle();
     let before_tab = held.get();
     committed.set(None);
-    fixture.key(Key::Tab, Modifiers::NONE).settle();
+    fixture.key(Key::Tab, Mods::NONE).settle();
     assert_eq!(held.get(), before_tab, "Tab does not change the current zoom");
     assert_eq!(committed.get(), None, "Tab does not commit the draft");
     let zoom = fixture.by_label("Zoom").expect("the status zoom field");
     assert_eq!(fixture.tree().value_of(zoom.node), Some("79.69%"), "Tab rewrites the draft with its suffix");
-    fixture.key(Key::Enter, Modifiers::NONE).settle();
+    fixture.key(Key::Enter, Mods::NONE).settle();
     assert!(committed.get().is_some_and(|value| (value - 0.7969).abs() < 1e-7), "Enter commits the percent-bearing zoom");
 }
 
@@ -510,7 +511,7 @@ fn the_status_zoom_still_scrubs_and_applies_edited_text() {
 fn a_labelled_check_box_in_a_row_in_a_bar_lays_out_under_rtl() {
     let seen = Rc::new(Cell::new((Rect::NOTHING, Rect::NOTHING)));
     let out = Rc::clone(&seen);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let mut alpha = Rect::NOTHING;
         let bar = Bar::new("Options", BarKind::Options).show(ui, |ui, _| {
             Row::new().show(ui, |ui, _| {
@@ -541,7 +542,7 @@ fn a_tab_strip_in_a_bar_row_takes_its_tabs_natural_length() {
     const MODES: [&str; 4] = ["All tools", "Edit", "Convert", "E-Sign"];
     let seen = Rc::new(Cell::new((Rect::NOTHING, Rect::NOTHING)));
     let out = Rc::clone(&seen);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         Row::new().show(ui, |ui, _| {
             let mut trailing = Rect::NOTHING;
             let mut strip = Rect::NOTHING;
@@ -571,7 +572,7 @@ fn a_tab_strip_in_a_bar_row_takes_its_tabs_natural_length() {
 /// An icon-only button in an options bar draws its icon at the tool size, as the align strip's buttons do.
 #[trial]
 fn an_icon_button_in_an_options_bar_draws_its_icon_at_the_tool_size() {
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         Bar::new("Options", BarKind::Options).show(ui, |ui, _| {
             IconButton::new(IconId::new("settings")).label("Plain").show(ui);
             IconButton::new(IconId::new("settings")).label("Tool").glyphs(GlyphRole::Tool).show(ui);
@@ -589,7 +590,7 @@ fn an_icon_button_in_an_options_bar_draws_its_icon_at_the_tool_size() {
 }
 
 /// Each pass's stops, each with the roving group it registered in.
-type StopGroups = Rc<std::cell::RefCell<Vec<Vec<(egui::Id, Option<egui::Id>)>>>>;
+type StopGroups = Rc<std::cell::RefCell<Vec<Vec<(craft_ui::Id, Option<craft_ui::Id>)>>>>;
 
 /// A tool bar's buttons are members of its roving group from the first pass that shows them: that pass registers the
 /// stops in the groups every later pass registers them in.
@@ -597,7 +598,7 @@ type StopGroups = Rc<std::cell::RefCell<Vec<Vec<(egui::Id, Option<egui::Id>)>>>>
 fn a_tool_bar_is_one_roving_group_from_its_first_pass() {
     let seen: StopGroups = Rc::default();
     let passes = seen.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         Button::new("Before").show(ui);
         Bar::new("Tools", BarKind::Tool).show(ui, |ui, _| {
             IconButton::new(IconId::new("brush")).label("Brush").show(ui);
@@ -619,9 +620,9 @@ fn a_tool_bar_is_one_roving_group_from_its_first_pass() {
 fn a_tool_bar_reports_set_positions_from_its_first_pass() {
     const TOOLS: [&str; 4] = ["Brush", "Eraser", "Smudge", "Blur"];
     let count = Rc::new(Cell::new(3_usize));
-    let ids: Rc<std::cell::RefCell<Vec<egui::Id>>> = Rc::default();
+    let ids: Rc<std::cell::RefCell<Vec<craft_ui::Id>>> = Rc::default();
     let (shown, seen) = (count.clone(), ids.clone());
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let mut now = Vec::new();
         Bar::new("Tools", BarKind::Tool).show(ui, |ui, _| {
             for name in &TOOLS[..shown.get()] {
@@ -634,7 +635,7 @@ fn a_tool_bar_reports_set_positions_from_its_first_pass() {
         });
         *seen.borrow_mut() = now;
     });
-    let places = |fixture: &Fixture| -> Vec<(usize, usize)> {
+    let places = |fixture: &Harness| -> Vec<(usize, usize)> {
         ids.borrow().iter().map(|id| fixture.tree().position(*id).expect("a tool's place in the set")).collect()
     };
     fixture.idle(1);
@@ -655,7 +656,7 @@ fn end_group(width: f32) -> ([Option<Rect>; 4], Rect) {
     const TEXTS: [&str; 4] = ["93.5 %", "Saved recovery data for Untitled-1", "X: 120 pt  Y: 48 pt", "render 0.6 ms"];
     let seen = Rc::new(Cell::new((None, Rect::NOTHING)));
     let shown = Rc::clone(&seen);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let bar = Bar::new("Status", BarKind::Status)
             .trailing(|ui, _| {
                 Row::new().fit_rank(2).show(ui, |ui, _| {

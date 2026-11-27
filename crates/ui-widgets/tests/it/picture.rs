@@ -1,11 +1,13 @@
 //! `Picture`: its SVG source on hostile input, and sizing in device pixels.
 
+use craft_ui::Color32;
 use craft_ui::contract::{Props as _, Show as _};
 use craft_ui::display::{Picture, PictureSize};
+use craft_ui::geom::{Rect, Vec2, pos2, vec2};
 use craft_ui::list::ThumbAspect;
 use craft_ui::runtime::env::Scale;
-use craft_ui::testing::{Fixture, trial};
-use egui::{Color32, ColorImage, Rect, Shape, Vec2, pos2, vec2};
+use craft_ui::testing::{Harness, trial};
+use egui::{ColorImage, Shape};
 use std::cell::Cell;
 use std::rc::Rc;
 
@@ -19,7 +21,7 @@ const WIDE: &[u8] = br##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80
 #[trial]
 fn an_svg_picture_without_an_aspect_takes_its_view_box_aspect() {
     use craft_ui::list::ThumbAspect;
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         Picture::svg("Wide", WIDE).show(ui);
         Picture::svg("Square", WIDE).aspect(ThumbAspect::SQUARE).show(ui);
     });
@@ -64,7 +66,7 @@ fn a_malformed_or_oversized_svg_draws_nothing_and_never_panics() {
         ("Huge", MARK, Rect::from_min_size(pos2(10.0, 120.0), vec2(4200.0, 40.0))),
     ];
     let valid = Rect::from_min_size(pos2(210.0, 10.0), vec2(40.0, 40.0));
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         for (label, svg, rect) in refused {
             Picture::svg(label, svg).show_at(ui, rect);
         }
@@ -95,7 +97,7 @@ fn a_device_pixel_picture_keeps_one_texel_to_a_pixel_at_every_scale() {
     for scale in [1.0_f32, 2.0] {
         let size = Rc::new(Cell::new(Vec2::ZERO));
         let seen = size.clone();
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             seen.set(Picture::new("Gradient", 1, &image).extent(PictureSize::DevicePixels).show(ui).rect.size());
         });
         fixture.scale(Scale::new(scale));
@@ -115,7 +117,7 @@ fn a_fill_painter_picture_takes_the_room_it_is_given_at_its_aspect() {
     let rooms = [120.0_f32, 300.0];
     let seen = Rc::new(Cell::new([Vec2::ZERO; 2]));
     let out = seen.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let mut sizes = [Vec2::ZERO; 2];
         for (size, room) in sizes.iter_mut().zip(rooms) {
             ui.allocate_ui(Vec2::new(room, 400.0), |ui| {
@@ -143,7 +145,7 @@ fn a_fill_painter_picture_takes_the_room_it_is_given_at_its_aspect() {
 fn shapes_of_rendered(opt_out: bool) -> usize {
     use craft_ui::list::ThumbSize;
     use craft_ui::primitives::textures::{FakeThumbSource, ThumbnailOptions, Thumbnails};
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let options = ThumbnailOptions::new().jobs(std::sync::Arc::new(craft_host::InlineJobs));
         let thumbnails = Thumbnails::<u64>::in_context(ui.ctx(), "picture_checker_test", options);
         let source = FakeThumbSource::<u64>::new();

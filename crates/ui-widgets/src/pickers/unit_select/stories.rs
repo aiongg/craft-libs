@@ -5,7 +5,7 @@ use crate::contract::{Bind, Entry, Props as _, Show as _, Sizing, Validity};
 use crate::runtime::env::{Message, UnitKind};
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use craft_behavior::Mixed;
-use egui::Ui;
+use craft_ui::Ui;
 
 fn units() -> [Entry<UnitKind>; 3] {
     [Entry::new(UnitKind::Millimetres, "Millimetres"), Entry::new(UnitKind::Inches, "Inches"), Entry::new(UnitKind::Points, "Points")]

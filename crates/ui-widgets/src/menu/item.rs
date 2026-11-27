@@ -16,7 +16,8 @@ use crate::style::{ComponentStyle, Flags, IconLook, StyleCx, SurfaceLook, TextLo
 use craft_behavior::{ColumnKey, Flow, IconId, Insets, Metrics, NavMove, PartKey, Sense};
 use craft_keymap::mnemonic;
 use craft_theme::{Contrast, MenuTint, Rgba, States};
-use egui::{Context, Id, Rect, Response, Vec2, pos2};
+use craft_ui::geom::{Rect, Vec2, pos2};
+use craft_ui::{Context, Id, Response};
 use std::borrow::Cow;
 
 use super::level::{MenuLevel, Row};
@@ -111,7 +112,7 @@ impl RowInput {
     pub(crate) fn activate(&self, ctx: &Context, id: Id, level: &MenuLevel, runs: bool) {
         let landed = self.focused && self.keyboard && (self.gained || self.started);
         if runs && !self.withheld && landed && level.activate_row(id) {
-            frame::request_repaint(ctx);
+            ctx.request_repaint();
         }
     }
 }
@@ -603,9 +604,9 @@ impl Component for MenuItem<'_> {
         } else if !level.is_submenu() && (back || (forward && !self.submenu)) {
             let rtl = cx.flow.is_rtl();
             level.request_step(if back != rtl { MenuStep::Prev } else { MenuStep::Next });
-            frame::request_repaint(&ctx);
+            ctx.request_repaint();
         }
-        let now = frame::clock(&ctx);
+        let now = ctx.time();
         let input = RowInput::of(cx, &level);
         let (moving, hovered, focused) = (input.moving, input.hovered, input.focused);
         // The pointer's last move headed for the open submenu of another row: this row is one it crosses on the way.
@@ -633,7 +634,7 @@ impl Component for MenuItem<'_> {
         self.active = enabled && level.is_active(cx.id);
         // A crossed row waits for the rest to end: one pass when it does.
         if hovered && heading && rested < AIM_REST {
-            frame::request_repaint_after(&ctx, AIM_REST - rested);
+            ctx.request_repaint_after(std::time::Duration::from_secs_f64(AIM_REST - rested));
         }
         let typed = enabled && level.take_run(cx.id);
         self.withheld = first_key;
@@ -647,7 +648,7 @@ impl Component for MenuItem<'_> {
                     if replaces_sibling && frame::discardable(&ctx) {
                         frame::discard_pass(&ctx, "menu: a sibling replaced the open submenu");
                     }
-                    frame::request_repaint(&ctx);
+                    ctx.request_repaint();
                 }
             }
             self.open = level.submenu_open(cx.id);
@@ -659,7 +660,7 @@ impl Component for MenuItem<'_> {
             return;
         }
         if takes_over && level.clear_submenu() {
-            frame::request_repaint(&ctx);
+            ctx.request_repaint();
         }
         if asked && !self.keep_open {
             close_on_pick(&ctx);
@@ -799,7 +800,7 @@ impl Component for MenuItem<'_> {
         let level = cx.env.get::<MenuLevel>();
         // The frame is where a submenu hangs: the row with the popup padding, widened by `gap.tight` on both sides so a
         // submenu that flips to the other side keeps the gap.
-        let frame = cx.response.rect.expand(level.pad()).expand2(egui::vec2(cx.style.submenu_gap, 0.0));
+        let frame = cx.response.rect.expand(level.pad()).expand2(craft_ui::geom::vec2(cx.style.submenu_gap, 0.0));
         MenuItemOutput {
             response: cx.response.clone(),
             ran: self.ran,

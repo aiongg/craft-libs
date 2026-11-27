@@ -2,9 +2,9 @@
 
 use craft_behavior::Mixed;
 use craft_ui::contract::{Bind, Show as _};
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::input::{Key, Mods};
+use craft_ui::testing::{Harness, trial};
 use craft_ui::text::{LinkMode, LinkedFields};
-use egui::{Key, Modifiers};
 use std::cell::Cell;
 use std::rc::Rc;
 
@@ -17,15 +17,15 @@ fn same(width: f64, height: f64) -> Parts {
 }
 
 /// Linked width and height with the link on, the values kept in `values` between frames.
-fn rig(values: &Values) -> Fixture {
+fn rig(values: &Values) -> Harness {
     let shown = values.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let mut current = shown.get();
         LinkedFields::new("Size", Bind::bound(&mut current), Bind::given(true)).captions(["W", "H"]).show(ui);
         shown.set(current);
     });
     fixture.settle();
-    fixture.key(Key::Tab, Modifiers::NONE);
+    fixture.key(Key::Tab, Mods::NONE);
     fixture
 }
 
@@ -36,7 +36,7 @@ fn typing_into_a_linked_field_keeps_the_starting_ratio() {
     let values: Values = Rc::new(Cell::new(same(500.0, 400.0)));
     let mut fixture = rig(&values);
     fixture.type_text("100");
-    fixture.key(Key::Enter, Modifiers::NONE);
+    fixture.key(Key::Enter, Mods::NONE);
     fixture.idle(2);
     assert_eq!(values.get(), same(100.0, 80.0));
 }
@@ -48,7 +48,7 @@ fn an_equal_link_turned_off_again_leaves_the_values_alone() {
     let values: Values = Rc::new(Cell::new(same(20.0, 20.0)));
     let link = Rc::new(Cell::new(false));
     let (shown, linked) = (values.clone(), link.clone());
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let mut current = shown.get();
         LinkedFields::new("Scale", Bind::bound(&mut current), Bind::given(linked.get())).mode(LinkMode::Equal).show(ui);
         shown.set(current);

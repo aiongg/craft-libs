@@ -2,12 +2,12 @@
 
 use craft_ui::bars::{BarItem, BarItems, MoreMenu};
 use craft_ui::contract::{Role, Show as _};
+use craft_ui::geom::Vec2;
 use craft_ui::runtime::commands::EditCommands;
-use craft_ui::testing::{Fixture, trial};
-use egui::Vec2;
+use craft_ui::testing::{Harness, trial};
 
-fn strip(width: f32, more: MoreMenu) -> Fixture {
-    let mut fixture = Fixture::new(move |ui| {
+fn strip(width: f32, more: MoreMenu) -> Harness {
+    let mut fixture = Harness::new_ui(move |ui| {
         let items = vec![
             BarItem::new(EditCommands::Undo),
             BarItem::new(EditCommands::Redo),
@@ -22,7 +22,7 @@ fn strip(width: f32, more: MoreMenu) -> Fixture {
 }
 
 /// How many of `labels` the strip shows.
-fn shown(fixture: &Fixture, labels: &[&str]) -> usize {
+fn shown(fixture: &Harness, labels: &[&str]) -> usize {
     labels.iter().filter(|label| fixture.by_label(label).is_some()).count()
 }
 

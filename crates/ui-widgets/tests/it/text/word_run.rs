@@ -1,11 +1,12 @@
 //! The word run's keys and picks.
 
 use craft_ui::contract::{Bind, Show as _};
+use craft_ui::geom::Vec2;
+use craft_ui::input::{Key, Mods};
 use craft_ui::testing::focus::key_release;
 use craft_ui::testing::input::key_press;
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::testing::{Harness, trial};
 use craft_ui::text::{RunWord, WordRun, WordState};
-use egui::{Key, Modifiers, Vec2};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -14,7 +15,7 @@ const WORDS: [&str; 9] = ["The", "quick", "brown", "fox", "jumps", "over", "the"
 /// A run of the words in a room they wrap in, bound to `picked`; `picks` counts the passes that report a pick, and
 /// while `discard` is on each frame runs twice.
 struct Run {
-    fixture: Fixture,
+    fixture: Harness,
     picked: Rc<RefCell<Option<usize>>>,
     picks: Rc<Cell<usize>>,
     discard: Rc<Cell<bool>>,
@@ -25,7 +26,7 @@ fn run(start: Option<usize>) -> Run {
     let picks = Rc::new(Cell::new(0));
     let discard = Rc::new(Cell::new(false));
     let (bound, counted, asks) = (picked.clone(), picks.clone(), discard.clone());
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let words: Vec<RunWord<usize>> =
             WORDS.iter().enumerate().map(|(at, text)| RunWord { key: at, text: (*text).to_owned(), state: WordState::Normal }).collect();
         let mut value = *bound.borrow();
@@ -44,7 +45,7 @@ fn run(start: Option<usize>) -> Run {
 }
 
 /// The word that holds focus, by its position in the run.
-fn lead(fixture: &Fixture) -> Option<u64> {
+fn lead(fixture: &Harness) -> Option<u64> {
     fixture.focused_stop().and_then(|(_, part)| part).and_then(|part| part.index)
 }
 
@@ -58,24 +59,24 @@ fn keys_move_the_lead_and_pick_one_word() {
     let (first, last) = (fixture.by_label("The").expect("the first word"), fixture.by_label("dog").expect("the last word"));
     assert!(last.rect.min.y > first.rect.max.y - 0.5, "the words wrap onto more than one line");
 
-    fixture.key(Key::Tab, Modifiers::NONE);
+    fixture.key(Key::Tab, Mods::NONE);
     assert_eq!(lead(&fixture), Some(0), "with nothing picked, Tab enters the run on its first word");
     for to in 1..WORDS.len() as u64 {
-        fixture.key(Key::ArrowRight, Modifiers::NONE);
+        fixture.key(Key::ArrowRight, Mods::NONE);
         assert_eq!(lead(&fixture), Some(to), "each arrow moves focus to the next word, across a line break too");
     }
     assert_eq!((*picked.borrow(), picks.get()), (None, 0), "moving focus picks nothing");
 
-    fixture.key(Key::Home, Modifiers::NONE);
+    fixture.key(Key::Home, Mods::NONE);
     assert_eq!(lead(&fixture), Some(0), "Home goes to the first word");
-    fixture.key(Key::ArrowRight, Modifiers::NONE).key(Key::ArrowRight, Modifiers::NONE);
-    fixture.key(Key::Space, Modifiers::NONE);
+    fixture.key(Key::ArrowRight, Mods::NONE).key(Key::ArrowRight, Mods::NONE);
+    fixture.key(Key::Space, Mods::NONE);
     assert_eq!(*picked.borrow(), lead(&fixture).map(|at| at as usize), "Space picks the focused word");
     assert_eq!(picks.get(), 1, "one press is one pick");
 
-    fixture.key(Key::End, Modifiers::NONE);
+    fixture.key(Key::End, Mods::NONE);
     assert_eq!(lead(&fixture), Some(WORDS.len() as u64 - 1), "End goes to the last word");
-    fixture.key(Key::Enter, Modifiers::NONE);
+    fixture.key(Key::Enter, Mods::NONE);
     assert_eq!(*picked.borrow(), lead(&fixture).map(|at| at as usize), "Enter picks the focused word");
     assert_eq!(picks.get(), 2);
 
@@ -84,17 +85,17 @@ fn keys_move_the_lead_and_pick_one_word() {
     assert_eq!(*picked.borrow(), Some(7), "a click picks the word under it");
     assert_eq!(picks.get(), 3);
 
-    fixture.key(Key::ArrowLeft, Modifiers::NONE);
+    fixture.key(Key::ArrowLeft, Mods::NONE);
     let before = picks.get();
     discard.set(true);
-    fixture.frame(vec![key_press(Key::Space, Modifiers::NONE)]);
+    fixture.send(key_press(Key::Space, Modifiers::NONE));
     discard.set(false);
     assert_eq!(fixture.passes(), 2, "the trial's frame ran twice");
-    fixture.frame(vec![key_release(Key::Space, Modifiers::NONE)]);
+    fixture.send(key_release(Key::Space, Modifiers::NONE));
     assert_eq!(picks.get(), before + 1, "a press in a frame of two passes picks once");
     assert_eq!(*picked.borrow(), lead(&fixture).map(|at| at as usize), "and picks the focused word");
 
     let Run { fixture: mut entered, .. } = run(Some(5));
-    entered.key(Key::Tab, Modifiers::NONE);
+    entered.key(Key::Tab, Mods::NONE);
     assert_eq!(lead(&entered), Some(5), "Tab enters a run that has a picked word on that word");
 }

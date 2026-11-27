@@ -12,6 +12,7 @@ use craft_ui::contract::{
     Bind, CommandSet, MemoProps, MemoView, Props as _, Show as _, ShowCollection as _, ShowContainer as _, Sizing, Tracked, bind_tracked,
 };
 use craft_ui::display::Spinner;
+use craft_ui::geom::{Pos2, Rect, Vec2};
 use craft_ui::layout_components::Stack;
 use craft_ui::list::{List, ListRow};
 use craft_ui::runtime::commands::{CommandInput, CommandScope, CommandState, CommandStates, Commands as _};
@@ -19,8 +20,8 @@ use craft_ui::runtime::env::RootEnv;
 use craft_ui::runtime::{frame, inspect};
 use craft_ui::testing::layout::in_region;
 use craft_ui::testing::pointer::{moved, press, release, wheel};
-use craft_ui::testing::{Fixture, Frames, MemoRun, last_frame_memo_runs, last_pass_measuring_runs, trial};
-use egui::{Context, Id, Pos2, Rect, Ui, Vec2};
+use craft_ui::testing::{Frames, Harness, MemoRun, last_frame_memo_runs, last_pass_measuring_runs, trial};
+use craft_ui::{Context, Id, Ui};
 use std::cell::{Cell, RefCell};
 
 const ORIGIN: Pos2 = Pos2::new(10.0, 60.0);
@@ -75,7 +76,7 @@ struct Other {
 
 fn other(props: &mut Other, ui: &mut Ui) {
     if props.repaints {
-        frame::request_repaint(ui.ctx());
+        ui.ctx().request_repaint();
     }
     // In a body, whose measure a run that is not settled takes from what its last run kept.
     Stack::new().show(ui, |ui, _| {
@@ -282,7 +283,7 @@ fn a_modifier_change_under_the_pointer_runs_the_view() {
     scene.settle(&mut frames);
     scene.frame(&mut frames, vec![moved(Scene::button(1).1.center())]);
     scene.settle(&mut frames);
-    frames.hold(egui::Modifiers::SHIFT);
+    frames.hold(craft_ui::input::Mods::SHIFT);
     let [reader, other] = scene.frame(&mut frames, vec![]);
     assert!(other > 0, "Shift going down runs the view under the pointer");
     assert_eq!(reader, 0, "the view away from the pointer stays settled");
@@ -552,7 +553,7 @@ fn command_reader(_: &mut CommandReader, ui: &mut Ui) {
         let id = Button::command(Shown::Measured).show(ui).id;
         COMMAND_BUTTONS.with(|buttons| buttons[3].set(id));
     });
-    inspect::pointed(ui.ctx(), Id::NULL.with(POINTED));
+    ui.inspect_pointed(Id::NULL.with(POINTED));
 }
 
 /// The view beside the reader: the command `Beside`.
@@ -584,7 +585,7 @@ impl CommandScene {
                 cx.publish(Scoped::Published, CommandState::new().enabled(self.published.get()));
             });
         });
-        inspect::point_at(ui.ctx(), Id::NULL.with(POINTED), self.pointed.get());
+        ui.inspect_point_at(Id::NULL.with(POINTED), self.pointed.get());
     }
 
     /// The passes of one frame with no input, and the runs of each view in it.
@@ -718,8 +719,8 @@ fn labelled(props: &mut Labelled, ui: &mut Ui) {
 }
 
 /// A fixture showing a view of the button `label`, settled.
-fn labelled_fixture(label: &'static str) -> Fixture {
-    let mut fixture = Fixture::new(move |ui| {
+fn labelled_fixture(label: &'static str) -> Harness {
+    let mut fixture = Harness::new_ui(move |ui| {
         MemoView::new("labelled", Labelled { label }, labelled).show(ui);
     });
     fixture.settle();
@@ -727,8 +728,8 @@ fn labelled_fixture(label: &'static str) -> Fixture {
 }
 
 /// The runs of the button view in one frame with no input.
-fn labelled_frame(fixture: &mut Fixture) -> usize {
-    fixture.frame(Vec::new());
+fn labelled_frame(fixture: &mut Harness) -> usize {
+    fixture.step();
     runs_of(fixture.ctx(), "Labelled")
 }
 

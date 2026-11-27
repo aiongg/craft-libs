@@ -4,7 +4,7 @@ use craft_ui::buttons::Button;
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _, clicked};
 use craft_ui::layout_components::Row;
 use craft_ui::popover::Popover;
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::testing::{Harness, trial};
 use std::cell::Cell;
 use std::rc::Rc;
 
@@ -12,7 +12,7 @@ use std::rc::Rc;
 fn opening_a_second_popover_closes_the_first() {
     let open = Rc::new([Cell::new(false), Cell::new(false)]);
     let shown = open.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         Row::new().show(ui, |ui, _| {
             for (at, name) in ["Grid", "Guides"].into_iter().enumerate() {
                 let opener = Button::new(name).show(ui);

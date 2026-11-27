@@ -14,7 +14,8 @@ use crate::layout_components::Row;
 use crate::runtime::drag::OsFile;
 use crate::runtime::env::Label;
 use craft_behavior::{EditEvent, SelectionChange, keyed};
-use egui::{Pos2, Response, Ui};
+use craft_ui::geom::Pos2;
+use craft_ui::{Response, Ui};
 use std::borrow::Cow;
 use std::hash::Hash;
 
@@ -357,9 +358,9 @@ impl<'a, D: Clone + Eq + Hash + Send + Sync + std::fmt::Debug + 'static> Documen
                     // The strip fills the row less the room the control took last pass; the control follows the last tab
                     // when every tab shows, and is the row's last item when they overflow.
                     let memory = ui.scope_id().with("document-tabs-trailing-width");
-                    let held = crate::runtime::memory::with_session(ui.ctx(), memory, |held: &mut f32| *held);
+                    let held = ui.with_session(memory, |held: &mut f32| *held);
                     // design: allow[contract/allocate](the tabs are a plain `show`, not a component: the slot keeps last pass's room for the trailing area)
-                    let slot = ui.allocate_exact_size(egui::vec2(held, strip.response.response.rect.height()), egui::Sense::hover()).0;
+                    let slot = ui.allocate_exact_size(craft_ui::geom::vec2(held, strip.response.response.rect.height()), egui::Sense::hover()).0;
                     let all_show = strip.tab_rects.len() == tabs.len();
                     let after = match strip.tab_rects.last() {
                         Some((_, rect)) if all_show => Some(rect.right() + ui.spacing().item_spacing.x),
@@ -372,23 +373,29 @@ impl<'a, D: Clone + Eq + Hash + Send + Sync + std::fmt::Debug + 'static> Documen
                             let end = slot.right().min(ui.clip_rect().right().max(slot.left()));
                             let left = at.min(slot.left()).min(end - held).max(strip.response.response.rect.left());
                             (
-                                egui::Rect::from_min_max(egui::pos2(left, slot.top()), egui::pos2(slot.right().max(left + 400.0), slot.bottom())),
-                                egui::Layout::left_to_right(egui::Align::Center),
+                                craft_ui::geom::Rect::from_min_max(
+                                    craft_ui::geom::pos2(left, slot.top()),
+                                    craft_ui::geom::pos2(slot.right().max(left + 400.0), slot.bottom()),
+                                ),
+                                egui::Layout::left_to_right(craft_ui::geom::Align::Center),
                             )
                         }
                         _ => {
                             // The row's own edge can lie past what the bar leaves it: end at the visible edge.
                             let end = slot.right().min(ui.clip_rect().right().max(slot.left()));
                             (
-                                egui::Rect::from_min_max(egui::pos2(end - slot.width(), slot.top()), egui::pos2(end, slot.bottom())),
-                                egui::Layout::right_to_left(egui::Align::Center),
+                                craft_ui::geom::Rect::from_min_max(
+                                    craft_ui::geom::pos2(end - slot.width(), slot.top()),
+                                    craft_ui::geom::pos2(end, slot.bottom()),
+                                ),
+                                egui::Layout::right_to_left(craft_ui::geom::Align::Center),
                             )
                         }
                     };
                     let builder = egui::UiBuilder::new().max_rect(room).layout(layout);
                     let drawn = ui.scope_builder(builder, |ui| area(ui)).response.rect.width();
                     if (drawn - held).abs() > 0.5 {
-                        crate::runtime::memory::with_session(ui.ctx(), memory, |held: &mut f32| *held = drawn);
+                        ui.with_session(memory, |held: &mut f32| *held = drawn);
                         ui.ctx().request_repaint();
                     }
                 }

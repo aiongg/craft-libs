@@ -1,14 +1,14 @@
 //! Nested content-sized blocks record their size in the pass that first shows them.
 
 use craft_behavior::{ColumnWidth, Sense};
+use craft_ui::Response;
 use craft_ui::buttons::Button;
 use craft_ui::contract::{Bind, Common, Component, Container, ContainerProps, Cx, Role, Show as _, ShowContainer as _};
 use craft_ui::layout::BodyLayout;
 use craft_ui::popover::Popover;
 use craft_ui::style::StyleCx;
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::testing::{Harness, trial};
 use craft_ui_test_kit::contract::PlainStyle;
-use egui::Response;
 use std::cell::Cell;
 use std::rc::Rc;
 
@@ -57,7 +57,7 @@ static CELLS: [ColumnWidth; 2] = [ColumnWidth::Content, ColumnWidth::Content];
 fn a_popover_with_nested_blocks_opens_at_its_final_size_within_one_discard_pass() {
     let open = Rc::new(Cell::new(false));
     let shown_open = open.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let opener = Button::new("Brush").show(ui);
         let mut is_open = shown_open.get();
         Popover::new("Brush options", Bind::bound(&mut is_open)).opened_by(&opener).show(ui, |ui, _| {
@@ -78,7 +78,7 @@ fn a_popover_with_nested_blocks_opens_at_its_final_size_within_one_discard_pass(
     let mut widths = Vec::new();
     let mut passes = Vec::new();
     for _ in 0..4 {
-        fixture.frame(Vec::new());
+        fixture.step();
         widths.push(craft_ui::testing::frames::widest_layer(fixture.ctx()));
         passes.push(fixture.passes());
     }

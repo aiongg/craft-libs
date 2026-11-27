@@ -2,9 +2,9 @@
 
 use super::kit::PlainStyle;
 use craft_behavior::Sense;
+use craft_ui::Response;
 use craft_ui::contract::{Common, Component, Container, ContainerProps, Cx, Props as _, Role};
 use craft_ui::style::StyleCx;
-use egui::Response;
 
 /// A container with the props the trial gives it and a caller's body.
 #[derive(craft_ui::contract::Component)]

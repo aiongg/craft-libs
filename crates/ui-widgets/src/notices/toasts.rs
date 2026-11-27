@@ -7,7 +7,9 @@ use crate::notices::{Notice, NoticeAction, NoticeLayout};
 use crate::runtime::env::{Env, WindowKey};
 use crate::runtime::toast::ToastEnd;
 use crate::style::TypeRole;
-use egui::{Align2, Rect, Ui};
+use craft_ui::Ui;
+use craft_ui::geom::Rect;
+use egui::Align2;
 
 /// The cards of a window's toast queue. Whoever owns the window root calls `show` once per pass. A card with progress
 /// shows a progress bar named by its title (else its message) and the percentage under its text, before its actions.

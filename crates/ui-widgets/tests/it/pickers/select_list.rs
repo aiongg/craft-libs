@@ -3,16 +3,19 @@
 //! a command or app shortcut it leaves runs and closes it.
 
 use craft_host::{AppInfo, Host};
+use craft_ui::Ui;
 use craft_ui::buttons::Button;
 use craft_ui::contract::overlay::close_popups;
 use craft_ui::contract::{Bind, CommandSet, Entry, Role, Show as _, ShowContainer as _};
+use craft_ui::geom::Vec2;
+use craft_ui::input::{Key, Mods};
 use craft_ui::layout_components::Stack;
 use craft_ui::pickers::Select;
 use craft_ui::runtime::commands::Commands as _;
 use craft_ui::testing::focus::key_release;
 use craft_ui::testing::input::{key_press, text};
-use craft_ui::testing::{Fixture, Story, StoryData, StoryOutput, trial};
-use egui::{Event, Key, Modifiers, Ui, Vec2};
+use craft_ui::testing::{Harness, Story, StoryData, StoryOutput, trial};
+use egui::Event;
 use std::cell::Cell;
 use std::sync::Arc;
 
@@ -30,32 +33,32 @@ fn select_then_button(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 }
 
 /// A fixture with the select focused and holding One.
-fn focused() -> Fixture {
-    let mut fixture = Fixture::story(&Story::new("select_list", select));
+fn focused() -> Harness {
+    let mut fixture = Harness::story(&Story::new("select_list", select));
     fixture.settle();
-    fixture.key(Key::Tab, Modifiers::NONE);
+    fixture.key(Key::Tab, Mods::NONE);
     fixture.settle();
     fixture
 }
 
-fn value(fixture: &mut Fixture) -> u8 {
+fn value(fixture: &mut Harness) -> u8 {
     *fixture.data().value("value", 1u8)
 }
 
-fn list_open(fixture: &mut Fixture) -> bool {
+fn list_open(fixture: &mut Harness) -> bool {
     !fixture.by_role(Role::LIST_BOX).is_empty()
 }
 
 #[trial]
 fn keys_in_the_open_list_move_the_value_and_escape_puts_it_back() {
     let mut fixture = focused();
-    fixture.key(Key::ArrowDown, Modifiers::ALT);
+    fixture.key(Key::ArrowDown, Mods::ALT);
     fixture.settle();
     assert!(list_open(&mut fixture), "Alt+Down opens the list");
-    fixture.key(Key::ArrowDown, Modifiers::NONE);
+    fixture.key(Key::ArrowDown, Mods::NONE);
     fixture.settle();
     assert_eq!(value(&mut fixture), 2, "the row Down reaches is the value at once");
-    fixture.key(Key::Escape, Modifiers::NONE);
+    fixture.key(Key::Escape, Mods::NONE);
     fixture.settle();
     assert!(!list_open(&mut fixture), "Escape closes the list");
     assert_eq!(value(&mut fixture), 1, "and puts back the value from before the list opened");
@@ -66,13 +69,13 @@ fn keys_in_the_open_list_move_the_value_and_escape_puts_it_back() {
 #[trial]
 fn enter_on_the_field_right_after_escape_opens_the_list_again_during_its_exit_fade() {
     let mut fixture = focused();
-    fixture.key(Key::ArrowDown, Modifiers::ALT);
+    fixture.key(Key::ArrowDown, Mods::ALT);
     fixture.settle();
     assert!(list_open(&mut fixture), "Alt+Down opens the list");
-    fixture.key(Key::ArrowDown, Modifiers::NONE);
-    fixture.key(Key::Escape, Modifiers::NONE);
+    fixture.key(Key::ArrowDown, Mods::NONE);
+    fixture.key(Key::Escape, Mods::NONE);
     assert_eq!(value(&mut fixture), 1, "Escape puts back the value from before the list opened");
-    fixture.key(Key::Enter, Modifiers::NONE);
+    fixture.key(Key::Enter, Mods::NONE);
     fixture.settle();
     assert!(list_open(&mut fixture), "Enter on the focused field opens the list again before the old one has faded out");
     assert_eq!(value(&mut fixture), 1, "and picks no row of the list that was leaving");
@@ -89,16 +92,16 @@ fn typing_on_the_closed_select_opens_the_list_on_the_first_match() {
 
 #[trial]
 fn tab_in_the_open_list_chooses_the_row_the_keys_reached_and_moves_on() {
-    let mut fixture = Fixture::story(&Story::new("select_then_button", select_then_button));
+    let mut fixture = Harness::story(&Story::new("select_then_button", select_then_button));
     fixture.settle();
-    fixture.key(Key::Tab, Modifiers::NONE);
+    fixture.key(Key::Tab, Mods::NONE);
     fixture.settle();
     let on_select = fixture.focused_stop();
-    fixture.key(Key::ArrowDown, Modifiers::ALT);
+    fixture.key(Key::ArrowDown, Mods::ALT);
     fixture.settle();
-    fixture.key(Key::ArrowDown, Modifiers::NONE);
+    fixture.key(Key::ArrowDown, Mods::NONE);
     fixture.settle();
-    fixture.key(Key::Tab, Modifiers::NONE);
+    fixture.key(Key::Tab, Mods::NONE);
     fixture.settle();
     assert!(!list_open(&mut fixture), "Tab closes the list");
     assert_eq!(value(&mut fixture), 2, "and keeps the row the keys reached");
@@ -117,11 +120,11 @@ fn typed_in_azerbaijani(held: u8, typed: &str) -> u8 {
     let (i18n, _) = craft_i18n::I18n::from_owned([("az".to_owned(), String::new(), String::new())], &["az"]);
     let lang = i18n.from_code("az").expect("Azerbaijani is offered");
     let host = Host::builder(AppInfo { id: "trial", name: "Trial", version: "0" }).i18n(Arc::new(i18n)).lang(lang).build();
-    let mut fixture = Fixture::story(&Story::new("select_turkic", turkic));
+    let mut fixture = Harness::story(&Story::new("select_turkic", turkic));
     fixture.host(Arc::new(host));
     *fixture.data().value("value", 1u8) = held;
     fixture.settle();
-    fixture.key(Key::Tab, Modifiers::NONE);
+    fixture.key(Key::Tab, Mods::NONE);
     fixture.settle();
     fixture.type_text(typed);
     fixture.settle();
@@ -150,21 +153,21 @@ fn grouped(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 
 #[trial]
 fn a_heading_in_the_list_takes_no_pick_and_the_keys_and_type_ahead_pass_over_it() {
-    let mut fixture = Fixture::story(&Story::new("select_grouped", grouped));
+    let mut fixture = Harness::story(&Story::new("select_grouped", grouped));
     fixture.settle();
-    fixture.key(Key::Tab, Modifiers::NONE);
-    fixture.key(Key::ArrowDown, Modifiers::ALT);
+    fixture.key(Key::Tab, Mods::NONE);
+    fixture.key(Key::ArrowDown, Mods::ALT);
     fixture.settle();
     let heading = fixture.by_label("Lines").expect("the heading shows in the open list");
     fixture.click(&heading);
     fixture.settle();
     assert!(list_open(&mut fixture), "a click on a heading leaves the list open");
     assert_eq!(value(&mut fixture), 1, "and picks nothing");
-    fixture.key(Key::ArrowDown, Modifiers::NONE);
-    fixture.key(Key::ArrowDown, Modifiers::NONE);
+    fixture.key(Key::ArrowDown, Mods::NONE);
+    fixture.key(Key::ArrowDown, Mods::NONE);
     fixture.settle();
     assert_eq!(value(&mut fixture), 3, "Down from the last row of a group lands on the first row of the next");
-    fixture.key(Key::Escape, Modifiers::NONE);
+    fixture.key(Key::Escape, Mods::NONE);
     fixture.settle();
     fixture.type_text("l");
     fixture.settle();
@@ -175,7 +178,7 @@ fn a_heading_in_the_list_takes_no_pick_and_the_keys_and_type_ahead_pass_over_it(
 /// The select in an app that reads its own shortcuts from egui's input before the select runs, as PhotoCraft does: the
 /// keys it reads are noted in `app_read`, and its Cmd+1 shortcut closes the open popups as it runs.
 fn select_in_app(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let pressed: Vec<(Key, Modifiers)> = ui.input(|input| {
+    let pressed: Vec<(Key, Mods)> = ui.input(|input| {
         input
             .events
             .iter()
@@ -193,17 +196,17 @@ fn select_in_app(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 }
 
 /// The app's select, focused, with its list open.
-fn open_in_app() -> Fixture {
-    let mut fixture = Fixture::story(&Story::new("select_in_app", select_in_app));
+fn open_in_app() -> Harness {
+    let mut fixture = Harness::story(&Story::new("select_in_app", select_in_app));
     fixture.settle();
-    fixture.key(Key::Tab, Modifiers::NONE);
-    fixture.key(Key::ArrowDown, Modifiers::ALT);
+    fixture.key(Key::Tab, Mods::NONE);
+    fixture.key(Key::ArrowDown, Mods::ALT);
     fixture.settle();
     assert!(list_open(&mut fixture), "Alt+Down opens the list");
     fixture
 }
 
-fn app_read(fixture: &mut Fixture, key: Key) -> bool {
+fn app_read(fixture: &mut Harness, key: Key) -> bool {
     fixture.data().note("app_read", Vec::<Key>::new()).contains(&key)
 }
 
@@ -211,7 +214,7 @@ fn app_read(fixture: &mut Fixture, key: Key) -> bool {
 fn a_letter_typed_into_the_open_list_is_its_own_and_reaches_no_app_shortcut() {
     let mut fixture = open_in_app();
     fixture.frame(vec![key_press(Key::T, Modifiers::NONE), text("t")]);
-    fixture.frame(vec![key_release(Key::T, Modifiers::NONE)]);
+    fixture.send(key_release(Key::T, Modifiers::NONE));
     fixture.settle();
     assert_eq!(value(&mut fixture), 2, "the list's type-ahead takes the letter");
     assert!(list_open(&mut fixture), "and the list stays open");
@@ -221,7 +224,7 @@ fn a_letter_typed_into_the_open_list_is_its_own_and_reaches_no_app_shortcut() {
 #[trial]
 fn an_app_shortcut_runs_with_the_list_open_and_closes_it_through_the_runtime() {
     let mut fixture = open_in_app();
-    fixture.key(Key::Num1, Modifiers::COMMAND);
+    fixture.key(Key::Num1, Mods::COMMAND);
     fixture.settle();
     assert!(app_read(&mut fixture, Key::Num1), "the chord the list leaves reaches the app");
     assert!(!list_open(&mut fixture), "the app's shortcut closes the list");
@@ -252,13 +255,13 @@ fn select_in_scope(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 
 #[trial]
 fn a_key_command_runs_with_the_list_open_and_closes_it() {
-    let mut fixture = Fixture::story(&Story::new("select_in_scope", select_in_scope));
+    let mut fixture = Harness::story(&Story::new("select_in_scope", select_in_scope));
     fixture.settle();
-    fixture.key(Key::Tab, Modifiers::NONE);
-    fixture.key(Key::ArrowDown, Modifiers::ALT);
+    fixture.key(Key::Tab, Mods::NONE);
+    fixture.key(Key::ArrowDown, Mods::ALT);
     fixture.settle();
     assert!(list_open(&mut fixture), "Alt+Down opens the list");
-    fixture.key(Key::Num1, Modifiers::COMMAND);
+    fixture.key(Key::Num1, Mods::COMMAND);
     fixture.settle();
     assert_eq!(*fixture.data().value("marks", 0u32), 1, "the command the key binds runs");
     assert!(!list_open(&mut fixture), "and closes the list");
@@ -289,23 +292,23 @@ fn the_wheel_steps_the_open_select_a_line_an_entry_and_commits_when_it_stops() {
     let value = Rc::new(RefCell::new(1u8));
     let steps: Rc<RefCell<Vec<&'static str>>> = Rc::default();
     let (held, seen) = (value.clone(), steps.clone());
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let entries = [Entry::new(1u8, "One"), Entry::new(2u8, "Two"), Entry::new(3u8, "Three"), Entry::new(4u8, "Four"), Entry::new(5u8, "Five")];
         let mut guard = held.borrow_mut();
         let out = Select::new("Pick", Bind::bound(&mut *guard), &entries).show(ui);
         seen.borrow_mut().extend(out.events.iter().map(step_name));
     });
     fixture.settle();
-    fixture.key(Key::Tab, Modifiers::NONE);
-    fixture.key(Key::ArrowDown, Modifiers::ALT);
+    fixture.key(Key::Tab, Mods::NONE);
+    fixture.key(Key::ArrowDown, Mods::ALT);
     fixture.settle();
     assert!(list_open(&mut fixture), "Alt+Down opens the list");
     let face = fixture.by_role(Role::COMBO_BOX).first().expect("the field").rect;
-    fixture.key(Key::ArrowDown, Modifiers::NONE);
+    fixture.key(Key::ArrowDown, Mods::NONE);
     fixture.settle();
     assert_eq!(*value.borrow(), 2, "the keys preview Two");
-    fixture.frame(vec![moved(face.center())]);
-    fixture.frame(vec![wheel_lines(-2.0)]);
+    fixture.send(moved(face.center()));
+    fixture.send(wheel_lines(-2.0));
     assert_eq!(*value.borrow(), 4, "a turn of two lines down steps two entries on from the previewed one");
     assert!(!steps.borrow().contains(&"commit"), "nothing commits while the wheel turns: {:?}", steps.borrow());
     fixture.advance(GESTURE_GAP * 2.0).idle(3);
@@ -326,17 +329,17 @@ fn long(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 
 #[trial]
 fn a_long_list_in_a_short_window_opens_on_the_roomier_side_with_the_pick_in_view() {
-    let mut fixture = Fixture::story(&Story::new("select_long", long));
+    let mut fixture = Harness::story(&Story::new("select_long", long));
     fixture.room(Vec2::new(400.0, 240.0)).settle();
-    fixture.key(Key::Tab, Modifiers::NONE);
-    fixture.key(Key::ArrowDown, Modifiers::ALT);
+    fixture.key(Key::Tab, Mods::NONE);
+    fixture.key(Key::ArrowDown, Mods::ALT);
     fixture.settle();
     let window = fixture.ctx().content_rect();
     let list = fixture.by_role(Role::LIST_BOX).first().expect("Alt+Down opens the list").rect;
     assert!(window.contains_rect(list), "the list {list:?} stays inside the window {window:?}");
     let held = fixture.by_label(&format!("Item {HELD}")).expect("the held entry shows").rect;
     assert!(list.expand(0.5).contains_rect(held), "the held entry {held:?} is in view in the list {list:?}");
-    fixture.key(Key::Space, Modifiers::NONE);
+    fixture.key(Key::Space, Mods::NONE);
     fixture.settle();
     assert!(!list_open(&mut fixture), "Space on the lead picks and closes the list");
     assert_eq!(*fixture.data().value("value", HELD), HELD, "the lead the list opened on is the held entry");
@@ -348,7 +351,7 @@ fn a_long_list_in_a_short_window_opens_on_the_roomier_side_with_the_pick_in_view
 fn hovering_a_row_moves_the_lead_and_leaves_the_selected_option_held() {
     use craft_ui::testing::pointer::moved;
     let mut fixture = focused();
-    fixture.key(Key::ArrowDown, Modifiers::ALT);
+    fixture.key(Key::ArrowDown, Mods::ALT);
     fixture.settle();
     assert!(list_open(&mut fixture), "Alt+Down opens the list");
     let options = fixture.by_role(Role::LIST_BOX_OPTION);
@@ -361,7 +364,7 @@ fn hovering_a_row_moves_the_lead_and_leaves_the_selected_option_held() {
             fixture.by_role(Role::LIST_BOX_OPTION).into_iter().filter(|row| fixture.tree().selected_of(row.node) == Some(true)).collect();
         assert!(selected.len() == 1 && selected[0].node == held, "frame {step}: the held row stays the selected option");
     }
-    fixture.key(Key::Enter, Modifiers::NONE);
+    fixture.key(Key::Enter, Mods::NONE);
     fixture.settle();
     assert_eq!(value(&mut fixture), 3, "the lead followed the pointer, so Enter chooses the row under it");
 }
@@ -376,10 +379,10 @@ fn separated(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 /// blank room).
 #[trial]
 fn a_separator_in_the_list_draws_a_rule_and_the_keys_pass_over_it() {
-    let mut fixture = Fixture::story(&Story::new("select_separated", separated));
+    let mut fixture = Harness::story(&Story::new("select_separated", separated));
     fixture.settle();
-    fixture.key(Key::Tab, Modifiers::NONE);
-    fixture.key(Key::ArrowDown, Modifiers::ALT);
+    fixture.key(Key::Tab, Mods::NONE);
+    fixture.key(Key::ArrowDown, Mods::ALT);
     fixture.settle();
     let two = fixture.by_label("Two").expect("the Two row").rect;
     let three = fixture.by_label("Three").expect("the Three row").rect;
@@ -389,8 +392,8 @@ fn a_separator_in_the_list_draws_a_rule_and_the_keys_pass_over_it() {
         shape.top() >= two.bottom() - 0.5 && shape.bottom() <= three.top() + 0.5 && shape.width() > two.width() / 2.0 && shape.height() < gap
     });
     assert!(rule, "a rule across the list between Two and Three");
-    fixture.key(Key::ArrowDown, Modifiers::NONE);
-    fixture.key(Key::ArrowDown, Modifiers::NONE);
+    fixture.key(Key::ArrowDown, Mods::NONE);
+    fixture.key(Key::ArrowDown, Mods::NONE);
     fixture.settle();
     assert_eq!(value(&mut fixture), 3, "Down from Two lands on Three");
 }

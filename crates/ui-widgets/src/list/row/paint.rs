@@ -16,7 +16,8 @@ use crate::primitives::{DocText, Draw, IconSpec, PaintShape, RectSide, RuleKind,
 use crate::style::{Flags, GlyphRole, Ink, StateMix, StateSet, StyleColor};
 use craft_behavior::{Flow, IconId, Mixed, PartRef};
 use craft_theme::ControlSize;
-use egui::{CornerRadius, Pos2, Rect, Vec2};
+use craft_ui::CornerRadius;
+use craft_ui::geom::{Pos2, Rect, Vec2};
 
 impl ListRow<'_> {
     /// Whether the trailing part `key` shows: a `revealed` one only on a hovered or `selected` row, while it has focus
@@ -27,7 +28,7 @@ impl ListRow<'_> {
             || selected
             || menu_open
             || cx.part_state(key).flags.contains(Flags::FOCUSED)
-            || item_part_open(&cx.ctx, cx.id, key)
+            || item_part_open(cx.context(), cx.id, key)
     }
 
     pub(super) fn paint_trailing(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>, placed: &Placed) {

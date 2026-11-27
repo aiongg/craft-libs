@@ -5,7 +5,7 @@ use craft_theme::Srgba;
 use craft_ui::choice::Swatch;
 use craft_ui::contract::{FieldLayout, Props as _, Show as _, ShowContainer as _, Sizing};
 use craft_ui::form::Field;
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::testing::{Harness, trial};
 use std::cell::Cell;
 use std::rc::Rc;
 
@@ -21,8 +21,8 @@ fn a_caption_above_a_small_control_counts_whole_toward_the_least_width() {
     let least = Rc::new(Cell::new(0.0));
     let seen = least.clone();
     let field = || Field::new(CAPTION).layout(FieldLayout::Above).sizing(Sizing::Content);
-    let mut fixture = Fixture::new(move |ui| {
-        let body = |ui: &mut egui::Ui, _: &mut craft_ui::contract::BodyCx<'_>| {
+    let mut fixture = Harness::new_ui(move |ui| {
+        let body = |ui: &mut craft_ui::Ui, _: &mut craft_ui::contract::BodyCx<'_>| {
             Swatch::new("Page", GREY).show(ui);
         };
         seen.set(field().measure_in(ui, Proposal::Min, body).x);

@@ -2,11 +2,12 @@
 
 use super::kit::{AT, DRAGGED, INITIAL, Scrub, near};
 use craft_behavior::DocKey;
+use craft_ui::Ui;
 use craft_ui::contract::{Bind, Props as _, Show as _};
 use craft_ui::edit::{GestureHost, StepName, UndoMarks};
+use craft_ui::geom::{Pos2, Vec2};
 use craft_ui::testing::pointer::{moved, press, release};
 use craft_ui::testing::{Frames, trial};
-use egui::{Pos2, Ui, Vec2};
 
 /// A document with the history of an app: every applied edit records a step, and the history can fold or take back steps.
 #[derive(Default)]

@@ -15,7 +15,7 @@ use crate::runtime::env::{EnvView, Label};
 use crate::style::{StyleCx, TextLook};
 use craft_behavior::{ColumnKey, Flow};
 use craft_theme::{ControlSize, TypeRole};
-use egui::{Pos2, Rect, Vec2};
+use craft_ui::geom::{Pos2, Rect, Vec2};
 
 /// The label's least width, in control heights, before the indent and the optional items give way.
 const MIN_LABEL_HEIGHTS: f32 = 3.0;
@@ -231,7 +231,7 @@ impl ListRow<'_> {
     /// Takes the toggle columns, their keys, the ones that do not flip in this row, the columns' alignments and the press the collection holds on the row from
     /// the facts it recorded for this row: an end-aligned column's text ends at the cell's end (mirrored in a
     /// right-to-left interface) and a numeric column's figures are tabular.
-    pub(super) fn adopt_facts(&mut self, env: &EnvView<'_>, id: egui::Id) {
+    pub(super) fn adopt_facts(&mut self, env: &EnvView<'_>, id: craft_ui::Id) {
         if let Some(facts) = env.facts_of(id) {
             self.toggle_columns.clone_from(&facts.toggles);
             self.toggle_keys.clone_from(&facts.toggle_keys);

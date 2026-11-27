@@ -35,7 +35,8 @@ use craft_behavior::{
     Flow, HitLevel, HitPriority, IconId, Insets, ItemLayout, ItemSource, Metrics, NavShape, PartKey, PressPhase, ScrollPos, Selection,
     SelectionChange, Sense,
 };
-use egui::{Id, Pos2, Rect, Response, Vec2};
+use craft_ui::geom::{Pos2, Rect, Vec2};
+use craft_ui::{Id, Response};
 use std::cell::RefCell;
 use std::hash::Hash;
 use std::sync::{Arc, Mutex, PoisonError};
@@ -239,11 +240,11 @@ pub struct StripLayout {
     wide: Vec<f32>,
     report: Arc<Mutex<Report>>,
     /// A measuring run computes the fit and leaves the report to the real pass (`measure::effect`).
-    ctx: egui::Context,
+    ctx: craft_ui::Context,
 }
 
 impl StripLayout {
-    fn new(count: usize, size: Vec2, tab_gap: f32, fitting: Fitting, report: Arc<Mutex<Report>>, ctx: egui::Context) -> Self {
+    fn new(count: usize, size: Vec2, tab_gap: f32, fitting: Fitting, report: Arc<Mutex<Report>>, ctx: craft_ui::Context) -> Self {
         let (width, height) = (size.x, size.y);
         let each = if count == 0 { 0.0 } else { width / count as f32 };
         let mut layout = StripLayout {
@@ -803,7 +804,7 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + std::fmt::Debug + 'static> TabStri
         let rect = Flow::new(cx.core.content_rect, cx.flow.is_rtl()).span(start + side, width - 2.0 * side);
         if let Some(height) = cx.style.underline_height {
             let bar = Rect::from_min_max(Pos2::new(rect.left(), rect.bottom() - height), rect.right_bottom());
-            ui.draw().fill(&PaintShape::Rect(bar, egui::CornerRadius::ZERO), cx.style.underline);
+            ui.draw().fill(&PaintShape::Rect(bar, craft_ui::CornerRadius::ZERO), cx.style.underline);
             return;
         }
         let y = rect.bottom() - cx.style.underline_inset;

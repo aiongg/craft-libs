@@ -8,7 +8,8 @@ use crate::style::{ComponentStyle, IconLook, Ink, StyleCx, TextLook, TypeRole};
 use crate::text::{Adornment, FieldStyle, place, reserve};
 use craft_behavior::{Flow, Metrics, Proposal, Sense};
 use craft_theme::{Stateful, States};
-use egui::{Pos2, Rect, Response, Vec2};
+use craft_ui::Response;
+use craft_ui::geom::{Pos2, Rect, Vec2};
 
 /// The style of a select face: the field's metrics, the text, the faint placeholder, the thumbnail's height and its
 /// caption, and the chevron. The host owns the

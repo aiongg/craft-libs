@@ -2,13 +2,13 @@
 
 use craft_ui::choice::Checkbox;
 use craft_ui::contract::{Bind, Props as _, Show as _};
-use craft_ui::testing::{Fixture, bypass, trial};
-use egui::{Rect, pos2};
+use craft_ui::geom::{Rect, pos2};
+use craft_ui::testing::{Harness, bypass, trial};
 
 #[trial]
 fn a_raw_egui_widget_next_to_a_component_is_a_finding() {
     let mut checked = false;
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         Checkbox::new(Bind::bound(&mut checked)).label("Show grid").show(ui);
         let raw = Rect::from_min_max(pos2(0.0, 100.0), pos2(40.0, 120.0));
         craft_ui::testing::contract::raw_widget(ui, raw);

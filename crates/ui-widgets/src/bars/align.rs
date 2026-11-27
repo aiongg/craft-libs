@@ -8,7 +8,7 @@ use crate::contract::{NoValue, Outcome, Props as _, Show as _};
 use crate::runtime::env::Env;
 use crate::style::GlyphRole;
 use craft_behavior::fit::FitKeep;
-use egui::{Response, Ui};
+use craft_ui::{Response, Ui};
 
 #[cfg(feature = "suite")]
 pub(crate) mod stories;

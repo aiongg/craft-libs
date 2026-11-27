@@ -7,7 +7,7 @@ use crate::runtime::memory::{unique, with_session};
 use crate::runtime::toast::{self, Toast, ToastAction, ToastEnd, ToastId};
 use crate::runtime::words::CommonWords;
 use craft_theme::variant::Tone;
-use egui::{Context, Response, Ui};
+use craft_ui::{Context, Response, Ui};
 
 /// The id of the "Don't Show Again" word, which the toast card resolves in the viewport's language.
 const DONT_SHOW_AGAIN: &str = "common.dontShowAgain";
@@ -130,7 +130,7 @@ impl Tracked {
 #[derive(Clone, Default)]
 struct Posted(Vec<Tracked>);
 
-fn posted_slot() -> egui::Id {
+fn posted_slot() -> craft_ui::Id {
     unique("craft_ui.notice_center")
 }
 

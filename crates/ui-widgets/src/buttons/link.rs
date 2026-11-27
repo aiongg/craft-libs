@@ -8,7 +8,7 @@ use crate::style::{ComponentStyle, FocusLook, Stateful, StyleCx, TextLook, TypeR
 use craft_behavior::{CursorIcon, Flow, Metrics, PartKey, PointerButton, PressPhase, Proposal, Sense};
 use craft_theme::States;
 use craft_theme::variant::Tone;
-use egui::{Pos2, Rect, Vec2};
+use craft_ui::geom::{Pos2, Rect, Vec2};
 use std::ops::Range;
 
 /// The part a link in a sentence takes the pointer on, one per row the link's characters cover, and its `Link` node

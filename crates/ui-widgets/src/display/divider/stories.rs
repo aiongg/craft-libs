@@ -4,7 +4,7 @@ use super::Divider;
 use crate::contract::Show as _;
 use crate::display::Text;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
-use egui::Ui;
+use craft_ui::Ui;
 
 #[story(Divider, covers = [Default], drive = Drive::Never)]
 fn divider(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {

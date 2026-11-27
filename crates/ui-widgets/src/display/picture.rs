@@ -11,7 +11,9 @@ use crate::primitives::{
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::{Metrics, Sense};
-use egui::{Color32, ColorImage, Id, Rect, Response, Vec2};
+use craft_ui::geom::{Rect, Vec2};
+use craft_ui::{Color32, Id, Response};
+use egui::ColorImage;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
@@ -240,7 +242,7 @@ impl Component for Picture<'_> {
         }
         match &self.source {
             Source::Image { key, image } => {
-                let texture = store(&cx.ctx).get_or_put(&cx.ctx, (cx.resolved.id, *key), self.revision, *image);
+                let texture = store(cx.context()).get_or_put(cx.context(), (cx.resolved.id, *key), self.revision, *image);
                 let target = fit_rect(cx.content_rect, texture.size_vec2());
                 // The store packs, so the texture is the picture's part of a shared page.
                 ui.content_painter(cx).picture(texture.key(), target, texture.uv(), 0.0);
@@ -249,7 +251,7 @@ impl Component for Picture<'_> {
             Source::Rendered { key, thumbnails, source } => {
                 let rect = cx.content_rect;
                 let request = ThumbRequest::for_cell(rect.width().max(rect.height()), cx.ctx.pixels_per_point());
-                let state = thumbnails.state(&cx.ctx, *source, key, &request, Priority::VISIBLE);
+                let state = thumbnails.state(cx.context(), *source, key, &request, Priority::VISIBLE);
                 thumbnails.paint(&ui.content_painter(cx), rect, &state, &ThumbPaint::default().checker(self.checker));
             }
             Source::Svg(svg) => {
@@ -261,16 +263,16 @@ impl Component for Picture<'_> {
                 }
                 // A side past the cap is refused below; the saturating cast keeps that refusal for absurd sizes.
                 let (width, height) = (width as u32, height as u32);
-                let store = store(&cx.ctx);
+                let store = store(cx.context());
                 let key = (cx.resolved.id, svg_key(svg, width, height));
-                let texture = match store.state(&cx.ctx, &key, self.revision) {
+                let texture = match store.state(cx.context(), &key, self.revision) {
                     TextureState::Ready(texture) => texture,
                     TextureState::Empty | TextureState::Failed { .. } => return,
                     _ => match rasterise_svg(svg, width, height) {
-                        Some(image) => store.put(&cx.ctx, key, self.revision, image),
+                        Some(image) => store.put(cx.context(), key, self.revision, image),
                         None => {
                             log::error!("picture {:?}: the SVG is refused or does not draw at {width}x{height}", cx.resolved.id);
-                            store.put_empty(&cx.ctx, key, self.revision);
+                            store.put_empty(cx.context(), key, self.revision);
                             return;
                         }
                     },
@@ -289,7 +291,7 @@ impl Component for Picture<'_> {
 
 /// The pictures' store of `ctx`: packed, so many small pictures (style tiles, font samples, SVG assets) share a few
 /// page textures; a larger picture takes a texture of its own.
-fn store(ctx: &egui::Context) -> TextureStore<(Id, u64)> {
+fn store(ctx: &craft_ui::Context) -> TextureStore<(Id, u64)> {
     TextureStore::in_context(ctx, "picture", TextureStoreOptions::thumbnails().packed_small())
 }
 

@@ -8,7 +8,7 @@ use crate::runtime::env::Message;
 use crate::testing::{Drive, Grip, StoryData, StoryOutput, story};
 use crate::text::NumberField;
 use craft_behavior::Mixed;
-use egui::Ui;
+use craft_ui::Ui;
 
 const RANGE: std::ops::RangeInclusive<f64> = 0.0..=100.0;
 const CENTER: [f64; 2] = [50.0, 50.0];

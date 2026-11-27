@@ -5,7 +5,7 @@
 
 use crate::runtime::env::Label;
 use craft_behavior::{IconId, ItemLayout, ItemSource, NavShape, ScrollPos, SizeHint, TileLayout as EqualTiles};
-use egui::{Pos2, Rect, Vec2, pos2, vec2};
+use craft_ui::geom::{Pos2, Rect, Vec2, pos2, vec2};
 use std::ops::Range;
 use std::sync::Arc;
 

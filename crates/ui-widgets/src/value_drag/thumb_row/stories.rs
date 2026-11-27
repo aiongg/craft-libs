@@ -9,7 +9,7 @@ use crate::style::DataColor;
 use crate::testing::{Drive, Grip, StoryData, StoryOutput, story};
 use crate::value_drag::TrackFace;
 use craft_behavior::Mixed;
-use egui::{Color32, Ui};
+use craft_ui::{Color32, Ui};
 
 const LEVELS: std::ops::RangeInclusive<f64> = 0.0..=255.0;
 const HUES: std::ops::RangeInclusive<f64> = 0.0..=360.0;

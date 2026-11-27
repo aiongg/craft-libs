@@ -2,11 +2,13 @@
 //! shows are apart and inside the tile, and a part that does not fit is left out.
 
 use craft_theme::Srgba;
+use craft_ui::Color32;
 use craft_ui::contract::{Props as _, Show as _};
+use craft_ui::geom::{Rect, pos2, vec2};
 use craft_ui::testing::layout::in_region;
 use craft_ui::testing::{Frames, trial};
 use craft_ui::tile_grid::{BadgeVisibility, CardText, Tile, TileFlag};
-use egui::{Color32, Rect, Shape, pos2, vec2};
+use egui::Shape;
 
 /// The tile's rect and the bounds of the glyphs (stars and flag) and colour dots it paints in a region `width` wide.
 fn badges(width: f32) -> (Rect, Vec<Rect>, Vec<Rect>) {
@@ -114,11 +116,11 @@ fn a_named_action_is_exposed_by_its_own_name_while_its_tile_shows_it() {
     use craft_behavior::IconId;
     use craft_ui::contract::Props as _;
     use craft_ui::runtime::commands::CommandRef;
-    use craft_ui::testing::Fixture;
+    use craft_ui::testing::Harness;
     use craft_ui::testing::pointer::moved;
     const NAMES: [&str; 3] = ["Rotate page 1 clockwise", "Rotate page 2 clockwise", "Rotate page 3 clockwise"];
     const PAGES: [&str; 3] = ["Page 1", "Page 2", "Page 3"];
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         ui.horizontal(|ui| {
             for (at, (page, name)) in PAGES.iter().zip(NAMES).enumerate() {
                 Tile::new(*page).action_named(IconId::new("rotate_cw"), CommandRef::new("page.rotate"), name).selected(at == 2).show(ui);
@@ -129,7 +131,7 @@ fn a_named_action_is_exposed_by_its_own_name_while_its_tile_shows_it() {
     assert!(NAMES[..2].iter().all(|name| fixture.by_label(name).is_none()), "no tile is hovered, so no action shows");
     assert!(fixture.by_label(NAMES[2]).is_some(), "the selected tile shows its action unhovered");
     let over = fixture.by_label(PAGES[1]).expect("the second tile").rect.center();
-    fixture.frame(vec![moved(over)]).settle();
+    fixture.send(moved(over)).settle();
     assert!(fixture.by_label(NAMES[1]).is_some(), "the hovered tile's action is named for its tile");
     assert!(fixture.by_label(NAMES[0]).is_none(), "the other tile's action stays hidden");
 }

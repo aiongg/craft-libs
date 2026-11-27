@@ -23,7 +23,7 @@ use crate::runtime::words::CommonWords;
 use crate::style::{ComponentStyle, FocusLook, StyleCx, SurfaceLook};
 use craft_behavior::{DisplayOrder, HitLevel, HitPriority, ItemSource, Metrics, PartKey, Selection, Sense, Value};
 use craft_i18n::Folder;
-use egui::{Rect, Vec2};
+use craft_ui::geom::{Rect, Vec2};
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::hash::Hash;

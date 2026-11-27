@@ -3,11 +3,14 @@
 //! keeps the caret or range it made; and a run cut short by the field's removal is forgotten.
 
 use craft_behavior::{CancelReason, EditEvent};
+use craft_ui::Id;
 use craft_ui::contract::{Bind, Show as _};
+use craft_ui::geom::Pos2;
+use craft_ui::input::{Key, Mods};
 use craft_ui::runtime::focus::{self, FocusTarget};
-use craft_ui::testing::{Fixture, input, pointer, trial};
+use craft_ui::testing::{Harness, input, pointer, trial};
 use craft_ui::text::TextField;
-use egui::{Event, Id, Key, Modifiers, Pos2};
+use egui::Event;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -20,7 +23,7 @@ enum Ended {
 
 /// A text field named "City" bound to `text`, shown while `shown` holds, alone in a window.
 struct Rig {
-    fixture: Fixture,
+    fixture: Harness,
     text: Rc<RefCell<String>>,
     shown: Rc<Cell<bool>>,
     /// The next pass asks for the field's focus after drawing it, as a dialog does.
@@ -38,7 +41,7 @@ fn rig(text: &str, select_on_focus: bool) -> Rig {
     let ended = Rc::new(RefCell::new(Vec::new()));
     let lost = Rc::new(Cell::new(0));
     let (held, on, asks, id, log, lost_seen) = (text.clone(), shown.clone(), focus_after.clone(), field.clone(), ended.clone(), lost.clone());
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         if !on.get() {
             return;
         }
@@ -56,7 +59,7 @@ fn rig(text: &str, select_on_focus: bool) -> Rig {
             _ => None,
         }));
         if asks.take() {
-            focus::request(ui.ctx(), FocusTarget::Id(out.response.id));
+            ui.request_focus(FocusTarget::Id(out.response.id));
         }
     });
     fixture.settle();
@@ -93,7 +96,7 @@ impl Rig {
     }
 
     fn select_all(&mut self) {
-        self.fixture.key(Key::A, Modifiers::COMMAND);
+        self.fixture.key(Key::A, Mods::COMMAND);
         self.fixture.settle();
     }
 
@@ -103,7 +106,7 @@ impl Rig {
     }
 
     fn escape(&mut self) {
-        self.fixture.key(Key::Escape, Modifiers::NONE);
+        self.fixture.key(Key::Escape, Mods::NONE);
         self.fixture.settle();
     }
 
@@ -180,7 +183,7 @@ fn a_click_into_a_select_on_focus_field_selects_its_text() {
 fn a_drag_into_a_select_on_focus_field_selects_what_it_covers() {
     let mut rig = rig("Lisbon Portugal Europe Atlantic Ocean", true);
     let field = rig.fixture.by_label("City").expect("the field").rect;
-    let (from, to) = (field.center(), egui::pos2(field.right() + 40.0, field.center().y));
+    let (from, to) = (field.center(), craft_ui::geom::pos2(field.right() + 40.0, field.center().y));
     rig.fixture.drag_at(from, to - from);
     rig.fixture.settle();
     assert!(rig.focused(), "the press focused the field");

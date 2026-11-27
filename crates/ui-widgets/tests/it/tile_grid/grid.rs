@@ -6,12 +6,13 @@ use craft_behavior::keyed;
 use craft_ui::buttons::Button;
 use craft_ui::contract::{Bind, CollectionEvent, ReorderRule, Show as _, ShowCollection as _, ShowContainer as _};
 use craft_ui::display::Text;
+use craft_ui::geom::{Pos2, Rect, Vec2};
+use craft_ui::input::{Key, Mods};
 use craft_ui::layout_components::{Row, Stack};
 use craft_ui::list::{ThumbAspect, ToggleState};
 use craft_ui::runtime::env::Label;
-use craft_ui::testing::{Fixture, pointer};
+use craft_ui::testing::{Harness, pointer};
 use craft_ui::tile_grid::{Around, ArrangeSpacing, GridEvent, GridZoom, GroupHeads, Tile, TileGrid, TileGroup, TileZoom, Tiling, ZoomStep, arrange};
-use egui::{Key, Modifiers, Pos2, Rect, Vec2};
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -62,7 +63,7 @@ fn a_leading_group_header_sits_at_the_top_edge_and_ungrouped_tiles_keep_the_inse
 fn rule_group_heads_take_no_title_no_tab_stop_and_never_close() {
     let events = Rc::new(RefCell::new(Vec::new()));
     let held = events.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let keys: Vec<usize> = (0..9).collect();
         let source = keyed(&keys, |key: &usize| *key);
         let groups =
@@ -93,7 +94,7 @@ fn rule_group_heads_take_no_title_no_tab_stop_and_never_close() {
 fn a_grid_in_a_measured_stack_keeps_its_rows_and_what_follows_them() {
     let clicked = Rc::new(Cell::new(false));
     let held = clicked.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let keys: Vec<u64> = (0..3).collect();
         let source = keyed(&keys, |key: &u64| *key);
         Row::new().show(ui, |ui, _| {
@@ -153,7 +154,7 @@ fn a_wheel_zoom_keeps_the_tile_under_the_pointer_in_place() {
     let zoom = Rc::new(Cell::new(TileZoom::Ladder.default_value()));
     let shown = Shown::shared();
     let (held_zoom, held) = (zoom.clone(), shown.clone());
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let keys: Vec<usize> = (0..TILES).collect();
         let source = keyed(&keys, |key: &usize| *key);
         let mut value = held_zoom.get();
@@ -170,13 +171,13 @@ fn a_wheel_zoom_keeps_the_tile_under_the_pointer_in_place() {
     fixture.settle();
     let view = shown.borrow().view;
     // A scrolled grid, so the kept tile has room to move either way.
-    fixture.frame(vec![pointer::moved(view.center())]);
-    fixture.frame(vec![pointer::wheel_lines(-2.0)]).settle();
+    fixture.send(pointer::moved(view.center()));
+    fixture.send(pointer::wheel_lines(-2.0)).settle();
 
     let (key, before) = shown.borrow().nearest(view.center());
-    fixture.frame(vec![pointer::moved(before.center())]);
+    fixture.send(pointer::moved(before.center()));
     let start = zoom.get();
-    fixture.frame(vec![pointer::zoom_wheel(120.0)]).settle();
+    fixture.send(pointer::zoom_wheel(120.0)).settle();
     assert!(zoom.get() != start, "the wheel zoom moved the bound value from {start}");
     {
         let seen = shown.borrow();
@@ -196,7 +197,7 @@ fn a_wheel_zoom_keeps_the_tile_under_the_pointer_in_place() {
     fixture.click_at(lead.center()).settle();
     let before = shown.borrow().tile(key);
     let start = zoom.get();
-    fixture.key(Key::Equals, Modifiers::COMMAND).settle();
+    fixture.key(Key::Equals, Mods::COMMAND).settle();
     // Keeping the tile in place reruns the key's pass inside its frame; the rerun takes no input, so one step.
     assert_eq!(zoom.get(), TileZoom::Ladder.step(start, ZoomStep::In), "Cmd/Ctrl+= raised the bound value one step from {start}");
     let after = shown.borrow().tile(key);
@@ -210,7 +211,7 @@ fn a_drag_whose_tiles_leave_ends_without_a_reorder() {
     let keys = Rc::new(RefCell::new((0..6_usize).collect::<Vec<_>>()));
     let reorders = Rc::new(Cell::new(0_usize));
     let (held_keys, held_reorders) = (keys.clone(), reorders.clone());
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let keys = held_keys.borrow().clone();
         let source = keyed(&keys, |key: &usize| *key);
         let grid = TileGrid::new("Library").reorder(ReorderRule::new());
@@ -220,7 +221,7 @@ fn a_drag_whose_tiles_leave_ends_without_a_reorder() {
     });
     fixture.room(Vec2::new(600.0, 400.0));
     fixture.settle();
-    let rect = |fixture: &Fixture, key: usize| fixture.by_label(&format!("Tile {key}")).expect("the tile has a node").rect;
+    let rect = |fixture: &Harness, key: usize| fixture.by_label(&format!("Tile {key}")).expect("the tile has a node").rect;
     let (from, onto) = (rect(&fixture, 1), rect(&fixture, 3));
     let by = onto.center() + Vec2::new(onto.width() / 4.0, 0.0) - from.center();
     fixture.drag_at(from.center(), by).settle();
@@ -241,7 +242,7 @@ fn a_drag_whose_tiles_leave_ends_without_a_reorder() {
 fn insert_gaps_keep_document_positions_when_rows_are_virtualised() {
     let shown = Shown::shared();
     let held = shown.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let keys: Vec<usize> = (0..TILES).collect();
         let source = keyed(&keys, |key: &usize| *key);
         let name = |at: usize| Label::from(format!("Insert before {}", at + 1));
@@ -261,9 +262,9 @@ fn insert_gaps_keep_document_positions_when_rows_are_virtualised() {
     let first_tile = shown.borrow().tile(0);
     assert!(first_gap.width() >= first_tile.width() / 8.0, "the insert control must be discoverable: {first_gap:?} beside {first_tile:?}");
     let view = shown.borrow().view;
-    fixture.frame(vec![pointer::moved(view.center())]);
+    fixture.send(pointer::moved(view.center()));
     for _ in 0..4 {
-        fixture.frame(vec![pointer::wheel_lines(-3.0)]).idle(1);
+        fixture.send(pointer::wheel_lines(-3.0)).idle(1);
     }
     fixture.settle();
 
@@ -294,15 +295,15 @@ fn insert_gaps_keep_document_positions_when_rows_are_virtualised() {
 /// An insert gap at rest is drawn muted: its circle's stroke differs from the one the pointer's gap takes.
 #[craft_ui::testing::trial]
 fn an_insert_gap_at_rest_is_muted() {
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let keys: Vec<usize> = (0..4).collect();
         let source = keyed(&keys, |key: &usize| *key);
         let name = |at: usize| Label::from(format!("Insert before {}", at + 1));
         let _ = TileGrid::new("Library").insert_gaps(&name).show_items(ui, &source, &mut |key, _| Tile::new(format!("Tile {key}")));
     });
     fixture.room(Vec2::new(600.0, 300.0));
-    fixture.frame(vec![pointer::moved(egui::Pos2::new(590.0, 290.0))]).settle();
-    fn strokes(shapes: &[egui::Shape]) -> Vec<egui::Color32> {
+    fixture.send(pointer::moved(craft_ui::geom::Pos2::new(590.0, 290.0))).settle();
+    fn strokes(shapes: &[egui::Shape]) -> Vec<craft_ui::Color32> {
         shapes
             .iter()
             .filter_map(|shape| match shape {
@@ -314,7 +315,7 @@ fn an_insert_gap_at_rest_is_muted() {
     let rest = strokes(&fixture.frame_shapes());
     assert!(!rest.is_empty(), "the gaps draw their circles");
     let gap = fixture.by_label("Insert before 1").expect("the first gap").rect;
-    fixture.frame(vec![pointer::moved(gap.center())]).settle();
+    fixture.send(pointer::moved(gap.center())).settle();
     let hovered = strokes(&fixture.frame_shapes());
     assert!(hovered.iter().any(|color| !rest.contains(color)), "the gap under the pointer is drawn in another colour: {rest:?} / {hovered:?}");
 }

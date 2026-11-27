@@ -2,14 +2,14 @@
 
 use craft_ui::contract::{Bind, LabelKind, Show as _, ShowContainer as _, SideLabel};
 use craft_ui::form::Field;
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::testing::{Harness, trial};
 use craft_ui::text::NumberField;
 
 const NAME: &str = "Horizontal distortion";
 
 #[trial]
 fn a_short_caption_shows_in_place_of_the_label_and_the_label_names_the_control() {
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         Field::new(NAME).side(SideLabel::new().kind(LabelKind::Short("H".into()))).show(ui, |ui, _| {
             NumberField::new(NAME, Bind::given(Some(10.0))).show(ui);
         });
@@ -34,7 +34,7 @@ fn a_hidden_label_with_content_shows_only_the_content() {
     use craft_ui::contract::FieldLayout;
     use craft_ui::display::Text;
     const SIZE: &str = "Small";
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         let mut picked = 0u8;
         RadioGroup::new("Size", Bind::bound(&mut picked)).show(ui, |ui, cx| {
             let side = SideLabel::new().layout(FieldLayout::After).kind(LabelKind::Hidden);
@@ -57,7 +57,7 @@ fn a_hidden_field_label_names_its_control_and_adds_no_node() {
     use craft_ui::choice::Checkbox;
     use craft_ui::contract::Role;
     const STEP: &str = "1. Draw a shape";
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         Field::new(STEP).side(SideLabel::new().kind(LabelKind::Hidden)).show(ui, |ui, _| Checkbox::new(Bind::given(false)).show(ui));
     });
     fixture.settle();

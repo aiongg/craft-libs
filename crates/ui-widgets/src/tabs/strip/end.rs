@@ -13,7 +13,7 @@ use crate::style::StyleCx;
 use craft_behavior::PartRef;
 use craft_behavior::fit::{FitItem, FitKeep};
 use craft_theme::Variant;
-use egui::Ui;
+use craft_ui::Ui;
 
 /// What an end item does when pressed.
 #[derive(Clone, crate::contract::MemoProps)]

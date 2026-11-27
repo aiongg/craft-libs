@@ -1,20 +1,22 @@
 //! A menu's companion bar: a layer above the menu in its press family.
 
+use craft_ui::Ui;
 use craft_ui::buttons::Button;
 use craft_ui::contract::{InBar, Role, Show as _, ShowContainer as _, Trigger};
 use craft_ui::display::Divider;
+use craft_ui::geom::{Pos2, Vec2};
+use craft_ui::input::{Key, Mods};
 use craft_ui::menu::{Menu, MenuItem};
 use craft_ui::runtime::env::Env;
-use craft_ui::testing::{Fixture, pointer, trial};
-use egui::{Key, Modifiers, Pos2, Ui, Vec2};
+use craft_ui::testing::{Harness, pointer, trial};
 use std::cell::Cell;
 use std::rc::Rc;
 
 /// A page with a target to right-click, a context menu with a companion bar holding a Size button that opens a list,
 /// and a page button far from both. `page` counts the page button's clicks.
-fn fixture(page: &Rc<Cell<u32>>) -> Fixture {
+fn fixture(page: &Rc<Cell<u32>>) -> Harness {
     let page = Rc::clone(page);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         ui.add_space(120.0);
         let target = Button::new("Target").show(ui);
         ui.add_space(300.0);
@@ -36,15 +38,15 @@ fn fixture(page: &Rc<Cell<u32>>) -> Fixture {
 }
 
 /// Right-clicks at `at`: move, secondary press, secondary release.
-fn right_click(fixture: &mut Fixture, at: Pos2) {
-    fixture.frame(vec![pointer::moved(at)]);
-    fixture.frame(vec![pointer::secondary(at, true)]);
-    fixture.frame(vec![pointer::secondary(at, false)]);
+fn right_click(fixture: &mut Harness, at: Pos2) {
+    fixture.send(pointer::moved(at));
+    fixture.send(pointer::secondary(at, true));
+    fixture.send(pointer::secondary(at, false));
     fixture.settle();
 }
 
 /// Opens the context menu on the target and the Size list from the bar.
-fn open_all(fixture: &mut Fixture) {
+fn open_all(fixture: &mut Harness) {
     fixture.settle();
     let target = fixture.by_label("Target").expect("the target has a node").center();
     right_click(fixture, target);
@@ -78,7 +80,7 @@ fn a_press_on_the_companion_bar_or_its_popup_does_not_close_the_menu_and_the_bar
 
 #[trial]
 fn a_companion_bars_combo_box_is_compact() {
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         let target = Button::new("Target").show(ui);
         let options = [craft_ui::contract::Entry::new("8".to_owned(), "8"), craft_ui::contract::Entry::new("72".to_owned(), "72")];
         let mut size = "11".to_owned();
@@ -106,11 +108,11 @@ fn escape_closes_the_topmost_layer_first() {
     fixture.click(&size).settle();
     assert!(fixture.by_label("Twelve").is_some(), "the list is open");
 
-    fixture.key(Key::Escape, Modifiers::NONE).settle();
+    fixture.key(Key::Escape, Mods::NONE).settle();
     assert!(fixture.by_label("Twelve").is_none(), "Escape closes the bar's list first");
     assert!(fixture.by_label("Copy").is_some() && fixture.by_label("Size").is_some(), "the menu and its bar stay after the first Escape");
 
-    fixture.key(Key::Escape, Modifiers::NONE).settle();
+    fixture.key(Key::Escape, Mods::NONE).settle();
     assert!(fixture.by_label("Copy").is_none(), "the next Escape closes the menu");
     assert!(fixture.by_label("Size").is_none(), "the bar goes with the menu");
 }
@@ -120,7 +122,7 @@ fn companion_layer_has_bar_padding_inbar_env_and_start_alignment() {
     let in_bar_seen = Rc::new(Cell::new(false));
     let in_bar_clone = Rc::clone(&in_bar_seen);
 
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         ui.add_space(120.0);
         let target = Button::new("Target").show(ui);
         let in_bar = Rc::clone(&in_bar_clone);

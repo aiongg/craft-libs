@@ -5,10 +5,10 @@
 use craft_ui::buttons::Button;
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::form::Field;
+use craft_ui::geom::{Rect, Vec2};
 use craft_ui::layout_components::{Row, Stack};
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::testing::{Harness, trial};
 use craft_ui::text::TextField;
-use egui::{Rect, Vec2};
 use std::cell::Cell;
 use std::rc::Rc;
 
@@ -18,7 +18,7 @@ const SLACK: f32 = 0.5;
 fn wrapped(width: f32) -> (Rect, Rect) {
     let seen = Rc::new(Cell::new((Rect::NOTHING, Rect::NOTHING)));
     let out = Rc::clone(&seen);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         Row::new().wrap(true).show(ui, |ui, _| {
             let lead = Button::new("Pages from").show(ui).rect;
             let nested = Row::new().show(ui, |ui, _| {
@@ -45,7 +45,7 @@ fn a_row_too_wide_for_the_rest_of_a_wrapping_row_moves_to_the_next_line_whole() 
 /// The rects of a wrapping row's buttons in a room `width` wide, in `direction`.
 fn wrapped_buttons(width: f32, direction: craft_i18n::Direction) -> Vec<Rect> {
     const LABELS: [&str; 5] = ["Promote", "Delete", "Slice Options…", "Divide…", "Hide Auto Slices"];
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         Row::new().fill_width().wrap(true).show(ui, |ui, _| {
             for label in LABELS {
                 Button::new(label).show(ui);
@@ -68,7 +68,7 @@ fn a_button_too_wide_for_the_rest_of_a_wrapping_row_wraps_whole_in_either_direct
     assert!((ltr[4].width() - wide[4].width()).abs() <= SLACK, "the wrapped button keeps its width: {:?}, not {:?}", wide[4], ltr[4]);
     let rtl = wrapped_buttons(width, Direction::Rtl);
     for (a, b) in ltr.iter().zip(&rtl) {
-        let reflected = Rect::from_min_max(egui::pos2(width - a.max.x, a.min.y), egui::pos2(width - a.min.x, a.max.y));
+        let reflected = Rect::from_min_max(craft_ui::geom::pos2(width - a.max.x, a.min.y), craft_ui::geom::pos2(width - a.min.x, a.max.y));
         assert!((reflected.min - b.min).length() <= SLACK && (reflected.max - b.max).length() <= SLACK, "{a:?} is at {b:?} under RTL");
     }
 }
@@ -79,7 +79,7 @@ fn labelled_row(width: f32) -> [Rect; 4] {
     let seen = Rc::new(Cell::new([Rect::NOTHING; 4]));
     let out = Rc::clone(&seen);
     let mut path = String::from("/home/studio/Documents/brochure-final.pdf");
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         Stack::new().fill().show(ui, |ui, _| {
             let children = Cell::new([Rect::NOTHING; 3]);
             let field = Field::new("Save to").show(ui, |ui, _| {

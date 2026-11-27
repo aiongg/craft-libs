@@ -3,6 +3,7 @@
 use super::kit::{Go, Leaf, Opened, Opener, PlainStyle, Seen};
 use craft_behavior::Sense;
 use craft_ui::contract::{Common, Component, Cx, MeasureCx, Overlay, OverlayUi, Overlays as _, Props as _, Role, Show as _, Trigger};
+use craft_ui::geom::{Pos2, Rect, Vec2};
 use craft_ui::runtime::commands::{FireSource, fire};
 use craft_ui::runtime::focus::{FocusTarget, Initial, request};
 use craft_ui::runtime::overlay::{Backdrop, OpenFilter, Rank, any_open};
@@ -10,7 +11,8 @@ use craft_ui::style::StyleCx;
 use craft_ui::testing::focus::is_focused;
 use craft_ui::testing::pointer::{moved, press, release};
 use craft_ui::testing::{Frames, trial};
-use egui::{Id, LayerId, Pos2, Rect, Response, Ui, Vec2};
+use craft_ui::{Id, Response, Ui};
+use egui::LayerId;
 use std::cell::{Cell, RefCell};
 
 const OPENER: Rect = Rect { min: Pos2::new(100.0, 100.0), max: Pos2::new(180.0, 120.0) };

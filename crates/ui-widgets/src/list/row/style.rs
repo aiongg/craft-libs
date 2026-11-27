@@ -250,7 +250,7 @@ impl RowStyleCx for StyleCx<'_> {
     }
 
     fn command_row_look(&self) -> SurfaceLook {
-        SurfaceLook::new(self.command_row_surface()).radius(egui::CornerRadius::ZERO)
+        SurfaceLook::new(self.command_row_surface()).radius(craft_ui::CornerRadius::ZERO)
     }
 
     fn row_ink(&self, base: Rgba) -> Stateful<StyleColor> {

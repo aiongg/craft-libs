@@ -17,7 +17,8 @@ use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, FocusLook, StyleCx, SurfaceLook};
 use craft_behavior::{Caret, Codec, Flow, Granularity, IconId, Intent, Metrics, NavShape, NotAValue, PartKey, Proposal, Roving, Sense};
 use craft_theme::Variant;
-use egui::{Rect, Response, Vec2, pos2, vec2};
+use craft_ui::Response;
+use craft_ui::geom::{Rect, Vec2, pos2, vec2};
 use std::borrow::Cow;
 
 /// The characters that end a chip in typed or pasted text.

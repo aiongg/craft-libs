@@ -3,14 +3,14 @@
 use craft_ui::contract::Show as _;
 use craft_ui::display::Text;
 use craft_ui::runtime::env::Scale;
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::testing::{Harness, trial};
 
 /// 6.3: a text's width in points does not depend on the interface scale: glyph advances are measured unscaled, so hinting
 /// the outlines does not change them.
 #[trial]
 fn a_text_measures_the_same_width_at_every_scale() {
     let width_at = |scale: f32| {
-        let mut fixture = Fixture::new(|ui| {
+        let mut fixture = Harness::new_ui(|ui| {
             Text::new("Layers").show(ui);
         });
         fixture.scale(Scale::new(scale));

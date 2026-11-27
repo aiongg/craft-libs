@@ -7,7 +7,8 @@ use crate::primitives::{PaintShape, StrokeWidth};
 use crate::style::{ComponentStyle, Flags, IconLook, StyleCx};
 use craft_behavior::{Metrics, Sense};
 use craft_theme::Stateful;
-use egui::{Pos2, Response, Vec2, vec2};
+use craft_ui::Response;
+use craft_ui::geom::{Pos2, Vec2, vec2};
 use std::f32::consts::{PI, TAU};
 
 #[cfg(feature = "suite")]

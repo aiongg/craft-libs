@@ -1,12 +1,14 @@
 //! A text field driven frame by frame.
 
 use craft_behavior::PartKey;
+use craft_ui::Id;
 use craft_ui::contract::{Bind, Props as _, Show as _};
+use craft_ui::geom::Rect;
 use craft_ui::testing::Frames;
 use craft_ui::testing::pointer::click;
 use craft_ui::testing::text::widget_id;
 use craft_ui::text::TextField;
-use egui::{Event, Id, Rect};
+use egui::Event;
 
 pub const TEXT: PartKey = PartKey::new("text");
 

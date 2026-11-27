@@ -9,7 +9,7 @@ use crate::runtime::env::{Env, Label};
 use crate::style::TypeRole;
 use craft_behavior::IconId;
 use craft_theme::variant::Tone;
-use egui::{Response, Ui};
+use craft_ui::{Response, Ui};
 
 /// A message for the status bar and its tone. A component with something to say in the status bar reports this in
 /// its output; the host keeps the newest one and shows it as the last member of its status bar's body.

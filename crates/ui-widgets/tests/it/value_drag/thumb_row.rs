@@ -2,9 +2,10 @@
 
 use craft_behavior::{Mixed, MotionMode, MoveMods, NavMove};
 use craft_ui::contract::{Bind, Props as _, Show as _};
-use craft_ui::testing::{Fixture, pointer, trial};
+use craft_ui::geom::{Pos2, Rangef, Rect, Vec2};
+use craft_ui::input::Mods;
+use craft_ui::testing::{Harness, pointer, trial};
 use craft_ui::value_drag::{Anchor, Neighbours, OffThumbs, Order, RowOp, Thumb, ThumbOp, ThumbRow};
-use egui::{Modifiers, Pos2, Rangef, Rect, Vec2};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -73,15 +74,15 @@ struct Split {
 
 impl Split {
     /// The split thumb at `values` in a row whose presses off the thumbs do `off`, shown and settled.
-    fn rig(values: [f64; 2], off: OffThumbs) -> (Rc<Split>, Fixture) {
+    fn rig(values: [f64; 2], off: OffThumbs) -> (Rc<Split>, Harness) {
         let split = Rc::new(Split { values: RefCell::new(Mixed::each(values)), travel: Cell::new(Rangef::NOTHING), off });
         let shown = Rc::clone(&split);
-        let mut fixture = Fixture::new(move |ui| shown.show(ui));
+        let mut fixture = Harness::new_ui(move |ui| shown.show(ui));
         fixture.motion(MotionMode::Off).settle();
         (split, fixture)
     }
 
-    fn show(&self, ui: &mut egui::Ui) {
+    fn show(&self, ui: &mut craft_ui::Ui) {
         let thumbs = [Thumb::new("low").split(), Thumb::new("high")];
         let mut values = self.values.borrow_mut();
         let row = ThumbRow::new(Bind::bound(&mut *values), 0.0..=255.0).step(1.0).thumbs(thumbs).off_thumbs(self.off).label("Blend");
@@ -102,21 +103,21 @@ impl Split {
 
 /// Presses at `from`, moves `by` along the row in four frames, with Alt held from the third on when `alt`, and
 /// releases.
-fn drag(fixture: &mut Fixture, from: Pos2, by: f32, alt: bool) {
-    fixture.frame(vec![pointer::moved(from)]);
-    fixture.frame(vec![pointer::press(from)]);
+fn drag(fixture: &mut Harness, from: Pos2, by: f32, alt: bool) {
+    fixture.send(pointer::moved(from));
+    fixture.send(pointer::press(from));
     for step in 1..=4 {
         if alt && step == 3 {
-            fixture.hold(Modifiers::ALT);
+            fixture.hold(Mods::ALT);
         }
-        fixture.frame(vec![pointer::moved(from + Vec2::new(by * step as f32 / 4.0, 0.0))]);
+        fixture.send(pointer::moved(from + Vec2::new(by * step as f32 / 4.0, 0.0)));
     }
-    fixture.frame(vec![pointer::release(from + Vec2::new(by, 0.0))]);
-    fixture.hold(Modifiers::NONE).settle();
+    fixture.send(pointer::release(from + Vec2::new(by, 0.0)));
+    fixture.hold(Mods::NONE).settle();
 }
 
 /// The thumb that has the focus.
-fn focused(fixture: &Fixture) -> Option<u64> {
+fn focused(fixture: &Harness) -> Option<u64> {
     fixture.focused_stop().and_then(|(_, part)| part).and_then(|part| part.index)
 }
 

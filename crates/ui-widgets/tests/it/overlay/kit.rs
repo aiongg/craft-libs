@@ -3,10 +3,11 @@
 use craft_behavior::{Metrics, MotionMode, Sense};
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::contract::{CommandSet, Common, Component, Cx, MeasureCx, Overlay, OverlayUi, Overlays as _, Pointer as _, Props as _, Role, Trigger};
+use craft_ui::geom::Vec2;
 use craft_ui::popover::Popover;
 use craft_ui::style::{ComponentStyle, StyleCx};
-use craft_ui::testing::{Fixture, trial};
-use egui::{Id, Response, Vec2};
+use craft_ui::testing::{Harness, trial};
+use craft_ui::{Id, Response};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -170,7 +171,7 @@ impl Component for Opener<'_> {
 fn popup_open_after_popover_reopens(motion: MotionMode) -> bool {
     let (outer, inner_open, inner_wanted) = (Rc::new(Cell::new(true)), Rc::new(Cell::new(false)), Rc::new(Cell::new(false)));
     let (shown_outer, shown_inner, wanted) = (outer.clone(), inner_open.clone(), inner_wanted.clone());
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let opener = craft_ui::buttons::Button::new("Brush").show(ui);
         let mut is_open = shown_outer.get();
         Popover::new("Brush options", Bind::bound(&mut is_open)).opened_by(&opener).show(ui, |ui, _| {
@@ -183,7 +184,7 @@ fn popup_open_after_popover_reopens(motion: MotionMode) -> bool {
     fixture.motion(motion);
     fixture.settle();
     inner_wanted.set(true);
-    fixture.frame(Vec::new());
+    fixture.step();
     inner_wanted.set(false);
     fixture.idle(5);
     assert!(inner_open.get(), "the popup inside the popover is open");

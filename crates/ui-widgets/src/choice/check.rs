@@ -6,7 +6,7 @@ use crate::primitives::{StrokeWidth, glyph};
 use crate::style::{ComponentStyle, FocusLook, StyleColor, StyleCx, SurfaceKind, SurfaceLook};
 use craft_behavior::{Metrics, Sense};
 use craft_theme::Stateful;
-use egui::{Rect, Vec2};
+use craft_ui::geom::{Rect, Vec2};
 
 /// The style of a check box.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
@@ -61,7 +61,7 @@ impl Component for Checkbox<'_> {
             return CheckboxStyle {
                 metrics: Metrics::new().min_size(Vec2::new(0.0, control.icon * QUIET_SIDE)),
                 focus: cx.focus_look(),
-                well: super::quiet_indicator(cx, egui::CornerRadius::same(QUIET_RADIUS)),
+                well: super::quiet_indicator(cx, craft_ui::CornerRadius::same(QUIET_RADIUS)),
                 mark: super::quiet_mark(cx),
                 side: control.icon * QUIET_SIDE,
             };

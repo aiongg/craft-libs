@@ -11,7 +11,8 @@ use crate::runtime::focus::FocusTarget;
 use crate::runtime::frame;
 use crate::style::{ComponentStyle, FocusLook, IconLook, StyleCx, SurfaceLook};
 use craft_behavior::{Arrows, Flow, Insets, Metrics, NavShape, PartKey, PartRef, Roving, Sense};
-use egui::{Context, Id, Rect, Response, Vec2};
+use craft_ui::geom::{Rect, Vec2};
+use craft_ui::{Context, Id, Response};
 
 /// The part of each icon cell, indexed by the icon's place in the row.
 const ICON: PartKey = PartKey::new("icon");
@@ -170,7 +171,7 @@ impl Component for MenuIconRow<'_> {
         self.withheld = input.withheld;
         // The pointer on the row closes another row's open submenu, unless it is on its way into it.
         if hovered && moving && !level.aimed(cx.id) && level.clear_submenu() {
-            frame::request_repaint(&ctx);
+            ctx.request_repaint();
         }
         // The row's letter names no icon to run: it moves focus to the first icon that can run.
         if level.take_run(cx.id)

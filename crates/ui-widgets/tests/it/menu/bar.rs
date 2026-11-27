@@ -3,16 +3,16 @@
 use craft_host::target::Os;
 use craft_i18n::Direction;
 use craft_ui::contract::Show as _;
+use craft_ui::input::{Key, Mods};
 use craft_ui::menu::MenuItem;
 use craft_ui::menu::bar::{MenuBar, MenuHelp, MenuTitle};
 use craft_ui::menu::search::HelpEntry;
 use craft_ui::runtime::commands::EditCommands;
-use craft_ui::testing::{Fixture, trial};
-use egui::{Key, Modifiers};
+use craft_ui::testing::{Harness, trial};
 
 /// A menu bar with File, Edit and Help.
 struct Rig {
-    fixture: Fixture,
+    fixture: Harness,
 }
 
 fn entries() -> Vec<HelpEntry> {
@@ -25,7 +25,7 @@ fn entries() -> Vec<HelpEntry> {
 }
 
 fn rig(direction: Direction) -> Rig {
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let titles = vec![
             MenuTitle::new("&File", |ui| {
                 MenuItem::new("&New").show(ui);
@@ -61,7 +61,7 @@ fn help_search_ignores_accents_and_matches_the_english_label_and_the_path() {
     let search = rig.fixture.by_label("Search menus").expect("the search field");
     rig.fixture.click(&search);
     for (typed, found, absent) in [("cafe", "Paste", "Copy"), ("duplic", "Copy", "Paste"), ("clipboard", "Cut", "Copy")] {
-        rig.fixture.key(Key::A, Modifiers::COMMAND);
+        rig.fixture.key(Key::A, Mods::COMMAND);
         rig.fixture.type_text(typed);
         rig.fixture.settle();
         assert!(rig.open(found), "{typed:?} finds the entry whose command row reads {found:?}");
@@ -76,7 +76,7 @@ fn a_letter_runs_the_row_it_marks_in_a_menu_a_title_click_opened() {
     use std::rc::Rc;
     let saved = Rc::new(Cell::new(0));
     let seen = saved.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let titles = vec![MenuTitle::new("&File", |ui| {
             MenuItem::new("&New").show(ui);
             if MenuItem::new("&Save").show(ui).ran {
@@ -105,21 +105,21 @@ fn the_output_reports_the_width_every_title_takes_in_any_room() {
     use std::rc::Rc;
     let seen = Rc::new(Cell::new([(0.0, 0.0); 2]));
     let out = Rc::clone(&seen);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let titles = || {
             ["&File", "&Edit", "&Image", "&Layer", "&Select", "&View", "&Window", "&Help"]
                 .into_iter()
                 .map(|title| {
-                    MenuTitle::new(title, |ui: &mut egui::Ui| {
+                    MenuTitle::new(title, |ui: &mut craft_ui::Ui| {
                         MenuItem::new("&New").show(ui);
                     })
                 })
                 .collect::<Vec<_>>()
         };
         let top = ui.max_rect().left_top();
-        let wide = MenuBar::new("Wide menu", titles()).show_at(ui, egui::Rect::from_min_size(top, egui::vec2(800.0, 24.0)));
-        let below = top + egui::vec2(0.0, 40.0);
-        let narrow = MenuBar::new("Narrow menu", titles()).show_at(ui, egui::Rect::from_min_size(below, egui::vec2(120.0, 24.0)));
+        let wide = MenuBar::new("Wide menu", titles()).show_at(ui, craft_ui::geom::Rect::from_min_size(top, craft_ui::geom::vec2(800.0, 24.0)));
+        let below = top + craft_ui::geom::vec2(0.0, 40.0);
+        let narrow = MenuBar::new("Narrow menu", titles()).show_at(ui, craft_ui::geom::Rect::from_min_size(below, craft_ui::geom::vec2(120.0, 24.0)));
         out.set([(wide.natural, wide.titles.width()), (narrow.natural, narrow.titles.width())]);
     });
     fixture.os(Os::Linux);
@@ -148,7 +148,7 @@ fn a_pointer_move_over_menu_rows_lights_the_row_under_it_in_that_frame() {
         let lit: Rc<RefCell<HashMap<String, bool>>> = Rc::default();
         let seen = lit.clone();
         let rows = names.clone();
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             let seen = seen.clone();
             let rows = rows.clone();
             let titles = vec![MenuTitle::new("&File", move |ui| {
@@ -161,23 +161,23 @@ fn a_pointer_move_over_menu_rows_lights_the_row_under_it_in_that_frame() {
             MenuBar::new("Main menu", titles).show(ui);
         });
         fixture.os(Os::Linux);
-        fixture.room(egui::vec2(480.0, 320.0)).scale(Scale::new(scale)).motion(MotionMode::Off).settle();
+        fixture.room(craft_ui::geom::vec2(480.0, 320.0)).scale(Scale::new(scale)).motion(MotionMode::Off).settle();
         let file = fixture.by_label("File").expect("the File title");
         fixture.click(&file);
         fixture.settle();
-        let shown: Vec<(String, egui::Pos2)> =
+        let shown: Vec<(String, craft_ui::geom::Pos2)> =
             names.iter().map(|name| (name.clone(), fixture.by_label(name).expect("the File menu shows every row").center())).collect();
         let downward = shown.iter();
         let upward = shown.iter().rev().skip(1);
         for (name, center) in downward.chain(upward) {
             lit.borrow_mut().clear();
-            fixture.frame(vec![pointer::moved(*center)]);
+            fixture.send(pointer::moved(*center));
             let active: Vec<String> = lit.borrow().iter().filter(|(_, on)| **on).map(|(row, _)| row.clone()).collect();
             assert_eq!(active, vec![name.clone()], "at {scale}x the move frame onto {name} lights it and no other row");
             // egui repaints twice for a frame with input; the menu asks for nothing beyond that.
             for _ in 0..2 {
                 lit.borrow_mut().clear();
-                fixture.frame(Vec::new());
+                fixture.step();
                 assert_eq!(lit.borrow().get(name), Some(&true), "at {scale}x {name} stays lit with the pointer at rest");
             }
             assert!(!fixture.repaint_requested(), "at {scale}x a pointer at rest on {name} asks for no frame");
@@ -193,7 +193,7 @@ fn built_help_entries_are_collected_only_while_the_help_menu_shows() {
     use std::rc::Rc;
     let builds = Rc::new(Cell::new(0u32));
     let counted = builds.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let titles = vec![
             MenuTitle::new("&File", |ui| {
                 MenuItem::new("&New").show(ui);
@@ -219,7 +219,7 @@ fn built_help_entries_are_collected_only_while_the_help_menu_shows() {
     fixture.settle();
     assert!(fixture.by_label("New").is_some(), "File is open");
     assert_eq!(builds.get(), 0, "another open menu builds nothing");
-    fixture.key(Key::Escape, Modifiers::NONE);
+    fixture.key(Key::Escape, Mods::NONE);
     fixture.settle();
 
     let help = fixture.by_label("Help").expect("the Help title");
@@ -242,7 +242,7 @@ fn a_row_whose_label_changed_since_the_menu_last_opened_takes_its_new_letter() {
     let renamed = Rc::new(Cell::new(false));
     let runs = Rc::new(Cell::new(0));
     let (label, ran) = (renamed.clone(), runs.clone());
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let (label, ran) = (label.clone(), ran.clone());
         let titles = vec![MenuTitle::new("&File", move |ui| {
             MenuItem::new("Alpha").show(ui);
@@ -259,7 +259,7 @@ fn a_row_whose_label_changed_since_the_menu_last_opened_takes_its_new_letter() {
     fixture.click(&file);
     fixture.settle();
     assert!(fixture.by_label("Save").is_some(), "File is open");
-    fixture.key(Key::Escape, Modifiers::NONE);
+    fixture.key(Key::Escape, Mods::NONE);
     fixture.settle();
     assert!(fixture.by_label("Save").is_none(), "File is closed");
 
@@ -277,7 +277,7 @@ fn a_row_whose_label_changed_since_the_menu_last_opened_takes_its_new_letter() {
 #[derive(craft_ui::contract::MemoProps)]
 struct MainMenu {}
 
-fn main_menu(_: &mut MainMenu, ui: &mut egui::Ui) {
+fn main_menu(_: &mut MainMenu, ui: &mut craft_ui::Ui) {
     let titles = vec![MenuTitle::new("&File", |ui| {
         MenuItem::new("&New").show(ui);
     })];
@@ -290,7 +290,7 @@ fn main_menu(_: &mut MainMenu, ui: &mut egui::Ui) {
 fn a_settled_menu_bar_takes_its_mnemonics_and_f10() {
     use craft_ui::contract::MemoView;
     use craft_ui::testing::{MemoRun, last_frame_memo_runs};
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         MemoView::new("title", MainMenu {}, main_menu).show(ui);
     });
     fixture.os(Os::Linux);
@@ -298,12 +298,12 @@ fn a_settled_menu_bar_takes_its_mnemonics_and_f10() {
     assert!(fixture.focused_stop().is_none(), "nothing holds the focus at the start");
     let runs = last_frame_memo_runs(fixture.ctx());
     assert!(runs.iter().all(|(_, _, run)| *run == MemoRun::Replayed) && !runs.is_empty(), "the bar's view replays: {runs:?}");
-    fixture.key(Key::F10, Modifiers::NONE);
+    fixture.key(Key::F10, Mods::NONE);
     fixture.settle();
     assert!(fixture.focused_stop().is_some(), "F10 takes the focus to the bar");
-    fixture.key(Key::Escape, Modifiers::NONE);
+    fixture.key(Key::Escape, Mods::NONE);
     fixture.settle().idle(2);
-    fixture.key(Key::F, Modifiers::ALT);
+    fixture.key(Key::F, Mods::ALT);
     fixture.settle();
     assert!(fixture.by_label("New").is_some(), "Alt+F opens File");
 }
@@ -320,14 +320,14 @@ fn a_bound_alt_letter_runs_its_command_instead_of_the_mnemonic() {
     let catalog = AppCatalog::new(vec![CommandDef::new(RULERS, "Rulers", Scope::app()).with_default(binding)], 1).expect("the trial's catalog");
     rig.fixture.commands(CommandInput::new().catalog(catalog)).settle();
     take_output(rig.fixture.ctx());
-    rig.fixture.key(Key::F, Modifiers::ALT);
+    rig.fixture.key(Key::F, Mods::ALT);
     rig.fixture.settle();
     let fired: Vec<String> = take_output(rig.fixture.ctx()).fired.into_iter().map(|fired| fired.command.id).collect();
     assert_eq!(fired, [RULERS], "the bound Alt+F runs its command once");
     assert!(!rig.open("New"), "and does not also open File");
 
     rig.fixture.commands(CommandInput::new()).settle();
-    rig.fixture.key(Key::F, Modifiers::ALT);
+    rig.fixture.key(Key::F, Mods::ALT);
     rig.fixture.settle();
     assert!(rig.open("New"), "unbound, Alt+F opens File");
 }
@@ -340,7 +340,7 @@ fn a_bar_menu_opening_is_reported_once() {
     use std::rc::Rc;
     let passes: Rc<RefCell<Vec<bool>>> = Rc::default();
     let seen = passes.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let titles = vec![
             MenuTitle::new("&File", |ui| {
                 MenuItem::new("&New").show(ui);
@@ -370,12 +370,12 @@ fn a_bar_menu_opening_is_reported_once() {
     fixture.settle().idle(2);
     assert_eq!(reports(), 0, "a menu held open reports nothing");
 
-    fixture.key(Key::E, Modifiers::ALT);
+    fixture.key(Key::E, Mods::ALT);
     fixture.settle();
     assert!(fixture.by_label("Undo").is_some() && fixture.by_label("New").is_none(), "Alt+E switches to Edit");
     assert_eq!(reports(), 0, "a switch from one open title to another reports nothing");
 
-    fixture.key(Key::Escape, Modifiers::NONE);
+    fixture.key(Key::Escape, Mods::NONE);
     fixture.settle();
     assert!(fixture.by_label("Undo").is_none(), "Edit is closed");
     assert_eq!(reports(), 0, "closing reports nothing");
@@ -390,7 +390,7 @@ fn a_bar_menu_opening_is_reported_once() {
 #[derive(craft_ui::contract::MemoProps)]
 struct Status {}
 
-fn status(_: &mut Status, ui: &mut egui::Ui) {
+fn status(_: &mut Status, ui: &mut craft_ui::Ui) {
     craft_ui::display::Text::new("Ready").show(ui);
 }
 
@@ -404,7 +404,7 @@ fn switching_sibling_submenus_paints_only_the_new_submenu() {
     use egui::Shape;
 
     for motion in [MotionMode::Full, MotionMode::Off] {
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             MemoView::new("status", Status {}, status).show(ui);
             let titles = vec![MenuTitle::new("Filter", |ui| {
                 Menu::submenu_row(ui, "Blur", |ui, _| {
@@ -417,12 +417,12 @@ fn switching_sibling_submenus_paints_only_the_new_submenu() {
             })];
             MenuBar::new("Main menu", titles).show(ui);
         });
-        fixture.os(Os::Windows).room(egui::vec2(480.0, 320.0)).scale(Scale::new(1.25)).motion(motion).settle();
+        fixture.os(Os::Windows).room(craft_ui::geom::vec2(480.0, 320.0)).scale(Scale::new(1.25)).motion(motion).settle();
         let filter = fixture.by_label("Filter").expect("the Filter title");
         fixture.click(&filter).settle();
         let blur = fixture.by_label("Blur").expect("the Blur row");
         let sharpen = fixture.by_label("Sharpen").expect("the Sharpen row");
-        fixture.frame(vec![pointer::moved(blur.center())]).advance(0.25).idle(1);
+        fixture.send(pointer::moved(blur.center())).advance(0.25).idle(1);
         assert!(fixture.texts().iter().any(|run| run.text == "Gaussian Blur"), "the first submenu starts open");
 
         for (next, previous, shown, hidden) in [(sharpen, blur, "Unsharp Mask", "Gaussian Blur"), (blur, sharpen, "Gaussian Blur", "Unsharp Mask")] {
@@ -445,13 +445,13 @@ fn switching_sibling_submenus_paints_only_the_new_submenu() {
         }
 
         // Moving diagonally across Sharpen toward the open Blur menu keeps Blur open.
-        let toward_blur = egui::pos2(sharpen.rect.right() - 2.0, sharpen.center().y);
-        fixture.frame(vec![pointer::moved(toward_blur)]);
+        let toward_blur = craft_ui::geom::pos2(sharpen.rect.right() - 2.0, sharpen.center().y);
+        fixture.send(pointer::moved(toward_blur));
         assert!(!fixture.texts().iter().any(|run| run.text == "Unsharp Mask"), "aiming into Blur does not switch menus");
         let blur_item = fixture.by_label("Gaussian Blur").expect("the Blur submenu is still open");
-        fixture.frame(vec![pointer::moved(blur_item.center())]);
+        fixture.send(pointer::moved(blur_item.center()));
 
-        fixture.key(Key::Escape, Modifiers::NONE);
+        fixture.key(Key::Escape, Mods::NONE);
         assert_eq!(
             fixture.texts().iter().any(|run| run.text == "Gaussian Blur"),
             motion == MotionMode::Full,
@@ -471,20 +471,20 @@ fn switching_sibling_submenus_paints_only_the_new_submenu() {
 fn holding_alt_runs_the_memoized_view_of_a_menu_bar() {
     use craft_ui::contract::MemoView;
     use craft_ui::testing::{MemoRun, last_frame_memo_runs};
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         MemoView::new("title", MainMenu {}, main_menu).show(ui);
     });
     fixture.os(Os::Linux);
     fixture.settle();
-    let frame = |fixture: &mut Fixture| {
-        fixture.frame(Vec::new());
+    let frame = |fixture: &mut Harness| {
+        fixture.step();
         last_frame_memo_runs(fixture.ctx()).iter().filter(|(_, _, run)| *run == MemoRun::Ran).count()
     };
     assert_eq!(frame(&mut fixture), 0, "the view replays");
-    fixture.hold(Modifiers::ALT);
+    fixture.hold(Mods::ALT);
     assert!(frame(&mut fixture) > 0, "Alt going down runs the view, which underlines the mnemonics");
     assert_eq!(frame(&mut fixture), 0, "with Alt held the view replays again");
-    fixture.hold(Modifiers::NONE);
+    fixture.hold(Mods::NONE);
     assert!(frame(&mut fixture) > 0, "Alt coming up runs the view, which drops the underlines");
 }
 
@@ -511,7 +511,7 @@ fn space_on_the_focused_bar_opens_no_menu_and_reaches_the_window() {
     use std::rc::Rc;
     let (hands, clicks, button) = (Rc::new(Cell::new(0)), Rc::new(Cell::new(0)), Rc::new(Cell::new(None)));
     let (seen_hands, seen_clicks, seen_button) = (Rc::clone(&hands), Rc::clone(&clicks), Rc::clone(&button));
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let titles = vec![MenuTitle::new("&File", |ui| {
             MenuItem::new("&New").show(ui);
         })];
@@ -535,24 +535,24 @@ fn space_on_the_focused_bar_opens_no_menu_and_reaches_the_window() {
         fixture.settle();
         let before = (hands.get(), clicks.get());
         if alt {
-            fixture.hold(Modifiers::ALT).settle();
-            fixture.hold(Modifiers::NONE).settle();
+            fixture.hold(Mods::ALT).settle();
+            fixture.hold(Mods::NONE).settle();
         } else {
-            fixture.key(Key::F10, Modifiers::NONE);
+            fixture.key(Key::F10, Mods::NONE);
             fixture.settle();
         }
         assert!(fixture.focused_stop().is_some_and(|(id, _)| id != layer), "the bar takes the keyboard (alt {alt})");
         if let Some(key) = enter {
-            fixture.key(key, Modifiers::NONE);
+            fixture.key(key, Mods::NONE);
             fixture.settle();
             assert!(fixture.by_label("New").is_some(), "{key:?} opens the focused title's menu");
             assert_eq!((hands.get(), clicks.get()), before, "{key:?} reaches neither the window nor the button");
-            fixture.key(Key::Escape, Modifiers::NONE);
-            fixture.key(Key::Escape, Modifiers::NONE);
+            fixture.key(Key::Escape, Mods::NONE);
+            fixture.key(Key::Escape, Mods::NONE);
             fixture.settle();
             continue;
         }
-        fixture.key(Key::Space, Modifiers::NONE);
+        fixture.key(Key::Space, Mods::NONE);
         fixture.settle();
         assert!(fixture.by_label("New").is_none(), "Space opens no menu (alt {alt})");
         assert_eq!(fixture.focused_stop().map(|(id, _)| id), Some(layer), "Space takes the keyboard off the bar, back to the button (alt {alt})");
@@ -571,10 +571,10 @@ fn space_on_a_bar_focused_from_nothing_goes_to_the_document_canvas() {
     use craft_ui::runtime::focus::{KeyUse, host_canvas};
     use std::cell::Cell;
     use std::rc::Rc;
-    let canvas = egui::Id::unique("document canvas");
+    let canvas = craft_ui::Id::unique("document canvas");
     let hands = Rc::new(Cell::new(0));
     let seen_hands = Rc::clone(&hands);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let titles = vec![MenuTitle::new("&File", |ui| {
             MenuItem::new("&New").show(ui);
         })];
@@ -593,15 +593,15 @@ fn space_on_a_bar_focused_from_nothing_goes_to_the_document_canvas() {
     for alt in [false, true] {
         assert!(fixture.focused_stop().is_none_or(|(id, _)| id == canvas), "nothing but the canvas holds the keyboard (alt {alt})");
         if alt {
-            fixture.hold(Modifiers::ALT).settle();
-            fixture.hold(Modifiers::NONE).settle();
+            fixture.hold(Mods::ALT).settle();
+            fixture.hold(Mods::NONE).settle();
         } else {
-            fixture.key(Key::F10, Modifiers::NONE);
+            fixture.key(Key::F10, Mods::NONE);
             fixture.settle();
         }
         assert!(fixture.focused_stop().is_some_and(|(id, _)| id != canvas), "the bar takes the keyboard (alt {alt})");
         let before = hands.get();
-        fixture.key(Key::Space, Modifiers::NONE);
+        fixture.key(Key::Space, Mods::NONE);
         fixture.settle();
         assert!(fixture.by_label("New").is_none(), "Space opens no menu (alt {alt})");
         assert_eq!(hands.get(), before + 1, "Space reaches the canvas's command (alt {alt})");
@@ -618,7 +618,7 @@ fn a_fields_selection_holds_while_the_menu_bar_has_the_keyboard() {
     use craft_ui::text::TextField;
     use std::cell::RefCell;
     let text = RefCell::new("hello".to_owned());
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let titles = vec![MenuTitle::new("&Edit", |ui| {
             MenuItem::command(EditCommands::Copy).show(ui);
         })];
@@ -629,7 +629,7 @@ fn a_fields_selection_holds_while_the_menu_bar_has_the_keyboard() {
     fixture.settle();
     let field = fixture.by_label("Name").expect("the field");
     fixture.click(&field).settle();
-    fixture.key(Key::A, Modifiers::CTRL).settle();
+    fixture.key(Key::A, Mods::CTRL).settle();
     let edit = fixture.by_label("Edit").expect("the Edit title");
     fixture.click(&edit).settle();
     let copy = fixture.by_label("Copy").expect("the Edit menu is open");

@@ -16,7 +16,9 @@ use crate::runtime::requests::ColorRequest;
 use crate::style::{ComponentStyle, DataColor, Flags, FocusLook, State, StateMix, StateSet, StyleColor, StyleCx, UiTokens, resolve_style};
 use craft_behavior::{IconId, Metrics, Mixed, Sense, Value};
 use craft_theme::{Hsb, Rgba, Srgba, Stateful, States, over};
-use egui::{Color32, ColorImage, CornerRadius, Pos2, Rect, Response, Vec2, pos2};
+use craft_ui::geom::{Pos2, Rect, Vec2, pos2};
+use craft_ui::{Color32, CornerRadius, Response};
+use egui::ColorImage;
 use std::sync::Arc;
 
 #[cfg(feature = "suite")]

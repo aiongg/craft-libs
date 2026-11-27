@@ -15,7 +15,8 @@ use crate::style::{ComponentStyle, FocusLook, GlyphRole, StyleCx};
 use craft_behavior::fit::{FitItem, FitKeep, fit_items};
 use craft_behavior::{Axis, IconId, Metrics, NavShape, PartKey, PartRef, Proposal, Roving, Sense};
 use craft_theme::Variant;
-use egui::{Rect, Response, Vec2, pos2};
+use craft_ui::Response;
+use craft_ui::geom::{Rect, Vec2, pos2};
 
 const ITEM: PartKey = PartKey::new("item");
 const MORE: PartKey = PartKey::new("more");

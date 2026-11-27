@@ -8,10 +8,10 @@ use crate::list::CommandHighlight;
 use crate::menu::{EditMenu, GroupItem, HelpEntry, Menu, MenuItem, PanelMenu, PanelRow};
 use crate::runtime::commands::EditCommands;
 use crate::runtime::env::with_env;
-use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
+use crate::testing::{Drive, Harness, StoryData, StoryOutput, story};
 use craft_behavior::IconId;
 use craft_theme::ControlSize;
-use egui::Ui;
+use craft_ui::Ui;
 use std::sync::LazyLock;
 
 fn file(ui: &mut Ui) {
@@ -78,7 +78,7 @@ fn menu_bar(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     bar.show(ui).into()
 }
 
-fn open_file(fixture: &mut Fixture) {
+fn open_file(fixture: &mut Harness) {
     if let Some(file) = fixture.by_label("File") {
         fixture.click(&file);
     }

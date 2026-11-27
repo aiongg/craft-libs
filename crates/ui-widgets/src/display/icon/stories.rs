@@ -8,7 +8,7 @@ use crate::testing::{Drive, StoryData, StoryOutput, story};
 use craft_behavior::{ColumnWidth, IconId};
 use craft_theme::ControlSize;
 use craft_theme::variant::Tone;
-use egui::Ui;
+use craft_ui::Ui;
 
 #[story(Icon<'static>, covers = [Default], drive = Drive::Never)]
 fn icon(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {

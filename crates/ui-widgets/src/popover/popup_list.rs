@@ -6,7 +6,7 @@ use crate::runtime::env::Label;
 use crate::runtime::overlay::CloseReason;
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
 use craft_behavior::{Metrics, Sense};
-use egui::{Id, Response};
+use craft_ui::{Id, Response};
 
 #[cfg(feature = "suite")]
 pub(crate) mod stories;

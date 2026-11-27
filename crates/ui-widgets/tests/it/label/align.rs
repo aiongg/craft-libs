@@ -3,8 +3,8 @@
 use super::group::Group;
 use super::kit::{Dial, Seen};
 use craft_ui::contract::{Props as _, ShowContainer as _, SideLabel};
+use craft_ui::geom::Rect;
 use craft_ui::testing::{Frames, trial};
-use egui::Rect;
 use std::cell::RefCell;
 
 /// A content-sized group is as wide as its rows at the widest label: a wide control under a short label, measured

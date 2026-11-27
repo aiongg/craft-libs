@@ -12,7 +12,8 @@ use crate::style::{ComponentStyle, StyleCx};
 use crate::text::{NumberField, RangeAlert};
 use crate::value_drag::{Slider, SliderScale, SliderThumb, TrackFace, TrackPress};
 use craft_behavior::{Flow, Metrics, Mixed, Proposal, Sense, decimals_for_step};
-use egui::{Rect, Response, Vec2, pos2};
+use craft_ui::Response;
+use craft_ui::geom::{Rect, Vec2, pos2};
 use std::ops::{Deref, RangeInclusive};
 
 /// The step of the number field when the field sets none: hundredths on a short range, whole numbers on a long one.

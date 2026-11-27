@@ -6,10 +6,11 @@ use crate::display::Text;
 use crate::form::{Field, FieldGroup};
 use crate::layout_components::Row;
 use crate::runtime::env::{Env, LengthUnits, Message, UnitKind, with_env};
-use crate::testing::{Drive, Fixture, StoryData, StoryOutput, pointer, story};
+use crate::testing::{Drive, Harness, StoryData, StoryOutput, pointer, story};
 use craft_behavior::{Mixed, NumberCodec, Reader};
 use craft_theme::ControlSize;
-use egui::{Key, Modifiers, Ui};
+use craft_ui::Ui;
+use craft_ui::input::{Key, Mods};
 
 const SIZE: f64 = 12.5;
 const HUGE: f64 = 123_456_789_012_345.0;
@@ -125,9 +126,9 @@ fn number_field_invalid(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 }
 
 /// Focuses the field and opens its list or slider with Alt+Down.
-fn open_popup(fixture: &mut Fixture) {
-    fixture.key(Key::Tab, Modifiers::NONE);
-    fixture.key(Key::ArrowDown, Modifiers::ALT);
+fn open_popup(fixture: &mut Harness) {
+    fixture.key(Key::Tab, Mods::NONE);
+    fixture.key(Key::ArrowDown, Mods::ALT);
     fixture.idle(4);
 }
 
@@ -154,12 +155,12 @@ fn number_field_step_arrows(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 
 /// Presses the up arrow and keeps it down, short of the repeat delay: one step, then the held arrow. The repeat is
 /// the step-arrow trial's: every repeated step is an edit of its own, and a drive ends its edit once.
-fn hold_up(fixture: &mut Fixture) {
+fn hold_up(fixture: &mut Harness) {
     fixture.settle();
     let at = fixture.root_id().and_then(|root| fixture.part_rect(root, NumberField::STEP_UP)).map(|rect| rect.center());
     if let Some(at) = at {
-        fixture.frame(vec![pointer::moved(at)]);
-        fixture.frame(vec![pointer::press(at)]);
+        fixture.send(pointer::moved(at));
+        fixture.send(pointer::press(at));
         fixture.idle(2);
     }
 }
@@ -255,8 +256,8 @@ fn number_field_inline(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 }
 
 /// Focuses the first field with Tab: its whole run selected.
-fn focus_first(fixture: &mut Fixture) {
-    fixture.key(Key::Tab, Modifiers::NONE);
+fn focus_first(fixture: &mut Harness) {
+    fixture.key(Key::Tab, Mods::NONE);
     fixture.idle(2);
 }
 

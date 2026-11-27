@@ -38,7 +38,7 @@ pub enum ChoiceLook {
 /// The well of a check box, radio button or switch track with `radius` corners: the sunken surface, so a bevelled theme
 /// draws its bevel, filled with the off fill or the on accent. A flat theme draws the outline as its edge, in the failure
 /// colour while the value is invalid.
-fn indicator(cx: &crate::style::StyleCx<'_>, radius: egui::CornerRadius) -> crate::style::SurfaceLook {
+fn indicator(cx: &crate::style::StyleCx<'_>, radius: craft_ui::CornerRadius) -> crate::style::SurfaceLook {
     use crate::style::{Flags, SurfaceKind, SurfaceLook};
     let mut look = SurfaceLook::new(well(cx).on(on_fill(cx).off)).kind(SurfaceKind::Sunken).radius(radius).border_replaces_edge();
     if matches!(cx.surface(SurfaceKind::Sunken).edge, crate::style::SurfaceEdge::Border(_)) {
@@ -50,7 +50,7 @@ fn indicator(cx: &crate::style::StyleCx<'_>, radius: egui::CornerRadius) -> crat
 
 /// The well of a quiet check box: dark in either state with a thin faint edge, so the box reads over a picture and
 /// its checked state is told by the mark alone.
-fn quiet_indicator(cx: &crate::style::StyleCx<'_>, radius: egui::CornerRadius) -> crate::style::SurfaceLook {
+fn quiet_indicator(cx: &crate::style::StyleCx<'_>, radius: craft_ui::CornerRadius) -> crate::style::SurfaceLook {
     use crate::style::{SurfaceKind, SurfaceLook};
     use craft_theme::{Stateful, States};
     let dark = cx.color(cx.tokens.color.surface.scrim);

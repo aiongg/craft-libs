@@ -1,7 +1,7 @@
 //! Text AccessKit and the field's visible states: value, `SetValue`, selection, INVALID, selectable text.
 
 use craft_ui::contract::{Bind, Props as _, Show as _};
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::testing::{Harness, trial};
 use craft_ui::text::TextField;
 use std::cell::Cell;
 use std::rc::Rc;
@@ -9,9 +9,9 @@ use std::rc::Rc;
 /// A masked field's node carries no value, where the same field unmasked carries its text.
 #[trial]
 fn a_masked_field_exposes_no_value() {
-    let (open, masked) = (Rc::new(Cell::new(egui::Id::NULL)), Rc::new(Cell::new(egui::Id::NULL)));
+    let (open, masked) = (Rc::new(Cell::new(craft_ui::Id::NULL)), Rc::new(Cell::new(craft_ui::Id::NULL)));
     let (plain, hidden) = (open.clone(), masked.clone());
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         plain.set(TextField::new("Name", Bind::given("secret".to_owned())).id_salt("name").show(ui).response.id);
         hidden.set(TextField::new("Password", Bind::given("secret".to_owned())).id_salt("password").masked().show(ui).response.id);
     });
@@ -30,9 +30,9 @@ fn a_number_field_that_keeps_its_name_is_described_by_its_caption() {
     use craft_ui::text::NumberField;
 
     for keeps in [true, false] {
-        let field = Rc::new(Cell::new(egui::Id::NULL));
+        let field = Rc::new(Cell::new(craft_ui::Id::NULL));
         let seen = field.clone();
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             Field::new("X").show(ui, |ui, _| {
                 let mut value = Some(12.0);
                 let out = NumberField::new("Clone Source X Offset", Bind::bound(&mut value)).id_salt("x").keeps_name(keeps).show(ui);
@@ -59,9 +59,9 @@ fn a_number_field_with_no_number_has_no_numeric_value() {
     use craft_ui::text::NumberField;
 
     for (value, read) in [(f64::NAN, None), (12.0, Some(12.0))] {
-        let field = Rc::new(Cell::new(egui::Id::NULL));
+        let field = Rc::new(Cell::new(craft_ui::Id::NULL));
         let seen = field.clone();
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             let mut shown = Some(value);
             seen.set(NumberField::new("Offset", Bind::bound(&mut shown)).id_salt("offset").show(ui).response.id);
         });
@@ -80,9 +80,9 @@ fn a_number_field_reads_its_unit_after_its_number() {
     use craft_ui::text::NumberField;
 
     for value in [160.0, f64::NAN] {
-        let field = Rc::new(Cell::new((egui::Id::NULL, egui::Rect::NOTHING)));
+        let field = Rc::new(Cell::new((craft_ui::Id::NULL, craft_ui::geom::Rect::NOTHING)));
         let seen = field.clone();
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             let mut shown = Some(value);
             let out = NumberField::new("Radius", Bind::bound(&mut shown)).unit_kind(UnitKind::Points).id_salt("radius").show(ui);
             seen.set((out.response.id, out.response.rect));

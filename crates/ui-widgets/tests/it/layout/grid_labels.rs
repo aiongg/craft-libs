@@ -1,14 +1,15 @@
 //! The glyph labels beside the fields of one grid column share a width.
 
 use craft_behavior::ColumnWidth;
+use craft_ui::Ui;
 use craft_ui::contract::{Bind, Entry, GlyphLabel, LabelKind, Show as _, ShowContainer as _, SideLabel};
 use craft_ui::display::Text;
 use craft_ui::form::Field;
+use craft_ui::geom::Rect;
 use craft_ui::layout_components::{Grid, Stack};
 use craft_ui::pickers::Select;
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::testing::{Harness, trial};
 use craft_ui::text::NumberField;
-use egui::{Rect, Ui};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -23,7 +24,7 @@ static COLUMNS: [ColumnWidth; 2] = [ColumnWidth::Content, ColumnWidth::fill(1.0)
 fn the_fields_of_a_grid_column_share_a_left_edge() {
     let rects: Rc<RefCell<Vec<Rect>>> = Rc::default();
     let seen = rects.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let mut seen = seen.borrow_mut();
         seen.clear();
         Grid::new(&COLUMNS).show(ui, |ui, _| {
@@ -52,7 +53,7 @@ static FILL_FIRST: [ColumnWidth; 2] = [ColumnWidth::fill(1.0), ColumnWidth::Cont
 fn grid_rows(in_container: bool, width: f32) -> ([Rect; 2], Rect) {
     let rects: Rc<RefCell<Vec<Rect>>> = Rc::default();
     let seen = rects.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let mut seen = seen.borrow_mut();
         seen.clear();
         let entries = [Entry::new(0u8, "Round"), Entry::new(1, "Inverted Round"), Entry::new(2, "Chamfer")];
@@ -81,7 +82,7 @@ fn grid_rows(in_container: bool, width: f32) -> ([Rect; 2], Rect) {
             grid(ui);
         }
     });
-    fixture.room(egui::vec2(width, 400.0)).record_paint();
+    fixture.room(craft_ui::geom::vec2(width, 400.0)).record_paint();
     fixture.settle();
     let rects = rects.borrow();
     let [first, second] = rects[..] else { panic!("two fields show: {rects:?}") };
