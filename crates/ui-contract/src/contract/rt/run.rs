@@ -208,7 +208,7 @@ pub(crate) fn show_shaped<C: Component>(
             crate::layout::replay(&ui.ctx, &p.local.column_reports);
             Some(size)
         });
-        let mut stage = MemoryStage::default();
+        let mut stage = MemoryStage::open_peek(&ui.ctx, id);
         let value = steps::value(&mut component, &mut stage, id, command.as_deref());
         hooks.read(&mut component, &mut stage, id, &begun.env);
         let ctx = ui.ctx.clone();
@@ -223,62 +223,67 @@ pub(crate) fn show_shaped<C: Component>(
     cx.keyed(child, |cx| {
         cx.inline(node, |kept, state, cx| {
             let kept_outputs = holds(kept, key, state);
-            // The stage answers `appeared` for the run that created the node.
-            kept.memory = std::mem::take(&mut kept.memory).appearing(state.new);
-            let value = steps::value(&mut component, &mut kept.memory, id, command.as_deref());
-            hooks.read(&mut component, &mut kept.memory, id, &begun.env);
-            // A shape's step 5 runs whenever the build reaches it: its content (a collection's rows)
-            // lays out from what step 5 found (15.4).
-            let cached = kept.cached(room).filter(|_| kept_outputs && !shaped);
-            let size = match cached {
-                Some(size) => size,
-                None => {
-                    let node = Some(cx.node());
-                    measure(&mut component, &begun, id, room, &value, cx, node, &context, (&kept.memory, hooks))
+            // The kept stage runs in this window for this node, and answers `appeared` for the run that created the
+            // node; its session and saved slots go back to the runtime's store when the run ends.
+            kept.memory = std::mem::take(&mut kept.memory).within(&context, id).appearing(state.new);
+            let out = (|| {
+                let value = steps::value(&mut component, &mut kept.memory, id, command.as_deref());
+                hooks.read(&mut component, &mut kept.memory, id, &begun.env);
+                // A shape's step 5 runs whenever the build reaches it: its content (a collection's rows)
+                // lays out from what step 5 found (15.4).
+                let cached = kept.cached(room).filter(|_| kept_outputs && !shaped);
+                let size = match cached {
+                    Some(size) => size,
+                    None => {
+                        let node = Some(cx.node());
+                        measure(&mut component, &begun, id, room, &value, cx, node, &context, (&kept.memory, hooks))
+                    }
+                };
+                let rect = place_in(flow, Some(cx.node()), at, size);
+                if kept_outputs && size == kept.size {
+                    kept.cache(room, size);
+                    // Kept, it reports nothing: the column reports its last run captured join the open groups.
+                    crate::layout::replay(&context, &kept.column_reports);
+                    if shaped {
+                        // The shape's content reconciles its children itself; its kept hooks stay.
+                        let tokens = flow.tokens.clone();
+                        return settle_shaped(component, kept, cx, rect, &begun, value, context, &tokens, hooks);
+                    }
+                    if state.path {
+                        // A node in one of its layer children is marked: reach them.
+                        reach_layers(&mut component, kept, cx, rect, &begun, &flow.tokens, context.clone());
+                    } else {
+                        cx.keep_children();
+                    }
+                    return settle(component, kept, cx, rect, &begun, value, context);
                 }
-            };
-            let rect = place_in(flow, Some(cx.node()), at, size);
-            if kept_outputs && size == kept.size {
-                kept.cache(room, size);
-                // Kept, it reports nothing: the column reports its last run captured join the open groups.
-                crate::layout::replay(&context, &kept.column_reports);
-                if shaped {
-                    // The shape's content reconciles its children itself; its kept hooks stay.
-                    let tokens = flow.tokens.clone();
-                    return settle_shaped(component, kept, cx, rect, &begun, value, context, &tokens, hooks);
-                }
-                if state.path {
-                    // A node in one of its layer children is marked: reach them.
-                    reach_layers(&mut component, kept, cx, rect, &begun, &flow.tokens, context.clone());
-                } else {
-                    cx.keep_children();
-                }
-                return settle(component, kept, cx, rect, &begun, value, context);
-            }
-            let tokens = super::env::tokens(cx);
-            let capture = context.clone();
-            crate::layout::begin_capture(&capture);
-            let out = run_shaped(
-                component,
-                kept,
-                cx,
-                Ran {
-                    id,
-                    key,
-                    place: Place { room },
-                    size,
-                    rect,
-                    tokens: &tokens,
-                    sweep: flow.sweep,
-                    begun: &begun,
-                    value,
-                    tip,
-                    context,
-                    flow_reveal: &mut flow.reveal,
-                },
-                hooks,
-            );
-            kept.column_reports = crate::layout::end_capture(&capture);
+                let tokens = super::env::tokens(cx);
+                let capture = context.clone();
+                crate::layout::begin_capture(&capture);
+                let out = run_shaped(
+                    component,
+                    kept,
+                    cx,
+                    Ran {
+                        id,
+                        key,
+                        place: Place { room },
+                        size,
+                        rect,
+                        tokens: &tokens,
+                        sweep: flow.sweep,
+                        begun: &begun,
+                        value,
+                        tip,
+                        context,
+                        flow_reveal: &mut flow.reveal,
+                    },
+                    hooks,
+                );
+                kept.column_reports = crate::layout::end_capture(&capture);
+                out
+            })();
+            kept.memory.flush();
             out
         })
     })
@@ -397,7 +402,7 @@ pub(crate) fn finish_measured<C: Component>(
 ) -> C::Output {
     let response = Response::new(id, rect, None, Default::default(), false, InputFacts::default());
     let resolved = begun.resolved(id);
-    let mut stage = MemoryStage::default();
+    let mut stage = MemoryStage::open_peek(&context, id);
     let mut core = settled_core(&begun.env, &resolved, &mut stage, response, &begun.step1, RunIo::measuring(context));
     core.rect = rect;
     core.content_rect = rect;

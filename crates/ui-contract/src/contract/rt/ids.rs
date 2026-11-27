@@ -23,6 +23,8 @@ use crate::runtime::focus::FocusTarget;
 #[derive(Default)]
 struct Table {
     nodes: HashMap<u64, NodeId>,
+    /// The `Id` each node in `nodes` answers to.
+    ids: HashMap<NodeId, Id>,
     /// Nodes whose access node named an `Id` the map did not have, by that `Id`.
     waiting: HashMap<u64, SmallVec<[NodeId; 2]>>,
 }
@@ -41,6 +43,7 @@ impl NodeIds {
     fn insert(&self, id: Id, node: NodeId) -> SmallVec<[NodeId; 2]> {
         let mut table = self.0.borrow_mut();
         table.nodes.insert(id.value(), node);
+        table.ids.insert(node, id);
         table.waiting.remove(&id.value()).unwrap_or_default()
     }
 
@@ -66,6 +69,9 @@ impl Drop for IdEntry {
         let mut table = self.ids.0.borrow_mut();
         if table.nodes.get(&self.id) == Some(&self.node) {
             table.nodes.remove(&self.id);
+        }
+        if table.ids.get(&self.node).is_some_and(|id| id.value() == self.id) {
+            table.ids.remove(&self.node);
         }
         for list in table.waiting.values_mut() {
             list.retain(|n| *n != self.node);
@@ -127,7 +133,12 @@ impl Kept {
     }
 }
 
-/// The node `id` names in the window of the node `cx` builds.
+/// The `Id` the live node `node` answers to, in the window of the node `cx` builds.
+pub(crate) fn id_of(cx: &BuildCx<'_>, node: NodeId) -> Option<Id> {
+    cx.provided::<NodeIds>()?.0.borrow().ids.get(&node).copied()
+}
+
+/// The live node of `id` in the window `cx` builds in.
 pub(crate) fn node_of(cx: &BuildCx<'_>, id: Id) -> Option<NodeId> {
     cx.provided::<NodeIds>()?.node_of(id)
 }

@@ -14,6 +14,7 @@ mod int5b;
 mod items;
 mod keys;
 mod layout;
+mod memory;
 mod motion;
 mod overlay;
 mod pipeline;

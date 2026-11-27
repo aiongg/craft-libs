@@ -21,6 +21,10 @@ impl<C: Component> CommandAccess for Cx<'_, C> {
         Some(self.core.id)
     }
 
+    fn command_fenced(&self) -> bool {
+        self.core.memory.is_peek()
+    }
+
     fn command_inbox(&mut self) -> Option<(&mut crate::runtime::commands::InboxIn, &mut crate::runtime::memory::MemoryStage, Id)> {
         let core = &mut *self.core;
         (!core.run.settled).then(|| (&mut core.run.inbox, &mut *core.memory, core.id))
@@ -32,6 +36,10 @@ impl<C: Component> Commands for Cx<'_, C> {}
 impl CommandAccess for BodyCx<'_> {
     fn command_ctx(&self) -> &Context {
         self.memory.ctx()
+    }
+
+    fn command_fenced(&self) -> bool {
+        self.memory.is_peek()
     }
 
     fn command_chain(&self) -> &CommandChain {
@@ -48,6 +56,10 @@ impl Commands for BodyCx<'_> {}
 impl<K> CommandAccess for ItemCx<'_, '_, K> {
     fn command_ctx(&self) -> &Context {
         self.memory.ctx()
+    }
+
+    fn command_fenced(&self) -> bool {
+        self.memory.is_peek()
     }
 
     fn command_chain(&self) -> &CommandChain {

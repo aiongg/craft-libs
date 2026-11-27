@@ -362,7 +362,7 @@ pub(crate) fn measure_under<C: Component>(
     let style = steps::style::<C>(ui.build_cx(), &ctx, &steps::style_cx(&env, &step1), comp.style_key());
     let id = id.unwrap_or_else(|| ui.id().with("measure"));
     let resolved = steps::resolved(id, &step1, &common);
-    let mut stage = MemoryStage::default();
+    let mut stage = MemoryStage::open_peek(ui.ctx(), id);
     let value = steps::value(comp, &mut stage, id, step1.command.as_deref());
     ui.build_cx().count_measure();
     let size = {
@@ -423,7 +423,7 @@ pub(crate) fn paint_face<C: Show>(
     let style = steps::style_cached::<C>(&scx, face.style_key());
     let id = face_id(source.id, part);
     let resolved = steps::resolved(id, &step1, &common);
-    let mut stage = MemoryStage::default();
+    let mut stage = MemoryStage::open(&context, id);
     stage.face = true;
     let value = steps::value(&mut face, &mut stage, id, step1.command.as_deref());
     let rect = source.result.rect;

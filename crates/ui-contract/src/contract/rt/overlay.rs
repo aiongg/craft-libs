@@ -728,7 +728,11 @@ fn run_layer<R: Clone + 'static>(lk: &mut LayerKept, state: InlineState, cx: &mu
     }
     lk.kept.id = run.id;
     lk.kept.note_id(cx, run.id);
-    lk.entry = run.entry.map(|entry| OpenEntry { id: run.id, rect: Rect::from_min_size(at, real), ..entry });
+    let entry = run.entry.map(|entry| OpenEntry { id: run.id, rect: Rect::from_min_size(at, real), ..entry });
+    if lk.entry != entry {
+        super::layers::note_changed(cx);
+    }
+    lk.entry = entry;
     if lk.kept.access.is_none() {
         lk.kept.access = Some(accesskit::Node::new(run.role));
     }

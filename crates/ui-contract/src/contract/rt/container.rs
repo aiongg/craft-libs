@@ -556,13 +556,16 @@ pub(crate) fn show_container<C: Container, R>(
             ShowAt::Flow => ui.flow.allocate(None, size, fills),
             ShowAt::Rect(rect) => Rect::from_min_size(rect.min, size),
         };
-        let value = steps::value(&mut component, &mut MemoryStage::default(), id, command.as_deref());
+        let value = steps::value(&mut component, &mut MemoryStage::open_peek(&ctx, id), id, command.as_deref());
         let output = finish_measured(component, id, rect, &begun, value, ctx.clone());
         return Inner { output, inner: inner_value, settle: None };
     }
     let Ui { cx, flow, .. } = ui;
     let output = cx.keyed(child, |cx| {
         cx.inline(ComponentNode { key: key.map_or(0, fold), tag, stop: C::STOPS, text: component.text_input() }, |kept, state, cx| {
+            // The kept stage runs in this window for this node; its session and saved slots go back to the runtime's
+            // store when the run ends.
+            kept.memory = std::mem::take(&mut kept.memory).within(&ctx, id).appearing(state.new);
             let value = steps::value(&mut component, &mut kept.memory, id, command.as_deref());
             let open = read_open(&mut component, &props, kept.body.open, &ctx);
             (frame.open, frame.open_at_read) = (open, open);
@@ -592,7 +595,9 @@ pub(crate) fn show_container<C: Container, R>(
                 kept.cache(room, size);
                 // The body reconciled the children; the layer children are reached the same way.
                 reach_layers(&mut component, kept, cx, rect, &begun, &tokens, ctx.clone());
-                return settle(component, kept, cx, rect, &begun, value, ctx.clone());
+                let output = settle(component, kept, cx, rect, &begun, value, ctx.clone());
+                kept.memory.flush();
+                return output;
             }
             let ran = Ran {
                 id,
@@ -616,6 +621,7 @@ pub(crate) fn show_container<C: Container, R>(
             if roving.is_some() {
                 kept.focus.roving = roving;
             }
+            kept.memory.flush();
             output
         })
     });

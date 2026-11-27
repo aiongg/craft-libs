@@ -384,7 +384,9 @@ fn start_on<A: App, P: Platform, R: Renderer>(
     let Prepared { spec, keymap } = prepared;
     let registry = WindowRegistry::new(spec.placement);
     let frame = spec.frame.as_ref().map(|decision| decision.frame.clone());
-    let main = rt_spec(&WindowSpec::document(), &spec.title, Some(MAIN), &|_| frame.clone());
+    let mut main = rt_spec(&WindowSpec::document(), &spec.title, Some(MAIN), &|_| frame.clone());
+    // The platform groups the app's windows and finds its icon and desktop entry by it.
+    main.app_id = Some(spec.app_id.clone());
     let main = registry.place(main, &spec.defaults, platform.surfaces());
     let window = open(&mut platform, &main);
     debug_assert_eq!(window, WindowId::ROOT, "the main window is the platform's first");
@@ -528,11 +530,15 @@ impl<A: App> Host<A> {
             for request in ctx.take_platform_requests() {
                 match request {
                     PlatformRequest::CopyText(text) => driver.platform.clipboard().set_text(&text),
+                    PlatformRequest::CopyImage(image) => driver.platform.clipboard().set_image(&image),
                     PlatformRequest::OpenUrl { url, new_tab } => driver.platform.open_url(&url, new_tab),
                 }
             }
             for command in ctx.take_window_commands() {
                 driver.runtime.window_command(window, command);
+            }
+            if ctx.wants_root_build() {
+                driver.runtime.mark_root(window);
             }
         }
     }

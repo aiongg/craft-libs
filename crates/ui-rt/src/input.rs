@@ -170,6 +170,21 @@ impl Runtime {
         if let Some(mods) = mods {
             env.modifiers.set_if_changed(&mut self.store, mods);
         }
+        let held = match ev {
+            WindowEvent::Key { key, down: true, repeat: false, .. } if !self.store.peek(env.held_keys).contains(key) => {
+                let mut held = self.store.peek(env.held_keys).clone();
+                held.push(*key);
+                Some(held)
+            }
+            WindowEvent::Key { key, down: false, .. } if self.store.peek(env.held_keys).contains(key) => {
+                Some(self.store.peek(env.held_keys).iter().copied().filter(|k| k != key).collect())
+            }
+            WindowEvent::Focus(false) if !self.store.peek(env.held_keys).is_empty() => Some(Vec::new()),
+            _ => None,
+        };
+        if let Some(held) = held {
+            env.held_keys.set(&mut self.store, held);
+        }
         let WindowEvent::Pointer(p) = ev else { return };
         let mut facts = *self.store.peek(env.pointer);
         let touch = p.kind == PointerKind::Touch;
@@ -325,6 +340,12 @@ impl Runtime {
 
     fn long_press_due(&self, window: WindowId) -> bool {
         self.press_may_long_press(window) && self.input(window).and_then(|i| i.machine.start()).is_some_and(|s| self.time - s.time >= LONG_PRESS_TIME)
+    }
+
+    /// Where focus goes in `window` when the layer child `node` goes with focus inside it
+    /// ([`crate::BuildCx::set_focus_return`]), while that node lives.
+    pub fn focus_return(&self, window: WindowId, node: NodeId) -> Option<NodeId> {
+        self.windows.get(&window)?.focus_returns.get(&node).copied().filter(|to| self.tree.nodes.contains_key(to))
     }
 
     /// The node with key focus in `window`.

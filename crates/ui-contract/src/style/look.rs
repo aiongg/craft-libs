@@ -22,6 +22,10 @@ impl Mix for StyleColor {
     fn mix(self, to: StyleColor, t: f32) -> StyleColor {
         StyleColor(self.0.mix(to.0, t))
     }
+
+    fn same(self, other: StyleColor) -> bool {
+        self.0.same(other.0)
+    }
 }
 
 /// A colour from data (a swatch, a layer label dot).

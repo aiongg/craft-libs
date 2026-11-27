@@ -110,7 +110,7 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
     }
 
     fn largest_row_in(&mut self, comp: &C, (ui, env): (&mut Ui, &Env), id: Id) -> (Vec2, f32, Vec<(craft_behavior::ColumnKey, f32)>) {
-        let mut memory = MemoryStage::default();
+        let mut memory = MemoryStage::open_peek(ui.ctx(), id);
         let cells: Vec<(craft_behavior::ColumnKey, Rect)> =
             self.header.columns(0.0).into_iter().map(|(key, width)| (key, Rect::from_min_size(Pos2::ZERO, Vec2::new(width, 0.0)))).collect();
         let mut largest = Vec2::ZERO;
@@ -261,7 +261,7 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
         let known = self.known(comp, true);
         let env = Self::rows_env(comp, at.env, id, at.resolved.size, comp.props(Internal::new()).surface);
         let widths = layout.auto_widths();
-        let mut memory = MemoryStage::default();
+        let mut memory = MemoryStage::open_peek(at.ui.ctx(), id);
         // How many times each row was measured here: its widths once, its height again only at a width the later rows'
         // widths moved it to.
         let mut done: Vec<(usize, u8)> = Vec::new();

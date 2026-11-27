@@ -68,7 +68,7 @@ pub enum DropMark {
 }
 
 impl crate::runtime::Shift for DropMark {
-    fn shifted(&self, by: &egui::RecordShift) -> Self {
+    fn shifted(&self, by: &crate::runtime::RecordShift) -> Self {
         self.mapped(|point| by.pos(point))
     }
 

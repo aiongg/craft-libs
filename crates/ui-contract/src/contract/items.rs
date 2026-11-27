@@ -438,8 +438,14 @@ impl crate::style::StyleCx<'_> {
     pub fn face<S: crate::contract::Show>(&self, mut face: S) -> craft_ui_rt::Vec2 {
         let Some(host) = self.measuring_host() else { return craft_ui_rt::Vec2::ZERO };
         let mut size = craft_ui_rt::Vec2::ZERO;
-        host.borrow_mut().with_ui(&mut |ui| size = crate::contract::measure_under(&mut face, ui, None, craft_behavior::Proposal::Ideal, None));
+        host.with_ui(&mut |ui| size = crate::contract::measure_under(&mut face, ui, None, craft_behavior::Proposal::Ideal, None));
         size
+    }
+}
+
+impl crate::style::MeasuringHost for std::cell::RefCell<&mut (dyn crate::contract::paint_ui::UiHost + '_)> {
+    fn with_ui(&self, f: &mut dyn FnMut(&mut Ui<'_, '_>)) {
+        self.borrow_mut().with_ui(f);
     }
 }
 
