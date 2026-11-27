@@ -13,6 +13,7 @@ use std::cell::{Cell, RefCell};
 use craft_ui_rt::{BuildCx, Gesture, InlineState, PointerButton, Rect, Sense, Vec2};
 use smallvec::SmallVec;
 
+use super::access::Access;
 use super::key::{ComponentKey, component_key, fold, type_key};
 use super::node::{ComponentNode, Kept, NodeInput, Place, Pointer, Variant};
 use super::ui::Ui;
@@ -58,7 +59,7 @@ impl<'a> Cx<'a> {
     pub fn clicked(&self) -> bool {
         self.input.iter().any(|i| match i {
             NodeInput::Pointer { gesture: Gesture::Up { click, .. }, button, .. } => *click && *button == PointerButton::Primary,
-            NodeInput::Access(action) => *action == accesskit::Action::Click,
+            NodeInput::Access(a) => a.action == accesskit::Action::Click && a.sub.is_none(),
             _ => false,
         })
     }
@@ -125,8 +126,9 @@ pub trait Component: ComponentKey + Sized {
     /// Paints in local coordinates; may run once per pointer state it reads.
     fn paint(&mut self, _paint: &Paint<'_>, _cx: &Cx<'_>) {}
 
-    /// Fills the node's AccessKit node (its role is set).
-    fn access(&self, _node: &mut accesskit::Node, _cx: &Cx<'_>) {}
+    /// Says what the node is to assistive technology: its name and facts beyond the role and the
+    /// sense. Runs only while the window's access tree is on.
+    fn access(&self, _access: &mut Access, _cx: &Cx<'_>) {}
 
     /// Runs at every `show`: after the run, or on the settled `Cx` of a kept node.
     fn finish(self, cx: &Cx<'_>) -> Self::Output;
@@ -197,9 +199,15 @@ pub(crate) fn run<C: Component>(mut component: C, kept: &mut Kept, cx: &mut Buil
     let mut rcx = Cx { rect: ran.rect, tokens: ran.tokens, input: &input, settled: false };
     component.update(&mut rcx);
     kept.variants = record_variants(&mut component, &rcx, cx, sense);
-    let mut node = accesskit::Node::new(C::ROLE);
-    component.access(&mut node, &rcx);
-    kept.access = Some(node);
+    // Nothing is built while the window's access tree is off; turning it on rebuilds every node.
+    let built = cx.access_enabled().then(|| {
+        let mut access = Access::default();
+        component.access(&mut access, &rcx);
+        access.finish(C::ROLE, sense)
+    });
+    let (access, subs) = built.flatten().map_or((None, Vec::new()), |b| (Some(b.node), b.subs));
+    kept.access = access;
+    kept.access_subs = subs;
     kept.id = ran.id;
     kept.key = ran.key;
     kept.place = ran.place;

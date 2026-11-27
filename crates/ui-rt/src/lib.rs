@@ -46,7 +46,7 @@ mod text;
 mod tree;
 mod window;
 
-pub use access::{AccessCx, AccessEntry};
+pub use access::{AccessCx, AccessEntry, Politeness as AnnouncePoliteness};
 pub use build::{BuildCx, InlineState, Peek};
 pub use display::{
     Clip, Dash, DisplayList, Fill, FillRule, Filter, ImageChange, ImageKey, ImageOptions, ImageStore, Item, Media, Mesh, RgbaImage, Stroke,

@@ -225,7 +225,7 @@ fn a_tree_update_holds_only_the_changed_nodes() {
     let (mut d, log) = setup();
     let first = d.platform.updates_for(MAIN).next().expect("full tree");
     assert!(first.tree.is_some());
-    assert_eq!(first.nodes.len(), 2 + ROWS + 2, "the window, the panel, the rows and the stops; layers add no node");
+    assert_eq!(first.nodes.len(), 2 + ROWS + 2 + 1, "the window, the panel, the rows, the stops and the status node; layers add no node");
 
     let (row2, selected2) = log.borrow().rows[2];
     selected2.set(&mut d.runtime, true);

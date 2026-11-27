@@ -1,6 +1,7 @@
 //! Count trials of the contract on craft-ui-rt (docs/contract-rt.md section 13): a frame runs only
 //! the hooks it must. Relations only, no times.
 
+mod access;
 mod layout;
 
 use craft_behavior::IconId;
