@@ -7,15 +7,17 @@
 
 use std::ops::Range;
 
-use craft_behavior::{PointerButton, PointerKind, PressCancel};
+use craft_behavior::{CopyKeys, DropOperation, PointerButton, PointerKind, PointerSample, PressCancel, WheelPhase, WheelSource, WheelUnit};
 use craft_keymap::chord::{Key, Mods};
 use emath::{Pos2, Rect, Vec2};
 
+use crate::drag::{DragInfo, DragOutcome, DragPointer, DragStart, DropInput};
+use crate::element::Element;
 use crate::hit::{Hit, window_origin};
 use crate::id::{NodeId, WindowId};
 use crate::input::ClipboardRequest;
 use crate::layer::DismissReason;
-use crate::platform::WindowCommand;
+use crate::platform::{WindowCommand, WindowSpec};
 use crate::runtime::Runtime;
 use crate::state::{Access, Reads, Store, Writes};
 use crate::window::Env;
@@ -65,15 +67,38 @@ pub struct PointerInput {
     pub pos: Pos2,
     /// The shape the press went down on.
     pub hit: Option<Hit>,
+    /// The pen's reading (or a touch contact's force) for this sample.
+    pub sample: Option<PointerSample>,
 }
 
+/// A wheel step, a touchpad pinch, or a two-finger touch gesture. A node takes the scroll, the
+/// zoom or both; which modifiers zoom and which Ctrl+wheel steps are a pinch is decided before it
+/// arrives ([`crate::WheelOptions`]).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct WheelInput {
     pub pos: Pos2,
-    /// Logical points.
+    /// Scroll in `unit` (logical points for a touch pan); zero when the step zooms.
     pub delta: Vec2,
+    pub unit: WheelUnit,
+    pub phase: WheelPhase,
+    pub source: WheelSource,
+    /// The step's zoom factor, 1 for none: a touchpad pinch, a Ctrl+wheel pinch, a wheel step
+    /// under the zoom modifiers, or two fingers moving apart.
+    pub zoom: f32,
+    /// Radians, clockwise on screen.
+    pub rotation: f32,
+    /// Two touch contacts drive it: `zoom`, `rotation` and `delta` (their centre's movement) come
+    /// from the fingers, and every step of the gesture goes to the node that took its start.
+    pub touch: bool,
     pub mods: Mods,
     pub hit: Option<Hit>,
+}
+
+impl WheelInput {
+    /// Whether the step zooms or rotates rather than only scrolling.
+    pub fn pinches(&self) -> bool {
+        self.zoom != 1.0 || self.rotation != 0.0
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -95,6 +120,7 @@ pub struct AccessInput {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum Event {
     Pointer(PointerInput),
     Wheel(WheelInput),
@@ -113,6 +139,14 @@ pub enum Event {
     /// The node, a layer child, is asked to go ([`crate::OutsidePress`]); it tells its owner
     /// through its output. Not bubbled.
     Dismiss(DismissReason),
+    /// A drag is over one of the node's drop shapes, left it, or dropped on it. `Over` bubbles
+    /// from the shape's node until a node accepts ([`EventCx::accept_drop`] or [`Handled::Yes`]);
+    /// that node then gets `Leave` or `Drop`, not bubbled.
+    Drop(DropInput),
+    /// The drag this node started ([`EventCx::start_drag`]) ended. Not bubbled.
+    DragEnd(DragOutcome),
+    /// The window this node asked for ([`EventCx::open_window`]) is open. Not bubbled.
+    WindowOpened(WindowId),
 }
 
 /// The context of one node's event handler.
@@ -177,6 +211,56 @@ impl EventCx<'_> {
     pub fn window_command(&mut self, cmd: WindowCommand) {
         let window = self.window();
         self.rt.window_command(window, cmd);
+    }
+
+    /// Asks the platform to change another window (a floating panel window that follows a drag).
+    pub fn window_command_to(&mut self, window: WindowId, cmd: WindowCommand) {
+        self.rt.window_command(window, cmd);
+    }
+
+    /// Asks for a new window showing `root`. The driver opens it after this step's events and
+    /// this node then gets [`Event::WindowOpened`] with its id.
+    pub fn open_window<E: Element>(&mut self, spec: WindowSpec, root: E) {
+        let node = self.node;
+        self.rt.queue_window(node, spec, root);
+    }
+
+    /// A position in this node's window, on the virtual desktop in physical pixels; `None` while
+    /// the platform has not told where the window is.
+    pub fn to_desktop(&self, window_pos: Pos2) -> Option<Pos2> {
+        self.rt.to_desktop(self.window(), window_pos)
+    }
+
+    /// Starts a drag session from the press this node owns, carrying `start`'s payload until a
+    /// drop target takes it, the press ends over nothing that takes it, or Escape aborts it. The
+    /// press goes on as before: this node keeps getting its phases. Returns false (and starts
+    /// nothing) when no press of this node's window runs or a drag already runs.
+    pub fn start_drag(&mut self, start: DragStart) -> bool {
+        let node = self.node;
+        self.rt.start_drag(node, start)
+    }
+
+    /// The running drag, without recording a read (build and paint read `Env::drag`).
+    pub fn drag(&self) -> Option<DragInfo> {
+        self.rt.drag_info()
+    }
+
+    /// Where the running drag's pointer is.
+    pub fn drag_pointer(&self) -> Option<DragPointer> {
+        self.rt.drag_pointer()
+    }
+
+    /// Accepts the drag this [`Event::Drop`] `Over` offers, as `op` (the cursor shows it). Returns
+    /// [`Handled::Yes`] for the handler to return.
+    pub fn accept_drop(&mut self, op: DropOperation) -> Handled {
+        let node = self.node;
+        self.rt.accept_drop(node, op);
+        Handled::Yes
+    }
+
+    /// The drop operation the running drag's held keys pick over a target that copies with `copy`.
+    pub fn drop_operation(&self, copy: CopyKeys) -> DropOperation {
+        self.rt.drop_operation(copy)
     }
 
     /// The tag ([`crate::Element::tag`]) of the nearest node from `from` up to, but not

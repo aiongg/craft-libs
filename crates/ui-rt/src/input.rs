@@ -1,8 +1,10 @@
 //! Input routing: hit testing, the press lifecycle with gesture recognition, hover, key focus and
-//! key bubbling, IME sessions and accessibility actions.
+//! key bubbling, IME sessions and accessibility actions, each per window.
 //!
-//! One press at a time runs through craft-behavior's [`PressMachine`], stepped once per pointer
-//! event. Its press winner is the topmost shape that takes the press; the node that handles the
+//! One press per window at a time runs through craft-behavior's [`PressMachine`], stepped once per
+//! pointer event (every pen sample is its own event, with its reading). A second touch contact
+//! turns the press into a pinch ([`crate::gesture`]); other pointers that go down during a press
+//! press nothing. Its press winner is the topmost shape that takes the press; the node that handles the
 //! `Down` (the shape's node or an ancestor) keeps every later phase. Hover, pressed and focus
 //! state live in per-node cells that only paint reads, so a hover change repaints the nodes whose
 //! state changed and nothing else. No behaviour depends on hover: touch delivers none.
@@ -16,10 +18,11 @@ use craft_keymap::chord::{Key, Mods};
 use emath::{Pos2, Rect, Vec2};
 
 use crate::event::{AccessInput, Event, EventCx, Gesture, Handled, KeyInput, PointerInput, WheelInput};
+use crate::gesture::Touches;
 use crate::hit::{Hit, chain, contains, hit_test, window_origin};
 use crate::id::{NodeId, WindowId};
 use crate::layer::{DismissReason, Layer, OutsidePress};
-use crate::platform::{ImePurpose, ImeRequest, PointerEvent, PointerPhase, WindowEvent};
+use crate::platform::{Cursor, ImePurpose, ImeRequest, PointerEvent, PointerPhase, WindowEvent};
 use crate::runtime::Runtime;
 use crate::state::State;
 
@@ -68,8 +71,13 @@ pub(crate) struct InputState {
     machine: PressMachine<Hit>,
     press: Option<Press>,
     last_press: Option<(Pos2, f64, u32, Mods)>,
-    /// A mouse or pen pointer inside the surface.
+    /// A mouse or pen pointer inside the surface, and which.
     hover_pos: Option<Pos2>,
+    hover_pointer: Option<u64>,
+    /// The shape under the hovering pointer, with the cursor it names.
+    hover_hit: Option<(Hit, Option<Cursor>)>,
+    /// The shape the open press went down on, with the cursor it names.
+    press_hit: Option<(Hit, Option<Cursor>)>,
     hovered: Vec<NodeId>,
     pressed: Vec<NodeId>,
     pub(crate) focused: Option<NodeId>,
@@ -84,6 +92,31 @@ pub(crate) struct InputState {
     /// Modality, as craft keeps it: a key press or typed text shows the focus ring, a pointer
     /// press or an accessibility click hides it.
     focus_shown: bool,
+    pub(crate) touches: Touches,
+    /// The cursor last sent to the platform.
+    pub(crate) cursor: Cursor,
+    /// Something that decides the cursor changed since it was last picked.
+    pub(crate) cursor_check: bool,
+}
+
+impl InputState {
+    /// The open press's pointer, last position and modifiers.
+    pub(crate) fn press_state(&self) -> Option<(u64, Pos2, Mods)> {
+        self.press.map(|p| (p.pointer, p.pos, p.mods))
+    }
+
+    pub(crate) fn hover_pos(&self) -> Option<Pos2> {
+        self.hover_pos
+    }
+
+    /// The node the open press went down on, and the cursor its shape names.
+    pub(crate) fn press_cursor_source(&self) -> Option<(NodeId, Option<Cursor>)> {
+        self.press.and(self.press_hit).map(|(hit, cursor)| (hit.node, cursor))
+    }
+
+    pub(crate) fn hover_cursor_source(&self) -> Option<(NodeId, Option<Cursor>)> {
+        self.hover_hit.map(|(hit, cursor)| (hit.node, cursor))
+    }
 }
 
 impl Runtime {
@@ -105,22 +138,66 @@ impl Runtime {
             _ => {}
         }
         match ev {
-            WindowEvent::Pointer(p) => self.route_pointer(window, *p),
-            WindowEvent::Wheel { pos, delta, mods } => {
-                if let Some(hit) = self.hit(window, *pos, &|s| s.intersects(Sense::WHEELS)) {
-                    let ev = Event::Wheel(WheelInput { pos: *pos, delta: *delta, mods: *mods, hit: Some(hit) });
-                    self.dispatch(hit.node, &ev, true);
-                }
+            WindowEvent::Pointer(p) => match self.drag_redirect(window, p) {
+                Some((origin, pos)) => self.route_pointer(origin, PointerEvent { pos, ..*p }),
+                None => self.route_pointer(window, *p),
+            },
+            WindowEvent::Wheel { pos, delta, unit, phase, source, mods } => {
+                let input = WheelInput {
+                    pos: *pos,
+                    delta: *delta,
+                    unit: *unit,
+                    phase: *phase,
+                    source: *source,
+                    zoom: 1.0,
+                    rotation: 0.0,
+                    touch: false,
+                    mods: *mods,
+                    hit: None,
+                };
+                self.route_wheel(window, input);
             }
+            WindowEvent::Pinch { pos, zoom, rotation, mods } => self.route_touchpad_pinch(window, *pos, *zoom, *rotation, *mods),
+            WindowEvent::Files(drag) => self.file_drag(window, drag),
             WindowEvent::Key { key, mods, down, repeat } => self.route_key(window, KeyInput { key: *key, mods: *mods, down: *down, repeat: *repeat }),
             WindowEvent::Text(text) => self.send_to_focused(window, Event::Text(text.clone())),
-            WindowEvent::ImePreedit { text, cursor } => self.send_to_focused(window, Event::ImePreedit { text: text.clone(), cursor: cursor.clone() }),
+            WindowEvent::ImePreedit { text, cursor } => {
+                self.send_to_focused(window, Event::ImePreedit { text: text.clone(), cursor: cursor.clone() })
+            }
             WindowEvent::ImeCommit(text) => self.send_to_focused(window, Event::ImeCommit(text.clone())),
             WindowEvent::Paste(text) => self.send_to_focused(window, Event::Paste(text.clone())),
-            WindowEvent::Access(req) => self.route_access(req),
+            WindowEvent::Access(req) => self.route_access(window, req),
             _ => {}
         }
         self.flush_queue(window);
+        self.settle_drag();
+        let windows: Vec<WindowId> = self.windows.keys().copied().collect();
+        for w in windows {
+            self.refresh_cursor(w);
+        }
+    }
+
+    /// A sample of the running drag's pointer that another window delivered (a platform without
+    /// pointer capture), in the drag's own window coordinates.
+    fn drag_redirect(&self, window: WindowId, p: &PointerEvent) -> Option<(WindowId, Pos2)> {
+        let s = self.drag.as_ref().filter(|s| s.origin != window && s.pointer == Some(p.id))?;
+        let desktop = self.to_desktop(window, p.pos)?;
+        Some((s.origin, self.desktop_to_window(s.origin, desktop)?))
+    }
+
+    pub(crate) fn input_press_kind(&self, window: WindowId) -> Option<PointerKind> {
+        self.input(window)?.press.map(|p| p.kind)
+    }
+
+    /// The cursor the shape `hit` names at window position `pos`.
+    fn shape_cursor(&self, hit: Hit, pos: Pos2) -> Option<Cursor> {
+        let node = self.tree.nodes.get(&hit.node)?;
+        let local = pos - window_origin(&self.tree, hit.node);
+        node.hits
+            .iter()
+            .rev()
+            .find(|h| h.kind == crate::hit::HitKind::Input && h.part == hit.part && h.sense == hit.sense && h.shape.contains(local))
+            .and_then(|h| h.cursor)
     }
 
     /// Sets the step's input time. The driver calls it before it dispatches the step's events.
@@ -148,6 +225,7 @@ impl Runtime {
                         gesture: Gesture::LongPress,
                         pos: press.pos,
                         hit: Some(hit),
+                        sample: None,
                     });
                     self.deliver(owner, hit.node, &ev);
                 }
@@ -293,12 +371,18 @@ impl Runtime {
     /// frame runs it after paint, so content that moved under a still pointer updates its hover.
     pub(crate) fn refresh_hover(&mut self, window: WindowId) {
         let Some(input) = self.input(window) else { return };
-        let leaf = match input.hover_pos {
-            Some(pos) if !input.machine.dragging() => self.hit(window, pos, &|s| s.intersects(Sense::HOVER | Sense::PRESS)).map(|h| h.node),
+        let hit = match input.hover_pos {
+            Some(pos) if !input.machine.dragging() => {
+                self.hit(window, pos, &|s| s.intersects(Sense::HOVER | Sense::PRESS)).map(|h| (h, self.shape_cursor(h, pos)))
+            }
             _ => None,
         };
-        let now = leaf.map(|n| chain(&self.tree, n)).unwrap_or_default();
+        let now = hit.map(|(h, _)| chain(&self.tree, h.node)).unwrap_or_default();
         let Some(input) = self.input_mut(window) else { return };
+        if input.hover_hit != hit {
+            input.hover_hit = hit;
+            input.cursor_check = true;
+        }
         if now == input.hovered {
             return;
         }
@@ -324,11 +408,15 @@ impl Runtime {
     }
 
     fn route_pointer(&mut self, window: WindowId, p: PointerEvent) {
+        if p.kind == PointerKind::Touch && self.route_touch(window, p) {
+            return;
+        }
         match p.phase {
             PointerPhase::Move => {
                 let Some(input) = self.input_mut(window) else { return };
                 if p.kind != PointerKind::Touch {
                     input.hover_pos = Some(p.pos);
+                    input.hover_pointer = Some(p.id);
                 }
                 let delta = input.press.as_mut().filter(|q| q.pointer == p.id).map(|press| {
                     let delta = p.pos - press.pos;
@@ -336,7 +424,10 @@ impl Runtime {
                     delta
                 });
                 if let Some(delta) = delta {
-                    self.step_press(window, &[PressEvent::moved(p.pos, None)], p, delta, None);
+                    self.step_press(window, &[PressEvent::moved(p.pos, p.sample)], p, delta, None);
+                }
+                if self.drag_follows(window, p.id) || self.file_drag_in(window) {
+                    self.drag_moved(p.pos, p.mods);
                 }
                 self.refresh_hover(window);
             }
@@ -350,7 +441,10 @@ impl Runtime {
                     }
                     return;
                 }
-                input.hover_pos = (p.kind != PointerKind::Touch).then_some(p.pos);
+                if p.kind != PointerKind::Touch {
+                    input.hover_pos = Some(p.pos);
+                    input.hover_pointer = Some(p.id);
+                }
                 if self.dismiss_outside(window, p.pos) {
                     self.refresh_hover(window);
                     return;
@@ -370,6 +464,11 @@ impl Runtime {
                 let Some(press) = self.input(window).and_then(|i| i.press).filter(|q| q.pointer == p.id) else {
                     return;
                 };
+                if self.drag_follows(window, p.id) {
+                    self.settle_drag();
+                    self.drag_moved(p.pos, p.mods);
+                    self.finish_drag();
+                }
                 let ev = PressEvent::released_by(p.button, p.pos);
                 self.step_press(window, &[ev], p, p.pos - press.pos, None);
                 self.refresh_hover(window);
@@ -380,8 +479,11 @@ impl Runtime {
                 }
             }
             PointerPhase::Leave => {
-                if let Some(input) = self.input_mut(window) {
+                if let Some(input) = self.input_mut(window)
+                    && input.hover_pointer.is_none_or(|h| h == p.id)
+                {
                     input.hover_pos = None;
+                    input.hover_pointer = None;
                 }
                 if self.owns(window, p.id) {
                     self.step_press(window, &[PressEvent::Gone], p, Vec2::ZERO, None);
@@ -434,8 +536,10 @@ impl Runtime {
         let Some(press) = self.input(window).and_then(|i| i.press) else {
             return;
         };
-        let p =
-            PointerEvent { id: press.pointer, kind: press.kind, phase: PointerPhase::Cancel, button: press.button, pos: press.pos, mods: press.mods };
+        if self.drag_follows(window, press.pointer) {
+            self.cancel_drag(reason);
+        }
+        let p = PointerEvent::new(press.pointer, press.kind, PointerPhase::Cancel, press.button, press.pos, press.mods);
         self.step_press(window, &[], p, Vec2::ZERO, Some(reason));
     }
 
@@ -460,6 +564,8 @@ impl Runtime {
             && input.press.is_some()
         {
             input.press = None;
+            input.press_hit = None;
+            input.cursor_check = true;
             self.set_pressed(window, Vec::new());
         }
     }
@@ -474,8 +580,22 @@ impl Runtime {
             PressPhase::Cancel { reason, .. } => Gesture::Cancel(reason),
             _ => return,
         };
-        let ev = Event::Pointer(PointerInput { id: p.id, kind: p.kind, button: p.button, mods: p.mods, gesture, pos: p.pos, hit: Some(hit) });
+        let ev = Event::Pointer(PointerInput {
+            id: p.id,
+            kind: p.kind,
+            button: p.button,
+            mods: p.mods,
+            gesture,
+            pos: p.pos,
+            hit: Some(hit),
+            sample: p.sample,
+        });
         if matches!(gesture, Gesture::Down { .. }) {
+            let cursor = self.shape_cursor(hit, p.pos);
+            if let Some(input) = self.input_mut(window) {
+                input.press_hit = Some((hit, cursor));
+                input.cursor_check = true;
+            }
             if !hit.sense.contains(Sense::KEEP_FOCUS) {
                 let stop = self.nearest_focusable(hit.node);
                 self.set_focus(window, stop);
@@ -497,6 +617,7 @@ impl Runtime {
     }
 
     fn route_key(&mut self, window: WindowId, k: KeyInput) {
+        self.drag_mods(k.mods);
         if k.down && k.key == Key::Escape && self.input(window).is_some_and(|i| i.press.is_some()) {
             self.cancel_press(window, PressCancel::Escape);
             return;
@@ -517,12 +638,14 @@ impl Runtime {
         }
     }
 
-    fn route_access(&mut self, req: &accesskit::ActionRequest) {
+    /// Routes an assistive technology's request from `window`'s adapter to the node it names in
+    /// that window; a request naming a node of another window is dropped.
+    fn route_access(&mut self, window: WindowId, req: &accesskit::ActionRequest) {
         let raw = req.target_node.0;
-        let target = if self.tree.nodes.contains_key(&NodeId(raw)) {
+        let target = if self.tree.window_of(NodeId(raw)) == Some(window) {
             Some((NodeId(raw), None))
         } else {
-            self.windows.values().find_map(|w| w.access.subs.get(&raw).map(|&(owner, key)| (owner, Some(key))))
+            self.windows.get(&window).and_then(|w| w.access.subs.get(&raw).map(|&(owner, key)| (owner, Some(key))))
         };
         let Some((target, sub)) = target else {
             return;
@@ -563,7 +686,7 @@ impl Runtime {
         None
     }
 
-    fn deliver(&mut self, node: NodeId, target: NodeId, ev: &Event) -> Handled {
+    pub(crate) fn deliver(&mut self, node: NodeId, target: NodeId, ev: &Event) -> Handled {
         let Some(mut el) = self.tree.nodes.get_mut(&node).and_then(|n| n.element.take()) else {
             return Handled::No;
         };
@@ -584,7 +707,20 @@ impl Runtime {
     /// event; focus falls back after the build pass ([`Runtime::repair_focus`]).
     pub(crate) fn forget_node(&mut self, window: WindowId, id: NodeId) {
         self.interact.remove(&id);
+        self.forget_drag_node(id);
+        self.forget_touch_node(window, id);
+        if let Some(w) = self.windows.get_mut(&window) {
+            w.window_drops.retain(|&n| n != id);
+        }
         let Some(input) = self.input_mut(window) else { return };
+        if input.hover_hit.is_some_and(|(h, _)| h.node == id) {
+            input.hover_hit = None;
+            input.cursor_check = true;
+        }
+        if input.press_hit.is_some_and(|(h, _)| h.node == id) {
+            input.press_hit = None;
+            input.cursor_check = true;
+        }
         if input.press.is_some_and(|p| p.owner == Some(id)) {
             input.machine = PressMachine::new();
             input.press = None;
@@ -611,9 +747,11 @@ impl Runtime {
     }
 
     /// Starts, moves or stops `window`'s platform IME session to follow its focused node's text
-    /// input and cursor rect. The frame runs it after layout.
+    /// input and cursor rect. Only a window with key focus holds a session, so the session moves
+    /// with the user between windows. The frame runs it after layout.
     pub(crate) fn sync_ime(&mut self, window: WindowId) {
-        let want = self.focused(window).and_then(|f| {
+        let active = self.windows.get(&window).is_some_and(|w| *self.store.peek(w.env.window_focused));
+        let want = self.focused(window).filter(|_| active).and_then(|f| {
             let n = self.tree.nodes.get(&f)?;
             let el = n.element.as_ref()?;
             let purpose: ImePurpose = el.text_input()?;

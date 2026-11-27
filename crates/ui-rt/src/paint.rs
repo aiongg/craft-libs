@@ -9,8 +9,9 @@ use smallvec::SmallVec;
 use crate::display::{Clip, DisplayList, Fill, ImageKey, Item, Mesh, Stroke, SurfaceKey, TextHighlight};
 use crate::frame::Part;
 use crate::geom::CornerRadii;
-use crate::hit::{HitRecord, HitShape};
+use crate::hit::{HitKind, HitRecord, HitShape};
 use crate::id::{NodeId, WindowId};
+use crate::platform::Cursor;
 use crate::runtime::Runtime;
 use crate::state::{Access, Phase, Reader, Reads};
 use crate::text::TextLayout;
@@ -29,6 +30,8 @@ pub struct PaintCx<'a> {
     clip: Option<Clip>,
     opacity: f32,
     hits: Vec<HitRecord>,
+    cursor: Option<Cursor>,
+    window_drop: bool,
 }
 
 impl Reads for PaintCx<'_> {
@@ -50,7 +53,32 @@ impl PaintCx<'_> {
     /// [`PaintCx::over`] sit above the node's children. `part` tells the node's parts apart in
     /// events (0 when it has one).
     pub fn hit(&mut self, shape: impl Into<HitShape>, sense: Sense, part: u64) {
-        self.hits.push(HitRecord { shape: shape.into(), sense, part, level: self.part });
+        self.hits.push(HitRecord { shape: shape.into(), sense, part, level: self.part, kind: HitKind::Input, cursor: None });
+    }
+
+    /// [`PaintCx::hit`] with the cursor the pointer shows over the shape, and keeps while a press
+    /// that went down on it runs (a splitter's resize arrows).
+    pub fn hit_cursor(&mut self, shape: impl Into<HitShape>, sense: Sense, part: u64, cursor: Cursor) {
+        self.hits.push(HitRecord { shape: shape.into(), sense, part, level: self.part, kind: HitKind::Input, cursor: Some(cursor) });
+    }
+
+    /// The cursor the pointer shows over this node and its descendants, where no nearer node or
+    /// shape names one (a canvas tool's brush image, or [`Cursor::Hidden`]). Kept with the paint:
+    /// a node changes its cursor by repainting.
+    pub fn cursor(&mut self, cursor: Cursor) {
+        self.cursor = Some(cursor);
+    }
+
+    /// Records a shape where a drag may drop, in local coordinates. While a drag is over it the
+    /// node gets [`crate::Event::Drop`] (bubbling to ancestors until one accepts).
+    pub fn drop_target(&mut self, shape: impl Into<HitShape>, part: u64) {
+        self.hits.push(HitRecord { shape: shape.into(), sense: Sense::empty(), part, level: self.part, kind: HitKind::Drop, cursor: None });
+    }
+
+    /// The node takes drops anywhere in its window that no [`PaintCx::drop_target`] shape takes,
+    /// and drops of OS files that come with no position. The node that registered last asks first.
+    pub fn window_drop_target(&mut self) {
+        self.window_drop = true;
     }
 
     pub fn window(&self) -> WindowId {
@@ -229,14 +257,17 @@ pub(crate) fn paint_pass(rt: &mut Runtime) {
             clip: None,
             opacity: 1.0,
             hits: Vec::new(),
+            cursor: None,
+            window_drop: false,
         };
         el.paint(&mut cx);
-        let PaintCx { content, overlay, clip, opacity, hits, .. } = cx;
+        let PaintCx { content, overlay, clip, opacity, hits, cursor, window_drop, .. } = cx;
         rt.version_clock += 1;
         let version = rt.version_clock;
         rt.counters.painted += 1;
         let media: SmallVec<[_; 1]> = content.items.iter().chain(&overlay.items).filter_map(Item::media).collect();
         let mut restyled = false;
+        let mut pointer_look = false;
         if let Some(node) = rt.tree.nodes.get_mut(&id) {
             restyled = node.frame.clip != clip || node.frame.opacity != opacity;
             if node.media != media {
@@ -261,11 +292,24 @@ pub(crate) fn paint_pass(rt: &mut Runtime) {
             node.frame.clip = clip;
             node.frame.opacity = opacity;
             node.frame.version = version;
+            pointer_look = node.cursor != cursor || node.hits.iter().any(|h| h.cursor.is_some()) || hits.iter().any(|h| h.cursor.is_some());
             node.hits = hits;
+            node.cursor = cursor;
         }
         if let Some(w) = rt.windows.get_mut(&window) {
             if restyled {
                 w.restyled.push(id);
+            }
+            if pointer_look {
+                w.input.cursor_check = true;
+            }
+            let listed = w.window_drops.iter().position(|&n| n == id);
+            match (window_drop, listed) {
+                (true, None) => w.window_drops.push(id),
+                (false, Some(i)) => {
+                    w.window_drops.remove(i);
+                }
+                (true, Some(_)) | (false, None) => {}
             }
             w.changes.repainted.push(id);
         }

@@ -8,7 +8,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use craft_ui_rt::{Driver, PlatformEvent, Renderer, SizeU, StepReport, Vec2, WindowEvent};
+use craft_ui_rt::{Driver, PlatformEvent, Pos2, Renderer, SizeU, StepReport, Vec2, WindowEvent};
 use web_time::Instant;
 use winit::application::ApplicationHandler;
 use winit::dpi::{LogicalPosition, LogicalSize};
@@ -105,6 +105,9 @@ impl<R: Renderer + 'static> App<R> {
             push(&self.shared, id, WindowEvent::Resize(SizeU::new(size.width, size.height).to_logical(scale)));
             if let Some(theme) = window.theme() {
                 push(&self.shared, id, WindowEvent::Theme(input::theme_of(theme)));
+            }
+            if let Ok(p) = window.inner_position() {
+                push(&self.shared, id, WindowEvent::Moved(Pos2::new(p.x as f32, p.y as f32)));
             }
             push(&self.shared, id, WindowEvent::SurfaceCreated);
         }
@@ -249,11 +252,16 @@ impl<R: Renderer + 'static> ApplicationHandler<UserEvent> for App<R> {
             let Some(e) = s.entry_mut(id) else { return };
             (e.window.clone(), e.adapter.take())
         };
-        if let (Some(window), Some(mut adapter)) = (window, adapter) {
-            adapter.process_event(&window, &event);
+        if let (Some(window), Some(mut adapter)) = (window.as_ref(), adapter) {
+            adapter.process_event(window, &event);
             if let Some(e) = self.shared.borrow_mut().entry_mut(id) {
                 e.adapter = Some(adapter);
             }
+        }
+        if matches!(event, W::Moved(_) | W::Resized(_))
+            && let Some(p) = window.as_ref().and_then(|w| w.inner_position().ok())
+        {
+            push(&self.shared, id, WindowEvent::Moved(Pos2::new(p.x as f32, p.y as f32)));
         }
         match event {
             W::CloseRequested => push(&self.shared, id, WindowEvent::CloseRequested),

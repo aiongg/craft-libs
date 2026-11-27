@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use craft_host::target::Os;
 use craft_theme::Tokens;
 use emath::{Rect, Vec2};
 use smallvec::SmallVec;
@@ -9,15 +10,17 @@ use web_time::Instant;
 
 use crate::build::build_node;
 use crate::display::{ImageStore, Media, SurfaceKey};
+use crate::drag::{DragInfo, Session};
 use crate::element::{Element, ElementBox};
 use crate::frame::{FrameTree, merge_damage, node_damage, parent_space};
 use crate::geom::{Margin, is_empty};
+use crate::gesture::WheelOptions;
 use crate::id::{IdMap, NodeId, WindowId};
 use crate::input::{ClipboardRequest, Interact};
 use crate::layer::Layer;
 use crate::layout::{layout_pass, place_layers};
 use crate::paint::paint_pass;
-use crate::platform::{ImeRequest, PlatformEvent, WindowCommand, WindowEvent};
+use crate::platform::{Cursor, ImeRequest, PlatformEvent, WindowCommand, WindowEvent, WindowSpec};
 use crate::state::{Access, Reads, State, Store, Writes};
 use crate::text::TextEngine;
 use crate::tree::{Node, Role, Tree};
@@ -61,6 +64,17 @@ struct Shared {
     tokens: State<Arc<Tokens>>,
     time: State<f64>,
     wakes: State<u64>,
+    drag: State<Option<DragInfo>>,
+}
+
+/// Gives a new window its root.
+type SetRoot = Box<dyn FnOnce(&mut Runtime, WindowId)>;
+
+/// A window a node asked for ([`crate::EventCx::open_window`]); the driver opens it.
+pub(crate) struct WindowOpen {
+    pub(crate) spec: WindowSpec,
+    pub(crate) root: SetRoot,
+    pub(crate) requester: NodeId,
 }
 
 /// The retained runtime of every window of one app.
@@ -83,6 +97,16 @@ pub struct Runtime {
     pub(crate) media: HashMap<Media, SmallVec<[NodeId; 2]>>,
     pub(crate) window_commands: Vec<(WindowId, WindowCommand)>,
     closing: Vec<WindowId>,
+    pub(crate) window_opens: Vec<WindowOpen>,
+    /// Open windows, bottom of the stack first: the last focused is on top, with the windows it
+    /// owns above it.
+    pub(crate) z_order: Vec<WindowId>,
+    pub(crate) drag: Option<Session>,
+    pub(crate) cursor_requests: Vec<(WindowId, Cursor)>,
+    /// The system the app runs on (the browser's on the web): drop operations and the Ctrl+wheel
+    /// pinch depend on it.
+    pub(crate) os: Os,
+    pub(crate) wheel: WheelOptions,
 }
 
 impl Reads for Runtime {
@@ -101,7 +125,7 @@ impl Runtime {
     /// A runtime with no window yet; [`Runtime::add_window`] or [`Runtime::set_root`] add them.
     pub fn new(tokens: Tokens) -> Runtime {
         let mut store = Store::default();
-        let shared = Shared { tokens: store.create(Arc::new(tokens)), time: store.create(0.0), wakes: store.create(0) };
+        let shared = Shared { tokens: store.create(Arc::new(tokens)), time: store.create(0.0), wakes: store.create(0), drag: store.create(None) };
         Runtime {
             tree: Tree::default(),
             store,
@@ -117,7 +141,72 @@ impl Runtime {
             media: HashMap::new(),
             window_commands: Vec::new(),
             closing: Vec::new(),
+            window_opens: Vec::new(),
+            z_order: Vec::new(),
+            drag: None,
+            cursor_requests: Vec::new(),
+            os: Os::current(),
+            wheel: WheelOptions::default(),
         }
+    }
+
+    pub fn os(&self) -> Os {
+        self.os
+    }
+
+    /// Sets the system the app runs on (a web platform reports the browser's).
+    pub fn set_os(&mut self, os: Os) {
+        self.os = os;
+    }
+
+    pub fn wheel_options(&self) -> WheelOptions {
+        self.wheel
+    }
+
+    pub fn set_wheel_options(&mut self, options: WheelOptions) {
+        self.wheel = options;
+    }
+
+    /// Records that `window` is attached to `owner` and stacks above it (a floating panel window).
+    pub fn set_window_owner(&mut self, window: WindowId, owner: Option<WindowId>) {
+        if let Some(w) = self.windows.get_mut(&window) {
+            w.owner = owner;
+        }
+        if let Some(owner) = owner
+            && self.z_order.last() == Some(&owner)
+        {
+            self.raise(owner);
+        }
+    }
+
+    /// Puts `window` on top of the stack, with the windows it owns above it.
+    fn raise(&mut self, window: WindowId) {
+        if !self.windows.contains_key(&window) {
+            return;
+        }
+        self.z_order.retain(|&w| w != window);
+        self.z_order.push(window);
+        let owned: Vec<WindowId> = self.z_order.iter().copied().filter(|w| self.windows.get(w).is_some_and(|x| x.owner == Some(window))).collect();
+        self.z_order.retain(|w| !owned.contains(w));
+        self.z_order.extend(owned);
+    }
+
+    pub(crate) fn drag_cell(&self) -> State<Option<DragInfo>> {
+        self.shared.drag
+    }
+
+    pub(crate) fn queue_window<E: Element>(&mut self, requester: NodeId, spec: WindowSpec, root: E) {
+        self.window_opens.push(WindowOpen { spec, root: Box::new(move |rt: &mut Runtime, window| rt.set_root(window, root)), requester });
+    }
+
+    pub(crate) fn take_window_opens(&mut self) -> Vec<WindowOpen> {
+        std::mem::take(&mut self.window_opens)
+    }
+
+    /// Hands `ev` to `node` alone, as the runtime's own events reach a node (the driver tells a
+    /// node its window opened).
+    pub(crate) fn notify(&mut self, node: NodeId, ev: &crate::event::Event) {
+        self.deliver(node, node, ev);
     }
 
     /// Adds `window` with its fixed nodes (root and layers) and no app root. Nothing happens when
@@ -135,6 +224,7 @@ impl Runtime {
             tokens: self.shared.tokens,
             time: self.shared.time,
             wakes: self.shared.wakes,
+            drag: self.shared.drag,
         };
         let w = Window::new(window, env, viewport);
         let mut root = Node::new(None, None, window, 0, None, 0);
@@ -150,6 +240,7 @@ impl Runtime {
             self.tree.nodes.insert(id, node);
         }
         self.windows.insert(window, w);
+        self.z_order.push(window);
     }
 
     /// Removes `window` with every node in it. The driver calls it on [`WindowEvent::Closed`].
@@ -157,8 +248,12 @@ impl Runtime {
         let Some(root) = self.windows.get(&window).map(|w| w.root) else {
             return;
         };
+        if self.drag.as_ref().is_some_and(|s| s.origin == window) {
+            self.cancel_drag(craft_behavior::PressCancel::Host);
+        }
         self.remove_subtree(root);
         self.windows.remove(&window);
+        self.z_order.retain(|&w| w != window);
         self.wakes.retain(|&(n, _)| self.tree.nodes.contains_key(&n));
     }
 
@@ -293,10 +388,15 @@ impl Runtime {
             WindowEvent::SafeArea(margin) => env.safe_area.set_if_changed(&mut self.store, *margin),
             WindowEvent::Focus(focused) => {
                 env.window_focused.set_if_changed(&mut self.store, *focused);
-                if !focused {
+                // The IME session follows the window with key focus.
+                w.input.focus_moved = true;
+                if *focused {
+                    self.raise(window);
+                } else {
                     self.cancel_press(window, craft_behavior::PressCancel::FocusLost);
                 }
             }
+            WindowEvent::Moved(pos) => w.position = Some(*pos),
             WindowEvent::AccessActivated => self.set_access_enabled(window, true),
             WindowEvent::SurfaceCreated => w.changes.full = true,
             WindowEvent::SurfaceLost => {}
@@ -306,15 +406,9 @@ impl Runtime {
                 }
             }
             WindowEvent::Closed => {}
-            // Routing of drops, pinch, window position and the system theme belongs to the tasks
-            // that give them a consumer (drag and drop, canvas gestures, docking, env cells).
-            WindowEvent::PasteImage(_)
-            | WindowEvent::FileHovered(_)
-            | WindowEvent::FileHoverCancelled
-            | WindowEvent::FileDropped(_)
-            | WindowEvent::Pinch { .. }
-            | WindowEvent::Moved(_)
-            | WindowEvent::Theme(_) => {}
+            // Pasted images and the system theme reach nodes through the clipboard and env cell
+            // services that give them a consumer.
+            WindowEvent::PasteImage(_) | WindowEvent::Theme(_) => {}
             WindowEvent::Pointer(_)
             | WindowEvent::Wheel { .. }
             | WindowEvent::Key { .. }
@@ -322,6 +416,8 @@ impl Runtime {
             | WindowEvent::ImePreedit { .. }
             | WindowEvent::ImeCommit(_)
             | WindowEvent::Paste(_)
+            | WindowEvent::Pinch { .. }
+            | WindowEvent::Files(_)
             | WindowEvent::Access(_) => self.route_input(window, ev),
         }
     }
@@ -484,7 +580,9 @@ impl Runtime {
         report.paint_ms = ms(t);
         self.damage_touched_images();
         let t = Instant::now();
+        self.settle_drag();
         for &w in &windows {
+            self.refresh_cursor(w);
             self.collect_damage(w);
             report.access_nodes += self.update_access(w);
             self.sync_ime(w);

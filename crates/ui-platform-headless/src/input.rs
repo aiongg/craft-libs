@@ -1,10 +1,10 @@
 //! Input a check injects into a window: the neutral form scenarios are written in, and the
 //! shortcuts that build it.
 
+use craft_ui_rt::{
+    FileDrag, Key, Margin, Mods, PointerButton, PointerEvent, PointerKind, PointerPhase, Pos2, Vec2, WheelPhase, WheelSource, WheelUnit, WindowEvent,
+};
 use std::ops::Range;
-use std::path::PathBuf;
-
-use craft_ui_rt::{Key, Margin, Mods, PointerButton, PointerEvent, PointerKind, PointerPhase, Pos2, Vec2, WindowEvent};
 
 /// One pointer device: a mouse, a pen or a touch contact, with its button and held modifiers.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -42,9 +42,17 @@ pub enum Input {
         phase: PointerPhase,
         pos: Pos2,
     },
+    /// A wheel step of `delta` logical points.
     Wheel {
         pos: Pos2,
         delta: Vec2,
+        mods: Mods,
+    },
+    /// A touchpad pinch or rotation step.
+    Pinch {
+        pos: Pos2,
+        zoom: f32,
+        rotation: f32,
         mods: Mods,
     },
     Key {
@@ -60,9 +68,10 @@ pub enum Input {
     ImeCommit(String),
     /// Clipboard content arriving as if the window had asked for it.
     Paste(String),
-    FileHovered(PathBuf),
-    FileDropped(PathBuf),
-    FileHoverCancelled,
+    /// An OS file drag over the window.
+    Files(FileDrag),
+    /// The surface's top left on the virtual desktop, in physical pixels.
+    Moved(Pos2),
     /// An assistive technology's action on an access node.
     Access {
         action: accesskit::Action,
@@ -110,23 +119,25 @@ impl Input {
     /// The window event this becomes, for entries that are plain events.
     pub(crate) fn event(&self) -> WindowEvent {
         match self {
-            Input::Pointer { contact, phase, pos } => WindowEvent::Pointer(PointerEvent {
-                id: contact.id,
-                kind: contact.kind,
-                phase: *phase,
-                button: contact.button,
+            Input::Pointer { contact, phase, pos } => {
+                WindowEvent::Pointer(PointerEvent::new(contact.id, contact.kind, *phase, contact.button, *pos, contact.mods))
+            }
+            Input::Wheel { pos, delta, mods } => WindowEvent::Wheel {
                 pos: *pos,
-                mods: contact.mods,
-            }),
-            Input::Wheel { pos, delta, mods } => WindowEvent::Wheel { pos: *pos, delta: *delta, mods: *mods },
+                delta: *delta,
+                unit: WheelUnit::Point,
+                phase: WheelPhase::Move,
+                source: WheelSource::Unknown,
+                mods: *mods,
+            },
+            Input::Pinch { pos, zoom, rotation, mods } => WindowEvent::Pinch { pos: *pos, zoom: *zoom, rotation: *rotation, mods: *mods },
             Input::Key { key, mods, down } => WindowEvent::Key { key: *key, mods: *mods, down: *down, repeat: false },
             Input::Text(t) => WindowEvent::Text(t.clone()),
             Input::ImePreedit { text, cursor } => WindowEvent::ImePreedit { text: text.clone(), cursor: cursor.clone() },
             Input::ImeCommit(t) => WindowEvent::ImeCommit(t.clone()),
             Input::Paste(t) => WindowEvent::Paste(t.clone()),
-            Input::FileHovered(f) => WindowEvent::FileHovered(f.clone()),
-            Input::FileDropped(f) => WindowEvent::FileDropped(f.clone()),
-            Input::FileHoverCancelled => WindowEvent::FileHoverCancelled,
+            Input::Files(drag) => WindowEvent::Files(drag.clone()),
+            Input::Moved(p) => WindowEvent::Moved(*p),
             Input::Access { action, target, data } => WindowEvent::Access(accesskit::ActionRequest {
                 action: *action,
                 target_tree: accesskit::TreeId::ROOT,

@@ -10,7 +10,7 @@ use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use craft_behavior::{CursorIcon, PointerButton, PointerKind};
+use craft_behavior::{CursorIcon, PointerButton, PointerKind, PointerSample, WheelPhase, WheelSource, WheelUnit};
 use craft_keymap::chord::{Key, Mods};
 use emath::{Pos2, Rect, Vec2};
 
@@ -117,7 +117,10 @@ pub enum PointerPhase {
     Leave,
 }
 
-/// One pointer sample in logical window points. Touch contacts and pens carry their own ids.
+/// One pointer sample in logical window points. Touch contacts and pens carry their own ids, so
+/// several contacts can be down at once (a pinch). During a press the platform keeps delivering
+/// the pointer to the window it went down in, with positions outside it while it is over other
+/// windows (pointer capture).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PointerEvent {
     pub id: u64,
@@ -126,6 +129,62 @@ pub struct PointerEvent {
     pub button: PointerButton,
     pub pos: Pos2,
     pub mods: Mods,
+    /// A pen's reading (pressure, tilt, barrel rotation, eraser end) or a touch contact's force,
+    /// for this sample. Every sample the device reported comes as its own event, so a stroke sees
+    /// them all.
+    pub sample: Option<PointerSample>,
+}
+
+impl PointerEvent {
+    /// A sample with no pen reading.
+    pub const fn new(id: u64, kind: PointerKind, phase: PointerPhase, button: PointerButton, pos: Pos2, mods: Mods) -> PointerEvent {
+        PointerEvent { id, kind, phase, button, pos, mods, sample: None }
+    }
+
+    #[must_use]
+    pub const fn with_sample(mut self, sample: PointerSample) -> PointerEvent {
+        self.sample = Some(sample);
+        self
+    }
+}
+
+/// A file the OS drags over a window or drops on it.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct OsFile {
+    /// The file's name; empty while the OS tells only a hovered file's type.
+    pub name: String,
+    /// Where the file is, on platforms that give a path.
+    pub path: Option<PathBuf>,
+    /// The file's media type, as far as the OS knows it.
+    pub mime: String,
+    /// The file's content, on platforms that give no path (the web); set only on a drop.
+    pub bytes: Option<Arc<[u8]>>,
+}
+
+/// The files of one OS drag, the payload ([`crate::DragData`]) drop targets take them as.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct OsFiles {
+    /// In the order the OS lists them.
+    pub files: Vec<OsFile>,
+}
+
+/// An OS drag of files over one window. Positions are logical window points; desktop platforms
+/// often give none while the OS runs its drag loop, and the runtime then uses the last pointer
+/// position it saw in the window, or waits for the next one.
+#[derive(Clone, Debug, PartialEq)]
+pub enum FileDrag {
+    /// Files entered the window (one event for every file the OS listed in the same poll).
+    Enter {
+        files: Vec<OsFile>,
+        pos: Option<Pos2>,
+    },
+    Over(Pos2),
+    /// The files left the window or the OS cancelled the drag.
+    Leave,
+    Drop {
+        files: Vec<OsFile>,
+        pos: Option<Pos2>,
+    },
 }
 
 /// The operating system's light or dark setting.
@@ -137,14 +196,31 @@ pub enum SystemTheme {
 
 /// An event of one window.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum WindowEvent {
     Pointer(PointerEvent),
-    /// Scroll delta in logical points.
+    /// A wheel or touchpad scroll, `delta` in the device's `unit` as it reported it. Windows and
+    /// Linux touchpad drivers that send a pinch as Ctrl+wheel arrive here too; the runtime folds
+    /// them into a pinch ([`crate::WheelOptions::ctrl_wheel_pinch`]).
     Wheel {
         pos: Pos2,
         delta: Vec2,
+        unit: WheelUnit,
+        phase: WheelPhase,
+        source: WheelSource,
         mods: Mods,
     },
+    /// A touchpad pinch or rotation the system recognised (macOS magnify and rotate, Wayland and
+    /// Windows precision touchpads): `zoom` is the step's factor (1 for none), `rotation` its
+    /// radians, clockwise on screen.
+    Pinch {
+        pos: Pos2,
+        zoom: f32,
+        rotation: f32,
+        mods: Mods,
+    },
+    /// An OS drag of files ([`FileDrag`]).
+    Files(FileDrag),
     Key {
         key: Key,
         mods: Mods,
@@ -159,19 +235,6 @@ pub enum WindowEvent {
     ImeCommit(String),
     Paste(String),
     PasteImage(Arc<RgbaImage>),
-    /// An OS file drag is over the window.
-    FileHovered(PathBuf),
-    /// The drag ended without a drop.
-    FileHoverCancelled,
-    /// A file was dropped on the window.
-    FileDropped(PathBuf),
-    /// A pinch gesture step: relative scale change (positive zooms in) at `pos`.
-    Pinch {
-        pos: Pos2,
-        delta: f32,
-    },
-    /// The window's outer top left moved, in logical points on the virtual desktop.
-    Moved(Pos2),
     /// The system theme changed, or was read when the window opened.
     Theme(SystemTheme),
     Access(accesskit::ActionRequest),
@@ -182,6 +245,10 @@ pub enum WindowEvent {
     Scale(f32),
     /// The surface's logical size.
     Resize(Vec2),
+    /// The surface's top left on the virtual desktop, in physical pixels (the desktop has no
+    /// single scale when monitors differ). Platforms that cannot tell (Wayland) never send it, and
+    /// drags then find other windows only by the pointer events they deliver.
+    Moved(Pos2),
     SafeArea(Margin),
     SurfaceCreated,
     SurfaceLost,
