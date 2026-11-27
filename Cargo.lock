@@ -4781,6 +4781,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "craft-ui-embed-egui"
+version = "0.1.0"
+dependencies = [
+ "accesskit",
+ "craft-keymap",
+ "craft-theme",
+ "craft-ui-render-epaint",
+ "craft-ui-rt",
+ "egui",
+ "epaint",
+ "web-time",
+]
+
+[[package]]
 name = "craft-ui-gallery"
 version = "0.1.0"
 dependencies = [

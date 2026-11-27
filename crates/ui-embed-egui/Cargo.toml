@@ -1,0 +1,26 @@
+[package]
+name = "craft-ui-embed-egui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "An rt window drawn inside an egui app: egui input and focus in, kept epaint meshes out through egui's painter, egui's fonts, textures, cursor, clipboard, IME, repaints and AccessKit"
+
+[lints]
+workspace = true
+
+# Only egui APIs present at both storytold/egui 6d518fc (PhotoCraft v0.23.1) and 9952df2 (this
+# workspace).
+[dependencies]
+accesskit = "0.25"
+craft-keymap = { workspace = true, features = ["egui"] }
+craft-ui-render-epaint = { workspace = true }
+craft-ui-rt = { workspace = true }
+egui = { workspace = true }
+epaint = { version = "0.37", default-features = false }
+web-time = "1.1"
+
+[dev-dependencies]
+craft-theme = { workspace = true }
+egui = { workspace = true, features = ["default_fonts"] }
