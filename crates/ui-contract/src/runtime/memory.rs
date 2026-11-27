@@ -111,6 +111,7 @@ pub(crate) struct HostMemory {
     session: HashMap<(TypeId, Id), Box<dyn Any>>,
     saved: HashMap<(TypeId, Id), Box<dyn Any>>,
     pub(crate) edits: Edits,
+    pub(crate) gestures: crate::runtime::edit::LiveGestures,
 }
 
 /// The runtime's edit facts: the latest cancel of every running edit and the gesture ids handed out.

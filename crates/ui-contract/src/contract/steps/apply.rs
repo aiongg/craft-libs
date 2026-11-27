@@ -135,6 +135,7 @@ fn apply_binding<V: Value>(
         }
     }
     gesture.watched = running.is_some();
+    crate::runtime::edit::keep_watch(core.memory, slot, running);
     if let Some(value) = landing {
         if bind.is_kept() {
             let id = core.id;

@@ -415,6 +415,12 @@ impl BuildCx<'_> {
         self.rt.tree.mark_build(node);
     }
 
+    /// `node` builds again, as a write to a cell it read would make it: a runtime-wide edit (a cancel of
+    /// every running gesture) reaches the nodes it names.
+    pub fn request_build_of(&mut self, node: NodeId) {
+        self.rt.tree.mark_build(node);
+    }
+
     /// The build leaves this node's children and layer children as they were: an inline node whose
     /// content is kept. Call it before reconciling any child.
     pub fn keep_children(&mut self) {

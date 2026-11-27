@@ -65,7 +65,7 @@ pub use pointer_art::painted_image;
 pub use reset_mark::ResetMark;
 pub use rule::{RectSide, Rule, RuleKind};
 pub use scroll_bar::{HiddenContent, ScrollBar};
-pub use sensing::{PartResult, TextOutcome, cancel_press_of, member_gesture_running};
+pub use sensing::{PartResult, TextOutcome};
 pub use state_layer::{StateLayer, StateLayerKind};
 pub use surface::Surface;
 pub use surround::paint_surround;
