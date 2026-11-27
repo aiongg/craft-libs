@@ -885,7 +885,8 @@ fn lay_out<C: Container>(
             let footer_top = match top_footer {
                 true => end_top,
                 false if fills_height => inner.max.y - footer_h,
-                false => end_bottom.max(below - footer_h) + shape.footer_gap,
+                // At the foot of the column: level with the body's end, or under the end region's content.
+                false => (content_top + end.y + shape.footer_gap).max(below - footer_h),
             };
             let footer_rect = Rect::from_min_size(Pos2::new(end_min, footer_top), Vec2::new(end_w, footer_h));
             let (fnode, footer) = region(cx, &into, Region::Footer, id, footer_rect, Dir::Stack, tokens, &mut |ui| {
