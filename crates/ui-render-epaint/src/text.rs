@@ -14,7 +14,7 @@ use craft_ui_rt::{
 };
 use emath::{Pos2, Rect, Vec2};
 use epaint::text::{FontDefinitions, FontFamily, FontId, Fonts, FontsView, Galley, LayoutJob, TextFormat, TextOptions, TextWrapping};
-use epaint::{Color32, ImageDelta, PreparedDisc};
+use epaint::{Color32, ImageDelta, TessellationOptions, Tessellator};
 
 /// The family name craft's font stack registers for the semibold face.
 pub const SEMIBOLD_FAMILY: &str = "semibold";
@@ -70,9 +70,10 @@ pub trait FontsAccess {
 
     fn atlas_size(&self) -> [usize; 2];
 
-    /// The atlas' pre-rasterised discs for the tessellator; an empty list is valid (small circles
-    /// are then tessellated as paths).
-    fn prepared_discs(&self) -> Vec<PreparedDisc>;
+    /// A tessellator for meshes that draw from this atlas at `scale`: its size, and its
+    /// pre-rasterised discs where they can be had (without them, which is valid, small circles
+    /// are tessellated as paths).
+    fn tessellator(&self, scale: f32, options: TessellationOptions) -> Tessellator;
 
     /// The atlas change since the last call, for a renderer that uploads the atlas itself; `None`
     /// when nothing changed or the host uploads it.
@@ -121,8 +122,9 @@ impl FontsAccess for OwnedFonts {
         self.fonts.texture_atlas().size()
     }
 
-    fn prepared_discs(&self) -> Vec<PreparedDisc> {
-        self.fonts.texture_atlas().prepared_discs()
+    fn tessellator(&self, scale: f32, options: TessellationOptions) -> Tessellator {
+        let atlas = self.fonts.texture_atlas();
+        Tessellator::new(scale, options, atlas.size(), atlas.prepared_discs())
     }
 
     fn take_atlas_delta(&mut self) -> Option<ImageDelta> {
@@ -199,8 +201,8 @@ impl<F: FontsAccess> EpaintText<F> {
         self.fonts.begin_pass();
     }
 
-    pub(crate) fn tessellator(&self, scale: f32, options: epaint::TessellationOptions) -> epaint::Tessellator {
-        epaint::Tessellator::new(scale, options, self.fonts.atlas_size(), self.fonts.prepared_discs())
+    pub(crate) fn tessellator(&self, scale: f32, options: TessellationOptions) -> Tessellator {
+        self.fonts.tessellator(scale, options)
     }
 
     fn shape(&mut self, spec: &TextSpec, scale: f32) -> Shaped {

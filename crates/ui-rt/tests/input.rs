@@ -6,7 +6,7 @@ use std::rc::Rc;
 
 use craft_ui_rt::record::RecordingRenderer;
 use craft_ui_rt::{
-    AccessCx, BuildCx, Constraints, Driver, Element, Event, EventCx, Gesture, Handled, Key, LayoutCx, Mods, NodeId, PaintCx, PointerKind,
+    AccessCx, BuildCx, Constraints, Driver, Element, Event, EventCx, FocusExit, Gesture, Handled, Key, LayoutCx, Mods, NodeId, PaintCx, PointerKind,
     PointerPhase, Pos2, Rgba, Runtime, Sense, Show, State, Vec2, WindowEvent,
 };
 
@@ -218,6 +218,37 @@ fn tab_walks_the_stops_in_tree_order() {
     let last = d.platform.updates_for(MAIN).last().expect("focus moves are sent");
     assert_eq!(last.focus, stops[1].access_id());
     assert!(last.nodes.is_empty(), "a focus move changes no node");
+}
+
+#[test]
+fn an_embedded_window_lets_tab_out_and_hands_back_the_keys_it_did_not_use() {
+    let (mut d, log) = setup();
+    let stops = log.borrow().stops.clone();
+    d.platform.push(MAIN, key(Key::A, Mods::NONE));
+    d.step(1.0);
+    assert!(d.runtime.take_unhandled_keys(MAIN).is_empty(), "only an embedded window keeps them");
+
+    d.runtime.set_window_embedded(MAIN, true);
+    d.platform.push(MAIN, key(Key::Tab, Mods::NONE));
+    d.platform.push(MAIN, key(Key::Tab, Mods::NONE));
+    d.step(2.0);
+    assert_eq!(d.runtime.focused(MAIN), Some(stops[1]));
+    assert!(d.runtime.take_focus_exits(MAIN).is_empty());
+
+    d.platform.push(MAIN, key(Key::Tab, Mods::NONE));
+    d.platform.push(MAIN, key(Key::A, Mods::NONE));
+    d.step(3.0);
+    assert_eq!(d.runtime.focused(MAIN), None, "Tab past the last stop leaves instead of wrapping");
+    assert_eq!(d.runtime.take_focus_exits(MAIN), [FocusExit::Next]);
+    let unused: Vec<Key> = d.runtime.take_unhandled_keys(MAIN).iter().map(|k| k.key).collect();
+    assert_eq!(unused, [Key::A], "the Tab moved focus; nothing took A");
+
+    for (t, want) in [(4.0, Some(stops[1])), (5.0, Some(stops[0])), (6.0, None)] {
+        d.platform.push(MAIN, key(Key::Tab, Mods::SHIFT));
+        d.step(t);
+        assert_eq!(d.runtime.focused(MAIN), want);
+    }
+    assert_eq!(d.runtime.take_focus_exits(MAIN), [FocusExit::Previous], "Shift+Tab enters at the last stop and leaves past the first");
 }
 
 #[test]
