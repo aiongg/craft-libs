@@ -4,9 +4,9 @@
 use craft_ui::buttons::Button;
 use craft_ui::contract::{Show as _, ShowContainer as _};
 use craft_ui::display::Divider;
+use craft_ui::geom::Rect;
 use craft_ui::layout_components::{Row, Stack};
 use craft_ui::testing::{Frames, last_pass_measuring_runs, trial};
-use egui::Rect;
 use std::cell::Cell;
 
 const SNAP: f32 = 1.0;

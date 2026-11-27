@@ -19,7 +19,7 @@ use crate::text::TextField;
 use crate::tile_grid::{CaptionPlace, GridEvent, Tile, TileGrid, TileGroup};
 use craft_behavior::{DisplayOrder, EditEvent, ItemSource, Mixed, Selection, SelectionChange, keyed};
 use craft_i18n::matcher::Matcher;
-use egui::{Response, Ui};
+use craft_ui::{Response, Ui};
 use std::borrow::Cow;
 use std::collections::HashSet;
 use std::hash::Hash;

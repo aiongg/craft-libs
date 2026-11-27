@@ -2,12 +2,13 @@
 
 use super::kit::Rig;
 use craft_ui::contract::{Bind, Props as _, Show as _};
+use craft_ui::input::{Key, Mods};
 use craft_ui::primitives::{Completer, Completion};
 use craft_ui::testing::input::key_press;
 use craft_ui::testing::text::{caret, painted};
 use craft_ui::testing::trial;
 use craft_ui::text::{NumberField, TextField};
-use egui::{Event, Key, Modifiers};
+use egui::Event;
 use std::ops::Range;
 
 struct Prefixes;
@@ -69,18 +70,18 @@ fn completion_list_takes_arrows_and_tab_while_open_and_the_caret_does_not_move()
 fn a_value_set_outside_ends_the_typing_run() {
     let value = std::rc::Rc::new(std::cell::RefCell::new(Some(1.0f64)));
     let shown = value.clone();
-    let mut fixture = craft_ui::testing::Fixture::new(move |ui| {
+    let mut fixture = craft_ui::testing::Harness::new_ui(move |ui| {
         NumberField::new("Size", Bind::bound(&mut *shown.borrow_mut())).show(ui);
     });
     fixture.settle();
-    fixture.key(Key::Tab, Modifiers::NONE);
+    fixture.key(Key::Tab, Mods::NONE);
     fixture.type_text("12");
     fixture.idle(1);
     *value.borrow_mut() = Some(7.0);
     fixture.idle(1);
     assert!(fixture.texts().iter().any(|run| run.text.contains('7')), "the new value shows in the next pass");
     assert!(fixture.texts().iter().all(|run| !run.text.contains("12")), "the stale draft is gone");
-    fixture.key(Key::Enter, Modifiers::NONE);
+    fixture.key(Key::Enter, Mods::NONE);
     fixture.idle(3);
     const SET: f64 = 7.0;
     assert_eq!(*value.borrow(), Some(SET), "Enter commits the value that was set, not the draft");
@@ -137,7 +138,7 @@ fn the_completion_list_describes_the_highlighted_candidate() {
     rig.focus();
     let shown_after = |rig: &mut Rig, events: Vec<Event>| {
         let (text, seen) = (&mut rig.text, &mut rig.seen);
-        let mut show = |ui: &mut egui::Ui| {
+        let mut show = |ui: &mut craft_ui::Ui| {
             let out = TextField::new("Name", Bind::bound(&mut *text)).complete(Marked).id_salt("name").show(ui);
             seen.rect = out.response.rect;
             seen.id = out.response.id;
@@ -166,7 +167,7 @@ fn escape_gives_up_a_fields_focus_only_where_the_app_asks() {
         for typed in [None, Some("12")] {
             let value = std::rc::Rc::new(std::cell::RefCell::new(Some(1.0f64)));
             let shown = value.clone();
-            let mut fixture = craft_ui::testing::Fixture::new(move |ui| {
+            let mut fixture = craft_ui::testing::Harness::new_ui(move |ui| {
                 NumberField::new("Opacity", Bind::bound(&mut *shown.borrow_mut())).show(ui);
             });
             let mut root = craft_ui::runtime::env::RootEnv::new();
@@ -179,7 +180,7 @@ fn escape_gives_up_a_fields_focus_only_where_the_app_asks() {
                 fixture.type_text(text);
                 fixture.idle(1);
             }
-            fixture.key(Key::Escape, Modifiers::NONE).settle();
+            fixture.key(Key::Escape, Mods::NONE).settle();
             assert_eq!(fixture.focused().is_none(), leaves, "leaves {leaves}, typed {typed:?}: Escape gives up the focus only when asked");
             assert_eq!(*value.borrow(), Some(1.0), "leaves {leaves}, typed {typed:?}: Escape keeps the value from before the typing");
         }

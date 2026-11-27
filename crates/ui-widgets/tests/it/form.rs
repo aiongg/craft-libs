@@ -2,18 +2,18 @@
 
 use craft_ui::contract::{Bind, Props as _, Role, Show as _, ShowContainer as _, TooltipSpec};
 use craft_ui::form::{Field, SliderField, SliderFieldLayout};
+use craft_ui::input::{Key, Mods};
 use craft_ui::layout_components::Row;
 use craft_ui::runtime::env::Direction;
 use craft_ui::testing::focus::AccessActionKind;
-use craft_ui::testing::{Fixture, Target, trial};
+use craft_ui::testing::{Harness, Target, trial};
 use craft_ui::text::NumberField;
-use egui::{Key, Modifiers};
 
 /// A focused control: its role and its name.
 type Stop = (Option<Role>, Option<String>);
 
 /// The control keyboard focus is on.
-fn focused(fixture: &Fixture) -> Stop {
+fn focused(fixture: &Harness) -> Stop {
     let tree = fixture.tree();
     let key = tree.focused_key();
     (tree.role_of(key), tree.name_of(key).map(str::to_owned))
@@ -21,8 +21,8 @@ fn focused(fixture: &Fixture) -> Stop {
 
 /// A row that holds a number field, a slider field laid out as `layout` and another number field, under `direction`.
 /// A disabled slider field carries a reason, so its first part stays a Tab stop.
-fn row(layout: SliderFieldLayout, direction: Direction, enabled: bool) -> Fixture {
-    let mut fixture = Fixture::new(move |ui| {
+fn row(layout: SliderFieldLayout, direction: Direction, enabled: bool) -> Harness {
+    let mut fixture = Harness::new_ui(move |ui| {
         Row::new().show(ui, |ui, _| {
             let mut before = Some(1.0);
             let mut size = 20.0;
@@ -42,15 +42,15 @@ fn row(layout: SliderFieldLayout, direction: Direction, enabled: bool) -> Fixtur
 
 /// The controls `count` presses of Tab reach from the start of `fixture`, then those `count - 1` presses of Shift-Tab
 /// reach back from the last one.
-fn tabs(fixture: &mut Fixture, count: usize) -> (Vec<Stop>, Vec<Stop>) {
+fn tabs(fixture: &mut Harness, count: usize) -> (Vec<Stop>, Vec<Stop>) {
     let mut forward = Vec::new();
     for _ in 0..count {
-        fixture.key(Key::Tab, Modifiers::NONE).settle();
+        fixture.key(Key::Tab, Mods::NONE).settle();
         forward.push(focused(fixture));
     }
     let mut back = vec![focused(fixture)];
     for _ in 1..count {
-        fixture.key(Key::Tab, Modifiers::SHIFT).settle();
+        fixture.key(Key::Tab, Mods::SHIFT).settle();
         back.push(focused(fixture));
     }
     (forward, back)
@@ -87,8 +87,8 @@ fn tab_visits_a_slider_fields_parts_in_reading_order() {
 
 /// A slider field laid out as `layout` under `direction`: inline in a `Field` row that labels it, stacked under its own
 /// caption.
-fn labelled(layout: SliderFieldLayout, direction: Direction) -> Fixture {
-    let mut fixture = Fixture::new(move |ui| {
+fn labelled(layout: SliderFieldLayout, direction: Direction) -> Harness {
+    let mut fixture = Harness::new_ui(move |ui| {
         let mut size = 20.0;
         if matches!(layout, SliderFieldLayout::Inline) {
             Field::new("Size").show(ui, |ui, _| SliderField::new("Size", Bind::bound(&mut size), 0.0..=100.0).layout(layout).show(ui));
@@ -101,7 +101,7 @@ fn labelled(layout: SliderFieldLayout, direction: Direction) -> Fixture {
 }
 
 /// The label that names the slider field: the "Size" label node.
-fn label(fixture: &Fixture) -> Target {
+fn label(fixture: &Harness) -> Target {
     let tree = fixture.tree();
     let key = tree.keys().into_iter().find(|key| tree.name_of(*key) == Some("Size") && tree.role_of(*key) == Some(Role::LABEL));
     key.and_then(|key| fixture.target(key)).unwrap_or_else(|| panic!("no label names the slider field"))

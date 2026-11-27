@@ -1,13 +1,15 @@
 //! A control that draws only its mark (a check box, a radio button) takes its label into its own hit target: a
 //! press on the label is a press on the control, in the same pass.
 
+use craft_ui::Ui;
 use craft_ui::choice::{Checkbox, Radio, RadioGroup};
 use craft_ui::contract::{Bind, Props as _, Show as _, ShowContainer as _};
+use craft_ui::geom::{Rect, pos2, vec2};
 use craft_ui::layout_components::Stack;
 use craft_ui::testing::layout::in_region;
 use craft_ui::testing::pointer::{moved, press, release};
 use craft_ui::testing::{Frames, trial};
-use egui::{Rect, Shape, Ui, pos2, vec2};
+use egui::Shape;
 use std::cell::Cell;
 
 const REGION: Rect = Rect { min: pos2(0.0, 0.0), max: pos2(300.0, 200.0) };
@@ -18,7 +20,7 @@ fn text_rect(frames: &Frames, text: &str) -> Rect {
 }
 
 /// The fill colours painted inside `within`.
-fn fills(shapes: &[Shape], within: Rect) -> Vec<egui::Color32> {
+fn fills(shapes: &[Shape], within: Rect) -> Vec<craft_ui::Color32> {
     shapes
         .iter()
         .filter_map(|shape| match shape {
@@ -138,15 +140,15 @@ fn the_pointer_over_a_check_box_or_its_label_is_a_pointing_hand_unless_it_is_dis
         let label = text_rect(&frames, "Snap to grid");
         frames.frame(vec![moved(label.center())], &mut show);
         frames.frame(vec![], &mut show);
-        let expected = if enabled { egui::CursorIcon::PointingHand } else { egui::CursorIcon::Default };
+        let expected = if enabled { craft_ui::input::CursorIcon::PointingHand } else { craft_ui::input::CursorIcon::Default };
         assert_eq!(frames.cursor_icon(), expected, "the cursor over the label (enabled: {enabled})");
     }
 }
 
 #[trial]
 fn arrows_move_through_a_radio_group_without_picking_and_enter_picks() {
+    use craft_ui::input::{Key, Mods};
     use craft_ui::testing::input::key_press;
-    use egui::{Key, Modifiers};
     let mut frames = Frames::new();
     let picked = Cell::new(1u8);
     let mut show = |ui: &mut Ui| {
@@ -197,15 +199,15 @@ fn a_click_on_a_label_focuses_its_control_inside_an_unlabelled_row() {
     use craft_ui::display::Text;
     use craft_ui::form::Field;
     use craft_ui::layout_components::Row;
-    use craft_ui::testing::Fixture;
+    use craft_ui::testing::Harness;
     use craft_ui::testing::access::NodeKey;
     use craft_ui::testing::focus::AccessActionKind;
     use craft_ui::text::{NumberField, UnitPlacement};
     use std::rc::Rc;
 
-    let field = Rc::new(Cell::new(egui::Id::NULL));
+    let field = Rc::new(Cell::new(craft_ui::Id::NULL));
     let seen = field.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         Field::new("Turn").id_salt("turn").show(ui, |ui, _| {
             Row::new().show(ui, |ui, _| {
                 let mut value = Some(90.0);

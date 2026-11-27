@@ -1,10 +1,11 @@
 //! List rows: the rename draft, the row menu and the trailing parts a row reveals.
 
 use craft_behavior::{EditEvent, Mixed, keyed};
+use craft_ui::Id;
 use craft_ui::contract::{CollectionEvent, Props as _, RowHeight, ShowCollection as _, request_rename};
+use craft_ui::geom::Vec2;
 use craft_ui::list::{List, ListRow, RowEvent};
-use craft_ui::testing::{Fixture, trial};
-use egui::{Id, Vec2};
+use craft_ui::testing::{Harness, trial};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -19,10 +20,10 @@ fn list_id() -> Id {
 }
 
 /// A list of the three rows whose rename draft is `draft`, and what it reported.
-fn rig(draft: fn(&usize) -> Option<String>) -> (Fixture, Events) {
+fn rig(draft: fn(&usize) -> Option<String>) -> (Harness, Events) {
     let seen = Rc::new(RefCell::new(Vec::new()));
     let held = seen.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let keys = [0_usize, 1, 2];
         let source = keyed(&keys, |key: &usize| *key).with_text(|key| std::borrow::Cow::Borrowed(NAMES[*key]));
         let list = List::new("Artboards").id(list_id()).rename(true).rename_draft(draft);
@@ -40,7 +41,7 @@ fn list_row_declares_and_accepts_access_click() {
     use craft_ui::testing::focus::AccessActionKind;
     let seen = Rc::new(RefCell::new(Vec::new()));
     let held = seen.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let keys = [0_usize, 1, 2];
         let source = keyed(&keys, |key: &usize| *key);
         let out = List::options("Artboards").show_items(ui, &source, &mut |key, _| ListRow::new(NAMES[*key]).option());
@@ -60,7 +61,7 @@ fn access_click_activates_a_single_click_list_row() {
     use craft_ui::testing::focus::AccessActionKind;
     let seen = Rc::new(RefCell::new(Vec::new()));
     let held = seen.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let keys = [0_usize, 1];
         let source = keyed(&keys, |key: &usize| *key);
         let out = List::new("Rows").activate(ActivateOn::Click).show_items(ui, &source, &mut |key, _| ListRow::new(NAMES[*key]));
@@ -74,8 +75,8 @@ fn access_click_activates_a_single_click_list_row() {
 }
 
 /// The rects of the three rows of a list shown with `rows`.
-fn row_rects(rows: RowHeight) -> Vec<egui::Rect> {
-    let mut fixture = Fixture::new(move |ui| {
+fn row_rects(rows: RowHeight) -> Vec<craft_ui::geom::Rect> {
+    let mut fixture = Harness::new_ui(move |ui| {
         let keys = [0_usize, 1, 2];
         let source = keyed(&keys, |key: &usize| *key).with_text(|key| std::borrow::Cow::Borrowed(NAMES[*key]));
         List::new("Artboards").row_height(rows).show_items(ui, &source, &mut |key, _| ListRow::new(NAMES[*key]));
@@ -124,7 +125,7 @@ fn the_rename_field_accepts_a_name_longer_than_a_thousand_characters() {
     fixture.settle();
     fixture.type_text(&"x".repeat(LONG));
     fixture.settle();
-    fixture.key(egui::Key::Enter, egui::Modifiers::NONE);
+    fixture.key(craft_ui::input::Key::Enter, craft_ui::input::Mods::NONE);
     fixture.settle();
     let committed: Vec<usize> = seen
         .borrow()
@@ -138,8 +139,8 @@ fn the_rename_field_accepts_a_name_longer_than_a_thousand_characters() {
 }
 
 /// The shapes drawn wholly inside a small square around `at`: an icon's, not a row fill's.
-fn drawn_at(shapes: &[egui::Shape], at: egui::Pos2) -> usize {
-    let square = egui::Rect::from_center_size(at, Vec2::splat(24.0));
+fn drawn_at(shapes: &[egui::Shape], at: craft_ui::geom::Pos2) -> usize {
+    let square = craft_ui::geom::Rect::from_center_size(at, Vec2::splat(24.0));
     shapes.iter().filter(|shape| square.contains_rect(shape.visual_bounding_rect())).count()
 }
 
@@ -151,7 +152,7 @@ fn the_row_menu_button_shows_on_the_hovered_and_selected_rows_and_asks_for_the_r
     use craft_ui::contract::Bind;
     let seen = Rc::new(RefCell::new(Vec::new()));
     let held = seen.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let keys = [0_usize, 1, 2];
         let source = keyed(&keys, |key: &usize| *key).with_text(|key| std::borrow::Cow::Borrowed(NAMES[*key]));
         let list = List::new("Artboards").selection(Bind::given(Selection::single(1))).row_menu();
@@ -161,15 +162,15 @@ fn the_row_menu_button_shows_on_the_hovered_and_selected_rows_and_asks_for_the_r
     fixture.room(Vec2::new(300.0, 200.0));
     fixture.settle();
     // A button is exposed only while its row shows it (L-252): the hidden ones are found from the shown one, a row apart.
-    let button = |fixture: &Fixture, row: usize| fixture.by_label(&format!("More ({})", NAMES[row])).map(|node| node.center());
-    let row = |fixture: &Fixture, row: usize| fixture.by_label(NAMES[row]).expect("each row shows").rect.center();
+    let button = |fixture: &Harness, row: usize| fixture.by_label(&format!("More ({})", NAMES[row])).map(|node| node.center());
+    let row = |fixture: &Harness, row: usize| fixture.by_label(NAMES[row]).expect("each row shows").rect.center();
     let second = button(&fixture, 1).expect("the selected row exposes its menu button");
     let (first, third) = (second + (row(&fixture, 0) - row(&fixture, 1)), second + (row(&fixture, 2) - row(&fixture, 1)));
     assert!(button(&fixture, 0).is_none(), "a row neither hovered nor selected exposes no button");
     let rest = fixture.frame_shapes();
     assert!(drawn_at(&rest, second) > 0, "the selected row shows its button");
     assert_eq!(drawn_at(&rest, first), 0, "a row neither hovered nor selected shows none");
-    fixture.frame(vec![craft_ui::testing::pointer::moved(third)]);
+    fixture.send(craft_ui::testing::pointer::moved(third));
     assert!(button(&fixture, 2).is_some(), "the hovered row exposes its button");
     let hovered = fixture.frame_shapes();
     assert!(drawn_at(&hovered, third) > 0, "the hovered row shows its button");
@@ -186,13 +187,14 @@ fn the_row_menu_button_shows_on_the_hovered_and_selected_rows_and_asks_for_the_r
 /// Cmd/Ctrl click on a row's label or on its thumbnail is a command on the row and leaves the selection alone.
 #[trial]
 fn pointer_commands_name_the_thumbnail_and_leave_the_selection() {
+    use craft_ui::geom::Rect;
+    use craft_ui::input::Mods;
     use craft_ui::list::{ThumbSize, ThumbTarget};
     use craft_ui::testing::pointer;
-    use egui::{Modifiers, Rect};
     let seen = Rc::new(RefCell::new(Vec::new()));
     let thumbs = Rc::new(RefCell::new([Rect::NOTHING; 3]));
     let (held, painted) = (seen.clone(), thumbs.clone());
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let keys = [0_usize, 1, 2];
         let source = keyed(&keys, |key: &usize| *key);
         let out = List::new("Channels").command_click(true).show_items(ui, &source, &mut |key, _| {
@@ -204,7 +206,7 @@ fn pointer_commands_name_the_thumbnail_and_leave_the_selection() {
     fixture.settle();
     let thumb = |at: usize| thumbs.borrow()[at].center();
     fixture.frame(vec![pointer::moved(thumb(1)), pointer::secondary(thumb(1), true)]);
-    fixture.frame(vec![pointer::secondary(thumb(1), false)]).settle();
+    fixture.send(pointer::secondary(thumb(1), false)).settle();
     let menu = seen.borrow().iter().find_map(|event| match event {
         CollectionEvent::ContextMenu(request) => Some((request.key, request.part.and_then(ThumbTarget::of_part))),
         _ => None,
@@ -213,9 +215,9 @@ fn pointer_commands_name_the_thumbnail_and_leave_the_selection() {
 
     seen.borrow_mut().clear();
     let label = fixture.by_label(NAMES[0]).expect("the first row").rect.right_center() - Vec2::new(20.0, 0.0);
-    fixture.hold(Modifiers::COMMAND).click_at(label).settle();
+    fixture.hold(Mods::COMMAND).click_at(label).settle();
     fixture.click_at(thumb(2)).settle();
-    fixture.hold(Modifiers::NONE);
+    fixture.hold(Mods::NONE);
     let commands: Vec<usize> =
         seen.borrow().iter().filter_map(|event| if let CollectionEvent::CommandClick { key, .. } = event { Some(*key) } else { None }).collect();
     assert_eq!(commands, [0, 2], "a Cmd/Ctrl click on the label and one on the thumbnail are commands on their rows");
@@ -226,12 +228,12 @@ fn pointer_commands_name_the_thumbnail_and_leave_the_selection() {
 /// the label is still its accessible name.
 #[trial]
 fn a_thumbnails_only_row_is_as_wide_as_its_thumbnails_and_named_by_its_label() {
+    use craft_ui::geom::Rect;
     use craft_ui::list::ThumbSize;
-    use egui::Rect;
     use std::cell::Cell;
     let (only, plain) = (Rc::new(Cell::new(Rect::NOTHING)), Rc::new(Cell::new(Rect::NOTHING)));
     let (only_in, plain_in) = (only.clone(), plain.clone());
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let keys = [0_usize, 1];
         let source = keyed(&keys, |key: &usize| *key);
         let _ = List::new("Masks").show_items(ui, &source, &mut |key, _| {
@@ -264,7 +266,7 @@ fn a_press_past_a_thumbnails_only_row_picks_nothing() {
     use craft_ui::list::ThumbSize;
     let seen: Events = Rc::new(RefCell::new(Vec::new()));
     let held = seen.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let keys = [0_usize, 1];
         let source = keyed(&keys, |key: &usize| *key);
         let out = List::new("Masks").show_items(ui, &source, &mut |key, _| {
@@ -279,7 +281,7 @@ fn a_press_past_a_thumbnails_only_row_picks_nothing() {
     assert!(row.width() < other.width(), "the row stays as wide as its thumbnails: {row:?} {other:?}");
     let picks = |seen: &Events| seen.borrow().iter().filter(|event| matches!(event, CollectionEvent::Selection { .. })).count();
     seen.borrow_mut().clear();
-    fixture.click_at(egui::pos2(row.right() + 20.0, row.center().y)).settle();
+    fixture.click_at(craft_ui::geom::pos2(row.right() + 20.0, row.center().y)).settle();
     assert_eq!(picks(&seen), 0, "a press past the thumbnails picks no row: {:?}", seen.borrow());
     fixture.click_at(row.center()).settle();
     assert!(picks(&seen) > 0, "a press on the row picks it: {:?}", seen.borrow());
@@ -289,14 +291,15 @@ fn a_press_past_a_thumbnails_only_row_picks_nothing() {
 /// start no session and report no `PartDrag`.
 #[trial]
 fn a_part_drag_starts_only_with_the_primary_button() {
+    use craft_ui::geom::{Pos2, Rect};
     use craft_ui::list::{RowDragSpot, ThumbSize, ThumbTarget};
     use craft_ui::testing::pointer;
-    use egui::{Event, Pos2, Rect};
+    use egui::Event;
     use std::cell::Cell;
     let seen: Events = Rc::new(RefCell::new(Vec::new()));
     let picture = Rc::new(Cell::new(Rect::NOTHING));
     let (held, painted) = (seen.clone(), picture.clone());
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let keys = [0_usize];
         let source = keyed(&keys, |key: &usize| *key);
         let out = List::new("Layers").show_items(ui, &source, &mut |key, _| {
@@ -314,12 +317,12 @@ fn a_part_drag_starts_only_with_the_primary_button() {
     let mut started = Vec::new();
     for button in buttons {
         seen.borrow_mut().clear();
-        fixture.frame(vec![pointer::moved(from)]);
-        fixture.frame(vec![button(from, true)]);
+        fixture.send(pointer::moved(from));
+        fixture.send(button(from, true));
         for step in 1..=4 {
-            fixture.frame(vec![pointer::moved(from + Vec2::new(10.0 * step as f32, 0.0))]);
+            fixture.send(pointer::moved(from + Vec2::new(10.0 * step as f32, 0.0)));
         }
-        fixture.frame(vec![button(from + Vec2::new(40.0, 0.0), false)]);
+        fixture.send(button(from + Vec2::new(40.0, 0.0), false));
         fixture.settle();
         started.push(seen.borrow().iter().filter(|event| matches!(event, CollectionEvent::Item(_, RowEvent::PartDrag(_)))).count());
     }
@@ -334,7 +337,7 @@ fn a_click_on_the_selected_event_deselects_it() {
     use craft_ui::list::EventList;
     let seen = Rc::new(RefCell::new(Vec::new()));
     let held = seen.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let keys = [0_u64, 1, 2];
         let source = keyed(&keys, |key: &u64| *key);
         let out = EventList::new("Events").show_items(ui, &source, &mut |key, _| ListRow::new(NAMES[*key as usize]));
@@ -361,7 +364,7 @@ fn a_click_on_the_selected_event_deselects_it() {
 fn an_empty_event_log_says_so_in_the_collections_empty_text() {
     use craft_ui::contract::Role;
     use craft_ui::list::EventList;
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let keys: [u64; 0] = [];
         let source = keyed(&keys, |key: &u64| *key);
         let _ = EventList::new("Events").show_items(ui, &source, &mut |key, _| ListRow::new(NAMES[*key as usize]));
@@ -380,7 +383,7 @@ fn a_click_on_a_finding_activates_it() {
     use craft_ui::list::{Finding, Findings, FindingsList, FindingsWords, Severity};
     let seen = Rc::new(RefCell::new(Vec::new()));
     let held = seen.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let findings: Vec<Finding> = NAMES.iter().enumerate().map(|(at, name)| Finding::new(at as u64, Severity::Warning, *name)).collect();
         let source = Findings::new(&findings);
         let out = FindingsList::new("Findings").show_items(ui, &source, &mut |key, icx| findings[*key as usize].row(&icx.words::<FindingsWords>()));
@@ -397,7 +400,7 @@ fn a_click_on_a_finding_activates_it() {
 fn a_findings_list_with_max_rows_is_as_tall_as_those_rows() {
     use craft_ui::contract::WordSetCx as _;
     use craft_ui::list::{Finding, Findings, FindingsList, FindingsWords, Severity};
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let findings: Vec<Finding> = (0..20).map(|at| Finding::new(at, Severity::Warning, format!("Finding {at}"))).collect();
         let source = Findings::new(&findings);
         FindingsList::new("Findings").max_rows(3).show_items(ui, &source, &mut |key, icx| findings[*key as usize].row(&icx.words::<FindingsWords>()));
@@ -411,10 +414,10 @@ fn a_findings_list_with_max_rows_is_as_tall_as_those_rows() {
 }
 
 /// A list of the three rows built by `row`, in `room`, and what it reported.
-fn rows_rig(room: Vec2, row: fn(usize) -> ListRow<'static>) -> (Fixture, Events) {
+fn rows_rig(room: Vec2, row: fn(usize) -> ListRow<'static>) -> (Harness, Events) {
     let seen = Rc::new(RefCell::new(Vec::new()));
     let held = seen.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let keys = [0_usize, 1, 2];
         let source = keyed(&keys, |key: &usize| *key).with_text(|key| std::borrow::Cow::Borrowed(NAMES[*key]));
         let out = List::new("Artboards").show_items(ui, &source, &mut |key, _| row(*key));
@@ -464,7 +467,7 @@ impl craft_ui::contract::Component for Tall {
     const ROLE: craft_ui::contract::Role = craft_ui::contract::Role::IMAGE;
     const SHOWS_LABEL: bool = false;
     type Style = super::label::kit::PlainStyle;
-    type Output = egui::Response;
+    type Output = craft_ui::Response;
 
     fn style(_: &craft_ui::style::StyleCx<'_>, _: TallStyleKey) -> super::label::kit::PlainStyle {
         super::label::kit::PlainStyle::default()
@@ -478,7 +481,7 @@ impl craft_ui::contract::Component for Tall {
         craft_behavior::Sense::empty()
     }
 
-    fn finish(self, cx: craft_ui::contract::Cx<'_, Self>) -> egui::Response {
+    fn finish(self, cx: craft_ui::contract::Cx<'_, Self>) -> craft_ui::Response {
         cx.response.clone()
     }
 }
@@ -520,7 +523,7 @@ impl craft_ui::contract::Component for Cells {
     const ROLE: craft_ui::contract::Role = craft_ui::contract::Role::None;
     const SHOWS_LABEL: bool = false;
     type Style = super::label::kit::PlainStyle;
-    type Output = egui::Response;
+    type Output = craft_ui::Response;
 
     fn style(_: &craft_ui::style::StyleCx<'_>, _: CellsStyleKey) -> super::label::kit::PlainStyle {
         super::label::kit::PlainStyle::default()
@@ -546,7 +549,7 @@ impl craft_ui::contract::Component for Cells {
         }
     }
 
-    fn finish(self, cx: craft_ui::contract::Cx<'_, Self>) -> egui::Response {
+    fn finish(self, cx: craft_ui::contract::Cx<'_, Self>) -> craft_ui::Response {
         cx.response.clone()
     }
 }
@@ -590,9 +593,9 @@ fn a_content_sized_list_makes_room_for_its_rows_optional_items() {
     use craft_ui::contract::Sizing;
     use std::cell::Cell;
     const ROWS: [(&str, &str); 2] = [("Levels", "Image > Adjustments"), ("Gaussian Blur and Sharpen More", "Filter > Blur")];
-    let shown = Rc::new(Cell::new(egui::Rect::NOTHING));
+    let shown = Rc::new(Cell::new(craft_ui::geom::Rect::NOTHING));
     let held = shown.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let keys = [0_usize, 1];
         let source = keyed(&keys, |key: &usize| *key).with_text(|key| std::borrow::Cow::Borrowed(ROWS[*key].0));
         let out = List::new("Commands")
@@ -683,7 +686,7 @@ fn the_leading_text_takes_its_double_click_and_a_part_click_tells_whether_its_ro
     };
     let (mut fixture, seen) = rows_rig(Vec2::new(320.0, 200.0), row);
     let first = fixture.by_label(NAMES[0]).expect("the row has a node").rect;
-    let number = egui::Pos2::new(first.left() + 20.0, first.center().y);
+    let number = craft_ui::geom::Pos2::new(first.left() + 20.0, first.center().y);
     fixture.click_at(number).click_at(number).settle();
     {
         let seen = seen.borrow();
@@ -716,7 +719,7 @@ fn the_row_menu_reads_its_row_from_the_list_while_open_and_renames_it() {
     let seen = Rc::new(RefCell::new(Vec::new()));
     let reported = Rc::new(RefCell::new(None::<usize>));
     let (held, menu_of) = (seen.clone(), reported.clone());
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let keys = [0_usize, 1, 2];
         let source = keyed(&keys, |key: &usize| *key).with_text(|key| std::borrow::Cow::Borrowed(NAMES[*key]));
         let out = List::new("Artboards").rename(true).row_menu().show_items(ui, &source, &mut |key, _| ListRow::new(NAMES[*key]));
@@ -734,13 +737,13 @@ fn the_row_menu_reads_its_row_from_the_list_while_open_and_renames_it() {
     fixture.settle();
     // The button shows, and is exposed, on the hovered row.
     let over = fixture.by_label(NAMES[0]).expect("the first row shows").rect.center();
-    fixture.frame(vec![craft_ui::testing::pointer::moved(over)]).settle();
+    fixture.send(craft_ui::testing::pointer::moved(over)).settle();
     let button = fixture.by_label(&format!("More ({})", NAMES[0])).expect("the hovered row has its menu button").center();
     fixture.click_at(button).settle();
     assert!(!fixture.by_role(Role::MENU).is_empty(), "the host's menu opens from the button");
     seen.borrow_mut().clear();
     let away = fixture.by_label(NAMES[2]).expect("the last row shows").rect.center_bottom() + Vec2::new(0.0, 40.0);
-    fixture.frame(vec![craft_ui::testing::pointer::moved(away)]);
+    fixture.send(craft_ui::testing::pointer::moved(away));
     let shapes = fixture.frame_shapes();
     assert!(drawn_at(&shapes, button) > 0, "the button stays shown while its menu is open");
     assert!(!seen.borrow().iter().any(|event| matches!(event, CollectionEvent::ContextMenu(_))), "no new request in the later pass");
@@ -764,15 +767,16 @@ fn the_row_menu_reads_its_row_from_the_list_while_open_and_renames_it() {
 fn a_cell_field_stands_in_its_cell_takes_the_click_and_reports_its_edit() {
     use craft_behavior::{ColumnKey, ColumnWidth};
     use craft_ui::contract::{Bind, ColumnSpec};
+    use craft_ui::geom::Rect;
+    use craft_ui::input::{Key, Mods};
     use craft_ui::table::Table;
     use craft_ui::text::{NumberField, TextField};
-    use egui::{Key, Modifiers, Rect};
     const NAME: ColumnKey = ColumnKey::new("name");
     const SIZE: ColumnKey = ColumnKey::new("size");
     let typed = Rc::new(RefCell::new(None::<f64>));
     let size_cell = Rc::new(RefCell::new(Rect::NOTHING));
     let (held, cell) = (typed.clone(), size_cell.clone());
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let columns = vec![ColumnSpec::new(NAME, "Name", ColumnWidth::fill(1.0)), ColumnSpec::new(SIZE, "Size", ColumnWidth::fill(1.0))];
         let keys = [0_usize];
         let source = keyed(&keys, |key: &usize| *key);
@@ -793,7 +797,7 @@ fn a_cell_field_stands_in_its_cell_takes_the_click_and_reports_its_edit() {
         });
     });
     fixture.room(Vec2::new(400.0, 200.0)).settle();
-    let painted = |fixture: &Fixture, text: &str| fixture.texts().iter().any(|run| run.text == text);
+    let painted = |fixture: &Harness, text: &str| fixture.texts().iter().any(|run| run.text == text);
     assert!(!painted(&fixture, "Size text"), "the cell paints no text of its own");
     assert!(!painted(&fixture, "Row label"), "the field in the label's column stands in the label's place");
     assert!(fixture.by_label("Row label").is_some(), "the label stays the row's name");
@@ -802,7 +806,7 @@ fn a_cell_field_stands_in_its_cell_takes_the_click_and_reports_its_edit() {
     assert!(cell.expand(0.5).contains_rect(field.rect), "the field lies in its cell: {:?} in {cell:?}", field.rect);
     fixture.click(&field).settle();
     assert_eq!(craft_ui::testing::access::focused_key(fixture.tree()), field.node, "a click on the cell reaches the field");
-    fixture.key(Key::A, Modifiers::COMMAND).type_text("12").key(Key::Enter, Modifiers::NONE).settle();
+    fixture.key(Key::A, Mods::COMMAND).type_text("12").key(Key::Enter, Mods::NONE).settle();
     assert_eq!(*typed.borrow(), Some(12.0), "the field's edit reaches the output");
 }
 
@@ -815,7 +819,7 @@ fn an_access_click_activates_an_item_where_a_click_does() {
     for (activate, activates) in [(ActivateOn::Click, true), (ActivateOn::DoubleClick, false)] {
         let events = Rc::new(RefCell::new(Vec::new()));
         let held = events.clone();
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             let keys = [0_usize, 1, 2];
             let source = keyed(&keys, |key: &usize| *key).with_text(|key| std::borrow::Cow::Borrowed(NAMES[*key]));
             let out = List::new("Swatches").activate(activate).show_items(ui, &source, &mut |key, _| ListRow::new(NAMES[*key]));
@@ -839,15 +843,15 @@ fn a_link_in_a_cell_is_as_wide_as_its_text_and_a_press_past_it_acts_on_the_row()
     use craft_behavior::{ColumnKey, ColumnWidth};
     use craft_ui::buttons::Link;
     use craft_ui::contract::ColumnSpec;
+    use craft_ui::geom::Rect;
     use craft_ui::table::Table;
-    use egui::Rect;
     use std::cell::Cell;
     const NAME: ColumnKey = ColumnKey::new("name");
     let followed = Rc::new(Cell::new(0));
     let selections = Rc::new(Cell::new(0));
     let name_cell = Rc::new(RefCell::new(Rect::NOTHING));
     let (clicks, selected, cell) = (followed.clone(), selections.clone(), name_cell.clone());
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let keys = [0_usize];
         let source = keyed(&keys, |key: &usize| *key);
         let (clicks, cell) = (clicks.clone(), cell.clone());
@@ -868,7 +872,7 @@ fn a_link_in_a_cell_is_as_wide_as_its_text_and_a_press_past_it_acts_on_the_row()
     let link = fixture.by_label("Fill:").expect("the link shows");
     let cell = *name_cell.borrow();
     assert!(link.rect.width() < cell.width() / 2.0, "the link is as wide as its text: {:?} in {cell:?}", link.rect);
-    let past = egui::Pos2::new((link.rect.right() + cell.right()) / 2.0, link.rect.center().y);
+    let past = craft_ui::geom::Pos2::new((link.rect.right() + cell.right()) / 2.0, link.rect.center().y);
     fixture.click_at(past).settle();
     assert_eq!(followed.get(), 0, "a press past the text is not the link's");
     assert!(selections.get() > 0, "a press past the text acts on the row");
@@ -892,7 +896,7 @@ fn a_rows_label_takes_the_empty_toggle_columns_next_to_it() {
     const LABELS: [&str; 4] = ["Set", "Action", "Step", "Tip"];
     let ends = Rc::new(Cell::new((0.0_f32, 0.0_f32)));
     let held = ends.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let toggle = |key| ColumnSpec::toggle(key, "", ToggleColumn::default());
         let columns = vec![toggle(INCLUDE), toggle(DIALOG), ColumnSpec::new(NAME, "", ColumnWidth::fill(1.0))];
         let keys = [0_usize, 1, 2, 3];
@@ -941,7 +945,7 @@ fn a_label_in_a_list_of_toggle_columns_only_shows_whole_past_them() {
     const LABEL: &str = "Order date and shipping region";
     let end = Rc::new(Cell::new(0.0_f32));
     let held = end.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let keys = [0_usize];
         let source = keyed(&keys, |key: &usize| *key);
         let columns = vec![ColumnSpec::toggle(CHECK, "", ToggleColumn::default())];
@@ -974,14 +978,14 @@ fn a_toggle_column_holds_one_toggle_with_room_on_each_side() {
     use std::cell::Cell;
     const EYE: ColumnKey = ColumnKey::new("eye");
     const NAME: ColumnKey = ColumnKey::new("name");
-    let eye = Rc::new(Cell::new(egui::Rect::NOTHING));
+    let eye = Rc::new(Cell::new(craft_ui::geom::Rect::NOTHING));
     let held = eye.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let columns = vec![ColumnSpec::toggle(EYE, "", ToggleColumn::sweepable()), ColumnSpec::new(NAME, "", ColumnWidth::fill(1.0))];
         let keys = [0_usize];
         let source = keyed(&keys, |key: &usize| *key);
         let _ = List::new("Layers").columns(columns).show_items(ui, &source, &mut |key, icx| {
-            held.set(icx.cell(&EYE).unwrap_or(egui::Rect::NOTHING));
+            held.set(icx.cell(&EYE).unwrap_or(craft_ui::geom::Rect::NOTHING));
             ListRow::new(NAMES[*key]).cells(icx.cells()).toggle(ToggleCell::eye(EYE, true))
         });
     });
@@ -1007,7 +1011,7 @@ fn each_cell_node_of_a_row_takes_its_columns_bounds() {
     const LOCK: ColumnKey = ColumnKey::new("lock");
     let cells = Rc::new(RefCell::new(Vec::new()));
     let held = cells.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let columns = vec![
             ColumnSpec::toggle(EYE, "", ToggleColumn::sweepable()),
             ColumnSpec::new(NAME, "Name", ColumnWidth::fill(1.0)),
@@ -1065,7 +1069,7 @@ fn each_toggle_cell_of_a_row_has_one_node_with_its_state_and_click() {
     const EYE: ColumnKey = ColumnKey::new("eye");
     const NAME: ColumnKey = ColumnKey::new("name");
     const KEEP: ColumnKey = ColumnKey::new("keep");
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let columns = vec![
             ColumnSpec::toggle(EYE, "", ToggleColumn::sweepable()),
             ColumnSpec::new(NAME, "Name", ColumnWidth::fill(1.0)),
@@ -1097,7 +1101,8 @@ fn each_toggle_cell_of_a_row_has_one_node_with_its_state_and_click() {
         assert!(tree.declares_key(key, Declared::Click), "{name} takes a click");
         let cell = tree.parent_of_key(key).unwrap_or_else(|| panic!("{name} has a parent"));
         assert_eq!(tree.role_of(cell), Some(Role::CELL), "{name} sits under its cell node");
-        let (inner, outer) = (tree.bounds_of(key).unwrap_or(egui::Rect::NOTHING), tree.bounds_of(cell).unwrap_or(egui::Rect::NOTHING));
+        let (inner, outer) =
+            (tree.bounds_of(key).unwrap_or(craft_ui::geom::Rect::NOTHING), tree.bounds_of(cell).unwrap_or(craft_ui::geom::Rect::NOTHING));
         assert!(outer.expand(0.5).contains_rect(inner), "{name} lies inside its cell: {inner:?} in {outer:?}");
     }
 }
@@ -1106,30 +1111,30 @@ fn each_toggle_cell_of_a_row_has_one_node_with_its_state_and_click() {
 #[trial]
 fn a_toggle_glyph_rests_muted_and_reads_normal_under_the_pointer() {
     use craft_behavior::{ColumnKey, ColumnWidth};
+    use craft_ui::Color32;
     use craft_ui::contract::{ColumnSpec, ToggleColumn};
     use craft_ui::list::ToggleCell;
     use craft_ui::runtime::env::Env;
     use craft_ui::testing::pointer;
-    use egui::Color32;
     use std::cell::Cell;
     const EYE: ColumnKey = ColumnKey::new("eye");
     const NAME: ColumnKey = ColumnKey::new("name");
-    let seen = Rc::new(Cell::new((egui::Rect::NOTHING, Color32::TRANSPARENT, Color32::TRANSPARENT)));
+    let seen = Rc::new(Cell::new((craft_ui::geom::Rect::NOTHING, Color32::TRANSPARENT, Color32::TRANSPARENT)));
     let held = seen.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let text = Env::of(ui).tokens.tokens().color.text;
         let color = |[r, g, b, a]: [u8; 4]| Color32::from_rgba_unmultiplied(r, g, b, a);
         let columns = vec![ColumnSpec::toggle(EYE, "", ToggleColumn::sweepable()), ColumnSpec::new(NAME, "", ColumnWidth::fill(1.0))];
         let keys = [0_usize];
         let source = keyed(&keys, |key: &usize| *key);
         let _ = List::new("Layers").columns(columns).show_items(ui, &source, &mut |key, icx| {
-            held.set((icx.cell(&EYE).unwrap_or(egui::Rect::NOTHING), color(text.muted.0), color(text.normal.0)));
+            held.set((icx.cell(&EYE).unwrap_or(craft_ui::geom::Rect::NOTHING), color(text.muted.0), color(text.normal.0)));
             ListRow::new(NAMES[*key]).cells(icx.cells()).toggle(ToggleCell::eye(EYE, true))
         });
     });
     fixture.room(Vec2::new(300.0, 200.0));
     fixture.settle();
-    let tints = |shapes: &[egui::Shape], cell: egui::Rect| -> Vec<Color32> {
+    let tints = |shapes: &[egui::Shape], cell: craft_ui::geom::Rect| -> Vec<Color32> {
         let mut tints: Vec<Color32> = shapes
             .iter()
             .filter_map(|shape| match shape {
@@ -1144,8 +1149,8 @@ fn a_toggle_glyph_rests_muted_and_reads_normal_under_the_pointer() {
     };
     let (cell, muted, normal) = seen.get();
     let rest = tints(&fixture.frame_shapes(), cell);
-    fixture.frame(vec![pointer::moved(cell.center())]);
-    fixture.frame(Vec::new());
+    fixture.send(pointer::moved(cell.center()));
+    fixture.step();
     let hovered = tints(&fixture.frame_shapes(), cell);
     assert!(!rest.is_empty() && rest.iter().all(|tint| *tint == muted), "the eye rests in text.muted {muted:?}: {rest:?}");
     assert!(
@@ -1185,18 +1190,18 @@ impl craft_behavior::ItemSource<usize> for LockedFirst {
 #[trial]
 fn a_toggle_cell_that_does_not_flip_paints_disabled_and_ignores_the_pointer() {
     use craft_behavior::{ColumnKey, ColumnWidth};
+    use craft_ui::Color32;
     use craft_ui::contract::{ColumnSpec, Role, ToggleColumn};
     use craft_ui::list::ToggleCell;
     use craft_ui::runtime::env::Env;
     use craft_ui::testing::pointer;
-    use egui::Color32;
     use std::cell::Cell;
     const LOCK: ColumnKey = ColumnKey::new("lock");
     const NAME: ColumnKey = ColumnKey::new("name");
     // The eye and lock cells of each row.
-    let seen = Rc::new(Cell::new(([[egui::Rect::NOTHING; 2]; 2], Color32::TRANSPARENT, Color32::TRANSPARENT)));
+    let seen = Rc::new(Cell::new(([[craft_ui::geom::Rect::NOTHING; 2]; 2], Color32::TRANSPARENT, Color32::TRANSPARENT)));
     let held = seen.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let text = Env::of(ui).tokens.tokens().color.text;
         let color = |[r, g, b, a]: [u8; 4]| Color32::from_rgba_unmultiplied(r, g, b, a);
         let columns = vec![
@@ -1206,14 +1211,14 @@ fn a_toggle_cell_that_does_not_flip_paints_disabled_and_ignores_the_pointer() {
         ];
         let _ = List::new("Layers").columns(columns).show_items(ui, &LockedFirst, &mut |key, icx| {
             let (mut cells, ..) = held.get();
-            cells[*key] = [LOCKED_EYE, LOCK].map(|column| icx.cell(&column).unwrap_or(egui::Rect::NOTHING));
+            cells[*key] = [LOCKED_EYE, LOCK].map(|column| icx.cell(&column).unwrap_or(craft_ui::geom::Rect::NOTHING));
             held.set((cells, color(text.disabled.0), color(text.muted.0)));
             ListRow::new(NAMES[*key]).cells(icx.cells()).toggle(ToggleCell::eye(LOCKED_EYE, true)).toggle(ToggleCell::lock(LOCK, false))
         });
     });
     fixture.room(Vec2::new(300.0, 200.0));
     fixture.settle();
-    let tints = |shapes: &[egui::Shape], cell: egui::Rect| -> Vec<Color32> {
+    let tints = |shapes: &[egui::Shape], cell: craft_ui::geom::Rect| -> Vec<Color32> {
         let mut tints: Vec<Color32> = shapes
             .iter()
             .filter_map(|shape| match shape {
@@ -1229,16 +1234,16 @@ fn a_toggle_cell_that_does_not_flip_paints_disabled_and_ignores_the_pointer() {
     let ([[locked, locked_lock], [open, open_lock]], disabled, muted) = seen.get();
     let shapes = fixture.frame_shapes();
     let (rest, open_rest) = (tints(&shapes, locked), tints(&shapes, open));
-    let mut hover = |cell: egui::Rect| {
-        fixture.frame(vec![pointer::moved(cell.center())]);
-        fixture.frame(Vec::new());
+    let mut hover = |cell: craft_ui::geom::Rect| {
+        fixture.send(pointer::moved(cell.center()));
+        fixture.step();
         tints(&fixture.frame_shapes(), cell)
     };
     let (locked_off, open_off) = (hover(locked_lock), hover(open_lock));
     let hovered = hover(locked);
-    fixture.frame(vec![pointer::press(locked.center())]);
+    fixture.send(pointer::press(locked.center()));
     let pressed = tints(&fixture.frame_shapes(), locked);
-    fixture.frame(vec![pointer::release(locked.center())]);
+    fixture.send(pointer::release(locked.center()));
     for (when, found) in [("at rest", &rest), ("under the pointer", &hovered), ("under a press", &pressed)] {
         assert!(!found.is_empty() && found.iter().all(|tint| *tint == disabled), "the locked eye reads text.disabled {disabled:?} {when}: {found:?}");
     }
@@ -1255,7 +1260,7 @@ fn a_toggle_cell_that_does_not_flip_paints_disabled_and_ignores_the_pointer() {
 }
 
 /// Every filled rect among `shapes`, nested lists included.
-fn fills(shapes: &[egui::Shape], out: &mut Vec<(egui::Rect, egui::Color32)>) {
+fn fills(shapes: &[egui::Shape], out: &mut Vec<(craft_ui::geom::Rect, craft_ui::Color32)>) {
     for shape in shapes {
         match shape {
             egui::Shape::Vec(inner) => fills(inner, out),
@@ -1268,13 +1273,14 @@ fn fills(shapes: &[egui::Shape], out: &mut Vec<(egui::Rect, egui::Color32)>) {
 /// A list whose props name a surface paints it under its rows, over the list's rect.
 #[trial]
 fn a_list_paints_the_surface_its_props_name() {
+    use craft_ui::Color32;
+    use craft_ui::geom::Rect;
     use craft_ui::runtime::env::Env;
     use craft_ui::style::SurfaceKind;
-    use egui::{Color32, Rect};
     use std::cell::Cell;
     let shown = Rc::new(Cell::new((Rect::NOTHING, Color32::TRANSPARENT)));
     let held = shown.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let [r, g, b, a] = Env::of(ui).tokens.tokens().color.surface.sunken.0;
         let keys = [0_usize, 1, 2];
         let source = keyed(&keys, |key: &usize| *key).with_text(|key| std::borrow::Cow::Borrowed(NAMES[*key]));
@@ -1295,16 +1301,16 @@ fn a_list_paints_the_surface_its_props_name() {
 
 /// What a table of the three names shows with `pad`: its rect, its header cell's, its first row's and its empty
 /// text's (the text of an empty table of the same props), and the pad in points.
-fn padded(pad: craft_ui::contract::Pad) -> (egui::Rect, egui::Rect, egui::Rect, egui::Rect, f32) {
+fn padded(pad: craft_ui::contract::Pad) -> (craft_ui::geom::Rect, craft_ui::geom::Rect, craft_ui::geom::Rect, craft_ui::geom::Rect, f32) {
     use craft_behavior::{ColumnKey, ColumnWidth};
     use craft_ui::contract::{ColumnSpec, pad_of};
     use craft_ui::runtime::env::Env;
     use craft_ui::table::Table;
     use std::cell::Cell;
     const EMPTY: &str = "No artboards";
-    let shown = Rc::new(Cell::new((egui::Rect::NOTHING, 0.0)));
-    let rig = |keys: &'static [usize], shown: Rc<Cell<(egui::Rect, f32)>>| {
-        let mut fixture = Fixture::new(move |ui| {
+    let shown = Rc::new(Cell::new((craft_ui::geom::Rect::NOTHING, 0.0)));
+    let rig = |keys: &'static [usize], shown: Rc<Cell<(craft_ui::geom::Rect, f32)>>| {
+        let mut fixture = Harness::new_ui(move |ui| {
             let source = keyed(keys, |key: &usize| *key);
             let columns = vec![ColumnSpec::new(ColumnKey::new("name"), "Name", ColumnWidth::Controls(4.0))];
             let table = Table::new("Artboards", columns).pad(pad).empty(EMPTY).natural_height(true);
@@ -1320,7 +1326,7 @@ fn padded(pad: craft_ui::contract::Pad) -> (egui::Rect, egui::Rect, egui::Rect, 
     let header = fixture.by_label("Name").expect("the header cell shows").rect;
     let row = fixture.by_label(NAMES[0]).expect("the first row shows").rect;
     let mut empty = rig(&[], shown);
-    fn text_at(shapes: &[egui::Shape], text: &str) -> Option<egui::Rect> {
+    fn text_at(shapes: &[egui::Shape], text: &str) -> Option<craft_ui::geom::Rect> {
         shapes.iter().find_map(|shape| match shape {
             egui::Shape::Vec(inner) => text_at(inner, text),
             egui::Shape::Text(shown) if shown.galley.text() == text => Some(shown.visual_bounding_rect()),
@@ -1343,7 +1349,7 @@ fn a_padded_table_draws_its_header_rows_and_empty_text_inside_the_pad() {
     for (name, rect) in [("header", header), ("row", row), ("empty text", empty)] {
         assert!(inside.contains_rect(rect), "the {name} {rect:?} sits inside the pad of {table:?}");
     }
-    let start = |rect: egui::Rect, of: egui::Rect| rect.left() - of.left();
+    let start = |rect: craft_ui::geom::Rect, of: craft_ui::geom::Rect| rect.left() - of.left();
     assert!((start(header, table) - start(bare_header, bare) - pad).abs() <= 1.0, "the header starts the pad further in");
     assert!((start(row, table) - start(bare_row, bare) - pad).abs() <= 1.0, "the rows start the pad further in");
     assert!((start(empty, table) - start(bare_empty, bare) - pad).abs() <= 1.0, "the empty text starts the pad further in");
@@ -1351,13 +1357,13 @@ fn a_padded_table_draws_its_header_rows_and_empty_text_inside_the_pad() {
 }
 
 /// The ink of the text run `label` paints in `shapes`.
-fn ink_of(shapes: &[egui::Shape], label: &str) -> egui::Color32 {
+fn ink_of(shapes: &[egui::Shape], label: &str) -> craft_ui::Color32 {
     shapes
         .iter()
         .find_map(|shape| match shape {
             egui::Shape::Text(text) if text.galley.text() == label => {
                 let vertex = text.galley.rows.iter().flat_map(|row| row.row.visuals.mesh.vertices.iter()).map(|vertex| vertex.color).next();
-                Some(text.override_text_color.or(vertex.filter(|color| *color != egui::Color32::PLACEHOLDER)).unwrap_or(text.fallback_color))
+                Some(text.override_text_color.or(vertex.filter(|color| *color != craft_ui::Color32::PLACEHOLDER)).unwrap_or(text.fallback_color))
             }
             _ => None,
         })
@@ -1367,7 +1373,7 @@ fn ink_of(shapes: &[egui::Shape], label: &str) -> egui::Color32 {
 /// A disabled row's text takes the disabled ink, in a list row and an option row alike.
 #[trial]
 fn a_disabled_row_paints_its_text_in_the_disabled_ink() {
-    let scene = |ui: &mut egui::Ui| {
+    let scene = |ui: &mut craft_ui::Ui| {
         let rows = [ListRow::new("Alpha"), ListRow::new("Beta").enabled(false), ListRow::new("Gamma").option().enabled(false)];
         for (at, row) in rows.into_iter().enumerate() {
             ui.push_id(at, |ui| craft_ui::testing::show_as_only_item(ui, row));
@@ -1389,21 +1395,21 @@ fn a_right_click_below_the_rows_asks_for_the_lists_own_menu() {
     let (mut fixture, seen) = rig(|_| None);
     let (list, last) = (fixture.by_label("Artboards").expect("the list").rect, fixture.by_label(NAMES[2]).expect("the last row").rect);
     assert!(list.bottom() > last.bottom() + 8.0, "the list is taller than its rows: {list:?} {last:?}");
-    let below = egui::Pos2::new(last.center().x, (last.bottom() + list.bottom()) / 2.0);
+    let below = craft_ui::geom::Pos2::new(last.center().x, (last.bottom() + list.bottom()) / 2.0);
     fixture.frame(vec![pointer::moved(below), pointer::secondary(below, true)]);
-    fixture.frame(vec![pointer::secondary(below, false)]).settle();
+    fixture.send(pointer::secondary(below, false)).settle();
     let events = seen.borrow();
     assert!(events.iter().any(|event| matches!(event, CollectionEvent::EmptyContextMenu { .. })), "{events:?}");
     assert!(!events.iter().any(|event| matches!(event, CollectionEvent::ContextMenu(_) | CollectionEvent::Selection { .. })), "{events:?}");
 }
 
 /// A list with the edge press `edge` (none without), and what it reported.
-fn edge_rig(edge: bool) -> (Fixture, Events) {
+fn edge_rig(edge: bool) -> (Harness, Events) {
     use craft_behavior::{Cursor, CursorIcon};
     use craft_keymap::Mods;
     let seen = Rc::new(RefCell::new(Vec::new()));
     let held = seen.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let keys = [0_usize, 1, 2];
         let source = keyed(&keys, |key: &usize| *key);
         let mut list = List::new("Artboards");
@@ -1424,15 +1430,16 @@ fn edge_rig(edge: bool) -> (Fixture, Events) {
 #[trial]
 fn an_edge_press_takes_the_alt_click_on_the_line_it_accepts() {
     use craft_behavior::{Cursor, CursorIcon};
-    use egui::{Modifiers, Pos2};
+    use craft_ui::geom::Pos2;
+    use craft_ui::input::Mods;
     let (mut fixture, seen) = edge_rig(true);
-    let line = |fixture: &Fixture, row: &str| {
+    let line = |fixture: &Harness, row: &str| {
         let rect = fixture.by_label(row).expect("the row").rect;
         Pos2::new(rect.center().x, rect.bottom() - 1.0)
     };
     let first = line(&fixture, NAMES[0]);
-    fixture.hold(Modifiers::ALT);
-    fixture.frame(vec![craft_ui::testing::pointer::moved(first)]).idle(1);
+    fixture.hold(Mods::ALT);
+    fixture.send(craft_ui::testing::pointer::moved(first)).idle(1);
     assert_eq!(craft_ui::runtime::cursor::current(fixture.ctx()), Some(Cursor::System(CursorIcon::Crosshair)), "the line's cursor");
     fixture.click_at(first).settle();
     {
@@ -1443,7 +1450,7 @@ fn an_edge_press_takes_the_alt_click_on_the_line_it_accepts() {
     seen.borrow_mut().clear();
     let second = line(&fixture, NAMES[1]);
     fixture.click_at(second).settle();
-    fixture.hold(Modifiers::NONE);
+    fixture.hold(Mods::NONE);
     let events = seen.borrow();
     assert!(!events.iter().any(|event| matches!(event, CollectionEvent::EdgePressed { .. })), "a refused line: {events:?}");
     assert!(events.iter().any(|event| matches!(event, CollectionEvent::Selection { .. })), "the row takes the click: {events:?}");
@@ -1452,11 +1459,12 @@ fn an_edge_press_takes_the_alt_click_on_the_line_it_accepts() {
 /// A list without an edge press is unchanged: an Alt-click on the line between two rows picks a row.
 #[trial]
 fn a_list_without_an_edge_press_gives_the_line_to_the_rows() {
-    use egui::{Modifiers, Pos2};
+    use craft_ui::geom::Pos2;
+    use craft_ui::input::Mods;
     let (mut fixture, seen) = edge_rig(false);
     let rect = fixture.by_label(NAMES[0]).expect("the row").rect;
-    fixture.hold(Modifiers::ALT).click_at(Pos2::new(rect.center().x, rect.bottom() - 1.0)).settle();
-    fixture.hold(Modifiers::NONE);
+    fixture.hold(Mods::ALT).click_at(Pos2::new(rect.center().x, rect.bottom() - 1.0)).settle();
+    fixture.hold(Mods::NONE);
     let events = seen.borrow();
     assert!(!events.iter().any(|event| matches!(event, CollectionEvent::EdgePressed { .. })), "{events:?}");
     assert!(events.iter().any(|event| matches!(event, CollectionEvent::Selection { .. })), "{events:?}");
@@ -1473,7 +1481,7 @@ fn a_revealed_row_past_unbuilt_rows_taller_than_the_estimate_shows_wholly_in_one
     let names: Vec<String> = (0..ROWS).map(|at| format!("Photo {at:02}")).collect();
     let reveal = Rc::new(Cell::new(None::<usize>));
     let asked = reveal.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let keys: Vec<usize> = (0..ROWS).collect();
         let source = keyed(&keys, |key: &usize| *key);
         let mut list = List::new("Photos");
@@ -1484,8 +1492,8 @@ fn a_revealed_row_past_unbuilt_rows_taller_than_the_estimate_shows_wholly_in_one
     });
     fixture.room(Vec2::new(300.0, 300.0));
     fixture.settle();
-    let view = |fixture: &Fixture| fixture.by_label("Photos").expect("the list's node").rect;
-    let in_view = |fixture: &Fixture, name: &str| fixture.by_label(name).is_some_and(|row| view(fixture).contains_rect(row.rect));
+    let view = |fixture: &Harness| fixture.by_label("Photos").expect("the list's node").rect;
+    let in_view = |fixture: &Harness, name: &str| fixture.by_label(name).is_some_and(|row| view(fixture).contains_rect(row.rect));
     assert!(in_view(&fixture, "Photo 00") && !in_view(&fixture, "Photo 39"), "the list starts at the top");
 
     reveal.set(Some(ROWS - 1));
@@ -1509,7 +1517,7 @@ fn a_sections_disclosure_and_a_rows_trailing_disclosure_paint_the_same_triangle(
     use craft_ui::contract::{Bind, Show as _};
     use craft_ui::controls::disclosure::Disclosure;
     use craft_ui::list::{TrailingFace, TrailingPart};
-    let triangles = |fixture: &mut Fixture| -> Vec<Vec2> {
+    let triangles = |fixture: &mut Harness| -> Vec<Vec2> {
         let shapes = fixture.frame_shapes();
         assert!(!shapes.iter().any(|shape| matches!(shape, egui::Shape::Path(path) if !path.closed)), "no stroked chevron paints");
         shapes
@@ -1520,12 +1528,12 @@ fn a_sections_disclosure_and_a_rows_trailing_disclosure_paint_the_same_triangle(
             })
             .collect()
     };
-    let mut section = Fixture::new(|ui| {
+    let mut section = Harness::new_ui(|ui| {
         let _ = Disclosure::new(Bind::given(true)).label("Details").show(ui);
     });
     section.room(Vec2::new(300.0, 200.0));
     section.settle();
-    let mut row = Fixture::new(|ui| {
+    let mut row = Harness::new_ui(|ui| {
         let keys = [0_usize];
         let source = keyed(&keys, |key: &usize| *key);
         let _ = List::new("Layers").show_items(ui, &source, &mut |key, _| {
@@ -1545,9 +1553,9 @@ fn a_sections_disclosure_and_a_rows_trailing_disclosure_paint_the_same_triangle(
 fn a_thumbnails_frame_is_square_and_lies_outside_its_picture() {
     use craft_ui::list::ThumbSize;
     use std::cell::Cell;
-    let picture = Rc::new(Cell::new(egui::Rect::NOTHING));
+    let picture = Rc::new(Cell::new(craft_ui::geom::Rect::NOTHING));
     let painted = picture.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let keys = [0_usize];
         let source = keyed(&keys, |key: &usize| *key);
         let _ = List::new("Layers").show_items(ui, &source, &mut |key, _| {
@@ -1579,7 +1587,7 @@ fn a_thumbnails_frame_is_square_and_lies_outside_its_picture() {
 fn a_row_labelled_from_spans_highlights_only_its_match_and_is_named_by_the_joined_text() {
     use craft_ui::primitives::Span;
     const JOINED: &str = "over the harbour at dusk";
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         let keys = [0_usize];
         let source = keyed(&keys, |key: &usize| *key).with_text(|_| std::borrow::Cow::Borrowed(JOINED));
         let _ = List::new("Results").show_items(ui, &source, &mut |_, _| {
@@ -1602,7 +1610,7 @@ fn a_row_labelled_from_spans_highlights_only_its_match_and_is_named_by_the_joine
         .job
         .sections
         .iter()
-        .filter(|section| section.format.background != egui::Color32::TRANSPARENT)
+        .filter(|section| section.format.background != craft_ui::Color32::TRANSPARENT)
         .filter_map(|section| galley.job.text.get(section.byte_range.start.0..section.byte_range.end.0))
         .collect();
     assert_eq!(marked, ["harbour"], "only the match is drawn on the highlight");
@@ -1618,7 +1626,7 @@ fn double_clicked(
     use craft_ui::contract::Bind;
     let state = Rc::new(RefCell::new((Vec::new(), Selection::default())));
     let held = state.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let keys = [0_usize, 1, 2];
         let source = keyed(&keys, |key: &usize| *key).with_text(|key| std::borrow::Cow::Borrowed(NAMES[*key]));
         let given = held.borrow().1.clone();
@@ -1666,7 +1674,7 @@ fn a_group_header_is_regular_and_a_section_heading_strong() {
     use craft_ui::contract::{Component as _, Meta as _};
     use craft_ui::style::ComponentStyle as _;
     use craft_ui::testing::style::{tokens, with_cx};
-    with_cx(&egui::Context::default(), &tokens(Mode::Light, Contrast::Standard), Variant::SECONDARY, ControlSize::Md, |cx| {
+    with_cx(&craft_ui::Context::default(), &tokens(Mode::Light, Contrast::Standard), Variant::SECONDARY, ControlSize::Md, |cx| {
         let role = |row: ListRow<'_>| ListRow::style(cx, row.style_key()).texts()[0].role;
         assert_eq!(role(ListRow::new("Folder").heading()), TypeRole::Body, "a group header");
         assert_eq!(role(ListRow::new("Camera").section_heading()), TypeRole::BodyStrong, "a section heading");
@@ -1679,8 +1687,8 @@ fn a_group_header_is_regular_and_a_section_heading_strong() {
 #[trial]
 fn a_row_dragged_to_the_edge_scrolls_the_list_and_rests_without_frames() {
     use craft_ui::contract::{ReorderRule, Sizing};
+    use craft_ui::geom::Pos2;
     use craft_ui::testing::pointer::moved;
-    use egui::Pos2;
     use std::borrow::Cow;
     use std::cell::Cell;
 
@@ -1689,7 +1697,7 @@ fn a_row_dragged_to_the_edge_scrolls_the_list_and_rests_without_frames() {
     let list_id = Id::NULL.with("long-rows");
     let discard = Rc::new(Cell::new(false));
     let asks = discard.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let keys: Vec<usize> = (0..ROWS).collect();
         let source = keyed(&keys, |key: &usize| *key).with_text(|key| Cow::Owned(format!("Layer {key}")));
         let list = List::new("Layers").id(list_id).sizing(Sizing::Content).max_rows(6).reorder(ReorderRule::new());
@@ -1705,7 +1713,7 @@ fn a_row_dragged_to_the_edge_scrolls_the_list_and_rests_without_frames() {
     let row = fixture.by_label(&name(1)).expect("the second row").rect.min.y - first.min.y;
     // How far the rows have scrolled, from the first row whose top is in view: its place in the rows, less how far
     // below the rows' top it sits. Rows above the view are not built, or sit above the top.
-    let scrolled = |fixture: &Fixture| {
+    let scrolled = |fixture: &Harness| {
         (0..ROWS)
             .find_map(|at| {
                 let shown = fixture.by_label(&name(at)).filter(|shown| shown.rect.min.y >= first.min.y - 0.5 && shown.rect.height() >= row - 0.5)?;
@@ -1720,7 +1728,7 @@ fn a_row_dragged_to_the_edge_scrolls_the_list_and_rests_without_frames() {
     let mut last = scrolled(&fixture);
     assert!(last > 0.0, "the drag into the bottom band scrolls the rows");
     for _ in 0..3 {
-        fixture.frame(Vec::new());
+        fixture.step();
         let now = scrolled(&fixture);
         assert!(now > last, "every frame in the band scrolls on: {now} after {last}");
         last = now;
@@ -1729,26 +1737,26 @@ fn a_row_dragged_to_the_edge_scrolls_the_list_and_rests_without_frames() {
     // Two frames of one pass each, then two frames of which the first runs twice: the second pair scrolls as far as
     // the first (two steps), not a step further. Each pair is measured after a one-pass frame.
     let before = scrolled(&fixture);
-    fixture.frame(Vec::new()).frame(Vec::new());
+    fixture.step().frame(Vec::new());
     assert_eq!(fixture.passes(), 1, "a frame of the held drag runs one pass");
     let between = scrolled(&fixture);
     discard.set(true);
-    fixture.frame(Vec::new());
+    fixture.step();
     discard.set(false);
     assert_eq!(fixture.passes(), 2, "the trial's frame ran twice");
-    fixture.frame(Vec::new());
+    fixture.step();
     let (plain, rerun) = (between - before, scrolled(&fixture) - between);
     assert!(plain > 0.0 && rerun < plain * 1.25, "a frame run twice scrolls one frame's step: {rerun} against {plain}");
 
     let below = Pos2::new(grab.x, list.max.y + 2.0 * row);
-    fixture.frame(vec![moved(below)]).frame(Vec::new());
+    fixture.send(moved(below)).frame(Vec::new());
     let past = scrolled(&fixture);
     fixture.idle(2);
     assert!(scrolled(&fixture) > past, "held below the list, the rows still scroll");
 
-    fixture.frame(vec![moved(Pos2::new(grab.x, list.center().y))]).idle(2);
+    fixture.send(moved(Pos2::new(grab.x, list.center().y))).idle(2);
     let rest = scrolled(&fixture);
-    fixture.frame(Vec::new());
+    fixture.step();
     assert_eq!(scrolled(&fixture), rest, "over the middle rows nothing scrolls");
     assert!(!fixture.repaint_requested(), "a drag held over the middle rows asks for no frame");
     fixture.release_at(Pos2::new(grab.x, list.center().y));
@@ -1772,7 +1780,7 @@ fn a_secondary_click_on_a_trailing_part_opens_the_row_menu() {
     let (mut fixture, seen) = rows_rig(Vec2::new(320.0, 200.0), row);
     let button = fixture.by_label(SAVES[1]).expect("the part has a node").center();
     fixture.frame(vec![pointer::moved(button), pointer::secondary(button, true)]);
-    fixture.frame(vec![pointer::secondary(button, false)]).settle();
+    fixture.send(pointer::secondary(button, false)).settle();
     let events = seen.borrow();
     assert!(events.iter().any(|event| matches!(event, CollectionEvent::ContextMenu(request) if request.key == 1)), "the row's menu: {events:?}");
     assert!(
@@ -1788,14 +1796,14 @@ fn a_status_cell_action_is_reached_by_keys_and_reports_its_column() {
     use craft_behavior::{ColumnKey, ColumnWidth, Selection};
     use craft_theme::variant::Tone;
     use craft_ui::contract::{Bind, ColumnSpec};
+    use craft_ui::input::{Key, Mods};
     use craft_ui::list::CellStatus;
-    use egui::{Key, Modifiers};
     const NAME: ColumnKey = ColumnKey::new("name");
     const WARNINGS: ColumnKey = ColumnKey::new("warnings");
     const TIP: &str = "Its form fields are flattened.\nTwo bookmarks point to pages that are not kept.";
     let seen = Rc::new(RefCell::new(Vec::new()));
     let held = seen.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let columns = vec![ColumnSpec::new(NAME, "Name", ColumnWidth::fill(1.0)), ColumnSpec::new(WARNINGS, "Warnings", ColumnWidth::fill(1.0))];
         let keys = [0_usize];
         let source = keyed(&keys, |key: &usize| *key);
@@ -1811,10 +1819,10 @@ fn a_status_cell_action_is_reached_by_keys_and_reports_its_column() {
     assert_eq!(fixture.tree().description_of(cell.node), Some(TIP), "the tip is the cell's description");
     let details = fixture.by_label("Details").expect("the action has a node");
 
-    fixture.key(Key::Tab, Modifiers::NONE).key(Key::ArrowRight, Modifiers::NONE).settle();
+    fixture.key(Key::Tab, Mods::NONE).key(Key::ArrowRight, Mods::NONE).settle();
     assert_eq!(craft_ui::testing::access::focused_key(fixture.tree()), details.node, "the keys reach the action");
     seen.borrow_mut().clear();
-    fixture.key(Key::Enter, Modifiers::NONE).settle();
+    fixture.key(Key::Enter, Mods::NONE).settle();
     let actions: Vec<ColumnKey> = seen
         .borrow()
         .iter()
@@ -1831,12 +1839,12 @@ fn a_status_cell_action_is_reached_by_keys_and_reports_its_column() {
 #[trial]
 fn a_collection_reports_the_row_under_the_pointer() {
     use craft_ui::contract::ReorderRule;
+    use craft_ui::geom::Pos2;
     use craft_ui::testing::pointer;
-    use egui::Pos2;
     use std::cell::Cell;
     let hovered = Rc::new(Cell::new(None::<usize>));
     let held = hovered.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let keys = [0_usize, 1, 2];
         let source = keyed(&keys, |key: &usize| *key);
         let out = List::new("Artboards").reorder(ReorderRule::new()).show_items(ui, &source, &mut |key, _| ListRow::new(NAMES[*key]));
@@ -1844,23 +1852,23 @@ fn a_collection_reports_the_row_under_the_pointer() {
     });
     fixture.room(Vec2::new(300.0, 200.0));
     fixture.settle();
-    let row = |fixture: &Fixture, at: usize| fixture.by_label(NAMES[at]).expect("the row shows").rect;
+    let row = |fixture: &Harness, at: usize| fixture.by_label(NAMES[at]).expect("the row shows").rect;
     let (first, second, last) = (row(&fixture, 0), row(&fixture, 1), row(&fixture, 2));
-    fixture.frame(vec![pointer::moved(second.center())]).settle();
+    fixture.send(pointer::moved(second.center())).settle();
     assert_eq!(hovered.get(), Some(1), "the row under the pointer");
     let list = fixture.by_label("Artboards").expect("the list").rect;
     assert!(list.bottom() > last.bottom() + 8.0, "the list is taller than its rows: {list:?} {last:?}");
-    fixture.frame(vec![pointer::moved(Pos2::new(last.center().x, (last.bottom() + list.bottom()) / 2.0))]).settle();
+    fixture.send(pointer::moved(Pos2::new(last.center().x, (last.bottom() + list.bottom()) / 2.0))).settle();
     assert_eq!(hovered.get(), None, "no row under the pointer below the rows");
     fixture.drag_hold_at(first.center(), last.center() - first.center());
     assert_eq!(hovered.get(), None, "no row while a drag is held over one");
     fixture.release_at(last.center());
-    fixture.frame(vec![pointer::moved(second.center())]).settle();
+    fixture.send(pointer::moved(second.center())).settle();
     assert_eq!(hovered.get(), Some(1), "after the drag the row under the pointer again");
 }
 
 /// Where the text shape that paints `text` lies among `shapes`, nested lists included.
-fn painted_at(shapes: &[egui::Shape], text: &str) -> Option<egui::Rect> {
+fn painted_at(shapes: &[egui::Shape], text: &str) -> Option<craft_ui::geom::Rect> {
     shapes.iter().find_map(|shape| match shape {
         egui::Shape::Vec(inner) => painted_at(inner, text),
         egui::Shape::Text(shown) if shown.galley.text() == text => Some(shown.galley.rect.translate(shown.pos.to_vec2())),
@@ -1870,10 +1878,10 @@ fn painted_at(shapes: &[egui::Shape], text: &str) -> Option<egui::Rect> {
 
 /// A list's row of a document's field name, with its labels as document text aligned `align` (`None` for UI text):
 /// the row's rect and its label's.
-fn document_row(align: Option<craft_ui::primitives::HAlign>) -> (egui::Rect, egui::Rect) {
+fn document_row(align: Option<craft_ui::primitives::HAlign>) -> (craft_ui::geom::Rect, craft_ui::geom::Rect) {
     use craft_ui::fonts::FontRef;
     use craft_ui::list::DocumentRows;
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let keys = [0_usize];
         let source = keyed(&keys, |key: &usize| *key);
         let mut list = List::new("Fields");
@@ -1907,7 +1915,7 @@ fn document_rows_take_the_documents_size_and_alignment() {
 }
 
 /// The texts among `names` the latest frame painted, top to bottom.
-fn painted_rows(fixture: &Fixture, names: &[&str]) -> Vec<String> {
+fn painted_rows(fixture: &Harness, names: &[&str]) -> Vec<String> {
     let mut runs: Vec<(f32, String)> =
         fixture.texts().iter().filter(|run| names.contains(&run.text.as_str())).map(|run| (run.rect.top(), run.text.clone())).collect();
     runs.sort_by(|a, b| a.0.total_cmp(&b.0));
@@ -1956,7 +1964,7 @@ fn a_filter_matches_any_of_a_rows_texts_and_keeps_the_ancestors_of_a_match() {
     const NOTES: [&str; 3] = ["Cover", "Back page", "Inside"];
     let query = Rc::new(Cell::new(""));
     let asked = query.clone();
-    let mut flat = Fixture::new(move |ui| {
+    let mut flat = Harness::new_ui(move |ui| {
         let keys = [0_usize, 1, 2];
         let source = keyed(&keys, |key: &usize| *key);
         let list = List::new("Artboards").filter(asked.get(), |key: &usize| vec![Label::from(NAMES[*key]), Label::from(NOTES[*key])]);
@@ -1971,7 +1979,7 @@ fn a_filter_matches_any_of_a_rows_texts_and_keeps_the_ancestors_of_a_match() {
 
     let tree_query = Rc::new(Cell::new(""));
     let asked = tree_query.clone();
-    let mut tree = Fixture::new(move |ui| {
+    let mut tree = Harness::new_ui(move |ui| {
         let list = List::new("Bookmarks").tree(true).filter(asked.get(), |key: &usize| vec![Label::from(BRANCHES[*key].0)]);
         let _ = list.show_items(ui, &Branches, &mut |key, _| {
             let (title, depth) = BRANCHES[*key];
@@ -1996,7 +2004,7 @@ fn a_filter_matches_any_of_a_rows_texts_and_keeps_the_ancestors_of_a_match() {
 #[trial]
 fn a_triangle_is_named_after_the_rows_accessible_name() {
     const MONTHS: [(&str, Option<&str>); 3] = [("March", Some("March 2025")), ("March", Some("March 2026")), ("April", None)];
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let keys = [0_usize, 1, 2];
         let source = keyed(&keys, |key: &usize| *key);
         let list = List::new("Months").tree(true);
@@ -2021,12 +2029,12 @@ fn a_triangle_is_named_after_the_rows_accessible_name() {
 /// the rename ends.
 #[trial]
 fn a_row_in_rename_stays_listed_while_the_filter_excludes_it() {
+    use craft_ui::input::{Key, Mods};
     use craft_ui::runtime::env::Label;
-    use egui::{Key, Modifiers};
     let shown = Rc::new(RefCell::new(Vec::<usize>::new()));
     let seen = Rc::new(RefCell::new(Vec::new()));
     let (rows, held) = (shown.clone(), seen.clone());
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let keys = [0_usize, 1, 2];
         let source = keyed(&keys, |key: &usize| *key);
         let list = List::new("Artboards").id(list_id()).rename(true).filter(NAMES[0], |key: &usize| vec![Label::from(NAMES[*key])]);
@@ -2047,7 +2055,7 @@ fn a_row_in_rename_stays_listed_while_the_filter_excludes_it() {
         seen.borrow()
     );
     assert!(shown.borrow().contains(&2), "the row stays listed while its rename runs: {:?}", shown.borrow());
-    fixture.key(Key::Escape, Modifiers::NONE).settle();
+    fixture.key(Key::Escape, Mods::NONE).settle();
     assert_eq!(*shown.borrow(), [0], "the row goes when its rename ends");
 }
 
@@ -2055,13 +2063,13 @@ fn a_row_in_rename_stays_listed_while_the_filter_excludes_it() {
 /// name; a later frame keeps the caret the user put; Escape ends the rename with no edit.
 #[trial]
 fn a_rename_editor_selects_the_name_once_keeps_the_caret_and_escape_cancels() {
+    use craft_ui::input::{Key, Mods};
     use craft_ui::testing::focus::egui_focused;
     use craft_ui::testing::text::caret;
-    use egui::{Key, Modifiers};
     const SHEETS: [&str; 2] = ["Çalışma sayfası", "Größe"];
     let seen = Rc::new(RefCell::new(Vec::new()));
     let held = seen.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let keys = [0_usize, 1];
         let source = keyed(&keys, |key: &usize| *key).with_text(|key| std::borrow::Cow::Borrowed(SHEETS[*key]));
         let out = List::new("Sheets").id(list_id()).rename(true).show_items(ui, &source, &mut |key, _| ListRow::new(SHEETS[*key]));
@@ -2085,20 +2093,20 @@ fn a_rename_editor_selects_the_name_once_keeps_the_caret_and_escape_cancels() {
     fixture.settle();
     let field = egui_focused(fixture.ctx()).expect("the rename field takes the focus");
     assert_eq!(caret(fixture.ctx(), field), Some(name.chars().count()), "the field opens with the whole name selected");
-    fixture.key(Key::Home, Modifiers::NONE);
+    fixture.key(Key::Home, Mods::NONE);
     eprintln!("DIAG rename caret: right after Home {:?} focused {:?}", caret(fixture.ctx(), field), egui_focused(fixture.ctx()) == Some(field));
     for frame in 0..3 {
         fixture.idle(1);
         eprintln!("DIAG rename caret: idle {frame} {:?} focused {:?}", caret(fixture.ctx(), field), egui_focused(fixture.ctx()) == Some(field));
     }
     assert_eq!(caret(fixture.ctx(), field), Some(0), "later frames keep the caret the user put");
-    fixture.key(Key::Escape, Modifiers::NONE).settle();
+    fixture.key(Key::Escape, Mods::NONE).settle();
     assert!(edits(&seen).is_empty(), "Escape ends the rename with no edit: {:?}", seen.borrow());
     assert_ne!(egui_focused(fixture.ctx()), Some(field), "the rename field is gone");
 
     request_rename(fixture.ctx(), list_id(), &0_usize);
     fixture.settle();
-    fixture.type_text("Özet").key(Key::Enter, Modifiers::NONE).settle();
+    fixture.type_text("Özet").key(Key::Enter, Mods::NONE).settle();
     assert_eq!(edits(&seen), [(0, String::from("Özet"))], "typing replaces the whole multibyte name");
 }
 
@@ -2120,7 +2128,7 @@ fn a_revealed_part_is_exposed_only_while_its_row_shows_it() {
     let (mut fixture, _) = rows_rig(Vec2::new(320.0, 200.0), row);
     assert!(MOVES.iter().all(|name| fixture.by_label(name).is_none()), "no row shows its part, so none is exposed");
     let over = fixture.by_label(NAMES[1]).expect("the row's node").rect.center();
-    fixture.frame(vec![pointer::moved(over)]).settle();
+    fixture.send(pointer::moved(over)).settle();
     assert!(fixture.by_label(MOVES[1]).is_some(), "the hovered row's part is exposed");
     assert!(fixture.by_label(MOVES[0]).is_none() && fixture.by_label(MOVES[2]).is_none(), "the other rows' parts stay hidden");
 }
@@ -2136,7 +2144,7 @@ fn auto_rows_are_measured_once_per_pass_and_a_restated_row_takes_its_new_size_in
     use craft_ui::layout_components::Stack;
     use craft_ui::list::ThumbSize;
     use craft_ui::testing::pointer::{moved, press, release};
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         Stack::new().sizing(Sizing::FillWidth).show(ui, |ui, _| {
             let keys = [0_usize, 1, 2];
             let source = keyed(&keys, |key: &usize| *key).with_text(|key| std::borrow::Cow::Borrowed(NAMES[*key]));
@@ -2147,8 +2155,8 @@ fn auto_rows_are_measured_once_per_pass_and_a_restated_row_takes_its_new_size_in
         });
     });
     fixture.room(Vec2::new(300.0, 400.0));
-    let list = |fixture: &Fixture| fixture.by_label("Artboards").expect("the list's node").rect;
-    let row = |fixture: &Fixture, at: usize| fixture.by_label(NAMES[at]).expect("the row's node").rect;
+    let list = |fixture: &Harness| fixture.by_label("Artboards").expect("the list's node").rect;
+    let row = |fixture: &Harness, at: usize| fixture.by_label(NAMES[at]).expect("the row's node").rect;
     fixture.idle(1);
     assert_eq!(fixture.passes(), 1, "the first frame runs once");
     let runs = craft_ui::testing::last_pass_runs(fixture.ctx());
@@ -2163,9 +2171,9 @@ fn auto_rows_are_measured_once_per_pass_and_a_restated_row_takes_its_new_size_in
     assert_eq!(first, settled, "the first frame places the rows and the list as the settled list does");
 
     let at = settled.1[1].center();
-    fixture.frame(vec![moved(at)]);
-    fixture.frame(vec![press(at)]);
-    fixture.frame(vec![release(at)]);
+    fixture.send(moved(at));
+    fixture.send(press(at));
+    fixture.send(release(at));
     let clicked = (list(&fixture), row(&fixture, 1));
     assert!(clicked.1.height() > settled.1[1].height(), "the selected row takes its taller size in the frame of the click's release");
     fixture.idle(2);
@@ -2186,11 +2194,11 @@ fn auto_rows_are_measured_once_per_pass_and_a_restated_row_takes_its_new_size_in
 fn page_down_on_a_control_in_a_row_pages_the_capped_list() {
     use craft_ui::choice::Segmented;
     use craft_ui::contract::{Bind, Entry, Sizing};
+    use craft_ui::input::{Key, Mods};
     use craft_ui::testing::focus::AccessActionKind;
-    use egui::{Key, Modifiers};
     const ROWS: usize = 40;
     let list_id = Id::NULL.with("paged-rows");
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let keys: Vec<usize> = (0..ROWS).collect();
         let source = keyed(&keys, |key: &usize| *key);
         let sizes: Vec<Vec<Entry<u8>>> =
@@ -2202,7 +2210,7 @@ fn page_down_on_a_control_in_a_row_pages_the_capped_list() {
         });
     });
     fixture.room(Vec2::new(400.0, 400.0)).settle();
-    let in_view = |fixture: &Fixture, name: &str| {
+    let in_view = |fixture: &Harness, name: &str| {
         let list = fixture.node_of(list_id).expect("the list's node").rect;
         fixture.by_label(name).is_some_and(|row| list.expand(0.5).contains_rect(row.rect))
     };
@@ -2210,14 +2218,14 @@ fn page_down_on_a_control_in_a_row_pages_the_capped_list() {
     let segment = fixture.by_label("Small 0").expect("the first row's segment");
     fixture.access(AccessActionKind::Focus, &segment).settle();
     assert_eq!(craft_ui::testing::access::focused_key(fixture.tree()), segment.node, "the first row's segment took the focus");
-    fixture.key(Key::PageDown, Modifiers::NONE).settle();
+    fixture.key(Key::PageDown, Mods::NONE).settle();
     assert!(!in_view(&fixture, "Layer 0") && in_view(&fixture, "Layer 8"), "PageDown on the row's control paged the rows");
 }
 
 /// The height of a thumbnail row and how far a nested row's label starts after a top-level one's, under `rows`.
 fn thumb_row_geometry(rows: craft_ui::list::ThumbRows) -> (f32, f32) {
     use craft_ui::list::ThumbSize;
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         let keys = [0_usize, 1];
         let source = keyed(&keys, |key: &usize| *key);
         let _ = List::new("Layers").show_items(ui, &source, &mut |key, _| ListRow::new(NAMES[*key]).depth(*key).thumb(ThumbSize::Medium, |_, _| {}));

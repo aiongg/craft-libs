@@ -15,7 +15,8 @@ use crate::menu::{Menu, MenuItem};
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, FocusLook, StyleCx};
 use craft_behavior::{ColumnKey, ItemSource, Metrics, Selection, SpanLayout};
-use egui::{Rect, Ui};
+use craft_ui::Ui;
+use craft_ui::geom::Rect;
 use std::hash::Hash;
 
 /// The header menu's popup.

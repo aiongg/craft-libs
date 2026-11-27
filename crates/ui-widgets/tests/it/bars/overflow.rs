@@ -5,20 +5,22 @@
 use craft_behavior::IconId;
 use craft_behavior::geometry::Constraint;
 use craft_i18n::Direction;
+use craft_ui::Ui;
 use craft_ui::bars::{Bar, BarItem, BarItems, BarKind, ConstraintFields, ItemDisplay};
 use craft_ui::buttons::{Button, IconButton};
 use craft_ui::choice::Checkbox;
 use craft_ui::contract::{Bind, Entry, MemoProps, MemoView, Props as _, Show as _, ShowContainer as _, Sizing};
 use craft_ui::display::{Divider, Elide, Text};
 use craft_ui::form::Field;
+use craft_ui::geom::{Pos2, Rect, Vec2};
 use craft_ui::pickers::Select;
 use craft_ui::primitives::TextRun;
 use craft_ui::runtime::commands::EditCommands;
 use craft_ui::testing::layout::in_region;
 use craft_ui::testing::pointer;
-use craft_ui::testing::{Fixture, Frames, MemoRun, last_frame_memo_runs, trial};
+use craft_ui::testing::{Frames, Harness, MemoRun, last_frame_memo_runs, trial};
 use craft_ui::value_drag::Slider;
-use egui::{Pos2, Rect, Shape, Ui, Vec2};
+use egui::Shape;
 use std::cell::Cell;
 use std::rc::Rc;
 
@@ -27,8 +29,8 @@ const ROOM: Vec2 = Vec2::new(400.0, 80.0);
 const NAMES: &[&str] = &["Style", "Width", "Height", "Undo"];
 
 /// An options bar with the Style, Width and Height cells, a rule and a text item strip, in `direction`.
-fn options_bar(direction: Direction) -> Fixture {
-    let mut fixture = Fixture::new(|ui| {
+fn options_bar(direction: Direction) -> Harness {
+    let mut fixture = Harness::new_ui(|ui| {
         let mut constraint = Constraint::Free;
         Bar::new("Options", BarKind::Options).show(ui, |ui, _| {
             ConstraintFields::new(Bind::bound(&mut constraint)).show(ui);
@@ -41,7 +43,7 @@ fn options_bar(direction: Direction) -> Fixture {
     fixture
 }
 
-fn rects(fixture: &Fixture) -> Vec<Option<Rect>> {
+fn rects(fixture: &Harness) -> Vec<Option<Rect>> {
     NAMES.iter().map(|name| fixture.by_label(name).map(|target| target.rect)).collect()
 }
 
@@ -61,7 +63,7 @@ fn a_bar_too_short_for_its_members_lays_out_under_rtl_as_the_mirror_of_ltr() {
 /// The centre lines of a body member and of the cancel button in an options bar `width` wide with a commit and a
 /// cancel button, a select and four buttons.
 fn centre_lines(width: f32) -> (f32, f32) {
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         let entries = [Entry::new(0u8, "Normal"), Entry::new(1, "Fixed Ratio")];
         Bar::new("Options", BarKind::Options).commit_cancel("Commit", "Cancel").show(ui, |ui, _| {
             Field::new("Style").show(ui, |ui, _| Select::new("Style", Bind::given(0u8), &entries).show(ui));
@@ -87,7 +89,7 @@ fn the_end_region_shares_the_line_of_the_members_whether_the_bar_overflows_or_no
 fn filled(width: f32) -> (Rect, Rect) {
     let seen = Rc::new(Cell::new((Rect::NOTHING, Rect::NOTHING)));
     let out = Rc::clone(&seen);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let (mut slider, mut readout) = (Rect::NOTHING, Rect::NOTHING);
         Bar::new("Media", BarKind::Tool).show(ui, |ui, _| {
             IconButton::new(IconId::new("play")).label("Play").show(ui);
@@ -114,10 +116,10 @@ fn a_member_that_fills_takes_the_room_its_bar_leaves() {
 }
 
 /// An options bar `width` wide with eight buttons, and the clicks each button reported.
-fn buttons(width: f32) -> (Fixture, Rc<Cell<[u32; 8]>>) {
+fn buttons(width: f32) -> (Harness, Rc<Cell<[u32; 8]>>) {
     let clicks = Rc::new(Cell::new([0u32; 8]));
     let seen = Rc::clone(&clicks);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         Bar::new("Options", BarKind::Options).show(ui, |ui, _| {
             for at in 0..8 {
                 if Button::new(format!("Button {at}")).show(ui).clicked() {
@@ -145,7 +147,7 @@ fn a_member_the_bar_shows_in_part_is_not_shown_until_it_is_whole() {
         });
         let Some((at, rect)) = straddles else { continue };
         let (mut fixture, clicks) = buttons(width);
-        fixture.click_at(egui::pos2(rect.min.x + 2.0, rect.center().y));
+        fixture.click_at(craft_ui::geom::pos2(rect.min.x + 2.0, rect.center().y));
         assert_eq!(clicks.get()[at], 0, "at {width}: Button {at} at {rect:?}, shown in part, took a click");
         let first = fixture.by_label("Button 0").expect("the first button");
         fixture.click(&first);
@@ -245,7 +247,7 @@ fn a_bar_too_short_for_its_members_takes_the_wheel_from_its_first_frame() {
         unit: egui::MouseWheelUnit::Point,
         delta: Vec2::new(-40.0, 0.0),
         phase: egui::TouchPhase::Move,
-        modifiers: egui::Modifiers::NONE,
+        modifiers: craft_ui::input::Mods::NONE,
         source: egui::MouseWheelSource::Wheel,
     };
     frames.frame(vec![wheel], scene);
@@ -281,7 +283,7 @@ fn a_rule_before_a_labelled_control_the_bar_shows_is_drawn() {
     };
     let (shown, rects) = shapes_at(900.0);
     assert!(draws_rule(&shown, rects), "with every member whole the rule before the checkbox is drawn");
-    let mut wide = Fixture::new(|ui| labelled_rule_bar(ui, 900.0, &std::cell::Cell::new((Rect::NOTHING, Rect::NOTHING))));
+    let mut wide = Harness::new_ui(|ui| labelled_rule_bar(ui, 900.0, &std::cell::Cell::new((Rect::NOTHING, Rect::NOTHING))));
     wide.room(Vec2::new(900.0, 80.0)).settle();
     let last = wide.by_label("Last").expect("the last button").rect;
     let (cut, (_, checkbox)) = shapes_at(last.center().x);

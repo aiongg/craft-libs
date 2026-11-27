@@ -16,7 +16,7 @@ use crate::runtime::overlay::CloseReason;
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
 use craft_behavior::{EditEvent, Metrics, Mixed, Sense};
 use craft_i18n::{DateFormat, Weekday};
-use egui::{Response, Ui};
+use craft_ui::{Response, Ui};
 use std::sync::Arc;
 
 /// The style of a calendar popover: the surface comes from the container.

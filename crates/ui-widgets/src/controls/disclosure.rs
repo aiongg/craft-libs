@@ -8,8 +8,9 @@ use crate::primitives::{Canvas, Glyph, PaintShape, StrokeWidth};
 use crate::style::{ComponentStyle, FocusLook, IconLook, StyleCx, UiTokens, ink_color, rgba_color};
 use craft_behavior::{Metrics, Sense};
 use craft_i18n::Direction;
+use craft_ui::Color32;
+use craft_ui::geom::{Pos2, Rect, Vec2};
 use egui::emath::GuiRounding as _;
-use egui::{Color32, Pos2, Rect, Vec2};
 
 /// A quarter turn: closed points to the end, open points down.
 const QUARTER_TURN: f32 = std::f32::consts::FRAC_PI_2;

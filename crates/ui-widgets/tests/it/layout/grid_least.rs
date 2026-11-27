@@ -3,13 +3,14 @@
 //! under another. A picture takes the width it is given; a check box with its label after it takes the two's width.
 
 use craft_behavior::{ColumnWidth, Mixed};
+use craft_ui::Ui;
 use craft_ui::choice::Checkbox;
 use craft_ui::contract::{Bind, Props as _, Show as _, ShowContainer as _};
 use craft_ui::display::Text;
+use craft_ui::geom::{Rect, Vec2};
 use craft_ui::layout_components::{Grid, Stack};
 use craft_ui::testing::{Frames, shrink_least_runs, trial};
 use craft_ui::value_drag::PointPicker;
-use egui::{Rect, Ui, Vec2};
 use std::cell::Cell;
 
 const SNAP: f32 = 1.0;

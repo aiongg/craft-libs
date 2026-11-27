@@ -6,7 +6,7 @@ use crate::runtime::env::Label;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use craft_behavior::{IconId, Preview, Selection};
 use craft_theme::Srgba;
-use egui::Ui;
+use craft_ui::Ui;
 
 fn named(entries: impl IntoIterator<Item = (String, Srgba)>) -> Vec<(Label, Srgba)> {
     entries.into_iter().map(|(name, color)| (Label::from(name), color)).collect()

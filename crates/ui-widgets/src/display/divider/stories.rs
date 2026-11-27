@@ -2,9 +2,10 @@
 
 use super::Divider;
 use crate::contract::Show as _;
+use crate::contract::ShowContainer as _;
 use crate::display::Text;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
-use egui::Ui;
+use craft_ui::Ui;
 
 #[story(Divider, covers = [Default], drive = Drive::Never)]
 fn divider(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
@@ -13,10 +14,11 @@ fn divider(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 
 #[story(Divider, covers = [], drive = Drive::Never)]
 fn divider_vertical(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    ui.horizontal(|ui| {
-        Text::new("Left").show(ui);
-        Divider::vertical().show(ui)
-    })
-    .inner
-    .into()
+    crate::layout_components::Row::new()
+        .show(ui, |ui, _| {
+            Text::new("Left").show(ui);
+            Divider::vertical().show(ui)
+        })
+        .output
+        .into()
 }

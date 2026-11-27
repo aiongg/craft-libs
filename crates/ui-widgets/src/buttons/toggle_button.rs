@@ -12,7 +12,7 @@ use crate::style::{ComponentStyle, FocusLook, IconLook, StyleCx, SurfaceLook, Te
 use craft_behavior::{Metrics, Sense};
 use craft_keymap::{Chord, Key};
 use craft_theme::{Flags, Variant};
-use egui::Vec2;
+use craft_ui::geom::Vec2;
 
 /// The chords an armed button keeps.
 const ESCAPE: &[Chord] = &[Chord::plain(Key::Escape)];

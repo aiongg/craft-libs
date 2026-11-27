@@ -8,10 +8,11 @@ use crate::form::{Field, FieldGroup};
 use crate::layout_components::Stack;
 use crate::primitives::{Completer, Completion, IconSpec, SubmitKey};
 use crate::runtime::env::Message;
-use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
+use crate::testing::{Drive, Harness, StoryData, StoryOutput, story};
 use craft_behavior::{IconId, Mixed, PlainText};
 use craft_theme::ControlSize;
-use egui::{Key, Modifiers, Ui};
+use craft_ui::Ui;
+use craft_ui::input::{Key, Mods};
 use std::ops::Range;
 
 const SIZES: [(&str, ControlSize); 2] = [("Sm", ControlSize::Sm), ("Md", ControlSize::Md)];
@@ -124,8 +125,8 @@ impl Completer for Prefixes {
 }
 
 /// Focuses the field and types the start of a word, which opens the completion list.
-fn open_completions(fixture: &mut Fixture) {
-    fixture.key(Key::Tab, Modifiers::NONE);
+fn open_completions(fixture: &mut Harness) {
+    fixture.key(Key::Tab, Mods::NONE);
     fixture.type_text("al");
     fixture.idle(4);
 }
@@ -209,8 +210,8 @@ impl Completer for Functions {
 }
 
 /// Focuses the field and types the start of a function name, which opens the marked list.
-fn open_functions(fixture: &mut Fixture) {
-    fixture.key(Key::Tab, Modifiers::NONE);
+fn open_functions(fixture: &mut Harness) {
+    fixture.key(Key::Tab, Mods::NONE);
     fixture.type_text("=SU");
     fixture.idle(4);
 }

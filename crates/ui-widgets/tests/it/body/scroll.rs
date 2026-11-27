@@ -4,15 +4,16 @@
 use craft_behavior::{ColumnWidth, PartKey};
 use craft_ui::buttons::Button;
 use craft_ui::contract::{Bind, ContainerProps, MemoProps, MemoView, Props as _, Scroll, Show as _, ShowContainer as _, Sizing, Trigger};
+use craft_ui::geom::{Pos2, Rect, Vec2};
 use craft_ui::layout_components::Grid;
 use craft_ui::menu::{Menu, MenuItem};
 use craft_ui::runtime::focus::{FocusTarget, request};
 use craft_ui::testing::layout::{Block, in_region, measured_block};
 use craft_ui::testing::text::widget_id;
-use craft_ui::testing::{Fixture, Frames, MemoRun, last_frame_memo_runs, pointer, trial};
+use craft_ui::testing::{Frames, Harness, MemoRun, last_frame_memo_runs, pointer, trial};
 use craft_ui::text::TextField;
+use craft_ui::{Id, Ui};
 use craft_ui_test_kit::body::Slab;
-use egui::{Id, Pos2, Rect, Ui, Vec2};
 use std::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
 use std::rc::Rc;
@@ -65,7 +66,7 @@ fn an_out_of_view_child_does_not_run_until_it_scrolls_in() {
                     craft_ui::contract::Lazy::new(at, HUNDRED).show(ui, |ui| {
                         count.set(count.get() + 1);
                         let rect = Block::new(Vec2::new(LINE.x, HUNDRED)).show(ui).rect;
-                        if !ui.is_sizing_pass() {
+                        if !ui.is_measuring() {
                             shown.borrow_mut().push(rect);
                         }
                     });
@@ -137,7 +138,7 @@ fn a_focus_request_into_an_out_of_view_child_runs_it_and_scrolls_it_in() {
                     craft_ui::contract::Lazy::new(at, HUNDRED).show(ui, |ui| {
                         count.set(count.get() + 1);
                         let out = Button::new(format!("Child {at}")).show(ui);
-                        if !ui.is_sizing_pass() {
+                        if !ui.is_measuring() {
                             button.set((out.id, out.rect));
                         }
                         Block::new(Vec2::new(LINE.x, HUNDRED)).show(ui);
@@ -184,7 +185,7 @@ fn tab_reaches_the_control_of_a_child_out_of_view() {
                     craft_ui::contract::Lazy::new(at, HUNDRED).show(ui, |ui| {
                         count.set(count.get() + 1);
                         let out = Button::new(format!("Child {at}")).show(ui);
-                        if !ui.is_sizing_pass() {
+                        if !ui.is_measuring() {
                             button.set((out.id, out.rect));
                         }
                         // Each child is taller than the view, so the next one starts out of view.
@@ -230,7 +231,7 @@ fn focus_out_of_view_in_a_nested_scroll_region_scrolls_both_regions_to_it() {
                     inner.set(cx.rect);
                     for button in &buttons {
                         let out = Button::new("Child").show(ui);
-                        if !ui.is_sizing_pass() {
+                        if !ui.is_measuring() {
                             button.set((out.id, out.rect));
                         }
                         Block::new(Vec2::new(LINE.x, HUNDRED)).show(ui);
@@ -276,7 +277,7 @@ fn a_column_change_of_lazy_grid_cells_runs_only_the_cells_in_view() {
                                 runs.set(runs.get() + 1);
                                 // Cards of one row differ in height.
                                 let rect = Block::new(Vec2::new(LINE.x, HUNDRED + GAPS * (index % 3) as f32)).show(ui).rect;
-                                if !ui.is_sizing_pass() {
+                                if !ui.is_measuring() {
                                     shown.borrow_mut().push(rect);
                                 }
                             });
@@ -322,7 +323,7 @@ fn content_that_grows_inside_a_lazy_cell_that_fills_it_grows_its_row() {
                         craft_ui::contract::Lazy::new(index, LINE.y).show(ui, |ui| {
                             let filled = Slab::new(ContainerProps::new().sizing(Sizing::Fill).scroll(Scroll::vertical()))
                                 .show(ui, |ui, _| Block::new(Vec2::new(LINE.x, if index == 0 { tall.get() } else { LINE.y })).show(ui).rect);
-                            if let (0, false, Some(rect)) = (index, ui.is_sizing_pass(), filled.inner) {
+                            if let (0, false, Some(rect)) = (index, ui.is_measuring(), filled.inner) {
                                 card.set(filled.output.rect);
                                 content.set(rect);
                             }
@@ -426,7 +427,7 @@ impl LazyColumn {
                     craft_ui::contract::Lazy::new(at, estimate(at)).reveal(self.reveal.get() == Some(at)).show(ui, |ui| {
                         count.set(count.get() + 1);
                         let rect = Block::new(Vec2::new(LINE.x, height(at))).show(ui).rect;
-                        if !ui.is_sizing_pass() && !craft_ui::testing::is_measuring(ui.ctx()) {
+                        if !ui.is_measuring() && !craft_ui::testing::is_measuring(ui.ctx()) {
                             self.shown.borrow_mut().push((at, rect));
                         }
                     });
@@ -617,7 +618,7 @@ fn a_pressed_field_in_part_view_stays_put_and_tab_to_it_reveals_it() {
                         Block::new(Vec2::new(LINE.x, gap.get())).show(ui);
                     }
                     let out = TextField::new(format!("Field {at}"), Bind::given(String::new())).id_salt(("field", at)).show(ui);
-                    if !ui.is_sizing_pass() {
+                    if !ui.is_measuring() {
                         // Focus lands on the field's text part.
                         field.set((widget_id(out.response.id, PartKey::new("text")), out.response.rect));
                     }
@@ -665,7 +666,7 @@ fn a_pressed_field_in_part_view_stays_put_and_tab_to_it_reveals_it() {
 fn a_menu_opened_in_a_scroll_region_leaves_the_region_where_it_is() {
     let top = Rc::new(Cell::new(f32::NAN));
     let seen = Rc::clone(&top);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         in_region(ui, Rect::from_min_size(ORIGIN, VIEW), |ui| {
             Slab::new(ContainerProps::new().scroll(Scroll::vertical())).id_salt("panel").show(ui, |ui, _| {
                 seen.set(ui.next_widget_position().y);
@@ -702,7 +703,7 @@ fn a_focus_beside_a_scrolling_row_leaves_the_row_where_it_is() {
         let at = Rect::from_min_size(ORIGIN + Vec2::new(ROW_VIEW.x / 2.0, 0.0), Vec2::new(VIEW.x, LINE.y));
         let bottom = in_region(ui, at, |ui| {
             let out = TextField::new("Field", Bind::given(String::new())).id_salt("field").show(ui);
-            if !ui.is_sizing_pass() {
+            if !ui.is_measuring() {
                 field.set((widget_id(out.response.id, PartKey::new("text")), out.response.rect));
             }
             out.response.rect.bottom()
@@ -712,7 +713,7 @@ fn a_focus_beside_a_scrolling_row_leaves_the_row_where_it_is() {
             craft_ui::layout_components::Row::new().scroll(Scroll::horizontal()).fill_width().id_salt("row").show(ui, |ui, _| {
                 for at in 0..10 {
                     let rect = Block::new(Vec2::new(LINE.y * 3.0, LINE.y)).id_salt(("block", at)).show(ui).rect;
-                    if at == 0 && !ui.is_sizing_pass() {
+                    if at == 0 && !ui.is_measuring() {
                         first.set(rect);
                     }
                 }

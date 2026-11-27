@@ -11,12 +11,13 @@ use crate::layout_components::Row;
 use crate::menu::{Menu, MenuItem};
 use crate::pickers::Select;
 use crate::runtime::commands::EditCommands;
-use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
+use crate::testing::{Drive, Harness, StoryData, StoryHarness, StoryOutput, story};
 use crate::text::NumberField;
 use craft_behavior::IconId;
 use craft_behavior::kurbo::Size;
 use craft_theme::variant::Tone;
-use egui::{Key, Modifiers, Ui};
+use craft_ui::Ui;
+use craft_ui::input::{Key, Mods};
 
 /// A width that holds the first items of `items` and not the rest.
 const NARROW: f32 = 80.0;
@@ -210,10 +211,10 @@ fn bar_items(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     BarItems::new(labelled.chain(items().into_iter().skip(2)).collect()).show(ui).into()
 }
 
-fn open_overflow(fixture: &mut Fixture) {
-    fixture.key(Key::Tab, Modifiers::NONE);
-    fixture.key(Key::End, Modifiers::NONE);
-    fixture.key(Key::ArrowDown, Modifiers::ALT);
+fn open_overflow(fixture: &mut StoryHarness) {
+    fixture.key(Key::Tab, Mods::NONE);
+    fixture.key(Key::End, Mods::NONE);
+    fixture.key(Key::Down, Mods::ALT);
 }
 
 #[story(BarItems, covers = [Open], drive = Drive::Custom(open_overflow))]

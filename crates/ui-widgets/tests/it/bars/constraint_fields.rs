@@ -4,19 +4,20 @@ use craft_behavior::PixelSize;
 use craft_behavior::geometry::Constraint;
 use craft_ui::bars::{Bar, BarKind, ConstraintFields};
 use craft_ui::contract::{Bind, Entry, Role, ShowContainer as _};
+use craft_ui::geom::Vec2;
+use craft_ui::input::{Key, Mods};
 use craft_ui::runtime::env::UnitKind;
-use craft_ui::testing::{Fixture, Target, trial};
-use egui::{Key, Modifiers, Vec2};
+use craft_ui::testing::{Harness, Target, trial};
 use std::cell::Cell;
 use std::rc::Rc;
 
 const ROOM: Vec2 = Vec2::new(900.0, 80.0);
 const DOCUMENT: PixelSize = PixelSize::new(1000, 500);
 
-fn rig(start: Constraint, units: Option<UnitKind>, enabled: bool) -> (Fixture, Rc<Cell<Constraint>>) {
+fn rig(start: Constraint, units: Option<UnitKind>, enabled: bool) -> (Harness, Rc<Cell<Constraint>>) {
     let state = Rc::new(Cell::new(start));
     let seen = state.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let list = [Entry::new(UnitKind::Pixels, "Pixels"), Entry::new(UnitKind::Inches, "Inches"), Entry::new(UnitKind::Centimetres, "Centimetres")];
         let mut value = seen.get();
         Bar::new("Options", BarKind::Options).show(ui, |ui, _| {
@@ -31,7 +32,7 @@ fn rig(start: Constraint, units: Option<UnitKind>, enabled: bool) -> (Fixture, R
 }
 
 /// The Width field, then the Height field.
-fn fields(fixture: &Fixture) -> (Target, Target) {
+fn fields(fixture: &Harness) -> (Target, Target) {
     let mut spins = fixture.by_role(Role::SPIN_BUTTON);
     assert_eq!(spins.len(), 2, "Width and Height are number fields");
     spins.sort_by(|a, b| a.rect.min.x.total_cmp(&b.rect.min.x));
@@ -39,11 +40,11 @@ fn fields(fixture: &Fixture) -> (Target, Target) {
     (spins.pop().unwrap(), height)
 }
 
-fn type_into(fixture: &mut Fixture, field: &Target, text: &str) {
+fn type_into(fixture: &mut Harness, field: &Target, text: &str) {
     fixture.click(field);
-    fixture.key(Key::A, Modifiers::COMMAND);
+    fixture.key(Key::A, Mods::COMMAND);
     fixture.type_text(text);
-    fixture.key(Key::Enter, Modifiers::NONE);
+    fixture.key(Key::Enter, Mods::NONE);
     fixture.settle();
 }
 

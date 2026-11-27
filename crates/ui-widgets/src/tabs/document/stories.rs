@@ -2,7 +2,7 @@
 
 use super::{DocumentTab, DocumentTabs};
 use crate::testing::{Drive, StoryData, StoryOutput, story};
-use egui::Ui;
+use craft_ui::Ui;
 
 /// The tabs every story shows: a modified one, two open ones and one still opening.
 fn tabs() -> [DocumentTab<usize>; 4] {

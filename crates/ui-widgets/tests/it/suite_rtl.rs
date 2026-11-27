@@ -3,14 +3,16 @@
 //! rect moves.
 
 use craft_ui::contract::{Bind, Common, Component, Cx, PartsCx, Props as _, Role, Show as _};
+use craft_ui::geom::{Rect, pos2, vec2};
 use craft_ui::runtime::env::{Direction, Env};
 use craft_ui::style::StyleCx;
 use craft_ui::testing::story::{Story, StoryData, StoryOutput};
 use craft_ui::testing::suite::rtl_case;
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::testing::{Harness, trial};
 use craft_ui::text::TextField;
+use craft_ui::{Response, Ui};
 use craft_ui_test_kit::contract::PlainStyle;
-use egui::{Layout, Rect, Response, Ui, UiBuilder, pos2, vec2};
+use egui::{Layout, UiBuilder};
 use std::cell::Cell;
 use std::rc::Rc;
 
@@ -18,10 +20,10 @@ const FIELD_WIDTH: f32 = 200.0;
 const SHIFT: f32 = 40.0;
 
 /// A search field with text, so that it has a clear part at its end, in the rect starting at `at`.
-fn search_field(ui: &mut Ui, at: egui::Pos2) -> StoryOutput {
+fn search_field(ui: &mut Ui, at: craft_ui::geom::Pos2) -> StoryOutput {
     let rect = Rect::from_min_size(at, vec2(FIELD_WIDTH, 28.0));
     let mut text = "text".to_owned();
-    let builder = UiBuilder::new().max_rect(rect).layout(Layout::left_to_right(egui::Align::Min));
+    let builder = UiBuilder::new().max_rect(rect).layout(Layout::left_to_right(craft_ui::geom::Align::Min));
     ui.scope_builder(builder, |ui| TextField::search("Search", Bind::bound(&mut text)).show(ui)).inner.into()
 }
 
@@ -73,7 +75,7 @@ impl Component for TimeAxis {
 fn a_part_that_keeps_its_axis_leaves_the_other_parts_of_its_container_mirrored() {
     let seen = [Rc::new(Cell::new((Rect::NOTHING, Rect::NOTHING))), Rc::new(Cell::new((Rect::NOTHING, Rect::NOTHING)))];
     let shown = seen.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         ui.vertical(|ui| {
             TimeAxis { common: Common::new(), start: shown[0].clone() }.ltr_axis().id_salt("kept").show(ui);
             TimeAxis { common: Common::new(), start: shown[1].clone() }.id_salt("mirrored").show(ui);

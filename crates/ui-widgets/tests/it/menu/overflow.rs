@@ -4,14 +4,16 @@
 //! for, but fits the window covers its anchor instead of scrolling; a tooltip at the pointer never covers the pointer.
 
 use craft_host::target::Os;
+use craft_ui::Id;
 use craft_ui::buttons::Button;
 use craft_ui::contract::tooltip::DELAY;
 use craft_ui::contract::{Bind, Entry, Props as _, Role, STRIP_BACK, STRIP_FORWARD, Show as _, ShowContainer as _, TooltipAt, TooltipSpec, Trigger};
+use craft_ui::geom::{Rect, Vec2};
+use craft_ui::input::{Key, Mods};
 use craft_ui::menu::bar::{MenuBar, MenuTitle};
 use craft_ui::menu::{Menu, MenuItem};
 use craft_ui::pickers::Select;
-use craft_ui::testing::{Fixture, pointer, trial};
-use egui::{Id, Key, Modifiers, Rect, Vec2};
+use craft_ui::testing::{Harness, pointer, trial};
 use std::cell::Cell;
 use std::rc::Rc;
 
@@ -23,10 +25,10 @@ fn row(at: usize) -> String {
 
 /// A menu of `ROWS` rows opened from a button, in a window `height` tall (at least the fixture's 600), with the
 /// menu's id.
-fn long_menu(height: f32) -> (Fixture, Rc<Cell<Option<Id>>>) {
+fn long_menu(height: f32) -> (Harness, Rc<Cell<Option<Id>>>) {
     let menu = Rc::new(Cell::new(None));
     let seen = Rc::clone(&menu);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let opener = Button::new("Open").show(ui);
         let shown = Menu::new("Long").opened_by(&opener, Trigger::Click).show(ui, |ui, _| {
             for at in 0..ROWS {
@@ -41,18 +43,18 @@ fn long_menu(height: f32) -> (Fixture, Rc<Cell<Option<Id>>>) {
     (fixture, menu)
 }
 
-fn strips(fixture: &Fixture, menu: Id) -> Option<(Rect, Rect)> {
+fn strips(fixture: &Harness, menu: Id) -> Option<(Rect, Rect)> {
     fixture.part_rect(menu, STRIP_BACK).zip(fixture.part_rect(menu, STRIP_FORWARD))
 }
 
 /// Whether the row `at` is shown whole between the strips.
-fn in_view(fixture: &Fixture, menu: Id, at: usize) -> bool {
+fn in_view(fixture: &Harness, menu: Id, at: usize) -> bool {
     let Some((back, forward)) = strips(fixture, menu) else { return false };
-    let view = Rect::from_min_max(egui::pos2(back.min.x, back.max.y), egui::pos2(forward.max.x, forward.min.y)).expand(0.5);
+    let view = Rect::from_min_max(craft_ui::geom::pos2(back.min.x, back.max.y), craft_ui::geom::pos2(forward.max.x, forward.min.y)).expand(0.5);
     fixture.by_label(&row(at)).is_some_and(|row| view.contains_rect(row.rect))
 }
 
-fn menu_rect(fixture: &Fixture) -> Rect {
+fn menu_rect(fixture: &Harness) -> Rect {
     fixture.by_role(Role::MENU).first().expect("the menu is open").rect
 }
 
@@ -61,12 +63,12 @@ fn menu_rect(fixture: &Fixture) -> Rect {
 const STRIP_STEP: f64 = 0.1;
 
 /// Runs frames until `done` holds, at most `frames` of them; whether it held.
-fn until(fixture: &mut Fixture, frames: usize, events: impl Fn() -> Vec<egui::Event>, done: impl Fn(&Fixture) -> bool) -> bool {
+fn until(fixture: &mut Harness, frames: usize, events: impl Fn() -> Vec<egui::Event>, done: impl Fn(&Harness) -> bool) -> bool {
     until_stepped(fixture, frames, 0.0, events, done)
 }
 
 /// [`until`] with the clock moved on by `step` before each frame, beyond the frame's own.
-fn until_stepped(fixture: &mut Fixture, frames: usize, step: f64, events: impl Fn() -> Vec<egui::Event>, done: impl Fn(&Fixture) -> bool) -> bool {
+fn until_stepped(fixture: &mut Harness, frames: usize, step: f64, events: impl Fn() -> Vec<egui::Event>, done: impl Fn(&Harness) -> bool) -> bool {
     for frame in 0..frames {
         if done(fixture) {
             eprintln!("DIAG overflow until: held after {frame} frames");
@@ -107,7 +109,7 @@ fn a_menu_taller_than_its_room_scrolls_by_its_strips_and_the_wheel_at_the_width_
     assert!((menu_rect(&fixture).width() - width).abs() < 0.5, "scrolling keeps the width");
 
     // Closed at its end, the menu opens again at its first row.
-    fixture.key(Key::Escape, Modifiers::NONE).settle();
+    fixture.key(Key::Escape, Mods::NONE).settle();
     let opener = fixture.by_label("Open").expect("the opener");
     fixture.click(&opener).settle();
     assert!(in_view(&fixture, menu, 0), "a reopened menu starts at its first row");
@@ -125,10 +127,10 @@ fn a_menu_that_fits_shows_no_strips_and_hugs_its_rows() {
 
 /// A context menu of `rows` rows on a target `top` down the fixture's 800 x 600 window, right-clicked at the target's
 /// centre: the fixture, the menu's id and the pointer.
-fn context_menu(top: f32, rows: usize) -> (Fixture, Id, egui::Pos2) {
+fn context_menu(top: f32, rows: usize) -> (Harness, Id, craft_ui::geom::Pos2) {
     let menu = Rc::new(Cell::new(None));
     let seen = Rc::clone(&menu);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         ui.add_space(top);
         let target = Button::new("Target").show(ui);
         let shown = Menu::context("Target menu", &target).show(ui, |ui, _| {
@@ -140,9 +142,9 @@ fn context_menu(top: f32, rows: usize) -> (Fixture, Id, egui::Pos2) {
     });
     fixture.settle();
     let at = fixture.by_label("Target").expect("the target").center();
-    fixture.frame(vec![pointer::moved(at)]);
-    fixture.frame(vec![pointer::secondary(at, true)]);
-    fixture.frame(vec![pointer::secondary(at, false)]);
+    fixture.send(pointer::moved(at));
+    fixture.send(pointer::secondary(at, true));
+    fixture.send(pointer::secondary(at, false));
     fixture.settle();
     (fixture, menu.get().expect("the menu's id"), at)
 }
@@ -166,11 +168,11 @@ fn a_context_menu_too_tall_for_either_side_of_the_pointer_covers_it_and_shows_ev
 fn a_context_menu_a_key_asked_for_covers_its_target_when_it_fits_neither_side() {
     let rows = 18;
     let (mut fixture, menu, _) = context_menu(290.0, rows);
-    fixture.key(Key::Escape, Modifiers::NONE).settle();
+    fixture.key(Key::Escape, Mods::NONE).settle();
     assert!(fixture.by_role(Role::MENU).is_empty(), "Escape closes the menu the pointer opened");
     let target = fixture.by_label("Target").expect("the target").rect;
-    fixture.key(Key::Tab, Modifiers::NONE);
-    fixture.key(Key::F10, Modifiers::SHIFT).settle();
+    fixture.key(Key::Tab, Mods::NONE);
+    fixture.key(Key::F10, Mods::SHIFT).settle();
     let room = fixture.ctx().content_rect();
     let rect = menu_rect(&fixture);
     assert!(strips(&fixture, menu).is_none(), "the menu {rect:?} fits the window {room:?}: no strips");
@@ -184,13 +186,13 @@ fn a_context_menu_a_key_asked_for_covers_its_target_when_it_fits_neither_side() 
 #[trial]
 fn a_tooltip_at_the_pointer_too_tall_for_either_side_does_not_cover_the_pointer() {
     let text = (0..40).map(|line| format!("Line {line}")).collect::<Vec<_>>().join("\n");
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         ui.add_space(200.0);
         Button::new("Target").tooltip(TooltipSpec::new(text.clone()).at(TooltipAt::Pointer)).show(ui);
     });
     fixture.settle();
     let at = fixture.by_label("Target").expect("the target").center();
-    fixture.frame(vec![pointer::moved(at)]);
+    fixture.send(pointer::moved(at));
     fixture.advance(DELAY);
     fixture.settle();
     let tips = fixture.by_role(Role::TOOLTIP);
@@ -202,8 +204,8 @@ fn a_tooltip_at_the_pointer_too_tall_for_either_side_does_not_cover_the_pointer(
 }
 
 /// A menu of `above` rows over a submenu row whose submenu has `rows` rows, in the fixture's 800 x 600 window.
-fn low_submenu(above: usize, rows: usize) -> Fixture {
-    let mut fixture = Fixture::new(move |ui| {
+fn low_submenu(above: usize, rows: usize) -> Harness {
+    let mut fixture = Harness::new_ui(move |ui| {
         let opener = Button::new("Open").show(ui);
         Menu::new("Main").opened_by(&opener, Trigger::Click).show(ui, |ui, _| {
             for at in 0..above {
@@ -220,7 +222,7 @@ fn low_submenu(above: usize, rows: usize) -> Fixture {
     let opener = fixture.by_label("Open").expect("the opener");
     fixture.click(&opener).settle();
     let more = fixture.by_label("More").expect("the submenu row").center();
-    fixture.frame(vec![pointer::moved(more)]).settle();
+    fixture.send(pointer::moved(more)).settle();
     fixture
 }
 
@@ -237,7 +239,7 @@ fn a_tall_submenu_of_a_low_row_opens_upward() {
 
 #[trial]
 fn a_menu_bar_menu_taller_than_the_window_stays_inside_and_the_wheel_reaches_its_last_row() {
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         let titles = vec![MenuTitle::new("&File", |ui| {
             for at in 0..ROWS {
                 MenuItem::new(row(at)).show(ui);
@@ -253,14 +255,14 @@ fn a_menu_bar_menu_taller_than_the_window_stays_inside_and_the_wheel_reaches_its
     let room = fixture.ctx().content_rect();
     let rect = menu_rect(&fixture);
     assert!(room.contains_rect(rect) && rect.top() >= file.rect.bottom(), "the menu {rect:?} hangs inside the window {room:?}");
-    let last = |f: &Fixture| f.by_label(&row(ROWS - 1)).is_some_and(|last| rect.contains_rect(last.rect));
+    let last = |f: &Harness| f.by_label(&row(ROWS - 1)).is_some_and(|last| rect.contains_rect(last.rect));
     assert!(!last(&fixture));
     assert!(until(&mut fixture, 200, || vec![pointer::moved(rect.center()), pointer::wheel(-60.0)], last), "the wheel reaches the last row");
 }
 
 #[trial]
 fn no_menu_or_submenu_of_a_menu_bar_covers_the_bar() {
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         let titles = vec![MenuTitle::new("&File", |ui| {
             for at in 0..8 {
                 MenuItem::new(row(at)).show(ui);
@@ -278,7 +280,7 @@ fn no_menu_or_submenu_of_a_menu_bar_covers_the_bar() {
     let file = fixture.by_label("File").expect("the File title");
     fixture.click(&file).settle();
     let more = fixture.by_label("More").expect("the submenu row").center();
-    fixture.frame(vec![pointer::moved(more)]).settle();
+    fixture.send(pointer::moved(more)).settle();
     assert!(fixture.by_label("Sub 0").is_some(), "the submenu is open");
     let room = fixture.ctx().content_rect();
     let menus = fixture.by_role(Role::MENU);
@@ -290,8 +292,8 @@ fn no_menu_or_submenu_of_a_menu_bar_covers_the_bar() {
 }
 
 /// A bar's File menu of `ROWS` rows with a submenu row among the last ones, opened and wheeled to its end.
-fn scrolled_bar_menu() -> (Fixture, Rect) {
-    let mut fixture = Fixture::new(|ui| {
+fn scrolled_bar_menu() -> (Harness, Rect) {
+    let mut fixture = Harness::new_ui(|ui| {
         let titles = vec![MenuTitle::new("&File", |ui| {
             for at in 0..ROWS {
                 MenuItem::new(row(at)).show(ui);
@@ -309,7 +311,7 @@ fn scrolled_bar_menu() -> (Fixture, Rect) {
     let file = fixture.by_label("File").expect("the File title").rect;
     fixture.click_at(file.center()).settle();
     let menu = menu_rect(&fixture);
-    let at_end = |f: &Fixture| f.by_label(&row(ROWS - 1)).is_some_and(|last| menu.contains_rect(last.rect));
+    let at_end = |f: &Harness| f.by_label(&row(ROWS - 1)).is_some_and(|last| menu.contains_rect(last.rect));
     assert!(until(&mut fixture, 200, || vec![pointer::moved(menu.center()), pointer::wheel(-60.0)], at_end), "the wheel reaches the end");
     (fixture, file)
 }
@@ -317,11 +319,11 @@ fn scrolled_bar_menu() -> (Fixture, Rect) {
 #[trial]
 fn a_menu_bar_menu_closed_at_its_end_reopens_at_its_first_row_with_one_level_open() {
     let (mut fixture, file) = scrolled_bar_menu();
-    fixture.key(Key::Escape, Modifiers::NONE).settle();
+    fixture.key(Key::Escape, Mods::NONE).settle();
     assert!(fixture.by_role(Role::MENU).is_empty(), "Escape closed the menu");
     fixture.click_at(file.center());
     for frame in 0..6 {
-        fixture.frame(vec![]);
+        fixture.step();
         let menus = fixture.by_role(Role::MENU);
         assert_eq!(menus.len(), 1, "frame {frame}: the menu is open and no submenu opened under the title");
         let first = fixture.by_label(&row(0)).expect("the first row");
@@ -331,7 +333,7 @@ fn a_menu_bar_menu_closed_at_its_end_reopens_at_its_first_row_with_one_level_ope
 
 #[trial]
 fn a_dropdown_in_a_menu_bar_menu_keeps_its_cap() {
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         let titles = vec![MenuTitle::new("&View", |ui| {
             let entries: Vec<Entry<u8>> = (0..60u8).map(|at| Entry::new(at, format!("Zoom {at}"))).collect();
             let mut value = 0u8;
@@ -353,11 +355,11 @@ fn a_dropdown_in_a_menu_bar_menu_keeps_its_cap() {
 #[trial]
 fn a_long_menu_and_its_submenu_keep_their_rects_from_frame_to_frame() {
     let mut fixture = low_submenu(18, 8);
-    let rects = |fixture: &Fixture| fixture.by_role(Role::MENU).iter().map(|menu| menu.rect).collect::<Vec<_>>();
+    let rects = |fixture: &Harness| fixture.by_role(Role::MENU).iter().map(|menu| menu.rect).collect::<Vec<_>>();
     let settled = rects(&fixture);
     assert!(settled.len() >= 2, "the menu and its submenu are open: {settled:?}");
     for frame in 0..3 {
-        fixture.frame(vec![]);
+        fixture.step();
         assert_eq!(rects(&fixture), settled, "frame {frame}: the menu and its submenu keep their rects");
     }
 }

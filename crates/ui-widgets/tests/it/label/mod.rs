@@ -20,12 +20,13 @@ pub(crate) mod tooltip;
 
 use self::kit::{Dial, Field, Seen, Wide};
 use craft_host::target::ShellInfo;
+use craft_ui::Ui;
 use craft_ui::contract::{Props as _, Show as _, ShowContainer as _, SideLabel};
+use craft_ui::geom::{Pos2, Rect, Vec2};
 use craft_ui::runtime::InstallSpec;
 use craft_ui::testing::pointer::{moved, press};
 use craft_ui::testing::windows::FakeSystem;
 use craft_ui::testing::{Frames, trial};
-use egui::{Pos2, Rect, Ui, Vec2};
 use std::cell::RefCell;
 use std::sync::Arc;
 

@@ -4,9 +4,9 @@
 
 use craft_ui::buttons::Button;
 use craft_ui::contract::{RowAlign, Scroll, Show as _, ShowContainer as _};
+use craft_ui::geom::{Rect, Vec2};
 use craft_ui::layout_components::{Row, Stack};
-use craft_ui::testing::{Fixture, trial};
-use egui::{Rect, Vec2};
+use craft_ui::testing::{Harness, trial};
 use std::cell::Cell;
 use std::rc::Rc;
 
@@ -15,7 +15,7 @@ fn a_row_given_no_width_lays_out_its_stack_child_with_finite_rects() {
     // The stack's rect from the last real run.
     let seen = Rc::new(Cell::new(Rect::NOTHING));
     let out = Rc::clone(&seen);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let out = Rc::clone(&out);
         ui.allocate_ui(Vec2::new(0.0, 300.0), move |ui| {
             Row::new().fill().show(ui, |ui, _| {
@@ -24,7 +24,7 @@ fn a_row_given_no_width_lays_out_its_stack_child_with_finite_rects() {
                         let stack = Stack::new().show(ui, |ui, _| {
                             Button::new("Tool").show(ui);
                         });
-                        if !ui.is_sizing_pass() {
+                        if !ui.is_measuring() {
                             out.set(stack.output.rect);
                         }
                     });

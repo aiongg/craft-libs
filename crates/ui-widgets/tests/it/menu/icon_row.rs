@@ -2,13 +2,14 @@
 //! icons, a disabled icon takes neither focus nor a press, and a pick closes the menu.
 
 use craft_behavior::{IconId, PartRef};
+use craft_ui::Id;
 use craft_ui::buttons::Button;
 use craft_ui::contract::{Show as _, ShowContainer as _, Trigger};
+use craft_ui::input::{Key, Mods};
 use craft_ui::menu::{Menu, MenuIcon, MenuIconRow, MenuItem};
 use craft_ui::runtime::focus::{FocusTarget, request};
 use craft_ui::testing::focus::AccessActionKind;
-use craft_ui::testing::{Fixture, pointer, trial};
-use egui::{Id, Key, Modifiers};
+use craft_ui::testing::{Harness, pointer, trial};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -29,7 +30,7 @@ fn an_icon_row_is_one_stop_in_the_menu_left_and_right_move_between_its_icons_and
     let picks = Rc::new(RefCell::new(Vec::new()));
     let twice = Rc::new(Cell::new(false));
     let (seen, picked, discard) = (rows.clone(), picks.clone(), twice.clone());
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let icons = [
             MenuIcon::new(IconId::new("align_edge_left"), "Align Left Edges"),
             MenuIcon::new(IconId::new("align_edge_hcenter"), "Align Centres").enabled(false),
@@ -50,19 +51,19 @@ fn an_icon_row_is_one_stop_in_the_menu_left_and_right_move_between_its_icons_and
         }
     });
     fixture.settle();
-    let open = |fixture: &mut Fixture| {
+    let open = |fixture: &mut Harness| {
         // A click does not focus a button, and Shift+F10 asks the focused component for its menu.
         request(fixture.ctx(), FocusTarget::Id(rows.get().target.expect("the menu's target is shown")));
         fixture.settle();
-        fixture.key(Key::F10, Modifiers::SHIFT);
+        fixture.key(Key::F10, Mods::SHIFT);
         fixture.settle();
         assert!(fixture.by_label("Ungroup").is_some(), "Shift+F10 opens the context menu");
         // Every walk below starts on the first row.
         request(fixture.ctx(), FocusTarget::Id(rows.get().group.expect("the first row is shown")));
         fixture.settle();
     };
-    let press = |fixture: &mut Fixture, key: Key| {
-        fixture.key(key, Modifiers::NONE);
+    let press = |fixture: &mut Harness, key: Key| {
+        fixture.key(key, Mods::NONE);
         fixture.settle();
         fixture.focused_stop()
     };
@@ -92,7 +93,7 @@ fn an_icon_row_is_one_stop_in_the_menu_left_and_right_move_between_its_icons_and
     press(&mut fixture, Key::ArrowDown);
     press(&mut fixture, Key::ArrowRight);
     twice.set(true);
-    fixture.key(Key::Enter, Modifiers::NONE);
+    fixture.key(Key::Enter, Mods::NONE);
     twice.set(false);
     fixture.settle();
     assert_eq!(*picks.borrow(), vec![2], "Enter picks the focused icon once, by its index among all the icons");
@@ -121,7 +122,7 @@ fn return_in_a_pointer_opened_menu_whose_first_row_is_an_icon_row_runs_only_the_
     let ran = Rc::new(Cell::new(None::<&'static str>));
     let row_id = Rc::new(Cell::new(None::<Id>));
     let (picked, seen, shown) = (picks.clone(), ran.clone(), row_id.clone());
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let icons =
             [MenuIcon::new(IconId::new("align_edge_left"), "Align Left Edges"), MenuIcon::new(IconId::new("align_edge_right"), "Align Right Edges")];
         let opener = Button::new("Open").show(ui);
@@ -137,21 +138,21 @@ fn return_in_a_pointer_opened_menu_whose_first_row_is_an_icon_row_runs_only_the_
         });
     });
     fixture.settle();
-    let open = |fixture: &mut Fixture| {
+    let open = |fixture: &mut Harness| {
         let opener = fixture.by_label("Open").expect("the opener");
         fixture.advance(1.0).click(&opener).settle();
         assert!(fixture.by_label("Ungroup").is_some(), "a click on the opener opens the menu");
         assert_eq!(fixture.focused_stop().map(|(id, _)| id), row_id.get(), "the menu puts its first row, the icon row, in focus");
     };
     open(&mut fixture);
-    fixture.key(Key::Enter, Modifiers::NONE).settle();
+    fixture.key(Key::Enter, Mods::NONE).settle();
     assert!(fixture.by_label("Ungroup").is_none(), "Return with no row lit closes the menu");
     assert!(picks.borrow().is_empty(), "and picks no icon");
     assert_eq!(ran.get(), None, "and runs no row");
     open(&mut fixture);
     let ungroup = fixture.by_label("Ungroup").expect("the Ungroup row").center();
-    fixture.frame(vec![pointer::moved(ungroup)]).settle();
-    fixture.key(Key::Enter, Modifiers::NONE).settle();
+    fixture.send(pointer::moved(ungroup)).settle();
+    fixture.key(Key::Enter, Mods::NONE).settle();
     assert_eq!(ran.get(), Some("Ungroup"), "Return runs the row the pointer lit");
     assert!(picks.borrow().is_empty(), "and picks no icon of the focused row");
     assert!(fixture.by_label("Ungroup").is_none(), "and the run closes the menu");
@@ -163,7 +164,7 @@ fn return_in_a_pointer_opened_menu_whose_first_row_is_an_icon_row_runs_only_the_
 fn return_on_an_icon_accesskit_focused_in_a_pointer_opened_menu_picks_it() {
     let picks = Rc::new(RefCell::new(Vec::new()));
     let picked = picks.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let icons =
             [MenuIcon::new(IconId::new("align_edge_left"), "Align Left Edges"), MenuIcon::new(IconId::new("align_edge_right"), "Align Right Edges")];
         let opener = Button::new("Open").show(ui);
@@ -177,7 +178,7 @@ fn return_on_an_icon_accesskit_focused_in_a_pointer_opened_menu_picks_it() {
     fixture.advance(1.0).click(&opener).settle();
     let right = fixture.by_label("Align Right Edges").expect("the menu shows its icons");
     fixture.access(AccessActionKind::Focus, &right).settle();
-    fixture.key(Key::Enter, Modifiers::NONE).settle();
+    fixture.key(Key::Enter, Mods::NONE).settle();
     assert_eq!(*picks.borrow(), vec![1], "Return picks the icon AccessKit focused");
     assert!(fixture.by_label("Group").is_none(), "and the pick closes the menu");
 }

@@ -5,25 +5,26 @@ use craft_theme::Rgba;
 use craft_ui::contract::tooltip::DELAY;
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::form::Field;
+use craft_ui::input::{Key, Mods};
 use craft_ui::testing::pointer::moved;
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::testing::{Harness, trial};
 use craft_ui::text::HexField;
-use egui::{Event, Key, Modifiers};
+use egui::Event;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-fn focused(start: Rgba, digits: usize) -> (Fixture, Rc<RefCell<Rgba>>) {
+fn focused(start: Rgba, digits: usize) -> (Harness, Rc<RefCell<Rgba>>) {
     let value = Rc::new(RefCell::new(start));
     let shown = value.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         HexField::hex("Hex color", Bind::bound(&mut *shown.borrow_mut())).digits(digits).show(ui);
     });
     fixture.settle();
-    fixture.key(Key::Tab, Modifiers::NONE);
+    fixture.key(Key::Tab, Mods::NONE);
     (fixture, value)
 }
 
-fn text(fixture: &Fixture) -> String {
+fn text(fixture: &Harness) -> String {
     let field = fixture.by_label("Hex color").expect("the hex field");
     fixture.tree().value_of(field.node).unwrap_or_default().to_owned()
 }
@@ -34,7 +35,7 @@ fn a_typed_colour_applies_before_enter_behind_a_fixed_hash() {
     assert_eq!(text(&fixture), "FF8800", "uppercase digits; the # is not in the text");
     fixture.type_text("336699");
     assert_eq!(*value.borrow(), Rgba::rgb(0x33, 0x66, 0x99), "six digits are a colour and apply as typed");
-    fixture.key(Key::A, Modifiers::COMMAND).key(Key::Backspace, Modifiers::NONE);
+    fixture.key(Key::A, Mods::COMMAND).key(Key::Backspace, Mods::NONE);
     assert_eq!(text(&fixture), "", "deleting everything leaves no #");
 
     let (mut web, value) = focused(Rgba::rgb(0x33, 0x66, 0x99), 1);
@@ -45,7 +46,7 @@ fn a_typed_colour_applies_before_enter_behind_a_fixed_hash() {
 
 const NOT_HEX: &str = "Not a hex color";
 
-fn reasons(fixture: &Fixture) -> usize {
+fn reasons(fixture: &Harness) -> usize {
     fixture.texts().iter().filter(|run| run.text == NOT_HEX).count()
 }
 
@@ -57,7 +58,7 @@ fn a_draft_that_is_no_colour_says_why_in_its_row_or_its_own_tooltip() {
     for in_row in [true, false] {
         let value = Rc::new(RefCell::new(Rgba::rgb(0x33, 0x66, 0x99)));
         let shown = value.clone();
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             let mut value = shown.borrow_mut();
             if in_row {
                 Field::new("Hex color").show(ui, |ui, _| HexField::hex("Hex color", Bind::bound(&mut *value)).show(ui));
@@ -66,18 +67,18 @@ fn a_draft_that_is_no_colour_says_why_in_its_row_or_its_own_tooltip() {
             }
         });
         fixture.settle();
-        fixture.key(Key::Tab, Modifiers::NONE);
+        fixture.key(Key::Tab, Mods::NONE);
         fixture.type_text("12");
         fixture.settle();
         let field = fixture.by_label("Hex color").expect("the hex field");
         assert_eq!(fixture.tree().description_of(field.node), Some(NOT_HEX), "in a row: {in_row}");
         assert_eq!(reasons(&fixture), usize::from(in_row), "only a row shows the reason before any rest; in a row: {in_row}");
-        fixture.frame(vec![moved(field.center())]);
+        fixture.send(moved(field.center()));
         fixture.advance(DELAY);
         fixture.settle();
         assert_eq!(reasons(&fixture), 1, "a rest on the field shows the reason once; in a row: {in_row}");
 
-        fixture.key(Key::A, Modifiers::COMMAND);
+        fixture.key(Key::A, Mods::COMMAND);
         fixture.type_text("336699");
         fixture.settle();
         let field = fixture.by_label("Hex color").expect("the hex field");
@@ -91,9 +92,9 @@ fn a_draft_that_is_no_colour_says_why_in_its_row_or_its_own_tooltip() {
 #[trial]
 fn a_pasted_colour_replaces_the_digits_with_or_without_its_hash() {
     let start = Rgba::rgb(0xff, 0x88, 0x00);
-    let paste = |fixture: &mut Fixture, pasted: &str| {
-        fixture.key(Key::End, Modifiers::NONE);
-        fixture.frame(vec![Event::Paste(pasted.into())]).settle();
+    let paste = |fixture: &mut Harness, pasted: &str| {
+        fixture.key(Key::End, Mods::NONE);
+        fixture.send(Event::Paste(pasted.into())).settle();
     };
     for pasted in ["336699", "#336699", "  #336699 "] {
         let (mut fixture, value) = focused(start, 2);
@@ -103,7 +104,7 @@ fn a_pasted_colour_replaces_the_digits_with_or_without_its_hash() {
 
     let (mut fixture, value) = focused(start, 2);
     paste(&mut fixture, "0f0");
-    fixture.key(Key::Enter, Modifiers::NONE).settle();
+    fixture.key(Key::Enter, Mods::NONE).settle();
     assert_eq!(*value.borrow(), Rgba::rgb(0x00, 0xff, 0x00), "three digits read as 00FF00");
 
     let (mut fixture, value) = focused(start, 2);

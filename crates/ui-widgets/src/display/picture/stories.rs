@@ -5,7 +5,8 @@ use crate::contract::Show as _;
 use crate::list::{ThumbAspect, ThumbSize};
 use crate::primitives::textures::{FakeThumbSource, ThumbnailOptions, Thumbnails};
 use crate::testing::{Drive, StoryData, StoryOutput, story};
-use egui::{Color32, ColorImage, Ui};
+use craft_ui::{Color32, Ui};
+use egui::ColorImage;
 
 /// A diagonal gradient, so a fitted or stretched picture shows.
 fn gradient() -> ColorImage {
@@ -21,14 +22,15 @@ fn picture(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 
 #[story(Picture<'static>, covers = [], drive = Drive::Never)]
 fn picture_thumbnail(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    ui.horizontal(|ui| {
-        for (key, step) in [(2, ThumbSize::Small), (3, ThumbSize::Medium), (4, ThumbSize::Large)] {
-            Picture::new("Gradient", key, &gradient).extent(PictureSize::Thumb(step)).show(ui);
-        }
-        Picture::new("Gradient", 5, &gradient).extent(PictureSize::Icon).show(ui)
-    })
-    .inner
-    .into()
+    crate::layout_components::Row::new()
+        .show(ui, |ui, _| {
+            for (key, step) in [(2, ThumbSize::Small), (3, ThumbSize::Medium), (4, ThumbSize::Large)] {
+                Picture::new("Gradient", key, &gradient).extent(PictureSize::Thumb(step)).show(ui);
+            }
+            Picture::new("Gradient", 5, &gradient).extent(PictureSize::Icon).show(ui)
+        })
+        .output
+        .into()
 }
 
 /// A picture made off the frame: its source renders as a `Later` job, so the picture shows the placeholder until the
@@ -36,7 +38,7 @@ fn picture_thumbnail(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 #[story(Picture<'static>, covers = [], drive = Drive::Never)]
 fn picture_rendered(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let options = ThumbnailOptions::new();
-    let thumbnails = Thumbnails::<u64>::in_context(ui.ctx(), "craft_ui::stories::picture_rendered", options);
+    let thumbnails = Thumbnails::<u64>::in_context(ui, "craft_ui::stories::picture_rendered", options);
     let source = FakeThumbSource::<u64>::new().later(true).opaque(true);
     Picture::rendered("Rendered", 1, &thumbnails, &source).extent(PictureSize::Thumb(ThumbSize::Large)).show(ui).into()
 }
@@ -52,13 +54,14 @@ const NOT_SVG: &[u8] = b"<svg xmlns=\"http://www.w3.org/2000/svg\"><circle";
 
 #[story(Picture<'static>, covers = [], drive = Drive::Never)]
 fn picture_svg(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    ui.horizontal(|ui| {
-        Picture::svg("Mark", MARK).extent(PictureSize::Icon).show(ui);
-        Picture::svg("Mark", MARK).extent(PictureSize::Thumb(ThumbSize::Small)).show(ui);
-        Picture::svg("Mark", MARK).extent(PictureSize::Thumb(ThumbSize::Large)).show(ui)
-    })
-    .inner
-    .into()
+    crate::layout_components::Row::new()
+        .show(ui, |ui, _| {
+            Picture::svg("Mark", MARK).extent(PictureSize::Icon).show(ui);
+            Picture::svg("Mark", MARK).extent(PictureSize::Thumb(ThumbSize::Small)).show(ui);
+            Picture::svg("Mark", MARK).extent(PictureSize::Thumb(ThumbSize::Large)).show(ui)
+        })
+        .output
+        .into()
 }
 
 /// A 4:1 SVG with no aspect set is shown four times wider than tall.
@@ -87,7 +90,7 @@ fn picture_fill(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 #[story(Picture<'static>, covers = [], drive = Drive::Never)]
 fn picture_rendered_without_checker(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let options = ThumbnailOptions::new();
-    let thumbnails = Thumbnails::<u64>::in_context(ui.ctx(), "craft_ui::stories::picture_rendered_without_checker", options);
+    let thumbnails = Thumbnails::<u64>::in_context(ui, "craft_ui::stories::picture_rendered_without_checker", options);
     let source = FakeThumbSource::<u64>::new().later(true);
     Picture::rendered("Mask", 1, &thumbnails, &source).extent(PictureSize::Thumb(ThumbSize::Large)).checker(false).show(ui).into()
 }

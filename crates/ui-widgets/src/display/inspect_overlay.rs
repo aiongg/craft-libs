@@ -7,7 +7,8 @@ use crate::runtime::inspect::Recorded;
 use crate::style::{ComponentStyle, StyleColor, StyleCx, TypeRole};
 use craft_behavior::{Metrics, Sense};
 use craft_theme::Opacity;
-use egui::{CornerRadius, Pos2, Rect, Response, Vec2};
+use craft_ui::geom::{Pos2, Rect, Vec2};
+use craft_ui::{CornerRadius, Response};
 use std::sync::Arc;
 
 #[cfg(feature = "suite")]

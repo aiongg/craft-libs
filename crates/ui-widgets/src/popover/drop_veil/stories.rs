@@ -4,7 +4,7 @@ use super::DropVeil;
 use crate::choice::Checkbox;
 use crate::contract::{Bind, Props as _, Show as _, ShowContainer as _};
 use crate::testing::{Drive, StoryData, StoryOutput, story};
-use egui::Ui;
+use craft_ui::Ui;
 
 #[story(DropVeil, covers = [Default], drive = Drive::Never)]
 fn drop_veil(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {

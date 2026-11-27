@@ -12,29 +12,29 @@ use craft_ui::choice::Checkbox;
 use craft_ui::contract::{Bind, FieldLayout, LabelScheme, Props as _, Show as _, ShowContainer as _, Sizing};
 use craft_ui::display::Text;
 use craft_ui::form::{Field, FieldGroup, Help};
+use craft_ui::geom::Rect;
 use craft_ui::layout_components::{Grid, Row, Stack};
 use craft_ui::runtime::env::{Label, with_env};
-use craft_ui::testing::{Fixture, last_pass_measuring_runs, trial};
-use egui::Rect;
+use craft_ui::testing::{Harness, last_pass_measuring_runs, trial};
 use std::cell::Cell;
 use std::rc::Rc;
 
 /// Half a pixel at the scales the box runs.
 const ROUNDING: f32 = 0.5;
 
-fn settled(content: impl FnMut(&mut egui::Ui) + 'static) -> Fixture {
-    let mut fixture = Fixture::new(content);
+fn settled(content: impl FnMut(&mut craft_ui::Ui) + 'static) -> Harness {
+    let mut fixture = Harness::new_ui(content);
     fixture.settle();
     fixture.idle(3);
     fixture
 }
 
 /// The rect of the control named by any of `names` (a field's control takes the field's label as its name).
-fn control(fixture: &Fixture, names: &[&str]) -> Rect {
+fn control(fixture: &Harness, names: &[&str]) -> Rect {
     names.iter().find_map(|name| fixture.by_label(name)).unwrap_or_else(|| panic!("none of {names:?}")).rect
 }
 
-fn text(fixture: &Fixture, text: &str) -> Rect {
+fn text(fixture: &Harness, text: &str) -> Rect {
     fixture.texts().iter().find(|painted| painted.text == text).unwrap_or_else(|| panic!("no {text} painted")).rect
 }
 
@@ -137,7 +137,7 @@ fn a_labelled_check_box_sits_with_its_box_on_a_buttons_line_in_a_row_and_a_grid_
         let seen = Rc::new(Cell::new((Rect::NOTHING, Rect::NOTHING)));
         let out = Rc::clone(&seen);
         let fixture = settled(move |ui| {
-            let room = Rect::from_min_size(ui.available_rect_before_wrap().min, egui::vec2(260.0, 400.0));
+            let room = Rect::from_min_size(ui.available_rect_before_wrap().min, craft_ui::geom::vec2(260.0, 400.0));
             let out = Rc::clone(&out);
             Stack::new().fill().show_at(ui, room, move |ui, _| {
                 if grid {
@@ -173,7 +173,7 @@ type GridBoxes = [(Rect, Rect); GRID_ROWS];
 
 /// Two columns of labelled check boxes in an `egui::Grid`, each box run through `wrap` (`ui.show` or a scope around
 /// it) with its index: the box rects of each row.
-fn boxes_grid(ui: &mut egui::Ui, wrap: Wrap) -> GridBoxes {
+fn boxes_grid(ui: &mut craft_ui::Ui, wrap: Wrap) -> GridBoxes {
     let mut boxes = [(Rect::NOTHING, Rect::NOTHING); GRID_ROWS];
     egui::Grid::new("boxes").num_columns(2).spacing([24.0, 6.0]).show(ui, |ui| {
         for (row, rect) in boxes.iter_mut().enumerate() {
@@ -186,17 +186,17 @@ fn boxes_grid(ui: &mut egui::Ui, wrap: Wrap) -> GridBoxes {
 }
 
 /// How `boxes_grid` shows each check box in its cell.
-type Wrap = fn(&mut egui::Ui, usize, Checkbox<'_>) -> Rect;
+type Wrap = fn(&mut craft_ui::Ui, usize, Checkbox<'_>) -> Rect;
 
-fn plain(ui: &mut egui::Ui, _: usize, check: Checkbox<'_>) -> Rect {
+fn plain(ui: &mut craft_ui::Ui, _: usize, check: Checkbox<'_>) -> Rect {
     check.show(ui).response.rect
 }
 
-fn read_only(ui: &mut egui::Ui, _: usize, check: Checkbox<'_>) -> Rect {
+fn read_only(ui: &mut craft_ui::Ui, _: usize, check: Checkbox<'_>) -> Rect {
     with_env(ui, |set| set.read_only = Some(true), |ui| check.show(ui).response.rect)
 }
 
-fn pushed(ui: &mut egui::Ui, index: usize, check: Checkbox<'_>) -> Rect {
+fn pushed(ui: &mut craft_ui::Ui, index: usize, check: Checkbox<'_>) -> Rect {
     ui.push_id(index, |ui| check.show(ui).response.rect).inner
 }
 
@@ -207,11 +207,11 @@ fn grid_in(in_row: bool, wrap: Wrap) -> (GridBoxes, Rect) {
 }
 
 /// `grid_in`, with the fixture it ran in.
-fn grid_shown(in_row: bool, wrap: Wrap) -> (GridBoxes, Rect, Fixture) {
+fn grid_shown(in_row: bool, wrap: Wrap) -> (GridBoxes, Rect, Harness) {
     let seen = Rc::new(Cell::new(([(Rect::NOTHING, Rect::NOTHING); GRID_ROWS], Rect::NOTHING)));
     let out = Rc::clone(&seen);
     let fixture = settled(move |ui| {
-        let room = Rect::from_min_size(ui.available_rect_before_wrap().min, egui::vec2(300.0, 600.0));
+        let room = Rect::from_min_size(ui.available_rect_before_wrap().min, craft_ui::geom::vec2(300.0, 600.0));
         let out = Rc::clone(&out);
         Stack::new().fill().show_at(ui, room, move |ui, _| {
             let mut boxes = [(Rect::NOTHING, Rect::NOTHING); GRID_ROWS];
@@ -283,7 +283,7 @@ fn check_boxes_in_an_egui_grid_in_a_forms_row_sit_at_their_cells_start() {
     let seen = Rc::new(Cell::new([(Rect::NOTHING, Rect::NOTHING); GRID_ROWS]));
     let out = Rc::clone(&seen);
     let _fixture = settled(move |ui| {
-        let room = Rect::from_min_size(ui.available_rect_before_wrap().min, egui::vec2(400.0, 600.0));
+        let room = Rect::from_min_size(ui.available_rect_before_wrap().min, craft_ui::geom::vec2(400.0, 600.0));
         let out = Rc::clone(&out);
         Stack::new().fill().show_at(ui, room, move |ui, _| {
             FieldGroup::new("Mode").labels(LabelScheme::Form).show(ui, |ui, _| {
@@ -308,7 +308,7 @@ fn check_boxes_in_an_egui_container_in_a_grid_take_no_cells() {
     let seen = Rc::new(Cell::new([Rect::NOTHING; 5]));
     let out = Rc::clone(&seen);
     let fixture = settled(move |ui| {
-        let room = Rect::from_min_size(ui.available_rect_before_wrap().min, egui::vec2(400.0, 400.0));
+        let room = Rect::from_min_size(ui.available_rect_before_wrap().min, craft_ui::geom::vec2(400.0, 400.0));
         let out = Rc::clone(&out);
         Stack::new().fill().show_at(ui, room, move |ui, _| {
             let mut pair = (Rect::NOTHING, Rect::NOTHING);
@@ -347,7 +347,7 @@ fn a_check_box_in_a_narrow_horizontal_wraps_its_label_at_the_rooms_end() {
     const WIDTH: f32 = 160.0;
     let seen = Rc::new(Cell::new((Rect::NOTHING, Rect::NOTHING)));
     let out = Rc::clone(&seen);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let out = Rc::clone(&out);
         Stack::new().fill().show(ui, move |ui, _| {
             let pair = ui.horizontal(|ui| {
@@ -358,7 +358,7 @@ fn a_check_box_in_a_narrow_horizontal_wraps_its_label_at_the_rooms_end() {
             out.set(pair.inner);
         });
     });
-    fixture.room(egui::vec2(WIDTH, 200.0)).settle();
+    fixture.room(craft_ui::geom::vec2(WIDTH, 200.0)).settle();
     fixture.idle(3);
     let (_, two) = seen.get();
     let (label, one_line) = (text(&fixture, LONG), text(&fixture, "One"));
@@ -369,12 +369,12 @@ fn a_check_box_in_a_narrow_horizontal_wraps_its_label_at_the_rooms_end() {
 /// One row of two labelled check boxes in an `egui::Grid` shown directly in a `Stack`, or in a `Row` in it (a dialog's
 /// custom row), in a 400 pt room under `direction`; `long` lengthens the labels. Records the two boxes and the grid's
 /// rect.
-fn one_row_grid(in_row: bool, direction: craft_i18n::Direction, long: &Rc<Cell<bool>>) -> (Fixture, Rc<Cell<[Rect; 3]>>) {
+fn one_row_grid(in_row: bool, direction: craft_i18n::Direction, long: &Rc<Cell<bool>>) -> (Harness, Rc<Cell<[Rect; 3]>>) {
     let seen = Rc::new(Cell::new([Rect::NOTHING; 3]));
     let (out, lengthen) = (Rc::clone(&seen), Rc::clone(long));
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let (out, long) = (Rc::clone(&out), lengthen.get());
-        let grid = move |ui: &mut egui::Ui| {
+        let grid = move |ui: &mut craft_ui::Ui| {
             let mut boxes = [Rect::NOTHING; 3];
             boxes[2] = egui::Grid::new("boxes")
                 .num_columns(2)
@@ -397,7 +397,7 @@ fn one_row_grid(in_row: bool, direction: craft_i18n::Direction, long: &Rc<Cell<b
             }
         });
     });
-    fixture.direction(direction).room(egui::vec2(400.0, 200.0)).settle();
+    fixture.direction(direction).room(craft_ui::geom::vec2(400.0, 200.0)).settle();
     (fixture, seen)
 }
 
@@ -406,7 +406,7 @@ fn column_name(column: usize, long: bool) -> String {
 }
 
 /// What the cells of `one_row_grid` show: each column's box and label.
-fn cells(fixture: &Fixture, boxes: [Rect; 3]) -> [Rect; 2] {
+fn cells(fixture: &Harness, boxes: [Rect; 3]) -> [Rect; 2] {
     [0, 1].map(|column| boxes[column].union(text(fixture, &column_name(column, true))))
 }
 
@@ -429,7 +429,7 @@ fn check_boxes_in_an_egui_grid_stay_in_their_cells_under_rtl() {
         let grid = seen.get()[2];
         assert!(grid.is_finite(), "in a row {in_row}: the grid's rect {grid:?} is finite");
         long.set(true);
-        fixture.frame(vec![]);
+        fixture.step();
         for (part, rect) in [("box", seen.get()[0]), ("label", text(&fixture, &column_name(0, true)))] {
             assert!(
                 rect.left() >= grid.left() - ROUNDING,
@@ -452,7 +452,7 @@ fn a_labelled_row_in_an_egui_grid_keeps_its_label_on_one_line() {
     let seen = Rc::new(Cell::new((Rect::NOTHING, Rect::NOTHING)));
     let out = Rc::clone(&seen);
     let fixture = settled(move |ui| {
-        let room = Rect::from_min_size(ui.available_rect_before_wrap().min, egui::vec2(400.0, 300.0));
+        let room = Rect::from_min_size(ui.available_rect_before_wrap().min, craft_ui::geom::vec2(400.0, 300.0));
         let out = Rc::clone(&out);
         Stack::new().fill().show_at(ui, room, move |ui, _| {
             egui::Grid::new("rows").num_columns(2).show(ui, |ui| {

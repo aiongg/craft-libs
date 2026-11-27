@@ -12,7 +12,7 @@ use crate::primitives::{TextOptions, TextRun};
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, Flags, FocusLook, StyleCx, SurfaceLook};
 use craft_behavior::{Codec, Metrics, Mixed, NotAValue, PartKey, Proposal, Sense};
-use egui::{Rect, Vec2, pos2, vec2};
+use craft_ui::geom::{Rect, Vec2, pos2, vec2};
 use std::borrow::Cow;
 
 /// The description box shows this many lines.

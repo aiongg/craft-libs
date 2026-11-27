@@ -2,17 +2,18 @@
 //! the open menu takes Escape and gives the field back its typing run; a picked row and an Edit command fired from
 //! elsewhere (a menu bar, the palette) both reach the focused field through the same command route.
 
+use craft_ui::Id;
 use craft_ui::contract::{Bind, Show as _};
+use craft_ui::input::{Key, Mods};
 use craft_ui::runtime::commands::{EditCommands, FireSource, fire};
-use craft_ui::testing::{Fixture, pointer, trial};
+use craft_ui::testing::{Harness, pointer, trial};
 use craft_ui::text::TextField;
-use egui::{Id, Key, Modifiers};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 /// A text field holding "hello" with the focus and a typing run.
 struct Rig {
-    fixture: Fixture,
+    fixture: Harness,
     text: Rc<RefCell<String>>,
     field: Rc<Cell<Id>>,
 }
@@ -21,7 +22,7 @@ fn rig() -> Rig {
     let text = Rc::new(RefCell::new("hello".to_owned()));
     let field = Rc::new(Cell::new(Id::NULL));
     let (held, id) = (text.clone(), field.clone());
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         id.set(TextField::new("Name", Bind::bound(&mut *held.borrow_mut())).show(ui).response.id);
     });
     fixture.settle();
@@ -64,7 +65,7 @@ impl Rig {
 #[trial]
 fn a_right_click_opens_the_edit_menu_and_its_cut_cuts_the_selection() {
     let mut rig = rig();
-    rig.fixture.key(Key::A, Modifiers::COMMAND);
+    rig.fixture.key(Key::A, Mods::COMMAND);
     rig.fixture.settle();
     rig.right_click_in_the_field();
     assert!(rig.menu_open(), "a right click in the field opens its edit menu");
@@ -88,7 +89,7 @@ fn escape_closes_the_edit_menu_and_the_field_keeps_its_typing_run() {
     assert_eq!(*rig.text.borrow(), "helloabc", "the typing reaches the field");
     rig.right_click_in_the_field();
     assert!(rig.menu_open(), "the edit menu is open");
-    rig.fixture.key(Key::Escape, Modifiers::NONE);
+    rig.fixture.key(Key::Escape, Mods::NONE);
     rig.fixture.settle();
     assert!(!rig.menu_open(), "Escape closes the menu");
     assert!(rig.focus_in_the_field(), "the focus is back in the field");
@@ -96,7 +97,7 @@ fn escape_closes_the_edit_menu_and_the_field_keeps_its_typing_run() {
     rig.fixture.type_text("d");
     rig.fixture.settle();
     assert_eq!(*rig.text.borrow(), "helloabcd", "typing goes on in the field");
-    rig.fixture.key(Key::Escape, Modifiers::NONE);
+    rig.fixture.key(Key::Escape, Mods::NONE);
     rig.fixture.settle();
     assert_eq!(*rig.text.borrow(), "hello", "the field's own Escape still restores the value from before its run");
 }
@@ -110,7 +111,7 @@ fn return_in_the_edit_menu_with_no_row_lit_only_closes_it() {
     rig.fixture.settle();
     rig.right_click_in_the_field();
     assert!(rig.menu_open(), "the edit menu is open");
-    rig.fixture.key(Key::Enter, Modifiers::NONE);
+    rig.fixture.key(Key::Enter, Mods::NONE);
     rig.fixture.settle();
     assert!(!rig.menu_open(), "Return closes the menu");
     assert_eq!(*rig.text.borrow(), "helloabc", "and runs none of its rows");
@@ -130,7 +131,7 @@ fn return_in_the_edit_menu_runs_the_row_the_pointer_lit() {
     let select_all = rig.fixture.by_label("Select All").expect("the Select All row").center();
     rig.fixture.frame(vec![pointer::moved(select_all)]);
     rig.fixture.settle();
-    rig.fixture.key(Key::Enter, Modifiers::NONE);
+    rig.fixture.key(Key::Enter, Mods::NONE);
     rig.fixture.settle();
     assert!(!rig.menu_open(), "Return closes the menu");
     assert_eq!(*rig.text.borrow(), "helloabc", "Undo, the first row, did not run");
@@ -142,7 +143,7 @@ fn return_in_the_edit_menu_runs_the_row_the_pointer_lit() {
 #[trial]
 fn an_edit_command_fired_from_elsewhere_reaches_the_focused_field() {
     let mut rig = rig();
-    rig.fixture.key(Key::A, Modifiers::COMMAND);
+    rig.fixture.key(Key::A, Mods::COMMAND);
     rig.fixture.settle();
     assert!(fire(rig.fixture.ctx(), EditCommands::Cut, FireSource::Pointer), "Cut runs while the field has a selection");
     assert_eq!(rig.copied_through(Vec::new()), ["hello"], "the fired Cut cuts the field's selection");
@@ -168,9 +169,9 @@ fn the_edit_menu_offers_cut_copy_and_delete_only_with_a_selection() {
     for row in always_rows {
         assert!(!disabled(&rig, row), "{row} stays enabled without a selection");
     }
-    rig.fixture.key(Key::Escape, Modifiers::NONE);
+    rig.fixture.key(Key::Escape, Mods::NONE);
     rig.fixture.settle();
-    rig.fixture.key(Key::A, Modifiers::COMMAND);
+    rig.fixture.key(Key::A, Mods::COMMAND);
     rig.fixture.settle();
     rig.right_click_in_the_field();
     assert!(rig.menu_open(), "the edit menu opens again");

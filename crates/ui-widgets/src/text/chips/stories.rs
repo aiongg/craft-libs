@@ -4,10 +4,10 @@ use super::ChipField;
 use crate::contract::Role;
 use crate::contract::{Props as _, Show as _, Validity};
 use crate::runtime::env::Message;
-use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
+use crate::testing::{Drive, Harness, StoryData, StoryOutput, story};
 use craft_behavior::Mixed;
 use craft_theme::ControlSize;
-use egui::Ui;
+use craft_ui::Ui;
 
 fn keywords() -> Vec<String> {
     ["kite", "red", "beach"].map(String::from).to_vec()
@@ -40,7 +40,7 @@ fn chip_field_long(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 }
 
 /// Opens the menu of the chips past the line limit.
-fn open_more(fixture: &mut Fixture) {
+fn open_more(fixture: &mut Harness) {
     let tree = fixture.tree();
     let more = fixture
         .by_role(Role::BUTTON)

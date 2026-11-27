@@ -4,9 +4,10 @@ use super::{StripEnd, TabKind, TabStrip};
 use crate::contract::{CollectionEvent, Entry, ReorderRule, ShowCollection as _};
 use crate::runtime::commands::{CommandRef, EditCommands};
 use crate::tabs::{PanelTabLook, Tab, TabRole};
-use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
+use crate::testing::{Drive, Harness, StoryData, StoryOutput, story};
 use craft_behavior::{DisplayOrder, IconId, ItemSource, SelectionChange};
-use egui::{Key, Modifiers, Ui};
+use craft_ui::Ui;
+use craft_ui::input::{Key, Mods};
 use std::borrow::Cow;
 
 const TITLES: [&str; 12] = [
@@ -66,9 +67,9 @@ fn tab_strip_many(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     strip(ui, data, TabStrip::new("Documents").shown(3).reorder(ReorderRule::new()), &TITLES, TITLES.len(), TabKind::Document)
 }
 
-fn open_overflow(fixture: &mut Fixture) {
-    fixture.key(Key::Tab, Modifiers::NONE);
-    fixture.key(Key::ArrowDown, Modifiers::ALT);
+fn open_overflow(fixture: &mut Harness) {
+    fixture.key(Key::Tab, Mods::NONE);
+    fixture.key(Key::ArrowDown, Mods::ALT);
 }
 
 #[story(TabStrip<'static, usize>, covers = [Open], drive = Drive::Custom(open_overflow))]

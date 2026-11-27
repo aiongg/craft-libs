@@ -4,11 +4,11 @@ use super::{Table, sort_rows};
 use crate::contract::{Bind, CollectionEvent, ColumnEvent, ColumnKind, ColumnSort, ColumnSpec, ShowCollection as _, ToggleColumn};
 use crate::list::{ListRow, ToggleCell};
 use crate::testing::pointer::{moved, secondary};
-use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
+use crate::testing::{Drive, Harness, StoryData, StoryOutput, story};
 use crate::text::TextField;
 use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, ItemSource, Selection};
 use craft_i18n::{AgeStyle, FileSize, SizeUnit};
-use egui::Ui;
+use craft_ui::Ui;
 
 const NAME: ColumnKey = ColumnKey::new("name");
 const PAGES: ColumnKey = ColumnKey::new("pages");
@@ -152,11 +152,11 @@ fn table_many(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 }
 
 /// A secondary click on the Name header, which opens the header menu.
-fn open_header_menu(fixture: &mut Fixture) {
+fn open_header_menu(fixture: &mut Harness) {
     let Some(header) = fixture.by_label("Name") else { return };
     let at = header.center();
     fixture.frame(vec![moved(at), secondary(at, true)]);
-    fixture.frame(vec![secondary(at, false)]).settle();
+    fixture.send(secondary(at, false)).settle();
 }
 
 #[story(Table<'static, usize>, covers = [Open], drive = Drive::Custom(open_header_menu))]

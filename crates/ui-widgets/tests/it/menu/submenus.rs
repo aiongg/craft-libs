@@ -4,12 +4,12 @@
 use craft_ui::buttons::Button;
 use craft_ui::contract::{MemoProps, MemoView, Show as _, ShowContainer as _, Trigger};
 use craft_ui::menu::{Menu, MenuItem};
-use craft_ui::testing::{Fixture, MemoRun, last_frame_memo_runs, pointer, trial};
+use craft_ui::testing::{Harness, MemoRun, last_frame_memo_runs, pointer, trial};
 use std::time::Duration;
 
 /// A menu with two submenu rows, Recent and Templates, the first with a submenu taller than the rows below it.
-fn open_menu() -> Fixture {
-    let mut fixture = Fixture::new(|ui| {
+fn open_menu() -> Harness {
+    let mut fixture = Harness::new_ui(|ui| {
         let opener = Button::new("Open").show(ui);
         Menu::new("Main").opened_by(&opener, Trigger::Click).show(ui, |ui, _| {
             MenuItem::new("New").show(ui);
@@ -34,7 +34,7 @@ fn open_menu() -> Fixture {
 fn a_submenu_opens_as_soon_as_the_pointer_is_on_its_row() {
     let mut fixture = open_menu();
     let recent = fixture.by_label("Recent").expect("the menu is open").center();
-    fixture.frame(vec![pointer::moved(recent)]).idle(1);
+    fixture.send(pointer::moved(recent)).idle(1);
     assert!(fixture.by_label("Report.txt").is_some(), "the submenu opens without the pointer resting on its row");
 }
 
@@ -42,19 +42,19 @@ fn a_submenu_opens_as_soon_as_the_pointer_is_on_its_row() {
 fn an_open_submenu_stays_open_while_the_pointer_heads_for_it_across_another_row() {
     let mut fixture = open_menu();
     let recent = fixture.by_label("Recent").expect("the menu is open").center();
-    fixture.frame(vec![pointer::moved(recent)]).idle(1);
+    fixture.send(pointer::moved(recent)).idle(1);
     let first = fixture.by_label("Report.txt").expect("the submenu is open").rect;
     let submenu = first.union(fixture.by_label("Draft.txt").expect("the submenu's last row").rect);
     let templates = fixture.by_label("Templates").expect("the second submenu row").rect;
     // A point on Templates, near the submenu's edge and level with its rows: the pointer heads for the submenu.
-    let crossing = egui::pos2(templates.max.x - 2.0, templates.center().y);
+    let crossing = craft_ui::geom::pos2(templates.max.x - 2.0, templates.center().y);
     assert!(crossing.y < submenu.max.y, "the submenu reaches below the crossing point");
-    fixture.frame(vec![pointer::moved(crossing)]);
+    fixture.send(pointer::moved(crossing));
     // The rest asks one wake at its end, not a pass in every frame: the frames that follow at once (row hover) end
     // before it.
     let mut frames = 0;
     while fixture.repaint_delay() == Some(Duration::ZERO) && frames < 60 {
-        fixture.frame(vec![]);
+        fixture.step();
         frames += 1;
     }
     assert!(fixture.by_label("Report.txt").is_some(), "the submenu the pointer heads for stays open");
@@ -65,7 +65,7 @@ fn an_open_submenu_stays_open_while_the_pointer_heads_for_it_across_another_row(
 }
 
 /// The filled rects a frame painted over most of `row`: a lit row's highlight.
-fn fills_in(shapes: &[egui::Shape], row: egui::Rect) -> usize {
+fn fills_in(shapes: &[egui::Shape], row: craft_ui::geom::Rect) -> usize {
     shapes
         .iter()
         .filter(|shape| match shape {
@@ -79,12 +79,12 @@ fn fills_in(shapes: &[egui::Shape], row: egui::Rect) -> usize {
 #[derive(MemoProps)]
 struct Status {}
 
-fn status(_: &mut Status, ui: &mut egui::Ui) {
+fn status(_: &mut Status, ui: &mut craft_ui::Ui) {
     Button::new("Status").show(ui);
 }
 
 /// The runs of the status view in the last frame.
-fn status_runs(fixture: &Fixture) -> usize {
+fn status_runs(fixture: &Harness) -> usize {
     last_frame_memo_runs(fixture.ctx()).iter().filter(|(name, _, run)| name.ends_with("Status") && *run == MemoRun::Ran).count()
 }
 
@@ -92,7 +92,7 @@ fn status_runs(fixture: &Fixture) -> usize {
 /// row and shows the submenu, and a memoized view beside the menu runs in none of the frames until the menu rests.
 #[trial]
 fn opening_a_submenu_runs_one_pass_and_nothing_outside_the_menu() {
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         MemoView::new("status", Status {}, status).show(ui);
         let opener = Button::new("Open").show(ui);
         Menu::new("Main").opened_by(&opener, Trigger::Click).show(ui, |ui, _| {
@@ -118,7 +118,7 @@ fn opening_a_submenu_runs_one_pass_and_nothing_outside_the_menu() {
     assert!(fixture.by_label("Report.txt").is_some(), "the submenu shows in that frame");
     let mut follow_ups = Vec::new();
     while fixture.repaint_requested() && follow_ups.len() < 30 {
-        fixture.frame(vec![]);
+        fixture.step();
         follow_ups.push(fixture.passes());
         runs += status_runs(&fixture);
     }

@@ -8,7 +8,7 @@ use craft_theme::{
     Variant,
     variant::{Emphasis, Tone},
 };
-use egui::Ui;
+use craft_ui::Ui;
 
 /// Every tone with its name, in the order the tones' badges show.
 const TONES: [(Tone, &str); 6] =

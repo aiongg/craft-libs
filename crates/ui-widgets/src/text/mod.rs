@@ -33,7 +33,7 @@ use crate::primitives::TextKey;
 use crate::style::{ComponentStyle, IconLook, Ink, StyleCx, SurfaceLook};
 use craft_behavior::{Insets, Metrics, PartKey};
 use craft_theme::{ControlSize, Stateful, States};
-use egui::Vec2;
+use craft_ui::geom::Vec2;
 
 /// The style of a text field: padding and minimum size from the control metrics, and the sizes of the adornments
 /// a field draws beside its text (`adorn::place`).

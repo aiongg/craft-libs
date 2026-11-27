@@ -3,12 +3,13 @@
 
 use super::kit::{AT, INITIAL, Scrub, Seen};
 use craft_behavior::Mixed;
+use craft_ui::Ui;
 use craft_ui::choice::{Radio, RadioGroup};
 use craft_ui::contract::{Bind, Props as _, Show as _, ShowContainer as _};
+use craft_ui::geom::{Pos2, Rect, Vec2};
 use craft_ui::layout_components::Stack;
 use craft_ui::testing::pointer::{moved, press, release};
-use craft_ui::testing::{Fixture, Frames, StoryData, trial};
-use egui::{Pos2, Rect, Ui, Vec2};
+use craft_ui::testing::{Frames, Harness, StoryData, trial};
 use std::any::TypeId;
 use std::cell::Cell;
 
@@ -127,7 +128,7 @@ fn a_whole_story_value_edit_shows_in_a_field_bound_earlier_in_the_same_frame() {
 fn a_story_field_edit_shows_in_a_whole_value_read_earlier_in_the_same_frame() {
     let data = std::rc::Rc::new(std::cell::RefCell::new(StoryData::default()));
     let held = std::rc::Rc::clone(&data);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let mut data = held.borrow_mut();
         let start = Pair { level: 1.0, other: 0.0 };
         RadioGroup::new("Whole", data.bind("pair", start.clone())).show(ui, |ui, _| {
@@ -149,7 +150,7 @@ fn a_story_field_edit_shows_in_a_whole_value_read_earlier_in_the_same_frame() {
     fixture.settle();
     let field = fixture.by_label("Field 2").expect("the field's radio").center();
     let level = || data.borrow_mut().value_at("pair", Pair { level: 1.0, other: 0.0 }).0.level;
-    fixture.frame(vec![moved(field)]);
+    fixture.send(moved(field));
     // The frame in which the click edits the field: the press or the release.
     let edited = [vec![press(field)], vec![release(field)]].into_iter().find_map(|events| {
         fixture.frame(events);

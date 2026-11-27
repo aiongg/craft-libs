@@ -28,7 +28,8 @@ use craft_behavior::{AccessAction, AccessData, Flow, IconId, Insets, Metrics, Mi
 use craft_keymap::Mods;
 use craft_theme::variant::{Emphasis, Tone};
 use craft_theme::{Rgba, Srgba, Stateful, States, TypeRole, Variant, over};
-use egui::{Color32, CornerRadius, Pos2, Rect, Response, Vec2};
+use craft_ui::geom::{Pos2, Rect, Vec2};
+use craft_ui::{Color32, CornerRadius, Response};
 
 /// Stars a rating has.
 const STARS: u8 = 5;
@@ -668,21 +669,22 @@ impl<'a> Tile<'a> {
         let (start, rest) = flow.take_start(column);
         let controls = if self.action_place == TileActionPlace::Band { sizes.bar } else { 0.0 };
         let picture = Rect::from_min_max(rest.rect().min + Vec2::new(0.0, controls), rest.rect().max - Vec2::new(0.0, band_height + controls));
-        let band = Rect::from_min_max(egui::pos2(rest.rect().min.x, picture.bottom()), rest.rect().max - Vec2::new(0.0, controls));
+        let band = Rect::from_min_max(craft_ui::geom::pos2(rest.rect().min.x, picture.bottom()), rest.rect().max - Vec2::new(0.0, controls));
         let (caption, name, detail, marks) = match self.caption {
             CaptionPlace::Below => {
                 let above = if sizes.card { sizes.inset } else { sizes.tight };
-                let name = Rect::from_min_size(egui::pos2(band.left(), band.top() + above), Vec2::new(band.width(), sizes.name_line));
+                let name = Rect::from_min_size(craft_ui::geom::pos2(band.left(), band.top() + above), Vec2::new(band.width(), sizes.name_line));
                 let detail = self.detail.as_ref().map(|_| Rect::from_min_size(name.left_bottom(), Vec2::new(band.width(), sizes.detail_line)));
                 (band, name, detail, Vec::new())
             }
             CaptionPlace::Start => {
-                let name = Rect::from_min_size(egui::pos2(start.left(), start.top() + sizes.tight), Vec2::new(start.width(), sizes.name_line));
+                let name =
+                    Rect::from_min_size(craft_ui::geom::pos2(start.left(), start.top() + sizes.tight), Vec2::new(start.width(), sizes.name_line));
                 let first = name.bottom() + sizes.tight;
                 let marks = (0..self.marks.len())
                     .map(|at| {
                         let top = first + at as f32 * (sizes.glyph + sizes.tight);
-                        Rect::from_center_size(egui::pos2(start.center().x, top + sizes.glyph / 2.0), Vec2::splat(sizes.glyph))
+                        Rect::from_center_size(craft_ui::geom::pos2(start.center().x, top + sizes.glyph / 2.0), Vec2::splat(sizes.glyph))
                     })
                     .collect();
                 (start, name, None, marks)
@@ -694,13 +696,13 @@ impl<'a> Tile<'a> {
         let pictures = Flow::new(picture, rtl);
         let mut floor = picture.bottom();
         let band_rect = matches!(self.status, TileStatus::Offline(_)).then(|| {
-            let rect = Rect::from_min_max(egui::pos2(picture.left(), floor - sizes.band), picture.right_bottom());
+            let rect = Rect::from_min_max(craft_ui::geom::pos2(picture.left(), floor - sizes.band), picture.right_bottom());
             floor = rect.top();
             rect
         });
         let (mut bar, mut stars, mut flag, mut dot) = (None, None, None, None);
         if bar_shown {
-            let rect = Rect::from_min_max(egui::pos2(picture.left(), floor - sizes.bar), egui::pos2(picture.right(), floor));
+            let rect = Rect::from_min_max(craft_ui::geom::pos2(picture.left(), floor - sizes.bar), craft_ui::geom::pos2(picture.right(), floor));
             // The stars and the flag run from the start, the dot sits at the end, each with an inset after it. A part
             // that does not fit in what the earlier ones left is left out, and so is every part after it.
             let mut room = Flow::new(rect, rtl).take_start(sizes.inset).1;
@@ -729,7 +731,7 @@ impl<'a> Tile<'a> {
         let check = self.check.map(|_| {
             let across = pictures.span(margin, faces.check.x);
             let top = if self.action_place == TileActionPlace::Band { area.top() } else { picture.top() + margin };
-            let at = Rect::from_min_size(egui::pos2(across.min.x, top), faces.check);
+            let at = Rect::from_min_size(craft_ui::geom::pos2(across.min.x, top), faces.check);
             (at, at.expand(sizes.tight))
         });
         let face = faces.action;
@@ -738,7 +740,7 @@ impl<'a> Tile<'a> {
             TileActionPlace::Corner => (0..self.actions.len())
                 .map(|at| {
                     let across = pictures.span((picture.width() - margin - face.x).max(0.0), face.x);
-                    Rect::from_min_size(egui::pos2(across.min.x, picture.top() + margin + at as f32 * (face.y + sizes.tight)), face)
+                    Rect::from_min_size(craft_ui::geom::pos2(across.min.x, picture.top() + margin + at as f32 * (face.y + sizes.tight)), face)
                 })
                 .collect(),
             // A row centred below the caption.
@@ -749,13 +751,13 @@ impl<'a> Tile<'a> {
                 (0..self.actions.len())
                     .map(|at| {
                         let across = pictures.span(lead + at as f32 * (face.x + sizes.tight), face.x);
-                        Rect::from_min_size(egui::pos2(across.min.x, band.bottom()), face)
+                        Rect::from_min_size(craft_ui::geom::pos2(across.min.x, band.bottom()), face)
                     })
                     .collect()
             }
         };
         let action_plate = actions.iter().copied().reduce(|all, rect| all.union(rect)).map(|all| all.expand(sizes.tight));
-        let corners = Rect::from_min_max(picture.min, egui::pos2(picture.right(), floor));
+        let corners = Rect::from_min_max(picture.min, craft_ui::geom::pos2(picture.right(), floor));
         let mut pills = vec![Rect::NOTHING; self.pills.len()];
         for slot in [BadgeSlot::StartTop, BadgeSlot::EndTop, BadgeSlot::StartBottom, BadgeSlot::EndBottom] {
             let (is_start, top) = match slot {
@@ -786,7 +788,7 @@ impl<'a> Tile<'a> {
             return (picture, Vec::new());
         }
         let (front, _) = Flow::new(picture, rtl).take_start((picture.width() - sizes.sheet_room).max(0.0));
-        let front = Rect::from_min_max(front.min, egui::pos2(front.max.x, (front.max.y - sizes.sheet_room).max(front.min.y)));
+        let front = Rect::from_min_max(front.min, craft_ui::geom::pos2(front.max.x, (front.max.y - sizes.sheet_room).max(front.min.y)));
         let toward_end = if rtl { -1.0 } else { 1.0 };
         let sheets = [sizes.sheet_room, sizes.sheet].into_iter().map(|by| front.translate(Vec2::new(toward_end * by, by))).collect();
         (front, sheets)
@@ -1212,7 +1214,7 @@ impl Tile<'_> {
         };
         let centered = action.is_empty();
         let icon = if centered {
-            Rect::from_center_size(egui::pos2(picture.center().x, picture.center().y - icon_side / 2.0), Vec2::splat(icon_side))
+            Rect::from_center_size(craft_ui::geom::pos2(picture.center().x, picture.center().y - icon_side / 2.0), Vec2::splat(icon_side))
         } else {
             let cell = flow.span(0.0, icon_side);
             Rect::from_min_size(cell.min, Vec2::splat(icon_side))
@@ -1222,14 +1224,14 @@ impl Tile<'_> {
         }
         let title = TextRun::new(cx.resolved.label).role(style.name.role).color(cx.resolve(&style.name.color)).elide();
         let title_area = if centered {
-            Rect::from_min_max(egui::pos2(picture.left(), icon.bottom() + style.sizes.tight), picture.max)
+            Rect::from_min_max(craft_ui::geom::pos2(picture.left(), icon.bottom() + style.sizes.tight), picture.max)
         } else {
             flow.take_start(icon_side + style.sizes.tight).1.rect()
         };
         let title_layout = draw.layout(&title, title_area.width());
         let title_x =
             if centered { title_area.center().x - title_layout.size().x / 2.0 } else { Self::text_x(title_area, title_layout.size().x, cx) };
-        draw.galley(egui::pos2(title_x, title_area.top()), &title_layout);
+        draw.galley(craft_ui::geom::pos2(title_x, title_area.top()), &title_layout);
         if !centered {
             if let Some(detail) = &self.detail {
                 // The description wraps, onto the two lines the card reserves for it, as production's cards do.
@@ -1239,11 +1241,11 @@ impl Tile<'_> {
                 if layout.rows() > 2 {
                     layout = draw.layout(&run.elide(), picture.width());
                 }
-                draw.galley(egui::pos2(Self::text_x(picture, layout.size().x, cx), icon.bottom() + style.sizes.tight), &layout);
+                draw.galley(craft_ui::geom::pos2(Self::text_x(picture, layout.size().x, cx), icon.bottom() + style.sizes.tight), &layout);
             }
             let run = TextRun::new(action).role(style.detail.role).color(style.range).elide();
             let layout = draw.layout(&run, picture.width());
-            draw.galley(egui::pos2(Self::text_x(picture, layout.size().x, cx), picture.bottom() - layout.size().y), &layout);
+            draw.galley(craft_ui::geom::pos2(Self::text_x(picture, layout.size().x, cx), picture.bottom() - layout.size().y), &layout);
         }
         self.caption_rect = Some(title_area);
     }

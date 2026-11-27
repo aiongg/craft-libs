@@ -3,8 +3,8 @@
 use super::{RunWord, WordRun, WordState};
 use crate::contract::{Bind, Show as _, Validity};
 use crate::runtime::env::Message;
-use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
-use egui::Ui;
+use crate::testing::{Drive, Harness, StoryData, StoryOutput, story};
+use craft_ui::Ui;
 
 /// A recognised line of a scanned page.
 const LINE: &str = "The quick brown fox jumps over the lazy dog";
@@ -17,7 +17,7 @@ fn words(text: &str, state: impl Fn(usize) -> WordState) -> Vec<RunWord<usize>> 
     text.split_whitespace().enumerate().map(|(at, word)| RunWord { key: at, text: word.to_owned(), state: state(at) }).collect()
 }
 
-fn pick_quick(fixture: &mut Fixture) {
+fn pick_quick(fixture: &mut Harness) {
     if let Some(word) = fixture.by_label("quick") {
         fixture.click(&word);
     }

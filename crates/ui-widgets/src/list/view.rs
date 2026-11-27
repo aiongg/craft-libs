@@ -16,7 +16,8 @@ use crate::style::{ComponentStyle, StyleCx};
 use crate::tile_grid::GroupHeads;
 use craft_behavior::{ColumnKey, DisplayOrder, ItemSource, Metrics, Selection, SizeHint, SpanLayout};
 use craft_i18n::matcher::{Matcher, Rank};
-use egui::{Rect, Ui};
+use craft_ui::Ui;
+use craft_ui::geom::Rect;
 use std::borrow::Cow;
 use std::hash::{DefaultHasher, Hash, Hasher};
 
@@ -121,7 +122,7 @@ pub struct List<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     document: Option<DocumentRows>,
 }
 
-impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> List<'a, K> {
+impl<'a, K: Clone + Eq + Hash + Send + Sync + crate::contract::MemoProps + 'static> List<'a, K> {
     /// A list named `label`, with multiple selection.
     pub fn new(label: impl Into<Label>) -> Self {
         List {
@@ -235,7 +236,7 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> List<'a, K> {
     }
 }
 
-impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for List<'_, K> {
+impl<K: Clone + Eq + Hash + Send + Sync + crate::contract::MemoProps + 'static> Component for List<'_, K> {
     const ROLE: Role = Role::LIST;
     const PARTS: bool = false;
     const ALT_ROLES: &'static [Role] = &[Role::LIST_BOX];
@@ -257,7 +258,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for List<'_, K> {
     }
 }
 
-impl<K: Clone + Eq + Hash + Send + Sync + 'static> Collection for List<'_, K> {
+impl<K: Clone + Eq + Hash + Send + Sync + crate::contract::MemoProps + 'static> Collection for List<'_, K> {
     type Key = K;
     type ItemLayout = SpanLayout;
     type Selection = Selection<K>;

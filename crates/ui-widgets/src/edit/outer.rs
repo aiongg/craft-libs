@@ -8,7 +8,7 @@ use crate::runtime::frame::note_outer_edit;
 use crate::runtime::memory::{MemoryStage, sub};
 use crate::runtime::overlay;
 use craft_behavior::GestureId;
-use egui::{Context, Id};
+use craft_ui::{Context, Id};
 use std::sync::Arc;
 
 /// How a container's close ends its outer gesture.

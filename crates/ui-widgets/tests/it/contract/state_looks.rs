@@ -3,9 +3,10 @@
 
 use craft_ui::choice::{Checkbox, Rating};
 use craft_ui::contract::{Bind, Props as _, Show as _};
+use craft_ui::geom::{Rect, pos2, vec2};
 use craft_ui::testing::layout::in_region;
 use craft_ui::testing::{Frames, pointer, trial};
-use egui::{Rect, Shape, pos2, vec2};
+use egui::Shape;
 use std::cell::Cell;
 
 /// The filled rects inside `within`.
@@ -17,7 +18,7 @@ fn plates(shapes: &[Shape], within: Rect) -> usize {
 fn hovering_a_star_fills_its_cell_and_leaving_it_clears_the_fill() {
     let mut frames = Frames::new();
     let shown = Cell::new(Rect::NOTHING);
-    let mut show = |ui: &mut egui::Ui| {
+    let mut show = |ui: &mut craft_ui::Ui| {
         let region = Rect::from_min_size(pos2(0.0, 0.0), vec2(200.0, 40.0));
         shown.set(in_region(ui, region, |ui| Rating::new(Bind::given(0u8), 5).id_salt("stars").show(ui).response.rect));
     };
@@ -33,7 +34,7 @@ fn hovering_a_star_fills_its_cell_and_leaving_it_clears_the_fill() {
 }
 
 /// The fill colours painted inside `within`.
-fn fills(shapes: &[Shape], within: Rect) -> Vec<egui::Color32> {
+fn fills(shapes: &[Shape], within: Rect) -> Vec<craft_ui::Color32> {
     shapes
         .iter()
         .filter_map(|shape| match shape {
@@ -48,7 +49,7 @@ fn pressing_a_check_box_changes_its_fill_whether_off_or_on() {
     for on in [false, true] {
         let mut frames = Frames::new();
         let shown = Cell::new(Rect::NOTHING);
-        let mut show = |ui: &mut egui::Ui| {
+        let mut show = |ui: &mut craft_ui::Ui| {
             let region = Rect::from_min_size(pos2(0.0, 0.0), vec2(40.0, 40.0));
             shown.set(in_region(ui, region, |ui| Checkbox::new(Bind::given(on)).label("Snap").show(ui).response.rect));
         };
@@ -73,7 +74,7 @@ fn a_row_press_shows_on_the_check_cell_that_follows_it_and_a_cell_press_on_its_o
     const NAME: ColumnKey = ColumnKey::new("name");
     const LOCK: ColumnKey = ColumnKey::new("lock");
     let cells = Cell::new([Rect::NOTHING; 3]);
-    let mut show = |ui: &mut egui::Ui| {
+    let mut show = |ui: &mut craft_ui::Ui| {
         let region = Rect::from_min_size(pos2(0.0, 0.0), vec2(240.0, 80.0));
         in_region(ui, region, |ui| {
             let columns = vec![
@@ -97,7 +98,7 @@ fn a_row_press_shows_on_the_check_cell_that_follows_it_and_a_cell_press_on_its_o
             let _ = shown.response;
         });
     };
-    let mut held = |at: fn([Rect; 3]) -> egui::Pos2| {
+    let mut held = |at: fn([Rect; 3]) -> craft_ui::geom::Pos2| {
         let mut frames = Frames::new();
         let rest = frames.frame_shapes(&mut show);
         let [check, _, lock] = cells.get();
@@ -119,7 +120,7 @@ fn a_selected_row_shows_its_selection_over_the_highlight() {
     use craft_ui::contract::{SelectMode, ShowCollection as _};
     use craft_ui::list::{List, ListRow};
     let rows = Cell::new([Rect::NOTHING; 4]);
-    let mut show = |ui: &mut egui::Ui| {
+    let mut show = |ui: &mut craft_ui::Ui| {
         let region = Rect::from_min_size(pos2(0.0, 0.0), vec2(240.0, 200.0));
         in_region(ui, region, |ui| {
             let order = [0usize, 1, 2, 3];

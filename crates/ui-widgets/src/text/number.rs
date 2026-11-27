@@ -25,7 +25,8 @@ use craft_behavior::{
     decimals_for_step, wheel_step,
 };
 use craft_theme::{Rgba, Stateful, States};
-use egui::{CornerRadius, Rect, Vec2};
+use craft_ui::CornerRadius;
+use craft_ui::geom::{Rect, Vec2};
 use std::borrow::Cow;
 use std::marker::PhantomData;
 use std::ops::RangeInclusive;
@@ -744,7 +745,7 @@ impl<V: NumberValue + 'static> Component for NumberField<'_, V> {
         };
         let mut text = cx.field_text(&TextRun::new(sample.as_ref()).role(role));
         if content {
-            text.x = crate::layout::ambient_width(cx.ui.ctx(), &VALUES, text.x).map_or(text.x, |width| width.max(text.x));
+            text.x = cx.ui.ambient_width(&VALUES, text.x).map_or(text.x, |width| width.max(text.x));
         }
         let chevrons = self.chevrons(&cx.words::<TextWords>());
         self.leading = Self::before_text(cx, self.step_arrows);
@@ -891,7 +892,7 @@ impl<V: NumberValue + 'static> Component for NumberField<'_, V> {
             for _ in 0..if first { 1 } else { hold.due(now, elapsed) } {
                 self.step_by(cx, notches, scale);
             }
-            frame::request_repaint_after(&ctx, hold.next_repeat(now) - now);
+            ctx.request_repaint_after(std::time::Duration::from_secs_f64(hold.next_repeat(now) - now));
         }
         while let Some((mv, mods)) = cx.intents().take_move() {
             let (notches, scale) = match mv {

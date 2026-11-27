@@ -5,7 +5,7 @@ pub(crate) mod step_ends;
 
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::form::{Field, Help};
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::testing::{Harness, trial};
 use craft_ui::text::TextField;
 
 /// A field's help line describes its control, as the label scope's help line does: a screen reader reads the hint
@@ -13,7 +13,7 @@ use craft_ui::text::TextField;
 #[trial]
 fn a_field_help_line_describes_its_control() {
     const HINT: &str = "Up to 256 KiB";
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         let mut text = String::new();
         Field::new("Limit").help(Help::Text(HINT.into())).show(ui, |ui, _| TextField::new("Limit", Bind::bound(&mut text)).show(ui));
     });

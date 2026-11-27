@@ -22,7 +22,8 @@ use craft_behavior::{Flow, IconId, Metrics, NavMove, NavShape, PartKey, PartRef,
 use craft_i18n::{CalendarDate, DateFormat, DateLength, DateStyle, DateTime, Format, LocalDate, NameLength, Weekday};
 use craft_keymap::{Chord, Key, Mods};
 use craft_theme::{Rgba, Stateful, States};
-use egui::{CornerRadius, Rect, Response, Vec2, vec2};
+use craft_ui::geom::{Rect, Vec2, vec2};
+use craft_ui::{CornerRadius, Response};
 use std::sync::Arc;
 
 /// Years on a Year page.
@@ -645,7 +646,7 @@ impl Geometry {
         let (next, rest) = rest.take_end(style.strip);
         let below = strip.max.y + style.gap;
         let (weekdays, top) = if view.precision == DatePrecision::Day {
-            let row = Rect::from_min_size(egui::pos2(rect.min.x, below), vec2(rect.width(), style.cell));
+            let row = Rect::from_min_size(craft_ui::geom::pos2(rect.min.x, below), vec2(rect.width(), style.cell));
             (Some(row), below + style.cell + style.gap)
         } else {
             (None, below)
@@ -673,7 +674,7 @@ impl Geometry {
         let width = self.width();
         let at = column as f32 * (width + self.gap);
         let (a, b) = if self.rtl { (self.max_x - at - width, self.max_x - at) } else { (self.min_x + at, self.min_x + at + width) };
-        Rect::from_min_max(egui::pos2(a, 0.0), egui::pos2(b, 0.0))
+        Rect::from_min_max(craft_ui::geom::pos2(a, 0.0), craft_ui::geom::pos2(b, 0.0))
     }
 
     /// The rect of the cell at `index` in reading order.
@@ -681,7 +682,7 @@ impl Geometry {
         let (row, column) = (index / self.columns, index % self.columns);
         let x = self.column(column);
         let y = self.top + row as f32 * (self.cell + self.gap);
-        Rect::from_min_max(egui::pos2(x.min.x, y), egui::pos2(x.max.x, y + self.cell))
+        Rect::from_min_max(craft_ui::geom::pos2(x.min.x, y), craft_ui::geom::pos2(x.max.x, y + self.cell))
     }
 }
 
@@ -852,7 +853,12 @@ impl Component for Calendar {
             for column in 0..DAY_COLUMNS {
                 let name = dates.weekday_name(Weekday::ALL[(first + column) % 7], NameLength::Short);
                 let x = geometry.column(column);
-                centred(Rect::from_min_max(egui::pos2(x.min.x, row.min.y), egui::pos2(x.max.x, row.max.y)), &name, &style.weekday, self.lines[1]);
+                centred(
+                    Rect::from_min_max(craft_ui::geom::pos2(x.min.x, row.min.y), craft_ui::geom::pos2(x.max.x, row.max.y)),
+                    &name,
+                    &style.weekday,
+                    self.lines[1],
+                );
             }
         }
         for (at, cell) in page.cells.iter().enumerate() {

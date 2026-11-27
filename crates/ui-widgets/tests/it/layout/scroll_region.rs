@@ -1,12 +1,12 @@
 //! The suite's text-size case lets a scroll region's view cut its rows, and no other part.
 
+use craft_ui::Ui;
 use craft_ui::contract::{Scroll, Show as _, ShowContainer as _};
 use craft_ui::display::Text;
 use craft_ui::layout_components::Stack;
 use craft_ui::testing::story::{Story, StoryData, StoryOutput};
 use craft_ui::testing::suite::text_size_case;
 use craft_ui::testing::trial;
-use egui::Ui;
 
 /// More rows than the fixture's room holds, so one of them crosses the room's bottom edge.
 const ROWS: usize = 40;

@@ -3,15 +3,15 @@
 use craft_ui::contract::{Bind, Entry, Show as _};
 use craft_ui::controls::disclosure::DropdownArrow;
 use craft_ui::pickers::Select;
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::testing::{Harness, trial};
 use egui::Shape;
 
 /// Whether a select shown under `arrow` (`None`: the app sets none) paints a filled triangle, and whether it paints a
 /// stroked chevron (an open three-point line), inside its rect.
 fn arrow_shapes(arrow: Option<DropdownArrow>) -> (bool, bool) {
-    let rect = std::rc::Rc::new(std::cell::Cell::new(egui::Rect::NOTHING));
+    let rect = std::rc::Rc::new(std::cell::Cell::new(craft_ui::geom::Rect::NOTHING));
     let seen = rect.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let entries = [Entry::new(0u8, "One"), Entry::new(1u8, "Two")];
         seen.set(Select::new("Pick", Bind::given(1u8), &entries).show(ui).response.rect);
     });

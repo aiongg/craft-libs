@@ -3,7 +3,7 @@
 
 use craft_ui::contract::Bind;
 use craft_ui::pickers::{IconPicker, IconPickerGroup, IconPickerGroups, IconPickerItem};
-use craft_ui::testing::{Fixture, Room, trial};
+use craft_ui::testing::{Harness, Room, trial};
 
 fn groups() -> Vec<IconPickerGroup<u8>> {
     vec![
@@ -12,13 +12,13 @@ fn groups() -> Vec<IconPickerGroup<u8>> {
     ]
 }
 
-fn shows(fixture: &Fixture, name: &str) -> bool {
+fn shows(fixture: &Harness, name: &str) -> bool {
     fixture.by_label(name).is_some()
 }
 
 #[trial]
 fn the_category_row_filters_the_grid_and_search_stays_inside_it() {
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         let groups = groups();
         let mut value = None;
         IconPicker::new("Tool", Bind::bound(&mut value), &groups).group_display(IconPickerGroups::Filter).empty("Nothing here").show(ui);

@@ -1,10 +1,11 @@
 //! A disabled implicit Select owner naturally retires its held popup before the pointer is released.
 
 use craft_behavior::EditEvent;
+use craft_ui::Ui;
 use craft_ui::contract::{Bind, Entry, Props as _, Role, Show as _};
+use craft_ui::input::{Key, Mods};
 use craft_ui::pickers::Select;
-use craft_ui::testing::{Fixture, Room, Story, StoryData, StoryOutput, trial};
-use egui::{Key, Modifiers, Ui};
+use craft_ui::testing::{Harness, Room, Story, StoryData, StoryOutput, trial};
 
 fn select(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let parent_enabled = *data.value("parent_enabled", true);
@@ -35,16 +36,16 @@ fn select(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     .inner
 }
 
-fn value(fixture: &mut Fixture) -> u8 {
+fn value(fixture: &mut Harness) -> u8 {
     *fixture.data().value("value", 1u8)
 }
 
-fn terminal_edits(fixture: &mut Fixture) -> usize {
+fn terminal_edits(fixture: &mut Harness) -> usize {
     fixture.data().note("terminal_edits", Vec::<&'static str>::new()).len()
 }
 
 fn held_popup_retires(disabled: &'static str) {
-    let mut fixture = Fixture::story(&Story::new("disabled_implicit_select", select));
+    let mut fixture = Harness::story(&Story::new("disabled_implicit_select", select));
     fixture.room(Room::Window.size()).settle();
     let trigger = *fixture.by_role(Role::COMBO_BOX).first().expect("the Select");
     fixture.click(&trigger).settle();
@@ -70,7 +71,7 @@ fn held_popup_retires(disabled: &'static str) {
     assert_eq!(terminal_edits(&mut fixture), 0, "retirement produces no Commit or Set");
 
     fixture.release(&option).idle(2);
-    fixture.key(Key::Enter, Modifiers::NONE).idle(2);
+    fixture.key(Key::Enter, Mods::NONE).idle(2);
     assert_eq!(value(&mut fixture), 1, "late release and Enter cannot commit the retired option");
     assert_eq!(terminal_edits(&mut fixture), 0, "late inputs emit no terminal edit");
     *fixture.data().value(disabled, true) = true;

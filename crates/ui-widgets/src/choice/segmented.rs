@@ -12,7 +12,7 @@ use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, Flags, FocusLook, IconLook, StyleCx, SurfaceKind, SurfaceLook, TextLook, TypeRole, UiTokens};
 use craft_behavior::{Flow, Metrics, NavShape, PartKey, PartRef, Roving, Sense, Value};
 use craft_theme::{Rgba, Stateful, States};
-use egui::{Rect, Vec2};
+use craft_ui::geom::{Rect, Vec2};
 
 const SEGMENT: PartKey = PartKey::new("segment");
 
@@ -39,7 +39,7 @@ pub struct Segmented<'a, T: Value + 'static> {
     entries: &'a [Entry<T>],
 }
 
-impl<'a, T: Value + 'static> Segmented<'a, T> {
+impl<'a, T: Value + crate::contract::MemoProps + 'static> Segmented<'a, T> {
     /// A row over `value` named `label`, one segment per entry. An entry's label is its text, or its tooltip and name
     /// when it has an icon; separators are not segments.
     pub fn new(label: impl Into<Label>, value: Bind<'a, T>, entries: &'a [Entry<T>]) -> Self {
@@ -67,7 +67,7 @@ impl<'a, T: Value + 'static> Segmented<'a, T> {
     }
 }
 
-impl<T: Value + 'static> Component for Segmented<'_, T> {
+impl<T: Value + crate::contract::MemoProps + 'static> Component for Segmented<'_, T> {
     const ROLE: Role = Role::RADIO_GROUP;
     const OVERLAYS: bool = false;
     type Style = SegmentedStyle;
@@ -206,7 +206,7 @@ impl Component for Segment {
     const PARTS: bool = false;
     const OVERLAYS: bool = false;
     type Style = SegmentStyle;
-    type Output = egui::Response;
+    type Output = craft_ui::Response;
 
     fn shows_label(&self) -> bool {
         self.icon.is_none()
@@ -255,7 +255,7 @@ impl Component for Segment {
         face::paint(ui, cx, (&cx.style.text, &cx.style.icon), &cx.style.face, &self.spec(cx.resolved.label), cx.content_rect);
     }
 
-    fn finish(self, cx: Cx<'_, Self>) -> egui::Response {
+    fn finish(self, cx: Cx<'_, Self>) -> craft_ui::Response {
         cx.response.clone()
     }
 }

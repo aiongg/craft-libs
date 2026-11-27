@@ -1,6 +1,7 @@
 //! The suite's container-title case: a group with no name of its own is allowed only when it is a field of one
 //! control.
 
+use craft_ui::Ui;
 use craft_ui::buttons::Button;
 use craft_ui::contract::{Show as _, ShowContainer as _};
 use craft_ui::form::{Field, FieldGroup};
@@ -8,7 +9,6 @@ use craft_ui::testing::story::{Story, StoryData, StoryOutput};
 use craft_ui::testing::suite::title_case;
 use craft_ui::testing::trial;
 use craft_ui::text::NumberField;
-use egui::Ui;
 
 fn group_with_a_field_and_a_button(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     FieldGroup::new("")

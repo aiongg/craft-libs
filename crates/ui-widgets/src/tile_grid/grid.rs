@@ -30,7 +30,8 @@ use craft_behavior::{
     PressPhase, Roving, Selection, Sense,
 };
 use craft_keymap::{Chord, Key, Mods};
-use egui::{CornerRadius, Pos2, Rect, Response, Ui, Vec2, pos2, vec2};
+use craft_ui::geom::{Pos2, Rect, Vec2, pos2, vec2};
+use craft_ui::{CornerRadius, Response, Ui};
 use std::borrow::Cow;
 use std::cell::RefCell;
 use std::hash::Hash;
@@ -209,7 +210,7 @@ impl GridSizes {
     }
 
     /// An equal card: a picture `side` wide with the aspect `aspect`, and what the tile adds around it.
-    fn card(&self, side: f32, aspect: f32, around: Around) -> egui::Vec2 {
+    fn card(&self, side: f32, aspect: f32, around: Around) -> craft_ui::geom::Vec2 {
         vec2(side, side / aspect) + around.size()
     }
 }
@@ -364,7 +365,7 @@ struct Placed {
     toggle: bool,
 }
 
-impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> TileGrid<'a, K> {
+impl<'a, K: Clone + Eq + Hash + Send + Sync + crate::contract::MemoProps + 'static> TileGrid<'a, K> {
     /// Insert gaps between tiles, keyed by display position; `label` names the gap before a position. None show
     /// while a drag is held. A press on one reports [`GridEvent::Insert`].
     ///
@@ -634,7 +635,7 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> TileGrid<'a, K> {
     /// in view, and the end gap with the last tile in view. The gaps are named by display position, so rows scrolled
     /// out of view change no position.
     fn place_gaps(&mut self, clip: Rect, cx: &mut PartsCx<'_, Self>) {
-        let dragging = crate::runtime::drag::active::<ListDrag<K>>(cx.ui.ctx()).is_some_and(|drag| drag.list == cx.id);
+        let dragging = cx.dragging::<ListDrag<K>>().is_some_and(|(drag, _)| drag.list == cx.id);
         if self.insert_gaps.is_none() || dragging {
             return;
         }
@@ -683,7 +684,7 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> TileGrid<'a, K> {
     }
 }
 
-impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for TileGrid<'_, K> {
+impl<K: Clone + Eq + Hash + Send + Sync + crate::contract::MemoProps + 'static> Component for TileGrid<'_, K> {
     const ROLE: Role = Role::LIST_BOX;
     const OVERLAYS: bool = false;
     type Style = TileGridStyle;
@@ -787,7 +788,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for TileGrid<'_, K>
                 cx.claim(chord);
                 while cx.take_claimed(chord) {
                     self.step_zoom(&label, |value, steps| steps.step(value, step));
-                    self.chord_at = crate::runtime::pointer::frame(&cx.core.ctx).pos;
+                    self.chord_at = cx.pointer().pos;
                 }
             }
         }
@@ -805,7 +806,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for TileGrid<'_, K>
             if let Some(result) = cx.part_if_declared(part)
                 && let PressPhase::Release { start, click: true, .. } = result.press.phase
             {
-                let mods = crate::runtime::pointer::frame(&cx.core.ctx).pick_mods;
+                let mods = cx.context().modifiers();
                 self.events.push(match start.button {
                     PointerButton::Secondary => {
                         GridEvent::GroupMenu { group, at: if cx.flow.is_rtl() { rect.right_bottom() } else { rect.left_bottom() } }
@@ -950,7 +951,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for TileGrid<'_, K>
         }
         let mut events = self.events;
         // Only a pass with events reads the pointer, so a pass without one does not depend on it.
-        let mods = if response.events.is_empty() { Mods::NONE } else { crate::runtime::pointer::frame(&cx.core.ctx).pick_mods };
+        let mods = if response.events.is_empty() { Mods::NONE } else { cx.context().modifiers() };
         let group_of = |key: &K| self.groups.iter().position(|group| group.key == *key);
         let is_tail = |key: &K| self.tail.iter().any(|row| row.key == *key);
         let mut kept = Vec::with_capacity(response.events.len());
@@ -1007,7 +1008,7 @@ const MAX_RATING: u8 = 5;
 /// The keys of the digits 0 to `MAX_RATING`.
 const DIGITS: [Key; 6] = [Key::Num0, Key::Num1, Key::Num2, Key::Num3, Key::Num4, Key::Num5];
 
-impl<K: Clone + Eq + Hash + Send + Sync + 'static> Collection for TileGrid<'_, K> {
+impl<K: Clone + Eq + Hash + Send + Sync + crate::contract::MemoProps + 'static> Collection for TileGrid<'_, K> {
     type Key = K;
     type ItemLayout = GridLayout;
     type Selection = Selection<K>;

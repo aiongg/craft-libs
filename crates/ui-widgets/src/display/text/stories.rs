@@ -8,7 +8,7 @@ use crate::style::TypeRole;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use craft_behavior::ColumnWidth;
 use craft_theme::variant::Tone;
-use egui::Ui;
+use craft_ui::Ui;
 
 #[story(Text, covers = [Default], drive = Drive::Never)]
 fn text(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {

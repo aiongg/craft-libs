@@ -12,7 +12,7 @@ use crate::runtime::env::{Env, Label, Units};
 use crate::text::{InvalidZoom, ZoomField};
 use craft_behavior::kurbo::Size;
 use craft_behavior::{EditEvents, IconId, Mixed, PixelSize};
-use egui::{Response, Ui};
+use craft_ui::{Response, Ui};
 use std::time::Duration;
 
 #[cfg(feature = "suite")]
@@ -102,7 +102,7 @@ impl StatusItem {
     }
 
     /// The item's text for `values`, a dash when the value is missing.
-    fn text(self, values: &StatusValues, words: &BarWords, env: &Env, ctx: &egui::Context) -> String {
+    fn text(self, values: &StatusValues, words: &BarWords, env: &Env, ui: &mut Ui) -> String {
         let units: Units = env.units();
         let given = |value: &Option<String>| value.clone().unwrap_or_else(|| MISSING.to_owned());
         match self {
@@ -136,9 +136,10 @@ impl StatusItem {
             StatusItem::Timing => values
                 .timing
                 .map_or_else(|| MISSING.to_owned(), |time| words.readout_timing_text.fill(&[("value", &units.duration(time.as_secs_f64()))])),
-            StatusItem::CurrentTool => {
-                values.current_tool.as_ref().map_or_else(|| MISSING.to_owned(), |tool| commands::resolve(ctx, tool.clone()).label.to_string())
-            }
+            StatusItem::CurrentTool => values.current_tool.as_ref().map_or_else(
+                || MISSING.to_owned(),
+                |tool| ui.resolve_command(tool.clone()).map(|command| command.label.to_string()).unwrap_or_default(),
+            ),
             StatusItem::LayerCount => {
                 values.layer_count.map_or_else(|| MISSING.to_owned(), |n| words.readout_layers.text(n as u64, &env.format().integer(n as u64)))
             }
@@ -209,7 +210,7 @@ impl<'a> StatusReadout<'a> {
     pub fn show(mut self, ui: &mut Ui) -> StatusReadoutOutput {
         let env = Env::of(ui);
         let words = env.words::<BarWords>();
-        let text = self.item.text(self.values, &words, &env, ui.ctx());
+        let text = self.item.text(self.values, &words, &env, ui);
         let document = self.document;
         let mut events = EditEvents::new();
         let mut invalid_zoom = None;

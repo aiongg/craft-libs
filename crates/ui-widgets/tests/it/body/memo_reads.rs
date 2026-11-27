@@ -4,6 +4,8 @@
 use craft_keymap::Overrides;
 use craft_ui::buttons::Button;
 use craft_ui::contract::{ContainerProps, MemoProps, MemoView, Props as _, Scroll, Show as _, ShowContainer as _, Sizing};
+use craft_ui::geom::{Pos2, Rect, Vec2};
+use craft_ui::input::{Key, Mods};
 use craft_ui::runtime::commands::{self, CommandInput, CommandRef};
 use craft_ui::runtime::env::{Env, EnvValue, with_env};
 use craft_ui::runtime::{frame, pointer};
@@ -11,9 +13,10 @@ use craft_ui::testing::in_audit_run;
 use craft_ui::testing::input::{key_press, text};
 use craft_ui::testing::layout::{in_region, scroll_anchor, scroll_area};
 use craft_ui::testing::{Frames, MemoRun, last_pass_memo_runs, trial};
+use craft_ui::{Context, Ui};
 use craft_ui_test_kit::body::Slab;
 use craft_ui_test_kit::windows::Windows;
-use egui::{Context, Key, Modifiers, Pos2, Rect, Ui, Vec2, ViewportInfo};
+use egui::ViewportInfo;
 use std::cell::Cell;
 use std::sync::Arc;
 
@@ -50,7 +53,7 @@ fn show_plain(ui: &mut Ui) {
 struct Alt;
 
 fn alt(_: &mut Alt, ui: &mut Ui) {
-    let held = pointer::mods(ui.ctx()).alt;
+    let held = ui.ctx().modifiers().alt;
     Button::new(if held { "Alt held" } else { "Alt up" }).show(ui);
 }
 
@@ -68,7 +71,7 @@ fn holding_alt_runs_only_the_views_that_read_modifiers() {
     let mut frames = Frames::new();
     frames.frame(vec![pointer_away()], &mut show);
     frames.idle(SETTLE, &mut show);
-    for held in [Modifiers::ALT, Modifiers::NONE] {
+    for held in [Mods::ALT, Mods::NONE] {
         frames.hold(held);
         frames.frame(vec![egui::Event::ModifiersChanged(held)], &mut show);
         assert_eq!(runs_of(&frames.ctx, "Alt"), [MemoRun::Ran], "the reader runs when Alt changes to {held:?}");
@@ -78,7 +81,7 @@ fn holding_alt_runs_only_the_views_that_read_modifiers() {
     }
     reader_shown.set(false);
     frames.idle(2, &mut show);
-    frames.hold(Modifiers::ALT);
+    frames.hold(Mods::ALT);
     frames.frame(vec![egui::Event::ModifiersChanged(Modifiers::ALT)], &mut show);
     frames.idle(2, &mut show);
     reader_shown.set(true);
@@ -95,7 +98,7 @@ fn pointer_away() -> egui::Event {
 struct Follow;
 
 fn follow(_: &mut Follow, ui: &mut Ui) {
-    let at = pointer::frame(ui.ctx()).pos.map(|pos| (pos.x.round(), pos.y.round()));
+    let at = ui.pointer().pos.map(|pos| (pos.x.round(), pos.y.round()));
     Button::new(format!("{at:?}")).show(ui);
 }
 

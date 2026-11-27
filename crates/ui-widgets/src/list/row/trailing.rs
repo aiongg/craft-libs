@@ -5,7 +5,7 @@ use crate::contract::Hosted as HostedLeaf;
 use crate::primitives::{IconSpec, Span, TextRun};
 use crate::runtime::env::Label;
 use craft_theme::TypeRole;
-use egui::Vec2;
+use craft_ui::geom::Vec2;
 
 /// The key of a pressable trailing item, chosen by the caller: a row's parts are told apart by it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, crate::contract::MemoProps)]

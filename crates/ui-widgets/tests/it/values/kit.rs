@@ -2,8 +2,8 @@
 
 use craft_behavior::{CancelReason, EditEvent, EditEvents, GesturePhase, PartKey, PressPhase, Sense};
 use craft_ui::contract::{Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, PartsCx, Pointer as _, Role, Styled as _};
+use craft_ui::geom::{Pos2, Rect, Vec2};
 use craft_ui::style::{ComponentStyle, Flags, StyleCx};
-use egui::{Pos2, Rect, Vec2};
 use std::cell::Cell;
 
 const TRACK: PartKey = PartKey::new("track");

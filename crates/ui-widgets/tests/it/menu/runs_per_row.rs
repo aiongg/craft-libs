@@ -2,16 +2,16 @@
 //! `menu-80-rows` scenario of ui-bench gives its menu.
 
 use craft_ui::contract::{Bind, Props as _, Show as _, ShowContainer as _};
+use craft_ui::geom::vec2;
 use craft_ui::menu::{Menu, MenuItem};
-use craft_ui::testing::{Fixture, last_pass_runs, trial};
-use egui::vec2;
+use craft_ui::testing::{Harness, last_pass_runs, trial};
 
 /// The room of ui-bench's `MenuScene`.
-const ROOM: egui::Vec2 = vec2(800.0, 1400.0);
+const ROOM: craft_ui::geom::Vec2 = vec2(800.0, 1400.0);
 
 /// The components run in the last pass, and how many of the `rows` have a node.
 fn runs_and_rows_shown(rows: usize) -> (u32, usize) {
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let mut open = true;
         let _ = Menu::new("Items").open(Bind::bound(&mut open)).id_salt("menu").show(ui, |ui, _| {
             for key in 0..rows {

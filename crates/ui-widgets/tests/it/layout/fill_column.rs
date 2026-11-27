@@ -4,15 +4,16 @@
 //! follows the same rule as a container.
 
 use craft_behavior::keyed;
+use craft_ui::Ui;
 use craft_ui::buttons::Button;
 use craft_ui::contract::{Bind, Props as _, Show as _, ShowCollection as _, ShowContainer as _, Sizing};
 use craft_ui::display::{Divider, Text};
+use craft_ui::geom::Rect;
 use craft_ui::layout_components::{Row, Stack};
 use craft_ui::list::{List, ListRow};
 use craft_ui::popover::Popover;
 use craft_ui::table::{MetadataGroup, MetadataRow, MetadataTable};
 use craft_ui::testing::{Frames, last_pass_measuring_runs, measuring_runs, trial};
-use egui::{Rect, Ui};
 use std::cell::Cell;
 
 const SNAP: f32 = 1.0;
@@ -195,7 +196,7 @@ fn a_column_holding_a_fill_width_list_measures_as_often_as_one_holding_a_stack()
 fn a_stack_shown_at_a_rect_gives_its_fill_children_the_rect_width() {
     let (list, stack, wide) = (Cell::new(0.0), Cell::new(0.0), Cell::new(0.0));
     Frames::new().idle(4, |ui| {
-        let rect = egui::Rect::from_min_size(ui.available_rect_before_wrap().min, egui::vec2(600.0, 300.0));
+        let rect = craft_ui::geom::Rect::from_min_size(ui.available_rect_before_wrap().min, craft_ui::geom::vec2(600.0, 300.0));
         wide.set(rect.width());
         Stack::new().id_salt("pane").show_at(ui, rect, |ui, _| {
             let keys = [0_usize, 1];

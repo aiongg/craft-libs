@@ -8,7 +8,7 @@ use crate::testing::{Drive, Grip, StoryData, StoryOutput, story};
 use crate::value_drag::TrackFace;
 use craft_behavior::Mixed;
 use craft_theme::ControlSize;
-use egui::Ui;
+use craft_ui::Ui;
 
 const RANGE: std::ops::RangeInclusive<f64> = 0.0..=100.0;
 const CAP: f64 = 80.0;

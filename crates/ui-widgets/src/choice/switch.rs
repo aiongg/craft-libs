@@ -8,7 +8,8 @@ use crate::contract::{
 use crate::style::{ComponentStyle, FocusLook, StyleCx, SurfaceKind, SurfaceLook, SurfaceStyle};
 use craft_behavior::{Flow, Metrics, Sense};
 use craft_theme::{Stateful, States};
-use egui::{CornerRadius, Rect, Vec2};
+use craft_ui::CornerRadius;
+use craft_ui::geom::{Rect, Vec2};
 
 /// Where the thumb rests while the value is mixed: the middle of its travel.
 const MIXED_AT: f32 = 0.5;

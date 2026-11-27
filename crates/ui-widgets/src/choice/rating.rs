@@ -14,7 +14,7 @@ use craft_behavior::nav::{NavShape, StepResult, ValueAxes, ValueSteps, step_valu
 use craft_behavior::{Flow, IconId, Metrics, PartKey, Roving, Sense};
 use craft_keymap::{Chord, Key};
 use craft_theme::{Rgba, Stateful, States, variant::Tone};
-use egui::{Rect, Vec2};
+use craft_ui::geom::{Rect, Vec2};
 
 const STAR: PartKey = PartKey::new("star");
 

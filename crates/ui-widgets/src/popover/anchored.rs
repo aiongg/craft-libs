@@ -10,7 +10,8 @@ use crate::runtime::focus::{FocusPolicy, Initial};
 use crate::runtime::overlay::CloseReason;
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
 use craft_behavior::{CancelRule, Metrics, Mixed, Sense};
-use egui::{Pos2, Response};
+use craft_ui::Response;
+use craft_ui::geom::Pos2;
 
 /// The style of a popover: the surface and padding come from the container.
 #[derive(Clone, Debug, Default, PartialEq, ComponentStyle)]
@@ -39,7 +40,7 @@ pub struct PopoverOutput {
 impl PopoverOutput {
     /// The output of the container `cx` that closed as `closed` in this pass, open while `open` holds true.
     pub(crate) fn of<C: Component>(mut cx: Cx<'_, C>, closed: Option<CloseReason>, mut open: Bind<'_, bool>) -> Self {
-        let pressed_outside = crate::runtime::overlay::pressed_outside(&cx.core.ctx, cx.core.id);
+        let pressed_outside = cx.pressed_outside();
         let open = matches!(open.reborrow().read(&mut cx), Some(Mixed::Same(true)));
         PopoverOutput { response: cx.response.clone(), closed, open, pressed_outside }
     }

@@ -23,7 +23,8 @@ use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, Flags, IconLook, RuleKind, Span, StyleColor, StyleCx, SurfaceLook, TextLook, UiTokens};
 use craft_behavior::{Flow, IconId, Insets, Metrics, PartKey, Proposal, Sense};
 use craft_theme::{Contrast, Rgba, Stateful, States, TypeRole};
-use egui::{Pos2, Rect, Response, Vec2};
+use craft_ui::Response;
+use craft_ui::geom::{Pos2, Rect, Vec2};
 
 #[cfg(feature = "suite")]
 pub(crate) mod stories;
@@ -159,7 +160,7 @@ pub struct TabStyle {
 #[derive(Clone, Debug, PartialEq)]
 struct Pill {
     fill: Stateful<StyleColor>,
-    radius: egui::CornerRadius,
+    radius: craft_ui::CornerRadius,
     height: f32,
 }
 
@@ -619,7 +620,7 @@ impl Component for Tab<'_> {
         }
         if let (Some(color), true) = (style.indicator, selected) {
             let bar = Rect::from_min_size(rect.min, Vec2::new(rect.width(), sizes.indicator.min(rect.height())));
-            draw.fill(&PaintShape::Rect(bar, egui::CornerRadius::ZERO), color);
+            draw.fill(&PaintShape::Rect(bar, craft_ui::CornerRadius::ZERO), color);
         }
         // A strip that slides its underline paints the one underline itself.
         if sizes.text_only && selected && !self.kind.slides_underline() {

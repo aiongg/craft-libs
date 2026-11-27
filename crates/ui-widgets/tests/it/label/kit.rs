@@ -6,9 +6,10 @@ use craft_ui::contract::{
     Accessible as _, Bind, BindMut, Common, Component, Container, ContainerProps, Cx, Edit as _, EditResponse, FieldLabel, MeasureCx, PaintUi,
     Props as _, Role, Scrub, SideLabel,
 };
+use craft_ui::geom::{Rect, Vec2};
 use craft_ui::primitives::TextRun;
 use craft_ui::style::{ComponentStyle, StyleCx};
-use egui::{Id, Rect, Response, Vec2};
+use craft_ui::{Id, Response};
 use std::cell::RefCell;
 
 /// A style with no padding.

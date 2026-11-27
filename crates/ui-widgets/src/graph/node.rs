@@ -8,7 +8,8 @@ use crate::contract::{
 use crate::primitives::{PaintShape, StrokeWidth, TextRun};
 use crate::style::{ComponentStyle, Flags, HandleLook, Stateful, StyleColor, StyleCx, SurfaceKind, SurfaceLook, TypeRole};
 use craft_behavior::{CursorIcon, HitLevel, HitPriority, HitShape, Insets, Metrics, PartKey, PressPhase, Sense};
-use egui::{Pos2, Rect, Response, Vec2};
+use craft_ui::Response;
+use craft_ui::geom::{Pos2, Rect, Vec2};
 
 pub(super) const PORT: PartKey = PartKey::new("port");
 

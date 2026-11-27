@@ -3,10 +3,10 @@
 use craft_behavior::Mixed;
 use craft_i18n::Direction;
 use craft_ui::contract::{Bind, Props as _, Role, Show as _, ShowContainer as _};
+use craft_ui::geom::{Pos2, Rect, Vec2};
 use craft_ui::layout_components::Row;
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::testing::{Harness, trial};
 use craft_ui::value_drag::{RangeSlider, Slider};
-use egui::{Pos2, Rect, Vec2};
 
 const SLACK: f32 = 0.5;
 
@@ -32,8 +32,8 @@ enum Kind {
 fn shown(kind: Kind, labels: &'static [(f64, &'static str)], place: Place, direction: Direction) -> (Rect, Vec<Rect>) {
     let range = labels.iter().map(|(value, _)| *value).fold(f64::INFINITY, f64::min)
         ..=labels.iter().map(|(value, _)| *value).fold(f64::NEG_INFINITY, f64::max);
-    let mut fixture = Fixture::new(move |ui| {
-        let show = |ui: &mut egui::Ui| match kind {
+    let mut fixture = Harness::new_ui(move |ui| {
+        let show = |ui: &mut craft_ui::Ui| match kind {
             Kind::Slider => {
                 let mut value = 0.0;
                 let slider = Slider::new(Bind::bound(&mut value), range.clone()).marks_labelled(labels.iter().copied()).label("Amount");
@@ -153,7 +153,7 @@ fn labels_of_nearby_marks_keep_the_order_of_their_marks() {
 fn short_end_labels_leave_the_slider_width_as_it_was() {
     const SHORT: [(f64, &str); 2] = [(0.0, "0"), (100.0, "100")];
     let (labelled, _) = shown(Kind::Slider, &SHORT, Place::Row(800.0), Direction::Ltr);
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         Row::new().show(ui, |ui, _| {
             let mut value = 0.0;
             Slider::new(Bind::bound(&mut value), 0.0..=100.0).label("Amount").show(ui);

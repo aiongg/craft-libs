@@ -7,10 +7,11 @@ use crate::contract::{Bind, Props as _, Show as _, ShowContainer as _, Validity,
 use crate::display::Text;
 use crate::layout_components::Stack;
 use crate::runtime::env::Message;
-use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
+use crate::testing::{Drive, Harness, StoryData, StoryOutput, story};
 use craft_behavior::Mixed;
 use craft_theme::ControlSize;
-use egui::{Key, Modifiers, Ui};
+use craft_ui::Ui;
+use craft_ui::input::{Key, Mods};
 
 const TODAY: (i32, u8, u8) = (2026, 8, 14);
 const EARLIEST: (i32, u8, u8) = (2026, 8, 20);
@@ -48,9 +49,9 @@ fn date_picker_invalid(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 }
 
 /// Focuses the field and opens the calendar with Alt+Down.
-fn open_calendar(fixture: &mut Fixture) {
-    fixture.key(Key::Tab, Modifiers::NONE);
-    fixture.key(Key::ArrowDown, Modifiers::ALT);
+fn open_calendar(fixture: &mut Harness) {
+    fixture.key(Key::Tab, Mods::NONE);
+    fixture.key(Key::ArrowDown, Mods::ALT);
     fixture.idle(4);
 }
 
@@ -96,9 +97,9 @@ fn calendar_popover_at_rect(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 }
 
 /// Focuses the opener and presses Enter, which opens the popover.
-fn open_popover(fixture: &mut Fixture) {
-    fixture.key(Key::Tab, Modifiers::NONE);
-    fixture.key(Key::Enter, Modifiers::NONE);
+fn open_popover(fixture: &mut Harness) {
+    fixture.key(Key::Tab, Mods::NONE);
+    fixture.key(Key::Enter, Mods::NONE);
     fixture.idle(4);
 }
 

@@ -1,12 +1,14 @@
 //! A Select steps over its stepped entries only. A value on an entry that is not stepped has no place among them: it
 //! offers both steps, and a step forward lands on the first stop and a step back on the last.
 
+use craft_ui::Ui;
 use craft_ui::contract::{Bind, Entry, Role, Show as _};
+use craft_ui::geom::Rect;
+use craft_ui::input::{Key, Mods};
 use craft_ui::list::ThumbAspect;
 use craft_ui::pickers::Select;
 use craft_ui::testing::access::Declared;
-use craft_ui::testing::{Fixture, Story, StoryData, StoryOutput, trial};
-use egui::{Key, Modifiers, Rect, Ui};
+use craft_ui::testing::{Harness, Story, StoryData, StoryOutput, trial};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -18,15 +20,15 @@ fn select(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 
 /// The value after `key` on the focused, closed field holding `held`, and whether it offered Increment and Decrement.
 fn step(held: u8, key: Key) -> (u8, (bool, bool)) {
-    let mut fixture = Fixture::story(&Story::new("select_steps", select));
+    let mut fixture = Harness::story(&Story::new("select_steps", select));
     *fixture.data().value("value", 4u8) = held;
     fixture.settle();
-    fixture.key(Key::Tab, Modifiers::NONE);
+    fixture.key(Key::Tab, Mods::NONE);
     fixture.settle();
     let node = fixture.by_role(Role::COMBO_BOX).first().expect("the field").node;
     let tree = fixture.tree();
     let offered = (tree.declares_key(node, Declared::Increment), tree.declares_key(node, Declared::Decrement));
-    fixture.key(key, Modifiers::NONE);
+    fixture.key(key, Mods::NONE);
     fixture.settle();
     let value = *fixture.data().value("value", 4u8);
     (value, offered)
@@ -41,7 +43,7 @@ fn a_select_steps_over_its_stepped_entries_and_from_an_unstepped_one_to_an_end()
 
 #[trial]
 fn the_closed_face_shows_an_entrys_closed_label_and_the_accessible_value_keeps_its_label() {
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         let entries = [Entry::new(1u8, "1 Dots").closed_label("Dots"), Entry::new(2u8, "2 Lines").closed_label("Lines")];
         Select::new("Leader", Bind::given(1u8), &entries).show(ui);
     });
@@ -58,7 +60,7 @@ fn the_closed_face_shows_an_entrys_closed_label_and_the_accessible_value_keeps_i
 fn picture_rects(aspect: Option<ThumbAspect>) -> (Vec<Rect>, Vec<Rect>) {
     let painted = Rc::new(RefCell::new(Vec::new()));
     let into = Rc::clone(&painted);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let entries = [Entry::new(1u8, "Uniform"), Entry::new(2u8, "Taper")];
         let into = Rc::clone(&into);
         let select = Select::new("Profile", Bind::given(1u8), &entries).picture(move |_, _, rect| into.borrow_mut().push(rect)).picture_only();
@@ -70,9 +72,9 @@ fn picture_rects(aspect: Option<ThumbAspect>) -> (Vec<Rect>, Vec<Rect>) {
     });
     fixture.settle();
     let face = painted.take();
-    fixture.key(Key::Tab, Modifiers::NONE);
+    fixture.key(Key::Tab, Mods::NONE);
     fixture.settle();
-    fixture.key(Key::ArrowDown, Modifiers::ALT);
+    fixture.key(Key::ArrowDown, Mods::ALT);
     fixture.settle();
     assert!(!fixture.by_role(Role::LIST_BOX).is_empty(), "Alt+Down opens the list");
     (face, painted.take())
@@ -97,7 +99,7 @@ fn a_picture_aspect_sets_the_pictures_width_on_the_face_and_in_the_rows() {
 #[trial]
 fn a_value_on_no_entry_reads_as_the_placeholder_the_face_shows() {
     for (held, read) in [(9u8, "Custom"), (1u8, "One")] {
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             let entries = [Entry::new(1u8, "One"), Entry::new(2u8, "Two")];
             Select::new("Preset", Bind::given(held), &entries).placeholder("Custom").show(ui);
         });

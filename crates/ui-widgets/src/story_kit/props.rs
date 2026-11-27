@@ -13,7 +13,7 @@ use crate::form::{Field, FieldGroup};
 use crate::pickers::Select;
 use crate::testing::story::{Edit, Slot, StoryData};
 use crate::text::{NumberField, TextField};
-use egui::{Response, Ui};
+use craft_ui::{Response, Ui};
 use std::any::Any;
 
 /// `value` as a number when it has a plain number type.

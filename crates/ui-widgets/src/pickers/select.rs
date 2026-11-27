@@ -31,7 +31,8 @@ use craft_behavior::{
     CancelReason, GesturePhase, HitLevel, HitPriority, IconId, Metrics, NavMove, PartKey, Selection, Sense, TypeAhead, Value, WheelPhase, wheel_step,
 };
 use craft_theme::{Flags, Stateful, States};
-use egui::{Rect, Ui, Vec2};
+use craft_ui::Ui;
+use craft_ui::geom::{Rect, Vec2};
 use std::borrow::Cow;
 
 #[cfg(feature = "suite")]
@@ -364,7 +365,7 @@ impl<T: Value + 'static> Component for Select<'_, T> {
         Some(self.value.reborrow())
     }
 
-    fn parts(&mut self, rect: egui::Rect, cx: &mut PartsCx<'_, Self>) {
+    fn parts(&mut self, rect: craft_ui::geom::Rect, cx: &mut PartsCx<'_, Self>) {
         cx.part(FACE, rect)
             .sense(Sense::CLICK | Sense::HOVER | Sense::TAKE_FOCUS)
             .priority(HitPriority::new(HitLevel::Body, 0))

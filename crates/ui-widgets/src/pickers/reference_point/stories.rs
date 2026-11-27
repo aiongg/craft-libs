@@ -3,11 +3,11 @@
 use super::{ReferencePoint, ReferencePointKind, ReferencePointLook};
 use crate::contract::{Show as _, Validity};
 use crate::runtime::env::Message;
-use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
+use crate::testing::{Drive, Harness, StoryData, StoryOutput, story};
 use craft_behavior::{Anchor9, Mixed};
-use egui::Ui;
+use craft_ui::Ui;
 
-fn pick_top_left(fixture: &mut Fixture) {
+fn pick_top_left(fixture: &mut Harness) {
     if let Some(corner) = fixture.by_label("Top left") {
         fixture.click(&corner);
     }

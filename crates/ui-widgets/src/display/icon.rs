@@ -6,7 +6,8 @@ use crate::style::{ComponentStyle, IconLook, Ink, StyleCx};
 use craft_behavior::{Metrics, Sense};
 use craft_theme::variant::Tone;
 use craft_theme::{Stateful, States};
-use egui::{Response, Vec2};
+use craft_ui::Response;
+use craft_ui::geom::Vec2;
 
 #[cfg(feature = "suite")]
 pub(crate) mod stories;

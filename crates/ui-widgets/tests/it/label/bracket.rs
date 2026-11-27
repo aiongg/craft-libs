@@ -5,22 +5,23 @@ use craft_ui::choice::Checkbox;
 use craft_ui::contract::{Bind, Bracket, Entry, Props as _, Show as _, ShowContainer as _};
 use craft_ui::display::Text;
 use craft_ui::form::{Field, FieldGroup};
+use craft_ui::geom::{Rect, Vec2};
 use craft_ui::layout_components::{Row, Stack};
 use craft_ui::pickers::{Select, UnitSelect};
 use craft_ui::runtime::env::UnitKind;
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::testing::{Harness, trial};
 use craft_ui::text::{NumberField, link_toggle};
-use egui::{Rect, Shape, Vec2};
+use egui::Shape;
 
 /// How far two edges may differ and still line up, in points.
 const SLACK: f32 = 0.5;
 
-fn control(fixture: &Fixture, name: &str) -> Rect {
+fn control(fixture: &Harness, name: &str) -> Rect {
     fixture.by_label(name).unwrap_or_else(|| panic!("{name:?} names its control")).rect
 }
 
 /// The horizontal line segments of one frame, as (y, from x, to x).
-fn ticks(fixture: &mut Fixture) -> Vec<(f32, f32, f32)> {
+fn ticks(fixture: &mut Harness) -> Vec<(f32, f32, f32)> {
     fixture
         .frame_shapes()
         .into_iter()
@@ -32,9 +33,9 @@ fn ticks(fixture: &mut Fixture) -> Vec<(f32, f32, f32)> {
 }
 
 /// A form with Width and Height (unit selects) stacked in a row with `bracket`, beside their link.
-fn linked(bracket: Bracket) -> Fixture {
+fn linked(bracket: Bracket) -> Harness {
     let units = [Entry::new(UnitKind::Pixels, "Pixels"), Entry::new(UnitKind::Percent, "Percent")];
-    Fixture::new(move |ui| {
+    Harness::new_ui(move |ui| {
         Row::new().show(ui, |ui, _| {
             FieldGroup::new("Image size").show(ui, |ui, _| {
                 Row::new().bracket(bracket).show(ui, |ui, _| {
@@ -86,7 +87,7 @@ fn a_bracketed_row_centres_its_chain_between_the_rows_and_draws_the_bracket_whil
 #[trial]
 fn a_check_box_that_starts_a_row_of_a_form_starts_in_the_control_column() {
     let methods = [Entry::new(0_u8, "Automatic"), Entry::new(1_u8, "Bicubic")];
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         Row::new().show(ui, |ui, _| {
             FieldGroup::new("Size").show(ui, |ui, _| {
                 Field::new("Resolution").show(ui, |ui, _| {

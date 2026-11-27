@@ -7,7 +7,7 @@ use crate::layout_components::Stack;
 use crate::runtime::env::Message;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use craft_behavior::Mixed;
-use egui::Ui;
+use craft_ui::Ui;
 
 /// A label too long for one line of the card: it wraps, the track on its first line.
 const LONG_LABEL: &str = "Show the transform controls on the selected layer whenever the move tool is active";

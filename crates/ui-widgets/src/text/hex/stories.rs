@@ -8,7 +8,7 @@ use crate::testing::{Drive, StoryData, StoryOutput, story};
 use crate::text::TextField;
 use craft_behavior::PlainText;
 use craft_theme::Rgba;
-use egui::Ui;
+use craft_ui::Ui;
 
 const BLUE: Rgba = Rgba([0x33, 0x66, 0x99, 0xff]);
 

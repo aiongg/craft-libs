@@ -3,16 +3,17 @@
 //! one still shown.
 
 use craft_behavior::{IconId, keyed};
+use craft_ui::Ui;
 use craft_ui::buttons::IconButton;
 use craft_ui::contract::tooltip::DELAY;
 use craft_ui::contract::{Bind, Props as _, Show as _, ShowCollection as _, ShowContainer as _};
 use craft_ui::form::Field;
+use craft_ui::geom::{Rect, Vec2, pos2, vec2};
 use craft_ui::menu::{Menu, MenuItem};
 use craft_ui::tabs::{Tab, TabStrip};
 use craft_ui::testing::pointer::moved;
 use craft_ui::testing::{Frames, last_pass_access_builds, last_pass_tip_texts, trial};
 use craft_ui::text::NumberField;
-use egui::{Rect, Ui, Vec2, pos2, vec2};
 use std::cell::RefCell;
 
 /// The rows of each scene.

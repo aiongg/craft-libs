@@ -9,7 +9,8 @@ use crate::contract::{ItemOutput, NoValue, OpenChange, Outcome};
 use crate::runtime::commands::FireSource;
 use craft_behavior::ColumnKey;
 use craft_keymap::Mods;
-use egui::{Rect, Response};
+use craft_ui::Response;
+use craft_ui::geom::Rect;
 
 /// What a row reports besides what the collection reads from its pointer input.
 #[derive(Clone, Debug, PartialEq, Eq, crate::contract::MemoProps)]

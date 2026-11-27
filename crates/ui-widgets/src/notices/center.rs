@@ -2,12 +2,12 @@
 //! `runtime::toast`, which `ToastStack` shows, and reports how each one ended.
 
 use crate::contract::{NoValue, Outcome, Politeness};
-use crate::runtime::env::{Label, WindowKey, WordSet};
-use crate::runtime::memory::{unique, with_session};
+use crate::runtime::env::{Label, WordSet};
+use crate::runtime::memory::unique;
 use crate::runtime::toast::{self, Toast, ToastAction, ToastEnd, ToastId};
 use crate::runtime::words::CommonWords;
 use craft_theme::variant::Tone;
-use egui::{Context, Response, Ui};
+use craft_ui::{Context, Response, Ui};
 
 /// The id of the "Don't Show Again" word, which the toast card resolves in the viewport's language.
 const DONT_SHOW_AGAIN: &str = "common.dontShowAgain";
@@ -130,11 +130,11 @@ impl Tracked {
 #[derive(Clone, Default)]
 struct Posted(Vec<Tracked>);
 
-fn posted_slot() -> egui::Id {
+fn posted_slot() -> craft_ui::Id {
     unique("craft_ui.notice_center")
 }
 
-/// The app's way to post notices to a window. It holds only the window and its timeout: the queue, the timers, the
+/// The app's way to post notices to a window. It holds only its timeout: the queue, the timers, the
 /// hover pause and the announcement are the toast service's. So is the cap of `toast::MAX_CARDS` cards: a new notice
 /// always shows, and makes room by dropping the oldest earlier card that would leave by itself (no action, a timeout),
 /// else the oldest without progress; a progress notice is never dropped. `show` reports a dropped notice as
@@ -142,9 +142,6 @@ fn posted_slot() -> egui::Id {
 /// card and a dismiss key's "Don't Show Again" last; `show` reports how posted notices ended.
 #[derive(Clone, Debug, PartialEq, crate::contract::Pattern, crate::contract::Props)]
 pub struct NoticeCenter {
-    /// The window whose toasts show the notices.
-    #[prop]
-    window: WindowKey,
     /// Seconds before a notice hides, from the app's notification duration.
     #[prop(quantity = "seconds")]
     timeout: Option<f32>,
@@ -157,26 +154,27 @@ impl Default for NoticeCenter {
 }
 
 impl NoticeCenter {
-    /// A center for the app's first window whose notices hide after the toast service's default time.
+    /// A center whose notices hide after the toast service's default time.
     pub fn new() -> Self {
-        NoticeCenter { window: WindowKey::main(), timeout: Some(toast::TIMEOUT) }
+        NoticeCenter { timeout: Some(toast::TIMEOUT) }
     }
 
-    /// Posts `notice` to the center's window in the running viewport; `None` when its dismiss key is in `silenced`, and
-    /// in a measuring run, which posts nothing and tracks nothing (the real run posts it). A notice with progress has no
-    /// timer.
-    pub fn post(&self, ctx: &Context, notice: &PostedNotice, silenced: &[String]) -> Option<ToastId> {
+    /// Posts `notice` to `ui`'s window; `None` when its dismiss key is in `silenced`, and in a measuring run, which
+    /// posts nothing and tracks nothing (the real run posts it). A notice with progress has no timer.
+    pub fn post(&self, ui: &mut Ui, notice: &PostedNotice, silenced: &[String]) -> Option<ToastId> {
         if notice.dismiss_key.as_ref().is_some_and(|key| silenced.contains(key)) {
             return None;
         }
-        if !crate::runtime::measure::effect(ctx, "notices::post") {
+        if ui.is_measuring() {
             return None;
         }
         let politeness = if notice.tone == Tone::Bad { Politeness::Assertive } else { Politeness::Polite };
         let timeout = if notice.sticky { None } else { self.timeout };
         let message = notice.message.clone().map_or(Label::Empty, Label::from);
         let mut card = Toast::new(message).title(notice.title.clone()).lines(notice.lines.clone());
-        card = card.tone(notice.tone).timeout(timeout).politeness(politeness);
+        card = card.timeout(timeout);
+        card.tone = notice.tone;
+        card.politeness = politeness;
         if let Some(fraction) = notice.progress {
             card = card.progress(fraction);
         }
@@ -186,8 +184,8 @@ impl NoticeCenter {
         if notice.dismiss_key.is_some() {
             card = card.action(ToastAction::new(dont_show_again()));
         }
-        let id = toast::post(ctx, &self.window, card);
-        with_session(ctx, posted_slot(), |posted: &mut Posted| {
+        let id = ui.ctx().toasts().post(card);
+        ui.with_session(posted_slot(), |posted: &mut Posted| {
             posted.0.push(Tracked { id, key: notice.dismiss_key.clone(), action: notice.action.is_some() });
             if posted.0.len() > TRACKED {
                 posted.0.remove(0);
@@ -198,27 +196,30 @@ impl NoticeCenter {
 
     /// Keeps notice `id` until it is closed, whatever the timeout (an error the user must read).
     pub fn keep(&self, ctx: &Context, id: ToastId) {
-        toast::keep(ctx, id);
+        // REQUEST (P1a): `ToastQueue::keep(id)` (drops the card's timeout and deadline).
+        let _ = (ctx, id);
     }
 
     /// Sets how far the job of notice `id` has got, `fraction` between 0 and 1, and its message; the center keeps
     /// tracking the id.
     pub fn set_progress(&self, ctx: &Context, id: ToastId, fraction: f32, message: Option<Label>) {
-        toast::set_progress(ctx, id, fraction, message);
+        // REQUEST (P1a): `ToastQueue::set_message(id, Label)`; the queue's `set_progress` takes the fraction only.
+        let _ = message;
+        ctx.toasts().set_progress(id, fraction);
     }
 
     /// Removes a notice the app no longer needs (the job it reported on was cancelled).
     pub fn remove(&self, ctx: &Context, id: ToastId) {
-        toast::dismiss(ctx, id);
+        ctx.toasts().dismiss(id);
     }
 
     /// Collects how the notices posted through any center ended since the last pass.
     pub fn show(self, ui: &mut Ui) -> NoticeCenterOutput {
         let ctx = ui.ctx().clone();
         let mut ends = Vec::new();
-        with_session(&ctx, posted_slot(), |posted: &mut Posted| {
+        ui.with_session(posted_slot(), |posted: &mut Posted| {
             posted.0.retain(|tracked| {
-                let Some(end) = toast::end(&ctx, tracked.id) else { return true };
+                let Some(end) = ctx.toasts().take_end(tracked.id) else { return true };
                 ends.push(tracked.end(end));
                 false
             });

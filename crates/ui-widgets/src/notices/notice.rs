@@ -15,7 +15,8 @@ use crate::style::{ComponentStyle, FocusLook, IconLook, Insets, StyleColor, Styl
 use craft_behavior::{Flow, IconId, Metrics, NavShape, PartKey, Proposal, Roving, Sense};
 use craft_i18n::Format;
 use craft_theme::{Rgba, Stateful, States, Variant, variant::Tone};
-use egui::{Align, Pos2, Rect, Response, Vec2};
+use craft_ui::Response;
+use craft_ui::geom::{Align, Pos2, Rect, Vec2};
 
 /// Where a notice sits and how much room it takes.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, crate::contract::MemoProps)]

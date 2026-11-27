@@ -8,7 +8,7 @@ use crate::contract::{
 use crate::layout::{BodyLayout, CellAlign, GridFit, RowAlign};
 use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::{ColumnWidth, Insets, Metrics, Sense};
-use egui::{Response, Ui};
+use craft_ui::{Response, Ui};
 
 #[cfg(feature = "suite")]
 pub(crate) mod stories;

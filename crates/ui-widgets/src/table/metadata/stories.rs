@@ -2,7 +2,7 @@
 
 use super::{MetadataGroup, MetadataRow, MetadataTable};
 use crate::testing::{Drive, StoryData, StoryOutput, story};
-use egui::Ui;
+use craft_ui::Ui;
 
 fn groups() -> Vec<MetadataGroup> {
     vec![

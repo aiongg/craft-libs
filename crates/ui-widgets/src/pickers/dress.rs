@@ -2,7 +2,7 @@
 
 use crate::list::ListRow;
 use crate::primitives::ContentPainterCx;
-use egui::Rect;
+use craft_ui::geom::Rect;
 use std::rc::Rc;
 
 /// What a picker adds to an option's row: the host's content for an option (a detail line, a trailing shortcut text, a

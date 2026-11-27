@@ -15,7 +15,8 @@ use crate::runtime::focus::{ActivateKeys, KeyUse};
 use crate::style::{ComponentStyle, FocusLook, IconLook, Stateful, StyleCx, TypeRole};
 use craft_behavior::fit::{FitItem, FitKeep, fit_items};
 use craft_behavior::{Axis, CursorIcon, Flow, IconId, Metrics, NavShape, PartKey, PartRef, Roving, Sense, Value};
-use egui::{Rect, Response, Vec2};
+use craft_ui::Response;
+use craft_ui::geom::{Rect, Vec2};
 
 #[cfg(feature = "suite")]
 pub(crate) mod stories;
@@ -89,7 +90,7 @@ pub struct BreadcrumbBar<'a, K: Value + 'static> {
     whole: Label,
 }
 
-impl<'a, K: Value + 'static> BreadcrumbBar<'a, K> {
+impl<'a, K: Value + crate::contract::MemoProps + 'static> BreadcrumbBar<'a, K> {
     /// A bar named `label` over `crumbs`, the root first.
     pub fn new(label: impl Into<Label>, crumbs: &'a [Entry<K>]) -> Self {
         debug_assert!(crumbs.iter().all(|crumb| !crumb.is_separator()), "a `BreadcrumbBar` has no separators");
@@ -170,7 +171,7 @@ pub fn path_crumbs(path: &str) -> Vec<Entry<String>> {
     out
 }
 
-impl<K: Value + 'static> Component for BreadcrumbBar<'_, K> {
+impl<K: Value + crate::contract::MemoProps + 'static> Component for BreadcrumbBar<'_, K> {
     const ROLE: Role = Role::NAVIGATION;
     const KEYS: KeyUse = KeyUse::of(crate::contract::Input::Pointer).with_activate(ActivateKeys::Both);
     type Style = BreadcrumbBarStyle;

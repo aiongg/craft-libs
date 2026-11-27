@@ -3,13 +3,14 @@
 pub(crate) mod panel_scope;
 
 use craft_behavior::IconId;
+use craft_ui::Ui;
 use craft_ui::buttons::{Button, IconButton};
 use craft_ui::contract::tooltip::DELAY;
 use craft_ui::contract::{CommandSet, Props as _, Show as _};
+use craft_ui::geom::Rect;
 use craft_ui::runtime::commands::CommandState;
 use craft_ui::testing::pointer::moved;
-use craft_ui::testing::{Fixture, trial};
-use egui::{Rect, Ui};
+use craft_ui::testing::{Harness, trial};
 use std::cell::Cell;
 use std::rc::Rc;
 
@@ -29,11 +30,11 @@ pub enum HintCommand {
 fn tooltip_of(command: HintCommand, state: CommandState, show: impl Fn(&mut Ui) -> Rect + 'static) -> String {
     let at = Rc::new(Cell::new(Rect::NOTHING));
     let seen = Rc::clone(&at);
-    let mut fixture = Fixture::new(move |ui| seen.set(show(ui)));
+    let mut fixture = Harness::new_ui(move |ui| seen.set(show(ui)));
     fixture.command_state(command, state);
     fixture.settle();
     let before: Vec<String> = fixture.texts().iter().map(|run| run.text.clone()).collect();
-    fixture.frame(vec![moved(at.get().center())]);
+    fixture.send(moved(at.get().center()));
     fixture.advance(DELAY);
     fixture.settle();
     let added: Vec<String> = fixture.texts().iter().map(|run| run.text.clone()).filter(|text| !before.contains(text)).collect();

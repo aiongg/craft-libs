@@ -4,17 +4,17 @@
 use craft_ui::contract::Show as _;
 use craft_ui::display::Text;
 use craft_ui::fonts::{FontRef, I18nScripts, SystemFonts, UiFonts, deflated_default_definitions};
+use craft_ui::geom::Vec2;
 use craft_ui::runtime::env::Direction;
-use craft_ui::testing::{Fixture, trial};
-use egui::Vec2;
+use craft_ui::testing::{Harness, trial};
 
 /// The framework's Arabic test face, for the Arabic script these paragraphs are written in.
 const ARABIC: &[u8] = include_bytes!("../../../../ui-contract/tests/fonts/NotoSansArabic-test.ttf");
 
 /// A right-to-left fixture showing `text` as a `Text` in a column `width` wide, set in the interface face and the
 /// Arabic test face.
-fn paragraph(text: &'static str, width: f32) -> Fixture {
-    let mut fixture = Fixture::new(move |ui| {
+fn paragraph(text: &'static str, width: f32) -> Harness {
+    let mut fixture = Harness::new_ui(move |ui| {
         let _ = Text::new(text).show(ui);
     });
     let egui_face = |name: &str| (**deflated_default_definitions().font_data.get(name).expect("an egui default face")).clone();
@@ -33,7 +33,7 @@ type PaintedRow = (f32, String, Vec<(char, f32, f32)>);
 
 /// Each painted row of the text shape whose text holds `part`: its top, its text in reading order, and each glyph's
 /// character, screen left and advance.
-fn painted_rows(fixture: &mut Fixture, part: &str) -> Vec<PaintedRow> {
+fn painted_rows(fixture: &mut Harness, part: &str) -> Vec<PaintedRow> {
     let shapes = fixture.frame_shapes();
     let shown = shapes
         .iter()

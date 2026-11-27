@@ -6,11 +6,11 @@
 use craft_behavior::Proposal;
 use craft_ui::buttons::Button;
 use craft_ui::contract::{Bind, Entry, Props as _, Show as _, ShowContainer as _, Sizing};
+use craft_ui::geom::Rect;
 use craft_ui::layout_components::{Row, Stack};
 use craft_ui::pickers::Select;
 use craft_ui::primitives::TextRun;
 use craft_ui::testing::{Frames, kept_measurement_leaves, last_pass_text_layouts, trial};
-use egui::Rect;
 
 /// The blend modes of a brush's Mode select.
 const MODES: [&str; 29] = [
@@ -88,7 +88,7 @@ fn modes() -> Vec<&'static str> {
 
 /// A content-sized stack in a row, holding a select of `labels` (or a button in its place), with a button after it.
 /// Returns the select's rect.
-fn scene(ui: &mut egui::Ui, labels: &[&'static str], select: bool) -> Rect {
+fn scene(ui: &mut craft_ui::Ui, labels: &[&'static str], select: bool) -> Rect {
     let mut rect = Rect::NOTHING;
     Row::new().show(ui, |ui, _| {
         Stack::new().show(ui, |ui, _| {

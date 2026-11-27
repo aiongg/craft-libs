@@ -1,12 +1,12 @@
 //! A step that cannot move a value is not offered: a value at the end of its range declares no step past it, and a
 //! value that wraps declares both steps at either end.
 
+use craft_ui::Ui;
 use craft_ui::choice::Rating;
 use craft_ui::contract::{Props as _, Role, Show as _};
 use craft_ui::testing::access::Declared;
-use craft_ui::testing::{Fixture, Story, StoryData, StoryOutput, trial};
+use craft_ui::testing::{Harness, Story, StoryData, StoryOutput, trial};
 use craft_ui::value_drag::AngleDial;
-use egui::Ui;
 
 fn top_rating(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     Rating::new(data.bind("stars", 5u8), 5).label("Rating").show(ui).into()
@@ -18,7 +18,7 @@ fn dial_at_start(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 
 /// Whether the one node of `role` declares Increment and Decrement.
 fn steps(show: fn(&mut Ui, &mut StoryData) -> StoryOutput, role: Role) -> (bool, bool) {
-    let mut fixture = Fixture::story(&Story::new("steps", show));
+    let mut fixture = Harness::story(&Story::new("steps", show));
     fixture.settle();
     let node = fixture.by_role(role).first().expect("the node").node;
     let tree = fixture.tree();

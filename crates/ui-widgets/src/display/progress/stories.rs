@@ -3,7 +3,7 @@
 use super::Progress;
 use crate::contract::{Props as _, Show as _};
 use crate::testing::{Drive, StoryData, StoryOutput, story};
-use egui::Ui;
+use craft_ui::Ui;
 
 #[story(Progress, covers = [Default], drive = Drive::Never)]
 fn progress(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {

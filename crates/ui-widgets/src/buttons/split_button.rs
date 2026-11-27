@@ -15,7 +15,8 @@ use craft_theme::{
     States, Variant,
     variant::{Emphasis, Tone},
 };
-use egui::{CornerRadius, Pos2, Rect, Response, Ui, Vec2};
+use craft_ui::geom::{Pos2, Rect, Vec2};
+use craft_ui::{CornerRadius, Response, Ui};
 
 const ARROW: PartKey = PartKey::new("arrow");
 
@@ -127,7 +128,7 @@ pub struct SplitButton<'a, T: Value + 'static> {
     chosen: Option<T>,
 }
 
-impl<'a, T: Value + 'static> SplitButton<'a, T> {
+impl<'a, T: Value + crate::contract::MemoProps + 'static> SplitButton<'a, T> {
     /// A split button showing `label` whose arrow opens `entries`.
     pub fn new(label: impl Into<Label>, entries: &'a [Entry<T>]) -> Self {
         SplitButton::with_menu(SplitMenu::Entries(entries)).label(label)
@@ -175,7 +176,7 @@ fn chevron(look: &FaceLook) -> IconSpec<'static> {
 /// The ribbon's menu arrow where it sets one (`RibbonLook::arrow`): the small filled triangle, pointing down.
 const RIBBON_ARROW: crate::controls::disclosure::DisclosureGlyph = crate::controls::disclosure::DisclosureGlyph::new(1.0);
 
-impl<T: Value + 'static> Component for SplitButton<'_, T> {
+impl<T: Value + crate::contract::MemoProps + 'static> Component for SplitButton<'_, T> {
     const ROLE: Role = Role::BUTTON;
     const KEYS: crate::runtime::focus::KeyUse = crate::runtime::focus::KeyUse::of(crate::contract::Input::Pointer).with_moves();
     type Style = SplitButtonStyle;
@@ -233,7 +234,7 @@ impl<T: Value + 'static> Component for SplitButton<'_, T> {
                 let chevron = chevron(&cx.style.face);
                 let (look, side) = (&cx.style.face, cx.style.face.arrow.unwrap_or(cx.style.icon.side));
                 let y = face::stacked_divide(cx, &self.spec(cx.resolved.label, &chevron), look, side, cx.content_rect);
-                Rect::from_min_max(egui::pos2(rect.left(), y.clamp(rect.top(), rect.bottom())), rect.max)
+                Rect::from_min_max(craft_ui::geom::pos2(rect.left(), y.clamp(rect.top(), rect.bottom())), rect.max)
             }
             _ => Flow::new(rect, cx.flow.is_rtl()).take_end(cx.style.face.arrow.unwrap_or(cx.style.icon.side)).0,
         };
@@ -336,7 +337,7 @@ impl<T: Value + 'static> Component for SplitButton<'_, T> {
     }
 }
 
-impl<T: Value + 'static> SplitButton<'_, T> {
+impl<T: Value + crate::contract::MemoProps + 'static> SplitButton<'_, T> {
     /// Paints a stacked split button: the main part (the icon) over the arrow part (the label and its chevron), each
     /// with its own state fill, and the divider across the button where they meet. The arrow part is the one `parts`
     /// declared; a face, which declares none, shows the whole button as the arrow part.

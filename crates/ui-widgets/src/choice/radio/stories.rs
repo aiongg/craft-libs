@@ -6,9 +6,9 @@ use crate::contract::{FieldLayout, Props as _, Show as _, ShowContainer as _, Si
 use crate::display::{Shade, Text};
 use crate::layout_components::{Row, Stack};
 use crate::runtime::env::{Message, with_env};
-use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
+use crate::testing::{Drive, Harness, StoryData, StoryHarness, StoryOutput, story};
 use craft_behavior::{IconId, Mixed};
-use egui::{Response, Ui};
+use craft_ui::{Response, Ui};
 
 /// A label too long for one line of the card: it wraps, the button on its first line.
 const LONG_LABEL: &str = "Show the transform controls on the selected layer whenever the move tool is active";
@@ -44,13 +44,13 @@ fn column(ui: &mut Ui, group: RadioGroup<'_, u8>) -> StoryOutput {
         .into()
 }
 
-fn pick_second(fixture: &mut Fixture) {
+fn pick_second(fixture: &mut StoryHarness) {
     if let Some(medium) = fixture.by_label("Medium") {
         fixture.click(&medium);
     }
 }
 
-fn pick_millimetres(fixture: &mut Fixture) {
+fn pick_millimetres(fixture: &mut StoryHarness) {
     if let Some(millimetres) = fixture.by_label("Millimetres") {
         fixture.click(&millimetres);
     }

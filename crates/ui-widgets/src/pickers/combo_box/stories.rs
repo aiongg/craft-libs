@@ -4,9 +4,10 @@ use super::ComboBox;
 use crate::contract::{Entry, Show as _, Validity};
 use crate::runtime::env::Message;
 use crate::testing::pointer::moved;
-use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
+use crate::testing::{Drive, Harness, StoryData, StoryOutput, story};
 use craft_behavior::{Mixed, Preview};
-use egui::{Key, Modifiers, Ui};
+use craft_ui::Ui;
+use craft_ui::input::{Key, Mods};
 
 const FAMILIES: [&str; 5] = ["Arial", "Charter", "Garamond", "Verdana", "Zapfino"];
 
@@ -47,9 +48,9 @@ fn combo_box_no_options(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 }
 
 /// Focuses the field and opens the list on every option with Alt+Down.
-fn open_list(fixture: &mut Fixture) {
-    fixture.key(Key::Tab, Modifiers::NONE);
-    fixture.key(Key::ArrowDown, Modifiers::ALT);
+fn open_list(fixture: &mut Harness) {
+    fixture.key(Key::Tab, Mods::NONE);
+    fixture.key(Key::ArrowDown, Mods::ALT);
     fixture.idle(4);
 }
 
@@ -61,10 +62,10 @@ fn combo_box_open(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 }
 
 /// Opens the list and rests the pointer on the Garamond row, which the list previews.
-fn hover_option(fixture: &mut Fixture) {
+fn hover_option(fixture: &mut Harness) {
     open_list(fixture);
     if let Some(row) = fixture.by_label("Garamond") {
-        fixture.frame(vec![moved(row.center())]);
+        fixture.send(moved(row.center()));
     }
     fixture.idle(4);
 }

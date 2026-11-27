@@ -6,7 +6,8 @@ use crate::runtime::env::{AppValues, EnvValue};
 use craft_behavior::NavMove;
 use craft_i18n::Folder;
 use craft_keymap::mnemonic;
-use egui::{Id, Pos2, Rect, pos2};
+use craft_ui::Id;
+use craft_ui::geom::{Pos2, Rect, pos2};
 use std::sync::{Arc, Mutex, PoisonError};
 
 /// Whether the pointer at `now`, having come from `from`, heads for `submenu`: it lies inside the triangle from

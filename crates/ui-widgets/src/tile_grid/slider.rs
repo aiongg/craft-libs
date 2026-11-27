@@ -8,7 +8,7 @@ use crate::contract::{
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, FocusLook, StyleCx};
 use craft_behavior::{IconId, Metrics, Mixed, NavShape, PartKey, Roving, Sense};
-use egui::{Rect, Vec2};
+use craft_ui::geom::{Rect, Vec2};
 use std::ops::RangeInclusive;
 
 /// A step of the tile size, from Cmd/Ctrl + / - / 0 or the slider's end buttons.

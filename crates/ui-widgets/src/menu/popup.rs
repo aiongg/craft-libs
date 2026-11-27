@@ -18,7 +18,7 @@ use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
 use craft_behavior::overlay::{Align, Side};
 use craft_behavior::{Arrows, Metrics, MotionMode, NavShape, Roving, Sense, Value};
 use craft_keymap::{Chord, Key};
-use egui::{Response, Ui};
+use craft_ui::{Response, Ui};
 
 /// The style of a menu: the surface comes from the container.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
@@ -218,7 +218,7 @@ pub struct Menu<'a> {
     submenu: bool,
     values: bool,
     /// The id of the control the menu hangs from: `Popup` closes the layer through it.
-    opener: Option<egui::Id>,
+    opener: Option<craft_ui::Id>,
     /// A row of a submenu level took Back.
     back: bool,
     /// The Left or Right key a top-level level left unhandled.
@@ -431,7 +431,7 @@ impl Component for Menu<'_> {
         level.resume(cx.core.ctx.cumulative_pass_nr());
         while let Some((mv, _)) = cx.intents().take_move() {
             if level.step_active(mv) {
-                frame::request_repaint(&cx.core.ctx);
+                cx.core.ctx.request_repaint();
             }
         }
         // Enter routed from the field arrives as the menu's own activation by key: the row it names runs, and the run
@@ -441,11 +441,11 @@ impl Component for Menu<'_> {
         {
             cx.keep_open();
             level.run(row);
-            frame::request_repaint(&cx.core.ctx);
+            cx.core.ctx.request_repaint();
         }
         // The rows run after this, so the pass that moved the pointer onto a row paints it, and the row it left, as the
         // level now has them.
-        if crate::runtime::pointer::frame(&cx.core.ctx).delta != egui::Vec2::ZERO {
+        if crate::runtime::pointer::frame(&cx.core.ctx).delta != craft_ui::geom::Vec2::ZERO {
             let ctx = cx.core.ctx.clone();
             level.follow_pointer(|row| crate::runtime::pointer::hovers(&ctx, row));
         }
@@ -471,7 +471,7 @@ impl Component for Menu<'_> {
             cx.claim(chord);
             if cx.take_claimed(chord) {
                 level.run(row);
-                frame::request_repaint(&cx.core.ctx);
+                cx.core.ctx.request_repaint();
             }
         }
     }

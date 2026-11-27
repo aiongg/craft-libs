@@ -9,7 +9,8 @@ use std::borrow::Cow;
 use crate::style::{ComponentStyle, StyleCx, TextLook, TypeRole};
 use craft_behavior::{Metrics, Proposal, Sense};
 use craft_theme::{Stateful, States, variant::Tone};
-use egui::{Response, Vec2};
+use craft_ui::Response;
+use craft_ui::geom::Vec2;
 
 #[cfg(feature = "suite")]
 pub(crate) mod stories;
@@ -207,7 +208,7 @@ impl Component for Text {
         let wrap = cx.column_room();
         if !self.spans.is_empty() {
             let doc = DocText { wrap: Some(wrap.unwrap_or(f32::INFINITY)), ..self.doc() };
-            let layout = doc.layout(cx.ui.ctx(), cx.tokens, cx.env.text_direction());
+            let layout = cx.layout_doc(&doc);
             return match cx.room {
                 Some(room) if layout.elided => Vec2::new(room, layout.size().y),
                 _ => layout.size(),

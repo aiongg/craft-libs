@@ -13,7 +13,7 @@ use crate::runtime::focus::{ActivateKeys, FocusShape, KeepKeys, KeyUse};
 use crate::style::{ComponentStyle, FocusLook, StyleCx, SurfaceStyle, TextLook, TrackLook};
 use craft_behavior::{Flow, HitLevel, HitPriority, Metrics, Mixed, PartKey, PressPhase, PressState, Sense};
 use craft_theme::Stateful;
-use egui::{Pos2, Rect, Vec2};
+use craft_ui::geom::{Pos2, Rect, Vec2};
 use std::ops::RangeInclusive;
 
 #[cfg(feature = "suite")]

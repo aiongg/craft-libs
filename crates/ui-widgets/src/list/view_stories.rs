@@ -16,11 +16,12 @@ use crate::popover::Popover;
 use crate::primitives::{ContentPainterCx, IconSpec, Span};
 use crate::runtime::env::{Env, Label};
 use crate::style::{Corners, SurfaceKind};
-use crate::testing::{Drive, Fixture, StoryData, StoryOutput, ValueAt, story};
+use crate::testing::{Drive, Harness, StoryData, StoryHarness, StoryOutput, ValueAt, story};
 use crate::tile_grid::GroupHeads;
 use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, EditEvent, IconId, ItemSource, Selection};
 use craft_keymap::{Chord, Key, Mods};
-use egui::{Rect, Ui};
+use craft_ui::Ui;
+use craft_ui::geom::Rect;
 use std::borrow::Cow;
 
 /// A list of names keyed by position.
@@ -477,11 +478,9 @@ fn list_rename_while_filtered(ui: &mut Ui, data: &mut StoryData) -> StoryOutput 
     const NOTES: usize = 2;
     let id = crate::testing::memory::global("list_rename_while_filtered", ());
     let names = data.value("names", vec![String::from("Chapter 1"), String::from("Chapter 2"), String::from("Notes")]).clone();
-    // The button sits at the start of the list's width, which is the right under right-to-left.
-    let start = if Env::of(ui).view().direction().is_rtl() { egui::Align::Max } else { egui::Align::Min };
-    let button = ui.with_layout(egui::Layout::top_down(start), |ui| Button::new("Rename Notes").show(ui)).inner;
-    if crate::contract::clicked(&button) {
-        request_rename(ui.ctx(), id, &NOTES);
+    let button = Stack::new().show(ui, |ui, _| Button::new("Rename Notes").show(ui)).inner;
+    if button.as_ref().is_some_and(crate::contract::clicked) {
+        ui.request_rename(id, &NOTES);
     }
     let out = List::<usize>::new("Bookmarks")
         .id(id)
@@ -632,7 +631,7 @@ fn undo_list_many(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 }
 
 /// The drive of the popover story: a click on its button.
-fn open_undo_history(fixture: &mut Fixture) {
+fn open_undo_history(fixture: &mut StoryHarness) {
     if let Some(opener) = fixture.by_label("Undo History") {
         fixture.click(&opener);
     }

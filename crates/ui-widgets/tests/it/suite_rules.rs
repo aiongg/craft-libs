@@ -1,13 +1,14 @@
 //! The suite's own rules: which states a type must show, and the runs a drag drive makes.
 
 use craft_behavior::Mixed;
+use craft_ui::Ui;
 use craft_ui::contract::{Props as _, Show as _};
+use craft_ui::geom::vec2;
 use craft_ui::testing::story::{Story, StoryData, StoryOutput};
 use craft_ui::testing::suite::{measure_pure_case, required_states, values_case};
 use craft_ui::testing::{Drive, Grip, Probe, Registration, Required, trial};
 use craft_ui::text::TextField;
 use craft_ui::value_drag::{Thumb, ThumbRow};
-use egui::{Ui, vec2};
 
 fn probe_of<T: 'static>() -> &'static Probe {
     let name = std::any::type_name::<T>();

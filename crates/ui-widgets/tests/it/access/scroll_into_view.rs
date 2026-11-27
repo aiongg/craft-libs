@@ -2,18 +2,18 @@
 
 use craft_ui::buttons::Button;
 use craft_ui::contract::Show as _;
+use craft_ui::input::{Key, Mods};
 use craft_ui::testing::focus::AccessActionKind;
-use craft_ui::testing::{Fixture, trial};
-use egui::{Key, Modifiers};
+use craft_ui::testing::{Harness, trial};
 
 #[trial]
 fn scroll_into_view_moves_no_focus() {
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         Button::new("First").show(ui);
         Button::new("Second").show(ui);
     });
     fixture.settle();
-    fixture.key(Key::Tab, Modifiers::NONE).settle();
+    fixture.key(Key::Tab, Mods::NONE).settle();
     let focused = fixture.focused_stop();
     assert!(focused.is_some(), "Tab focuses the first button");
     let second = fixture.by_label("Second").expect("the second button");

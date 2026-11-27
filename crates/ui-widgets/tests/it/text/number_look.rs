@@ -2,17 +2,19 @@
 //! unit are one run of the text part, so editing reaches the unit's text as it reaches the number's; and the measured
 //! precision (`NumberPrecision::Measured`).
 
+use craft_ui::Id;
 use craft_ui::contract::{Bind, Props as _, Show as _};
+use craft_ui::geom::Rect;
+use craft_ui::input::{Key, Mods};
 use craft_ui::runtime::env::{LengthUnits, UnitKind};
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::testing::{Harness, trial};
 use craft_ui::text::{NumberField, NumberLook, NumberPrecision};
-use egui::{Id, Key, Modifiers, Rect};
 use std::cell::Cell;
 use std::rc::Rc;
 
 /// A length field in points under the inline look: the fixture, the bound value, and the field's id and rect.
 struct Inline {
-    fixture: Fixture,
+    fixture: Harness,
     value: Rc<Cell<Option<f64>>>,
     field: Rc<Cell<(Id, Rect)>>,
 }
@@ -21,7 +23,7 @@ impl Inline {
     fn new() -> Inline {
         let (value, field) = (Rc::new(Cell::new(Some(720.0))), Rc::new(Cell::new((Id::NULL, Rect::NOTHING))));
         let (v, f) = (value.clone(), field.clone());
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             let mut shown = v.get();
             let lengths = LengthUnits::new(UnitKind::Points, UnitKind::Points, 72.0);
             let out = NumberField::length("Width", Bind::bound(&mut shown), lengths).id_salt("width").show(ui);
@@ -63,11 +65,11 @@ fn an_inline_field_edits_its_whole_run_and_commits_the_number() {
     let (id, rect) = inline.field.get();
     let fixture = &mut inline.fixture;
     fixture.click_at(rect.center());
-    fixture.key(Key::A, Modifiers::COMMAND);
+    fixture.key(Key::A, Mods::COMMAND);
     let selection = fixture.tree().text_selection(id).map(|(anchor, focus)| anchor.1.abs_diff(focus.1));
     assert_eq!(selection, Some(before.chars().count()), "select all covers the number and its unit");
     fixture.type_text("36");
-    fixture.key(Key::Enter, Modifiers::NONE);
+    fixture.key(Key::Enter, Mods::NONE);
     fixture.settle();
     assert_eq!(inline.value.get(), Some(36.0), "the typed number commits");
     let (after, runs) = inline.shown();
@@ -75,11 +77,11 @@ fn an_inline_field_edits_its_whole_run_and_commits_the_number() {
     assert_eq!(runs, std::slice::from_ref(&after), "the field shows the same one run");
 
     let fixture = &mut inline.fixture;
-    fixture.key(Key::Home, Modifiers::NONE);
-    fixture.key(Key::Delete, Modifiers::NONE);
+    fixture.key(Key::Home, Mods::NONE);
+    fixture.key(Key::Delete, Mods::NONE);
     fixture.type_text("4");
     assert_eq!(fixture.tree().value(id).map(|text| text.strip_prefix("46") == after.strip_prefix("36")), Some(true));
-    fixture.key(Key::Enter, Modifiers::NONE);
+    fixture.key(Key::Enter, Mods::NONE);
     fixture.settle();
     assert_eq!(inline.value.get(), Some(46.0), "the number edited inside the run commits without its unit");
 }
@@ -89,7 +91,7 @@ fn an_inline_field_edits_its_whole_run_and_commits_the_number() {
 #[trial]
 fn a_percent_at_the_measured_precision_reads_whole() {
     let number = |precision: Option<NumberPrecision>| {
-        let mut fixture = Fixture::new(|ui| {
+        let mut fixture = Harness::new_ui(|ui| {
             NumberField::new("Opacity", Bind::bound(&mut Some(60.0f64))).unit_kind(UnitKind::Percent).range(0.0..=100.0).show(ui);
         });
         if let Some(precision) = precision {
@@ -108,7 +110,7 @@ fn a_percent_at_the_measured_precision_reads_whole() {
 #[trial]
 fn a_length_at_the_measured_precision_shows_finer_decimals() {
     let number = |value: f64, precision: Option<NumberPrecision>| {
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             let lengths = LengthUnits::new(UnitKind::Points, UnitKind::Points, 72.0);
             NumberField::length("X", Bind::bound(&mut Some(value)), lengths).show(ui);
         });

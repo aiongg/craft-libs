@@ -9,7 +9,7 @@ use crate::story_kit::sample::{outlined, words};
 use crate::testing::{StoryData, StoryOutput, story};
 use crate::text::{NumberField, link_toggle};
 use craft_behavior::ColumnWidth;
-use egui::Ui;
+use craft_ui::Ui;
 
 /// The gap and padding tier the Row and Stack stories edit.
 fn spacing(data: &mut StoryData, gap: Gap, gaps: &'static [(&'static str, Gap)]) -> (Gap, Pad) {
@@ -67,18 +67,21 @@ fn row_bracket(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 fn stack_fill_height(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     outlined(ui, |ui| {
         // design: allow[contract/allocate, literal-size/vec2](the story gives the stack a fixed stage box to show fill-height sizing)
-        ui.allocate_ui(egui::vec2(360.0, 200.0), |ui| {
-            Row::new().fill().show(ui, |ui, _| {
-                Stack::new()
-                    .sizing(Sizing::FillHeight)
-                    .gap(Gap::Tight)
-                    .pad(Pad::Regular)
-                    .footer(|ui, _| words(ui, 2..3))
-                    .show(ui, |ui, _| words(ui, 0..2));
-                Stack::new().fill().pad(Pad::Regular).show(ui, |ui, _| words(ui, 3..4));
-            })
+        let stage = craft_ui::geom::Rect::from_min_size(ui.cursor().min, craft_ui::geom::vec2(360.0, 200.0));
+        ui.scope_builder(craft_ui::UiBuilder::new().max_rect(stage), |ui| {
+            Row::new()
+                .fill()
+                .show(ui, |ui, _| {
+                    Stack::new()
+                        .sizing(Sizing::FillHeight)
+                        .gap(Gap::Tight)
+                        .pad(Pad::Regular)
+                        .footer(|ui, _| words(ui, 2..3))
+                        .show(ui, |ui, _| words(ui, 0..2));
+                    Stack::new().fill().pad(Pad::Regular).show(ui, |ui, _| words(ui, 3..4));
+                })
+                .output
         })
-        .inner
         .into()
     })
 }

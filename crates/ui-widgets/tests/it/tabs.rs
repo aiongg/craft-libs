@@ -2,13 +2,15 @@
 //! member of the strip's run.
 
 use craft_behavior::{SelectionChange, keyed};
+use craft_ui::Ui;
 use craft_ui::contract::{CollectionEvent, Role, ShowCollection as _};
+use craft_ui::geom::{Pos2, Rect};
+use craft_ui::input::{Key, Mods};
 use craft_ui::runtime::egui::access::AccessTree;
 use craft_ui::tabs::{DocumentTabLook, Tab, TabKind, TabRole, TabStrip};
 use craft_ui::testing::focus::AccessActionKind;
 use craft_ui::testing::pointer::{moved, press, release, secondary};
-use craft_ui::testing::{Fixture, Frames, trial};
-use egui::{Key, Modifiers, Pos2, Rect, Ui};
+use craft_ui::testing::{Frames, Harness, trial};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -20,19 +22,19 @@ const REST_FRAMES: usize = (craft_ui::contract::tooltip::DELAY * 60.0) as usize 
 #[trial]
 fn overflowing_document_tabs_remain_readable_and_list_every_document() {
     use craft_ui::tabs::{DocumentTab, DocumentTabs};
-    let mut reference = Fixture::new(|ui| {
+    let mut reference = Harness::new_ui(|ui| {
         let tabs = [DocumentTab::new(0, "Document num")];
         let _ = DocumentTabs::new("Reference", &tabs).selected(0).show(ui);
     });
     reference.root_value(DocumentTabLook::Shrinking);
-    reference.room(egui::vec2(600.0, 100.0)).settle();
+    reference.room(craft_ui::geom::vec2(600.0, 100.0)).settle();
     let minimum = reference.by_label("Document num").expect("reference tab").rect.width();
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         let tabs: Vec<_> = (0..12).map(|i| DocumentTab::new(i, format!("Document number {i}, scanned.pdf"))).collect();
         let _ = DocumentTabs::new("Documents", &tabs).selected(0).show(ui);
     });
     fixture.root_value(DocumentTabLook::Shrinking);
-    fixture.room(egui::vec2(600.0, 100.0)).settle();
+    fixture.room(craft_ui::geom::vec2(600.0, 100.0)).settle();
     let shown: Vec<_> = (0..12).filter_map(|i| fixture.by_label(&format!("Document number {i}, scanned.pdf")).map(|node| node.rect)).collect();
     assert!(shown.len() > 1, "more than one tab remains visible: {shown:?}");
     assert!(
@@ -57,7 +59,7 @@ fn overflowing_document_tabs_remain_readable_and_list_every_document() {
 #[trial]
 fn document_tabs_leave_space_between_neighbours() {
     use craft_ui::tabs::{DocumentTab, DocumentTabs};
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         let tabs = [DocumentTab::new(1, "One"), DocumentTab::new(2, "Two")];
         let _ = DocumentTabs::new("Documents", &tabs).selected(1).show(ui);
     });
@@ -81,7 +83,7 @@ fn document_tabs_with_trailing_control_fill_their_parent_row() {
     use craft_ui::contract::{Props as _, Show as _, ShowContainer as _, Sizing};
     use craft_ui::layout_components::Row;
     use craft_ui::tabs::{DocumentTab, DocumentTabs};
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         let tabs: Vec<_> = (0..5).map(|i| DocumentTab::new(i, format!("Document number {i}, scanned.pdf"))).collect();
         Row::new().sizing(Sizing::FillWidth).show(ui, |ui, _| {
             Button::new("Home").show(ui);
@@ -94,7 +96,7 @@ fn document_tabs_with_trailing_control_fill_their_parent_row() {
         });
     });
     fixture.root_value(DocumentTabLook::Shrinking);
-    fixture.room(egui::vec2(1000.0, 100.0)).settle();
+    fixture.room(craft_ui::geom::vec2(1000.0, 100.0)).settle();
     let visible = (0..5).filter(|i| fixture.by_label(&format!("Document number {i}, scanned.pdf")).is_some()).count();
     assert!(visible > 1, "the strip uses the available width: {visible} tab visible");
 }
@@ -106,7 +108,7 @@ fn document_tabs_reserve_space_for_the_trailing_control() {
     use craft_ui::tabs::{DocumentTab, DocumentTabs};
     let trailing_rect = Rc::new(Cell::new(Rect::NOTHING));
     let seen = trailing_rect.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let tabs: Vec<_> = (0..5).map(|i| DocumentTab::new(i, format!("Long document number {i}, scanned.pdf")).closable(true)).collect();
         let _ = DocumentTabs::new("Documents", &tabs)
             .selected(4)
@@ -116,7 +118,7 @@ fn document_tabs_reserve_space_for_the_trailing_control() {
             .show(ui);
     });
     fixture.root_value(DocumentTabLook::Shrinking);
-    fixture.room(egui::vec2(1000.0, 100.0)).settle();
+    fixture.room(craft_ui::geom::vec2(1000.0, 100.0)).settle();
     let open = fixture.by_label("Open").unwrap_or_else(|| panic!("trailing button: {:?}", trailing_rect.get())).rect;
     for i in 0..5 {
         let tab = fixture.by_label(&format!("Long document number {i}, scanned.pdf")).expect("each tab is visible").rect;
@@ -131,7 +133,7 @@ fn the_trailing_control_follows_the_last_tab_when_they_fit() {
     use craft_ui::buttons::Button;
     use craft_ui::contract::Show as _;
     use craft_ui::tabs::{DocumentTab, DocumentTabs};
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         let tabs: Vec<_> = (0..2).map(|i| DocumentTab::new(i, format!("Doc {i}.pdf")).closable(true)).collect();
         let _ = DocumentTabs::new("Documents", &tabs)
             .selected(1)
@@ -141,7 +143,7 @@ fn the_trailing_control_follows_the_last_tab_when_they_fit() {
             .show(ui);
     });
     fixture.root_value(DocumentTabLook::Shrinking);
-    fixture.room(egui::vec2(1000.0, 100.0)).settle();
+    fixture.room(craft_ui::geom::vec2(1000.0, 100.0)).settle();
     let open = fixture.by_label("Open").expect("trailing button").rect;
     let last = fixture.by_label("Doc 1.pdf").expect("last tab").rect;
     assert!(open.left() >= last.right() - 0.5, "the button is not over the tab: {open:?}, {last:?}");
@@ -154,7 +156,7 @@ fn nested_document_tabs_reserve_space_for_the_trailing_control() {
     use craft_ui::contract::{Props as _, Show as _, ShowContainer as _, Sizing};
     use craft_ui::layout_components::Row;
     use craft_ui::tabs::{DocumentTab, DocumentTabs};
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         let tabs: Vec<_> = (0..5).map(|i| DocumentTab::new(i, format!("Long document number {i}, scanned.pdf")).closable(true)).collect();
         Row::new().sizing(Sizing::FillWidth).show(ui, |ui, _| {
             Button::new("Home").show(ui);
@@ -168,7 +170,7 @@ fn nested_document_tabs_reserve_space_for_the_trailing_control() {
         });
     });
     fixture.root_value(DocumentTabLook::Shrinking);
-    fixture.room(egui::vec2(1000.0, 100.0)).settle();
+    fixture.room(craft_ui::geom::vec2(1000.0, 100.0)).settle();
     let open = fixture.by_label("Open").expect("trailing button").rect;
     for i in 0..5 {
         let tab = fixture.by_label(&format!("Long document number {i}, scanned.pdf")).expect("each tab is visible").rect;
@@ -182,7 +184,7 @@ fn an_arrow_moves_the_focus_and_enter_shows_the_tab() {
     let shown = Rc::new(Cell::new(0_usize));
     let picked = Rc::new(RefCell::new(Vec::new()));
     let (now, seen) = (shown.clone(), picked.clone());
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let keys = [0_usize, 1, 2];
         let source = keyed(&keys, |key: &usize| *key);
         let out = TabStrip::new("Documents").shown(now.get()).show_items(ui, &source, &mut |key, _| Tab::new(TITLES[*key]));
@@ -196,12 +198,12 @@ fn an_arrow_moves_the_focus_and_enter_shows_the_tab() {
         }
     });
     fixture.settle();
-    fixture.key(Key::Tab, Modifiers::NONE);
+    fixture.key(Key::Tab, Mods::NONE);
     fixture.idle(2);
-    fixture.key(Key::ArrowRight, Modifiers::NONE);
+    fixture.key(Key::ArrowRight, Mods::NONE);
     fixture.idle(2);
     assert_eq!((shown.get(), picked.borrow().clone()), (0, Vec::new()), "the arrow shows no other tab");
-    fixture.key(Key::Enter, Modifiers::NONE);
+    fixture.key(Key::Enter, Mods::NONE);
     fixture.idle(2);
     assert_eq!(shown.get(), 1, "Enter shows the focused tab");
 }
@@ -212,7 +214,7 @@ fn an_arrow_moves_the_focus_and_enter_shows_the_tab() {
 fn the_close_button_and_its_node_close_a_tab() {
     let closed = Rc::new(RefCell::new(Vec::new()));
     let seen = closed.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let keys = [0_usize, 1, 2];
         let source = keyed(&keys, |key: &usize| *key);
         let out = TabStrip::new("Documents").shown(0).show_items(ui, &source, &mut |key, _| Tab::new(TITLES[*key]));
@@ -231,10 +233,10 @@ fn the_close_button_and_its_node_close_a_tab() {
 
 /// A strip of the three titles showing tab 0 that applies its selection changes, with or without `wheel_selects`;
 /// returns the fixture and the tab it shows.
-fn wheel_rig(wheel_selects: bool) -> (Fixture, Rc<Cell<usize>>) {
+fn wheel_rig(wheel_selects: bool) -> (Harness, Rc<Cell<usize>>) {
     let shown = Rc::new(Cell::new(0_usize));
     let now = shown.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let keys = [0_usize, 1, 2];
         let source = keyed(&keys, |key: &usize| *key);
         let strip = TabStrip::new("Documents").shown(now.get());
@@ -260,11 +262,11 @@ fn the_wheel_steps_the_shown_tab_only_where_the_strip_asks_for_it() {
     for wheel_selects in [true, false] {
         let (mut fixture, shown) = wheel_rig(wheel_selects);
         let over = fixture.by_label("Two").expect("the tab's node").center();
-        fixture.frame(vec![pointer::moved(over)]).idle(1);
-        fixture.frame(vec![pointer::wheel_lines(-1.0)]).idle(2);
+        fixture.send(pointer::moved(over)).idle(1);
+        fixture.send(pointer::wheel_lines(-1.0)).idle(2);
         assert_eq!(shown.get(), usize::from(wheel_selects), "a notch down, wheel_selects {wheel_selects}");
         if wheel_selects {
-            fixture.frame(vec![pointer::wheel_lines(1.0)]).idle(2);
+            fixture.send(pointer::wheel_lines(1.0)).idle(2);
             assert_eq!(shown.get(), 0, "a notch up shows the previous tab");
         }
     }
@@ -278,9 +280,9 @@ fn small_wheel_deltas_add_up_to_one_tab_step() {
     for parts in [4_u32, 1] {
         let (mut fixture, shown) = wheel_rig(true);
         let over = fixture.by_label("Two").expect("the tab's node").center();
-        fixture.frame(vec![pointer::moved(over)]).idle(1);
+        fixture.send(pointer::moved(over)).idle(1);
         for _ in 0..parts {
-            fixture.frame(vec![pointer::wheel_lines(-1.0 / parts as f32)]).idle(2);
+            fixture.send(pointer::wheel_lines(-1.0 / parts as f32)).idle(2);
         }
         assert_eq!(shown.get(), 1, "a notch in {parts} passes shows exactly the next tab");
     }
@@ -293,14 +295,14 @@ fn a_double_click_on_the_empty_strip_asks_for_a_new_document() {
     use craft_ui::tabs::{DocumentTab, DocumentTabs, DocumentTabsEvent};
     let seen = Rc::new(RefCell::new(Vec::new()));
     let held = seen.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let tabs = [DocumentTab::new(0_usize, "One"), DocumentTab::new(1, "Two")];
         let out = DocumentTabs::new("Documents", &tabs).selected(0).show(ui);
         held.borrow_mut().extend(out.events);
     });
-    fixture.room(egui::Vec2::new(640.0, 120.0)).settle();
+    fixture.room(craft_ui::geom::Vec2::new(640.0, 120.0)).settle();
     let last = fixture.by_label("Two").expect("the tab's node").rect;
-    let empty = egui::Pos2::new(last.right() + 60.0, last.center().y);
+    let empty = craft_ui::geom::Pos2::new(last.right() + 60.0, last.center().y);
     fixture.click_at(empty).click_at(empty).settle();
     assert!(seen.borrow().contains(&DocumentTabsEvent::EmptyDoubleClick), "{:?}", seen.borrow());
     seen.borrow_mut().clear();
@@ -318,15 +320,15 @@ fn a_document_tab_shows_its_own_tooltip() {
     use craft_ui::tabs::{DocumentTab, DocumentTabs};
     const WHOLE: &str = "Poster.vc @ 50% (CMYK/Preview)";
     for width in [640.0, 60.0] {
-        let mut fixture = Fixture::new(|ui| {
+        let mut fixture = Harness::new_ui(|ui| {
             let tabs = [DocumentTab::new(0_usize, "Poster.vc").tooltip(WHOLE)];
             let _ = DocumentTabs::new("Documents", &tabs).show(ui);
         });
-        fixture.room(egui::Vec2::new(width, 120.0)).settle();
+        fixture.room(craft_ui::geom::Vec2::new(width, 120.0)).settle();
         let tab = tab_rect(fixture.tree(), "Poster.vc");
         let cut = fixture.texts().iter().any(|run| run.elided);
         assert_eq!(cut, width < 100.0, "the strip cuts the name at {width} pt only");
-        fixture.frame(vec![moved(tab.center())]).advance(DELAY).settle();
+        fixture.send(moved(tab.center())).advance(DELAY).settle();
         let texts: Vec<String> = fixture.texts().iter().map(|run| run.text.clone()).collect();
         assert!(texts.iter().any(|text| text == WHOLE), "the whole title shows over the tab at {width} pt: {texts:?}");
         assert!(!fixture.texts().iter().any(|run| run.text == "Poster.vc" && !run.elided && cut), "and not the name alone: {texts:?}");
@@ -341,14 +343,14 @@ fn a_modified_tab_shows_its_mark_after_the_name_part() {
     const NAME: &str = "Untitled-1";
     const LABEL: &str = "Untitled-1 @ 93.5 % (RGB/Preview)";
     let shown = |name_len: Option<usize>| {
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             let mut tab = DocumentTab::new(0_usize, LABEL).modified(true);
             if let Some(len) = name_len {
                 tab = tab.name_len(len);
             }
             let _ = DocumentTabs::new("Documents", &[tab]).show(ui);
         });
-        fixture.room(egui::Vec2::new(640.0, 120.0)).settle();
+        fixture.room(craft_ui::geom::Vec2::new(640.0, 120.0)).settle();
         let texts: Vec<(String, Rect)> = fixture.texts().iter().map(|run| (run.text.clone(), run.rect)).collect();
         (texts, tab_rects(fixture.tree(), &format!("{LABEL}, modified")).first().copied())
     };
@@ -370,13 +372,13 @@ fn a_middle_click_closes_a_closable_document_tab() {
     use craft_ui::testing::pointer::middle;
     let seen = Rc::new(RefCell::new(Vec::new()));
     let held = seen.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let tabs = [DocumentTab::new(0_usize, "One"), DocumentTab::new(1, "Two"), DocumentTab::new(2, "Combine").closable(false)];
         let out = DocumentTabs::new("Documents", &tabs).selected(0).show(ui);
         held.borrow_mut().extend(out.events);
     });
-    fixture.room(egui::Vec2::new(640.0, 120.0)).settle();
-    let middle_click = |fixture: &mut Fixture, name: &str| {
+    fixture.room(craft_ui::geom::Vec2::new(640.0, 120.0)).settle();
+    let middle_click = |fixture: &mut Harness, name: &str| {
         let at = fixture.by_label(name).expect("the tab's node").rect.center();
         fixture.frame(vec![moved(at), middle(at, true)]).frame(vec![middle(at, false)]).settle();
     };
@@ -629,13 +631,13 @@ fn a_stacking_key_does_not_move_a_tab_past_a_fixed_one() {
     use craft_ui::tabs::{DocumentTab, DocumentTabs, DocumentTabsEvent};
     let seen = Rc::new(RefCell::new(Vec::new()));
     let held = seen.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let tabs =
             [DocumentTab::new(0_usize, "One"), DocumentTab::new(1, "Two").movable(false), DocumentTab::new(2, "Three"), DocumentTab::new(3, "Four")];
         let out = DocumentTabs::new("Documents", &tabs).selected(0).reorderable(true).show(ui);
         held.borrow_mut().extend(out.events);
     });
-    fixture.room(egui::Vec2::new(640.0, 120.0)).settle();
+    fixture.room(craft_ui::geom::Vec2::new(640.0, 120.0)).settle();
     let reordered = |seen: &RefCell<Vec<DocumentTabsEvent<usize>>>| -> Vec<(Vec<usize>, Option<usize>)> {
         seen.borrow()
             .iter()
@@ -649,13 +651,13 @@ fn a_stacking_key_does_not_move_a_tab_past_a_fixed_one() {
     let three = fixture.by_label("Three").expect("the tab's node").rect;
     fixture.click_at(three.center()).settle();
     seen.borrow_mut().clear();
-    fixture.key(Key::OpenBracket, Modifiers::COMMAND).settle();
+    fixture.key(Key::OpenBracket, Mods::COMMAND).settle();
     assert!(reordered(&seen).is_empty(), "no tab passes the fixed one by key: {:?}", seen.borrow());
 
     let four = fixture.by_label("Four").expect("the tab's node").rect;
     fixture.click_at(four.center()).settle();
     seen.borrow_mut().clear();
-    fixture.key(Key::OpenBracket, Modifiers::COMMAND).settle();
+    fixture.key(Key::OpenBracket, Mods::COMMAND).settle();
     assert_eq!(reordered(&seen), vec![(vec![3_usize], Some(2_usize))], "a key move that leaves the fixed tab in place reorders: {:?}", seen.borrow());
 }
 
@@ -665,7 +667,7 @@ fn a_stacking_key_does_not_move_a_tab_past_a_fixed_one() {
 fn tabs_with_the_same_label_keep_their_own_selection_and_click() {
     let shown = Rc::new(Cell::new(0_usize));
     let now = shown.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let keys = [0_usize, 1];
         let source = keyed(&keys, |key: &usize| *key);
         let out = TabStrip::new("Settings").kind(TabKind::Text).shown(now.get()).show_items(ui, &source, &mut |_, _| Tab::new("Options"));
@@ -696,23 +698,23 @@ fn the_strip_reports_the_tab_under_the_pointer_while_another_root_holds_the_pres
     use craft_ui::tabs::{DocumentTab, DocumentTabs};
     let seen = Rc::new(RefCell::new(None));
     let held = seen.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let tabs = [DocumentTab::new(0_usize, "One"), DocumentTab::new(1, "Two")];
         let out = DocumentTabs::new("Documents", &tabs).selected(0).show(ui);
         *held.borrow_mut() = out.hovered;
         Button::new("Canvas").show(ui);
     });
-    fixture.room(egui::Vec2::new(640.0, 120.0)).settle();
+    fixture.room(craft_ui::geom::Vec2::new(640.0, 120.0)).settle();
     let second = fixture.by_label("Two").expect("the tab's node").rect;
     let canvas = fixture.by_label("Canvas").expect("the button's node").center();
-    let empty = egui::Pos2::new(second.right() + 60.0, second.center().y);
-    fixture.frame(vec![craft_ui::testing::pointer::moved(canvas)]);
-    fixture.frame(vec![craft_ui::testing::pointer::press(canvas)]);
-    fixture.frame(vec![craft_ui::testing::pointer::moved(second.center())]);
-    fixture.frame(vec![]);
+    let empty = craft_ui::geom::Pos2::new(second.right() + 60.0, second.center().y);
+    fixture.send(craft_ui::testing::pointer::moved(canvas));
+    fixture.send(craft_ui::testing::pointer::press(canvas));
+    fixture.send(craft_ui::testing::pointer::moved(second.center()));
+    fixture.step();
     assert_eq!(*seen.borrow(), Some(1), "the second tab is under the pointer");
-    fixture.frame(vec![craft_ui::testing::pointer::moved(empty)]);
-    fixture.frame(vec![]);
+    fixture.send(craft_ui::testing::pointer::moved(empty));
+    fixture.step();
     assert_eq!(*seen.borrow(), None, "the empty room has no tab");
 }
 
@@ -722,7 +724,7 @@ fn a_secondary_click_on_a_document_tab_asks_for_its_menu_without_showing_it() {
     let shown = Rc::new(Cell::new(0_usize));
     let menus = Rc::new(Cell::new(0_usize));
     let (now, asked) = (shown.clone(), menus.clone());
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let keys = [0_usize, 1, 2];
         let source = keyed(&keys, |key: &usize| *key);
         let out = TabStrip::new("Documents").shown(now.get()).show_items(ui, &source, &mut |key, _| Tab::new(TITLES[*key]));
@@ -739,9 +741,9 @@ fn a_secondary_click_on_a_document_tab_asks_for_its_menu_without_showing_it() {
     });
     fixture.settle();
     let two = tab_rect(fixture.tree(), "Two").center();
-    fixture.frame(vec![moved(two)]);
-    fixture.frame(vec![secondary(two, true)]);
-    fixture.frame(vec![secondary(two, false)]);
+    fixture.send(moved(two));
+    fixture.send(secondary(two, true));
+    fixture.send(secondary(two, false));
     fixture.settle();
     assert!(menus.get() > 0, "the secondary click asks for the tab's menu");
     assert_eq!(shown.get(), 0, "the secondary click does not show the tab");
@@ -754,12 +756,12 @@ fn a_modified_document_tab_shows_a_dot_and_no_asterisk() {
     use craft_ui::tabs::{DocumentTab, DocumentTabs};
     let look = DocumentTabLook::Shrinking;
     let tab = |modified: bool| {
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             let tabs = [DocumentTab::new(0, "Report.pdf").modified(modified)];
             let _ = DocumentTabs::new("Docs", &tabs).selected(0).show(ui);
         });
         fixture.root_value(look);
-        fixture.room(egui::vec2(600.0, 100.0)).settle();
+        fixture.room(craft_ui::geom::vec2(600.0, 100.0)).settle();
         let stars = fixture.texts().iter().filter(|run| run.text.contains('*')).count();
         let width = fixture.by_role(Role::TAB).first().map_or(0.0, |tab| tab.rect.width());
         (stars, width)
@@ -776,11 +778,11 @@ fn document_tabs_keep_whole_touching_titles_and_an_asterisk_by_default() {
     use craft_ui::tabs::{DocumentTab, DocumentTabs, FitMode};
     assert_eq!(TabKind::Document.fit_mode(), FitMode::Whole);
     assert_eq!(TabKind::Document.fit_mode_in(DocumentTabLook::default()), FitMode::Whole);
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         let tabs = [DocumentTab::new(1, "One"), DocumentTab::new(2, "Two").modified(true)];
         let _ = DocumentTabs::new("Documents", &tabs).selected(1).show(ui);
     });
-    fixture.room(egui::vec2(600.0, 100.0)).settle();
+    fixture.room(craft_ui::geom::vec2(600.0, 100.0)).settle();
     let first = fixture.by_label("One").expect("first tab").rect;
     let second = fixture.by_role(Role::TAB).get(1).map(|tab| tab.rect).expect("second tab");
     assert!((second.left() - first.right()).abs() < 0.5, "neighbouring document tabs touch: {first:?}, {second:?}");
@@ -806,12 +808,12 @@ fn a_semibold_document_tab_title_draws_in_the_tab_title_face() {
     };
     let title = "Poster draft one";
     let width = |look: DocumentTabLook, faces: &'static [EmbeddedFace]| {
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             let tabs = [DocumentTab::new(0, title)];
             let _ = DocumentTabs::new("Documents", &tabs).selected(0).show(ui);
         });
         fixture.root_value(look);
-        fixture.room(egui::vec2(600.0, 100.0)).settle();
+        fixture.room(craft_ui::geom::vec2(600.0, 100.0)).settle();
         UiFonts::new(&I18nScripts).craft_faces(faces).languages(&["en"]).ui_language("en").system_fonts(SystemFonts::Off).install(fixture.ctx());
         fixture.settle();
         fixture.texts().iter().find(|run| run.text == title).map_or(f32::NAN, |run| run.rect.width())
@@ -854,7 +856,7 @@ fn a_very_long_document_name_is_cut_to_a_compact_tab() {
     use craft_ui::tabs::{DocumentTab, DocumentTabs};
     let long = "a-very-long-synthetic-document-file-name-for-truncation-test-1234567890.pdf";
     let tabs = [DocumentTab::new(0_usize, long), DocumentTab::new(1, "Short")];
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let _ = DocumentTabs::new("Documents", &tabs).selected(0).show(ui);
     });
     fixture.root_value(DocumentTabLook::Shrinking);
@@ -914,14 +916,14 @@ fn panel_tabs_keep_the_shown_tab_whole_and_overflow_from_the_end() {
 /// rects they have once the strip settles.
 #[trial]
 fn a_tab_strip_takes_its_measured_extents_in_its_first_frame() {
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         ui.set_max_width(300.0);
         let keys = [0_usize, 1, 2, 3, 4, 5];
         let source = keyed(&keys, |key: &usize| *key);
         let strip = TabStrip::new("Panels").kind(TabKind::Panel).natural_height(true).shown(1);
         let _ = strip.show_items(ui, &source, &mut |key, _| Tab::new(PANELS[*key]));
     });
-    let rects = |fixture: &Fixture| {
+    let rects = |fixture: &Harness| {
         let strip = fixture.by_label("Panels").expect("the strip's node").rect;
         (strip, PANELS.map(|name| tab_rects(fixture.tree(), name).first().copied()))
     };
@@ -941,7 +943,7 @@ fn a_strip_reports_its_tab_rects_in_the_frame_a_title_changes() {
     let titles = Rc::new(RefCell::new(TITLES.map(str::to_owned)));
     let reported = Rc::new(RefCell::new(Vec::new()));
     let (now, seen) = (titles.clone(), reported.clone());
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let keys = [0_usize, 1, 2];
         let source = keyed(&keys, |key: &usize| *key);
         let names = now.borrow().clone();
@@ -987,7 +989,7 @@ fn the_ribbon_underline_retargets_from_its_shown_position_mid_motion() {
     use craft_ui::testing::pointer;
     let shown = Rc::new(Cell::new(0_usize));
     let now = shown.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let keys = [0_usize, 1, 2];
         let source = keyed(&keys, |key: &usize| *key);
         let strip = TabStrip::new("Ribbon").kind(TabKind::Ribbon).wheel_selects().shown(now.get());
@@ -1000,7 +1002,7 @@ fn the_ribbon_underline_retargets_from_its_shown_position_mid_motion() {
             }
         }
     });
-    fixture.room(egui::Vec2::new(640.0, 120.0)).settle();
+    fixture.room(craft_ui::geom::Vec2::new(640.0, 120.0)).settle();
     let (first, third) = (tab_rect(fixture.tree(), RIBBON[0]), tab_rect(fixture.tree(), RIBBON[2]));
     let row = first.union(third);
     let rest = underline(&fixture.frame_shapes(), row).expect("the shown tab's underline");
@@ -1009,8 +1011,8 @@ fn the_ribbon_underline_retargets_from_its_shown_position_mid_motion() {
     let inset = rest.0 - first.left();
     assert!(inset > 0.5 && (first.right() - rest.1 - inset).abs() < 0.5, "at rest it lies under the first tab label: {rest:?} {first:?}");
 
-    fixture.frame(vec![pointer::moved(row.center())]).idle(1);
-    fixture.frame(vec![pointer::wheel_lines(-2.0)]);
+    fixture.send(pointer::moved(row.center())).idle(1);
+    fixture.send(pointer::wheel_lines(-2.0));
     assert_eq!(shown.get(), 2, "two notches down show the third tab");
     let going: Vec<f32> = (0..2).filter_map(|_| underline(&fixture.frame_shapes(), row)).map(|line| line.0).collect();
     assert!(
@@ -1018,7 +1020,7 @@ fn the_ribbon_underline_retargets_from_its_shown_position_mid_motion() {
         "the underline is on its way to the third tab: {going:?} {first:?} {third:?}"
     );
 
-    fixture.frame(vec![pointer::wheel_lines(2.0)]);
+    fixture.send(pointer::wheel_lines(2.0));
     assert_eq!(shown.get(), 0, "two notches up show the first tab again");
     let distance = third.left() - first.left();
     let turned = underline(&fixture.frame_shapes(), row).expect("the underline at the reversal").0;
@@ -1177,7 +1179,7 @@ fn a_contextual_tab_that_leaves_is_not_hit_or_listed_while_it_fades() {
     let picked = Rc::new(RefCell::new(Vec::new()));
     let shown = Rc::new(Cell::new(1_usize));
     let (lists, asks, seen, now) = (listed.clone(), discard.clone(), picked.clone(), shown.clone());
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let keys: Vec<usize> = (0..RIBBON.len()).filter(|&key| key != TABLE || lists.get()).collect();
         // The strip names its overflow entries and its fading tabs by the source's text.
         let source = keyed(&keys, |key: &usize| *key).with_text(|key| std::borrow::Cow::Borrowed(RIBBON[*key]));
@@ -1195,34 +1197,34 @@ fn a_contextual_tab_that_leaves_is_not_hit_or_listed_while_it_fades() {
             ui.ctx().request_discard("the trial runs the frame twice");
         }
     });
-    fixture.room(egui::Vec2::new(640.0, 120.0)).settle();
+    fixture.room(craft_ui::geom::Vec2::new(640.0, 120.0)).settle();
     let home = fixture.by_label(RIBBON[1]).expect("the shown tab's node").rect;
     let table = fixture.by_label(RIBBON[TABLE]).expect("the contextual tab's node").rect;
     // A room for the shown tab, the contextual tab and the overflow button: plain tabs overflow.
     let room = home.width() + table.width() + 2.0 * home.height();
-    fixture.room(egui::Vec2::new(room, 120.0)).settle();
+    fixture.room(craft_ui::geom::Vec2::new(room, 120.0)).settle();
     let hidden: Vec<&str> = RIBBON.iter().copied().filter(|name| tab_rects(fixture.tree(), name).is_empty()).collect();
     assert!(!hidden.is_empty(), "a plain tab overflows in {room}");
     let table = tab_rect(fixture.tree(), RIBBON[TABLE]);
-    fixture.key(Key::Tab, Modifiers::NONE);
+    fixture.key(Key::Tab, Mods::NONE);
 
     listed.set(false);
     discard.set(true);
-    fixture.frame(Vec::new());
+    fixture.step();
     discard.set(false);
     assert_eq!(fixture.passes(), 2, "the frame the tab leaves in runs two passes");
-    let painted = |fixture: &Fixture| fixture.texts().iter().any(|text| text.text == RIBBON[TABLE]);
+    let painted = |fixture: &Harness| fixture.texts().iter().any(|text| text.text == RIBBON[TABLE]);
     // Checked only in frames that paint the fade: the fade is the Open motion, so the clicks below may outlast it.
-    let still = |fixture: &Fixture| hidden.iter().all(|name| tab_rects(fixture.tree(), name).is_empty());
+    let still = |fixture: &Harness| hidden.iter().all(|name| tab_rects(fixture.tree(), name).is_empty());
     assert!(painted(&fixture), "the departed tab fades at its slot after a frame of two passes");
     assert!(fixture.by_label(RIBBON[TABLE]).is_none(), "the departed tab has no node");
     assert!(still(&fixture), "no plain tab moves into the slot while the departed tab fades: {hidden:?}");
 
-    fixture.key(Key::ArrowDown, Modifiers::ALT);
+    fixture.key(Key::ArrowDown, Mods::ALT);
     assert!(hidden.iter().all(|name| fixture.by_label(name).is_some()), "the overflow menu is open and lists the plain tabs: {hidden:?}");
     assert!(fixture.by_label(RIBBON[TABLE]).is_none(), "the overflow menu does not list the departed tab");
     assert!(painted(&fixture), "the departed tab is still fading");
-    fixture.key(Key::Escape, Modifiers::NONE);
+    fixture.key(Key::Escape, Mods::NONE);
     assert!(painted(&fixture) && still(&fixture), "no plain tab moves into the slot while the departed tab fades: {hidden:?}");
 
     picked.borrow_mut().clear();
@@ -1233,7 +1235,7 @@ fn a_contextual_tab_that_leaves_is_not_hit_or_listed_while_it_fades() {
     assert!(hidden.iter().any(|name| !tab_rects(fixture.tree(), name).is_empty()), "the strip refits once the exit ends: {hidden:?}");
 
     listed.set(true);
-    fixture.frame(Vec::new());
+    fixture.step();
     let back = fixture.by_label(RIBBON[TABLE]).expect("a contextual tab that enters has a node once listed");
     fixture.click(&back);
     assert_eq!(shown.get(), TABLE, "a click on the entering tab shows it");

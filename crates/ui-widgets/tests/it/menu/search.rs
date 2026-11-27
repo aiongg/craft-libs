@@ -4,7 +4,7 @@ use craft_i18n::Words;
 use craft_ui::menu::{HelpEntry, SearchIndex, SearchWords, Synonyms, rank};
 use craft_ui::runtime::commands::CommandRef;
 use craft_ui::runtime::env::Env;
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::testing::{Harness, trial};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -21,7 +21,7 @@ fn ranked(entries: Vec<HelpEntry>, synonyms: Synonyms, query: &str, recent: Vec<
     let found: Rc<RefCell<Vec<usize>>> = Rc::default();
     let out = found.clone();
     let query = query.to_owned();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let env = Env::of(ui);
         let index = SearchIndex::new(&env.view(), &entries, &synonyms);
         *out.borrow_mut() = rank(&index, &query, &recent, &|at| uses.get(at).copied().unwrap_or(0));
@@ -171,7 +171,7 @@ fn an_index_built_for_a_host_ranks_as_the_frame_under_it_does() {
     let queries = ["copy", "tools", "object path", "outlines"];
     let in_frame: Rc<RefCell<Vec<Vec<usize>>>> = Rc::default();
     let (out, listed) = (in_frame.clone(), entries.clone());
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let index = SearchIndex::new(&Env::of(ui).view(), &listed, &english());
         *out.borrow_mut() = queries.iter().map(|query| rank(&index, query, &[], &|_| 0)).collect();
     });

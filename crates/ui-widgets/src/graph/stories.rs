@@ -3,9 +3,10 @@
 use super::{Node, NodeEvent, NodeGraph, NodeId, NodeKind, PortRef, Wire};
 use crate::contract::{Bind, CollectionEvent, MeasureCx, PaintUi, Props as _, Role, Show as _, ShowCollection as _};
 use crate::controls::disclosure::Disclosure;
-use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
+use crate::testing::{Drive, Harness, StoryData, StoryHarness, StoryOutput, story};
 use craft_behavior::{CanvasTransform, EditEvents, keyed};
-use egui::{Pos2, Rect, Ui, Vec2};
+use craft_ui::Ui;
+use craft_ui::geom::{Pos2, Rect, Vec2};
 
 /// How far the zoomed story magnifies the graph.
 const ZOOM: f32 = 2.0;
@@ -117,8 +118,9 @@ fn graph(ui: &mut Ui, data: &mut StoryData, count: u32, wired: &[(u32, u32)], zo
 }
 
 /// Selects the first node by a click on it: a click at the middle of a graph lands on a node, not on the graph.
-fn click_first_node(fixture: &mut Fixture) {
-    if let Some(node) = fixture.by_role(Role::GRAPHICS_OBJECT).first().copied() {
+fn click_first_node(fixture: &mut StoryHarness) {
+    let Role::Node(role) = Role::GRAPHICS_OBJECT else { return };
+    if let Some(node) = fixture.by_role(role).first().cloned() {
         fixture.click(&node);
     }
 }

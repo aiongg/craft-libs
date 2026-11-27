@@ -7,7 +7,7 @@ use crate::display::{Divider, Icon};
 use crate::primitives::IconSpec;
 use crate::runtime::env::Label;
 use craft_behavior::IconId;
-use egui::{Response, Ui};
+use craft_ui::{Response, Ui};
 
 /// The Home button at the start of an options bar: a toggle with the home icon at the standard control size, as tall
 /// as a bar's tool icons, then a rule. The host decides what

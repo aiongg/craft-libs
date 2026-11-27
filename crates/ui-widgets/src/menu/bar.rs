@@ -44,7 +44,8 @@ use craft_behavior::{Arrows, Flow, Intent, Metrics, NavMove, NavShape, PartKey, 
 use craft_host::target::MenuPlacement;
 use craft_keymap::mnemonic;
 use craft_theme::Flags;
-use egui::{Context, Pos2, Rect, Response, Ui, Vec2};
+use craft_ui::geom::{Pos2, Rect, Vec2};
+use craft_ui::{Context, Response, Ui};
 use std::sync::Arc;
 
 const TITLE: PartKey = PartKey::new("title");
@@ -121,7 +122,7 @@ impl Component for TitleFace {
     const PARTS: bool = false;
     const OVERLAYS: bool = false;
     type Style = TitleFaceStyle;
-    type Output = egui::Response;
+    type Output = craft_ui::Response;
 
     fn style(cx: &StyleCx<'_>, _: TitleFaceStyleKey) -> TitleFaceStyle {
         let tokens = cx.tokens;
@@ -187,7 +188,7 @@ impl Component for TitleFace {
         face::paint(ui, cx, (&cx.style.text, &cx.style.icon), &cx.style.face, &spec, cx.content_rect);
     }
 
-    fn finish(self, cx: Cx<'_, Self>) -> egui::Response {
+    fn finish(self, cx: Cx<'_, Self>) -> craft_ui::Response {
         cx.response.clone()
     }
 }
@@ -634,7 +635,7 @@ impl Component for MenuBar<'_> {
         });
         self.opened = opened.is_some() && !began_open;
         self.open = opened.is_some();
-        Facts::<BarFact>::register(&cx.ctx, BarFact { open: self.open, focused: cx.is_focused() });
+        Facts::<BarFact>::register(cx.context(), BarFact { open: self.open, focused: cx.is_focused() });
         *cx.memory::<BarState>() = state;
     }
 
@@ -690,7 +691,7 @@ impl Component for MenuBar<'_> {
                                     if field.has_focus() {
                                         query.2 = true;
                                     } else if !query.2 && query.1 > 0 {
-                                        focus::request(ui.ctx(), FocusTarget::Id(field.id));
+                                        ui.request_focus(FocusTarget::Id(field.id));
                                     }
                                 }
                                 query.1 = query.1.saturating_add(1);
@@ -800,7 +801,7 @@ impl Component for MenuBar<'_> {
             if let (false, Some(result), Some((text, _))) =
                 (title.holds.is_empty(), cx.part_if_declared(Self::slot_part(Open::Title(at))), texts.get(at))
             {
-                commands::holds(&cx.ctx, cx.response.layer_id, result.rect, &title.holds, Label::from(text.clone()));
+                commands::holds(cx.context(), cx.response.layer_id, result.rect, &title.holds, Label::from(text.clone()));
             }
         }
         let rects = Self::slots(found).into_iter().filter_map(|slot| cx.part_if_declared(Self::slot_part(slot)).map(|result| result.rect));

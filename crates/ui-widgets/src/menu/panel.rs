@@ -7,7 +7,7 @@ use crate::contract::{Entry, Props as _, Show as _};
 use crate::display::Divider;
 use crate::runtime::commands::CommandRef;
 use crate::runtime::env::Label;
-use egui::Ui;
+use craft_ui::Ui;
 
 /// A dock row of a panel or column menu that a command cannot name: it goes back to the dock as the pick. The panel
 /// commands themselves are `PanelRow::Command` rows.
@@ -88,7 +88,7 @@ impl PanelMenu {
                 PanelRow::Alternated(command, alternate) => {
                     // The alternate swaps the command only; the salt is the row's own command, so hover and focus stay
                     // on the row through the swap.
-                    let held = crate::runtime::pointer::frame(ui.ctx()).mods;
+                    let held = ui.pointer().mods;
                     let shown = if alternate.selected_by(held) { &alternate.command } else { command };
                     MenuItem::command(shown.clone()).id_salt(command.key()).show(ui);
                 }

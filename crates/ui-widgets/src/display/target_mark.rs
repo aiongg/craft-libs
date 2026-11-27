@@ -10,7 +10,8 @@ use crate::runtime::env::Env;
 use crate::style::{ComponentStyle, StyleColor, StyleCx, UiTokens};
 use craft_behavior::{Metrics, Sense};
 use craft_theme::Mix as _;
-use egui::{CornerRadius, Rect, Response, Ui};
+use craft_ui::geom::Rect;
+use craft_ui::{CornerRadius, Response, Ui};
 use std::f32::consts::TAU;
 
 #[cfg(feature = "suite")]

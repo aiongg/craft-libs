@@ -5,7 +5,7 @@ use crate::contract::{Component, Cx, OverlayUi, Overlays as _, Show as _, ShowCo
 use crate::display::Divider;
 use crate::primitives::TextOptions;
 use crate::runtime::commands::EditCommands;
-use egui::Ui;
+use craft_ui::Ui;
 
 /// What an [`EditMenu`] reports.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

@@ -3,12 +3,13 @@
 
 use super::kit::{AT, CAP, DRAGGED, Ev, INITIAL, Scrub, Seen, ev_of, near};
 use craft_behavior::CancelReason;
+use craft_ui::Ui;
 use craft_ui::contract::{Bind, Props as _, Show as _, Validity};
+use craft_ui::geom::{Pos2, Vec2};
 use craft_ui::runtime::env::Message;
 use craft_ui::style::Flags;
 use craft_ui::testing::pointer::{moved, press, release};
 use craft_ui::testing::{Frames, trial};
-use egui::{Pos2, Ui, Vec2};
 use std::cell::RefCell;
 
 /// Hover, press and release a drag along the track: the first move passes the drag slop in one step, so the drag

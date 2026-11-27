@@ -9,7 +9,8 @@ use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, StyleCx, TextLook, TypeRole};
 use craft_behavior::{Insets, Metrics, PartKey, Sense};
 use craft_theme::{Stateful, States};
-use egui::{Rect, Response, Vec2};
+use craft_ui::Response;
+use craft_ui::geom::{Rect, Vec2};
 
 /// The selection part that shows the text.
 const TEXT: PartKey = PartKey::new("text");

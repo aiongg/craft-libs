@@ -4,6 +4,8 @@
 use craft_theme::variant::Tone;
 use craft_ui::buttons::Button;
 use craft_ui::contract::{Bind, CollectionEvent, Props as _, Show as _};
+use craft_ui::geom::{Rect, Vec2};
+use craft_ui::input::{Key, Mods};
 use craft_ui::notices::{Notice, NoticeAction, ToastStack};
 use craft_ui::runtime::commands::ChromeToggle;
 use craft_ui::runtime::env::{RootEnv, WindowKey};
@@ -11,13 +13,14 @@ use craft_ui::runtime::focus::{KeyUse, host_canvas};
 use craft_ui::runtime::frame::take_output;
 use craft_ui::runtime::toast;
 use craft_ui::table::{MetadataGroup, MetadataRow, MetadataTable};
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::testing::{Harness, trial};
 use craft_ui::text::{SelectableText, TextField};
-use egui::{Event, Id, Key, Modifiers, Rect, Sense, Vec2, ViewportId};
+use craft_ui::{Id, WindowId};
+use egui::{Event, Sense};
 use std::cell::Cell;
 use std::rc::Rc;
 
-fn stop(fixture: &Fixture) -> Option<Id> {
+fn stop(fixture: &Harness) -> Option<Id> {
     fixture.focused_stop().map(|(id, _)| id)
 }
 
@@ -28,36 +31,36 @@ fn stop(fixture: &Fixture) -> Option<Id> {
 fn tab_passes_over_read_only_text_and_a_press_selects_it_for_copy() {
     let ids = Rc::new([Cell::new(Id::NULL), Cell::new(Id::NULL), Cell::new(Id::NULL)]);
     let seen = ids.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         seen[0].set(TextField::new("Before", Bind::given(String::new())).id_salt("before").show(ui).response.id);
         seen[1].set(SelectableText::new("Path", "/projects/poster.indd").show(ui).id);
         seen[2].set(TextField::new("After", Bind::given(String::new())).id_salt("after").show(ui).response.id);
     });
     fixture.settle();
-    fixture.key(Key::Tab, Modifiers::NONE);
+    fixture.key(Key::Tab, Mods::NONE);
     assert_eq!(stop(&fixture), Some(ids[0].get()));
-    fixture.key(Key::Tab, Modifiers::NONE);
+    fixture.key(Key::Tab, Mods::NONE);
     assert_eq!(stop(&fixture), Some(ids[2].get()), "Tab passes over the read-only text");
 
     let text = fixture.by_label("Path").expect("the text has a node");
     fixture.click(&text);
     assert_eq!(stop(&fixture), Some(ids[1].get()), "a press focuses the text");
-    fixture.key(Key::A, Modifiers::COMMAND);
-    fixture.frame(vec![Event::Copy]);
+    fixture.key(Key::A, Mods::COMMAND);
+    fixture.send(Event::Copy);
     assert_eq!(fixture.copied(), ["/projects/poster.indd"]);
-    fixture.frame(vec![Event::Cut]);
+    fixture.send(Event::Cut);
     assert_eq!(fixture.copied(), ["/projects/poster.indd"], "Cut copies the selected text");
 }
 
 /// Where `text` was painted.
-fn painted(fixture: &Fixture, text: &str) -> Rect {
+fn painted(fixture: &Harness, text: &str) -> Rect {
     fixture.texts().iter().find(|painted| painted.text == text).unwrap_or_else(|| panic!("{text:?} is painted")).rect
 }
 
 /// Select All then Copy in the focused text.
-fn copy_all(fixture: &mut Fixture) -> Vec<String> {
-    fixture.key(Key::A, Modifiers::COMMAND);
-    fixture.frame(vec![Event::Copy]);
+fn copy_all(fixture: &mut Harness) -> Vec<String> {
+    fixture.key(Key::A, Mods::COMMAND);
+    fixture.send(Event::Copy);
     fixture.copied().to_vec()
 }
 
@@ -68,18 +71,18 @@ fn copy_all(fixture: &mut Fixture) -> Vec<String> {
 fn notice_title_and_message_select_and_copy_apart() {
     let ids = Rc::new([Cell::new(Id::NULL), Cell::new(Id::NULL), Cell::new(Id::NULL)]);
     let seen = ids.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         seen[0].set(TextField::new("Before", Bind::given(String::new())).id_salt("before").show(ui).response.id);
         let notice = Notice::new(Tone::Warn, "The link to poster.png is broken.").title("Missing file").action(NoticeAction::new("Relink"));
         seen[1].set(notice.id_salt("notice").show(ui).response.id);
         seen[2].set(TextField::new("After", Bind::given(String::new())).id_salt("after").show(ui).response.id);
     });
     fixture.settle();
-    fixture.key(Key::Tab, Modifiers::NONE);
-    fixture.key(Key::Tab, Modifiers::NONE);
+    fixture.key(Key::Tab, Mods::NONE);
+    fixture.key(Key::Tab, Mods::NONE);
     assert_eq!(stop(&fixture), Some(ids[1].get()), "Tab reaches the notice's action");
     assert!(fixture.focused_stop().is_some_and(|(_, part)| part.is_some()));
-    fixture.key(Key::Tab, Modifiers::NONE);
+    fixture.key(Key::Tab, Mods::NONE);
     assert_eq!(stop(&fixture), Some(ids[2].get()), "Tab passes over the title and message");
 
     let message = painted(&fixture, "The link to poster.png is broken.");
@@ -89,7 +92,7 @@ fn notice_title_and_message_select_and_copy_apart() {
 
     let title = painted(&fixture, "Missing file");
     fixture.drag_at(title.left_center() + Vec2::new(1.0, 0.0), Vec2::new(title.width() / 2.0, 0.0));
-    fixture.frame(vec![Event::Copy]);
+    fixture.send(Event::Copy);
     let copied = fixture.copied().last().cloned().unwrap_or_default();
     assert!(!copied.is_empty() && "Missing file".starts_with(&copied) && copied != "Missing file", "the drag selected {copied:?}");
 }
@@ -98,7 +101,7 @@ fn notice_title_and_message_select_and_copy_apart() {
 /// over the text to the card's dismiss button.
 #[trial]
 fn toast_text_selects_and_copies() {
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         let ctx = ui.ctx().clone();
         let window = WindowKey::new("toast-text");
         if toast::cards(&ctx, &window).is_empty() {
@@ -108,9 +111,9 @@ fn toast_text_selects_and_copies() {
         ToastStack::show(ui, &window, ui.max_rect());
     });
     fixture.settle();
-    fixture.key(Key::Tab, Modifiers::NONE);
+    fixture.key(Key::Tab, Mods::NONE);
     let dismiss = fixture.focused_stop();
-    fixture.key(Key::Tab, Modifiers::NONE);
+    fixture.key(Key::Tab, Mods::NONE);
     assert_eq!(fixture.focused_stop(), dismiss, "Tab stays on the dismiss button, the card's one Tab stop");
     assert!(dismiss.is_some_and(|(_, part)| part.is_some()), "Tab reaches the dismiss button");
 
@@ -128,7 +131,7 @@ fn metadata_value_copies_without_selecting_the_row() {
     let selected = Rc::new(Cell::new(false));
     let seen = selected.clone();
     let groups = vec![MetadataGroup::new("Camera", vec![MetadataRow::new("Make", "FUJIFILM"), MetadataRow::new("Model", "X100V")])];
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let out = MetadataTable::new("Metadata", &groups).show(ui);
         if out.table.iter().flat_map(|table| &table.events).any(|event| matches!(event, CollectionEvent::Selection { .. })) {
             seen.set(true);
@@ -136,7 +139,7 @@ fn metadata_value_copies_without_selecting_the_row() {
     });
     fixture.settle();
     for _ in 0..3 {
-        fixture.key(Key::Tab, Modifiers::NONE);
+        fixture.key(Key::Tab, Mods::NONE);
         assert!(fixture.focused_stop().is_none_or(|(_, part)| part.is_none()), "Tab passes over the values: {:?}", fixture.focused_stop());
     }
 
@@ -155,7 +158,7 @@ fn tab_toggles_the_panels_from_read_only_text_a_press_or_drag_focused() {
     let text = Rc::new(Cell::new(Id::NULL));
     let seen = text.clone();
     let canvas = Id::unique("document canvas");
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         Button::new("Save").show(ui);
         seen.set(SelectableText::new("Path", "/projects/poster.indd").show(ui).id);
         ui.interact(ui.available_rect_before_wrap(), canvas, Sense::click());
@@ -165,9 +168,9 @@ fn tab_toggles_the_panels_from_read_only_text_a_press_or_drag_focused() {
     root.tab_toggles_chrome = true;
     fixture.root(root);
     fixture.settle();
-    let tab = |fixture: &mut Fixture| {
+    let tab = |fixture: &mut Harness| {
         take_output(fixture.ctx());
-        fixture.key(Key::Tab, Modifiers::NONE);
+        fixture.key(Key::Tab, Mods::NONE);
         take_output(fixture.ctx()).chrome_toggles
     };
     let path = painted(&fixture, "/projects/poster.indd");

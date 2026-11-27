@@ -7,7 +7,7 @@ use crate::runtime::env::{Env, UnitKind};
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use craft_behavior::PixelSize;
 use craft_behavior::geometry::Constraint;
-use egui::Ui;
+use craft_ui::Ui;
 
 const PIXELS_PER_INCH: f64 = 300.0;
 

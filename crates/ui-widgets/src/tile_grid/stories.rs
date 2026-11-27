@@ -9,11 +9,11 @@ use crate::list::{ThumbAspect, ToggleState};
 use crate::runtime::env::Message;
 use crate::style::DataColor;
 use crate::testing::pictures::StoryPictures;
-use crate::testing::{Drive, Fixture, StoryData, StoryOutput, pointer, story};
+use crate::testing::{Drive, Harness, StoryData, StoryHarness, StoryOutput, story};
 use craft_behavior::{IconId, Mixed};
 use craft_theme::Srgba;
 use craft_theme::variant::Tone;
-use egui::{Color32, Ui};
+use craft_ui::{Color32, Ui};
 
 const CAP: f64 = 4.0;
 const ZOOM_RANGE: TileZoom = TileZoom::bounded(0.5, 4.0, 0.25, 1.0);
@@ -48,7 +48,7 @@ fn tile_badges_and_bar(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let duplicate = TileBadge::new(BadgeSlot::StartBottom, BadgeKind::Text("Duplicate".into()), Tone::Warn, Some("Already in the bin".into()));
     let edited = TileBadge::new(BadgeSlot::EndBottom, BadgeKind::Glyph(IconId::new("flag")), Tone::Neutral, Some("Edited".into()));
     let out = Tile::new("IMG_0002.jpg")
-        .thumb(ThumbAspect::new(3, 2), StoryPictures::of(ui.ctx()).thumb(2))
+        .thumb(ThumbAspect::new(3, 2), StoryPictures::of(ui).thumb(2))
         .rating(*rating)
         .flag(TileFlag::Picked)
         .label_color(Srgba::rgb(0.86, 0.31, 0.24))
@@ -70,13 +70,13 @@ fn tile_badges_and_bar(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 /// tile's accessible name.
 #[story(Tile<'static>, covers = [], drive = Drive::Never)]
 fn tile_stack_sheets(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    Tile::new("Scans.pdf").thumb(ThumbAspect::new(3, 4), StoryPictures::of(ui.ctx()).thumb(5)).stack(3).stack_look(StackLook::Sheets).show(ui).into()
+    Tile::new("Scans.pdf").thumb(ThumbAspect::new(3, 4), StoryPictures::of(ui).thumb(5)).stack(3).stack_look(StackLook::Sheets).show(ui).into()
 }
 
 /// Hovers the tile, so its actions show, and clicks the first.
-fn click_action(fixture: &mut Fixture) {
+fn click_action(fixture: &mut StoryHarness) {
     let Some(tile) = fixture.by_label("IMG_0005.jpg") else { return };
-    fixture.frame(vec![pointer::moved(tile.center())]).idle(1);
+    fixture.hover_at(tile.center()).idle(1);
     if let Some(action) = fixture.by_label(&format!("{:?}", ACTIONS[0])) {
         fixture.click(&action);
     }
@@ -87,7 +87,7 @@ fn click_action(fixture: &mut Fixture) {
 #[story(Tile<'static>, covers = [], drive = Drive::Custom(click_action))]
 fn tile_actions(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let out = Tile::new("IMG_0005.jpg")
-        .thumb(ThumbAspect::new(3, 2), StoryPictures::of(ui.ctx()).thumb(5))
+        .thumb(ThumbAspect::new(3, 2), StoryPictures::of(ui).thumb(5))
         .action(IconId::new("rotate_cw"), TileStoryCommand::Rotate)
         .action(IconId::new("trash"), TileStoryCommand::Remove)
         .show(ui);
@@ -120,7 +120,7 @@ fn tile_summary_card(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     Tile::new("Arrange pages").icon(IconId::new("layout_grid")).detail("Move · Rotate · Delete").summary_action("Use now").card().show(ui).into()
 }
 
-fn click_check(fixture: &mut Fixture) {
+fn click_check(fixture: &mut StoryHarness) {
     if let Some(check) = fixture.by_label("Select IMG_0003.jpg") {
         fixture.click(&check);
     }
@@ -157,7 +157,7 @@ fn tile_icon_face(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 fn tile_start_caption(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     Tile::new("7")
         .caption(CaptionPlace::Start)
-        .thumb(ThumbAspect::new(16, 9), StoryPictures::of(ui.ctx()).thumb(7))
+        .thumb(ThumbAspect::new(16, 9), StoryPictures::of(ui).thumb(7))
         .hidden()
         .mark(TileMark::new(IconId::new("play"), "Has animations"))
         .show(ui)
@@ -168,7 +168,7 @@ fn tile_start_caption(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 #[story(Tile<'static>, covers = [], drive = Drive::Never)]
 fn tile_disabled(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     Tile::new("IMG_0006.jpg")
-        .thumb(ThumbAspect::new(3, 2), StoryPictures::of(ui.ctx()).thumb(6))
+        .thumb(ThumbAspect::new(3, 2), StoryPictures::of(ui).thumb(6))
         .rating(3)
         .label_color(Srgba::rgb(0.27, 0.63, 0.35))
         .badge(TileBadge::new(BadgeSlot::EndTop, BadgeKind::Text("Duplicate".into()), Tone::Neutral, None))
@@ -183,7 +183,7 @@ fn tile_with_reason(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     Tile::new("IMG_0004.jpg").tooltip(tooltip).show(ui).into()
 }
 
-fn larger(fixture: &mut Fixture) {
+fn larger(fixture: &mut StoryHarness) {
     if let Some(button) = fixture.by_label("Larger Thumbnails") {
         fixture.click(&button);
     }

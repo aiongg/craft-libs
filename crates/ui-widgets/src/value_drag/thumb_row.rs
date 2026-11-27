@@ -26,7 +26,8 @@ use craft_behavior::{
 };
 use craft_keymap::Mods;
 use craft_theme::{Rgba, Stateful, States};
-use egui::{CornerRadius, Pos2, Rangef, Rect, Vec2, pos2};
+use craft_ui::CornerRadius;
+use craft_ui::geom::{Pos2, Rangef, Rect, Vec2, pos2};
 use std::ops::RangeInclusive;
 
 /// How far a thumb's width runs past the standard handle side, in small handle sides (the old levels thumb: 8 + 6 / 2).
@@ -824,7 +825,7 @@ pub struct ThumbRowOutput<const N: usize> {
 impl<const N: usize> Outcome for ThumbRowOutput<N> {
     type Value = [Mixed<f64>; N];
 
-    fn response(&self) -> &egui::Response {
+    fn response(&self) -> &craft_ui::Response {
         &self.edit.response
     }
 

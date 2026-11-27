@@ -14,7 +14,8 @@ use craft_behavior::geometry::crop::snap_angle;
 use craft_behavior::nav::{LARGE_STEPS, StepResult, ValueAxes, ValueSteps, snap_to_step, step_value};
 use craft_behavior::{HitShape, Metrics, MoveMods, NavMove, PartKey, PressPhase, Sense, Wheel, decimals_for_step, wheel_step, wrap_value};
 use craft_theme::{Stateful, States};
-use egui::{CornerRadius, Pos2, Rect, Vec2};
+use craft_ui::CornerRadius;
+use craft_ui::geom::{Pos2, Rect, Vec2};
 use std::ops::RangeInclusive;
 
 #[cfg(feature = "suite")]

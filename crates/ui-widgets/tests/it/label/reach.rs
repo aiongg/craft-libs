@@ -7,25 +7,25 @@ use super::kit::{Dial, Seen};
 use craft_ui::buttons::Button;
 use craft_ui::contract::{Bind, ContainerProps, Entry, LabelScheme, Props as _, Show as _, ShowContainer as _, SideLabel, Sizing};
 use craft_ui::form::{Field, FieldGroup};
+use craft_ui::geom::{Rect, Vec2};
 use craft_ui::layout_components::{Row, Stack};
 use craft_ui::pickers::UnitSelect;
 use craft_ui::runtime::env::UnitKind;
-use craft_ui::testing::{Fixture, Frames, last_pass_measuring_runs, trial};
+use craft_ui::testing::{Frames, Harness, last_pass_measuring_runs, trial};
 use craft_ui::text::{NumberField, NumberPick, link_toggle};
-use egui::{Rect, Vec2};
 use std::cell::RefCell;
 
 /// How far two edges may differ and still line up, in points.
 const SLACK: f32 = 0.5;
 
-fn number(ui: &mut egui::Ui, caption: &'static str) {
+fn number(ui: &mut craft_ui::Ui, caption: &'static str) {
     Field::new(caption).show(ui, |ui, _| {
         NumberField::new(caption, Bind::given(Some(8.0))).show(ui);
     });
 }
 
 /// A field `caption` holding a content-sized number field over `range`, with `unit` after the number.
-fn sized(ui: &mut egui::Ui, caption: &'static str, range: std::ops::RangeInclusive<f64>, unit: Option<UnitKind>) {
+fn sized(ui: &mut craft_ui::Ui, caption: &'static str, range: std::ops::RangeInclusive<f64>, unit: Option<UnitKind>) {
     Field::new(caption).show(ui, |ui, _| {
         let field = NumberField::new(caption, Bind::given(Some(8.0))).range(range.clone()).sizing(Sizing::Content);
         match unit {
@@ -36,11 +36,11 @@ fn sized(ui: &mut egui::Ui, caption: &'static str, range: std::ops::RangeInclusi
     });
 }
 
-fn control(fixture: &Fixture, name: &str) -> Rect {
+fn control(fixture: &Harness, name: &str) -> Rect {
     fixture.by_label(name).unwrap_or_else(|| panic!("{name:?} names its control")).rect
 }
 
-fn caption(fixture: &Fixture, text: &str) -> Rect {
+fn caption(fixture: &Harness, text: &str) -> Rect {
     fixture.texts().iter().find(|run| run.text == text).map(|run| run.rect).unwrap_or_else(|| panic!("{text:?} is painted"))
 }
 
@@ -48,7 +48,7 @@ fn caption(fixture: &Fixture, text: &str) -> Rect {
 /// lines up its own rows; the labelled row inside a field's control reads no column.
 #[trial]
 fn a_groups_label_column_reaches_the_rows_of_its_plain_containers() {
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         FieldGroup::new("Outer").labels(LabelScheme::Inspector).show(ui, |ui, _| {
             number(ui, "Size");
             Stack::new().show(ui, |ui, _| number(ui, "Corner radius"));
@@ -104,7 +104,7 @@ fn a_row_after_a_stack_of_labelled_rows_clears_their_controls() {
 /// nothing again.
 #[trial]
 fn a_row_before_the_groups_widest_label_measures_at_its_final_column() {
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         FieldGroup::new("Image size").show(ui, |ui, _| {
             Row::new().show(ui, |ui, _| {
                 Stack::new().show(ui, |ui, _| {
@@ -124,7 +124,7 @@ fn a_row_before_the_groups_widest_label_measures_at_its_final_column() {
     assert!((field.min.x - resample).abs() <= SLACK, "Width's field starts at the group's control edge: {} {resample}", field.min.x);
     let link = fixture.by_label("Link").expect("the link button is shown").rect;
     assert!(link.min.x >= field.max.x - SLACK, "the row's next member starts clear of the field: {link:?} {field:?}");
-    fixture.frame(vec![]);
+    fixture.step();
     let runs = last_pass_measuring_runs(fixture.ctx());
     assert!(runs.is_empty(), "a settled frame takes the kept measurements: {runs:?}");
 }
@@ -134,7 +134,7 @@ fn a_row_before_the_groups_widest_label_measures_at_its_final_column() {
 /// group keep their own widths.
 #[trial]
 fn content_sized_fields_line_up_their_values_and_units_across_a_group() {
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         FieldGroup::new("HSB").show(ui, |ui, _| {
             sized(ui, "Hue", 0.0..=360.0, Some(UnitKind::Degrees));
             sized(ui, "Saturation", 0.0..=100.0, Some(UnitKind::Percent));
@@ -166,7 +166,7 @@ fn content_sized_fields_line_up_their_values_and_units_across_a_group() {
 #[trial]
 fn a_field_before_the_groups_widest_value_shows_at_its_width() {
     let presets = [Entry::new(NumberPick::Number(25.0), "25")];
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         FieldGroup::new("Channels").show(ui, |ui, _| {
             Row::new().show(ui, |ui, _| {
                 Stack::new().show(ui, |ui, _| {
@@ -191,13 +191,13 @@ fn a_field_before_the_groups_widest_value_shows_at_its_width() {
     assert!(link.min.x >= wide.max.x - SLACK, "the row's next member starts clear of the fields: {link:?} {wide:?}");
     let (group, zoom) = (fixture.by_label("View").expect("the group is shown").rect, control(&fixture, "Zoom"));
     assert!(zoom.max.x <= group.max.x + SLACK, "the field with a chevron stays inside its group: {zoom:?} {group:?}");
-    fixture.frame(vec![]);
+    fixture.step();
     let runs = last_pass_measuring_runs(fixture.ctx());
     assert!(runs.is_empty(), "a settled frame takes the kept measurements: {runs:?}");
 }
 
 /// A field `caption` holding a unit select, its select named "`caption` unit".
-fn unit(ui: &mut egui::Ui, caption: &'static str, units: &[Entry<UnitKind>]) {
+fn unit(ui: &mut craft_ui::Ui, caption: &'static str, units: &[Entry<UnitKind>]) {
     Field::new(caption).show(ui, |ui, _| {
         UnitSelect::new(caption, Bind::given(Some(8.0)), Bind::given(UnitKind::Pixels), units).unit_label(format!("{caption} unit")).show(ui);
     });
@@ -210,7 +210,7 @@ fn unit(ui: &mut egui::Ui, caption: &'static str, units: &[Entry<UnitKind>]) {
 fn a_stack_of_labelled_rows_in_a_row_lays_out_as_it_measured() {
     for scale in [1.0, 1.25] {
         let units = [Entry::new(UnitKind::Pixels, "Pixels"), Entry::new(UnitKind::Percent, "Percent")];
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             Row::new().show(ui, |ui, _| {
                 FieldGroup::new("Image size").show(ui, |ui, _| {
                     number(ui, "Size");

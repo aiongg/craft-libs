@@ -5,13 +5,15 @@ use crate::contract::{Bind, CollectionEvent, MiddleButton, ShowCollection as _, 
 use crate::list::ThumbAspect;
 use crate::runtime::env::Label;
 use crate::testing::pictures::StoryPictures;
-use crate::testing::{Drive, Fixture, StoryData, StoryOutput, pointer, story};
+use crate::testing::{Drive, Harness, StoryData, StoryHarness, StoryOutput, story};
 use crate::tile_grid::stories::{ACTIONS, TileStoryCommand};
 use crate::tile_grid::{BadgeKind, BadgeSlot, Tile, TileActionPlace, TileBadge, TileFlag, TilePartEvent, TileZoom};
 use craft_behavior::{DisplayOrder, IconId, ItemSource, SizeHint};
 use craft_theme::Srgba;
 use craft_theme::variant::Tone;
-use egui::{Key, Modifiers, Ui, Vec2};
+use craft_ui::Ui;
+use craft_ui::geom::Vec2;
+use craft_ui::input::{Key, Mods};
 
 /// The keys of the group header rows, apart from the tiles' own.
 const GROUP_KEYS: [usize; 3] = [1000, 1001, 1002];
@@ -103,7 +105,7 @@ impl ItemSource<usize> for Photos {
 /// The grid with Bridge's keys (Cmd/Ctrl+digit ratings, Space previews, Cmd/Ctrl + = / - / 0 and Ctrl/Cmd with the
 /// wheel zoom) over a ladder zoom bound to the story's data, starting at `zoom`.
 fn grid(ui: &mut Ui, data: &mut StoryData, grid: TileGrid<'_, usize>, count: usize, zoom: f64) -> TileGridOutput<usize> {
-    let pictures = StoryPictures::of(ui.ctx());
+    let pictures = StoryPictures::of(ui);
     // The grid writes a copy of the story's zoom, which goes back after the pass, so the ratings can borrow the data.
     let mut held = *data.value("zoom", zoom);
     let bound = GridZoom::Bound(Bind::bound(&mut held), TileZoom::Ladder);
@@ -170,9 +172,9 @@ fn tile_grid_rule_heads(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 }
 
 /// Focuses the grid and steps its zoom in.
-fn zoom_in(fixture: &mut Fixture) {
-    fixture.key(Key::Tab, Modifiers::NONE).idle(1);
-    fixture.key(Key::Equals, Modifiers::COMMAND).idle(2);
+fn zoom_in(fixture: &mut StoryHarness) {
+    fixture.key(Key::Tab, Mods::NONE).idle(1);
+    fixture.key(Key::Equals, Mods::CMD).idle(2);
 }
 
 /// A zoom the grid steps itself: Cmd/Ctrl + = / - / 0 and Ctrl/Cmd with the wheel, keeping the tile under the pointer
@@ -188,9 +190,9 @@ fn tile_grid_bound_zoom(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 const PAGES: usize = 12;
 
 /// Hovers the second page, so its actions show, and clicks the first.
-fn band_action(fixture: &mut Fixture) {
+fn band_action(fixture: &mut StoryHarness) {
     let Some(page) = fixture.by_label("Page 2") else { return };
-    fixture.frame(vec![pointer::moved(page.center())]).idle(1);
+    fixture.hover_at(page.center()).idle(1);
     if let Some(action) = fixture.by_label(&format!("{:?}", ACTIONS[0])) {
         fixture.click(&action);
     }
@@ -200,7 +202,7 @@ fn band_action(fixture: &mut Fixture) {
 /// the readout names the last action and its page.
 #[story(TileGrid<'static, usize>, covers = [], drive = Drive::Custom(band_action))]
 fn tile_grid_band_actions(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let pictures = StoryPictures::of(ui.ctx());
+    let pictures = StoryPictures::of(ui);
     let grid = TileGrid::new("Pages").action_place(TileActionPlace::Band);
     let out = grid.show_items(ui, &Photos(PAGES), &mut |key, _| {
         Tile::new(format!("Page {}", key + 1))
@@ -224,7 +226,7 @@ fn tile_grid_band_actions(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 const GAP_PHOTOS: usize = 12;
 
 /// Clicks the gap before the third photo.
-fn insert_gap(fixture: &mut Fixture) {
+fn insert_gap(fixture: &mut StoryHarness) {
     if let Some(gap) = fixture.by_label("Insert before photo 3") {
         fixture.click(&gap);
     }
@@ -256,13 +258,13 @@ const LATCHED_MOVE: Vec2 = Vec2::new(0.0, 60.0);
 
 /// A middle click in the grid latches auto-scroll, and the pointer below the latch point scrolls the grid down; Escape
 /// ends the latch, so the driven story rests.
-fn middle_scroll(fixture: &mut Fixture) {
-    let at = fixture.shown().center();
-    fixture.frame(vec![pointer::moved(at)]);
-    fixture.frame(vec![pointer::middle(at, true)]);
-    fixture.frame(vec![pointer::middle(at, false)]);
-    fixture.frame(vec![pointer::moved(at + LATCHED_MOVE)]).idle(4);
-    fixture.key(Key::Escape, Modifiers::NONE).settle();
+fn middle_scroll(fixture: &mut StoryHarness) {
+    let Some(at) = fixture.shown().map(|shown| shown.center()) else { return };
+    fixture.hover_at(at);
+    // REQUEST (P1a): `Harness::hover_at(Pos2)` and `Harness::middle_click_at(Pos2)` (the removed `pointer::moved`/`pointer::middle`).
+    fixture.middle_click_at(at);
+    fixture.hover_at(at + LATCHED_MOVE).idle(4);
+    fixture.key(Key::Escape, Mods::NONE).settle();
 }
 
 /// The middle button latches auto-scroll instead of panning: the items step paints the latch mark at the press point

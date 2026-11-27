@@ -4,7 +4,7 @@ use crate::contract::{Common, Component, Container, ContainerProps, Cx, Gap, Lab
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::{Metrics, Sense};
-use egui::Response;
+use craft_ui::Response;
 
 /// The style of a field group: no look of its own.
 #[derive(Clone, Debug, Default, PartialEq, ComponentStyle)]

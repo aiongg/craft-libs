@@ -11,14 +11,15 @@ use crate::runtime::env::EnvValue;
 use crate::style::{ComponentStyle, Flags, FocusLook, StyleColor, StyleCx, SurfaceLook};
 use craft_behavior::{Metrics, NavShape, Roving, Value};
 use craft_theme::Stateful;
-use egui::{CornerRadius, Rect, Vec2};
+use craft_ui::CornerRadius;
+use craft_ui::geom::{Rect, Vec2};
 use std::marker::PhantomData;
 use std::sync::{Arc, Mutex};
 
 /// The group kind of radios whose members stand for values of type `T`.
 pub struct RadioKind<T>(PhantomData<fn() -> T>);
 
-impl<T: Value + 'static> GroupKind for RadioKind<T> {
+impl<T: Value + crate::contract::MemoProps + 'static> GroupKind for RadioKind<T> {
     type Member = T;
 }
 
@@ -37,13 +38,13 @@ struct GroupMemory<T: Value + 'static> {
     live: Arc<Mutex<GroupState<T>>>,
 }
 
-impl<T: Value + 'static> Default for GroupMemory<T> {
+impl<T: Value + crate::contract::MemoProps + 'static> Default for GroupMemory<T> {
     fn default() -> Self {
         GroupMemory { live: Arc::default() }
     }
 }
 
-impl<T: Value + 'static> Clone for GroupMemory<T> {
+impl<T: Value + crate::contract::MemoProps + 'static> Clone for GroupMemory<T> {
     fn clone(&self) -> Self {
         GroupMemory { live: Arc::clone(&self.live) }
     }
@@ -68,7 +69,7 @@ pub struct RadioGroup<'a, T: Value + 'static> {
     value: Bind<'a, T>,
 }
 
-impl<'a, T: Value + 'static> RadioGroup<'a, T> {
+impl<'a, T: Value + crate::contract::MemoProps + 'static> RadioGroup<'a, T> {
     /// A group named `label` over `value`.
     pub fn new(label: impl Into<crate::runtime::env::Label>, value: Bind<'a, T>) -> Self {
         let props = ContainerProps::new().arena(true).roving(Roving::new(NavShape::Flat));
@@ -83,7 +84,7 @@ impl<'a, T: Value + 'static> RadioGroup<'a, T> {
     }
 }
 
-impl<T: Value + 'static> Component for RadioGroup<'_, T> {
+impl<T: Value + crate::contract::MemoProps + 'static> Component for RadioGroup<'_, T> {
     const ROLE: Role = Role::RADIO_GROUP;
     const PARTS: bool = false;
     type Style = GroupStyle;
@@ -122,7 +123,7 @@ impl<T: Value + 'static> Component for RadioGroup<'_, T> {
         let handle = GroupHandle::<RadioKind<T>>::new(Arc::clone(&cx.recall::<GroupMemory<T>>().live));
         // Step 13 runs right before the body: the members the body shows register again, and a pass that runs no
         // body leaves the registrations of the last one. A measuring run registers no member, so it leaves them too.
-        if !crate::runtime::measure::active(&cx.core.ctx) {
+        if !cx.is_measuring() {
             handle.begin_registration();
         }
         values.set(handle);
@@ -134,7 +135,7 @@ impl<T: Value + 'static> Component for RadioGroup<'_, T> {
     }
 }
 
-impl<T: Value + 'static> Container for RadioGroup<'_, T> {}
+impl<T: Value + crate::contract::MemoProps + 'static> Container for RadioGroup<'_, T> {}
 
 /// The style of a radio button.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
@@ -166,20 +167,20 @@ pub struct Radio<T: Value + 'static> {
     detail: Option<crate::runtime::env::Label>,
 }
 
-impl<T: Value + 'static> Radio<T> {
+impl<T: Value + crate::contract::MemoProps + 'static> Radio<T> {
     /// A radio button standing for `value`.
     pub fn new(value: T) -> Self {
         Radio { common: Common::new(), value, checked: false, invalid: false, detail: None }
     }
 }
 
-impl<T: Value + 'static> Component for Radio<T> {
+impl<T: Value + crate::contract::MemoProps + 'static> Component for Radio<T> {
     const ROLE: Role = Role::RADIO_BUTTON;
     const LABELLED_AFTER: bool = true;
     const PARTS: bool = false;
     const OVERLAYS: bool = false;
     type Style = RadioStyle;
-    type Output = egui::Response;
+    type Output = craft_ui::Response;
 
     fn style(cx: &StyleCx<'_>, _: RadioStyleKey<T>) -> RadioStyle {
         let control = cx.control();
@@ -226,7 +227,7 @@ impl<T: Value + 'static> Component for Radio<T> {
         }
     }
 
-    fn finish(self, cx: Cx<'_, Self>) -> egui::Response {
+    fn finish(self, cx: Cx<'_, Self>) -> craft_ui::Response {
         cx.response.clone()
     }
 }

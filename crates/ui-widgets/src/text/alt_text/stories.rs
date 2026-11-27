@@ -4,18 +4,19 @@ use super::{AltText, AltTextField};
 use crate::contract::{Show as _, Validity};
 use crate::runtime::env::Message;
 use crate::testing::pointer::{moved, secondary};
-use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
+use crate::testing::{Drive, Harness, StoryData, StoryOutput, story};
 use craft_behavior::Mixed;
-use egui::{Key, Modifiers, Ui};
+use craft_ui::Ui;
+use craft_ui::input::{Key, Mods};
 
 const PROMPT: &str = "How would you describe this object and its context to someone who is blind or has low vision?";
 const LONG: &str = "A red kite with a long white tail flying over a grey beach on a windy afternoon, with two children holding its string and a dog running behind them";
 
 /// Enter inserts a line break in the multi-line description, so the typed text commits when focus leaves it.
-fn type_and_leave(fixture: &mut Fixture) {
-    fixture.key(Key::Tab, Modifiers::NONE);
+fn type_and_leave(fixture: &mut Harness) {
+    fixture.key(Key::Tab, Mods::NONE);
     fixture.type_text("A kite");
-    fixture.key(Key::Tab, Modifiers::NONE);
+    fixture.key(Key::Tab, Mods::NONE);
     fixture.idle(2);
 }
 
@@ -25,11 +26,11 @@ fn alt_text_field(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 }
 
 /// A secondary click on the description box, which opens the edit menu.
-fn open_edit_menu(fixture: &mut Fixture) {
+fn open_edit_menu(fixture: &mut Harness) {
     let Some(field) = fixture.by_label(PROMPT) else { return };
     let at = field.center();
     fixture.frame(vec![moved(at), secondary(at, true)]);
-    fixture.frame(vec![secondary(at, false)]).settle();
+    fixture.send(secondary(at, false)).settle();
 }
 
 #[story(AltTextField<'static>, covers = [Open], drive = Drive::Custom(open_edit_menu))]

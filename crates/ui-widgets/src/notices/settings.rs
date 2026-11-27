@@ -6,9 +6,8 @@ use super::notice::Notice;
 use super::words::NoticeWords;
 use crate::contract::{NoValue, Outcome, Politeness, Props as _, Show as _};
 use crate::runtime::env::{Env, Label};
-use crate::runtime::frame;
 use craft_theme::variant::Tone;
-use egui::{Context, Response, Ui};
+use craft_ui::{Context, Response, Ui};
 
 /// Failed saves in a row before the "can't be saved" notice shows beside the status line.
 pub const SAVE_NOTICE_AFTER: u32 = 3;
@@ -104,7 +103,7 @@ impl SettingsNoticeState {
 
     /// Reads the store's load report once at startup and asks `ctx` for a pass to show what it found.
     pub fn loaded(&mut self, ctx: &Context, load: &SettingsLoad) {
-        frame::request_repaint(ctx);
+        ctx.request_repaint();
         if !load.reset.is_empty() {
             self.reset.clone_from(&load.reset);
         }
@@ -118,7 +117,7 @@ impl SettingsNoticeState {
 
     /// Counts failed saves and clears them on success, and asks `ctx` for a pass to show the change.
     pub fn ticked(&mut self, ctx: &Context, result: &SaveResult) {
-        frame::request_repaint(ctx);
+        ctx.request_repaint();
         match result {
             SaveResult::Failed(error) => {
                 self.failures = self.failures.saturating_add(1);

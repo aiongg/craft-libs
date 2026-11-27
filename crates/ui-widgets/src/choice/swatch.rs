@@ -16,7 +16,9 @@ use crate::runtime::requests::ColorRequest;
 use crate::style::{ComponentStyle, DataColor, Flags, FocusLook, State, StateMix, StateSet, StyleColor, StyleCx, UiTokens, resolve_style};
 use craft_behavior::{IconId, Metrics, Mixed, Sense, Value};
 use craft_theme::{Hsb, Rgba, Srgba, Stateful, States, over};
-use egui::{Color32, ColorImage, CornerRadius, Pos2, Rect, Response, Vec2, pos2};
+use craft_ui::geom::{Pos2, Rect, Vec2, pos2};
+use craft_ui::{Color32, CornerRadius, Response};
+use egui::ColorImage;
 use std::sync::Arc;
 
 #[cfg(feature = "suite")]
@@ -247,7 +249,7 @@ impl<E> crate::contract::ItemOutput<E> for SwatchOutput {
 /// round, or a hexagon, a cell of a honeycomb.
 #[derive(crate::contract::Component, crate::contract::Props)]
 #[component(content_painter, probe(Swatch<u8>))]
-pub struct Swatch<T: Value + 'static = ()> {
+pub struct Swatch<T: Value + crate::contract::MemoProps + 'static = ()> {
     #[common]
     common: Common,
     fill: SwatchFill,
@@ -321,9 +323,9 @@ impl Swatch<()> {
     }
 }
 
-impl<T: Value + 'static> Swatch<T> {
+impl<T: Value + crate::contract::MemoProps + 'static> Swatch<T> {
     /// Makes the swatch the member standing for `value` of the enclosing `RadioGroup<U>`.
-    pub fn member<U: Value + 'static>(self, value: U) -> Swatch<U> {
+    pub fn member<U: Value + crate::contract::MemoProps + 'static>(self, value: U) -> Swatch<U> {
         Swatch {
             common: self.common,
             fill: self.fill,
@@ -418,7 +420,7 @@ pub fn paint_ring(draw: &Draw<'_>, well: Rect, color: Srgba, style: &SwatchStyle
     draw.stroke(&PaintShape::Rect(hole.expand(line), corner(line)), StrokeWidth::Thin, edge);
 }
 
-impl<T: Value + 'static> Component for Swatch<T> {
+impl<T: Value + crate::contract::MemoProps + 'static> Component for Swatch<T> {
     const ROLE: Role = Role::COLOR_WELL;
     const PARTS: bool = false;
     const OVERLAYS: bool = false;

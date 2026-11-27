@@ -11,12 +11,14 @@ use craft_ui::contract::{
     CommandSet, Common, Component, Cx, GlyphLabel, LabelKind, LabelScheme, MeasureCx, Props as _, Role, Show as _, ShowContainer as _, SideLabel,
 };
 use craft_ui::form::{Field, FieldGroup};
+use craft_ui::geom::{Pos2, Rect, Vec2};
+use craft_ui::input::{Key, Mods};
 use craft_ui::runtime::commands::CommandState;
 use craft_ui::style::StyleCx;
 use craft_ui::testing::pointer::moved;
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::testing::{Harness, trial};
 use craft_ui::tile_grid::{CaptionPlace, Tile};
-use egui::{Id, Key, Modifiers, Pos2, Rect, Response, Ui, Vec2};
+use craft_ui::{Id, Response, Ui};
 use std::cell::Cell;
 use std::rc::Rc;
 
@@ -56,16 +58,16 @@ fn texts_added_by_hover(show: impl Fn(&mut Ui) -> Rect + 'static) -> Vec<String>
 }
 
 /// [`texts_added_by_hover`] in a fixture `prepare` sets up first (the state of a command).
-fn texts_added_by_hover_in(show: impl Fn(&mut Ui) -> Rect + 'static, prepare: impl FnOnce(&mut Fixture)) -> Vec<String> {
+fn texts_added_by_hover_in(show: impl Fn(&mut Ui) -> Rect + 'static, prepare: impl FnOnce(&mut Harness)) -> Vec<String> {
     let at = Rc::new(Cell::new(Rect::NOTHING));
     let seen = Rc::clone(&at);
-    let mut fixture = Fixture::new(move |ui| seen.set(show(ui)));
+    let mut fixture = Harness::new_ui(move |ui| seen.set(show(ui)));
     prepare(&mut fixture);
     fixture.settle();
     // A cut run carries its full text too: runs are told apart by whether they are cut.
     let before: Vec<(String, bool)> = fixture.texts().iter().map(|run| (run.text.clone(), run.elided)).collect();
     let placed: Vec<(String, Rect)> = fixture.texts().iter().map(|run| (run.text.clone(), run.rect)).collect();
-    fixture.frame(vec![moved(at.get().center())]);
+    fixture.send(moved(at.get().center()));
     fixture.advance(DELAY);
     fixture.settle();
     // The tooltip shows on its own layer: every text shown before stays where it was, a field's label included.
@@ -236,7 +238,7 @@ fn a_command_hint_is_the_tooltips_second_line() {
 fn tab_through_disabled(hint: Option<&'static str>) -> (Vec<&'static str>, Vec<String>) {
     let ids = Rc::new(Cell::new([Id::NULL; 3]));
     let seen = Rc::clone(&ids);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let before = Button::new("Before").show(ui).id;
         let bold = Button::command(HintCommand::Bold).show(ui).id;
         let after = Button::new("After").show(ui).id;
@@ -249,7 +251,7 @@ fn tab_through_disabled(hint: Option<&'static str>) -> (Vec<&'static str>, Vec<S
     let mut reached = Vec::new();
     let mut added = Vec::new();
     for _ in 0..3 {
-        fixture.key(Key::Tab, Modifiers::NONE);
+        fixture.key(Key::Tab, Mods::NONE);
         fixture.settle();
         let Some(at) = fixture.focused().and_then(|focused| ids.get().iter().position(|id| *id == focused)) else { continue };
         reached.push(names[at]);
@@ -279,20 +281,20 @@ fn a_disabled_command_with_a_hint_is_a_tab_stop_that_shows_its_reason() {
 /// size.
 #[trial]
 fn a_tooltip_shown_from_inside_a_body_keeps_its_rect_frame_to_frame() {
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         craft_ui::layout_components::Stack::new().show(ui, |ui, _| {
             Mark { common: Common::new() }.label("Lock").show_at(ui, Rect::from_min_size(Pos2::ZERO, Vec2::new(600.0, 380.0)));
         });
     });
     fixture.room(Vec2::new(600.0, 400.0));
     fixture.settle();
-    fixture.frame(vec![moved(Pos2::new(300.0, 200.0))]);
+    fixture.send(moved(Pos2::new(300.0, 200.0)));
     fixture.advance(DELAY);
     fixture.settle();
     assert!(fixture.texts().iter().any(|run| run.text == "Lock"), "the tooltip shows");
     let mut frames = Vec::new();
     for _ in 0..6 {
-        fixture.frame(Vec::new());
+        fixture.step();
         frames.push((fixture.passes(), fixture.texts().iter().find(|run| run.text == "Lock").map(|run| run.rect)));
     }
     let first = frames[0].1;
@@ -307,7 +309,7 @@ const STROKE_TIP: &str = "Set shape stroke type";
 fn stroke_tip_width(inspector: bool) -> (f32, f32) {
     let at = Rc::new(Cell::new(Rect::NOTHING));
     let seen = Rc::clone(&at);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let field = |ui: &mut Ui| {
             Field::new("Stroke").show(ui, |ui, _| seen.set(Mark { common: Common::new() }.label(STROKE_TIP).show(ui).rect));
         };
@@ -320,7 +322,7 @@ fn stroke_tip_width(inspector: bool) -> (f32, f32) {
     let room = Vec2::new(1600.0, 600.0);
     fixture.room(room);
     fixture.settle();
-    fixture.frame(vec![moved(at.get().center())]);
+    fixture.send(moved(at.get().center()));
     fixture.advance(DELAY);
     fixture.settle();
     let tip = fixture.by_role(Role::TOOLTIP).first().map(|tip| tip.rect).expect("the tooltip shows");
@@ -343,14 +345,14 @@ fn a_tooltip_of_a_control_in_an_inspector_cell_keeps_its_text_width() {
 fn a_press_on_a_control_hides_its_tooltip_until_the_pointer_leaves() {
     let at = Rc::new(Cell::new(Rect::NOTHING));
     let seen = Rc::clone(&at);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         ui.add_space(20.0);
         seen.set(Button::new("Stroke").tooltip(STROKE_TIP.to_owned()).show(ui).rect);
     });
     fixture.settle();
-    let shows = |fixture: &Fixture| fixture.texts().iter().any(|run| run.text == STROKE_TIP);
+    let shows = |fixture: &Harness| fixture.texts().iter().any(|run| run.text == STROKE_TIP);
     let center = at.get().center();
-    fixture.frame(vec![moved(center)]);
+    fixture.send(moved(center));
     fixture.advance(DELAY);
     fixture.settle();
     assert!(shows(&fixture), "a rest on the button shows its tooltip");
@@ -360,10 +362,10 @@ fn a_press_on_a_control_hides_its_tooltip_until_the_pointer_leaves() {
     fixture.settle();
     assert!(!shows(&fixture), "after a press on the button its tooltip stays hidden while the pointer rests there");
 
-    fixture.frame(vec![moved(at.get().right_bottom() + Vec2::splat(200.0))]);
+    fixture.send(moved(at.get().right_bottom() + Vec2::splat(200.0)));
     fixture.advance(DELAY);
     fixture.settle();
-    fixture.frame(vec![moved(center)]);
+    fixture.send(moved(center));
     fixture.advance(DELAY);
     fixture.settle();
     assert!(shows(&fixture), "once the pointer left and came back, a rest shows the tooltip again");

@@ -2,9 +2,10 @@
 
 use craft_behavior::{EditEvent, Selection, keyed};
 use craft_ui::contract::{Bind, CollectionEvent, ShowCollection as _};
-use craft_ui::testing::{Fixture, pointer, trial};
+use craft_ui::geom::Vec2;
+use craft_ui::input::{Key, Mods};
+use craft_ui::testing::{Harness, pointer, trial};
 use craft_ui::tile_grid::{GridEvent, GridZoom, RatingKeys, Tile, TileGrid, TileGroup, TileZoom};
-use egui::{Key, Modifiers, Vec2};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -14,7 +15,7 @@ const NAMES: [&str; 4] = ["Tile 1", "Tile 2", "Tile 3", "Tile 4"];
 fn keyboard_selects_a_selectable_group_header() {
     let selected = Rc::new(RefCell::new(Selection::single(1_usize)));
     let held = selected.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let keys = [1_usize, 2];
         let source = keyed(&keys, |key: &usize| *key);
         let groups = [TileGroup::new(0, 0, 2, "Folder").selectable()];
@@ -27,11 +28,11 @@ fn keyboard_selects_a_selectable_group_header() {
                 .show_items(ui, &source, &mut |_, _| Tile::new("Tile"));
     });
     fixture.room(Vec2::new(600.0, 400.0)).settle();
-    fixture.key(Key::Tab, Modifiers::NONE).idle(2);
-    fixture.key(Key::Home, Modifiers::NONE).idle(2);
-    fixture.key(Key::ArrowUp, Modifiers::NONE).idle(2);
+    fixture.key(Key::Tab, Mods::NONE).idle(2);
+    fixture.key(Key::Home, Mods::NONE).idle(2);
+    fixture.key(Key::ArrowUp, Mods::NONE).idle(2);
     assert_eq!(selected.borrow().items, [0], "the header is selected when the lead reaches it");
-    fixture.key(Key::ArrowDown, Modifiers::SHIFT).idle(2);
+    fixture.key(Key::ArrowDown, Mods::SHIFT).idle(2);
     assert_eq!(selected.borrow().items, [0, 1], "a range includes the selectable header");
 }
 
@@ -39,7 +40,7 @@ fn keyboard_selects_a_selectable_group_header() {
 fn keyboard_lead_on_a_group_header_is_reported() {
     let seen = Rc::new(RefCell::new(Vec::new()));
     let held = seen.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let keys = [1_usize, 2];
         let source = keyed(&keys, |key: &usize| *key);
         let groups = [TileGroup::new(0, 0, 2, "Folder")];
@@ -47,9 +48,9 @@ fn keyboard_lead_on_a_group_header_is_reported() {
         held.borrow_mut().extend(out.response.events);
     });
     fixture.room(Vec2::new(600.0, 400.0)).settle();
-    fixture.key(Key::Tab, Modifiers::NONE).idle(2);
-    fixture.key(Key::Home, Modifiers::NONE).idle(2);
-    fixture.key(Key::ArrowUp, Modifiers::NONE).idle(2);
+    fixture.key(Key::Tab, Mods::NONE).idle(2);
+    fixture.key(Key::Home, Mods::NONE).idle(2);
+    fixture.key(Key::ArrowUp, Mods::NONE).idle(2);
     assert!(seen.borrow().iter().any(|event| matches!(event, CollectionEvent::LeadMoved { key: 0, .. })));
 }
 
@@ -62,10 +63,10 @@ struct Seen {
 }
 
 /// A four-tile grid `make` builds over the zoom value the rig keeps, which starts at the ladder's default.
-fn rig(make: for<'z> fn(&'z mut f64) -> TileGrid<'z, usize>) -> (Fixture, Rc<RefCell<Seen>>) {
+fn rig(make: for<'z> fn(&'z mut f64) -> TileGrid<'z, usize>) -> (Harness, Rc<RefCell<Seen>>) {
     let seen = Rc::new(RefCell::new(Seen { zoom: TileZoom::Ladder.default_value(), ..Seen::default() }));
     let held = seen.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let keys = [0_usize, 1, 2, 3];
         let source = keyed(&keys, |key: &usize| *key);
         let mut zoom = held.borrow().zoom;
@@ -91,12 +92,12 @@ fn bound(zoom: &mut f64) -> GridZoom<'_> {
 #[trial]
 fn command_digits_rate_and_command_equals_and_minus_zoom() {
     let (mut fixture, seen) = rig(|zoom| TileGrid::new("Library").rating_keys(RatingKeys::CommandDigits).zoom(bound(zoom)));
-    fixture.key(Key::Tab, Modifiers::NONE).idle(2);
-    fixture.key(Key::ArrowRight, Modifiers::NONE).idle(2);
+    fixture.key(Key::Tab, Mods::NONE).idle(2);
+    fixture.key(Key::ArrowRight, Mods::NONE).idle(2);
     seen.borrow_mut().grid.clear();
     let start = seen.borrow().zoom;
     for key in [Key::Num3, Key::Num0] {
-        fixture.key(key, Modifiers::COMMAND).idle(1);
+        fixture.key(key, Mods::COMMAND).idle(1);
     }
     let reported: Vec<String> = std::mem::take(&mut seen.borrow_mut().grid)
         .into_iter()
@@ -107,20 +108,20 @@ fn command_digits_rate_and_command_equals_and_minus_zoom() {
         .collect();
     assert_eq!(reported, ["rate [0] 3", "rate [0] 0"], "the selected tile is rated, then cleared");
     assert_eq!(seen.borrow().zoom, start, "Cmd/Ctrl+0 is a rating key here and leaves the zoom");
-    fixture.key(Key::Equals, Modifiers::COMMAND).idle(1);
+    fixture.key(Key::Equals, Mods::COMMAND).idle(1);
     let raised = seen.borrow().zoom;
     assert!(raised > start, "Cmd/Ctrl+= raises the zoom: {start} to {raised}");
-    fixture.key(Key::Minus, Modifiers::COMMAND).idle(1);
+    fixture.key(Key::Minus, Mods::COMMAND).idle(1);
     let lowered = seen.borrow().zoom;
     assert!(lowered < raised, "Cmd/Ctrl+- lowers it: {raised} to {lowered}");
     assert!(seen.borrow().grid.is_empty(), "a zoom step is no grid event: {:?}", seen.borrow().grid);
 
     let (mut fixture, seen) = rig(|zoom| TileGrid::new("Library").zoom(bound(zoom)));
-    fixture.key(Key::Tab, Modifiers::NONE).idle(2);
-    fixture.key(Key::Equals, Modifiers::COMMAND).idle(1);
-    fixture.key(Key::Equals, Modifiers::COMMAND).idle(1);
+    fixture.key(Key::Tab, Mods::NONE).idle(2);
+    fixture.key(Key::Equals, Mods::COMMAND).idle(1);
+    fixture.key(Key::Equals, Mods::COMMAND).idle(1);
     assert!(seen.borrow().zoom > TileZoom::Ladder.default_value(), "two steps in leave the default");
-    fixture.key(Key::Num0, Modifiers::COMMAND).idle(1);
+    fixture.key(Key::Num0, Mods::COMMAND).idle(1);
     assert_eq!(seen.borrow().zoom, TileZoom::Ladder.default_value(), "without rating keys Cmd/Ctrl+0 returns the zoom to its default");
     assert!(seen.borrow().grid.is_empty(), "and rates nothing: {:?}", seen.borrow().grid);
 }
@@ -157,7 +158,7 @@ fn a_slow_click_on_the_caption_renames_and_a_double_click_activates() {
 fn a_double_click_on_the_background_activates_the_empty_space() {
     let (mut fixture, seen) = rig(|_| TileGrid::new("Library"));
     let tile = fixture.by_label("Tile 2").expect("the tile has a node").rect;
-    let empty_space = egui::pos2(tile.center().x, tile.max.y + 80.0);
+    let empty_space = craft_ui::geom::pos2(tile.center().x, tile.max.y + 80.0);
     let count = |seen: &Rc<RefCell<Seen>>, of: fn(&CollectionEvent<usize, craft_ui::tile_grid::TilePartEvent>) -> bool| {
         seen.borrow().collection.iter().filter(|event| of(event)).count()
     };
@@ -173,11 +174,11 @@ fn a_double_click_on_the_background_activates_the_empty_space() {
 /// One wheel notch over a grid that overflows scrolls a third of its view.
 #[trial]
 fn a_wheel_notch_scrolls_a_third_of_the_view() {
-    let seen = Rc::new(RefCell::new((0..40usize).map(|_| egui::Rect::NOTHING).collect::<Vec<_>>()));
+    let seen = Rc::new(RefCell::new((0..40usize).map(|_| craft_ui::geom::Rect::NOTHING).collect::<Vec<_>>()));
     let held = seen.clone();
-    let view = Rc::new(std::cell::Cell::new(egui::Rect::NOTHING));
+    let view = Rc::new(std::cell::Cell::new(craft_ui::geom::Rect::NOTHING));
     let shown = view.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let keys: Vec<usize> = (0..40).collect();
         let source = keyed(&keys, |key: &usize| *key);
         let out = TileGrid::new("Library").show_items(ui, &source, &mut |key, icx| {
@@ -189,8 +190,8 @@ fn a_wheel_notch_scrolls_a_third_of_the_view() {
     fixture.room(Vec2::new(600.0, 300.0));
     fixture.settle();
     let top = seen.borrow()[0].min.y;
-    fixture.frame(vec![pointer::moved(view.get().center())]);
-    fixture.frame(vec![pointer::wheel_lines(-1.0)]).idle(2);
+    fixture.send(pointer::moved(view.get().center()));
+    fixture.send(pointer::wheel_lines(-1.0)).idle(2);
     let moved = top - seen.borrow()[0].min.y;
     let share = moved / view.get().height();
     assert!((0.3..0.37).contains(&share), "one notch scrolls a third of the view: {moved} of {}", view.get().height());
@@ -202,7 +203,7 @@ fn a_wheel_notch_scrolls_a_third_of_the_view() {
 fn stars_on_a_selected_tile_rate_the_selection() {
     let seen = Rc::new(RefCell::new(Seen::default()));
     let held = seen.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let keys = [0_usize, 1, 2, 3];
         let source = keyed(&keys, |key: &usize| *key);
         let out = TileGrid::new("Library").show_items(ui, &source, &mut |key, _| Tile::new(NAMES[*key]).rating(0));
@@ -210,14 +211,14 @@ fn stars_on_a_selected_tile_rate_the_selection() {
     });
     fixture.room(Vec2::new(600.0, 400.0));
     fixture.settle();
-    for (name, mods) in [("Tile 1", Modifiers::NONE), ("Tile 2", Modifiers::SHIFT)] {
+    for (name, mods) in [("Tile 1", Mods::NONE), ("Tile 2", Mods::SHIFT)] {
         let tile = fixture.by_label(name).expect("the tile has a node");
-        fixture.hold(mods).click(&tile).hold(Modifiers::NONE).settle();
+        fixture.hold(mods).click(&tile).hold(Mods::NONE).settle();
     }
     let stars = fixture.by_label("Rating of Tile 2").expect("a selected tile shows its stars");
     fixture.click(&stars).settle();
     let tile = fixture.by_label("Tile 4").expect("the tile has a node");
-    fixture.frame(vec![pointer::moved(tile.rect.center())]).settle();
+    fixture.send(pointer::moved(tile.rect.center())).settle();
     let stars = fixture.by_label("Rating of Tile 4").expect("the hovered tile shows its stars");
     fixture.click(&stars).settle();
     let rated: Vec<Vec<usize>> =

@@ -9,7 +9,8 @@ use craft_theme::{
     Variant,
     variant::{Emphasis, Tone},
 };
-use egui::{Response, Vec2};
+use craft_ui::Response;
+use craft_ui::geom::Vec2;
 use std::borrow::Cow;
 
 #[cfg(feature = "suite")]

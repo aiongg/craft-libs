@@ -2,24 +2,26 @@
 //! A collection rings its focused parts but not itself, since its lead item shows the focus.
 
 use craft_behavior::PartKey;
-use craft_ui::testing::{Fixture, Registry, trial};
-use egui::{Key, Modifiers, Rect, Shape};
+use craft_ui::geom::Rect;
+use craft_ui::input::{Key, Mods};
+use craft_ui::testing::{Harness, Registry, trial};
+use egui::Shape;
 
 /// The story named `name`, settled.
-fn story(name: &str) -> Fixture {
+fn story(name: &str) -> Harness {
     let registry = Registry::of(&[crate::register, craft_ui::testing::register]);
     let _ = registry.install_story_sets();
     let entry = registry.stories().iter().find(|entry| entry.story.name == name).unwrap_or_else(|| panic!("a story named {name}"));
-    let mut fixture = Fixture::story(&entry.story);
+    let mut fixture = Harness::story(&entry.story);
     fixture.settle();
     fixture
 }
 
 /// Presses Tab until the stop `part` (`None` for a component's own stop) holds the focus, and returns its rect.
-fn tab_to(fixture: &mut Fixture, part: Option<&'static str>) -> Option<Rect> {
+fn tab_to(fixture: &mut Harness, part: Option<&'static str>) -> Option<Rect> {
     let wanted = part.map(PartKey::new);
     for _ in 0..24 {
-        fixture.key(Key::Tab, Modifiers::NONE).settle();
+        fixture.key(Key::Tab, Mods::NONE).settle();
         let Some((owner, focused)) = fixture.focused_stop() else { continue };
         if focused.map(|focused| focused.key) != wanted {
             continue;
@@ -33,7 +35,7 @@ fn tab_to(fixture: &mut Fixture, part: Option<&'static str>) -> Option<Rect> {
 }
 
 /// Whether the latest frame paints a focus ring (a rectangle stroke at least two points wide) around `target`.
-fn ringed(fixture: &mut Fixture, target: Rect) -> bool {
+fn ringed(fixture: &mut Harness, target: Rect) -> bool {
     fixture.frame_shapes().iter().any(|shape| match shape {
         Shape::Rect(rect) if rect.stroke.width >= 2.0 => rect.rect.expand(1.0).contains_rect(target),
         _ => false,

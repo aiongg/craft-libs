@@ -14,10 +14,11 @@ use crate::runtime::commands::EditCommands;
 use crate::runtime::env::{Message, with_env};
 use crate::style::{DataColor, SurfaceKind};
 use crate::testing::pictures::sample_picture;
-use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
+use crate::testing::{Drive, Harness, StoryData, StoryHarness, StoryOutput, story};
 use craft_behavior::{ColumnWidth, IconId, Mixed, Proposal};
 use craft_theme::{ControlSize, Variant};
-use egui::{Color32, Key, Modifiers, Ui};
+use craft_ui::input::{Key, Mods};
+use craft_ui::{Color32, Ui};
 
 const SIZES: [(&str, ControlSize); 2] = [("Sm", ControlSize::Sm), ("Md", ControlSize::Md)];
 
@@ -441,7 +442,7 @@ fn toggle_button_stacked_in_ribbon(ui: &mut Ui, data: &mut StoryData) -> StoryOu
 }
 
 /// Rests the pointer on the toggle, clicks it and stays: its output reports the click while the pointer stays.
-fn click_and_stay(fixture: &mut Fixture) {
+fn click_and_stay(fixture: &mut StoryHarness) {
     if let Some(toggle) = fixture.by_label("Snap to grid") {
         fixture.click(&toggle);
     }
@@ -484,9 +485,9 @@ fn split_button(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     SplitButton::new("Trace", &entries).icon(IconId::new("image")).arrow_label("Tracing presets").show(ui).into()
 }
 
-fn open_menu(fixture: &mut Fixture) {
-    fixture.key(Key::Tab, Modifiers::NONE);
-    fixture.key(Key::ArrowDown, Modifiers::ALT);
+fn open_menu(fixture: &mut StoryHarness) {
+    fixture.key(Key::Tab, Mods::NONE);
+    fixture.key(Key::Down, Mods::ALT);
 }
 
 #[story(SplitButton<'static, u8>, covers = [Open], drive = Drive::Custom(open_menu))]
@@ -559,7 +560,7 @@ fn button_chord_long_text(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 /// A room too short for label and chord together: the chord is dropped and the label stays whole.
 #[story(Button<'static>, covers = [], drive = Drive::Never, group = "Variants", title = "Chord, narrow room")]
 fn button_chord_narrow_room(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    let width = |chord| Button::command(EditCommands::Copy).chord(chord).measure_in(ui, Proposal::Ideal).x;
+    let mut width = |chord| Button::command(EditCommands::Copy).chord(chord).measure_in(ui, Proposal::Ideal).x;
     // Halfway between the button without its chord and with it: room for the whole label, not for the chord too.
     let room = (width(ButtonChord::Hidden) + width(ButtonChord::Trailing)) / 2.0;
     crate::testing::memory::scoped(ui, |ui| {

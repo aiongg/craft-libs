@@ -6,11 +6,12 @@
 use craft_behavior::{ColumnKey, ColumnWidth, keyed};
 use craft_host::target::Os;
 use craft_ui::contract::{Bind, CollectionEvent, ColumnEvent, ColumnSort, ColumnSpec, Role, ShowCollection as _};
+use craft_ui::geom::{Pos2, Rect};
+use craft_ui::input::{Key, Mods};
 use craft_ui::list::ListRow;
 use craft_ui::table::{MetadataGroup, MetadataRow, MetadataTable, Table};
-use craft_ui::testing::{Fixture, Room, pointer, trial};
+use craft_ui::testing::{Harness, Room, pointer, trial};
 use craft_ui::text::TextField;
-use egui::{Key, Modifiers, Pos2, Rect};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -22,7 +23,7 @@ fn a_table_cell_text_field_reports_edits() {
     use craft_ui::text::TextField;
     let edited = Rc::new(RefCell::new(None::<String>));
     let seen = edited.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let columns = vec![ColumnSpec::new(NAME, "Name", ColumnWidth::fill(1.0)), ColumnSpec::new(SIZE, "Pages", ColumnWidth::fill(1.0))];
         let keys = [0_usize, 1, 2];
         let source = keyed(&keys, |key: &usize| *key);
@@ -59,7 +60,7 @@ fn a_table_cell_can_show_a_field_followed_by_text() {
         (craft_i18n::Direction::Ltr, SIZE),
         (craft_i18n::Direction::Rtl, SIZE),
     ] {
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             let columns = vec![ColumnSpec::new(NAME, "Name", ColumnWidth::fill(1.0)), ColumnSpec::new(SIZE, "Pages", ColumnWidth::Content)];
             let keys = [0_usize];
             let source = keyed(&keys, |key: &usize| *key);
@@ -91,7 +92,7 @@ fn an_accessibility_focused_table_cell_field_reports_typing() {
     use craft_ui::text::TextField;
     let edited = Rc::new(RefCell::new(None::<String>));
     let seen = edited.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let columns = vec![ColumnSpec::new(NAME, "Name", ColumnWidth::fill(1.0)), ColumnSpec::new(SIZE, "Pages", ColumnWidth::Content)];
         let keys = [0_usize];
         let source = keyed(&keys, |key: &usize| *key);
@@ -124,11 +125,11 @@ const LONG: &str = "A file name far longer than the column it starts in";
 
 /// A table of `names` whose name column starts `controls` control heights wide; the app applies the widths the
 /// table reports. Returns the fixture and the column events seen.
-fn files(names: &'static [&'static str], controls: f32) -> (Fixture, Rc<RefCell<Vec<ColumnEvent>>>) {
+fn files(names: &'static [&'static str], controls: f32) -> (Harness, Rc<RefCell<Vec<ColumnEvent>>>) {
     let events = Rc::new(RefCell::new(Vec::new()));
     let width: Rc<Cell<Option<f32>>> = Rc::new(Cell::new(None));
     let seen = events.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let name = width.get().map_or(ColumnWidth::Controls(controls), ColumnWidth::Fixed);
         let columns = vec![ColumnSpec::new(NAME, "Name", name).resizable(), ColumnSpec::new(SIZE, "Size", ColumnWidth::Controls(4.0)).resizable()];
         let keys: Vec<usize> = (0..names.len()).collect();
@@ -149,12 +150,12 @@ fn files(names: &'static [&'static str], controls: f32) -> (Fixture, Rc<RefCell<
     (fixture, events)
 }
 
-fn elided(fixture: &Fixture, text: &str) -> bool {
+fn elided(fixture: &Harness, text: &str) -> bool {
     fixture.texts().iter().find(|painted| painted.text == text).is_some_and(|painted| painted.elided)
 }
 
 /// Double clicks the end edge of the header cell `label`; returns the cell's width before.
-fn fit(fixture: &mut Fixture, label: &str) -> f32 {
+fn fit(fixture: &mut Harness, label: &str) -> f32 {
     let cell = fixture.by_label(label).expect("the header cell's node").rect;
     let edge = Pos2::new(cell.right() - 1.0, cell.center().y);
     fixture.click_at(edge).click_at(edge).settle();
@@ -188,15 +189,15 @@ fn a_double_click_on_a_column_edge_fits_the_column_to_its_widest_cell() {
 }
 
 /// The left edge of the painted run `text`.
-fn left_of(fixture: &Fixture, text: &str) -> f32 {
+fn left_of(fixture: &Harness, text: &str) -> f32 {
     fixture.texts().iter().find(|painted| painted.text == text).map(|painted| painted.rect.left()).expect("the text was painted")
 }
 
 /// A metadata table of one group with `names`, each with the value "v{n}"; returns the fixture and the table's rect.
-fn metadata(names: &'static [&'static str]) -> (Fixture, Rc<Cell<Rect>>) {
+fn metadata(names: &'static [&'static str]) -> (Harness, Rc<Cell<Rect>>) {
     let rect = Rc::new(Cell::new(Rect::NOTHING));
     let held = rect.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let rows = names.iter().enumerate().map(|(at, name)| MetadataRow::new(*name, format!("v{at}"))).collect();
         let groups = vec![MetadataGroup::new("Camera", rows)];
         held.set(MetadataTable::new("Metadata", &groups).show(ui).response.rect);
@@ -232,7 +233,7 @@ fn the_metadata_name_column_fits_its_widest_name_up_to_a_third_of_the_table() {
 fn the_metadata_filter_sits_in_the_header_with_no_gap_above_the_first_group() {
     let rect = Rc::new(Cell::new(Rect::NOTHING));
     let held = rect.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let mut filter = String::new();
         let groups = vec![MetadataGroup::new("Camera", vec![MetadataRow::new("Make", "FUJIFILM")])];
         held.set(MetadataTable::new("Metadata", &groups).filter(Bind::bound(&mut filter)).show(ui).response.rect);
@@ -250,11 +251,11 @@ fn the_metadata_filter_sits_in_the_header_with_no_gap_above_the_first_group() {
 
 /// A table sorted by its hideable Size column, with movable Name and Date columns; the app drops its sort on
 /// `Unsorted`. Returns the fixture and the column events seen.
-fn sorted_files() -> (Fixture, Rc<RefCell<Vec<ColumnEvent>>>) {
+fn sorted_files() -> (Harness, Rc<RefCell<Vec<ColumnEvent>>>) {
     let events = Rc::new(RefCell::new(Vec::new()));
     let sort = Rc::new(RefCell::new(Some(ColumnSort::ascending(SIZE))));
     let seen = events.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let columns = vec![
             ColumnSpec::new(NAME, "Name", ColumnWidth::Controls(6.0)).movable(),
             ColumnSpec::new(SIZE, "Size", ColumnWidth::Controls(4.0)).sortable().hideable(),
@@ -278,17 +279,17 @@ fn sorted_files() -> (Fixture, Rc<RefCell<Vec<ColumnEvent>>>) {
     (fixture, events)
 }
 
-fn headers(fixture: &Fixture) -> Vec<String> {
+fn headers(fixture: &Harness) -> Vec<String> {
     fixture.by_role(Role::COLUMN_HEADER).iter().filter_map(|target| fixture.tree().name_of(target.node).map(str::to_owned)).collect()
 }
 
-fn secondary_click(fixture: &mut Fixture, at: Pos2) {
+fn secondary_click(fixture: &mut Harness, at: Pos2) {
     fixture.frame(vec![pointer::moved(at), pointer::secondary(at, true)]);
-    fixture.frame(vec![pointer::secondary(at, false)]).settle();
+    fixture.send(pointer::secondary(at, false)).settle();
 }
 
 /// The menu row named `label` of `role`.
-fn menu_row(fixture: &Fixture, role: Role, label: &str) -> Option<craft_ui::testing::Target> {
+fn menu_row(fixture: &Harness, role: Role, label: &str) -> Option<craft_ui::testing::Target> {
     fixture.by_role(role).into_iter().find(|target| fixture.tree().name_of(target.node) == Some(label))
 }
 
@@ -329,7 +330,7 @@ const EXTRA: [&str; 14] =
 /// covers the point and shows every row.
 #[trial]
 fn a_header_menu_too_tall_for_either_side_of_its_point_covers_it_and_shows_every_row() {
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         ui.add_space(270.0);
         let mut columns = vec![ColumnSpec::new(NAME, "Name", ColumnWidth::Controls(4.0)).movable()];
         columns.extend(EXTRA.iter().map(|name| ColumnSpec::new(ColumnKey::new(name), *name, ColumnWidth::Controls(2.0)).hideable()));
@@ -361,13 +362,13 @@ fn ctrl_or_cmd_with_an_arrow_moves_the_focused_column() {
         let (mut fixture, events) = sorted_files();
         fixture.os(os);
         // Tab enters the rows; Shift+Tab goes back to the header row, on its first column.
-        fixture.key(Key::Tab, Modifiers::NONE).key(Key::Tab, Modifiers::SHIFT).settle();
-        fixture.key(Key::ArrowRight, Modifiers::COMMAND).settle();
+        fixture.key(Key::Tab, Mods::NONE).key(Key::Tab, Mods::SHIFT).settle();
+        fixture.key(Key::ArrowRight, Mods::COMMAND).settle();
         let moves: Vec<ColumnEvent> = events.borrow().iter().filter(|event| matches!(event, ColumnEvent::Moved { .. })).cloned().collect();
         assert_eq!(moves.len(), 1, "{os:?}: one move: {moves:?}");
         assert!(matches!(&moves[0], ColumnEvent::Moved { key, to, .. } if *key == NAME && *to == 1));
         assert_eq!(headers(&fixture), ["Size", "Name", "Date"]);
-        fixture.key(Key::ArrowRight, Modifiers::NONE).settle();
+        fixture.key(Key::ArrowRight, Mods::NONE).settle();
         assert_eq!(events.borrow().iter().filter(|event| matches!(event, ColumnEvent::Moved { .. })).count(), 1, "a plain arrow moves no column");
     }
 }
@@ -380,7 +381,7 @@ fn a_header_field_edits_and_a_header_remove_reports_its_column() {
     let edits = Rc::new(Cell::new(0_u32));
     let text = Rc::new(RefCell::new(String::new()));
     let (seen, counted, held) = (events.clone(), edits.clone(), text.clone());
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let columns = vec![
             ColumnSpec::new(NAME, "Name", ColumnWidth::Controls(10.0)).sortable().removable("Remove Name", true),
             ColumnSpec::new(SIZE, "Size", ColumnWidth::Controls(6.0)).removable("Remove Size", false),
@@ -402,12 +403,12 @@ fn a_header_field_edits_and_a_header_remove_reports_its_column() {
     assert!(fixture.by_label("Name").is_some(), "the column header keeps its name");
 
     // Tab enters the rows; Shift+Tab goes back to the header's roving group.
-    fixture.key(Key::Tab, Modifiers::NONE).key(Key::Tab, Modifiers::SHIFT).settle();
+    fixture.key(Key::Tab, Mods::NONE).key(Key::Tab, Mods::SHIFT).settle();
     let first = fixture.focused_stop().expect("Shift+Tab reaches the header's group");
     // The hosted field joins the header's roving group beside the header parts, so arrows reach both kinds of stop.
     let mut stops = vec![first];
     for _ in 0..4 {
-        fixture.key(Key::ArrowRight, Modifiers::NONE).settle();
+        fixture.key(Key::ArrowRight, Mods::NONE).settle();
         if let Some(stop) = fixture.focused_stop().filter(|stop| !stops.contains(stop)) {
             stops.push(stop);
         }
@@ -431,8 +432,8 @@ fn a_header_field_edits_and_a_header_remove_reports_its_column() {
 }
 
 /// A table wider than its room: a fill name column and four numeric columns.
-fn wide_table() -> Fixture {
-    let mut fixture = Fixture::new(|ui| {
+fn wide_table() -> Harness {
+    let mut fixture = Harness::new_ui(|ui| {
         let numeric = |key: &'static str, header: &'static str| ColumnSpec::new(ColumnKey::new(key), header, ColumnWidth::Controls(3.0)).numeric();
         let columns = vec![
             ColumnSpec::new(NAME, "Name", ColumnWidth::fill(1.0)),
@@ -447,18 +448,18 @@ fn wide_table() -> Fixture {
             ListRow::new(LONG).cells(icx.cells()).cell(ColumnKey::new("pages"), "12").cell(ColumnKey::new("count"), "7")
         });
     });
-    fixture.room(egui::Vec2::new(300.0, 200.0)).settle();
+    fixture.room(craft_ui::geom::Vec2::new(300.0, 200.0)).settle();
     fixture
 }
 
-fn painted(fixture: &Fixture, text: &str) -> Rect {
+fn painted(fixture: &Harness, text: &str) -> Rect {
     fixture.texts().iter().find(|painted| painted.text == text).map(|painted| painted.rect).expect("the text was painted")
 }
 
 #[trial]
 fn columns_wider_than_the_table_keep_their_least_width_scroll_sideways_with_the_header_and_keep_their_text_in_their_cells() {
     let mut fixture = wide_table();
-    let header = |fixture: &Fixture, label: &str| fixture.by_label(label).expect("the header cell's node").rect;
+    let header = |fixture: &Harness, label: &str| fixture.by_label(label).expect("the header cell's node").rect;
     let table = fixture.by_role(Role::TABLE).first().expect("the table's node").rect;
     let (name, pages, count) = (header(&fixture, "Name"), header(&fixture, "Pages"), header(&fixture, "Count"));
     assert!(name.width() >= pages.width() * 2.0 / 3.0 - 0.5, "the fill column keeps the least column width: {name:?} beside {pages:?}");
@@ -470,14 +471,14 @@ fn columns_wider_than_the_table_keep_their_least_width_scroll_sideways_with_the_
     let heading = painted(&fixture, "Pages");
     assert!(pages.right() - heading.right() < heading.left() - pages.left(), "a numeric header ends at its column's end: {heading:?} in {pages:?}");
     let before = painted(&fixture, "7");
-    fixture.frame(vec![pointer::moved(table.center())]);
-    fixture.frame(vec![egui::Event::MouseWheel {
+    fixture.send(pointer::moved(table.center()));
+    fixture.send(egui::Event::MouseWheel {
         unit: egui::MouseWheelUnit::Point,
-        delta: egui::Vec2::new(-40.0, 0.0),
+        delta: craft_ui::geom::Vec2::new(-40.0, 0.0),
         phase: egui::TouchPhase::Move,
         modifiers: Modifiers::NONE,
         source: egui::MouseWheelSource::Wheel,
-    }]);
+    });
     fixture.settle();
     let (moved_cell, moved_text) = (count.left() - header(&fixture, "Count").left(), before.left() - painted(&fixture, "7").left());
     assert!(moved_cell > 1.0, "the wheel scrolls the columns sideways: {moved_cell}");
@@ -487,7 +488,7 @@ fn columns_wider_than_the_table_keep_their_least_width_scroll_sideways_with_the_
 /// Production's header menu lists Reset Columns and no column commands: a table can ask for that menu.
 #[trial]
 fn a_plain_header_menu_lists_no_column_commands() {
-    let mut fixture = Fixture::new(|ui| {
+    let mut fixture = Harness::new_ui(|ui| {
         let columns = vec![
             ColumnSpec::new(NAME, "Name", ColumnWidth::Controls(6.0)).movable(),
             ColumnSpec::new(DATE, "Date", ColumnWidth::Controls(4.0)).movable(),

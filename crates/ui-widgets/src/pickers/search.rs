@@ -7,7 +7,7 @@ use crate::contract::{Bind, BodyCx, Component, Cx, PopupHandle, Props as _, Reme
 use crate::runtime::env::Label;
 use crate::runtime::focus::{self, FocusTarget};
 use crate::text::TextField;
-use egui::{Id, Ui};
+use craft_ui::{Id, Ui};
 use std::hash::{DefaultHasher, Hash as _, Hasher as _};
 
 /// The search text of an open popup, and whether its field has taken the key focus yet.
@@ -48,7 +48,7 @@ pub(super) fn show_named<C: Component>(
     if field.response.has_focus() {
         *taken = true;
     } else if !*taken && !opening {
-        focus::request(ui.ctx(), FocusTarget::Id(field.response.id));
+        ui.request_focus(FocusTarget::Id(field.response.id));
     }
     query
 }

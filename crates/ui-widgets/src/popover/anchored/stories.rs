@@ -9,7 +9,7 @@ use crate::runtime::commands::EditCommands;
 use crate::runtime::focus::Initial;
 use crate::style::SurfaceKind;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
-use egui::Ui;
+use craft_ui::Ui;
 
 /// What the story popovers hold: two buttons; whether one was clicked.
 fn body(ui: &mut Ui) -> bool {

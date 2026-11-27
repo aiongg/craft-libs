@@ -3,10 +3,10 @@
 
 use craft_behavior::{IconId, keyed};
 use craft_ui::contract::ShowCollection as _;
+use craft_ui::geom::Vec2;
 use craft_ui::primitives::IconSpec;
-use craft_ui::testing::{Fixture, pointer, trial, widest_runs};
+use craft_ui::testing::{Harness, pointer, trial, widest_runs};
 use craft_ui::tile_grid::{CaptionPlace, Tile, TileActionPlace, TileGrid};
-use egui::Vec2;
 use std::cell::Cell;
 use std::rc::Rc;
 
@@ -14,9 +14,9 @@ const KEYS: [usize; 12] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
 
 #[trial]
 fn band_tile_check_does_not_cover_its_picture() {
-    let picture = Rc::new(Cell::new(egui::Rect::NOTHING));
+    let picture = Rc::new(Cell::new(craft_ui::geom::Rect::NOTHING));
     let painted = Rc::clone(&picture);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let source = keyed(&KEYS[..1], |key: &usize| *key);
         let _ = TileGrid::new("Pages").checks(true).action_place(TileActionPlace::Band).show_items(ui, &source, &mut |_, _| {
             let painted = Rc::clone(&painted);
@@ -28,8 +28,8 @@ fn band_tile_check_does_not_cover_its_picture() {
     assert!(check.bottom() <= picture.get().top(), "check {check:?} overlaps picture {:?}", picture.get());
 }
 
-fn icon_grid(content_cells: bool) -> Fixture {
-    let mut fixture = Fixture::new(move |ui| {
+fn icon_grid(content_cells: bool) -> Harness {
+    let mut fixture = Harness::new_ui(move |ui| {
         let source = keyed(&KEYS, |key: &usize| *key);
         let grid = TileGrid::new("Icons").caption(CaptionPlace::None).rows_stamp(1);
         let grid = if content_cells { grid.content_cells() } else { grid };
@@ -44,11 +44,11 @@ fn icon_grid(content_cells: bool) -> Fixture {
 /// thumbnail-sized cards a grid uses otherwise; a settled grid moves the pointer over them without measuring a tile.
 #[trial]
 fn content_cells_fit_the_icons_and_keep_their_measure() {
-    let width = |fixture: &Fixture| fixture.by_label("Icon 0").expect("the first tile has a node").rect.width();
+    let width = |fixture: &Harness| fixture.by_label("Icon 0").expect("the first tile has a node").rect.width();
     let mut cells = icon_grid(true);
     let thumbs = icon_grid(false);
     assert!(width(&cells) < width(&thumbs), "content cells are smaller than thumbnail cards");
-    let row = |fixture: &Fixture| {
+    let row = |fixture: &Harness| {
         let top = fixture.by_label("Icon 0").expect("tile").rect.top();
         KEYS.iter().filter(|key| fixture.by_label(&format!("Icon {key}")).is_some_and(|tile| (tile.rect.top() - top).abs() < 0.5)).count()
     };
@@ -58,8 +58,8 @@ fn content_cells_fit_the_icons_and_keep_their_measure() {
     assert!(widest_runs(cells.ctx()).is_empty(), "a pointer move measured the tiles again: {:?}", widest_runs(cells.ctx()));
 }
 
-fn photo_grid(caption: CaptionPlace) -> Fixture {
-    let mut fixture = Fixture::new(move |ui| {
+fn photo_grid(caption: CaptionPlace) -> Harness {
+    let mut fixture = Harness::new_ui(move |ui| {
         let source = keyed(&KEYS, |key: &usize| *key);
         let grid = TileGrid::new("Photos").caption(caption).rows_stamp(1);
         let _ = grid.show_items(ui, &source, &mut |key, _| Tile::new(format!("Photo {key}")));
@@ -72,7 +72,7 @@ fn photo_grid(caption: CaptionPlace) -> Fixture {
 /// Tiles without a caption pack closer than captioned tiles of the same picture size: neighbours in a row are nearer.
 #[trial]
 fn bare_tiles_pack_closer_than_captioned_tiles() {
-    let pitch = |fixture: &Fixture| {
+    let pitch = |fixture: &Harness| {
         let at = |key: usize| fixture.by_label(&format!("Photo {key}")).expect("the tile has a node").rect;
         assert!((at(0).top() - at(1).top()).abs() < 0.5, "the first two tiles share a row");
         (at(1).center().x - at(0).center().x).abs()

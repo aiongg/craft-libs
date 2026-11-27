@@ -5,13 +5,16 @@ use craft_ui::contract::{
     Bind, Common, Component, Container, ContainerProps, Cx, Mount, NoValue, Outcome, Overlay, Props as _, Role, Show as _, ShowContainer as _,
     Trigger,
 };
+use craft_ui::geom::{Rect, Vec2};
+use craft_ui::input::{Key, Mods};
 use craft_ui::runtime::focus::{FocusPolicy, Initial};
 use craft_ui::runtime::overlay::CloseReason;
 use craft_ui::style::StyleCx;
 use craft_ui::testing::input::key_press;
-use craft_ui::testing::{Fixture, pointer, trial};
+use craft_ui::testing::{Harness, pointer, trial};
+use craft_ui::{Id, Response};
 use craft_ui_test_kit::contract::PlainStyle;
-use egui::{Event, Id, Key, Modifiers, Rect, Response, Vec2};
+use egui::Event;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -68,20 +71,20 @@ struct State {
     commits: usize,
     closes: Vec<CloseReason>,
 }
-fn open(fixture: &mut Fixture, state: &Rc<RefCell<State>>) {
+fn open(fixture: &mut Harness, state: &Rc<RefCell<State>>) {
     let at = state.borrow().header.expect("genuine native header").center();
-    fixture.frame(vec![pointer::moved(at)]);
-    fixture.frame(vec![pointer::secondary(at, true)]);
-    fixture.frame(vec![pointer::secondary(at, false)]);
+    fixture.send(pointer::moved(at));
+    fixture.send(pointer::secondary(at, true));
+    fixture.send(pointer::secondary(at, false));
     fixture.settle();
     assert!(state.borrow().checkbox.is_some(), "the actual opener displays the Checkbox in the policy layer");
 }
 fn held_escape_guard(policy: FocusPolicy, modal_rank: bool, closes: bool) {
     let state = Rc::new(RefCell::new(State::default()));
     let held = state.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let mut state = held.borrow_mut();
-        let live = !ui.is_sizing_pass() && !craft_ui::runtime::measure::active(ui.ctx());
+        let live = !ui.is_measuring() && !ui.is_measuring();
         let header = ui.button("Real policy header");
         if live {
             state.header = Some(header.rect);
@@ -93,7 +96,7 @@ fn held_escape_guard(policy: FocusPolicy, modal_rank: bool, closes: bool) {
         let output = PolicyLayer { common: Common::new(), props, closed: None }.id_salt("policy-layer").show(ui, |ui, _| {
             let mut value = state.checked;
             let shown = Checkbox::new(Bind::bound(&mut value)).label("Physical policy checkbox").id_salt("policy-checkbox").show(ui);
-            if !ui.is_sizing_pass() && !craft_ui::runtime::measure::active(ui.ctx()) {
+            if !ui.is_measuring() && !ui.is_measuring() {
                 state.checked = value;
                 state.commits += usize::from(shown.events.committed().is_some());
                 state.checkbox = Some(shown.response.interact_rect);
@@ -115,14 +118,14 @@ fn held_escape_guard(policy: FocusPolicy, modal_rank: bool, closes: bool) {
     assert!(fixture.ctx().input(|input| input.pointer.primary_down()));
     assert!(!state.borrow().checked);
     assert_eq!(state.borrow().commits, 0);
-    fixture.frame(vec![key_press(Key::Escape, Modifiers::NONE)]);
+    fixture.send(key_press(Key::Escape, Modifiers::NONE));
     assert!(fixture.ctx().input(|input| input.pointer.primary_down()));
     assert!(!state.borrow().checked);
     assert_eq!(state.borrow().commits, 0);
-    fixture.frame(vec![Event::Key { key: Key::Escape, physical_key: Some(Key::Escape), pressed: false, repeat: false, modifiers: Modifiers::NONE }]);
+    fixture.send(Event::Key { key: Key::Escape, physical_key: Some(Key::Escape), pressed: false, repeat: false, modifiers: Modifiers::NONE });
     assert_eq!(state.borrow().checkbox.is_none(), closes, "only a Close Menu may close after its own cancelled press");
     assert_eq!(state.borrow().closes, if closes { vec![CloseReason::Escape] } else { vec![] });
-    fixture.frame(vec![pointer::release(at)]);
+    fixture.send(pointer::release(at));
     assert!(!state.borrow().checked, "the cancelled old release does not toggle even when the layer stays open");
     assert_eq!(state.borrow().commits, 0);
     if closes {

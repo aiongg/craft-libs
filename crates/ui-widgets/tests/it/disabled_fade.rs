@@ -8,6 +8,7 @@ use craft_theme::variant::Tone;
 use craft_theme::{Opacity, Srgba};
 use craft_ui::buttons::{Button, IconButton};
 use craft_ui::contract::{MemoProps, MemoView, Props as _, Show as _};
+use craft_ui::geom::{Rect, pos2};
 use craft_ui::list::ThumbAspect;
 use craft_ui::primitives::IconSpec;
 use craft_ui::runtime::env::Label;
@@ -15,8 +16,9 @@ use craft_ui::style::DataColor;
 use craft_ui::testing::layout::in_region;
 use craft_ui::testing::{Frames, MemoRun, last_frame_memo_runs, trial};
 use craft_ui::tile_grid::{BadgeKind, BadgeSlot, Tile, TileBadge};
+use craft_ui::{Color32, Ui};
+use egui::Shape;
 use egui::epaint::ColorMode;
-use egui::{Color32, Rect, Shape, Ui, pos2};
 use std::cell::Cell;
 
 const REGION: Rect = Rect { min: pos2(10.0, 10.0), max: pos2(210.0, 310.0) };

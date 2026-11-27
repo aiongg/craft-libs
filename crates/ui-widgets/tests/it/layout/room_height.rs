@@ -4,13 +4,14 @@
 //! takes the room and shares it between its list and the bar under it.
 
 use craft_behavior::{DisplayOrder, ItemSource};
+use craft_ui::Ui;
 use craft_ui::buttons::Button;
 use craft_ui::contract::{Bind, Props as _, Scroll, Show as _, ShowCollection as _, ShowContainer as _};
+use craft_ui::geom::{Rect, Vec2};
 use craft_ui::layout_components::Stack;
 use craft_ui::list::{List, ListRow};
-use craft_ui::testing::{Fixture, forget_measurements, last_pass_measuring_runs, measured_contributions, trial};
+use craft_ui::testing::{Harness, forget_measurements, last_pass_measuring_runs, measured_contributions, trial};
 use craft_ui::value_drag::Slider;
-use egui::{Rect, Ui, Vec2};
 use std::cell::Cell;
 use std::rc::Rc;
 
@@ -22,7 +23,7 @@ fn a_room_height_is_the_most_a_filling_child_takes_inside_a_scroll() {
     // The rects of the short host, its fill child, the tall host and its scrolling child, from the last real run.
     let seen = Rc::new(Cell::new([Rect::NOTHING; 4]));
     let out = Rc::clone(&seen);
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let room = ui.available_height() / 2.0;
         Stack::new().fill().scroll(Scroll::vertical()).show(ui, |ui, _| {
             let short = Stack::new()
@@ -41,7 +42,7 @@ fn a_room_height_is_the_most_a_filling_child_takes_inside_a_scroll() {
                     .output
                     .rect
             });
-            if !ui.is_sizing_pass()
+            if !ui.is_measuring()
                 && let (Some(fill), Some(list)) = (short.inner, tall.inner)
             {
                 out.set([short.output.rect, fill, tall.output.rect, list]);
@@ -118,15 +119,15 @@ fn panel(ui: &mut Ui, room: f32, rows: usize, bar: Bar, value: &mut f64) -> Opti
         shown.inner.map(|list| (list, bar_rect))
     });
     let (list, bar) = host.inner.flatten()?;
-    (!ui.is_sizing_pass()).then_some([host.output.rect, list, bar])
+    (!ui.is_measuring()).then_some([host.output.rect, list, bar])
 }
 
 /// A fixture showing [`panel`] at a room height of a third of the window, and the rects of its last real run.
-fn panel_fixture(rows: usize, bar: Bar) -> (Fixture, Rc<Cell<[Rect; 3]>>) {
+fn panel_fixture(rows: usize, bar: Bar) -> (Harness, Rc<Cell<[Rect; 3]>>) {
     let seen = Rc::new(Cell::new([Rect::NOTHING; 3]));
     let out = Rc::clone(&seen);
     let mut value = 40.0_f64;
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let room = ui.available_height() / 3.0;
         Stack::new().fill().scroll(Scroll::vertical()).show(ui, |ui, _| {
             if let Some(rects) = panel(ui, room, rows, bar, &mut value) {
@@ -173,7 +174,7 @@ fn a_filling_panel_taller_than_its_room_hands_each_contribution_forward_once() {
     let made = |rows: usize| {
         let (mut fixture, seen) = panel_fixture(rows, Bar::Footer);
         forget_measurements(fixture.ctx());
-        fixture.frame(Vec::new());
+        fixture.step();
         (measured_contributions(fixture.ctx()), seen.get()[0].height())
     };
     let ((fits, short), (over, tall)) = (made(2), made(40));

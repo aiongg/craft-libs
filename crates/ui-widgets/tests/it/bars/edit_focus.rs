@@ -2,14 +2,16 @@
 //! app's command, whose state then enables the button; the press keeps the focus in the field either way. A menu's
 //! edit commands act in the focused field too.
 
+use craft_ui::Id;
 use craft_ui::bars::{BarItem, BarItems};
 use craft_ui::contract::{Bind, Props as _, Show as _};
 use craft_ui::display::Text;
+use craft_ui::geom::Vec2;
+use craft_ui::input::{Key, Mods};
 use craft_ui::runtime::commands::{self, CommandRef, CommandSet as _, CommandState, EditCommands, FireSource};
 use craft_ui::runtime::frame;
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::testing::{Harness, trial};
 use craft_ui::text::TextField;
-use egui::{Id, Key, Modifiers, Vec2};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -23,7 +25,7 @@ fn label_of(command: EditCommands) -> String {
 /// A title, then a text field holding "hello" over a toolbar with Undo and Redo; the field is the first stop, so Tab
 /// focuses it.
 struct Rig {
-    fixture: Fixture,
+    fixture: Harness,
     text: Rc<RefCell<String>>,
     field: Rc<Cell<Option<Id>>>,
     /// A menu pick the next frame fires, and whether in the UI (after the title, before the field, as the window's own
@@ -37,7 +39,7 @@ fn rig(app_can_undo: bool) -> Rig {
     let field = Rc::new(Cell::new(None));
     let menu = Rc::new(Cell::new(None));
     let (held, id, pick) = (text.clone(), field.clone(), menu.clone());
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let (pick, ctx) = (pick.take(), ui.ctx().clone());
         let fire = |in_ui| {
             if let Some((command, _)) = pick.filter(|&(_, at)| at == in_ui) {
@@ -54,7 +56,7 @@ fn rig(app_can_undo: bool) -> Rig {
         fixture.command_state(command, CommandState::new().enabled(app_can_undo));
     }
     fixture.room(Vec2::new(600.0, 200.0)).settle();
-    fixture.key(Key::Tab, Modifiers::NONE);
+    fixture.key(Key::Tab, Mods::NONE);
     fixture.settle();
     let rig = Rig { fixture, text, field, menu };
     assert!(rig.focus_in_the_field(), "Tab focuses the field");
@@ -134,7 +136,7 @@ fn undo_with_no_step_in_the_field_runs_the_app_command() {
 #[trial]
 fn a_menus_select_all_then_copy_copy_the_fields_text() {
     let mut rig = rig(false);
-    rig.fixture.key(Key::End, Modifiers::NONE).settle();
+    rig.fixture.key(Key::End, Mods::NONE).settle();
     rig.menu.set(Some((EditCommands::SelectAll, false)));
     rig.fixture.frame(Vec::new());
     rig.menu.set(Some((EditCommands::Copy, false)));

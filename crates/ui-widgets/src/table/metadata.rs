@@ -14,7 +14,7 @@ use crate::text::TextField;
 use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, EditEvent, ItemSource, Mixed};
 use craft_i18n::matcher::Matcher;
 use craft_theme::ControlSize;
-use egui::{Response, Ui};
+use craft_ui::{Response, Ui};
 use std::borrow::Cow;
 use std::sync::Arc;
 

@@ -39,7 +39,7 @@ fn a_field_takes_the_width_of_the_characters_it_asks_for() {
     let shown = Cell::new([0.0; 4]);
     let mut text = String::from("CONFIDENTIAL");
     frames.idle(3, |ui| {
-        let width = |ui: &mut egui::Ui, text: &mut String, salt: &str, chars: Option<u16>| {
+        let width = |ui: &mut craft_ui::Ui, text: &mut String, salt: &str, chars: Option<u16>| {
             let field = TextField::new("Text", Bind::bound(text)).id_salt(salt);
             let field = match chars {
                 Some(chars) => field.width_chars(chars),
@@ -68,7 +68,7 @@ fn a_small_percent_field_shows_its_value_whole_beside_the_chevron() {
     use std::rc::Rc;
     let widths = Rc::new(Cell::new([0.0; 3]));
     let seen = widths.clone();
-    let mut fixture = craft_ui::testing::Fixture::new(move |ui| {
+    let mut fixture = craft_ui::testing::Harness::new_ui(move |ui| {
         let percent = NumberField::new("Opacity", Bind::given(Some(100.0)))
             .range(0.0..=100.0)
             .unit_kind(UnitKind::Percent)

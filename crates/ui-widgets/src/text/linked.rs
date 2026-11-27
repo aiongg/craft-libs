@@ -15,7 +15,8 @@ use crate::runtime::env::{Label, LengthUnits};
 use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::{EditEvents, Flow, IconId, Metrics, Mixed, Proposal, Sense};
 use craft_i18n::Format;
-use egui::{Rect, Response, Vec2, pos2};
+use craft_ui::Response;
+use craft_ui::geom::{Rect, Vec2, pos2};
 use std::ops::{Deref, RangeInclusive};
 use std::sync::Arc;
 

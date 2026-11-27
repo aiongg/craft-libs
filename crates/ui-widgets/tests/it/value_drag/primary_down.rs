@@ -1,12 +1,15 @@
 //! Physical primary track Down must produce its opt-in preview before movement or release.
 use craft_behavior::{EditEvent, GestureId, Mixed, MotionMode};
+use craft_ui::Id;
 use craft_ui::contract::{Bind, Props as _, Role, Show as _};
 use craft_ui::form::{SliderField, SliderFieldLayout};
+use craft_ui::geom::{Pos2, Rect, Vec2};
+use craft_ui::input::{Key, Mods, PointerButton};
 use craft_ui::runtime::focus;
 use craft_ui::testing::input::key_press;
-use craft_ui::testing::{Fixture, pointer, trial};
+use craft_ui::testing::{Harness, pointer, trial};
 use craft_ui::value_drag::Slider;
-use egui::{Event, Id, Key, Modifiers, PointerButton, Pos2, Rect, UiBuilder, Vec2};
+use egui::{Event, UiBuilder};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -45,7 +48,7 @@ impl Geometry {
     }
 }
 struct Rig {
-    fixture: Fixture,
+    fixture: Harness,
     state: Rc<RefCell<State>>,
     fields: bool,
 }
@@ -73,12 +76,12 @@ impl Rig {
             reset: None,
         }));
         let shared = state.clone();
-        let mut fixture = Fixture::new(move |root| {
+        let mut fixture = Harness::new_ui(move |root| {
             let probe = shared.borrow().probe;
             let builder = UiBuilder::new().scope_id(Id::unique("primary-down-physical-host")).max_rect(root.max_rect());
             let builder = if matches!(probe, Probe::Sizing) { builder.sizing_pass().invisible() } else { builder };
             let mut child = root.new_child(builder);
-            let draw = |ui: &mut egui::Ui| {
+            let draw = |ui: &mut craft_ui::Ui| {
                 let mut state = shared.borrow_mut();
                 for (row, &rect) in ROWS.iter().enumerate() {
                     let before = state.values[row];
@@ -120,7 +123,7 @@ impl Rig {
                             Some(slider.show_at(ui, rect))
                         }
                     };
-                    if matches!(probe, Probe::Measure) || ui.is_sizing_pass() || craft_ui::runtime::measure::active(ui.ctx()) {
+                    if matches!(probe, Probe::Measure) || ui.is_measuring() || ui.is_measuring() {
                         assert_eq!(value, before, "a nonreal callback must not write the binding");
                         if matches!(probe, Probe::Measure) {
                             state.measurements += 1;
@@ -142,7 +145,7 @@ impl Rig {
     fn geometry(&mut self, row: usize) -> Geometry {
         // An inline slider field's slider is its first stop, before its number field.
         for _ in 0..(if self.fields { row * 2 + 1 } else { row + 1 }) {
-            self.fixture.key(Key::Tab, Modifiers::NONE).settle();
+            self.fixture.key(Key::Tab, Mods::NONE).settle();
         }
         let owner = self.fixture.focused_stop().expect("naturally focused real Slider child").0;
         let record = focus::focused_rec(self.fixture.ctx()).expect("current genuine focused record");
@@ -388,7 +391,7 @@ fn fine_track_travel_continues_from_the_real_down_landing_not_the_pre_press_valu
     for fields in [false, true] {
         let mut rig = Rig::new(fields, Some(true));
         let geometry = rig.geometry(0);
-        rig.fixture.hold(Modifiers::ALT);
+        rig.fixture.hold(Mods::ALT);
         rig.down(&geometry, geometry.at(0.75));
         let id = rig.open(0.75, START);
         rig.clear();

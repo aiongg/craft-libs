@@ -1,12 +1,15 @@
 //! One cancelled press closes only its actual top Menu, not its parent Menu family.
 use craft_behavior::MotionMode;
+use craft_ui::Id;
 use craft_ui::choice::Checkbox;
 use craft_ui::contract::{Bind, Props as _, Show as _, ShowContainer as _};
+use craft_ui::geom::Rect;
+use craft_ui::input::{Key, Mods};
 use craft_ui::menu::Menu;
 use craft_ui::runtime::overlay::CloseReason;
 use craft_ui::testing::input::key_press;
-use craft_ui::testing::{Fixture, pointer, trial};
-use egui::{Event, Id, Key, Modifiers, Rect};
+use craft_ui::testing::{Harness, pointer, trial};
+use egui::Event;
 use std::cell::RefCell;
 use std::rc::Rc;
 #[derive(Default)]
@@ -20,19 +23,19 @@ struct State {
     outer_closes: Vec<CloseReason>,
     inner_closes: Vec<CloseReason>,
 }
-fn secondary_open(fixture: &mut Fixture, at: egui::Pos2) {
-    fixture.frame(vec![pointer::moved(at)]);
-    fixture.frame(vec![pointer::secondary(at, true)]);
-    fixture.frame(vec![pointer::secondary(at, false)]);
+fn secondary_open(fixture: &mut Harness, at: craft_ui::geom::Pos2) {
+    fixture.send(pointer::moved(at));
+    fixture.send(pointer::secondary(at, true));
+    fixture.send(pointer::secondary(at, false));
     fixture.settle();
 }
 #[trial]
 fn held_escape_closes_only_the_actual_top_menu_not_its_parent_and_recovers_fresh() {
     let state = Rc::new(RefCell::new(State::default()));
     let held = state.clone();
-    let mut fixture = Fixture::new(move |ui| {
+    let mut fixture = Harness::new_ui(move |ui| {
         let mut state = held.borrow_mut();
-        let live = !ui.is_sizing_pass() && !craft_ui::runtime::measure::active(ui.ctx());
+        let live = !ui.is_measuring() && !ui.is_measuring();
         let header = ui.button("Real outer section header");
         if live {
             state.header = Some(header.rect);
@@ -42,21 +45,21 @@ fn held_escape_closes_only_the_actual_top_menu_not_its_parent_and_recovers_fresh
         }
         let outer = Menu::context("Outer section options", &header).id_salt("outer-real-menu").show(ui, |ui, _| {
             let nested = ui.button("Real inner section header");
-            if !ui.is_sizing_pass() && !craft_ui::runtime::measure::active(ui.ctx()) {
+            if !ui.is_measuring() && !ui.is_measuring() {
                 state.nested_header = Some(nested.rect);
             }
             let inner = Menu::context("Inner section options", &nested).id_salt("inner-real-menu").show(ui, |ui, _| {
                 let mut value = state.checked;
                 let shown = Checkbox::new(Bind::bound(&mut value)).label("Nested genuine checkbox").id_salt("nested-solo").show(ui);
-                if !ui.is_sizing_pass() && !craft_ui::runtime::measure::active(ui.ctx()) {
+                if !ui.is_measuring() && !ui.is_measuring() {
                     state.checked = value;
                     state.commits += usize::from(shown.events.committed().is_some());
                     state.checkbox = Some(shown.response.interact_rect);
                     state.owner = Some(shown.response.id);
                 }
             });
-            if !ui.is_sizing_pass()
-                && !craft_ui::runtime::measure::active(ui.ctx())
+            if !ui.is_measuring()
+                && !ui.is_measuring()
                 && let Some(why) = inner.output.closed
             {
                 state.inner_closes.push(why);
@@ -80,16 +83,16 @@ fn held_escape_closes_only_the_actual_top_menu_not_its_parent_and_recovers_fresh
     assert!(fixture.ctx().input(|input| input.pointer.primary_down()));
     assert!(!state.borrow().checked);
     assert_eq!(state.borrow().commits, 0);
-    fixture.frame(vec![key_press(Key::Escape, Modifiers::NONE)]);
+    fixture.send(key_press(Key::Escape, Modifiers::NONE));
     assert!(fixture.ctx().input(|input| input.pointer.primary_down()));
     assert!(!state.borrow().checked);
     assert_eq!(state.borrow().commits, 0);
-    fixture.frame(vec![Event::Key { key: Key::Escape, physical_key: Some(Key::Escape), pressed: false, repeat: false, modifiers: Modifiers::NONE }]);
+    fixture.send(Event::Key { key: Key::Escape, physical_key: Some(Key::Escape), pressed: false, repeat: false, modifiers: Modifiers::NONE });
     assert!(state.borrow().checkbox.is_none(), "the actual top Menu closes by the same keyup boundary");
     assert!(state.borrow().nested_header.is_some(), "its distinct parent Menu remains open");
     assert!(state.borrow().outer_closes.is_empty(), "the cancelled inner press does not dismiss an unrelated parent owner");
     assert_eq!(state.borrow().inner_closes, vec![CloseReason::Escape]);
-    fixture.frame(vec![pointer::release(at)]);
+    fixture.send(pointer::release(at));
     assert!(!state.borrow().checked);
     assert_eq!(state.borrow().commits, 0);
     assert!(state.borrow().nested_header.is_some(), "the old release does not dismiss the parent");

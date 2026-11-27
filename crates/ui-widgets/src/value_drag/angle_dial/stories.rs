@@ -6,7 +6,7 @@ use crate::runtime::env::Message;
 use crate::testing::{Drive, Grip, StoryData, StoryOutput, story};
 use craft_behavior::Mixed;
 use craft_theme::ControlSize;
-use egui::Ui;
+use craft_ui::Ui;
 
 const ANGLE: f64 = 120.0;
 const CAP: f64 = 90.0;

@@ -10,7 +10,8 @@ use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::{DisplayOrder, IconId, ItemLayout, ItemSource, Metrics, NavShape, Preview, ScrollPos, Selection, TileLayout};
 use craft_theme::Srgba;
-use egui::{Pos2, Rect, Response, Ui, Vec2};
+use craft_ui::geom::{Pos2, Rect, Vec2};
+use craft_ui::{Response, Ui};
 
 #[cfg(feature = "suite")]
 pub(crate) mod stories;

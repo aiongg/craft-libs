@@ -2,8 +2,9 @@
 
 use super::BreadcrumbBar;
 use crate::contract::{Entry, Show as _};
-use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
-use egui::{Key, Modifiers, Ui};
+use crate::testing::{Drive, Harness, StoryData, StoryHarness, StoryOutput, story};
+use craft_ui::Ui;
+use craft_ui::input::{Key, Mods};
 
 fn crumbs() -> Vec<Entry<u8>> {
     ["photos", "2026", "trip", "day-one", "selects"].into_iter().zip(0u8..).map(|(name, at)| Entry::new(at, name)).collect()
@@ -17,9 +18,9 @@ fn breadcrumb_bar(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 /// A width the five crumbs do not fit in.
 const NARROW: f32 = 160.0;
 
-fn open_hidden(fixture: &mut Fixture) {
-    fixture.key(Key::Tab, Modifiers::NONE);
-    fixture.key(Key::ArrowDown, Modifiers::ALT);
+fn open_hidden(fixture: &mut StoryHarness) {
+    fixture.key(Key::Tab, Mods::NONE);
+    fixture.key(Key::Down, Mods::ALT);
 }
 
 #[story(BreadcrumbBar<'static, u8>, covers = [Open], drive = Drive::Custom(open_hidden))]

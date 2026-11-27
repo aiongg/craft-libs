@@ -14,7 +14,7 @@ use craft_theme::{
     Variant,
     variant::{Emphasis, Tone},
 };
-use egui::{Pos2, Vec2};
+use craft_ui::geom::{Pos2, Vec2};
 
 /// The marker dot's look: the one reading of the tokens that `IconButton` and `Tab` paint it from.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -208,7 +208,7 @@ impl Component for IconButton<'_> {
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
-        let glyph = egui::Rect::from_center_size(cx.rect.center(), Vec2::splat(cx.style.glyph.side));
+        let glyph = craft_ui::geom::Rect::from_center_size(cx.rect.center(), Vec2::splat(cx.style.glyph.side));
         let draw = ui.draw();
         draw.icon(glyph, &tinted(&self.icon, cx.resolve(&cx.style.glyph.color)));
         let rtl = cx.flow.is_rtl();
@@ -227,7 +227,7 @@ impl Component for IconButton<'_> {
             Some(PopupMark::Menu) => {
                 // The arrow hangs from the glyph's bottom edge, centred on its end edge, so it never covers the glyph.
                 let end = if rtl { glyph.left() } else { glyph.right() };
-                let square = egui::Rect::from_center_size(Pos2::new(end, glyph.bottom()), Vec2::splat(cx.style.arrow));
+                let square = craft_ui::geom::Rect::from_center_size(Pos2::new(end, glyph.bottom()), Vec2::splat(cx.style.arrow));
                 let arrow = DisclosureGlyph::dropdown_form();
                 let points = arrow.path(square, if rtl { Direction::Rtl } else { Direction::Ltr });
                 let top = points.iter().map(|point| point.y).fold(f32::INFINITY, f32::min);
@@ -251,7 +251,7 @@ impl Component for IconButton<'_> {
         if self.choice.is_some() {
             access.role(Role::COMBO_BOX);
         }
-        let shown = || self.choice.is_some().then(|| crate::contract::overlay::opened_from(&cx.ctx, cx.response.id));
+        let shown = || self.choice.is_some().then(|| crate::contract::overlay::opened_from(cx.context(), cx.response.id));
         if let Some(open) = self.expanded.or_else(shown) {
             access.expanded(open);
         }

@@ -3,7 +3,8 @@ use crate::contract::{Common, Component, Cx, InBar, InMenu, MeasureCx, PaintUi, 
 use crate::primitives::RuleKind;
 use crate::style::{ComponentStyle, RuleWidth, StyleCx};
 use craft_behavior::{Metrics, Sense};
-use egui::{Response, Vec2};
+use craft_ui::Response;
+use craft_ui::geom::Vec2;
 
 #[cfg(feature = "suite")]
 pub(crate) mod stories;
@@ -94,10 +95,10 @@ impl Component for Divider {
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        let width = cx.style.width.points(cx.ui.ctx().pixels_per_point());
+        let width = cx.style.width.points(cx.env.scale().0);
         let length = cx.style.length;
         match self.axis {
-            Axis::Horizontal if cx.env.get::<InMenu>().0 => Vec2::new(length, cx.style.separator.height(cx.ui.ctx().pixels_per_point())),
+            Axis::Horizontal if cx.env.get::<InMenu>().0 => Vec2::new(length, cx.style.separator.height(cx.env.scale().0)),
             Axis::Horizontal => Vec2::new(length, width),
             Axis::Vertical if cx.env.get::<InBar>().0 => Vec2::new(cx.style.slot.max(width), length),
             Axis::Vertical => Vec2::new(width, length),

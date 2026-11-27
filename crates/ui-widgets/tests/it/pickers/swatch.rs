@@ -3,9 +3,11 @@
 use craft_theme::Srgba;
 use craft_ui::choice::{RadioGroup, Swatch, SwatchShape};
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
+use craft_ui::geom::vec2;
+use craft_ui::input::{Key, Mods};
 use craft_ui::layout_components::Row;
-use craft_ui::testing::{Fixture, trial};
-use egui::{Key, Modifiers, Shape, vec2};
+use craft_ui::testing::{Harness, trial};
+use egui::Shape;
 
 /// Every shape of the frame, groups opened.
 fn flat(shapes: Vec<Shape>) -> Vec<Shape> {
@@ -17,7 +19,7 @@ fn flat(shapes: Vec<Shape>) -> Vec<Shape> {
 #[trial]
 fn a_focused_round_swatch_has_a_round_ring() {
     for (shape, round) in [(SwatchShape::Round, true), (SwatchShape::Square, false)] {
-        let mut fixture = Fixture::new(move |ui| {
+        let mut fixture = Harness::new_ui(move |ui| {
             let _ = RadioGroup::new("Ranges", Bind::given(0u8)).show(ui, |ui, _| {
                 Row::new().show(ui, |ui, _| {
                     for n in 0..3u8 {
@@ -28,7 +30,7 @@ fn a_focused_round_swatch_has_a_round_ring() {
         });
         fixture.room(vec2(300.0, 100.0));
         fixture.settle();
-        fixture.key(Key::Tab, Modifiers::NONE).settle();
+        fixture.key(Key::Tab, Mods::NONE).settle();
         let well = fixture.by_label("Range 0").expect("the first swatch").rect;
         let rings = flat(fixture.frame_shapes())
             .into_iter()

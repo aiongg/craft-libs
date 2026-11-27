@@ -9,6 +9,8 @@ use craft_ui::contract::{
     ShowCollection as _, ShowContainer as _, Tracked, request_rename,
 };
 use craft_ui::display::{Elide, Text};
+use craft_ui::geom::{Pos2, Rect, Vec2};
+use craft_ui::input::{Key, Mods};
 use craft_ui::layout_components::{Row, Stack};
 use craft_ui::list::{List, ListRow};
 use craft_ui::popover::Popover;
@@ -28,8 +30,8 @@ use craft_ui::testing::{
     last_pass_text_layouts, measuring_run, trial,
 };
 use craft_ui::text::TextField;
+use craft_ui::{Id, Response, Ui};
 use craft_ui_test_kit::contract::PlainStyle;
-use egui::{Id, Key, Modifiers, Pos2, Rect, Response, Ui, Vec2};
 use std::cell::Cell;
 
 thread_local! {
@@ -530,7 +532,7 @@ fn pointer(props: &mut Pointer, ui: &mut Ui) -> Option<usize> {
         TITLE_RUNS.with(|runs| runs.set(runs.get() + 1));
     }
     Button::new(props.label.clone()).show(ui);
-    inspect::pointed(ui.ctx(), Id::NULL.with(POINTED))
+    ui.inspect_pointed(Id::NULL.with(POINTED))
 }
 
 /// A run of an earlier pass of the frame is not replayed when a value it read was edited after it started: the edit
@@ -542,7 +544,7 @@ fn an_edit_after_a_run_of_the_frame_runs_it_in_the_discard_pass() {
         frames.frame(vec![], |ui| {
             in_region(ui, region(0), |ui| MemoView::new("pointer", Pointer { label: label.to_owned() }, pointer).show(ui));
             if let Some(point) = point {
-                inspect::point_at(ui.ctx(), Id::NULL.with(POINTED), Some(point));
+                ui.inspect_point_at(Id::NULL.with(POINTED), Some(point));
             }
         })
     };
@@ -666,7 +668,7 @@ fn stack_frame_in(frames: &mut Frames, room: Rect, label: &str, heading: &str) -
         in_region(ui, room, |ui| {
             let shown = Stack::new().fill().show(ui, |ui, _| {
                 let out = MemoView::new("heading", Title { title: heading.to_owned() }, title).show(ui).map(|rect| rect.size());
-                if ui.is_sizing_pass() {
+                if ui.is_measuring() {
                     sizing.set(sizing.get() + 1);
                     measured.set(ui.min_rect().width());
                 }
@@ -776,7 +778,7 @@ fn headed_frame(frames: &mut Frames, label: &str) -> (usize, usize) {
         in_region(ui, STACK_ROOM, |ui| {
             let headed = Headed { common: Common::new(), props: ContainerProps::new().header(HeaderRegion::new()) };
             headed.show(ui, |ui, _| {
-                if ui.is_sizing_pass() {
+                if ui.is_measuring() {
                     sizing.set(sizing.get() + 1);
                 }
                 Text::new(label.to_owned()).show(ui);
@@ -833,7 +835,7 @@ fn paragraph_frame(frames: &mut Frames, width: f32) -> (usize, Rect, Option<Vec2
     frames.frame(vec![], |ui| {
         in_region(ui, Rect::from_min_size(Pos2::new(10.0, 10.0), Vec2::new(width, 400.0)), |ui| {
             let shown = Stack::new().fill_width().show(ui, |ui, _| {
-                if ui.is_sizing_pass() {
+                if ui.is_measuring() {
                     sizing.set(sizing.get() + 1);
                 }
                 let text = "A paragraph long enough to wrap onto more lines in a narrow room".to_owned();
@@ -887,7 +889,7 @@ fn grid_frame(frames: &mut Frames) -> (usize, [Rect; 2]) {
                 for (at, height) in [200, 40].into_iter().enumerate() {
                     craft_ui::contract::Lazy::new(at, 0.0).show(ui, |ui| {
                         let _ = MemoView::new(("cell", at), Tall { height }, tall).show(ui);
-                        if !ui.is_sizing_pass() {
+                        if !ui.is_measuring() {
                             took[at].set(ui.min_rect());
                         }
                     });
@@ -1043,7 +1045,7 @@ struct Asking {
 
 fn asking(props: &mut Asking, ui: &mut Ui) {
     if props.asks {
-        frame::request_repaint(ui.ctx());
+        ui.ctx().request_repaint();
     }
     Button::new("Asking").show(ui);
 }
@@ -1074,7 +1076,7 @@ impl Repaints {
 
     fn show(&mut self, ui: &mut Ui) {
         if self.app_asks {
-            frame::request_repaint(ui.ctx());
+            ui.ctx().request_repaint();
         }
         let edited = Scrub::new(Bind::given(*self.level)).id_salt("level").show_at(ui, OUTSIDE);
         for event in edited.events {
@@ -1349,7 +1351,7 @@ fn filling(_: &mut Filling, ui: &mut Ui) {
 /// The width of an open popover at a point holding a stack with a button, under a header with a button over a rule
 /// that fills its width, the header's content shown plainly or in a memoized view.
 fn popover_width(memo: bool) -> f32 {
-    let mut fixture = craft_ui::testing::Fixture::new(move |ui| {
+    let mut fixture = craft_ui::testing::Harness::new_ui(move |ui| {
         Popover::new("Filling", Bind::given(true)).at_point(Pos2::new(40.0, 40.0)).collection_body().show(ui, |ui, _| {
             Stack::new()
                 .fill()
@@ -1753,6 +1755,6 @@ fn a_view_in_a_row_narrows_with_it_and_runs_only_when_its_width_changes() {
 /// measuring runs.
 fn measuring_runs_of(frames: &Frames, name: &str) -> usize {
     let ran =
-        |runs: Vec<(&'static str, egui::Id, MemoRun)>| runs.into_iter().filter(|(of, _, run)| of.contains(name) && *run == MemoRun::Ran).count();
+        |runs: Vec<(&'static str, craft_ui::Id, MemoRun)>| runs.into_iter().filter(|(of, _, run)| of.contains(name) && *run == MemoRun::Ran).count();
     ran(last_frame_memo_runs(&frames.ctx)) - ran(last_pass_memo_runs(&frames.ctx))
 }

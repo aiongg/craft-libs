@@ -18,7 +18,7 @@ use craft_behavior::{ColumnKey, Cursor, PartRef};
 use craft_i18n::Word;
 use craft_theme::variant::Tone;
 use craft_theme::{LabelColor, TypeRole};
-use egui::Rect;
+use craft_ui::geom::Rect;
 use std::borrow::Cow;
 use std::sync::Arc;
 

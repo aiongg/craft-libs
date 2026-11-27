@@ -9,7 +9,8 @@ use crate::style::{Corners, DataColor, SurfaceKind};
 use crate::testing::{Drive, StoryData, StoryOutput, show_as_only_item, show_as_only_item_across, story};
 use craft_behavior::{ColumnKey, IconId};
 use craft_theme::variant::Tone;
-use egui::{Color32, Pos2, Rangef, Rect, Ui};
+use craft_ui::geom::{Pos2, Rangef, Rect};
+use craft_ui::{Color32, Ui};
 
 #[story(ListRow<'static>, covers = [Default], drive = Drive::Activate)]
 fn list_row(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
@@ -36,7 +37,7 @@ fn list_row_clipped_dimmed(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 fn list_row_text_cell(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     const NAME: ColumnKey = ColumnKey::new("name");
     const SIZE: ColumnKey = ColumnKey::new("size");
-    let (left, width, height) = (ui.cursor().min.x, ui.available_width(), ui.spacing().interact_size.y);
+    let (left, width, height) = (ui.cursor().min.x, ui.available_width(), ui.tokens().size.control.md);
     let split = left + width * 0.6;
     let cells = [
         (NAME, Rect::from_min_max(Pos2::new(left, 0.0), Pos2::new(split, height))),
@@ -184,7 +185,7 @@ fn list_row_tight_thumb_rows(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 }
 
 /// A colour from the document's data: a bookmark's or a tag's own colour.
-const DATA_RED: DataColor = DataColor::new(egui::Color32::from_rgb(0xd0, 0x30, 0x30));
+const DATA_RED: DataColor = DataColor::new(craft_ui::Color32::from_rgb(0xd0, 0x30, 0x30));
 
 #[story(ListRow<'static>, covers = [], drive = Drive::Never)]
 fn list_row_icon_hue(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
@@ -201,7 +202,7 @@ fn list_row_label_hue(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 fn list_row_status_cell(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     const NAME: ColumnKey = ColumnKey::new("name");
     const WARNINGS: ColumnKey = ColumnKey::new("warnings");
-    let (left, width, height) = (ui.cursor().min.x, ui.available_width(), ui.spacing().interact_size.y);
+    let (left, width, height) = (ui.cursor().min.x, ui.available_width(), ui.tokens().size.control.md);
     let split = left + width * 0.4;
     let mut cells = [
         (NAME, Rect::from_min_max(Pos2::new(left, 0.0), Pos2::new(split, height))),

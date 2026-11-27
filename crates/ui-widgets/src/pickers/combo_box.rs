@@ -23,7 +23,8 @@ use crate::runtime::overlay::CloseReason;
 use crate::text::{Adornment, place, reserve};
 use craft_behavior::{HitLevel, HitPriority, NavMove, PartKey, PlainText, Preview, Selection, Sense};
 use craft_i18n::matcher::Matcher;
-use egui::{Rect, Response, Vec2};
+use craft_ui::Response;
+use craft_ui::geom::{Rect, Vec2};
 
 /// The text part.
 const TEXT: PartKey = PartKey::new("text");
