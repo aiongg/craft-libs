@@ -60,3 +60,20 @@ fn a_pick_repaints_only_the_rows_it_changes() {
     assert!((1..=4 * 3 + 1).contains(&press), "the press repaints the rows it selects, painted {press}");
     assert_eq!(release, 0, "the release over a selected row changes no look");
 }
+
+#[test]
+fn losing_window_focus_commits_the_open_rename() {
+    let (mut rig, cell) = fresh_rig(RecordingRenderer::default(), 12, 1.0);
+    let mut steps = gesture_steps("rename", &Gesture::DoubleClick(row(4)));
+    steps.extend(gesture_steps("rename", &Gesture::Text("kept".into())));
+    for step in &steps {
+        Scenario::run_step(step, &mut rig).expect("steps carry no expectations");
+    }
+    rig.settle(10);
+    assert!(!observe_rig(&rig, cell).doc.order.iter().any(|n| n == "kept"), "the draft is not committed while the field has focus");
+    let main = rig.main;
+    rig.inject(main, craft_ui_platform_headless::Input::Focus(false));
+    rig.settle(10);
+    let names = observe_rig(&rig, cell).doc.order;
+    assert!(names.iter().any(|n| n == "kept"), "window focus loss commits the rename, names {names:?}");
+}

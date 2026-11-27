@@ -128,6 +128,9 @@ pub struct RowLocal {
     cell_w: f32,
     /// The text typed into the rename field so far.
     draft: Option<String>,
+    /// Whether the window had key focus when the rename field last built; a loss of it commits
+    /// the draft like the field's own focus loss.
+    window_had_focus: bool,
 }
 
 fn kind_code(kind: Kind) -> u8 {
@@ -190,8 +193,20 @@ impl Element for ListRow {
             let field = TextField::new(layer.name.as_str(), rename_style(&look)).select_all(true).autofocus(true).label(layer.name.as_str());
             let out = cx.keyed("rename", |cx| cx.child(field));
             self.apply_rename(local, cx, out);
+            // The focused field keeps its focus when the window loses it; production commits then.
+            let focused = cx.env().window_focused.get(cx);
+            if local.window_had_focus && !focused {
+                if let Some(text) = local.draft.take() {
+                    if let Some(name) = crate::list_rules::rename_commit(&layer.name, &text) {
+                        edit(self.doc, cx, Op::Rename(id, name));
+                    }
+                }
+                self.rename.set(cx, None);
+            }
+            local.window_had_focus = focused;
         } else {
             local.draft = None;
+            local.window_had_focus = false;
         }
     }
 
