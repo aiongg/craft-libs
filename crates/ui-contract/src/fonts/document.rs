@@ -228,7 +228,7 @@ impl DocumentFaces {
         }
         if let Some(load) = load {
             let board = cx.provided::<JobBoard>().unwrap_or_else(JobBoard::inline);
-            let (faces, name) = (self.clone(), name.to_owned());
+            let (faces, key) = (self.clone(), name.to_owned());
             let job = board.spawn_with(
                 Priority::VISIBLE,
                 move |cancel| if cancel.is_cancelled() { None } else { load().filter(FaceBytes::parses) },
@@ -236,7 +236,7 @@ impl DocumentFaces {
                     let (failed, waker) = {
                         let mut registry = faces.lock();
                         let waker = registry.waker.clone();
-                        let Some(kept) = registry.faces.get_mut(&name).filter(|kept| kept.ticket == ticket) else { return };
+                        let Some(kept) = registry.faces.get_mut(&key).filter(|kept| kept.ticket == ticket) else { return };
                         if !matches!(kept.made, Made::Loading { .. }) {
                             return;
                         }
@@ -260,7 +260,7 @@ impl DocumentFaces {
                     }
                 },
             );
-            if let Some(kept) = self.lock().faces.get_mut(&name).filter(|kept| kept.ticket == ticket)
+            if let Some(kept) = self.lock().faces.get_mut(name).filter(|kept| kept.ticket == ticket)
                 && let Made::Loading { job: slot, .. } = &mut kept.made
             {
                 *slot = Some(job);
