@@ -39,3 +39,23 @@ fn shift_click_picks_the_range() {
     let doc = observe_rig(&rig, cell).doc;
     assert_eq!(doc.selected, ["Layer 2", "Layer 3", "Layer 4", "Layer 5"]);
 }
+
+#[test]
+fn a_pick_repaints_only_the_rows_it_changes() {
+    let (mut rig, _) = fresh_rig(RecordingRenderer::default(), 20, 1.0);
+    for step in gesture_steps("click", &Gesture::Click { target: row(2), mods: Mods::NONE }) {
+        Scenario::run_step(&step, &mut rig).expect("steps carry no expectations");
+    }
+    let painted: Vec<u32> = gesture_steps("shift-click", &Gesture::Click { target: row(5), mods: Mods::SHIFT })
+        .iter()
+        .map(|step| {
+            step.inject(&mut rig);
+            rig.frame(step.dt).frame.painted
+        })
+        .collect();
+    let [press, release] = painted[..] else { panic!("a click is a press frame and a release frame, got {painted:?}") };
+    // Rows 2 to 5 change (the range and the active layer), each a row and its two toggle cells;
+    // the other 16 rows and the list keep their paint although the list's press state flips.
+    assert!((1..=4 * 3).contains(&press), "the press repaints the rows it selects, painted {press}");
+    assert_eq!(release, 0, "the release over a selected row changes no look");
+}

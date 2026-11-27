@@ -941,6 +941,15 @@ impl crate::paint::PaintCx<'_> {
             None => Interact::default(),
         }
     }
+
+    /// One fact of `node`'s interaction state, recording a read of that fact alone: this node
+    /// repaints when the fact flips, not when another fact of `node` changes.
+    pub fn read_interaction(&mut self, node: NodeId, fact: InteractFact) -> bool {
+        match self.runtime_mut().interaction_fact_cell(node, fact) {
+            Some(cell) => cell.get(self),
+            None => false,
+        }
+    }
 }
 
 impl crate::build::BuildCx<'_> {
