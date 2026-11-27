@@ -5,15 +5,14 @@
 
 use craft_ui_rt::{Align, Layer, LayerSpec, Placement, Rect, Side, Vec2, hash_key};
 
-use super::access::Access;
-use super::key::ComponentKey;
 use super::overlay::{LayerShow, Surface, show_layer};
-use super::response::Response;
-use super::run::{Component, Cx, MeasureCx, Paint, show_leaf};
 use super::ui::Ui;
+use crate::contract::{Access, Common, Component, Cx, MeasureCx, PaintUi, Response, Role, Show};
 use crate::contract::{MemoKey, MemoProps, POPUP_PAD};
 use crate::primitives::TextRun;
 use crate::runtime::toast::{MAX_CARDS, Toast, ToastEnd, ToastId};
+use crate::style::{ComponentStyle, StyleCx};
+use craft_behavior::{Metrics, Sense};
 
 /// Ends kept until read, oldest dropped first.
 const ENDS_KEPT: usize = 32;
@@ -150,47 +149,67 @@ impl ToastHost {
         let id = ui.flow.id.with("craft-toasts");
         show_layer(ui.cx, id, STACK_KEY, show, rerun, &mut |ui| {
             for message in &cards {
-                ToastCard { message }.show(ui);
+                ToastCard::new(message).show(ui);
             }
         });
     }
 }
 
-/// One card. Its size is estimated from its message until craft text runs on ui-rt.
+/// The look of ToastCard: its metrics only; the text takes the ink and the layer's frame paints the surface.
+#[derive(Clone, Debug, PartialEq, ComponentStyle)]
+struct ToastCardStyle {
+    #[style(metrics)]
+    metrics: Metrics,
+}
+
+/// One line of text in a layer child, sized by the shaped text.
+#[derive(crate::contract::Component)]
 struct ToastCard<'a> {
+    #[common]
+    common: Common,
     message: &'a str,
 }
 
-impl ToastCard<'_> {
-    fn show(self, ui: &mut Ui<'_, '_>) {
-        show_leaf(self, ui);
+impl<'a> ToastCard<'a> {
+    fn new(message: &'a str) -> Self {
+        ToastCard { common: Common::new(), message }
     }
-}
 
-impl ComponentKey for ToastCard<'_> {
-    fn key(&self, key: &mut MemoKey) {
-        self.message.key(key);
+    fn show(self, ui: &mut Ui<'_, '_>) {
+        let _ = <Self as Show>::show(self, ui);
     }
 }
 
 impl Component for ToastCard<'_> {
-    const ROLE: accesskit::Role = accesskit::Role::Alert;
+    const ROLE: Role = Role::Node(accesskit::Role::Alert);
+    const PARTS: bool = false;
+    const STOPS: bool = false;
+    type Style = ToastCardStyle;
     type Output = Response;
 
-    fn measure(&mut self, cx: &MeasureCx<'_>) -> Vec2 {
-        let size = cx.tokens.size.icon.md;
-        Vec2::new((self.message.chars().count() as f32 * size * 0.55).min(cx.room.x), cx.tokens.size.button)
+    fn style(_: &StyleCx<'_>, _: ToastCardStyleKey) -> ToastCardStyle {
+        ToastCardStyle { metrics: Metrics::new() }
     }
 
-    fn paint(&mut self, paint: &Paint<'_>, _: &Cx<'_, Self>) {
-        paint.draw().text(paint.bounds(), &TextRun::new(self.message));
+    fn sense(&self) -> Sense {
+        Sense::empty()
+    }
+
+    /// The shaped text, wrapped at the room: the size the layer child is placed by.
+    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
+        let text = cx.layout_at(&TextRun::new(self.message), cx.room.x).size();
+        Vec2::new(text.x.min(cx.room.x), text.y.max(cx.tokens.size.button))
+    }
+
+    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        ui.draw().text(cx.rect, &TextRun::new(self.message));
     }
 
     fn access(&self, access: &mut Access, _: &Cx<'_, Self>) {
         access.label(self.message);
     }
 
-    fn finish(self, cx: &Cx<'_, Self>) -> Response {
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
         cx.response.clone()
     }
 }

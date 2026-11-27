@@ -331,6 +331,22 @@ impl Element for ScrollNode {
                 match a.action {
                     accesskit::Action::ScrollDown => sk.move_to(sk.offset + Vec2::new(0.0, step)),
                     accesskit::Action::ScrollUp => sk.move_to(sk.offset - Vec2::new(0.0, step)),
+                    accesskit::Action::ScrollIntoView if a.target != cx.node() => {
+                        let (Some(view), Some(rect)) = (cx.window_rect(cx.node()), cx.window_rect(a.target)) else { return Handled::No };
+                        let mut to = sk.offset;
+                        for axis in [0, 1] {
+                            let on = if axis == 1 { self.scroll.vertical_on() } else { self.scroll.horizontal_on() };
+                            if on {
+                                to[axis] += reveal_delta(view.min[axis]..view.max[axis], rect.min[axis]..rect.max[axis]);
+                            }
+                        }
+                        let to = sk.clamp(to);
+                        if to != sk.offset {
+                            sk.glide = Some(to);
+                            cx.request_layout();
+                        }
+                        false
+                    }
                     _ => return Handled::No,
                 }
             }
@@ -362,6 +378,18 @@ impl Element for ScrollNode {
             node.set_scroll_x_max(f64::from(sk.max_offset().x));
         }
         Some(node)
+    }
+}
+
+/// How far the offset moves along one axis so that `target` is inside `view`: the near edge when
+/// it is cut off before the view, the far edge after it, the start when it is longer than the view.
+fn reveal_delta(view: std::ops::Range<f32>, target: std::ops::Range<f32>) -> f32 {
+    if target.start < view.start || target.end - target.start > view.end - view.start {
+        target.start - view.start
+    } else if target.end > view.end {
+        target.end - view.end
+    } else {
+        0.0
     }
 }
 

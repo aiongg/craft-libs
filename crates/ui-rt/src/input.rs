@@ -158,9 +158,40 @@ impl Runtime {
         self.windows.get_mut(&window).map(|w| &mut w.input)
     }
 
+    /// Writes the window's modifier and pointer cells from `ev`, so a build or paint that read them
+    /// runs again when they change.
+    fn note_input(&mut self, window: WindowId, ev: &WindowEvent) {
+        let Some(env) = self.windows.get(&window).map(|w| w.env) else { return };
+        let mods = match ev {
+            WindowEvent::Pointer(p) => Some(p.mods),
+            WindowEvent::Wheel { mods, .. } | WindowEvent::Pinch { mods, .. } | WindowEvent::Key { mods, .. } => Some(*mods),
+            _ => None,
+        };
+        if let Some(mods) = mods {
+            env.modifiers.set_if_changed(&mut self.store, mods);
+        }
+        let WindowEvent::Pointer(p) = ev else { return };
+        let mut facts = *self.store.peek(env.pointer);
+        let touch = p.kind == PointerKind::Touch;
+        match p.phase {
+            PointerPhase::Move => facts.pos = Some(p.pos),
+            PointerPhase::Down => {
+                facts.pos = Some(p.pos);
+                facts.set_held(p.button, true);
+            }
+            PointerPhase::Up | PointerPhase::Cancel => {
+                facts.set_held(p.button, false);
+                facts.pos = if touch { None } else { Some(p.pos) };
+            }
+            PointerPhase::Leave => facts.pos = None,
+        }
+        env.pointer.set_if_changed(&mut self.store, facts);
+    }
+
     /// Routes `window`'s pointer, wheel, key, text, IME, paste and accessibility events to its
     /// nodes.
     pub(crate) fn route_input(&mut self, window: WindowId, ev: &WindowEvent) {
+        self.note_input(window, ev);
         if let Some(modal) = self.blocked_by(window) {
             if let WindowEvent::Pointer(p) = ev {
                 if p.phase == PointerPhase::Down {

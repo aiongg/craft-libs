@@ -698,6 +698,7 @@ pub(crate) fn run<C: Component>(mut component: C, kept: &mut Kept, cx: &mut Buil
     kept.access = access;
     kept.access_subs = subs;
     kept.id = ran.id;
+    kept.note_id(cx, ran.id);
     kept.key = if wrote { component_key(&component) } else { ran.key };
     kept.place = ran.place;
     kept.size = ran.size;

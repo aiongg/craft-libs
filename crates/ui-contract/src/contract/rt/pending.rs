@@ -3,7 +3,7 @@
 //! platform wakes the loop, so the node that waits is the node that reads the cell: it is marked, with
 //! the scopes on its path, and nothing else runs.
 //!
-//! The host owns one [`JobBoard`] per runtime and calls [`JobBoard::deliver`] when it gets
+//! The host owns one [`JobBoard`] per runtime (built from its job pool and the driver's waker, so a finished job wakes the loop once) and calls [`JobBoard::deliver`] when it gets
 //! `PlatformEvent::Wake` (before the next step). A window root provides the board to its nodes
 //! ([`super::WindowEnv::jobs`]).
 
@@ -40,10 +40,12 @@ pub struct JobBoard {
     inner: Arc<Inner>,
 }
 
-impl Default for JobBoard {
-    /// Jobs run at once on the calling thread and nothing wakes a loop: tests, and hosts that call
-    /// [`JobBoard::deliver`] on their own schedule.
-    fn default() -> Self {
+impl JobBoard {
+    /// Jobs run at once on the calling thread and nothing wakes a loop: the Harness, whose steps call
+    /// [`JobBoard::deliver`] on their own schedule. A host builds the runtime's one board with
+    /// [`JobBoard::new`] from its job pool and the driver's waker, and gives it to every window
+    /// root ([`super::WindowEnv::jobs`]).
+    pub fn inline() -> JobBoard {
         JobBoard { inner: Arc::new(Inner { jobs: Arc::new(InlineJobs), waker: None, done: Mutex::new(Vec::new()) }) }
     }
 }
@@ -101,7 +103,7 @@ impl Ui<'_, '_> {
         let started = self.cx.slot(("job-started", &key_hash(&key)), || false);
         if !*self.cx.peek_state(started) {
             started.set(self.cx, true);
-            let board = self.cx.provided::<JobBoard>().unwrap_or_default();
+            let board = self.cx.provided::<JobBoard>().unwrap_or_else(JobBoard::inline);
             board.spawn("craft-job", work, move |result, d| {
                 let value = match result {
                     Ok(Ok(t)) => Pending::Ready(t),

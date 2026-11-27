@@ -295,6 +295,12 @@ pub enum WindowEvent {
         down: bool,
         repeat: bool,
     },
+    /// The lock keys' state, sent when it changes and once when the window opens. Platforms that
+    /// cannot tell never send it, and both read as off.
+    LockKeys {
+        caps_lock: bool,
+        num_lock: bool,
+    },
     Text(String),
     ImePreedit {
         text: String,

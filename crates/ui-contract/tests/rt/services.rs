@@ -432,6 +432,8 @@ fn a_late_picture_reaches_its_node_through_the_image_store_with_no_run() {
     assert_eq!((arrived.frame.runs, arrived.frame.scopes, arrived.frame.built), (0, 0, 0), "nothing runs when the picture arrives: {arrived:?}");
     assert_eq!(arrived.render.images_uploaded, 1, "the renderer uploads it: {arrived:?}");
     assert!(!w.rig.driver.runtime.needs_frame(), "and the window is settled again");
+    let idle = w.step();
+    assert_eq!((idle.frame.runs, idle.frame.scopes, idle.frame.built, idle.render.images_uploaded), (0, 0, 0, 0), "idle after delivery: {idle:?}");
 }
 
 /// Shows a leaf and returns its rect.
