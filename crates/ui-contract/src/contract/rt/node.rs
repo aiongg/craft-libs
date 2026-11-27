@@ -538,23 +538,16 @@ impl Element for ComponentNode {
     type Local = Kept;
 
     fn props_key(&self) -> u64 {
-        self.key ^ u64::from(self.clip).rotate_right(1)
+        self.key
     }
 
     fn init(&self, _: &mut craft_ui_rt::BuildCx<'_>) -> Kept {
         Kept::new()
     }
 
-    fn layout(&self, kept: &mut Kept, cx: &mut LayoutCx<'_>, constraints: Constraints) -> Vec2 {
+    fn layout(&self, kept: &mut Kept, cx: &mut LayoutCx<'_>, _: Constraints) -> Vec2 {
         kept.place_children(cx, Vec2::ZERO);
-        if self.clip { constraints.constrain(kept.size) } else { kept.size }
-    }
-
-    fn paint(&self, _: &Kept, cx: &mut PaintCx<'_>) {
-        if self.clip {
-            let bounds = cx.bounds();
-            cx.clip(bounds);
-        }
+        kept.size
     }
 
     /// Its size is decided in the build.

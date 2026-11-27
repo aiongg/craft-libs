@@ -705,7 +705,7 @@ pub(crate) fn show_container<C: Container, R>(
     let _ = show_scope(ui, show, None, &mut |ui| {
         scope.enter(ui);
         let themed = Env::of(ui);
-        let place = place.derive(|scoped| scoped.tokens = themed.tokens.clone());
+        let place = place.derive(|scoped| scoped.inherited_mut().tokens = themed.tokens.clone());
         out = Some(show_plain(&mut *slot, ui, (at, place.clone()), &mut *body, tip.take(), hosted.clone()));
     });
     out.expect("a theme scope with no out-of-view rule always runs its content")
@@ -826,7 +826,7 @@ fn show_plain<C: Container, R>(
     // A container that is an instance of a command scope heads the command chain its regions and body run under: the
     // scope's commands resolve, publish and fire for this instance there.
     let regions = match props.command_scope.or(common.command_scope) {
-        Some(scope) => regions.derive(|scoped| scoped.commands = scoped.commands.pushed(scope, id)),
+        Some(scope) => regions.derive(|scoped| scoped.inherited_mut().commands = scoped.commands.pushed(scope, id)),
         None => regions,
     };
     let owner = BodyOwner::new(&*begun.style, shape.gap);
