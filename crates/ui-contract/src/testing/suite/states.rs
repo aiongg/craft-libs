@@ -4,9 +4,8 @@
 use super::{ANY, Case, Subject};
 use crate::contract::{Probe, ShapeKind};
 use crate::testing::access::{Declared, is_interactive, violations};
-use crate::testing::bypass;
-use crate::testing::fixture::Fixture;
 use crate::testing::story::Required;
+use crate::testing::story_run::StoryHarness;
 use craft_behavior::Input;
 use craft_host::target::Os;
 
@@ -86,16 +85,13 @@ fn every_required_state_has_a_story(subject: &Subject) -> Result<(), String> {
 
 fn stories_show_and_hold_still(subject: &Subject) -> Result<(), String> {
     for story in &subject.stories {
-        let mut fixture = Fixture::story(story);
+        let mut fixture = StoryHarness::story(story);
         // These checks hold on every OS, so they run on one: on macOS the menu bar moves to the system menu and a
         // MenuBar story draws nothing in the window.
         fixture.os(Os::Linux);
         fixture.settle();
-        let found = bypass::findings(&fixture);
-        if !found.is_empty() {
-            return Err(format!("{}: {found:?}", story.name));
-        }
-        let (size, id) = (fixture.shown().size(), fixture.root_id());
+        let (size, id) = (fixture.shown().map(|shown| shown.size()).unwrap_or_default(), fixture.root_id());
+        let builds = fixture.builds();
         fixture.idle(1);
         if matches!(subject.probe.shape, ShapeKind::Leaf) && !(size.x > 0.0 && size.y > 0.0) {
             return Err(format!("{}: a leaf story allocates nothing", story.name));
@@ -103,11 +99,11 @@ fn stories_show_and_hold_still(subject: &Subject) -> Result<(), String> {
         if fixture.root_id() != id {
             return Err(format!("{}: the id changed between frames", story.name));
         }
-        if fixture.shown().size() != size {
+        if fixture.shown().map(|shown| shown.size()).unwrap_or_default() != size {
             return Err(format!("{}: the size changed between settled frames", story.name));
         }
-        if fixture.passes() != 1 {
-            return Err(format!("{}: a settled frame ran {} passes", story.name, fixture.passes()));
+        if fixture.builds() != builds {
+            return Err(format!("{}: a settled step built the story again", story.name));
         }
     }
     Ok(())
@@ -116,11 +112,7 @@ fn stories_show_and_hold_still(subject: &Subject) -> Result<(), String> {
 fn stories_pass_the_access_rules(subject: &Subject) -> Result<(), String> {
     for story in &subject.stories {
         let fixture = &subject.base(story).fixture;
-        let found = bypass::findings(fixture);
-        if !found.is_empty() {
-            return Err(format!("{}: {found:?}", story.name));
-        }
-        let found = violations(fixture.ctx(), fixture.tree());
+        let found = violations(&fixture.tree());
         if !found.is_empty() {
             return Err(format!("{}: {found:?}", story.name));
         }
@@ -131,7 +123,7 @@ fn stories_pass_the_access_rules(subject: &Subject) -> Result<(), String> {
 fn focusable_stories_are_tab_reachable(subject: &Subject) -> Result<(), String> {
     for story in &subject.stories {
         let tree = subject.base(story).fixture.tree();
-        let focusable = tree.keys().into_iter().any(|key| tree.declares_key(key, Declared::Focus) && is_interactive(tree, key));
+        let focusable = tree.keys().into_iter().any(|key| tree.declares_key(key, Action::Focus) && is_interactive(&tree, key));
         if !focusable {
             continue;
         }

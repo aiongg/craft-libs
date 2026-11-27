@@ -2,9 +2,10 @@
 
 use super::{Drive, StoryData, StoryOutput, story};
 use crate::contract::Show as _;
+use crate::contract::Ui;
 use crate::testing::face_runs::FaceRuns;
 use crate::testing::layout::Block;
-use egui::{Ui, Vec2};
+use craft_ui_rt::Vec2;
 
 /// The size of a trial block, in points.
 const CELL: Vec2 = Vec2::new(40.0, 20.0);

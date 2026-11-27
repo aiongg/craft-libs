@@ -2,14 +2,14 @@
 //! gesture once, Escape restores, a double-click resets with one `Set` and a mixed value commits a concrete one.
 
 use super::{ANY, Case, Subject};
+use crate::contract::Id;
 use crate::contract::Probe;
-use crate::runtime::access::Role;
-use crate::runtime::egui::access::{Declared, NodeKey};
-use crate::runtime::egui::fixture::AccessActionKind;
-use crate::testing::fixture::{Fixture, Target};
+use crate::contract::rt::harness::Target;
 use crate::testing::story::{Drive, EditKind, Grip, Required, Story};
+use crate::testing::story_run::StoryHarness;
+use accesskit::{Action, Role};
 use craft_behavior::{Input, MotionMode, Sense};
-use egui::{Id, Key, Modifiers, Pos2, Vec2};
+use craft_ui_rt::{Key, Mods, Pos2, Vec2};
 
 pub(super) const CASES: &[Case] = &[
     Case::new("values", ANY, a_drive_ends_each_gesture_once),
@@ -27,13 +27,13 @@ pub(super) enum Plan {
     /// Types `text` into the subject; `story` names the story in the failure when focus never reaches it.
     Type(&'static str, &'static str),
     Pick(usize),
-    Custom(fn(&mut Fixture)),
+    Custom(fn(&mut StoryHarness)),
     Never,
 }
 
 /// The drive a story names, or the library's choice from the type's facts and the settled fixture's shape record
 /// (22.4 drivers).
-pub(super) fn plan(story: &Story, probe: &Probe, fixture: &Fixture) -> Plan {
+pub(super) fn plan(story: &Story, probe: &Probe, fixture: &StoryHarness) -> Plan {
     match story.drive {
         Drive::Auto if probe.carries_value() && !probe.takes_input() => Plan::Never,
         Drive::Auto if matches!(probe.input, Input::Text | Input::Editor) => Plan::Type("sample", story.name),
@@ -100,34 +100,34 @@ pub(super) fn variant_name(plan: Plan, variant: usize) -> &'static str {
 
 /// Tab once; when that focuses nothing, a press on the first stop that only a press reaches (read-only text), which
 /// Tab passes over.
-pub(super) fn tab_or_press(fixture: &mut Fixture) {
-    fixture.key(Key::Tab, Modifiers::NONE);
+pub(super) fn tab_or_press(fixture: &mut StoryHarness) {
+    fixture.key(Key::Tab, Mods::NONE);
     if fixture.focused().is_none() {
         press_only_stop(fixture);
     }
 }
 
 /// Presses the first stop that only a press reaches; `false` when there is none.
-fn press_only_stop(fixture: &mut Fixture) -> bool {
+fn press_only_stop(fixture: &mut StoryHarness) -> bool {
     let Some(rect) = fixture.press_only_stops().first().copied() else { return false };
     fixture.click_at(rect.center());
     true
 }
 
 /// The node of the shown component, or the whole shown area when it has none.
-pub(super) fn root_target(fixture: &Fixture) -> Target {
-    fixture.root_id().and_then(|id| fixture.node_of(id)).unwrap_or(Target { node: NodeKey::of(Id::NULL), rect: fixture.shown() })
+pub(super) fn root_target(fixture: &StoryHarness) -> Target {
+    fixture.root_id().and_then(|id| fixture.node_of(id)).unwrap_or_else(|| Target::area(fixture.shown().unwrap_or(craft_ui_rt::Rect::NOTHING)))
 }
 
 /// The node a click or an AccessKit `Click` activates: the first clickable part, or the component itself.
-fn activation_target(fixture: &Fixture) -> Target {
+fn activation_target(fixture: &StoryHarness) -> Target {
     let part = fixture.click_part().zip(fixture.root_id()).and_then(|(part, id)| fixture.part(id, part));
     part.unwrap_or_else(|| root_target(fixture))
 }
 
 /// Activation by the `variant`th way: click, Enter, Space or AccessKit `Click`.
-pub(super) fn activate(fixture: &mut Fixture, variant: usize, target: &Target) {
-    let none = Modifiers::NONE;
+pub(super) fn activate(fixture: &mut StoryHarness, variant: usize, target: &Target) {
+    let none = Mods::NONE;
     match variant {
         0 => {
             fixture.click(target);
@@ -138,59 +138,55 @@ pub(super) fn activate(fixture: &mut Fixture, variant: usize, target: &Target) {
             fixture.settle();
         }
         _ => {
-            fixture.access(AccessActionKind::Click, target);
+            fixture.access(Action::Click, target);
             fixture.settle();
         }
     }
 }
 
-fn step(fixture: &mut Fixture, variant: usize, target: &Target) {
+fn step(fixture: &mut StoryHarness, variant: usize, target: &Target) {
     if variant == 0 {
         // A component whose value lives in sub-nodes (thumbs, axes) steps through the first of them.
-        let tree = fixture.tree();
-        let part = fixture.by_role(Role::SLIDER).into_iter().find(|slider| tree.declares_key(slider.node, Declared::Increment));
-        let target = if tree.declares_key(target.node, Declared::Increment) { *target } else { part.unwrap_or(*target) };
-        fixture.access(AccessActionKind::Increment, &target);
+        let tree = &fixture.tree();
+        let part = fixture.by_role(Role::Slider).into_iter().find(|slider| tree.declares_key(slider.id, Action::Increment));
+        let target = if tree.declares_key(target.id, Action::Increment) { target.clone() } else { part.unwrap_or_else(|| target.clone()) };
+        fixture.access(Action::Increment, &target);
         fixture.settle();
     } else {
-        fixture.key(Key::Tab, Modifiers::NONE);
-        fixture.key(Key::ArrowRight, Modifiers::NONE);
+        fixture.key(Key::Tab, Mods::NONE);
+        fixture.key(Key::ArrowRight, Mods::NONE);
         fixture.settle();
     }
 }
 
 /// A drag from `from` by twice the slop along `toward`, ended by a release or, with `escape`, by Escape before it.
-fn drag(fixture: &mut Fixture, from: Pos2, toward: Vec2, escape: bool) {
-    let by = 2.0 * crate::testing::input::slop(fixture.ctx()) * toward;
+fn drag(fixture: &mut StoryHarness, from: Pos2, toward: Vec2, escape: bool) {
+    let by = 2.0 * fixture.slop() * toward;
     if !escape {
         fixture.drag_at(from, by);
         return;
     }
-    fixture.frame(vec![crate::testing::pointer::moved(from)]);
-    fixture.frame(vec![crate::testing::pointer::press(from)]);
-    for at in 1..=4 {
-        fixture.frame(vec![crate::testing::pointer::moved(from + by * (at as f32 / 4.0))]);
-    }
-    fixture.key(Key::Escape, Modifiers::NONE);
-    fixture.frame(vec![crate::testing::pointer::release(from + by)]);
+    fixture.drag_hold_at(from, by);
+    fixture.key(Key::Escape, Mods::NONE);
+    fixture.release_at(from + by);
     fixture.settle();
 }
 
 /// The rows a popup offers: the options, menu entries, tree items and list items (a `TileGrid` tile) on screen.
-fn pickable(fixture: &Fixture) -> Vec<Target> {
-    [Role::LIST_BOX_OPTION, Role::MENU_ITEM, Role::TREE_ITEM, Role::LIST_ITEM].into_iter().flat_map(|role| fixture.by_role(role)).collect()
+fn pickable(fixture: &StoryHarness) -> Vec<Target> {
+    [Role::ListBoxOption, Role::MenuItem, Role::TreeItem, Role::ListItem].into_iter().flat_map(|role| fixture.by_role(role)).collect()
 }
 
-fn pick(fixture: &mut Fixture, row: usize, by_click: bool) {
-    let none = Modifiers::NONE;
+fn pick(fixture: &mut StoryHarness, row: usize, by_click: bool) {
+    let none = Mods::NONE;
     let target = root_target(fixture);
     // Rows the component shows before its popup opens are not the popup's.
-    let before: Vec<NodeKey> = pickable(fixture).into_iter().map(|row| row.node).collect();
+    let before: Vec<accesskit::NodeId> = pickable(fixture).into_iter().map(|row| row.id).collect();
     fixture.click(&target);
     if by_click {
-        let mut rows: Vec<Target> = pickable(fixture).into_iter().filter(|row| row.node != target.node && !before.contains(&row.node)).collect();
-        rows.sort_by(|a, b| (a.rect.min.y, a.rect.min.x).partial_cmp(&(b.rect.min.y, b.rect.min.x)).unwrap_or(std::cmp::Ordering::Equal));
-        if let Some(row) = rows.get(row).copied() {
+        let mut rows: Vec<Target> = pickable(fixture).into_iter().filter(|row| row.id != target.id && !before.contains(&row.id)).collect();
+        rows.sort_by(|a, b| (a.bounds.min.y, a.bounds.min.x).partial_cmp(&(b.bounds.min.y, b.bounds.min.x)).unwrap_or(std::cmp::Ordering::Equal));
+        if let Some(row) = rows.get(row).cloned() {
             super::row_click::click(fixture, &row);
         }
     } else {
@@ -209,9 +205,9 @@ fn pick(fixture: &mut Fixture, row: usize, by_click: bool) {
 ///
 /// The focus is inside when the focus service's stop is the subject's component or AccessKit's focused node lies in
 /// the subject's node subtree.
-pub(super) fn focus_subject(fixture: &mut Fixture) -> bool {
+pub(super) fn focus_subject(fixture: &mut StoryHarness) -> bool {
     let Some(root_id) = fixture.root_id() else {
-        fixture.key(Key::Tab, Modifiers::NONE);
+        fixture.key(Key::Tab, Mods::NONE);
         return fixture.focused().is_some();
     };
     let root = super::nodes::root(fixture);
@@ -219,7 +215,7 @@ pub(super) fn focus_subject(fixture: &mut Fixture) -> bool {
     loop {
         let stop = fixture.focused_stop().map(|(id, _)| id);
         let focused = fixture.tree().focused_key();
-        if stop == Some(root_id) || root.as_ref().is_some_and(|root| super::nodes::focus_within(fixture, root.node)) {
+        if stop == Some(root_id) || root.as_ref().is_some_and(|root| super::nodes::focus_within(fixture, root.id)) {
             return true;
         }
         let at = (stop, focused);
@@ -227,36 +223,38 @@ pub(super) fn focus_subject(fixture: &mut Fixture) -> bool {
             return press_only_stop(fixture) && fixture.focused_stop().is_some_and(|(id, _)| id == root_id);
         }
         seen.push(at);
-        fixture.key(Key::Tab, Modifiers::NONE);
+        fixture.key(Key::Tab, Mods::NONE);
     }
 }
 
 /// Runs the `variant`th way of `plan` on a settled fixture.
-pub(super) fn run(fixture: &mut Fixture, plan: Plan, variant: usize) {
+pub(super) fn run(fixture: &mut StoryHarness, plan: Plan, variant: usize) {
     let target = root_target(fixture);
     match plan {
         Plan::Activate => activate(fixture, variant, &activation_target(fixture)),
         Plan::Step => step(fixture, variant, &target),
         Plan::Drag(grip) => {
-            let pressed = fixture.root_id().and_then(|id| fixture.part(id, grip.part)).unwrap_or(target);
+            let pressed = fixture.root_id().and_then(|id| fixture.part(id, grip.part)).unwrap_or_else(|| target.clone());
             let pressed = fixture.visible(&pressed).unwrap_or(pressed);
             drag(fixture, pressed.center(), grip.toward, variant == 1);
         }
         Plan::DragChild(grip) => {
             let owner = fixture.root_id().unwrap_or(Id::NULL);
-            let from = crate::runtime::pointer::child_part_bounds(fixture.ctx(), owner, grip.part, Sense::DRAG)
-                .map(|rect| Target { node: target.node, rect })
+            let from = fixture
+                .child_part_rect(owner, grip.part, Sense::DRAG)
+                .map(|bounds| Target { bounds, ..target.clone() })
                 .map_or(target.center(), |part| fixture.visible(&part).unwrap_or(part).center());
             drag(fixture, from, grip.toward, variant == 1);
         }
         Plan::Type(text, story) => {
             // A disabled subject takes no focus and no text, which the disabled case checks.
-            let disabled = super::nodes::root(fixture).is_some_and(|root| fixture.tree().data_of(root.node).is_some_and(|node| node.is_disabled()));
+            let disabled = super::nodes::root(fixture).is_some_and(|root| fixture.tree().is_disabled_key(root.id));
             assert!(focus_subject(fixture) || disabled, "{story}: Tab never moved focus into the component, so the typed text has nowhere to go");
             fixture.type_text(text);
             // Enter inserts a line in multi-line text, which Cmd/Ctrl+Enter commits; the node declares which it is.
-            let multiline = fixture.tree().role_of(fixture.tree().focused_key()) == Some(Role::MULTILINE_TEXT_INPUT);
-            fixture.key(Key::Enter, if multiline { Modifiers::COMMAND } else { Modifiers::NONE });
+            let tree = &fixture.tree();
+            let multiline = tree.role_of(tree.focused_key()) == Some(Role::MultilineTextInput);
+            fixture.key(Key::Enter, if multiline { Mods::COMMAND } else { Mods::NONE });
             fixture.settle();
         }
         Plan::Pick(row) => pick(fixture, row, variant == 1),
@@ -266,8 +264,8 @@ pub(super) fn run(fixture: &mut Fixture, plan: Plan, variant: usize) {
 }
 
 /// A settled fixture of `story` with its drive resolved.
-pub(super) fn settled(story: &Story, probe: &Probe) -> (Fixture, Plan) {
-    let mut fixture = Fixture::story(story);
+pub(super) fn settled(story: &Story, probe: &Probe) -> (StoryHarness, Plan) {
+    let mut fixture = StoryHarness::story(story);
     fixture.settle();
     let plan = plan(story, probe, &fixture);
     (fixture, plan)
@@ -276,14 +274,14 @@ pub(super) fn settled(story: &Story, probe: &Probe) -> (Fixture, Plan) {
 /// `fixture` settled for a case that sends input. Such cases run without motion: tweens jump to their end, so a
 /// settle after an action ends once the action has landed rather than when its feedback has finished playing. The
 /// motion case drives stories under each motion mode itself.
-pub(super) fn for_input(mut fixture: Fixture) -> Fixture {
+pub(super) fn for_input(mut fixture: StoryHarness) -> StoryHarness {
     fixture.motion(MotionMode::Off).settle();
     fixture
 }
 
 /// A fixture of `story`, settled for a case that sends input ([`for_input`]).
-pub(super) fn input_fixture(story: &Story) -> Fixture {
-    for_input(Fixture::story(story))
+pub(super) fn input_fixture(story: &Story) -> StoryHarness {
+    for_input(StoryHarness::story(story))
 }
 
 /// What the runs of one story's drive did.
@@ -307,10 +305,7 @@ fn runs_of(story: &Story, probe: &Probe, plan: Plan) -> Runs {
         let mut fixture = input_fixture(story);
         let before = fixture.data().snapshot();
         fixture.take_outputs();
-        let lent_before = crate::runtime::keys::lent_taken(fixture.ctx());
         run(&mut fixture, plan, variant);
-        // A key the canvas lent its session control is that control's: it has no AccessKit twin on the focused stop.
-        let lent = crate::runtime::keys::lent_taken(fixture.ctx()) != lent_before;
         let changed = !fixture.data().changed_since(&before).is_empty();
         let kinds: Vec<EditKind> = fixture.take_outputs().into_iter().flat_map(|output| output.edits).collect();
         let name = variant_name(plan, variant);
@@ -319,9 +314,6 @@ fn runs_of(story: &Story, probe: &Probe, plan: Plan) -> Runs {
             if changed || kinds.iter().any(|kind| matches!(kind, EditKind::Commit | EditKind::Set)) {
                 runs.failures.push(format!("{}: {name} left a changed value or a commit: {kinds:?}", story.name));
             }
-            continue;
-        }
-        if lent {
             continue;
         }
         if !changed {
@@ -413,12 +405,9 @@ fn a_double_click_resets_with_one_set(subject: &Subject) -> Result<(), String> {
 /// concrete.
 fn mixed_commits_a_concrete_value(subject: &Subject) -> Result<(), String> {
     for story in subject.stories.iter().filter(|story| story.covers.contains(&Required::Mixed)) {
-        let is_mixed = |fixture: &Fixture| {
-            fixture
-                .tree()
-                .keys()
-                .into_iter()
-                .any(|key| fixture.tree().data_of(key).is_some_and(|node| node.toggled() == Some(crate::runtime::egui::access::Toggled::Mixed)))
+        let is_mixed = |fixture: &StoryHarness| {
+            let tree = &fixture.tree();
+            tree.keys().into_iter().any(|key| tree.data_of(key).is_some_and(|node| node.toggled() == Some(accesskit::Toggled::Mixed)))
         };
         let plan = subject.base(story).plan;
         let mut fixture = input_fixture(story);

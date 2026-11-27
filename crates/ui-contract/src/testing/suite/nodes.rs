@@ -1,17 +1,19 @@
 //! What the container and collection cases read from the AccessKit tree of a fixture.
 
-use crate::runtime::access::Role;
-use crate::runtime::egui::access::{AccessTree, Declared, NodeKey};
-use crate::testing::fixture::{Fixture, Target};
+use crate::contract::rt::harness::Target;
+use crate::testing::access::AccessView;
 use crate::testing::story::Story;
+use crate::testing::story_run::StoryHarness;
+use accesskit::Action;
+use accesskit::Role;
 use craft_behavior::PartRef;
 
 /// `node` and every node below it.
-pub(super) fn subtree(tree: &AccessTree, node: NodeKey) -> Vec<NodeKey> {
+pub(super) fn subtree(tree: &AccessView, node: accesskit::NodeId) -> Vec<accesskit::NodeId> {
     let mut found = vec![node];
     let mut at = 0;
     while at < found.len() {
-        let new: Vec<NodeKey> = tree.children_of(found[at]).into_iter().filter(|child| !found.contains(child)).collect();
+        let new: Vec<accesskit::NodeId> = tree.children_of(found[at]).into_iter().filter(|child| !found.contains(child)).collect();
         found.extend(new);
         at += 1;
     }
@@ -19,18 +21,18 @@ pub(super) fn subtree(tree: &AccessTree, node: NodeKey) -> Vec<NodeKey> {
 }
 
 /// The node of the latest shown component of a story, when the tree has it.
-pub(super) fn root(fixture: &Fixture) -> Option<Target> {
+pub(super) fn root(fixture: &StoryHarness) -> Option<Target> {
     fixture.root_id().and_then(|id| fixture.node_of(id))
 }
 
 /// Whether the node AccessKit reports as focused lies in the subtree of `root`.
-pub(super) fn focus_within(fixture: &Fixture, root: NodeKey) -> bool {
-    let tree = fixture.tree();
+pub(super) fn focus_within(fixture: &StoryHarness, root: accesskit::NodeId) -> bool {
+    let tree = &fixture.tree();
     subtree(tree, root).contains(&tree.focused_key())
 }
 
 /// The roles of the rows of a collection: list items, list box options, tree items and table rows.
-const ROW_ROLES: [Role; 4] = [Role::LIST_ITEM, Role::LIST_BOX_OPTION, Role::TREE_ITEM, Role::ROW];
+const ROW_ROLES: [Role; 4] = [Role::ListItem, Role::ListBoxOption, Role::TreeItem, Role::Row];
 
 /// Whether `role` is a row of a collection, which the item step gives `LEAD`, `DRAGGING` and `DROP_TARGET`.
 pub(super) fn is_row_role(role: Role) -> bool {
@@ -39,29 +41,29 @@ pub(super) fn is_row_role(role: Role) -> bool {
 
 /// Whether `role` is a menu entry, which shows `LEAD` on the entry the menu rests on.
 pub(super) fn is_menu_item_role(role: Role) -> bool {
-    [Role::MENU_ITEM, Role::MENU_ITEM_CHECK_BOX, Role::MENU_ITEM_RADIO].contains(&role)
+    [Role::MenuItem, Role::MenuItemCheckBox, Role::MenuItemRadio].contains(&role)
 }
 
 /// The rows of the collection below `root`, top to bottom. A node with no place in a set, such as a header row, is
 /// not a row.
-pub(super) fn rows(fixture: &Fixture, root: NodeKey) -> Vec<Target> {
-    let tree = fixture.tree();
+pub(super) fn rows(fixture: &StoryHarness, root: accesskit::NodeId) -> Vec<Target> {
+    let tree = &fixture.tree();
     let inside = subtree(tree, root);
     let mut rows: Vec<Target> = ROW_ROLES
         .into_iter()
         .flat_map(|role| fixture.by_role(role))
-        .filter(|target| inside.contains(&target.node) && position_in_set(fixture, target.node).is_some())
+        .filter(|target| inside.contains(&target.id) && position_in_set(fixture, target.id).is_some())
         .collect();
-    rows.sort_by(|a, b| a.rect.min.y.total_cmp(&b.rect.min.y));
+    rows.sort_by(|a, b| a.bounds.min.y.total_cmp(&b.bounds.min.y));
     rows
 }
 
 /// The row of `rows` that holds the AccessKit focus, with its place among them.
-pub(super) fn focused_row(fixture: &Fixture, rows: &[Target]) -> Option<(usize, NodeKey)> {
-    let tree = fixture.tree();
+pub(super) fn focused_row(fixture: &StoryHarness, rows: &[Target]) -> Option<(usize, accesskit::NodeId)> {
+    let tree = &fixture.tree();
     let mut at = Some(tree.focused_key());
     while let Some(key) = at {
-        if let Some(index) = rows.iter().position(|row| row.node == key) {
+        if let Some(index) = rows.iter().position(|row| row.id == key) {
             return Some((index, key));
         }
         at = tree.parent_of_key(key);
@@ -70,13 +72,13 @@ pub(super) fn focused_row(fixture: &Fixture, rows: &[Target]) -> Option<(usize, 
 }
 
 /// The zero-based position and the set size a row reports.
-pub(super) fn position_in_set(fixture: &Fixture, row: NodeKey) -> Option<(usize, usize)> {
+pub(super) fn position_in_set(fixture: &StoryHarness, row: accesskit::NodeId) -> Option<(usize, usize)> {
     let node = fixture.tree().data_of(row)?;
     Some((node.position_in_set()?, node.size_of_set()?))
 }
 
 /// Whether the node reports itself selected.
-pub(super) fn is_selected(fixture: &Fixture, node: NodeKey) -> bool {
+pub(super) fn is_selected(fixture: &StoryHarness, node: accesskit::NodeId) -> bool {
     fixture.tree().data_of(node).and_then(|data| data.is_selected()).unwrap_or(false)
 }
 
@@ -128,10 +130,10 @@ pub(super) fn sampled_parts(parts: Vec<PartRef>) -> Vec<PartRef> {
 
 /// The keys of `tree` depth first from its root, children in their declared order; nodes the root does not reach
 /// follow in the tree's own order.
-fn tree_order(tree: &AccessTree) -> Vec<NodeKey> {
+fn tree_order(tree: &AccessView) -> Vec<accesskit::NodeId> {
     let mut ordered = Vec::new();
     let mut seen = std::collections::HashSet::new();
-    let mut pending: Vec<NodeKey> = tree.root_key().into_iter().collect();
+    let mut pending: Vec<accesskit::NodeId> = tree.root_key().into_iter().collect();
     while let Some(key) = pending.pop() {
         if seen.insert(key) {
             ordered.push(key);
@@ -144,15 +146,15 @@ fn tree_order(tree: &AccessTree) -> Vec<NodeKey> {
 
 /// `pairs` (a node and an action it declares) in tree order; when [`samples_repeats`], set by set, each repeated set
 /// cut to its first, middle and last node. Nodes that share a parent and a role and declare the same action are one set.
-pub(super) fn sampled_actions(tree: &AccessTree, mut pairs: Vec<(NodeKey, Declared)>) -> Vec<(NodeKey, Declared)> {
-    let rank: std::collections::HashMap<NodeKey, usize> = tree_order(tree).into_iter().enumerate().map(|(at, key)| (key, at)).collect();
+pub(super) fn sampled_actions(tree: &AccessView, mut pairs: Vec<(accesskit::NodeId, Declared)>) -> Vec<(accesskit::NodeId, Declared)> {
+    let rank: std::collections::HashMap<accesskit::NodeId, usize> = tree_order(tree).into_iter().enumerate().map(|(at, key)| (key, at)).collect();
     pairs.sort_by_key(|(node, _)| rank.get(node).copied().unwrap_or(usize::MAX));
     let ordered = pairs;
     if !samples_repeats() {
         return ordered;
     }
-    let set_of = |(node, declared): &(NodeKey, Declared)| (tree.parent_of_key(*node), tree.role_of(*node), *declared);
-    let mut sets: Vec<Vec<(NodeKey, Declared)>> = Vec::new();
+    let set_of = |(node, declared): &(accesskit::NodeId, Declared)| (tree.parent_of_key(*node), tree.role_of(*node), *declared);
+    let mut sets: Vec<Vec<(accesskit::NodeId, Declared)>> = Vec::new();
     for pair in ordered {
         match sets.iter_mut().find(|set| set_of(&set[0]) == set_of(&pair)) {
             Some(set) => set.push(pair),

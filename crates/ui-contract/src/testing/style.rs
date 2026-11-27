@@ -1,6 +1,5 @@
 //! Style and paint helpers: token sets, a `StyleCx`, the style cache and a `Draw` over a frame.
 
-use super::Frames;
 use crate::primitives::{Draw, DrawEnv, PaintRecord};
 use crate::runtime::env::{AppValues, Scale};
 use crate::runtime::pass_state;
@@ -121,27 +120,6 @@ pub struct Recorded {
     pub elided: Option<String>,
     /// The first baseline.
     pub baseline: Option<f32>,
-}
-
-/// Runs one frame in which `paint` draws through a `Draw` over the root `Ui`'s painter, in `direction` and on
-/// `ink`. Returns the shapes painted and what `Draw` recorded.
-pub fn paint_frame(
-    frames: &mut Frames,
-    tokens: &UiTokens,
-    direction: Direction,
-    ink: Ink,
-    mut paint: impl FnMut(&Draw<'_>),
-) -> (Vec<Shape>, Recorded) {
-    let record = RefCell::new(PaintRecord::default());
-    let shapes = frames.frame_shapes(|ui| {
-        let canvas = crate::primitives::Canvas::owned(ui.ctx().clone(), egui::Pos2::ZERO, ui.clip_rect());
-        let painter = ui.painter();
-        let _flush = crate::runtime::egui::text_layout::FlushOnDrop(painter, &canvas);
-        let draw = Draw::new(&canvas, &record, DrawEnv { tokens, direction, ink });
-        paint(&draw);
-    });
-    let record = record.into_inner();
-    (shapes, Recorded { elided: record.elided, baseline: record.baseline })
 }
 
 /// How many times `ctx` resolved root tokens its cache had no entry for.

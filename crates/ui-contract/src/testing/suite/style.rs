@@ -6,9 +6,11 @@
 
 use super::drive::{input_fixture, run, variants};
 use super::{ANY, Case, Subject};
+use crate::contract::Context;
+use crate::contract::rt::harness::Harness;
 use crate::style::UiTokens;
 use crate::style::{StyleColor, SurfaceKind, SurfaceLook};
-use crate::testing::fixture::Fixture;
+use crate::testing::story_run::StoryHarness;
 use crate::testing::style::{StyleLooks, StyleSeen, themes_at, tokens, with_cx};
 use craft_behavior::Input;
 use craft_theme::{
@@ -39,7 +41,7 @@ fn sources<'a>(subject: &'a Subject<'_>) -> Result<&'a [Source], String> {
 fn read_sources(subject: &Subject) -> Result<Vec<Source>, String> {
     let name = subject.probe.type_name();
     let mut seen: Vec<Arc<StyleSeen>> = Vec::new();
-    let mut take = |fixture: &Fixture| {
+    let mut take = |fixture: &StoryHarness| {
         for style in fixture.styles_of(name) {
             if !seen.iter().any(|known| known.inputs == style.inputs && known.variant == style.variant && known.size == style.size) {
                 seen.push(style);
@@ -65,15 +67,17 @@ fn read_sources(subject: &Subject) -> Result<Vec<Source>, String> {
     Err(format!("{name} has a style and neither a story that shows it nor a sample, so no measurement reads its style"))
 }
 
-/// The context the style cases resolve looks in, one per type. A style hook that measures text needs the fonts, which
-/// egui installs in its first frame; the style cache keys each look by its key, env, variant and size, so the looks
+/// The context the style cases resolve looks in, one per type: a harness's window, stepped once so its fonts and style
+/// cache exist; the style cache keys each look by its key, env, variant and size, so the looks
 /// resolved before stand in for nothing else.
-fn measuring_ctx<'a>(subject: &'a Subject<'_>) -> &'a egui::Context {
-    subject.style_ctx.get_or_init(|| {
-        let ctx = egui::Context::default();
-        drop(crate::runtime::egui::fixture::run_frame_shapes(&ctx, 0.0, egui::vec2(800.0, 600.0), |_| {}));
-        ctx
-    })
+fn measuring_ctx<'a>(subject: &'a Subject<'_>) -> &'a Context {
+    let (_, ctx) = subject.style_ctx.get_or_init(|| {
+        let mut host = Harness::new_ui(|_| {});
+        host.step();
+        let ctx = host.ctx();
+        (host, ctx)
+    });
+    ctx
 }
 
 /// The resolved looks of `source` under `variant` and `tokens`.

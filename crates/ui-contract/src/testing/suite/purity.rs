@@ -1,13 +1,13 @@
 //! The purity case: drawing code changes no state and sends nothing. The case's fixtures run under the purity probe
-//! ([`Fixture::probe_purity`]): each story's `show` runs in a measuring run before every real pass and state is
-//! compared around the later passes of a frame. The case drives each story as the `values` case does and reports what
+//! ([`StoryHarness::probe_purity`]): after the settled build and after each drive the story builds again with no
+//! input ([`StoryHarness::rerun_check`]) and its values are compared. The case drives each story as the `values` case does and reports what
 //! the fixture saw.
 
 use super::drive::{Plan, for_input, plan, run, variants};
 use super::{ANY, Case, Subject};
 use crate::contract::Probe;
-use crate::testing::fixture::{Fixture, Impure};
 use crate::testing::story::Story;
+use crate::testing::story_run::{Impure, StoryHarness};
 
 pub(super) const CASES: &[Case] = &[Case::new("measure-pure", ANY, drawing_changes_nothing)];
 
@@ -19,15 +19,17 @@ fn describe(story: &str, impure: &Impure) -> String {
     }
 }
 
-fn first_violation(story: &str, fixture: &Fixture) -> Option<String> {
+fn first_violation(story: &str, fixture: &StoryHarness) -> Option<String> {
     fixture.impure().first().map(|impure| describe(story, impure))
 }
 
 /// A fixture of `story` under the purity probe, settled for the drives it takes.
-fn probed(story: &Story) -> Fixture {
-    let mut fixture = Fixture::story(story);
+fn probed(story: &Story) -> StoryHarness {
+    let mut fixture = StoryHarness::story(story);
     fixture.probe_purity();
-    for_input(fixture)
+    let mut fixture = for_input(fixture);
+    fixture.rerun_check();
+    fixture
 }
 
 /// The `measure-pure` case over one story of the type `probe` describes: settled and then driven by each way of its
@@ -39,13 +41,14 @@ pub fn measure_pure_case(probe: &Probe, story: &Story) -> Result<(), String> {
 }
 
 /// The `measure-pure` case for `story`, whose probed settled fixture is `settled_fixture` and whose drive is `plan`.
-fn pure_from(probe: &Probe, story: &Story, settled_fixture: &Fixture, plan: Plan) -> Result<(), String> {
+fn pure_from(probe: &Probe, story: &Story, settled_fixture: &StoryHarness, plan: Plan) -> Result<(), String> {
     if let Some(failure) = first_violation(story.name, settled_fixture) {
         return Err(failure);
     }
     for variant in variants(plan, probe) {
         let mut fixture = probed(story);
         run(&mut fixture, plan, variant);
+        fixture.rerun_check();
         if let Some(failure) = first_violation(story.name, &fixture) {
             return Err(failure);
         }

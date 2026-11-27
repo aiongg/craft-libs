@@ -3,9 +3,9 @@
 
 use crate::contract::PlainStyle;
 use craft_ui::contract::{BodyCx, Common, Component, Container, ContainerProps, Cx, Role};
+use craft_ui::contract::{Response, Ui};
 use craft_ui::style::StyleCx;
-use craft_ui::testing::layout::allocate;
-use egui::{Response, Ui, Vec2};
+use craft_ui_rt::Vec2;
 
 /// A container whose header and footer are blocks of a fixed size around its body.
 #[derive(craft_ui::contract::Component)]
@@ -42,10 +42,10 @@ impl Component for Slab {
 
 impl Container for Slab {
     fn header(&mut self, ui: &mut Ui, _: &mut BodyCx<'_>) {
-        allocate(ui, self.header);
+        ui.allocate(self.header);
     }
 
     fn footer(&mut self, ui: &mut Ui, _: &mut BodyCx<'_>) {
-        allocate(ui, self.footer);
+        ui.allocate(self.footer);
     }
 }

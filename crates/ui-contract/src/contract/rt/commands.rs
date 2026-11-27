@@ -142,6 +142,23 @@ impl CommandBoard {
         board.edits.iter().find(|(c, _)| *c == command).map(|(_, edit)| *edit)
     }
 
+    /// Runs `command`'s handler as fired by `source` at `time`, when the command is enabled; whether it ran.
+    /// The harness fires commands this way.
+    pub(crate) fn fire(&self, store: &mut Store, command: CommandRef, source: FireSource, time: f64) -> bool {
+        if !self.enabled(store, &command) {
+            return false;
+        }
+        let fired = Fired::new(command.clone(), source, FirePhase::Press, time);
+        let taken = {
+            let mut board = self.0.borrow_mut();
+            board.handlers.iter().position(|(c, _)| *c == command).map(|at| board.handlers.remove(at))
+        };
+        let Some((command, mut handler)) = taken else { return false };
+        handler(&fired, store);
+        self.0.borrow_mut().handlers.push((command, handler));
+        true
+    }
+
     /// Runs the command a press of `k` is bound to, when it is enabled. `typing`: the focused stop
     /// types, so the keymap's typing rule holds back the chords that type.
     fn dispatch(&self, cx: &mut EventCx<'_>, k: &KeyInput, typing: bool) -> Handled {

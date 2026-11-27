@@ -4,14 +4,15 @@
 use super::drive::{cancels, for_input, root_target, run, tab_or_press, variants};
 use super::{ANY, Case, Subject};
 use crate::contract::Role;
-use crate::runtime::egui::access::{AccessTree, Declared, NodeKey};
-use crate::runtime::env::Direction;
+use crate::testing::access::AccessView;
 use crate::testing::access::{is_interactive, violations};
-use crate::testing::fixture::Fixture;
 use crate::testing::relations::mirrored;
 use crate::testing::story::Story;
+use crate::testing::story_run::StoryHarness;
+use accesskit::Action;
 use craft_behavior::{Input, MotionMode};
-use egui::{Key, Modifiers};
+use craft_i18n::Direction;
+use craft_ui_rt::{Key, Mods};
 use std::sync::Arc;
 
 pub(super) const CASES: &[Case] = &[
@@ -23,7 +24,7 @@ pub(super) const CASES: &[Case] = &[
 ];
 
 /// Whether the drive changed a value, reported an edit or activated the story: a click or a fired command.
-fn acted(fixture: &mut Fixture, before: &crate::testing::story::StorySnapshot) -> bool {
+fn acted(fixture: &mut StoryHarness, before: &crate::testing::story::StorySnapshot) -> bool {
     let changed = !fixture.data().changed_since(before).is_empty();
     let outputs = fixture.take_outputs();
     changed || outputs.iter().any(|output| output.activated() || !output.edits.is_empty())
@@ -38,7 +39,7 @@ fn disabled_changes_nothing(subject: &Subject) -> Result<(), String> {
         let plan = subject.base(story).plan;
         // One fixture takes every drive: a disabled story that acts on one is an error at once, so a drive that
         // passes leaves it as it was for the next.
-        let mut driven = for_input(Fixture::story_scoped(story, |scope| scope.enabled = Some(false)));
+        let mut driven = for_input(StoryHarness::story_scoped(story, |scope| scope.enabled = Some(false)));
         for variant in variants(plan, subject.probe).into_iter().filter(|variant| !cancels(plan, *variant)) {
             let fixture = &mut driven;
             let before = fixture.data().snapshot();
@@ -48,11 +49,11 @@ fn disabled_changes_nothing(subject: &Subject) -> Result<(), String> {
                 return Err(format!("{}: a disabled story acted on drive {variant}", story.name));
             }
         }
-        let mut fixture = for_input(Fixture::story_scoped(story, |scope| scope.enabled = Some(false)));
-        fixture.key(Key::Tab, Modifiers::NONE);
+        let mut fixture = for_input(StoryHarness::story_scoped(story, |scope| scope.enabled = Some(false)));
+        fixture.key(Key::Tab, Mods::NONE);
         fixture.settle();
         let explanation = {
-            let tree = fixture.tree();
+            let tree = &fixture.tree();
             tree.keys()
                 .into_iter()
                 .find_map(|key| tree.data_of(key).and_then(|node| node.description()).filter(|text| !text.is_empty()).map(str::to_owned))
@@ -92,7 +93,7 @@ fn read_only_changes_nothing(subject: &Subject) -> Result<(), String> {
         let plan = subject.base(story).plan;
         // One fixture takes every drive: a read-only story that acts on one is an error at once, so a drive that
         // passes leaves it as it was for the next.
-        let mut driven = for_input(Fixture::story_scoped(story, |scope| scope.read_only = Some(true)));
+        let mut driven = for_input(StoryHarness::story_scoped(story, |scope| scope.read_only = Some(true)));
         for variant in variants(plan, subject.probe).into_iter().filter(|variant| !cancels(plan, *variant)) {
             let fixture = &mut driven;
             let before = fixture.data().snapshot();
@@ -102,10 +103,10 @@ fn read_only_changes_nothing(subject: &Subject) -> Result<(), String> {
                 return Err(format!("{}: a read-only story acted on drive {variant}", story.name));
             }
         }
-        let mut fixture = for_input(Fixture::story_scoped(story, |scope| scope.read_only = Some(true)));
-        let tree = fixture.tree();
+        let mut fixture = for_input(StoryHarness::story_scoped(story, |scope| scope.read_only = Some(true)));
+        let tree = &fixture.tree();
         let reports = tree.keys().into_iter().any(|key| tree.data_of(key).is_some_and(|node| node.is_read_only()));
-        let focusable = tree.keys().into_iter().any(|key| tree.declares_key(key, Declared::Focus) && is_interactive(tree, key));
+        let focusable = tree.keys().into_iter().any(|key| tree.declares_key(key, Action::Focus) && is_interactive(tree, key));
         if !reports {
             return Err(format!("{}: no node reports read-only", story.name));
         }
@@ -117,8 +118,8 @@ fn read_only_changes_nothing(subject: &Subject) -> Result<(), String> {
         }
         if matches!(subject.probe.input, Input::Editor) {
             fixture.type_text("typed");
-            fixture.key(Key::Backspace, Modifiers::NONE);
-            fixture.key(Key::Delete, Modifiers::NONE);
+            fixture.key(Key::Backspace, Mods::NONE);
+            fixture.key(Key::Delete, Mods::NONE);
             if acted(&mut fixture, &before) {
                 return Err(format!("{}: a read-only editor took typing or deletion", story.name));
             }
@@ -129,12 +130,12 @@ fn read_only_changes_nothing(subject: &Subject) -> Result<(), String> {
 
 /// Whether the node lies in document space, whose coordinates are data and do not mirror: a node inside a canvas, or
 /// a graphics object (a graph node) with its ports. A canvas's own chrome and the area around it mirror.
-fn in_document_space(tree: &AccessTree, key: NodeKey) -> bool {
+fn in_document_space(tree: &AccessView, key: accesskit::NodeId) -> bool {
     let mut at = Some(key);
     let mut inside = false;
     while let Some(node) = at {
         let role = tree.role_of(node);
-        if role == Some(Role::GRAPHICS_OBJECT) || (inside && role == Some(Role::CANVAS)) {
+        if role == Some(Role::GraphicsObject) || (inside && role == Some(Role::Canvas)) {
             return true;
         }
         inside = true;
@@ -159,24 +160,24 @@ pub fn rtl_case(story: &Story) -> Result<(), String> {
 }
 
 /// `story` settled in `direction`.
-fn shown_in(story: &Story, direction: Direction) -> Fixture {
-    let mut fixture = Fixture::story(story);
+fn shown_in(story: &Story, direction: Direction) -> StoryHarness {
+    let mut fixture = StoryHarness::story(story);
     fixture.direction(direction);
     fixture.settle();
     fixture
 }
 
 /// The right-to-left case for `story`, whose settled left-to-right fixture is `ltr`.
-fn rtl_from(story: &Story, ltr: &Fixture) -> Result<(), String> {
+fn rtl_from(story: &Story, ltr: &StoryHarness) -> Result<(), String> {
     let rtl = shown_in(story, Direction::Rtl);
-    let own = (root_target(ltr).rect, root_target(&rtl).rect);
+    let own = (root_target(ltr).bounds, root_target(&rtl).bounds);
     if (own.0.width() - own.1.width()).abs() > 0.5 {
         return Err(format!("{}: the component's width differs between directions", story.name));
     }
     // Each node is reflected within the component's own rect, then carried to the component's rect in the other
     // direction: `mirrored` reflects across the middle of this span.
-    let within = egui::Rect::from_min_max(own.0.min, egui::pos2(own.1.max.x, own.0.max.y));
-    let tree = ltr.tree();
+    let within = craft_ui_rt::Rect::from_min_max(own.0.min, craft_ui_rt::pos2(own.1.max.x, own.0.max.y));
+    let tree = &ltr.tree();
     for key in tree.keys().into_iter().filter(|key| is_interactive(tree, *key) && !in_document_space(tree, *key) && !tree.in_ltr_axis(*key)) {
         let (Some(a), Some(b)) = (tree.bounds_of(key), rtl.tree().bounds_of(key)) else { continue };
         if !mirrored(a, b, within) {
@@ -186,9 +187,9 @@ fn rtl_from(story: &Story, ltr: &Fixture) -> Result<(), String> {
     Ok(())
 }
 
-fn bounds_after_drive(story: &Story, subject: &Subject, motion: MotionMode) -> Vec<Vec<egui::Rect>> {
+fn bounds_after_drive(story: &Story, subject: &Subject, motion: MotionMode) -> Vec<Vec<craft_ui_rt::Rect>> {
     let plan = subject.base(story).plan;
-    let mut fixture = Fixture::story(story);
+    let mut fixture = StoryHarness::story(story);
     fixture.motion(motion);
     fixture.settle();
     if let Some(variant) = variants(plan, subject.probe).into_iter().find(|variant| !cancels(plan, *variant)) {
@@ -197,7 +198,7 @@ fn bounds_after_drive(story: &Story, subject: &Subject, motion: MotionMode) -> V
     let mut frames = Vec::new();
     for _ in 0..4 {
         fixture.idle(1);
-        frames.push(fixture.shape_bounds().to_vec());
+        frames.push(fixture.shape_bounds());
     }
     frames
 }
@@ -210,7 +211,7 @@ fn motion_modes_settle(subject: &Subject) -> Result<(), String> {
             return Err(format!("{}: under Off the painted shapes still change after the drive", story.name));
         }
         let plan = subject.base(story).plan;
-        let mut fixture = Fixture::story(story);
+        let mut fixture = StoryHarness::story(story);
         fixture.motion(MotionMode::Reduced);
         fixture.settle();
         if let Some(variant) = variants(plan, subject.probe).into_iter().find(|variant| !cancels(plan, *variant)) {
@@ -218,7 +219,7 @@ fn motion_modes_settle(subject: &Subject) -> Result<(), String> {
         }
         let first = fixture.shown();
         fixture.idle(4);
-        if fixture.shown().min != first.min {
+        if fixture.shown().map(|shown| shown.min) != first.map(|shown| shown.min) {
             return Err(format!("{}: under Reduced the shown area travelled from {first:?} to {:?}", story.name, fixture.shown()));
         }
     }
@@ -243,7 +244,7 @@ fn hosts() -> Option<(Arc<craft_host::Host>, Arc<craft_host::Host>)> {
 fn a_language_change_keeps_the_ids(subject: &Subject) -> Result<(), String> {
     let Some((english, japanese)) = hosts() else { return Err("the suite's language catalogs did not build".to_owned()) };
     for story in &subject.stories {
-        let mut fixture = Fixture::story(story);
+        let mut fixture = StoryHarness::story(story);
         fixture.host(english.clone());
         fixture.settle();
         let id = fixture.root_id();
@@ -255,7 +256,7 @@ fn a_language_change_keeps_the_ids(subject: &Subject) -> Result<(), String> {
         if fixture.passes() != 1 {
             return Err(format!("{}: a settled frame ran {} passes after the language changed", story.name, fixture.passes()));
         }
-        let found = violations(fixture.ctx(), fixture.tree());
+        let found = violations(&fixture.tree());
         if !found.is_empty() {
             return Err(format!("{}: {found:?}", story.name));
         }

@@ -47,5 +47,7 @@ update = ["craft-ui-gallery/update"]
 craft-behavior = { workspace = true }
 craft-ui = { workspace = true, features = ["app", "testing"] }
 craft-ui-gallery = { path = "../ui-gallery", default-features = false }
-egui = { workspace = true }
+craft-theme = { workspace = true }
+craft-ui-render-epaint = { workspace = true }
+craft-ui-rt = { workspace = true }
 image = { version = "0.25", default-features = false, features = ["png"] }

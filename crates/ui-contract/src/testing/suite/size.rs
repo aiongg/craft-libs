@@ -2,13 +2,13 @@
 //! it; a narrow room elides with the full text as the accessible name.
 
 use super::{ANY, Case, Subject};
-use crate::runtime::egui::widgets::{self, ScrollRegion};
-use crate::runtime::env::Scale;
-use crate::testing::fixture::Fixture;
+use crate::contract::rt::harness::ScrollRegion;
+use crate::testing::paint::PaintedText;
 use crate::testing::relations::{grows_with, inside};
 use crate::testing::story::Story;
+use crate::testing::story_run::StoryHarness;
 use craft_theme::{Size, TextSize};
-use egui::{Rect, Vec2};
+use craft_ui_rt::{Rect, Vec2};
 
 pub(super) const CASES: &[Case] = &[
     Case::new("text-size", ANY, stories_grow_with_text_density_and_scale),
@@ -21,12 +21,12 @@ pub(super) const CASES: &[Case] = &[
 struct Shot {
     shown: Rect,
     layers: Vec<Rect>,
-    runs: Vec<crate::runtime::egui::fixture::PaintedText>,
+    runs: Vec<PaintedText>,
     scrolls: Vec<ScrollRegion>,
 }
 
-fn shot(story: &Story, change: &dyn Fn(&mut Fixture)) -> Shot {
-    let mut fixture = Fixture::story(story);
+fn shot(story: &Story, change: &dyn Fn(&mut StoryHarness)) -> Shot {
+    let mut fixture = StoryHarness::story(story);
     change(&mut fixture);
     fixture.settle();
     Shot::of(&fixture)
@@ -34,14 +34,14 @@ fn shot(story: &Story, change: &dyn Fn(&mut Fixture)) -> Shot {
 
 impl Shot {
     /// What the settled `fixture` shows.
-    fn of(fixture: &Fixture) -> Shot {
-        let layers = crate::runtime::overlay::open_entries(fixture.ctx()).into_iter().filter(|entry| !entry.window).map(|entry| entry.rect).collect();
-        Shot { shown: fixture.shown(), layers, runs: fixture.texts().to_vec(), scrolls: widgets::scroll_regions(fixture.ctx()) }
+    fn of(fixture: &StoryHarness) -> Shot {
+        let layers = fixture.layers().into_iter().map(|layer| layer.rect).collect();
+        Shot { shown: fixture.shown().unwrap_or(Rect::NOTHING), layers, runs: fixture.texts(), scrolls: fixture.scroll_regions() }
     }
 
     /// The texts this shot shows whole, in paint order, with their rects.
     fn whole_texts(&self) -> Vec<(&str, Rect)> {
-        self.runs.iter().filter(|run| !run.elided && !run.text.trim().is_empty()).map(|run| (run.text.as_str(), run.rect)).collect()
+        self.runs.iter().filter(|run| !run.elided && !run.text.trim().is_empty()).map(|run| (run.text.as_str(), run.bounds)).collect()
     }
 
     /// Whether `rect`, painted under `clip`, lies whole inside its clip and in what the story shows: its shown rect, or
@@ -120,7 +120,7 @@ fn text_size_from(story: &Story, base: Shot) -> Result<(), String> {
     variants.push((
         "scale 2",
         shot(story, &|f| {
-            f.scale(Scale(2.0));
+            f.pixels_per_point(2.0);
         }),
     ));
     let (before, after) = (base.shown.size(), |shot: &Shot| shot.shown.size());
@@ -132,11 +132,11 @@ fn text_size_from(story: &Story, base: Shot) -> Result<(), String> {
         if !(grows_with(before.x - slack, size.x) && (moved || grows_with(before.y - slack, size.y))) {
             return Err(format!("{}: under {name} the size went from {before:?} to {size:?}", story.name));
         }
-        for run in base.runs.iter().filter(|run| !run.elided && !run.text.trim().is_empty() && base.keeps(run.rect, run.clip)) {
+        for run in base.runs.iter().filter(|run| !run.elided && !run.text.trim().is_empty() && base.keeps(run.bounds, run.clip)) {
             for same in grown.runs.iter().filter(|other| other.text == run.text) {
                 // A run the component painted elided is shortened by design and keeps its full text in the access name
                 // (the elision rule checks that), so it is not cut; it must still stay inside its part.
-                if !grown.keeps(same.rect, same.clip) {
+                if !grown.keeps(same.bounds, same.clip) {
                     return Err(format!("{}: under {name} the text `{}` leaves its part", story.name, run.text));
                 }
             }
@@ -151,12 +151,12 @@ fn text_size_from(story: &Story, base: Shot) -> Result<(), String> {
 fn a_tiny_room_breaks_nothing(subject: &Subject) -> Result<(), String> {
     let point = (!subject.runs("paints-inside")).then_some(Vec2::splat(1.0));
     for story in &subject.stories {
-        let width = subject.base(story).fixture.shown().width();
+        let width = subject.base(story).fixture.shown().map_or(0.0, |shown| shown.width());
         for room in point.into_iter().chain([Vec2::new((width / 2.0).max(1.0), 300.0)]) {
-            let mut fixture = Fixture::story(story);
+            let mut fixture = StoryHarness::story(story);
             fixture.room(room);
             fixture.settle();
-            let tree = fixture.tree();
+            let tree = &fixture.tree();
             if tree.keys().into_iter().filter_map(|key| tree.bounds_of(key)).any(|bounds| !(bounds.min.is_finite() && bounds.max.is_finite())) {
                 return Err(format!("{}: a node has non-finite bounds in a room of {room:?}", story.name));
             }
@@ -169,14 +169,14 @@ fn a_tiny_room_breaks_nothing(subject: &Subject) -> Result<(), String> {
 /// description: a cut label is the node's name, a cut description its description.
 fn elided_text_keeps_its_full_name(subject: &Subject) -> Result<(), String> {
     for story in &subject.stories {
-        let width = subject.base(story).fixture.shown().width();
+        let width = subject.base(story).fixture.shown().map_or(0.0, |shown| shown.width());
         if width < 40.0 {
             continue;
         }
-        let mut fixture = Fixture::story(story);
+        let mut fixture = StoryHarness::story(story);
         fixture.room(Vec2::new(width / 3.0, 300.0));
         fixture.settle();
-        let tree = fixture.tree();
+        let tree = &fixture.tree();
         let read: Vec<&str> = tree.keys().into_iter().flat_map(|key| [tree.name_of(key), tree.description_of(key)]).flatten().collect();
         for run in fixture.texts().iter().filter(|run| run.elided) {
             if !read.iter().any(|text| text.contains(run.text.trim())) {
