@@ -22,7 +22,7 @@ use craft_behavior::{
 };
 use craft_keymap::Mods;
 use craft_ui_rt::text_edit::{EditConfig, TextEdit};
-use craft_ui_rt::{Gesture, Pos2, Rect};
+use craft_ui_rt::{Gesture as PointerGesture, Pos2, Rect};
 use std::any::Any;
 use std::sync::Arc;
 
@@ -130,7 +130,7 @@ fn run_selections(core: &mut CxCore<'_>, selections: &[SelectDecl]) -> Option<Ke
             let at = *pos + origin;
             let geometry = placed.geometry(&state.edit);
             match gesture {
-                Gesture::Down { clicks } => {
+                PointerGesture::Down { clicks } => {
                     let selection = state.edit.selection();
                     let hit = placed.layout.to_text(geometry.hit(at));
                     // A secondary press inside the selection keeps it for the menu it opens.
@@ -143,11 +143,11 @@ fn run_selections(core: &mut CxCore<'_>, selections: &[SelectDecl]) -> Option<Ke
                         focused = Some(decl.part);
                     }
                 }
-                Gesture::DragStart { .. } | Gesture::Drag { .. } => {
+                PointerGesture::DragStart { .. } | PointerGesture::Drag { .. } => {
                     state.edit.drag(&decl.text, &geometry, at, &config);
                 }
-                Gesture::Up { .. } | Gesture::Cancel(_) => state.edit.release(),
-                Gesture::LongPress => {}
+                PointerGesture::Up { .. } | PointerGesture::Cancel(_) => state.edit.release(),
+                PointerGesture::LongPress => {}
             }
         }
         if focused == Some(decl.part) {

@@ -760,20 +760,21 @@ pub(crate) fn run_shaped<C: Component>(
     // The size cache holds only this run's size.
     kept.sizes.clear();
     kept.sizes.push((place.room, size));
+    // The run's context facts, taken before `finish` consumes the core's borrow.
+    let (late, made, watch) = (cxx.core.run.context_asks.take(), cxx.core.run.context_made.get(), cxx.core.run.context_watch.get());
     let out = component.finish(cxx);
     for target in focus_moves {
         super::ids::request_focus(cx, target);
     }
     // Context requests: asks made after the context step (item content) come back as this node's own input in a
     // build of this frame; the run's requests go to the watches above; a read of the requests below keeps the watch.
-    let late = core.run.context_asks.take();
     kept.queue.extend(late.iter().map(|&rect| NodeInput::ContextRequest { id, rect }));
     if !late.is_empty() {
         cx.rebuild();
     }
-    let requests: Vec<(Id, Rect)> = core.run.context_made.get().into_iter().chain(late).map(|rect| (id, rect)).collect();
+    let requests: Vec<(Id, Rect)> = made.into_iter().chain(late).map(|rect| (id, rect)).collect();
     super::node::DescendantWatch::note_context(cx, &requests);
-    kept.context_watch = core.run.context_watch.get();
+    kept.context_watch = watch;
     super::node::DescendantWatch::after_build(kept, cx);
     if let Some(rect) = reveal
         && flow_reveal.is_none()
