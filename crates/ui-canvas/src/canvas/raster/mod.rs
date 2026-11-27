@@ -20,6 +20,7 @@ pub(crate) mod stories;
 
 pub use detail::{DetailPlan, snap_to_texels};
 
+use crate::contract::MemoProps as _;
 use super::{AppPaint, PixelRect, RasterSource, canvas_space};
 use crate::contract::{Access, Common, Component, Cx, NoValue, Outcome, PaintUi, Props as _, Role};
 use crate::primitives::textures::UNTINTED;
@@ -50,6 +51,7 @@ pub struct RasterStyle {
 /// How far a display's picture reaches past the document's edge.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[non_exhaustive]
+#[derive(crate::contract::MemoProps)]
 pub enum Extent {
     /// The document alone.
     #[default]
@@ -289,6 +291,7 @@ pub struct RasterDisplay<'a> {
     #[prop(flag, name = "picture")]
     under_controls: bool,
     read: PixelRect,
+    #[key(skip)] // what update leaves for paint, written by the run
     shown: Option<Shown>,
     mapping: Option<Mapping>,
 }
@@ -296,6 +299,7 @@ pub struct RasterDisplay<'a> {
 /// Where a mapped display's picture lies in document space; a source picture is drawn through the homography on a
 /// mesh of cells instead of as a flat quad.
 #[derive(Clone, Copy, Debug)]
+#[derive(crate::contract::MemoProps)]
 struct Mapping {
     frame: Homography,
     cells: u32,
@@ -675,4 +679,13 @@ fn mapped_mesh(view: &CanvasView, texture: CachedTexture, factor: u32, size: Pix
         }
     }
     Shape::mesh(mesh)
+}
+
+impl crate::contract::MemoProps for Picture<'_> {
+    fn key(&self, key: &mut crate::contract::MemoKey) {
+        match self {
+            Picture::Source(source) => (0u8, source.size(), source.revision()).key(key),
+            Picture::Painted { size, paint } => (1u8, *size, paint).key(key),
+        }
+    }
 }

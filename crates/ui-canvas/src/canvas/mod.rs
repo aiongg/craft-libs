@@ -190,6 +190,7 @@ pub struct Canvas<'a> {
     /// The bounds Fit Layers on Screen shows, asked only in the pass that runs the command. Without it Fit Layers is
     /// disabled for this canvas.
     #[prop]
+    #[key(by = self.layer_bounds.as_ref().map(|bounds| bounds()))] // asked each build: a pure query
     layer_bounds: Option<LayerBounds<'a>>,
     /// View commands the app asks of this canvas's view (a menu row or an action step it runs, a new document's fit):
     /// the canvas runs them in this pass, in order and before the ones fired to it, as it runs those. A
@@ -204,10 +205,12 @@ pub struct Canvas<'a> {
     navigation: NavigationOptions,
     /// The rulers along the top and left edges (View > Rulers), which the canvas shows itself: the view lies inside
     /// them ([`with_rulers`](Self::with_rulers)).
+    #[key(by = self.strips.as_ref().map(crate::contract::KeyOf))]
     strips: Option<Rulers<'a>>,
     /// Whether the strips show; the rulers' own output of this pass is [`CanvasOutput::rulers`].
     strips_shown: bool,
     /// What the rulers reported in this pass, from the paint step.
+    #[key(skip)] // the rulers' output, written by the run
     ruler_output: Option<RulersOutput>,
     /// Whether the canvas leaves Page Up, Page Down, Home, End and the arrows to its body: it applies no page keys,
     /// which its body reads in [`CanvasSpace::keys`], and the arrows reach the body's tool host and session controls
@@ -238,6 +241,7 @@ pub struct Canvas<'a> {
     #[prop]
     editor_command_keys: bool,
     /// The editor part's inputs of this pass, taken once in `update`: `tool_pass` is built from a shared `Cx`.
+    #[key(skip)] // the input events of this pass; an input marks the node
     editor_input: Arc<[EditorInput]>,
     /// The rulers' units and zero point, published to the body in its [`CanvasSpace`].
     rulers: Option<CanvasRulers>,
@@ -248,6 +252,7 @@ pub struct Canvas<'a> {
     /// the tool ([`ToolContext::snap`]). The canvas sets its tolerance each pass from the view it shows. Without it
     /// nothing snaps.
     #[prop]
+    #[key(skip)] // read when input is handled; an input marks the node
     snap: Option<Snap>,
     /// The pasteboard colour, set once here; the pasteboard and the crop shield read it from the space.
     #[prop]
@@ -257,6 +262,7 @@ pub struct Canvas<'a> {
     #[prop]
     precise_cursors: bool,
     /// The view of this pass, after the canvas folded in its input.
+    #[key(skip)] // the view of this pass, written by the run
     settled: Option<Settled>,
     /// The Menu key or Shift+F10 reached the focused canvas this pass.
     context_key: bool,
@@ -278,6 +284,7 @@ pub struct Canvas<'a> {
     #[prop]
     tool_regions: Vec<ToolRegion>,
     /// The slot the body's paint reserved for the picture, published in the [`CanvasSpace`]; none in a measuring pass.
+    #[key(skip)] // the slot the body reserved while painting
     picture: Option<crate::primitives::PaintSlot>,
 }
 

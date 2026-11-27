@@ -39,6 +39,7 @@ impl TickEdge {
 /// component set ([`RulerFace::of`]); the face changes the arrangement only, every value still comes from the same
 /// tokens.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(crate::contract::MemoProps)]
 pub enum RulerFace {
     /// Marks rise from the strip's inner edge, a major one across the strip's depth, and each number sits beside its
     /// major mark.
@@ -144,6 +145,7 @@ impl Tick {
 /// app sets any of them from its preferences.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 #[non_exhaustive]
+#[derive(crate::contract::MemoProps)]
 pub struct Checker {
     /// The side of a cell, in points.
     pub size: Option<f32>,
@@ -467,6 +469,7 @@ const MAX_DOUBLINGS: u32 = 32;
 /// What a grid does when its lines come closer than the minimum step.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
+#[derive(crate::contract::MemoProps)]
 pub enum GridCrowding {
     /// Draws nothing for an axis whose lines are too close.
     #[default]

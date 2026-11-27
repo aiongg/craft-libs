@@ -684,6 +684,7 @@ impl ToolClaims {
 /// ([`CanvasTool::regions`]): a polygon in document units.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
+#[derive(crate::contract::MemoProps)]
 pub struct ToolRegion {
     /// The corners in order, in document units.
     pub points: Vec<Point>,

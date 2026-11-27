@@ -71,22 +71,31 @@ pub struct FullWindowDialog<'a> {
     /// Binds the open state to `open`.
     #[prop(name = "opened")]
     open: Option<Bind<'a, bool>>,
+    #[key(by = self.revision)]
     footer: Option<FooterFn<'a>>,
     /// Lets the host act on a picked button and refuse its close: `allows` gets every picked button but `Cancel`
     /// and the dialog's body context, so a host reads and writes its kept state, and returns whether a button that
     /// closes the dialog may. On `false` the dialog stays open, with `DialogOutput::picked` still
     /// reporting the pick; the host shows why. A button marked `stays_open` never closes, whatever it returns.
     #[prop(boxed = "FnMut(&FooterButton, &mut BodyCx<'_>) -> bool + 'a", name = "close_guard")]
+    #[key(skip)] // a callback on a pick; it produces no content
     guard: Option<GuardFn<'a>>,
     /// Sets the buttons' state each pass; see `Dialog::settle_buttons`.
     #[prop(boxed = "FnMut(&mut BodyCx<'_>, &mut [FooterButton]) + 'a", name = "settle_buttons")]
+    #[key(skip)] // a callback on the buttons; it produces no content
     settle: Option<SettleFn<'a>>,
     /// Acts on a picked footer button in the footer step, before the close is decided: `act` gets the button and the
     /// dialog's body context. `ResetFooter::install` sets it.
     #[prop(boxed = "FnMut(&FooterButton, &mut BodyCx<'_>) + 'a", name = "on_pick")]
+    #[key(skip)] // a callback on a pick; it produces no content
     on_pick: Option<OnPickFn<'a>>,
     buttons: Vec<FooterButton>,
+    /// The host's version of what its `footer`, `sides` and `side_footer` closures show: they run again when it moves.
+    #[prop]
+    revision: u64,
+    #[key(by = self.revision)]
     sides: Option<SidesFn<'a>>,
+    #[key(by = self.revision)]
     side_footer: SideFooter<'a>,
     /// Whether the title row has a close action.
     #[prop]
@@ -111,6 +120,7 @@ impl<'a> FullWindowDialog<'a> {
             common: Common::new(),
             props,
             open: None,
+            revision: 0,
             footer: None,
             guard: None,
             settle: None,

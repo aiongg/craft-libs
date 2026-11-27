@@ -10,6 +10,7 @@ use egui::Color32;
 /// theme, chosen to read on the dark preview box; `Custom` is a colour from the app's picker, kept as 8-bit sRGB.
 /// Serialised by variant name, `Custom` as `{ Custom = [r, g, b] }`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(crate::contract::MemoProps)]
 pub enum ProxyColor {
     /// The default proxy colour.
     #[default]

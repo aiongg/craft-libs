@@ -2,6 +2,7 @@
 //! moves the view, a drag of the proxy moves it by the distance dragged, a Cmd/Ctrl-drag zooms to the rectangle, the
 //! wheel and `+` and `-` zoom about the view centre, and the arrow and page keys move it.
 
+use crate::contract::MemoProps as _;
 use super::proxy::{preview_rect, proxy_quad, view_center_for, zoom_to_document_rect};
 use crate::canvas::AppPaint;
 use crate::canvas::zoom_motion::{self, Steer};
@@ -536,5 +537,18 @@ impl Outcome for NavigatorOutput {
     #[cfg(feature = "testing")]
     fn story_facts(&self) -> crate::testing::StoryOutput {
         self.view.story_facts()
+    }
+}
+
+impl crate::contract::MemoProps for NavigatorPreview<'_> {
+    fn key(&self, key: &mut crate::contract::MemoKey) {
+        match self {
+            NavigatorPreview::Texture(texture) => {
+                (0u8, crate::primitives::texture_key(texture.id).0, texture.size.width, texture.size.height, texture.origin, texture.page.width, texture.page.height)
+                    .key(key);
+            }
+            NavigatorPreview::Paint(paint) => (1u8, paint).key(key),
+            NavigatorPreview::None => 2u8.key(key),
+        }
     }
 }

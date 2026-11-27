@@ -19,6 +19,7 @@ use egui::{Color32, CornerRadius, Pos2, Response, Vec2};
 /// An alignment line of [`SmartGuides`], in document coordinates.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
+#[derive(crate::contract::MemoProps)]
 pub struct SmartLine {
     /// One end of the line.
     pub a: Point,
@@ -57,6 +58,7 @@ impl SmartLine {
 /// A distance of [`SmartGuides`]: a line with end caps and a label, in document coordinates.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
+#[derive(crate::contract::MemoProps)]
 pub struct Measure {
     /// One end of the distance.
     pub a: Point,

@@ -41,6 +41,7 @@ const SCREEN_PPI: f64 = 72.0;
 /// command runs.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
+#[derive(crate::contract::MemoProps)]
 pub struct ViewTarget {
     /// The document's size, in document units.
     pub document: Size,
@@ -123,6 +124,7 @@ fn with_area(rect: Option<Rect>) -> Option<Rect> {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, craft_ui_macros::CommandSet)]
 #[command(prefix = "canvasView", scope = "canvasView")]
 #[non_exhaustive]
+#[derive(crate::contract::MemoProps)]
 pub enum ViewCommands {
     /// Zoom in to the next step of the zoom ladder about the view's centre.
     #[command(label = "Zoom In", modal = "in_dialogs", default = "Cmd+=", default = "Cmd++")]
@@ -260,6 +262,7 @@ impl ViewCommands {
 /// A view command an app asks of its canvas ([`Canvas::queued`](super::Canvas::queued)).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
+#[derive(crate::contract::MemoProps)]
 pub enum ViewRequest {
     /// A command the user gave (a menu row, an action step): it eases under Animated Zoom, as its chord does.
     Command(ViewCommands),

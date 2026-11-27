@@ -1,5 +1,6 @@
 //! `HoverMask`: an object's coverage, reduced for the hover tint.
 
+use crate::contract::MemoProps as _;
 use crate::primitives::Serials;
 use craft_behavior::kurbo::Rect;
 use std::sync::Arc;
@@ -85,5 +86,12 @@ impl HoverMask {
     /// The key of the mask's texture in the texture store.
     pub(super) fn generation(&self) -> u64 {
         self.generation
+    }
+}
+
+impl crate::contract::MemoProps for HoverMask {
+    /// By the generation: two masks are the same sampling when it is equal.
+    fn key(&self, key: &mut crate::contract::MemoKey) {
+        self.generation.key(key);
     }
 }

@@ -182,6 +182,7 @@ impl CoverageMask {
 /// What the trail shows its footprint as.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
+#[derive(crate::contract::MemoProps)]
 pub enum TrailTone {
     /// The marquee's colour.
     #[default]
@@ -214,6 +215,7 @@ pub struct StrokeTrailStyle {
 pub struct StrokeTrail<'a> {
     #[common]
     common: Common,
+    #[key(by = (self.mask.id, self.mask.revision))]
     mask: &'a mut CoverageMask,
     /// What the footprint shows as.
     #[prop]

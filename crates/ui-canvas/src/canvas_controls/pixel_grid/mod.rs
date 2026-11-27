@@ -106,6 +106,7 @@ pub struct PixelGridStyle {
 pub struct PixelGrid<'a> {
     #[common]
     common: Common,
+    #[key(by = (self.source.size(), self.source.revision()))]
     source: &'a dyn RasterSource,
 }
 

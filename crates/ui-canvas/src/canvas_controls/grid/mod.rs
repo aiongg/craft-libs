@@ -27,6 +27,7 @@ const MAX_CROSSINGS: usize = 200_000;
 /// How the grid's lines are drawn.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[non_exhaustive]
+#[derive(crate::contract::MemoProps)]
 pub enum GridLine {
     /// An unbroken line.
     #[default]

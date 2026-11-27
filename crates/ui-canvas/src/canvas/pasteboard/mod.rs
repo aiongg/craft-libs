@@ -34,6 +34,7 @@ const QUAD: PartKey = PartKey::new("quad");
 /// The pasteboard's colour.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 #[non_exhaustive]
+#[derive(crate::contract::MemoProps)]
 pub enum PasteboardColor {
     /// The canvas surround: the theme's canvas surface and its pattern.
     #[default]
@@ -67,6 +68,7 @@ impl PasteboardColor {
 /// The border around each page.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[non_exhaustive]
+#[derive(crate::contract::MemoProps)]
 pub enum PageBorder {
     /// The floating surface's soft shadow, offset down; a plain offset copy of the page while the view is turned.
     #[default]
@@ -80,6 +82,7 @@ pub enum PageBorder {
 /// How the edges of artboards (pages marked with [`PageFrame::active()`]) show which one is active.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[non_exhaustive]
+#[derive(crate::contract::MemoProps)]
 pub enum ArtboardEdge {
     /// The active artboard's edge in `accent.solid`, the others in `line.border`, all at `stroke.thin`.
     #[default]
@@ -97,6 +100,7 @@ const PLAIN_OTHER: DataColor = DataColor::new(Color32::from_gray(120));
 /// What fills a page under the document.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
+#[derive(crate::contract::MemoProps)]
 pub enum PageFill {
     /// A plain colour: an artboard's background.
     Color(DataColor),
@@ -107,6 +111,7 @@ pub enum PageFill {
 /// One page or artboard on the pasteboard, in document units.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
+#[derive(crate::contract::MemoProps)]
 pub struct PageFrame {
     /// The page's rectangle in document space.
     pub rect: DocRect,
@@ -248,6 +253,7 @@ pub struct Pasteboard<'a> {
     /// The page whose name is being renamed, read from the rename's memory in `update`.
     renaming_at: Option<usize>,
     name_clicked: Option<(usize, Mods)>,
+    #[key(skip)] // the rename event the run reports
     rename: Option<EditEvent<Rename<usize>>>,
     context_at: Option<Point>,
 }

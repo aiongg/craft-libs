@@ -200,12 +200,14 @@ pub struct CropOverlay<'a> {
     /// What the crop is bounded by: the document, or one placed picture's source.
     #[prop]
     scope: CropScope,
+    #[key(skip)] // the overlay's output, written by the run
     report: Report,
 }
 
 /// What a press outside a crop frame does.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
+#[derive(crate::contract::MemoProps)]
 pub enum CropOutside {
     /// The press turns the frame.
     #[default]
@@ -219,6 +221,7 @@ pub enum CropOutside {
 /// What a crop is of.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 #[non_exhaustive]
+#[derive(crate::contract::MemoProps)]
 pub enum CropScope {
     /// The document.
     #[default]

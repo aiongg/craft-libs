@@ -37,6 +37,7 @@ const MAX_SEGMENT_POINTS: f64 = 1000.0;
 /// What a click under the pointer would pick, in document units.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
+#[derive(crate::contract::MemoProps)]
 pub enum HoverShape {
     /// A layer's or group's bounds: the line sits just outside the rectangle, so it never covers the layer's edge
     /// pixels.
@@ -51,6 +52,7 @@ pub enum HoverShape {
 /// How a [`SelectionOutline`] strokes its shapes.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[non_exhaustive]
+#[derive(crate::contract::MemoProps)]
 pub enum SelectionOutlineLook {
     /// A thin line: the selected paths of a vector or design app.
     #[default]

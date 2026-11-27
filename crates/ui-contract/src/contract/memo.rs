@@ -1159,6 +1159,12 @@ macro_rules! derived_hash {
 }
 
 derived_hash!(
+    craft_behavior::PointerButton,
+    craft_behavior::NavMove,
+    craft_behavior::geometry::Homography,
+    craft_behavior::geometry::CropGuide,
+    craft_behavior::geometry::GuideShow,
+    craft_behavior::dock::Arrangement,
     craft_window::Button,
     craft_behavior::CommandFlags,
     craft_behavior::CursorIcon,
@@ -1205,6 +1211,68 @@ macro_rules! dock_tree {
 }
 
 dock_tree!(Column, Group, Node, Layout, Floating, StackEntry);
+
+/// Plain value types with no `Hash`, by their `Debug` text.
+macro_rules! debug_key {
+    ($($t:ty),* $(,)?) => {
+        $(impl MemoProps for $t {
+            fn key(&self, key: &mut MemoKey) {
+                key.feed_hash(format!("{self:?}").as_str());
+            }
+        })*
+    };
+}
+
+debug_key!(craft_behavior::canvas::RulerUnits, craft_behavior::MoveMods);
+
+/// A component value held by another component's props, keyed by its own `ComponentKey`.
+pub struct KeyOf<'a, C: ComponentKey>(pub &'a C);
+
+impl<C: ComponentKey> MemoProps for KeyOf<'_, C> {
+    fn key(&self, key: &mut MemoKey) {
+        self.0.key(key);
+    }
+}
+
+impl MemoProps for craft_behavior::geometry::CropBox {
+    fn key(&self, key: &mut MemoKey) {
+        (self.rect, self.angle).key(key);
+    }
+}
+
+impl MemoProps for craft_behavior::kurbo::Point {
+    fn key(&self, key: &mut MemoKey) {
+        (self.x, self.y).key(key);
+    }
+}
+
+impl MemoProps for craft_behavior::kurbo::Vec2 {
+    fn key(&self, key: &mut MemoKey) {
+        (self.x, self.y).key(key);
+    }
+}
+
+impl MemoProps for craft_behavior::kurbo::Rect {
+    fn key(&self, key: &mut MemoKey) {
+        (self.x0, self.y0, self.x1, self.y1).key(key);
+    }
+}
+
+/// A path by its elements.
+impl MemoProps for craft_behavior::kurbo::BezPath {
+    fn key(&self, key: &mut MemoKey) {
+        use craft_behavior::kurbo::PathEl;
+        for element in self.elements() {
+            match *element {
+                PathEl::MoveTo(a) => (0u32, a).key(key),
+                PathEl::LineTo(a) => (1u32, a).key(key),
+                PathEl::QuadTo(a, b) => (2u32, a, b).key(key),
+                PathEl::CurveTo(a, b, c) => (3u32, a, b, c).key(key),
+                PathEl::ClosePath => 4u32.key(key),
+            }
+        }
+    }
+}
 
 impl MemoProps for crate::contract::IdSource {
     fn key(&self, key: &mut MemoKey) {

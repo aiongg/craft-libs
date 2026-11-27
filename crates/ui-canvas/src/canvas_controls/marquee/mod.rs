@@ -21,6 +21,7 @@ const HALO_ALPHA: f32 = 0.55;
 /// How a marquee is drawn.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 #[non_exhaustive]
+#[derive(crate::contract::MemoProps)]
 pub enum MarqueeLook {
     /// Marching ants laid out in device pixels, for selections, marquee drags and zoom boxes.
     #[default]
@@ -38,6 +39,7 @@ pub enum MarqueeLook {
 /// What a marquee outlines, in document units.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
+#[derive(crate::contract::MemoProps)]
 pub enum MarqueeShape {
     /// A rectangle.
     Rect(Rect),

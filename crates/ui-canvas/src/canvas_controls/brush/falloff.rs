@@ -19,6 +19,7 @@ const MOST_SEGMENTS: usize = 160;
 /// units), sampled at [`RINGS`](Self::RINGS) + 1 rings. The engine supplies the numbers
 /// ([`sampled`](Self::sampled)); an app without an engine uses [`from_hardness`](Self::from_hardness).
 #[derive(Clone, Debug, PartialEq)]
+#[derive(crate::contract::MemoProps)]
 pub struct TipFalloff {
     core: f64,
     reach: f64,
