@@ -28,6 +28,12 @@ impl Intents {
         self.items.push((intent, false));
     }
 
+    /// Queues the reset a label asks of its control: it resets the whole binding (`take_reset` gives `Some(true)`).
+    pub(crate) fn push_whole_reset(&mut self) {
+        self.push(Intent::Reset);
+        self.whole_reset = true;
+    }
+
     /// Takes the next typed digit.
     pub fn take_digit(&mut self) -> Option<u8> {
         let at = self.items.iter().position(|(item, taken)| !taken && matches!(item, Intent::Digit(_)))?;

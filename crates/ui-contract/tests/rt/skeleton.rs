@@ -117,6 +117,13 @@ impl Stack {
         self
     }
 
+    /// Shows `text` as the side label of the stack's controls.
+    pub fn labelled(mut self, text: &str) -> Stack {
+        self.common.label = text.into();
+        self.props = self.props.label(SideLabel::default());
+        self
+    }
+
     /// Shows the stack with `body` as its children.
     pub fn show<R>(self, ui: &mut Ui<'_, '_>, mut body: impl FnMut(&mut Ui<'_, '_>) -> R) -> R {
         ShowContainer::show(self, ui, |ui, _| body(ui)).inner.expect("a stack shows its body")

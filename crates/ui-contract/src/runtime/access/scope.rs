@@ -1,7 +1,7 @@
 use crate::primitives::Id;
 use craft_behavior::PressState;
 use craft_theme::Flags;
-use craft_ui_rt::{BuildCx, Rect, State};
+use craft_ui_rt::{BuildCx, Rect, State, Vec2};
 
 /// Whether a field label names its control or describes it.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
@@ -32,6 +32,8 @@ pub struct FieldLabel {
     pub role: FieldLabelRole,
     /// A line that joins the controls' description, not their name.
     pub detail: Option<String>,
+    /// The control the label names: it shows the label's press and hover as its own (`FieldLabel::names`).
+    pub(crate) control: Id,
     /// The label was clicked or activated this pass: focus goes to its control.
     pub activated: bool,
     /// The label is a link and was clicked this pass: the control's host is told (`Cx::link_activated`), focus stays.
@@ -44,8 +46,8 @@ pub struct FieldLabel {
     /// The rect the label offers its control as part of the control's hit target: the label (without its reset dot)
     /// of a leaf label step whose child draws only its mark (`Component::LABELLED_AFTER`).
     pub(crate) claim: Option<Rect>,
-    /// A double click on the label's name or a click on its reset dot asked the control to reset this pass.
-    pub(crate) reset: bool,
+    /// A double click on the label's name or a click on its reset dot asked the control to reset (`ask_reset`).
+    pub(crate) reset: Option<ResetAsk>,
     /// The cell the control writes what its label shows of it (`ScopeFacts`).
     pub(crate) facts: Option<State<ScopeFacts>>,
 }
@@ -61,12 +63,13 @@ impl FieldLabel {
             text: text.into(),
             role: FieldLabelRole::Names,
             detail: None,
+            control: Id::NULL,
             activated: false,
             link: false,
             status: false,
             shown: true,
             claim: None,
-            reset: false,
+            reset: None,
             facts: None,
         }
     }
@@ -127,10 +130,26 @@ impl FieldLabel {
         self
     }
 
+    /// The label names the control `control` and the pointer is over it or presses it.
+    pub(crate) fn hover_of(&self, control: Id) -> (bool, bool) {
+        let own = self.control == control;
+        (own && self.hovered, own && self.pressed())
+    }
+
     /// The label is held down or being dragged.
     pub fn pressed(&self) -> bool {
         self.press.phase.is_press()
     }
+}
+
+/// One reset the label asked of its control. The label keeps it in its env until it runs again, so the control tells a
+/// reset it has run from one it has not by the serial.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct ResetAsk {
+    /// The control that registered the reset (`ResetFact::control`).
+    pub control: Id,
+    /// Counts the resets asked in the label scope, so each ask differs from the one before.
+    pub serial: u64,
 }
 
 /// What a merged container adds to its child's node.
@@ -151,6 +170,27 @@ pub(crate) struct ScopeFacts {
     /// The child of the control whose stop a click on the label focuses, in place of the control's own
     /// (`PaintUi::label_target`).
     pub target: Option<Id>,
+    /// Where the control's first line sits, from its top, as its last paint left it; `None` before its first paint.
+    pub line: Option<ControlLine>,
+}
+
+/// The line a side label aligns to, measured from the control's top.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum ControlLine {
+    /// The control's first text baseline.
+    Baseline(f32),
+    /// The centre line of a control that paints no text; the label's text is centred on it.
+    Centre(f32),
+}
+
+impl ControlLine {
+    /// The baseline, from the control's top, a label of size `label` with baseline `label_baseline` lines up with.
+    pub(crate) fn baseline(self, label: Vec2, label_baseline: f32) -> f32 {
+        match self {
+            ControlLine::Baseline(baseline) => baseline,
+            ControlLine::Centre(centre) => centre + label_baseline - label.y / 2.0,
+        }
+    }
 }
 
 /// What a control tells its label scope about its reset (10.2).
@@ -203,4 +243,48 @@ pub(crate) fn note_scrub(core: &crate::contract::CxCore<'_>) {
 /// Names `target`, a child of the control the label `label` names, as the one a click on the label focuses.
 pub(crate) fn note_label_target(label: Option<&FieldLabel>, target: Id) {
     note_in(label, move |facts| facts.target = Some(target));
+}
+
+/// The running control's first line, from its top, as its paint left it: the first text baseline, or the centre of a
+/// control that painted none. Written after the paint, so the label places itself by it from the next run on; the
+/// facts cell changes only when the line moves.
+pub(crate) fn note_line(core: &crate::contract::CxCore<'_>) {
+    let line = match core.paint.borrow().baseline {
+        Some(y) => ControlLine::Baseline(y - core.rect.min.y),
+        None => ControlLine::Centre(core.rect.height() / 2.0),
+    };
+    note(core, move |facts| facts.line = Some(line));
+}
+
+/// How many resets the label scope `scope` has asked; kept for the session, so a label that shows again carries on
+/// counting.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct AskedResets(u64);
+
+/// The last reset ask a control ran.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct RanReset(u64);
+
+/// A reset the label of scope `scope` asks of `control`, a click on its dot or a double click on its name.
+pub(crate) fn ask_reset(ctx: &crate::contract::Context, scope: Id, control: Id) -> ResetAsk {
+    let serial = crate::runtime::memory::with_session::<AskedResets, _>(ctx, crate::runtime::memory::sub(scope, "resets"), |asked| {
+        asked.0 += 1;
+        asked.0
+    });
+    ResetAsk { control, serial }
+}
+
+/// Queues the whole-binding `Intent::Reset` on the running control when its label asked it a reset the control has not
+/// run yet, once per ask: a run for another reason finds the same ask in the env and queues nothing.
+pub(crate) fn push_label_reset(core: &mut crate::contract::CxCore<'_>) {
+    if core.run.measuring {
+        return;
+    }
+    let Some(ask) = core.env.field_label().and_then(|label| label.reset).filter(|ask| ask.control == core.id) else { return };
+    let key = crate::runtime::memory::sub(core.id, "reset-ran");
+    let fresh =
+        crate::runtime::memory::with_session::<RanReset, _>(&core.run.context, key, |ran| std::mem::replace(&mut ran.0, ask.serial) != ask.serial);
+    if fresh {
+        core.intents.push_whole_reset();
+    }
 }

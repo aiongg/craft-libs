@@ -507,6 +507,7 @@ pub(crate) fn run_shaped<C: Component>(
     core.faded = facts.faded && !resolved.enabled;
     core.focus = super::focus::facts(&kept.focus, focused, interact.focus_visible);
     core.intents = super::intents::of_queue(core.run.input, |sub| kept.parts.iter().find(|p| p.id == sub).map(|p| p.part), || rtl);
+    crate::runtime::access::scope::push_label_reset(&mut core);
     let mut cxx = Cx {
         core: &mut core,
         style,
@@ -535,6 +536,7 @@ pub(crate) fn run_shaped<C: Component>(
     }
     kept.parts = steps::kept_parts(&parts, rect.min);
     kept.sense = sense;
+    kept.claim = cxx.core.env.field_label().and_then(|label| label.claim).map(|claim| claim.translate(Pos2::ZERO - rect.min));
     kept.sweep = sweep;
     kept.toggle = component.sweep_value();
     kept.cursor = component.cursor().as_ref().map(super::cursor::platform);
@@ -609,6 +611,7 @@ pub(crate) fn run_shaped<C: Component>(
     let host = RunHost::new(cx, run_flow(id, rect.min, place.room, tokens.clone(), None), context.clone(), begun.env.clone());
     let (variants, values) = record_variants(&mut component, &mut cxx, &host, begun, own, &kept.parts, open, &*hooks);
     kept.variants = variants;
+    crate::runtime::access::scope::note_line(cxx.core);
     if shaped {
         let mut lent: &RunHost<'_, '_> = &host;
         crate::contract::paint_ui::host_ui(&mut lent, |ui| hooks.content(&mut component, ui, &begun.env, &mut cxx, &values));
@@ -991,9 +994,11 @@ fn record_variants<C: Component>(
         });
         (variant, children, read)
     };
-    let current = if now.pressed && takes_press {
+    // The label that names the control shows its press and hover as the control's own.
+    let (label_hover, label_press) = cxx.core.env.field_label().map_or((false, false), |label| label.hover_of(cxx.core.id));
+    let current = if (now.pressed || label_press) && takes_press {
         Pointer::Press
-    } else if now.hovered {
+    } else if now.hovered || label_hover || label_press {
         Pointer::Hover
     } else {
         Pointer::Rest

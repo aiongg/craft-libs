@@ -458,8 +458,10 @@ impl<C: Component> Cx<'_, C> {
     /// Lays document `text` out `text.wrap` wide: the call `ContentPainterCx::layout` and `MeasureCx::layout_doc`
     /// make, so `update` finds a character at a point in the galley that `paint` draws.
     pub fn layout_doc(&self, text: &crate::primitives::DocText<'_>) -> TextLayout {
-        let context = self.core.context();
-        text.layout(context, &Env::of_root(context).tokens, craft_i18n::Direction::Ltr)
+        let _ = text;
+        todo!(
+            "Cx::layout_doc: the run lends no text services to `update` (the build is borrowed per call by RunHost); needs a lead decision, INT-1a4 Left 1"
+        )
     }
 
     /// Whether the control's link label was clicked in this pass.
