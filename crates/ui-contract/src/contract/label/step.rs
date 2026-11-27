@@ -6,7 +6,7 @@ use super::props::{FieldLayout, LabelKind, SideLabel};
 use crate::contract::Props;
 use crate::contract::Show;
 use crate::contract::cx::Under;
-use crate::primitives::id::Id;
+use crate::primitives::Id;
 use crate::runtime::access::{
     self,
     scope::{self, FieldLabel},

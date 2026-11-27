@@ -1,7 +1,7 @@
 //! `Common`, `Props`, `Resolved` and `Tooltip` (chapter 3).
 
 use super::{IdSource, Internal, Meta, Sizing};
-use crate::primitives::id::Id;
+use crate::primitives::Id;
 use crate::runtime::commands::{CommandRef, CommandScope};
 use crate::runtime::env::Label;
 use crate::style::GlyphRole;

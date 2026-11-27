@@ -6,7 +6,7 @@
 
 use crate::runtime::egui::focus as egui_focus;
 
-use crate::primitives::id::Id;
+use crate::primitives::Id;
 use craft_behavior::PartRef;
 pub use craft_behavior::Roving;
 pub use policy::{ActivateKeys, EditSet, EndKey, EnterRule, FocusPolicy, FocusRequest, FocusTarget, Initial, KeepKeys, KeyUse, NudgeMods, TabReach};

@@ -6,7 +6,7 @@
 use crate::runtime::drag;
 use crate::runtime::egui::areas;
 
-use crate::primitives::id::Id;
+use crate::primitives::Id;
 use craft_behavior::{Buttons, MultiTap, MultiTouch, PartRef, PointerButton, PointerEvent, PointerKind, PointerSample, PressStart, Shape, Winner};
 use craft_keymap::Mods;
 use craft_ui_rt::{Pos2, Rect, Vec2};

@@ -2,7 +2,7 @@
 //! name them; the module is crate-private, so no other path reaches them.
 
 use super::{KeyUse, Roving, StopKey};
-use crate::primitives::id::Id;
+use crate::primitives::Id;
 use craft_behavior::{KeyRole, PartRef};
 
 /// A stop as registered at step 7 of the pipeline.

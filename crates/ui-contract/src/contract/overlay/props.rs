@@ -2,7 +2,7 @@
 
 use super::opener::{Opener, Trigger};
 use super::place::{Anchor, FloatPlace, OverlayFit, Place, Resize, ResizeEdges, SizeLimits, ViewportShare};
-use crate::primitives::id::Id;
+use crate::primitives::Id;
 use crate::runtime::access::PopupKind;
 use crate::runtime::focus::{FocusPolicy, Initial};
 use crate::runtime::motion::{MotionSpec, spec};

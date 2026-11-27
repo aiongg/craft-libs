@@ -4,7 +4,7 @@
 //! the only one that calls `runtime::egui::access`, which writes nodes and makes the parent and focus calls. One
 //! `report` per node kind fills a node; `runtime::access::{item, text}` add theirs beside `report` and `report_sub`.
 
-use crate::primitives::id::Id;
+use crate::primitives::Id;
 use crate::runtime::egui::access::NodeRole;
 pub use crate::runtime::egui::access::bounds;
 use crate::runtime::env::Label;

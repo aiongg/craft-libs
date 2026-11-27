@@ -1,6 +1,6 @@
 //! The clipboard handle `Commands::clipboard` returns, over the clipboard `runtime::egui::clipboard` keeps installed.
 
-use crate::primitives::id::Id;
+use crate::primitives::Id;
 use crate::runtime::egui::clipboard;
 use crate::runtime::keys;
 use crate::runtime::pending::Pending;

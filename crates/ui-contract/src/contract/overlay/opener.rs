@@ -3,7 +3,7 @@
 use super::place::{Anchor, Place};
 use super::popups::with_popups;
 use super::props::Overlay;
-use crate::primitives::id::Id;
+use crate::primitives::Id;
 use crate::runtime::egui::areas::{self};
 use crate::runtime::egui::response;
 use crate::runtime::{keys, pointer};

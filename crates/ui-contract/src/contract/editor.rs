@@ -4,7 +4,7 @@
 
 use super::Component;
 use super::cx::{Cx, Edit as _, PartsCx};
-use crate::primitives::id::Id;
+use crate::primitives::Id;
 use crate::primitives::{EditorPurpose, EditorState, ImeStamp, ImeSurface};
 use crate::runtime::access::text::{self as text_access, Line, Run, TextFacts};
 

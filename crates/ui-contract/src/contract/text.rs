@@ -7,7 +7,7 @@
 
 use super::cx::{Cx, CxCore, PartsCx, RecordedText, gesture_key};
 use super::{Component, Edit as _, Focus as _, Overlays as _, ValueOf};
-use crate::primitives::id::Id;
+use crate::primitives::Id;
 use crate::primitives::text_adapter::{self as adapter, End, TextState};
 use crate::primitives::{TextKey, TextOptions, TextOutcome, TextRun, Wrap};
 use crate::runtime::access::text as text_access;

@@ -1,6 +1,6 @@
 //! Focus scopes, key use and the programmatic focus target (spec 9.3, 9.4).
 
-use crate::primitives::id::Id;
+use crate::primitives::Id;
 use craft_behavior::{CancelRule, DocKey, EditCommand, Input, OwnerClass, PartRef, ScopeKind};
 use craft_keymap::{Chord, Mods};
 

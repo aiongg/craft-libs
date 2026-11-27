@@ -2,7 +2,7 @@
 //! contract findings. The region's record is what the debug inspector draws: every component shown in it
 //! with its box and access facts, the hit areas the sensing core registered and the focus stops in Tab order.
 
-use crate::primitives::id::Id;
+use crate::primitives::Id;
 use crate::runtime::egui::areas;
 use crate::runtime::egui::areas::Layer;
 use crate::runtime::egui::sizing::{Rerun, request_discard};

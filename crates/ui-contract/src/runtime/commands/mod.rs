@@ -29,7 +29,7 @@ pub(crate) use keymap::{BuiltKeymap, build_keymap, keymap_for};
 pub use keymap::{chord_text_builds, keymap_builds};
 
 use crate::contract::{MemoKey, MemoProps, PlainData, Revision, Tracked};
-use crate::primitives::id::Id;
+use crate::primitives::Id;
 use crate::runtime::egui::areas::{self, LayerKey};
 use crate::runtime::egui::pass;
 use crate::runtime::env::Label;

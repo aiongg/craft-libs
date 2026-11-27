@@ -1,4 +1,4 @@
-use crate::primitives::id::Id;
+use crate::primitives::Id;
 use craft_behavior::PressState;
 use craft_theme::Flags;
 use craft_ui_rt::Rect;

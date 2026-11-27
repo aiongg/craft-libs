@@ -3,7 +3,7 @@
 use super::opener::{Opener, Opening, Trigger};
 use super::popups::{HOLD, PopupHandle, dwell, with_popups};
 use crate::contract::{Component, Cx};
-use crate::primitives::id::Id;
+use crate::primitives::Id;
 use crate::runtime::frame;
 use crate::runtime::memory::{MemoryStage, sub};
 use crate::runtime::overlay::{self};

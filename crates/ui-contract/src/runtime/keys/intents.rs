@@ -2,7 +2,7 @@
 
 use super::route::push;
 use super::{Nudge, Source};
-use crate::primitives::id::Id;
+use crate::primitives::Id;
 use crate::runtime::focus;
 use craft_behavior::{EditCommand, EditorInput, Intent, NavMove, PartRef};
 use craft_keymap::{Chord, Mods};
