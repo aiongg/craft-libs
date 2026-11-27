@@ -203,6 +203,9 @@ pub(crate) struct Kept {
     pub(crate) place: Place,
     pub(crate) size: Vec2,
     pub(crate) sense: Sense,
+    /// The label's rect, in node coordinates, a control that draws only its mark offers as part of its hit target
+    /// (`FieldLabel::claim`): it takes the node's own sense and lies outside the node's bounds.
+    pub(crate) claim: Option<craft_ui_rt::Rect>,
     /// Empty until the first run; one entry when the paint read no pointer state.
     pub(crate) variants: smallvec::SmallVec<[Variant; 1]>,
     pub(crate) parts: Vec<KeptPart>,
@@ -295,6 +298,7 @@ impl Kept {
             place: Place::default(),
             size: Vec2::ZERO,
             sense: Sense::empty(),
+            claim: None,
             variants: smallvec::SmallVec::new(),
             parts: Vec::new(),
             access: None,
@@ -463,6 +467,9 @@ impl Element for ComponentNode {
             edit.paint(cx);
         }
         super::cursor::record_own_shape(kept, cx);
+        if let Some(claim) = kept.claim.filter(|_| !kept.sense.is_empty()) {
+            cx.hit(HitShape::Rect(claim), kept.sense, 0);
+        }
         if kept.close_guard {
             cx.close_guard();
         }

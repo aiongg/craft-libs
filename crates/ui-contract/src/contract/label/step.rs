@@ -62,7 +62,8 @@ pub(crate) struct LabelIn<'a> {
 /// The label fact the scope records: the name's text, and the detail and the help line (resolved) as the control's
 /// description.
 fn field_label(env: &Env, input: &LabelIn<'_>, id: Id, rect: Rect) -> FieldLabel {
-    let label = FieldLabel::new(id, rect, input.text.as_str()).role(input.side.role).status(input.status);
+    let mut label = FieldLabel::new(id, rect, input.text.as_str()).role(input.side.role).status(input.status);
+    label.control = input.control;
     let described: Vec<String> =
         [input.side.detail.as_ref(), input.help].into_iter().flatten().map(|text| env.view().resolve(text).as_str().to_owned()).collect();
     if described.is_empty() { label } else { label.detail(described.join(". ")) }
@@ -291,7 +292,7 @@ fn decide_step(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Decided {
     // The label's node is a child of the node that shows it, so its access node sits under that node's.
     let kid_env = crate::contract::cx::child_env(env, &Under::new(input.enabled, input.size));
     let glyph = leaf.glyph.is_some();
-    let mut placed = Env::run_in(ui, kid_env.clone(), |kids| decide(&ctx, env, input, kids, &mut leaf, glyph, flow));
+    let mut placed = Env::run_in(ui, kid_env.clone(), |kids| decide(&ctx, env, input, kids, &mut leaf, glyph, flow, facts_read.line));
     if input.trailing.x > 0.0 {
         // The label without its reset dot, which keeps its own press; the content sits at its end, on the first line.
         let (_, unslotted) = Flow::new(placed.label, rtl).take_end(slot);
@@ -346,7 +347,10 @@ fn show(ui: &mut Ui, env: &Env, input: &LabelIn<'_>, decided: Decided, trailing:
         .activated(activated)
         .linked(shown.activated && linked);
     // A double click on the name or a click on the reset dot resets the control that registered the reset.
-    label.reset = reset.is_some() && (shown.double_click || shown.dot_click);
+    label.reset = reset
+        .as_ref()
+        .filter(|_| shown.double_click || shown.dot_click)
+        .map(|fact| crate::runtime::access::scope::ask_reset(ui.ctx(), input.scope, fact.control));
     label.claim = input.claims.then(|| unslotted.rect());
     label.facts = Some(cell);
     (placed, label)

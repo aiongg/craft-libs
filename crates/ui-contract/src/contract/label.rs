@@ -17,4 +17,4 @@ pub use props::{
     CaptionColumn, CaptionInk, CellWidth, FieldLayout, GlyphColon, GlyphLabel, InsideLabel, LabelKind, LabelPress, LabelScheme, LinkLabelInk,
     LinkLabelUnderline, Scrub, SideLabel,
 };
-pub(crate) use step::{LabelIn, LeafLabel, Trailing, flow_leaf, in_column, leaf, leaf_under, report_after_reach, run, show_leaf_in_flow};
+pub(crate) use step::{LabelIn, LeafLabel, Trailing, flow_leaf, in_column, leaf, leaf_under, run, show_leaf_in_flow};

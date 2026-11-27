@@ -16,6 +16,7 @@ mod input;
 mod int5b;
 mod items;
 mod keys;
+mod label;
 mod layout;
 mod memory;
 mod motion;

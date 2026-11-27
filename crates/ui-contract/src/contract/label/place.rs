@@ -4,7 +4,7 @@ use super::leaf::{LabelLeaf, colon};
 use super::props::{CaptionColumn, FieldLayout, LabelKind, LabelScheme};
 use super::step::LabelIn;
 use crate::contract::{Context, Show, Ui};
-use crate::runtime::access::scope::scope_facts;
+use crate::runtime::access::scope::{ControlLine, scope_facts};
 use crate::runtime::env::Env;
 use craft_behavior::{ColumnWidth, Flow, LabelColumn};
 use craft_ui_rt::{Align, Rect, Vec2};
@@ -25,8 +25,8 @@ pub(crate) struct Placed {
 /// The `After` placement: the control's cell first, then the gap, then the label. A leaf control (a box, circle or
 /// track has no text baseline) and its label are centred on each other across the row. For a field's control, as in
 /// `LabelColumn::place`, the one with the lower baseline moves down so the two baselines line up, using the baseline
-/// `record_control_baseline` stored last pass.
-fn place_after(ctx: &Context, input: &LabelIn<'_>, flow: Flow, gap: f32, label: Vec2, label_baseline: f32, first_line: f32) -> Placed {
+/// `ControlLine` the control's last paint left in the scope's facts.
+fn place_after(input: &LabelIn<'_>, flow: Flow, gap: f32, label: Vec2, label_baseline: f32, first_line: f32, line: Option<ControlLine>) -> Placed {
     let rtl = flow.is_rtl();
     let (control_cell, rest) = flow.take_start(input.control_min.min(flow.rect().width()));
     let (_, rest) = rest.take_start(gap);
@@ -39,7 +39,7 @@ fn place_after(ctx: &Context, input: &LabelIn<'_>, flow: Flow, gap: f32, label: 
         let control = control_cell.translate(Vec2::new(0.0, (line - control_cell.height()) / 2.0));
         return Placed { label, control, trailing: Rect::NOTHING, caption: 0.0 };
     }
-    let control_baseline = crate::layout::control_baseline(ctx, input.scope, label, label_baseline);
+    let control_baseline = line.map(|line| line.baseline(label, label_baseline));
     let drop = control_baseline.map_or(0.0, |control| control - label_baseline);
     let (label_drop, control_drop) = (drop.max(0.0), (-drop).max(0.0));
     let label_size = Vec2::new(label_width, label.y);
@@ -80,7 +80,16 @@ fn after_indent(ctx: &Context, env: &Env, input: &LabelIn<'_>, gap: f32) -> f32 
 
 /// Decides where the label and the control of `input` sit, from `input.control_min`, `input.room` and the group's
 /// label column. Shows and records nothing.
-pub(super) fn decide(ctx: &Context, env: &Env, input: &LabelIn<'_>, kids: &mut Ui, leaf: &mut LabelLeaf, glyph: bool, flow: Flow) -> Placed {
+pub(super) fn decide(
+    ctx: &Context,
+    env: &Env,
+    input: &LabelIn<'_>,
+    kids: &mut Ui,
+    leaf: &mut LabelLeaf,
+    glyph: bool,
+    flow: Flow,
+    line: Option<ControlLine>,
+) -> Placed {
     let rtl = env.direction.is_rtl();
     let gap = label_gap(env);
     let indent = after_indent(ctx, env, input, gap);
@@ -146,15 +155,14 @@ pub(super) fn decide(ctx: &Context, env: &Env, input: &LabelIn<'_>, kids: &mut U
 
     if input.side.layout == FieldLayout::After {
         let flow = if indent > 0.0 { flow.take_start(indent).1 } else { flow };
-        place_after(ctx, input, flow, gap, natural, baseline, leaf.first_line.get())
+        place_after(input, flow, gap, natural, baseline, leaf.first_line.get(), line)
     } else {
-        let placed = crate::layout::place_label(
-            &*kids,
-            input.scope,
-            &LabelColumn::new(column, if stacks { f32::INFINITY } else { 0.0 }, gap),
+        let label = natural.min(Vec2::new(column, natural.y));
+        let placed = LabelColumn::new(column, if stacks { f32::INFINITY } else { 0.0 }, gap).place(
             flow,
-            natural.min(Vec2::new(column, natural.y)),
+            label,
             baseline,
+            line.map(|line| line.baseline(label, baseline)),
         );
         let mut label = placed.label;
         // The scheme decides where a beside label sits in its column: against the control in a form, at the row's
@@ -205,7 +213,8 @@ pub(crate) fn control_after(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Plac
     if input.side.shows_no_leaf(content) {
         return Placed { label: Rect::NOTHING, control: hidden_control(&ctx, input, flow, label_gap(env)), trailing: Rect::NOTHING, caption: 0.0 };
     }
-    let reset = scope_facts(ui.build_cx(), input.scope).1.reset;
+    let facts = scope_facts(ui.build_cx(), input.scope).1;
+    let (reset, line) = (facts.reset, facts.line);
     let slot = if reset.is_some() && input.side.reset_dot { env.tokens.size.handle.sm } else { 0.0 };
     let mut leaf = LabelLeaf::new(input.side.kind.shown(input.text).clone(), slot);
     leaf.resettable = reset.is_some();
@@ -222,6 +231,6 @@ pub(crate) fn control_after(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Plac
     }
     let glyph = leaf.glyph.is_some();
     let kid_env = crate::contract::cx::child_env(env, &crate::contract::cx::Under::new(input.enabled, input.size));
-    let placed = Env::run_in(ui, kid_env, |kids| decide(&ctx, env, input, kids, &mut leaf, glyph, flow));
+    let placed = Env::run_in(ui, kid_env, |kids| decide(&ctx, env, input, kids, &mut leaf, glyph, flow, line));
     placed
 }
