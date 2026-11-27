@@ -19,7 +19,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use craft_behavior::keys::intent;
 use craft_behavior::{Intent, KeyRole, NavOutline, NavStep, Roving, ScopeKind};
-use craft_ui_rt::{BuildCx, EventCx, Handled, Key, KeyInput, NodeId, Rect, Runtime, Stroke};
+use craft_ui_rt::{BuildCx, EventCx, Handled, Key, KeyInput, NodeId, Rect, Runtime, Stroke, WindowId};
 
 use super::node::{ComponentNode, Kept, ScopeNode};
 use super::overlay::LayerScope;
@@ -405,19 +405,43 @@ pub(crate) fn trap_tab(own: &Kept, is_layer: bool, cx: &mut EventCx<'_>, k: &Key
     Handled::Yes
 }
 
-/// A pane move: the next pane after the one focus is in, at its stop that had focus last (else its first).
+/// A pane move from the window root's key stage ([`pane_target`]).
 fn pane_step(root: &Kept, cx: &mut EventCx<'_>, forward: bool) -> Handled {
-    let Some(walk) = window_walk(root, cx) else { return Handled::No };
+    match pane_target(cx.runtime(), cx.window(), Some((cx.node(), root)), cx.focused(), forward) {
+        PaneMove::NoPanes => Handled::No,
+        PaneMove::Stay => Handled::Yes,
+        PaneMove::To(node) => {
+            cx.focus_node(node);
+            Handled::Yes
+        }
+    }
+}
+
+/// Where a pane move lands ([`pane_target`]).
+pub(crate) enum PaneMove {
+    /// The window has no pane to move to.
+    NoPanes,
+    /// Focus stays where it is: inside a trapping scope, or no pane has a stop.
+    Stay,
+    /// The stop focus moves to.
+    To(NodeId),
+}
+
+/// The pane move of `window` from `focused`: the next pane after the one focus is in (`forward`, else the one
+/// before), at its stop that had focus last (else its first). `root` is the window root's node and kept outputs when
+/// its own handler asks (they are not in `rt` then); `None` reads them from `rt` (a menu pick or the palette).
+pub(crate) fn pane_target(rt: &Runtime, window: WindowId, root: Option<(NodeId, &Kept)>, focused: Option<NodeId>, forward: bool) -> PaneMove {
+    let Some(top) = rt.window_node(window) else { return PaneMove::NoPanes };
+    let walk = Walk::of(rt, top, root, false);
     // Inside a trapping scope (a modal dialog, a popup), also with nothing in it focused, F6 moves
     // nothing: a pane move would carry focus out of it, which only closing it may do.
-    let focused = cx.focused();
     if walk.top_trap().is_some() || walk.stops.iter().any(|s| Some(s.node) == focused && walk.trapped(s.scope, None)) {
-        return Handled::Yes;
+        return PaneMove::Stay;
     }
     let panes: Vec<usize> =
         (0..walk.scopes.len()).filter(|&i| walk.scopes[i].policy.kind == ScopeKind::Pane && !walk.trapped(Some(i), None)).collect();
     if panes.is_empty() {
-        return Handled::No;
+        return PaneMove::NoPanes;
     }
     let here = walk.stops.iter().find(|s| Some(s.node) == focused).and_then(|s| panes.iter().rposition(|&p| walk.within(s.scope, p)));
     let len = panes.len();
@@ -432,11 +456,10 @@ fn pane_step(root: &Kept, cx: &mut EventCx<'_>, forward: bool) -> Handled {
         let stops: Vec<&StopAt> = walk.stops.iter().filter(|s| walk.within(s.scope, pane) && !walk.trapped(s.scope, None)).collect();
         let target = stops.iter().filter(|s| s.seq > 0).max_by_key(|s| s.seq).or(stops.first());
         if let Some(t) = target {
-            cx.focus_node(t.node);
-            return Handled::Yes;
+            return PaneMove::To(t.node);
         }
     }
-    Handled::Yes
+    PaneMove::Stay
 }
 
 /// The members of a group, in tree order, as `NavOutline` positions.
