@@ -21,4 +21,5 @@ mod text_field;
 pub use doc::DocCell;
 pub use look::{pro_dark_tokens, thumb_side};
 pub use model::{Blend, Doc, DocSnapshot, Kind, Layer, LayerId, Op, SelectMode};
+pub use list::List;
 pub use panel::LayersPanel;
