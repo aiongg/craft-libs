@@ -40,7 +40,7 @@ use crate::contract::{
     QuietHeader, Response, Scroll, SectionRhythm, Sizing, TipFn, ValueOf, steps,
 };
 use crate::layout::{BodyLayout, ColumnGroup, GridFit, RowAlign};
-use crate::runtime::env::{Env, EnvScope, InBar};
+use crate::runtime::env::{Env, EnvScope, InBar, PaneEdge};
 use crate::runtime::memory::{MemoryStage, sub};
 use crate::runtime::motion::{Driver, spec};
 use crate::runtime::overlay::Overlay;
@@ -169,6 +169,8 @@ struct Shape {
     heads: bool,
     /// The labelled rows of the body share the widest label as one column (`ContainerProps::label_column`).
     label_column: bool,
+    /// The edge of an edge pane that faces the window's centre, where `ContainerProps::edge_rule` draws its divider.
+    edge_rule: Option<PaneEdge>,
 }
 
 impl Shape {
@@ -202,6 +204,16 @@ impl Shape {
             share: 1.0,
             heads: props.header.is_some_and(|h| h.heads && !h.rule) && env.get::<QuietHeader>() == QuietHeader::Heads,
             label_column: props.label_column,
+            edge_rule: match props.mount {
+                Mount::Pane(pane) if props.edge_rule => match pane.edge {
+                    PaneEdge::Start => Some(PaneEdge::End),
+                    PaneEdge::End => Some(PaneEdge::Start),
+                    PaneEdge::Top => Some(PaneEdge::Bottom),
+                    PaneEdge::Bottom => Some(PaneEdge::Top),
+                    PaneEdge::Center => None,
+                },
+                _ => None,
+            },
         }
     }
 
@@ -224,7 +236,14 @@ impl Shape {
     }
 
     fn has_regions(&self) -> bool {
-        self.header.is_some() || self.end.is_some() || self.footer.is_some() || self.scroll.is_some() || self.bands.top() > 0.0 || self.closed
+        self.header.is_some()
+            || self.end.is_some()
+            || self.footer.is_some()
+            || self.scroll.is_some()
+            || self.bands.top() > 0.0
+            || self.closed
+            || self.collapsing()
+            || self.edge_rule.is_some()
     }
 
     /// The container takes a share of what its parent's flow leaves along that flow's axis.
@@ -413,6 +432,7 @@ enum Region {
     RuleUnder,
     RuleFooter,
     RuleEnd,
+    RuleEdge,
 }
 
 /// A rule between regions: a band its node fills with the divider colour.
@@ -1286,13 +1306,27 @@ fn lay_out<C: Container>(
         true => end_bottom.max(below + footer_band) - inner.min.y,
         false => (end_bottom - inner.min.y) + footer_band,
     };
+    let size = shape.outer(Vec2::new(width, height), room);
+    // The divider along the edge of an edge pane that faces the window's centre (the start edge mirrors right to left).
+    if let Some(edge) = shape.edge_rule {
+        let thin = tokens.stroke.thin;
+        let start_left = !shape.rtl;
+        let rule = match edge {
+            PaneEdge::Top => Rect::from_min_size(origin, Vec2::new(size.x, thin)),
+            PaneEdge::Bottom => Rect::from_min_size(origin + Vec2::new(0.0, size.y - thin), Vec2::new(size.x, thin)),
+            PaneEdge::Start if start_left => Rect::from_min_size(origin, Vec2::new(thin, size.y)),
+            PaneEdge::End if !start_left => Rect::from_min_size(origin, Vec2::new(thin, size.y)),
+            _ => Rect::from_min_size(origin + Vec2::new(size.x - thin, 0.0), Vec2::new(thin, size.y)),
+        };
+        place(rule_node(cx, real, Region::RuleEdge, divider), rule);
+    }
     if let Some(kept) = into.kept
         && kept.placed != placed
     {
         kept.placed = placed;
         cx.request_layout();
     }
-    (shape.outer(Vec2::new(width, height), room), flow)
+    (size, flow)
 }
 
 /// The body's rect in the container's inner rect: as tall as `room_height` when the props give one.
