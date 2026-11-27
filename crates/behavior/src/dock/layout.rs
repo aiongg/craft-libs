@@ -454,3 +454,11 @@ impl<P: Clone + Eq + Hash> Layout<P> {
         Ok(())
     }
 }
+
+impl<P: std::hash::Hash> std::hash::Hash for Layout<P> {
+    /// What equality compares: the tree and the windows.
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.root.hash(state);
+        self.floating.hash(state);
+    }
+}

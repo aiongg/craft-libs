@@ -1193,6 +1193,19 @@ derived_hash!(
     craft_behavior::Sense,
 );
 
+/// The dock tree, by value: sizes by their bits (`craft_behavior::dock`'s `Hash`).
+macro_rules! dock_tree {
+    ($($t:ident),*) => {
+        $(impl<P: std::hash::Hash + Sync> MemoProps for craft_behavior::dock::$t<P> {
+            fn key(&self, key: &mut MemoKey) {
+                key.feed_hash(self);
+            }
+        })*
+    };
+}
+
+dock_tree!(Column, Group, Node, Layout, Floating, StackEntry);
+
 impl MemoProps for crate::contract::IdSource {
     fn key(&self, key: &mut MemoKey) {
         match self {

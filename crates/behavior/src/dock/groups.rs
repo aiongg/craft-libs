@@ -376,3 +376,32 @@ impl<P> Target<P> {
         Self::Float { rect, edge }
     }
 }
+
+/// A preferred size by its bits: a key over a layout moves when a size does.
+pub(super) fn hash_size<H: std::hash::Hasher>(size: Option<f32>, state: &mut H) {
+    use std::hash::Hash;
+    size.map(f32::to_bits).hash(state);
+}
+
+impl<P: std::hash::Hash> std::hash::Hash for Group<P> {
+    /// Every field, the sizes by their bits.
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.panels.hash(state);
+        self.active.hash(state);
+        self.minimized.hash(state);
+        for size in [self.height, self.flyout_width, self.flyout_offset] {
+            hash_size(size, state);
+        }
+    }
+}
+
+impl<P: std::hash::Hash> std::hash::Hash for Column<P> {
+    /// Every field, the sizes by their bits.
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.groups.hash(state);
+        hash_size(self.width, state);
+        self.iconic.hash(state);
+        hash_size(self.iconic_width, state);
+        self.steps.hash(state);
+    }
+}

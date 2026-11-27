@@ -410,3 +410,24 @@ mod tests {
         assert_eq!(monitor_of(std::slice::from_ref(&main), rect(3400.0, 100.0, 800.0, 600.0)), Some(&main), "past the right edge");
     }
 }
+
+impl std::hash::Hash for NormalRect {
+    /// The corner and size by their bits.
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.pos.map(f32::to_bits).hash(state);
+        self.size.map(f32::to_bits).hash(state);
+    }
+}
+
+impl std::hash::Hash for Placement {
+    /// Every field, the scales by their bits.
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.normal.hash(state);
+        self.position_px.hash(state);
+        self.scale.to_bits().hash(state);
+        self.zoom.to_bits().hash(state);
+        self.maximized.hash(state);
+        self.fullscreen.hash(state);
+        self.monitor.hash(state);
+    }
+}

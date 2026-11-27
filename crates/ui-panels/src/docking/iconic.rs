@@ -221,7 +221,7 @@ pub struct IconicColumnStyle {
 /// selected and the bar's chevron collapses the column; a click on an icon reports
 /// [`IconicColumnOutput::front`] and [`IconicColumnOutput::iconic`].
 #[derive(crate::contract::Component, crate::contract::Props)]
-#[component(container, overlay, unkeyed, probe(IconicColumn<'static, u8>))]
+#[component(container, overlay, probe(IconicColumn<'static, u8>))]
 pub struct IconicColumn<'a, P: Value + Hash + 'static> {
     #[common]
     common: Common,
@@ -267,7 +267,11 @@ pub struct IconicColumn<'a, P: Value + Hash + 'static> {
     #[prop]
     framed: bool,
     open: Bind<'a, Option<P>>,
-    #[key(skip)]
+    /// The host's version of what `view` shows in the flyouts: the view is a closure the key cannot read, so the flyouts
+    /// run again when this moves ([`views`](IconicColumn::views)).
+    #[prop]
+    views: u64,
+    #[key(by = self.views)]
     view: Option<FlyoutView<'a, P>>,
     /// The bar's rect this pass.
     bar_rect: Rect,
@@ -334,6 +338,7 @@ impl<'a, P: Value + Hash + Debug + 'static> IconicColumn<'a, P> {
             card: None,
             tab_look: PanelTabLook::Plain,
             framed: false,
+            views: 0,
             open,
             view: None,
             bar_rect: Rect::NOTHING,
