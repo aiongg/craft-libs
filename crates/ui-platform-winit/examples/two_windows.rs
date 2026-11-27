@@ -1,10 +1,11 @@
-//! Two windows on craft-ui-rt over the winit platform, with a placeholder renderer that records
-//! frames and draws nothing: the setup the renderer tasks extend. Each window shows a button that
-//! opens a popup layer and a text field that asks the platform for an IME session while focused.
-//! Printed: window creation, AT activation (per window), IME requests, text and popup events.
+//! Two windows on craft-ui-rt over the winit platform, drawn by one renderer. Each window shows a
+//! button that opens a popup layer and a text field that asks the platform for an IME session
+//! while focused. Printed: window creation, AT activation (per window), IME requests, text and
+//! popup events, and the frames each renderer presented.
 //!
-//! `cargo run -p craft-ui-platform-winit --example two_windows` (CRAFT_DEMO_EXIT_AFTER=<seconds>
-//! closes both windows after that long, for headless runs).
+//! `cargo run -p craft-ui-platform-winit --example two_windows -- [--renderer epaint|skia|skia-gpu|record]`
+//! (epaint by default; CRAFT_DEMO_EXIT_AFTER=<seconds> closes both windows after that long, for
+//! headless runs).
 
 use std::rc::Rc;
 use std::time::{Duration, Instant};
@@ -14,7 +15,7 @@ use craft_ui_platform_winit::{WinitPlatform, run};
 use craft_ui_rt::record::RecordingRenderer;
 use craft_ui_rt::{
     Align, BuildCx, Constraints, Driver, Element, Event, EventCx, Gesture, Handled, ImePurpose, Layer, LayerSpec, LayoutCx, OutsidePress, PaintCx,
-    Placement, Platform, Rect, Rgba, Runtime, Sense, Show, Side, State, Vec2, WindowCommand, WindowSpec,
+    Placement, Platform, Rect, Renderer, Rgba, Runtime, Sense, Show, Side, State, Vec2, WindowCommand, WindowSpec,
 };
 
 fn tokens() -> craft_ui_rt::Tokens {
@@ -220,7 +221,7 @@ impl Element for Root {
     }
 }
 
-fn open_window(d: &mut Driver<WinitPlatform, RecordingRenderer>, name: &'static str, position: craft_ui_rt::Pos2) {
+fn open_window<R: Renderer>(d: &mut Driver<WinitPlatform, R>, name: &'static str, position: craft_ui_rt::Pos2) {
     let open = d.runtime.store_mut().create(false);
     let spec = WindowSpec { size: Some(Vec2::new(360.0, 220.0)), position: Some(position), ..WindowSpec::new(name) };
     let id = d.open_window(&spec, Root { window: name, open, at_printed: Rc::default() });
@@ -228,11 +229,34 @@ fn open_window(d: &mut Driver<WinitPlatform, RecordingRenderer>, name: &'static 
 }
 
 fn main() {
+    let args: Vec<String> = std::env::args().collect();
+    let renderer = args.iter().position(|a| a == "--renderer").and_then(|i| args.get(i + 1)).map_or("epaint", String::as_str);
+    println!("renderer: {renderer}");
+    match renderer {
+        "epaint" => demo(|| {
+            use craft_ui_render_epaint::{EpaintOptions, EpaintRenderer, FontDefinitions};
+            // The demo lays out no text. No first window: the loop makes windows after setup.
+            EpaintRenderer::create_blocking(EpaintOptions::default(), FontDefinitions::empty(), None).expect("a wgpu adapter")
+        }),
+        #[cfg(not(target_arch = "wasm32"))]
+        "skia" => demo(|| craft_ui_render_skia::SkiaRenderer::new(Default::default())),
+        #[cfg(not(target_arch = "wasm32"))]
+        "skia-gpu" => demo(|| craft_ui_render_skia::SkiaRenderer::new_gpu(Default::default(), None).expect("a Vulkan or Metal device")),
+        "record" => demo(RecordingRenderer::default),
+        other => {
+            eprintln!("unknown renderer {other}: epaint, skia, skia-gpu or record");
+            std::process::exit(2);
+        }
+    }
+}
+
+fn demo<R: Renderer + 'static>(make: fn() -> R) {
     let exit_after = std::env::var("CRAFT_DEMO_EXIT_AFTER").ok().and_then(|v| v.parse::<f64>().ok());
     let started = Instant::now();
+    let mut presented = 0usize;
     let result = run(
         move |platform: WinitPlatform| async move {
-            let mut d = Driver::new(Runtime::new(tokens()), platform, RecordingRenderer::default());
+            let mut d = Driver::new(Runtime::new(tokens()), platform, make());
             open_window(&mut d, "left", craft_ui_rt::Pos2::new(60.0, 60.0));
             open_window(&mut d, "right", craft_ui_rt::Pos2::new(480.0, 60.0));
             if let Some(secs) = exit_after {
@@ -240,14 +264,23 @@ fn main() {
             }
             d
         },
-        move |d, _report| {
+        move |d, report| {
+            if report.windows_drawn > 0 {
+                presented += 1;
+                if presented <= 4 {
+                    println!(
+                        "frame drawn: {} window(s), {} lists prepared, {} reused",
+                        report.windows_drawn, report.render.prepared, report.render.reused
+                    );
+                }
+            }
             for window in d.runtime.take_close_requests() {
                 println!("{window:?}: close requested, closing");
                 d.platform.window(window, WindowCommand::Close);
             }
             if exit_after.is_some_and(|s| started.elapsed() >= Duration::from_secs_f64(s)) {
                 let monitors = d.platform.monitors().len();
-                println!("exit timer reached ({monitors} monitor(s)); closing every window");
+                println!("exit timer reached ({monitors} monitor(s), {presented} frames presented); closing every window");
                 for window in d.platform.surfaces().windows() {
                     d.platform.window(window, WindowCommand::Close);
                 }

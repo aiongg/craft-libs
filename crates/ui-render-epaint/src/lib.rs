@@ -281,7 +281,12 @@ impl EpaintRenderer {
             return None;
         };
         let surface_options = self.options.config.surface;
-        config.format = self.gpu.target_format;
+        let offered = surface.get_capabilities(&self.gpu.adapter).formats;
+        let Some(format) = swapchain_format(self.gpu.target_format, &offered) else {
+            log::error!("the surface offers none of the canvas format's twins: {offered:?}");
+            return None;
+        };
+        config.format = format;
         config.present_mode = surface_options.present_mode;
         config.desired_maximum_frame_latency = surface_options.desired_maximum_frame_latency.unwrap_or(2);
         let blitter = wgpu::util::TextureBlitter::new(&self.gpu.device, config.format);
@@ -536,6 +541,20 @@ fn texture_options(options: ImageOptions) -> TextureOptions {
 
 /// The sRGB straight-alpha `rgba` as epaint's premultiplied image; for a mask, white with the
 /// alpha kept.
+/// The swapchain format for canvases in `canvas`: the same, or the same channels in the other byte
+/// order (X11 surfaces offer only BGRA). The blit onto the swapchain image converts.
+fn swapchain_format(canvas: wgpu::TextureFormat, offered: &[wgpu::TextureFormat]) -> Option<wgpu::TextureFormat> {
+    use wgpu::TextureFormat as F;
+    let twin = match canvas {
+        F::Rgba8Unorm => F::Bgra8Unorm,
+        F::Bgra8Unorm => F::Rgba8Unorm,
+        F::Rgba8UnormSrgb => F::Bgra8UnormSrgb,
+        F::Bgra8UnormSrgb => F::Rgba8UnormSrgb,
+        other => other,
+    };
+    [canvas, twin].into_iter().find(|f| offered.contains(f))
+}
+
 fn color_image(size: [usize; 2], rgba: &[u8], mask: bool) -> ColorImage {
     if mask {
         let white: Vec<u8> = rgba.chunks_exact(4).flat_map(|p| [255, 255, 255, p[3]]).collect();

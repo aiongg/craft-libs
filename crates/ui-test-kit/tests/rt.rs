@@ -14,6 +14,9 @@ use craft_ui_test_kit::rt::bench::bench;
 use craft_ui_test_kit::rt::pixels::{Capture, Rule, check_pixels, compare_pixels};
 use craft_ui_test_kit::rt::{Rig, Scenario, Step, first_difference};
 
+#[path = "rt/root.rs"]
+mod root;
+
 type Log = Rc<RefCell<Vec<String>>>;
 
 /// A focusable box that logs the presses and keys it gets and tints itself when hovered.

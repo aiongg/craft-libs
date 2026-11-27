@@ -4836,6 +4836,8 @@ dependencies = [
  "accesskit_winit",
  "arboard",
  "craft-theme",
+ "craft-ui-render-epaint",
+ "craft-ui-render-skia",
  "craft-ui-rt",
  "js-sys",
  "log",

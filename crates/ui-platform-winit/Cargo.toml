@@ -30,3 +30,8 @@ web-sys = { version = "0.3", features = ["Window", "Document", "Navigator", "Ele
 
 [dev-dependencies]
 craft-theme = { workspace = true }
+craft-ui-render-epaint = { workspace = true }
+
+# The demo's Skia renderers; Skia has no wasm32-unknown-unknown build.
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+craft-ui-render-skia = { workspace = true, features = ["gpu"] }
