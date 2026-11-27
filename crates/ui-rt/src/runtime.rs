@@ -294,6 +294,15 @@ impl Runtime {
         self.install_root(window, InlineRoot, true);
     }
 
+    /// Builds `window`'s inline root in the next frame although nothing under it was marked and
+    /// no read changed: the host's own state, which the closure reads, moved.
+    pub fn mark_root(&mut self, window: WindowId) {
+        if let Some(w) = self.windows.get(&window) {
+            let id = w.app_root;
+            self.tree.mark_build(id);
+        }
+    }
+
     fn install_root<E: Element>(&mut self, window: WindowId, root: E, inline: bool) {
         self.add_window(window, Vec2::ZERO, 1.0);
         let Some(w) = self.windows.get(&window) else { return };

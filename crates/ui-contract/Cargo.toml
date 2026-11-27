@@ -30,7 +30,7 @@ color_fonts = ["dep:epaint", "epaint/color_fonts"]
 # Find installed fonts for characters the app's faces lack (desktop only).
 system_fonts = ["dep:fontique"]
 # `contract::rt`: the component contract on craft-ui-rt (docs/contract-rt.md), beside the egui runtime.
-rt = []
+rt = ["dep:craft-ui-platform-headless"]
 
 [dependencies]
 craft-behavior = { workspace = true }
@@ -40,6 +40,8 @@ craft-keymap = { workspace = true, features = ["egui"] }
 craft-theme = { workspace = true }
 craft-ui-macros = { workspace = true }
 craft-ui-rt = { workspace = true }
+# `contract::rt::harness`: the headless platform the test Harness runs the runtime on.
+craft-ui-platform-headless = { workspace = true, optional = true }
 # `Tracked`: app models whose revision keys memoized views and write-through bindings.
 craft-tracked = { workspace = true }
 # `MemoKey`: SipHash-1-3 with a 128-bit output.
@@ -125,7 +127,6 @@ egui = { workspace = true }
 epaint_default_fonts = { version = "0.37", features = ["monochrome_emoji_fonts"] }
 proc-macro2 = "1"
 syn = { version = "2", features = ["full"] }
-craft-ui-platform-headless = { workspace = true }
 craft-ui-rt = { workspace = true }
 
 [[test]]

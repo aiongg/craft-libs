@@ -18,6 +18,7 @@ pub mod access;
 mod container;
 mod dialog;
 mod drag;
+pub mod harness;
 mod key;
 mod lazy;
 mod node;
