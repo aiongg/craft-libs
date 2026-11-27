@@ -399,6 +399,7 @@ fn start_on<A: App, P: Platform, R: Renderer>(
     let mut driver = Driver::new(runtime, platform, renderer);
     let jobs = JobBoard::new(spec.jobs, driver.waker());
     let commands = CommandBoard::new(keymap).with_edits::<EditCommands>();
+    let commands = if spec.stories { commands.with_stories() } else { commands };
     let shared = Rc::new(Shared {
         builds: RefCell::new(BTreeMap::new()),
         actions: RefCell::new(Vec::new()),

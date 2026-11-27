@@ -576,6 +576,13 @@ impl<'u, 'c> Ui<'u, 'c> {
         Response::new(self.flow.id, self.flow.region, node, interact, false, InputFacts::default())
     }
 
+    /// The platform and the window's facts as the host gives them to every window root (`ShellInfo`):
+    /// the OS, the capabilities, the window's kind, chrome, state and insets. The default outside an
+    /// app host.
+    pub fn shell(&self) -> craft_host::target::ShellInfo {
+        self.cx.provided::<craft_host::target::ShellInfo>().unwrap_or_default()
+    }
+
     /// The tokens this node's build read.
     pub fn tokens(&self) -> &Tokens {
         &self.flow.tokens

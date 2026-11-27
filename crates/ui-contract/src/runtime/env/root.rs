@@ -3,7 +3,7 @@
 use super::app_values::AppValues;
 use super::values::{AltCodePages, Scale, WheelSpeed};
 use crate::contract::Context;
-use crate::runtime::env::{EnvCells, ThemeBase};
+use crate::runtime::env::EnvCells;
 use crate::runtime::focus::TabReach;
 use craft_behavior::MotionMode;
 use craft_i18n::CalendarDate;

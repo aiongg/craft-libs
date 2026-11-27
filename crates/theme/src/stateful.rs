@@ -194,10 +194,7 @@ impl<T: Mix> Stateful<T> {
         if state == State::Disabled || self.when.iter().any(|(mask, _)| !mask.0.is_empty() && flags.contains(mask.0)) {
             return PointerDependence::default();
         }
-        let of = |s: &States<T>| PointerDependence {
-            hover: !s.hover.same(s.rest),
-            press: !s.pressed.same(s.rest) || !s.pressed.same(s.hover),
-        };
+        let of = |s: &States<T>| PointerDependence { hover: !s.hover.same(s.rest), press: !s.pressed.same(s.rest) || !s.pressed.same(s.hover) };
         let off = of(&self.off);
         match &self.on {
             Some(on) => {

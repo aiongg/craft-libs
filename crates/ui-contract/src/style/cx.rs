@@ -1,5 +1,6 @@
 //! `StyleCx`: what `style` and the app colour hooks get. Tokens are readable only through it.
 
+use super::cache::StyleCaches;
 use super::key::{EnvKey, Ink};
 use super::look::{DataColor, FocusLook, StyleColor, SurfaceKind, SurfaceLook, TrackFill, TrackLook};
 use super::paint::{
@@ -7,11 +8,10 @@ use super::paint::{
     marker_look, reset_mark_look, rule_look, scroll_bar_look_of,
 };
 use super::surface::{SurfaceStyle, surface_style};
-use super::cache::StyleCaches;
 use super::tokens::UiTokens;
 use crate::contract::Context;
-use crate::primitives::Services;
 use crate::primitives::Id;
+use crate::primitives::Services;
 use crate::runtime::env::{AppValues, MotionPolicy, Scale, StyleValue};
 use crate::runtime::motion::{MotionSpec, Presence};
 use craft_behavior::ControlMetrics;
@@ -197,19 +197,8 @@ impl<'a> StyleCx<'a> {
     /// The style context of the scope `env` describes, in the secondary variant: for code outside a style function
     /// that works out a layout from a component's style or the scope's tokens.
     pub fn of_env(env: &'a crate::runtime::env::Env) -> Self {
-        StyleCx::new(
-            &env.tokens,
-            &env.values,
-            env.size,
-            Variant::SECONDARY,
-            env.direction,
-            env.scale,
-            env.os,
-            env.active,
-            env.key,
-            env.line_ratio,
-        )
-        .with_caches(env.ctx.styles())
+        StyleCx::new(&env.tokens, &env.values, env.size, Variant::SECONDARY, env.direction, env.scale, env.os, env.active, env.key, env.line_ratio)
+            .with_caches(env.ctx.styles())
     }
 
     /// Runs `f` with the style context of the root scope (`Env::of_root(ctx)`), for code with no `Ui` that reads a
