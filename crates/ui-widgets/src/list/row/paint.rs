@@ -49,7 +49,7 @@ impl ListRow<'_> {
                     ui.draw().icon(shape, &icon);
                 }
                 TrailingItem::Hosted(hosted) => {
-                    if let Some(item) = hosted.item.take() {
+                    if let Some(item) = hosted.item.as_mut() {
                         let height = hosted.size.map_or(slot.height(), |size| size.ideal.y.min(slot.height()));
                         item.show(ui, field_key(at), Rect::from_center_size(slot.center(), Vec2::new(slot.width(), height)));
                     }
@@ -121,7 +121,7 @@ impl ListRow<'_> {
         let outset = style.sizes.tight;
         let arm = style.sizes.gap;
         let rects: Vec<Rect> = placed.first.into_iter().chain(placed.extras.iter().map(|(thumb, _)| *thumb)).collect();
-        let mut paints = self.first.take().into_iter().map(Some).chain(self.extras.iter_mut().map(|extra| extra.paint.take()));
+        let mut paints = self.first.as_ref().into_iter().map(Some).chain(self.extras.iter().map(|extra| extra.paint.as_ref()));
         for (at, thumb) in rects.iter().enumerate() {
             if let Some(Some(paint)) = paints.next() {
                 let _ = ui.child(("thumb", at), thumb.shrink(frame), RowThumb::new(paint));
@@ -379,7 +379,7 @@ impl ListRow<'_> {
             })
             .collect();
         for (at, (column, field)) in self.cell_fields.iter_mut().enumerate() {
-            let (Some(item), Some(size)) = (field.item.take(), field.size) else { continue };
+            let (Some(item), Some(size)) = (field.item.as_mut(), field.size) else { continue };
             let link = item.role() == Role::LINK;
             let room = if label.as_ref() == Some(column) {
                 placed.label

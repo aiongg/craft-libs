@@ -237,6 +237,13 @@ impl PaintUi<'_> {
         self.child_with(id, rect, child, None)
     }
 
+    /// A later look's call for the child the first look showed with `key`, whose component its host no longer holds
+    /// (a hosted leaf): records it for the comparison of the looks' children and shows nothing (15.6 rule 5).
+    pub(crate) fn keep_shown(&mut self, key: impl Hash + Debug, rect: Rect) {
+        let kept = self.kept_rect(self.id.with(key), rect);
+        debug_assert!(kept.is_some(), "a host holds the component of every child its first look shows");
+    }
+
     /// Makes the child shown with `key` the one a click on the composite's label focuses, in place of the composite's
     /// first stop, such as the number field of a row whose slider comes first in Tab order. A child with no stop this
     /// pass leaves the first stop.

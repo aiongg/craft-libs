@@ -837,7 +837,7 @@ impl Component for Notice<'_> {
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let Some(placed) = self.placed.clone() else { return };
         let words = cx.words::<NoticeWords>();
-        for (at, (item, rect)) in std::mem::take(&mut self.content.value).into_iter().zip(&placed.content).enumerate() {
+        for (at, (item, rect)) in self.content.value.iter_mut().zip(&placed.content).enumerate() {
             item.show(ui, (CONTENT, at), *rect);
         }
         for (at, label) in placed.labels.iter().cloned().enumerate() {

@@ -172,7 +172,7 @@ fn picture<'a, Id: Clone + Eq + std::hash::Hash + Send + Sync + 'static>(
     thumb: LayerThumb<Id>,
     paint: PicturePaint,
     extra: u64,
-    fallback: impl FnOnce(&ContentPainterCx<'_>, Rect, bool) + 'a,
+    fallback: impl Fn(&ContentPainterCx<'_>, Rect, bool) + 'a,
 ) -> Versioned<ThumbPicture<'a>> {
     let pixels = host.map(|host| host.source.key_revision(&thumb));
     let version = craft_ui_rt::hash_key(&(&thumb, extra, pixels));
@@ -328,7 +328,7 @@ fn layer_row<'r, T: LayerTree>(cx: &'r PanelContext<'r, T>, id: &T::Id) -> ListR
             size,
             picture(host, LayerThumb::pixels(layer, contents), PicturePaint::default(), extra, move |painter, rect, painted| {
                 if !painted {
-                    paint_kind_tile(painter, rect, kind, glyph);
+                    paint_kind_tile(painter, rect, kind, glyph.clone());
                 }
                 if let Some(mark) = badge {
                     paint_thumb_badge(painter, rect, mark);

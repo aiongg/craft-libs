@@ -136,22 +136,22 @@ impl<const N: usize> From<[ThumbTarget; N]> for ThumbTargets {
 /// [`TextureState::Empty`].
 pub struct ThumbPicture<'a> {
     read: Option<ThumbRead<'a>>,
-    paint: Box<dyn FnOnce(&ContentPainterCx, Rect, &TextureState) + 'a>,
+    paint: Box<dyn Fn(&ContentPainterCx, Rect, &TextureState) + 'a>,
 }
 
-type ThumbRead<'a> = Box<dyn FnOnce(&mut CxCore<'_>, &ThumbRequest) -> TextureState + 'a>;
+type ThumbRead<'a> = Box<dyn Fn(&mut CxCore<'_>, &ThumbRequest) -> TextureState + 'a>;
 
 impl<'a> ThumbPicture<'a> {
     /// A picture read by `read` at the cell's request and painted by `paint`.
     pub fn new(
-        read: impl FnOnce(&mut CxCore<'_>, &ThumbRequest) -> TextureState + 'a,
-        paint: impl FnOnce(&ContentPainterCx, Rect, &TextureState) + 'a,
+        read: impl Fn(&mut CxCore<'_>, &ThumbRequest) -> TextureState + 'a,
+        paint: impl Fn(&ContentPainterCx, Rect, &TextureState) + 'a,
     ) -> Self {
         ThumbPicture { read: Some(Box::new(read)), paint: Box::new(paint) }
     }
 
     /// A picture that `paint` draws without a texture.
-    pub fn painter(paint: impl FnOnce(&ContentPainterCx, Rect) + 'a) -> Self {
+    pub fn painter(paint: impl Fn(&ContentPainterCx, Rect) + 'a) -> Self {
         ThumbPicture { read: None, paint: Box::new(move |painter, rect, _| paint(painter, rect)) }
     }
 }
@@ -192,7 +192,8 @@ pub(crate) struct RowThumbStyle {
 pub(crate) struct RowThumb<'a> {
     #[common]
     common: Common,
-    paint: Option<ThumbPaint<'a>>,
+    /// The row's picture, borrowed: the row's paint shows it again in each of its looks.
+    paint: Option<&'a ThumbPaint<'a>>,
     /// What `read` gave in this run's update, which `paint` paints: run state, not an input.
     #[key(skip)]
     state: TextureState,
@@ -200,12 +201,12 @@ pub(crate) struct RowThumb<'a> {
 
 impl RowThumb<'static> {
     fn sample() -> Self {
-        RowThumb::new(ThumbPaint::new(ThumbPicture::painter(|_, _| {})))
+        RowThumb { common: Common::new(), paint: None, state: TextureState::Empty }
     }
 }
 
 impl<'a> RowThumb<'a> {
-    pub(crate) fn new(paint: ThumbPaint<'a>) -> Self {
+    pub(crate) fn new(paint: &'a ThumbPaint<'a>) -> Self {
         RowThumb { common: Common::new(), paint: Some(paint), state: TextureState::Empty }
     }
 }
@@ -228,14 +229,14 @@ impl Component for RowThumb<'_> {
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
-        let Some(read) = self.paint.as_mut().and_then(|paint| paint.value.read.take()) else { return };
+        let Some(read) = self.paint.and_then(|paint| paint.value.read.as_ref()) else { return };
         let request = ThumbRequest::for_cell(cx.rect.width().max(cx.rect.height()), cx.context().pixels_per_point());
         self.state = read(cx.core, &request);
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let painter = ui.content_painter(cx);
-        if let Some(paint) = self.paint.take() {
+        if let Some(paint) = self.paint {
             (paint.value.paint)(&painter, cx.rect, &self.state);
         }
     }

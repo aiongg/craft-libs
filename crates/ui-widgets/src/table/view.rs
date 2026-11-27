@@ -277,9 +277,9 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static + crate::contract::MemoProps> 
     }
 
     fn header_cell(&mut self, ui: &mut PaintUi<'_>, column: &ColumnKey, key: HostedKey, rect: Rect) {
-        let field = self.header_fields.iter_mut().find(|(held, _)| held == column).and_then(|(_, field)| field.take());
+        let field = self.header_fields.iter_mut().find(|(held, _)| held == column).and_then(|(_, field)| field.as_mut());
         if let Some(field) = field {
-            Hosted::show(field.value, ui, key, rect);
+            Hosted::show(&mut *field.value, ui, key, rect);
         }
     }
 }
