@@ -215,6 +215,68 @@ fn a_slot_fill_repaints_the_slot_node_and_runs_no_build_of_it() {
     assert!(shows_mark(&rig), "the slot holds the new items in place of the old");
 }
 
+/// A composite that measures one child through `MeasureCx::child` and shows it from its paint, and reads where the
+/// pointer is over it, so a pointer move runs it.
+#[derive(Component)]
+struct Composite {
+    #[common]
+    common: Common,
+}
+
+impl Component for Composite {
+    const ROLE: Role = Role::GROUP;
+    type Style = PlainStyle;
+    type Output = Response;
+
+    fn style(_: &StyleCx<'_>, _: CompositeStyleKey) -> PlainStyle {
+        PlainStyle::default()
+    }
+
+    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
+        let mut child = IconButton::new(IconId::new("plus"), "Inner");
+        cx.child("inner", &mut child, craft_behavior::Proposal::Ideal) + Vec2::new(80.0, 20.0)
+    }
+
+    fn sense(&self) -> Sense {
+        Sense::HOVER
+    }
+
+    fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        let _ = cx.hover_point();
+    }
+
+    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        let rect = Rect::from_min_size(cx.rect.min, Vec2::splat(24.0));
+        let _ = ui.child("inner", rect, IconButton::new(IconId::new("plus"), "Inner"));
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
+}
+
+#[test]
+fn a_rerun_composite_measures_its_unchanged_child_from_the_size_cache() {
+    let mut pad = Rect::NOTHING;
+    let step = |rig: &mut Rig<RecordingRenderer>, pad: &mut Rect| {
+        rig.step_with(&mut |_, cx| window_root(cx, |ui| *pad = Show::show(Composite { common: Common::new() }, ui).rect))
+    };
+    let mut rig = Rig::inline(Vec2::new(400.0, 300.0), 1.0, RecordingRenderer::default());
+    let mut settled = false;
+    for _ in 0..5 {
+        if !step(&mut rig, &mut pad).ran {
+            settled = true;
+            break;
+        }
+    }
+    assert!(settled, "the rig did not settle");
+    let main = rig.main;
+    rig.inject(main, Input::mouse_move(pad.center() + Vec2::new(30.0, 0.0)));
+    let entered = step(&mut rig, &mut pad);
+    assert_eq!(entered.frame.runs, 1, "the move runs the composite alone: {entered:?}");
+    assert_eq!(entered.frame.measures, 1, "the composite measures; its child answers from its size cache: {entered:?}");
+}
+
 /// A press inside a collection nested in another reaches the outer one as a descendant press.
 mod nested {
     use std::cell::Cell;
