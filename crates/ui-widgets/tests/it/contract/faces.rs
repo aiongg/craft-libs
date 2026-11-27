@@ -29,6 +29,7 @@ struct TwoFacesStyle {
 struct TwoFaces<'a> {
     #[common]
     common: Common,
+    #[key(skip)]
     given: &'a Cell<Color32>,
 }
 

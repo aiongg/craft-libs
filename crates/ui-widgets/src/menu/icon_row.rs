@@ -17,6 +17,7 @@ use egui::{Context, Id, Rect, Response, Vec2};
 const ICON: PartKey = PartKey::new("icon");
 
 /// One icon of a `MenuIconRow`.
+#[derive(crate::contract::MemoProps)]
 pub struct MenuIcon<'a> {
     icon: IconSpec<'a>,
     label: Label,

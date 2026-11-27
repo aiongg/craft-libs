@@ -15,7 +15,7 @@ use egui::{Rect, Response};
 const DIVIDER: PartKey = PartKey::new("divider");
 
 /// One section of an accordion as the maths sees it.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct StackSection {
     /// The section shows its body.

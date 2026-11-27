@@ -120,7 +120,7 @@ pub enum ColumnCards {
 }
 
 /// Which inset a docked column's card takes on its outer side ([`DockSizes::card_place`]).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum CardInset {
     /// The first column, at the dock's window edge: [`DockSizes::card`].
@@ -475,7 +475,7 @@ impl<P> DockSpot<P> {
 }
 
 /// How a group's body divides into side zones.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum ZoneRule {
     /// Zones `DockSizes::zone_depth` deep, at most `SIDE_ZONE_DEPTH_SHARE` of the body's smaller side.

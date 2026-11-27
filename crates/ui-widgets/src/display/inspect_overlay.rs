@@ -70,6 +70,7 @@ pub struct InspectOverlayStyle {
 pub struct InspectOverlay {
     #[common]
     common: Common,
+    #[key(skip)]
     recorded: Arc<Recorded>,
     /// The layers shown.
     #[prop]

@@ -167,6 +167,7 @@ pub struct DropVeil {
     positional: bool,
     /// The files dropped this pass: `update` writes them before the body runs, the body and `finish` read them. A veil
     /// is built anew every pass, so nothing outlives it.
+    #[key(skip)]
     dropped: Arc<Mutex<Option<OsFiles>>>,
     /// The card's rect, from the card child's measured size.
     card: Option<Rect>,

@@ -28,6 +28,7 @@ struct Paged {
 struct PagedOpener<'a> {
     #[common]
     common: Common,
+    #[key(skip)]
     paged: &'a Paged,
 }
 

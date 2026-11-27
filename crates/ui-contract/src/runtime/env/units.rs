@@ -122,7 +122,7 @@ impl EnvValue for craft_behavior::ZoomScheme {
 }
 
 /// What a number counts.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, craft_ui_macros::PlainData)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, craft_ui_macros::PlainData, crate::contract::MemoProps)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub enum UnitKind {
@@ -351,7 +351,7 @@ impl ColumnSize {
 /// A length kept in one unit and shown in another: what a length field reads and writes (`stored`, the document's
 /// unit) and what it shows and, unless `bare` names another unit, parses bare numbers in (`shown`, the user's unit). Both are `UnitKind::Pixels` or any
 /// kind [`UnitKind::per_inch`] answers; the document's resolution sizes pixels.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct LengthUnits {
     /// The unit of the value the field's binding holds.

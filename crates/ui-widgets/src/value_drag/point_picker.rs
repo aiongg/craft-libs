@@ -62,7 +62,7 @@ pub struct PointPickerStyle {
 }
 
 /// How a point picker marks its point.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum PointMark {
     /// A cross, for a point over an image.
@@ -122,12 +122,14 @@ pub struct PointPicker<'a> {
     aspect: Option<f32>,
     /// Paints the image under the point; without one the well shows a checkerboard.
     #[prop(func = "FnOnce(&ContentPainterCx, Rect)")]
+    #[key(skip)]
     backdrop: Option<Backdrop<'a>>,
     /// Whether two points are the same value to the caller (two points of a quantised colour field that give the same
     /// colour). A relative move (an arrow, Page Up or Down, a wheel notch, an assistive step) that lands on a point
     /// the same as the one it started from moves on until the point differs or the axis can go no further. Without
     /// it, every distinct point differs.
     #[prop(func = "Fn([f64; 2], [f64; 2]) -> bool")]
+    #[key(skip)]
     same: Option<SamePoint<'a>>,
     /// How the point is marked.
     #[prop]

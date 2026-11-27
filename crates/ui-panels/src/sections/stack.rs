@@ -90,7 +90,9 @@ pub struct SectionStack<'a, K: Clone + PartialEq + std::hash::Hash + Send + Sync
     #[container]
     props: ContainerProps,
     order: &'a [K],
+    #[key(skip)]
     seen: SeenRows<K>,
+    #[key(skip)]
     moves: Vec<EditEvent<ReorderMove<K>>>,
 }
 

@@ -488,7 +488,7 @@ struct Ghost {
 }
 
 /// A departed contextual tab drawn this pass: its name and opacity.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, crate::contract::MemoProps)]
 struct Fading {
     label: String,
     alpha: f32,
@@ -549,34 +549,43 @@ pub struct TabStrip<'a, K: Clone + Eq + Hash + Send + Sync + std::fmt::Debug + '
     wheel_selects: bool,
     /// Which tabs may be dragged.
     #[prop(func = "Fn(&K) -> bool")]
+    #[key(skip)]
     can_drag: Option<RowTest<'a, K>>,
     /// Which tabs a middle click closes, where the kind closes on one (`TabKind::middle_click_closes`). Unset, the
     /// kind's default (`TabKind::closes_by_default`): every document tab, no panel tab. A host whose tabs differ from
     /// that default (`Tab::closable`) names the ones that close.
     #[prop(func = "Fn(&K) -> bool")]
+    #[key(skip)]
     can_close: Option<RowTest<'a, K>>,
     /// The role of each tab, an input of the fit: contextual tabs are kept ahead of plain tabs.
     #[prop(func = "Fn(&K) -> TabRole")]
+    #[key(skip)]
     roles: Option<TabRoles<'a, K>>,
     /// What the strip takes from drags that did not start in it, in order.
+    #[key(skip)]
     drops: Vec<DropKind<'a, K>>,
     /// Where the strip's own drag may land: the test gets the drag, the tab under the pointer and the position before which the
     /// dragged tabs would go.
     #[prop(func = "Fn(&ListDrag<K>, Option<&K>, usize) -> bool")]
+    #[key(skip)]
     accepts: Option<DropTest<'a, K>>,
     /// Sets the items at the reading end of the strip, beside the tabs: each runs its command or opens its menu. When
     /// the room runs short they drop their labels, the last item first, before any tab overflows; they keep their
     /// icons whatever the room.
     #[prop]
+    #[key(skip)]
     trailing: &'a [StripEnd<'a>],
     /// The contextual tabs fading out this pass, each as opaque as its presence.
     ghosts: Vec<Fading>,
     held: Bind<'a, Selection<K>>,
+    #[key(skip)]
     report: Arc<Mutex<Report>>,
     /// Each tab's key and name, as the source listed them this pass.
+    #[key(skip)]
     texts: RefCell<Vec<(K, String)>>,
     more: Option<Rect>,
     picked: Option<K>,
+    #[key(skip)]
     torn: Option<TornOff<K>>,
     /// The tab the wheel stepped to this pass.
     wheeled: Option<K>,

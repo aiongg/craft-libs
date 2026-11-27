@@ -86,7 +86,7 @@ impl Numbers<'_> {
 }
 
 /// Which page the calendar shows, and the cell that has the keyboard (its day, month number or year, by the page).
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct CalendarView {
     /// What the page lists: days, months or years.
@@ -537,8 +537,11 @@ pub struct Calendar {
     /// The day the weeks start on; the locale's when not set.
     #[prop]
     first_weekday: Option<Weekday>,
+    #[key(skip)]
     picked: Option<PickedDate>,
+    #[key(skip)]
     hovered: Option<PickedDate>,
+    #[key(skip)]
     moved: Option<CalendarView>,
     /// The heights of the title, weekday and cell text, measured for centring.
     lines: [f32; 3],

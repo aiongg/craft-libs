@@ -74,7 +74,7 @@ macro_rules! layout_component {
             /// (`Sense::SURFACE`).
             #[prop(flag)]
             senses_surface: bool,
-            $($($field: $ty,)*)?
+            $($(#[key(skip)] $field: $ty,)*)?
         }
 
         impl $(<$life>)? $name $(<$life>)? {

@@ -20,7 +20,7 @@ const WORD: PartKey = PartKey::new("word");
 
 /// How a word of a `WordRun` shows.
 #[non_exhaustive]
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
 pub enum WordState {
     /// Plain.
     #[default]
@@ -32,7 +32,7 @@ pub enum WordState {
 }
 
 /// A word of a `WordRun`.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, crate::contract::MemoProps)]
 pub struct RunWord<K> {
     /// What the word is picked as.
     pub key: K,

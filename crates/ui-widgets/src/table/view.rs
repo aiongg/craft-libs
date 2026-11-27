@@ -70,21 +70,27 @@ pub struct Table<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     plain_header_menu: bool,
     /// Which rows may be renamed; a rename request on another row does nothing.
     #[prop(func = "Fn(&K) -> bool")]
+    #[key(skip)]
     can_rename: Option<RowTest<'a, K>>,
     /// The text a row's rename field opens with, `None` for the row's text: an empty draft when several rows are picked
     /// takes a name for all of them.
     #[prop(func = "Fn(&K) -> Option<String>")]
+    #[key(skip)]
     rename_draft: Option<RowText<'a, K>>,
     /// Which rows may be dragged.
     #[prop(func = "Fn(&K) -> bool")]
+    #[key(skip)]
     can_drag: Option<RowTest<'a, K>>,
     /// What the table takes from drags that did not start in it, in order.
+    #[key(skip)]
     drops: Vec<DropKind<'a, K>>,
     /// Where the table's own drag may land: the test gets the drag, the row under the pointer and the position before which the
     /// dragged rows would go. A refused spot shows no drop mark.
     #[prop(func = "Fn(&ListDrag<K>, Option<&K>, usize) -> bool")]
+    #[key(skip)]
     accepts: Option<DropTest<'a, K>>,
     /// The components hosted in header cells, by column; each is shown once, in the pass that draws its cell.
+    #[key(skip)]
     header_fields: Vec<(ColumnKey, Option<HeaderField<'a, K>>)>,
 }
 

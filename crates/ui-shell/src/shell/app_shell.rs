@@ -225,6 +225,7 @@ pub struct ShellRegion {
     #[container]
     props: ContainerProps,
     /// The shell the scope carries to its slots, and the rect popups opened inside it are contained in.
+    #[key(skip)]
     shell: Option<(ShellCx, Option<Rect>)>,
     /// Sets the shell's screen modes for everything inside the region, beside its shell: a `ScreenModeButton` in a
     /// slot reads them with `Env::get`.

@@ -61,7 +61,7 @@ pub struct SelectStyle {
 }
 
 /// How a select's closed box looks and how wide it is.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum SelectLook {
     /// A field as wide as its widest entry, so its width stays whichever entry is picked.
@@ -134,6 +134,7 @@ pub struct Select<'a, T: Value + 'static> {
     no_matches: Option<Label>,
     /// Options the search never hides, shown after the matches.
     #[prop(func = "Fn(&T) -> bool")]
+    #[key(skip)]
     search_kept: Option<SearchKept<'a, T>>,
     /// The open list is at least this wide, in points, within the screen; the field's width without it.
     #[prop(quantity = "width of the open list, in points")]
@@ -143,9 +144,11 @@ pub struct Select<'a, T: Value + 'static> {
     placeholder: Option<Label>,
     /// Adds the host's content to each entry's row.
     #[prop(func = "Fn(&T, ListRow<'a>) -> ListRow<'a>")]
+    #[key(skip)]
     decorate: Option<RowDress<'a, T>>,
     /// Paints an entry's picture, given its value: the thumbnail of its row and of the face while it is picked.
     #[prop(func = "Fn(&T, &ContentPainterCx, Rect)")]
+    #[key(skip)]
     picture: Option<SelectPicture<'a, T>>,
     /// The face shows the picked entry's picture alone; its label stays the accessible value.
     #[prop(flag)]
@@ -159,6 +162,7 @@ pub struct Select<'a, T: Value + 'static> {
     preview: bool,
     /// A button in the popup header opens a menu of these rows (a list's own options: sort, view).
     #[prop(func = "FnMut(&mut Ui, &mut BodyCx<'_>)")]
+    #[key(skip)]
     header_menu: Option<HeaderMenu<'a>>,
     /// How the closed box looks and how wide it is.
     #[style_key]

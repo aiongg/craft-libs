@@ -36,6 +36,7 @@ struct Regioned<'a> {
     footer: Vec2,
     /// How many blocks of its size the header and the footer each stack.
     rows: usize,
+    #[key(skip)]
     took: &'a RefCell<Took>,
 }
 

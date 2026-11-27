@@ -96,7 +96,7 @@ impl SwatchStyle {
 }
 
 /// The shape of a swatch's well.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum SwatchShape {
     /// A square well.
@@ -109,7 +109,7 @@ pub enum SwatchShape {
 }
 
 /// What fills a swatch's well.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum SwatchFill {
     /// A colour over a checkerboard where it is translucent; `Mixed` shows the mixed well with its dash.
@@ -343,7 +343,7 @@ impl<T: Value + 'static> Swatch<T> {
 
 /// The marks of a swatch cell: each is painted from tokens. Other crates build them with the builders, as
 /// `#[non_exhaustive]` forbids a struct literal outside this crate.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct CellMarks {
     /// A thin edge in the text colour just inside the outline.

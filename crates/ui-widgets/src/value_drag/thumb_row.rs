@@ -69,7 +69,7 @@ pub struct ThumbRowStyle {
 }
 
 /// How a thumb's value is kept among the row's other values.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum Order {
     /// Anywhere in its range: it passes the other thumbs.
@@ -95,7 +95,7 @@ impl Order {
 }
 
 /// What a thumb does when a move takes it into a thumb it is ordered with ([`Order::Between`]).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum Neighbours {
     /// It stops there.
@@ -106,7 +106,7 @@ pub enum Neighbours {
 }
 
 /// What a press off the thumbs does: one beyond the reach of every thumb.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum OffThumbs {
     /// The nearest thumb jumps to the pointer, on a tap and on a drag: a levels row.
@@ -119,7 +119,7 @@ pub enum OffThumbs {
 }
 
 /// The ink of a [`ThumbSpan`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum SpanInk {
     /// The theme's faint text colour.
@@ -130,7 +130,7 @@ pub enum SpanInk {
 
 /// A band along the row from one thumb to another, under the thumbs' tips: the extent of a hue range and of its
 /// full-strength part. In a wrapping row it runs forward from `from` round to `to`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct ThumbSpan {
     /// The thumb the span starts at.
@@ -150,12 +150,14 @@ impl ThumbSpan {
 
 /// Where a thumb sits that a function of the row's values places (a levels gamma thumb, between the black and the
 /// white one). Both functions get the row's values as drawn.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct Follow {
     /// The row value the thumb sits at, for its own value.
+    #[memo_props(hash = "a fn pointer keys by its address")]
     pub at: fn(&[f64], f64) -> f64,
     /// The thumb's own value that puts it at row value `x`, unsnapped.
+    #[memo_props(hash = "a fn pointer keys by its address")]
     pub value_at: fn(&[f64], f64) -> f64,
 }
 
@@ -167,7 +169,7 @@ impl Follow {
 }
 
 /// One thumb of a [`ThumbRow`].
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct Thumb {
     label: Label,
@@ -273,7 +275,7 @@ impl Thumb {
 }
 
 /// The order of a wrapping row's thumbs round the period.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct Anchor {
     /// The thumb the others are measured from; it is free to turn.
@@ -882,6 +884,7 @@ pub struct ThumbRow<'a, const N: usize> {
     /// Paints a groove above the thumbs with `face`, a component shown as the look of the track (a colour gradient);
     /// the thumbs point up at it.
     #[prop]
+    #[key(skip)]
     track_face: Option<TrackFace<'a>>,
 }
 

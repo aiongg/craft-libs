@@ -143,7 +143,7 @@ impl Outcome for ButtonOutput {
 }
 
 /// Whether a command button shows its command's chord.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum ButtonChord {
     /// No chord.

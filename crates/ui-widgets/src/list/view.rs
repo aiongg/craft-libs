@@ -22,7 +22,7 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 
 /// How the rows of a list show their labels as document text: the document's font, size and alignment.
 #[non_exhaustive]
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, crate::contract::MemoProps)]
 pub struct DocumentRows {
     /// The font of the labels.
     pub font: FontRef,
@@ -80,21 +80,27 @@ pub struct List<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     tree_leaves: TreeLeaves,
     /// Which rows may be renamed; a rename request on another row does nothing.
     #[prop(func = "Fn(&K) -> bool")]
+    #[key(skip)]
     can_rename: Option<RowTest<'a, K>>,
     /// The text a row's rename field opens with, `None` for the row's text: an empty draft when several rows are picked
     /// takes a name for all of them. Enter on a proposed draft nobody typed in commits it.
     #[prop(func = "Fn(&K) -> Option<String>")]
+    #[key(skip)]
     rename_draft: Option<RowText<'a, K>>,
     /// Which rows may be dragged.
     #[prop(func = "Fn(&K) -> bool")]
+    #[key(skip)]
     can_drag: Option<RowTest<'a, K>>,
     /// What the list takes from drags that did not start in it, in order.
+    #[key(skip)]
     drops: Vec<DropKind<'a, K>>,
     /// The press on the line between two rows the list takes.
+    #[key(skip)]
     edge_press: Option<EdgePress<'a, K>>,
     /// Where the list's own drag may land: the test gets the drag, the row under the pointer and the position before which the
     /// dragged rows would go. A refused spot shows no drop mark.
     #[prop(func = "Fn(&ListDrag<K>, Option<&K>, usize) -> bool")]
+    #[key(skip)]
     accepts: Option<DropTest<'a, K>>,
     /// The list is a listbox of options: the popup of a value picker.
     #[prop(flag)]
@@ -104,6 +110,7 @@ pub struct List<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     #[prop(flag)]
     row_menu: bool,
     /// The rows the query keeps, set by `filter`.
+    #[key(skip)]
     filter: Option<Filter<'a, K>>,
     /// The kept rows are in order of how well they match the query.
     #[prop]

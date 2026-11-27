@@ -219,7 +219,7 @@ fn label_line(area: Rect, detail: f32) -> Rect {
 }
 
 /// What a menu row shows as its shortcut.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum MenuShortcut {
     /// The bound command's chord; none for a row with no command.

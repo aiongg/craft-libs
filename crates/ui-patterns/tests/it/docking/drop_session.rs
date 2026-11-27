@@ -40,7 +40,9 @@ pub struct HostStyle {
 struct Host<'a> {
     #[common]
     common: Common,
+    #[key(skip)]
     target: &'a DockDropTarget<'a, String>,
+    #[key(skip)]
     seen: &'a RefCell<Vec<DockDropped<String>>>,
 }
 

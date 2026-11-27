@@ -19,7 +19,7 @@ use std::hash::{Hash, Hasher};
 pub(crate) mod stories;
 
 /// How large a picture is: its height, from a token, or the room its parent gives.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum PictureSize {
     /// The icon side of the control size.
@@ -77,6 +77,7 @@ pub struct Picture<'a> {
     /// The version of the key's picture: a new revision makes `image` run again.
     #[prop]
     revision: Revision,
+    #[key(skip)]
     source: Source<'a>,
     /// The width of the picture's rect as a multiple of its height. Unset, an SVG takes its view box's aspect and any
     /// other source a square.
@@ -90,6 +91,13 @@ pub struct Picture<'a> {
     /// a picture that is a mask on the surface it sits on, such as an equation.
     #[prop]
     checker: bool,
+}
+
+/// A picture held by a component (a button's or a tile's) keys as the picture's own component key does.
+impl crate::contract::MemoProps for Picture<'_> {
+    fn key(&self, key: &mut crate::contract::MemoKey) {
+        crate::contract::ComponentKey::key(self, key);
+    }
 }
 
 impl<'a> Picture<'a> {

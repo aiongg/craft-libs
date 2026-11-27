@@ -21,7 +21,7 @@ const SHORT_STEP: f64 = 0.01;
 const LONG_STEP: f64 = 1.0;
 
 /// How a slider field arranges its caption, number field and slider.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum SliderFieldLayout {
     /// The caption at the start and the number field at the end of one line (the label step's `Line` placement), the
@@ -93,6 +93,7 @@ pub struct SliderField<'a> {
     fill: bool,
     /// The look of the track in place of the groove and the fill (a colour gradient).
     #[prop]
+    #[key(skip)]
     track_face: Option<TrackFace<'a>>,
     /// The shape of the slider's thumb: a knob, or the pointer under the track of a colour channel.
     #[prop]
@@ -213,7 +214,7 @@ impl<'a> SliderField<'a> {
 }
 
 /// The marks of a slider field's slider.
-#[derive(Clone)]
+#[derive(Clone, crate::contract::MemoProps)]
 enum FieldMarks {
     /// Marks the thumb snaps to.
     Plain(Vec<f64>),

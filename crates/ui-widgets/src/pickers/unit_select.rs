@@ -88,6 +88,7 @@ pub struct UnitSelect<'a> {
     #[prop]
     number_enabled: Option<bool>,
     /// The unit child's event of this pass, kept from `paint` to `finish`.
+    #[key(skip)]
     unit_event: EditEvents<UnitKind>,
     /// The number child's range alert of this pass, kept from `paint` to `finish`.
     out_of_range: Option<RangeAlert>,

@@ -29,7 +29,7 @@ use egui::{Pos2, Rect, Response, Vec2};
 pub(crate) mod stories;
 
 /// The role of a tab in its strip.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum TabRole {
     /// An ordinary tab.
@@ -40,7 +40,7 @@ pub enum TabRole {
 }
 
 /// What a tab's own parts report, besides what the collection reads from the pointer.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum TabPartEvent {
     /// The close button was pressed. A middle click is the strip's (`CollectionEvent::MiddleClick`).
@@ -236,6 +236,7 @@ pub struct Tab<'a> {
     /// The tab's place in its set when it is shown alone; inside a strip the item step gives it.
     #[prop]
     position: Option<SetPosition>,
+    #[key(skip)]
     event: Option<TabPartEvent>,
 }
 

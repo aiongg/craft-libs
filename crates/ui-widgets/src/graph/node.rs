@@ -59,7 +59,9 @@ pub struct Node<'r, E: 'static = ()> {
     #[common]
     common: Common,
     id: NodeId,
+    #[key(skip)]
     kind: &'r dyn NodeKind<E>,
+    #[key(skip)]
     event: Option<NodeEvent<E>>,
 }
 

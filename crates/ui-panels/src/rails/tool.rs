@@ -182,6 +182,7 @@ pub struct ToolRail<'a, T: Value + MemoProps + PlainData + 'static> {
     reveal: Option<&'a T>,
     /// The tips the tools' buttons and flyout rows show in place of the command tooltip, where a tool has one.
     #[prop]
+    #[key(skip)]
     tips: Option<&'a dyn ToolTips<T>>,
     /// How tightly the rail packs its buttons; its columns follow the rail grid at that density.
     #[prop]
@@ -189,10 +190,12 @@ pub struct ToolRail<'a, T: Value + MemoProps + PlainData + 'static> {
     /// How the button of the current tool shows it is on.
     #[prop]
     active_look: ActiveLook,
+    #[key(skip)]
     footer: Option<FooterFn<'a>>,
     /// The columns the rail lays out in this pass.
     columns: usize,
     /// The host's index and rect of each button the grid showed in this pass.
+    #[key(skip)]
     shown: Rc<RefCell<Vec<(usize, Rect)>>>,
 }
 

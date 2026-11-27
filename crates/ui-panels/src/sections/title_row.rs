@@ -24,7 +24,7 @@ use egui::{Id, Rect, Response, Ui, Vec2};
 pub(crate) mod stories;
 
 /// How much weight a header carries.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum HeaderStrength {
     /// A control-height row with label text.
@@ -73,7 +73,7 @@ pub enum QuietTitleRow {
 }
 
 /// What a title row's action parts ask the container to do.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum HeaderAction {
     /// Close the container: the container calls `cx.request_close()`.
@@ -86,7 +86,7 @@ pub enum HeaderAction {
 
 /// An icon command at the end of a header: an icon button bound to a command, so its accessible name, enabled state and
 /// activation follow the command. The header's own actions (close, menu, float) come after the commands.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, crate::contract::MemoProps)]
 pub struct HeaderCommand {
     icon: IconId,
     command: CommandRef,
@@ -238,14 +238,17 @@ pub struct TitleRow<'a> {
     /// the pointer, a handle mark at its end.
     #[prop]
     handle: bool,
+    #[key(skip)]
     lead: Lead<'a>,
     /// Whether the gate's value is mixed: the check box lead shows the mixed face.
     #[prop]
     gate_mixed: bool,
     actions: Vec<HeaderAction>,
     commands: Vec<HeaderCommand>,
+    #[key(skip)]
     taken: Option<HeaderAction>,
     menu_rect: Option<Rect>,
+    #[key(skip)]
     placed: Option<Placed>,
 }
 

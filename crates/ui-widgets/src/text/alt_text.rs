@@ -36,7 +36,7 @@ craft_ui::words! {
 /// Each part is mixed on its own: a selection whose descriptions differ but whose objects are all decorative has a
 /// mixed text and a shared flag. An edit's `Same` parts are the ones that change on every target; its `Mixed` parts
 /// stay as each target has them.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct AltText {
     /// The description; empty when none is set.

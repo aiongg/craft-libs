@@ -53,6 +53,7 @@ pub struct Scrub<'a> {
     #[common]
     common: Common,
     value: Bind<'a, f32>,
+    #[key(skip)]
     seen: Option<&'a Seen>,
     /// The measured width follows the value.
     grows: bool,

@@ -35,7 +35,7 @@ impl ThumbAspect {
 }
 
 /// The thumbnail setting of a list, which the host stores.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum ThumbSize {
     /// No thumbnail: rows are one control high.
@@ -75,7 +75,7 @@ impl ThumbSize {
 }
 
 /// One of a row's thumbnails.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum ThumbTarget {
     /// The first thumbnail ([`ListRow::thumb`]).
@@ -106,7 +106,7 @@ impl ThumbTarget {
 /// The thumbnails a row's editing is aimed at, framed with corner brackets: usually one, several when the edit goes to
 /// them together (a frame and its content), where one set of brackets frames each run of adjacent targets. Built from
 /// one [`ThumbTarget`] or an array of them.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
 pub struct ThumbTargets(Vec<ThumbTarget>);
 
 impl ThumbTargets {
@@ -160,6 +160,7 @@ pub(crate) struct RowThumbStyle {
 pub(crate) struct RowThumb<'a> {
     #[common]
     common: Common,
+    #[key(skip)]
     paint: Option<ThumbPaint<'a>>,
 }
 

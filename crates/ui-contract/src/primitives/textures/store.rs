@@ -24,7 +24,7 @@ impl<T: Clone + Eq + Hash + Send + Sync + 'static> TextureKey for T {}
 /// The version of a key's picture, computed by the app: a stored fingerprint, an `Arc` address with a `Weak` guard,
 /// a frame key. The library never reads pixels or compares images; a new revision means "this key's picture
 /// changed", the same revision means "keep it".
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 pub struct Revision(u64);
 
 impl Revision {

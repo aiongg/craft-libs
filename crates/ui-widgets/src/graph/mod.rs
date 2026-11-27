@@ -64,6 +64,7 @@ pub struct NodeGraph<'a, E: 'static = ()> {
     props: ContainerProps,
     items: CollectionProps,
     wires: &'a [Wire],
+    #[key(skip)]
     kinds: &'a [&'a dyn NodeKind<E>],
     positions: &'a [Rect],
     /// The selection, owned by the app.

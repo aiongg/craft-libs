@@ -23,6 +23,8 @@ enum Feed {
     Hash,
     /// By where it points: `address = "why"`, on a `&'static` reference to a static item.
     Address,
+    /// Not at all: `skip = "why"`, a field the view only calls or that its own run writes (a callback read on input).
+    Skip,
     /// Not at all: the named field of the same variant stands for it, `covered_by = "<field>", reason = "why"`.
     Covered(LitStr),
 }
@@ -45,7 +47,7 @@ fn feed_of(field: &syn::Field) -> syn::Result<Feed> {
             let value: LitStr = meta.value()?.parse()?;
             let set = |feed: &mut Feed, to: Feed| {
                 if !matches!(feed, Feed::Props) {
-                    return Err(meta.error("a field feeds the key one way: `hash`, `address` or `covered_by`"));
+                    return Err(meta.error("a field feeds the key one way: `hash`, `address`, `skip` or `covered_by`"));
                 }
                 *feed = to;
                 Ok(())
@@ -58,6 +60,10 @@ fn feed_of(field: &syn::Field) -> syn::Result<Feed> {
                 "address" => {
                     reason(&key, &value)?;
                     set(&mut feed, Feed::Address)
+                }
+                "skip" => {
+                    reason(&key, &value)?;
+                    set(&mut feed, Feed::Skip)
                 }
                 "covered_by" => {
                     covered = Some(value.clone());
@@ -100,7 +106,7 @@ impl EscapeRule for MemoEscapes {
         Ok(match feed_of(field)? {
             Feed::Props => None,
             Feed::Hash => Some(Some(quote!(::core::hash::Hash + ::core::marker::Sync))),
-            Feed::Covered(_) => Some(Some(TokenStream::new())),
+            Feed::Covered(_) | Feed::Skip => Some(Some(TokenStream::new())),
             Feed::Address => Some(None),
         })
     }
@@ -153,6 +159,7 @@ fn feed(fields: &Fields, k: &TokenStream) -> syn::Result<(TokenStream, Vec<Token
     for (at, ((field, name), feed)) in fields.iter().zip(&names).zip(&feeds).enumerate() {
         statements.push(match feed {
             Feed::Props => quote!(#k::contract::MemoProps::key(#name, key);),
+            Feed::Skip => quote!(),
             Feed::Hash => quote!(key.feed_hash(#name);),
             Feed::Address => quote!(#k::contract::MemoProps::key(&::core::ptr::from_ref(*#name).cast::<()>().addr(), key);),
             Feed::Covered(by) => {

@@ -4,7 +4,7 @@ use craft_theme::variant::Tone;
 use std::borrow::Cow;
 
 /// One styled stretch of a run.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct Span<'a> {
     /// The text.

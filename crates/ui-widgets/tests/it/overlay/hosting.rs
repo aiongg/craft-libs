@@ -30,6 +30,7 @@ struct Titles<'a> {
     #[common]
     common: Common,
     on_click: bool,
+    #[key(skip)]
     rows: &'a Rows,
 }
 

@@ -19,10 +19,12 @@ const UP_GLYPH: DisclosureGlyph = DisclosureGlyph { open: -1.0, ..DisclosureGlyp
 const DOWN_GLYPH: DisclosureGlyph = DisclosureGlyph { open: 1.0, ..DisclosureGlyph::dropdown_form() };
 
 /// Something a field draws beside its text.
+#[derive(crate::contract::MemoProps)]
 pub struct Adornment {
     kind: Kind,
 }
 
+#[derive(crate::contract::MemoProps)]
 enum Kind {
     Glyph(IconSpec<'static>),
     Button(PartKey, IconSpec<'static>, Label),

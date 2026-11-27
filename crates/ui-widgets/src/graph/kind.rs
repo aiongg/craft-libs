@@ -7,7 +7,7 @@ use crate::style::StyleCx;
 use egui::{Rect, Vec2};
 
 /// The key of a node.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct NodeId(pub u32);
 
@@ -19,7 +19,7 @@ impl NodeId {
 }
 
 /// A port: the node and the port's index on its kind.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct PortRef {
     /// The node.
@@ -36,7 +36,7 @@ impl PortRef {
 }
 
 /// A wire between two ports, with the stable id its part is keyed by.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct Wire {
     /// The wire's id: a wire keeps its press and hover when another is deleted.

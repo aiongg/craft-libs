@@ -142,7 +142,7 @@ pub struct PanelTitle {
 /// The tab titles of one group with their content key, taken once when they are made: a memoized view that holds them
 /// feeds that key, not the titles. A host keeps a group's titles in a derived value so the key is taken only when they
 /// are rebuilt.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, crate::contract::MemoProps)]
 pub struct Titles {
     list: Arc<Vec<PanelTitle>>,
     key: u128,
@@ -300,7 +300,9 @@ pub struct SplitArea<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> {
     common: Common,
     #[container]
     props: ContainerProps,
+    #[key(skip)]
     layout: Bind<'a, Layout<P>>,
+    #[key(skip)]
     rules: FrameRules<'a, P>,
     revision: u128,
     /// The accessibility name of the area's dividers, for a split whose dividers are not "Resize panels": "Resize
@@ -310,6 +312,7 @@ pub struct SplitArea<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> {
     /// The paths of the splits whose handles `parts` declared this pass, by handle index.
     declared: Vec<Vec<bool>>,
     /// The frames of this run: the ones its revision keys, or those of the layout its own edit set.
+    #[key(skip)]
     frames: Option<Arc<SplitFrames<P>>>,
 }
 

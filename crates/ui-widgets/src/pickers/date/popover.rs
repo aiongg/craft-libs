@@ -144,6 +144,7 @@ pub struct CalendarPopover<'a> {
     #[container]
     props: ContainerProps,
     open: Bind<'a, bool>,
+    #[key(skip)]
     closed: Option<CloseReason>,
     value: Bind<'a, Option<PickedDate>>,
     /// The precisions offered; the first is the popup's page when the value has none of them.

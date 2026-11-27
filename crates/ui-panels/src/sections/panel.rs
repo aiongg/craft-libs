@@ -90,10 +90,13 @@ pub struct Panel<'a> {
     icon: Option<IconSpec<'a>>,
     /// The rows of the menu the Menu action opens.
     #[prop(func = "FnMut(&mut Ui, &mut BodyCx<'_>)")]
+    #[key(skip)]
     menu: Option<MenuRows<'a>>,
     actions: Vec<HeaderAction>,
     commands: Vec<HeaderCommand>,
+    #[key(skip)]
     footer: Option<FooterFn<'a>>,
+    #[key(skip)]
     taken: Option<HeaderAction>,
     menu_opener: Option<Id>,
     closed: Option<CloseReason>,

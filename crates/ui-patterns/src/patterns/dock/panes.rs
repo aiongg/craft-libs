@@ -542,7 +542,9 @@ pub struct PaneFrame<'a> {
     #[container]
     props: ContainerProps,
     actions: Vec<HeaderAction>,
+    #[key(skip)]
     menu: Option<MenuRows<'a>>,
+    #[key(skip)]
     take_drop: Option<TakeDrop<'a, PaneFrame<'a>>>,
     taken: Option<HeaderAction>,
     menu_opener: Option<Id>,

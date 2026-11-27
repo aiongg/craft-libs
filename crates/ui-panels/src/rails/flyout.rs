@@ -136,6 +136,7 @@ pub struct FlyoutButton<'a, T: Value + 'static> {
     opens: Side,
     /// The button is dragged and takes drops: the toolbar is being edited, and it has no flyout.
     #[prop(into)]
+    #[key(skip)]
     edit: Option<SlotEdit>,
     /// A click, Enter or Space fires this command in place of selecting the shown tool; the flyout opens by a hold, a
     /// drag away, a right click or the Menu key.
@@ -148,6 +149,7 @@ pub struct FlyoutButton<'a, T: Value + 'static> {
     /// The tips of the tools: where one `has` a tip, its row shows it, and while it is the shown tool the button leaves
     /// its command tooltip to the tip the host shows the button with.
     #[prop]
+    #[key(skip)]
     tips: Option<&'a dyn ToolTips<T>>,
     /// A request of the pass, the index of a tool among `tools`: the button comes into view in its scroll owner and,
     /// when the tool is not the shown one, opens its flyout.
@@ -156,12 +158,14 @@ pub struct FlyoutButton<'a, T: Value + 'static> {
     /// The index of the tool among `tools` whose row wears the target mark while the flyout is open.
     #[prop(vis = "pub(crate)")]
     marked_row: Option<usize>,
+    #[key(skip)]
     laid: Option<Laid>,
     picked: Option<T>,
     open: bool,
     double: bool,
     /// The press of this pass opened the flyout (`Held`): its release over the bar tears the group off.
     held: bool,
+    #[key(skip)]
     dropped: Option<ToolDropped>,
     torn_off: Option<Pos2>,
 }

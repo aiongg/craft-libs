@@ -51,7 +51,7 @@ pub(super) use trailing::{Trailing, TrailingItem};
 pub use trailing::{TrailingFace, TrailingPart};
 
 /// Where on a row a drag of its own starts instead of the row's ([`ListRow::part_drag`]).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum RowDragSpot {
     /// A thumbnail.
@@ -61,7 +61,7 @@ pub enum RowDragSpot {
 }
 
 /// Where a row sits in a run of rows that share one outline ([`ListRow::run`]).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum RowRun {
     /// A run of one row: outlined on every side.
@@ -107,7 +107,7 @@ pub fn label_color_label(color: Option<LabelColor>, words: &ListWords) -> Label 
 }
 
 /// How strongly a row's label reads.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum RowInk {
     /// `text.normal`.
@@ -121,7 +121,7 @@ pub enum RowInk {
 
 /// The part of a row that a colour from data inks.
 #[non_exhaustive]
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 pub enum HueTarget {
     /// The row's icon.
     #[default]
@@ -132,7 +132,7 @@ pub enum HueTarget {
 
 /// The wrapped text under a row's label: one run, or styled spans such as a search match.
 #[non_exhaustive]
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, crate::contract::MemoProps)]
 pub enum RowLines {
     /// Plain text.
     Plain(Label),
@@ -197,7 +197,7 @@ impl From<Vec<Span<'static>>> for RowLines {
 
 /// A status in a table cell: a tone icon, toned text, a tip and an action link.
 #[non_exhaustive]
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, crate::contract::MemoProps)]
 pub struct CellStatus {
     /// The tone of the icon and the text.
     pub tone: Tone,
@@ -231,6 +231,7 @@ impl CellStatus {
 }
 
 /// A text shown in one column of a row: the body role in the row's ink, on one elided line or wrapped.
+#[derive(crate::contract::MemoProps)]
 pub(super) struct TextCell {
     pub column: ColumnKey,
     pub text: Label,
@@ -238,6 +239,7 @@ pub(super) struct TextCell {
 }
 
 /// A status shown in one column of a row ([`ListRow::cell_status`]).
+#[derive(crate::contract::MemoProps)]
 pub(super) struct StatusCell {
     pub column: ColumnKey,
     pub status: CellStatus,
@@ -347,12 +349,14 @@ pub struct ListRow<'a> {
     /// The rename editor replaces the label; `state` sets it from the collection's row state.
     pub(super) renaming: bool,
     /// Where the collection holds a press on the row, from its row state: the toggle cell it acts on shows it.
+    #[key(skip)]
     pub(super) pressed: Option<RowPressed>,
     /// The collection asked for this row's menu and it is open, from its row state: a revealed part stays shown.
     pub(super) menu_open: bool,
     /// The parts that drag instead of the row, each with what starts its drag session.
     pub(super) drags: Vec<(RowDragSpot, ThumbPayload)>,
     /// The cursors over thumbnails.
+    #[key(skip)]
     pub(super) cursors: Vec<(ThumbTarget, Cursor)>,
     /// The icon or thumbnails come before the disclosure column instead of after it.
     #[prop]
@@ -415,6 +419,7 @@ pub struct ListRow<'a> {
     /// a dot and a line through the row). It sits where the icon does, mirrored in a right-to-left interface, and
     /// replaces the row's icon; thumbnails replace it in turn.
     #[prop(boxed = "FnOnce(&ContentPainterCx, Rect) + 'a", name = "lead_painter")]
+    #[key(skip)]
     pub(super) lead_paint: Option<LeadPaintFn<'a>>,
     /// The leading text and the widest text its slot is sized for (`lead_text`).
     pub(super) lead_text: Option<(Label, Label)>,
@@ -426,16 +431,21 @@ pub struct ListRow<'a> {
     #[prop(name = "thumb_height")]
     pub(super) thumb: ThumbSize,
     pub(super) thumb_aspect: ThumbAspect,
+    #[key(skip)]
     pub(super) first: Option<ThumbPaint<'a>>,
+    #[key(skip)]
     pub(super) extras: Vec<Thumb<'a>>,
     /// The thumbnails the row's editing is aimed at: one target, or several together (`[ThumbTarget; N]`), framed with
     /// corner brackets whether or not the row is selected.
     #[prop(into, name = "thumb_target")]
     pub(super) targets: ThumbTargets,
+    #[key(skip)]
     pub(super) trailing: Vec<Trailing<'a>>,
     /// The components under the label band's text, in one line (`below`).
+    #[key(skip)]
     pub(super) below: Vec<Hosted<'a>>,
     /// The components shown in a column's cell in place of its text (`cell_field`).
+    #[key(skip)]
     pub(super) cell_fields: Vec<(ColumnKey, Hosted<'a>)>,
     /// Columns whose field is followed by their text cell.
     pub(super) field_suffixes: Vec<ColumnKey>,
@@ -465,12 +475,14 @@ pub struct ListRow<'a> {
     /// On an option of a list that picks a value: the row keeps a mark column, with the check mark when `true`.
     #[prop]
     pub(super) check: Option<bool>,
+    #[key(skip)]
     pub(super) event: Option<RowEvent>,
     pub(super) open: Option<OpenChange<()>>,
     /// The row's menu button was clicked: its rect, where the menu hangs.
     pub(super) menu: Option<Rect>,
     pub(super) label_rect: Rect,
     /// The placed rect of each cell node, by the node's part: the access step reads them as the cells' bounds.
+    #[key(skip)]
     pub(super) cell_bounds: Vec<(PartRef, Rect)>,
 }
 

@@ -55,6 +55,7 @@ pub const DOCK: CommandScope = <DockCommand as CommandSet>::SCOPE;
 pub struct Tap<'a> {
     #[common]
     common: Common,
+    #[key(skip)]
     on: Option<&'a std::cell::Cell<bool>>,
 }
 

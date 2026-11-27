@@ -49,7 +49,9 @@ struct Took {
 struct Surface<'a> {
     #[common]
     common: Common,
+    #[key(skip)]
     took: &'a RefCell<Took>,
+    #[key(skip)]
     outside: Option<CanvasGesture>,
 }
 
@@ -101,6 +103,7 @@ impl Component for Surface<'_> {
 struct Dialog<'a> {
     #[common]
     common: Common,
+    #[key(skip)]
     scene: &'a Scene,
     canvas: Id,
 }

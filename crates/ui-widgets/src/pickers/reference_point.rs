@@ -88,7 +88,7 @@ pub struct ReferencePointStyle {
 }
 
 /// What a [`ReferencePoint`]'s pick means.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum ReferencePointKind {
     /// A point of a box, drawn as the picker's [`ReferencePointLook`] sets.

@@ -33,6 +33,7 @@ pub struct Leaf<'a> {
     #[common]
     common: Common,
     size: Vec2,
+    #[key(skip)]
     seen: &'a RefCell<Seen>,
 }
 
@@ -95,10 +96,13 @@ pub struct Opener<'a> {
     #[common]
     common: Common,
     trigger: Trigger,
+    #[key(skip)]
     make: fn() -> Overlay,
     open: bool,
     close: bool,
+    #[key(skip)]
     opened: &'a Opened,
+    #[key(skip)]
     content: &'a RefCell<Seen>,
 }
 

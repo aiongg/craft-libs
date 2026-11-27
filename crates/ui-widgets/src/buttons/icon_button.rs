@@ -77,7 +77,7 @@ pub struct IconButtonStyle {
 }
 
 /// The mark an icon button shows for the popup it opens.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum PopupMark {
     /// No mark.
@@ -90,7 +90,7 @@ pub enum PopupMark {
 }
 
 /// How an icon button's pointer press affects the focused control.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum PressFocus {
     /// Follow the standard focus policy.

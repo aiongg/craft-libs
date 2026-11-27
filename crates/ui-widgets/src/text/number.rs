@@ -47,7 +47,7 @@ const VALUES: ColumnKey = ColumnKey::new("number_values");
 const UNITS: ColumnKey = ColumnKey::new("number_units");
 
 /// Where a number field shows its unit.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum UnitPlacement {
     /// Inside the field, after the number.
@@ -59,7 +59,7 @@ pub enum UnitPlacement {
 }
 
 /// Whether a number field shows step arrows.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum StepArrows {
     /// No arrows.
@@ -152,6 +152,7 @@ pub struct NumberField<'a, V: NumberValue + 'static = Option<f64>> {
     /// The codec, to read another locale's separators or units, or to read words such as "Auto" (`or_parse`).
     /// Without one the field reads and writes with the env's locale and the spellings of `unit_kind`.
     #[prop]
+    #[key(skip)]
     codec: Option<NumberCodec>,
     /// What the number counts: typed text may carry this kind's unit spellings ("12 mm") in the user's language or
     /// English, and the field shows at most the kind's decimals.
@@ -169,6 +170,7 @@ pub struct NumberField<'a, V: NumberValue + 'static = Option<f64>> {
     /// Where an arrow press, a Page key and a wheel notch go from the current value, for values on a ladder (the zoom
     /// ladder); the step is ignored for them. The range still holds the result.
     #[prop(func = "Fn(f64, i32, f64) -> f64")]
+    #[key(skip)]
     stepper: Option<NumberStepper<'a>>,
     /// A unit shown after the number.
     #[prop(into)]
@@ -239,6 +241,7 @@ pub struct NumberField<'a, V: NumberValue + 'static = Option<f64>> {
     /// The popup slider's track length, read from the tokens in parts: a drag on its chevron moves the value as far
     /// as a drag on the slider would.
     track: f32,
+    #[key(skip)]
     picked: Option<NumberPick>,
     /// The inside label's glyph before the text (`EnvView::inside_label`), measured in measure and parts for paint.
     leading: Vec<Adornment>,

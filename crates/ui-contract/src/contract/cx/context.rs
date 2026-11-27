@@ -22,7 +22,7 @@ use std::ops::{Deref, Range};
 use std::sync::Arc;
 
 /// How a component was activated this pass.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct Activation {
     /// By `Intent::Activate` (Enter, Space or an AccessKit click) rather than a primary click.

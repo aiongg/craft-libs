@@ -18,7 +18,7 @@ use egui::{Response, Vec2};
 use std::borrow::Cow;
 
 /// How serious a finding is. The glyph's shape differs per severity as well as its colour.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum Severity {
     /// For information.
@@ -50,7 +50,7 @@ impl Severity {
 }
 
 /// One finding: how serious it is, what it says and, optionally, where.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct Finding {
     /// The app's id for the finding; it keeps the selection while findings come and go.

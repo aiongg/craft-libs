@@ -362,9 +362,11 @@ fn declared(cx: &impl crate::contract::Pointer) -> Declared {
 pub struct MenuBar<'a> {
     #[common]
     common: Common,
+    #[key(skip)]
     titles: Vec<MenuTitle<'a>>,
     /// The Help menu's search.
     #[prop]
+    #[key(skip)]
     help: Option<MenuHelp<'a>>,
     /// Whether the bar takes F10, Alt and Alt+letter. Off while a dialog or the shortcut recorder owns the keys.
     #[prop]

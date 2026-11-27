@@ -35,7 +35,7 @@ impl<V> TextKey<V> {
 }
 
 /// What Tab does in a text field.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum TabKey {
     /// Tab moves focus.
@@ -53,7 +53,7 @@ pub enum TabKey {
 type WholePaste = dyn Fn(&str) -> bool;
 
 /// How a text part behaves beyond its codec.
-#[derive(Clone)]
+#[derive(Clone, crate::contract::MemoProps)]
 pub struct TextOptions {
     /// Shown while the text is empty.
     pub placeholder: Option<Label>,
@@ -84,6 +84,7 @@ pub struct TextOptions {
     /// The bound caret as a byte offset, read and written through its binding; the adapter keeps no caret of its own.
     pub caret: Option<usize>,
     /// Candidates for the text before the caret.
+    #[memo_props(skip = "the candidates are asked for while typing, not read by the show")]
     pub complete: Option<Arc<dyn Completer>>,
     /// Enter accepts the highlighted candidate, as Tab does; off, Enter stays the field's own (a cell commits on it).
     pub complete_on_enter: bool,
@@ -131,6 +132,7 @@ pub struct TextOptions {
     /// Set from the codec by `PartsCx::text`, never by hosts: a pasted text that this says is whole replaces all the
     /// text instead of the selection. It gets the paste as copied; the codec trims it.
     // PLAN: no `Send + Sync`: `Codec` and `PartsCx::text`'s codec are not `Send`.
+    #[memo_props(skip = "set from the codec by `PartsCx::text`, a callback read on paste")]
     pub whole_paste: Option<Arc<WholePaste>>,
     /// The key that submits a multi-line text: under `Enter`, plain, Cmd and Ctrl+Enter submit and Shift+Enter breaks
     /// the line.
@@ -142,7 +144,7 @@ pub struct TextOptions {
 }
 
 /// Which Enter chord submits a multi-line text.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum SubmitKey {
     /// Cmd or Ctrl+Enter submits; plain Enter breaks the line.

@@ -33,7 +33,7 @@ const FACE: PartKey = PartKey::new("face");
 
 /// One item of the tree, in tree order: each folder is followed by what it holds. The entry carries the key, the name,
 /// the icon and whether it can be picked.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, crate::contract::MemoProps)]
 pub struct TreeEntry<K> {
     key: K,
     label: Label,

@@ -39,7 +39,7 @@ pub struct ProgressStyle {
 }
 
 /// What a bar shows.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, crate::contract::MemoProps)]
 enum Amount {
     Fraction(f32),
     Unknown,

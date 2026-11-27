@@ -104,6 +104,7 @@ pub struct Bar<'a> {
     commit_cancel: Option<(Label, Label)>,
     committed: bool,
     cancelled: bool,
+    #[key(skip)]
     trailing: Option<TrailingFn<'a>>,
 }
 

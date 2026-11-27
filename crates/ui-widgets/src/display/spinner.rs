@@ -39,7 +39,7 @@ pub struct SpinnerStyle {
 
 /// The side of a spinner, as the icon sizes and the control height name it. A spinner without one follows the
 /// control size around it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum SpinnerSize {
     /// The small icon side.

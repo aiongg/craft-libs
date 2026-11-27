@@ -17,7 +17,7 @@ use std::ops::Range;
 use std::sync::{Arc, OnceLock};
 
 /// How a run fits its room.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum Wrap {
     /// One line at its natural width.
@@ -50,7 +50,7 @@ impl Wrap {
 }
 
 /// Where the lines of a multi-line run sit within the run's width.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default, crate::contract::MemoProps)]
 pub enum HAlign {
     /// At the start edge: left, right in a right-to-left interface.
     #[default]

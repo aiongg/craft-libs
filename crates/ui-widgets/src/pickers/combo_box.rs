@@ -94,9 +94,11 @@ pub struct ComboBox<'a> {
     placeholder: Option<Label>,
     /// Adds the host's content to each option's row.
     #[prop(func = "Fn(&String, ListRow<'a>) -> ListRow<'a>")]
+    #[key(skip)]
     decorate: Option<RowDress<'a, String>>,
     empty: String,
     /// What this pass did to the preview, reported in [`ComboBoxOutput::preview`].
+    #[key(skip)]
     preview: Preview<String>,
     /// Whether the combo box sizes to its options alone, as in a toolbar or ribbon.
     #[style_key]

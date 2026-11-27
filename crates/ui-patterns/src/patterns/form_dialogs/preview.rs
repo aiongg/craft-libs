@@ -81,7 +81,7 @@ pub struct PreviewPaneStyle {
 }
 
 /// What a preview pane shows in its well.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum PreviewState {
     /// The host is rendering: the well with a progress line, `Some` of the fraction done or `None` while unknown.
@@ -98,7 +98,7 @@ pub enum PreviewState {
 /// `transform` is a `CanvasTransform` whose canvas origin is the centre of the picture and whose layer origin is the
 /// centre of the well: `scale` is the zoom (1 is the picture's own size) and `offset` is how far the picture's centre
 /// lies from the well's centre.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct PreviewView {
     /// The pan and zoom. While `fit` is set the pane shows the fit view instead, and a pass that reports a fit view
@@ -286,6 +286,7 @@ pub struct PreviewPane<'a> {
     #[prop]
     thumbnail: bool,
     /// The view after this pass, when the user changed it.
+    #[key(skip)]
     moved: Option<PreviewView>,
     /// The well took the second press of a double click this pass.
     double_clicked: bool,
@@ -295,6 +296,7 @@ pub struct PreviewPane<'a> {
     pressed: Option<Pos2>,
     /// The host's drawing over the picture of a `Ready` pane.
     #[prop(func = "FnOnce(&ContentPainterCx, CanvasTransform, Rect)")]
+    #[key(skip)]
     overlay: Option<PaneOverlay<'a>>,
     /// Multiplies the `Ready` picture's colours, as `ThumbPaint::tint` does.
     #[prop]
