@@ -13,7 +13,7 @@ use crate::contract::cx::BodyCx;
 use crate::contract::rt::items::{RowFacts, RowsView, rows_view};
 use crate::contract::run::{Measuring, ShapeHooks, ShowAt};
 use crate::contract::steps::ShapeKind;
-use crate::contract::{Bind, Collection, Context, Cx, Internal, ItemCx, ItemOutput as _, PartsCx, Props, Show as _, Sizing, Ui, UiBuilder};
+use crate::contract::{Bind, Collection, Context, Cx, Internal, ItemCx, ItemOutput as _, PartsCx, Props, Scroll, Show as _, Sizing, Ui, UiBuilder};
 use crate::primitives::{Id, SurfaceSlot};
 use crate::runtime::access::Role;
 use crate::runtime::env::{AppValues, Env, ItemFacts, ThemeScope};
@@ -335,7 +335,8 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         let mut moved = false;
         let size = layout.content_size();
         let extent = Vec2::new(size.x as f32, size.y as f32);
-        let scroll = self.scrolls.then(|| comp.props(Internal::new()).scroll.unwrap_or_default());
+        // The rows view scrolls along the axis the rows overflow; a sheet's sideways scroll is shared with its header.
+        let scroll = self.scrolls.then(|| if self.overflow == Axis::X { Scroll::horizontal() } else { Scroll::vertical() });
         let installed = Env::install_for(ui, base_env);
         let mut place_rows = |ui: &mut Ui, facts: Option<&RowFacts>| {
             for at in order {
