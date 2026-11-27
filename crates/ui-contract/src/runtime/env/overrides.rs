@@ -56,6 +56,12 @@ impl ThemeScope {
         self
     }
 
+    /// What the scope sets: the definition, mode, contrast and density, each `None` when inherited.
+    #[cfg(feature = "rt")]
+    pub(crate) fn settings(&self) -> (Option<&Arc<ThemeDef>>, Option<Mode>, Option<Contrast>, Option<Size>) {
+        (self.theme.as_ref(), self.mode, self.contrast, self.density)
+    }
+
     /// Puts the scope's tokens into `scoped`.
     pub(crate) fn apply(&self, ctx: &Context, scoped: &mut Scoped) {
         let mut inputs = (*scoped.token_inputs).clone();

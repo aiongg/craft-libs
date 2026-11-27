@@ -16,22 +16,32 @@
 
 pub mod access;
 mod container;
+mod cursor;
+mod env;
 mod key;
 mod lazy;
+mod memory;
+mod motion;
 mod node;
+pub mod pending;
 mod response;
 mod run;
 mod scope;
 mod scroll;
 pub mod skeleton;
 mod sweep;
+pub mod textures;
 mod ui;
 
 pub use container::{Container, show_container};
+pub use env::{EnvCells, EnvScope, LayerFrame, ThemeBase};
 pub use key::ComponentKey;
 pub use lazy::Lazy;
+pub use motion::{Interpolate, MotionSpec, Tween, loop_phase, spec};
 pub use node::{NodeInput, Pointer};
+pub use pending::{Delivery, JobBoard, Pending};
 pub use response::{EditResponse, Outcome, Response};
 pub use run::{Component, Cx, MeasureCx, Paint, PartBuilder, PartsCx, ValueOf, show_leaf};
-pub use scope::{MemoView, window_root};
+pub use scope::{MemoView, WindowEnv, window_root, window_root_with};
+pub use textures::{TextureCache, TextureKey, TextureLook};
 pub use ui::Ui;

@@ -140,6 +140,52 @@ impl BuildCx<'_> {
         state
     }
 
+    /// A cell owned by this node under `key`, created with `init` on first use and freed with the
+    /// node: per-node memory that needs no id map. The same key gives the same cell in every build.
+    pub fn slot<T: 'static>(&mut self, key: impl Hash, init: impl FnOnce() -> T) -> State<T> {
+        let key = hash_key(&(std::any::TypeId::of::<T>(), key));
+        if let Some(n) = self.rt.tree.nodes.get(&self.node)
+            && let Some((_, at)) = n.slots.iter().find(|(k, _)| *k == key)
+        {
+            return State::from_slot(*at);
+        }
+        let state = self.rt.store.create(init());
+        if let Some(n) = self.rt.tree.nodes.get_mut(&self.node) {
+            n.slots.push((key, state.slot_ref()));
+        }
+        state
+    }
+
+    /// A derived cell owned by this node, freed with it. Its readers are marked when an input it
+    /// read is written, at the start of the pass: a scope derives its env values from its parent's
+    /// cells this way, so the nodes that read them rerun in the frame the host writes the input.
+    pub fn derived<T: 'static>(&mut self, compute: impl Fn(&mut crate::state::DeriveCx<'_>) -> T + 'static) -> crate::state::Derived<T> {
+        let derived = self.rt.store.derive(compute);
+        if let Some(n) = self.rt.tree.nodes.get_mut(&self.node) {
+            n.owned.push(derived.state().slot_ref());
+        }
+        derived
+    }
+
+    /// Provides `value` to this node and everything it owns: [`BuildCx::provided`] and
+    /// [`crate::PaintCx::provided`] on those nodes find it. The nearest provider wins. Providing
+    /// again replaces the value.
+    pub fn provide<T: 'static>(&mut self, value: T) {
+        let ty = std::any::TypeId::of::<T>();
+        if let Some(n) = self.rt.tree.nodes.get_mut(&self.node) {
+            let value: std::rc::Rc<dyn std::any::Any> = std::rc::Rc::new(value);
+            match n.provided.iter_mut().find(|(t, _)| *t == ty) {
+                Some(entry) => entry.1 = value,
+                None => n.provided.push((ty, value)),
+            }
+        }
+    }
+
+    /// The nearest value of type `T` this node or a node above it provides.
+    pub fn provided<T: Clone + 'static>(&self) -> Option<T> {
+        self.rt.tree.provided::<T>(self.node)
+    }
+
     /// Children created inside `f` are named by `key`, so they keep their nodes when siblings are
     /// inserted, removed or reordered.
     pub fn keyed<R>(&mut self, key: impl Hash, f: impl FnOnce(&mut Self) -> R) -> R {

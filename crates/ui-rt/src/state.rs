@@ -342,9 +342,19 @@ impl<T: 'static> State<T> {
     pub(crate) fn slot_ref(self) -> (u32, u32) {
         (self.index, self.generation)
     }
+
+    pub(crate) fn from_slot((index, generation): (u32, u32)) -> State<T> {
+        State { index, generation, _t: PhantomData }
+    }
 }
 
 impl<T: 'static> Derived<T> {
+    /// The cell as a [`State`] handle to read through: a code path that takes cells of both kinds
+    /// reads a derived one like any other. Writing it is a mistake: the next read recomputes.
+    pub fn state(self) -> State<T> {
+        self.0
+    }
+
     pub fn get(self, cx: &mut impl Reads) -> T
     where
         T: Clone,

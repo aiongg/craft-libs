@@ -259,7 +259,7 @@ pub fn show_container<C: Container, R>(component: C, ui: &mut Ui<'_, '_>, mut bo
     cx.keyed(child, |cx| {
         cx.inline(ComponentNode { key: key.map_or(0, fold), tag }, |kept, state, cx| {
             let own_kept = holds(kept, key, state);
-            let tokens = if own_kept { flow.tokens.clone() } else { cx.tokens() };
+            let tokens = if own_kept { flow.tokens.clone() } else { super::env::tokens(cx) };
             let into = Host { node: Some(cx.node()), own_kept, marked: state.path || state.marked, kept: Some(&mut *kept), sweep };
             let (out, size, inner) = lay_out(&mut component, cx, &shape, into, (id, origin, room), &tokens, &mut body);
             flow.absorb(&inner);

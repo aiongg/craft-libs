@@ -81,6 +81,10 @@ pub(crate) struct Node {
     pub(crate) media: SmallVec<[(Media, Rect); 1]>,
     /// Cells this node created; freed with it.
     pub(crate) owned: Vec<(u32, u32)>,
+    /// Cells created by key ([`crate::BuildCx::slot`]), owned like `owned`.
+    pub(crate) slots: Vec<(u64, (u32, u32))>,
+    /// Values this node provides to itself and what it owns ([`crate::BuildCx::provide`]).
+    pub(crate) provided: Vec<(std::any::TypeId, std::rc::Rc<dyn Any>)>,
     pub(crate) outbox: Option<Box<dyn Any>>,
     /// Recorded by the last paint, in local coordinates, in paint order.
     pub(crate) hits: Vec<HitRecord>,
@@ -116,6 +120,8 @@ impl Node {
             abs: None,
             media: SmallVec::new(),
             owned: Vec::new(),
+            slots: Vec::new(),
+            provided: Vec::new(),
             outbox: None,
             hits: Vec::new(),
             cursor: None,
@@ -140,6 +146,21 @@ pub(crate) struct Tree {
 }
 
 impl Tree {
+    /// The nearest value of type `T` provided by `node` or the nodes above it (the owner of a
+    /// layer child, else the parent).
+    pub(crate) fn provided<T: Clone + 'static>(&self, node: NodeId) -> Option<T> {
+        let want = std::any::TypeId::of::<T>();
+        let mut cur = Some(node);
+        while let Some(id) = cur {
+            let n = self.nodes.get(&id)?;
+            if let Some((_, v)) = n.provided.iter().find(|(t, _)| *t == want) {
+                return v.downcast_ref::<T>().cloned();
+            }
+            cur = n.owner.or(n.parent);
+        }
+        None
+    }
+
     pub(crate) fn has_work(&self) -> bool {
         !(self.build_q.is_empty() && self.layout_q.is_empty() && self.paint_q.is_empty())
     }

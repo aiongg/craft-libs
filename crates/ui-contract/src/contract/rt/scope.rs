@@ -4,8 +4,10 @@
 use craft_ui_rt::{BuildCx, Pos2, Rect, Vec2};
 use egui::Id;
 
+use super::env::EnvCells;
 use super::key::{fold, type_key};
 use super::node::{Place, ScopeNode};
+use super::pending::JobBoard;
 use super::response::{begin_reads, end_reads};
 use super::sweep::Sweep;
 use super::ui::{Flow, Ui};
@@ -16,15 +18,43 @@ use crate::contract::{IdSource, MemoKey, MemoProps};
 /// input reached a node under it, or a read in it changed (it reads the viewport and the tokens,
 /// and the interaction facts its code reads from responses).
 pub fn window_root<R>(cx: &mut BuildCx<'_>, f: impl FnOnce(&mut Ui<'_, '_>) -> R) -> R {
+    window_root_with(cx, WindowEnv::default(), f)
+}
+
+/// What the host gives a window root: cells it writes (a language change, a theme switch) and the board
+/// its jobs deliver through. A window with none gets cells of its own and a board no thread wakes.
+#[derive(Default, Clone)]
+pub struct WindowEnv {
+    /// The env cells of the window.
+    pub cells: Option<EnvCells>,
+    /// The background jobs of the window.
+    pub jobs: Option<JobBoard>,
+}
+
+/// [`window_root`] with the host's env cells and job board.
+pub fn window_root_with<R>(cx: &mut BuildCx<'_>, host: WindowEnv, f: impl FnOnce(&mut Ui<'_, '_>) -> R) -> R {
     let window = cx.window();
     cx.inline(ScopeNode { key: 0 }, |kept, state, cx| {
         cx.count_scope();
         if state.new {
             cx.mark_changed();
         }
+        let cells = match (host.cells, kept.env) {
+            (Some(given), _) => given,
+            (None, Some(own)) => own,
+            (None, None) => {
+                let tokens = cx.env().tokens;
+                EnvCells::owned(cx, tokens)
+            }
+        };
+        kept.env = Some(cells);
+        cx.provide(cells);
+        if let Some(jobs) = host.jobs {
+            cx.provide(jobs);
+        }
         let reads = begin_reads(true);
         let viewport = cx.env().viewport.get(cx);
-        let tokens = cx.tokens();
+        let tokens = super::env::tokens(cx);
         let gap = tokens.space.gap.stack;
         let region = Rect::from_min_size(Pos2::ZERO, viewport);
         let sweep = match kept.sweep {
@@ -108,7 +138,7 @@ impl<P: MemoProps> MemoView<P> {
                 if state.new {
                     cx.mark_changed();
                 }
-                let tokens = cx.tokens();
+                let tokens = super::env::tokens(cx);
                 let gap = tokens.space.gap.stack;
                 let region = Rect::from_min_size(origin, place.room);
                 let reads = begin_reads(false);

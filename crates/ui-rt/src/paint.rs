@@ -49,6 +49,12 @@ impl PaintCx<'_> {
         self.rt
     }
 
+    /// The nearest value of type `T` this node or a node above it provides
+    /// ([`crate::BuildCx::provide`]).
+    pub fn provided<T: Clone + 'static>(&self) -> Option<T> {
+        self.rt.tree.provided::<T>(self.node)
+    }
+
     /// Records a hit shape in local coordinates, at the current level: shapes recorded inside
     /// [`PaintCx::over`] sit above the node's children. `part` tells the node's parts apart in
     /// events (0 when it has one).
