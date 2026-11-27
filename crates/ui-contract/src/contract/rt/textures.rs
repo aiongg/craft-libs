@@ -307,15 +307,16 @@ impl<K: TextureKey> TextureCache<K> {
     }
 
     /// [`TextureCache::look`] for the node building now, which runs again when a job answers for
-    /// `key`: the one signal of a delivered picture. A key that was never asked for subscribes
-    /// nothing; read it again after [`TextureCache::request`].
+    /// `key`: the one signal of a delivered picture. The subscription is made when the build ends,
+    /// so a node that reads `Missing` and then asks with [`TextureCache::request`] in the same build
+    /// reads the key it asked for; a key nobody asked for by then subscribes nothing.
     ///
     /// A picture reads `Ready` once it is in the image store; until then the key reads as loading
     /// and the node builds again in the next frame. While the key loads, the cache cancels its job
     /// when the last node that reads it leaves the tree.
     pub fn read(&self, cx: &mut impl TextureReads, key: &K, revision: Revision) -> TextureLook {
         let now = cx.now();
-        let (look, stale, arm, wait) = {
+        let (look, stale, wait) = {
             let mut guard = self.lock();
             let entries = &mut *guard;
             if entries.frames[1] != now {
@@ -323,45 +324,54 @@ impl<K: TextureKey> TextureCache<K> {
             }
             entries.clock += 1;
             let clock = entries.clock;
-            let Some(entry) = entries.map.get_mut(key) else { return TextureLook::Missing };
-            entry.used = clock;
-            entry.seen = Some(now);
-            if let Made::Loading { asked, .. } = &mut entry.made {
-                asked.get_or_insert(now);
+            match entries.map.get_mut(key) {
+                None => (TextureLook::Missing, None, false),
+                Some(entry) => {
+                    entry.used = clock;
+                    entry.seen = Some(now);
+                    if let Made::Loading { asked, .. } = &mut entry.made {
+                        asked.get_or_insert(now);
+                    }
+                    let mut look = look_of(entry, revision);
+                    let ready = matches!(entry.made, Made::Ready(_));
+                    let wait = ready && !entry.landed;
+                    if wait && matches!(look, TextureLook::Ready(_)) {
+                        look = TextureLook::Loading { stand_in: entry.stand_in };
+                    }
+                    // The new picture is on screen: the stand-in's goes.
+                    let stale = if ready && entry.landed { entry.stand_in.take() } else { None };
+                    if let Some(old) = stale {
+                        entries.bytes -= byte_size(old.size);
+                    }
+                    (look, stale, wait)
+                }
             }
-            let mut look = look_of(entry, revision);
-            let ready = matches!(entry.made, Made::Ready(_));
-            let wait = ready && !entry.landed;
-            if wait && matches!(look, TextureLook::Ready(_)) {
-                look = TextureLook::Loading { stand_in: entry.stand_in };
-            }
-            // The new picture is on screen: the stand-in's goes.
-            let stale = if ready && entry.landed { entry.stand_in.take() } else { None };
+        };
+        let (cache, key) = (self.clone(), key.clone());
+        cx.with_build(move |cx| cache.subscribe(cx, &key, stale, wait.then_some(now)));
+        look
+    }
+
+    /// The effects of a read for the reading node, when its build ends: its read of the key's cell, the stand-in's
+    /// image leaving the store, a build at `wake` while the picture waits for the store, and, while the key loads,
+    /// the watch for the cell's last reader. A key with no entry by then (nobody asked for it) subscribes nothing.
+    fn subscribe(&self, cx: &mut BuildCx<'_>, key: &K, stale: Option<CachedTexture>, wake: Option<f64>) {
+        let found = self.lock().map.get_mut(key).map(|entry| {
+            let cell = *entry.cell.get_or_insert_with(|| cx.store_mut().create(0u64));
             let arm = (entry.loading() && !entry.watching).then(|| {
                 entry.watching = true;
                 entry.ticket
             });
-            if let Some(old) = stale {
-                entries.bytes -= byte_size(old.size);
-            }
-            (look, stale, arm, wait)
-        };
-        let (cache, key) = (self.clone(), key.clone());
-        cx.with_build(move |cx| cache.subscribe(cx, &key, stale, arm, wait.then_some(now)));
-        look
-    }
-
-    /// The effects of a read for the reading node: its read of the key's cell, the stand-in's image leaving the
-    /// store, a build at `wake` while the picture waits for the store, and the watch for the cell's last reader.
-    fn subscribe(&self, cx: &mut BuildCx<'_>, key: &K, stale: Option<CachedTexture>, arm: Option<u64>, wake: Option<f64>) {
-        let Some(cell) = self.lock().map.get_mut(key).map(|entry| *entry.cell.get_or_insert_with(|| cx.store_mut().create(0u64))) else {
-            return;
-        };
+            (cell, arm)
+        });
+        let Some((cell, arm)) = found else { return };
         if let Some(old) = stale {
             cx.images().remove(old.key);
         }
         cell.get(cx);
         if wake.is_some() {
+            // The picture waits for the image store: it reads ready from the first build after it entered.
+            self.land(key, cx.images());
             cx.request_build_at(wake);
         }
         if let Some(ticket) = arm {
@@ -478,12 +488,16 @@ impl<K: TextureKey> TextureCache<K> {
             fx.touch.push(cell);
         }
         fx.deliver(d, self.options);
-        self.landed(key);
+        self.land(key, d.images);
     }
 
-    /// The `Ready` picture of `key` is in the image store now.
-    fn landed(&self, key: &K) {
-        if let Some(entry) = self.lock().map.get_mut(key) {
+    /// Marks `key`'s `Ready` picture landed once its image is in `images`. An insert past the frame's
+    /// upload budget waits outside the store; until it enters, the key reads as loading.
+    fn land(&self, key: &K, images: &ImageStore) {
+        if let Some(entry) = self.lock().map.get_mut(key)
+            && let Made::Ready(texture) = &entry.made
+            && images.contains(texture.key)
+        {
             entry.landed = true;
         }
     }
@@ -516,7 +530,7 @@ impl<K: TextureKey> TextureCache<K> {
         let (cache, landed) = (self.clone(), key.clone());
         cx.with_build(move |cx| {
             fx.apply(cx, cache.options);
-            cache.landed(&landed);
+            cache.land(&landed, cx.images());
         });
         self.read(cx, key, revision);
     }

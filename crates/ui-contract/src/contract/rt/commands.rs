@@ -38,6 +38,27 @@ use crate::runtime::focus::{EditSet, KeyUse};
 /// state the command changes.
 type Handler = Box<dyn FnMut(&Fired, &mut Store)>;
 
+/// Where a handler stands on a firing path: the nearest of them on the path runs.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Reach {
+    /// At this node: it runs for a fire whose path passes the node (`Ui::on_command`; a take's scope instance).
+    Node(NodeId),
+    /// At the app instance, ahead of the board's own handlers: a take of an app-scope command (production delivers
+    /// those to any taker, wherever the fire comes from).
+    App,
+    /// The board's own (`CommandBoard::on`): when no handler on the path or at the app instance took the command.
+    Board,
+}
+
+/// One registered handler: the node it lives as long as (`None`: the board's own), its command, where it stands on a
+/// firing path, and the handler.
+struct Registered {
+    owner: Option<NodeId>,
+    command: CommandRef,
+    reach: Reach,
+    handler: Handler,
+}
+
 struct Board {
     keymap: Keymap,
     /// The linked command sets' definitions: labels, icons, kinds and home scopes for `resolve`.
@@ -51,8 +72,8 @@ struct Board {
     /// no store at hand (a hook's `Commands::resolve_command`) reads it and logs the cell read for its node.
     states: Vec<StateEntry>,
     /// Each handler with the node it was registered for (`Ui::on_command`; `None`: the board's own,
-    /// `CommandBoard::on`). One handler per owner and command.
-    handlers: Vec<(Option<NodeId>, CommandRef, Handler)>,
+    /// `CommandBoard::on`) and where it stands on a firing path. One handler per owner and command.
+    handlers: Vec<Registered>,
     /// The app scope's handler: every fired command with no handler on its firing path goes to it.
     app: Option<Handler>,
     /// The app's one gate over commands (`CommandGate`), and the cell its key is written to, so a node that resolves
@@ -294,20 +315,21 @@ impl CommandBoard {
 
     /// Runs `handler` when `command` fires and no node on the firing path registered one of its own.
     pub fn on(&self, command: impl Into<CommandRef>, handler: impl FnMut(&Fired, &mut Store) + 'static) {
-        self.register(None, command.into(), Box::new(handler));
+        self.register(None, Reach::Board, command.into(), Box::new(handler));
     }
 
-    /// Registers `handler` for `command` under `owner`, replacing that owner's earlier handler for it.
-    pub(crate) fn register(&self, owner: Option<NodeId>, command: CommandRef, handler: Handler) {
+    /// Registers `handler` for `command` under `owner`, standing at `reach` on a firing path, replacing that owner's
+    /// earlier handler for it.
+    pub(crate) fn register(&self, owner: Option<NodeId>, reach: Reach, command: CommandRef, handler: Handler) {
         let mut board = self.0.borrow_mut();
-        board.handlers.retain(|(o, c, _)| !(*o == owner && *c == command));
-        board.handlers.push((owner, command, handler));
+        board.handlers.retain(|r| !(r.owner == owner && r.command == command));
+        board.handlers.push(Registered { owner, command, reach, handler });
     }
 
     /// The firing path of a command fired from `from`: `from` and its ancestors, nearest first. Handlers of nodes that
     /// left the tree go here.
     pub(crate) fn path(&self, rt: &Runtime, from: Option<NodeId>) -> Vec<NodeId> {
-        self.0.borrow_mut().handlers.retain(|(owner, _, _)| owner.is_none_or(|node| rt.window_of(node).is_some()));
+        self.0.borrow_mut().handlers.retain(|r| r.owner.is_none_or(|node| rt.window_of(node).is_some()));
         let mut path = Vec::new();
         let mut at = from;
         while let Some(node) = at {
@@ -318,7 +340,7 @@ impl CommandBoard {
     }
 
     /// Runs `fired`'s command along `path` (nearest first) when it is enabled: the handler of the nearest node on the
-    /// path that registered one, else the board's own, else the app scope's. Returns whether a handler ran. Every fire
+    /// path that registered one, else a take at the app instance, else the board's own, else the app scope's. Returns whether a handler ran. Every fire
     /// goes through here: a key, `Ui::fire`, `Cx::fire`, a component's activation, the harness. The handler runs
     /// outside the board's borrow, so it may set command states or register handlers.
     /// `modal` and `focused` are where the firing node stands, worked out once per fire by the caller. After the
@@ -349,26 +371,27 @@ impl CommandBoard {
     fn run_handler(&self, store: &mut Store, path: &[NodeId], fired: &Fired) -> bool {
         let taken = {
             let mut board = self.0.borrow_mut();
-            let rank = |owner: &Option<NodeId>| match owner {
-                Some(node) => path.iter().position(|n| n == node),
-                None => Some(path.len()),
+            let rank = |reach: Reach| match reach {
+                Reach::Node(node) => path.iter().position(|n| *n == node),
+                Reach::App => Some(path.len()),
+                Reach::Board => Some(path.len() + 1),
             };
             let at = board
                 .handlers
                 .iter()
                 .enumerate()
-                .filter(|(_, (_, c, _))| *c == fired.command)
-                .filter_map(|(at, (owner, _, _))| rank(owner).map(|rank| (rank, at)))
+                .filter(|(_, r)| r.command == fired.command)
+                .filter_map(|(at, r)| rank(r.reach).map(|rank| (rank, at)))
                 .min()
                 .map(|(_, at)| at);
             at.map(|at| board.handlers.remove(at))
         };
-        if let Some((owner, command, mut handler)) = taken {
-            handler(fired, store);
+        if let Some(mut taken) = taken {
+            (taken.handler)(fired, store);
             let mut board = self.0.borrow_mut();
             // One registered for the same owner and command while it ran wins.
-            if !board.handlers.iter().any(|(o, c, _)| *o == owner && *c == command) {
-                board.handlers.push((owner, command, handler));
+            if !board.handlers.iter().any(|r| r.owner == taken.owner && r.command == taken.command) {
+                board.handlers.push(taken);
             }
             return true;
         }
@@ -785,7 +808,7 @@ impl Ui<'_, '_> {
         }
         if let Some(board) = self.cx.provided::<CommandBoard>() {
             let node = self.cx.node();
-            board.register(Some(node), command.into(), Box::new(handler));
+            board.register(Some(node), Reach::Node(node), command.into(), Box::new(handler));
         }
     }
 

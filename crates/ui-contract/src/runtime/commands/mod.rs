@@ -665,8 +665,15 @@ pub trait Commands: CommandAccess {
     /// instance's inbox cell at event time, so only this node reruns; the take records what it
     /// consumed in the node's memory and writes no cell.
     fn take_command<S: CommandSet>(&mut self) -> Option<(S, Fired)> {
+        // A scoped set is taken from the innermost instance of its scope around this context, else from this
+        // component (one that publishes the scope's commands under its own id, as a collection's header does, is
+        // their instance); an app-scope set from the app instance.
+        let instance = match S::SCOPE == CommandScope::APP {
+            true => None,
+            false => Some(self.command_chain().innermost(S::SCOPE.name()).or(self.command_owner())?),
+        };
         let (inbox, memory, id) = self.command_inbox()?;
-        inbox.take::<S, S>(memory, id, S::from_ref)
+        inbox.take::<S, S>(memory, id, instance, S::from_ref)
     }
 
     /// Declares Undo and Redo on this instance, enabled as `can_undo` and `can_redo` say, and takes the
@@ -682,8 +689,10 @@ pub trait Commands: CommandAccess {
         }
         self.publish(EditCommands::Undo, CommandState::new().enabled(can_undo));
         self.publish(EditCommands::Redo, CommandState::new().enabled(can_redo));
+        // Undo and Redo are declared on the innermost instance around this context, so they are taken from it.
+        let instance = self.command_chain().innermost_any();
         let (inbox, memory, id) = self.command_inbox()?;
-        inbox.take::<EditCommands, Step>(memory, id, step).map(|(step, _)| step)
+        inbox.take::<EditCommands, Step>(memory, id, instance, step).map(|(step, _)| step)
     }
 
     /// `command` as this context shows it: the label, icon and chord with the scoped bindings of the scopes above

@@ -843,7 +843,7 @@ pub(crate) fn run_shaped<C: Component>(
             board.run_from(cx, &fired);
         }
         let node = cx.node();
-        register_inboxes(wants, node, id, &mut kept.memory, &board, cx.store_mut());
+        register_inboxes(wants, node, id, &mut kept.memory, &board, cx);
     }
     out
 }
@@ -1327,7 +1327,12 @@ fn record_variants<C: Component>(
     };
     // The label that names the control shows its press and hover as the control's own.
     let (label_hover, label_press) = cxx.core.env.field_label().map_or((false, false), |label| label.hover_of(cxx.core.id));
-    let current = if (now.pressed || label_press) && takes_press {
+    // A faded component shows no hover or press (`steps::state`, its faces in `run::paint_face`): it keeps its rest
+    // look alone, whatever pointer facts its looks would vary by when enabled.
+    let faded = cxx.core.faded;
+    let current = if faded {
+        Pointer::Rest
+    } else if (now.pressed || label_press) && takes_press {
         Pointer::Press
     } else if now.hovered || label_hover || label_press {
         Pointer::Hover
@@ -1335,7 +1340,10 @@ fn record_variants<C: Component>(
         Pointer::Rest
     };
     let mut out: SmallVec<[Variant; 1]> = SmallVec::new();
-    let (first, children, read) = paint_as(current, cxx, &mut values);
+    let (first, children, mut read) = paint_as(current, cxx, &mut values);
+    if faded {
+        (read.hover, read.press) = (false, false);
+    }
     if children {
         // One look, recorded in the current pointer state; the node reruns when a pointer fact its
         // paint read flips.
