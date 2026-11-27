@@ -183,12 +183,22 @@ pub(crate) fn tessellate(list: &DisplayList, shift: Vec2, env: &mut Env<'_>) -> 
     let mut opacity = 1.0f32;
     let scale = env.scale;
     let tolerance = 0.1 / f64::from(scale.max(1.0));
+    // Meshes tessellated since the last flush: epaint joins consecutive shapes with the same clip
+    // rect and texture into one mesh, so `raw` keeps its pieces between shapes. Where the rounded
+    // outlines change (a clip pushed or popped) or a surface comes, it is flushed first.
     let mut raw: Vec<ClippedPrimitive> = Vec::new();
+    let mut shapes: Vec<Shape> = Vec::new();
     for item in &list.items {
-        let mut shapes: Vec<Shape> = Vec::new();
+        shapes.clear();
         match item {
-            Item::PushClip(c) => clips.push(c, shift, scale),
-            Item::PopClip => clips.pop(),
+            Item::PushClip(c) => {
+                flush(&mut raw, &clips.outlines, &mut out.prims);
+                clips.push(c, shift, scale);
+            }
+            Item::PopClip => {
+                flush(&mut raw, &clips.outlines, &mut out.prims);
+                clips.pop();
+            }
             Item::PushOpacity { opacity: f, .. } => {
                 opacities.push(opacity);
                 opacity *= f;
@@ -309,27 +319,32 @@ pub(crate) fn tessellate(list: &DisplayList, shift: Vec2, env: &mut Env<'_>) -> 
             }
             Item::Surface { key, rect: r } => {
                 let r = rect(*r, shift);
+                flush(&mut raw, &clips.outlines, &mut out.prims);
                 out.prims.push(Prim { clip_rect: clips.rect, bounds: r.intersect(clips.rect), piece: Piece::Surface { key: *key, rect: r } });
             }
         }
-        for shape in shapes {
-            raw.clear();
+        for shape in shapes.drain(..) {
             env.tessellator.tessellate_clipped_shape(ClippedShape::new(clips.rect, shape), &mut raw);
-            for p in raw.drain(..) {
-                let Primitive::Mesh(mut mesh) = p.primitive else { continue };
-                for outline in &clips.outlines {
-                    clip_to_outline(&mut mesh, outline);
-                }
-                if mesh.is_empty() {
-                    continue;
-                }
-                out.prims.push(Prim { clip_rect: p.clip_rect, bounds: mesh.calc_bounds(), piece: Piece::Mesh(mesh) });
-            }
         }
     }
+    flush(&mut raw, &clips.outlines, &mut out.prims);
     out.masks.sort_unstable();
     out.masks.dedup();
     out
+}
+
+/// Moves the meshes in `raw` to `prims`, clipped to the rounded `outlines`.
+fn flush(raw: &mut Vec<ClippedPrimitive>, outlines: &[Vec<Pos2>], prims: &mut Vec<Prim>) {
+    for p in raw.drain(..) {
+        let Primitive::Mesh(mut mesh) = p.primitive else { continue };
+        for outline in outlines {
+            clip_to_outline(&mut mesh, outline);
+        }
+        if mesh.is_empty() {
+            continue;
+        }
+        prims.push(Prim { clip_rect: p.clip_rect, bounds: mesh.calc_bounds(), piece: Piece::Mesh(mesh) });
+    }
 }
 
 fn mesh_of(mesh: &DisplayMesh, shift: Vec2, opacity: f32) -> Mesh {

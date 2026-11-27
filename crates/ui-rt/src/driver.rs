@@ -33,13 +33,15 @@ pub struct Driver<P: Platform, R: Renderer> {
     pub platform: P,
     pub renderer: R,
     events: Vec<PlatformEvent>,
+    /// The windows of one turn's end-of-step pass, kept to reuse its buffer.
+    windows: Vec<WindowId>,
     attached: BTreeSet<WindowId>,
 }
 
 impl<P: Platform, R: Renderer> Driver<P, R> {
     /// Takes every platform window's size and scale and attaches the surfaces that exist.
     pub fn new(runtime: Runtime, platform: P, renderer: R) -> Self {
-        let mut driver = Driver { runtime, platform, renderer, events: Vec::new(), attached: BTreeSet::new() };
+        let mut driver = Driver { runtime, platform, renderer, events: Vec::new(), windows: Vec::new(), attached: BTreeSet::new() };
         for window in driver.platform.surfaces().windows() {
             driver.sync_window(window);
         }
@@ -156,8 +158,10 @@ impl<P: Platform, R: Renderer> Driver<P, R> {
                 report.ran = true;
             }
         }
-        let windows: Vec<WindowId> = self.runtime.windows().collect();
-        for window in windows {
+        let mut windows = std::mem::take(&mut self.windows);
+        windows.clear();
+        windows.extend(self.runtime.windows());
+        for &window in &windows {
             if let Some(update) = self.runtime.take_access_update(window) {
                 self.platform.access(window, update);
             }
@@ -165,6 +169,7 @@ impl<P: Platform, R: Renderer> Driver<P, R> {
                 self.platform.ime(window, req);
             }
         }
+        self.windows = windows;
         for (window, req) in self.runtime.take_clipboard_requests() {
             match req {
                 ClipboardRequest::Set(text) => self.platform.clipboard().set_text(&text),

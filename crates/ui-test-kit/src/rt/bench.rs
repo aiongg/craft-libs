@@ -83,6 +83,7 @@ pub fn bench_with<R: Renderer>(mut make: impl FnMut(Option<R>) -> Rig<R>, scenar
         bytes: Stat::default(),
     };
     let mut frame_no = 0;
+    let profile_callers = std::env::var_os("UI_ALLOC_CALLERS").is_some();
     while row.frames < measured {
         let dt = match scenario.steps.get(next) {
             Some(step) => {
@@ -98,7 +99,10 @@ pub fn bench_with<R: Renderer>(mut make: impl FnMut(Option<R>) -> Rig<R>, scenar
             }
         };
         next += 1;
+        let profile = profile_callers && frame_no >= warmup;
+        alloc::record_callers(profile);
         let (report, cost) = measure(|| rig.frame(dt));
+        alloc::record_callers(false);
         if frame_no >= warmup {
             let f = report.frame;
             row.frames += 1;
@@ -119,6 +123,25 @@ pub fn bench_with<R: Renderer>(mut make: impl FnMut(Option<R>) -> Rig<R>, scenar
             bytes.push(cost.bytes as f64);
         }
         frame_no += 1;
+    }
+    if profile_callers {
+        eprintln!(
+            "== allocation callers: {}\n{}",
+            scenario.name,
+            alloc::take_callers(
+                row.frames,
+                &[
+                    "craft_ui_rt",
+                    "craft_rt_runner",
+                    "craft_ui_render",
+                    "craft_ui_platform",
+                    "/ui-rt/",
+                    "/rt-runner/",
+                    "/ui-render-epaint/",
+                    "/platform-headless/"
+                ]
+            )
+        );
     }
     row.ui_ms = summarize(&ui);
     row.render_ms = summarize(&render);
