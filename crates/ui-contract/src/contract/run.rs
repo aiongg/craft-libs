@@ -245,7 +245,7 @@ pub(crate) fn core_for<'a>(
         press: PressState::IDLE,
         cursor: None,
         part_cursors: Vec::new(),
-        claims: Vec::new(),
+        captures: Default::default(),
         reveal: None,
         part_tips: Vec::new(),
         header_stops: Vec::new(),

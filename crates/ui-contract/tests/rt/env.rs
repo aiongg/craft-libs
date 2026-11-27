@@ -84,6 +84,8 @@ fn set_root_reruns_only_the_readers_of_cells_that_changed() {
     let settled = (0..6).any(|_| !step(&mut rig, cells, &mut seen).ran);
     assert!(settled, "the rig did not settle");
 
+    // A step that builds nothing calls no scope: start from no record so a stale one does not count as a run.
+    seen = Seen::default();
     cells.set_root(rig.driver.runtime.store_mut(), &root);
     let same = step(&mut rig, cells, &mut seen);
     assert!(!fresh(&seen.reader) && !fresh(&seen.quiet), "the same root values write no cell: {same:?}");

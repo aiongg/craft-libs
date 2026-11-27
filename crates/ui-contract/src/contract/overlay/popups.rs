@@ -68,7 +68,8 @@ impl PopupHandle {
     pub fn trigger<C: Component>(self, trigger: Trigger, cx: &mut Cx<'_, C>) {
         debug_assert!(C::OVERLAYS, "`{}` hosts a popup but sets `OVERLAYS = false`", std::any::type_name::<C>());
         let core = &mut *cx.core;
-        let resting = core.response.hovered() || core.focus.visible;
+        // Only a hover popup reads the opener's hover and focus look: a read here would run every opener per hover move.
+        let resting = trigger == Trigger::Hover && (core.response.hovered() || core.focus.visible);
         if trigger == Trigger::Context {
             core.popups.offer_context_menu();
         }

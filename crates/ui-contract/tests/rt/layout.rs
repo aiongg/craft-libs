@@ -132,11 +132,20 @@ fn root<R>(cx: &mut BuildCx<'_>, f: impl FnOnce(&mut Ui) -> R) -> R {
     window_root_with(cx, WindowEnv::default(), f)
 }
 
+/// Steps `rig` until a step runs nothing. The rig's clock stands still, so a step that only repaints (a popup's open
+/// fade reading the frame time) moves it on by a frame first, as frames do in an app; a build wake waits for the clock.
 fn settle(rig: &mut Rig<RecordingRenderer>, step: &mut dyn FnMut(&mut Rig<RecordingRenderer>) -> StepReport) {
-    for _ in 0..6 {
-        if !step(rig).ran {
+    let mut fading = false;
+    for _ in 0..16 {
+        if fading {
+            rig.driver.platform.advance(1.0 / 30.0);
+        }
+        let report = step(rig);
+        if !report.ran {
             return;
         }
+        let f = &report.frame;
+        fading = f.runs == 0 && f.scopes == 0 && f.built == 0 && f.painted > 0;
     }
     panic!("the rig did not settle");
 }
@@ -1154,6 +1163,9 @@ fn a_field_message_change_reruns_only_the_containers_footer() {
     settle(&mut rig, &mut |rig| rig.step_with(&mut |_, cx| root(cx, |ui| field_ui(ui, &mut state))));
     let (headers, footers) = (state.headers.get(), state.footers.get());
     state.value = "Ada".into();
+    // An app change reaches the build through the root, as the host marks it.
+    let main = rig.main;
+    rig.driver.runtime.mark_root(main);
     settle(&mut rig, &mut |rig| rig.step_with(&mut |_, cx| root(cx, |ui| field_ui(ui, &mut state))));
     assert_eq!(state.message.borrow().as_deref(), None, "the message clears with the warning");
     assert!(state.footers.get() > footers, "the footer ran for the message");
@@ -1220,4 +1232,117 @@ fn a_row_too_long_for_its_room_narrows_its_leaves_evenly_down_to_their_least() {
     assert!((shown[0].width() - shown[2].width()).abs() < 0.5, "the leaves give way evenly: {shown:?}");
     assert!(shown.windows(2).all(|w| w[0].max.x <= w[1].min.x + 0.01), "no leaf cuts into its neighbour: {shown:?}");
     assert!(!step(&mut rig).ran, "a settled row runs nothing");
+}
+
+// ----- key capture
+
+const BRING_FORWARD: craft_keymap::Chord = craft_keymap::Chord::new(craft_keymap::Mods::CMD, craft_keymap::Key::CloseBracket);
+const SEND_BACKWARD: craft_keymap::Chord = craft_keymap::Chord::new(craft_keymap::Mods::CMD, craft_keymap::Key::OpenBracket);
+
+/// A container that captures Cmd+] while focus is inside it and counts the ones it takes.
+#[derive(craft_ui::contract::Component)]
+#[component(container, unregistered)]
+struct Capturing {
+    #[common]
+    common: Common,
+    #[container]
+    props: ContainerProps,
+    #[key(skip)]
+    taken: Rc<Cell<u32>>,
+}
+
+impl Component for Capturing {
+    const ROLE: craft_ui::contract::Role = craft_ui::contract::Role::GROUP;
+    type Style = PlainStyle;
+    type Output = Response;
+
+    fn style(_: &StyleCx<'_>, _: CapturingStyleKey) -> PlainStyle {
+        PlainStyle::min(Vec2::ZERO)
+    }
+
+    fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        use craft_ui::contract::Focus as _;
+        cx.capture(BRING_FORWARD);
+        while cx.take_claimed(BRING_FORWARD) {
+            self.taken.set(self.taken.get() + 1);
+        }
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
+}
+
+impl Container for Capturing {}
+
+/// A focusable leaf that claims both stacking chords and counts the ones it takes.
+#[derive(craft_ui::contract::Component)]
+#[component(unregistered)]
+struct Claiming {
+    #[common]
+    common: Common,
+    #[key(skip)]
+    taken: Rc<Cell<u32>>,
+}
+
+impl Component for Claiming {
+    const ROLE: craft_ui::contract::Role = craft_ui::contract::Role::BUTTON;
+    type Style = PlainStyle;
+    type Output = Response;
+
+    fn style(_: &StyleCx<'_>, _: ClaimingStyleKey) -> PlainStyle {
+        PlainStyle::min(Vec2::ZERO)
+    }
+
+    fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
+        Vec2::new(40.0, ROW)
+    }
+
+    fn sense(&self) -> Sense {
+        Sense::CLICK | Sense::FOCUS
+    }
+
+    fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        use craft_ui::contract::Focus as _;
+        for chord in [BRING_FORWARD, SEND_BACKWARD] {
+            cx.claim(chord);
+            while cx.take_claimed(chord) {
+                self.taken.set(self.taken.get() + 1);
+            }
+        }
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
+}
+
+#[test]
+fn a_chord_a_container_captures_reaches_it_before_the_focused_leafs_own_claim() {
+    let (outer, inner) = (Rc::new(Cell::new(0)), Rc::new(Cell::new(0)));
+    let leaf = craft_ui::contract::Id::new("claiming");
+    let mut focus = true;
+    let mut rig = rig();
+    let mut step = |rig: &mut Rig<RecordingRenderer>, focus: &mut bool| {
+        rig.step_with(&mut |_, cx| {
+            root(cx, |ui| {
+                Capturing { common: Common::new(), props: props(|p| p), taken: outer.clone() }.show(ui, |ui, _| {
+                    Claiming { common: Common::new(), taken: inner.clone() }.id(leaf).show(ui);
+                });
+                if std::mem::take(focus) {
+                    ui.request_focus(craft_ui::runtime::focus::FocusTarget::Id(leaf));
+                }
+            })
+        })
+    };
+    settle(&mut rig, &mut |rig| step(rig, &mut focus));
+    let main = rig.main;
+    for chord in [BRING_FORWARD, SEND_BACKWARD] {
+        for input in Input::key_press(chord.key, chord.mods) {
+            rig.inject(main, input);
+            step(&mut rig, &mut focus);
+        }
+    }
+    assert_eq!(outer.get(), 1, "the container took the chord it captures, ahead of the focused leaf");
+    assert_eq!(inner.get(), 1, "the leaf took only the chord nothing above it captures");
 }

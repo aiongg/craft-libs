@@ -12,8 +12,14 @@ use craft_ui_rt::{Rect, Vec2};
 pub trait Focus {
     /// The intents routed to this component this pass: `cx.intents().take(Intent::Activate)`.
     fn intents(&mut self) -> &mut Intents;
-    /// Claims `chord` for the next frames while this component is focused.
+    /// Claims `chord` for the next frames while this component is focused: [`capture`](Focus::capture), as a
+    /// focused leaf has focus inside it.
     fn claim(&mut self, chord: Chord);
+    /// Takes `chord` ahead of the focused node while focus is inside this component, from the next key on, until a run
+    /// that does not capture it: the outermost capturing component on the focus chain takes it, before the focused
+    /// node's own keys (a container's move mode, a reorder band's keys). It arrives as a claimed chord
+    /// ([`take_claimed`](Focus::take_claimed)).
+    fn capture(&mut self, chord: Chord);
     /// Whether `chord` arrived this pass for this component, consuming it.
     fn take_claimed(&mut self, chord: Chord) -> bool;
     /// The focused part while the component holds focus.
@@ -58,13 +64,28 @@ pub trait Focus {
     fn take_lone_alt(&mut self) -> bool;
 }
 
+impl CxCore<'_> {
+    /// Captures `chord` anywhere in the window, whatever has focus, until a run that does not capture it: a mode the
+    /// component holds (a middle-button auto-scroll latch, which Escape ends). It arrives as a claimed chord.
+    pub(crate) fn capture_in_window(&mut self, chord: Chord) {
+        self.capture(chord);
+        self.captures.window = !self.is_measuring();
+    }
+}
+
 impl Focus for CxCore<'_> {
     fn intents(&mut self) -> &mut Intents {
         &mut self.intents
     }
 
     fn claim(&mut self, chord: Chord) {
-        self.claims.push(chord);
+        self.capture(chord);
+    }
+
+    fn capture(&mut self, chord: Chord) {
+        if !self.is_measuring() {
+            self.captures.add(chord);
+        }
     }
 
     fn take_claimed(&mut self, chord: Chord) -> bool {
@@ -152,6 +173,10 @@ impl<C: Component> Focus for Cx<'_, C> {
 
     fn claim(&mut self, chord: Chord) {
         self.core.claim(chord);
+    }
+
+    fn capture(&mut self, chord: Chord) {
+        self.core.capture(chord);
     }
 
     fn take_claimed(&mut self, chord: Chord) -> bool {

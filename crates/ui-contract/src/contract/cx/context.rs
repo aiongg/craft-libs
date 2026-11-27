@@ -151,7 +151,8 @@ pub struct CxCore<'a> {
     pub(crate) cursor: Option<(Cursor, CursorPriority)>,
     /// The declared cursors of the parts hovered this pass, recorded at step 8 and written at step 16.
     pub(crate) part_cursors: Vec<Cursor>,
-    pub(crate) claims: Vec<Chord>,
+    /// The chords the run captures (`Focus::capture`), which the driver keeps on the node.
+    pub(crate) captures: crate::contract::rt::keys::KeyCaptures,
     pub(crate) reveal: Option<Rect>,
     /// The tooltips of the collection's members' parts (`MemberRan::tips`), which the item step leaves for step 16.
     pub(crate) part_tips: Vec<crate::contract::rt::tip::PartTip>,

@@ -3,6 +3,9 @@
 //! to the window root. Each contract node claims at event time from what its last run kept, so no
 //! run decides where a key goes:
 //!
+//! 0. A node that captures the chord (`Focus::capture`) takes it ahead of the focused node: one whose capture reaches
+//!    the whole window, else the outermost capturing node on the focus chain (ui-rt `BuildCx::capture_keys`). The
+//!    chord is queued on it as `NodeInput::Chord`.
 //! 1. The focused node takes the keys its `KeyUse` takes, as intents of the key table
 //!    (`craft_behavior::keys::intent`) read in its role: activation, the moves it keeps, deletes,
 //!    Enter as Submit when it submits, Tab when it keeps Tab, its edit chords as `Intent::Edit`, an
@@ -35,6 +38,41 @@ pub(crate) enum Taken {
     Held,
     /// It takes the key as this input for its next run.
     Queue(NodeInput),
+}
+
+/// The chords a node takes ahead of the focused node (`Focus::capture`), as its last run asked them.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct KeyCaptures {
+    pub(crate) chords: smallvec::SmallVec<[Chord; 2]>,
+    /// The capture reaches the whole window, not only while focus is inside the node: a mode the node holds (a
+    /// middle-button auto-scroll latch, which Escape ends whatever has focus).
+    pub(crate) window: bool,
+}
+
+impl KeyCaptures {
+    pub(crate) fn add(&mut self, chord: Chord) {
+        if !self.chords.contains(&chord) {
+            self.chords.push(chord);
+        }
+    }
+
+    /// Keeps `now` as the captures of the node `cx` builds, and hands them to ui-rt only when they changed.
+    pub(crate) fn keep(kept: &mut KeyCaptures, now: KeyCaptures, cx: &mut craft_ui_rt::BuildCx<'_>) {
+        if *kept != now {
+            cx.capture_keys(&now.chords, now.window);
+            *kept = now;
+        }
+    }
+
+    /// What the node does with `k` as a chord it captures.
+    pub(crate) fn take(&self, k: &KeyInput) -> Taken {
+        let chord = Chord::new(k.mods, k.key);
+        match k.down && self.chords.contains(&chord) {
+            false => Taken::No,
+            true if k.repeat => Taken::Held,
+            true => Taken::Queue(NodeInput::Chord(chord)),
+        }
+    }
 }
 
 /// The key role of a focused stop with `keys`: which rows of the key table apply to it.
