@@ -8,31 +8,42 @@ rust-version.workspace = true
 repository.workspace = true
 
 [lib]
-# Every test lives in the `it` integration binary, so `cargo test` builds the library once.
+# Every test lives in the `rt` and `it` integration binaries, so `cargo test` builds the library once.
 test = false
 
 [lints]
 workspace = true
 
-# UI-only: egui and craft-ui are plain dependencies, so there is no `ui` feature.
+# UI-only: the UI crates are plain dependencies, so there is no `ui` feature. The panel needs the contract, the
+# widgets and the panels (craft-ui-panels re-exports the other two), not the `craft-ui` facade.
 [features]
-suite = ["screen-testing", "craft-ui/suite"]
+suite = ["screen-testing", "craft-ui-panels/suite"]
 default = []
-# The test kit and `mock` helpers.
-screen-testing = ["craft-ui/testing"]
+# The test kit and `mock` helpers (`mock` takes its blend shortcuts from craft-ui-patterns).
+screen-testing = ["craft-ui-panels/testing", "dep:craft-ui-patterns"]
 
 [dependencies]
 craft-behavior = { workspace = true }
 craft-i18n = { workspace = true }
 craft-keymap = { workspace = true }
 craft-theme = { workspace = true }
-craft-ui = { workspace = true }
+craft-ui-panels = { workspace = true }
+craft-ui-patterns = { workspace = true, optional = true }
+craft-ui-rt = { workspace = true }
+# `GuiRounding` and `StrokeKind`, which the contract's canvas still takes.
 egui = { workspace = true }
 serde = { workspace = true }
 
 [dev-dependencies]
+craft-ui-platform-headless = { workspace = true }
 egui = { workspace = true }
 serde_json = { workspace = true }
+
+# Count trials of the panel on craft-ui-rt: what a hover, a select and an idle frame run.
+[[test]]
+name = "rt"
+path = "tests/rt/main.rs"
+required-features = ["screen-testing"]
 
 [[test]]
 name = "it"

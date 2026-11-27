@@ -11,12 +11,12 @@ use rows::{RevealPlan, list_selection};
 
 use craft_behavior::{ColumnWidth, CopyKeys, IconId};
 use craft_keymap::Mods;
+use craft_ui::contract::Ui;
 use craft_ui::contract::{
     Bind, CollectionEvent, ColumnSpec, DropAt, DropKind, DropPlace, ListDrag, PendingDrop, Props as _, ReorderRule, ShowCollection as _, ToggleColumn,
 };
 use craft_ui::list::List;
 use craft_ui::runtime::env::Label;
-use egui::Ui;
 
 use super::Session;
 use super::context::PanelContext;
@@ -28,7 +28,7 @@ use crate::ui::tree::{LayerRowKey, LayerTree};
 /// What the rows' pass returns.
 pub(super) struct BodyOutput<Id> {
     pub(super) events: Vec<LayersEvent<Id>>,
-    pub(super) response: egui::Response,
+    pub(super) response: craft_ui::contract::Response,
     /// The layer move a release of the held rows would make, while the option to preview it is on.
     pub(super) drop_preview: Option<LayerMove<Id>>,
     /// The layer whose row the list shows hovered.
@@ -63,7 +63,8 @@ pub(super) fn show_body<T: LayerTree>(
     }
     columns.push(ColumnSpec::new(NAME, Label::Empty, ColumnWidth::fill(1.0)));
     let parent_of = |id: &T::Id| tree.parent(id);
-    let ctx = ui.ctx().clone();
+    // A tracked read: the list runs again when the held modifiers change, so a drop's copy or move follows them.
+    let mods = ui.ctx().modifiers();
     let list_id = cx.list;
     let host_place = |at: &DropAt<LayerRowKey<T::Id>>| host_drop_place(order, &parent_of, at);
 
@@ -78,7 +79,7 @@ pub(super) fn show_body<T: LayerTree>(
         .columns(columns)
         .selection(Bind::bound(&mut selection))
         .can_rename(|key| matches!(key, LayerRowKey::Layer(id) if tree.info(id).renamable))
-        .accepts(|drag: &ListDrag<LayerRowKey<T::Id>>, _over, insert| accepts_drop(tree, drag, order, insert, craft_ui::runtime::pointer::mods(&ctx)))
+        .accepts(|drag: &ListDrag<LayerRowKey<T::Id>>, _over, insert| accepts_drop(tree, drag, order, insert, mods))
         .drag_payload({
             let document = cx.document;
             move |drag: &ListDrag<LayerRowKey<T::Id>>| Some(LayersDrag::of_rows(drag, document))

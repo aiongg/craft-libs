@@ -1,8 +1,8 @@
 //! What the Layer Comps panel reports and the commands of its row menu.
 
 use craft_behavior::EditEvent;
+use craft_ui::contract::Response;
 use craft_ui::contract::{CommandSet, NoValue, Outcome};
-use egui::Response;
 
 use super::CompOption;
 

@@ -12,11 +12,11 @@ pub use words::LayerCompsWords;
 
 use std::cell::RefCell;
 
+use craft_ui::contract::Ui;
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _, SweepApply};
 use craft_ui::display::{Shade, Text};
 use craft_ui::layout_components::Stack;
 use craft_ui::runtime::env::{Env, Label};
-use egui::Ui;
 
 /// What a layer comp records of a layer: the options a comp row toggles.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

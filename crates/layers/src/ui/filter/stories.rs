@@ -4,9 +4,9 @@ use super::{EffectKind, FilterBy, FilterKind, FilterObject, FilterState, LayerAt
 use crate::ui::mock::FakeLayers;
 use crate::ui::tree::LayerTree as _;
 use craft_theme::LabelColor;
+use craft_ui::contract::Ui;
 use craft_ui::runtime::env::with_env;
-use craft_ui::testing::{Drive, Fixture, StoryData, StoryOutput, ValueAt, story};
-use egui::Ui;
+use craft_ui::testing::{Drive, StoryData, StoryHarness, StoryOutput, ValueAt, story};
 
 /// The bar over `filter`, with the count of `tree`'s layers the filter lists.
 fn show_over(ui: &mut Ui, filter: &mut LayerFilter, filter_at: ValueAt<'_>, tree: &FakeLayers) -> StoryOutput {
@@ -89,7 +89,7 @@ fn by_group(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 }
 
 /// The drive of the Objects story: a click on the Filter button opens the popover.
-fn open_filter(fixture: &mut Fixture) {
+fn open_filter(fixture: &mut StoryHarness) {
     if let Some(button) = fixture.by_label("Filter") {
         fixture.click(&button);
     }

@@ -13,6 +13,7 @@ use craft_theme::{ControlSize, LabelColor};
 use craft_ui::buttons::{Button, IconButton, ToggleButton};
 use craft_ui::choice::Checkbox;
 use craft_ui::contract::{Bind, Entry, MemoProps, NoValue, Outcome, PlainData, PopupKind, Props as _, Show as _, ShowContainer as _, Sizing};
+use craft_ui::contract::{Response, Ui};
 use craft_ui::display::{Shade, Text};
 use craft_ui::layout_components::Row;
 use craft_ui::list::{ListWords, label_color_label};
@@ -20,10 +21,9 @@ use craft_ui::pickers::Select;
 use craft_ui::popover::Popover;
 use craft_ui::primitives::IconSpec;
 use craft_ui::runtime::env::{Env, Label};
-use craft_ui::runtime::focus::{self, FocusTarget};
+use craft_ui::runtime::focus::FocusTarget;
 use craft_ui::runtime::memory::Remember as _;
 use craft_ui::text::TextField;
-use egui::{Response, Ui};
 
 use super::panel::LayerSelect;
 use super::tree::{LayerInfo, LayerKind, LayerPart, LayerTree};
@@ -917,7 +917,7 @@ impl<'a> LayerFilterBar<'a> {
                         next.name.clone_from(text);
                     }
                     if focus_name {
-                        focus::request(ui.ctx(), FocusTarget::Id(typed.response.id));
+                        ui.request_focus(FocusTarget::Id(typed.response.id));
                     }
                 }
                 FilterBy::Effect => {

@@ -29,13 +29,13 @@ use std::cell::RefCell;
 use craft_ui::contract::{
     Bind, CommandSet as _, Commands as _, Entry, MemoProps, MemoView, NoValue, Outbox, Outcome, Show, ShowContainer as _, Tracked,
 };
+use craft_ui::contract::{Response, Ui};
 use craft_ui::layout_components::Stack;
 use craft_ui::list::ListWords;
 use craft_ui::menu::MenuRow;
 use craft_ui::primitives::textures::{ThumbSource, Thumbnails};
 use craft_ui::runtime::env::Env;
 use craft_ui::runtime::memory::Remember as _;
-use egui::{Response, Ui};
 
 use body::{LayerRows, ToggleSweeps, reveal_plan, show_body, start_rename};
 use context::{HostCell, HostDrop, HostDrops, PanelContext, ThumbHost, TrailingCell};
@@ -448,7 +448,7 @@ impl<'a, T: LayerTree> LayersPanel<'a, T> {
             lock_column,
             visibility_key,
             trailing: trailing.as_deref(),
-            held: craft_ui::runtime::pointer::mods(ui.ctx()),
+            held: ui.ctx().modifiers(),
             look,
             deletable,
             drops: drops.as_deref(),

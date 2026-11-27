@@ -1,9 +1,9 @@
 //! What the panel's parts share in one pass: the tree, the settings, the thumbnails and the words.
 
+use craft_ui::contract::Id;
 use craft_ui::contract::{DropAt, DropKind, DropPlace, Show};
 use craft_ui::list::{List, ListRow, ListWords};
 use craft_ui::primitives::textures::{ThumbSource, Thumbnails};
-use egui::Id;
 
 use super::events::LayerPosition;
 use super::{LayerRowLook, LayersPanelWords};
