@@ -185,6 +185,14 @@ impl BuildCx<'_> {
         self.keyed_slot(node, key, init)
     }
 
+    /// The cell `node` owns under `key` ([`slot_of`](Self::slot_of)) when it was made; never makes one. A node asks
+    /// this of itself for a fact only some nodes carry, so the others own no cell.
+    pub fn find_slot_of<T: 'static>(&self, node: NodeId, key: impl Hash) -> Option<State<T>> {
+        let key = hash_key(&(std::any::TypeId::of::<T>(), key));
+        let n = self.rt.tree.nodes.get(&node)?;
+        n.slots.iter().find(|(k, _)| *k == key).map(|(_, at)| State::from_slot(*at))
+    }
+
     fn keyed_slot<T: 'static>(&mut self, node: NodeId, key: u64, init: impl FnOnce() -> T) -> Option<State<T>> {
         let n = self.rt.tree.nodes.get(&node)?;
         if let Some((_, at)) = n.slots.iter().find(|(k, _)| *k == key) {
