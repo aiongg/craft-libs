@@ -36,6 +36,10 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
+    fn watches_presses(&self) -> bool {
+        true
+    }
+
     /// A collection that keeps focus on press senses the press without taking focus.
     fn sense(&self, comp: &C, own: Sense) -> Sense {
         if comp.items().focus_on_press { own } else { own.difference(Sense::TAKE_FOCUS).union(Sense::KEEP_FOCUS) }

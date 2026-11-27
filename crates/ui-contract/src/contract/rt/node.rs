@@ -92,6 +92,61 @@ pub enum NodeInput {
     Menu(crate::runtime::keys::MenuKey),
     /// A reveal a child of a container that owns its body's scroll asked for, in window coordinates (`Focus::take_reveal`).
     Reveal(craft_ui_rt::Rect),
+    /// A press phase a node under a collection took (a band row's node, or a part one of its children declares),
+    /// queued on the collection through its [`PressWatch`]. Every phase but the moves of a drag.
+    DescendantPress {
+        /// The node that took the press.
+        owner: Id,
+        /// The part of `owner` the press went down on; `None` for its own shape.
+        part: Option<PartRef>,
+        /// The phase.
+        gesture: Gesture,
+        /// Where the pointer is, in the collection's coordinates.
+        pos: Pos2,
+        /// The sense of the pressed part (or of `owner`'s own shape).
+        sense: Sense,
+    },
+}
+
+/// The presses taken under a collection's node, for its next run ([`NodeInput::DescendantPress`]). The collection
+/// provides it to the nodes it shows; the node that owns a press queues its phases here and marks the collection, so a
+/// press a row's part wins still moves the collection's lead.
+#[derive(Clone)]
+pub(crate) struct PressWatch {
+    node: NodeId,
+    queue: std::rc::Rc<std::cell::RefCell<Vec<NodeInput>>>,
+}
+
+impl PressWatch {
+    /// The collection's watch, created at its first build and provided to what it shows in every build.
+    pub(crate) fn provide(kept: &mut Kept, cx: &mut craft_ui_rt::BuildCx<'_>) {
+        let node = cx.node();
+        let watch = kept.press_watch.get_or_insert_with(|| PressWatch { node, queue: Default::default() }).clone();
+        cx.provide(watch);
+    }
+
+    /// The presses queued since the collection's last run, oldest first.
+    pub(crate) fn take(kept: &Kept) -> Vec<NodeInput> {
+        kept.press_watch.as_ref().map(|watch| std::mem::take(&mut *watch.queue.borrow_mut())).unwrap_or_default()
+    }
+
+    /// Queues a press phase the node `cx` handles on the nearest collection above it.
+    fn note(kept: &Kept, cx: &mut EventCx<'_>, p: &PointerInput, part: u64) {
+        if matches!(p.gesture, Gesture::Drag { .. }) {
+            return;
+        }
+        let Some(watch) = cx.provided::<PressWatch>().filter(|watch| watch.node != cx.node()) else { return };
+        let Some(origin) = cx.window_rect(watch.node).map(|rect| rect.min) else { return };
+        let input = NodeInput::DescendantPress {
+            owner: kept.id,
+            part: kept.parts.iter().find(|kp| part != 0 && kp.id == part).map(|kp| kp.part),
+            gesture: p.gesture,
+            pos: Pos2::ZERO + (p.pos - origin),
+            sense: kept.sense_of(part),
+        };
+        watch.queue.borrow_mut().push(input);
+        cx.request_build_of(watch.node);
+    }
 }
 
 /// The room a node was shown in. A node shown in other room runs again.
@@ -226,6 +281,8 @@ pub(crate) struct Kept {
     pub(crate) members: Vec<super::items::MemberLooks>,
     /// The column group reports the node's last build or run made, handed to the open groups again while it is kept.
     pub(crate) column_reports: Vec<crate::layout::Report>,
+    /// A collection's watch over the presses its rows and their parts take ([`PressWatch`]).
+    pub(crate) press_watch: Option<PressWatch>,
 }
 
 impl Kept {
@@ -274,6 +331,7 @@ impl Kept {
             ime: Default::default(),
             members: Vec::new(),
             column_reports: Vec::new(),
+            press_watch: None,
         }
     }
 
@@ -444,6 +502,15 @@ impl Element for ComponentNode {
                 } else {
                     super::ime::focus_left(kept, cx);
                 }
+                // The window's edit commands resolve against the focused stop's edits (#3569). A move
+                // clears them on the node that loses focus, then the node that gains it writes its own.
+                if let Some(edits) = cx.provided::<super::commands::FocusedEdits>() {
+                    let set = match on {
+                        true => kept.focus.stop.map_or(crate::runtime::focus::EditSet::NONE, |keys| keys.edits),
+                        false => crate::runtime::focus::EditSet::NONE,
+                    };
+                    edits.set(cx, set);
+                }
                 Handled::Yes
             }
             Event::Text(_) | Event::ImePreedit { .. } | Event::ImeCommit(_) | Event::Paste(_) => super::ime::event(self.text.is_some(), kept, cx, ev),
@@ -572,6 +639,7 @@ impl ComponentNode {
             Gesture::Drag { .. } if kept.drag_session => return,
             _ => {}
         }
+        PressWatch::note(kept, cx, p, part);
         if super::sweep::on_pointer(self.tag, kept, cx, p) {
             return;
         }

@@ -236,9 +236,9 @@ pub struct CxCore<'a> {
     /// The facts the collection gave this row (`rt::items::row_facts`, a tracked read); `None` outside a collection's
     /// rows.
     pub(crate) row: Option<Arc<crate::runtime::env::ItemFacts>>,
-    /// The component's popups and whether each is open, taken from its node for the run (`Kept::popups`) and kept
-    /// with it after: `PopupHandle` reads and changes them, the overlay pass shows the open ones.
-    pub(crate) popups: crate::contract::rt::overlay::PopupStates,
+    /// The component's popups and whether each is open, borrowed from its node (`Kept::popups`): `PopupHandle` reads
+    /// and changes them, the overlay pass shows the open ones.
+    pub(crate) popups: &'a mut crate::contract::rt::overlay::PopupStates,
 }
 
 /// The node side of one run (or of a kept node's settled `Cx`): the input queued since the last run, and the outputs
@@ -296,6 +296,8 @@ pub(crate) struct RunIo<'a> {
     /// The node's shared slot for a body's editor reports (`EditorHandle`), made when a run first hands out a handle;
     /// kept as `ImeKept::body`.
     pub(crate) ime_body: RefCell<Option<std::sync::Arc<std::sync::Mutex<crate::contract::rt::ime::BodyReport>>>>,
+    /// The pointer's place (window coordinates) over the node or a node under it when the run began (`CxCore::hover_point`).
+    pub(crate) hover_point: Option<craft_ui_rt::Pos2>,
 }
 
 impl<'a> RunIo<'a> {
@@ -324,6 +326,7 @@ impl<'a> RunIo<'a> {
             ime_app_change: Cell::new(false),
             ime_history: (false, false),
             ime_body: RefCell::new(None),
+            hover_point: None,
         }
     }
 

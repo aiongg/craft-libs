@@ -257,13 +257,13 @@ pub(crate) fn run_overlay<C: Component>(
     parts: Vec<(PartRef, Rect)>,
     owner_ran: bool,
 ) -> bool {
-    let mut popups = std::mem::take(&mut cx.core.popups);
+    let mut popups = std::mem::take(&mut *cx.core.popups);
     let owner = OverlayOwner { id: cx.core.id, anchor: cx.core.rect, parts };
     let resolved = cx.core.resolved;
     let mut overlays = OverlayUi::new(host, owner, resolved, env.clone(), &mut popups, owner_ran);
     component.overlay(&mut overlays, cx);
     let changed = overlays.changed;
     drop(overlays);
-    cx.core.popups = popups;
+    *cx.core.popups = popups;
     changed
 }

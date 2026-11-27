@@ -550,6 +550,25 @@ impl Runtime {
         Some(cell)
     }
 
+    /// The pointer's place (window coordinates) while it hovers `node` or a node under it.
+    pub fn hover_point(&self, node: NodeId) -> Option<Pos2> {
+        self.windows.keys().find_map(|&w| self.input(w).filter(|i| i.hovered.contains(&node)).and_then(|i| i.hover_pos))
+    }
+
+    /// The cell of `node`'s hover point ([`Runtime::hover_point`]), created on first use and owned by
+    /// the node.
+    pub(crate) fn hover_point_cell(&mut self, node: NodeId) -> Option<State<Option<Pos2>>> {
+        if let Some(cell) = self.hover_points.get(&node) {
+            return Some(*cell);
+        }
+        let value = self.hover_point(node);
+        let n = self.tree.nodes.get_mut(&node)?;
+        let cell = self.store.create(value);
+        n.owned.push(cell.slot_ref());
+        self.hover_points.insert(node, cell);
+        Some(cell)
+    }
+
     /// Moves the hovered part from the node of `before` to the node of `now`: each node's cell flips
     /// only when its own hovered part changes.
     fn refresh_hovered_parts(&mut self, before: Option<Hit>, now: Option<Hit>) {
@@ -615,6 +634,17 @@ impl Runtime {
             let before = std::mem::replace(&mut input.hover_hit, hit);
             input.cursor_check = true;
             self.refresh_hovered_parts(before.map(|(h, _)| h), hit.map(|(h, _)| h));
+        }
+        if !self.hover_points.is_empty() {
+            // Only the nodes whose builds read their hover point have a cell; each follows the
+            // pointer while it is over the node or a node under it, and is empty otherwise.
+            let pos = self.input(window).and_then(|i| i.hover_pos);
+            let cells: Vec<(NodeId, State<Option<Pos2>>)> = self.hover_points.iter().map(|(id, cell)| (*id, *cell)).collect();
+            for (id, cell) in cells {
+                if self.tree.nodes.get(&id).is_some_and(|n| n.window == window) {
+                    cell.set_if_changed(&mut self.store, pos.filter(|_| now.contains(&id)));
+                }
+            }
         }
         let Some(input) = self.input_mut(window) else { return };
         if now == input.hovered {
@@ -1089,6 +1119,7 @@ impl Runtime {
         self.interact.remove(&id);
         self.interact_facts.remove(&id);
         self.hovered_parts.remove(&id);
+        self.hover_points.remove(&id);
         self.forget_drag_node(id);
         self.forget_touch_node(window, id);
         if let Some(w) = self.windows.get_mut(&window) {
@@ -1282,6 +1313,21 @@ impl crate::paint::PaintCx<'_> {
 }
 
 impl crate::build::BuildCx<'_> {
+    /// The pointer's place (window coordinates) while it hovers `node` or a node under it, without
+    /// recording a read.
+    pub fn hover_point(&self, node: NodeId) -> Option<Pos2> {
+        self.runtime().hover_point(node)
+    }
+
+    /// [`hover_point`](Self::hover_point), recording a build read: this node builds again when the
+    /// pointer moves over `node` (or a node under it), enters or leaves it.
+    pub fn read_hover_point(&mut self, node: NodeId) -> Option<Pos2> {
+        match self.runtime_mut().hover_point_cell(node) {
+            Some(cell) => cell.get(self),
+            None => None,
+        }
+    }
+
     /// `node`'s hover, press and focus state as of now, without recording a read.
     pub fn interaction(&self, node: NodeId) -> Interact {
         self.runtime().interaction(node)
