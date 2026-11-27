@@ -72,11 +72,15 @@ struct PopupEntry {
     opened_at: Option<f64>,
 }
 
-/// The popups of one component and whether each is open, kept on its node (`Kept::popups`). The
-/// run takes them into its `CxCore` (`PopupHandle` reads and changes them in `update`), the
-/// overlay pass shows the open ones, and the node keeps them for its next run.
+/// The popups of one component and whether each is open, kept on its node (`Kept::popups`). The run's `CxCore` and
+/// the overlay pass's `OverlayUi` share them (`PopupHandle` reads and changes them in `update` and in `overlay`, the
+/// overlay pass shows the open ones), and the node keeps them for its next run. Every method borrows the entries for
+/// its own call only, never across a popup body's run.
 #[derive(Debug, Default)]
-pub(crate) struct PopupStates {
+pub(crate) struct PopupStates(RefCell<PopupSet>);
+
+#[derive(Debug, Default)]
+struct PopupSet {
     entries: SmallVec<[PopupEntry; 1]>,
     /// What each popup's body keeps in memory, by popup id: it lasts while the component shows, so a popup closed and
     /// opened again finds what its body kept.
@@ -87,31 +91,9 @@ pub(crate) struct PopupStates {
     now: f64,
 }
 
-impl PopupStates {
-    pub(crate) fn new() -> PopupStates {
-        PopupStates::default()
-    }
-
-    /// A run of the node `cx` builds begins: every popup's state is its starting state, no close is reported yet,
-    /// and a popup a hover opener runs reads whether the pointer is over its layer now.
-    pub(crate) fn begin_run(&mut self, cx: &BuildCx<'_>) {
-        for entry in &mut self.entries {
-            entry.began = entry.open;
-            entry.closed = None;
-            entry.hovered = entry.watch_hover && entry.open && entry.layer.is_some_and(|layer| layer_hovered(cx, layer, entry.id.value()));
-            entry.shown = false;
-        }
-        self.context_menu = false;
-        self.now = cx.now();
-    }
-
-    /// Whether any popup is open: the component's `OPEN` state.
-    pub(crate) fn any_open(&self) -> bool {
-        self.entries.iter().any(|e| e.open)
-    }
-
-    pub(crate) fn is_open(&self, popup: Id) -> bool {
-        self.entries.iter().any(|e| e.id == popup && e.open)
+impl PopupSet {
+    fn find(&self, popup: Id) -> Option<&PopupEntry> {
+        self.entries.iter().find(|e| e.id == popup)
     }
 
     fn entry(&mut self, popup: Id) -> &mut PopupEntry {
@@ -134,11 +116,41 @@ impl PopupStates {
             }
         }
     }
+}
+
+impl PopupStates {
+    pub(crate) fn new() -> PopupStates {
+        PopupStates::default()
+    }
+
+    /// A run of the node `cx` builds begins: every popup's state is its starting state, no close is reported yet,
+    /// and a popup a hover opener runs reads whether the pointer is over its layer now.
+    pub(crate) fn begin_run(&self, cx: &BuildCx<'_>) {
+        let mut set = self.0.borrow_mut();
+        for entry in &mut set.entries {
+            entry.began = entry.open;
+            entry.closed = None;
+            entry.hovered = entry.watch_hover && entry.open && entry.layer.is_some_and(|layer| layer_hovered(cx, layer, entry.id.value()));
+            entry.shown = false;
+        }
+        set.context_menu = false;
+        set.now = cx.now();
+    }
+
+    /// Whether any popup is open: the component's `OPEN` state.
+    pub(crate) fn any_open(&self) -> bool {
+        self.0.borrow().entries.iter().any(|e| e.open)
+    }
+
+    pub(crate) fn is_open(&self, popup: Id) -> bool {
+        self.0.borrow().find(popup).is_some_and(|e| e.open)
+    }
 
     /// Opens or closes `popup`; whether that changed it.
-    pub(crate) fn set(&mut self, popup: Id, open: bool) -> bool {
-        let now = self.now;
-        let entry = self.entry(popup);
+    pub(crate) fn set(&self, popup: Id, open: bool) -> bool {
+        let mut set = self.0.borrow_mut();
+        let now = set.now;
+        let entry = set.entry(popup);
         let changed = entry.open != open;
         entry.open = open;
         if changed && open {
@@ -150,12 +162,14 @@ impl PopupStates {
     /// Whether `popup` is open and opened in this frame: what its body resets on opening resets once, in every build
     /// round of that frame.
     pub(crate) fn opening(&self, popup: Id) -> bool {
-        self.entries.iter().any(|e| e.id == popup && e.open && e.opened_at == Some(self.now))
+        let set = self.0.borrow();
+        set.find(popup).is_some_and(|e| e.open && e.opened_at == Some(set.now))
     }
 
     /// Closes an open `popup` for `reason`, reported by `closing` for the rest of the run.
-    pub(crate) fn close(&mut self, popup: Id, reason: CloseReason) -> bool {
-        let entry = self.entry(popup);
+    pub(crate) fn close(&self, popup: Id, reason: CloseReason) -> bool {
+        let mut set = self.0.borrow_mut();
+        let entry = set.entry(popup);
         if !entry.open {
             return false;
         }
@@ -166,44 +180,50 @@ impl PopupStates {
 
     /// Why `popup` closed in this run.
     pub(crate) fn closing(&self, popup: Id) -> Option<CloseReason> {
-        self.entries.iter().find(|e| e.id == popup).and_then(|e| e.closed)
+        self.0.borrow().find(popup).and_then(|e| e.closed)
     }
 
     /// Whether the run left `popup` in a different state from the one it began with.
     pub(crate) fn changed(&self, popup: Id) -> bool {
-        self.entries.iter().find(|e| e.id == popup).is_some_and(|e| e.open != e.began)
+        self.0.borrow().find(popup).is_some_and(|e| e.open != e.began)
+    }
+
+    /// Whether the run left any popup in a different state from the one it began with.
+    pub(crate) fn any_changed(&self) -> bool {
+        self.0.borrow().entries.iter().any(|e| e.open != e.began)
     }
 
     /// The open state `popup` began the run with.
     pub(crate) fn began(&self, popup: Id) -> bool {
-        self.entries.iter().find(|e| e.id == popup).is_some_and(|e| e.began)
+        self.0.borrow().find(popup).is_some_and(|e| e.began)
     }
 
     pub(crate) fn bound(&self, popup: Id) -> Option<bool> {
-        self.entries.iter().find(|e| e.id == popup).and_then(|e| e.bound)
+        self.0.borrow().find(popup).and_then(|e| e.bound)
     }
 
-    pub(crate) fn set_bound(&mut self, popup: Id, bound: Option<bool>) {
-        self.entry(popup).bound = bound;
+    pub(crate) fn set_bound(&self, popup: Id, bound: Option<bool>) {
+        self.0.borrow_mut().entry(popup).bound = bound;
     }
 
     /// A `Trigger::Hover` opener runs `popup`: its layer reports hover, which keeps it open while the pointer is on it.
-    pub(crate) fn watch_hover(&mut self, popup: Id) {
-        self.entry(popup).watch_hover = true;
+    pub(crate) fn watch_hover(&self, popup: Id) {
+        self.0.borrow_mut().entry(popup).watch_hover = true;
     }
 
     pub(crate) fn watches_hover(&self, popup: Id) -> bool {
-        self.entries.iter().any(|e| e.id == popup && e.watch_hover)
+        self.0.borrow().find(popup).is_some_and(|e| e.watch_hover)
     }
 
     /// Whether the pointer is over `popup`'s layer.
     pub(crate) fn hovered(&self, popup: Id) -> bool {
-        self.entries.iter().any(|e| e.id == popup && e.hovered)
+        self.0.borrow().find(popup).is_some_and(|e| e.hovered)
     }
 
     /// `popup` showed on `layer` in this run.
-    pub(crate) fn shown_on(&mut self, popup: Id, layer: Layer) {
-        let entry = self.entry(popup);
+    pub(crate) fn shown_on(&self, popup: Id, layer: Layer) {
+        let mut set = self.0.borrow_mut();
+        let entry = set.entry(popup);
         entry.layer = Some(layer);
         entry.shown = true;
     }
@@ -211,40 +231,41 @@ impl PopupStates {
     /// The closed popups whose layer child is still there, not shown open in this run: each fades out
     /// ([`show_leaving`]).
     pub(crate) fn leaving(&self) -> SmallVec<[(Id, Layer); 1]> {
-        self.entries.iter().filter(|e| !e.open && !e.shown).filter_map(|e| e.layer.map(|layer| (e.id, layer))).collect()
+        self.0.borrow().entries.iter().filter(|e| !e.open && !e.shown).filter_map(|e| e.layer.map(|layer| (e.id, layer))).collect()
     }
 
     /// `popup`'s layer child went (its fade ended).
-    pub(crate) fn left(&mut self, popup: Id) {
-        self.entry(popup).layer = None;
+    pub(crate) fn left(&self, popup: Id) {
+        self.0.borrow_mut().entry(popup).layer = None;
     }
 
-    /// A popup showed open in this run and closed after (a close its body or an activation inside decided): the
-    /// owner builds again in this frame, which starts its fade.
+    /// A popup showed open in this run and closed after (a close its body, an activation inside or the owner's overlay
+    /// hook decided): the owner builds again in this frame, which starts its fade.
     pub(crate) fn closed_after_shown(&self) -> bool {
-        self.entries.iter().any(|e| e.shown && !e.open)
+        self.0.borrow().entries.iter().any(|e| e.shown && !e.open)
     }
 
     /// A `Trigger::Context` opener ran: the access node offers `ShowContextMenu`.
-    pub(crate) fn offer_context_menu(&mut self) {
-        self.context_menu = true;
+    pub(crate) fn offer_context_menu(&self) {
+        self.0.borrow_mut().context_menu = true;
     }
 
     /// Whether the access node offers `ShowContextMenu` (step 16 reads it).
     pub(crate) fn offers_context_menu(&self) -> bool {
-        self.context_menu
+        self.0.borrow().context_menu
     }
 
     /// The memory of `popup`'s body, moved out for a run of the body; [`put_body`](Self::put_body) gives it back.
-    pub(crate) fn take_body(&mut self, popup: Id) -> Memory {
-        match self.bodies.0.iter().position(|(id, _)| *id == popup) {
-            Some(at) => self.bodies.0.swap_remove(at).1,
+    pub(crate) fn take_body(&self, popup: Id) -> Memory {
+        let mut set = self.0.borrow_mut();
+        match set.bodies.0.iter().position(|(id, _)| *id == popup) {
+            Some(at) => set.bodies.0.swap_remove(at).1,
             None => Memory::default(),
         }
     }
 
-    pub(crate) fn put_body(&mut self, popup: Id, memory: Memory) {
-        self.bodies.0.push((popup, memory));
+    pub(crate) fn put_body(&self, popup: Id, memory: Memory) {
+        self.0.borrow_mut().bodies.0.push((popup, memory));
     }
 }
 

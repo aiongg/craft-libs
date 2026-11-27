@@ -215,7 +215,7 @@ pub(crate) fn core_for<'a>(
     env: &'a Env,
     resolved: &'a Resolved<'a>,
     memory: &'a mut MemoryStage,
-    popups: &'a mut crate::contract::rt::overlay::PopupStates,
+    popups: &'a crate::contract::rt::overlay::PopupStates,
     response: crate::contract::Response,
     command: Option<Arc<ResolvedCommand>>,
     run: RunIo<'a>,
@@ -476,8 +476,8 @@ pub(crate) fn paint_face<C: Show>(
     let rect = source.result.rect;
     let part_state = steps::part_state(source.result, source.faded || (step1.enabled && source.enabled), source.focus);
     let response = crate::contract::Response::new(id, source.result.rect, None, Default::default(), false, Default::default());
-    let mut popups = Default::default();
-    let mut core = core_for(env, &resolved, &mut stage, &mut popups, response, step1.command.clone(), RunIo::settled(context));
+    let popups = crate::contract::rt::overlay::PopupStates::default();
+    let mut core = core_for(env, &resolved, &mut stage, &popups, response, step1.command.clone(), RunIo::settled(context));
     core.face_mode = true;
     core.faded = source.faded;
     let flow = Flow::new(rect, env.direction.is_rtl());

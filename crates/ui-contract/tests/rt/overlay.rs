@@ -2,7 +2,7 @@
 //! runs only its opener and its content, and a press outside that dismisses it runs only the opener; a hover popup
 //! waits for its delay with no frame; a popup's body memory outlasts a close; a modal blocks the content below it; a
 //! later wake does not replace an earlier one; a fading popup takes no input and goes at its wake; a context opener
-//! offers its menu on its own node; a drag preview follows the pointer with no run; a panel popup closes on a row
+//! offers its menu on its own node; a close the overlay hook makes holds; a drag preview follows the pointer with no run; a panel popup closes on a row
 //! click; Space held lets a press through a modal to the canvas it keeps open. Relations only, no times.
 
 use std::cell::Cell;
@@ -36,6 +36,9 @@ struct MenuButton {
     menu: Rc<Menu>,
     #[key(skip)]
     trigger: Trigger,
+    /// Its overlay hook closes the menu after a row pick (production's split button, select and face menus).
+    #[key(skip)]
+    close_on_pick: bool,
 }
 
 /// What the menu reports to the trial.
@@ -76,20 +79,26 @@ impl Component for MenuButton {
     fn overlay(&mut self, ui: &mut OverlayUi<'_>, cx: &mut Cx<'_, Self>) {
         let popup = cx.popup("menu");
         let menu = self.menu.clone();
-        ui.show(popup, Overlay::menu(), move |ui, body| {
+        let picked = ui.show(popup, Overlay::menu(), move |ui, body| {
             let seen = body.memory.shown::<u32>(body.id.with("seen"));
             *seen += 1;
             menu.seen.set(*seen);
             let mut rows = [Rect::NOTHING; 3];
+            let mut picked = None;
             for (at, row) in ROWS.iter().enumerate() {
                 let shown = Chip::new(row).show(ui);
                 rows[at] = shown.rect;
                 if shown.clicked() {
                     menu.picked.set(Some(at));
+                    picked = Some(at);
                 }
             }
             menu.rows.set(rows);
+            picked
         });
+        if self.close_on_pick && picked.flatten().is_some() {
+            popup.close(cx);
+        }
         if ui.closing(popup).is_some() {
             self.menu.open.set(false);
         }
@@ -107,10 +116,13 @@ struct App {
     runs: Rc<Cell<u32>>,
     menu: Rc<Menu>,
     trigger: Trigger,
+    close_on_pick: bool,
 }
 
 fn app_ui(ui: &mut Ui<'_, '_>, app: &mut App) {
-    let button = MenuButton { common: Common::new(), runs: app.runs.clone(), menu: app.menu.clone(), trigger: app.trigger }.label("Edit".to_owned());
+    let button =
+        MenuButton { common: Common::new(), runs: app.runs.clone(), menu: app.menu.clone(), trigger: app.trigger, close_on_pick: app.close_on_pick }
+            .label("Edit".to_owned());
     app.button = button.show(ui).rect;
     app.beside = Chip::new("Beside").show(ui).rect;
 }
@@ -150,7 +162,7 @@ fn setup() -> (Rig<RecordingRenderer>, App) {
 }
 
 fn setup_with(trigger: Trigger) -> (Rig<RecordingRenderer>, App) {
-    let mut app = App { button: Rect::NOTHING, beside: Rect::NOTHING, runs: Rc::default(), menu: Rc::default(), trigger };
+    let mut app = App { button: Rect::NOTHING, beside: Rect::NOTHING, runs: Rc::default(), menu: Rc::default(), trigger, close_on_pick: false };
     let mut rig = Rig::inline(Vec2::new(400.0, 300.0), 1.0, RecordingRenderer::default());
     settle(&mut rig, &mut app);
     (rig, app)
@@ -212,6 +224,25 @@ fn escape_closes_the_menu_and_a_row_click_reaches_its_row() {
     click(&mut rig, &mut app, row);
     settle(&mut rig, &mut app);
     assert_eq!(app.menu.picked.get(), Some(1), "the row took the click");
+}
+
+#[test]
+fn a_close_the_overlay_hook_makes_after_a_pick_holds() {
+    let (mut rig, mut app) = setup();
+    app.close_on_pick = true;
+    settle(&mut rig, &mut app);
+    open(&mut rig, &mut app);
+    settle(&mut rig, &mut app);
+    let row = app.menu.rows.get()[2].center();
+    click(&mut rig, &mut app, row);
+    assert_eq!(app.menu.picked.get(), Some(2), "the row took the click");
+    past_fades(&mut rig, &mut |rig| step(rig, &mut app, None));
+    assert!(!app.menu.open.get(), "the menu reads closed after the hook's close");
+    assert!(layer_children(&rig).is_empty(), "the closed menu faded out and went");
+    // A popup the close did not reach would still be open, and the opener's toggle would close it.
+    open(&mut rig, &mut app);
+    settle(&mut rig, &mut app);
+    assert_eq!(layer_children(&rig).len(), 1, "the next click on the opener opens the menu again");
 }
 
 /// A window root that shows one toast queue; it posts one card with a one-second timeout on its first run and counts
