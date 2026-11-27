@@ -86,6 +86,8 @@ pub(crate) struct Announcer {
     previous_marked: bool,
     /// The text and urgency the status node last sent carried.
     sent: Option<(String, bool)>,
+    /// The status node as last sent.
+    node: Option<Node>,
 }
 
 impl Announcer {
@@ -123,6 +125,7 @@ impl Announcer {
             node.set_label(key.0.as_str());
         }
         self.sent = Some(key);
+        self.node = Some(node.clone());
         Some(node)
     }
 }
@@ -449,11 +452,15 @@ impl Runtime {
     }
 
     /// The nodes of `window`'s last sent tree in tree order (a node, its sub-nodes, then its
-    /// children), with window bounds. The harness reads the access tree this way.
+    /// children), then the window's status node, with window bounds. The harness reads the access tree this way.
     pub fn access_snapshot(&self, window: WindowId) -> Vec<AccessEntry<'_>> {
         let mut out = Vec::new();
         if let Some(w) = self.windows.get(&window) {
             self.snapshot(w.root, Vec2::ZERO, &mut out);
+            // The status node is the top node's last child, as the tree sends it; it takes no room.
+            if let Some(node) = &w.access.announcer.node {
+                out.push(AccessEntry { id: status_id(window), node, bounds: Rect::from_min_size(Pos2::ZERO, Vec2::ZERO), owner: w.root, sub: None });
+            }
         }
         out
     }

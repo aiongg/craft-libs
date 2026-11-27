@@ -251,6 +251,11 @@ pub(crate) fn show_shaped<C: Component>(
     let node = ComponentNode { key: key.map_or(0, fold), tag, text: component.text_input() };
     cx.keyed(child, |cx| {
         cx.inline(node, |kept, state, cx| {
+            // A band row's facts from its collection, read in its node so that a change runs the row (15.5). Its hooks
+            // and its measure see them through `EnvView::facts_of`, as a measuring run's rows do.
+            if let Some(row) = super::items::row_facts(cx, id) {
+                begun.env = begun.env.derive_local(|scoped| scoped.item_facts = Some(row));
+            }
             let kept_outputs = holds(kept, key, state);
             // The kept stage runs in this window for this node, and answers `appeared` for the run that created the
             // node; its session and saved slots go back to the runtime's store when the run ends.
@@ -524,8 +529,8 @@ pub(crate) fn run_shaped<C: Component>(
     let response = Response::new(id, rect, Some(node), interact, dragging, in_facts);
     let cells = kept.memory.recall::<InboxCells>(sub(id, "inbox"));
     let inbox = InboxIn::read(&cells, cx);
-    // A row's facts from its collection, read so that a change runs the row (15.5).
-    let row = super::items::row_facts(cx, id);
+    // A row's facts from its collection, as `show_shaped` read them.
+    let row = begun.env.item_facts.clone().filter(|facts| facts.item == id);
     let stop = own_stop(&component, &resolved);
     // Only a stop can hold focus: the node's own, or a press-only one its last run kept for its selection parts. The
     // fact is taken without a read: what in the run uses it logs the read (`CxCore::read_focused`), so a focus move
@@ -762,6 +767,7 @@ pub(crate) fn run_shaped<C: Component>(
     // The node stands for the control folded into it: the control's focus and the requests aimed at the node.
     kept.access_stands =
         kept.access.as_ref().and_then(|_| fold::offered(&context, id)).and_then(|folded| super::ids::node_of(&build.borrow(), folded.inner));
+    kept.access_active = kept.access.is_some() && row.as_ref().is_some_and(|row| row.flags.contains(craft_theme::Flags::LEAD));
     for (text, politeness) in std::mem::take(&mut cxx.core.run.announcements) {
         let politeness = match politeness {
             crate::runtime::access::Politeness::Polite => craft_ui_rt::AnnouncePoliteness::Polite,
@@ -1125,11 +1131,15 @@ fn settle_shaped<C: Component>(
     reach_layers(&mut component, kept, cx, rect, begun, tokens, context.clone());
     super::node::DescendantWatch::provide(kept, cx, hooks.watches_presses());
     let node = cx.node();
-    let response = Response::new(kept.id, rect, Some(node), cx.interaction(node), kept.dragging, InputFacts::default());
+    let interact = cx.interaction(node);
+    let response = Response::new(kept.id, rect, Some(node), interact, kept.dragging, InputFacts::default());
     let resolved = begun.resolved(kept.id);
     let room = kept.place.room;
     let mut core = settled_core(&begun.env, &resolved, &mut kept.memory, &kept.popups, response, &begun.step1, RunIo::settled(context.clone()));
     place_core(&mut core, &component, &begun.style, rect, &resolved, begun.env.direction.is_rtl());
+    // The content builds with the node's focus as a run's does: a collection's rows show its lead only while it holds
+    // focus.
+    core.focus = super::focus::facts(&kept.focus, kept.focus.stop.is_some() && interact.focused, interact.focus_visible);
     let mut cxx =
         Cx { core: &mut core, style: &*begun.style, shown: value.value, mixed: value.mixed, events: Vec::new(), applied: 0, validity: Validity::Ok };
     let mut values = AppValues::default();
@@ -1240,8 +1250,10 @@ fn report<C: Component>(
         // The label names the node whether or not the face paints it: an icon button's label is its only name.
         label: resolved.label,
         flags,
+        selected: resolved.selected,
         enabled: resolved.enabled,
         pressable: &pressable,
+        parts,
         clickable: sense.takes_press(),
         focusable: !sense.intersection(Sense::FOCUS).is_empty(),
         context_menu: cx.core.popups.offers_context_menu() || crate::contract::overlay::offers_context_menu(build, build.node()),

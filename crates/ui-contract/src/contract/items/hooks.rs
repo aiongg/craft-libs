@@ -336,7 +336,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         for at in sections {
             if crate::contract::cx::Pointer::part_if_declared(cx, super::section_part(&self.source.key(at))).is_none() {
                 let row = self.screen(&layout, rect, at, view.offset, rtl);
-                self.report_section_node(at, row, cx.core.resolved.enabled);
+                self.report_section_node(at, row, cx.core.resolved.enabled, cx.core.rect.min);
             }
         }
         self.header.paint(ui, cx, comp, env, id, rtl);
@@ -504,7 +504,14 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                         moved = true;
                     }
                 }
-                self.report_toggle_cells(&ctx, item_id, (at, &key), (shown_cells.as_slice(), cx.core.resolved.enabled), &cx.core.env);
+                self.report_toggle_cells(
+                    &ctx,
+                    item_id,
+                    (at, &key),
+                    (shown_cells.as_slice(), cx.core.resolved.enabled),
+                    &cx.core.env,
+                    cx.core.rect.min,
+                );
                 let label = out.label_rect().unwrap_or(row);
                 self.slow_click_label(&key, label);
                 if let Some(shown) = shown_rows.last_mut() {

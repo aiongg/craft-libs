@@ -856,7 +856,12 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             }
             _ => {}
         }
-        let own = cx.dragging::<ListDrag<C::Key>>().filter(|(payload, _)| payload.list == cx.core.id);
+        // A drop of the collection's own rows lands in a run with no drag over it any more: the drop gives the rows and
+        // where they landed.
+        let own = cx
+            .dragging::<ListDrag<C::Key>>()
+            .or_else(|| cx.core.dropped_here::<ListDrag<C::Key>>())
+            .filter(|(payload, _)| payload.list == cx.core.id);
         if let Some((payload, at)) = own {
             let mut spot = None;
             if let Some(rule) = props.reorder {

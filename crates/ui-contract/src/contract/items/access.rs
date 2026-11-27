@@ -10,11 +10,12 @@ use crate::primitives::Id;
 use crate::runtime::access::{self, Role};
 use crate::runtime::focus;
 use craft_behavior::ColumnKey;
-use craft_ui_rt::Rect;
+use craft_ui_rt::{Pos2, Rect};
 
 impl<C: Collection> ItemsHooks<'_, '_, C> {
     /// The access sub-node of each toggle cell of row `(at, key)`, named by its cell, else by its column's header, and carrying its state,
     /// below the row's node for the cell, else the row's node `item`; an AccessKit click on it reaches `toggle_by_access`.
+    /// `cells` are in window space and `origin` is the collection node's top left: a sub-node's bounds are the node's own.
     pub(super) fn report_toggle_cells(
         &mut self,
         ctx: &Context,
@@ -22,6 +23,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         (at, key): (usize, &C::Key),
         (cells, enabled): (&[(ColumnKey, Rect)], bool),
         env: &crate::runtime::env::EnvView<'_>,
+        origin: Pos2,
     ) {
         let mut sub_nodes = std::mem::take(&mut self.sub_nodes);
         for (column, toggle) in self.header.toggle_columns() {
@@ -37,7 +39,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             node.flags.set(crate::style::Flags::CHECKED, self.source.toggled(at, &column));
             node.flags.set(crate::style::Flags::MIXED, cell.mixed);
             node.disabled = !(enabled && self.source.enabled(at) && self.toggle_open(at, &column));
-            node.bounds(*rect);
+            node.bounds(rect.translate(Pos2::ZERO - origin));
             if let Some(chord) = toggle.key {
                 node.shortcut(chord.display(ctx.os()));
             }
@@ -53,7 +55,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
 
     /// The collection's node for the section row `at` that the component does not lay out itself: a heading named by
     /// the row's text, expandable when it has children, that serves Click, Expand and Collapse.
-    pub(super) fn report_section_node(&mut self, at: usize, rect: Rect, enabled: bool) {
+    pub(super) fn report_section_node(&mut self, at: usize, rect: Rect, enabled: bool, origin: Pos2) {
         let mut node = access::SubNode::new(section_part(&self.source.key(at)), Role::HEADING);
         node.name = access::Name::Text(self.source.text(at).map(|text| text.into_owned()).unwrap_or_default());
         node.level(self.source.depth(at) + 1);
@@ -61,7 +63,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             node.expanded = Some(self.source.open(at));
         }
         node.disabled = !(enabled && self.source.enabled(at));
-        node.bounds(rect);
+        node.bounds(rect.translate(Pos2::ZERO - origin));
         self.sub_nodes.push(node);
     }
 

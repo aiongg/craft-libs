@@ -512,6 +512,9 @@ pub(crate) struct Kept {
     pub(crate) access_subs: Vec<super::access::BuiltSub>,
     /// The control folded into the node's access node (`PaintUi::inner`), which the node stands for.
     pub(crate) access_stands: Option<NodeId>,
+    /// The node is its collection's lead row: assistive technologies see it as focused while the collection holds
+    /// focus (AccessKit has no active descendant).
+    pub(crate) access_active: bool,
     pub(crate) queue: Vec<NodeInput>,
     pub(crate) placed: Vec<Placed>,
     /// A scope's returned value.
@@ -637,6 +640,7 @@ impl Kept {
             access: None,
             access_subs: Vec::new(),
             access_stands: None,
+            access_active: false,
             type_name: "",
             command: None,
             queue: Vec::new(),
@@ -1003,6 +1007,9 @@ impl Element for ComponentNode {
     fn access(&self, kept: &Kept, cx: &mut AccessCx<'_>) -> Option<accesskit::Node> {
         if let Some(control) = kept.access_stands {
             cx.stand_for(control);
+        }
+        if kept.access_active {
+            cx.set_active();
         }
         for s in &kept.access_subs {
             let mut sub = s.node.clone();
