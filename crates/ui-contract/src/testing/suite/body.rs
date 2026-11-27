@@ -7,25 +7,23 @@ use super::Subject;
 use super::drive::input_fixture;
 use super::nodes::{focus_within, root, subtree};
 use crate::contract::{MOVE_BAND, ShapeKind};
-use crate::runtime::access::Role;
-use crate::runtime::egui::access::NodeKey;
-use crate::runtime::overlay;
 use crate::testing::access::is_interactive;
-use crate::testing::fixture::Fixture;
 use crate::testing::story::Story;
-use egui::{Key, Modifiers, Vec2};
+use crate::testing::story_run::StoryHarness;
+use accesskit::Role;
+use craft_ui_rt::{Key, Mods, Vec2};
 
 fn is_body(subject: &Subject) -> bool {
     matches!(subject.probe.shape, ShapeKind::Body)
 }
 
 /// Whether the story's container is a layer of the overlay host that is not fading out.
-fn on_layer(fixture: &Fixture) -> bool {
-    fixture.root_id().is_some_and(|id| overlay::entry(fixture.ctx(), id).is_some_and(|entry| !entry.exiting))
+fn on_layer(fixture: &StoryHarness) -> bool {
+    fixture.root_id().is_some_and(|id| fixture.layers().iter().any(|layer| layer.id == id))
 }
 
 /// A fixture of `story` settled for input, when its container is on a layer.
-fn layer_fixture(story: &Story) -> Option<Fixture> {
+fn layer_fixture(story: &Story) -> Option<StoryHarness> {
     let fixture = input_fixture(story);
     on_layer(&fixture).then_some(fixture)
 }
@@ -34,14 +32,14 @@ fn layer_fixture(story: &Story) -> Option<Fixture> {
 /// and every other interactive node inside is a part of that control: below it, or beside it under the same parent
 /// and named like it or drawn inside it (a spin button and its text input, a scroll bar in a text area). A button beside
 /// the control that is neither is no part of it. The label names the control, so the group needs no name.
-fn is_field_of_one_control(tree: &crate::testing::access::AccessTree, container: crate::testing::access::NodeKey) -> bool {
+fn is_field_of_one_control(tree: &crate::testing::access::AccessView, container: accesskit::NodeId) -> bool {
     let inside = subtree(tree, container);
     let interactive: Vec<_> = inside.iter().copied().filter(|key| crate::testing::access::is_interactive(tree, *key)).collect();
     let labelled: Vec<_> = interactive.iter().copied().filter(|key| !tree.labelled_by_key(*key).is_empty()).collect();
     let [control] = labelled.as_slice() else { return false };
     let parts = subtree(tree, *control);
     let bounds = tree.bounds_of(*control);
-    let is_part = |key: &NodeKey| {
+    let is_part = |key: &accesskit::NodeId| {
         parts.contains(key)
             || (tree.parent_of_key(*key) == tree.parent_of_key(*control)
                 && (tree.name_of(*key).is_some() && tree.name_of(*key) == tree.name_of(*control)
@@ -61,19 +59,19 @@ pub(super) fn title_names_the_container(subject: &Subject) -> Result<(), String>
 
 /// The title case for one story.
 pub fn title_case(story: &Story) -> Result<(), String> {
-    let mut fixture = Fixture::story(story);
+    let mut fixture = StoryHarness::story(story);
     fixture.settle();
     title_from(story, &fixture)
 }
 
 /// The title case for `story`, settled in `fixture`.
-fn title_from(story: &Story, fixture: &Fixture) -> Result<(), String> {
+fn title_from(story: &Story, fixture: &StoryHarness) -> Result<(), String> {
     let Some(container) = root(fixture) else { return Ok(()) };
-    let role = fixture.tree().role_of(container.node);
-    let tree = fixture.tree();
-    if (role == Some(Role::DIALOG) || role == Some(Role::GROUP))
-        && crate::testing::access::name(tree, container.node).is_none()
-        && !(role == Some(Role::GROUP) && is_field_of_one_control(tree, container.node))
+    let role = fixture.tree().role_of(container.id);
+    let tree = &fixture.tree();
+    if (role == Some(Role::Dialog) || role == Some(Role::Group))
+        && crate::testing::access::name(tree, container.id).is_none()
+        && !(role == Some(Role::Group) && is_field_of_one_control(tree, container.id))
     {
         return Err(format!("{}: the container's node has the role {role:?} and no name", story.name));
     }
@@ -90,19 +88,18 @@ pub(super) fn layer_closes_on_escape(subject: &Subject) -> Result<(), String> {
     for story in &subject.stories {
         let Some(mut fixture) = layer_fixture(story) else { continue };
         let Some(id) = fixture.root_id() else { continue };
-        let takes_keys = overlay::entry(fixture.ctx(), id).is_some_and(|entry| entry.takes_keys());
-        let ignores = crate::runtime::focus::with(fixture.ctx(), |state| {
-            state.last_scopes.get(&id).is_some_and(|scope| scope.policy.cancel == craft_behavior::focus::CancelRule::Ignore)
-        });
+        let layer = fixture.layers().into_iter().find(|layer| layer.id == id);
+        let takes_keys = layer.as_ref().is_some_and(|layer| !layer.tip);
+        let ignores = layer.is_some_and(|layer| layer.policy.cancel == craft_behavior::focus::CancelRule::Ignore);
         if !takes_keys || ignores {
             continue;
         }
-        fixture.key(Key::Escape, Modifiers::NONE);
+        fixture.key(Key::Escape, Mods::NONE);
         fixture.settle();
         if on_layer(&fixture) {
             return Err(format!("{}: the layer is still open after Escape", story.name));
         }
-        if overlay::top(fixture.ctx()) == Some(id) {
+        if fixture.top_layer().is_some_and(|layer| layer.id == id) {
             return Err(format!("{}: the closed layer still receives Cancel", story.name));
         }
     }
@@ -118,23 +115,23 @@ pub(super) fn layer_traps_focus(subject: &Subject) -> Result<(), String> {
     for story in &subject.stories {
         let Some(mut fixture) = layer_fixture(story) else { continue };
         let Some(id) = fixture.root_id() else { continue };
-        let traps = crate::runtime::focus::with(fixture.ctx(), |state| state.last_scopes.get(&id).is_some_and(|scope| scope.policy.trap));
+        let traps = fixture.layers().into_iter().any(|layer| layer.id == id && layer.policy.trap);
         if !traps {
             continue;
         }
         let Some(container) = root(&fixture) else { continue };
-        let stops = subtree(fixture.tree(), container.node).into_iter().filter(|key| is_interactive(fixture.tree(), *key)).count();
+        let stops = subtree(&fixture.tree(), container.id).into_iter().filter(|key| is_interactive(&fixture.tree(), *key)).count();
         if stops == 0 {
             continue;
         }
         for step in 0..stops + 2 {
-            fixture.key(Key::Tab, Modifiers::NONE);
-            if !focus_within(&fixture, container.node) {
+            fixture.key(Key::Tab, Mods::NONE);
+            if !focus_within(&fixture, container.id) {
                 return Err(format!("{}: Tab number {} moved focus out of the layer", story.name, step + 1));
             }
         }
-        fixture.key(Key::Tab, Modifiers::SHIFT);
-        if !focus_within(&fixture, container.node) {
+        fixture.key(Key::Tab, Mods::SHIFT);
+        if !focus_within(&fixture, container.id) {
             return Err(format!("{}: Shift+Tab moved focus out of the layer", story.name));
         }
     }
@@ -149,8 +146,8 @@ pub(super) fn layer_leaves_no_dangling_focus(subject: &Subject) -> Result<(), St
     for story in &subject.stories {
         let Some(mut fixture) = layer_fixture(story) else { continue };
         let Some(container) = root(&fixture) else { continue };
-        let was: Vec<NodeKey> = subtree(fixture.tree(), container.node);
-        fixture.key(Key::Escape, Modifiers::NONE);
+        let was: Vec<accesskit::NodeId> = subtree(&fixture.tree(), container.id);
+        fixture.key(Key::Escape, Mods::NONE);
         fixture.settle();
         if was.contains(&fixture.tree().focused_key()) {
             return Err(format!("{}: focus stays on a node of the closed layer", story.name));
@@ -168,15 +165,15 @@ pub(super) fn layer_remembers_its_placement(subject: &Subject) -> Result<(), Str
         let Some(mut fixture) = layer_fixture(story) else { continue };
         let Some(id) = fixture.root_id() else { continue };
         let Some(band) = fixture.part(id, MOVE_BAND) else { continue };
-        let Some(before) = root(&fixture).map(|container| container.rect) else { continue };
+        let Some(before) = root(&fixture).map(|container| container.bounds) else { continue };
         fixture.drag(&band, Vec2::new(40.0, 30.0));
         fixture.settle();
-        let Some(moved) = root(&fixture).map(|container| container.rect) else { continue };
+        let Some(moved) = root(&fixture).map(|container| container.bounds) else { continue };
         if !(moved.min.x > before.min.x || moved.min.y > before.min.y) {
             return Err(format!("{}: a drag of the move band left the layer at {before:?}", story.name));
         }
         fixture.idle(3);
-        let Some(later) = root(&fixture).map(|container| container.rect) else { continue };
+        let Some(later) = root(&fixture).map(|container| container.bounds) else { continue };
         if later.min != moved.min {
             return Err(format!("{}: the layer went from {moved:?} back to {later:?} with no input", story.name));
         }
@@ -185,8 +182,8 @@ pub(super) fn layer_remembers_its_placement(subject: &Subject) -> Result<(), Str
 }
 
 /// How far below the container's bottom edge its lowest node reaches.
-fn overflow(fixture: &Fixture, container: NodeKey, bottom: f32) -> f32 {
-    subtree(fixture.tree(), container)
+fn overflow(fixture: &StoryHarness, container: accesskit::NodeId, bottom: f32) -> f32 {
+    subtree(&fixture.tree(), container)
         .into_iter()
         .filter_map(|key| fixture.tree().bounds_of(key))
         .map(|bounds| bounds.max.y - bottom)
@@ -201,18 +198,17 @@ pub(super) fn overflowing_body_scrolls_to_its_end(subject: &Subject) -> Result<(
     for story in &subject.stories {
         let mut fixture = input_fixture(story);
         let Some(container) = root(&fixture) else { continue };
-        let start = overflow(&fixture, container.node, container.rect.max.y);
+        let start = overflow(&fixture, container.id, container.bounds.max.y);
         if start <= 1.0 {
             continue;
         }
-        let at = container.rect.center();
-        fixture.frame(vec![crate::testing::pointer::moved(at)]);
+        let at = container.bounds.center();
         for _ in 0..40 {
-            fixture.frame(vec![crate::testing::pointer::wheel(-120.0)]);
+            fixture.wheel_at(at, Vec2::new(0.0, -120.0));
         }
         fixture.settle();
         let Some(after) = root(&fixture) else { continue };
-        let left = overflow(&fixture, after.node, after.rect.max.y);
+        let left = overflow(&fixture, after.id, after.bounds.max.y);
         if left > 1.0 {
             return Err(format!("{}: after scrolling to the end the content still reaches {left} points below the container", story.name));
         }

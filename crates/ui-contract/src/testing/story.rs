@@ -1,11 +1,11 @@
 //! Stories: named ways to show one registered type, and the data and output the runner reads from them.
 
-use super::Fixture;
-use crate::contract::{CollectionEvent, Inner, Outcome, TooltipSpec};
-use crate::runtime::commands::{CommandRef, CommandStates};
+use super::story_run::StoryHarness;
+use crate::contract::{CollectionEvent, Context, Id, Inner, Outcome, Response, TooltipSpec, Ui};
+use crate::runtime::commands::{CommandRef, CommandState};
 use craft_behavior::{EditEvent, EditEvents, Mixed, PartKey, PartRef, Value};
 use craft_tracked::{Revision, Tracked};
-use egui::{Id, Response, Ui, Vec2};
+use craft_ui_rt::Vec2;
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
 use std::ops::{Range, RangeInclusive};
@@ -55,7 +55,7 @@ pub enum Drive {
         row: usize,
     },
     /// The story's own drive.
-    Custom(fn(&mut Fixture)),
+    Custom(fn(&mut StoryHarness)),
     /// The story shows a state and changes nothing.
     Never,
 }
@@ -104,8 +104,8 @@ pub struct Story {
     /// The reason a disabled control shows (`disabled_text` of its tooltip), when the story gives its control one.
     pub disabled_text: Option<&'static str>,
     /// Sets this story's app-scope command states; runners apply the shown stories' functions in order to one
-    /// `CommandStates` before the first frame and hold it as the app's.
-    pub commands: Option<fn(&mut CommandStates)>,
+    /// [`StoryCommands`] before the first step and give it to the harness as the app's.
+    pub commands: Option<fn(&mut StoryCommands)>,
     /// The caption a viewer shows over the story; `None` for the title made of its name (`contract::story_title`).
     pub title: Option<&'static str>,
     /// The group a viewer shows the story in, with the other stories of the type that name it, as the cases of one
@@ -120,15 +120,16 @@ impl Story {
     }
 
     /// Sets the function that sets the story's app-scope command states.
-    pub const fn commands(mut self, add: fn(&mut CommandStates)) -> Self {
+    pub const fn commands(mut self, add: fn(&mut StoryCommands)) -> Self {
         self.commands = Some(add);
         self
     }
 
     /// The command states of `stories` shown together: each story's command function applied in order to empty
-    /// states, so a later story's state for a command replaces an earlier one's. Runners call this before the first frame.
-    pub fn command_states<'a>(stories: impl IntoIterator<Item = &'a Story>) -> CommandStates {
-        let mut states = CommandStates::new();
+    /// states, so a later story's state for a command replaces an earlier one's. Runners call this before the first step
+    /// and give the result to [`Harness::command_states`](crate::contract::rt::harness::Harness::command_states).
+    pub fn command_states<'a>(stories: impl IntoIterator<Item = &'a Story>) -> StoryCommands {
+        let mut states = StoryCommands::default();
         for add in stories.into_iter().filter_map(|story| story.commands) {
             add(&mut states);
         }
@@ -178,6 +179,28 @@ impl Story {
     pub const fn drive(mut self, drive: Drive) -> Self {
         self.drive = drive;
         self
+    }
+}
+
+/// The app-scope command states the stories shown together set: what a story's `commands` function fills in.
+#[derive(Clone, Debug, Default)]
+pub struct StoryCommands {
+    states: Vec<(CommandRef, CommandState)>,
+}
+
+impl StoryCommands {
+    /// Gives `command` `state`, in place of the state it had.
+    pub fn set(&mut self, command: impl Into<CommandRef>, state: CommandState) {
+        let command = command.into();
+        match self.states.iter_mut().find(|(known, _)| *known == command) {
+            Some((_, held)) => *held = state,
+            None => self.states.push((command, state)),
+        }
+    }
+
+    /// The commands and their states, in the order they were first set.
+    pub fn iter(&self) -> impl Iterator<Item = &(CommandRef, CommandState)> {
+        self.states.iter()
     }
 }
 
@@ -455,7 +478,7 @@ impl StoryData {
     /// picked choice or an edited number). The revision moves, and a view that read the value earlier in the pass
     /// runs again.
     #[doc(hidden)]
-    pub fn __wrote(&mut self, ctx: &egui::Context, key: (&'static str, TypeId)) {
+    pub fn __wrote(&mut self, ctx: &Context, key: (&'static str, TypeId)) {
         *self.written = ();
         let size = self.values.get(&key).map_or(0, |value| size_of_val(&**value));
         let read = crate::runtime::reads::BindKey::Tracked(self.written.source(), slot_offset(key.0, key.1), size, key.1);
@@ -756,7 +779,7 @@ impl StoryOutput {
     }
 
     pub(crate) fn from_response(response: &Response) -> Self {
-        StoryOutput { id: Some(response.id), clicked: super::contract::clicked(response), ..StoryOutput::default() }
+        StoryOutput { id: Some(response.id), clicked: response.clicked(), ..StoryOutput::default() }
     }
 
     #[doc(hidden)]
@@ -797,14 +820,14 @@ where
 /// Shows `row` as the only item of a collection across `span`, as a collection shows its rows across its columns: a
 /// row with column cells spans the cells it is given, where in the flow it would take its own width. The row is as
 /// high as it measures at the span's width, as a collection measures it.
-pub fn show_as_only_item_across<C>(ui: &mut Ui, mut row: C, span: egui::Rangef) -> C::Output
+pub fn show_as_only_item_across<C>(ui: &mut Ui, mut row: C, span: craft_ui_rt::Rangef) -> C::Output
 where
     C: crate::contract::Component + crate::contract::Props + crate::contract::Show,
 {
     let at = crate::runtime::access::SetPosition::new(0).of(1);
     let height = crate::contract::measure_item(ui, &mut row, at, craft_behavior::Proposal::Width(span.span())).y;
     let top = ui.cursor().min.y;
-    let rect = egui::Rect::from_x_y_ranges(span, top..=top + height);
+    let rect = craft_ui_rt::Rect::from_x_y_ranges(span, top..=top + height);
     let shown = crate::contract::show_item(ui, rect, row, at);
     ui.advance_cursor_after_rect(rect);
     shown

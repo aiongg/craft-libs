@@ -32,8 +32,9 @@ pub use states::required_states;
 pub use variants::rtl_case;
 
 use super::Registry;
-use super::fixture::Fixture;
 use super::story::Story;
+use super::story_run::StoryHarness;
+use crate::contract::rt::harness::Harness;
 use crate::contract::{PatternProbe, Probe, Registration, ShapeKind};
 use libtest_mimic::{Failed, Trial};
 use std::cell::OnceCell;
@@ -52,14 +53,14 @@ struct Subject<'a> {
     /// The style sources the style cases measure, read once for all of them.
     style_sources: OnceCell<Result<Vec<style::Source>, String>>,
     /// The context the style cases resolve looks in.
-    style_ctx: OnceCell<egui::Context>,
+    style_ctx: OnceCell<(Harness<()>, crate::contract::Context)>,
 }
 
-/// A story shown in the default room and env and settled (`Fixture::story` then `settle`), with no input, and the
+/// A story shown in the default room and env and settled (`Harness::story` then `settle`), with no input, and the
 /// drive the runner resolves from it. Cases that only read a settled story, or need only its drive, share it, so a
 /// story settles once per type for them rather than once per case. A case that sends input builds its own fixture.
 struct Base {
-    fixture: Fixture,
+    fixture: StoryHarness,
     plan: drive::Plan,
 }
 
@@ -90,7 +91,7 @@ impl Base {
     }
 
     /// The settled fixture and the drive.
-    fn parts(&self) -> (&Fixture, drive::Plan) {
+    fn parts(&self) -> (&StoryHarness, drive::Plan) {
         (&self.fixture, self.plan)
     }
 }

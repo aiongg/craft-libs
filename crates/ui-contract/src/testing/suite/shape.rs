@@ -1,8 +1,8 @@
 //! The cases every shape shares: a story paints only inside the rect it was shown at.
 
 use super::{ANY, Case, Subject};
-use crate::testing::fixture::Fixture;
-use egui::{Rect, Vec2};
+use crate::testing::story_run::StoryHarness;
+use craft_ui_rt::{Rect, Vec2};
 
 pub(super) const CASES: &[Case] =
     &[Case::new("paints-inside", ANY, small_rooms_paint_inside_the_shown_rect), Case::new("parts-declaration", ANY, parts_declaration)];
@@ -10,7 +10,7 @@ pub(super) const CASES: &[Case] =
 fn parts_declaration(subject: &Subject) -> Result<(), String> {
     for story in &subject.stories {
         let bad = crate::testing::contract::check_parts_declarations(|| {
-            Fixture::story(story).frame(Vec::new());
+            StoryHarness::story(story).step();
         });
         if !bad.is_empty() {
             return Err(format!("{}: components with PARTS = false declared parts: {bad:?}", story.name));
@@ -26,14 +26,12 @@ const ROUNDING: f32 = 0.5;
 /// The rects a story may paint in, before a shape's own slack: the area it allocated, grown by the type's declared
 /// outset, and the rect of every open layer. A layer that opened a cover or is modal (a scrim, a full-window mount)
 /// covers the window.
-fn painted_areas(fixture: &Fixture, outset: f32) -> Vec<Rect> {
-    use crate::runtime::overlay;
-    let ctx = fixture.ctx();
-    let mut areas = vec![fixture.shown().expand(outset)];
-    for entry in overlay::open_entries(ctx) {
-        areas.push(entry.rect);
-        if entry.cover.is_some() || entry.rank.is_modal() {
-            areas.push(ctx.content_rect());
+fn painted_areas(fixture: &StoryHarness, outset: f32) -> Vec<Rect> {
+    let mut areas = vec![fixture.shown().unwrap_or(Rect::NOTHING).expand(outset)];
+    for layer in fixture.layers() {
+        areas.push(layer.bounds);
+        if layer.policy.trap {
+            areas.push(fixture.ctx().content_rect());
         }
     }
     areas
@@ -46,9 +44,9 @@ fn small_rooms_paint_inside_the_shown_rect(subject: &Subject) -> Result<(), Stri
     let tokens = crate::testing::style::tokens(craft_theme::Mode::Light, craft_theme::Contrast::Standard);
     let outset = (subject.probe.paint_outset)(&tokens);
     for story in &subject.stories {
-        let settled = subject.base(story).fixture.shown().size();
+        let settled = subject.base(story).fixture.shown().map_or(Vec2::ZERO, |shown| shown.size());
         for room in [Vec2::splat(1.0), settled / 2.0] {
-            let mut fixture = Fixture::story(story);
+            let mut fixture = StoryHarness::story(story);
             fixture.room(room);
             fixture.settle();
             let areas = painted_areas(&fixture, outset);
@@ -58,7 +56,7 @@ fn small_rooms_paint_inside_the_shown_rect(subject: &Subject) -> Result<(), Stri
             {
                 return Err(format!("{}: in a room of {room:?} a shape paints at {outside:?}, outside {:?}", story.name, fixture.shown()));
             }
-            let tree = fixture.tree();
+            let tree = &fixture.tree();
             if tree.keys().into_iter().filter_map(|key| tree.bounds_of(key)).any(|bounds| !(bounds.min.is_finite() && bounds.max.is_finite())) {
                 return Err(format!("{}: in a room of {room:?} a part has non-finite bounds", story.name));
             }

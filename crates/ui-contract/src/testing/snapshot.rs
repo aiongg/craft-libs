@@ -1,65 +1,32 @@
-//! Stories rendered to images offscreen: egui's wgpu test renderer over what [`Frames`](super::Frames) recorded with
-//! `record_paint`. The renderer prefers a software adapter, so it runs without a display or a GPU.
+//! Stories rendered to images offscreen: craft-ui-render-epaint on a headless window, read back as pixels. The wgpu
+//! adapter prefers a software one, so it runs without a display or a GPU.
+//!
+//! A [`Harness`](crate::contract::rt::harness::Harness) built with [`renderer`] shows the window; [`image_of`] reads its
+//! last frame, and [`Harness::into_renderer`](crate::contract::rt::harness::Harness::into_renderer) gives the renderer
+//! back for the next story, so one device serves a whole run.
 
-use crate::runtime::egui::fixture::FullOutput;
-use crate::runtime::overlay;
-use egui::{Context, Rect, TextureId, TexturesDelta};
-use egui_kittest::TestRenderer as _;
-use egui_kittest::wgpu::WgpuTestRenderer;
-use std::collections::HashSet;
+use crate::contract::rt::harness::Harness;
+use craft_ui_render_epaint::{EpaintOptions, EpaintRenderer};
 
+pub use craft_ui_render_epaint::EpaintRenderer as Renderer;
 pub use image::RgbaImage;
 
-/// A wgpu device and egui renderer that renders one context's frames after another's.
-pub struct Renderer {
-    inner: WgpuTestRenderer,
-    /// The textures the current context has set, which [`Renderer::finish`] frees.
-    textures: HashSet<TextureId>,
+/// A renderer on the preferred adapter, with the options of egui's snapshot renderer (no dithering, predictable
+/// texture filtering) and the suite's default faces.
+///
+/// # Panics
+/// When wgpu finds no adapter.
+pub fn renderer() -> EpaintRenderer {
+    #[allow(clippy::expect_used, reason = "a snapshot cannot be taken without an adapter")]
+    EpaintRenderer::create_blocking(EpaintOptions::predictable(), crate::fonts::deflated_default_definitions(), None)
+        .expect("a wgpu adapter (a software one will do)")
 }
 
-impl Default for Renderer {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl Renderer {
-    /// A renderer on the preferred adapter.
-    ///
-    /// # Panics
-    /// When wgpu finds no adapter.
-    pub fn new() -> Self {
-        Renderer { inner: WgpuTestRenderer::new(), textures: HashSet::new() }
-    }
-
-    /// The image of `paint` (from [`Frames::take_paint`](super::Frames::take_paint)) at the context's pixels per point,
-    /// over a transparent ground. The texture changes in `paint` are applied first.
-    ///
-    /// # Errors
-    /// When wgpu fails to render or read back the image.
-    pub fn render(&mut self, ctx: &Context, mut paint: FullOutput) -> Result<RgbaImage, String> {
-        self.textures.extend(paint.textures_delta.set.keys().copied());
-        for id in &paint.textures_delta.free {
-            self.textures.remove(id);
-        }
-        self.inner.handle_delta(&mut paint.textures_delta);
-        self.inner.render(ctx, &paint)
-    }
-
-    /// Frees the textures of the context rendered last, before the renderer takes another context's frames.
-    pub fn finish(&mut self) {
-        let mut delta = TexturesDelta { set: Default::default(), free: self.textures.drain().collect() };
-        self.inner.handle_delta(&mut delta);
-    }
-}
-
-/// The screen rects the layers shown last frame and not fading out paint in: popups, dialogs, windows shown as layers,
-/// each within the region it is contained in. A layer's cover (a scrim) is not among them.
-pub fn layer_rects(ctx: &Context) -> Vec<Rect> {
-    overlay::open_entries(ctx).into_iter().map(|entry| entry.region.map_or(entry.rect, |region| entry.rect.intersect(region))).collect()
-}
-
-/// Whether a layer shown last frame and not fading out is modal (a dialog over the window).
-pub fn modal_open(ctx: &Context) -> bool {
-    overlay::open_entries(ctx).into_iter().any(|entry| entry.rank.is_modal())
+/// The window's last frame as an image, in physical pixels, over a transparent ground.
+///
+/// # Panics
+/// When the renderer cannot read the window back (see [`Harness::render`]).
+pub fn image_of<S>(harness: &mut Harness<S, EpaintRenderer>) -> Result<RgbaImage, String> {
+    let frame = harness.render();
+    RgbaImage::from_raw(frame.size.width, frame.size.height, frame.pixels).ok_or_else(|| "the read-back has the wrong length".to_owned())
 }

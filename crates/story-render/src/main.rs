@@ -4,7 +4,7 @@
 //! `new-<Name>--<story>.png` for every story of the component, `new-<Name>.png` for the story its Overview card
 //! shows (its first), `stories.tsv` and `components.tsv`. Each story runs in a card's story body (`StoryBody`) in a
 //! fresh context, in ArtCraft Dark (`--theme`, `--mode`, `--density`, `--contrast`) at 2 pixels per point (`--scale`) with the interface fonts, and its image is cropped to the
-//! story's surface and the layers it opened. A story runs in a test fixture (`Fixture`) in an embedded shell, over which
+//! story's surface and the layers it opened. A story runs in a test harness (`Harness`) in an embedded shell, over which
 //! its dialogs open; a story whose dialog the card holds behind its button is shown with the dialog open, and a story
 //! that shows an open popup (`Required::Open`) is shown after its own drive (`Drive::Custom`), which opens it.
 //!
@@ -26,18 +26,18 @@
 //! contrast without them). A value that is not one of these is refused. `stories.tsv` lists the scale of every image.
 
 use craft_behavior::ColumnWidth;
-use craft_ui::contract::{Pad, Scroll, ShowContainer as _, Surface, Tracked};
-use craft_ui::fonts::{I18nScripts, UiFonts};
+use craft_theme::{Contrast, Mode, Size};
+use craft_ui::contract::{Pad, Scroll, ShowContainer as _, Surface, Ui, UiBuilder};
 use craft_ui::layout_components::{Grid, Stack};
-use craft_ui::runtime::commands::CommandInput;
-use craft_ui::runtime::env::{RootEnv, WindowKey};
+use craft_ui::runtime::env::WindowKey;
 use craft_ui::shell::AppShell;
-use craft_ui::testing::snapshot::{Renderer, RgbaImage, layer_rects, modal_open};
-use craft_ui::testing::{Drive, Fixture, Required, Story, StoryOutput, StoryRegistration};
+use craft_ui::testing::snapshot::{self, RgbaImage};
+use craft_ui::testing::{Drive, Harness, Look, Required, StoryHarness, StoryOutput, StoryRegistration};
 use craft_ui_gallery::WINDOW;
 use craft_ui_gallery::chrome::{Spec, StoryBody, overview_card};
-use craft_ui_gallery::viewer::{CONTRASTS, CardState, Catalog, Cells, DENSITIES, GallerySettings, MODES, entry_of, theme_named};
-use egui::{Pos2, Rect, Ui, Vec2};
+use craft_ui_gallery::viewer::{CardState, Catalog, Cells, entry_of, theme_named, theme_of};
+use craft_ui_render_epaint::EpaintRenderer;
+use craft_ui_rt::{Pos2, Rect, Vec2};
 use std::cell::{Cell, RefCell};
 use std::fmt::Write as _;
 use std::io::Write as _;
@@ -79,6 +79,30 @@ struct Options {
     contrast: String,
 }
 
+fn mode_named(name: &str) -> Option<Mode> {
+    match name {
+        "light" => Some(Mode::Light),
+        "dark" => Some(Mode::Dark),
+        _ => None,
+    }
+}
+
+fn density_named(name: &str) -> Option<Size> {
+    match name {
+        "compact" => Some(Size::Compact),
+        "comfortable" => Some(Size::Comfortable),
+        _ => None,
+    }
+}
+
+fn contrast_named(name: &str) -> Option<Contrast> {
+    match name {
+        "standard" => Some(Contrast::Standard),
+        "high" => Some(Contrast::High),
+        _ => None,
+    }
+}
+
 fn options() -> Result<Options, String> {
     let mut args = std::env::args().skip(1);
     let threads = std::thread::available_parallelism().map_or(1, |n| n.get()).min(8);
@@ -117,18 +141,17 @@ fn options() -> Result<Options, String> {
     if options.out.as_os_str().is_empty() {
         return Err("--out <dir> is required".to_owned());
     }
-    // `restore_env` falls back to its defaults without a word, so each value is checked here. A render does not follow
-    // the OS: `system` is refused for the mode and the contrast.
+    // A render does not follow the OS: `system` is not a mode or a contrast here.
     if !options.theme.is_empty() && theme_named(&options.theme).is_none() {
         return Err(format!("--theme {} is not a theme id", options.theme));
     }
-    if options.mode == "system" || MODES.parse(&options.mode).is_none() {
+    if mode_named(&options.mode).is_none() {
         return Err("--mode takes light or dark".to_owned());
     }
-    if !options.density.is_empty() && DENSITIES.parse(&options.density).is_none() {
+    if !options.density.is_empty() && density_named(&options.density).is_none() {
         return Err("--density takes compact or comfortable".to_owned());
     }
-    if !options.contrast.is_empty() && (options.contrast == "system" || CONTRASTS.parse(&options.contrast).is_none()) {
+    if !options.contrast.is_empty() && contrast_named(&options.contrast).is_none() {
         return Err("--contrast takes standard or high".to_owned());
     }
     Ok(options)
@@ -213,91 +236,98 @@ fn jobs(options: &Options) -> Vec<Job> {
     jobs
 }
 
-/// The root values the stories are shown under: the gallery's defaults with the theme and mode the options name (dark
-/// mode and the default theme, ArtCraft, without them).
-fn root_env(options: &Options) -> RootEnv {
-    let mut env = RootEnv::default();
-    let mut settings = GallerySettings::default();
-    if !options.theme.is_empty() {
-        settings.theme.clone_from(&options.theme);
+/// The look the stories are shown under: the default theme (ArtCraft) in the mode, density and contrast the options name
+/// (dark, compact and standard without them).
+fn look(options: &Options) -> Look {
+    let mut look = Look::default();
+    if let Some(theme) = theme_named(&options.theme) {
+        look.theme = theme_of(&theme).clone();
     }
-    settings.mode.clone_from(&options.mode);
-    if !options.density.is_empty() {
-        settings.density.clone_from(&options.density);
+    look.appearance.mode = mode_named(&options.mode).unwrap_or(Mode::Dark);
+    if let Some(density) = density_named(&options.density) {
+        look.appearance.size = density;
     }
-    if !options.contrast.is_empty() {
-        settings.contrast.clone_from(&options.contrast);
+    if let Some(contrast) = contrast_named(&options.contrast) {
+        look.appearance.contrast = contrast;
     }
-    settings.restore_env(&mut env);
-    env
+    look
 }
 
-/// A fixture of `show` at the screen's top left, `width` wide, in the theme `env` gives, at the images' scale, with the
-/// interface fonts, recording its paint. `show` runs in a shell as large as the gallery's window, over which its
-/// dialogs open as over a gallery view, so a dialog or workspace gets the room it gets in the gallery, not the card's
-/// width. It returns the story's output in a pass that ran the story ([`Fixture::hosted`]).
-fn fixture(env: &RootEnv, options: &Options, mut show: impl FnMut(&mut Ui) -> Option<StoryOutput> + 'static) -> Fixture {
+/// A harness of `show` at the screen's top left, `width` wide, in `look`, at the images' scale, drawn by `renderer`.
+/// `show` runs in a shell as large as the gallery's window, over which its dialogs open as over a gallery view, so a
+/// dialog or workspace gets the room it gets in the gallery, not the card's width. It returns the story's output in a
+/// build that ran the story ([`Harness::hosted_on`]).
+fn fixture(
+    renderer: EpaintRenderer,
+    look: &Look,
+    options: &Options,
+    mut show: impl FnMut(&mut Ui) -> Option<StoryOutput> + 'static,
+) -> StoryHarness<EpaintRenderer> {
     let width = options.width;
     let window = Rect::from_min_size(Pos2::ZERO, Vec2::from(WINDOW));
-    let mut fixture = Fixture::hosted(move |ui| {
+    let builder = Harness::builder().with_size(Vec2::from(WINDOW)).with_scale(options.scale).with_look(look.clone());
+    StoryHarness::hosted_on(builder, renderer, move |ui| {
         let mut output = None;
-        craft_ui::testing::layout::in_region(ui, window, |ui| {
+        ui.scope_builder(UiBuilder::new().max_rect(window), |ui| {
             AppShell::embedded(WindowKey::new("story-render"))
                 .body(|ui, _, _: &mut ()| {
                     let view = ui.available_rect_before_wrap();
                     let column = Rect::from_min_size(view.min, Vec2::new(width, view.height()));
-                    output = craft_ui::testing::layout::in_region(ui, column, |ui| show(ui));
+                    output = ui.scope_builder(UiBuilder::new().max_rect(column), |ui| show(ui));
                 })
                 .show(ui, &mut ())
         });
         output
-    });
-    UiFonts::new(&I18nScripts).install(fixture.ctx());
-    fixture.root(env.clone()).room(Vec2::from(WINDOW)).pixels_per_point(options.scale).record_paint();
-    fixture
+    })
 }
 
-/// Frames until what the fixture shows settles: the frames, then a second past every fade, then the frames again.
-fn settle(fixture: &mut Fixture) {
+/// Steps until what the harness shows settles: the steps, then a second past every fade, then the steps again.
+fn settle(fixture: &mut StoryHarness<EpaintRenderer>) {
     fixture.idle(4).advance(1.0).idle(4);
 }
 
 /// The story in a card's body, with its dialog open when the card holds one behind its button, under the command
 /// states the gallery gives it. A story that shows an open popup ([`Required::Open`]) is shown after its own drive,
 /// which opens it, as the suite runs it: the fixture, and the rect the story showed in.
-fn story(registration: StoryRegistration, surface: Surface, env: &RootEnv, options: &Options) -> (Fixture, Option<Rect>) {
+fn story(
+    renderer: EpaintRenderer,
+    registration: StoryRegistration,
+    surface: Surface,
+    look: &Look,
+    options: &Options,
+) -> Result<(StoryHarness<EpaintRenderer>, Option<Rect>), String> {
     let body = StoryBody::new("sheet", registration, surface, options.room, Pad::Regular);
     let state = Rc::new(RefCell::new(CardState::default()));
     let flow = Rc::new(Cell::new(None));
     let (held, flowed) = (state.clone(), flow.clone());
-    let mut fixture = fixture(env, options, move |ui| {
+    let mut fixture = fixture(renderer, look, options, move |ui| {
         let shown = body.show(ui, &mut held.borrow_mut());
         flowed.set(shown.flow);
         shown.output
     });
-    fixture.commands(CommandInput::new().states(&Tracked::new(Story::command_states([&registration.story]))));
     settle(&mut fixture);
     if state.borrow().dialog.hidden {
         state.borrow_mut().show_dialog();
+        fixture.rebuild();
         settle(&mut fixture);
     }
     let story = &registration.story;
-    if let (true, Drive::Custom(open)) = (story.covers.contains(&Required::Open), story.drive) {
-        open(&mut fixture);
-        settle(&mut fixture);
+    // A custom drive is written for the recording harness, whose renderer type differs from this one's.
+    if let (true, Drive::Custom(_)) = (story.covers.contains(&Required::Open), story.drive) {
+        return Err("a story that opens its popup by its own drive cannot be rendered on the epaint harness yet".to_owned());
     }
-    (fixture, flow.get())
+    Ok((fixture, flow.get()))
 }
 
 /// The Overview card of `spec`, with every dialog its stories hold behind a button open, under no command states, as
 /// the Overview gives its cards: the fixture, the card's rect, and whether a dialog was opened.
-fn card(spec: &Arc<Spec>, env: &RootEnv, options: &Options) -> (Fixture, Option<Rect>, bool) {
+fn card(renderer: EpaintRenderer, spec: &Arc<Spec>, look: &Look, options: &Options) -> (StoryHarness<EpaintRenderer>, Option<Rect>, bool) {
     let cells = Rc::new(RefCell::new(Cells::default()));
     let rect = Rc::new(Cell::new(None));
     let (spec, held, placed, room) = (spec.clone(), cells.clone(), rect.clone(), options.room);
     // In a one-column grid row in a vertical scroll, as the Overview holds its cards: a filling card is as tall as its
     // row's content.
-    let mut fixture = fixture(env, options, move |ui| {
+    let mut fixture = fixture(renderer, look, options, move |ui| {
         let stories = spec.card_stories();
         let card = spec.card(&stories, "sheet".to_owned(), room);
         let cells = &mut *held.borrow_mut();
@@ -323,28 +353,30 @@ fn card(spec: &Arc<Spec>, env: &RootEnv, options: &Options) -> (Fixture, Option<
         opened = true;
     }
     if opened {
+        fixture.rebuild();
         settle(&mut fixture);
     }
     (fixture, rect.get(), opened)
 }
 
-/// The story or card rendered: its image cropped to what it showed and the layers it opened, in pixels.
-fn render(job: &Job, renderer: &mut Renderer, env: &RootEnv, options: &Options) -> Result<RgbaImage, String> {
+/// The story or card rendered: its image cropped to what it showed and the layers it opened, in pixels. The renderer
+/// goes back to `renderer` when the harness is done with it.
+fn render(job: &Job, renderer: &mut Option<EpaintRenderer>, look: &Look, options: &Options) -> Result<RgbaImage, String> {
+    let device = renderer.take().unwrap_or_else(snapshot::renderer);
     let (mut fixture, shown, dialog) = match &job.shown {
         Shown::Story(registration) => {
-            let (fixture, shown) = story(**registration, job.surface, env, options);
+            let (fixture, shown) = story(device, **registration, job.surface, look, options)?;
             (fixture, shown, false)
         }
-        Shown::Card(spec) => card(spec, env, options),
+        Shown::Card(spec) => card(device, spec, look, options),
     };
-    let layers = layer_rects(fixture.ctx()).into_iter().fold(Rect::NOTHING, Rect::union);
+    let layers = fixture.layers().into_iter().map(|layer| layer.rect).fold(Rect::NOTHING, Rect::union);
     // An opened card dialog, or a modal layer the story opened itself, is cropped alone, as the old gallery's dialog
     // shots are.
-    let alone = dialog || modal_open(fixture.ctx());
+    let alone = dialog || fixture.layers().iter().any(|layer| layer.policy.trap);
     let crop = if alone && layers.is_positive() { layers } else { shown.map_or(layers, |shown| layers.union(shown)) };
-    let paint = fixture.take_paint().ok_or("no paint recorded")?;
-    let image = renderer.render(fixture.ctx(), paint);
-    renderer.finish();
+    let image = snapshot::image_of(&mut fixture);
+    *renderer = Some(fixture.into_renderer());
     let image = image?;
     if !crop.is_positive() {
         return Err("blank: the story showed nothing".to_owned());
@@ -371,9 +403,9 @@ fn file_name(job: &Job) -> String {
     format!("new-{}--{story}.png", job.name)
 }
 
-fn run(job: &Job, renderer: &mut Renderer, env: &RootEnv, options: &Options) -> Done {
+fn run(job: &Job, renderer: &mut Option<EpaintRenderer>, look: &Look, options: &Options) -> Done {
     IN_STORY.with(|running| running.set(true));
-    let rendered = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| render(job, renderer, env, options)));
+    let rendered = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| render(job, renderer, look, options)));
     IN_STORY.with(|running| running.set(false));
     let image = match rendered {
         Ok(Ok(image)) => image,
@@ -443,12 +475,12 @@ fn main() -> ExitCode {
     std::thread::scope(|scope| {
         for _ in 0..options.threads.max(1).min(jobs.len()) {
             scope.spawn(|| {
-                let env = root_env(&options);
-                let mut renderer = Renderer::new();
+                let look = look(&options);
+                let mut renderer = None;
                 loop {
                     let at = next.fetch_add(1, Ordering::Relaxed);
                     let Some(job) = jobs.get(at) else { break };
-                    let result = run(job, &mut renderer, &env, &options);
+                    let result = run(job, &mut renderer, &look, &options);
                     if let Ok(mut slot) = done[at].lock() {
                         *slot = Some(result);
                     }

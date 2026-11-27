@@ -3,8 +3,8 @@
 //! runtime's role rules reported nothing.
 
 use crate::testing::access::violations;
-use crate::testing::fixture::Fixture;
 use crate::testing::story::Story;
+use crate::testing::story_run::StoryHarness;
 
 /// The trial body for the pattern `name`: it needs a story, and each story shows without a violation.
 pub(super) fn run(name: &str, stories: &[Story]) -> Result<(), String> {
@@ -13,9 +13,9 @@ pub(super) fn run(name: &str, stories: &[Story]) -> Result<(), String> {
     }
     let mut failures = Vec::new();
     for story in stories {
-        let mut fixture = Fixture::story(story);
+        let mut fixture = StoryHarness::story(story);
         fixture.settle();
-        failures.extend(violations(fixture.ctx(), fixture.tree()).into_iter().map(|found| format!("{}: {found}", story.name)));
+        failures.extend(violations(&fixture.tree()).into_iter().map(|found| format!("{}: {found}", story.name)));
     }
     if failures.is_empty() { Ok(()) } else { Err(failures.join("\n")) }
 }

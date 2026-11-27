@@ -2,10 +2,10 @@
 
 use super::drive::{Plan, focus_subject, input_fixture};
 use super::{ANY, Case, Subject};
-use crate::testing::fixture::Fixture;
 use crate::testing::story::EditKind;
+use crate::testing::story_run::StoryHarness;
 use craft_behavior::Input;
-use egui::{Event, ImeEvent, Key, Modifiers};
+use craft_ui_rt::{Key, Mods};
 
 pub(super) const CASES: &[Case] = &[
     Case::new("paste-once", ANY, paste_lands_once),
@@ -19,9 +19,9 @@ fn is_text(subject: &Subject) -> bool {
 
 /// The text the focused component shows. Its text runs and value are on the component's node, and egui's focus is
 /// on the text part's widget below it, whose own node holds the value only for a text field.
-fn shown_text(fixture: &Fixture) -> String {
+fn shown_text(fixture: &StoryHarness) -> String {
     let Some(focus) = fixture.focused() else { return String::new() };
-    let tree = fixture.tree();
+    let tree = &fixture.tree();
     let from = |id| {
         let runs = tree.run_texts(id).join("\n");
         match tree.value(id) {
@@ -37,7 +37,7 @@ fn shown_text(fixture: &Fixture) -> String {
 }
 
 /// The stories whose drive types into the component, focused and editable.
-fn typing_fixtures(subject: &Subject) -> Vec<(String, Fixture)> {
+fn typing_fixtures(subject: &Subject) -> Vec<(String, StoryHarness)> {
     let mut found = Vec::new();
     for story in &subject.stories {
         if !matches!(subject.base(story).plan, Plan::Type(..)) {
@@ -63,7 +63,7 @@ fn paste_lands_once(subject: &Subject) -> Result<(), String> {
         return Ok(());
     }
     for (name, mut fixture) in typing_fixtures(subject) {
-        fixture.frame(vec![Event::Paste("qzq".to_owned())]);
+        fixture.paste("qzq");
         fixture.settle();
         let count = shown_text(&fixture).matches("qzq").count();
         if count != 1 {
@@ -80,19 +80,19 @@ fn ime_composition_is_guarded(subject: &Subject) -> Result<(), String> {
         return Ok(());
     }
     for (name, mut fixture) in typing_fixtures(subject) {
-        fixture.frame(vec![Event::Ime(ImeEvent::Preedit { text: "kzk".to_owned(), active_range_chars: None })]);
-        match fixture.ime() {
-            Some(ime) if ime.caret.min.is_finite() && ime.caret.max.is_finite() => {}
+        fixture.ime_preedit("kzk");
+        match fixture.ime_caret() {
+            Some(caret) if caret.min.is_finite() && caret.max.is_finite() => {}
             _ => return Err(format!("{name}: no caret rect was reported while composing")),
         }
         fixture.take_outputs();
-        fixture.key(Key::Enter, Modifiers::NONE);
-        fixture.key(Key::Escape, Modifiers::NONE);
+        fixture.key(Key::Enter, Mods::NONE);
+        fixture.key(Key::Escape, Mods::NONE);
         let kinds: Vec<EditKind> = fixture.take_outputs().into_iter().flat_map(|output| output.edits).collect();
         if kinds.iter().any(|kind| matches!(kind, EditKind::Commit | EditKind::Set | EditKind::Cancel)) {
             return Err(format!("{name}: Enter or Escape while composing gave {kinds:?}"));
         }
-        fixture.frame(vec![Event::Ime(ImeEvent::Commit("kzk".to_owned()))]);
+        fixture.ime_commit("kzk");
         fixture.settle();
         let count = shown_text(&fixture).matches("kzk").count();
         if count != 1 {
@@ -109,17 +109,17 @@ fn editor_lines_reach_accesskit(subject: &Subject) -> Result<(), String> {
         return Ok(());
     }
     for (name, mut fixture) in typing_fixtures(subject) {
-        fixture.frame(vec![Event::Text("qzq".to_owned())]);
+        fixture.type_text("qzq");
         fixture.settle();
         if !fixture.texts().iter().any(|run| run.text.contains("qzq")) {
             continue;
         }
-        let tree = fixture.tree();
+        let tree = &fixture.tree();
         let reported = tree
             .keys()
             .into_iter()
             .filter_map(|key| tree.data_of(key))
-            .any(|node| node.role() == crate::runtime::egui::access::Role::TextRun && node.value().is_some_and(|value| value.contains("qzq")));
+            .any(|node| node.role() == accesskit::Role::TextRun && node.value().is_some_and(|value| value.contains("qzq")));
         if !reported {
             return Err(format!("{name}: the editor paints the typed text but reports no text run for it"));
         }

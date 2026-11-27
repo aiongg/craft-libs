@@ -26,7 +26,6 @@ suite = ["craft-ui-contract/suite"]
 
 [dependencies]
 craft-ui-contract = { workspace = true, features = ["testing"] }
-egui = { workspace = true }
 craft-behavior = { workspace = true }
 craft-host = { workspace = true }
 craft-ui-rt = { workspace = true }

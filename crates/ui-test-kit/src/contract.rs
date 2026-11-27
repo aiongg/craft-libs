@@ -4,10 +4,11 @@ use craft_behavior::{Intent, ItemSource, Metrics, PartRef, PressPhase, Selection
 use craft_ui::contract::{
     Collection, CollectionProps, Common, Component, Container, ContainerProps, Cx, Focus as _, MeasureCx, Pointer as _, Props as _, Role,
 };
+use craft_ui::contract::{Id, Response};
 use craft_ui::layout::BodyLayout;
 use craft_ui::runtime::commands::FireSource;
 use craft_ui::style::{ComponentStyle, StyleCx};
-use egui::{Id, Rect, Response, Vec2};
+use craft_ui_rt::{Rect, Vec2};
 use std::cell::RefCell;
 
 /// A style with a minimum size.

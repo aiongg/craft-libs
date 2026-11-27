@@ -1,52 +1,41 @@
-//! The fixture, the suite runner and the story helpers.
+//! The test kit: the [`Harness`], the suite runner and the story helpers.
 //!
-//! `Fixture` shows a closure or a story over [`Frames`]; `suite` runs the shared cases over every registered type.
+//! [`Harness`] runs a view or a story on craft-ui-rt and the headless platform and reads what the runtime keeps:
+//! display lists ([`paint`]), the access tree ([`access`]), hit shapes and focus stops. `suite` runs the shared
+//! cases over every registered type.
 //!
 //! The registration half of the kit: `#[trial]` functions list themselves in `TRIALS`, and [`run`],
-//! every test executable's runner, collects them. The fixture half drives frames ([`Frames`]) and reaches the runtime's
-//! crate-private services the trials check.
+//! every test executable's runner, collects them.
 
 pub mod access;
-pub mod bypass;
 pub mod contract;
 pub mod dump;
 pub mod face_runs;
-pub mod fixture;
-pub mod focus;
-pub mod frames;
-#[cfg(feature = "suite")]
-pub(crate) mod host_key_trials;
 #[cfg(feature = "suite")]
 pub(crate) mod icon_trials;
 #[cfg(feature = "suite")]
 pub mod index;
-pub mod input;
-#[cfg(feature = "suite")]
-pub(crate) mod key_trials;
 pub mod layout;
 pub mod memory;
+pub mod paint;
 pub mod pictures;
-pub mod pointer;
 #[cfg(feature = "suite")]
 mod registry;
 pub mod relations;
-#[cfg(feature = "suite")]
-pub(crate) mod replay_trials;
-pub mod sensing;
 #[cfg(all(feature = "snapshot", not(target_arch = "wasm32")))]
 pub mod snapshot;
 mod stage;
 #[cfg(feature = "suite")]
 pub(crate) mod stories;
 pub mod story;
+pub mod story_run;
 pub mod style;
 #[cfg(feature = "suite")]
 pub mod suite;
-pub mod surface;
 pub mod text;
-pub mod wheel;
 pub mod windows;
 
+pub use crate::contract::rt::harness::{FRAME, Harness, HarnessBuilder, LayerInfo, Look, ScrollRegion, Target};
 pub use crate::contract::{Exemption, PatternKind, PatternProbe, Probe, Registration};
 #[cfg(feature = "testing")]
 pub use crate::fonts::document::set_budget as document_face_budget;
@@ -66,16 +55,16 @@ pub use crate::runtime::measure::{
 #[cfg(feature = "testing")]
 pub use crate::runtime::pass_state::unbound_reads as unbound_pass_state_reads;
 pub use craft_ui_macros::{story, trial};
-pub use fixture::{Fixture, Impure, Room, Target};
-pub use frames::Frames;
+pub use paint::{Painted, PaintedText};
 #[cfg(feature = "suite")]
 pub use registry::{Registered, Registry};
 pub use stage::{least_stage_width, room_height, stage, stage_fitting, stage_width};
 #[doc(hidden)]
 pub use story::{
-    CollectionKind, Drive, EditKind, Grip, Required, Story, StoryData, StoryOutput, StoryRegistration, StorySnapshot, ValueAt, show_as_only_item,
-    show_as_only_item_across,
+    CollectionKind, Drive, EditKind, Grip, Required, Story, StoryCommands, StoryData, StoryOutput, StoryRegistration, StorySnapshot, ValueAt,
+    show_as_only_item, show_as_only_item_across,
 };
+pub use story_run::{Impure, Room, StoryHarness, StoryRun};
 pub use windows::install_spec;
 
 /// One registered trial.

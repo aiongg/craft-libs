@@ -19,13 +19,13 @@ fn describe(story: &str, impure: &Impure) -> String {
     }
 }
 
-fn first_violation(story: &str, fixture: &Fixture) -> Option<String> {
+fn first_violation(story: &str, fixture: &StoryHarness) -> Option<String> {
     fixture.impure().first().map(|impure| describe(story, impure))
 }
 
 /// A fixture of `story` under the purity probe, settled for the drives it takes.
-fn probed(story: &Story) -> Fixture {
-    let mut fixture = Fixture::story(story);
+fn probed(story: &Story) -> StoryHarness {
+    let mut fixture = StoryHarness::story(story);
     fixture.probe_purity();
     for_input(fixture)
 }
@@ -39,7 +39,7 @@ pub fn measure_pure_case(probe: &Probe, story: &Story) -> Result<(), String> {
 }
 
 /// The `measure-pure` case for `story`, whose probed settled fixture is `settled_fixture` and whose drive is `plan`.
-fn pure_from(probe: &Probe, story: &Story, settled_fixture: &Fixture, plan: Plan) -> Result<(), String> {
+fn pure_from(probe: &Probe, story: &Story, settled_fixture: &StoryHarness, plan: Plan) -> Result<(), String> {
     if let Some(failure) = first_violation(story.name, settled_fixture) {
         return Err(failure);
     }
