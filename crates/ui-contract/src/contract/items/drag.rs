@@ -15,7 +15,6 @@ use crate::contract::collection::{
 };
 use crate::contract::reorder;
 use crate::contract::{Collection, Cx, DragPreview, DropMark, DropTarget, Pointer as _};
-use crate::runtime::drag;
 use crate::runtime::env::Label;
 /// A straight piece of the path a sweeping press travelled, in window coordinates.
 type Segment = (Pos2, Pos2);
@@ -281,6 +280,8 @@ impl SweepApply {
 pub(super) struct Drags<K> {
     /// The row a row drag started on: it stays built while scrolled out of view.
     pub(super) grabbed: Option<K>,
+    /// When the run that last stepped the edge scroll ran; `None` while the pointer is in no edge band.
+    pub(super) edge_at: Option<f64>,
     sweep: Option<Sweep<K>>,
     moving: Option<GestureId>,
     /// The drop a release would make this pass.
@@ -327,6 +328,7 @@ impl<K> Default for Drags<K> {
     fn default() -> Self {
         Drags {
             grabbed: None,
+            edge_at: None,
             sweep: None,
             moving: None,
             pending: None,
@@ -410,28 +412,32 @@ fn cancel_reason(cancel: PressCancel) -> CancelReason {
     }
 }
 
+/// How soon an edge scroll asks to run again while the pointer stays in an edge band.
+const EDGE_FRAME: std::time::Duration = std::time::Duration::from_millis(16);
+
 impl<C: Collection> ItemsHooks<'_, '_, C> {
     /// Scrolls the rows while the pointer, `y` below the rows' top edge, is within a row of an edge of the `view`,
     /// faster the further past it, up to `EDGE_ROWS_PER_SECOND` a full band in or beyond the edge: the rate of a row
     /// drag or a marquee near the edge of a scroll region. It asks for the next frame only while the pointer is in or
     /// past a band, so a drag held over the middle rests.
     ///
-    /// The step is the frame's time, taken once: a pass that repeats a frame carries no input and scrolls nothing, as
-    /// the body's scroll strips do (`body/scroll.rs`, `scroll_input`).
+    /// The step is the time since the run that last stepped (none for the first): a run in the same frame steps by
+    /// nothing. The moved offset reaches the rows view through `jump_to` (`content`).
     pub(super) fn edge_scroll(&mut self, cx: &Cx<'_, C>, layout: &C::ItemLayout, view: f32, y: f32) {
         if !self.scrolls || self.source.is_empty() {
             return;
         }
         let row = layout.rect(0, ScrollPos::default()).height();
-        // The step is linear in the frame's time, so the rate for one second says whether the pointer is in a band.
+        // The step is linear in the time, so the rate for one second says whether the pointer is in a band.
         let rate = reorder::edge_step(view, row, y, 1.0);
         if rate == 0.0 {
+            self.drags.edge_at = None;
             return;
         }
-        // Taken even by a pass that steps by no time, so the body around does not step in a rerun pass instead.
-        reorder::mark_edge_step(cx.context());
-        cx.context().request_repaint();
-        let dt = crate::runtime::frame::facts(cx.context()).elapsed.clamp(0.0, 0.1) as f32;
+        let now = cx.context().time();
+        let dt = self.drags.edge_at.map_or(0.0, |at| (now - at).clamp(0.0, 0.1)) as f32;
+        self.drags.edge_at = Some(now);
+        cx.context().request_repaint_after(EDGE_FRAME);
         self.offset = (self.offset + f64::from(rate * dt)).clamp(0.0, self.max_offset(view));
     }
 
@@ -460,7 +466,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
 
     fn emit_toggle(&mut self, cx: &mut Cx<'_, C>, at: usize, column: &ColumnKey, on: bool, mods: craft_keymap::Mods) {
         let key = self.source.key(at);
-        let gesture = crate::runtime::edit::next_gesture_id(cx.context());
+        let gesture = cx.core.next_gesture_id();
         let before = ToggleEdit { key: key.clone(), column: column.clone(), on: !on, mods };
         let after = ToggleEdit { key, column: column.clone(), on, mods };
         if let Some(sweep) = &mut self.drags.sweep {
@@ -567,7 +573,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         let gesture = match self.drags.moving {
             Some(gesture) => gesture,
             None => {
-                let gesture = crate::runtime::edit::next_gesture_id(cx.context());
+                let gesture = cx.core.next_gesture_id();
                 self.drags.moving = Some(gesture);
                 self.events.push(CollectionEvent::Move(EditEvent::begin(gesture, Mixed::Same(Vec2::ZERO), cx.core.label_arc(), None)));
                 gesture
@@ -718,11 +724,10 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             if !own {
                 self.edge_scroll(cx, layout, rect.height(), Self::logical(layout, rect, rtl, point).y);
             }
-            let ordinal = drag::next_ordinal(cx.context(), cx.core.id);
-            if let Some(op) = cx.core.drop_target_of(kind.payload(), &KindDrop { mark }) {
-                self.events.push(CollectionEvent::Dropped { at, op, payload: DropPayload::new(payload) });
-            } else if drag::winning(cx.context(), cx.core.id, ordinal) {
-                self.drags.pending = Some(PendingDrop::Drop(at));
+            // The drag session routes the drag to the innermost target that takes it: this run sees it only then.
+            match cx.core.drop_target_of(kind.payload(), &KindDrop { mark }) {
+                Some(op) => self.events.push(CollectionEvent::Dropped { at, op, payload: DropPayload::new(payload) }),
+                None => self.drags.pending = Some(PendingDrop::Drop(at)),
             }
             return;
         }
@@ -800,13 +805,10 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                         .filter(|spot| !groups || !self.inside_dragged(&payload, spot.parent))
                 };
                 let copy = rule.copy;
-                let ordinal = drag::next_ordinal(cx.context(), cx.core.id);
                 if let Some(landed) = cx.drop_target::<ListDrag<C::Key>, _>(&RowDrop { spot, copy }) {
                     self.land(cx, &payload, landed, groups);
-                } else if let Some(spot) = spot
-                    && drag::winning(cx.context(), cx.core.id, ordinal)
-                {
-                    let op = drag::current_operation(cx.context(), copy.unwrap_or_default());
+                } else if let Some(spot) = spot {
+                    let op = craft_behavior::drop_operation(cx.context().os(), cx.context().modifiers(), copy.unwrap_or_default());
                     if copy.is_some() || !matches!(op, DropOperation::Copy) {
                         self.drags.pending = self.own_move(&payload, Landed { spot, op }, groups).map(|(_, after)| PendingDrop::Reorder(after));
                     }

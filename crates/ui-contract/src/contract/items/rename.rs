@@ -14,7 +14,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         let proposal = comp.rename_draft(&key);
         let proposed = proposal.as_ref().is_some_and(|draft| text.as_ref() != Some(draft));
         let draft = proposal.or(text).unwrap_or_default();
-        let gesture = crate::runtime::edit::next_gesture_id(cx.context());
+        let gesture = cx.core.next_gesture_id();
         let before = Rename { key: key.clone(), name: draft.clone() };
         self.events.push(CollectionEvent::Rename(EditEvent::begin(gesture, Mixed::Same(before), cx.core.label_arc(), None)));
         self.renaming = Renaming { key: Some(key), draft, gesture, focused: false, held: false, proposed };

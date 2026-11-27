@@ -35,7 +35,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             node.flags.set(crate::style::Flags::CHECKED, self.source.toggled(at, &column));
             node.flags.set(crate::style::Flags::MIXED, cell.mixed);
             if let Some(chord) = toggle.key {
-                node.shortcut(chord.display(crate::runtime::windows::os_of(ctx)));
+                node.shortcut(chord.display(ctx.os()));
             }
             let decl = access::SubDecl {
                 owner: id,
@@ -116,7 +116,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                     if self.lead.key.as_ref() != Some(&key) {
                         self.move_lead(at, LeadSource::Keys);
                     }
-                    focus::request_now(cx.context(), focus::FocusTarget::Id(cx.core.id));
+                    cx.core.request_focus(focus::FocusTarget::Id(cx.core.id));
                     if request.action == AccessAction::Click {
                         if self.source.section_stop(at) {
                             self.events.push(CollectionEvent::Activate(key));

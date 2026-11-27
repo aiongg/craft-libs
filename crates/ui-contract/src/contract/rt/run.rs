@@ -206,7 +206,7 @@ pub(crate) fn show_shaped<C: Component>(
         let value = steps::value(&mut component, &mut stage, id, command.as_deref());
         hooks.read(&mut component, &mut stage, id, &begun.env);
         let ctx = ui.ctx.clone();
-        let size = cached.unwrap_or_else(|| measure(&mut component, &begun, id, room, &value, ui.cx, node, &ctx, hooks));
+        let size = cached.unwrap_or_else(|| measure(&mut component, &begun, id, room, &value, ui.cx, node, &ctx, (&stage, hooks)));
         let rect = place_in(&mut ui.flow, None, at, size);
         return finish_measured(component, id, rect, &begun, value, ctx);
     }
@@ -228,7 +228,7 @@ pub(crate) fn show_shaped<C: Component>(
                 Some(size) => size,
                 None => {
                     let node = Some(cx.node());
-                    measure(&mut component, &begun, id, room, &value, cx, node, &context, hooks)
+                    measure(&mut component, &begun, id, room, &value, cx, node, &context, (&kept.memory, hooks))
                 }
             };
             let rect = place_in(flow, Some(cx.node()), at, size);
@@ -305,7 +305,7 @@ fn measure<C: Component>(
     cx: &mut BuildCx<'_>,
     node: Option<NodeId>,
     ctx: &Context,
-    hooks: &mut dyn ShapeHooks<C>,
+    (memory, hooks): (&MemoryStage, &mut dyn ShapeHooks<C>),
 ) -> Vec2 {
     cx.count_measure();
     let resolved = begun.resolved(id);
@@ -317,12 +317,13 @@ fn measure<C: Component>(
     let content = component.measure(&steps::measure_cx::<C>(&input, &begun.style, &resolved, value.value.as_deref()));
     let extent = match hooks.shaped() {
         true => {
-            let at = Measuring { ui: &cell, at: ShowAt::Flow, room, place: &begun.env, env: &begun.env, resolved: &resolved };
+            let scx = steps::style_cx(&begun.env, &begun.step1);
+            let at = Measuring { ui: &cell, at: ShowAt::Flow, room, place: &begun.env, env: &begun.env, scx: &scx, resolved: &resolved, memory };
             hooks.pass_extent(component, &at, &begun.style, value.value.clone())
         }
         false => Vec2::ZERO,
     };
-    steps::measure(&*begun.style, &input, content, extent, &resolved)
+    hooks.sized(component, steps::measure(&*begun.style, &input, content, extent, &resolved))
 }
 
 /// The facts of a run decided before its hooks.

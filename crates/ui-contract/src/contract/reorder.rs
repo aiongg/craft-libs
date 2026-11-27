@@ -2,12 +2,9 @@
 //! and the stacking keys' move. A collection's row drag and a section stack both use them.
 
 use crate::runtime::drag::DropMark;
-use crate::runtime::egui::pass;
-use crate::runtime::frame::{PerViewport, Stamped};
 use crate::runtime::keys::Intents;
 use craft_behavior::{Axis, Intent, NavOutline, keys};
 use craft_ui_rt::{Pos2, Rect};
-use egui::Context;
 
 /// Rows per second the view scrolls at when the pointer is a full edge band beyond the view's edge.
 pub(crate) const EDGE_ROWS_PER_SECOND: f32 = 4.0;
@@ -26,26 +23,6 @@ pub(crate) fn edge_step(view: f32, row: f32, at: f32, dt: f32) -> f32 {
         return 0.0;
     }
     direction * depth.min(1.0) * EDGE_ROWS_PER_SECOND * row * dt
-}
-
-/// Whether a scroller under the pointer took the drag's edge step in this pass.
-#[derive(Default)]
-pub(crate) struct EdgeStepTaken(bool);
-
-fn with_edge_step<R>(ctx: &Context, f: impl FnOnce(&mut EdgeStepTaken) -> R) -> R {
-    let viewport = pass::current_viewport(ctx);
-    PerViewport::<Stamped<EdgeStepTaken>>::with_pass(ctx, viewport, pass::pass_nr(ctx, viewport), |taken, _| taken.0 = false, f)
-}
-
-/// Whether a scroller took this pass's drag edge step. A collection takes it before the body around it settles, so the
-/// innermost scroller under the pointer is the only one that steps.
-pub(crate) fn edge_step_taken(ctx: &Context) -> bool {
-    with_edge_step(ctx, |taken| taken.0)
-}
-
-/// Marks this pass's drag edge step as taken.
-pub(crate) fn mark_edge_step(ctx: &Context) {
-    with_edge_step(ctx, |taken| taken.0 = true);
 }
 
 /// The gap a drop would land in.

@@ -148,11 +148,12 @@ pub(crate) fn rows_offset(ui: &Ui<'_, '_>) -> ScrollPos {
 /// layout's whole content size. A measuring run builds no row and returns `None`.
 ///
 /// With `scroll` the view is the scroll body's: the content node moves by its offset in layout.
-/// Without it the rows are shown whole in one content node.
+/// Without it the rows are shown whole in one content node. `jump` sets the offset first: a bound
+/// offset the app moved, or the edge scroll of a drag (`ScrollKept::jump_to`).
 pub(crate) fn rows_view<R>(
     ui: &mut Ui<'_, '_>,
     view: RowsView,
-    scroll: Option<Scroll>,
+    (scroll, jump): (Option<Scroll>, Option<Vec2>),
     extent: Vec2,
     build: impl FnOnce(&mut Ui<'_, '_>, &RowFacts) -> R,
 ) -> Option<R> {
@@ -165,6 +166,9 @@ pub(crate) fn rows_view<R>(
         Some(scroll) => cx.keyed(Region::Rows, |cx| {
             cx.inline(ScrollNode { scroll }, |sk: &mut ScrollKept, _, cx| {
                 sk.subscribe(cx);
+                if let Some(offset) = jump {
+                    sk.jump_to(offset);
+                }
                 let at = RowsView { offset: ScrollPos { x: f64::from(sk.offset.x), y: f64::from(sk.offset.y) }, ..view };
                 let (out, mut inner, content) = content_node(cx, id, at, extent, &tokens, build);
                 sk.finish_build(cx, view.rect, content, &mut inner, scroll, &tokens);

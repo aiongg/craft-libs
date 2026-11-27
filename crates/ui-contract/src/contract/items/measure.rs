@@ -5,6 +5,7 @@ use super::rows;
 use super::{ItemsHooks, key_hash};
 use crate::contract::Ui;
 use crate::contract::collection::RowState;
+use crate::contract::run::Measuring;
 use crate::contract::{Collection, Internal, ItemCx, Props, Show as _};
 use crate::primitives::Id;
 use crate::runtime::access::SetPosition;
@@ -50,14 +51,14 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
 
     /// Measures the largest row now when this run's width comes from the rows, the collection `measures_items`, or a
     /// column takes its widest cell's width; the result is kept in [`RowSizes::largest`] for `items_extent`.
-    pub(super) fn record_largest(&mut self, comp: &C, at: &mut MeasureAt<'_, '_, '_>, id: Id) {
+    pub(super) fn record_largest(&mut self, comp: &C, at: &Measuring<'_, '_>, id: Id) {
         let room = Self::inner_room(comp, &at.env.tokens, at.room);
         if self.source.is_empty() || (room.x.is_finite() && !self.content_sized(comp) && !comp.measures_items() && !self.header.has_content_columns())
         {
             return;
         }
         self.header.measure(at.scx);
-        self.largest_in(comp, (&mut *at.ui, at.place), id, room);
+        at.with_ui(|ui| self.largest_in(comp, (ui, at.place), id, room));
     }
 
     /// The largest row in the room `room`: the kept measure while the room and the items' inputs hold, else the rows
@@ -249,16 +250,16 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
     /// high as the rows (capped by `max_rows`), and no higher than `room` less the header when the rows scroll in a
     /// bounded room, at the offset step 4 read. It repeats while measured rows bring other unmeasured rows into view;
     /// each row is measured at most once.
-    pub(super) fn measure_ahead(&mut self, comp: &C, at: &mut MeasureAt<'_, '_, '_>, id: Id, layout: &mut C::ItemLayout, (width, room): (f32, Vec2)) {
+    pub(super) fn measure_ahead(&mut self, comp: &C, at: &Measuring<'_, '_>, id: Id, layout: &mut C::ItemLayout, (width, room): (f32, Vec2)) {
         if self.source.is_empty() {
             return;
         }
-        let tolerance = measure_tolerance(at.ui.pixels_per_point());
+        let tolerance = measure_tolerance(at.with_ui(|ui| ui.pixels_per_point()));
         let props = comp.items();
         let (row, max_rows, striped) = (props.row_height.of(at.scx), props.max_rows, props.striped);
         let tree = matches!(layout.nav(), craft_behavior::NavShape::Tree);
         let known = self.known(comp, true);
-        let env = Self::rows_env(comp, at.env, id, at.size, comp.props(Internal::new()).surface);
+        let env = Self::rows_env(comp, at.env, id, at.resolved.size, comp.props(Internal::new()).surface);
         let widths = layout.auto_widths();
         let mut memory = MemoryStage::default();
         // How many times each row was measured here: its widths once, its height again only at a width the later rows'
@@ -306,8 +307,8 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
                 let row_measure = RowMeasure { at: row_at, rect: layout.rect(row_at, ScrollPos::default()), cells, state, flags, tree };
                 let key = key_hash(&self.source.key(row_at));
                 let row_width = layout.rect(row_at, ScrollPos::default()).width();
-                let (measured_widths, height, detail) =
-                    self.measure_row(comp, &mut *at.ui, (id, &env), &mut memory, row_measure, |measure, detail, fits| {
+                let (measured_widths, height, detail) = at.with_ui(|ui| {
+                    self.measure_row(comp, ui, (id, &env), &mut memory, row_measure, |measure, detail, fits| {
                         // A row of auto widths takes its ideal width unless the fit over every row's widths shrinks it: its
                         // height is measured there, and again only where the fit settles on another width. A row with a
                         // detail body is as high as its leaf and its body, which the shown row records. A row sized to its
@@ -319,7 +320,8 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
                             (Vec2::new(row_width, size.y), fits.then_some(size.x))
                         });
                         (widths, height, detail)
-                    });
+                    })
+                });
                 if detail && let Some((_, times)) = done.iter_mut().find(|(held, _)| *held == row_at) {
                     // Its height stays unmeasured this run: once is enough.
                     *times = 2;
@@ -582,18 +584,6 @@ pub(crate) fn report_cell_width(_ui: &mut Ui, column: &craft_behavior::ColumnKey
             }
         }
     });
-}
-
-/// Where step 5 measures the collection: the `Ui` of the collection's build (its node's, or the measuring run's
-/// it is measured in), the collection's own env, the env it is placed under, its style context, the room it is
-/// given and its control size.
-pub(crate) struct MeasureAt<'a, 'u, 'c> {
-    pub(crate) ui: &'a mut Ui<'u, 'c>,
-    pub(crate) env: &'a Env,
-    pub(crate) place: &'a Env,
-    pub(crate) scx: &'a StyleCx<'a>,
-    pub(crate) room: Vec2,
-    pub(crate) size: craft_theme::ControlSize,
 }
 
 /// Count trials of the items' measure (`testing`): what a run built and measured of the rows, by id, taken by the

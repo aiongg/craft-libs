@@ -8,8 +8,6 @@ use crate::contract::Ui;
 use crate::contract::collection::{ActivateOn, CollectionEvent, CollectionProps, ContextMenuRequest, LeadSource, OpenChange, RowPressed, SelectMode};
 use crate::contract::{Collection, Cx, ItemOpener, ItemOutput};
 use crate::primitives::Id;
-use crate::runtime::egui::response;
-use crate::runtime::env::ArenaId;
 use crate::runtime::focus;
 use crate::runtime::memory::sub;
 use crate::runtime::motion::Animate as _;
@@ -89,7 +87,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         // Under `AutoScroll` a middle press on the rows starts or ends the latch (the items step's `middle_scroll`) and
         // picks no row. In a collection that senses `MIDDLE_CLICK` the middle click is the row's own action
         // (`CollectionEvent::MiddleClick`: a tab strip closes the tab), so the press picks no row there either.
-        let middle_clicks = cx.core.root_sense.contains(craft_behavior::Sense::MIDDLE_CLICK);
+        let middle_clicks = crate::contract::Component::sense(comp).contains(craft_behavior::Sense::MIDDLE_CLICK);
         if let PressPhase::Down { start, .. } = cx.core.press.phase
             && local(start.origin).y >= 0.0
             && !(start.button == PointerButton::Middle && (props.middle_button == MiddleButton::AutoScroll || middle_clicks))
@@ -156,7 +154,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                     }
                     // A secondary press takes focus the way a primary press does: egui and the press classification only move it for the primary button.
                     if !primary && props.focus_on_press {
-                        focus::request_now(&ctx, focus::FocusTarget::Id(cx.core.id));
+                        cx.core.request_focus(focus::FocusTarget::Id(cx.core.id));
                     }
                     self.press_activation(
                         comp,
@@ -185,26 +183,23 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         // part of a section row (`section_part`) is the section's own, so the lead goes to it as well. Key focus goes
         // to the collection's stop with the lead, as a press on the row's own area takes it, unless the part takes
         // focus itself or keeps it where it is.
-        let outcome = crate::primitives::sensing::read_outcome(&ctx, ArenaId::new(cx.core.id));
-        if let (Some(PressPhase::Down { start, .. }), Some(target)) = (outcome.phase, outcome.target)
-            && target.part.is_some()
-            && local(start.origin).y >= 0.0
-            && let Some(at) = layout.hit(local(start.origin), offset).filter(|&at| self.source.enabled(at) && layout.shown(at))
-            && (target.owner != cx.core.id || target.part.is_some_and(|part| part.key == SECTION))
+        let descendant = super::descendant_press(cx.core.input());
+        if let Some((part, craft_ui_rt::Gesture::Down { .. }, pos, sense)) = descendant
+            && local(pos).y >= 0.0
+            && let Some(at) = layout.hit(local(pos), offset).filter(|&at| self.source.enabled(at) && layout.shown(at))
+            && (part.owner != cx.core.id || part.part.is_some_and(|part| part.key == SECTION))
         {
             let key = self.source.key(at);
             self.drags.part_press = Some((key.clone(), self.lead.key.as_ref() == Some(&key)));
             self.move_lead(at, LeadSource::Pointer);
-            if props.focus_on_press && !target.sense.intersects(Sense::TAKE_FOCUS | Sense::KEEP_FOCUS) {
-                focus::request_now(&ctx, focus::FocusTarget::Id(cx.core.id));
+            if props.focus_on_press && !sense.intersects(Sense::TAKE_FOCUS | Sense::KEEP_FOCUS) {
+                cx.core.request_focus(focus::FocusTarget::Id(cx.core.id));
             }
         }
-        // While a part of an item holds the press, and in the pass it ends, the row reads it with whether it held the lead
+        // While a part of an item holds the press, and in the run it ends, the row reads it with whether it held the lead
         // when the press began.
-        match outcome.phase {
-            Some(PressPhase::Down { .. } | PressPhase::Held { .. } | PressPhase::Release { .. })
-                if outcome.target.is_some_and(|target| target.part.is_some()) =>
-            {
+        match descendant {
+            Some((_, gesture, ..)) if !matches!(gesture, craft_ui_rt::Gesture::Cancel(_)) => {
                 if let Some((key, was_lead)) = self.drags.part_press.clone()
                     && let Some(at) = self.index_of(&key)
                 {
@@ -243,10 +238,8 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                 if click
                     && props.menu_on_click
                     && start.button == craft_behavior::PointerButton::Primary
-                    && crate::primitives::sensing::read_outcome(&ctx, ArenaId::new(cx.core.id))
-                        .hover
-                        .find(|hit| hit.part.is_some() && hit.sense.takes_press())
-                        .is_none()
+                    && super::release(cx.core.input(), craft_ui_rt::PointerButton::Primary)
+                        .is_some_and(|(.., part)| super::declared_part(&cx.core, part).is_none_or(|part| super::row_area(part.key)))
                     && let Some(row) = layout.hit(local(pos), offset).filter(|&row| self.source.enabled(row) && layout.shown(row))
                 {
                     let request = self.menu_request(layout, Placement { rect, offset, rtl }, row, local(pos));
@@ -309,26 +302,27 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         // A secondary release on a row asks for its menu (9.2 rule 3); the row joins the selection unless it is in it.
         // A part or row node under the pointer that takes the secondary click itself (its own menu, L-198) keeps it:
         // the release reaches the collection's queue only when nothing under the pointer took it.
-        let menu_at = super::released(cx.core.input(), craft_ui_rt::PointerButton::Secondary).filter(|pos| rect.contains(*pos));
-        let menu_row = menu_at.map(|pos| (pos, layout.hit(local(pos), offset)));
+        let menu_at = super::release(cx.core.input(), craft_ui_rt::PointerButton::Secondary).filter(|(pos, ..)| rect.contains(*pos));
+        let menu_row = menu_at.map(|(pos, mods, part)| ((pos, mods, part), layout.hit(local(pos), offset)));
         // A secondary release on the empty space asks for the collection's own menu, which no item's menu is.
-        if let Some((pos, None)) = menu_row {
+        if let Some(((pos, ..), None)) = menu_row {
             self.drags.menu = None;
             self.events.push(CollectionEvent::EmptyContextMenu { at: pos });
         }
-        if let Some((pos, Some(at))) = menu_row
+        if let Some(((pos, mods, part), Some(at))) = menu_row
             && self.source.enabled(at)
         {
             if !props.primary_picks && !self.holds(at) && self.toggle_cell(props, layout, at, offset, local(pos)).is_none() {
                 let column = if Self::selects_cells(comp) { layout.column_at(local(pos), offset) } else { None };
                 match column {
                     Some(column) => self.cell_press(comp, layout, at, column, false, false),
-                    None => self.pick_by(comp, at, false, false, PickBy::Pointer(released.mods)),
+                    None => self.pick_by(comp, at, false, false, PickBy::Pointer(mods)),
                 }
             }
             self.move_lead(at, LeadSource::Pointer);
             let mut request = self.menu_request(layout, Placement { rect, offset, rtl }, at, local(pos));
-            request.part = hover.find(|hit| hit.owner != cx.core.id).and_then(|hit| hit.part);
+            // A member item's own part under the release names the menu's part; the row's area names none.
+            request.part = super::declared_part(&cx.core, part).filter(|part| !super::row_area(part.key));
             self.ask_menu(request);
         }
         self.slow_click_due(comp, cx);
@@ -344,11 +338,12 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             return;
         };
         let due = released + craft_behavior::press::MULTI_CLICK_TIME;
-        if cx.now() >= due {
+        let now = cx.context().time();
+        if now >= due {
             self.drags.slow = None;
             self.begin_rename(comp, cx, at);
         } else {
-            cx.wake_at(due);
+            cx.context().request_repaint_after(std::time::Duration::from_secs_f64(due - now));
         }
     }
 
@@ -381,7 +376,8 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             self.events.push(CollectionEvent::Open(OpenChange { key: key.clone(), open: ask.open, all: ask.all }));
         }
         if let Some(rect) = output.menu_request() {
-            crate::runtime::keys::request_context(ctx, id, rect, None);
+            let _ = (ctx, id);
+            todo!("context request at an item's menu rect, read by the region around the collection (Cx::context_requests), INT-1d");
             self.ask_menu(ContextMenuRequest { key: key.clone(), at: self.on_screen(rect.left_bottom()), column: None, part: None });
         }
         if let Some(event) = output.into_event() {
@@ -407,26 +403,10 @@ fn item_openers(ui: &Ui, ctx: &Context, id: Id, enabled: bool, openers: Vec<Item
     if openers.is_empty() {
         return Vec::new();
     }
-    let outcome = crate::primitives::sensing::read_outcome(ctx, ArenaId::new(id));
-    openers
-        .into_iter()
-        .filter_map(|opener| {
-            let rect = crate::runtime::pointer::part_bounds(ctx, opener.item, opener.part)?;
-            let on_part =
-                |hit: Option<crate::primitives::sensing::Hit>| hit.is_some_and(|hit| hit.owner == opener.item && hit.part == Some(opener.part));
-            let view = response::MemberView {
-                hovered: outcome.hover.find(|hit| on_part(Some(*hit))).is_some(),
-                press: response::PressView {
-                    pressed: on_part(outcome.target) && outcome.phase.is_some_and(|phase| phase.button_down()),
-                    clicked: on_part(outcome.activated),
-                    ..response::PressView::default()
-                },
-                pointer: crate::runtime::pointer::frame_raw(&ctx).pos,
-            };
-            let response = response::member(ui, opener_id(opener.item, opener.part), rect, enabled, view);
-            Some((opener, response))
-        })
-        .collect()
+    let _ = (ui, ctx, id, enabled);
+    todo!(
+        "item opener responses: the opener part's rect and hover/press/click facts on the item's node through the Id map (rt/ids.rs node_of), INT-4c Left 1"
+    )
 }
 
 /// The id of the response `CollectionResponse::opener` gives for the part `part` of the item `item`.

@@ -9,7 +9,7 @@ use super::{ITEM_NODE, ItemsHooks, key_hash};
 use crate::contract::Context;
 use crate::contract::Ui;
 use crate::contract::collection::ShownRow;
-use crate::contract::rt::items::{MemberLooks, MemberRun};
+use crate::contract::rt::items::MemberRun;
 use crate::contract::{Collection, Cx, Internal, ItemOpener, ItemOutput as _, Meta as _};
 use crate::primitives::Id;
 use crate::runtime::access::{self, SetPosition};
@@ -55,7 +55,7 @@ impl<'r, C: Collection> ItemsHooks<'_, 'r, C> {
             let on = enabled && item.common_mut(Internal::new()).enabled.unwrap_or(true);
             let part = ITEM_NODE.at(key_hash(&key));
             let run = MemberRun { owner: id, id: member_id, part, rect: row, clip, position, flags, enabled: on };
-            let ran = crate::contract::rt::run::run_member(item, ui, &run);
+            let ran = crate::contract::rt::run::run_member(&item, ui, &run);
             self.member_looks.push(ran.looks);
             if ran.tip.is_some() {
                 cx.core.member_tip = ran.tip;
@@ -66,15 +66,9 @@ impl<'r, C: Collection> ItemsHooks<'_, 'r, C> {
             let label = ran.output.label_rect().unwrap_or(row);
             self.report_item_output(ctx, id, &key, ran.output);
             if renaming {
-                self.rename_row(comp, ui, (ctx, id, rtl), (at, &key), label);
+                self.rename_row(comp, ui, (ctx, id, &cx.core), (at, &key), label);
             }
         }
-    }
-
-    /// The member rows' looks this run recorded, for the collection node's `Kept.members`: the driver takes them after
-    /// `content`. Empty for a collection of band rows.
-    pub(crate) fn take_member_looks(&mut self) -> Vec<MemberLooks> {
-        std::mem::take(&mut self.member_looks)
     }
 }
 

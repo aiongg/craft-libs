@@ -51,6 +51,18 @@ pub(crate) trait ShapeHooks<C: Component> {
         Vec2::ZERO
     }
 
+    /// Step 5's size after the style's padding and floors: a collection that fills takes the room
+    /// its parent gives instead of its rows' width.
+    fn sized(&self, _comp: &C, size: Vec2) -> Vec2 {
+        size
+    }
+
+    /// The node's first line from its top, for row alignment, at its measured height: a collection
+    /// whose rows run along X is one line. `None` defers to the component.
+    fn first_line(&self, _comp: &C, _height: f32) -> Option<f32> {
+        None
+    }
+
     /// What the shape lays out before `parts`, from the rect and the content rect: a collection's rows
     /// for `PartsCx::rect_of`.
     fn geometry(
@@ -74,6 +86,15 @@ pub(crate) trait ShapeHooks<C: Component> {
 
     /// Step 11, after the value step's apply.
     fn apply(&mut self, _comp: &mut C, _cx: &mut super::Cx<'_, C>) {}
+
+    /// Step 13, into the node's paint before the component's own paint: what lies under the shape's
+    /// content (a collection's surface).
+    fn paint(&self, _comp: &C, _ui: &mut PaintUi<'_>, _rect: Rect) {}
+
+    /// After `content`: the member rows' looks this run recorded, for the node's `Kept.members`.
+    fn take_member_looks(&mut self) -> Vec<crate::contract::rt::items::MemberLooks> {
+        Vec::new()
+    }
 
     /// Step 13, after the paint: the shape's children, on a `Ui` over the node's build. On a kept
     /// node it gets the settled `Cx`.
@@ -106,6 +127,9 @@ pub(crate) struct Measuring<'a, 's> {
     pub env: &'a Env,
     pub scx: &'a crate::style::StyleCx<'s>,
     pub resolved: &'a Resolved<'s>,
+    /// The node's memory stage (the kept node's in a measuring run, else a fresh one): motion reads
+    /// such as `StyleCx::exiting` go through it (`StyleCx::owned_by`).
+    pub memory: &'a MemoryStage,
 }
 
 impl Measuring<'_, '_> {

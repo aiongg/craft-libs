@@ -4,12 +4,12 @@
 //! measuring run, with the `Ui` of the build it runs in), `sized`, `geometry`, `parts` (step 7), `sensed` (8),
 //! `updated` (9), `apply` (11), `paint` (before the component's own paint, 13), `content` (13, whenever the
 //! collection's scope build reaches it or its rows view is marked, with the `Ui` of the collection node's build) and
-//! `settle` (15). `sense`, `key_role`, `first_line`, `instance_scope`, `theme_scope` and `pad` are facts the driver
+//! `settle` (15). `sense`, `key_role`, `sized` and `first_line` are facts the driver
 //! asks when it needs them.
 
 use super::drag::Drags;
 use super::header::HeaderMemory;
-use super::measure::{MeasureAt, RowSizes, collect_cells};
+use super::measure::{RowSizes, collect_cells};
 use super::members::Member;
 use super::{Held, ItemsHooks, LastLayout, Lead, Placement, Renaming, Rows, Source, key_hash};
 use super::{request, rows};
@@ -25,10 +25,10 @@ use crate::contract::{
 };
 use crate::primitives::Id;
 use crate::runtime::access::Role;
-use crate::runtime::env::{AppValues, Env, ItemFacts, ThemeScope};
+use crate::runtime::env::{AppValues, Env, ItemFacts};
 use crate::runtime::focus;
 use crate::runtime::memory::{MemoryStage, sub};
-use crate::style::{ComponentStyle as _, UiTokens};
+use crate::style::ComponentStyle as _;
 use craft_behavior::{Axis, CancelReason, EditEvent, Intent, ItemLayout, Mixed, Proposal, ScrollPos, SelectionModel, Sense};
 use craft_keymap::Chord;
 use craft_ui_rt::{Pos2, Rect, Vec2};
@@ -131,8 +131,42 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         self.offset_x_at_read = self.offset_x;
     }
 
-    fn pass_extent(&mut self, _comp: &mut C, _at: &Measuring<'_, '_>, _style: &C::Style, _shown: Option<Arc<ValueOf<C>>>) -> Vec2 {
-        todo!("fold MeasureAt into Measuring (the one driver seam) and call `extent`, INT-4c")
+    /// Step 5 in both runs: what the rows take in the room `at` gives.
+    fn pass_extent(&mut self, comp: &mut C, at: &Measuring<'_, '_>, _style: &C::Style, _shown: Option<Arc<ValueOf<C>>>) -> Vec2 {
+        let id = at.resolved.id;
+        self.record_largest(comp, at, id);
+        self.items_extent(comp, at, id)
+    }
+
+    fn sized(&self, comp: &C, size: Vec2) -> Vec2 {
+        let sizing = comp.props(Internal::new()).sizing;
+        // A collection that measured its width from its content takes that width; the column it sits in holds it.
+        // Otherwise it fills the width its room gives.
+        let width = if self.content_sized(comp) || self.from_content.0 || !self.room.x.is_finite() { size.x } else { self.room.x };
+        let height = match (self.scrolls && self.room.y.is_finite(), sizing) {
+            (true, Sizing::Fill | Sizing::FillHeight) if !self.from_content.1 && !self.capped => self.room.y,
+            (true, Sizing::Fill | Sizing::FillHeight) => size.y.min(self.room.y),
+            (true, Sizing::Content | Sizing::FillWidth) => size.y.min(self.room.y),
+            (false, _) => size.y,
+        };
+        Vec2::new(width, height)
+    }
+
+    /// The surface the props name, under the header and the rows, as a container's lies under its regions.
+    fn paint(&self, comp: &C, ui: &mut PaintUi<'_>, rect: Rect) {
+        if let Some(kind) = comp.props(Internal::new()).surface {
+            ui.draw().surface(rect, kind, crate::style::Corners::All);
+        }
+    }
+
+    /// The member rows' looks this run recorded; empty for a collection of band rows.
+    fn take_member_looks(&mut self) -> Vec<crate::contract::rt::items::MemberLooks> {
+        std::mem::take(&mut self.member_looks)
+    }
+
+    /// A collection whose rows run along X is one line; one whose rows run along Y has no line of its own.
+    fn first_line(&self, comp: &C, height: f32) -> Option<f32> {
+        (comp.items().overflow == Axis::X).then_some(height / 2.0)
     }
 
     fn geometry(&mut self, _: &C, _mcx: &crate::contract::MeasureCx<'_, C>, (_, content): (Rect, Rect), _rtl: bool) -> Option<Rc<dyn std::any::Any>> {
@@ -289,6 +323,8 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         let extent = Vec2::new(size.x as f32, size.y as f32);
         // The rows view scrolls along the axis the rows overflow; a sheet's sideways scroll is shared with its header.
         let scroll = self.scrolls.then(|| if self.overflow == Axis::X { Scroll::horizontal() } else { Scroll::vertical() });
+        // A bound offset is the app's, and a drag's edge scroll moved the offset in this run: both set the rows view's.
+        let jump = (self.scrolls && (self.scroll_bound || self.drags.edge_at.is_some())).then(|| Vec2::new(self.offset_x as f32, self.offset as f32));
         let mut place_rows = |ui: &mut Ui, facts: Option<&RowFacts>| {
             for at in order {
                 if self.source.section_stop(at) {
@@ -349,7 +385,6 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                     item: item_id,
                     memory: &mut *cx.core.memory,
                 };
-                icx.memory.claim(icx.id);
                 let item = (self.item)(&key, &mut icx);
                 let mut item = comp.dress(item, &state);
                 let tip = icx.tip.take();
@@ -434,7 +469,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                 }
                 self.report_item_output(&ctx, id, &key, out);
                 if state.renaming {
-                    self.rename_row(comp, ui, (&ctx, id, rtl), (at, &key), label);
+                    self.rename_row(comp, ui, (&ctx, id, &cx.core), (at, &key), label);
                 }
             }
         };
@@ -442,7 +477,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             if C::MEMBERS {
                 place_rows(ui, None);
             } else {
-                rows_view(ui, view, scroll, extent, |ui, facts| {
+                rows_view(ui, view, (scroll, jump), extent, |ui, facts| {
                     if let Some(at) = reveal {
                         ui.flow.reveal = Some(at);
                     }
@@ -556,57 +591,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
     }
 }
 
-/// Shape facts and the measuring extent the rt driver's seam does not take yet (INT-4c folds them into `ShapeHooks`
-/// and `Measuring`): line alignment, the instance command scope, the theme scope, the props' pad, the fill size and
-/// step 5 on `MeasureAt`.
 impl<C: Collection> ItemsHooks<'_, '_, C> {
-    /// A collection whose rows run along X is one line; one whose rows run along Y has no line of its own.
-    pub(crate) fn first_line(&self, comp: &C, _ctx: &Context, _id: Id, height: f32) -> Option<f32> {
-        (comp.items().overflow == Axis::X).then_some(height / 2.0)
-    }
-
-    pub(crate) fn instance_scope(&self, comp: &C) -> Option<crate::runtime::commands::CommandScope> {
-        comp.props(Internal::new()).command_scope
-    }
-
-    pub(crate) fn theme_scope(&self, comp: &C) -> Option<ThemeScope> {
-        comp.props(Internal::new()).theme.clone()
-    }
-
-    pub(crate) fn pad(&self, comp: &C, tokens: &UiTokens) -> f32 {
-        Self::props_pad(comp, tokens)
-    }
-
-    pub(crate) fn sized(&self, comp: &C, size: Vec2) -> Vec2 {
-        let sizing = comp.props(Internal::new()).sizing;
-        // A collection that measured its width from its content takes that width; the column it sits in holds it.
-        // Otherwise it fills the width its room gives.
-        let width = if self.content_sized(comp) || self.from_content.0 || !self.room.x.is_finite() { size.x } else { self.room.x };
-        let height = match (self.scrolls && self.room.y.is_finite(), sizing) {
-            (true, Sizing::Fill | Sizing::FillHeight) if !self.from_content.1 && !self.capped => self.room.y,
-            (true, Sizing::Fill | Sizing::FillHeight) => size.y.min(self.room.y),
-            (true, Sizing::Content | Sizing::FillWidth) => size.y.min(self.room.y),
-            (false, _) => size.y,
-        };
-        Vec2::new(width, height)
-    }
-
-    /// Step 5 in both runs: what the rows take in the room `at` gives.
-    pub(crate) fn extent(&mut self, comp: &mut C, at: &mut MeasureAt<'_, '_, '_>, id: Id) -> Vec2 {
-        self.record_largest(comp, at, id);
-        self.items_extent(comp, at, id)
-    }
-}
-
-impl<C: Collection> ItemsHooks<'_, '_, C> {
-    /// The surface the props name, under the header and the rows, as a container's lies under its regions: painted
-    /// before the component's own paint, into the collection node's paint.
-    pub(crate) fn paint(&self, comp: &C, ui: &mut PaintUi<'_>, rect: Rect) {
-        if let Some(kind) = comp.props(Internal::new()).surface {
-            ui.draw().surface(rect, kind, crate::style::Corners::All);
-        }
-    }
-
     /// The width `item` (the row `key`) gives its cell in `column` at its ideal width; `None` when it has no cell
     /// there. A row that answers from its size cache reports no cells: the ones it reported when it last ran serve.
     fn cell_width(&mut self, item: &mut impl crate::contract::Show, ui: &mut Ui, key: u64, column: &craft_behavior::ColumnKey) -> Option<f32> {
@@ -619,17 +604,24 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
 
     /// Goes on renaming after a Shift+Enter commit: the field holds the applied name `name`, selected whole when focus
     /// is requested again, and the next commit is its own undo step.
-    fn continue_rename(&mut self, ctx: &Context, name: String) {
+    fn continue_rename(&mut self, core: &crate::contract::CxCore<'_>, name: String) {
         self.renaming.draft = name;
         self.renaming.focused = false;
         self.renaming.proposed = false;
-        self.renaming.gesture = crate::runtime::edit::next_gesture_id(ctx);
+        self.renaming.gesture = core.next_gesture_id();
         self.refocus = false;
     }
 
     /// The rename editor of the row `(at, key)` being renamed, over its label rect `label`, and the end of the rename
     /// it reports.
-    pub(super) fn rename_row(&mut self, comp: &mut C, row_ui: &mut Ui, (ctx, id, _): (&Context, Id, bool), (at, key): (usize, &C::Key), label: Rect) {
+    pub(super) fn rename_row(
+        &mut self,
+        comp: &mut C,
+        row_ui: &mut Ui,
+        (ctx, id, core): (&Context, Id, &crate::contract::CxCore<'_>),
+        (at, key): (usize, &C::Key),
+        label: Rect,
+    ) {
         let len = self.source.len();
         let mut draft = std::mem::take(&mut self.renaming.draft);
         let name = self.source.text(at).map(|text| text.into_owned()).unwrap_or_default();
@@ -659,7 +651,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                     let applied = after.name.clone();
                     self.events.push(CollectionEvent::Rename(EditEvent::commit(gesture, before, after)));
                     if shifted {
-                        self.continue_rename(ctx, applied);
+                        self.continue_rename(core, applied);
                     } else {
                         self.ended_rename = true;
                     }
@@ -677,7 +669,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                         self.events.push(CollectionEvent::Rename(EditEvent::commit(gesture, before, after)));
                     }
                     if shifted {
-                        self.continue_rename(ctx, applied);
+                        self.continue_rename(core, applied);
                     } else {
                         self.ended_rename = true;
                         self.refocus = true;
@@ -740,14 +732,13 @@ pub(super) fn rows_height(layout: &impl ItemLayout, len: usize, rows: u16, row: 
 impl<C: Collection> ItemsHooks<'_, '_, C> {
     /// Step 5 in both runs: what the rows take in the room `measuring` gives. The auto rows in view are measured
     /// first (`measure_ahead`), so the collection takes its size, and places its rows, by this pass's measure.
-    fn items_extent(&mut self, comp: &C, at: &mut MeasureAt<'_, '_, '_>, id: Id) -> Vec2 {
+    fn items_extent(&mut self, comp: &C, at: &Measuring<'_, '_>, id: Id) -> Vec2 {
         let (env, room) = (at.place, at.room);
-        let ctx = at.ui.ctx().clone();
         // The layout reads the component's own motion memory (`StyleCx::exiting`): an item leaving its source keeps
         // its room until its exit ends.
-        let scx = &at.scx.owned_by(id, env.motion, &ctx);
+        let scx = &at.scx.owned_by(at.memory, id, env.motion);
         if self.scrolls && !self.scroll_bound {
-            let kept = crate::contract::rt::items::rows_offset(at.ui);
+            let kept = at.with_ui(|ui| crate::contract::rt::items::rows_offset(ui));
             (self.offset, self.offset_x) = (kept.y, kept.x);
         }
         self.room = room;
@@ -757,14 +748,14 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         // it fills or fills the width, as a container does. Held in a content-sized column it measures so, and shows
         // across the width the column settles on.
         let held = env.content_column;
-        self.from_content = (!env.gives_width() && (at.ui.is_measuring() || !held), env.content.1);
+        self.from_content = (!env.gives_width() && (at.with_ui(|ui| ui.is_measuring()) || !held), env.content.1);
         self.header.measure(scx);
         let bounded = room.x.is_finite();
         let item = comp.measures_items().then(|| self.sizes.largest()).flatten();
         // Under a body that does not give the width, the measuring run lays the rows out at the width the collection
         // asks for, so the height it reports is the one it has at that width (a grid's rows at its columns).
         let from_content = self.from_content.0 && !self.content_sized(comp);
-        let asked = (from_content && !self.source.is_empty()).then(|| self.width_from_content(comp, (&mut *at.ui, env), id, room, item, scx));
+        let asked = (from_content && !self.source.is_empty()).then(|| at.with_ui(|ui| self.width_from_content(comp, (ui, env), id, room, item, scx)));
         let width = match (bounded, self.content_sized(comp)) {
             (true, false) => asked.unwrap_or(room.x),
             // No rows: the empty state has no ideal width, so it takes the room, or none where the room is unbounded.
@@ -786,7 +777,8 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             }
         };
         let previous = self.layout.take().or_else(|| self.previous.take()).map(|held| Arc::try_unwrap(held).unwrap_or_else(|held| (*held).clone()));
-        let mut layout = super::with_measuring(at.ui, scx, |scx| comp.item_layout_from(previous, &*self.source, width, item, scx));
+        let source = &*self.source;
+        let mut layout = at.with_ui(|ui| super::with_measuring(ui, scx, |scx| comp.item_layout_from(previous, source, width, item, scx)));
         // An auto-width layout sets its items side by side: where its width comes from its rows, it takes their run at
         // their ideal widths, not the widest one (a tab strip in a bar's unbounded row).
         let run = (layout.auto_widths() && (asked.is_some() || !bounded) && !self.source.is_empty())
@@ -794,7 +786,8 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             .filter(|run| *run > width);
         let (width, asked) = match run {
             Some(run) => {
-                layout = super::with_measuring(at.ui, scx, |scx| comp.item_layout_from(Some(layout), &*self.source, run, item, scx));
+                let source = &*self.source;
+                layout = at.with_ui(|ui| super::with_measuring(ui, scx, |scx| comp.item_layout_from(Some(layout), source, run, item, scx)));
                 (run, asked.map(|asked| asked.max(run)))
             }
             None => (width, asked),
@@ -812,12 +805,12 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         let cap = props.max_rows.map(|rows| rows_height(&layout, self.source.len(), rows, row).max(floor));
         self.columns = layout.column_count() as u32;
         self.layout = Some(Arc::new(layout));
-        let empty = if self.source.is_empty() { comp.empty_height(width, at.ui, scx) } else { 0.0 };
+        let empty = if self.source.is_empty() { at.with_ui(|ui| comp.empty_height(width, ui, scx)) } else { 0.0 };
         let rows = self.content.y.max(empty).max(floor);
         let height = cap.map_or(rows, |cap| rows.min(cap)) + self.header.height;
         if !(self.scrolls && room.y.is_finite()) {
             let wide = if from_content {
-                asked.unwrap_or_else(|| self.width_from_content(comp, (&mut *at.ui, env), id, room, item, scx))
+                asked.unwrap_or_else(|| at.with_ui(|ui| self.width_from_content(comp, (ui, env), id, room, item, scx)))
             } else {
                 self.content.x
             };
@@ -827,7 +820,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         let wide = if self.content_sized(comp) {
             self.content.x
         } else if from_content {
-            asked.unwrap_or_else(|| self.width_from_content(comp, (&mut *at.ui, env), id, room, item, scx))
+            asked.unwrap_or_else(|| at.with_ui(|ui| self.width_from_content(comp, (ui, env), id, room, item, scx)))
         } else {
             0.0
         };

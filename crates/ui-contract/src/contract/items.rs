@@ -88,7 +88,7 @@ mod measure;
 #[cfg(feature = "testing")]
 #[doc(hidden)]
 pub use measure::counts::{take_row_builds, take_row_measures, take_widest_runs};
-pub(crate) use measure::{MeasureAt, report_cell_width};
+pub(crate) use measure::report_cell_width;
 mod members;
 pub use members::item_node;
 mod output;
@@ -363,8 +363,54 @@ fn press_mods(input: &[crate::contract::rt::NodeInput]) -> craft_keymap::Mods {
 /// The newest pointer input of the run's queue `input` with the given button that ended its press (`Gesture::Up`),
 /// with where it ended.
 fn released(input: &[crate::contract::rt::NodeInput], button: craft_ui_rt::PointerButton) -> Option<Pos2> {
+    release(input, button).map(|(pos, ..)| pos)
+}
+
+/// `released` with the modifiers held at the release and the ui-rt part id of the collection's node it went down on
+/// (0 for the node's own shape).
+fn release(input: &[crate::contract::rt::NodeInput], button: craft_ui_rt::PointerButton) -> Option<(Pos2, craft_keymap::Mods, u64)> {
     input.iter().rev().find_map(|event| match event {
-        crate::contract::rt::NodeInput::Pointer { gesture: craft_ui_rt::Gesture::Up { .. }, pos, button: held, .. } if *held == button => Some(*pos),
+        crate::contract::rt::NodeInput::Pointer { gesture: craft_ui_rt::Gesture::Up { .. }, pos, button: held, mods, part, .. }
+            if *held == button =>
+        {
+            Some((*pos, *mods, *part))
+        }
+        _ => None,
+    })
+}
+
+/// The declared part of the collection's node whose ui-rt part id is `part`; `None` for the node's own shape.
+fn declared_part(core: &crate::contract::CxCore<'_>, part: u64) -> Option<craft_behavior::PartRef> {
+    if part == 0 {
+        return None;
+    }
+    core.results
+        .keys()
+        .map(|&(key, index)| craft_behavior::PartRef { key, index })
+        .find(|declared| crate::contract::rt::node::part_id(*declared) == part)
+}
+
+/// Whether a part with key `key` is a row's area (a member row's or its item's part), not a part an item declares.
+fn row_area(key: craft_behavior::PartKey) -> bool {
+    key == ROW || key == ITEM_NODE
+}
+
+/// What a pressed part inside the collection is: the component that declared it and its part (`None` for that
+/// component's own shape).
+#[derive(Clone, Copy)]
+struct HitPart {
+    owner: crate::primitives::Id,
+    part: Option<craft_behavior::PartRef>,
+}
+
+/// The newest press a descendant of the collection's node (a band row's node or a part one of its children declares)
+/// took, as the driver queues it on the collection (`NodeInput::DescendantPress`): the pressed part, the gesture, where
+/// the pointer is in the collection's coordinates and the part's sense.
+fn descendant_press(input: &[crate::contract::rt::NodeInput]) -> Option<(HitPart, craft_ui_rt::Gesture, Pos2, craft_behavior::Sense)> {
+    input.iter().rev().find_map(|event| match event {
+        crate::contract::rt::NodeInput::DescendantPress { owner, part, gesture, pos, sense } => {
+            Some((HitPart { owner: *owner, part: *part }, *gesture, *pos, *sense))
+        }
         _ => None,
     })
 }
