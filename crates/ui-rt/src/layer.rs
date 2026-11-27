@@ -104,6 +104,13 @@ pub struct LayerSpec {
     pub away: bool,
     /// On the modal layer: the node below the modal that some input still reaches ([`ModalReach`]).
     pub reach: Option<ModalReach>,
+    /// The node a child placed beside a rect hangs from (the item or part it opened from): a press
+    /// on it is not outside the child, and focus moving onto it is not focus leaving. A
+    /// [`Placement::Anchor`] child hangs from its node already.
+    pub anchor: Option<NodeId>,
+    /// The window rect the child stays inside (a shell's popup region below its bars); the whole
+    /// window when `None`.
+    pub bounds: Option<Rect>,
 }
 
 /// The one exception to "a modal layer blocks the input below it": a dialog that samples a canvas
@@ -154,7 +161,21 @@ impl LayerSpec {
             app_modal: false,
             away: false,
             reach: None,
+            anchor: None,
+            bounds: None,
         }
+    }
+
+    /// The child hangs from `node` ([`LayerSpec::anchor`]).
+    pub const fn hung_from(mut self, node: Option<NodeId>) -> LayerSpec {
+        self.anchor = node;
+        self
+    }
+
+    /// The child stays inside `bounds` ([`LayerSpec::bounds`]).
+    pub const fn within(mut self, bounds: Option<Rect>) -> LayerSpec {
+        self.bounds = bounds;
+        self
     }
 
     pub const fn dismiss_on_away(mut self) -> LayerSpec {
@@ -195,12 +216,13 @@ impl LayerSpec {
     pub(crate) fn anchor_node(&self) -> Option<NodeId> {
         match self.placement {
             Placement::Anchor { node, .. } => Some(node),
-            _ => None,
+            _ => self.anchor,
         }
     }
 
     /// The constraints the child is laid out with, given its anchor's window rect.
     pub fn constraints(&self, viewport: Vec2, anchor: Option<Rect>) -> Constraints {
+        let viewport = self.bounds.map_or(viewport, |b| b.size().min(viewport).max(Vec2::ZERO));
         match self.placement {
             Placement::Fill => Constraints::tight(viewport),
             _ => {
@@ -218,6 +240,13 @@ impl LayerSpec {
     /// The child's top left for `size`, given its anchor's window rect (`None` when the anchor
     /// node is gone: the child stays where it is, `current`).
     pub fn place(&self, size: Vec2, viewport: Vec2, anchor: Option<Rect>, current: Vec2) -> Vec2 {
+        if let Some(bounds) = self.bounds {
+            // Placed inside the bounds as inside a window of their size, then moved back.
+            let origin = bounds.min.to_vec2();
+            let inner = LayerSpec { bounds: None, placement: shifted(self.placement, -origin), ..*self };
+            let anchor = anchor.map(|a| a.translate(-origin));
+            return inner.place(size, bounds.size().min(viewport).max(Vec2::ZERO), anchor, current - origin) + origin;
+        }
         let pos = match self.placement {
             Placement::At(p) => p.to_vec2(),
             Placement::Center => (viewport - size) / 2.0,
@@ -230,6 +259,15 @@ impl LayerSpec {
         };
         let max = (viewport - size).max(Vec2::ZERO);
         Vec2::new(pos.x.clamp(0.0, max.x), pos.y.clamp(0.0, max.y)).round()
+    }
+}
+
+/// `placement` with its window positions moved by `by`.
+fn shifted(placement: Placement, by: Vec2) -> Placement {
+    match placement {
+        Placement::At(p) => Placement::At(p + by),
+        Placement::Beside { rect, side, align, gap } => Placement::Beside { rect: rect.translate(by), side, align, gap },
+        other => other,
     }
 }
 

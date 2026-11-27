@@ -61,6 +61,8 @@ struct PopupEntry {
     hovered: bool,
     /// The ui-rt layer it showed on last.
     layer: Option<Layer>,
+    /// The frame time it last opened at (`Popup::opening`).
+    opened_at: Option<f64>,
 }
 
 /// The popups of one component and whether each is open, kept on its node (`Kept::popups`). The
@@ -71,6 +73,8 @@ pub(crate) struct PopupStates {
     entries: SmallVec<[PopupEntry; 1]>,
     /// A `Trigger::Context` opener ran in this run: the node's access node offers the context menu.
     context_menu: bool,
+    /// The frame time of the run.
+    now: f64,
 }
 
 impl PopupStates {
@@ -87,6 +91,7 @@ impl PopupStates {
             entry.hovered = entry.watch_hover && entry.open && entry.layer.is_some_and(|layer| layer_hovered(cx, layer, entry.id.value()));
         }
         self.context_menu = false;
+        self.now = cx.now();
     }
 
     /// Whether any popup is open: the component's `OPEN` state.
@@ -111,6 +116,7 @@ impl PopupStates {
                     watch_hover: false,
                     hovered: false,
                     layer: None,
+                    opened_at: None,
                 });
                 self.entries.last_mut().expect("just pushed")
             }
@@ -119,10 +125,20 @@ impl PopupStates {
 
     /// Opens or closes `popup`; whether that changed it.
     pub(crate) fn set(&mut self, popup: Id, open: bool) -> bool {
+        let now = self.now;
         let entry = self.entry(popup);
         let changed = entry.open != open;
         entry.open = open;
+        if changed && open {
+            entry.opened_at = Some(now);
+        }
         changed
+    }
+
+    /// Whether `popup` is open and opened in this frame: what its body resets on opening resets once, in every build
+    /// round of that frame.
+    pub(crate) fn opening(&self, popup: Id) -> bool {
+        self.entries.iter().any(|e| e.id == popup && e.open && e.opened_at == Some(self.now))
     }
 
     /// Closes an open `popup` for `reason`, reported by `closing` for the rest of the run.

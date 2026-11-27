@@ -22,6 +22,14 @@ pub(crate) struct InputFacts {
     pub(crate) gained_focus: bool,
     /// Key focus left the node since its last run.
     pub(crate) lost_focus: bool,
+    /// A primary press went down on the node in this run (an opener that opens on press).
+    pub(crate) pressed: bool,
+    /// A keyboard or assistive technology's activation reached the node: a click with no pointer press.
+    pub(crate) activated: bool,
+    /// A context request by key (the Menu key, Shift+F10) or an assistive technology's `ShowContextMenu`.
+    pub(crate) context: bool,
+    /// The node is disabled in this run.
+    pub(crate) disabled: bool,
 }
 
 /// Logs a read of `fact` on `node` for the scope whose build runs.
