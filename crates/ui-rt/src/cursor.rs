@@ -9,7 +9,6 @@
 //! down on, else of the nearest node above that shape that names one, wherever the pointer goes;
 //! otherwise the hovered shape's cursor, else the nearest hovered node's; else the default.
 
-use crate::hit::chain;
 use crate::id::{NodeId, WindowId};
 use crate::platform::Cursor;
 use crate::runtime::Runtime;
@@ -46,7 +45,15 @@ impl Runtime {
 
     /// The cursor of the nearest node from `node` up that names one.
     fn node_cursor(&self, node: NodeId) -> Option<Cursor> {
-        chain(&self.tree, node).into_iter().find_map(|id| self.tree.nodes.get(&id).and_then(|n| n.cursor))
+        let mut cur = Some(node);
+        while let Some(id) = cur {
+            let n = self.tree.nodes.get(&id)?;
+            if n.cursor.is_some() {
+                return n.cursor;
+            }
+            cur = n.parent;
+        }
+        None
     }
 
     /// Cursor changes since the last call; the driver hands them to the platform.

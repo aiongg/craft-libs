@@ -427,27 +427,34 @@ impl EpaintRenderer {
                 let bounds = prim.bounds.translate(delta).intersect(clip_rect);
                 match &prim.piece {
                     Piece::Mesh(mesh) => {
+                        let reaches = |d: &ERect| clip_rect.intersect(*d).is_positive() && bounds.intersects(*d);
+                        let Some(last) = damage.iter().rposition(reaches) else { continue };
                         let mut moved: Option<epaint::Mesh> = None;
-                        for d in &damage {
-                            let scissor = clip_rect.intersect(*d);
-                            if !scissor.is_positive() || !bounds.intersects(*d) {
+                        for (i, d) in damage.iter().enumerate().take(last + 1) {
+                            if !reaches(d) {
                                 continue;
                             }
-                            if moved.is_none() {
-                                let mut m = mesh.clone();
-                                for v in &mut m.vertices {
-                                    v.pos += delta;
-                                    if draw.opacity < 1.0 {
-                                        v.color = v.color.gamma_multiply(draw.opacity);
+                            let empty = moved
+                                .get_or_insert_with(|| {
+                                    let mut m = mesh.clone();
+                                    for v in &mut m.vertices {
+                                        v.pos += delta;
+                                        if draw.opacity < 1.0 {
+                                            v.color = v.color.gamma_multiply(draw.opacity);
+                                        }
                                     }
-                                }
-                                for outline in &outlines {
-                                    clip::clip_to_outline(&mut m, outline);
-                                }
-                                moved = Some(m);
+                                    for outline in &outlines {
+                                        clip::clip_to_outline(&mut m, outline);
+                                    }
+                                    m
+                                })
+                                .is_empty();
+                            if empty {
+                                break;
                             }
-                            let Some(m) = moved.as_ref().filter(|m| !m.is_empty()) else { break };
-                            out.push(ClippedPrimitive { clip_rect: scissor, primitive: Primitive::Mesh(m.clone()) });
+                            // The last rect takes the moved mesh itself.
+                            let m = if i == last { moved.take() } else { moved.clone() }.unwrap_or_default();
+                            out.push(ClippedPrimitive { clip_rect: clip_rect.intersect(*d), primitive: Primitive::Mesh(m) });
                         }
                     }
                     Piece::Surface { key, rect } => {

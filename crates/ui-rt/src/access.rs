@@ -12,6 +12,7 @@ use std::collections::HashMap;
 
 use accesskit::{Affine, Node, Role, TreeId, TreeInfo, TreeUpdate};
 use emath::{Pos2, Rect, Vec2};
+use smallvec::SmallVec;
 
 use crate::id::{IdMap, IdSet, NodeId, WindowId, hash_key};
 use crate::runtime::Runtime;
@@ -169,7 +170,7 @@ impl Runtime {
         if full || !dirty.is_empty() || !w.changes.moved.is_empty() {
             let moved: IdSet = w.changes.moved.iter().copied().collect();
             let mut walk = Walk { window, full, dirty: &dirty, moved: &moved, out: &mut out };
-            let mut kids = Vec::new();
+            let mut kids = AccessIds::new();
             self.walk_access(root, Vec2::ZERO, Rect::from_min_size(Pos2::ZERO, viewport), true, &mut walk, &mut kids);
         }
         let focus = self.access_focus(window);
@@ -206,21 +207,13 @@ impl Runtime {
     /// Visits `id`'s subtree and appends the access ids it contributes to its parent's children
     /// to `kids`: its own when it is in the tree, or, for a layer node (which has no access node),
     /// those of its children.
-    fn walk_access(
-        &mut self,
-        id: NodeId,
-        parent_origin: Vec2,
-        parent_clip: Rect,
-        parent_included: bool,
-        walk: &mut Walk<'_>,
-        kids: &mut Vec<accesskit::NodeId>,
-    ) {
+    fn walk_access(&mut self, id: NodeId, parent_origin: Vec2, parent_clip: Rect, parent_included: bool, walk: &mut Walk<'_>, kids: &mut AccessIds) {
         let Some(n) = self.tree.nodes.get(&id) else {
             return;
         };
         let origin = parent_origin + n.frame.offset;
         if let NodeRole::Layer(_) = n.role {
-            let children = n.children.clone();
+            let children: SmallVec<[NodeId; 16]> = n.children.iter().copied().collect();
             for child in children {
                 self.walk_access(child, origin, parent_clip, parent_included, walk, kids);
             }
@@ -243,8 +236,8 @@ impl Runtime {
             changed = self.rebuild_access(walk.window, id);
         }
 
-        let children = self.tree.nodes.get(&id).map(|n| n.children.clone()).unwrap_or_default();
-        let mut own_kids = Vec::with_capacity(children.len());
+        let children: SmallVec<[NodeId; 16]> = self.tree.nodes.get(&id).map(|n| n.children.iter().copied().collect()).unwrap_or_default();
+        let mut own_kids = AccessIds::new();
         for child in children {
             self.walk_access(child, origin, clip, included, walk, &mut own_kids);
         }
@@ -257,11 +250,11 @@ impl Runtime {
         if !included {
             return;
         }
-        let mut children: Vec<accesskit::NodeId> = data.subs.iter().filter(|s| s.parent.is_none()).map(|s| sub_id(id, s.key)).collect();
+        let mut children: AccessIds = data.subs.iter().filter(|s| s.parent.is_none()).map(|s| sub_id(id, s.key)).collect();
         children.extend(own_kids);
-        if walk.full || !was || changed || children != data.children {
+        if walk.full || !was || changed || children[..] != data.children[..] {
             let mut node = data.node.clone().unwrap_or_else(|| Node::new(Role::GenericContainer));
-            node.set_children(children.clone());
+            node.set_children(children.to_vec());
             walk.out.push((id.access_id(), node));
             for s in &data.subs {
                 let mut sub = s.node.clone();
@@ -272,7 +265,9 @@ impl Runtime {
                 walk.out.push((sub_id(id, s.key), sub));
             }
         }
-        data.children = children;
+        if children[..] != data.children[..] {
+            data.children = children.to_vec();
+        }
         kids.push(id.access_id());
     }
 
@@ -352,6 +347,9 @@ impl Runtime {
         }
     }
 }
+
+/// The access ids of one node's children, inline up to a typical row's worth.
+type AccessIds = SmallVec<[accesskit::NodeId; 16]>;
 
 struct Walk<'a> {
     window: WindowId,
