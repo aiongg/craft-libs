@@ -460,12 +460,7 @@ impl Platform for HeadlessPlatform {
         }
     }
 
-    /// Recorded for checks. A start or reset begins a new session at once, as a platform reports it
-    /// (`WindowEvent::ImeEnabled`).
     fn ime(&mut self, window: WindowId, req: ImeRequest) {
-        if matches!(req, ImeRequest::Start { .. } | ImeRequest::Reset) {
-            self.push(window, WindowEvent::ImeEnabled);
-        }
         self.ime_requests.push((window, req));
     }
 

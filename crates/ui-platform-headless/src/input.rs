@@ -66,6 +66,8 @@ pub enum Input {
         cursor: Option<Range<usize>>,
     },
     ImeCommit(String),
+    /// The platform's input method session (re)started, as a platform answers a start or a reset.
+    ImeEnabled,
     /// Clipboard content arriving as if the window had asked for it.
     Paste(String),
     /// An OS file drag over the window.
@@ -137,6 +139,7 @@ impl Input {
             Input::Text(t) => WindowEvent::Text(t.clone()),
             Input::ImePreedit { text, cursor } => WindowEvent::ImePreedit { text: text.clone(), cursor: cursor.clone() },
             Input::ImeCommit(t) => WindowEvent::ImeCommit(t.clone()),
+            Input::ImeEnabled => WindowEvent::ImeEnabled,
             Input::Paste(t) => WindowEvent::Paste(t.clone()),
             Input::Files(drag) => WindowEvent::Files(drag.clone()),
             Input::Moved(p) => WindowEvent::Moved(*p),
