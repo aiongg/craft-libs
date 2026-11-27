@@ -353,6 +353,18 @@ impl FakeLayers {
         id
     }
 
+    /// Adds a layer where New Layer puts it: above the active layer under its parent, or at the top of the tree when
+    /// no layer is active, and makes it the selection. Returns the id.
+    pub fn add_above_active(&mut self, info: LayerInfo) -> u32 {
+        let id = u32::try_from(self.layers.len() + 1).expect("the mock tree holds fewer than 2^32 layers");
+        let active = self.selection.active.and_then(|active| self.layers.iter().position(|layer| layer.id == active));
+        let parent = active.and_then(|at| self.layers[at].parent);
+        let layer = FakeLayer { id, parent, info, open: false, effects_open: false, effects: None, smart_filters: None };
+        self.layers.insert(active.unwrap_or(0), layer);
+        self.selection = LayerSelection::new(vec![id], Some(id), LayerPart::Pixels);
+        id
+    }
+
     /// The layer with `id`; the mock tree has it.
     pub fn layer_mut(&mut self, id: u32) -> &mut FakeLayer {
         let at = self.layers.iter().position(|layer| layer.id == id).expect("the layer is in the mock tree");

@@ -1,7 +1,7 @@
 //! `FooterBar` (16.4): the container that fills a container's footer region.
 
 use super::words::SectionWords;
-use crate::buttons::{Button, IconButton, PopupMark};
+use crate::buttons::{Button, IconButton, PopupMark, PressFocus};
 use crate::contract::{
     Access, BodyCx, BodyLayout, Common, Component, Container, ContainerProps, Cx, CxCore, DropMark, DropOperation, DropTarget, Focus as _,
     LeastWidth, NoValue, Outcome, Pad, PaintUi, Pointer as _, PopupKind, Props as _, Role, RowAlign, Show as _, ShowContainer as _, Sizing,
@@ -240,9 +240,14 @@ impl FooterAction {
         self
     }
 
-    /// The button, enabled when the action is or when `accepting` lifts it for an accepted drag over it.
+    /// The button, enabled when the action is or when `accepting` lifts it for an accepted drag over it. A press
+    /// leaves focus where it is, so the panel's list keeps it across a footer click (as Photoshop's panel buttons do).
     fn icon_button(&self, accepting: bool) -> IconButton<'static> {
-        let mut button = IconButton::new(self.icon.clone()).label(self.label.clone()).enabled(self.enabled || accepting).selected(self.pressed);
+        let mut button = IconButton::new(self.icon.clone())
+            .label(self.label.clone())
+            .enabled(self.enabled || accepting)
+            .selected(self.pressed)
+            .press_focus(PressFocus::Keep);
         if let Some(tone) = self.tone {
             button = button.variant(Variant::look(Emphasis::Ghost, tone));
         }

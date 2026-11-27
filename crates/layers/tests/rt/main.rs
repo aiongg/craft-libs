@@ -104,10 +104,11 @@ impl Body<'_> {
                 if let Some(selection) = selection {
                     tree.selection = selection;
                 }
+                // Where the app puts it: above the active layer, or at the top, and selected.
                 if picked == Some(NEW_LAYER) {
-                    let id = u32::try_from(tree.layers.len() + 1).expect("fewer than 2^32 layers");
+                    let id = tree.layers.len() + 1;
                     let info = craft_layers::ui::tree::LayerInfo::new(format!("Layer {id}"), craft_layers::ui::tree::LayerKind::Pixel);
-                    tree.add(None, info, false);
+                    tree.add_above_active(info);
                 }
             });
         }
