@@ -44,6 +44,8 @@ pub struct Env {
     pub caps_lock: State<bool>,
     /// The num lock state as the platform last reported it.
     pub num_lock: State<bool>,
+    /// The keys held down in the window, in the order they went down; emptied when the window loses focus.
+    pub held_keys: State<Vec<crate::Key>>,
     /// Where the pointer is in the window and which buttons are down.
     pub pointer: State<PointerFacts>,
 }

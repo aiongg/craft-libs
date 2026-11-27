@@ -170,6 +170,21 @@ impl Runtime {
         if let Some(mods) = mods {
             env.modifiers.set_if_changed(&mut self.store, mods);
         }
+        let held = match ev {
+            WindowEvent::Key { key, down: true, repeat: false, .. } if !self.store.peek(env.held_keys).contains(key) => {
+                let mut held = self.store.peek(env.held_keys).clone();
+                held.push(*key);
+                Some(held)
+            }
+            WindowEvent::Key { key, down: false, .. } if self.store.peek(env.held_keys).contains(key) => {
+                Some(self.store.peek(env.held_keys).iter().copied().filter(|k| k != key).collect())
+            }
+            WindowEvent::Focus(false) if !self.store.peek(env.held_keys).is_empty() => Some(Vec::new()),
+            _ => None,
+        };
+        if let Some(held) = held {
+            env.held_keys.set(&mut self.store, held);
+        }
         let WindowEvent::Pointer(p) = ev else { return };
         let mut facts = *self.store.peek(env.pointer);
         let touch = p.kind == PointerKind::Touch;

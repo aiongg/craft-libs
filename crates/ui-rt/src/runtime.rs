@@ -261,6 +261,7 @@ impl Runtime {
             modifiers: self.store.create(craft_keymap::chord::Mods::NONE),
             caps_lock: self.store.create(false),
             num_lock: self.store.create(false),
+            held_keys: self.store.create(Vec::new()),
             pointer: self.store.create(crate::window::PointerFacts::default()),
         };
         let w = Window::new(window, env, viewport);
@@ -276,6 +277,7 @@ impl Runtime {
             env.modifiers.slot_ref(),
             env.caps_lock.slot_ref(),
             env.num_lock.slot_ref(),
+            env.held_keys.slot_ref(),
             env.pointer.slot_ref(),
         ];
         self.tree.nodes.insert(w.root, root);

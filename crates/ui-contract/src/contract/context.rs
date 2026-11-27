@@ -67,6 +67,7 @@ struct WindowCells {
     viewport: State<Vec2>,
     modifiers: State<craft_keymap::Mods>,
     caps_lock: State<bool>,
+    held: State<Vec<craft_ui_rt::Key>>,
 }
 
 struct Shared {
@@ -81,6 +82,12 @@ struct Shared {
     memory: RuntimeMemory,
     /// The window root's env cells, whose tokens and theme-base revisions the style caches are filled at.
     root_cells: Cell<Option<EnvCells>>,
+    /// The window's open-layer cell: its revision moves whenever a layer opens, changes or closes (`rt::layers`).
+    layers: Cell<Option<State<u64>>>,
+    /// The keys held down in the window, in the order they went down, as the window's cell last held them.
+    held: RefCell<Vec<craft_ui_rt::Key>>,
+    /// Builds by `Id` asked for outside a build (`Ui::request_rename`), drained by the window root.
+    builds: RefCell<Vec<Id>>,
     /// The command board the window root provides, for code with no build at hand (`Commands`).
     board: RefCell<Option<CommandBoard>>,
     /// Crate-private services of the window, one value per type: caches and readers that egui kept
@@ -116,6 +123,9 @@ impl Context {
                 styles: StyleCaches::default(),
                 memory,
                 root_cells: Cell::new(None),
+                layers: Cell::new(None),
+                held: RefCell::new(Vec::new()),
+                builds: RefCell::new(Vec::new()),
                 board: RefCell::new(None),
                 services: RefCell::new(HashMap::new()),
                 commands: RefCell::new(Vec::new()),
@@ -186,12 +196,17 @@ impl Context {
             caps_lock: *cx.peek_state(env.caps_lock),
         };
         self.shared.facts.set(facts);
+        let held = cx.peek_state(env.held_keys);
+        if *self.shared.held.borrow() != *held {
+            *self.shared.held.borrow_mut() = held.clone();
+        }
         self.shared.cells.set(Some(WindowCells {
             scale: env.scale,
             focused: env.window_focused,
             viewport: env.viewport,
             modifiers: env.modifiers,
             caps_lock: env.caps_lock,
+            held: env.held_keys,
         }));
     }
 
@@ -258,6 +273,13 @@ impl Context {
     pub fn caps_lock(&self) -> bool {
         self.track(|cells| CellRead::Caps(cells.caps_lock));
         self.facts().caps_lock
+    }
+
+    /// The keys held down in the window, in the order they went down. Tracked inside a build: a reader runs again when
+    /// a key goes down or up.
+    pub fn held_keys(&self) -> Vec<craft_ui_rt::Key> {
+        self.track(|cells| CellRead::Held(cells.held));
+        self.shared.held.borrow().clone()
     }
 
     /// The operating system the window runs on.
@@ -351,6 +373,18 @@ impl Context {
         f(slot.downcast_mut::<T>().expect("a service holds the type it was made with"))
     }
 
+    /// The window's open-layer cell, made on first use.
+    pub(crate) fn layers_cell(&self, store: &mut craft_ui_rt::Store) -> State<u64> {
+        match self.shared.layers.get() {
+            Some(cell) => cell,
+            None => {
+                let cell = store.create(0);
+                self.shared.layers.set(Some(cell));
+                cell
+            }
+        }
+    }
+
     /// Whether two handles answer for the same window's context.
     pub(crate) fn same(&self, other: &Context) -> bool {
         Rc::ptr_eq(&self.shared, &other.shared)
@@ -375,6 +409,7 @@ pub(crate) enum CellRead {
     Viewport(State<Vec2>),
     Mods(State<craft_keymap::Mods>),
     Caps(State<bool>),
+    Held(State<Vec<craft_ui_rt::Key>>),
     /// `Env::of`: every env cell an `Env` copies, plus the window's scale and focus.
     Env(EnvCells, State<f32>, State<bool>),
     /// The scope builds again after this long.
@@ -447,6 +482,9 @@ pub(crate) fn end_cell_reads(mark: usize, cx: &mut BuildCx<'_>) {
                 cell.get(cx);
             }
             CellRead::Caps(cell) => {
+                cell.get(cx);
+            }
+            CellRead::Held(cell) => {
                 cell.get(cx);
             }
             CellRead::Env(cells, scale, focused) => {
