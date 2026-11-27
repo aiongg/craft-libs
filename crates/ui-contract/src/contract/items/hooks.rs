@@ -613,6 +613,19 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         *cx.core.memory.session::<Drags<C::Key>>(sub(id, "drags")) = self.drags.clone();
         self.header.report(cx, &mut self.sub_nodes);
         *cx.core.memory.session::<Renaming<C::Key>>(sub(id, "rename")) = self.renaming.clone();
+        self.outputs(comp, cx);
+    }
+
+    /// A kept collection reports what its last run left (the drop preview, the latch, the menu request) with the rows
+    /// this build reached; it has no events of its own.
+    fn settled(&mut self, comp: &mut C, cx: &mut Cx<'_, C>) {
+        self.outputs(comp, cx);
+    }
+}
+
+impl<C: Collection> ItemsHooks<'_, '_, C> {
+    /// The collection's response parts `finish` takes (`Cx::collection_response`).
+    fn outputs(&mut self, comp: &C, cx: &mut Cx<'_, C>) {
         cx.core.collection_selection = Some(Box::new(self.selection.clone()));
         cx.core.collection_events = Some(Box::new(ItemsOut {
             events: std::mem::take(&mut self.events),

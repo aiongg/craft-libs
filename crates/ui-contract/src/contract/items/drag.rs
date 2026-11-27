@@ -890,6 +890,11 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             }
         } else {
             self.drags.grabbed = None;
+            // A reordering list asks for its row drags in every run, so ui-rt routes the drag its own run starts back to
+            // it: each move over it runs it with the pointer (`Pointer::dragging` answers only on a node that asked).
+            if let Some(rule) = props.reorder {
+                let _ = cx.drop_target::<ListDrag<C::Key>, _>(&RowDrop { spot: None, copy: rule.copy });
+            }
             self.kind_drop(comp, cx, layout, (rect, offset, rtl), false);
         }
     }

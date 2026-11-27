@@ -1109,6 +1109,7 @@ fn settle_shaped<C: Component>(
         let mut lent: &RunHost<'_, '_> = &host;
         crate::contract::paint_ui::host_ui(&mut lent, |ui| hooks.content(&mut component, ui, &begun.env, &mut cxx, &values));
     }
+    hooks.settled(&mut component, &mut cxx);
     let mut flow = host.into_flow();
     let drawn = flow.take_drawn(rect.min);
     let out = component.finish(cxx);

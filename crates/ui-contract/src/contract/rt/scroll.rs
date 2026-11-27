@@ -191,11 +191,11 @@ impl ScrollKept {
         misses.get(cx);
     }
 
-    /// The offset, as a tracked read: the body builds again each time layout moves it (a glide, a wheel, a bar drag).
-    pub(crate) fn read_offset(&mut self, cx: &mut BuildCx<'_>) -> Vec2 {
+    /// The cell layout writes the offset it placed the content at into. A node that reads it builds again each time
+    /// layout moves the offset (a glide, a wheel, a bar drag); the owner whose run follows the offset reads it.
+    pub(crate) fn offset_cell(&mut self, cx: &mut BuildCx<'_>) -> State<Vec2> {
         let offset = self.offset;
-        let placed_at = *self.placed_at.get_or_insert_with(|| cx.state(offset));
-        placed_at.get(cx)
+        *self.placed_at.get_or_insert_with(|| cx.state(offset))
     }
 
     fn max_offset(&self) -> Vec2 {

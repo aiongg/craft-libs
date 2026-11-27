@@ -349,8 +349,10 @@ mod glide {
         input(&mut rig, &mut app, Input::mouse_move(edge));
         let first = app.pending.clone();
         assert!(matches!(first, Some(PendingDrop::Reorder(_))), "the drag over the rows previews a reorder: {first:?}");
+        // Two points inside the edge the glide is slow (production's edge rate): enough frames to move the rows past
+        // the middle of the row under the pointer.
         let mut runs = Vec::new();
-        for _ in 0..6 {
+        for _ in 0..20 {
             let report = frame(&mut rig, &mut app);
             runs.push((report.frame.runs, app.calls.get() > 0));
         }

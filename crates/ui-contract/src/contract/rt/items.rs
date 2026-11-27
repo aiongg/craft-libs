@@ -133,14 +133,13 @@ pub(crate) fn kept_offset(cx: &BuildCx<'_>, collection: Option<NodeId>) -> Scrol
     })
 }
 
-/// The offset the collection's rows view holds, read from the `Ui` of the collection's own build
-/// (its steps run in the collection node's build, as a leaf's measure does in `show_leaf`). A
-/// measuring run reads zero: the collection's size does not depend on its offset.
+/// The offset the collection's rows view holds, read untracked from the `Ui` its step 5 measures on: that flow
+/// measures under the collection's node (the one building in a real run, the kept one in a parent's measuring run),
+/// so the band, the rows' rects and the content node's origin all take the offset layout last placed the rows at.
+/// Zero for a collection with no node yet.
 pub(crate) fn rows_offset(ui: &Ui<'_, '_>) -> ScrollPos {
-    if ui.flow.measuring.is_some() {
-        return ScrollPos::default();
-    }
-    kept_offset(ui.cx, Some(ui.cx.node()))
+    let node = ui.flow.measuring.unwrap_or_else(|| Some(ui.cx.node()));
+    kept_offset(ui.cx, node)
 }
 
 /// Builds the band rows of a collection into its rows view: `build` shows each row at its
@@ -165,24 +164,26 @@ pub(crate) fn rows_view<R>(
     }
     let (id, tokens) = (ui.flow.id, ui.flow.tokens.clone());
     let Ui { cx, flow, .. } = ui;
-    let (out, inner, node) = match scroll {
+    let ((out, inner, node), placed) = match scroll {
         Some(scroll) => cx.keyed(Region::Rows, |cx| {
             cx.inline(ScrollNode { scroll }, |sk: &mut ScrollKept, _, cx| {
                 sk.subscribe(cx);
-                if follow {
-                    sk.read_offset(cx);
-                }
+                let placed = follow.then(|| sk.offset_cell(cx));
                 if let Some(offset) = jump {
                     sk.jump_to(offset);
                 }
                 let at = RowsView { offset: ScrollPos { x: f64::from(sk.offset.x), y: f64::from(sk.offset.y) }, ..view };
                 let (out, mut inner, content) = content_node(cx, id, at, extent, &tokens, build);
                 sk.finish_build(cx, view.rect, content, &mut inner, scroll, &tokens);
-                (out, inner, cx.node())
+                ((out, inner, cx.node()), placed)
             })
         }),
-        None => content_node(cx, id, view, extent, &tokens, build),
+        None => (content_node(cx, id, view, extent, &tokens, build), None),
     };
+    // The collection's own build reads the offset layout pays out, so its run (the drop spot, the sweep) follows it.
+    if let Some(placed) = placed {
+        placed.get(*cx);
+    }
     flow.absorb(&inner);
     let placed = Placed { node, offset: view.rect.min - flow.origin, size: view.rect.size() };
     match flow.placed.iter_mut().find(|p| p.node == node) {
