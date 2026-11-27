@@ -103,8 +103,8 @@ pub use pixel_size::PixelSize;
 
 pub use hold_repeat::HoldRepeat;
 pub use press::{
-    Buttons, MultiTap, MultiTouch, PassInput, PointerButton, PointerEvent, PointerKind, PointerSample, PressAside, PressCancel, PressMachine,
-    PressPhase, PressPick, PressStart, PressState, PressStep, count_clicks,
+    Buttons, MULTI_TAP_SLOP, MULTI_TAP_TIME, MultiTap, MultiTouch, PassInput, PointerButton, PointerEvent, PointerKind, PointerSample, PressAside,
+    PressCancel, PressMachine, PressPhase, PressPick, PressStart, PressState, PressStep, count_clicks,
 };
 pub use quantity::Reader;
 pub use role_rule::{GridFacts, RoleRule, is_checkable, is_selectable, role_violations};

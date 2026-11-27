@@ -125,10 +125,11 @@ pub(crate) fn drop_hit(tree: &Tree, window: &Window, pos: Pos2, files: bool) -> 
     }
     let viewport = Rect::from_min_size(Pos2::ZERO, window.viewport);
     let mut below_modal = false;
+    let leaving = |child: NodeId| window.layered.contains_key(&child) && window.inert(tree, child);
     for layer in Layer::ALL.into_iter().rev() {
         let id = window.layer(layer);
         let accept = |h: &HitRecord| h.kind == HitKind::DropUnderModal || (!below_modal && h.kind == HitKind::Drop);
-        if let Some((hit, _)) = visit(tree, id, Vec2::ZERO, viewport, pos, &accept) {
+        if let Some((hit, _)) = visit(tree, id, Vec2::ZERO, viewport, pos, &accept, &leaving) {
             return Some(hit);
         }
         below_modal |= layer == Layer::Modal && modal_shown(tree, window);
