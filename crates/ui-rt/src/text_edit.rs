@@ -3,7 +3,7 @@
 //! preedits and commits, moves and deletes by the platform's chords, edit commands), the pointer
 //! (click counts select a word or a line, a drag selects and scrolls at the view's edge), undo and
 //! redo through [`EditHistory`] with typing coalesced into one step, masking and a character
-//! limit. Layout and hit-testing go through the backend's [`TextEngine`] ([`EditLayout`]); the
+//! limit. Layout and hit-testing go through the backend's [`crate::TextEngine`] ([`EditLayout`]); the
 //! caret, selection and preedit underline are recorded once per build ([`EditPaint`]) and the
 //! caret blinks at paint time ([`PaintCx::time_until`]), so a blink repaints and builds nothing.
 //!
@@ -19,7 +19,7 @@ use craft_theme::Rgba;
 use emath::{Pos2, Rect, Vec2};
 
 use crate::paint::PaintCx;
-use crate::text::{RichText, TextEngine, TextLayout};
+use crate::text::{TextLayout, TextMetrics};
 
 /// How long a blinking caret shows or hides its stroke, in seconds: the platforms' usual rate.
 pub const CARET_HALF_PERIOD: f64 = 0.53;
@@ -734,7 +734,7 @@ pub struct EditRow {
 }
 
 /// A laid-out editor text with its caret stops, in layout coordinates: what the run hit-tests and
-/// moves by, built once per build from the backend's [`TextEngine`].
+/// moves by, built once per build from the backend's [`crate::TextEngine`].
 #[derive(Clone, Debug)]
 pub struct EditLayout {
     pub layout: TextLayout,
@@ -747,50 +747,35 @@ pub struct EditLayout {
 }
 
 impl EditLayout {
-    /// Lays out `shown` (its text set by `rich`) at `scale` and reads its caret stops: from the
-    /// glyphs of the engine's metrics, else from its caret rects one hard line at a time.
-    pub fn new(engine: &mut dyn TextEngine, rich: &RichText, shown: &Shown, scale: f32) -> EditLayout {
-        let layout = engine.layout_rich(rich, scale);
-        let metrics = engine.metrics(&layout);
+    /// The caret stops of `layout`, the backend's layout of `shown`, read from the glyphs of its
+    /// `metrics` ([`crate::TextEngine::metrics`]). An engine without glyph metrics gives each row only its
+    /// two ends as stops.
+    pub fn new(layout: TextLayout, metrics: &TextMetrics, shown: &Shown) -> EditLayout {
         let text: &str = &shown.text;
         let mut rows = Vec::new();
-        if metrics.rows.iter().any(|row| !row.glyphs.is_empty()) {
-            let mut at = 0;
-            for row in &metrics.rows {
-                let start = at;
-                let mut stops = Vec::with_capacity(row.glyphs.len() + 1);
-                for glyph in &row.glyphs {
-                    // Glyphs follow the text in order; a character without a glyph (a break) is passed.
-                    while let Some(c) = text[at..].chars().next() {
-                        if c == glyph.chr {
-                            break;
-                        }
-                        at += c.len_utf8();
-                    }
-                    let x = row.rect.min.x + if glyph.rtl { glyph.x + glyph.advance } else { glyph.x };
-                    stops.push((at, x));
-                    at = next_char(text, at.min(text.len()));
-                }
-                let end_x = row.glyphs.last().map_or(row.rect.min.x, |g| row.rect.min.x + if g.rtl { g.x } else { g.x + g.advance });
-                stops.push((at, end_x));
-                rows.push(EditRow { rect: row.rect, start, end: at, stops });
-                if text[at..].starts_with('\n') {
+        let mut at = 0;
+        for row in &metrics.rows {
+            let start = at;
+            let mut stops = Vec::with_capacity(row.glyphs.len() + 1);
+            for glyph in &row.glyphs {
+                // Glyphs follow the text in order; a line break has none.
+                while text[at..].starts_with('\n') {
                     at += 1;
                 }
+                let x = row.rect.min.x + if glyph.rtl { glyph.x + glyph.advance } else { glyph.x };
+                stops.push((at, x));
+                at = next_char(text, at.min(text.len()));
             }
-        } else {
-            // One row per hard line, each measured on its own layout.
-            let line_height = layout.size.y / layout.lines.max(1) as f32;
-            let mut start = 0;
-            for (n, line) in text.split('\n').enumerate() {
-                let end = start + line.len();
-                let row_rich = RichText { text: Arc::from(line), ..rich.clone() };
-                let row_layout = engine.layout_rich(&row_rich, scale);
-                let stops =
-                    line.char_indices().map(|(i, _)| i).chain([line.len()]).map(|i| (start + i, engine.caret_rect(&row_layout, i).min.x)).collect();
-                let top = n as f32 * line_height;
-                rows.push(EditRow { rect: Rect::from_min_size(Pos2::new(0.0, top), Vec2::new(row_layout.size.x, line_height)), start, end, stops });
-                start = end + 1;
+            if row.glyphs.is_empty() && metrics.rows.len() == 1 {
+                // No glyph metrics: the row spans the whole text.
+                stops.push((0, row.rect.min.x));
+                at = text.len();
+            }
+            let end_x = row.glyphs.last().map_or(row.rect.max.x, |g| row.rect.min.x + if g.rtl { g.x } else { g.x + g.advance });
+            stops.push((at, end_x));
+            rows.push(EditRow { rect: row.rect, start, end: at, stops });
+            if text[at..].starts_with('\n') {
+                at += 1;
             }
         }
         if rows.is_empty() {

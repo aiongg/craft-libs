@@ -6,4 +6,5 @@ mod common;
 mod frames;
 mod input;
 mod routing;
+mod text_edit;
 mod windows;

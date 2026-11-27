@@ -225,6 +225,9 @@ fn fill_rect(img: &mut RgbaImage, r: Rect, c: Rgba, scale: f32) {
 pub struct FixedLayout {
     pub text: Arc<str>,
     pub advance: f32,
+    /// Characters per row; line breaks also end a row.
+    pub per_line: usize,
+    pub line: f32,
     pub size: Vec2,
     pub color: Rgba,
 }
@@ -245,7 +248,7 @@ impl TextEngine for FixedText {
             spec.max_width.filter(|_| spec.overflow == crate::text::Overflow::Wrap).map_or(usize::MAX, |w| ((w / advance).floor() as usize).max(1));
         let lines = if chars == 0 { 1 } else { chars.div_ceil(per_line) };
         let width = advance * chars.min(per_line) as f32;
-        let layout = FixedLayout { text, advance, size: Vec2::new(width, line * lines as f32), color: spec.color };
+        let layout = FixedLayout { text, advance, per_line, line, size: Vec2::new(width, line * lines as f32), color: spec.color };
         let out_size = layout.size;
         TextLayout { handle: TextHandle::new(Arc::new(layout)), size: out_size, baseline: size, lines }
     }
@@ -265,5 +268,30 @@ impl TextEngine for FixedText {
         let n = t.text.get(..index).map_or(0, |s| s.chars().count());
         let x = t.advance * n as f32;
         Rect::from_min_max(Pos2::new(x, 0.0), Pos2::new(x + 1.0, t.size.y))
+    }
+
+    /// Rows of at most `per_line` characters, broken at line breaks too; one glyph per character
+    /// (a break has none).
+    fn metrics(&mut self, layout: &TextLayout) -> crate::text::TextMetrics {
+        let Some(t) = layout.handle.downcast_ref::<FixedLayout>() else {
+            return crate::text::TextMetrics { text: Arc::from(""), rows: Vec::new(), ink: Rect::NOTHING, elided: false };
+        };
+        let mut rows = Vec::new();
+        for line in t.text.split('\n') {
+            let chars: Vec<char> = line.chars().collect();
+            let chunks: Vec<&[char]> = if chars.is_empty() { vec![&[][..]] } else { chars.chunks(t.per_line.max(1)).collect() };
+            for chunk in chunks {
+                let top = rows.len() as f32 * t.line;
+                let glyphs = chunk
+                    .iter()
+                    .enumerate()
+                    .map(|(i, c)| crate::text::GlyphPlace { chr: *c, x: i as f32 * t.advance, advance: t.advance, rtl: false })
+                    .collect();
+                let rect = Rect::from_min_size(Pos2::new(0.0, top), Vec2::new(chunk.len() as f32 * t.advance, t.line));
+                rows.push(crate::text::TextRow { rect, glyphs });
+            }
+        }
+        let ink = rows.iter().fold(Rect::NOTHING, |ink, row| ink.union(row.rect));
+        crate::text::TextMetrics { text: t.text.clone(), rows, ink, elided: false }
     }
 }
