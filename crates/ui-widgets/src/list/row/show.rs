@@ -606,7 +606,7 @@ impl Component for ListRow<'_> {
             let shown = draw.layout(&run, slot.width());
             let x = if rtl { slot.left() } else { slot.right() - shown.size().x };
             draw.galley(Pos2::new(x, slot.center().y - shown.size().y / 2.0), &shown);
-        } else if let (Some(slot), Some(paint)) = (placed.icon, self.lead_paint.take()) {
+        } else if let (Some(slot), Some(paint)) = (placed.icon, &self.lead_paint) {
             let _ = ui.child("lead", Rect::from_x_y_ranges(slot.x_range(), rect.y_range()), RowThumb::new(paint));
         }
         if let Some(open) = self.group
@@ -638,7 +638,7 @@ impl Component for ListRow<'_> {
         let text_end = if self.thumbnails_only { placed.label.top() } else { self.paint_text(&ui.draw(), cx, placed.label, label_hue, document) };
         let mut from = 0.0;
         for (at, below) in self.below.iter_mut().enumerate() {
-            let (Some(item), Some(size)) = (below.item.take(), below.size) else { continue };
+            let (Some(item), Some(size)) = (below.item.as_mut(), below.size) else { continue };
             let width = size.ideal.x.min((placed.label.width() - from).max(0.0));
             let x = if rtl { placed.label.right() - from - width } else { placed.label.left() + from };
             item.show(ui, below_key(at), Rect::from_min_size(Pos2::new(x, text_end + sizes.gap), Vec2::new(width, size.ideal.y)));

@@ -737,7 +737,7 @@ impl<'a> ListRow<'a> {
     /// A thumbnail of `size` before the label, framed just outside; `paint` draws into the thumbnail's rect.
     /// `ThumbSize::None` draws none.
     #[must_use]
-    pub fn thumb(self, size: ThumbSize, paint: impl FnOnce(&ContentPainterCx, Rect) + 'a) -> Self {
+    pub fn thumb(self, size: ThumbSize, paint: impl Fn(&ContentPainterCx, Rect) + 'a) -> Self {
         self.thumb_picture(size, ThumbPaint::new(ThumbPicture::painter(paint)))
     }
 
@@ -754,7 +754,7 @@ impl<'a> ListRow<'a> {
     /// A thumbnail as high as `size` and `aspect` times as wide, for a gradient or other strip that is not square:
     /// its height sets the row's height as for any thumbnail. `ThumbSize::None` draws none.
     #[must_use]
-    pub fn thumb_aspect(mut self, size: ThumbSize, aspect: ThumbAspect, paint: impl FnOnce(&ContentPainterCx, Rect) + 'a) -> Self {
+    pub fn thumb_aspect(mut self, size: ThumbSize, aspect: ThumbAspect, paint: impl Fn(&ContentPainterCx, Rect) + 'a) -> Self {
         self = self.thumb(size, paint);
         self.thumb_aspect = aspect;
         self
@@ -764,7 +764,7 @@ impl<'a> ListRow<'a> {
     /// a dot and a line through the row). It sits where the icon does, mirrored in a right-to-left interface, and
     /// replaces the row's icon; thumbnails replace it in turn.
     #[must_use]
-    pub fn lead_painter(mut self, paint: impl FnOnce(&ContentPainterCx, Rect) + 'a) -> Self {
+    pub fn lead_painter(mut self, paint: impl Fn(&ContentPainterCx, Rect) + 'a) -> Self {
         self.lead_paint = Some(Versioned::new(ThumbPicture::painter(paint)));
         self
     }
@@ -799,7 +799,7 @@ impl<'a> ListRow<'a> {
     /// A thumbnail after the first and any earlier extra ones, of the same size and frame (a layer's mask). Extra
     /// thumbnails never drop out for width: the label is cut first. Nothing is drawn without a first thumbnail.
     #[must_use]
-    pub fn extra_thumb(self, paint: impl FnOnce(&ContentPainterCx, Rect) + 'a) -> Self {
+    pub fn extra_thumb(self, paint: impl Fn(&ContentPainterCx, Rect) + 'a) -> Self {
         self.extra_thumb_picture(ThumbPaint::new(ThumbPicture::painter(paint)))
     }
 

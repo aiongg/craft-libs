@@ -108,7 +108,7 @@ impl<'a> SelectFace<'a> {
     /// A picture `aspect` times as wide as high before the text; `paint` draws into the picture's rect through the
     /// content painter, which is clipped to it. The picture's height comes from the style.
     #[must_use]
-    pub fn thumb(mut self, aspect: ThumbAspect, paint: impl FnOnce(&ContentPainterCx, Rect) + 'a) -> Self {
+    pub fn thumb(mut self, aspect: ThumbAspect, paint: impl Fn(&ContentPainterCx, Rect) + 'a) -> Self {
         self.thumb = Some((aspect, ThumbPaint::new(ThumbPicture::painter(paint))));
         self
     }
@@ -233,7 +233,7 @@ impl Component for SelectFace<'_> {
         let mut flow = Flow::new(cx.content_rect, rtl);
         let caption = self.caption_run(&cx.style.caption).map(|run| ui.draw().layout(&run.color(cx.resolve(&cx.style.caption.color)), f32::INFINITY));
         let caption_size = caption.as_ref().map_or(Vec2::ZERO, |caption| caption.size());
-        if let Some((aspect, paint)) = self.thumb.take() {
+        if let Some((aspect, paint)) = &self.thumb {
             let (cell, rest) = flow.take_start(aspect.of(cx.style.thumb).max(caption_size.x));
             let below = if caption.is_some() { cx.style.caption_gap + caption_size.y } else { 0.0 };
             let top = cell.center().y - (cx.style.thumb + below) / 2.0;

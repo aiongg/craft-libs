@@ -1,10 +1,12 @@
 //! Count trials of the driver's own reads and outputs: the tracked hover point (`CxCore::hover_point`)
-//! reruns only the node that reads it; a paint slot fill repaints the slot's node and runs nothing.
+//! reruns only the node that reads it; a paint slot fill repaints the slot's node and runs nothing; a paint that
+//! shows a child keeps its pointer looks while they show the same children.
 
 use craft_behavior::IconId;
 use craft_ui_contract::contract::*;
+use craft_ui_contract::primitives::PaintShape;
 use craft_ui_contract::runtime::windows::window_root;
-use craft_ui_contract::style::StyleCx;
+use craft_ui_contract::style::{StyleColor, StyleCx, rgba_color};
 use craft_ui_platform_headless::Input;
 use craft_ui_rt::record::RecordingRenderer;
 use craft_ui_rt::{Pos2, Rect, Sense, StepReport, Vec2};
@@ -297,6 +299,76 @@ fn a_rerun_composite_measures_its_unchanged_child_from_the_size_cache() {
     let entered = step(&mut rig, &mut pad);
     assert_eq!(entered.frame.runs, 1, "the move runs the composite alone: {entered:?}");
     assert_eq!(entered.frame.measures, 1, "the composite measures; its child answers from its size cache: {entered:?}");
+}
+
+/// A row that shows a child from its paint and paints its hover look (contract-rt 15.6 rule 5). With `reveal`, its
+/// paint also shows a second child while hovered, so its looks show different children.
+#[derive(Component)]
+struct HoverRow {
+    #[common]
+    common: Common,
+    reveal: bool,
+}
+
+impl Component for HoverRow {
+    const ROLE: Role = Role::GROUP;
+    type Style = PlainStyle;
+    type Output = Response;
+
+    fn style(_: &StyleCx<'_>, _: HoverRowStyleKey) -> PlainStyle {
+        PlainStyle::default()
+    }
+
+    fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
+        Vec2::new(200.0, 40.0)
+    }
+
+    fn sense(&self) -> Sense {
+        Sense::HOVER
+    }
+
+    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        let hovered = cx.response.hovered();
+        if hovered {
+            let fill = ui.env.tokens.tokens().color.state.hover;
+            ui.draw().fill(&PaintShape::Rect(cx.rect, Default::default()), StyleColor(rgba_color(fill)));
+        }
+        let thumb = Rect::from_min_size(cx.rect.min, Vec2::splat(24.0));
+        let _ = ui.child("thumb", thumb, IconButton::new(IconId::new("plus"), "Thumb"));
+        if self.reveal && hovered {
+            let close = Rect::from_min_size(cx.rect.min + Vec2::new(30.0, 0.0), Vec2::splat(24.0));
+            let _ = ui.child("close", close, IconButton::new(IconId::new("plus"), "Close"));
+        }
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
+}
+
+#[test]
+fn a_row_that_shows_a_child_from_its_paint_keeps_its_hover_look_unless_the_hover_changes_its_children() {
+    let step = |rig: &mut Rig<RecordingRenderer>, reveal: bool, row: &mut Rect| {
+        rig.step_with(&mut |_, cx| window_root(cx, |ui| *row = Show::show(HoverRow { common: Common::new(), reveal }, ui).rect))
+    };
+    for reveal in [false, true] {
+        let mut row = Rect::NOTHING;
+        let mut rig = Rig::inline(Vec2::new(400.0, 300.0), 1.0, RecordingRenderer::default());
+        assert!((0..5).any(|_| !step(&mut rig, reveal, &mut row).ran), "the rig did not settle");
+        let main = rig.main;
+        // Over the row, away from its children.
+        rig.inject(main, Input::mouse_move(row.right_center() - Vec2::new(20.0, 0.0)));
+        let entered = step(&mut rig, reveal, &mut row);
+        rig.inject(main, Input::mouse_move(Pos2::new(390.0, 290.0)));
+        let left = step(&mut rig, reveal, &mut row);
+        if reveal {
+            assert!(entered.frame.runs >= 1, "the hover look shows another child: the row runs: {entered:?}");
+            assert!(left.frame.runs >= 1, "the rest look shows another child: the row runs: {left:?}");
+        } else {
+            assert_eq!((entered.frame.runs, entered.frame.painted), (0, 1), "the row swaps to its kept hover look: {entered:?}");
+            assert_eq!((left.frame.runs, left.frame.painted), (0, 1), "the row swaps back to its kept rest look: {left:?}");
+        }
+    }
 }
 
 /// A press inside a collection nested in another reaches the outer one as a descendant press.

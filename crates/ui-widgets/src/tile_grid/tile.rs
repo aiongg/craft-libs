@@ -534,7 +534,7 @@ impl<'a> Tile<'a> {
     /// A picture `aspect` times as wide as high; `paint` draws into the picture's rect through the content painter,
     /// which is clipped to it. Without one the tile shows the placeholder.
     #[must_use]
-    pub fn thumb(mut self, aspect: ThumbAspect, paint: impl FnOnce(&ContentPainterCx, Rect) + 'a) -> Self {
+    pub fn thumb(mut self, aspect: ThumbAspect, paint: impl Fn(&ContentPainterCx, Rect) + 'a) -> Self {
         self.aspect = aspect;
         self.first = Some(ThumbPaint::new(ThumbPicture::painter(paint)));
         self.picture = None;
@@ -1130,7 +1130,7 @@ impl Component for Tile<'_> {
         // Only over the sunken well: a flat thumbnail (a page outline on the card, as the New Document presets draw)
         // has no well and takes no frame.
         let framed = style.sizes.card && !self.flat_thumbnail && (self.first.is_some() || self.picture.is_some() || self.paper.is_some());
-        if let Some(paint) = self.first.take() {
+        if let Some(paint) = &self.first {
             let _ = ui.child("picture", picture, RowThumb::new(paint));
         }
         if let Some(shown) = self.picture.take() {
