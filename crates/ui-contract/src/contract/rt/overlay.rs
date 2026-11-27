@@ -43,7 +43,7 @@ use crate::primitives::text_adapter::ScopeEscape;
 use crate::primitives::{Canvas, Draw, DrawEnv, FrameServices, PaintRecord};
 use crate::runtime::access::PopupKind;
 use crate::runtime::focus::{FocusMove, FocusPolicy};
-use crate::runtime::motion::MotionSpec;
+use crate::runtime::motion::spec as motion;
 use crate::runtime::overlay::{CloseReason, OpenEntry, Rank};
 use crate::style::{Corners, Ink, SurfaceKind, UiTokens};
 
@@ -704,8 +704,8 @@ fn run_layer<R: Clone + 'static>(lk: &mut LayerKept, state: InlineState, cx: &mu
         lk.closed.set(None);
         if run.surface == Surface::Popup {
             let level = lk.kept.level.get_mut();
-            Level::aim(level, 0.0, MotionSpec::OPEN_FADE);
-            Level::aim(level, 1.0, MotionSpec::OPEN_FADE);
+            Level::aim(level, 0.0, motion::OPEN_FADE);
+            Level::aim(level, 1.0, motion::OPEN_FADE);
         }
     }
     // A layer shown inside a dialog host's `stack_place`, or opened from inside one, belongs to that host's dialog.

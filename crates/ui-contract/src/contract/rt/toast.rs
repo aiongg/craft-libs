@@ -110,7 +110,7 @@ impl ToastQueue {
 
     /// The cards not announced yet, each marked announced: the host announces each card once.
     pub(crate) fn take_unannounced(&mut self) -> Vec<Toast> {
-        self.cards.iter_mut().filter(|c| !std::mem::replace(&mut c.announced, true)).map(|c| c.toast.clone()).collect()
+        self.cards.iter_mut().filter_map(|c| (!std::mem::replace(&mut c.announced, true)).then(|| c.toast.clone())).collect()
     }
 
     /// Runs the timers to `now`: a held stack clears every deadline, an unheld one starts the
