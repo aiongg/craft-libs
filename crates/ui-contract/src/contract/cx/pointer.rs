@@ -206,8 +206,9 @@ impl Pointer for CxCore<'_> {
         also: Vec<Arc<dyn std::any::Any + Send + Sync>>,
         preview: DragPreview,
     ) {
-        let _ = (payload, also, preview);
-        todo!("drags that carry extra payloads: ui-rt's DragStart takes one payload; the session needs the `also` list beside it, INT-1c")
+        // The driver starts ui-rt's payload session from the node's press after the run; targets of the extra values'
+        // types take the drag as well.
+        *self.run.drag_start.borrow_mut() = Some(DragSource::with_also(payload, also, preview));
     }
 
     fn dragging<P: Send + Sync + 'static>(&self) -> Option<(Arc<P>, Pos2)> {
@@ -220,10 +221,13 @@ impl Pointer for CxCore<'_> {
     }
 
     fn window_drop_target<P: Send + Sync + 'static, T: WindowDropTarget<P>>(&mut self, target: &T) -> Option<T::Drop> {
+        self.run.drop_types.borrow_mut().push((TypeId::of::<P>(), true));
         if target.requires_pointer() && self.dragging::<P>().is_none() {
             return None;
         }
-        todo!("window-wide drop targets: a drop rule on the window root's node in ui-rt's routing (Component::drop_target with window reach), INT-1c")
+        let (payload, _, mods) = self.dropped(TypeId::of::<P>())?;
+        let op = craft_behavior::keys::drop_operation(self.context().os(), mods, craft_behavior::CopyKeys::Alt);
+        target.accept(payload.downcast_ref::<P>()?, op)
     }
 
     fn drag_ended<P: Send + Sync + 'static>(&self) -> Option<DropOperation> {
@@ -258,18 +262,35 @@ impl CxCore<'_> {
     }
 
     /// The active drag payload whose type is `payload` and the pointer in window coordinates.
+    /// It answers only on a node the session routes the drag to: one whose last run asked for the type with
+    /// `drop_target` and that the drag is over. Each move over it runs it (`NodeInput::DragOver`); `None` on a
+    /// settled `Cx`.
     pub(crate) fn dragging_of(&self, payload: TypeId) -> Option<(Arc<dyn Any + Send + Sync>, Pos2)> {
-        let _ = payload;
-        todo!("the running drag session's payload and pointer as a tracked read the driver hands the run (BuildCx drag session), INT-1c")
+        let (data, at, _) = self.run.drag_over.as_ref().filter(|_| !self.run.settled)?;
+        Some((crate::contract::rt::drag::payload_of(data, payload)?, *at))
+    }
+
+    /// The payload of type `payload` dropped on this node in this run, where it was dropped (window coordinates; the
+    /// last pointer over the node for an OS drop with no position) and the keys held.
+    fn dropped(&self, payload: TypeId) -> Option<(Arc<dyn Any + Send + Sync>, Option<Pos2>, craft_ui_rt::Mods)> {
+        self.run.input.iter().rev().find_map(|input| match input {
+            NodeInput::Drop { data, pos, mods } => {
+                let at = pos.or_else(|| self.run.drag_over.as_ref().map(|(_, at, _)| *at));
+                Some((crate::contract::rt::drag::payload_of(data, payload)?, at, *mods))
+            }
+            _ => None,
+        })
     }
 
     /// `Pointer::drop_target` for the payload whose type is `payload_type`, chosen at run time: a collection takes the
     /// payload types its drop kinds name. The target lies over this component's visible shapes on its own layer.
+    /// The node takes drags of the type in ui-rt's routing from the run that asks; the target decides from the payload
+    /// and the pointer what a drop on it does, and gets the drop in the run it lands in.
     pub(crate) fn drop_target_of<T: DropTarget<dyn Any + Send + Sync>>(&mut self, payload_type: TypeId, target: &T) -> Option<T::Drop> {
-        let _ = (payload_type, target);
-        todo!(
-            "drop targets chosen in a run: the node's DropRule (Component::drop_target) takes the payload in ui-rt's routing and its run reads NodeInput::Drop, INT-1c"
-        )
+        self.run.drop_types.borrow_mut().push((payload_type, false));
+        let (payload, at, mods) = self.dropped(payload_type)?;
+        let op = craft_behavior::keys::drop_operation(self.context().os(), mods, target.copy_keys());
+        target.accept(&*payload, at?, op)
     }
 }
 

@@ -301,6 +301,12 @@ pub(crate) struct RunIo<'a> {
     pub(crate) ime_body: RefCell<Option<std::sync::Arc<std::sync::Mutex<crate::contract::rt::ime::BodyReport>>>>,
     /// The pointer's place (window coordinates) over the node or a node under it when the run began (`CxCore::hover_point`).
     pub(crate) hover_point: Option<craft_ui_rt::Pos2>,
+    /// The drag over the node for the payload types its last run asked for, when the run began: its payload, the
+    /// pointer in window coordinates and the keys held (`Pointer::dragging`).
+    pub(crate) drag_over: Option<(craft_ui_rt::DragData, craft_ui_rt::Pos2, craft_ui_rt::Mods)>,
+    /// The payload types the run asked for (`Pointer::drop_target`; `true` for `window_drop_target`); the driver
+    /// keeps them, and the node takes their drags in ui-rt's routing.
+    pub(crate) drop_types: RefCell<smallvec::SmallVec<[(std::any::TypeId, bool); 1]>>,
 }
 
 impl<'a> RunIo<'a> {
@@ -331,6 +337,8 @@ impl<'a> RunIo<'a> {
             ime_history: (false, false),
             ime_body: RefCell::new(None),
             hover_point: None,
+            drag_over: None,
+            drop_types: RefCell::new(smallvec::SmallVec::new()),
         }
     }
 

@@ -55,8 +55,26 @@ pub enum NodeInput {
     Access(super::access::AccessAction),
     /// The drag the node started ended.
     DragEnd(DragOutcome),
-    /// A payload the node's drop rule takes was dropped on it.
-    Drop(DragData),
+    /// A payload the node takes (its drop rule, or a type its run asked for with `Pointer::drop_target`) was
+    /// dropped on it: the pointer in window coordinates (`None` for an OS drop with no position) and the keys held.
+    Drop {
+        /// The drag's payload.
+        data: DragData,
+        /// Where it was dropped, in window coordinates.
+        pos: Option<Pos2>,
+        /// The keys held, which pick the drop operation.
+        mods: Mods,
+    },
+    /// A drag whose payload the node's run asked for (`Pointer::drop_target`) moved over the node: the pointer in
+    /// window coordinates and the keys held. Every move runs the node, so its marks follow the pointer.
+    DragOver {
+        /// The drag's payload.
+        data: DragData,
+        /// The pointer, in window coordinates.
+        pos: Pos2,
+        /// The keys held.
+        mods: Mods,
+    },
     /// An intent the key stage took for the focused node (`super::keys`): from a key press, or typed
     /// or pasted text. The run reads the queued intents through `Cx::intents`.
     Intent {
@@ -293,6 +311,12 @@ pub(crate) struct Kept {
     pub(crate) members: Vec<super::items::MemberLooks>,
     /// The column group reports the node's last build or run made, handed to the open groups again while it is kept.
     pub(crate) column_reports: Vec<crate::layout::Report>,
+    /// The payload types the node's last run asked for (`Pointer::drop_target`, `window_drop_target`: `true` for a
+    /// window-wide target): the node records drop shapes for them and takes their drags in ui-rt's routing.
+    pub(crate) drop_types: smallvec::SmallVec<[(std::any::TypeId, bool); 1]>,
+    /// The drag over the node for those types, as the last offer left it: its payload, the pointer in window
+    /// coordinates and the keys held. Cleared when it leaves or drops.
+    pub(crate) drag_over: Option<(DragData, Pos2, Mods)>,
     /// The node's last run took its page and end moves (`Focus::take_scroll_moves`): the page and end keys a focused
     /// descendant leaves bubble to it and queue as moves for its next run.
     pub(crate) scroll_owner: bool,
@@ -351,6 +375,8 @@ impl Kept {
             press_watch: None,
             fold: None,
             scroll_owner: false,
+            drop_types: smallvec::SmallVec::new(),
+            drag_over: None,
         }
     }
 
@@ -494,9 +520,12 @@ impl Element for ComponentNode {
                 None => cx.hit(p.shape, p.sense, p.id),
             }
         }
-        if kept.drop.is_some() {
+        if kept.drop.is_some() || kept.drop_types.iter().any(|(_, window)| !window) {
             let bounds = cx.bounds();
             cx.drop_target(HitShape::Rect(bounds), 0);
+        }
+        if kept.drop_types.iter().any(|(_, window)| *window) {
+            cx.window_drop_target();
         }
         // The ring reads only the focus-visible fact: a focus move repaints the node, a hover does not.
         if let Some(ring) = kept.focus.ring
@@ -553,16 +582,34 @@ impl Element for ComponentNode {
                 Handled::Yes
             }
             Event::Drop(d) => {
-                let Some(rule) = kept.drop else { return Handled::No };
+                let rule = kept.drop.filter(|rule| rule.accepts(&d.data));
+                // A type the run asked for: the run decides from the pointer what the drop does, so every move reaches it.
+                let asked = kept.drop_types.iter().any(|(ty, _)| super::drag::carries(&d.data, *ty));
+                if rule.is_none() && !asked {
+                    return Handled::No;
+                }
                 match d.phase {
-                    DropPhase::Over if rule.accepts(&d.data) => cx.accept_drop(rule.op),
-                    DropPhase::Over => Handled::No,
+                    DropPhase::Over => {
+                        if asked && let Some(pos) = d.pos {
+                            kept.drag_over = Some((d.data.clone(), pos, d.mods));
+                            kept.queue.push(NodeInput::DragOver { data: d.data.clone(), pos, mods: d.mods });
+                            cx.request_build();
+                        }
+                        let op = rule.map_or_else(|| cx.drop_operation(craft_behavior::CopyKeys::Alt), |rule| rule.op);
+                        cx.accept_drop(op)
+                    }
+                    DropPhase::Leave => {
+                        if kept.drag_over.take().is_some() {
+                            cx.request_build();
+                        }
+                        Handled::Yes
+                    }
                     DropPhase::Drop => {
-                        kept.queue.push(NodeInput::Drop(d.data.clone()));
+                        kept.drag_over = None;
+                        kept.queue.push(NodeInput::Drop { data: d.data.clone(), pos: d.pos, mods: d.mods });
                         cx.request_build();
                         Handled::Yes
                     }
-                    _ => Handled::Yes,
                 }
             }
             Event::Wheel(w) if kept.takes_wheel() => {

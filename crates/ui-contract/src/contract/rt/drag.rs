@@ -14,10 +14,32 @@
 //! [`NodeInput::DragEnd`]: super::NodeInput::DragEnd
 //! [`NodeInput::Drop`]: super::NodeInput::Drop
 
+use std::any::{Any, TypeId};
+use std::sync::Arc;
+
 use craft_theme::Tokens;
 use craft_ui_rt::{DisplayList, DragData, DragGhost, DragStart, DropOperation, Item, Pos2, Rect, Stroke, Vec2};
 
 use crate::runtime::drag::DragPreview;
+
+/// A payload the contract drags: the value, and the extra values a drag carries beside it
+/// (`Pointer::start_drag_also`). Shared so a target gets the payload as `Arc<P>`.
+pub(crate) struct Payload {
+    value: Arc<dyn Any + Send + Sync>,
+    also: Vec<Arc<dyn Any + Send + Sync>>,
+}
+
+/// The value of type `payload` the drag `data` carries: its payload or one of the values beside it.
+/// Drags from the OS carry no contract payload and answer `None`.
+pub(crate) fn payload_of(data: &DragData, payload: TypeId) -> Option<Arc<dyn Any + Send + Sync>> {
+    let carried = data.get::<Payload>()?;
+    std::iter::once(&carried.value).chain(&carried.also).find(|value| (***value).type_id() == payload).cloned()
+}
+
+/// Whether the drag `data` carries a contract payload of type `payload`.
+pub(crate) fn carries(data: &DragData, payload: TypeId) -> bool {
+    payload_of(data, payload).is_some()
+}
 
 /// What a component drags: its payload and what shows beside the pointer.
 #[derive(Clone)]
@@ -30,8 +52,13 @@ pub struct DragSource {
 
 impl DragSource {
     /// Drags `payload` with `preview` beside the pointer.
-    pub fn new<P: 'static>(payload: P, preview: DragPreview) -> DragSource {
-        DragSource { payload: DragData::new(payload), preview }
+    pub fn new<P: Send + Sync + 'static>(payload: P, preview: DragPreview) -> DragSource {
+        DragSource::with_also(payload, Vec::new(), preview)
+    }
+
+    /// Drags `payload` and the values `also` beside it, which targets of their types take as well.
+    pub fn with_also<P: Send + Sync + 'static>(payload: P, also: Vec<Arc<dyn Any + Send + Sync>>, preview: DragPreview) -> DragSource {
+        DragSource { payload: DragData::new(Payload { value: Arc::new(payload), also }), preview }
     }
 
     /// The session ui-rt starts, with the preview recorded once against `tokens`.
@@ -53,7 +80,7 @@ pub struct DropRule {
 }
 
 fn is_type<P: 'static>(data: &DragData) -> bool {
-    data.is::<P>()
+    carries(data, TypeId::of::<P>()) || data.is::<P>()
 }
 
 impl DropRule {

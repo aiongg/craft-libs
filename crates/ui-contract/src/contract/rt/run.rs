@@ -504,6 +504,7 @@ pub(crate) fn run_shaped<C: Component>(
             ime_history: kept.ime.history(),
             ime_body: kept.ime.body.clone().into(),
             hover_point: cx.hover_point(node),
+            drag_over: kept.drag_over.clone(),
             ..RunIo::new(&input, context.clone())
         },
     );
@@ -661,6 +662,7 @@ pub(crate) fn run_shaped<C: Component>(
     // wheel ease paying out, a popup's dwell), the drag it started and the press it cancelled.
     kept.menu_bar = cxx.core.run.menu_bar.get();
     kept.scroll_owner = cxx.core.run.scroll_owner.get();
+    kept.drop_types = cxx.core.run.drop_types.take();
     kept.notch = component.wheel_notch();
     super::ime::after_run(&mut kept.ime, &cxx.core.run, rect.min, cx);
     let wake = cxx.core.run.wake.get().then(|| cx.now());
