@@ -8,10 +8,10 @@ use emath::{Rect, Vec2};
 use smallvec::SmallVec;
 use web_time::Instant;
 
-use crate::build::build_node;
+use crate::build::{BuildCx, build_inline_root, build_node};
 use crate::display::{ImageStore, Media, SurfaceKey};
 use crate::drag::{DragInfo, Session};
-use crate::element::{Element, ElementBox};
+use crate::element::{Element, ElementBox, InlineRoot};
 use crate::frame::{FrameTree, merge_damage, node_damage, parent_space};
 use crate::geom::{Margin, is_empty};
 use crate::gesture::WheelOptions;
@@ -46,6 +46,11 @@ pub struct FrameReport {
     pub built: u32,
     pub laid_out: u32,
     pub painted: u32,
+    /// Runs of contract component hooks inside inline builds ([`crate::BuildCx::count_run`]).
+    pub runs: u32,
+    /// Runs of scope closures inside inline builds, the window roots included
+    /// ([`crate::BuildCx::count_scope`]).
+    pub scopes: u32,
     pub access_ms: f64,
     /// Nodes in the frame's `TreeUpdate`s.
     pub access_nodes: u32,
@@ -56,6 +61,8 @@ pub(crate) struct Counters {
     pub(crate) built: u32,
     pub(crate) laid_out: u32,
     pub(crate) painted: u32,
+    pub(crate) runs: u32,
+    pub(crate) scopes: u32,
 }
 
 /// The cells every window shares.
@@ -265,6 +272,17 @@ impl Runtime {
     /// Replaces `window`'s app root with `root`, adding the window (empty size, scale 1 until the
     /// platform reports them) when it is new.
     pub fn set_root<E: Element>(&mut self, window: WindowId, root: E) {
+        self.install_root(window, root, false);
+    }
+
+    /// Gives `window` an inline app root: its content is the closure the host passes to
+    /// [`Runtime::frame_with`] in each frame that must reach it (a node under it is marked, or a
+    /// read in the closure changed). Adds the window as [`Runtime::set_root`] does.
+    pub fn set_inline_root(&mut self, window: WindowId) {
+        self.install_root(window, InlineRoot, true);
+    }
+
+    fn install_root<E: Element>(&mut self, window: WindowId, root: E, inline: bool) {
         self.add_window(window, Vec2::ZERO, 1.0);
         let Some(w) = self.windows.get(&window) else { return };
         let (id, content) = (w.app_root, w.layer(Layer::Content));
@@ -272,6 +290,7 @@ impl Runtime {
         let props_key = root.props_key();
         let mut node = Node::new(Some(content), None, window, 1, Some(Box::new(ElementBox::new(root))), props_key);
         node.boundary = true;
+        node.inline = inline;
         self.tree.nodes.insert(id, node);
         if let Some(layer) = self.tree.nodes.get_mut(&content) {
             layer.children = vec![id];
@@ -542,9 +561,23 @@ impl Runtime {
     }
 
     /// Build, layout and paint over dirty nodes only, then damage, per window.
+    /// An inline root that needs a build stays queued: hosts with inline roots call
+    /// [`Runtime::frame_with`].
     pub fn frame(&mut self, text: &mut dyn TextEngine) -> FrameReport {
+        self.run_frame(text, None)
+    }
+
+    /// [`Runtime::frame`] with the content of every inline root: `roots(window, cx)` runs inside
+    /// the build pass for each window whose inline root is queued, as often as the frame's build
+    /// rounds reach it.
+    pub fn frame_with(&mut self, text: &mut dyn TextEngine, roots: &mut dyn FnMut(WindowId, &mut BuildCx<'_>)) -> FrameReport {
+        self.run_frame(text, Some(roots))
+    }
+
+    fn run_frame(&mut self, text: &mut dyn TextEngine, mut roots: Option<&mut dyn FnMut(WindowId, &mut BuildCx<'_>)>) -> FrameReport {
         let mut report = FrameReport::default();
         self.counters = Counters::default();
+        let mut held = Vec::new();
         for _ in 0..MAX_ROUNDS {
             self.apply_marks();
             let placing = self.windows.values().any(|w| w.relayout);
@@ -553,7 +586,7 @@ impl Runtime {
             }
             report.rounds += 1;
             let t = Instant::now();
-            self.build_pass();
+            self.build_pass(&mut roots, &mut held);
             report.build_ms += ms(t);
             self.apply_marks();
             let t = Instant::now();
@@ -595,6 +628,9 @@ impl Runtime {
         report.built = self.counters.built;
         report.laid_out = self.counters.laid_out;
         report.painted = self.counters.painted;
+        report.runs = self.counters.runs;
+        report.scopes = self.counters.scopes;
+        self.tree.build_q.extend(held);
         report
     }
 
@@ -648,11 +684,22 @@ impl Runtime {
         }
     }
 
-    fn build_pass(&mut self) {
+    /// Builds the queued nodes, owners first. An inline root runs `roots` (or waits in `held`
+    /// without it); other inline nodes are reached by their owners' builds.
+    fn build_pass(&mut self, roots: &mut Option<&mut dyn FnMut(WindowId, &mut BuildCx<'_>)>, held: &mut Vec<NodeId>) {
+        use crate::tree::Dirty;
         let queue = std::mem::take(&mut self.tree.build_q);
         let queue = self.tree.by_depth(queue);
         for id in queue {
-            if self.tree.nodes.get(&id).is_some_and(|n| n.dirty.has(crate::tree::Dirty::BUILD)) {
+            let Some(n) = self.tree.nodes.get(&id) else { continue };
+            if n.inline {
+                if n.owner.is_none() && (n.dirty.has(Dirty::BUILD) || n.dirty.has(Dirty::PATH)) {
+                    match roots {
+                        Some(roots) => build_inline_root(self, id, &mut **roots),
+                        None => held.push(id),
+                    }
+                }
+            } else if n.dirty.has(Dirty::BUILD) {
                 build_node(self, id);
             }
         }

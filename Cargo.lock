@@ -2078,6 +2078,7 @@ dependencies = [
  "craft-ui",
  "craft-ui-platform-headless",
  "craft-ui-platform-winit",
+ "craft-ui-render-epaint",
  "craft-ui-rt",
  "craft-update",
  "craft-usd",
@@ -4641,6 +4642,8 @@ dependencies = [
  "craft-tracked",
  "craft-ui-contract",
  "craft-ui-macros",
+ "craft-ui-platform-headless",
+ "craft-ui-rt",
  "craft-ui-test-kit",
  "craft-window",
  "egui",
@@ -4783,6 +4786,23 @@ dependencies = [
  "web-sys",
  "web-time",
  "winit",
+]
+
+[[package]]
+name = "craft-ui-render-epaint"
+version = "0.1.0"
+dependencies = [
+ "craft-theme",
+ "craft-ui-rt",
+ "egui-wgpu",
+ "emath",
+ "epaint",
+ "epaint_default_fonts",
+ "kurbo",
+ "log",
+ "pollster 0.4.0",
+ "raw-window-handle",
+ "web-time",
 ]
 
 [[package]]

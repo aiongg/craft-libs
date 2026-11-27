@@ -147,6 +147,15 @@ impl PaintCx<'_> {
         out
     }
 
+    /// Appends a recorded list's items at the current level: a node replaying display lists it
+    /// recorded earlier (the contract bridge's paint variants).
+    pub fn extend(&mut self, list: &DisplayList) {
+        match self.part {
+            Part::Content => self.content.items.extend(list.items.iter().cloned()),
+            Part::Overlay => self.overlay.items.extend(list.items.iter().cloned()),
+        }
+    }
+
     pub fn push(&mut self, item: Item) {
         match self.part {
             Part::Content => self.content.items.push(item),

@@ -4,6 +4,7 @@
 
 mod command_set;
 mod component;
+mod component_key;
 mod env;
 mod memo;
 mod pattern;
@@ -113,6 +114,15 @@ pub fn derive_plain_data(input: TokenStream) -> TokenStream {
 #[proc_macro_derive(MemoProps, attributes(memo_props))]
 pub fn derive_memo_props(input: TokenStream) -> TokenStream {
     expanded(memo::derive(input.into()))
+}
+
+/// Writes `contract::rt::ComponentKey`, the key that decides whether a component on craft-ui-rt runs or keeps its
+/// outputs: every field feeds it through `MemoProps`, in order. `#[key(skip)]` leaves out a field the hooks do not read;
+/// `#[key(by = expr)]` feeds `expr` instead and may name `self`. `#[component(unkeyed)]` on the type writes no key: the
+/// component runs at every build of its scope.
+#[proc_macro_derive(ComponentKey, attributes(key, component))]
+pub fn derive_component_key(input: TokenStream) -> TokenStream {
+    expanded(component_key::derive(input.into()))
 }
 
 /// Writes `ComponentStyle` from `#[style(surface)]`, `#[style(focus)]` and `#[style(metrics)]` fields (one each),

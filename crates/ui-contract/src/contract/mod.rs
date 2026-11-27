@@ -31,6 +31,8 @@ mod props;
 mod registry;
 #[doc(hidden)]
 pub mod reorder;
+#[cfg(feature = "rt")]
+pub mod rt;
 mod run;
 mod sampler;
 mod settle;

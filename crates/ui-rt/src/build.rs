@@ -365,11 +365,19 @@ pub(crate) fn build_inline_root(rt: &mut Runtime, id: NodeId, content: &mut dyn 
     node.dirty.remove(Dirty::BUILD);
     node.dirty.remove(Dirty::PATH);
     let window = node.window;
+    let Some(mut el) = node.element.take() else {
+        return;
+    };
     let old = std::mem::take(&mut node.children);
     let old_layered = std::mem::take(&mut node.layered);
     let mut cx = BuildCx { rt, node: id, window, children: Vec::new(), layered: Vec::new(), pos: 0, scope: None, keep: false };
+    // Creates the root's `Local` on the first build; the element's own build adds nothing.
+    el.build(&mut cx);
     content(window, &mut cx);
     let BuildCx { children, layered, keep, .. } = cx;
+    if let Some(node) = rt.tree.nodes.get_mut(&id) {
+        node.element = Some(el);
+    }
     let changed = !keep && (children != old || layered != old_layered);
     finish_children(rt, id, old, old_layered, children, layered, keep);
     if changed {

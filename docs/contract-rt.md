@@ -182,12 +182,12 @@ No frozen trait changes. Additions:
 
 | Addition | File | Lines |
 |---|---|---|
-| `Node::inline`; `Dirty::PATH`; `mark_build` on an inline node marks owners `PATH` up to the root and queues the root | `tree.rs` | ~60 |
-| `BuildCx::inline(el, run, f)`: reconciles `el`, and when `run` says so (new, key moved, marked) builds its children through the borrowed `f` in a nested `BuildCx`, removing the children `f` did not reach; `BuildCx::inline_layer` for layer children | `build.rs` | ~150 |
-| `Runtime::set_inline_root`, `Runtime::frame_with(text, roots)`; the build pass skips inline nodes and calls `roots` for queued roots | `runtime.rs` | ~80 |
-| `Driver::step_with(time, roots)` | `driver.rs` | ~20 |
-| `PaintCx::extend(&DisplayList)` for variants; later an `Arc` swap that skips the copy | `paint.rs` | ~20 |
-| counters `runs` and `scopes` beside `built` | `runtime.rs` | ~10 |
+| `Node::inline`; `Dirty::PATH`; `mark_build` on an inline node marks owners `PATH` up to the root and queues the root | `tree.rs` | ~40 |
+| `BuildCx::inline(el, f)`: reconciles `el`, clears its marks and calls `f` with the node's `Local`, an `InlineState` (new, key moved, `BUILD`, `PATH`) and a nested `BuildCx`; `f` decides to run or keep, and `BuildCx::keep_children` leaves the subtree as it was; otherwise children `f` did not reach go. `mark_changed` and `request_layout` queue only what changed. `inline_layer` for layer children comes with the layers task | `build.rs` | ~150 |
+| `Runtime::set_inline_root`, `Runtime::frame_with(text, roots)`; the build pass calls `roots` for queued inline roots and skips other inline nodes | `runtime.rs` | ~70 |
+| `Driver::step_with(time, roots)`, `Driver::open_inline_window` | `driver.rs` | ~25 |
+| `PaintCx::extend(&DisplayList)` for variants; later an `Arc` swap that skips the copy | `paint.rs` | ~10 |
+| counters `runs` and `scopes` beside `built` (`BuildCx::count_run`, `count_scope`) | `runtime.rs`, `build.rs` | ~20 |
 
 ## 10. Services
 
