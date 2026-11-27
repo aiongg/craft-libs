@@ -447,6 +447,8 @@ impl TextEdit {
             (NavMove::Forward | NavMove::End, Granularity::Paragraph) => line_at(text, at).end,
             (NavMove::Back | NavMove::Start | NavMove::Up, _) => 0,
             (NavMove::Forward | NavMove::End | NavMove::Down, _) => text.len(),
+            // NavMove is non-exhaustive: a move this engine does not know leaves the caret.
+            _ => at,
         }
     }
 
@@ -505,7 +507,7 @@ impl TextEdit {
                     }
                 }
             }
-            EditorInput::DeleteSurrounding { before: b, after: a, unit } => {
+            EditorInput::DeleteSurrounding { before: b, after: a, unit, .. } => {
                 let chars_before = unit.chars_before(*b, &text[..self.caret]);
                 let chars_after = unit.chars_after(*a, &text[self.caret..]);
                 let start = text[..self.caret].char_indices().rev().take(chars_before).last().map_or(self.caret, |(i, _)| i);
@@ -519,7 +521,7 @@ impl TextEdit {
                 }
             }
             EditorInput::Select { .. } => {}
-            EditorInput::Preedit { text: composing, cursor } => {
+            EditorInput::Preedit { text: composing, cursor, .. } => {
                 if composing.is_empty() {
                     self.preedit = None;
                 } else {
