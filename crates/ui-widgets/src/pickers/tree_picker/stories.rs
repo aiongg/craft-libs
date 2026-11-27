@@ -3,7 +3,7 @@
 use super::{TreeEntry, TreePicker};
 use crate::contract::{Props as _, Show as _, Validity};
 use crate::runtime::env::Message;
-use crate::testing::{Drive, Harness, StoryData, StoryOutput, story};
+use crate::testing::{Drive, StoryHarness, StoryData, StoryOutput, story};
 use craft_behavior::Mixed;
 use craft_theme::ControlSize;
 use craft_ui::Ui;
@@ -50,9 +50,9 @@ fn tree_picker_invalid(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 }
 
 /// Focuses the field and opens the tree with Alt+Down.
-fn open_tree(fixture: &mut Harness) {
+fn open_tree(fixture: &mut StoryHarness) {
     fixture.key(Key::Tab, Mods::NONE);
-    fixture.key(Key::ArrowDown, Mods::ALT);
+    fixture.key(Key::Down, Mods::ALT);
     fixture.idle(4);
 }
 

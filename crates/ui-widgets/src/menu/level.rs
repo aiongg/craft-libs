@@ -54,7 +54,6 @@ type KeptLetters = (Folder, Vec<Lettered>, Vec<Option<(char, Option<usize>)>>);
 struct LevelState {
     /// The rows of the pass `pass`, in the order they registered.
     now: Vec<Row>,
-    pass: u64,
     /// The letters of the rows as the user last saw them, for a typed letter that arrives before this pass's rows.
     shown: Vec<Assigned>,
     /// The interface language's folder when rows get access letters; `None` on a Mac menu.
@@ -152,6 +151,7 @@ impl MenuLevel {
     /// Rows get no mnemonic when `lettered` is `None`: a Mac menu has no access letters.
     fn begin(&self, submenu: bool, values: bool, keyboard: bool, lettered: Option<Folder>, pointer: Option<Pos2>, pad: f32) {
         self.with(|state| {
+            state.now.clear();
             state.pad = pad;
             state.keyboard = keyboard;
             state.lettered = lettered;
@@ -172,37 +172,17 @@ impl MenuLevel {
     /// Starts a run of the menu in pass `pass`. A menu that did not run in the pass before (it was closed, and a
     /// closed menu does not run) drops what its last open run left for the next: the letters shown, a typed row, a
     /// close or a step not yet taken.
-    pub(crate) fn resume(&self, pass: u64) {
-        self.with(|state| {
-            if state.pass.saturating_add(1) < pass {
-                state.now.clear();
-                state.shown.clear();
-                state.run = None;
-                state.close = false;
-                state.step = None;
-            }
-        });
-    }
-
     /// Ends a body run of pass `pass`: the rows of this pass give the letters the user sees. A pass that registered no
     /// rows shows none.
-    pub(crate) fn end(&self, pass: u64) {
+    pub(crate) fn end(&self) {
         self.with(|state| {
-            if state.pass != pass {
-                state.pass = pass;
-                state.now.clear();
-            }
             let letters = if let Some(folder) = state.lettered { state.letters(folder).to_vec() } else { vec![None; state.now.len()] };
             state.shown = state.now.iter().zip(letters).map(|(row, mnemonic)| Assigned { id: row.id, mnemonic, enabled: row.enabled }).collect();
         });
     }
 
-    pub(super) fn register(&self, pass: u64, row: Row) {
+    pub(super) fn register(&self, row: Row) {
         self.with(|state| {
-            if state.pass != pass {
-                state.pass = pass;
-                state.now.clear();
-            }
             match state.now.iter_mut().find(|known| known.id == row.id) {
                 Some(known) => *known = row,
                 None => state.now.push(row),
@@ -393,8 +373,8 @@ impl MenuLevel {
 pub(crate) fn level_env<C: Component>(cx: &Cx<'_, C>, values: &mut AppValues, submenu: bool, valued: bool, pad: f32) {
     let level = MenuLevel::of(&cx.recall::<LevelMemory>());
     // The aim follows every move of the pointer while the menu shows: a tracked read.
-    let pointer = crate::runtime::pointer::frame(&cx.core.ctx).pos;
-    let keyboard = crate::runtime::focus::keyboard_in_menu(&cx.core.ctx);
+    let pointer = cx.core.hover_point();
+    let keyboard = cx.core.keyboard_in_menu();
     level.begin(submenu, valued, keyboard, (!cx.env.shell().os.is_mac()).then(|| cx.env.folder()), pointer, pad);
     values.set(level);
 }

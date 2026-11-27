@@ -12,7 +12,6 @@ use crate::contract::{
 use crate::display::Divider;
 use crate::runtime::env::{Env, Label, with_env};
 use crate::runtime::focus::{FocusPolicy, Initial};
-use crate::runtime::frame;
 use crate::runtime::overlay::CloseReason;
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
 use craft_behavior::overlay::{Align, Side};
@@ -66,7 +65,7 @@ impl Outcome for MenuOutput {
 }
 
 /// What [`Menu::pick`] returns: the response, how the menu closed and the value of the entry that ran.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct MenuPick<T> {
     /// The menu's response.
@@ -376,7 +375,7 @@ impl<'a> Menu<'a> {
         let shown = if head.sibling_submenu_open() { with_env(ui, |env| env.motion = Some(MotionMode::Off), show) } else { show(ui) };
         // `MenuItem::update` does not run in a measuring run, so `open` is false there and would clear the level's
         // open submenu the real run set.
-        if crate::runtime::measure::effect(ui.ctx(), "menu::note_submenu") {
+        if !ui.is_measuring() {
             head.note_submenu(open && shown.output.closed.is_none(), shown.output.response.rect);
         }
         head
@@ -428,10 +427,9 @@ impl Component for Menu<'_> {
     /// row, and Enter, which runs the active row, or else the first enabled one; the focus stays in the field.
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         let level = MenuLevel::of(cx.memory::<LevelMemory>());
-        level.resume(cx.core.ctx.cumulative_pass_nr());
         while let Some((mv, _)) = cx.intents().take_move() {
             if level.step_active(mv) {
-                cx.core.ctx.request_repaint();
+                cx.core.context().request_repaint();
             }
         }
         // Enter routed from the field arrives as the menu's own activation by key: the row it names runs, and the run
@@ -441,15 +439,14 @@ impl Component for Menu<'_> {
         {
             cx.keep_open();
             level.run(row);
-            cx.core.ctx.request_repaint();
+            cx.core.context().request_repaint();
         }
         // The rows run after this, so the pass that moved the pointer onto a row paints it, and the row it left, as the
         // level now has them.
-        if crate::runtime::pointer::frame(&cx.core.ctx).delta != craft_ui::geom::Vec2::ZERO {
-            let ctx = cx.core.ctx.clone();
-            level.follow_pointer(|row| crate::runtime::pointer::hovers(&ctx, row));
+        if cx.core.pointer().delta != craft_ui::geom::Vec2::ZERO {
+            level.follow_pointer(|row| cx.core.hovers(row));
         }
-        let keyboard = crate::runtime::focus::keyboard_in_menu(&cx.core.ctx);
+        let keyboard = cx.core.keyboard_in_menu();
         self.props.roving = self.props.roving.map(|roving| roving.no_lead(!keyboard && !level.has_active()));
         if let Some(row) = level.active() {
             cx.roving_lead(row);
@@ -471,7 +468,7 @@ impl Component for Menu<'_> {
             cx.claim(chord);
             if cx.take_claimed(chord) {
                 level.run(row);
-                cx.core.ctx.request_repaint();
+                cx.core.context().request_repaint();
             }
         }
     }
@@ -482,7 +479,7 @@ impl Component for Menu<'_> {
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> MenuOutput {
-        MenuLevel::of(&cx.recall::<LevelMemory>()).end(cx.core.ctx.cumulative_pass_nr());
+        MenuLevel::of(&cx.recall::<LevelMemory>()).end();
         MenuOutput { response: cx.response.clone(), closed: self.closed.or(self.back.then_some(CloseReason::Requested)), step: self.step }
     }
 }

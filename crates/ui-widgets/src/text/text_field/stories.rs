@@ -8,7 +8,7 @@ use crate::form::{Field, FieldGroup};
 use crate::layout_components::Stack;
 use crate::primitives::{Completer, Completion, IconSpec, SubmitKey};
 use crate::runtime::env::Message;
-use crate::testing::{Drive, Harness, StoryData, StoryOutput, story};
+use crate::testing::{Drive, StoryHarness, StoryData, StoryOutput, story};
 use craft_behavior::{IconId, Mixed, PlainText};
 use craft_theme::ControlSize;
 use craft_ui::Ui;
@@ -125,7 +125,7 @@ impl Completer for Prefixes {
 }
 
 /// Focuses the field and types the start of a word, which opens the completion list.
-fn open_completions(fixture: &mut Harness) {
+fn open_completions(fixture: &mut StoryHarness) {
     fixture.key(Key::Tab, Mods::NONE);
     fixture.type_text("al");
     fixture.idle(4);
@@ -210,7 +210,7 @@ impl Completer for Functions {
 }
 
 /// Focuses the field and types the start of a function name, which opens the marked list.
-fn open_functions(fixture: &mut Harness) {
+fn open_functions(fixture: &mut StoryHarness) {
     fixture.key(Key::Tab, Mods::NONE);
     fixture.type_text("=SU");
     fixture.idle(4);

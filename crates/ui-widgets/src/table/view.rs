@@ -176,7 +176,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for Table<'_, K> {
         } else {
             Vec::new()
         };
-        let ctx = cx.core.ctx.clone();
+        let ctx = cx.core.context().clone();
         let words = cx.words::<TableWords>();
         let mut picks = Vec::new();
         let layer = crate::menu::layer(false).anchor(Anchor::Point(at));

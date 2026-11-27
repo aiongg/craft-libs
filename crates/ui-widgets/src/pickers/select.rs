@@ -318,7 +318,11 @@ fn step(stops: &[usize], from: Option<usize>, mv: NavMove) -> Option<usize> {
 
 impl<T: Value + 'static> Component for Select<'_, T> {
     const ROLE: Role = Role::COMBO_BOX;
-    const KEYS: crate::runtime::focus::KeyUse = crate::runtime::focus::KeyUse::of(crate::contract::Input::Pointer).with_moves().with_type_ahead();
+    const KEYS: crate::runtime::focus::KeyUse = {
+        let mut keys = crate::runtime::focus::KeyUse::of(crate::contract::Input::Pointer).with_moves();
+        keys.type_ahead = true;
+        keys
+    };
     type Style = SelectStyle;
     type Output = EditResponse<T>;
 

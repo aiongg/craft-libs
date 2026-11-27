@@ -16,6 +16,29 @@ pub use craft_ui_contract::registry;
 pub use craft_ui_contract::{__private, __register_command_set, __register_contract, __register_pattern};
 pub use craft_ui_contract::{contract, fonts, layout, primitives, runtime, style, words};
 
+// Root names the derives and components use as `craft_ui::…`, the same as the facade's.
+#[doc(hidden)]
+pub use craft_ui_contract::contract::{Context, Id, IdSalt, Response, Shown, Ui, UiBuilder};
+#[doc(hidden)]
+pub use craft_ui_contract::primitives::Color32;
+// The contract's `Draw` and `PaintShape` still take egui's corner radius.
+#[doc(hidden)]
+pub use egui::CornerRadius;
+#[doc(hidden)]
+pub use craft_ui_rt::{WindowCommand, WindowId};
+
+/// Geometry in logical points.
+#[doc(hidden)]
+pub mod geom {
+    pub use craft_ui_rt::{Align, Pos2, Rangef, Rect, Vec2, lerp, pos2, vec2};
+}
+
+/// Keys, modifiers, pointer buttons and cursors.
+#[doc(hidden)]
+pub mod input {
+    pub use craft_ui_rt::{CursorIcon, Key, Mods, PointerButton};
+}
+
 pub mod bars;
 pub mod buttons;
 pub mod choice;
@@ -46,6 +69,49 @@ pub mod testing {
     #[cfg(feature = "suite")]
     pub use crate::story_kit::{props, story_props};
     pub use craft_ui_contract::testing::*;
+
+    /// Pointer inputs for `Harness::send`.
+    pub mod pointer {
+        use craft_ui::geom::{Pos2, Vec2};
+        use craft_ui::input::{Mods, PointerButton};
+        use craft_ui_platform_headless::{Contact, Input};
+        use craft_ui_rt::PointerPhase;
+
+        /// The pointer moving to `pos`.
+        pub fn moved(pos: Pos2) -> Input {
+            Input::mouse_move(pos)
+        }
+
+        /// The primary button going down at `pos`.
+        pub fn press(pos: Pos2) -> Input {
+            Input::mouse_down(pos)
+        }
+
+        /// The primary button going up at `pos`.
+        pub fn release(pos: Pos2) -> Input {
+            Input::mouse_up(pos)
+        }
+
+        fn button(button: PointerButton, pos: Pos2, pressed: bool) -> Input {
+            let phase = if pressed { PointerPhase::Down } else { PointerPhase::Up };
+            Input::pointer(Contact { button, ..Contact::MOUSE }, phase, pos)
+        }
+
+        /// The secondary button going down or up at `pos`.
+        pub fn secondary(pos: Pos2, pressed: bool) -> Input {
+            button(PointerButton::Secondary, pos, pressed)
+        }
+
+        /// The middle button going down or up at `pos`.
+        pub fn middle(pos: Pos2, pressed: bool) -> Input {
+            button(PointerButton::Middle, pos, pressed)
+        }
+
+        /// A wheel step of `dy` points at `pos`.
+        pub fn wheel(pos: Pos2, dy: f32) -> Input {
+            Input::Wheel { pos, delta: Vec2::new(0.0, dy), mods: Mods::NONE }
+        }
+    }
 
     #[cfg(feature = "suite")]
     crate::registry!();

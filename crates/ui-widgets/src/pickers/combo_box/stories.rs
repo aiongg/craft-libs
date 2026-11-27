@@ -4,7 +4,7 @@ use super::ComboBox;
 use crate::contract::{Entry, Show as _, Validity};
 use crate::runtime::env::Message;
 use crate::testing::pointer::moved;
-use crate::testing::{Drive, Harness, StoryData, StoryOutput, story};
+use crate::testing::{Drive, StoryHarness, StoryData, StoryOutput, story};
 use craft_behavior::{Mixed, Preview};
 use craft_ui::Ui;
 use craft_ui::input::{Key, Mods};
@@ -48,9 +48,9 @@ fn combo_box_no_options(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 }
 
 /// Focuses the field and opens the list on every option with Alt+Down.
-fn open_list(fixture: &mut Harness) {
+fn open_list(fixture: &mut StoryHarness) {
     fixture.key(Key::Tab, Mods::NONE);
-    fixture.key(Key::ArrowDown, Mods::ALT);
+    fixture.key(Key::Down, Mods::ALT);
     fixture.idle(4);
 }
 
@@ -62,7 +62,7 @@ fn combo_box_open(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 }
 
 /// Opens the list and rests the pointer on the Garamond row, which the list previews.
-fn hover_option(fixture: &mut Harness) {
+fn hover_option(fixture: &mut StoryHarness) {
     open_list(fixture);
     if let Some(row) = fixture.by_label("Garamond") {
         fixture.send(moved(row.center()));

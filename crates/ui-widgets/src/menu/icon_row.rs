@@ -8,7 +8,6 @@ use crate::contract::{
 use crate::primitives::IconSpec;
 use crate::runtime::env::Label;
 use crate::runtime::focus::FocusTarget;
-use crate::runtime::frame;
 use crate::style::{ComponentStyle, FocusLook, IconLook, StyleCx, SurfaceLook};
 use craft_behavior::{Arrows, Flow, Insets, Metrics, NavShape, PartKey, PartRef, Roving, Sense};
 use craft_ui::geom::{Rect, Vec2};
@@ -91,8 +90,8 @@ impl<'a> MenuIconRow<'a> {
         enabled && self.icons.iter().any(|icon| icon.enabled)
     }
 
-    fn register(&self, ctx: &Context, level: &MenuLevel, id: Id, label: &str, enabled: bool) {
-        level.register(ctx.cumulative_pass_nr(), Row { id, text: label.to_owned(), own: None, enabled: self.runs(enabled) });
+    fn register(&self, level: &MenuLevel, id: Id, label: &str, enabled: bool) {
+        level.register(Row { id, text: label.to_owned(), own: None, enabled: self.runs(enabled) });
     }
 }
 
@@ -125,7 +124,7 @@ impl Component for MenuIconRow<'_> {
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
         let level = cx.env.get::<MenuLevel>();
         // The measuring run of the menu body registers the rows, so the real run's letters come from this pass's rows.
-        self.register(cx.ui.ctx(), &level, cx.id, cx.resolved.label, cx.resolved.enabled);
+        self.register(&level, cx.id, cx.resolved.label, cx.resolved.enabled);
         let count = self.icons.len() as f32;
         let width = cx.style.cell * count + cx.style.gap * (count - 1.0).max(0.0);
         Vec2::new(cx.room.map_or(width, |room| width.min(room)), cx.style.cell)
@@ -157,10 +156,10 @@ impl Component for MenuIconRow<'_> {
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         cx.join_roving();
-        let ctx = cx.core.ctx.clone();
+        let ctx = cx.core.context().clone();
         let level = cx.env.get::<MenuLevel>();
         let enabled = cx.resolved.enabled;
-        self.register(&ctx, &level, cx.id, cx.resolved.label, enabled);
+        self.register(&level, cx.id, cx.resolved.label, enabled);
         let runs = self.runs(enabled);
         let input = RowInput::of(cx, &level);
         let (moving, hovered) = (input.moving, input.hovered);
@@ -178,7 +177,7 @@ impl Component for MenuIconRow<'_> {
             && runs
             && let Some(first) = self.icons.iter().position(|icon| icon.enabled)
         {
-            crate::runtime::focus::request(&ctx, FocusTarget::Part(cx.id, Self::part(first)));
+            cx.request_focus(FocusTarget::Part(cx.id, Self::part(first)));
         }
         let icons = self.icons;
         self.picked = icons
@@ -188,7 +187,7 @@ impl Component for MenuIconRow<'_> {
             .map(|(at, _)| at)
             .find(|at| cx.part_activated(Self::part(*at)).is_some());
         if self.picked.is_some() {
-            close_on_pick(&ctx);
+            close_on_pick(cx.core);
         }
     }
 

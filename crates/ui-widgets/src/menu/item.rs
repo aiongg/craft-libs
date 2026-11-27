@@ -2,7 +2,7 @@
 
 use super::popup::MenuStep;
 use crate::contract::{
-    Access, Common, Component, Cx, Focus as _, MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props, Remember as _, Role,
+    Access, Common, Component, Cx, CxCore, Focus as _, MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props, Remember as _, Role,
     Styled as _,
 };
 use crate::display::Kbd;
@@ -11,7 +11,6 @@ use crate::primitives::{IconSpec, StrokeWidth, TextRun, glyph};
 use crate::runtime::access::PopupKind;
 use crate::runtime::commands::{CommandRef, FireSource, ResolvedCommand};
 use crate::runtime::env::Label;
-use crate::runtime::frame;
 use crate::style::{ComponentStyle, Flags, IconLook, StyleCx, SurfaceLook, TextLook, TypeRole};
 use craft_behavior::{ColumnKey, Flow, IconId, Insets, Metrics, NavMove, PartKey, Sense};
 use craft_keymap::mnemonic;
@@ -41,9 +40,9 @@ const AIM_REST: f64 = 0.3;
 /// Closes the menus out from the one a picked row runs in. Focus leaves them first, so a command the row fires after
 /// this reaches the stop focus returns to. Every row that runs on a pick (`MenuItem`, `MenuIconRow`) closes through
 /// this one path.
-pub(crate) fn close_on_pick(ctx: &Context) {
-    if let Some(menu) = crate::runtime::focus::running_menu(ctx) {
-        crate::runtime::focus::return_from_pick(ctx, crate::runtime::focus::PickedIn::Menus(menu));
+pub(crate) fn close_on_pick(core: &mut CxCore<'_>) {
+    if let Some(menu) = core.running_menu() {
+        core.return_from_pick(crate::runtime::focus::PickedIn::Menus(menu));
     }
 }
 
@@ -77,7 +76,7 @@ impl RowInput {
     /// `Focus`, the app) was aimed at, and the key runs it.
     pub(crate) fn of<C: Component>(cx: &mut Cx<'_, C>, level: &MenuLevel) -> RowInput {
         // The rest restarts at each move: a tracked read.
-        let moving = crate::runtime::pointer::frame(&cx.core.ctx).delta != Vec2::ZERO;
+        let moving = cx.core.pointer().delta != Vec2::ZERO;
         let hovered = cx.response.hovered();
         let focused = cx.is_focused();
         let keyboard = level.keyboard();
@@ -88,17 +87,16 @@ impl RowInput {
         rest.focused = focused;
         let started = keyboard && !rest.keyboard;
         rest.keyboard = keyboard;
-        let opened = focused && crate::runtime::focus::focus_came_with_open(&cx.core.ctx);
+        let opened = focused && cx.core.focus_came_with_open();
         let lit = level.active_enabled();
         let withheld = started && by_key && opened && lit != Some(id);
         if withheld {
             match lit {
                 Some(row) => level.run(row),
                 None => {
-                    let ctx = &cx.core.ctx;
-                    if let Some(menu) = crate::runtime::focus::running_menu(ctx) {
-                        crate::runtime::focus::return_from_pick(ctx, crate::runtime::focus::PickedIn::Menus(menu));
-                        crate::runtime::overlay::request_close(ctx, menu, crate::runtime::overlay::CloseReason::Requested);
+                    if let Some(menu) = cx.core.running_menu() {
+                        cx.core.return_from_pick(crate::runtime::focus::PickedIn::Menus(menu));
+                        cx.core.close_layer(menu, crate::runtime::overlay::CloseReason::Requested);
                     }
                 }
             }
@@ -454,32 +452,39 @@ impl<'a> MenuItem<'a> {
         Placed { mark, icon, label: flow.rect(), sample, trail }
     }
 
-    fn register(&self, ctx: &Context, level: &MenuLevel, id: Id, label: &str, enabled: bool) {
-        level.register(ctx.cumulative_pass_nr(), Row { id, text: label.to_owned(), own: self.mnemonic, enabled });
+    fn register(&self, level: &MenuLevel, id: Id, label: &str, enabled: bool) {
+        level.register(Row { id, text: label.to_owned(), own: self.mnemonic, enabled });
     }
 
     /// The row's mark and icon columns with the gap after each: as wide as the column group of the menu body gives
     /// them (the widest of its rows, from this pass's measuring run), or the row's own outside a group.
-    fn lead_columns(&self, ctx: &Context, side: f32, gap: f32, command: Option<&ResolvedCommand>, level: &MenuLevel) -> (f32, f32) {
+    fn lead_columns(
+        &self,
+        ambient: &dyn Fn(&ColumnKey, f32) -> Option<f32>,
+        side: f32,
+        gap: f32,
+        command: Option<&ResolvedCommand>,
+        level: &MenuLevel,
+    ) -> (f32, f32) {
         let own = |on: bool| if on { side + gap } else { 0.0 };
-        let shared = |column: &ColumnKey, width: f32| crate::layout::ambient_width(ctx, column, width).unwrap_or(width);
+        let shared = |column: &ColumnKey, width: f32| ambient(column, width).unwrap_or(width);
         (shared(&MARKS, own(self.mark(command, level).is_some())), shared(&ICONS, own(self.lead_icon(command).is_some())))
     }
 
     /// The row's sample column with the gap before it: as wide as the column group of the menu body gives it (the
     /// widest sample of its rows), or the row's own outside a group. A sample is as high as the label line, `line`
     /// high; a level with no sample has no column.
-    fn sample_column(&self, ctx: &Context, line: f32, gap: f32) -> f32 {
+    fn sample_column(&self, ambient: &dyn Fn(&ColumnKey, f32) -> Option<f32>, line: f32, gap: f32) -> f32 {
         let own = self.sample.as_ref().map_or(0.0, |(aspect, _)| gap + aspect.of(line));
-        crate::layout::ambient_width(ctx, &SAMPLES, own).unwrap_or(own)
+        ambient(&SAMPLES, own).unwrap_or(own)
     }
 
     /// The row's columns, for a label line `line` high.
     fn columns(&self, cx: &MeasureCx<'_, Self>, level: &MenuLevel, line: f32) -> Columns {
         let side = cx.icon();
         let command = cx.command();
-        let (mark, icon) = self.lead_columns(cx.ui.ctx(), side, cx.gap(), command, level);
-        let sample = self.sample_column(cx.ui.ctx(), line, cx.gap());
+        let (mark, icon) = self.lead_columns(&|column, width| cx.ambient_width(column, width), side, cx.gap(), command, level);
+        let sample = self.sample_column(&|column, width| cx.ambient_width(column, width), line, cx.gap());
         let trail = if self.submenu { side } else { self.keys(command).map_or(0.0, |keys| cx.face(keys).x) };
         Columns { mark, icon, sample, trail }
     }
@@ -536,7 +541,7 @@ impl Component for MenuItem<'_> {
         let level = cx.env.get::<MenuLevel>();
         // The measuring run of the menu body registers the rows, so the real run's letters come from this pass's rows.
         if !self.heading {
-            self.register(cx.ui.ctx(), &level, cx.id, cx.resolved.label, cx.resolved.enabled);
+            self.register(&level, cx.id, cx.resolved.label, cx.resolved.enabled);
         }
         let detail = self.detail_size(cx);
         let text = mnemonic::marked(cx.resolved.label, &cx.env.folder()).0;
@@ -555,7 +560,7 @@ impl Component for MenuItem<'_> {
         let rest = shown.max(detail.x) + step(columns.trail, cx.style.shortcut_gap.max(gap));
         // A row measured before the level's widest mark, icon or sample read narrower columns: the body's group adds
         // the widest columns to what the rows reach past them.
-        crate::layout::report_beyond(cx.ui.ctx(), &[MARKS, ICONS, SAMPLES], padding.start + padding.end + rest);
+        cx.report_beyond(&[MARKS, ICONS, SAMPLES], padding.start + padding.end + rest);
         let width = columns.mark + columns.icon + columns.sample + rest;
         Vec2::new(cx.room.map_or(width, |room| width.min(room)), line + detail.y)
     }
@@ -587,10 +592,10 @@ impl Component for MenuItem<'_> {
             return;
         }
         cx.join_roving();
-        let ctx = cx.core.ctx.clone();
+        let ctx = cx.core.context().clone();
         let level = cx.env.get::<MenuLevel>();
         let enabled = cx.resolved.enabled;
-        self.register(&ctx, &level, cx.id, cx.resolved.label, enabled);
+        self.register(&level, cx.id, cx.resolved.label, enabled);
         let (mut forward, mut back) = (false, false);
         while let Some((step, _)) = cx.intents().take_move() {
             match step {
@@ -642,12 +647,7 @@ impl Component for MenuItem<'_> {
         if self.submenu {
             self.opens = asked || (enabled && forward) || (enabled && takes_over);
             if self.opens {
-                let replaces_sibling = level.sibling_submenu_open(cx.id);
                 if level.open_submenu(cx.id) {
-                    // An earlier row may already have drawn the old submenu in this pass.
-                    if replaces_sibling && frame::discardable(&ctx) {
-                        frame::discard_pass(&ctx, "menu: a sibling replaced the open submenu");
-                    }
                     ctx.request_repaint();
                 }
             }
@@ -663,7 +663,7 @@ impl Component for MenuItem<'_> {
             ctx.request_repaint();
         }
         if asked && !self.keep_open {
-            close_on_pick(&ctx);
+            close_on_pick(cx.core);
         }
         // Every activation of a menu row reaches its command as `FireSource::Menu`, whether it was typed, clicked or keyed.
         // A typed letter also runs a row that has no command: the injected activation closes the menu.
@@ -696,7 +696,7 @@ impl Component for MenuItem<'_> {
         let (rtl, side, gap) = (cx.flow.is_rtl(), cx.style.icon.side, cx.style.metrics.gap);
         let level = cx.env.get::<MenuLevel>();
         let command = cx.command.as_deref();
-        let (mark_column, icon_column) = self.lead_columns(&cx.core.ctx, side, gap, command, &level);
+        let (mark_column, icon_column) = self.lead_columns(&|column, width| cx.core.ambient_width(column, width), side, gap, command, &level);
         let text = mnemonic::marked(cx.resolved.label, &cx.env.folder()).0;
         let mark = self.mark(command, &level);
         let draw = ui.draw();
@@ -706,7 +706,7 @@ impl Component for MenuItem<'_> {
         let detail_height = detail_run.as_ref().map_or(0.0, |run| draw.layout(run, f32::INFINITY).size().y);
         let trail = if self.submenu { side } else { cx.part_if_declared(SHORTCUT).map_or(0.0, |part| part.rect.width()) };
         let line = label_line(cx.content_rect, detail_height);
-        let sample_column = self.sample_column(&cx.core.ctx, line.height(), gap);
+        let sample_column = self.sample_column(&|column, width| cx.core.ambient_width(column, width), line.height(), gap);
         let columns = Columns { mark: mark_column, icon: icon_column, sample: sample_column, trail };
         let placed = self.place(&columns, line, rtl, cx.style.shortcut_gap.max(gap));
         let ink = cx.resolve(&cx.style.icon.color);

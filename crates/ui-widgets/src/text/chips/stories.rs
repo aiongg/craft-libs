@@ -1,10 +1,9 @@
 //! Stories of `ChipField`.
 
 use super::ChipField;
-use crate::contract::Role;
 use crate::contract::{Props as _, Show as _, Validity};
 use crate::runtime::env::Message;
-use crate::testing::{Drive, Harness, StoryData, StoryOutput, story};
+use crate::testing::{Drive, StoryHarness, StoryData, StoryOutput, story};
 use craft_behavior::Mixed;
 use craft_theme::ControlSize;
 use craft_ui::Ui;
@@ -40,12 +39,8 @@ fn chip_field_long(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 }
 
 /// Opens the menu of the chips past the line limit.
-fn open_more(fixture: &mut Harness) {
-    let tree = fixture.tree();
-    let more = fixture
-        .by_role(Role::BUTTON)
-        .into_iter()
-        .find(|node| crate::testing::access::name(tree, node.node).is_some_and(|name| name.starts_with('+')));
+fn open_more(fixture: &mut StoryHarness) {
+    let more = fixture.by_role(egui::Role::Button).into_iter().find(|node| node.label.starts_with('+'));
     if let Some(more) = more {
         fixture.click(&more);
     }

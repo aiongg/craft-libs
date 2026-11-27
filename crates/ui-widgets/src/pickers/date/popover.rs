@@ -46,6 +46,7 @@ pub(super) struct CalendarAt<'a> {
 }
 
 /// What the calendar's body reported this pass.
+#[derive(Clone)]
 pub(super) struct Chosen {
     /// The day under the pointer.
     pub(super) hovered: Option<PickedDate>,

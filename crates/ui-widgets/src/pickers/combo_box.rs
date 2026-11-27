@@ -308,7 +308,7 @@ impl Component for ComboBox<'_> {
                 .filter(&query, |key| vec![labels[*key].clone()])
                 .ranked(true)
                 .show_items(ui, &rows, &mut |key, _| rows.row(*key, current, decorate, None));
-            under_pointer = shown.shown.iter().find(|row| row.hovered).map(|row| row.key);
+            under_pointer = shown.shown.iter().find(|row| ui.hovers(row.id)).map(|row| row.key);
             over_rows = under_pointer.is_some();
             shown.events
         });

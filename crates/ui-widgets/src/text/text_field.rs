@@ -469,7 +469,7 @@ impl<C: Codec + Clone + 'static> Component for TextField<'_, C> {
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         if let Some(list) = self.drives {
             let empty = cx.value().is_none_or(|value| self.codec.format(value).is_empty());
-            crate::runtime::focus::registration::drive(&cx.core.ctx, cx.core.id, list, empty);
+            crate::runtime::focus::registration::drive(&cx.core.context(), cx.core.id, list, empty);
         }
         if cx.part_activated(CLEAR).is_some()
             && let Some(empty) = self.empty.clone()
@@ -477,7 +477,7 @@ impl<C: Codec + Clone + 'static> Component for TextField<'_, C> {
             cx.set(empty);
             // The text part showed the old text earlier in this pass: the pass runs again, so the field shows and reports
             // the empty text in the pass that took the click, not one pass later.
-            crate::runtime::frame::discard_pass(&cx.core.ctx, "a search field's clear part emptied it");
+            crate::runtime::frame::discard_pass(&cx.core.context(), "a search field's clear part emptied it");
         }
     }
 
