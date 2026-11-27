@@ -709,6 +709,7 @@ pub(crate) fn measured_extent<C: Component>(
 pub(crate) fn paint_face<C: Show>(
     ui: &mut Ui,
     env: &Env,
+    host: &crate::primitives::Canvas<'static>,
     source: &super::FaceSource<'_>,
     part: PartRef,
     mut face: C,
@@ -749,10 +750,12 @@ pub(crate) fn paint_face<C: Show>(
     cx.core.state = state;
     cx.core.stated = true;
     cx.core.ink = steps::surface_ink(StyleView::surface(&*style), &state, env.ink);
-    steps::paint_surface(ui, env, cx.core, &*style);
+    let canvas = crate::primitives::Canvas::owned(ui.ctx().clone(), egui::Pos2::ZERO, ui.clip_rect());
+    if let Some(items) = steps::surface_items(ui, env, cx.core, &*style) {
+        canvas.extend(items);
+    }
     {
         let results = HashMap::new();
-        let canvas = crate::primitives::Canvas::owned(ui.ctx().clone(), egui::Pos2::ZERO, ui.clip_rect());
         let mut pui = PaintUi {
             ui: &mut *ui,
             env,
@@ -774,6 +777,7 @@ pub(crate) fn paint_face<C: Show>(
             fade: None,
             node: false,
             kids: None,
+            host: Some(host),
             canvas,
         };
         face.paint(&mut pui, &cx);

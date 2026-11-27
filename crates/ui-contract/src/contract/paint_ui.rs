@@ -58,6 +58,9 @@ pub struct PaintUi<'a> {
     pub(crate) kids: Option<Ui>,
     /// What `draw` records into.
     pub(crate) canvas: crate::primitives::Canvas<'static>,
+    /// The canvas of the component whose face this paints: what it records goes there, at the position of the
+    /// `face` call, instead of onto the painter.
+    pub(crate) host: Option<&'a crate::primitives::Canvas<'static>>,
 }
 
 impl PaintUi<'_> {
@@ -227,13 +230,13 @@ impl PaintUi<'_> {
     /// colour through `StyleCx::host_ink` and its muted colour through `StyleCx::host_muted_ink`. It registers no id, senses nothing, opens no memory stage and
     /// fires nothing.
     pub fn face<C: Show>(&mut self, part: impl Into<PartRef>, face: C) {
-        self.face_with(part.into(), face, self.text, true);
+        self.face_with(part.into(), face, self.text, true, 1.0);
     }
 
     /// `face`, for a face on a fill the composite draws for that part alone (a plate over a picture): the face reads
     /// `ink` through `StyleCx::host_ink` instead of the composite's text colour.
     pub fn face_in<C: Show>(&mut self, part: impl Into<PartRef>, face: C, ink: &Stateful<StyleColor>) {
-        self.face_with(part.into(), face, Some(ink), true);
+        self.face_with(part.into(), face, Some(ink), true, 1.0);
     }
 
     /// [`face`](Self::face) painted `share` as opaque as it would be (1 paints as `face` does, 0 paints nothing): a
@@ -241,16 +244,11 @@ impl PaintUi<'_> {
     /// non-finite one leaves the opacity as it was; fades stack with the opacity already in force. A faded face is a
     /// look only: it reports no sub-node, so a component fading out has no node while it fades.
     pub fn face_faded<C: Show>(&mut self, part: impl Into<PartRef>, face: C, share: f32) {
-        let kept = self.ui.opacity();
-        if share.is_finite() {
-            self.ui.set_opacity(kept * share.clamp(0.0, 1.0));
-        }
-        self.face_with(part.into(), face, self.text, false);
-        self.ui.set_opacity(kept);
+        self.face_with(part.into(), face, self.text, false, share);
     }
 
     /// Paints `face` for `part`; a `reported` face gives the part's sub-node its facts (`steps::report_parts`).
-    fn face_with<C: Show>(&mut self, part: PartRef, face: C, ink: Option<&Stateful<StyleColor>>, reported: bool) {
+    fn face_with<C: Show>(&mut self, part: PartRef, face: C, ink: Option<&Stateful<StyleColor>>, reported: bool, share: f32) {
         let Some(result) = self.results.get(&(part.key, part.index)) else {
             debug_assert!(false, "face for a part `parts` did not declare");
             return;
@@ -268,7 +266,7 @@ impl PaintUi<'_> {
             faded: self.fade.is_some(),
             reported: reported && self.node,
         };
-        let (baseline, record) = run::paint_face(self.ui, self.env, &source, part, face);
+        let (baseline, record) = self.canvas.faded(share, || run::paint_face(self.ui, self.env, &self.canvas, &source, part, face));
         let mut own = self.record.borrow_mut();
         if let Some(baseline) = baseline {
             own.baseline.get_or_insert(baseline);
@@ -294,7 +292,12 @@ impl PaintUi<'_> {
     /// Paints what the component recorded so far on its egui painter, so a slot reserved or read next stands in the
     /// layer's paint order. Painting continues on the emptied canvas.
     fn flush(&self) {
-        let (content, overlay) = self.canvas.take();
+        let taken = self.canvas.take();
+        if let Some(host) = self.host {
+            host.append(taken);
+            return;
+        }
+        let (content, overlay) = taken;
         let painter = self.ui.painter();
         crate::runtime::egui::text_layout::paint_items(painter, &content.items);
         crate::runtime::egui::text_layout::paint_items(painter, &overlay.items);
