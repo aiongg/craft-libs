@@ -1,32 +1,32 @@
 //! A font index built once on a background thread and shared by every locale's provider.
 //!
-//! Lookups that may not block (the UI thread's) find nothing until the index is built: egui
-//! draws with the faces it has, and every context that was turned away reloads its fonts when the
-//! index arrives, which forgets egui's cached misses and repaints. If the build panics, every
-//! lookup finds nothing from then on and egui keeps the faces it has. Either way the index's
+//! Lookups that may not block (the UI thread's) find nothing until the index is built: the engine
+//! draws with the faces it has, and every host that was turned away offers its stack again when the
+//! index arrives, which has the engine forget its misses and ask again. If the build panics, every
+//! lookup finds nothing from then on and the engine keeps the faces it has. Either way the index's
 //! `built` hook runs next, on the thread that built it.
 
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 
-use egui::{FallbackRequest, FontInsert, FontProvider};
+use craft_ui_rt::{FaceSource, FallbackAsk, StackFace};
 
-use crate::runtime::egui::fonts as egui_fonts;
+use crate::fonts::FontHost;
 
 /// A font index a [`Lookup`] asks.
 pub(super) trait FontIndex: Send + 'static {
     /// The provider's preference between fonts for one script, e.g. a locale.
     type Locale: Send + Sync + 'static;
 
-    fn font_for(&mut self, request: &FallbackRequest<'_>, locale: &Self::Locale) -> Option<FontInsert>;
+    fn face_for(&mut self, ask: &FallbackAsk<'_>, locale: &Self::Locale) -> Option<StackFace>;
 }
 
 enum State<T> {
     Idle,
-    /// `turned_away`: a lookup found nothing because the index wasn't built, so `contexts` reload
-    /// their fonts when it is.
+    /// `turned_away`: a lookup found nothing because the index wasn't built, so `hosts` offer
+    /// their stacks again when it is.
     Building {
         turned_away: bool,
-        contexts: Vec<egui::Context>,
+        hosts: Vec<FontHost>,
     },
     Ready(Arc<Mutex<T>>),
     Failed,
@@ -46,17 +46,19 @@ impl<T: FontIndex> Shared<T> {
         Self { state: Mutex::new(State::Idle), built: Condvar::new(), build, on_built }
     }
 
-    /// Start building the index on a background thread unless it is built or building. `ctx`
-    /// reloads its fonts when the index arrives if a lookup was turned away meanwhile.
-    pub(super) fn start(&'static self, ctx: Option<&egui::Context>) {
+    /// Start building the index on a background thread unless it is built or building. `host`
+    /// offers its stack again when the index arrives if a lookup was turned away meanwhile.
+    pub(super) fn start(&'static self, host: Option<&FontHost>) {
         let idle = {
             let mut state = self.lock();
             let idle = matches!(*state, State::Idle);
             if idle {
-                *state = State::Building { turned_away: false, contexts: Vec::new() };
+                *state = State::Building { turned_away: false, hosts: Vec::new() };
             }
-            if let (State::Building { contexts, .. }, Some(ctx)) = (&mut *state, ctx) {
-                contexts.push(ctx.clone());
+            if let (State::Building { hosts, .. }, Some(host)) = (&mut *state, host)
+                && !hosts.iter().any(|known| known.same(host))
+            {
+                hosts.push(host.clone());
             }
             idle
         };
@@ -102,10 +104,10 @@ impl<T: FontIndex> Shared<T> {
         let next = built.map_or(State::Failed, |index| State::Ready(Arc::new(Mutex::new(index))));
         let previous = std::mem::replace(&mut *self.lock(), next);
         self.built.notify_all();
-        // Outside the lock: the UI thread holds the context's fonts while it asks for the index.
-        if let State::Building { turned_away: true, contexts } = previous {
-            for ctx in contexts {
-                egui_fonts::reload_providers(&ctx);
+        // Outside the lock: the UI thread holds the engine while it asks for the index.
+        if let State::Building { turned_away: true, hosts } = previous {
+            for host in hosts {
+                host.refresh();
             }
         }
         (self.on_built)();
@@ -116,7 +118,7 @@ impl<T: FontIndex> Shared<T> {
     }
 }
 
-/// One locale's provider over a [`Shared`] index.
+/// One locale's source over a [`Shared`] index.
 pub(super) struct Lookup<T: FontIndex> {
     index: &'static Shared<T>,
     locale: T::Locale,
@@ -130,10 +132,10 @@ impl<T: FontIndex> Lookup<T> {
     }
 }
 
-impl<T: FontIndex> FontProvider for Lookup<T> {
-    fn font_for(&self, request: &FallbackRequest<'_>) -> Option<FontInsert> {
+impl<T: FontIndex> FaceSource for Lookup<T> {
+    fn face_for(&self, ask: &FallbackAsk<'_>) -> Option<StackFace> {
         let index = self.index.get(self.wait)?;
         let mut index = index.lock().unwrap_or_else(PoisonError::into_inner);
-        index.font_for(request, &self.locale)
+        index.face_for(ask, &self.locale)
     }
 }

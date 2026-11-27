@@ -6,7 +6,7 @@ use craft_ui_contract::contract::{MemoView, Shown, Ui};
 use craft_ui_contract::runtime::env::{Env, EnvCells};
 use craft_ui_contract::runtime::windows::{WindowEnv, window_root_with};
 use craft_ui_rt::record::RecordingRenderer;
-use craft_ui_rt::{FaceTweak, FontFace, FontStack, Renderer, StackFace, StepReport, TextEngine, Vec2};
+use craft_ui_rt::{FontFace, FontStack, Renderer, StackFace, StepReport, TextEngine, Vec2};
 use craft_ui_test_kit::rt::Rig;
 
 /// What each scope returned in the last build, and whether its closure ran there.
@@ -41,7 +41,7 @@ fn fresh(shown: &Option<Shown<u32>>) -> bool {
 }
 
 fn face(name: &str) -> StackFace {
-    StackFace { name: name.into(), bytes: std::sync::Arc::from(&b""[..]), index: 0, coords: Vec::new(), tweak: FaceTweak::default() }
+    StackFace::from_static(name, b"", 0)
 }
 
 #[test]

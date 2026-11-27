@@ -117,7 +117,7 @@ impl<'b, 'c> RunHost<'b, 'c> {
         let mut cx = self.cx.borrow_mut();
         let fonts = crate::fonts::stack_facts(&mut cx);
         let (text, images) = cx.paint_services();
-        f(&FrameServices::new(text, images, self.scale, fonts))
+        f(&FrameServices::new(text, images, self.scale, fonts).with_context(self.ctx.clone()))
     }
 }
 

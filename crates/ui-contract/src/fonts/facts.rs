@@ -50,6 +50,10 @@ pub(crate) fn facts_of(engine: &mut dyn TextEngine) -> StackFacts {
 /// last measured them. The generation is a tracked read, so a stack change runs the window root again; the cell is
 /// written only when the facts differ.
 pub(crate) fn refresh_facts(cx: &mut BuildCx<'_>, cells: EnvCells) {
+    // The session's font host on the window's context, where document faces are found from a component's hooks.
+    if let (Some(host), Some(ctx)) = (cx.provided::<crate::fonts::FontHost>(), cx.provided::<crate::contract::Context>()) {
+        ctx.service(|slot: &mut crate::fonts::document::HostSlot| slot.0 = Some(host));
+    }
     let generation = cx.env().text_stack.get(cx);
     let seen = cx.slot("craft-font-facts", || None::<u64>);
     if *cx.peek_state(seen) == Some(generation) {
@@ -82,13 +86,13 @@ pub(crate) mod facts_tests {
     use crate::testing::trial;
     use craft_theme::{Contrast, FontSlot, Mode, TypeRole};
     use craft_ui_rt::record::FixedText;
-    use craft_ui_rt::{FaceTweak, FontFace, FontStack, StackFace, TextEngine};
+    use craft_ui_rt::{FontFace, FontStack, StackFace, TextEngine};
     use egui::FontFamily;
 
     use crate::fonts::{SEMIBOLD, TAB_TITLE};
 
     fn face(name: &str) -> StackFace {
-        StackFace { name: name.into(), bytes: std::sync::Arc::from(&b""[..]), index: 0, coords: Vec::new(), tweak: FaceTweak::default() }
+        StackFace::from_static(name, b"", 0)
     }
 
     fn stack(slots: &[FontSlot]) -> FontStack {
