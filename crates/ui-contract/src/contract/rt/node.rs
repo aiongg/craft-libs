@@ -504,12 +504,9 @@ impl Element for ComponentNode {
                 }
                 // The window's edit commands resolve against the focused stop's edits (#3569). A move
                 // clears them on the node that loses focus, then the node that gains it writes its own.
-                if let Some(edits) = cx.provided::<super::commands::FocusedEdits>() {
-                    let set = match on {
-                        true => kept.focus.stop.map_or(crate::runtime::focus::EditSet::NONE, |keys| keys.edits),
-                        false => crate::runtime::focus::EditSet::NONE,
-                    };
-                    edits.set(cx, set);
+                if let Some(ctx) = cx.provided::<crate::contract::context::Context>() {
+                    let edits = if *on { super::commands::FocusedEdits::of(kept.focus.stop) } else { super::commands::FocusedEdits::NONE };
+                    super::commands::FocusedEdits::set(&ctx, cx, edits);
                 }
                 Handled::Yes
             }
