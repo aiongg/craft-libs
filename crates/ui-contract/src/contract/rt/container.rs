@@ -781,7 +781,7 @@ fn show_on_layer<C: Container, R>(
     let cx = &mut *ui.cx;
     let base = LayerShow::of(overlay, cx.node(), anchor, rtl, &tokens);
     let show = LayerShow { sweep, surface: Surface::Plain, pad: 0.0, host: Some(id), ..base };
-    let mut content = LayerContent { slot, body, escape: super::dialog::scope_escape(overlay), shown: None };
+    let mut content = LayerContent { slot, body, shown: None };
     show_layer_with(cx, id, id.value(), show, true, &mut content);
     content.shown.expect("a layer mount runs its content in every build that shows it")
 }
@@ -866,8 +866,6 @@ fn show_in_window<C: Container, R>(
 struct LayerContent<'s, 'b, C: Container, R> {
     slot: &'s mut Option<C>,
     body: &'b mut dyn FnMut(&mut Ui<'_, '_>, &mut BodyCx<'_>) -> R,
-    /// The layer's Escape rules for the nodes it holds (a dialog's).
-    escape: crate::primitives::text_adapter::ScopeEscape,
     shown: Option<Inner<C::Output, R>>,
 }
 
