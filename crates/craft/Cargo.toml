@@ -68,6 +68,7 @@ craft-ui-rt = { workspace = true, optional = true }
 craft-ui-platform-winit = { workspace = true, optional = true }
 craft-ui-platform-headless = { workspace = true, optional = true }
 craft-ui-render-epaint = { workspace = true, optional = true }
+craft-ui-render-skia = { workspace = true, optional = true }
 craft-aaf = { workspace = true, optional = true }
 craft-aep = { workspace = true, optional = true }
 craft-affinity = { workspace = true, optional = true }
@@ -968,6 +969,8 @@ ui-rt = ["dep:craft-ui-rt"]
 ui-platform-winit = ["dep:craft-ui-platform-winit"]
 ui-platform-headless = ["dep:craft-ui-platform-headless"]
 ui-render-epaint = ["dep:craft-ui-render-epaint"]
+ui-render-skia = ["dep:craft-ui-render-skia"] # native only: the crate is empty on wasm32
+ui-render-skia-gpu = ["ui-render-skia", "craft-ui-render-skia/gpu"]
 
 update = ["dep:craft-update"] # native only: downloads and installs through getrandom without wasm support
 update-local-mirror = ["update", "craft-update/local-mirror"]

@@ -247,6 +247,8 @@ craft-ui-rt = { path = "crates/ui-rt" }
 craft-ui-platform-winit = { path = "crates/ui-platform-winit" }
 craft-ui-platform-headless = { path = "crates/ui-platform-headless" }
 craft-ui-render-epaint = { path = "crates/ui-render-epaint" }
+craft-ui-render-skia = { path = "crates/ui-render-skia" }
+craft-ui-render-skia-gpu = { path = "crates/ui-render-skia-gpu" }
 craft-ui-panels = { path = "crates/ui-panels" }
 craft-ui-patterns = { path = "crates/ui-patterns" }
 craft-ui-shell = { path = "crates/ui-shell" }

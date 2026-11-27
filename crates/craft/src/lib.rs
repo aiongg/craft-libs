@@ -404,6 +404,8 @@ pub use craft_ui_rt as ui_rt;
 pub use craft_ui_platform_headless as ui_platform_headless;
 #[cfg(feature = "ui-platform-winit")]
 pub use craft_ui_platform_winit as ui_platform_winit;
+#[cfg(all(feature = "ui-render-skia", not(target_arch = "wasm32")))]
+pub use craft_ui_render_skia as ui_render_skia;
 #[cfg(feature = "update")]
 pub use craft_update as update;
 #[cfg(feature = "usd")]

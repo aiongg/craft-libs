@@ -1,0 +1,48 @@
+[package]
+name = "craft-ui-render-skia-gpu"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "The GPU backend of craft-ui-render-skia: Skia's Ganesh on Metal (macOS) or Vulkan (Linux, Windows, Android), each on a device of its own: the kept offscreen render target, a window presenter and GPU timestamps around each frame's submission. Its own crate because each platform needs a different skia-safe GPU feature, and Cargo cannot vary one crate's features per target on a single dependency."
+
+# The Vulkan and Metal calls are unsafe FFI (ash, objc2); the workspace's `unsafe_code = "forbid"` cannot hold here.
+# The other workspace lints are repeated.
+[lints.rust]
+unsafe_code = "allow"
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(craft_pdf_unicode_fixtures)"] }
+
+[lints.cargo]
+unused_workspace_dependencies = "allow"
+
+[lints.clippy]
+cognitive_complexity = "deny"
+too_many_arguments = "deny"
+wildcard_imports = "deny"
+dbg_macro = "warn"
+todo = "warn"
+
+# Prebuilt Skia archives exist with `textlayout` for one GPU backend at a time (macOS: ganesh + metal; Linux and
+# Windows: ganesh + vulkan); craft-ui-render-skia adds `textlayout` to the same skia-safe.
+[target.'cfg(target_os = "macos")'.dependencies]
+skia-safe = { version = "0.158", features = ["ganesh", "metal"] }
+craft-ui-rt = { workspace = true }
+web-time = "1.1"
+log = { workspace = true }
+raw-window-handle = "0.6"
+objc2 = "0.6"
+objc2-foundation = "0.3"
+objc2-core-foundation = "0.3"
+objc2-metal = "0.3"
+objc2-quartz-core = "0.3"
+raw-window-metal = "1.1"
+
+[target.'cfg(any(target_os = "linux", target_os = "windows", target_os = "android"))'.dependencies]
+skia-safe = { version = "0.158", features = ["ganesh", "vulkan"] }
+craft-ui-rt = { workspace = true }
+web-time = "1.1"
+log = { workspace = true }
+raw-window-handle = "0.6"
+ash = "0.38"
+ash-window = "0.13"

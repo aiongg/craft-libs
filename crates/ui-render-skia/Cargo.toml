@@ -1,0 +1,38 @@
+[package]
+autotests = false
+name = "craft-ui-render-skia"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "craft-ui-rt's Skia renderer: kept pictures per node part, damage-only redraw on a kept CPU raster surface (softbuffer, one per window) or, with `gpu`, a kept Ganesh target; app surfaces as CPU tiles; a TextEngine on skparagraph with craft's font bytes. Native only: Skia has no wasm32-unknown-unknown build."
+
+[lints]
+workspace = true
+
+[[test]]
+name = "trials"
+path = "tests/main.rs"
+
+[features]
+default = []
+# Ganesh on the GPU beside the CPU raster backend (craft-ui-render-skia-gpu: Metal on macOS, Vulkan on Linux, Windows and Android).
+gpu = ["dep:craft-ui-render-skia-gpu"]
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+craft-theme = { workspace = true }
+craft-ui-rt = { workspace = true }
+craft-ui-render-skia-gpu = { workspace = true, optional = true }
+emath = { version = "0.37", default-features = false }
+kurbo = { workspace = true }
+log = { workspace = true }
+raw-window-handle = "0.6"
+# Prebuilt Skia with the paragraph layout. Prebuilt archives exist only for feature sets that keep the default pdf
+# and jpeg codecs, so those stay on; without them the build compiles Skia from source.
+skia-safe = { version = "0.158", features = ["textlayout"] }
+softbuffer = "0.4"
+web-time = "1.1"
+
+[dev-dependencies]
+craft-theme = { workspace = true }
