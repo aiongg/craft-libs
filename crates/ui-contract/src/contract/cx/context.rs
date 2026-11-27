@@ -153,8 +153,8 @@ pub struct CxCore<'a> {
     pub(crate) part_cursors: Vec<Cursor>,
     pub(crate) claims: Vec<Chord>,
     pub(crate) reveal: Option<Rect>,
-    /// The tooltip of the collection member the pointer rests on, which the item step leaves for step 16.
-    pub(crate) member_tip: Option<crate::contract::tooltip::MemberTip>,
+    /// The tooltips of the collection's members' parts (`MemberRan::tips`), which the item step leaves for step 16.
+    pub(crate) part_tips: Vec<crate::contract::rt::tip::PartTip>,
     /// The stops of the container's header parts at the end edge, which the body step registers after the header's
     /// children.
     pub(crate) header_stops: Vec<crate::runtime::focus::Stop>,

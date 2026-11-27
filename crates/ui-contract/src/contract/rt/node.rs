@@ -737,6 +737,12 @@ impl Element for ComponentNode {
                 }
                 Handled::Yes
             }
+            Event::HoverPart(part) => {
+                if let Some(tip) = kept.tip.as_mut() {
+                    tip.hover_part(*part, cx);
+                }
+                Handled::Yes
+            }
             Event::CloseRequested(reason) => {
                 kept.queue.push(NodeInput::Close(*reason));
                 cx.request_build();

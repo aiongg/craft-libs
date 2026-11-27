@@ -181,6 +181,11 @@ pub enum Event {
     /// The pointer entered (`true`) or left the node or the nodes under it. Only nodes that asked
     /// ([`crate::BuildCx::hover_events`]) get it. Not bubbled.
     Hover(bool),
+    /// The part under the pointer changed while the pointer stays over the node or the nodes under
+    /// it: the part of the node's own shapes it is over now (0 for the node's own shape), `None`
+    /// over a node under it. Entering and leaving the node send [`Event::Hover`] instead. Only nodes
+    /// that asked ([`crate::BuildCx::hover_events`]) get it. Not bubbled.
+    HoverPart(Option<u64>),
 }
 
 /// The context of one node's event handler.

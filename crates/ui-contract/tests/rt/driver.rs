@@ -1148,3 +1148,81 @@ mod drop_mark {
         input(&mut rig, &mut app, Input::mouse_up(Pos2::new(390.0, 290.0)));
     }
 }
+
+/// A part's tooltip (`PartBuilder::tooltip`) shows under its part while the pointer rests on it, and on no other part.
+mod part_tips {
+    use craft_behavior::PartKey;
+    use craft_ui_contract::contract::tooltip::DELAY;
+    use craft_ui_contract::contract::*;
+    use craft_ui_contract::style::StyleCx;
+    use craft_ui_contract::testing::Harness;
+    use craft_ui_platform_headless::Input;
+    use craft_ui_rt::{Rect, Sense, Vec2};
+    use craft_ui_test_kit::contract::PlainStyle;
+
+    const LEFT: PartKey = PartKey::new("left");
+    const RIGHT: PartKey = PartKey::new("right");
+
+    /// Two halves; only the left one has a tooltip.
+    #[derive(Component)]
+    struct Strip {
+        #[common]
+        common: Common,
+    }
+
+    impl Component for Strip {
+        const ROLE: Role = Role::GROUP;
+        type Style = PlainStyle;
+        type Output = Response;
+
+        fn style(_: &StyleCx<'_>, _: StripStyleKey) -> PlainStyle {
+            PlainStyle::default()
+        }
+
+        fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
+            Vec2::new(200.0, 40.0)
+        }
+
+        fn sense(&self) -> Sense {
+            Sense::HOVER
+        }
+
+        fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
+            let (left, right) = rect.split_left_right_at_fraction(0.5);
+            cx.part(LEFT, left).sense(Sense::HOVER | Sense::CLICK).tooltip("Left Part");
+            cx.part(RIGHT, right).sense(Sense::HOVER | Sense::CLICK);
+        }
+
+        fn finish(self, cx: Cx<'_, Self>) -> Response {
+            cx.response.clone()
+        }
+    }
+
+    #[test]
+    fn a_part_tip_shows_under_its_part_only() {
+        let mut h = Harness::new_ui_state(|ui, rect: &mut Rect| *rect = Show::show(Strip { common: Common::new() }, ui).rect, Rect::NOTHING);
+        h.run();
+        let (left, right) = h.state().split_left_right_at_fraction(0.5);
+        let tip = |h: &Harness<Rect>| h.layers().into_iter().find(|layer| layer.tip);
+
+        h.send(Input::mouse_move(left.center()));
+        h.advance(DELAY + 0.05);
+        h.run();
+        let shown = tip(&h).expect("the left part's tooltip shows after the delay");
+        assert!(shown.rect.min.y >= left.max.y - 0.5, "under the part: {:?} for {left:?}", shown.rect);
+        assert!(shown.rect.min.x < right.min.x, "at the part's start: {:?} for {left:?}", shown.rect);
+        assert!(h.query_by_label("Left Part").is_some(), "with the part's text");
+
+        h.send(Input::mouse_move(right.center()));
+        h.advance(DELAY + 0.05);
+        h.run();
+        assert!(tip(&h).is_none(), "the right part has no tooltip, and the component none of its own");
+
+        h.send(Input::mouse_move(left.center()));
+        h.run();
+        assert!(tip(&h).is_none(), "back on the left part, the tooltip waits for the delay again");
+        h.advance(DELAY + 0.05);
+        h.run();
+        assert!(tip(&h).is_some());
+    }
+}

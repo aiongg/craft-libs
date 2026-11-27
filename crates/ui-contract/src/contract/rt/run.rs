@@ -549,6 +549,15 @@ pub(crate) fn run_shaped<C: Component>(
         steps::declare_parts(&mut component, &cxx, rect, &mut parts, &input, Some((node, interact)), items, &mut extra);
     }
     kept.parts = steps::kept_parts(&parts, rect.min);
+    let part_tips: Vec<tip::PartTip> = parts
+        .decls
+        .iter()
+        .zip(&kept.parts)
+        .filter_map(|((_, extras), kept)| {
+            let text = crate::contract::tooltip::resolve_spec(&cxx.core.env, extras.tooltip.as_ref()?.spec(), resolved.enabled);
+            Some(tip::PartTip { id: kept.id, text, rect: bounds(kept.shape) })
+        })
+        .collect();
     kept.sense = sense;
     kept.claim = cxx.core.env.field_label().and_then(|label| label.claim).map(|claim| claim.translate(Pos2::ZERO - rect.min));
     kept.sweep = sweep;
@@ -675,7 +684,9 @@ pub(crate) fn run_shaped<C: Component>(
         cx.announce(text, politeness);
     }
     let tip_text = crate::contract::tooltip::text_of(cxx.core, component.shows_label(), <C as Meta>::CANVAS_CONTROL, None);
-    tip::show(&mut kept.tip, tip_text, true, cx, id, rect, tokens);
+    // The parts' tooltips: the component's own parts', then its members' (a collection's).
+    let part_tips = part_tips.into_iter().chain(std::mem::take(&mut cxx.core.part_tips)).collect();
+    tip::show(&mut kept.tip, tip_text, part_tips, true, cx, id, rect, tokens);
     let _ = tip;
     if let Some((target, spec)) = cxx.core.run.level.take() {
         super::motion::Level::aim(kept.level.get_mut(), target, spec);
@@ -882,18 +893,23 @@ pub(crate) fn run_member<I: Component>(
     }
     drop(host);
 
-    // 16 the tooltip of the hovered part, else the member's own, shown by the collection's step 16.
-    let hovered_tip = hovered.and_then(|part| {
-        let at = member_parts.iter().position(|kept| kept.id == part)?;
-        let (_, extras) = parts.decls.iter().nth(at)?;
-        extras
-            .tooltip
-            .as_ref()
-            .map(|tooltip| (member_parts[at].part, bounds(member_parts[at].shape).translate(origin.to_vec2()), tooltip.spec().clone()))
-    });
-    let tip = hovered_tip
-        .or_else(|| hovered.and(resolved.tooltip).map(|tooltip| (run.part, run.rect, tooltip.spec().clone())))
-        .map(|(part, rect, spec)| crate::contract::tooltip::MemberTip { part, spec, rect, pressed });
+    // 16 the parts' tooltips, shown by the collection's node: each part's own, else the member's, under the part; the
+    // member's own over its row.
+    let own_tip = resolved.tooltip.map(|tooltip| crate::contract::tooltip::resolve_spec(&cxx.core.env, tooltip.spec(), run.enabled));
+    let mut tips: Vec<tip::PartTip> = parts
+        .decls
+        .iter()
+        .zip(&member_parts)
+        .filter_map(|((_, extras), kept)| {
+            let text = extras
+                .tooltip
+                .as_ref()
+                .map(|tooltip| crate::contract::tooltip::resolve_spec(&cxx.core.env, tooltip.spec(), run.enabled))
+                .or_else(|| own_tip.clone())?;
+            Some(tip::PartTip { id: kept.id, text, rect: bounds(kept.shape) })
+        })
+        .collect();
+    tips.extend(own_tip.map(|text| tip::PartTip { id: row, text, rect: run.rect.translate(Pos2::ZERO - origin) }));
     let looks = super::items::MemberLooks {
         part: row,
         looks: variants
@@ -908,7 +924,7 @@ pub(crate) fn run_member<I: Component>(
     };
     let output = item.finish(cxx);
     memory.flush();
-    super::items::MemberRan { output, looks, tip }
+    super::items::MemberRan { output, looks, tips }
 }
 
 /// The ui-rt part id of a member's part `part` in the collection's node, for the member whose row part id is
@@ -1126,7 +1142,7 @@ pub(crate) fn reach_layers<C: Component>(
             cx.rebuild();
         }
     }
-    tip::show(&mut kept.tip, None, false, cx, id, rect, tokens);
+    tip::show(&mut kept.tip, None, Vec::new(), false, cx, id, rect, tokens);
 }
 
 /// Steps 12 and 13 per pointer look: `Rest` always; `Hover` when the paint read `Hovered`; `Press`

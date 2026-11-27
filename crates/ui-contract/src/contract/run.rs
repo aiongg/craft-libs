@@ -214,7 +214,7 @@ pub(crate) fn core_for<'a>(
         part_cursors: Vec::new(),
         claims: Vec::new(),
         reveal: None,
-        member_tip: None,
+        part_tips: Vec::new(),
         header_stops: Vec::new(),
         roving_member: false,
         press_cancel: None,

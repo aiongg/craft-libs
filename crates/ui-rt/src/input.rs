@@ -635,10 +635,25 @@ impl Runtime {
         };
         let now = hit.map(|(h, _)| chain(&self.tree, h.node)).unwrap_or_default();
         let Some(input) = self.input_mut(window) else { return };
+        // Nodes the pointer stays over whose own part under it changed, for `Event::HoverPart`.
+        let mut moved: Vec<(NodeId, Option<u64>)> = Vec::new();
         if input.hover_hit != hit {
-            let before = std::mem::replace(&mut input.hover_hit, hit);
+            let before = std::mem::replace(&mut input.hover_hit, hit).map(|(h, _)| h);
             input.cursor_check = true;
-            self.refresh_hovered_parts(before.map(|(h, _)| h), hit.map(|(h, _)| h));
+            let now_hit = hit.map(|(h, _)| h);
+            let part_of = |h: Option<Hit>, node: NodeId| h.filter(|h| h.node == node).map(|h| h.part);
+            for node in before.iter().chain(&now_hit).map(|h| h.node) {
+                let stays = input.hovered.contains(&node) && now.contains(&node);
+                if stays && part_of(before, node) != part_of(now_hit, node) && !moved.iter().any(|(n, _)| *n == node) {
+                    moved.push((node, part_of(now_hit, node)));
+                }
+            }
+            self.refresh_hovered_parts(before, now_hit);
+        }
+        for (node, part) in moved {
+            if self.tree.nodes.get(&node).is_some_and(|n| n.hover_events) {
+                self.deliver(node, node, &Event::HoverPart(part));
+            }
         }
         if !self.hover_points.is_empty() {
             // Only the nodes whose builds read their hover point have a cell; each follows the

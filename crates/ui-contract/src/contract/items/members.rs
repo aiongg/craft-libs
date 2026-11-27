@@ -57,9 +57,7 @@ impl<'r, C: Collection> ItemsHooks<'_, 'r, C> {
             let run = MemberRun { owner: id, id: member_id, part, rect: row, clip, position, flags, enabled: on };
             let ran = crate::contract::rt::run::run_member(item, ui, &run, cx.core.input());
             self.member_looks.push(ran.looks);
-            if ran.tip.is_some() {
-                cx.core.member_tip = ran.tip;
-            }
+            cx.core.part_tips.extend(ran.tips);
             if let Some(shown) = shown_rows.get_mut(shown) {
                 shown.openers = self.item_openers(ui, cx.core.input(), enabled, openers);
             }

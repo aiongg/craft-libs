@@ -441,7 +441,8 @@ impl BuildCx<'_> {
     }
 
     /// This node gets [`crate::Event::Hover`] when the pointer enters or leaves it or a node under
-    /// it (a tooltip's owner times its delay from it).
+    /// it (a tooltip's owner times its delay from it), and [`crate::Event::HoverPart`] when the
+    /// pointer moves to another of its parts meanwhile.
     pub fn hover_events(&mut self, on: bool) {
         if let Some(n) = self.rt.tree.nodes.get_mut(&self.node) {
             n.hover_events = on;
