@@ -12,7 +12,6 @@ use crate::contract::collection::{
 use crate::contract::cx::BodyCx;
 use crate::contract::rt::items::{RowFacts, RowsView, rows_view};
 use crate::contract::run::{Measuring, ShapeHooks, ShowAt};
-use crate::contract::steps::ShapeKind;
 use crate::contract::{Bind, Collection, Context, Cx, Internal, ItemCx, ItemOutput as _, PartsCx, Props, Scroll, Show as _, Sizing, Ui, UiBuilder};
 use crate::primitives::{Id, SurfaceSlot};
 use crate::runtime::access::Role;
@@ -28,31 +27,14 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
-    fn shape(&self) -> ShapeKind {
-        ShapeKind::Item
-    }
-
-    fn host(&mut self, _: &C, _: crate::contract::run::HostCx<'_>) -> Box<dyn crate::contract::run::Host> {
-        Box::new(crate::contract::run::Inline)
-    }
-
-    fn arena(&self, _: &C) -> bool {
-        true
-    }
-
-    /// A collection whose rows run along X is one line; one whose rows run along Y has no line of its own.
-    fn first_line(&self, comp: &C, _ctx: &Context, _id: Id, height: f32) -> Option<f32> {
-        (comp.items().overflow == Axis::X).then_some(height / 2.0)
-    }
-
     /// A collection that keeps focus on press senses the press without taking focus.
     fn sense(&self, comp: &C, own: Sense) -> Sense {
         if comp.items().focus_on_press { own } else { own.difference(Sense::TAKE_FOCUS).union(Sense::KEEP_FOCUS) }
     }
 
-    fn key_role(&self, comp: &C) -> craft_behavior::KeyRole {
+    fn key_role(&self, comp: &C) -> Option<craft_behavior::KeyRole> {
         let props = comp.items();
-        craft_behavior::KeyRole::new()
+        let role = craft_behavior::KeyRole::new()
             .reorderable(props.reorder.map(|rule| rule.keys))
             .reorder_axis(props.overflow)
             .pages(props.pages)
@@ -65,15 +47,8 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             .deletes(props.deletable)
             .owner_arrows(props.item_keys == crate::contract::collection::ItemKeys::Owner)
             .stacked(self.stacked(comp))
-            .home_row(self.layout.as_ref().map_or(0, |layout| layout.first_navigable()))
-    }
-
-    fn instance_scope(&self, comp: &C) -> Option<crate::runtime::commands::CommandScope> {
-        comp.props(Internal::new()).command_scope
-    }
-
-    fn theme_scope(&self, comp: &C) -> Option<ThemeScope> {
-        comp.props(Internal::new()).theme.clone()
+            .home_row(self.layout.as_ref().map_or(0, |layout| layout.first_navigable()));
+        Some(role)
     }
 
     fn read(&mut self, comp: &mut C, stage: &mut MemoryStage, id: Id, env: &Env) {
@@ -146,37 +121,10 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         self.offset_x_at_read = self.offset_x;
     }
 
-    fn measured_extent(&mut self, comp: &mut C, at: &Measuring<'_, '_>, cx: &mut Cx<'_, C>) -> Vec2 {
-        let id = cx.core.id;
-        self.record_largest(comp, at, id);
-        self.items_extent(comp, at, id)
-    }
-
     fn pass_extent(&mut self, comp: &mut C, at: &Measuring<'_, '_>, _style: &C::Style, _shown: Option<Arc<ValueOf<C>>>) -> Vec2 {
         let id = at.resolved.id;
         self.record_largest(comp, at, id);
         self.items_extent(comp, at, id)
-    }
-
-    fn pad(&self, comp: &C, tokens: &UiTokens) -> f32 {
-        Self::props_pad(comp, tokens)
-    }
-
-    fn sized(&self, comp: &C, ui: &Ui, place: &Env, id: Id, size: Vec2) -> Vec2 {
-        let sizing = comp.props(Internal::new()).sizing;
-        // A collection that measured its width from its content takes that width; the column it sits in holds it.
-        let width = if self.content_sized(comp) || self.from_content.0 {
-            size.x
-        } else {
-            crate::layout::body::fill_size(ui, place, id, Axis::X, size.x, self.room.x, true)
-        };
-        let height = match (self.scrolls && self.room.y.is_finite(), sizing) {
-            (true, Sizing::Fill | Sizing::FillHeight) if !self.from_content.1 && !self.capped => self.room.y,
-            (true, Sizing::Fill | Sizing::FillHeight) => size.y.min(self.room.y),
-            (true, Sizing::Content | Sizing::FillWidth) => size.y.min(self.room.y),
-            (false, _) => size.y,
-        };
-        Vec2::new(width, height)
     }
 
     fn geometry(&mut self, _: &C, _mcx: &crate::contract::MeasureCx<'_, C>, (_, content): (Rect, Rect), _rtl: bool) -> Option<Rc<dyn std::any::Any>> {
@@ -591,6 +539,44 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         }));
         cx.core.visible_rows = self.visible.clone();
         cx.core.gestures = Gestures::of(comp.items());
+    }
+}
+
+/// Shape facts the rt driver's seam does not take yet (INT-4b): line alignment, the instance
+/// command scope, the theme scope, the props' pad and the fill size.
+impl<C: Collection> ItemsHooks<'_, '_, C> {
+    /// A collection whose rows run along X is one line; one whose rows run along Y has no line of its own.
+    pub(super) fn first_line(&self, comp: &C, _ctx: &Context, _id: Id, height: f32) -> Option<f32> {
+        (comp.items().overflow == Axis::X).then_some(height / 2.0)
+    }
+
+    pub(super) fn instance_scope(&self, comp: &C) -> Option<crate::runtime::commands::CommandScope> {
+        comp.props(Internal::new()).command_scope
+    }
+
+    pub(super) fn theme_scope(&self, comp: &C) -> Option<ThemeScope> {
+        comp.props(Internal::new()).theme.clone()
+    }
+
+    pub(super) fn pad(&self, comp: &C, tokens: &UiTokens) -> f32 {
+        Self::props_pad(comp, tokens)
+    }
+
+    pub(super) fn sized(&self, comp: &C, ui: &Ui, place: &Env, id: Id, size: Vec2) -> Vec2 {
+        let sizing = comp.props(Internal::new()).sizing;
+        // A collection that measured its width from its content takes that width; the column it sits in holds it.
+        let width = if self.content_sized(comp) || self.from_content.0 {
+            size.x
+        } else {
+            crate::layout::body::fill_size(ui, place, id, Axis::X, size.x, self.room.x, true)
+        };
+        let height = match (self.scrolls && self.room.y.is_finite(), sizing) {
+            (true, Sizing::Fill | Sizing::FillHeight) if !self.from_content.1 && !self.capped => self.room.y,
+            (true, Sizing::Fill | Sizing::FillHeight) => size.y.min(self.room.y),
+            (true, Sizing::Content | Sizing::FillWidth) => size.y.min(self.room.y),
+            (false, _) => size.y,
+        };
+        Vec2::new(width, height)
     }
 }
 

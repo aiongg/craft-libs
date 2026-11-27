@@ -610,9 +610,9 @@ pub(crate) fn run<C: Component>(
     let (ctx, id) = (cx.core.ctx.clone(), cx.core.id);
     let state_id = state_id(id);
     let mut state = std::mem::take(cx.core.memory.shown::<TextState>(state_id));
-    // A part that was not shown last pass lost its focus, and its typing run with it: the run is forgotten (step 4
+    // A part whose node is new (not shown last frame) lost its focus, and its typing run with it: the run is forgotten (step 4
     // ended its gesture without putting back the value from before it), and the part starts afresh from its value.
-    if !crate::runtime::memory::shown_last_pass(&ctx, id) {
+    if cx.core.memory.appeared() {
         state = TextState::default();
     }
     (decl.values.resync)(&mut state, shown_copy(cx).as_ref());

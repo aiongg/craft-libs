@@ -6,8 +6,8 @@ use std::any::Any;
 use craft_behavior::{EditorInput, Intent, PartRef, PressStart};
 use craft_keymap::Chord;
 use craft_ui_rt::{
-    AccessCx, Constraints, CornerRadii, Cursor, DisplayList, DragData, DragOutcome, DropPhase, Element, Event, EventCx, Gesture, Handled, HitShape,
-    ImePurpose, InteractFact, LayoutCx, Mods, NodeId, PaintCx, PointerButton, PointerInput, Pos2, Rect, Rgba, Sense, State, Vec2,
+    AccessCx, Constraints, Cursor, DisplayList, DragData, DragOutcome, DropPhase, Element, Event, EventCx, Gesture, Handled, HitShape, ImePurpose,
+    InteractFact, LayoutCx, Mods, NodeId, PaintCx, PointerButton, PointerInput, Pos2, Rect, Sense, State, Vec2,
 };
 
 use crate::contract::Id;
@@ -359,6 +359,15 @@ impl Element for ComponentNode {
         };
         super::motion::paint_level(kept, cx);
         super::motion::paint_looks(kept, cx, look);
+        if !kept.members.is_empty() {
+            // Member rows: each row's sub-list for the pointer's place; the read flips only when the
+            // hovered row changes, and the press is read only while a row is hovered.
+            let hovered = cx.hovered_part();
+            let pressed = hovered.is_some() && cx.interaction_fact(InteractFact::Pressed);
+            for list in super::items::member_lists(&kept.members, hovered, pressed) {
+                cx.extend(list);
+            }
+        }
         super::cursor::record_own_shape(kept, cx);
         if kept.close_guard {
             cx.close_guard();
@@ -381,7 +390,7 @@ impl Element for ComponentNode {
             && cx.interaction_fact(InteractFact::FocusVisible)
         {
             let bounds = cx.bounds();
-            cx.over(|cx| cx.rect(bounds, CornerRadii::ZERO, Rgba::TRANSPARENT, Some(ring)));
+            kept.focus.ring_shape.draw(cx, ring, bounds);
         }
     }
 

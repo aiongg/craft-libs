@@ -22,7 +22,7 @@
 //! `commands`).
 //!
 //! Text: typed text and the platform's input method reach the focused text input through one IME
-//! engine (`ime`); `text` has the editor state and the stand-in `TextField`.
+//! engine (`ime`).
 
 pub(crate) mod access;
 pub(crate) mod commands;
@@ -50,7 +50,6 @@ pub(crate) mod run;
 pub(crate) mod scope;
 pub(crate) mod scroll;
 pub(crate) mod sweep;
-pub(crate) mod text;
 pub(crate) mod textures;
 pub(crate) mod tip;
 pub(crate) mod toast;

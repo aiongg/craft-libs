@@ -287,7 +287,8 @@ impl PaintUi<'_> {
             reported: reported && self.node,
         };
         let (canvas, env) = (self.canvas, self.env);
-        let (baseline, record) = canvas.faded(share, || host_ui(self.host, |ui| run::paint_face(ui, env, canvas, &source, part, face)));
+        let host = &mut *self.host;
+        let (baseline, record) = canvas.faded(share, || run::paint_face(host, env, canvas, &source, part, face));
         let mut own = self.record.borrow_mut();
         if let Some(baseline) = baseline {
             own.baseline.get_or_insert(baseline);

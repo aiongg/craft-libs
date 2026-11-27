@@ -1,21 +1,22 @@
 //! Step 5, measure, and the size guard.
 
 use crate::contract::cx::MeasureCx;
+use crate::contract::paint_ui::UiHost;
 use crate::contract::{Component, Resolved, Sizing, ValueOf};
-use crate::primitives::FrameServices;
 use crate::runtime::env::Env;
 use crate::style::{ComponentStyle, StyleView};
 use craft_behavior::{Insets, Proposal};
 use craft_ui_rt::Vec2;
+use std::cell::RefCell;
 
 /// What step 5 reads besides the component.
 pub(crate) struct MeasureIn<'a> {
     pub env: &'a Env,
     pub proposal: Proposal,
     pub room: Option<f32>,
-    /// The text engine and image store text access shapes through (`MeasureCx::layout`); `None`
-    /// where the run lends none (the parts step), which lays text out empty.
-    pub services: Option<&'a FrameServices<'a>>,
+    /// The run's `Ui`, lent per call: text shapes through its window's engine, and children measure
+    /// through their size cache on it.
+    pub host: &'a RefCell<&'a mut (dyn UiHost + 'a)>,
 }
 
 /// Step 5, measure: the `content` size plus padding, then `max(min_size)`, and for any proposal but `Min` at least the
@@ -70,7 +71,7 @@ pub(crate) fn measure_cx<'a, C: Component>(
         proposal: input.proposal,
         room: input.room.map(|room| (room - padding.start - padding.end).max(0.0)),
         value,
-        services: input.services,
+        host: input.host,
         tokens: &input.env.tokens,
         ink: input.env.ink,
         id: resolved.id,

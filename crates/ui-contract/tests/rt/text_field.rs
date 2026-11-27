@@ -1,4 +1,5 @@
-//! The text input primitive on craft-ui-rt: an editor state that applies `EditorInput` to a string
+//! A test-local text field on craft-ui-rt (moved out of the library; the real text inputs are the
+//! widgets' fields over the text step): an editor state that applies `EditorInput` to a string
 //! (typed and committed text, IME preedits, caret moves and selection, deletes, Select All, line
 //! breaks), and `TextField`, the stand-in text field over it until the integration task moves the
 //! `ui-widgets` fields onto the rt cut. Its input comes from the node's queue in arrival order

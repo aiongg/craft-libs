@@ -38,8 +38,72 @@ pub(crate) struct FocusKept {
     pub(crate) holds_escape: bool,
     /// The ring the node paints while it shows focus.
     pub(crate) ring: Option<Stroke>,
+    /// Where the ring goes: round the focused part, or the node's own shape (its declared focus shape,
+    /// else its rect with its surface's corners). Node coordinates.
+    pub(crate) ring_shape: RingShape,
+    /// The node's own shape is a stop only for a press (a disabled control that shows its reason on
+    /// focus): Tab passes it by.
+    pub(crate) press_only: bool,
+    /// The part of the node that holds key focus while the node does (a part-level stop); `None` for
+    /// the node's own shape.
+    pub(crate) part: Option<craft_behavior::PartRef>,
+    /// The key role the focused node's key stage reads, where the component's `KeyUse` does not say
+    /// it all (a collection's reorder, rename, type-ahead and page keys).
+    pub(crate) role: Option<KeyRole>,
     /// When the node last took focus, in the focus sequence; 0 when it never did.
     pub(crate) seq: u64,
+}
+
+/// The shape of a node's focus ring, in the node's coordinates.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) enum RingShape {
+    /// Round the node's bounds, square.
+    #[default]
+    Bounds,
+    /// A rect with corner radii.
+    Rect(Rect, craft_ui_rt::CornerRadii),
+    /// The circle inside a rect.
+    Circle(craft_ui_rt::Pos2, f32),
+    /// A closed polygon.
+    Path(std::sync::Arc<craft_ui_rt::BezPath>),
+}
+
+impl RingShape {
+    /// The ring for `shape` round `rect` (window coordinates; a polygon's points are window
+    /// coordinates too) of a node at `origin`, with `radii` for a rect.
+    pub(crate) fn of(
+        shape: Option<&crate::runtime::focus::FocusShape>,
+        rect: Rect,
+        radii: craft_ui_rt::CornerRadii,
+        origin: craft_ui_rt::Pos2,
+    ) -> RingShape {
+        use crate::runtime::focus::FocusShape;
+        let rect = rect.translate(craft_ui_rt::Pos2::ZERO - origin);
+        match shape {
+            None | Some(FocusShape::Rect) => RingShape::Rect(rect, radii),
+            Some(FocusShape::Circle) => RingShape::Circle(rect.center(), rect.width().min(rect.height()) / 2.0),
+            Some(FocusShape::Polygon(points)) => {
+                let mut path = craft_ui_rt::BezPath::new();
+                for (i, p) in points.iter().enumerate() {
+                    let at = (f64::from(p.x - origin.x), f64::from(p.y - origin.y));
+                    if i == 0 { path.move_to(at) } else { path.line_to(at) }
+                }
+                path.close_path();
+                RingShape::Path(std::sync::Arc::new(path))
+            }
+        }
+    }
+
+    /// Draws the ring with `stroke` over the node's children; `bounds` is the node's own rect.
+    pub(crate) fn draw(&self, cx: &mut craft_ui_rt::PaintCx<'_>, stroke: Stroke, bounds: Rect) {
+        let clear = craft_ui_rt::Rgba::TRANSPARENT;
+        match self {
+            RingShape::Bounds => cx.over(|cx| cx.rect(bounds, craft_ui_rt::CornerRadii::ZERO, clear, Some(stroke))),
+            RingShape::Rect(rect, radii) => cx.over(|cx| cx.rect(*rect, *radii, clear, Some(stroke))),
+            RingShape::Circle(center, radius) => cx.over(|cx| cx.circle(*center, *radius, clear, Some(stroke))),
+            RingShape::Path(path) => cx.over(|cx| cx.path(path.clone(), None, Some(stroke))),
+        }
+    }
 }
 
 /// The focus sequence: each focus gain takes the next number, so a group or a pane goes back to the
@@ -61,7 +125,8 @@ impl FocusKept {
 /// reads it), `visible` its untracked `FocusVisible` (ui-rt's paint phase draws the ring from the
 /// fact itself), `at` when it took focus.
 pub(crate) fn facts(kept: &FocusKept, focused: bool, visible: bool) -> crate::runtime::focus::Facts {
-    crate::runtime::focus::Facts { focused, visible: focused && visible, at: kept.seq, ..Default::default() }
+    let part = kept.part.filter(|_| focused);
+    crate::runtime::focus::Facts { focused, visible: focused && visible, part, at: kept.seq, ..Default::default() }
 }
 
 /// A stop found by a walk.
@@ -123,7 +188,8 @@ impl Walk {
         if let Some((kept, layer)) = kept_of(rt, node, own) {
             let layer = layer || (own_is_layer && own.is_some_and(|(id, _)| id == node));
             let f = &kept.focus;
-            if f.stop.is_some() {
+            // A press-only stop takes focus on a press; Tab and the pane keys pass it by.
+            if f.stop.is_some() && !f.press_only {
                 self.stops.push(StopAt { node, group, scope, seq: f.seq });
             }
             if f.scope != FocusPolicy::NONE {

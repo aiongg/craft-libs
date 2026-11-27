@@ -16,6 +16,7 @@ mod pipeline;
 mod services;
 mod skeleton;
 mod text;
+mod text_field;
 mod windows;
 
 use crate::skeleton::{IconButton, Stack};

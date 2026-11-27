@@ -52,6 +52,10 @@ pub struct FrameReport {
     /// Runs of scope closures inside inline builds, the window roots included
     /// ([`crate::BuildCx::count_scope`]).
     pub scopes: u32,
+    /// Runs of contract component `measure` hooks ([`crate::BuildCx::count_measure`]).
+    pub measures: u32,
+    /// Access nodes contract runs built ([`crate::BuildCx::count_access_build`]).
+    pub access_builds: u32,
     pub access_ms: f64,
     /// Nodes in the frame's `TreeUpdate`s.
     pub access_nodes: u32,
@@ -64,6 +68,8 @@ pub(crate) struct Counters {
     pub(crate) painted: u32,
     pub(crate) runs: u32,
     pub(crate) scopes: u32,
+    pub(crate) measures: u32,
+    pub(crate) access_builds: u32,
 }
 
 /// The cells every window shares.
@@ -100,6 +106,8 @@ pub struct Runtime {
     pub(crate) interact: IdMap<State<Interact>>,
     /// Per-node cells of single interaction facts, created when a build first reads one.
     pub(crate) interact_facts: IdMap<[Option<State<bool>>; InteractFact::COUNT]>,
+    /// Per-node cells of the part of the node the pointer hovers, created when paint first reads one.
+    pub(crate) hovered_parts: IdMap<State<Option<u64>>>,
     pub(crate) clipboard: Vec<(WindowId, ClipboardRequest)>,
     /// Nodes that repaint at a frame time: (node, time), one entry per node.
     pub(crate) wakes: Vec<(NodeId, f64)>,
@@ -151,6 +159,7 @@ impl Runtime {
             time: 0.0,
             interact: IdMap::default(),
             interact_facts: IdMap::default(),
+            hovered_parts: IdMap::default(),
             clipboard: Vec::new(),
             wakes: Vec::new(),
             layout_wakes: Vec::new(),
@@ -774,6 +783,8 @@ impl Runtime {
         report.painted = self.counters.painted;
         report.runs = self.counters.runs;
         report.scopes = self.counters.scopes;
+        report.measures = self.counters.measures;
+        report.access_builds = self.counters.access_builds;
         self.tree.build_q.extend(held);
         report
     }

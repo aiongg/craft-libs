@@ -830,17 +830,20 @@ pub trait Show: Component + Meta<Shape = shape::Leaf> + sealed::Show {
 
     /// Shows the component at `rect`, with no allocation.
     fn show_at(self, ui: &mut Ui, rect: Rect) -> Self::Output {
-        run::show_leaf(self, ui, ShowAt::Rect(rect), None)
+        let place = Env::of(ui);
+        run::show_leaf(&mut Some(self), ui, (ShowAt::Rect(rect), place), None)
     }
 
     /// Shows the component with rich tooltip content from the same call.
     fn show_with_tip(self, ui: &mut Ui, tip: impl FnOnce(&mut Ui)) -> Self::Output {
-        run::show_leaf(self, ui, ShowAt::Flow, Some(Box::new(tip)))
+        let place = Env::of(ui);
+        run::show_leaf(&mut Some(self), ui, (ShowAt::Flow, place), Some(Box::new(tip)))
     }
 
     /// Shows the component at `rect` with rich tooltip content.
     fn show_at_with_tip(self, ui: &mut Ui, rect: Rect, tip: impl FnOnce(&mut Ui)) -> Self::Output {
-        run::show_leaf(self, ui, ShowAt::Rect(rect), Some(Box::new(tip)))
+        let place = Env::of(ui);
+        run::show_leaf(&mut Some(self), ui, (ShowAt::Rect(rect), place), Some(Box::new(tip)))
     }
 
     /// Measures without allocating: steps 1 to 5 under the id `show` would use next. It registers no id, opens no
