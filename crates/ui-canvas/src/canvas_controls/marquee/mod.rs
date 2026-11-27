@@ -8,12 +8,13 @@ pub(crate) mod stories;
 use super::words::CanvasControlWords;
 use crate::canvas::{MARCH_SECONDS, MARCH_TICK, canvas_space, march_shift};
 use crate::contract::{Access, Animate as _, Common, Component, Cx, MeasureCx, PaintUi, Props as _, Role, WordSetCx as _};
+use crate::primitives::items::{self, Item, StrokeAlign};
 use crate::primitives::{ContentPainterCx, Dashes, StrokeWidth, ellipse};
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, DataColor, StyleColor, StyleCx};
 use craft_behavior::kurbo::{Point, Rect, Vec2};
 use craft_behavior::{CanvasView, Input, Metrics};
-use egui::{Color32, Pos2, Response, Shape, Stroke};
+use egui::{Color32, Pos2, Response};
 
 /// Opacity of the halo under an outline being drawn.
 const HALO_ALPHA: f32 = 0.55;
@@ -21,6 +22,7 @@ const HALO_ALPHA: f32 = 0.55;
 /// How a marquee is drawn.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 #[non_exhaustive]
+#[derive(crate::contract::MemoProps)]
 pub enum MarqueeLook {
     /// Marching ants laid out in device pixels, for selections, marquee drags and zoom boxes.
     #[default]
@@ -38,6 +40,7 @@ pub enum MarqueeLook {
 /// What a marquee outlines, in document units.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
+#[derive(crate::contract::MemoProps)]
 pub enum MarqueeShape {
     /// A rectangle.
     Rect(Rect),
@@ -170,13 +173,13 @@ impl Marquee {
     }
 }
 
-fn line(points: &[Pos2], closed: bool, stroke: Stroke) -> Shape {
-    if closed { Shape::closed_line(points.to_vec(), stroke) } else { Shape::line(points.to_vec(), stroke) }
+fn line(points: &[Pos2], closed: bool, width: f32, color: Color32) -> Option<Item> {
+    items::polyline(points, closed, items::stroke(width, color, StrokeAlign::Middle))
 }
 
 fn paint_band(painter: &ContentPainterCx<'_>, run: &Run, style: &MarqueeStyle) {
     let (light, dark) = (style.light.egui(), style.dark.egui());
-    painter.painter.add(line(&run.points, run.closed, Stroke::new(style.band_width, light)));
+    painter.painter.extend(line(&run.points, run.closed, style.band_width, light));
     let mut dashed = run.points.clone();
     if run.closed
         && let Some(&first) = run.points.first()
@@ -188,8 +191,8 @@ fn paint_band(painter: &ContentPainterCx<'_>, run: &Run, style: &MarqueeStyle) {
 
 /// A thin line over a wider translucent halo.
 fn paint_haloed(painter: &ContentPainterCx<'_>, run: &Run, style: &MarqueeStyle, halo: Color32, ink: Color32) {
-    painter.painter.add(line(&run.points, run.closed, Stroke::new(style.drawing_halo, halo.gamma_multiply(HALO_ALPHA))));
-    painter.painter.add(line(&run.points, run.closed, Stroke::new(style.band_width, ink)));
+    painter.painter.extend(line(&run.points, run.closed, style.drawing_halo, halo.gamma_multiply(HALO_ALPHA)));
+    painter.painter.extend(line(&run.points, run.closed, style.band_width, ink));
 }
 
 impl Component for Marquee {

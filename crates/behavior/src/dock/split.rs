@@ -11,3 +11,12 @@ pub enum SplitSize {
     /// Second child size in logical points.
     FixedSecond(f32),
 }
+
+impl std::hash::Hash for SplitSize {
+    /// By the variant and the size's bits.
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        std::mem::discriminant(self).hash(state);
+        let (Self::Ratio(size) | Self::FixedFirst(size) | Self::FixedSecond(size)) = self;
+        size.to_bits().hash(state);
+    }
+}

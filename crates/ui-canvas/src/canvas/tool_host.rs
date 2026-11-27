@@ -910,12 +910,13 @@ fn sub_decl(owner: Id, node: &SubNode, rect: Rect, parent: Id) -> SubDecl<'_> {
 
 /// Paints the tool over the canvas, under the clip of the body it runs in: the canvas's view.
 fn paint_tool(ui: &Ui, env: &Env, tool: &dyn CanvasTool, cx: ToolContext<'_>) {
-    let painter = ui.painter().clone();
-    let record = RefCell::new(PaintRecord::default());
-    let draw = Draw::new(&painter, &record, DrawEnv { tokens: &env.tokens, direction: env.direction, ink: env.ink });
-    let content = ContentPainterCx::new(painter.clone(), env, env.ink);
-    let march = March { policy: env.motion, dash: env.tokens.stroke.dash };
-    tool.paint(&draw, &cx.painter(&content, march).styled(host_style(ui, env)));
+    crate::runtime::egui::text_layout::on_painter(ui.painter(), |canvas| {
+        let record = RefCell::new(PaintRecord::default());
+        let draw = Draw::new(canvas, &record, DrawEnv { tokens: &env.tokens, direction: env.direction, ink: env.ink });
+        let content = ContentPainterCx::new(canvas, env, env.ink);
+        let march = March { policy: env.motion, dash: env.tokens.stroke.dash };
+        tool.paint(&draw, &cx.painter(&content, march).styled(host_style(ui, env)));
+    });
 }
 
 /// The style context the host paints with: the secondary variant of the pass's env.
@@ -943,9 +944,11 @@ fn paint_smart_lines(ui: &Ui, env: &Env, space: Option<CanvasSpace>, lines: &[Sn
     if smart.is_empty() {
         return;
     }
-    let content = ContentPainterCx::new(ui.painter().clone(), env, env.ink);
     let style = resolve_style(&host_style(ui, env), SmartGuides::new(&[], &[]).style_key(), ui.ctx(), <SmartGuides<'static> as Component>::style);
-    paint_lines(&content, &space.view, &smart, &style, color);
+    crate::runtime::egui::text_layout::on_painter(ui.painter(), |canvas| {
+        let content = ContentPainterCx::new(canvas, env, env.ink);
+        paint_lines(&content, &space.view, &smart, &style, color);
+    });
 }
 
 /// The hover sample of the pass: the pointer's latest position with the pen's reading.

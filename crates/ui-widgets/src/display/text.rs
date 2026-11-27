@@ -244,7 +244,7 @@ impl Component for Text {
         let mut layout = cx.layout_at(&self.run(role, cx.resolved.label), band);
         // In a row the room is what the earlier siblings left, which can be less than a word; the row's shrink step
         // then makes room for the word.
-        if self.elide == Elide::Off && layout.galley.rows.len() > 1 {
+        if self.elide == Elide::Off && layout.rows() > 1 {
             let widest = widest();
             if widest > band {
                 layout = cx.layout_at(&self.run(role, cx.resolved.label), widest);

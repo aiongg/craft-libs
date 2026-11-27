@@ -8,6 +8,7 @@ pub(crate) mod stories;
 
 use crate::canvas::canvas_space;
 use crate::contract::{Access, Common, Component, Cx, MeasureCx, PaintUi, Props as _, Role};
+use crate::primitives::items::{self, Item, Mesh, Stroke, StrokeAlign, Vertex};
 use crate::primitives::textures::{Revision, TextureStore, TextureStoreOptions, UNTINTED};
 use crate::primitives::{ContentPainterCx, Dashes, PaintShape, dashed, outline_with};
 use crate::runtime::env::Label;
@@ -15,8 +16,7 @@ use crate::runtime::memory::Remember as _;
 use crate::style::{ComponentStyle, DataColor, StyleColor, StyleCx};
 use craft_behavior::kurbo::{self, BezPath, PathEl, Point, Rect};
 use craft_behavior::{CanvasView, Input, Metrics};
-use egui::epaint::Vertex;
-use egui::{Color32, ColorImage, Mesh, Pos2, Response, Shape, Stroke, Vec2, pos2};
+use egui::{Color32, ColorImage, Pos2, Response, Vec2, pos2};
 use std::sync::Arc;
 
 pub use hover::HoverMask;
@@ -37,6 +37,7 @@ const MAX_SEGMENT_POINTS: f64 = 1000.0;
 /// What a click under the pointer would pick, in document units.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
+#[derive(crate::contract::MemoProps)]
 pub enum HoverShape {
     /// A layer's or group's bounds: the line sits just outside the rectangle, so it never covers the layer's edge
     /// pixels.
@@ -51,6 +52,7 @@ pub enum HoverShape {
 /// How a [`SelectionOutline`] strokes its shapes.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[non_exhaustive]
+#[derive(crate::contract::MemoProps)]
 pub enum SelectionOutlineLook {
     /// A thin line: the selected paths of a vector or design app.
     #[default]
@@ -163,17 +165,14 @@ fn segment_hull(from: kurbo::Point, segment: PathEl) -> Vec<kurbo::Point> {
 
 /// The shapes of one run: the kit's halo-and-line outline in the overlay colours, or a line of the host's `color`
 /// alone.
-fn run_shapes(style: &OutlineStyle, run: Vec<Pos2>, closed: bool, color: Option<DataColor>, width: f32) -> Vec<Shape> {
+fn run_shapes(style: &OutlineStyle, run: Vec<Pos2>, closed: bool, color: Option<DataColor>, width: f32) -> Vec<Item> {
     match color {
         None => outline_with(
-            Stroke::new(style.thick, style.halo.egui()),
-            Stroke::new(style.medium, style.line.egui()),
+            Stroke::new(style.thick, items::rgba(style.halo.egui())),
+            Stroke::new(style.medium, items::rgba(style.line.egui())),
             &[if closed { PaintShape::Polygon(run) } else { PaintShape::Path(run) }],
         ),
-        Some(color) => {
-            let stroke = Stroke::new(width, color.0);
-            vec![if closed { Shape::closed_line(run, stroke) } else { Shape::line(run, stroke) }]
-        }
+        Some(color) => items::polyline(&run, closed, items::stroke(width, color.0, StrokeAlign::Middle)).into_iter().collect(),
     }
 }
 
@@ -202,16 +201,16 @@ fn tint(mask: &HoverMask, color: Color32) -> ColorImage {
 }
 
 fn paint_mask(painter: &ContentPainterCx<'_>, id: egui::Id, view: &CanvasView, mask: &HoverMask, color: Color32) {
-    let ctx = painter.painter.ctx();
+    let ctx = painter.egui_ctx();
     let store = TextureStore::<(egui::Id, u64)>::in_context(ctx, "canvas_controls.hover_mask", TextureStoreOptions::frames());
     let texture = store.get_or_put(ctx, (id, mask.generation()), Revision::of(&color.to_array()), || tint(mask, color));
     let uvs = [pos2(0.0, 0.0), pos2(1.0, 0.0), pos2(1.0, 1.0), pos2(0.0, 1.0)];
-    let mut mesh = Mesh::with_texture(texture.sized().id);
+    let mut mesh = Mesh::with_texture(texture.key());
     for (pos, uv) in view.quad(mask.bounds()).into_iter().zip(uvs) {
-        mesh.vertices.push(Vertex { pos, uv, color: UNTINTED });
+        mesh.vertices.push(Vertex { pos, uv, color: items::rgba(UNTINTED) });
     }
     mesh.indices.extend_from_slice(&[0, 1, 2, 0, 2, 3]);
-    painter.painter.add(Shape::mesh(mesh));
+    painter.painter.extend(items::mesh(mesh));
 }
 
 /// The outline of the object under the pointer: decoration over the canvas, drawn after the document and before the
@@ -327,7 +326,7 @@ struct OutlineKey {
 struct OutlineShapes {
     key: Option<OutlineKey>,
     centre: Point,
-    shapes: Arc<Vec<Shape>>,
+    shapes: Arc<Vec<Item>>,
 }
 
 impl<'a> SelectionOutline<'a> {
@@ -350,7 +349,7 @@ impl<'a> SelectionOutline<'a> {
 
 impl SelectionOutline<'_> {
     /// The shapes of the paths, then of the key path, under `view`.
-    fn build(&self, view: &CanvasView, style: &OutlineStyle) -> Vec<Shape> {
+    fn build(&self, view: &CanvasView, style: &OutlineStyle) -> Vec<Item> {
         let mut shapes = Vec::new();
         for path in self.paths {
             for (mut points, closed) in path_runs(view, path) {
@@ -358,8 +357,7 @@ impl SelectionOutline<'_> {
                     SelectionOutlineLook::Solid => shapes.extend(run_shapes(style, points, closed, self.color, style.thin)),
                     SelectionOutlineLook::Faint => {
                         let color = self.color.map_or(style.line.egui(), |color| color.0);
-                        let stroke = egui::Stroke::new(style.thin, color);
-                        shapes.push(if closed { Shape::closed_line(points, stroke) } else { Shape::line(points, stroke) });
+                        shapes.extend(items::polyline(&points, closed, items::stroke(style.thin, color, StrokeAlign::Middle)));
                     }
                     SelectionOutlineLook::Dashed => {
                         if closed {
@@ -426,7 +424,7 @@ impl Component for SelectionOutline<'_> {
             }
             if whole(shift.x) && whole(shift.y) {
                 let mut moved = (*kept.shapes).clone();
-                moved.iter_mut().for_each(|shape| shape.translate(shift));
+                moved.iter_mut().for_each(|item| items::translate(item, shift));
                 kept.shapes = Arc::new(moved);
                 kept.centre = centre;
                 return;

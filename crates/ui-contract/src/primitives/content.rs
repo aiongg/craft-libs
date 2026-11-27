@@ -7,7 +7,7 @@ use super::text::{HAlign, TextLayout, free_room_before};
 use crate::fonts::{FontRef, SEMIBOLD};
 use crate::runtime::env::Env;
 use crate::style::text_measure::rich_of_job;
-use crate::style::{DataColor, Ink, UiTokens, ink_color};
+use crate::style::{DataColor, Ink, StyleCx, UiTokens, ink_color};
 use craft_i18n::{Direction, Format, WordSet};
 use egui::epaint::text::{FontId, TextDirection, VariationCoords};
 use egui::text::{LayoutJob, TextFormat};
@@ -70,6 +70,20 @@ impl<'a> ContentPainterCx<'a> {
     pub(crate) fn data(mut self, data: super::DataMode) -> Self {
         self.data = data;
         self
+    }
+
+    /// The style context of the scope being painted, for a content painter that resolves the style of a component
+    /// it draws the face of. Styles resolve through the egui context's style cache until the rt runtime has its own,
+    /// so it runs on the egui runtime only.
+    #[doc(hidden)]
+    pub fn style_cx(&self) -> StyleCx<'_> {
+        StyleCx::of_env(self.egui_ctx(), self.env)
+    }
+
+    /// The egui context the style cache lives on; see [`style_cx`](Self::style_cx).
+    #[doc(hidden)]
+    pub fn egui_ctx(&self) -> &egui::Context {
+        self.painter.egui().expect("a content painter resolves styles on the egui runtime until the rt style cache exists")
     }
 
     /// Runs `paint` with a `Draw` over this painter, in the scope's tokens and direction.

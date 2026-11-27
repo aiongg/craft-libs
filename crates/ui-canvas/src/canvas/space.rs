@@ -20,6 +20,7 @@ use std::ops::RangeInclusive;
 /// shown at.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
+#[derive(crate::contract::MemoProps)]
 pub struct CanvasSpace {
     /// The view on screen: document to the canvas root's screen space, part way to [`target`](Self::target) while a
     /// zoom eases, and [`pixel_aligned`].
@@ -40,7 +41,9 @@ pub struct CanvasSpace {
     zoom_scheme: ZoomScheme,
     /// The canvas's picture slot for this pass, which [`paint_picture`](Self::paint_picture) appends to; `None` in a
     /// measuring pass.
+    #[memo_props(skip = "the slot the body reserved while painting")]
     picture: Option<PaintSlot>,
+    #[memo_props(skip = "the wheel input of this pass; an input marks the node")]
     wheel: Option<craft_behavior::Wheel>,
     zoom_anchor: Option<Pos2>,
 }
@@ -170,7 +173,7 @@ impl CanvasSpace {
     /// paints nothing.
     pub fn paint_picture(&self, ctx: &egui::Context, shapes: Vec<egui::Shape>) {
         if let Some(slot) = self.picture {
-            slot.extend(ctx, shapes);
+            slot.extend_shapes(ctx, shapes);
         }
     }
 
@@ -316,6 +319,7 @@ pub fn pixel_aligned(view: CanvasView, pixels_per_point: f32) -> CanvasView {
 /// measures read them from.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
+#[derive(crate::contract::MemoProps)]
 pub struct CanvasRulers {
     /// The x axis' ruler (the top ruler, and the position of a vertical guide).
     pub x: RulerText,
@@ -353,6 +357,7 @@ impl Default for CanvasRulers {
 /// pans and is never one.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 #[non_exhaustive]
+#[derive(crate::contract::MemoProps)]
 pub struct BackgroundPress {
     /// The button that went down on the background in this pass: a control that keeps a selection clears it.
     pub pressed: Option<PointerButton>,
@@ -369,6 +374,7 @@ pub struct BackgroundPress {
 /// [`CanvasSpace::take_nudge`].
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 #[non_exhaustive]
+#[derive(crate::contract::MemoProps)]
 pub struct BodyKeys {
     /// Page Up, Page Down, Home or End, with the modifiers held.
     pub page: Option<(NavMove, MoveMods)>,
@@ -476,6 +482,7 @@ pub fn with_canvas_space<R>(ui: &mut egui::Ui, space: CanvasSpace, body: impl Fn
 /// number formatter of the env).
 #[derive(Clone, Copy, Debug)]
 #[non_exhaustive]
+#[derive(crate::contract::MemoProps)]
 pub struct RulerText {
     /// The ticks and the size of the unit.
     pub units: RulerUnits,

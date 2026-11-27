@@ -7,13 +7,14 @@ pub(crate) mod stories;
 
 use crate::canvas::{CanvasSpace, GuideLine, canvas_space};
 use crate::contract::{Access, Common, Component, Cx, MeasureCx, PaintUi, Props as _, Role};
-use crate::primitives::{GridInk, GridLook, GridStroke, PaintSlot, grid_lines_with};
+use crate::primitives::items::{self, Item};
+use crate::primitives::{GridInk, GridLook, GridStroke, grid_lines_with};
 use crate::runtime::env::Label;
 use crate::runtime::memory::Remember as _;
 use crate::style::{ComponentStyle, DataColor, StyleColor, StyleCx};
 use craft_behavior::kurbo::{Point, Rect, Vec2};
 use craft_behavior::{CanvasView, Input, Metrics};
-use egui::{Color32, Response, Shape};
+use egui::{Color32, Response};
 use std::sync::Arc;
 
 pub use crate::primitives::{GridAxis, GridCrowding, GridLines, MAX_LINES};
@@ -27,6 +28,7 @@ const MAX_CROSSINGS: usize = 200_000;
 /// How the grid's lines are drawn.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[non_exhaustive]
+#[derive(crate::contract::MemoProps)]
 pub enum GridLine {
     /// An unbroken line.
     #[default]
@@ -84,7 +86,7 @@ struct GridKey {
 #[derive(Clone, Default)]
 struct GridShapes {
     key: Option<GridKey>,
-    shapes: Arc<Vec<Shape>>,
+    shapes: Arc<Vec<Item>>,
 }
 
 /// Major and minor grid lines over a document, counted from `origin`. A major step under six screen points draws
@@ -169,7 +171,7 @@ impl CanvasGrid {
 
 impl CanvasGrid {
     /// The shapes of the lines in `space` as `key` draws them.
-    fn shapes(&self, space: &CanvasSpace, key: &GridKey) -> Vec<Shape> {
+    fn shapes(&self, space: &CanvasSpace, key: &GridKey) -> Vec<Item> {
         let lines = self.lines(space);
         if lines.extent.is_none() {
             return Vec::new();
@@ -233,11 +235,10 @@ impl Component for CanvasGrid {
         let Some(space) = canvas_space(&cx.env) else { return };
         let shapes = cx.recall::<GridShapes>().shapes;
         let painter = ui.content_painter(cx);
-        let first = (self.under_pictures && space.picture_slot().is_some()).then(|| PaintSlot::reserve(&painter.painter));
+        let first = (self.under_pictures && space.picture_slot().is_some()).then(|| ui.slot_here());
         painter.painter.extend(shapes.iter().cloned());
         if let Some(first) = first {
-            let ctx = painter.painter.ctx().clone();
-            space.paint_picture(&ctx, first.take_after(&ctx));
+            space.paint_picture(&cx.ctx, ui.take_after(first));
         }
     }
 
@@ -251,12 +252,12 @@ impl Component for CanvasGrid {
 }
 
 /// A square at each crossing where either line is major.
-fn crossings(space: &CanvasSpace, lines: &GridLines, color: Color32, side: f32) -> Vec<Shape> {
+fn crossings(space: &CanvasSpace, lines: &GridLines, color: Color32, side: f32) -> Vec<Item> {
     let mut squares = Vec::new();
     let mut square = |x: f64, y: f64| {
         if squares.len() < MAX_CROSSINGS {
             let at = space.view.to_screen(Point::new(x, y));
-            squares.push(Shape::rect_filled(egui::Rect::from_center_size(at, egui::Vec2::splat(side)), 0.0, color));
+            squares.push(items::rect_filled(egui::Rect::from_center_size(at, egui::Vec2::splat(side)), egui::CornerRadius::ZERO, color));
         }
     };
     for &x in &lines.x.major {

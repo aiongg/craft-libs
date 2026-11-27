@@ -1132,3 +1132,10 @@ pub fn outset(corners: &[emath::Pos2; 4], by: f32) -> [emath::Pos2; 4] {
         here + mitre
     })
 }
+
+impl std::hash::Hash for Homography {
+    /// The nine coefficients by their bits.
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        std::hash::Hash::hash(&self.0.map(f64::to_bits), state);
+    }
+}

@@ -349,7 +349,7 @@ impl<'a> TitleRow<'a> {
             icon = Some(Rect::from_center_size(slot.center(), Vec2::splat(side)));
             band = rest;
         }
-        let width = |run: &TextRun<'_>| cx.layout_at(run, f32::INFINITY).galley.size().x;
+        let width = |run: &TextRun<'_>| cx.layout_at(run, f32::INFINITY).size().x;
         let title = width(&TextRun::new(cx.resolved.label).role(cx.style.text.role));
         let note = self.note.as_ref().map_or(0.0, |note| width(&note_run(note.as_str())) + cx.gap());
         let mut subtitle = None;
@@ -407,8 +407,8 @@ impl Component for TitleRow<'_> {
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
         let role = cx.style.text.role;
-        let title = cx.layout(&TextRun::new(cx.resolved.label).role(role)).galley.size();
-        let width = |run: &TextRun<'_>| cx.layout(run).galley.size().x + cx.gap();
+        let title = cx.layout(&TextRun::new(cx.resolved.label).role(role)).size();
+        let width = |run: &TextRun<'_>| cx.layout(run).size().x + cx.gap();
         let note = self.note.as_ref().map_or(0.0, |note| width(&note_run(note.as_str())));
         let subtitle = self.subtitle.as_ref().map_or(0.0, |subtitle| width(&subtitle_run(subtitle.as_str(), cx.style.subtitle.role)));
         let parts = usize::from(self.has_lead()) + self.commands.len() + self.actions.len();
@@ -425,7 +425,7 @@ impl Component for TitleRow<'_> {
         }
         // The title's x-height sits on the row's centre line (`text_on_centre_line`), so a text row no taller than its
         // text holds it there.
-        let centre = cx.layout(&TextRun::new("x").role(role)).galley.mesh_bounds.center().y;
+        let centre = cx.layout(&TextRun::new("x").role(role)).ink().center().y;
         Vec2::new(width, title.y.max(2.0 * centre).max(2.0 * (title.y - centre)))
     }
 

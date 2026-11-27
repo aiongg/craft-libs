@@ -138,7 +138,7 @@ impl<E: 'static> Component for Node<'_, E> {
 
     /// The title's width or the controls', and the title row's height above the controls.
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        let title = cx.layout(&TextRun::new(self.kind.title()).role(cx.style.role)).galley.size();
+        let title = cx.layout(&TextRun::new(self.kind.title()).role(cx.style.role)).size();
         let controls = self.kind.measure_controls(cx);
         Vec2::new(title.x.max(controls.x), cx.style.title_height + controls.y)
     }

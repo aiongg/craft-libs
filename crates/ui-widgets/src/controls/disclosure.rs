@@ -4,12 +4,12 @@
 use crate::contract::{
     Animate as _, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, PaintUi, Pointer as _, Role, Styled as _, spec,
 };
-use crate::primitives::{Glyph, PaintShape, StrokeWidth};
+use crate::primitives::{Canvas, Glyph, PaintShape, StrokeWidth};
 use crate::style::{ComponentStyle, FocusLook, IconLook, StyleCx, UiTokens, ink_color, rgba_color};
 use craft_behavior::{Metrics, Sense};
 use craft_i18n::Direction;
 use egui::emath::GuiRounding as _;
-use egui::{Color32, Painter, Pos2, Rect, Shape, Stroke, Vec2};
+use egui::{Color32, Pos2, Rect, Vec2};
 
 /// A quarter turn: closed points to the end, open points down.
 const QUARTER_TURN: f32 = std::f32::consts::FRAC_PI_2;
@@ -165,7 +165,7 @@ impl Glyph for DisclosureGlyph {
         self.open < 1.0
     }
 
-    fn paint(&self, painter: &Painter, tokens: &UiTokens, rect: Rect, color: Color32, mirrored: bool) {
+    fn paint(&self, painter: &Canvas<'_>, tokens: &UiTokens, rect: Rect, color: Color32, mirrored: bool) {
         let rect = Rect::from_center_size(rect.center(), Vec2::splat(self.side(tokens)));
         let mut points = self.outline(rect, mirrored);
         let color = self.tone(tokens, color);
@@ -176,10 +176,10 @@ impl Glyph for DisclosureGlyph {
                 points[0].x = x;
                 points[2].x = x;
             }
-            painter.add(Shape::convex_polygon(points, color, Stroke::NONE));
+            painter.extend(crate::primitives::items::convex_polygon(&points, color, None));
         } else {
             let width = self.stroke.points(tokens, painter.pixels_per_point());
-            painter.add(Shape::line(points, Stroke::new(width, color)));
+            painter.line(&points, width, color);
         }
     }
 }

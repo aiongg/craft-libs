@@ -41,6 +41,7 @@ pub use craft_behavior::dock::Arrangement as SplitLayout;
 /// How a pointer press in an inactive pane activates it.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
+#[derive(crate::contract::MemoProps)]
 pub enum PanePress {
     /// The first press selects the pane; its contents receive later presses.
     #[default]
@@ -55,6 +56,7 @@ pub enum PanePress {
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
 #[non_exhaustive]
+#[derive(crate::contract::MemoProps)]
 pub struct SplitAt {
     /// The column lines (the vertical dividers), each over the width.
     pub columns: Vec<f32>,
@@ -294,6 +296,7 @@ pub struct SplitViewsOutput<D = ()> {
 /// Where a dragged document strip tab lands on split views.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
+#[derive(crate::contract::MemoProps)]
 pub enum TabDropTarget {
     /// A whole pane of a split body.
     Pane(usize),
@@ -304,6 +307,7 @@ pub enum TabDropTarget {
 /// The documents of a dragged tab group and the target they were dropped on.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
+#[derive(crate::contract::MemoProps)]
 pub struct TabDrop<D> {
     /// The dragged documents.
     pub documents: Vec<D>,
@@ -387,8 +391,10 @@ pub struct SplitViews<'a, D: Clone + Send + Sync + 'static = ()> {
     #[prop]
     count: usize,
     activated: Option<usize>,
+    #[key(skip)] // a drop test; it produces no content
     accepts: Option<AcceptsDrop<'a, D>>,
     /// The tab drop released over the views in this pass.
+    #[key(skip)] // the drop the run reports
     tab_drop: Option<TabDrop<D>>,
 }
 

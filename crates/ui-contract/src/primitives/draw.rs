@@ -694,12 +694,7 @@ impl<'a> Draw<'a> {
     /// `image()` is built on the first request only (see `TextureCache::texture`). A painter with no `egui::Context`
     /// of its own, such as a canvas tool's paint call, loads its pictures through here.
     pub fn cached_texture<K: std::hash::Hash + 'static>(&self, key: K, image: impl FnOnce() -> egui::ColorImage) -> ImageKey {
-        let id = super::canvas::image_key(&key);
-        let mut image = Some(image);
-        self.canvas
-            .services()
-            .image(id, craft_ui_rt::ImageOptions::default(), &mut || super::canvas::rgba_image(&(image.take().expect("made once"))()));
-        id
+        self.canvas.cached_image(key, image)
     }
 
     /// Paints `checker` over `rect` with corners `radius`, a light cell at the rect's top left. It shows through data,

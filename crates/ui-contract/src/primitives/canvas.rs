@@ -349,9 +349,47 @@ impl<'a> Canvas<'a> {
         self.add(super::items::rect_filled(rect, radius.into(), color.into()));
     }
 
+    /// The egui context while the egui runtime runs the pipeline; `None` on craft-ui-rt.
+    pub fn egui(&self) -> Option<&egui::Context> {
+        self.services().egui()
+    }
+
+    /// The image for `key` in the frame's image store, made by `image` the first time `key` is asked for.
+    pub fn cached_image<K: std::hash::Hash + 'static>(&self, key: K, image: impl FnOnce() -> egui::ColorImage) -> ImageKey {
+        let id = image_key(&key);
+        let mut image = Some(image);
+        self.services().image(id, ImageOptions::default(), &mut || rgba_image(&(image.take().expect("made once"))()));
+        id
+    }
+
+    /// A rounded rect's outline `width` wide, `kind` of it inside, centred on or outside the rect's edge.
+    pub fn rect_stroke(&self, rect: Rect, radius: impl Into<CornerRadius>, width: f32, color: Color32, kind: egui::StrokeKind) {
+        let align = match kind {
+            egui::StrokeKind::Inside => craft_ui_rt::StrokeAlign::Inside,
+            egui::StrokeKind::Middle => craft_ui_rt::StrokeAlign::Middle,
+            egui::StrokeKind::Outside => craft_ui_rt::StrokeAlign::Outside,
+        };
+        self.add(super::items::rect_stroke(rect, radius.into(), width, color, align));
+    }
+
+    /// A circle's outline `width` wide, outside the radius.
+    pub fn circle_stroke(&self, center: Pos2, radius: f32, width: f32, color: Color32) {
+        self.add(super::items::circle_stroke(center, radius, width, color));
+    }
+
     /// A filled circle.
     pub fn circle_filled(&self, center: Pos2, radius: f32, color: impl Into<Color32>) {
         self.add(super::items::circle_filled(center, radius, color.into()));
+    }
+
+    /// The open line through `points`, `width` wide, centred on it.
+    pub fn line(&self, points: &[Pos2], width: f32, color: Color32) {
+        self.extend(super::items::polyline(points, false, super::items::stroke(width, color, craft_ui_rt::StrokeAlign::Middle)));
+    }
+
+    /// The closed line through `points`, `width` wide, centred on it.
+    pub fn closed_line(&self, points: &[Pos2], width: f32, color: Color32) {
+        self.extend(super::items::polyline(points, true, super::items::stroke(width, color, craft_ui_rt::StrokeAlign::Middle)));
     }
 
     /// A line segment `width` wide.
@@ -363,6 +401,14 @@ impl<'a> Canvas<'a> {
 /// The image key of a picture keyed by `key` in the app's or the framework's own key space.
 pub fn image_key<K: std::hash::Hash + 'static>(key: &K) -> ImageKey {
     ImageKey(craft_ui_rt::hash_key(&(std::any::TypeId::of::<K>(), key)))
+}
+
+/// The display-list name of an egui texture, until the texture store sits on the frame's `ImageStore`: a managed id
+/// keeps its number.
+pub fn texture_key(id: egui::TextureId) -> ImageKey {
+    match id {
+        egui::TextureId::User(id) | egui::TextureId::Managed(id) => ImageKey(id),
+    }
 }
 
 /// An egui colour image as display-list pixels (straight alpha).

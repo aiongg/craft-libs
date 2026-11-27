@@ -47,6 +47,7 @@ const ZERO_ROUND: f64 = 1000.0;
 /// The part of the rulers a pointer is on.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
+#[derive(crate::contract::MemoProps)]
 pub enum RulerPart {
     /// The top ruler, which measures the document's x axis.
     Horizontal,
@@ -111,6 +112,7 @@ pub enum RulerCommands {
 /// strip): a page view's margins, a text frame's insets.
 #[derive(Clone, Debug, Default, PartialEq)]
 #[non_exhaustive]
+#[derive(crate::contract::MemoProps)]
 pub struct RulerMargins {
     /// Along the x axis.
     pub horizontal: Vec<Range<f64>>,
@@ -224,6 +226,7 @@ pub struct Rulers<'a> {
     face: Option<RulerFace>,
     /// The canvas's space and snap in this pass, which the canvas hands to the rulers it shows.
     space: Option<CanvasSpace>,
+    #[key(skip)] // read when input is handled; an input marks the node
     snap: Option<Snap>,
     guide: Option<GuideDrag>,
     picked: Option<UnitKind>,

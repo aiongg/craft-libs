@@ -510,13 +510,13 @@ fn a_tools_own_icon_paints_its_button_and_its_flyout_row() {
     use crate::primitives::{Glyph, IconSpec};
     use crate::style::UiTokens;
 
-    // An app's tool artwork: one ellipse across its rect, a shape nothing else on the rail paints, so the frame's
+    // An app's tool artwork: one disc across its rect, a shape nothing else on the rail paints, so the frame's
     // shapes say where the glyph painted.
     #[derive(crate::contract::MemoProps)]
     struct Artwork;
     impl Glyph for Artwork {
-        fn paint(&self, painter: &egui::Painter, _: &UiTokens, rect: Rect, color: egui::Color32, _: bool) {
-            painter.add(egui::Shape::ellipse_filled(rect.center(), rect.size() / 2.0, color));
+        fn paint(&self, painter: &crate::primitives::Canvas<'_>, _: &UiTokens, rect: Rect, color: egui::Color32, _: bool) {
+            painter.circle_filled(rect.center(), rect.width().min(rect.height()) / 2.0, color);
         }
     }
     // Where the glyph painted in the fixture's next frame. A frame that replays a memoized view repeats its shapes, so
@@ -526,7 +526,7 @@ fn a_tools_own_icon_paints_its_button_and_its_flyout_row() {
             .frame_shapes()
             .iter()
             .filter_map(|shape| match shape {
-                egui::Shape::Ellipse(ellipse) => Some(Rect::from_center_size(ellipse.center, ellipse.radius * 2.0)),
+                egui::Shape::Circle(disc) => Some(Rect::from_center_size(disc.center, Vec2::splat(disc.radius * 2.0))),
                 _ => None,
             })
             .collect()

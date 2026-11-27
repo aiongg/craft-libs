@@ -3,7 +3,9 @@
 //! craft-ui-render-epaint matches the egui build pixel for pixel.
 
 use craft_theme::Rgba;
-use craft_ui_rt::{CornerRadii, Dash, Fill, Item, Mesh, Stroke, StrokeAlign};
+use craft_ui_rt::{CornerRadii, Dash, Fill};
+/// The display-list types painters build, for crates that paint through the contract.
+pub use craft_ui_rt::{Item, Mesh, Stroke, StrokeAlign, Vertex};
 use egui::{Color32, CornerRadius, Pos2, Rect, Vec2};
 use std::sync::Arc;
 
@@ -108,7 +110,7 @@ pub fn mesh(mesh: Mesh) -> Option<Item> {
 }
 
 /// `item` moved by `by`.
-pub(crate) fn translate(item: &mut Item, by: Vec2) {
+pub fn translate(item: &mut Item, by: Vec2) {
     if by == Vec2::ZERO {
         return;
     }

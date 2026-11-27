@@ -464,7 +464,7 @@ impl<'a> Notice<'a> {
         let column_width = if row { 0.0 } else { actions_width.max(content_width) };
         let text_width = title.map_or(0.0, |size| size.x).max(message.x).max(column_width);
         // The head line: the icon, the first line of the text and the dismiss button share its centre line.
-        let first = title_layout.as_ref().or(message_layout.as_ref()).and_then(|layout| layout.galley.rows.first()).map_or(0.0, |row| row.row.size.y);
+        let first = title_layout.as_ref().or(message_layout.as_ref()).map_or(0.0, |layout| layout.first_row_height());
         let action_line = if inline_actions { actions.iter().map(|size| size.y).fold(0.0, f32::max) } else { 0.0 };
         let line = icon.unwrap_or(0.0).max(dismiss.map_or(0.0, |size| size.y)).max(first).max(action_line);
         let text_offset = (line - first) / 2.0;

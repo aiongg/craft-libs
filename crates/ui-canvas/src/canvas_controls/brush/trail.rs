@@ -2,13 +2,13 @@
 
 use crate::canvas::canvas_space;
 use crate::contract::{Access, Common, Component, Cx, MeasureCx, PaintUi, Props as _, Role};
+use crate::primitives::items::{self, Mesh, Vertex};
 use crate::primitives::{Revision, Serials, TextureState, TextureStore, TextureStoreOptions};
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, StyleColor, StyleCx};
 use craft_behavior::kurbo::{Point, Rect};
 use craft_behavior::{Input, Metrics};
-use egui::epaint::{Mesh, Vertex};
-use egui::{Color32, ColorImage, Response, Shape, pos2};
+use egui::{Color32, ColorImage, Response, pos2};
 
 /// The share of the tone's colour a full-coverage texel shows; the texture holds coverage only.
 const LIGHT_SHARE: f32 = 0.25;
@@ -182,6 +182,7 @@ impl CoverageMask {
 /// What the trail shows its footprint as.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
+#[derive(crate::contract::MemoProps)]
 pub enum TrailTone {
     /// The marquee's colour.
     #[default]
@@ -214,6 +215,7 @@ pub struct StrokeTrailStyle {
 pub struct StrokeTrail<'a> {
     #[common]
     common: Common,
+    #[key(by = (self.mask.id, self.mask.revision))]
     mask: &'a mut CoverageMask,
     /// What the footprint shows as.
     #[prop]
@@ -258,7 +260,7 @@ impl Component for StrokeTrail<'_> {
             return;
         }
         let painter = ui.content_painter(cx);
-        let ctx = painter.painter.ctx();
+        let ctx = painter.egui_ctx();
         let store = TextureStore::<(egui::Id, u64)>::in_context(ctx, STORE_SALT, TextureStoreOptions::frames());
         let (key, revision) = ((cx.id, self.mask.id), Revision::new(self.mask.revision));
         // A second paint of the pass finds the entry at this revision and nothing dirty.
@@ -294,10 +296,11 @@ impl Component for StrokeTrail<'_> {
             return;
         }
         let uv = [pos2(0.0, 0.0), pos2(u, 0.0), pos2(u, v), pos2(0.0, v)];
-        let mut mesh = Mesh::with_texture(texture.id);
+        let mut mesh = Mesh::with_texture(crate::primitives::texture_key(texture.id));
+        let tint = items::rgba(tint);
         mesh.vertices.extend(corners.iter().zip(uv).map(|(pos, uv)| Vertex { pos: *pos, uv, color: tint }));
         mesh.indices.extend([0, 1, 2, 0, 2, 3]);
-        painter.painter.add(Shape::mesh(mesh));
+        painter.painter.extend(items::mesh(mesh));
     }
 
     fn access(&self, access: &mut Access, _: &Cx<'_, Self>) {

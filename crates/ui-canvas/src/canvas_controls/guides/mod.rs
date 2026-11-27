@@ -171,6 +171,7 @@ pub struct Guides<'a> {
     /// The distance an arrow key moves a guide with Shift held, in document units.
     #[prop(quantity = "document units")]
     big_step: f64,
+    #[key(skip)] // the guides' output, written by the run
     report: Report,
 }
 
@@ -543,12 +544,12 @@ impl Component for Guides<'_> {
             let width = if key { style.key_width } else { style.width };
             let look = RuleLook { color, width: RuleWidth::Points(width) };
             match guide.line {
-                GuideLine::Solid => painter.painter.extend(Rule::shapes(&look, a, b, ppp)),
+                GuideLine::Solid => painter.painter.extend(Rule::items(&look, a, b, ppp)),
                 GuideLine::Dashed => painter.dashed(&[a, b], Dashes::new(style.dash, style.gap), StrokeWidth::Thin, color),
                 GuideLine::Dots => painter.painter.extend(Rule::dotted(&look, a, b, style.gap, ppp)),
             }
             if focused == Some(guide.key.get()) && (b - a).length() > 0.0 {
-                painter.painter.extend(FocusRing::shapes(&style.focus, FocusKind::Halo, &footprint(&space, a, b, width), ppp));
+                painter.painter.extend(FocusRing::items(&style.focus, FocusKind::Halo, &footprint(&space, a, b, width), ppp));
             }
         }
     }

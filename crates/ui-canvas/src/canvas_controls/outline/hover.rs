@@ -87,3 +87,10 @@ impl HoverMask {
         self.generation
     }
 }
+
+impl crate::contract::MemoProps for HoverMask {
+    /// By the generation: two masks are the same sampling when it is equal.
+    fn key(&self, key: &mut crate::contract::MemoKey) {
+        self.generation.key(key);
+    }
+}

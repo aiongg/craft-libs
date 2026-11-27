@@ -8,14 +8,15 @@ use crate::contract::{
     Access, Activation, Common, Component, Cx, DisabledLook, GroupHandle, MeasureCx, Meta as _, Outcome, PaintUi, Pointer as _, Props as _, Role,
     Sizing, Styled as _, WordSetCx as _,
 };
+use crate::primitives::items::{self, Mesh, Vertex};
 use crate::primitives::textures::UNTINTED;
-use crate::primitives::{Checker, ContentPainterCx, DataWidth, Draw, FacePaint, IconSpec, PaintShape, StrokeWidth, TextureCache, WellFill};
+use crate::primitives::{Checker, ContentPainterCx, DataWidth, Draw, FacePaint, IconSpec, PaintShape, StrokeWidth, WellFill};
 use crate::runtime::focus::FocusShape;
 use crate::runtime::requests::ColorRequest;
 use crate::style::{ComponentStyle, DataColor, Flags, FocusLook, State, StateMix, StateSet, StyleColor, StyleCx, UiTokens, resolve_style};
 use craft_behavior::{IconId, Metrics, Mixed, Sense, Value};
 use craft_theme::{Hsb, Rgba, Srgba, Stateful, States, over};
-use egui::{Color32, ColorImage, CornerRadius, Mesh, Pos2, Rect, Response, Shape, Vec2, pos2};
+use egui::{Color32, ColorImage, CornerRadius, Pos2, Rect, Response, Vec2, pos2};
 use std::sync::Arc;
 
 #[cfg(feature = "suite")]
@@ -661,13 +662,13 @@ impl Face<'_> {
             SwatchFill::Spectrum => {
                 let mesh = spectrum_mesh(well.center(), &self.corners(well));
                 match self.shape {
-                    SwatchShape::Hexagon => painter.data_shapes([Shape::mesh(mesh)]),
+                    SwatchShape::Hexagon => painter.data_items(items::mesh(mesh)),
                     SwatchShape::Square | SwatchShape::Round => painter.mesh_in(well, self.radius(well), mesh),
                 }
             }
             SwatchFill::Image(image) => {
                 self.color_well(painter, well, Some(CLEAR));
-                let texture = TextureCache::texture(painter.painter.ctx(), SwatchImageKey(image.key), || image.pixels().clone());
+                let texture = painter.with_draw(|draw| draw.cached_texture(SwatchImageKey(image.key), || image.pixels().clone()));
                 let uv = cover_uv(image.pixels().size, well.size());
                 match self.shape {
                     SwatchShape::Hexagon => {
@@ -675,12 +676,12 @@ impl Face<'_> {
                         let mut mesh = Mesh::with_texture(texture);
                         for &pos in &corners {
                             let at = (pos - well.min) / well.size();
-                            mesh.vertices.push(egui::epaint::Vertex { pos, uv: uv.lerp_inside(at), color: UNTINTED });
+                            mesh.vertices.push(Vertex { pos, uv: uv.lerp_inside(at), color: items::rgba(UNTINTED) });
                         }
                         for k in 1..corners.len() as u32 - 1 {
                             mesh.add_triangle(0, k, k + 1);
                         }
-                        painter.data_shapes([Shape::mesh(mesh)]);
+                        painter.data_items(items::mesh(mesh));
                     }
                     SwatchShape::Square | SwatchShape::Round => painter.picture(texture, well, uv, f32::from(self.radius(well).nw)),
                 }
@@ -718,7 +719,7 @@ fn spectrum_mesh(centre: Pos2, corners: &[Pos2]) -> Mesh {
     let hue = |pos: Pos2| {
         let d = pos - centre;
         let degrees = d.x.atan2(-d.y).to_degrees().rem_euclid(360.0);
-        Color32::from(Srgba::from_hsb(Hsb { h: degrees, s: 1.0, b: 1.0 }))
+        items::rgba(Color32::from(Srgba::from_hsb(Hsb { h: degrees, s: 1.0, b: 1.0 })))
     };
     let rim: Vec<Pos2> = corners
         .iter()
@@ -805,7 +806,7 @@ impl SwatchFace {
     pub fn paint(&self, cx: &ContentPainterCx<'_>, rect: Rect) {
         let key = Swatch::optional("", self.color).style_key();
         let scope = cx.style_cx();
-        let style = resolve_style(&scope, key, cx.painter.ctx(), Swatch::<()>::style);
+        let style = resolve_style(&scope, key, cx.egui_ctx(), Swatch::<()>::style);
         let (flags, on) = if self.selected { (Flags::SELECTED, 1.0) } else { (Flags::empty(), 0.0) };
         let state = StateSet::new(State::Rest, flags, StateMix::new(0.0, 0.0, on));
         let fill = SwatchFill::optional(self.color);

@@ -513,7 +513,6 @@ pub(crate) fn derive(input: TokenStream) -> syn::Result<TokenStream> {
     check_params(&input.generics)?;
     let fields = named_fields(&input, "Component")?;
     let component_key = crate::component_key::key_impl(&input, &fields, options.unkeyed)?;
-    let component_key = crate::component_key::keyed_crate().then_some(component_key);
     let marked = marked(&input.ident, &fields, shape)?;
     let ident = &input.ident;
     let key_fields =

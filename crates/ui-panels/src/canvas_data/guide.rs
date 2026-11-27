@@ -6,7 +6,7 @@ use craft_theme::Rgba;
 
 /// The identity of one guide among those shown together: the host's name for it, and the index of its part
 /// (`GuideKey::part`).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, crate::contract::MemoProps)]
 pub struct GuideKey(u64);
 
 impl GuideKey {
@@ -27,7 +27,7 @@ impl GuideKey {
 }
 
 /// How a guide's line is drawn.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 pub enum GuideLine {
     /// An unbroken line.
     #[default]
@@ -102,7 +102,7 @@ impl GuideColor {
 }
 
 /// A guide of the host's document.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, crate::contract::MemoProps)]
 pub struct Guide {
     /// The host's name for the guide, unique among the guides shown together.
     pub key: GuideKey,

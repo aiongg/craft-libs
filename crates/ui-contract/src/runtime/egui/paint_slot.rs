@@ -29,7 +29,15 @@ impl PaintSlot {
         if items.is_empty() {
             return;
         }
-        let shapes = super::text_layout::shapes_of(&items);
+        self.extend_shapes(ctx, super::text_layout::shapes_of(&items));
+    }
+
+    /// Adds `shapes` already painted elsewhere (shapes [`take_after`](Self::take_after) took out) to the slot, after
+    /// what it holds, keeping the slot's clip.
+    pub fn extend_shapes(self, ctx: &Context, shapes: Vec<Shape>) {
+        if shapes.is_empty() {
+            return;
+        }
         ctx.graphics_mut(|graphics| {
             graphics.entry(self.layer).mutate_shape(self.idx, |clipped| {
                 if let Shape::Vec(list) = &mut clipped.shape {

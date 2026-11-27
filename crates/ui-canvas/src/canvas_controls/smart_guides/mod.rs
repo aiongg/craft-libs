@@ -19,6 +19,7 @@ use egui::{Color32, CornerRadius, Pos2, Response, Vec2};
 /// An alignment line of [`SmartGuides`], in document coordinates.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
+#[derive(crate::contract::MemoProps)]
 pub struct SmartLine {
     /// One end of the line.
     pub a: Point,
@@ -57,6 +58,7 @@ impl SmartLine {
 /// A distance of [`SmartGuides`]: a line with end caps and a label, in document coordinates.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
+#[derive(crate::contract::MemoProps)]
 pub struct Measure {
     /// One end of the distance.
     pub a: Point,
@@ -160,7 +162,7 @@ pub(crate) fn paint_lines(
         if smart.extension {
             painter.dashed(&[a, b], Dashes::even(style.dash), StrokeWidth::Thin, fill);
         } else {
-            painter.painter.extend(Rule::shapes(&line, a, b, ppp));
+            painter.painter.extend(Rule::items(&line, a, b, ppp));
         }
     }
 }
@@ -222,11 +224,11 @@ impl Component for SmartGuides<'_> {
         let (rulers, numbers) = (space.rulers(), cx.env.units());
         for measure in self.measures {
             let (a, b) = (view.to_screen(measure.a), view.to_screen(measure.b));
-            painter.painter.extend(Rule::shapes(&line, a, b, ppp));
+            painter.painter.extend(Rule::items(&line, a, b, ppp));
             let along = (b - a).normalized();
             let cap = Vec2::new(-along.y, along.x) * (style.cap / 2.0);
             for end in [a, b] {
-                painter.painter.extend(Rule::shapes(&line, end - cap, end + cap, ppp));
+                painter.painter.extend(Rule::items(&line, end - cap, end + cap, ppp));
             }
             let text = measure.text(&rulers, &numbers);
             let run = TextRun::new(text.as_str()).role(TypeRole::Caption).color(ink);

@@ -5,7 +5,7 @@ use super::caption_icons::{CaptionIcon, CaptionIcons};
 use super::words::ShellWords;
 use super::{Caption, CaptionFamily, Captions, SlotSize};
 use crate::contract::{Access, Common, Component, Cx, MeasureCx, MemoProps, PaintUi, PartsCx, Role, Styled as _, WordSetCx as _};
-use crate::primitives::{Glyph, IconSpec, PaintShape, TextureCache};
+use crate::primitives::{Canvas, Glyph, IconSpec, PaintShape};
 use crate::runtime::access::Name;
 use crate::runtime::env::Label;
 use crate::runtime::windows::WindowHit;
@@ -13,7 +13,7 @@ use crate::style::{ComponentStyle, IconLook, StyleColor, StyleCx, UiTokens};
 use craft_behavior::{Metrics, PartKey, Sense};
 use craft_theme::{Stateful, States};
 use egui::emath::GuiRounding as _;
-use egui::{Color32, ColorImage, CornerRadius, Painter, Pos2, Rect, Response, Stroke, StrokeKind, Vec2, pos2, vec2};
+use egui::{Color32, ColorImage, CornerRadius, Pos2, Rect, Response, Stroke, StrokeKind, Vec2, pos2, vec2};
 use std::sync::Arc;
 
 #[cfg(feature = "suite")]
@@ -403,7 +403,7 @@ struct Mark {
 }
 
 impl Glyph for Mark {
-    fn paint(&self, painter: &Painter, _: &UiTokens, rect: Rect, color: Color32, _: bool) {
+    fn paint(&self, painter: &Canvas<'_>, _: &UiTokens, rect: Rect, color: Color32, _: bool) {
         if self.face == Face::Windows {
             self.windows(painter, rect, color);
             return;
@@ -419,18 +419,18 @@ impl Glyph for Mark {
 
 impl Mark {
     /// The 10 pt line glyphs of the Windows buttons.
-    fn windows(&self, painter: &Painter, rect: Rect, color: Color32) {
+    fn windows(&self, painter: &Canvas<'_>, rect: Rect, color: Color32) {
         let scale = rect.width() / WINDOWS_GLYPH;
         let stroke = Stroke::new(WINDOWS_STROKE * scale, color);
         let offset = RESTORE_OFFSET * scale;
         match self.caption {
             Caption::Minimize => {
-                painter.line_segment([rect.left_center(), rect.right_center()], stroke);
+                painter.line_segment([rect.left_center(), rect.right_center()], stroke.width, stroke.color);
             }
             // Restore: a front square with the corner of the one behind it.
             Caption::Maximize if self.maximized => {
                 let front = Rect::from_min_max(rect.min + vec2(0.0, offset), rect.max - vec2(offset, 0.0));
-                painter.rect_stroke(front, 0.0, stroke, StrokeKind::Middle);
+                painter.rect_stroke(front, 0.0, stroke.width, stroke.color, StrokeKind::Middle);
                 let back = vec![
                     rect.min + vec2(offset, offset),
                     rect.min + vec2(offset, 0.0),
@@ -438,21 +438,21 @@ impl Mark {
                     rect.max - vec2(0.0, offset),
                     rect.max - vec2(offset, offset),
                 ];
-                painter.line(back, stroke);
+                painter.line(&back, stroke.width, stroke.color);
             }
             Caption::Maximize => {
-                painter.rect_stroke(rect, 0.0, stroke, StrokeKind::Middle);
+                painter.rect_stroke(rect, 0.0, stroke.width, stroke.color, StrokeKind::Middle);
             }
             Caption::Close => {
-                painter.line_segment([rect.left_top(), rect.right_bottom()], stroke);
-                painter.line_segment([rect.right_top(), rect.left_bottom()], stroke);
+                painter.line_segment([rect.left_top(), rect.right_bottom()], stroke.width, stroke.color);
+                painter.line_segment([rect.right_top(), rect.left_bottom()], stroke.width, stroke.color);
             }
             _ => {}
         }
     }
 
     /// The theme's glyph as a mask tinted with `color`; `false` when there is none to show.
-    fn themed(&self, painter: &Painter, rect: Rect, color: Color32) -> bool {
+    fn themed(&self, painter: &Canvas<'_>, rect: Rect, color: Color32) -> bool {
         let (Some(icons), Some(icon)) = (self.icons.as_deref(), self.icon) else { return false };
         let ppp = painter.pixels_per_point();
         let px = (rect.width() * ppp).round() as u32;
@@ -462,32 +462,32 @@ impl Mark {
             return false;
         }
         let key = (icons.theme().to_owned(), icons.generation(), icon, px);
-        let texture = TextureCache::texture(painter.ctx(), key, || {
+        let texture = painter.cached_image(key, || {
             // White at the mask's coverage, tinted with the ink when drawn.
             let pixels = mask.iter().map(|coverage| Color32::from_white_alpha(*coverage)).collect();
             ColorImage { size: [side, side], source_size: vec2(px as f32, px as f32), pixels }
         });
         let shown = Rect::from_min_size(rect.center().round_to_pixels(ppp) - Vec2::splat(px as f32 / ppp / 2.0), Vec2::splat(px as f32 / ppp));
         let uv = Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0));
-        crate::runtime::egui::textures::paint(painter, texture, shown, uv, color, egui::CornerRadius::ZERO);
+        painter.image(texture, shown, uv, color);
         true
     }
 
     /// A round family's glyph on a 16 pt grid.
-    fn round(&self, painter: &Painter, rect: Rect, color: Color32) {
+    fn round(&self, painter: &Canvas<'_>, rect: Rect, color: Color32) {
         let scale = rect.width() / ROUND_GLYPH;
         let at = |(x, y): (f32, f32)| rect.min + vec2(x, y) * scale;
         if self.face == Face::Breeze {
             let line = Stroke::new(BREEZE_STROKE * scale, color);
             match self.caption {
                 Caption::Minimize => {
-                    painter.line(BREEZE_MINIMIZE.map(at).to_vec(), line);
+                    painter.line(&BREEZE_MINIMIZE.map(at), line.width, line.color);
                 }
                 Caption::Maximize if self.maximized => {
-                    painter.add(egui::Shape::closed_line(BREEZE_RESTORE.map(at).to_vec(), line));
+                    painter.closed_line(&BREEZE_RESTORE.map(at), line.width, line.color);
                 }
                 Caption::Maximize => {
-                    painter.line(BREEZE_MAXIMIZE.map(at).to_vec(), line);
+                    painter.line(&BREEZE_MAXIMIZE.map(at), line.width, line.color);
                 }
                 Caption::Close => self.cross(painter, BREEZE_CLOSE, at, Stroke::new(BREEZE_CLOSE_STROKE * scale, color)),
                 _ => {}
@@ -502,7 +502,7 @@ impl Mark {
             Caption::Maximize => {
                 let (from, to) = if self.maximized { ADWAITA_RESTORE } else { ADWAITA_MAXIMIZE };
                 let square = Rect::from_min_max(at((from, from)), at((to, to)));
-                painter.rect_stroke(square, 0.0, Stroke::new(ADWAITA_FRAME_STROKE * scale, color), StrokeKind::Inside);
+                painter.rect_stroke(square, 0.0, ADWAITA_FRAME_STROKE * scale, color, StrokeKind::Inside);
             }
             Caption::Close => self.cross(painter, ADWAITA_CLOSE, at, Stroke::new(ADWAITA_CLOSE_STROKE * scale, color)),
             _ => {}
@@ -510,9 +510,9 @@ impl Mark {
     }
 
     /// The cross whose diagonal runs between the two points of `corners`.
-    fn cross(&self, painter: &Painter, corners: [(f32, f32); 2], at: impl Fn((f32, f32)) -> Pos2, stroke: Stroke) {
+    fn cross(&self, painter: &Canvas<'_>, corners: [(f32, f32); 2], at: impl Fn((f32, f32)) -> Pos2, stroke: Stroke) {
         let [(x0, y0), (x1, y1)] = corners;
-        painter.line_segment([at((x0, y0)), at((x1, y1))], stroke);
-        painter.line_segment([at((x1, y0)), at((x0, y1))], stroke);
+        painter.line_segment([at((x0, y0)), at((x1, y1))], stroke.width, stroke.color);
+        painter.line_segment([at((x1, y0)), at((x0, y1))], stroke.width, stroke.color);
     }
 }
