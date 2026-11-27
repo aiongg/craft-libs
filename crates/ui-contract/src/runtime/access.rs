@@ -533,6 +533,14 @@ impl SubNode {
         self
     }
 
+    /// Makes the node a run of text: `text` laid out on one line, each character's start offset from the node's left
+    /// edge in `positions` and its advance in `widths` (one per character), `rtl` for a right-to-left run. The node
+    /// is a `TextRun` whatever role it was given and takes its [`bounds`](Self::bounds) as the line's rectangle.
+    pub fn text_run(&mut self, text: impl Into<String>, positions: Vec<f32>, widths: Vec<f32>, rtl: bool) -> &mut Self {
+        self.run = Some(RunFacts { text: text.into(), positions, widths, rtl });
+        self
+    }
+
     /// Declares Increment and Decrement on a node that steps something with no number (a canvas tool's arrows
     /// nudging what it holds); a part with no focus stop gets them as `take_access` requests that name the part.
     #[doc(hidden)]

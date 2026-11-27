@@ -250,6 +250,12 @@ impl<K: TextureKey> TextureStore<K> {
         Self::on(&board, salt, options)
     }
 
+    /// The store named `salt` of `ctx`'s window (see [`TextureStore::of`]), for code that holds a `Ui`, a `Cx` or a
+    /// `MeasureCx` and no build: on the job board the host provided above the window root.
+    pub fn in_context(ctx: &crate::contract::Context, salt: impl Hash, options: TextureStoreOptions) -> Self {
+        Self::on(&ctx.jobs(), salt, options)
+    }
+
     /// The store named `salt` on `board` (see [`TextureStore::of`]).
     pub fn on(board: &JobBoard, salt: impl Hash, options: TextureStoreOptions) -> Self {
         let salt = craft_ui_rt::hash_key(&(TypeId::of::<K>(), salt));

@@ -818,9 +818,11 @@ Every service free function `f(ctx, ..)` of ui-contract called from the componen
 | `windows::os_of(ctx)` | 2 | `Context::os()` | |
 | `windows::shell_of(ctx, viewport)` | 2 | Ui `shell() -> ShellInfo` | |
 | `windows::logic`, `hold_close`, `root_close_requested`, `route_root` | 4 | `Component::close_guard`, Cx `close_request()`; host side in INT-7 | B10 |
-| `TextureCache::texture(ctx, ..)`, `TextureStore::in_context`, `Thumbnails::in_context` | 20 | `TextureCache` by `TextureKey` (Q10); hand-written | `ImageStore` |
+| `TextureCache::texture(ctx, ..)`, `TextureStore::in_context`, `Thumbnails::in_context` | 20 | `TextureCache` by `TextureKey` (Q10); code with a `Context` and no build: `TextureStore::in_context(&Context, salt, TextureStoreOptions)`, `Thumbnails::in_context(&Context, salt, ThumbnailOptions)`; reads take `&mut impl TextureReads`: `BuildCx`, `CxCore` (hooks; effects when the node's build ends), `&MeasureCx` (`measure`, at once through the run's `Ui`); `TextureStoreOptions::packed_small` and `CachedTexture::uv()` deleted (`key` is a field, the uv the unit rect) | `ImageStore` |
 | `ThumbSource::revision(key, request)` | | `ThumbSource::key_revision(&self, key: &K) -> Revision` (required: the version of the key's pixels at every request, which a kept view's version includes); `revision(key, request)` is provided and defaults to it | |
 | ListRow thumbnail painters | | `ThumbPicture::new(read: FnOnce(&mut CxCore, &ThumbRequest) -> TextureState, paint: FnOnce(&ContentPainterCx, Rect, &TextureState))`, `ThumbPicture::painter(FnOnce(&ContentPainterCx, Rect))`; `ThumbPaint<'a> = Versioned<ThumbPicture<'a>>`; `ListRow::thumb_picture(size, ThumbPaint)`, `extra_thumb_picture(ThumbPaint)`; RowThumb reads in `update`, paints the state in `paint` | |
+| `Picture::new(label, key, &dyn Fn() -> ColorImage)` | | `Picture::new(label, key, &dyn Fn() -> RgbaImage)`; Picture reads its texture in `update` and paints the kept state; the `DevicePixels` measure reads through `&MeasureCx` | |
+| `SubNode::text_run(text, positions, widths, rtl)` | | same signature; the rt access writer makes the sub-node a `TextRun` with the text as its value and AccessKit's character positions, widths and text direction | |
 | `testing::StoryPictures::of(ctx)` | 10 | `StoryPictures::of(ui: &Ui)` | Harness-provided value |
 | `replay::journal` | 1 | deleted | |
 | `install`, `pen::install` | 3 | deleted; `craft_ui::app::run` (INT-7) | |
