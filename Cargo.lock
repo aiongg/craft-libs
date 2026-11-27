@@ -1938,6 +1938,7 @@ dependencies = [
  "craft-timeline",
  "craft-tracked",
  "craft-ui",
+ "craft-ui-rt",
  "craft-update",
  "craft-usd",
  "craft-vcard",
@@ -4615,6 +4616,20 @@ dependencies = [
  "toml",
  "toml_edit",
  "zeroize",
+]
+
+[[package]]
+name = "craft-ui-rt"
+version = "0.1.0"
+dependencies = [
+ "accesskit",
+ "craft-behavior",
+ "craft-keymap",
+ "craft-theme",
+ "emath",
+ "kurbo",
+ "smallvec",
+ "web-time",
 ]
 
 [[package]]

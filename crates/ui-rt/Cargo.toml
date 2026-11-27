@@ -1,0 +1,23 @@
+[package]
+autotests = false
+name = "craft-ui-rt"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "The retained UI runtime: state cells with read tracking per phase, a node tree per window with layers, one-pass layout, kept display lists with damage, input routing and incremental AccessKit, behind renderer, text and platform traits"
+
+[lints]
+workspace = true
+
+# No window, GPU, text shaping or egui crate: renderers and platforms are their own crates (tests/boundary.rs).
+[dependencies]
+craft-behavior = { workspace = true }
+craft-keymap = { workspace = true }
+craft-theme = { workspace = true }
+accesskit = "0.25"
+emath = { version = "0.37", default-features = false }
+kurbo = { workspace = true }
+smallvec = { workspace = true }
+web-time = "1.1"
