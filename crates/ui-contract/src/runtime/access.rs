@@ -414,6 +414,15 @@ impl Access {
         &mut self.nodes[at]
     }
 
+    /// Reports `node`, which another component described (a collection's toggle cell in its row's `ItemFacts`), as
+    /// this component's sub-node for `part`; its requests still go where it says (`SubNode::served_by`).
+    #[doc(hidden)]
+    pub fn adopt(&mut self, part: impl Into<PartRef>, node: SubNode) -> &mut SubNode {
+        self.nodes.push(SubNode { part: part.into(), under: None, ..node });
+        let at = self.nodes.len() - 1;
+        &mut self.nodes[at]
+    }
+
     /// The text selection of the component's own text, from `anchor` to `focus`: each end is a text-run sub-node
     /// ([`SubNode::text_run`]) of this component and a character index in the run.
     pub fn text_selection(&mut self, anchor: (PartRef, usize), focus: (PartRef, usize)) -> &mut Self {
@@ -446,7 +455,7 @@ pub(crate) struct RunFacts {
 }
 
 /// A node below a component's node, for a part, a cell or a line of a content painter.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct SubNode {
     /// How the sub-node is named.
@@ -491,6 +500,9 @@ pub struct SubNode {
     pub(crate) run: Option<RunFacts>,
     /// The sub-node is disabled though its component is not (a toggle cell of a disabled row).
     pub(crate) disabled: bool,
+    /// The component that serves this sub-node's requests and the part they name there, when another component
+    /// reports the node (a collection's toggle cell, reported under its band row's cell).
+    pub(crate) forward: Option<(Id, PartRef)>,
 }
 
 impl SubNode {
@@ -523,6 +535,7 @@ impl SubNode {
             bounds: None,
             run: None,
             disabled: false,
+            forward: None,
         }
     }
 
@@ -603,6 +616,14 @@ impl SubNode {
     /// Nests this sub-node below another sub-node of the same component.
     pub fn under(&mut self, other: impl Into<PartRef>) -> &mut Self {
         self.under = Some(other.into());
+        self
+    }
+
+    /// Requests on this sub-node go to component `owner` as requests on its `part`: the owner describes the node and
+    /// another component reports it (`Access::adopt`). The owner claims `part` with a `Role::None` sub-node of its own.
+    #[doc(hidden)]
+    pub fn served_by(&mut self, owner: Id, part: impl Into<PartRef>) -> &mut Self {
+        self.forward = Some((owner, part.into()));
         self
     }
 

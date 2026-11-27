@@ -1185,12 +1185,18 @@ fn show_plain<C: Container, R>(
         return Inner { output, inner: inner_value, settle: None };
     }
     let mut frame = Frame::new(body_id, &regions, &resolved, stage, true, owner, (None, false), cancel);
+    let mut body_home = None;
     let Ui { cx, flow, .. } = ui;
     let output = cx.keyed(child, |cx| {
         cx.inline(ComponentNode { key: key.map_or(0, fold), tag, text: component.text_input() }, |kept, state, cx| {
             // The kept stage runs in this window for this node; its session and saved slots go back to the runtime's
             // store when the run ends.
             kept.memory = std::mem::take(&mut kept.memory).within(&ctx, id).appearing(state.new);
+            // The body's shown slots are the node's too: the body runs on them and they go back to the node after the
+            // run, or after its settle.
+            let body_memory = std::mem::take(&mut *kept.body_memory.borrow_mut());
+            frame.stage = MemoryStage::on_node(&ctx, body_id, body_memory).appearing(state.new);
+            body_home = Some(kept.body_memory.clone());
             super::node::DescendantWatch::provide(kept, cx, false);
             let value = steps::value(&mut component, &mut kept.memory, id, command.as_deref());
             (frame.gate, frame.gate_mixed) = gate_of(props.gates, &value);
@@ -1307,11 +1313,17 @@ fn show_plain<C: Container, R>(
         })
     });
     let ran = frame.ran;
-    let settle = if ran {
-        Some(crate::contract::settle::SettleAt::new(frame.stage, body_id))
-    } else {
-        frame.stage.write_back();
-        None
+    let settle = match body_home {
+        Some(home) if ran => Some(crate::contract::settle::SettleAt::new(frame.stage, body_id, Some(home))),
+        Some(home) => {
+            *home.borrow_mut() = frame.stage.finish();
+            None
+        }
+        None if ran => Some(crate::contract::settle::SettleAt::new(frame.stage, body_id, None)),
+        None => {
+            frame.stage.write_back();
+            None
+        }
     };
     Inner { output, inner: inner_value, settle }
 }

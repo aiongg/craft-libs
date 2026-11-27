@@ -435,6 +435,14 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                 let openers = std::mem::take(&mut icx.openers);
                 drop(icx);
                 item = Props::id(item, item_id);
+                // A band row reports the toggles of the collection's toggle columns under its own cells; a member
+                // has no node to report them under.
+                let toggle_nodes = match facts {
+                    Some(_) => {
+                        self.toggle_cell_nodes(&ctx, (id, item_id), (at, &key), (shown_cells.as_slice(), cx.core.resolved.enabled), &cx.core.env)
+                    }
+                    None => Vec::new(),
+                };
                 let row_facts = ItemFacts {
                     item: item_id,
                     flags,
@@ -446,6 +454,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                     aligns: aligns.clone(),
                     pressed: state.pressed.clone(),
                     menu_open: state.menu_open,
+                    toggle_nodes,
                 };
                 // An auto row takes the height its measure gives at the row's width; a kept row answers from its size
                 // cache and runs nothing. A height other than the layout's moves the rows after it: the collection
@@ -504,14 +513,6 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                         moved = true;
                     }
                 }
-                self.report_toggle_cells(
-                    &ctx,
-                    item_id,
-                    (at, &key),
-                    (shown_cells.as_slice(), cx.core.resolved.enabled),
-                    &cx.core.env,
-                    cx.core.rect.min,
-                );
                 let label = out.label_rect().unwrap_or(row);
                 self.slow_click_label(&key, label);
                 if let Some(shown) = shown_rows.last_mut() {

@@ -41,9 +41,12 @@ pub(crate) fn finish(mut access: Access, default: NodeRole, facts: &NodeFacts<'_
         None => default,
     };
     let mut subs = Vec::with_capacity(access.nodes.len());
+    let mut claimed = Vec::new();
     for sub in std::mem::take(&mut access.nodes) {
-        // A sub-node declared `Role::None` claims its part for no node (another node reports it).
+        // A sub-node declared `Role::None` claims its part for no node: another node reports it, and the requests on
+        // it still reach this node's run on that part.
         if sub.run.is_none() && sub.role == Role::None {
+            claimed.push(sub.part);
             continue;
         }
         let role = match (&sub.run, sub.role) {
@@ -96,13 +99,14 @@ pub(crate) fn finish(mut access: Access, default: NodeRole, facts: &NodeFacts<'_
         }
         if !facts.enabled || sub.disabled {
             node.set_disabled();
-        } else if facts.pressable.contains(&sub.part) {
+        } else if facts.pressable.contains(&sub.part) || sub.forward.is_some() {
             node.add_action(Action::Click);
         }
-        subs.push(BuiltSub { key: part_id(sub.part), part: sub.part, parent: sub.under.map(part_id), node });
+        let forward = sub.forward.map(|(owner, part)| (owner, part_id(part)));
+        subs.push(BuiltSub { key: part_id(sub.part), part: sub.part, parent: sub.under.map(part_id), node, forward });
     }
     let node = write(&access, role, facts);
-    Some(Built { node, subs })
+    Some(Built { node, subs, claimed })
 }
 
 /// The AccessKit node of the component's own facts.
@@ -333,12 +337,16 @@ pub(crate) struct BuiltSub {
     pub(crate) part: PartRef,
     pub(crate) parent: Option<u64>,
     pub(crate) node: Node,
+    /// The component that serves the sub-node's requests and its sub-node key there (`SubNode::served_by`).
+    pub(crate) forward: Option<(crate::primitives::Id, u64)>,
 }
 
 /// What a run keeps of its access facts.
 pub(crate) struct Built {
     pub(crate) node: Node,
     pub(crate) subs: Vec<BuiltSub>,
+    /// The parts of the `Role::None` sub-nodes: other nodes report them, and their requests arrive here.
+    pub(crate) claimed: Vec<PartRef>,
 }
 
 /// An assistive technology's action on a node, as a component sees it in [`crate::contract::rt::Cx::input`].

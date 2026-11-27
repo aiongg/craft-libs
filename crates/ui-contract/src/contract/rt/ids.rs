@@ -80,6 +80,11 @@ impl Drop for IdEntry {
 }
 
 impl Kept {
+    /// The live node of `id` in this node's window; `None` before the node's first run.
+    pub(crate) fn node_of(&self, id: Id) -> Option<NodeId> {
+        self.ids.as_ref()?.ids.node_of(id)
+    }
+
     /// Records that the node `cx` builds is the one named `id`. A run calls it where it sets
     /// `kept.id`; a node whose entry is current costs a comparison.
     pub(crate) fn note_id(&mut self, cx: &mut BuildCx<'_>, id: Id) {

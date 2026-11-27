@@ -574,7 +574,8 @@ pub(crate) fn run_shaped<C: Component>(
     core.node = true;
     core.faded = facts.faded && !resolved.enabled;
     core.focus = super::focus::facts(&kept.focus, focused, interact.focus_visible);
-    core.intents = super::intents::of_queue(core.run.input, |sub| kept.parts.iter().find(|p| p.id == sub).map(|p| p.part), || rtl);
+    let (parts, subs, claimed) = (&kept.parts, &kept.access_subs, &kept.access_claimed);
+    core.intents = super::intents::of_queue(core.run.input, |sub| super::node::request_part(parts, subs, claimed, sub), || rtl);
     crate::runtime::access::scope::push_label_reset(&mut core);
     let mut cxx = Cx {
         core: &mut core,
@@ -761,9 +762,10 @@ pub(crate) fn run_shaped<C: Component>(
         (Some(built), Some(facts)) => crate::runtime::access::text::write(built, facts, build.borrow().node()),
         _ => Vec::new(),
     };
-    let (access, subs) = built.map_or((None, Vec::new()), |b| (Some(b.node), b.subs));
+    let (access, subs, claimed) = built.map_or((None, Vec::new(), Vec::new()), |b| (Some(b.node), b.subs, b.claimed));
     kept.access = access;
     kept.access_subs = subs;
+    kept.access_claimed = claimed;
     // The node stands for the control folded into it: the control's focus and the requests aimed at the node.
     kept.access_stands =
         kept.access.as_ref().and_then(|_| fold::offered(&context, id)).and_then(|folded| super::ids::node_of(&build.borrow(), folded.inner));
@@ -946,6 +948,7 @@ pub(crate) fn run_member<I: Component>(
         aligns: Vec::new(),
         pressed: None,
         menu_open: false,
+        toggle_nodes: Vec::new(),
     }));
     core.parted = true;
     core.faded = begun.facts.faded && !run.enabled;

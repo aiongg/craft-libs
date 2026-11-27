@@ -30,6 +30,7 @@ fn with_item_facts<R>(ui: &mut Ui, at: crate::runtime::access::SetPosition, body
         aligns: Vec::new(),
         pressed: None,
         menu_open: false,
+        toggle_nodes: Vec::new(),
     };
     let env = Env::of(ui).derive_local(|scoped| scoped.item_facts = Some(Arc::new(facts)));
     Env::run_in(ui, env, |ui| body(ui, id))

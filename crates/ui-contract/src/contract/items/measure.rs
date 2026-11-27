@@ -194,6 +194,7 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
             aligns: self.header.aligns(),
             pressed: None,
             menu_open: false,
+            toggle_nodes: Vec::new(),
         };
         let env = installed.derive_local(|scoped| {
             scoped.item = Some(item_id);
