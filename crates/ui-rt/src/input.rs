@@ -22,7 +22,7 @@ use crate::gesture::Touches;
 use crate::hit::{Hit, chain, contains, hit_test, window_origin};
 use crate::id::{NodeId, WindowId};
 use crate::layer::{DismissReason, Layer, OutsidePress};
-use crate::platform::{Cursor, ImePurpose, ImeRequest, PointerEvent, PointerPhase, WindowEvent};
+use crate::platform::{Cursor, ImePurpose, ImeRequest, PointerEvent, PointerPhase, WindowCommand, WindowEvent};
 use crate::runtime::Runtime;
 use crate::state::State;
 
@@ -125,6 +125,9 @@ pub(crate) struct InputState {
     /// Focus events, delivered after the handler that caused them returns.
     queue: VecDeque<(NodeId, Event)>,
     ime: Option<(NodeId, Rect)>,
+    /// The text input an embedded window without key focus last asked its host for key focus
+    /// for ([`crate::WindowCommand::Focus`]), so it asks once per input.
+    key_focus_asked: Option<NodeId>,
     /// Focus moved since the last frame: the access focus and the IME session follow.
     pub(crate) focus_moved: bool,
     /// Modality, as craft keeps it: a key press or typed text shows the focus ring, a pointer
@@ -1025,14 +1028,25 @@ impl Runtime {
     /// with the user between windows. The frame runs it after layout.
     pub(crate) fn sync_ime(&mut self, window: WindowId) {
         let active = self.windows.get(&window).is_some_and(|w| *self.store.peek(w.env.window_focused));
-        let want = self.focused(window).filter(|_| active).and_then(|f| {
+        let input = self.focused(window).and_then(|f| {
             let n = self.tree.nodes.get(&f)?;
             let el = n.element.as_ref()?;
             let purpose: ImePurpose = el.text_input()?;
             let local = el.ime_cursor().unwrap_or(Rect::from_min_size(Pos2::ZERO, n.frame.size));
             Some((f, purpose, local.translate(window_origin(&self.tree, f))))
         });
+        let want = input.filter(|_| active);
         let Some(w) = self.windows.get_mut(&window) else { return };
+        // An embedded window gets key focus only from its host: a text input taking focus in it
+        // (a rename field opening) asks the host for key focus, as a click into a system window
+        // would give it.
+        let asking = input.map(|(node, ..)| node).filter(|_| w.embedded && !active);
+        if let Some(node) = asking
+            && w.input.key_focus_asked != Some(node)
+        {
+            self.window_commands.push((window, WindowCommand::Focus));
+        }
+        w.input.key_focus_asked = asking;
         match (w.input.ime, want) {
             (None, None) => {}
             (Some(_), None) => {

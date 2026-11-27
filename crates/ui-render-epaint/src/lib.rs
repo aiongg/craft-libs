@@ -487,7 +487,8 @@ impl EpaintRenderer {
     }
 }
 
-fn texture_options(options: ImageOptions) -> TextureOptions {
+/// How epaint samples an image drawn with `options`; for hosts that upload images themselves.
+pub fn texture_options(options: ImageOptions) -> TextureOptions {
     let filter = |f: craft_ui_rt::Filter| match f {
         craft_ui_rt::Filter::Linear => TextureFilter::Linear,
         craft_ui_rt::Filter::Nearest => TextureFilter::Nearest,
@@ -500,8 +501,6 @@ fn texture_options(options: ImageOptions) -> TextureOptions {
     TextureOptions { magnification: filter(options.magnify), minification: filter(options.minify), wrap_mode, ..TextureOptions::LINEAR }
 }
 
-/// The sRGB straight-alpha `rgba` as epaint's premultiplied image; for a mask, white with the
-/// alpha kept.
 /// The swapchain format for canvases in `canvas`: the same, or the same channels in the other byte
 /// order (X11 surfaces offer only BGRA). The blit onto the swapchain image converts.
 fn swapchain_format(canvas: wgpu::TextureFormat, offered: &[wgpu::TextureFormat]) -> Option<wgpu::TextureFormat> {
@@ -516,7 +515,9 @@ fn swapchain_format(canvas: wgpu::TextureFormat, offered: &[wgpu::TextureFormat]
     [canvas, twin].into_iter().find(|f| offered.contains(f))
 }
 
-fn color_image(size: [usize; 2], rgba: &[u8], mask: bool) -> ColorImage {
+/// The sRGB straight-alpha `rgba` as epaint's premultiplied image; for a mask, white with the
+/// alpha kept.
+pub fn color_image(size: [usize; 2], rgba: &[u8], mask: bool) -> ColorImage {
     if mask {
         let white: Vec<u8> = rgba.chunks_exact(4).flat_map(|p| [255, 255, 255, p[3]]).collect();
         ColorImage::from_rgba_unmultiplied(size, &white)
