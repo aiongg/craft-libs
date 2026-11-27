@@ -194,7 +194,7 @@ impl TypeFacts {
 pub(crate) fn measure_under<C: Component>(comp: &mut C, ui: &mut crate::contract::Ui<'_, '_>, proposal: Proposal) -> Vec2 {
     let env = Env::of(ui);
     let common = std::mem::take(comp.common_mut(Internal::new()));
-    let step1 = steps::env(&env, &common, steps::variants::<C>(common.variant, &env), &mut |command| ui.resolve_command(command.clone()));
+    let step1 = steps::env(&env, &common, steps::variants::<C>(common.variant, &env), &mut |command| Some(ui.resolve_command(command.clone())));
     let style = steps::style::<C>(ui.build_cx(), &steps::style_cx(&env, &step1), comp.style_key());
     let id = ui.id().with("measure");
     let resolved = steps::resolved(id, &step1, &common);

@@ -1,11 +1,11 @@
 //! Step 1, env: enabled, read-only and the resolved props.
 
 use crate::contract::{Common, Component, Resolved};
-use crate::runtime::commands::{self, ResolvedCommand};
+use crate::runtime::commands::{CommandRef, ResolvedCommand};
 use crate::runtime::env::{Env, Label};
 use crate::style::{ComponentStyle, GlyphRole, accepted_variant};
 use craft_theme::{ControlSize, Variant};
-use egui::{Context, Id};
+use crate::contract::Id;
 use std::sync::Arc;
 
 /// What step 1 resolves.
@@ -31,9 +31,16 @@ pub(crate) fn variants<C: Component>(asked: Option<Variant>, env: &Env) -> (Vari
 
 /// Step 1, env: enabled = instance AND scopes AND the bound command's state; read-only = instance OR scopes;
 /// size; variant; label.
-/// `(requested, variant)` comes from `variants`.
-pub(crate) fn env(ctx: &Context, env: &Env, common: &Common, (requested, variant): (Variant, Variant)) -> EnvStep {
-    let command = common.command.as_ref().map(|command| commands::resolve_bound(ctx, &env.commands, command));
+/// `(requested, variant)` comes from `variants`; `resolve` resolves the bound command through the
+/// window's command board in the scopes around the component (`None` where no board is reachable, a
+/// face's run).
+pub(crate) fn env(
+    env: &Env,
+    common: &Common,
+    (requested, variant): (Variant, Variant),
+    resolve: &mut dyn FnMut(&CommandRef) -> Option<Arc<ResolvedCommand>>,
+) -> EnvStep {
+    let command = common.command.as_ref().and_then(|command| resolve(command));
     let label = match (&common.label, &command) {
         (Label::Empty, Some(command)) => Label::Shared(command.label.clone()),
         (label, _) => label.resolved(&env.words),

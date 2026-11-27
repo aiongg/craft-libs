@@ -55,7 +55,7 @@ impl<C: Component> Begun<C> {
 pub(crate) fn begin<C: Component>(component: &mut C, ui: &mut Ui<'_, '_>) -> Begun<C> {
     let env = Env::of(ui);
     let common = std::mem::take(component.common_mut(Internal::new()));
-    let step1 = steps::env(&env, &common, steps::variants::<C>(common.variant, &env), &mut |command| ui.resolve_command(command.clone()));
+    let step1 = steps::env(&env, &common, steps::variants::<C>(common.variant, &env), &mut |command| Some(ui.resolve_command(command.clone())));
     let style = steps::style::<C>(ui.build_cx(), &steps::style_cx(&env, &step1), component.style_key());
     Begun { env, common, step1, style, facts: TypeFacts::of::<C>() }
 }
@@ -273,6 +273,9 @@ pub(crate) fn run<C: Component>(mut component: C, kept: &mut Kept, cx: &mut Buil
     steps::scrub_by_label(&component, &mut cxx);
     component.update(&mut cxx);
     steps::record_context(cxx.core);
+    if let Some((cursor, _)) = cxx.core.cursor {
+        kept.cursor = Some(cursor.into());
+    }
     let ring = stop.then(|| craft_ui_rt::Stroke::new(tokens.stroke.focus, tokens.color.line.focus));
     kept.focus.ring = ring;
     kept.focus.stop = stop.then(|| component.keys());
@@ -288,8 +291,7 @@ pub(crate) fn run<C: Component>(mut component: C, kept: &mut Kept, cx: &mut Buil
     }
 
     // 11 apply: the run's edits reach the binding, and the shown value follows.
-    steps::after_update(cxx.core);
-    let wrote = !steps::apply_values(&mut component, &mut cxx).is_empty();
+    let wrote = steps::apply_values(&mut component, &mut cxx).wrote();
     steps::register_reset(&mut component, &cxx);
 
     // 12 state and 13 paint, once per pointer look the paint read (section 8, 15.6).
@@ -300,7 +302,7 @@ pub(crate) fn run<C: Component>(mut component: C, kept: &mut Kept, cx: &mut Buil
 
     // 15 settle: edits a paint adopted reach the binding; a reveal goes to the scroll owner.
     let settled = steps::settle(&mut component, &mut cxx);
-    let wrote = wrote || !settled.is_empty();
+    let wrote = wrote || settled.wrote();
 
     // 16 report: the access node, once per run and only while the window's access tree is on, then
     // the tooltip and the kept retained facts.
@@ -459,7 +461,7 @@ fn record_variants<C: Component>(
         let ((variant, children), read) = crate::style::pointer_reads(|| {
             steps::state(component, cxx, open, hovered, pressed, begun.env.ink);
             let canvas = Canvas::new(&services, cxx.core.rect.min, Rect::EVERYTHING);
-            let fade = steps::fade(&begun.env, cxx.core);
+            let fade = steps::fade(&canvas, &begun.env, cxx.core);
             if let Some(items) = steps::surface_items(&begun.env, cxx.core, &*begun.style, scale) {
                 canvas.extend(items);
             }
