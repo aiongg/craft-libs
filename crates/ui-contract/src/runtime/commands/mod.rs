@@ -8,6 +8,7 @@ pub(crate) use inbox::{InboxCells, register as register_inboxes};
 mod clipboard;
 mod library;
 mod registry;
+pub(crate) use registry::Registry;
 
 pub use clipboard::{ClipContent, ClipError, ClipItem, ClipboardHandle};
 pub use craft_behavior::EditCommand;
@@ -672,7 +673,9 @@ pub trait Commands: CommandAccess {
     /// This frame's state of a scoped command, for this instance. Publishing an app-scope command here is a
     /// debug assertion.
     fn publish(&mut self, command: impl Into<CommandRef>, state: CommandState) {
-        board::publish(self.command_ctx(), self.command_chain(), &command.into(), state);
+        if let Some(board) = self.command_ctx().board() {
+            board.publish(self.command_chain(), &command.into(), state);
+        }
     }
 
     /// The next command of set `S` fired at this instance that it has not taken. A fire writes the
@@ -704,7 +707,7 @@ pub trait Commands: CommandAccess {
     /// the context, and the enabled state of its instance. `None` when the command is scoped and no instance of its
     /// scope is above the context.
     fn resolve_command(&self, command: impl Into<CommandRef>) -> Option<Arc<ResolvedCommand>> {
-        board::resolve_scoped(self.command_ctx(), self.command_chain(), &command.into())
+        self.command_ctx().board()?.resolve_logged(self.command_chain(), &command.into())
     }
 }
 

@@ -54,7 +54,6 @@ pub fn window_root_with<R>(cx: &mut BuildCx<'_>, env: WindowEnv, f: impl FnOnce(
         kept.env = Some(cells);
         kept.window_root = true;
         cx.provide(cells);
-        crate::contract::context::Context::enter_root(cx, Some(cells));
         let ids = cx.slot("craft-node-ids", super::ids::NodeIds::default);
         let ids = cx.peek_state(ids).clone();
         cx.provide(ids);
@@ -65,6 +64,7 @@ pub fn window_root_with<R>(cx: &mut BuildCx<'_>, env: WindowEnv, f: impl FnOnce(
             cx.provide(commands.clone());
             kept.commands = Some(commands);
         }
+        crate::contract::context::Context::enter_root(cx, Some(cells));
         let reads = begin_reads(true);
         let viewport = cx.env().viewport.get(cx);
         let tokens = super::env::tokens(cx);

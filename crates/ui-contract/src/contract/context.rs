@@ -18,9 +18,12 @@ use std::time::Duration;
 use craft_ui_rt::{BuildCx, Margin, Os, Rect, State, Vec2, Waker, WindowCommand, WindowId};
 
 use super::rt::EnvCells;
+use super::rt::commands::CommandBoard;
 use crate::primitives::Id;
+use crate::runtime::commands::CommandState;
 use crate::runtime::memory::RuntimeMemory;
 use crate::style::StyleCaches;
+use craft_keymap::CommandRef;
 
 /// A handle to one window's facts and services. Cloning it is cheap; every clone answers for the
 /// same window.
@@ -76,6 +79,8 @@ struct Shared {
     memory: RuntimeMemory,
     /// The window root's env cells, whose tokens and theme-base revisions the style caches are filled at.
     root_cells: Cell<Option<EnvCells>>,
+    /// The command board the window root provides, for code with no build at hand (`Commands`).
+    board: RefCell<Option<CommandBoard>>,
     /// Crate-private services of the window, one value per type: caches and readers that egui kept
     /// in its context memory.
     services: RefCell<HashMap<TypeId, Box<dyn Any>>>,
@@ -109,6 +114,7 @@ impl Context {
                 styles: StyleCaches::default(),
                 memory,
                 root_cells: Cell::new(None),
+                board: RefCell::new(None),
                 services: RefCell::new(HashMap::new()),
                 commands: RefCell::new(Vec::new()),
                 platform: RefCell::new(Vec::new()),
@@ -145,6 +151,7 @@ impl Context {
             }
         };
         ctx.shared.root_cells.set(cells);
+        *ctx.shared.board.borrow_mut() = cx.provided::<CommandBoard>();
         cx.provide(ctx.clone());
         cx.provide(ctx.styles().clone());
         let scale = cx.env().scale;
@@ -319,6 +326,11 @@ impl Context {
         &self.shared.styles
     }
 
+    /// The window's command board, when the window root has one.
+    pub(crate) fn board(&self) -> Option<CommandBoard> {
+        self.shared.board.borrow().clone()
+    }
+
     /// The runtime's session and saved memory.
     pub(crate) fn memory(&self) -> &RuntimeMemory {
         &self.shared.memory
@@ -350,7 +362,7 @@ pub(crate) fn window_id(window: WindowId) -> Id {
 }
 
 /// One entry of the build log: a tracked read or an effect for the scope whose build is running.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub(crate) enum CellRead {
     Scale(State<f32>),
     Focused(State<bool>),
@@ -362,6 +374,10 @@ pub(crate) enum CellRead {
     /// The scope builds again after this long.
     Wake(Duration),
     Command(WindowCommand),
+    /// A read of a command's state for an instance of its scope (`Commands::resolve_command`).
+    CommandState(CommandBoard, CommandRef, Option<Id>),
+    /// A command's state published for an instance of its scope (`Commands::publish`).
+    Publish(CommandBoard, CommandRef, Option<Id>, CommandState),
 }
 
 thread_local! {
@@ -437,12 +453,28 @@ pub(crate) fn end_cell_reads(mark: usize, cx: &mut BuildCx<'_>) {
             }
             CellRead::Wake(after) => wake = Some(wake.map_or(after, |w| w.min(after))),
             CellRead::Command(command) => cx.window_command(command),
+            CellRead::CommandState(board, command, instance) => {
+                let cell = board.cell(cx.store_mut(), &command, instance);
+                cell.get(cx);
+            }
+            CellRead::Publish(board, command, instance, state) => board.set_state_of(cx, &command, instance, state),
         }
     }
     if let Some(after) = wake {
         let at = cx.now() + after.as_secs_f64();
         cx.request_build_at(Some(at));
     }
+}
+
+/// Logs a read of `command`'s state for `instance` for the node whose build is running.
+pub(crate) fn log_command_read(board: CommandBoard, command: CommandRef, instance: Option<Id>) {
+    log(CellRead::CommandState(board, command, instance));
+}
+
+/// Logs a publish of `command`'s state for `instance`: it reaches the cell when the running node's build ends. Outside
+/// a build there is no store to write, and nothing is published.
+pub(crate) fn log_publish(board: CommandBoard, command: CommandRef, instance: Option<Id>, state: CommandState) {
+    log(CellRead::Publish(board, command, instance, state));
 }
 
 /// Logs an `Env::of` read for the scope whose build is running.
