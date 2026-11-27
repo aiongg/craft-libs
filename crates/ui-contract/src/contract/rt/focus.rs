@@ -387,7 +387,7 @@ fn window_tab(root: &Kept, cx: &mut EventCx<'_>, forward: bool) -> Handled {
         _ => walk.order(focused, |s| !walk.trapped(s.scope, None)),
     };
     if let Some(to) = next_in(&order, focused, forward) {
-        cx.focus_node(to);
+        cx.focus_node_by(to, craft_ui_rt::FocusCause::Tab { forward });
     }
     Handled::Yes
 }
@@ -404,7 +404,7 @@ pub(crate) fn trap_tab(own: &Kept, is_layer: bool, cx: &mut EventCx<'_>, k: &Key
     let focused = cx.focused();
     let order = walk.order(focused, |s| walk.within(s.scope, me) && !walk.trapped(s.scope, Some(me)));
     if let Some(to) = next_in(&order, focused, !k.mods.shift) {
-        cx.focus_node(to);
+        cx.focus_node_by(to, craft_ui_rt::FocusCause::Tab { forward: !k.mods.shift });
     }
     Handled::Yes
 }

@@ -484,4 +484,6 @@ pub trait Platform {
     fn open_url(&mut self, url: &str, new_tab: bool) {
         let _ = (url, new_tab);
     }
+    /// Plays the system's alert for refused input. A platform with no alert ignores it.
+    fn alert(&mut self) {}
 }

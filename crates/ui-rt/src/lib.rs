@@ -56,7 +56,7 @@ pub use display::{
 pub use drag::{DragData, DragGhost, DragInfo, DragOutcome, DragPointer, DragStart, DropInput, DropPhase};
 pub use driver::{Driver, InputFilter, StepReport, WakeHandler};
 pub use element::{Element, Memo, Show};
-pub use event::{AccessInput, CloseReason, Event, EventCx, Gesture, Handled, KeyInput, PointerInput, WheelInput};
+pub use event::{AccessInput, CloseReason, Event, EventCx, FocusCause, Gesture, Handled, KeyInput, PointerInput, WheelInput};
 pub use frame::{Draw, FrameChanges, FrameNode, FrameTree, Part};
 pub use geom::{Constraints, CornerRadii, Margin, RectU, SizeU, damage_pixels};
 pub use gesture::{PINCH_CONTINUES, WheelOptions};

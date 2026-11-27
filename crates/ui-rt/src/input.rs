@@ -17,7 +17,7 @@ use craft_behavior::{
 use craft_keymap::chord::{Key, Mods};
 use emath::{Pos2, Rect, Vec2};
 
-use crate::event::{AccessInput, Event, EventCx, Gesture, Handled, KeyInput, PointerInput, WheelInput};
+use crate::event::{AccessInput, Event, EventCx, FocusCause, Gesture, Handled, KeyInput, PointerInput, WheelInput};
 use crate::gesture::Touches;
 use crate::hit::{Hit, chain, contains, hit_test, hit_test_through, window_origin};
 use crate::id::{NodeId, WindowId};
@@ -404,10 +404,10 @@ impl Runtime {
         }
     }
 
-    /// Moves `window`'s key focus. The old and the new node get [`Event::Focus`] once the current
-    /// handler returns; paint readers of their interaction state repaint. A node outside the
-    /// window is ignored.
-    pub fn set_focus(&mut self, window: WindowId, node: Option<NodeId>) {
+    /// Moves `window`'s key focus for `cause`. The old and the new node get [`Event::Focus`] with
+    /// the cause once the current handler returns; paint readers of their interaction state
+    /// repaint. A node outside the window is ignored.
+    pub fn set_focus(&mut self, window: WindowId, node: Option<NodeId>, cause: FocusCause) {
         let node = node.filter(|id| self.tree.window_of(*id) == Some(window));
         let Some(input) = self.input_mut(window) else { return };
         if node == input.focused {
@@ -416,7 +416,7 @@ impl Runtime {
         let old_chain = std::mem::take(&mut input.focus_chain);
         let old_focus = input.focused;
         if let Some(old) = old_focus {
-            input.queue.push_back((old, Event::Focus(false)));
+            input.queue.push_back((old, Event::Focus { gained: false, cause }));
         }
         input.focused = node;
         input.focus_moved = true;
@@ -424,7 +424,7 @@ impl Runtime {
         let new_chain = node.map(|n| chain(&self.tree, n)).unwrap_or_default();
         let Some(input) = self.input_mut(window) else { return };
         if let Some(new) = node {
-            input.queue.push_back((new, Event::Focus(true)));
+            input.queue.push_back((new, Event::Focus { gained: true, cause }));
         }
         let mut touched = old_chain;
         touched.extend_from_slice(&new_chain);
@@ -470,7 +470,7 @@ impl Runtime {
             None if forward => 0,
             None => len - 1,
         };
-        self.set_focus(window, Some(order[next]));
+        self.set_focus(window, Some(order[next]), FocusCause::Tab { forward });
     }
 
     /// `window`'s Tab stops in tree order, layers bottom first: every node whose element is
@@ -909,7 +909,7 @@ impl Runtime {
             }
             if !hit.sense.contains(Sense::KEEP_FOCUS) {
                 let stop = self.nearest_focusable(hit.node);
-                self.set_focus(window, stop);
+                self.set_focus(window, stop, FocusCause::Pointer);
                 if stop.is_some()
                     && let Some(input) = self.input_mut(window)
                 {
@@ -1067,7 +1067,7 @@ impl Runtime {
             && let Some(stop) = self.nearest_focusable(target)
             && let Some(window) = self.tree.window_of(stop)
         {
-            self.set_focus(window, Some(stop));
+            self.set_focus(window, Some(stop), FocusCause::Program);
         }
     }
 
@@ -1143,10 +1143,20 @@ impl Runtime {
         input.hovered.retain(|&n| n != id);
     }
 
-    /// When `window`'s focused node is gone, focus moves to the nearest remaining Tab stop on its
-    /// old path, or nowhere.
+    /// After the build pass: focus enters the content that asked for it; when `window`'s focused
+    /// node is gone, focus moves to the node it named or the nearest remaining Tab stop on its old
+    /// path, or nowhere; then the nodes that gave up focus in the pass lose it, if they still hold
+    /// it ([`crate::BuildCx::surrender_focus`]).
     pub(crate) fn repair_focus(&mut self, window: WindowId) {
         self.enter_focus(window);
+        self.fall_back_focus(window);
+        let surrenders = self.windows.get_mut(&window).map(|w| std::mem::take(&mut w.surrenders)).unwrap_or_default();
+        if self.focused(window).is_some_and(|f| surrenders.contains(&f)) {
+            self.set_focus(window, None, FocusCause::Program);
+        }
+    }
+
+    fn fall_back_focus(&mut self, window: WindowId) {
         let gone = self.focused(window).filter(|f| !self.tree.nodes.contains_key(f));
         if gone.is_none() {
             self.forget_focus_returns(window);
@@ -1163,7 +1173,7 @@ impl Runtime {
             input.focused = None;
             input.focus_moved = true;
         }
-        self.set_focus(window, fallback);
+        self.set_focus(window, fallback, FocusCause::Removed);
         self.forget_focus_returns(window);
     }
 
@@ -1184,7 +1194,7 @@ impl Runtime {
             }
             let pick = stops.iter().find(|(_, text)| text_first && *text).or(stops.first()).map(|(id, _)| *id);
             if pick.is_some() {
-                self.set_focus(window, pick);
+                self.set_focus(window, pick, FocusCause::Program);
             }
         }
     }
@@ -1351,14 +1361,14 @@ impl crate::build::BuildCx<'_> {
     /// Moves key focus to this node (a field that takes focus when it opens).
     pub fn request_focus(&mut self) {
         let (node, window) = (self.node(), self.window());
-        self.runtime_mut().set_focus(window, Some(node));
+        self.runtime_mut().set_focus(window, Some(node), FocusCause::Program);
     }
 
     /// Moves key focus to `node` in this node's window (a popup that focuses its first stop when it
     /// appears).
     pub fn focus_node(&mut self, node: NodeId) {
         let window = self.window();
-        self.runtime_mut().set_focus(window, Some(node));
+        self.runtime_mut().set_focus(window, Some(node), FocusCause::Program);
     }
 
     /// Moves focus into this node's content once the build pass has made it: to its first Tab stop
@@ -1368,6 +1378,16 @@ impl crate::build::BuildCx<'_> {
         let (node, window) = (self.node(), self.window());
         if let Some(w) = self.runtime_mut().windows.get_mut(&window) {
             w.focus_entries.push((node, text_first));
+        }
+    }
+
+    /// Gives up key focus once this frame's build pass ends, if this node still holds it then (a
+    /// field a scrub left, or one whose Escape leaves it). A scope that closes in the same pass
+    /// with the node inside returns focus to where it names first, and that move stands.
+    pub fn surrender_focus(&mut self) {
+        let (node, window) = (self.node(), self.window());
+        if let Some(w) = self.runtime_mut().windows.get_mut(&window) {
+            w.surrenders.push(node);
         }
     }
 

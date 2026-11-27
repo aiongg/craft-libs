@@ -71,7 +71,7 @@ impl SelectDecl {
     /// lies behind it.
     pub(crate) fn keys(&self) -> KeyUse {
         let edits = EditSet::NONE.with(EditCommand::SelectAll).with(EditCommand::Copy).with(EditCommand::Cut);
-        let keys = KeyUse::of(crate::contract::Input::Text).with_edits(edits);
+        let keys = KeyUse { edits, ..KeyUse::of(crate::contract::Input::Text) };
         if self.multiline { keys.with_keep(KeepKeys::BlockArrows) } else { keys }
     }
 }
@@ -299,8 +299,11 @@ impl<C: Component> PartsCx<'_, C> {
         let declared = TextOptions { whole_paste: Some(Arc::new(move |pasted: &str| reads.whole_paste(pasted))), ..options.clone() };
         let resolve = Box::new(resolver(codec.clone(), &declared, rect, value.clone()));
         // The text takes the pointer on its rect: a press places the caret (so the press marks the node), a drag
-        // selects, and the pointer shows the text cursor.
-        self.part(key.0, rect).sense(Sense::HOVER | Sense::CLICK | Sense::DRAG | Sense::SETS_ON_PRESS).cursor(craft_behavior::Cursor::Text);
+        // selects, and the pointer shows the text cursor. Several lines scroll by the wheel.
+        let wheel = if options.multiline() { Sense::WHEEL_Y } else { Sense::empty() };
+        self.part(key.0, rect)
+            .sense(Sense::HOVER | Sense::CLICK | Sense::DRAG | Sense::SETS_ON_PRESS | wheel)
+            .cursor(craft_behavior::CursorIcon::Text);
         self.text.decl = Some(TextDecl {
             part: TextPart {
                 key: key.0,
@@ -404,15 +407,10 @@ fn apply_events<C: Component>(cx: &mut Cx<'_, C>, events: Vec<TextEvent<ValueOf<
     committed
 }
 
-/// Whether a scrubbing field was in edit before the press that is now down, and whether a scrub left it out of edit:
-/// a press that becomes a drag scrubs and leaves edit as it found it, and only a click without travel enters it.
+/// Whether a scrubbing field was in edit before the press that is now down: a press that becomes a drag scrubs and
+/// leaves edit as it found it, and only a click without travel enters it.
 #[derive(Clone, Default)]
-struct ScrubEdit {
-    before: bool,
-    /// A scrub ran while the field was out of edit: the node keeps key focus, and the text stays out of edit until a
-    /// click without travel.
-    scrubbed: bool,
-}
+struct InEditBeforePress(bool);
 
 /// What the driver hands the text step besides the component's run.
 pub(crate) struct TextIn<'a> {
@@ -425,6 +423,8 @@ pub(crate) struct TextIn<'a> {
     pub scope: adapter::ScopeEscape,
     /// The window's access tree is on: the run reports its text facts.
     pub access: bool,
+    /// The focus is on the window's menu bar, or in what it opened, and F10 took it from this node.
+    pub bar_returns_here: bool,
 }
 
 struct PreparedText {
@@ -453,19 +453,17 @@ fn prepare(core: &mut CxCore<'_>, decl: &TextPart, state: &mut TextState, text_i
     // focus does (`decl.caret`).
     let mut in_edit_before = false;
     if text_in.scrubs {
-        let scrub = core.memory.shown::<ScrubEdit>(sub(id, "scrub_edit"));
-        if core.press.phase.is_drag() && !scrub.before {
-            scrub.scrubbed = true;
-        } else if !core.press.phase.button_down() {
-            if core.response.clicked() {
-                scrub.scrubbed = false;
+        let before = core.memory.shown::<InEditBeforePress>(sub(id, "in_edit_before_press")).0;
+        if core.press.phase.is_drag() {
+            // The root press focused the field; a press that travelled is a scrub, so the field gives the focus back.
+            if !before {
+                core.surrender_focus();
+                focused = false;
             }
-            scrub.before = focused && !scrub.scrubbed;
+        } else if !core.press.phase.button_down() {
+            core.memory.shown::<InEditBeforePress>(sub(id, "in_edit_before_press")).0 = focused;
         }
-        if scrub.scrubbed {
-            focused = false;
-        }
-        in_edit_before = scrub.before;
+        in_edit_before = core.memory.shown::<InEditBeforePress>(sub(id, "in_edit_before_press")).0;
     }
     let pointer = !text_in.scrubs || in_edit_before || (focused && !core.press.phase.is_drag());
     core.text_takes_pointer = pointer;
@@ -489,6 +487,9 @@ fn prepare(core: &mut CxCore<'_>, decl: &TextPart, state: &mut TextState, text_i
         state.edit.select_all(&text);
     }
     let menu_held = state.held_selection.is_some();
+    // A menu bar the keyboard goes back to the part from has the focus: its menus' Cut and Copy act on the selection
+    // the part keeps for them. Only a part that had the focus last run, or keeps a selection already, is gone back to.
+    let bar_held = text_in.bar_returns_here && (was_focused || menu_held);
     // Focus that arrived since the last run places the caret before this run's input is applied, so the first text
     // typed replaces a selection. Focus back from the edit menu is no arrival.
     let arrived = focused && !was_focused && !held && !menu_held && core.active_part().is_none();
@@ -514,7 +515,7 @@ fn prepare(core: &mut CxCore<'_>, decl: &TextPart, state: &mut TextState, text_i
             rtl: text_in.rtl,
             focused: focused && core.active_part().is_none(),
             held,
-            keeps_selection: held,
+            keeps_selection: held || bar_held,
             ink,
             list_open: core.popups.any_open(),
             placeholder: decl.options.placeholder.as_ref().map(|label| label.as_str()),
@@ -586,7 +587,7 @@ pub(crate) fn run<C: Component>(cx: &mut Cx<'_, C>, step: &mut TextStep, text_in
     let mut state = std::mem::take(cx.core.memory.shown::<TextState>(state_id));
     // A part whose node is new (not shown last frame) lost its focus, and its typing run with it: the part starts
     // afresh from its value.
-    if cx.core.memory.appeared() {
+    if crate::runtime::memory::Remember::appeared(cx) {
         state = TextState::default();
     }
     (decl.values.resync)(&mut state, shown_copy(cx).as_ref());
@@ -606,16 +607,20 @@ pub(crate) fn run<C: Component>(cx: &mut Cx<'_, C>, step: &mut TextStep, text_in
     if part.options.holds_drafts && state.end.is_none() && state.draft.is_some() && step.commit_now {
         // A press the focus service held for this part keeps focus, and the draft shows as its value would
         // (`End::Rewrite { refuses: false }`).
-        todo!("the focus service's held press for a holds_drafts part on rt, INT-1f");
+        todo!(
+            "a press that keeps the focus elsewhere (commit_now) and the holds_drafts classification need a ui-rt press signal: open question in INT-1h report"
+        );
     }
     let keeps_escape = part.options.keep_on_escape && !part.options.clear_on_escape && !read_only && cx.core.resolved.enabled && part.options.enabled;
     let resolved = resolve(&mut state, cx.value(), commit_now, keeps_escape);
     if resolved.escaped && keeps_escape && !state.invalid {
-        // The same Escape goes on to the enclosing scope in this run; the field keeps the focus until the scope acts.
+        // The same Escape goes on to the enclosing scope in this run, which still finds this focused stop; the field
+        // lets focus go once the frame's builds are done, unless a scope the Escape closed returned it first.
         cx.core.intents.pass_on(craft_behavior::Intent::Cancel);
+        cx.core.surrender_focus();
     }
     if resolved.refused {
-        todo!("the refusal alert on rt (frame::refuse: a dropped character, a rewriting Tab), INT-3e");
+        cx.core.context().refuse();
     }
     if resolved.rewritten {
         let draft = state.draft.clone().unwrap_or_default();
@@ -651,8 +656,8 @@ pub(crate) fn run<C: Component>(cx: &mut Cx<'_, C>, step: &mut TextStep, text_in
     outcome.composing = composing;
     outcome.completions = completions;
     outcome.clicked = out.clicked;
-    // ui-rt's focus loss carries no reason yet, so a Tab off the part is not told from another loss (Left).
-    let left_by_tab = None;
+    // A Tab off the part reports its direction; any other loss (a press, a request, the node going) reports none.
+    let left_by_tab = if was_focused && !out.focused { tabbed_off(cx.core.input()) } else { None };
     // The edit menu holds the part's editing focus while it is open: key focus that is with the menu is not lost
     // until the menu is gone and focus is not back.
     let text_lost_focus = was_focused && !menu_open && (!out.focused || left_for_part);
@@ -667,6 +672,26 @@ pub(crate) fn run<C: Component>(cx: &mut Cx<'_, C>, step: &mut TextStep, text_in
     }
     cx.core.escaped |= resolved.escaped;
     Some(stop_keys)
+}
+
+/// The direction of the Tab that moved focus off the node this run, from the last focus loss its queue holds.
+fn tabbed_off(input: &[crate::contract::rt::node::NodeInput]) -> Option<bool> {
+    use crate::contract::rt::node::NodeInput;
+    input.iter().rev().find_map(|item| match item {
+        NodeInput::Focus { gained: false, cause } => Some(match cause {
+            craft_ui_rt::FocusCause::Tab { forward } => Some(*forward),
+            _ => None,
+        }),
+        _ => None,
+    })?
+}
+
+impl CxCore<'_> {
+    /// Gives up key focus once the frame's builds are done, if the node still holds it then: a scrubbing field after
+    /// a scrub, a field whose Escape leaves it or hands it on. The driver asks ui-rt after the run.
+    pub(crate) fn surrender_focus(&self) {
+        self.run.surrender.set(true);
+    }
 }
 
 impl<C: Component> Cx<'_, C> {

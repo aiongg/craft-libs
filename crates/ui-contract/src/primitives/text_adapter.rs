@@ -5,7 +5,7 @@
 
 mod completion;
 
-use crate::contract::cx::CxCore;
+use crate::contract::CxCore;
 use crate::contract::rt::node::NodeInput;
 use crate::primitives::{Services, SubmitKey, TabKey, TextLayout, TextOptions, TextRun, Wrap};
 use crate::runtime::access::text::{Line, Run};
@@ -322,11 +322,11 @@ fn walk(core: &mut CxCore<'_>, state: &mut TextState, input: &AdapterIn<'_>, tex
     let node_origin = core.rect.min.to_vec2();
     let keep = input.keys.keep;
     let queue: Vec<NodeInput> = core.run.input.to_vec();
-    for (place, item) in queue.iter().enumerate() {
+    for (place, item) in queue.into_iter().enumerate() {
         let editor = match item {
-            NodeInput::Ime(ime) => Some(ime.clone()),
+            NodeInput::Ime(ime) => Some(ime),
             NodeInput::Paste(pasted) if input.focused && !input.read_only => {
-                let pasted: &str = pasted;
+                let pasted: &str = &pasted;
                 let applied = if options.whole_paste.as_ref().is_some_and(|whole| whole(pasted)) {
                     state.edit.select_all(text);
                     state.edit.paste(text, pasted.trim(), config)
@@ -339,12 +339,12 @@ fn walk(core: &mut CxCore<'_>, state: &mut TextState, input: &AdapterIn<'_>, tex
             NodeInput::Intent { intent, shift, .. } if input.focused => match intent {
                 Intent::Submit | Intent::SubmitForce if state.edit.preedit().is_none() => {
                     let force = matches!(intent, Intent::SubmitForce);
-                    if options.multiline() && breaks_line(options.submit_key, options.submits, *shift, force) {
+                    if options.multiline() && breaks_line(options.submit_key, options.submits, shift, force) {
                         core.intents.take_editor_at(place, keep);
-                        Some(EditorInput::newline(*shift))
+                        Some(EditorInput::newline(shift))
                     } else if !options.multiline() || options.submits {
                         if core.intents.take_editor_at(place, keep).is_some() || force {
-                            out.submitted = Some(Mods { shift: *shift, cmd: force, ..Mods::NONE });
+                            out.submitted = Some(Mods { shift, cmd: force, ..Mods::NONE });
                         }
                         None
                     } else {
@@ -372,8 +372,17 @@ fn walk(core: &mut CxCore<'_>, state: &mut TextState, input: &AdapterIn<'_>, tex
                 Intent::Text(_) | Intent::Move(..) | Intent::Delete { .. } | Intent::Edit(_) => core.intents.take_editor_at(place, keep),
                 _ => None,
             },
-            NodeInput::Pointer { gesture, pos, button, mods, part, .. } if input.pointer && *part == input.part_id => {
-                let at = *pos + node_origin;
+            // A wheel over a multi-line part scrolls its text; the caret stays where it is.
+            NodeInput::Wheel(wheel) if config.multiline && input.pointer && !core.run.wheel_taken.get() => {
+                if let Some(placed) = state.placed.clone()
+                    && state.edit.scroll_by(-wheel.scroll, &placed.geometry(&state.edit))
+                {
+                    core.run.wheel_taken.set(true);
+                }
+                None
+            }
+            NodeInput::Pointer { gesture, pos, button, mods, part, .. } if input.pointer && part == input.part_id => {
+                let at = pos + node_origin;
                 let Some(placed) = state.placed.clone() else { continue };
                 match gesture {
                     Gesture::Down { clicks } => {
@@ -384,8 +393,8 @@ fn walk(core: &mut CxCore<'_>, state: &mut TextState, input: &AdapterIn<'_>, tex
                             let hit = placed.layout.to_text(placed.geometry(&state.edit).hit(at));
                             !selection.is_empty() && (selection.start..=selection.end).contains(&hit)
                         };
-                        if *button == PointerButton::Primary || !inside {
-                            state.edit.press(text, &placed.geometry(&state.edit), at, *clicks, mods.shift && *button == PointerButton::Primary);
+                        if button == PointerButton::Primary || !inside {
+                            state.edit.press(text, &placed.geometry(&state.edit), at, clicks, mods.shift && button == PointerButton::Primary);
                             out.pointed = true;
                         }
                     }
@@ -397,7 +406,7 @@ fn walk(core: &mut CxCore<'_>, state: &mut TextState, input: &AdapterIn<'_>, tex
                     Gesture::Up { click, .. } => {
                         state.edit.release();
                         state.drag_at = None;
-                        out.clicked |= *click && *button == PointerButton::Primary;
+                        out.clicked |= click && button == PointerButton::Primary;
                     }
                     Gesture::Cancel(_) => {
                         state.edit.release();
@@ -411,7 +420,7 @@ fn walk(core: &mut CxCore<'_>, state: &mut TextState, input: &AdapterIn<'_>, tex
         };
         let Some(editor) = editor else { continue };
         // An AccessKit selection names rows and bytes of last run's text.
-        if let EditorInput::Select { anchor, focus } = &editor {
+        if let EditorInput::Select { anchor, focus, .. } = &editor {
             if let Some(rows) = &state.rows {
                 let (anchor, focus) = (rows.byte(*anchor), rows.byte(*focus));
                 state.edit.select(text, anchor, focus);
@@ -639,7 +648,7 @@ fn escape(core: &mut CxCore<'_>, state: &mut TextState, input: &AdapterIn<'_>, b
         if state.draft.is_some() || !composing {
             state.end = Some(End::Escape);
             if leaves {
-                todo!("give up key focus from a run (a surrender focus request), INT-1f");
+                core.surrender_focus();
             }
         }
         state.edit.end_preedit();
