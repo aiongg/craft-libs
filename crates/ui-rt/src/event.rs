@@ -437,4 +437,11 @@ impl EventCx<'_> {
     pub fn quit(&mut self) {
         self.rt.quit();
     }
+
+    /// A command ran from `from` in this node's window: the layer children that close on a command
+    /// and do not own `from` are dismissed ([`Runtime::dismiss_on_command`]).
+    pub fn dismiss_on_command(&mut self, from: Option<NodeId>) {
+        let window = self.window();
+        self.rt.dismiss_on_command(window, from);
+    }
 }

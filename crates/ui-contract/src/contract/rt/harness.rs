@@ -776,7 +776,8 @@ impl<S, R: Renderer> Harness<S, R> {
     pub fn fire(&mut self, command: impl Into<craft_keymap::CommandRef>, source: crate::runtime::commands::FireSource) -> bool {
         let Some(board) = self.commands.clone() else { panic!("the harness has no command board: build it with `with_commands`") };
         let time = self.driver.platform.now();
-        let ran = board.fire(self.driver.runtime.store_mut(), command.into(), source, time);
+        let mut fire = crate::contract::rt::commands::OutsideFire { rt: &mut self.driver.runtime, window: self.window };
+        let ran = board.fire(&mut fire, command.into(), source, time);
         self.step();
         ran
     }

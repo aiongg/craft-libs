@@ -20,17 +20,19 @@ use std::sync::Arc;
 
 use craft_behavior::{EditCommand, OwnerClass};
 use craft_keymap::{Active, Chord, CommandRef, Keymap, Lookup, ModalRule};
-use craft_ui_rt::{BuildCx, EventCx, Handled, Key, KeyInput, NodeId, Reads, Runtime, State, Store, Writes};
+use craft_ui_rt::{BuildCx, EventCx, Handled, Key, KeyInput, NodeId, Reads, Runtime, State, Store, WindowId, Writes};
 
 use super::node::{ComponentNode, Kept, ScopeNode};
 use super::overlay::LayerScope;
 use super::ui::Ui;
+use crate::contract::context::Context;
 use crate::primitives::Id;
 use crate::runtime::commands::{
     CommandChain, CommandGate, CommandKind, CommandScope, CommandSet, CommandState, FirePhase, FireSource, Fired, QuitCommand, Registry,
     ResolvedCommand, Shown,
 };
 use crate::runtime::env::Label;
+use crate::runtime::focus::{EditSet, KeyUse};
 
 /// What a command does when it runs: called at event time with the store, where it writes the app
 /// state the command changes.
@@ -57,6 +59,12 @@ struct Board {
     /// a command runs again when the gate's props change.
     gate: Option<CommandGate>,
     gate_cell: Option<State<u128>>,
+    /// Each scope declared a child of another (`Ui::declare_command_scope`), with its parent: an instance of the child
+    /// also receives the parent's commands. The workspace scope of a full-window dialog is a child of the view scope.
+    parents: Vec<(&'static str, &'static str)>,
+    /// Moves when a declaration changes what a scope receives, so the nodes that resolve commands run again. Read
+    /// with the gate's cell.
+    parents_cell: Option<State<u64>>,
 }
 
 /// Where a resolve or a fire stands against the window's modal layers (`ModalRule`).
@@ -89,7 +97,111 @@ impl ModalAt {
             (ModalRule::Blocked, _) => true,
             (ModalRule::InDialogs, at) => at == ModalAt::Outside,
             (ModalRule::Declared, at) => !(at == ModalAt::Inside && declared),
+            // A rule this board does not know refuses as the default rule does.
+            (_, _) => true,
         }
+    }
+}
+
+/// The edit commands the focused stop of a window declares (#3569): the window's cell, written when focus moves
+/// (from the newly focused stop's `KeyUse::edits` and `inactive`), read tracked where an edit command resolves, so a
+/// surface that shows Cut runs again only when what the focused stop declares changes. A declared edit resolves
+/// enabled unless the stop marks it inactive, with the app's title and without the app's hint.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct FocusedEdits {
+    pub(crate) edits: EditSet,
+    pub(crate) inactive: EditSet,
+}
+
+impl FocusedEdits {
+    /// Nothing focused, or a stop that declares no edit.
+    pub(crate) const NONE: FocusedEdits = FocusedEdits { edits: EditSet::NONE, inactive: EditSet::NONE };
+
+    /// What the stop with `keys` declares; nothing for no stop.
+    pub(crate) fn of(keys: Option<KeyUse>) -> FocusedEdits {
+        keys.map_or(FocusedEdits::NONE, |keys| FocusedEdits { edits: keys.edits, inactive: keys.inactive })
+    }
+
+    /// The cell of `ctx`'s window, made on first use.
+    pub(crate) fn cell(ctx: &Context, store: &mut Store) -> State<FocusedEdits> {
+        ctx.focused_edits_cell(store)
+    }
+
+    /// Writes `edits` as what the focused stop of `ctx`'s window declares, when it differs: the focus change that
+    /// moved to the stop calls it (node.rs).
+    pub(crate) fn set(ctx: &Context, cx: &mut impl Writes, edits: FocusedEdits) {
+        ctx.set_focused_edits(cx, edits);
+    }
+
+    /// What the focused stop of `ctx`'s window declares, read tracked by the node `cx` builds.
+    pub(crate) fn get(ctx: &Context, cx: &mut BuildCx<'_>) -> FocusedEdits {
+        let cell = FocusedEdits::cell(ctx, cx.store_mut());
+        cell.get(cx)
+    }
+
+    /// Whether the stop declares `edit`, and then whether it is active now.
+    fn declares(self, edit: EditCommand) -> Option<bool> {
+        self.edits.contains(edit).then(|| !self.inactive.contains(edit))
+    }
+}
+
+/// What a fire reaches besides the store: the runtime actions the board runs itself once the handlers ran. A command
+/// fired by a key, a menu pick or the palette dismisses the layer children that close on a command; Quit then asks
+/// every window to close through its close path, so the app's close guard asks about unsaved work as for a window's
+/// close button.
+pub(crate) trait FireCx {
+    fn store(&mut self) -> &mut Store;
+    /// Asks every window to close ([`Runtime::quit`]).
+    fn quit(&mut self);
+    /// Dismisses the layer children of the firing window that close on a command and do not own `from`.
+    fn dismiss_on_command(&mut self, from: Option<NodeId>);
+}
+
+impl FireCx for EventCx<'_> {
+    fn store(&mut self) -> &mut Store {
+        self.store_mut()
+    }
+
+    fn quit(&mut self) {
+        EventCx::quit(self);
+    }
+
+    fn dismiss_on_command(&mut self, from: Option<NodeId>) {
+        EventCx::dismiss_on_command(self, from);
+    }
+}
+
+impl FireCx for BuildCx<'_> {
+    fn store(&mut self) -> &mut Store {
+        self.store_mut()
+    }
+
+    fn quit(&mut self) {
+        BuildCx::quit(self);
+    }
+
+    fn dismiss_on_command(&mut self, from: Option<NodeId>) {
+        BuildCx::dismiss_on_command(self, from);
+    }
+}
+
+/// A fire from outside the tree (the harness, automation) into `window` of the runtime.
+pub(crate) struct OutsideFire<'a> {
+    pub(crate) rt: &'a mut Runtime,
+    pub(crate) window: WindowId,
+}
+
+impl FireCx for OutsideFire<'_> {
+    fn store(&mut self) -> &mut Store {
+        self.rt.store_mut()
+    }
+
+    fn quit(&mut self) {
+        self.rt.quit();
+    }
+
+    fn dismiss_on_command(&mut self, from: Option<NodeId>) {
+        self.rt.dismiss_on_command(self.window, from);
     }
 }
 
@@ -117,6 +229,8 @@ impl CommandBoard {
             app: None,
             gate: None,
             gate_cell: None,
+            parents: Vec::new(),
+            parents_cell: None,
         })))
     }
 
@@ -183,10 +297,24 @@ impl CommandBoard {
     /// path that registered one, else the board's own, else the app scope's. Returns whether a handler ran. Every fire
     /// goes through here: a key, `Ui::fire`, `Cx::fire`, a component's activation, the harness. The handler runs
     /// outside the board's borrow, so it may set command states or register handlers.
-    pub(crate) fn run(&self, store: &mut Store, path: &[NodeId], fired: &Fired, modal: ModalAt) -> bool {
-        if !self.enabled(&fired.command) || self.refused(&fired.command, None, modal) {
+    /// `modal` and `focused` are where the firing node stands, worked out once per fire by the caller. After the
+    /// handler, the board's runtime actions run (`FireCx`).
+    pub(crate) fn run(&self, fire: &mut dyn FireCx, path: &[NodeId], fired: &Fired, modal: ModalAt, focused: FocusedEdits) -> bool {
+        if !self.enabled(&fired.command) || self.refused(&fired.command, self.declared(&fired.command, None, focused), modal) {
             return false;
         }
+        let ran = self.run_handler(fire.store(), path, fired);
+        if matches!(fired.source, FireSource::Key | FireSource::Menu | FireSource::Palette) {
+            fire.dismiss_on_command(path.first().copied());
+        }
+        if fired.phase != FirePhase::Repeat && QuitCommand::from_ref(&fired.command).is_some() {
+            fire.quit();
+        }
+        ran
+    }
+
+    /// The handler part of [`CommandBoard::run`]: whether a handler ran.
+    fn run_handler(&self, store: &mut Store, path: &[NodeId], fired: &Fired) -> bool {
         let taken = {
             let mut board = self.0.borrow_mut();
             let rank = |owner: &Option<NodeId>| match owner {
@@ -227,7 +355,8 @@ impl CommandBoard {
     pub(crate) fn run_from(&self, cx: &mut BuildCx<'_>, fired: &Fired) -> bool {
         let path = self.path(cx.runtime(), Some(cx.node()));
         let modal = ModalAt::of(cx.runtime(), Some(cx.node()));
-        self.run(cx.store_mut(), &path, fired, modal)
+        let focused = cx.provided::<Context>().map_or(FocusedEdits::NONE, |ctx| ctx.focused_edits());
+        self.run(cx, &path, fired, modal, focused)
     }
 
     /// The gate's key cell, made on first use.
@@ -246,8 +375,8 @@ impl CommandBoard {
     }
 
     /// Whether something besides the command's own state refuses it: the gate, or the modal rule where `modal` says
-    /// the resolving or firing node stands. `instance`: the instance of its scope the command resolves for.
-    fn refused(&self, command: &CommandRef, instance: Option<Id>, modal: ModalAt) -> bool {
+    /// the resolving or firing node stands. `declared`: [`CommandBoard::declared`] there.
+    fn refused(&self, command: &CommandRef, declared: bool, modal: ModalAt) -> bool {
         let board = self.0.borrow();
         if board.gate.as_ref().is_some_and(|gate| !gate.allows(command)) {
             return true;
@@ -255,9 +384,20 @@ impl CommandBoard {
         if modal == ModalAt::Free {
             return false;
         }
-        let rule = board.registry.as_ref().and_then(|registry| registry.get(command.id.as_str())).map_or(ModalRule::default(), |def| def.modal);
-        let declared = instance.is_some() && board.states.iter().any(|e| e.command == *command && e.instance == instance);
-        modal.refuses(rule, declared)
+        modal.refuses(board.modal_rule(command), declared)
+    }
+
+    /// Whether `command` is declared where it resolves or fires (`ModalRule::Declared`): `instance`, the instance of
+    /// its scope it resolves for, publishes its state, or it is an edit the focused stop takes (`focused`).
+    fn declared(&self, command: &CommandRef, instance: Option<Id>, focused: FocusedEdits) -> bool {
+        let board = self.0.borrow();
+        (instance.is_some() && board.states.iter().any(|e| e.command == *command && e.instance == instance))
+            || board.edits.iter().any(|(c, edit)| c == command && focused.edits.contains(*edit))
+    }
+
+    /// The edit command `command` is, when the board's edit sets list it.
+    pub(crate) fn edit_command(&self, command: &CommandRef) -> Option<EditCommand> {
+        self.0.borrow().edits.iter().find(|(c, _)| c == command).map(|(_, edit)| *edit)
     }
 
     /// Runs `handler` for every fired command that has no handler of its own: the app scope's
@@ -287,7 +427,33 @@ impl CommandBoard {
     /// resolves at the app, `None` for a scoped command with no instance in `chain`.
     fn instance_in(&self, chain: &CommandChain, command: &CommandRef) -> Option<Option<Id>> {
         let (scope, app) = self.scope_of(command);
-        if app { Some(None) } else { chain.innermost(&scope).map(Some) }
+        if app {
+            return Some(None);
+        }
+        let board = self.0.borrow();
+        chain.innermost_where(|of| board.within(of, &scope)).map(Some)
+    }
+
+    /// Declares that an instance of `child` also receives the commands of `parent`, and that its shortcuts rank inside
+    /// the parent's; the nodes that resolve commands run again when this changes what a scope receives.
+    pub(crate) fn declare_child(&self, cx: &mut impl Writes, child: CommandScope, parent: CommandScope) {
+        let cell = self.parents_cell(cx.store_mut());
+        {
+            let mut board = self.0.borrow_mut();
+            let entry = (child.name(), parent.name());
+            if board.parents.contains(&entry) {
+                return;
+            }
+            board.parents.retain(|(c, _)| *c != entry.0);
+            board.parents.push(entry);
+        }
+        let generation = *cx.store_mut().peek(cell) + 1;
+        cell.set(cx, generation);
+    }
+
+    fn parents_cell(&self, store: &mut Store) -> State<u64> {
+        let mut board = self.0.borrow_mut();
+        *board.parents_cell.get_or_insert_with(|| store.create(0))
     }
 
     /// Sets `command`'s state; the nodes that read it run in the next frame, and only they.
@@ -343,34 +509,55 @@ impl CommandBoard {
     /// `command` as a surface in `chain` shows it: its label, icon and chord, and its state for the innermost instance
     /// of its scope in `chain`, read through the state's cell (a node that shows it runs when it changes). `None` for a
     /// scoped command with no instance in `chain`.
+    /// `focused`: what the window's focused stop declares, which the caller read tracked for an edit command
+    /// ([`FocusedEdits::get`]).
     pub(crate) fn resolve<C: Reads + Writes>(
         &self,
         cx: &mut C,
         chain: &CommandChain,
         command: &CommandRef,
         modal: ModalAt,
+        focused: FocusedEdits,
     ) -> Option<Arc<ResolvedCommand>> {
         let instance = self.instance_in(chain, command)?;
         let cell = self.cell(cx.store_mut(), command, instance);
         let state = cell.get(cx);
         self.gate_cell(cx.store_mut()).get(cx);
-        Some(self.resolved(command, instance, &state, modal))
+        self.parents_cell(cx.store_mut()).get(cx);
+        Some(self.resolved(command, instance, &state, modal, focused))
     }
 
-    /// [`CommandBoard::resolve`] for code with no store at hand (a hook's `Commands::resolve_command`): the read of the
-    /// state's cell is logged for the node whose build runs.
-    pub(crate) fn resolve_logged(&self, chain: &CommandChain, command: &CommandRef) -> Option<Arc<ResolvedCommand>> {
+    /// [`CommandBoard::resolve`] for code with no store at hand (a hook's `Commands::resolve_command`): the reads of
+    /// the state's cell, the gate's and, for an edit command, the focused stop's declaration are logged for the node
+    /// whose build runs. `modal` is where that node stands.
+    pub(crate) fn resolve_logged(&self, ctx: &Context, chain: &CommandChain, command: &CommandRef, modal: ModalAt) -> Option<Arc<ResolvedCommand>> {
         let instance = self.instance_in(chain, command)?;
         crate::contract::context::log_command_read(self.clone(), command.clone(), instance);
         let board = self.clone();
+        let edit = self.edit_command(command).is_some();
         crate::contract::context::log_build_read(move |cx| {
             board.gate_cell(cx.store_mut()).get(cx);
+            board.parents_cell(cx.store_mut()).get(cx);
+            if edit && let Some(ctx) = cx.provided::<Context>() {
+                FocusedEdits::get(&ctx, cx);
+            }
         });
-        Some(self.resolved(command, instance, &self.value(command, instance), ModalAt::Free))
+        let focused = if edit { ctx.focused_edits() } else { FocusedEdits::NONE };
+        Some(self.resolved(command, instance, &self.value(command, instance), modal, focused))
     }
 
-    fn resolved(&self, command: &CommandRef, instance: Option<Id>, state: &CommandState, modal: ModalAt) -> Arc<ResolvedCommand> {
-        let refused = self.refused(command, instance, modal);
+    fn resolved(
+        &self,
+        command: &CommandRef,
+        instance: Option<Id>,
+        state: &CommandState,
+        modal: ModalAt,
+        focused: FocusedEdits,
+    ) -> Arc<ResolvedCommand> {
+        let refused = self.refused(command, self.declared(command, instance, focused), modal);
+        // An edit the focused stop declares is the stop's to do: enabled unless the stop marks it inactive, with the
+        // app's title and without the app's hint, which describes the app's own action.
+        let declared = self.edit_command(command).and_then(|edit| focused.declares(edit));
         let board = self.0.borrow();
         let def = board.registry.as_ref().and_then(|registry| registry.get(command.id.as_str()));
         let chord = board.keymap.shown_chord(command);
@@ -382,11 +569,11 @@ impl CommandBoard {
             icon: state.icon_ref().cloned().or_else(|| def.and_then(|def| def.icon.clone())),
             chord,
             chord_text,
-            enabled: flags.enabled && !refused,
+            enabled: declared.unwrap_or(flags.enabled) && !refused,
             refused,
             checked: flags.checked,
             marked: state.is_marked(),
-            hint: state.hint_ref().cloned(),
+            hint: if declared.is_some() { None } else { state.hint_ref().cloned() },
             hint_alone: state.is_hint_alone(),
             kind: def.map_or(CommandKind::Command, |def| def.kind.clone()),
             edit: board.edits.iter().any(|(c, _)| c == command),
@@ -410,22 +597,22 @@ impl CommandBoard {
         board.edits.iter().find(|(c, _)| *c == command).map(|(_, edit)| *edit)
     }
 
-    /// Runs `command`'s handler as fired by `source` at `time` from outside the tree (the harness), when the command
-    /// is enabled; whether a handler ran.
-    pub(crate) fn fire(&self, store: &mut Store, command: CommandRef, source: FireSource, time: f64) -> bool {
+    /// Runs `command`'s handler as fired by `source` at `time` from outside the tree into `fire`'s window (the
+    /// harness), when the command is enabled; whether a handler ran.
+    pub(crate) fn fire(&self, fire: &mut OutsideFire<'_>, command: CommandRef, source: FireSource, time: f64) -> bool {
         let fired = Fired::new(command, source, FirePhase::Press, time);
-        self.run(store, &[], &fired, ModalAt::Free)
+        self.run(fire, &[], &fired, ModalAt::Free, FocusedEdits::NONE)
     }
 
-    /// The command a press of `chord` runs: the enabled command the keymap binds it to (the first of a tool group that
-    /// shares the chord: the app's handler picks the next). `typing`: the focused stop types, so the keymap's typing
-    /// rule holds back the chords that type. `in_dialog`: a modal dialog is open, so a command whose modal rule blocks
-    /// it there is passed over.
-    pub(crate) fn command_for(&self, chord: &Chord, typing: bool, in_dialog: bool) -> Option<CommandRef> {
+    /// The command a press of `chord` runs: the enabled command the keymap binds it to that the modal rule lets
+    /// through where the focused stop stands (`modal`, `focused`; `ModalAt::Free` asks only whether the chord is
+    /// bound), the first of a tool group that shares the chord (the app's handler picks the next). `typing`: the
+    /// focused stop types, so the keymap's typing rule holds back the chords that type.
+    pub(crate) fn command_for(&self, chord: &Chord, typing: bool, modal: ModalAt, focused: FocusedEdits) -> Option<CommandRef> {
         let lookup = {
             let board = self.0.borrow();
             let active = Active { panel: None, contexts: &[], typing };
-            let accept = |command: &CommandRef| self.enabled(command) && !(in_dialog && self.blocks_in_dialogs(command));
+            let accept = |command: &CommandRef| self.enabled(command) && !self.refused(command, self.declared(command, None, focused), modal);
             board.keymap.lookup_where(chord, false, &active, &[], &accept)
         };
         match lookup {
@@ -435,18 +622,38 @@ impl CommandBoard {
         }
     }
 
-    /// Whether `command` blocks while a modal dialog is open; false for a command the keymap does not define.
-    fn blocks_in_dialogs(&self, command: &CommandRef) -> bool {
-        self.0.borrow().keymap.catalog().iter().any(|def| def.command == *command && matches!(def.modal, ModalRule::Blocked | ModalRule::Declared))
-    }
-
-    /// Runs `command` as fired by the key press `k`, along the focused node's path; whether a handler ran.
-    pub(crate) fn run_key(&self, cx: &mut EventCx<'_>, command: CommandRef, k: &KeyInput) -> bool {
+    /// Runs `command` as fired by the key press `k`, along the focused node's path; whether a handler ran. `modal`
+    /// and `focused` are where the focused stop stands, as the key's command lookup found them.
+    pub(crate) fn run_key(&self, cx: &mut EventCx<'_>, command: CommandRef, k: &KeyInput, modal: ModalAt, focused: FocusedEdits) -> bool {
         let phase = if k.repeat { FirePhase::Repeat } else { FirePhase::Press };
         let fired = Fired::new(command, FireSource::Key, phase, cx.time()).mods(k.mods);
         let path = self.path(cx.runtime(), cx.focused());
-        let modal = ModalAt::of(cx.runtime(), cx.focused());
-        self.run(cx.store_mut(), &path, &fired, modal)
+        self.run(cx, &path, &fired, modal, focused)
+    }
+}
+
+impl Board {
+    /// Whether an instance of `scope` is also an instance of `ancestor`: they are one scope, or `ancestor` is among the
+    /// scopes `scope` was declared a child of.
+    fn within(&self, scope: &str, ancestor: &str) -> bool {
+        let mut at = scope;
+        for _ in 0..=self.parents.len() {
+            if at == ancestor {
+                return true;
+            }
+            match self.parents.iter().find(|(child, _)| *child == at) {
+                Some((_, parent)) => at = parent,
+                None => return false,
+            }
+        }
+        false
+    }
+
+    /// `command`'s modal rule: its definition in the linked command sets, else in the keymap's catalog, else the
+    /// default rule.
+    fn modal_rule(&self, command: &CommandRef) -> ModalRule {
+        let linked = self.registry.as_ref().and_then(|registry| registry.get(command.id.as_str())).map(|def| def.modal);
+        linked.or_else(|| self.keymap.catalog().iter().find(|def| def.command == *command).map(|def| def.modal)).unwrap_or_default()
     }
 }
 
@@ -473,28 +680,41 @@ pub(crate) fn window_command(root: &Kept, cx: &mut EventCx<'_>, k: &KeyInput) ->
         return Handled::No;
     }
     let Some(board) = root.commands.clone() else { return Handled::No };
-    let typing = cx.focused().and_then(|f| focused_keys(cx, f)).is_some_and(|keys| {
+    let keys = cx.focused().and_then(|f| focused_keys(cx, f));
+    let typing = keys.is_some_and(|keys| {
         let typing = matches!(keys.owner, OwnerClass::Text | OwnerClass::Recorder);
         // A stop with `command_keys` lets command chords and function keys run while it types.
         let command_key = Chord::new(k.mods, k.key).has_command() || is_function(k.key);
         typing && !(keys.command_keys && command_key)
     });
-    let chord = Chord::new(k.mods, k.key);
-    let Some(mut command) = board.command_for(&chord, typing, false) else { return Handled::No };
-    // The window walk runs only for a command a modal dialog would block.
-    if board.blocks_in_dialogs(&command) && super::focus::dialog_open(root, cx) {
-        match board.command_for(&chord, typing, true) {
-            Some(open) => command = open,
-            None => return Handled::No,
-        }
-    }
-    let quits = !k.repeat && QuitCommand::from_ref(&command).is_some();
-    board.run_key(cx, command, k);
+    // Where the focused stop stands against the modal layers: worked out once for the key, for both the lookup and
+    // the fire.
+    let modal = ModalAt::of(cx.runtime(), cx.focused());
+    note_modal_check();
+    let focused = FocusedEdits::of(keys);
+    let Some(command) = board.command_for(&Chord::new(k.mods, k.key), typing, modal, focused) else { return Handled::No };
+    board.run_key(cx, command, k, modal, focused);
     cx.withhold_text();
-    if quits {
-        cx.quit();
-    }
     Handled::Yes
+}
+
+#[cfg(feature = "testing")]
+thread_local! {
+    /// How many times the window's command stage worked out where a key stands against the modal layers.
+    static MODAL_CHECKS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+fn note_modal_check() {
+    #[cfg(feature = "testing")]
+    MODAL_CHECKS.with(|checks| checks.set(checks.get() + 1));
+}
+
+/// How many times the window's command stage worked out where a key stands against the modal layers on this thread:
+/// one per key it handles (count trials).
+#[cfg(feature = "testing")]
+#[doc(hidden)]
+pub fn modal_checks() -> usize {
+    MODAL_CHECKS.with(std::cell::Cell::get)
 }
 
 fn is_function(key: Key) -> bool {
@@ -550,7 +770,15 @@ impl Ui<'_, '_> {
         let chain = self.env.view().command_chain().clone();
         super::layers::track(self.cx);
         let modal = ModalAt::of(self.cx.runtime(), Some(self.cx.node()));
-        board.resolve(self.cx, &chain, &command.into(), modal)
+        let command = command.into();
+        let focused = self.focused_edits_for(&board, &command);
+        board.resolve(self.cx, &chain, &command, modal, focused)
+    }
+
+    /// What the window's focused stop declares, read tracked only for an edit command: a surface that shows other
+    /// commands does not run when focus moves.
+    fn focused_edits_for(&mut self, board: &CommandBoard, command: &CommandRef) -> FocusedEdits {
+        if board.edit_command(command).is_some() { FocusedEdits::get(&self.ctx, self.cx) } else { FocusedEdits::NONE }
     }
 
     /// `command` as [`Ui::resolve_command`] shows it from the window under the modal layer `layer` (this cursor's own
@@ -559,7 +787,9 @@ impl Ui<'_, '_> {
         let board = self.cx.provided::<CommandBoard>()?;
         let chain = self.env.view().command_chain().clone();
         let modal = self.modal_beneath(layer);
-        board.resolve(self.cx, &chain, &command.into(), modal)
+        let command = command.into();
+        let focused = self.focused_edits_for(&board, &command);
+        board.resolve(self.cx, &chain, &command, modal, focused)
     }
 
     /// Fires `command` as [`Ui::fire`] does, judged as [`Ui::resolve_beneath`] judges it, for a surface that closes the
@@ -575,7 +805,8 @@ impl Ui<'_, '_> {
         let fired = Fired::new(command.into(), source, FirePhase::Press, self.cx.now());
         let from = self.cx.runtime().focused(self.cx.window()).unwrap_or_else(|| self.cx.node());
         let path = board.path(self.cx.runtime(), Some(from));
-        board.run(self.cx.store_mut(), &path, &fired, modal)
+        let focused = self.ctx.focused_edits();
+        board.run(self.cx, &path, &fired, modal, focused)
     }
 
     /// Where this cursor stands against the modal layers below the modal layer `layer`, as the window is once it
@@ -634,6 +865,18 @@ impl Ui<'_, '_> {
     /// The command `chord` runs at the app scope, when it is bound to one.
     pub fn command_holder(&self, chord: &Chord) -> Option<CommandRef> {
         self.cx.provided::<CommandBoard>()?.holder(chord)
+    }
+
+    /// Declares that an instance of `child` also receives the commands of `parent`, and that its shortcuts rank inside
+    /// the parent's (the workspace scope of a full-window dialog is a child of the view scope). Nothing in a measuring
+    /// run or with no board.
+    pub fn declare_command_scope(&mut self, child: CommandScope, parent: CommandScope) {
+        if self.is_measuring() {
+            return;
+        }
+        if let Some(board) = self.cx.provided::<CommandBoard>() {
+            board.declare_child(self.cx, child, parent);
+        }
     }
 
     /// The keymap's generation, read through its cell: this scope runs again when the keymap changes. 0 with no board.

@@ -688,7 +688,8 @@ pub trait Commands: CommandAccess {
     /// the context, and the enabled state of its instance. `None` when the command is scoped and no instance of its
     /// scope is above the context.
     fn resolve_command(&self, command: impl Into<CommandRef>) -> Option<Arc<ResolvedCommand>> {
-        self.command_ctx().board()?.resolve_logged(self.command_chain(), &command.into())
+        let ctx = self.command_ctx();
+        ctx.board()?.resolve_logged(ctx, self.command_chain(), &command.into(), crate::contract::rt::commands::ModalAt::Free)
     }
 }
 

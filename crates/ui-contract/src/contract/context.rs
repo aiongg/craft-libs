@@ -18,7 +18,7 @@ use std::time::Duration;
 use craft_ui_rt::{BuildCx, Margin, Os, Rect, State, Vec2, Waker, WindowCommand, WindowId, Writes as _};
 
 use super::rt::EnvCells;
-use super::rt::commands::CommandBoard;
+use super::rt::commands::{CommandBoard, FocusedEdits};
 use crate::primitives::Id;
 use crate::runtime::commands::CommandState;
 use crate::runtime::memory::RuntimeMemory;
@@ -84,6 +84,10 @@ struct Shared {
     root_cells: Cell<Option<EnvCells>>,
     /// The window's open-layer cell: its revision moves whenever a layer opens, changes or closes (`rt::layers`).
     layers: Cell<Option<State<u64>>>,
+    /// The window's `FocusedEdits` cell and the value last written to it (every write goes through
+    /// [`Context::set_focused_edits`]), for code with no store at hand.
+    focused_edits: Cell<Option<State<FocusedEdits>>>,
+    focused_edits_value: Cell<FocusedEdits>,
     /// The keys held down in the window, in the order they went down, as the window's cell last held them.
     held: RefCell<Vec<craft_ui_rt::Key>>,
     /// Builds by `Id` asked for outside a build (`Ui::request_rename`), drained by the window root.
@@ -124,6 +128,8 @@ impl Context {
                 memory,
                 root_cells: Cell::new(None),
                 layers: Cell::new(None),
+                focused_edits: Cell::new(None),
+                focused_edits_value: Cell::new(FocusedEdits::NONE),
                 held: RefCell::new(Vec::new()),
                 builds: RefCell::new(Vec::new()),
                 board: RefCell::new(None),
@@ -412,6 +418,33 @@ impl Context {
                 cell
             }
         }
+    }
+
+    /// The window's `FocusedEdits` cell, made on first use.
+    pub(crate) fn focused_edits_cell(&self, store: &mut craft_ui_rt::Store) -> State<FocusedEdits> {
+        match self.shared.focused_edits.get() {
+            Some(cell) => cell,
+            None => {
+                let cell = store.create(self.shared.focused_edits_value.get());
+                self.shared.focused_edits.set(Some(cell));
+                cell
+            }
+        }
+    }
+
+    /// What the window's focused stop declares, as last written; untracked.
+    pub(crate) fn focused_edits(&self) -> FocusedEdits {
+        self.shared.focused_edits_value.get()
+    }
+
+    /// Writes what the window's focused stop declares when it differs: the readers of the cell run again.
+    pub(crate) fn set_focused_edits(&self, cx: &mut impl craft_ui_rt::Writes, edits: FocusedEdits) {
+        if self.shared.focused_edits_value.get() == edits {
+            return;
+        }
+        self.shared.focused_edits_value.set(edits);
+        let cell = self.focused_edits_cell(cx.store_mut());
+        cell.set(cx, edits);
     }
 
     /// Whether two handles answer for the same window's context.

@@ -1,6 +1,6 @@
 //! `Draw`: what a component paints content with. It takes only `StyleColor` or `DataColor`.
 
-use super::canvas::Canvas;
+use super::canvas::{Canvas, CanvasRef, OwnedCanvas};
 use super::content::{DocRun, DocText, FaceRun};
 use super::items;
 use super::record::PaintRecord;
@@ -263,18 +263,53 @@ impl DataMode {
 
 /// The content-paint API `PaintUi::draw` gives.
 pub struct Draw<'a> {
-    canvas: &'a Canvas<'a>,
-    record: &'a RefCell<PaintRecord>,
+    canvas: CanvasRef<'a>,
+    record: RecordRef<'a>,
     env: DrawEnv<'a>,
     data: DataMode,
     /// The paragraph direction of text: the env's direction unless the caller sets the interface's.
     text_direction: Direction,
 }
 
+/// The paint record a `Draw` writes: the paint hook's, or one of its own for a build's drawing (`Ui::draw`), whose
+/// facts nothing reads: the build's own env reads already cover what the drawing depends on.
+enum RecordRef<'a> {
+    Lent(&'a RefCell<PaintRecord>),
+    Owned(RefCell<PaintRecord>),
+}
+
+impl std::ops::Deref for RecordRef<'_> {
+    type Target = RefCell<PaintRecord>;
+
+    fn deref(&self) -> &RefCell<PaintRecord> {
+        match self {
+            RecordRef::Lent(record) => record,
+            RecordRef::Owned(record) => record,
+        }
+    }
+}
+
 impl<'a> Draw<'a> {
     #[doc(hidden)]
     pub fn new(canvas: &'a Canvas<'a>, record: &'a RefCell<PaintRecord>, env: DrawEnv<'a>) -> Self {
-        Draw { canvas, record, env, data: DataMode::Full, text_direction: env.direction }
+        Draw { canvas: CanvasRef::Lent(canvas), record: RecordRef::Lent(record), env, data: DataMode::Full, text_direction: env.direction }
+    }
+
+    /// A `Draw` owning `canvas` (window coordinates): a build's drawing (`Ui::draw`), cut to `clip` when given, whose
+    /// lists join `sink` when it drops.
+    pub(crate) fn owned(
+        canvas: Canvas<'a>,
+        clip: Option<Rect>,
+        sink: &'a mut (craft_ui_rt::DisplayList, craft_ui_rt::DisplayList),
+        env: DrawEnv<'a>,
+    ) -> Self {
+        Draw {
+            canvas: CanvasRef::Owned(OwnedCanvas::new(canvas, clip, sink)),
+            record: RecordRef::Owned(RefCell::new(PaintRecord::default())),
+            env,
+            data: DataMode::Full,
+            text_direction: env.direction,
+        }
     }
 
     /// The flow direction icons and surfaces mirror with. Reading it is recorded, so a node whose paint never asks
@@ -308,13 +343,13 @@ impl<'a> Draw<'a> {
     }
 
     /// The canvas and the tokens this `Draw` paints with: what [`Glyph::paint`](super::Glyph::paint) takes.
-    pub(crate) fn painter_and_tokens(&self) -> (&'a Canvas<'a>, &'a UiTokens) {
-        (self.canvas, self.env.tokens)
+    pub(crate) fn painter_and_tokens(&self) -> (&Canvas<'a>, &'a UiTokens) {
+        (&self.canvas, self.env.tokens)
     }
 
     /// The canvas this `Draw` records into.
-    pub fn canvas(&self) -> &'a Canvas<'a> {
-        self.canvas
+    pub fn canvas(&self) -> &Canvas<'a> {
+        &self.canvas
     }
 
     fn text_env(&self) -> TextEnv<'a> {
@@ -479,7 +514,7 @@ impl<'a> Draw<'a> {
             }
             super::IconSource::Glyph(glyph) => glyph.paint_draw(self, square, color, super::icon::glyph_mirrored(glyph, icon, self.flow_direction())),
             _ => super::icon::paint(
-                self.canvas,
+                &self.canvas,
                 self.env.tokens,
                 self.flow_direction(),
                 rect,
@@ -676,14 +711,14 @@ impl<'a> Draw<'a> {
     /// is data: a disabled component paints it at `Opacity::DISABLED`, and a `Draw` for an inactive part fills `rect`
     /// with the theme's disabled fill instead, as `data_fill` does.
     pub fn texture(&self, rect: Rect, texture: ImageKey, uv: Rect) {
-        data_picture(self.canvas, self.env.tokens, self.data, texture, rect, uv, CornerRadius::ZERO);
+        data_picture(&self.canvas, self.env.tokens, self.data, texture, rect, uv, CornerRadius::ZERO);
     }
 
     /// Paints `uv` of `texture` onto the clockwise quad `corners` (from `uv`'s top left), untinted, as data: a
     /// disabled component paints it at `Opacity::DISABLED`, and for an inactive part the quad is filled with the
     /// theme's disabled fill. A quad has square corners.
     pub fn texture_quad(&self, corners: [Pos2; 4], texture: ImageKey, uv: Rect) {
-        data_quad(self.canvas, self.env.tokens, self.data, texture, corners, uv);
+        data_quad(&self.canvas, self.env.tokens, self.data, texture, corners, uv);
     }
 
     /// The texture for `key` from the `TextureCache` of the context this painter paints in, for [`texture`](Self::texture):
@@ -697,7 +732,7 @@ impl<'a> Draw<'a> {
     /// so it paints as the data over it: at `Opacity::DISABLED` for a disabled component, and for an inactive part as
     /// the theme's disabled fill, as `data_fill` does.
     pub fn checker(&self, checker: &super::Checker, rect: Rect, radius: CornerRadius) {
-        data_checker(self.canvas, self.env.tokens, self.data, checker, rect, radius);
+        data_checker(&self.canvas, self.env.tokens, self.data, checker, rect, radius);
     }
 
     /// Paints the well of a colour swatch over `well` with corners `radius`: the colour, over a checkerboard where it is

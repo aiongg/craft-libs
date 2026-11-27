@@ -198,6 +198,58 @@ pub struct Canvas<'a> {
     services: ServicesRef<'a>,
 }
 
+/// The canvas a `Draw` records into: lent by the code that made it (a paint hook's canvas), or owned by the `Draw`
+/// (`Ui::draw` in a build), which hands what it recorded to its sink when it drops.
+pub(crate) enum CanvasRef<'a> {
+    Lent(&'a Canvas<'a>),
+    Owned(OwnedCanvas<'a>),
+}
+
+impl<'a> std::ops::Deref for CanvasRef<'a> {
+    type Target = Canvas<'a>;
+
+    fn deref(&self) -> &Canvas<'a> {
+        match self {
+            CanvasRef::Lent(canvas) => canvas,
+            CanvasRef::Owned(owned) => &owned.canvas,
+        }
+    }
+}
+
+/// A canvas a build records into through `Ui::draw`, in window coordinates: when it drops, its lists join the build's
+/// drawn lists (`Flow::drawn`, under and over the node's children), which the driver moves into the node's paint at the
+/// end of the build.
+pub(crate) struct OwnedCanvas<'a> {
+    canvas: Canvas<'a>,
+    sink: &'a mut (DisplayList, DisplayList),
+    /// The canvas pushed a clip of its own, which it pops before handing its lists over.
+    clipped: bool,
+}
+
+impl<'a> OwnedCanvas<'a> {
+    /// `canvas` (origin at the window's corner) handing its lists to `sink`; with `clip`, what it records is cut to it.
+    pub(crate) fn new(canvas: Canvas<'a>, clip: Option<Rect>, sink: &'a mut (DisplayList, DisplayList)) -> OwnedCanvas<'a> {
+        if let Some(clip) = clip {
+            canvas.push_clip(clip);
+            let local = canvas.clip_rect().translate(-canvas.origin);
+            canvas.over(|| canvas.push(Item::PushClip(Clip::from(local))));
+        }
+        OwnedCanvas { canvas, sink, clipped: clip.is_some() }
+    }
+}
+
+impl Drop for OwnedCanvas<'_> {
+    fn drop(&mut self) {
+        if self.clipped {
+            self.canvas.over(|| self.canvas.push(Item::PopClip));
+            self.canvas.pop_clip();
+        }
+        let (content, overlay) = self.canvas.take();
+        self.sink.0.items.extend(content.items);
+        self.sink.1.items.extend(overlay.items);
+    }
+}
+
 /// The services a canvas records with: lent by the run, or owned (the egui runtime's context, a cheap clone).
 enum ServicesRef<'a> {
     Lent(&'a dyn Services),
@@ -221,6 +273,14 @@ impl<'a> Canvas<'a> {
     /// A canvas owning its services.
     pub fn owned(services: impl Services + 'a, origin: Pos2, clip: Rect) -> Canvas<'a> {
         Canvas { services: ServicesRef::Owned(Box::new(services)), ..Canvas::new(&NoServices, origin, clip) }
+    }
+
+    /// The same canvas recording at `opacity` (a build cursor's fade).
+    pub(crate) fn at_opacity(self, opacity: f32) -> Canvas<'a> {
+        if opacity.is_finite() {
+            self.opacity.set(opacity.clamp(0.0, 1.0));
+        }
+        self
     }
 
     /// The frame's text engine and image store.

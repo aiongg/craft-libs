@@ -8,7 +8,7 @@ use std::hash::Hash;
 use std::sync::Arc;
 
 use craft_theme::Tokens;
-use craft_ui_rt::{BuildCx, NodeId, Pos2, Rect, Sense, State, Vec2, WindowId};
+use craft_ui_rt::{BuildCx, DisplayList, NodeId, Pos2, Rect, Sense, State, Vec2, WindowId};
 
 use super::key::Ordinals;
 use super::node::Placed;
@@ -140,6 +140,9 @@ pub(crate) struct Flow {
     pub(crate) opacity: f32,
     /// What a container body's flow does beyond its `Dir` (right-to-left mirroring).
     pub(crate) body: super::container::BodyFlow,
+    /// What the build drew through [`Ui::draw`], in window coordinates: the lists under and over the node's
+    /// children. The driver moves them into the node's paint when the build ends ([`Flow::take_drawn`]).
+    pub(crate) drawn: (DisplayList, DisplayList),
 }
 
 impl Flow {
@@ -176,6 +179,7 @@ impl Flow {
             clip: Rect::EVERYTHING,
             opacity: 1.0,
             body: super::container::BodyFlow::default(),
+            drawn: (DisplayList::default(), DisplayList::default()),
         }
     }
 
@@ -191,8 +195,11 @@ impl Flow {
 
     /// Takes over what a nested flow of the same node laid out: its placed nodes, and its extent as
     /// one block the cursor moves past.
-    pub(crate) fn take_nested(&mut self, inner: Flow) {
+    pub(crate) fn take_nested(&mut self, mut inner: Flow) {
         self.absorb(&inner);
+        let (under, over) = std::mem::take(&mut inner.drawn);
+        self.drawn.0.items.extend(under.items);
+        self.drawn.1.items.extend(over.items);
         self.placed.extend(inner.placed);
         if inner.extent.is_positive() || !inner.sizes.is_empty() {
             self.advance(inner.extent);
@@ -398,6 +405,17 @@ impl Flow {
         &self.dir
     }
 
+    /// What the build drew through [`Ui::draw`], moved into the node whose top-left corner is `origin` (window
+    /// coordinates): the lists under and over its children, in its coordinates. The driver calls it when the build
+    /// ends and puts them under and over the paint the node's hooks recorded.
+    pub(crate) fn take_drawn(&mut self, origin: Pos2) -> (DisplayList, DisplayList) {
+        let (mut under, mut over) = std::mem::take(&mut self.drawn);
+        for item in under.items.iter_mut().chain(over.items.iter_mut()) {
+            crate::primitives::items::translate(item, -origin.to_vec2());
+        }
+        (under, over)
+    }
+
     /// Takes over what a nested flow found that its scroll body needs: a `Lazy` out of view, a
     /// reveal.
     pub(crate) fn absorb(&mut self, inner: &Flow) {
@@ -598,6 +616,26 @@ impl<'u, 'c> Ui<'u, 'c> {
         &self.flow.tokens
     }
 
+    /// The content-paint API over this build: what it records joins the node's paint at the call position's
+    /// coordinates (window coordinates), cut to this cursor's clip and at its fade, under the node's children (over
+    /// them through `Canvas::over`). The node keeps it until its next build. A measuring run records nothing that
+    /// shows.
+    pub fn draw(&mut self) -> crate::primitives::Draw<'_> {
+        let clip = self.flow.clip;
+        self.draw_at(clip)
+    }
+
+    /// [`Ui::draw`] cut to `clip` (window coordinates) inside this cursor's clip.
+    pub fn draw_at(&mut self, clip: Rect) -> crate::primitives::Draw<'_> {
+        let scale = self.cx.scale();
+        let clip = clip.intersect(self.flow.clip);
+        let (text, images) = self.cx.paint_services();
+        let services = crate::primitives::FrameServices::new(text, images, scale);
+        let canvas = crate::primitives::Canvas::owned(services, Pos2::ZERO, Rect::EVERYTHING).at_opacity(self.flow.opacity);
+        let env = crate::primitives::DrawEnv { tokens: &self.env.tokens, direction: self.env.direction, ink: self.env.ink };
+        crate::primitives::Draw::owned(canvas, Some(clip), &mut self.flow.drawn, env).text_direction(self.env.text_direction)
+    }
+
     /// The ui-rt build context, for the bridge's own code. A measuring run must not reconcile
     /// children through it.
     pub(crate) fn build_cx(&mut self) -> &mut BuildCx<'c> {
@@ -610,7 +648,8 @@ impl<'u, 'c> Ui<'u, 'c> {
         let mut hasher = MemoKey::new();
         key.key(&mut hasher);
         let hash = hasher.finish();
-        let slot = self.cx.slot(("craft-derived", std::any::TypeId::of::<K>()), || None::<(u128, Arc<V>)>);
+        // The slot holds `V`; the key's type name tells derived values of one `V` from different keys apart.
+        let slot = self.cx.slot(("craft-derived", std::any::TypeId::of::<V>(), std::any::type_name::<K>()), || None::<(u128, Arc<V>)>);
         if let Some((kept, value)) = self.cx.peek_state(slot)
             && *kept == hash
         {
@@ -852,12 +891,38 @@ impl<'u, 'c> Ui<'u, 'c> {
         crate::layout::ambient_width(&self.ctx, column, content)
     }
 
-    /// Shows `rows` beside the drag ghost at `at`. Nothing in a measuring run.
+    /// Shows `rows` beside the pointer at `at` during a gesture, in this scope's env: a layer child of this node on the
+    /// drag layer, which takes no input, recording [`ghost::record_readout`](crate::contract::ghost::record_readout).
+    /// It shows while this node's builds keep calling it and goes with the first build that does not. Nothing in a
+    /// measuring run.
     pub fn ghost_readout(&mut self, at: Pos2, rows: &[(crate::runtime::env::Label, String)]) {
-        if !self.is_measuring() {
-            let env = self.env.clone();
-            crate::contract::ghost::readout(&self.ctx, &env.view(), at, rows);
+        if self.is_measuring() || rows.is_empty() {
+            return;
         }
+        let env = self.env.clone();
+        let window = Rect::from_min_size(Pos2::ZERO, self.ctx.content_rect().max.to_vec2());
+        let id = self.flow.id.with("craft-ghost-readout");
+        let show = super::overlay::LayerShow {
+            layer: craft_ui_rt::Layer::Drag,
+            spec: craft_ui_rt::LayerSpec::new(craft_ui_rt::Placement::Fill),
+            surface: super::overlay::Surface::Plain,
+            pad: 0.0,
+            share: Vec2::splat(1.0),
+            anchor: None,
+            role: accesskit::Role::GenericContainer,
+            hover: false,
+            sweep: None,
+            focus: crate::runtime::focus::FocusPolicy::NONE,
+            entry: None,
+            host: None,
+            on_activate: false,
+            enter: false,
+        };
+        let key = craft_ui_rt::hash_key(&id);
+        super::overlay::show_layer(self.cx, id, key, show, true, &mut |ui: &mut Ui<'_, '_>| {
+            let draw = ui.draw();
+            crate::contract::ghost::record_readout(&draw, &env.view(), at, window, rows);
+        });
     }
 
     /// Asks the collection `collection` to start renaming the item `key`: the collection builds in a later round of

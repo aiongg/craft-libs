@@ -309,7 +309,8 @@ fn pane_key(root: &Kept, k: &KeyInput) -> Option<bool> {
         return (k.key == Key::F6 && !(k.mods.cmd || k.mods.ctrl || k.mods.alt)).then_some(!k.mods.shift);
     };
     use crate::runtime::commands::{CommandSet as _, NavCommand};
-    let command = board.command_for(&craft_keymap::Chord::new(k.mods, k.key), false, false)?;
+    let command =
+        board.command_for(&craft_keymap::Chord::new(k.mods, k.key), false, super::commands::ModalAt::Free, super::commands::FocusedEdits::NONE)?;
     match NavCommand::from_ref(&command)? {
         NavCommand::NextPane => Some(true),
         NavCommand::PreviousPane => Some(false),
@@ -324,10 +325,11 @@ fn pane_key(root: &Kept, k: &KeyInput) -> Option<bool> {
 fn window_tab_key(root: &Kept, cx: &mut EventCx<'_>, k: &KeyInput) -> Handled {
     if let Some(board) = root.commands.clone()
         && tab_toggles(root, cx)
-        && let Some(command) = board.command_for(&craft_keymap::Chord::new(k.mods, k.key), false, false)
+        && let Some(command) =
+            board.command_for(&craft_keymap::Chord::new(k.mods, k.key), false, super::commands::ModalAt::Free, super::commands::FocusedEdits::NONE)
     {
         if !k.repeat {
-            board.run_key(cx, command, k);
+            board.run_key(cx, command, k, super::commands::ModalAt::Free, super::commands::FocusedEdits::NONE);
         }
         return Handled::Yes;
     }
@@ -361,12 +363,6 @@ fn tab_toggles(root: &Kept, cx: &mut EventCx<'_>) -> bool {
     let pressed_control =
         rt.focus_pressed(cx.window()) && focused.is_some_and(|(keys, press_only)| keys.owner != craft_behavior::OwnerClass::Text || press_only);
     if canvas { focused.is_none() || on_canvas || pressed_control } else { on_canvas }
-}
-
-/// Whether a modal dialog is open in the window of the root `root` that handles a key: a command whose
-/// modal rule blocks it there does not run.
-pub(crate) fn dialog_open(root: &Kept, cx: &EventCx<'_>) -> bool {
-    window_walk(root, cx).is_some_and(|walk| walk.scopes.iter().any(|s| s.layer && s.policy.kind == ScopeKind::Dialog))
 }
 
 fn window_walk(root: &Kept, cx: &EventCx<'_>) -> Option<Walk> {
