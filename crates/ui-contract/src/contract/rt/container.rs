@@ -745,7 +745,7 @@ fn show_on_layer<C: Container, R>(
     let cx = &mut *ui.cx;
     let base = LayerShow::of(overlay, cx.node(), anchor, rtl, &tokens);
     let show = LayerShow { sweep, surface: Surface::Plain, pad: 0.0, host: Some(id), ..base };
-    let mut content = LayerContent { slot, body, shown: None };
+    let mut content = LayerContent { slot, body, escape: super::dialog::scope_escape(overlay), shown: None };
     show_layer_with(cx, id, id.value(), show, true, &mut content);
     content.shown.expect("a layer mount runs its content in every build that shows it")
 }
@@ -754,6 +754,8 @@ fn show_on_layer<C: Container, R>(
 struct LayerContent<'s, 'b, C: Container, R> {
     slot: &'s mut Option<C>,
     body: &'b mut dyn FnMut(&mut Ui<'_, '_>, &mut BodyCx<'_>) -> R,
+    /// The layer's Escape rules for the nodes it holds (a dialog's).
+    escape: crate::primitives::text_adapter::ScopeEscape,
     shown: Option<Inner<C::Output, R>>,
 }
 
@@ -765,6 +767,7 @@ impl<C: Container, R> LayerBody<()> for LayerContent<'_, '_, C, R> {
     }
 
     fn show(&mut self, ui: &mut Ui<'_, '_>, _: &mut MemoryStage, _: &BodyClose) {
+        ui.cx.provide(self.escape);
         let rect = ui.flow.region;
         let place = Env::of(ui);
         self.shown = Some(show_container(self.slot, ui, (ShowAt::Rect(rect), place), self.body, None));
@@ -864,13 +867,15 @@ fn show_plain<C: Container, R>(
             let (size, mut inner) = lay_out(&mut component, cx, &shape, into, &mut frame, (id, origin, room), &tokens, &mut call);
             kept.column_reports = crate::layout::end_capture(&ctx);
             // A container that owns its body's scroll without a scroll region (a canvas with a view of its own) takes
-            // the reveals its children ask for: they reach its run as input (`Focus::take_reveal`), not the scroll
-            // body around it.
+            // the reveals its children ask for: they reach its run as input (`Focus::take_reveal`). Its least move
+            // brings the point to the edge of its view, and the scroll bodies around it bring that place into theirs.
             if props.scroll_owner
                 && shape.scroll.is_none()
                 && let Some(at) = inner.reveal.take()
             {
                 kept.queue.push(NodeInput::Reveal(Rect::from_min_size(at, Vec2::ZERO)));
+                let view = Rect::from_min_size(origin, size);
+                inner.reveal = Some(at.clamp(view.min, view.max));
             }
             flow.absorb(&inner);
             // The header changed the open state or the gate after the body was laid out by the old one: the body read

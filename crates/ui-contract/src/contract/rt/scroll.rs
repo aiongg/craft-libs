@@ -223,7 +223,11 @@ impl ScrollKept {
             self.offset = self.max_offset();
         }
         if let Some(at) = flow.reveal.take() {
-            self.glide = Some(self.clamp(at - content_origin));
+            let target = self.clamp(at - content_origin);
+            self.glide = Some(target);
+            // The reveal goes on to the scroll bodies around this one: where the point lands in this view once the
+            // glide ends (`flow` is absorbed into the flow around).
+            flow.reveal = Some(view.min + (at - content_origin - target));
         }
         self.offset = self.clamp(self.offset);
         self.at_end = self.offset.y >= self.max_offset().y;
