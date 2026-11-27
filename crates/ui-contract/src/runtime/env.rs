@@ -54,6 +54,8 @@ pub(crate) use tokens::TokenInputs;
 #[cfg(feature = "testing")]
 pub(crate) use tokens::root_token_resolves;
 use tokens::tokens_for;
+#[doc(hidden)]
+pub use tokens::{resolved_hit, resolved_icon_side};
 pub use values::{AltCodePages, ArenaId, ColumnAlign, InBar, MotionPolicy, PaneEdge, RowPressed, Scale, WheelSpeed};
 pub use view::EnvView;
 

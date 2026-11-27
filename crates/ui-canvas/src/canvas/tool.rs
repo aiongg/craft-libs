@@ -526,7 +526,7 @@ impl<'a> ToolContext<'a> {
     pub fn reach(&self) -> f32 {
         match self.env {
             Some(env) => env.hit_reach(),
-            None => crate::runtime::frame::resolved_hit(&craft_theme::AppSizes::default()).target,
+            None => crate::runtime::env::resolved_hit(&craft_theme::AppSizes::default()).target,
         }
     }
 
@@ -535,7 +535,7 @@ impl<'a> ToolContext<'a> {
     pub fn icon_side(&self) -> f32 {
         match self.env {
             Some(env) => env.tokens.size.icon.md,
-            None => crate::runtime::frame::resolved_icon_side(&craft_theme::AppSizes::default()),
+            None => crate::runtime::env::resolved_icon_side(&craft_theme::AppSizes::default()),
         }
     }
 

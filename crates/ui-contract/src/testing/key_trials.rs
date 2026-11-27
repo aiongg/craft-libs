@@ -1,9 +1,10 @@
 //! Trials of the bare-Tab chrome toggle: when a Tab press toggles a window's panels and when it moves focus.
 
+use crate::runtime::commands::ChromeToggle;
 use crate::runtime::commands::{ChromeCommand, CommandInput, CommandSet as _, EditCommands};
 use crate::runtime::env::RootEnv;
 use crate::runtime::focus::{FocusTarget, KeyUse, request};
-use crate::runtime::frame::{ChromeToggle, take_output};
+use crate::runtime::frame::take_output;
 use crate::runtime::keys::{focus_holds, intents_of, take_shortcuts};
 use crate::testing::focus::{Stop, egui_focused, key_release, named_id, press_shape, register_stop, widget};
 use crate::testing::input::{key_press, key_repeat};

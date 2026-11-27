@@ -31,6 +31,8 @@ mod shell;
 mod spec;
 mod viewport;
 
+pub use crate::contract::rt::windows::{WindowRegistry, caption_regions, rt_spec};
+pub use crate::contract::rt::{WindowEnv, window_root_with};
 pub use hit::{CaptionRegions, HitSink, ResizeEdge, WindowHit};
 pub(crate) use hit::{hit_sink_installed, note_exclusive};
 use hit::{publish_regions, replay_caption_events};

@@ -30,7 +30,7 @@ use winit::dpi::{LogicalPosition, LogicalSize};
 use winit::event_loop::EventLoopProxy;
 use winit::window::{Fullscreen, Window};
 
-pub use app::run;
+pub use app::{run, run_with};
 pub use clipboard::WinitClipboard;
 pub use winit;
 

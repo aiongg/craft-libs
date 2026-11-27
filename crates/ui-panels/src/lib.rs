@@ -16,11 +16,11 @@ pub use craft_ui_widgets::registry;
 pub use craft_ui_widgets::story_kit;
 #[doc(hidden)]
 pub use craft_ui_widgets::{__private, __register_command_set, __register_contract, __register_pattern};
-pub use craft_ui_widgets::{InstallError, InstallSpec, contract, fonts, install, layout, primitives, runtime, style, words};
 pub use craft_ui_widgets::{
     bars, buttons, choice, controls, display, edit, form, graph, layout_components, list, menu, notices, pickers, popover, table, tabs, text,
     tile_grid, value_drag,
 };
+pub use craft_ui_widgets::{contract, fonts, layout, primitives, runtime, style, words};
 
 #[doc(hidden)]
 pub mod canvas_data;

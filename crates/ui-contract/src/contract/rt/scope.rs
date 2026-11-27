@@ -34,15 +34,16 @@ pub struct WindowEnv {
     pub commands: Option<super::commands::CommandBoard>,
 }
 
-/// [`window_root`] with the host's env cells and job board.
-pub fn window_root_with<R>(cx: &mut BuildCx<'_>, host: WindowEnv, f: impl FnOnce(&mut Ui<'_, '_>) -> R) -> R {
+/// [`window_root`] with what the app host gives every window (`craft_ui::app`): its env cells, job board and
+/// command board. Public at `runtime::windows::window_root_with`.
+pub fn window_root_with<R>(cx: &mut BuildCx<'_>, env: WindowEnv, f: impl FnOnce(&mut Ui<'_, '_>) -> R) -> R {
     let window = cx.window();
     cx.inline(ScopeNode { key: 0 }, |kept, state, cx| {
         cx.count_scope();
         if state.new {
             cx.mark_changed();
         }
-        let cells = match (host.cells, kept.env) {
+        let cells = match (env.cells, kept.env) {
             (Some(given), _) => given,
             (None, Some(own)) => own,
             (None, None) => {
@@ -56,10 +57,10 @@ pub fn window_root_with<R>(cx: &mut BuildCx<'_>, host: WindowEnv, f: impl FnOnce
         let ids = cx.slot("craft-node-ids", super::ids::NodeIds::default);
         let ids = cx.peek_state(ids).clone();
         cx.provide(ids);
-        if let Some(jobs) = host.jobs {
+        if let Some(jobs) = env.jobs {
             cx.provide(jobs);
         }
-        if let Some(commands) = host.commands {
+        if let Some(commands) = env.commands {
             cx.provide(commands.clone());
             kept.commands = Some(commands);
         }

@@ -1,16 +1,18 @@
 //! The frame plugin: the per-pass and per-frame steps, with the inputs the app sets and the outputs it drains.
 
-use crate::runtime::commands::{self, CommandInput, CommandSet as _, Fired};
+use crate::runtime::commands::{self, ChromeToggle, CommandInput, CommandSet as _, Fired};
+use crate::runtime::edit::OuterEdit;
 use crate::runtime::egui::input::{self as raw_input, Arrived, HeldInput, RawInput};
 use crate::runtime::egui::{clipboard, pass, scale, style};
+use crate::runtime::env::resolved_hit;
 use crate::runtime::env::{AltCodePages, Env, RootEnv, WheelSpeed, WindowKey};
 use crate::runtime::pass_state;
 use crate::runtime::{access, cursor, drag, focus, ime, keys, layout_memory, measure, memory, motion, overlay, pointer, toast, wheel, windows};
-use craft_behavior::{DocKey, GestureId};
+use craft_behavior::GestureId;
 use craft_host::Host;
 use craft_host::target::Os;
 use craft_keymap::Mods;
-use craft_theme::{AppSizes, Appearance, Contrast, HitSizes, Mode, SUITE_DEFAULT, Size, TextSize, ThemeDef, builtins, resolve_sized};
+use craft_theme::{AppSizes, HitSizes, Mode};
 use egui::{Context, Id, Ui, ViewportId};
 use std::any::TypeId;
 use std::collections::HashMap;
@@ -91,48 +93,6 @@ impl FrameInput {
         self.host = Some(host);
         self
     }
-}
-
-/// Which panels a window's chrome toggle hides (spec 1.8): the `window.toggle_panels` and
-/// `window.toggle_panels_keep_tools` commands.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum ChromeToggle {
-    /// Every panel of the window.
-    Panels,
-    /// Every panel of the window except the tools.
-    PanelsKeepTools,
-    /// Ends Tab and Shift+Tab hiding the panels; nothing when they are shown.
-    ShowPanels,
-    /// Reveals the edge while the window is body-only or its panels are hidden; `None` ends the reveal.
-    Reveal(Option<super::env::RevealEdge>),
-}
-
-/// A step of the outer gesture of a container whose `ContainerProps::outer_edit` is on: one undo step over the edits of
-/// its body's fields, from open to close. It carries no value; the fields' own events carry theirs, and a
-/// `GestureHost` folds every gesture it handles while the outer one is open into it.
-#[derive(Clone, Debug, PartialEq)]
-pub enum OuterEdit {
-    /// The container opened: the step begins, named by the container's label and document key.
-    Begin {
-        /// The outer gesture.
-        id: GestureId,
-        /// The resolved label of the container ("Image Size" for "Undo Image Size").
-        label: Arc<str>,
-        /// The container's document key.
-        doc_key: Option<DocKey>,
-    },
-    /// The container closed as an OK: the edits since `Begin` stay, as one undo step.
-    Commit {
-        /// The outer gesture.
-        id: GestureId,
-    },
-    /// The container closed any other way (Cancel, Escape, the close action, the app closing it): the edits since
-    /// `Begin` are taken back.
-    Cancel {
-        /// The outer gesture.
-        id: GestureId,
-    },
 }
 
 /// What the runtime accumulated since the last `take_output`, across passes and discarded passes.
@@ -443,32 +403,6 @@ pub fn set_input(ctx: &Context, input: FrameInput) {
 pub fn input_pending(ctx: &Context) -> bool {
     let root_passes = pass::pass_nr(ctx, ViewportId::ROOT);
     pass_state::with::<FrameState, _>(ctx, |state| state.input_pass == Some(root_passes))
-}
-
-/// The tokens the app's `sizes` give the default density: the built-in sets and the overrides apply in
-/// `craft_theme`'s resolve, whichever theme carries them.
-fn resolved_default(sizes: &AppSizes) -> craft_theme::Tokens {
-    let appearance =
-        Appearance { mode: Mode::Light, contrast: Contrast::Standard, size: Size::default(), text_size: TextSize::default(), reduced_motion: false };
-    resolve_sized(suite_default_theme(), appearance, None, sizes).tokens
-}
-
-/// The tolerances the app's `sizes` give the default density.
-#[doc(hidden)]
-pub fn resolved_hit(sizes: &AppSizes) -> HitSizes {
-    resolved_default(sizes).size.hit
-}
-
-/// The standard icon size the default density gives (`size.icon.md`), for a context built without an env.
-#[doc(hidden)]
-pub fn resolved_icon_side(sizes: &AppSizes) -> f32 {
-    resolved_default(sizes).size.icon.md
-}
-
-/// The built-in theme the tolerances resolve under.
-fn suite_default_theme() -> &'static ThemeDef {
-    let themes = builtins();
-    themes.iter().find(|theme| theme.id.as_str() == SUITE_DEFAULT).unwrap_or(&themes[0])
 }
 
 /// The tolerances of the running frame: the app's, else the default density's.

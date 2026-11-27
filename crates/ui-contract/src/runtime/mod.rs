@@ -14,7 +14,6 @@ pub mod frame;
 pub mod ime;
 pub(crate) mod inputs;
 pub mod inspect;
-pub mod install;
 pub mod keys;
 #[doc(hidden)]
 pub mod lock_keys;
@@ -35,6 +34,5 @@ pub mod windows;
 pub mod words;
 
 pub use shift::RecordShift;
-pub use install::{InstallError, InstallSpec, install};
 #[doc(hidden)]
 pub use shift::{Clip, Shift};

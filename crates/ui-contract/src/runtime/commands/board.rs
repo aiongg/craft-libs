@@ -1093,6 +1093,13 @@ fn build_keymap(
     BuiltKeymap { keymap: Arc::new(keymap), edit_chords, window_shortcuts, shown_text: Arc::new(shown_text) }
 }
 
+/// The keymap of the command sets linked into the binary on `platform`, the stories' sets too when `stories`: the
+/// keymap the app host builds its `CommandBoard` from when the app gives none.
+pub fn linked_keymap(stories: bool, platform: Platform) -> Result<Keymap, registry::CommandDefError> {
+    let registry = registry::Registry::shared(stories)?;
+    Ok((*keymap_for(&registry, None, platform, None, false).keymap).clone())
+}
+
 /// Builds or reuses a keymap owned by this exact command registry: one with no catalog, no overrides and holds off is
 /// built once per platform.
 fn keymap_for(

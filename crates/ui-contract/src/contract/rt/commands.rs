@@ -38,6 +38,8 @@ struct Board {
     /// Each handler with the node it was registered for (`Ui::on_command`; `None`: the board's own,
     /// `CommandBoard::on`). One handler per owner and command.
     handlers: Vec<(Option<NodeId>, CommandRef, Handler)>,
+    /// The app scope's handler: every fired command with no handler on its firing path goes to it.
+    app: Option<Handler>,
 }
 
 /// The app's commands: the keymap, each command's state as a cell and what each command does.
@@ -47,7 +49,7 @@ pub struct CommandBoard(Rc<RefCell<Board>>);
 impl CommandBoard {
     /// A board over `keymap`, with no handlers and every command enabled.
     pub fn new(keymap: Keymap) -> CommandBoard {
-        CommandBoard(Rc::new(RefCell::new(Board { keymap, edits: Vec::new(), states: Vec::new(), handlers: Vec::new() })))
+        CommandBoard(Rc::new(RefCell::new(Board { keymap, edits: Vec::new(), states: Vec::new(), handlers: Vec::new(), app: None })))
     }
 
     /// The board with the edit commands of `S` (`#[command(edit = ...)]`): a focused component that
@@ -103,6 +105,32 @@ impl CommandBoard {
         if !board.handlers.iter().any(|(o, c, _)| *o == owner && *c == command) {
             board.handlers.push((owner, command, handler));
         }
+    }
+
+    /// Runs `handler` for every fired command that has no handler of its own: the app scope's
+    /// commands. The app host passes `App::logic` here; a later call replaces the handler.
+    pub fn on_app(&self, handler: impl FnMut(&Fired, &mut Store) + 'static) {
+        self.0.borrow_mut().app = Some(Box::new(handler));
+    }
+
+    /// Runs `taken` (the handler [`CommandBoard::take_handler`] found for `fired`), else the app scope's
+    /// handler. Returns whether one ran. The handler runs outside the board's borrow, so it may set
+    /// command states or register handlers.
+    fn run_taken(&self, taken: Option<(Option<NodeId>, CommandRef, Handler)>, fired: &Fired, store: &mut Store) -> bool {
+        if let Some(mut taken) = taken {
+            (taken.2)(fired, store);
+            self.put_back(taken);
+            return true;
+        }
+        let app = self.0.borrow_mut().app.take();
+        let Some(mut handler) = app else { return false };
+        handler(fired, store);
+        let mut board = self.0.borrow_mut();
+        // An app handler set while this one ran replaces it.
+        if board.app.is_none() {
+            board.app = Some(handler);
+        }
+        true
     }
 
     /// The cell of `command`'s state, created enabled on first use.
@@ -181,10 +209,7 @@ impl CommandBoard {
         let fired = Fired::new(command.clone(), FireSource::Key, if k.repeat { FirePhase::Repeat } else { FirePhase::Press }, cx.time()).mods(k.mods);
         let from = cx.focused();
         let taken = self.take_handler(cx.runtime(), from, &command);
-        if let Some(mut taken) = taken {
-            (taken.2)(&fired, cx.store_mut());
-            self.put_back(taken);
-        }
+        self.run_taken(taken, &fired, cx.store_mut());
         Handled::Yes
     }
 
@@ -192,10 +217,8 @@ impl CommandBoard {
     /// `Cx::fire`, `Ui::fire`): the nearest registration on that node's path, else the board's own.
     /// Returns whether a handler ran.
     pub(crate) fn run_from(&self, cx: &mut BuildCx<'_>, fired: &Fired) -> bool {
-        let Some(mut taken) = self.take_handler(cx.runtime(), Some(cx.node()), &fired.command) else { return false };
-        (taken.2)(fired, cx.store_mut());
-        self.put_back(taken);
-        true
+        let taken = self.take_handler(cx.runtime(), Some(cx.node()), &fired.command);
+        self.run_taken(taken, fired, cx.store_mut())
     }
 }
 

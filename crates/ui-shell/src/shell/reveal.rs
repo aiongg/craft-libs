@@ -1,8 +1,8 @@
 //! What a window hides and reveals: the chrome toggles, the Tab reveal and the edge reveal of body-only mode.
 
 use crate::contract::PaneEdge;
+use crate::runtime::commands::ChromeToggle;
 use crate::runtime::env::RevealEdge;
-use crate::runtime::frame::ChromeToggle;
 use crate::shell::{ScreenMode, Slot};
 use egui::{Pos2, Rect, pos2};
 

@@ -4,7 +4,6 @@ pub(crate) mod app_shell;
 pub(crate) mod canvas_panel;
 pub(crate) mod caption_button;
 pub(crate) mod document_window;
-pub(crate) mod embed;
 pub(crate) mod f6;
 pub(crate) mod opening;
 pub(crate) mod options_place;

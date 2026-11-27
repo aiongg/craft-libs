@@ -182,3 +182,29 @@ pub(super) fn same_def(a: &Option<Arc<ThemeDef>>, b: &Option<Arc<ThemeDef>>) -> 
         _ => false,
     }
 }
+
+/// The tokens the app's `sizes` give the default density: the built-in sets and the overrides apply in
+/// `craft_theme`'s resolve, whichever theme carries them.
+fn resolved_default(sizes: &AppSizes) -> craft_theme::Tokens {
+    let appearance =
+        Appearance { mode: Mode::Light, contrast: Contrast::Standard, size: Size::default(), text_size: TextSize::default(), reduced_motion: false };
+    craft_theme::resolve_sized(suite_default_theme(), appearance, None, sizes).tokens
+}
+
+/// The tolerances the app's `sizes` give the default density.
+#[doc(hidden)]
+pub fn resolved_hit(sizes: &AppSizes) -> craft_theme::HitSizes {
+    resolved_default(sizes).size.hit
+}
+
+/// The standard icon size the default density gives (`size.icon.md`), for a context built without an env.
+#[doc(hidden)]
+pub fn resolved_icon_side(sizes: &AppSizes) -> f32 {
+    resolved_default(sizes).size.icon.md
+}
+
+/// The built-in theme the tolerances resolve under.
+fn suite_default_theme() -> &'static ThemeDef {
+    let themes = builtins();
+    themes.iter().find(|theme| theme.id.as_str() == SUITE_DEFAULT).unwrap_or(&themes[0])
+}

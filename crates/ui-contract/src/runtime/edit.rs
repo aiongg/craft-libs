@@ -167,3 +167,30 @@ impl Drop for RemovalWatch {
         }
     }
 }
+
+/// A step of the outer gesture of a container whose `ContainerProps::outer_edit` is on: one undo step over the edits of
+/// its body's fields, from open to close. It carries no value; the fields' own events carry theirs, and a
+/// `GestureHost` folds every gesture it handles while the outer one is open into it.
+#[derive(Clone, Debug, PartialEq)]
+pub enum OuterEdit {
+    /// The container opened: the step begins, named by the container's label and document key.
+    Begin {
+        /// The outer gesture.
+        id: craft_behavior::GestureId,
+        /// The resolved label of the container ("Image Size" for "Undo Image Size").
+        label: std::sync::Arc<str>,
+        /// The container's document key.
+        doc_key: Option<craft_behavior::DocKey>,
+    },
+    /// The container closed as an OK: the edits since `Begin` stay, as one undo step.
+    Commit {
+        /// The outer gesture.
+        id: craft_behavior::GestureId,
+    },
+    /// The container closed any other way (Cancel, Escape, the close action, the app closing it): the edits since
+    /// `Begin` are taken back.
+    Cancel {
+        /// The outer gesture.
+        id: craft_behavior::GestureId,
+    },
+}

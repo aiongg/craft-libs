@@ -6,8 +6,9 @@
 #[doc(hidden)]
 pub mod outer;
 
+use crate::runtime::edit::OuterEdit;
 use crate::runtime::edit::cancel_all;
-use crate::runtime::frame::{FrameOutput, OuterEdit};
+use crate::runtime::frame::FrameOutput;
 use craft_behavior::{CancelReason, DocKey, EditEvent, GestureId, Mixed, Value};
 use egui::Context;
 use std::any::Any;

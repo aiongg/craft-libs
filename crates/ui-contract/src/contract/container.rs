@@ -994,7 +994,7 @@ pub struct ContainerProps {
     pub roving: Option<Roving>,
     /// Placement, size and open state saved across runs.
     pub save: Option<SaveKey>,
-    /// One outer gesture over the body's fields (`runtime::frame::OuterEdit`), from open to close. The dialog shells
+    /// One outer gesture over the body's fields (`runtime::edit::OuterEdit`), from open to close. The dialog shells
     /// read it: the body's header opens the gesture, and the dialog's answer ends it.
     pub outer_edit: bool,
     /// The body holds one collection that owns the scroll: a layer's own body scroll is off.
