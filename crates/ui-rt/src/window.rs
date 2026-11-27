@@ -108,7 +108,7 @@ pub(crate) struct Window {
     pub(crate) env: Env,
     pub(crate) root: NodeId,
     /// One node per [`Layer`], in `Layer::ALL` order.
-    pub(crate) layers: [NodeId; 8],
+    pub(crate) layers: [NodeId; 9],
     /// The app root's id on the content layer.
     pub(crate) app_root: NodeId,
     pub(crate) viewport: Vec2,

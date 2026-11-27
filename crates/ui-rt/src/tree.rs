@@ -104,6 +104,10 @@ pub(crate) struct Node {
     pub(crate) hits: Vec<HitRecord>,
     /// The cursor its last paint named for itself and its descendants.
     pub(crate) cursor: Option<crate::platform::Cursor>,
+    /// The painted pointer of `cursor`: its index in `painted`.
+    pub(crate) cursor_painted: Option<u16>,
+    /// The painted pointers its last paint named ([`crate::PaintCx::hit_painted`], [`crate::PaintCx::painted_cursor`]).
+    pub(crate) painted: Vec<crate::cursor::PaintedPointer>,
     pub(crate) access: AccessData,
 }
 
@@ -144,6 +148,8 @@ impl Node {
             slot_lists: Vec::new(),
             hits: Vec::new(),
             cursor: None,
+            cursor_painted: None,
+            painted: Vec::new(),
             access: AccessData::default(),
         }
     }

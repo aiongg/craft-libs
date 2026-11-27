@@ -232,8 +232,7 @@ pub(crate) fn show_shaped<C: Component>(
     }
     let context = ui.ctx.clone();
     let Ui { cx, flow, .. } = ui;
-    let node =
-        ComponentNode { key: key.map_or(0, fold), tag, stop: C::STOPS && steps::takes_focus(&begun.resolved(id)), text: component.text_input() };
+    let node = ComponentNode { key: key.map_or(0, fold), tag, stop: own_stop(&component, &begun.resolved(id)), text: component.text_input() };
     cx.keyed(child, |cx| {
         cx.inline(node, |kept, state, cx| {
             let kept_outputs = holds(kept, key, state);
@@ -489,7 +488,7 @@ pub(crate) fn run_shaped<C: Component>(
     let inbox = InboxIn::read(&cells, cx);
     // A row's facts from its collection, read so that a change runs the row (15.5).
     let row = super::items::row_facts(cx, id);
-    let stop = C::STOPS && steps::takes_focus(&resolved);
+    let stop = own_stop(&component, &resolved);
     // Only a stop can hold focus, so only a stop reads it: a focus move reruns the stops it touches.
     let focused = stop && cx.read_interaction(node, InteractFact::Focused);
     let swept = match (component.sweep_value(), sweep) {
@@ -566,7 +565,7 @@ pub(crate) fn run_shaped<C: Component>(
     kept.claim = cxx.core.env.field_label().and_then(|label| label.claim).map(|claim| claim.translate(Pos2::ZERO - rect.min));
     kept.sweep = sweep;
     kept.toggle = component.sweep_value();
-    kept.cursor = component.cursor().as_ref().map(super::cursor::platform);
+    kept.cursor = component.cursor();
     let results = part_results(&kept.parts, &parts, own, cxx.core.run.input, (rect.min, rect), interact.hovered);
     cxx.core.results = results.1;
     cxx.core.press = results.0.press;
@@ -611,7 +610,7 @@ pub(crate) fn run_shaped<C: Component>(
     hooks.updated(&mut component, &mut cxx);
     steps::record_context(cxx.core);
     if let Some(cursor) = crate::contract::cx::run_cursor(cxx.core) {
-        kept.cursor = Some(super::cursor::platform(&cursor));
+        kept.cursor = Some(cursor);
     }
     kept.focus.ring = stop.then(|| craft_ui_rt::Stroke::new(tokens.stroke.focus, tokens.color.line.focus));
     kept.focus.stop = stop.then(|| text_keys.or_else(|| cxx.core.editor.as_ref().map(|editor| editor.keys)).unwrap_or_else(|| component.keys()));
@@ -659,6 +658,9 @@ pub(crate) fn run_shaped<C: Component>(
         crate::contract::paint_ui::host_ui(&mut lent, |ui| hooks.content(&mut component, ui, &begun.env, &mut cxx, &values));
         kept.members = hooks.take_member_looks();
     }
+    let cursors = kept.cursor.iter().chain(kept.parts.iter().chain(kept.members.iter().flat_map(|row| &row.parts)).filter_map(|p| p.cursor.as_ref()));
+    let pointers = super::cursor::painted_pointers(&host, &begun.env, cursors);
+    kept.pointers = pointers;
     let mut flow = host.into_flow();
     super::node::set_drawn(&mut kept.drawn, cx, flow.take_drawn(rect.min));
     kept.placed = flow.placed;
@@ -1036,6 +1038,12 @@ fn settle_shaped<C: Component>(
     // A request the item content made while the node was kept: the node runs in this frame to take it.
     super::node::DescendantWatch::after_build(kept, cx);
     out
+}
+
+/// The component's own Tab stop exists only when its own sense holds `FOCUS` (a disabled one with a reason keeps
+/// it); parts that sense only presses, such as selection parts, are no Tab stops.
+pub(crate) fn own_stop<C: Component>(component: &C, resolved: &Resolved<'_>) -> bool {
+    C::STOPS && own_sense(component, resolved).contains(Sense::FOCUS)
 }
 
 /// What the component senses itself: a disabled one that shows a reason on focus stays a Tab stop

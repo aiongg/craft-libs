@@ -6,6 +6,7 @@ use emath::{Pos2, Rect, Vec2};
 use kurbo::BezPath;
 use smallvec::SmallVec;
 
+use crate::cursor::PaintedPointer;
 use crate::display::{Clip, DisplayList, Fill, ImageKey, Item, Mesh, Stroke, SurfaceKey, TextHighlight};
 use crate::frame::Part;
 use crate::geom::CornerRadii;
@@ -31,6 +32,8 @@ pub struct PaintCx<'a> {
     opacity: f32,
     hits: Vec<HitRecord>,
     cursor: Option<Cursor>,
+    cursor_painted: Option<u16>,
+    painted: Vec<PaintedPointer>,
     /// The node takes window drops (`Some`), and OS file drops under a modal layer too (`Some(true)`).
     window_drop: Option<bool>,
     close_guard: bool,
@@ -61,13 +64,13 @@ impl PaintCx<'_> {
     /// [`PaintCx::over`] sit above the node's children. `part` tells the node's parts apart in
     /// events (0 when it has one).
     pub fn hit(&mut self, shape: impl Into<HitShape>, sense: Sense, part: u64) {
-        self.hits.push(HitRecord { shape: shape.into(), sense, part, level: self.part, kind: HitKind::Input, cursor: None });
+        self.hits.push(HitRecord { shape: shape.into(), sense, part, level: self.part, kind: HitKind::Input, cursor: None, painted: None });
     }
 
     /// [`PaintCx::hit`] with the cursor the pointer shows over the shape, and keeps while a press
     /// that went down on it runs (a splitter's resize arrows).
     pub fn hit_cursor(&mut self, shape: impl Into<HitShape>, sense: Sense, part: u64, cursor: Cursor) {
-        self.hits.push(HitRecord { shape: shape.into(), sense, part, level: self.part, kind: HitKind::Input, cursor: Some(cursor) });
+        self.hits.push(HitRecord { shape: shape.into(), sense, part, level: self.part, kind: HitKind::Input, cursor: Some(cursor), painted: None });
     }
 
     /// The cursor the pointer shows over this node and its descendants, where no nearer node or
@@ -75,33 +78,90 @@ impl PaintCx<'_> {
     /// a node changes its cursor by repainting.
     pub fn cursor(&mut self, cursor: Cursor) {
         self.cursor = Some(cursor);
+        self.cursor_painted = None;
+    }
+
+    /// [`PaintCx::hit_cursor`] with a pointer the window draws at the pointer over the shape
+    /// ([`PaintedPointer`]), over the platform cursor it names as its base.
+    pub fn hit_painted(&mut self, shape: impl Into<HitShape>, sense: Sense, part: u64, pointer: PaintedPointer) {
+        let painted = self.push_painted(&pointer);
+        self.hits.push(HitRecord { shape: shape.into(), sense, part, level: self.part, kind: HitKind::Input, cursor: Some(pointer.base), painted });
+    }
+
+    /// [`PaintCx::cursor`] with a pointer the window draws at the pointer ([`PaintedPointer`]).
+    pub fn painted_cursor(&mut self, pointer: PaintedPointer) {
+        self.cursor = Some(pointer.base);
+        self.cursor_painted = self.push_painted(&pointer);
+    }
+
+    fn push_painted(&mut self, pointer: &PaintedPointer) -> Option<u16> {
+        let at = match self.painted.iter().position(|p| p == pointer) {
+            Some(at) => at,
+            None => {
+                self.painted.push(pointer.clone());
+                self.painted.len() - 1
+            }
+        };
+        u16::try_from(at).ok()
     }
 
     /// Records a shape where a drag may drop, in local coordinates. While a drag is over it the
     /// node gets [`crate::Event::Drop`] (bubbling to ancestors until one accepts).
     pub fn drop_target(&mut self, shape: impl Into<HitShape>, part: u64) {
-        self.hits.push(HitRecord { shape: shape.into(), sense: Sense::empty(), part, level: self.part, kind: HitKind::Drop, cursor: None });
+        self.hits.push(HitRecord {
+            shape: shape.into(),
+            sense: Sense::empty(),
+            part,
+            level: self.part,
+            kind: HitKind::Drop,
+            cursor: None,
+            painted: None,
+        });
     }
 
     /// Records a place, in local coordinates, where a primary press holds the focused node's draft:
     /// the focused node gets [`crate::Event::PressKept`] with `holds`, and keeps its focus when it
     /// holds drafts, whatever shape takes the press. The shape takes no input itself.
     pub fn holds_drafts(&mut self, shape: impl Into<HitShape>) {
-        self.hits.push(HitRecord { shape: shape.into(), sense: Sense::empty(), part: 0, level: self.part, kind: HitKind::Hold, cursor: None });
+        self.hits.push(HitRecord {
+            shape: shape.into(),
+            sense: Sense::empty(),
+            part: 0,
+            level: self.part,
+            kind: HitKind::Hold,
+            cursor: None,
+            painted: None,
+        });
     }
 
     /// [`PaintCx::drop_target`] for a shape that takes OS file drags while a modal layer above it
     /// holds input (an app whose alerts let files through). Other drop shapes under a modal take
     /// no drag.
     pub fn drop_target_under_modal(&mut self, shape: impl Into<HitShape>, part: u64) {
-        self.hits.push(HitRecord { shape: shape.into(), sense: Sense::empty(), part, level: self.part, kind: HitKind::DropUnderModal, cursor: None });
+        self.hits.push(HitRecord {
+            shape: shape.into(),
+            sense: Sense::empty(),
+            part,
+            level: self.part,
+            kind: HitKind::DropUnderModal,
+            cursor: None,
+            painted: None,
+        });
     }
 
     /// Records a place the operating system acts on in local coordinates: a press there moves the
     /// window, resizes it or is a caption button, as the host's `tag` says
     /// ([`crate::Runtime::window_zones`]). It takes no pointer input of the runtime's.
     pub fn window_zone(&mut self, shape: impl Into<HitShape>, tag: u64) {
-        self.hits.push(HitRecord { shape: shape.into(), sense: Sense::empty(), part: tag, level: self.part, kind: HitKind::Zone, cursor: None });
+        self.hits.push(HitRecord {
+            shape: shape.into(),
+            sense: Sense::empty(),
+            part: tag,
+            level: self.part,
+            kind: HitKind::Zone,
+            cursor: None,
+            painted: None,
+        });
     }
 
     /// The node takes drops anywhere in its window that no [`PaintCx::drop_target`] shape takes,
@@ -329,11 +389,13 @@ pub(crate) fn paint_pass(rt: &mut Runtime) {
             opacity: 1.0,
             hits: Vec::new(),
             cursor: None,
+            cursor_painted: None,
+            painted: Vec::new(),
             window_drop: None,
             close_guard: false,
         };
         el.paint(&mut cx);
-        let PaintCx { mut content, mut overlay, clip, opacity, hits, cursor, window_drop, close_guard, .. } = cx;
+        let PaintCx { mut content, mut overlay, clip, opacity, hits, cursor, cursor_painted, painted, window_drop, close_guard, .. } = cx;
         if let Some(node) = rt.tree.nodes.get_mut(&id)
             && !node.slot_lists.is_empty()
         {
@@ -372,9 +434,14 @@ pub(crate) fn paint_pass(rt: &mut Runtime) {
             node.frame.clip = clip;
             node.frame.opacity = opacity;
             node.frame.version = version;
-            pointer_look = node.cursor != cursor || node.hits.iter().any(|h| h.cursor.is_some()) || hits.iter().any(|h| h.cursor.is_some());
+            pointer_look = node.cursor != cursor
+                || node.painted != painted
+                || node.hits.iter().any(|h| h.cursor.is_some())
+                || hits.iter().any(|h| h.cursor.is_some());
             node.hits = hits;
             node.cursor = cursor;
+            node.cursor_painted = cursor_painted;
+            node.painted = painted;
         }
         if let Some(w) = rt.windows.get_mut(&window) {
             if restyled {

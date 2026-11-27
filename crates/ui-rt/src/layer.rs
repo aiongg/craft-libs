@@ -30,10 +30,13 @@ pub enum Layer {
     Drag,
     /// Notifications.
     Toast,
+    /// Painted pointers ([`crate::PaintedPointer`]) that show over every layer.
+    Pointer,
 }
 
 impl Layer {
-    pub const ALL: [Layer; 8] = [Layer::Content, Layer::Floating, Layer::Modal, Layer::Popup, Layer::Menu, Layer::Tooltip, Layer::Drag, Layer::Toast];
+    pub const ALL: [Layer; 9] =
+        [Layer::Content, Layer::Floating, Layer::Modal, Layer::Popup, Layer::Menu, Layer::Tooltip, Layer::Drag, Layer::Toast, Layer::Pointer];
 
     pub(crate) fn index(self) -> u8 {
         self as u8

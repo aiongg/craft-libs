@@ -17,6 +17,7 @@ use craft_behavior::{
 use craft_keymap::chord::{Key, Mods};
 use emath::{Pos2, Rect, Vec2};
 
+use crate::cursor::{PointerShown, ShapeCursor};
 use crate::event::{AccessInput, Event, EventCx, FocusCause, Gesture, Handled, KeyInput, PointerInput, WheelInput};
 use crate::gesture::Touches;
 use crate::hit::{Hit, HitKind, chain, contains, hit_records, hit_test, hit_test_through, window_origin};
@@ -105,9 +106,9 @@ pub(crate) struct InputState {
     hover_pos: Option<Pos2>,
     hover_pointer: Option<u64>,
     /// The shape under the hovering pointer, with the cursor it names.
-    hover_hit: Option<(Hit, Option<Cursor>)>,
+    hover_hit: Option<(Hit, Option<ShapeCursor>)>,
     /// The shape the open press went down on, with the cursor it names.
-    press_hit: Option<(Hit, Option<Cursor>)>,
+    press_hit: Option<(Hit, Option<ShapeCursor>)>,
     hovered: Vec<NodeId>,
     pressed: Vec<NodeId>,
     pub(crate) focused: Option<NodeId>,
@@ -145,6 +146,8 @@ pub(crate) struct InputState {
     pub(crate) cursor: Cursor,
     /// Something that decides the cursor changed since it was last picked.
     pub(crate) cursor_check: bool,
+    /// The painted pointer the window shows.
+    pub(crate) painted: Option<PointerShown>,
 }
 
 /// A window's platform IME session as the runtime drives it.
@@ -174,12 +177,22 @@ impl InputState {
     }
 
     /// The node the open press went down on, and the cursor its shape names.
-    pub(crate) fn press_cursor_source(&self) -> Option<(NodeId, Option<Cursor>)> {
+    pub(crate) fn press_cursor_source(&self) -> Option<(NodeId, Option<ShapeCursor>)> {
         self.press.and(self.press_hit).map(|(hit, cursor)| (hit.node, cursor))
     }
 
-    pub(crate) fn hover_cursor_source(&self) -> Option<(NodeId, Option<Cursor>)> {
+    pub(crate) fn hover_cursor_source(&self) -> Option<(NodeId, Option<ShapeCursor>)> {
         self.hover_hit.map(|(hit, cursor)| (hit.node, cursor))
+    }
+
+    /// Where the mouse or pen pointer is over the window.
+    pub(crate) fn pointer_pos(&self) -> Option<Pos2> {
+        self.hover_pos
+    }
+
+    /// A press runs.
+    pub(crate) fn pressing(&self) -> bool {
+        self.press.is_some()
     }
 }
 
@@ -395,14 +408,14 @@ impl Runtime {
     }
 
     /// The cursor the shape `hit` names at window position `pos`.
-    fn shape_cursor(&self, hit: Hit, pos: Pos2) -> Option<Cursor> {
+    fn shape_cursor(&self, hit: Hit, pos: Pos2) -> Option<ShapeCursor> {
         let node = self.tree.nodes.get(&hit.node)?;
         let local = pos - window_origin(&self.tree, hit.node);
         node.hits
             .iter()
             .rev()
             .find(|h| h.kind == crate::hit::HitKind::Input && h.part == hit.part && h.sense == hit.sense && h.shape.contains(local))
-            .and_then(|h| h.cursor)
+            .and_then(|h| Some(ShapeCursor { cursor: h.cursor?, painted: h.painted }))
     }
 
     /// Sets the step's input time. The driver calls it before it dispatches the step's events.
