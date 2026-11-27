@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use craft_svg::tree::draw::{self as svg_draw, tiny_skia};
 use craft_svg::tree::{self, Limits, usvg};
-use craft_ui_rt::{BuildCx, ImageKey, RgbaImage, SizeU, hash_key};
+use craft_ui_rt::{BuildCx, Filter, ImageKey, ImageOptions, Rgba, RgbaImage, SizeU, Wrap, hash_key};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Icon {
@@ -118,6 +118,18 @@ pub fn mask(cx: &mut BuildCx<'_>, icon: Icon, px: u32, stroke64: u32) -> ImageKe
     let key = ImageKey(hash_key(&("icon", icon, px, stroke64)));
     if cx.images().get(key).is_none() {
         cx.images().insert(key, Arc::new(rasterise(icon, px, stroke64)));
+    }
+    key
+}
+
+/// The two-by-two image of the transparency grid's colours (light at the top left and bottom right), repeating and
+/// sampled without blending so each texel stays one cell.
+pub fn checker(cx: &mut BuildCx<'_>, light: Rgba, dark: Rgba) -> ImageKey {
+    let key = ImageKey(hash_key(&("checker", light.0, dark.0)));
+    if cx.images().get(key).is_none() {
+        let options = ImageOptions { magnify: Filter::Nearest, minify: Filter::Nearest, mipmaps: false, wrap: Wrap::Repeat };
+        let pixels = [light, dark, dark, light].iter().flat_map(|c| c.0).collect();
+        cx.images().insert_with(key, Arc::new(RgbaImage { size: SizeU::new(2, 2), pixels }), options);
     }
     key
 }

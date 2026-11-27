@@ -121,6 +121,8 @@ impl ListRow {
 #[derive(Default)]
 pub struct RowLocal {
     glyph: Option<ImageKey>,
+    /// The two-by-two transparency grid under a pixel layer's picture.
+    checker: Option<ImageKey>,
     name: Option<TextLayout>,
     blend: Option<(TextLayout, f32)>,
     label_end: f32,
@@ -166,9 +168,11 @@ impl Element for ListRow {
         let layer = &self.p.layer;
         let inner = look.thumb - 2.0 * look.thin;
         local.glyph = None;
+        local.checker = None;
         match layer.kind {
             // A solid fill's picture is its colour, as PhotoCraft renders it; the host supplies the picture.
-            Kind::Pixel | Kind::Fill => {}
+            Kind::Fill => {}
+            Kind::Pixel => local.checker = Some(icons::checker(cx, look.checker_light, look.checker_dark)),
             Kind::Type => {
                 let (px, stroke) = icons::pixels(inner * KIND_GLYPH_SHARE, scale, look.icon_stroke);
                 local.glyph = Some(icons::mask(cx, Icon::Text, px, stroke));
@@ -411,8 +415,13 @@ impl ListRow {
         match self.p.layer.kind {
             Kind::Pixel | Kind::Fill => {
                 // The transparency grid lies under a picture that covers it whole.
+                let rect = snap(picture, scale);
+                if let Some(grid) = local.checker {
+                    let span = Vec2::new(rect.width(), rect.height()) / (2.0 * look.checker);
+                    cx.image_uv(grid, rect, Rect::from_min_size(Pos2::ZERO, span), Rgba::WHITE);
+                }
                 if let Some(key) = self.p.layer.thumb {
-                    cx.image_uv(key, snap(picture, scale), self.p.layer.thumb_uv, Rgba::WHITE);
+                    cx.image_uv(key, rect, self.p.layer.thumb_uv, Rgba::WHITE);
                 }
             }
             Kind::Type => {

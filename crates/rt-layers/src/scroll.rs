@@ -4,7 +4,7 @@
 
 use std::hash::Hash;
 
-use craft_ui_rt::{BuildCx, Constraints, Element, Event, EventCx, Gesture, Handled, LayoutCx, PaintCx, Rect, Sense, State, Vec2, hash_key};
+use craft_ui_rt::{BuildCx, Constraints, Element, Event, EventCx, Gesture, Handled, LayoutCx, PaintCx, Rect, Sense, State, Vec2, WheelUnit, hash_key};
 
 use crate::look::Look;
 
@@ -89,9 +89,15 @@ impl<P: Hash + 'static, F: Fn(&P, State<Extent>, &mut BuildCx<'_>) + 'static> El
 
     fn event(&self, extent: &mut State<Extent>, cx: &mut EventCx<'_>, ev: &Event) -> Handled {
         let Event::Wheel(w) = ev else { return Handled::No };
-        let max = extent.get(cx).max_offset();
+        let e = extent.get(cx);
+        let max = e.max_offset();
+        let points = match w.unit {
+            WheelUnit::Line => w.delta.y * cx.runtime().wheel_options().line_points,
+            WheelUnit::Page => w.delta.y * e.view,
+            _ => w.delta.y,
+        };
         let offset = self.offset.get(cx);
-        self.offset.set_if_changed(cx, (offset - w.delta.y).clamp(0.0, max));
+        self.offset.set_if_changed(cx, (offset - points).clamp(0.0, max));
         Handled::Yes
     }
 }
