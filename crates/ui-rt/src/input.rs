@@ -273,8 +273,9 @@ impl Runtime {
         if let Some(new) = node {
             input.queue.push_back((new, Event::Focus(true)));
         }
-        input.focus_chain = new_chain.clone();
-        let touched: Vec<NodeId> = old_chain.into_iter().chain(new_chain).collect();
+        let mut touched = old_chain;
+        touched.extend_from_slice(&new_chain);
+        input.focus_chain = new_chain;
         self.refresh_interact(&touched);
     }
 
@@ -386,15 +387,15 @@ impl Runtime {
         if now == input.hovered {
             return;
         }
-        let old = std::mem::replace(&mut input.hovered, now.clone());
-        let touched: Vec<NodeId> = old.into_iter().chain(now).collect();
+        let mut touched = std::mem::replace(&mut input.hovered, now);
+        touched.extend_from_slice(&input.hovered);
         self.refresh_interact(&touched);
     }
 
     fn set_pressed(&mut self, window: WindowId, nodes: Vec<NodeId>) {
         let Some(input) = self.input_mut(window) else { return };
-        let old = std::mem::replace(&mut input.pressed, nodes.clone());
-        let touched: Vec<NodeId> = old.into_iter().chain(nodes).collect();
+        let mut touched = std::mem::replace(&mut input.pressed, nodes);
+        touched.extend_from_slice(&input.pressed);
         self.refresh_interact(&touched);
     }
 
