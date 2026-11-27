@@ -69,6 +69,12 @@ pub(crate) struct Window {
     /// Nodes that take drops anywhere in the window ([`crate::PaintCx::window_drop_target`]), in
     /// the order they registered.
     pub(crate) window_drops: Vec<NodeId>,
+    /// Where focus goes when a node goes with focus inside it, by that node
+    /// ([`crate::BuildCx::set_focus_return`]).
+    pub(crate) focus_returns: IdMap<NodeId>,
+    /// Nodes that take focus into their content once the build pass has made it, and whether a
+    /// text input goes first ([`crate::BuildCx::focus_into`]).
+    pub(crate) focus_entries: Vec<(NodeId, bool)>,
 }
 
 impl Window {
@@ -94,6 +100,8 @@ impl Window {
             position: None,
             owner: None,
             window_drops: Vec::new(),
+            focus_returns: IdMap::default(),
+            focus_entries: Vec::new(),
         }
     }
 

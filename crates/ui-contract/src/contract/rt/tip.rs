@@ -115,6 +115,7 @@ pub(crate) fn show(tip: &mut Option<TipKept>, text: Option<String>, ran: bool, c
         role: accesskit::Role::Tooltip,
         hover: false,
         sweep: None,
+        focus: crate::runtime::focus::FocusPolicy::NONE,
     };
     let text = kept.text.clone();
     show_layer(cx, owner.with("craft-tip"), TIP_KEY, show, ran, &mut |ui| {

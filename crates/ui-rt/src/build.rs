@@ -83,7 +83,8 @@ impl BuildCx<'_> {
         self.rt
     }
 
-    pub(crate) fn runtime(&self) -> &Runtime {
+    /// The runtime, read only: the tree and the nodes' `Local`s, for a service that walks them.
+    pub fn runtime(&self) -> &Runtime {
         self.rt
     }
 

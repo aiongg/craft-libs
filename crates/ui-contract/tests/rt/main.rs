@@ -3,6 +3,7 @@
 
 mod access;
 mod content;
+mod focus;
 mod harness;
 mod input;
 mod layout;

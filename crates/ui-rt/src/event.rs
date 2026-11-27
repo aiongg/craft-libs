@@ -349,6 +349,12 @@ impl EventCx<'_> {
         self.rt.access_dirty(node);
     }
 
+    /// The runtime, read only: the tree and the nodes' `Local`s, for a service that walks them
+    /// (the craft focus service finds its stops this way).
+    pub fn runtime(&self) -> &Runtime {
+        self.rt
+    }
+
     pub fn has_focus(&self) -> bool {
         self.focused() == Some(self.node)
     }

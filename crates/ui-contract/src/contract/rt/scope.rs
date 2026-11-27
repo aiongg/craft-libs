@@ -48,6 +48,7 @@ pub fn window_root_with<R>(cx: &mut BuildCx<'_>, host: WindowEnv, f: impl FnOnce
             }
         };
         kept.env = Some(cells);
+        kept.window_root = true;
         cx.provide(cells);
         if let Some(jobs) = host.jobs {
             cx.provide(jobs);

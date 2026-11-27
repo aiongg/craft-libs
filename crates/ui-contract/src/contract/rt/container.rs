@@ -245,6 +245,7 @@ pub fn show_container<C: Container, R>(component: C, ui: &mut Ui<'_, '_>, mut bo
     let origin = ui.flow.next_min();
     let tag = sweep_tag(&component, &ui.flow);
     let sweep = ui.flow.sweep;
+    let (scope, roving, stop) = (component.props().focus, component.props().roving, component.keys().is_some());
     let mut component = component;
     if let Some(under) = ui.flow.measuring {
         let node = under.and_then(|u| ui.cx.peek::<ComponentNode>(u, child)).map(|p| p.node);
@@ -257,7 +258,7 @@ pub fn show_container<C: Container, R>(component: C, ui: &mut Ui<'_, '_>, mut bo
     }
     let Ui { cx, flow } = ui;
     cx.keyed(child, |cx| {
-        cx.inline(ComponentNode { key: key.map_or(0, fold), tag }, |kept, state, cx| {
+        cx.inline(ComponentNode { key: key.map_or(0, fold), tag, stop }, |kept, state, cx| {
             let own_kept = holds(kept, key, state);
             let tokens = if own_kept { flow.tokens.clone() } else { super::env::tokens(cx) };
             let into = Host { node: Some(cx.node()), own_kept, marked: state.path || state.marked, kept: Some(&mut *kept), sweep };
@@ -270,7 +271,15 @@ pub fn show_container<C: Container, R>(component: C, ui: &mut Ui<'_, '_>, mut bo
                 reach_layers(&mut component, kept, cx, rect, &tokens, sweep);
                 return (out, settle(component, kept, cx, rect, &tokens));
             }
-            (out, run(component, kept, cx, Ran { id, key, place: Place { room }, size, rect, tokens: &tokens, sweep }))
+            let output = run(component, kept, cx, Ran { id, key, place: Place { room }, size, rect, tokens: &tokens, sweep });
+            // The props' scope and roving group, where the component's hooks name none.
+            if scope != crate::runtime::focus::FocusPolicy::NONE {
+                kept.focus.scope = scope;
+            }
+            if roving.is_some() {
+                kept.focus.roving = roving;
+            }
+            (out, output)
         })
     })
 }

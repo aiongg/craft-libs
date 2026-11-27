@@ -375,6 +375,28 @@ impl Runtime {
         self.tree.nodes.contains_key(&id).then_some(id)
     }
 
+    /// `window`'s fixed root: its children are the window's layers, bottom first, and the app root
+    /// is the content layer's child.
+    pub fn window_node(&self, window: WindowId) -> Option<NodeId> {
+        Some(self.windows.get(&window)?.root)
+    }
+
+    /// `node`'s parent: its layer for a layer child, the layer's window root for a layer.
+    pub fn parent(&self, node: NodeId) -> Option<NodeId> {
+        self.tree.nodes.get(&node)?.parent
+    }
+
+    /// `node`'s children in order (a layer's children are its layer children, bottom first).
+    pub fn children(&self, node: NodeId) -> &[NodeId] {
+        self.tree.nodes.get(&node).map_or(&[], |n| n.children.as_slice())
+    }
+
+    /// The `Local` of `node` when its element is an `E`. A node whose own hook is running (the
+    /// build or the event handler that asks) has none to give.
+    pub fn local<E: Element>(&self, node: NodeId) -> Option<&E::Local> {
+        self.tree.nodes.get(&node)?.element.as_ref()?.as_any().downcast_ref::<ElementBox<E>>()?.local.as_ref()
+    }
+
     /// The window a node is in.
     pub fn window_of(&self, node: NodeId) -> Option<WindowId> {
         self.tree.window_of(node)
