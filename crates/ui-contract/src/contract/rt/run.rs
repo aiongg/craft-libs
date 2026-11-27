@@ -337,6 +337,26 @@ fn measure<C: Component>(
     ctx: &Context,
     (memory, hooks): (&MemoryStage, &mut dyn ShapeHooks<C>),
 ) -> Vec2 {
+    // What `measure` reads (env cells through `EnvView`) is read by `cx`'s node, so a write reruns the node and its
+    // kept size is not reused across it.
+    let reads = response::begin_reads(false);
+    let size = measure_reading(component, begun, id, room, value, cx, node, ctx, (memory, hooks));
+    response::end_reads(reads, cx);
+    size
+}
+
+#[allow(clippy::too_many_arguments)]
+fn measure_reading<C: Component>(
+    component: &mut C,
+    begun: &Begun<C>,
+    id: Id,
+    room: Vec2,
+    value: &ValueStep<ValueOf<C>>,
+    cx: &mut BuildCx<'_>,
+    node: Option<NodeId>,
+    ctx: &Context,
+    (memory, hooks): (&MemoryStage, &mut dyn ShapeHooks<C>),
+) -> Vec2 {
     cx.count_measure();
     let resolved = begun.resolved(id);
     let tokens = super::env::tokens(cx);
@@ -641,7 +661,7 @@ pub(crate) fn run_shaped<C: Component>(
 
     // 11 apply: the run's edits reach the binding, and the shown value follows.
     let wrote = steps::apply_values(&mut component, &mut cxx).wrote();
-    hooks.apply(&mut component, &mut cxx);
+    let wrote = hooks.apply(&mut component, &mut cxx) || wrote;
     steps::register_reset(&mut component, &mut cxx);
     let message = crate::runtime::access::scope::note_message(cxx.core, steps::validity_of(&cxx.validity));
 

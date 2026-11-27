@@ -546,6 +546,8 @@ pub(crate) enum CellRead {
     Held(State<Vec<craft_ui_rt::Key>>),
     /// `Env::of`: every env cell an `Env` copies, plus the window's scale and focus.
     Env(EnvCells, State<f32>, State<bool>),
+    /// One env cell an `EnvView` accessor answered from.
+    EnvCell(crate::runtime::env::CellsSeen, crate::runtime::env::EnvCell),
     /// The scope builds again after this long.
     Wake(Duration),
     Command(WindowCommand),
@@ -633,6 +635,31 @@ pub(crate) fn end_cell_reads(mark: usize, cx: &mut BuildCx<'_>) {
                 cells.fonts.get(cx);
                 scale.get(cx);
             }
+            CellRead::EnvCell(seen, cell) => {
+                use crate::runtime::env::EnvCell;
+                match cell {
+                    EnvCell::Tokens => {
+                        seen.cells.tokens.get(cx);
+                        seen.cells.theme.get(cx);
+                        seen.cells.density.get(cx);
+                    }
+                    EnvCell::Direction => {
+                        seen.cells.direction.get(cx);
+                    }
+                    EnvCell::Motion => {
+                        seen.cells.motion.get(cx);
+                    }
+                    EnvCell::Frame => {
+                        seen.cells.frame.get(cx);
+                    }
+                    EnvCell::Root => {
+                        seen.cells.root.get(cx);
+                    }
+                    EnvCell::Scale => {
+                        seen.scale.get(cx);
+                    }
+                }
+            }
             CellRead::Wake(after) => wake = Some(wake.map_or(after, |w| w.min(after))),
             CellRead::Command(command) => cx.window_command(command),
             CellRead::CommandState(board, command, instance) => {
@@ -664,6 +691,11 @@ pub(crate) fn log_publish(board: CommandBoard, command: CommandRef, instance: Op
 /// from a hook (which has no `BuildCx`) registers its cell read for the node, creating the cell if it needs one.
 pub(crate) fn log_build_read(read: impl FnOnce(&mut BuildCx<'_>) + 'static) {
     log(CellRead::Build(Box::new(read)));
+}
+
+/// Logs a read of one env cell for the node whose build is running.
+pub(crate) fn log_env_cell(seen: crate::runtime::env::CellsSeen, cell: crate::runtime::env::EnvCell) {
+    log(CellRead::EnvCell(seen, cell));
 }
 
 /// Logs an `Env::of` read for the scope whose build is running.

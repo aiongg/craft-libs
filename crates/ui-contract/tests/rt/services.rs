@@ -146,7 +146,9 @@ fn a_direction_change_runs_only_the_nodes_that_read_it() {
     assert_eq!(width(&h), 40.0);
     h.direction(Direction::Rtl);
     let changed = h.step_dt(0.0);
-    assert_eq!(changed.frame.runs, 1, "only the flipper reads the direction: {changed:?}");
+    // Only the flipper reads the direction; the content-sized stack runs because the flipper's new width moved its
+    // size (a container is kept only at an unchanged size). The icon button reads nothing and is kept.
+    assert_eq!(changed.frame.runs, 2, "the flipper and the stack whose size it moved: {changed:?}");
     assert_eq!(width(&h), 60.0, "it measured again in the new direction");
     let settled = h.step_dt(0.0);
     assert_eq!((settled.frame.painted, settled.frame.runs, settled.frame.scopes, settled.frame.built), (0, 0, 0, 0), "{settled:?}");

@@ -307,6 +307,31 @@ pub struct Inherited {
     pub values: AppValues,
     /// The context the env was built in: the accessors of tracked inputs note their reads into its records.
     pub(crate) ctx: Context,
+    /// The env cells the values came from, with the values they held: `None` for an env built with no cells.
+    pub(crate) seen: Option<CellsSeen>,
+}
+
+/// The env cells a scope's values came from, with the direction and motion they held. An [`EnvView`] accessor
+/// registers a read of the cell it answers from for the node whose build runs, so a write reruns exactly the nodes
+/// whose hooks or `measure` read it. A memoized view's key covers only what a scope set over these values
+/// (`Scoped::scope_key`): a view that reads no env cell keeps its run when one changes.
+#[derive(Clone, Copy, PartialEq)]
+pub(crate) struct CellsSeen {
+    pub(crate) cells: EnvCells,
+    pub(crate) scale: craft_ui_rt::State<f32>,
+    pub(crate) direction: Direction,
+    pub(crate) motion: MotionMode,
+}
+
+/// The env cell an [`EnvView`] accessor answers from.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum EnvCell {
+    Tokens,
+    Direction,
+    Motion,
+    Frame,
+    Root,
+    Scale,
 }
 
 impl Deref for Scoped {
@@ -563,7 +588,11 @@ impl Scoped {
             use crate::contract::{MemoKey, MemoProps as _};
             let mut key = MemoKey::new();
             key.feed_hash(&(self.enabled, self.read_only, self.size, self.glyphs, self.ink, self.surface, self.wheel));
-            key.feed_hash(&(self.direction, self.text_direction, self.ids_stable));
+            // The direction and motion the env cells hold are tracked reads (`EnvView`): the key covers only what a
+            // scope set over them.
+            let seen = self.seen;
+            let set = |direction: Direction| seen.is_none_or(|seen| seen.direction != direction).then_some(direction);
+            key.feed_hash(&(set(self.direction), set(self.text_direction), self.ids_stable));
             key.feed_hash(&(self.arena, self.roving, self.item, self.row, self.scroll_owner.map(|owner| (owner.id, owner.view))));
             self.transform.map(|transform| (transform.scale, transform.offset)).key(&mut key);
             self.footer_slot.map(|slot| (slot.owner, slot.size)).key(&mut key);
@@ -581,13 +610,8 @@ impl Scoped {
             for id in self.commands.ids() {
                 id.key(&mut key);
             }
-            key.feed_hash(&(
-                std::mem::discriminant(&self.motion.mode),
-                self.canvas_pattern,
-                self.tab_toggles_chrome,
-                self.escape_leaves_fields,
-                self.today,
-            ));
+            let motion = seen.is_none_or(|seen| seen.motion != self.motion.mode).then(|| std::mem::discriminant(&self.motion.mode));
+            key.feed_hash(&(motion, self.canvas_pattern, self.tab_toggles_chrome, self.escape_leaves_fields, self.today));
             (&self.format, &self.dates, &self.host).key(&mut key);
             let _ = self.values.key(&mut key);
             key.finish()
@@ -726,6 +750,7 @@ impl Env {
                     host,
                     values: root.values.clone(),
                     ctx: ctx.clone(),
+                    seen: values.and_then(|values| values.seen),
                 }),
                 key,
                 scope_key: std::sync::OnceLock::new(),
@@ -894,7 +919,8 @@ impl Env {
             && self.scale == Scale(values.scale)
             && self.active == values.active
             && self.frame == values.frame
-            && self.line_ratio == values.fonts.line_ratio;
+            && self.line_ratio == values.fonts.line_ratio
+            && self.seen == values.seen;
         if same {
             return self;
         }
@@ -910,6 +936,7 @@ impl Env {
             inherited.scale = Scale(values.scale);
             inherited.active = values.active;
             inherited.line_ratio = values.fonts.line_ratio;
+            inherited.seen = values.seen;
         });
         if let Some(root) = values.ctx.service::<RootCache, _>(|cache| cache.env.clone())
             && Arc::ptr_eq(&root.scoped, &self.scoped)
@@ -1062,6 +1089,7 @@ pub(crate) struct CellValues {
     frame: Option<LayerFrame>,
     inputs: RootInputs,
     fonts: crate::fonts::StackFacts,
+    seen: Option<CellsSeen>,
 }
 
 impl CellValues {
@@ -1071,7 +1099,8 @@ impl CellValues {
         let window = cx.env();
         let scale = *cx.peek_state(window.scale);
         let active = *cx.peek_state(window.window_focused);
-        let (tokens, theme, direction, density, motion, frame, inputs, fonts) = match EnvCells::of(cx) {
+        let found = EnvCells::of(cx);
+        let (tokens, theme, direction, density, motion, frame, inputs, fonts) = match found {
             Some(cells) => {
                 // Through the store, which records no reader and brings a derived cell up to date.
                 let store = cx.store_mut();
@@ -1092,7 +1121,8 @@ impl CellValues {
             }
         };
         let tokens = ui_tokens(ctx, tokens, theme, density);
-        CellValues { ctx: ctx.clone(), tokens, direction, motion, scale, active, frame, inputs, fonts }
+        let seen = found.map(|cells| CellsSeen { cells, scale: window.scale, direction, motion });
+        CellValues { ctx: ctx.clone(), tokens, direction, motion, scale, active, frame, inputs, fonts, seen }
     }
 }
 

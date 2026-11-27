@@ -1042,10 +1042,11 @@ impl<C: Container, R> LayerBody<()> for LayerContent<'_, '_, C, R> {
         self.slot.as_mut().map_or(Vec2::ZERO, |container| measure_in(container, ui, craft_behavior::Proposal::Ideal, body, true).min(room))
     }
 
+    /// The container is the layer body's one child in flow: it starts at the region's start, and the layer is as large
+    /// as the container shows (the layer's real size is its body flow's content size).
     fn show(&mut self, ui: &mut Ui<'_, '_>, _: &BodyClose) {
-        let rect = ui.flow.region;
         let place = Env::of(ui);
-        self.shown = Some(show_container(self.slot, ui, (ShowAt::Rect(rect), place), self.body, None));
+        self.shown = Some(show_container(self.slot, ui, (ShowAt::Flow, place), self.body, None));
     }
 }
 

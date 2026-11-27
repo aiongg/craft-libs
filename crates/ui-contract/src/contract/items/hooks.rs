@@ -273,9 +273,9 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         self.layout = Some(layout);
     }
 
-    fn apply(&mut self, comp: &mut C, cx: &mut Cx<'_, C>) {
+    fn apply(&mut self, comp: &mut C, cx: &mut Cx<'_, C>) -> bool {
         if self.selection == self.selection_at_read {
-            return;
+            return false;
         }
         let id = cx.core.id;
         match comp.selection() {
@@ -283,8 +283,12 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                 let (label, doc_key) = (cx.core.label_arc(), cx.core.resolved.doc_key);
                 let before = self.selection_at_read.clone();
                 bind.apply(&EditEvent::set(Mixed::Same(before), self.selection.clone(), label, doc_key));
+                true
             }
-            None => cx.core.memory.session::<Held<C::Selection>>(sub(id, "selection")).0 = self.selection.clone(),
+            None => {
+                cx.core.memory.session::<Held<C::Selection>>(sub(id, "selection")).0 = self.selection.clone();
+                false
+            }
         }
     }
 

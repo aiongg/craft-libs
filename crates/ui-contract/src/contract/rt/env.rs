@@ -63,7 +63,10 @@ impl ThemeBase {
 
 impl PartialEq for ThemeBase {
     fn eq(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.def, &other.def) && self.appearance == other.appearance && self.app == other.app && Arc::ptr_eq(&self.sizes, &other.sizes)
+        (Arc::ptr_eq(&self.def, &other.def) || self.def == other.def)
+            && self.appearance == other.appearance
+            && self.app == other.app
+            && Arc::ptr_eq(&self.sizes, &other.sizes)
     }
 }
 
@@ -110,7 +113,7 @@ impl LayerFrame {
 
 /// The cells of one scope's env. Copy: a scope that overrides a value holds a cell of its own and
 /// shares the rest with its parent.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct EnvCells {
     /// The resolved tokens.
     pub tokens: State<Arc<Tokens>>,
