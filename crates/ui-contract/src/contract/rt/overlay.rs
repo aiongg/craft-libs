@@ -569,9 +569,9 @@ pub(crate) fn show_layer<R: Clone + 'static>(
     key: u64,
     show: LayerShow,
     rerun: bool,
-    body: &mut dyn FnMut(&mut Ui<'_, '_>) -> R,
+    mut body: &mut dyn FnMut(&mut Ui<'_, '_>) -> R,
 ) -> R {
-    show_layer_with(cx, id, key, show, rerun, body)
+    show_layer_with(cx, id, key, show, rerun, &mut body)
 }
 
 /// [`show_layer`] with any [`LayerBody`]: a container shown as a layer's content measures and

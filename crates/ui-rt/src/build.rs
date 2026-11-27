@@ -393,8 +393,9 @@ impl BuildCx<'_> {
         self.rt.time
     }
 
-    /// This node builds again at frame time `at`, and no frame runs for it before then; it
-    /// replaces an earlier build wake of this node. `None` cancels it.
+    /// This node builds again at frame time `at`. A node keeps its earliest pending build wake, so
+    /// one deadline never pushes back another (a timeout and a dwell of one node); a wake no longer
+    /// needed costs one build, which asks again for what it still waits on. `None` asks for nothing.
     pub fn request_build_at(&mut self, at: Option<f64>) {
         let node = self.node;
         self.rt.set_build_wake(node, at);

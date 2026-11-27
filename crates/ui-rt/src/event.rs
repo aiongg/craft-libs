@@ -347,8 +347,8 @@ impl EventCx<'_> {
         }
     }
 
-    /// The node builds at frame time `at`, and no frame runs for it before then; it replaces an
-    /// earlier build wake of the node. `None` cancels it.
+    /// The node builds at frame time `at`. A node keeps its earliest pending build wake
+    /// ([`crate::BuildCx::request_build_at`]); `None` asks for nothing.
     pub fn request_build_at(&mut self, at: Option<f64>) {
         let node = self.node;
         self.rt.set_build_wake(node, at);

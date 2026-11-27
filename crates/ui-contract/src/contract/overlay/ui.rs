@@ -105,7 +105,8 @@ impl<'a> OverlayUi<'a> {
         overlay: Overlay,
         mut body: impl FnMut(&mut Ui, &mut BodyCx<'_>) -> R,
     ) -> Option<R> {
-        let mut content = PopupContent { body: &mut body, env: &self.env, resolved: self.resolved, id: sub(popup.id(), "body") };
+        let env = self.env.clone();
+        let mut content = PopupContent { body: &mut body, env: &env, resolved: self.resolved, id: sub(popup.id(), "body") };
         self.show_layer(popup, &overlay, Surface::Popup, None, &mut content)
     }
 

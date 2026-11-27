@@ -77,7 +77,7 @@ impl PopupHandle {
             Trigger::Press => {
                 matches!(core.press.phase, craft_behavior::PressPhase::Down { start, .. } if start.button == craft_behavior::PointerButton::Primary)
             }
-            Trigger::Context => core.intents.take(Intent::ContextMenu) || (core.response.enabled() && core.response.secondary_clicked()),
+            Trigger::Context => core.intents.take(Intent::ContextMenu) || (core.resolved.enabled && core.response.secondary_clicked()),
             Trigger::Hover => dwell(core, self.id, "dwell", resting, crate::contract::tooltip::DELAY),
             Trigger::Hold => {
                 let held = core.press.phase.is_press();
