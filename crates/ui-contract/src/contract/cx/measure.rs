@@ -1,15 +1,19 @@
 //! `MeasureCx`: step 5's read view of a component.
 
-use crate::contract::{Component, Resolved, Show, ValueOf};
-use crate::primitives::{LeastLayout, TextEnv, TextLayout, TextRun};
-use crate::runtime::commands::{self, CommandRef, ResolvedCommand};
+use crate::contract::paint_ui::{UiHost, host_ui};
+use crate::contract::{Component, Resolved, Show, Ui, ValueOf};
+use crate::primitives::{FrameServices, Id, LeastLayout, TextEnv, TextLayout, TextRun};
+use crate::runtime::commands::{CommandRef, ResolvedCommand};
 use crate::runtime::env::{EnvView, Label};
-use crate::runtime::layout_memory;
 use crate::style::{ComponentStyle as _, Ink, UiTokens};
 use craft_behavior::Proposal;
-use egui::{Id, Ui, Vec2};
+use craft_ui_rt::Vec2;
+use std::cell::RefCell;
 use std::fmt::Debug;
 use std::hash::Hash;
+
+/// The width of the caret an editor draws past its last letter (the text input's stroke).
+const CARET_WIDTH: f32 = 2.0;
 
 /// What `measure` reads: step 5's view of the environment, the style, the resolved props and the shown value.
 #[non_exhaustive]
@@ -29,8 +33,9 @@ pub struct MeasureCx<'a, C: Component> {
     /// adds to what `measure` returns.
     pub room: Option<f32>,
     pub(crate) value: Option<&'a ValueOf<C>>,
-    #[doc(hidden)]
-    pub ui: &'a Ui,
+    /// The run's `Ui`: children measure through their size cache on it, and text shapes through its window's
+    /// `TextEngine`.
+    pub(crate) host: &'a RefCell<&'a mut (dyn UiHost + 'a)>,
     #[doc(hidden)]
     pub tokens: &'a UiTokens,
     pub(crate) ink: Ink,
@@ -47,6 +52,21 @@ impl<'a, C: Component> MeasureCx<'a, C> {
 }
 
 impl<C: Component> MeasureCx<'_, C> {
+    /// Runs `f` on the run's `Ui`.
+    pub(crate) fn with_ui<R>(&self, f: impl FnOnce(&mut Ui<'_, '_>) -> R) -> R {
+        host_ui(&mut **self.host.borrow_mut(), f)
+    }
+
+    /// Runs `f` with the window's text and image services, as `Draw` will paint with them.
+    fn with_services<R>(&self, f: impl FnOnce(&FrameServices<'_>) -> R) -> R {
+        self.with_ui(|ui| {
+            let build = ui.build_cx();
+            let scale = build.scale();
+            let (text, images) = build.paint_services();
+            f(&FrameServices::new(text, images, scale))
+        })
+    }
+
     /// The enclosing container's reading-width cap, if it sets one.
     pub fn wrap_limit(&self) -> Option<f32> {
         self.env.measure()
@@ -61,7 +81,8 @@ impl<C: Component> MeasureCx<'_, C> {
     /// the component, and the enabled state of its instance. `None` when the command is scoped and no instance of
     /// its scope is above the component.
     pub fn resolve_command(&self, command: impl Into<CommandRef>) -> Option<std::sync::Arc<ResolvedCommand>> {
-        commands::resolve_scoped(self.ui.ctx(), self.env.command_chain(), &command.into())
+        let command: CommandRef = command.into();
+        Some(self.with_ui(|ui| ui.resolve_command(command)))
     }
 
     /// The width a component whose height follows its width (wrapped text, a square plot) sizes at: the room the
@@ -73,11 +94,7 @@ impl<C: Component> MeasureCx<'_, C> {
     /// `None` when the width is unbounded and no wrap width is set.
     pub fn column_room(&self) -> Option<f32> {
         let room = self.room.or_else(|| {
-            // The column is an input of this measure call besides its room (step 5 opens the call), and of the calls
-            // around it that measure it.
-            let ctx = self.ui.ctx();
-            let width = crate::layout::row_alone_room(self.scope).unwrap_or_else(|| crate::layout::flow_room(self.ui, self.scope).x);
-            let width = layout_memory::read_input(ctx, layout_memory::calls_from(ctx), self.id.with("column_room"), width);
+            let width = crate::layout::row_alone_room(self.scope).unwrap_or_else(|| self.with_ui(|ui| crate::layout::flow_room(ui, self.scope).x));
             Some(width).filter(|width| width.is_finite())
         });
         match (room, self.env.measure()) {
@@ -110,7 +127,7 @@ impl<C: Component> MeasureCx<'_, C> {
             && self.proposal != Proposal::Min
             && let Some(column) = self.env.column_first_sweep()
         {
-            crate::layout::report_held(self.ui.ctx(), column, self.id, crate::layout::HeldKind::Picture, f32::INFINITY);
+            self.with_ui(|ui| crate::layout::report_held(ui, column, self.id, crate::layout::HeldKind::Picture, f32::INFINITY));
         }
         let width = self.picture_width(least, most);
         Vec2::new(width, height(width))
@@ -125,7 +142,7 @@ impl<C: Component> MeasureCx<'_, C> {
     /// its padding included. The collection sizes its `Content` columns by the widest it hears and fits a column to it
     /// on a double click on the column's edge. Outside such a measure it does nothing.
     pub fn cell_width(&self, column: &craft_behavior::ColumnKey, width: f32) {
-        crate::runtime::measure::report_cell_width(self.ui.ctx(), column, width);
+        self.with_ui(|ui| crate::contract::items::report_cell_width(ui, column, width));
     }
 
     /// Lays `run` out in the content's room, as `Draw::text` will paint it.
@@ -135,41 +152,40 @@ impl<C: Component> MeasureCx<'_, C> {
 
     /// Lays `run` out `width` wide, for a text that paints in a band narrower than the room.
     pub fn layout_at(&self, run: &TextRun<'_>, width: f32) -> TextLayout {
-        run.layout(self.ui.ctx(), &self.text_env(), width)
+        let env = self.text_env();
+        self.with_services(|services| run.layout(services, &env, width))
     }
 
     /// `run`, a run that elides, laid out whole and its width at its readable least
     /// ([`TextRun::READABLE_CHARACTERS`]): what an elidable text reports at `Proposal::Min`. Each is laid out once.
     pub fn least(&self, run: &TextRun<'_>) -> LeastLayout {
-        run.least(self.ui.ctx(), &self.text_env())
+        let env = self.text_env();
+        self.with_services(|services| run.least(services, &env))
     }
 
     fn text_env(&self) -> TextEnv<'_> {
-        TextEnv {
-            tokens: self.tokens,
-            direction: self.env.text_direction(),
-            ink: crate::style::ink_color(self.tokens, self.ink),
-            fonts: crate::fonts::stack_facts(self.ui.ctx()),
-        }
+        let fonts = self.with_services(|services| crate::primitives::Services::fonts(services));
+        TextEnv { tokens: self.tokens, direction: self.env.text_direction(), ink: crate::style::ink_color(self.tokens, self.ink), fonts }
     }
 
     /// The room an editable text in a control sized by its text needs for `run`: the laid-out text and the caret the
     /// editor draws past its last letter, so the caret stays inside the control and the text never scrolls.
     pub fn field_text(&self, run: &TextRun<'_>) -> Vec2 {
         let text = self.layout(run).size();
-        Vec2::new(text.x + crate::runtime::egui::style::caret_width(self.ui.ctx()), text.y)
+        Vec2::new(text.x + CARET_WIDTH, text.y)
     }
 
     /// Lays document `text` out `text.wrap` wide, as `ContentPainterCx::layout` will paint it: the galley a content
     /// painter's measure sizes its band by is the one its paint draws.
     pub fn layout_doc(&self, text: &crate::primitives::DocText<'_>) -> TextLayout {
-        text.layout(self.ui.ctx(), self.tokens, craft_i18n::Direction::Ltr)
+        self.with_services(|services| text.layout(services, self.tokens, craft_i18n::Direction::Ltr))
     }
 
     /// Measures a child under the composite's resolved `enabled` and `size`, as `PaintUi::child` will show it.
     pub fn child<D: Show>(&self, key: impl Hash + Debug, child: &mut D, proposal: Proposal) -> Vec2 {
         let id = self.id.with(key);
-        crate::contract::measure_under(child, self.ui, Some(id), proposal, Some(&self.under()))
+        let under = self.under();
+        self.with_ui(|ui| crate::contract::measure_under(child, ui, Some(id), proposal, Some(&under)))
     }
 
     /// Measures a child as `PaintUi::labelled` will show it with `side`: under the inside label `side` gives it
@@ -178,7 +194,7 @@ impl<C: Component> MeasureCx<'_, C> {
         let id = self.id.with(key);
         let mut under = self.under();
         under.inside = crate::contract::label::inside(self.env, side, under.enabled);
-        crate::contract::measure_under(child, self.ui, Some(id), proposal, Some(&under))
+        self.with_ui(|ui| crate::contract::measure_under(child, ui, Some(id), proposal, Some(&under)))
     }
 
     fn under(&self) -> crate::contract::cx::Under {
@@ -188,9 +204,8 @@ impl<C: Component> MeasureCx<'_, C> {
     /// The size `face` has when `PaintUi::face` shows it as the look of a part: steps 1, 2 and 4 of the face run
     /// under the composite's resolved `enabled`, `size` and sizing. A composite measured at its least measures the face at
     /// its least; otherwise the face has no proposal.
-    /// The face is measured inside the composite's own run (measure, parts or header parts). Only the composite's
-    /// measure call sizes the composite: its answer and the inputs the face read are what the layout memory keeps,
-    /// and the face keeps no entry of its own.
+    /// The face is measured inside the composite's own run (measure, parts or header parts) and keeps no node of its
+    /// own: the composite's size cache holds the answer.
     pub fn face<S: Show>(&self, mut face: S) -> Vec2 {
         // The face is the composite's look: a composite sized to its content sizes its face so.
         if let Some(sizing) = self.resolved.sizing {
@@ -198,7 +213,8 @@ impl<C: Component> MeasureCx<'_, C> {
         }
         let id = self.id.with("face");
         let proposal = if self.proposal == Proposal::Min { Proposal::Min } else { Proposal::Ideal };
-        crate::contract::run::measure_face(&mut face, self.ui, id, proposal, &self.under())
+        let under = self.under();
+        self.with_ui(|ui| crate::contract::run::measure_face(&mut face, ui, id, proposal, &under))
     }
 
     /// The icon side of the component's size.

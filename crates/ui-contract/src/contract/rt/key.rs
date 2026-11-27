@@ -1,8 +1,8 @@
 //! The component key and the child keys of reconcile (docs/contract-rt.md sections 3.2 and 6).
 
 use crate::contract::{IdSource, MemoKey};
+use crate::primitives::Id;
 use craft_ui_rt::hash_key;
-use egui::Id;
 
 pub use crate::contract::ComponentKey;
 

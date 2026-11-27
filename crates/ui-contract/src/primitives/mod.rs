@@ -4,6 +4,7 @@ mod auto_scroll_mark;
 pub mod backdrop;
 mod canvas;
 mod content;
+mod corner_radius;
 mod draw;
 mod face;
 mod faces;
@@ -13,6 +14,7 @@ pub mod glyph;
 mod handle;
 mod host;
 mod icon;
+mod id;
 mod ime_surface;
 pub mod items;
 mod kit;
@@ -41,7 +43,9 @@ pub(crate) use crate::runtime::egui::surface_slot::{Frames as SurfaceFrames, Sur
 pub use auto_scroll_mark::AutoScrollMark;
 pub use canvas::{Canvas, FaceJob, FrameServices, Services, image_key, rgba_image, texture_key};
 pub use content::{ContentPainterCx, DocRun, DocText, FaceRun};
+pub use corner_radius::CornerRadius;
 pub use draw::{Dashes, DataStrokeWidth, DataWidth, Draw, PaintShape, StrokeColor, StrokePlace, StrokeWidth, WellFill};
+pub use ecolor::Color32;
 pub use face::FacePaint;
 pub use faces::FacesCx;
 pub use focus_ring::{FocusKind, FocusRing};
@@ -49,6 +53,7 @@ pub use handle::{Handle, HandleShape};
 pub use host::HostStyle;
 pub(crate) use icon::SvgIcon;
 pub use icon::{Glyph, IconMark, IconSet, IconSource, IconSpec, Mirror, has_icon, icon_names, paint_icon};
+pub use id::{Id, IdSalt};
 pub use ime_surface::ImeSurface;
 pub use kit::{
     Checker, CheckerArea, GridAxis, GridCrowding, GridInk, GridLines, GridLook, GridStroke, MAX_LINES, RulerFace, Tick, TickEdge, TickRank, dashed,

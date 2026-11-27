@@ -2,7 +2,7 @@
 
 use crate::primitives::sensing::PartResults;
 use craft_behavior::{Axis, PartKey, PressPhase, ScrollSpan};
-use egui::{Pos2, Rect, Vec2};
+use craft_ui_rt::{Pos2, Rect, Vec2};
 use std::ops::Range;
 
 /// Whether the thumb covers the track's centre, the point an AccessKit click on the track pages toward: a click there

@@ -5,6 +5,7 @@ mod access;
 mod content;
 mod focus;
 mod harness;
+mod id;
 mod input;
 mod layout;
 mod overlay;

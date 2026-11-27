@@ -29,7 +29,7 @@ pub use measure::MeasureCx;
 pub(crate) use parts::{Decls, PartExtras, PartKeys, Toggle};
 pub use parts::{PartBuilder, PartsCx};
 pub use pointer::Pointer;
-pub(crate) use pointer::write_cursor;
+pub(crate) use pointer::run_cursor;
 #[doc(hidden)]
 pub use scroll::THUMB;
 pub(crate) use scroll::{ScrollDecl, scroll_moves};

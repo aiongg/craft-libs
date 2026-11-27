@@ -6,6 +6,7 @@ mod container;
 mod cx;
 pub(crate) mod editor;
 pub use editor::{EditorHandle, EditorStep};
+mod context;
 mod entry;
 mod faces;
 pub(crate) mod footer_slot;
@@ -31,8 +32,7 @@ mod props;
 mod registry;
 #[doc(hidden)]
 pub mod reorder;
-#[cfg(feature = "rt")]
-pub mod rt;
+pub(crate) mod rt;
 mod run;
 mod sampler;
 mod settle;
@@ -116,7 +116,17 @@ pub use registry::{CollectionEntry, ContainerEntry, Exemption, LeafEntry, Patter
 pub use sampler::{CanvasGesture, Sampler};
 pub use settle::SettleCx;
 pub use text::EDIT_MENU;
-pub use values::{Bind, BindCheck, BindMut, EditResponse, Hover, ItemOutput, NoValue, Outcome, Validity, ValueOf, clicked, pressed, response_of};
+pub use values::{
+    Bind, BindCheck, BindMut, EditResponse, Hover, ItemOutput, NoValue, Outcome, Response, Shown, Validity, ValueOf, clicked, pressed, response_of,
+};
+
+pub use crate::primitives::{Id, IdSalt};
+pub use context::Context;
+pub use craft_ui_rt::ImePurpose;
+pub use rt::drag::{DragSource, DropRule};
+#[doc(hidden)]
+pub use rt::node::NodeInput;
+pub use rt::ui::{Ui, UiBuilder};
 
 use crate::runtime::env::Env;
 use crate::runtime::memory::sub;
@@ -124,7 +134,7 @@ use crate::runtime::overlay::CloseReason;
 use crate::style::{ComponentStyle, Flags, StyleCx, StyleKey};
 pub use craft_behavior::Input;
 use craft_behavior::{CellSpace, ItemLayout, ItemSource, Proposal, ScrollPos, SelectionModel, Sense};
-use egui::{Id, IdSalt, Pos2, Rect, Ui, Vec2};
+use craft_ui_rt::{Pos2, Rect, Vec2};
 use run::ShowAt;
 use std::hash::Hash;
 use std::ops::Deref;
@@ -141,11 +151,6 @@ pub(crate) use steps::queue_reveal;
 pub use steps::scroll_step;
 pub(crate) use steps::{child_reveal, peek_reveal, queue_child_reveal, take_reveal};
 pub(crate) use steps::{draft, keeping_ids};
-
-/// Adds the runtime to `ctx`: `runtime::install` with the overlay host's ghost-layer painter in the end hook.
-pub fn install(ctx: &egui::Context, spec: crate::runtime::InstallSpec) -> Result<(), crate::runtime::InstallError> {
-    crate::runtime::install(ctx, spec.frame_layers(Some(overlay::paint_frame_layers)))
-}
 
 /// Where an element's id comes from.
 #[derive(Clone, Copy, Debug, Default)]
@@ -375,7 +380,7 @@ pub trait Component: Meta + Sized {
     fn focus_scope(&self) -> crate::runtime::focus::FocusPolicy {
         Self::FOCUS_SCOPE
     }
-    /// Keys the focused component keeps from egui and the shortcut dispatcher.
+    /// Keys the focused component keeps from the shortcut dispatcher and the window's keys.
     const KEYS: crate::runtime::focus::KeyUse = crate::runtime::focus::KeyUse::of(Self::INPUT);
     /// The keys this instance keeps in its current state. The default is `KEYS`; a component whose key use depends
     /// on its state (a field that records chords while recording) overrides it, so one component serves every state.
@@ -548,7 +553,49 @@ pub trait Component: Meta + Sized {
         None
     }
 
-    /// Builds the output from the finished context.
+    /// The cursor over the component's own shape, `None` for the default arrow. Kept with the node, so the pointer
+    /// shows it without a run; a part's cursor is `PartBuilder::cursor`.
+    fn cursor(&self) -> Option<craft_behavior::Cursor> {
+        None
+    }
+
+    /// What a drag that starts on the component carries, `None` for a component that starts no drag. Kept with the
+    /// node: a drag past slop starts the payload session without a run.
+    fn drag_source(&self) -> Option<DragSource> {
+        None
+    }
+
+    /// Which payloads a drop on the component takes, `None` for no drop target. Kept with the node: the drag session
+    /// lights the target without a run; a drop reaches the next run as input.
+    fn drop_target(&self) -> Option<DropRule> {
+        None
+    }
+
+    /// The component guards its window's close: a close request reaches its next run (`Cx::close_request`) instead of
+    /// closing the window.
+    fn close_guard(&self) -> bool {
+        false
+    }
+
+    /// The value a primary-button sweep that starts on this toggle sets on the toggles it crosses, `None` for a
+    /// component that takes no part in sweeps. The run reads the swept value with `Cx::swept_toggle`.
+    fn sweep_value(&self) -> Option<bool> {
+        None
+    }
+
+    /// The roving group the component leads: arrow keys move focus among its members, and Tab visits it once.
+    fn roving(&self) -> Option<crate::runtime::focus::Roving> {
+        None
+    }
+
+    /// The component takes text input while focused, and the input method's purpose for it; `None` for a component
+    /// that takes none. Typed text and the input method's preedits reach its run (`Cx::editor_input`).
+    fn text_input(&self) -> Option<ImePurpose> {
+        None
+    }
+
+    /// Builds the output from the finished context. Every `show` calls it: for a kept node on a settled `Cx` built
+    /// from the kept facts (`Cx::is_settled`), with no input.
     fn finish(self, cx: Cx<'_, Self>) -> Self::Output;
 }
 

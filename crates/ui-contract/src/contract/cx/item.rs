@@ -1,8 +1,10 @@
 //! `ItemCx`: what the item closure reads for one item, and the parts it opens menus from.
 
+use crate::contract::Ui;
+use crate::primitives::Id;
 use crate::runtime::env::EnvView;
 use crate::runtime::memory::{MemoryStage, StageAccess, sealed};
-use egui::{Id, Rect, Ui};
+use craft_ui_rt::Rect;
 use std::fmt::Debug;
 
 /// Rich tooltip content an item stored.

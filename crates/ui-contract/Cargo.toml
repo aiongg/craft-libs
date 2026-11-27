@@ -21,7 +21,7 @@ workspace = true
 default = []
 # `craft_ui::testing`: the fixture and helpers used by application tests.
 # The suite runner, stories, registrations and snapshots are opt-in.
-testing = ["craft-platform/testing"]
+testing = ["craft-platform/testing", "dep:craft-ui-platform-headless"]
 suite = ["testing", "dep:libtest-mimic", "dep:craft-testkit", "snapshot"]
 # `craft_ui::testing::snapshot`: stories rendered to images offscreen (desktop only).
 snapshot = ["dep:egui_kittest", "dep:image"]
@@ -29,8 +29,6 @@ snapshot = ["dep:egui_kittest", "dep:image"]
 color_fonts = ["dep:epaint", "epaint/color_fonts"]
 # Find installed fonts for characters the app's faces lack (desktop only).
 system_fonts = ["dep:fontique"]
-# `contract::rt`: the component contract on craft-ui-rt (docs/contract-rt.md), beside the egui runtime.
-rt = ["dep:craft-ui-platform-headless"]
 
 [dependencies]
 craft-behavior = { workspace = true }
@@ -40,10 +38,14 @@ craft-keymap = { workspace = true, features = ["egui"] }
 craft-theme = { workspace = true }
 craft-ui-macros = { workspace = true }
 craft-ui-rt = { workspace = true }
-# `contract::rt::harness`: the headless platform the test Harness runs the runtime on.
+# `testing::Harness`: the headless platform the test Harness runs the runtime on.
 craft-ui-platform-headless = { workspace = true, optional = true }
 # `Tracked`: app models whose revision keys memoized views and write-through bindings.
 craft-tracked = { workspace = true }
+# `Id` and `IdSalt`: egui's hashing (fixed-seed aHash), so ids and the saved state keyed by them stay stable.
+ahash = { version = "0.8.12", default-features = false, features = ["no-rng", "std"] }
+# `Color32`, re-exported for `Draw` and the crates.
+ecolor = { workspace = true }
 # `MemoKey`: SipHash-1-3 with a 128-bit output.
 siphasher = "1"
 # `MemoProps::identity`: the `TypeId` of a props type with its lifetimes erased.
@@ -134,8 +136,8 @@ name = "it"
 path = "tests/it/main.rs"
 harness = false
 
-# The bridge's count trials on the headless platform; a binary of their own, since the `it` suite is built without `rt`.
+# The bridge's count trials on the headless platform.
 [[test]]
 name = "rt"
 path = "tests/rt/main.rs"
-required-features = ["rt"]
+required-features = ["testing"]

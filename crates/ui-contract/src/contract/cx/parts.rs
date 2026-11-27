@@ -2,13 +2,15 @@
 
 use super::measure::MeasureCx;
 use super::scroll::{ScrollDecl, THUMB, thumb_covers_centre};
+use crate::contract::rt::response::log_read;
 use crate::contract::{Component, Tooltip};
+use crate::primitives::Id;
 use crate::primitives::sensing::PartDecl;
 use crate::runtime::focus::FocusShape;
 use crate::runtime::memory::{MemoryStage, Slot};
 use craft_behavior::{Axis, Cursor, CursorIcon, Flow, HitLevel, HitPriority, HitShape, PartKey, PartRef, Roving, ScrollSpan, Sense};
 use craft_theme::Flags;
-use egui::{Id, Rect};
+use craft_ui_rt::{Interact, InteractFact, NodeId, Rect};
 use std::fmt::Debug;
 use std::ops::Deref;
 
@@ -26,9 +28,6 @@ pub struct Toggle {
 pub struct PartBuilder<'a> {
     pub(in crate::contract) decl: &'a mut PartDecl,
     pub(in crate::contract) declared: &'a mut PartExtras,
-    /// The context and component id the exclusive list is written under; none in a sizing pass, which declares
-    /// the same parts again in the real one.
-    pub(in crate::contract) window: Option<(&'a egui::Context, Id)>,
 }
 
 /// The parts a component declared, each with what it declares beyond the sensing core's `PartDecl`. The two lists
@@ -91,6 +90,10 @@ pub(crate) struct PartExtras {
     pub after_header: bool,
     /// The part reports an access node of this role and name though no face is painted for it.
     pub node: Option<(crate::runtime::access::Role, String)>,
+    /// What the part is for the OS window (`PartBuilder::exclusive`); kept as `KeptPart::exclusive`.
+    pub exclusive: Option<crate::runtime::windows::WindowHit>,
+    /// The part's area keeps a focused text draft unapplied on a press (`PartBuilder::holds_drafts`).
+    pub holds_drafts: bool,
 }
 
 impl PartBuilder<'_> {
@@ -172,15 +175,11 @@ impl PartBuilder<'_> {
         self
     }
 
-    /// The part is what `hit` says for the OS window: its move area, one of its edge zones or a caption button. It
-    /// joins the exclusive list of the window's viewport, which `WindowHost::caption_regions` reads for the Windows
-    /// hit-test sink. The rect is the part's shape bounds, which lie in viewport points for a window's own content;
-    /// presses inside the app on the part follow the press-target rule.
+    /// The part is what `hit` says for the OS window: its move area, one of its edge zones or a caption button. The
+    /// node keeps it with the part's hit shape, and the Windows hit test answers from it. Presses inside the app on
+    /// the part follow the press-target rule.
     pub fn exclusive(self, hit: crate::runtime::windows::WindowHit) -> Self {
-        if let Some((ctx, owner)) = self.window {
-            let part = PartRef { key: self.decl.key, index: self.decl.index };
-            crate::runtime::windows::note_exclusive(ctx, owner, part, hit, self.decl.shape.bounds());
-        }
+        self.declared.exclusive = Some(hit);
         self
     }
 
@@ -262,10 +261,7 @@ impl PartBuilder<'_> {
     /// The part's area keeps a focused text draft unapplied on a press. A press holds when any part under its point on
     /// the press's layer declares it, sensing or not, whatever part wins the press.
     pub fn holds_drafts(self) -> Self {
-        // A sizing pass has no window and records nothing, as for `exclusive`.
-        if let Some((ctx, owner)) = self.window {
-            crate::runtime::focus::note_holds_drafts(ctx, owner, PartRef { key: self.decl.key, index: self.decl.index });
-        }
+        self.declared.holds_drafts = true;
         self
     }
 
@@ -299,7 +295,9 @@ pub struct PartsCx<'a, C: Component> {
     pub(crate) rovings: &'a mut Vec<Roving>,
     pub(crate) scrolls: &'a mut Vec<ScrollDecl>,
     pub(crate) text: &'a mut crate::contract::text::TextStep,
-    pub(crate) last_state: (bool, bool),
+    /// The node and its interaction state, for the tracked reads of `hovered` and `focus_visible`; `None` in a
+    /// measuring run.
+    pub(crate) interact: Option<(NodeId, Interact)>,
     pub(crate) gesture_running: bool,
     pub(crate) measure: MeasureCx<'a, C>,
     /// What the shape laid out before `parts`: a collection's rows as the item step places them this pass, a
@@ -362,14 +360,22 @@ impl<'a, C: Component> Deref for PartsCx<'a, C> {
 }
 
 impl<C: Component> PartsCx<'_, C> {
-    /// Last pass's pointer-over state of this component, so `parts` can register hover-revealed parts.
+    /// Whether the pointer is over the component, so `parts` can declare hover-revealed parts. A change runs the
+    /// component again.
     pub fn hovered(&self) -> bool {
-        self.last_state.0
+        self.read(InteractFact::Hovered)
     }
 
-    /// Last pass's focus-visible state of this component.
+    /// Whether the component holds focus and shows it. A change runs the component again.
     pub fn focus_visible(&self) -> bool {
-        self.last_state.1
+        self.read(InteractFact::FocusVisible)
+    }
+
+    fn read(&self, fact: InteractFact) -> bool {
+        self.interact.is_some_and(|(node, interact)| {
+            log_read(node, fact);
+            fact.of(interact)
+        })
     }
 
     /// The component's value gesture runs: begun in an earlier pass and not yet committed or cancelled. A part that
@@ -393,11 +399,11 @@ impl<C: Component> PartsCx<'_, C> {
         if part.key == PartKey::CELL
             && let Some(column) = part.index
         {
-            decl.flags |= crate::contract::items::rows::cell_flags(self.measure.ui.ctx(), self.measure.id, column);
+            let id = self.measure.id;
+            decl.flags |= self.measure.with_ui(|ui| crate::contract::items::rows::cell_flags(ui, id, column));
         }
         let (decl, declared) = self.decls.push(decl);
-        let window = (!self.measure.ui.is_sizing_pass()).then(|| (self.measure.ui.ctx(), self.measure.id));
-        PartBuilder { decl, declared, window }
+        PartBuilder { decl, declared }
     }
 
     /// Declares `rect`, the slot where the component shows its inside label (`EnvView::inside_label`), as the label's

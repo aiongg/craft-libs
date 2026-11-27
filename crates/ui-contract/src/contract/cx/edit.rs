@@ -6,7 +6,7 @@ use crate::primitives::Adopted;
 use craft_behavior::{
     CancelReason, EditEvent, Gesture, GestureNote, GesturePhase, Mixed, PartRef, PointerButton, PressCancel, PressPhase, Sense, Value, WheelPhase,
 };
-use egui::Pos2;
+use craft_ui_rt::Pos2;
 use std::sync::Arc;
 
 impl CxCore<'_> {
@@ -93,7 +93,7 @@ impl<C: Component> Cx<'_, C> {
         }
         let before = self.before();
         let (label, doc_key) = (self.core.label_arc(), self.core.resolved.doc_key);
-        let fresh = crate::runtime::edit::next_gesture_id(&self.core.ctx);
+        let fresh = self.core.next_gesture_id();
         let slot = self.gesture_slot();
         // A gesture cancelled under its press stays cancelled until the release.
         if slot.dead {
@@ -140,7 +140,7 @@ impl<C: Component> Cx<'_, C> {
     /// to end is dropped.
     pub(crate) fn absorb(&mut self, event: EditEvent<ValueOf<C>>) -> Option<EditEvent<ValueOf<C>>> {
         let dead = self.core.press_held();
-        let fresh = crate::runtime::edit::next_gesture_id(&self.core.ctx);
+        let fresh = self.core.next_gesture_id();
         let slot = self.gesture_slot();
         match event {
             EditEvent::Begin { before, label, doc_key, .. } => {
@@ -278,7 +278,7 @@ impl<C: Component> Edit for Cx<'_, C> {
         }
         let before = self.before();
         let (label, doc_key) = (self.core.label_arc(), self.core.resolved.doc_key);
-        let fresh = crate::runtime::edit::next_gesture_id(&self.core.ctx);
+        let fresh = self.core.next_gesture_id();
         let slot = self.gesture_slot();
         if !slot.is_running() && !slot.dead {
             slot.id = fresh;

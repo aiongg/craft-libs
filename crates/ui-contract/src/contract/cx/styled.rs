@@ -4,7 +4,6 @@ use super::context::{Cx, CxCore};
 use super::pointer::Pointer as _;
 use crate::contract::Component;
 use crate::primitives::PartResult;
-use crate::runtime::focus::{self};
 use crate::style::{Ink, Mix, StateSet, Stateful};
 use craft_behavior::{PartKey, PartRef};
 use craft_theme::Flags;
@@ -35,22 +34,10 @@ impl CxCore<'_> {
         debug_assert!(self.stated, "the state set is written at step 12; it is not readable in `update` or `overlay`");
     }
 
-    /// The active part, read again when focus was written since step 8.
+    /// The active part. Focus moves a run asks for apply after it, so the facts read at the run's start hold for
+    /// the whole run.
     pub(crate) fn active_now(&self) -> Option<PartRef> {
-        if focus::writes() == self.focus.at {
-            return self.active;
-        }
-        focus::facts(&self.ctx, self.id).part.filter(|part| self.results.contains_key(&(part.key, part.index)))
-    }
-
-    /// Reads the focus facts again when focus was written since they were read, so a request or a layer that took
-    /// focus during this pass shows in the steps after it.
-    #[doc(hidden)]
-    pub fn sync_focus(&mut self) {
-        if focus::writes() != self.focus.at {
-            self.focus = focus::facts(&self.ctx, self.id);
-            self.active = self.focus.part.filter(|part| self.results.contains_key(&(part.key, part.index)));
-        }
+        self.active
     }
 
     /// The state set of `part`: its press and hover, its own flags, and the focus flags only when it is the
@@ -75,9 +62,9 @@ impl CxCore<'_> {
         let result = self.part_if_declared(part).unwrap_or(&PartResult::IDLE);
         let hovered = result.hovered || lit;
         let mut flags = result.flags;
-        if self.active_now() == Some(part) && focus::is_focused(&self.ctx, self.id) {
+        if self.active_now() == Some(part) && self.focus.focused {
             flags |= Flags::FOCUSED;
-            if focus::focus_visible(&self.ctx, self.id) {
+            if self.focus.visible {
                 flags |= Flags::FOCUS_VISIBLE;
             }
         }

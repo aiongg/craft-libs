@@ -1,14 +1,14 @@
 //! Values and edits (chapter 10): the binding, the output of a value component and the types that carry a value
 //! between the app and the pipeline.
 
+use crate::contract::Ui;
+use crate::contract::rt::response::{InputFacts, log_read};
 use crate::contract::{MemoKey, MemoProps};
+use crate::primitives::Id;
 use crate::runtime::env::Message;
 use crate::runtime::memory::{MemoryStage, Savable, SaveKey, StageAccess};
-use crate::runtime::reads::{self, BindKey};
 use craft_behavior::{Applied, CanvasView, EditEvent, EditEvents, EditPolicy, Mixed, Value};
-use egui::Id;
-use egui::{Response, Ui};
-use std::any::TypeId;
+use craft_ui_rt::{Interact, InteractFact, NodeId, Pos2, Rect, Vec2};
 use std::cell::Cell;
 use std::sync::Arc;
 
@@ -18,6 +18,184 @@ pub type Validity<T> = craft_behavior::Validity<T, Message>;
 /// The value type of a component with no value.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct NoValue;
+
+/// A shown component's response: its rect, the input its run consumed and its interaction state.
+///
+/// The input facts (`clicked` to `interact_pointer_pos`, `gained_focus`, `lost_focus`) come from the input the node's
+/// run consumed, so they hold only in the frame of that run; a kept node's response has none. The interaction facts
+/// (`hovered`, `contains_pointer`, `is_pointer_button_down_on`, `has_focus`) are the node's state at the `show`, and
+/// reading one is a read of that one fact: the reading scope runs again when it flips (docs/contract-rt.md 15.6).
+#[derive(Clone, Debug, PartialEq)]
+pub struct Response {
+    /// The component's craft `Id`.
+    pub id: Id,
+    /// The component's rect in this frame, in window coordinates.
+    pub rect: Rect,
+    /// The node behind the response; `None` in a measuring run, which reaches no node.
+    node: Option<NodeId>,
+    interact: Interact,
+    /// A drag of the node's press runs (kept across frames until the press ends).
+    dragging: bool,
+    facts: InputFacts,
+    /// The nodes `union` joined: an interaction fact holds when it holds on any of them, and reading it reads it on each.
+    joined: Vec<(NodeId, Interact)>,
+}
+
+impl Response {
+    pub(crate) fn new(id: Id, rect: Rect, node: Option<NodeId>, interact: Interact, dragging: bool, facts: InputFacts) -> Response {
+        Response { id, rect, node, interact, dragging, facts, joined: Vec::new() }
+    }
+
+    /// The response of `id` with no node, input or interaction: what a component that shows nothing this frame (a
+    /// closed layer, a measuring run) reports.
+    pub(crate) fn inert(id: Id, rect: Rect) -> Response {
+        Response::new(id, rect, None, Interact::default(), false, InputFacts::default())
+    }
+
+    /// The node behind the response, `None` for an inert one.
+    pub(crate) fn node(&self) -> Option<NodeId> {
+        self.node
+    }
+
+    /// A primary click, a keyboard activation or an assistive technology's click reached the component.
+    pub fn clicked(&self) -> bool {
+        self.facts.clicked
+    }
+
+    /// The second click of a double click.
+    pub fn double_clicked(&self) -> bool {
+        self.facts.double_clicked
+    }
+
+    /// A secondary-button click.
+    pub fn secondary_clicked(&self) -> bool {
+        self.facts.secondary_clicked
+    }
+
+    /// A touch or pen press held still for the long-press time.
+    pub fn long_pressed(&self) -> bool {
+        self.facts.long_pressed
+    }
+
+    /// The press moved past slop in this frame.
+    pub fn drag_started(&self) -> bool {
+        self.facts.drag_started
+    }
+
+    /// A drag of the component's press runs.
+    pub fn dragged(&self) -> bool {
+        self.dragging || self.facts.drag_started
+    }
+
+    /// The drag ended in this frame (a release or a cancel after it started).
+    pub fn drag_stopped(&self) -> bool {
+        self.facts.drag_stopped
+    }
+
+    /// How far the drag moved in this frame.
+    pub fn drag_delta(&self) -> Vec2 {
+        self.facts.drag_delta
+    }
+
+    /// Where the pointer of the component's press is, in window coordinates.
+    pub fn interact_pointer_pos(&self) -> Option<Pos2> {
+        self.facts.pointer
+    }
+
+    /// The pointer is over the component. The reading scope runs again when this flips.
+    pub fn hovered(&self) -> bool {
+        self.read(InteractFact::Hovered)
+    }
+
+    /// The pointer is over the component, whatever holds the press.
+    pub fn contains_pointer(&self) -> bool {
+        self.read(InteractFact::Hovered)
+    }
+
+    /// A press went down on the component and is held. The reading scope runs again when this flips.
+    pub fn is_pointer_button_down_on(&self) -> bool {
+        self.read(InteractFact::Pressed)
+    }
+
+    /// The component has key focus. The reading scope runs again when this flips.
+    pub fn has_focus(&self) -> bool {
+        self.read(InteractFact::Focused)
+    }
+
+    /// Key focus moved onto the component since its last run.
+    pub fn gained_focus(&self) -> bool {
+        self.facts.gained_focus
+    }
+
+    /// Key focus left the component since its last run.
+    pub fn lost_focus(&self) -> bool {
+        self.facts.lost_focus
+    }
+
+    /// One response for two shown parts: the union of the rects, the facts of either, the id and node of `self`.
+    pub fn union(&self, other: Response) -> Response {
+        let (a, b) = (self.facts, other.facts);
+        let facts = InputFacts {
+            clicked: a.clicked || b.clicked,
+            double_clicked: a.double_clicked || b.double_clicked,
+            secondary_clicked: a.secondary_clicked || b.secondary_clicked,
+            long_pressed: a.long_pressed || b.long_pressed,
+            drag_started: a.drag_started || b.drag_started,
+            drag_stopped: a.drag_stopped || b.drag_stopped,
+            drag_delta: a.drag_delta + b.drag_delta,
+            pointer: a.pointer.or(b.pointer),
+            gained_focus: a.gained_focus || b.gained_focus,
+            lost_focus: a.lost_focus || b.lost_focus,
+        };
+        let mut joined = self.joined.clone();
+        joined.extend(other.node.map(|node| (node, other.interact)));
+        joined.extend(other.joined);
+        Response {
+            id: self.id,
+            rect: self.rect.union(other.rect),
+            node: self.node,
+            interact: self.interact,
+            dragging: self.dragging || other.dragging,
+            facts,
+            joined,
+        }
+    }
+
+    fn read(&self, fact: InteractFact) -> bool {
+        if let Some(node) = self.node {
+            log_read(node, fact);
+        }
+        let mut on = fact.of(self.interact);
+        for &(node, interact) in &self.joined {
+            log_read(node, fact);
+            on |= fact.of(interact);
+        }
+        on
+    }
+}
+
+/// What a kept scope's `show` returns: the closure's value, and whether the closure ran in this build. Event outputs
+/// (a pick, a dialog's result, a view's sent events) are read only through `value_if_fresh`, so a kept scope never
+/// replays an event; state values are read from `value` either way.
+#[derive(Clone, Debug)]
+pub struct Shown<R> {
+    /// What the closure returned, in this build or when it last ran.
+    pub value: R,
+    /// The closure ran in this build.
+    pub fresh: bool,
+}
+
+impl<R> Shown<R> {
+    /// The value when the closure ran in this build: for event outputs.
+    pub fn value_if_fresh(self) -> Option<R> {
+        self.fresh.then_some(self.value)
+    }
+
+    /// The value mapped by `f`, with the same freshness.
+    pub fn map<S>(self, f: impl FnOnce(R) -> S) -> Shown<S> {
+        Shown { value: f(self.value), fresh: self.fresh }
+    }
+}
 
 /// What `show` returns: the component's response and the type of value it edits.
 pub trait Outcome {
@@ -59,22 +237,20 @@ impl Outcome for Response {
     }
 }
 
-/// Whether `response` reports a click, by pointer or by keyboard activation.
-pub fn clicked(response: &Response) -> bool {
-    crate::runtime::egui::response::clicked(response)
+/// Whether `outcome` reports a click, by pointer, keyboard activation or assistive technology.
+pub fn clicked(outcome: &impl Outcome) -> bool {
+    outcome.response().clicked()
 }
 
-/// The `Response` of the component `id` in the running pass: its root's egui widget, or the response its arena gives a
-/// member of one (a component in a collection's rows or in an arena body, which registers no egui widget). A
-/// memoized view's replay shows its components again, so a host reads the response of a component a replayed view
-/// showed. `None` for an id no component showed in this pass or the last.
+/// The `Response` of the component `id` shown in this window: the one its last run or keep gave. `None` for an id
+/// no component showed.
 pub fn response_of(ui: &Ui, id: Id) -> Option<Response> {
-    ui.ctx().read_response(id).or_else(|| crate::primitives::sensing::member_response(ui, id))
+    ui.response_of(id)
 }
 
 /// Whether a pointer press went down on `response`'s component and is still held.
 pub fn pressed(response: &Response) -> bool {
-    crate::runtime::egui::response::is_pressed(response)
+    response.is_pointer_button_down_on()
 }
 
 /// The value type of `C`'s output.
@@ -455,22 +631,6 @@ impl<T: Value> BindMut<'_, T> {
         }
     }
 
-    /// The identity of the binding's value in this pass, for the read record: the bound place, or where the kept value
-    /// lives (`id` is the component it is kept under). A given value has none.
-    pub(crate) fn key(&self, id: Id) -> Option<BindKey> {
-        match &self.source {
-            SourceMut::Given(_) => None,
-            SourceMut::Mut(value) => Some(BindKey::Place(std::ptr::from_ref::<T>(value) as usize, TypeId::of::<T>())),
-            SourceMut::MutMixed(value) => Some(BindKey::Place(std::ptr::from_ref::<Mixed<T>>(value) as usize, TypeId::of::<Mixed<T>>())),
-            SourceMut::Tracked { at, .. } => Some(BindKey::Tracked(at.source, at.offset, size_of::<T>(), TypeId::of::<T>())),
-            SourceMut::TrackedMixed { at, .. } => Some(BindKey::Tracked(at.source, at.offset, size_of::<Mixed<T>>(), TypeId::of::<Mixed<T>>())),
-            SourceMut::Kept => Some(match self.save {
-                Some(save) => BindKey::Saved(Id::NULL.with(&save.key)),
-                None => BindKey::Kept(id),
-            }),
-        }
-    }
-
     pub(crate) fn is_kept(&self) -> bool {
         matches!(self.source, SourceMut::Kept)
     }
@@ -545,11 +705,6 @@ impl<T: Value> BindMut<'_, T> {
     /// under the base id of `cx` (the saved tier when the binding has a `SaveKey`). `None` for a kept binding that
     /// holds nothing yet.
     pub fn read(&self, cx: &mut impl StageAccess) -> Option<Mixed<T>> {
-        let id = cx.base();
-        if let Some(key) = self.key(id) {
-            let ctx = cx.stage_mut().ctx().clone();
-            reads::note(&ctx, key, id, crate::runtime::measure::active(&ctx), &[]);
-        }
         match &self.source {
             SourceMut::Kept => {
                 let id = cx.base();
@@ -806,12 +961,12 @@ pub trait ItemOutput<E>: Outcome {
     /// The item asks for its menu from one of its parts (a row's "More" button): the part's rect, in the item's layer.
     /// The collection makes the context request a `Trigger::Context` opener reads at that rect and reports
     /// `CollectionEvent::ContextMenu` at its bottom start corner, as it does for the Menu key.
-    fn menu_request(&self) -> Option<egui::Rect> {
+    fn menu_request(&self) -> Option<Rect> {
         None
     }
 
     /// The rect of the item's label, where a rename editor goes; `None` puts it over the whole row.
-    fn label_rect(&self) -> Option<egui::Rect> {
+    fn label_rect(&self) -> Option<Rect> {
         None
     }
 }

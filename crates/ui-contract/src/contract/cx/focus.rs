@@ -4,10 +4,9 @@ use super::context::{Cx, CxCore};
 use crate::contract::Component;
 use crate::runtime::focus::{self};
 use crate::runtime::keys::{Intents, MenuKey};
-use crate::runtime::measure;
 use craft_behavior::{MoveMods, NavMove, PartRef};
 use craft_keymap::Chord;
-use egui::{Rect, Vec2};
+use craft_ui_rt::{Rect, Vec2};
 
 /// Focus and keys (chapter 9).
 pub trait Focus {
@@ -63,7 +62,7 @@ impl Focus for CxCore<'_> {
     }
 
     fn take_claimed(&mut self, chord: Chord) -> bool {
-        crate::runtime::keys::take_claimed(&self.ctx, self.id, chord)
+        self.intents.take_first_chord(&[chord]).is_some()
     }
 
     fn active_part(&self) -> Option<PartRef> {
@@ -71,21 +70,19 @@ impl Focus for CxCore<'_> {
     }
 
     fn focus_arrived(&self) -> Option<PartRef> {
-        let facts = if focus::writes() == self.focus.at { self.focus } else { focus::facts(&self.ctx, self.id) };
-        facts.arrived.filter(|part| self.results.contains_key(&(part.key, part.index)))
+        self.focus.arrived.filter(|part| self.results.contains_key(&(part.key, part.index)))
     }
 
     fn focus_arrived_by_key(&self) -> Option<PartRef> {
-        let facts = if focus::writes() == self.focus.at { self.focus } else { focus::facts(&self.ctx, self.id) };
-        self.focus_arrived().filter(|_| matches!(facts.arrived_origin, Some(focus::FocusOrigin::Request | focus::FocusOrigin::Open)))
+        self.focus_arrived().filter(|_| matches!(self.focus.arrived_origin, Some(focus::FocusOrigin::Request | focus::FocusOrigin::Open)))
     }
 
     fn is_focused(&self) -> bool {
-        focus::is_focused(&self.ctx, self.id)
+        self.focus.focused
     }
 
     fn focus_visible(&self) -> bool {
-        focus::focus_visible(&self.ctx, self.id)
+        self.focus.visible
     }
 
     fn reveal(&mut self, rect: Rect) {
@@ -93,12 +90,13 @@ impl Focus for CxCore<'_> {
     }
 
     fn take_scroll_moves(&mut self) -> Vec<(NavMove, MoveMods)> {
-        crate::contract::steps::scroll_moves(&self.ctx, self.id, measure::active(&self.ctx))
+        crate::contract::steps::scroll_moves(self.context(), self.id, self.is_measuring())
     }
 
     fn take_reveal(&mut self, view: Rect) -> Option<Vec2> {
-        let quiet = measure::active(&self.ctx);
-        let rect = if quiet { crate::contract::peek_reveal(&self.ctx, self.id) } else { crate::contract::take_reveal(&self.ctx, self.id) }?;
+        let quiet = self.is_measuring();
+        let context = self.context();
+        let rect = if quiet { crate::contract::peek_reveal(context, self.id) } else { crate::contract::take_reveal(context, self.id) }?;
         let (by, shown) = crate::contract::steps::reveal_move(rect, view);
         if !quiet {
             self.reveal = Some(shown);
@@ -107,19 +105,19 @@ impl Focus for CxCore<'_> {
     }
 
     fn register_menu_bar(&mut self) {
-        focus::register_menu_bar(&self.ctx, self.id, false);
+        focus::register_menu_bar(self.context(), self.id, false);
     }
 
     fn register_menu_bar_by_claim(&mut self) {
-        focus::register_menu_bar(&self.ctx, self.id, true);
+        focus::register_menu_bar(self.context(), self.id, true);
     }
 
     fn take_first_claimed(&mut self, chords: &[Chord]) -> Option<Chord> {
-        crate::runtime::keys::take_first_claimed(&self.ctx, self.id, chords)
+        self.intents.take_first_chord(chords)
     }
 
     fn take_menu_keys(&mut self) -> Vec<MenuKey> {
-        crate::runtime::keys::take_menu_keys(&self.ctx)
+        crate::runtime::keys::take_menu_keys(self.context())
     }
 }
 
