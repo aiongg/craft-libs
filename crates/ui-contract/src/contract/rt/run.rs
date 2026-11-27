@@ -14,7 +14,7 @@ use std::sync::Arc;
 
 use craft_behavior::{Flow as Geometry, Intent, PartRef, PressPhase, PressState, Proposal};
 use craft_theme::Tokens;
-use craft_ui_rt::{BuildCx, Gesture, HitShape, InlineState, InteractFact, NodeId, PointerButton, Pos2, Rect, Sense, Vec2};
+use craft_ui_rt::{BuildCx, Gesture, HitShape, InlineState, InteractFact, NodeId, PointerButton, Pos2, Rect, Sense, Vec2, Writes as _};
 use smallvec::SmallVec;
 
 use super::access::Access;

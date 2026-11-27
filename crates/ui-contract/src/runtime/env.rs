@@ -26,7 +26,7 @@ use craft_i18n::{CalendarDate, DateFormat, Format};
 use craft_theme::ControlSize;
 use craft_theme::Tokens;
 pub use craft_ui_macros::EnvValue;
-use craft_ui_rt::BuildCx;
+use craft_ui_rt::{BuildCx, Writes as _};
 use std::ops::Deref;
 use std::sync::Arc;
 
