@@ -38,8 +38,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         (rect, offset, rtl): (Rect, ScrollPos, bool),
         props: &CollectionProps,
     ) {
-        let xf = self.xf;
-        let layer = |point: Pos2| xf.map_or(point, |map| map.to_layer(point));
+        let layer = |point: Pos2| point;
         match cx.core.press.phase {
             PressPhase::Down { start, .. }
                 if props.marquee && start.button == PointerButton::Primary && Self::select_mode(comp) == SelectMode::Multi =>
@@ -50,7 +49,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                 let local = Self::logical(layout, rect, rtl, origin);
                 if rect.contains(origin) && layout.hit(local, seen).is_none() {
                     let selected: Vec<C::Key> = self.selected_keys(&self.selection_at_read);
-                    let mods = crate::runtime::pointer::frame_raw(cx.context()).mods;
+                    let mods = super::press_mods(cx.core.input());
                     let select = MarqueeSelect::begin(content_point(local, seen), mods, selected.clone());
                     self.drags.marquee = Some(MarqueeDrag { select, last: selected, live: false });
                 }

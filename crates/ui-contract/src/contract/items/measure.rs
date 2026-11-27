@@ -1,26 +1,25 @@
 //! The largest item of a collection: the widest row of a content-sized collection, the cell of a collection that
 //! sizes its items from their measure. Measured, recorded, kept while the items' inputs hold, and read back.
 
+use super::rows;
 use super::{ItemsHooks, key_hash};
-use super::{header, rows};
 use crate::contract::Ui;
-use crate::contract::body::EnvFacts;
 use crate::contract::collection::RowState;
-use crate::contract::run::{Measuring, ShowAt};
 use crate::contract::{Collection, Internal, ItemCx, Props, Show as _};
 use crate::primitives::Id;
 use crate::runtime::access::SetPosition;
 use crate::runtime::env::ArenaId;
-use crate::runtime::env::{Env, EnvView, ItemFacts, ScrollOwner};
-use crate::runtime::layout_memory;
+use crate::runtime::env::{Env, ItemFacts, ScrollOwner};
 use crate::runtime::memory::{MemoryStage, sub};
-use crate::style::{Flags, SurfaceKind};
+use crate::style::{EnvKey, Flags, SurfaceKind};
 use crate::style::{StyleCx, UiTokens};
 use craft_behavior::layout_memory::measure_tolerance;
 use craft_behavior::{ItemLayout as _, Proposal, ScrollPos, SelectionModel as _};
 use craft_ui_rt::Pos2;
 use craft_ui_rt::Rect;
 use craft_ui_rt::Vec2;
+use std::cell::RefCell;
+use std::collections::{HashMap, HashSet};
 
 impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
     /// Whether the collection takes its width from its widest row: `Sizing::Content`. A row's width holds its
@@ -44,84 +43,54 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
     /// sized from its content: the header's least width, else its largest row's, at least the width it asks for
     /// (`Collection::ideal_width`), up to `room`. The column it sits in holds it at that width and shows it across
     /// the width the column settles on.
-    pub(super) fn width_from_content(&mut self, comp: &C, at: (&Ui, &Env), id: Id, room: Vec2, item: Option<Vec2>, scx: &StyleCx<'_>) -> f32 {
+    pub(super) fn width_from_content(&mut self, comp: &C, at: (&mut Ui, &Env), id: Id, room: Vec2, item: Option<Vec2>, scx: &StyleCx<'_>) -> f32 {
         let rows = if self.header.has_columns() { self.header.least_width() } else { self.largest_in(comp, at, id, room).x };
         rows.max(comp.ideal_width(item, self.source.len(), scx)).min(room.x)
     }
 
-    /// The largest ideal size of the rows in this pass, the sum of their ideal widths, and the widest cell each column's
-    /// items reported: each row is built as `content` builds it, with its column cells at the widths the header
-    /// resolves with no room to share (a fixed or toggle column at its own width), and measured without allocating.
-    fn largest_row(&mut self, comp: &C, (ui, env): (&Ui, &Env), id: Id) -> (Vec2, f32, Vec<(craft_behavior::ColumnKey, f32)>) {
-        let ctx = ui.ctx().clone();
-        crate::contract::steps::measuring(&ctx, || self.largest_row_in(comp, (ui, env), id))
-    }
-
-    /// Builds the rows once to measure the largest and records it under `sub(id, "largest")` for `extent`, when this
-    /// pass's width comes from the rows, the collection `measures_items`, or a column takes its widest cell's width.
-    pub(super) fn record_largest(&mut self, comp: &C, at: &Measuring<'_, '_>, id: Id) {
-        let room = match at.at {
-            ShowAt::Rect(rect) => rect.size(),
-            ShowAt::Flow => crate::layout::flow_room(at.ui, at.place),
-        };
-        let room = Self::inner_room(comp, &at.env.tokens, room);
+    /// Measures the largest row now when this run's width comes from the rows, the collection `measures_items`, or a
+    /// column takes its widest cell's width; the result is kept in [`RowSizes::largest`] for `items_extent`.
+    pub(super) fn record_largest(&mut self, comp: &C, at: &mut MeasureAt<'_, '_, '_>, id: Id) {
+        let room = Self::inner_room(comp, &at.env.tokens, at.room);
         if self.source.is_empty() || (room.x.is_finite() && !self.content_sized(comp) && !comp.measures_items() && !self.header.has_content_columns())
         {
             return;
         }
         self.header.measure(at.scx);
-        self.largest_in(comp, (at.ui, at.place), id, room);
+        self.largest_in(comp, (&mut *at.ui, at.place), id, room);
     }
 
-    /// The largest row in the room `room`: what a record of this pass under `sub(id, "largest")` found when it serves
-    /// the room (`Measured::serves`), else what the measure kept from an earlier pass gives while the items' inputs
-    /// hold, else the rows built and measured now, recorded there and kept. The widest cell of each `Content` column,
-    /// or its header label when wider, is recorded with it (`header::content_id`). The caller measures the header first.
-    /// `env` is the env `ui`'s children are placed under.
-    pub(super) fn largest_in(&mut self, comp: &C, (ui, env): (&Ui, &Env), id: Id, room: Vec2) -> Vec2 {
-        let ctx = ui.ctx().clone();
-        let key = sub(id, "largest");
-        let tolerance = measure_tolerance(ctx.pixels_per_point());
-        let found = |ctx: &crate::contract::Context| {
-            // The collection's width comes from its rows here: it is not given the width.
-            layout_memory::measured(ctx, key).filter(|found| layout_memory::Measured::serves(room.x, found.room.x, false, found.took.x, tolerance))
-        };
-        if let Some(found) = found(&ctx) {
-            return found.took;
-        }
-        // A kept measure serves only the outermost measuring run, which this opens when none is open.
+    /// The largest row in the room `room`: the kept measure while the room and the items' inputs hold, else the rows
+    /// built and measured now and kept. The widest cell of each `Content` column, or its header label when wider, is
+    /// kept with it and handed to the header. The caller measures the header first. `env` is the env `ui`'s children
+    /// are placed under.
+    pub(super) fn largest_in(&mut self, comp: &C, (ui, env): (&mut Ui, &Env), id: Id, room: Vec2) -> Vec2 {
         let inputs = self.items_inputs(comp, env, room);
-        if let Some(inputs) = &inputs
-            && crate::runtime::measure::measuring(&ctx, || layout_memory::kept_serves(&ctx, key, inputs))
-            && let Some(found) = found(&ctx)
+        if let Some(kept) = &self.sizes.largest
+            && inputs.is_some()
+            && kept.inputs == inputs
         {
-            return found.took;
+            self.header.read_content(&kept.content);
+            return kept.took;
         }
         #[cfg(feature = "testing")]
-        crate::runtime::measure::count_widest(&ctx, id);
-        layout_memory::boundary(&ctx, true, || {
-            if inputs.is_some() {
-                layout_memory::begin_measure(&ctx, key);
-            }
-            let (largest, run, cells) = self.largest_row(comp, (ui, env), id);
-            layout_memory::emit_record(&ctx, key, layout_memory::Measured::new(room, largest));
-            layout_memory::emit_record(&ctx, run_id(id), layout_memory::Measured::new(room, Vec2::new(run, 0.0)));
-            let content: Vec<(usize, craft_behavior::ColumnKey)> = self.header.content_columns().map(|(at, key)| (at, key.clone())).collect();
-            for (at, column) in content {
-                let widest = cells.iter().find(|(held, _)| *held == column).map_or(0.0, |(_, width)| *width);
-                let wide = widest.max(self.header.label_width(ui, &env.view(), at));
-                layout_memory::emit_record(&ctx, header::content_id(id, &column), layout_memory::Measured::new(room, Vec2::new(wide, 0.0)));
-            }
-            if let Some(inputs) = inputs {
-                layout_memory::end_measure(&ctx, key, inputs);
-            }
-            largest
-        })
+        counts::count(&counts::WIDEST, id);
+        let (largest, run, cells) = self.largest_row_in(comp, (&mut *ui, env), id);
+        let columns: Vec<(usize, craft_behavior::ColumnKey)> = self.header.content_columns().map(|(at, key)| (at, key.clone())).collect();
+        let mut content = Vec::with_capacity(columns.len());
+        for (at, column) in columns {
+            let widest = cells.iter().find(|(held, _)| *held == column).map_or(0.0, |(_, width)| *width);
+            let wide = widest.max(self.header.label_width(ui, &env.view(), at));
+            content.push((column, wide));
+        }
+        self.header.read_content(&content);
+        self.sizes.largest = Some(Largest { inputs, took: largest, run, content });
+        largest
     }
 
     /// What the items' measure reads besides the rows' content: the room, the item count, the env and what `dress`
     /// reads of the collection. `None` when the source declares no content version (rows stamp or revision): the rows
-    /// may change unseen, so every pass measures them.
+    /// may change unseen, so every run that needs the largest row measures them.
     fn items_inputs(&self, comp: &C, env: &Env, room: Vec2) -> Option<ItemsInputs> {
         let content = (comp.items().rows_stamp, self.source.revision());
         (content.0.is_some() || content.1.is_some()).then(|| ItemsInputs {
@@ -129,22 +98,18 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
             count: self.source.len(),
             content,
             dress: comp.dress_inputs(),
-            env: EnvFacts::of(env),
+            env: env.key,
         })
     }
 
-    /// The length of the rows side by side at their ideal widths, as the last measure of the largest row in the room
+    /// The length of the rows side by side at their ideal widths, as the kept measure of the largest row in the room
     /// `room` found them (`largest_in`); 0 before one.
-    pub(super) fn run_in(&self, ui: &Ui, id: Id, room: Vec2) -> f32 {
-        let tolerance = measure_tolerance(ui.pixels_per_point());
-        layout_memory::measured(ui.ctx(), run_id(id))
-            .filter(|found| layout_memory::Measured::serves(room.x, found.room.x, false, found.took.x, tolerance))
-            .map_or(0.0, |found| found.took.x)
+    pub(super) fn run_in(&self, room: Vec2) -> f32 {
+        self.sizes.largest.as_ref().filter(|kept| kept.inputs.as_ref().is_none_or(|inputs| inputs.room == room)).map_or(0.0, |kept| kept.run)
     }
 
-    fn largest_row_in(&mut self, comp: &C, (ui, env): (&Ui, &Env), id: Id) -> (Vec2, f32, Vec<(craft_behavior::ColumnKey, f32)>) {
-        let ctx = ui.ctx().clone();
-        let mut memory = MemoryStage::open_peek(&ctx, id);
+    fn largest_row_in(&mut self, comp: &C, (ui, env): (&mut Ui, &Env), id: Id) -> (Vec2, f32, Vec<(craft_behavior::ColumnKey, f32)>) {
+        let mut memory = MemoryStage::default();
         let cells: Vec<(craft_behavior::ColumnKey, Rect)> =
             self.header.columns(0.0).into_iter().map(|(key, width)| (key, Rect::from_min_size(Pos2::ZERO, Vec2::new(width, 0.0)))).collect();
         let mut largest = Vec2::ZERO;
@@ -155,7 +120,7 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
                 continue;
             }
             let row = RowMeasure::new(at, Rect::ZERO, cells.clone());
-            let (size, cells) = self.measure_row(comp, ui, (id, env.view(), env), &mut memory, row, |measure, _, _| measure(Proposal::Ideal));
+            let (size, cells) = self.measure_row(comp, &mut *ui, (id, env), &mut memory, row, |measure, _, _| measure(Proposal::Ideal));
             largest = largest.max(size);
             run += size.x;
             for (column, width) in cells {
@@ -169,24 +134,25 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
     }
 
     /// Builds the item of `row.at` as the collection `id` builds it, with the row state `row.state` and flags
-    /// `row.flags`, under `installed` (`view` is what the item builder sees), and hands `measure` a measure of it that
-    /// does not allocate: its size at a proposal and the widths its column cells reported, whether the item declared
-    /// a detail body, which the measure leaves out, and whether it is as wide as it measures (`rows::fits`). The item is
-    /// built once however many proposals `measure` asks. Item memory goes to `memory`.
+    /// `row.flags`, under `installed`, and hands `measure` a measure of it: its size at a proposal and the widths its
+    /// column cells reported (a kept row that answers from its size cache reports the cells it reported when it last
+    /// ran), whether the item declared a detail body, which the measure leaves out, and whether it is as wide as it
+    /// measures (`rows::fits`). The item is built once however many proposals `measure` asks. Item memory goes to
+    /// `memory`.
     pub(super) fn measure_row<R>(
         &mut self,
         comp: &C,
-        ui: &Ui,
-        (id, view, installed): (Id, EnvView<'_>, &Env),
+        ui: &mut Ui,
+        (id, installed): (Id, &Env),
         memory: &mut MemoryStage,
         row: RowMeasure,
         measure: impl FnOnce(&mut dyn FnMut(Proposal) -> (Vec2, Vec<(craft_behavior::ColumnKey, f32)>), bool, bool) -> R,
     ) -> R {
-        let ctx = ui.ctx().clone();
         let RowMeasure { at, rect, cells, state, flags, tree } = row;
         let len = self.source.len();
         let key = self.source.key(at);
-        let item_id = sub(id, ("key", key_hash(&key)));
+        let hash = key_hash(&key);
+        let item_id = sub(id, ("key", hash));
         let position = self.row_position(at, cells.len(), tree);
         let columns: Vec<craft_behavior::ColumnKey> = cells.iter().map(|(key, _)| key.clone()).collect();
         let column_count = cells.len();
@@ -200,7 +166,7 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
             row_index: at,
             row_count: len,
             column_count,
-            env: view,
+            env: installed.view(),
             id: sub(item_id, "item"),
             cells,
             grid: None,
@@ -211,7 +177,7 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
             memory,
         };
         #[cfg(feature = "testing")]
-        crate::runtime::measure::count_row_build(&ctx, item_id);
+        counts::count(&counts::ROW_BUILDS, item_id);
         let item = (self.item)(&key, &mut icx);
         let detail = icx.detail.is_some();
         let mut item = Props::id(comp.dress(item, &state), item_id);
@@ -228,39 +194,73 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
             pressed: None,
             menu_open: false,
         };
-        let env = Env::install_for(
-            ui,
-            installed.derive_local(|scoped| {
-                scoped.item = Some(item_id);
-                scoped.row = Some(rows::row_group(item_id));
-                scoped.item_facts = Some(std::sync::Arc::new(facts));
-            }),
-        );
-        let measured = measure(&mut |proposal| crate::runtime::measure::cell_widths(&ctx, || item.measure_in(ui, proposal)), detail, fits);
-        Env::restore(&ctx, env);
-        measured
+        let env = installed.derive_local(|scoped| {
+            scoped.item = Some(item_id);
+            scoped.row = Some(rows::row_group(item_id));
+            scoped.item_facts = Some(std::sync::Arc::new(facts));
+        });
+        let sizes = &mut self.sizes;
+        Env::run_in(ui, env, |ui| {
+            measure(
+                &mut |proposal| {
+                    let (size, reported) = collect_cells(|| item.measure_in(ui, proposal));
+                    let cells = match reported {
+                        Some(cells) => {
+                            sizes.cells.insert(hash, cells.clone());
+                            cells
+                        }
+                        None => sizes.cells.get(&hash).cloned().unwrap_or_default(),
+                    };
+                    (size, cells)
+                },
+                detail,
+                fits,
+            )
+        })
     }
 
-    /// Measures the auto rows in the view the collection takes that this pass has not measured, before step 5 sizes
+    /// Sets in `layout` what the collection kept of its rows' measures (heights, auto widths, the widths of rows as
+    /// wide as they measured), by key: the rows this run does not measure, out of view, are placed by them.
+    pub(super) fn restore_sizes(&self, layout: &mut C::ItemLayout) {
+        let sizes = &self.sizes;
+        if sizes.heights.is_empty() && sizes.widths.is_empty() && sizes.fits.is_empty() {
+            return;
+        }
+        let keys: Vec<u64> = (0..self.source.len()).map(|at| key_hash(&self.source.key(at))).collect();
+        layout.measured(&|at| sizes.heights.get(&keys[at]).map(|size| size.y));
+        if layout.auto_widths() {
+            for (at, key) in keys.iter().enumerate() {
+                if let Some(&(ideal, min)) = sizes.widths.get(key) {
+                    layout.set_width(at, ideal, min);
+                }
+            }
+        }
+        for (at, key) in keys.iter().enumerate() {
+            if let Some(&fit) = sizes.fits.get(key) {
+                layout.set_fit(at, Some(fit));
+            }
+        }
+    }
+
+    /// Measures the auto rows in the view the collection takes that this run has not measured, before step 5 sizes
     /// the collection from its layout: their ideal and minimum widths in a layout of auto widths, then their heights at
-    /// their widths. Each measure is recorded (`rows::record_measure`) and set in `layout`, so this pass places every
-    /// row in view by its measure, and the other runs of the pass take it without measuring again. The view is the
-    /// one step 5 sizes: `width` wide, as high as the rows (capped by `max_rows`), and no higher than `room` less the
-    /// header when the rows scroll in a bounded room, at the offset step 4 read. It repeats while measured rows bring
-    /// other unmeasured rows into view; each row is measured at most once.
-    pub(super) fn measure_ahead(&mut self, comp: &C, measuring: &Measuring<'_, '_>, id: Id, layout: &mut C::ItemLayout, (width, room): (f32, Vec2)) {
+    /// their widths. Each measure is kept ([`RowSizes`]) and set in `layout`, so this run places every row in view by
+    /// its measure, and later runs take it without measuring again. The view is the one step 5 sizes: `width` wide, as
+    /// high as the rows (capped by `max_rows`), and no higher than `room` less the header when the rows scroll in a
+    /// bounded room, at the offset step 4 read. It repeats while measured rows bring other unmeasured rows into view;
+    /// each row is measured at most once.
+    pub(super) fn measure_ahead(&mut self, comp: &C, at: &mut MeasureAt<'_, '_, '_>, id: Id, layout: &mut C::ItemLayout, (width, room): (f32, Vec2)) {
         if self.source.is_empty() {
             return;
         }
-        let ctx = measuring.ui.ctx().clone();
-        let tolerance = measure_tolerance(ctx.pixels_per_point());
+        let tolerance = measure_tolerance(at.ui.pixels_per_point());
         let props = comp.items();
-        let (row, max_rows, striped) = (props.row_height.of(measuring.scx), props.max_rows, props.striped);
+        let (row, max_rows, striped) = (props.row_height.of(at.scx), props.max_rows, props.striped);
         let tree = matches!(layout.nav(), craft_behavior::NavShape::Tree);
         let known = self.known(comp, true);
-        let env = Self::rows_env(comp, measuring.env, id, measuring.resolved.size, comp.props(Internal::new()).surface);
+        let env = Self::rows_env(comp, at.env, id, at.size, comp.props(Internal::new()).surface);
         let widths = layout.auto_widths();
-        let mut memory = None;
+        let mut memory = MemoryStage::default();
         // How many times each row was measured here: its widths once, its height again only at a width the later rows'
         // widths moved it to.
         let mut done: Vec<(usize, u8)> = Vec::new();
@@ -273,79 +273,70 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
             let mut in_view = Vec::new();
             layout.visible(ScrollPos { x: self.offset_x, y: self.offset.max(0.0) }, Vec2::new(width, high), &mut in_view);
             in_view.sort_unstable();
-            let source = &*self.source;
-            // The rows of the view this pass has not measured: (row, its widths, its height).
-            let todo: Vec<(usize, bool, bool)> = rows::measured_this_pass(&ctx, id, |fresh| {
-                in_view
-                    .into_iter()
-                    .filter(|&at| layout.is_auto(at) && !source.section_stop(at) && done.iter().all(|&(held, times)| held != at || times < 2))
-                    .filter_map(|at| {
-                        let key = source.key(at);
-                        let wide = widths && fresh(rows::measured_width_id(id, &key)).is_none();
-                        let row_width = layout.rect(at, ScrollPos::default()).width();
-                        let high = fresh(rows::measured_id(id, &key)).is_none_or(|size| (size.x - row_width).abs() > tolerance);
-                        (wide || high).then_some((at, wide, high))
-                    })
-                    .collect()
-            });
+            // The rows of the view this run has not measured: (row, its widths, its height).
+            let todo: Vec<(usize, bool, bool)> = in_view
+                .into_iter()
+                .filter(|&at| layout.is_auto(at) && !self.source.section_stop(at) && done.iter().all(|&(held, times)| held != at || times < 2))
+                .filter_map(|at| {
+                    let key = key_hash(&self.source.key(at));
+                    let wide = widths && !self.sizes.fresh.contains(&(key, Measure::Widths));
+                    let row_width = layout.rect(at, ScrollPos::default()).width();
+                    let high = !self.sizes.fresh.contains(&(key, Measure::Height))
+                        || self.sizes.heights.get(&key).is_none_or(|size| (size.x - row_width).abs() > tolerance);
+                    (wide || high).then_some((at, wide, high))
+                })
+                .collect();
             if todo.is_empty() {
                 return;
             }
-            let memory = memory.get_or_insert_with(|| MemoryStage::open_peek(&ctx, id));
             let mut stripe: Option<(usize, usize)> = None;
-            for (at, wide, high) in todo {
-                match done.iter_mut().find(|(held, _)| *held == at) {
+            for (row_at, wide, high) in todo {
+                match done.iter_mut().find(|(held, _)| *held == row_at) {
                     Some((_, times)) => *times += 1,
-                    None => done.push((at, 1)),
+                    None => done.push((row_at, 1)),
                 }
                 let odd = striped && {
-                    let run = self.stripe_run(stripe, at);
-                    stripe = Some((at, run));
-                    run.is_multiple_of(2) && !self.source.is_section(at)
+                    let run = self.stripe_run(stripe, row_at);
+                    stripe = Some((row_at, run));
+                    run.is_multiple_of(2) && !self.source.is_section(row_at)
                 };
-                let (state, flags) = self.known_row(at, &known, odd);
+                let (state, flags) = self.known_row(row_at, &known, odd);
                 let mut cells = Vec::new();
-                layout.cells(at, ScrollPos::default(), &mut cells);
-                let row_measure = RowMeasure { at, rect: layout.rect(at, ScrollPos::default()), cells, state, flags, tree };
-                let key = self.source.key(at);
-                let (width_id, height_id) = (rows::measured_width_id(id, &key), rows::measured_id(id, &key));
-                let installed = (id, env.view(), &env);
-                // The rows' measure is the collection's own, as its largest-row probe is: no transcript around takes it.
-                // It runs as a measure; the layout takes its results in the run that called it, so the run's own
-                // placement (a strip's report of its tabs) follows them.
-                let row_width = layout.rect(at, ScrollPos::default()).width();
-                let (widths, height, detail) = layout_memory::boundary(&ctx, true, || {
-                    crate::contract::steps::measuring(&ctx, || {
-                        self.measure_row(comp, measuring.ui, installed, memory, row_measure, |measure, detail, fits| {
-                            // A row of auto widths takes its ideal width unless the fit over every row's widths shrinks it:
-                            // its height is measured there, and again only where the fit settles on another width. A row
-                            // with a detail body is as high as its leaf and its body, which the shown row records. A row
-                            // sized to its content is as wide as it measures there.
-                            let widths = wide.then(|| Vec2::new(measure(Proposal::Ideal).0.x, measure(Proposal::Min).0.x));
-                            let row_width = widths.map_or(row_width, |widths| widths.x);
-                            let height = (!detail && (high || wide)).then(|| {
-                                let size = measure(Proposal::Width(row_width)).0;
-                                (Vec2::new(row_width, size.y), fits.then_some(size.x))
-                            });
-                            (widths, height, detail)
-                        })
-                    })
-                });
-                if detail && let Some((_, times)) = done.iter_mut().find(|(held, _)| *held == at) {
-                    // Its height stays unmeasured this pass: once is enough.
+                layout.cells(row_at, ScrollPos::default(), &mut cells);
+                let row_measure = RowMeasure { at: row_at, rect: layout.rect(row_at, ScrollPos::default()), cells, state, flags, tree };
+                let key = key_hash(&self.source.key(row_at));
+                let row_width = layout.rect(row_at, ScrollPos::default()).width();
+                let (measured_widths, height, detail) =
+                    self.measure_row(comp, &mut *at.ui, (id, &env), &mut memory, row_measure, |measure, detail, fits| {
+                        // A row of auto widths takes its ideal width unless the fit over every row's widths shrinks it: its
+                        // height is measured there, and again only where the fit settles on another width. A row with a
+                        // detail body is as high as its leaf and its body, which the shown row records. A row sized to its
+                        // content is as wide as it measures there.
+                        let widths = wide.then(|| Vec2::new(measure(Proposal::Ideal).0.x, measure(Proposal::Min).0.x));
+                        let row_width = widths.map_or(row_width, |widths| widths.x);
+                        let height = (!detail && (high || wide)).then(|| {
+                            let size = measure(Proposal::Width(row_width)).0;
+                            (Vec2::new(row_width, size.y), fits.then_some(size.x))
+                        });
+                        (widths, height, detail)
+                    });
+                if detail && let Some((_, times)) = done.iter_mut().find(|(held, _)| *held == row_at) {
+                    // Its height stays unmeasured this run: once is enough.
                     *times = 2;
                 }
-                if let Some(widths) = widths {
-                    rows::record_measure(&ctx, id, width_id, widths);
-                    layout.set_width(at, widths.x, widths.y);
+                if let Some(widths) = measured_widths {
+                    self.sizes.widths.insert(key, (widths.x, widths.y));
+                    self.sizes.fresh.insert((key, Measure::Widths));
+                    layout.set_width(row_at, widths.x, widths.y);
                 }
                 if let Some((height, fit)) = height {
                     #[cfg(feature = "testing")]
-                    crate::runtime::measure::count_row_measure(&ctx, height_id);
-                    rows::record_measure(&ctx, id, height_id, height);
-                    layout.set_height(at, height.y);
-                    if rows::keep_fit(&ctx, id, key_hash(&key), fit) {
-                        layout.set_fit(at, fit);
+                    counts::count(&counts::ROW_MEASURES, sub(id, ("row_size", key)));
+                    self.sizes.heights.insert(key, height);
+                    self.sizes.fresh.insert((key, Measure::Height));
+                    layout.set_height(row_at, height.y);
+                    if self.sizes.keep_fit(key, fit) {
+                        layout.set_fit(row_at, fit);
                     }
                 }
             }
@@ -425,11 +416,6 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
     }
 }
 
-/// Where the measure of the largest row of the collection `id` records the length of its rows side by side.
-fn run_id(id: Id) -> Id {
-    sub(id, "run")
-}
-
 /// What the state of a row known before the pass senses input comes from (`ItemsHooks::known_row`).
 pub(super) struct Known<K> {
     pub(super) placed: craft_behavior::PlacedSelection,
@@ -464,5 +450,193 @@ struct ItemsInputs {
     /// The rows stamp and the source's revision.
     content: (Option<u64>, Option<u64>),
     dress: u64,
-    env: EnvFacts,
+    env: EnvKey,
+}
+
+/// What a row's measure found.
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+enum Measure {
+    Widths,
+    Height,
+}
+
+/// The largest row's measure and what it serves under (`largest_in`).
+#[derive(Clone)]
+struct Largest {
+    /// `None` when the source declares no content version: the measure serves no later run.
+    inputs: Option<ItemsInputs>,
+    took: Vec2,
+    /// The rows side by side at their ideal widths.
+    run: f32,
+    /// The widest cell of each `Content` column, or its header label when wider.
+    content: Vec<(craft_behavior::ColumnKey, f32)>,
+}
+
+/// What a collection measured of its rows, kept in its node's session memory from run to run (the read step takes
+/// it, the settle step keeps it): the one record of auto row sizes, so a row out of the band keeps its place.
+#[derive(Clone, Default)]
+pub(super) struct RowSizes {
+    /// Auto rows by key hash: the width a row was measured at and its height there.
+    heights: HashMap<u64, Vec2>,
+    /// Auto-width items by key hash: their ideal and minimum widths.
+    widths: HashMap<u64, (f32, f32)>,
+    /// The width of each row as wide as it measured, by key hash.
+    fits: HashMap<u64, f32>,
+    /// The widths each row's column cells reported at its last run, by key hash.
+    cells: HashMap<u64, Vec<(craft_behavior::ColumnKey, f32)>>,
+    largest: Option<Largest>,
+    /// What this run measured, by key hash: a row is measured once per run.
+    fresh: HashSet<(u64, Measure)>,
+}
+
+impl RowSizes {
+    /// The record the collection `id` kept in `stage`, ready for a new run.
+    pub(super) fn read(stage: &mut MemoryStage, id: Id) -> RowSizes {
+        let mut sizes = stage.session::<RowSizes>(sub(id, "row_sizes")).clone();
+        sizes.fresh.clear();
+        sizes
+    }
+
+    /// Keeps the record for the next run of the collection `id`.
+    pub(super) fn keep(self, stage: &mut MemoryStage, id: Id) {
+        *stage.session::<RowSizes>(sub(id, "row_sizes")) = self;
+    }
+
+    /// Keeps that the row `key` is `fit` wide, the width it measured, or no longer as wide as it measured. Returns
+    /// whether that differs from what was kept, which this run's layout took: only then does the caller set it there.
+    fn keep_fit(&mut self, key: u64, fit: Option<f32>) -> bool {
+        if self.fits.get(&key).copied() == fit {
+            return false;
+        }
+        match fit {
+            Some(fit) => self.fits.insert(key, fit),
+            None => self.fits.remove(&key),
+        };
+        true
+    }
+
+    /// Keeps the height `size.y` an auto row measured at width `size.x` while shown (its leaf and detail body),
+    /// so the runs that place it out of the band place it so.
+    pub(super) fn keep_shown_height(&mut self, key: u64, size: Vec2) {
+        self.heights.insert(key, size);
+        self.fresh.insert((key, Measure::Height));
+    }
+
+    /// Keeps the auto-width row `key`'s ideal and minimum widths measured while shown.
+    pub(super) fn keep_shown_widths(&mut self, key: u64, widths: Vec2) {
+        self.widths.insert(key, (widths.x, widths.y));
+        self.fresh.insert((key, Measure::Widths));
+    }
+
+    /// Keeps whether the row `key` is as wide as it measured; `true` when that moved.
+    pub(super) fn keep_shown_fit(&mut self, key: u64, fit: Option<f32>) -> bool {
+        self.keep_fit(key, fit)
+    }
+
+    /// The largest row's size the last measure found, while one is kept.
+    pub(super) fn largest(&self) -> Option<Vec2> {
+        self.largest.as_ref().map(|kept| kept.took)
+    }
+
+    /// The cells the row `key` reported at its last measure.
+    pub(super) fn cells_of(&self, key: u64) -> Option<&[(craft_behavior::ColumnKey, f32)]> {
+        self.cells.get(&key).map(Vec::as_slice)
+    }
+
+    /// Keeps the cells the row `key` reported while shown.
+    pub(super) fn keep_cells(&mut self, key: u64, cells: Vec<(craft_behavior::ColumnKey, f32)>) {
+        self.cells.insert(key, cells);
+    }
+}
+
+thread_local! {
+    /// The open cell collectors, innermost last: a row measure collects the widths its cells report.
+    static CELLS: RefCell<Vec<Vec<(craft_behavior::ColumnKey, f32)>>> = const { RefCell::new(Vec::new()) };
+}
+
+/// Runs `measure`, collecting the widths its cells report (`report_cell_width`); `None` when none reported, as when
+/// the measured item answered from its size cache.
+pub(super) fn collect_cells<R>(measure: impl FnOnce() -> R) -> (R, Option<Vec<(craft_behavior::ColumnKey, f32)>>) {
+    CELLS.with(|cells| cells.borrow_mut().push(Vec::new()));
+    struct Pop;
+    impl Drop for Pop {
+        fn drop(&mut self) {
+            CELLS.with(|cells| cells.borrow_mut().pop());
+        }
+    }
+    let pop = Pop;
+    let out = measure();
+    let cells = CELLS.with(|cells| std::mem::take(cells.borrow_mut().last_mut().expect("the collector this call pushed")));
+    drop(pop);
+    (out, (!cells.is_empty()).then_some(cells))
+}
+
+/// Reports that a cell of column `column` takes `width` in the row being measured (`MeasureCx::cell_width`): the
+/// collection measuring the row takes its column's widest cell from it. Nothing outside a row measure.
+pub(crate) fn report_cell_width(_ui: &mut Ui, column: &craft_behavior::ColumnKey, width: f32) {
+    CELLS.with(|cells| {
+        if let Some(open) = cells.borrow_mut().last_mut() {
+            match open.iter_mut().find(|(held, _)| held == column) {
+                Some((_, held)) => *held = held.max(width),
+                None => open.push((column.clone(), width)),
+            }
+        }
+    });
+}
+
+/// Where step 5 measures the collection: the `Ui` of the collection's build (its node's, or the measuring run's
+/// it is measured in), the collection's own env, the env it is placed under, its style context, the room it is
+/// given and its control size.
+pub(crate) struct MeasureAt<'a, 'u, 'c> {
+    pub(crate) ui: &'a mut Ui<'u, 'c>,
+    pub(crate) env: &'a Env,
+    pub(crate) place: &'a Env,
+    pub(crate) scx: &'a StyleCx<'a>,
+    pub(crate) room: Vec2,
+    pub(crate) size: craft_theme::ControlSize,
+}
+
+/// Count trials of the items' measure (`testing`): what a run built and measured of the rows, by id, taken by the
+/// trial that reads it.
+#[cfg(feature = "testing")]
+pub(crate) mod counts {
+    use crate::primitives::Id;
+    use std::cell::RefCell;
+    use std::thread::LocalKey;
+
+    type Log = RefCell<Vec<(Id, u32)>>;
+
+    thread_local! {
+        pub(super) static WIDEST: Log = const { RefCell::new(Vec::new()) };
+        pub(super) static ROW_BUILDS: Log = const { RefCell::new(Vec::new()) };
+        pub(super) static ROW_MEASURES: Log = const { RefCell::new(Vec::new()) };
+    }
+
+    pub(super) fn count(log: &'static LocalKey<Log>, id: Id) {
+        log.with(|log| {
+            let mut log = log.borrow_mut();
+            match log.iter_mut().find(|(held, _)| *held == id) {
+                Some((_, n)) => *n += 1,
+                None => log.push((id, 1)),
+            }
+        });
+    }
+
+    /// The collections that measured their largest row since the last take, with how many times.
+    #[doc(hidden)]
+    pub fn take_widest_runs() -> Vec<(Id, u32)> {
+        WIDEST.with(|log| std::mem::take(&mut *log.borrow_mut()))
+    }
+
+    /// The rows built to be measured since the last take, by item id, with how many times.
+    #[doc(hidden)]
+    pub fn take_row_builds() -> Vec<(Id, u32)> {
+        ROW_BUILDS.with(|log| std::mem::take(&mut *log.borrow_mut()))
+    }
+
+    /// The auto rows whose height was measured since the last take, with how many times.
+    #[doc(hidden)]
+    pub fn take_row_measures() -> Vec<(Id, u32)> {
+        ROW_MEASURES.with(|log| std::mem::take(&mut *log.borrow_mut()))
+    }
 }

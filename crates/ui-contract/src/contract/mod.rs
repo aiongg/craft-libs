@@ -93,6 +93,9 @@ pub use items::{ColumnCommands, SweepApply, SweepStep, item_part_open, request_r
 #[doc(hidden)]
 pub use items::{RowToggle, put_toggle_names};
 pub use items::{measure_item, show_item, show_item_in_flow};
+#[cfg(feature = "testing")]
+#[doc(hidden)]
+pub use items::{take_row_builds, take_row_measures, take_widest_runs};
 #[doc(hidden)]
 pub use label::colon_of;
 pub use label::{

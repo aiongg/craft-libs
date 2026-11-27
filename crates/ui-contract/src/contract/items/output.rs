@@ -15,7 +15,7 @@ impl<C: Collection> Cx<'_, C> {
     /// The position of the lead as this pass's item step left it, `None` while there is none: a collection that paints
     /// its own section rows shows the lead on them.
     pub fn collection_lead(&self) -> Option<usize> {
-        super::lead_position(&self.core.ctx, self.core.id)
+        super::lead_position(self.core.context(), self.core.id)
     }
 
     /// The header menu, from the item step's header: the request while the menu may be open (a secondary click on a

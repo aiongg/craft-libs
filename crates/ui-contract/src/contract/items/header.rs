@@ -21,9 +21,7 @@ use crate::primitives::{IconSpec, TextRun};
 use crate::runtime::access::items::{HeaderCell, report_header};
 use crate::runtime::access::{Name, SubDecl, SubNode, report_sub};
 use crate::runtime::commands::{self, CommandRef, CommandSet, CommandState};
-use crate::runtime::egui::{alloc, child};
 use crate::runtime::env::{Env, Label};
-use crate::runtime::layout_memory;
 use crate::runtime::memory::{MemoryStage, sub};
 use crate::runtime::words::HeaderWords;
 use crate::style::{ComponentStyle, ResizeLineLook, StateSet, StyleColor, StyleCx, TypeRole, resize_line_look, scroll_bar_look};
@@ -123,17 +121,16 @@ struct ToggleNames(std::sync::Arc<[RowToggle]>);
 /// records an empty list.
 #[doc(hidden)]
 pub fn put_toggle_names(ctx: &Context, item: Id, names: Vec<RowToggle>) {
-    crate::runtime::egui::memory::put(ctx, sub(item, "toggle_names"), ToggleNames(names.into()));
+    ctx.service::<ToggleNamesOf, _>(|recorded| recorded.0.insert(item, ToggleNames(names.into())));
 }
 
 fn recorded_toggle_names(ctx: &Context, item: Id) -> Option<std::sync::Arc<[RowToggle]>> {
-    crate::runtime::egui::memory::peek_clone::<ToggleNames>(ctx, sub(item, "toggle_names")).map(|ToggleNames(names)| names)
+    ctx.service::<ToggleNamesOf, _>(|recorded| recorded.0.get(&item).map(|ToggleNames(names)| names.clone()))
 }
 
-/// The id the widest cell of the `Content` column `key` of the collection `id` is recorded under.
-pub(super) fn content_id(id: Id, key: &ColumnKey) -> Id {
-    sub(id, ("column_content", hash_of(key)))
-}
+/// The toggle names each row recorded (`put_toggle_names`), by the row's item id: a window service.
+#[derive(Default)]
+struct ToggleNamesOf(std::collections::HashMap<Id, ToggleNames>);
 
 /// The header row's facts for the collection that shows the header menu.
 #[derive(Clone, Debug, Default)]
@@ -290,8 +287,8 @@ impl Header {
         }
     }
 
-    /// Reads the widest cell of each `Content` column the items' measure recorded in this pass under the collection `id`.
-    pub(super) fn read_content(&mut self, ctx: &Context, id: Id) {
+    /// Takes the widest cell of each `Content` column from what the items' measure kept (`widest`).
+    pub(super) fn read_content(&mut self, widest: &[(ColumnKey, f32)]) {
         self.content = self
             .specs
             .iter()
@@ -299,7 +296,7 @@ impl Header {
                 if !matches!(spec.width, ColumnWidth::Content) {
                     return 0.0;
                 }
-                layout_memory::measured(ctx, content_id(id, &spec.key)).map_or(0.0, |measured| measured.took.x).max(spec.min_width)
+                widest.iter().find(|(key, _)| *key == spec.key).map_or(0.0, |(_, width)| *width).max(spec.min_width)
             })
             .collect();
     }
@@ -513,9 +510,17 @@ impl Header {
             return None;
         }
         let rect = self.cell_rect(part.index?)?;
-        let (by, _) = crate::contract::steps::reveal_move(rect, self.view()?);
+        let view = self.view()?;
+        // The least sideways move that shows the whole cell, its start first when it is wider than the view.
+        let by = if rect.min.x < view.min.x || rect.width() > view.width() {
+            rect.min.x - view.min.x
+        } else if rect.max.x > view.max.x {
+            rect.max.x - view.max.x
+        } else {
+            0.0
+        };
         // The offset runs from the reading start: in a right-to-left header a larger offset moves the cells right.
-        let by = if rtl { -by.x } else { by.x };
+        let by = if rtl { -by } else { by };
         (by != 0.0).then_some(f64::from(by))
     }
 
@@ -628,8 +633,8 @@ impl Header {
                     self.events.push(ColumnEvent::Removed { key: key.clone() });
                 }
             }
-            if cx.part(HEADER.at(hash)).hovered && crate::runtime::pointer::frame_raw(&ctx).release == Some(PointerButton::Secondary) {
-                self.ask_menu(&ctx, Some(key.clone()), crate::runtime::pointer::frame_raw(&ctx).pos.unwrap_or(rect.left_bottom()));
+            if let Some(at) = super::released(cx.core.input(), craft_ui_rt::PointerButton::Secondary).filter(|pos| rect.contains(*pos)) {
+                self.ask_menu(Some(key.clone()), at);
             }
             if movable && primary && matches!(phase, PressPhase::DragStart { .. }) {
                 cx.start_drag(ColumnDrag { table: id, key: key.clone() }, DragPreview::None);
@@ -666,17 +671,16 @@ impl Header {
                 }
             }
             if active == Some(at) && cx.core.intents.take(Intent::ContextMenu) {
-                self.ask_menu(&ctx, Some(key.clone()), rect.left_bottom());
+                self.ask_menu(Some(key.clone()), rect.left_bottom());
             }
             if active == Some(at) {
                 self.lead_moves(cx, at, rtl);
             }
         }
         if let Some(room) = self.room
-            && cx.part(ROOM).hovered
-            && crate::runtime::pointer::frame_raw(&ctx).release == Some(PointerButton::Secondary)
+            && let Some(at) = super::released(cx.core.input(), craft_ui_rt::PointerButton::Secondary).filter(|pos| room.contains(*pos))
         {
-            self.ask_menu(&ctx, None, crate::runtime::pointer::frame_raw(&ctx).pos.unwrap_or(room.left_bottom()));
+            self.ask_menu(None, at);
         }
         self.column_drop(cx, id, rtl);
         self.keyboard_resize(cx);
@@ -685,8 +689,9 @@ impl Header {
     }
 
     /// Asks for the header menu at `at`, for `column` or for the empty header.
-    fn ask_menu(&mut self, ctx: &Context, column: Option<ColumnKey>, at: Pos2) {
-        self.memory.menu = Some((HeaderMenuRequest { column, at }, crate::runtime::egui::pass::root_frame_nr(ctx)));
+    fn ask_menu(&mut self, column: Option<ColumnKey>, at: Pos2) {
+        // The count of the collection's runs since the request: the menu it asks for opens after the run.
+        self.memory.menu = Some((HeaderMenuRequest { column, at }, 0));
         self.asked = true;
     }
 
@@ -797,11 +802,12 @@ impl Header {
 
     fn commands<C: Collection>(&mut self, cx: &mut Cx<'_, C>, id: Id, active: Option<usize>, rtl: bool) {
         let ctx = cx.context().clone();
-        if let Some((_, asked)) = &self.memory.menu
-            && crate::runtime::egui::pass::root_frame_nr(&ctx) > *asked + 1
-            && !crate::runtime::overlay::any_open(&ctx, crate::runtime::overlay::OpenFilter::Keys)
-        {
-            self.memory.menu = None;
+        // A request goes once a later run finds no menu open from the header.
+        if let Some((_, runs)) = &mut self.memory.menu {
+            *runs += 1;
+            if *runs > 1 && !crate::contract::overlay::container_open::opened_from(&ctx, id) {
+                self.memory.menu = None;
+            }
         }
         let target = active.or_else(|| self.menu_target());
         let chain = cx.core.env.command_chain().pushed(ColumnCommands::SCOPE, id);
@@ -822,25 +828,20 @@ impl Header {
     /// remove control leaves, in the header's roving group. The cell's label component shows it from its own paint,
     /// where the `PaintUi` the hosting needs exists.
     pub(super) fn paint<C: Collection>(&self, ui: &mut Ui, cx: &Cx<'_, C>, comp: &mut C, env: &Env, id: Id, rtl: bool) {
-        let ctx = ui.ctx().clone();
-        let group = crate::contract::steps::parts_group(&ctx, id, env.roving.filter(|_| cx.core.roving_member));
+        // The hosted cells rove in the body's group the collection joined, else in the collection's own.
+        let group = env.roving.filter(|_| cx.core.roving_member).unwrap_or_else(|| sub(id, "roving"));
         for cell in &self.cells {
             let spec = &self.specs[cell.spec];
             let hosted = self.hosted.contains(&spec.key);
             let text = cx.core.env.resolve(&spec.header).as_str().to_owned();
             let sort = self.sort_of(&spec.key);
-            let builder = UiBuilder::new().max_rect(cell.rect).layout(child::column_layout(rtl)).scope_id(sub(id, ("header_cell", cell.hash)));
-            let mut cell_ui = alloc::child(ui, builder);
-            cell_ui.set_clip_rect(self.view.map_or(cell.rect, |view| cell.rect.intersect(view)).intersect(ui.clip_rect()));
-            let installed = Env::install_for(
-                &cell_ui,
-                env.derive_local(|scoped| {
-                    scoped.arena = None;
-                    if hosted {
-                        scoped.row = Some(group);
-                    }
-                }),
-            );
+            let clip = self.view.map_or(cell.rect, |view| cell.rect.intersect(view)).intersect(ui.clip_rect());
+            let cell_env = env.derive_local(|scoped| {
+                scoped.arena = None;
+                if hosted {
+                    scoped.row = Some(group);
+                }
+            });
             let edge = spec
                 .resizable
                 .then(|| HeaderEdge { state: cx.core.part_state(GRIP.at(cell.hash)), keyed: self.memory.resizing.as_ref() == Some(&spec.key) });
@@ -859,8 +860,11 @@ impl Header {
                 let field: HeaderField<'_> = Box::new(move |ui: &mut PaintUi<'_>| comp.header_cell(ui, &column, ("header", declared), body));
                 label.field = Some(field);
             }
-            label.show_at(&mut cell_ui, cell.rect);
-            Env::restore(&ctx, installed);
+            let builder = UiBuilder::new().max_rect(cell.rect).id_salt(sub(id, ("header_cell", cell.hash)));
+            ui.scope_builder(builder, |cell_ui| {
+                cell_ui.set_clip_rect(clip);
+                Env::run_in(cell_ui, cell_env, |cell_ui| label.show_at(cell_ui, cell.rect));
+            });
         }
     }
 

@@ -16,9 +16,9 @@ use crate::contract::collection::{
 use crate::contract::reorder;
 use crate::contract::{Collection, Cx, DragPreview, DropMark, DropTarget, Pointer as _};
 use crate::runtime::drag;
-use crate::runtime::egui::areas;
 use crate::runtime::env::Label;
-use crate::runtime::toggle_sweep::{self, Segment, Travel};
+/// A straight piece of the path a sweeping press travelled, in window coordinates.
+type Segment = (Pos2, Pos2);
 use craft_behavior::{
     Axis, CancelReason, ColumnKey, CopyKeys, DropOperation, EditEvent, Flow, GestureId, ItemLayout, Mixed, NavShape, Outline, PointerButton,
     PressCancel, PressPhase, ScrollPos,
@@ -78,12 +78,11 @@ fn drop_spot(
     layout: &dyn ItemLayout,
     outline: &dyn craft_behavior::NavOutline,
     section_stop: &dyn Fn(usize) -> bool,
-    xf: Option<crate::runtime::egui::areas::LayerMap>,
     (rect, offset, rtl): (Rect, ScrollPos, bool),
     groups: Option<f32>,
     at: Pos2,
 ) -> Option<Spot> {
-    let to_screen = |point: Pos2| xf.map_or(point, |map| map.to_screen(point));
+    let to_screen = |point: Pos2| point;
     let nav = layout.nav();
     let hit = layout.drop_hit(logical_point(layout, rect, rtl, at), offset);
     let across =
@@ -127,7 +126,9 @@ struct Sweep<K> {
     /// The modifiers held at the first press, which every flip of the sweep carries.
     mods: craft_keymap::Mods,
     crossed: Vec<usize>,
-    travel: Travel,
+    /// Where the sweep's press last stood: the next move's segment starts there. `None` until the press passes slop
+    /// (ui-rt's `DragStart`), and after its release.
+    last: Option<Pos2>,
     /// Where the cell the sweep began in lies across the rows (logical): it flips the crossed rows whose cell of the
     /// column lies there too, so a sweep down a toggle column passes sub-rows by and one down sub-rows passes rows by.
     span: craft_ui_rt::Rangef,
@@ -429,7 +430,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         }
         // Taken even by a pass that steps by no time, so the body around does not step in a rerun pass instead.
         reorder::mark_edge_step(cx.context());
-        cx.core.ctx.request_repaint();
+        cx.context().request_repaint();
         let dt = crate::runtime::frame::facts(cx.context()).elapsed.clamp(0.0, 0.1) as f32;
         self.offset = (self.offset + f64::from(rate * dt)).clamp(0.0, self.max_offset(view));
     }
@@ -485,16 +486,9 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         if toggle.sweepable
             && let Some(start) = cx.core.press.phase.start()
         {
-            let mods = crate::runtime::pointer::frame_raw(cx.context()).mods;
-            self.drags.sweep = Some(Sweep {
-                column: column.clone(),
-                on: false,
-                mods,
-                crossed: vec![at],
-                travel: Travel::new(start.origin),
-                span: cell.x_range(),
-                open: Vec::new(),
-            });
+            let mods = super::press_mods(cx.core.input());
+            self.drags.sweep =
+                Some(Sweep { column: column.clone(), on: false, mods, crossed: vec![at], last: None, span: cell.x_range(), open: Vec::new() });
         }
         match self.flip_toggle(cx, at, column, toggle) {
             Some(on) => {
@@ -513,7 +507,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             return None;
         }
         let on = !self.source.toggled(at, &column);
-        let mods = crate::runtime::pointer::frame_raw(cx.context()).mods;
+        let mods = super::press_mods(cx.core.input());
         self.emit_toggle(cx, at, &column, on, mods);
         if toggle.exclusive && on {
             // Collected first: emitting needs `self` mutably while the source is read through it.
@@ -527,13 +521,9 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
 
     fn sweep_to(&mut self, cx: &mut Cx<'_, C>, layout: &C::ItemLayout, place: Placement, phase: PressPhase) {
         let Some(sweep) = &mut self.drags.sweep else { return };
-        let input = crate::runtime::pointer::pass_pointer(&cx.ctx);
-        let events = match phase {
-            PressPhase::Down { start, .. } => toggle_sweep::after_press(&input.events, start),
-            _ => &input.events,
-        };
+        let _ = phase;
         let mut path = Vec::new();
-        sweep.travel.advance(events, input.frame.as_ref().map_or(0.0, |frame| frame.slop), &mut path);
+        sweep_path(cx.core.input(), &mut sweep.last, &mut path);
         for segment in path {
             self.sweep_segment(cx, layout, place, segment);
         }
@@ -543,10 +533,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         let Placement { rect, offset, rtl } = place;
         let Some(sweep) = &self.drags.sweep else { return };
         let (column, on, mods, span) = (sweep.column.clone(), sweep.on, sweep.mods, sweep.span);
-        let parent = cx.response.layer_id;
-        let layer = self.xf.map_or(parent, |_| areas::body_layer(parent, cx.id));
         let clip = rect.intersect(cx.visible);
-        let clip = self.xf.map_or(clip, |map| Rect::from_min_max(map.to_layer(clip.min), map.to_layer(clip.max)));
         let mut rows = Vec::new();
         layout.visible(offset, rect.size(), &mut rows);
         if segment.1.y < segment.0.y {
@@ -566,7 +553,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                 .into_iter()
                 .filter(|(key, cell)| *key == column && cell.min.x < span.max && cell.max.x > span.min)
                 .map(|(_, cell)| self.to_screen(layout, rect, cell, rtl).intersect(clip).intersect(below_frozen))
-                .any(|cell| toggle_sweep::crosses_visible(&cx.ctx, layer, cell, &[segment]));
+                .any(|cell| crosses(cell, segment));
             if crossed {
                 if let Some(sweep) = &mut self.drags.sweep {
                     sweep.crossed.push(at);
@@ -628,7 +615,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             return None;
         }
         let outline = Outline::new(&*self.source);
-        drop_spot(layout, &outline, &|at| self.source.section_stop(at), self.xf, (rect, offset, rtl), groups, at)
+        drop_spot(layout, &outline, &|at| self.source.section_stop(at), (rect, offset, rtl), groups, at)
     }
 
     /// Whether a drop inside the group row `parent` would put a dragged item inside itself.
@@ -713,7 +700,6 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
     /// row, as a tree's reorder leaves a group row's middle to a drop into it: there the drop is onto the row or
     /// nowhere.
     fn kind_drop(&mut self, comp: &C, cx: &mut Cx<'_, C>, layout: &C::ItemLayout, place: (Rect, ScrollPos, bool), own: bool) {
-        let xf = self.xf;
         let (rect, _, rtl) = place;
         let drops = comp.drops();
         for kind in drops {
@@ -721,7 +707,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                 continue;
             }
             let Some((payload, at)) = cx.core.dragging_of(kind.payload()) else { continue };
-            let point = xf.map_or(at, |map| map.to_layer(at));
+            let point = at;
             let onto_too = || drops.iter().any(|other| matches!(other.place(), DropPlace::Onto) && other.payload() == kind.payload());
             if matches!(kind.place(), DropPlace::Between) && onto_too() && self.over_middle(layout, place, point) {
                 continue;
@@ -758,8 +744,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             self.sweep_to(cx, layout, Placement { rect, offset, rtl }, phase);
         }
         // The pointer comes in screen space; the rows and a move's offset are in the rows' own space.
-        let xf = self.xf;
-        let layer = |point: Pos2| xf.map_or(point, |map| map.to_layer(point));
+        let layer = |point: Pos2| point;
         match phase {
             PressPhase::DragStart { start, pos, .. } | PressPhase::Drag { start, pos, .. } if start.button == PointerButton::Primary => {
                 let origin = layer(start.origin);
@@ -882,4 +867,59 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
     fn on_screen_rect(&self, rect: Rect) -> Rect {
         Rect::from_min_max(self.on_screen(rect.min), self.on_screen(rect.max))
     }
+}
+
+/// The segments the sweeping press travelled in the run's queue `input`, from `last`: one per move after the press
+/// passed slop (ui-rt's `DragStart`, from where it went down), ending at the release.
+fn sweep_path(input: &[crate::contract::rt::NodeInput], last: &mut Option<Pos2>, path: &mut Vec<Segment>) {
+    use craft_ui_rt::Gesture;
+    for event in input {
+        let crate::contract::rt::NodeInput::Pointer { gesture, pos, button: craft_ui_rt::PointerButton::Primary, .. } = event else { continue };
+        match gesture {
+            Gesture::DragStart { origin, .. } => {
+                if *origin != *pos {
+                    path.push((*origin, *pos));
+                }
+                *last = Some(*pos);
+            }
+            Gesture::Drag { .. } | Gesture::Up { .. } => {
+                if let Some(from) = *last
+                    && from != *pos
+                {
+                    path.push((from, *pos));
+                }
+                *last = if matches!(gesture, Gesture::Up { .. }) { None } else { Some(*pos) };
+            }
+            Gesture::Cancel(_) => *last = None,
+            _ => {}
+        }
+    }
+}
+
+/// Whether the segment `(from, to)` crosses `rect`: a press sweeping over a toggle cell sets it.
+fn crosses(rect: Rect, (from, to): Segment) -> bool {
+    if !rect.is_positive() {
+        return false;
+    }
+    if rect.contains(from) || rect.contains(to) {
+        return true;
+    }
+    // Liang-Barsky: the part of the segment inside the rect's slabs is not empty.
+    let d = to - from;
+    let (mut t0, mut t1) = (0.0_f32, 1.0_f32);
+    for (p, q) in [(-d.x, from.x - rect.min.x), (d.x, rect.max.x - from.x), (-d.y, from.y - rect.min.y), (d.y, rect.max.y - from.y)] {
+        if p == 0.0 {
+            if q < 0.0 {
+                return false;
+            }
+        } else {
+            let t = q / p;
+            if p < 0.0 {
+                t0 = t0.max(t);
+            } else {
+                t1 = t1.min(t);
+            }
+        }
+    }
+    t0 <= t1
 }

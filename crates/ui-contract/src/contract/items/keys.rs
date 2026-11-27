@@ -7,7 +7,6 @@ use crate::contract::collection::{
     CollectionEvent, CollectionProps, ContextMenuRequest, LeadSource, OpenChange, SelectMode, SpaceAction, ToggleColumn,
 };
 use crate::contract::{Collection, Cx};
-use crate::runtime::frame;
 use crate::runtime::memory::sub;
 use craft_behavior::{ColumnKey, Granularity, Intent, ItemLayout, MoveMods, NavMove, NavState, NavStep, Outline, SelectionChange, TypeAhead, nav};
 
@@ -288,7 +287,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         let (ctx, id, len) = (cx.context().clone(), cx.core.id, self.source.len());
         let folder = cx.core.env.folder();
         while let Some(text) = cx.core.intents.take_text() {
-            let now = frame::clock(&ctx);
+            let now = ctx.time();
             let mut typing = cx.core.memory.session::<Typing>(sub(id, "typing")).0.clone();
             let mut prefix = String::new();
             for letter in text.chars() {

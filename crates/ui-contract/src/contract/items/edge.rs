@@ -9,63 +9,51 @@ use craft_behavior::{HitLevel, HitPriority, ItemLayout as _, Sense};
 use craft_ui_rt::Rect;
 
 impl<C: Collection> ItemsHooks<'_, '_, C> {
-    /// Declares the band of the line under the pointer, while the edge press's modifiers are held and its test takes
-    /// the two rows: a part over the rows, with the test's cursor, that takes the press from both. The band reaches
-    /// as far from the line as a line's hit does (`LINE_REACH`), across the row; a toggle cell under the pointer keeps
-    /// its press.
+    /// Declares the band of each line between two shown rows that the edge press's test takes, while its modifiers
+    /// are held: a part over the rows, with the test's cursor, that takes the press from both. The band reaches as
+    /// far from the line as a line's hit does (`LINE_REACH`), across the row. The modifiers are a tracked read, so the
+    /// collection runs once when they change and a pointer move runs nothing.
     pub(super) fn edge_parts(&mut self, comp: &C, pcx: &mut PartsCx<'_, C>) {
-        self.edge = None;
+        self.edges.clear();
         let Some(rule) = comp.edge_press() else { return };
-        let ctx = pcx.measure.ui.ctx().clone();
-        if crate::runtime::pointer::frame_raw(&ctx).mods != rule.mods() {
+        if pcx.measure.with_ui(|ui| ui.ctx().modifiers()) != rule.mods() {
             return;
         }
         let Some(layout) = self.layout.clone() else { return };
         let view = self.below_header(pcx.content_rect);
-        // The band lies at the line nearest the pointer, which the rows then follow.
-        let screen = crate::runtime::egui::areas::layer_to_screen(&ctx, pcx.measure.ui.layer_id()) * view;
-        let Some(pos) = crate::runtime::pointer::hover_point_in(&ctx, screen) else { return };
         let rtl = pcx.flow.is_rtl();
-        let at = self.xf.map_or(pos, |map| map.to_layer(pos));
-        if !view.contains(at) {
-            return;
-        }
         let offset = ScrollPos { x: self.offset_x, y: self.offset.clamp(0.0, self.max_offset(view.height())) };
-        let local = Self::logical(&layout, view, rtl, at);
-        let Some(row) = layout.hit(local, offset) else { return };
-        if self.toggle_cell(comp.items(), &layout, row, offset, local).is_some() {
-            return;
+        let mut rows = Vec::new();
+        layout.visible(offset, view.size(), &mut rows);
+        rows.sort_unstable();
+        let usable = |at: usize| self.source.enabled(at) && layout.shown(at) && !self.source.section_stop(at);
+        for pair in rows.windows(2) {
+            let (above, below) = (pair[0], pair[1]);
+            if below != above + 1 || !usable(above) || !usable(below) {
+                continue;
+            }
+            let (above_key, below_key) = (self.source.key(above), self.source.key(below));
+            let Some(cursor) = rule.test(&above_key, &below_key) else { continue };
+            let rect = self.screen(&layout, view, below, offset, rtl);
+            let line = rect.top();
+            let band = Rect::from_x_y_ranges(rect.x_range(), (line - LINE_REACH)..=(line + LINE_REACH)).intersect(view);
+            pcx.part(EDGE.at(self.edges.len() as u64), band)
+                .sense(Sense::CLICK)
+                .over()
+                .priority(HitPriority::new(HitLevel::Edge, 0))
+                .cursor(cursor)
+                .pointer_only("The edge press is a pointer shortcut; the app's commands do the same from the keyboard");
+            self.edges.push((above_key, below_key));
         }
-        let rect = self.screen(&layout, view, row, offset, rtl);
-        let (above, below, line) = if at.y - rect.top() <= LINE_REACH && row > 0 {
-            (row - 1, row, rect.top())
-        } else if rect.bottom() - at.y <= LINE_REACH && row + 1 < self.source.len() {
-            (row, row + 1, rect.bottom())
-        } else {
-            return;
-        };
-        let usable = |at: usize| self.source.enabled(at) && layout.shown(at);
-        if !usable(above) || !usable(below) {
-            return;
-        }
-        let (above, below) = (self.source.key(above), self.source.key(below));
-        let Some(cursor) = rule.test(&above, &below) else { return };
-        let band = Rect::from_x_y_ranges(rect.x_range(), (line - LINE_REACH)..=(line + LINE_REACH));
-        pcx.part(EDGE, band)
-            .sense(Sense::CLICK)
-            .over()
-            .priority(HitPriority::new(HitLevel::Edge, 0))
-            .cursor(cursor)
-            .pointer_only("The edge press is a pointer shortcut; the app's commands do the same from the keyboard");
-        self.edge = Some((above, below));
     }
 
-    /// Reports a click on the band declared this pass as `CollectionEvent::EdgePressed`.
+    /// Reports a click on a band declared this run as `CollectionEvent::EdgePressed`.
     pub(super) fn edge_step(&mut self, cx: &mut Cx<'_, C>) {
-        let Some((above, below)) = self.edge.clone() else { return };
-        if cx.part_activated(EDGE).is_some() {
-            let mods = crate::runtime::pointer::frame_raw(cx.context()).mods;
-            self.events.push(CollectionEvent::EdgePressed { above, below, mods });
+        for (at, (above, below)) in self.edges.clone().into_iter().enumerate() {
+            if cx.part_activated(EDGE.at(at as u64)).is_some() {
+                let mods = super::press_mods(cx.core.input());
+                self.events.push(CollectionEvent::EdgePressed { above, below, mods });
+            }
         }
     }
 }

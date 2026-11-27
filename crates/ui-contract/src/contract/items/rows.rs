@@ -1,124 +1,31 @@
 //! The item step's row work beyond selection by row: rows with focusable children (17.5), cell selection with a
-//! lead column (17.7) and auto-height rows measured into `LayoutMemory` (17.3, I1).
+//! lead column (17.7) and the cell flags a sheet's rows read.
 
 use super::{ItemsHooks, key_hash};
-use crate::contract::Context;
+use crate::contract::Ui;
 use crate::contract::{Collection, Cx, Internal, Meta, SelectMode, Sizing};
 use crate::primitives::Id;
-use crate::runtime::egui::memory as store;
+use crate::runtime::focus;
 use crate::runtime::memory::sub;
-use crate::runtime::{focus, lazy};
 use crate::style::Flags;
 use craft_behavior::{
     CellAt, CellDirection, CellSpace, Granularity, ItemLayout, MoveMods, NavMove, NavShape, PlacedSelection, RowAt, SelectionChange, SelectionModel,
 };
-use craft_ui_rt::Vec2;
-use std::sync::Arc;
 
 /// The roving group of the children and parts of the item `item`'s row.
 pub(super) fn row_group(item: Id) -> Id {
     sub(item, "row_children")
 }
 
-/// The stop focus is on when it is a child or part of the row group `group`.
-pub(super) fn child_focus(ctx: &Context, group: Id) -> Option<focus::StopKey> {
-    let key = focus::focused_stop(ctx)?;
-    (focus::stop_rec(ctx, key)?.stop.group == Some(group)).then_some(key)
-}
-
-/// The `SELECTED` and `LEAD` flags of the visible cells of a row, by column position.
-#[derive(Clone, Default)]
-struct CellFlags(Arc<[(u64, Flags)]>);
-
-pub(super) fn put_cell_flags(ctx: &Context, item: Id, flags: Vec<(u64, Flags)>) {
-    store::put(ctx, sub(item, "cell_flags"), CellFlags(flags.into()));
-}
-
-/// The flags the item step wrote for column position `column` of the row `item`.
-pub(in crate::contract) fn cell_flags(ctx: &Context, item: Id, column: u64) -> Flags {
-    let Some(CellFlags(flags)) = store::peek_clone::<CellFlags>(ctx, sub(item, "cell_flags")) else { return Flags::empty() };
-    flags.iter().find(|(at, _)| *at == column).map_or(Flags::empty(), |(_, flags)| *flags)
-}
-
-/// The id a row's measured height is kept under.
-pub(super) fn measured_id<K: std::hash::Hash>(collection: Id, key: &K) -> Id {
-    sub(collection, ("row_size", key_hash(key)))
-}
-
-/// Runs `f` with a reader of the heights the auto rows of the collection `collection` had in the last pass that built
-/// them: the rows the pass does not build, out of view, are placed by them (`runtime::lazy`).
-pub(super) fn measured_heights<R>(ctx: &Context, collection: Id, f: impl FnOnce(&dyn Fn(Id) -> Option<f32>) -> R) -> R {
-    lazy::reading(ctx, collection, |read| f(&|id| read(id).map(|(size, _)| size.y)))
-}
-
-/// Runs `f` with a reader of what this pass measured of the rows of the collection `collection`, by the ids
-/// `measured_id` and `measured_width_id` give: the row's width and height, or its ideal and minimum widths; `None` for
-/// a row this pass has not measured. A row measured this pass is not measured again in it.
-pub(super) fn measured_this_pass<R>(ctx: &Context, collection: Id, f: impl FnOnce(&dyn Fn(Id) -> Option<Vec2>) -> R) -> R {
-    lazy::reading(ctx, collection, |read| f(&|id| read(id).and_then(|(size, now)| now.then_some(size))))
-}
-
-/// The id an auto-width item's measured widths (ideal, then minimum) are kept under.
-pub(super) fn measured_width_id<K: std::hash::Hash>(collection: Id, key: &K) -> Id {
-    sub(collection, ("item_width", key_hash(key)))
-}
-
-/// Runs `f` with a reader of the `(ideal, min)` widths the auto-width items of the collection `collection` had in the
-/// last pass that built them.
-pub(super) fn measured_widths<R>(ctx: &Context, collection: Id, f: impl FnOnce(&dyn Fn(Id) -> Option<(f32, f32)>) -> R) -> R {
-    lazy::reading(ctx, collection, |read| f(&|id| read(id).map(|(size, _)| (size.x, size.y))))
-}
-
-/// Records the size an auto row of the collection `collection` measured this pass (its width and height, or its ideal
-/// and minimum widths); the row is placed by it in the same pass.
-pub(super) fn record_measure(ctx: &Context, collection: Id, id: Id, size: Vec2) {
-    lazy::remember(ctx, collection, id, size);
+/// The flags the item step gave column position `column` of the row `item` (`SELECTED`, `LEAD`), read so that the
+/// row runs again when they change (`rt/items.rs` row facts). Empty outside a sheet's rows.
+pub(in crate::contract) fn cell_flags(ui: &mut Ui, item: Id, column: u64) -> Flags {
+    crate::contract::rt::items::cell_flags(ui.build_cx(), item, column)
 }
 
 /// Whether a row measured as `item` is as wide as it measured: it is sized to its content (`Sizing::Content`).
 pub(super) fn fits(item: &impl Meta) -> bool {
     item.common(Internal::new()).sizing == Some(Sizing::Content)
-}
-
-/// The id the width of an auto row as wide as it measured is kept under; 0 once it is not.
-fn measured_fit_id(collection: Id, key: u64) -> Id {
-    sub(collection, ("row_fit", key))
-}
-
-/// The id of the mark that a row of the collection `collection` was as wide as it measured.
-fn fits_id(collection: Id) -> Id {
-    sub(collection, "row_fits")
-}
-
-/// Keeps that the auto row `key` (its key hash) of the collection `collection` is `fit` wide, the width it measured, or
-/// no longer as wide as it measured, for the passes that place the row without measuring it (`restore_fits`). Returns
-/// whether that differs from what was kept, which this pass's layout took: only then does the caller set it there.
-pub(super) fn keep_fit(ctx: &Context, collection: Id, key: u64, fit: Option<f32>) -> bool {
-    let id = measured_fit_id(collection, key);
-    let kept = lazy::reading(ctx, collection, |read| read(id).map(|(size, _)| size.x).filter(|width| *width > 0.0));
-    if kept == fit {
-        return false;
-    }
-    record_measure(ctx, collection, id, Vec2::new(fit.unwrap_or(0.0), 0.0));
-    if fit.is_some() {
-        record_measure(ctx, collection, fits_id(collection), Vec2::splat(1.0));
-    }
-    true
-}
-
-/// Sets in `layout` the widths of the rows of the collection `collection` that were as wide as they measured when last
-/// measured, `key(at)` giving each row's key hash. Only a collection that had such a row reads them.
-pub(super) fn restore_fits<L: ItemLayout + ?Sized>(ctx: &Context, collection: Id, layout: &mut L, rows: usize, key: impl Fn(usize) -> u64) {
-    lazy::reading(ctx, collection, |read| {
-        if read(fits_id(collection)).is_none() {
-            return;
-        }
-        for at in 0..rows {
-            if let Some((fit, _)) = read(measured_fit_id(collection, key(at))).filter(|(fit, _)| fit.x > 0.0) {
-                layout.set_fit(at, Some(fit.x));
-            }
-        }
-    });
 }
 
 impl<C: Collection> ItemsHooks<'_, '_, C> {
@@ -135,8 +42,9 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             return false;
         }
         let item = sub(cx.core.id, ("key", key_hash(&self.source.key(at))));
-        let group = row_group(item);
-        focus::row_has_stops(cx.context(), group) && focus::enter_row(cx.context(), group)
+        // The row's node holds its children: the request enters its first stop, and fails when it has none, which
+        // leaves the move to the core.
+        cx.core.request_focus(focus::FocusTarget::Id(item))
     }
 
     /// Whether the row at position `at` is selected.

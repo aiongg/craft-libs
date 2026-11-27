@@ -210,7 +210,6 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
     /// pointer with it.
     pub(super) fn row_under(&self, layout: &C::ItemLayout, at: Placement, pos: Pos2) -> Option<usize> {
         let Placement { rect, offset, rtl } = at;
-        let pos = self.xf.map_or(pos, |map| map.to_layer(pos));
         if !rect.contains(pos) {
             return None;
         }

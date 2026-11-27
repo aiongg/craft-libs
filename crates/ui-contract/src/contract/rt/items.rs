@@ -39,6 +39,7 @@ use super::ui::{Flow, Ui};
 use crate::contract::Scroll;
 use crate::primitives::Id;
 use crate::runtime::env::ItemFacts;
+use crate::style::Flags;
 
 /// The child keys of a collection's rows view under its node.
 #[derive(Hash)]
@@ -227,6 +228,8 @@ pub(crate) struct RowFacts(Rc<RefCell<RowFactsMap>>);
 #[derive(Default)]
 struct RowFactsMap {
     cells: HashMap<Id, State<Arc<ItemFacts>>>,
+    /// A sheet's rows: the flags of each cell by column position.
+    cell_flags: HashMap<Id, State<Arc<[(u64, Flags)]>>>,
     /// The rows given facts in the build that runs now.
     shown: Vec<Id>,
 }
@@ -262,12 +265,30 @@ impl RowFacts {
         }
     }
 
+    /// Sets the flags of row `id`'s cells (a sheet's `SELECTED` and `LEAD` by column position) before the row is
+    /// shown: a change marks the row, the same flags mark nothing.
+    pub(crate) fn put_cells(&self, cx: &mut BuildCx<'_>, id: Id, flags: Vec<(u64, Flags)>) {
+        let mut map = self.0.borrow_mut();
+        let cell = match map.cell_flags.get(&id).copied() {
+            Some(cell) => cell,
+            None => {
+                let cell = cx.slot(("cell flags", id), || Arc::from(flags.clone()));
+                map.cell_flags.insert(id, cell);
+                cell
+            }
+        };
+        if **cx.peek_state(cell) != *flags {
+            cell.set(cx, Arc::from(flags));
+        }
+    }
+
     /// Forgets the rows this build did not give facts: rows that left the band or the source. Their
     /// cells are the content node's slots and go with it; a row that comes back finds its slot again.
     fn drop_unshown(&self) {
         let mut map = self.0.borrow_mut();
-        let RowFactsMap { cells, shown } = &mut *map;
+        let RowFactsMap { cells, cell_flags, shown } = &mut *map;
         cells.retain(|id, _| shown.contains(id));
+        cell_flags.retain(|id, _| shown.contains(id));
     }
 }
 
@@ -278,6 +299,36 @@ pub(crate) fn row_facts(cx: &mut BuildCx<'_>, id: Id) -> Option<Arc<ItemFacts>> 
     let facts = cx.provided::<RowFacts>()?;
     let cell = facts.0.borrow().cells.get(&id).copied()?;
     Some(cell.get(cx))
+}
+
+/// The flags the collection gave column position `column` of the row `id`'s cells, read so that the row's node
+/// builds again when they change. Empty outside a sheet's rows.
+pub(crate) fn cell_flags(cx: &mut BuildCx<'_>, id: Id, column: u64) -> Flags {
+    let Some(facts) = cx.provided::<RowFacts>() else { return Flags::empty() };
+    let Some(cell) = facts.0.borrow().cell_flags.get(&id).copied() else { return Flags::empty() };
+    cell.get(cx).iter().find(|(at, _)| *at == column).map_or(Flags::empty(), |(_, flags)| *flags)
+}
+
+/// A member row the collection runs as a part of its node (`run::run_member`).
+pub(crate) struct MemberRun {
+    /// The collection's `Id`.
+    pub(crate) owner: Id,
+    /// The member's own `Id` (`items::members::item_id`).
+    pub(crate) id: Id,
+    /// The collection node's part the row is: `(ITEM_NODE, key hash)`; its input and hover arrive on it.
+    pub(crate) part: craft_behavior::PartRef,
+    pub(crate) rect: Rect,
+    pub(crate) clip: Rect,
+    pub(crate) position: crate::runtime::access::SetPosition,
+    pub(crate) flags: Flags,
+    pub(crate) enabled: bool,
+}
+
+/// What a member's run gives the collection: its output, its paint per look and its tooltip text.
+pub(crate) struct MemberRan<O> {
+    pub(crate) output: O,
+    pub(crate) looks: MemberLooks,
+    pub(crate) tip: Option<crate::contract::tooltip::MemberTip>,
 }
 
 /// One member row's recorded paint: its sub-list per pointer look its paint read (`Rest` always,

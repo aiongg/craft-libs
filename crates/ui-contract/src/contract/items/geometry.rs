@@ -56,7 +56,7 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
 
     /// `point` of the rows' coordinates on the screen.
     pub(super) fn on_screen(&self, point: Pos2) -> Pos2 {
-        self.xf.map_or(point, |map| map.to_screen(point))
+        point
     }
 }
 
