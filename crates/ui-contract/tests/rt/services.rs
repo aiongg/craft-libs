@@ -175,7 +175,7 @@ impl Component for Probe {
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        SEEN.with(|s| s.borrow_mut().push((self.name, cx.tokens.theme().color.surface.panel.0)));
+        SEEN.with(|s| s.borrow_mut().push((self.name, cx.tokens.color.surface.panel.0)));
         Vec2::new(20.0, 20.0)
     }
 
@@ -668,7 +668,7 @@ mod focused {
 
     use crate::skeleton::IconButton;
     use craft_behavior::IconId;
-    use craft_ui_contract::contract::{MemoView, Show as _, Ui};
+    use craft_ui_contract::contract::{MemoView, Ui};
     use craft_ui_contract::testing::Harness;
     use craft_ui_rt::{Key, Mods, Pos2};
 

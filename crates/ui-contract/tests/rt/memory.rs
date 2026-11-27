@@ -56,7 +56,7 @@ fn a_session_slot_outlives_its_node_and_reaches_the_node_that_shows_the_same_id_
     let id = Id::new("moving-counter");
     let mut rig = Rig::inline(Vec2::new(200.0, 100.0), 1.0, RecordingRenderer::default());
     let mut place = 0_u32;
-    let mut step = |rig: &mut Rig<RecordingRenderer>, place: u32| {
+    let step = |rig: &mut Rig<RecordingRenderer>, place: u32| {
         rig.step_with(&mut |_, cx| {
             window_root(cx, |ui| {
                 Stack::new().id_salt(("place", place)).show(ui, |ui| {

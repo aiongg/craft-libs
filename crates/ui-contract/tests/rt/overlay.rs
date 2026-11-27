@@ -39,13 +39,18 @@ struct MenuButton {
 }
 
 /// What the menu reports to the trial.
-#[derive(Default)]
 struct Menu {
     open: Cell<bool>,
     rows: Cell<[Rect; 3]>,
     picked: Cell<Option<usize>>,
     /// A count the menu's body keeps in its memory, raised at every run of the body.
     seen: Cell<u32>,
+}
+
+impl Default for Menu {
+    fn default() -> Menu {
+        Menu { open: Cell::new(false), rows: Cell::new([Rect::NOTHING; 3]), picked: Cell::new(None), seen: Cell::new(0) }
+    }
 }
 
 impl Component for MenuButton {
@@ -377,7 +382,7 @@ fn a_later_wake_does_not_replace_an_earlier_one() {
     for later_first in [false, true] {
         let runs = Rc::new(Cell::new(0));
         let mut rig = Rig::inline(Vec2::new(200.0, 100.0), 1.0, RecordingRenderer::default());
-        let mut frame = |rig: &mut Rig<RecordingRenderer>| {
+        let frame = |rig: &mut Rig<RecordingRenderer>| {
             let runs = runs.clone();
             rig.step_with(&mut |_, cx| {
                 window_root_with(cx, WindowEnv::default(), |ui| {
@@ -573,7 +578,7 @@ fn a_drag_preview_follows_the_pointer_with_no_run_or_build() {
     let runs = Rc::new(Cell::new(0_u32));
     let rect = Rc::new(Cell::new(Rect::NOTHING));
     let mut rig = Rig::inline(Vec2::new(400.0, 300.0), 1.0, RecordingRenderer::default());
-    let mut frame = |rig: &mut Rig<RecordingRenderer>, input: Option<Input>| {
+    let frame = |rig: &mut Rig<RecordingRenderer>, input: Option<Input>| {
         if let Some(input) = input {
             let main = rig.main;
             rig.inject(main, input);

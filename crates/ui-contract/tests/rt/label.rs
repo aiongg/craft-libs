@@ -50,10 +50,15 @@ fn runs(report: &StepReport) -> usize {
 }
 
 /// A slider with a reset value in a labelled stack.
-#[derive(Default)]
 struct Labelled {
     value: f64,
     track: Rect,
+}
+
+impl Default for Labelled {
+    fn default() -> Labelled {
+        Labelled { value: 0.0, track: Rect::NOTHING }
+    }
 }
 
 fn labelled(ui: &mut Ui<'_, '_>, app: &mut Labelled) {
@@ -81,11 +86,16 @@ fn an_unchanged_reset_fact_runs_no_label() {
 }
 
 /// Three sliders; the app cancels the running edits in the step after `cancel` is set.
-#[derive(Default)]
 struct Cancelling {
     values: [f64; 3],
     tracks: [Rect; 3],
     cancel: bool,
+}
+
+impl Default for Cancelling {
+    fn default() -> Cancelling {
+        Cancelling { values: [0.0; 3], tracks: [Rect::NOTHING; 3], cancel: false }
+    }
 }
 
 fn cancelling(ui: &mut Ui<'_, '_>, app: &mut Cancelling) {
