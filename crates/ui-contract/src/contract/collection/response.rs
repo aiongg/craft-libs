@@ -3,8 +3,8 @@
 use super::drops::DropAt;
 use super::events::{CollectionEvent, ContextMenuRequest, ReorderMove};
 use super::props::{CollectionProps, SelectMode};
+use crate::contract::Response;
 use craft_behavior::ColumnKey;
-use egui::Response;
 use std::ops::Range;
 
 /// The output of a collection.
@@ -108,11 +108,11 @@ pub struct ShownRow<K> {
     /// The id of the row's access node: the item component's own id, or, for a member of the collection's run
     /// (`Collection::MEMBERS`), the sub-node of the collection it reports as. An app finds which recorded element is
     /// which row by it (`inspect::Element::node`; a keytip on a ribbon tab).
-    pub id: egui::Id,
+    pub id: crate::primitives::Id,
     /// The row's rect.
-    pub rect: egui::Rect,
+    pub rect: craft_ui_rt::Rect,
     /// The rect of each cell, by column key; empty for a collection with no columns.
-    pub cells: Vec<(ColumnKey, egui::Rect)>,
+    pub cells: Vec<(ColumnKey, craft_ui_rt::Rect)>,
     /// The openers the row's item asked for (`ItemCx::part_opener`), each with the part's response this pass.
     pub openers: Vec<(crate::contract::ItemOpener, Response)>,
     /// The pointer is over the row and the collection owns the hover (no press or layer above holds it).
@@ -120,7 +120,7 @@ pub struct ShownRow<K> {
 }
 
 impl<K> ShownRow<K> {
-    pub(crate) fn new(key: K, id: egui::Id, rect: egui::Rect, cells: Vec<(ColumnKey, egui::Rect)>) -> Self {
+    pub(crate) fn new(key: K, id: crate::primitives::Id, rect: craft_ui_rt::Rect, cells: Vec<(ColumnKey, craft_ui_rt::Rect)>) -> Self {
         ShownRow { key, id, rect, cells, openers: Vec::new(), hovered: false }
     }
 

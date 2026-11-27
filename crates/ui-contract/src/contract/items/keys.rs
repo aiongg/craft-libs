@@ -180,7 +180,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             && cx.core.intents.take(Intent::ContextMenu)
         {
             let rect = self.screen(layout, at.rect, row, at.offset, at.rtl);
-            crate::runtime::keys::request_context(&cx.core.ctx, cx.core.id, rect, None);
+            crate::runtime::keys::request_context(cx.context(), cx.core.id, rect, None);
             let place = self.on_screen(rect.left_bottom());
             self.ask_menu(ContextMenuRequest { key: self.source.key(row), at: place, column: None, part: None });
         }
@@ -231,7 +231,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         let keyed: Vec<_> = self.header.toggle_columns().filter_map(|(column, toggle)| Some((toggle.key?, column, toggle))).collect();
         for (chord, column, toggle) in keyed {
             crate::contract::Focus::claim(cx, chord);
-            while crate::runtime::keys::take_claimed(&cx.core.ctx, cx.core.id, chord) {
+            while crate::runtime::keys::take_claimed(cx.context(), cx.core.id, chord) {
                 if let Some(row) = lead_at.filter(|&row| self.source.toggle_enabled(row, &column)) {
                     self.toggle_column(cx, row, column.clone(), toggle);
                 }
@@ -285,7 +285,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
 
     /// Typed text moves the lead to the next row whose label starts with it.
     pub(super) fn type_ahead(&mut self, comp: &C, cx: &mut Cx<'_, C>, layout: &C::ItemLayout, lead_at: Option<usize>) {
-        let (ctx, id, len) = (cx.core.ctx.clone(), cx.core.id, self.source.len());
+        let (ctx, id, len) = (cx.context().clone(), cx.core.id, self.source.len());
         let folder = cx.core.env.folder();
         while let Some(text) = cx.core.intents.take_text() {
             let now = frame::clock(&ctx);

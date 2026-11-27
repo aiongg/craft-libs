@@ -23,7 +23,9 @@ use craft_behavior::{
     Axis, CancelReason, ColumnKey, CopyKeys, DropOperation, EditEvent, Flow, GestureId, ItemLayout, Mixed, NavShape, Outline, PointerButton,
     PressCancel, PressPhase, ScrollPos,
 };
-use egui::{Pos2, Rect, Vec2};
+use craft_ui_rt::Pos2;
+use craft_ui_rt::Rect;
+use craft_ui_rt::Vec2;
 use std::any::Any;
 use std::borrow::Cow;
 
@@ -128,7 +130,7 @@ struct Sweep<K> {
     travel: Travel,
     /// Where the cell the sweep began in lies across the rows (logical): it flips the crossed rows whose cell of the
     /// column lies there too, so a sweep down a toggle column passes sub-rows by and one down sub-rows passes rows by.
-    span: egui::Rangef,
+    span: craft_ui_rt::Rangef,
     /// The flips made so far, each a gesture that stays open until the release commits it or Escape cancels it:
     /// its id and the edit that undoes it.
     open: Vec<(GestureId, ToggleEdit<K>, ToggleEdit<K>)>,
@@ -426,9 +428,9 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             return;
         }
         // Taken even by a pass that steps by no time, so the body around does not step in a rerun pass instead.
-        reorder::mark_edge_step(&cx.core.ctx);
+        reorder::mark_edge_step(cx.context());
         cx.core.ctx.request_repaint();
-        let dt = crate::runtime::frame::facts(&cx.core.ctx).elapsed.clamp(0.0, 0.1) as f32;
+        let dt = crate::runtime::frame::facts(cx.context()).elapsed.clamp(0.0, 0.1) as f32;
         self.offset = (self.offset + f64::from(rate * dt)).clamp(0.0, self.max_offset(view));
     }
 
@@ -457,7 +459,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
 
     fn emit_toggle(&mut self, cx: &mut Cx<'_, C>, at: usize, column: &ColumnKey, on: bool, mods: craft_keymap::Mods) {
         let key = self.source.key(at);
-        let gesture = crate::runtime::edit::next_gesture_id(&cx.core.ctx);
+        let gesture = crate::runtime::edit::next_gesture_id(cx.context());
         let before = ToggleEdit { key: key.clone(), column: column.clone(), on: !on, mods };
         let after = ToggleEdit { key, column: column.clone(), on, mods };
         if let Some(sweep) = &mut self.drags.sweep {
@@ -483,7 +485,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         if toggle.sweepable
             && let Some(start) = cx.core.press.phase.start()
         {
-            let mods = crate::runtime::pointer::frame_raw(&cx.core.ctx).mods;
+            let mods = crate::runtime::pointer::frame_raw(cx.context()).mods;
             self.drags.sweep = Some(Sweep {
                 column: column.clone(),
                 on: false,
@@ -511,7 +513,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             return None;
         }
         let on = !self.source.toggled(at, &column);
-        let mods = crate::runtime::pointer::frame_raw(&cx.core.ctx).mods;
+        let mods = crate::runtime::pointer::frame_raw(cx.context()).mods;
         self.emit_toggle(cx, at, &column, on, mods);
         if toggle.exclusive && on {
             // Collected first: emitting needs `self` mutably while the source is read through it.
@@ -578,7 +580,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         let gesture = match self.drags.moving {
             Some(gesture) => gesture,
             None => {
-                let gesture = crate::runtime::edit::next_gesture_id(&cx.core.ctx);
+                let gesture = crate::runtime::edit::next_gesture_id(cx.context());
                 self.drags.moving = Some(gesture);
                 self.events.push(CollectionEvent::Move(EditEvent::begin(gesture, Mixed::Same(Vec2::ZERO), cx.core.label_arc(), None)));
                 gesture
@@ -730,10 +732,10 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             if !own {
                 self.edge_scroll(cx, layout, rect.height(), Self::logical(layout, rect, rtl, point).y);
             }
-            let ordinal = drag::next_ordinal(&cx.core.ctx, cx.core.id);
+            let ordinal = drag::next_ordinal(cx.context(), cx.core.id);
             if let Some(op) = cx.core.drop_target_of(kind.payload(), &KindDrop { mark }) {
                 self.events.push(CollectionEvent::Dropped { at, op, payload: DropPayload::new(payload) });
-            } else if drag::winning(&cx.core.ctx, cx.core.id, ordinal) {
+            } else if drag::winning(cx.context(), cx.core.id, ordinal) {
                 self.drags.pending = Some(PendingDrop::Drop(at));
             }
             return;
@@ -813,13 +815,13 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                         .filter(|spot| !groups || !self.inside_dragged(&payload, spot.parent))
                 };
                 let copy = rule.copy;
-                let ordinal = drag::next_ordinal(&cx.core.ctx, cx.core.id);
+                let ordinal = drag::next_ordinal(cx.context(), cx.core.id);
                 if let Some(landed) = cx.drop_target::<ListDrag<C::Key>, _>(&RowDrop { spot, copy }) {
                     self.land(cx, &payload, landed, groups);
                 } else if let Some(spot) = spot
-                    && drag::winning(&cx.core.ctx, cx.core.id, ordinal)
+                    && drag::winning(cx.context(), cx.core.id, ordinal)
                 {
-                    let op = drag::current_operation(&cx.core.ctx, copy.unwrap_or_default());
+                    let op = drag::current_operation(cx.context(), copy.unwrap_or_default());
                     if copy.is_some() || !matches!(op, DropOperation::Copy) {
                         self.drags.pending = self.own_move(&payload, Landed { spot, op }, groups).map(|(_, after)| PendingDrop::Reorder(after));
                     }

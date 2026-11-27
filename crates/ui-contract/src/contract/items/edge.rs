@@ -6,7 +6,7 @@ use crate::contract::collection::CollectionEvent;
 use crate::contract::{Collection, Cx, PartsCx};
 use craft_behavior::hit::LINE_REACH;
 use craft_behavior::{HitLevel, HitPriority, ItemLayout as _, Sense};
-use egui::Rect;
+use craft_ui_rt::Rect;
 
 impl<C: Collection> ItemsHooks<'_, '_, C> {
     /// Declares the band of the line under the pointer, while the edge press's modifiers are held and its test takes
@@ -64,7 +64,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
     pub(super) fn edge_step(&mut self, cx: &mut Cx<'_, C>) {
         let Some((above, below)) = self.edge.clone() else { return };
         if cx.part_activated(EDGE).is_some() {
-            let mods = crate::runtime::pointer::frame_raw(&cx.core.ctx).mods;
+            let mods = crate::runtime::pointer::frame_raw(cx.context()).mods;
             self.events.push(CollectionEvent::EdgePressed { above, below, mods });
         }
     }

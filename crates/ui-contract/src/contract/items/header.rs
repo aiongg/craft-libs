@@ -2,6 +2,10 @@
 //! the header commands and the header menu's request, in one roving group of focusable parts.
 
 use super::ItemsHooks;
+use crate::contract::Context;
+use crate::contract::Response;
+use crate::contract::Ui;
+use crate::contract::UiBuilder;
 use crate::contract::collection::{
     CollectionEvent, CollectionProps, ColumnAlign, ColumnEvent, ColumnKind, ColumnLayout, ColumnRequest, ColumnSort, ColumnSpec, HeaderMenuRequest,
     ToggleColumn,
@@ -11,6 +15,7 @@ use crate::contract::{
     Collection, Common, Component, Cx, DragPreview, DropMark, DropTarget, Focus as _, MeasureCx, PaintUi, PartsCx, Pointer as _, Props as _, Role,
     Show as _, WordSetCx as _,
 };
+use crate::primitives::Id;
 use crate::primitives::{DataMode, DataWidth, PaintShape};
 use crate::primitives::{IconSpec, TextRun};
 use crate::runtime::access::items::{HeaderCell, report_header};
@@ -27,7 +32,10 @@ use craft_behavior::{
     Axis, ColumnKey, ColumnWidth, CursorIcon, DropOperation, Flow, HitLevel, HitPriority, IconId, Insets, Intent, Metrics, NavMove, NavShape,
     PartKey, PartRef, PointerButton, PressPhase, Proposal, Roving, Sense,
 };
-use egui::{Align, Context, Id, Pos2, Rect, Response, Ui, UiBuilder, Vec2};
+use craft_ui_rt::Align;
+use craft_ui_rt::Pos2;
+use craft_ui_rt::Rect;
+use craft_ui_rt::Vec2;
 
 /// The type role of a header label.
 const HEADER_ROLE: TypeRole = TypeRole::Label;
@@ -594,7 +602,7 @@ impl Header {
         if self.cells.is_empty() {
             return false;
         }
-        let ctx = cx.core.ctx.clone();
+        let ctx = cx.context().clone();
         commands::register_instance(&ctx, ColumnCommands::SCOPE, id);
         let active =
             cx.active_part().filter(|part| part.key == HEADER).and_then(|part| self.cells.iter().position(|cell| Some(cell.hash) == part.index));
@@ -740,7 +748,7 @@ impl Header {
                     }
                 }
             }
-            crate::runtime::egui::repaint::request_of(ctx, crate::runtime::egui::pass::current_viewport(ctx));
+            ctx.request_repaint();
         }
     }
 
@@ -788,7 +796,7 @@ impl Header {
     }
 
     fn commands<C: Collection>(&mut self, cx: &mut Cx<'_, C>, id: Id, active: Option<usize>, rtl: bool) {
-        let ctx = cx.core.ctx.clone();
+        let ctx = cx.context().clone();
         if let Some((_, asked)) = &self.memory.menu
             && crate::runtime::egui::pass::root_frame_nr(&ctx) > *asked + 1
             && !crate::runtime::overlay::any_open(&ctx, crate::runtime::overlay::OpenFilter::Keys)

@@ -14,7 +14,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         let proposal = comp.rename_draft(&key);
         let proposed = proposal.as_ref().is_some_and(|draft| text.as_ref() != Some(draft));
         let draft = proposal.or(text).unwrap_or_default();
-        let gesture = crate::runtime::edit::next_gesture_id(&cx.core.ctx);
+        let gesture = crate::runtime::edit::next_gesture_id(cx.context());
         let before = Rename { key: key.clone(), name: draft.clone() };
         self.events.push(CollectionEvent::Rename(EditEvent::begin(gesture, Mixed::Same(before), cx.core.label_arc(), None)));
         self.renaming = Renaming { key: Some(key), draft, gesture, focused: false, held: false, proposed };
@@ -23,7 +23,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
     /// A rename requested from outside (`request_rename`): the lead moves to the item, the item is revealed and its
     /// rename field opens.
     pub(super) fn requested_rename(&mut self, comp: &C, cx: &mut Cx<'_, C>, props: &CollectionProps, layout: &C::ItemLayout) {
-        let Some(key) = request::take_rename::<C::Key>(&cx.core.ctx, cx.core.id) else { return };
+        let Some(key) = request::take_rename::<C::Key>(cx.context(), cx.core.id) else { return };
         if let Some(at) = self.index_of(&key)
             && !self.source.section_stop(at)
             && props.rename

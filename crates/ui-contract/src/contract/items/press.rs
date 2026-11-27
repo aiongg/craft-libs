@@ -3,8 +3,11 @@
 use super::drag::SlowClick;
 use super::lead::PickBy;
 use super::{ItemsHooks, Placement, RowPress, SECTION};
+use crate::contract::Context;
+use crate::contract::Ui;
 use crate::contract::collection::{ActivateOn, CollectionEvent, CollectionProps, ContextMenuRequest, LeadSource, OpenChange, RowPressed, SelectMode};
 use crate::contract::{Collection, Cx, ItemOpener, ItemOutput};
+use crate::primitives::Id;
 use crate::runtime::egui::response;
 use crate::runtime::env::ArenaId;
 use crate::runtime::focus;
@@ -12,7 +15,9 @@ use crate::runtime::frame;
 use crate::runtime::memory::sub;
 use crate::runtime::motion::Animate as _;
 use craft_behavior::{Flow, ItemLayout, MiddleButton, PointerButton, PressPhase, SelectionChange, Sense};
-use egui::{Context, Id, Pos2, Rect, Ui, Vec2};
+use craft_ui_rt::Pos2;
+use craft_ui_rt::Rect;
+use craft_ui_rt::Vec2;
 
 impl<C: Collection> ItemsHooks<'_, '_, C> {
     /// What a press on an enabled row does besides selecting it: it activates the row at once, or on release, or opens
@@ -49,7 +54,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
     )]
     pub(super) fn press_step(&mut self, comp: &C, cx: &mut Cx<'_, C>, props: &CollectionProps, layout: &C::ItemLayout, at: Placement) {
         let Placement { rect, offset, rtl } = at;
-        let ctx = cx.core.ctx.clone();
+        let ctx = cx.context().clone();
         let flow = Flow::new(Rect::from_min_size(Pos2::ZERO, rect.size()), rtl);
         let xf = self.xf;
         // A screen point in the layout's logical coordinates, relative to the rows' rect.
@@ -397,13 +402,20 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
     }
 
     /// The response of each part an item asked to open a menu from (`ItemCx::part_opener`).
-    pub(super) fn item_openers(&self, ui: &Ui, ctx: &Context, id: Id, enabled: bool, openers: Vec<ItemOpener>) -> Vec<(ItemOpener, egui::Response)> {
+    pub(super) fn item_openers(
+        &self,
+        ui: &Ui,
+        ctx: &Context,
+        id: Id,
+        enabled: bool,
+        openers: Vec<ItemOpener>,
+    ) -> Vec<(ItemOpener, crate::contract::Response)> {
         item_openers(ui, ctx, id, enabled, openers)
     }
 }
 
 /// Resolves the item opener responses without duplicating the sensing and response code per collection type.
-fn item_openers(ui: &Ui, ctx: &Context, id: Id, enabled: bool, openers: Vec<ItemOpener>) -> Vec<(ItemOpener, egui::Response)> {
+fn item_openers(ui: &Ui, ctx: &Context, id: Id, enabled: bool, openers: Vec<ItemOpener>) -> Vec<(ItemOpener, crate::contract::Response)> {
     if openers.is_empty() {
         return Vec::new();
     }

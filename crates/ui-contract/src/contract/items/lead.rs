@@ -1,13 +1,17 @@
 //! The lead and the selection: picks, ranges, and where the lead starts and follows.
 
 use super::{ItemsHooks, Placement, members};
+use crate::contract::Context;
 use crate::contract::collection::{CollectionEvent, HoverLead, LeadOnOpen, LeadSource, ListDrag, SelectMode};
 use crate::contract::{Collection, Cx};
+use crate::primitives::Id;
 use crate::runtime::memory::sub;
 use crate::runtime::{drag, pointer};
 use craft_behavior::{Flow, ItemLayout, PointerEvent, SelectionChange, SelectionModel, Sense};
 use craft_keymap::Mods;
-use egui::{Context, Id, Pos2, Rect, Vec2};
+use craft_ui_rt::Pos2;
+use craft_ui_rt::Rect;
+use craft_ui_rt::Vec2;
 use std::any::TypeId;
 
 /// What made a selection change, reported with it (`CollectionEvent::Selection`): a key, or a pointer pick with the
@@ -199,7 +203,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         if !cx.core.response.hovered() {
             return None;
         }
-        self.row_under_pointer(&cx.core.ctx, cx.core.id).filter(|&row| self.source.enabled(row) && !self.source.is_section(row) && layout.shown(row))
+        self.row_under_pointer(cx.context(), cx.core.id).filter(|&row| self.source.enabled(row) && !self.source.is_section(row) && layout.shown(row))
     }
 
     /// The row under `pos` (screen space) in the rows' placement `at`: the drag-select step maps the drag session's
@@ -224,7 +228,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
     /// with no movement to measure, and a modifier change under a resting pointer leaves the lead where the keys put it.
     pub(super) fn hover_lead(&mut self, comp: &C, cx: &Cx<'_, C>, layout: &C::ItemLayout, hover: HoverLead) {
         let moved =
-            crate::runtime::pointer::with_pass_raw(&cx.core.ctx, |pass| pass.events.iter().any(|event| matches!(event, PointerEvent::Moved { .. })));
+            crate::runtime::pointer::with_pass_raw(cx.context(), |pass| pass.events.iter().any(|event| matches!(event, PointerEvent::Moved { .. })));
         if !moved {
             return;
         }
@@ -243,7 +247,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         let lead = self.lead.key.clone();
         let over = self.hovered_row(cx, layout);
         let held = lead.is_some() && self.lead.rested != lead && over.is_some_and(|row| lead.as_ref() == Some(&self.source.key(row)));
-        let (ctx, id) = (cx.core.ctx.clone(), cx.core.id);
+        let (ctx, id) = (cx.context().clone(), cx.core.id);
         if crate::contract::overlay::dwell(&ctx, &mut *cx.core.memory, id, "rest", held, crate::contract::tooltip::DELAY)
             && let Some(key) = lead
         {
@@ -258,7 +262,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
     /// (a tab's close button) under the pointer. A row that comes under a still pointer because the rows scrolled
     /// starts no wait until the pointer moves.
     pub(super) fn drag_select(&mut self, comp: &C, cx: &mut Cx<'_, C>, layout: &C::ItemLayout, at: Placement) {
-        let (ctx, id) = (cx.core.ctx.clone(), cx.core.id);
+        let (ctx, id) = (cx.context().clone(), cx.core.id);
         let foreign = drag::running(&ctx)
             && drag::active_of(&ctx, TypeId::of::<ListDrag<C::Key>>()).is_none()
             && !comp.drops().iter().any(|kind| drag::active_of(&ctx, kind.payload()).is_some());

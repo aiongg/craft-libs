@@ -2,15 +2,18 @@
 //! arena, updated, painted and finished at their rows, reported as sub-nodes of the collection.
 
 use super::{ITEM_NODE, ItemsHooks, key_hash};
+use crate::contract::Context;
+use crate::contract::Ui;
 use crate::contract::collection::ShownRow;
 use crate::contract::run;
 use crate::contract::{Collection, Component as _, Cx, Internal, ItemOpener, ItemOutput as _, Meta as _};
+use crate::primitives::Id;
 use crate::primitives::sensing::{self, MemberSpec};
 use crate::runtime::access::{self, SetPosition};
 use crate::runtime::env::{ArenaId, Env};
 use crate::style::Flags;
 use craft_behavior::Sense;
-use egui::{Context, Id, Rect, Ui};
+use craft_ui_rt::Rect;
 
 /// A member with its id, whether it is enabled, its sense and what its run prepared.
 type Prepared<K, I> = (Member<K, ()>, Id, bool, Sense, run::MemberPrep<I>);

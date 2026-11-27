@@ -2,8 +2,10 @@
 
 use super::drops::{DropAt, DropPayload};
 use super::props::LeadSource;
+use crate::primitives::Id;
 use craft_behavior::{ColumnKey, DropOperation, EditEvent, PartRef, SelectionChange};
-use egui::{Id, Pos2, Vec2};
+use craft_ui_rt::Pos2;
+use craft_ui_rt::Vec2;
 
 /// A committed rename.
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -2,7 +2,9 @@
 //! lead column (17.7) and auto-height rows measured into `LayoutMemory` (17.3, I1).
 
 use super::{ItemsHooks, key_hash};
+use crate::contract::Context;
 use crate::contract::{Collection, Cx, Internal, Meta, SelectMode, Sizing};
+use crate::primitives::Id;
 use crate::runtime::egui::memory as store;
 use crate::runtime::memory::sub;
 use crate::runtime::{focus, lazy};
@@ -10,7 +12,7 @@ use crate::style::Flags;
 use craft_behavior::{
     CellAt, CellDirection, CellSpace, Granularity, ItemLayout, MoveMods, NavMove, NavShape, PlacedSelection, RowAt, SelectionChange, SelectionModel,
 };
-use egui::{Context, Id, Vec2};
+use craft_ui_rt::Vec2;
 use std::sync::Arc;
 
 /// The roving group of the children and parts of the item `item`'s row.
@@ -134,7 +136,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         }
         let item = sub(cx.core.id, ("key", key_hash(&self.source.key(at))));
         let group = row_group(item);
-        focus::row_has_stops(&cx.core.ctx, group) && focus::enter_row(&cx.core.ctx, group)
+        focus::row_has_stops(cx.context(), group) && focus::enter_row(cx.context(), group)
     }
 
     /// Whether the row at position `at` is selected.

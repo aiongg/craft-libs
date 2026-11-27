@@ -6,6 +6,7 @@ mod content;
 mod focus;
 mod harness;
 mod input;
+mod items;
 mod layout;
 mod overlay;
 mod services;

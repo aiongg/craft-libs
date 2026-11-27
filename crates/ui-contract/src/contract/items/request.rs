@@ -1,9 +1,10 @@
 //! Requests to a collection's item step from outside it, taken at the collection's next pass. Each request moves the
 //! `Requests` input and each take reads it, so a pending request runs the memoized view that takes it.
 
+use crate::contract::Context;
+use crate::primitives::Id;
 use crate::runtime::egui::memory as store;
 use crate::runtime::inputs::{self, Input};
-use egui::{Context, Id};
 
 /// The rename requests not yet taken: the collection and the key to rename.
 struct RenameRequests<K>(Vec<(Id, K)>);
@@ -27,7 +28,7 @@ pub fn request_rename<K: Clone + Send + Sync + 'static>(ctx: &Context, collectio
         requests.0.push((collection, key.clone()));
     });
     inputs::bump(ctx, Input::Requests);
-    crate::runtime::egui::repaint::request_of(ctx, crate::runtime::egui::pass::current_viewport(ctx));
+    ctx.request_repaint();
 }
 
 /// The rename request addressed to `collection`, once.

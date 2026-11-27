@@ -4,15 +4,17 @@ pub(super) mod rows;
 
 use super::collection::{CollectionEvent, ColumnLayout, LeadSource, ShownRow};
 use super::{Collection, ItemFn};
-use crate::runtime::egui::areas;
+use crate::contract::Ui;
 use craft_behavior::{Axis, GestureId, ItemSource, ScrollPos, TypeAhead};
-use egui::{Pos2, Rect, Ui, Vec2};
+use craft_ui_rt::Pos2;
+use craft_ui_rt::Rect;
+use craft_ui_rt::Vec2;
 use std::ops::Range;
 use std::sync::Arc;
 
 /// Runs `body` with the item facts of the item at `at` of a set installed and the id that position gives the item, so
 /// measuring and showing an item see one id and one environment.
-fn with_item_facts<R>(ui: &mut Ui, at: crate::runtime::access::SetPosition, body: impl FnOnce(&mut Ui, egui::Id) -> R) -> R {
+fn with_item_facts<R>(ui: &mut Ui, at: crate::runtime::access::SetPosition, body: impl FnOnce(&mut Ui, crate::primitives::Id) -> R) -> R {
     use crate::runtime::env::{Env, ItemFacts};
     // The id comes from the position so two items of one set never share one, and an item keeps its id while its
     // position holds.
@@ -352,8 +354,8 @@ impl crate::style::StyleCx<'_> {
     /// The size `face` has, measured from the `Ui` the collection hook fills this context from, so a collection's
     /// `item_layout` measures a button's label and icon in the pass it lays out in. Zero in a context no collection
     /// filled, which has nothing to measure in.
-    pub fn face<S: crate::contract::Show>(&self, mut face: S) -> egui::Vec2 {
-        let Some(ui) = self.measuring else { return egui::Vec2::ZERO };
+    pub fn face<S: crate::contract::Show>(&self, mut face: S) -> craft_ui_rt::Vec2 {
+        let Some(ui) = self.measuring else { return craft_ui_rt::Vec2::ZERO };
         crate::contract::measure_under(&mut face, ui, None, craft_behavior::Proposal::Ideal, None)
     }
 }
