@@ -13,10 +13,10 @@ fn divider(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 
 #[story(Divider, covers = [], drive = Drive::Never)]
 fn divider_vertical(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    ui.horizontal(|ui| {
+    crate::layout_components::Row::new().show(ui, |ui, _| {
         Text::new("Left").show(ui);
         Divider::vertical().show(ui)
     })
-    .inner
+    .output
     .into()
 }

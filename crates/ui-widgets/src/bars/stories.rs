@@ -11,7 +11,7 @@ use crate::layout_components::Row;
 use crate::menu::{Menu, MenuItem};
 use crate::pickers::Select;
 use crate::runtime::commands::EditCommands;
-use crate::testing::{Drive, Harness, StoryData, StoryOutput, story};
+use crate::testing::{Drive, Harness, StoryHarness, StoryData, StoryOutput, story};
 use crate::text::NumberField;
 use craft_behavior::IconId;
 use craft_behavior::kurbo::Size;
@@ -211,7 +211,7 @@ fn bar_items(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     BarItems::new(labelled.chain(items().into_iter().skip(2)).collect()).show(ui).into()
 }
 
-fn open_overflow(fixture: &mut Harness) {
+fn open_overflow(fixture: &mut StoryHarness) {
     fixture.key(Key::Tab, Mods::NONE);
     fixture.key(Key::End, Mods::NONE);
     fixture.key(Key::Down, Mods::ALT);

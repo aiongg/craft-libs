@@ -6,7 +6,7 @@ use crate::contract::{FieldLayout, Props as _, Show as _, ShowContainer as _, Si
 use crate::display::{Shade, Text};
 use crate::layout_components::{Row, Stack};
 use crate::runtime::env::{Message, with_env};
-use crate::testing::{Drive, Harness, StoryData, StoryOutput, story};
+use crate::testing::{Drive, Harness, StoryHarness, StoryData, StoryOutput, story};
 use craft_behavior::{IconId, Mixed};
 use craft_ui::{Response, Ui};
 
@@ -44,13 +44,13 @@ fn column(ui: &mut Ui, group: RadioGroup<'_, u8>) -> StoryOutput {
         .into()
 }
 
-fn pick_second(fixture: &mut Harness) {
+fn pick_second(fixture: &mut StoryHarness) {
     if let Some(medium) = fixture.by_label("Medium") {
         fixture.click(&medium);
     }
 }
 
-fn pick_millimetres(fixture: &mut Harness) {
+fn pick_millimetres(fixture: &mut StoryHarness) {
     if let Some(millimetres) = fixture.by_label("Millimetres") {
         fixture.click(&millimetres);
     }

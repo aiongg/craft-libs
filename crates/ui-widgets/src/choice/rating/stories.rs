@@ -3,12 +3,12 @@
 use super::Rating;
 use crate::contract::{Props as _, Show as _, Validity};
 use crate::runtime::env::Message;
-use crate::testing::{Drive, Harness, StoryData, StoryOutput, story};
+use crate::testing::{Drive, Harness, StoryHarness, StoryData, StoryOutput, story};
 use craft_behavior::Mixed;
 use craft_theme::ControlSize;
 use craft_ui::Ui;
 
-fn pick_four(fixture: &mut Harness) {
+fn pick_four(fixture: &mut StoryHarness) {
     if let Some(star) = fixture.by_label("4 stars") {
         fixture.click(&star);
     }

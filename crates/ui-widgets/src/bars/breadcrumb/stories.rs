@@ -2,7 +2,7 @@
 
 use super::BreadcrumbBar;
 use crate::contract::{Entry, Show as _};
-use crate::testing::{Drive, Harness, StoryData, StoryOutput, story};
+use crate::testing::{Drive, Harness, StoryHarness, StoryData, StoryOutput, story};
 use craft_ui::Ui;
 use craft_ui::input::{Key, Mods};
 
@@ -18,7 +18,7 @@ fn breadcrumb_bar(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 /// A width the five crumbs do not fit in.
 const NARROW: f32 = 160.0;
 
-fn open_hidden(fixture: &mut Harness) {
+fn open_hidden(fixture: &mut StoryHarness) {
     fixture.key(Key::Tab, Mods::NONE);
     fixture.key(Key::Down, Mods::ALT);
 }

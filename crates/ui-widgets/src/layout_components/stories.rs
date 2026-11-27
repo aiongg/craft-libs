@@ -67,7 +67,8 @@ fn row_bracket(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 fn stack_fill_height(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     outlined(ui, |ui| {
         // design: allow[contract/allocate, literal-size/vec2](the story gives the stack a fixed stage box to show fill-height sizing)
-        ui.allocate_ui(craft_ui::geom::vec2(360.0, 200.0), |ui| {
+        let stage = craft_ui::geom::Rect::from_min_size(ui.cursor().min, craft_ui::geom::vec2(360.0, 200.0));
+        ui.scope_builder(craft_ui::UiBuilder::new().max_rect(stage), |ui| {
             Row::new().fill().show(ui, |ui, _| {
                 Stack::new()
                     .sizing(Sizing::FillHeight)

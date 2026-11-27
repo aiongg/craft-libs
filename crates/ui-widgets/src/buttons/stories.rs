@@ -14,7 +14,7 @@ use crate::runtime::commands::EditCommands;
 use crate::runtime::env::{Message, with_env};
 use crate::style::{DataColor, SurfaceKind};
 use crate::testing::pictures::sample_picture;
-use crate::testing::{Drive, Harness, StoryData, StoryOutput, story};
+use crate::testing::{Drive, Harness, StoryHarness, StoryData, StoryOutput, story};
 use craft_behavior::{ColumnWidth, IconId, Mixed, Proposal};
 use craft_theme::{ControlSize, Variant};
 use craft_ui::input::{Key, Mods};
@@ -442,7 +442,7 @@ fn toggle_button_stacked_in_ribbon(ui: &mut Ui, data: &mut StoryData) -> StoryOu
 }
 
 /// Rests the pointer on the toggle, clicks it and stays: its output reports the click while the pointer stays.
-fn click_and_stay(fixture: &mut Harness) {
+fn click_and_stay(fixture: &mut StoryHarness) {
     if let Some(toggle) = fixture.by_label("Snap to grid") {
         fixture.click(&toggle);
     }
@@ -485,7 +485,7 @@ fn split_button(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     SplitButton::new("Trace", &entries).icon(IconId::new("image")).arrow_label("Tracing presets").show(ui).into()
 }
 
-fn open_menu(fixture: &mut Harness) {
+fn open_menu(fixture: &mut StoryHarness) {
     fixture.key(Key::Tab, Mods::NONE);
     fixture.key(Key::Down, Mods::ALT);
 }

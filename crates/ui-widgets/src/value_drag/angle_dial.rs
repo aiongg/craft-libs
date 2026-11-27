@@ -243,7 +243,7 @@ impl Pointing {
 impl Component for AngleDial<'_> {
     const ROLE: Role = Role::SLIDER;
     const OVERLAYS: bool = false;
-    const KEYS: KeyUse = KeyUse { activate: ActivateKeys::Neither, ..KeyUse::of(Input::Pointer).with_keep(KeepKeys::BlockArrows) };
+    const KEYS: KeyUse = KeyUse::of(Input::Pointer).with_keep(KeepKeys::BlockArrows).with_activate(ActivateKeys::Neither);
     type Style = AngleDialStyle;
     type Output = EditResponse<f64>;
 

@@ -37,7 +37,7 @@ fn list_row_clipped_dimmed(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 fn list_row_text_cell(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     const NAME: ColumnKey = ColumnKey::new("name");
     const SIZE: ColumnKey = ColumnKey::new("size");
-    let (left, width, height) = (ui.cursor().min.x, ui.available_width(), ui.spacing().interact_size.y);
+    let (left, width, height) = (ui.cursor().min.x, ui.available_width(), ui.tokens().size.control.md);
     let split = left + width * 0.6;
     let cells = [
         (NAME, Rect::from_min_max(Pos2::new(left, 0.0), Pos2::new(split, height))),
@@ -202,7 +202,7 @@ fn list_row_label_hue(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 fn list_row_status_cell(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     const NAME: ColumnKey = ColumnKey::new("name");
     const WARNINGS: ColumnKey = ColumnKey::new("warnings");
-    let (left, width, height) = (ui.cursor().min.x, ui.available_width(), ui.spacing().interact_size.y);
+    let (left, width, height) = (ui.cursor().min.x, ui.available_width(), ui.tokens().size.control.md);
     let split = left + width * 0.4;
     let mut cells = [
         (NAME, Rect::from_min_max(Pos2::new(left, 0.0), Pos2::new(split, height))),

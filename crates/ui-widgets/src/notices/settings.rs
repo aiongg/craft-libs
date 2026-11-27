@@ -6,7 +6,6 @@ use super::notice::Notice;
 use super::words::NoticeWords;
 use crate::contract::{NoValue, Outcome, Politeness, Props as _, Show as _};
 use crate::runtime::env::{Env, Label};
-use crate::runtime::frame;
 use craft_theme::variant::Tone;
 use craft_ui::{Context, Response, Ui};
 

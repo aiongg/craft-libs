@@ -4,7 +4,7 @@ use super::Segmented;
 use crate::buttons::ActiveLook;
 use crate::contract::{Entry, Props as _, Show as _, Validity};
 use crate::runtime::env::{Message, with_env};
-use crate::testing::{Drive, Harness, StoryData, StoryOutput, story};
+use crate::testing::{Drive, Harness, StoryHarness, StoryData, StoryOutput, story};
 use craft_behavior::{IconId, Mixed};
 use craft_theme::ControlSize;
 use craft_ui::Ui;
@@ -43,7 +43,7 @@ fn icon_row(ui: &mut Ui, data: &mut StoryData, count: u8, first: u8) -> StoryOut
     shown.readout(format!("Selected: {}", TOOLS[usize::from(*picked)].1))
 }
 
-fn pick_add(fixture: &mut Harness) {
+fn pick_add(fixture: &mut StoryHarness) {
     if let Some(add) = fixture.by_label("Add") {
         fixture.click(&add);
     }
