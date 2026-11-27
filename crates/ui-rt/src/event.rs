@@ -182,7 +182,8 @@ pub enum Event {
     /// ([`crate::BuildCx::hover_events`]) get it. Not bubbled.
     Hover(bool),
     /// A primary press went down outside the focused node and left it the focus: on a shape that
-    /// keeps focus, on nothing that takes presses, or on a place that holds the focused node's
+    /// keeps focus, on nothing that takes presses under a node that keeps the focus on such presses
+    /// ([`crate::BuildCx::keep_focus_on_empty_presses`]), or on a place that holds the focused node's
     /// draft. `holds` is true when the press is on a shape recorded with
     /// [`crate::PaintCx::holds_drafts`] or in a layer child above the focused node's; a node that
     /// holds drafts ([`crate::Element::holds_drafts`]) keeps the focus on such a press whatever

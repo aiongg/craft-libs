@@ -474,6 +474,7 @@ pub(crate) fn run_shaped<C: Component>(
     // presses the nodes under it took.
     let mut input = std::mem::take(&mut kept.queue);
     input.extend(super::node::MenuBar::take(cx));
+    input.extend(super::node::LoneAltClaims::take(cx));
     if hooks.watches_presses() {
         input.extend(super::node::PressWatch::take(kept));
         super::node::PressWatch::provide(kept, cx);
@@ -586,7 +587,6 @@ pub(crate) fn run_shaped<C: Component>(
         };
         crate::contract::text::run(&mut cxx, &mut parts.text, text_in)
     };
-    crate::contract::text::run_selections(cxx.core, &parts.text.selections);
     kept.ime.edit = cxx.core.edit_paint.take();
 
     // 9 update, then the stops it decides (a member that joins its body's roving group).
@@ -610,6 +610,7 @@ pub(crate) fn run_shaped<C: Component>(
     kept.focus.scope = component.focus_scope();
     kept.focus.roving = component.roving();
     kept.focus.holds_escape = cxx.core.run.holds_escape.get();
+    cx.keep_focus_on_empty_presses(kept.focus.keeps_focus_on_empty_presses());
 
     // 10 overlay: the popups show their content as layer children of this node.
     if facts.overlays {
@@ -641,6 +642,7 @@ pub(crate) fn run_shaped<C: Component>(
         }
     }
     kept.variants = variants;
+    kept.parts.extend(crate::contract::text::selection_parts(cxx.core, rect.min));
     crate::runtime::access::scope::note_line(cxx.core);
     if shaped {
         let mut lent: &RunHost<'_, '_> = &host;
@@ -694,6 +696,7 @@ pub(crate) fn run_shaped<C: Component>(
     // wheel ease paying out, a popup's dwell), the drag it started and the press it cancelled.
     kept.menu_bar = cxx.core.run.menu_bar.get();
     super::node::MenuBar::register(kept.menu_bar, cx);
+    super::node::LoneAltClaims::register(cxx.core.run.lone_alt_claim.get(), cx);
     kept.scroll_owner = cxx.core.run.scroll_owner.get();
     kept.drop_types = cxx.core.run.drop_types.take();
     kept.notch = component.wheel_notch();

@@ -759,6 +759,7 @@ pub(crate) fn show_layer_with<R: Clone + 'static>(
     let element = LayerScope { key, surface, hover };
     cx.inline_layer(layer, key, spec, element, |lk, state, cx| {
         lk.kept.focus.scope = focus;
+        cx.keep_focus_on_empty_presses(focus.trap);
         lk.spec = Some(spec);
         // A leaving child shown open again comes back: it rises to full level and its body runs, so its entry is
         // current again.

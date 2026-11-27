@@ -50,6 +50,12 @@ pub trait Focus {
     /// The earliest of `chords` that arrived this pass for this component, consuming it, so a caller applies the
     /// claimed keys of a frame in the order they were pressed.
     fn take_first_claimed(&mut self, chords: &[Chord]) -> Option<Chord>;
+    /// Claims the window's lone Alt (Alt pressed and let go with nothing between) from the next one on, until a run
+    /// that does not claim it: a canvas tool that acts on an Alt tap. The claim takes it on every OS before the menu
+    /// bar; a focused field that holds drafts takes it before the claim.
+    fn claim_lone_alt(&mut self);
+    /// Whether a lone Alt this component claims arrived for this run.
+    fn take_lone_alt(&mut self) -> bool;
 }
 
 impl Focus for CxCore<'_> {
@@ -120,6 +126,14 @@ impl Focus for CxCore<'_> {
         self.intents.take_first_chord(chords)
     }
 
+    fn claim_lone_alt(&mut self) {
+        self.run.lone_alt_claim.set(true);
+    }
+
+    fn take_lone_alt(&mut self) -> bool {
+        self.input().iter().any(|input| matches!(input, crate::contract::rt::node::NodeInput::LoneAlt))
+    }
+
     fn take_menu_keys(&mut self) -> Vec<MenuKey> {
         self.input()
             .iter()
@@ -186,6 +200,14 @@ impl<C: Component> Focus for Cx<'_, C> {
 
     fn take_first_claimed(&mut self, chords: &[Chord]) -> Option<Chord> {
         self.core.take_first_claimed(chords)
+    }
+
+    fn claim_lone_alt(&mut self) {
+        self.core.claim_lone_alt();
+    }
+
+    fn take_lone_alt(&mut self) -> bool {
+        self.core.take_lone_alt()
     }
 
     fn take_menu_keys(&mut self) -> Vec<MenuKey> {

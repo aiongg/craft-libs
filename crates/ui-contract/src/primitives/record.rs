@@ -28,6 +28,9 @@ pub struct PaintRecord {
     /// Where a faded component's veil sits in its layer's paint list, so a later paint range of the component moves
     /// it to that range's end and one veil covers all the component paints.
     pub(crate) veil: Option<egui::layers::ShapeIdx>,
+    /// The selection parts the paint showed (`PaintUi::selectable_text`): where their text lies and their hit rect,
+    /// in window coordinates, which the run keeps as the parts' shapes and its next run's pointer reads.
+    pub(crate) selections: Vec<(craft_behavior::PartRef, super::text_adapter::Placed, craft_ui_rt::Rect)>,
 }
 
 /// An adopted child event with its value type erased, queued in the paint record and read back at step 15.

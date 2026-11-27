@@ -192,7 +192,7 @@ pub struct CxCore<'a> {
     /// The text part's result of this pass, from step 8b.
     pub(crate) texts: Option<(PartKey, Box<dyn TextResult>)>,
     /// The selection parts step 7 declared, which `PaintUi::selectable_text` shows.
-    pub(crate) selections: Vec<craft_behavior::PartRef>,
+    pub(crate) selections: Vec<crate::contract::text::SelectionShown>,
     /// Not enabled, with `DisabledLook::Faded`: the component and its faces paint their enabled look, which step 13
     /// fades.
     pub(crate) faded: bool,
@@ -277,6 +277,8 @@ pub(crate) struct RunIo<'a> {
     /// claims Alt alone; the driver keeps it, and the window root routes F10, a lone Alt and Alt mnemonics to the
     /// node as `NodeInput::Menu`.
     pub(crate) menu_bar: Cell<Option<bool>>,
+    /// The run claimed the window's lone Alt (`Focus::claim_lone_alt`).
+    pub(crate) lone_alt_claim: Cell<bool>,
     /// The run took its page and end moves (`Focus::take_scroll_moves`): the node owns a scroll, and the driver keeps
     /// it as the scroll owner the page and end keys its focused descendants leave bubble to.
     pub(crate) scroll_owner: Cell<bool>,
@@ -394,6 +396,7 @@ impl<'a> RunIo<'a> {
             swept: None,
             inbox: Default::default(),
             menu_bar: Cell::new(None),
+            lone_alt_claim: Cell::new(false),
             scroll_owner: Cell::new(false),
             wake: Cell::new(false),
             surrender: Cell::new(false),

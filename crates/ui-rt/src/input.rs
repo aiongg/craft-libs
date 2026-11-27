@@ -841,10 +841,8 @@ impl Runtime {
                     Some(Press { pointer: p.id, kind: p.kind, button: p.button, mods: p.mods, owner: None, pos: p.pos, long_pressed: false });
                 let ev = PressEvent::pressed_by(p.button, p.pos, time, clicks);
                 self.step_press(window, &[ev], p, Vec2::ZERO, None);
-                // A press no shape took keeps the focus where it is.
                 if p.button == PointerButton::Primary && self.input(window).is_some_and(|i| i.press_hit.is_none()) {
-                    let holds = self.input_mut(window).is_some_and(|i| std::mem::take(&mut i.press_holds));
-                    self.note_press_kept(window, focused, None, holds);
+                    self.unclaimed_press(window, focused);
                 }
                 self.refresh_hover(window);
             }
@@ -1063,6 +1061,21 @@ impl Runtime {
             self.set_pressed(window, path);
         } else if let Some(owner) = self.input(window).and_then(|i| i.press).and_then(|q| q.owner) {
             self.deliver(owner, hit.node, &ev);
+        }
+    }
+
+    /// A primary press no shape took gives the focus up (a focused text commits through its focus
+    /// loss), unless it holds the focused node's draft or the focus lies under a node that keeps it on
+    /// such presses ([`crate::BuildCx::keep_focus_on_empty_presses`]: a trapping scope, a canvas).
+    fn unclaimed_press(&mut self, window: WindowId, focused: Option<NodeId>) {
+        let holds = self.input_mut(window).is_some_and(|i| std::mem::take(&mut i.press_holds));
+        let Some(node) = focused else { return };
+        let held = holds && self.tree.nodes.get(&node).and_then(|n| n.element.as_ref()).is_some_and(|e| e.holds_drafts());
+        let kept = chain(&self.tree, node).iter().any(|id| self.tree.nodes.get(id).is_some_and(|n| n.keeps_focus));
+        if held || kept {
+            self.note_press_kept(window, focused, None, holds);
+        } else {
+            self.set_focus(window, None, FocusCause::Pointer);
         }
     }
 

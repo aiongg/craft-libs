@@ -113,6 +113,8 @@ pub enum NodeInput {
     Wheel(craft_behavior::Wheel),
     /// A menu key the window root routed to its menu bar node (F10, a lone Alt, an Alt mnemonic).
     Menu(crate::runtime::keys::MenuKey),
+    /// A lone Alt the window root routed to this node, the first that claims it ([`LoneAltClaims`]).
+    LoneAlt,
     /// A primary press outside this focused node left it the focus and held its draft: the press went down on a part
     /// declared `holds_drafts` or in a popup above the node (ui-rt `Event::PressKept` with `holds`).
     HeldPress,
@@ -247,6 +249,58 @@ impl MenuBar {
         };
         menu.0.borrow_mut().keys.push(routed);
         cx.request_build_of(bar);
+        Handled::Yes
+    }
+}
+
+/// The nodes that claim the window's lone Alt (`Focus::claim_lone_alt`: a canvas tool that acts on an Alt tap), as the
+/// window root provides it to every node of the window, and the taps routed to them since their last run. A claim
+/// takes the lone Alt on every OS before the menu bar does; a focused field that holds drafts takes it before both.
+#[derive(Clone, Default)]
+pub(crate) struct LoneAltClaims(std::rc::Rc<std::cell::RefCell<AltClaimsState>>);
+
+#[derive(Default)]
+struct AltClaimsState {
+    /// The claimers, in the order they first claimed.
+    claims: Vec<NodeId>,
+    /// The claimer a lone Alt was routed to and that has not run since.
+    tapped: Option<NodeId>,
+}
+
+impl LoneAltClaims {
+    /// The lone Alt routed to the node since its last run: it joins the run's input.
+    pub(crate) fn take(cx: &craft_ui_rt::BuildCx<'_>) -> Option<NodeInput> {
+        let claims = cx.provided::<LoneAltClaims>()?;
+        let mut state = claims.0.borrow_mut();
+        (state.tapped == Some(cx.node())).then(|| state.tapped = None).map(|()| NodeInput::LoneAlt)
+    }
+
+    /// After a run: the node claims the lone Alt when the run claimed it, and gives up its claim when it did not.
+    pub(crate) fn register(claims: bool, cx: &craft_ui_rt::BuildCx<'_>) {
+        let Some(list) = cx.provided::<LoneAltClaims>() else { return };
+        let node = cx.node();
+        let mut state = list.0.borrow_mut();
+        let at = state.claims.iter().position(|claimer| *claimer == node);
+        match (claims, at) {
+            (true, None) => state.claims.push(node),
+            (false, Some(at)) => {
+                state.claims.remove(at);
+            }
+            _ => {}
+        }
+    }
+
+    /// The window root's lone Alt: routed to the first claimer still shown, which builds for it.
+    pub(crate) fn lone_alt(cx: &mut EventCx<'_>) -> Handled {
+        let Some(list) = cx.provided::<LoneAltClaims>() else { return Handled::No };
+        let claimer = {
+            let mut state = list.0.borrow_mut();
+            state.claims.retain(|node| cx.window_rect(*node).is_some());
+            state.claims.first().copied()
+        };
+        let Some(claimer) = claimer else { return Handled::No };
+        list.0.borrow_mut().tapped = Some(claimer);
+        cx.request_build_of(claimer);
         Handled::Yes
     }
 }
@@ -430,6 +484,8 @@ pub(crate) struct Kept {
     pub(crate) menu_bar: Option<bool>,
     /// The window's menu bar record (window root only), provided to the window's nodes.
     pub(crate) menu: Option<MenuBar>,
+    /// The window's lone-Alt claims (window root only), provided to the window's nodes.
+    pub(crate) alt_claims: Option<LoneAltClaims>,
     /// The component's type name and bound command, from its last run (`runtime::inspect` records them).
     pub(crate) type_name: &'static str,
     pub(crate) command: Option<craft_keymap::CommandRef>,
@@ -509,6 +565,7 @@ impl Kept {
             notch: craft_behavior::WheelNotch::DEFAULT,
             menu_bar: None,
             menu: None,
+            alt_claims: None,
             fade: Default::default(),
             level: Default::default(),
             focus: FocusKept::default(),
@@ -947,7 +1004,10 @@ impl Element for ScopeNode {
                 },
                 handled => handled,
             },
-            Event::LoneAlt if kept.window_root => MenuBar::lone_alt(cx),
+            Event::LoneAlt if kept.window_root => match LoneAltClaims::lone_alt(cx) {
+                Handled::No => MenuBar::lone_alt(cx),
+                handled => handled,
+            },
             _ => Handled::No,
         }
     }
