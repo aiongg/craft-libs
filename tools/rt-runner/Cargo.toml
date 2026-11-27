@@ -23,6 +23,7 @@ craft-host = { workspace = true }
 craft-keymap = { workspace = true }
 craft-theme = { workspace = true }
 craft-svg = { workspace = true, features = ["draw"] }
+craft-rt-layers = { workspace = true }
 craft-ui-rt = { workspace = true }
 craft-ui-platform-headless = { workspace = true }
 craft-ui-platform-winit = { workspace = true }

@@ -4,19 +4,19 @@
 
 use std::sync::Arc;
 
-use crate::fixture::{Blend, Kind, Layer, LayerId, Op, SelectMode};
+use crate::model::{Blend, Kind, Layer, LayerId, Op, SelectMode};
 use accesskit::{Action, Node, Role, Toggled};
 use craft_theme::FontSlot;
 use craft_ui_rt::{
-    AccessCx, BezPath, BuildCx, Constraints, Element, Event, EventCx, FontSpec, Handled, ImageKey, ImageStore, InteractFact, LayoutCx, NodeId,
-    Overflow, PaintCx, Pos2, Rect, Rgba, RgbaImage, Sense, SizeU, Stroke, StrokeAlign, TextLayout, TextSpec, Vec2, hash_key,
+    AccessCx, BezPath, BuildCx, Constraints, Element, Event, EventCx, FontSpec, Handled, ImageKey, InteractFact, LayoutCx, NodeId,
+    Overflow, PaintCx, Pos2, Rect, Rgba, Sense, Stroke, StrokeAlign, TextLayout, TextSpec, Vec2, hash_key,
 };
 
 use crate::controls::{ButtonKind, IconButton, ToggleCell, ToggleFace};
 use crate::doc::{DocCell, edit};
 use crate::field::rename_style;
 use crate::icons::{self, Icon};
-use crate::look::{Edge, KIND_GLYPH_SHARE, Look, TYPE_INK, TYPE_PAPER, icon_square, snap, thumb_texture_side};
+use crate::look::{Edge, KIND_GLYPH_SHARE, Look, TYPE_INK, TYPE_PAPER, icon_square, snap};
 use crate::text_field::TextField;
 
 /// The row's hit parts.
@@ -120,7 +120,6 @@ impl ListRow {
 /// What build registered and layout measured; paint draws from it.
 #[derive(Default)]
 pub struct RowLocal {
-    picture: Option<ImageKey>,
     glyph: Option<ImageKey>,
     name: Option<TextLayout>,
     blend: Option<(TextLayout, f32)>,
@@ -139,16 +138,6 @@ fn kind_code(kind: Kind) -> u8 {
     }
 }
 
-/// The thumbnail's picture, registered once per (layer look, side in pixels).
-fn picture(images: &mut ImageStore, layer: &Layer, side: u32) -> ImageKey {
-    let key = ImageKey(hash_key(&("thumb", layer.seed, kind_code(layer.kind), side)));
-    if images.get(key).is_none() {
-        let image = RgbaImage { size: SizeU::new(side, side), pixels: layer.thumbnail(side) };
-        images.insert(key, Arc::new(image));
-    }
-    key
-}
-
 impl Element for ListRow {
     type Output = ();
     type Local = RowLocal;
@@ -157,7 +146,8 @@ impl Element for ListRow {
         let p = &self.p;
         let l = &p.layer;
         hash_key(&(
-            (l.id, l.name.as_str(), kind_code(l.kind), l.visible, l.locked, l.blend == Blend::Multiply, l.seed),
+            (l.id, l.name.as_str(), kind_code(l.kind), l.visible, l.locked, l.blend == Blend::Multiply),
+            (l.thumb.map(|k| k.0), l.thumb_uv.min.x.to_bits(), l.thumb_uv.min.y.to_bits(), l.thumb_uv.max.x.to_bits(), l.thumb_uv.max.y.to_bits()),
             (p.index, p.count, p.selected, p.active, p.lead, p.renaming),
             (p.list.0, p.prev_rename, p.next_rename),
         ))
@@ -172,13 +162,10 @@ impl Element for ListRow {
         let scale = cx.env().scale.get(cx);
         let layer = &self.p.layer;
         let inner = look.thumb - 2.0 * look.thin;
-        local.picture = None;
         local.glyph = None;
         match layer.kind {
-            // A solid fill's picture is its colour, as PhotoCraft renders it.
-            Kind::Pixel | Kind::Fill => {
-                local.picture = Some(picture(cx.images(), layer, thumb_texture_side(inner * scale)));
-            }
+            // A solid fill's picture is its colour, as PhotoCraft renders it; the host supplies the picture.
+            Kind::Pixel | Kind::Fill => {}
             Kind::Type => {
                 let (px, stroke) = icons::pixels(inner * KIND_GLYPH_SHARE, scale, look.icon_stroke);
                 local.glyph = Some(icons::mask(cx, Icon::Text, px, stroke));
@@ -409,8 +396,8 @@ impl ListRow {
         match self.p.layer.kind {
             Kind::Pixel | Kind::Fill => {
                 // The transparency grid lies under a picture that covers it whole.
-                if let Some(key) = local.picture {
-                    cx.image(key, snap(picture, scale), Rgba::WHITE);
+                if let Some(key) = self.p.layer.thumb {
+                    cx.image_uv(key, snap(picture, scale), self.p.layer.thumb_uv, Rgba::WHITE);
                 }
             }
             Kind::Type => {

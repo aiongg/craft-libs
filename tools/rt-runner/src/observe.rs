@@ -7,8 +7,8 @@ use craft_ui_rt::{AccessEntry, Renderer, Runtime, WindowId};
 use craft_ui_test_kit::rt::Rig;
 use serde::{Deserialize, Serialize};
 
-use crate::doc::DocCell;
-use crate::fixture::DocSnapshot;
+use craft_rt_layers::DocCell;
+use craft_rt_layers::DocSnapshot;
 
 /// One access node as the vocabulary names it. Bounds are logical points in window coordinates.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

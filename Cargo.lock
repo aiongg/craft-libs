@@ -4228,6 +4228,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "craft-rt-layers"
+version = "0.1.0"
+dependencies = [
+ "accesskit",
+ "craft-behavior",
+ "craft-host",
+ "craft-keymap",
+ "craft-svg",
+ "craft-theme",
+ "craft-ui-rt",
+ "kurbo",
+ "serde",
+]
+
+[[package]]
 name = "craft-rt-runner"
 version = "0.1.0"
 dependencies = [
@@ -4235,6 +4250,7 @@ dependencies = [
  "craft-behavior",
  "craft-host",
  "craft-keymap",
+ "craft-rt-layers",
  "craft-svg",
  "craft-theme",
  "craft-ui-contract",

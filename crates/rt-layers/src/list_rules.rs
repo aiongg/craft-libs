@@ -55,8 +55,8 @@ pub enum ListOp {
 
 /// The document operation a list request means (v1's glue does the same for craft's events). `None` for requests
 /// that only change the list's own state (open or cancel a rename).
-pub fn doc_op(doc: &crate::fixture::Doc, op: ListOp) -> Option<crate::fixture::Op> {
-    use crate::fixture::{Op, SelectMode};
+pub fn doc_op(doc: &crate::model::Doc, op: ListOp) -> Option<crate::model::Op> {
+    use crate::model::{Op, SelectMode};
     let id = |row: usize| doc.layers.get(row).map(|l| l.id);
     match op {
         ListOp::Pick(pick) => match pick {
