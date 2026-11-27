@@ -38,8 +38,8 @@ pub enum NodeInput {
         /// The part of the node the press went down on.
         part: u64,
     },
-    /// An assistive technology's action on the node.
-    Access(accesskit::Action),
+    /// An assistive technology's action on the node or one of its sub-nodes.
+    Access(super::access::AccessAction),
 }
 
 /// The room a node was shown in. A node shown in other room runs again.
@@ -80,6 +80,8 @@ pub(crate) struct Kept {
     /// Empty until the first run; one entry when the paint read no pointer state.
     pub(crate) variants: smallvec::SmallVec<[Variant; 1]>,
     pub(crate) access: Option<accesskit::Node>,
+    /// The sub-nodes of the access node; empty with it.
+    pub(crate) access_subs: Vec<super::access::BuiltSub>,
     pub(crate) queue: Vec<NodeInput>,
     pub(crate) placed: Vec<Placed>,
     /// A scope's returned value.
@@ -105,6 +107,7 @@ impl Kept {
             sense: Sense::empty(),
             variants: smallvec::SmallVec::new(),
             access: None,
+            access_subs: Vec::new(),
             queue: Vec::new(),
             placed: Vec::new(),
             value: None,
@@ -202,13 +205,11 @@ impl Element for ComponentNode {
     }
 
     /// Queues what the next run consumes and marks the node, which marks the path to its window
-    /// root. A press's `Down` only takes the press.
+    /// root. A press's `Down` only takes the press. Focus requests are the runtime's: it moves
+    /// focus to the nearest stop.
     fn event(&self, kept: &mut Kept, cx: &mut EventCx<'_>, ev: &Event) -> Handled {
-        if !kept.sense.takes_press() {
-            return Handled::No;
-        }
         match ev {
-            Event::Pointer(p) => {
+            Event::Pointer(p) if kept.sense.takes_press() => {
                 if !matches!(p.gesture, Gesture::Down { .. }) {
                     let part = p.hit.map_or(0, |h| h.part);
                     kept.queue.push(NodeInput::Pointer { gesture: p.gesture, pos: cx.to_local(p.pos), button: p.button, mods: p.mods, part });
@@ -216,8 +217,11 @@ impl Element for ComponentNode {
                 }
                 Handled::Yes
             }
-            Event::Access(a) if a.target == cx.node() && a.action == accesskit::Action::Click => {
-                kept.queue.push(NodeInput::Access(a.action));
+            Event::Access(a) if a.target == cx.node() && a.action != accesskit::Action::Focus => {
+                if a.action == accesskit::Action::Click && !kept.sense.takes_press() && a.sub.is_none() {
+                    return Handled::No;
+                }
+                kept.queue.push(NodeInput::Access(super::access::AccessAction { action: a.action, data: a.data.clone(), sub: a.sub }));
                 cx.request_build();
                 Handled::Yes
             }
@@ -225,7 +229,10 @@ impl Element for ComponentNode {
         }
     }
 
-    fn access(&self, kept: &Kept, _: &mut AccessCx<'_>) -> Option<accesskit::Node> {
+    fn access(&self, kept: &Kept, cx: &mut AccessCx<'_>) -> Option<accesskit::Node> {
+        for s in &kept.access_subs {
+            cx.sub(s.key, s.parent, s.node.clone());
+        }
         kept.access.clone()
     }
 }

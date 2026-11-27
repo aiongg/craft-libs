@@ -10,6 +10,7 @@
 //! from the node size cache, a scroll body moves kept content by its offset in layout, and `Lazy`
 //! children out of view keep only their extent.
 
+pub mod access;
 mod container;
 mod key;
 mod lazy;

@@ -241,6 +241,22 @@ impl BuildCx<'_> {
         self.keep = true;
     }
 
+    /// Whether this node's window sends an access tree. A node builds its access node only then;
+    /// turning the tree on rebuilds every node of the window once.
+    pub fn access_enabled(&self) -> bool {
+        self.rt.access_enabled(self.window)
+    }
+
+    /// Announces `text` to assistive technology in this node's window: the texts of one frame
+    /// become one live status node. The same text made twice in a frame is kept once; nothing
+    /// is kept while the access tree is off.
+    pub fn announce(&mut self, text: impl Into<String>, politeness: crate::access::Politeness) {
+        let window = self.window;
+        if let Some(w) = self.rt.windows.get_mut(&window).filter(|w| w.access.enabled) {
+            w.access.announcer.announce(text.into(), politeness);
+        }
+    }
+
     /// This node's outputs changed: its layout, paint and access node run in this frame.
     pub fn mark_changed(&mut self) {
         let node = self.node;

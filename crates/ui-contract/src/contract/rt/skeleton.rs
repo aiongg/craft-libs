@@ -6,6 +6,7 @@
 use craft_behavior::IconId;
 use craft_ui_rt::{ImageKey, Rect, Sense, Vec2, hash_key};
 
+use super::access::Access;
 use super::container::{Container, show_container};
 use super::key::ComponentKey;
 use super::node::Pointer;
@@ -83,8 +84,8 @@ impl Component for IconButton<'_> {
         paint.image_mask(ImageKey(hash_key(&self.icon)), glyph, ink);
     }
 
-    fn access(&self, node: &mut accesskit::Node, _: &Cx<'_>) {
-        node.set_label(self.label);
+    fn access(&self, access: &mut Access, _: &Cx<'_>) {
+        access.label(self.label);
     }
 
     fn finish(self, cx: &Cx<'_>) -> ButtonOutput {

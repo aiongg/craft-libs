@@ -47,18 +47,94 @@ pub(crate) struct AccessState {
     /// Focus stop -> the item it reports as focused while it has focus.
     active: IdMap<NodeId>,
     last_focus: Option<accesskit::NodeId>,
+    pub(crate) announcer: Announcer,
+}
+
+/// How an announcement is read.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Politeness {
+    /// After the current speech.
+    Polite,
+    /// At once.
+    Assertive,
+}
+
+/// Ends the text of a status that repeats the previous frame's: some platform adapters raise a live-region event
+/// only when the live node's text changes. Alternates, so three equal frames in a row still differ pairwise.
+const REPEAT_MARK: char = '\u{200b}';
+
+/// One window's announcements: the texts made since the last update become the text of one live status node, empty
+/// again in the update after.
+#[derive(Default)]
+pub(crate) struct Announcer {
+    pending: Vec<(String, Politeness)>,
+    previous: String,
+    previous_marked: bool,
+    /// The text and urgency the status node last sent carried.
+    sent: Option<(String, bool)>,
+}
+
+impl Announcer {
+    pub(crate) fn announce(&mut self, text: String, politeness: Politeness) {
+        if !self.pending.iter().any(|(t, p)| *t == text && *p == politeness) {
+            self.pending.push((text, politeness));
+        }
+    }
+
+    /// Something to say, or a text to clear.
+    fn pending(&self) -> bool {
+        !self.pending.is_empty() || self.sent.as_ref().is_some_and(|(text, _)| !text.is_empty())
+    }
+
+    /// The status node for this update, when it differs from the one sent (always on a full update).
+    fn flush(&mut self, full: bool) -> Option<Node> {
+        let texts = std::mem::take(&mut self.pending);
+        let assertive = texts.iter().any(|(_, p)| *p == Politeness::Assertive);
+        let plain = texts.iter().map(|(t, _)| t.as_str()).collect::<Vec<_>>().join(". ");
+        let marked = !plain.is_empty() && plain == self.previous && !self.previous_marked;
+        let mut text = plain.clone();
+        if marked {
+            text.push(REPEAT_MARK);
+        }
+        self.previous = plain;
+        self.previous_marked = marked;
+        let key = (text, assertive);
+        if !full && self.sent.as_ref() == Some(&key) {
+            return None;
+        }
+        let mut node = Node::new(Role::Status);
+        node.set_live(if assertive { accesskit::Live::Assertive } else { accesskit::Live::Polite });
+        node.set_live_atomic();
+        if !key.0.is_empty() {
+            node.set_label(key.0.as_str());
+        }
+        self.sent = Some(key);
+        Some(node)
+    }
+}
+
+fn status_id(window: WindowId) -> accesskit::NodeId {
+    accesskit::NodeId(hash_key(&(window.root().0, "status")))
 }
 
 impl Default for AccessState {
     fn default() -> Self {
-        AccessState { enabled: false, full: true, dirty: IdSet::default(), subs: HashMap::new(), active: IdMap::default(), last_focus: None }
+        AccessState {
+            enabled: false,
+            full: true,
+            dirty: IdSet::default(),
+            subs: HashMap::new(),
+            active: IdMap::default(),
+            last_focus: None,
+            announcer: Announcer::default(),
+        }
     }
 }
 
 impl AccessState {
     /// Work for the next frame: something to rebuild, or a full tree owed.
     pub(crate) fn pending(&self) -> bool {
-        self.enabled && (self.full || !self.dirty.is_empty())
+        self.enabled && (self.full || !self.dirty.is_empty() || self.announcer.pending())
     }
 }
 
@@ -133,11 +209,30 @@ impl Runtime {
     /// Turns `window`'s access tree on or off. Turning it on sends the whole tree with the next
     /// frame.
     pub fn set_access_enabled(&mut self, window: WindowId, on: bool) {
-        if let Some(w) = self.windows.get_mut(&window) {
-            w.access.enabled = on;
-            w.access.full = true;
-            w.access.last_focus = None;
+        let Some(w) = self.windows.get_mut(&window) else { return };
+        let turned_on = on && !w.access.enabled;
+        w.access.enabled = on;
+        w.access.full = true;
+        w.access.last_focus = None;
+        w.access.announcer = Announcer::default();
+        if turned_on {
+            // Nodes that ran while access was off kept no access node: every node builds once more.
+            let ids: Vec<NodeId> = self.tree.nodes.iter().filter(|(_, n)| n.window == window).map(|(id, _)| *id).collect();
+            for id in ids {
+                self.tree.mark_build(id);
+            }
         }
+    }
+
+    /// The text of `window`'s status node as last sent (empty when nothing is announced); `None`
+    /// before the first update.
+    pub fn access_status(&self, window: WindowId) -> Option<String> {
+        self.windows.get(&window)?.access.announcer.sent.as_ref().map(|(text, _)| text.trim_end_matches(REPEAT_MARK).to_owned())
+    }
+
+    /// Whether `window`'s access tree is on: nodes build their access node only then.
+    pub fn access_enabled(&self, window: WindowId) -> bool {
+        self.windows.get(&window).is_some_and(|w| w.access.enabled)
     }
 
     /// The node assistive technologies see as focused in `window`: the focused node's active item
@@ -168,12 +263,15 @@ impl Runtime {
         let mut out = Vec::new();
         if full || !dirty.is_empty() || !w.changes.moved.is_empty() {
             let moved: IdSet = w.changes.moved.iter().copied().collect();
-            let mut walk = Walk { window, full, dirty: &dirty, moved: &moved, out: &mut out };
+            let mut walk = Walk { window, full, dirty: &dirty, moved: &moved, status: status_id(window), out: &mut out };
             let mut kids = Vec::new();
             self.walk_access(root, Vec2::ZERO, Rect::from_min_size(Pos2::ZERO, viewport), true, &mut walk, &mut kids);
         }
         let focus = self.access_focus(window);
         let Some(w) = self.windows.get_mut(&window) else { return 0 };
+        if let Some(status) = w.access.announcer.flush(full) {
+            out.push((status_id(window), status));
+        }
         if out.is_empty() && !full && w.access.last_focus == Some(focus) {
             return 0;
         }
@@ -259,6 +357,9 @@ impl Runtime {
         }
         let mut children: Vec<accesskit::NodeId> = data.subs.iter().filter(|s| s.parent.is_none()).map(|s| sub_id(id, s.key)).collect();
         children.extend(own_kids);
+        if top {
+            children.push(walk.status);
+        }
         if walk.full || !was || changed || children != data.children {
             let mut node = data.node.clone().unwrap_or_else(|| Node::new(Role::GenericContainer));
             node.set_children(children.clone());
@@ -358,6 +459,7 @@ struct Walk<'a> {
     full: bool,
     dirty: &'a IdSet,
     moved: &'a IdSet,
+    status: accesskit::NodeId,
     out: &'a mut Vec<(accesskit::NodeId, Node)>,
 }
 
