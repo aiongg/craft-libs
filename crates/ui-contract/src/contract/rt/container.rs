@@ -418,6 +418,8 @@ struct Host<'k> {
     kept: Option<&'k mut Kept>,
     /// The window's toggle sweep record, handed to every flow under the container.
     sweep: Option<State<Sweep>>,
+    /// The window's context.
+    ctx: crate::contract::Context,
 }
 
 /// Where a body's children live and what decides whether its plan holds.
@@ -547,7 +549,7 @@ pub(crate) fn show_container<C: Container, R>(
         (frame.open, frame.open_at_read) = (open, open);
         shape.closed = !open;
         let tokens = ui.flow.tokens.clone();
-        let into = Host { node, own_kept: false, marked: true, kept: None, sweep };
+        let into = Host { node, own_kept: false, marked: true, kept: None, sweep, ctx: ctx.clone() };
         let (size, flow) = lay_out(&mut component, ui.cx, &shape, into, &mut frame, (id, origin, room), &tokens, &mut call);
         ui.flow.absorb(&flow);
         let rect = match at {
@@ -567,7 +569,7 @@ pub(crate) fn show_container<C: Container, R>(
             shape.closed = !open;
             let own_kept = holds(kept, key, state);
             let tokens = if own_kept { flow.tokens.clone() } else { super::env::tokens(cx) };
-            let into = Host { node: Some(cx.node()), own_kept, marked: state.path || state.marked, kept: Some(&mut *kept), sweep };
+            let into = Host { node: Some(cx.node()), own_kept, marked: state.path || state.marked, kept: Some(&mut *kept), sweep, ctx: ctx.clone() };
             crate::layout::begin_capture(&ctx);
             let (size, inner) = lay_out(&mut component, cx, &shape, into, &mut frame, (id, origin, room), &tokens, &mut call);
             kept.column_reports = crate::layout::end_capture(&ctx);
@@ -677,7 +679,7 @@ pub(crate) fn measure_container<C: Container, R>(
         let stage = MemoryStage::open_peek(&ctx, body_id);
         let mut frame =
             Frame { body_id, env: &regions, body_env: None, resolved: &resolved, stage, open, open_at_read: open, close: None, ran: false };
-        let into = Host { node: peeked.map(|p| p.0), own_kept: false, marked: true, kept: None, sweep: ui.flow.sweep };
+        let into = Host { node: peeked.map(|p| p.0), own_kept: false, marked: true, kept: None, sweep: ui.flow.sweep, ctx: ctx.clone() };
         let tokens = ui.flow.tokens.clone();
         let origin = ui.flow.next_min();
         let mut call = |ui: &mut Ui<'_, '_>, bcx: &mut BodyCx<'_>| {
@@ -820,14 +822,22 @@ fn lay_out<C: Container>(
         }
     }
     // The footer's height and the region under the body, known before the body that lies above them.
+    // A footer at the foot or the top of the end region (`FooterPlace::EndBottom`, `EndTop`) is as wide as that region.
+    let in_end = shape.end.is_some() && shape.footer.is_some_and(|f| matches!(f.place, FooterPlace::EndBottom | FooterPlace::EndTop));
+    let footer_room = if in_end { Rect::from_min_size(inner.min, Vec2::new(end_w, inner.height())) } else { inner };
     let footer_h = match shape.footer {
-        Some(_) => region_size(cx, &into, Region::Footer, id, inner, tokens, &mut |ui| frame.with(ui, inner, |ui, bcx| component.footer(ui, bcx))).y,
+        Some(_) => {
+            region_size(cx, &into, Region::Footer, id, footer_room, tokens, &mut |ui| {
+                frame.with(ui, footer_room, |ui, bcx| component.footer(ui, bcx))
+            })
+            .y
+        }
         None => 0.0,
     };
     // A footer the body places (`FooterPlace::Body`) takes no band: the body's `FooterSlot` is as large as it measured.
     let in_body = shape.footer.is_some_and(|f| f.place == FooterPlace::Body);
-    let footer_band = if shape.footer.is_some() && !in_body { footer_h + shape.footer_gap + shape.bands.footer } else { 0.0 };
-    let ctx = crate::contract::Context::of_build(cx);
+    let footer_band = if shape.footer.is_some() && !in_body && !in_end { footer_h + shape.footer_gap + shape.bands.footer } else { 0.0 };
+    let ctx = into.ctx.clone();
     if in_body {
         let size = Vec2::new(inner.width(), footer_h);
         frame.body_env = Some(frame.env.derive(|scoped| scoped.footer_slot = Some(crate::runtime::env::FooterSlotOf { owner: id, size })));
@@ -858,21 +868,39 @@ fn lay_out<C: Container>(
         place(bn, Rect::from_min_size(rect.min, size));
         below = rect.max.y;
     }
+    let fills_height = shape.sizing.fills_height() || shape.scroll.is_some_and(|_| shape.takes_room().1);
+    // How far down the end column reaches, its footer included.
+    let mut end_bottom = below;
     if shape.end.is_some() {
         let end_top = if shape.end.is_some_and(|e| e.full_height) || shape.header.is_none() { inner.min.y } else { main.min.y };
         let (end_min, end_max) = if shape.rtl { (inner.min.x, inner.min.x + end_w) } else { (inner.max.x - end_w, inner.max.x) };
-        let end_rect = Rect::from_min_max(Pos2::new(end_min, end_top), Pos2::new(end_max, inner.max.y));
+        let top_footer = in_end && shape.footer.is_some_and(|f| f.place == FooterPlace::EndTop);
+        let content_top = if top_footer { end_top + footer_h + shape.footer_gap } else { end_top };
+        let end_rect = Rect::from_min_max(Pos2::new(end_min, content_top), Pos2::new(end_max, inner.max.y));
         let (en, end) =
             region(cx, &into, Region::End, id, end_rect, Dir::Stack, tokens, &mut |ui| frame.with(ui, end_rect, |ui, bcx| component.end(ui, bcx)));
         place(en, Rect::from_min_size(end_rect.min, end));
+        end_bottom = end_bottom.max(content_top + end.y);
+        if in_end {
+            let footer_top = match top_footer {
+                true => end_top,
+                false if fills_height => inner.max.y - footer_h,
+                false => end_bottom.max(below - footer_h) + shape.footer_gap,
+            };
+            let footer_rect = Rect::from_min_size(Pos2::new(end_min, footer_top), Vec2::new(end_w, footer_h));
+            let (fnode, footer) = region(cx, &into, Region::Footer, id, footer_rect, Dir::Stack, tokens, &mut |ui| {
+                frame.with(ui, footer_rect, |ui, bcx| component.footer(ui, bcx))
+            });
+            place(fnode, Rect::from_min_size(footer_rect.min, footer));
+            end_bottom = end_bottom.max(footer_top + footer.y);
+        }
         if shape.bands.end > 0.0 {
             let x = if shape.rtl { end_max + shape.end_gap / 2.0 } else { end_min - shape.end_gap / 2.0 - shape.bands.end };
-            let rule = Rect::from_min_size(Pos2::new(x, end_top), Vec2::new(shape.bands.end, (below - end_top).max(end.y)));
+            let rule = Rect::from_min_size(Pos2::new(x, end_top), Vec2::new(shape.bands.end, end_bottom - end_top));
             place(rule_node(cx, real, Region::RuleEnd, divider), rule);
         }
     }
-    let fills_height = shape.sizing.fills_height() || shape.scroll.is_some_and(|_| shape.takes_room().1);
-    let footer_top = if fills_height { inner.max.y - footer_h } else { below + shape.footer_gap + shape.bands.footer };
+    let footer_top = if fills_height { inner.max.y - footer_h } else { end_bottom + shape.footer_gap + shape.bands.footer };
     let mut footer_w = 0.0;
     // The body's real run placed its slot; a measuring run places none, and the footer takes no room of its own.
     let slot = if in_body && real { crate::contract::footer_slot::take(&ctx, id) } else { None };
@@ -880,7 +908,7 @@ fn lay_out<C: Container>(
         let (fnode, footer) =
             region(cx, &into, Region::Footer, id, slot, Dir::Stack, tokens, &mut |ui| frame.with(ui, slot, |ui, bcx| component.footer(ui, bcx)));
         place(fnode, Rect::from_min_size(slot.min, footer));
-    } else if shape.footer.is_some() && !in_body {
+    } else if shape.footer.is_some() && !in_body && !in_end {
         if shape.bands.footer > 0.0 {
             let rule = Rect::from_min_size(Pos2::new(inner.min.x, footer_top - shape.bands.footer), Vec2::new(inner.width(), shape.bands.footer));
             place(rule_node(cx, real, Region::RuleFooter, divider), rule);
@@ -894,7 +922,7 @@ fn lay_out<C: Container>(
         footer_w = footer.x;
     }
     let width = (body_size.x + end_band).max(header_w + end_band).max(footer_w);
-    let height = (below - inner.min.y) + footer_band;
+    let height = (end_bottom - inner.min.y) + footer_band;
     if let Some(kept) = into.kept
         && kept.placed != placed
     {
@@ -977,16 +1005,16 @@ fn region(
     cx.keyed(region, |cx| {
         cx.inline(ScopeNode { key: 0 }, |rk, state, cx| {
             let room = rect.size();
-            let ctx = crate::contract::Context::of_build(cx);
+            let ctx = &into.ctx;
             if !state.new && region_keeps(into, rk, state, room) {
                 cx.keep_children();
-                crate::layout::replay(&ctx, &rk.column_reports);
+                crate::layout::replay(ctx, &rk.column_reports);
                 return (Some(cx.node()), rk.size);
             }
             let mut ui = Ui::new(cx, flow());
-            crate::layout::begin_capture(&ctx);
+            crate::layout::begin_capture(ctx);
             hook(&mut ui);
-            rk.column_reports = crate::layout::end_capture(&ctx);
+            rk.column_reports = crate::layout::end_capture(ctx);
             let Ui { cx, flow, .. } = ui;
             let size = flow.content_size();
             if rk.placed != flow.placed || rk.size != size {
