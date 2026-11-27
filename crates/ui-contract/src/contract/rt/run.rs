@@ -758,7 +758,7 @@ pub(crate) fn run_shaped<C: Component>(
         .then(|| report::<C>((&component, &*hooks), &cxx, &resolved, own, &kept.parts, row.as_deref(), &mut kept.fold, &mut build.borrow_mut()))
         .flatten();
     kept.ime.text_runs = match (built.as_mut(), cxx.core.text_access.borrow().as_ref()) {
-        (Some(built), Some(facts)) => crate::runtime::access::text::write(built, facts, build.borrow().node()),
+        (Some(built), Some(facts)) => crate::runtime::access::text::write(built, facts, build.borrow().node(), rect.min),
         _ => Vec::new(),
     };
     let (access, subs) = built.map_or((None, Vec::new()), |b| (Some(b.node), b.subs));

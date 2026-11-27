@@ -144,8 +144,9 @@ fn text_part<V>() -> TextKey<V> {
 }
 
 /// The text field every collection's `rename_editor` and the canvas `Pasteboard`'s page-name rename show over a label:
-/// it selects the name on focus, so typing replaces it. It caps nothing: the item's name is the app's, and a rename shows
-/// and edits all of it.
+/// it selects the name on focus, so typing replaces it, and Enter is its own (it applies the name; Shift+Enter applies
+/// it and goes on renaming), never a dialog's default button. It caps nothing: the item's name is the app's, and a
+/// rename shows and edits all of it.
 pub fn rename_field<'a>(draft: Bind<'a, String>, name: &str) -> TextField<'a> {
-    TextField::new(name.to_owned(), draft).select_on_focus().limit(None::<usize>)
+    TextField::new(name.to_owned(), draft).select_on_focus().submits().limit(None::<usize>)
 }

@@ -584,9 +584,10 @@ pub trait Component: Meta + ComponentKey + Sized {
     }
 
     /// The component takes text input while focused, and the input method's purpose for it; `None` for a component
-    /// that takes none. Typed text and the input method's preedits reach its run (`Cx::editor_input`).
+    /// that takes none. Typed text and the input method's preedits reach its run (`Cx::editor_input`). The default
+    /// follows `INPUT`: a text or editor input takes it with the normal purpose; a masked field overrides it.
     fn text_input(&self) -> Option<ImePurpose> {
-        None
+        matches!(Self::INPUT, Input::Text | Input::Editor).then_some(ImePurpose::Normal)
     }
 
     /// Builds the output from the finished context. Every `show` calls it: for a kept node on a settled `Cx` built

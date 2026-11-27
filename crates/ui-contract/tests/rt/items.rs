@@ -406,6 +406,31 @@ mod glide {
     }
 }
 
+/// A focused list takes its own moves, as its key role says (a collection's `KeyUse` lists none): Down moves the lead
+/// and the pick, Shift+Down extends it and End goes to the last row.
+#[test]
+fn a_focused_list_takes_its_arrow_page_and_end_keys() {
+    use craft_ui_rt::{Key, Mods};
+    let mut app = app(40);
+    app.tune = |items| items.select = SelectMode::Multi;
+    let mut rig = rig(&mut app);
+    let main = rig.main;
+    let mut press = |rig: &mut Rig<RecordingRenderer>, app: &mut App, key: Key, mods: Mods| {
+        rig.driver.platform.key_press(main, key, mods);
+        step(rig, app);
+        step(rig, app);
+    };
+    press(&mut rig, &mut app, Key::Tab, Mods::NONE);
+    let first = app.selection.lead;
+    press(&mut rig, &mut app, Key::Down, Mods::NONE);
+    let next = first.map_or(0, |at| at + 1);
+    assert_eq!((app.selection.lead, app.selection.items.clone()), (Some(next), vec![next]), "Down moves the lead and the pick");
+    press(&mut rig, &mut app, Key::Down, Mods { shift: true, ..Mods::NONE });
+    assert_eq!(app.selection.items.len(), 2, "Shift+Down extends the pick: {:?}", app.selection.items);
+    press(&mut rig, &mut app, Key::End, Mods::NONE);
+    assert_eq!(app.selection.lead, Some(39), "End moves the lead to the last row");
+}
+
 /// A field that drives the list hands it Up and Down as its moves while typed text stays with the field; with text in
 /// the field, End is the caret's and a flat list takes no Left or Right.
 #[test]

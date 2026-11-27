@@ -94,9 +94,9 @@ fn caret_move(mv: NavMove, keys: &KeyUse) -> bool {
     matches!(mv, NavMove::Start | NavMove::End) && keys.owner == OwnerClass::Text
 }
 
-/// Whether a node with `keys` keeps the move `mv` from the roving group and scroll owner around it.
-fn keeps_move(mv: NavMove, keys: &KeyUse) -> bool {
-    if caret_move(mv, keys) || keys.moves || keys.value {
+/// Whether a node with `keys`, read in `role`, keeps the move `mv` from the roving group and scroll owner around it.
+fn keeps_move(mv: NavMove, keys: &KeyUse, role: &KeyRole) -> bool {
+    if caret_move(mv, keys) || role.moves || role.value {
         return true;
     }
     match mv {
@@ -200,15 +200,18 @@ pub(crate) fn take(focus: &FocusKept, cx: &EventCx<'_>, k: &KeyInput) -> Taken {
         return queue(Intent::Edit(edit), k);
     }
     let plain = k.mods.is_none();
-    match intent(cx.runtime().os(), k.key, k.mods, focus.role.clone().unwrap_or_else(|| role_of(keys))) {
-        Some(Intent::Move(mv, mods)) if keeps_move(mv, keys) => queue(Intent::Move(mv, mods), k),
+    // The role says which rows of the key table the node takes: its `KeyUse`'s, or the one its run gave (a
+    // collection's moves, deletes and type-ahead, which its props decide).
+    let role = focus.role.clone().unwrap_or_else(|| role_of(keys));
+    match intent(cx.runtime().os(), k.key, k.mods, role.clone()) {
+        Some(Intent::Move(mv, mods)) if keeps_move(mv, keys, &role) => queue(Intent::Move(mv, mods), k),
         Some(Intent::Move(..)) => Taken::No,
         Some(Intent::Activate) if keys.activate.enter() || keys.activate.space() => queue(Intent::Activate, k),
         Some(Intent::Activate) => Taken::No,
         Some(Intent::SubmitForce) if k.key == Key::Enter && keys.activate.enter() => queue(Intent::Activate, k),
         Some(Intent::SubmitForce) if keys.submits => queue(Intent::SubmitForce, k),
         Some(Intent::SubmitForce) => Taken::No,
-        Some(Intent::Delete { .. }) if !keys.deletes => Taken::No,
+        Some(Intent::Delete { .. }) if !role.deletes => Taken::No,
         Some(found) => queue(found, k),
         None => match k.key {
             Key::Enter if keys.activate.enter() && plain && !keys.submits => queue(Intent::Activate, k),
@@ -218,7 +221,7 @@ pub(crate) fn take(focus: &FocusKept, cx: &EventCx<'_>, k: &KeyInput) -> Taken {
                 queue(if k.mods.shift { Intent::BackTab } else { Intent::Tab }, k)
             }
             key if keys.nudge && is_arrow(key) => Taken::Queue(NodeInput::Nudge { direction: nudge_direction(key), mods: k.mods }),
-            _ if (typing || keys.type_ahead) && types(k) => Taken::Held,
+            _ if (typing || role.type_ahead) && types(k) => Taken::Held,
             _ => Taken::No,
         },
     }
