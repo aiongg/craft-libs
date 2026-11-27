@@ -33,9 +33,10 @@ use craft_ui_rt::{Driver, Platform, Renderer, Runtime, State, StepReport, Store}
 use craft_window::policy::Decision;
 use craft_window::restore::{MAIN, Store as PlacementStore};
 
-use crate::contract::Ui;
+use crate::contract::{Context, PlatformRequest, Ui};
 use crate::runtime::commands::{CommandBoard, CommandDefError, EditCommands, Fired, linked_keymap};
 use crate::runtime::env::EnvCells;
+use crate::runtime::memory::RuntimeMemory;
 use crate::runtime::pending::JobBoard;
 use crate::runtime::windows::{WindowEnv, WindowRegistry, WindowSpec, rt_spec, window_root_with};
 
@@ -138,9 +139,21 @@ struct Shared {
     jobs: JobBoard,
     commands: CommandBoard,
     time: Cell<f64>,
+    /// The session and saved memory of the runtime, provided above every window root.
+    memory: RuntimeMemory,
+    /// Wakes the loop: what each window's `Context` asks for outside a build reaches the host's next turn.
+    waker: craft_ui_rt::Waker,
+    /// Each window's `Context`, made when the window first builds and provided above its root.
+    contexts: RefCell<BTreeMap<WindowId, Context>>,
 }
 
 impl Shared {
+    /// The context of `window`, made on first use over the runtime's memory store.
+    fn context(&self, window: WindowId) -> Context {
+        let mut contexts = self.contexts.borrow_mut();
+        contexts.entry(window).or_insert_with(|| Context::for_window(window, Some(self.waker.clone()), self.memory.clone())).clone()
+    }
+
     /// Hands the platform what the app asked for. Returns whether there was anything.
     fn apply(&self, runtime: &mut Runtime) -> bool {
         let actions = std::mem::take(&mut *self.actions.borrow_mut());
@@ -381,6 +394,8 @@ fn start_on<A: App, P: Platform, R: Renderer>(
     runtime.set_window_key(window, main.key.clone());
     let tokens = runtime.env(window).tokens;
     let env = EnvCells::in_store(runtime.store_mut(), tokens);
+    // An id that is not a valid `AppId` names no theme pins.
+    env.set_app(runtime.store_mut(), craft_theme::AppId::parse(spec.app_id.as_str()).ok());
     let mut driver = Driver::new(runtime, platform, renderer);
     let jobs = JobBoard::new(spec.jobs, driver.waker());
     let commands = CommandBoard::new(keymap).with_edits::<EditCommands>();
@@ -392,6 +407,9 @@ fn start_on<A: App, P: Platform, R: Renderer>(
         jobs: jobs.clone(),
         commands: commands.clone(),
         time: Cell::new(0.0),
+        memory: RuntimeMemory::new(),
+        waker: driver.waker(),
+        contexts: RefCell::new(BTreeMap::new()),
     });
     let app = Rc::new(RefCell::new(make(&mut LogicCx::new(driver.runtime.store_mut(), &shared))));
 
@@ -400,6 +418,16 @@ fn start_on<A: App, P: Platform, R: Renderer>(
     });
     let (input_app, input_host) = (app.clone(), shared.clone());
     driver.set_input_filter(move |event, runtime| {
+        // The OS's light or dark mode reaches the root env through the path `EnvCells::set_root` takes.
+        if let PlatformEvent::Window(_, WindowEvent::Theme(theme)) = event {
+            let store = runtime.store_mut();
+            let mode = match theme {
+                craft_ui_rt::SystemTheme::Light => Mode::Light,
+                craft_ui_rt::SystemTheme::Dark => Mode::Dark,
+            };
+            let system = craft_theme::SystemAppearance { mode: Some(mode), ..store.peek(input_host.env.root).system };
+            input_host.env.set_system(store, system);
+        }
         let Ok(mut app) = input_app.try_borrow_mut() else { return false };
         let taken = app.input(event, &mut LogicCx::new(runtime.store_mut(), &input_host));
         drop(app);
@@ -446,6 +474,8 @@ impl<A: App> Host<A> {
             if let Some(decision) = frame {
                 cx.provide(decision.clone());
             }
+            cx.provide(shared.memory.clone());
+            cx.provide(shared.context(window));
             window_root_with(cx, env.clone(), |ui| {
                 if let Ok(mut app) = app.try_borrow_mut() {
                     app.ui(window, ui);
@@ -453,6 +483,7 @@ impl<A: App> Host<A> {
             });
         });
 
+        self.drain_contexts(driver);
         let fired = std::mem::take(&mut *self.shared.deferred.borrow_mut());
         if !fired.is_empty()
             && let Ok(mut app) = self.app.try_borrow_mut()
@@ -481,6 +512,28 @@ impl<A: App> Host<A> {
             self.finish();
         }
         report
+    }
+
+    /// Hands the platform what code outside a build asked of each window's `Context` (clipboard writes, URLs, window
+    /// commands), and forgets the contexts of closed windows.
+    fn drain_contexts<P: Platform, R: Renderer>(&mut self, driver: &mut Driver<P, R>) {
+        let open: Vec<WindowId> = driver.runtime.windows().collect();
+        let contexts: Vec<(WindowId, Context)> = {
+            let mut contexts = self.shared.contexts.borrow_mut();
+            contexts.retain(|window, _| open.contains(window));
+            contexts.iter().map(|(window, ctx)| (*window, ctx.clone())).collect()
+        };
+        for (window, ctx) in contexts {
+            for request in ctx.take_platform_requests() {
+                match request {
+                    PlatformRequest::CopyText(text) => driver.platform.clipboard().set_text(&text),
+                    PlatformRequest::OpenUrl { url, new_tab } => driver.platform.open_url(&url, new_tab),
+                }
+            }
+            for command in ctx.take_window_commands() {
+                driver.runtime.window_command(window, command);
+            }
+        }
     }
 
     /// Writes the placements and calls [`App::exit`], once: the loop calls it when the last window has closed.

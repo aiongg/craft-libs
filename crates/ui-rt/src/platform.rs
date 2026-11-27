@@ -445,4 +445,9 @@ pub trait Platform {
     fn request_frame_at(&mut self, time: f64);
     /// A waker for background threads; every call returns one that wakes this platform.
     fn waker(&self) -> Waker;
+    /// Opens `url` in the system's browser, in a new tab where it has tabs and `new_tab` is set.
+    /// A platform with no browser ignores it.
+    fn open_url(&mut self, url: &str, new_tab: bool) {
+        let _ = (url, new_tab);
+    }
 }

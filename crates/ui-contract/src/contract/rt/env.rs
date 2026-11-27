@@ -124,6 +124,8 @@ pub struct EnvCells {
     pub motion: State<MotionMode>,
     /// The layer's rounded frame.
     pub frame: State<Option<LayerFrame>>,
+    /// What the root env resolves from: the app's `RootEnv` and the OS appearance (`EnvCells::set_root`).
+    pub root: State<crate::runtime::env::RootInputs>,
 }
 
 impl EnvCells {
@@ -138,6 +140,7 @@ impl EnvCells {
             density: store.create(craft_theme::Size::Compact),
             motion: store.create(MotionMode::Full),
             frame: store.create(None),
+            root: store.create(Default::default()),
         }
     }
 
@@ -150,6 +153,7 @@ impl EnvCells {
             density: cx.state(craft_theme::Size::Compact),
             motion: cx.state(MotionMode::Full),
             frame: cx.state(None),
+            root: cx.state(Default::default()),
         }
     }
 
