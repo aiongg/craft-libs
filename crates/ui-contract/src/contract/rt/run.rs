@@ -647,7 +647,9 @@ pub(crate) fn run_shaped<C: Component>(
         crate::contract::paint_ui::host_ui(&mut lent, |ui| hooks.content(&mut component, ui, &begun.env, &mut cxx, &values));
         kept.members = hooks.take_member_looks();
     }
-    kept.placed = host.into_flow().placed;
+    let mut flow = host.into_flow();
+    super::node::set_drawn(&mut kept.drawn, cx, flow.take_drawn(rect.min));
+    kept.placed = flow.placed;
 
     // 15 settle: edits a paint adopted reach the binding; a reveal goes to the scroll owner.
     let settled = steps::settle(&mut component, &mut cxx);
@@ -993,9 +995,11 @@ fn settle_shaped<C: Component>(
         let mut lent: &RunHost<'_, '_> = &host;
         crate::contract::paint_ui::host_ui(&mut lent, |ui| hooks.content(&mut component, ui, &begun.env, &mut cxx, &values));
     }
-    let placed = host.into_flow().placed;
+    let mut flow = host.into_flow();
+    let drawn = flow.take_drawn(rect.min);
     let out = component.finish(cxx);
-    kept.placed = placed;
+    super::node::set_drawn(&mut kept.drawn, cx, drawn);
+    kept.placed = flow.placed;
     out
 }
 

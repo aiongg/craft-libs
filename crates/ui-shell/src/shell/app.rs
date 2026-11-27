@@ -472,7 +472,7 @@ impl<A: App> Host<A> {
         };
         self.shared.apply(&mut driver.runtime);
         self.registry.before_step(&mut driver.runtime);
-        self.shared.fonts.give(driver.renderer.text());
+        self.shared.fonts.give(driver.renderer.text(), driver.runtime.store_mut());
 
         let (app, shared, env, shell, frame) = (&self.app, &*self.shared, &self.env, &self.shell, &self.frame);
         let report = driver.step_with(time, &mut |window, cx| {

@@ -79,8 +79,9 @@ pub fn window_root_with<R>(cx: &mut BuildCx<'_>, env: WindowEnv, f: impl FnOnce(
         let flow = Flow::new(Id::NULL.with(("craft-window", window)), Pos2::ZERO, region, gap, tokens).with_sweep(Some(sweep));
         let mut ui = Ui::new(cx, flow);
         let out = f(&mut ui);
-        let Ui { cx, flow, .. } = ui;
+        let Ui { cx, mut flow, .. } = ui;
         end_reads(reads, cx);
+        super::node::set_drawn(&mut kept.drawn, cx, flow.take_drawn(Pos2::ZERO));
         if kept.placed != flow.placed || kept.size != viewport {
             kept.placed = flow.placed;
             kept.size = viewport;
@@ -203,10 +204,11 @@ pub(crate) fn show_scope<R: Clone + 'static>(
             crate::layout::begin_capture(&ctx);
             let value = content(&mut inner);
             kept.column_reports = crate::layout::end_capture(&ctx);
-            let Ui { cx, flow: inner, .. } = inner;
+            let Ui { cx, flow: mut inner, .. } = inner;
             if let Some(reads) = reads {
                 end_reads(reads, cx);
             }
+            super::node::set_drawn(&mut kept.drawn, cx, inner.take_drawn(start));
             let size: Vec2 = inner.content_size();
             flow.absorb(&inner);
             flow.allocate(Some(cx.node()), size, false);

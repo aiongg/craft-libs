@@ -123,6 +123,11 @@ impl<'a> EnvView<'a> {
         &self.scoped.commands
     }
 
+    /// The layer child the scope lies in (`Inherited::layer_child`).
+    pub(crate) fn layer_child(&self) -> Option<crate::primitives::Id> {
+        self.scoped.layer_child
+    }
+
     /// The platform and the running viewport's window facts: the OS, the capabilities and the window's kind,
     /// chrome, state, insets and focus.
     pub fn shell(&self) -> &'a ShellInfo {

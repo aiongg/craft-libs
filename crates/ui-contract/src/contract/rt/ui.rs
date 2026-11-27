@@ -634,8 +634,9 @@ impl<'u, 'c> Ui<'u, 'c> {
     pub fn draw_at(&mut self, clip: Rect) -> crate::primitives::Draw<'_> {
         let scale = self.cx.scale();
         let clip = clip.intersect(self.flow.clip);
+        let fonts = crate::fonts::stack_facts(self.cx);
         let (text, images) = self.cx.paint_services();
-        let services = crate::primitives::FrameServices::new(text, images, scale);
+        let services = crate::primitives::FrameServices::new(text, images, scale, fonts).with_context(self.ctx.clone());
         let canvas = crate::primitives::Canvas::owned(services, Pos2::ZERO, Rect::EVERYTHING).at_opacity(self.flow.opacity);
         let env = crate::primitives::DrawEnv { tokens: &self.env.tokens, direction: self.env.direction, ink: self.env.ink };
         crate::primitives::Draw::owned(canvas, Some(clip), &mut self.flow.drawn, env).text_direction(self.env.text_direction)
@@ -777,10 +778,11 @@ impl<'u, 'c> Ui<'u, 'c> {
         crate::runtime::pointer::PointerFrame::held(facts.pos, buttons, mods, self.cx.now(), hit.slop, hit.target)
     }
 
-    /// The focused stop of this window, from the focused node's kept facts. Untracked: code asks it when it acts.
-    pub fn focused_stop(&self) -> Option<crate::runtime::focus::StopRec> {
+    /// The focused stop of this window, from the focused node's kept facts. Tracked through the window's focused-node
+    /// cell: a reader runs again when focus moves, and at no other input.
+    pub fn focused_stop(&mut self) -> Option<crate::runtime::focus::StopRec> {
+        let node = self.cx.env().focused.get(self.cx)?;
         let rt = self.cx.runtime();
-        let node = rt.focused(self.cx.window())?;
         let kept = rt
             .local::<super::node::ComponentNode>(node)
             .or_else(|| rt.local::<super::node::ScopeNode>(node))

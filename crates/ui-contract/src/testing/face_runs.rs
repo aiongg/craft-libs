@@ -62,7 +62,7 @@ impl FaceRuns {
     /// Each run with the size it asks for, the size it is drawn at and its baseline from the card's top.
     fn baselines(scale: f32) -> Vec<(&'static str, f32, f32, f32)> {
         let mut images = craft_ui_rt::ImageStore::default();
-        let services = FrameServices::new(None, &mut images, scale);
+        let services = FrameServices::new(None, &mut images, scale, Default::default());
         let mut top = 0.0;
         RUNS.into_iter()
             .map(|(text, size)| {

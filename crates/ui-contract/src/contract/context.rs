@@ -120,6 +120,9 @@ struct Shared {
     /// [`Context::set_focused_edits`]), for code with no store at hand.
     focused_edits: Cell<Option<State<FocusedEdits>>>,
     focused_edits_value: Cell<FocusedEdits>,
+    /// The craft `Id` of the window's top modal layer child, as the window root last found it: where a hook's
+    /// command resolve finds whether it stands inside the modal (`Context::modal_at`).
+    top_modal: Cell<Option<Id>>,
     /// The window's toast queue (`Ui::toasts`), and the node whose build shows it (`ToastHost::show`).
     toasts: RefCell<super::rt::ToastQueue>,
     toast_host: Cell<Option<Id>>,
@@ -166,6 +169,7 @@ impl Context {
                 focused_edits_value: Cell::new(FocusedEdits::NONE),
                 toasts: RefCell::new(super::rt::ToastQueue::new()),
                 toast_host: Cell::new(None),
+                top_modal: Cell::new(None),
                 held: RefCell::new(Vec::new()),
                 builds: RefCell::new(Vec::new()),
                 board: RefCell::new(None),
@@ -206,6 +210,14 @@ impl Context {
         };
         ctx.shared.root_cells.set(cells);
         *ctx.shared.board.borrow_mut() = cx.provided::<CommandBoard>();
+        // Untracked: a hook that resolves a command tracks the open-layer cell itself, and the root runs on every
+        // build pass that reaches a node below it, before that node.
+        let top_modal = super::rt::layers::top_modal(cx.runtime(), cx.window()).map(|open| open.entry.id);
+        ctx.shared.top_modal.set(top_modal);
+        // The session's font host, where document faces are found from a component's hooks.
+        if let Some(host) = cx.provided::<crate::fonts::FontHost>() {
+            ctx.service(|slot: &mut crate::fonts::document::HostSlot| slot.0 = Some(host));
+        }
         cx.provide(ctx.clone());
         cx.provide(ctx.styles().clone());
         let scale = cx.env().scale;
@@ -468,6 +480,17 @@ impl Context {
         }
     }
 
+    /// Where a node in the layer child `layer_child` (its env's) stands against the window's top modal layer child, as
+    /// the window root last found it; untracked (the asker tracks the open-layer cell, `rt::layers::track`).
+    pub(crate) fn modal_at(&self, layer_child: Option<Id>) -> super::rt::commands::ModalAt {
+        use super::rt::commands::ModalAt;
+        match self.shared.top_modal.get() {
+            None => ModalAt::Free,
+            Some(top) if layer_child == Some(top) => ModalAt::Inside,
+            Some(_) => ModalAt::Outside,
+        }
+    }
+
     /// What the window's focused stop declares, as last written; untracked.
     pub(crate) fn focused_edits(&self) -> FocusedEdits {
         self.shared.focused_edits_value.get()
@@ -660,12 +683,19 @@ impl crate::contract::CxCore<'_> {
         key: &K,
         revision: crate::primitives::textures::Revision,
     ) -> crate::primitives::textures::TextureState {
-        let now = self.memory.ctx().time();
-        let state = crate::primitives::textures::TextureState::of(store.cache().look(key, revision), store.cache().waited(key, now));
-        let (store, key) = (store.clone(), key.clone());
-        log_build_read(move |cx| {
-            store.state(cx, &key, revision);
-        });
-        state
+        store.state(&mut super::rt::textures::HookReads { now: self.memory.ctx().time() }, key, revision)
+    }
+}
+
+/// A hook's texture reads ([`TextureReads`](crate::primitives::textures::TextureReads)): `Thumbnails::state`,
+/// `TextureLoader::ask` and `submit` and the store's puts take the core; their effects run with the node's build when
+/// it ends, and a picture put from a hook shows from the next build.
+impl crate::contract::rt::TextureReads for crate::contract::CxCore<'_> {
+    fn now(&self) -> f64 {
+        self.memory.ctx().time()
+    }
+
+    fn with_build(&mut self, effect: impl FnOnce(&mut BuildCx<'_>) + 'static) {
+        log_build_read(effect);
     }
 }

@@ -28,16 +28,21 @@ use craft_ui_rt::{BuildCx, ImageKey, ImageOptions, ImageStore, Reads, RgbaImage,
 use super::pending::{Cancel, Delivery, JobBoard, JobHandle, Priority, WeakBoard};
 use crate::primitives::textures::{CachedTexture, LoadFailure, MAX_TEXTURE, Revision, TextureBudget, TextureKey, TextureStatistics, fit_image};
 
-/// What a texture read needs of the build that makes it: a tracked cell read, the stores and the
-/// frame time. A node's `BuildCx` is one; a component hook's read (`CxCore`) is another, over the run's
-/// read log, so a leaf reads its own thumbnail without a prop.
-pub trait TextureReads: Reads + Writes {
+/// What a texture read needs of the build that makes it: the frame time, and the reading node's `BuildCx` for the
+/// read's effects (its tracked cell read, image store changes, build wakes). A node's `BuildCx` runs them at once; a
+/// component hook's read (`CxCore`) logs them for its node, run when the node's build ends, so a leaf reads its own
+/// thumbnail without a prop. A picture reads `Ready` only once its image is in the store, so a hook's put shows from
+/// the next build.
+pub trait TextureReads {
     /// The frame time, read without recording a read.
     fn now(&self) -> f64;
-    /// The images renderers upload.
-    fn images(&mut self) -> &mut ImageStore;
-    /// The reading node builds again at frame time `at`.
-    fn request_build_at(&mut self, at: Option<f64>);
+    /// Runs `effect` with the reading node's build: at once, or when that build ends.
+    fn with_build(&mut self, effect: impl FnOnce(&mut BuildCx<'_>) + 'static);
+    /// Whether this frame takes more images made on the UI thread ([`ImageStore::has_room`]). A hook's read answers
+    /// true: its images join the store when its build ends, which queues what passes the frame's upload room.
+    fn image_room(&mut self) -> bool {
+        true
+    }
 }
 
 impl TextureReads for BuildCx<'_> {
@@ -45,12 +50,27 @@ impl TextureReads for BuildCx<'_> {
         BuildCx::now(self)
     }
 
-    fn images(&mut self) -> &mut ImageStore {
-        BuildCx::images(self)
+    fn with_build(&mut self, effect: impl FnOnce(&mut BuildCx<'_>) + 'static) {
+        effect(self);
     }
 
-    fn request_build_at(&mut self, at: Option<f64>) {
-        BuildCx::request_build_at(self, at);
+    fn image_room(&mut self) -> bool {
+        self.images().has_room()
+    }
+}
+
+/// A component hook's texture reads (`CxCore`): the effects run with the node's build when it ends.
+pub(crate) struct HookReads {
+    pub(crate) now: f64,
+}
+
+impl TextureReads for HookReads {
+    fn now(&self) -> f64 {
+        self.now
+    }
+
+    fn with_build(&mut self, effect: impl FnOnce(&mut BuildCx<'_>) + 'static) {
+        crate::contract::context::log_build_read(effect);
     }
 }
 
@@ -102,11 +122,23 @@ struct Entry {
     ticket: u64,
     /// The store watches `cell` for its last reader leaving.
     watching: bool,
+    /// The `Ready` picture's image is in the image store: until then the key reads as loading.
+    landed: bool,
 }
 
 impl Entry {
     fn new(revision: Revision, used: u64) -> Entry {
-        Entry { revision, made: Made::Loading { job: None, asked: None }, stand_in: None, used, seen: None, cell: None, ticket: 0, watching: false }
+        Entry {
+            revision,
+            made: Made::Loading { job: None, asked: None },
+            stand_in: None,
+            used,
+            seen: None,
+            cell: None,
+            ticket: 0,
+            watching: false,
+            landed: false,
+        }
     }
 
     fn loading(&self) -> bool {
@@ -283,12 +315,7 @@ impl<K: TextureKey> TextureCache<K> {
     /// when the last node that reads it leaves the tree.
     pub fn read(&self, cx: &mut impl TextureReads, key: &K, revision: Revision) -> TextureLook {
         let now = cx.now();
-        let ready = self.lock().map.get(key).and_then(|e| match &e.made {
-            Made::Ready(texture) => Some(texture.key),
-            _ => None,
-        });
-        let landed = ready.map(|image| cx.images().contains(image));
-        let (look, cell, stale, arm) = {
+        let (look, stale, arm, wait) = {
             let mut guard = self.lock();
             let entries = &mut *guard;
             if entries.frames[1] != now {
@@ -302,23 +329,14 @@ impl<K: TextureKey> TextureCache<K> {
             if let Made::Loading { asked, .. } = &mut entry.made {
                 asked.get_or_insert(now);
             }
-            let cell = *entry.cell.get_or_insert_with(|| cx.store_mut().create(0u64));
             let mut look = look_of(entry, revision);
-            let mut stale = None;
-            match landed {
-                Some(false) => {
-                    if matches!(look, TextureLook::Ready(_)) {
-                        look = TextureLook::Loading { stand_in: entry.stand_in };
-                    }
-                }
-                // The new picture is on screen: the stand-in's goes.
-                Some(true) => {
-                    if let Some(old) = entry.stand_in.take() {
-                        stale = Some(old);
-                    }
-                }
-                None => {}
+            let ready = matches!(entry.made, Made::Ready(_));
+            let wait = ready && !entry.landed;
+            if wait && matches!(look, TextureLook::Ready(_)) {
+                look = TextureLook::Loading { stand_in: entry.stand_in };
             }
+            // The new picture is on screen: the stand-in's goes.
+            let stale = if ready && entry.landed { entry.stand_in.take() } else { None };
             let arm = (entry.loading() && !entry.watching).then(|| {
                 entry.watching = true;
                 entry.ticket
@@ -326,14 +344,25 @@ impl<K: TextureKey> TextureCache<K> {
             if let Some(old) = stale {
                 entries.bytes -= byte_size(old.size);
             }
-            (look, cell, stale, arm)
+            (look, stale, arm, wait)
+        };
+        let (cache, key) = (self.clone(), key.clone());
+        cx.with_build(move |cx| cache.subscribe(cx, &key, stale, arm, wait.then_some(now)));
+        look
+    }
+
+    /// The effects of a read for the reading node: its read of the key's cell, the stand-in's image leaving the
+    /// store, a build at `wake` while the picture waits for the store, and the watch for the cell's last reader.
+    fn subscribe(&self, cx: &mut BuildCx<'_>, key: &K, stale: Option<CachedTexture>, arm: Option<u64>, wake: Option<f64>) {
+        let Some(cell) = self.lock().map.get_mut(key).map(|entry| *entry.cell.get_or_insert_with(|| cx.store_mut().create(0u64))) else {
+            return;
         };
         if let Some(old) = stale {
             cx.images().remove(old.key);
         }
         cell.get(cx);
-        if landed == Some(false) {
-            cx.request_build_at(Some(now));
+        if wake.is_some() {
+            cx.request_build_at(wake);
         }
         if let Some(ticket) = arm {
             let entries = Arc::downgrade(&self.entries);
@@ -350,7 +379,6 @@ impl<K: TextureKey> TextureCache<K> {
                 }
             });
         }
-        look
     }
 
     /// Seconds since `key`'s picture was first read after its request, at frame time `now`; `None`
@@ -450,12 +478,20 @@ impl<K: TextureKey> TextureCache<K> {
             fx.touch.push(cell);
         }
         fx.deliver(d, self.options);
+        self.landed(key);
+    }
+
+    /// The `Ready` picture of `key` is in the image store now.
+    fn landed(&self, key: &K) {
+        if let Some(entry) = self.lock().map.get_mut(key) {
+            entry.landed = true;
+        }
     }
 
     /// Stores `image` for `key` at `revision` now (a picture made on the UI thread) and returns it.
     /// It replaces the key's picture of any revision. The building node reads the key as with
     /// [`TextureCache::read`]; other readers are not told (they read the picture when they build).
-    pub fn put(&self, cx: &mut BuildCx<'_>, key: K, revision: Revision, image: RgbaImage) -> CachedTexture {
+    pub fn put(&self, cx: &mut impl TextureReads, key: K, revision: Revision, image: RgbaImage) -> CachedTexture {
         let fx = self.store(&key, revision, image);
         let texture = fx.insert.as_ref().map(|(k, image)| CachedTexture::new(*k, pixel_size(image.size)));
         self.settled(cx, fx, &key, revision);
@@ -463,20 +499,25 @@ impl<K: TextureKey> TextureCache<K> {
     }
 
     /// Records that `key` at `revision` has no picture.
-    pub fn put_empty(&self, cx: &mut BuildCx<'_>, key: K, revision: Revision) {
+    pub fn put_empty(&self, cx: &mut impl TextureReads, key: K, revision: Revision) {
         let fx = self.settle(&key, revision, Made::Empty);
         self.settled(cx, fx, &key, revision);
     }
 
     /// Records that making `key`'s picture at `revision` failed.
-    pub fn put_failure(&self, cx: &mut BuildCx<'_>, key: K, revision: Revision, failure: LoadFailure) {
+    pub fn put_failure(&self, cx: &mut impl TextureReads, key: K, revision: Revision, failure: LoadFailure) {
         let fx = self.settle(&key, revision, Made::Failed(failure));
         self.settled(cx, fx, &key, revision);
     }
 
-    /// Applies a UI-thread change and subscribes the building node to the key, which it shows.
-    fn settled(&self, cx: &mut BuildCx<'_>, fx: Effects, key: &K, revision: Revision) {
-        fx.apply(cx, self.options);
+    /// Applies a UI-thread change with the reading node's build (at once, or when a hook's build ends) and subscribes
+    /// that node to the key, which it shows.
+    fn settled(&self, cx: &mut impl TextureReads, fx: Effects, key: &K, revision: Revision) {
+        let (cache, landed) = (self.clone(), key.clone());
+        cx.with_build(move |cx| {
+            fx.apply(cx, cache.options);
+            cache.landed(&landed);
+        });
         self.read(cx, key, revision);
     }
 
@@ -510,6 +551,7 @@ impl<K: TextureKey> TextureCache<K> {
             fx.remove.extend(entry.stand_in.take().map(|t| t.key));
         }
         entry.made = made;
+        entry.landed = false;
         entry.used = clock;
         if let Made::Ready(texture) = &entry.made {
             fx.remove.retain(|k| *k != texture.key);

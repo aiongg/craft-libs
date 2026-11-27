@@ -6,8 +6,9 @@
 //! the interface stack, CJK included).
 //!
 //! A face drawn alone is read from a font catalog: its load runs as a job on the session's job board, and the face is
-//! ready from the frame after it lands: the landing writes the face's cell, so the nodes that asked run again, and the
-//! host installs the face in the text engine before that frame runs ([`FontHost::give`]). A face over the interface
+//! ready from the frame after it lands: the landing wakes the host, which installs the face in the text engine before
+//! that frame runs ([`FontHost::give`]) and writes the face's cell, so the nodes that asked run in it and find it ready. A load whose last asker
+//! leaves before it lands is cancelled and the face forgotten, so a face scrolled past is not read. A face over the interface
 //! fonts comes from bytes the app holds: its load runs at once and the face is installed and ready in the same run, so
 //! document text never draws a frame without it. Installing a face drops nothing the engine has parsed or laid out.
 //!
@@ -24,11 +25,12 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use craft_theme::FontSlot;
-use craft_ui_rt::{BuildCx, FaceInstall, FontFace, State, TextEngine};
+use craft_ui_rt::{BuildCx, FaceInstall, FontFace, State, Store, TextEngine, Waker, Writes};
 
 use super::{FontHost, FontRef};
 use crate::contract::Context;
 use crate::contract::rt::JobBoard;
+use crate::contract::rt::pending::JobHandle;
 use craft_host::queue::Priority;
 
 /// The ceiling on the font file bytes of document faces held in the engine (a collection counted once). When they pass
@@ -112,9 +114,9 @@ type Load = Box<dyn FnOnce() -> Option<FaceBytes> + Send>;
 
 /// Where a face is.
 enum Made {
-    /// Asked for; its load waits for the asking node's build to end, then runs.
-    Loading(Option<Load>),
-    /// Its load ended with the face; the host installs it before the next frame.
+    /// Asked for; its load waits for the asking node's build to end (`load`), then runs (`job`).
+    Loading { load: Option<Load>, job: Option<JobHandle> },
+    /// Its load ended with the face; the host installs it before the next frame and writes its cell.
     Landed(FaceBytes),
     /// In the engine.
     Installed(FaceBytes),
@@ -137,9 +139,11 @@ struct Kept {
     made: Made,
     /// The face draws over the interface family.
     over_interface: bool,
-    /// The cell the nodes that set text in the face read; written when its load lands.
+    /// The cell the nodes that set text in the face read; written when the face is installed or its load fails.
     cell: Option<State<u64>>,
     readers: Readers,
+    /// Tells this asking apart from an earlier one of the same key that was cancelled.
+    ticket: u64,
 }
 
 /// The session's document faces, by family name.
@@ -149,11 +153,15 @@ struct Registry {
     budget: usize,
     /// Counts readers leaving, to order eviction.
     serial: u64,
+    /// The last [`Kept::ticket`] handed out.
+    tickets: u64,
+    /// Wakes the host's loop when a face lands, so the next frame installs it.
+    waker: Option<Waker>,
 }
 
 impl Default for Registry {
     fn default() -> Self {
-        Registry { faces: HashMap::new(), budget: MAX_DOCUMENT_FACE_BYTES, serial: 0 }
+        Registry { faces: HashMap::new(), budget: MAX_DOCUMENT_FACE_BYTES, serial: 0, tickets: 0, waker: None }
     }
 }
 
@@ -162,44 +170,57 @@ impl Default for Registry {
 pub(crate) struct DocumentFaces(Arc<Mutex<Registry>>);
 
 impl DocumentFaces {
+    /// The registry of a host whose loop `waker` wakes.
+    pub(crate) fn new(waker: Option<Waker>) -> Self {
+        DocumentFaces(Arc::new(Mutex::new(Registry { waker, ..Registry::default() })))
+    }
+
     fn lock(&self) -> MutexGuard<'_, Registry> {
         self.0.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    /// Installs the faces that landed since the last frame, then takes out what passes the budget. The host's frame
-    /// hook, before the frame runs.
-    pub(crate) fn install_landed(&self, engine: &mut dyn TextEngine) {
-        let mut registry = self.lock();
-        let landed: Vec<String> =
-            registry.faces.iter().filter(|(_, kept)| matches!(kept.made, Made::Landed(_))).map(|(name, _)| name.clone()).collect();
-        if landed.is_empty() {
-            return;
-        }
-        for name in landed {
-            let Some(kept) = registry.faces.get_mut(&name) else { continue };
-            let Made::Landed(face) = std::mem::replace(&mut kept.made, Made::Failed) else { continue };
-            if install(engine, &name, &face, kept.over_interface) {
-                kept.made = Made::Installed(face);
+    /// Installs the faces that landed since the last frame and writes their cells in `store`, so the nodes that asked
+    /// run in the coming frame; then takes out what passes the budget. The host's frame hook, before the frame runs.
+    pub(crate) fn install_landed(&self, engine: &mut dyn TextEngine, store: &mut Store) {
+        let cells = {
+            let mut registry = self.lock();
+            let landed: Vec<String> =
+                registry.faces.iter().filter(|(_, kept)| matches!(kept.made, Made::Landed(_))).map(|(name, _)| name.clone()).collect();
+            if landed.is_empty() {
+                return;
             }
+            let mut cells = Vec::new();
+            for name in landed {
+                let Some(kept) = registry.faces.get_mut(&name) else { continue };
+                let Made::Landed(face) = std::mem::replace(&mut kept.made, Made::Failed) else { continue };
+                if install(engine, &name, &face, kept.over_interface) {
+                    kept.made = Made::Installed(face);
+                }
+                cells.extend(kept.cell);
+            }
+            registry.evict(engine);
+            cells
+        };
+        for cell in cells {
+            cell.update(store, |installs| *installs += 1);
         }
-        registry.evict(engine);
     }
 
     /// Reads `name`'s cell (and its chain's) for the node `cx` builds, starting its load if one waits, and watches for
     /// the last reader leaving.
     fn read(&self, cx: &mut BuildCx<'_>, name: &str) {
-        let (chain, load) = {
+        let (chain, load, ticket) = {
             let mut registry = self.lock();
             let Some(kept) = registry.faces.get_mut(name) else { return };
             let load = match &mut kept.made {
-                Made::Loading(load) => load.take(),
+                Made::Loading { load, .. } => load.take(),
                 _ => None,
             };
             let chain = match &kept.made {
                 Made::Installed(face) | Made::Landed(face) => face.chain_families(),
                 _ => Vec::new(),
             };
-            (chain, load)
+            (chain, load, kept.ticket)
         };
         self.read_cell(cx, name);
         for link in chain {
@@ -208,24 +229,42 @@ impl DocumentFaces {
         if let Some(load) = load {
             let board = cx.provided::<JobBoard>().unwrap_or_else(JobBoard::inline);
             let (faces, name) = (self.clone(), name.to_owned());
-            board.spawn_with(
+            let job = board.spawn_with(
                 Priority::VISIBLE,
                 move |cancel| if cancel.is_cancelled() { None } else { load().filter(FaceBytes::parses) },
                 move |result, delivery| {
-                    let cell = {
+                    let (failed, waker) = {
                         let mut registry = faces.lock();
-                        let Some(kept) = registry.faces.get_mut(&name) else { return };
-                        kept.made = match result.ok().flatten() {
-                            Some(face) => Made::Landed(face),
-                            None => Made::Failed,
-                        };
-                        kept.cell
+                        let waker = registry.waker.clone();
+                        let Some(kept) = registry.faces.get_mut(&name).filter(|kept| kept.ticket == ticket) else { return };
+                        if !matches!(kept.made, Made::Loading { .. }) {
+                            return;
+                        }
+                        match result.ok().flatten() {
+                            Some(face) => {
+                                kept.made = Made::Landed(face);
+                                (None, waker)
+                            }
+                            None => {
+                                kept.made = Made::Failed;
+                                (kept.cell, None)
+                            }
+                        }
                     };
-                    if let Some(cell) = cell {
-                        cell.update(delivery.store, |landings| *landings += 1);
+                    // A failed load is answered now; a face waits for the host's next frame, which installs it.
+                    if let Some(cell) = failed {
+                        cell.update(delivery.store, |installs| *installs += 1);
+                    }
+                    if let Some(waker) = waker {
+                        waker.wake();
                     }
                 },
             );
+            if let Some(kept) = self.lock().faces.get_mut(name).filter(|kept| kept.ticket == ticket)
+                && let Made::Loading { job: slot, .. } = &mut kept.made
+            {
+                *slot = Some(job);
+            }
         }
     }
 
@@ -244,6 +283,14 @@ impl DocumentFaces {
             cx.store_mut().on_unread(cell, move || {
                 let Some(faces) = faces.upgrade() else { return };
                 let mut registry = faces.lock().unwrap_or_else(PoisonError::into_inner);
+                if let Some(Kept { made: Made::Loading { job, .. }, .. }) = registry.faces.get(&name) {
+                    // Nobody waits for the face any more: its load stops and the next asking starts again.
+                    if let Some(job) = job {
+                        job.cancel();
+                    }
+                    registry.faces.remove(&name);
+                    return;
+                }
                 registry.serial += 1;
                 let serial = registry.serial;
                 if let Some(kept) = registry.faces.get_mut(&name) {
@@ -303,7 +350,7 @@ fn install(engine: &mut dyn TextEngine, name: &str, face: &FaceBytes, over_inter
     engine.install_face(FaceInstall { family: name.into(), bytes: Arc::clone(&face.bytes), index: face.index, coords: face.coords.clone(), fallback })
 }
 
-/// The session's font host, as the window root keeps it on the window's context ([`super::refresh_facts`]).
+/// The session's font host, as the window root keeps it on the window's context (`Context::enter_root`).
 #[derive(Clone, Default)]
 pub(crate) struct HostSlot(pub(crate) Option<FontHost>);
 
@@ -333,12 +380,13 @@ where
         match registry.faces.get(&name).map(|kept| &kept.made) {
             Some(Made::Failed) => FaceState::Unavailable,
             Some(Made::Installed(_)) => FaceState::Ready(FontRef::named(&name)),
-            Some(Made::Loading(_) | Made::Landed(_)) => FaceState::Loading,
+            Some(Made::Loading { .. } | Made::Landed(_)) => FaceState::Loading,
             None => {
                 let load: Load = Box::new(job());
-                registry
-                    .faces
-                    .insert(name.clone(), Kept { made: Made::Loading(Some(load)), over_interface: false, cell: None, readers: Readers::None });
+                registry.tickets += 1;
+                let ticket = registry.tickets;
+                let made = Made::Loading { load: Some(load), job: None };
+                registry.faces.insert(name.clone(), Kept { made, over_interface: false, cell: None, readers: Readers::None, ticket });
                 FaceState::Loading
             }
         }
@@ -354,7 +402,12 @@ where
 /// face is kept, and the face is installed in `engine` and ready in the same run; without an engine at hand it is
 /// installed before the next frame. A `load` that returns `None`, or bytes the engines cannot read, marks the key
 /// unavailable. Its keys are apart from [`face`]'s: the same key may name a face drawn alone too.
-pub(crate) fn over_interface(ctx: &Context, engine: Option<&mut dyn TextEngine>, key: &str, load: impl FnOnce() -> Option<FaceBytes>) -> FaceState {
+pub(crate) fn over_interface(
+    ctx: &Context,
+    engine: Option<&mut (dyn TextEngine + '_)>,
+    key: &str,
+    load: impl FnOnce() -> Option<FaceBytes>,
+) -> FaceState {
     let Some(faces) = faces_of(ctx) else { return FaceState::Unavailable };
     let name = Kind::OverInterface.family_name(key);
     let state = {
@@ -363,11 +416,13 @@ pub(crate) fn over_interface(ctx: &Context, engine: Option<&mut dyn TextEngine>,
             Some(Made::Failed) => FaceState::Unavailable,
             Some(Made::Installed(_)) => FaceState::Ready(FontRef::named(&name)),
             Some(Made::Landed(_)) => FaceState::Loading,
-            Some(Made::Loading(_)) | None => {
+            Some(Made::Loading { .. }) | None => {
                 let made = match (load().filter(FaceBytes::parses), engine) {
                     (None, _) => Made::Failed,
-                    (Some(face), Some(engine)) if install(engine, &name, &face, true) => Made::Installed(face),
-                    (Some(_), Some(_)) => Made::Failed,
+                    (Some(face), Some(engine)) => match install(engine, &name, &face, true) {
+                        true => Made::Installed(face),
+                        false => Made::Failed,
+                    },
                     (Some(face), None) => Made::Landed(face),
                 };
                 let state = match &made {
@@ -375,9 +430,16 @@ pub(crate) fn over_interface(ctx: &Context, engine: Option<&mut dyn TextEngine>,
                     Made::Installed(_) => FaceState::Ready(FontRef::named(&name)),
                     _ => FaceState::Loading,
                 };
+                if matches!(made, Made::Landed(_))
+                    && let Some(waker) = &registry.waker
+                {
+                    waker.wake();
+                }
                 let readers = registry.faces.get(&name).map_or(Readers::None, |kept| kept.readers);
                 let cell = registry.faces.get(&name).and_then(|kept| kept.cell);
-                registry.faces.insert(name.clone(), Kept { made, over_interface: true, cell, readers });
+                registry.tickets += 1;
+                let ticket = registry.tickets;
+                registry.faces.insert(name.clone(), Kept { made, over_interface: true, cell, readers, ticket });
                 state
             }
         }

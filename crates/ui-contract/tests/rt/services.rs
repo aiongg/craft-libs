@@ -598,3 +598,160 @@ fn a_picture_reads_ready_only_once_it_is_in_the_image_store() {
     }
     assert!(!w.rig.driver.runtime.needs_frame());
 }
+
+// ----- drawing from a build
+
+mod drawn {
+    use craft_ui_contract::contract::{MemoView, Ui};
+    use craft_ui_contract::primitives::Color32;
+    use craft_ui_contract::testing::Harness;
+    use craft_ui_rt::{Item, Part, Pos2, Rect};
+
+    const UNDER: Rect = Rect { min: Pos2::new(0.0, 0.0), max: Pos2::new(10.0, 10.0) };
+    const OVER: Rect = Rect { min: Pos2::new(20.0, 0.0), max: Pos2::new(30.0, 10.0) };
+    const OTHER: Rect = Rect { min: Pos2::new(40.0, 0.0), max: Pos2::new(50.0, 10.0) };
+
+    /// While `on`, draws one rect under the scope's children and one over them, at the scope's start; else one rect
+    /// elsewhere, under them.
+    fn drawer(on: &mut bool, ui: &mut Ui) -> u32 {
+        let at = ui.available_rect_before_wrap().min.to_vec2();
+        let draw = ui.draw();
+        let canvas = draw.canvas();
+        if *on {
+            canvas.rect_filled(UNDER.translate(at), 0, Color32::RED);
+            canvas.over(|| canvas.rect_filled(OVER.translate(at), 0, Color32::BLUE));
+        } else {
+            canvas.rect_filled(OTHER.translate(at), 0, Color32::GREEN);
+        }
+        0
+    }
+
+    /// The part of the newest recorded list holding a rect at `rect` (node coordinates), with the list's node.
+    fn newest(h: &Harness<bool>, rect: Rect) -> Option<(Part, craft_ui_rt::NodeId)> {
+        let draws = h.driver.renderer.frames.iter().flat_map(|frame| frame.draws.iter());
+        draws
+            .filter(|draw| draw.list.items.iter().any(|item| matches!(item, Item::Rect { rect: r, .. } if *r == rect)))
+            .last()
+            .map(|draw| (draw.part, draw.node))
+    }
+
+    /// What a build draws through `Ui::draw` paints with its node, in the node's coordinates: the under list beneath
+    /// the children, the over list above them. The next build's drawing replaces it.
+    #[test]
+    fn ui_draw_paints_under_and_over_the_node_children() {
+        let mut h = Harness::new_ui_state(
+            |ui, on: &mut bool| {
+                ui.add_space(30.0);
+                let _ = MemoView::new("drawer", *on, drawer).show(ui);
+            },
+            true,
+        );
+        h.run();
+        let (under, node) = newest(&h, UNDER).expect("the under rect paints, at the scope's own origin");
+        let (over, over_node) = newest(&h, OVER).expect("the over rect paints");
+        assert_eq!((under, over), (Part::Content, Part::Overlay));
+        assert_eq!(node, over_node, "both lists belong to the drawing scope");
+
+        *h.state_mut() = false;
+        h.run();
+        assert_eq!(newest(&h, OTHER), Some((Part::Content, node)), "the next build's drawing paints with the scope");
+        let content = h.driver.renderer.frames.iter().flat_map(|frame| frame.draws.iter());
+        let content = content.filter(|draw| draw.node == node && draw.part == Part::Content).last().expect("the scope's list");
+        assert!(!content.list.items.iter().any(|item| matches!(item, Item::Rect { rect, .. } if *rect == UNDER)), "and replaces the old one");
+    }
+}
+
+// ----- the focused stop
+
+mod focused {
+    use std::sync::atomic::{AtomicU32, Ordering};
+
+    use crate::skeleton::IconButton;
+    use craft_behavior::IconId;
+    use craft_ui_contract::contract::{MemoView, Show as _, Ui};
+    use craft_ui_contract::testing::Harness;
+    use craft_ui_rt::{Key, Mods, Pos2};
+
+    static RUNS: AtomicU32 = AtomicU32::new(0);
+
+    /// Reads the window's focused stop.
+    fn reader(_: &mut (), ui: &mut Ui) -> u32 {
+        RUNS.fetch_add(1, Ordering::Relaxed);
+        u32::from(ui.focused_stop().is_some())
+    }
+
+    /// A view reading the focused stop runs again once per focus move and not for a pointer move.
+    #[test]
+    fn focused_stop_reruns_its_reader_only_when_focus_moves() {
+        let mut h = Harness::new_ui(|ui| {
+            let _ = MemoView::new("reader", (), reader).show(ui);
+            let _ = IconButton::new(IconId::new("plus"), "One").show(ui);
+            let _ = IconButton::new(IconId::new("plus"), "Two").show(ui);
+        });
+        h.run();
+        let runs = || RUNS.load(Ordering::Relaxed);
+        let settled = runs();
+
+        let window = h.window();
+        h.driver.platform.mouse_move(window, Pos2::new(5.0, 5.0));
+        h.run();
+        h.driver.platform.mouse_move(window, Pos2::new(60.0, 40.0));
+        h.run();
+        assert_eq!(runs(), settled, "a pointer move runs no focus reader");
+
+        h.key(Key::Tab, Mods::NONE).run();
+        assert_eq!(runs(), settled + 1, "focus moving to the first stop runs the reader once");
+        h.key(Key::Tab, Mods::NONE).run();
+        assert_eq!(runs(), settled + 2, "and each move once more");
+        h.run();
+        assert_eq!(runs(), settled + 2, "nothing more while focus stays");
+    }
+}
+
+// ----- session memory across windows
+
+mod moved_panel {
+    use craft_ui_contract::contract::{Id, Ui};
+    use craft_ui_contract::runtime::memory::RuntimeMemory;
+    use craft_ui_contract::runtime::windows::{WindowEnv, window_root_with};
+    use craft_ui_rt::record::RecordingRenderer;
+    use craft_ui_rt::{Vec2, WindowId, WindowSpec};
+    use craft_ui_test_kit::rt::Rig;
+
+    /// The panel: counts its shows in session memory under its own id.
+    fn panel(ui: &mut Ui) -> u32 {
+        ui.with_session(Id::new("moved-panel"), |shows: &mut u32| {
+            *shows += 1;
+            *shows
+        })
+    }
+
+    /// One frame showing the panel in `at` only, with the runtime's memory above every window root, as the host
+    /// provides it.
+    fn frame(rig: &mut Rig<RecordingRenderer>, memory: &RuntimeMemory, windows: [WindowId; 2], at: WindowId) -> Vec<(WindowId, u32)> {
+        for window in windows {
+            rig.driver.runtime.mark_root(window);
+        }
+        let mut seen = Vec::new();
+        rig.frame_with(0.0, &mut |window, cx| {
+            cx.provide(memory.clone());
+            window_root_with(cx, WindowEnv::default(), |ui| {
+                if window == at {
+                    seen.push((window, panel(ui)));
+                }
+            })
+        });
+        seen
+    }
+
+    /// A panel moved to another window finds the session memory it wrote in the first.
+    #[test]
+    fn session_memory_survives_a_window_move() {
+        let mut rig = Rig::inline(Vec2::new(400.0, 300.0), 1.0, RecordingRenderer::default());
+        let main = rig.main;
+        let other = rig.driver.open_inline_window(&WindowSpec::new("Other"));
+        let memory = RuntimeMemory::default();
+        assert_eq!(frame(&mut rig, &memory, [main, other], main), [(main, 1)]);
+        assert_eq!(frame(&mut rig, &memory, [main, other], other), [(other, 2)], "the moved panel reads what it wrote before");
+    }
+}

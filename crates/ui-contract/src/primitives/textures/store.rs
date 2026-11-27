@@ -272,13 +272,13 @@ impl<K: TextureKey> TextureStore<K> {
     }
 
     /// Stores `image` for `key` at `revision`, replacing the key's picture.
-    pub fn put(&self, cx: &mut BuildCx<'_>, key: K, revision: Revision, image: RgbaImage) -> CachedTexture {
+    pub fn put(&self, cx: &mut impl TextureReads, key: K, revision: Revision, image: RgbaImage) -> CachedTexture {
         self.cache.put(cx, key, revision, image)
     }
 
     /// `key`'s picture at `revision`, calling `make` and putting its image only when the entry has another revision
     /// or none.
-    pub fn get_or_put(&self, cx: &mut BuildCx<'_>, key: K, revision: Revision, make: impl FnOnce() -> RgbaImage) -> CachedTexture {
+    pub fn get_or_put(&self, cx: &mut impl TextureReads, key: K, revision: Revision, make: impl FnOnce() -> RgbaImage) -> CachedTexture {
         match self.cache.read(cx, &key, revision) {
             TextureLook::Ready(texture) => texture,
             _ => self.cache.put(cx, key, revision, make()),
@@ -286,12 +286,12 @@ impl<K: TextureKey> TextureStore<K> {
     }
 
     /// Records that `key` has no picture at `revision` (state `Empty`); frees its picture.
-    pub fn put_empty(&self, cx: &mut BuildCx<'_>, key: K, revision: Revision) {
+    pub fn put_empty(&self, cx: &mut impl TextureReads, key: K, revision: Revision) {
         self.cache.put_empty(cx, key, revision);
     }
 
     /// Records that making `key`'s picture at `revision` failed (state `Failed`).
-    pub fn put_failure(&self, cx: &mut BuildCx<'_>, key: K, revision: Revision, failure: LoadFailure) {
+    pub fn put_failure(&self, cx: &mut impl TextureReads, key: K, revision: Revision, failure: LoadFailure) {
         self.cache.put_failure(cx, key, revision, failure);
     }
 

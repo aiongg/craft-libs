@@ -365,6 +365,9 @@ pub(crate) struct Kept {
     pub(crate) claim: Option<craft_ui_rt::Rect>,
     /// Empty until the first run; one entry when the paint read no pointer state.
     pub(crate) variants: smallvec::SmallVec<[Variant; 1]>,
+    /// What the last build drew through `Ui::draw` in this node's flow, in its coordinates: shown after the look's
+    /// lists under and over its children, whichever look shows (`Flow::take_drawn`).
+    pub(crate) drawn: (DisplayList, DisplayList),
     pub(crate) parts: Vec<KeptPart>,
     pub(crate) access: Option<accesskit::Node>,
     /// The sub-nodes of the access node; empty with it.
@@ -475,6 +478,7 @@ impl Kept {
             sense: Sense::empty(),
             claim: None,
             variants: smallvec::SmallVec::new(),
+            drawn: (DisplayList::default(), DisplayList::default()),
             parts: Vec::new(),
             access: None,
             access_subs: Vec::new(),
@@ -640,6 +644,7 @@ impl Element for ComponentNode {
         };
         super::motion::paint_level(kept, cx);
         super::motion::paint_looks(kept, cx, look);
+        paint_drawn(kept, cx);
         if !kept.members.is_empty() {
             // Member rows: each row's sub-list for the pointer's place; the read flips only when the
             // hovered row changes, and the press is read only while a row is hovered.
@@ -929,6 +934,11 @@ impl Element for ScopeNode {
         true
     }
 
+    /// What the scope's build drew through `Ui::draw`; its children paint themselves.
+    fn paint(&self, kept: &Kept, cx: &mut PaintCx<'_>) {
+        paint_drawn(kept, cx);
+    }
+
     /// The window root is the last claimant on every key's path: Tab and F6, then the command the
     /// key is bound to.
     fn event(&self, kept: &mut Kept, cx: &mut EventCx<'_>, ev: &Event) -> Handled {
@@ -944,6 +954,28 @@ impl Element for ScopeNode {
             _ => Handled::No,
         }
     }
+}
+
+/// Shows what the node's last build drew through `Ui::draw`, after the lists painted before it: under the children,
+/// then over them.
+fn paint_drawn(kept: &Kept, cx: &mut PaintCx<'_>) {
+    let (under, over) = &kept.drawn;
+    if !under.is_empty() {
+        cx.extend(under);
+    }
+    if !over.is_empty() {
+        cx.over(|cx| cx.extend(over));
+    }
+}
+
+/// Keeps in `kept` (a node's [`Kept::drawn`]) what its build drew through `Ui::draw`; the node paints again when it
+/// draws now or drew before.
+pub(crate) fn set_drawn(kept: &mut (DisplayList, DisplayList), cx: &mut craft_ui_rt::BuildCx<'_>, drawn: (DisplayList, DisplayList)) {
+    let empty = |(under, over): &(DisplayList, DisplayList)| under.is_empty() && over.is_empty();
+    if !(empty(&drawn) && empty(kept)) {
+        cx.mark_changed();
+    }
+    *kept = drawn;
 }
 
 /// A wheel step as the node's run reads it (`Pointer::take_wheel`): line steps in points of the

@@ -5,7 +5,7 @@
 mod defaults;
 pub(crate) mod document;
 mod faces;
-mod facts;
+pub(crate) mod facts;
 mod host;
 pub(crate) mod on_demand;
 pub(crate) mod script;

@@ -28,7 +28,7 @@ use super::ui::Ui;
 use crate::contract::context::Context;
 use crate::primitives::Id;
 use crate::runtime::commands::{
-    CommandChain, CommandGate, CommandKind, CommandScope, CommandSet, CommandState, FirePhase, FireSource, Fired, QuitCommand, Registry,
+    CommandChain, CommandGate, CommandKind, CommandScope, CommandSet, CommandState, FirePhase, FireSource, Fired, NavCommand, QuitCommand, Registry,
     ResolvedCommand, Shown,
 };
 use crate::runtime::env::Label;
@@ -69,7 +69,8 @@ struct Board {
 
 /// Where a resolve or a fire stands against the window's modal layers (`ModalRule`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum ModalAt {
+#[doc(hidden)]
+pub enum ModalAt {
     /// No modal layer is open in the window.
     Free,
     /// A modal layer is open and the resolving or firing node is inside the top one.
@@ -155,6 +156,8 @@ pub(crate) trait FireCx {
     fn quit(&mut self);
     /// Dismisses the layer children of the firing window that close on a command and do not own `from`.
     fn dismiss_on_command(&mut self, from: Option<NodeId>);
+    /// Moves focus to the next pane of the firing window (`forward`, else the previous one).
+    fn step_pane(&mut self, forward: bool);
 }
 
 impl FireCx for EventCx<'_> {
@@ -169,6 +172,12 @@ impl FireCx for EventCx<'_> {
     fn dismiss_on_command(&mut self, from: Option<NodeId>) {
         EventCx::dismiss_on_command(self, from);
     }
+
+    fn step_pane(&mut self, forward: bool) {
+        if let super::focus::PaneMove::To(node) = super::focus::pane_target(self.runtime(), self.window(), None, self.focused(), forward) {
+            self.focus_node(node);
+        }
+    }
 }
 
 impl FireCx for BuildCx<'_> {
@@ -182,6 +191,14 @@ impl FireCx for BuildCx<'_> {
 
     fn dismiss_on_command(&mut self, from: Option<NodeId>) {
         BuildCx::dismiss_on_command(self, from);
+    }
+
+    fn step_pane(&mut self, forward: bool) {
+        let window = self.window();
+        let focused = self.runtime().focused(window);
+        if let super::focus::PaneMove::To(node) = super::focus::pane_target(self.runtime(), window, None, focused, forward) {
+            self.focus_node(node);
+        }
     }
 }
 
@@ -202,6 +219,13 @@ impl FireCx for OutsideFire<'_> {
 
     fn dismiss_on_command(&mut self, from: Option<NodeId>) {
         self.rt.dismiss_on_command(self.window, from);
+    }
+
+    fn step_pane(&mut self, forward: bool) {
+        let focused = self.rt.focused(self.window);
+        if let super::focus::PaneMove::To(node) = super::focus::pane_target(self.rt, self.window, None, focused, forward) {
+            self.rt.set_focus(self.window, Some(node), craft_ui_rt::FocusCause::Program);
+        }
     }
 }
 
@@ -309,6 +333,14 @@ impl CommandBoard {
         }
         if fired.phase != FirePhase::Repeat && QuitCommand::from_ref(&fired.command).is_some() {
             fire.quit();
+        }
+        // Next and Previous Pane from a menu, the palette or code; the window root's key stage moves panes for keys.
+        if !ran && fired.phase != FirePhase::Repeat && fired.source != FireSource::Key {
+            match NavCommand::from_ref(&fired.command) {
+                Some(NavCommand::NextPane) => fire.step_pane(true),
+                Some(NavCommand::PreviousPane) => fire.step_pane(false),
+                _ => {}
+            }
         }
         ran
     }
@@ -535,9 +567,15 @@ impl CommandBoard {
         crate::contract::context::log_command_read(self.clone(), command.clone(), instance);
         let board = self.clone();
         let edit = self.edit_command(command).is_some();
+        // The modal rule's answer moves with the window's layers: a node that stands under one reads the open-layer
+        // cell and runs again when the stack changes.
+        let layered = modal != ModalAt::Free || self.0.borrow().modal_rule(command) != ModalRule::Always;
         crate::contract::context::log_build_read(move |cx| {
             board.gate_cell(cx.store_mut()).get(cx);
             board.parents_cell(cx.store_mut()).get(cx);
+            if layered {
+                super::layers::track(cx);
+            }
             if edit && let Some(ctx) = cx.provided::<Context>() {
                 FocusedEdits::get(&ctx, cx);
             }

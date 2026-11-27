@@ -2,7 +2,7 @@
 
 use super::store::{Revision, TextureKey, TextureState, TextureStore, TextureStoreOptions};
 use super::words::TextureWords;
-use crate::contract::rt::JobBoard;
+use crate::contract::rt::{JobBoard, TextureReads};
 use craft_ui_rt::{BuildCx, RgbaImage};
 use std::hash::Hash;
 
@@ -118,7 +118,7 @@ impl<K: TextureKey> TextureLoader<K> {
 
     /// What `key` shows for `revision`, queueing the job `job()` makes when the store has nothing for this revision
     /// and no job for it is queued or running: `ask`, then `submit`. `job` is called only when a job is queued.
-    pub fn request<J>(&self, cx: &mut BuildCx<'_>, key: &K, revision: Revision, priority: Priority, job: impl FnOnce() -> J) -> TextureState
+    pub fn request<J>(&self, cx: &mut impl TextureReads, key: &K, revision: Revision, priority: Priority, job: impl FnOnce() -> J) -> TextureState
     where
         J: FnOnce(&Cancel) -> LoadResult + Send + 'static,
     {
@@ -131,7 +131,7 @@ impl<K: TextureKey> TextureLoader<K> {
     /// What `key` shows for `revision` when that is known without a new job: `Some` of the store's `Ready`, `Empty`
     /// or `Failed`, or `Some(Loading { stand_in })` while a job for this revision is queued or running, moved to
     /// `priority`; `None` when a job is needed. The building node runs again when the job answers.
-    pub fn ask(&self, cx: &mut BuildCx<'_>, key: &K, revision: Revision, priority: Priority) -> Option<TextureState> {
+    pub fn ask(&self, cx: &mut impl TextureReads, key: &K, revision: Revision, priority: Priority) -> Option<TextureState> {
         let cache = self.store.cache();
         if !cache.requested(key, revision) {
             return None;
@@ -144,7 +144,7 @@ impl<K: TextureKey> TextureLoader<K> {
     /// returns `Loading` with the key's old picture as the stand-in. The building node runs again when it answers.
     pub fn submit(
         &self,
-        cx: &mut BuildCx<'_>,
+        cx: &mut impl TextureReads,
         key: K,
         revision: Revision,
         priority: Priority,
@@ -158,7 +158,7 @@ impl<K: TextureKey> TextureLoader<K> {
     }
 
     /// Seconds `key` has waited for its picture, by the frame clock; `None` when it is not loading.
-    pub fn waited(&self, cx: &BuildCx<'_>, key: &K) -> Option<f64> {
+    pub fn waited(&self, cx: &impl TextureReads, key: &K) -> Option<f64> {
         self.store.cache().waited(key, cx.now())
     }
 }

@@ -186,6 +186,13 @@ impl Runtime {
         self.windows.get_mut(&window).map(|w| &mut w.input)
     }
 
+    /// Writes `window`'s focused-node cell ([`crate::window::Env::focused`]).
+    fn note_focused(&mut self, window: WindowId, node: Option<NodeId>) {
+        if let Some(cell) = self.windows.get(&window).map(|w| w.env.focused) {
+            cell.set(&mut self.store, node);
+        }
+    }
+
     /// Writes the window's modifier and pointer cells from `ev`, so a build or paint that read them
     /// runs again when they change.
     fn note_input(&mut self, window: WindowId, ev: &WindowEvent) {
@@ -479,6 +486,7 @@ impl Runtime {
         input.focused = node;
         input.focus_moved = true;
         input.focus_pressed = false;
+        self.note_focused(window, node);
         let new_chain = node.map(|n| chain(&self.tree, n)).unwrap_or_default();
         let Some(input) = self.input_mut(window) else { return };
         if let Some(new) = node {
@@ -1291,6 +1299,7 @@ impl Runtime {
             input.focused = None;
             input.focus_moved = true;
         }
+        self.note_focused(window, None);
         self.set_focus(window, fallback, FocusCause::Removed);
         self.forget_focus_returns(window);
     }
