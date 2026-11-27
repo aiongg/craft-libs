@@ -398,6 +398,8 @@ pub use craft_tracked as tracked;
 pub use craft_ui as ui;
 #[cfg(feature = "ui-rt")]
 pub use craft_ui_rt as ui_rt;
+#[cfg(all(feature = "ui-render-skia", not(target_arch = "wasm32")))]
+pub use craft_ui_render_skia as ui_render_skia;
 #[cfg(feature = "update")]
 pub use craft_update as update;
 #[cfg(feature = "usd")]
