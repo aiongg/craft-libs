@@ -32,6 +32,7 @@ pub struct PaintCx<'a> {
     hits: Vec<HitRecord>,
     cursor: Option<Cursor>,
     window_drop: bool,
+    close_guard: bool,
 }
 
 impl Reads for PaintCx<'_> {
@@ -81,10 +82,25 @@ impl PaintCx<'_> {
         self.hits.push(HitRecord { shape: shape.into(), sense: Sense::empty(), part, level: self.part, kind: HitKind::Drop, cursor: None });
     }
 
+    /// Records a place the operating system acts on in local coordinates: a press there moves the
+    /// window, resizes it or is a caption button, as the host's `tag` says
+    /// ([`crate::Runtime::window_zones`]). It takes no pointer input of the runtime's.
+    pub fn window_zone(&mut self, shape: impl Into<HitShape>, tag: u64) {
+        self.hits.push(HitRecord { shape: shape.into(), sense: Sense::empty(), part: tag, level: self.part, kind: HitKind::Zone, cursor: None });
+    }
+
     /// The node takes drops anywhere in its window that no [`PaintCx::drop_target`] shape takes,
     /// and drops of OS files that come with no position. The node that registered last asks first.
     pub fn window_drop_target(&mut self) {
         self.window_drop = true;
+    }
+
+    /// The node answers its window's close requests: the window's close button, Alt+F4 and Quit
+    /// reach it as [`crate::Event::CloseRequested`] instead of closing the window. The node closes
+    /// the window itself ([`crate::EventCx::window_command`] with `Close`, now or after a prompt);
+    /// a window with no guard closes at once. The node that registered last is asked.
+    pub fn close_guard(&mut self) {
+        self.close_guard = true;
     }
 
     pub fn window(&self) -> WindowId {
@@ -274,9 +290,10 @@ pub(crate) fn paint_pass(rt: &mut Runtime) {
             hits: Vec::new(),
             cursor: None,
             window_drop: false,
+            close_guard: false,
         };
         el.paint(&mut cx);
-        let PaintCx { content, overlay, clip, opacity, hits, cursor, window_drop, .. } = cx;
+        let PaintCx { content, overlay, clip, opacity, hits, cursor, window_drop, close_guard, .. } = cx;
         rt.version_clock += 1;
         let version = rt.version_clock;
         rt.counters.painted += 1;
@@ -323,6 +340,14 @@ pub(crate) fn paint_pass(rt: &mut Runtime) {
                 (true, None) => w.window_drops.push(id),
                 (false, Some(i)) => {
                     w.window_drops.remove(i);
+                }
+                (true, Some(_)) | (false, None) => {}
+            }
+            let guarded = w.close_guards.iter().position(|&n| n == id);
+            match (close_guard, guarded) {
+                (true, None) => w.close_guards.push(id),
+                (false, Some(i)) => {
+                    w.close_guards.remove(i);
                 }
                 (true, Some(_)) | (false, None) => {}
             }

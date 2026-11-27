@@ -12,6 +12,7 @@ use crate::build::{BuildCx, build_inline_root, build_node};
 use crate::display::{ImageStore, Media, SurfaceKey};
 use crate::drag::{DragInfo, Session};
 use crate::element::{Element, ElementBox, InlineRoot};
+use crate::event::CloseReason;
 use crate::frame::{FrameTree, merge_damage, node_damage, parent_space};
 use crate::geom::{Margin, is_empty};
 use crate::gesture::WheelOptions;
@@ -24,7 +25,7 @@ use crate::platform::{Cursor, ImeRequest, PlatformEvent, WindowCommand, WindowEv
 use crate::state::{Access, Reads, State, Store, Writes};
 use crate::text::TextEngine;
 use crate::tree::{Node, Role, Tree};
-use crate::window::{Env, Window, Windows};
+use crate::window::{Env, Window, WindowGeometry, Windows};
 
 /// Each runtime numbers its display-list versions in its own range, so a renderer that outlives a
 /// runtime (a bench resetting the document) never mistakes a new node's list for a kept one.
@@ -110,7 +111,6 @@ pub struct Runtime {
     /// Nodes showing each image or surface.
     pub(crate) media: HashMap<Media, SmallVec<[NodeId; 2]>>,
     pub(crate) window_commands: Vec<(WindowId, WindowCommand)>,
-    closing: Vec<WindowId>,
     pub(crate) window_opens: Vec<WindowOpen>,
     /// Open windows, bottom of the stack first: the last focused is on top, with the windows it
     /// owns above it.
@@ -157,7 +157,6 @@ impl Runtime {
             build_wakes: Vec::new(),
             media: HashMap::new(),
             window_commands: Vec::new(),
-            closing: Vec::new(),
             window_opens: Vec::new(),
             z_order: Vec::new(),
             drag: None,
@@ -214,6 +213,10 @@ impl Runtime {
 
     pub(crate) fn queue_window<E: Element>(&mut self, requester: NodeId, spec: WindowSpec, root: E) {
         self.window_opens.push(WindowOpen { spec, root: Box::new(move |rt: &mut Runtime, window| rt.set_root(window, root)), requester });
+    }
+
+    pub(crate) fn queue_inline_window(&mut self, requester: NodeId, spec: WindowSpec) {
+        self.window_opens.push(WindowOpen { spec, root: Box::new(|rt: &mut Runtime, window| rt.set_inline_root(window)), requester });
     }
 
     pub(crate) fn take_window_opens(&mut self) -> Vec<WindowOpen> {
@@ -467,11 +470,7 @@ impl Runtime {
             WindowEvent::AccessActivated => self.set_access_enabled(window, true),
             WindowEvent::SurfaceCreated => w.changes.full = true,
             WindowEvent::SurfaceLost => {}
-            WindowEvent::CloseRequested => {
-                if !self.closing.contains(&window) {
-                    self.closing.push(window);
-                }
-            }
+            WindowEvent::CloseRequested => self.request_close(window, CloseReason::Window),
             WindowEvent::Closed => {}
             // Pasted images and the system theme reach nodes through the clipboard and env cell
             // services that give them a consumer.
@@ -489,10 +488,57 @@ impl Runtime {
         }
     }
 
-    /// Windows the user asked to close since the last call. The app closes them (or not) with
-    /// [`WindowCommand::Close`].
-    pub fn take_close_requests(&mut self) -> Vec<WindowId> {
-        std::mem::take(&mut self.closing)
+    /// The one close path: the user's close request ([`WindowEvent::CloseRequested`]) and
+    /// [`Runtime::quit`] both end here. A window another window's app-modal child blocks refuses
+    /// (its blocking window takes focus); a window with a close guard ([`crate::PaintCx::close_guard`])
+    /// asks its topmost guard, which closes the window or keeps it; any other window closes.
+    pub fn request_close(&mut self, window: WindowId, reason: CloseReason) {
+        if !self.windows.contains_key(&window) {
+            return;
+        }
+        if let Some(modal) = self.blocked_by(window) {
+            self.window_command(modal, WindowCommand::Focus);
+            return;
+        }
+        match self.windows.get(&window).and_then(|w| w.close_guards.last().copied()) {
+            Some(guard) => {
+                self.deliver(guard, guard, &crate::event::Event::CloseRequested(reason));
+            }
+            None => self.window_command(window, WindowCommand::Close),
+        }
+    }
+
+    /// Asks every window to close, the top of the stack first, each once, through
+    /// [`Runtime::request_close`]. The app has quit when its last window is gone.
+    pub fn quit(&mut self) {
+        let windows: Vec<WindowId> = self.z_order.iter().rev().copied().collect();
+        for window in windows {
+            self.request_close(window, CloseReason::Quit);
+        }
+    }
+
+    /// The places of `window` the operating system acts on ([`crate::PaintCx::window_zone`]), each
+    /// with the input shapes above it. The host publishes them to the platform's hit test.
+    pub fn window_zones(&self, window: WindowId) -> Vec<crate::hit::WindowZone> {
+        self.windows.get(&window).map(|w| crate::hit::window_zones(&self.tree, w)).unwrap_or_default()
+    }
+
+    /// The name the app gave `window` ([`WindowSpec::key`]).
+    pub fn window_key(&self, window: WindowId) -> Option<&str> {
+        self.windows.get(&window)?.key.as_deref()
+    }
+
+    /// Records the app's name for `window`.
+    pub fn set_window_key(&mut self, window: WindowId, key: Option<String>) {
+        if let Some(w) = self.windows.get_mut(&window) {
+            w.key = key;
+        }
+    }
+
+    /// Where `window` is and how big, as the platform last reported.
+    pub fn window_geometry(&self, window: WindowId) -> Option<WindowGeometry> {
+        let w = self.windows.get(&window)?;
+        Some(WindowGeometry { size: w.viewport, scale: *self.store.peek(w.env.scale), position_px: w.position })
     }
 
     /// Asks the platform to change a window ([`crate::Driver::step`] passes it on).

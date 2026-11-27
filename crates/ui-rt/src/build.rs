@@ -79,6 +79,20 @@ impl BuildCx<'_> {
         self.window
     }
 
+    /// Asks the platform to change this node's window (a build that shows a title or closes the
+    /// window after a prompt).
+    pub fn window_command(&mut self, cmd: crate::platform::WindowCommand) {
+        let window = self.window;
+        self.rt.window_command(window, cmd);
+    }
+
+    /// Asks for a new window whose content the host builds inline; the driver opens it after this
+    /// step and this node then gets [`crate::Event::WindowOpened`].
+    pub fn open_inline_window(&mut self, spec: crate::platform::WindowSpec) {
+        let node = self.node;
+        self.rt.queue_inline_window(node, spec);
+    }
+
     pub(crate) fn runtime_mut(&mut self) -> &mut Runtime {
         self.rt
     }

@@ -40,6 +40,16 @@ pub struct Env {
     pub drag: State<Option<DragInfo>>,
 }
 
+/// Where a window is and how big, as the platform last reported.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct WindowGeometry {
+    /// The inner size in logical points.
+    pub size: Vec2,
+    pub scale: f32,
+    /// The surface's top left on the virtual desktop in physical pixels, once the platform told.
+    pub position_px: Option<Pos2>,
+}
+
 pub(crate) struct Window {
     pub(crate) env: Env,
     pub(crate) root: NodeId,
@@ -75,6 +85,11 @@ pub(crate) struct Window {
     /// Nodes that take focus into their content once the build pass has made it, and whether a
     /// text input goes first ([`crate::BuildCx::focus_into`]).
     pub(crate) focus_entries: Vec<(NodeId, bool)>,
+    /// Nodes that answer the window's close requests ([`crate::PaintCx::close_guard`]), in the order
+    /// they registered.
+    pub(crate) close_guards: Vec<NodeId>,
+    /// The app's name for the window ([`crate::WindowSpec::key`]).
+    pub(crate) key: Option<String>,
 }
 
 impl Window {
@@ -102,6 +117,8 @@ impl Window {
             window_drops: Vec::new(),
             focus_returns: IdMap::default(),
             focus_entries: Vec::new(),
+            close_guards: Vec::new(),
+            key: None,
         }
     }
 

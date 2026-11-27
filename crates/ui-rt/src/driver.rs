@@ -8,12 +8,14 @@ use std::collections::BTreeSet;
 use web_time::Instant;
 
 use crate::build::BuildCx;
+use crate::display::ImageStore;
 use crate::element::Element;
 use crate::id::WindowId;
 use crate::input::ClipboardRequest;
 use crate::platform::{Platform, PlatformEvent, Waker, WindowEvent, WindowSpec};
 use crate::render::{RenderStats, Renderer};
 use crate::runtime::{FrameReport, Runtime};
+use crate::state::Store;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct StepReport {
@@ -36,12 +38,17 @@ pub struct Driver<P: Platform, R: Renderer> {
     /// The windows of one turn's end-of-step pass, kept to reuse its buffer.
     windows: Vec<WindowId>,
     attached: BTreeSet<WindowId>,
+    wake: Option<WakeHandler>,
 }
+
+/// Runs on the UI thread at each [`PlatformEvent::Wake`] with the runtime's cells and images: the
+/// host's job board delivers finished jobs into them ([`Driver::set_wake_handler`]).
+pub type WakeHandler = Box<dyn FnMut(&mut Store, &mut ImageStore)>;
 
 impl<P: Platform, R: Renderer> Driver<P, R> {
     /// Takes every platform window's size and scale and attaches the surfaces that exist.
     pub fn new(runtime: Runtime, platform: P, renderer: R) -> Self {
-        let mut driver = Driver { runtime, platform, renderer, events: Vec::new(), windows: Vec::new(), attached: BTreeSet::new() };
+        let mut driver = Driver { runtime, platform, renderer, events: Vec::new(), windows: Vec::new(), attached: BTreeSet::new(), wake: None };
         for window in driver.platform.surfaces().windows() {
             driver.sync_window(window);
         }
@@ -57,11 +64,24 @@ impl<P: Platform, R: Renderer> Driver<P, R> {
         self.platform.waker()
     }
 
+    /// Sets what runs on the UI thread at each [`PlatformEvent::Wake`], before the step builds:
+    /// delivering finished background jobs into cells and images, so the nodes that wait for them
+    /// are marked in the same step.
+    pub fn set_wake_handler(&mut self, handler: impl FnMut(&mut Store, &mut ImageStore) + 'static) {
+        self.wake = Some(Box::new(handler));
+    }
+
+    /// Asks every window to close ([`Runtime::quit`]).
+    pub fn quit(&mut self) {
+        self.runtime.quit();
+    }
+
     /// Opens a window showing `root`.
     pub fn open_window<E: Element>(&mut self, spec: &WindowSpec, root: E) -> WindowId {
         let window = self.platform.create_window(spec);
         self.runtime.set_root(window, root);
         self.runtime.set_window_owner(window, spec.owner);
+        self.runtime.set_window_key(window, spec.key.clone());
         self.sync_window(window);
         window
     }
@@ -72,6 +92,7 @@ impl<P: Platform, R: Renderer> Driver<P, R> {
             let window = self.platform.create_window(&open.spec);
             (open.root)(&mut self.runtime, window);
             self.runtime.set_window_owner(window, open.spec.owner);
+            self.runtime.set_window_key(window, open.spec.key.clone());
             self.sync_window(window);
             self.runtime.notify(open.requester, &crate::event::Event::WindowOpened(window));
         }
@@ -93,6 +114,7 @@ impl<P: Platform, R: Renderer> Driver<P, R> {
     pub fn open_inline_window(&mut self, spec: &WindowSpec) -> WindowId {
         let window = self.platform.create_window(spec);
         self.runtime.set_inline_root(window);
+        self.runtime.set_window_key(window, spec.key.clone());
         self.sync_window(window);
         window
     }
@@ -123,7 +145,13 @@ impl<P: Platform, R: Renderer> Driver<P, R> {
                 PlatformEvent::Window(window, WindowEvent::SurfaceCreated | WindowEvent::Scale(_) | WindowEvent::Resize(_)) => {
                     self.attach(*window);
                 }
-                PlatformEvent::Window(..) | PlatformEvent::Wake => {}
+                PlatformEvent::Wake => {
+                    if let Some(handler) = self.wake.as_mut() {
+                        let (store, images) = self.runtime.store_and_images_mut();
+                        handler(store, images);
+                    }
+                }
+                PlatformEvent::Window(..) => {}
             }
         }
         events.clear();

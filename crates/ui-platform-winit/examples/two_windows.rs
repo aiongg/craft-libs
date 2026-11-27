@@ -274,10 +274,6 @@ fn demo<R: Renderer + 'static>(make: fn() -> R) {
                     );
                 }
             }
-            for window in d.runtime.take_close_requests() {
-                println!("{window:?}: close requested, closing");
-                d.platform.window(window, WindowCommand::Close);
-            }
             if exit_after.is_some_and(|s| started.elapsed() >= Duration::from_secs_f64(s)) {
                 let monitors = d.platform.monitors().len();
                 println!("exit timer reached ({monitors} monitor(s), {presented} frames presented); closing every window");

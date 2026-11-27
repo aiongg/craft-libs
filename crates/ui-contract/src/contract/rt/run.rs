@@ -112,6 +112,15 @@ impl<'a, C: Component> Cx<'a, C> {
         self.holds_escape.set(true);
     }
 
+    /// Why the window was asked to close since the last run, when this component is its close
+    /// guard ([`Component::close_guard`]).
+    pub fn close_request(&self) -> Option<craft_ui_rt::CloseReason> {
+        self.input.iter().rev().find_map(|i| match i {
+            NodeInput::Close(reason) => Some(*reason),
+            _ => None,
+        })
+    }
+
     /// The node did not run: its outputs are the kept ones.
     pub fn is_settled(&self) -> bool {
         self.settled
@@ -321,7 +330,7 @@ impl<C: Component> PartsCx<'_, C> {
         let part = part.into();
         let shape = translate(shape.into(), Pos2::ZERO - self.origin);
         self.parts.retain(|p| p.part != part);
-        self.parts.push(KeptPart { part, id: part_id(part), shape, sense: Sense::empty(), cursor: None });
+        self.parts.push(KeptPart { part, id: part_id(part), shape, sense: Sense::empty(), cursor: None, exclusive: None });
         PartBuilder { part: self.parts.last_mut().expect("the part was just pushed") }
     }
 }
@@ -335,6 +344,14 @@ impl PartBuilder<'_> {
     /// What the part senses.
     pub fn sense(self, sense: Sense) -> Self {
         self.part.sense = sense;
+        self
+    }
+
+    /// What the operating system does with a press on the part: it moves the window, resizes it from
+    /// an edge or is a caption button. The Windows hit test answers from these parts
+    /// ([`super::windows::publish_zones`]).
+    pub fn exclusive(self, hit: crate::runtime::windows::WindowHit) -> Self {
+        self.part.exclusive = Some(hit);
         self
     }
 
@@ -425,6 +442,13 @@ pub trait Component: ComponentKey + Sized {
     /// past slop.
     fn drag_source(&self) -> Option<DragSource> {
         None
+    }
+
+    /// Whether the component answers its window's close requests: the close button, Alt+F4 and
+    /// Quit reach it ([`Cx::close_request`]) instead of closing the window. It closes the window
+    /// itself ([`super::windows::close_window`]), at once or after a prompt.
+    fn close_guard(&self) -> bool {
+        false
     }
 
     /// The payloads the component takes as drops.
@@ -625,6 +649,7 @@ pub(crate) fn run<C: Component>(mut component: C, kept: &mut Kept, cx: &mut Buil
     kept.focus.scope = component.focus_scope();
     kept.focus.roving = component.roving();
     kept.focus.holds_escape = rcx.holds_escape.get();
+    kept.close_guard = component.close_guard();
     kept.variants = record_variants(&mut component, &rcx, cx, sense);
     // Nothing is built while the window's access tree is off; turning it on rebuilds every node.
     let built = cx.access_enabled().then(|| {
@@ -683,7 +708,7 @@ fn input_facts(input: &[NodeInput], origin: Pos2, mut dragging: bool) -> (InputF
             }
             NodeInput::Access(a) => facts.clicked |= a.action == accesskit::Action::Click && a.sub.is_none(),
             NodeInput::Key(k) => facts.clicked |= k.activates,
-            NodeInput::DragEnd(_) | NodeInput::Drop(_) => {}
+            NodeInput::DragEnd(_) | NodeInput::Drop(_) | NodeInput::Close(_) => {}
         }
     }
     (facts, dragging)

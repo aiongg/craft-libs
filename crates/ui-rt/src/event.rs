@@ -119,6 +119,15 @@ pub struct AccessInput {
     pub sub: Option<u64>,
 }
 
+/// Why a window was asked to close.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CloseReason {
+    /// The user closed this window (title bar button, Alt+F4, the window menu).
+    Window,
+    /// The app is quitting ([`crate::Runtime::quit`]); every window is asked.
+    Quit,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum Event {
@@ -147,6 +156,9 @@ pub enum Event {
     DragEnd(DragOutcome),
     /// The window this node asked for ([`EventCx::open_window`]) is open. Not bubbled.
     WindowOpened(WindowId),
+    /// The node is its window's close guard ([`crate::PaintCx::close_guard`]) and the window was
+    /// asked to close. The window stays open until the node closes it. Not bubbled.
+    CloseRequested(CloseReason),
     /// The pointer entered (`true`) or left the node or the nodes under it. Only nodes that asked
     /// ([`crate::BuildCx::hover_events`]) get it. Not bubbled.
     Hover(bool),
@@ -226,6 +238,13 @@ impl EventCx<'_> {
     pub fn open_window<E: Element>(&mut self, spec: WindowSpec, root: E) {
         let node = self.node;
         self.rt.queue_window(node, spec, root);
+    }
+
+    /// Asks for a new window whose content the host builds inline ([`crate::Runtime::set_inline_root`]).
+    /// The driver opens it after this step's events and this node then gets [`Event::WindowOpened`].
+    pub fn open_inline_window(&mut self, spec: WindowSpec) {
+        let node = self.node;
+        self.rt.queue_inline_window(node, spec);
     }
 
     /// A position in this node's window, on the virtual desktop in physical pixels; `None` while

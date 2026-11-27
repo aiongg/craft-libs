@@ -106,13 +106,38 @@ pub struct HitSink {
     published: Arc<Mutex<Option<Published>>>,
     /// The caption events the window procedure reported since the last pass.
     events: Arc<Mutex<Vec<CaptionEvent>>>,
-    /// The window to repaint when an event arrives from the window procedure.
-    wake: Option<(Context, ViewportId)>,
+    /// What to wake when an event arrives from the window procedure.
+    wake: Option<Wake>,
+}
+
+/// The loop a caption event wakes: an egui viewport's, or a craft-ui-rt platform's.
+#[derive(Clone)]
+#[cfg_attr(not(windows), allow(dead_code))]
+enum Wake {
+    Egui(Context, ViewportId),
+    Rt(craft_ui_rt::Waker),
+}
+
+impl std::fmt::Debug for Wake {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Wake")
+    }
 }
 
 impl HitSink {
     pub(super) fn linked(ctx: &Context, viewport: ViewportId) -> Self {
-        HitSink { wake: Some((ctx.clone(), viewport)), ..HitSink::default() }
+        HitSink { wake: Some(Wake::Egui(ctx.clone(), viewport)), ..HitSink::default() }
+    }
+
+    #[cfg_attr(not(windows), allow(dead_code))]
+    /// A sink for a craft-ui-rt window: caption events wake `waker`'s loop.
+    pub(crate) fn linked_rt(waker: craft_ui_rt::Waker) -> Self {
+        HitSink { wake: Some(Wake::Rt(waker)), ..HitSink::default() }
+    }
+
+    /// Gives the window procedure the regions of the window's last pass, at `pixels_per_point`.
+    pub(crate) fn publish_regions(&self, regions: Option<CaptionRegions>, pixels_per_point: f32) {
+        self.publish(regions.map(|regions| Published { regions, pixels_per_point }));
     }
 
     /// What lies at `pixel`, in physical pixels from the top left of the window's client area: the hit test's screen
@@ -128,7 +153,7 @@ impl HitSink {
         *self.published.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = published;
     }
 
-    fn take_events(&self) -> Vec<CaptionEvent> {
+    pub(crate) fn take_events(&self) -> Vec<CaptionEvent> {
         std::mem::take(&mut *self.events.lock().unwrap_or_else(std::sync::PoisonError::into_inner))
     }
 }
@@ -144,8 +169,10 @@ impl Hits for HitSink {
 
     fn caption(&self, event: CaptionEvent) {
         self.events.lock().unwrap_or_else(std::sync::PoisonError::into_inner).push(event);
-        if let Some((ctx, viewport)) = &self.wake {
-            ctx.request_repaint_of(*viewport);
+        match &self.wake {
+            Some(Wake::Egui(ctx, viewport)) => ctx.request_repaint_of(*viewport),
+            Some(Wake::Rt(waker)) => waker.wake(),
+            None => {}
         }
     }
 }

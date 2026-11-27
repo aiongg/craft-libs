@@ -171,8 +171,6 @@ fn two_windows_route_events_and_draw_separately() {
     // Closing a window drops its nodes; the other window is untouched.
     d.platform.push(second, WindowEvent::CloseRequested);
     d.step(4.0);
-    assert_eq!(d.runtime.take_close_requests(), [second]);
-    d.runtime.window_command(second, craft_ui_rt::WindowCommand::Close);
     d.step(5.0);
     d.step(6.0);
     assert!(d.runtime.window_of(node(&log, "second")).is_none());

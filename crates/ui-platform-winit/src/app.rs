@@ -274,7 +274,7 @@ impl<R: Renderer + 'static> ApplicationHandler<UserEvent> for App<R> {
 /// Runs the loop. `setup` runs once the event loop is active: it builds the renderer
 /// (asynchronously, because the browser cannot block on the GPU) and the driver, and opens the
 /// first windows with `Driver::open_window`. `after_step` runs after every `Driver::step`: the
-/// place to answer `Runtime::take_close_requests` and to poll app state. On the desktop `run`
+/// place to poll app state (close requests go through `Runtime::request_close`). On the desktop `run`
 /// returns when the last window closes; in the browser it returns at once and the page's event
 /// loop keeps running.
 pub fn run<R, F, Fut, H>(setup: F, after_step: H) -> Result<(), winit::error::EventLoopError>

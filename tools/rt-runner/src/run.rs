@@ -358,9 +358,6 @@ pub fn window<R: Renderer + 'static>(make: fn() -> R, layers: usize, exit_after:
         },
         move |d, report| {
             drawn += usize::from(report.windows_drawn > 0);
-            for w in d.runtime.take_close_requests() {
-                d.platform.window(w, WindowCommand::Close);
-            }
             if exit_after.is_some_and(|s| started.elapsed().as_secs_f64() >= s) {
                 println!("{drawn} frames drawn in {:.1} s; closing", started.elapsed().as_secs_f64());
                 for w in d.platform.surfaces().windows() {

@@ -49,7 +49,10 @@ pub use shell::shell_of;
 use shell::{refresh, window_info};
 #[cfg(feature = "testing")]
 pub(crate) use shell::{set_chrome, set_os};
-use spec::{AppState, chrome_of};
+use spec::AppState;
+#[cfg(feature = "rt")]
+pub(crate) use spec::chrome_of as chrome_of_frame;
+use spec::chrome_of;
 pub use spec::{WindowLevel, WindowSpec};
 pub(crate) use viewport::{PopupOpen, ViewportOpen, close_popup, place_popup, show_popup, show_viewport, take_close_request, unplaced};
 
