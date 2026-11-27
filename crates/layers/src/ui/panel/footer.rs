@@ -1,11 +1,11 @@
 //! The footer: `LayersFooterButton`, `LayersFooterAction`, the press menus and the footer drops.
 
 use craft_behavior::IconId;
+use craft_ui::contract::Ui;
 use craft_ui::contract::{PopupKind, Trigger};
 use craft_ui::menu::Menu;
 use craft_ui::primitives::IconSpec;
 use craft_ui::sections::{FooterAction, FooterBar};
-use egui::Ui;
 
 use super::LayersPanelWords;
 use super::context::PanelContext;
@@ -94,7 +94,7 @@ fn button_at(at: usize) -> Option<LayersFooterButton> {
 
 /// Which drags a button takes: Delete takes any row of the panel's list or a mask thumbnail; New
 /// Layer and New Group take layer rows.
-pub(super) fn accepts_footer_drop<K>(button: LayersFooterButton, drag: &LayersDrag<K>, list: egui::Id) -> bool {
+pub(super) fn accepts_footer_drop<K>(button: LayersFooterButton, drag: &LayersDrag<K>, list: craft_ui::contract::Id) -> bool {
     if drag.list != list || drag.keys.is_empty() {
         return false;
     }

@@ -3,10 +3,10 @@
 use craft_theme::LabelColor;
 use craft_ui::contract::{Entry, PlainData};
 use craft_ui::list::LabelUnderline;
-use craft_ui::patterns::blend_keys::{BlendKeyEntry, BlendShortcut as S, blend_entries};
+use craft_ui::primitives::Color32;
 use craft_ui::runtime::env::Label;
 use craft_ui::style::DataColor;
-use egui::Color32;
+use craft_ui_patterns::patterns::blend_keys::{BlendKeyEntry, BlendShortcut as S, blend_entries};
 
 use super::filter::{EffectKind, FilterBy, LayerAttribute, LayerFilter, SmartKind, SmartSource};
 use super::tree::LayerRowKey;

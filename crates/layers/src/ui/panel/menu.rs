@@ -3,11 +3,11 @@
 
 use craft_theme::LabelColor;
 use craft_ui::contract::{CommandSet, Show as _, ShowContainer as _};
+use craft_ui::contract::{Response, Ui};
 use craft_ui::display::Divider;
 use craft_ui::list::{ListWords, label_color_label};
 use craft_ui::menu::{Menu, MenuItem, MenuRow, PanelRow, menu_rows};
 use craft_ui::runtime::commands::CommandRef;
-use egui::{Response, Ui};
 use std::sync::Arc;
 
 use super::LayersPanelWords;

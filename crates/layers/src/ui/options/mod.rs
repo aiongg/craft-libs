@@ -8,14 +8,14 @@ pub(crate) mod stories;
 
 use craft_ui::choice::{Checkbox, Radio, RadioGroup};
 use craft_ui::contract::{Bind, FieldLayout, LabelKind, Props as _, Show as _, ShowContainer as _, SideLabel};
-use craft_ui::dialog::{DialogId, DialogResult, DialogStack, StackDialog, dialog_id};
+use craft_ui::contract::{Context, Ui};
+use craft_ui::dialog::{DialogId, DialogResult, DialogStack, FormDialog, StackDialog, dialog_id};
 use craft_ui::display::{Picture, PictureSize};
 use craft_ui::layout_components::Stack;
 use craft_ui::list::{ListWords, ThumbSize};
-use craft_ui::patterns::form_dialogs::FormDialog;
 use craft_ui::runtime::env::Env;
 use craft_ui::sections::GroupBox;
-use egui::{Color32, ColorImage, Context, Ui};
+use craft_ui_rt::{RgbaImage, SizeU};
 
 use super::thumbs::ThumbContents;
 
@@ -233,8 +233,8 @@ fn landscape_at(u: f32, v: f32) -> f32 {
 
 /// The sample picture of the thumbnail sizes: a monochrome landscape of a pale sky, two ranges of hills and a meadow
 /// with a daisy, outlined, each pixel the mean of `SUPERSAMPLE` x `SUPERSAMPLE` samples.
-fn sample_image() -> ColorImage {
-    let mut image = ColorImage::filled([SAMPLE_SIDE, SAMPLE_SIDE], Color32::from_gray(0));
+fn sample_image() -> RgbaImage {
+    let mut image = RgbaImage::new(SizeU::new(SAMPLE_SIDE as u32, SAMPLE_SIDE as u32));
     let last = SAMPLE_SIDE - 1;
     let step = 1.0 / (SAMPLE_SIDE * SUPERSAMPLE) as f32;
     for y in 0..SAMPLE_SIDE {
@@ -252,7 +252,9 @@ fn sample_image() -> ColorImage {
                 }
                 sum / (SUPERSAMPLE * SUPERSAMPLE) as f32
             };
-            image.pixels[y * SAMPLE_SIDE + x] = Color32::from_gray(grey.round() as u8);
+            let grey = grey.round() as u8;
+            let at = (y * SAMPLE_SIDE + x) * 4;
+            image.pixels[at..at + 4].copy_from_slice(&[grey, grey, grey, u8::MAX]);
         }
     }
     image

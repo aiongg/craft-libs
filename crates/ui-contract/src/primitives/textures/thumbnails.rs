@@ -249,6 +249,12 @@ impl<K: TextureKey> Thumbnails<K> {
         Self::on(&board, salt, options)
     }
 
+    /// The thumbnails of `ctx`'s window under `salt` (see [`Thumbnails::of`]), for app code that holds a `Ui` and no
+    /// build: on the job board the host provided above the window root.
+    pub fn in_context(ctx: &crate::contract::Context, salt: impl Hash, options: ThumbnailOptions) -> Self {
+        Self::on(&ctx.jobs(), salt, options)
+    }
+
     /// The thumbnails under `salt` on `board` (see [`Thumbnails::of`]).
     pub fn on(board: &JobBoard, salt: impl Hash, options: ThumbnailOptions) -> Self {
         let name = craft_ui_rt::hash_key(&(std::any::TypeId::of::<K>(), &salt));

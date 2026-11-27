@@ -2,10 +2,10 @@
 
 use craft_behavior::{ColumnKey, DropOperation, EditEvent, Mixed, SelectionChange};
 use craft_keymap::Mods;
+use craft_ui::contract::Ui;
 use craft_ui::contract::{CollectionEvent, OpenChange, request_rename};
 use craft_ui::list::{RowEvent, ThumbTarget};
 use craft_ui::runtime::env::Label;
-use egui::Ui;
 use std::sync::Arc;
 
 use super::super::Session;
@@ -255,6 +255,6 @@ fn toggle_events<Id: Clone + PartialEq>(
 }
 
 /// Opens the rename field of `layer`'s row in the list `list`.
-pub(in crate::ui::panel) fn start_rename<K: Clone + Eq + std::hash::Hash + Send + Sync + 'static>(ui: &Ui, list: egui::Id, layer: K) {
+pub(in crate::ui::panel) fn start_rename<K: Clone + Eq + std::hash::Hash + Send + Sync + 'static>(ui: &Ui, list: craft_ui::contract::Id, layer: K) {
     request_rename(ui.ctx(), list, &LayerRowKey::Layer(layer));
 }

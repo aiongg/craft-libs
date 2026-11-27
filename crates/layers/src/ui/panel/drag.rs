@@ -13,12 +13,11 @@ use crate::ui::tree::{LayerKind, LayerRowKey, LayerTree, SubRowGroup};
 /// What a drag from the Layers panel carries for the drop targets outside its rows: the footer buttons, the rows
 /// that take a mask, and the app's own targets (a document tab that copies the dragged layers into its document).
 ///
-/// An app reads it from the drag session: `craft_ui::runtime::drag::active::<LayersDrag<Id>>(ctx)` while it is held,
-/// or a collection's `DropKind::new::<LayersDrag<Id>>` for the drop.
+/// An app reads it from the drag session through its drop target: a collection's `DropKind::new::<LayersDrag<Id>>`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct LayersDrag<K> {
     /// The list the drag started in.
-    pub(super) list: egui::Id,
+    pub(super) list: craft_ui::contract::Id,
     /// The dragged rows, or the one mask thumbnail.
     pub(super) keys: Vec<LayerRowKey<K>>,
     /// The hash of the document the panel showed when the drag started ([`document_hash`]).
@@ -46,7 +45,7 @@ impl<K> LayersDrag<K> {
         if self.keys.iter().all(LayerRowKey::is_layer) { self.keys.iter().map(LayerRowKey::layer).collect() } else { Vec::new() }
     }
 
-    pub(super) fn new(list: egui::Id, document: Option<u64>, keys: Vec<LayerRowKey<K>>) -> Self {
+    pub(super) fn new(list: craft_ui::contract::Id, document: Option<u64>, keys: Vec<LayerRowKey<K>>) -> Self {
         Self { list, keys, document }
     }
 
@@ -206,7 +205,12 @@ pub(super) fn accepts_drop<T: LayerTree>(
 
 /// What a drag of the panel's own part (a mask thumbnail, the `fx` badge) means over the row `at`: the drop it makes
 /// there, `None` unless the row is another layer's and the drag started in `list`.
-fn part_drop<K: Clone + PartialEq>(list: egui::Id, drag: &LayersDrag<K>, at: &DropAt<LayerRowKey<K>>, copy: bool) -> Option<LayerDrop<K>> {
+fn part_drop<K: Clone + PartialEq>(
+    list: craft_ui::contract::Id,
+    drag: &LayersDrag<K>,
+    at: &DropAt<LayerRowKey<K>>,
+    copy: bool,
+) -> Option<LayerDrop<K>> {
     let DropAt::Onto(LayerRowKey::Layer(to)) = at else { return None };
     if drag.list != list {
         return None;
@@ -222,7 +226,12 @@ fn part_drop<K: Clone + PartialEq>(list: egui::Id, drag: &LayersDrag<K>, at: &Dr
 
 /// Whether the row under the pointer takes a drag of the rows' list `list` that is not a row drag: a mask thumbnail
 /// where the tree takes the mask, the `fx` badge on any other layer.
-pub(super) fn accepts_part_drop<T: LayerTree>(tree: &T, list: egui::Id, drag: &LayersDrag<T::Id>, at: &DropAt<LayerRowKey<T::Id>>) -> bool {
+pub(super) fn accepts_part_drop<T: LayerTree>(
+    tree: &T,
+    list: craft_ui::contract::Id,
+    drag: &LayersDrag<T::Id>,
+    at: &DropAt<LayerRowKey<T::Id>>,
+) -> bool {
     match part_drop(list, drag, at, false) {
         Some(LayerDrop::Mask(mv)) => tree.accepts_mask_drop(&mv.layer, mv.part, &mv.to),
         Some(_) => true,
@@ -232,7 +241,7 @@ pub(super) fn accepts_part_drop<T: LayerTree>(tree: &T, list: egui::Id, drag: &L
 
 /// The drop a mask thumbnail or the `fx` badge makes on the row it was released over, one `Set` named `label`.
 pub(super) fn part_drop_event<K: Clone + PartialEq>(
-    list: egui::Id,
+    list: craft_ui::contract::Id,
     drag: &LayersDrag<K>,
     at: &DropAt<LayerRowKey<K>>,
     op: DropOperation,
@@ -257,7 +266,7 @@ pub(super) fn clip_cursor<T: LayerTree>(tree: &T, above: &LayerRowKey<T::Id>, be
         return None;
     }
     let icon = if tree.info(upper).clipped { "clip_release" } else { "clip_below" };
-    Some(Cursor::Painted(PaintedCursor::tool(IconId::new(icon), egui::Vec2::from(CLIP_HOTSPOT), None)))
+    Some(Cursor::Painted(PaintedCursor::tool(IconId::new(icon), craft_ui_rt::Vec2::from(CLIP_HOTSPOT), None)))
 }
 
 /// The tip of the clip cursors' arrow in their 24-unit icon box.

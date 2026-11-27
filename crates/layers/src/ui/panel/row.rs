@@ -5,13 +5,17 @@ use craft_behavior::{ColumnKey, Cursor, CursorBadge, CursorIcon, IconId, Painted
 use craft_keymap::Mods;
 use craft_theme::{LabelColor, Rgba, Srgba};
 use craft_ui::contract::Props as _;
-use craft_ui::list::{ListRow, RowDragSpot, RowInk, ThumbSize, ThumbTarget, ToggleCell, ToggleFace, ToggleState, TrailingFace, TrailingPart};
-use craft_ui::primitives::textures::{Priority, ThumbPaint as PicturePaint, ThumbRequest};
-use craft_ui::primitives::{ContentPainterCx, IconSpec, StrokeWidth};
+use craft_ui::contract::{CxCore, Versioned};
+use craft_ui::list::{
+    ListRow, RowDragSpot, RowInk, ThumbPicture, ThumbSize, ThumbTarget, ToggleCell, ToggleFace, ToggleState, TrailingFace, TrailingPart,
+};
+use craft_ui::primitives::textures::{Priority, TextureState, ThumbPaint as PicturePaint, ThumbRequest};
+use craft_ui::primitives::{Color32, ContentPainterCx, IconSpec, StrokeWidth};
 use craft_ui::runtime::env::Label;
 use craft_ui::style::{Corners, DataColor, SurfaceKind};
+use craft_ui_rt::{Rect, pos2, vec2};
+use egui::StrokeKind;
 use egui::emath::GuiRounding as _;
-use egui::{Color32, Rect, Stroke, StrokeKind, pos2, vec2};
 
 use super::body::thumb_click_replaces_select;
 use super::context::{PanelContext, ThumbHost};
@@ -159,18 +163,28 @@ fn sub_row_description(words: &LayersPanelWords, group: SubRowGroup, layer_name:
     craft_i18n::fmt(pattern.as_str(), &[("layer", layer_name)])
 }
 
-/// The thumbnail's picture, asked for at the cell it is painted in; false while nothing is ready.
-fn paint_picture<Id: Clone + Eq + std::hash::Hash + Send + Sync + 'static>(
-    host: Option<ThumbHost<'_, Id>>,
-    thumb: &LayerThumb<Id>,
-    painter: &ContentPainterCx<'_>,
-    rect: Rect,
-    paint: &PicturePaint,
-) -> bool {
-    let Some(host) = host else { return false };
-    let request = ThumbRequest::for_cell(rect.width().max(rect.height()), painter.pixels_per_point());
-    let state = host.thumbnails.state(painter.painter.ctx(), host.source, thumb, &request, Priority::VISIBLE);
-    host.thumbnails.paint(painter, rect, &state, paint)
+/// A thumbnail showing `thumb`'s picture: read in the thumbnail's build at the request of the cell it shows in (the
+/// thumbnail runs again when the picture lands, and nothing else does), then painted with `paint`. `fallback` paints
+/// over or instead of it and is told whether a picture was painted. The version covers what the closures read
+/// besides the picture, so a row that did not change stays kept.
+fn picture<'a, Id: Clone + Eq + std::hash::Hash + Send + Sync + 'static>(
+    host: Option<ThumbHost<'a, Id>>,
+    thumb: LayerThumb<Id>,
+    paint: PicturePaint,
+    extra: u64,
+    fallback: impl FnOnce(&ContentPainterCx<'_>, Rect, bool) + 'a,
+) -> Versioned<ThumbPicture<'a>> {
+    let version = craft_ui_rt::hash_key(&(&thumb, extra));
+    let read_thumb = thumb.clone();
+    let read = move |cx: &mut CxCore<'_>, request: &ThumbRequest| -> TextureState {
+        let Some(host) = host else { return TextureState::Empty };
+        host.thumbnails.state(cx, host.source, &read_thumb, request, Priority::VISIBLE)
+    };
+    let show = move |painter: &ContentPainterCx<'_>, rect: Rect, state: &TextureState| {
+        let painted = host.is_some_and(|host| host.thumbnails.paint(painter, rect, state, &paint));
+        fallback(painter, rect, painted);
+    };
+    Versioned::versioned(version, ThumbPicture::new(read, show))
 }
 
 /// The tile of a layer whose thumbnail has no picture: the sunken placeholder with `glyph` (a pixel layer has none),
@@ -216,7 +230,7 @@ fn paint_thumb_badge(painter: &ContentPainterCx<'_>, rect: Rect, mark: ThumbBadg
         }
         ThumbBadge::Shape => {
             let path = area.shrink(badge * CROSS_INSET_SHARE * 2.0);
-            painter.painter.rect_stroke(path, 0.0, Stroke::new(badge * MARK_WIDTH_SHARE * 2.0, ink), StrokeKind::Middle);
+            painter.painter.rect_stroke(path, 0.0, badge * MARK_WIDTH_SHARE * 2.0, ink, StrokeKind::Middle);
             let anchor = vec2(badge * ANCHOR_SHARE, badge * ANCHOR_SHARE);
             for corner in [path.left_top(), path.right_top(), path.right_bottom(), path.left_bottom()] {
                 painter.painter.rect_filled(Rect::from_center_size(corner, anchor), 0.0, ink);
@@ -230,19 +244,19 @@ fn paint_mask_marks(painter: &ContentPainterCx<'_>, rect: Rect, mask: &MaskInfo,
     let side = rect.width().min(rect.height());
     if !mask.enabled {
         let inner = rect.shrink(side * CROSS_INSET_SHARE);
-        let stroke = Stroke::new(side * MARK_WIDTH_SHARE, paint_color(DISABLED_MASK.fill()));
-        painter.painter.line_segment([inner.left_top(), inner.right_bottom()], stroke);
-        painter.painter.line_segment([inner.right_top(), inner.left_bottom()], stroke);
+        let (width, color) = (side * MARK_WIDTH_SHARE, paint_color(DISABLED_MASK.fill()));
+        painter.painter.line_segment([inner.left_top(), inner.right_bottom()], width, color);
+        painter.painter.line_segment([inner.right_top(), inner.left_bottom()], width, color);
     }
     if badges {
         let (area, ink) = badge_box(painter, rect);
         let badge = area.width();
-        let glyph = Stroke::new(badge * MARK_WIDTH_SHARE * 2.0, ink);
+        let width = badge * MARK_WIDTH_SHARE * 2.0;
         if mask.part == LayerPart::VectorMask {
             let inset = area.shrink(badge * CROSS_INSET_SHARE * 2.0);
-            painter.painter.line_segment([inset.left_bottom(), inset.right_top()], glyph);
+            painter.painter.line_segment([inset.left_bottom(), inset.right_top()], width, ink);
         } else {
-            painter.painter.circle_stroke(area.center(), badge * BADGE_GLYPH_SHARE, glyph);
+            painter.painter.circle_stroke(area.center(), badge * BADGE_GLYPH_SHARE, width, ink);
         }
     }
 }
@@ -308,33 +322,47 @@ fn layer_row<'r, T: LayerTree>(cx: &'r PanelContext<'r, T>, id: &T::Id) -> ListR
     if tiled && !glyph_only {
         let host = cx.thumbs;
         let (layer, kind, badge) = (id.clone(), info.kind, info.thumb_badge);
-        row = row.thumb(size, move |painter, rect| {
-            if !paint_picture(host, &LayerThumb::pixels(layer, contents), painter, rect, &PicturePaint::default()) {
-                paint_kind_tile(painter, rect, kind, glyph.clone());
-            }
-            if let Some(mark) = badge {
-                paint_thumb_badge(painter, rect, mark);
-            }
-        });
+        let extra = craft_ui_rt::hash_key(&(kind, badge, &glyph));
+        row = row.thumb_picture(
+            size,
+            picture(host, LayerThumb::pixels(layer, contents), PicturePaint::default(), extra, move |painter, rect, painted| {
+                if !painted {
+                    paint_kind_tile(painter, rect, kind, glyph);
+                }
+                if let Some(mark) = badge {
+                    paint_thumb_badge(painter, rect, mark);
+                }
+            }),
+        );
         let frame = info.kind == LayerKind::Frame;
         let first = if frame { LayerPart::FrameShape } else { LayerPart::Pixels };
         row = with_load_cursor(row, cx.held, ThumbTarget::First, first, &info);
         if frame {
             let layer = id.clone();
-            row = row.extra_thumb(move |painter, rect| {
-                if !paint_picture(host, &LayerThumb::frame_content(layer, contents), painter, rect, &PicturePaint::default()) {
-                    paint_kind_tile(painter, rect, LayerKind::Frame, kind_icon(LayerKind::Frame));
-                }
-            });
+            row = row.extra_thumb_picture(picture(
+                host,
+                LayerThumb::frame_content(layer, contents),
+                PicturePaint::default(),
+                0,
+                |painter, rect, painted| {
+                    if !painted {
+                        paint_kind_tile(painter, rect, LayerKind::Frame, kind_icon(LayerKind::Frame));
+                    }
+                },
+            ));
             row = with_load_cursor(row, cx.held, ThumbTarget::Extra(0), LayerPart::FrameContent, &info);
         }
         let masks_from = usize::from(frame);
         for (at, mask) in info.masks.iter().enumerate() {
             let (layer, mask, badges, part) = (id.clone(), *mask, cx.options.show_layer_mask_badges, mask.part);
-            row = row.extra_thumb(move |painter, rect| {
-                paint_picture(host, &LayerThumb::of_part(layer, part, contents), painter, rect, &PicturePaint::default().checker(false));
-                paint_mask_marks(painter, rect, &mask, badges);
-            });
+            let extra = craft_ui_rt::hash_key(&(mask, badges));
+            row = row.extra_thumb_picture(picture(
+                host,
+                LayerThumb::of_part(layer, part, contents),
+                PicturePaint::default().checker(false),
+                extra,
+                move |painter, rect, _| paint_mask_marks(painter, rect, &mask, badges),
+            ));
             let word = if part == LayerPart::VectorMask { &words.vector_mask } else { &words.layer_mask };
             let pattern = if mask.linked { &words.unlink_mask } else { &words.link_mask };
             row = row.thumb_link(mask.linked, craft_i18n::fmt(pattern.as_str(), &[("mask", word.as_str()), ("layer", info.name.as_str())]));
@@ -418,9 +446,7 @@ fn sub_row<'r, T: LayerTree>(cx: &'r PanelContext<'r, T>, id: &T::Id, group: Sub
     let header_mask = group == SubRowGroup::SmartFilters && index.is_none() && sub.mask && size != ThumbSize::None;
     if header_mask {
         let (host, layer) = (cx.thumbs, id.clone());
-        row = row.thumb(size, move |painter, rect| {
-            paint_picture(host, &LayerThumb::filter_mask(layer), painter, rect, &PicturePaint::default().checker(false));
-        });
+        row = row.thumb_picture(size, picture(host, LayerThumb::filter_mask(layer), PicturePaint::default().checker(false), 0, |_, _, _| {}));
         if cx.selection.active.as_ref() == Some(id) && cx.selection.target == LayerPart::FilterMask {
             row = row.thumb_target(ThumbTarget::First);
         }

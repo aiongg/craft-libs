@@ -2,10 +2,10 @@
 
 use super::{LayersOptions, LayersOptionsDialog};
 use craft_ui::contract::ShowContainer as _;
+use craft_ui::contract::Ui;
 use craft_ui::dialog::{DialogStack, StackDialog as _};
 use craft_ui::layout_components::Stack;
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
-use egui::Ui;
 
 #[story(LayersOptionsDialog, covers = [Open], drive = Drive::Never)]
 fn open(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {

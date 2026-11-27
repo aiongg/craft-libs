@@ -7,12 +7,12 @@ use craft_behavior::{EditEvent, EditEvents, IconId};
 use craft_theme::ControlSize;
 use craft_ui::buttons::ToggleButton;
 use craft_ui::contract::{Bind, Entry, Gap, NoValue, Outcome, Props as _, RowAlign, Show as _, ShowContainer as _, SideLabel, Sizing, TooltipSpec};
+use craft_ui::contract::{Response, Ui};
 use craft_ui::form::Field;
 use craft_ui::layout_components::{Row, Stack};
 use craft_ui::pickers::Select;
 use craft_ui::runtime::env::{Env, Label, UnitKind};
 use craft_ui::text::NumberField;
-use egui::{Response, Ui};
 
 use super::tree::{LayerProperties, LockKind};
 

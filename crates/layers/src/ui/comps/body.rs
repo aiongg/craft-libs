@@ -10,6 +10,7 @@ use craft_ui::contract::{
     Bind, BodyCx, CollectionEvent, ColumnSpec, Props as _, ReorderRule, SelectMode, Show as _, ShowCollection as _, ShowContainer as _, Sizing,
     ToggleColumn,
 };
+use craft_ui::contract::{Id, Response, Ui};
 use craft_ui::display::{Shade, Text};
 use craft_ui::list::{List, ListRow, RowEvent, ToggleCell, ToggleFace, ToggleState, TrailingFace, TrailingPart};
 use craft_ui::menu::{Menu, MenuItem};
@@ -17,7 +18,6 @@ use craft_ui::primitives::IconSpec;
 use craft_ui::runtime::env::{Env, Label};
 use craft_ui::runtime::memory::Remember as _;
 use craft_ui::sections::{FooterAction, FooterBar};
-use egui::{Id, Response, Ui};
 
 use super::{CompOption, LayerCompRow, LayerCompsEvent, LayerCompsWords, Session};
 use crate::ui::sweep::{SweepOut, sweep_events};

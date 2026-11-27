@@ -4,8 +4,8 @@ use super::{BlendRows, LayerPropertyEdit};
 use crate::ui::mock::FakeLayers;
 use crate::ui::tree::{LayerProperties, LayerTree as _, LockKind};
 use craft_ui::contract::Entry;
+use craft_ui::contract::Ui;
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
-use egui::Ui;
 
 /// Photoshop's blend modes, as the app offers them for a layer or, with Pass Through, a group.
 fn modes(group: bool) -> Vec<Entry<String>> {

@@ -459,6 +459,61 @@ impl KeyUse {
         self.keep = keep;
         self
     }
+
+    /// The same use letting command chords and function keys run the app's commands while it types (`command_keys`).
+    pub const fn with_command_keys(mut self) -> Self {
+        self.command_keys = true;
+        self
+    }
+
+    /// The same use taking typed letters as `Intent::Text`.
+    pub const fn with_type_ahead(mut self) -> Self {
+        self.type_ahead = true;
+        self
+    }
+
+    /// The same use claiming `claims`.
+    pub const fn with_claims(mut self, claims: &'static [Chord]) -> Self {
+        self.claims = claims;
+        self
+    }
+
+    /// The same use listing `edits`.
+    pub const fn with_edits(mut self, edits: EditSet) -> Self {
+        self.edits = edits;
+        self
+    }
+
+    /// The same use with `activate` as the keys that activate: a value control that arrow and Page keys step takes none.
+    pub const fn with_activate(mut self, activate: ActivateKeys) -> Self {
+        self.activate = activate;
+        self
+    }
+
+    /// The same use declaring that the component acts on Delete and Backspace.
+    pub const fn with_deletes(mut self) -> Self {
+        self.deletes = true;
+        self
+    }
+
+    /// The same use with `end` as the meaning of a bare End.
+    pub const fn with_end(mut self, end: EndKey) -> Self {
+        self.end = end;
+        self
+    }
+
+    /// The same use with `chrome_key` as whether the component marks its window as showing a document: a canvas
+    /// control that is no document sets it to `false`.
+    pub const fn with_chrome_key(mut self, chrome_key: bool) -> Self {
+        self.chrome_key = chrome_key;
+        self
+    }
+
+    /// The same use with `nudge_mods` as the modifiers a document canvas acts on with the arrows.
+    pub const fn with_nudge_mods(mut self, nudge_mods: NudgeMods) -> Self {
+        self.nudge_mods = nudge_mods;
+        self
+    }
 }
 
 /// A set of modifier combinations held with the arrows (`KeyUse::nudge_mods`): each is matched exactly, so Shift alone
