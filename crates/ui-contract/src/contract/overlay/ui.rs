@@ -206,7 +206,10 @@ impl<R> PopupContent<'_, R> {
         if measuring {
             stage = stage.peek_only();
         }
-        let (out, asked) = Env::run_in(ui, self.env.clone(), |ui| {
+        // The owner's env (`contain_popups_below` included) on the layer node's cells: the body's surfaces meet the
+        // popup's frame, and its commands answer to the layer's modal reach.
+        let env = self.env.clone().in_layer(ui.cx, &ui.ctx);
+        let (out, asked) = Env::run_in(ui, env, |ui| {
             let mut bcx = BodyCx::new(self.id, self.env.view(), self.resolved, rect, &mut stage, &mut open, None, None);
             let out = (self.body)(ui, &mut bcx);
             (out, bcx.close_requested())
