@@ -113,6 +113,7 @@ pub trait Show: Element + Sized {
 impl<E: Element> Show for E {}
 
 pub(crate) trait AnyElement {
+    fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
     fn build(&mut self, cx: &mut BuildCx<'_>);
     fn layout(&mut self, cx: &mut LayoutCx<'_>, c: Constraints) -> Vec2;
@@ -138,6 +139,10 @@ impl<E: Element> ElementBox<E> {
 }
 
 impl<E: Element> AnyElement for ElementBox<E> {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }

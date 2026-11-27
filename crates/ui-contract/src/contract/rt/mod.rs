@@ -5,19 +5,25 @@
 //! place are unchanged and that is not marked runs no hook: a hover over it repaints it by picking
 //! a kept variant, and a settled scope returns its kept value.
 //!
-//! This is the skeleton: the `Ui` cursor's vertical flow, scopes (window root, `MemoView`),
-//! reconcile by `IdSource` with per-type ordinals, the component key, the retained node, input
-//! queued with path marks and outputs in the same frame, with `IconButton` and `Stack` on it.
+//! Layout happens in the build: the `Ui` cursor places children by the body's `BodyLayout`, a
+//! container's regions are nodes of their own, a measuring run asks kept children for their size
+//! from the node size cache, a scroll body moves kept content by its offset in layout, and `Lazy`
+//! children out of view keep only their extent.
 
+mod container;
 mod key;
+mod lazy;
 mod node;
 mod run;
 mod scope;
+mod scroll;
 pub mod skeleton;
 mod ui;
 
+pub use container::{Container, show_container};
 pub use key::ComponentKey;
+pub use lazy::Lazy;
 pub use node::{NodeInput, Pointer};
-pub use run::{Component, Container, Cx, MeasureCx, Paint};
+pub use run::{Component, Cx, MeasureCx, Paint, show_leaf};
 pub use scope::{MemoView, window_root};
 pub use ui::Ui;

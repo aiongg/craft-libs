@@ -6,12 +6,12 @@
 use craft_behavior::IconId;
 use craft_ui_rt::{ImageKey, Rect, Sense, Vec2, hash_key};
 
+use super::container::{Container, show_container};
 use super::key::ComponentKey;
 use super::node::Pointer;
-use super::run::{Component, Container, Cx, MeasureCx, Paint, show_container, show_leaf};
+use super::run::{Component, Cx, MeasureCx, Paint, show_leaf};
 use super::ui::Ui;
-use crate::contract::IdSource;
-use crate::contract::{MemoKey, MemoProps};
+use crate::contract::{ContainerProps, Gap, IdSource, MemoKey, MemoProps, Sizing};
 
 /// What `IconButton::show` returns.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -96,12 +96,16 @@ impl Component for IconButton<'_> {
 pub struct Stack {
     id: IdSource,
     fill_width: bool,
+    /// Follows from `fill_width`, which the key holds.
+    props: ContainerProps,
 }
 
 impl Stack {
     /// A stack that takes its children's size.
     pub fn new() -> Stack {
-        Stack { id: IdSource::Auto, fill_width: false }
+        let mut props = ContainerProps::new();
+        props.body_gap = Gap::Stack;
+        Stack { id: IdSource::Auto, fill_width: false, props }
     }
 
     /// Where the stack's id comes from.
@@ -113,13 +117,13 @@ impl Stack {
     /// Takes the width of the room instead of the children's.
     pub fn fill_width(mut self) -> Stack {
         self.fill_width = true;
+        self.props.sizing = Sizing::FillWidth;
         self
     }
 
     /// Shows the stack with `body` as its children.
-    pub fn show<R>(self, ui: &mut Ui<'_, '_>, body: impl FnOnce(&mut Ui<'_, '_>) -> R) -> R {
-        let fill = self.fill_width;
-        show_container(self, ui, fill, body).0
+    pub fn show<R>(self, ui: &mut Ui<'_, '_>, body: impl FnMut(&mut Ui<'_, '_>) -> R) -> R {
+        show_container(self, ui, body).0
     }
 }
 
@@ -147,7 +151,7 @@ impl Component for Stack {
 }
 
 impl Container for Stack {
-    fn gap(&self, cx: &MeasureCx<'_>) -> f32 {
-        cx.tokens.space.gap.stack
+    fn props(&self) -> &ContainerProps {
+        &self.props
     }
 }

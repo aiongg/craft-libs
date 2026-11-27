@@ -1,6 +1,8 @@
 //! Count trials of the contract on craft-ui-rt (docs/contract-rt.md section 13): a frame runs only
 //! the hooks it must. Relations only, no times.
 
+mod layout;
+
 use craft_behavior::IconId;
 use craft_ui_contract::contract::rt::skeleton::{IconButton, Stack};
 use craft_ui_contract::contract::rt::{MemoView, Ui, window_root};

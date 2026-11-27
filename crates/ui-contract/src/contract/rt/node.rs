@@ -64,6 +64,10 @@ pub(crate) struct Variant {
     pub(crate) overlay: DisplayList,
 }
 
+/// The rooms a node's size cache keeps: a measuring run's and the real run's, and one more for a
+/// fill whose share moved.
+const SIZE_CACHE_ROOMS: usize = 3;
+
 /// What the last run of a node produced; the `Local` of both node elements.
 pub(crate) struct Kept {
     /// The craft `Id` services key by.
@@ -80,10 +84,19 @@ pub(crate) struct Kept {
     pub(crate) placed: Vec<Placed>,
     /// A scope's returned value.
     pub(crate) value: Option<Box<dyn Any>>,
+    /// The node size cache: the size the node takes in each room it was measured or shown in since
+    /// its last run. It holds while the node keeps its key and carries no mark: a measuring run
+    /// asks a kept node for its size here instead of running it.
+    pub(crate) sizes: smallvec::SmallVec<[(Vec2, Vec2); 2]>,
+    /// A container's last measurement of its body, reused while its key, room and content are
+    /// unchanged.
+    pub(crate) plan: Option<super::container::Plan>,
+    /// Whether the last real run of the body under this node met fill children; `None` before it.
+    pub(crate) body_fills: Option<bool>,
 }
 
 impl Kept {
-    fn new() -> Kept {
+    pub(crate) fn new() -> Kept {
         Kept {
             id: Id::NULL,
             key: None,
@@ -95,14 +108,40 @@ impl Kept {
             queue: Vec::new(),
             placed: Vec::new(),
             value: None,
+            sizes: smallvec::SmallVec::new(),
+            plan: None,
+            body_fills: None,
         }
     }
 
-    /// Places the children where the last build laid them out; a child keeps its size.
-    fn place_children(&self, cx: &mut LayoutCx<'_>) {
+    /// The node ran or its content changed: sizes from before no longer hold.
+    pub(crate) fn forget_sizes(&mut self) {
+        self.sizes.clear();
+    }
+
+    /// The size cached for `room`.
+    pub(crate) fn cached(&self, room: Vec2) -> Option<Vec2> {
+        self.sizes.iter().find(|(r, _)| *r == room).map(|(_, size)| *size)
+    }
+
+    /// Caches `size` for `room`, keeping the newest few rooms.
+    pub(crate) fn cache(&mut self, room: Vec2, size: Vec2) {
+        if let Some(entry) = self.sizes.iter_mut().find(|(r, _)| *r == room) {
+            entry.1 = size;
+            return;
+        }
+        if self.sizes.len() == SIZE_CACHE_ROOMS {
+            self.sizes.remove(0);
+        }
+        self.sizes.push((room, size));
+    }
+
+    /// Places the children where the last build laid them out, moved by `shift` (a scroll body's
+    /// offset); a child keeps its size.
+    pub(crate) fn place_children(&self, cx: &mut LayoutCx<'_>, shift: Vec2) {
         for p in &self.placed {
             cx.layout_child(p.node, Constraints::tight(p.size));
-            cx.place_child(p.node, p.offset);
+            cx.place_child(p.node, p.offset - shift);
         }
     }
 }
@@ -126,7 +165,7 @@ impl Element for ComponentNode {
     }
 
     fn layout(&self, kept: &mut Kept, cx: &mut LayoutCx<'_>, _: Constraints) -> Vec2 {
-        kept.place_children(cx);
+        kept.place_children(cx, Vec2::ZERO);
         kept.size
     }
 
@@ -210,7 +249,7 @@ impl Element for ScopeNode {
     }
 
     fn layout(&self, kept: &mut Kept, cx: &mut LayoutCx<'_>, _: Constraints) -> Vec2 {
-        kept.place_children(cx);
+        kept.place_children(cx, Vec2::ZERO);
         kept.size
     }
 
