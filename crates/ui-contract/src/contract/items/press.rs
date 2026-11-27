@@ -376,7 +376,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         }
         if let Some(rect) = output.menu_request() {
             let _ = (ctx, id);
-            todo!("context request at an item's menu rect, read by the region around the collection (Cx::context_requests), INT-1d");
+            todo!("context request at an item's menu rect, read by the region around the collection (Cx::context_requests), INT-1f");
             self.ask_menu(ContextMenuRequest { key: key.clone(), at: self.on_screen(rect.left_bottom()), column: None, part: None });
         }
         if let Some(event) = output.into_event() {
