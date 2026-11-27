@@ -43,7 +43,14 @@ impl Ui<'_, '_> {
 
     /// Asks for a new window; the driver opens it after this step. The host's `roots` closure
     /// builds its content when `step_with` names its id.
-    pub fn open_window(&mut self, spec: craft_ui_rt::WindowSpec) {
+    /// The window carries the app's id (`AppSpec::app_id`, from the root env), as the main window does, so the platform
+    /// groups it with the app's other windows and finds its icon by it.
+    pub fn open_window(&mut self, mut spec: craft_ui_rt::WindowSpec) {
+        if spec.app_id.is_none()
+            && let Some(cells) = super::EnvCells::of(self.cx)
+        {
+            spec.app_id = self.cx.peek_state(cells.root).app.as_ref().map(|app| app.as_str().to_owned());
+        }
         self.cx.open_inline_window(spec);
     }
 }

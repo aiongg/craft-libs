@@ -1328,6 +1328,20 @@ impl crate::build::BuildCx<'_> {
         }
     }
 
+    /// A command ran from `from` in this node's window (a menu pick, the palette): the layer
+    /// children that close on a command and do not own `from` are dismissed
+    /// ([`Runtime::dismiss_on_command`]).
+    pub fn dismiss_on_command(&mut self, from: Option<NodeId>) {
+        let window = self.window();
+        self.runtime_mut().dismiss_on_command(window, from);
+    }
+
+    /// Asks every window to close, through each window's close path ([`Runtime::quit`]): Quit
+    /// picked from a menu or the palette.
+    pub fn quit(&mut self) {
+        self.runtime_mut().quit();
+    }
+
     /// `node`'s hover, press and focus state as of now, without recording a read.
     pub fn interaction(&self, node: NodeId) -> Interact {
         self.runtime().interaction(node)

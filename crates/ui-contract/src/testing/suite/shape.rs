@@ -50,7 +50,8 @@ fn small_rooms_paint_inside_the_shown_rect(subject: &Subject) -> Result<(), Stri
             fixture.room(room);
             fixture.settle();
             let areas = painted_areas(&fixture, outset);
-            let shapes = fixture.shape_bounds().iter().zip(fixture.shape_overshoot());
+            let bounds = fixture.shape_bounds();
+            let shapes = bounds.iter().zip(fixture.shape_overshoot());
             if let Some((outside, _)) =
                 shapes.into_iter().find(|(bounds, overshoot)| !areas.iter().any(|area| area.expand(ROUNDING + *overshoot).contains_rect(**bounds)))
             {

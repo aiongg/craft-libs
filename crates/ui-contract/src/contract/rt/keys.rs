@@ -136,7 +136,10 @@ pub(crate) fn scope_escape(cx: &EventCx<'_>, k: &KeyInput) -> bool {
     if k.mods.cmd || k.mods.ctrl {
         return false;
     }
-    k.mods.is_none() || cx.provided::<CommandBoard>().is_none_or(|board| board.command_for(&Chord::new(k.mods, k.key), false, false).is_none())
+    k.mods.is_none()
+        || cx.provided::<CommandBoard>().is_none_or(|board| {
+            board.command_for(&Chord::new(k.mods, k.key), false, super::commands::ModalAt::Free, super::commands::FocusedEdits::NONE).is_none()
+        })
 }
 
 fn nudge_direction(key: Key) -> Vec2 {

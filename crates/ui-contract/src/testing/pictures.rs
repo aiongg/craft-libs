@@ -28,6 +28,12 @@ impl StoryPictures {
         Self
     }
 
+    /// The story photos a story's build shows: the harness provides them above the window root; outside a harness
+    /// the default set.
+    pub fn of(ui: &crate::contract::Ui<'_, '_>) -> Self {
+        ui.cx.provided::<StoryPictures>().unwrap_or_default()
+    }
+
     /// A thumbnail painter that fills its rect with the photo of `key`, cropped to the rect's shape. The photo is
     /// made at the cell's pixel size the first time and kept in the frame's image store.
     pub fn thumb(&self, key: u64) -> impl FnOnce(&ContentPainterCx, Rect) + 'static {

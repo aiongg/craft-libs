@@ -18,7 +18,7 @@ use std::time::Duration;
 use craft_ui_rt::{BuildCx, Margin, Os, Rect, State, Vec2, Waker, WindowCommand, WindowId, Writes as _};
 
 use super::rt::EnvCells;
-use super::rt::commands::CommandBoard;
+use super::rt::commands::{CommandBoard, FocusedEdits};
 use crate::primitives::Id;
 use crate::runtime::commands::CommandState;
 use crate::runtime::memory::RuntimeMemory;
@@ -30,6 +30,38 @@ use craft_keymap::CommandRef;
 #[derive(Clone)]
 pub struct Context {
     shared: Rc<Shared>,
+}
+
+/// The window's toast queue, as [`Context::toasts`] and `Ui::toasts` lend it: it derefs to the queue. Dropping it
+/// after a change builds the node that shows the stack.
+pub struct Toasts<'a> {
+    queue: std::cell::RefMut<'a, super::rt::ToastQueue>,
+    ctx: &'a Context,
+    before: u64,
+}
+
+impl std::ops::Deref for Toasts<'_> {
+    type Target = super::rt::ToastQueue;
+
+    fn deref(&self) -> &super::rt::ToastQueue {
+        &self.queue
+    }
+}
+
+impl std::ops::DerefMut for Toasts<'_> {
+    fn deref_mut(&mut self) -> &mut super::rt::ToastQueue {
+        &mut self.queue
+    }
+}
+
+impl Drop for Toasts<'_> {
+    fn drop(&mut self) {
+        if self.queue.shown_key() != self.before
+            && let Some(host) = self.ctx.shared.toast_host.get()
+        {
+            self.ctx.request_build_of(host);
+        }
+    }
 }
 
 /// What a platform does for the app outside the runtime: the host takes these after each step
@@ -84,6 +116,13 @@ struct Shared {
     root_cells: Cell<Option<EnvCells>>,
     /// The window's open-layer cell: its revision moves whenever a layer opens, changes or closes (`rt::layers`).
     layers: Cell<Option<State<u64>>>,
+    /// The window's `FocusedEdits` cell and the value last written to it (every write goes through
+    /// [`Context::set_focused_edits`]), for code with no store at hand.
+    focused_edits: Cell<Option<State<FocusedEdits>>>,
+    focused_edits_value: Cell<FocusedEdits>,
+    /// The window's toast queue (`Ui::toasts`), and the node whose build shows it (`ToastHost::show`).
+    toasts: RefCell<super::rt::ToastQueue>,
+    toast_host: Cell<Option<Id>>,
     /// The keys held down in the window, in the order they went down, as the window's cell last held them.
     held: RefCell<Vec<craft_ui_rt::Key>>,
     /// Builds by `Id` asked for outside a build (`Ui::request_rename`), drained by the window root.
@@ -124,6 +163,10 @@ impl Context {
                 memory,
                 root_cells: Cell::new(None),
                 layers: Cell::new(None),
+                focused_edits: Cell::new(None),
+                focused_edits_value: Cell::new(FocusedEdits::NONE),
+                toasts: RefCell::new(super::rt::ToastQueue::new()),
+                toast_host: Cell::new(None),
                 held: RefCell::new(Vec::new()),
                 builds: RefCell::new(Vec::new()),
                 board: RefCell::new(None),
@@ -418,6 +461,46 @@ impl Context {
                 cell
             }
         }
+    }
+
+    /// The window's `FocusedEdits` cell, made on first use.
+    pub(crate) fn focused_edits_cell(&self, store: &mut craft_ui_rt::Store) -> State<FocusedEdits> {
+        match self.shared.focused_edits.get() {
+            Some(cell) => cell,
+            None => {
+                let cell = store.create(self.shared.focused_edits_value.get());
+                self.shared.focused_edits.set(Some(cell));
+                cell
+            }
+        }
+    }
+
+    /// What the window's focused stop declares, as last written; untracked.
+    pub(crate) fn focused_edits(&self) -> FocusedEdits {
+        self.shared.focused_edits_value.get()
+    }
+
+    /// Writes what the window's focused stop declares when it differs: the readers of the cell run again.
+    pub(crate) fn set_focused_edits(&self, cx: &mut impl craft_ui_rt::Writes, edits: FocusedEdits) {
+        if self.shared.focused_edits_value.get() == edits {
+            return;
+        }
+        self.shared.focused_edits_value.set(edits);
+        let cell = self.focused_edits_cell(cx.store_mut());
+        cell.set(cx, edits);
+    }
+
+    /// The window's toast queue: a change made through the handle (a post, a dismissal, progress) builds the node
+    /// that shows the stack, in this frame inside a build and in the next frame outside one.
+    pub fn toasts(&self) -> Toasts<'_> {
+        let queue = self.shared.toasts.borrow_mut();
+        let before = queue.shown_key();
+        Toasts { queue, ctx: self, before }
+    }
+
+    /// The node `id` shows the window's toast stack: changes to the queue build it.
+    pub(crate) fn set_toast_host(&self, id: Id) {
+        self.shared.toast_host.set(Some(id));
     }
 
     /// Whether two handles answer for the same window's context.

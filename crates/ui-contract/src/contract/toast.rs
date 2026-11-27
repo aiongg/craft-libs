@@ -59,6 +59,7 @@ impl ToastHost {
         if ui.is_measuring() {
             return;
         }
+        ui.ctx().set_toast_host(ui.id());
         let rtl = Env::of(ui).direction.is_rtl();
         let cx = &mut *ui.cx;
         let stack = cx.peek_layer::<LayerScope>(Layer::Toast, STACK_KEY);

@@ -68,3 +68,30 @@ fn a_density_write_reruns_only_the_scopes_that_read_the_env() {
     let idle = step(&mut rig, cells, &mut seen);
     assert_eq!((idle.frame.runs, idle.frame.scopes), (0, 0), "nothing reruns once settled: {idle:?}");
 }
+
+/// `EnvCells::set_root` writes only the cells whose value moved: the same root values again rerun nothing, and a new
+/// direction reruns the scopes that read the env and no others.
+#[test]
+fn set_root_reruns_only_the_readers_of_cells_that_changed() {
+    use craft_ui_contract::runtime::env::RootEnv;
+    let mut rig = Rig::inline(Vec2::new(400.0, 300.0), 1.0, RecordingRenderer::default());
+    let main = rig.main;
+    let tokens = rig.driver.runtime.env(main).tokens;
+    let cells = EnvCells::in_store(rig.driver.runtime.store_mut(), tokens);
+    let mut root = RootEnv::default();
+    cells.set_root(rig.driver.runtime.store_mut(), &root);
+    let mut seen = Seen::default();
+    let settled = (0..6).any(|_| !step(&mut rig, cells, &mut seen).ran);
+    assert!(settled, "the rig did not settle");
+
+    cells.set_root(rig.driver.runtime.store_mut(), &root);
+    let same = step(&mut rig, cells, &mut seen);
+    assert!(!fresh(&seen.reader) && !fresh(&seen.quiet), "the same root values write no cell: {same:?}");
+    assert_eq!((same.frame.runs, same.frame.scopes), (0, 0), "nothing reruns for an unchanged root: {same:?}");
+
+    root.direction = craft_i18n::Direction::Rtl;
+    cells.set_root(rig.driver.runtime.store_mut(), &root);
+    let moved = step(&mut rig, cells, &mut seen);
+    assert!(fresh(&seen.reader), "the scope that called Env::of ran for the new direction: {moved:?}");
+    assert!(!fresh(&seen.quiet) && !fresh(&seen.other), "scopes that read no env value kept their value: {moved:?}");
+}

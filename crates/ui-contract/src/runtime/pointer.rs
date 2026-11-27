@@ -56,6 +56,33 @@ pub struct PointerFrame {
     pub target: f32,
 }
 
+impl PointerFrame {
+    /// The held facts of the window's pointer at frame time `time`, with no event: what `Ui::pointer` reads.
+    pub(crate) fn held(pos: Option<Pos2>, buttons: Buttons, mods: Mods, time: f64, slop: f32, target: f32) -> PointerFrame {
+        PointerFrame {
+            pos,
+            delta: Vec2::ZERO,
+            buttons,
+            press: None,
+            press_mods: None,
+            release: None,
+            mods,
+            pick_mods: mods,
+            pick_pos: pos,
+            multi_tap: None,
+            time,
+            kind: PointerKind::Mouse,
+            sample: None,
+            multi_touch: None,
+            scroll: Vec2::ZERO,
+            zoom: 1.0,
+            rotation: 0.0,
+            slop,
+            target,
+        }
+    }
+}
+
 /// egui's click and drag widgets for the latest press.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[doc(hidden)]

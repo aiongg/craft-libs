@@ -598,4 +598,64 @@ mod window {
         assert_eq!(seen.borrow().cancels, 0, "the Escape went to the drag alone");
         h.release_at(from + Vec2::new(40.0, 0.0));
     }
+
+    /// The command stage works out where a key stands against the modal layers once per key: the lookup that skips a
+    /// command the modal rule refuses and the fire share it, with a dialog open or not.
+    #[test]
+    fn a_key_takes_one_modal_check_with_a_dialog_open_or_not() {
+        use craft_ui_contract::testing::modal_checks;
+        let board = CommandBoard::new(app_keymap("trial.replace", "Q", None));
+        let ran = app_log(&board);
+        let seen = Log::default();
+        let mut h = Harness::builder().with_commands(board).build_ui_state(
+            move |ui, open: &mut bool| {
+                Stop::new("title", button(), &seen).show(ui);
+                if *open && show_dialog(ui, 1, &Overlay::dialog(), |ui| Stop::new("in dialog", button(), &seen).show(ui)).is_err() {
+                    *open = false;
+                }
+            },
+            false,
+        );
+        h.run();
+        request_in(&mut h, "title");
+        let before = modal_checks();
+        h.key_press(Key::Q);
+        assert_eq!(ran.borrow().len(), 1, "the shortcut ran");
+        assert_eq!(modal_checks() - before, 1, "one modal check for the key");
+        *h.state_mut() = true;
+        h.run();
+        request_in(&mut h, "in dialog");
+        let before = modal_checks();
+        h.key_press(Key::Q);
+        assert_eq!(ran.borrow().len(), 1, "the dialog keeps the shortcut from running");
+        assert_eq!(modal_checks() - before, 1, "still one modal check for the key");
+    }
+
+    /// An edit command the focused stop declares resolves as the stop's (#3569): enabled though the app disabled it,
+    /// with the app's title and without the app's hint. Off the stop, the app's state shows again.
+    #[test]
+    fn a_declared_edit_resolves_enabled_with_the_app_title_and_no_app_hint() {
+        use craft_ui_contract::runtime::commands::ResolvedCommand;
+        use std::sync::Arc;
+        let board = CommandBoard::new(linked(None)).with_edits::<EditCommands>();
+        let shown: Rc<RefCell<Option<Arc<ResolvedCommand>>>> = Rc::default();
+        let seen = Log::default();
+        let out = Rc::clone(&shown);
+        let mut h = harness(board.clone(), false, move |ui| {
+            Stop::new("button", button(), &seen).show(ui);
+            Stop::new("field", field(), &seen).show(ui);
+            *out.borrow_mut() = ui.resolve_command(EditCommands::Copy);
+        });
+        let state = CommandState::new().enabled(false).title("Copy Layer").hint("Copies the layer");
+        board.set_state(&mut h.driver.runtime, EditCommands::Copy, state);
+        request(&mut h, "button");
+        let off = shown.borrow().clone().expect("Copy resolves at the app");
+        assert!(!off.enabled, "a stop that does not take Copy leaves the app's state");
+        assert_eq!(off.hint.as_deref(), Some("Copies the layer"), "with the app's hint");
+        request(&mut h, "field");
+        let on = shown.borrow().clone().expect("Copy resolves at the app");
+        assert!(on.enabled, "the text field takes Copy: it resolves enabled");
+        assert_eq!(&*on.label, "Copy Layer", "with the app's title");
+        assert_eq!(on.hint, None, "and without the app's hint");
+    }
 }
