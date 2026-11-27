@@ -23,8 +23,8 @@ use craft_theme::{
     Variant,
     variant::{Emphasis, Tone},
 };
-use craft_ui::{Context, Id, Response, Ui};
 use craft_ui::geom::{Pos2, Rect};
+use craft_ui::{Context, Id, Response, Ui};
 use std::any::Any;
 use std::fmt;
 use std::sync::Arc;
@@ -793,11 +793,7 @@ impl FooterBar {
             }
         });
         let inner = shown.inner.unwrap_or_default();
-        let mods = if inner.picked.is_some() || inner.dropped.is_some() {
-            ui.pointer().pick_mods
-        } else {
-            craft_keymap::Mods::NONE
-        };
+        let mods = if inner.picked.is_some() || inner.dropped.is_some() { ui.pointer().pick_mods } else { craft_keymap::Mods::NONE };
         let output = FooterOutput {
             response: shown.output,
             picked: inner.picked,

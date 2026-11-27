@@ -19,9 +19,9 @@ use craft_ui::dialog::{DialogId, DialogResult, DialogStack, FormDialog, StackDia
 use craft_ui::display::{Picture, PictureSize};
 #[cfg(spike_full)]
 use craft_ui::layout_components::Stack;
-use craft_ui::list::ThumbSize;
 #[cfg(spike_full)]
 use craft_ui::list::ListWords;
+use craft_ui::list::ThumbSize;
 #[cfg(spike_full)]
 use craft_ui::runtime::env::Env;
 #[cfg(spike_full)]

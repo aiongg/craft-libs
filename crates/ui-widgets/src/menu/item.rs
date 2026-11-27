@@ -697,7 +697,8 @@ impl Component for MenuItem<'_> {
         let (rtl, side, gap) = (cx.flow.is_rtl(), cx.style.icon.side, cx.style.metrics.gap);
         let level = cx.env.get::<MenuLevel>();
         let command = cx.command.as_deref();
-        let (mark_column, icon_column) = self.lead_columns(&|column, width| crate::layout::ambient_width(cx.core.context(), column, width), side, gap, command, &level);
+        let (mark_column, icon_column) =
+            self.lead_columns(&|column, width| crate::layout::ambient_width(cx.core.context(), column, width), side, gap, command, &level);
         let text = mnemonic::marked(cx.resolved.label, &cx.env.folder()).0;
         let mark = self.mark(command, &level);
         let draw = ui.draw();
