@@ -381,6 +381,13 @@ impl<'u, 'c> Ui<'u, 'c> {
         Ui { cx: &mut *self.cx, flow, ctx: self.ctx.clone(), env: self.env.clone() }
     }
 
+    /// Brings this cursor's env up to date with the env cells its node sees now: a scope calls it after
+    /// providing cells of its own, before it runs its content.
+    pub(crate) fn refresh_env(&mut self) {
+        let env = self.env.clone();
+        self.env = env.refreshed(self.cx, &self.ctx);
+    }
+
     /// The window's context.
     pub fn ctx(&self) -> &Context {
         &self.ctx

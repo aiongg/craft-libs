@@ -388,6 +388,7 @@ impl EnvScope {
             cells.frame.set_if_changed(ui.cx, frame);
         }
         ui.cx.provide(cells);
+        ui.refresh_env();
     }
 }
 

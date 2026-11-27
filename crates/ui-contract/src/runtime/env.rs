@@ -839,6 +839,13 @@ impl Env {
         env.on_cells(&values)
     }
 
+    /// This env on the env cells `cx`'s node sees now: what a scope that just provided cells of its own
+    /// (`EnvScope`) gives the cursor it runs its content in.
+    pub(crate) fn refreshed(self, cx: &mut BuildCx<'_>, ctx: &Context) -> Env {
+        let values = CellValues::peek(cx, ctx);
+        self.on_cells(&values)
+    }
+
     /// The window's root env, built again only when the host's root or host moved.
     fn root(cx: &BuildCx<'_>, ctx: &Context, values: &CellValues) -> Env {
         let root = cx.provided::<Arc<RootEnv>>();
