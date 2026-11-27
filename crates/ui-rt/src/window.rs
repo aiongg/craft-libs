@@ -51,6 +51,9 @@ pub struct Env {
     pub held_keys: State<Vec<crate::Key>>,
     /// Where the pointer is in the window and which buttons are down.
     pub pointer: State<PointerFacts>,
+    /// The node holding the window's key focus, written at each focus move: a build that reads what the focused
+    /// node holds runs again only when focus moves.
+    pub focused: State<Option<crate::NodeId>>,
 }
 
 /// The pointer as a window last saw it: written by the runtime's input handling, read through

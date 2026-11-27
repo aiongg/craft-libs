@@ -778,10 +778,11 @@ impl<'u, 'c> Ui<'u, 'c> {
         crate::runtime::pointer::PointerFrame::held(facts.pos, buttons, mods, self.cx.now(), hit.slop, hit.target)
     }
 
-    /// The focused stop of this window, from the focused node's kept facts. Untracked: code asks it when it acts.
-    pub fn focused_stop(&self) -> Option<crate::runtime::focus::StopRec> {
+    /// The focused stop of this window, from the focused node's kept facts. Tracked through the window's focused-node
+    /// cell: a reader runs again when focus moves, and at no other input.
+    pub fn focused_stop(&mut self) -> Option<crate::runtime::focus::StopRec> {
+        let node = self.cx.env().focused.get(self.cx)?;
         let rt = self.cx.runtime();
-        let node = rt.focused(self.cx.window())?;
         let kept = rt
             .local::<super::node::ComponentNode>(node)
             .or_else(|| rt.local::<super::node::ScopeNode>(node))

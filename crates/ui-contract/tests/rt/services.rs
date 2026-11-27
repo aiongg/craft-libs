@@ -660,3 +660,50 @@ mod drawn {
         assert!(!content.list.items.iter().any(|item| matches!(item, Item::Rect { rect, .. } if *rect == UNDER)), "and replaces the old one");
     }
 }
+
+// ----- the focused stop
+
+mod focused {
+    use std::sync::atomic::{AtomicU32, Ordering};
+
+    use crate::skeleton::IconButton;
+    use craft_behavior::IconId;
+    use craft_ui_contract::contract::{MemoView, Show as _, Ui};
+    use craft_ui_contract::testing::Harness;
+    use craft_ui_rt::{Key, Mods, Pos2};
+
+    static RUNS: AtomicU32 = AtomicU32::new(0);
+
+    /// Reads the window's focused stop.
+    fn reader(_: &mut (), ui: &mut Ui) -> u32 {
+        RUNS.fetch_add(1, Ordering::Relaxed);
+        u32::from(ui.focused_stop().is_some())
+    }
+
+    /// A view reading the focused stop runs again once per focus move and not for a pointer move.
+    #[test]
+    fn focused_stop_reruns_its_reader_only_when_focus_moves() {
+        let mut h = Harness::new_ui(|ui| {
+            let _ = MemoView::new("reader", (), reader).show(ui);
+            let _ = IconButton::new(IconId::new("plus"), "One").show(ui);
+            let _ = IconButton::new(IconId::new("plus"), "Two").show(ui);
+        });
+        h.run();
+        let runs = || RUNS.load(Ordering::Relaxed);
+        let settled = runs();
+
+        let window = h.window();
+        h.driver.platform.mouse_move(window, Pos2::new(5.0, 5.0));
+        h.run();
+        h.driver.platform.mouse_move(window, Pos2::new(60.0, 40.0));
+        h.run();
+        assert_eq!(runs(), settled, "a pointer move runs no focus reader");
+
+        h.key(Key::Tab, Mods::NONE).run();
+        assert_eq!(runs(), settled + 1, "focus moving to the first stop runs the reader once");
+        h.key(Key::Tab, Mods::NONE).run();
+        assert_eq!(runs(), settled + 2, "and each move once more");
+        h.run();
+        assert_eq!(runs(), settled + 2, "nothing more while focus stays");
+    }
+}

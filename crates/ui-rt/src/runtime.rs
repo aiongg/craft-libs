@@ -275,6 +275,7 @@ impl Runtime {
             num_lock: self.store.create(false),
             held_keys: self.store.create(Vec::new()),
             pointer: self.store.create(crate::window::PointerFacts::default()),
+            focused: self.store.create(None),
         };
         let w = Window::new(window, env, viewport);
         let mut root = Node::new(None, None, window, 0, None, 0);
@@ -291,6 +292,7 @@ impl Runtime {
             env.num_lock.slot_ref(),
             env.held_keys.slot_ref(),
             env.pointer.slot_ref(),
+            env.focused.slot_ref(),
         ];
         self.tree.nodes.insert(w.root, root);
         for (layer, id) in Layer::ALL.into_iter().zip(w.layers) {
