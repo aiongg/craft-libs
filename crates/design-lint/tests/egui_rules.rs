@@ -120,3 +120,12 @@ fn a_tuple_field_in_an_assert_is_not_a_literal_size() {
     let size = "#[test]\nfn t() {\n    let fixture = Fixture::new(show);\n    assert_eq!(fixture.size().x, 1.5);\n}\n";
     assert!(rules_at(size, "crates/x/tests/it/main.rs", &scope()).contains(&"test/literal-size"));
 }
+
+#[test]
+fn app_no_egui_flags_egui_paths_in_contract_clients_only() {
+    let src = "use egui::Ui;\nfn f(ui: &mut Ui, r: egui::Response) {}\n";
+    let client = StaticScope::new().contract_client("crates/app");
+    assert_eq!(rules_at(src, "crates/app/src/a.rs", &client), ["app/no-egui"]);
+    assert!(!rules_at(src, "crates/other/src/a.rs", &client).contains(&"app/no-egui"));
+    assert!(!rules_at("use craft_ui::Ui;\n", "crates/app/src/a.rs", &client).contains(&"app/no-egui"));
+}

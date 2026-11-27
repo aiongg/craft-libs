@@ -53,6 +53,7 @@ reason = "document-space drawing"
 
 | Rule | Flags |
 |---|---|
+| `app/no-egui` | any path rooted in the `egui` crate, in a crate that depends on `craft-ui-contract` (not `craft-cloud-ui`, `craft-update`, `craft-ui-contract`) |
 | `contract/egui-import` | egui paths into memory, layers, `Order`, AccessKit, options, input and pass control; `memory`, `options`, `input_mut` closures, `begin_pass`, `end_pass`, `add_plugin`, `move_focus` |
 | `contract/runtime-egui` | a layer 5 or 6 module naming `runtime::egui` |
 | `contract/text-edit` | `runtime::egui::text_edit` outside `primitives::text_adapter` (and the adapter's own module and the test kit) |

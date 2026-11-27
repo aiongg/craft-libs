@@ -5,6 +5,7 @@
 
 mod access;
 mod allocate;
+mod app_no_egui;
 mod containers;
 mod egui_import;
 mod egui_widget;
@@ -42,7 +43,8 @@ use crate::report::Finding;
 use sites::Site;
 
 /// Every rule id of this module, for the marker and exemption validation in [`crate::RULES`].
-pub(crate) const IDS: [&str; 41] = [
+pub(crate) const IDS: [&str; 42] = [
+    app_no_egui::ID,
     egui_import::ID,
     runtime_egui::ID,
     text_edit::ID,
@@ -89,7 +91,8 @@ pub(crate) const IDS: [&str; 41] = [
 type Check = fn(&Cx<'_>, &mut Vec<Finding>);
 
 /// REGISTRY: add a rule by adding its `check` here and its ids to [`IDS`].
-const REGISTRY: [Check; 23] = [
+const REGISTRY: [Check; 24] = [
+    app_no_egui::check,
     egui_import::check,
     runtime_egui::check,
     text_edit::check,
