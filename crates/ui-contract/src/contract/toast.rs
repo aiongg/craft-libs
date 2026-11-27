@@ -1,29 +1,27 @@
-//! The toast host (15.5): one layer per window root (its id derives from the scope of the root's body) that lays out
-//! the window's queued toasts at the end-bottom corner of its body and tracks their holds and ends. A component of a
-//! higher layer draws each card (`notices::ToastStack`).
+//! The toast host (15.5): a window's queued toasts as one stack on the toast layer, a layer child of the node whose
+//! build shows it (the window root's body), at the end-bottom corner of its body. The queue (`ToastQueue`) keeps the
+//! cards and their timers; a timer is a build wake of the showing node at the earliest deadline, so a waiting stack
+//! runs no frame. A component of a higher layer draws each card (`notices::ToastStack`).
 
-use super::overlay::{self, Layer, Overlay};
-use crate::runtime::egui::areas;
-use crate::runtime::egui::memory as store;
-use crate::runtime::env::{Env, WindowKey};
-use crate::runtime::focus;
-use crate::runtime::memory::sub;
-use crate::runtime::motion;
-use crate::runtime::toast::{self, Toast, ToastEnd};
-use craft_ui_rt::Rect;
-use egui::{Align2, IdSalt, Ui};
+pub use crate::contract::rt::toast::ToastQueue;
 
-/// The toasts of the cards shown last, so the layer's exit fade still shows them after the queue emptied.
-#[derive(Clone, Default)]
-struct Shown(Vec<Toast>);
+use crate::contract::rt::overlay::{LayerScope, LayerShow, Surface, show_layer};
+use crate::contract::{IdSalt, POPUP_PAD, Ui};
+use crate::runtime::env::Env;
+use crate::runtime::focus::{FocusPolicy, FocusTarget};
+use crate::runtime::toast::{Toast, ToastEnd, ToastId};
+use craft_ui_rt::{Align, Layer, LayerSpec, Placement, Rect, Side, Vec2};
+
+/// The stack's key among its owner's layer children.
+const STACK_KEY: u64 = 0x746f_6173_74;
 
 /// What a drawn card reports back to the host.
 #[derive(Clone, Copy, Debug, Default)]
 #[non_exhaustive]
 pub struct CardOutcome {
-    /// The pointer rests on the card; its timer stays paused.
+    /// The pointer rests on the card; the timers stay paused.
     pub hovered: bool,
-    /// How the user ended the card this pass.
+    /// How the user ended the card in this run.
     pub end: Option<ToastEnd>,
 }
 
@@ -34,92 +32,125 @@ impl CardOutcome {
     }
 }
 
-/// The layer that shows the toast queue of a window. The window root calls `show` once per pass with its window and
-/// its body's rect, so each window, an embedded one included, shows its own toasts in its own body.
+/// The layer that shows a window's toast queue. The window root's body calls `show` in its build with its queue and
+/// its body's rect, so each window shows its own toasts in its own body.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ToastHost;
 
 impl ToastHost {
-    /// Lays out every queued toast of `window`, oldest at the top, at the end-bottom corner of `body` (a rect of `ui`'s
-    /// layer), and
-    /// draws each with `card(ui, toast, salt)`, where `salt` is stable for the card. A card the pointer rests on keeps
-    /// its timer paused; the first show of a toast announces it. A card the user ends while focus is in it hands focus to
-    /// the first stop of the card after it, else of the card before. When the queue empties the layer fades out with the
-    /// last cards.
-    ///
-    /// The layer takes no room in the body that calls it, so a sizing pass of that body skips it and the real run
-    /// opens the layer's stages once per pass.
-    pub fn show(ui: &Ui, window: &WindowKey, body: Rect, card: &mut dyn FnMut(&mut Ui, &Toast, IdSalt) -> CardOutcome) {
-        Self::show_at(ui, window, body, None, card);
+    /// Shows every card of `queue`, oldest at the top, at the end-bottom corner of `body` (a window rect), drawing each
+    /// with `card(ui, toast, salt)`, where `salt` is stable for the card. The pointer on the stack or a card keeps every
+    /// timer paused. A card the user ends while focus is in it hands focus to the card after it, else the card before.
+    /// The node `ui` builds builds again at the earliest deadline. A measuring run shows nothing: the layer takes no
+    /// room in the body.
+    pub fn show(ui: &mut Ui, queue: &mut ToastQueue, body: Rect, card: &mut dyn FnMut(&mut Ui, &Toast, IdSalt) -> CardOutcome) {
+        Self::show_at(ui, queue, body, None, card);
     }
 
-    /// Shows the queue at a bottom alignment of its body, or at the locale's trailing bottom corner when `None`.
-    pub fn show_at(ui: &Ui, window: &WindowKey, body: Rect, alignment: Option<Align2>, card: &mut dyn FnMut(&mut Ui, &Toast, IdSalt) -> CardOutcome) {
-        let ctx = ui.ctx();
-        if ui.is_sizing_pass() {
+    /// Shows the queue along the bottom of its body at `alignment` (`Min` the left, `Max` the right), or at the
+    /// locale's trailing bottom corner when `None`.
+    pub fn show_at(
+        ui: &mut Ui,
+        queue: &mut ToastQueue,
+        body: Rect,
+        alignment: Option<Align>,
+        card: &mut dyn FnMut(&mut Ui, &Toast, IdSalt) -> CardOutcome,
+    ) {
+        if ui.is_measuring() {
             return;
         }
-        let cards = toast::cards(ctx, window);
-        let env = Env::of(ui);
-        let id = sub(ui.scope_id(), "toast_host");
-        let open = !cards.is_empty();
-        let presence = motion::layer_presence(ctx, id, id, env.motion, open, motion::spec::OPEN_FADE);
-        if !presence.visible {
-            overlay::forget_layer(ctx, id, id);
-            let _ = store::take::<Shown>(ctx, sub(id, "shown"));
+        let rtl = Env::of(ui).direction.is_rtl();
+        let cx = &mut *ui.cx;
+        let stack = cx.peek_layer::<LayerScope>(Layer::Toast, STACK_KEY);
+        // The pointer over the stack's frame, or on a card as the card reported it last, holds the timers.
+        let held = stack.is_some_and(|p| p.local.hovered) || queue.cards_hovered;
+        let next = queue.tick(cx.now(), held);
+        cx.request_build_at(next);
+        if queue.is_empty() {
+            queue.cards_hovered = false;
             return;
         }
-        let toasts: Vec<Toast> = if open {
-            cards.iter().map(|card| card.toast.clone()).collect()
-        } else {
-            store::peek_clone::<Shown>(ctx, sub(id, "shown")).unwrap_or_default().0
+        let shown = queue.shown_key();
+        let rerun = shown != queue.shown;
+        queue.shown = shown;
+        let tokens = ui.flow.tokens.clone();
+        let align = alignment.unwrap_or(if rtl { Align::Min } else { Align::Max });
+        let corner = match align {
+            Align::Min => body.left_bottom(),
+            Align::Center => body.center_bottom(),
+            Align::Max => body.right_bottom(),
         };
-        if open {
-            store::put(ctx, sub(id, "shown"), Shown(toasts.clone()));
+        let corner = Rect::from_min_size(corner, Vec2::ZERO);
+        let spec = LayerSpec::new(Placement::Beside { rect: corner, side: Side::Above, align, gap: tokens.space.pad.regular });
+        let show = LayerShow {
+            layer: Layer::Toast,
+            spec,
+            surface: Surface::Popup,
+            pad: POPUP_PAD.points(&tokens),
+            share: Vec2::new(0.4, 0.5),
+            anchor: Some(corner),
+            role: accesskit::Role::Group,
+            hover: true,
+            sweep: ui.flow.sweep,
+            focus: FocusPolicy::TAB_LAYER,
+            entry: None,
+            host: None,
+            on_activate: false,
+            enter: false,
+        };
+        let cards: Vec<(ToastId, Toast)> = queue.cards().map(|(id, toast)| (id, toast.clone())).collect();
+        let id = ui.flow.id.with("craft-toasts");
+        // A kept stack runs no card and reports nothing new.
+        let mut ran = None;
+        show_layer(ui.cx, id, STACK_KEY, show, rerun, &mut |ui| ran = Some(run_cards(ui, id, &cards, card)));
+        let Some(StackRun { hovered, ends, focus }) = ran else { return };
+        queue.cards_hovered = hovered;
+        for (toast, end) in ends {
+            queue.close(toast, end);
         }
-        let overlay = Overlay::toast(body, alignment.unwrap_or_else(|| corner(&env)));
-        let anchor = areas::layer_to_screen(ctx, ui.layer_id()) * body;
-        let layer = Layer { id, owner: id, overlay: &overlay, anchor, env: &env, exiting: !open, fade: presence.t, size: None, region: None };
-        overlay::host(ctx, &layer, &mut |ui| {
-            // The stops each card registered, for the cards that stay; and the card the user ended while it held focus.
-            let mut staying: Vec<std::ops::Range<usize>> = Vec::new();
-            let mut ended_focused: Option<usize> = None;
-            for (at, toast) in toasts.iter().enumerate() {
-                let live = cards.get(at);
-                let salt = IdSalt::new(("toast", live.map(|live| live.id), live.is_none().then_some(at)));
-                let from = focus::stop_count(ctx);
-                let out = card(ui, toast, salt);
-                let stops = from..focus::stop_count(ctx);
-                if let Some(live) = live {
-                    toast::shown(ctx, live.id, &announcement(&env, toast), out.hovered);
-                    match out.end {
-                        Some(end) => {
-                            if focus::focus_in(ctx, stops) {
-                                ended_focused = Some(staying.len());
-                            }
-                            toast::close(ctx, live.id, end);
-                        }
-                        None => staying.push(stops),
-                    }
-                }
-            }
-            // The focus goes on to the card after the ended one, else the one before; the last card's end returns it.
-            let next = ended_focused.and_then(|at| staying.get(at).or_else(|| at.checked_sub(1).and_then(|before| staying.get(before))));
-            if let Some(target) = next.and_then(|stops| focus::first_stop_in(ctx, stops.clone())) {
-                focus::request(ctx, target);
-            }
-        });
+        if let Some(target) = focus {
+            ui.request_focus(FocusTarget::Id(target));
+        }
     }
 }
 
-/// The body's end-bottom corner: right in left-to-right, left in right-to-left.
-fn corner(env: &Env) -> Align2 {
-    if env.direction.is_rtl() { Align2::LEFT_BOTTOM } else { Align2::RIGHT_BOTTOM }
+/// What one run of the stack's body found: whether the pointer rests on a card, the cards the user ended, and the
+/// card focus goes on to.
+#[derive(Debug, Default)]
+struct StackRun {
+    hovered: bool,
+    ends: Vec<(ToastId, ToastEnd)>,
+    focus: Option<crate::contract::Id>,
 }
 
-/// What the card announces when it first shows: the title, the message and the lines, the empty ones left out.
-fn announcement(env: &Env, toast: &Toast) -> String {
-    let view = env.view();
-    let texts = toast.title.iter().chain(std::iter::once(&toast.message)).chain(&toast.lines);
-    texts.map(|text| view.resolve(text).as_str().to_owned()).filter(|text| !text.is_empty()).collect::<Vec<_>>().join(", ")
+/// Runs the cards of the stack whose content is keyed under `stack`. Each card's id is `stack` with its salt, so the
+/// host knows which card holds focus.
+fn run_cards(
+    ui: &mut Ui<'_, '_>,
+    stack: crate::contract::Id,
+    cards: &[(ToastId, Toast)],
+    card: &mut dyn FnMut(&mut Ui, &Toast, IdSalt) -> CardOutcome,
+) -> StackRun {
+    let mut run = StackRun::default();
+    // The cards that stay, and the place among them of the card the user ended while it held focus.
+    let mut staying = Vec::new();
+    let mut ended_focused = None;
+    for (toast_id, toast) in cards {
+        let salt = IdSalt::new(("toast", toast_id.value()));
+        let card_id = stack.with_salt(salt);
+        let out = card(ui, toast, salt);
+        run.hovered |= out.hovered;
+        match out.end {
+            Some(end) => {
+                if ui.focus_in_scope(card_id) == Some(true) {
+                    ended_focused = Some(staying.len());
+                }
+                run.ends.push((*toast_id, end));
+            }
+            None => staying.push(card_id),
+        }
+    }
+    // The focus goes on to the card after the ended one, else the one before; the last card's end returns it.
+    run.focus = ended_focused.and_then(|at| staying.get(at).or_else(|| at.checked_sub(1).and_then(|before| staying.get(before)))).copied();
+    run
 }

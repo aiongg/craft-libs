@@ -1,10 +1,7 @@
 //! How a window opens: its level, its spec and the frame it gets.
 
-use super::shared;
-use super::shell::{base_shell, os_of};
-use craft_host::target::{Os, WindowChrome, WindowKind};
-use craft_window::policy::{CaptionFamily, Captions, Frame, MacInset, tool_frame};
-use egui::{Context, ViewportId};
+use craft_host::target::{WindowChrome, WindowKind};
+use craft_window::policy::{Captions, Frame};
 
 /// Where a window stands in the stack of windows.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -20,47 +17,6 @@ pub enum WindowLevel {
     Palette,
     /// Above every other window.
     AlwaysOnTop,
-}
-
-/// The app's state that its palettes follow, as its windows reported it in the last root frame.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(super) struct AppState {
-    /// Every window of the app reported that it has no focus.
-    pub away: bool,
-    /// The window that holds an app-modal layer, which blocks the app's other windows.
-    pub modal: Option<ViewportId>,
-    /// The main window is minimized.
-    pub minimized: bool,
-}
-
-/// How a window stands among the windows.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) struct Standing {
-    /// The level egui is given.
-    pub level: egui::WindowLevel,
-    /// Whether the window is shown.
-    pub shown: bool,
-    /// Whether the window stands as an ordinary window because an app-modal layer in another window blocks it.
-    pub lowered: bool,
-}
-
-impl WindowLevel {
-    /// How `viewport`'s window at this level stands while the app is in `app`, on `os`. An inactive app's palette goes
-    /// behind other apps' windows: on Windows `Normal` puts a window in front of every window that is not topmost, the
-    /// activated app's included, so the palette goes to the bottom. A palette blocked by a modal stands as an ordinary
-    /// window, so the modal's window can be raised above it.
-    pub(super) fn standing(self, viewport: ViewportId, app: AppState, os: Os) -> Standing {
-        let palette = self == WindowLevel::Palette;
-        let lowered = palette && !app.away && app.modal.is_some_and(|modal| modal != viewport);
-        let level = match self {
-            WindowLevel::Normal => egui::WindowLevel::Normal,
-            WindowLevel::AlwaysOnTop => egui::WindowLevel::AlwaysOnTop,
-            WindowLevel::Palette if app.away && os == Os::Windows => egui::WindowLevel::AlwaysOnBottom,
-            WindowLevel::Palette if app.away || lowered => egui::WindowLevel::Normal,
-            WindowLevel::Palette => egui::WindowLevel::AlwaysOnTop,
-        };
-        Standing { level, shown: !(palette && app.minimized && os != Os::Mac), lowered }
-    }
 }
 
 /// How an OS window opens (21.2): what it is for, who draws its frame, where it stands and whether it has a taskbar
@@ -205,43 +161,11 @@ impl WindowSpec {
     }
 }
 
-/// The frame a window of `kind` gets: a tool window's own ([`tool_frame`]), whatever the main window has; any other
-/// the installed decision's. `None` for those while no decision is installed.
-fn installed_frame(ctx: &Context, kind: WindowKind) -> Option<Frame> {
-    if kind == WindowKind::Tool {
-        return Some(tool_frame(os_of(ctx), base_shell(ctx).runtime));
-    }
-    shared(ctx, |shared| shared.root_frame.clone())
-}
-
-/// The chrome and caption buttons `spec` opens with: its own, else the frame for its kind, else the OS's frame.
-pub(super) fn frame_of_spec(ctx: &Context, spec: &WindowSpec) -> (WindowChrome, Option<Captions>) {
-    let decided = installed_frame(ctx, spec.kind);
-    let chrome = spec.chrome.or_else(|| decided.as_ref().map(chrome_of)).unwrap_or(WindowChrome::Native);
-    let captions = spec.captions.clone().or_else(|| match decided {
-        Some(Frame::Integrated(captions)) if spec.chrome.is_none() && !captions.is_empty() => Some(captions),
-        _ => None,
-    });
-    (chrome, captions)
-}
-
 /// Who draws the frame `frame` describes.
 pub(crate) fn chrome_of(frame: &Frame) -> WindowChrome {
     match frame {
         Frame::Native => WindowChrome::Native,
         Frame::Inset(_) => WindowChrome::Inset,
         Frame::Integrated(_) => WindowChrome::Integrated,
-    }
-}
-
-/// The frame of a window drawn as `chrome` with `captions`; an integrated frame without captions has no buttons.
-pub(super) fn frame_of(chrome: WindowChrome, captions: Option<Captions>) -> Frame {
-    match chrome {
-        WindowChrome::Inset => Frame::Inset(MacInset::default()),
-        WindowChrome::Integrated => Frame::Integrated(
-            captions
-                .unwrap_or_else(|| Captions { family: CaptionFamily::Generic, layout: craft_window::Layout { left: Vec::new(), right: Vec::new() } }),
-        ),
-        _ => Frame::Native,
     }
 }

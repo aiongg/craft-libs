@@ -69,5 +69,5 @@ pub(crate) use run::{kept_part_id, show_leaf};
 pub(crate) use scope::{WindowEnv, window_root, window_root_with};
 pub(crate) use textures::{TextureCache, TextureLook, TextureReads};
 pub(crate) use tip::DELAY as TOOLTIP_DELAY;
-pub(crate) use toast::{ToastHost, ToastQueue};
+pub(crate) use toast::ToastQueue;
 pub(crate) use ui::{Ui, UiBuilder};
