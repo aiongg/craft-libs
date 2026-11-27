@@ -389,6 +389,10 @@ where
         Sense::CLICK | Sense::FOCUS | Sense::TAKE_FOCUS
     }
 
+    fn text_input(&self) -> Option<crate::contract::ImePurpose> {
+        Some(if self.options.mask { crate::contract::ImePurpose::Password } else { crate::contract::ImePurpose::Normal })
+    }
+
     /// The text, and the room the adornments take; a search field keeps the room of its clear button while the text is
     /// empty, so the field does not change width as the button comes and goes.
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {

@@ -81,11 +81,11 @@ fn end_of(entries: &[Entry], pos: TextPos) -> Option<TextPosition> {
     Some(TextPosition { node: entry.node, character_index: character })
 }
 
-/// Adds the text facts to `built`, the node of the ui-rt node `node`, and its run sub-nodes; returns the entries a
-/// selection request maps back through. The owner's node is the one node of the text, so a component whose root edits
+/// Adds the text facts to `built`, the node of the ui-rt node `node` placed at `origin` (window coordinates), and its
+/// run sub-nodes, whose bounds are in the node's space; returns the entries a selection request maps back through. The owner's node is the one node of the text, so a component whose root edits
 /// its value through the text (a text field, a spin button, an editable combo box) is one node that takes focus and
 /// the text actions. Call it after the node's common facts are written.
-pub(crate) fn write(built: &mut Built, facts: &TextFacts, node: NodeId) -> Vec<Entry> {
+pub(crate) fn write(built: &mut Built, facts: &TextFacts, node: NodeId, origin: craft_ui_rt::Pos2) -> Vec<Entry> {
     let mut entries = Vec::new();
     if !facts.masked {
         for (line_at, line) in facts.lines.iter().enumerate() {
@@ -95,12 +95,8 @@ pub(crate) fn write(built: &mut Built, facts: &TextFacts, node: NodeId) -> Vec<E
                 let key = crate::contract::rt::node::part_id(part);
                 let mut sub = Node::new(Role::TextRun);
                 sub.set_value(text);
-                sub.set_bounds(accesskit::Rect::new(
-                    f64::from(line.rect.min.x),
-                    f64::from(line.rect.min.y),
-                    f64::from(line.rect.max.x),
-                    f64::from(line.rect.max.y),
-                ));
+                let rect = line.rect.translate(craft_ui_rt::Pos2::ZERO - origin);
+                sub.set_bounds(accesskit::Rect::new(f64::from(rect.min.x), f64::from(rect.min.y), f64::from(rect.max.x), f64::from(rect.max.y)));
                 sub.set_character_lengths(text.chars().map(|c| u8::try_from(c.len_utf8()).unwrap_or(4)).collect::<Vec<_>>());
                 sub.set_character_positions(run.positions.clone());
                 sub.set_character_widths(run.widths.clone());
