@@ -249,7 +249,7 @@ impl<E> crate::contract::ItemOutput<E> for SwatchOutput {
 /// round, or a hexagon, a cell of a honeycomb.
 #[derive(crate::contract::Component, crate::contract::Props)]
 #[component(content_painter, probe(Swatch<u8>))]
-pub struct Swatch<T: Value + 'static = ()> {
+pub struct Swatch<T: Value + crate::contract::MemoProps + 'static = ()> {
     #[common]
     common: Common,
     fill: SwatchFill,
@@ -420,7 +420,7 @@ pub fn paint_ring(draw: &Draw<'_>, well: Rect, color: Srgba, style: &SwatchStyle
     draw.stroke(&PaintShape::Rect(hole.expand(line), corner(line)), StrokeWidth::Thin, edge);
 }
 
-impl<T: Value + 'static> Component for Swatch<T> {
+impl<T: Value + crate::contract::MemoProps + 'static> Component for Swatch<T> {
     const ROLE: Role = Role::COLOR_WELL;
     const PARTS: bool = false;
     const OVERLAYS: bool = false;

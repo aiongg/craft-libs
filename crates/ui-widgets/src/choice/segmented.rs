@@ -67,7 +67,7 @@ impl<'a, T: Value + 'static> Segmented<'a, T> {
     }
 }
 
-impl<T: Value + 'static> Component for Segmented<'_, T> {
+impl<T: Value + crate::contract::MemoProps + 'static> Component for Segmented<'_, T> {
     const ROLE: Role = Role::RADIO_GROUP;
     const OVERLAYS: bool = false;
     type Style = SegmentedStyle;

@@ -17,10 +17,11 @@ fn inspect_overlay(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
             Button::new("Apply").show(ui);
             Checkbox::new(data.bind("snap", true)).label("Snap to grid").show(ui);
         })
+        .output
     });
-    let rect = shown.output.rect;
+    let rect = shown.rect;
     match recorded {
         Some(recorded) => InspectOverlay::new(recorded).show_at(ui, rect).into(),
-        None => shown.output.into(),
+        None => shown.into(),
     }
 }

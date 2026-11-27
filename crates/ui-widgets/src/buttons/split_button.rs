@@ -176,7 +176,7 @@ fn chevron(look: &FaceLook) -> IconSpec<'static> {
 /// The ribbon's menu arrow where it sets one (`RibbonLook::arrow`): the small filled triangle, pointing down.
 const RIBBON_ARROW: crate::controls::disclosure::DisclosureGlyph = crate::controls::disclosure::DisclosureGlyph::new(1.0);
 
-impl<T: Value + 'static> Component for SplitButton<'_, T> {
+impl<T: Value + crate::contract::MemoProps + 'static> Component for SplitButton<'_, T> {
     const ROLE: Role = Role::BUTTON;
     const KEYS: crate::runtime::focus::KeyUse = crate::runtime::focus::KeyUse::of(crate::contract::Input::Pointer).with_moves();
     type Style = SplitButtonStyle;

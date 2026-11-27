@@ -172,7 +172,9 @@ impl NoticeCenter {
         let timeout = if notice.sticky { None } else { self.timeout };
         let message = notice.message.clone().map_or(Label::Empty, Label::from);
         let mut card = Toast::new(message).title(notice.title.clone()).lines(notice.lines.clone());
-        card = card.tone(notice.tone).timeout(timeout).politeness(politeness);
+        card = card.timeout(timeout);
+        card.tone = notice.tone;
+        card.politeness = politeness;
         if let Some(fraction) = notice.progress {
             card = card.progress(fraction);
         }

@@ -119,7 +119,8 @@ fn graph(ui: &mut Ui, data: &mut StoryData, count: u32, wired: &[(u32, u32)], zo
 
 /// Selects the first node by a click on it: a click at the middle of a graph lands on a node, not on the graph.
 fn click_first_node(fixture: &mut StoryHarness) {
-    if let Some(node) = fixture.by_role(Role::GRAPHICS_OBJECT).first().copied() {
+    let Role::Node(role) = Role::GRAPHICS_OBJECT else { return };
+    if let Some(node) = fixture.by_role(role).first().cloned() {
         fixture.click(&node);
     }
 }

@@ -84,7 +84,7 @@ impl<'a, T: Value + 'static> RadioGroup<'a, T> {
     }
 }
 
-impl<T: Value + 'static> Component for RadioGroup<'_, T> {
+impl<T: Value + crate::contract::MemoProps + 'static> Component for RadioGroup<'_, T> {
     const ROLE: Role = Role::RADIO_GROUP;
     const PARTS: bool = false;
     type Style = GroupStyle;
@@ -135,7 +135,7 @@ impl<T: Value + 'static> Component for RadioGroup<'_, T> {
     }
 }
 
-impl<T: Value + 'static> Container for RadioGroup<'_, T> {}
+impl<T: Value + crate::contract::MemoProps + 'static> Container for RadioGroup<'_, T> {}
 
 /// The style of a radio button.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
@@ -174,7 +174,7 @@ impl<T: Value + 'static> Radio<T> {
     }
 }
 
-impl<T: Value + 'static> Component for Radio<T> {
+impl<T: Value + crate::contract::MemoProps + 'static> Component for Radio<T> {
     const ROLE: Role = Role::RADIO_BUTTON;
     const LABELLED_AFTER: bool = true;
     const PARTS: bool = false;

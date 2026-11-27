@@ -684,7 +684,7 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> TileGrid<'a, K> {
     }
 }
 
-impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for TileGrid<'_, K> {
+impl<K: Clone + Eq + Hash + Send + Sync + crate::contract::MemoProps + 'static> Component for TileGrid<'_, K> {
     const ROLE: Role = Role::LIST_BOX;
     const OVERLAYS: bool = false;
     type Style = TileGridStyle;
@@ -1008,7 +1008,7 @@ const MAX_RATING: u8 = 5;
 /// The keys of the digits 0 to `MAX_RATING`.
 const DIGITS: [Key; 6] = [Key::Num0, Key::Num1, Key::Num2, Key::Num3, Key::Num4, Key::Num5];
 
-impl<K: Clone + Eq + Hash + Send + Sync + 'static> Collection for TileGrid<'_, K> {
+impl<K: Clone + Eq + Hash + Send + Sync + crate::contract::MemoProps + 'static> Collection for TileGrid<'_, K> {
     type Key = K;
     type ItemLayout = GridLayout;
     type Selection = Selection<K>;

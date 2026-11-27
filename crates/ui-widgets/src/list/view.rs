@@ -236,7 +236,7 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> List<'a, K> {
     }
 }
 
-impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for List<'_, K> {
+impl<K: Clone + Eq + Hash + Send + Sync + crate::contract::MemoProps + 'static> Component for List<'_, K> {
     const ROLE: Role = Role::LIST;
     const PARTS: bool = false;
     const ALT_ROLES: &'static [Role] = &[Role::LIST_BOX];
@@ -258,7 +258,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for List<'_, K> {
     }
 }
 
-impl<K: Clone + Eq + Hash + Send + Sync + 'static> Collection for List<'_, K> {
+impl<K: Clone + Eq + Hash + Send + Sync + crate::contract::MemoProps + 'static> Collection for List<'_, K> {
     type Key = K;
     type ItemLayout = SpanLayout;
     type Selection = Selection<K>;

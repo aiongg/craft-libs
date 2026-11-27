@@ -78,8 +78,8 @@ fn stack_fill_height(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
                     .show(ui, |ui, _| words(ui, 0..2));
                 Stack::new().fill().pad(Pad::Regular).show(ui, |ui, _| words(ui, 3..4));
             })
+            .output
         })
-        .inner
         .into()
     })
 }

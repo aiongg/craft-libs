@@ -147,9 +147,12 @@ fn toast_stack(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     if ctx.toasts().is_empty() {
         let lines = (1..=10).map(|n| format!("Warning {n}"));
         ctx.toasts().post(toast::Toast::new(Label::Empty).title("Pasted from the clipboard").timeout(None));
-        ctx.toasts().post(toast::Toast::new(Label::Empty).title("Opened with 10 warnings").lines(lines).tone(Tone::Warn).timeout(None));
-        let error = toast::Toast::new(Label::Empty).title("Couldn't save the document").lines(["The disk is full."]).tone(Tone::Bad);
-        ctx.toasts().post(error.timeout(None));
+        let mut warning = toast::Toast::new(Label::Empty).title("Opened with 10 warnings").lines(lines).timeout(None);
+        warning.tone = Tone::Warn;
+        ctx.toasts().post(warning);
+        let mut error = toast::Toast::new(Label::Empty).title("Couldn't save the document").lines(["The disk is full."]).timeout(None);
+        error.tone = Tone::Bad;
+        ctx.toasts().post(error);
     }
     let area = stage(ui);
     ToastStack::show(ui, area);

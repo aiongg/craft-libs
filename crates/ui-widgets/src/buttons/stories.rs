@@ -560,7 +560,7 @@ fn button_chord_long_text(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 /// A room too short for label and chord together: the chord is dropped and the label stays whole.
 #[story(Button<'static>, covers = [], drive = Drive::Never, group = "Variants", title = "Chord, narrow room")]
 fn button_chord_narrow_room(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    let width = |chord| Button::command(EditCommands::Copy).chord(chord).measure_in(ui, Proposal::Ideal).x;
+    let mut width = |chord| Button::command(EditCommands::Copy).chord(chord).measure_in(ui, Proposal::Ideal).x;
     // Halfway between the button without its chord and with it: room for the whole label, not for the chord too.
     let room = (width(ButtonChord::Hidden) + width(ButtonChord::Trailing)) / 2.0;
     crate::testing::memory::scoped(ui, |ui| {
