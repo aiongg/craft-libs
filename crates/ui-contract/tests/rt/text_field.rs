@@ -3,12 +3,15 @@
 //! the platform clipboard, and a masked field never shows its text to the access tree. Relations only, no times.
 
 use craft_behavior::{PartKey, PlainText};
+use craft_ui_contract::contract::overlay::{Overlay, OverlayUi, Overlays as _};
 use craft_ui_contract::contract::{Bind, BindMut, Common, Component, Cx, EditResponse, Input, MeasureCx, MemoView, PartsCx, Role, Show, Ui};
 use craft_ui_contract::primitives::{TextKey, TextOptions};
 use craft_ui_contract::style::StyleCx;
 use craft_ui_contract::testing::Harness;
 use craft_ui_rt::{Key, Mods, Rect, Sense, Vec2};
 use craft_ui_test_kit::contract::PlainStyle;
+
+use crate::skeleton::Chip;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -22,12 +25,16 @@ pub struct TextField<'a> {
     value: Bind<'a, String>,
     multiline: bool,
     password: bool,
+    holds: bool,
+    /// The field shows a dropdown with one row while this is set, and reports the row's rect there.
+    #[key(skip)]
+    list: Option<Rc<Cell<Rect>>>,
 }
 
 impl<'a> TextField<'a> {
     /// A single-line field editing `value`.
     pub fn new(value: Bind<'a, String>) -> TextField<'a> {
-        TextField { common: Common::new(), value, multiline: false, password: false }
+        TextField { common: Common::new(), value, multiline: false, password: false, holds: false, list: None }
     }
 
     /// Enter makes a line break and Up and Down move between rows.
@@ -39,6 +46,18 @@ impl<'a> TextField<'a> {
     /// The field masks its text and asks the platform for a password session.
     pub fn password(mut self) -> Self {
         self.password = true;
+        self
+    }
+
+    /// A press on a part declared `holds_drafts`, or in a popup above the field, keeps its focus and its draft.
+    pub fn holds_drafts(mut self) -> Self {
+        self.holds = true;
+        self
+    }
+
+    /// The field shows a dropdown with one row, as a completion list does, reporting the row's rect to `row`.
+    pub fn list(mut self, row: Rc<Cell<Rect>>) -> Self {
+        self.list = Some(row);
         self
     }
 
@@ -77,8 +96,19 @@ impl Component for TextField<'_> {
 
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
         let value = cx.value().cloned().unwrap_or_default();
-        let options = TextOptions { lines: self.multiline.then_some(3), mask: self.password, ..TextOptions::default() };
+        let options = TextOptions { lines: self.multiline.then_some(3), mask: self.password, holds_drafts: self.holds, ..TextOptions::default() };
         cx.text(TEXT, rect, &PlainText, &value, &options);
+    }
+
+    fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        if self.list.is_some() {
+            cx.popup("list").open(cx);
+        }
+    }
+
+    fn overlay(&mut self, ui: &mut OverlayUi<'_>, cx: &mut Cx<'_, Self>) {
+        let Some(row) = self.list.clone() else { return };
+        ui.show(cx.popup("list"), Overlay::dropdown(), move |ui, _| row.set(Chip::new("Completion").show(ui).rect));
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> EditResponse<String> {
@@ -336,4 +366,258 @@ fn f10_focuses_the_menu_bar_and_escape_gives_the_field_back_its_selection() {
     h.type_text("x");
     h.run();
     assert_eq!(*text.borrow(), "x", "the field kept its whole-text selection while the bar held the focus");
+}
+
+/// A stop with one part a press takes that is declared `holds_drafts`, as a canvas's page is.
+#[derive(Component)]
+pub struct Pad {
+    #[common]
+    common: Common,
+    #[key(skip)]
+    rect: Rc<Cell<Rect>>,
+}
+
+impl Component for Pad {
+    const ROLE: Role = Role::GROUP;
+    type Style = PlainStyle;
+    type Output = ();
+
+    fn style(_: &StyleCx<'_>, _: PadStyleKey) -> PlainStyle {
+        PlainStyle::default()
+    }
+
+    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
+        Vec2::new(10.0 * cx.tokens.size.button, 3.0 * cx.tokens.size.button)
+    }
+
+    fn sense(&self) -> Sense {
+        Sense::HOVER | Sense::CLICK
+    }
+
+    fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
+        self.rect.set(rect);
+        cx.part(PartKey::new("page"), rect).sense(Sense::CLICK).holds_drafts();
+    }
+
+    fn finish(self, _: Cx<'_, Self>) {}
+}
+
+#[test]
+fn a_press_on_a_draft_holding_part_keeps_the_field_s_focus_and_draft() {
+    let text = Rc::new(RefCell::new(String::new()));
+    let pad = Rc::new(Cell::new(Rect::NOTHING));
+    let (t, p) = (Rc::clone(&text), Rc::clone(&pad));
+    let mut h = Harness::builder().build_ui(move |ui: &mut Ui<'_, '_>| {
+        let mut value = t.borrow().clone();
+        TextField::new(Bind::bound(&mut value)).holds_drafts().show(ui);
+        *t.borrow_mut() = value;
+        Pad { common: Common::new(), rect: Rc::clone(&p) }.show(ui);
+        Chip::new("Other").show(ui);
+    });
+    h.run();
+    h.key_press(Key::Tab);
+    h.run();
+    let field = h.focused().expect("Tab focuses the field");
+    h.type_text("ab");
+    h.run();
+    h.click_at(pad.get().center());
+    h.run();
+    assert_eq!(h.focused().map(|t| t.id), Some(field.id), "a press on the holding part, which takes presses, leaves the field its focus");
+    assert_eq!(*text.borrow(), "ab", "the press keeps the draft");
+    let other = h.by_label("Other").expect("the chip");
+    h.click(&other);
+    h.run();
+    assert_ne!(h.focused().map(|t| t.id), Some(field.id), "a press on a plain stop takes the focus");
+}
+
+#[test]
+fn a_press_in_a_popup_above_the_focused_field_holds_its_draft() {
+    let text = Rc::new(RefCell::new(String::new()));
+    let row = Rc::new(Cell::new(Rect::NOTHING));
+    let (t, r) = (Rc::clone(&text), Rc::clone(&row));
+    let mut h = Harness::builder().build_ui(move |ui: &mut Ui<'_, '_>| {
+        let mut value = t.borrow().clone();
+        TextField::new(Bind::bound(&mut value)).holds_drafts().list(Rc::clone(&r)).show(ui);
+        *t.borrow_mut() = value;
+    });
+    h.run();
+    h.key_press(Key::Tab);
+    h.type_text("ab");
+    h.run();
+    let field = h.focused().expect("the field holds the focus");
+    assert!(row.get().is_positive(), "the dropdown shows its row");
+    h.click_at(row.get().center());
+    h.run();
+    assert_eq!(h.focused().map(|t| t.id), Some(field.id), "a press on the popup's row, a stop, leaves the field its focus");
+    assert_eq!(*text.borrow(), "ab", "the press keeps the draft");
+}
+
+/// A window with the menu bar stand-in and a field (`holds`: one that holds drafts), off a Mac.
+fn bar_and_field(holds: bool) -> (Harness<()>, Rc<Cell<usize>>) {
+    let keys = Rc::new(Cell::new(0));
+    let k = Rc::clone(&keys);
+    let mut h = Harness::builder().build_ui(move |ui: &mut Ui<'_, '_>| {
+        Bar { common: Common::new(), keys: Rc::clone(&k) }.show(ui);
+        let mut value = String::new();
+        let field = TextField::new(Bind::bound(&mut value));
+        if holds { field.holds_drafts() } else { field }.show(ui);
+    });
+    h.os(craft_host::target::Os::Windows);
+    h.run();
+    h.key_press(Key::Tab);
+    h.key_press(Key::Tab);
+    h.run();
+    (h, keys)
+}
+
+fn alt(h: &mut Harness<()>, down: bool) {
+    let mods = if down { Mods { alt: true, ..Mods::NONE } } else { Mods::NONE };
+    h.send(craft_ui_platform_headless::Input::Modifiers(mods));
+}
+
+#[test]
+fn a_lone_alt_opens_the_menu_bar_and_alt_with_a_letter_does_not() {
+    let (mut h, keys) = bar_and_field(false);
+    let field = h.focused().expect("the field holds the focus");
+    alt(&mut h, true);
+    alt(&mut h, false);
+    h.run();
+    assert_eq!(keys.get(), 1, "a lone Alt reaches the menu bar as a menu key");
+    assert_ne!(h.focused().map(|t| t.id), Some(field.id), "the bar takes the focus");
+    h.key_press(Key::Escape);
+    h.run();
+    assert_eq!(h.focused().map(|t| t.id), Some(field.id), "Escape gives the focus back");
+    alt(&mut h, true);
+    h.key(Key::Z, Mods { alt: true, ..Mods::NONE });
+    alt(&mut h, false);
+    h.run();
+    assert_eq!(keys.get(), 2, "Alt with a letter is a mnemonic, and its release is no lone Alt");
+    assert_eq!(h.focused().map(|t| t.id), Some(field.id), "the field keeps the focus");
+}
+
+#[test]
+fn a_field_that_holds_drafts_keeps_the_focus_on_a_lone_alt() {
+    let (mut h, keys) = bar_and_field(true);
+    let field = h.focused().expect("the field holds the focus");
+    alt(&mut h, true);
+    alt(&mut h, false);
+    h.run();
+    assert_eq!(keys.get(), 0, "the field takes the lone Alt (and alerts); the bar gets nothing");
+    assert_eq!(h.focused().map(|t| t.id), Some(field.id), "the field keeps the focus");
+}
+
+/// A menu bar stand-in whose menu key opens a menu with one row; picking the row returns the focus out of the menus.
+#[derive(Component)]
+pub struct MenuBarWithMenu {
+    #[common]
+    common: Common,
+    #[key(skip)]
+    row: Rc<Cell<Rect>>,
+}
+
+impl Component for MenuBarWithMenu {
+    const ROLE: Role = Role::MENU_BAR;
+    type Style = PlainStyle;
+    type Output = ();
+
+    fn style(_: &StyleCx<'_>, _: MenuBarWithMenuStyleKey) -> PlainStyle {
+        PlainStyle::default()
+    }
+
+    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
+        Vec2::new(10.0 * cx.tokens.size.button, cx.tokens.size.button)
+    }
+
+    fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        use craft_ui_contract::contract::Focus as _;
+        cx.register_menu_bar();
+        if !cx.take_menu_keys().is_empty() {
+            cx.popup("menu").open(cx);
+        }
+    }
+
+    fn overlay(&mut self, ui: &mut OverlayUi<'_>, cx: &mut Cx<'_, Self>) {
+        let row = Rc::clone(&self.row);
+        ui.show(cx.popup("menu"), Overlay::menu(), move |ui, _| {
+            let picked = Chip::new("Pick").show(ui);
+            row.set(picked.rect);
+            if picked.clicked()
+                && let Some(menu) = ui.running_menu()
+            {
+                ui.return_from_pick(craft_ui_contract::runtime::focus::PickedIn::Menus(menu));
+            }
+        });
+    }
+
+    fn finish(self, _: Cx<'_, Self>) {}
+}
+
+#[test]
+fn a_menu_pick_returns_the_focus_to_the_stop_the_bar_took_it_from() {
+    let row = Rc::new(Cell::new(Rect::NOTHING));
+    let r = Rc::clone(&row);
+    let mut h = Harness::builder().build_ui(move |ui: &mut Ui<'_, '_>| {
+        MenuBarWithMenu { common: Common::new(), row: Rc::clone(&r) }.show(ui);
+        let mut value = String::new();
+        TextField::new(Bind::bound(&mut value)).show(ui);
+    });
+    h.run();
+    h.key_press(Key::Tab);
+    h.key_press(Key::Tab);
+    h.run();
+    let field = h.focused().expect("the field holds the focus");
+    h.key_press(Key::F10);
+    h.run();
+    assert!(row.get().is_positive(), "F10 opened the bar's menu");
+    h.click_at(row.get().center());
+    h.run();
+    assert_eq!(h.focused().map(|t| t.id), Some(field.id), "the pick returns the focus past the bar to the field");
+}
+
+/// A component whose `update` lays document text out (`Cx::layout_doc`), counting its runs.
+#[derive(Component)]
+pub struct DocProbe {
+    #[common]
+    common: Common,
+    #[key(skip)]
+    runs: Rc<Cell<usize>>,
+}
+
+impl Component for DocProbe {
+    const ROLE: Role = Role::GROUP;
+    type Style = PlainStyle;
+    type Output = ();
+
+    fn style(_: &StyleCx<'_>, _: DocProbeStyleKey) -> PlainStyle {
+        PlainStyle::default()
+    }
+
+    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
+        Vec2::new(10.0 * cx.tokens.size.button, cx.tokens.size.button)
+    }
+
+    fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        self.runs.set(self.runs.get() + 1);
+        let ink = craft_ui_contract::style::DataColor::new(egui::Color32::BLACK);
+        let runs = [craft_ui_contract::primitives::DocRun::new("probe", craft_ui_contract::fonts::FontRef::proportional(), 12.0, ink)];
+        let _ = cx.layout_doc(&craft_ui_contract::primitives::DocText::new(&runs));
+    }
+
+    fn finish(self, _: Cx<'_, Self>) {}
+}
+
+#[test]
+fn layout_doc_in_update_runs_no_extra_build() {
+    let runs = Rc::new(Cell::new(0));
+    let r = Rc::clone(&runs);
+    let mut h = Harness::builder().build_ui(move |ui: &mut Ui<'_, '_>| {
+        DocProbe { common: Common::new(), runs: Rc::clone(&r) }.show(ui);
+        Chip::new("Other").show(ui);
+    });
+    h.run();
+    assert_eq!(runs.get(), 1, "the lent engine asks for no second build of the node");
+    let other = h.by_label("Other").expect("the chip");
+    h.click(&other);
+    h.run();
+    assert_eq!(runs.get(), 1, "a press elsewhere runs the node's update no more");
 }
