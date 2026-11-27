@@ -1,0 +1,38 @@
+[package]
+name = "craft-rt-runner"
+description = "A tool: the experiment's Layers panel on craft-ui-rt, run headless on the test kit or in a window, with the behaviour, pixel and frame-cost checks of the spike's P0 exit"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+publish = false
+
+# Not `workspace = true`: the counting allocator in the kit needs `unsafe` and this crate ports the experiment's code as written.
+[lints.rust]
+unsafe_code = "deny"
+
+[features]
+default = []
+skia = ["dep:craft-ui-render-skia"]
+skia-gpu = ["skia", "craft-ui-render-skia/gpu"]
+
+[dependencies]
+craft-behavior = { workspace = true }
+craft-host = { workspace = true }
+craft-keymap = { workspace = true }
+craft-theme = { workspace = true }
+craft-svg = { workspace = true, features = ["draw"] }
+craft-ui-rt = { workspace = true }
+craft-ui-platform-headless = { workspace = true }
+craft-ui-platform-winit = { workspace = true }
+craft-ui-render-epaint = { workspace = true }
+craft-ui-render-skia = { workspace = true, optional = true }
+craft-ui-test-kit = { workspace = true }
+craft-ui-contract = { workspace = true }
+accesskit = "0.25"
+kurbo = { workspace = true }
+png = "0.17"
+serde = { workspace = true }
+serde_json = { workspace = true }
+web-time = "1.1"

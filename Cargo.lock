@@ -4219,6 +4219,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "craft-rt-runner"
+version = "0.1.0"
+dependencies = [
+ "accesskit",
+ "craft-behavior",
+ "craft-host",
+ "craft-keymap",
+ "craft-svg",
+ "craft-theme",
+ "craft-ui-contract",
+ "craft-ui-platform-headless",
+ "craft-ui-platform-winit",
+ "craft-ui-render-epaint",
+ "craft-ui-render-skia",
+ "craft-ui-rt",
+ "craft-ui-test-kit",
+ "kurbo",
+ "png 0.17.16",
+ "serde",
+ "serde_json",
+ "web-time",
+]
+
+[[package]]
 name = "craft-rtf"
 version = "0.1.0"
 dependencies = [

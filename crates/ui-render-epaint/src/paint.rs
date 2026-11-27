@@ -237,6 +237,11 @@ pub(crate) fn tessellate(list: &DisplayList, shift: Vec2, env: &mut Env<'_>) -> 
                     }
                 }
             }
+            // A solid line is a line segment, which epaint snaps to the pixel grid as egui's own
+            // lines are (a path along two points is not snapped).
+            Item::Line { from, to, stroke: s } if s.dash.is_none() => {
+                shapes.push(Shape::line_segment([pos(*from, shift), pos(*to, shift)], Stroke::new(s.width, color(s.color, opacity))));
+            }
             Item::Line { from, to, stroke: s } => {
                 stroke_shapes(vec![pos(*from, shift), pos(*to, shift)], false, *s, opacity, &mut shapes);
             }
