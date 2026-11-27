@@ -208,30 +208,33 @@ impl SkiaText {
     /// Asks the stack's sources for each character of `text` that no face of `slot`'s family maps,
     /// once per family and character, and registers what they find.
     fn find_fallbacks(&mut self, slot: FontSlot, text: &str) {
-        let Some(stack) = self.stack.clone() else { return };
-        if stack.fallback.is_empty() {
+        let sources = self.stack.as_ref().map(|stack| stack.fallback.clone()).unwrap_or_default();
+        if sources.is_empty() {
             return;
         }
         let family = StackFamily::Slot(slot);
+        let mut names: Option<Vec<String>> = None;
         let mut added = false;
         for (at, c) in text.char_indices() {
             if c.is_whitespace() || c.is_control() || self.asked.contains(&(family.clone(), c)) {
                 continue;
             }
-            let names = self.families(slot).into_iter().map(str::to_owned).collect::<Vec<_>>();
+            let names = names.get_or_insert_with(|| self.families(slot).into_iter().map(str::to_owned).collect());
             let covered = names.iter().filter_map(|name| self.typefaces.get(name)).any(|typeface| typeface.unichar_to_glyph(c as i32) != 0);
             if covered {
                 continue;
             }
             self.asked.insert((family.clone(), c));
             let end = text[at..].char_indices().nth(1).map_or(text.len(), |(next, _)| at + next);
-            let Some(face) = stack.find_fallback(&FallbackAsk { family: &family, cluster: &text[at..end] }) else { continue };
+            let ask = FallbackAsk { family: &family, cluster: &text[at..end] };
+            let Some(face) = sources.iter().find_map(|source| source.face_for(&ask)) else { continue };
             if !self.typefaces.contains_key(face.name.as_ref()) && !self.add_stack_face(&face) {
                 continue;
             }
             let found = self.found.entry(family.clone()).or_default();
             if !found.iter().any(|name| **name == *face.name) {
                 found.push(face.name.to_string());
+                names.push(face.name.to_string());
                 added = true;
             }
         }

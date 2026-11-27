@@ -32,12 +32,13 @@ pub trait Services {
     fn image_if(&self, _key: ImageKey, _options: ImageOptions, _make: &mut dyn FnMut() -> Option<Arc<RgbaImage>>) -> bool {
         false
     }
-    /// The document face `key` over the interface face, its bytes from `load` the first time (`DocumentFaces`). An
-    /// engine that installs no faces at run time leaves it unavailable.
+    /// The document face `key` over the interface face, its bytes from `load` the first time
+    /// (`fonts::document::over_interface`). Services without the session's document faces, or an engine that installs
+    /// no faces at run time, leave it unavailable.
     fn face_over_interface(&self, _key: &str, _load: &mut dyn FnMut() -> Option<FaceBytes>) -> FaceState {
         FaceState::Unavailable
     }
-    /// The document face `key`, loaded by the job `job` gives (`DocumentFaces::face`).
+    /// The document face `key`, loaded by the job `job` gives (`fonts::document::face`).
     fn face(&self, _key: &str, _job: FaceJob<'_>) -> FaceState {
         FaceState::Unavailable
     }
