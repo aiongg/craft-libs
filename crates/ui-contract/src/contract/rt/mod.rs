@@ -13,6 +13,10 @@
 //! Input: `Response` with logged interaction reads, parts kept as hit shapes, the press phases
 //! folded into per-part `PartResult`s, value gestures through the binding and toggle sweeps, with
 //! `Slider`, `Toggle` and `ScrollArea` stand-ins.
+//!
+//! Focus and keys: stops, focus scopes and roving groups kept with the node; Tab, F6 and roving
+//! moves walk the kept nodes; a key goes to the focused node's queue when its kept `KeyUse` takes
+//! it, else up its path to the scopes and the window root (`focus`, `keys`).
 
 pub mod access;
 mod container;
@@ -20,7 +24,9 @@ mod cursor;
 mod dialog;
 mod drag;
 mod env;
+mod focus;
 mod key;
+mod keys;
 mod lazy;
 mod memory;
 mod motion;
@@ -43,6 +49,7 @@ pub use dialog::show_dialog;
 pub use drag::{DragSource, DropRule};
 pub use env::{EnvCells, EnvScope, LayerFrame, ThemeBase};
 pub use key::ComponentKey;
+pub use keys::KeyPress;
 pub use lazy::Lazy;
 pub use motion::{Interpolate, MotionSpec, Tween, loop_phase, spec};
 pub use node::{NodeInput, Pointer};

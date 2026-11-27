@@ -16,8 +16,9 @@ use super::node::Pointer;
 use super::response::{EditResponse, Response};
 use super::run::{Component, Cx, MeasureCx, Paint, PartsCx, show_leaf};
 use super::ui::Ui;
-use crate::contract::{Bind, BindMut, ContainerProps, Gap, IdSource, MemoKey, MemoProps, Scroll, Sizing};
+use crate::contract::{Bind, BindMut, ContainerProps, Gap, IdSource, Input, MemoKey, MemoProps, Scroll, Sizing};
 use crate::primitives::PaintShape;
+use crate::runtime::focus::{FocusPolicy, KeyUse, Roving};
 use crate::style::{StyleColor, UiTokens, rgba_color};
 
 /// A square button showing one icon, named by `label` for assistive technologies.
@@ -62,6 +63,11 @@ impl Component for IconButton<'_> {
 
     fn measure(&mut self, cx: &MeasureCx<'_>) -> Vec2 {
         Vec2::splat(cx.tokens.size.button)
+    }
+
+    /// A Tab stop that Enter and Space activate.
+    fn keys(&self) -> Option<KeyUse> {
+        Some(KeyUse::of(Input::Pointer))
     }
 
     fn sense(&self) -> Sense {
@@ -124,6 +130,18 @@ impl Stack {
         self
     }
 
+    /// Makes the stops in the stack one roving group: one Tab stop whose members take the arrows.
+    pub fn roving(mut self, roving: Roving) -> Stack {
+        self.props.roving = Some(roving);
+        self
+    }
+
+    /// Opens a focus scope around the stack's content (a pane, a trapping group).
+    pub fn focus(mut self, policy: FocusPolicy) -> Stack {
+        self.props.focus = policy;
+        self
+    }
+
     /// Shows the stack with `body` as its children.
     pub fn show<R>(self, ui: &mut Ui<'_, '_>, body: impl FnMut(&mut Ui<'_, '_>) -> R) -> R {
         show_container(self, ui, body).0
@@ -139,6 +157,8 @@ impl Default for Stack {
 impl ComponentKey for Stack {
     fn key(&self, key: &mut MemoKey) {
         self.fill_width.key(key);
+        key.feed_hash(&self.props.roving);
+        self.props.focus.key(key);
     }
 }
 

@@ -727,7 +727,23 @@ impl Runtime {
         let Some(target) = self.focused(window).or_else(|| self.root(window)) else {
             return;
         };
-        let handled = self.dispatch(target, &Event::Key(k), true).is_some();
+        let mut handled = self.dispatch(target, &Event::Key(k), true).is_some();
+        // A key nothing on a layer child's path took reaches the app root and its content's top
+        // nodes last, as a key in the content does by bubbling: the window's key stage (Tab order,
+        // F6) lives there.
+        if !handled
+            && let Some(root) = self.root(window)
+            && !chain(&self.tree, target).contains(&root)
+        {
+            let mut stage = vec![root];
+            stage.extend(self.tree.nodes.get(&root).map_or(&[][..], |n| n.children.as_slice()));
+            for node in stage {
+                if self.deliver(node, target, &Event::Key(k)) == Handled::Yes {
+                    handled = true;
+                    break;
+                }
+            }
+        }
         let plain_tab = k.key == Key::Tab && !(k.mods.cmd || k.mods.ctrl || k.mods.alt);
         if !handled && k.down && plain_tab {
             self.move_focus(window, !k.mods.shift);
@@ -870,18 +886,56 @@ impl Runtime {
     /// When `window`'s focused node is gone, focus moves to the nearest remaining Tab stop on its
     /// old path, or nowhere.
     pub(crate) fn repair_focus(&mut self, window: WindowId) {
-        let Some(focused) = self.focused(window) else {
-            return;
-        };
-        if self.tree.nodes.contains_key(&focused) {
+        self.enter_focus(window);
+        let gone = self.focused(window).filter(|f| !self.tree.nodes.contains_key(f));
+        if gone.is_none() {
+            self.forget_focus_returns(window);
             return;
         }
-        let fallback = self.input(window).and_then(|i| i.focus_chain.iter().copied().find(|id| self.is_focusable(*id)));
+        let chain_now = self.input(window).map(|i| i.focus_chain.clone()).unwrap_or_default();
+        // A node that named where focus returns (a popup: its opener) and went with focus inside.
+        let returned = self
+            .windows
+            .get(&window)
+            .and_then(|w| chain_now.iter().find_map(|gone| w.focus_returns.get(gone).copied()).filter(|to| self.tree.nodes.contains_key(to)));
+        let fallback = returned.or_else(|| chain_now.iter().copied().find(|id| self.is_focusable(*id)));
         if let Some(input) = self.input_mut(window) {
             input.focused = None;
             input.focus_moved = true;
         }
         self.set_focus(window, fallback);
+        self.forget_focus_returns(window);
+    }
+
+    /// Moves focus into the content of the nodes that asked in this build pass: to the first
+    /// text input among their Tab stops when they asked for one and it exists, else their first
+    /// Tab stop, in tree order.
+    fn enter_focus(&mut self, window: WindowId) {
+        let Some(entries) = self.windows.get_mut(&window).map(|w| std::mem::take(&mut w.focus_entries)) else { return };
+        for (node, text_first) in entries {
+            let mut stops = Vec::new();
+            let mut stack = vec![node];
+            while let Some(id) = stack.pop() {
+                let Some(n) = self.tree.nodes.get(&id) else { continue };
+                if let Some(el) = n.element.as_ref().filter(|e| e.focusable()) {
+                    stops.push((id, el.text_input().is_some()));
+                }
+                stack.extend(n.children.iter().rev().copied());
+            }
+            let pick = stops.iter().find(|(_, text)| text_first && *text).or(stops.first()).map(|(id, _)| *id);
+            if pick.is_some() {
+                self.set_focus(window, pick);
+            }
+        }
+    }
+
+    /// Drops the focus returns of nodes that are gone.
+    pub(crate) fn forget_focus_returns(&mut self, window: WindowId) {
+        let Some(w) = self.windows.get_mut(&window) else { return };
+        if !w.focus_returns.is_empty() {
+            let tree = &self.tree;
+            w.focus_returns.retain(|from, _| tree.nodes.contains_key(from));
+        }
     }
 
     /// Starts, moves or stops `window`'s platform IME session to follow its focused node's text
@@ -934,6 +988,17 @@ impl crate::paint::PaintCx<'_> {
         self.interaction_of(node)
     }
 
+    /// One fact of this node's interaction state. The read is of that fact alone, so the node
+    /// repaints when it flips and not when another fact changes (a focus ring that reads
+    /// `FocusVisible` does not repaint on hover).
+    pub fn interaction_fact(&mut self, fact: InteractFact) -> bool {
+        let node = self.node();
+        match self.runtime_mut().interaction_fact_cell(node, fact) {
+            Some(cell) => cell.get(self),
+            None => false,
+        }
+    }
+
     /// Another node's interaction state (a row painting its focus ring while its list has focus).
     pub fn interaction_of(&mut self, node: NodeId) -> Interact {
         match self.runtime_mut().interaction_cell(node) {
@@ -968,5 +1033,38 @@ impl crate::build::BuildCx<'_> {
     pub fn request_focus(&mut self) {
         let (node, window) = (self.node(), self.window());
         self.runtime_mut().set_focus(window, Some(node));
+    }
+
+    /// Moves key focus to `node` in this node's window (a popup that focuses its first stop when it
+    /// appears).
+    pub fn focus_node(&mut self, node: NodeId) {
+        let window = self.window();
+        self.runtime_mut().set_focus(window, Some(node));
+    }
+
+    /// Moves focus into this node's content once the build pass has made it: to its first Tab stop
+    /// in tree order, or its first text input when `text_first` and there is one (a dialog that
+    /// focuses its first field when it opens).
+    pub fn focus_into(&mut self, text_first: bool) {
+        let (node, window) = (self.node(), self.window());
+        if let Some(w) = self.runtime_mut().windows.get_mut(&window) {
+            w.focus_entries.push((node, text_first));
+        }
+    }
+
+    /// Names where focus goes when this node goes with focus inside it (a popup returns it to its
+    /// opener); `None` forgets it. Without one, focus falls back to the nearest stop on its old
+    /// path.
+    pub fn set_focus_return(&mut self, to: Option<NodeId>) {
+        let (node, window) = (self.node(), self.window());
+        let Some(w) = self.runtime_mut().windows.get_mut(&window) else { return };
+        match to {
+            Some(to) => {
+                w.focus_returns.insert(node, to);
+            }
+            None => {
+                w.focus_returns.remove(&node);
+            }
+        }
     }
 }

@@ -144,6 +144,7 @@ impl ToastHost {
             role: accesskit::Role::Group,
             hover: true,
             sweep: ui.flow.sweep,
+            focus: crate::runtime::focus::FocusPolicy::TAB_LAYER,
         };
         let cards: Vec<String> = queue.cards.iter().map(|c| c.toast.message.as_str().to_owned()).collect();
         let id = ui.flow.id.with("craft-toasts");

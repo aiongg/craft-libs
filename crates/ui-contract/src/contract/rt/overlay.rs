@@ -22,8 +22,8 @@ use craft_behavior::overlay::{Align, MinWidth, Side};
 use craft_i18n::Direction;
 use craft_theme::Tokens;
 use craft_ui_rt::{
-    AccessCx, BuildCx, Constraints, DismissReason, DisplayList, Element, Event, EventCx, Handled, HitShape, InlineState, Layer, LayerSpec, LayoutCx,
-    NodeId, OutsidePress, PaintCx, Placement, Pos2, Rect, Sense, State, Vec2, hash_key,
+    AccessCx, BuildCx, Constraints, DismissReason, DisplayList, Element, Event, EventCx, Handled, HitShape, InlineState, Key, Layer, LayerSpec,
+    LayoutCx, NodeId, OutsidePress, PaintCx, Placement, Pos2, Rect, Sense, State, Vec2, hash_key,
 };
 use egui::Id;
 use smallvec::SmallVec;
@@ -35,9 +35,10 @@ use crate::contract::POPUP_PAD;
 use crate::contract::overlay::{Anchor, Outside, Overlay, OverlayFit, Place};
 use crate::primitives::{Canvas, Draw, DrawEnv, FrameServices, PaintRecord};
 use crate::runtime::access::PopupKind;
-use crate::runtime::focus::FocusMove;
+use crate::runtime::focus::{FocusMove, FocusPolicy};
 use crate::runtime::overlay::{CloseReason, Rank};
 use crate::style::{Corners, Ink, SurfaceKind, UiTokens};
+use craft_behavior::CancelRule;
 
 /// A popup a component shows from its `overlay` hook: its name among the component's popups.
 /// Its open state is kept on the component's node.
@@ -135,6 +136,15 @@ impl Element for LayerScope {
                 cx.request_owner_build();
                 Handled::Yes
             }
+            // The cancel rule: an Escape nothing inside took closes a layer child whose scope cancels.
+            Event::Key(k) if k.down && k.key == Key::Escape && lk.kept.focus.scope.cancel != CancelRule::Ignore => {
+                if lk.dismissed.is_none() {
+                    lk.dismissed = Some(DismissReason::Escape);
+                    cx.request_owner_build();
+                }
+                Handled::Yes
+            }
+            Event::Key(k) => super::focus::trap_tab(&lk.kept, true, cx, k),
             // A press on the frame between its rows ends there.
             Event::Pointer(_) if self.surface != Surface::Tip => Handled::Yes,
             _ => Handled::No,
@@ -163,6 +173,8 @@ pub(crate) struct LayerShow {
     pub(crate) hover: bool,
     /// The window's toggle sweep record, passed to the body's flow.
     pub(crate) sweep: Option<State<Sweep>>,
+    /// Its focus scope: whether it traps Tab, takes focus when it appears and gives it back.
+    pub(crate) focus: FocusPolicy,
 }
 
 /// The ui-rt layer of an overlay's rank.
@@ -275,7 +287,7 @@ impl LayerShow {
             _ if surface == Surface::Tip => accesskit::Role::Tooltip,
             _ => accesskit::Role::Dialog,
         };
-        LayerShow { layer, spec, surface, pad, share, anchor, role, hover: false, sweep: None }
+        LayerShow { layer, spec, surface, pad, share, anchor, role, hover: false, sweep: None, focus: overlay.focus }
     }
 }
 
@@ -306,15 +318,20 @@ pub(crate) fn show_layer<R: Clone + 'static>(
     body: &mut dyn FnMut(&mut Ui<'_, '_>) -> R,
 ) -> R {
     let viewport = cx.env().viewport.get(cx);
-    let LayerShow { layer, spec, surface, pad, share, anchor, role, hover, sweep } = show;
+    let LayerShow { layer, spec, surface, pad, share, anchor, role, hover, sweep, focus } = show;
     let element = LayerScope { key, surface, hover };
     cx.inline_layer(layer, key, spec, element, |lk, state, cx| {
+        lk.kept.focus.scope = focus;
         let kept_value = lk.kept.value.as_ref().and_then(|v| v.downcast_ref::<R>()).cloned();
         if let Some(value) = kept_value.filter(|_| !rerun && !state.must_run() && !state.path) {
             cx.keep_children();
             return value;
         }
-        run_layer(lk, state, cx, LayerRun { id, spec, surface, pad, share, anchor, viewport, role, hover, sweep }, body)
+        let out = run_layer(lk, state, cx, LayerRun { id, spec, surface, pad, share, anchor, viewport, role, hover, sweep }, body);
+        if state.new {
+            super::focus::enter_layer(&lk.kept, cx);
+        }
+        out
     })
 }
 

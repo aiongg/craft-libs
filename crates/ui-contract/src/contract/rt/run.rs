@@ -29,6 +29,7 @@ use super::tip;
 use super::ui::{Flow, Ui};
 use crate::contract::{BindMut, IdSource};
 use crate::primitives::{Canvas, Draw, DrawEnv, FrameServices, PaintRecord, PartResult};
+use crate::runtime::focus::{FocusPolicy, KeyUse, Roving};
 use crate::runtime::memory::Slot;
 use crate::style::{Ink, UiTokens};
 
@@ -75,6 +76,7 @@ pub struct Cx<'a, C: Component> {
     settled: bool,
     env: &'a EnvSnapshot,
     level: Cell<Option<(f32, MotionSpec)>>,
+    holds_escape: Cell<bool>,
 }
 
 /// The value a run shows and the edits it made.
@@ -101,6 +103,13 @@ impl<'a, C: Component> Cx<'a, C> {
     /// The inputs queued since the last run, oldest first.
     pub fn input(&self) -> &[NodeInput] {
         self.input
+    }
+
+    /// Takes the next Escape while the node has focus (an open draft, a running gesture): the key
+    /// reaches this node's next run instead of the scopes around it. A run that does not ask
+    /// leaves Escape to them.
+    pub fn hold_escape(&self) {
+        self.holds_escape.set(true);
     }
 
     /// The node did not run: its outputs are the kept ones.
@@ -423,6 +432,25 @@ pub trait Component: ComponentKey + Sized {
         None
     }
 
+    /// The keys the component takes while it has key focus; `None` (the default) makes its shape
+    /// no Tab stop. Kept with the node: the Tab order and the key stage read it without a run.
+    /// The real trait's `STOPS` and `keys()` map onto it.
+    fn keys(&self) -> Option<KeyUse> {
+        None
+    }
+
+    /// The focus scope the component opens around its content and its own stop
+    /// (`Component::focus_scope` of the real trait; a container's `ContainerProps::focus`).
+    fn focus_scope(&self) -> FocusPolicy {
+        FocusPolicy::NONE
+    }
+
+    /// The roving group over the stops in the component's content: one Tab stop whose members take
+    /// the arrows (a container's `ContainerProps::roving`).
+    fn roving(&self) -> Option<Roving> {
+        None
+    }
+
     /// Runs at every `show`: after the run, or on the settled `Cx` of a kept node.
     fn finish(self, cx: &Cx<'_, Self>) -> Self::Output;
 }
@@ -460,7 +488,7 @@ pub fn show_leaf<C: Component>(component: C, ui: &mut Ui<'_, '_>) -> C::Output {
     }
     let Ui { cx, flow } = ui;
     cx.keyed(child, |cx| {
-        cx.inline(ComponentNode { key: key.map_or(0, fold), tag }, |kept, state, cx| {
+        cx.inline(ComponentNode { key: key.map_or(0, fold), tag, stop: component.keys().is_some() }, |kept, state, cx| {
             let kept_outputs = holds(kept, key, state);
             let size = match kept.cached(room).filter(|_| kept_outputs) {
                 Some(size) => size,
@@ -531,6 +559,7 @@ fn finish_settled<C: Component>(mut component: C, id: Id, rect: Rect, tokens: &T
         settled: true,
         env: &env,
         level: Cell::new(None),
+        holds_escape: Cell::new(false),
     };
     component.finish(&rcx)
 }
@@ -576,6 +605,7 @@ pub(crate) fn run<C: Component>(mut component: C, kept: &mut Kept, cx: &mut Buil
         settled: false,
         env: &env,
         level: Cell::new(None),
+        holds_escape: Cell::new(false),
     };
     component.update(&mut rcx);
     let wrote = !rcx.edit.events.is_empty();
@@ -589,6 +619,12 @@ pub(crate) fn run<C: Component>(mut component: C, kept: &mut Kept, cx: &mut Buil
     tip::show(&mut kept.tip, component.tooltip(), true, cx, ran.id, ran.rect, ran.tokens);
     kept.drag = component.drag_source();
     kept.drop = component.drop_target();
+    let stop = component.keys();
+    kept.focus.ring = stop.map(|_| craft_ui_rt::Stroke::new(ran.tokens.stroke.focus, ran.tokens.color.line.focus));
+    kept.focus.stop = stop;
+    kept.focus.scope = component.focus_scope();
+    kept.focus.roving = component.roving();
+    kept.focus.holds_escape = rcx.holds_escape.get();
     kept.variants = record_variants(&mut component, &rcx, cx, sense);
     // Nothing is built while the window's access tree is off; turning it on rebuilds every node.
     let built = cx.access_enabled().then(|| {
@@ -646,6 +682,7 @@ fn input_facts(input: &[NodeInput], origin: Pos2, mut dragging: bool) -> (InputF
                 }
             }
             NodeInput::Access(a) => facts.clicked |= a.action == accesskit::Action::Click && a.sub.is_none(),
+            NodeInput::Key(k) => facts.clicked |= k.activates,
             NodeInput::DragEnd(_) | NodeInput::Drop(_) => {}
         }
     }

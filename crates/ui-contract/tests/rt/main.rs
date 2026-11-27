@@ -2,6 +2,7 @@
 //! the hooks it must. Relations only, no times.
 
 mod access;
+mod focus;
 mod input;
 mod layout;
 mod overlay;

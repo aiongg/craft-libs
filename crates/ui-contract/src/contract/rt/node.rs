@@ -5,13 +5,15 @@ use std::any::Any;
 
 use craft_behavior::{PartRef, PressStart};
 use craft_ui_rt::{
-    AccessCx, Constraints, Cursor, DisplayList, DragData, DragOutcome, DropPhase, Element, Event, EventCx, Gesture, Handled, HitShape, LayoutCx,
-    Mods, NodeId, PaintCx, PointerButton, PointerInput, Pos2, Sense, State, Vec2,
+    AccessCx, Constraints, CornerRadii, Cursor, DisplayList, DragData, DragOutcome, DropPhase, Element, Event, EventCx, Gesture, Handled, HitShape,
+    InteractFact, LayoutCx, Mods, NodeId, PaintCx, PointerButton, PointerInput, Pos2, Rgba, Sense, State, Vec2,
 };
 
 use egui::Id;
 
 use super::drag::{DragSource, DropRule};
+use super::focus::FocusKept;
+use super::keys::KeyPress;
 use super::memory::Memory;
 use super::overlay::PopupStates;
 use super::sweep::Sweep;
@@ -55,6 +57,8 @@ pub enum NodeInput {
     DragEnd(DragOutcome),
     /// A payload the node's drop rule takes was dropped on it.
     Drop(DragData),
+    /// A key the focused node took (`super::keys`).
+    Key(KeyPress),
 }
 
 /// The room a node was shown in. A node shown in other room runs again.
@@ -156,6 +160,8 @@ pub(crate) struct Kept {
     pub(crate) fade: super::motion::FadeCell,
     /// The opacity a run aimed at and its tween, evaluated at paint time.
     pub(crate) level: std::cell::RefCell<Option<super::motion::Level>>,
+    /// The node's stop, scope and roving group, and its focus ring.
+    pub(crate) focus: FocusKept,
 }
 
 impl Kept {
@@ -190,6 +196,7 @@ impl Kept {
             cursor: None,
             fade: Default::default(),
             level: Default::default(),
+            focus: FocusKept::default(),
         }
     }
 
@@ -235,6 +242,9 @@ pub(crate) struct ComponentNode {
     pub(crate) key: u64,
     /// The toggle sweep group of a sweeping toggle (its flow's id), 0 otherwise.
     pub(crate) tag: u64,
+    /// The component is a Tab stop (`Component::keys`): ui-rt focuses it on a press and falls back
+    /// to it when focus inside it goes.
+    pub(crate) stop: bool,
 }
 
 impl Element for ComponentNode {
@@ -261,6 +271,10 @@ impl Element for ComponentNode {
 
     fn tag(&self) -> u64 {
         self.tag
+    }
+
+    fn focusable(&self) -> bool {
+        self.stop
     }
 
     /// Shows the kept looks for the node's pointer state (reading it only when the variants differ),
@@ -292,13 +306,28 @@ impl Element for ComponentNode {
             let bounds = cx.bounds();
             cx.drop_target(HitShape::Rect(bounds), 0);
         }
+        // The ring reads only the focus-visible fact: a focus move repaints the node, a hover does not.
+        if let Some(ring) = kept.focus.ring
+            && cx.interaction_fact(InteractFact::FocusVisible)
+        {
+            let bounds = cx.bounds();
+            cx.over(|cx| cx.rect(bounds, CornerRadii::ZERO, Rgba::TRANSPARENT, Some(ring)));
+        }
     }
 
     /// Queues what the next run consumes and marks the node, which marks the path to its window
     /// root. A press's `Down` is queued without marking unless the part it went down on sets its
-    /// value on press. Focus requests are the runtime's: it moves focus to the nearest stop.
+    /// value on press. Keys and focus requests go through the key stage and the focus service.
     fn event(&self, kept: &mut Kept, cx: &mut EventCx<'_>, ev: &Event) -> Handled {
         match ev {
+            Event::Focus(on) => {
+                if *on {
+                    kept.focus.took_focus();
+                }
+                Handled::Yes
+            }
+            Event::Key(k) => self.key(kept, cx, k),
+            Event::Access(a) if a.target == cx.node() && a.action == accesskit::Action::Focus && a.sub.is_none() => super::focus::request(kept, cx),
             Event::Hover(on) => {
                 if let Some(tip) = kept.tip.as_mut() {
                     tip.hover(*on, cx);
@@ -349,6 +378,23 @@ impl Element for ComponentNode {
 }
 
 impl ComponentNode {
+    /// A key on this node's path: taken when the node is focused and its kept `KeyUse` says so,
+    /// then by its roving group or its trapping scope.
+    fn key(&self, kept: &mut Kept, cx: &mut EventCx<'_>, k: &craft_ui_rt::KeyInput) -> Handled {
+        if cx.target() == cx.node() {
+            if let Some(press) = super::keys::take(&kept.focus, k) {
+                kept.queue.push(NodeInput::Key(press));
+                cx.request_build();
+                return Handled::Yes;
+            }
+            return super::focus::trap_tab(kept, false, cx, k);
+        }
+        match super::focus::rove(kept, cx, k) {
+            Handled::No => super::focus::trap_tab(kept, false, cx, k),
+            handled => handled,
+        }
+    }
+
     /// The press machine's phases on this node. `Down` takes the press; a sweeping toggle's drag
     /// runs the sweep instead of queuing moves.
     fn pointer(&self, kept: &mut Kept, cx: &mut EventCx<'_>, p: &PointerInput) {
@@ -422,5 +468,14 @@ impl Element for ScopeNode {
 
     fn relayout_boundary(&self) -> bool {
         true
+    }
+
+    /// The window root (the scope that holds the window's env cells) is the last claimant on every
+    /// key's path: Tab and F6.
+    fn event(&self, kept: &mut Kept, cx: &mut EventCx<'_>, ev: &Event) -> Handled {
+        match ev {
+            Event::Key(k) if kept.env.is_some() => super::focus::window_keys(kept, cx, k),
+            _ => Handled::No,
+        }
     }
 }
