@@ -325,6 +325,7 @@ pub(crate) fn run<C: Component>(mut component: C, kept: &mut Kept, cx: &mut Buil
     // 15 settle: edits a paint adopted reach the binding; a reveal goes to the scroll owner.
     let settled = steps::settle(&mut component, &mut cxx);
     let wrote = wrote || settled.wrote();
+    let reveal = cxx.core.reveal.take();
 
     // 16 report: the access node, once per run and only while the window's access tree is on, then
     // the tooltip and the kept retained facts.
@@ -356,6 +357,10 @@ pub(crate) fn run<C: Component>(mut component: C, kept: &mut Kept, cx: &mut Buil
     kept.sizes.clear();
     kept.sizes.push((place.room, size));
     let out = component.finish(cxx);
+    if let Some(rect) = reveal {
+        // Item 6: the reveal bubbles to the nearest scroll owner, which glides to it.
+        super::scroll::reveal(cx, rect);
+    }
     if let Some(board) = board {
         register_inboxes(wants, id, &mut kept.memory, &board, cx.store_mut());
     }
