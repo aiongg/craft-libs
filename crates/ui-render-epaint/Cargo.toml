@@ -1,0 +1,35 @@
+[package]
+autotests = false
+name = "craft-ui-render-epaint"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "The craft-ui-rt Renderer and TextEngine on epaint's tessellator and egui-wgpu: kept meshes per node part, damage-only canvas textures per window, native and wasm"
+
+[lints]
+workspace = true
+
+# No winit and no egui: the platform hands over a raw-window-handle window (`NativeSurface`).
+[dependencies]
+craft-theme = { workspace = true }
+craft-ui-rt = { workspace = true }
+egui-wgpu = { version = "0.37" }
+emath = { version = "0.37", default-features = false }
+epaint = { version = "0.37", default-features = false, features = ["bytemuck"] }
+kurbo = { workspace = true }
+log = "0.4"
+raw-window-handle = "0.6"
+web-time = "1.1"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+pollster = { workspace = true }
+
+[dev-dependencies]
+epaint_default_fonts = "0.37"
+pollster = { workspace = true }
+
+[[test]]
+name = "it"
+path = "tests/main.rs"
