@@ -11,7 +11,7 @@ use std::rc::Rc;
 use craft_behavior::{ColumnKey, Sense};
 use craft_ui::contract::{
     BodyCx, Collapse, Common, Component, Container, ContainerProps, Cx, FooterRegion, Gap, HeaderRegion, Lazy, MeasureCx, MemoKey, MemoProps,
-    MemoView, Response, RowAlign, Scroll, Show as _, ShowContainer as _, Sizing, Ui,
+    MemoView, Mount, Overlay, Response, RowAlign, Scroll, Show as _, ShowContainer as _, Sizing, Ui,
 };
 use craft_ui::layout::{BodyLayout, ColumnGroup};
 use craft_ui::runtime::windows::{WindowEnv, window_root_with};
@@ -563,4 +563,41 @@ fn a_collapse_builds_its_section_once_per_frame_while_it_moves_and_never_after()
     assert!(folds.after.min.y < open_after.min.y, "After moved up under the closed section");
     let idle = step(&mut rig, &mut folds);
     assert!(!idle.ran, "nothing runs once the collapse has settled: {idle:?}");
+}
+
+/// A chip before a dialog mounted on a layer (when `layered`) and a chip after it.
+struct Layered {
+    layered: bool,
+    inside: Rect,
+    after: Rect,
+    measures: Rc<Cell<u32>>,
+}
+
+fn layered_ui(ui: &mut Ui, layered: &mut Layered) {
+    let measures = layered.measures.clone();
+    chip(ui, "Before", ROW, &measures);
+    if layered.layered {
+        let props = props(|p| p.mount(Mount::Layer(Overlay::dialog())));
+        let inside = &mut layered.inside;
+        let _ = Boxed::new(props, &measures).show(ui, |ui, _| {
+            *inside = chip(ui, "Inside", ROW, &measures).rect;
+        });
+    }
+    layered.after = chip(ui, "After", ROW, &measures).rect;
+}
+
+#[test]
+fn a_layer_mount_shows_its_body_on_its_layer_and_takes_no_room_in_its_flow() {
+    let run = |on: bool| {
+        let mut layered = Layered { layered: on, inside: Rect::NOTHING, after: Rect::NOTHING, measures: Rc::default() };
+        let mut rig = rig();
+        let step = |rig: &mut Rig<RecordingRenderer>, layered: &mut Layered| rig.step_with(&mut |_, cx| root(cx, |ui| layered_ui(ui, layered)));
+        settle(&mut rig, &mut |rig| step(rig, &mut layered));
+        let idle = step(&mut rig, &mut layered);
+        assert!(!idle.ran, "a shown layer mount settles: {idle:?}");
+        layered
+    };
+    let (with, without) = (run(true), run(false));
+    assert!(with.inside.width() > 0.0, "the dialog's body ran on its layer: {:?}", with.inside);
+    assert_eq!(with.after, without.after, "After stands where it stands with no dialog: the layer mount took no room");
 }

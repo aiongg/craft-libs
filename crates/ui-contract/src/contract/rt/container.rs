@@ -637,8 +637,8 @@ fn regions_env(props: &ContainerProps, place: &Env, enabled: bool, takes_width: 
 /// run, under its kept node, and reports its size. `place` is the env the container's children are
 /// placed under.
 ///
-/// A container mounted on a layer (`Mount::Layer`) is shown as the content of a layer child of the
-/// node that shows it, unless it is that content already (the layer provides its `LayerHost` and the
+/// A container mounted on a layer (`Mount::Layer`, `FullWindow`, and `Viewport` on its fallback layer)
+/// is shown as the content of a layer child of the node that shows it, unless it is that content already (the layer provides its `LayerHost` and the
 /// container is shown in the layer body's flow): then it fills the layer's region and its close goes
 /// to the layer. A container with a theme (`ContainerProps::theme`) is shown inside a scope that
 /// gives it and everything under it that theme.
@@ -650,8 +650,12 @@ pub(crate) fn show_container<C: Container, R>(
     tip: Option<TipFn<'_>>,
 ) -> Inner<C::Output, R> {
     let props = slot.as_ref().expect("a container is shown once").props(Internal::new());
+    // A full-window mount is a layer over the whole window with the props' focus scope; a viewport mount shows on its
+    // fallback layer.
     let layer = match &props.mount {
         Mount::Layer(overlay) => Some(overlay.clone()),
+        Mount::FullWindow => Some(Overlay::full_window(props.focus)),
+        Mount::Viewport { fallback, .. } => Some(fallback.clone()),
         _ => None,
     };
     let (layer_like, theme) = (matches!(props.mount, Mount::FullWindow | Mount::Viewport { .. }), props.theme.clone());
