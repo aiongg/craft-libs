@@ -15,6 +15,7 @@ const AT: Rect = Rect { min: Pos2::new(10.0, 10.0), max: Pos2::new(310.0, 40.0) 
 struct Placed {
     #[common]
     common: Common,
+    #[key(skip)]
     align: HAlign,
 }
 

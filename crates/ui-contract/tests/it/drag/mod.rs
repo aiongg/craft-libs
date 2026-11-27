@@ -54,7 +54,9 @@ struct Seen {
 struct Chip<'a> {
     #[common]
     common: Common,
+    #[key(skip)]
     seen: &'a RefCell<Seen>,
+    #[key(skip)]
     preview: DragPreview,
 }
 
@@ -109,7 +111,9 @@ impl DropTarget<Payload> for Accepts {
 struct Slot<'a> {
     #[common]
     common: Common,
+    #[key(skip)]
     seen: &'a RefCell<Seen>,
+    #[key(skip)]
     mark: DropMark,
 }
 
@@ -302,6 +306,7 @@ impl WindowDropTarget<Payload> for Anywhere {
 struct Catch<'a> {
     #[common]
     common: Common,
+    #[key(skip)]
     seen: &'a RefCell<Seen>,
 }
 
@@ -407,6 +412,7 @@ impl WindowDropTarget<OsFiles> for OnWindow {
 struct FileList<'a> {
     #[common]
     common: Common,
+    #[key(skip)]
     landed: &'a RefCell<Landed>,
     /// The targets take files under a modal layer.
     under_modal: bool,
@@ -416,6 +422,7 @@ struct FileList<'a> {
 struct RowOnly<'a> {
     #[common]
     common: Common,
+    #[key(skip)]
     landed: &'a RefCell<Landed>,
 }
 
@@ -423,6 +430,7 @@ struct RowOnly<'a> {
 struct WindowOnly<'a> {
     #[common]
     common: Common,
+    #[key(skip)]
     landed: &'a RefCell<Landed>,
 }
 
@@ -430,6 +438,7 @@ struct WindowOnly<'a> {
 struct PositionalWindow<'a> {
     #[common]
     common: Common,
+    #[key(skip)]
     landed: &'a RefCell<Landed>,
 }
 
@@ -726,6 +735,7 @@ type Drops = Vec<(usize, Vec<(String, Option<Vec<u8>>)>)>;
 struct ReadDrop<'a> {
     #[common]
     common: Common,
+    #[key(skip)]
     landed: &'a RefCell<Drops>,
     pass: usize,
 }

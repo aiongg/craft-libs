@@ -31,7 +31,7 @@ impl<T: Slot + Serialize + DeserializeOwned> Savable for T {}
 
 /// The key of a saved slot, such as `"craft_dialogs.export.place"`. The crate prefix is checked, and the key
 /// is never derived from an `Id`.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 pub struct SaveKey(Cow<'static, str>);
 
 impl SaveKey {

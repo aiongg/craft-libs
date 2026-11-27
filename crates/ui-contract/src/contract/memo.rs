@@ -366,6 +366,18 @@ pub trait MemoProps {
     }
 }
 
+/// Everything a component's hooks read from `self`, fed into a [`MemoKey`]: on craft-ui-rt a node whose key, place
+/// and tracked reads are unchanged and that received no input keeps its outputs and runs no hook
+/// (docs/contract-rt.md section 6). `#[derive(Component)]` writes it over the fields; `#[key(skip)]` and
+/// `#[key(by = expr)]` on a field and `#[component(unkeyed)]` on the type adjust it.
+pub trait ComponentKey {
+    /// The type has no key (`#[component(unkeyed)]`): it runs at every build of its scope.
+    const UNKEYED: bool = false;
+
+    /// Feeds everything the hooks read from `self` into `key`.
+    fn key(&self, key: &mut MemoKey);
+}
+
 /// A 128-bit hash of a memoized view's props (SipHash-1-3 with a 128-bit output, a fixed key). A collision has a chance
 /// of about 2⁻¹²⁸ per compare. A [`Stateless`] callback feeds the 64 bits its `TypeId` hashes, so two callbacks key
 /// apart unless those collide.
@@ -1124,5 +1136,107 @@ impl MemoProps for egui::Rect {
 impl MemoProps for egui::Color32 {
     fn key(&self, key: &mut MemoKey) {
         key.write(&self.to_array());
+    }
+}
+
+/// Foreign plain types with a derived `Hash` that component props hold.
+macro_rules! derived_hash {
+    ($($t:ty),* $(,)?) => {
+        $(impl MemoProps for $t {
+            fn key(&self, key: &mut MemoKey) {
+                key.feed_hash(self);
+            }
+        })*
+    };
+}
+
+derived_hash!(
+    craft_theme::ControlSize,
+    craft_theme::Variant,
+    craft_behavior::DocKey,
+    craft_keymap::CommandScope,
+    craft_behavior::ColumnKey,
+    craft_behavior::ScopeKind,
+    craft_behavior::CopyKeys,
+    craft_behavior::CancelRule,
+    craft_behavior::nav::Roving,
+    craft_behavior::ReorderKeys,
+    craft_behavior::MiddleButton,
+    craft_i18n::Counted,
+    craft_theme::State,
+    craft_theme::Flags,
+    craft_theme::Contrast,
+    craft_theme::Size,
+    craft_theme::Mode,
+    craft_behavior::OwnerClass,
+    craft_host::target::WindowChrome,
+    craft_behavior::MotionKind,
+    craft_behavior::overlay::Align,
+    egui::Align2,
+    craft_behavior::Sense,
+);
+
+impl MemoProps for crate::contract::IdSource {
+    fn key(&self, key: &mut MemoKey) {
+        match self {
+            crate::contract::IdSource::Auto => key.write_u32(0),
+            crate::contract::IdSource::Salt(salt) => {
+                key.write_u32(1);
+                key.feed_hash(salt);
+            }
+            crate::contract::IdSource::Id(id) => {
+                key.write_u32(2);
+                id.key(key);
+            }
+        }
+    }
+}
+
+impl MemoProps for craft_behavior::overlay::MinWidth {
+    fn key(&self, key: &mut MemoKey) {
+        use craft_behavior::overlay::MinWidth as W;
+        key.feed_hash(&std::mem::discriminant(self));
+        if let W::Points(points) = *self {
+            points.key(key);
+        }
+    }
+}
+
+impl MemoProps for craft_behavior::ScrollPos {
+    fn key(&self, key: &mut MemoKey) {
+        (self.x, self.y).key(key);
+    }
+}
+
+impl MemoProps for craft_theme::StateMix {
+    fn key(&self, key: &mut MemoKey) {
+        (self.hover, self.press, self.on).key(key);
+    }
+}
+
+/// A type-erased value (a collection's current item key) cannot be read through `dyn Any`: it changes the key in
+/// every pass, so what holds it runs whenever its scope builds.
+impl MemoProps for dyn std::any::Any + Send + Sync {
+    fn key(&self, key: &mut MemoKey) {
+        key.changes_every_pass();
+    }
+}
+
+impl MemoProps for craft_behavior::canvas::CanvasTransform {
+    fn key(&self, key: &mut MemoKey) {
+        self.scale.key(key);
+        self.offset.key(key);
+    }
+}
+
+impl MemoProps for craft_behavior::ColumnWidth {
+    fn key(&self, key: &mut MemoKey) {
+        use craft_behavior::ColumnWidth as W;
+        key.feed_hash(&std::mem::discriminant(self));
+        match *self {
+            W::Fixed(width) | W::Controls(width) => width.key(key),
+            W::Fill { weight, .. } => weight.key(key),
+            _ => {}
+        }
     }
 }

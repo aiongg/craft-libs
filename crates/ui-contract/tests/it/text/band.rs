@@ -18,6 +18,7 @@ const WORDS: [&str; 9] = ["200", "100", "44%", "40%", "201", "45%", "Hello", "Wi
 struct OwnWidth {
     #[common]
     common: Common,
+    #[key(skip)]
     below_half: Rc<Cell<usize>>,
 }
 

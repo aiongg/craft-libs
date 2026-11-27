@@ -6,7 +6,7 @@ use craft_behavior::{ColumnKey, ColumnWidth};
 use craft_keymap::Chord;
 
 /// A toggle column: its cells flip by click, and a drag across them sweeps one value over all of them.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct ToggleColumn {
     /// A drag across the cells sets them all to the first cell's new value.
@@ -50,7 +50,7 @@ pub struct ColumnLayout {
 }
 
 /// What a column's cells are.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum ColumnKind {
     /// Content the item paints.
@@ -60,7 +60,7 @@ pub enum ColumnKind {
 }
 
 /// One column of a collection.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct ColumnSpec {
     /// The column's stable key.
@@ -103,7 +103,7 @@ pub struct ColumnSpec {
 }
 
 /// The remove control of a column's header.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct ColumnRemove {
     /// The control's accessible name.
@@ -242,7 +242,7 @@ impl ColumnSpec {
 }
 
 /// The column the rows are sorted by and the direction: the app's value, which it changes on `ColumnEvent::Sort`.
-#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct ColumnSort {
     /// The sorted column.

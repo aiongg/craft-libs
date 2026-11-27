@@ -29,6 +29,7 @@ impl Clone for Counted {
 struct Holder<'a> {
     #[common]
     common: Common,
+    #[key(skip)]
     value: Bind<'a, Counted>,
 }
 

@@ -16,6 +16,7 @@ use std::time::Duration;
 struct Hovered<'a> {
     #[common]
     common: Common,
+    #[key(skip)]
     seen: &'a Cell<f32>,
 }
 
@@ -85,6 +86,7 @@ struct Animator<'a> {
     common: Common,
     open: bool,
     arrived: bool,
+    #[key(skip)]
     seen: &'a Seen,
 }
 

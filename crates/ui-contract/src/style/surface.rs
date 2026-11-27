@@ -7,7 +7,7 @@ use craft_theme::{Edge, Elevation, Rgba, Stroke as StrokeStep};
 use egui::{Color32, CornerRadius, Shadow, Stroke};
 
 /// What the band behind a header paints.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum BandFill {
     /// A surface's fill.

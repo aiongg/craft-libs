@@ -775,6 +775,7 @@ struct Capture<'a> {
     common: Common,
     #[container]
     props: ContainerProps,
+    #[key(skip)]
     closed: &'a RefCell<Vec<CloseReason>>,
 }
 

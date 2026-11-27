@@ -30,8 +30,10 @@ struct Hooked<'a> {
     common: Common,
     #[container]
     props: ContainerProps,
+    #[key(skip)]
     log: &'a Log,
     /// Where the calls of a measuring run go, when the trial tells the runs apart.
+    #[key(skip)]
     measured: Option<(&'a Log, egui::Context)>,
     tone: Option<u8>,
 }
@@ -246,6 +248,7 @@ fn the_step_log_is_kept_only_for_an_inspected_region() {
 struct NoParts<'a> {
     #[common]
     common: Common,
+    #[key(skip)]
     calls: &'a std::cell::Cell<usize>,
     declare: bool,
 }

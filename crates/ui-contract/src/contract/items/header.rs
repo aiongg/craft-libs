@@ -950,7 +950,7 @@ struct HeaderTextStyle {
 }
 
 /// The resize grip at a column's end edge, as the header cell paints it.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, crate::contract::MemoProps)]
 struct HeaderEdge {
     /// The grip part's state: its line shows under the pointer and while dragged.
     state: StateSet,
@@ -959,7 +959,7 @@ struct HeaderEdge {
 }
 
 /// A column's remove control as the header cell paints it.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, crate::contract::MemoProps)]
 struct RemoveMark {
     rect: Rect,
     enabled: bool,
@@ -970,7 +970,7 @@ type HeaderField<'a> = Box<dyn FnOnce(&mut PaintUi<'_>) + 'a>;
 
 /// A header cell's label.
 #[derive(crate::contract::Component)]
-#[component(sample = HeaderText::sample)]
+#[component(sample = HeaderText::sample, unkeyed)]
 struct HeaderText<'a> {
     #[common]
     common: Common,

@@ -936,6 +936,7 @@ const KNOB: PartKey = PartKey::new("knob");
 struct Knob<'a> {
     #[common]
     common: craft_ui::contract::Common,
+    #[key(skip)]
     seen: &'a RefCell<Vec<Option<Pos2>>>,
 }
 

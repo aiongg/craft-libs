@@ -22,6 +22,7 @@ pub struct Table<'a> {
     #[container]
     props: ContainerProps,
     items: CollectionProps,
+    #[key(skip)]
     column_layout: Option<Bind<'a, ColumnLayout>>,
 }
 

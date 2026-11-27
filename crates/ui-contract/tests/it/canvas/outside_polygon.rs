@@ -20,6 +20,7 @@ const REACH: f32 = 30.0;
 struct Around<'a> {
     #[common]
     common: Common,
+    #[key(skip)]
     pressed: &'a Cell<bool>,
 }
 

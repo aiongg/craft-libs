@@ -4,18 +4,7 @@ use crate::contract::{IdSource, MemoKey};
 use craft_ui_rt::hash_key;
 use egui::Id;
 
-pub use craft_ui_macros::ComponentKey;
-
-/// Everything a component's hooks read from `self`, fed into a [`MemoKey`]: a node whose key, place
-/// and tracked reads are unchanged and that received no input keeps its outputs and runs no hook.
-/// Derive it (`#[derive(ComponentKey)]`).
-pub trait ComponentKey {
-    /// The type has no key (`#[component(unkeyed)]`): it runs at every build of its scope.
-    const UNKEYED: bool = false;
-
-    /// Feeds everything the hooks read from `self` into `key`.
-    fn key(&self, key: &mut MemoKey);
-}
+pub use crate::contract::ComponentKey;
 
 /// The key of `component`, or `None` for an unkeyed type.
 pub(crate) fn component_key<C: ComponentKey>(component: &C) -> Option<u128> {

@@ -259,7 +259,7 @@ impl Completion {
 }
 
 /// What an editor part edits.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum EditorPurpose {
     /// Prose.

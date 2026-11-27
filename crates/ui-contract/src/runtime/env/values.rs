@@ -101,7 +101,7 @@ impl ArenaId {
 }
 
 /// Where a column's content sits.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
 pub enum ColumnAlign {
     /// At the start edge.
     #[default]

@@ -19,6 +19,7 @@ struct Handle<'a> {
     #[common]
     common: Common,
     part: Rect,
+    #[key(skip)]
     pressed: &'a Cell<bool>,
 }
 

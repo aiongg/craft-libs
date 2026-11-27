@@ -17,7 +17,7 @@ const SPEED_MULTIPLIER: f32 = 0.04;
 const MAX_DISPLACEMENT: f32 = 1_000_000.0;
 
 /// What the middle button does over a scroll area.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum MiddleButton {
     /// Drags the view.

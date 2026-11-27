@@ -31,6 +31,7 @@ struct Log {
 struct LatchProbe<'a> {
     #[common]
     common: Common,
+    #[key(skip)]
     log: &'a RefCell<Log>,
 }
 

@@ -26,9 +26,12 @@ const EDITOR: PartKey = PartKey::new("editor");
 struct Probe<'a> {
     #[common]
     common: Common,
+    #[key(skip)]
     log: &'a RefCell<Vec<EditorInput>>,
     purpose: EditorPurpose,
+    #[key(skip)]
     held: Option<&'a RefCell<String>>,
+    #[key(skip)]
     pastes: Option<&'a RefCell<Vec<usize>>>,
 }
 

@@ -223,3 +223,11 @@ pub fn in_room<R>(ui: &mut Ui, rect: Rect, body: impl FnOnce(&mut Ui) -> R) -> R
     })
     .inner
 }
+
+/// The definition keys by its `Arc` (a caller keeps one per definition, as the token cache does), the rest by value.
+impl crate::contract::MemoProps for ThemeScope {
+    fn key(&self, key: &mut crate::contract::MemoKey) {
+        key.feed_hash(&self.theme.as_ref().map(|theme| Arc::as_ptr(theme) as usize));
+        key.feed_hash(&(self.mode, self.contrast, self.density));
+    }
+}

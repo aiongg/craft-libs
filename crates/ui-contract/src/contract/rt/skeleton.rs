@@ -11,6 +11,7 @@ use super::node::Pointer;
 use super::run::{Component, Container, Cx, MeasureCx, Paint, show_container, show_leaf};
 use super::ui::Ui;
 use crate::contract::IdSource;
+use crate::contract::{MemoKey, MemoProps};
 
 /// What `IconButton::show` returns.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -22,9 +23,7 @@ pub struct ButtonOutput {
 }
 
 /// A square button showing one icon, named by `label` for assistive technologies.
-#[derive(ComponentKey)]
 pub struct IconButton<'a> {
-    #[key(skip)]
     id: IdSource,
     icon: IconId,
     label: &'a str,
@@ -45,6 +44,13 @@ impl<'a> IconButton<'a> {
     /// Shows the button.
     pub fn show(self, ui: &mut Ui<'_, '_>) -> ButtonOutput {
         show_leaf(self, ui)
+    }
+}
+
+impl ComponentKey for IconButton<'_> {
+    fn key(&self, key: &mut MemoKey) {
+        self.icon.key(key);
+        self.label.key(key);
     }
 }
 
@@ -87,9 +93,7 @@ impl Component for IconButton<'_> {
 }
 
 /// Children one under another, with the theme's stack gap between them.
-#[derive(ComponentKey)]
 pub struct Stack {
-    #[key(skip)]
     id: IdSource,
     fill_width: bool,
 }
@@ -122,6 +126,12 @@ impl Stack {
 impl Default for Stack {
     fn default() -> Stack {
         Stack::new()
+    }
+}
+
+impl ComponentKey for Stack {
+    fn key(&self, key: &mut MemoKey) {
+        self.fill_width.key(key);
     }
 }
 

@@ -14,6 +14,7 @@ use std::rc::Rc;
 struct LeastTwice {
     #[common]
     common: Common,
+    #[key(skip)]
     measured: Rc<Cell<u32>>,
 }
 

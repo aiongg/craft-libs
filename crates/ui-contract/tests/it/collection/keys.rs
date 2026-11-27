@@ -137,7 +137,9 @@ struct Probe<'a> {
     #[container]
     props: ContainerProps,
     items: CollectionProps,
+    #[key(skip)]
     layout: Ragged,
+    #[key(skip)]
     digits: &'a RefCell<Vec<u8>>,
 }
 
@@ -257,6 +259,7 @@ fn unused_moves_reach_the_regions_collection_in_either_declaration_order() {
 struct MoveControl<'a> {
     #[common]
     common: Common,
+    #[key(skip)]
     taken: &'a Cell<usize>,
 }
 

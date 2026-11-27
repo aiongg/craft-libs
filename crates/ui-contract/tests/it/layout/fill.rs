@@ -134,7 +134,9 @@ struct Asked {
 struct Stretch<'a> {
     #[common]
     common: Common,
+    #[key(skip)]
     seen: &'a RefCell<Seen>,
+    #[key(skip)]
     asked: &'a Asked,
     track_input: bool,
 }

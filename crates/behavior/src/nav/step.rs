@@ -4,7 +4,7 @@ use crate::intent::{MoveMods, NavMove};
 use emath::Rect;
 
 /// The geometry a collection's keyboard navigation follows.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum NavShape {
     /// One row after another.

@@ -17,7 +17,7 @@ use egui::{Context, Id, IdMap, IdSet, Pos2, Rect, ViewportId};
 use smallvec::SmallVec;
 
 /// A modal's backdrop.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum Backdrop {
     /// No scrim; the layer still blocks input below it.
@@ -27,7 +27,7 @@ pub enum Backdrop {
 }
 
 /// An overlay's place in the order. `Rank` is the only place a layer's egui order is chosen.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum Rank {
     /// A floating window or panel.
@@ -109,7 +109,7 @@ pub enum CloseReason {
 }
 
 /// What a layer is for, beyond its rank.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum LayerRole {
     /// An ordinary layer.

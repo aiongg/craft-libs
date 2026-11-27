@@ -32,6 +32,7 @@ struct Seen {
 struct Pair {
     #[common]
     common: Common,
+    #[key(skip)]
     seen: Rc<Seen>,
 }
 

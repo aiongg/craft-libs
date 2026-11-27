@@ -8,7 +8,7 @@ use craft_behavior::{ColumnWidth, PartKey, PartRef, ValueDrag};
 use std::sync::Arc;
 
 /// How a side label is shown.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum LabelKind {
     /// The label's text.
@@ -37,7 +37,7 @@ impl LabelKind {
 }
 
 /// What a glyph label shows.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, crate::contract::MemoProps)]
 pub(super) enum Glyph {
     Icon(IconSpec<'static>),
     Text(Label),
@@ -45,7 +45,7 @@ pub(super) enum Glyph {
 
 /// The visible form of a glyph label: an icon, or a short text such as "W" or "H". The accessible name stays the
 /// label's `Common.label`.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, crate::contract::MemoProps)]
 pub struct GlyphLabel {
     shown: Glyph,
     /// The text stands for a word caption ([`GlyphLabel::caption`]).
@@ -192,7 +192,7 @@ impl crate::runtime::env::EnvValue for CaptionColumn {
 }
 
 /// Where a side label sits relative to its control.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum FieldLayout {
     /// In a column before the control, above it when the row is too narrow.
@@ -275,7 +275,7 @@ pub(crate) fn inside(env: EnvView<'_>, side: &SideLabel, enabled: bool) -> Optio
 pub type CellWidth = ColumnWidth;
 
 /// What a click on a control's side label does.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum LabelPress {
     /// A click focuses the control.
@@ -287,7 +287,7 @@ pub enum LabelPress {
 }
 
 /// What `ContainerProps.label` holds: how the label is shown and what it does. The text is `Common.label`.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub struct SideLabel {
     /// How the label is shown.

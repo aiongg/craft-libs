@@ -5,7 +5,7 @@ use crate::intent::{Granularity, MoveMods, NavMove};
 use super::step::{NavShape, NavState};
 
 /// Whether a roving group matches typed letters to entries.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum Letters {
     /// Letters do nothing.
@@ -16,7 +16,7 @@ pub enum Letters {
 }
 
 /// A roving group's rules: one Tab stop whose members take moves.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Roving {
     /// The navigation shape.
@@ -46,7 +46,7 @@ pub struct Roving {
 }
 
 /// Which arrow keys a roving group moves its lead with.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum Arrows {
     /// Every arrow.

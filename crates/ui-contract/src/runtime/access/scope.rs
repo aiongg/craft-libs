@@ -15,7 +15,7 @@ use craft_theme::{Flags, variant::Tone};
 use egui::{Context, Id, Rect, Vec2};
 
 /// Whether a field label names its control or describes it.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, crate::contract::MemoProps)]
 #[non_exhaustive]
 pub enum FieldLabelRole {
     /// The label is the control's name.

@@ -34,6 +34,8 @@ struct Options {
     content_painter: bool,
     /// Implements `Meta` and registers nothing (see `#[component(unregistered)]` in the derive's doc).
     unregistered: bool,
+    /// Writes a `ComponentKey` with no key: the component runs at every build of its scope.
+    unkeyed: bool,
     declared: Declared,
     probe: Vec<Type>,
 }
@@ -102,6 +104,8 @@ fn parse_options(attrs: &[Attribute]) -> syn::Result<Options> {
                 options.content_painter = true;
             } else if meta.path.is_ident("unregistered") {
                 options.unregistered = true;
+            } else if meta.path.is_ident("unkeyed") {
+                options.unkeyed = true;
             } else if meta.path.is_ident("probe") {
                 let content;
                 syn::parenthesized!(content in meta.input);
@@ -112,7 +116,7 @@ fn parse_options(attrs: &[Attribute]) -> syn::Result<Options> {
                 options.probe.extend(types);
             } else if !options.declared.read(&meta)? {
                 return Err(meta.error(
-                    "unknown `component` option; expected `container`, `collection`, `widget`, `overlay`, `content_painter`, `canvas_control`, `unregistered`, `exempt(..)`, `sample = ..` or `probe(..)`",
+                    "unknown `component` option; expected `container`, `collection`, `widget`, `overlay`, `content_painter`, `canvas_control`, `unregistered`, `unkeyed`, `exempt(..)`, `sample = ..` or `probe(..)`",
                 ));
             }
             Ok(())
@@ -508,6 +512,8 @@ pub(crate) fn derive(input: TokenStream) -> syn::Result<TokenStream> {
     }
     check_params(&input.generics)?;
     let fields = named_fields(&input, "Component")?;
+    let component_key = crate::component_key::key_impl(&input, &fields, options.unkeyed)?;
+    let component_key = crate::component_key::keyed_crate().then_some(component_key);
     let marked = marked(&input.ident, &fields, shape)?;
     let ident = &input.ident;
     let key_fields =
@@ -581,6 +587,7 @@ pub(crate) fn derive(input: TokenStream) -> syn::Result<TokenStream> {
     };
     Ok(quote! {
         #key_tokens
+        #component_key
         impl #impl_generics #k::contract::Meta for #ident #type_generics #where_clause {
             type Shape = #shape_type;
             type StyleKey = #key_name #key_arguments;
