@@ -180,6 +180,8 @@ fn node_named(rig: &Rig<RecordingRenderer>, name: &str) -> (accesskit::NodeId, a
 
 fn settle(rig: &mut Rig<RecordingRenderer>, app: &mut App) {
     for _ in 0..6 {
+        // A pointer look fades over the theme's hover time, read in paint: the clock moves on.
+        rig.driver.platform.advance(1.0);
         if !step(rig, app).ran {
             return;
         }

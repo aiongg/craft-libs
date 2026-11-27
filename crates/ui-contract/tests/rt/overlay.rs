@@ -19,6 +19,9 @@ use craft_ui_test_kit::rt::Rig;
 
 /// One simulated 60 Hz frame, in seconds.
 const FRAME: f64 = 1.0 / 60.0;
+/// Past the theme's hover fade, which paint reads from the clock: a step this much later ends the
+/// pointer looks' fades.
+const FADE_END: f64 = 0.25;
 
 const ROWS: [&str; 3] = ["Cut", "Copy", "Paste"];
 
@@ -293,11 +296,17 @@ fn step(rig: &mut Rig<RecordingRenderer>, app: &mut App) -> StepReport {
 
 fn settle(rig: &mut Rig<RecordingRenderer>, app: &mut App) {
     for _ in 0..6 {
+        rig.driver.platform.advance(FADE_END);
         if !step(rig, app).ran {
             return;
         }
     }
     panic!("the rig did not settle");
+}
+
+fn finish_fades(rig: &mut Rig<RecordingRenderer>, app: &mut App) {
+    rig.driver.platform.advance(FADE_END);
+    step(rig, app);
 }
 
 fn rig(app: &mut App) -> Rig<RecordingRenderer> {
@@ -357,6 +366,7 @@ fn hover_inside_an_open_popup_repaints_only_the_rows_it_crosses() {
     let moved = input(&mut rig, &mut app, Input::mouse_move(second));
     assert_eq!(moved.frame.painted, 2, "the row left and the row entered swap their looks: {moved:?}");
     assert_eq!((moved.frame.runs, moved.frame.scopes, moved.frame.built), (0, 0, 0), "no hook, scope or build runs");
+    finish_fades(&mut rig, &mut app);
     let within = input(&mut rig, &mut app, Input::mouse_move(second + Vec2::new(1.0, 1.0)));
     assert_eq!(within.frame.painted, 0);
 }
@@ -490,6 +500,7 @@ fn a_toast_waiting_for_its_timeout_runs_no_frame_and_leaves_at_its_deadline() {
     assert_eq!(app.toasts.len(), 1);
     assert_eq!((up.frame.runs, up.frame.scopes), (2, 2), "Other and the card run; the root and the stack run their closures: {up:?}");
     let posted = rig.platform().now();
+    finish_fades(&mut rig, &mut app);
     let main = rig.main;
     for _ in 0..((1.5 / FRAME) as usize) {
         let idle = rig.frame_with(FRAME, &mut |window, cx| {
@@ -624,6 +635,7 @@ fn panel_input(rig: &mut Rig<RecordingRenderer>, app: &mut PanelApp, input: Inpu
 fn panel_settle(rig: &mut Rig<RecordingRenderer>, app: &mut PanelApp) {
     let main = rig.main;
     for _ in 0..6 {
+        rig.driver.platform.advance(FADE_END);
         let report = rig.step_with(&mut |window, cx| {
             if window == main {
                 window_root(cx, |ui| panel_ui(ui, app));

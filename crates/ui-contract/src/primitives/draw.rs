@@ -276,6 +276,23 @@ impl<'a> Draw<'a> {
         Draw { canvas, record, env, data: DataMode::Full, text_direction: env.direction }
     }
 
+    /// The flow direction icons and surfaces mirror with. Reading it is recorded, so a node whose paint never asks
+    /// does not depend on the env's direction.
+    fn flow_direction(&self) -> Direction {
+        if let Ok(mut record) = self.record.try_borrow_mut() {
+            record.direction_read = true;
+        }
+        self.env.direction
+    }
+
+    /// The paragraph direction of text, recorded like [`Self::flow_direction`].
+    fn paragraph_direction(&self) -> Direction {
+        if let Ok(mut record) = self.record.try_borrow_mut() {
+            record.direction_read = true;
+        }
+        self.text_direction
+    }
+
     /// The same painter with `direction` as the paragraph direction of its text, while `env.direction` stays the
     /// flow that icons and surfaces mirror with.
     pub(crate) fn text_direction(mut self, direction: Direction) -> Self {
@@ -302,7 +319,7 @@ impl<'a> Draw<'a> {
     fn text_env(&self) -> TextEnv<'a> {
         TextEnv {
             tokens: self.env.tokens,
-            direction: self.text_direction,
+            direction: self.paragraph_direction(),
             ink: ink_color(self.env.tokens, self.env.ink),
             fonts: self.canvas.services().fonts(),
         }
@@ -340,7 +357,7 @@ impl<'a> Draw<'a> {
     /// Where `layout` of `run` starts in `rect`'s width: the free room shared out by the run's alignment, the reading
     /// start being the right edge in a right-to-left paragraph.
     pub fn text_x(&self, rect: Rect, run: &TextRun<'_>, layout: &TextLayout) -> f32 {
-        let rtl = self.text_direction == Direction::Rtl && !run.ltr;
+        let rtl = self.paragraph_direction() == Direction::Rtl && !run.ltr;
         rect.left() + (rect.width() - layout.size().x).max(0.0) * super::text::free_room_before(run.align, rtl)
     }
 
@@ -380,8 +397,8 @@ impl<'a> Draw<'a> {
     /// runs paint at `Opacity::DISABLED`, as `data_fill` does.
     pub fn doc(&self, rect: Rect, text: &DocText<'_>) -> TextLayout {
         let text = DocText { wrap: Some(rect.width()), ..*text };
-        let layout = text.layout(self.canvas.services(), self.env.tokens, self.text_direction);
-        let share = super::text::free_room_before(text.align, self.text_direction == Direction::Rtl);
+        let layout = text.layout(self.canvas.services(), self.env.tokens, self.paragraph_direction());
+        let share = super::text::free_room_before(text.align, self.paragraph_direction() == Direction::Rtl);
         let x = rect.left() + (rect.width() - layout.size().x).max(0.0) * share;
         // The runs' colours are data.
         if self.data == DataMode::Dimmed {
@@ -464,11 +481,11 @@ impl<'a> Draw<'a> {
                 self.initial(rect, letter, StyleColor(color));
                 return;
             }
-            super::IconSource::Glyph(glyph) => glyph.paint_draw(self, square, color, super::icon::glyph_mirrored(glyph, icon, self.env.direction)),
+            super::IconSource::Glyph(glyph) => glyph.paint_draw(self, square, color, super::icon::glyph_mirrored(glyph, icon, self.flow_direction())),
             _ => super::icon::paint(
                 self.canvas,
                 self.env.tokens,
-                self.env.direction,
+                self.flow_direction(),
                 rect,
                 icon,
                 self.data != DataMode::Full,
@@ -478,7 +495,7 @@ impl<'a> Draw<'a> {
         match icon.badge {
             Some(super::IconMark::Dot(badge)) => {
                 let radius = self.env.tokens.size.handle.sm / 2.0;
-                let centre = if self.env.direction == Direction::Rtl {
+                let centre = if self.flow_direction() == Direction::Rtl {
                     square.left_bottom() + Vec2::new(radius, -radius)
                 } else {
                     square.right_bottom() - Vec2::splat(radius)
@@ -597,7 +614,7 @@ impl<'a> Draw<'a> {
     /// Paints a surface of `kind` (tracks, plot wells).
     pub fn surface(&self, rect: Rect, kind: SurfaceKind, corners: Corners) {
         let style = surface_style(self.env.tokens, kind);
-        self.canvas.extend(Surface::items(&style, None, rect, corners, self.env.direction, self.canvas.pixels_per_point()));
+        self.canvas.extend(Surface::items(&style, None, rect, corners, self.flow_direction(), self.canvas.pixels_per_point()));
     }
 
     /// Paints the edge alone of a surface of `kind` over `rect`, with no shadow or fill: a floating window draws its
@@ -606,18 +623,18 @@ impl<'a> Draw<'a> {
         let mut style = surface_style(self.env.tokens, kind);
         style.shadow = None;
         style.fill = egui::Color32::TRANSPARENT;
-        self.canvas.extend(Surface::items(&style, None, rect, Corners::All, self.env.direction, self.canvas.pixels_per_point()));
+        self.canvas.extend(Surface::items(&style, None, rect, Corners::All, self.flow_direction(), self.canvas.pixels_per_point()));
     }
 
     /// Paints a surface of an already resolved `style` (a kind's look with one field changed, as a knob's round radius).
     pub fn surface_styled(&self, rect: Rect, style: &SurfaceStyle) {
-        self.canvas.extend(Surface::items(style, None, rect, Corners::All, self.env.direction, self.canvas.pixels_per_point()));
+        self.canvas.extend(Surface::items(style, None, rect, Corners::All, self.flow_direction(), self.canvas.pixels_per_point()));
     }
 
     /// Paints `look` over `rect` in `state`, as the paint step paints a component's surface: a part's own surface (an
     /// indicator's well) keeps the kind's edge and bevel.
     pub fn surface_look(&self, rect: Rect, look: &crate::style::SurfaceLook, state: &crate::style::StateSet) {
-        self.canvas.extend(surface_look_items(self.env.tokens, look, state, rect, self.env.direction, self.canvas.pixels_per_point()));
+        self.canvas.extend(surface_look_items(self.env.tokens, look, state, rect, self.flow_direction(), self.canvas.pixels_per_point()));
     }
 
     /// Fills `shape`.
@@ -730,7 +747,7 @@ impl<'a> Draw<'a> {
             WellFill::None => {
                 self.paint(shape, sunken, None);
                 let inner = bounds.shrink(bounds.height() * NONE_DIAGONAL_INSET);
-                let (from, to) = if self.env.direction == Direction::Rtl {
+                let (from, to) = if self.flow_direction() == Direction::Rtl {
                     (inner.right_bottom(), inner.left_top())
                 } else {
                     (inner.left_bottom(), inner.right_top())

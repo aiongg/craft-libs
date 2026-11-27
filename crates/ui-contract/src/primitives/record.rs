@@ -10,6 +10,8 @@ use egui::Id;
 pub struct PaintRecord {
     /// A face dropped its label, as a compact group level drops an inline one: the label is no tooltip text.
     pub label_dropped: bool,
+    /// A call read the env's flow or paragraph direction: what the paint shows depends on it.
+    pub direction_read: bool,
     /// The full text of the first elided run, shown as the tooltip and accessible name when no tooltip is set.
     pub elided: Option<String>,
     /// The screen y of the first text's baseline; step 17 turns it into a distance from the component's top, which

@@ -1,7 +1,7 @@
 //! The retained half of contract content: `ComponentNode` and `ScopeNode`, the ui-rt elements that
 //! keep what the last run produced (docs/contract-rt.md sections 2 and 5).
 
-use std::any::{Any, TypeId};
+use std::any::Any;
 
 use craft_behavior::{PartRef, PressStart};
 use craft_ui_rt::{
@@ -12,10 +12,10 @@ use craft_ui_rt::{
 use egui::Id;
 
 use super::drag::{DragSource, DropRule};
+use super::memory::Memory;
 use super::overlay::PopupStates;
 use super::sweep::Sweep;
 use super::tip::TipKept;
-use crate::runtime::memory::Slot;
 
 /// The pointer state a paint variant was recorded for (section 8).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -99,29 +99,6 @@ pub(crate) fn part_id(part: PartRef) -> u64 {
     craft_ui_rt::hash_key(&part) | 1
 }
 
-/// A node's memory slots, freed with the node.
-#[derive(Default)]
-pub(crate) struct Memory(Vec<(TypeId, Id, Box<dyn Any>)>);
-
-impl Memory {
-    /// The slot of type `T` under `id`, created with its default on first use.
-    pub(crate) fn shown<T: Slot>(&mut self, id: Id) -> &mut T {
-        let at = match self.0.iter().position(|(t, i, _)| *t == TypeId::of::<T>() && *i == id) {
-            Some(at) => at,
-            None => {
-                self.0.push((TypeId::of::<T>(), id, Box::new(T::default())));
-                self.0.len() - 1
-            }
-        };
-        self.0[at].2.downcast_mut::<T>().expect("a slot holds the type it was created with")
-    }
-
-    /// A copy of the slot of type `T` under `id`, or its default.
-    pub(crate) fn recall<T: Slot>(&self, id: Id) -> T {
-        self.0.iter().find(|(t, i, _)| *t == TypeId::of::<T>() && *i == id).and_then(|(_, _, v)| v.downcast_ref::<T>()).cloned().unwrap_or_default()
-    }
-}
-
 /// What the last run of a node produced; the `Local` of both node elements.
 pub(crate) struct Kept {
     /// The craft `Id` services key by.
@@ -171,6 +148,14 @@ pub(crate) struct Kept {
     /// A ui-rt drag session the node started is running: its press moves are the session's, not
     /// input for a run.
     pub(crate) drag_session: bool,
+    /// The env cells the node's window root provided (window root only).
+    pub(crate) env: Option<super::env::EnvCells>,
+    /// The cursor over the node's own shape, from `Component::cursor`.
+    pub(crate) cursor: Option<Cursor>,
+    /// Paint-time state: the fade between pointer looks.
+    pub(crate) fade: super::motion::FadeCell,
+    /// The opacity a run aimed at and its tween, evaluated at paint time.
+    pub(crate) level: std::cell::RefCell<Option<super::motion::Level>>,
 }
 
 impl Kept {
@@ -201,6 +186,10 @@ impl Kept {
             drop: None,
             drag_session: false,
             dragging: false,
+            env: None,
+            cursor: None,
+            fade: Default::default(),
+            level: Default::default(),
         }
     }
 
@@ -274,8 +263,9 @@ impl Element for ComponentNode {
         self.tag
     }
 
-    /// Picks the variant for the node's pointer state (reading it only when the variants differ)
-    /// and re-records the kept hit shapes: the node's own, then its parts above it.
+    /// Shows the kept looks for the node's pointer state (reading it only when the variants differ),
+    /// fades between them and tweens the node's opacity at the frame's time ([`super::motion`]), and
+    /// re-records the kept hit shapes: the node's own, then its parts above it.
     fn paint(&self, kept: &Kept, cx: &mut PaintCx<'_>) {
         let look = if kept.variants.len() > 1 {
             let state = cx.interaction();
@@ -289,16 +279,9 @@ impl Element for ComponentNode {
         } else {
             Pointer::Rest
         };
-        if let Some(v) = kept.variants.iter().find(|v| v.look == look).or_else(|| kept.variants.first()) {
-            cx.extend(&v.content);
-            if !v.overlay.is_empty() {
-                cx.over(|cx| cx.extend(&v.overlay));
-            }
-        }
-        if !kept.sense.is_empty() {
-            let bounds = cx.bounds();
-            cx.hit(HitShape::Rect(bounds), kept.sense, 0);
-        }
+        super::motion::paint_level(kept, cx);
+        super::motion::paint_looks(kept, cx, look);
+        super::cursor::record_own_shape(kept, cx);
         for p in &kept.parts {
             match p.cursor {
                 Some(cursor) => cx.hit_cursor(p.shape, p.sense, p.id, cursor),

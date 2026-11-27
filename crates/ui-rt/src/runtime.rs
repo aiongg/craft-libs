@@ -347,6 +347,11 @@ impl Runtime {
         &mut self.images
     }
 
+    /// The cells and the images together, for a host that delivers background results into both.
+    pub fn store_and_images_mut(&mut self) -> (&mut Store, &mut ImageStore) {
+        (&mut self.store, &mut self.images)
+    }
+
     pub(crate) fn tokens_cell(&self) -> State<Arc<Tokens>> {
         self.shared.tokens
     }
@@ -806,7 +811,7 @@ impl Runtime {
                     users.retain(|&mut u| u != id);
                 }
             }
-            for (index, generation) in node.owned {
+            for (index, generation) in node.owned.into_iter().chain(node.slots.into_iter().map(|(_, at)| at)) {
                 self.store.free_slot(index, generation);
             }
             if let Some(w) = self.windows.get_mut(&node.window) {

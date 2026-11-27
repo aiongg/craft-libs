@@ -5,6 +5,7 @@ mod access;
 mod input;
 mod layout;
 mod overlay;
+mod services;
 
 use craft_behavior::IconId;
 use craft_ui_contract::contract::rt::skeleton::{IconButton, Stack};
@@ -97,6 +98,12 @@ fn rig(app: &mut App) -> Rig<RecordingRenderer> {
     panic!("the rig did not settle");
 }
 
+/// The pointer looks fade over the theme's hover time, read in paint: a later second ends them.
+fn finish_fades(rig: &mut Rig<RecordingRenderer>, app: &mut App) {
+    rig.driver.platform.advance(1.0);
+    step(rig, app);
+}
+
 fn input(rig: &mut Rig<RecordingRenderer>, app: &mut App, input: Input) -> StepReport {
     let main = rig.main;
     rig.inject(main, input);
@@ -111,10 +118,12 @@ fn hover_over_a_kept_icon_button_repaints_one_node_and_runs_no_hook() {
     let entered = input(&mut rig, &mut app, Input::mouse_move(a));
     assert_eq!(entered.frame.painted, 1, "only A repaints: {entered:?}");
     assert_eq!((entered.frame.runs, entered.frame.scopes, entered.frame.built), (0, 0, 0), "no hook, scope or build runs");
+    finish_fades(&mut rig, &mut app);
     let within = input(&mut rig, &mut app, Input::mouse_move(a + Vec2::new(1.0, 1.0)));
     assert_eq!(within.frame.painted, 0, "a move within A paints nothing");
     let to_b = input(&mut rig, &mut app, Input::mouse_move(b));
     assert_eq!((to_b.frame.painted, to_b.frame.runs, to_b.frame.scopes), (2, 0, 0), "A and B swap their looks, nothing runs");
+    finish_fades(&mut rig, &mut app);
     let away = input(&mut rig, &mut app, Input::mouse_move(Pos2::new(390.0, 290.0)));
     assert_eq!((away.frame.painted, away.frame.runs), (1, 0));
 }
