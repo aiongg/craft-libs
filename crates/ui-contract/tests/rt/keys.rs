@@ -35,7 +35,7 @@ impl Component for Field {
     }
 
     fn sense(&self) -> Sense {
-        Sense::HOVER | Sense::CLICK
+        Sense::HOVER | Sense::CLICK | Sense::FOCUS | Sense::TAKE_FOCUS
     }
 
     fn finish(self, cx: craft_ui_contract::contract::Cx<'_, Self>) -> Response {
@@ -162,7 +162,7 @@ mod window {
         }
 
         fn sense(&self) -> Sense {
-            if self.drag { Sense::HOVER | Sense::CLICK | Sense::DRAG | Sense::KEEP_FOCUS } else { Sense::HOVER | Sense::CLICK }
+            if self.drag { Sense::HOVER | Sense::CLICK | Sense::DRAG | Sense::FOCUS | Sense::KEEP_FOCUS } else { Sense::HOVER | Sense::CLICK | Sense::FOCUS }
         }
 
         fn drag_source(&self) -> Option<DragSource> {

@@ -85,7 +85,7 @@ impl Component for TextField<'_> {
     }
 
     fn sense(&self) -> Sense {
-        Sense::HOVER | Sense::CLICK
+        Sense::HOVER | Sense::CLICK | Sense::FOCUS | Sense::TAKE_FOCUS
     }
 
     fn text_input(&self) -> Option<craft_ui_rt::ImePurpose> {
@@ -248,7 +248,7 @@ impl Component for ScrubField<'_> {
     }
 
     fn sense(&self) -> Sense {
-        Sense::HOVER | Sense::CLICK | Sense::DRAG
+        Sense::HOVER | Sense::CLICK | Sense::DRAG | Sense::FOCUS | Sense::TAKE_FOCUS
     }
 
     fn bind(&mut self) -> Option<BindMut<'_, String>> {

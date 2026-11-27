@@ -54,7 +54,7 @@ impl Component for Editor {
     }
 
     fn sense(&self) -> Sense {
-        Sense::HOVER | Sense::CLICK
+        Sense::HOVER | Sense::CLICK | Sense::FOCUS | Sense::TAKE_FOCUS
     }
 
     fn text_input(&self) -> Option<ImePurpose> {
